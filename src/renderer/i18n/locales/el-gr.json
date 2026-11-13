@@ -4979,7 +4979,7 @@
   "settings.mcp.builtinServersDescriptions.no": "Χωρίς περιγραφή",
   "settings.mcp.builtinServersDescriptions.nowledge_mem": "Απαιτεί την εφαρμογή Nowledge Mem να εκτελείται τοπικά. Διατηρεί συνομιλίες με AI, εργαλεία, σημειώσεις, πράκτορες και αρχεία σε ιδιωτική μνήμη στον υπολογιστή σας. Κάντε λήψη από https://mem.nowledge.co/",
   "settings.mcp.builtinServersDescriptions.python": "Εκτελέστε κώδικα Python σε ένα ασφαλές περιβάλλον sandbox. Χρησιμοποιήστε το Pyodide για να εκτελέσετε Python, υποστηρίζοντας την πλειονότητα των βιβλιοθηκών της τυπικής βιβλιοθήκης και των πακέτων επιστημονικού υπολογισμού",
-  "settings.mcp.builtinServersDescriptions.qveris": "Συνδεθείτε στο QVeris για να ανακαλύπτετε, να επιθεωρείτε και να καλείτε δυνατότητες πρακτόρων AI. Συνδεθείτε με κλειδί API (QVERIS_API_KEY) ή μέσω OAuth στο πρόγραμμα περιήγησης.",
+  "settings.mcp.builtinServersDescriptions.qveris": "Συνδεθείτε στο QVeris για να ανακαλύπτετε, να επιθεωρείτε και να καλείτε δυνατότητες πρακτόρων AI. Συνδεθείτε μέσω OAuth στο πρόγραμμα περιήγησης ή ρυθμίστε το QVERIS_API_KEY ως εναλλακτικό κλειδί API.",
   "settings.mcp.builtinServersDescriptions.sequentialthinking": "ένας εξυπηρετητής MCP που υλοποιείται, παρέχοντας εργαλεία για δυναμική και αναστοχαστική επίλυση προβλημάτων μέσω δομημένων διαδικασιών σκέψης",
   "settings.mcp.command": "Εντολή",
   "settings.mcp.copyLogs": "Αντιγραφή καταγραφών",

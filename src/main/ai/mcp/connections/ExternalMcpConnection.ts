@@ -54,8 +54,8 @@ function transportCandidates(server: McpServer): McpServerType[] | null {
  * QVeris prefers OAuth sign-in; its static Bearer header (from QVERIS_API_KEY) is only a
  * fallback credential, so the OAuth provider stays attached and a cached token overrides it.
  */
-function prefersOAuth(server: Pick<McpServer, 'name' | 'headers'>): boolean {
-  if (server.name === BuiltinMcpServerNames.qveris) return true
+function prefersOAuth(server: Pick<McpServer, 'installSource' | 'name' | 'headers'>): boolean {
+  if (server.installSource === 'builtin' && server.name === BuiltinMcpServerNames.qveris) return true
   // `headers` reaches here unnormalized, so match Authorization case-insensitively.
   return !Object.keys(server.headers ?? {}).some((key) => key.toLowerCase() === 'authorization')
 }
@@ -130,6 +130,11 @@ export async function createExternalMcpConnection({
   })
   const headers = mergeHeaders(defaultAppHeaders(), server.headers)
   const useOAuth = prefersOAuth(server)
+  const fallbackAuthorization = useOAuth ? headers.authorization : undefined
+  // Keep fallback Bearer out of `requestInit.headers` so the SDK's OAuth `/token` requests stay public-client.
+  const requestHeaders = useOAuth
+    ? Object.fromEntries(Object.entries(headers).filter(([key]) => key !== 'authorization'))
+    : headers
   const args = [...(server.args || [])]
   const lifetime = new AbortController()
   type AuthOperation = { signal: AbortSignal; lease?: McpAuthorizationLease }
@@ -164,21 +169,33 @@ export async function createExternalMcpConnection({
 
   const createTransport = async (typeOverride?: McpServerType): Promise<Transport> => {
     if (server.baseUrl) {
+      const serverUrl = new URL(server.baseUrl)
+      const fetchUrl = (input: RequestInfo | URL, init?: RequestInit) => {
+        const target = input.toString()
+        if (fallbackAuthorization && target === serverUrl.href) {
+          const merged = new Headers(init?.headers)
+          if (!merged.has('authorization')) {
+            merged.set('authorization', fallbackAuthorization)
+            return net.fetch(target, { ...init, headers: merged })
+          }
+        }
+        return net.fetch(target, init)
+      }
       const type = typeOverride ?? server.type ?? 'sse'
       if (type === 'streamableHttp') {
         return wrapOAuthTransport(
-          new StreamableHTTPClientTransport(new URL(server.baseUrl), {
-            fetch: (input, init) => net.fetch(input.toString(), init),
-            requestInit: { headers },
+          new StreamableHTTPClientTransport(serverUrl, {
+            fetch: fetchUrl,
+            requestInit: { headers: requestHeaders },
             ...(useOAuth ? { authProvider } : {})
           })
         )
       }
       if (type === 'sse') {
         return wrapOAuthTransport(
-          new SSEClientTransport(new URL(server.baseUrl), {
-            fetch: (input, init) => net.fetch(input.toString(), init),
-            requestInit: { headers },
+          new SSEClientTransport(serverUrl, {
+            fetch: fetchUrl,
+            requestInit: { headers: requestHeaders },
             ...(useOAuth ? { authProvider } : {})
           })
         )

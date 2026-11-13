@@ -93,7 +93,7 @@ const McpServerCard: FC<McpServerCardProps> = ({ server, onEdit }) => {
         setLoading(false)
       }
     },
-    [server, ensureServerTrusted, fetchServerVersion, updateMcpServer, t]
+    [server, ensureServerTrusted, fetchServerVersion, updateMcpServer]
   )
 
   const handleDelete = useCallback(async () => {

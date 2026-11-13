@@ -4979,7 +4979,7 @@
   "settings.mcp.builtinServersDescriptions.no": "Fără descriere",
   "settings.mcp.builtinServersDescriptions.nowledge_mem": "Necesită aplicația Nowledge Mem rulând local. Păstrează chat-urile AI, instrumentele, notițele, agenții și fișierele în memoria privată de pe computerul tău. Descarcă de la https://mem.nowledge.co/",
   "settings.mcp.builtinServersDescriptions.python": "Execută cod Python într-un mediu sandbox securizat. Rulează Python cu Pyodide, suportând majoritatea bibliotecilor standard și pachetelor de calcul științific",
-  "settings.mcp.builtinServersDescriptions.qveris": "Conectați-vă la QVeris pentru a descoperi, inspecta și apela capabilitățile agenților AI. Conectați-vă cu o cheie API (QVERIS_API_KEY) sau prin OAuth în browser.",
+  "settings.mcp.builtinServersDescriptions.qveris": "Conectați-vă la QVeris pentru a descoperi, inspecta și apela capabilitățile agenților AI. Conectați-vă prin OAuth în browser sau configurați QVERIS_API_KEY ca cheie API de rezervă.",
   "settings.mcp.builtinServersDescriptions.sequentialthinking": "O implementare de server MCP care oferă instrumente pentru rezolvarea dinamică și reflexivă a problemelor prin procese de gândire structurată",
   "settings.mcp.command": "Comandă",
   "settings.mcp.copyLogs": "Copiază jurnalele",

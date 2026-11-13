@@ -4979,7 +4979,7 @@
   "settings.mcp.builtinServersDescriptions.no": "Keine Beschreibung",
   "settings.mcp.builtinServersDescriptions.nowledge_mem": "Erfordert lokal laufende Nowledge Mem App. Speichert KI-Chats, Tools, Notizen, Agenten und Dateien in einem privaten Speicher auf Ihrem Computer. Download unter https://mem.nowledge.co/",
   "settings.mcp.builtinServersDescriptions.python": "Python-Code in einem sicheren Sandbox-Umgebung ausführen. Verwendung von Pyodide für Python, Unterstützung für die meisten Standardbibliotheken und wissenschaftliche Pakete",
-  "settings.mcp.builtinServersDescriptions.qveris": "Verbinden Sie QVeris, um Fähigkeiten von KI-Agenten zu entdecken, zu prüfen und aufzurufen. Anmeldung per API-Schlüssel (QVERIS_API_KEY) oder per OAuth im Browser.",
+  "settings.mcp.builtinServersDescriptions.qveris": "Verbinden Sie QVeris, um Fähigkeiten von KI-Agenten zu entdecken, zu prüfen und aufzurufen. Melden Sie sich per OAuth im Browser an oder konfigurieren Sie QVERIS_API_KEY als alternativen API-Schlüssel.",
   "settings.mcp.builtinServersDescriptions.sequentialthinking": "MCP-Server-Implementierung mit strukturiertem Denkprozess, der dynamische und reflektierende Problemlösungen ermöglicht",
   "settings.mcp.command": "Befehl",
   "settings.mcp.copyLogs": "Logs kopieren",

@@ -4979,7 +4979,7 @@
   "settings.mcp.builtinServersDescriptions.no": "Không có mô tả",
   "settings.mcp.builtinServersDescriptions.nowledge_mem": "Yêu cầu ứng dụng Nowledge Mem chạy cục bộ. Lưu giữ cuộc trò chuyện AI, công cụ, ghi chú, Agent và tệp trong bộ nhớ riêng tư trên máy tính. Tải xuống tại https://mem.nowledge.co/",
   "settings.mcp.builtinServersDescriptions.python": "Thực thi mã Python trong môi trường sandbox an toàn. Chạy Python với Pyodide, hỗ trợ hầu hết các thư viện chuẩn và các gói tính toán khoa học",
-  "settings.mcp.builtinServersDescriptions.qveris": "Kết nối với QVeris để khám phá, kiểm tra và gọi các khả năng của tác nhân AI. Đăng nhập bằng khóa API (QVERIS_API_KEY) hoặc qua OAuth trong trình duyệt.",
+  "settings.mcp.builtinServersDescriptions.qveris": "Kết nối với QVeris để khám phá, kiểm tra và gọi các khả năng của tác nhân AI. Đăng nhập qua OAuth trong trình duyệt hoặc cấu hình QVERIS_API_KEY làm khóa API dự phòng.",
   "settings.mcp.builtinServersDescriptions.sequentialthinking": "Một triển khai máy chủ MCP cung cấp các công cụ để giải quyết vấn đề động và phản chiếu thông qua các quy trình tư duy có cấu trúc",
   "settings.mcp.command": "Lệnh",
   "settings.mcp.copyLogs": "Sao chép nhật ký",

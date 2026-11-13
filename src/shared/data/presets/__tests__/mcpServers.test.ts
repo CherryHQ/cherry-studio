@@ -31,7 +31,7 @@ describe('PRESET_MCP_SERVERS', () => {
       expect.objectContaining({
         type: 'streamableHttp',
         baseUrl: 'https://mcp.qveris.ai/mcp',
-        // An empty key is valid: the hosted endpoint falls back to MCP OAuth sign-in.
+        // QVeris signs in via MCP OAuth by default; QVERIS_API_KEY stays as an optional fallback.
         env: { QVERIS_API_KEY: '' },
         shouldConfig: true,
         isActive: false

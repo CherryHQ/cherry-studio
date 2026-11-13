@@ -4979,7 +4979,7 @@
   "settings.mcp.builtinServersDescriptions.no": "无描述",
   "settings.mcp.builtinServersDescriptions.nowledge_mem": "需要本地运行 Nowledge Mem 应用。将 AI 对话、工具、笔记、智能体和文件保存在本地计算机的私有记忆中。请从 https://mem.nowledge.co/ 下载",
   "settings.mcp.builtinServersDescriptions.python": "在安全的沙盒环境中执行 Python 代码。使用 Pyodide 运行 Python，支持大多数标准库和科学计算包",
-  "settings.mcp.builtinServersDescriptions.qveris": "连接 QVeris，供 AI 智能体发现、检查和调用外部能力。可使用 API Key（QVERIS_API_KEY）或通过浏览器 OAuth 登录。",
+  "settings.mcp.builtinServersDescriptions.qveris": "连接 QVeris，供 AI 智能体发现、检查和调用外部能力。优先通过浏览器 OAuth 登录，也可配置 QVERIS_API_KEY 作为备选。",
   "settings.mcp.builtinServersDescriptions.sequentialthinking": "一个 MCP 服务器实现，提供了通过结构化思维过程进行动态和反思性问题解决的工具",
   "settings.mcp.command": "命令",
   "settings.mcp.copyLogs": "复制日志",

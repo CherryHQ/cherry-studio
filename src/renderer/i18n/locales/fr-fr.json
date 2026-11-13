@@ -4979,7 +4979,7 @@
   "settings.mcp.builtinServersDescriptions.no": "sans description",
   "settings.mcp.builtinServersDescriptions.nowledge_mem": "Nécessite l’application Nowledge Mem exécutée localement. Conserve les discussions IA, outils, notes, agents et fichiers dans une mémoire privée sur votre ordinateur. Téléchargez depuis https://mem.nowledge.co/",
   "settings.mcp.builtinServersDescriptions.python": "Exécutez du code Python dans un environnement bac à sable sécurisé. Utilisez Pyodide pour exécuter Python, prenant en charge la plupart des bibliothèques standard et des packages de calcul scientifique.",
-  "settings.mcp.builtinServersDescriptions.qveris": "Connectez-vous à QVeris pour découvrir, inspecter et appeler des capacités d’agents IA. Connexion par clé API (QVERIS_API_KEY) ou via OAuth dans le navigateur.",
+  "settings.mcp.builtinServersDescriptions.qveris": "Connectez-vous à QVeris pour découvrir, inspecter et appeler des capacités d’agents IA. Connectez-vous via OAuth dans le navigateur ou configurez QVERIS_API_KEY comme clé API de secours.",
   "settings.mcp.builtinServersDescriptions.sequentialthinking": "Un serveur MCP qui fournit des outils permettant une résolution dynamique et réflexive des problèmes à travers un processus de pensée structuré",
   "settings.mcp.command": "Commande",
   "settings.mcp.copyLogs": "Copier les logs",

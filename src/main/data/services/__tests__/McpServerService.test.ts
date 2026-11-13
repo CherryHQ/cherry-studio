@@ -284,7 +284,7 @@ describe('McpServerService', () => {
       expect(() => mcpServerService.create({ name: '   ' })).toThrow(DataApiError)
     })
 
-    it('accepts an enabled QVeris server without an API key (OAuth sign-in fallback)', () => {
+    it('accepts an enabled QVeris server without an API key (OAuth sign-in by default)', () => {
       const created = mcpServerService.create({
         name: '@cherry/qveris',
         type: 'inMemory',

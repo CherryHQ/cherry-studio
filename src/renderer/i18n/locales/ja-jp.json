@@ -4979,7 +4979,7 @@
   "settings.mcp.builtinServersDescriptions.no": "説明なし",
   "settings.mcp.builtinServersDescriptions.nowledge_mem": "Nowledge Mem アプリをローカルで実行する必要があります。AI チャット、ツール、ノート、エージェント、ファイルをコンピューター上のプライベートメモリに保存します。https://mem.nowledge.co/ からダウンロードしてください",
   "settings.mcp.builtinServersDescriptions.python": "安全なサンドボックス環境でPythonコードを実行します。Pyodideを使用してPythonを実行し、ほとんどの標準ライブラリと科学計算パッケージをサポートしています。",
-  "settings.mcp.builtinServersDescriptions.qveris": "QVeris に接続して、AI エージェントの機能を検出、確認、呼び出しできます。API キー（QVERIS_API_KEY）またはブラウザーでの OAuth ログインで接続できます。",
+  "settings.mcp.builtinServersDescriptions.qveris": "QVeris に接続して、AI エージェントの機能を検出、確認、呼び出しできます。ブラウザーでの OAuth ログインを優先し、代替として QVERIS_API_KEY も設定できます。",
   "settings.mcp.builtinServersDescriptions.sequentialthinking": "構造化された思考プロセスを通じて動的かつ反省的な問題解決を行うためのツールを提供するMCPサーバーの実装",
   "settings.mcp.command": "コマンド",
   "settings.mcp.copyLogs": "ログをコピー",
