@@ -89,6 +89,37 @@ describe('projectAppErrorContext', () => {
     expect(uploaded.params).toEqual({ size: '1024x1024' })
   })
 
+  it('replaces the local user directory in a message on export and upload', () => {
+    const context = createAppErrorContext({
+      source: 'file.preview',
+      operation: 'file.preview.load_error',
+      message:
+        "ENOENT: no such file or directory, open '/Users/alice/Documents/a.pdf'; also C:\\Users\\bob\\Desktop\\b.pdf and /home/carol/c.pdf",
+      name: 'Error',
+      stack: 'Error: ENOENT\n    at open (/Users/alice/app/main.js:1:1)'
+    })
+
+    for (const view of ['export', 'upload'] as const) {
+      const projected = projectAppErrorContext(context, view)
+      expect(projected.message).toBe(
+        "ENOENT: no such file or directory, open '~/Documents/a.pdf'; also ~\\Desktop\\b.pdf and ~/c.pdf"
+      )
+      expect(JSON.stringify(projected)).not.toMatch(/alice|bob|carol/)
+    }
+  })
+
+  it('leaves URL paths that merely contain a home-like segment intact', () => {
+    const context = createAppErrorContext({
+      source: 'mcp',
+      operation: 'mcp.call',
+      message: 'GET https://example.com/home/docs and https://example.com/Users/list failed'
+    })
+
+    expect(projectAppErrorContext(context, 'upload').message).toBe(
+      'GET https://example.com/home/docs and https://example.com/Users/list failed'
+    )
+  })
+
   it('keeps status and a bounded response on export and upload, without prompts or credentials', () => {
     const context = createAppErrorContext({
       id: 'err-429',
