@@ -270,8 +270,8 @@ vi.mock('@renderer/components/CodeViewer', () => ({
 }))
 
 import { cacheService } from '@data/CacheService'
+import { appUpdateCheckService } from '@renderer/components/appUpdate/AppUpdateCheckService'
 import { PopupHost } from '@renderer/components/PopupHost'
-import { appUpdateCheckService } from '@renderer/services/AppUpdateCheckService'
 import { POPUP_EXIT_MS, popupService } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import type { DiagnosticAiDiagnosis } from '@shared/types/diagnosticAi'

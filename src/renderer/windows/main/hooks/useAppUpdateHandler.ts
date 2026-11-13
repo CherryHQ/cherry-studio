@@ -2,9 +2,9 @@ import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { loggerService } from '@logger'
+import { appUpdateCheckService } from '@renderer/components/appUpdate/AppUpdateCheckService'
 import { useAppUpdateState } from '@renderer/hooks/useAppUpdateState'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
-import { appUpdateCheckService } from '@renderer/services/AppUpdateCheckService'
 import { toast } from '@renderer/services/toast'
 import type { CacheAppUpdateState } from '@shared/data/cache/cacheValueTypes'
 
