@@ -48,6 +48,8 @@ Global 和 CN 的 bundle job 独立运行，各 edition 的目标矩阵只依赖
 
 完成上述测量后，除非 Windows 仍决定草稿就绪时间且机器有空闲容量，否则保留单个 Windows runner。安装第二个 runner 是单独的运维决策，不属于以下实现 AC。此类实验需要独立 runner 与工作目录、围绕 USB 签名的机器级锁，以及等价的总耗时、签名、安装和更新检查。云签名、导出 USB 私钥以及将 Windows 签名迁到 Linux 均不属于本提案。
 
+工具原包复用与下载限流并行由独立[提案](2026-11-14-release-tool-downloads.md)负责。本提案继续负责整体发布流水线与原生兼容性要求。
+
 ## 考虑过的替代方案
 
 - 立即增加两个 Windows runner。暂缓：CPU/磁盘竞争和 USB/CSP 行为尚未测量，而重复缓存传输和类型检查已确认存在成本。

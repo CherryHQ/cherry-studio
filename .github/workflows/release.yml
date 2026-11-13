@@ -113,6 +113,7 @@ jobs:
           fi
           node -e 'const { scripts } = require("./release-source/package.json"); for (const name of ["build:release", "build:release:cn"]) { if (!scripts[name]) throw new Error(`Release source does not support ${name}`) }'
           node -e 'require("node:fs").accessSync("release-source/scripts/release/js-bundle.js")'
+          node -e 'const tools = require("./release-source/scripts/download-binaries.js"); if (tools.PACKAGING_DOWNLOAD_VERSION !== 1) throw new Error("Release source does not support packaging tool assets v1"); require("node:fs").accessSync("release-source/scripts/release/prepare-tools.js")'
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           echo "targets=$(node scripts/release/targets.js "$PLATFORM")" >> "$GITHUB_OUTPUT"
 

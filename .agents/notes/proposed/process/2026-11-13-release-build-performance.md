@@ -48,6 +48,8 @@ Deliver the first and second layers separately and compare complete successful r
 
 After those measurements, retain one Windows runner unless Windows still determines draft readiness and the machine has spare capacity. Installing a second runner is a separate operational decision, outside the implementation ACs below. Such an experiment requires separate runner/work directories, a machine-wide lock around USB signing, and equivalent total-time/signature/install/update checks. Cloud signing, exporting the USB key, and Linux Windows-signing migration are outside this proposal.
 
+Tool archive reuse and bounded download concurrency have a separate [proposal](2026-11-14-release-tool-downloads.md). This proposal retains ownership of the broader release pipeline and native compatibility requirements.
+
 ## Alternatives considered
 
 - Add two Windows runners immediately. Defer: CPU/disk contention and USB/CSP behavior are unmeasured, while redundant cache transfer and typechecks are established costs.
