@@ -120,6 +120,7 @@ win:
     - target: portable
   signtoolOptions:
     sign: scripts/packaging/win-sign.js
+    signingHashAlgorithms: [sha256]
   signExts:
     - .node
   verifyUpdateCodeSignature: false
