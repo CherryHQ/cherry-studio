@@ -1,0 +1,71 @@
+name: COS endpoint probe
+on:
+  push:
+    branches: [codex/cos-accelerate-probe]
+    paths: [.github/workflows/cos-endpoint-probe.yml]
+permissions:
+  contents: read
+jobs:
+  probe:
+    name: COS ${{ matrix.endpoint }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    strategy:
+      fail-fast: false
+      matrix:
+        endpoint: [shanghai, accelerate]
+    steps:
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - run: python -m pip install cos-python-sdk-v5==1.9.44
+      - name: Upload and verify 49 MiB fixture
+        env:
+          COS_SECRET_ID: ${{ secrets.COS_SECRET_ID }}
+          COS_SECRET_KEY: ${{ secrets.COS_SECRET_KEY }}
+          ENDPOINT: ${{ matrix.endpoint }}
+        run: |
+          python - <<'PY'
+          import os
+          import tempfile
+          import time
+          from pathlib import Path
+
+          from qcloud_cos import CosConfig, CosS3Client
+
+          bucket = "cherry-studio-1366585212"
+          endpoint = os.environ["ENDPOINT"]
+          domain = f"{bucket}.cos.accelerate.myqcloud.com" if endpoint == "accelerate" else None
+          client = CosS3Client(CosConfig(
+              Region="ap-shanghai", Domain=domain,
+              SecretId=os.environ["COS_SECRET_ID"], SecretKey=os.environ["COS_SECRET_KEY"],
+          ))
+          key = f"releases-sync/_accelerate-probe/{os.environ['GITHUB_RUN_ID']}/{endpoint}.bin"
+          size = 49 * 1024 * 1024
+          completed = False
+          with tempfile.TemporaryDirectory() as directory:
+              fixture = Path(directory) / "fixture.bin"
+              with fixture.open("wb") as output:
+                  for _ in range(49):
+                      output.write(os.urandom(1024 * 1024))
+              start = time.monotonic()
+              try:
+                  client.upload_file(Bucket=bucket, Key=key, LocalFilePath=str(fixture), PartSize=16)
+                  completed = True
+                  uploaded = int(client.head_object(Bucket=bucket, Key=key)["Content-Length"])
+                  if uploaded != size:
+                      raise RuntimeError(f"Unexpected object size {uploaded}")
+                  print(f"{endpoint}: {uploaded} bytes verified in {time.monotonic() - start:.2f}s", flush=True)
+              except Exception as error:
+                  print(f"{endpoint}: {type(error).__name__}", flush=True)
+                  raise SystemExit(1) from None
+              finally:
+                  if completed:
+                      client.delete_object(Bucket=bucket, Key=key)
+                      print("Test object deleted", flush=True)
+                  else:
+                      uploads = client.list_multipart_uploads(Bucket=bucket, Prefix=key)
+                      for upload in uploads.get("Upload", []):
+                          if upload["Key"] == key:
+                              client.abort_multipart_upload(Bucket=bucket, Key=key, UploadId=upload["UploadId"])
+          PY
