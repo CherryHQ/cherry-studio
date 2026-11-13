@@ -1,4 +1,4 @@
-import { act, cleanup, render, type RenderResult, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, type RenderResult, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { Activity, useState } from 'react'
 import type * as ReactHookForm from 'react-hook-form'
@@ -102,6 +102,9 @@ const CREATE = 'library.config.dialogs.create.submit'
 const CANCEL = 'common.cancel'
 const MANUAL = 'library.config.dialogs.create.auto.manual'
 const AUTO = 'library.config.dialogs.create.auto.submit'
+
+/** The dialog's own X button (its sr-only label is not exposed in jsdom). */
+const dialogCloseButton = () => document.querySelector<HTMLElement>('[data-slot="dialog-close"]')!
 
 const BASIC = /library\.config\.dialogs\.create\.step\.basic$/
 const KNOWLEDGE = /library\.config\.dialogs\.create\.step\.knowledge$/
@@ -224,7 +227,8 @@ async function fillDraftToKnowledge(user: ReturnType<typeof userEvent.setup>, ki
   await user.type(screen.getByRole('textbox', { name: 'draft description' }), draft.description)
   await user.click(screen.getByRole('button', { name: MANUAL }))
   await user.click(screen.getByRole('button', { name: NEXT }))
-  await user.click(screen.getByRole('textbox', { name: 'draft prompt' }))
+  // Manual create prefills an Agent's empty prompt with the purpose; replace it with the draft.
+  await user.clear(screen.getByRole('textbox', { name: 'draft prompt' }))
   await user.paste(draft.prompt)
   await user.click(screen.getByRole('button', { name: NEXT }))
   if (kind === 'agent') {
@@ -567,7 +571,7 @@ describe('ResourceCreateWizard', () => {
 
     await user.click(screen.getByRole('button', { name: 'switch to claude-code' }))
     await user.click(screen.getByRole('button', { name: 'use plan mode' }))
-    await user.click(screen.getByRole('button', { name: CANCEL }))
+    fireEvent.click(dialogCloseButton())
     expect(onOpenChange).toHaveBeenCalledWith(false)
     view.rerender(<ResourceCreateWizard {...props} open={false} />)
     view.rerender(<ResourceCreateWizard {...props} open />)
@@ -724,6 +728,19 @@ describe('ResourceCreateWizard auto create', () => {
     expect(screen.getByTestId('model-id')).toHaveTextContent('provider::model')
   })
 
+  it.each([
+    ['agent', 'Review my GitHub PRs'],
+    ['assistant', '']
+  ] as const)('prefills the %s prompt from the purpose on Manual create only for Agents', async (kind, prompt) => {
+    const user = userEvent.setup()
+    render(<ResourceCreateWizard kind={kind} open onOpenChange={vi.fn()} onSubmit={vi.fn()} />)
+
+    await describePurpose(user)
+    await user.click(screen.getByRole('button', { name: MANUAL }))
+
+    expect(screen.getByTestId('draft-prompt').textContent).toBe(prompt)
+  })
+
   it('creates an agent once with the generated configuration', async () => {
     const user = userEvent.setup()
     const onSubmit = vi.fn()
@@ -840,21 +857,24 @@ describe('ResourceCreateWizard auto create', () => {
     )
   })
 
-  it('cannot be cancelled once the generated resource is being created', async () => {
+  it('cannot be closed once the generated resource is being created', async () => {
     const user = userEvent.setup()
     let finishCreate: () => void = () => {}
     const onSubmit = vi.fn(() => new Promise<void>((resolve) => (finishCreate = resolve)))
+    const onOpenChange = vi.fn()
     autoConfigure.generate.mockResolvedValue(generated)
-    render(<ResourceCreateWizard kind="agent" open onOpenChange={vi.fn()} onSubmit={onSubmit} />)
+    render(<ResourceCreateWizard kind="agent" open onOpenChange={onOpenChange} onSubmit={onSubmit} />)
 
     await describePurpose(user)
     await user.click(screen.getByRole('button', { name: 'fill model' }))
     await user.click(screen.getByRole('button', { name: AUTO }))
 
     await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1))
-    expect(screen.getByRole('button', { name: CANCEL })).toBeDisabled()
+    fireEvent.click(dialogCloseButton())
+    expect(onOpenChange).not.toHaveBeenCalled()
     await act(async () => finishCreate())
-    expect(screen.getByRole('button', { name: CANCEL })).toBeEnabled()
+    fireEvent.click(dialogCloseButton())
+    expect(onOpenChange).toHaveBeenCalledWith(false)
   })
 
   it('lets the user cancel while generating and abandons the request', async () => {
@@ -871,7 +891,7 @@ describe('ResourceCreateWizard auto create', () => {
     await describePurpose(user)
     await user.click(screen.getByRole('button', { name: 'fill model' }))
     await user.click(screen.getByRole('button', { name: AUTO }))
-    await user.click(screen.getByRole('button', { name: CANCEL }))
+    fireEvent.click(dialogCloseButton())
 
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
     expect(signal?.aborted).toBe(true)

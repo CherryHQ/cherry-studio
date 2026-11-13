@@ -182,6 +182,17 @@ vi.mock('@cherrystudio/ui', async () => {
   })
   const AccordionItemContext = React.createContext({ disabled: false, value: '' })
   const FormFieldNameContext = React.createContext(undefined)
+  const DialogOpenChangeContext = React.createContext(undefined)
+  // Hidden so role queries never see it; tests reach the dialog's X button through its data-slot.
+  const MockDialogClose = () => {
+    const onOpenChange = React.useContext(DialogOpenChangeContext)
+    return React.createElement('button', {
+      type: 'button',
+      hidden: true,
+      'data-slot': 'dialog-close',
+      onClick: () => onOpenChange?.(false)
+    })
+  }
   return {
     KeyboardLayerProvider,
     BarVisualizer,
@@ -556,16 +567,28 @@ vi.mock('@cherrystudio/ui', async () => {
       }),
     ImagePreviewTrigger: ({ alt, dialogProps: _dialogProps, item, items: _items, ...props }) =>
       React.createElement('img', { ...props, alt: alt ?? item?.alt, src: item?.src }),
-    Dialog: ({ children, onOpenChange: _onOpenChange, open, ...props }) =>
-      open ? React.createElement('div', { ...props, role: 'dialog', 'data-testid': 'dialog' }, children) : null,
+    Dialog: ({ children, onOpenChange, open, ...props }) =>
+      open
+        ? React.createElement(
+            DialogOpenChangeContext.Provider,
+            { value: onOpenChange },
+            React.createElement('div', { ...props, role: 'dialog', 'data-testid': 'dialog' }, children)
+          )
+        : null,
     DialogContent: ({
       children,
       closeOnOverlayClick: _closeOnOverlayClick,
       onEscapeKeyDown: _onEscapeKeyDown,
-      showCloseButton: _showCloseButton,
+      showCloseButton = true,
       size,
       ...props
-    }) => React.createElement('div', { ...props, 'data-size': size, 'data-testid': 'dialog-content' }, children),
+    }) =>
+      React.createElement(
+        'div',
+        { ...props, 'data-size': size, 'data-testid': 'dialog-content' },
+        children,
+        showCloseButton ? React.createElement(MockDialogClose) : null
+      ),
     DialogHeader: ({ children, ...props }) =>
       React.createElement('div', { ...props, 'data-testid': 'dialog-header' }, children),
     DialogTitle: ({ children, ...props }) =>
