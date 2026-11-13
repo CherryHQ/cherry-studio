@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/proposed/feature/2026-11-14-session-browser-tabs.md
+2026-11-14-session-browser-tabs.md: 8639b9abb43c1d22e2954bec39ef21562763936b
+2026-11-14-session-browser-tabs.zh.md: 4f1d393f3c9798471888f115814fb5df84264ad5
