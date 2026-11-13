@@ -44,6 +44,34 @@ describe('Agent prompt onboarding', () => {
     await rm(root, { recursive: true, force: true })
   })
 
+  it('restores the verified development target in rebuilt prompts and removes it after clearing', async () => {
+    const id = randomUUID()
+    const agentDataPath = await createAgentDataDirectory(root, id)
+    agentService.createAgentWithId(id, {
+      type: 'claude-code',
+      name: 'Developer',
+      model,
+      instructions: 'Help develop code.'
+    })
+    const agent = agentService.getAgent(id)!
+    const worktree = {
+      path: '/development/linked tree',
+      commonGitDirectory: '/repo/.git',
+      available: true,
+      branch: 'feature'
+    }
+    const options = { workspacePath, agentDataPath, agent, worktree }
+    const first = await buildAgentRuntimePrompt(options)
+    const restored = await buildAgentRuntimePrompt(options)
+    expect(first.append).toContain(JSON.stringify(worktree.path))
+    expect(restored.append).toContain('Use explicit paths or per-command working directories')
+    expect(restored.append).toContain('filesystem permissions remain unchanged')
+    const unavailable = await buildAgentRuntimePrompt({ ...options, worktree: { ...worktree, available: false } })
+    expect(unavailable.append).toContain('UNAVAILABLE. Do not silently fall back')
+    const cleared = await buildAgentRuntimePrompt({ ...options, worktree: undefined })
+    expect(cleared.append).not.toContain(worktree.path)
+  })
+
   it.each([undefined, ''])('discovers the role when created with instructions=%j', async (instructions) => {
     const id = randomUUID()
     const agentDataPath = await createAgentDataDirectory(root, id)

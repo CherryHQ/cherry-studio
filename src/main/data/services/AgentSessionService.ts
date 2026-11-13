@@ -24,11 +24,13 @@ import { pinService } from '@data/services/PinService'
 import { nullsToUndefined, timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
 import { Emitter, type Event } from '@main/core/lifecycle'
+import { validateSessionWorktree } from '@main/utils/gitWorktree'
 import { buildSearchSnippet } from '@main/utils/searchSnippet'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 import type {
+  SessionWorktree,
   AgentSessionEntity,
   CreateAgentSessionDto,
   DeleteAgentSessionsResult,
@@ -113,6 +115,7 @@ function rowToSession(row: JoinedSessionRow): AgentSessionEntity {
     description: clean.description,
     workspaceId: clean.workspaceId,
     workspace: rowToAgentWorkspace(row.workspace),
+    worktree: clean.worktree,
     traceId: clean.traceId,
     orderKey: clean.orderKey,
     lastActivityAt: timestampToISO(row.session.lastActivityAt),
@@ -161,6 +164,48 @@ export function agentSessionReadModelEffects(
 }
 
 export class AgentSessionService {
+  async setWorktree(id: string, input: string | null): Promise<SessionWorktree | undefined> {
+    const before = this.getById(id)
+    const worktree = input === null ? undefined : await validateSessionWorktree(before.workspace.path, input)
+    this.commitWorktree(before, worktree)
+    return worktree
+  }
+
+  async refreshWorktree(id: string): Promise<SessionWorktree | undefined> {
+    const before = this.getById(id)
+    if (!before.worktree) return undefined
+    let worktree: SessionWorktree
+    try {
+      worktree = await validateSessionWorktree(before.workspace.path, before.worktree.path)
+      if (worktree.commonGitDirectory !== before.worktree.commonGitDirectory) throw new Error('Repository changed')
+    } catch {
+      worktree = { ...before.worktree, available: false, branch: null }
+    }
+    this.commitWorktree(before, worktree)
+    return worktree
+  }
+
+  private commitWorktree(before: AgentSessionEntity, worktree: SessionWorktree | undefined): void {
+    if (JSON.stringify(before.worktree) === JSON.stringify(worktree)) return
+    application.get('DbService').withWriteTx((tx) => {
+      const current = this.getJoinedSessionRowTx(tx, before.id)
+      if (
+        current.session.deletedAt ||
+        current.session.workspaceId !== before.workspaceId ||
+        current.workspace.path !== before.workspace.path ||
+        JSON.stringify(current.session.worktree ?? undefined) !== JSON.stringify(before.worktree)
+      ) {
+        throw new Error('Session binding changed during worktree validation; retry the request')
+      }
+      tx.update(sessionsTable)
+        .set({ worktree: worktree ?? null })
+        .where(eq(sessionsTable.id, before.id))
+        .run()
+    })
+    this.notifyReadModelChange([before.id], 'projection')
+    this.sessionUpdated.fire({ sessionId: before.id })
+  }
+
   createChildArchiveTx(tx: DbOrTx, ownerSessionId: string, name: string): string {
     const owner = tx.select().from(sessionsTable).where(eq(sessionsTable.id, ownerSessionId)).get()
     if (!owner || owner.deletedAt) throw new Error('Child archive owner is unavailable')
@@ -984,7 +1029,7 @@ export class AgentSessionService {
       const workspace = agentWorkspaceService.getRowByIdTx(tx, source.workspaceId)
       if (workspace.id === current.session.workspaceId) return
       // Repoint first, then drop the old system workspace so the session FK never dangles.
-      tx.update(sessionsTable).set({ workspaceId: workspace.id }).where(eq(sessionsTable.id, id)).run()
+      tx.update(sessionsTable).set({ workspaceId: workspace.id, worktree: null }).where(eq(sessionsTable.id, id)).run()
       if (current.workspace.type === AGENT_WORKSPACE_TYPE.SYSTEM) {
         agentWorkspaceService.deleteByIdTx(tx, current.session.workspaceId)
       }
@@ -997,7 +1042,7 @@ export class AgentSessionService {
       sessionId: id,
       createdAt: current.session.createdAt
     })
-    tx.update(sessionsTable).set({ workspaceId: workspace.id }).where(eq(sessionsTable.id, id)).run()
+    tx.update(sessionsTable).set({ workspaceId: workspace.id, worktree: null }).where(eq(sessionsTable.id, id)).run()
   }
 
   private getJoinedSessionRowTx(tx: DbOrTx, id: string): JoinedSessionRow {

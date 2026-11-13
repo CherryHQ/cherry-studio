@@ -69,6 +69,7 @@ export async function prepareDurableDesktop(
   const prompt = await buildAgentRuntimePrompt({
     agent,
     workspacePath: cwd,
+    worktree: session.worktree,
     agentDataPath,
     effectiveLanguage: snapshot.effectiveLanguage,
     citationsGuidance: buildCitationsGuidance({

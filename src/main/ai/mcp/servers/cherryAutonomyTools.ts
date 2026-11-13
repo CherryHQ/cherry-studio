@@ -44,6 +44,7 @@ import {
   SESSION_LIST_TOOL_NAME,
   SESSION_READ_TOOL_NAME,
   SESSION_RENAME_TOOL_NAME,
+  SESSION_WORKTREE_TOOL_NAME,
   SESSION_SEARCH_TOOL_NAME,
   SESSION_SEND_TOOL_NAME
 } from '@shared/ai/agentSessionDelivery'
@@ -1207,6 +1208,34 @@ export function registerAutonomyTools(server: McpServer, ctx: AutonomyToolsConte
       inputSchema: SessionReadInputSchema
     },
     (args) => runSessionTool(ctx, () => readSession(args))
+  )
+  server.registerTool(
+    SESSION_WORKTREE_TOOL_NAME,
+    {
+      description:
+        'Associate the current Session with an existing linked Git worktree after adopting it for this task. Creation alone does not associate it. Use clear to remove the association without deleting Git data. Native cwd, file pane, artifacts and filesystem permissions remain unchanged; use explicit worktree paths or per-command working directories.',
+      inputSchema: z.strictObject({ action: z.enum(['associate', 'clear']), path: z.string().min(1).optional() })
+    },
+    (args) =>
+      runSessionTool(ctx, async () => {
+        if (args.action === 'associate' && !args.path) throw new Error('path is required for association')
+        const worktree = await agentSessionService.setWorktree(
+          ctx.sessionId,
+          args.action === 'clear' ? null : args.path!
+        )
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({
+                worktree: worktree ?? null,
+                guidance:
+                  'Native cwd, file pane, artifacts and filesystem permissions are unchanged. Use explicit worktree paths or per-command working directories. Clearing never deletes Git data.'
+              })
+            }
+          ]
+        }
+      })
   )
   server.registerTool(
     SESSION_RENAME_TOOL_NAME,

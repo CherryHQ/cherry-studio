@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/feature/2026-11-13-session-worktree-indicator.md
+2026-11-13-session-worktree-indicator.md: 000d21c362d0ed4e8b836f73139c787f4ed458f9
+2026-11-13-session-worktree-indicator.zh.md: 496363fe5fbfd87ce8229439ddb84aada9f00147

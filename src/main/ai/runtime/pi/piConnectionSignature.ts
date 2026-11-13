@@ -112,7 +112,7 @@ export async function capturePiConnectionSnapshot(
       JSON.stringify(
         stableValue({
           agent: { ...agent, updatedAt: undefined, configuration },
-          session: { workspaceId: session.workspaceId, workspace: session.workspace },
+          session: { workspaceId: session.workspaceId, workspace: session.workspace, worktree: session.worktree },
           modelId,
           provider,
           model,

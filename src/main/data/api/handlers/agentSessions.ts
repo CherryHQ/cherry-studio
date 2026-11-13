@@ -48,6 +48,9 @@ export const agentSessionHandlers: HandlersFor<AgentSessionSchemas> = {
     GET: async ({ params, query }) => {
       const parsed = GetAgentSessionQuerySchema.safeParse(query ?? {})
       if (!parsed.success) throw toDataApiError(parsed.error)
+      const session = agentSessionService.getConversationById(params.sessionId, parsed.data)
+      if (!session.worktree || session.deletedAt) return session
+      await agentSessionService.refreshWorktree(params.sessionId)
       return agentSessionService.getConversationById(params.sessionId, parsed.data)
     },
 

@@ -382,6 +382,7 @@ async function deriveConnectionConfigFromSnapshot(
   const proxyEnvironmentFingerprint =
     materialized?.proxyEnvironmentFingerprint ?? (await deriveAgentProxyEnvironmentFingerprint(agent, routeFacts))
   const rebuildFacts = {
+    worktree: session.worktree,
     modelId: uniqueModelId,
     contextWindow,
     maxOutputTokens,

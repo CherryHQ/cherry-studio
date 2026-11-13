@@ -1,6 +1,8 @@
 import { sql } from 'drizzle-orm'
 import { type AnySQLiteColumn, check, index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
 
+import type { SessionWorktree } from '@shared/data/api/schemas/agentSessions'
+
 import { createUpdateDeleteTimestamps, orderKeyColumns, orderKeyIndex, uuidPrimaryKey } from './_columnHelpers'
 import { agentTable } from './agent'
 import { agentWorkspaceTable } from './agentWorkspace'
@@ -25,6 +27,7 @@ export const agentSessionTable = sqliteTable(
     // Task ownership survives reuse changes and execution-log collection.
     taskId: text().references(() => jobScheduleTable.id, { onDelete: 'set null' }),
     isTaskReuseTarget: integer({ mode: 'boolean' }).notNull().default(false),
+    worktree: text({ mode: 'json' }).$type<SessionWorktree>(),
     traceId: text(),
     activeNodeId: text(),
     ...orderKeyColumns,

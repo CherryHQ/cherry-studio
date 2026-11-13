@@ -1,5 +1,5 @@
 import dayjs from 'dayjs'
-import { Archive, Folder, PinIcon } from 'lucide-react'
+import { Archive, Folder, GitPullRequestClosed, PinIcon, Split } from 'lucide-react'
 import type { MouseEvent } from 'react'
 import { memo, useCallback, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -154,7 +154,7 @@ const SessionItem = ({
           : null
   const showStreamIndicator = !shortcutHint && conversationRowStatus !== null && conversationRowStatus !== 'approval'
   const showPinAction = !rowState.renaming && !!onTogglePin
-  const showLeadingSlot = reserveLeadingIconSlot || !!channelIcon
+  const showLeadingSlot = reserveLeadingIconSlot || !!channelIcon || !!session.worktree
   const startInlineEdit = useCallback(() => actions.startRename(session.id), [actions, session.id])
   const startMenuEdit = useCallback(() => onOpenRenameDialog(session), [onOpenRenameDialog, session])
   const handleDelete = useCallback(() => onDelete(session.id), [onDelete, session.id])
@@ -293,7 +293,36 @@ const SessionItem = ({
       onAuxClick={handleAuxClick}>
       {showLeadingSlot && (
         <ResourceList.ItemLeadingSlot className={cn('relative', !rowState.renaming && channelIcon && 'rounded-sm')}>
-          {!rowState.renaming && channelIcon ? (
+          {!rowState.renaming && session.worktree && (
+            <Tooltip
+              title={t(
+                session.worktree.available ? 'agent.session.worktree.available' : 'agent.session.worktree.unavailable',
+                {
+                  path: session.worktree.path,
+                  branch: session.worktree.branch ?? t('agent.session.worktree.detached')
+                }
+              )}>
+              <span
+                role="img"
+                aria-label={t(
+                  session.worktree.available
+                    ? 'agent.session.worktree.available'
+                    : 'agent.session.worktree.unavailable',
+                  {
+                    path: session.worktree.path,
+                    branch: session.worktree.branch ?? t('agent.session.worktree.detached')
+                  }
+                )}
+                className="inline-flex shrink-0">
+                {session.worktree.available ? (
+                  <Split size={14} className="rotate-90" />
+                ) : (
+                  <GitPullRequestClosed size={14} className="text-muted-foreground" />
+                )}
+              </span>
+            </Tooltip>
+          )}
+          {!rowState.renaming && channelIcon && !session.worktree ? (
             <img
               src={channelIcon}
               alt=""

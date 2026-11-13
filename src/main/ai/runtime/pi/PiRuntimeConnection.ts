@@ -179,6 +179,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     })
     const prompt = await buildAgentRuntimePrompt({
       workspacePath,
+      worktree: session.worktree,
       agentDataPath,
       agent,
       citationsGuidance,
