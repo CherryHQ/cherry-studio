@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { Button, Drawer, DrawerContent, DrawerTitle, ScrollArea } from '@cherrystudio/ui'
 import { useDataChange, useInfiniteFlatItems, useInfiniteQuery, useMutation, useQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
-import { useAppUpdateCheck } from '@renderer/components/appUpdate/useAppUpdateCheck'
+import { updateNoticeIsFailure, useAppUpdateCheck } from '@renderer/components/appUpdate/useAppUpdateCheck'
 import { useOptionalTabsContext } from '@renderer/hooks/tab'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
@@ -45,7 +45,7 @@ function NotificationItem({
   const unreadDescriptionId = useId()
   const [expanded, setExpanded] = useState(initiallyExpanded)
   const [activating, setActivating] = useState(false)
-  const { appUpdateState, checkForUpdate } = useAppUpdateCheck()
+  const { appUpdateState, noticeKey, checkForUpdate } = useAppUpdateCheck()
   const { trigger: markRead } = useMutation('PATCH', '/notifications/:id', {
     refresh: ['/notifications', '/notifications/unread-count']
   })
@@ -81,6 +81,8 @@ function NotificationItem({
     timeStyle: 'short'
   })
   const canUpdate = release && appUpdateState.available && appUpdateState.info?.version === release.version
+  // A failed install dialog only reaches the shared notice, not the updater's lastErrorKey.
+  const updateErrorKey = appUpdateState.lastErrorKey ?? (updateNoticeIsFailure(noticeKey) ? noticeKey : null)
 
   const activate = async () => {
     setActivating(true)
@@ -191,9 +193,9 @@ function NotificationItem({
               {t('common.open')}
             </Button>
           )}
-          {canUpdate && appUpdateState.lastErrorKey && (
+          {canUpdate && updateErrorKey && (
             <p role="alert" className="text-sm text-destructive">
-              {t(appUpdateState.lastErrorKey)}
+              {t(updateErrorKey)}
             </p>
           )}
           {canUpdate && (

@@ -1,4 +1,5 @@
 import { MockDataApiUtils, mockDataApiService } from '@test-mocks/renderer/DataApiService'
+import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { getI18n } from 'react-i18next'
@@ -6,6 +7,7 @@ import { SWRConfig } from 'swr'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { TabsContext, type TabsContextValue } from '@renderer/hooks/tab'
+import { DefaultSharedCache } from '@shared/data/cache/cacheSchemas'
 import type { NotificationRecord } from '@shared/data/types/notification'
 
 import { NotificationCenterButton, NotificationCenterProvider } from '../NotificationCenter'
@@ -13,6 +15,9 @@ import { UserAccountPanel } from '../UserAccountPanel'
 
 vi.unmock('@cherrystudio/ui')
 vi.unmock('@data/hooks/useDataApi')
+vi.mock('@renderer/components/UpdateDialogPopup', () => {
+  throw new Error('chunk failed to load')
+})
 
 describe('NotificationCenter reading', () => {
   beforeEach(async () => {
@@ -85,6 +90,49 @@ describe('NotificationCenter reading', () => {
     expect(mockDataApiService.patch).not.toHaveBeenCalled()
     await user.click(screen.getByRole('button', { name: 'Mark all as read' }))
     await waitFor(() => expect(entry).not.toHaveAttribute('aria-describedby'))
+  })
+
+  it('tells the user when a downloaded release cannot open its install dialog', async () => {
+    const meta = document.createElement('meta')
+    meta.setAttribute('name', 'logger-window-source')
+    meta.setAttribute('content', 'mainWindow')
+    document.head.appendChild(meta)
+    MockUseCacheUtils.setSharedCacheValue('app.dist.update_status', {
+      ...DefaultSharedCache['app.dist.update_status'],
+      available: true,
+      downloaded: true,
+      info: { version: '2.1.0', files: [], path: '', sha512: '', releaseDate: '' }
+    })
+    const release: NotificationRecord = {
+      id: '00000000-0000-4000-8000-000000000001',
+      eventKey: 'release:2.1.0',
+      category: 'system',
+      kind: 'release',
+      title: 'Cherry Studio 2.1.0',
+      message: '',
+      createdAt: Date.now(),
+      readAt: Date.now(),
+      dismissedAt: null,
+      target: { kind: 'release', version: '2.1.0', releaseNotes: '' }
+    }
+    mockDataApiService.get.mockImplementation(async (path) =>
+      path === '/notifications' ? { items: [release] } : { count: 0 }
+    )
+    const user = userEvent.setup()
+    render(
+      <SWRConfig value={{ provider: () => new Map(), dedupingInterval: 0 }}>
+        <NotificationCenterProvider>
+          <NotificationCenterButton />
+        </NotificationCenterProvider>
+      </SWRConfig>
+    )
+    await user.click(await screen.findByRole('button', { name: /Notifications/ }))
+    await user.click(await screen.findByRole('button', { name: 'Cherry Studio 2.1.0' }))
+    await user.click(await screen.findByRole('button', { name: getI18n().t('update.install') }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(getI18n().t('settings.about.updateError'))
+    meta.remove()
+    MockUseCacheUtils.resetMocks()
   })
 
   it.each([
