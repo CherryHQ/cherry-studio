@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-10-18-sandbox-pending-resources.md
+2026-10-18-sandbox-pending-resources.md: c10c27ef75b95d0c39a535c99abaab2b5505d560
+2026-10-18-sandbox-pending-resources.zh.md: 2458ec2e269d9015fee39ab44488eefb83f549c7

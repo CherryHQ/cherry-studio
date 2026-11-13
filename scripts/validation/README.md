@@ -37,7 +37,7 @@ prints a machine-readable plan. Test commands are one Vitest invocation with exp
 projects; compilers run serially. Local Vitest defaults to two workers, overridable
 through the direct Vitest command or project wrappers' `--maxWorkers` option.
 
-Required workspace packages are built before typechecks and tests. CI setup marks a
+Required workspace packages, including sandbox, are built before typechecks and tests. CI setup marks a
 successful installation with `VALIDATION_WORKSPACE_PREPARED=true`, so later groups
 reuse those exports in the same job. Unprepared local validation still builds them;
 main tests still rebuild SQLite for Node. Do not run Electron development and Node tests concurrently in one
@@ -77,10 +77,10 @@ the failure.
 Main/preload uses two Vitest shards; selected package tests use a separate unsharded
 Linux job. Neither group waits for the other. Renderer uses three Vitest shards.
 Both matrices disable fail-fast so sibling shards still finish after a failure.
-Together with basic checks and one job per macOS/Windows platform, a full plan uses
-nine heavy runners and three lightweight classification/aggregation jobs. This targets
+Together with basic checks and one macOS job and two Windows jobs, a full plan uses
+ten heavy runners and three lightweight classification/aggregation jobs. This targets
 about ten minutes of execution; shared-runner queue time is measured separately.
-macOS/Windows retain the platform-gated test inventory (including system speech).
+macOS and Windows Server retain the platform-gated test inventory (including system speech).
 Portable TypeScript source changes under `packages/aiCore/src`,
 `packages/ai-sdk-provider/src`, and `packages/web-search/src` retain their Linux
 project and consumer tests without selecting native platform jobs. Any mixed input
@@ -89,6 +89,17 @@ package configuration, dependency locks, and unknown inputs, retains both native
 platforms. Scheduled/manual full validation always retains both platforms. The plan
 records platform selection separately from its Linux projects; the scope hash and
 required gates use that selection.
+
+Windows Server 2025 runs platform contracts, including every sandbox contract test, without native
+sandbox execution or system-drive/Null-device preparation.
+
+A separate `windows-11-arm` matrix leg runs the sandbox CLI, Node/Python RPC,
+Windows boundary tests and CLI isolation acceptance. It installs only sandbox
+dependencies, checks Windows 11 24H2+ and requires MXC's actual `base-container`
+tier and a ready public probe. Missing isolation support fails the job; it never
+initializes or falls back to Tier 3. This leg remains part of the required
+`general-test` gate, so Server contract success does not imply native acceptance.
+See the [Windows CI decision](../../.agents/notes/implemented/testing/2026-10-19-sandbox-windows-ci.md).
 
 The required `basic-checks`, `general-test`, and `render-test` names remain stable.
 Their verifier requires classification to succeed, checks every planned job, and

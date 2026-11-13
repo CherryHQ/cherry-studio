@@ -20,7 +20,8 @@ export const testProjects = [
   'ai-sdk-provider',
   'remote-protocol',
   'remote-transport',
-  'system-speech'
+  'system-speech',
+  'sandbox'
 ]
 
 export const checkTasks = {
@@ -31,6 +32,7 @@ export const checkTasks = {
   migrations: { group: 'repository', args: ['db:migrations:check'] },
   theme: { group: 'repository', args: ['--filter', '@cherrystudio/ui', 'theme:check'] },
   lint: { group: 'lint', args: ['lint'] },
+  'types-sandbox': { group: 'types', args: ['--filter', '@cherrystudio/sandbox', 'typecheck'] },
   'types-node': { group: 'types', args: ['typecheck:node'] },
   'types-web': { group: 'types', args: ['typecheck:web'] },
   'types-aicore': { group: 'types', args: ['--filter', '@cherrystudio/ai-core', 'typecheck'] },
@@ -85,6 +87,7 @@ const consumers = {
   'remote-protocol': ['remote-protocol', 'remote-transport', 'shared', 'scripts', 'main', 'preload', 'renderer'],
   'remote-transport': ['remote-transport', 'main', 'preload', 'renderer'],
   'system-speech': ['system-speech', 'main', 'preload'],
+  sandbox: ['sandbox', 'main', 'preload'],
   scripts: ['scripts']
 }
 
@@ -183,6 +186,7 @@ export function createPlan(files, fullReason) {
     if (affected.includes('agent-runtime')) add('types-agent-runtime', file)
     if (affected.includes('remote-protocol')) add('types-remote-protocol', file)
     if (affected.includes('remote-transport')) add('types-remote-transport', file)
+    if (affected.includes('sandbox')) add('types-sandbox', file)
     if (affected.includes('system-speech')) add('types-system-speech', file)
     if (affected.includes('web-search')) add('types-web-search', file)
     if (affected.includes('file-preview')) add('types-file-preview', file)

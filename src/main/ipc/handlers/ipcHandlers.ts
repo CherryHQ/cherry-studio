@@ -39,6 +39,7 @@ import { profileHandlers } from './profile'
 import { providerHandlers } from './provider'
 import { proxyHandlers } from './proxy'
 import { quickAssistantHandlers } from './quickAssistant'
+import { sandboxHandlers } from './sandbox'
 import { screenshotHandlers } from './screenshot'
 import { screenshotChatHandlers } from './screenshotChat'
 import { selectionHandlers } from './selection'
@@ -102,6 +103,7 @@ export const ipcHandlers: IpcHandlersFor<IpcRequestSchemas> = {
   ...proxyHandlers,
   ...providerHandlers,
   ...quickAssistantHandlers,
+  ...sandboxHandlers,
   ...screenshotHandlers,
   ...screenshotChatHandlers,
   ...selectionHandlers,
