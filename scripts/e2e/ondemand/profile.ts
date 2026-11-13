@@ -33,7 +33,7 @@ export function readProfileConfig(env: NodeJS.ProcessEnv = process.env): Profile
   })
 }
 
-export async function prepareAuthenticatedProfile(page: Page, config: ProfileConfig): Promise<void> {
+export async function prepareAuthenticatedProfile(page: Page, config: ProfileConfig): Promise<string> {
   const providerId = `qa-chat-${randomUUID()}`
   const providers: Array<{ provider: CreateProviderDto; model: CreateModelDto }> = [
     {
@@ -101,4 +101,5 @@ export async function prepareAuthenticatedProfile(page: Page, config: ProfileCon
     },
     { providers, chatModelId: createUniqueModelId(providerId, config.model) }
   )
+  return providerId
 }
