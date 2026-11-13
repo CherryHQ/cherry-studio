@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>#24282 — Claude Code client identity through the gateway</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #0b0f14;
+        --panel: #131a22;
+        --line: #22303d;
+        --text: #e8eef5;
+        --muted: #93a4b5;
+        --ok: #3ddc97;
+        --bad: #ff6b6b;
+        --warn: #ffc857;
+        --mono: ui-monospace, 'SF Mono', Menlo, monospace;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0; padding: 36px 40px 30px; background: var(--bg); color: var(--text);
+        font: 14.5px/1.5 -apple-system, 'Helvetica Neue', Arial, sans-serif; width: 1240px;
+      }
+      h1 { font-size: 23px; margin: 0 0 6px; letter-spacing: -0.2px; }
+      .sub { color: var(--muted); font-size: 12.5px; margin-bottom: 20px; }
+      .sub code { color: var(--text); background: #1a232d; padding: 1px 6px; border-radius: 4px; }
+      h2 { font-size: 12.5px; text-transform: uppercase; letter-spacing: 1.1px; color: var(--muted); margin: 22px 0 9px; font-weight: 600; }
+      .grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; }
+      .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px 15px; }
+      .card h3 { margin: 0 0 8px; font-size: 14px; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+      .tag { font-size: 10.5px; font-weight: 700; letter-spacing: 0.6px; padding: 3px 7px; border-radius: 999px; white-space: nowrap; }
+      .tag.bad { color: var(--bad); background: rgba(255,107,107,0.12); border: 1px solid rgba(255,107,107,0.35); }
+      .tag.ok { color: var(--ok); background: rgba(61,220,151,0.12); border: 1px solid rgba(61,220,151,0.35); }
+      .tag.mut { color: var(--muted); background: #18222c; border: 1px solid var(--line); }
+      table { width: 100%; border-collapse: collapse; font-family: var(--mono); font-size: 11.5px; }
+      td { text-align: left; padding: 4px 0; border-bottom: 1px dashed #1e2a36; vertical-align: top; }
+      td.k { color: var(--muted); width: 104px; }
+      .missing { color: var(--bad); }
+      .fwd { color: var(--ok); }
+      pre { margin: 8px 0 0; padding: 9px 10px; background: #0d1319; border: 1px solid #1c2731; border-radius: 8px;
+            font-family: var(--mono); font-size: 11px; color: #c3d2e0; white-space: pre-wrap; word-break: break-word; }
+      .verdict { margin-top: 9px; font-size: 12.5px; color: #cfdae6; }
+      .layers { display: flex; gap: 7px; flex-wrap: wrap; }
+      .layer { font-size: 11.5px; padding: 4px 8px; border-radius: 6px; border: 1px solid var(--line); color: var(--muted); }
+      .layer.real { color: #cfe6ff; border-color: #2b4256; background: #101a24; }
+      .layer.fake { color: var(--warn); border-color: rgba(255,200,87,0.35); background: rgba(255,200,87,0.07); }
+      ul.gates { list-style: none; padding: 0; margin: 0; font-size: 12.5px; }
+      ul.gates li { padding: 4px 0; border-bottom: 1px dashed #1e2a36; display: flex; justify-content: space-between; gap: 14px; }
+      ul.gates code { font-family: var(--mono); font-size: 11.5px; color: #c3d2e0; }
+      ul.gates .pass { color: var(--ok); font-weight: 700; font-size: 11.5px; white-space: nowrap; }
+      .foot { margin-top: 20px; padding-top: 12px; border-top: 1px solid var(--line); color: var(--muted); font-size: 11.5px; }
+      .foot b { color: var(--warn); }
+    </style>
+  </head>
+  <body>
+    <h1>Agent turns through a Claude&nbsp;Code-only relay — request identity after 2.2.0</h1>
+    <div class="sub">
+      Issue <code>#24282</code> · branch <code>fix/24282-relay-gateway-client-identity</code> · base
+      <code>c74990c</code> · measured 2026-11-12 on this worktree
+    </div>
+
+    <h2>What is real in this capture</h2>
+    <div class="layers">
+      <span class="layer real">gateway resolve (real)</span>
+      <span class="layer real">transport selection (real)</span>
+      <span class="layer real">AI SDK adapter (real)</span>
+      <span class="layer real">@ai-sdk/anthropic (real)</span>
+      <span class="layer real">customFetch merge (real)</span>
+      <span class="layer fake">relay network → local enforcing fixture</span>
+      <span class="layer fake">provider record → fixture</span>
+    </div>
+
+    <h2>Before / after, and the ordinary-chat control, at the relay boundary</h2>
+    <div class="grid">
+      <div class="card">
+        <h3>Baseline <code>c74990c</code> <span class="tag bad">REJECTED</span></h3>
+        <table>
+          <tr><td class="k">user-agent</td><td class="missing">no <code>claude-cli/</code> prefix</td></tr>
+          <tr><td class="k">x-app</td><td class="missing">absent</td></tr>
+          <tr><td class="k">x-client-app</td><td class="missing">absent</td></tr>
+          <tr><td class="k">x-api-key</td><td>provider upstream key</td></tr>
+        </table>
+        <pre>relay verdict: 403
+{"name":"AI_APICallError",
+ "message":"Claude Code client required",
+ "providerErrorCategory":"permission",
+ "statusCode":403}</pre>
+        <div class="verdict">Agent turn fails — the reported symptom, reproduced at the adapter seam with the change reverted.</div>
+      </div>
+
+      <div class="card">
+        <h3>Agent turn <span class="tag ok">ACCEPTED</span></h3>
+        <table>
+          <tr><td class="k">user-agent</td><td class="fwd">claude-cli/2.1.311 (external, cli)<br /><span style="color:#93a4b5">+ ai-sdk/provider-utils/4.0.64 runtime/node.js/24</span></td></tr>
+          <tr><td class="k">x-app</td><td class="fwd">cli</td></tr>
+          <tr><td class="k">x-client-app</td><td class="fwd">claude-code</td></tr>
+          <tr><td class="k">x-api-key</td><td>provider upstream key (unchanged)</td></tr>
+          <tr><td class="k">x-upstream</td><td>provider-configured header still applied</td></tr>
+          <tr><td class="k">x-cherry-*</td><td class="missing">never forwarded</td></tr>
+        </table>
+        <pre>captured header names (values redacted):
+anthropic-version, content-type, user-agent,
+x-api-key, x-app, x-client-app, x-upstream</pre>
+        <div class="verdict">Both response modes complete, including a tool_use → tool_result replay turn.</div>
+      </div>
+
+      <div class="card">
+        <h3>Ordinary chat <span class="tag mut">UNCHANGED</span></h3>
+        <table>
+          <tr><td class="k">user-agent</td><td class="fwd">no <code>claude-cli/</code> (adapter default)</td></tr>
+          <tr><td class="k">x-app</td><td class="missing">absent</td></tr>
+          <tr><td class="k">x-client-app</td><td class="missing">absent</td></tr>
+          <tr><td class="k">x-api-key</td><td>provider upstream key</td></tr>
+        </table>
+        <pre>captured header names (values redacted):
+anthropic-version, content-type, user-agent,
+x-api-key, x-upstream</pre>
+        <div class="verdict">Same fixture, same relay, ordinary turn — identity forwarding is scoped to authenticated Claude Code Agent sessions.</div>
+      </div>
+    </div>
+
+    <h2>Provenance and transport gates (unit + real-auth integration coverage)</h2>
+    <div class="card">
+      <ul class="gates">
+        <li><code>forwarded only when the session holds a host-issued capability bound to the internal credential</code><span class="pass">4 negative cases</span></li>
+        <li><code>capability dies with the session: close, reassignment, reissue, gateway stop</code><span class="pass">5 lifecycle cases</span></li>
+        <li><code>transport speaks Anthropic Messages (anthropic, azure-anthropic, newapi, aihubmix, dmxapi, cherryin)</code><span class="pass">built-model check</span></li>
+        <li><code>unknown adapter family / non-anthropic dialect / missing endpoint config</code><span class="pass">fail closed</span></li>
+        <li><code>relay rejection surfaces status 403 and the relay's own message to the caller</code><span class="pass">AC3</span></li>
+      </ul>
+    </div>
+
+    <h2>Gate results (this worktree, this diff)</h2>
+    <div class="card">
+      <ul class="gates">
+        <li><code>vitest --project main apiGateway + runtime + agentSession + chatTurn + provider</code><span class="pass">256 files · 5,425 passed</span></li>
+        <li><code>RED on baseline — product files reverted, same fixture</code><span class="pass">2 failed · 12 passed</span></li>
+        <li><code>oxlint --deny-warnings (apiGateway, streamManager, agentSession, runtime, provider)</code><span class="pass">clean</span></li>
+        <li><code>docsGovernance: translation pairing / agent-note format</code><span class="pass">213 pairs OK</span></li>
+      </ul>
+    </div>
+
+    <div class="foot">
+      <b>Not proven here:</b> the reporter's relay is unidentified, so “that specific relay now accepts the turn” stays a
+      hypothesis. What is verified is the local contract it depends on. The forwarded <code>user-agent</code> also carries
+      the SDK's own suffix — relays matching an exact CLI string would still reject; matching on the
+      <code>claude-cli/</code> prefix works.
+    </div>
+  </body>
+</html>
