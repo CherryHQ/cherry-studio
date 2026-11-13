@@ -11,10 +11,11 @@ import { agentAvatarFileRefTable } from '@data/db/schemas/fileRelations'
 import { knowledgeBaseTable } from '@data/db/schemas/knowledge'
 import { pinTable } from '@data/db/schemas/pin'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
-import type { DbOrTx } from '@data/db/types'
+import type { DbOrTx, DbType } from '@data/db/types'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentTaskService } from '@data/services/AgentTaskService'
 import { getDataService } from '@data/services/dataServiceRegistry'
+import { groupService } from '@data/services/GroupService'
 import { modelService } from '@data/services/ModelService'
 import { pinService } from '@data/services/PinService'
 import { promptService } from '@data/services/PromptService'
@@ -194,6 +195,24 @@ function getAgentAvatar(configuration: unknown): string | undefined {
   return typeof avatar === 'string' ? avatar : undefined
 }
 
+function validateAgentGroupTx(tx: Pick<DbType, 'select'>, groupId: string | null | undefined): void {
+  if (groupId == null) return
+
+  const group = groupService.findByIdTx(tx, groupId)
+
+  if (!group) {
+    throw DataApiErrorFactory.validation({
+      groupId: [`Agent group not found: ${groupId}`]
+    })
+  }
+
+  if (group.entityType !== 'agent') {
+    throw DataApiErrorFactory.validation({
+      groupId: [`Agent group must have entityType 'agent': ${groupId}`]
+    })
+  }
+}
+
 function rowToAgent(
   row: AgentRow,
   modelName: string | null = null,
@@ -207,6 +226,7 @@ function rowToAgent(
     ...(avatarFileId ? { avatarFileId, avatarSrc: application.get('FileManager').getUrl(avatarFileId) } : {}),
     mcps,
     knowledgeBaseIds,
+    groupId: row.groupId ?? null,
     type: (row.type === 'cherry-claw' ? 'claude-code' : row.type) as AgentType,
     model: (clean.model ?? null) as UniqueModelId | null,
     planModel: clean.planModel as UniqueModelId | undefined,
@@ -652,7 +672,9 @@ export class AgentService {
     )
   }
 
-  listAgents(options: ListOptions & { ids?: string[]; builtinRole?: BuiltinAgentRole; inTrash?: boolean } = {}): {
+  listAgents(
+    options: ListOptions & { ids?: string[]; builtinRole?: BuiltinAgentRole; inTrash?: boolean; groupId?: string } = {}
+  ): {
     agents: AgentEntity[]
     total: number
   } {
@@ -668,6 +690,9 @@ export class AgentService {
     if (options.builtinRole) conditions.push(builtinRolePredicate(options.builtinRole))
     if (options.search) {
       conditions.push(buildAgentSearchPredicate(options.search))
+    }
+    if (options.groupId !== undefined) {
+      conditions.push(eq(agentsTable.groupId, options.groupId))
     }
     const whereClause = and(...conditions)
 
@@ -800,6 +825,7 @@ export class AgentService {
       this.assertKnowledgeBasesExistTx(application.get('DbService').getDb(), newKnowledgeBaseIds)
     }
 
+    let groupMembershipChanged = false
     withSqliteErrors(
       () =>
         application.get('DbService').withWriteTx((tx) => {
@@ -861,6 +887,10 @@ export class AgentService {
           if (newKnowledgeBaseIds !== undefined) {
             this.assertKnowledgeBasesExistTx(tx, newKnowledgeBaseIds)
           }
+          if (updates.groupId !== undefined) {
+            validateAgentGroupTx(tx, updates.groupId)
+            groupMembershipChanged = (updates.groupId ?? null) !== (current.groupId ?? null)
+          }
           this.updateAgentTx(tx, id, updateData)
           // Replace MCP associations if provided
           if (newMcps !== undefined) {
@@ -888,6 +918,10 @@ export class AgentService {
     )
 
     const updated = this.getAgent(id)
+    if (groupMembershipChanged) {
+      // Moves the agent between group-filtered /agents buckets in every window.
+      this.notifyReadModelChange([id], 'membership')
+    }
     if (updated) {
       this.notifyReadModelChange([id], 'projection')
       this._onAgentUpdated.fire({ agentId: id, updates, agent: updated })
@@ -967,9 +1001,11 @@ export class AgentService {
                 sessionIds
               )
             }
+      // Archiving intentionally drops group membership (trashed entities leave
+      // their group); restore leaves the agent ungrouped — same contract as assistants.
       const result = tx
         .update(agentsTable)
-        .set({ deletedAt: trashedAt })
+        .set({ deletedAt: trashedAt, groupId: null })
         .where(and(eq(agentsTable.id, id), isNull(agentsTable.deletedAt)))
         .run()
       pinService.purgeForEntityTx(tx, 'agent', id)

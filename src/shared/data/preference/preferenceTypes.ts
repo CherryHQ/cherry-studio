@@ -139,7 +139,9 @@ export type TopicDisplayMode = 'time' | 'assistant'
 
 export type TopicTabPosition = 'left' | 'right'
 
-export type AgentSessionDisplayMode = 'time' | 'agent' | 'workdir'
+export type AgentSessionDisplayMode = 'time' | 'agent' | 'workdir' | 'group'
+
+export type AgentTabSortType = 'tags' | 'list'
 
 export type BrowserStartPageMode = 'blank' | 'last' | 'custom'
 

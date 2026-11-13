@@ -12,6 +12,7 @@ import {
   getSessionAgentGroupId,
   SESSION_PINNED_GROUP_ID,
   SESSION_AGENT_SECTION_ID,
+  SESSION_GROUP_SECTION_ID,
   SESSION_NO_PROJECT_GROUP_ID,
   SESSION_NO_PROJECT_SECTION_ID,
   SESSION_PINNED_SECTION_ID,
@@ -51,7 +52,12 @@ export function useSessionGroupStructure({
         return { id: SESSION_NO_PROJECT_SECTION_ID, label: t('agent.session.group.tasks') }
       }
       return {
-        id: displayMode === 'agent' ? SESSION_AGENT_SECTION_ID : SESSION_WORKDIR_SECTION_ID,
+        id:
+          displayMode === 'agent'
+            ? SESSION_AGENT_SECTION_ID
+            : displayMode === 'group'
+              ? SESSION_GROUP_SECTION_ID
+              : SESSION_WORKDIR_SECTION_ID,
         label: t(SESSION_DISPLAY_LABEL_KEYS[displayMode])
       }
     },
@@ -64,7 +70,7 @@ export function useSessionGroupStructure({
 
   const sessionGroupSeeds = useMemo<ResourceListGroupSeed[]>(() => {
     const groupSeeds: ResourceListGroupSeed[] = []
-    if (displayMode === 'agent') {
+    if (displayMode === 'agent' || displayMode === 'group') {
       for (const agent of agentsForDisplay) {
         const id = getSessionAgentGroupId(agent.id)
         groupSeeds.push({ id, label: agent.name, section: getSessionGroupSection(id) })

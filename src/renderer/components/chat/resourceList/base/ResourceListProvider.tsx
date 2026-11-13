@@ -339,6 +339,7 @@ export type ResourceListProviderProps<T extends ResourceListItemBase> = {
   getGroupHeaderIcon?: ResourceListMeta<T>['getGroupHeaderIcon']
   isGroupHeaderIconVisible?: ResourceListMeta<T>['isGroupHeaderIconVisible']
   getGroupHeaderTooltip?: ResourceListMeta<T>['getGroupHeaderTooltip']
+  getGroupLabelAbove?: ResourceListMeta<T>['getGroupLabelAbove']
   groupHeaderClickBehavior?: ResourceListGroupHeaderClickBehaviorResolver
   getGroupHeaderKind?: (group: ResourceListGroup) => ResourceListGroupHeaderKind
   collapsedState?: readonly string[]
@@ -561,6 +562,7 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
   getGroupHeaderIcon,
   isGroupHeaderIconVisible,
   getGroupHeaderTooltip,
+  getGroupLabelAbove,
   groupHeaderClickBehavior = 'toggle',
   getGroupHeaderKind,
   collapsedState,
@@ -949,6 +951,7 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
       getGroupHeaderIcon,
       isGroupHeaderIconVisible,
       getGroupHeaderTooltip,
+      getGroupLabelAbove,
       getGroupHeaderClickBehavior,
       getGroupHeaderKind,
       onGroupHeaderDeletePermanently,
@@ -994,6 +997,7 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
       getGroupHeaderIcon,
       getGroupHeaderLeadingAction,
       getGroupHeaderTooltip,
+      getGroupLabelAbove,
       isGroupHeaderIconVisible,
       getItemId,
       getItemLabel,

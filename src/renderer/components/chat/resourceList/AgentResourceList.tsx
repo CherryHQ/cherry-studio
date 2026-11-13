@@ -1,8 +1,9 @@
-import { Archive, Pin, PinOff, Plus, Smile, SquarePen, Trash2 } from 'lucide-react'
+import { Archive, Pin, PinOff, Plus, Smile, SquarePen, Tags, Trash2 } from 'lucide-react'
 import { useCallback, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Tooltip } from '@cherrystudio/ui'
+import { usePersistCache } from '@data/hooks/useCache'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
@@ -23,6 +24,7 @@ import { useAgents } from '@renderer/hooks/agent/useAgent'
 import { useResolvedCommand } from '@renderer/hooks/command'
 import type { AgentSessionsSource } from '@renderer/hooks/resourceViewSources'
 import { useCloseConversationTabs } from '@renderer/hooks/tab'
+import { useGroupReorder, useGroups } from '@renderer/hooks/useGroups'
 import { usePins } from '@renderer/hooks/usePins'
 import { useSidebarShortcuts } from '@renderer/hooks/useSidebarShortcuts'
 import { ipcApi } from '@renderer/ipc'
@@ -66,6 +68,7 @@ const AGENT_ENTITY_TOGGLE_PIN_ACTION_ID = 'agent-entity.toggle-pin'
 const AGENT_ENTITY_ICON_TYPE_ACTION_ID = 'agent-entity.icon-type'
 const AGENT_ENTITY_ARCHIVE_SESSIONS_ACTION_ID = 'agent-group.archive-sessions'
 const AGENT_ENTITY_ARCHIVE_ACTION_ID = 'agent-entity.archive'
+const AGENT_ENTITY_TOGGLE_GROUPING_ACTION_ID = 'agent-entity.toggle-grouping'
 const AGENT_ENTITY_PERMANENT_DELETE_ACTION_ID = 'agent-entity.delete-permanently'
 const AGENT_ENTITY_TOGGLE_SIDEBAR_ACTION_ID = 'agent-entity.toggle-sidebar'
 
@@ -120,6 +123,10 @@ export function AgentResourceList({
   const [assistantIconType, setAssistantIconType] = usePreference('agent.icon_type')
   const [defaultModelId] = usePreference('chat.default_model_id')
   const [sessionDisplayMode, setSessionDisplayMode] = usePreference('agent.session.display_mode')
+  // Persisted legacy token (`tags`) mirrors the assistant surface; runtime grouping uses Group rows.
+  const [agentSortType, setAgentSortType] = usePreference('agent.tab.sort_type')
+  const [collapsedGroupIds, setCollapsedGroupIds] = usePersistCache('ui.agent.entity_rail.expansion')
+  const isGroupGrouping = agentSortType === 'tags'
   const { agents, isLoading: isAgentsLoading, error: agentsError, refetch: refetchAgents } = useAgents()
   const {
     sessions,
@@ -139,6 +146,13 @@ export function AgentResourceList({
     pinnedIds: agentPinnedIds,
     togglePin: toggleAgentPin
   } = usePins('agent', { enabled: dataEnabled })
+  const {
+    groups: agentGroups,
+    isLoading: isAgentGroupsLoading,
+    error: agentGroupsError,
+    refetch: refetchAgentGroups
+  } = useGroups('agent', { enabled: dataEnabled && isGroupGrouping })
+  const { reorderGroup: reorderAgentGroup } = useGroupReorder()
   const closeConversationTabs = useCloseConversationTabs()
   const invalidate = useInvalidateCache()
   const { trigger: reorderAgent } = useMutation('PATCH', '/agents/:id/order', { refresh: ['/agents'] })
@@ -167,6 +181,7 @@ export function AgentResourceList({
     () => getSidebarShortcutResourceIds(sidebarShortcuts, SIDEBAR_SHORTCUT_PROVIDER_IDS.AGENT),
     [sidebarShortcuts]
   )
+  const agentGroupById = useMemo(() => new Map(agentGroups.map((group) => [group.id, group] as const)), [agentGroups])
   const getAgentEntityId = useCallback(
     (agentId: string | null | undefined) => {
       if (!agentId) return SESSION_UNKNOWN_AGENT_GROUP_ID
@@ -218,6 +233,7 @@ export function AgentResourceList({
     return [
       ...agents.map((agent) => {
         const icon = renderAgentEntityIcon(assistantIconType, agent, defaultModelId)
+        const group = agent.groupId ? agentGroupById.get(agent.groupId) : undefined
 
         return {
           id: agent.id,
@@ -225,6 +241,9 @@ export function AgentResourceList({
           orderKey: agent.orderKey,
           pinned: agentPinnedIdSet.has(agent.id),
           icon,
+          groupId: group?.id,
+          groupName: group?.name,
+          groupOrderKey: group?.orderKey,
           trailingAction: (
             <Tooltip title={t('agent.session.new')} delay={500}>
               <ResourceList.GroupHeaderActionButton
@@ -241,7 +260,16 @@ export function AgentResourceList({
       }),
       ...unlinkedAgentEntity
     ]
-  }, [agentPinnedIdSet, agents, assistantIconType, defaultModelId, handleCreateSession, hasUnlinkedAgentSessions, t])
+  }, [
+    agentGroupById,
+    agentPinnedIdSet,
+    agents,
+    assistantIconType,
+    defaultModelId,
+    handleCreateSession,
+    hasUnlinkedAgentSessions,
+    t
+  ])
 
   const handlePickSession = useCallback(
     (session: AgentSessionEntity) => onSelectSession(session.id, session),
@@ -267,17 +295,43 @@ export function AgentResourceList({
     },
     [t]
   )
+  const handleGroupReorder = useCallback(
+    async (groupId: string, anchor: ResourceEntityRailReorderAnchor) => {
+      try {
+        await reorderAgentGroup(groupId, anchor)
+      } catch (error) {
+        logger.error('Failed to reorder agent groups in classic-layout rail', { groupId, error })
+        toast.error(formatErrorMessageWithPrefix(error, t('agent.session.reorder.error.failed')))
+      }
+    },
+    [reorderAgentGroup, t]
+  )
+  // Recovery and reorder refresh share one fetch: the error state must re-ask every query it
+  // reports, groups included, or a rail stuck on the group error never leaves that screen.
+  const refetchRail = useCallback(
+    () =>
+      Promise.allSettled([refetchAgents(), reload(), ...(isGroupGrouping ? [refetchAgentGroups()] : [])]).then(
+        () => undefined
+      ),
+    [refetchAgents, reload, refetchAgentGroups, isGroupGrouping]
+  )
   const { items, listStatus, selectedId, handleSelect, handleReorder } = useResourceEntityRail({
     entities,
     activeEntityId: activeAgentEntityId,
-    isLoading: isAgentsLoading || isLoading || isLoadingAll || !isFullyLoaded || isPinsLoading,
-    isError: !!(agentsError || sessionsError),
+    isLoading:
+      isAgentsLoading ||
+      (isGroupGrouping && isAgentGroupsLoading) ||
+      isLoading ||
+      isLoadingAll ||
+      !isFullyLoaded ||
+      isPinsLoading,
+    isError: !!(agentsError || (isGroupGrouping && agentGroupsError) || sessionsError),
     onPickResource: handlePickSession,
     loadResourceForEntity: loadLatestSessionForAgent,
     onCreateResource: createSessionForAgent,
     onActivationError: handleActivationError,
     reorder: reorderAgentEntity,
-    refetchEntities: refetchAgents,
+    refetchEntities: refetchRail,
     onReorderError: handleReorderError
   })
 
@@ -600,6 +654,12 @@ export function AgentResourceList({
                 availability: { visible: true, enabled: deletingAgentId === null }
               })
             ]),
+        buildResolvedResourceEntityMenuAction({
+          id: AGENT_ENTITY_TOGGLE_GROUPING_ACTION_ID,
+          label: isGroupGrouping ? t('agent.groups.ungroup') : t('agent.groups.group_by'),
+          icon: <Tags size={14} />,
+          order: 35
+        }),
         ...(owner && !deleteSessionsOnly
           ? [
               buildResolvedResourceEntityMenuAction({
@@ -622,6 +682,7 @@ export function AgentResourceList({
       canPermanentDeleteAgent,
       deletingAgentId,
       isAgentPinActionDisabled,
+      isGroupGrouping,
       permanentDeleteShortcut,
       sidebarAgentFavoriteIdSet,
       t
@@ -652,6 +713,10 @@ export function AgentResourceList({
         void handleArchiveSessions(item.id)
         return
       }
+      if (action.id === AGENT_ENTITY_TOGGLE_GROUPING_ACTION_ID) {
+        void setAgentSortType(isGroupGrouping ? 'list' : 'tags')
+        return
+      }
       if (action.id === AGENT_ENTITY_ARCHIVE_ACTION_ID) {
         void handleDeleteAgent(item.id)
         return
@@ -664,8 +729,10 @@ export function AgentResourceList({
       handleArchiveSessions,
       handleDeleteAgent,
       handleToggleAgentPin,
+      isGroupGrouping,
       openAgentEditor,
       removeSidebarShortcut,
+      setAgentSortType,
       setAssistantIconType,
       sidebarAgentFavoriteIdSet,
       setSidebarShortcutPinned
@@ -711,10 +778,15 @@ export function AgentResourceList({
         }}
         onSelect={handleSelect}
         onSelectedClick={handleSelectedEntityClick}
-        onReorder={handleReorder}
+        onReorder={isGroupGrouping ? undefined : handleReorder}
+        onGroupReorder={isGroupGrouping ? handleGroupReorder : undefined}
+        groupByGroup={isGroupGrouping}
+        collapsedState={collapsedGroupIds}
+        onCollapsedStateChange={setCollapsedGroupIds}
         reorderEnabled={isFullyLoaded && !isLoadingAll && !isValidating}
         getContextMenuActions={getContextMenuActions}
         onContextMenuAction={handleContextMenuAction}
+        onErrorRetry={() => void refetchRail()}
       />
       <ResourceEditDialogHost
         target={editDialogTarget}

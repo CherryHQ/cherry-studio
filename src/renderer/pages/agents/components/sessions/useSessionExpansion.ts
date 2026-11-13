@@ -45,7 +45,7 @@ export function useSessionExpansion({
   const [rightPanelSessionExpansion, setRightPanelSessionExpansion] = useState<string[]>([])
   const sessionExpansion = isRightPanel
     ? rightPanelSessionExpansion
-    : displayMode === 'agent'
+    : displayMode === 'agent' || displayMode === 'group'
       ? sessionExpansionAgent
       : displayMode === 'workdir'
         ? sessionExpansionWorkdir
@@ -85,7 +85,7 @@ export function useSessionExpansion({
         return
       }
 
-      if (displayMode === 'agent') setSessionExpansionAgent(nextCollapsedIds)
+      if (displayMode === 'agent' || displayMode === 'group') setSessionExpansionAgent(nextCollapsedIds)
       else if (displayMode === 'workdir') setSessionExpansionWorkdir(nextCollapsedIds)
       else setSessionExpansionTime(nextCollapsedIds)
     },

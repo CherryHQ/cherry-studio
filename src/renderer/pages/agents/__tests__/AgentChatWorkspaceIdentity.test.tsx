@@ -93,6 +93,7 @@ const bootstrap: AgentConversationBootstrap = {
       type: 'claude-code',
       model: null,
       modelName: null,
+      groupId: null,
       orderKey: 'a0',
       createdAt: timestamp,
       updatedAt: timestamp
