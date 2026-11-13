@@ -51,6 +51,7 @@ export function toMessageListItem(message: CherryUIMessage, ctx: MessageListItem
     parentId: metadata.parentId ?? null,
     isContextBoundary: hasClearContextPart(message.parts) || undefined,
     createdAt: metadata.createdAt ?? '',
+    persistedAt: metadata.updatedAt,
     status: message.role === 'assistant' ? (metadata.status ?? 'pending') : 'success',
     modelId,
     model,

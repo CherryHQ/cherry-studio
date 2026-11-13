@@ -744,7 +744,7 @@ required service tier.`
       <ErrorBlock
         partId="message-1-part-0"
         error={error}
-        message={{ ...message, updatedAt: '2026-02-01T00:00:00.000Z' }}
+        message={{ ...message, persistedAt: '2026-02-01T00:00:00.000Z' }}
       />
     )
     expect(screen.queryByText('Visible conclusion.')).not.toBeInTheDocument()
@@ -759,7 +759,7 @@ required service tier.`
       <ErrorBlock
         partId="message-1-part-0"
         error={error}
-        message={{ ...message, updatedAt: '2026-02-01T00:00:00.000Z' }}
+        message={{ ...message, persistedAt: '2026-02-01T00:00:00.000Z' }}
       />
     )
     expect(screen.queryByText('Current attempt summary.')).not.toBeInTheDocument()
@@ -773,7 +773,7 @@ required service tier.`
       <ErrorBlock
         partId="message-1-part-0"
         error={{ ...error, message: 'a different failure' }}
-        message={{ ...message, updatedAt: '2026-02-01T00:00:00.000Z' }}
+        message={{ ...message, persistedAt: '2026-02-01T00:00:00.000Z' }}
       />
     )
     expect(screen.queryByText('Current language summary.')).not.toBeInTheDocument()
