@@ -2896,6 +2896,43 @@ describe('AgentSessionRuntimeService', () => {
       expect(approvalRequestedEvents).toEqual([])
     })
 
+    it('retains the tool input when an approval arrives before its message projection', () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      const enqueue = vi.fn()
+      const control = vi.fn()
+      const parts = vi.fn(() => undefined)
+      entry.currentTurn.controller = { enqueue } as never
+      entry.currentTurn.projection = { control, parts } as never
+      entry.runtimeState.execution.reply.delivery = { kind: 'open' }
+
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'tool-approval-request',
+        request: {
+          approvalId: 'approval-live',
+          toolCallId: 'tool-call-live',
+          toolName: 'AskUserQuestion',
+          input: { questions: [{ question: 'Choose a database' }] },
+          presentation: 'stream'
+        }
+      })
+
+      expect(control).toHaveBeenNthCalledWith(1, 'assistant-1', {
+        type: 'tool-input-available',
+        toolCallId: 'tool-call-live',
+        toolName: 'AskUserQuestion',
+        input: { questions: [{ question: 'Choose a database' }] },
+        providerExecuted: true,
+        dynamic: true
+      })
+      expect(control).toHaveBeenNthCalledWith(2, 'assistant-1', {
+        type: 'tool-approval-request',
+        approvalId: 'approval-live',
+        toolCallId: 'tool-call-live'
+      })
+    })
+
     it('remembers whether the turn that spawned background work had an interactive responder', async () => {
       const interactive = new AgentSessionRuntimeService()
       interactive.beginTurn(baseTurnInput)
