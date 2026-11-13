@@ -1,9 +1,9 @@
 const targets = [
   { platform: 'windows', os: 'windows-latest', arch: 'all' },
-  { platform: 'mac', os: 'macos-15-intel', arch: 'x64' },
+  { platform: 'mac', os: 'macos-latest', arch: 'x64' },
   { platform: 'mac', os: 'macos-latest', arch: 'arm64' },
   { platform: 'linux', os: 'ubuntu-latest', arch: 'x64' },
-  { platform: 'linux', os: 'ubuntu-24.04-arm', arch: 'arm64' }
+  { platform: 'linux', os: 'ubuntu-latest', arch: 'arm64' }
 ]
 
 function getReleaseTargets(platform) {

@@ -304,6 +304,12 @@ jobs:
       - name: Verify JS bundle
         run: node scripts/release/js-bundle.js verify ${{ matrix.edition }}
 
+      - name: Enable Linux ARM64 addon builds
+        if: matrix.target.platform == 'linux' && matrix.target.arch == 'arm64'
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
+
       - name: Build Linux
         if: matrix.target.platform == 'linux'
         run: |

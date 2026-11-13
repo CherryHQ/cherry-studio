@@ -12,8 +12,11 @@ describe('release target selection', () => {
       'mac-x64',
       'windows-all'
     ])
-    expect(targets.find(({ platform, arch }) => platform === 'linux' && arch === 'arm64')?.os).toBe('ubuntu-24.04-arm')
-    expect(targets.find(({ platform, arch }) => platform === 'mac' && arch === 'x64')?.os).toBe('macos-15-intel')
+  })
+
+  it.each(['mac', 'linux'])('uses the same hosted runner pool for both %s architectures', (platform) => {
+    const targets = getReleaseTargets(platform)
+    expect(new Set(targets.map((target) => target.os)).size).toBe(1)
   })
 
   it.each(['windows', 'mac', 'linux'])('builds only the requested %s platform during repair', (platform) => {
