@@ -20,8 +20,9 @@ def main_handler(event, context):
     url = urlsplit(upload["url"])
     if (url.scheme != "https" or url.username or url.password or url.fragment
             or url.port not in (None, 443) or not url.hostname
-            or not re.fullmatch(r"[a-z0-9.-]*obs\.[a-z0-9-]+\.myhuaweicloud\.(?:com|cn)", url.hostname)):
-        raise ValueError("Unexpected GitCode attachment upload endpoint")
+            or (url.hostname != "file.gitcode.com"
+                and not re.fullmatch(r"[a-z0-9.-]*obs\.[a-z0-9-]+\.myhuaweicloud\.(?:com|cn)", url.hostname))):
+        raise ValueError(f"Unexpected GitCode attachment upload endpoint: {url.hostname}")
 
     headers = upload["headers"]
     if any(name.lower() in {"authorization", "connection", "content-length", "expect", "host",
