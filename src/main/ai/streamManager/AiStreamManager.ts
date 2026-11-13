@@ -1361,8 +1361,7 @@ export class AiStreamManager extends BaseService {
       changed = true
       if (exec.pendingApprovalToolCallIds.size === 0) pendingApprovalFlipped = true
     }
-    if (pendingApprovalFlipped && (isLiveStatus(stream.status) || stream.status === 'awaiting-approval')) {
-      if (stream.status === 'awaiting-approval') stream.status = this.resolveTerminalStatus(stream)
+    if (changed && pendingApprovalFlipped) {
       stream.lifecycle.onApprovalPendingChanged(stream)
     }
     return changed

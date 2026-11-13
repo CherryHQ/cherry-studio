@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 
 import { setupTestDatabase } from '@test-helpers/db'
+import { isToolUIPart } from 'ai'
 import { eq } from 'drizzle-orm'
 import { expect, it } from 'vitest'
 
@@ -14,7 +15,6 @@ import { agentSessionMessageService as messages } from '@data/services/AgentSess
 import { prepareClaudeBranch } from '@main/ai/runtime/claudeCode'
 import type { RuntimeMessageProjection } from '@main/ai/runtime/types'
 import { PersistenceListener } from '@main/ai/streamManager/listeners/PersistenceListener'
-import { findNextPendingPermissionRequest } from '@renderer/components/composer/variants/permissionRequestComposerRequest'
 import type { CherryUIMessage } from '@shared/data/types/message'
 
 import { AgentSessionMessageBackend } from '../persistence/AgentSessionMessageBackend'
@@ -540,7 +540,8 @@ it('finalizes a retired input on interruption without an approval decision', () 
   const tool = parts.find((part) => 'toolCallId' in part && part.toolCallId === 'A')!
   expect((tool as any).approval).toBeUndefined()
   expect((tool as any).approved).toBeUndefined()
-  expect(findNextPendingPermissionRequest({ [id]: parts })).toBeNull()
+  expect(parts.filter((part) => isToolUIPart(part) && part.state === 'approval-requested')).toEqual([])
+  expect(parts.filter((part) => 'approval' in part)).toEqual([])
 })
 
 it.each([true, false])('keeps a real approval decision (%s) ahead of retirement', (approved) => {
