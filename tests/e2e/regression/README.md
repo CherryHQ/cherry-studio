@@ -21,7 +21,8 @@ The separate [Playwright config](../../../playwright.regression.config.ts) uses 
 
 The application process and configured service providers are shared within a run. Provider configuration comes from the same run environment and is not changed between scenarios.
 Custom assistants and knowledge bases are named with their case ID. Agent work directories are case-scoped; file tasks remove their own previous output before asserting newly produced content.
-M-02 sends its provider-verification message from a case-owned assistant with no custom prompt and removes that assistant after the persistence check.
+M-02 creates a case-owned assistant with no custom prompt and an empty setup topic so it appears in the conversation list, restores sidebar visibility after reloading, sends its provider-verification message through a new UI-created chat, and removes that assistant and its topics after the persistence check.
+`custom-provider-chat,polish-prompts,browser-recovery` selects only M-02, MP-16 and MP-125 for combined provider, polishing and local-service recovery checks.
 Each non-startup scenario begins on Chat with quick/selection assistants disabled. Persistence assertions restart the application inside the same scenario without repeating setup, so initialization cannot hide lost persisted state.
 The built-in assistant's tests start new tasks and clear skill tokens where required. A scenario that mutates a shared resource must restore its intended state explicitly before relying on it.
 
@@ -51,7 +52,7 @@ module task also includes the implemented knowledge case-library scenarios.
 3. Establish its preconditions in the scenario or domain helper. Keep selectors scoped to the relevant product surface.
 4. Run manifest tests, typechecking, and Playwright enumeration. Add a workflow step only when introducing a new phase.
 
-Use the task IDs from the manifest in the workflow's `task` input (`all` selects every case). Within an initialized run, execute a phase through the same controller as CI:
+Use the task IDs from the manifest in the workflow's string `task` input (`all` selects every case). Combine modules or focused tasks with commas, for example `chat-core,browser,settings`; overlapping cases execute once in manifest order. For branch runs, `settings_search_smoke=true` adds only the standalone settings-search smoke file. Within an initialized run, execute a phase through the same controller as CI:
 
 ```sh
 pnpm exec tsx scripts/e2e/regression/cli.ts run-phase \

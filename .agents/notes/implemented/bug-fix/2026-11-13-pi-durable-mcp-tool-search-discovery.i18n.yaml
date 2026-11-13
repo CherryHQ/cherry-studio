@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-13-pi-durable-mcp-tool-search-discovery.md
+2026-11-13-pi-durable-mcp-tool-search-discovery.md: b12201f54054a364a0d3f6969f773816435c40d5
+2026-11-13-pi-durable-mcp-tool-search-discovery.zh.md: aaca5148a41b984c7fbf417bb648eeee9394f5be
