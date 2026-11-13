@@ -28,6 +28,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { agentTable } from '@data/db/schemas/agent'
 import { agentChannelTable, agentChannelTaskTable } from '@data/db/schemas/agentChannel'
 import { jobScheduleTable, jobTable } from '@data/db/schemas/job'
+import type { I18nMessage } from '@shared/data/migration/v2/types'
 
 import { AgentsMigrator } from '../AgentsMigrator'
 
@@ -178,12 +179,12 @@ describe('AgentsMigrator > migrateScheduledTasksTs', () => {
   /** Helper: ATTACH the legacy DB to the target connection, run the TS-loop,
    *  then DETACH. Encapsulates the surrounding scaffolding so each test
    *  only deals with assertions. */
-  async function runTsLoop(): Promise<void> {
+  async function runTsLoop(): Promise<I18nMessage[]> {
     dbh.db.run(sql.raw(`ATTACH DATABASE '${legacyPath}' AS agents_legacy`))
     try {
       const migrator = new AgentsMigrator()
-      await (
-        migrator as unknown as { migrateScheduledTasksTs: (db: typeof dbh.db) => Promise<void> }
+      return await (
+        migrator as unknown as { migrateScheduledTasksTs: (db: typeof dbh.db) => Promise<I18nMessage[]> }
       ).migrateScheduledTasksTs(dbh.db)
     } finally {
       dbh.db.run(sql.raw('DETACH DATABASE agents_legacy'))
@@ -191,7 +192,7 @@ describe('AgentsMigrator > migrateScheduledTasksTs', () => {
   }
 
   it('migrates v1 scheduled_tasks into jobScheduleTable with correct trigger encoding', async () => {
-    await runTsLoop()
+    expect(await runTsLoop()).toEqual([])
 
     const schedules = await dbh.db.select().from(jobScheduleTable).where(eq(jobScheduleTable.type, 'agent.task'))
 
@@ -277,6 +278,39 @@ describe('AgentsMigrator > migrateScheduledTasksTs', () => {
     const schedules = await dbh.db.select().from(jobScheduleTable).where(eq(jobScheduleTable.type, 'agent.task'))
     expect(schedules).toHaveLength(3)
   })
+
+  it('reports omitted tasks by reason without losing valid tasks or accumulating counts on retry', async () => {
+    const legacy = new Database(legacyPath)
+    const insert = legacy.prepare(
+      `INSERT INTO scheduled_tasks (id, agent_id, name, prompt, schedule_type, schedule_value, status)
+       VALUES (?, ?, ?, 'Task prompt', ?, ?, 'active')`
+    )
+    const omitted = [
+      ['invalid-once', AGENT_ID, 'once', 'not-a-date'],
+      ['empty-cron', AGENT_ID, 'cron', ' '],
+      ['unknown-type', AGENT_ID, 'unknown', '60'],
+      ['missing-owner', 'absent-agent', 'once', 'not-a-date']
+    ]
+    try {
+      for (const [id, agentId, type, value] of omitted) insert.run(id, agentId, id, type, value)
+      const sourceRows = legacy.prepare('SELECT * FROM scheduled_tasks ORDER BY id').all()
+      const expectedWarnings = [
+        { key: 'migration.completed.agent_tasks_missing_owner', params: { count: 1 } },
+        { key: 'migration.completed.agent_tasks_invalid_schedule', params: { count: 3 } }
+      ]
+
+      expect(await runTsLoop()).toEqual(expectedWarnings)
+      expect(await runTsLoop()).toEqual(expectedWarnings)
+      const schedules = await dbh.db.select().from(jobScheduleTable)
+      expect(schedules.map((row) => row.name).sort()).toEqual(['Daily standup', 'Hourly ping', 'One-off'])
+      const [subscription] = await dbh.db.select().from(agentChannelTaskTable)
+      expect(subscription.taskId).toBe(schedules.find((row) => row.name === 'Daily standup')?.id)
+      expect(legacy.prepare('SELECT * FROM scheduled_tasks ORDER BY id').all()).toEqual(sourceRows)
+    } finally {
+      for (const [id] of omitted) legacy.prepare('DELETE FROM scheduled_tasks WHERE id = ?').run(id)
+      legacy.close()
+    }
+  })
 })
 
 describe('AgentsMigrator > migrateScheduledTasksTs > duplicate v1 task names', () => {
@@ -345,9 +379,9 @@ describe('AgentsMigrator > migrateScheduledTasksTs > duplicate v1 task names', (
       const migrator = new AgentsMigrator()
       await expect(
         (
-          migrator as unknown as { migrateScheduledTasksTs: (db: typeof dbh.db) => Promise<void> }
+          migrator as unknown as { migrateScheduledTasksTs: (db: typeof dbh.db) => Promise<I18nMessage[]> }
         ).migrateScheduledTasksTs(dbh.db)
-      ).resolves.toBeUndefined()
+      ).resolves.toEqual([])
     } finally {
       dbh.db.run(sql.raw('DETACH DATABASE agents_legacy'))
     }

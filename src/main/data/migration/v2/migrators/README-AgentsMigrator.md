@@ -45,6 +45,8 @@ resolves migration storage through the live application path registry.
 - Agent and per-Agent Session ordering is converted to fractional order keys.
 - Scheduled-task trigger fields become JobManager trigger objects. Legacy task
   run logs are intentionally not migrated.
+- 旧版任务因所属 Agent 缺失或时间设置无法解析而跳过时，迁移完成页按原因显示遗漏数量。
+  有效任务继续导入，旧版源数据库保留。此提示不会自动恢复此前已遗漏的任务。
 - MCP IDs are mapped through `McpServerMigrator`; dangling relationships are
   dropped and logged.
 

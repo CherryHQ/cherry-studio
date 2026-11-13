@@ -19,7 +19,13 @@ import type { DbType } from '@data/db/types'
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { loggerService } from '@logger'
 import type { Trigger } from '@shared/data/api/schemas/jobs'
-import type { ExecuteResult, PrepareResult, ValidateResult, ValidationError } from '@shared/data/migration/v2/types'
+import type {
+  ExecuteResult,
+  I18nMessage,
+  PrepareResult,
+  ValidateResult,
+  ValidationError
+} from '@shared/data/migration/v2/types'
 import type {
   MessageData,
   MessageRole,
@@ -255,6 +261,7 @@ export class AgentsMigrator extends BaseMigrator {
     let committed = false
     let pendingError: unknown = null
     let skippedFilesystemTargetCount = 0
+    const warningMessages: I18nMessage[] = []
 
     try {
       ctx.db.run(sql.raw(statements[0])) // ATTACH DATABASE …
@@ -332,7 +339,7 @@ export class AgentsMigrator extends BaseMigrator {
       // ctx.db. Must happen BEFORE remapAgentPrefixIds — schedules carry the
       // legacy agent_id inside their jobInputTemplate JSON, and the remap step
       // rewrites both `agent.id` AND `job_schedule.jobInputTemplate.agentId`.
-      await this.migrateScheduledTasksTs(ctx.db)
+      warningMessages.push(...(await this.migrateScheduledTasksTs(ctx.db)))
 
       // Prefix-id remap runs AFTER the outer COMMIT because it opens its own
       // BEGIN/COMMIT (nested SQLite transactions are not supported). It is
@@ -453,22 +460,19 @@ export class AgentsMigrator extends BaseMigrator {
 
     if (pendingError) throw pendingError
 
+    if (skippedFilesystemTargetCount > 0) {
+      warningMessages.push({
+        key: 'migration.completed.agent_files_skipped',
+        params: { count: skippedFilesystemTargetCount }
+      })
+    }
     logger.info('Agent migration execute completed', {
       durationMs: Math.round(performance.now() - executeStartedAt)
     })
     return {
       success: true,
       processedCount: getTotalAgentsRowCount(this.sourceCounts),
-      ...(skippedFilesystemTargetCount > 0
-        ? {
-            warningMessages: [
-              {
-                key: 'migration.completed.agent_files_skipped',
-                params: { count: skippedFilesystemTargetCount }
-              }
-            ]
-          }
-        : {})
+      ...(warningMessages.length > 0 ? { warningMessages } : {})
     }
   }
 
@@ -704,7 +708,7 @@ export class AgentsMigrator extends BaseMigrator {
    * `job_schedule` + `agent_channel_task`. v1 `task_run_logs` are intentionally
    * discarded.
    */
-  private async migrateScheduledTasksTs(db: MigrationContext['db']): Promise<void> {
+  private async migrateScheduledTasksTs(db: MigrationContext['db']): Promise<I18nMessage[]> {
     // Idempotency on retry: drop any partial agent.task schedules from a
     // previous failed run so the (type, name) UNIQUE index doesn't reject the
     // second-pass inserts. Other type rows are untouched.
@@ -717,6 +721,13 @@ export class AgentsMigrator extends BaseMigrator {
           'WHERE agent_id IN (SELECT id FROM agent)'
       )
     )
+    const missingOwnerCount =
+      db.all<{ count: number }>(
+        sql.raw(
+          'SELECT COUNT(*) AS count FROM agents_legacy.scheduled_tasks t ' +
+            'WHERE NOT EXISTS (SELECT 1 FROM agent WHERE agent.id = t.agent_id)'
+        )
+      )[0]?.count ?? 0
 
     const idMap = new Map<string, string>()
     // (type='agent.task', name) is UNIQUE in job_schedule. Two v1 tasks with the
@@ -725,10 +736,12 @@ export class AgentsMigrator extends BaseMigrator {
     const usedNames = new Set<string>()
     let migratedCount = 0
     let droppedNameCount = 0
+    let invalidScheduleCount = 0
 
     for (const v1 of v1Tasks) {
       const trigger = this.buildTriggerFromV1(v1)
       if (!trigger) {
+        invalidScheduleCount++
         logger.warn('Skipping v1 task with unparseable schedule', {
           v1Id: v1.id,
           type: v1.schedule_type,
@@ -816,10 +829,26 @@ export class AgentsMigrator extends BaseMigrator {
 
     logger.info('Scheduled tasks migrated', {
       schedules: migratedCount,
+      missingOwnerCount,
+      invalidScheduleCount,
       channelLinks: subCount,
       skippedCrossAgentChannelLinks: skippedCrossAgentSubCount,
       sanitizedNames: droppedNameCount
     })
+    const warningMessages: I18nMessage[] = []
+    if (missingOwnerCount > 0) {
+      warningMessages.push({
+        key: 'migration.completed.agent_tasks_missing_owner',
+        params: { count: missingOwnerCount }
+      })
+    }
+    if (invalidScheduleCount > 0) {
+      warningMessages.push({
+        key: 'migration.completed.agent_tasks_invalid_schedule',
+        params: { count: invalidScheduleCount }
+      })
+    }
+    return warningMessages
   }
 
   private buildTriggerFromV1(v1: V1ScheduledTaskRow): Trigger | null {

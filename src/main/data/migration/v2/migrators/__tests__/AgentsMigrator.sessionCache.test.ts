@@ -206,6 +206,51 @@ describe('AgentsMigrator Claude session cache integration', () => {
     await Promise.all(tempRoots.splice(0).map((tempRoot) => rm(tempRoot, { recursive: true, force: true })))
   })
 
+  it.each([
+    ['0 9 * * *', 'cron', 1],
+    ['not-a-date', 'once', 0]
+  ])('preserves session data and reports omitted tasks after importing %s', async (value, type, taskCount) => {
+    const { legacyAgentDbFile, context } = await createMigrationFixture(tempRoots)
+    const legacy = new Database(legacyAgentDbFile)
+    try {
+      legacy
+        .prepare(`INSERT INTO scheduled_tasks
+        (id, agent_id, name, prompt, schedule_type, schedule_value, timeout_minutes, status)
+        VALUES ('task', ?, 'Task', 'Prompt', ?, ?, 2, 'active')`)
+        .run(LEGACY_AGENT_ID, type, value)
+    } finally {
+      legacy.close()
+    }
+    const migrationContext = { ...context, db: dbh.db } as unknown as MigrationContext
+    dbh.sqlite.pragma('foreign_keys = OFF')
+    const migrator = new AgentsMigrator()
+    await migrator.prepare(migrationContext)
+    const result = await migrator.execute(migrationContext)
+
+    expect(result.success).toBe(true)
+    expect(result.warningMessages ?? []).toEqual(
+      taskCount === 0 ? [{ key: 'migration.completed.agent_tasks_invalid_schedule', params: { count: 1 } }] : []
+    )
+    expect(dbh.sqlite.prepare('SELECT count(*) AS count FROM job_schedule').get()).toEqual({ count: taskCount })
+    expect(await dbh.db.select().from(agentSessionTable)).toHaveLength(1)
+    const messages = await dbh.db.select().from(agentSessionMessageTable)
+    expect(messages.map((message) => message.data.parts)).toEqual([
+      [{ type: 'text', text: 'first Claude session' }],
+      [{ type: 'text', text: 'same Claude session continues' }],
+      [{ type: 'text', text: 'second Claude session' }],
+      [{ type: 'text', text: 'message without a Claude session' }]
+    ])
+    expect((await migrator.validate(migrationContext)).success).toBe(true)
+    const source = new Database(legacyAgentDbFile, { readonly: true })
+    try {
+      expect(source.prepare('SELECT id, schedule_value FROM scheduled_tasks').all()).toEqual([
+        { id: 'task', schedule_value: value }
+      ])
+    } finally {
+      source.close()
+    }
+  })
+
   it('migrates every valid Claude session when a later message has an empty resume token', async () => {
     vi.useFakeTimers()
     vi.setSystemTime('2026-09-30T00:00:00.000Z')

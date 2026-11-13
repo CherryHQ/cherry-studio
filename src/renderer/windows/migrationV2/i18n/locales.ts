@@ -20,6 +20,12 @@ export const zhCN = {
   'migration.completed.agent_database_unreadable': '旧版 Agent 数据库无法读取，未导入其中的数据；原始数据库文件已保留',
   'migration.completed.agent_files_skipped_one': '已跳过 1 个路径重叠的 Agent 文件目标；旧版源数据已保留',
   'migration.completed.agent_files_skipped_other': '已跳过 {{count}} 个路径重叠的 Agent 文件目标；旧版源数据已保留',
+  'migration.completed.agent_tasks_invalid_schedule_one': '有 1 个定时任务未迁入：时间设置无法解析。旧版源数据已保留。',
+  'migration.completed.agent_tasks_invalid_schedule_other':
+    '有 {{count}} 个定时任务未迁入：时间设置无法解析。旧版源数据已保留。',
+  'migration.completed.agent_tasks_missing_owner_one': '有 1 个定时任务未迁入：未找到所属 Agent。旧版源数据已保留。',
+  'migration.completed.agent_tasks_missing_owner_other':
+    '有 {{count}} 个定时任务未迁入：未找到所属 Agent。旧版源数据已保留。',
   'migration.completed.description': '迁移完成，你的数据已经全部就位。重启应用即可开始使用 V2。',
   'migration.completed.description_with_warnings': '迁移已完成，但部分内容未能完整迁移。请先查看迁移提示，再重启应用。',
   'migration.completed.duration_label': '迁移耗时',
@@ -169,6 +175,14 @@ export const enUS = {
     'Skipped 1 overlapping Agent filesystem target; legacy source data was preserved',
   'migration.completed.agent_files_skipped_other':
     'Skipped {{count}} overlapping Agent filesystem targets; legacy source data was preserved',
+  'migration.completed.agent_tasks_invalid_schedule_one':
+    '1 scheduled task was not imported: its schedule could not be parsed. The original v1 data has been kept.',
+  'migration.completed.agent_tasks_invalid_schedule_other':
+    '{{count}} scheduled tasks were not imported: their schedules could not be parsed. The original v1 data has been kept.',
+  'migration.completed.agent_tasks_missing_owner_one':
+    '1 scheduled task was not imported: its owning Agent was not found. The original v1 data has been kept.',
+  'migration.completed.agent_tasks_missing_owner_other':
+    '{{count}} scheduled tasks were not imported: their owning Agents were not found. The original v1 data has been kept.',
   'migration.completed.description': 'Migration is complete. Your data is ready. Restart the app to start using V2.',
   'migration.completed.description_with_warnings':
     'Migration completed with some content omitted. Review the migration notices before restarting the app.',

@@ -1,5 +1,6 @@
 import { MockCherrystudioUI } from '@test-mocks/renderer/CherrystudioUI'
 import { act, fireEvent, render, screen } from '@testing-library/react'
+import { createInstance } from 'i18next'
 import type { ButtonHTMLAttributes, ReactElement, ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -23,6 +24,7 @@ const platformState = vi.hoisted(() => ({
 }))
 const toastErrorMock = vi.hoisted(() => vi.fn())
 const toastSuccessMock = vi.hoisted(() => vi.fn())
+const translateMock = vi.hoisted(() => vi.fn<(key: string, params?: Record<string, unknown>) => string>((key) => key))
 const migrationHookMock = vi.hoisted(() => ({
   actions: {
     cancel: vi.fn(),
@@ -61,7 +63,7 @@ vi.mock('react-i18next', () => ({
       changeLanguage: vi.fn(),
       language: 'en-US'
     },
-    t: (key: string) => key
+    t: translateMock
   })
 }))
 
@@ -290,6 +292,7 @@ vi.mock('../hooks/useMigrationProgress', () => ({
 }))
 
 import { DexieExporter, LocalStorageExporter, ReduxExporter } from '../exporters'
+import { enUS, zhCN } from '../i18n/locales'
 import MigrationApp from '../MigrationApp'
 
 const preparedExportPaths = {
@@ -302,6 +305,7 @@ const preparedExportPaths = {
 describe('MigrationApp', () => {
   beforeEach(() => {
     vi.useRealTimers()
+    translateMock.mockImplementation((key) => key)
     cleanup.mockClear()
     invoke.mockClear()
     on.mockClear()
@@ -640,6 +644,67 @@ describe('MigrationApp', () => {
     )
     expect(toastSuccessMock).toHaveBeenCalledWith('migration.completed.warning_copy_success')
     expect(toastErrorMock).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    [
+      'en-US',
+      '1 scheduled task was not imported: its schedule could not be parsed. The original v1 data has been kept.',
+      '2 scheduled tasks were not imported: their owning Agents were not found. The original v1 data has been kept.'
+    ],
+    [
+      'zh-CN',
+      '有 1 个定时任务未迁入：时间设置无法解析。旧版源数据已保留。',
+      '有 2 个定时任务未迁入：未找到所属 Agent。旧版源数据已保留。'
+    ]
+  ])(
+    'shows and copies translated task warnings alongside file warnings in %s',
+    async (language, invalidNotice, ownerNotice) => {
+      const i18n = createInstance()
+      await i18n.init({
+        lng: language,
+        fallbackLng: 'en-US',
+        keySeparator: false,
+        resources: { 'en-US': { translation: enUS }, 'zh-CN': { translation: zhCN } }
+      })
+      translateMock.mockImplementation((key, params) => i18n.t(key, params))
+      migrationHookMock.progress = {
+        currentMessage: 'Completed',
+        migrators: [],
+        overallProgress: 100,
+        stage: 'completed',
+        warningMessages: [
+          { key: 'migration.completed.agent_tasks_missing_owner', params: { count: 2 } },
+          { key: 'migration.completed.agent_tasks_invalid_schedule', params: { count: 1 } },
+          { key: 'migration.completed.agent_files_skipped', params: { count: 2 } }
+        ]
+      }
+      render(<MigrationApp />)
+      expect(screen.getByText(i18n.t('migration.completed.description_with_warnings'))).toBeInTheDocument()
+      fireEvent.click(screen.getByRole('button', { name: i18n.t('migration.completed.warning_heading', { count: 3 }) }))
+      expect(screen.getByText(invalidNotice)).toBeInTheDocument()
+      expect(screen.getByText(ownerNotice)).toBeInTheDocument()
+      const fileNotice = i18n.t('migration.completed.agent_files_skipped', { count: 2 })
+      expect(screen.getByText(fileNotice)).toBeInTheDocument()
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: i18n.t('migration.completed.warning_copy') }))
+      })
+      expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
+        `1. ${ownerNotice}\n2. ${invalidNotice}\n3. ${fileNotice}`
+      )
+    }
+  )
+
+  it('keeps the all-data-ready completion copy when there are no notices', () => {
+    migrationHookMock.progress = {
+      currentMessage: 'Completed',
+      migrators: [],
+      overallProgress: 100,
+      stage: 'completed'
+    }
+    render(<MigrationApp />)
+    expect(screen.getByText('migration.completed.description')).toBeInTheDocument()
+    expect(screen.queryByText('migration.completed.description_with_warnings')).not.toBeInTheDocument()
   })
 
   it('shows an error toast when completed migration notices cannot be copied', async () => {
