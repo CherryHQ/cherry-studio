@@ -222,7 +222,7 @@ export default function ScheduledTasksPage() {
         <p>
           {t('agent.tasks.logs.status')}:{' '}
           {selectedRun.status === 'pending' || selectedRun.status === 'delayed'
-            ? selectedRun.status
+            ? t('agent.tasks.runSummary.queued')
             : t(
                 selectedRun.status === 'completed'
                   ? 'agent.tasks.logs.completed'

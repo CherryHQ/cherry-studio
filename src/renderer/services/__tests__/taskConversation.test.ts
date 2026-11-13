@@ -50,33 +50,35 @@ describe('scheduled task conversation association', () => {
     })
   })
 
-  it.each([{ kind: 'executed' }, {}, null, { result: 42 }])(
-    'retains run facts without exposing non-text output as a result: %j',
-    async (output) => {
-      vi.spyOn(dataApiService, 'get').mockImplementation(async (path) => {
-        if (path === '/jobs/run')
-          return {
-            id: 'run',
-            type: 'agent.task',
-            scheduleId: 'task',
-            metadata: {},
-            output,
-            status: 'failed',
-            startedAt: '2026-01-01T00:00:00Z',
-            error: { message: 'failure sentinel' }
-          } as never
-        return { items: [], total: 0 } as never
-      })
-      const resolved = await resolveTaskConversation(task, 'run')
-      expect(resolved.selectedRun).toEqual({
-        id: 'run',
-        status: 'failed',
-        startedAt: '2026-01-01T00:00:00Z',
-        result: null,
-        error: 'failure sentinel'
-      })
-    }
-  )
+  it.each([
+    [{ kind: 'executed' }, '{"kind":"executed"}'],
+    [{}, '{}'],
+    [null, null],
+    [{ result: 42 }, '{"result":42}']
+  ])('retains run facts using the history stored-result projection: %j', async (output, expectedResult) => {
+    vi.spyOn(dataApiService, 'get').mockImplementation(async (path) => {
+      if (path === '/jobs/run')
+        return {
+          id: 'run',
+          type: 'agent.task',
+          scheduleId: 'task',
+          metadata: {},
+          output,
+          status: 'failed',
+          startedAt: '2026-01-01T00:00:00Z',
+          error: { message: 'failure sentinel' }
+        } as never
+      return { items: [], total: 0 } as never
+    })
+    const resolved = await resolveTaskConversation(task, 'run')
+    expect(resolved.selectedRun).toEqual({
+      id: 'run',
+      status: 'failed',
+      startedAt: '2026-01-01T00:00:00Z',
+      result: expectedResult,
+      error: 'failure sentinel'
+    })
+  })
 
   it.each([
     ['untyped 404', { status: 404 }],
@@ -247,3 +249,83 @@ it('keeps abort a cancellation even when the recorded session is missing', async
   })
   await expect(resolveTaskConversation(task, 'run', controller.signal)).rejects.toMatchObject({ name: 'AbortError' })
 })
+
+it('retains the automatically chosen run facts alongside its readable conversation', async () => {
+  vi.spyOn(dataApiService, 'get').mockImplementation(async (path) => {
+    if (path === '/agent-sessions') return { items: [session] } as never
+    return {
+      items: [
+        { id: 'unreadable', sessionId: 'deleted', result: 'other text' },
+        {
+          id: 'chosen',
+          sessionId: 'session',
+          startedAt: '2026-01-01T00:00:00Z',
+          status: 'completed',
+          result: 'chosen text',
+          error: null
+        }
+      ],
+      total: 2
+    } as never
+  })
+  const resolved = await resolveTaskConversation(task)
+  expect(resolved.session?.id).toBe('session')
+  expect(resolved.selectedRun).toEqual({
+    id: 'chosen',
+    startedAt: '2026-01-01T00:00:00Z',
+    status: 'completed',
+    result: 'chosen text',
+    error: null
+  })
+})
+
+it.each([true, false])('retains bound-session facts only for a matching history session: %s', async (matching) => {
+  const bound = { ...session, id: 'bound' }
+  vi.spyOn(dataApiService, 'get').mockImplementation(async (path) => {
+    if (path === '/agent-sessions/bound') return bound as never
+    if (path === '/agent-sessions') return { items: [matching ? bound : session] } as never
+    return {
+      items: [{ id: 'run', sessionId: matching ? 'bound' : 'session', status: 'completed', result: 'stored text' }],
+      total: 1
+    } as never
+  })
+  const resolved = await resolveTaskConversation({ ...task, reuseSession: true, reuseSessionId: 'bound' })
+  expect(resolved.session?.id).toBe('bound')
+  expect(resolved.selectedRun).toEqual(
+    matching
+      ? {
+          id: 'run',
+          startedAt: undefined,
+          status: 'completed',
+          result: 'stored text',
+          error: null
+        }
+      : null
+  )
+})
+
+it.each(['explicit', 'automatic'])(
+  'preserves non-string result output as stored JSON on the %s path',
+  async (pathKind) => {
+    vi.spyOn(dataApiService, 'get').mockImplementation(async (path) => {
+      if (path === '/jobs/run')
+        return {
+          id: 'run',
+          type: 'agent.task',
+          scheduleId: 'task',
+          metadata: { sessionId: 'session' },
+          status: 'completed',
+          output: { result: 42 }
+        } as never
+      if (path === '/agent-sessions/session') return session as never
+      if (path === '/agent-sessions') return { items: [session] } as never
+      return {
+        items: [{ id: 'run', sessionId: 'session', status: 'completed', result: '{"result":42}' }],
+        total: 1
+      } as never
+    })
+    const resolved = await resolveTaskConversation(task, pathKind === 'explicit' ? 'run' : undefined)
+    expect(resolved.selectedRun?.id).toBe('run')
+    expect(resolved.selectedRun?.result).toBe('{"result":42}')
+  }
+)

@@ -37,7 +37,8 @@ async function readTaskRunSession(task: ScheduledTaskEntity, runId: string, sign
     id: job.id,
     startedAt: job.startedAt ?? job.scheduledAt,
     status: job.status,
-    result: typeof output?.result === 'string' ? output.result : null,
+    // Match AgentTaskService.toTaskRunLogEntity's stored-result projection.
+    result: typeof output?.result === 'string' ? output.result : job.output != null ? JSON.stringify(job.output) : null,
     error: job.error?.message ?? null
   }
   const facts = { selectedRun, runId: job.id, startedAt: selectedRun.startedAt }
@@ -67,7 +68,15 @@ export async function readTaskConversationPage(task: ScheduledTaskEntity, page: 
   const available = new Map(sessions?.items.map((session) => [session.id, session]))
   const run = history.items.find((log) => log.sessionId && available.has(log.sessionId))
   return {
-    selectedRun: null,
+    selectedRun: run
+      ? {
+          id: run.id,
+          startedAt: run.startedAt,
+          status: run.status,
+          result: run.result ?? null,
+          error: run.error ?? null
+        }
+      : null,
     session: run?.sessionId ? available.get(run.sessionId)! : null,
     runId: run?.id,
     startedAt: run?.startedAt,
@@ -94,7 +103,10 @@ export async function resolveTaskConversation(
     }
   }
   const first = await readTaskConversationPage(task, 1, signal)
-  if (selected) return { ...first, ...selected }
+  if (selected) {
+    if (!runId && selected.session?.id === first.session?.id) return { ...first, ...selected }
+    return { ...first, ...selected, selectedRun: selected.selectedRun ?? null }
+  }
   if (first.session || first.total <= 50) return first
   const second = await readTaskConversationPage(task, 2, signal)
   return { ...second, logs: [...first.logs, ...second.logs] }
