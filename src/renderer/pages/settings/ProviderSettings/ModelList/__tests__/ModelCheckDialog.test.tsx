@@ -280,6 +280,41 @@ describe('ModelCheckDialog', () => {
     expect(second.errorContext.id).toBe(first.errorContext.id)
   })
 
+  it('gives an identical failure from a retry started outside the dialog its own occurrence', async () => {
+    const user = userEvent.setup()
+    const entry = health.apiKeyEntries[0]
+    const failedRun = (): ModelWithStatus => {
+      const error = { name: 'Error', message: 'Invalid API key', stack: null, statusCode: 401 }
+      return {
+        kind: 'failed',
+        model: chatModel,
+        status: HealthStatus.FAILED,
+        keyResults: [
+          {
+            kind: 'failed',
+            status: HealthStatus.FAILED,
+            checking: false,
+            credential: { kind: 'api-key', entry },
+            error
+          }
+        ],
+        checking: false,
+        error
+      }
+    }
+    health.singleModelResult = failedRun()
+    const view = render(<ModelCheckDialog />)
+    await user.click(screen.getByRole('button', { name: /message.api.connection.failed/ }))
+    const first = showErrorDetailPopup.mock.calls[0]?.[0] as { errorContext: { id: string } }
+
+    health.singleModelResult = failedRun()
+    view.rerender(<ModelCheckDialog />)
+    await user.click(screen.getByRole('button', { name: /message.api.connection.failed/ }))
+    const retried = showErrorDetailPopup.mock.calls[1]?.[0] as { errorContext: { id: string } }
+
+    expect(retried.errorContext.id).not.toBe(first.errorContext.id)
+  })
+
   it('replaces the snapshot when a new check fails with the same text', async () => {
     const user = userEvent.setup()
     const error = {

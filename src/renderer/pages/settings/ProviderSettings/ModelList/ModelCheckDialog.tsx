@@ -241,7 +241,8 @@ export default function ModelCheckDialog() {
   const [isConcurrent, setIsConcurrent] = useState(true)
   const [timeoutSeconds, setTimeoutSeconds] = useState(15)
   const [isStarting, setIsStarting] = useState(false)
-  const checkFaults = useRef(new Map<string, AppErrorContext>())
+  // Each check run, wherever it was started, yields a new result error object.
+  const checkFaults = useRef(new WeakMap<object, AppErrorContext>())
   const effectiveAllKeySelection = getEffectiveKeySelection(allKeySelection, health.apiKeyEntries)
   const sortedModels = useMemo(() => sortBy(health.models, 'name'), [health.models])
   const checkableModels = useMemo(
@@ -324,8 +325,6 @@ export default function ModelCheckDialog() {
         timeout: timeout * 1000
       })
     } finally {
-      // The check that just finished must not keep the previous snapshot.
-      checkFaults.current.clear()
       setIsStarting(false)
     }
   }
@@ -344,14 +343,7 @@ export default function ModelCheckDialog() {
       }
     }
     const imageOnly = selectedModel ? isNonChatModel(selectedModel) : false
-    const faultKey = [
-      providerId ?? '',
-      modelId ?? '',
-      singleError.name ?? '',
-      singleError.message ?? '',
-      singleError.statusCode ?? ''
-    ].join('\0')
-    let errorContext = checkFaults.current.get(faultKey)
+    let errorContext = checkFaults.current.get(singleError)
     if (!errorContext) {
       errorContext = contextFromUnknown(singleError, {
         source: 'settings.provider',
@@ -361,7 +353,7 @@ export default function ModelCheckDialog() {
         ...(modelId ? { modelId } : {}),
         ...(imageOnly ? { imageOnly: true } : {})
       })
-      checkFaults.current.set(faultKey, errorContext)
+      checkFaults.current.set(singleError, errorContext)
     }
     const pending = showErrorDetailPopup({ error: singleError, errorContext })
     if (pending) {
