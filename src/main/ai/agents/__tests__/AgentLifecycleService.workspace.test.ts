@@ -41,6 +41,7 @@ vi.mock('@application', async () => {
       pauseRuntimeTurn: () => {}
     },
     AgentSessionRuntimeService: {
+      invalidateSessionContextUsage: () => {},
       cancelSessionForks: async () => {},
       recoverSessionForks: async () => {},
       isSessionBusy: () => false,

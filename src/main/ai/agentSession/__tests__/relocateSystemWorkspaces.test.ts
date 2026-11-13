@@ -42,6 +42,7 @@ vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
   return mockApplicationFactory({
     AgentSessionRuntimeService: {
+      invalidateSessionContextUsage: () => {},
       cancelSessionForks: vi.fn().mockResolvedValue(undefined),
       closeSessionForArchive: vi.fn().mockResolvedValue(undefined)
     }

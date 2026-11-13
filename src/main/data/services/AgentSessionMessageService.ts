@@ -24,6 +24,7 @@ import { agentSessionReadModelEffects, agentSessionService } from '@data/service
 import { registerDataService } from '@data/services/dataServiceRegistry'
 import { timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
+import { Emitter } from '@main/core/lifecycle'
 import { buildSearchSnippet } from '@main/utils/searchSnippet'
 import {
   extractFtsTokens,
@@ -346,6 +347,9 @@ function publicMessageData(data: SessionMessageRow['data']): AgentSessionMessage
 }
 
 export class AgentSessionMessageService {
+  private readonly branchSelected = new Emitter<string>()
+  readonly onBranchSelected = this.branchSelected.event
+
   readWorkspaceRelocationHistory(workspaceId: string) {
     return application
       .get('DbService')
@@ -524,6 +528,7 @@ export class AgentSessionMessageService {
       const head = this.branchTip(sessionId, messageId, tx)
       tx.update(sessionTable).set({ activeNodeId: head }).where(eq(sessionTable.id, sessionId)).run()
     })
+    this.branchSelected.fire(sessionId)
     notifyDataApiDataChange([
       { endpoint: '/agent-sessions/:sessionId/messages', kind: 'membership', routeParams: { sessionId } }
     ])

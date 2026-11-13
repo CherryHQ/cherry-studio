@@ -1,0 +1,1 @@
+ALTER TABLE `agent_session` ADD `context_usage_snapshot` text;

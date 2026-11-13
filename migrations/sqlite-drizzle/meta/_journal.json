@@ -266,6 +266,13 @@
       "when": 1794385698412,
       "tag": "0037_agent_avatar",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "6",
+      "when": 1794561856416,
+      "tag": "0038_whole_whizzer",
+      "breakpoints": true
     }
   ],
   "version": "7"

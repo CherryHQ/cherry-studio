@@ -118,6 +118,7 @@ const fake = vi.hoisted(() => {
       isSessionBusy: () => false,
       isSessionBusyForArchive: () => false,
       respondToolApproval: vi.fn(() => true),
+      invalidateSessionContextUsage: () => {},
       cancelSessionForks: async () => {},
       closeSession: async () => {},
       recoverSessionForks: async () => {}

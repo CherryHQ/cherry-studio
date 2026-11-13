@@ -82,4 +82,22 @@ describe('useAgentSessionContextUsage', () => {
     expect(result.current.usage).toBeNull()
     expect(result.current.percentage).toBeNull()
   })
+  it('renders a restored genuine zero reading as zero percent', () => {
+    cacheService.setShared(KEY, {
+      modelId: 'openai::small-model',
+      snapshot: { measuredAt: '2026-11-12T00:00:00.000Z', restored: true },
+      result: {
+        status: 'confirmed',
+        value: {
+          model: 'small-model',
+          revision: 'r1',
+          contextWindow: 100,
+          used: { tokens: 0, precision: 'reported' },
+          basis: 'current-context'
+        }
+      }
+    })
+    const { result } = renderHook(() => useAgentSessionContextUsage(SESSION_ID, model('openai::small-model', 100)))
+    expect(result.current.percentage).toBe(0)
+  })
 })

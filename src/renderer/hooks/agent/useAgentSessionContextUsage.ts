@@ -19,5 +19,9 @@ export function useAgentSessionContextUsage(
   const maxTokens = usage?.contextWindow ?? null
   const percentage =
     usage?.used && maxTokens ? Math.round(Math.min(100, Math.max(0, (usage.used.tokens / maxTokens) * 100))) : null
-  return { usage, percentage, maxTokens }
+  return {
+    usage,
+    percentage,
+    maxTokens
+  }
 }

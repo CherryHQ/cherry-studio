@@ -156,7 +156,8 @@ describe('AgentContextUsageSummary', () => {
       percentage: 20
     })
     await expandSummary()
-    expect(screen.getByTitle('200,300 / 1,000,000 · Estimated · Partial breakdown')).toBeInTheDocument()
+    expect(screen.getByTitle('200,300 / 1,000,000 · Estimated')).toBeInTheDocument()
+    expect(screen.getByText('Partial breakdown')).toBeVisible()
     expect(screen.queryByText(/[≈~～]/)).not.toBeInTheDocument()
     expect(screen.queryByRole('row', { name: /^Free space/ })).not.toBeInTheDocument()
     const meter = screen.getByRole('meter')

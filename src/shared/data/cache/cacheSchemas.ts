@@ -582,6 +582,7 @@ export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
  * with, or readable by the renderer.
  */
 export type MainPersistCacheSchema = {
+  // Last confirmed root-session reading; a cache miss shows nothing.
   'skill.subscription.catalogs': Record<string, SkillSubscriptionSnapshot>
   // ZIP-derived contents only; installed state still comes from the skill library.
   'skill.marketplace.members': Record<string, MarketplaceSkillMember[]>
