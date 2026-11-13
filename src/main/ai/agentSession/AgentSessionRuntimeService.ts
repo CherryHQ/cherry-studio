@@ -150,6 +150,12 @@ const ABANDONED_APPROVAL_ERROR = 'The runtime connection closed before this requ
  */
 const BACKGROUND_WORK_REBUILD_GRACE_MS = 120_000
 
+/**
+ * Total budget a fresh turn may spend deferred behind work the driver keeps reporting live:
+ * each grace re-arm restarts the window, so a stuck liveness report would wait forever.
+ */
+const BACKGROUND_WORK_REBUILD_MAX_DEFERRAL_MS = 10 * 60_000
+
 function knowledgeScopeEquals(left: readonly string[], right: readonly string[]): boolean {
   if (left.length !== right.length) return false
   const rightIds = new Set(right)
@@ -2030,6 +2036,7 @@ export class AgentSessionRuntimeService extends BaseService {
               logger.info('Deferring connection rebuild until background work releases', {
                 sessionId: entry.sessionId
               })
+              const deferralStartedAt = Date.now()
               while (true) {
                 const released = await this.waitForBackgroundWorkRelease(entry, connection, target)
                 if (!this.isCurrentEntry(entry) || this.currentConnection(entry) !== connection) break
@@ -2045,7 +2052,17 @@ export class AgentSessionRuntimeService extends BaseService {
                 // live work — forcing the rebuild now would kill it and strand the deferred
                 // turn with it. Re-arm the grace window; that work's own release still
                 // settles the waiter.
-                if (carriesProtectedExecution()) continue
+                if (carriesProtectedExecution()) {
+                  if (Date.now() - deferralStartedAt < BACKGROUND_WORK_REBUILD_MAX_DEFERRAL_MS) {
+                    continue
+                  }
+                  // A liveness report that outlives the total budget is indistinguishable from a
+                  // stuck one; admission wins, and the teardown clears the occupancy.
+                  logger.warn('Forcing connection rebuild after background work deferral budget', {
+                    sessionId: entry.sessionId,
+                    budgetMs: BACKGROUND_WORK_REBUILD_MAX_DEFERRAL_MS
+                  })
+                }
                 // Without a turn waiting to admit (a prewarm re-prime), killing the occupancy
                 // buys nothing — abandon the rebuild; the next real turn re-reconciles.
                 const waitingTurn = this.currentTurn(entry)

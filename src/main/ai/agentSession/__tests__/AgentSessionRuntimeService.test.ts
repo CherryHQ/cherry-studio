@@ -2882,6 +2882,70 @@ describe('AgentSessionRuntimeService', () => {
       }
     })
 
+    it('forces the rebuild once a re-arming grace window outlives the total deferral budget', async () => {
+      vi.useFakeTimers()
+      try {
+        const { stale: firstConnection, connect } = staleConnectionPair()
+        const service = new AgentSessionRuntimeService()
+        service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+        const entry = getEntry(service)
+        entry.connection = firstConnection
+        service.markTurnTerminal('session-1', 'success')
+        ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true }, firstConnection)
+
+        const handle = service.beginTurn({
+          ...baseTurnInput,
+          modelId: switchedModelId,
+          userMessage: userMessage('user-2')
+        })
+        const reader = openChunkStream(service, {
+          sessionId: 'session-1',
+          turnId: handle.turnId,
+          signal: new AbortController().signal
+        }).getReader()
+        await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
+        await vi.waitFor(() => expect(firstConnection.reconcile).toHaveBeenCalledOnce())
+
+        // Protected execution that never finishes: every grace expiry re-arms instead of forcing.
+        ;(service as any).handleRuntimeEvent(
+          entry,
+          { type: 'autonomous-turn-state', state: 'started', origin: { kind: 'goal-round', round: 1 } },
+          firstConnection
+        )
+        await vi.waitFor(() => expect(mocks.startRuntimeTurn).toHaveBeenCalledTimes(1))
+
+        const graceExpiries = () =>
+          mockMainLoggerService.warn.mock.calls.filter(
+            ([message]) => message === 'Background work did not release within the grace period'
+          ).length
+        // Four re-armed windows stay inside the 10-minute budget: the live generation keeps the
+        // connection.
+        for (let round = 1; round <= 4; round++) {
+          vi.advanceTimersByTime(120_000)
+          await vi.waitFor(() => expect(graceExpiries()).toBe(round))
+        }
+        expect(firstConnection.close).not.toHaveBeenCalled()
+        expect(connect).not.toHaveBeenCalled()
+
+        // The fifth expiry exhausts the budget: admission wins and the teardown clears it.
+        vi.advanceTimersByTime(120_000)
+        await vi.waitFor(() =>
+          expect(mockMainLoggerService.warn).toHaveBeenCalledWith(
+            'Forcing connection rebuild after background work deferral budget',
+            { sessionId: 'session-1', budgetMs: 600_000 }
+          )
+        )
+        await vi.waitFor(() => expect(firstConnection.close).toHaveBeenCalledOnce())
+        await vi.waitFor(() =>
+          expect(connect).toHaveBeenCalledWith(expect.objectContaining({ modelId: switchedModelId }))
+        )
+
+        await reader.cancel().catch(() => undefined)
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
     it('abandons the deferred rebuild instead of forcing it when no turn is waiting', async () => {
       vi.useFakeTimers()
       try {
