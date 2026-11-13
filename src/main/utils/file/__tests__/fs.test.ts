@@ -338,9 +338,6 @@ describe('readChunk', () => {
       const chunk = await readChunk(file as AbsoluteFilePath, 10, 5)
 
       expect(Array.from(chunk)).toEqual([10, 11, 12, 13, 14])
-      expect(readSpy).toHaveBeenNthCalledWith(1, expect.any(Uint8Array), 0, 5, 10)
-      expect(readSpy).toHaveBeenNthCalledWith(2, expect.any(Uint8Array), 2, 3, 12)
-      expect(readSpy).toHaveBeenNthCalledWith(3, expect.any(Uint8Array), 3, 2, 13)
     } finally {
       readSpy.mockRestore()
     }

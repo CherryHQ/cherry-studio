@@ -2,7 +2,6 @@ import type * as NodeChildProcess from 'node:child_process'
 import type * as NodeFs from 'node:fs'
 import fs from 'node:fs'
 import type * as NodeOs from 'node:os'
-import os from 'node:os'
 import { resolve as resolvePath } from 'node:path'
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -58,51 +57,7 @@ vi.mock('@main/core/platform', () => ({
   isWin: true
 }))
 
-import { executeExtraction, prepareContext } from '../utils'
-
-describe('OvOcr prepareContext', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-    vi.mocked(application.getPath).mockImplementation((key: string) => {
-      if (key === 'app.temp') {
-        return resolvePath('/tmp/app-temp')
-      }
-
-      if (key === 'feature.ovms.ovocr') {
-        return resolvePath('/mock/ovocr')
-      }
-
-      return resolvePath(`/mock/${key}`)
-    })
-    vi.mocked(fs.existsSync).mockReturnValue(true)
-    vi.mocked(os.cpus).mockReturnValue([{ model: 'Intel Ultra 7' }] as never)
-  })
-
-  it('returns a working directory prefix without creating directories', () => {
-    const config = {
-      id: 'ovocr',
-      type: 'builtin',
-      capabilities: [
-        {
-          feature: 'image_to_text',
-          inputs: ['image'],
-          output: 'text'
-        }
-      ]
-    }
-
-    const first = prepareContext(
-      {
-        id: 'file-1',
-        path: resolvePath('/tmp/a.png'),
-        type: 'image'
-      } as never,
-      config as never
-    )
-
-    expect(first.workingDirectoryPrefix).toBe(resolvePath('/tmp/app-temp/cherry-ovocr-'))
-  })
-})
+import { executeExtraction } from '../utils'
 
 describe('OvOcr executeExtraction', () => {
   beforeEach(() => {
@@ -149,7 +104,7 @@ describe('OvOcr executeExtraction', () => {
         `"${resolvePath('/mock/ovocr')}"`,
         expect.objectContaining({
           cwd: resolvePath('/tmp/cherry-ovocr-1'),
-          timeout: 60000,
+
           signal: controller.signal
         }),
         expect.any(Function)

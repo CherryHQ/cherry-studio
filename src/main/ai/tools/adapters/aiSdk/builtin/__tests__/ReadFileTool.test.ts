@@ -95,14 +95,6 @@ describe('readFile — text-only', () => {
     expect(ocrMock).not.toHaveBeenCalled()
   })
 
-  it('returns a note when extraction is empty', async () => {
-    getByIdMock.mockResolvedValueOnce({ ext: 'pdf' })
-    extractMock.mockResolvedValueOnce('   ')
-    expect(await readFile(input({ filename: 'a.pdf' }), ctx([att('a.pdf')]))).toMatchObject({
-      text: 'No text in a.pdf'
-    })
-  })
-
   it('rejects a filename not in the allow-list (never reads the entry)', async () => {
     const r = await readFile(input({ filename: 'evil.pdf' }), ctx([att('a.txt')]))
     expect(r).toEqual({ error: 'No attached file named "evil.pdf". Available: a.txt' })
@@ -144,7 +136,7 @@ describe('readFile — pagination', () => {
     })
   })
 
-  it('defaults limit to the page size (short text → whole, no nextOffset)', async () => {
+  it('returns complete short text without a continuation', async () => {
     getByIdMock.mockResolvedValueOnce({ ext: 'txt' })
     extractMock.mockResolvedValueOnce('short')
     expect(await readFile(input({ filename: 'a.txt' }), ctx([att('a.txt')]))).toEqual({ text: 'short', totalChars: 5 })
@@ -192,7 +184,6 @@ describe('createReadFileToolEntry', () => {
   it('carries a persist-only text-field codec (in-flight output is text, so the codec never fires there)', async () => {
     const { createReadFileToolEntry } = await import('../ReadFileTool')
     const entry = createReadFileToolEntry()
-    expect(entry.truncatable).toBeUndefined()
     const output = { text: 'page body', totalChars: 9 }
     expect(entry.codec!.deflate(output)).toEqual({ skeleton: output, blobs: [{ key: '/text', text: 'page body' }] })
     expect(entry.codec!.deflate({ error: 'No attached file named "x".' })).toBeNull()

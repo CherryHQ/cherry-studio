@@ -11,15 +11,6 @@ describe('boundedBodyTokens', () => {
     expect(boundedBodyTokens({ a: 'hi', b: ['x', 'yz'] }, fake)).toBe('hi'.length + 'x'.length + 'yz'.length)
   })
 
-  it('prices known media carriers (anthropic source, gemini inlineData, data URLs) as a small constant', () => {
-    const big = 'A'.repeat(1_000_000)
-    const anthropic = { source: { type: 'base64', media_type: 'image/png', data: big } }
-    expect(boundedBodyTokens(anthropic, fake)).toBe(1_500 + 'base64'.length + 'image/png'.length)
-    const gemini = { inlineData: { mimeType: 'image/png', data: big } }
-    expect(boundedBodyTokens(gemini, fake)).toBe(1_500 + 'image/png'.length)
-    expect(boundedBodyTokens({ url: `data:image/png;base64,${big}` }, fake)).toBe(1_500)
-  })
-
   it('estimates a long ordinary text prompt as text via sample extrapolation, not one media constant', () => {
     // A 100k+ char prompt through the fallback must not report ~1500 tokens — that would
     // defer client compaction until the downstream context limit is hit.

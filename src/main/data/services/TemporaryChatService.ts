@@ -16,12 +16,13 @@ import { eq, isNull } from 'drizzle-orm'
 import { v4 as uuidv4, v7 as uuidv7 } from 'uuid'
 
 import { application } from '@application'
-import { messageTable } from '@data/db/schemas/message'
 import { topicTable } from '@data/db/schemas/topic'
 import { loggerService } from '@logger'
+import type { Disposable } from '@main/core/lifecycle'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { CreateMessageDto } from '@shared/data/api/schemas/messages'
 import type { CreateTopicDto } from '@shared/data/api/schemas/topics'
+import type { FileEntryId } from '@shared/data/types/file'
 import type { Message, MessageRole, MessageRuntimeStatsInput, MessageStatus } from '@shared/data/types/message'
 import type { Topic } from '@shared/data/types/topic'
 
@@ -72,6 +73,23 @@ function rowToMessage(row: TemporaryMessageRow): Message {
 export class TemporaryChatService {
   private topics = new Map<string, TemporaryTopicRow>()
   private messages = new Map<string, TemporaryMessageRow[]>()
+  private avatarRetentions = new Map<string, Map<FileEntryId, Disposable>>()
+
+  retainAvatar(topicId: string, fileId: FileEntryId | undefined): void {
+    if (!fileId) return
+    if (!this.topics.has(topicId)) throw DataApiErrorFactory.notFound('TemporaryTopic', topicId)
+    let retained = this.avatarRetentions.get(topicId)
+    if (!retained) {
+      retained = new Map()
+      this.avatarRetentions.set(topicId, retained)
+    }
+    if (!retained.has(fileId)) retained.set(fileId, application.get('FileManager').retainTemporaryEntry(fileId))
+  }
+
+  private releaseAvatars(topicId: string): void {
+    for (const retention of this.avatarRetentions.get(topicId)?.values() ?? []) retention.dispose()
+    this.avatarRetentions.delete(topicId)
+  }
 
   createTopic(dto: CreateTopicDto): Topic {
     const now = Date.now()
@@ -98,6 +116,7 @@ export class TemporaryChatService {
     if (!this.topics.has(id)) {
       throw DataApiErrorFactory.notFound('TemporaryTopic', id)
     }
+    this.releaseAvatars(id)
     this.topics.delete(id)
     this.messages.delete(id)
     logger.info('Deleted temporary topic', { id })
@@ -156,6 +175,7 @@ export class TemporaryChatService {
     if (!list) {
       throw DataApiErrorFactory.notFound('TemporaryTopic', topicId)
     }
+    this.retainAvatar(topicId, row.messageSnapshot?.avatarFileId)
     list.push(row)
     const topic = this.topics.get(topicId)
     if (topic && isConversationActivityRole(row.role)) {
@@ -235,22 +255,20 @@ export class TemporaryChatService {
         const rootId = messageService.createRootMessageTx(tx, topic.id)
         let prevId: string = rootId
         for (const m of msgs) {
-          tx.insert(messageTable)
-            .values({
-              id: m.id,
-              topicId: topic.id,
-              parentId: prevId,
-              role: m.role,
-              data: m.data,
-              status: m.status,
-              siblingsGroupId: 0,
-              modelId: m.modelId ?? undefined,
-              messageSnapshot: m.messageSnapshot ?? undefined,
-              stats: m.stats ?? undefined,
-              createdAt: m.createdAt,
-              updatedAt: m.updatedAt
-            })
-            .run()
+          messageService.insertPromotedMessageTx(tx, {
+            id: m.id,
+            topicId: topic.id,
+            parentId: prevId,
+            role: m.role,
+            data: m.data,
+            status: m.status,
+            siblingsGroupId: 0,
+            modelId: m.modelId ?? undefined,
+            messageSnapshot: m.messageSnapshot ?? undefined,
+            stats: m.stats ?? undefined,
+            createdAt: m.createdAt,
+            updatedAt: m.updatedAt
+          })
           prevId = m.id
         }
 
@@ -271,6 +289,7 @@ export class TemporaryChatService {
       throw err
     }
 
+    this.releaseAvatars(topicId)
     topicService.notifyReadModelChange([topicId], 'membership')
 
     // Promotion never creates or repairs facts. Rebuild the materialized

@@ -44,6 +44,7 @@ import type { LineComment } from '@renderer/components/FileEditor'
 import { canProduceSelectionReference, FilePreview, hasRenderedFilePreview } from '@renderer/components/FilePreview'
 import { FileTree, type FileTreeNode } from '@renderer/components/FileTree'
 import { buildOpenTargetMenuItems, loadOpenTargetMenuItems, OpenTargetButton } from '@renderer/components/OpenTarget'
+import { RightPaneTabs } from '@renderer/components/RightPaneTabs'
 import { useExternalOpenTargets } from '@renderer/hooks/useExternalOpenTargets'
 import {
   FILE_EDIT_MAX_SIZE_BYTES as ARTIFACT_PREVIEW_MAX_SIZE_BYTES,
@@ -68,7 +69,6 @@ import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { createFilePathHandle } from '@shared/utils/file'
 
 import { ArtifactPaneBreadcrumb } from './ArtifactPaneBreadcrumb'
-import { ArtifactPaneFileTabs } from './ArtifactPaneFileTabs'
 import {
   type ArtifactPaneFileSelection,
   getArtifactPaneSelectionPath,
@@ -826,13 +826,14 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
       className="flex min-h-(--navbar-height) shrink-0 items-center gap-2 border-b border-border-subtle bg-card px-2 [-webkit-app-region:no-drag]">
       {treeToggleOnRight ? null : treeToggle}
       {fileTabs.length ? (
-        <ArtifactPaneFileTabs
+        <RightPaneTabs
           tabs={fileTabs.map((tab) => ({
             key: tabKey(tab),
             title: getPreviewFileTitle(tab),
             path: getArtifactPaneSelectionPath(tab)
           }))}
           activeKey={activeTabKey}
+          italicActive
           activeDirty={isEditDirty}
           dirtyLabel={t('agent.preview_pane.edit.unsaved')}
           closeLabel={t('agent.preview_pane.close')}
@@ -1066,6 +1067,8 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
           selectedId={selectedFile}
           onSelectedChange={handleSelectedChange}
           showSearch
+          searchClassName="px-3.5"
+          contentProps={{ className: 'px-1.5 pb-[var(--chat-composer-inset,0px)]' }}
           searchKeyword={searchKeyword}
           onSearchKeywordChange={onSearchKeywordChange}
           searchPlaceholder={t('agent.preview_pane.search_placeholder')}
@@ -1126,9 +1129,7 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
 
   const treeAside = (
     <aside className={cn('flex h-full w-full flex-col overflow-hidden', isWide && !treePinned && 'hidden')}>
-      <div
-        data-artifact-file-tree-scroll-region
-        className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-1.5 pb-[var(--chat-composer-inset,0px)]">
+      <div data-artifact-file-tree-scroll-region className="min-h-0 flex-1 overflow-hidden">
         {fileTreeContent}
       </div>
     </aside>

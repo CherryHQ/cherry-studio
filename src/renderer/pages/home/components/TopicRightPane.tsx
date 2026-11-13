@@ -12,6 +12,7 @@ import {
   type RightPanelCapability,
   type RightPanelComponentProps,
   type RightPanelComposition,
+  RightPanelHeaderControls,
   RightPanelProvider,
   RightPanelShortcut,
   RightPanelViewport,
@@ -147,6 +148,7 @@ function TopicBranchRightPanel({ active, scope }: RightPanelComponentProps<Topic
 }
 
 function TopicBrowserRightPanel({ active, scope }: RightPanelComponentProps<TopicRightPanelScope>) {
+  const actions = useRightPanelActions()
   if (!scope.topicId) return null
   return (
     <SessionBrowserView
@@ -155,7 +157,8 @@ function TopicBrowserRightPanel({ active, scope }: RightPanelComponentProps<Topi
       securityProfile={WebviewSecurityProfile.AgentBrowser}
       isHostActive={active}
       target={{ id: `topic-browser:${scope.topicId}`, label: scope.browserTitle }}
-      onNavigate={(url) => browserRuntime.ensure(scope.topicId!, url)}
+      toolbarActions={<RightPanelHeaderControls canMaximize />}
+      onEmpty={actions.close}
     />
   )
 }
@@ -209,6 +212,7 @@ const TOPIC_RIGHT_PANEL_CAPABILITIES = [
       instanceKey: `browser:${scope.topicId ?? 'unavailable'}`,
       title: scope.browserTitle,
       readiness: scope.topicId ? 'ready' : 'unavailable',
+      headerMode: 'content',
       canMaximize: true
     })
   },

@@ -154,7 +154,7 @@ const MiniAppsPage: FC = () => {
           className="pointer-events-none absolute inset-3 z-50 flex items-center justify-center rounded-xl border-2 border-border-strong border-dashed bg-card">
           <div className="flex max-w-sm flex-col items-center gap-3 px-6 text-center">
             <span className="flex size-12 items-center justify-center rounded-full bg-accent">
-              <PackagePlus className="size-6 text-foreground-secondary" strokeWidth={1.5} />
+              <PackagePlus className="size-6 text-muted-foreground" strokeWidth={1.5} />
             </span>
             <p className="font-medium text-foreground text-sm">{t('miniApp.install.drop_here')}</p>
             <p className="text-muted-foreground text-xs">{t('miniApp.install.pick_hint')}</p>
@@ -204,7 +204,10 @@ const MiniAppsPage: FC = () => {
         </div>
 
         {/* Body: loading / error / empty / grid */}
-        <ScrollArea viewportProps={{ className: 'px-8 pb-10' }} className="min-h-0 flex-1">
+        <ScrollArea
+          contentProps={{ className: 'px-8 pb-10' }}
+
+          className="min-h-0 flex-1">
           <div className="mx-auto flex min-h-full w-full max-w-6xl flex-col">
             {isLoading ? (
               <div className="flex flex-1 items-center justify-center">

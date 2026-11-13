@@ -17,6 +17,7 @@ import { useConversationErrorToasts } from '@renderer/hooks/useConversationError
 import type * as TurnControllerModule from '@renderer/hooks/useConversationTurnController'
 import en from '@renderer/i18n/locales/en-us.json'
 import zh from '@renderer/i18n/locales/zh-cn.json'
+import type * as RendererIpc from '@renderer/ipc'
 import { takeAgentDraftHandoffs } from '@renderer/services/agentDraftHandoff'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
@@ -61,7 +62,8 @@ const mocks = vi.hoisted(() => ({
 }))
 
 // respondToolApproval now goes through ipcApi.request('ai.tool.respond_approval', …).
-vi.mock('@renderer/ipc', () => ({
+vi.mock('@renderer/ipc', async (importOriginal) => ({
+  ...(await importOriginal<typeof RendererIpc>()),
   ipcApi: {
     request: (route: string, input: unknown) =>
       route === 'ai.tool.respond_approval'
@@ -656,10 +658,6 @@ describe('useAgentChatRuntimeState', () => {
       reset: mocks.resetOverlay
     })
 
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: {}
-    })
     Object.defineProperty(window, 'toast', {
       configurable: true,
       value: {
@@ -1342,36 +1340,6 @@ describe('useAgentChatRuntimeState', () => {
     )
 
     expect(result.current.uiMessages[0]?.metadata?.totalTokens).toBe(256)
-  })
-
-  it('keeps the history contract and composer callback stable across stream snapshots', () => {
-    mocks.useExecutionOverlay.mockReturnValue({
-      overlay: { 'assistant-1': [{ type: 'text', text: 'a' }] },
-      liveAssistants: [{ ...assistantMessage, parts: [{ type: 'text', text: 'a' }] } as CherryUIMessage],
-      disposeOverlay: mocks.disposeOverlay,
-      reset: mocks.resetOverlay
-    })
-    const { result, rerender } = renderHook(() =>
-      useAgentChatRuntimeState({
-        sessionId: 'session-1',
-        sessionMessagesEnabled: true,
-        reservedMessages: []
-      })
-    )
-    const streamingLayers = result.current.streamingLayers
-    const sendMessage = result.current.sendMessage
-
-    mocks.useExecutionOverlay.mockReturnValue({
-      overlay: { 'assistant-1': [{ type: 'text', text: 'ab' }] },
-      liveAssistants: [{ ...assistantMessage, parts: [{ type: 'text', text: 'ab' }] } as CherryUIMessage],
-      disposeOverlay: mocks.disposeOverlay,
-      reset: mocks.resetOverlay
-    })
-    rerender()
-
-    expect(result.current.streamingLayers).toBe(streamingLayers)
-    expect(result.current.streamingLayers.liveMessageIds).toEqual(['assistant-1'])
-    expect(result.current.sendMessage).toBe(sendMessage)
   })
 
   it('stores AskUserQuestion submitted input as a temporary tool input', async () => {

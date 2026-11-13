@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 
 import { useCache } from '@data/hooks/useCache'
 import { loggerService } from '@logger'
+import { AssistantAvatarImage } from '@renderer/components/Avatar/AssistantAvatarImage'
 import { ChatSidePaddingProvider } from '@renderer/components/chat/layout/ChatLayoutModeContext'
 import { createComposerUserMessageParts } from '@renderer/components/composer/composerDraft'
 import type { ComposerSerializedDraft } from '@renderer/components/composer/tokens'
@@ -143,7 +144,17 @@ export const SelectionAgentConversation: FC<SelectionAgentConversationProps> = (
     <ChatSidePaddingProvider sidePaddingPx={SIDE_PADDING_PX} messageEndInsetPx={MESSAGE_END_INSET_PX}>
       <div className="flex h-full min-h-0 flex-col">
         <SelectionAgentHeader
-          avatar={agent ? getAgentAvatarFromConfiguration(agent.configuration) : undefined}
+          avatar={
+            agent ? (
+              <AssistantAvatarImage
+                src={agent.avatarSrc}
+                alt=""
+                size={22}
+                className="rounded-sm object-cover"
+                fallback={getAgentAvatarFromConfiguration(agent.configuration)}
+              />
+            ) : undefined
+          }
           title={agent?.name ?? ''}
           subtitle={session?.name || undefined}
           onOpenInMainWindow={() => void openInMainWindow()}

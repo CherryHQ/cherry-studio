@@ -41,7 +41,7 @@ export function prepareBackupRestoreSession(): boolean {
 /**
  * Preboot shell around the restore promotion logic (which lives in
  * data/db/restore/restorePromotion.ts — same layering as
- * v2MigrationGate → MigrationEngine).
+ * legacyUpgradeGate → legacyUpgrade).
  *
  * Runs in startApp() before runV2MigrationGate() reads the DB. Hard ordering
  * constraints: after requireSingleInstance() (the promotion does destructive

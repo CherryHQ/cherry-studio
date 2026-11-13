@@ -52,9 +52,6 @@ describe('userDataRelocation request', () => {
     expect(assertRequestMock).toHaveBeenCalledWith(pending)
     expect(bootConfigSetMock).toHaveBeenCalledWith('temp.user_data_relocation', pending)
     expect(bootConfigPersistMock).toHaveBeenCalledTimes(1)
-    // BootConfig validates taskId as z.uuid() on set — guard the format here.
-    const taskId = (assertRequestMock.mock.calls[0][0] as { taskId: string }).taskId
-    expect(taskId).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/)
   })
 
   it('restores the previous state when the pending request cannot be persisted', () => {

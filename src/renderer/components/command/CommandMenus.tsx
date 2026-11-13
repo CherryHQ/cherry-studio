@@ -106,6 +106,7 @@ export type CommandContextMenuExtraItem =
       enabled?: boolean
       description?: React.ReactNode
       destructive?: boolean
+      executeImmediately?: boolean
       checked?: boolean
       /** Prefer this for command-backed items; the menu resolves platform and user preference. */
       shortcutCommand?: CommandId
@@ -289,7 +290,10 @@ function CommandContextMenuExtraItemView({
           <ContextMenuItemContent icon={item.icon}>{item.label}</ContextMenuItemContent>
         </ContextMenuSubTrigger>
         <ContextMenuSubContent>
-          <ScrollArea viewportProps={{ className: 'overflow-x-hidden pr-1' }} className="-mr-1 max-h-72">
+          <ScrollArea
+            contentProps={{ className: 'pr-1' }}
+            viewportProps={{ className: 'overflow-x-hidden' }}
+            className="-mr-1 max-h-72">
             {item.children.map((child, index) => (
               <CommandContextMenuExtraItemView
                 key={`${child.type}-${index}`}
@@ -698,9 +702,11 @@ function CommandDropdownMenuItemView({
 
 function CommandDropdownExtraItemView({
   item,
+  onSelectImmediate,
   onSelectItem
 }: {
   item: CommandContextMenuExtraItem
+  onSelectImmediate?: (action: () => void) => void
   onSelectItem?: (action: () => void) => void
 }): React.ReactNode {
   if (item.type === 'separator') {
@@ -714,7 +720,10 @@ function CommandDropdownExtraItemView({
           <ContextMenuItemContent icon={item.icon}>{item.label}</ContextMenuItemContent>
         </DropdownMenuSubTrigger>
         <DropdownMenuSubContent>
-          <ScrollArea viewportProps={{ className: 'overflow-x-hidden pr-1' }} className="-mr-1 max-h-72">
+          <ScrollArea
+            contentProps={{ className: 'pr-1' }}
+            viewportProps={{ className: 'overflow-x-hidden' }}
+            className="-mr-1 max-h-72">
             {item.children.map((child, index) => (
               <CommandDropdownExtraItemView key={`${child.type}-${index}`} item={child} onSelectItem={onSelectItem} />
             ))}
@@ -730,7 +739,13 @@ function CommandDropdownExtraItemView({
     <DropdownMenuItem
       disabled={item.enabled === false}
       variant={item.destructive ? 'destructive' : 'default'}
-      onSelect={() => (onSelectItem ? onSelectItem(item.onSelect) : item.onSelect())}>
+      onSelect={() =>
+        item.executeImmediately && onSelectImmediate
+          ? onSelectImmediate(item.onSelect)
+          : onSelectItem
+            ? onSelectItem(item.onSelect)
+            : item.onSelect()
+      }>
       <ContextMenuItemContent icon={item.icon} badge={item.badge} shortcut={item.shortcutLabel || undefined}>
         {item.label}
       </ContextMenuItemContent>
@@ -786,6 +801,7 @@ export function CommandPopupMenu({
   const mode = resolveMenuPresentationMode(location, presentationMode ?? preferredMode ?? 'cherry')
   const [internalOpen, setInternalOpen] = useState(defaultOpen ?? false)
   const pendingCherryActionRef = useRef<(() => void) | null>(null)
+  const suppressCloseAutoFocusRef = useRef(false)
   const currentOpen = open ?? internalOpen
   const commandItems = useMemo(() => removeEmptySeparators(model.items), [model.items])
   const resolveShortcutLabel = useCallback(
@@ -867,7 +883,20 @@ export function CommandPopupMenu({
     },
     [handleCherryOpenChange]
   )
-  const handleCherryCloseAutoFocus = useCallback(() => {
+  const handleCherrySelectImmediate = useCallback(
+    (action: () => void) => {
+      suppressCloseAutoFocusRef.current = true
+      action()
+      handleCherryOpenChange(false)
+    },
+    [handleCherryOpenChange]
+  )
+  const handleCherryCloseAutoFocus = useCallback((event: Event) => {
+    if (suppressCloseAutoFocusRef.current) {
+      suppressCloseAutoFocusRef.current = false
+      event.preventDefault()
+      return
+    }
     // Radix fires this after the popup's exit animation and focus cleanup.
     // Heavy actions (such as image capture) must not block that final frame.
     const action = pendingCherryActionRef.current
@@ -910,10 +939,20 @@ export function CommandPopupMenu({
         side={side}
         sideOffset={sideOffset}
         className={contentClassName}
-        onCloseAutoFocus={deferActionsUntilClosed ? handleCherryCloseAutoFocus : undefined}>
+        onCloseAutoFocus={
+          deferActionsUntilClosed ||
+          combinedItems.some((item) => item.type === 'item' && 'executeImmediately' in item && item.executeImmediately)
+            ? handleCherryCloseAutoFocus
+            : undefined
+        }>
         {combinedItems.map((item, index) =>
           isExtraMenuItem(item) ? (
-            <CommandDropdownExtraItemView key={`extra-${item.id}`} item={item} onSelectItem={handleCherrySelectItem} />
+            <CommandDropdownExtraItemView
+              key={`extra-${item.id}`}
+              item={item}
+              onSelectItem={handleCherrySelectItem}
+              onSelectImmediate={handleCherrySelectImmediate}
+            />
           ) : (
             <CommandDropdownMenuItemView
               key={`${item.type}-${index}`}

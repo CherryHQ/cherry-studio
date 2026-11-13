@@ -10,9 +10,10 @@ import type {
 } from '@earendil-works/pi-coding-agent'
 
 import {
-  type CompactionRequest,
   ENTRY_KINDS,
   encodeEntry,
+  goalForRequest,
+  nativeSummaryKey,
   type GateCall,
   type GateFacts,
   type RequestAllowance,
@@ -22,10 +23,8 @@ import {
 } from '@cherrystudio/agent-behavior'
 import type { JsonValue } from '@cherrystudio/agent-runtime'
 
-import type { CompactionSummarizer } from '../compaction'
 import {
   addUsage,
-  keysOf,
   ZERO_USAGE,
   BLOCKED_PREFIX,
   callKeyFor,
@@ -33,14 +32,12 @@ import {
   latestPlan,
   omittedMarkers,
   textOf,
+  usageFact,
   withoutMarkers
 } from './history'
 import { readFacts } from './ledger'
 import { endingOf, finishRun, noteMessage, offerSteer } from './runs'
 import type { Adapter, Conversation } from './state'
-
-const UNWIRED_SUMMARIZER =
-  "Compaction cancelled: the session's compaction.summarize is not the adapter's summarize, so onCompacting was not asked"
 
 /** The adapter's side of one conversation's session: the package's tools, run boundaries and inbound handlers. */
 export function conversationExtension(adapter: Adapter, conv: Conversation): ExtensionFactory {
@@ -62,9 +59,16 @@ export function conversationExtension(adapter: Adapter, conv: Conversation): Ext
       if (run.stopRequested) ctx.abort()
     })
     pi.on('session_before_compact', () => {
-      if (conv.native?.compactionSummarizer === conv.summarize && conv.summarize) return undefined
-      adapter.report(new Error(`${UNWIRED_SUMMARIZER} (${conv.thread})`))
-      return { cancel: true }
+      const owner = goalForRequest(historyOf(conv.manager.getBranch(), conv.thread))
+      const key = `${conv.thread}:${conv.manager.getLeafId()}`
+      conv.summary = { owner, key, ...(conv.active && { run: conv.active.run }), requests: 0 }
+      conv.manager.appendCustomEntry('cherry.native-compaction-owner', {
+        ...owner,
+        key: nativeSummaryKey(key),
+        usage: ZERO_USAGE,
+        nativeThread: conv.thread,
+        ...(conv.active && { nativeRun: conv.active.run })
+      })
     })
     pi.on('turn_end', (event) => offerSteer(conv, event.message))
     pi.on('message_end', (event) => noteMessage(conv, event.message))
@@ -226,52 +230,29 @@ export function meterRequests(adapter: Adapter, conv: Conversation, session: Age
       })
     }
     if (run) run.requests += 1
-    return stream(model, context, options)
-  }
-}
-
-/**
- * H12: every compaction asks `onCompacting` first, and one during a run is one of its metered requests (H11). What it
- * throws cancels the compaction and becomes its `compaction-end` error: a decline's reason or a refusal's text.
- */
-export function compactionSummarizer(adapter: Adapter, conv: Conversation): CompactionSummarizer {
-  const decline = (reason: string): never => {
-    conv.declined = true
-    throw new Error(reason)
-  }
-  return async (request) => {
-    conv.declined = false
-    const run = conv.active
-    if (run) {
-      const allowance = allow(adapter, conv, run.requests)
-      if (!allowance.ok) return decline(allowance.text)
-      run.requests += 1
-    }
-    const handlers = adapter.installation.lifecycle
-    if (!handlers) throw new Error('No onCompacting handler is registered')
-    const compaction: CompactionRequest = {
-      // The entry the compaction will follow: Pi appends it after the branch's last entry.
-      key: `${conv.thread}:${conv.manager.getLeafId()}`,
-      history: historyOf(conv.manager.getBranch(), conv.thread),
-      reason: request.reason,
-      messages: JSON.parse(JSON.stringify(request.messages)) as JsonValue[],
-      ...(request.previousSummary === undefined ? {} : { previousSummary: request.previousSummary }),
-      ...(request.instructions === undefined ? {} : { instructions: request.instructions }),
-      signal: request.signal
-    }
-    const verdict = await handlers.onCompacting(conv.thread, compaction, adapter.gatePorts).catch((error: unknown) => {
-      // A host compact() rejects (the compaction is cancelled); an automatic compaction has no caller.
-      if (conv.hostCompacts === 0) adapter.report(error)
-      throw error
+    const summary = session.isCompacting ? conv.summary : undefined
+    const output = stream(model, context, summary ? { ...options, sessionId: conv.thread } : options)
+    if (!summary) return output
+    return Promise.resolve(output).then((output) => {
+      const key = nativeSummaryKey(`${summary.key}:${++summary.requests}`)
+      const result = output.result.bind(output)
+      let saved: ReturnType<typeof result> | undefined
+      output.result = () =>
+        (saved ??= result().then((message) => {
+          const usage = usageFact(message.usage)
+          const encoded = encodeEntry({ type: 'summary-usage', value: { ...summary.owner, usage } }, key)
+          if (!encoded.data || typeof encoded.data !== 'object' || Array.isArray(encoded.data))
+            throw new Error('Invalid native summary accounting')
+          conv.manager.appendCustomEntry(encoded.kind, {
+            ...encoded.data,
+            nativeThread: conv.thread,
+            ...(summary.run === undefined ? {} : { nativeRun: summary.run })
+          })
+          if (summary.run)
+            conv.runUsage[summary.run - 1] = addUsage(conv.runUsage[summary.run - 1] ?? ZERO_USAGE, usage)
+          return message
+        }))
+      return output
     })
-    if ('decline' in verdict) return decline(verdict.reason)
-    const accounting = verdict.accounting
-    if (accounting && !keysOf(historyOf(conv.manager.getBranch(), conv.thread)).has(accounting.key)) {
-      const encoded = encodeEntry(accounting.record, accounting.key)
-      conv.manager.appendCustomEntry(encoded.kind, encoded.data)
-      if (run)
-        conv.runUsage[run.run - 1] = addUsage(conv.runUsage[run.run - 1] ?? ZERO_USAGE, accounting.record.value.usage)
-    }
-    return verdict.summary
   }
 }

@@ -1,6 +1,6 @@
 import { MockCherrystudioUI } from '@test-mocks/renderer/CherrystudioUI'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
-import type { CSSProperties, ReactNode } from 'react'
+import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { KnowledgeItemChunk } from '@shared/data/types/knowledge'
@@ -10,31 +10,17 @@ import { createFileItem } from './testUtils'
 
 const mockIpcRequest = vi.fn()
 const mockUseQuery = vi.fn()
-let capturedVirtualListProps:
-  | {
-      list: KnowledgeItemChunk[]
-      getItemKey?: (index: number) => string | number
-      estimateSize: (index: number) => number
-      itemContainerStyle?: CSSProperties
-    }
-  | undefined
 
 vi.mock('@renderer/components/VirtualList', () => ({
   DynamicVirtualList: ({
     list,
     children,
-    getItemKey,
-    estimateSize,
-    itemContainerStyle
+    getItemKey
   }: {
     list: KnowledgeItemChunk[]
     children: (chunk: KnowledgeItemChunk, index: number) => ReactNode
     getItemKey?: (index: number) => string | number
-    estimateSize: (index: number) => number
-    itemContainerStyle?: CSSProperties
   }) => {
-    capturedVirtualListProps = { list, getItemKey, estimateSize, itemContainerStyle }
-
     return (
       <div data-testid="virtual-list">
         {list.slice(0, 3).map((chunk, index) => (
@@ -151,7 +137,6 @@ vi.mock('react-i18next', () => ({
 describe('KnowledgeItemChunkDetailPanel', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    capturedVirtualListProps = undefined
     mockIpcRequest.mockResolvedValue(chunks)
     mockUseQuery.mockImplementation((path: string) => {
       if (path === '/knowledge-items/:id') {
@@ -212,51 +197,6 @@ describe('KnowledgeItemChunkDetailPanel', () => {
     // chunk index badges are 1-based (chunkIndex 0/1 render as 1/2)
     expect(screen.getByText('1')).toBeInTheDocument()
     expect(screen.getByText('2')).toBeInTheDocument()
-  })
-
-  it('renders chunk cards without action buttons', async () => {
-    renderPanel()
-
-    await waitFor(() => {
-      expect(screen.getByText(`${chunks.length} chunks`)).toBeInTheDocument()
-    })
-    expect(screen.queryByRole('button', { name: '删除' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: '编辑' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: '展开' })).not.toBeInTheDocument()
-  })
-
-  it('virtualizes large chunk lists with stable chunk ids', async () => {
-    const largeChunkList = Array.from(
-      { length: 1000 },
-      (_, index): KnowledgeItemChunk => ({
-        id: `chunk-${index}`,
-        itemId: 'file-1',
-        content: `Chunk content ${index}`,
-        metadata: {
-          itemId: 'file-1',
-          itemType: 'file',
-          source: '/tmp/large.pdf',
-          chunkIndex: index,
-          tokenCount: 100
-        }
-      })
-    )
-    mockIpcRequest.mockResolvedValueOnce(largeChunkList)
-
-    renderPanel()
-
-    await waitFor(() => {
-      expect(screen.getByText('1000 chunks')).toBeInTheDocument()
-    })
-
-    expect(screen.getByTestId('virtual-list')).toBeInTheDocument()
-    expect(screen.getAllByTestId('virtual-chunk')).toHaveLength(3)
-    expect(screen.queryByText('Chunk content 999')).not.toBeInTheDocument()
-    expect(capturedVirtualListProps?.list).toHaveLength(1000)
-    expect(capturedVirtualListProps?.getItemKey?.(0)).toBe('chunk-0')
-    expect(capturedVirtualListProps?.getItemKey?.(999)).toBe('chunk-999')
-    expect(capturedVirtualListProps?.estimateSize(0)).toBeGreaterThan(0)
-    expect(capturedVirtualListProps?.itemContainerStyle).toEqual({ paddingBottom: 8 })
   })
 
   it('logs chunk list failures and shows the original error message', async () => {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import type { JsonValue, ThreadId } from '@cherrystudio/agent-runtime'
+import type { ThreadId } from '@cherrystudio/agent-runtime'
 
 import { callTool, childSpec, holds, type Holds, latch, reply, toolResults } from '../../src/contract/fixtures'
 import { ensureDriver } from '../../src/core/driver/jobs'
@@ -320,20 +320,10 @@ describe('idle driver', () => {
         }
       }
     })
-    const summarized: (readonly JsonValue[])[] = []
     const w = world({
       settings: ONE_ROUND,
       wrap: wrapJob('idle-driver', pauseAfterStart),
-      extra: (p) => p.tools.register(hold.tool),
-      patchHost: (host) => ({
-        ...host,
-        summarizer: {
-          summarize: (request, signal) => {
-            summarized.push(request.messages)
-            return host.summarizer.summarize(request, signal)
-          }
-        }
-      })
+      extra: (p) => p.tools.register(hold.tool)
     })
     const t = await w.fake.createThread()
     w.fake.script(t, [callTool('hold', { id: 'r1' }), reply('never')])
@@ -342,10 +332,10 @@ describe('idle driver', () => {
     await w.fake.settle()
     const [round] = markers(await w.read(t), 'goal-round')
     expect([...admittedRounds((await w.read(t)).history)]).not.toContain(round.marker.round.id)
-    w.host.giveSummary('summary')
+    const summarized = await w.fake.withCall(t, (ports) => ports.ledger.modelContext(t))
+    w.fake.scriptSummary(t, reply('summary'))
     await w.fake.compact(t)
-    expect(summarized).toHaveLength(1)
-    expect(summarized[0].map((message) => (message as { readonly text: string }).text)).not.toContain(round.text)
+    expect(summarized.map((message) => (message as { readonly text: string }).text)).not.toContain(round.text)
   })
 
   // Catches admission by position (R1): a round reserved before the person edited the goal must not count, and the

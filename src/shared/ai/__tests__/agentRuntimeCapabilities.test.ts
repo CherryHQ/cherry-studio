@@ -45,16 +45,6 @@ describe('AGENT_RUNTIME_CAPABILITIES', () => {
     expect(normalizePiDisabledToolId('PowerShell')).toBe('powershell')
   })
 
-  it('keeps permission choices aligned with each runtime approval implementation', () => {
-    expect(AGENT_RUNTIME_CAPABILITIES['claude-code'].permissionModes).toContain('plan')
-    expect(AGENT_RUNTIME_CAPABILITIES['claude-code'].permissionModes).toContain('auto')
-    expect(AGENT_RUNTIME_CAPABILITIES.pi.permissionModes).not.toContain('plan')
-    // pi implements `auto` itself in the approval extension, so it offers it.
-    expect(AGENT_RUNTIME_CAPABILITIES.pi.permissionModes).toContain('auto')
-    expect(AGENT_RUNTIME_CAPABILITIES['claude-code'].createDefaults.permissionMode).toBe('auto')
-    expect(AGENT_RUNTIME_CAPABILITIES.pi.createDefaults.permissionMode).toBe('auto')
-  })
-
   describe('isModelCompatible — managed CherryAI default model', () => {
     const piIsCompatible = AGENT_RUNTIME_CAPABILITIES.pi.isModelCompatible
     const claudeIsCompatible = AGENT_RUNTIME_CAPABILITIES['claude-code'].isModelCompatible

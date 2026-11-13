@@ -150,13 +150,13 @@ describe(`Agent lifecycle workspace persistence (${process.platform})`, () => {
     expect(jobScheduleService.getById(task.id)).toBeNull()
     expect(
       agentSessionService
-        .listByCursor({ inTrash: true })
+        .listByCursor({ scope: 'ordinary', inTrash: true })
         .items.map((s) => s.id)
         .sort()
     ).toEqual(sessions.map((s) => s.id).sort())
     expect(agentSessionService.getById('user').deletedAt).toBeUndefined()
     await lifecycle.restoreSession(sessions[0].id)
-    expect(agentSessionService.listByCursor().items.map((s) => s.id)).toContain(sessions[0].id)
+    expect(agentSessionService.listByCursor({ scope: 'ordinary' }).items.map((s) => s.id)).toContain(sessions[0].id)
   })
 
   const createChild = (ownerSessionId: string) => {

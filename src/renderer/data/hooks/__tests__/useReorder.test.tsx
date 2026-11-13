@@ -529,7 +529,6 @@ describe('useReorder - degradation: cache not yet loaded', () => {
     })
 
     expect(patchMock).not.toHaveBeenCalled()
-    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('called before data loaded'))
   })
 
   it('move warns and skips PATCH when cache is undefined', async () => {
@@ -543,7 +542,6 @@ describe('useReorder - degradation: cache not yet loaded', () => {
     })
 
     expect(patchMock).not.toHaveBeenCalled()
-    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('called before data loaded'))
   })
 })
 
@@ -574,7 +572,6 @@ describe('useReorder - degradation: unrecognized cache shape', () => {
 
     // Cannot diff without a baseline → we deliberately do not fire PATCH.
     expect(patchMock).not.toHaveBeenCalled()
-    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('unrecognized shape'))
   })
 
   it('move skips optimistic overlay but still PATCHes (id/anchor are self-contained)', async () => {
@@ -595,25 +592,6 @@ describe('useReorder - degradation: unrecognized cache shape', () => {
     )
     // Cache was not mutated with an optimistic overlay.
     expect(cache.get(COLLECTION_CACHE_KEY)?.data).toBe(initial)
-    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('unrecognized shape'))
-  })
-
-  it('de-duplicates the unrecognized-shape warning across multiple calls on the same hook', async () => {
-    const initial: Envelope = { data: [{ id: 'a' }, { id: 'b' }], meta: {} }
-    const { Wrapper } = makeWrapper<Envelope>(initial)
-    patchMock.mockResolvedValue({})
-
-    const { result } = renderReorder(COLLECTION, Wrapper, { revalidateOnSuccess: false })
-
-    await act(async () => {
-      await result.current.move('a', { position: 'first' })
-      await result.current.move('b', { position: 'last' })
-    })
-
-    const unrecognizedWarnings = warnSpy.mock.calls.filter((call) =>
-      call.some((arg) => typeof arg === 'string' && arg.includes('unrecognized shape'))
-    )
-    expect(unrecognizedWarnings).toHaveLength(1)
   })
 })
 

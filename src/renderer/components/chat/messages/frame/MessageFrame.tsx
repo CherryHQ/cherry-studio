@@ -207,7 +207,7 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
     )
   }
 
-  const messageContentClassName = 'message-content-container mt-0 min-h-0 max-w-full pl-0'
+  const messageContentClassName = 'message-content-container mt-0 min-h-0 max-w-full'
   const messageContentStyle = {
     fontFamily: messageFont === 'serif' ? 'var(--font-family-serif)' : 'var(--font-family)',
     fontSize

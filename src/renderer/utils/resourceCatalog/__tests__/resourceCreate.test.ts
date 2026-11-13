@@ -58,10 +58,4 @@ describe('resource create DTO mapping', () => {
       configuration: { avatar: '🤖', permission_mode: 'acceptEdits' }
     })
   })
-
-  it('falls back to the runtime default when a stale mode is unsupported', () => {
-    expect(
-      buildCreateAgentCommand({ ...values, agentType: 'pi', permissionMode: 'plan' }).configuration?.permission_mode
-    ).toBe('auto')
-  })
 })

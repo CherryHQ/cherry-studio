@@ -19,9 +19,9 @@ import { prepareBackupRestoreSession, runBackupRestoreGate } from '@main/core/pr
 import { configureChromiumFlags } from '@main/core/preboot/chromiumFlags'
 import { initCrashTelemetry } from '@main/core/preboot/crashTelemetry'
 import { trackProcessExit } from '@main/core/preboot/exitRecord'
+import { runLegacyUpgradeGate } from '@main/core/preboot/legacyUpgradeGate'
 import { requireSingleInstance } from '@main/core/preboot/singleInstance'
 import { resolveUserDataLocation } from '@main/core/preboot/userDataLocation'
-import { runV2MigrationGate } from '@main/core/preboot/v2MigrationGate'
 import { MINI_APP_SCHEME_DECLARATION } from '@main/features/miniApp/runtime/protocol'
 import { runDataReset } from '@main/services/dataReset'
 import { CHERRY_MEDIA_SCHEME_DECLARATION } from '@main/services/mediaProtocol'
@@ -71,9 +71,8 @@ const startApp = async () => {
   const restoreResult = await runBackupRestoreGate(isolatedRestoreSession)
   if (restoreResult === 'handled') return
 
-  // 'handled' = migration window took over OR fatal error already quit the app.
-  const migrationResult = await runV2MigrationGate()
-  if (migrationResult === 'handled') return
+  const upgradeResult = await runLegacyUpgradeGate()
+  if (upgradeResult === 'handled') return
 
   // The toolkit uses the executable path in development, which can exceed Windows' AUMID limit.
   // Establish the edition identity before bootstrap creates windows or notifications.
