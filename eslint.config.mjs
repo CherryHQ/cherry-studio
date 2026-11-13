@@ -1400,6 +1400,12 @@ export default defineConfig([
               message: 'Shared buckets must not import pages/windows (reverse layer edge). architecture/renderer.md §7.'
             },
             {
+              target: ['src/renderer/hooks', 'src/renderer/services'],
+              from: 'src/renderer/components',
+              message:
+                'hooks/ and services/ sit below components/ and must not import them (reverse layer edge); move the module into components/ or push the shared piece down. architecture/renderer.md §3.'
+            },
+            {
               target: 'src/renderer/utils',
               from: ['src/renderer/components', 'src/renderer/hooks'],
               message:

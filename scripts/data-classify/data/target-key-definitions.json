@@ -22,9 +22,16 @@
     {
       "targetKey": "app.computer_use.agent_control.enabled",
       "type": "boolean",
-      "defaultValue": false,
+      "defaultValue": true,
       "status": "classified",
       "description": "Allow local agents to observe and control desktop applications through the Computer Use SDK"
+    },
+    {
+      "targetKey": "app.computer_use.approved_apps",
+      "type": "string[]",
+      "defaultValue": [],
+      "status": "classified",
+      "description": "Stable native application identities explicitly allowed for Computer Use on this installation"
     },
     {
       "targetKey": "agent.commit_attribution.enabled",
@@ -32,6 +39,13 @@
       "defaultValue": true,
       "status": "classified",
       "description": "Let the Claude Code runtime append its own attribution to git commits and PR bodies (Co-Authored-By trailer, Generated-with footer). Disable to omit that attribution (v2 new feature, no v1 source)"
+    },
+    {
+      "targetKey": "agent.skills.external_export.enabled",
+      "type": "boolean",
+      "defaultValue": false,
+      "status": "classified",
+      "description": "Export skills to external agents (v2 new feature, no v1 source)"
     },
     {
       "targetKey": "app.browser.agent_control.enabled",

@@ -36,6 +36,7 @@ export function useMessageListRenderConfig() {
       codeFancyBlock,
       thoughtAutoCollapse,
       collapseCompletedToolHistory: true,
+      expandToolSteps: false,
       keepIntermediateAssistantText,
       showCitationMarkers,
       mathEnableSingleDollar,

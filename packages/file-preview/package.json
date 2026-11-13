@@ -1,6 +1,6 @@
 {
   "name": "@cherrystudio/file-preview",
-  "version": "0.2.6",
+  "version": "0.2.7",
   "description": "Portable read-only document preview for Cherry Studio",
   "license": "MIT",
   "repository": {
