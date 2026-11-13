@@ -1,6 +1,7 @@
 import type { ResourceCreateValues } from '@renderer/types/resourceCatalog'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import type { CreateAssistantDto } from '@shared/data/api/schemas/assistants'
+import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import type { CreateAgentCommand } from '@shared/ipc/schemas/ai'
 
 /** Map the shared create-wizard values to the Assistant DataApi contract. */
@@ -11,7 +12,9 @@ export function buildCreateAssistantDto(values: ResourceCreateValues): CreateAss
     modelId: values.modelId,
     description: values.description,
     prompt: values.prompt,
-    knowledgeBaseIds: values.knowledgeBaseIds
+    knowledgeBaseIds: values.knowledgeBaseIds,
+    ...(values.mcpServerIds?.length ? { mcpServerIds: values.mcpServerIds } : {}),
+    ...(values.enableWebSearch ? { settings: { ...DEFAULT_ASSISTANT_SETTINGS, enableWebSearch: true } } : {})
   }
 }
 
@@ -30,6 +33,7 @@ export function buildCreateAgentCommand(values: ResourceCreateValues): CreateAge
     instructions: values.prompt,
     ...(caps.knowledgeBases ? { knowledgeBaseIds: values.knowledgeBaseIds } : {}),
     ...(caps.skills ? { skillIds: values.skillIds } : {}),
+    ...(caps.mcp && values.mcpServerIds?.length ? { mcps: values.mcpServerIds } : {}),
     configuration: {
       avatar: values.avatar,
       permission_mode: permissionMode

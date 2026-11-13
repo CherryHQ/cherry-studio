@@ -7,8 +7,11 @@ import { cn } from '@cherrystudio/ui/lib/utils'
 import { type ModelSelectorFilter } from '@renderer/components/ModelSelector'
 import { useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
 import { useIsCherryCloudModelSelectable } from '@renderer/hooks/cherryCloud/useIsCherryCloudModelSelectable'
+import { useResourceAutoConfigure } from '@renderer/hooks/resourceCatalog'
 import { useDefaultModel, useModels } from '@renderer/hooks/useModel'
 import { useProviderById } from '@renderer/hooks/useProvider'
+import { getErrorMessage } from '@renderer/utils/error'
+import type { AutoConfigDraft } from '@renderer/utils/resourceCatalog'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import type { UniqueModelId } from '@shared/data/types/model'
 
@@ -16,8 +19,10 @@ import {
   resourceDialogCloseButtonClassName,
   resourceDialogHeaderClassName,
   resourceDialogRailItemClassName,
-  resourceDialogTitleClassName
+  resourceDialogTitleClassName,
+  setFormValues
 } from '../components/EditDialogShared'
+import { AutoCreateEntry } from './steps/AutoCreateEntry'
 import { BasicInfoStep } from './steps/BasicInfoStep'
 import { CapabilityStep } from './steps/CapabilityStep'
 import { KnowledgeStep } from './steps/KnowledgeStep'
@@ -39,6 +44,9 @@ type ResourceCreateWizardProps = {
 }
 
 type StepId = 'basic' | 'system-prompt' | 'knowledge' | 'capability'
+type WizardView = 'entry' | 'steps'
+
+const AUTO_CREATE_TIMEOUT_MS = 60_000
 
 /** The avatar a brand-new resource starts with — exported so callers can preview what they'd create. */
 export function getResourceCreateDefaultAvatar(kind: ResourceCreateWizardKind) {
@@ -61,8 +69,83 @@ function getDefaultValues(
     prompt: '',
     knowledgeBaseIds: [],
     skillIds: [],
+    mcpServerIds: [],
+    enableWebSearch: false,
     ...initialValues
   }
+}
+
+/** Callers that seed a prompt (catalog templates) are already configured, so they skip the entry. */
+function getInitialView(initialValues: ResourceCreateWizardProps['initialValues']): WizardView {
+  return initialValues?.prompt ? 'steps' : 'entry'
+}
+
+/** A name the user typed or an avatar they picked wins over the generated one. */
+function applyAutoConfigDraft(
+  kind: ResourceCreateWizardKind,
+  values: ResourceCreateWizardFormValues,
+  draft: AutoConfigDraft
+): Partial<ResourceCreateWizardFormValues> {
+  const avatarPicked = values.avatar !== getResourceCreateDefaultAvatar(kind)
+  return {
+    name: values.name.trim() || draft.name,
+    avatar: avatarPicked ? values.avatar : (draft.emoji ?? values.avatar),
+    description: draft.description || values.description,
+    prompt: draft.prompt,
+    knowledgeBaseIds: draft.knowledgeBaseIds,
+    mcpServerIds: draft.mcpServerIds,
+    skillIds: draft.skillIds,
+    enableWebSearch: draft.enableWebSearch,
+    ...(draft.permissionMode ? { permissionMode: draft.permissionMode } : {})
+  }
+}
+
+type GenerateAutoConfig = ReturnType<typeof useResourceAutoConfigure>['generate']
+
+/**
+ * Entry footer — gates Auto create on purpose + model and owns the catalog queries, in a leaf
+ * so field edits and catalog loads skip the shell, and nothing is fetched while it is closed.
+ */
+function EntryFooter({
+  kind,
+  form,
+  generating,
+  isSubmitting,
+  onCancel,
+  onManual,
+  onAuto
+}: {
+  kind: ResourceCreateWizardKind
+  form: UseFormReturn<ResourceCreateWizardFormValues>
+  generating: boolean
+  isSubmitting: boolean
+  onCancel: () => void
+  onManual: () => void
+  onAuto: (generate: GenerateAutoConfig) => void
+}) {
+  const { t } = useTranslation()
+  const { ready: catalogsReady, generate } = useResourceAutoConfigure(kind, true)
+  const [purpose, modelId] = useWatch({ control: form.control, name: ['description', 'modelId'] })
+  // Generation can be cancelled; the create call that follows cannot (same lock as the steps).
+  const creating = isSubmitting || form.formState.isSubmitting
+  const busy = generating || creating
+  const rootError = form.formState.errors.root?.message
+  const canAuto = (purpose?.trim().length ?? 0) > 0 && Boolean(modelId) && catalogsReady
+
+  return (
+    <div className="flex shrink-0 items-center justify-end gap-2 border-border-subtle border-t px-6 py-3">
+      {rootError ? <span className="mr-auto text-destructive text-xs">{rootError}</span> : null}
+      <Button type="button" variant="ghost" disabled={creating} className="text-muted-foreground" onClick={onCancel}>
+        {t('common.cancel')}
+      </Button>
+      <Button type="button" variant="outline" disabled={busy} onClick={onManual}>
+        {t('library.config.dialogs.create.auto.manual')}
+      </Button>
+      <Button type="button" loading={busy} disabled={!canAuto} onClick={() => onAuto(generate)}>
+        {busy ? t('library.config.dialogs.create.auto.configuring') : t('library.config.dialogs.create.auto.submit')}
+      </Button>
+    </div>
+  )
 }
 
 /**
@@ -164,6 +247,9 @@ export function ResourceCreateWizard({
       : null
   const autoSelectedDefaultModelIdRef = useRef<UniqueModelId | null>(null)
   const [stepIndex, setStepIndex] = useState(0)
+  const [view, setView] = useState<WizardView>(() => getInitialView(initialValues))
+  const [generating, setGenerating] = useState(false)
+  const autoAbortRef = useRef<AbortController | null>(null)
   const [dialogContentElement, setDialogContentElement] = useState<HTMLDivElement | null>(null)
   const [dialogKey, setDialogKey] = useState(0)
   const pendingCloseActionRef = useRef<(() => void) | null>(null)
@@ -199,6 +285,7 @@ export function ResourceCreateWizard({
     form.reset(getDefaultValues(kind, initialName, initialValues))
     form.clearErrors()
     setStepIndex(0)
+    setView(getInitialView(initialValues))
   })
 
   /** Last `(kind, open)` pair this wizard already initialised for. <Activity> destroys the
@@ -304,7 +391,9 @@ export function ResourceCreateWizard({
         description: values.description.trim(),
         prompt: values.prompt.trim(),
         knowledgeBaseIds: values.knowledgeBaseIds,
-        skillIds: values.skillIds
+        skillIds: values.skillIds,
+        mcpServerIds: values.mcpServerIds,
+        enableWebSearch: values.enableWebSearch
       })
     } catch (error) {
       const message =
@@ -312,6 +401,45 @@ export function ResourceCreateWizard({
       form.setError('root', { message })
     }
   })
+
+  // Closing (or hiding) the dialog cancels an in-flight generation.
+  useEffect(() => () => autoAbortRef.current?.abort(), [open])
+
+  const handleAutoCreate = async (generate: GenerateAutoConfig) => {
+    const values = form.getValues()
+    if (!values.modelId || !values.description.trim()) return
+    form.clearErrors('root')
+
+    const controller = new AbortController()
+    const timeout = AbortSignal.timeout(AUTO_CREATE_TIMEOUT_MS)
+    autoAbortRef.current = controller
+    setGenerating(true)
+    let draft: AutoConfigDraft | null
+    try {
+      draft = await generate({
+        agentType: values.agentType,
+        purpose: values.description,
+        name: values.name,
+        signal: AbortSignal.any([controller.signal, timeout])
+      })
+    } catch (error) {
+      if (!controller.signal.aborted) {
+        form.setError('root', { message: timeout.aborted ? t('error.request_timeout') : getErrorMessage(error) })
+      }
+      return
+    } finally {
+      if (autoAbortRef.current === controller) autoAbortRef.current = null
+      setGenerating(false)
+    }
+    if (controller.signal.aborted) return
+    if (!draft) {
+      form.setError('root', { message: t('library.config.dialogs.create.auto.failed') })
+      return
+    }
+
+    setFormValues(form, applyAutoConfigDraft(kind, values, draft))
+    await handleCreate()
+  }
 
   const title = t(
     kind === 'assistant' ? 'library.config.dialogs.create.assistant_title' : 'library.config.dialogs.create.agent_title'
@@ -335,76 +463,106 @@ export function ResourceCreateWizard({
 
         <Form {...form}>
           <form onSubmit={(event) => event.preventDefault()} className="flex min-h-0 flex-1 flex-col overflow-hidden">
-            <div className="flex min-h-0 flex-1">
-              {/* Step rail */}
-              <ol className="w-48 shrink-0 space-y-1 border-border border-r-[0.5px] bg-background-subtle p-3">
-                {steps.map((step, index) => {
-                  const active = index === stepIndex
-                  const done = index < stepIndex
-                  return (
-                    <li key={step.id}>
-                      <MenuItem
-                        icon={
-                          <span
-                            className={cn(
-                              'flex size-5 shrink-0 items-center justify-center rounded-full font-medium text-[11px]',
-                              active
-                                ? 'bg-foreground text-background'
-                                : done
-                                  ? 'bg-foreground/10 text-foreground'
-                                  : 'border border-border text-muted-foreground'
-                            )}>
-                            {index + 1}
-                          </span>
-                        }
-                        label={step.label}
-                        active={active}
-                        disabled={!done}
-                        onClick={() => done && setStepIndex(index)}
-                        aria-current={active ? 'step' : undefined}
-                        className={cn(resourceDialogRailItemClassName, 'disabled:opacity-100')}
-                      />
-                    </li>
-                  )
-                })}
-              </ol>
-
-              {/* Active step */}
-              <ScrollArea
-                contentProps={{ className: cn('px-6 py-5', currentStep.id === 'system-prompt' && 'h-full') }}
-                className="min-w-0 flex-1">
-                {currentStep.id === 'basic' ? (
-                  <BasicInfoStep
+            {view === 'entry' ? (
+              <>
+                <ScrollArea contentProps={{ className: 'px-6 py-5' }} className="min-h-0 flex-1">
+                  <AutoCreateEntry
                     form={form}
                     portalContainer={dialogContentElement}
                     fallbackAvatar={getResourceCreateDefaultAvatar(kind)}
                     modelFilter={activeModelFilter}
-                    showAgentFields={kind === 'agent'}
+                    includeAgentOnlyModels={kind === 'agent'}
+                    disabled={generating}
                     onSettingsNavigate={closeBeforeAction}
                   />
-                ) : null}
-                {currentStep.id === 'system-prompt' ? (
-                  <SystemPromptStep form={form} portalContainer={dialogContentElement} />
-                ) : null}
-                {currentStep.id === 'knowledge' ? (
-                  <KnowledgeStep form={form} isSubmitting={submitting} portalContainer={dialogContentElement} />
-                ) : null}
-                {currentStep.id === 'capability' ? (
-                  <CapabilityStep form={form} portalContainer={dialogContentElement} />
-                ) : null}
-              </ScrollArea>
-            </div>
+                </ScrollArea>
+                <EntryFooter
+                  kind={kind}
+                  form={form}
+                  generating={generating}
+                  isSubmitting={isSubmitting}
+                  onCancel={() => onOpenChange(false)}
+                  onManual={() => {
+                    form.clearErrors('root')
+                    setView('steps')
+                  }}
+                  onAuto={(generate) => void handleAutoCreate(generate)}
+                />
+              </>
+            ) : (
+              <>
+                <div className="flex min-h-0 flex-1">
+                  {/* Step rail */}
+                  <ol className="w-48 shrink-0 space-y-1 border-border border-r-[0.5px] bg-background-subtle p-3">
+                    {steps.map((step, index) => {
+                      const active = index === stepIndex
+                      const done = index < stepIndex
+                      return (
+                        <li key={step.id}>
+                          <MenuItem
+                            icon={
+                              <span
+                                className={cn(
+                                  'flex size-5 shrink-0 items-center justify-center rounded-full font-medium text-[11px]',
+                                  active
+                                    ? 'bg-foreground text-background'
+                                    : done
+                                      ? 'bg-foreground/10 text-foreground'
+                                      : 'border border-border text-muted-foreground'
+                                )}>
+                                {index + 1}
+                              </span>
+                            }
+                            label={step.label}
+                            active={active}
+                            disabled={!done}
+                            onClick={() => done && setStepIndex(index)}
+                            aria-current={active ? 'step' : undefined}
+                            className={cn(resourceDialogRailItemClassName, 'disabled:opacity-100')}
+                          />
+                        </li>
+                      )
+                    })}
+                  </ol>
 
-            <WizardFooter
-              form={form}
-              stepIndex={stepIndex}
-              isLast={isLast}
-              isSubmitting={isSubmitting}
-              onCancel={() => onOpenChange(false)}
-              onBack={goBack}
-              onNext={goNext}
-              onCreate={() => void handleCreate()}
-            />
+                  {/* Active step */}
+                  <ScrollArea
+                    contentProps={{ className: cn('px-6 py-5', currentStep.id === 'system-prompt' && 'h-full') }}
+                    className="min-w-0 flex-1">
+                    {currentStep.id === 'basic' ? (
+                      <BasicInfoStep
+                        form={form}
+                        portalContainer={dialogContentElement}
+                        fallbackAvatar={getResourceCreateDefaultAvatar(kind)}
+                        modelFilter={activeModelFilter}
+                        showAgentFields={kind === 'agent'}
+                        onSettingsNavigate={closeBeforeAction}
+                      />
+                    ) : null}
+                    {currentStep.id === 'system-prompt' ? (
+                      <SystemPromptStep form={form} portalContainer={dialogContentElement} />
+                    ) : null}
+                    {currentStep.id === 'knowledge' ? (
+                      <KnowledgeStep form={form} isSubmitting={submitting} portalContainer={dialogContentElement} />
+                    ) : null}
+                    {currentStep.id === 'capability' ? (
+                      <CapabilityStep form={form} portalContainer={dialogContentElement} />
+                    ) : null}
+                  </ScrollArea>
+                </div>
+
+                <WizardFooter
+                  form={form}
+                  stepIndex={stepIndex}
+                  isLast={isLast}
+                  isSubmitting={isSubmitting}
+                  onCancel={() => onOpenChange(false)}
+                  onBack={goBack}
+                  onNext={goNext}
+                  onCreate={() => void handleCreate()}
+                />
+              </>
+            )}
           </form>
         </Form>
       </DialogContent>

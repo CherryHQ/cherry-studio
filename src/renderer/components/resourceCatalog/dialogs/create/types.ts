@@ -27,6 +27,9 @@ export type ResourceCreateWizardFormValues = {
   knowledgeBaseIds: string[]
   // agent step 3
   skillIds: string[]
+  // set only by auto create
+  mcpServerIds: string[]
+  enableWebSearch: boolean
 }
 
 /**

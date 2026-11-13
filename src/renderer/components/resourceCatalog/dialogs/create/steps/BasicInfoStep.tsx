@@ -34,11 +34,39 @@ const EMPTY_MODEL_LABELS: ModelLabels = {
 type ModelFieldProps = {
   form: UseFormReturn<ResourceCreateWizardFormValues>
   portalContainer: HTMLElement | null
-  modelLabels: ModelLabels
-  setModelLabels: (labels: ModelLabels) => void
   modelFilter?: ModelSelectorFilter
   isModelDisabled?: ModelSelectorFilter
   onSettingsNavigate?: (navigate: () => void) => void
+}
+
+/** Model picker shared by the basic step and the auto-create entry; owns its label state. */
+export function CreateModelField({
+  form,
+  portalContainer,
+  modelFilter,
+  isModelDisabled,
+  onSettingsNavigate,
+  includeAgentOnlyModels = false
+}: ModelFieldProps & { includeAgentOnlyModels?: boolean }) {
+  const { t } = useTranslation()
+  const [modelLabels, setModelLabels] = useState<ModelLabels>(EMPTY_MODEL_LABELS)
+
+  return (
+    <CompactModelField
+      form={form}
+      name="modelId"
+      includeAgentOnlyModels={includeAgentOnlyModels}
+      label={t('common.model')}
+      labelClassName="font-medium"
+      filter={modelFilter}
+      isModelDisabled={isModelDisabled}
+      portalContainer={portalContainer}
+      modelLabels={modelLabels}
+      setModelLabels={setModelLabels}
+      onSettingsNavigate={onSettingsNavigate}
+      triggerClassName="h-9 rounded-md border border-input bg-transparent px-3 hover:bg-accent/50 aria-expanded:bg-accent/50"
+    />
+  )
 }
 
 type BasicInfoStepProps = {
@@ -54,8 +82,6 @@ type BasicInfoStepProps = {
 function AgentRuntimeModelFields({
   form,
   portalContainer,
-  modelLabels,
-  setModelLabels,
   modelFilter,
   isModelDisabled,
   onSettingsNavigate
@@ -86,21 +112,70 @@ function AgentRuntimeModelFields({
           </FormItem>
         )}
       />
-      <CompactModelField
+      <CreateModelField
         form={form}
-        name="modelId"
-        includeAgentOnlyModels
-        label={t('common.model')}
-        labelClassName="font-medium"
-        filter={modelFilter}
-        isModelDisabled={isModelDisabled}
         portalContainer={portalContainer}
-        modelLabels={modelLabels}
-        setModelLabels={setModelLabels}
+        modelFilter={modelFilter}
+        isModelDisabled={isModelDisabled}
         onSettingsNavigate={onSettingsNavigate}
-        triggerClassName="h-9 rounded-md border border-input bg-transparent px-3 hover:bg-accent/50 aria-expanded:bg-accent/50"
+        includeAgentOnlyModels
       />
     </>
+  )
+}
+
+/** Emoji avatar + name input. The auto-create entry leaves the name optional (it is generated). */
+export function AvatarNameField({
+  form,
+  portalContainer,
+  fallbackAvatar,
+  required = false,
+  placeholder
+}: {
+  form: UseFormReturn<ResourceCreateWizardFormValues>
+  portalContainer: HTMLElement | null
+  fallbackAvatar: string
+  required?: boolean
+  placeholder?: string
+}) {
+  const { t } = useTranslation()
+  const [emojiPickerOpen, setEmojiPickerOpen] = useState(false)
+  const avatar = useWatch({ control: form.control, name: 'avatar' })
+
+  return (
+    <FormField
+      control={form.control}
+      name="name"
+      rules={required ? { validate: (value) => value.trim().length > 0 || t('common.required_field') } : undefined}
+      render={({ field }) => (
+        <FormItem>
+          <FormLabel className="font-medium">{t('library.config.dialogs.create.avatar_name_label')}</FormLabel>
+          <InputGroup>
+            <InputGroupAddon className="py-0">
+              <EmojiAvatarPicker
+                value={avatar}
+                fallback={fallbackAvatar}
+                open={emojiPickerOpen}
+                onOpenChange={setEmojiPickerOpen}
+                onChange={(value) => form.setValue('avatar', value, { shouldDirty: true })}
+                ariaLabel={t('library.config.dialogs.create.avatar_aria')}
+                portalContainer={portalContainer}
+                avatarClassName="border-0"
+                avatarFontSize={18}
+              />
+            </InputGroupAddon>
+            <FormControl>
+              <InputGroupInput
+                {...field}
+                className="pl-1!"
+                placeholder={placeholder ?? t('library.config.dialogs.create.name_placeholder')}
+              />
+            </FormControl>
+          </InputGroup>
+          <FormMessage />
+        </FormItem>
+      )}
+    />
   )
 }
 
@@ -120,9 +195,6 @@ export function BasicInfoStep({
   onSettingsNavigate
 }: BasicInfoStepProps) {
   const { t } = useTranslation()
-  const [emojiPickerOpen, setEmojiPickerOpen] = useState(false)
-  const [modelLabels, setModelLabels] = useState<ModelLabels>(EMPTY_MODEL_LABELS)
-  const avatar = useWatch({ control: form.control, name: 'avatar' })
 
   useEffect(() => {
     form.setFocus('name')
@@ -130,63 +202,23 @@ export function BasicInfoStep({
 
   return (
     <div className="flex flex-col gap-4">
-      <FormField
-        control={form.control}
-        name="name"
-        rules={{ validate: (value) => value.trim().length > 0 || t('common.required_field') }}
-        render={({ field }) => (
-          <FormItem>
-            <FormLabel className="font-medium">{t('library.config.dialogs.create.avatar_name_label')}</FormLabel>
-            <InputGroup>
-              <InputGroupAddon className="py-0">
-                <EmojiAvatarPicker
-                  value={avatar}
-                  fallback={fallbackAvatar}
-                  open={emojiPickerOpen}
-                  onOpenChange={setEmojiPickerOpen}
-                  onChange={(value) => form.setValue('avatar', value, { shouldDirty: true })}
-                  ariaLabel={t('library.config.dialogs.create.avatar_aria')}
-                  portalContainer={portalContainer}
-                  avatarClassName="border-0"
-                  avatarFontSize={18}
-                />
-              </InputGroupAddon>
-              <FormControl>
-                <InputGroupInput
-                  {...field}
-                  className="pl-1!"
-                  placeholder={t('library.config.dialogs.create.name_placeholder')}
-                />
-              </FormControl>
-            </InputGroup>
-            <FormMessage />
-          </FormItem>
-        )}
-      />
+      <AvatarNameField form={form} portalContainer={portalContainer} fallbackAvatar={fallbackAvatar} required />
 
       {showAgentFields ? (
         <AgentRuntimeModelFields
           form={form}
           portalContainer={portalContainer}
-          modelLabels={modelLabels}
-          setModelLabels={setModelLabels}
           modelFilter={modelFilter}
           isModelDisabled={isModelDisabled}
           onSettingsNavigate={onSettingsNavigate}
         />
       ) : (
-        <CompactModelField
+        <CreateModelField
           form={form}
-          name="modelId"
-          label={t('common.model')}
-          labelClassName="font-medium"
-          filter={modelFilter}
-          isModelDisabled={isModelDisabled}
           portalContainer={portalContainer}
-          modelLabels={modelLabels}
-          setModelLabels={setModelLabels}
+          modelFilter={modelFilter}
+          isModelDisabled={isModelDisabled}
           onSettingsNavigate={onSettingsNavigate}
-          triggerClassName="h-9 rounded-md border border-input bg-transparent px-3 hover:bg-accent/50 aria-expanded:bg-accent/50"
         />
       )}
 
