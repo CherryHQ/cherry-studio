@@ -1,7 +1,8 @@
 import type { FC } from 'react'
-import { useEffect, useMemo } from 'react'
+import { useMemo } from 'react'
 
 import { usePreference } from '@data/hooks/usePreference'
+import { AppErrorRuntime } from '@renderer/components/AppErrorRuntime'
 import { CodeStyleProvider } from '@renderer/components/CodeStyleProvider'
 import { CommandContextKeyProvider, CommandProvider } from '@renderer/components/command'
 import { DictationShortcutHost } from '@renderer/components/DictationShortcutHost'
@@ -20,7 +21,6 @@ import { useCustomCss } from '@renderer/hooks/useCustomCss'
 import { useLanguageSync } from '@renderer/hooks/useLanguageSync'
 import { useSelectionAgents } from '@renderer/hooks/useSelectionAgents'
 import { useAppPathSnapshot, useDayjsLocaleSync } from '@renderer/hooks/useWindowRuntime'
-import { registerErrorDetailPopup } from '@renderer/services/errorDetailPopup'
 import { parseSelectionActions } from '@renderer/utils/selectionAction'
 import { type AskAgentSelectionAction, SELECTION_BUILTIN_ACTION_ID } from '@shared/types/selection'
 
@@ -35,10 +35,6 @@ function SelectionAgentRuntime(): null {
   useAppPathSnapshot()
   useAutoReadPreferenceSync()
   useAgentSessionAutoRenameSync()
-  // No AppErrorRuntime here, but its error toasts still open details through the popup host.
-  useEffect(() => {
-    registerErrorDetailPopup(() => import('@renderer/components/ErrorDetailModal'))
-  }, [])
   // A pooled window loads what the compose bar labels while it waits, so a fresh bar shows its
   // agent and workspace at once instead of fallbacks. The agent read must match the bar's own.
   const [actionItems] = usePreference('feature.selection.action_items')
@@ -71,6 +67,7 @@ const SelectionAgentApp: FC = () => {
                   <SelectionAgentWindow />
                 </ErrorBoundary>
                 <McpInteractionHost />
+                <AppErrorRuntime mode="local" />
                 <PopupHost />
                 <ToastHost />
                 <DictationShortcutHost />
