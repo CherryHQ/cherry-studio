@@ -81,20 +81,35 @@ class ReleaseCosTests(unittest.TestCase):
         self.assertEqual(self.store.objects[inventory["global/windows/two.exe"]["key"]], b"second")
 
     def test_upload_uses_shanghai_only_for_windows(self):
+        targets = [(platform, []) for platform in release.PLATFORMS] + [
+            ("windows", ["all"]),
+            ("mac", ["x64"]),
+            ("mac", ["arm64"]),
+            ("linux", ["x64"]),
+            ("linux", ["arm64"]),
+        ]
         for edition in release.EDITIONS:
-            for platform in release.PLATFORMS:
+            for platform, architecture in targets:
+                relative = f"{edition}/{platform}/installer.bin"
+                Path("installer.bin").write_bytes(b"installer")
+                Path("release-upload.json").write_text(json.dumps({relative: "installer.bin"}), encoding="utf-8")
+                self.store.objects.clear()
                 with (
-                    self.subTest(edition=edition, platform=platform),
-                    patch.object(sys, "argv", ["release-cos.py", "upload", edition, platform]),
+                    self.subTest(edition=edition, platform=platform, architecture=architecture),
+                    patch.object(sys, "argv", ["release-cos.py", "upload", edition, platform, *architecture]),
                     patch.dict(os.environ, {"TAG": "v2.2.1", "COS_SECRET_ID": "id", "COS_SECRET_KEY": "key"}),
                     patch.object(release, "CosConfig") as config,
                     patch.object(release, "CosS3Client", return_value=self.store),
-                    patch.object(release, "stage_build") as stage,
                 ):
                     release.main()
                     endpoint = "ap-shanghai" if platform == "windows" else "accelerate"
                     self.assertEqual(config.call_args.kwargs["Domain"], f"{release.BUCKET}.cos.{endpoint}.myqcloud.com")
-                    stage.assert_called_once_with(self.store, self.prefix, edition, platform)
+                    group = f"{edition}/{platform}"
+                    if architecture and architecture[0] != "all":
+                        group += f"/{architecture[0]}"
+                    inventory = json.loads(self.store.objects[f"{self.prefix}/{group}.json"])
+                    self.assertEqual(inventory[relative], {"key": f"{self.prefix}/attempt-1/{relative}", "size": 9})
+                    self.assertEqual(self.store.objects[inventory[relative]["key"]], b"installer")
 
     def test_partial_build_reuses_only_other_platforms_and_downloads_global(self):
         baseline = {}
