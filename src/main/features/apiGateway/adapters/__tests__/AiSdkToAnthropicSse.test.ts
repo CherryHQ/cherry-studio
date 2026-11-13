@@ -805,9 +805,9 @@ describe('terminal failure reasons', () => {
       }
     })
     const read = async () => {
-      for await (const _event of adapter.transform(stream)) {
-        /* consume */
-      }
+      const events: unknown[] = []
+      for await (const event of adapter.transform(stream)) events.push(event)
+      return events
     }
     await expect(read()).rejects.toMatchObject({ statusCode: 502 })
   })
