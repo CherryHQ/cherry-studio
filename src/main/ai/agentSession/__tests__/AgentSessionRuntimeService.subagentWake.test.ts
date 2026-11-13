@@ -37,6 +37,8 @@ const mocks = vi.hoisted(() => ({
   listIdsByAgent: vi.fn(),
   getAgent: vi.fn(),
   ensureTraceId: vi.fn(),
+  getContextUsageSnapshot: vi.fn((): null => null),
+  setContextUsageSnapshot: vi.fn(),
   recordUsage: vi.fn()
 }))
 
@@ -44,7 +46,9 @@ vi.mock('@data/services/AgentSessionService', () => ({
   agentSessionService: {
     getById: mocks.getSessionById,
     ensureTraceId: mocks.ensureTraceId,
-    listIdsByAgent: mocks.listIdsByAgent
+    listIdsByAgent: mocks.listIdsByAgent,
+    getContextUsageSnapshot: mocks.getContextUsageSnapshot,
+    setContextUsageSnapshot: mocks.setContextUsageSnapshot
   }
 }))
 vi.mock('@data/services/AgentService', () => ({
