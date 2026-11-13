@@ -56,7 +56,7 @@ describe('doctorCheckDetailParams', () => {
       eager: true,
       import: 'default'
     })
-    expect(Object.keys(catalogs)).toHaveLength(15)
+    expect(Object.keys(catalogs)).toHaveLength(16)
     expect(ERROR_CATEGORIES).toHaveLength(20)
     for (const [path, catalog] of Object.entries(catalogs)) {
       const i18n = createInstance()
