@@ -35,9 +35,9 @@ import type { Tab } from '@shared/data/cache/cacheValueTypes'
 
 import { useAppUpdateHandler } from './hooks/useAppUpdateHandler'
 import { useAutoBackupEvents } from './hooks/useAutoBackupEvents'
-import { useCherryCloudSubscriptionReminder } from './hooks/useCherryCloudSubscriptionReminder'
 import { useTopicNamingErrorNotification } from './hooks/useTopicNamingErrorNotification'
 import { PrivacyPolicyUpdateGate } from './privacy/PrivacyPolicyUpdateGate'
+import { CherryCloudPlanActivationHost } from './subscription/CherryCloudPlanActivationDialog'
 
 const logger = loggerService.withContext('MainApp')
 const OnboardingPage = lazy(() => import('./onboarding/OnboardingPage'))
@@ -94,7 +94,6 @@ function MainWindowRuntime(): null {
   useAutoBackupEvents()
   useStorageMonitorNotification()
   useTopicNamingErrorNotification()
-  useCherryCloudSubscriptionReminder()
 
   return null
 }
@@ -140,6 +139,7 @@ export function MainWindowContent(): React.ReactElement {
           <DictationShortcutHost />
           <VoicePlaybackHost />
           {providerSetupStatus === 'pending' ? null : <PrivacyPolicyUpdateGate />}
+          {providerSetupStatus === 'pending' ? null : <CherryCloudPlanActivationHost />}
         </MandatoryGateProvider>
       </SidebarShortcutRegistryProvider>
     </TabsProvider>
