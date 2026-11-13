@@ -1,0 +1,40 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Issue #24370 evidence</title>
+<style>
+  :root { color-scheme: light }
+  body { margin: 0; padding: 40px 48px 44px; width: 1180px; box-sizing: border-box;
+    font: 15px/1.5 -apple-system, "SF Pro Text", "Helvetica Neue", sans-serif; color: #131722; background: #fff }
+  h1 { font-size: 26px; margin: 0 0 6px; letter-spacing: -0.2px }
+  .sub { color: #5b6472; font-size: 13px; margin-bottom: 26px }
+  h2 { font-size: 15px; margin: 28px 0 10px; text-transform: uppercase; letter-spacing: 0.6px; color: #3b4453 }
+  table { border-collapse: collapse; width: 100%; font-size: 13.5px }
+  th, td { text-align: left; vertical-align: top; padding: 7px 12px 7px 0; border-bottom: 1px solid #e6e9ee }
+  th { color: #5b6472; font-weight: 600; font-size: 12.5px; text-transform: uppercase; letter-spacing: 0.4px }
+  td:first-child { width: 46% }
+  code { font: 12.5px/1.4 ui-monospace, "SF Mono", Menlo, monospace; background: #f3f5f8; padding: 1px 4px; border-radius: 3px }
+  .note { margin-top: 26px; padding-top: 14px; border-top: 1px solid #e6e9ee; color: #5b6472; font-size: 12.5px }
+  .k { color: #0b7a45; font-weight: 600 }
+  .w { color: #a4301d; font-weight: 600 }
+</style></head>
+<body>
+  <h1>Issue #24370 — a directory on the durable-store name no longer aborts the turn</h1>
+  <div class="sub">base <code>5ed9f0c7068e</code> · branch <code>fix/24370-durable-store-eisdir-recovery</code> · macOS 27.0.1 · Node v24.14.0 arm64</div>
+
+  <h2>1 · The collision, measured (real <code>linkSync</code>, this machine)</h2>
+  <table><thead><tr><th>Occupant of the reserved name</th><th>Result of link(store.staging, reserved)</th></tr></thead><tbody><tr><td>directory</td><td>EEXIST (errno -17)</td></tr><tr><td>non-empty directory</td><td>EEXIST (errno -17)</td></tr><tr><td>regular file</td><td>EEXIST (errno -17)</td></tr><tr><td>dangling symlink</td><td>EEXIST (errno -17)</td></tr></tbody></table>
+  <div class="sub" style="margin:8px 0 0">macOS/Linux report <code>EEXIST</code> for every occupant type; the Windows report shows <code>EISDIR</code> for the directory case. The errno alone cannot identify the occupant, so the repair decides on <code>lstat</code> type.</div>
+
+  <h2>2 · Behaviour, before and after</h2>
+  <table><thead><tr><th>Scenario</th><th>Before (base 5ed9f0c7068e)</th></tr></thead><tbody><tr><td>reserved name occupied by a directory → next Agent turn</td><td>aborts: `unable to open database file` (SQLite), then the turn is reported as a network interruption</td></tr><tr><td>publish target occupied by a store file</td><td>exclusive link fails, strict marker check decides (unchanged)</td></tr><tr><td>storage failure identity</td><td>none — serialized error has no `i18nKey`</td></tr></tbody></table>
+  <table><thead><tr><th>Scenario</th><th>After (this branch)</th></tr></thead><tbody><tr><td>reserved name occupied by a directory → next Agent turn</td><td>directory moved to a unique `.quarantine-&lt;id&gt;-*` sibling, same exclusive link retried once, turn continues on a real store</td></tr><tr><td>publish target occupied by a store file</td><td>exclusive link fails, strict marker check decides (unchanged)</td></tr><tr><td>storage failure identity</td><td>`i18nKey: durable_storage_failed`, main log carries `code`/`errno`/`syscall` + both paths</td></tr></tbody></table>
+
+  <h2>3 · Tests on the untouched base vs this branch (real vitest runs)</h2>
+  <table><thead><tr><th>Suite</th><th>Base tree (RED)</th><th>This branch (GREEN)</th></tr></thead><tbody><tr><td>nativeContext.test.ts — recovers a reserved directory without losing its contents or durable turn history</td><td>1 failed</td><td>21 passed</td></tr><tr><td>durableNativeContext.fsFailures.test.ts — 10 cases (both collision codes, terminal quarantine/retry, retry winner, symlink, bound store, EACCES/ENOSPC)</td><td>10 failed</td><td>10 passed</td></tr><tr><td>PiDurableRuntimeConnection.test.ts — existing durable transport contract</td><td>n/a</td><td>53 passed, 1 skipped</td></tr><tr><td>errorClassifier.test.ts — renderer controls, unchanged</td><td>n/a</td><td>140 passed</td></tr></tbody></table>
+
+  <h2>4 · What the user sees (real <code>classifyError</code> + real <code>en-us.json</code>)</h2>
+  <table><thead><tr><th>Serialized error</th><th>category</th><th>Rendered text</th></tr></thead><tbody><tr><td>before · no storage identity</td><td>stream</td><td>Response interrupted, check network stability or retry</td></tr><tr><td>after · storage identity, no provider attached</td><td>unknown</td><td>Could not access local agent data. Check disk space and folder permissions, then retry. See error details for the path.</td></tr><tr><td>after · storage identity, provider attached</td><td>unknown</td><td>An error occurred (details carry EEXIST + both paths)</td></tr></tbody></table>
+
+  <div class="note">
+    No interface screenshot: the acceptance is about a main-process store publication and the text a stored error renders into, and producing a live UI frame would need a real provider turn against a hand-corrupted data folder. The substitute evidence above is a real syscall probe, real vitest runs on both trees, and the real renderer classifier over the real catalog. The main-process log now records <code>code</code>, <code>errno</code>, <code>syscall</code>, the staged path and the reserved path for every terminal publish failure.
+  </div>
+</body></html>
