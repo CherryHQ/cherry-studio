@@ -150,7 +150,10 @@ describe('inferReasoningControls (ingest-time heuristics)', () => {
     ['xsparkx2flash', [{ kind: 'toggle' }]],
     ['gemma4:31b', [{ kind: 'toggle' }]],
     ['gemma-4-31b-it', [{ kind: 'toggle' }]],
-    ['mistralai/mistral-large-4-0', [{ kind: 'effort', values: ['none', 'high'] }]],
+    ['mistral-large-4', [{ kind: 'effort', values: ['low', 'medium', 'high'] }]],
+    ['mistral-large-4-0', [{ kind: 'effort', values: ['low', 'medium', 'high'] }]],
+    ['mistral-large-4-0-8', [{ kind: 'effort', values: ['low', 'medium', 'high'] }]],
+    ['mistralai/mistral-large-4-0', [{ kind: 'effort', values: ['low', 'medium', 'high'] }]],
     ['mistral-small-2603', [{ kind: 'effort', values: ['none', 'high'] }]],
     // provider-namespaced ids are normalized before matching
     ['deepseek/deepseek-v4', [{ kind: 'effort', values: ['none', 'low', 'high', 'max'] }]],

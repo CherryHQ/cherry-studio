@@ -13791,6 +13791,35 @@
       }
     },
     {
+      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output"],
+      "contextWindow": 1048576,
+      "id": "mistral-large-4-0",
+      "inputModalities": ["text", "image"],
+      "metadata": {},
+      "name": "Mistral: Mistral Large 4",
+      "outputModalities": ["text"],
+      "ownedBy": "mistral",
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.7
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 2.0999999999999996
+        }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "effort",
+            "values": ["low", "medium", "high"]
+          }
+        ],
+        "supportedEfforts": ["low", "medium", "high"]
+      }
+    },
+    {
       "capabilities": ["function-call", "image-recognition", "file-input"],
       "contextWindow": 262144,
       "family": "mistral-large",
@@ -23267,5 +23296,5 @@
       "ownedBy": "zhipu"
     }
   ],
-  "version": "38986c5ef01254eb"
+  "version": "c035a38c883709ca"
 }

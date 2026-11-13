@@ -7,7 +7,8 @@ export default defineCreator({
   fetchModels: openaiCompatible('mistral', 'MISTRAL_API_KEY'),
   modelsDevProviders: ['mistral'],
   reasoningFamilies: [
-    { pattern: '^mistral-large-4(?:[-.]|$)', effort: ['none', 'high'] },
+    // Native Large 4 uses three levels; gateway descriptors remain provider-owned.
+    { pattern: '^mistral-large-4(?:[-.]|$)', effort: ['low', 'medium', 'high'] },
     { pattern: '^mistral-small-2603', effort: ['none', 'high'] },
     // Membership profiles (no knobs): reasoning SKUs beyond the knob rules above.
     { pattern: 'magistral' },

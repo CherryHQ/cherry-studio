@@ -31908,6 +31908,44 @@
       "providerId": "openrouter"
     },
     {
+      "apiModelId": "mistralai/mistral-large-4-0",
+      "modelId": "mistral-large-4-0",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.07
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.7
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 2.1
+        }
+      },
+      "providerId": "openrouter",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "support": {
+            "controls": [
+              {
+                "default": "high",
+                "kind": "effort",
+                "values": ["high", "none"]
+              },
+              {
+                "default": true,
+                "kind": "toggle"
+              }
+            ],
+            "defaultEffort": "high",
+            "supportedEfforts": ["high", "none"]
+          }
+        }
+      }
+    },
+    {
       "apiModelId": "mistralai/mistral-medium-3",
       "modelId": "mistral-medium-3",
       "pricing": {
@@ -44582,5 +44620,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "d5c315bd1da2fbdb"
+  "version": "ce585caba2c8bffd"
 }
