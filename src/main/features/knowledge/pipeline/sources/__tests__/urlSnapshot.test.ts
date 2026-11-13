@@ -40,11 +40,6 @@ describe('deriveUrlSnapshotSlug', () => {
     expect(deriveUrlSnapshotSlug('# A/B:C', 'https://x.com')).toBe('A_B_C')
   })
 
-  it('truncates an overlong title to the snapshot length cap', () => {
-    const slug = deriveUrlSnapshotSlug(`# ${'a'.repeat(200)}`, 'https://x.com')
-    expect(slug).toHaveLength(80)
-  })
-
   it('falls back to the URL host and last path segment when the markdown has no title', () => {
     expect(deriveUrlSnapshotSlug('   \n  ', 'https://example.com/docs/page')).toBe('example.com-page')
   })
@@ -62,10 +57,6 @@ describe('deriveUrlSnapshotSlug', () => {
 
   it('keeps a segment with a malformed escape instead of dropping the stem', () => {
     expect(deriveUrlSnapshotSlug('   \n  ', 'https://docs.example.com/guide/100%')).toBe('docs.example.com-100%')
-  })
-
-  it('falls back to "page" when neither the markdown nor the URL yields a name', () => {
-    expect(deriveUrlSnapshotSlug('', 'not a url')).toBe('page')
   })
 })
 

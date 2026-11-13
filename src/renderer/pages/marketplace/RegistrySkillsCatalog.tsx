@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import useSWRInfinite from 'swr/infinite'
 
 import { Spinner } from '@cherrystudio/ui'
+import { useExitPresence } from '@renderer/hooks/useExitPresence'
 import { useInstalledSkills, useSkillInstall, useSkillSearch } from '@renderer/hooks/useSkills'
 import { toast } from '@renderer/services/toast'
 import { loadSkillRegistryPage } from '@renderer/utils/skillSearch'
@@ -30,6 +31,8 @@ export function RegistrySkillsCatalog({
   const { t, i18n } = useTranslation()
   const keyword = query.trim()
   const [selected, setSelected] = useState<SkillSearchResult | null>(null)
+  const selectedPresence = useExitPresence(selected)
+  const displayedSelection = selectedPresence.value
   const trigger = useRef<HTMLButtonElement | null>(null)
   useLayoutEffect(() => () => setSelected(null), [])
   const [visibleCount, setVisibleCount] = useState(DISPLAY_PAGE_SIZE)
@@ -122,9 +125,9 @@ export function RegistrySkillsCatalog({
     }
   }
 
-  const selectedSource = selected?.sourceUrl ? parseSkillSourceUrl(selected.sourceUrl) : null
+  const selectedSource = displayedSelection?.sourceUrl ? parseSkillSourceUrl(displayedSelection.sourceUrl) : null
   const repository =
-    selectedSource?.sourceRegistry === source && selectedSource.installSource === selected?.installSource
+    selectedSource?.sourceRegistry === source && selectedSource.installSource === displayedSelection?.installSource
       ? 'https://github.com/' +
         selectedSource.installSource
           .slice(selectedSource.installSource.indexOf(':') + 1)
@@ -132,31 +135,31 @@ export function RegistrySkillsCatalog({
           .slice(0, 2)
           .join('/')
       : null
-  const selectedSkill: MarketplaceSkill | null = selected
+  const selectedSkill: MarketplaceSkill | null = displayedSelection
     ? {
-        id: selected.installSource,
-        name: { en: selected.name, zh: null },
-        description: { en: selected.description || '', zh: null },
+        id: displayedSelection.installSource,
+        name: { en: displayedSelection.name, zh: null },
+        description: { en: displayedSelection.description || '', zh: null },
         domain: '—',
-        author: selected.author || '',
+        author: displayedSelection.author || '',
         version: '',
         tags: [],
         githubRepoUrl: repository,
-        sourceUrl: selected.sourceUrl,
+        sourceUrl: displayedSelection.sourceUrl,
         icon: null,
         packageName: null,
         packageSize: null,
         hasPackage: Boolean(repository),
         downloadUrl: null,
-        downloads: selected.downloads,
+        downloads: displayedSelection.downloads,
         releaseDate: '',
-        members: [{ path: '', name: selected.name }],
+        members: [{ path: '', name: displayedSelection.name }],
         membersKnown: true,
         isCollection: false
       }
     : null
-  const selectedInstalled = selected ? installedSources.has(selected.installSource) : false
-  const selectedBusy = selected ? isInstalling(selected.installSource) : false
+  const selectedInstalled = displayedSelection ? installedSources.has(displayedSelection.installSource) : false
+  const selectedBusy = displayedSelection ? isInstalling(displayedSelection.installSource) : false
 
   return (
     <div ref={content}>

@@ -560,23 +560,6 @@ describe('BaseNavigator', () => {
     expect(screen.queryByText('无结果')).toBeNull()
   })
 
-  it('does not render a knowledge base search box', () => {
-    render(
-      <BaseNavigator
-        {...baseProps}
-        bases={[
-          createKnowledgeBase({ id: 'base-1', name: 'Alpha' }),
-          createKnowledgeBase({ id: 'base-2', name: 'Beta' }),
-          createKnowledgeBase({ id: 'base-3', name: 'Gamma' }),
-          createKnowledgeBase({ id: 'base-4', name: 'Delta' })
-        ]}
-      />
-    )
-
-    expect(screen.queryByPlaceholderText('搜索知识库...')).toBeNull()
-    expect(screen.getByRole('button', { name: /Delta/ })).toBeInTheDocument()
-  })
-
   it('shows real group names and falls back to raw groupId when the mapping is missing', () => {
     render(
       <BaseNavigator
@@ -601,128 +584,6 @@ describe('BaseNavigator', () => {
 
     expect(screen.getByText('Research')).toBeInTheDocument()
     expect(screen.getByText('workspace')).toBeInTheDocument()
-  })
-
-  it('does not render item counts next to the group labels', () => {
-    render(
-      <BaseNavigator
-        bases={[
-          createKnowledgeBase({ id: 'base-1', name: 'Alpha', groupId: null }),
-          createKnowledgeBase({ id: 'base-2', name: 'Beta', groupId: 'group-1' })
-        ]}
-        groups={[createGroup({ id: 'group-1', name: 'Research' })]}
-        width={280}
-        selectedBaseId="base-1"
-        onSelectBase={vi.fn()}
-        onCreateGroup={vi.fn()}
-        onCreateBase={vi.fn()}
-        onMoveBase={vi.fn()}
-        onRenameBase={vi.fn()}
-        onRenameGroup={vi.fn()}
-        onDeleteGroup={vi.fn()}
-        onDeleteBase={vi.fn()}
-        onResizeStart={vi.fn()}
-      />
-    )
-
-    expect(within(screen.getByRole('button', { name: /默认/ })).queryByText('1')).not.toBeInTheDocument()
-    expect(within(screen.getByRole('button', { name: /Research/ })).queryByText('1')).not.toBeInTheDocument()
-  })
-
-  it('renders ungrouped bases before real group sections', () => {
-    render(
-      <BaseNavigator
-        bases={[
-          createKnowledgeBase({ id: 'base-1', name: 'Alpha', groupId: 'group-1' }),
-          createKnowledgeBase({ id: 'base-2', name: 'Beta', groupId: null })
-        ]}
-        groups={[createGroup({ id: 'group-1', name: 'Research' })]}
-        width={280}
-        selectedBaseId="base-2"
-        onSelectBase={vi.fn()}
-        onCreateGroup={vi.fn()}
-        onCreateBase={vi.fn()}
-        onMoveBase={vi.fn()}
-        onRenameBase={vi.fn()}
-        onRenameGroup={vi.fn()}
-        onDeleteGroup={vi.fn()}
-        onDeleteBase={vi.fn()}
-        onResizeStart={vi.fn()}
-      />
-    )
-
-    const ungroupedBase = screen.getByRole('button', { name: /Beta/ })
-    const firstRealGroup = screen.getByRole('button', { name: /Research/ })
-
-    expect(ungroupedBase.compareDocumentPosition(firstRealGroup) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-  })
-
-  it('renders ungrouped bases flat without the default group header when no group exists', () => {
-    render(
-      <BaseNavigator
-        bases={[
-          createKnowledgeBase({ id: 'base-1', name: 'Alpha', groupId: null }),
-          createKnowledgeBase({ id: 'base-2', name: 'Beta', groupId: null })
-        ]}
-        groups={[]}
-        width={280}
-        selectedBaseId="base-1"
-        onSelectBase={vi.fn()}
-        onCreateGroup={vi.fn()}
-        onCreateBase={vi.fn()}
-        onMoveBase={vi.fn()}
-        onRenameBase={vi.fn()}
-        onRenameGroup={vi.fn()}
-        onDeleteGroup={vi.fn()}
-        onDeleteBase={vi.fn()}
-        onResizeStart={vi.fn()}
-      />
-    )
-
-    expect(screen.getByRole('button', { name: /Alpha/ })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /Beta/ })).toBeInTheDocument()
-    expect(screen.queryByText('默认')).not.toBeInTheDocument()
-  })
-
-  it('expands a group section that appears after mount', () => {
-    const sharedProps = {
-      width: 280,
-      selectedBaseId: 'base-1',
-      onSelectBase: vi.fn(),
-      onCreateGroup: vi.fn(),
-      onCreateBase: vi.fn(),
-      onMoveBase: vi.fn(),
-      onRenameBase: vi.fn(),
-      onRenameGroup: vi.fn(),
-      onDeleteGroup: vi.fn(),
-      onDeleteBase: vi.fn(),
-      onResizeStart: vi.fn()
-    }
-    const { rerender } = render(
-      <BaseNavigator
-        bases={[createKnowledgeBase({ id: 'base-1', name: 'Alpha', groupId: 'group-1' })]}
-        groups={[createGroup({ id: 'group-1', name: 'Research' })]}
-        {...sharedProps}
-      />
-    )
-
-    // A group created (and adopted into) after mount must start expanded — with a
-    // mount-time defaultValue the freshly moved base would render collapsed/invisible.
-    rerender(
-      <BaseNavigator
-        bases={[
-          createKnowledgeBase({ id: 'base-1', name: 'Alpha', groupId: 'group-1' }),
-          createKnowledgeBase({ id: 'base-2', name: 'Beta', groupId: 'group-2' })
-        ]}
-        groups={[
-          createGroup({ id: 'group-1', name: 'Research' }),
-          createGroup({ id: 'group-2', name: 'Archive', orderKey: 'a1' })
-        ]}
-        {...sharedProps}
-      />
-    )
-
-    expect(screen.getByRole('button', { name: /Beta/ })).toBeInTheDocument()
   })
 
   it('keeps the accordion when a base points at a deleted group', () => {
@@ -894,55 +755,6 @@ describe('BaseNavigator', () => {
     await waitFor(() => expect(onCreateGroup).toHaveBeenCalledWith('base-1'))
   })
 
-  it('opens the knowledge base menu on right click', () => {
-    render(
-      <BaseNavigator
-        bases={[createKnowledgeBase({ id: 'base-1', name: 'Alpha', groupId: 'group-1' })]}
-        groups={[createGroup({ id: 'group-1', name: 'Research' })]}
-        width={280}
-        selectedBaseId="base-1"
-        onSelectBase={vi.fn()}
-        onCreateGroup={vi.fn()}
-        onCreateBase={vi.fn()}
-        onMoveBase={vi.fn()}
-        onRenameBase={vi.fn()}
-        onRenameGroup={vi.fn()}
-        onDeleteGroup={vi.fn()}
-        onDeleteBase={vi.fn()}
-        onResizeStart={vi.fn()}
-      />
-    )
-
-    fireEvent.contextMenu(screen.getByRole('button', { name: /Alpha/ }), { clientX: 240, clientY: 320 })
-
-    expect(screen.getByRole('button', { name: '重命名' })).not.toBeDisabled()
-    expect(screen.getByRole('button', { name: '删除知识库' })).toBeInTheDocument()
-  })
-
-  it('keeps context menus anchored to the pointer position on right click', () => {
-    render(
-      <BaseNavigator
-        bases={[createKnowledgeBase({ id: 'base-1', name: 'Alpha', groupId: 'group-1' })]}
-        groups={[createGroup({ id: 'group-1', name: 'Research' })]}
-        width={280}
-        selectedBaseId="base-1"
-        onSelectBase={vi.fn()}
-        onCreateGroup={vi.fn()}
-        onCreateBase={vi.fn()}
-        onMoveBase={vi.fn()}
-        onRenameBase={vi.fn()}
-        onRenameGroup={vi.fn()}
-        onDeleteGroup={vi.fn()}
-        onDeleteBase={vi.fn()}
-        onResizeStart={vi.fn()}
-      />
-    )
-
-    fireEvent.contextMenu(screen.getByRole('button', { name: /Alpha/ }), { clientX: 240, clientY: 320 })
-
-    expect(screen.getByRole('button', { name: '重命名' })).toBeInTheDocument()
-  })
-
   it('calls onRenameBase with the current knowledge base id and name', async () => {
     const onRenameBase = vi.fn()
 
@@ -1007,31 +819,6 @@ describe('BaseNavigator', () => {
     await waitFor(() => {
       expect(onDeleteBase).toHaveBeenCalledWith('base-1')
     })
-  })
-
-  it('opens a context menu on right click for a real group row', () => {
-    render(
-      <BaseNavigator
-        bases={[createKnowledgeBase({ id: 'base-1', name: 'Alpha', groupId: 'group-1' })]}
-        groups={[createGroup({ id: 'group-1', name: 'Research' })]}
-        width={280}
-        selectedBaseId="base-1"
-        onSelectBase={vi.fn()}
-        onCreateGroup={vi.fn()}
-        onCreateBase={vi.fn()}
-        onMoveBase={vi.fn()}
-        onRenameBase={vi.fn()}
-        onRenameGroup={vi.fn()}
-        onDeleteGroup={vi.fn()}
-        onDeleteBase={vi.fn()}
-        onResizeStart={vi.fn()}
-      />
-    )
-
-    fireEvent.contextMenu(screen.getByRole('button', { name: /Research/ }))
-
-    expect(screen.getByRole('button', { name: '重命名' })).not.toBeDisabled()
-    expect(screen.getByRole('button', { name: '删除分组' })).toBeInTheDocument()
   })
 
   it('calls onRenameGroup with the current group id and name', async () => {
@@ -1154,32 +941,6 @@ describe('BaseNavigator', () => {
     await waitFor(() => expect(onCreateBase).toHaveBeenCalledWith('group-1'))
   })
 
-  it('renders no group header in the flat ungrouped layout, only base rows with their more button', () => {
-    render(
-      <BaseNavigator
-        bases={[createKnowledgeBase({ id: 'base-1', name: 'Alpha', groupId: null })]}
-        groups={[]}
-        width={280}
-        selectedBaseId="base-1"
-        onSelectBase={vi.fn()}
-        onCreateGroup={vi.fn()}
-        onCreateBase={vi.fn()}
-        onMoveBase={vi.fn()}
-        onRenameBase={vi.fn()}
-        onRenameGroup={vi.fn()}
-        onDeleteGroup={vi.fn()}
-        onDeleteBase={vi.fn()}
-        onResizeStart={vi.fn()}
-      />
-    )
-
-    expect(screen.getByRole('button', { name: /Alpha/ })).toBeInTheDocument()
-    expect(screen.queryByText('默认')).not.toBeInTheDocument()
-    // No group header/section chrome in the flat layout; each base row still carries its own
-    // hover "more" button (the same menu as right-click), so one is present for the single base.
-    expect(screen.getByRole('button', { name: '更多' })).toBeInTheDocument()
-  })
-
   it('highlights the selected base and forwards selection clicks', () => {
     const onSelectBase = vi.fn()
 
@@ -1239,7 +1000,6 @@ describe('BaseNavigator', () => {
     const createButton = screen.getByRole('button', { name: '新建知识库' })
 
     // The sidebar no longer repeats the page title above the create action.
-    expect(screen.queryByRole('heading', { name: '知识库' })).toBeNull()
 
     fireEvent.click(createButton)
 

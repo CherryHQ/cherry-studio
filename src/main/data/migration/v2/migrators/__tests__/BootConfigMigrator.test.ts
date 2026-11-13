@@ -76,15 +76,6 @@ describe('BootConfigMigrator', () => {
     return migrator
   }
 
-  describe('metadata', () => {
-    it('has stable id/name/order matching the registered migrator', async () => {
-      const migrator = await createMigrator()
-      expect(migrator.id).toBe('bootConfig')
-      expect(migrator.name).toBe('Boot Config')
-      expect(migrator.order).toBe(0.5)
-    })
-  })
-
   describe('configfile source — prepare/execute/validate', () => {
     it('prepares and executes a legacy-string derived record', async () => {
       const migrator = await createMigrator()

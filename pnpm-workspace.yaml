@@ -18,7 +18,7 @@ packageExtensions:
 overrides:
   # Linux x64 must stay usable without AVX/AVX2; the fork's prebuilt vec0.so requires them (#22048).
   "@aiany/sqlite-vec-linux-x64": "npm:sqlite-vec-linux-x64@0.1.9"
-  "@earendil-works/pi-ai@1.5.0>@google/genai": "2.23.0"
+  "@earendil-works/pi-ai@1.5.2>@google/genai": "2.23.0"
   picomatch: "4.0.4"
   "concurrently>shell-quote": "1.8.4"
   fast-xml-parser: ">=5.10.1"
@@ -117,7 +117,7 @@ patchedDependencies:
   streamdown@2.5.0: patches/streamdown@2.5.0.patch
   app-builder-lib@26.15.6: patches/app-builder-lib@26.15.6.patch
   # Preserve ultra reasoning and Google custom fetch until Pi supports both upstream.
-  "@earendil-works/pi-ai@1.5.0": patches/@earendil-works__pi-ai@1.5.0.patch
+  "@earendil-works/pi-ai@1.5.2": patches/@earendil-works__pi-ai@1.5.2.patch
   # #20329: preserve current animation targets when React Activity reconnects.
   # Remove when an upstream release includes the blocked-initial-animation remount fix.
   motion-dom@12.42.0: patches/motion-dom@12.42.0.patch
@@ -132,12 +132,12 @@ patchedDependencies:
   "@pierre/diffs@1.6.1": patches/@pierre__diffs@1.6.1.patch
   vfile-location@5.0.3: patches/vfile-location@5.0.3.patch
 
-  "@earendil-works/pi-agent-core@1.5.0": patches/@earendil-works__pi-agent-core@1.5.0.patch
+  "@earendil-works/pi-agent-core@1.5.2": patches/@earendil-works__pi-agent-core@1.5.2.patch
 
   # Carry native input correlation until an upstream release provides the same placement events.
-  "@earendil-works/pi-coding-agent@1.5.0": patches/@earendil-works__pi-coding-agent@1.5.0.patch
+  "@earendil-works/pi-coding-agent@1.5.2": patches/@earendil-works__pi-coding-agent@1.5.2.patch
 
-  "@earendil-works/pi-durable@1.5.0": patches/@earendil-works__pi-durable@1.5.0.patch
+  "@earendil-works/pi-durable@1.5.2": patches/@earendil-works__pi-durable@1.5.2.patch
   # CI skips Git hooks and does not need the downloaded prek binary.
   "@j178/prek@0.3.4": patches/@j178__prek@0.3.4.patch
 
@@ -196,14 +196,24 @@ minimumReleaseAgeExclude:
   - "@anthropic-ai/claude-agent-sdk-win32-arm64@0.3.311"
   - "@anthropic-ai/claude-agent-sdk-win32-x64@0.3.311"
   - "@anthropic-ai/claude-agent-sdk@0.3.311"
-  - "@cherrystudio/computer-use-darwin-arm64@0.1.10"
-  - "@cherrystudio/computer-use-darwin-x64@0.1.10"
-  - "@cherrystudio/computer-use-win32-arm64@0.1.10"
-  - "@cherrystudio/computer-use@0.1.10"
-  - "@cherrystudio/computer-use-linux-arm64@0.1.10"
-  - "@cherrystudio/computer-use-linux-x64@0.1.10"
-  - "@cherrystudio/computer-use-win32-x64@0.1.10"
+  - "@cherrystudio/computer-use-darwin-arm64@0.1.10 || 0.1.11"
+  - "@cherrystudio/computer-use-darwin-x64@0.1.10 || 0.1.11"
+  - "@cherrystudio/computer-use-win32-arm64@0.1.10 || 0.1.11"
+  - "@cherrystudio/computer-use@0.1.10 || 0.1.11"
+  - "@cherrystudio/computer-use-linux-arm64@0.1.10 || 0.1.11"
+  - "@cherrystudio/computer-use-linux-x64@0.1.10 || 0.1.11"
+  - "@cherrystudio/computer-use-win32-x64@0.1.10 || 0.1.11"
   - "mediabunny@1.58.0"
   - electron@45.2.2
   - "@pierre/diffs@1.6.1"
   - "@pierre/theming@1.0.2"
+  - "@earendil-works/chord@1.5.2"
+  - "@earendil-works/pi-agent-core@1.5.2"
+  - "@earendil-works/pi-ai@1.5.2"
+  - "@earendil-works/pi-codemode@1.5.2"
+  - "@earendil-works/pi-coding-agent@1.5.2"
+  - "@earendil-works/pi-durable@1.5.2"
+  - "@earendil-works/pi-mcp@1.5.2"
+  - "@earendil-works/pi-schema@1.5.2"
+  - "@earendil-works/pi-telemetry@1.5.2"
+  - "@earendil-works/pi-tui@1.5.2"

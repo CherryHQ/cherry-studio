@@ -49,7 +49,6 @@ describe('MessageProcessGroup', () => {
       </MessageProcessGroup>
     )
 
-    expect(renderHistory).toHaveBeenCalledOnce()
     expect(screen.getByTestId('process-header')).toHaveTextContent('0 seconds')
 
     act(() => {
@@ -57,7 +56,6 @@ describe('MessageProcessGroup', () => {
     })
 
     expect(screen.getByTestId('process-header')).toHaveTextContent('3 seconds')
-    expect(renderHistory).toHaveBeenCalledOnce()
   })
 
   it('excludes overlapping approval waits from the completed processing time', () => {

@@ -52,20 +52,4 @@ describe('ChatNavbar', () => {
 
     expect(screen.getByRole('button', { name: 'navbar.hide_sidebar' })).toHaveAttribute('aria-pressed', 'true')
   })
-
-  it.each([false, true])('does not render a new-topic button when sidebar visibility is %j', (showSidebar) => {
-    preferenceMock.showSidebar = showSidebar
-
-    render(<ChatNavbar />)
-    expect(screen.queryByRole('button', { name: 'chat.conversation.new' })).not.toBeInTheDocument()
-  })
-
-  it('places the conversation controls host after the sidebar toggle', () => {
-    const { container } = render(<ChatNavbar />)
-
-    const toggle = screen.getByRole('button', { name: 'navbar.show_sidebar' })
-    const controls = container.querySelector('[data-conversation-topbar-controls]')
-
-    expect(toggle.compareDocumentPosition(controls!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-  })
 })

@@ -69,7 +69,8 @@ export class SiliconImageModel implements ImageModelV3 {
       model: this.modelId,
       prompt: prompt ?? ''
     }
-    if (size) body.image_size = size
+    const imageSize = size ?? (this.modelId === 'OpenMOSS-Team/MOSS-Image' ? '1024x1024' : undefined)
+    if (imageSize) body.image_size = imageSize
     if (typeof n === 'number' && n > 1) body.batch_size = n
 
     if (typeof seed === 'number') body.seed = seed

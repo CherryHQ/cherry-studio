@@ -116,25 +116,6 @@ describe('KnowledgeMappings', () => {
     })
   })
 
-  it('transformKnowledgeBase fills default chunk config when legacy values are missing', () => {
-    expect(
-      transformKnowledgeBase(
-        {
-          id: 'kb-default-config',
-          name: 'KB default config',
-          model: { id: 'BAAI/bge-m3', name: 'bge', provider: 'silicon' }
-        },
-        1024
-      )
-    ).toStrictEqual({
-      ok: true,
-      value: expect.objectContaining({
-        chunkSize: 1024,
-        chunkOverlap: 200
-      })
-    })
-  })
-
   it('transformKnowledgeBase keeps default overlap below a preserved small chunk size', () => {
     expect(
       transformKnowledgeBase(

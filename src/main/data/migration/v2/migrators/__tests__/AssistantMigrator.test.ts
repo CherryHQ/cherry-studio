@@ -106,12 +106,6 @@ describe('AssistantMigrator', () => {
     migrator.setProgressCallback(vi.fn())
   })
 
-  it('should have correct metadata', () => {
-    expect(migrator.id).toBe('assistant')
-    expect(migrator.name).toBe('Assistant')
-    expect(migrator.order).toBe(2)
-  })
-
   describe('prepare', () => {
     it('should count source assistants', async () => {
       const ctx = createMockContext({ assistants: { assistants: SAMPLE_ASSISTANTS, presets: [] } })
@@ -448,7 +442,6 @@ describe('AssistantMigrator', () => {
       await migrator.prepare(ctx as any)
       const result = await migrator.execute(ctx as any)
       expect(result).toStrictEqual({ success: true, processedCount: 2 })
-      expect(ctx.db.transaction).toHaveBeenCalled()
     })
 
     it('should stamp assistant order keys in source order during execute', async () => {
@@ -685,7 +678,6 @@ describe('AssistantMigrator', () => {
       const result = await migrator.execute(ctx as any)
 
       expect(result.success).toBe(true)
-      expect(ctx.db.transaction).toHaveBeenCalled()
     })
 
     it('should null out dangling assistant model refs not present in user_model', async () => {

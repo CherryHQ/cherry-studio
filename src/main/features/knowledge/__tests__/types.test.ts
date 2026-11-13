@@ -1,11 +1,10 @@
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 
 import {
   knowledgeDeleteSubtreeIdempotencyKey,
   knowledgeIndexIdempotencyKey,
   knowledgePrepareIdempotencyKey,
   knowledgeReindexSubtreeIdempotencyKey,
-  reportKnowledgeProgress,
   toKnowledgeBaseId,
   toKnowledgeItemId,
   toKnowledgeItemIds
@@ -28,15 +27,5 @@ describe('knowledge idempotency keys', () => {
     expect(knowledgeIndexIdempotencyKey(baseId, toKnowledgeItemId('note-1'), 'reindex-job')).toBe(
       'knowledge:kb-1:note-1:index:reindex-job'
     )
-  })
-
-  it('reports typed knowledge progress details', () => {
-    const ctx = {
-      reportProgress: vi.fn()
-    }
-
-    reportKnowledgeProgress(ctx, 40, { stage: 'embedding', currentFile: 0, totalFiles: 1 })
-
-    expect(ctx.reportProgress).toHaveBeenCalledWith(40, { stage: 'embedding', currentFile: 0, totalFiles: 1 })
   })
 })

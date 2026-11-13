@@ -27,9 +27,10 @@ import { resolveLocalizedText } from '@shared/types/miniAppManifest'
 export const InstallConsentDialog: FC<{
   preview: InstallPreview
   busy: boolean
+  open?: boolean
   onCancel: () => void
   onConfirm: (decision: InstallDecision) => void
-}> = ({ preview, busy, onCancel, onConfirm }) => {
+}> = ({ preview, busy, open = true, onCancel, onConfirm }) => {
   const { t, i18n } = useTranslation()
   const language = i18n.resolvedLanguage ?? i18n.language
   const name = resolveLocalizedText(preview.manifest.name, language)
@@ -81,7 +82,7 @@ export const InstallConsentDialog: FC<{
 
   return (
     <Dialog
-      open
+      open={open}
       onOpenChange={(open) => {
         if (!open) onCancel()
       }}>

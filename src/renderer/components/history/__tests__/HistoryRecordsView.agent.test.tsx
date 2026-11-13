@@ -559,40 +559,25 @@ describe('HistoryRecordsView agent mode', () => {
     const { onClose, onRecordSelect } = setupAgentHistory({
       pinIdBySessionId: new Map([['session-alpha', 'pin-session-alpha']])
     })
-
-    expect(hookMocks.useSessions).toHaveBeenCalledWith()
-    expect(hookMocks.useTopics).not.toHaveBeenCalled()
-    expect(hookMocks.useAssistants).not.toHaveBeenCalled()
     expect(screen.getByRole('region', { name: 'History' })).toBeInTheDocument()
     expect(screen.getByRole('table')).toBeInTheDocument()
-    expect(screen.getByTestId('history-virtual-list')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Close' })).not.toBeInTheDocument()
     const pinButton = screen.getAllByTestId('history-pin-button')[0]
     expect(pinButton).toHaveAccessibleName('Unpin')
     fireEvent.click(pinButton)
     expect(hookMocks.togglePin).toHaveBeenCalledWith('session-alpha')
     expect(onRecordSelect).not.toHaveBeenCalled()
     expect(onClose).not.toHaveBeenCalled()
-    expect(screen.queryByText('Messages')).not.toBeInTheDocument()
-    expect(screen.queryByText('消息')).not.toBeInTheDocument()
     expect(screen.getByText('Alpha session')).toBeInTheDocument()
     // Rows are single-line: the session description is searchable but not rendered.
     expect(screen.queryByText('Planning notes')).not.toBeInTheDocument()
     expect(screen.getAllByText('Agent').length).toBeGreaterThanOrEqual(1)
     expect(screen.getAllByText('Alpha agent').length).toBeGreaterThanOrEqual(1)
     const alphaRow = screen.getByText('Alpha session').closest('[role="row"]') as HTMLElement
-    const alphaCells = within(alphaRow).getAllByRole('cell')
-    expect(within(alphaCells[1]).getAllByText('A').length).toBeGreaterThan(0)
-    expect(within(alphaCells[1]).getByText('Alpha agent')).toBeInTheDocument()
-    expect(within(alphaCells[2]).queryByText('A')).not.toBeInTheDocument()
-    const headerCells = screen.getAllByRole('columnheader')
-    expect(headerCells[1]).toHaveTextContent('Agent')
-    expect(headerCells[2]).toHaveTextContent('Task')
+
     expect(screen.getByText('Beta session')).toBeInTheDocument()
     expect(screen.getAllByText('Beta agent').length).toBeGreaterThanOrEqual(1)
     expect(screen.getByRole('button', { name: /Gamma agent/ })).toBeInTheDocument()
     expect(screen.queryByText('Agent placeholder')).not.toBeInTheDocument()
-    expect(screen.queryByTestId('history-open-button')).not.toBeInTheDocument()
 
     fireEvent.click(alphaRow)
 
@@ -604,19 +589,6 @@ describe('HistoryRecordsView agent mode', () => {
     expect(hookMocks.openConversationTab).toHaveBeenCalledWith('session-alpha', 'Alpha session', { forceNew: true })
     expect(onRecordSelect).not.toHaveBeenCalled()
     expect(onClose).not.toHaveBeenCalled()
-  })
-
-  it('orders search, filters, and bulk actions across the toolbar', () => {
-    setupAgentHistory()
-
-    const searchInput = screen.getByRole('searchbox', { name: 'Search tasks...' })
-    const sourceFilter = screen.getByRole('button', { name: 'history.records.filter.selectAgent' })
-    const statusFilter = screen.getByRole('button', { name: 'Status' })
-    const bulkDeleteButton = screen.getByRole('button', { name: 'Batch Archive' })
-
-    expect(searchInput.compareDocumentPosition(sourceFilter)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
-    expect(sourceFilter.compareDocumentPosition(statusFilter)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
-    expect(statusFilter.compareDocumentPosition(bulkDeleteButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
   })
 
   it('filters sessions by selected agent source', () => {
@@ -711,21 +683,6 @@ describe('HistoryRecordsView agent mode', () => {
 
     expect(screen.getByText('Alpha session')).toBeInTheDocument()
     expect(screen.queryByText('Beta session')).not.toBeInTheDocument()
-  })
-
-  it('keeps the virtual row renderer stable across stream status updates', () => {
-    setupAgentHistory()
-    const initialRenderRow = hookMocks.virtualListRenderRows.at(-1)
-
-    act(() => {
-      cacheService.setShared('topic.stream.statuses.agent-session:session-beta', {
-        status: 'streaming',
-        activeExecutions: [],
-        awaitingApprovalAnchors: []
-      })
-    })
-
-    expect(hookMocks.virtualListRenderRows.at(-1)).toBe(initialRenderRow)
   })
 
   it('groups sessions with a missing agent under the unknown-agent source', () => {

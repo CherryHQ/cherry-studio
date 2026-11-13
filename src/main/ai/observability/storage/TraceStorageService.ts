@@ -169,7 +169,6 @@ export class TraceStorageService extends BaseService implements TraceStore, Acti
     this.ipcHandle(IpcChannel.TRACE_GET_DATA, (_, topicId: string, traceId: string, cursor?: TraceDataCursor) =>
       this.getTraceData(topicId, traceId, cursor)
     )
-    this.ipcHandle(IpcChannel.TRACE_CLEAN_LOCAL_DATA, () => this.cleanLocalData())
   }
 
   createSpan: (span: ReadableSpan) => void = (span: ReadableSpan) => {

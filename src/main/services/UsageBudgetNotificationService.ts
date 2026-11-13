@@ -55,8 +55,7 @@ export class UsageBudgetNotificationService extends BaseService {
       const cycle = this.readState<string>('notification:daily-budget-cycle')
       const period = cycle ? `${day}:${cycle}` : day
       if (this.completedBudgetPeriod === period) return
-      const total = aiUsageRecordService.stats({ from, to, groupBy: 'model', metric: 'tokens', limit: 1 }).totals
-        .totalTokens
+      const total = aiUsageRecordService.totalTokens({ from, to })
       const limit = (budget * threshold) / 100
       if (total < limit) return
       void application

@@ -104,7 +104,7 @@ export interface SkillToolInput {
 export type SkillToolOutput = string | TextOutput[]
 
 export type ReadToolInput = FileReadInput
-export type ReadToolOutput = FileReadOutput | string | TextOutput[]
+export type ReadToolOutput = FileReadOutput | string | TextOutput[] | { content: (TextOutput | { type: 'image' })[] }
 
 export type TaskToolInput = AgentInput
 export type TaskToolOutput = AgentOutput | TextOutput[]

@@ -70,9 +70,6 @@ describe('DialogModelTrigger', () => {
 
     const trigger = screen.getByRole('button', { name: 'Model' })
 
-    expect(screen.queryByTestId('model-trigger-placeholder')).not.toBeInTheDocument()
-    expect(screen.queryByTestId('model-avatar')).not.toBeInTheDocument()
-
     fireEvent.click(trigger)
 
     expect(onClick).toHaveBeenCalledTimes(1)

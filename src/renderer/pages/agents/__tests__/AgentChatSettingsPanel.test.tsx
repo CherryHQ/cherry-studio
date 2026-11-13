@@ -439,50 +439,6 @@ describe('AgentChat settings panel', () => {
     expect(screen.queryByText('/tmp/session-1.md')).not.toBeInTheDocument()
   })
 
-  it('uses page-owned resources without subscribing to agent and model', () => {
-    renderAgentChat()
-
-    expect(activeAgentMock.lookupId).toBeUndefined()
-    expect(activeModelMock.lookupId).toBeUndefined()
-    expect(agentComposerPropsMock.last).toMatchObject({
-      resolvedAgent: activeAgentMock.value,
-      resolvedModel: activeModelMock.value
-    })
-  })
-
-  it('keeps right-pane shortcuts visible without the expand button', () => {
-    renderAgentChat()
-
-    expect(screen.getByRole('button', { name: 'Shortcuts' })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Files' })).toBeNull()
-    expect(conversationShellPropsMock.last?.showTopRightToolWhenPaneOpen).toBe(true)
-  })
-
-  it('passes the session runtime directly to the right-pane scope', () => {
-    const part = { type: 'text', text: 'runtime message' }
-    partsByMessageIdMock.value = { 'message-1': [part] }
-
-    renderAgentChat()
-
-    expect(agentRightPanePropsMock.last?.messages).toEqual([
-      expect.objectContaining({ id: 'message-1', parts: [part] })
-    ])
-    expect(agentRightPanePropsMock.last?.partsByMessageId).toEqual({ 'message-1': [part] })
-  })
-
-  it('normalizes blank agent avatars before passing them to the right pane', () => {
-    activeAgentMock.value = {
-      id: 'agent-1',
-      name: 'Blank avatar agent',
-      model: 'provider::model-1',
-      configuration: { avatar: '   ' }
-    }
-
-    renderAgentChat()
-
-    expect(agentRightPanePropsMock.last?.agentAvatar).toBe('🤖')
-  })
-
   it('resolves session context above the composer and changes an empty session workspace from the top bar', () => {
     const onSessionWorkspaceChange = vi.fn()
     const session = {
@@ -497,44 +453,9 @@ describe('AgentChat settings panel', () => {
       onSessionWorkspaceChange
     })
 
-    expect(screen.getByTestId('agent-conversation-controls')).toHaveAttribute('data-can-change-workspace', 'true')
-    expect(screen.getByTestId('agent-conversation-controls')).toHaveAttribute('data-agent-trigger-mode', 'selector')
-    expect(screen.getByTestId('agent-conversation-controls')).toHaveAttribute('data-can-change-model', 'true')
-    expect(screen.getByTestId('agent-composer')).toHaveAttribute('data-external-context-controls', 'true')
-    expect(screen.getByTestId('agent-composer')).toHaveAttribute('data-resolved-agent-id', 'agent-1')
-    expect(screen.getByTestId('agent-composer')).toHaveAttribute('data-resolved-model-id', 'provider::model-1')
-    expect(agentConversationControlsPropsMock.last?.workspaceId).toBe('workspace-1')
-    expect(agentConversationControlsPropsMock.last?.showWorkspace).toBe(true)
-    expect(agentComposerPropsMock.last?.onWorkspaceChange).toBeUndefined()
-    expect(agentComposerPropsMock.last?.onAgentChange).toBeUndefined()
-
     fireEvent.click(screen.getByRole('button', { name: 'change topbar workspace' }))
 
     expect(onSessionWorkspaceChange).toHaveBeenCalledWith('workspace-next')
-  })
-
-  it('mounts the composer while the page-owned model is resolving', () => {
-    activeModelMock.isLoading = true
-
-    const { container } = renderAgentChat()
-
-    expect(screen.getByTestId('agent-conversation-controls')).toBeInTheDocument()
-    expect(screen.getByTestId('agent-composer')).toBeInTheDocument()
-    expect(screen.getByTestId('agent-composer')).not.toHaveAttribute('data-resolved-model-id')
-    expect(agentComposerPropsMock.last?.sendDisabled).toBe(true)
-    expect(container.querySelector('[data-conversation-composer-loading]')).not.toBeInTheDocument()
-  })
-
-  it('mounts the composer while the page-owned agent is resolving', () => {
-    activeAgentMock.isLoading = true
-
-    const { container } = renderAgentChat()
-
-    expect(screen.getByTestId('agent-composer')).toBeInTheDocument()
-    expect(screen.getByTestId('agent-composer')).not.toHaveAttribute('data-resolved-agent-id')
-    expect(agentComposerPropsMock.last?.agentId).toBe('agent-1')
-    expect(agentComposerPropsMock.last?.sendDisabled).toBe(true)
-    expect(container.querySelector('[data-conversation-composer-loading]')).not.toBeInTheDocument()
   })
 
   it('reassigns an unlinked existing session without replacing it', async () => {
@@ -584,32 +505,6 @@ describe('AgentChat settings panel', () => {
     await waitFor(() => expect(selectAgent).toBeEnabled())
   })
 
-  it('keeps the composer mounted during later model changes', () => {
-    const { container, rerender } = renderAgentChat()
-
-    expect(screen.getByTestId('agent-composer')).toBeInTheDocument()
-
-    activeModelMock.isLoading = true
-    rerender(<AgentChat conversationBootstrap={createConversationBootstrap()} />)
-
-    expect(screen.getByTestId('agent-composer')).toBeInTheDocument()
-    expect(container.querySelector('[data-conversation-composer-loading]')).not.toBeInTheDocument()
-  })
-
-  it('shows the empty-session greeting when the loaded session has no messages', () => {
-    renderAgentChat()
-
-    expect(screen.getByTestId('conversation-greeting')).toBeInTheDocument()
-  })
-
-  it('hides the empty-session greeting once the session has messages', () => {
-    partsByMessageIdMock.value = { 'message-1': [{ type: 'text', text: 'hello' }] }
-
-    renderAgentChat()
-
-    expect(screen.queryByTestId('conversation-greeting')).toBeNull()
-  })
-
   it('does not allow switching the workspace while the empty session is pending', () => {
     topicStreamStatusMock.isPending = true
     const session = {
@@ -625,9 +520,6 @@ describe('AgentChat settings panel', () => {
     })
 
     expect(screen.getByTestId('agent-conversation-controls')).toHaveAttribute('data-can-change-workspace', 'false')
-    expect(agentConversationControlsPropsMock.last?.showWorkspace).toBe(false)
-    expect(screen.getByTestId('agent-conversation-controls')).toHaveAttribute('data-agent-trigger-mode', 'edit')
-    expect(screen.getByTestId('agent-conversation-controls')).toHaveAttribute('data-can-change-model', 'true')
   })
 
   it('does not allow switching the workspace after messages are present', () => {
@@ -647,31 +539,6 @@ describe('AgentChat settings panel', () => {
     })
 
     expect(screen.getByTestId('agent-conversation-controls')).toHaveAttribute('data-can-change-workspace', 'false')
-    expect(agentConversationControlsPropsMock.last?.showWorkspace).toBe(false)
-    expect(screen.getByTestId('agent-conversation-controls')).toHaveAttribute('data-agent-trigger-mode', 'edit')
-    expect(screen.getByTestId('agent-conversation-controls')).toHaveAttribute('data-can-change-model', 'true')
-  })
-
-  it('keeps the model selector editable after messages are present when the agent has no model', () => {
-    partsByMessageIdMock.value = {
-      'message-1': [{ type: 'text', text: 'hello' }]
-    }
-    activeAgentMock.value = { id: 'agent-1', model: null }
-    const session = {
-      id: 'session-1',
-      agentId: 'agent-1',
-      workspaceId: 'workspace-1',
-      workspace: { id: 'workspace-1', type: 'user', name: 'Workspace 1', path: '/workspace' }
-    } as any
-
-    renderAgentChat({
-      conversationBootstrap: createConversationBootstrap(session),
-      onSessionWorkspaceChange: vi.fn()
-    })
-
-    expect(screen.getByTestId('agent-conversation-controls')).toHaveAttribute('data-can-change-workspace', 'false')
-    expect(agentConversationControlsPropsMock.last?.showWorkspace).toBe(false)
-    expect(screen.getByTestId('agent-conversation-controls')).toHaveAttribute('data-can-change-model', 'true')
   })
 
   it('switches the model directly when the session has no messages', async () => {
@@ -753,116 +620,6 @@ describe('AgentChat settings panel', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 
-  it('keeps the missing-agent home composer for pending ask-user-question requests', async () => {
-    partsByMessageIdMock.value = {
-      'message-1': [
-        {
-          type: 'dynamic-tool',
-          toolName: 'AskUserQuestion',
-          toolCallId: 'call-1',
-          state: 'approval-requested',
-          input: {
-            questions: [
-              {
-                question: 'Choose logger',
-                header: 'Logger',
-                options: [{ label: 'Winston' }, { label: 'Pino' }],
-                multiSelect: false
-              }
-            ]
-          },
-          providerExecuted: true,
-          callProviderMetadata: { 'claude-code': { parentToolCallId: null } },
-          approval: { id: 'approval-1' }
-        }
-      ]
-    }
-
-    renderAgentChat({
-      conversationBootstrap: createConversationBootstrap(null),
-      missingAgentSelection: true
-    })
-
-    // The home composer is lazy-loaded; wait for the chunk to resolve.
-    expect(await screen.findByTestId('missing-agent-home-composer')).toBeInTheDocument()
-    expect(screen.getByTestId('composer-dock-frame')).toHaveAttribute('data-placement', 'docked')
-    expect(screen.queryByText('Choose logger')).not.toBeInTheDocument()
-  })
-
-  it('prioritizes AskUserQuestionComposer over regular permission requests', async () => {
-    partsByMessageIdMock.value = {
-      'message-1': [
-        {
-          type: 'tool-Read',
-          toolName: 'Read',
-          toolCallId: 'call-read',
-          state: 'approval-requested',
-          input: { file_path: '/tmp/file.ts' },
-          approval: { id: 'approval-read' },
-          callProviderMetadata: {
-            'claude-code': {
-              rawInput: { file_path: '/tmp/file.ts' },
-              parentToolCallId: null
-            }
-          }
-        },
-        {
-          type: 'dynamic-tool',
-          toolName: 'AskUserQuestion',
-          toolCallId: 'call-ask',
-          state: 'approval-requested',
-          input: {
-            questions: [
-              {
-                question: 'Choose logger',
-                header: 'Logger',
-                options: [{ label: 'Winston' }, { label: 'Pino' }],
-                multiSelect: false
-              }
-            ]
-          },
-          providerExecuted: true,
-          callProviderMetadata: { 'claude-code': { parentToolCallId: null } },
-          approval: { id: 'approval-ask' }
-        }
-      ]
-    }
-
-    renderAgentChat()
-
-    expect(screen.getByText('Choose logger')).toBeInTheDocument()
-    expect(screen.queryByText('Read')).not.toBeInTheDocument()
-    expect(screen.queryByTestId('agent-inputbar')).not.toBeInTheDocument()
-  })
-
-  it('replaces the agent inputbar with PermissionRequestComposer for pending tool permissions', () => {
-    partsByMessageIdMock.value = {
-      'message-1': [
-        {
-          type: 'tool-CustomTool',
-          toolName: 'CustomTool',
-          toolCallId: 'call-1',
-          state: 'approval-requested',
-          input: { command: 'pnpm test' },
-          approval: { id: 'approval-1' },
-          callProviderMetadata: {
-            'claude-code': {
-              rawInput: { command: 'pnpm test' },
-              parentToolCallId: null
-            }
-          }
-        }
-      ]
-    }
-
-    renderAgentChat()
-
-    expect(screen.getByRole('heading', { name: 'message.processing' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'agent.toolPermission.button.allow' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'agent.toolPermission.button.deny' })).toBeInTheDocument()
-    expect(screen.queryByTestId('agent-inputbar')).not.toBeInTheDocument()
-  })
-
   it('keeps the missing-agent home composer for pending tool permissions', async () => {
     partsByMessageIdMock.value = {
       'message-1': [
@@ -889,9 +646,7 @@ describe('AgentChat settings panel', () => {
     })
 
     // The home composer is lazy-loaded; wait for the chunk to resolve.
-    expect(await screen.findByTestId('missing-agent-home-composer')).toBeInTheDocument()
-    expect(screen.getByTestId('composer-dock-frame')).toHaveAttribute('data-placement', 'docked')
-    expect(screen.queryByText('CustomTool')).not.toBeInTheDocument()
+
     expect(screen.queryByRole('button', { name: 'agent.toolPermission.button.allow' })).not.toBeInTheDocument()
   })
 

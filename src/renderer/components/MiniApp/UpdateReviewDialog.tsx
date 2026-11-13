@@ -15,9 +15,10 @@ export const UpdateReviewDialog: FC<{
   name: string
   update: UpdateOffer
   busy: boolean
+  open?: boolean
   onCancel: () => void
   onApply: (decision: UpdateDecision) => void
-}> = ({ name, update, busy, onCancel, onApply }) => {
+}> = ({ name, update, busy, open = true, onCancel, onApply }) => {
   const { t } = useTranslation()
   // Offered optional leaves start on; only the exceptions are tracked.
   const [declined, setDeclined] = useState<ReadonlySet<string>>(new Set())
@@ -31,7 +32,7 @@ export const UpdateReviewDialog: FC<{
   const needsConsent = update.status === 'needs-consent'
   return (
     <Dialog
-      open
+      open={open}
       onOpenChange={(open) => {
         if (!open) onCancel()
       }}>

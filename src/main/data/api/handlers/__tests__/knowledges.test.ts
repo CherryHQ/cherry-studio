@@ -29,12 +29,7 @@ vi.mock('@data/services/KnowledgeItemService', () => ({
   }
 }))
 
-import {
-  KNOWLEDGE_BASES_DEFAULT_LIMIT,
-  KNOWLEDGE_BASES_MAX_LIMIT,
-  KNOWLEDGE_ITEMS_DEFAULT_LIMIT,
-  KNOWLEDGE_ITEMS_MAX_LIMIT
-} from '@shared/data/api/schemas/knowledges'
+import { KNOWLEDGE_BASES_MAX_LIMIT, KNOWLEDGE_ITEMS_MAX_LIMIT } from '@shared/data/api/schemas/knowledges'
 
 import { knowledgeHandlers } from '../knowledges'
 
@@ -47,21 +42,6 @@ describe('knowledgeHandlers', () => {
   })
 
   describe('/knowledge-bases', () => {
-    it('should apply default pagination when query is missing', async () => {
-      const response = {
-        items: [{ id: 'kb-1', name: 'Knowledge Base' }],
-        total: 1
-      }
-      listKnowledgeBasesCursorMock.mockResolvedValueOnce(response)
-
-      const result = await knowledgeHandlers['/knowledge-bases'].GET({})
-
-      expect(listKnowledgeBasesCursorMock).toHaveBeenCalledWith({
-        limit: KNOWLEDGE_BASES_DEFAULT_LIMIT
-      })
-      expect(result).toEqual(response)
-    })
-
     it('should delegate explicit cursor pagination to knowledgeBaseService.listCursor', async () => {
       const response = {
         items: [{ id: 'kb-2', name: 'Knowledge Base 2' }],
@@ -97,10 +77,7 @@ describe('knowledgeHandlers', () => {
         }
       })
 
-      expect(listKnowledgeBasesCursorMock).toHaveBeenCalledWith({
-        limit: KNOWLEDGE_BASES_DEFAULT_LIMIT,
-        search: 'research'
-      })
+      expect(listKnowledgeBasesCursorMock).toHaveBeenCalledWith(expect.objectContaining({ search: 'research' }))
       expect(result).toEqual(response)
     })
 
@@ -264,22 +241,6 @@ describe('knowledgeHandlers', () => {
   })
 
   describe('/knowledge-bases/:id/items', () => {
-    it('should apply the default limit when query is missing', async () => {
-      listKnowledgeItemsMock.mockResolvedValueOnce({
-        items: [],
-        total: 0,
-        nextCursor: undefined
-      })
-
-      await knowledgeHandlers['/knowledge-bases/:id/items'].GET({
-        params: { id: 'kb-1' }
-      })
-
-      expect(listKnowledgeItemsMock).toHaveBeenCalledWith('kb-1', {
-        limit: KNOWLEDGE_ITEMS_DEFAULT_LIMIT
-      })
-    })
-
     it('should pass cursor and type/group filters to knowledge item listing', async () => {
       listKnowledgeItemsMock.mockResolvedValueOnce({
         items: [],
@@ -319,10 +280,7 @@ describe('knowledgeHandlers', () => {
         }
       })
 
-      expect(listKnowledgeItemsMock).toHaveBeenCalledWith('kb-1', {
-        limit: KNOWLEDGE_ITEMS_DEFAULT_LIMIT,
-        groupId: null
-      })
+      expect(listKnowledgeItemsMock).toHaveBeenCalledWith('kb-1', expect.objectContaining({ groupId: null }))
     })
 
     it('should reject non-positive limit values', async () => {

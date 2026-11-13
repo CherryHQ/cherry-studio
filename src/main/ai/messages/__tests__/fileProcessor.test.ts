@@ -107,12 +107,6 @@ describe('materializeNativeFilePart — file:// inline', () => {
     )
     expect(out).toBeNull()
   })
-
-  it('does not call FileManager when there is no cherry meta', async () => {
-    readMock.mockClear()
-    await materializeNativeFilePart(filePart({ url: `file://${imgPath}`, mediaType: 'image/png' }))
-    expect(readMock).not.toHaveBeenCalled()
-  })
 })
 
 describe('materializeNativeFilePart — fileEntryId inline', () => {

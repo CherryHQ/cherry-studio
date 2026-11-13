@@ -1,5 +1,6 @@
 import { mkdir, writeFile } from 'node:fs/promises'
 import path from 'node:path'
+import { isDeepStrictEqual } from 'node:util'
 import { parentPort, workerData } from 'node:worker_threads'
 
 import type { SessionKey, SessionStore, SessionStoreEntry } from '@anthropic-ai/claude-agent-sdk'
@@ -71,7 +72,7 @@ async function run(input: ClaudeForkWorkerInput): Promise<unknown> {
   for (const source of input.entries) {
     if (!source.compactMetadata || !source.uuid) continue
     const mapped = output.find((entry) => entry.uuid === mapping.get(source.uuid!))
-    if (!mapped || JSON.stringify(mapped.compactMetadata) !== JSON.stringify(source.compactMetadata)) {
+    if (!mapped || !isDeepStrictEqual(mapped.compactMetadata, normalizeCompactionMetadata(source, mapping))) {
       throw new Error('unsupported_checkpoint')
     }
     // Some SDK releases copy preserved-segment UUIDs verbatim. Do not publish dangling
@@ -123,6 +124,22 @@ async function run(input: ClaudeForkWorkerInput): Promise<unknown> {
       }
     ]
   }
+}
+
+function normalizeCompactionMetadata(source: SessionStoreEntry, mapping: ReadonlyMap<string, string>): unknown {
+  function remap(value: unknown, isRoot = false): unknown {
+    if (typeof value === 'string') return mapping.get(value) ?? value
+    if (Array.isArray(value)) return value.map((item) => remap(item))
+    if (value && typeof value === 'object') {
+      return Object.fromEntries(
+        Object.entries(value)
+          .filter(([key]) => !(isRoot && source.type === 'system' && key === 'runningTurnSends'))
+          .map(([key, item]) => [mapping.get(key) ?? key, remap(item)])
+      )
+    }
+    return value
+  }
+  return remap(source.compactMetadata, true)
 }
 
 function containsSourceUuid(value: unknown, sourceIds: ReadonlySet<string>): boolean {

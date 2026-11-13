@@ -79,7 +79,8 @@ import {
 import { buildPiMcpToolName, createPiMcpExtension } from './piMcpExtension'
 import { PiMessageMetadata, resolvePiMcpToolMetadata } from './PiMessageMetadata'
 import { loadPiSdk } from './piSdk'
-import { buildPiLoginPathPrefix, mergePiBashExecutionEnv, resolvePiShellPath } from './piShell'
+import { buildPiLoginPathPrefix, mergePiShellExecutionEnv, resolvePiShellPath } from './piShell'
+import { withPiShellTimeout } from './piShellTimeout'
 import { PiTurnUsage } from './PiTurnUsage'
 
 const logger = loggerService.withContext('PiRuntimeConnection')
@@ -283,8 +284,18 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     const managedBashTool = pi.createBashToolDefinition(workspacePath, {
       commandPrefix: loginPathPrefix,
       shellPath,
-      spawnHook: (context) => ({ ...context, env: mergePiBashExecutionEnv(context.env) })
-    }) as ToolDefinition
+      spawnHook: (context) => ({ ...context, env: mergePiShellExecutionEnv(context.env) })
+    })
+    const managedShellTools = [
+      managedBashTool,
+      ...(process.platform === 'win32'
+        ? [
+            pi.createPowerShellToolDefinition(workspacePath, {
+              spawnHook: (context) => ({ ...context, env: mergePiShellExecutionEnv(context.env) })
+            })
+          ]
+        : [])
+    ].map(withPiShellTimeout) as ToolDefinition[]
     const toolCallId = async (call: CallRef) => {
       const opened = await this.runtime!.open({ backendId: runtimeId(this.context!.backendId), id: call.thread })
       if (opened.status !== 'confirmed') throw new Error(opened.error.message)
@@ -298,7 +309,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     }
     const behavior = await createPiBehaviorHost({
       input: this.input,
-      root: runtimeId(nativeId),
+      root: () => runtimeId(nativeId),
       binding,
       model: initialSnapshot.model,
       approval: approvalContext,
@@ -321,8 +332,8 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       appendSystemPrompt: prompt.append ? [prompt.append] : [],
       contextFiles: true,
       skillPaths: additionalSkillPaths,
-      builtinTools: ['read', 'bash', 'edit', 'write'],
-      tools: [managedBashTool],
+      builtinTools: ['read', 'bash', 'edit', 'write', ...(process.platform === 'win32' ? ['powershell'] : [])],
+      tools: managedShellTools,
       excludeTools: [...this.disabledTools],
       behavior,
       settings: {
