@@ -885,7 +885,7 @@ which breaks bare `vitest run`; rebuild for Node before running D3/D4 tests.
 **Status: implemented in [#20166](https://github.com/CherryHQ/cherry-studio/pull/20166)
 on `agent-browser-integration`.** This product layer
 is based on PR3 and combines this section with the supported import paths in §10.
-Use Electron 44.2.0 inherited from `main`. No new browser shell, visible multi-tab UI, WebMCP, upload tool, freeze/thaw,
+Use Electron 44.2.0 inherited from `main`. No new browser shell, upload tool, freeze/thaw,
 full handoff protocol or `WebContentsView` migration is required to complete this scope.
 
 ### 12.1 Reuse and first vertical slice
@@ -893,10 +893,17 @@ full handoff protocol or `WebContentsView` migration is required to complete thi
 Reuse `AgentBrowserRightPanel` in `AgentRightPane.tsx`, shared browser chrome, `WebviewHost`, navigation,
 search, annotations and the shared CDP engine. First prove that a snapshot and one click from an
 Agent Session affect the very guest shown in its right pane; do this before history/import work.
-Keep one visible browser page per Agent Session in this delivery.
+Each Agent Session and ordinary chat Topic owns an ordered collection of pages with one selected page.
+The shared `SessionBrowserView` uses `RightPaneTabs` with the same selected surface and sizing as Files.
+Its overflow menu appears only when pages do not fit and keeps the selected page visible; keyboard switching and closing remain available. Closing the last page or all pages closes the right sidebar. Page favicons replace the loading indicator when guest loading stops; address suggestions display locally cached icons with a globe fallback.
+Tab context menus act on the clicked page without selecting it. They open its committed URL in a top-level browser tab, a fresh detached window or the external browser (HTTP(S)), copy the link, or close current/other/right/all conversation pages. Opening elsewhere keeps the source guest. Overflow entries expose the same menu; bulk closes include hidden pages. There is no duplicate reload action in the tab menu.
+Each page retains its guest when hidden. Message links reuse a matching URL/profile or create a page; address-bar
+navigation stays in its selected page. Manual first-page and new-tab actions share the configured start-page
+policy with standalone browsing; last-page memory is conversation-specific and changes only for the selected
+ordinary page. Explicit URLs and automation-created pages retain their requested destinations. Development preview updates reuse their preview identity without stealing selection.
 
 Extend `BrowserSessionService` with a main-owned binding from Agent Session to the attached guest:
-`{ agentId, sessionId, tabId, guest, windowId, abort }`. The guest determines its validated profile,
+`{ ownerId, sessionId, pageId, tabId, guest, windowId, abort }`. The stable renderer `pageId` identifies one page. The guest determines its validated profile,
 and each fresh opaque `tabId` is the binding generation. It changes when the guest is replaced,
 not when its presentation resumes. `AgentBrowserRuntimeHost` mounts beside the page Activities in
 `TabsProvider`; its session resources own the guest, native event listeners and binding effects.
@@ -974,10 +981,11 @@ explicit `handle_dialog`. A remaining annotation lease must survive browser-cont
 
 Extract the target lookup/page-host boundary currently embedded in `CdpBrowserController`; keep
 actions and snapshots shared. The standalone host retains its existing behavior. The pane host
-supports only its actual capabilities: `open` navigates/reveals its one page, `list_tabs` returns that
-session's page, and explicit tab targets must match it. `newTab`/private-window requests and multi-tab
-operations are rejected until supported, rather than silently opening hidden windows. Popup attempts
-must be reported as unsupported; no fabricated `newTabId`. Closing/resetting the visible page requires
+supports only its actual capabilities: `open` navigates/reveals an exact page, `list_tabs` returns only that
+conversation’s pages, and `newTab` creates an independent conversation page. The REPL exposes `browser.listTabs()`,
+`browser.getTab({ tabId })` and `browser.newTab(url)`. A bound handle does not follow user selection. Private-window
+requests remain rejected. Ordinary HTTP(S) popup requests create a page in their source conversation and preserve
+background-tab intent; POST and isolated preview/artifact popups remain unsupported and report `popupUnsupported`. Closing/resetting the visible page requires
 an explicit host operation, never direct destruction by borrowed-session disposal.
 
 Mount the pane-backed MCP through `buildAgentMcpServers` and `resolveMountedMcpServers`, using the

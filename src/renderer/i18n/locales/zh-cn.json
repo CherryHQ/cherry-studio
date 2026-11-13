@@ -4057,7 +4057,7 @@
   "settings.browser.startPageCustom": "自定义 URL",
   "settings.browser.startPageCustomUrl": "自定义 URL",
   "settings.browser.startPageCustomUrlHelp": "输入不含用户名或密码的 HTTP 或 HTTPS 绝对 URL。留空或输入无效值时将打开空白页。",
-  "settings.browser.startPageHelp": "选择未指定地址时，新的独立浏览器标签页打开的页面。",
+  "settings.browser.startPageHelp": "选择未指定地址时，新建浏览器标签页打开的页面。",
   "settings.browser.startPageLast": "上次打开的页面",
   "settings.browser.title": "浏览器",
   "settings.browser.unsupported": "部分数据不受支持",
@@ -6523,5 +6523,14 @@
   "webview.navigation.invalid_address": "请输入有效的 HTTP、HTTPS 或文件地址",
   "webview.navigation.load_failed": "页面加载失败",
   "webview.navigation.open_external": "在外部浏览器中打开",
-  "webview.navigation.reload": "刷新"
+  "webview.navigation.reload": "刷新",
+  "webview.tabs.agent_active": "Agent 正在操作“{{title}}”",
+  "webview.tabs.all": "全部标签页",
+  "webview.tabs.close": "关闭 {{title}}",
+  "webview.tabs.close_all": "关闭全部标签页",
+  "webview.tabs.copy_link": "复制链接",
+  "webview.tabs.empty": "在当前会话中打开网页",
+  "webview.tabs.label": "浏览器标签页",
+  "webview.tabs.new": "新建标签页",
+  "webview.tabs.view": "查看"
 }

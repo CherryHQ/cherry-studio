@@ -211,10 +211,15 @@ describe('Agent browser authority and control lifetime', () => {
     const url = 'file:///workspace/local%20page.html'
     expect(controller.validateUrl(url)).toBe(url)
     const pending = service.agentBrowser.ensureGuest({ agentId, sessionId }, new AbortController().signal, url)
-    expect(application.get('IpcApiService').broadcast).toHaveBeenLastCalledWith('browser.guest.ensure_requested', {
-      sessionId,
-      url
-    })
+    expect(application.get('IpcApiService').broadcast).toHaveBeenLastCalledWith(
+      'browser.guest.ensure_requested',
+      expect.objectContaining({
+        sessionId,
+        url,
+        pageId: sessionId,
+        action: 'navigate'
+      })
+    )
     const artifact = createGuest(2)
     Object.assign(artifact.mock, {
       getType: () => 'webview',
@@ -297,22 +302,84 @@ describe('Agent browser authority and control lifetime', () => {
     expect(service.agentBrowser.get({ agentId, sessionId })?.tabId).toBe(tabId)
   })
 
-  it('navigates ordinary popup links in the same guest, including after Agent control is detached', async () => {
-    const { tabId } = service.agentBrowser.attach(sessionId, 1, windowId)
-    events.emit('web-contents-created', {}, fixture.guest)
-    const handler = vi.mocked(fixture.guest.setWindowOpenHandler).mock.calls.at(-1)![0]
-    const url = 'https://www.bilibili.com/video/BV1Satr6zETw/?p=2#part'
-    expect(handler({ url } as Electron.HandlerDetails)).toEqual({ action: 'deny' })
-    await Promise.resolve()
-    expect(fixture.guest.getURL()).toBe(url)
-    expect(controller.takeHostEvents(tabId)).toEqual({})
-    await application.get('PreferenceService').set('app.browser.agent_control.enabled', false)
-    service.agentBrowser.detach(sessionId, tabId, windowId)
-    const nextUrl = 'http://192.168.1.2:8080/reports'
-    handler({ url: nextUrl } as Electron.HandlerDetails)
-    await Promise.resolve()
-    expect(fixture.guest.getURL()).toBe(nextUrl)
-    expect(fixture.guest.setWindowOpenHandler).toHaveBeenCalledTimes(1)
+  it.each(['foreground-tab', 'background-tab'] as const)(
+    'opens an ordinary popup in a conversation page with %s intent',
+    async (disposition) => {
+      const { tabId } = service.agentBrowser.attach(sessionId, 1, windowId)
+      events.emit('web-contents-created', {}, fixture.guest)
+      const handler = vi.mocked(fixture.guest.setWindowOpenHandler).mock.calls.at(-1)![0]
+      const url = 'https://example.org/report#part'
+      expect(handler({ url, disposition } as Electron.HandlerDetails)).toEqual({ action: 'deny' })
+      expect(fixture.guest.getURL()).toBe('https://example.com')
+      expect(application.get('IpcApiService').send).toHaveBeenLastCalledWith(
+        windowId,
+        'browser.guest.ensure_requested',
+        expect.objectContaining({
+          sessionId,
+          url,
+          scope: 'agent',
+          pageId: expect.any(String),
+          action: 'create',
+          activate: disposition !== 'background-tab'
+        })
+      )
+      expect(controller.takeHostEvents(tabId)).toEqual({})
+      await application.get('PreferenceService').set('app.browser.agent_control.enabled', false)
+      service.agentBrowser.detach(sessionId, tabId, windowId)
+      expect(handler({ url, disposition } as Electron.HandlerDetails)).toEqual({ action: 'deny' })
+      expect(fixture.guest.getURL()).toBe('https://example.com')
+    }
+  )
+
+  function attachPage(pageId: string, id = 2, owner = sessionId) {
+    const page = createGuest(id)
+    Object.assign(page.mock, {
+      getType: () => 'webview',
+      getZoomFactor: () => 1,
+      hostWebContents: host,
+      session: session.fromPartition(getWebviewPartition(WebviewSecurityProfile.AgentBrowser))
+    })
+    vi.mocked(webContents.fromId).mockReturnValue(page.guest)
+    const binding = service.agentBrowser.attach(owner, id, windowId, pageId)
+    return { ...page, ...binding }
+  }
+
+  it('keeps exact handles independent and refuses a closed default instead of targeting its neighbor', async () => {
+    const first = service.agentBrowser.attach(sessionId, 1, windowId, 'page-one')
+    await controller.getSession()
+    const second = attachPage('page-two')
+    const firstSend = fixture.mock.debugger.sendCommand.getMockImplementation()!
+    const secondSend = second.mock.debugger.sendCommand.getMockImplementation()!
+    fixture.mock.debugger.sendCommand.mockImplementation(async (method, params) =>
+      method === 'Runtime.evaluate' ? { result: { value: 'first' } } : firstSend(method, params)
+    )
+    second.mock.debugger.sendCommand.mockImplementation(async (method, params) =>
+      method === 'Runtime.evaluate' ? { result: { value: 'second' } } : secondSend(method, params)
+    )
+    expect(await controller.execute('document.title', 1000, false, first.tabId)).toBe('first')
+    expect(await controller.execute('document.title', 1000, false, second.tabId)).toBe('second')
+    expect(await controller.execute('document.title')).toBe('first')
+    expect(await controller.listTabs()).toHaveLength(2)
+    service.agentBrowser.detach(sessionId, first.tabId, windowId)
+    await expect(controller.execute('document.title')).rejects.toMatchObject({ code: 'not_found' })
+    await expect(controller.execute('document.title', 1000, false, first.tabId)).rejects.toMatchObject({
+      code: 'not_found'
+    })
+    expect(await controller.execute('document.title', 1000, false, second.tabId)).toBe('second')
+  })
+
+  it('replacing one page revokes only that generation and rejects another conversation target', async () => {
+    const first = service.agentBrowser.attach(sessionId, 1, windowId, 'page-one')
+    const second = attachPage('page-two')
+    const replacement = attachPage('page-one', 3)
+    expect((await controller.listTabs()).map((tab) => tab.tabId)).toEqual(
+      expect.arrayContaining([replacement.tabId, second.tabId])
+    )
+    await expect(controller.getSession(false, first.tabId)).rejects.toMatchObject({ code: 'not_found' })
+    expect((await controller.getSession(false, second.tabId)).session.guest).toBe(second.guest)
+    const other = attachPage('other-page', 4, otherSessionId)
+    await expect(controller.getSession(false, other.tabId)).rejects.toMatchObject({ code: 'not_found' })
+    expect(service.agentBrowser.list({ sessionId: otherSessionId, ownerId: agentId })).toHaveLength(1)
   })
 
   it.each(['javascript:alert(1)', 'file:///tmp/index.html', 'https://user:pass@example.com', 'about:blank'])(

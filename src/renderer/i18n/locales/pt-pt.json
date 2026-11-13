@@ -4057,7 +4057,7 @@
   "settings.browser.startPageCustom": "URL personalizado",
   "settings.browser.startPageCustomUrl": "URL personalizado",
   "settings.browser.startPageCustomUrlHelp": "Introduza um URL absoluto HTTP ou HTTPS sem nome de utilizador nem palavra-passe. Os valores vazios ou inválidos abrem uma página em branco.",
-  "settings.browser.startPageHelp": "Escolha o que um novo separador do navegador autónomo abre quando não é indicado nenhum endereço.",
+  "settings.browser.startPageHelp": "Escolha a página aberta em novos separadores quando não for indicado um endereço.",
   "settings.browser.startPageLast": "Última página aberta",
   "settings.browser.title": "Navegador",
   "settings.browser.unsupported": "Alguns dados não são suportados",
@@ -6523,5 +6523,14 @@
   "webview.navigation.invalid_address": "Introduza um URL HTTP, HTTPS ou de ficheiro válido",
   "webview.navigation.load_failed": "Falha ao carregar a página",
   "webview.navigation.open_external": "Abrir no navegador externo",
-  "webview.navigation.reload": "Recarregar"
+  "webview.navigation.reload": "Recarregar",
+  "webview.tabs.agent_active": "O agente está a utilizar «{{title}}»",
+  "webview.tabs.all": "Todos os separadores",
+  "webview.tabs.close": "Fechar {{title}}",
+  "webview.tabs.close_all": "Fechar todos os separadores",
+  "webview.tabs.copy_link": "Copiar ligação",
+  "webview.tabs.empty": "Abrir uma página Web nesta conversa",
+  "webview.tabs.label": "Separadores do navegador",
+  "webview.tabs.new": "Novo separador",
+  "webview.tabs.view": "Ver"
 }

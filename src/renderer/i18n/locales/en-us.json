@@ -4057,7 +4057,7 @@
   "settings.browser.startPageCustom": "Custom URL",
   "settings.browser.startPageCustomUrl": "Custom URL",
   "settings.browser.startPageCustomUrlHelp": "Enter an absolute HTTP or HTTPS URL without a username or password. Empty or invalid values open a blank page.",
-  "settings.browser.startPageHelp": "Choose what a new standalone browser tab opens when no address is supplied.",
+  "settings.browser.startPageHelp": "Choose the page opened by new browser tabs when no address is specified.",
   "settings.browser.startPageLast": "Last opened page",
   "settings.browser.title": "Browser",
   "settings.browser.unsupported": "Some data is unsupported",
@@ -6523,5 +6523,14 @@
   "webview.navigation.invalid_address": "Enter a valid HTTP, HTTPS, or file URL",
   "webview.navigation.load_failed": "Failed to load the page",
   "webview.navigation.open_external": "Open in external browser",
-  "webview.navigation.reload": "Reload"
+  "webview.navigation.reload": "Reload",
+  "webview.tabs.agent_active": "Agent is operating “{{title}}”",
+  "webview.tabs.all": "All tabs",
+  "webview.tabs.close": "Close {{title}}",
+  "webview.tabs.close_all": "Close all tabs",
+  "webview.tabs.copy_link": "Copy link",
+  "webview.tabs.empty": "Open a web page in this conversation",
+  "webview.tabs.label": "Browser tabs",
+  "webview.tabs.new": "New tab",
+  "webview.tabs.view": "View"
 }

@@ -4097,7 +4097,7 @@
   "settings.browser.startPageCustom": "Własny adres URL",
   "settings.browser.startPageCustomUrl": "Własny adres URL",
   "settings.browser.startPageCustomUrlHelp": "Wprowadź bezwzględny adres URL HTTP lub HTTPS bez nazwy użytkownika i hasła. Puste lub nieprawidłowe wartości otwierają pustą stronę.",
-  "settings.browser.startPageHelp": "Wybierz, co ma otwierać nowa samodzielna karta przeglądarki, gdy nie podano adresu.",
+  "settings.browser.startPageHelp": "Wybierz stronę otwieraną w nowych kartach przeglądarki, gdy nie podano adresu.",
   "settings.browser.startPageLast": "Ostatnio otwarta strona",
   "settings.browser.title": "Przeglądarka",
   "settings.browser.unsupported": "Część danych nie jest obsługiwana",
@@ -6601,5 +6601,14 @@
   "webview.navigation.invalid_address": "Wprowadź prawidłowy adres HTTP, HTTPS lub pliku URL",
   "webview.navigation.load_failed": "Nie udało się załadować strony",
   "webview.navigation.open_external": "Otwórz w zewnętrznej przeglądarce",
-  "webview.navigation.reload": "Odśwież"
+  "webview.navigation.reload": "Odśwież",
+  "webview.tabs.agent_active": "Agent pracuje na karcie „{{title}}”",
+  "webview.tabs.all": "Wszystkie karty",
+  "webview.tabs.close": "Zamknij {{title}}",
+  "webview.tabs.close_all": "Zamknij wszystkie karty",
+  "webview.tabs.copy_link": "Kopiuj link",
+  "webview.tabs.empty": "Otwórz stronę internetową w tej rozmowie",
+  "webview.tabs.label": "Karty przeglądarki",
+  "webview.tabs.new": "Nowa karta",
+  "webview.tabs.view": "Pokaż"
 }

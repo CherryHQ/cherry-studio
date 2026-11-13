@@ -4057,7 +4057,7 @@
   "settings.browser.startPageCustom": "Özel URL",
   "settings.browser.startPageCustomUrl": "Özel URL",
   "settings.browser.startPageCustomUrlHelp": "Kullanıcı adı veya parola içermeyen mutlak bir HTTP ya da HTTPS URL’si girin. Boş veya geçersiz değerler boş bir sayfa açar.",
-  "settings.browser.startPageHelp": "Adres belirtilmediğinde yeni bir bağımsız tarayıcı sekmesinin ne açacağını seçin.",
+  "settings.browser.startPageHelp": "Adres belirtilmediğinde yeni tarayıcı sekmelerinde açılacak sayfayı seçin.",
   "settings.browser.startPageLast": "Son açılan sayfa",
   "settings.browser.title": "Tarayıcı",
   "settings.browser.unsupported": "Bazı veriler desteklenmiyor",
@@ -6523,5 +6523,14 @@
   "webview.navigation.invalid_address": "Geçerli bir HTTP, HTTPS veya dosya URL’si girin",
   "webview.navigation.load_failed": "Sayfa yüklenemedi",
   "webview.navigation.open_external": "Harici tarayıcıda aç",
-  "webview.navigation.reload": "Yenile"
+  "webview.navigation.reload": "Yenile",
+  "webview.tabs.agent_active": "Aracı “{{title}}” üzerinde çalışıyor",
+  "webview.tabs.all": "Tüm sekmeler",
+  "webview.tabs.close": "{{title}} sekmesini kapat",
+  "webview.tabs.close_all": "Tüm sekmeleri kapat",
+  "webview.tabs.copy_link": "Bağlantıyı kopyala",
+  "webview.tabs.empty": "Bu konuşmada bir web sayfası açın",
+  "webview.tabs.label": "Tarayıcı sekmeleri",
+  "webview.tabs.new": "Yeni sekme",
+  "webview.tabs.view": "Görüntüle"
 }

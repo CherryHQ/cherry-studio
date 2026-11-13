@@ -4057,7 +4057,7 @@
   "settings.browser.startPageCustom": "Benutzerdefinierte URL",
   "settings.browser.startPageCustomUrl": "Benutzerdefinierte URL",
   "settings.browser.startPageCustomUrlHelp": "Geben Sie eine absolute HTTP- oder HTTPS-URL ohne Benutzernamen oder Passwort ein. Leere oder ungültige Werte öffnen eine leere Seite.",
-  "settings.browser.startPageHelp": "Wählen Sie, was ein neuer eigenständiger Browser-Tab öffnet, wenn keine Adresse angegeben ist.",
+  "settings.browser.startPageHelp": "Wähle die Seite, die neue Browser-Tabs ohne angegebene Adresse öffnen.",
   "settings.browser.startPageLast": "Zuletzt geöffnete Seite",
   "settings.browser.title": "Browser",
   "settings.browser.unsupported": "Einige Daten werden nicht unterstützt",
@@ -6523,5 +6523,14 @@
   "webview.navigation.invalid_address": "Gib eine gültige HTTP-, HTTPS- oder Datei-URL ein",
   "webview.navigation.load_failed": "Seite konnte nicht geladen werden",
   "webview.navigation.open_external": "Im externen Browser öffnen",
-  "webview.navigation.reload": "Neu laden"
+  "webview.navigation.reload": "Neu laden",
+  "webview.tabs.agent_active": "Agent arbeitet in „{{title}}“",
+  "webview.tabs.all": "Alle Tabs",
+  "webview.tabs.close": "{{title}} schließen",
+  "webview.tabs.close_all": "Alle Tabs schließen",
+  "webview.tabs.copy_link": "Link kopieren",
+  "webview.tabs.empty": "Eine Webseite in dieser Unterhaltung öffnen",
+  "webview.tabs.label": "Browser-Tabs",
+  "webview.tabs.new": "Neuer Tab",
+  "webview.tabs.view": "Anzeigen"
 }

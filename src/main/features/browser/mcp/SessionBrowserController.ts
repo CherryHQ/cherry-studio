@@ -17,8 +17,13 @@ import { BrowserPageController } from './BrowserPageController'
 
 export interface BrowserSessionBinding {
   assertAvailable(): void
-  get(): BrowserGuestTarget | undefined
-  ensureGuest(signal: AbortSignal, url?: string): Promise<BrowserGuestTarget>
+  get(tabId?: string): BrowserGuestTarget | undefined
+  list(): BrowserGuestTarget[]
+  ensureGuest(
+    signal: AbortSignal,
+    url?: string,
+    options?: { pageId?: string; newTab?: boolean }
+  ): Promise<BrowserGuestTarget>
   focusInput(target: BrowserGuestTarget, options: CommandOptions): Promise<void>
   reveal(target: BrowserGuestTarget): void
   cursorMoved?(): void
@@ -40,6 +45,7 @@ export class SessionBrowserController extends BrowserPageController {
   private turnSubscription?: Disposable
   private execution?: { target: BrowserGuestTarget; lease: Disposable }
   private readonly leaseMutex = new Mutex()
+  private defaultTabId?: string
   private lease?: { target: BrowserGuestTarget; session: GuestSession; release: () => void }
 
   constructor(
@@ -63,8 +69,10 @@ export class SessionBrowserController extends BrowserPageController {
       this.operationSignal.throwIfAborted()
       this.assertAvailable()
       if (privateMode) throw new BrowserSessionError('not_allowed')
-      const target = tabId ? this.binding.get() : await this.binding.ensureGuest(this.operationSignal)
-      if (!target || (tabId && target.tabId !== tabId)) throw new BrowserSessionError('not_found')
+      const requested = tabId ?? this.defaultTabId
+      const target = requested ? this.binding.get(requested) : await this.binding.ensureGuest(this.operationSignal)
+      if (!target) throw new BrowserSessionError('not_found')
+      this.defaultTabId ??= target.tabId
       if (this.execution?.target !== target) {
         this.execution?.lease.dispose()
         this.execution = { target, lease: target.beginExecution() }
@@ -103,6 +111,7 @@ export class SessionBrowserController extends BrowserPageController {
         pointer: this.pointerFeedback(target, this.lease.session),
         focusInput: async (options: CommandOptions) => {
           this.assertAvailable()
+          this.binding.reveal(target)
           await this.binding.focusInput(target, options)
           this.assertAvailable()
         },
@@ -120,6 +129,7 @@ export class SessionBrowserController extends BrowserPageController {
         this.turnSubscription ??= this.binding.trackCursor?.(() =>
           target.cursor.hide(new BrowserSessionError('not_found'))
         )
+        this.binding.reveal(target)
         const documentId = session.documentId
         const waited = await target.cursor.move(point, documentId, options)
         if (documentId !== session.documentId) throw new BrowserSessionError('stale_ref')
@@ -137,13 +147,21 @@ export class SessionBrowserController extends BrowserPageController {
     privateMode = false,
     newTab = false,
     _showWindow = true,
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    targetId?: string
   ) {
     this.assertAvailable()
-    if (privateMode || newTab) throw new BrowserSessionError('not_allowed')
+    if (privateMode) throw new BrowserSessionError('not_allowed')
     url = this.validateUrl(url)
     signal = AbortSignal.any(signal ? [this.signal, signal] : [this.signal])
-    const target = await this.binding.ensureGuest(signal, url)
+    const requested = targetId ?? this.defaultTabId
+    const previous = requested ? this.binding.get(requested) : undefined
+    if (requested && !previous && !newTab) throw new BrowserSessionError('not_found')
+    const target = await this.binding.ensureGuest(signal, url, {
+      pageId: newTab ? undefined : previous?.pageId,
+      newTab
+    })
+    if (!this.defaultTabId || (!newTab && this.defaultTabId === previous?.tabId)) this.defaultTabId = target.tabId
     this.binding.reveal(target)
     const { session, tabId } = await this.getSession(false, target.tabId)
     const options = {
@@ -166,7 +184,7 @@ export class SessionBrowserController extends BrowserPageController {
   }
 
   takeHostEvents(tabId: string) {
-    const target = this.binding.get()
+    const target = this.binding.get(tabId)
     if (!target || target.tabId !== tabId || !target.popupBlocked) return {}
     target.popupBlocked = false
     return { popupUnsupported: true }
@@ -178,10 +196,11 @@ export class SessionBrowserController extends BrowserPageController {
   async listTabs(privateMode = false) {
     this.assertAvailable()
     if (privateMode) throw new BrowserSessionError('not_allowed')
-    const target = this.binding.get()
-    return target
-      ? [{ tabId: target.tabId, url: sanitizeSnapshotUrl(target.guest.getURL()), title: target.guest.getTitle() }]
-      : []
+    return this.binding.list().map((target) => ({
+      tabId: target.tabId,
+      url: sanitizeSnapshotUrl(target.guest.getURL()),
+      title: target.guest.getTitle()
+    }))
   }
   finishTool(): void {
     this.toolSignal = undefined

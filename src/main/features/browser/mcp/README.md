@@ -16,11 +16,12 @@ Shutdown failures are reported after remaining guest leases are released.
 ## Visible Agent host
 
 Agent automation control uses `AgentBrowserController` through `BrowserSessionService.createControl()`,
-bound to a trusted Agent/Session and its visible right-pane guest. The REPL's `goto` reveals/navigates
-that page and has no private or new-tab option; `getTab` returns only that session's target.
-Ordinary HTTP(S) popup links navigate the same visible page. Unsupported destinations, POST popups
+bound to a trusted conversation and its independently verified right-pane guests. The REPL's `goto` reveals/navigates
+its exact page; `listTabs`, `getTab({ tabId })` and `newTab(url)` enumerate, acquire and create pages in that conversation.
+Ordinary HTTP(S) popup links create a conversation page and preserve background-tab intent. Unsupported destinations, POST popups
 and isolated preview/artifact popups remain blocked;
-subsequent action results report `popupUnsupported`. No hidden replacement tab is created. Calls on this single-page host
+subsequent action results report `popupUnsupported`. User selection does not redirect an acquired handle,
+and closing/replacing its guest makes it fail. Calls on this conversation host
 are serialized, and target revocation cancels active and queued work.
 
 The UI owns these guests. Control uses borrowed leases with explicit inspection observers;
