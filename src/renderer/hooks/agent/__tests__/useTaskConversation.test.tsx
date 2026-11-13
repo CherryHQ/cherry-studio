@@ -3,11 +3,14 @@ import { act, render, renderHook, waitFor } from '@testing-library/react'
 import { Activity } from 'react'
 import { beforeEach, expect, it, vi } from 'vitest'
 
+import type * as TaskConversation from '@renderer/services/taskConversation'
 import type { TaskConversationResult } from '@renderer/services/taskConversation'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { ScheduledTaskEntity } from '@shared/data/api/schemas/agents'
 
 const { resolve, readPage } = vi.hoisted(() => ({ resolve: vi.fn(), readPage: vi.fn() }))
-vi.mock('@renderer/services/taskConversation', () => ({
+vi.mock('@renderer/services/taskConversation', async (importOriginal) => ({
+  ...(await importOriginal<typeof TaskConversation>()),
   resolveTaskConversation: resolve,
   readTaskConversationPage: readPage
 }))
@@ -26,7 +29,13 @@ beforeEach(() => {
   MockUseDataApiUtils.resetMocks()
 })
 const task = (id: string) => ({ id, agentId: 'agent', reuseSession: false }) as ScheduledTaskEntity
-const result = (id: string): TaskConversationResult => ({ session: { id } as never, logs: [], total: 0, nextPage: 2 })
+const result = (id: string): TaskConversationResult => ({
+  selectedRun: null,
+  session: { id } as never,
+  logs: [],
+  total: 0,
+  nextPage: 2
+})
 
 it('immediately clears the previous task and ignores its late resolution', async () => {
   let finishOld!: (value: TaskConversationResult) => void
@@ -142,4 +151,76 @@ it('announces a newer conversation without replacing the current one, including 
   expect(view.result.current.session?.id).toBe('old-session')
   await act(async () => view.result.current.retry())
   expect(view.result.current.session?.id).toBe('old-session')
+})
+
+const selected = (id: string, readable = true): TaskConversationResult => ({
+  ...result(id + '-session'),
+  session: readable ? ({ id: id + '-session' } as never) : null,
+  runId: id,
+  selectedRun: { id, startedAt: '2026-01-01T00:00:00Z', status: 'completed', result: id + ' text', error: null },
+  logs: [{ id: 'readable' }, { id: 'missing' }] as never,
+  total: 100
+})
+
+it('switches readable → unavailable → readable while retaining history and selected facts', async () => {
+  resolve.mockImplementation(async (_task, id) => selected(id, id !== 'missing'))
+  MockUseDataApiUtils.mockQueryResult('/agent-sessions/:sessionId', { data: { id: 'readable-session' } as never })
+  const view = renderHook(({ id }) => useTaskConversation(task('task'), id), { initialProps: { id: 'readable' } })
+  await waitFor(() => expect(view.result.current.session?.id).toBe('readable-session'))
+  view.rerender({ id: 'missing' })
+  expect(view.result.current.result?.logs).toHaveLength(2)
+  expect(view.result.current.session).toBeNull()
+  await waitFor(() => expect(view.result.current.result?.selectedRun?.result).toBe('missing text'))
+  expect(view.result.current.error).toBeUndefined()
+  view.rerender({ id: 'readable' })
+  await waitFor(() => expect(view.result.current.session?.id).toBe('readable-session'))
+})
+
+it.each([true, false])('handles session deletion during verification (expected: %s)', async (expected) => {
+  resolve.mockResolvedValue(selected('readable'))
+  MockUseDataApiUtils.mockQueryResult('/agent-sessions/:sessionId', { data: { id: 'readable-session' } as never })
+  const view = renderHook(() => useTaskConversation(task('task'), 'readable'))
+  await waitFor(() => expect(view.result.current.session?.id).toBe('readable-session'))
+  const error = expected ? DataApiErrorFactory.notFound('Session', 'readable-session') : new Error('timeout')
+  MockUseDataApiUtils.mockQueryResult('/agent-sessions/:sessionId', { error })
+  view.rerender()
+  expect(view.result.current.session).toBeNull()
+  expect(view.result.current.result?.selectedRun?.result).toBe('readable text')
+  expect(view.result.current.error).toBe(expected ? undefined : error)
+})
+
+it('ignores a superseded selection response and clears facts on task switch', async () => {
+  let finish!: (value: TaskConversationResult) => void
+  resolve
+    .mockImplementationOnce(
+      () =>
+        new Promise((done) => {
+          finish = done
+        })
+    )
+    .mockResolvedValue(selected('new', false))
+  const view = renderHook(({ id, taskId }) => useTaskConversation(task(taskId), id), {
+    initialProps: { id: 'old', taskId: 'task' }
+  })
+  view.rerender({ id: 'new', taskId: 'task' })
+  await waitFor(() => expect(view.result.current.result?.selectedRun?.id).toBe('new'))
+  await act(async () => finish(selected('old')))
+  expect(view.result.current.result?.selectedRun?.id).toBe('new')
+  view.rerender({ id: 'new', taskId: 'other' })
+  expect(view.result.current.result?.selectedRun).toBeUndefined()
+})
+
+it('retains explicit unavailable selection across pagination and refresh', async () => {
+  resolve.mockResolvedValue(selected('missing', false))
+  readPage.mockResolvedValue({ ...selected('new'), nextPage: 3 })
+  const view = renderHook(() => useTaskConversation(task('task'), 'missing'))
+  await waitFor(() => expect(view.result.current.result?.selectedRun?.id).toBe('missing'))
+  await act(async () => view.result.current.loadMore())
+  await act(async () =>
+    MockUseDataApiUtils.emitDataChange([
+      { endpoint: '/agents/:agentId/tasks/:taskId/logs', kind: 'membership', routeParams: { taskId: 'task' } }
+    ])
+  )
+  expect(view.result.current.result?.selectedRun?.result).toBe('missing text')
+  expect(view.result.current.result?.session).toBeNull()
 })

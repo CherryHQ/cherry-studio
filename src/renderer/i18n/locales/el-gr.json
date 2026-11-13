@@ -3637,6 +3637,7 @@
   "scheduledTasks.missedTime": "Χάθηκε η προγραμματισμένη ώρα εκτέλεσης",
   "scheduledTasks.moreHistory": "Υπάρχουν παλαιότερες εγγραφές. Συνεχίστε την αναζήτηση συνομιλίας.",
   "scheduledTasks.noConversation": "Δεν υπάρχει διαθέσιμη συνομιλία για αυτή την επιλογή.",
+  "scheduledTasks.noStoredResult": "Δεν υπάρχει αποθηκευμένο αποτέλεσμα ή σφάλμα για αυτή την εκτέλεση.",
   "scheduledTasks.older": "Εύρεση παλαιότερων συνομιλιών",
   "scheduledTasks.resume": "Συνέχεια",
   "scheduledTasks.runNow": "Εκτέλεση τώρα",

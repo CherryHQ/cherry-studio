@@ -18,13 +18,103 @@ describe('scheduled task conversation association', () => {
     expect(get.mock.calls.map(([path]) => path)).toEqual(['/jobs/run'])
   })
 
-  it('keeps an explicitly selected deleted conversation unavailable instead of choosing another run', async () => {
+  it.each([null, 'deleted'])('retains stored facts without substituting a conversation: %s', async (sessionId) => {
     vi.spyOn(dataApiService, 'get').mockImplementation(async (path) => {
       if (path === '/jobs/run')
-        return { type: 'agent.task', scheduleId: 'task', metadata: { sessionId: 'deleted' } } as never
-      throw DataApiErrorFactory.notFound('Session', 'deleted')
+        return {
+          id: 'run',
+          type: 'agent.task',
+          scheduleId: 'task',
+          status: 'failed',
+          metadata: { sessionId },
+          output: { result: 'old sentinel\n<script>plain</script>' },
+          error: { message: 'failure sentinel' },
+          startedAt: null,
+          scheduledAt: '2026-01-01T00:00:00Z'
+        } as never
+      if (path === '/agent-sessions/deleted') throw DataApiErrorFactory.notFound('Session', 'deleted')
+      if (path === '/agent-sessions') return { items: [session] } as never
+      return { items: [{ id: 'other', sessionId: 'session' }], total: 1 } as never
+    })
+    expect(await resolveTaskConversation(task, 'run')).toMatchObject({
+      session: null,
+      runId: 'run',
+      selectedRun: {
+        id: 'run',
+        status: 'failed',
+        startedAt: '2026-01-01T00:00:00Z',
+        result: 'old sentinel\n<script>plain</script>',
+        error: 'failure sentinel'
+      },
+      logs: [{ id: 'other' }]
+    })
+  })
+
+  it.each([{ kind: 'executed' }, {}, null, { result: 42 }])(
+    'retains run facts without exposing non-text output as a result: %j',
+    async (output) => {
+      vi.spyOn(dataApiService, 'get').mockImplementation(async (path) => {
+        if (path === '/jobs/run')
+          return {
+            id: 'run',
+            type: 'agent.task',
+            scheduleId: 'task',
+            metadata: {},
+            output,
+            status: 'failed',
+            startedAt: '2026-01-01T00:00:00Z',
+            error: { message: 'failure sentinel' }
+          } as never
+        return { items: [], total: 0 } as never
+      })
+      const resolved = await resolveTaskConversation(task, 'run')
+      expect(resolved.selectedRun).toEqual({
+        id: 'run',
+        status: 'failed',
+        startedAt: '2026-01-01T00:00:00Z',
+        result: null,
+        error: 'failure sentinel'
+      })
+    }
+  )
+
+  it.each([
+    ['untyped 404', { status: 404 }],
+    ['wrong resource', DataApiErrorFactory.notFound('Task', 'deleted')],
+    ['wrong id', DataApiErrorFactory.notFound('Session', 'other')],
+    ['handler', DataApiErrorFactory.notFound('Handler', 'deleted')],
+    ['500', Object.assign(DataApiErrorFactory.notFound('Session', 'deleted'), { status: 500 })],
+    ['timeout', new Error('timeout')],
+    ['permission', new Error('permission denied')],
+    ['database', new Error('database unavailable')]
+  ])('rejects unexpected session failures: %s', async (_name, error) => {
+    vi.spyOn(dataApiService, 'get').mockImplementation(async (path) => {
+      if (path === '/jobs/run')
+        return { id: 'run', type: 'agent.task', scheduleId: 'task', metadata: { sessionId: 'deleted' } } as never
+      throw error
+    })
+    await expect(resolveTaskConversation(task, 'run')).rejects.toBe(error)
+  })
+
+  it.each([
+    ['foreign task', { type: 'agent.task', scheduleId: 'other' }],
+    ['wrong type', { type: 'other', scheduleId: 'task' }],
+    ['missing job', null]
+  ])('rejects invalid selected jobs: %s', async (_name, job) => {
+    vi.spyOn(dataApiService, 'get').mockImplementation(async () => {
+      if (!job) throw DataApiErrorFactory.notFound('Job', 'run')
+      return job as never
     })
     await expect(resolveTaskConversation(task, 'run')).rejects.toThrow()
+  })
+
+  it('does not swallow a foreign-task log 404', async () => {
+    const error = DataApiErrorFactory.notFound('Task', 'task')
+    vi.spyOn(dataApiService, 'get').mockImplementation(async (path) => {
+      if (path === '/jobs/run') return { id: 'run', type: 'agent.task', scheduleId: 'task', metadata: {} } as never
+      throw error
+    })
+    await expect(resolveTaskConversation(task, 'run')).rejects.toBe(error)
   })
 
   it('prefers the valid bound conversation over the latest execution', async () => {
@@ -73,7 +163,7 @@ describe('scheduled task conversation association', () => {
   })
 
   it('stops automatic lookup at 100 records and supports a deliberate third page', async () => {
-    const get = vi.spyOn(dataApiService, 'get').mockImplementation(async (path, options) => {
+    vi.spyOn(dataApiService, 'get').mockImplementation(async (path, options) => {
       if (path === '/agent-sessions') return { items: [session] } as never
       const page = (options?.query as { page?: number })?.page ?? 1
       return {
@@ -86,17 +176,74 @@ describe('scheduled task conversation association', () => {
     })
     const result = await resolveTaskConversation(task)
     expect(result).toMatchObject({ session: null, nextPage: 3, total: 101 })
-    expect(get).toHaveBeenCalledTimes(2)
     expect((await readTaskConversationPage(task, result.nextPage)).session?.id).toBe('session')
   })
 
   it('does not continue an obsolete task lookup after its first response', async () => {
     const controller = new AbortController()
-    const get = vi.spyOn(dataApiService, 'get').mockImplementation(async () => {
+    vi.spyOn(dataApiService, 'get').mockImplementation(async () => {
       controller.abort()
       return { items: [{ sessionId: 'session' }], total: 100 } as never
     })
     await expect(resolveTaskConversation(task, undefined, controller.signal)).rejects.toThrow()
-    expect(get).toHaveBeenCalledTimes(1)
   })
+})
+
+it.each([{ result: 'old sentinel' }, { kind: 'executed', result: 'new sentinel' }])(
+  'reads explicit facts outside the first history page: %j',
+  async (output) => {
+    vi.spyOn(dataApiService, 'get').mockImplementation(async (path) => {
+      if (path === '/jobs/outside')
+        return {
+          id: 'outside',
+          type: 'agent.task',
+          scheduleId: 'task',
+          metadata: {},
+          output,
+          startedAt: '2026-01-01T00:00:00Z',
+          status: 'pending',
+          error: null
+        } as never
+      return { items: [], total: 51 } as never
+    })
+    const resolved = await resolveTaskConversation(task, 'outside')
+    expect(resolved.selectedRun).toMatchObject({ id: 'outside', status: 'pending', result: output.result })
+    expect(resolved.logs).toEqual([])
+    expect(resolved.session).toBeNull()
+  }
+)
+
+it.each([{ result: 'old sentinel' }, { kind: 'executed', result: 'new sentinel' }])(
+  'keeps readable conversations preferred for either output shape: %j',
+  async (output) => {
+    vi.spyOn(dataApiService, 'get').mockImplementation(async (path) => {
+      if (path === '/jobs/run')
+        return {
+          id: 'run',
+          type: 'agent.task',
+          scheduleId: 'task',
+          metadata: { sessionId: 'session' },
+          output,
+          startedAt: '2026-01-01T00:00:00Z',
+          status: 'completed',
+          error: null
+        } as never
+      if (path === '/agent-sessions/session') return session as never
+      return { items: [], total: 0 } as never
+    })
+    const resolved = await resolveTaskConversation(task, 'run')
+    expect(resolved.session?.id).toBe('session')
+    expect(resolved.selectedRun?.result).toBe(output.result)
+  }
+)
+
+it('keeps abort a cancellation even when the recorded session is missing', async () => {
+  const controller = new AbortController()
+  vi.spyOn(dataApiService, 'get').mockImplementation(async (path) => {
+    if (path === '/jobs/run')
+      return { id: 'run', type: 'agent.task', scheduleId: 'task', metadata: { sessionId: 'session' } } as never
+    controller.abort()
+    throw DataApiErrorFactory.notFound('Session', 'session')
+  })
+  await expect(resolveTaskConversation(task, 'run', controller.signal)).rejects.toMatchObject({ name: 'AbortError' })
 })

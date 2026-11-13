@@ -10,6 +10,7 @@ import { afterEach, beforeAll, expect, it, vi } from 'vitest'
 import { dataApiService } from '@renderer/data/DataApiService'
 import { createSWRTestWrapper } from '@renderer/data/hooks/__tests__/testUtils'
 import en from '@renderer/i18n/locales/en-us.json'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { ScheduledTaskListItem } from '@shared/data/api/schemas/agents'
 
 import type AgentChat from '../AgentChat'
@@ -31,6 +32,10 @@ vi.mock('../AgentChat', () => ({
 
 const i18n = createInstance()
 beforeAll(async () => {
+  HTMLElement.prototype.hasPointerCapture ??= () => false
+  HTMLElement.prototype.setPointerCapture ??= () => {}
+  HTMLElement.prototype.releasePointerCapture ??= () => {}
+  HTMLElement.prototype.scrollIntoView ??= () => {}
   await i18n.init({ lng: 'en', resources: { en: { translation: en } }, keySeparator: false })
 })
 afterEach(() => vi.restoreAllMocks())
@@ -55,7 +60,10 @@ function task(status: ScheduledTaskListItem['status'], index = 0): ScheduledTask
   }
 }
 
-async function openPage(withHistory = true) {
+async function openPage(
+  withHistory = true,
+  legacy?: 'missing' | 'unlinked' | 'error' | 'empty' | 'outside' | 'pending'
+) {
   vi.spyOn(window, 'scrollTo').mockImplementation(() => {})
   const tasks = Array.from({ length: 51 }, (_, index) => statuses.map((status) => task(status, index))).flat()
   vi.spyOn(dataApiService, 'get').mockImplementation(async (path, options) => {
@@ -79,7 +87,11 @@ async function openPage(withHistory = true) {
           id.startsWith('completed') && withHistory
             ? [
                 { id: 'recent', sessionId: 'recent-session', startedAt: '2026-01-02T00:00:00Z' },
-                { id: 'older', sessionId: 'older-session', startedAt: '2026-01-01T00:00:00Z' }
+                {
+                  id: legacy === 'outside' ? 'another' : 'older',
+                  sessionId: 'older-session',
+                  startedAt: '2026-01-01T00:00:00Z'
+                }
               ]
             : [],
         total: id.startsWith('completed') && withHistory ? 2 : 0,
@@ -94,16 +106,27 @@ async function openPage(withHistory = true) {
           { id: 'older-session', name: 'Older report' }
         ]
       } as never
+    if (path === '/agent-sessions/older-session' && legacy) {
+      if (legacy === 'error') throw new Error('transport timeout')
+      throw DataApiErrorFactory.notFound('Session', 'older-session')
+    }
     if (path.startsWith('/agent-sessions/'))
       return {
         id: path.split('/').at(-1),
         name: path.endsWith('older-session') ? 'Older report' : 'Recent report'
       } as never
-    if (path === '/jobs/older')
+    if (path === '/jobs/older' || path === '/jobs/recent' || path === '/jobs/outside')
       return {
+        id: path.split('/').at(-1),
+        status: path === '/jobs/recent' ? 'completed' : legacy === 'pending' ? 'pending' : 'failed',
+        output: legacy === 'empty' ? null : { result: 'old sentinel\n<script>plain text</script>' },
+        error: legacy === 'empty' ? null : { message: 'failure sentinel\nsecond line' },
         type: 'agent.task',
         scheduleId: 'completed-0',
-        metadata: { sessionId: 'older-session' },
+        metadata:
+          path !== '/jobs/recent' && (legacy === 'unlinked' || legacy === 'empty')
+            ? {}
+            : { sessionId: path === '/jobs/recent' ? 'recent-session' : 'older-session' },
         startedAt: '2026-01-01T00:00:00Z'
       } as never
     throw new Error(`Unexpected read: ${path}`)
@@ -190,3 +213,65 @@ it.each(['completed', 'missed'] as const)(
     expect(screen.getByRole('status', { name: 'Conversation' })).toBeEmptyDOMElement()
   }
 )
+
+it.each(['missing', 'unlinked'] as const)(
+  'shows legacy stored text with %s session and recovers through the run selector',
+  async (condition) => {
+    const user = userEvent.setup()
+    const { router } = await openPage(true, condition)
+    await act(async () => router.navigate({ to: '/app/scheduled-tasks', search: { taskId: 'completed-0' } }))
+    await waitFor(() => expect(screen.getByRole('status', { name: 'Conversation' })).toHaveTextContent('Recent report'))
+    await user.click(screen.getByRole('combobox'))
+    const options = await screen.findAllByRole('option')
+    await user.click(options[1])
+    const text = await screen.findByText('old sentinel', { exact: false })
+    expect(text.textContent).toBe('old sentinel\n<script>plain text</script>')
+    expect(screen.getByText('failure sentinel', { exact: false }).textContent).toBe('failure sentinel\nsecond line')
+    expect(screen.getByText('Status:', { exact: false })).toHaveTextContent('Failed')
+    expect(screen.getByRole('status', { name: 'Conversation' })).toBeEmptyDOMElement()
+    expect(screen.getByRole('combobox')).toBeVisible()
+    expect(router.state.location.search).toMatchObject({ runId: 'older' })
+    await user.click(screen.getByRole('combobox'))
+    await user.click((await screen.findAllByRole('option'))[0])
+    await waitFor(() => expect(screen.getByRole('status', { name: 'Conversation' })).toHaveTextContent('Recent report'))
+    expect(screen.queryByText('old sentinel', { exact: false })).not.toBeInTheDocument()
+  }
+)
+
+it('retains the selected option outside loaded history', async () => {
+  const user = userEvent.setup()
+  const { router } = await openPage(true, 'outside')
+  await act(async () =>
+    router.navigate({ to: '/app/scheduled-tasks', search: { taskId: 'completed-0', runId: 'outside' } })
+  )
+  await screen.findByText('old sentinel', { exact: false })
+  await user.click(screen.getByRole('combobox'))
+  expect(await screen.findAllByRole('option')).toHaveLength(3)
+  expect(screen.getByRole('option', { selected: true })).toBeVisible()
+})
+
+it('explicitly explains when neither result nor error is stored', async () => {
+  const { router } = await openPage(true, 'empty')
+  await act(async () =>
+    router.navigate({ to: '/app/scheduled-tasks', search: { taskId: 'completed-0', runId: 'older' } })
+  )
+  expect(await screen.findByText('No stored result or error is available for this run.')).toBeVisible()
+})
+
+it('keeps unexpected failures in the error and retry path', async () => {
+  const { router } = await openPage(true, 'error')
+  await act(async () =>
+    router.navigate({ to: '/app/scheduled-tasks', search: { taskId: 'completed-0', runId: 'older' } })
+  )
+  expect(await screen.findByRole('alert')).toHaveTextContent(en['scheduledTasks.unavailable'])
+  expect(screen.getByRole('button', { name: 'Retry' })).toBeVisible()
+  expect(screen.queryByText('old sentinel', { exact: false })).not.toBeInTheDocument()
+})
+
+it('preserves a queued job status instead of labelling it running', async () => {
+  const { router } = await openPage(true, 'pending')
+  await act(async () =>
+    router.navigate({ to: '/app/scheduled-tasks', search: { taskId: 'completed-0', runId: 'older' } })
+  )
+  expect(await screen.findByText('Status:', { exact: false })).toHaveTextContent('pending')
+})

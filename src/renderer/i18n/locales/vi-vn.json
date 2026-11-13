@@ -3637,6 +3637,7 @@
   "scheduledTasks.missedTime": "Đã bỏ lỡ thời gian chạy theo lịch",
   "scheduledTasks.moreHistory": "Vẫn còn lịch sử cũ hơn. Bạn có thể tiếp tục tìm cuộc trò chuyện.",
   "scheduledTasks.noConversation": "Không có cuộc trò chuyện khả dụng cho lựa chọn này.",
+  "scheduledTasks.noStoredResult": "Không có kết quả hoặc lỗi được lưu cho lần chạy này.",
   "scheduledTasks.older": "Tìm cuộc trò chuyện cũ hơn",
   "scheduledTasks.resume": "Tiếp tục",
   "scheduledTasks.runNow": "Chạy ngay",

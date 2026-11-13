@@ -3637,6 +3637,7 @@
   "scheduledTasks.missedTime": "Hora de execução agendada perdida",
   "scheduledTasks.moreHistory": "Existe mais histórico. Continue a procurar uma conversa anterior.",
   "scheduledTasks.noConversation": "Não existe uma conversa disponível para esta seleção.",
+  "scheduledTasks.noStoredResult": "Não existe nenhum resultado ou erro guardado para esta execução.",
   "scheduledTasks.older": "Procurar conversas anteriores",
   "scheduledTasks.resume": "Continuar",
   "scheduledTasks.runNow": "Executar agora",

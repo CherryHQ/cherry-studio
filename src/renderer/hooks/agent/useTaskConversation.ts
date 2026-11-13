@@ -4,13 +4,21 @@ import { cacheService } from '@renderer/data/CacheService'
 import { useDataChange, useQuery } from '@renderer/data/hooks/useDataApi'
 import { useCurrentTabId } from '@renderer/hooks/tab'
 import {
+  isTaskRunSessionUnavailable,
   readTaskConversationPage,
   resolveTaskConversation,
   type TaskConversationResult
 } from '@renderer/services/taskConversation'
 import type { ScheduledTaskEntity } from '@shared/data/api/schemas/agents'
 
-type State = { key: string; result?: TaskConversationResult; loading: boolean; error?: unknown; newerRunId?: string }
+type State = {
+  taskId?: string
+  key: string
+  result?: TaskConversationResult
+  loading: boolean
+  error?: unknown
+  newerRunId?: string
+}
 
 export function useTaskConversation(task: ScheduledTaskEntity | null | undefined, runId?: string) {
   const key = `${task?.id ?? ''}:${runId ?? ''}`
@@ -19,8 +27,20 @@ export function useTaskConversation(task: ScheduledTaskEntity | null | undefined
   const controller = useRef<AbortController | null>(null)
   const taskRef = useRef(task)
   taskRef.current = task
-  const visible: State = state.key === key ? state : { key, loading: !!task }
+  const visible: State =
+    state.key === key
+      ? state
+      : {
+          key,
+          loading: !!task,
+          result:
+            state.taskId === task?.id && state.result
+              ? { ...state.result, session: null, selectedRun: null, runId: undefined, startedAt: undefined }
+              : undefined
+        }
   const result = visible.result
+  const resultRef = useRef(result)
+  resultRef.current = result
   const retry = useCallback(() => setRevision((value) => value + 1), [])
   const resumeConversation = useRef<() => boolean>(() => false)
   resumeConversation.current = () => {
@@ -36,14 +56,15 @@ export function useTaskConversation(task: ScheduledTaskEntity | null | undefined
     const abort = new AbortController()
     controller.current = abort
     if (resumeConversation.current()) return () => abort.abort()
-    setState({ key, loading: !!currentTask })
+    const retained = resultRef.current
+    setState({ key, taskId: currentTask?.id, result: retained, loading: !!currentTask })
     if (currentTask) {
       void resolveTaskConversation(currentTask, runId, abort.signal).then(
         (next) => {
-          if (!abort.signal.aborted) setState({ key, result: next, loading: false })
+          if (!abort.signal.aborted) setState({ key, taskId: currentTask.id, result: next, loading: false })
         },
         (error) => {
-          if (!abort.signal.aborted) setState({ key, loading: false, error })
+          if (!abort.signal.aborted) setState({ key, taskId: currentTask.id, result: retained, loading: false, error })
         }
       )
     }
@@ -64,12 +85,14 @@ export function useTaskConversation(task: ScheduledTaskEntity | null | undefined
           ? current
           : {
               key,
+              taskId: task.id,
               loading: false,
               newerRunId: current.newerRunId,
               result: {
                 ...next,
                 ...(current.result.session || runId
                   ? {
+                      selectedRun: current.result.selectedRun,
                       session: current.result.session,
                       runId: current.result.runId,
                       startedAt: current.result.startedAt
@@ -91,7 +114,7 @@ export function useTaskConversation(task: ScheduledTaskEntity | null | undefined
 
   const refreshHistory = () => {
     if (!task) return
-    if (!result?.session) {
+    if (!result?.session && !runId) {
       retry()
       return
     }
@@ -138,7 +161,8 @@ export function useTaskConversation(task: ScheduledTaskEntity | null | undefined
   useDataChange('/agent-sessions/:sessionId', (effects) => {
     if (sessionId && effects.some((effect) => !effect.entityIds || effect.entityIds.includes(sessionId))) void refetch()
   })
-  const verifiedSession = !sessionError && session && session.id === sessionId ? session : null
+  const unavailable = !!result?.selectedRun && !!sessionId && isTaskRunSessionUnavailable(sessionError, sessionId)
+  const verifiedSession = !visible.error && !sessionError && session && session.id === sessionId ? session : null
   const tabId = useCurrentTabId()
   useLayoutEffect(() => {
     if (!tabId) return
@@ -155,7 +179,7 @@ export function useTaskConversation(task: ScheduledTaskEntity | null | undefined
     ...visible,
     session: verifiedSession,
     sessionLoading: !!sessionId && !session && !sessionError,
-    error: sessionError ?? visible.error,
+    error: (unavailable ? undefined : sessionError) ?? visible.error,
     loadMore,
     retry: () => {
       if (result?.session) {

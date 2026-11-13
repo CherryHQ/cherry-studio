@@ -3637,6 +3637,7 @@
   "scheduledTasks.missedTime": "Missed scheduled time",
   "scheduledTasks.moreHistory": "More history is available. Continue searching for an earlier conversation.",
   "scheduledTasks.noConversation": "No available conversation for this selection.",
+  "scheduledTasks.noStoredResult": "No stored result or error is available for this run.",
   "scheduledTasks.older": "Find earlier conversations",
   "scheduledTasks.resume": "Continue",
   "scheduledTasks.runNow": "Run now",
