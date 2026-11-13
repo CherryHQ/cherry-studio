@@ -110,9 +110,9 @@ vi.mock('../adapters', () => ({
 }))
 
 import { StreamAdapterFactory, type OutputFormat } from '../adapters'
-import { StreamAdapterFactory as RealStreamAdapterFactory } from '../adapters/factory/StreamAdapterFactory'
 import { AnthropicMessageConverter } from '../adapters/converters/AnthropicMessageConverter'
 import { OpenAiResponsesMessageConverter } from '../adapters/converters/OpenAiResponsesMessageConverter'
+import { StreamAdapterFactory as RealStreamAdapterFactory } from '../adapters/factory/StreamAdapterFactory'
 import { gatewayErrorHandler } from '../errors'
 import { processMessage } from '../proxyStream'
 import { AGENT_CONTINUATION_TEXT } from '../utils/agentContinuation'
@@ -1198,7 +1198,6 @@ describe('caller-owned Responses instructions', () => {
   )
 })
 
-
 describe('processMessage (terminal finish reasons)', () => {
   afterEach(() => {
     vi.mocked(StreamAdapterFactory.createAdapter).mockReset()
@@ -1215,13 +1214,25 @@ describe('processMessage (terminal finish reasons)', () => {
       for (const withTool of [false, true]) {
         for (const stream of [false, true]) {
           it(`${format} / ${reason} / tool=${withTool} / stream=${stream}`, async () => {
-            vi.mocked(StreamAdapterFactory.createAdapter).mockImplementation(RealStreamAdapterFactory.createAdapter.bind(RealStreamAdapterFactory))
-            vi.mocked(StreamAdapterFactory.getFormatter).mockImplementation(RealStreamAdapterFactory.getFormatter.bind(RealStreamAdapterFactory))
-            const pending = processMessage({ params: { model: 'openai:gpt-4', stream, messages: [] }, inputFormat: 'openai', outputFormat: format })
-            const settled = pending.then(value => ({ value }), (error: unknown) => ({ error }))
+            vi.mocked(StreamAdapterFactory.createAdapter).mockImplementation(
+              RealStreamAdapterFactory.createAdapter.bind(RealStreamAdapterFactory)
+            )
+            vi.mocked(StreamAdapterFactory.getFormatter).mockImplementation(
+              RealStreamAdapterFactory.getFormatter.bind(RealStreamAdapterFactory)
+            )
+            const pending = processMessage({
+              params: { model: 'openai:gpt-4', stream, messages: [] },
+              inputFormat: 'openai',
+              outputFormat: format
+            })
+            const settled = pending.then(
+              (value) => ({ value }),
+              (error: unknown) => ({ error })
+            )
             await vi.waitFor(() => expect(captured.listener).toBeDefined())
             const listener = captured.listener!
-            if (withTool) listener.onChunk({ type: 'tool-input-available', toolCallId: 'call', toolName: 'read', input: {} })
+            if (withTool)
+              listener.onChunk({ type: 'tool-input-available', toolCallId: 'call', toolName: 'read', input: {} })
             listener.onChunk({ type: 'finish', finishReason: reason })
             listener.onChunk({ type: 'text-delta', id: 'late', delta: 'late' })
             await listener.onDone({} as any)
@@ -1232,36 +1243,52 @@ describe('processMessage (terminal finish reasons)', () => {
               expect(result.value.status).toBe(200)
               const body = await readAll(result.value.body)
               const frames = body.trim().split(/\r?\n\r?\n/)
-              const payloads = frames.map(frame => {
+              const payloads = frames.map((frame) => {
                 const data = frame.match(/^data:\s?(.*)$/m)
                 expect(data).not.toBeNull()
                 return JSON.parse(data![1])
               })
-              const errors = payloads.filter(payload => payload.error || payload.type === 'error')
+              const errors = payloads.filter((payload) => payload.error || payload.type === 'error')
               expect(errors).toHaveLength(1)
               const message = expect.stringContaining(reason)
               if (format === 'gemini') expect(errors[0]).toEqual({ error: { code: 502, message, status: 'INTERNAL' } })
               else if (format === 'anthropic') {
-                expect(frames.find(frame => frame.startsWith('event: error'))).toBeDefined()
+                expect(frames.find((frame) => frame.startsWith('event: error'))).toBeDefined()
                 expect(errors[0]).toEqual({ type: 'error', error: { type: 'api_error', message } })
-              } else if (format === 'openai-responses') expect(errors[0]).toEqual({ type: 'error', code: 'internal_error', message })
+              } else if (format === 'openai-responses')
+                expect(errors[0]).toEqual({ type: 'error', code: 'internal_error', message })
               else expect(errors[0]).toEqual({ error: { message, type: 'server_error', code: 'internal_error' } })
               expect(body).not.toContain('data: [DONE]')
               expect(body).not.toContain('"finishReason":"STOP"')
-              expect(frames.some(frame => /^event:\s*message_stop\s*$/m.test(frame))).toBe(false)
+              expect(frames.some((frame) => /^event:\s*message_stop\s*$/m.test(frame))).toBe(false)
               for (const payload of payloads) {
                 if (payload.type === 'message_delta') expect(payload.delta?.stop_reason || null).toBeNull()
                 for (const choice of payload.choices ?? []) expect(choice.finish_reason || null).toBeNull()
                 for (const candidate of payload.candidates ?? []) expect(candidate).not.toHaveProperty('finishReason')
               }
-              expect(payloads.some(payload => payload.type === 'response.completed' || payload.response?.status === 'completed')).toBe(false)
+              expect(
+                payloads.some(
+                  (payload) => payload.type === 'response.completed' || payload.response?.status === 'completed'
+                )
+              ).toBe(false)
               expect(body).not.toContain('late')
             } else {
               if (!('error' in result)) throw new Error('Expected rejection')
               expect(result.error).toMatchObject({ statusCode: 502 })
-              const mapped = gatewayErrorHandler({ request: new Request(`http://fixture${path}`), code: 'UNKNOWN', error: result.error, status } as Parameters<typeof gatewayErrorHandler>[0])
+              const mapped = gatewayErrorHandler({
+                request: new Request(`http://fixture${path}`),
+                code: 'UNKNOWN',
+                error: result.error,
+                status
+              } as Parameters<typeof gatewayErrorHandler>[0])
               expect(mapped.code).toBe(502)
-              expect(mapped.response).toMatchObject(format === 'gemini' ? { error: { code: 502 } } : format === 'anthropic' ? { error: { type: 'api_error' } } : { error: { type: 'server_error', code: 'internal_error' } })
+              expect(mapped.response).toMatchObject(
+                format === 'gemini'
+                  ? { error: { code: 502 } }
+                  : format === 'anthropic'
+                    ? { error: { type: 'api_error' } }
+                    : { error: { type: 'server_error', code: 'internal_error' } }
+              )
             }
           })
         }

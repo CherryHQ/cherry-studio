@@ -794,7 +794,6 @@ it.each([null, undefined, [], true, 42, 'invalid json'])(
   }
 )
 
-
 describe('terminal failure reasons', () => {
   it.each(['error', 'other'] as const)('rejects %s while reading after a tool call', async (reason) => {
     const adapter = new AiSdkToAnthropicSse({ model: 'test:model' })
@@ -806,7 +805,9 @@ describe('terminal failure reasons', () => {
       }
     })
     const read = async () => {
-      for await (const _event of adapter.transform(stream)) { /* consume */ }
+      for await (const _event of adapter.transform(stream)) {
+        /* consume */
+      }
     }
     await expect(read()).rejects.toMatchObject({ statusCode: 502 })
   })
@@ -814,7 +815,8 @@ describe('terminal failure reasons', () => {
   it.each(['error', 'other'] as const)('rejects %s with 502, including after a tool call', (reason) => {
     for (const withTool of [false, true]) {
       const adapter = new AiSdkToAnthropicSse({ model: 'test:model' })
-      if (withTool) adapter.transformChunk({ type: 'tool-input-available', toolCallId: 'call', toolName: 'read', input: {} })
+      if (withTool)
+        adapter.transformChunk({ type: 'tool-input-available', toolCallId: 'call', toolName: 'read', input: {} })
       expect(() => adapter.transformChunk({ type: 'finish', finishReason: reason })).toThrow(
         expect.objectContaining({ statusCode: 502 })
       )
