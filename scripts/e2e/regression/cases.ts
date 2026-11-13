@@ -365,7 +365,7 @@ export const REGRESSION_CASES = [
   {
     id: 'MP-16',
     title: 'Polish prompts',
-    tasks: ['chat-core'],
+    tasks: ['chat-core', 'polish-prompts'],
     phase: 'chatCore',
     capabilities: []
   },
@@ -690,7 +690,7 @@ export const REGRESSION_CASES = [
   {
     id: 'MP-125',
     title: 'Page load failures and local service disconnections',
-    tasks: ['browser'],
+    tasks: ['browser', 'browser-recovery'],
     phase: 'browser',
     capabilities: []
   },

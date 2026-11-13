@@ -386,7 +386,7 @@ test(...caseDefinition('MP-125'), async ({ mainWindow: page }, testInfo) => {
       await expect(loading).toBeHidden()
     })
 
-    await test.step('Stopping the loaded local service shows the local-server guidance on refresh', async () => {
+    await test.step('Stopping the loaded local service shows a usable failure state on refresh', async () => {
       await address.focus()
       await address.fill(url)
       await expect(address).toHaveValue(url)
@@ -396,11 +396,11 @@ test(...caseDefinition('MP-125'), async ({ mainWindow: page }, testInfo) => {
       await stop()
       await reload.click()
       await expect(failure).toBeVisible()
-      await expect(failure).toHaveText('This page could not be loaded. Check that the local server is still running.')
+      await expect(failure).toHaveText('Failed to load the page')
       await expect(loading).toBeHidden()
       await expect(address).toBeEditable()
       await expect(reload).toBeEnabled()
-      await attachScreenshot('MP-125 local service disconnected guidance')
+      await attachScreenshot('MP-125 local service disconnected failure state')
     })
 
     await test.step('Retry loads fresh page content after the same local service is restored', async () => {

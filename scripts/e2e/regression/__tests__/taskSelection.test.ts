@@ -9,6 +9,12 @@ import { parse } from 'yaml'
 import { caseGrep, parseTaskSelection, resolveWorkflowTasks, selectCases } from '../cases'
 
 describe('combined regression tasks', () => {
+  it('isolates provider setup, prompt polishing and browser recovery from their broader modules', () => {
+    expect(
+      selectCases(parseTaskSelection('custom-provider-chat,polish-prompts,browser-recovery')).map(({ id }) => id)
+    ).toEqual(['M-02', 'MP-16', 'MP-125'])
+  })
+
   it('limits the added settings smoke to its existing test file', () => {
     const workflow = parse(readFileSync('.github/workflows/e2e-regression-test.yml', 'utf8'))
     const step = workflow.jobs.test.steps.find((step: { name: string }) => step.name === 'Run standalone smoke suite')

@@ -175,7 +175,7 @@ export async function polishPrompt(app: RegressionApp, page: Page, testInfo: Tes
     const failed = await server.nextRequest()
     failed.complete('')
     await expect(page.getByText('Failed to polish prompt', { exact: true })).toBeVisible()
-    await expect(page.getByText('Check or change the default model, then try again.', { exact: true })).toBeVisible()
+    await expect(page.getByText('No response', { exact: true })).toBeVisible()
     await expect(editor).toHaveAttribute('contenteditable', 'true')
     await expect.poll(() => editor.innerText()).toBe(withVariable)
     await attachScreenshot('MP-16 failed polish retains final prompt')

@@ -35,6 +35,17 @@ test(...caseDefinition('M-02'), async ({ app, mainWindow }) => {
   expect(created.status).toBe(201)
   const assistantId = AssistantSchema.parse(created.data).id
   try {
+    const topic = await page.evaluate(
+      (assistantId) =>
+        window.api.dataApi.request({
+          id: 'm02-topic',
+          method: 'POST',
+          path: '/topics',
+          body: { name: 'Provider conversation setup', assistantId }
+        }),
+      assistantId
+    )
+    expect(topic.status).toBe(201)
     await page.reload()
     await selectSidebarApp(page, 'Chat')
     const row = page.locator('[data-ui~="chat.group-header"]').filter({ hasText: assistantName }).first()

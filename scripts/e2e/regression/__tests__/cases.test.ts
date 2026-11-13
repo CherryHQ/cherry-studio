@@ -210,6 +210,7 @@ it.each([
   'knowledge',
   'code-tools',
   'native-recovery',
+  'custom-provider-chat,polish-prompts,browser-recovery',
   'notes-smoke,startup-smoke,notes-smoke'
 ] as const)('discovers the selected %s cases through Playwright without matching another task prefix', (task) => {
   const directory = mkdtempSync(join(tmpdir(), 'cherry-regression-enumeration-'))
