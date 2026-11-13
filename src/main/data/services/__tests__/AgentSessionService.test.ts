@@ -11,16 +11,19 @@ import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
+import { followupQueueTable } from '@data/db/schemas/followupQueue'
 import { jobTable } from '@data/db/schemas/job'
 import { pinTable } from '@data/db/schemas/pin'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentTaskService } from '@data/services/AgentTaskService'
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
+import { followupQueueService } from '@data/services/FollowupQueueService'
 import { jobScheduleService } from '@data/services/JobScheduleService'
 import { pinService } from '@data/services/PinService'
 import { ErrorCode } from '@shared/data/api/errors'
 import type { AgentWorkspaceEntity } from '@shared/data/api/schemas/agentWorkspaces'
+import { sessionFollowupScopePrefix } from '@shared/data/types/followupQueue'
 
 const { notifyDataApiDataChangeMock } = vi.hoisted(() => ({ notifyDataApiDataChangeMock: vi.fn() }))
 vi.mock('@data/dataApiDataChange', () => ({ notifyDataApiDataChange: notifyDataApiDataChangeMock }))
@@ -710,7 +713,11 @@ describe('AgentSessionService', () => {
         { endpoint: '/agent-workspaces', kind: 'membership' }
       ])
       expect(notifyDataApiDataChangeMock).toHaveBeenNthCalledWith(2, [{ endpoint: '/pins', kind: 'membership' }])
-      expect(notifyDataApiDataChangeMock).toHaveBeenCalledTimes(2)
+      expect(notifyDataApiDataChangeMock).toHaveBeenNthCalledWith(3, [
+        { endpoint: '/followup-queues', kind: 'membership', dimension: 'scopeKey' },
+        { endpoint: '/followup-queue-states' }
+      ])
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledTimes(3)
     })
   })
 
@@ -1162,9 +1169,15 @@ describe('AgentSessionService', () => {
 
   it('deletes a session', async () => {
     const session = await createSession('Delete me')
+
+    // Trashing keeps the row restorable...
+    agentSessionService.delete(session.id)
+    const [trashed] = await dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, session.id))
+    expect(trashed.deletedAt).toEqual(expect.any(Number))
     notifyDataApiDataChangeMock.mockClear()
 
-    agentSessionService.delete(session.id)
+    // ...only the permanent delete removes it and purges its queue scopes.
+    agentSessionService.delete(session.id, { permanent: true })
 
     expect(captureError(() => agentSessionService.getById(session.id))).toMatchObject({
       code: ErrorCode.NOT_FOUND
@@ -1177,7 +1190,11 @@ describe('AgentSessionService', () => {
       { endpoint: '/agent-workspaces', kind: 'membership' }
     ])
     expect(notifyDataApiDataChangeMock).toHaveBeenNthCalledWith(2, [{ endpoint: '/pins', kind: 'membership' }])
-    expect(notifyDataApiDataChangeMock).toHaveBeenCalledTimes(2)
+    expect(notifyDataApiDataChangeMock).toHaveBeenNthCalledWith(3, [
+      { endpoint: '/followup-queues', kind: 'membership', dimension: 'scopeKey' },
+      { endpoint: '/followup-queue-states' }
+    ])
+    expect(notifyDataApiDataChangeMock).toHaveBeenCalledTimes(3)
   })
 
   it('clears a paused task projection immediately when its bound session is deleted', async () => {
@@ -1547,6 +1564,21 @@ describe('AgentSessionService', () => {
     expect(agentSessionService.isExpiredTrash(session.id, 200)).toBe(false)
     expect(dbh.db.transaction((tx) => agentSessionService.purgeExpiredByIdsTx(tx, [session.id], 200))).toEqual([])
     expect(agentSessionService.getById(session.id)).toMatchObject({ id: session.id, deletedAt: undefined })
+  })
+
+  it('purges follow-up queue rows when retention purges an expired session', async () => {
+    const session = await createSession('Retention queue purge')
+    followupQueueService.enqueue({
+      scopeKey: sessionFollowupScopePrefix(session.id),
+      draft: { text: 'q', tokens: [] },
+      payload: { text: 'q', userMessageParts: [] }
+    })
+    await dbh.db.update(agentSessionTable).set({ deletedAt: 100 }).where(eq(agentSessionTable.id, session.id))
+
+    const purged = dbh.db.transaction((tx) => agentSessionService.purgeExpiredByIdsTx(tx, [session.id], 200))
+
+    expect(purged).toEqual([session.id])
+    expect(await dbh.db.select().from(followupQueueTable)).toHaveLength(0)
   })
 
   it('detaches a bound task schedule when a session moves to the Recycle Bin', async () => {
