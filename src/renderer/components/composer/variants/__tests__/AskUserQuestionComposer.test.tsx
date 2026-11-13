@@ -369,6 +369,22 @@ describe('AskUserQuestionComposer', () => {
     expect(onRespond).not.toHaveBeenCalled()
   })
 
+  it.each([1, 2])('dismisses the request after skipping all %i questions', async (questionCount) => {
+    const user = userEvent.setup()
+    const request = makeRequest(questions.slice(0, questionCount))
+    const onRespond = vi.fn().mockResolvedValue(undefined)
+    render(<AskUserQuestionComposer request={request} onRespond={onRespond} />)
+
+    for (const question of request.input.questions) {
+      expect(screen.getByRole('heading', { name: question.question })).toBeInTheDocument()
+      expect(onRespond).not.toHaveBeenCalled()
+      await user.click(screen.getByRole('button', { name: 'Skip' }))
+    }
+
+    expect(onRespond).toHaveBeenCalledExactlyOnceWith({ match: request.match, approved: false })
+    expect(screen.getByRole('button', { name: 'Skip' })).toBeDisabled()
+  })
+
   it('submits the final selected option when earlier questions were skipped', async () => {
     const onRespond = vi.fn().mockResolvedValue(undefined)
     render(<AskUserQuestionComposer request={makeRequest()} onRespond={onRespond} />)

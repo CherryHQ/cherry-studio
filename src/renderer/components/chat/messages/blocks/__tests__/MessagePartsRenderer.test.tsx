@@ -15,6 +15,7 @@ import { KeyedMessageActivityStore } from '../../hooks/useMessageActivityState'
 import { MessageListProvider } from '../../MessageListProvider'
 import { defaultMessageRenderConfig, type MessageListItem, type MessageListProviderValue } from '../../types'
 import { PartsProvider } from '../MessagePartsContext'
+import type * as ToolBlockGroupModule from '../ToolBlockGroup'
 
 const mockThinkingBlockMounted = vi.hoisted(() => vi.fn())
 const mockMainTextRender = vi.hoisted(() => vi.fn())
@@ -240,11 +241,12 @@ vi.mock('../../frame/MessageAttachments', () => ({
   )
 }))
 
-vi.mock('../ToolBlockGroup', () => ({
+vi.mock('../ToolBlockGroup', async (importOriginal) => ({
   __esModule: true,
-  ToolBlockGroup: ({ children, isLiveProgress, items }: any) => {
+  hasToolIntent: (await importOriginal<typeof ToolBlockGroupModule>()).hasToolIntent,
+  ToolBlockGroup: ({ children, defaultExpanded, isLiveProgress, items }: any) => {
     mockToolBlockGroupRender(items)
-    const [isExpanded, setIsExpanded] = React.useState(false)
+    const [isExpanded, setIsExpanded] = React.useState(defaultExpanded ?? false)
     return (
       <div data-testid="child-tool-group" data-live-progress={String(isLiveProgress === true)}>
         <button
@@ -2407,6 +2409,64 @@ describe('MessagePartsRenderer', () => {
         }
       )
       expect(screen.getByRole('button', { name: /Processed/ })).toHaveAttribute('aria-expanded', 'false')
+    })
+
+    it('lists every step of a running turn without a click when tool steps expand', () => {
+      activateTurn()
+      renderParts(
+        [toolPart('read'), toolPart('edit', 'input-available')] as unknown as CherryMessagePart[],
+        msg({ status: 'pending' }),
+        {},
+        { ...defaultMessageRenderConfig, expandToolSteps: true }
+      )
+
+      expect(screen.getAllByTestId('mock-message-tools')).toHaveLength(2)
+    })
+
+    it('drops thinking between steps whose calls state an intent, and keeps it otherwise', () => {
+      const withIntent = (id: string) => ({ ...toolPart(id), input: { path: `${id}.txt`, intent: `check ${id}` } })
+      const reasoning = { type: 'reasoning', text: 'Weighing the next step', state: 'done' }
+      const config = { ...defaultMessageRenderConfig, expandToolSteps: true }
+
+      const { unmount } = renderParts(
+        [
+          reasoning,
+          withIntent('read'),
+          reasoning,
+          withIntent('grep'),
+          { type: 'text', text: 'done' }
+        ] as unknown as CherryMessagePart[],
+        msg(),
+        {},
+        config
+      )
+      expect(screen.getAllByTestId('mock-message-tools')).toHaveLength(2)
+      expect(screen.queryByTestId('mock-thinking-block')).toBeNull()
+      unmount()
+
+      renderParts(
+        [reasoning, toolPart('read'), { type: 'text', text: 'done' }] as unknown as CherryMessagePart[],
+        msg(),
+        {},
+        config
+      )
+      expect(screen.getByTestId('mock-thinking-block')).toHaveTextContent('Weighing the next step')
+    })
+
+    it('keeps a finished turn’s steps open when tool steps expand, until the user closes them', () => {
+      renderParts(
+        [toolPart('read'), toolPart('edit'), { type: 'text', text: 'done' }] as unknown as CherryMessagePart[],
+        msg(),
+        {},
+        { ...defaultMessageRenderConfig, expandToolSteps: true }
+      )
+
+      const historyTrigger = screen.getByTestId('completed-process-trigger')
+      expect(historyTrigger).toHaveAttribute('aria-expanded', 'true')
+      expect(screen.getAllByTestId('mock-message-tools')).toHaveLength(2)
+
+      fireEvent.click(historyTrigger)
+      expect(historyTrigger).toHaveAttribute('aria-expanded', 'false')
     })
 
     it('reveals completed thinking behind the process summary for a reasoning-and-answer message', () => {

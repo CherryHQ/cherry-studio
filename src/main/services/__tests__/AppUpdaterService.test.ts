@@ -1,20 +1,27 @@
 import type { UpdateInfo } from 'builder-util-runtime'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { appEditionState, netFetchMock, releaseNotesCheckMock, releaseNotesUpdaterInstances, trackAppUpdateMock } =
-  vi.hoisted(() => ({
-    appEditionState: { current: 'global' },
-    netFetchMock: vi.fn(),
-    releaseNotesCheckMock: vi.fn(),
-    releaseNotesUpdaterInstances: [] as Array<Record<string, unknown>>,
-    trackAppUpdateMock: vi.fn()
-  }))
+const {
+  appEditionState,
+  loggerErrorMock,
+  netFetchMock,
+  releaseNotesCheckMock,
+  releaseNotesUpdaterInstances,
+  trackAppUpdateMock
+} = vi.hoisted(() => ({
+  appEditionState: { current: 'global' },
+  loggerErrorMock: vi.fn(),
+  netFetchMock: vi.fn(),
+  releaseNotesCheckMock: vi.fn(),
+  releaseNotesUpdaterInstances: [] as Array<Record<string, unknown>>,
+  trackAppUpdateMock: vi.fn()
+}))
 
 vi.mock('@logger', () => ({
   loggerService: {
     withContext: () => ({
       info: vi.fn(),
-      error: vi.fn(),
+      error: loggerErrorMock,
       warn: vi.fn()
     })
   }
@@ -69,7 +76,8 @@ vi.mock('@main/utils/systemInfo', () => ({
 vi.mock('electron', () => ({
   app: {
     isPackaged: true,
-    getVersion: vi.fn(() => '1.0.0')
+    getVersion: vi.fn(() => '1.0.0'),
+    getLocale: vi.fn(() => 'en-US')
   },
   net: { fetch: netFetchMock }
 }))
@@ -136,6 +144,7 @@ describe('AppUpdaterService', () => {
     MockMainPreferenceServiceUtils.setPreferenceValue('app.dist.test_plan.enabled', false)
     MockMainPreferenceServiceUtils.setPreferenceValue('app.dist.test_plan.channel', UpgradeChannel.LATEST)
     vi.mocked(app.getVersion).mockReturnValue('1.0.0')
+    vi.mocked(app.getLocale).mockReset().mockReturnValue('en-US')
     vi.mocked(regionService.getCountry).mockResolvedValue('US')
     vi.mocked(autoUpdater.checkForUpdates).mockResolvedValue(null)
     netFetchMock.mockReset()
@@ -415,20 +424,33 @@ describe('AppUpdaterService', () => {
   })
 
   describe('processReleaseInfo', () => {
-    it('localizes marked release notes', () => {
-      MockMainPreferenceServiceUtils.setPreferenceValue('app.language', 'zh-CN')
+    it.each([
+      [null, 'zh-CN', '中文说明'],
+      [null, 'zh-TW', '中文说明'],
+      [null, 'en-US', 'English notes'],
+      [null, 'de-DE', 'English notes'],
+      ['zh-CN', 'en-US', '中文说明'],
+      ['zh-TW', 'en-US', '中文说明'],
+      ['en-US', 'zh-CN', 'English notes']
+    ] as const)('selects notes for preference %s and system locale %s', (preference, locale, expectedNotes) => {
+      MockMainPreferenceServiceUtils.setPreferenceValue('app.language', preference)
+      vi.mocked(app.getLocale).mockReturnValue(locale)
       const releaseInfo = {
         version: '1.0.0',
-        files: [],
-        path: '',
-        sha512: '',
-        releaseDate: new Date().toISOString(),
+        files: [{ url: 'update.zip', sha512: 'file-checksum', size: 123 }],
+        path: 'update.zip',
+        sha512: 'release-checksum',
+        releaseDate: '2026-11-13T00:00:00.000Z',
+        releaseName: 'Bilingual update',
         releaseNotes: '<!--LANG:en-->English notes<!--LANG:zh-CN-->中文说明<!--LANG:END-->'
       } as UpdateInfo
 
       const result = (appUpdater as any).processReleaseInfo(releaseInfo)
 
-      expect(result.releaseNotes).toBe('中文说明')
+      expect(result.releaseNotes).toBe(expectedNotes)
+      expect(result).toEqual({ ...releaseInfo, releaseNotes: expectedNotes })
+      expect(result).not.toBe(releaseInfo)
+      expect(releaseInfo.releaseNotes).toBe('<!--LANG:en-->English notes<!--LANG:zh-CN-->中文说明<!--LANG:END-->')
     })
 
     it('leaves unmarked release notes unchanged', () => {
@@ -471,6 +493,28 @@ describe('AppUpdaterService', () => {
       } as UpdateInfo
 
       expect((appUpdater as any).processReleaseInfo(releaseInfo).releaseNotes).toBeNull()
+    })
+
+    it('leaves marked release notes unchanged when locale lookup fails', () => {
+      MockMainPreferenceServiceUtils.setPreferenceValue('app.language', null)
+      const releaseInfo = {
+        version: '1.0.0',
+        files: [],
+        path: 'update.zip',
+        sha512: 'release-checksum',
+        releaseDate: '2026-11-13T00:00:00.000Z',
+        releaseNotes: '<!--LANG:en-->English notes<!--LANG:zh-CN-->中文说明<!--LANG:END-->'
+      } as UpdateInfo
+      const error = new Error('Locale lookup failed')
+      vi.mocked(app.getLocale).mockImplementationOnce(() => {
+        throw error
+      })
+
+      const result = (appUpdater as any).processReleaseInfo(releaseInfo)
+
+      expect(result).toEqual(releaseInfo)
+      expect(result).not.toBe(releaseInfo)
+      expect(loggerErrorMock).toHaveBeenCalledWith('Failed to localize release notes', error)
     })
 
     it('leaves marked release notes unchanged when language lookup fails', () => {
