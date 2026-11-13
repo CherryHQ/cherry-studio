@@ -5832,6 +5832,7 @@
   "settings.shortcuts.conflict_with": "Ya utilizado por \"{{name}}\"",
   "settings.shortcuts.copy_last_message": "Copiar el último mensaje",
   "settings.shortcuts.delete_current_list_item": "Eliminar permanentemente el elemento actual de la lista",
+  "settings.shortcuts.delete_topic": "Eliminar tema",
   "settings.shortcuts.edit_last_user_message": "Editar último mensaje de usuario",
   "settings.shortcuts.empty": "No hay accesos directos disponibles en este grupo",
   "settings.shortcuts.exit_fullscreen": "Salir de pantalla completa",

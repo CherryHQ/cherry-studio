@@ -64,6 +64,7 @@ export interface TopicActionContext {
   onDelete: TopicDeleteHandler
   /** Irreversible delete. Absent means the menu has no permanent-delete entry. */
   onDeletePermanently?: TopicDeleteHandler
+  deleteShortcut?: string
   /** Configured `resource.delete_permanently` label. Empty omits the hint. */
   permanentDeleteShortcut?: string
   onExportImage: TopicMenuHandler
@@ -536,6 +537,7 @@ topicActionRegistry.registerAction({
   id: 'topic.delete',
   commandId: 'topic.delete',
   label: ({ t }) => t('common.archive'),
+  shortcut: ({ deleteShortcut }) => deleteShortcut ?? '',
   icon: () => <Archive size={14} />,
   group: 'danger',
   order: 90,

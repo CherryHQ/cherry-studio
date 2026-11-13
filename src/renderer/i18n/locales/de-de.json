@@ -5832,6 +5832,7 @@
   "settings.shortcuts.conflict_with": "Bereits von \"{{name}}\" verwendet",
   "settings.shortcuts.copy_last_message": "Letzte Nachricht kopieren",
   "settings.shortcuts.delete_current_list_item": "Aktuelles Listenelement endgültig löschen",
+  "settings.shortcuts.delete_topic": "Thema löschen",
   "settings.shortcuts.edit_last_user_message": "Letzte Benutzernachricht bearbeiten",
   "settings.shortcuts.empty": "In dieser Gruppe sind keine Verknüpfungen verfügbar.",
   "settings.shortcuts.exit_fullscreen": "Vollbildmodus beenden",

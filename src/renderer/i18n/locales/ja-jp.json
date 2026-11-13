@@ -5832,6 +5832,7 @@
   "settings.shortcuts.conflict_with": "すでに「{{name}}」によって使用されています",
   "settings.shortcuts.copy_last_message": "最後のメッセージをコピー",
   "settings.shortcuts.delete_current_list_item": "現在のリスト項目を完全に削除",
+  "settings.shortcuts.delete_topic": "トピックを削除",
   "settings.shortcuts.edit_last_user_message": "最後のユーザーメッセージを編集",
   "settings.shortcuts.empty": "このグループには利用可能なショートカットはありません",
   "settings.shortcuts.exit_fullscreen": "フルスクリーンを終了",

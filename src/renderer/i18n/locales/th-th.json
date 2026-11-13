@@ -5832,6 +5832,7 @@
   "settings.shortcuts.conflict_with": "ใช้โดย \"{{name}}\" อยู่แล้ว",
   "settings.shortcuts.copy_last_message": "คัดลอกข้อความล่าสุด",
   "settings.shortcuts.delete_current_list_item": "ลบรายการที่เลือกในลิสต์อย่างถาวร",
+  "settings.shortcuts.delete_topic": "ลบสนทนา",
   "settings.shortcuts.edit_last_user_message": "แก้ไขข้อความผู้ใช้ล่าสุด",
   "settings.shortcuts.empty": "ไม่มีแป้นพิมพ์ลัดในกลุ่มนี้",
   "settings.shortcuts.exit_fullscreen": "ออกจากเต็มหน้าจอ",
