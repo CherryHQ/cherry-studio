@@ -19,8 +19,7 @@ import {
   resourceDialogCloseButtonClassName,
   resourceDialogHeaderClassName,
   resourceDialogRailItemClassName,
-  resourceDialogTitleClassName,
-  setFormValues
+  resourceDialogTitleClassName
 } from '../components/EditDialogShared'
 import { AutoCreateEntry } from './steps/AutoCreateEntry'
 import { BasicInfoStep } from './steps/BasicInfoStep'
@@ -124,7 +123,7 @@ function EntryFooter({
   onAuto: (generate: GenerateAutoConfig) => void
 }) {
   const { t } = useTranslation()
-  const { ready: catalogsReady, generate } = useResourceAutoConfigure(kind, true)
+  const { ready: catalogsReady, generate } = useResourceAutoConfigure(kind)
   const [purpose, modelId] = useWatch({ control: form.control, name: ['description', 'modelId'] })
   // Generation can be cancelled; the create call that follows cannot (same lock as the steps).
   const creating = isSubmitting || form.formState.isSubmitting
@@ -134,7 +133,11 @@ function EntryFooter({
 
   return (
     <div className="flex shrink-0 items-center justify-end gap-2 border-border-subtle border-t px-6 py-3">
-      {rootError ? <span className="mr-auto text-destructive text-xs">{rootError}</span> : null}
+      {rootError ? (
+        <span role="alert" className="mr-auto text-destructive text-xs">
+          {rootError}
+        </span>
+      ) : null}
       <Button type="button" variant="ghost" disabled={creating} className="text-muted-foreground" onClick={onCancel}>
         {t('common.cancel')}
       </Button>
@@ -203,9 +206,12 @@ function WizardFooter({
 }
 
 /**
- * Stepped create flow shared by assistant + agent. Steps 1–2 (basic info,
- * System Prompt) are identical across kinds; agents then configure skills before
- * both kinds configure knowledge bases. A left rail tracks step progress
+ * Create flow shared by assistant + agent. It opens on an entry view (avatar, name, purpose,
+ * model) where Auto create generates the configuration once and submits it, and Manual create
+ * continues into the steps; callers that seed a prompt (catalog templates) start on the steps.
+ *
+ * In the steps, basic info and System Prompt are identical across kinds; agents then
+ * configure skills before both kinds configure knowledge bases. A left rail tracks step progress
  * (completed and current steps keep their numbers); the right pane swaps the active
  * step's form as the footer drives navigation. One form collects every field
  * and hands the validated payload to `onSubmit`. Replaces the former
@@ -234,7 +240,7 @@ export function ResourceCreateWizard({
   const activeModelFilter = kind === 'agent' ? agentModelFilter : modelFilter
   const isModelSelectable = useIsCherryCloudModelSelectable({ includeAgentOnlyModels: kind === 'agent', enabled: open })
   const { models: availableModels } = useModels({ enabled: true }, { fetchEnabled: open })
-  const { defaultModel } = useDefaultModel({ enabled: open })
+  const { defaultModel, isDefaultModelLoading } = useDefaultModel({ enabled: open })
   const { provider: defaultModelProvider } = useProviderById(open ? defaultModel?.providerId : undefined)
   const selectableDefaultModelId =
     open &&
@@ -378,7 +384,7 @@ export function ResourceCreateWizard({
     return () => window.cancelAnimationFrame(frameId)
   }, [open, runPendingCloseAction])
 
-  const handleCreate = form.handleSubmit(async (values) => {
+  const submitValues = async (values: ResourceCreateWizardFormValues) => {
     if (!values.modelId) return
     form.clearErrors('root')
     try {
@@ -400,7 +406,8 @@ export function ResourceCreateWizard({
         error instanceof Error && error.message ? error.message : t('library.config.dialogs.create.submit_failed')
       form.setError('root', { message })
     }
-  })
+  }
+  const handleCreate = form.handleSubmit(submitValues)
 
   // Closing (or hiding) the dialog cancels an in-flight generation.
   useEffect(() => () => autoAbortRef.current?.abort(), [open])
@@ -408,6 +415,10 @@ export function ResourceCreateWizard({
   const handleAutoCreate = async (generate: GenerateAutoConfig) => {
     const values = form.getValues()
     if (!values.modelId || !values.description.trim()) return
+    if (!defaultModel && !isDefaultModelLoading) {
+      form.setError('root', { message: t('library.config.prompt.no_default_model') })
+      return
+    }
     form.clearErrors('root')
 
     const controller = new AbortController()
@@ -437,8 +448,12 @@ export function ResourceCreateWizard({
       return
     }
 
-    setFormValues(form, applyAutoConfigDraft(kind, values, draft))
-    await handleCreate()
+    // Submit the merged values without writing the draft into the form, so a failed create
+    // leaves the entry (and the manual path) exactly as the user filled it in.
+    const generated = draft
+    await form.handleSubmit((current) =>
+      submitValues({ ...current, ...applyAutoConfigDraft(kind, current, generated) })
+    )()
   }
 
   const title = t(
@@ -472,7 +487,7 @@ export function ResourceCreateWizard({
                     fallbackAvatar={getResourceCreateDefaultAvatar(kind)}
                     modelFilter={activeModelFilter}
                     includeAgentOnlyModels={kind === 'agent'}
-                    disabled={generating}
+                    disabled={generating || submitting}
                     onSettingsNavigate={closeBeforeAction}
                   />
                 </ScrollArea>
