@@ -90,11 +90,12 @@ describe('copy translated output as an image', () => {
     const view = render(<TranslateOutputPane {...props()} translatedContent={text} />)
     const body = view.container.querySelector<HTMLDivElement>('[data-ui="translate.output-content"]')!
     const getPropertyValue = CSSStyleDeclaration.prototype.getPropertyValue
-    vi.spyOn(CSSStyleDeclaration.prototype, 'getPropertyValue').mockImplementation(
-      function (this: CSSStyleDeclaration, name) {
-        return name === '--card' ? 'rgb(24, 24, 24)' : getPropertyValue.call(this, name)
-      }
-    )
+    vi.spyOn(CSSStyleDeclaration.prototype, 'getPropertyValue').mockImplementation(function (
+      this: CSSStyleDeclaration,
+      name
+    ) {
+      return name === '--card' ? 'rgb(24, 24, 24)' : getPropertyValue.call(this, name)
+    })
     Object.defineProperties(body, { scrollWidth: { value: 360 }, scrollHeight: { value: 4096 } })
     fireEvent.click(button())
     await waitFor(() => expect(write).toHaveBeenCalledOnce())
