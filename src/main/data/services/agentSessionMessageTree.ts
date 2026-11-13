@@ -64,7 +64,9 @@ export function readAgentSessionPath(db: DbOrTx, sessionId: string, head?: strin
     .from(messages)
     .where(and(eq(messages.sessionId, sessionId), inArray(messages.id, agentSessionPathIds(sessionId, selected))))
     .all()
-  return orderAgentSessionPath(rows, selected).filter((row) => row.role !== 'root')
+  return orderAgentSessionPath(rows, selected)
+    .filter((row) => row.role !== 'root')
+    .map(({ provenance, ...row }) => ({ ...row, ...(provenance ? { provenance } : {}) }))
 }
 
 export function readAgentSessionAncestry(db: DbOrTx, sessionId: string, head: string) {
