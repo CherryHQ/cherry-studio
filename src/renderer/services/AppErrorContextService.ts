@@ -158,8 +158,10 @@ export function diagnosticErrorFromUnknown(error: unknown): SerializedError | un
 
   const direct = read(error)
   if (direct && hasProviderDetail(direct)) return direct
-  const nested = read(recordOf(error)?.cause)
-  if (nested && (hasProviderDetail(nested) || !direct)) return nested
+  const cause = recordOf(error)?.cause
+  const nested = read(cause)
+  // A wrapper's own text is an app summary; an Error cause is the original technical fault.
+  if (nested && (hasProviderDetail(nested) || !direct || cause instanceof Error)) return nested
   return direct
 }
 
