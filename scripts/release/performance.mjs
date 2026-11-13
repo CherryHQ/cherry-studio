@@ -1,6 +1,6 @@
 import { summarizeRun } from '../validation/metrics.mjs'
 
-export function summarizeRelease(run, jobs, sourceSha) {
+export function summarizeRelease(run, jobs, sourceSha, artifactSizes = null) {
   const buildJobs = jobs.filter(
     ({ name }) => name === 'Prepare release ref' || name.startsWith('Build ') || name === 'Update draft release'
   )
@@ -12,7 +12,7 @@ export function summarizeRelease(run, jobs, sourceSha) {
     workflowSha: run.head_sha,
     draftReadySeconds: draft?.conclusion === 'success' ? summary.elapsedSeconds : null,
     unmeasured: ['native preparation', 'code signing', 'notarization', 'installer generation'],
-    artifactSizes: null
+    artifactSizes
   }
 }
 
@@ -25,7 +25,10 @@ export function renderReleasePerformance(summary) {
     '',
     `Draft readiness: ${duration(summary.draftReadySeconds)}. Runner time: ${duration(summary.runnerSeconds)}.`,
     'Approval waiting, publication, and GitCode sync are excluded. Rerun queue/elapsed times remain unknown.',
-    `Unmeasured inside packaging: ${summary.unmeasured.join(', ')}. Artifact sizes: unknown.`,
+    `Unmeasured inside packaging: ${summary.unmeasured.join(', ')}.`,
+    summary.artifactSizes
+      ? `Artifacts: ${Object.keys(summary.artifactSizes).length} files, ${(Object.values(summary.artifactSizes).reduce((sum, size) => sum + size, 0) / 1048576).toFixed(2)} MiB. Per-file sizes are in the JSON report.`
+      : 'Artifact sizes: unknown.',
     '',
     '| Job | Result | Runner labels | Store | Scheduling wait | Execution |',
     '| --- | --- | --- | --- | --- | --- |',

@@ -2,6 +2,7 @@ import json
 import os
 import re
 import sys
+import subprocess
 from pathlib import Path, PurePosixPath
 
 from qcloud_cos import CosConfig, CosS3Client
@@ -29,9 +30,13 @@ def write_json(client, key, value):
     )
 
 
-def stage_build(client, prefix, edition, platform):
+def inventory_groups(platform):
+    return (platform,) if platform == "windows" else tuple(f"{platform}/{arch}" for arch in ("x64", "arm64"))
+
+
+def stage_build(client, prefix, edition, platform, architecture="all"):
     sources = json.loads(Path("release-upload.json").read_text(encoding="utf-8"))
-    group = f"{edition}/{platform}"
+    group = f"{edition}/{platform}" + (f"/{architecture}" if architecture != "all" else "")
     attempt = os.environ["GITHUB_RUN_ATTEMPT"]
     files = {}
     for relative, source in sources.items():
@@ -41,6 +46,31 @@ def stage_build(client, prefix, edition, platform):
         client.upload_file(Bucket=BUCKET, Key=key, LocalFilePath=source, PartSize=16)
         files[relative] = {"key": key, "size": size}
     write_json(client, f"{prefix}/{group}.json", files)
+
+
+def merge_mac_manifests(client, prefix, edition, files):
+    fragments = [
+        relative for relative in files
+        if relative.startswith(f"{edition}/mac/") and relative.endswith(("-mac-x64.yml", "-mac-arm64.yml"))
+    ]
+    manifests = []
+    for relative in sorted(fragments, key=lambda name: "arm64" in name):
+        response = client.get_object(Bucket=BUCKET, Key=files[relative]["key"])
+        with response["Body"].get_raw_stream() as body:
+            manifests.append(body.read().decode("utf-8"))
+    merged = subprocess.run(
+        ["node", str(Path(__file__).with_name("merge-mac-manifests.js"))],
+        input=json.dumps({"edition": edition, "version": os.environ["TAG"][1:], "manifests": manifests}),
+        text=True, capture_output=True, check=True,
+    )
+    manifest = json.loads(merged.stdout)
+    relative = f"{edition}/mac/{manifest['file']}"
+    key = f"{prefix}/attempt-{os.environ['GITHUB_RUN_ATTEMPT']}/{relative}"
+    contents = manifest["contents"].encode("utf-8")
+    client.put_object(Bucket=BUCKET, Key=key, Body=contents, ContentType="text/yaml")
+    for fragment in fragments:
+        del files[fragment]
+    files[relative] = {"key": key, "size": len(contents)}
 
 
 def assemble(client, base, prefix, platform):
@@ -59,7 +89,14 @@ def assemble(client, base, prefix, platform):
         }
     for edition in EDITIONS:
         for target in selected:
-            files.update(read_json(client, f"{prefix}/{edition}/{target}.json"))
+            for group in inventory_groups(target):
+                incoming = read_json(client, f"{prefix}/{edition}/{group}.json")
+                collisions = files.keys() & incoming.keys()
+                if collisions:
+                    raise ValueError(f"Conflicting release files: {sorted(collisions)}")
+                files.update(incoming)
+        if "mac" in selected:
+            merge_mac_manifests(client, prefix, edition, files)
     download_assets(client, files, Path("github-release-artifacts"), editions=("global",))
     body = Path("release_body.txt").read_text(encoding="utf-8")
     inventory = {"sha": sha, "platform": platform, "files": files, "body": body}
@@ -91,7 +128,9 @@ def summarize(client, prefix, tag):
     lines = ["## CN installer downloads", "", "Download links expire after 24 hours.", ""]
     rows = []
     for platform in PLATFORMS:
-        files = read_json(client, f"{prefix}/cn/{platform}.json", optional=True) or {}
+        files = {}
+        for group in inventory_groups(platform):
+            files.update(read_json(client, f"{prefix}/cn/{group}.json", optional=True) or {})
         for relative, entry in sorted(files.items()):
             match = installer.fullmatch(PurePosixPath(relative).name)
             if not match:

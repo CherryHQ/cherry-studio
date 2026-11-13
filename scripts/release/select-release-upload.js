@@ -6,11 +6,15 @@ const { parse } = require('yaml')
 const { getExpectedReleaseArtifacts } = require('./edition')
 const { validateEditionArtifacts } = require('./validate-edition-artifacts')
 
-async function main() {
-  const [edition, platform] = process.argv.slice(2)
-  const { TAG: tag } = process.env
-  const distDirectory = 'dist'
-  const options = { edition, platform, productName: 'Cherry Studio', version: tag.slice(1), distDirectory }
+async function selectReleaseUpload({ edition, platform, tag, architecture, distDirectory = 'dist' }) {
+  const options = {
+    edition,
+    platform,
+    productName: 'Cherry Studio',
+    version: tag.slice(1),
+    distDirectory,
+    architecture
+  }
   validateEditionArtifacts(options)
   const expected = getExpectedReleaseArtifacts(options)
   const files = [
@@ -47,15 +51,28 @@ async function main() {
     }
   }
   const sources = Object.fromEntries(
-    files.map((file) => [`${edition}/${platform}/${file}`, path.join(distDirectory, file)])
+    files.map((file) => {
+      const name =
+        platform === 'mac' && architecture && file.endsWith('.yml')
+          ? file.replace(/\.yml$/, `-${architecture}.yml`)
+          : file
+      return [`${edition}/${platform}/${name}`, path.join(distDirectory, file)]
+    })
   )
-  if (edition === 'global' && platform === 'linux' && !tag.includes('-')) {
+  if (edition === 'global' && platform === 'linux' && architecture !== 'arm64' && !tag.includes('-')) {
     sources['common/release-history.json'] = 'resources/cherry-studio/release-history.json'
   }
-  fs.writeFileSync('release-upload.json', JSON.stringify(sources))
+  return sources
 }
 
-main().catch((error) => {
-  console.error(error.message)
-  process.exitCode = 1
-})
+if (require.main === module) {
+  const [edition, platform, arch] = process.argv.slice(2)
+  selectReleaseUpload({ edition, platform, tag: process.env.TAG, architecture: arch === 'all' ? undefined : arch })
+    .then((sources) => fs.writeFileSync('release-upload.json', JSON.stringify(sources)))
+    .catch((error) => {
+      process.stderr.write(`${error.message}\n`)
+      process.exitCode = 1
+    })
+}
+
+module.exports = { selectReleaseUpload }

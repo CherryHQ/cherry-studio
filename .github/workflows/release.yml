@@ -64,6 +64,7 @@ jobs:
     outputs:
       remote-tag-sha: ${{ steps.release-state.outputs.remote-tag-sha }}
       tag: ${{ steps.release-ref.outputs.tag }}
+      targets: ${{ steps.release-ref.outputs.targets }}
     steps:
       - name: Validate release selection
         shell: bash
@@ -101,6 +102,7 @@ jobs:
         shell: bash
         env:
           TAG: ${{ inputs.tag }}
+          PLATFORM: ${{ inputs.platform }}
         run: |
           PACKAGE_VERSION="$(node -p "JSON.parse(require('node:fs').readFileSync('release-source/package.json', 'utf8')).version")"
           if [ "$TAG" != "v$PACKAGE_VERSION" ]; then
@@ -110,6 +112,7 @@ jobs:
           node -e 'const { scripts } = require("./release-source/package.json"); for (const name of ["build:release", "build:release:cn"]) { if (!scripts[name]) throw new Error(`Release source does not support ${name}`) }'
           node -e 'require("node:fs").accessSync("release-source/scripts/release/js-bundle.js")'
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "targets=$(node scripts/release/targets.js "$PLATFORM")" >> "$GITHUB_OUTPUT"
 
       - name: Verify release commit passed CI
         shell: bash
@@ -190,9 +193,9 @@ jobs:
         id: dependencies
         with:
           path: ${{ steps.store.outputs.path }}
-          key: ${{ runner.os }}-pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
+          key: ${{ runner.os }}-${{ runner.arch }}-pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
           restore-keys: |
-            ${{ runner.os }}-pnpm-
+            ${{ runner.os }}-${{ runner.arch }}-pnpm-
       - name: "Dependency cache: ${{ steps.dependencies.outputs.cache-hit == 'true' && 'exact-hit' || 'unknown' }}"
         run: ":"
       - name: Install Dependencies
@@ -222,22 +225,16 @@ jobs:
           retention-days: 3
 
   release:
-    name: Build ${{ matrix.edition }} (${{ matrix.os }})
+    name: Build ${{ matrix.edition }} (${{ matrix.target.platform }}-${{ matrix.target.arch }})
     needs: [prepare, bundle]
-    runs-on: ${{ matrix.os == 'windows-latest' && fromJSON('["self-hosted", "windows-signing"]') || matrix.os }}
+    runs-on: ${{ matrix.target.platform == 'windows' && fromJSON('["self-hosted", "windows-signing"]') || matrix.target.os }}
     permissions:
       contents: read
 
     strategy:
       matrix:
         edition: [global, cn]
-        os: ${{ fromJSON(
-          github.event.inputs.platform == 'all' && '["macos-latest", "windows-latest", "ubuntu-latest"]' ||
-          github.event.inputs.platform == 'linux' && '["ubuntu-latest"]' ||
-          github.event.inputs.platform == 'windows' && '["windows-latest"]' ||
-          github.event.inputs.platform == 'mac' && '["macos-latest"]' ||
-          '["macos-latest", "windows-latest", "ubuntu-latest"]'
-          ) }}
+        target: ${{ fromJSON(needs.prepare.outputs.targets) }}
       fail-fast: false
 
     steps:
@@ -253,7 +250,7 @@ jobs:
           node-version-file: ".node-version"
 
       - name: macos-latest dependencies fix
-        if: matrix.os == 'macos-latest'
+        if: matrix.target.platform == 'mac'
         run: |
           brew install python-setuptools
 
@@ -262,26 +259,26 @@ jobs:
 
       - name: Get pnpm store directory
         id: pnpm-cache
-        if: matrix.os != 'windows-latest'
+        if: matrix.target.platform != 'windows'
         shell: bash
         run: echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_OUTPUT
 
       - name: Cache pnpm dependencies
         id: dependencies
-        if: matrix.os != 'windows-latest'
+        if: matrix.target.platform != 'windows'
         uses: actions/cache@v6
         with:
           path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
-          key: ${{ runner.os }}-pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
+          key: ${{ runner.os }}-${{ runner.arch }}-pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
           restore-keys: |
-            ${{ runner.os }}-pnpm-
+            ${{ runner.os }}-${{ runner.arch }}-pnpm-
 
-      - name: "Dependency cache: ${{ matrix.os == 'windows-latest' && 'persistent-local' || steps.dependencies.outputs.cache-hit == 'true' && 'exact-hit' || 'unknown' }}"
+      - name: "Dependency cache: ${{ matrix.target.platform == 'windows' && 'persistent-local' || steps.dependencies.outputs.cache-hit == 'true' && 'exact-hit' || 'unknown' }}"
         shell: bash
         run: ":"
 
       - name: Clean signing runner dependencies
-        if: matrix.os == 'windows-latest' && inputs.clean
+        if: matrix.target.platform == 'windows' && inputs.clean
         shell: bash
         run: rm -rf node_modules
 
@@ -293,11 +290,12 @@ jobs:
       - name: Install Dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Enable Linux ARM64 addon builds
-        if: matrix.os == 'ubuntu-latest'
-        uses: docker/setup-qemu-action@v3
+      - name: Cache verified Linux SQLite artifacts
+        if: matrix.target.platform == 'linux'
+        uses: actions/cache@v6
         with:
-          platforms: arm64
+          path: scripts/linux-native/prebuilt
+          key: linux-sqlite-${{ matrix.target.arch }}-${{ hashFiles('pnpm-lock.yaml', 'scripts/linux-native/compat.js', 'scripts/linux-native/download.js', 'scripts/linux-native/release.json', 'patches/**') }}
 
       - name: Download JS bundle
         uses: actions/download-artifact@v8
@@ -306,21 +304,27 @@ jobs:
       - name: Verify JS bundle
         run: node scripts/release/js-bundle.js verify ${{ matrix.edition }}
 
+      - name: Enable Linux ARM64 addon builds
+        if: matrix.target.platform == 'linux' && matrix.target.arch == 'arm64'
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
+
       - name: Build Linux
-        if: matrix.os == 'ubuntu-latest'
+        if: matrix.target.platform == 'linux'
         run: |
           sudo apt-get install -y rpm libglib2.0-dev libgdk-pixbuf-2.0-dev libevdev-dev libxtst-dev libx11-dev libxfixes-dev libwayland-dev
-          pnpm exec electron-builder --linux --x64 --arm64 --publish never ${{ matrix.edition == 'cn' && '--config electron-builder.cn.config.cjs' || '' }}
+          pnpm exec electron-builder --linux --${{ matrix.target.arch }} --publish never ${{ matrix.edition == 'cn' && '--config electron-builder.cn.config.cjs' || '' }}
 
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NODE_OPTIONS: --max-old-space-size=8192
 
       - name: Build Mac
-        if: matrix.os == 'macos-latest'
+        if: matrix.target.platform == 'mac'
         run: |
           sudo -H pip install setuptools
-          pnpm exec electron-builder --mac --x64 --arm64 --publish never ${{ matrix.edition == 'cn' && '--config electron-builder.cn.config.cjs' || '' }}
+          pnpm exec electron-builder --mac --${{ matrix.target.arch }} --publish never ${{ matrix.edition == 'cn' && '--config electron-builder.cn.config.cjs' || '' }}
         env:
           CSC_FOR_PULL_REQUEST: true
           CSC_LINK: ${{ secrets.CSC_LINK }}
@@ -332,7 +336,7 @@ jobs:
           NODE_OPTIONS: --max-old-space-size=8192
 
       - name: Build Windows
-        if: matrix.os == 'windows-latest'
+        if: matrix.target.platform == 'windows'
         run: |
           pnpm exec electron-builder --win --x64 --arm64 --publish never ${{ matrix.edition == 'cn' && '--config electron-builder.cn.config.cjs' || '' }}
         env:
@@ -366,14 +370,14 @@ jobs:
           TAG: ${{ needs.prepare.outputs.tag }}
         run: |
           export NODE_PATH="$(node -p "require('node:path').resolve('node_modules')")"
-          node release-tools/scripts/release/select-release-upload.js "${{ matrix.edition }}" "${{ matrix.os == 'windows-latest' && 'windows' || matrix.os == 'macos-latest' && 'mac' || 'linux' }}"
+          node release-tools/scripts/release/select-release-upload.js "${{ matrix.edition }}" "${{ matrix.target.platform }}" "${{ matrix.target.arch }}"
 
       - name: Upload release files directly to COS
         env:
           TAG: ${{ needs.prepare.outputs.tag }}
           COS_SECRET_ID: ${{ secrets.COS_SECRET_ID }}
           COS_SECRET_KEY: ${{ secrets.COS_SECRET_KEY }}
-        run: python release-tools/scripts/release/release-cos.py upload "${{ matrix.edition }}" "${{ matrix.os == 'windows-latest' && 'windows' || matrix.os == 'macos-latest' && 'mac' || 'linux' }}"
+        run: python release-tools/scripts/release/release-cos.py upload "${{ matrix.edition }}" "${{ matrix.target.platform }}" "${{ matrix.target.arch }}"
 
   downloads:
     name: CN installer downloads
@@ -411,6 +415,8 @@ jobs:
     permissions:
       actions: read
       contents: write
+    outputs:
+      artifacts: ${{ steps.inventory.outputs.artifacts }}
     steps:
       - name: Check out trusted workflow scripts
         uses: actions/checkout@v7
@@ -434,7 +440,7 @@ jobs:
       - name: Install release script dependencies
         shell: bash
         run: |
-          npm install --prefix "$RUNNER_TEMP/release-tools" --ignore-scripts --no-audit --no-fund yaml@2.8.2
+          npm install --prefix "$RUNNER_TEMP/release-tools" --ignore-scripts --no-audit --no-fund yaml@2.8.2 zod@4.4.3 semver@7.7.1
           echo "NODE_PATH=$RUNNER_TEMP/release-tools/node_modules" >> "$GITHUB_ENV"
 
       - name: Set up Python
@@ -446,6 +452,7 @@ jobs:
         run: python -m pip install cos-python-sdk-v5==1.9.44
 
       - name: Assemble release inventory from COS
+        id: inventory
         env:
           TAG: ${{ needs.prepare.outputs.tag }}
           COS_SECRET_ID: ${{ secrets.COS_SECRET_ID }}
@@ -454,6 +461,12 @@ jobs:
         run: |
           node -e 'process.stdout.write(require("yaml").parse(require("node:fs").readFileSync("release-source/electron-builder.yml", "utf8")).releaseInfo.releaseNotes)' > release_body.txt
           python scripts/release/release-cos.py assemble "$PLATFORM"
+          node <<'NODE'
+          const fs = require('node:fs')
+          const { files } = JSON.parse(fs.readFileSync('cos-release.json', 'utf8'))
+          const sizes = Object.fromEntries(Object.entries(files).map(([name, entry]) => [name, entry.size]))
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, `artifacts=${JSON.stringify(sizes)}\n`)
+          NODE
 
       - name: Revalidate current release head
         shell: bash
@@ -661,6 +674,8 @@ jobs:
           ref: ${{ github.workflow_sha }}
       - name: Summarize build attempt
         uses: actions/github-script@v8
+        env:
+          ARTIFACT_SIZES: ${{ needs.finalize-build.outputs.artifacts }}
         with:
           script: |
             const { writeFileSync } = require('node:fs')
@@ -670,7 +685,8 @@ jobs:
             const parameters = { ...context.repo, run_id: context.runId, attempt_number: attempt }
             const { data: run } = await github.rest.actions.getWorkflowRunAttempt(parameters)
             const jobs = await github.paginate(github.rest.actions.listJobsForWorkflowRunAttempt, { ...parameters, per_page: 100 })
-            const report = summarizeRelease(run, jobs, process.env.RELEASE_SHA)
+            const artifacts = process.env.ARTIFACT_SIZES ? JSON.parse(process.env.ARTIFACT_SIZES) : null
+            const report = summarizeRelease(run, jobs, process.env.RELEASE_SHA, artifacts)
             writeFileSync('release-performance.json', JSON.stringify(report, null, 2))
             await core.summary.addRaw(renderReleasePerformance(report)).write()
       - uses: actions/upload-artifact@v7

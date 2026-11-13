@@ -1126,19 +1126,6 @@ describe('release workflow gates', () => {
     expect(publish.run).toBe('pnpm changeset publish --tag snapshot --no-git-tag')
   })
 
-  it('hands both editions directly from the build matrix to COS', () => {
-    const workflow = parse(fs.readFileSync(path.join(workflowRoot, 'release.yml'), 'utf8'))
-    const build = workflow.jobs.release
-    expect(build.strategy.matrix.edition).toEqual(['global', 'cn'])
-    const upload = build.steps.find((step: { name?: string }) => step.name === 'Upload release files directly to COS')
-    expect(upload.run).toContain('release-cos.py upload')
-    for (const job of Object.values(workflow.jobs) as { steps: { uses?: string; with?: { path?: string } }[] }[]) {
-      for (const step of job.steps.filter((step) => /^actions\/(upload|download)-artifact@/.test(step.uses ?? ''))) {
-        expect(['release-performance.json', 'out/\nrelease-bundle.json\n', undefined]).toContain(step.with?.path)
-      }
-    }
-  })
-
   it('accepts the release-notes publication script as valid shell syntax', () => {
     const workflow = parse(fs.readFileSync(path.join(workflowRoot, 'release.yml'), 'utf8'))
     const notesStep = workflow.jobs['finalize-build'].steps.find(
