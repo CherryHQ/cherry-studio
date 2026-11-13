@@ -2205,6 +2205,7 @@
   "library.config.dialogs.create.auto.submit": "สร้างอัตโนมัติ",
   "library.config.dialogs.create.avatar_aria": "เลือกรูปประจำตัว",
   "library.config.dialogs.create.avatar_name_label": "รูปประจำตัวและชื่อ",
+  "library.config.dialogs.create.avatar_random": "อวาตาร์แบบสุ่ม",
   "library.config.dialogs.create.back": "กลับ",
   "library.config.dialogs.create.capability.builtin_badge": "เปิดใช้โดยค่าเริ่มต้น",
   "library.config.dialogs.create.capability.no_skills": "ไม่มีสกิลที่ติดตั้ง",

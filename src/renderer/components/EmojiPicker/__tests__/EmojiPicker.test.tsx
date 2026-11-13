@@ -212,6 +212,17 @@ describe('EmojiPicker', () => {
     expect(emojiPickerPropsMock.value.hiddenEmojis).not.toContain('1f600')
   })
 
+  it('never offers the 🇹🇼 flag, before or after the unsupported-emoji check', async () => {
+    await renderResolvedPicker()
+
+    expect(emojiPickerPropsMock.value.hiddenEmojis).toContain('1f1f9-1f1fc')
+    await waitFor(() => {
+      expect(emojiPickerPropsMock.value.hiddenEmojis).toEqual(
+        expect.arrayContaining(['1f1f9-1f1fc', '1f636-200d-1f32b-fe0f'])
+      )
+    })
+  })
+
   it('loads localized emoji data when the app language changes', async () => {
     i18nLanguageMock.value = 'zh-CN'
 
