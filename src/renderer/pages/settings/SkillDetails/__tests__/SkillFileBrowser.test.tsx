@@ -5,6 +5,7 @@ import { SWRConfig } from 'swr'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { FileEditSessionContext } from '@renderer/hooks/useFileEditSession'
+import type * as AppErrorDetailService from '@renderer/services/AppErrorDetailService'
 import { FileEditSessionManager } from '@renderer/services/fileEdit/FileEditSessionManager'
 import { fileErrorCodes } from '@shared/ipc/errors/file'
 import { IpcError } from '@shared/ipc/errors/IpcError'
@@ -26,6 +27,7 @@ const mocks = vi.hoisted(() => ({
     | { shouldBlockFn: () => Promise<boolean>; disabled: boolean; enableBeforeUnload: () => boolean }
     | undefined,
   ipcRequest: vi.fn(),
+  openErrorDetail: vi.fn().mockResolvedValue('opened'),
   onTreeMutation: undefined as ((event: unknown) => void) | undefined,
   tree: {
     error: null as Error | null,
@@ -74,6 +76,10 @@ vi.mock('@renderer/ipc', async () => {
     }
   }
 })
+vi.mock('@renderer/services/AppErrorDetailService', async (importOriginal) => ({
+  ...(await importOriginal<typeof AppErrorDetailService>()),
+  appErrorDetailService: { openAppErrorDetail: mocks.openErrorDetail }
+}))
 vi.mock('@logger', () => ({ loggerService: { withContext: () => ({ error: vi.fn() }) } }))
 vi.mock('@renderer/services/toast', () => ({ toast: { error: vi.fn() } }))
 vi.mock('react-i18next', () => ({
@@ -228,6 +234,18 @@ describe('SkillFileBrowser', () => {
     expect(screen.getByRole('button', { name: 'common.detail' })).toBeInTheDocument()
     expect(screen.queryByText('tree exploded')).not.toBeInTheDocument()
     expect(screen.queryByText('library.skill_detail.no_files')).not.toBeInTheDocument()
+  })
+
+  it('keeps the local Skill directory path out of the reported directory-load failure', async () => {
+    mocks.tree = { error: new Error('tree exploded'), isLoading: false, root: null, version: 0 }
+    renderBrowser()
+
+    await userEvent.click(screen.getByRole('button', { name: 'common.detail' }))
+
+    await waitFor(() => expect(mocks.openErrorDetail).toHaveBeenCalledTimes(1))
+    const [request] = mocks.openErrorDetail.mock.calls[0]
+    expect(request.context.recordId).toBe('skill-1')
+    expect(JSON.stringify(request.context)).not.toContain('/managed/writer')
   })
 
   it('shows load details when the selected file cannot be read', async () => {
