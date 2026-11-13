@@ -1,4 +1,4 @@
-# Agent Note：无人值守的 shell 或代码模式调用必须先确认
+# Agent Note: 在子智能体和代码模式中保留根会话审批策略
 
 Status: implemented
 
@@ -6,48 +6,39 @@ Status: implemented
 
 ## Problem
 
-Agent 会话把用户配置的 OpenAI 兼容端点的响应当作可信指令来源。在 `auto` 下，`bash` 调用唯一的闸门是一份删除类命令的模式名单，因此端点只要返回 `tool_calls: bash`，就能让任意命令在宿主机上无提示执行。`codemode`（在 worker 里通过 `new Function` 执行代码）的 `permissionClass` 是 `meta`，而闸门对所有 meta 调用直接短路放行，所以它在每种权限模式下都会无提示运行，`default` 也不例外。
+Pi 和 Pi Durable 子智能体获得了 `bypassPermissions`，而非根会话的权限模式。模型端点可以委派工具调用，绕过根会话要求的审批。根回复中没有对应工具部件的子智能体调用，还缺少渲染审批卡所需的输入。
 
-在打包的 2.1.10 上复现：端点收到九个工具定义，其中包含 `bash` 与 `codemode`；一次 `bash` 调用全程没有审批界面，并把 `id` 的输出写到了宿主机文件里。
+`codemode` 在 worker 中通过 `new Function` 执行代码，却使用 `permissionClass: 'meta'`。闸门对 meta 调用直接放行，因此代码模式在 `default` 和 `auto` 下无提示执行。审批发出后，provider 执行的 dynamic tool 部件可能保持 `input-available` 状态，同时带有 `approval.id`；输入区扫描却要求 `approval-requested`，使整轮等待而没有审批控件。
+
+原始端点报告在打包的 2.1.10 上复现了普通 Bash 无提示执行，将 `id` 输出写入文件。本 PR 修复子智能体权限继承和代码模式审批；普通 auto Bash 仍然自动执行。命令风险规则与解析在独立的 [Spec #24419](https://github.com/CherryHQ/cherry-studio/pull/24419) 中处理。
 
 ## Decision
 
-把代码执行视为绝不无人值守的能力，同时不改变 `auto` 的用途。
+根线程和子线程读取相同的实时权限模式、交互状态和工具限制。委派不会授予 Full Access。子智能体调用在根回复中没有对应部件时，审批流包含其输入和发起子任务的工具调用标识。根消息投影保留该标识，使输入区能够识别请求来自哪个任务。
 
-审批闸门与桌面宿主共同实施同意边界：
+`ToolCategory` 包含 `shell`，闸门按此分类执行现有危险 Shell 检查。`codemode` 归为 shell 类，在 `default` 和 `auto` 下明确要求审批，包括子智能体调用。根会话 Full Access 仍是例外。普通 auto Shell 调用保留现有危险命令检测器；本 PR 不增加首次 Shell 确认、整个会话的 Shell 授权或扩展的命令模式。
 
-- 闸门的 shell 分支改为按 `category` 判定，而不是匹配 `bash`/`powershell` 这两个工具名字符串；`ToolCategory` 新增 `shell`，shell 类工具不再依赖名字匹配。
-- `auto` 下 shell 调用会询问，直到用户在本会话内为该工具授权一次。授权永不覆盖宿主检测器标记的命令，而该检测器现在同时覆盖不可逆破坏与无界爆炸半径：交给解释器的内联源码（`bash -c`、`node -e`、`osascript -e`、`powershell -EncodedCommand`）、裸 socket（`nc`、`socat`、`/dev/tcp`）。因此批准一条良性命令无法为下一条洗白授权。授权状态保存在 `createPiInteractionPorts`，Pi 与 Pi Durable 共用这一处。
-- `codemode` 归为 `shell` 类并进入强制确认集合，因此在所有交互模式下都会询问。它的提示由输入区承载：待审批扫描原先要求 `state === 'approval-requested'`，但 provider 执行的 dynamic tool 部件会停在 `input-available` 却已带上 `approval.id`，于是整轮卡死且没有提示。现在扫描把「尚未决的审批」也视为待审批。
-
-- 根线程与子线程读取相同的实时权限模式。桌面宿主不再为子线程指定 `bypassPermissions`，因此端点无法先返回 `subagent` 来绕过确认。子线程调用在根回复中没有对应部件时，审批流会包含工具输入，使输入区能够显示该请求。
-
-明确的边界：这是"同意"的边界，不是"执行"的边界。它不沙箱化命令，也不把删除名单提升为权威判定。
+输入区将尚未结束的部件上未决的审批视为待审批。审批卡展示发起请求的智能体或子任务、后台状态及可用时的任务导航，并提供完整、可滚动和复制的命令预览。可选拒绝原因按需展开。在导航或展开控件上按 Enter 不会批准调用。
 
 ## Alternatives considered
 
-- 把 shell 规则反转为只读命令白名单：否决。`auto` 的用途就是去掉例行询问，而白名单会让 `ls`、`cat`、`grep` 都变成确认。
-- 对自定义端点不下发 `bash`/`codemode`：否决，过于生硬——能力消失且没有回退路径，而且要做到真正的边界还需要入站校验。
-- OS 沙箱（Seatbelt/bwrap）与可信侧分类器：暂缓。由同一端点提供判定的分类器毫无价值，沙箱则是更大的改动。
-- 仅扩充删除命令模式名单：否决作为主要修复，因为它让报告中的验证用例（`id > file`）依然无提示执行。
+- 首次 Shell 确认和整个连接的授权：原始端点修复曾考虑此方案，后按维护者要求从本 PR 分离。此类确认可以打断普通无人值守执行，但不能约束批准后的程序。独立命令策略 Spec 负责已选择的 auto 行为。
+- 仅扩充危险命令模式名单：无法修复子智能体权限绕过或审批界面缺失，而且仍会让原始 `id > file` 示例在 auto 中无提示执行。检测器扩展应与解析器和命令策略一起处理。
+- 不向自定义端点提供 `bash`/`codemode`：移除了能力却没有授权路径，而且仍需入站校验才能建立执行边界。
+- 操作系统沙箱（Seatbelt/bwrap）和可信侧分类器：作为更大的边界改动暂缓。同一端点提供的分类无法建立独立信任。
 
 ## Consequences
 
-- `auto` 对读取、允许根内的编辑，以及首次授权之后不在上述集合内的 shell 命令，保持低摩擦。
-- 未获得 shell 授权的无人值守轮次会阻断 shell 调用；需要审批的 `codemode` 同样会被阻断。shell 授权仍按连接保存，并可能沿用到该连接后续的无人值守轮次。根会话显式设置的 `bypassPermissions` 仍表示 Full Access。
-- `codemode` 在 `default` 与 `auto` 下都会询问；在 `bypassPermissions` 下仍然放行，除非同时标记为不可绕过。
-- 残余风险不变且很大：端点仍能促成用户批准的任何命令，已授权的会话在结束前会持续执行命令。权限模式的说明文字仍把 `auto` 描述为能识别风险，收紧该文案是另一项改动。
-- 授权按连接保存，因此会话恢复后会再问一次。
+- 根会话当前策略要求审批时，子智能体必须请求审批。没有响应者时，需审批的调用被阻止；前台/后台状态不会绕过闸门。
+- `codemode` 在 `default` 和 `auto` 下询问；根会话显式 `bypassPermissions` 会放行，除非标记为不可绕过。
+- Auto 保持普通 Shell 自动执行。危险命令仍按现有检测器要求询问。不保存会话级 Shell 授权。
+- 这是审批路由修复，不是操作系统执行边界。未命中规则的 auto 命令仍可能通过别名、脚本或任意程序执行破坏性或外部操作。收敛后的 PR 没有完整解决原始普通 Bash 端点报告。
 
 ## Verification
 
-- Regression — `packages/agent-behavior/tests/core/approval/approval.test.ts`：shell 分类驱动 `auto` 判定，会话内首次未授权的 shell 调用会询问，已授权的会话放行，删除类命令无视授权仍然询问，`codemode` 在所有交互模式下询问且无人可答时阻断。
-- Regression — `src/main/ai/runtime/pi/piApprovalFacts.test.ts`：`auto` 下首条 shell 调用产生审批请求、批准后放行，同工作区内的写入仍然无需询问，而 `codemode` 会产生审批请求而非作为豁免的 meta 工具直接运行。
-- Regression — `src/renderer/components/composer/variants/__tests__/permissionRequestComposerRequest.test.ts`：dynamic tool 部件上未决的审批被视为待审批，已决的不再提示，显式等待审批的部件仍然能被找到。
-- Regression — `src/main/ai/toolApproval/__tests__/destructiveCommand.test.ts`：解释器内联源码、powershell `-Command`/`-EncodedCommand`、裸 socket 与 `/dev/tcp` 会被标记；脚本文件、`-File`、`-m` 以及只读命令上的 flag 不会。
-- Regression — `src/main/ai/runtime/pi/PiRuntimeConnection.test.ts`：根会话在 `auto` 下会为首条由端点下发的 `bash` 请求授权且不生成验证文件，随后的普通命令不再询问，而 `bash -c` 在该授权之后仍会再次询问；原生前台、后台子线程在审批前均无法执行 `bash` 或已启用的 `codemode`，拒绝或无人可审批时不会生成验证文件，批准后才允许写入文件。根会话处于 `default` 模式时，Pi 与 Pi Durable 的子线程写入也需要审批。
-- Regression — `src/main/ai/agentSession/__tests__/AgentSessionRuntimeService.test.ts`：子线程审批会将工具输入带入根会话流，且不会重复发送已经缓冲的工具输入。
-- Regression — `pnpm typecheck`：新增的必填 `sessionGranted` 事实下所有工程均通过类型检查。
-- Manual — 打包的 Cherry Studio 2.1.10：改动前本地模拟端点的 `bash` 调用无任何提示即执行；该复现正是本笔记要修复的问题。
-- Manual — 改动后的 dev 构建：同一端点的首条 `bash` 调用弹出审批卡、未生成取证文件，只有批准后才执行。
-- Manual — dev 构建的 `codemode`：闸门下发了调用后整轮卡死、没有任何审批控件，这正是本次渲染层扫描修正要解决的问题；修正后尚未做真机复测。
+- Regression — `packages/agent-behavior/tests/core/approval/approval.test.ts`：Shell 分类保留现有 auto 行为；代码模式在 default/auto 下询问，没有响应者时阻止，并保留显式 Full Access 例外。
+- Regression — `src/main/ai/runtime/pi/piApprovalFacts.test.ts`：普通 auto Bash 和允许根内的写入无需审批；代码模式发出可响应请求，不再直接按 meta 放行。
+- Regression — `src/main/ai/runtime/pi/PiRuntimeConnection.test.ts`：根会话每次危险 auto 调用独立等待；default 和 auto 下的前台/后台子智能体在原生 Bash/代码模式产生文件效果之前，遵循批准、拒绝和响应者不可用的结果。
+- Regression — `src/main/ai/runtime/piDurable/PiDurableRuntimeConnection.test.ts`：根会话为 default 模式时，子智能体写入需要审批。
+- Regression — `src/main/ai/agentSession/__tests__/AgentSessionRuntimeService.test.ts` 和 `RootMessageProjection.test.ts`：子智能体审批保留输入与来源元数据，且不重复已缓冲的输入。
+- Regression — `src/renderer/components/composer/variants/__tests__/permissionRequestComposerRequest.test.ts` 和 `PermissionRequestComposer.test.tsx`：动态审批可见，已决调用不再询问，来源和命令正确展示，在展开控件上按 Enter 不会批准。

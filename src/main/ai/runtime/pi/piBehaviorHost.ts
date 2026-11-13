@@ -166,8 +166,6 @@ export async function createPiInteractionPorts(
   const { callKeyOf } = await import('@cherrystudio/agent-behavior')
   const { input, approval } = options
   const outcomes = new Map<string, ApprovalOutcome>()
-  /** Shell tools a person approved once in this session, so `auto` stops re-asking for them. */
-  const grantedTools = new Set<string>()
 
   async function ask(call: CallRef, name: string, args: Record<string, JsonValue>, signal: AbortSignal) {
     signal.throwIfAborted()
@@ -208,13 +206,12 @@ export async function createPiInteractionPorts(
 
   return {
     approvals: {
-      facts: (_call, tool) => readPiApprovalFacts(approval, tool.name, recordSchema.parse(tool.args), grantedTools),
+      facts: (_call, tool) => readPiApprovalFacts(approval, tool.name, recordSchema.parse(tool.args)),
       async ask({ call, tool }, signal) {
         const id = approvalId(call)
         outcomes.set(id, { call, state: 'pending' })
         try {
           const decision = await ask(call, tool.name, recordSchema.parse(tool.args), signal)
-          if (decision?.approved) grantedTools.add(tool.name)
           const feedback = decision?.reasonSource === 'user' ? decision.reason : undefined
           outcomes.set(id, {
             call,

@@ -39,17 +39,14 @@ const BEHAVIOR_META_TOOLS = new Set([
   'stop_subagent'
 ])
 
-/** Tools a person must confirm even under `auto`: full Node-level code execution is never unattended. */
+/** Code-mode dispatch requires per-call consent under default and auto, in addition to nested tool checks. */
 const AUTO_MODE_ALWAYS_APPROVE: ReadonlySet<string> = new Set([PI_TOOL_EXEC_TOOL_NAME])
-
-const NO_SESSION_GRANTS: ReadonlySet<string> = new Set()
 
 /** Gather environment facts; the shared behavior gate decides whether the call may run. */
 export async function readPiApprovalFacts(
   ctx: PiApprovalContext,
   name: string,
-  input: Record<string, JsonValue>,
-  sessionGrantedTools: ReadonlySet<string> = NO_SESSION_GRANTS
+  input: Record<string, JsonValue>
 ): Promise<ApprovalHostFacts> {
   const browser = resolveBrowserToolPermission(name)
   const permissionClass = PI_BUILTIN_TOOLS.find((tool) => tool.name === name)?.permissionClass
@@ -100,7 +97,6 @@ export async function readPiApprovalFacts(
     miseMutation,
     ...(globalInstall ? { globalInstallPermissionMode: ctx.getPermissionMode() ?? 'default' } : {}),
     destructive: Boolean(command && detectDestructiveCommand(command)),
-    sessionGranted: sessionGrantedTools.has(name),
     ...(rewritten ? { rewrittenArgs: { ...input, command: rewritten } } : {}),
     ...(ctx.delegationTools.has(name)
       ? {

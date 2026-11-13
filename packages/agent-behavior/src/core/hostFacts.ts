@@ -25,13 +25,10 @@ export type ApprovalHostFacts = {
   readonly globalInstall?: string
   /** Direct mutation of Cherry-managed tool state; blocked in every mode. */
   readonly miseMutation?: string
-  /** The root session's effective permission mode for an installation decision;
-   * child sessions receive a bypass mode of their own, which must not authorize installs. */
+  /** The root session's effective permission mode also governs child installation decisions. */
   readonly globalInstallPermissionMode?: PermissionMode
-  /** The host's command detector flagged the call as irreversible or unbounded, so `auto` still asks. */
+  /** The host's destructive-command detector flagged the call. */
   readonly destructive: boolean
-  /** A person already approved this shell tool once in the current session. */
-  readonly sessionGranted: boolean
   /** Cross-session delegation must originate in an interactive turn, even under full access. */
   readonly delegation?: 'interactive' | 'unattended'
 }

@@ -53,13 +53,12 @@ export function repeatBlock(call: GateCall, facts: GateFacts): string | undefine
   return count >= BLOCK_REPEAT_AT ? REPEATED_CALL : undefined
 }
 
-/** P7: whether `mode` asks a person for this call; `auto` stops outside the allowed roots, and for a destructive or not-yet-granted shell. */
+/** P7: whether `mode` asks a person for this call; `auto` stops outside the allowed roots and for destructive shell. */
 function requiresApproval(mode: PermissionMode, host: ApprovalHostFacts): boolean {
   if (host.approvalRequired) return true
   if (host.category === 'meta') return false
   if (mode === 'auto') {
-    // A person approves a shell tool once per session; a destructive command still asks every time.
-    if (host.category === 'shell') return host.destructive || !host.sessionGranted
+    if (host.category === 'shell') return host.destructive
     if (host.category === 'read' || host.category === 'edit') return !host.withinAllowedRoots
     return false
   }

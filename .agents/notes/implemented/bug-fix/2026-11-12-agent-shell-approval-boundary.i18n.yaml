@@ -1,5 +1,5 @@
 # Bilingual-pair consistency record (docs/dev/i18n/README.md).
 # After editing either side, update its counterpart and re-record with:
 #   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-12-agent-shell-approval-boundary.md
-2026-11-12-agent-shell-approval-boundary.md: 017b7d0315db84e21bac87697ec8bf5ed08dbabe
-2026-11-12-agent-shell-approval-boundary.zh.md: 35f56756f6eecce738298f05d8f15323fbab6b8f
+2026-11-12-agent-shell-approval-boundary.md: 96cfd0a7fd583615024c0facf0992eba51e99bf7
+2026-11-12-agent-shell-approval-boundary.zh.md: 938be96ff0170805dbb8dbdd11fc0436b7f09372

@@ -1061,8 +1061,9 @@ Native file and shell tools remain available both directly and from scripts.
 Every nested call emits its own tool events and passes Cherry's approval gate,
 including disabled-tool, SQLite, global-install approval, direct-mise mutation, and
 permission-mode policies. Global-install decisions use the root session's effective
-permission mode, including for child sessions. The script itself needs no separate
-approval because all outward effects pass through those tool calls.
+permission mode, including for child sessions. Dispatching `codemode` itself also
+requires per-call approval under `default` and `auto`; explicit root Full Access
+remains an exception. Approving the script does not approve its nested tool calls.
 
 Pi and Pi Durable project nested calls as ordinary tool parts with native call and
 parent identities. Native session storage retains the executed arguments, terminal

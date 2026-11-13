@@ -27,7 +27,6 @@ const host = (patch: Partial<ApprovalHostFacts> = {}): ApprovalHostFacts => ({
   nonBypassable: false,
   withinAllowedRoots: true,
   destructive: false,
-  sessionGranted: false,
   ...patch
 })
 const decide = (
@@ -167,18 +166,15 @@ describe('approval decisions (D34)', () => {
     expect(decide('x', { autoApproved: true, approvalRequired: true })).toBe('ask')
   })
 
-  // Catches a shell command running unattended: a destructive one, or the first one this session has not granted yet.
-  it('asks in auto mode for a destructive shell command or an ungranted first shell call', () => {
+  // Catches auto mode running destructive shell commands or prompting for every ordinary shell call.
+  it('asks in auto mode only for destructive shell commands', () => {
     expect(decide('bash', { category: 'shell', destructive: true }, 'auto')).toBe('ask')
-    expect(decide('bash', { category: 'shell' }, 'auto')).toBe('ask')
-    expect(decide('bash', { category: 'shell', sessionGranted: true }, 'auto')).toBe('allow')
-    expect(decide('bash', { category: 'shell', destructive: true, sessionGranted: true }, 'auto')).toBe('ask')
-    expect(decide('bash', {}, 'auto')).toBe('allow')
+    expect(decide('bash', { category: 'shell' }, 'auto')).toBe('allow')
   })
 
-  // Catches the reported endpoint path: code execution must never run unattended, even after a shell grant.
+  // Catches code execution bypassing approval as a meta tool.
   it('always asks for codemode, and blocks it when nobody can answer', () => {
-    const codemode = { category: 'shell' as const, approvalRequired: true, sessionGranted: true }
+    const codemode = { category: 'shell' as const, approvalRequired: true }
     expect(decide('codemode', codemode, 'auto')).toBe('ask')
     expect(decide('codemode', codemode, 'default')).toBe('ask')
     expect(decide('codemode', codemode, 'auto', 'unavailable')).toBe('block')

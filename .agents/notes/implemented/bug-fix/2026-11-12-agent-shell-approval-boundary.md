@@ -1,4 +1,4 @@
-# Agent Note: Ask before an unattended shell or code-mode call
+# Agent Note: Preserve root approval policy in subagents and code mode
 
 Status: implemented
 
@@ -6,48 +6,39 @@ English | [中文](2026-11-12-agent-shell-approval-boundary.zh.md)
 
 ## Problem
 
-An agent session treats the configured OpenAI-compatible endpoint's response as a trusted instruction source. Under `auto`, the only gate on a `bash` call was a pattern list of destructive commands, so an endpoint could return `tool_calls: bash` and have an arbitrary command run on the host with no prompt. `codemode` — code execution through `new Function` in a worker — carried `permissionClass: 'meta'`, and the gate short-circuits every meta call to allow, so it ran unprompted in every permission mode, `default` included.
+Pi and Pi Durable children received `bypassPermissions` instead of the root session's permission mode. A model endpoint could delegate a tool call to bypass an approval required at the root. Child calls without a tool part in the root reply also lacked the input needed to render an approval card.
 
-Reproduced on a packaged 2.1.10 build: the endpoint received nine tool definitions including `bash` and `codemode`, and a `bash` call ran with no approval surface, writing `id` output to a file on the host.
+`codemode` executes code through `new Function` in a worker but carried `permissionClass: 'meta'`. The gate short-circuits meta calls, so code mode ran unprompted under `default` and `auto`. After dispatching approval, a provider-executed dynamic tool part could remain `input-available` while carrying `approval.id`; the composer's scan required `approval-requested`, leaving the turn waiting without approval controls.
+
+The original endpoint report reproduced ordinary Bash execution without a prompt on packaged 2.1.10, writing `id` output to a file. This PR repairs child permission inheritance and code-mode approval; ordinary auto Bash remains automatic. Command risk rules and parsing are separate work in [Spec #24419](https://github.com/CherryHQ/cherry-studio/pull/24419).
 
 ## Decision
 
-Treat code execution as a capability that never runs unattended, without changing what `auto` is for.
+Root and child threads read the same live permission mode, interaction state and tool restrictions. Delegation never grants Full Access. When a child call has no part in the root reply, the approval stream includes its input and spawning tool-call identity. Root message projection preserves that identity so the composer can identify the requesting task.
 
-The approval gate and desktop host enforce the consent boundary:
+`ToolCategory` includes `shell`, and the gate uses that category for the existing destructive-shell check. `codemode` is shell-class and explicitly requires approval under `default` and `auto`, including child calls. Root Full Access remains an exception. Ordinary auto shell calls retain the existing destructive-command detector; this PR adds no first-use Shell consent, session-wide Shell grant, or expanded command patterns.
 
-- The gate's shell branch selects on `category` instead of the tool-name strings `bash`/`powershell`, and `ToolCategory` gains `shell`, so a shell-class tool no longer depends on a name match.
-- Under `auto`, a shell call asks until a person grants that tool once in the session. The grant never covers a command the host detector flags, and that detector now spans both irreversible damage and unbounded blast radius: inline source handed to an interpreter (`bash -c`, `node -e`, `osascript -e`, `powershell -EncodedCommand`), raw sockets (`nc`, `socat`, `/dev/tcp`). Approving a benign command therefore cannot launder the next one. The grant lives in `createPiInteractionPorts`, which both Pi and Pi Durable use.
-- `codemode` is `shell`-class and on an always-ask set in the host facts, so code execution asks in every interactive mode. Its prompt is composer-owned: the pending-approval scan used to require `state === 'approval-requested'`, but a provider-executed dynamic tool part keeps `input-available` while already carrying `approval.id`, so the turn hung with no prompt. The scan now also treats an unresolved approval on a not-yet-resolved part as pending.
-
-- Root and child threads read the same live permission mode. The desktop host no longer assigns `bypassPermissions` to children, so an endpoint cannot bypass consent by returning `subagent` first. When a child call has no part in the root reply, the approval stream includes its input so the composer can display the request.
-
-Deliberate limit: this is a boundary of consent, not of execution. It does not sandbox the command, and it does not make the destructive pattern list authoritative.
+The composer treats an unresolved approval on a not-yet-resolved part as pending. The approval card shows the requesting Agent or child task, background status and task navigation when available, plus a complete scrollable and copyable command preview. The optional rejection reason expands on demand. Enter on navigation or expansion controls does not approve the call.
 
 ## Alternatives considered
 
-- Inverting the shell rule into an allowlist of read-only commands: rejected. `auto` exists to remove routine prompts, and an allowlist would prompt on `ls`, `cat` and `grep`.
-- Not advertising `bash`/`codemode` to custom endpoints: rejected as too abrupt — the capability disappears with no path back, and the runtime still needs inbound validation to make that a real boundary.
-- An OS sandbox (Seatbelt/bwrap) and a trusted-side classifier: deferred. A classifier served by the same endpoint is worthless, and the sandbox is a larger change.
-- Expanding the destructive pattern list alone: rejected as the primary repair, because it leaves the reported proof of concept (`id > file`) running unprompted.
+- First-use Shell consent and connection-wide grants: considered in the original endpoint repair, then separated from this PR at the maintainer's request. Such consent can interrupt ordinary unattended execution, but does not constrain a program after approval. The separate command-policy Spec owns the selected auto behavior.
+- Expanding the destructive pattern list alone: cannot repair child permission bypass or a missing approval surface, and still leaves the original `id > file` example unprompted in auto. Detector expansion belongs with the parser and command policy.
+- Not advertising `bash`/`codemode` to custom endpoints: removes capabilities without a consent path and still requires inbound validation to establish an execution boundary.
+- An OS sandbox (Seatbelt/bwrap) and a trusted-side classifier: deferred as a larger boundary change. Classification served by the same endpoint cannot establish independent trust.
 
 ## Consequences
 
-- `auto` keeps its low friction for reads, edits inside the allowed roots, and shell commands outside the flagged set after the first grant.
-- An unattended turn with no prior shell grant blocks shell calls; `codemode` also blocks when approval is required. A shell grant remains connection-scoped and can carry into a later unattended turn on that connection. An explicit root `bypassPermissions` remains Full Access.
-- `codemode` asks under `default` and `auto`, and stays allowed under `bypassPermissions` unless it is also marked non-bypassable.
-- Residual risk is unchanged and large: an endpoint can still get any command the person approves, and a granted session keeps running commands until it ends. The permission-mode descriptions still present `auto` as risk-aware; tightening that copy is a separate change.
-- The grant is per connection, so resuming a session asks once more.
+- Children request approval whenever the root's current policy requires it. Without a responder, approval-bound calls block; foreground/background status does not bypass the gate.
+- `codemode` asks under `default` and `auto`; explicit root `bypassPermissions` allows it unless marked non-bypassable.
+- Auto keeps ordinary shell execution automatic. Destructive commands still ask according to the existing detector. No per-session Shell consent is stored.
+- This is an approval-routing repair, not an OS execution boundary. Unmatched auto commands can still perform destructive or external actions through aliases, scripts or arbitrary programs. The original ordinary-Bash endpoint report is not fully addressed by this narrowed PR.
 
 ## Verification
 
-- Regression — `packages/agent-behavior/tests/core/approval/approval.test.ts`: the shell category drives the `auto` decision, the first ungranted shell call asks, a granted session allows, a destructive command asks regardless of the grant, and `codemode` asks in every interactive mode and blocks when nobody can answer.
-- Regression — `src/main/ai/runtime/pi/piApprovalFacts.test.ts`: the first `auto` shell call emits an approval request and the answer unblocks it, an in-workspace write still runs unprompted, and `codemode` asks instead of running as an exempt meta tool.
-- Regression — `src/renderer/components/composer/variants/__tests__/permissionRequestComposerRequest.test.ts`: an unresolved approval on a dynamic tool part is pending, a resolved one is not, and an explicitly waiting part still resolves.
-- Regression — `src/main/ai/toolApproval/__tests__/destructiveCommand.test.ts`: inline interpreter source, powershell `-Command`/`-EncodedCommand`, raw sockets and `/dev/tcp` are flagged; a script file, `-File`, `-m` and flags on a read-only command are not.
-- Regression — `src/main/ai/runtime/pi/PiRuntimeConnection.test.ts`: a root `auto` session asks before the endpoint's first `bash` and writes no proof file, runs the next ordinary command with no second prompt, and asks again for `bash -c` after that grant; native foreground/background children cannot execute `bash` or enabled `codemode` before approval, denial or unavailable attendance leaves no proof file, while approval permits the file write. Pi and Pi Durable child writes also require approval under root `default` mode.
-- Regression — `src/main/ai/agentSession/__tests__/AgentSessionRuntimeService.test.ts`: a child approval carries its input into the root stream, and an already-buffered tool input is not duplicated.
-- Regression — `pnpm typecheck`: every project compiles with the new required `sessionGranted` fact.
-- Manual — packaged Cherry Studio 2.1.10: before this change a local mock endpoint's `bash` call executed with no prompt; the reproduction is what this note repairs.
-- Manual — dev build after the change: the same endpoint's first `bash` call rendered an approval card, wrote no proof file, and executed only after the approval.
-- Manual — dev build, `codemode`: the gate dispatched the call and the turn then hung with no approval controls, which is what the composer-scan fix addresses; a live re-check after that fix is still outstanding.
+- Regression — `packages/agent-behavior/tests/core/approval/approval.test.ts`: shell classification preserves existing auto behavior; code mode asks under default/auto, blocks without a responder and retains the explicit Full Access exception.
+- Regression — `src/main/ai/runtime/pi/piApprovalFacts.test.ts`: ordinary auto Bash and in-root writes run without approval; code mode emits an actionable request rather than taking the meta shortcut.
+- Regression — `src/main/ai/runtime/pi/PiRuntimeConnection.test.ts`: each destructive root auto call waits independently; foreground/background children in default and auto honor approval, denial and responder loss before native Bash/code-mode file effects.
+- Regression — `src/main/ai/runtime/piDurable/PiDurableRuntimeConnection.test.ts`: child writes require approval under the root's default mode.
+- Regression — `src/main/ai/agentSession/__tests__/AgentSessionRuntimeService.test.ts` and `RootMessageProjection.test.ts`: child approvals retain input and origin metadata without duplicating an already-buffered input.
+- Regression — `src/renderer/components/composer/variants/__tests__/permissionRequestComposerRequest.test.ts` and `PermissionRequestComposer.test.tsx`: dynamic approvals remain visible, resolved calls do not re-prompt, origin and command are shown, and Enter on disclosure controls does not approve.

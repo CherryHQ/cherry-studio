@@ -519,20 +519,9 @@ describe('desktop facts and approvals through the shared behavior gate', () => {
   describe('auto mode', () => {
     const buildAutoGate = (overrides = {}) => buildGate({ getPermissionMode: () => 'auto', ...overrides })
 
-    it('asks before the first shell call of the session, then runs it once approved', async () => {
+    it('runs an ordinary bash command and an in-workspace write without asking', async () => {
       const { handler, emitted } = buildAutoGate()
-      const pending = handler(toolEvent('bash', { command: 'pnpm test' }), extCtx)
-      await flush()
-
-      expect(emitted).toHaveLength(1)
-      expect(emitted[0].request).toMatchObject({ toolName: 'bash', input: { command: 'pnpm test' } })
-
-      toolApprovalRegistry.dispatch(emitted[0].request.approvalId, { approved: true })
-      await expect(pending).resolves.toBeUndefined()
-    })
-
-    it('runs an in-workspace write without asking', async () => {
-      const { handler, emitted } = buildAutoGate()
+      await expect(handler(toolEvent('bash', { command: 'pnpm test' }), extCtx)).resolves.toBeUndefined()
       await expect(handler(toolEvent('write', { path: 'a.txt', content: 'b' }), extCtx)).resolves.toBeUndefined()
       expect(emitted).toHaveLength(0)
     })

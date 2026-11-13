@@ -27,8 +27,7 @@ export const ALLOWED: ApprovalHostFacts = {
   approvalRequired: false,
   nonBypassable: false,
   withinAllowedRoots: true,
-  destructive: false,
-  sessionGranted: true
+  destructive: false
 }
 
 export type WorldOptions = {
