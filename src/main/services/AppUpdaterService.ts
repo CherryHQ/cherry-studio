@@ -13,7 +13,7 @@ import { computeBackoff } from '@main/core/job/runtime/backoff'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isWin } from '@main/core/platform'
 import { WindowType } from '@main/core/window/types'
-import { t } from '@main/i18n'
+import { getAppLanguage, t } from '@main/i18n'
 import { regionService } from '@main/services/RegionService'
 import { getAppEdition } from '@main/utils/appEdition'
 import { generateUserAgent, getClientId } from '@main/utils/systemInfo'
@@ -529,7 +529,7 @@ export class AppUpdaterService extends BaseService {
     if (releaseInfo.releaseNotes && typeof releaseInfo.releaseNotes === 'string') {
       if (hasMultiLanguageReleaseNotes(releaseInfo.releaseNotes)) {
         try {
-          const language = application.get('PreferenceService').get('app.language')
+          const language = getAppLanguage()
           processedInfo.releaseNotes = localizeReleaseNotes(releaseInfo.releaseNotes, language)
         } catch (error) {
           logger.error('Failed to localize release notes', error as Error)
