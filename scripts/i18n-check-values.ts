@@ -2,6 +2,8 @@
 import * as fs from 'fs'
 import * as path from 'path'
 
+import { localeKeySpec } from './i18n-plurals'
+
 /** Catalogs are flat: every key is a dotted path mapping straight to its translated string. */
 type I18N = { [key: string]: string }
 type Glossary = { doNotTranslate: string[] }
@@ -87,8 +89,10 @@ export const checkTranslationValues = (): { checked: number; failures: string[] 
       if (filename === `${BASE_LOCALE}.json`) continue
 
       const target = readJson(path.join(catalogPath, filename))
+      const { sourceKey } = localeKeySpec(base, filename)
       for (const [key, translation] of Object.entries(target)) {
-        const english = base[key]
+        const source = sourceKey.get(key)
+        const english = source === undefined ? undefined : base[source]
         if (english === undefined) continue
 
         checked++
