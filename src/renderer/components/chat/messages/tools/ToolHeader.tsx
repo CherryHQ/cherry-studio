@@ -24,6 +24,7 @@ import { useTranslation } from 'react-i18next'
 import { Flex, Tooltip } from '@cherrystudio/ui'
 import type { McpToolResponse, NormalToolResponse } from '@renderer/types/mcpTool'
 import type { McpTool } from '@renderer/types/tool'
+import { cn } from '@renderer/utils/style'
 import { SESSION_CREATE_TOOL_NAME } from '@shared/ai/agentSessionDelivery'
 import { PROVIDER_WEB_SEARCH_TOOL_NAME } from '@shared/ai/builtinTools'
 
@@ -549,7 +550,7 @@ const DESCRIPTION_CLASS =
   'inline-block min-w-0 max-w-full shrink truncate font-normal text-[13px] text-muted-foreground'
 
 const Description = ({ className, ...props }: ComponentPropsWithoutRef<'span'>) => (
-  <span className={[DESCRIPTION_CLASS, className].filter(Boolean).join(' ')} {...props} />
+  <span className={cn(DESCRIPTION_CLASS, className)} {...props} />
 )
 
 const STATS_CLASS = 'shrink-0 whitespace-nowrap font-normal text-[13px] text-muted-foreground'
@@ -702,7 +703,11 @@ const ToolHeader: FC<ToolHeaderProps> = ({
 
   return (
     <Container>
-      <ToolName className={getToolNameClassName(variant)}>
+      <ToolName
+        className={cn(
+          getToolNameClassName(variant),
+          variant === 'collapse-label' && (commandPreview ? 'shrink-0 truncate' : 'truncate')
+        )}>
         {variant !== 'collapse-label' && (
           <span className={getToolIconClassName(isIconBreathing)}>{propIcon || getAgentToolIcon(toolName)}</span>
         )}
@@ -712,7 +717,11 @@ const ToolHeader: FC<ToolHeaderProps> = ({
           <span className="name min-w-0 max-w-full truncate">{displayLabel}</span>
         )}
       </ToolName>
-      {description && <Description>{description}</Description>}
+      {description && (
+        <Description className={variant === 'collapse-label' && commandPreview ? 'shrink-0' : undefined}>
+          {description}
+        </Description>
+      )}
       {commandPreview && <CommandPreview text={commandPreview.text} fullText={commandPreview.fullText} />}
       {stats && <Stats>{stats}</Stats>}
       {showStatus && status && (
