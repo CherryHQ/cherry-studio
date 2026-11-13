@@ -157,7 +157,7 @@ def main():
     prefix = f"{base}/{run_id}"
     domain = (
         f"{BUCKET}.cos.ap-shanghai.myqcloud.com"
-        if command == "upload" and args[1:] == ["windows"]
+        if command == "upload" and args[1] == "windows"
         else f"{BUCKET}.cos.accelerate.myqcloud.com"
     )
     client = CosS3Client(CosConfig(
