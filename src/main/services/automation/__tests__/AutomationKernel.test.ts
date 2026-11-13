@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import type { UtilityProcessHandlerContext } from '@main/core/utilityProcess/runtime/serveUtilityProcess'
 
@@ -23,9 +23,25 @@ const bootstrap = 'globalThis.call = async (input) => JSON.parse(await __hostCal
 afterEach(() => {
   for (const kernel of kernels) kernel.dispose()
   kernels.clear()
+  vi.restoreAllMocks()
 })
 
 describe('persistent automation kernel', () => {
+  it('resumes guest code after a human approval wait longer than the execution budget', async () => {
+    let now = Date.now()
+    vi.spyOn(Date, 'now').mockImplementation(() => now)
+    const result = await createKernel().execute(
+      { bootstrap, code: 'await call({}); "resumed"' },
+      context(async () => {
+        now += 90_000
+        return { approvalWaitMs: 90_000, ok: true }
+      })
+    )
+    expect(result.isError).not.toBe(true)
+    expect(result.context.state).toBe('retained')
+    expect(result.text).toContain('resumed')
+  })
+
   it('discards old proxies and bindings when the API bootstrap changes without replaying actions', async () => {
     const kernel = createKernel()
     let effects = 0

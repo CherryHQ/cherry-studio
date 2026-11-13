@@ -6,9 +6,9 @@ version: 1.8.0
 
 # Cherry Tool Guide
 
-Cherry Studio injects first-party tools into your session over four MCP servers
-(`mcp__cherry-tools__*`, `mcp__agent-memory__*`, `mcp__skills__*`, `mcp__mcp-manager__*`)
-and gives shell-capable general agents bundled runtimes for local execution. The MCP
+Cherry Studio provides first-party tools through four MCP servers: `cherry-tools`,
+`agent-memory`, `skills`, and `mcp-manager`. Which tools mount depends on the session.
+Shell-capable general agents also get bundled runtimes for local execution. The MCP
 tools act on the running app — the user's knowledge bases, IM channels, schedules,
 managed CLIs, skill library, and MCP server registry — through boundaries only Cherry
 owns. Shell and file tools cannot reach those app boundaries correctly; use the bundled
@@ -20,17 +20,27 @@ conditional availability, output interpretation, recovery, and examples. Read th
 reference the task needs (and any it cross-links to) before calling — don't work from
 this page alone.
 
-Tool names here are fully qualified (`mcp__server__tool`); the exact names exposed in
-your session are authoritative if they ever differ. This guide never restates argument
-shapes — **the live tool schema in your session is the authoritative source** for
+Resolve server/tool identity to a callable name: take the exact identifier verbatim
+from your current session's schema or discovery result. Treat every qualified name in
+this guide and its references as a runtime-specific example governed by this rule.
+Never construct a name from examples, convert punctuation, convert to camelCase, or
+reconstruct a digest. This guide never restates argument shapes — **the live tool
+schema in your session is the authoritative source** for
 parameter names, enums, and required fields. Read it before every call.
 
 ## Global rules
 
-- **Check availability first.** Several tools are conditional (each reference says
-  which). If a tool is not in your live tool list, its capability is unavailable *in
-  this session* — say so honestly and stop; never pretend a call succeeded or fabricate
-  a result.
+- **Check availability first.** Apply this procedure to every absence claim throughout
+  this guide and its references, including claims based on a missing live-list entry.
+  Missing from initial tool declarations does not mean absent: a tool may already be
+  active or reachable through deferred/script discovery. First inspect tools currently
+  available, then use whatever discovery your session actually offers. Query by
+  capability or bare tool/server identity (e.g. `memory`, `agent-memory`), not only an
+  assumed full identifier. On a miss, broaden the query or inspect the catalog as the
+  discovery tool's own schema allows. Only after these checks establish absence, stop
+  and report the capability absent. If discovery is unavailable or fails, report that
+  limitation instead of asserting nonexistence. Never pretend a call succeeded or
+  fabricate a result.
 - **Don't reach around Cherry's mutation boundaries.** Knowledge bases, IM channels,
   schedules, managed CLIs, skills, and registered MCP servers are mutated only through
   these tools. Do not shell out to `npm install`, `git clone`, `crontab`, or hand-edit
@@ -57,8 +67,8 @@ parameter names, enums, and required fields. Read it before every call.
 | Answer from the user's own documents | `mcp__cherry-tools__kb_list` → `mcp__cherry-tools__kb_search` → `mcp__cherry-tools__kb_read` | [knowledge.md](references/knowledge.md) |
 | Add / delete / re-index knowledge | `mcp__cherry-tools__kb_manage` (resolve IDs first; needs approval) | [knowledge.md](references/knowledge.md) |
 | Read or convert a local document | `mcp__cherry-tools__to_markdown` → read the returned temporary Markdown path as needed | [documents.md](references/documents.md) |
-| Recall a past fact, correction, or preference | `mcp__agent-memory__memory` (`search`) before re-asking | [memory.md](references/memory.md) |
-| Save durable knowledge vs. a one-off event | `mcp__agent-memory__memory` (`update` vs. `append`) | [memory.md](references/memory.md) |
+| Recall a past fact, correction, or preference | Server `agent-memory`, tool `memory` (`search`) before re-asking; resolve callable name above | [memory.md](references/memory.md) |
+| Save durable knowledge vs. a one-off event | Server `agent-memory`, tool `memory` (`update` vs. `append`); resolve callable name above | [memory.md](references/memory.md) |
 | Schedule a recurring / future task | `mcp__cherry-tools__cron` (Cherry scheduling only) | [autonomy.md](references/autonomy.md) |
 | Proactively message the user or send a file | `mcp__cherry-tools__notify` (needs configured recipients) | [autonomy.md](references/autonomy.md) |
 | Inspect / connect / repair IM channels, rename agent | `mcp__cherry-tools__config` | [autonomy.md](references/autonomy.md) |
@@ -73,12 +83,18 @@ parameter names, enums, and required fields. Read it before every call.
 
 ## When a tool isn't there
 
-Two different situations, don't confuse them:
+Distinguish these cases after checking availability as above:
 
-- **The tool is absent from your live list** → the capability is unavailable this
-  session (e.g. no knowledge base in scope, or CLI management disabled for a shell-less
-  agent). Explain what's missing and what the user can do; don't work around it with
-  shell/file tools. The reference for that domain says exactly when it can be absent.
+- **The tool exists but is deferred or already loaded.** It may be missing from initial
+  declarations, and a loading search may return nothing. That means no new matching
+  tools were loaded, not that the tool does not exist. Re-check tools already available
+  and any earlier successful discovery; use script/catalog discovery when your session
+  offers it. An empty catalog query means no matches in that query's searched set;
+  neither result alone proves absence.
+- **The capability is unavailable after resolution.** For example, no knowledge base
+  is in scope, or CLI management is disabled for a shell-less agent. Explain what's
+  missing and what the user can configure; don't work around it with shell/file tools.
+  Use the domain reference's availability conditions under the shared procedure above.
 - **The tool is listed but reports a missing dependency** → e.g.
   `mcp__cherry-tools__generate_image` with no painting model. It stays listed and
   returns a note; relay the note and point the user at configuration — don't retry
