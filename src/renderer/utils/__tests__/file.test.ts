@@ -111,32 +111,30 @@ describe('file', () => {
   })
 
   describe('formatFileSize', () => {
-    it('should format size in MB for large files', () => {
-      // 验证大文件以 MB 为单位格式化
-      const size = 1048576 // 1MB
-      const result = formatFileSize(size)
-      expect(result).toBe('1.0 MB')
+    it('renders missing or non-finite sizes as a dash', () => {
+      expect(formatFileSize(null)).toBe('—')
+      expect(formatFileSize(undefined)).toBe('—')
+      expect(formatFileSize(Number.NaN)).toBe('—')
+      expect(formatFileSize(Number.POSITIVE_INFINITY)).toBe('—')
     })
 
-    it('should format size in KB for medium files', () => {
-      // 验证中等大小文件以 KB 为单位格式化
-      const size = 1024 // 1KB
-      const result = formatFileSize(size)
-      expect(result).toBe('1 KB')
+    it('keeps sizes below 1 KB in bytes', () => {
+      expect(formatFileSize(0)).toBe('0 B')
+      expect(formatFileSize(500)).toBe('500 B')
+      expect(formatFileSize(1023)).toBe('1023 B')
     })
 
-    it('should format small size in KB with decimals', () => {
-      // 验证小文件以 KB 为单位并带小数
-      const size = 500
-      const result = formatFileSize(size)
-      expect(result).toBe('0.49 KB')
+    it('shows one decimal below 10 and whole numbers from 10 up', () => {
+      expect(formatFileSize(1024)).toBe('1.0 KB')
+      expect(formatFileSize(1536)).toBe('1.5 KB')
+      expect(formatFileSize(10 * 1024)).toBe('10 KB')
+      expect(formatFileSize(1024 * 1024)).toBe('1.0 MB')
+      expect(formatFileSize(15.3 * 1024 * 1024)).toBe('15 MB')
+      expect(formatFileSize(2.5 * 1024 ** 3)).toBe('2.5 GB')
     })
 
-    it('should handle zero size', () => {
-      // 验证零大小的边界情况
-      const size = 0
-      const result = formatFileSize(size)
-      expect(result).toBe('0.00 KB')
+    it('caps the unit at TB', () => {
+      expect(formatFileSize(2048 * 1024 ** 4)).toBe('2048 TB')
     })
   })
 

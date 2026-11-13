@@ -314,6 +314,7 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
                 throw new Error('Conversation owner changed')
               const settings = assistantDataService.getById(assistant.id).settings
               return {
+                computerApproval: { bypass: false, windowId: request.interactionWindowId },
                 browser:
                   toolSignals?.browserEnabled === true &&
                   settings.enableBrowser !== false &&

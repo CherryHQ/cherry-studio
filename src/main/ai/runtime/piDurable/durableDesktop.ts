@@ -159,6 +159,31 @@ export async function prepareDurableDesktop(
             }
           },
           {
+            key: 'project_context',
+            render() {
+              const files = pi.loadProjectContextFiles({ cwd, agentDir: application.getPath('feature.agents.pi.root') })
+              if (!files.length) return undefined
+              const entries = files.map((file) => ({
+                ...file,
+                text: `<project_instructions path="${file.path}">\n${file.content}\n</project_instructions>`
+              }))
+              return {
+                text: ['Project-specific instructions and guidelines:', ...entries.map((entry) => entry.text)].join(
+                  '\n\n'
+                ),
+                source: {
+                  kind: 'memory-files',
+                  resources: entries.map((entry) => ({
+                    id: entry.path,
+                    name: entry.path,
+                    source: entry.path,
+                    characters: entry.text.length
+                  }))
+                }
+              }
+            }
+          },
+          {
             key: 'skills',
             render: () => ({
               text: pi.formatSkillsForPrompt(skills.skills),

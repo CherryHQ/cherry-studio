@@ -1363,6 +1363,29 @@ export class AiStreamManager extends BaseService {
     return changed
   }
 
+  retireToolApproval(
+    topicId: string,
+    toolCallId: string,
+    owner?: { anchorMessageId?: string; attemptId?: number }
+  ): boolean {
+    const stream = this.activeStreams.get(topicId)
+    if (!stream) return false
+    let changed = false
+    let pendingApprovalFlipped = false
+    for (const exec of stream.executions.values()) {
+      if (owner?.anchorMessageId !== undefined && exec.anchorMessageId !== owner.anchorMessageId) continue
+      if (owner?.attemptId !== undefined && exec.attemptId !== owner.attemptId) continue
+      if (!exec.pendingApprovalToolCallIds?.delete(toolCallId)) continue
+      while (exec.runtimeTiming.finishApproval({ toolCallId })) {}
+      changed = true
+      if (exec.pendingApprovalToolCallIds.size === 0) pendingApprovalFlipped = true
+    }
+    if (changed && pendingApprovalFlipped) {
+      stream.lifecycle.onApprovalPendingChanged(stream)
+    }
+    return changed
+  }
+
   addCompletedRuntimeSpan(topicId: string, assistantMessageId: string, span: MessageRuntimeSpan): boolean {
     const stream = this.activeStreams.get(topicId)
     if (!stream) return false

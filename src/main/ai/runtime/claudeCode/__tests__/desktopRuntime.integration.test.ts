@@ -208,6 +208,7 @@ it('keeps both real SDK background notifications in one persisted Main reply unt
   const unexpected: unknown[] = []
   MockApplicationUtils.setService('AiStreamManager', {
     getInteractionWindow: () => undefined,
+    retireToolApproval: () => false,
     startRuntimeTurn: (input: unknown) => unexpected.push(input),
     broadcastTopicError: (...args: unknown[]) => unexpected.push(args),
     drainRuntimeReply: async () => {},
