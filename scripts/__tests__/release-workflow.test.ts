@@ -1203,9 +1203,10 @@ describe('release workflow gates', () => {
     expect(checkoutStep.with['persist-credentials']).toBe(false)
     expect(macBuildStep.env).toMatchObject({
       APPLE_ID: '${{ secrets.APPLE_ID }}',
-      CSC_LINK: '${{ secrets.CSC_LINK }}',
-      MAIN_VITE_CHERRYAI_CLIENT_SECRET: '${{ secrets.MAIN_VITE_CHERRYAI_CLIENT_SECRET }}'
+      CSC_LINK: '${{ secrets.CSC_LINK }}'
     })
+    const bundleStep = workflow.jobs.bundle.steps.find((step: { name?: string }) => step.name === 'Build JS bundle')
+    expect(bundleStep.env.MAIN_VITE_CHERRYAI_CLIENT_SECRET).toBe('${{ secrets.MAIN_VITE_CHERRYAI_CLIENT_SECRET }}')
   })
 
   it('keeps preview packages in Actions artifacts without GitHub release publishing', () => {
@@ -1219,7 +1220,7 @@ describe('release workflow gates', () => {
       expect(job.permissions?.contents).not.toBe('write')
       for (const step of job.steps) {
         expect(step.uses ?? '').not.toMatch(/release-action|action-gh-release/)
-        if (step.name?.startsWith('Build ')) {
+        if (['Build Linux', 'Build Mac', 'Build Windows'].includes(step.name ?? '')) {
           expect(step.run).toContain('--publish never')
           expect(step.env).not.toHaveProperty('GH_TOKEN')
         }
@@ -1227,19 +1228,41 @@ describe('release workflow gates', () => {
     }
   })
 
-  it('builds and stages both editions for every selected preview platform', () => {
+  it.each([
+    ['mac', 'x64'],
+    ['mac', 'arm64'],
+    ['linux', 'x64'],
+    ['linux', 'arm64'],
+    ['windows', 'all']
+  ])('validates only the selected preview target %s-%s and rejects missing output', (platform, architecture) => {
     const workflow = parse(fs.readFileSync(path.join(workflowRoot, 'preview-release.yml'), 'utf8'))
-    const buildJob = workflow.jobs.build
-    const buildSteps = buildJob.steps.filter((step: { name?: string }) => step.name?.startsWith('Build '))
-    const validationStep = buildJob.steps.find(
+    const validation = workflow.jobs.build.steps.find(
       (step: { name?: string }) => step.name === 'Validate edition preview artifacts'
     )
-
-    expect(buildJob.strategy.matrix.edition).toEqual(['global', 'cn'])
-    for (const step of buildSteps) {
-      expect(step.run).toContain("matrix.edition == 'cn'")
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'preview-validation-'))
+    roots.push(root)
+    fs.mkdirSync(path.join(root, 'scripts'))
+    fs.symlinkSync(path.resolve('scripts/release'), path.join(root, 'scripts/release'), 'junction')
+    for (const edition of ['global', 'cn']) {
+      const version = '2.0.14-preview-1234567'
+      write(root, 'package.json', JSON.stringify({ version }))
+      const expected = getExpectedReleaseArtifacts({
+        edition,
+        platform,
+        architecture: architecture === 'all' ? undefined : architecture,
+        productName: 'Cherry Studio',
+        version
+      })
+      fs.rmSync(path.join(root, 'dist'), { recursive: true, force: true })
+      for (const file of expected.files) write(root, `dist/${file}`, 'installer')
+      for (const manifest of expected.manifests) {
+        write(root, `dist/${manifest.file}`, JSON.stringify({ files: manifest.urls.map((url) => ({ url })) }))
+      }
+      const env = { ...process.env, EDITION: edition, PLATFORM: platform, ARCH: architecture }
+      execFileSync('bash', ['-e', '-c', validation.run], { cwd: root, env, stdio: 'pipe' })
+      fs.rmSync(path.join(root, 'dist', expected.files[0]))
+      expect(() => execFileSync('bash', ['-e', '-c', validation.run], { cwd: root, env, stdio: 'pipe' })).toThrow()
     }
-    expect(validationStep.run).toContain('validate-edition-artifacts.js "${{ matrix.edition }}"')
   })
 
   it('uploads one directly downloadable installer per preview architecture', () => {

@@ -30,6 +30,7 @@ jobs:
     outputs:
       asset_sha: ${{ steps.source.outputs.asset_sha }}
       source_sha: ${{ steps.source.outputs.source_sha }}
+      targets: ${{ steps.targets.outputs.targets }}
     steps:
       - name: Resolve source branch
         id: source
@@ -50,21 +51,93 @@ jobs:
           echo "source_sha=$SOURCE_SHA" >> "$GITHUB_OUTPUT"
           echo "Resolved $BRANCH to $SOURCE_SHA"
 
-  build:
-    name: Build preview ${{ matrix.edition }} (${{ matrix.os }})
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          ref: ${{ github.workflow_sha }}
+      - name: Select preview targets
+        id: targets
+        env:
+          PLATFORM: ${{ inputs.platform }}
+        run: echo "targets=$(node scripts/release/targets.js "$PLATFORM")" >> "$GITHUB_OUTPUT"
+
+  bundle:
+    name: Build JS ${{ matrix.edition }}
     needs: resolve
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        edition: [global, cn]
+      fail-fast: false
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          ref: ${{ needs.resolve.outputs.source_sha }}
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+      - uses: pnpm/action-setup@v5
+      - name: Locate pnpm store
+        id: store
+        shell: bash
+        run: echo "path=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@v6
+        id: dependencies
+        with:
+          path: ${{ steps.store.outputs.path }}
+          key: ${{ runner.os }}-${{ runner.arch }}-pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ runner.arch }}-pnpm-
+      - name: "Dependency cache: ${{ steps.dependencies.outputs.cache-hit == 'true' && 'exact-hit' || 'unknown' }}"
+        run: ":"
+      - name: Install Dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Set preview version
+        shell: bash
+        run: |
+          BASE_VERSION="$(node -p "require('./package.json').version.split('-')[0]")"
+          PREVIEW_VERSION="$BASE_VERSION-preview-${{ needs.resolve.outputs.asset_sha }}"
+          npm version "$PREVIEW_VERSION" --no-git-tag-version --allow-same-version --ignore-scripts
+          echo "Building preview version $PREVIEW_VERSION from ${{ needs.resolve.outputs.source_sha }}"
+
+      - name: Typecheck preview source
+        run: pnpm typecheck
+        env:
+          NODE_OPTIONS: --max-old-space-size=8192
+      - name: Build JS bundle
+        run: pnpm run ${{ matrix.edition == 'cn' && 'build:release:cn' || 'build:release' }}
+        env:
+          NODE_OPTIONS: --max-old-space-size=8192
+          MAIN_VITE_CHERRYAI_CLIENT_SECRET: ${{ secrets.MAIN_VITE_CHERRYAI_CLIENT_SECRET }}
+          MAIN_VITE_CHERRY_CLOUD_CLIENT_SECRET: ${{ secrets.MAIN_VITE_CHERRY_CLOUD_CLIENT_SECRET }}
+          SENTRY_SOURCE_MAP_UPLOAD: "true"
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
+          SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}
+          MAIN_VITE_MINERU_API_KEY: ${{ secrets.MAIN_VITE_MINERU_API_KEY }}
+          RENDERER_VITE_AIHUBMIX_SECRET: ${{ secrets.RENDERER_VITE_AIHUBMIX_SECRET }}
+          RENDERER_VITE_PPIO_APP_SECRET: ${{ secrets.RENDERER_VITE_PPIO_APP_SECRET }}
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: release-js-${{ matrix.edition }}
+          path: |
+            out/
+            release-bundle.json
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 3
+
+  build:
+    name: Build preview ${{ matrix.edition }} (${{ matrix.target.platform }}-${{ matrix.target.arch }})
+    needs: [resolve, bundle]
+    runs-on: ${{ matrix.target.os }}
     strategy:
       fail-fast: false
       matrix:
         edition: [global, cn]
-        os: ${{ fromJSON(
-          inputs.platform == 'all' && '["macos-latest", "windows-latest", "ubuntu-latest"]' ||
-          inputs.platform == 'linux' && '["ubuntu-latest"]' ||
-          inputs.platform == 'windows' && '["windows-latest"]' ||
-          inputs.platform == 'mac' && '["macos-latest"]' ||
-          '["macos-latest", "windows-latest", "ubuntu-latest"]'
-          ) }}
+        target: ${{ fromJSON(needs.resolve.outputs.targets) }}
 
     steps:
       - name: Check out preview commit
@@ -80,7 +153,7 @@ jobs:
           node-version-file: ".node-version"
 
       - name: macos-latest dependencies fix
-        if: matrix.os == 'macos-latest'
+        if: matrix.target.platform == 'mac'
         run: brew install python-setuptools
 
       - name: Install pnpm
@@ -92,15 +165,20 @@ jobs:
         run: echo "STORE_PATH=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
 
       - name: Cache pnpm dependencies
+        id: dependencies
         uses: actions/cache@v6
         with:
           path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
-          key: ${{ runner.os }}-pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
+          key: ${{ runner.os }}-${{ runner.arch }}-pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
           restore-keys: |
-            ${{ runner.os }}-pnpm-
+            ${{ runner.os }}-${{ runner.arch }}-pnpm-
+
+      - name: "Dependency cache: ${{ steps.dependencies.outputs.cache-hit == 'true' && 'exact-hit' || 'unknown' }}"
+        shell: bash
+        run: ":"
 
       - name: Install dependencies
-        run: pnpm install
+        run: pnpm install --frozen-lockfile
 
       - name: Set preview version
         shell: bash
@@ -110,30 +188,44 @@ jobs:
           npm version "$PREVIEW_VERSION" --no-git-tag-version --allow-same-version --ignore-scripts
           echo "Building preview version $PREVIEW_VERSION from ${{ needs.resolve.outputs.source_sha }}"
 
+      - name: Cache verified Linux SQLite artifacts
+        if: matrix.target.platform == 'linux'
+        uses: actions/cache@v6
+        with:
+          path: scripts/linux-native/prebuilt
+          key: linux-sqlite-${{ matrix.target.arch }}-${{ hashFiles('pnpm-lock.yaml', 'scripts/linux-native/compat.js', 'scripts/linux-native/download.js', 'scripts/linux-native/release.json', 'patches/**') }}
+
+      - name: Clean preview output
+        shell: bash
+        run: |
+          node -e 'for (const directory of ["out", "dist"]) require("node:fs").rmSync(directory, { recursive: true, force: true })'
+
+      - name: Download JS bundle
+        uses: actions/download-artifact@v8
+        with:
+          name: release-js-${{ matrix.edition }}
+      - name: Verify JS bundle
+        run: node scripts/release/js-bundle.js verify ${{ matrix.edition }}
+
       - name: Enable Linux ARM64 addon builds
-        if: matrix.os == 'ubuntu-latest'
+        if: matrix.target.platform == 'linux' && matrix.target.arch == 'arm64'
         uses: docker/setup-qemu-action@v3
         with:
           platforms: arm64
 
       - name: Build Linux
-        if: matrix.os == 'ubuntu-latest'
+        if: matrix.target.platform == 'linux'
         run: |
           sudo apt-get install -y rpm libglib2.0-dev libgdk-pixbuf-2.0-dev libevdev-dev libxtst-dev libx11-dev libxfixes-dev libwayland-dev
-          pnpm ${{ matrix.edition == 'cn' && 'build:linux:cn' || 'build:linux' }} --publish never
+          pnpm exec electron-builder --linux --${{ matrix.target.arch }} --publish never ${{ matrix.edition == 'cn' && '--config electron-builder.cn.config.cjs' || '' }}
         env:
           NODE_OPTIONS: --max-old-space-size=8192
-          MAIN_VITE_CHERRY_CLOUD_CLIENT_SECRET: ${{ secrets.MAIN_VITE_CHERRY_CLOUD_CLIENT_SECRET }}
-          SENTRY_SOURCE_MAP_UPLOAD: "true"
-          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
-          SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
-          SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}
 
       - name: Build Mac
-        if: matrix.os == 'macos-latest'
+        if: matrix.target.platform == 'mac'
         run: |
           sudo -H pip install setuptools
-          pnpm ${{ matrix.edition == 'cn' && 'build:mac:cn' || 'build:mac' }} --publish never
+          pnpm exec electron-builder --mac --${{ matrix.target.arch }} --publish never ${{ matrix.edition == 'cn' && '--config electron-builder.cn.config.cjs' || '' }}
         env:
           CSC_FOR_PULL_REQUEST: true
           CSC_LINK: ${{ secrets.CSC_LINK }}
@@ -142,32 +234,35 @@ jobs:
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           NODE_OPTIONS: --max-old-space-size=8192
-          MAIN_VITE_CHERRY_CLOUD_CLIENT_SECRET: ${{ secrets.MAIN_VITE_CHERRY_CLOUD_CLIENT_SECRET }}
-          SENTRY_SOURCE_MAP_UPLOAD: "true"
-          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
-          SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
-          SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}
-          MAIN_VITE_CHERRYAI_CLIENT_SECRET: ${{ secrets.MAIN_VITE_CHERRYAI_CLIENT_SECRET }}
-          MAIN_VITE_MINERU_API_KEY: ${{ secrets.MAIN_VITE_MINERU_API_KEY }}
-          RENDERER_VITE_AIHUBMIX_SECRET: ${{ secrets.RENDERER_VITE_AIHUBMIX_SECRET }}
-          RENDERER_VITE_PPIO_APP_SECRET: ${{ secrets.RENDERER_VITE_PPIO_APP_SECRET }}
 
       - name: Build Windows
-        if: matrix.os == 'windows-latest'
-        run: pnpm ${{ matrix.edition == 'cn' && 'build:win:cn' || 'build:win' }} --publish never
+        if: matrix.target.platform == 'windows'
+        run: pnpm exec electron-builder --win --x64 --arm64 --publish never ${{ matrix.edition == 'cn' && '--config electron-builder.cn.config.cjs' || '' }}
         env:
           ELECTRON_BUILDER_7Z_FILTER: BCJ
           NODE_OPTIONS: --max-old-space-size=8192
-          MAIN_VITE_CHERRY_CLOUD_CLIENT_SECRET: ${{ secrets.MAIN_VITE_CHERRY_CLOUD_CLIENT_SECRET }}
-          SENTRY_SOURCE_MAP_UPLOAD: "true"
-          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
-          SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
-          SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}
 
       - name: Validate edition preview artifacts
-        run: node scripts/release/validate-edition-artifacts.js "${{ matrix.edition }}"
+        shell: bash
+        env:
+          EDITION: ${{ matrix.edition }}
+          PLATFORM: ${{ matrix.target.platform }}
+          ARCH: ${{ matrix.target.arch }}
+        run: |
+          node <<'NODE'
+          const { validateEditionArtifacts } = require('./scripts/release/validate-edition-artifacts')
+          validateEditionArtifacts({
+            distDirectory: 'dist',
+            edition: process.env.EDITION,
+            platform: process.env.PLATFORM,
+            architecture: process.env.ARCH === 'all' ? undefined : process.env.ARCH,
+            productName: 'Cherry Studio',
+            version: require('./package.json').version
+          })
+          NODE
 
       - name: Upload preview x64 installer
+        if: matrix.target.arch == 'all' || matrix.target.arch == 'x64'
         uses: actions/upload-artifact@v7
         with:
           path: |
@@ -179,6 +274,7 @@ jobs:
           retention-days: 3
 
       - name: Upload preview arm64 installer
+        if: matrix.target.arch == 'all' || matrix.target.arch == 'arm64'
         uses: actions/upload-artifact@v7
         with:
           path: |
@@ -191,7 +287,7 @@ jobs:
 
   summary:
     name: Preview downloads
-    needs: [resolve, build]
+    needs: [resolve, bundle, build]
     if: always() && needs.resolve.result == 'success'
     runs-on: ubuntu-latest
     permissions:
