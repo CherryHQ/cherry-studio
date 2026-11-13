@@ -216,12 +216,16 @@ export function classifyErrorCategory({ text, status, finishReason }: ErrorCateg
 
   // Context length exceeded
   if (
-    msg.includes('context_length_exceeded') ||
+    /context[_ ]length[_ ]exceeded/.test(msg) ||
+    msg.includes('model_context_window_exceeded') ||
     msg.includes('too many tokens') ||
-    msg.includes('maximum context length') ||
-    msg.includes('context window') ||
+    (msg.includes('maximum context length') &&
+      /exceed|too (?:long|large)|maximum context length is [\d,]+ tokens/.test(msg)) ||
+    (msg.includes('context window') && /exceed|too (?:long|large)/.test(msg)) ||
     msg.includes('prompt is too long') ||
-    msg.includes('input is too long')
+    msg.includes('input exceeds the context limit') ||
+    (msg.includes('input is too long') && /model|context|token/.test(msg)) ||
+    /input.{0,80}(?:longer than|exceeds).{0,80}context length/.test(msg)
   ) {
     return 'context_length'
   }
@@ -243,7 +247,8 @@ export function classifyErrorCategory({ text, status, finishReason }: ErrorCateg
     msg.includes('finishreason: safety') ||
     msg.includes('"safety"') ||
     msg.includes('recitation') ||
-    msg.includes('blocked by safety')
+    msg.includes('blocked by safety') ||
+    /\bblocked by (?:our |the )?content filter(?:ing)?\b/.test(msg)
   ) {
     return 'content'
   }
@@ -380,6 +385,7 @@ export function classifyErrorCategory({ text, status, finishReason }: ErrorCateg
   if (
     msg.includes('unexpected token') ||
     msg.includes('failed to process successful response') ||
+    msg.includes('api returned an empty or malformed response') ||
     msg.includes('invalid response') ||
     msg.includes('parse error') ||
     (!requestParseFailure && msg.includes('failed to parse')) ||

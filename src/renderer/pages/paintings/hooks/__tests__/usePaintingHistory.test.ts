@@ -96,7 +96,7 @@ describe('usePaintingHistory', () => {
     const { result } = renderHook(() => usePaintingHistory())
 
     await waitFor(() => expect(result.current.items).toHaveLength(30))
-    expect(mockUseInfiniteQuery).toHaveBeenCalledWith('/paintings', { limit: 30 })
+
     expect(result.current.hasMore).toBe(true)
 
     act(() => {

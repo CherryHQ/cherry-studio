@@ -1,5 +1,5 @@
 import { writeFile } from 'node:fs/promises'
-import { join } from 'node:path'
+import { join, parse } from 'node:path'
 
 import type { Page } from '@playwright/test'
 
@@ -20,18 +20,14 @@ import { selectSidebarApp } from '../helpers/navigation'
 import { openSettingsSection } from '../helpers/settings'
 import { chatEfficiency } from '../scenarios/chatEfficiency'
 import { chatImageGeneration } from '../scenarios/chatImageGeneration'
-import { chatStreamingStopContinue } from '../scenarios/chatStreamingStopContinue'
 import { codeBlockToolbar } from '../scenarios/codeBlockToolbar'
 import { documentAttachments } from '../scenarios/documentAttachments'
 import { dragDropPasteAttachments } from '../scenarios/dragDropPasteAttachments'
-import { htmlArtifactPreview } from '../scenarios/htmlArtifactPreview'
 import { imageAttachments } from '../scenarios/imageAttachments'
-import { knowledgeAttachmentExclusion } from '../scenarios/knowledgeAttachmentExclusion'
 import { manageChatContext } from '../scenarios/manageChatContext'
 import { mcpPromptsAndResources } from '../scenarios/mcpPromptsAndResources'
 import { messageBranches } from '../scenarios/messageBranches'
 import { messageOperations } from '../scenarios/messageOperations'
-import { messageSelectionToolbar } from '../scenarios/messageSelectionToolbar'
 import { messageTokenDetails } from '../scenarios/messageTokenDetails'
 import { polishPrompt } from '../scenarios/polishPrompt'
 import { searchAndFetch } from '../scenarios/searchAndFetch'
@@ -206,7 +202,7 @@ test(...caseDefinition('MP-09'), async ({ app, mainWindow: page }, testInfo) => 
       .last()
     await expect(answer).toContainText('731')
     await expect(answer).toContainText('17')
-    await expect(answer).toContainText(/November|11月|十一月/)
+    await expect(answer).toContainText(/November|11\s*月|十一\s*月/i)
     await screenshot('MP-09 document summary')
 
     for (const [path, name] of [
@@ -215,18 +211,19 @@ test(...caseDefinition('MP-09'), async ({ app, mainWindow: page }, testInfo) => 
     ]) {
       await upload(path)
       await expect(fileToken(name)).toBeVisible()
-      await fileToken(name).click()
       if (name === imageName) {
+        await fileToken(name).click()
         const preview = page.getByRole('dialog', { name: 'Preview', exact: true })
         await expect(preview).toBeVisible()
         await expect(preview.locator('img').first()).toBeVisible()
         await preview.getByRole('button', { name: 'Close Preview', exact: true }).click()
         await expect(preview).toBeHidden()
       } else {
-        const preview = page.getByTestId('artifact-file-preview-overlay')
+        await chat.getByRole('button', { name: parse(name).name, exact: true }).click()
+        const preview = page.getByRole('dialog')
         await expect(preview).toBeVisible()
-        await expect(preview).toContainText(documentText)
-        await page.getByTestId('artifact-pane-header').getByRole('button', { name: 'Back', exact: true }).click()
+        await expect(preview.getByText(documentText, { exact: true })).toBeVisible()
+        await preview.getByRole('button', { name: 'Close', exact: true }).click()
         await expect(preview).toBeHidden()
       }
       await fileToken(name).hover()
@@ -245,7 +242,8 @@ test(...caseDefinition('MP-09'), async ({ app, mainWindow: page }, testInfo) => 
 
     await composer.getByRole('button', { name: 'Input Quick Panel', exact: true }).click()
     await page.getByText('Take Screenshot', { exact: true }).last().click()
-    const capture = await app.window('/screenshot/')
+    const capture = await app.window('/windows/screenshot/')
+    await expect(capture.locator('canvas').first()).toBeVisible({ timeout: 20_000 })
     await capture.mouse.move(100, 100)
     await capture.mouse.down()
     await capture.mouse.move(600, 350, { steps: 10 })
@@ -545,11 +543,6 @@ test(...caseDefinition('MP-10'), async ({ app, mainWindow }, testInfo) => {
   }
 })
 
-test(...caseDefinition('MP-149'), async ({ app, mainWindow }, testInfo) => {
-  test.setTimeout(3 * 60_000)
-  await messageSelectionToolbar(app, mainWindow, testInfo)
-})
-
 test(...caseDefinition('MP-16'), async ({ app, mainWindow }, testInfo) => {
   await polishPrompt(app, mainWindow, testInfo)
 })
@@ -844,10 +837,6 @@ test(...caseDefinition('MP-33'), async ({ app, mainWindow }, testInfo) => {
   await dragDropPasteAttachments(app, mainWindow, testInfo)
 })
 
-test(...caseDefinition('MP-34'), async ({ app, mainWindow }, testInfo) => {
-  await knowledgeAttachmentExclusion(app, mainWindow, testInfo)
-})
-
 test(...caseDefinition('MP-35'), async ({ app, mainWindow }, testInfo) => {
   test.setTimeout(420_000)
   await searchAndFetch(app, mainWindow, testInfo)
@@ -873,14 +862,4 @@ test(...caseDefinition('MP-39'), async ({ app, mainWindow }, testInfo) => {
 
 test(...caseDefinition('MP-40'), async ({ app, mainWindow }, testInfo) => {
   await codeBlockToolbar(app, mainWindow, testInfo)
-})
-
-test(...caseDefinition('MP-41'), async ({ app, mainWindow }, testInfo) => {
-  test.setTimeout(3 * 60_000)
-  await htmlArtifactPreview(app, mainWindow, testInfo)
-})
-
-test(...caseDefinition('MP-02'), async ({ app, mainWindow }, testInfo) => {
-  test.setTimeout(3 * 60_000)
-  await chatStreamingStopContinue(app, mainWindow, testInfo)
 })

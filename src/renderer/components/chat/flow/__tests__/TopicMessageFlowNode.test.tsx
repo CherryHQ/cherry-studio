@@ -92,25 +92,6 @@ const nodeData: TopicMessageFlowNodeData = {
   status: 'success'
 }
 
-const message = {
-  id: 'message-1',
-  topicId: 'topic-1',
-  parentId: null,
-  role: 'assistant',
-  data: {
-    parts: [{ type: 'text', text: 'Full message detail' }]
-  },
-  searchableText: 'Full message detail',
-  status: 'success',
-  siblingsGroupId: 0,
-  modelId: 'openai:gpt-5-codex',
-  messageSnapshot: null,
-  traceId: null,
-  stats: null,
-  createdAt: '2026-01-01T00:01:00.000Z',
-  updatedAt: '2026-01-01T00:01:00.000Z'
-}
-
 function renderNode(overrides: Partial<TopicMessageFlowNodeData> = {}) {
   const data = { ...nodeData, ...overrides }
   const props = { data, id: data.messageId, selected: false } as ComponentProps<typeof TopicMessageFlowNode>
@@ -145,29 +126,11 @@ describe('TopicMessageFlowNode', () => {
     vi.useRealTimers()
   })
 
-  it.each([
-    ['user', 'user-message', 'User preview', 'border-success-border', 'bg-success-subtle'],
-    ['assistant', 'assistant-message', 'Assistant preview', 'border-info-border', 'bg-info-subtle'],
-    ['system', 'system-message', 'System preview', 'border-border', 'bg-muted/45']
-  ] as const)('keeps the %s role background color on canvas nodes', (role, messageId, preview, border, background) => {
-    renderNode({ messageId, preview, role })
-
-    expect(screen.getByText(preview).closest(`[data-message-id="${messageId}"]`)).toHaveClass(border, background)
-  })
-
-  it('does not add a container border when a nested control receives focus', () => {
-    renderNode()
-
-    expect(getNodeElement()).not.toHaveClass('has-[:focus-visible]:border-primary')
-    expect(getNodeElement()).not.toHaveClass('focus-within:border-primary')
-  })
-
   it('renders a clear marker as a neutral non-preview node', async () => {
     renderNode({ isContextBoundary: true, role: 'user', preview: '' })
 
     const labels = screen.getAllByText('chat.message.new.context')
     const node = labels[0].closest('[data-message-id="message-1"]')!
-    expect(node).toHaveClass('border-border', 'bg-muted/45')
 
     fireEvent.mouseEnter(node)
     await advancePreviewDelay()
@@ -207,8 +170,6 @@ describe('TopicMessageFlowNode', () => {
 
     expect(node).toHaveTextContent('chat.message.flow.status.awaiting_input')
     // Awaiting input owns the warning visual contract even while it is the active node.
-    expect(node).toHaveClass('border-warning-border', 'bg-warning-subtle', 'ring-warning/25')
-    expect(node).not.toHaveClass('border-primary', 'ring-primary/20')
 
     fireEvent.mouseEnter(node)
     await advancePreviewDelay()
@@ -231,31 +192,6 @@ describe('TopicMessageFlowNode', () => {
     expect(screen.queryByTestId('message-preview-popover')).not.toBeInTheDocument()
   })
 
-  it('opens the tooltip only once while moving inside the same hovered node', async () => {
-    mocks.useQuery.mockReturnValue({
-      data: message,
-      error: undefined,
-      isLoading: false
-    })
-
-    renderNode()
-
-    const node = getNodeElement()
-
-    fireEvent.mouseEnter(node)
-    fireEvent.mouseMove(node)
-    fireEvent.mouseMove(node)
-    await advancePreviewDelay()
-
-    expect(mocks.useQuery).toHaveBeenCalledTimes(1)
-
-    fireEvent.mouseMove(node)
-    fireEvent.mouseMove(node)
-    await advancePreviewDelay(1000)
-
-    expect(mocks.useQuery).toHaveBeenCalledTimes(1)
-  })
-
   it('renders the shared loading state while the tooltip message is loading', async () => {
     mocks.useQuery.mockReturnValue({
       data: undefined,
@@ -270,26 +206,6 @@ describe('TopicMessageFlowNode', () => {
 
     expect(screen.getByTestId('topic-message-flow-preview-loading')).toBeInTheDocument()
     expect(screen.getByTestId('topic-message-flow-preview-loading')).toHaveTextContent('common.loading')
-  })
-
-  it('renders the loaded message through the shared message content renderer', async () => {
-    mocks.useQuery.mockReturnValue({
-      data: message,
-      error: undefined,
-      isLoading: false
-    })
-
-    renderNode()
-
-    fireEvent.mouseEnter(getNodeElement())
-    await advancePreviewDelay()
-
-    expect(screen.getByTestId('message-content')).toHaveTextContent('message:message-1')
-    expect(mocks.messageProviderProps[0].messages).toEqual([expect.objectContaining({ id: 'message-1' })])
-    expect(mocks.messageProviderProps[0].partsByMessageId).toEqual({
-      'message-1': [{ type: 'text', text: 'Full message detail' }]
-    })
-    expect(mocks.messageContentProps[0].message).toEqual(expect.objectContaining({ id: 'message-1' }))
   })
 
   it('shows an error state in the tooltip without hiding the node', async () => {

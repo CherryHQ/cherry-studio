@@ -1,10 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import {
-  getMissingVertexAIConfigFields,
-  mergeVertexAILocationOptions,
-  parseVertexAIServiceAccountJson
-} from '../vertexAi'
+import { getMissingVertexAIConfigFields, parseVertexAIServiceAccountJson } from '../vertexAi'
 
 describe('parseVertexAIServiceAccountJson', () => {
   it('extracts service account fields from Google JSON key content', () => {
@@ -32,31 +28,6 @@ describe('parseVertexAIServiceAccountJson', () => {
 
   it('ignores JSON without required service account credentials', () => {
     expect(parseVertexAIServiceAccountJson(JSON.stringify({ project_id: 'vertex-project' }))).toBeUndefined()
-  })
-})
-
-describe('mergeVertexAILocationOptions', () => {
-  it('keeps the current location and removes duplicates', () => {
-    expect(
-      mergeVertexAILocationOptions(
-        [
-          { value: 'us-central1', label: 'US Central' },
-          { value: 'europe-west8', label: 'europe-west8' }
-        ],
-        'europe-west8'
-      ).map((option) => option.value)
-    ).toEqual([
-      'europe-west8',
-      'global',
-      'us-central1',
-      'us-east1',
-      'us-west1',
-      'europe-west1',
-      'europe-west4',
-      'asia-east1',
-      'asia-northeast1',
-      'asia-southeast1'
-    ])
   })
 })
 

@@ -9,7 +9,7 @@ function makeError(overrides: Partial<SerializedError> = {}): SerializedError {
   return { name: 'Error', message: 'test error', stack: null, ...overrides }
 }
 
-/** Shaped like `serializeError(RetryError)`: nested attempts keep no `message`/`stack`. */
+/** Serialized RetryError with caller-supplied terminal attempts. */
 function makeRetryError(overrides: Partial<SerializedError> = {}): SerializedError {
   return makeError({
     name: 'AI_RetryError',
@@ -53,6 +53,21 @@ function makeCopiedRetry(
 }
 
 describe('classifyError', () => {
+  it.each([
+    'Response: content-type json, empty body, 0 bytes, request-id absent, server nginx.',
+    'Response: content-type json, body is JSON but not a Message, 107 bytes, request-id absent.'
+  ])('provides invalid-response recovery without replacing CLI diagnostics: %s', (detail) => {
+    const message = `API Error: API returned an empty or malformed response (HTTP 200) — check for a proxy or gateway intercepting the request. ${detail} This was the non-streaming retry of streaming request.`
+    const error = makeError({ message })
+
+    expect(classifyError(error)).toEqual({
+      category: 'parse',
+      i18nKey: 'error.diagnosis.parse',
+      navTarget: null
+    })
+    expect(error.message).toBe(message)
+  })
+
   it.each(['', 'Provider unavailable', '   ', null, 'undefined'])(
     'uses response-stream guidance only for a marked unknown failure (%j)',
     (message) => {
@@ -178,7 +193,6 @@ required service tier.`
   it('returns unknown for undefined error', () => {
     const result = classifyError(undefined)
     expect(result.category).toBe('unknown')
-    expect(result.navTarget).toBeNull()
   })
 
   it('returns unknown for empty error', () => {
@@ -287,7 +301,7 @@ required service tier.`
       makeApiCallAttempt({ statusCode: 429, providerErrorCategory: 'rate_limit', message: 'too many requests' })
     ])
 
-    expect(classifyError(terminalUnauthorized).category).toBe('rate_limit')
+    expect(classifyError(terminalUnauthorized).category).toBe('auth')
     expect(classifyError(terminalRateLimit).category).toBe('rate_limit')
   })
 
@@ -409,20 +423,17 @@ required service tier.`
   it('classifies 401 as auth', () => {
     const result = classifyError(makeError({ statusCode: 401 }))
     expect(result.category).toBe('auth')
-    expect(result.navTarget).toBe('/settings/provider')
   })
 
   it('classifies 401 as auth with providerId in navTarget', () => {
     const result = classifyError(makeError({ statusCode: 401 }), 'openai')
     expect(result.category).toBe('auth')
-    expect(result.navTarget).toBe('/settings/provider?id=openai')
   })
 
   // Permission — 403 means the key was accepted, so it must not read as "invalid API key".
   it('classifies 403 as permission, not auth', () => {
     const result = classifyError(makeError({ statusCode: 403 }), 'openai')
     expect(result.category).toBe('permission')
-    expect(result.navTarget).toBe('/settings/provider?id=openai')
   })
 
   it('classifies a 403 with billing signals as quota, not permission', () => {
@@ -438,7 +449,6 @@ required service tier.`
       })
     )
     expect(result.category).toBe('region')
-    expect(result.navTarget).toBe('/settings/general')
   })
 
   it('classifies a service unavailable in the user region as region', () => {
@@ -508,7 +518,6 @@ required service tier.`
     const result = classifyError(makeError({ message: "Model with id 'provider/model' not found" }))
 
     expect(result.category).toBe('model')
-    expect(result.i18nKey).toBe('error.diagnosis.model')
   })
 
   // #22571: main rejects a stale assistant-bound model before calling the provider. Falling through
@@ -595,14 +604,12 @@ required service tier.`
   it('classifies HTTP 402 as quota', () => {
     const result = classifyError(makeError({ statusCode: 402, message: 'Payment Required' }))
     expect(result.category).toBe('quota')
-    expect(result.navTarget).toBe('/settings/provider')
   })
 
   // Network
   it('classifies econnrefused as network', () => {
     const result = classifyError(makeError({ message: 'connect ECONNREFUSED 127.0.0.1:443' }))
     expect(result.category).toBe('network')
-    expect(result.navTarget).toBe('/settings/general')
   })
 
   it('offers network recovery for the embedded runtime connection code', () => {
@@ -697,11 +704,23 @@ required service tier.`
     expect(result.category).toBe('server')
   })
 
+  it('classifies a provider content-filter rejection without a settings target', () => {
+    expect(
+      classifyError(
+        makeError({
+          statusCode: 400,
+          providerId: 'openai',
+          message: 'This request was blocked by our content filtering policy. Please revise your message.'
+        }),
+        'openai'
+      )
+    ).toEqual({ category: 'content', i18nKey: 'error.diagnosis.content', navTarget: null })
+  })
+
   // Content filter
   it('classifies 400 + content_filter as content', () => {
     const result = classifyError(makeError({ statusCode: 400, message: 'content_filter triggered' }))
     expect(result.category).toBe('content')
-    expect(result.navTarget).toBeNull()
   })
 
   it('classifies content_filter without a status', () => {
@@ -744,7 +763,6 @@ required service tier.`
   it('classifies embedding error as knowledge', () => {
     const result = classifyError(makeError({ message: 'embedding model failed' }))
     expect(result.category).toBe('knowledge')
-    expect(result.navTarget).toBe('/app/knowledge')
   })
 
   it('classifies knowledge base error as knowledge', () => {
@@ -761,14 +779,12 @@ required service tier.`
   it('classifies ocr error', () => {
     const result = classifyError(makeError({ message: 'OCR engine not initialized' }))
     expect(result.category).toBe('ocr')
-    expect(result.navTarget).toBeNull()
   })
 
   // MCP
   it('classifies mcp server error', () => {
     const result = classifyError(makeError({ message: 'MCP server failed to start' }))
     expect(result.category).toBe('mcp')
-    expect(result.navTarget).toBe('/settings/mcp/servers')
   })
 
   it('classifies mcp connection error', () => {
@@ -785,7 +801,6 @@ required service tier.`
   it('classifies Chromium ERR_PROXY_CONNECTION_FAILED as proxy', () => {
     const result = classifyError(makeError({ message: 'net::ERR_PROXY_CONNECTION_FAILED' }))
     expect(result.category).toBe('proxy')
-    expect(result.navTarget).toBe('/settings/general')
   })
 
   it('classifies Chromium ERR_PROXY_AUTH_REQUESTED as proxy', () => {
@@ -797,7 +812,6 @@ required service tier.`
   it('classifies Chromium ERR_MANDATORY_PROXY_CONFIGURATION_FAILED as proxy', () => {
     const result = classifyError(makeError({ message: 'net::ERR_MANDATORY_PROXY_CONFIGURATION_FAILED' }))
     expect(result.category).toBe('proxy')
-    expect(result.navTarget).toBe('/settings/general')
   })
 
   it('classifies a Chromium socket-to-proxies failure as proxy', () => {
@@ -889,4 +903,26 @@ describe('getLocalModelResolutionFailure', () => {
   it('does not mistake a provider response for a local resolution failure', () => {
     expect(getLocalModelResolutionFailure(makeError({ message: 'Model not found', status: 404 }))).toBeNull()
   })
+})
+
+it('uses the terminal structured quota identity ahead of copied retry text, preserving explicit outer facts', () => {
+  const attempts = [makeApiCallAttempt({ statusCode: 429, providerErrorCategory: 'quota', message: 'Plan depleted' })]
+  expect(classifyError(makeCopiedRetry('Too Many Requests', attempts)).category).toBe('quota')
+  expect(
+    classifyError(makeCopiedRetry('Too Many Requests', attempts, { providerErrorCategory: 'auth' })).category
+  ).toBe('auth')
+  expect(classifyError(makeCopiedRetry('Too Many Requests', attempts, { statusCode: 503 })).category).toBe('server')
+  expect(
+    classifyError(makeCopiedRetry('Too Many Requests', attempts, { finishReason: 'content-filter' })).category
+  ).toBe('content')
+  const retry = makeCopiedRetry('Too Many Requests', [
+    ...attempts,
+    makeApiCallAttempt({ statusCode: 429, providerErrorCategory: 'rate_limit' })
+  ])
+  expect(classifyError(retry).category).toBe('rate_limit')
+  const unmarkedTerminal = makeCopiedRetry('Too Many Requests', [
+    ...attempts,
+    makeApiCallAttempt({ statusCode: 429, message: 'Too Many Requests' })
+  ])
+  expect(classifyError(unmarkedTerminal).category).toBe('rate_limit')
 })

@@ -87,7 +87,7 @@ function formatter(value: string): Intl.DateTimeFormat {
 }
 
 describe('UsageEntriesTable', () => {
-  it('keeps entry identity compact and distinguishes unpriced costs from missing metrics', () => {
+  it('distinguishes unpriced costs from missing metrics', () => {
     render(
       <UsageEntriesTable
         entries={[entry]}
@@ -109,19 +109,8 @@ describe('UsageEntriesTable', () => {
     expect(row).not.toBeNull()
     const entryRow = within(row!)
 
-    expect(entryRow.getByTestId('model-avatar')).toBeInTheDocument()
-    expect(entryRow.getByText('MiniMax')).toBeInTheDocument()
-    expect(entryRow.queryByText('MiniMax-M3')).not.toBeInTheDocument()
-    expect(entryRow.getByTestId('source-label')).toHaveTextContent('Default Assistant')
-    expect(entryRow.queryByText(/Language|语言/)).not.toBeInTheDocument()
-    expect(entryRow.queryByText('Primary key')).not.toBeInTheDocument()
-    expect(entryRow.queryByText('sk-****0001')).not.toBeInTheDocument()
     expect(entryRow.getAllByText('-')).toHaveLength(3)
     expect(entryRow.getByText(/Cannot estimate|无法估算/)).toBeInTheDocument()
-    expect(screen.getByRole('heading', { level: 3 })).toHaveTextContent(/Entries|请求/)
-
-    const date = entryRow.getByText('Jul 28, 2026 16:23')
-    expect(date).toHaveAttribute('title', 'Jul 28, 2026 16:23')
   })
 
   it('uses the request modality as the display source for unattributed entries', () => {

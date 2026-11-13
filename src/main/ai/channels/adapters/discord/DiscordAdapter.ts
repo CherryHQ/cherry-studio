@@ -436,6 +436,12 @@ class DiscordAdapter extends ChannelAdapter {
           os: process.platform,
           browser: 'cherry-studio',
           device: 'cherry-studio'
+        },
+        presence: {
+          since: null,
+          activities: [],
+          status: 'online',
+          afk: false
         }
       }
     })

@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "package": {
     "name": "CherryStudio",
-    "version": "2.1.10",
+    "version": "2.2.1",
     "description": "A powerful AI assistant for producer.",
     "homepage": "https://github.com/CherryHQ/cherry-studio"
   },
@@ -17,8 +17,16 @@
         "path": "/app/chat"
       },
       {
+        "id": "scheduled_tasks",
+        "path": "/app/scheduled-tasks"
+      },
+      {
         "id": "paintings",
         "path": "/app/paintings"
+      },
+      {
+        "id": "marketplace",
+        "path": "/app/marketplace"
       },
       {
         "id": "translate",
@@ -56,8 +64,10 @@
       "/app/files",
       "/app/knowledge",
       "/app/launchpad",
+      "/app/marketplace",
       "/app/notes",
       "/app/release-notes",
+      "/app/scheduled-tasks",
       "/app/translate",
       "/settings/about",
       "/settings/api-gateway",
@@ -373,6 +383,19 @@
       }
     },
     {
+      "id": "agent.workspace.open",
+      "titleKey": "settings.shortcuts.open_workspace",
+      "categoryKey": "settings.shortcuts.chat",
+      "scope": "renderer",
+      "keybinding": {
+        "defaultBinding": [
+          "CommandOrControl",
+          "O"
+        ],
+        "when": "!webview.focused"
+      }
+    },
+    {
       "id": "chat.input.focus",
       "titleKey": "settings.shortcuts.focus_input",
       "categoryKey": "settings.shortcuts.chat",
@@ -564,6 +587,19 @@
           "CommandOrControl",
           "]"
         ]
+      }
+    },
+    {
+      "id": "resource.delete_permanently",
+      "titleKey": "settings.shortcuts.delete_current_list_item",
+      "categoryKey": "settings.shortcuts.topic",
+      "scope": "renderer",
+      "keybinding": {
+        "defaultBinding": [
+          "CommandOrControl",
+          "Backspace"
+        ],
+        "when": "resource.focused && !input.focused"
       }
     },
     {
@@ -961,6 +997,10 @@
         "name": "oMLX"
       },
       {
+        "id": "rapid-mlx",
+        "name": "Rapid-MLX"
+      },
+      {
         "id": "openai",
         "name": "OpenAI"
       },
@@ -1280,6 +1320,10 @@
         ".doc",
         ".pptx",
         ".ppt",
+        ".odt",
+        ".odp",
+        ".ods",
+        ".rtf",
         ".epub",
         ".draftsexport"
       ],

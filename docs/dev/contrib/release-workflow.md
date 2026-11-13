@@ -30,7 +30,7 @@ The release branch is the source of every installer and release asset. `main` re
 | Build | `release/v<version>` | **Release** | Creates or moves the draft tag, uploads artifacts, and composes the release body |
 | Hotfix | Merged `main` pull request | **Backport Release Hotfixes** | Opens a backport pull request against the active release branch |
 | Approve and publish | Successful exact-head all-platform build | **Release** | Waits for the `release` Environment approval, revalidates, and publishes the draft |
-| Mirror packages | Published GitHub Release | **Release** | Uploads Global and CN assets to GitCode from the same build archive |
+| Mirror packages | Published GitHub Release | **Release** | Uploads Global and CN assets to GitCode from COS |
 | Synchronize | Published GitHub Release | **Post Release** | Opens a metadata-only `release-sync/v<version>` pull request |
 | Close | `release-sync/v<version>` | **CI** | Validates the metadata pull request before it is merged into `main` |
 
@@ -100,7 +100,7 @@ After the workflow succeeds, verify:
 
 If the workflow says the release branch already exists, stop and inspect that branch and any matching draft release. Do not overwrite or delete it until you have confirmed whether it is an active or abandoned release.
 
-To explicitly abandon an unpublished release, first set `TAG=v<version>` and `BRANCH=release/$TAG`, then inspect `gh release view "$TAG" --json isDraft,tagName,url`, `git ls-remote --heads origin "refs/heads/$BRANCH"`, and `gh pr list --base "$BRANCH" --state open`. Continue only after confirming the release is still a draft and every related backport PR is closed. Delete the draft and its movable tag with `gh release delete "$TAG" --cleanup-tag --yes`, then delete the release branch with `git push origin --delete "$BRANCH"`. If only an orphan branch exists, skip the release deletion; if only an orphan draft exists, skip the branch deletion. These deletions are destructive and require an explicit maintainer decision.
+To explicitly abandon an unpublished release, first set `TAG=v<version>` and `BRANCH=release/$TAG`, then inspect `gh release view "$TAG" --json isDraft,tagName,url`, `git ls-remote --heads origin "refs/heads/$BRANCH"`, and `gh pr list --base "$BRANCH" --state open`. Continue only after confirming the version is unpublished and every related backport PR is closed. Delete the draft and its movable tag with `gh release delete "$TAG" --cleanup-tag --yes`, then delete the release branch with `git push origin --delete "$BRANCH"`. If only an orphan branch exists, skip the release deletion; if only an orphan draft exists, skip the branch deletion. These deletions are destructive and require an explicit maintainer decision.
 
 ## 2. Wait for Release Branch CI
 
@@ -114,13 +114,7 @@ If CI is queued, running, cancelled, or failing, no build is dispatched. Fix or 
 
 ### Repairing the Initial Release Branch
 
-The first release-branch CI run happens before a draft GitHub Release exists, so automatic backporting cannot safely select that branch yet. If code must change for this initial CI run to pass:
-
-1. Fix the root cause through a pull request to `main` titled `hotfix: <description>` or `hotfix(<kebab-case-scope>): <description>`. The workflow adds the `hotfix` label, but it does not backport yet because there is no matching draft.
-2. After the hotfix merges, create `backport/v<version>/pr-<source-number>` from `release/v<version>` and apply only the merged hotfix result. Never merge all of `main` into the release branch. Run `PR_BODY="$(gh pr view <source-number> --json body --jq .body)" node scripts/release/hotfix-release-notes.js` on that branch to apply any provided bilingual note; the command leaves release metadata unchanged for `NONE` or a missing block.
-3. Push a signed, DCO-signed commit and open a pull request from that topic branch to `release/v<version>`. Put `<!-- release-backport-source-pr: <source-number> -->` on its own line in the pull request body so the lifecycle tracker automatically maintains the source hotfix's `backport/v<version>` and `backported/v<version>` labels.
-4. Review the release-specific diff, merge it after CI passes, and wait for CI on the new release branch head.
-5. Wait for CI on the repaired release head. Its successful completion starts the initial **Release** build automatically. Once its draft exists, later merged hotfix pull requests use the automatic backport flow.
+The first release-branch CI run happens before a draft GitHub Release exists. If the release branch needs a fix, merge an eligible hotfix to `main` and review its automatic backport PR. The target is the highest semantic-version release branch, provided its version is higher than every published release. A draft is optional. After the backport merges, successful CI on the new release head automatically starts the build.
 
 ## 3. Build or Retry the Draft Release
 
@@ -138,11 +132,13 @@ Before building, the workflow verifies that:
 - CI succeeded for the exact branch commit.
 - A matching published release does not already exist.
 
-Each selected platform builds both the existing global edition and the China edition from the same commit. Their release asset names, package IDs, and update channels identify the edition, while their installed product name, executable, shortcut, protocol, and `userData` location stay the same. Both Windows installers also retain the existing global NSIS GUID, so installing either edition replaces the same installation instead of creating a second app. Each runner validates and stages only its own edition and platform artifacts. After every selected build succeeds, one final job downloads that complete staged set, fails on any artifact read or upload error, updates the draft by release ID, and only then creates or moves `v<version>` to the exact validated branch commit. Windows uses the self-hosted `windows-signing` runner and signs each edition once. GitHub receives only Global packages, blockmaps, update manifests and shared release history; GitCode receives both editions. A complete `release-bundle-v<version>` Actions artifact retains both editions, checksums, release notes and source metadata for 90 days. After the complete archive uploads successfully, a separate cleanup job deletes only this run's platform staging artifacts and standalone history artifact. Failed archive creation leaves them available for retry. Cleanup can be retried independently without rerunning draft assembly; the complete archive and individual CN installers are retained. A single-platform retry rebuilds both editions for that platform, restores the newest retained complete archive from the same SHA, replaces the platform directories, and never moves the tag. If no matching archive exists, rerun an `all` build. No CN package is recovered from GitHub Release attachments. Tag movement is allowed only while the release is still a draft.
+Every selected platform builds both editions from the same commit. Asset names, package IDs and update channels identify the edition. Both editions share the installed product name, executable, shortcut, protocol and `userData` location. Both Windows installers retain the Global NSIS GUID, so either edition can replace the installed app. Tag movement is allowed while the release is a draft.
+
+Each runner validates and uploads its local files directly to the private COS bucket through the global acceleration endpoint. Once all required uploads succeed, the finalization job downloads only Global files and shared history for the GitHub draft. It records the complete file inventory under `releases-sync/<tag>/<run_id>/release.json` after updating the draft. A single-platform retry reuses other platforms from the last complete inventory for the same commit, replaces both editions of its selected platform, and keeps the existing tag. If the baseline is unavailable, rerun an `all` build.
 
 After the tag is exact, the workflow builds the GitHub Release body from the bilingual `electron-builder.yml` notes, a separator, and GitHub's generated `What's Changed` and contributor list. Stable release history remains generated during **Pre Release** in `resources/cherry-studio/release-history.json`; it is not maintained separately during publication.
 
-To test an individual CN installer before approval, open the **Release** run summary and its **CN installer downloads** table. Each Windows `setup.exe`, macOS `.dmg`, and Linux `.AppImage` for x64/arm64 is uploaded as an unarchived, individually downloadable Actions artifact retained for 7 days. Sign in to GitHub to download. Single-platform retries list only the installers uploaded by that run; failed builds may leave a partial table. Global installers remain directly downloadable from the GitHub draft. These download entries do not change the complete dual-edition archive used for publishing and recovery.
+To test a CN installer before approval, open the **CN installer downloads** table in the run summary. The table lists available Windows installers, macOS DMGs, and Linux AppImages from that run. Its COS links expire after 24 hours. Anyone holding a link can download the corresponding file until it expires.
 
 Before publishing, inspect the draft release and confirm:
 
@@ -177,7 +173,7 @@ All hotfix development still starts from `main`:
 
 5. Wait for review and CI, then merge the pull request into `main`.
 
-The **Backport Release Hotfixes** workflow synchronizes the `hotfix` label from the title and separately validates any provided bilingual note. After merge, it locks release state, finds the single draft semantic-version release with a matching release branch, and applies the source PR result with trusted workflow scripts. If a backport PR is already open for that release, the new fix and source marker are appended to its topic branch; otherwise the workflow creates `backport/v<version>/pr-<source-number>`. This keeps consecutive hotfixes in one reviewed backport pull request instead of creating conflicting PRs from the same release head. Every generated commit is GitHub-verified and DCO-signed off. The workflow revalidates the draft, release head, and aggregate backport head before writing, and never commits directly to the release branch.
+The **Backport Release Hotfixes** workflow synchronizes the `hotfix` label from the title and separately validates any provided bilingual note. After merge, it locks release state, selects the highest semantic-version release branch if its version is higher than every published release, and applies the source PR result with trusted workflow scripts. If a backport PR is already open for that release, the new fix and source marker are appended to its topic branch; otherwise the workflow creates `backport/v<version>/pr-<source-number>`. This keeps consecutive hotfixes in one reviewed backport pull request instead of creating conflicting PRs from the same release head. Every generated commit is GitHub-verified and DCO-signed off. The workflow revalidates the selected branch, published release state, release head, and aggregate backport head before writing, and never commits directly to the release branch.
 
 Track the source pull request by its labels:
 
@@ -212,7 +208,7 @@ When the source pull request receives `backport-failed/v<version>` before a back
 7. After it is merged, wait for release branch CI and the automatic draft rebuild.
 8. On the source pull request, replace `backport-failed/v<version>` with `backported/v<version>` and comment with the manual resolution pull request or commit.
 
-If the workflow reports multiple active release branches, leave only the intended release active and rerun the failed workflow. If it reports no active draft release, no backport is performed.
+If the workflow reports no release branch newer than the published releases, it skips the backport. Prepare the next release branch before rerunning the backport workflow.
 
 ## 5. Publish the Release
 
@@ -224,20 +220,20 @@ Publish only after the latest release branch commit has passed CI and an `all`-p
 
 The approval job does not hold the release-state lock. After approval, the publication job acquires that lock and takes one final state snapshot. It requires the approved run, draft, tag, branch, and selected SHA to agree; rejects open release-branch PRs and every merged `hotfix` after the release branch point that lacks `backported/v<version>`; and confirms that notes and artifacts exist. This explicit hotfix gate also blocks publication when a backport job is merely queued and has not opened its PR yet. If the release branch changed while approval was waiting, publication fails closed and the new exact-head build creates a new approval. The fetched `main` SHA in the final snapshot is the hotfix cutoff for the release; a hotfix merged after it belongs to the next release. Publication makes the tag immutable for this workflow. **Release** refuses to update an already published release; any later fix requires a new version.
 
-Publishing triggers **Post Release** automatically. GitCode synchronization then runs in the same **Release** workflow using the complete archive; Global files must match the published GitHub attachments byte for byte. GitCode synchronization failure fails the workflow without rolling back the GitHub release. GitCode currently has no documented draft API, so it receives assets only after approval and GitHub publication.
+Publishing triggers **Post Release** automatically. The GitCode job reads the completed COS inventory and downloads and uploads one attachment at a time. GitCode synchronization failure fails the workflow without rolling back the GitHub release. GitCode currently has no documented draft API, so it receives assets only after approval and GitHub publication.
 
 ### Retry GitCode Synchronization
 
 1. Open **Actions** → **Release** → **Run workflow**, selecting `main` for current synchronization scripts.
 2. Set `mode=sync-only`, `tag=v<version>`, and `run_id` to the original all-platform release run ID.
 3. Optionally set `dry_run=true` to validate and preview the payload and files without GitCode writes or Feishu notifications.
-4. Run synchronization. It requires an already published GitHub Release, matching repository/tag/SHA, a retained complete archive, and matching Global files. An existing GitCode Release is updated and files are uploaded again, with package files before update manifests.
+4. Run synchronization. It requires an already published GitHub Release and a retained complete COS inventory for the original all-platform run. An existing GitCode Release is updated and files are uploaded again, with package files before update manifests.
 
-The archive expires after 90 days (subject to repository retention limits). Missing or expired archives fail closed; synchronization never rebuilds or re-signs historical packages. Use **Re-run failed jobs** for a failed synchronization within the original run. The `clean` input only removes signing-runner dependencies before a normal Windows build.
+The COS lifecycle controls retention. Keep referenced objects available for the supported retry window, including objects reused by newer partial builds. Builds created before the COS cutover need separate migration to use this sync path. Use **Re-run failed jobs** to retry a failed sync in the original run. The `clean` input removes signing-runner dependencies before a normal Windows build.
 
-Preparation, build, draft finalization, approval, publication, cleanup, and GitCode synchronization failures or cancellations are included in the failure notification. Skipped dependent jobs do not hide the originating failure. Sync-only dry runs never send notifications.
+Preparation, build, draft finalization, approval, publication, and GitCode synchronization failures or cancellations are included in the failure notification. Skipped dependent jobs do not hide the originating failure. Sync-only dry runs never send notifications.
 
-The repository needs the existing `GITCODE_TOKEN`, `GITCODE_OWNER`, `GITCODE_REPO`, optional `GITCODE_API_URL`, Windows signing secrets, and Feishu failure-notification secrets. Builds and approval waits do not hold `release-state`; preparation, draft mutation and publication acquire it separately. GitCode syncs are serialized per tag.
+Configure `COS_SECRET_ID` and `COS_SECRET_KEY` with read, write, and multipart access under `releases-sync/` in `cherry-studio-1366585212`. The repository also needs `GITCODE_TOKEN`, `GITCODE_OWNER`, `GITCODE_REPO`, optional `GITCODE_API_URL`, Windows signing secrets, and Feishu failure-notification secrets. Builds and approval waits do not hold `release-state`; preparation, draft mutation and publication acquire it separately. GitCode syncs are serialized per tag.
 
 ## 6. Merge the Release Metadata Pull Request
 
@@ -274,7 +270,7 @@ If the metadata files already match `main`, **Post Release** exits without openi
 | Release is already published | Published releases cannot be rebuilt | Prepare a new version |
 | Publication approval became stale | The release branch moved while approval was waiting | Use the approval run created by the new exact-head all-platform build |
 | Release environment protection failed | The environment is missing or does not have the required team, self-review, and branch restrictions | Ask a repository administrator to restore the documented `release` Environment policy |
-| Multiple active release branches | Backport target is ambiguous | Resolve the extra draft release state, then rerun the backport workflow |
+| No release branch is newer than the published releases | There is no eligible backport target | Prepare the next release branch before retrying |
 | `backport-failed/v<version>` | Automatic preparation failed or the backport PR closed unmerged | Inspect the linked workflow run or follow the manual procedure above |
 | Backport pull request closed without merging | The hotfix has not reached the release branch | Reopen the pull request or complete a manual backport |
 | Published metadata conflicts with `main` | The same metadata lines changed after the release branch was cut | Reconcile those edits on `main`, then rerun **Post Release**; never replace the whole file from the tag |

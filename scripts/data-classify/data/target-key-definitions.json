@@ -34,6 +34,13 @@
       "description": "Let the Claude Code runtime append its own attribution to git commits and PR bodies (Co-Authored-By trailer, Generated-with footer). Disable to omit that attribution (v2 new feature, no v1 source)"
     },
     {
+      "targetKey": "agent.skills.external_export.enabled",
+      "type": "boolean",
+      "defaultValue": false,
+      "status": "classified",
+      "description": "Export skills to external agents (v2 new feature, no v1 source)"
+    },
+    {
       "targetKey": "app.browser.agent_control.enabled",
       "type": "boolean",
       "defaultValue": true,
@@ -53,6 +60,20 @@
       "defaultValue": true,
       "status": "classified",
       "description": "Automatically open the right-side browser panel when tools browse the web (default: true)."
+    },
+    {
+      "targetKey": "app.browser.start_page.mode",
+      "type": "PreferenceTypes.BrowserStartPageMode",
+      "defaultValue": "blank",
+      "status": "classified",
+      "description": "Start page for newly opened standalone browser tabs"
+    },
+    {
+      "targetKey": "app.browser.start_page.custom_url",
+      "type": "string",
+      "defaultValue": "",
+      "status": "classified",
+      "description": "Custom HTTP(S) start page for standalone browser tabs"
     },
     {
       "targetKey": "app.fetch.allow_private_network",
@@ -327,6 +348,11 @@
           "type": "shortcut"
         },
         {
+          "id": "sidebar-shortcut:core.app:scheduled_tasks",
+          "target": { "kind": "resource", "locator": { "providerId": "core.app", "resourceId": "scheduled_tasks" } },
+          "type": "shortcut"
+        },
+        {
           "id": "sidebar-shortcut:core.app:translate",
           "target": { "kind": "resource", "locator": { "providerId": "core.app", "resourceId": "translate" } },
           "type": "shortcut"
@@ -351,6 +377,13 @@
       "defaultValue": [],
       "status": "classified",
       "description": "Launchpad built-in app tile order, independent from the sidebar favorites order (new v2 preference, no v1 source). Empty defaults to the canonical app order; unknown/missing apps are normalized at read time"
+    },
+    {
+      "targetKey": "ui.marketplace.skill_sources",
+      "type": "PreferenceTypes.SkillSubscriptionSource[]",
+      "defaultValue": [],
+      "status": "classified",
+      "description": "User-subscribed skill catalogs; fetched contents are cached separately"
     },
     {
       "targetKey": "ui.custom_css",
@@ -914,6 +947,19 @@
       "description": "Command shortcut: quick_assistant.toggle (unified command system)"
     },
     {
+      "targetKey": "shortcut.resource.delete_permanently",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": [
+          "CommandOrControl",
+          "Backspace"
+        ],
+        "enabled": true
+      },
+      "status": "classified",
+      "description": "Command shortcut: resource.delete_permanently (unified command system)"
+    },
+    {
       "targetKey": "shortcut.selection.capture_text",
       "type": "PreferenceTypes.PreferenceShortcutType",
       "defaultValue": {
@@ -1443,6 +1489,63 @@
       },
       "status": "classified",
       "description": "Command shortcut: tab.open_9 (numbered tab navigation)"
+    },
+    {
+      "targetKey": "shortcut.agent.workspace.open",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": [
+          "CommandOrControl",
+          "O"
+        ],
+        "enabled": true
+      },
+      "status": "classified",
+      "description": "Command shortcut: agent.workspace.open (unified command system)"
+    },
+    {
+      "targetKey": "agent.details.sections",
+      "type": "PreferenceTypes.AgentDetailsSectionConfig[]",
+      "defaultValue": [
+        {
+          "id": "workspace",
+          "visible": true
+        },
+        {
+          "id": "desktop_control",
+          "visible": true
+        },
+        {
+          "id": "plan",
+          "visible": true
+        },
+        {
+          "id": "subagents",
+          "visible": true
+        },
+        {
+          "id": "workflows",
+          "visible": true
+        },
+        {
+          "id": "shells",
+          "visible": true
+        },
+        {
+          "id": "other",
+          "visible": true
+        },
+        {
+          "id": "artifacts",
+          "visible": true
+        },
+        {
+          "id": "context",
+          "visible": true
+        }
+      ],
+      "status": "classified",
+      "description": "Ordered session details sections and their visibility"
     }
   ]
 }

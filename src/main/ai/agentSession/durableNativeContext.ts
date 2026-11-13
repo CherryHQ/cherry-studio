@@ -9,6 +9,19 @@ import { application } from '@application'
 import type { AgentRuntimeBackendRow } from '@data/db/schemas/agentRuntimeBackend'
 import { agentSessionContextService as contexts } from '@data/services/AgentSessionContextService'
 
+export async function durableContextIdentity() {
+  const { defineDoc } = await import('@earendil-works/pi-durable')
+  return defineDoc({
+    kind: 'cherry.product-context',
+    version: 1,
+    scope: 'conversation',
+    history: 'latest',
+    fork: 'initial',
+    checkpointWhen: () => false,
+    initial: () => ({ contextId: '' })
+  })
+}
+
 async function loadDurableStorage() {
   const [native, sqlite, node, { BACKGROUND_CONTEXT }] = await Promise.all([
     import('@earendil-works/pi-durable'),
@@ -109,16 +122,8 @@ export async function prepareDurableRoot(contextId: string) {
     }
   }
   const storage = await reconcileDurableBackend(context.backendId)
-  const { defineDoc, nativeContext } = await loadDurableStorage()
-  const identity = defineDoc({
-    kind: 'cherry.product-context',
-    version: 1,
-    scope: 'conversation',
-    history: 'latest',
-    fork: 'initial',
-    checkpointWhen: () => false,
-    initial: () => ({ contextId: '' })
-  })
+  const { nativeContext } = await loadDurableStorage()
+  const identity = await durableContextIdentity()
   try {
     const matches: string[] = []
     let cursor: Parameters<Storage['scanConversations']>[2]

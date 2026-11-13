@@ -60,7 +60,10 @@ Model requests: existing provider registry / gateway / AI SDK paths remain uncha
    yields `UIMessageChunk`s. Agent-session runtime requests skip the generic
    agent loop here: `AiService.streamText()` calls
    `AgentSessionRuntimeService.openTurnStream()` so the registered driver
-   can own the concrete agent runtime.
+   can own the concrete agent runtime. Model requests sent through the gateway
+   use `contextOwner: 'caller'` and a single AI SDK invocation. The runtime
+   owns tool execution and continuation; SDK message rules, provider adapters,
+   middleware, tracing, and usage capture remain shared.
 8. The returned `AiStreamSource` selects one consumer. `chunks` uses `pipeStreamLoop`
    and `readUIMessageStream`; `messages` uses `pipeMessageStream` to forward authoritative
    bodies already composed with host display state. Listeners receive `onMessage` snapshots, and
@@ -149,7 +152,8 @@ src/main/ai/
 
 src/main/ipc/handlers/ai.ts        ← IpcApi transport adapters
 src/renderer/services/aiTransport/ ← MessageProjectionService, StreamDispatchService, overlays
-src/renderer/hooks/               ← useChatWithHistory, useToolApprovalBridge, useTopicStreamStatus
+src/renderer/hooks/               ← useChatWithHistory, useTopicStreamStatus
+src/renderer/pages/home/hooks/    ← useToolApprovalBridge
 packages/aiCore/                  ← @cherrystudio/ai-core (Agent + plugins + provider extensions)
 packages/provider-registry/       ← provider catalog, registry-utils (adapterFamily inference)
 ```

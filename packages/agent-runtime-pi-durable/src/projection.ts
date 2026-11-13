@@ -5,6 +5,7 @@ import type { ConversationView, EntryRecord, LiveState, SubmissionRecord } from 
 
 import { subagentResults, type HistoryEntry, type SubagentResults } from '@cherrystudio/agent-behavior'
 import {
+  projectNestedTool,
   runtimeId,
   ThreadFeed,
   type InputId,
@@ -21,7 +22,7 @@ export interface DurableObservation {
   readonly events: readonly ObservationPayload[]
   readonly aliases: Readonly<Record<string, string>>
   readonly live: readonly string[]
-  readonly completion?: { readonly inputs: readonly InputState[] }
+  readonly completion?: { readonly inputs: readonly InputState[]; readonly entryId?: string }
   readonly backgroundResults: OperationResult<SubagentResults>
 }
 
@@ -29,7 +30,8 @@ export interface DurableObservation {
 export class DurableProjection {
   readonly feed: ThreadFeed
   private readonly epoch = randomUUID()
-  private previews = new Map<string, { task: number; after: number }>()
+  private preview?: { id: string; task: number; attempt: number; after: number }
+  private previewSequence = 0
   readonly aliases: Record<string, string> = {}
 
   private view?: ConversationView
@@ -65,7 +67,10 @@ export class DurableProjection {
   }
 
   observe(sink: (batch: DurableObservation) => void | Promise<void>): Observation {
-    const historical = new Set(this.feed.snapshot.messages.map((message) => message.id))
+    const active = this.preview?.id
+    const historical = new Set(
+      this.feed.snapshot.messages.filter((message) => message.id !== active).map((message) => message.id)
+    )
     return this.feed.observeCaptured(sink, (event, delivery) => {
       for (const [committed, preview] of Object.entries(this.aliases))
         if (historical.has(preview)) historical.add(committed)
@@ -76,10 +81,9 @@ export class DurableProjection {
         value: {
           events: [event],
           aliases: this.aliases,
-          live:
-            delivery === 'baseline'
-              ? []
-              : messages.filter((message) => !historical.has(message.id)).map((message) => message.id),
+          live: messages
+            .filter((message) => (delivery === 'baseline' ? message.id === active : !historical.has(message.id)))
+            .map((message) => message.id),
           completion,
           backgroundResults: this.backgroundResults
         },
@@ -129,20 +133,42 @@ export class DurableProjection {
     const unfinished = inputs.some((input) => !input.outcome && !input.facts.includes('locally-handled'))
     const live = view.docs['pi.live'] as LiveState | undefined
     const content = new ContentProjection()
-    const previews: typeof this.previews = new Map()
     for (const entry of view.entries) content.entry(entry)
     const after = view.entries.reduce((latest, entry) => Math.max(latest, entry.id), 0)
     const generation = live?.generation
-    const nextLiveId =
-      generation?.message && live?.run ? `live:${this.epoch}:${live.run.taskId}:${generation.attempt}` : undefined
-    if (generation?.message && nextLiveId) {
-      previews.set(nextLiveId, { task: live!.run!.taskId, after })
-      content.message(generation.message, nextLiveId, 'partial')
-    }
+    const previous = this.preview
+    const preview =
+      generation?.message && live?.run
+        ? previous?.task === live.run.taskId && previous.attempt === generation.attempt
+          ? previous
+          : {
+              id: `live:${this.epoch}:${live.run.taskId}:${generation.attempt}:${++this.previewSequence}`,
+              task: live.run.taskId,
+              attempt: generation.attempt,
+              after
+            }
+        : undefined
+    if (generation?.message && preview) content.message(generation.message, preview.id, 'partial')
     for (const slot of live?.tools ?? []) {
       if (slot.output !== undefined && slot.taskId && !slot.entry) {
         content.progress(slot.callId, slot.output)
       }
+    }
+    for (const slot of live?.tools ?? [])
+      for (const record of slot.nestedCalls?.calls ?? []) content.nested(slot.callId, projectNestedTool(record))
+    for (const slot of live?.nestedTools ?? []) {
+      if (slot.summary) continue
+      const part = {
+        type: 'dynamic-tool' as const,
+        toolName: slot.name,
+        toolCallId: slot.callId,
+        state: 'input-available' as const,
+        input: slot.arguments,
+        callProviderMetadata: { pi: { parentToolCallId: slot.parentCallId, nested: true } }
+      }
+      content.nested(slot.parentCallId, part)
+      if (slot.output !== undefined) content.progress(slot.callId, slot.output)
+      for (const child of slot.nestedCalls?.calls ?? []) content.nested(slot.callId, projectNestedTool(child))
     }
     const pending = Boolean(this.admitting.size || live?.run || live?.compactions?.length || unfinished)
     const results = subagentResults(history, Boolean(live?.run))
@@ -158,31 +184,28 @@ export class DurableProjection {
         }
     this.completion =
       !pending && (this.pending || this.cycle.size > 0) && revision !== undefined
-        ? { inputs: inputs.filter((input) => this.cycle.has(input.nativeInput?.id ?? input.inputId!)) }
+        ? {
+            inputs: inputs.filter((input) => this.cycle.has(input.nativeInput?.id ?? input.inputId!)),
+            entryId: view.entries.at(-1)?.id.toString()
+          }
         : undefined
     if (this.completion) this.cycle.clear()
     this.pending = pending
     let reset = false
-    for (const [id, preview] of this.previews) {
-      if (previews.has(id)) {
-        previews.set(id, preview)
-        continue
-      }
+    if (previous && previous !== preview) {
       const candidates = view.entries.flatMap((entry) =>
-        entry.byTaskId === preview.task && entry.id > preview.after
+        entry.byTaskId === previous.task && entry.id > previous.after
           ? (entry.model ?? []).flatMap((message, index) => (message.role === 'assistant' ? [{ entry, index }] : []))
           : []
       )
-      if (candidates.length !== 1) {
-        reset = true
-        continue
+      if (candidates.length !== 1) reset = true
+      else {
+        const { entry, index } = candidates[0]
+        this.aliases[entryMessageId(entry, index)] = previous.id
       }
-      const { entry, index } = candidates[0]
-      const committed = entryMessageId(entry, index)
-      this.aliases[committed] = id
     }
     if (reset) this.feed.publish({ type: 'gap', reason: 'mapping-reset' })
-    this.previews = previews
+    this.preview = preview
     this.feed.publish({
       ...this.feed.snapshot,
       messages: content.messages,

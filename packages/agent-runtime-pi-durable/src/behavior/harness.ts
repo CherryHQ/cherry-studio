@@ -1,6 +1,5 @@
-import { copyJson, type JsonRepresentation, type JsonValue as NativeJson } from '@earendil-works/chord'
 import { BACKGROUND_CONTEXT, awaitWithContext, withAbortSignal, type Context } from '@earendil-works/chord/context'
-import { Type } from '@earendil-works/pi-ai'
+import { copyJson, type JsonRepresentation, type JsonValue as NativeJson } from '@earendil-works/chord/json'
 import {
   AssistantEntry,
   CompactionEntry,
@@ -30,6 +29,7 @@ import {
 import {
   callKeyOf,
   encodeEntry,
+  goalForRequest,
   type BoundPorts,
   type HarnessPorts,
   type JobHandler,
@@ -45,11 +45,13 @@ import {
 } from '@cherrystudio/agent-behavior'
 import { type JsonValue, type InputId, type ThreadId } from '@cherrystudio/agent-runtime'
 
-import { conversationId, pages, readFacts, threadId, runIds, taskRun } from './history'
+import { conversationId, nativeSummaryUsage, pages, readFacts, threadId, runIds, taskRun } from './history'
 
 export interface PiDurableBehaviorOptions {
   readonly onError?: (error: unknown) => void
   readonly install: (ports: HarnessPorts) => void
+  readonly owns?: (thread: ThreadId) => boolean
+  readonly configureRoot?: (thread: ThreadId) => AgentChange | Promise<AgentChange>
   readonly configureChild: (
     child: ThreadId,
     parent: ThreadId,
@@ -62,7 +64,9 @@ export function createPiDurableBehavior(options: PiDurableBehaviorOptions) {
   const abandoned = new Set<TaskId>()
   const admissions = new Map<ThreadId, Promise<unknown>>()
   const messages = new Map<TaskId, Set<Promise<unknown>>>()
+  const stopWaiting = new AbortController()
   let unsubscribe: (() => void) | undefined
+  let unsubscribeClose: (() => void) | undefined
   let harness: Harness
   let closed = false
   let recovering = true
@@ -79,7 +83,7 @@ export function createPiDurableBehavior(options: PiDurableBehaviorOptions) {
     history: 'latest',
     fork: 'initial',
     checkpointWhen: () => false,
-    initial: () => ({ run: 0, count: 0 })
+    initial: (): { run: number; count: number; counts?: Record<string, number> } => ({ run: 0, count: 0 })
   })
   const hostMemo = defineDoc({
     kind: 'cherry.host-memo',
@@ -91,20 +95,21 @@ export function createPiDurableBehavior(options: PiDurableBehaviorOptions) {
     initial: (): { values: Record<string, NativeJson> } => ({ values: {} })
   })
   const providers = new Map<string, ThreadId>()
-  async function consumeRequest(thread: ThreadId) {
+  async function consumeRequest(thread: ThreadId, ownerRun?: number) {
     return harness.commit(async (tx) => {
       const id = conversationId(thread)
       const record = await tx.conversation(id)
       const live = await tx.doc(LiveDoc, id)
       const count = await tx.doc(meterDoc, id)
-      const run = live.run?.id ?? live.run?.taskId ?? 0
-      if (count.run !== run) {
-        count.run = run
-        count.count = 0
-      }
-      const allowance = meter?.allow(thread, count.count, record?.owner ? 'child' : 'root') ?? { ok: true as const }
+      const run = ownerRun ?? live.run?.id ?? live.run?.taskId ?? 0
+      count.counts ??= count.run ? { [String(count.run)]: count.count } : {}
+      const counts = count.counts
+      const requests = counts[String(run)] ?? 0
+      const allowance = meter?.allow(thread, requests, record?.owner ? 'child' : 'root') ?? { ok: true as const }
       if (!allowance.ok) return allowance
-      if (run) count.count += 1
+      if (run) counts[String(run)] = requests + 1
+      count.run = run
+      count.count = run ? requests + 1 : 0
       return allowance
     }, context)
   }
@@ -182,23 +187,20 @@ export function createPiDurableBehavior(options: PiDurableBehaviorOptions) {
   }
 
   async function waitFor<T>(read: () => Promise<T | undefined>, callContext: Context): Promise<T> {
+    const waiting = withAbortSignal(stopWaiting.signal, callContext)
     for (;;) {
       let changed!: () => void
       const update = new Promise<void>((resolve) => {
         changed = resolve
       })
-      const off = harness.subscribeCommits(changed)
-      const signal = callContext.abortSignal
-      const cancel = () => changed()
-      signal?.addEventListener('abort', cancel, { once: true })
+      const off = harness.observeCommits({ advance: changed, end: changed }).detach
       try {
-        signal?.throwIfAborted()
+        waiting.abortSignal?.throwIfAborted()
         const value = await read()
         if (value !== undefined) return value
-        await update
+        await awaitWithContext(update, waiting)
       } finally {
         off()
-        signal?.removeEventListener('abort', cancel)
       }
     }
   }
@@ -713,7 +715,7 @@ export function createPiDurableBehavior(options: PiDurableBehaviorOptions) {
       defineTool({
         name: tool.name,
         description: tool.description,
-        parameters: Type.Unsafe(tool.schema as Record<string, unknown>),
+        parameters: tool.schema as object,
         replay: tool.replay,
         executionMode: tool.executionMode,
         callers: ['model'],
@@ -824,29 +826,44 @@ export function createPiDurableBehavior(options: PiDurableBehaviorOptions) {
       }),
       hook(CompactionTask, {
         async beforeCompact(request, api, callContext) {
-          if (!lifecycle) return
-          const allowance = await consumeRequest(threadId(api.conversationId))
-          if (!allowance.ok) return { decline: true }
-          const result = await lifecycle.onCompacting(
-            threadId(api.conversationId),
-            {
-              key: String(api.taskId),
-              history: (await read(threadId(api.conversationId))).history,
-              reason: request.reason,
-              messages: JSON.parse(JSON.stringify(request.messages)),
-              instructions: request.instructions,
-              signal: callContext.abortSignal ?? new AbortController().signal
-            },
-            gatePorts(api, callContext)
+          if (request.ownerAt === undefined) return { decline: true }
+          const facts = await harness.commit(
+            (tx) => readFacts(tx, api.conversationId, abandoned, request.ownerAt),
+            callContext
           )
-          return 'summary' in result
-            ? {
-                summary: result.summary,
-                ...(result.accounting && {
-                  metadata: nativeValue(encodeEntry(result.accounting.record, result.accounting.key))
-                })
-              }
-            : { decline: true }
+          await api.memo('cherry.native-summary-owner', nativeValue(goalForRequest(facts.history)), callContext)
+        },
+        async beforeSummary(request, api) {
+          const allowance = await consumeRequest(threadId(api.conversationId), request.runId ?? 0)
+          if (!allowance.ok) return { block: allowance.text }
+        },
+        async afterSummary(response, tx) {
+          const owner = response.memos['cherry.native-summary-owner']
+          if (!owner || typeof owner !== 'object' || Array.isArray(owner))
+            throw new Error('Native compaction has no captured goal owner')
+          const goalId = owner.goalId
+          const goalRoundId = owner.goalRoundId
+          if (
+            (goalId !== null && typeof goalId !== 'string') ||
+            (goalRoundId !== undefined && typeof goalRoundId !== 'string')
+          )
+            throw new Error('Native compaction has an invalid goal owner')
+          const value = response.message.usage
+          const task = await tx.task(response.taskId)
+          if (!task) throw new Error('Native compaction task is missing')
+          const doc = await tx.doc(nativeSummaryUsage, task.conversationId)
+          doc.records[`${response.taskId}:${response.attempt}`] ??= {
+            owner: { goalId, ...(goalRoundId === undefined ? {} : { goalRoundId }) },
+            usage: {
+              input: value.input,
+              output: value.output,
+              cacheRead: value.cacheRead,
+              cacheWrite: value.cacheWrite,
+              totalTokens: value.totalTokens,
+              costUsd: value.cost.total
+            },
+            ...(response.runId === undefined ? {} : { runId: response.runId })
+          }
         }
       })
     ]
@@ -858,6 +875,10 @@ export function createPiDurableBehavior(options: PiDurableBehaviorOptions) {
     providerThread,
     async bind(value: Harness) {
       harness = value
+      unsubscribeClose = harness.subscribeClose(() => {
+        closed = true
+        stopWaiting.abort()
+      })
       recovering = true
       const tasks = await harness.commit((tx) => pages((cursor) => tx.scanTasks({}, 256, cursor)), context)
       for (const task of tasks) if (task.abandonOnRestart && task.state.status !== 'terminal') abandoned.add(task.id)
@@ -867,23 +888,30 @@ export function createPiDurableBehavior(options: PiDurableBehaviorOptions) {
       )
       for (const conversation of conversations) {
         const thread = threadId(conversation.id)
+        if (options.owns && !options.owns(thread)) continue
         const facts = await read(thread)
         if (facts.lineage.kind === 'subagent') {
           const change = await options.configureChild(thread, facts.lineage.parent, facts.lineage.origin)
+          await harness.commit((tx) => configure(tx, conversation.id, change), context)
+        } else if (options.configureRoot) {
+          const change = await options.configureRoot(thread)
           await harness.commit((tx) => configure(tx, conversation.id, change), context)
         }
         await withCall(thread, (ports) => lifecycle?.onOpen(thread, { reopened: true }, ports) ?? Promise.resolve())
       }
       recovering = false
-      unsubscribe = harness.subscribeCommits((publication) => {
-        for (const change of publication.changes) {
-          if (change.type !== 'entry' || !CompactionEntry.is(change.value)) continue
-          const thread = threadId(change.value.conversationId)
-          void withCall(thread, (ports) => lifecycle?.onCompacted(thread, ports) ?? Promise.resolve()).catch(
-            options.onError ?? (() => {})
-          )
-        }
-      })
+      unsubscribe = harness.observeCommits({
+        advance(publication) {
+          for (const change of publication.changes) {
+            if (change.type !== 'entry' || !CompactionEntry.is(change.value)) continue
+            const thread = threadId(change.value.conversationId)
+            void withCall(thread, (ports) => lifecycle?.onCompacted(thread, ports) ?? Promise.resolve()).catch(
+              options.onError ?? (() => {})
+            )
+          }
+        },
+        end() {}
+      }).detach
     },
     async open(thread: ThreadId) {
       await withCall(thread, (ports) => lifecycle?.onOpen(thread, { reopened: false }, ports) ?? Promise.resolve())
@@ -894,12 +922,15 @@ export function createPiDurableBehavior(options: PiDurableBehaviorOptions) {
         (tx) => pages((cursor) => tx.scanConversations({}, 256, cursor)),
         context
       )
-      for (const conversation of conversations)
-        await withCall(
-          threadId(conversation.id),
-          (ports) => lifecycle?.onClose(threadId(conversation.id), ports) ?? Promise.resolve()
-        )
+      for (const conversation of conversations) {
+        const thread = threadId(conversation.id)
+        if (options.owns && !options.owns(thread)) continue
+        await withCall(thread, (ports) => lifecycle?.onClose(thread, ports) ?? Promise.resolve())
+      }
       closed = true
+      await Promise.all([...admissions.values()])
+      stopWaiting.abort()
+      unsubscribeClose?.()
     }
   }
 }

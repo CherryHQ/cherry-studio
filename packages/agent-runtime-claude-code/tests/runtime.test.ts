@@ -7,6 +7,7 @@ import { expect, it } from 'vitest'
 import { runtimeId } from '@cherrystudio/agent-runtime'
 
 import { claudeThread } from '../src'
+import { readArchive } from '../src/archive'
 import { confirmed, fixture, inputId, observe, spawnChild, textOf } from './nativeFixture'
 
 it('claims one prewarmed native process for commands, input and confirmed shutdown', async () => {
@@ -57,6 +58,9 @@ it('reconciles an archive read overlapping live output without losing the commit
     const request = await test.request()
     request.reply.block({ type: 'text', text: 'Before archive' })
     await expect.poll(() => textOf(view.snapshot)).toContain('Before archive')
+    await expect
+      .poll(() => readArchive(test.configDir, test.options.cwd, root.thread.id), { timeout: 15000 })
+      .not.toBeNull()
     const reading = root.claude.archive()
     request.reply.block({ type: 'text', text: 'Concurrent tail' })
     request.reply.finish()
@@ -724,6 +728,65 @@ it('does not spawn a CLI for context reads and normalizes the real native readin
     expect(test.children).toHaveLength(1)
     await root.release()
     expect(await root.contextUsage()).toMatchObject({ status: 'rejected', error: { code: 'released' } })
+  } finally {
+    await test.close()
+  }
+}, 30000)
+
+// This catches rejection identity being retained only by a warm owner's live SDK messages.
+it('recovers real CLI API rejection identity from raw storage with a fresh owner', async () => {
+  const test = await fixture()
+  try {
+    const options = { ...test.options, env: { ...test.options.env, CLAUDE_CODE_MAX_RETRIES: '0' } }
+    const runtime = test.runtime()
+    const root = confirmed(await runtime.create(options))
+    const view = await observe(root)
+    const reason = 'Quota exhausted; retry tomorrow.'
+    const quoted = `API Error: Request rejected (429) · ${reason}`
+    await root.input!.submit({ inputId: inputId(), text: 'Quote this diagnostic', whenBusy: 'steer' })
+    const request = await test.request()
+    request.reply.block({ type: 'text', text: quoted })
+    request.reply.finish()
+    await view.event((message) => message.type === 'result')
+    const quotation = view.snapshot.messages.find((message) =>
+      message.parts.some((part) => part.type === 'text' && part.text === quoted)
+    )!
+
+    test.refuseRequests(429, { type: 'error', error: { type: 'rate_limit_error', message: reason } })
+    const rejectedInput = inputId()
+    await root.input!.submit({ inputId: rejectedInput, text: 'Rejected native request', whenBusy: 'steer' })
+    const rejection = await view.event((message) => message.type === 'assistant' && message.error === 'rate_limit')
+    await expect
+      .poll(() => view.snapshot.inputs.find((input) => input.inputId === rejectedInput)?.outcome)
+      .toBe('failed')
+    const nativeFact = () =>
+      view.batches
+        .flatMap((batch) => batch.native)
+        .find((entry) => entry.message.uuid === rejection.uuid && entry.isApiErrorMessage)
+    await expect.poll(nativeFact).toBeDefined()
+    expect(
+      view.batches.flatMap((batch) => batch.native).find((entry) => entry.message.uuid === quotation.id)
+        ?.isApiErrorMessage
+    ).toBeUndefined()
+    confirmed(await runtime.shutdown())
+    await root.release()
+
+    const raw = await readArchive(test.configDir, options.cwd, root.claude.sessionId)
+    const rawRejection = raw?.entries.flatMap((batch) => batch.entries).find((entry) => entry.uuid === rejection.uuid)
+    expect(rawRejection).toMatchObject({ type: 'assistant', isApiErrorMessage: true })
+    const reopened = confirmed(await test.runtime().open(root.thread))
+    const cold = await observe(reopened)
+    const coldFact = () =>
+      cold.batches.flatMap((batch) => batch.native).find((entry) => entry.message.uuid === rejection.uuid)
+    await expect.poll(coldFact).toMatchObject({ source: 'archive', isApiErrorMessage: true })
+    expect(
+      cold.batches.flatMap((batch) => batch.native).find((entry) => entry.message.uuid === quotation.id)
+        ?.isApiErrorMessage
+    ).toBeUndefined()
+    expect(cold.snapshot.messages.find((message) => message.id === rejection.uuid)?.parts).toEqual(
+      view.snapshot.messages.find((message) => message.id === rejection.uuid)?.parts
+    )
+    expect(test.children).toHaveLength(1)
   } finally {
     await test.close()
   }
