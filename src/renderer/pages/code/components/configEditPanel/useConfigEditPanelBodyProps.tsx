@@ -87,6 +87,7 @@ export function useConfigEditPanelBodyProps({
       {unknownCliConfigModelHint && <div className="h-2" />}
       <ModelSelector
         showSubscriptionOffers={false}
+        includeAgentOnlyModels
         multiple={false}
         selectionType="id"
         value={draft.modelId}
