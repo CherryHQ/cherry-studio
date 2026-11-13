@@ -32,7 +32,7 @@ Status: proposed
 
 原生模块、外部生产依赖、语音 helper、Computer Use runtime 和二进制选择仍由目标准备阶段负责。不将构建机的 node_modules 作为可移植应用依赖树分发。只有输入包含源码、补丁、锁文件、Electron 版本与 ABI、操作系统、架构、工具链和 Linux 兼容要求时，才缓存不可变的未签名原生产物。未命中时重新构建或使用现有已验证下载路径；命中时必须通过现有目标与产物检查。已签名应用和成功验证结果不属于原生缓存条目。
 
-将 macOS 和 Linux 打包拆成 edition/架构 job，在现有兼容工具链支持时使用对应原生架构 runner。保留 Linux GLIBC 要求与固定原生产物校验。Windows 仍按 edition 各一个 job，在 USB 签名机上依次准备并打包两种架构。Windows 内部二进制先签名，再生成安装器，最后签署 setup 和 portable 容器。macOS 在分发前保留签名、公证和 stapling。
+将 macOS 和 Linux 打包拆成 edition/架构 job，每种操作系统统一使用一种托管 runner 类型，通过现有工具链跨架构构建。Linux ARM64 的 Docker addon 构建启用 QEMU。保留 Linux GLIBC 要求与固定原生产物校验。Windows 仍按 edition 各一个 job，在 USB 签名机上依次准备并打包两种架构。Windows 内部二进制先签名，再生成安装器，最后签署 setup 和 portable 容器。macOS 在分发前保留签名、公证和 stapling。
 
 每个目标发布独立的运行/尝试/edition/平台/架构清单。聚合步骤将选定目标合并为[发布选择](../../../../scripts/release/select-release-upload.js)和 [COS 汇总](../../../../scripts/release/release-cos.py)消费的现有 edition/平台契约。文件名冲突时失败，不得覆盖。Updater manifest 按 edition 和平台合并，并验证两种架构的文件 URL、哈希和大小。目标失败或缺失时，不得生成完整草稿。单平台修复保留现有相同 SHA 基线规则；sync-only 使用已记录清单，不执行构建。最后更新[发布操作手册](../../../../docs/dev/contrib/release-workflow.md)。
 
