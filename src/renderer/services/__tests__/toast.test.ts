@@ -1,17 +1,88 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import enUS from '@renderer/i18n/locales/en-us.json'
+import { classifyError } from '@renderer/utils/errorClassifier'
 
 vi.mock('@renderer/services/toast', (importOriginal) => importOriginal())
 vi.mock('@cherrystudio/ui', async () => import('@cherrystudio/ui/components/primitives/toast'))
 
 vi.mock('@renderer/i18n/resolver', () => ({
-  default: { t: (key: string) => enUS[key as keyof typeof enUS] ?? key }
+  default: {
+    t: (key: string) => enUS[key as keyof typeof enUS] ?? key,
+    exists: (key: string) => Object.hasOwn(enUS, key)
+  }
 }))
 
 import { toast } from '../toast'
 
 afterEach(() => toast.closeAll())
+
+it('shows actionable Pi session guidance for an ambiguous response-stream failure', () => {
+  const error = {
+    name: 'PiSessionIdentityAmbiguousError',
+    message: 'Pi session identity is ambiguous. Start a new task to continue.',
+    stack: null,
+    i18nKey: 'pi_session_identity_ambiguous',
+    detailI18nKey: 'pi_session_identity_ambiguous_detail',
+    streamStage: 'response-stream' as const
+  }
+  const provider = { id: 'openai', name: 'OpenAI' }
+  expect(classifyError(error, provider.id)).toMatchObject({ category: 'unknown', navTarget: null })
+  const key = toast.errorFromException(error, { provider, actions: { retry: vi.fn() } })
+  const shown = toast.getToastQueue().toasts.find((item) => item.key === key)!
+  expect(shown.title).toBe(enUS['error.pi_session_identity_ambiguous'])
+  expect(shown.title).not.toBe(error.message)
+  expect(shown.title).not.toBe(enUS['error.diagnosis.stream'])
+  expect(shown.title).not.toBe(enUS['error.diagnosis.unknown'])
+  expect(shown.action).toBeUndefined()
+})
+
+it('shows the Durable turn headline instead of transport wording', () => {
+  const error = {
+    name: 'PiDurableTurnInProgressError',
+    message: 'A Durable turn is already running. Wait for it to finish, then send again.',
+    stack: null,
+    streamStage: 'response-stream' as const,
+    i18nKey: 'pi_durable_turn_in_progress',
+    detailI18nKey: 'pi_durable_turn_in_progress_detail'
+  }
+  const key = toast.errorFromException(error, { provider: { id: 'openai', name: 'OpenAI' } })
+  const shown = toast.getToastQueue().toasts.find((item) => item.key === key)!
+  expect(shown.title).toBe('A turn is already running')
+  expect(shown.title).not.toBe(enUS['error.diagnosis.stream'])
+  expect(shown.title).not.toBe(error.message)
+})
+
+it('falls back to the existing unknown title when the app-owned translation is unavailable', () => {
+  for (const message of ['Unmapped local failure', '']) {
+    const key = toast.errorFromException({ name: 'Error', message, i18nKey: 'unregistered_error' })
+    expect(toast.getToastQueue().toasts.find((item) => item.key === key)?.title).toBe(message || enUS['error.unknown'])
+  }
+})
+
+it('preserves known-category presentation when an app-owned key is present', async () => {
+  const cases = [
+    { category: 'network', error: { name: 'Error', message: 'fetch failed' } },
+    { category: 'stream', error: { name: 'Error', message: 'stream interrupted', providerErrorCategory: 'stream' } },
+    { category: 'server', error: { name: 'Error', message: 'Service unavailable', statusCode: 503 } }
+  ] as const
+  for (const { category, error } of cases) {
+    const retry = vi.fn().mockResolvedValue(false)
+    const context = { provider: { id: 'openai', name: 'OpenAI' }, actions: { retry } }
+    const originalKey = toast.errorFromException(error, context)
+    const appOwnedKey = toast.errorFromException({ ...error, i18nKey: 'pi_session_identity_ambiguous' }, context)
+    const original = toast.getToastQueue().toasts.find((item) => item.key === originalKey)!
+    const appOwned = toast.getToastQueue().toasts.find((item) => item.key === appOwnedKey)!
+    expect(original.title).toBe(enUS[`error.diagnosis.${category}`])
+    expect(appOwned.title).toBe(original.title)
+    expect(appOwned.details).toBe(original.details)
+    expect(appOwned.action?.label).toBe(original.action?.label)
+    expect(appOwned.action?.label).toBe(enUS['toast.error.retry'])
+    await original.action!.onClick()
+    await appOwned.action!.onClick()
+    expect(retry).toHaveBeenCalledTimes(2)
+  }
+})
 
 describe('provider entitlement toasts', () => {
   it('shows permission without a billing action and preserves real quota recovery', () => {

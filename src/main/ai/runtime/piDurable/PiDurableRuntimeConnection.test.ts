@@ -988,7 +988,9 @@ describe('desktop Pi Durable connection', () => {
         await summary.reached
         expect(events.some((event) => event.type === 'compaction-start')).toBe(true)
         expect(events.filter((event) => event.type === 'turn-complete' || event.type === 'error')).toEqual([])
-        await expect(connection.send({ message: message('overlapping input') })).rejects.toThrow('active submission')
+        await expect(connection.send({ message: message('overlapping input') })).rejects.toMatchObject({
+          name: 'PiDurableTurnInProgressError'
+        })
         if (outcome === 'stop') await connection.interrupt()
         if (outcome === 'close') await connection.close()
       } finally {
@@ -1765,6 +1767,50 @@ describe('desktop Pi Durable connection', () => {
     expect(answer()).toMatchObject({ id, metadata: { status: 'success' } })
     expect(text(events)).not.toContain('child prefix')
     expect(events.filter((event) => event.type === 'error')).toEqual([])
+  })
+
+  it('rejects an overlapping Durable turn with a serialized app-owned diagnosis', async () => {
+    const held = gate()
+    script = respondingModel(() => held.wait(assistantReply('first answer')))
+    const { connection, events } = await connect()
+    await connection.send({ message: message('first question') })
+    try {
+      await held.reached
+      const error = await connection.send({ message: message('overlapping question') }).catch((error) => error)
+      expect(error).toBeInstanceOf(Error)
+      expect(serializeError(error)).toMatchObject({
+        name: 'PiDurableTurnInProgressError',
+        i18nKey: 'pi_durable_turn_in_progress',
+        detailI18nKey: 'pi_durable_turn_in_progress_detail'
+      })
+    } finally {
+      held.open()
+    }
+    await done(events)
+    expect(text(events)).toBe('first answer')
+  })
+
+  it('accepts a distinct Durable turn on the same connection after completion', async () => {
+    const held = gate()
+    script = respondingModel((call) =>
+      JSON.stringify(call.messages.at(-1)).includes('second question')
+        ? assistantReply('second answer')
+        : held.wait(assistantReply('first answer'))
+    )
+    const { connection, events } = await connect()
+    await connection.send({ message: message('first question') })
+    try {
+      await held.reached
+    } finally {
+      held.open()
+    }
+    await done(events)
+    expect(text(events)).toBe('first answer')
+    events.length = 0
+    await connection.send({ message: message('second question') })
+    await done(events)
+    expect(events.filter((event) => event.type === 'error')).toEqual([])
+    expect(text(events)).toBe('second answer')
   })
 
   it.each(['shutdown', 'stop'] as const)('distinguishes %s from durable cancellation', async (action) => {
