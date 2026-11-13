@@ -20,6 +20,7 @@ type ResourceCatalogViewType = Extract<ResourceType, 'assistant' | 'agent' | 'sk
 export type ResourceCatalogViewProps = {
   className?: string
   onOpenAssistantChat?: (assistantId: string) => void
+  onOpenAgentChat?: (agentId: string) => void
   onOpenSkill?: (skill: InstalledSkill) => void
   onLaunchSkill?: (skill: InstalledSkill) => Promise<void>
   resourceType: ResourceCatalogViewType
@@ -36,6 +37,7 @@ export type ResourceCatalogViewProps = {
 export function ResourceCatalogView({
   className,
   onOpenAssistantChat,
+  onOpenAgentChat,
   onOpenSkill,
   onLaunchSkill,
   resourceType,
@@ -127,6 +129,7 @@ export function ResourceCatalogView({
           <ResourceCatalogDialogs
             dialogs={dialogs}
             onOpenAssistantChat={onOpenAssistantChat}
+            onOpenAgentChat={onOpenAgentChat}
             onRefetch={refetch}
             resourceType={resourceType}
           />

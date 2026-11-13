@@ -1,4 +1,4 @@
-import { lazy, type ReactElement, Suspense, useCallback, useMemo, useState } from 'react'
+import { lazy, type ReactElement, Suspense, useCallback, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { loggerService } from '@logger'
@@ -71,6 +71,7 @@ export function AgentSelector(props: AgentSelectorProps) {
   const [internalOpen, setInternalOpen] = useState(false)
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
   const [editDialogTarget, setEditDialogTarget] = useState<ResourceEditDialogTarget | null>(null)
+  const createdAgentRef = useRef<AgentDetail | null>(null)
   const selectorOpen = open ?? internalOpen
   const handleSelectorOpenChange = useCallback(
     (nextOpen: boolean) => {
@@ -163,33 +164,38 @@ export function AgentSelector(props: AgentSelectorProps) {
         throw error
       }
 
-      setCreateDialogOpen(false)
-      onDialogCloseAutoFocus?.()
+      createdAgentRef.current = created
       try {
         await refetch()
       } catch (error) {
         logger.warn('Failed to refresh agents after selector create', { error })
         toast.error(t('selector.create_dialog.refresh_failed'))
       }
-      if (autoSelectOnCreate) {
-        if (props.selectionType === 'item') {
-          props.onChange({
-            id: created.id,
-            name: created.name,
-            description: getAgentDescriptionForDisplay(created, t),
-            emoji: getAgentAvatarFromConfiguration(created.configuration),
-            avatarSrc: created.avatarSrc
-          })
-        } else {
-          props.onChange(created.id)
-        }
-        handleSelectorOpenChange(false)
-        return
-      }
-      handleSelectorOpenChange(true)
+      return created.id
     },
-    [autoSelectOnCreate, createAgent, handleSelectorOpenChange, onDialogCloseAutoFocus, props, refetch, t]
+    [createAgent, refetch, t]
   )
+
+  // Runs only from the result page's "Start conversation"; the ref holds the entity just created.
+  const handleStartConversation = useCallback(() => {
+    const created = createdAgentRef.current
+    if (autoSelectOnCreate && created) {
+      if (props.selectionType === 'item') {
+        props.onChange({
+          id: created.id,
+          name: created.name,
+          description: getAgentDescriptionForDisplay(created, t),
+          emoji: getAgentAvatarFromConfiguration(created.configuration),
+          avatarSrc: created.avatarSrc
+        })
+      } else {
+        props.onChange(created.id)
+      }
+      handleSelectorOpenChange(false)
+      return
+    }
+    handleSelectorOpenChange(true)
+  }, [autoSelectOnCreate, handleSelectorOpenChange, props, t])
 
   const createDialog = (
     <ResourceCreateWizard
@@ -198,6 +204,7 @@ export function AgentSelector(props: AgentSelectorProps) {
       isSubmitting={isCreatingAgent}
       onOpenChange={handleCreateDialogOpenChange}
       onSubmit={handleSubmitCreate}
+      onStartConversation={handleStartConversation}
     />
   )
 
