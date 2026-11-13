@@ -93,3 +93,40 @@ describe('ReadTool', () => {
     expect(screen.queryByRole('img')).not.toBeInTheDocument()
   })
 })
+
+describe('ReadTool image payload boundaries', () => {
+  it.each(['image/jpeg', 'image/png', 'image/gif', 'image/webp'])(
+    'accepts the supported native MIME type %s',
+    (mimeType) => {
+      render(<Harness output={[{ ...image, source: { ...image.source, media_type: mimeType } }]} />)
+
+      expect(screen.getByRole('img')).toHaveAttribute('src', `data:${mimeType};base64,${image.source.data}`)
+    }
+  )
+
+  it.each(['image/svg+xml', 'text/html', 'application/pdf'])(
+    'does not render an image for unsupported MIME type %s',
+    (mimeType) => {
+      render(<Harness output={[{ ...image, source: { ...image.source, media_type: mimeType } }]} />)
+
+      expect(screen.queryByRole('img')).not.toBeInTheDocument()
+    }
+  )
+
+  it.each([
+    { data: '', media_type: 'image/png' },
+    { data: { value: 'not-a-string' }, media_type: 'image/png' },
+    { data: image.source.data, media_type: 42 }
+  ])('does not render malformed native image fields %#', (fields) => {
+    render(<Harness output={[{ type: 'image', source: { type: 'base64', ...fields } }]} />)
+
+    expect(screen.queryByRole('img')).not.toBeInTheDocument()
+  })
+
+  it('suppresses image previews when a native result is marked as an error', () => {
+    render(<Harness hasError output={[{ type: 'text', text: 'Read failed' }, image]} />)
+
+    expect(screen.getByText('Read failed')).toBeInTheDocument()
+    expect(screen.queryByRole('img')).not.toBeInTheDocument()
+  })
+})
