@@ -233,8 +233,12 @@ export default function AskUserQuestionComposer({ request, onRespond, className 
       return
     }
 
-    if (!isLastQuestion) setCurrentIndex((index) => index + 1)
-  }, [customActionSubmitsAll, isLastQuestion, isSubmitting, selectedAnswers, submitAnswers])
+    if (isLastQuestion) {
+      await handleDismiss()
+    } else {
+      setCurrentIndex((index) => index + 1)
+    }
+  }, [customActionSubmitsAll, handleDismiss, isLastQuestion, isSubmitting, selectedAnswers, submitAnswers])
 
   if (!currentQuestion) return null
 

@@ -463,7 +463,8 @@ export function useAgentMessageListProviderValue({
       messageNavigation,
       ...DEFAULT_MESSAGE_LIST_CONFIG,
       listKey: topic.id,
-      renderConfig,
+      // An agent turn is a sequence of steps; show each one rather than only the latest title.
+      renderConfig: { ...renderConfig, expandToolSteps: true },
       menuConfig,
       selection: selectionController.selection,
       getMessageUiState: messageUiStateCache.getMessageUiState,
