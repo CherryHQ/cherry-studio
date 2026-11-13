@@ -2205,6 +2205,7 @@
   "library.config.dialogs.create.auto.submit": "Αυτόματη δημιουργία",
   "library.config.dialogs.create.avatar_aria": "Επιλέξτε άβαταρ",
   "library.config.dialogs.create.avatar_name_label": "Άβαταρ και όνομα",
+  "library.config.dialogs.create.avatar_random": "Τυχαίο άβαταρ",
   "library.config.dialogs.create.back": "Πίσω",
   "library.config.dialogs.create.capability.builtin_badge": "Ενεργοποιημένο από προεπιλογή",
   "library.config.dialogs.create.capability.no_skills": "Δεν έχουν εγκατασταθεί δεξιότητες",

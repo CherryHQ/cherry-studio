@@ -49,7 +49,7 @@ const AUTO_CREATE_TIMEOUT_MS = 60_000
 
 /** The avatar a brand-new resource starts with — exported so callers can preview what they'd create. */
 export function getResourceCreateDefaultAvatar(kind: ResourceCreateWizardKind) {
-  return kind === 'assistant' ? '💬' : '🤖'
+  return kind === 'assistant' ? '💬' : '✨'
 }
 
 function getDefaultValues(
@@ -81,11 +81,10 @@ function getInitialView(initialValues: ResourceCreateWizardProps['initialValues'
 
 /** A name the user typed or an avatar they picked wins over the generated one. */
 function applyAutoConfigDraft(
-  kind: ResourceCreateWizardKind,
   values: ResourceCreateWizardFormValues,
-  draft: AutoConfigDraft
+  draft: AutoConfigDraft,
+  avatarPicked: boolean
 ): Partial<ResourceCreateWizardFormValues> {
-  const avatarPicked = values.avatar !== getResourceCreateDefaultAvatar(kind)
   return {
     name: values.name.trim() || draft.name,
     avatar: avatarPicked ? values.avatar : (draft.emoji ?? values.avatar),
@@ -452,7 +451,10 @@ export function ResourceCreateWizard({
     // leaves the entry (and the manual path) exactly as the user filled it in.
     const generated = draft
     await form.handleSubmit((current) =>
-      submitValues({ ...current, ...applyAutoConfigDraft(kind, current, generated) })
+      submitValues({
+        ...current,
+        ...applyAutoConfigDraft(current, generated, current.avatar !== form.formState.defaultValues?.avatar)
+      })
     )()
   }
 

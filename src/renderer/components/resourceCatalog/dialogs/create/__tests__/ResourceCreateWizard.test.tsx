@@ -687,6 +687,15 @@ describe('ResourceCreateWizard auto create', () => {
     }
   )
 
+  it.each([
+    ['assistant', '💬'],
+    ['agent', '✨']
+  ] as const)('starts a new %s with the %s avatar', (kind, avatar) => {
+    render(<ResourceCreateWizard kind={kind} open onOpenChange={vi.fn()} onSubmit={vi.fn()} />)
+
+    expect(screen.getByTestId('draft-avatar')).toHaveTextContent(avatar)
+  })
+
   it('keeps Auto create disabled until the installed catalogs have loaded', async () => {
     const user = userEvent.setup()
     autoConfigure.ready = false
