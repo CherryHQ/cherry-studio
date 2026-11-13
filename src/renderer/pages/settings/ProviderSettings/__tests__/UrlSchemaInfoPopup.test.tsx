@@ -507,4 +507,189 @@ describe('provider import names', () => {
       updatedProvider: { name: 'Relay', apiHost: params.baseUrl }
     })
   })
+
+  it('blocks confirmation while existing keys load, then allows a new key after loading completes', async () => {
+    const user = userEvent.setup()
+    MockUseDataApiUtils.mockQueryResult('/providers', {
+      data: [
+        ProviderSchema.parse({
+          id: params.id,
+          name: 'Saved Relay',
+          isEnabled: true,
+          reportsActualCost: false,
+          apiKeys: [],
+          authType: 'api-key',
+          settings: {},
+          endpointConfigs: {
+            'openai-chat-completions': { baseUrl: 'https://saved.example.com' }
+          },
+          defaultChatEndpoint: 'openai-chat-completions'
+        })
+      ]
+    })
+    let loading = true
+    const previousQuery = mockUseQuery.getMockImplementation()!
+    mockUseQuery.mockImplementation((path, options) => {
+      const result = previousQuery(path, options)
+      return path === '/providers/:providerId/api-keys'
+        ? {
+            ...result,
+            isLoading: loading,
+            data: loading ? undefined : { keys: [] }
+          }
+        : result
+    })
+    const { result } = await showImport()
+    expect(screen.getByRole('button', { name: i18n.t('common.loading') })).toBeDisabled()
+    loading = false
+    // A normal input update rerenders the popup with the resolved query result.
+    await user.type(
+      screen.getByRole('textbox', {
+        name: i18n.t('settings.models.provider_name')
+      }),
+      ' 2'
+    )
+    const add = screen.getByRole('button', { name: i18n.t('common.add') })
+    expect(add).toBeEnabled()
+    await user.click(add)
+    await expect(result).resolves.toMatchObject({
+      isNew: false,
+      nameOnly: true,
+      updatedProvider: {
+        name: 'Saved Relay 2',
+        apiKey: params.apiKey,
+        apiHost: 'https://saved.example.com'
+      }
+    })
+  })
+
+  it('renames a provider with a whitespace-padded duplicate key without returning the key again', async () => {
+    const user = userEvent.setup()
+    MockUseDataApiUtils.mockQueryResult('/providers', {
+      data: [
+        ProviderSchema.parse({
+          id: params.id,
+          name: 'Saved Relay',
+          isEnabled: true,
+          reportsActualCost: false,
+          apiKeys: [],
+          authType: 'api-key',
+          settings: {},
+          endpointConfigs: {
+            'openai-chat-completions': { baseUrl: 'https://saved.example.com' }
+          },
+          defaultChatEndpoint: 'openai-chat-completions'
+        })
+      ]
+    })
+    const previousQuery = mockUseQuery.getMockImplementation()!
+    mockUseQuery.mockImplementation((path, options) => {
+      const result = previousQuery(path, options)
+      return path === '/providers/:providerId/api-keys'
+        ? { ...result, data: { keys: [{ key: `  ${params.apiKey}  ` }] } }
+        : result
+    })
+    const { result } = await showImport({
+      ...params,
+      apiKey: `  ${params.apiKey}  `
+    })
+    expect(screen.getByRole('button', { name: i18n.t('common.confirm') })).toBeDisabled()
+    const name = screen.getByRole('textbox', {
+      name: i18n.t('settings.models.provider_name')
+    })
+    await user.clear(name)
+    await user.type(name, 'Renamed Relay')
+    await user.click(screen.getByRole('button', { name: i18n.t('common.confirm') }))
+    await expect(result).resolves.toMatchObject({
+      isNew: false,
+      nameOnly: true,
+      updatedProvider: {
+        name: 'Renamed Relay',
+        apiKey: '',
+        apiHost: 'https://saved.example.com'
+      }
+    })
+  })
+
+  it('updates the destination notice when switching between merge and replace', async () => {
+    const user = userEvent.setup()
+    MockUseDataApiUtils.mockQueryResult('/providers', {
+      data: [
+        ProviderSchema.parse({
+          id: params.id,
+          name: 'Saved Relay',
+          isEnabled: true,
+          reportsActualCost: false,
+          apiKeys: [],
+          authType: 'api-key',
+          settings: {},
+          endpointConfigs: {
+            'openai-chat-completions': {
+              baseUrl: 'https://primary.example.com/v1'
+            },
+            'anthropic-messages': { baseUrl: 'https://secondary.example.com' }
+          },
+          defaultChatEndpoint: 'openai-chat-completions'
+        })
+      ]
+    })
+    const { result } = await showImport()
+    const mergeNotice = i18n.t('settings.models.provider_import_key_destination_multi', {
+      hosts: 'primary.example.com, secondary.example.com'
+    })
+    const replaceNotice = i18n.t('settings.models.provider_import_key_destination', { host: 'example.com' })
+    expect(screen.getByText(mergeNotice)).toBeVisible()
+    await user.click(
+      screen.getByRole('radio', {
+        name: i18n.t('settings.models.provider_import_resolution_replace')
+      })
+    )
+    expect(screen.getByText(replaceNotice)).toBeVisible()
+    expect(screen.queryByText(mergeNotice)).not.toBeInTheDocument()
+    await user.click(
+      screen.getByRole('radio', {
+        name: i18n.t('settings.models.provider_import_resolution_merge')
+      })
+    )
+    expect(screen.getByText(mergeNotice)).toBeVisible()
+    expect(screen.queryByText(replaceNotice)).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: i18n.t('common.cancel') }))
+    await expect(result).resolves.toMatchObject({ updatedProvider: undefined })
+  })
+
+  it('deduplicates equal endpoint hosts while retaining distinct ports in the destination notice', async () => {
+    MockUseDataApiUtils.mockQueryResult('/providers', {
+      data: [
+        ProviderSchema.parse({
+          id: params.id,
+          name: 'Saved Relay',
+          isEnabled: true,
+          reportsActualCost: false,
+          apiKeys: [],
+          authType: 'api-key',
+          settings: {},
+          endpointConfigs: {
+            'openai-chat-completions': {
+              baseUrl: 'https://shared.example.com/v1'
+            },
+            'anthropic-messages': {
+              baseUrl: 'https://shared.example.com/anthropic'
+            },
+            'google-generate-content': {
+              baseUrl: 'https://shared.example.com:8443/gemini'
+            }
+          },
+          defaultChatEndpoint: 'openai-chat-completions'
+        })
+      ]
+    })
+    await showImport()
+    expect(
+      screen.getByText(
+        i18n.t('settings.models.provider_import_key_destination_multi', {
+          hosts: 'shared.example.com, shared.example.com:8443'
+        })
+      )
+    ).toBeVisible()
+  })
 })
