@@ -50,12 +50,16 @@ describe('useMiniAppInstallPreview request ownership', () => {
     let first!: Promise<void>
     let second!: Promise<void>
     act(() => {
-      first = result.current.settle(() => stale.promise, 'miniApp.install.preview_error')
+      first = result.current.settle(() => stale.promise, 'miniApp.install.preview_error', 'miniapp.install.preview_url')
     })
     act(() => result.current.cancelPreview())
     expect(result.current.busy).toBe(false)
     act(() => {
-      second = result.current.settle(() => current.promise, 'miniApp.install.preview_error')
+      second = result.current.settle(
+        () => current.promise,
+        'miniApp.install.preview_error',
+        'miniapp.install.preview_url'
+      )
     })
 
     await act(async () => {
@@ -81,8 +85,12 @@ describe('useMiniAppInstallPreview request ownership', () => {
     let first!: Promise<void>
     let second!: Promise<void>
     act(() => {
-      first = result.current.settle(() => stale.promise, 'miniApp.install.preview_error')
-      second = result.current.settle(() => current.promise, 'miniApp.install.preview_error')
+      first = result.current.settle(() => stale.promise, 'miniApp.install.preview_error', 'miniapp.install.preview_url')
+      second = result.current.settle(
+        () => current.promise,
+        'miniApp.install.preview_error',
+        'miniapp.install.preview_url'
+      )
     })
 
     await act(async () => {
@@ -111,7 +119,11 @@ describe('useMiniAppInstallPreview request ownership', () => {
       const onDone = vi.fn()
       const { result } = renderHook(() => useMiniAppInstallPreview(onDone))
       await act(() =>
-        result.current.settle(() => Promise.resolve(preview('old-token')), 'miniApp.install.preview_error')
+        result.current.settle(
+          () => Promise.resolve(preview('old-token')),
+          'miniApp.install.preview_error',
+          'miniapp.install.preview_url'
+        )
       )
       let confirmation!: Promise<void>
       let nextPreview!: Promise<void>
@@ -120,7 +132,11 @@ describe('useMiniAppInstallPreview request ownership', () => {
       })
       act(() => {
         result.current.cancelPreview()
-        nextPreview = result.current.settle(() => current.promise, 'miniApp.install.preview_error')
+        nextPreview = result.current.settle(
+          () => current.promise,
+          'miniApp.install.preview_error',
+          'miniapp.install.preview_url'
+        )
       })
 
       await act(async () => {
@@ -140,4 +156,39 @@ describe('useMiniAppInstallPreview request ownership', () => {
       expect(result.current.busy).toBe(false)
     }
   )
+
+  it('keeps the rejected install and names the failed step when confirmation fails', async () => {
+    const rejection = new Error('package signature mismatch')
+    vi.mocked(ipcApi.request).mockImplementation((async (route: string) => {
+      if (route === 'mini_app.install.confirm') throw rejection
+      return undefined
+    }) as typeof ipcApi.request)
+    const { result } = renderHook(() => useMiniAppInstallPreview(vi.fn()))
+    await act(() =>
+      result.current.settle(
+        () => Promise.resolve(preview('token')),
+        'miniApp.install.preview_error',
+        'miniapp.install.preview_file'
+      )
+    )
+
+    await act(() => result.current.confirm({ grantedOptional: [] }))
+
+    expect(result.current.error).toMatchObject({ cause: rejection, operation: 'miniapp.install.confirm' })
+  })
+
+  it('names the preview source that failed', async () => {
+    const failure = new Error('not a mini app package')
+    const { result } = renderHook(() => useMiniAppInstallPreview(vi.fn()))
+
+    await act(() =>
+      result.current.settle(
+        () => Promise.reject(failure),
+        'miniApp.install.preview_error',
+        'miniapp.install.preview_file'
+      )
+    )
+
+    expect(result.current.error).toMatchObject({ cause: failure, operation: 'miniapp.install.preview_file' })
+  })
 })
