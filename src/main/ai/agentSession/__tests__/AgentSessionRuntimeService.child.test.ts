@@ -67,7 +67,7 @@ function fixture() {
     .run()
   dbh.db
     .insert(agentSessionTable)
-    .values({ id: 'root', agentId: 'agent', workspaceId: 'workspace', name: 'Root', orderKey: 'a0' })
+    .values({ runtimeType: 'pi', id: 'root', agentId: 'agent', workspaceId: 'workspace', name: 'Root', orderKey: 'a0' })
     .run()
   const parent = preparePiBranch('root')
   const context = contexts.child(parent.id, 'child', 'spawn', 'Child')

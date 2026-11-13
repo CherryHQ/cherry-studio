@@ -11,6 +11,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { CLAUDE_TOOL_DEFS } from '@shared/ai/claudecode/toolRegistry'
+import { normalizePiDisabledToolId } from '@shared/ai/piBuiltinTools'
 
 /** Raw session context the enable-predicates compute from (not pre-digested per-condition flags). */
 export interface ClaudeToolContext {
@@ -60,7 +61,10 @@ export function resolveDisallowedTools(
       blocked.add(def.name)
       continue
     }
-    if (def.exposure === 'user' && userDisabled.has(def.name)) {
+    if (
+      def.exposure === 'user' &&
+      (userDisabled.has(def.name) || userDisabled.has(normalizePiDisabledToolId(def.name)))
+    ) {
       blocked.add(def.name)
       continue
     }

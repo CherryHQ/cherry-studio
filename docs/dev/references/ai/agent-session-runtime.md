@@ -58,11 +58,16 @@ and activity timestamps survive retries. `NULL` means not yet processed;
 `unknown` preserves unresolved history without guessing an engine on a later
 retry. Such history remains readable but cannot execute. Native backend identity
 must agree with the session binding before dispatch, prewarming or history edits.
+Message-list reads return disabled fork/edit actions when ownership is unresolved
+or conflicts with a backend; that quarantine does not block reading saved messages.
 
 Model choices, instructions and configuration remain Agent-owned. Legacy CLI-only
 model selections are not converted into API models; a fresh Durable conversation
 requires a model supported by its existing model filter. Pi and Claude Code drivers
 remain installed for historical continuation.
+Shared tool restrictions use the editor's Pi tool identifiers. The Claude adapter
+also recognizes these identifiers and maps them to native SDK names, so editing
+other tool settings does not remove restrictions from historical Claude sessions.
 
 ## Ownership
 

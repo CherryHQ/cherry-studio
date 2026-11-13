@@ -128,7 +128,7 @@ describe('durable delivery native branch admission', () => {
     for (const id of ['source', 'target'])
       dbh.db
         .insert(agentSessionTable)
-        .values({ id, agentId: 'agent', workspaceId: 'work', name: id, orderKey: id })
+        .values({ runtimeType: 'pi', id, agentId: 'agent', workspaceId: 'work', name: id, orderKey: id })
         .run()
   })
 

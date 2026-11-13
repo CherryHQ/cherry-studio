@@ -67,6 +67,18 @@ describe('createClaudeAgentToolPolicySnapshot — live disabledTools', () => {
     expect(snapshot.isDisabled('Bash')).toBe(false)
   })
 
+  it('retains Claude restrictions when a shared Agent edit writes Pi tool names', async () => {
+    const snapshot = await createClaudeAgentToolPolicySnapshot(makeAgent(['Bash']))
+    await snapshot.update(makeAgent(['bash', 'write']))
+    expect(snapshot.isDisabled('Bash')).toBe(true)
+    expect(snapshot.isDisabled('BashOutput')).toBe(true)
+    expect(snapshot.isDisabled('Write')).toBe(true)
+    expect(snapshot.isDisabled('Read')).toBe(false)
+    await snapshot.update(makeAgent(['write']))
+    expect(snapshot.isDisabled('Bash')).toBe(false)
+    expect(snapshot.isDisabled('Write')).toBe(true)
+  })
+
   it('does not flag tools the agent has not disabled', async () => {
     const snapshot = await createClaudeAgentToolPolicySnapshot(makeAgent(['Bash']))
     expect(snapshot.isDisabled('Read')).toBe(false)

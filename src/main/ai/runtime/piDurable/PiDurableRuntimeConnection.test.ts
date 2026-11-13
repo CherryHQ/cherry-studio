@@ -137,7 +137,7 @@ describe('desktop Pi Durable connection', () => {
       .run()
     dbh.db
       .insert(agentSessionTable)
-      .values({ id: input.sessionId, agentId, workspaceId, name: 'Chat', orderKey: 'a0' })
+      .values({ runtimeType: 'pi-durable', id: input.sessionId, agentId, workspaceId, name: 'Chat', orderKey: 'a0' })
       .run()
     snapshot = {
       agent: { ...agentService.getAgent(agentId)!, model: modelId },

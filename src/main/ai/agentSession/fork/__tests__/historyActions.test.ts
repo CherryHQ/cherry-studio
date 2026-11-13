@@ -1,14 +1,19 @@
 import { randomUUID } from 'node:crypto'
 
 import { setupTestDatabase } from '@test-helpers/db'
+import { MockApplicationUtils } from '@test-mocks/main/application'
 import { eq } from 'drizzle-orm'
 import { afterEach, beforeEach, expect, it } from 'vitest'
 
+import { agentSessionMessageHandlers } from '@data/api/handlers/agentSessionMessages'
 import { agentTable } from '@data/db/schemas/agent'
+import { agentRuntimeBackendTable } from '@data/db/schemas/agentRuntimeBackend'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
+import { agentSessionContextTable } from '@data/db/schemas/agentSessionContext'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { agentSessionMessageService as messages } from '@data/services/AgentSessionMessageService'
+import { agentSessionService } from '@data/services/AgentSessionService'
 import { PiForkCheckpointSchema } from '@main/ai/runtime/pi/forkCheckpoint'
 import { PiDurableRuntimeDriver } from '@main/ai/runtime/piDurable/PiDurableRuntimeDriver'
 import { runtimeDriverRegistry } from '@main/ai/runtime/registry'
@@ -251,3 +256,55 @@ it('enables Durable edits at first inputs and committed predecessor boundaries',
   expect((await runtime.getEditTarget(sessionId, first.id)).parts).toEqual(first.data.parts)
   expect((await runtime.getEditTarget(sessionId, later.id)).parts).toEqual(later.data.parts)
 })
+
+it.each(['unknown', 'conflicting'])(
+  'keeps %s runtime history readable without enabling execution or edits',
+  async (state) => {
+    const first = user('Keep this question')
+    const completed = answer({ runtime: 'pi', runtimeSessionId: 'native', leafId: 'leaf' })
+    if (state === 'unknown') {
+      dbh.db.update(agentSessionTable).set({ runtimeType: 'unknown' }).where(eq(agentSessionTable.id, sessionId)).run()
+    } else {
+      const backendId = randomUUID()
+      dbh.db
+        .insert(agentRuntimeBackendTable)
+        .values({
+          id: backendId,
+          state: 'bound',
+          locator: { version: 1, kind: 'claude-code', configDir: '/native-claude' }
+        })
+        .run()
+      dbh.db
+        .insert(agentSessionContextTable)
+        .values({
+          sessionId,
+          backendId,
+          nativeThreadId: randomUUID(),
+          bindingState: 'bound'
+        })
+        .run()
+    }
+    MockApplicationUtils.setService('AgentSessionRuntimeService', runtime)
+    const result = await agentSessionMessageHandlers['/agent-sessions/:sessionId/messages'].GET({
+      params: { sessionId }
+    })
+    const page = 'data' in result ? result.data : result
+    expect(page.items).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: first.id,
+          data: expect.objectContaining({ parts: [{ type: 'text', text: 'Keep this question' }] }),
+          historyActions: { fork: 'unsupported_checkpoint', edit: 'checkpoint_unsupported' }
+        }),
+        expect.objectContaining({
+          id: completed.id,
+          historyActions: { fork: 'unsupported_checkpoint', edit: 'invalid_target' }
+        })
+      ])
+    )
+    expect(() => agentSessionService.getRuntimeType(sessionId)).toThrow(
+      state === 'unknown' ? 'unresolved' : 'conflicts'
+    )
+    await expect(runtime.getEditTarget(sessionId, first.id)).rejects.toThrow()
+  }
+)
