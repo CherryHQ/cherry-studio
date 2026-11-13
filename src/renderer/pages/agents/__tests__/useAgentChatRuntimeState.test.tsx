@@ -61,7 +61,8 @@ const mocks = vi.hoisted(() => ({
 }))
 
 // respondToolApproval now goes through ipcApi.request('ai.tool.respond_approval', …).
-vi.mock('@renderer/ipc', () => ({
+vi.mock('@renderer/ipc', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@renderer/ipc')>()),
   ipcApi: {
     request: (route: string, input: unknown) =>
       route === 'ai.tool.respond_approval'
@@ -656,10 +657,6 @@ describe('useAgentChatRuntimeState', () => {
       reset: mocks.resetOverlay
     })
 
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: {}
-    })
     Object.defineProperty(window, 'toast', {
       configurable: true,
       value: {

@@ -24,7 +24,8 @@ const { ipcMock } = vi.hoisted((): { ipcMock: IpcMock } => ({
     on: () => () => {}
   }
 }))
-vi.mock('@renderer/ipc', () => ({
+vi.mock('@renderer/ipc', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@renderer/ipc')>()),
   ipcApi: {
     request: (route: string, input: unknown) => ipcMock.request(route, input),
     on: (event: string, cb: (p: unknown) => void) => ipcMock.on(event, cb)
