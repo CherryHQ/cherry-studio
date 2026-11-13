@@ -109,6 +109,15 @@ describe('Claude Opus 5.5 catalog', () => {
     }
   )
 
+  it('uses the adaptive Bedrock reasoning contract', () => {
+    const override = loader.getOverridesForProvider('aws-bedrock').find((entry) => entry.modelId === 'claude-opus-5-5')
+    expect(override?.apiModelId).toBe('global.anthropic.claude-opus-5-5')
+    expect(override?.reasoningContracts?.['anthropic-messages']?.wire?.effort?.operations).toEqual([
+      { target: 'reasoningConfig.type', value: { source: 'literal', value: 'adaptive' } },
+      { target: 'reasoningConfig.maxReasoningEffort', value: { source: 'effort' } }
+    ])
+  })
+
   it.each(['web-search', 'url-context'] as const)('enables native %s on Anthropic', (tool) => {
     expect(isServerToolModelEligible('claude-opus-5-5', 'anthropic', tool)).toBe(true)
   })

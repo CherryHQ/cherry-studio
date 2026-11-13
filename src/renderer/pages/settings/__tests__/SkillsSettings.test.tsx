@@ -1,5 +1,6 @@
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
-import { render, screen } from '@testing-library/react'
+import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -8,12 +9,17 @@ import type { ResourceItem } from '@renderer/types/resourceCatalog'
 
 import { SkillsSettings } from '../SkillsSettings'
 
-const { launchSkillMock, navigateMock, resourceCatalogViewMock, routerState } = vi.hoisted(() => ({
+const { launchSkillMock, navigateMock, resourceCatalogViewMock, routerState, ipcMock, toastMock } = vi.hoisted(() => ({
+  ipcMock: vi.fn(),
+  toastMock: vi.fn(),
   launchSkillMock: vi.fn(),
   navigateMock: vi.fn(),
   resourceCatalogViewMock: vi.fn(),
   routerState: { search: {} }
 }))
+
+vi.mock('@renderer/ipc', () => ({ ipcApi: { request: ipcMock } }))
+vi.mock('@renderer/services/toast', () => ({ toast: { error: toastMock } }))
 
 vi.mock('@cherrystudio/ui', () => vi.importActual('@cherrystudio/ui'))
 
@@ -60,6 +66,9 @@ vi.mock('@tanstack/react-router', () => ({
 describe('SkillsSettings', () => {
   beforeEach(() => {
     MockUseCacheUtils.resetMocks()
+    MockUsePreferenceUtils.resetMocks()
+    ipcMock.mockReset()
+    toastMock.mockReset()
     routerState.search = {}
     navigateMock.mockImplementation(
       (options: {
@@ -69,6 +78,22 @@ describe('SkillsSettings', () => {
         else if (options.search) routerState.search = options.search
       }
     )
+  })
+
+  it('saves the export switch and retries only the failed sync', async () => {
+    ipcMock.mockRejectedValueOnce(new Error('failed')).mockResolvedValueOnce(undefined)
+    render(<SkillsSettings />)
+    const toggle = screen.getByRole('switch', { name: '向外部智能体导出技能' })
+    expect(toggle).not.toBeChecked()
+    await userEvent.setup().click(toggle)
+    await waitFor(() => expect(ipcMock).toHaveBeenCalledWith('skill.reconcile', { externalExportsOnly: true }))
+    expect(MockUsePreferenceUtils.getPreferenceValue('agent.skills.external_export.enabled')).toBe(true)
+    await waitFor(() => expect(toastMock).toHaveBeenCalled())
+    const config = toastMock.mock.calls[0][0]
+    expect(config.title).toBe('设置已保存，但目录同步失败。')
+    expect(config.action.label).toBe('重试同步')
+    await config.action.onClick()
+    expect(ipcMock).toHaveBeenCalledTimes(2)
   })
 
   it('filters the supplied catalog by physical scope and round-trips the tab through the route search', async () => {
@@ -111,8 +136,6 @@ describe('SkillsSettings', () => {
     ])
 
     const props = resourceCatalogViewMock.mock.calls.at(-1)?.[0] as ResourceCatalogViewProps
-    expect(props.onLaunchSkill).toBe(launchSkillMock)
-    expect(props.allowColumnToggle).toBe(true)
 
     props.onOpenSkill?.({ id: 'skill-1' } as Parameters<NonNullable<ResourceCatalogViewProps['onOpenSkill']>>[0])
     expect(navigateMock).toHaveBeenCalledWith({
@@ -122,12 +145,10 @@ describe('SkillsSettings', () => {
     })
   })
 
-  it('opens the dedicated Skill route and exposes the shared launch action', () => {
+  it('opens the dedicated Skill route', () => {
     render(<SkillsSettings />)
 
     const props = resourceCatalogViewMock.mock.calls.at(-1)?.[0] as ResourceCatalogViewProps
-    expect(props.onLaunchSkill).toBe(launchSkillMock)
-    expect(props.allowColumnToggle).toBe(true)
 
     props.onOpenSkill?.({ id: 'skill-1' } as Parameters<NonNullable<ResourceCatalogViewProps['onOpenSkill']>>[0])
     expect(navigateMock).toHaveBeenCalledWith({

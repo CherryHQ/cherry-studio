@@ -1,6 +1,7 @@
 import { randomBytes } from 'node:crypto'
 
 import { and, asc, desc, eq, gt, gte, inArray, isNotNull, isNull, lt, notInArray, or, type SQL, sql } from 'drizzle-orm'
+import { chunk } from 'es-toolkit'
 import { v4 as uuidv4 } from 'uuid'
 
 import { application } from '@application'
@@ -55,6 +56,7 @@ const logger = loggerService.withContext('AgentSessionService')
 
 const DEFAULT_LIMIT = 50
 const MAX_LIMIT = 200
+const SQLITE_INARRAY_CHUNK = 500
 const conversationFilter = eq(sessionsTable.type, 'conversation')
 const ordinaryConversationFilter = isNull(sessionsTable.taskId)
 type SessionEntitySearchItem = Extract<EntitySearchItem, { type: 'session' }>
@@ -137,15 +139,16 @@ export function agentSessionReadModelEffects(
 ): DataApiDataChangeEffect[] {
   if (sessionIds.length === 0) return []
   const entityIds = [...new Set(sessionIds)]
+  const db = application.get('DbService').getDb()
   const backgroundIds = new Set(
-    application
-      .get('DbService')
-      .getDb()
-      .select({ id: sessionsTable.id })
-      .from(sessionsTable)
-      .where(and(inArray(sessionsTable.id, entityIds), eq(sessionsTable.type, 'background')))
-      .all()
-      .map((row) => row.id)
+    chunk(entityIds, SQLITE_INARRAY_CHUNK).flatMap((idChunk) =>
+      db
+        .select({ id: sessionsTable.id })
+        .from(sessionsTable)
+        .where(and(inArray(sessionsTable.id, idChunk), eq(sessionsTable.type, 'background')))
+        .all()
+        .map((row) => row.id)
+    )
   )
   const conversationIds = entityIds.filter((id) => !backgroundIds.has(id))
   if (conversationIds.length === 0) return [{ endpoint: '/agent-sessions/:sessionId', entityIds }]
@@ -775,16 +778,19 @@ export class AgentSessionService {
    * one pagination contract; recency ordering for the time-grouped view is
    * applied by the renderer over the loaded list.
    */
-  listByCursor(query: ListAgentSessionsQuery = {}): CursorPaginationResponse<AgentSessionEntity> {
+  listByCursor(
+    query: ListAgentSessionsQuery & { scope: 'ordinary' | 'all-conversations'; taskId?: string }
+  ): CursorPaginationResponse<AgentSessionEntity> {
     const db = application.get('DbService').getDb()
     const limit = Math.min(query.limit ?? DEFAULT_LIMIT, MAX_LIMIT)
     const cursor = decodePinnedListCursor(query.cursor, 'agent-session')
     const agentFilter = query.agentId ? eq(sessionsTable.agentId, query.agentId) : undefined
     const workspaceFilter = query.workspaceId ? eq(sessionsTable.workspaceId, query.workspaceId) : undefined
     const idFilter = query.ids ? inArray(sessionsTable.id, query.ids) : undefined
+    const taskIdFilter = query.taskId ? eq(sessionsTable.taskId, query.taskId) : undefined
     const inTrash = query.inTrash === true
-    // Explicit ID lookups also serve task history; only discovery lists hide task sessions.
-    const taskFilter = inTrash || query.ids ? undefined : ordinaryConversationFilter
+    const taskFilter =
+      query.scope === 'all-conversations' || inTrash || query.ids ? undefined : ordinaryConversationFilter
     const activeAgentFilter = !inTrash && query.agentId ? isNotNull(agentsTable.id) : undefined
 
     const items: Array<{ session: AgentSessionEntity; pinOrderKey?: string }> = []
@@ -806,6 +812,7 @@ export class AgentSessionService {
           and(
             conversationFilter,
             taskFilter,
+            taskIdFilter,
             agentFilter,
             workspaceFilter,
             idFilter,
@@ -865,6 +872,7 @@ export class AgentSessionService {
         and(
           conversationFilter,
           taskFilter,
+          taskIdFilter,
           agentFilter,
           workspaceFilter,
           idFilter,
@@ -1112,32 +1120,32 @@ export class AgentSessionService {
         return { deletedIds: trashedIds, taskScheduleIds, deliveryResults, purgedSystemWorkspacePaths: [] }
       }
 
-      const rows = tx
-        .select({ session: sessionsTable, workspace: agentWorkspaceTable })
-        .from(sessionsTable)
-        .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
-        .where(
-          and(
-            inArray(sessionsTable.id, uniqueIds),
-            options.targetState === 'active' ? isNull(sessionsTable.deletedAt) : isNotNull(sessionsTable.deletedAt)
-          )
-        )
-        .all()
-
-      if (options.targetState === 'active' && rows.length > 0) {
-        const pinnedIds = tx
-          .select({ entityId: pinTable.entityId })
-          .from(pinTable)
+      const rows = chunk(uniqueIds, SQLITE_INARRAY_CHUNK).flatMap((idChunk) =>
+        tx
+          .select({ session: sessionsTable, workspace: agentWorkspaceTable })
+          .from(sessionsTable)
+          .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
           .where(
             and(
-              eq(pinTable.entityType, 'session'),
-              inArray(
-                pinTable.entityId,
-                rows.map((row) => row.session.id)
-              )
+              inArray(sessionsTable.id, idChunk),
+              options.targetState === 'active' ? isNull(sessionsTable.deletedAt) : isNotNull(sessionsTable.deletedAt)
             )
           )
           .all()
+      )
+
+      if (options.targetState === 'active' && rows.length > 0) {
+        const pinnedIds = chunk(
+          rows.map((row) => row.session.id),
+          SQLITE_INARRAY_CHUNK
+        )
+          .flatMap((idChunk) =>
+            tx
+              .select({ entityId: pinTable.entityId })
+              .from(pinTable)
+              .where(and(eq(pinTable.entityType, 'session'), inArray(pinTable.entityId, idChunk)))
+              .all()
+          )
           .map((row) => row.entityId)
           .sort()
         if (pinnedIds.length > 0) {
@@ -1169,17 +1177,23 @@ export class AgentSessionService {
     ids: string[],
     options: { requireAll?: boolean; deletedAt?: number } = {}
   ): { trashedIds: string[]; taskScheduleIds: string[]; deliveryResults: AgentSessionMessageEntity[] } {
-    const children = ids.length
-      ? tx.select({ id: sessionsTable.id }).from(sessionsTable).where(inArray(sessionsTable.ownerSessionId, ids)).all()
-      : []
+    const children = chunk(ids, SQLITE_INARRAY_CHUNK).flatMap((idChunk) =>
+      tx
+        .select({ id: sessionsTable.id })
+        .from(sessionsTable)
+        .where(inArray(sessionsTable.ownerSessionId, idChunk))
+        .all()
+    )
     const uniqueIds = Array.from(new Set([...ids, ...children.map((row) => row.id)]))
     if (uniqueIds.length === 0) return { trashedIds: [], taskScheduleIds: [], deliveryResults: [] }
 
-    const rows = tx
-      .select({ id: sessionsTable.id, taskScheduleId: sessionsTable.taskId })
-      .from(sessionsTable)
-      .where(and(inArray(sessionsTable.id, uniqueIds), isNull(sessionsTable.deletedAt)))
-      .all()
+    const rows = chunk(uniqueIds, SQLITE_INARRAY_CHUNK).flatMap((idChunk) =>
+      tx
+        .select({ id: sessionsTable.id, taskScheduleId: sessionsTable.taskId })
+        .from(sessionsTable)
+        .where(and(inArray(sessionsTable.id, idChunk), isNull(sessionsTable.deletedAt)))
+        .all()
+    )
     const trashedIds = rows.map((row) => row.id)
     if (options.requireAll && trashedIds.length !== uniqueIds.length) {
       const foundIds = new Set(trashedIds)
@@ -1190,13 +1204,14 @@ export class AgentSessionService {
 
     const deliveryResults = getDataService('AgentSessionMessageService').prepareSessionDeletionTx(tx, trashedIds)
     const taskScheduleIds = rows.flatMap((row) => (row.taskScheduleId ? [row.taskScheduleId] : []))
-    if (taskScheduleIds.length > 0) {
-      this.clearTaskReuseTx(tx, and(inArray(sessionsTable.id, trashedIds), isNotNull(sessionsTable.taskId))!)
+    // One timestamp for every chunk: restoreTrashedWithAgentTx matches deletedAt exactly.
+    const deletedAt = options.deletedAt ?? Date.now()
+    for (const idChunk of chunk(trashedIds, SQLITE_INARRAY_CHUNK)) {
+      if (taskScheduleIds.length > 0) {
+        this.clearTaskReuseTx(tx, and(inArray(sessionsTable.id, idChunk), isNotNull(sessionsTable.taskId))!)
+      }
+      tx.update(sessionsTable).set({ deletedAt }).where(inArray(sessionsTable.id, idChunk)).run()
     }
-    tx.update(sessionsTable)
-      .set({ deletedAt: options.deletedAt ?? Date.now() })
-      .where(inArray(sessionsTable.id, trashedIds))
-      .run()
     pinService.purgeForEntitiesTx(tx, 'session', trashedIds)
     return { trashedIds, taskScheduleIds, deliveryResults }
   }
@@ -1289,25 +1304,29 @@ export class AgentSessionService {
     const uniqueIds = [...new Set(ids)]
     if (uniqueIds.length === 0) return []
 
-    const rows = tx
-      .select({ session: sessionsTable, workspace: agentWorkspaceTable })
-      .from(sessionsTable)
-      .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
-      .where(
-        and(
-          inArray(sessionsTable.id, uniqueIds),
-          isNotNull(sessionsTable.deletedAt),
-          lt(sessionsTable.deletedAt, cutoffMs)
+    const rows = chunk(uniqueIds, SQLITE_INARRAY_CHUNK).flatMap((idChunk) =>
+      tx
+        .select({ session: sessionsTable, workspace: agentWorkspaceTable })
+        .from(sessionsTable)
+        .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
+        .where(
+          and(
+            inArray(sessionsTable.id, idChunk),
+            isNotNull(sessionsTable.deletedAt),
+            lt(sessionsTable.deletedAt, cutoffMs)
+          )
         )
-      )
-      .all()
+        .all()
+    )
     if (rows.length === 0) return []
 
     const purgedIds = rows.map((row) => row.session.id)
     const systemWorkspaceIds = rows
       .filter((row) => row.session.ownerSessionId === null && row.workspace.type === AGENT_WORKSPACE_TYPE.SYSTEM)
       .map((row) => row.workspace.id)
-    tx.delete(sessionsTable).where(inArray(sessionsTable.id, purgedIds)).run()
+    for (const idChunk of chunk(purgedIds, SQLITE_INARRAY_CHUNK)) {
+      tx.delete(sessionsTable).where(inArray(sessionsTable.id, idChunk)).run()
+    }
     pinService.purgeForEntitiesTx(tx, 'session', purgedIds)
     for (const workspaceId of systemWorkspaceIds) agentWorkspaceService.deleteByIdTx(tx, workspaceId)
     return purgedIds
@@ -1337,7 +1356,7 @@ export class AgentSessionService {
     })
     publishTaskReadModelChanges([...result.taskScheduleIds, ...result.taskReferences.map((task) => task.id)])
     this.notifyReadModelChange(result.deletedIds, 'membership')
-    if (result.deletedIds.length > 0) pinService.notifyPurged()
+    pinService.notifyPurged()
     logger.info('Deleted user workspace', {
       workspaceId,
       deletedSessionCount: result.deletedIds.length,
@@ -1442,26 +1461,27 @@ export class AgentSessionService {
 
   listSystemWorkspaceSessions(ids?: readonly string[]) {
     if (ids?.length === 0) return []
-    return application
-      .get('DbService')
-      .getDb()
-      .select({
-        id: sessionsTable.id,
-        path: agentWorkspaceTable.path,
-        deletedAt: sessionsTable.deletedAt,
-        agentDeletedAt: agentsTable.deletedAt
-      })
-      .from(sessionsTable)
-      .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
-      .leftJoin(agentsTable, eq(sessionsTable.agentId, agentsTable.id))
-      .where(
-        and(
-          eq(agentWorkspaceTable.type, AGENT_WORKSPACE_TYPE.SYSTEM),
-          isNull(sessionsTable.ownerSessionId),
-          ids ? inArray(sessionsTable.id, [...ids]) : undefined
+    const db = application.get('DbService').getDb()
+    const select = (idChunk?: string[]) =>
+      db
+        .select({
+          id: sessionsTable.id,
+          path: agentWorkspaceTable.path,
+          deletedAt: sessionsTable.deletedAt,
+          agentDeletedAt: agentsTable.deletedAt
+        })
+        .from(sessionsTable)
+        .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
+        .leftJoin(agentsTable, eq(sessionsTable.agentId, agentsTable.id))
+        .where(
+          and(
+            eq(agentWorkspaceTable.type, AGENT_WORKSPACE_TYPE.SYSTEM),
+            isNull(sessionsTable.ownerSessionId),
+            idChunk ? inArray(sessionsTable.id, idChunk) : undefined
+          )
         )
-      )
-      .all()
+        .all()
+    return ids ? chunk([...ids], SQLITE_INARRAY_CHUNK).flatMap(select) : select()
   }
 
   listIdsByWorkspace(workspaceId: string): string[] {
@@ -1527,12 +1547,14 @@ export class AgentSessionService {
   }
 
   private getTaskScheduleIdsForSessionIdsTx(tx: DbOrTx, sessionIds: readonly string[]): string[] {
-    if (sessionIds.length === 0) return []
-    return tx
-      .select({ taskScheduleId: sessionsTable.taskId })
-      .from(sessionsTable)
-      .where(and(inArray(sessionsTable.id, [...new Set(sessionIds)]), isNotNull(sessionsTable.taskId)))
-      .all()
+    return chunk([...new Set(sessionIds)], SQLITE_INARRAY_CHUNK)
+      .flatMap((idChunk) =>
+        tx
+          .select({ taskScheduleId: sessionsTable.taskId })
+          .from(sessionsTable)
+          .where(and(inArray(sessionsTable.id, idChunk), isNotNull(sessionsTable.taskId)))
+          .all()
+      )
       .flatMap((row) => (row.taskScheduleId ? [row.taskScheduleId] : []))
   }
 
@@ -1558,14 +1580,14 @@ export class AgentSessionService {
     const uniqueIds = Array.from(new Set(ids))
     if (uniqueIds.length === 0) return []
 
-    const rows = tx
-      .delete(sessionsTable)
-      .where(inArray(sessionsTable.id, uniqueIds))
-      .returning({
-        id: sessionsTable.id
-      })
-      .all()
-    const deletedIds = rows.map((row) => row.id)
+    const deletedIds = chunk(uniqueIds, SQLITE_INARRAY_CHUNK).flatMap((idChunk) =>
+      tx
+        .delete(sessionsTable)
+        .where(inArray(sessionsTable.id, idChunk))
+        .returning({ id: sessionsTable.id })
+        .all()
+        .map((row) => row.id)
+    )
 
     pinService.purgeForEntitiesTx(tx, 'session', deletedIds)
     return deletedIds

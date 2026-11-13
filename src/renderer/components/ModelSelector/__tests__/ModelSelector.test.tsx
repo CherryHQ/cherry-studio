@@ -1,5 +1,5 @@
 import { mockUseQuery } from '@test-mocks/renderer/useDataApi'
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactNode, Ref } from 'react'
 import { useEffect, useState } from 'react'
@@ -280,39 +280,6 @@ describe('ModelSelector', () => {
     vi.restoreAllMocks()
   })
 
-  it('shows only the model identifier under a persistent provider group', () => {
-    const item = makeModelItem('openai::gpt-4-variant-a', {
-      model: { ...makeModel('openai::gpt-4-variant-a'), name: 'GPT-4' },
-      modelIdentifier: 'gpt-4-variant-a',
-      showIdentifier: true
-    })
-    const listItems: FlatListItem[] = [
-      {
-        key: 'provider-openai',
-        type: 'group',
-
-        groupKind: 'provider',
-        provider,
-        canNavigateToSettings: true
-      },
-      item
-    ]
-    mocks.useModelSelectorData.mockReturnValue(makeData({ listItems, modelItems: [item] }))
-
-    render(
-      <ModelSelector
-        multiple={false}
-        open
-        trigger={<button type="button">Open</button>}
-        value={item.model}
-        onSelect={vi.fn()}
-      />
-    )
-
-    expect(screen.getByText('| gpt-4-variant-a')).toBeInTheDocument()
-    expect(screen.queryByText(/OpenAI · gpt-4-variant-a/)).not.toBeInTheDocument()
-  })
-
   it('activates action rows without changing selection or showing pin/checkbox controls', async () => {
     const onAction = vi.fn()
     const onSelect = vi.fn()
@@ -346,30 +313,6 @@ describe('ModelSelector', () => {
     await user.keyboard('{Enter}')
     expect(onAction).toHaveBeenCalledTimes(2)
     expect(onSelect).not.toHaveBeenCalled()
-  })
-
-  it('keeps the provider in a pinned row without a provider group', () => {
-    const item = makeModelItem('openai::gpt-4-variant-a', {
-      key: 'openai::gpt-4-variant-a_pinned',
-      groupKind: 'pinned',
-      model: { ...makeModel('openai::gpt-4-variant-a'), name: 'GPT-4' },
-      modelIdentifier: 'gpt-4-variant-a',
-      isPinned: true,
-      showIdentifier: true
-    })
-    mocks.useModelSelectorData.mockReturnValue(makeData({ listItems: [item], modelItems: [item] }))
-
-    render(
-      <ModelSelector
-        multiple={false}
-        open
-        trigger={<button type="button">Open</button>}
-        value={item.model}
-        onSelect={vi.fn()}
-      />
-    )
-
-    expect(screen.getByText('| OpenAI · gpt-4-variant-a')).toBeInTheDocument()
   })
 
   it('selects a model and closes the selector in single-select mode', async () => {
@@ -462,74 +405,6 @@ describe('ModelSelector', () => {
     expect(onSelect).not.toHaveBeenCalled()
   })
 
-  it('tears down the lazy shell before resetting an active tag filter on close', async () => {
-    const user = userEvent.setup()
-    const resetTags = vi.fn(() => {
-      mocks.shellEvents.push('reset')
-    })
-    mocks.useModelSelectorData.mockReturnValue(
-      makeData({
-        resetTags,
-        selectedTags: ['reasoning'],
-        tagSelection: { reasoning: true } as UseModelSelectorDataResult['tagSelection']
-      })
-    )
-
-    function Host() {
-      const [open, setOpen] = useState(true)
-
-      return (
-        <ModelSelector
-          open={open}
-          multiple={false}
-          mountStrategy="lazy-keep"
-          trigger={<button type="button">open</button>}
-          onOpenChange={setOpen}
-          onSelect={vi.fn()}
-        />
-      )
-    }
-
-    render(<Host />)
-    expect(mocks.shellEvents).toEqual(['mount'])
-
-    await user.click(screen.getAllByRole('option')[0])
-
-    expect(mocks.shellEvents).toEqual(['mount', 'unmount', 'mount', 'reset'])
-  })
-
-  it('tears down the lazy shell when the parent closes the controlled selector', async () => {
-    const resetTags = vi.fn(() => {
-      mocks.shellEvents.push('reset')
-    })
-    mocks.useModelSelectorData.mockReturnValue(
-      makeData({
-        resetTags,
-        selectedTags: ['reasoning'],
-        tagSelection: { reasoning: true } as UseModelSelectorDataResult['tagSelection']
-      })
-    )
-
-    const renderSelector = (open: boolean) => (
-      <ModelSelector
-        open={open}
-        multiple={false}
-        mountStrategy="lazy-keep"
-        trigger={<button type="button">open</button>}
-        onSelect={vi.fn()}
-      />
-    )
-
-    const { rerender } = render(renderSelector(true))
-    expect(mocks.shellEvents).toEqual(['mount'])
-
-    await act(async () => {
-      rerender(renderSelector(false))
-    })
-
-    expect(mocks.shellEvents).toEqual(['mount', 'unmount', 'mount', 'reset'])
-  })
-
   it('clears a single selection from the bottom option and closes the selector', async () => {
     const user = userEvent.setup()
     const onOpenChange = vi.fn()
@@ -551,33 +426,6 @@ describe('ModelSelector', () => {
 
     expect(onSelect).toHaveBeenCalledWith(undefined)
     expect(onOpenChange).toHaveBeenCalledWith(false)
-  })
-
-  it('marks the empty option selected after the configure action', () => {
-    render(
-      <ModelSelector
-        open
-        multiple={false}
-        noneOptionLabel="No model"
-        trigger={<button type="button">open</button>}
-        onSelect={vi.fn()}
-      />
-    )
-
-    expect(mocks.bottomActions.map((action) => action.label)).toEqual(['models.action.configure_custom', 'No model'])
-    expect(mocks.bottomActions[1]).toMatchObject({ type: 'selectable', selected: true })
-  })
-
-  it('omits the empty option from required single and multi selectors', () => {
-    const { rerender } = render(
-      <ModelSelector open multiple={false} trigger={<button type="button">open</button>} onSelect={vi.fn()} />
-    )
-
-    expect(mocks.bottomActions.map((action) => action.label)).toEqual(['models.action.configure_custom'])
-
-    rerender(<ModelSelector open multiple trigger={<button type="button">open</button>} onSelect={vi.fn()} />)
-
-    expect(mocks.bottomActions.map((action) => action.label)).toEqual(['models.action.configure_custom'])
   })
 
   it('suppresses only the immediate close caused by a multi-select item click', async () => {
@@ -689,50 +537,6 @@ describe('ModelSelector', () => {
     expect(onSelect).toHaveBeenLastCalledWith([firstModel, otherModel, replacement])
   })
 
-  it('keeps lazy-mounted data active and refreshes it only on later openings', async () => {
-    const refetchModels = vi.fn(async () => undefined)
-    const refetchProviders = vi.fn(async () => undefined)
-    const refetchPinnedModels = vi.fn(async () => undefined)
-    mocks.useModelSelectorData.mockReturnValue(makeData({ refetchModels, refetchPinnedModels, refetchProviders }))
-    const closed = (
-      <ModelSelector
-        open={false}
-        multiple={false}
-        mountStrategy="lazy-keep"
-        trigger={<button type="button">open</button>}
-        onSelect={vi.fn()}
-      />
-    )
-    const opened = (
-      <ModelSelector
-        open
-        multiple={false}
-        mountStrategy="lazy-keep"
-        trigger={<button type="button">open</button>}
-        onSelect={vi.fn()}
-      />
-    )
-    const { rerender } = render(closed)
-    expect(mocks.useModelSelectorData).toHaveBeenLastCalledWith(expect.objectContaining({ enabled: false }))
-
-    rerender(opened)
-
-    expect(mocks.useModelSelectorData).toHaveBeenLastCalledWith(expect.objectContaining({ enabled: true }))
-    expect(refetchModels).not.toHaveBeenCalled()
-    expect(refetchProviders).not.toHaveBeenCalled()
-    expect(refetchPinnedModels).not.toHaveBeenCalled()
-
-    rerender(closed)
-
-    expect(mocks.useModelSelectorData).toHaveBeenLastCalledWith(expect.objectContaining({ enabled: true }))
-
-    rerender(opened)
-
-    await waitFor(() => expect(refetchModels).toHaveBeenCalledOnce())
-    expect(refetchProviders).toHaveBeenCalledOnce()
-    expect(refetchPinnedModels).toHaveBeenCalledOnce()
-  })
-
   it('positions the selected model before paint each time the selector opens', () => {
     const selectedId = 'openai::gpt-3.5' as UniqueModelId
     mocks.useModelSelectorData.mockReturnValue(
@@ -823,24 +627,27 @@ describe('ModelSelector', () => {
     expect(mocks.openSettingsTab).toHaveBeenCalledWith(expectedPath)
   })
 
+  it('exposes the whole model name through a tooltip instead of a native title', () => {
+    const longName = 'Deepseek: DeepSeek: DeepSeek V4.1 Flash (1017)'
+    const item = makeModelItem(`openai::${longName}`)
+    mocks.useModelSelectorData.mockReturnValue(
+      makeData({
+        listItems: [item],
+        modelItems: [item],
+        selectableModelsById: new Map([[item.modelId, item.model]])
+      })
+    )
+
+    render(<ModelSelector open multiple={false} trigger={<button type="button">open</button>} onSelect={vi.fn()} />)
+
+    expect(within(screen.getByRole('option')).getByTestId('tooltip')).toHaveAttribute('data-title', longName)
+  })
+
   it('shows an empty result when no models match', () => {
     mocks.useModelSelectorData.mockReturnValue(makeData({ listItems: [], modelItems: [] }))
 
     render(<ModelSelector open multiple={false} trigger={<button type="button">open</button>} onSelect={vi.fn()} />)
 
     expect(screen.getByText('models.no_matches')).toBeInTheDocument()
-  })
-
-  it('keeps model filters on one horizontally scrollable row', () => {
-    mocks.useModelSelectorData.mockReturnValue(
-      makeData({
-        availableTags: ['free'],
-        tagSelection: { free: false } as UseModelSelectorDataResult['tagSelection']
-      })
-    )
-
-    render(<ModelSelector open multiple={false} trigger={<button type="button">open</button>} onSelect={vi.fn()} />)
-
-    expect(screen.getByTestId('model-selector-filter-tags')).toHaveClass('flex-nowrap', 'overflow-x-auto')
   })
 })

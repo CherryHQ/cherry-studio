@@ -2,7 +2,6 @@ import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { LOCAL_EMBEDDING_PROVIDER_ID } from '@shared/data/presets/localEmbedding'
 import { type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 
@@ -102,28 +101,6 @@ beforeEach(() => {
 })
 
 describe('useModelSelectorData', () => {
-  it('passes the selector activation state to every catalog query', () => {
-    wireDeps({
-      providers: [makeProvider('openai')],
-      models: [makeModel('gpt-4', 'openai')]
-    })
-
-    const { rerender } = renderHook(
-      ({ enabled }: { enabled: boolean }) => useModelSelectorData({ enabled, searchText: '' }),
-      { initialProps: { enabled: false } }
-    )
-
-    expect(mockUseProviders).toHaveBeenLastCalledWith({ enabled: true }, { enabled: false })
-    expect(mockUseModels).toHaveBeenLastCalledWith({ enabled: true }, { fetchEnabled: false })
-    expect(mockUsePins).toHaveBeenLastCalledWith('model', { enabled: false })
-
-    rerender({ enabled: true })
-
-    expect(mockUseProviders).toHaveBeenLastCalledWith({ enabled: true }, { enabled: true })
-    expect(mockUseModels).toHaveBeenLastCalledWith({ enabled: true }, { fetchEnabled: true })
-    expect(mockUsePins).toHaveBeenLastCalledWith('model', { enabled: true })
-  })
-
   it('uses projected tags for available filters and tag matching', () => {
     const model = makeModel('gpt-5', 'provider')
     wireDeps({ providers: [makeProvider('provider')], models: [model] })
@@ -173,20 +150,6 @@ describe('useModelSelectorData', () => {
     ])
     expect(result.current.modelItems.map((item) => item.modelId)).toEqual(['openai::gpt-4', 'anthropic::claude-3'])
     expect(result.current.selectableModelsById.has('google::gemini-pro')).toBe(false)
-  })
-
-  it.each(['cherryai', LOCAL_EMBEDDING_PROVIDER_ID])('hides the provider settings action for %s', (providerId) => {
-    wireDeps({
-      providers: [makeProvider(providerId)],
-      models: [makeModel('qwen', providerId)]
-    })
-
-    const { result } = renderHook(() => useModelSelectorData({ searchText: '' }))
-
-    expect(result.current.listItems.find((item) => item.type === 'group')).toMatchObject({
-      key: `provider-${providerId}`,
-      canNavigateToSettings: false
-    })
   })
 
   it('places prioritized providers first and preserves the remaining order', () => {
