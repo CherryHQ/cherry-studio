@@ -28,10 +28,16 @@ jq -n --arg tag "$TAG" --arg name "$RELEASE_NAME" --arg status "$RELEASE_STATUS"
   '{tag_name: $tag, name: $name, body: $body, target_commitish: "main"} |
    if $status == "" then . else .release_status = $status end' > "$TEMP_DIR/payload.json"
 
+if [ "${RELEASE_FROM_COS:-false}" = "true" ]; then
+  mapfile -t assets < release-assets.txt
+else
+  assets=(release-assets/*)
+fi
+
 if [ "${DRY_RUN:-false}" = "true" ]; then
   echo "Dry run: no GitCode release writes, uploads or notifications."
   cat "$TEMP_DIR/payload.json"
-  find release-assets -maxdepth 1 -type f -print | sort
+  printf '%s\n' "${assets[@]}" | sort
   exit 0
 fi
 
@@ -59,6 +65,11 @@ curl --fail-with-body -sS --connect-timeout 30 --max-time 60 -X "$METHOD" \
 upload_file() {
   local file="$1" filename encoded_filename info upload_url attempt
   filename=$(basename "$file")
+  if [ "${RELEASE_FROM_COS:-false}" = "true" ]; then
+    echo "Downloading $filename from COS"
+    python "$(dirname "$0")/release-cos.py" get-asset "$file" "$TEMP_DIR/$filename"
+    file="$TEMP_DIR/$filename"
+  fi
   encoded_filename=$(printf '%s' "$filename" | jq -sRr @uri)
   for attempt in 1 2 3; do
     echo "Uploading $filename (attempt $attempt/3)"
@@ -68,6 +79,7 @@ upload_file() {
       jq -r '.headers | to_entries[] | "header = " + ((.key + ": " + .value) | tojson)' <<< "$info" > "$TEMP_DIR/headers" &&
       curl --fail -sS --connect-timeout 30 --max-time 3600 -X PUT -K "$TEMP_DIR/headers" \
         --data-binary "@$file" "$upload_url" > "$TEMP_DIR/upload-response"; then
+      if [ "${RELEASE_FROM_COS:-false}" = "true" ]; then rm "$file"; fi
       return 0
     fi
     if [ "$attempt" != 3 ]; then sleep 3; fi
@@ -77,11 +89,11 @@ upload_file() {
 }
 
 # Publish update pointers only after their packages are available.
-for file in release-assets/*; do
+for file in "${assets[@]}"; do
   case "$file" in *.yml|*.yaml|*.json) continue ;; esac
   upload_file "$file"
 done
-for file in release-assets/*; do
+for file in "${assets[@]}"; do
   case "$file" in *.yml|*.yaml|*.json) upload_file "$file" ;; esac
 done
 echo "GitCode release sync completed."
