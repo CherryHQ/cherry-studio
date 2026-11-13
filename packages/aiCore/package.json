@@ -30,6 +30,13 @@
   "types": "dist/index.d.mts",
   "react-native": "dist/index.mjs",
   "exports": {
+    "./contextOverflow": {
+      "types": "./dist/contextOverflow.d.mts",
+      "react-native": "./dist/contextOverflow.mjs",
+      "import": "./dist/contextOverflow.mjs",
+      "require": "./dist/contextOverflow.cjs",
+      "default": "./dist/contextOverflow.mjs"
+    },
     ".": {
       "types": "./dist/index.d.mts",
       "react-native": "./dist/index.mjs",
