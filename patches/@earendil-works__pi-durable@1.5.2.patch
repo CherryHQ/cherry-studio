@@ -816,19 +816,6 @@ index 5f6f124761cb6b4739b802eecadd51fc8f0c034b..706312d02e58efb1de7d3aa902ac88d6
      doc<T extends JsonObject>(token: SessionDocToken<T>): Promise<Draft<T>>;
      doc<T extends JsonObject>(token: ConversationDocToken<T>, conversationId: ConversationId): Promise<Draft<T>>;
      doc<T extends JsonObject>(token: TaskDocToken<T>, taskId: TaskId): Promise<Draft<T>>;
-diff --git " "$1"
-+then
-+	validate_patch "$1"
-+else
-+	validate_cover_letter "$1"
-+fi &&
-+
-+if test "$GIT_SENDEMAIL_FILE_COUNTER" = "$GIT_SENDEMAIL_FILE_TOTAL"
-+then
-+	git config --unset-all sendemail.validateWorktree &&
-+	trap 'git worktree remove -ff "$worktree"' EXIT &&
-+	validate_series
-+fi
 diff --git a/dist/harness/agent.js b/dist/harness/agent.js
 index dbae2ff3bd5ded4db56c1fa3f5c4a58eee2af315..e46f1b66e980e29d74c6aeabfafa221fb6501014 100644
 --- a/dist/harness/agent.js

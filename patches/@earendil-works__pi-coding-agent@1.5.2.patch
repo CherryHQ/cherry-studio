@@ -1108,16 +1108,3 @@ index 77f48bd1a82ad5b3108f6fcbe18367af0e9d34bd..00000000000000000000000000000000
 diff --git a/examples/extensions/with-deps/package-lock.json b/examples/extensions/with-deps/package-lock.json
 deleted file mode 100644
 index 5efeb4e916389bd788141fbb8165ab10f71e11d0..0000000000000000000000000000000000000000
-diff --git " "$1"
-+then
-+	validate_patch "$1"
-+else
-+	validate_cover_letter "$1"
-+fi &&
-+
-+if test "$GIT_SENDEMAIL_FILE_COUNTER" = "$GIT_SENDEMAIL_FILE_TOTAL"
-+then
-+	git config --unset-all sendemail.validateWorktree &&
-+	trap 'git worktree remove -ff "$worktree"' EXIT &&
-+	validate_series
-+fi
