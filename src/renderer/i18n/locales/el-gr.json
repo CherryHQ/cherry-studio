@@ -4769,6 +4769,7 @@
   "settings.doctor.checks.permission-screen-capture.title": "Άδεια εγγραφής οθόνης",
   "settings.doctor.checks.provider-api-key-present.detail.missing": "Ο {{provider}} δεν διαθέτει κλειδί API.",
   "settings.doctor.checks.provider-api-key-present.detail.provider_unavailable": "Ο {{provider}} δεν είναι διαθέσιμος.",
+  "settings.doctor.checks.provider-api-key-present.detail.signed_out": "Συνδεθείτε στον λογαριασμό σας Cherry για να χρησιμοποιήσετε μοντέλα Cherry Cloud.",
   "settings.doctor.checks.provider-api-key-present.title": "Κλειδί API προεπιλεγμένου παρόχου",
   "settings.doctor.checks.provider-cherry-account.detail.signed_out": "Δεν έχει συνδεθεί λογαριασμός Cherry.",
   "settings.doctor.checks.provider-cherry-account.title": "Λογαριασμός Cherry",

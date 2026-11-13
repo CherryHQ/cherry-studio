@@ -4769,6 +4769,7 @@
   "settings.doctor.checks.permission-screen-capture.title": "Permisiune de înregistrare a ecranului",
   "settings.doctor.checks.provider-api-key-present.detail.missing": "{{provider}} nu are o cheie API.",
   "settings.doctor.checks.provider-api-key-present.detail.provider_unavailable": "{{provider}} nu este disponibil.",
+  "settings.doctor.checks.provider-api-key-present.detail.signed_out": "Autentifică-te în contul Cherry pentru a folosi modelele Cherry Cloud.",
   "settings.doctor.checks.provider-api-key-present.title": "Cheia API a furnizorului implicit",
   "settings.doctor.checks.provider-cherry-account.detail.signed_out": "Nu este autentificat niciun cont Cherry.",
   "settings.doctor.checks.provider-cherry-account.title": "Cont Cherry",

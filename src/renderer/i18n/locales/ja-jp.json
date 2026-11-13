@@ -4769,6 +4769,7 @@
   "settings.doctor.checks.permission-screen-capture.title": "画面収録の権限",
   "settings.doctor.checks.provider-api-key-present.detail.missing": "{{provider}} に API キーがありません。",
   "settings.doctor.checks.provider-api-key-present.detail.provider_unavailable": "{{provider}} を利用できません。",
+  "settings.doctor.checks.provider-api-key-present.detail.signed_out": "Cherry Cloud のモデルを使うには Cherry アカウントにサインインしてください。",
   "settings.doctor.checks.provider-api-key-present.title": "デフォルトプロバイダーの API キー",
   "settings.doctor.checks.provider-cherry-account.detail.signed_out": "Cherry アカウントにサインインしていません。",
   "settings.doctor.checks.provider-cherry-account.title": "Cherry アカウント",
