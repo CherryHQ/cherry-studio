@@ -1412,6 +1412,8 @@ function AgentFlowRightPanel({ active, panelId, scope }: RightPanelComponentProp
       </div>
       {child?.view && (
         <AgentContextUsageSummary
+          restored={contextUsage.restored}
+          measuredAt={contextUsage.measuredAt}
           usage={contextUsage.usage}
           percentage={contextUsage.percentage}
           showCategories={false}
@@ -1648,7 +1650,7 @@ function AgentDetailsContent() {
   const actions = useAgentRightPaneActions()
   const details = useAgentSessionDetails()
   const status = useAgentRightPaneStatus()
-  const { usage, percentage } = useAgentSessionContextUsage(meta.sessionId, meta.model)
+  const { usage, percentage, restored, measuredAt } = useAgentSessionContextUsage(meta.sessionId, meta.model)
   const compaction = useAgentSessionCompaction(meta.sessionId)
   const desktopControls = use(DesktopControlsContext)
   return (
@@ -1660,6 +1662,8 @@ function AgentDetailsContent() {
         contextUsage={
           <AgentContextUsageSummary
             usage={usage}
+            restored={restored}
+            measuredAt={measuredAt}
             percentage={percentage}
             isCompacting={compaction.status === 'compacting'}
           />

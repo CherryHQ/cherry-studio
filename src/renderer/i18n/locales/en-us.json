@@ -285,6 +285,7 @@
   "agent.right_pane.info.context_categories.system_tools": "System tools",
   "agent.right_pane.info.context_categories.system_tools_deferred": "System tools (deferred)",
   "agent.right_pane.info.context_details.deferred": "Deferred",
+  "agent.right_pane.info.context_details.last_measured": "Last measured {{time}}",
   "agent.right_pane.info.context_details.last_request": "Last model request",
   "agent.right_pane.info.context_details.loaded": "Loaded",
   "agent.right_pane.info.context_details.partial": "Partial breakdown",

@@ -285,6 +285,7 @@
   "agent.right_pane.info.context_categories.system_tools": "Strumenti di sistema",
   "agent.right_pane.info.context_categories.system_tools_deferred": "Strumenti di sistema (differiti)",
   "agent.right_pane.info.context_details.deferred": "Differito",
+  "agent.right_pane.info.context_details.last_measured": "Ultima misurazione {{time}}",
   "agent.right_pane.info.context_details.last_request": "Ultima richiesta al modello",
   "agent.right_pane.info.context_details.loaded": "Caricato",
   "agent.right_pane.info.context_details.partial": "Ripartizione parziale",

@@ -29,16 +29,23 @@ const mocks = vi.hoisted(() => ({
   cacheSetShared: vi.fn(),
   cacheGetShared: vi.fn(),
   cacheDeleteShared: vi.fn(),
+  cacheGetPersist: vi.fn(),
+  cacheSetPersist: vi.fn(),
   closeWarmQueries: vi.fn(),
   closeAgentSessionWarm: vi.fn(),
   getSessionById: vi.fn(),
+  listIdsByAgent: vi.fn(),
   getAgent: vi.fn(),
   ensureTraceId: vi.fn(),
   recordUsage: vi.fn()
 }))
 
 vi.mock('@data/services/AgentSessionService', () => ({
-  agentSessionService: { getById: mocks.getSessionById, ensureTraceId: mocks.ensureTraceId }
+  agentSessionService: {
+    getById: mocks.getSessionById,
+    ensureTraceId: mocks.ensureTraceId,
+    listIdsByAgent: mocks.listIdsByAgent
+  }
 }))
 vi.mock('@data/services/AgentService', () => ({
   agentService: { getAgent: mocks.getAgent, onAgentUpdated: () => () => {} }
@@ -104,6 +111,7 @@ beforeEach(() => {
   mocks.getSessionMessage.mockReturnValue({ id: 'assistant-1', role: 'assistant', data: { parts: [] } })
   mocks.getLastRuntimeResumeToken.mockReturnValue(null)
   mocks.findCrashOrphanedAssistantMessages.mockReturnValue([])
+  mocks.listIdsByAgent.mockReturnValue(['session-1'])
   mocks.ensureTraceId.mockReturnValue('b'.repeat(32))
   mocks.getAgent.mockReturnValue({ id: 'agent-1', type: 'test-runtime', model: baseTurnInput.modelId })
   mocks.applicationGet.mockImplementation((name: string) => {
@@ -124,6 +132,8 @@ beforeEach(() => {
       return {
         setShared: mocks.cacheSetShared,
         getShared: mocks.cacheGetShared,
+        getPersist: mocks.cacheGetPersist,
+        setPersist: mocks.cacheSetPersist,
         deleteShared: mocks.cacheDeleteShared
       }
     }

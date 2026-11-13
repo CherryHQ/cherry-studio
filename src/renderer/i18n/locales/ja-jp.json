@@ -285,6 +285,7 @@
   "agent.right_pane.info.context_categories.system_tools": "システムツール",
   "agent.right_pane.info.context_categories.system_tools_deferred": "システムツール（遅延読み込み）",
   "agent.right_pane.info.context_details.deferred": "遅延読み込み",
+  "agent.right_pane.info.context_details.last_measured": "最終計測 {{time}}",
   "agent.right_pane.info.context_details.last_request": "直近のモデルリクエスト",
   "agent.right_pane.info.context_details.loaded": "読み込み済み",
   "agent.right_pane.info.context_details.partial": "一部の内訳",

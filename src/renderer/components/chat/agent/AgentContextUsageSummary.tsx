@@ -60,6 +60,8 @@ function resourceLabel(
 interface AgentContextUsageSummaryProps {
   usage: ThreadContextUsage | null
   percentage: number | null
+  restored?: boolean
+  measuredAt?: string
   className?: string
   isCompacting?: boolean
   modelName?: string
@@ -71,6 +73,8 @@ export function AgentContextUsageSummary({
   usage,
   percentage,
   className,
+  restored = false,
+  measuredAt,
   isCompacting = false,
   modelName,
   showCategories = true
@@ -137,6 +141,11 @@ export function AgentContextUsageSummary({
       summaryClassName={showCategories ? 'px-3' : undefined}
       collapsible={showCategories}
       description={[
+        restored &&
+          measuredAt &&
+          t('agent.right_pane.info.context_details.last_measured', {
+            time: new Date(measuredAt).toLocaleString(i18n.resolvedLanguage)
+          }),
         usage?.breakdown?.coverage === 'partial' && t('agent.right_pane.info.context_details.partial'),
         usage?.basis === 'last-request' && t('agent.right_pane.info.context_details.last_request')
       ]

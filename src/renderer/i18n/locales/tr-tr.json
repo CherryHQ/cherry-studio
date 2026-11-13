@@ -285,6 +285,7 @@
   "agent.right_pane.info.context_categories.system_tools": "Sistem araçları",
   "agent.right_pane.info.context_categories.system_tools_deferred": "Sistem araçları (ertelenmiş)",
   "agent.right_pane.info.context_details.deferred": "Ertelenmiş",
+  "agent.right_pane.info.context_details.last_measured": "Son ölçüm {{time}}",
   "agent.right_pane.info.context_details.last_request": "Son model isteği",
   "agent.right_pane.info.context_details.loaded": "Yüklendi",
   "agent.right_pane.info.context_details.partial": "Kısmi döküm",

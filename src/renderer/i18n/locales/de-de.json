@@ -285,6 +285,7 @@
   "agent.right_pane.info.context_categories.system_tools": "Systemtools",
   "agent.right_pane.info.context_categories.system_tools_deferred": "Systemwerkzeuge (zurückgestellt)",
   "agent.right_pane.info.context_details.deferred": "Zurückgestellt",
+  "agent.right_pane.info.context_details.last_measured": "Zuletzt gemessen {{time}}",
   "agent.right_pane.info.context_details.last_request": "Letzte Modellanfrage",
   "agent.right_pane.info.context_details.loaded": "Geladen",
   "agent.right_pane.info.context_details.partial": "Teilweise Aufschlüsselung",

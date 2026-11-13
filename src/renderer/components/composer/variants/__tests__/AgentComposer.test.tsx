@@ -2551,7 +2551,7 @@ describe('AgentComposer', () => {
     expect(mocks.selectedKnowledgeBases).toEqual([knowledgeBaseOne])
   })
 
-  it('renders context usage for the selected Gateway model but hides a different model cache', async () => {
+  it.each([false, true])('renders the same context meter for the selected model (restored: %s)', async (restored) => {
     mocks.modelResult = {
       ...model,
       id: 'minimax::MiniMax-M3',
@@ -2561,6 +2561,7 @@ describe('AgentComposer', () => {
     }
     MockUseCacheUtils.setSharedCacheValue('agent.session.context_usage.session-1', {
       modelId: 'minimax::MiniMax-M3',
+      ...(restored ? { snapshot: { restored: true as const, measuredAt: '2026-11-12T00:00:00.000Z' } } : {}),
       result: {
         status: 'confirmed',
         value: {
@@ -2587,7 +2588,12 @@ describe('AgentComposer', () => {
     const sendAccessory = screen.getByTestId('composer-send-accessory')
     const indicator = within(sendAccessory).getByLabelText('agent.right_pane.info.context_usage 42%')
 
-    expect(indicator).toBeInTheDocument()
+    expect(indicator).toHaveAttribute('role', 'meter')
+    fireEvent.pointerEnter(indicator)
+    expect(mocks.ipcApiRequest).toHaveBeenCalledWith('ai.agent.session.refresh_context_usage', {
+      sessionId: 'session-1'
+    })
+    if (restored) expect(screen.getByText('agent.right_pane.info.context_details.last_measured')).toBeInTheDocument()
 
     await waitFor(() => expect(screen.getByText('42 / 100 (42%)')).toBeInTheDocument())
     expect(within(sendAccessory).getByText('MiniMax M3')).toBeInTheDocument()

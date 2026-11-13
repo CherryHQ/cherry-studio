@@ -285,6 +285,7 @@
   "agent.right_pane.info.context_categories.system_tools": "Системные инструменты",
   "agent.right_pane.info.context_categories.system_tools_deferred": "Системные инструменты (отложенные)",
   "agent.right_pane.info.context_details.deferred": "Отложено",
+  "agent.right_pane.info.context_details.last_measured": "Последнее измерение {{time}}",
   "agent.right_pane.info.context_details.last_request": "Последний запрос к модели",
   "agent.right_pane.info.context_details.loaded": "Загружено",
   "agent.right_pane.info.context_details.partial": "Частичная детализация",

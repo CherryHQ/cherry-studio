@@ -285,6 +285,7 @@
   "agent.right_pane.info.context_categories.system_tools": "Herramientas del sistema",
   "agent.right_pane.info.context_categories.system_tools_deferred": "Herramientas del sistema (diferidas)",
   "agent.right_pane.info.context_details.deferred": "Diferido",
+  "agent.right_pane.info.context_details.last_measured": "Última medición {{time}}",
   "agent.right_pane.info.context_details.last_request": "Última solicitud al modelo",
   "agent.right_pane.info.context_details.loaded": "Cargado",
   "agent.right_pane.info.context_details.partial": "Desglose parcial",

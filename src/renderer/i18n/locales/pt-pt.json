@@ -285,6 +285,7 @@
   "agent.right_pane.info.context_categories.system_tools": "Ferramentas do sistema",
   "agent.right_pane.info.context_categories.system_tools_deferred": "Ferramentas do sistema (diferidas)",
   "agent.right_pane.info.context_details.deferred": "Diferido",
+  "agent.right_pane.info.context_details.last_measured": "Última medição {{time}}",
   "agent.right_pane.info.context_details.last_request": "Último pedido ao modelo",
   "agent.right_pane.info.context_details.loaded": "Carregado",
   "agent.right_pane.info.context_details.partial": "Discriminação parcial",

@@ -285,6 +285,7 @@
   "agent.right_pane.info.context_categories.system_tools": "系统工具",
   "agent.right_pane.info.context_categories.system_tools_deferred": "系统工具（延迟加载）",
   "agent.right_pane.info.context_details.deferred": "延迟加载",
+  "agent.right_pane.info.context_details.last_measured": "上次测量于 {{time}}",
   "agent.right_pane.info.context_details.last_request": "最近一次模型请求",
   "agent.right_pane.info.context_details.loaded": "已加载",
   "agent.right_pane.info.context_details.partial": "部分明细",

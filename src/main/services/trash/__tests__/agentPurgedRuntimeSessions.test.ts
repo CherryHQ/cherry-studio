@@ -33,6 +33,7 @@ vi.mock('@application', async () => {
       isSessionBusyForArchive: () => false,
       listClaimedResumeTokens: () => new Set(claimedTokens),
       closeSession: async () => undefined,
+      invalidateSessionContextUsage: () => {},
       cancelSessionForks: async () => undefined,
       recoverSessionForks: async () => undefined
     },

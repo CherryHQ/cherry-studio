@@ -99,6 +99,7 @@ describe('AgentJobsService', () => {
     isSessionBusyForArchive: vi.fn(() => false),
     closeSession: async () => {},
     closeSessionForArchive: vi.fn(async () => {}),
+    invalidateSessionContextUsage: () => {},
     cancelSessionForks: async () => {},
     recoverSessionForks: async () => {}
   }

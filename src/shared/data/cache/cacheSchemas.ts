@@ -1,3 +1,4 @@
+import type { AgentSessionContextUsageSnapshot } from '@shared/ai/agentSessionContextUsage'
 import type { AiUsageRecordListSortBy, AiUsageRecordSortOrder } from '@shared/data/api/schemas/aiUsageRecords'
 import type { JobProgress, JobSnapshot } from '@shared/data/api/schemas/jobs'
 import type { LocalModelStatusSnapshots } from '@shared/data/presets/localModel'
@@ -582,6 +583,8 @@ export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
  * with, or readable by the renderer.
  */
 export type MainPersistCacheSchema = {
+  // Last confirmed root-session reading; a cache miss shows nothing.
+  'agent.session.context_usage_snapshots': Record<string, AgentSessionContextUsageSnapshot>
   'skill.subscription.catalogs': Record<string, SkillSubscriptionSnapshot>
   // ZIP-derived contents only; installed state still comes from the skill library.
   'skill.marketplace.members': Record<string, MarketplaceSkillMember[]>
@@ -602,6 +605,7 @@ export type MainPersistCacheSchema = {
 }
 
 export const DefaultMainPersistCache: MainPersistCacheSchema = {
+  'agent.session.context_usage_snapshots': {},
   'skill.subscription.catalogs': {},
   'skill.marketplace.members': {},
   'browser.favicons': {},

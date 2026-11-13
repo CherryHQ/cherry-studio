@@ -285,6 +285,7 @@
   "agent.right_pane.info.context_categories.system_tools": "Outils système",
   "agent.right_pane.info.context_categories.system_tools_deferred": "Outils système (différés)",
   "agent.right_pane.info.context_details.deferred": "Différé",
+  "agent.right_pane.info.context_details.last_measured": "Dernière mesure {{time}}",
   "agent.right_pane.info.context_details.last_request": "Dernière requête au modèle",
   "agent.right_pane.info.context_details.loaded": "Chargé",
   "agent.right_pane.info.context_details.partial": "Répartition partielle",
