@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto'
+import { once } from 'node:events'
 import { mkdtemp, mkdir, readFile, writeFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
@@ -9,10 +10,11 @@ import { MockFileIntakeUtils } from '@test-mocks/main/FileIntakeService'
 import type { UIMessageChunk } from 'ai'
 import { eq } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { WebSocket, WebSocketServer } from 'ws'
 
 import { application } from '@application'
 import type * as RemoteProtocol from '@cherrystudio/remote-protocol'
-import { remoteLimits } from '@cherrystudio/remote-protocol'
+import { jsonRpcResponseSchema, remoteLimits } from '@cherrystudio/remote-protocol'
 import {
   agentEventBatchSchema as legacyBatchSchema,
   applyAgentEvents as applyLegacyEvents,
@@ -22,11 +24,25 @@ import {
   type AgentCheckpointPage,
   type AgentEventBatch,
   type AgentProjection,
+  type AgentMethod,
+  type AgentParams,
+  type AgentResult,
+  agentMethods,
   applyAgentEvents,
   installAgentCheckpoint
 } from '@cherrystudio/remote-protocol/agent'
-import type { SecureChannel } from '@cherrystudio/remote-transport'
+import {
+  type ChannelOptions,
+  type SecureChannel,
+  acceptSecureChannel,
+  connectSecureChannel,
+  createDeviceIdentity,
+  deviceIdentityId,
+  RemoteSocketStream
+} from '@cherrystudio/remote-transport'
 import { agentTable } from '@data/db/schemas/agent'
+import { agentSessionTable } from '@data/db/schemas/agentSession'
+import { jobTable } from '@data/db/schemas/job'
 import { pinTable } from '@data/db/schemas/pin'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
@@ -38,6 +54,7 @@ import { aiUsageRecordService } from '@data/services/AiUsageRecordService'
 import { apiGatewayPairedDeviceService } from '@data/services/ApiGatewayPairedDeviceService'
 import { fileEntryService } from '@data/services/FileEntryService'
 import { fileRefService } from '@data/services/FileRefService'
+import { jobScheduleService } from '@data/services/JobScheduleService'
 import { remoteCommandService } from '@data/services/RemoteCommandService'
 import { AgentLifecycleService } from '@main/ai/agents/AgentLifecycleService'
 import { AgentSessionMessageBackend } from '@main/ai/agentSession/persistence/AgentSessionMessageBackend'
@@ -97,6 +114,7 @@ const fake = vi.hoisted(() => {
     },
     runtime: {
       assertSessionWritable() {},
+      async prepareBranch() {},
       isSessionBusy: () => false,
       isSessionBusyForArchive: () => false,
       respondToolApproval: vi.fn(() => true),
@@ -160,6 +178,13 @@ vi.mock('@main/ai/streamManager', () => ({
 }))
 
 const integrity = { sha256 }
+const taskRequests = [
+  ['agent.tasks.list', {}],
+  ['agent.tasks.get', { taskId: 'missing' }],
+  ['agent.tasks.runs.list', { taskId: 'missing' }],
+  ['agent.tasks.runs.get', { taskId: 'missing', runId: 'missing' }],
+  ['agent.tasks.content.read', { taskId: 'missing', contentId: 'prompt', revision: '0', offset: '0', maxBytes: 1 }]
+] as const
 const tick = () => new Promise<void>((resolve) => setTimeout(resolve, 3))
 const settleDeltas = async () => {
   await new Promise<void>((resolve) => setTimeout(resolve, COALESCE_WINDOW_MS))
@@ -339,6 +364,247 @@ describe('remote agent access', () => {
     )
     await call('connection.hello', { protocolVersions: [1] })
     await call('connection.authenticate', { deviceId: device.id })
+  })
+
+  it.each([0, 2])('reads tasks and results with timeoutMinutes=%i', async (timeoutMinutes) => {
+    const prompt = '任务内容'.repeat(2000)
+    const task = jobScheduleService.create({
+      type: 'agent.task',
+      name: 'Daily report',
+      trigger: { kind: 'cron', expr: '0 9 * * *' },
+      jobInputTemplate: { agentId: 'agent-1', prompt, timeoutMinutes, workspace: { type: 'system' } },
+      catchUpPolicy: { kind: 'skip-missed' }
+    })
+    dbh.db.update(agentSessionTable).set({ taskId: task.id }).where(eq(agentSessionTable.id, sessionId)).run()
+    const messageId = randomUUID()
+    agentSessionMessageService.saveMessage({
+      sessionId,
+      message: {
+        id: messageId,
+        role: 'assistant',
+        status: 'success',
+        data: { parts: [{ type: 'text', text: 'Scheduled result' }] }
+      }
+    })
+    dbh.db
+      .insert(jobTable)
+      .values({
+        id: 'task-run',
+        type: 'agent.task',
+        queue: 'agent:agent-1',
+        scheduleId: task.id,
+        status: 'completed',
+        scheduledAt: 1000,
+        startedAt: 2000,
+        finishedAt: 3000,
+        input: { secret: 'private input' },
+        metadata: { sessionId },
+        output: { kind: 'executed', result: 'Report ready' }
+      })
+      .run()
+    expect(await call('agent.tasks.list', {})).toMatchObject({ items: [{ taskId: task.id }], nextCursor: null })
+    const detail = await call('agent.tasks.get', { taskId: task.id })
+    expect(detail.task).toMatchObject({
+      name: 'Daily report',
+      timeoutMinutes,
+      prompt: { ref: { sha256: sha256(Buffer.from(prompt)) } }
+    })
+    const runs = await call('agent.tasks.runs.list', { taskId: task.id })
+    expect(runs).toMatchObject({
+      items: [
+        {
+          runId: 'task-run',
+          status: 'completed',
+          outcome: 'executed',
+          summary: 'Report ready',
+          resultLocation: { kind: 'session', sessionId }
+        }
+      ]
+    })
+    expect((await call('agent.tasks.runs.get', { taskId: task.id, runId: 'task-run' })).run).toEqual(runs.items[0])
+    expect(JSON.stringify(runs)).not.toContain('private')
+    const content = await call('agent.tasks.content.read', {
+      taskId: task.id,
+      contentId: detail.task.prompt.ref.contentId,
+      revision: detail.task.prompt.ref.revision,
+      offset: '0',
+      maxBytes: 24_576
+    })
+    expect(Buffer.from(content.dataBase64, 'base64').toString('utf8')).toBe(prompt)
+    const discovered = await call('agent.sessions.list', {})
+    expect(discovered.items.map((session: { sessionId: string }) => session.sessionId)).toContain(sessionId)
+    const { session } = await call('agent.sessions.get', { sessionId })
+    expect(await call('agent.messages.list', { sessionId, historyRevision: session.historyRevision })).toMatchObject({
+      items: [{ messageId }]
+    })
+    const ordinary = agentSessionService.create({
+      agentId: 'agent-1',
+      name: 'Unrelated',
+      workspace: { type: 'system' }
+    })
+    dbh.db.delete(jobTable).where(eq(jobTable.id, 'task-run')).run()
+    expect(await call('agent.tasks.runs.list', { taskId: task.id })).toEqual({ items: [], nextCursor: null })
+    const history = await call('agent.sessions.list', { taskId: task.id, agentId: 'agent-1', limit: 1 })
+    expect(history.items.map((item: { sessionId: string }) => item.sessionId)).toEqual([sessionId])
+    expect(
+      await call('agent.messages.list', {
+        sessionId: history.items[0].sessionId,
+        historyRevision: history.items[0].historyRevision
+      })
+    ).toMatchObject({ items: [{ messageId }] })
+    expect(await call('agent.sessions.list', { taskId: 'missing' })).toEqual({ items: [], nextCursor: null })
+    expect(agentSessionService.listByCursor({ scope: 'ordinary' }).items.map((item) => item.id)).toEqual([ordinary.id])
+    await expect(call('agent.tasks.list', { statuses: [] })).rejects.toMatchObject({ code: -32602 })
+    await expect(call('agent.tasks.get', { taskId: 'missing' })).rejects.toMatchObject({
+      data: { reason: 'NOT_FOUND' }
+    })
+  })
+
+  it('rechecks authorization for every Task read after expiry or revocation', async () => {
+    const now = vi.spyOn(Date, 'now').mockReturnValue(Date.now() + remoteLimits.tokenMs + 1)
+    try {
+      for (const [method, params] of taskRequests)
+        await expect(call(method, params)).rejects.toMatchObject({ data: { reason: 'TOKEN_EXPIRED' } })
+    } finally {
+      now.mockRestore()
+    }
+    const auth = connection.requireCapability('agent')
+    apiGatewayPairedDeviceService.revokeRemoteCapability(auth.deviceId, 'agent')
+    for (const [method, params] of taskRequests)
+      await expect(call(method, params)).rejects.toMatchObject({ data: { reason: 'GRANT_REVOKED' } })
+  })
+
+  it('continues Task pages and opens saved results through typed encrypted WebSocket RPC after reconnect', async () => {
+    const tasks = ['Report', 'Other report'].map((name) =>
+      jobScheduleService.create({
+        type: 'agent.task',
+        name,
+        trigger: { kind: 'interval', ms: 60_000 },
+        jobInputTemplate: { agentId: 'agent-1', prompt: name, timeoutMinutes: 2, workspace: { type: 'system' } },
+        catchUpPolicy: { kind: 'skip-missed' }
+      })
+    )
+    for (const id of ['run-a', 'run-b'])
+      dbh.db
+        .insert(jobTable)
+        .values({
+          id,
+          type: 'agent.task',
+          scheduleId: tasks[0].id,
+          queue: 'agent:agent-1',
+          status: 'completed',
+          scheduledAt: 1000,
+          finishedAt: 2000,
+          createdAt: 1000,
+          input: {},
+          metadata: { sessionId },
+          output: { kind: 'executed' }
+        })
+        .run()
+    const messageId = randomUUID()
+    agentSessionMessageService.saveMessage({
+      sessionId,
+      message: {
+        id: messageId,
+        role: 'assistant',
+        status: 'success',
+        data: { parts: [{ type: 'text', text: 'Saved report' }] }
+      }
+    })
+    const [desktop, phone] = await Promise.all([createDeviceIdentity(), createDeviceIdentity()])
+    const { device } = apiGatewayPairedDeviceService.approveRemote({
+      name: 'Typed client',
+      platform: 'ios',
+      peerIdentity: deviceIdentityId(phone),
+      capabilities: ['agent']
+    })
+    const logger: ChannelOptions['logger'] = {
+      forComponent: () =>
+        Object.assign(() => {}, { enabled: false, error() {}, trace() {}, newScope: () => logger.forComponent('test') })
+    }
+    const server = new WebSocketServer({ host: '127.0.0.1', port: 0 })
+    await once(server, 'listening')
+    const address = server.address()
+    if (typeof address === 'string' || !address) throw new Error('Missing WebSocket address')
+    let taskCursor: string | undefined
+    let runCursor: string | undefined
+    const taskIds: string[] = []
+    const runIds: string[] = []
+    try {
+      for (let reconnect = 0; reconnect < 2; reconnect++) {
+        const accepted = new Promise<WebSocket>((resolve) => server.once('connection', resolve))
+        const phoneSocket = new WebSocket(`ws://127.0.0.1:${address.port}`)
+        await once(phoneSocket, 'open')
+        const desktopSocket = await accepted
+        const options = { logger, protocolVersions: [1], signal: AbortSignal.timeout(5000) }
+        const [client, channel] = await Promise.all([
+          connectSecureChannel(new RemoteSocketStream(phoneSocket, logger.forComponent('client'), 'outbound'), {
+            ...options,
+            identity: phone,
+            remoteIdentity: deviceIdentityId(desktop)
+          }),
+          acceptSecureChannel(new RemoteSocketStream(desktopSocket, logger.forComponent('server'), 'inbound'), {
+            ...options,
+            identity: desktop
+          })
+        ])
+        const remote = new RemoteConnection(
+          channel,
+          new RemotePairing(),
+          new RemoteTokens(),
+          () => {},
+          hub,
+          async () => ({ desktopIdentity: deviceIdentityId(desktop), endpoints: [] })
+        )
+        const exchange = async (method: string, params: unknown) => {
+          await client.write({ jsonrpc: '2.0', id: randomUUID(), method, params })
+          await channel.write(await remote.rpc.receive(await channel.read(options.signal), undefined))
+          const response = jsonRpcResponseSchema.parse(await client.read(options.signal))
+          if ('error' in response) throw new Error(JSON.stringify(response.error))
+          return response.result
+        }
+        async function request<M extends AgentMethod>(method: M, params: AgentParams<M>): Promise<AgentResult<M>>
+        async function request(
+          method: AgentMethod,
+          params: AgentParams<AgentMethod>
+        ): Promise<AgentResult<AgentMethod>> {
+          return agentMethods[method].result.parse(await exchange(method, params))
+        }
+        try {
+          await exchange('connection.hello', { protocolVersions: [1] })
+          await exchange('connection.authenticate', { deviceId: device.id })
+          const page = await request('agent.tasks.list', { limit: 1, cursor: taskCursor })
+          taskIds.push(...page.items.map((item) => item.taskId))
+          taskCursor = page.nextCursor ?? undefined
+          const detail = await request('agent.tasks.get', { taskId: tasks[0].id })
+          expect(detail.task.prompt).toEqual({ text: 'Report' })
+          const runs = await request('agent.tasks.runs.list', { taskId: tasks[0].id, limit: 1, cursor: runCursor })
+          runIds.push(...runs.items.map((run) => run.runId))
+          runCursor = runs.nextCursor ?? undefined
+          const { run } = await request('agent.tasks.runs.get', { taskId: tasks[0].id, runId: runs.items[0].runId })
+          if (run.resultLocation.kind !== 'session') throw new Error('Expected saved conversation')
+          const { session } = await request('agent.sessions.get', { sessionId: run.resultLocation.sessionId })
+          const messages = await request('agent.messages.list', {
+            sessionId: session.sessionId,
+            historyRevision: session.historyRevision
+          })
+          expect(messages.items.map((message) => message.messageId)).toEqual([messageId])
+        } finally {
+          remote.dispose()
+          client.abort(new Error('Reconnect'))
+          channel.abort(new Error('Reconnect'))
+          phoneSocket.terminate()
+          desktopSocket.terminate()
+        }
+      }
+      expect(new Set(taskIds)).toEqual(new Set(tasks.map((task) => task.id)))
+      expect(runIds).toEqual(['run-b', 'run-a'])
+      expect(taskCursor).toBeUndefined()
+      expect(runCursor).toBeUndefined()
+    } finally {
+      for (const socket of server.clients) socket.terminate()
+      await new Promise<void>((resolve) => server.close(() => resolve()))
+    }
   })
 
   it('sends the managed file directly without a second entry and deduplicates after staging is removed', async () => {
@@ -994,7 +1260,7 @@ describe('remote agent access', () => {
   })
 
   it('rolls back a created session when its receipt cannot commit', async () => {
-    const before = agentSessionService.listByCursor().items.map((session) => session.id)
+    const before = agentSessionService.listByCursor({ scope: 'ordinary' }).items.map((session) => session.id)
     const settle = vi.spyOn(remoteCommandService, 'settle').mockImplementationOnce(() => {
       throw new Error('Disk failure')
     })
@@ -1005,7 +1271,7 @@ describe('remote agent access', () => {
         workspace: { kind: 'system' }
       })
       expect(receipt.status).toBe('interrupted')
-      expect(agentSessionService.listByCursor().items.map((session) => session.id)).toEqual(before)
+      expect(agentSessionService.listByCursor({ scope: 'ordinary' }).items.map((session) => session.id)).toEqual(before)
     } finally {
       settle.mockRestore()
     }
@@ -1040,6 +1306,7 @@ describe('remote agent access', () => {
           await gate
           return run()
         })
+      const capturedParentId = agentSessionMessageService.captureHead(sessionId)
       const validate = vi.spyOn(agentChatContextProvider, 'validateDispatch').mockImplementation(async () => {
         if (phase === 'preparation') {
           entered()
@@ -1049,6 +1316,7 @@ describe('remote agent access', () => {
           sessionId,
           topicId: `agent-session:${sessionId}`,
           agentId: 'agent-1',
+          parentMessageId: capturedParentId,
           agentUpdatedAt: new Date().toISOString(),
           agentType: 'claude-code',
           agentName: 'Agent',
@@ -1142,6 +1410,7 @@ describe('remote agent access', () => {
         sessionId,
         topicId: `agent-session:${sessionId}`,
         agentId: 'agent-1',
+        parentMessageId: agentSessionMessageService.captureHead(sessionId),
         agentUpdatedAt: new Date().toISOString(),
         agentType: 'claude-code',
         agentName: 'Agent',
@@ -1339,6 +1608,137 @@ describe('remote agent access', () => {
     expect(
       await other.rpc.receive({ jsonrpc: '2.0', id: 3, method: 'agent.sessions.list', params: {} }, undefined)
     ).toMatchObject({ error: { data: { reason: 'FORBIDDEN' } } })
+    for (const [method, params] of taskRequests)
+      expect(await other.rpc.receive({ jsonrpc: '2.0', id: randomUUID(), method, params }, undefined)).toMatchObject({
+        error: { data: { reason: 'FORBIDDEN' } }
+      })
+    other.dispose()
+  })
+
+  it('keeps streaming replacements across the content-reference threshold in the same journal epoch', async () => {
+    const journal = hub.journal(sessionId)
+    await journal.startRun('hi', 'agent-1', () => {})
+    const epoch = journal.epoch
+    const answerId = randomUUID()
+    for (const length of [4096, 4097, 5000]) {
+      const text = '界'.repeat(length)
+      for (const listener of fake.streams.get(`agent-session:${sessionId}`) ?? [])
+        listener.onMessage?.(
+          { id: answerId, role: 'assistant', parts: [{ type: 'text', text, state: 'streaming' }] },
+          undefined,
+          'messages'
+        )
+      expect(journal.epoch).toBe(epoch)
+      const part = journal.projection.parts[journal.projection.messages[answerId].partIds[0]]
+      expect(part).toMatchObject({ state: 'streaming', content: { text } })
+      const checkpoint = journal.capture()
+      const installed = installAgentCheckpoint(
+        checkpoint.descriptor,
+        checkpoint.pages,
+        Object.fromEntries(checkpoint.content),
+        integrity
+      )
+      if (!installed.ok) throw new Error(installed.reason)
+      expect(installed.projection.parts[part.partId]).toMatchObject({ content: { text } })
+    }
+    await finish(answerId, [{ type: 'text', text: 'Final', state: 'done' }])
+    expect(journal.epoch).toBe(epoch)
+    expect(Object.values(journal.projection.executions)).toEqual([
+      expect.objectContaining({ status: 'completed', durable: true })
+    ])
+  })
+
+  // An offline client must resolve every retained streaming reference even after the answer commits.
+  it('keeps terminal replay content until the replay window is evicted', async () => {
+    const journal = hub.journal(sessionId)
+    await journal.startRun('hi', 'agent-1', () => {})
+    const checkpoint = journal.capture()
+    const baseline = installAgentCheckpoint(checkpoint.descriptor, checkpoint.pages, {}, integrity)
+    if (!baseline.ok) throw new Error(baseline.reason)
+    const answerId = randomUUID()
+    const text = '界'.repeat(5000)
+    for (const listener of fake.streams.get(`agent-session:${sessionId}`) ?? []) {
+      listener.onMessage?.(
+        { id: answerId, role: 'assistant', parts: [{ type: 'text', text, state: 'streaming' }] },
+        undefined,
+        'messages'
+      )
+    }
+    await finish(answerId, [{ type: 'text', text: 'Final', state: 'done' }])
+    const events = journal.eventsAfter(Number(baseline.cursor.seq), Infinity)
+    const content: Record<string, Uint8Array> = {}
+    for (const event of events) {
+      if (event.kind !== 'part.created' && event.kind !== 'part.replaced') continue
+      const part = event.payload.part
+      if (part.kind === 'file' || !('ref' in part.content)) continue
+      const ref = part.content.ref
+      const read = await call('agent.content.read', {
+        sessionId,
+        contentId: ref.contentId,
+        revision: ref.revision,
+        offset: '0',
+        maxBytes: 24_576
+      })
+      expect(Buffer.from(read.dataBase64, 'base64').toString()).toBe(text)
+      content[`${ref.contentId}:${ref.revision}`] = Buffer.from(read.dataBase64, 'base64')
+    }
+    expect(Object.keys(content)).toHaveLength(1)
+    const applied = applyAgentEvents(
+      baseline.projection,
+      { subscriptionId: 'replay', sessionId, streamEpoch: journal.epoch, events },
+      content,
+      integrity
+    )
+    if (!applied.ok) throw new Error(applied.reason)
+    expect(applied.projection.messages[answerId]).toBeUndefined()
+    expect(Object.values(applied.projection.executions)).toEqual([
+      expect.objectContaining({ status: 'completed', durable: true })
+    ])
+    journal.trimReplay(0)
+    expect(journal.firstRetainedSeq).toBe(Number(journal.cursor.seq) + 1)
+    expect(journal.pins.size).toBe(0)
+    expect(journal.replayBytes).toBe(0)
+  })
+
+  it('projects replacement views in order and replays removals without reviving old content', async () => {
+    const journal = hub.journal(sessionId)
+    await journal.startRun('hi', 'agent-1', () => {})
+    const publish = (parts: CherryMessagePart[]) => {
+      for (const listener of fake.streams.get(`agent-session:${sessionId}`) ?? [])
+        listener.onMessage?.({ id: 'answer', role: 'assistant', parts }, undefined, 'messages')
+    }
+    publish([
+      { type: 'text', text: 'Withdrawn', state: 'streaming' },
+      { type: 'text', text: 'Tail', state: 'done' }
+    ])
+    const checkpoint = journal.capture()
+    const baseline = installAgentCheckpoint(checkpoint.descriptor, checkpoint.pages, {}, integrity)
+    if (!baseline.ok) throw new Error(baseline.reason)
+    publish([
+      {
+        type: 'dynamic-tool',
+        toolCallId: 'call',
+        toolName: 'Bash',
+        state: 'input-available',
+        input: { command: 'pwd' }
+      },
+      { type: 'text', text: 'Tail', state: 'done' }
+    ])
+    publish([{ type: 'text', text: 'Replacement', state: 'done' }])
+    const events = journal.eventsAfter(Number(baseline.cursor.seq), Infinity)
+    const batch: AgentEventBatch = { subscriptionId: 'test', sessionId, streamEpoch: journal.epoch, events }
+    const applied = applyAgentEvents(baseline.projection, batch, {}, integrity)
+    if (!applied.ok) throw new Error(applied.reason)
+    expect(applied.projection.messages.answer.partIds).toHaveLength(1)
+    expect(applied.projection.parts[applied.projection.messages.answer.partIds[0]]).toMatchObject({
+      kind: 'text',
+      content: { text: 'Replacement' },
+      state: 'completed'
+    })
+    expect(applyAgentEvents(applied.projection, batch, {}, integrity)).toEqual(applied)
+    const legacy = installLegacyCheckpoint(checkpoint.descriptor, checkpoint.pages, {}, integrity)
+    if (!legacy.ok) throw new Error(legacy.reason)
+    expect(applyLegacyEvents(legacy.projection, legacyBatchSchema.parse(batch), {}, integrity).ok).toBe(true)
   })
 
   it('coalesces Unicode deltas within a bounded window and replays them from a checkpoint', async () => {

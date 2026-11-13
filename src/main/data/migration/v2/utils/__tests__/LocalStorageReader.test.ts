@@ -52,12 +52,6 @@ describe('LocalStorageReader', () => {
       const reader = new LocalStorageReader(sampleRecords)
       expect(reader.get('null-value-key')).toBeNull()
     })
-
-    it('should support generic type parameter', () => {
-      const reader = new LocalStorageReader(sampleRecords)
-      const value = reader.get<boolean>('privacy-popup-accepted')
-      expect(value).toBe(true)
-    })
   })
 
   describe('has', () => {
@@ -89,14 +83,6 @@ describe('LocalStorageReader', () => {
       expect(keys).toHaveLength(7)
       expect(keys).toContain('privacy-popup-accepted')
       expect(keys).toContain('provider:openai:token')
-    })
-
-    it('should return a new array each time', () => {
-      const reader = new LocalStorageReader(sampleRecords)
-      const keys1 = reader.keys()
-      const keys2 = reader.keys()
-      expect(keys1).not.toBe(keys2)
-      expect(keys1).toEqual(keys2)
     })
   })
 

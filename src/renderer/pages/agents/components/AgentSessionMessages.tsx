@@ -4,6 +4,7 @@ import { loggerService } from '@logger'
 import MessageList from '@renderer/components/chat/messages/MessageList'
 import { MessageListProvider } from '@renderer/components/chat/messages/MessageListProvider'
 import { AskUserQuestionOptimisticInputProvider } from '@renderer/components/chat/messages/tools/agent'
+import type { MessageListState } from '@renderer/components/chat/messages/types'
 import type {
   MessageListActions,
   MessageListSelectAllPagination,
@@ -17,9 +18,10 @@ import type { GetAgentResponse } from '@renderer/types/agent'
 import { type Topic, TopicType } from '@renderer/types/topic'
 import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
+import type { AgentSessionHistoryActions } from '@shared/data/api/schemas/agentSessionMessages'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 
-import { useAgentMessageListProviderValue } from '../messages/agentMessageListAdapter'
+import { type NavigateToForkSource, useAgentMessageListProviderValue } from '../messages/agentMessageListAdapter'
 import { AgentPendingAttachments } from '../messages/AgentPendingAttachments'
 import AgentSessionBackgroundTasks from '../messages/AgentSessionBackgroundTasks'
 
@@ -30,6 +32,7 @@ type Props = {
   sessionId: string
   workspacePath?: string
   messages: CherryUIMessage[]
+  historyActions?: Readonly<Record<string, AgentSessionHistoryActions | undefined>>
   activeAgent?: GetAgentResponse
   partsByMessageId: Record<string, CherryMessagePart[]>
   streamingLayers?: MessageStreamingLayers
@@ -49,10 +52,13 @@ type Props = {
   openExternalUrl?: MessageListActions['openExternalUrl']
   openDiagnosticReport?: MessageListActions['openDiagnosticReport']
   previewInputFile?: MessageListActions['previewInputFile']
+  getMessageSiblings?: MessageListState['getMessageSiblings']
+  setActiveBranch?: MessageListActions['setActiveBranch']
   deleteMessage?: MessageListActions['deleteMessage']
   startEditing?: (messageId: string) => Promise<void>
   editBusy?: boolean
   respondToolApproval?: MessageListActions['respondToolApproval']
+  navigateToForkSource?: NavigateToForkSource
 }
 
 const AgentSessionMessages = ({
@@ -60,6 +66,7 @@ const AgentSessionMessages = ({
   sessionId,
   workspacePath,
   messages,
+  historyActions,
   activeAgent,
   partsByMessageId,
   streamingLayers,
@@ -77,9 +84,12 @@ const AgentSessionMessages = ({
   openDiagnosticReport,
   previewInputFile,
   deleteMessage,
+  getMessageSiblings,
+  setActiveBranch,
   startEditing,
   editBusy,
-  respondToolApproval
+  respondToolApproval,
+  navigateToForkSource
 }: Props) => {
   const { session } = useSession(sessionId)
   const sessionTopicId = useMemo(() => buildAgentSessionTopicId(sessionId), [sessionId])
@@ -95,7 +105,7 @@ const AgentSessionMessages = ({
       activeAgent
         ? {
             name: activeAgent.name,
-            avatar: getAgentAvatarFromConfiguration(activeAgent.configuration)
+            avatar: getAgentAvatarFromConfiguration(activeAgent.configuration, activeAgent.avatarSrc)
           }
         : undefined,
     [activeAgent]
@@ -143,6 +153,7 @@ const AgentSessionMessages = ({
   const messageList = useAgentMessageListProviderValue({
     topic: derivedTopic,
     messages,
+    historyActions,
     partsByMessageId,
     streamingLayers,
     assistantProfile,
@@ -160,10 +171,14 @@ const AgentSessionMessages = ({
     openDiagnosticReport,
     diagnosticReport,
     previewInputFile,
+    getMessageSiblings,
+    setActiveBranch,
     deleteMessage,
     startEditing,
     editBusy,
     respondToolApproval,
+    navigateToForkSource,
+    scrollToBottomOnSend: true,
     messageNavigation,
     workspacePath: workspacePath ?? session?.workspace?.path,
     messageTail,

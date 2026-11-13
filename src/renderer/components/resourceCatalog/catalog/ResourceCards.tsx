@@ -1,8 +1,9 @@
 import { Play, Trash2 } from 'lucide-react'
-import type { KeyboardEvent } from 'react'
+import { type KeyboardEvent, useId } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Badge, Button, Switch, Tooltip } from '@cherrystudio/ui'
+import { Badge, Button, Label, Switch, Tooltip } from '@cherrystudio/ui'
+import { AssistantAvatarImage } from '@renderer/components/Avatar/AssistantAvatarImage'
 import { useSkillMutationsById } from '@renderer/hooks/resourceCatalog'
 import { toast } from '@renderer/services/toast'
 import type { ResourceItem } from '@renderer/types/resourceCatalog'
@@ -43,6 +44,7 @@ function hasOverflowActions(resource: ResourceItem) {
 
 function SkillGlobalToggle({ resource }: { resource: Extract<ResourceItem, { type: 'skill' }> }) {
   const { t } = useTranslation()
+  const toggleId = useId()
   const { updateGlobalEnabled, isUpdating } = useSkillMutationsById(resource.id)
 
   const handleCheckedChange = async (checked: boolean) => {
@@ -54,13 +56,19 @@ function SkillGlobalToggle({ resource }: { resource: Extract<ResourceItem, { typ
   }
 
   return (
-    <Switch
-      size="sm"
-      checked={resource.raw.isGlobalEnabled}
-      disabled={isUpdating}
-      aria-label={t('settings.skills.globalToggle', { name: resource.name })}
-      onCheckedChange={handleCheckedChange}
-    />
+    <div className="flex items-center gap-2 px-1">
+      <Label htmlFor={toggleId} className="whitespace-nowrap text-xs text-muted-foreground">
+        {t('settings.skills.globalEnabled')}
+      </Label>
+      <Switch
+        id={toggleId}
+        size="sm"
+        checked={resource.raw.isGlobalEnabled}
+        disabled={isUpdating}
+        aria-label={t('settings.skills.globalToggle', { name: resource.name })}
+        onCheckedChange={handleCheckedChange}
+      />
+    </div>
   )
 }
 
@@ -105,10 +113,19 @@ export function ResourceCard({
           <div
             className={cn(
               'flex size-10 shrink-0 items-center justify-center rounded-lg text-base',
-              isSkillGrid && 'row-span-2 self-center',
+              isSkillGrid && 'self-center',
               showTypeIcon ? cfg.color : 'bg-secondary text-secondary-foreground'
             )}>
-            {showTypeIcon ? <TypeIcon size={20} aria-hidden className="lucide-custom" /> : r.avatar}
+            {showTypeIcon ? (
+              <TypeIcon size={20} aria-hidden className="lucide-custom" />
+            ) : (
+              <AssistantAvatarImage
+                src={r.avatarSrc}
+                alt={r.name}
+                className="size-10 rounded-lg object-cover"
+                fallback={r.avatar}
+              />
+            )}
           </div>
           <div className="min-w-0 flex-1">
             <div className="flex min-w-0 items-center gap-1.5">
@@ -148,9 +165,9 @@ export function ResourceCard({
               </div>
             )}
           </div>
-          <div className={cn('shrink-0', isSkillGrid && 'col-start-2')} onClick={(e) => e.stopPropagation()}>
+          <div className={cn('shrink-0', isSkillGrid && 'col-span-2')} onClick={(e) => e.stopPropagation()}>
             {r.type === 'skill' && isSettings ? (
-              <div className={cn('flex items-center gap-1', isSkillGrid && 'justify-end')}>
+              <div className={cn('flex items-center gap-1', isSkillGrid && 'flex-wrap justify-end')}>
                 {onLaunchSkill ? (
                   <Button
                     variant="ghost"

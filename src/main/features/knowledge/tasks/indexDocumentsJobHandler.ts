@@ -4,10 +4,15 @@ import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
 import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import { loggerService } from '@logger'
 import type { JobContext, JobHandler } from '@main/core/job/types'
+import { t } from '@main/i18n'
 import { isDataApiNotFoundError } from '@shared/data/api/errors'
 import { LOCAL_EMBEDDING_UNIQUE_MODEL_ID } from '@shared/data/presets/localEmbedding'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
-import { isCompletedVectorKnowledgeBase } from '@shared/data/types/knowledge'
+import {
+  getKnowledgeItemDisplayTitle,
+  isCompletedVectorKnowledgeBase,
+  KNOWLEDGE_ITEM_ERROR_EMPTY_INDEXABLE_TEXT
+} from '@shared/data/types/knowledge'
 import type { KeyedMutex } from '@shared/utils/async'
 
 import type { IndexableKnowledgeItem } from '../items'
@@ -32,8 +37,6 @@ const logger = loggerService.withContext('Knowledge:IndexDocumentsJobHandler')
 // Chunks per embedMany call while rebuilding an item's material. Small enough to
 // surface incremental progress, large enough to not multiply request overhead.
 const EMBEDDING_PROGRESS_BATCH_SIZE = 10
-const EMPTY_INDEXABLE_TEXT_ERROR =
-  'No indexable text was extracted. Check the source, OCR, or document processing settings, then reindex.'
 
 /**
  * How long the final percentage lingers after the job exits. The list's item status
@@ -104,7 +107,7 @@ export function createIndexDocumentsJobHandler(
           itemId: ctx.input.itemId,
           jobId: ctx.jobId
         })
-        throw new Error(EMPTY_INDEXABLE_TEXT_ERROR)
+        throw new Error(KNOWLEDGE_ITEM_ERROR_EMPTY_INDEXABLE_TEXT)
       }
 
       // Mark embedding separately so the UI reflects the current long-running phase.
@@ -123,9 +126,11 @@ export function createIndexDocumentsJobHandler(
 
         // The atomic material rebuild and final status flip must stay together under the base mutation lock.
         reportKnowledgeProgress(ctx, 80, { stage: 'writing', currentFile: 0, totalFiles: 1 })
-        await writeItemMaterial(ctx, base, rebuildInput, knowledgeLockManager)
+        const written = await writeItemMaterial(ctx, base, rebuildInput, knowledgeLockManager)
+        if (!written) return
 
         reportKnowledgeProgress(ctx, 100, { stage: 'done', currentFile: 1, totalFiles: 1 })
+        return { embedded: rebuildInput.usesEmbeddings }
       } finally {
         lingerEmbeddingProgress(ctx.input.itemId)
       }
@@ -133,6 +138,26 @@ export function createIndexDocumentsJobHandler(
 
     async onSettled(event) {
       await markKnowledgeItemFailedOnSettled(event, logger, 'Failed to flip knowledge item to failed in onSettled')
+      if (event.status !== 'completed' || !(event.output as { embedded?: boolean } | undefined)?.embedded) return
+      try {
+        const item = knowledgeItemService.getById(event.input.itemId)
+        if (item.status === 'deleting') return
+        const base = knowledgeBaseService.getById(event.input.baseId)
+        await application.get('NotificationService').publish(
+          {
+            eventKey: `knowledge:${event.jobId}`,
+            category: 'system',
+            kind: 'knowledge-complete',
+            title: t('notification.center.knowledge_complete'),
+            message: `${base.name} · ${getKnowledgeItemDisplayTitle(item)}`,
+            createdAt: Date.now(),
+            target: { kind: 'knowledge', baseId: base.id }
+          },
+          { source: 'knowledge' }
+        )
+      } catch (error) {
+        logger.warn('Failed to publish knowledge completion', { jobId: event.jobId, error })
+      }
     }
   }
 }
@@ -371,21 +396,22 @@ async function writeItemMaterial(
   base: KnowledgeBase,
   input: RebuildMaterialInput,
   knowledgeLockManager: KeyedMutex
-): Promise<void> {
+): Promise<boolean> {
   const { baseId, itemId } = ctx.input
 
-  await knowledgeLockManager.runExclusive(baseId, async () => {
+  return knowledgeLockManager.runExclusive(baseId, async () => {
     ctx.signal.throwIfAborted()
     const result = resolveLiveKnowledgeItem(itemId)
     if ('skip' in result) {
       logger.info('Skipping material rebuild for deleting item', { baseId, itemId, jobId: ctx.jobId })
-      return
+      return false
     }
 
     const vectorStoreService = application.get('KnowledgeVectorStoreService')
     const store = vectorStoreService.getIndexStore(base)
     store.rebuildMaterial(itemId, input)
     knowledgeItemService.updateStatus(itemId, 'completed')
+    return true
   })
 }
 

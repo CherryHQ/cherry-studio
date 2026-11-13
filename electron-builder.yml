@@ -21,7 +21,7 @@ protocols:
       - cherrystudio
 files:
   - "**/*"
-  - "!**/node_modules/@anthropic-ai/claude-agent-sdk-*/**"
+  - "!**/node_modules/@anthropic-ai/claude-agent-sdk-*/**" # ClaudeCodeBinaryService downloads the native runtime on demand
   - "!**/{.vscode,.yarn,.yarn-lock,.github,.cursorrules,.prettierrc}"
   - "!electron.vite.config.{js,ts,mjs,cjs}}"
   - "!electron-builder.cn.config.cjs"
@@ -39,7 +39,6 @@ files:
   - "!**/node_modules/**/*.cpp"
   - "!**/node_modules/node-addon-api/**"
   - "!**/node_modules/prebuild-install/**"
-  - "!**/node_modules/@cherrystudio/computer-use-{darwin,win32,linux}-*/**"
   - "!scripts"
   - "!local"
   - "!docs"
@@ -62,10 +61,6 @@ files:
   - "!**/amd/**"
   - "!**/{.DS_Store,Thumbs.db,thumbs.db,__pycache__}"
   - "!**/{LICENSE,license,LICENSE.*,*.LICENSE.txt,NOTICE.txt,README.md,readme.md,CHANGELOG.md}"
-  - "!node_modules/rollup-plugin-visualizer"
-  - "!node_modules/js-tiktoken"
-  - "!node_modules/@tavily/core/node_modules/js-tiktoken"
-  - "!node_modules/pdf-parse/lib/pdf.js/{v1.9.426,v1.10.88,v2.0.550}"
   - "!node_modules/mammoth/{mammoth.browser.js,mammoth.browser.min.js}"
   - "!**/node_modules/better-sqlite3/{bin,deps,src}/**"
   - "!**/node_modules/better-sqlite3/build/{Debug,Release/obj}/**"
@@ -75,16 +70,13 @@ files:
   - "!node_modules/selection-hook/build/**"
   - "!node_modules/selection-hook/node_modules" # we don't need what in the node_modules dir
   - "!node_modules/selection-hook/src" # we don't need source files
-  - "!**/node_modules/node-pty/build/**" # ship upstream prebuilds; the rebuilt binary needs GLIBC_2.34 and is never cross-compiled
   - "!node_modules/tesseract.js-core/{tesseract-core.js,tesseract-core.wasm,tesseract-core.wasm.js}" # we don't need source files
   - "!node_modules/tesseract.js-core/{tesseract-core-lstm.js,tesseract-core-lstm.wasm,tesseract-core-lstm.wasm.js}" # we don't need source files
-  - "!node_modules/tesseract.js-core/{tesseract-core-simd-lstm.js,tesseract-core-simd-lstm.wasm,tesseract-core-simd-lstm.wasm.js}" # we don't need source files
+  - "!node_modules/tesseract.js-core/{tesseract-core-simd.js,tesseract-core-simd.wasm,tesseract-core-simd.wasm.js}" # tesseract.js loads tesseract-core-simd-lstm (default LSTM_ONLY OEM on SIMD)
   - "!node_modules/onnxruntime-web/**" # transformers.js's browser/WASM backend; local inference always runs onnxruntime-node instead
   - "!node_modules/@huggingface/transformers/node_modules/onnxruntime-web/**" # same package, nested copy
   - "!node_modules/onnxruntime-node/bin/**" # native binary is downloaded on first use (Toolchain/onnxruntime), never bundled — see OnnxRuntimeBinaryService
   - "!node_modules/sherpa-onnx-{darwin,linux,win}-*/**" # binaries are downloaded on first use; only the JS wrapper ships
-  - "!node_modules/@cherrystudio/system-speech/{native,windows,src,tests,scripts}/**"
-  - "!node_modules/@cherrystudio/system-speech/dist/native/**" # target helper is copied once through platform packaging
   - "!**/*.{h,iobj,ipdb,tlog,recipe,vcxproj,vcxproj.filters,Makefile,*.Makefile}" # filter .node build files
   - "resources/**/*" # include all files in resources, and unpack them from asar for runtime access
   - "!resources/devtools/**" # dev-only extensions are loaded from source in development
@@ -97,9 +89,6 @@ asarUnpack:
   - "node_modules/@img/colour/**"
   - "node_modules/detect-libc/**"
   - "node_modules/semver/**"
-  - "node_modules/node-pty/**"
-  - "node_modules/koffi/**"
-  - "node_modules/@koromix/koffi-*/**"
   - "node_modules/yaml/**"
   - "node_modules/@silvia-odwyer/photon-node/**" # pi SDK WASM dep: photon_rs.js does fs.readFileSync(__dirname/photon_rs_bg.wasm)
   - "node_modules/@aiany/sqlite-vec-*/**" # sqlite-vec extension (.dylib/.so/.dll) is dlopen'd at runtime — must live on disk
@@ -114,6 +103,10 @@ extraResources:
     to: "migrations/sqlite-drizzle"
   - from: "packages/provider-registry/data"
     to: "provider-registry"
+  - from: "node_modules/pdfjs-dist/cmaps"
+    to: "pdfjs/cmaps"
+  - from: "node_modules/pdfjs-dist/standard_fonts"
+    to: "pdfjs/standard_fonts"
 win:
   executableName: Cherry Studio
   artifactName: ${productName}-${version}-${arch}-setup.${ext}
@@ -148,7 +141,7 @@ portable:
   unpackDirName: true
 mac:
   extraFiles:
-    - from: packages/system-speech/dist/native/darwin-${arch}/cherry-system-speech
+    - from: native/system-speech/dist/native/darwin-${arch}/cherry-system-speech
       to: Helpers/cherry-system-speech
   entitlementsInherit: build/entitlements.mac.plist
   sign: scripts/packaging/mac-sign.js
@@ -170,7 +163,22 @@ mac:
     - target: dmg
     - target: zip
 dmg:
+  format: ULFO
   writeUpdateInfo: false
+  # PNGs are rendered from build/dmg-background.svg; Finder's title bar hides the bottom 32px.
+  background: build/dmg-background.png
+  window:
+    width: 600
+    height: 380
+  iconSize: 128
+  contents:
+    - x: 150
+      y: 154
+      type: file
+    - x: 450
+      y: 154
+      type: link
+      path: /Applications
 toolsets:
   appimage: "1.0.3"
 linux:
@@ -205,68 +213,142 @@ artifactBuildCompleted: scripts/packaging/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
     <!--LANG:en-->
-    Cherry Studio 2.1.9 - Diagrams, File Pane, and Provider Updates
+    Cherry Studio 2.2.1 - Remote Tasks, Search Providers, and Agent Fixes
 
     ✨ New Features
-    - [Diagrams] Mermaid diagrams now render with a faster engine in the background, match the app's light/dark theme, and open as previews from .mmd/.mermaid files.
-    - [Agent Files] Open files in tabs with a breadcrumb, resize the tree, and configure autosave, indent, and word wrap in pane settings. Right-click to attach files or folders as context.
-    - [Agents] Archive all conversations of an Agent in one action, with a confirmation showing the count. Delete conversation branches from the Branch Management panel.
-    - [Web Search] Add Desearch and SearchApi as web search providers.
-    - [Providers] Add QwenCloud with chat, image, reasoning controls and native web search. Rebrand DashScope to Qwen AI Platform with updated endpoints and icons. Add Anthropic prompt caching support for Vercel AI Gateway.
-    - [Code Theme] New default “Cherry” code theme blends into the app background in light and dark mode.
-    - [Thinking] Edit a message's reasoning content directly in the assistant message editor.
-    - [Permissions] Enabling Full Access now shows a scope confirmation before taking effect.
-    - [Tabs] The active conversation tab has a clearer selected outline and slightly bolder title.
-    - [Notes] Open a newly saved note directly from the export success toast.
+    - [Tasks] Remote clients can discover scheduled-task result conversations and query task schedules, run history, and bounded summaries. Task conversations remain discoverable after run records are cleaned up.
+    - [Models] Rapid-MLX is available as a built-in, keyless local provider.
+    - [Web Search] Added SerpKite and StepFun keyword search providers, and Exa can now fetch the content of a URL through its Contents API.
+    - [Files] Dropping a Markdown file (.md, .markdown, .mdx) onto the app window opens it in the read-only preview.
+    - [Agent] System and global package installs now ask for approval in normal modes and run in Full Access, instead of being blocked in every mode.
+    - [Agent] Agents and assistants can use an uploaded image as their avatar, shown in catalogs, selectors, conversations, message headers, and Work tab icons. Existing emoji avatars are unchanged.
+    - [Agent] Workspace and agent groups can be pinned to the top Pinned section while their tasks stay expandable.
+    - [Agent] Computer Use calls show the applications they operated, and session details show the same app icons.
+    - [Agent] Subagent calls can name both a provider and a model, and the subtask row shows the requested model.
+    - [Composer] With Markdown input rendering enabled, Markdown is previewed live while typing in Chat, Agent, and the selection compose bar; markers appear when the caret reaches them and the sent text is unchanged.
+    - [Composer] In the Markdown preview, selected text can be made bold, italic, or inline code with Cmd/Ctrl+B, Cmd/Ctrl+I, and a backtick.
+    - [Composer] In the Markdown preview, fenced code blocks render as a highlighted code region, with Enter inserting a newline, Tab indenting, automatic bracket pairing, and variables or shortcuts staying literal inside the fence.
+    - [Browser] New tabs in the built-in browser can start from a blank page, the last opened page, or a custom URL.
+    - [Knowledge] OpenDocument (.odt, .odp, .ods) and RTF (.rtf) files can be added as knowledge sources.
+    - [API Gateway] CherryAI subscription models are available to external clients and Code Mate through the gateway using the signed-in account's quota.
+
+    💄 Improvements
+    - [Agent] Pi and Pi Durable use their runtimes' native compaction and keep provider error details.
+    - [Agent] Session details list the applications an agent is controlling, with their status and a Stop action.
+    - [Chat] The branch map locates the active branch node and can be panned on scroll.
+    - [Models] The reasoning-effort slider follows dragging smoothly, settles onto effort levels, and respects reduced-motion settings.
+    - [Models] Truncated model names in the model selector show the full name on hover, and the model details card no longer clips them.
+    - [Scheduled Tasks] Anchor navigation stays aligned while history loads, and failed run summaries show error details in a tooltip.
+    - [Files] File lists and grids show each file's source path in the name tooltip so same-name files can be distinguished.
+    - [Prompt Polish] Shows the default model with a link to its settings and distinguishes timeouts, missing models, empty responses, and provider failures.
+    - [Feedback] Attaching diagnostics to a problem report is now optional.
+    - [macOS] The DMG installer has a new background and a larger, centered drag-to-Applications layout.
+    - [Assistant] The English default assistant is now named "Cherie".
+    - [UI] Expanded notification stacks no longer clip their shadows.
 
     🐛 Bug Fixes
-    - [Tooltips] Fixed tooltips being cut off at the edge of dialogs, such as the help tooltips in the Selection Assistant custom action dialog.
-    - [Chat] Long silent reasoning phases no longer abort after 30 minutes; the idle bound is now 120 minutes. Fixed misleading error when an assistant's model no longer exists after an update.
-    - [Tabs] Show the conversation name and assistant icon on tabs again. New tabs open next to the active tab; the plus button appends at the end.
-    - [Navigation] Unified sidebar and tab selection style with clearer contrast in light and dark themes.
-    - [Notes] Fixed a freeze when typing a diagram code block. New diagram blocks open in edit mode.
-    - [Knowledge] Fixed rebuilds resetting chunking rules, imports timing out while waiting, interrupted conversions resuming after restart, and stuck “preparing” states.
-    - [Browser] Preserve unsaved input and page state when following fragment links in local HTML files.
-    - [File Links] Removed the hover reveal icon from chat file links; use the context menu to reveal a file.
-    - [Web Search] Fixed DashScope models failing with “This model does not support enable_search”. Blacklist rules now exclude domains on Bocha and Querit.
-    - [TTS] Kokoro Chinese text-to-speech now initializes correctly on Windows with the required Mandarin eSpeak data.
-    - [MCP] Fixed built-in MCP server documentation links that opened a removed page.
-    - [AiHubMix] Fix Claude chats failing with HTTP 400 when built-in tools include input examples.
+    - [Agent] Nested shell, file, and artifact tool results in Pi and Pi Durable codemode are shown again, including after reopening a conversation.
+    - [Agent] Pi shell commands without an explicit timeout no longer wait indefinitely.
+    - [Agent] Closing a session interrupts Claude work first, and interrupted Claude Code turns no longer show a "No response requested." placeholder.
+    - [Agent] Fork and Edit & Resend work after a /compact boundary, and fork no longer rejects a healthy Claude session with blank framing lines.
+    - [Agent] The Step panel no longer shows a finished turn as running, and tasks deleted by the agent leave the list.
+    - [Agent] The Agent top bar keeps the workspace name and open-directory action after the first message.
+    - [Agent] Subagent output and the main agent's continuation appear in the correct order in the open conversation.
+    - [Agent] Goals complete when the verifying model wraps its verdict in a code block or extra text.
+    - [Agent] Agent message edit failures show complete, persistent explanations with copyable diagnostics.
+    - [Agent] The context usage panel shows configured MCP server names instead of IDs.
+    - [Agent] Cross-agent session cards name the target agent.
+    - [Agent] Assistant replies in Work conversations no longer offer Delete, because deleting them cannot remove the runtime transcript.
+    - [Agent] Editing a message asks for confirmation before replacing later conversation history.
+    - [Agent] Markdown artifacts can be previewed from an Agent conversation even when the workspace is empty.
+    - [Agent] Work tab icons update when the agent avatar changes while the tab is hidden.
+    - [Chat] Links in sent messages can be selected smoothly, without accidental navigation.
+    - [Chat] Editing a message no longer drops characters typed right after clicking Edit.
+    - [Chat] An error saved twice in older messages now shows one error card.
+    - [Chat] Empty or malformed API responses show a clear diagnosis with retry guidance instead of an unknown error.
+    - [Chat] The "message is still syncing" branch-switch warning is localized.
+    - [Notes] Code syntax highlighting no longer disappears in the editor.
+    - [Shortcuts] Conversation number shortcuts keep working after the first switch without refocusing the window.
+    - [Browser] Page-load failures use a generic message instead of suggesting that a local server stopped.
+    - [Mini Apps] Website MiniApp sign-in popups stay in their persistent session.
+    - [Knowledge] Failed knowledge items show the failure reason, and empty extraction messages are localized.
+    - [Scheduled Tasks] Cron timeouts work with Gemini-compatible runtimes, and deleting a task with more than about 32,000 sessions no longer fails.
+    - [Providers] Requests no longer fail when a client tool has a blank name.
+    - [Claude] Claude Code creates its runtime folder before staging a download, so installs no longer fail on a missing folder.
+    - [Paintings] SiliconFlow MOSS Image requests no longer fail when no image size is selected.
+    - [Code] Codex CLI keeps the selected model's context window and compaction limit when its configuration is rebuilt.
+    - [UI] Agent Session Details no longer crowds its content or overlaps the file preview.
 
     ⚡ Performance
-    - [Knowledge] Deleting or reindexing items in large knowledge bases is much faster.
-    - [Conversations] Fixed slow branch switching and message deletion in very long conversations. Loading earlier messages is faster.
+    - [Agent] Branch switching and message editing are faster in long sessions.
 
     <!--LANG:zh-CN-->
-    Cherry Studio 2.1.9 - 图表、文件窗格与提供商更新
+    Cherry Studio 2.2.1 - 远程任务、搜索服务与智能体修复
 
     ✨ 新功能
-    - [图表] Mermaid 图表现在在后台用更快的引擎渲染，匹配应用的浅色/深色主题，并可直接预览 .mmd/.mermaid 文件。
-    - [智能体文件] 在标签页中打开文件，使用面包屑导航，调整文件树大小，并在窗格设置中配置自动保存、缩进和换行。右键可将文件或文件夹作为上下文附加。
-    - [智能体] 一键归档某个智能体的所有对话，确认框显示数量。从分支管理面板删除对话分支。
-    - [网页搜索] 新增 Desearch 和 SearchApi 网页搜索提供商。
-    - [提供商] 新增 QwenCloud，支持聊天、图像、推理控制和原生网页搜索。DashScope 更名为 Qwen AI Platform，更新端点和图标。Vercel AI Gateway 新增 Anthropic 提示词缓存支持。
-    - [代码主题] 新默认”Cherry”代码主题与浅色/深色模式下的应用背景融为一体。
-    - [思考] 直接在助手消息编辑器中编辑消息的推理内容。
-    - [权限] 启用完全访问权限前现在显示作用域确认。
-    - [标签页] 当前对话标签页带有更清晰的选中描边和略粗的标题。
-    - [笔记] 从导出成功提示直接打开刚保存的笔记。
+    - [任务] 远程客户端可以发现定时任务的结果对话，并查询任务计划、运行历史和限定长度的摘要。运行记录被清理后，任务对话仍然可被发现。
+    - [模型] 新增内置的免密钥本地服务商 Rapid-MLX。
+    - [网页搜索] 新增 SerpKite 与 StepFun 两个关键词搜索服务商；Exa 现在还可以通过 Contents API 直接抓取网址内容。
+    - [文件] 将 Markdown 文件（.md、.markdown、.mdx）拖入应用窗口即可在只读预览中打开。
+    - [智能体] 系统和全局软件包安装现在会在普通模式下请求批准，在完全访问模式下直接执行，而不再一律阻止。
+    - [智能体] 智能体和助手可以上传图片作为头像，并显示在目录、选择器、对话、消息头和工作区标签页图标中。原有的 emoji 头像保持不变。
+    - [智能体] 可以将工作区和智能体分组固定到顶部的“已固定”区域，同时保持任务可展开。
+    - [智能体] 电脑操作调用会显示其操作过的应用，会话详情中也会显示相同的应用图标。
+    - [智能体] 子智能体调用可以同时指定服务商和模型，子任务行会显示请求的模型。
+    - [输入框] 开启 Markdown 输入渲染后，在对话、智能体和划词输入框中输入时会实时预览 Markdown；光标移动到标记处时显示标记，发送的文本保持不变。
+    - [输入框] 在 Markdown 预览中，可用 Cmd/Ctrl+B、Cmd/Ctrl+I 和反引号将选中文本设置为加粗、斜体和行内代码。
+    - [输入框] 在 Markdown 预览中，围栏代码块会显示为高亮代码区域：回车换行、Tab 缩进、括号自动配对，代码块内的变量和快捷键保持原样。
+    - [浏览器] 内置浏览器的新标签页可以从空白页、上次打开的页面或自定义网址开始。
+    - [知识库] 可以将 OpenDocument（.odt、.odp、.ods）和 RTF（.rtf）文件添加为知识源。
+    - [API 网关] 外部客户端和 Code Mate 可以通过网关使用 CherryAI 订阅模型，并消耗当前登录账号的订阅额度。
+
+    💄 改进
+    - [智能体] Pi 和 Pi Durable 改用运行时原生的上下文压缩，并保留服务商错误详情。
+    - [智能体] 会话详情会列出智能体正在控制的应用，并显示状态和停止操作。
+    - [对话] 分支图会自动定位当前分支节点，并支持滚动平移。
+    - [模型] 推理强度滑块会跟随拖动平滑移动，松手后吸附到档位，并遵循减少动态效果设置。
+    - [模型] 在模型选择器中悬停被截断的模型名称会显示完整名称，模型详情卡片也不再裁剪名称。
+    - [定时任务] 历史加载时锚点导航保持对齐，失败的运行摘要会通过提示框显示错误详情。
+    - [文件] 文件列表和网格会在名称提示中显示来源路径，便于区分同名文件。
+    - [提示词润色] 显示默认模型及设置入口，并区分超时、缺少模型、空响应和服务商失败。
+    - [反馈] 问题反馈中的诊断附件现在可以选填。
+    - [macOS] DMG 安装窗口使用新的背景，并改为更大、居中的拖拽到“应用程序”布局。
+    - [助手] 英文默认助手更名为“Cherie”。
+    - [界面] 展开的多条通知堆叠不再裁剪阴影。
 
     🐛 问题修复
-    - [提示框] 修复对话框边缘的提示框被截断的问题，例如选区助手自定义操作对话框中的帮助提示。
-    - [对话] 长时间的静默推理阶段不再在 30 分钟后中断；空闲限制提升至 120 分钟。修复助手绑定的模型在更新后不存在时的误导性错误。
-    - [标签页] 标签页重新显示对话名称和助手图标。新标签页在当前标签旁打开；加号按钮在末尾追加。
-    - [导航] 统一侧边栏和标签页选中样式，改善浅色/深色主题下的对比度。
-    - [笔记] 修复输入图表代码块时的卡顿。新建图表代码块默认进入编辑模式。
-    - [知识库] 修复重建时重置分块规则、导入在等待时超时、中断的转换在重启后恢复、以及卡在”准备中”状态的问题。
-    - [浏览器] 在本地 HTML 文件中跟踪片段链接时保留未保存的输入和页面状态。
-    - [文件链接] 移除对话文件链接的悬停显示图标；使用右键菜单在系统中显示文件。
-    - [网页搜索] 修复 DashScope 模型在启用网页搜索时失败的问题。黑名单规则现可在博查和 Querit 端排除域名。
-    - [语音合成] Kokoro 中文语音合成现可在 Windows 上正确初始化，并包含所需的中文 eSpeak 数据。
-    - [MCP] 修复内置 MCP 服务器文档链接打开已删除页面的问题。
-    - [AiHubMix] 修复内置工具包含输入示例时 Claude 对话出现 HTTP 400 错误的问题。
+    - [智能体] 恢复 Pi 和 Pi Durable 代码模式中嵌套的命令行、文件和工件工具结果显示，重新打开对话后也能保留。
+    - [智能体] 未显式设置超时的 Pi 命令行命令不再无限等待。
+    - [智能体] 关闭会话前会先中断 Claude 的工作；被中断的 Claude Code 轮次不再显示“No response requested.”占位内容。
+    - [智能体] /compact 之后的“分叉”和“编辑并重发”可以正常使用；分叉也不再因为原生历史中的空行而误报会话已损坏。
+    - [智能体] 步骤面板不再把已结束的轮次显示为运行中，智能体删除的任务也会从列表中移除。
+    - [智能体] 发送第一条消息后，智能体顶栏仍会保留工作区名称和打开目录操作。
+    - [智能体] 子智能体的输出和主智能体的续写会按正确顺序显示在打开的对话中。
+    - [智能体] 当校验模型把结论包在代码块或额外文本中时，目标仍能正常完成。
+    - [智能体] 智能体消息编辑失败时会显示完整、持续可见的说明，并可复制诊断详情。
+    - [智能体] 上下文用量面板显示配置的 MCP 服务名称，而不是 ID。
+    - [智能体] 跨智能体会话卡片会标明目标智能体。
+    - [智能体] 工作区对话中的助手回复不再提供删除操作，因为删除无法移除运行时记录。
+    - [智能体] 编辑消息并替换后续对话历史前会先要求确认。
+    - [智能体] 即使工作区为空，也可以从智能体对话中预览 Markdown 工件。
+    - [智能体] 标签页隐藏时，智能体头像变化会同步更新工作区标签页图标。
+    - [对话] 已发送消息中的链接可以正常选中，不会误触跳转。
+    - [对话] 点击编辑后立即输入的字符不再丢失。
+    - [对话] 旧消息中重复保存的错误只显示一张错误卡片。
+    - [对话] API 返回空响应或格式错误时，会显示清晰的诊断和重试建议，而不是未知错误。
+    - [对话] 切换消息分支时的“消息仍在同步”提示已本地化。
+    - [笔记] 编辑器中的代码语法高亮不再消失。
+    - [快捷键] 切换过一次会话后，数字快捷键无需重新点击窗口即可继续使用。
+    - [浏览器] 页面加载失败时使用通用提示，不再误称本地服务已停止。
+    - [小程序] 网站小程序的登录弹窗会保留在持久会话中。
+    - [知识库] 失败的条目会显示失败原因，空内容提取提示已本地化。
+    - [定时任务] Cron 超时设置可在 Gemini 兼容运行时中使用；删除累计约 3.2 万个以上会话的任务不再失败。
+    - [服务商] 客户端工具名称为空时，请求不再失败。
+    - [Claude] Claude Code 会在下载前创建运行时目录，避免因目录缺失导致安装失败。
+    - [绘画] 未选择尺寸时，SiliconFlow MOSS Image 请求不再失败。
+    - [代码] 重建 Codex CLI 配置时会保留所选模型的上下文窗口和压缩阈值。
+    - [界面] 智能体会话详情不再挤压内容或与文件预览重叠。
 
     ⚡ 性能优化
-    - [知识库] 在大型知识库中删除或重建索引的速度大幅提升。
-    - [对话] 修复超长对话中分支切换和消息删除缓慢的问题。加载更早的消息更快。
+    - [智能体] 长会话中的分支切换和消息编辑更快。
     <!--LANG:END-->
