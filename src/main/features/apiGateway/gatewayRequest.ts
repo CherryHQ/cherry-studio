@@ -1,5 +1,6 @@
 import { application } from '@application'
 import { loggerService } from '@logger'
+import { AGENT_RUNTIME_CAPABILITY_HEADER } from '@main/ai/agentSession/agentRuntimeCapability'
 import { CHERRY_FAST_MODE_HEADER, CHERRY_REASONING_EFFORT_HEADER, CHERRY_SERVICE_TIER_HEADER } from '@main/ai/constants'
 import { resolveEffectiveEndpoint } from '@main/ai/provider/endpoint'
 import { ENDPOINT_TYPE, ServiceTierSelectionSchema } from '@shared/data/types/model'
@@ -7,6 +8,7 @@ import type { Provider } from '@shared/data/types/provider'
 import { ReasoningEffortOptionSchema } from '@shared/types/aiSdk'
 
 import type { InputFormat, InputParamsMap, OutputFormat } from './adapters'
+import { CLIENT_IDENTITY_HEADERS, selectClientIdentity } from './clientIdentity'
 import { resolveGatewayModelAddress } from './utils/models'
 
 const logger = loggerService.withContext('GatewayRequest')
@@ -46,7 +48,7 @@ export interface MessageConfig {
   outputFormat?: OutputFormat
   /** Request abort signal (`context.request.signal`); aborts the upstream stream on client disconnect. */
   signal?: AbortSignal
-  /** Raw request headers used only to validate Cherry-internal usage correlation. */
+  /** Raw request headers for authenticated internal correlation and client identity. */
   requestHeaders?: Headers
   onError?: (error: unknown) => void
   onComplete?: () => void
@@ -92,9 +94,12 @@ export async function resolveGatewayRequest(config: MessageConfig) {
   }
   const resolvedAddress = await resolveGatewayModelAddress(modelString, isInternalRequest)
   const { providerId, apiModelId: modelId, uniqueModelId, provider: resolvedProvider } = resolvedAddress
-  const agentSessionId = config.requestHeaders
-    ? application.get('ApiGatewayService').getAgentSessionId(config.requestHeaders)
+  const runtimeCapability = config.requestHeaders
+    ? application.get('ApiGatewayService').resolveRuntimeCapability(config.requestHeaders)
     : undefined
+  const agentSessionId =
+    runtimeCapability?.sessionId ??
+    (config.requestHeaders ? application.get('ApiGatewayService').getAgentSessionId(config.requestHeaders) : undefined)
   // agentSessionId lets System Doctor attribute this upstream hop to the Agent session that made it.
   const logContext = { providerId, modelId, ...(agentSessionId ? { agentSessionId } : {}) }
 
@@ -113,6 +118,29 @@ export async function resolveGatewayRequest(config: MessageConfig) {
     resolvedAddress.model,
     isInternalAnthropicAgentRequest ? ENDPOINT_TYPE.ANTHROPIC_MESSAGES : undefined
   )
+  const clientIdentityHeaders =
+    isInternalAnthropicAgentRequest &&
+    config.requestHeaders &&
+    runtimeCapability?.runtime === 'claude-code' &&
+    CLIENT_IDENTITY_HEADERS.some((name) => config.requestHeaders?.has(name))
+      ? await selectClientIdentity({
+          requestHeaders: config.requestHeaders,
+          provider,
+          agentType: runtimeCapability.runtime,
+          endpointType: endpoint.endpointType,
+          model: resolvedAddress.model,
+          forbiddenValues: [
+            config.requestHeaders.get('x-api-key')?.trim() ||
+              config.requestHeaders
+                .get('authorization')
+                ?.match(/^Bearer\s+(.+)$/i)?.[1]
+                ?.trim() ||
+              config.requestHeaders.get('x-goog-api-key')?.trim() ||
+              '',
+            config.requestHeaders.get(AGENT_RUNTIME_CAPABILITY_HEADER) ?? ''
+          ]
+        })
+      : undefined
   const model =
     endpoint.endpointType && endpoint.endpointType !== resolvedAddress.model.endpointTypes?.[0]
       ? { ...resolvedAddress.model, endpointTypes: [endpoint.endpointType] }
@@ -128,6 +156,7 @@ export async function resolveGatewayRequest(config: MessageConfig) {
     endpoint,
     isInternalAnthropicAgentRequest,
     isStreaming,
+    clientIdentityHeaders,
     agentSessionId,
     turnOptions,
     reasoning,

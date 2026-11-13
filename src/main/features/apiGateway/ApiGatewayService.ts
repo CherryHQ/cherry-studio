@@ -7,6 +7,12 @@ import { v4 as uuidv4 } from 'uuid'
 import { application } from '@application'
 import { advertisedEndpointSchema } from '@cherrystudio/remote-protocol'
 import { loggerService } from '@logger'
+import {
+  AGENT_RUNTIME_CAPABILITY_HEADER,
+  lookupRuntimeCapability,
+  registerRuntimeCapability,
+  resetRuntimeCapabilities
+} from '@main/ai/agentSession/agentRuntimeCapability'
 import type { InProcessUsageContext } from '@main/ai/types'
 import { createLatestReconciler, type LatestReconciler } from '@main/core/concurrency/latestReconciler'
 import { type Activatable, BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
@@ -21,6 +27,7 @@ import { getInterfaceMetadata, getRemoteAddressOptions } from './remoteAddresses
 import type { ApiGateway } from './server'
 
 const logger = loggerService.withContext('ApiGatewayService')
+
 const AGENT_SESSION_ID_HEADER = 'x-cherry-agent-session-id'
 const AGENT_USAGE_CAPTURE_HEADER = 'x-cherry-agent-usage-capture'
 const INTERNAL_GATEWAY_HOST = '127.0.0.1'
@@ -50,6 +57,7 @@ export class ApiGatewayService extends BaseService implements Activatable {
   /** Live scoped credentials; each authorizes only its own scope until disposed. */
   private readonly scopedCredentials = new Map<string, InternalCredentialScope>()
   private readonly usageCaptures = new Map<string, InProcessUsageContext>()
+  private stopping = false
   /** Loopback listener for internal consumers, started on first use and independent of `enabled`. */
   private internalGateway: Promise<ApiGateway> | null = null
   private internalOrigin: string | undefined
@@ -151,10 +159,14 @@ export class ApiGatewayService extends BaseService implements Activatable {
   }
 
   protected async onStop(): Promise<void> {
+    this.stopping = true
     const internalGateway = this.internalGateway
-    this.internalGateway = null
+    resetRuntimeCapabilities()
     this.internalOrigin = undefined
     await internalGateway?.then((gateway) => gateway.stop()).catch(() => undefined)
+    resetRuntimeCapabilities()
+    this.internalGateway = null
+    this.internalOrigin = undefined
     this.usageCaptures.clear()
   }
 
@@ -376,11 +388,14 @@ export class ApiGatewayService extends BaseService implements Activatable {
   }
 
   private async ensureInternalListener(): Promise<string> {
+    if (this.stopping) throw new Error('Internal API gateway is stopping')
     this.internalGateway ??= this.startInternalGateway().catch((error: unknown) => {
       this.internalGateway = null
+      resetRuntimeCapabilities()
       throw error
     })
     await this.internalGateway
+    if (this.stopping) throw new Error('Internal API gateway is stopping')
     return this.internalOrigin!
   }
 
@@ -413,6 +428,23 @@ export class ApiGatewayService extends BaseService implements Activatable {
   isInternalRequest(headers: Headers): boolean {
     const token = presentedToken(headers)
     return !!token && (isValidToken(token, this.internalApiKey) || this.scopedCredentials.has(token))
+  }
+
+  issueRuntimeCapability(sessionId: string, runtime: 'claude-code' | 'pi'): string | undefined {
+    return !this.stopping && runtime === 'claude-code' ? registerRuntimeCapability(sessionId, runtime) : undefined
+  }
+
+  resolveRuntimeCapability(headers: Headers): ReturnType<typeof lookupRuntimeCapability> {
+    const credential = presentedToken(headers)
+    if (!credential || !isValidToken(credential, this.internalApiKey)) return undefined
+    const token = headers.get(AGENT_RUNTIME_CAPABILITY_HEADER)
+    const capability = token ? lookupRuntimeCapability(token) : undefined
+    return !this.stopping &&
+      capability &&
+      headers.get(AGENT_SESSION_ID_HEADER) === capability.sessionId &&
+      application.get('AgentSessionRuntimeService').isRuntimeLive(capability.sessionId, capability.runtime)
+      ? capability
+      : undefined
   }
 
   /** The scope of a live scoped credential; undefined for every other request. */

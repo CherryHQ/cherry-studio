@@ -1,6 +1,20 @@
 import type { Server } from 'node:http'
 
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import {
+  lookupRuntimeCapability,
+  registerRuntimeCapability,
+  resetRuntimeCapabilities
+} from '@main/ai/agentSession/agentRuntimeCapability'
+import { AgentSessionRuntimeService } from '@main/ai/agentSession/AgentSessionRuntimeService'
+import { resolveApiGatewayRuntime } from '@main/ai/runtime/agentApiGateway'
+import { createClaudeCodeWarmQuerySignature } from '@main/ai/runtime/claudeCode/ClaudeCodeWarmQueryManager'
+import { BaseService } from '@main/core/lifecycle'
+import { ENDPOINT_TYPE } from '@shared/data/types/model'
+
+import { ApiGatewayService } from '../../ApiGatewayService'
+import { resolveGatewayRequest, type MessageConfig } from '../../gatewayRequest'
 
 /**
  * Integration tests that drive the real Elysia app via `app.handle(Request)`.
@@ -19,10 +33,15 @@ const {
   mockIsInternalRequest,
   mockGetCredentialScope,
   scopedCredentials,
+  realBoundary,
   mockPreferenceGet,
   mockProcessMessage,
   mockResolveGatewayModelAddress
 } = vi.hoisted(() => ({
+  realBoundary: {
+    gateway: undefined as ApiGatewayService | undefined,
+    runtime: undefined as AgentSessionRuntimeService | undefined
+  },
   mockGetModels: vi.fn(async () => ({ object: 'list', data: [{ id: 'openai:gpt-4' }] })),
   mockEstimateAnthropicRequestTokens: vi.fn(async () => 42),
   mockIsInternalRequest: vi.fn((headers: Headers) => {
@@ -52,7 +71,21 @@ vi.mock('@application', async () => {
   const { MockMainPreferenceServiceExport } = await import('@test-mocks/main/PreferenceService')
   const overrides = {
     PreferenceService: { ...MockMainPreferenceServiceExport.preferenceService, get: mockPreferenceGet },
-    ApiGatewayService: { isInternalRequest: mockIsInternalRequest, getCredentialScope: mockGetCredentialScope }
+    AgentSessionRuntimeService: {
+      isRuntimeLive: (id: string, type: 'claude-code' | 'pi') => realBoundary.runtime!.isRuntimeLive(id, type)
+    },
+    ApiGatewayService: {
+      ensureInternalGateway: () => realBoundary.gateway!.ensureInternalGateway(),
+      issueRuntimeCapability: (id: string, type: 'claude-code' | 'pi') =>
+        realBoundary.gateway!.issueRuntimeCapability(id, type),
+      getAgentSessionUsageHeaders: (id: string) => realBoundary.gateway!.getAgentSessionUsageHeaders(id),
+      isInternalRequest: (headers: Headers) =>
+        realBoundary.gateway ? realBoundary.gateway.isInternalRequest(headers) : mockIsInternalRequest(headers),
+      getCredentialScope: (headers: Headers) =>
+        realBoundary.gateway ? realBoundary.gateway.getCredentialScope(headers) : mockGetCredentialScope(headers),
+      getAgentSessionId: (headers: Headers) => realBoundary.gateway?.getAgentSessionId(headers),
+      resolveRuntimeCapability: (headers: Headers) => realBoundary.gateway?.resolveRuntimeCapability(headers)
+    }
   }
   return mockApplicationFactory(overrides)
 })
@@ -910,4 +943,256 @@ describe('internal consumer authorization', () => {
     expect((await post('/v1beta/models/openai:gpt-4o:generateContent?key=internal-agent-key', gemini)).status).toBe(403)
     expect((await post('/v1/chat/completions?access_token=internal-agent-key', chat)).status).toBe(403)
   })
+})
+
+describe('client identity with real internal authentication', () => {
+  let gateway: ApiGatewayService
+  let runtime: AgentSessionRuntimeService
+  beforeEach(() => {
+    // Preserve the shared singleton guard while constructing this isolated service.
+    const registry = BaseService as unknown as { instances: WeakSet<object> }
+    const prior = registry.instances
+    registry.instances = new WeakSet<object>()
+    try {
+      resetRuntimeCapabilities()
+      gateway = new ApiGatewayService()
+      runtime = new AgentSessionRuntimeService()
+    } finally {
+      registry.instances = prior
+    }
+    realBoundary.gateway = gateway
+    realBoundary.runtime = runtime
+    mockPreferenceGet.mockReturnValue('test-key')
+    mockResolveGatewayModelAddress.mockReset()
+    vi.spyOn(
+      gateway as unknown as { ensureInternalListener(): Promise<string> },
+      'ensureInternalListener'
+    ).mockResolvedValue('http://127.0.0.1:23334')
+    mockResolveGatewayModelAddress.mockResolvedValue({
+      providerId: 'relay',
+      apiModelId: 'claude',
+      uniqueModelId: 'relay::claude',
+      provider: {
+        id: 'relay',
+        settings: {},
+        endpointConfigs: {
+          [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { baseUrl: 'https://relay.test/v1', adapterFamily: 'anthropic' }
+        },
+        defaultChatEndpoint: ENDPOINT_TYPE.ANTHROPIC_MESSAGES
+      },
+      model: { id: 'relay::claude', modelId: 'claude', endpointTypes: [ENDPOINT_TYPE.ANTHROPIC_MESSAGES] }
+    })
+    mockProcessMessage.mockImplementation(async (config) => {
+      const envelope = await resolveGatewayRequest(config as MessageConfig)
+      return Response.json({ identity: envelope.clientIdentityHeaders ?? null })
+    })
+  })
+  afterEach(() => {
+    realBoundary.gateway = undefined
+    realBoundary.runtime = undefined
+    mockResolveGatewayModelAddress.mockReset()
+    mockProcessMessage.mockReset().mockImplementation(async () => Response.json({ ok: true }))
+    vi.restoreAllMocks()
+  })
+
+  const beginClaude = () =>
+    runtime.beginTurn({
+      sessionId: 'session',
+      topicId: 'agent-session:session',
+      agentId: 'agent',
+      agentType: 'claude-code',
+      modelId: 'relay::claude',
+      assistantMessageId: 'answer'
+    })
+  const runtimeHeaders = (apiKey: string, token: string) =>
+    new Headers({ 'x-api-key': apiKey, 'x-cherry-agent-runtime': token, 'x-cherry-agent-session-id': 'session' })
+
+  it('rejects closed and Pi sessions but accepts the same token on Claude reopen', async () => {
+    beginClaude()
+    const route = await resolveApiGatewayRuntime('session', 'claude-code')
+    const token = route.usageHeaders['x-cherry-agent-runtime']
+    const headers = runtimeHeaders(route.apiKey, token)
+    expect(gateway.resolveRuntimeCapability(headers)?.runtime).toBe('claude-code')
+    runtime.markTurnTerminal('session', 'success')
+    await runtime.closeSession('session')
+    expect(gateway.resolveRuntimeCapability(headers)).toBeUndefined()
+    beginClaude()
+    expect(gateway.resolveRuntimeCapability(headers)?.runtime).toBe('claude-code')
+    runtime.markTurnTerminal('session', 'success')
+    runtime.beginTurn({
+      sessionId: 'session',
+      topicId: 'agent-session:session',
+      agentId: 'agent',
+      agentType: 'pi',
+      modelId: 'relay::claude',
+      assistantMessageId: 'pi-answer'
+    })
+    expect(gateway.resolveRuntimeCapability(headers)).toBeUndefined()
+  })
+  it('keeps warm-query hash inputs stable across park and revisit', async () => {
+    beginClaude()
+    await resolveApiGatewayRuntime('session', 'claude-code')
+    runtime.markTurnTerminal('session', 'success')
+    await runtime.closeSession('session')
+    const parked = await resolveApiGatewayRuntime('session', 'claude-code')
+    beginClaude()
+    const revisited = await resolveApiGatewayRuntime('session', 'claude-code')
+    const signature = (headers: Record<string, string>) =>
+      createClaudeCodeWarmQuerySignature({
+        env: {
+          ANTHROPIC_CUSTOM_HEADERS: Object.entries(headers)
+            .map(([k, v]) => `${k}: ${v}`)
+            .join('\n')
+        }
+      })
+    expect(parked.usageHeaders['x-cherry-agent-runtime']).toBeTruthy()
+    expect(signature(parked.usageHeaders)).toBe(signature(revisited.usageHeaders))
+  })
+  it('clears capabilities on gateway stop', async () => {
+    beginClaude()
+    const { apiKey } = await gateway.ensureInternalGateway()
+    const token = gateway.issueRuntimeCapability('session', 'claude-code')!
+    const headers = runtimeHeaders(apiKey, token)
+    expect(gateway.resolveRuntimeCapability(headers)?.runtime).toBe('claude-code')
+    await (gateway as unknown as { onStop(): Promise<void> }).onStop()
+    expect(gateway.resolveRuntimeCapability(headers)).toBeUndefined()
+    expect(lookupRuntimeCapability(token)).toBeUndefined()
+    expect(gateway.issueRuntimeCapability('session', 'claude-code')).toBeUndefined()
+  })
+  it('fences replacement listener starts during and after shutdown', async () => {
+    vi.mocked((gateway as any).ensureInternalListener).mockRestore()
+    let release!: () => void
+    const ready = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const stop = vi.fn(async () => {})
+    const start = vi.spyOn(gateway as any, 'startInternalGateway').mockImplementation(async () => {
+      await ready
+      return { stop }
+    })
+    const starting = gateway.ensureInternalGateway()
+    const rejected = expect(starting).rejects.toThrow('stopping')
+    const stopping = (gateway as any).onStop()
+    await expect(gateway.ensureInternalGateway()).rejects.toThrow('stopping')
+    expect(gateway.issueRuntimeCapability('session', 'claude-code')).toBeUndefined()
+    const stray = registerRuntimeCapability('session', 'claude-code')
+    release()
+    await rejected
+    await stopping
+    await expect(gateway.ensureInternalGateway()).rejects.toThrow('stopping')
+    expect(start).toHaveBeenCalledTimes(1)
+    expect(lookupRuntimeCapability(stray)).toBeUndefined()
+  })
+  it('clears the registry after listener-start failure', async () => {
+    vi.mocked((gateway as any).ensureInternalListener).mockRestore()
+    vi.spyOn(gateway as any, 'startInternalGateway').mockRejectedValue(new Error('fixture listen failure'))
+    const token = registerRuntimeCapability('session', 'claude-code')
+    await expect(gateway.ensureInternalGateway()).rejects.toThrow('fixture listen failure')
+    expect(lookupRuntimeCapability(token)).toBeUndefined()
+  })
+  it.each(['credential', 'capability', 'openai'] as const)(
+    'guards production identity wiring: %s',
+    async (scenario) => {
+      beginClaude()
+      const route = await resolveApiGatewayRuntime('session', 'claude-code')
+      const headers = runtimeHeaders(route.apiKey, route.usageHeaders['x-cherry-agent-runtime'])
+      const value =
+        scenario === 'credential'
+          ? route.apiKey
+          : scenario === 'capability'
+            ? route.usageHeaders['x-cherry-agent-runtime']
+            : 'cli'
+      headers.set('content-type', 'application/json')
+      headers.set('x-app', `cli/${value}`)
+      const response = await post(
+        buildApp({ surface: 'internal' }),
+        scenario === 'openai' ? '/v1/chat/completions' : '/v1/messages',
+        { model: 'relay:claude', max_tokens: 10, messages: [{ role: 'user', content: 'Hello' }] },
+        Object.fromEntries(headers)
+      )
+      expect(response.status).toBe(200)
+      expect((await response.json()).identity).toBeNull()
+    }
+  )
+  for (const auth of ['x-api-key', 'authorization'] as const) {
+    it.each([
+      'claude-code',
+      'other Claude session',
+      'pi session',
+      'scoped',
+      'missing capability',
+      'closed',
+      'wrong session',
+      'no session header',
+      'forged capability',
+      'public'
+    ] as const)(`selects identity with ${auth}: %s`, async (scenario) => {
+      const { apiKey } = await gateway.ensureInternalGateway()
+      runtime.beginTurn({
+        sessionId: 'session',
+        topicId: 'agent-session:session',
+        agentId: 'agent',
+        agentType: 'claude-code',
+        modelId: 'relay::claude',
+        assistantMessageId: 'answer'
+      })
+      const capability = gateway.issueRuntimeCapability('session', 'claude-code')!
+      const scoped = await gateway.createScopedCredential({ path: '/v1/messages', model: 'relay:claude' })
+      const credential = scenario === 'scoped' ? scoped.apiKey : scenario === 'public' ? 'test-key' : apiKey
+      const headers: Record<string, string> = {
+        'content-type': 'application/json',
+        [auth]: auth === 'authorization' ? `Bearer ${credential}` : credential,
+        'x-cherry-agent-session-id': scenario === 'wrong session' ? 'another-session' : 'session',
+        'user-agent': 'claude-cli/2.1.311',
+        'x-app': 'cli',
+        'x-client-app': 'claude-code'
+      }
+      if (scenario !== 'missing capability') {
+        headers['x-cherry-agent-runtime'] = scenario === 'forged capability' ? 'forged' : capability
+      }
+      if (scenario === 'other Claude session') {
+        runtime.beginTurn({
+          sessionId: 'other-live-session',
+          topicId: 'agent-session:other-live-session',
+          agentId: 'agent',
+          agentType: 'claude-code',
+          modelId: 'relay::claude',
+          assistantMessageId: 'other-answer'
+        })
+        headers['x-cherry-agent-runtime'] = gateway.issueRuntimeCapability('other-live-session', 'claude-code')!
+      }
+      if (scenario === 'no session header') delete headers['x-cherry-agent-session-id']
+      if (scenario === 'pi session') {
+        runtime.beginTurn({
+          sessionId: 'pi-session',
+          topicId: 'agent-session:pi-session',
+          agentId: 'agent',
+          agentType: 'pi',
+          modelId: 'relay::claude',
+          assistantMessageId: 'pi-answer'
+        })
+        headers['x-cherry-agent-session-id'] = 'pi-session'
+        delete headers['x-cherry-agent-runtime']
+        const pi = await resolveApiGatewayRuntime('pi-session', 'pi')
+        Object.assign(headers, pi.usageHeaders)
+      }
+      if (scenario === 'closed') await runtime.closeSession('session')
+      const response = await post(
+        buildApp({ surface: scenario === 'public' ? 'public' : 'internal' }),
+        '/v1/messages',
+        { model: 'relay:claude', max_tokens: 10, messages: [{ role: 'user', content: 'Hello' }] },
+        headers
+      )
+      expect(response.status).toBe(200)
+      const body = await response.json()
+      if (scenario === 'claude-code')
+        expect(body.identity).toEqual({
+          'user-agent': 'claude-cli/2.1.311',
+          'x-app': 'cli',
+          'x-client-app': 'claude-code'
+        })
+      else expect(body.identity).toBeNull()
+      scoped.dispose()
+    })
+  }
 })

@@ -69,6 +69,7 @@ interface BaseConfig {
 }
 
 interface BuilderContext {
+  transportProbe?: boolean
   actualProvider: Provider
   model: Model
   baseConfig: BaseConfig
@@ -84,6 +85,7 @@ type ApiKeyBuilderContext = BuilderContext & {
 }
 
 interface ProviderToAiSdkConfigOptions {
+  transportProbe?: boolean
   apiKeyOverride?: string
   resolvedEndpoint?: ResolvedEndpoint
 }
@@ -165,11 +167,15 @@ interface ResolvedProviderConfigBuild {
 
 type ConfigBuilderEntry = {
   match: (provider: Provider, aiSdkProviderId: AppProviderId) => boolean
-  build: (ctx: BuilderContext) => ResolvedProviderConfigBuild | Promise<ResolvedProviderConfigBuild>
+  build: ((ctx: BuilderContext) => ResolvedProviderConfigBuild | Promise<ResolvedProviderConfigBuild>) & {
+    credentialFree?: true
+  }
 }
 
 function selectApiKey(ctx: BuilderContext): ApiKeyBuilderContext {
-  const resolved = providerService.resolveApiKey(ctx.actualProvider.id, ctx.apiKeyOverride)
+  const resolved = ctx.transportProbe
+    ? { value: 'transport-probe', apiKeySelection: { attribution: 'unknown' as const } }
+    : providerService.resolveApiKey(ctx.actualProvider.id, ctx.apiKeyOverride)
   return {
     ...ctx,
     baseConfig: { ...ctx.baseConfig, apiKey: resolved.value },
@@ -178,13 +184,16 @@ function selectApiKey(ctx: BuilderContext): ApiKeyBuilderContext {
 }
 
 function withSelectedApiKey(build: ProviderConfigBuilder): ConfigBuilderEntry['build'] {
-  return async (ctx) => {
-    const selected = selectApiKey(ctx)
-    return {
-      config: await build(selected),
-      credentialReceipt: selected.apiKeySelection
-    }
-  }
+  return Object.assign(
+    async (ctx: BuilderContext) => {
+      const selected = selectApiKey(ctx)
+      return {
+        config: await build(selected),
+        credentialReceipt: selected.apiKeySelection
+      }
+    },
+    { credentialFree: true as const }
+  )
 }
 
 function withProviderAuth(method: ServingAuthMethod, build: ProviderConfigBuilder): ConfigBuilderEntry['build'] {
@@ -225,6 +234,7 @@ export async function resolveProviderAiSdkConfig(
   const imageExtensionPreset = IMAGE_EXTENSION_PRESETS.find((preset) => matchesPreset(provider, preset))
 
   const ctx: BuilderContext = {
+    transportProbe: options?.transportProbe,
     actualProvider: provider,
     model,
     resolvedBaseUrl: baseUrl,
@@ -404,15 +414,15 @@ export async function resolveProviderAiSdkConfig(
     { match: (_, id) => id === 'dmxapi', build: withSelectedApiKey(buildDmxapiConfig) }
   ]
 
-  const builder = builders.find((b) => b.match(provider, aiSdkProviderId))
-  let resolved: ResolvedProviderConfigBuild
-  if (builder) {
-    resolved = await builder.build(ctx)
-  } else if (hasProviderConfig(aiSdkProviderId) && aiSdkProviderId !== 'openai-compatible') {
-    resolved = await withSelectedApiKey(buildGenericProviderConfig)(ctx)
-  } else {
-    resolved = await withSelectedApiKey(buildOpenAICompatibleConfig)(ctx)
-  }
+  const build =
+    builders.find((b) => b.match(provider, aiSdkProviderId))?.build ??
+    withSelectedApiKey(
+      hasProviderConfig(aiSdkProviderId) && aiSdkProviderId !== 'openai-compatible'
+        ? buildGenericProviderConfig
+        : buildOpenAICompatibleConfig
+    )
+  if (options?.transportProbe && !build.credentialFree) throw new Error('Transport requires serving authentication')
+  const resolved = await build(ctx)
 
   const { config } = resolved
   // Default every provider to the proxy-aware net.fetch base so the app proxy

@@ -1021,6 +1021,8 @@ export class AiStreamManager extends BaseService {
     fastMode?: boolean
     /** Idle-chunk timeout (ms); resets per chunk. Inherits `CHAT_STREAM_IDLE_TIMEOUT_MS` (120 min) when omitted. */
     idleTimeoutMs?: number
+    /** Trusted in-process headers, layered over provider headers with caller-wins precedence. */
+    requestHeaders?: Record<string, string | undefined>
     /** In-process agent correlation for gateway-owned provider-request records. */
     usageContext?: InProcessUsageContext
     /** Trusted in-process classification for remote token analytics. */
@@ -1052,9 +1054,10 @@ export class AiStreamManager extends BaseService {
       ...(input.usageContext ? { usageContext: input.usageContext } : {}),
       ...(input.tokenUsageSource ? { tokenUsageSource: input.tokenUsageSource } : {}),
       source: input.source,
-      ...(input.idleTimeoutMs !== undefined || input.maxRetries !== undefined
+      ...(input.idleTimeoutMs !== undefined || input.maxRetries !== undefined || input.requestHeaders !== undefined
         ? {
             requestOptions: {
+              ...(input.requestHeaders !== undefined ? { headers: input.requestHeaders } : {}),
               ...(input.idleTimeoutMs !== undefined ? { timeout: input.idleTimeoutMs } : {}),
               ...(input.maxRetries !== undefined ? { maxRetries: input.maxRetries } : {})
             }

@@ -73,6 +73,7 @@ vi.mock('@application', async () => {
       },
       ensureInternalGateway: async () => ({ baseUrl: mocks.gatewayUrl, apiKey: 'internal-fixture-key' }),
       getAgentSessionUsageHeaders: (sessionId: string) => ({ 'x-cherry-agent-session-id': sessionId }),
+      resolveRuntimeCapability: () => undefined,
       isInternalRequest: (headers: Headers) => headers.get('authorization') === 'Bearer internal-fixture-key',
       getAgentSessionId: (headers: Headers) => headers.get('x-cherry-agent-session-id'),
       resolveAgentSessionUsage: (headers: Headers, responseId: string) => ({

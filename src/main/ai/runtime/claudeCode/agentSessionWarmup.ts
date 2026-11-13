@@ -739,7 +739,7 @@ async function resolveClaudeCodeRuntimeRoute(
         }
       }
     case 'gateway': {
-      const gateway = await resolveApiGatewayRuntime(sessionId)
+      const gateway = await resolveApiGatewayRuntime(sessionId, 'claude-code')
       return {
         ...facts,
         baseUrl: gateway.baseUrl,

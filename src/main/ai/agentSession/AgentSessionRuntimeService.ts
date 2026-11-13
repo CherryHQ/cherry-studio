@@ -275,6 +275,7 @@ type RuntimeState = AgentSessionRuntimeState<AgentSessionTurn, PendingAgentSessi
 type RuntimeStateEvent = AgentSessionRuntimeStateEvent<AgentSessionTurn, PendingAgentSessionTurn>
 
 type AgentSessionRuntimeEntry = {
+  closed?: true
   closing?: true
   interactionWindowId?: string
   sessionId: string
@@ -732,6 +733,7 @@ export class AgentSessionRuntimeService extends BaseService {
       agentSessionMessageService.sharesBranch(input.sessionId, existing.branchHead, input.assistantMessageId)
     ) {
       this.clearIdleTimer(existing)
+      delete existing.closed
       existing.topicId = input.topicId
       existing.sessionTraceId = input.traceId ?? existing.sessionTraceId
       existing.agentId = input.agentId
@@ -1205,6 +1207,13 @@ export class AgentSessionRuntimeService extends BaseService {
     })
     this.refreshIdleTimer(entry)
     if (!this.isSessionBusy(sessionId)) this._onRuntimeIdle.fire({ sessionId })
+  }
+
+  isRuntimeLive(sessionId: string, runtime: 'claude-code' | 'pi'): boolean {
+    const entry = this.entries.get(sessionId)
+    return (
+      !!entry && !entry.closed && !entry.closing && !this.closingSessions.has(sessionId) && entry.agentType === runtime
+    )
   }
 
   closeSession(sessionId: string, interrupt = false): Promise<void> {
@@ -3341,6 +3350,7 @@ export class AgentSessionRuntimeService extends BaseService {
   private async closeEntry(entry: AgentSessionRuntimeEntry, interrupt = false): Promise<void> {
     this.clearIdleTimer(entry)
     entry.closing = true
+    entry.closed = true
     const turns = getAgentSessionRuntimeTurns(entry.runtimeState)
     const streamDrain = Promise.allSettled(
       turns.map((turn) => application.get('AiStreamManager').drainRuntimeReply(entry.topicId, turn.assistantMessageId))

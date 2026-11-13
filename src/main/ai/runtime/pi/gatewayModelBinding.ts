@@ -39,7 +39,7 @@ export async function createPiGatewayModelBinding(
   const { endpointType } = resolveEffectiveEndpoint(provider, model, preferredEndpoint)
   const adapterFamily = endpointType ? provider.endpointConfigs?.[endpointType]?.adapterFamily : undefined
   const api = mapEndpointToPiApi(endpointType, adapterFamily) ?? 'openai-completions'
-  const gateway = await resolveApiGatewayRuntime(input.sessionId)
+  const gateway = await resolveApiGatewayRuntime(input.sessionId, 'pi')
   const modelId = formatGatewayModelId(provider.id, getRawModelId(model))
   const modalities: ('text' | 'image')[] = ['text']
   if (

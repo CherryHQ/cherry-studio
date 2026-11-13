@@ -272,6 +272,41 @@ resolution applies; public requests keep their configured default. Conversion
 and execution share the selected provider/model snapshot without changing the
 stored model catalog.
 
+For authenticated internal Anthropic-input requests where the transport that will actually be used speaks Anthropic Messages,
+client identity requires a host-issued `claude-code` runtime capability. The capability
+is bound to the session id and validated together with the unrestricted internal
+credential. The registry in `src/main/ai/agentSession/agentRuntimeCapability.ts` holds
+one token per session id for the process lifetime, cleared at gateway stop. Resolution
+requires the session to exist, be open and not closing, and currently use the Claude Code
+runtime. Parking and revisiting reuse the same token and warm-query environment. Claude Code receives this capability
+through the host runtime helper; Pi receives only the shared credential and usage headers.
+Main-process callers are trusted: the capability is a bearer token, not isolation between
+hostile main-process code. Possessing the shared credential and a live Claude session id
+alone does not enable forwarding. Standard Anthropic, NewAPI, AiHubMix, DMXAPI, and CherryIN
+are admitted only when the serving config dispatch and SDK factory build an Anthropic Messages
+model. Advertising Anthropic Messages while serving another transport (including Ollama)
+forwards nothing; unknown adapters,
+missing endpoint configuration, and models constructing other dialects fail closed.
+
+The gateway preserves only `user-agent`, `x-app`, and `x-client-app`, with case-insensitive
+names and non-empty trimmed values. Provider `extraHeaders` are normalized with the last
+entry winning; a non-empty effective value takes priority over the client value.
+The Bedrock and Vertex provider builders currently do not pass `extraHeaders` into their
+provider settings, so configured overrides there do not reach the wire.
+
+Cherry internal headers and hop-by-hop headers (including identity names nominated by
+`Connection`) are excluded. Identity values containing the presented credential (including
+a scoped credential) or runtime capability are discarded. Developer-mode HTTP tracing
+redacts by header name, not by value; this guard controls what goes on the wire, not logs.
+Provider execution owns upstream authentication. Public callers, scoped credentials,
+requests without a valid Claude Code capability, OpenAI-dialect input, and non-Anthropic
+transports receive no CLI identity forwarding.
+
+Relay acceptance remains a hypothesis because the reported relay is unidentified;
+local fixtures verify header preservation only. The AI SDK appends its own provider-utils
+and Node runtime suffix to `user-agent`; the CLI prefix survives, but exact User-Agent byte
+identity is not guaranteed. `x-app` and `x-client-app` survive verbatim after trimming.
+
 ## Request flow (generation routes)
 
 The OpenAI, Anthropic, and Gemini generation routes call

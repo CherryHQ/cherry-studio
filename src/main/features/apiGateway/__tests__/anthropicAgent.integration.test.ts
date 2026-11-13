@@ -11,17 +11,19 @@ import { aiUsageRecordTable } from '@data/db/schemas/aiUsageRecord'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { modelService } from '@data/services/ModelService'
-import '@data/services/ProviderRegistryService'
 import { AiService } from '@main/ai/AiService'
+import '@data/services/ProviderRegistryService'
 import { AiStreamManager } from '@main/ai/streamManager/AiStreamManager'
 import type * as CustomFetch from '@main/ai/utils/customFetch'
 import { BaseService } from '@main/core/lifecycle'
 import { ENDPOINT_TYPE, MODEL_CAPABILITY } from '@shared/data/types/model'
 
+import { anthropicErrorHandler } from '../errors'
 import { processMessage } from '../proxyStream'
 
 const mocks = vi.hoisted(() => ({
   internal: true,
+  agent: true,
   transport: vi.fn<typeof fetch>(),
   manager: undefined as AiStreamManager | undefined,
   ai: undefined as AiService | undefined
@@ -37,9 +39,13 @@ vi.mock('@application', async () => {
     AiService: { streamText: (input: Parameters<AiService['streamText']>[0]) => mocks.ai!.streamText(input) },
     ApiGatewayService: {
       isInternalRequest: () => mocks.internal,
-      getAgentSessionId: () => (mocks.internal ? 'agent-session' : undefined),
+      resolveRuntimeCapability: () =>
+        mocks.internal && mocks.agent ? { sessionId: 'agent-session', runtime: 'claude-code' } : undefined,
+      getAgentSessionId: () => (mocks.internal && mocks.agent ? 'agent-session' : undefined),
       resolveAgentSessionUsage: () =>
-        mocks.internal ? { agentSessionId: 'agent-session', assistantMessageId: 'answer', source: null } : undefined
+        mocks.internal && mocks.agent
+          ? { agentSessionId: 'agent-session', assistantMessageId: 'answer', source: null }
+          : undefined
     }
   }
   return mockApplicationFactory(overrides)
@@ -109,13 +115,31 @@ async function request(
     apiKey: 'internal-key',
     baseURL: 'http://gateway.test',
     maxRetries: 0,
-    fetch: async (_url, init) =>
-      processMessage({
-        params: JSON.parse(String(init?.body)),
-        inputFormat: 'anthropic',
-        outputFormat: 'anthropic',
-        requestHeaders: new Headers(init?.headers)
-      })
+    defaultHeaders: mocks.agent
+      ? {
+          'user-agent': 'claude-cli/2.1.311 (external, cli)',
+          'x-app': 'cli',
+          'x-client-app': 'claude-code',
+          'x-cherry-agent-session-id': 'agent-session',
+          'x-cherry-agent-runtime': 'forged-runtime-capability'
+        }
+      : {},
+    fetch: async (_url, init) => {
+      try {
+        return await processMessage({
+          params: JSON.parse(String(init?.body)),
+          inputFormat: 'anthropic',
+          outputFormat: 'anthropic',
+          requestHeaders: new Headers(init?.headers)
+        })
+      } catch (error) {
+        return anthropicErrorHandler({
+          code: 'UNKNOWN',
+          error,
+          status: (code: number, body: unknown) => Response.json(body, { status: code })
+        } as never) as unknown as Response
+      }
+    }
   })
   const params: MessageCreateParamsNonStreaming = {
     model: 'wire:wire-model',
@@ -133,6 +157,7 @@ describe('internal Anthropic agent through the production gateway and SDK', () =
   beforeEach(() => {
     BaseService.resetInstances()
     mocks.internal = true
+    mocks.agent = true
     mocks.manager = new AiStreamManager()
     mocks.ai = new AiService()
     mocks.transport.mockReset()
@@ -152,7 +177,7 @@ describe('internal Anthropic agent through the production gateway and SDK', () =
         apiKeys: [{ id: 'upstream-key', key: 'upstream-secret', isEnabled: true }],
         providerSettings: { extraHeaders: { 'X-Upstream': 'provider-header' } },
         endpointConfigs: {
-          [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { baseUrl: 'https://anthropic.test/v1' },
+          [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { baseUrl: 'https://anthropic.test/v1', adapterFamily: 'anthropic' },
           [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://openai.test/v1' }
         },
         defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
@@ -175,6 +200,40 @@ describe('internal Anthropic agent through the production gateway and SDK', () =
       .run()
   })
   afterEach(() => vi.restoreAllMocks())
+
+  it.each([
+    [false, false],
+    [false, true],
+    [true, false],
+    [true, true]
+  ])('AC3 preserves enforcing relay 403 and message (stream=%s, agent=%s)', async (stream, agent) => {
+    mocks.agent = agent
+    mocks.transport.mockResolvedValue(
+      new Response(JSON.stringify({ error: { type: 'permission_error', message: 'Claude Code client required' } }), {
+        status: 403,
+        headers: { 'content-type': 'application/json' }
+      })
+    )
+    await expect(request([{ role: 'user', content: 'Hello' }], stream)).rejects.toMatchObject({
+      status: 403,
+      error: { error: { message: 'Claude Code client required' } }
+    })
+  })
+  it.each([false, true])('ordinary chat sends no CLI identity through the same adapter (stream=%s)', async (stream) => {
+    mocks.agent = false
+    const outbound: Headers[] = []
+    mocks.transport.mockImplementation(async (_url, init) => {
+      outbound.push(new Headers(init?.headers))
+      return anthropicResponse(false)
+    })
+    await request([{ role: 'user', content: 'Hello' }], stream)
+    expect(outbound.length).toBeGreaterThan(0)
+    for (const headers of outbound) {
+      expect(headers.get('user-agent') ?? '').not.toContain('claude-cli')
+      expect(headers.has('x-app')).toBe(false)
+      expect(headers.has('x-client-app')).toBe(false)
+    }
+  })
 
   it('freezes the admitted price even when pricing changes while the provider runs', async () => {
     mocks.transport.mockImplementation(async () => {
@@ -225,6 +284,14 @@ describe('internal Anthropic agent through the production gateway and SDK', () =
       const upstream: Array<{ url: string; headers: Headers; body: Record<string, unknown> }> = []
       mocks.transport.mockImplementation(async (url, init) => {
         upstream.push({ url: String(url), headers: new Headers(init?.headers), body: JSON.parse(String(init?.body)) })
+        if (!new Headers(init?.headers).get('user-agent')?.startsWith('claude-cli/'))
+          return new Response(
+            JSON.stringify({
+              type: 'error',
+              error: { type: 'permission_error', message: 'Claude Code client required' }
+            }),
+            { status: 403, headers: { 'content-type': 'application/json' } }
+          )
         return anthropicResponse(upstream.length === 1)
       })
       const messages: MessageParam[] = [{ role: 'user', content: 'Run echo' }]
@@ -249,6 +316,12 @@ describe('internal Anthropic agent through the production gateway and SDK', () =
         expect(sent.url).toContain('https://anthropic.test/v1/messages')
         expect(sent.headers.get('x-api-key')).toBe('upstream-secret')
         expect(sent.headers.get('x-upstream')).toBe('provider-header')
+        expect(sent.headers.get('user-agent')).toMatch(/^claude-cli\/2\.1\.311/)
+        expect(sent.headers.get('x-app')).toBe('cli')
+        expect(sent.headers.get('x-client-app')).toBe('claude-code')
+        expect(sent.headers.has('x-cherry-agent-session-id')).toBe(false)
+        expect(sent.headers.has('x-cherry-agent-runtime')).toBe(false)
+        expect([...sent.headers.values()].some((value) => value.includes('internal-key'))).toBe(false)
         expect(sent.body.model).toBe('wire-model')
       }
       expect(upstream[1].body.messages).toEqual(
@@ -374,7 +447,43 @@ describe('internal Anthropic agent through the production gateway and SDK', () =
     }
   )
 
-  it.each(['external request', 'undeclared endpoint', 'unconfigured endpoint'] as const)(
+  it('retains a provider-configured mixed-case User-Agent', async () => {
+    dbh.db
+      .update(userProviderTable)
+      .set({ providerSettings: { extraHeaders: { 'User-Agent': 'configured-relay' } } })
+      .where(eq(userProviderTable.providerId, 'wire'))
+      .run()
+    let headers = new Headers()
+    mocks.transport.mockImplementation(async (_url, init) => {
+      headers = new Headers(init?.headers)
+      return anthropicResponse(false)
+    })
+    expect((await request([{ role: 'user', content: 'Hello' }])).content).toMatchObject([
+      { type: 'text', text: 'Done' }
+    ])
+    expect(headers.get('user-agent')).toMatch(/^configured-relay(?: |$)/)
+    expect(headers.get('user-agent')).not.toContain('claude-cli')
+    const promptInput = vi.spyOn(mocks.manager!, 'streamPrompt')
+    await request([{ role: 'user', content: 'Hello' }])
+    expect(promptInput.mock.calls[0][0].requestHeaders?.['user-agent']).toBeUndefined()
+  })
+
+  it('forwards the CLI value when the last case-insensitive provider override is empty', async () => {
+    dbh.db
+      .update(userProviderTable)
+      .set({ providerSettings: { extraHeaders: { 'x-app': 'provider', 'X-App': '' } } })
+      .where(eq(userProviderTable.providerId, 'wire'))
+      .run()
+    let headers = new Headers()
+    mocks.transport.mockImplementation(async (_url, init) => {
+      headers = new Headers(init?.headers)
+      return anthropicResponse(false)
+    })
+    await request([{ role: 'user', content: 'Hello' }])
+    expect(headers.get('x-app')).toBe('cli')
+  })
+
+  it.each(['external request', 'undeclared endpoint', 'unconfigured endpoint', 'unknown adapter'] as const)(
     'retains the normal endpoint fallback for an %s',
     async (scenario) => {
       if (scenario === 'external request') mocks.internal = false
@@ -396,8 +505,25 @@ describe('internal Anthropic agent through the production gateway and SDK', () =
           .where(eq(userProviderTable.providerId, 'wire'))
           .run()
       }
+      if (scenario === 'unknown adapter') {
+        dbh.db
+          .update(userProviderTable)
+          .set({
+            endpointConfigs: {
+              [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: {
+                baseUrl: 'https://anthropic.test/v1',
+                adapterFamily: 'unknown-adapter'
+              }
+            }
+          })
+          .where(eq(userProviderTable.providerId, 'wire'))
+          .run()
+      }
+      const promptInput = vi.spyOn(mocks.manager!, 'streamPrompt')
       let endpoint = ''
-      mocks.transport.mockImplementation(async (url) => {
+      mocks.transport.mockImplementation(async (url, init) => {
+        expect(new Headers(init?.headers).get('user-agent') ?? '').not.toContain('claude-cli')
+        expect(new Headers(init?.headers).has('x-app')).toBe(false)
         endpoint = String(url)
         return new Response(
           `data: ${JSON.stringify({
@@ -414,7 +540,12 @@ describe('internal Anthropic agent through the production gateway and SDK', () =
       expect((await request([{ role: 'user', content: 'Hello' }])).content).toMatchObject([
         { type: 'text', text: 'Done' }
       ])
-      expect(endpoint).toBe('https://openai.test/v1/chat/completions')
+      expect(promptInput.mock.calls[0][0].requestHeaders).toBeUndefined()
+      expect(endpoint).toBe(
+        scenario === 'unknown adapter'
+          ? 'https://anthropic.test/v1/chat/completions'
+          : 'https://openai.test/v1/chat/completions'
+      )
     }
   )
 })

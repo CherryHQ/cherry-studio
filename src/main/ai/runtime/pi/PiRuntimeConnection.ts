@@ -144,7 +144,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       this.input.modelId,
       this.input.knowledgeBaseIds
     )
-    await resolveApiGatewayRuntime(this.input.sessionId)
+    await resolveApiGatewayRuntime(this.input.sessionId, 'pi')
     await warmAgentMcpToolCatalogs(discovery.agent.mcps ?? [])
     const initialSnapshot = await capturePiConnectionSnapshot(
       this.input.sessionId,

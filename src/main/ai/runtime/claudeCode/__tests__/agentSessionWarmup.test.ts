@@ -76,6 +76,7 @@ vi.mock('@application', () => ({
       if (name === 'ApiGatewayService') {
         return {
           ensureInternalGateway: mocks.apiGatewayEnsureInternal,
+          issueRuntimeCapability: () => 'test-runtime-capability',
           getInternalGatewayOrigin: () => mocks.internalGateway.baseUrl,
           start: mocks.apiGatewayStart,
           getAgentSessionUsageHeaders: mocks.apiGatewayGetAgentSessionUsageHeaders
@@ -85,7 +86,9 @@ vi.mock('@application', () => ({
         return { get: mocks.preferenceGet }
       }
       if (name === 'AgentSessionRuntimeService') {
-        return { getTurnTrustedNotifyChannels: mocks.getTurnTrustedNotifyChannels }
+        return {
+          getTurnTrustedNotifyChannels: mocks.getTurnTrustedNotifyChannels
+        }
       }
       if (name === 'McpRuntimeService') {
         return { getConnectedServerInstructions: mocks.getMcpInstructions }
@@ -572,7 +575,7 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
 
     expect(request?.settings.env?.ANTHROPIC_CUSTOM_HEADERS).toBe(
-      'X-Agent: agent-value\nx-cherry-agent-session-id: session-1\nX-Cherry-Fast-Mode: false\nX-Cherry-Reasoning-Effort: default\nX-Cherry-Service-Tier: standard\nX-Shared: agent-value'
+      'X-Agent: agent-value\nx-cherry-agent-runtime: test-runtime-capability\nx-cherry-agent-session-id: session-1\nX-Cherry-Fast-Mode: false\nX-Cherry-Reasoning-Effort: default\nX-Cherry-Service-Tier: standard\nX-Shared: agent-value'
     )
   })
 
@@ -969,7 +972,7 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
       ANTHROPIC_DEFAULT_HAIKU_MODEL: 'other:small-api'
     })
     expect(request?.settings.env?.ANTHROPIC_CUSTOM_HEADERS).toBe(
-      'x-cherry-agent-session-id: session-1\nX-Cherry-Fast-Mode: false\nX-Cherry-Reasoning-Effort: default\nX-Cherry-Service-Tier: standard'
+      'x-cherry-agent-runtime: test-runtime-capability\nx-cherry-agent-session-id: session-1\nX-Cherry-Fast-Mode: false\nX-Cherry-Reasoning-Effort: default\nX-Cherry-Service-Tier: standard'
     )
     expect(request?.options.env?.API_TIMEOUT_MS).toBe('1800000')
     for (const env of [request?.settings.env, request?.options.env]) {
@@ -1148,7 +1151,7 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     // `mergeAnthropicCustomHeaders` canonicalizes to a case-insensitively sorted, deduplicated list.
     expect(request?.settings.env).toMatchObject({
       ANTHROPIC_CUSTOM_HEADERS:
-        'x-cherry-agent-session-id: session-1\nX-Cherry-Fast-Mode: true\nX-Cherry-Reasoning-Effort: default\nX-Cherry-Service-Tier: standard'
+        'x-cherry-agent-runtime: test-runtime-capability\nx-cherry-agent-session-id: session-1\nX-Cherry-Fast-Mode: true\nX-Cherry-Reasoning-Effort: default\nX-Cherry-Service-Tier: standard'
     })
   })
 
@@ -1230,7 +1233,7 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
 
     // Sorted canonical order — the retained custom header survives the merge.
     expect(request?.settings.env?.ANTHROPIC_CUSTOM_HEADERS).toBe(
-      'x-cherry-agent-session-id: session-1\nX-Cherry-Fast-Mode: true\nX-Cherry-Reasoning-Effort: default\nX-Cherry-Service-Tier: standard\nX-Custom-Header: retained'
+      'x-cherry-agent-runtime: test-runtime-capability\nx-cherry-agent-session-id: session-1\nX-Cherry-Fast-Mode: true\nX-Cherry-Reasoning-Effort: default\nX-Cherry-Service-Tier: standard\nX-Custom-Header: retained'
     )
   })
 

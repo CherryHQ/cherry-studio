@@ -143,6 +143,29 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
     expect(resolveApiKeyMock).toHaveBeenCalledWith(CHERRYAI_PROVIDER_ID, undefined)
   })
 
+  it('probes dispatch without reading or rotating serving credentials', async () => {
+    resolveApiKeyMock.mockImplementation(() => {
+      throw new Error('Probe accessed serving credentials')
+    })
+    const config = await providerToAiSdkConfig(
+      makeProvider({ id: 'ollama', presetProviderId: 'ollama' }),
+      makeModel(),
+      {
+        transportProbe: true,
+        resolvedEndpoint: { endpointType: ENDPOINT_TYPE.ANTHROPIC_MESSAGES, baseUrl: 'https://relay.test/v1' }
+      }
+    )
+    expect(config.providerId).toBe('ollama')
+    expect(config.providerSettings.apiKey).toBe('transport-probe')
+  })
+  it('rejects an authenticated builder before probe execution', async () => {
+    getCopilotTokenMock.mockImplementation(() => {
+      throw new Error('Probe accessed OAuth')
+    })
+    await expect(
+      providerToAiSdkConfig(makeProvider({ id: 'copilot' }), makeModel(), { transportProbe: true })
+    ).rejects.toThrow('Transport requires serving authentication')
+  })
   it('uses an explicit API key override instead of the provider rotation key', async () => {
     const provider = makeProvider({ id: 'openai' })
     const model = makeModel({ id: 'openai::gpt-4o', apiModelId: 'gpt-4o', providerId: 'openai' })

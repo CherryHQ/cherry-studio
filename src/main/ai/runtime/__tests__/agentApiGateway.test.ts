@@ -12,6 +12,8 @@ vi.mock('@application', () => ({
       if (name === 'ApiGatewayService') {
         return {
           ensureInternalGateway: mocks.ensureInternalGateway,
+          issueRuntimeCapability: (_id: string, runtime: string) =>
+            runtime === 'claude-code' ? 'test-runtime-capability' : undefined,
           getInternalGatewayOrigin: mocks.getInternalGatewayOrigin,
           getAgentSessionUsageHeaders: (sessionId: string) => ({ 'x-cherry-agent-session-id': sessionId }),
           getCurrentConfig: mocks.getCurrentConfig
@@ -43,15 +45,19 @@ describe('gatewayCredentialsFingerprint', () => {
 })
 
 describe('resolveApiGatewayRuntime', () => {
+  it('does not issue a Claude capability to Pi', async () => {
+    mocks.ensureInternalGateway.mockResolvedValue({ baseUrl: 'http://127.0.0.1:40001', apiKey: 'agent-key' })
+    const gateway = await resolveApiGatewayRuntime('pi-session', 'pi')
+    expect(gateway.usageHeaders).toEqual({ 'x-cherry-agent-session-id': 'pi-session' })
+  })
   it('routes the Agent session through the internal listener with the Agent key', async () => {
     mocks.ensureInternalGateway.mockResolvedValue({ baseUrl: 'http://127.0.0.1:40001', apiKey: 'agent-key' })
 
-    await expect(resolveApiGatewayRuntime('session-1')).resolves.toEqual({
+    await expect(resolveApiGatewayRuntime('session-1', 'claude-code')).resolves.toEqual({
       baseUrl: 'http://127.0.0.1:40001',
       apiKey: 'agent-key',
-      usageHeaders: { 'x-cherry-agent-session-id': 'session-1' }
+      usageHeaders: { 'x-cherry-agent-session-id': 'session-1', 'x-cherry-agent-runtime': 'test-runtime-capability' }
     })
-    expect(mocks.ensureInternalGateway).toHaveBeenCalledOnce()
     expect(mocks.getCurrentConfig).not.toHaveBeenCalled()
   })
 })

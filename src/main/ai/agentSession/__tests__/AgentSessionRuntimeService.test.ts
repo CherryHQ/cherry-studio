@@ -19,6 +19,7 @@ import { BaseService } from '@main/core/lifecycle/BaseService'
 import { AGENT_SESSION_API_RETRY_CACHE_KEY } from '@shared/ai/agentSessionApiRetry'
 
 import type { AgentRuntimeConnectInput, AgentRuntimeUserInput } from '../../runtime/types'
+import { lookupRuntimeCapability, resetRuntimeCapabilities, registerRuntimeCapability } from '../agentRuntimeCapability'
 import type * as ForkResourcesModule from '../fork/resources'
 
 vi.mock('../recoverSessionDeliveries', () => ({ recoverSessionDeliveries: vi.fn(() => new Set()) }))
@@ -524,6 +525,7 @@ describe('AgentSessionForkOperations recovery', () => {
 
 describe('AgentSessionRuntimeService', () => {
   beforeEach(() => {
+    resetRuntimeCapabilities()
     BaseService.resetInstances()
     runtimeDriverRegistry.clearForTest()
     toolApprovalRegistry.clear('test-reset')
@@ -591,6 +593,35 @@ describe('AgentSessionRuntimeService', () => {
       if (name === 'WindowManager') return { getWindow: mocks.getWindow }
       throw new Error(`Unexpected application.get(${name})`)
     })
+  })
+
+  it('keeps one capability across close, reopen and runtime reassignment', async () => {
+    const service = new AgentSessionRuntimeService()
+    service.beginTurn({ ...baseTurnInput, agentType: 'claude-code' })
+    const token = registerRuntimeCapability('session-1', 'claude-code')
+    expect(service.isRuntimeLive('session-1', 'claude-code')).toBe(true)
+    await service.closeSession('session-1')
+    expect(service.isRuntimeLive('session-1', 'claude-code')).toBe(false)
+    service.beginTurn({ ...baseTurnInput, agentType: 'claude-code', assistantMessageId: 'assistant-2' })
+    expect(service.isRuntimeLive('session-1', 'claude-code')).toBe(true)
+    expect(registerRuntimeCapability('session-1', 'claude-code')).toBe(token)
+    service.markTurnTerminal('session-1', 'success')
+    service.beginTurn({ ...baseTurnInput, agentType: 'pi', assistantMessageId: 'assistant-3' })
+    expect(service.isRuntimeLive('session-1', 'claude-code')).toBe(false)
+    expect(lookupRuntimeCapability(token)?.sessionId).toBe('session-1')
+  })
+  it('rejects a closed entry retained by pending inputs', async () => {
+    const service = new AgentSessionRuntimeService()
+    service.beginTurn({ ...baseTurnInput, agentType: 'claude-code' })
+    service.markTurnTerminal('session-1', 'success')
+    getEntry(service).pendingInputs = new Map([['pending', {}]])
+    await service.closeSession('session-1')
+    expect(service.isRuntimeLive('session-1', 'claude-code')).toBe(false)
+  })
+  it('reissue returns the same token', () => {
+    expect(registerRuntimeCapability('session-1', 'claude-code')).toBe(
+      registerRuntimeCapability('session-1', 'claude-code')
+    )
   })
 
   it('blocks edits only on the source session until its fork settles', async () => {

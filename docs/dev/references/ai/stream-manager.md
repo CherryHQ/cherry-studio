@@ -448,6 +448,9 @@ class AiStreamManager {
   // attach, immediate eviction).
   streamPrompt(input: {
     streamId: string                                       // doubles as topicId
+    // Trusted in-process only; caller wins over provider headers.
+    // Gateway filters identity names configured by the provider before passing them here.
+    requestHeaders?: Record<string, string | undefined>
     uniqueModelId: UniqueModelId
     resolvedModel?: { readonly provider: Provider; readonly model: Model } // trusted in-process snapshot
     prompt?: string

@@ -58,6 +58,7 @@ vi.mock('@application', () => ({
         : name === 'ApiGatewayService'
           ? {
               resolveAgentSessionUsage: mockResolveAgentSessionUsage,
+              resolveRuntimeCapability: () => undefined,
               isInternalRequest: (headers: Headers) => mockIsInternalAgentRequest(headers),
               getAgentSessionId: (headers: Headers) => headers.get('x-cherry-agent-session-id') ?? undefined
             }
