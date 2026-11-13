@@ -595,6 +595,25 @@ describe('ProviderApiSetupDialog', () => {
     expect(alert).not.toHaveTextContent('401 rejected')
   })
 
+  it('offers no diagnostic detail when stored keys cannot be loaded to redact it', async () => {
+    storedApiKeysUnavailable = true
+    const storedKey = 'gw7Qx9LmZ2vR4nT8'
+    fetchResolvedProviderModelsMock.mockRejectedValueOnce(
+      new IpcError(aiErrorCodes.AI_REQUEST_FAILED, `rejected ${storedKey}`, {
+        name: 'AI_APICallError',
+        message: `rejected ${storedKey}`,
+        stack: null,
+        statusCode: 401,
+        responseBody: `{"error":"bad credential ${storedKey}"}`
+      })
+    )
+
+    render(<ProviderApiSetupDialog providerId="openai" initialStep="models" onClose={vi.fn()} />)
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('settings.models.manage.sync_pull_failed')
+    expect(screen.queryByRole('button', { name: 'common.detail' })).not.toBeInTheDocument()
+  })
+
   it('lets a preset provider add a model manually when remote model loading fails', async () => {
     fetchResolvedProviderModelsMock.mockRejectedValueOnce(new Error('models endpoint unsupported'))
 
