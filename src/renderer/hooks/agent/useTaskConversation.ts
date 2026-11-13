@@ -187,9 +187,11 @@ export function useTaskConversation(task: ScheduledTaskEntity | null | undefined
       .catch((error) => {
         if (!signal?.aborted && request === latestRequest.current) {
           setState((current) =>
-            current.key !== key || current.result?.session || current.result?.selectedRun
+            current.key !== key
               ? current
-              : { ...current, loading: false, error }
+              : current.result?.session || current.result?.selectedRun
+                ? { ...current, loading: false }
+                : { ...current, loading: false, error }
           )
         }
       })

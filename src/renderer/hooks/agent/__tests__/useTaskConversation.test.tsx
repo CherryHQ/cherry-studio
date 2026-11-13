@@ -432,6 +432,36 @@ it('keeps a verified conversation without an error when a background job lookup 
   expect(view.result.current.error).toBeUndefined()
 })
 
+it('clears loading when a superseding history refresh fails before the foreground resolve settles', async () => {
+  const stored = selected('run', false)
+  let finishForeground!: (value: TaskConversationResult) => void
+  resolve
+    .mockResolvedValueOnce(stored)
+    .mockImplementationOnce(
+      () =>
+        new Promise((done) => {
+          finishForeground = done
+        })
+    )
+    .mockRejectedValueOnce(new Error('refresh failed'))
+  const view = renderHook(() => useTaskConversation(task('task')))
+  await waitFor(() => {
+    expect(view.result.current.result?.selectedRun).toEqual(stored.selectedRun)
+    expect(view.result.current.loading).toBe(false)
+  })
+
+  await act(async () => view.result.current.retry())
+  expect(view.result.current.loading).toBe(true)
+  await historyChanged()
+
+  await waitFor(() => expect(view.result.current.loading).toBe(false))
+  expect(view.result.current.result?.selectedRun).toEqual(stored.selectedRun)
+  expect(view.result.current.result?.selectedRun?.result).toBe('run text')
+  expect(view.result.current.error).toBeUndefined()
+  await act(async () => finishForeground(selected('stale')))
+  expect(view.result.current.result?.selectedRun).toEqual(stored.selectedRun)
+})
+
 it('surfaces an initial job lookup failure and allows retry to recover', async () => {
   const error = DataApiErrorFactory.notFound('Job', 'run')
   resolve.mockRejectedValue(error)
