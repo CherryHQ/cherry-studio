@@ -1,4 +1,5 @@
-import type { ModelMessage } from 'ai'
+import type { LanguageModelV3 } from '@ai-sdk/provider'
+import { APICallError, type ModelMessage, wrapLanguageModel } from 'ai'
 import { describe, expect, it, vi } from 'vitest'
 
 import type * as AiCore from '@cherrystudio/ai-core'
@@ -160,6 +161,79 @@ describe('inLoopCompactionFeature', () => {
         scope({ chatId: 'topic-1', contextWindow: CONTEXT_WINDOW, compressionModel: null })
       )
     ).toBe(false)
+  })
+
+  it('compacts older provider history after an unexpected overflow and retains the current request', async () => {
+    const prompts: unknown[] = []
+    const usage = {
+      inputTokens: { total: 10, noCache: 10, cacheRead: undefined, cacheWrite: undefined },
+      outputTokens: { total: 2, text: 2, reasoning: undefined }
+    }
+    const compressor: LanguageModelV3 = {
+      specificationVersion: 'v3',
+      provider: 'test',
+      modelId: 'compressor',
+      supportedUrls: {},
+      async doGenerate() {
+        return {
+          content: [{ type: 'text', text: '<summary>prior context</summary>' }],
+          finishReason: { unified: 'stop', raw: undefined },
+          usage,
+          warnings: []
+        }
+      },
+      async doStream() {
+        throw new Error('not used')
+      }
+    }
+    const providerModel: LanguageModelV3 = {
+      specificationVersion: 'v3',
+      provider: 'test',
+      modelId: 'chat',
+      supportedUrls: {},
+      async doGenerate() {
+        throw new Error('not used')
+      },
+      async doStream({ prompt }) {
+        prompts.push(prompt)
+        if (prompts.length === 1)
+          throw new APICallError({
+            message: 'context_length_exceeded',
+            statusCode: 400,
+            url: 'test',
+            requestBodyValues: {}
+          })
+        return {
+          stream: new ReadableStream({
+            start(controller) {
+              controller.close()
+            }
+          })
+        }
+      }
+    }
+    const featureScope = scope({
+      chatId: 'topic-1',
+      contextWindow: CONTEXT_WINDOW,
+      compressionModel: { languageModel: compressor, contextWindow: CONTEXT_WINDOW }
+    })
+    const context: any = { middlewares: [] }
+    const plugin = inLoopCompactionFeature.contributeModelAdapters!(featureScope)[0]
+    await plugin.configureContext!(context)
+    const model = wrapLanguageModel({ model: providerModel, middleware: context.middlewares })
+    await model.doStream({
+      prompt: [
+        { role: 'system', content: 'system' },
+        { role: 'user', content: [{ type: 'text', text: 'old '.repeat(1000) }] },
+        { role: 'assistant', content: [{ type: 'text', text: 'old response' }] },
+        { role: 'user', content: [{ type: 'text', text: 'current question' }] }
+      ]
+    })
+    expect(prompts).toHaveLength(2)
+    expect(JSON.stringify(prompts[1])).toContain('prior context')
+    expect(JSON.stringify(prompts[1])).toContain('current question')
+    expect(JSON.stringify(prompts[1])).toContain('system')
+    expect(JSON.stringify(prompts[1])).not.toContain('old old old')
   })
 
   // --- contributeHooks: prepareStep ---

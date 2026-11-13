@@ -3,6 +3,7 @@ import { defineConfig } from 'tsdown'
 export default defineConfig({
   entry: {
     index: 'src/index.ts',
+    contextOverflow: 'src/contextOverflow.ts',
     'built-in/plugins/index': 'src/core/plugins/built-in/index.ts',
     'provider/index': 'src/core/providers/index.ts'
   },
