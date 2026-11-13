@@ -192,6 +192,7 @@ describe('runAppUpdateCheck', () => {
     await appUpdateCheckService.runAppUpdateCheck({ ...idle, downloaded: true, info }, vi.fn())
 
     expect(updateDialogShow).toHaveBeenCalledTimes(2)
+    expect(appUpdateCheckService.readUpdateNotice()).toBeNull()
     expect(callsTo('app.updater.quit_and_install')).toHaveLength(0)
   })
 
