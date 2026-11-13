@@ -249,7 +249,7 @@ export default function MarkdownFilePreview({
       {plainFallback ? <MarkdownPreviewPlainFallback /> : null}
       {/* Both render modes hand scrolling to their own bounded viewer, which paints an opaque
           surface and pads the composer inset inside itself. */}
-      <FilePreviewLayout.Content composerInset={!viewerOwnsScroll}>
+      <FilePreviewLayout.Content composerInset={!viewerOwnsScroll} scrollsInternally={viewerOwnsScroll}>
         <MarkdownPreviewContent
           filePath={filePath}
           chunks={chunks}
