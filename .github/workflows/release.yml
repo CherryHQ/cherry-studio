@@ -189,7 +189,7 @@ jobs:
         id: store
         shell: bash
         run: echo "path=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
-      - uses: actions/cache@v6
+      - uses: actions/cache/restore@v6
         id: dependencies
         with:
           path: ${{ steps.store.outputs.path }}
@@ -224,6 +224,13 @@ jobs:
           compression-level: 0
           retention-days: 3
 
+      - name: Save pnpm dependencies
+        if: matrix.edition == 'global' && steps.dependencies.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: ${{ steps.store.outputs.path }}
+          key: ${{ steps.dependencies.outputs.cache-primary-key }}
+
   release:
     name: Build ${{ matrix.edition }} (${{ matrix.target.platform }}-${{ matrix.target.arch }})
     needs: [prepare, bundle]
@@ -241,7 +248,7 @@ jobs:
       - name: Check out Git repository
         uses: actions/checkout@v7
         with:
-          fetch-depth: 0
+          fetch-depth: 1
           ref: ${{ inputs.expected_sha }}
 
       - name: Install Node.js
@@ -266,7 +273,7 @@ jobs:
       - name: Cache pnpm dependencies
         id: dependencies
         if: matrix.target.platform != 'windows'
-        uses: actions/cache@v6
+        uses: actions/cache/restore@v6
         with:
           path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
           key: ${{ runner.os }}-${{ runner.arch }}-pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
@@ -378,6 +385,13 @@ jobs:
           COS_SECRET_ID: ${{ secrets.COS_SECRET_ID }}
           COS_SECRET_KEY: ${{ secrets.COS_SECRET_KEY }}
         run: python release-tools/scripts/release/release-cos.py upload "${{ matrix.edition }}" "${{ matrix.target.platform }}" "${{ matrix.target.arch }}"
+
+      - name: Save pnpm dependencies
+        if: matrix.edition == 'global' && matrix.target.platform == 'mac' && matrix.target.arch == 'x64' && steps.dependencies.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
+          key: ${{ steps.dependencies.outputs.cache-primary-key }}
 
   downloads:
     name: CN installer downloads
