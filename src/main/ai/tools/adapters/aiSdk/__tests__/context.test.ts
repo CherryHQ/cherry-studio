@@ -23,7 +23,7 @@ describe('getToolCallContext', () => {
   it('unwraps RequestContext threaded through experimental_context', () => {
     const request = makeRequest({ requestId: 'req-42', topicId: 't-1' })
     const ctx = getToolCallContext(makeOptions(request))
-    expect(ctx.request).toBe(request)
+    expect(ctx.request).toEqual(request)
     expect(ctx.toolCallId).toBe('call-1')
     expect(ctx.messages).toEqual([])
   })

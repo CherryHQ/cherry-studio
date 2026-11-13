@@ -133,7 +133,7 @@ export const PRESETS_MINI_APPS: MiniAppPreset[] = [
   },
   {
     id: 'minimax-agent',
-    name: 'Minimax Agent',
+    name: 'MiniMax Code',
     nameKey: 'miniApps.minimax-agent',
     url: 'https://agent.minimaxi.com/',
     logo: 'minimax-agent-cn',
@@ -142,7 +142,7 @@ export const PRESETS_MINI_APPS: MiniAppPreset[] = [
   },
   {
     id: 'minimax-agent-global',
-    name: 'Minimax Agent',
+    name: 'MiniMax Code',
     nameKey: 'miniApps.minimax-global',
     url: 'https://agent.minimax.io/',
     logo: 'minimax',

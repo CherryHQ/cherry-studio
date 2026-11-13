@@ -138,7 +138,7 @@ function dropKeywords(node: JSONSchema7, keywords: ReadonlySet<string>): JSONSch
   let changed = false
   const kept: Record<string, unknown> = {}
   for (const [key, value] of Object.entries(node)) {
-    if (keywords.has(key)) {
+    if (keywords.has(key) || (key === 'required' && value === null)) {
       changed = true
       continue
     }

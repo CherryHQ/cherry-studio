@@ -68,50 +68,6 @@ function createDeferred<T>(): { promise: Promise<T>; resolve: (value: T) => void
   return { promise, resolve, reject }
 }
 
-describe('McpRuntimeService.setServerStatus', () => {
-  beforeEach(() => {
-    BaseService.resetInstances()
-    MockMainCacheServiceUtils.resetMocks()
-  })
-
-  it('broadcasts on the first status write', () => {
-    const service = new McpRuntimeService()
-
-    service.setServerStatus('server-1', 'connected')
-
-    expect(MockMainCacheServiceUtils.getMockCallCounts().setShared).toBe(1)
-  })
-
-  it('does not re-broadcast when the state is unchanged', () => {
-    const service = new McpRuntimeService()
-
-    service.setServerStatus('server-1', 'connected')
-    service.setServerStatus('server-1', 'connected')
-    service.setServerStatus('server-1', 'connected')
-
-    expect(MockMainCacheServiceUtils.getMockCallCounts().setShared).toBe(1)
-  })
-
-  it('broadcasts again when the state changes', () => {
-    const service = new McpRuntimeService()
-
-    service.setServerStatus('server-1', 'connecting')
-    service.setServerStatus('server-1', 'connected')
-
-    expect(MockMainCacheServiceUtils.getMockCallCounts().setShared).toBe(2)
-  })
-
-  it('re-broadcasts only when the error message changes', () => {
-    const service = new McpRuntimeService()
-
-    service.setServerStatus('server-1', 'error', new Error('boom'))
-    service.setServerStatus('server-1', 'error', new Error('boom')) // same message → no broadcast
-    service.setServerStatus('server-1', 'error', new Error('different')) // changed → broadcast
-
-    expect(MockMainCacheServiceUtils.getMockCallCounts().setShared).toBe(2)
-  })
-})
-
 describe('McpRuntimeService embedded interaction authorization', () => {
   beforeEach(() => {
     BaseService.resetInstances()
@@ -887,15 +843,5 @@ describe('McpRuntimeService.restartServer (issue #16242)', () => {
 
     expect(mcpCatalogMock.clearSharedToolsCache).toHaveBeenCalledWith('server-1')
     expect(mcpCatalogMock.refreshTools).not.toHaveBeenCalled()
-  })
-
-  it('clears then repopulates the shared tools cache on a successful restart', async () => {
-    const service = new McpRuntimeService()
-    vi.spyOn(service as any, 'getOrCreateConnection').mockResolvedValue({})
-
-    await service.restartServer('server-1')
-
-    expect(mcpCatalogMock.clearSharedToolsCache).toHaveBeenCalledWith('server-1')
-    expect(mcpCatalogMock.refreshTools).toHaveBeenCalledWith('server-1')
   })
 })

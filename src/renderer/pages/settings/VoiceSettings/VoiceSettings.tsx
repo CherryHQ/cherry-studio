@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 
 import {
   Button,
+  HelpTooltip,
   InputNumber,
   Select,
   SelectContent,
@@ -18,7 +19,6 @@ import { useSharedCacheSelector } from '@data/hooks/useCache'
 import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import {
-  SettingDescription,
   SettingDivider,
   SettingGroup,
   SettingRow,
@@ -836,8 +836,10 @@ function VoiceSettings() {
 
   return (
     <SettingsContentColumn theme={theme} className="[&_[data-slot=select-trigger]]:max-w-full">
-      <h1 className="text-xl font-semibold text-foreground">{t('settings.voice.title')}</h1>
-      <SettingDescription>{t('settings.voice.description')}</SettingDescription>
+      <h1 className="flex items-center gap-1 text-xl font-semibold text-foreground">
+        <span>{t('settings.voice.title')}</span>
+        <HelpTooltip content={t('settings.voice.description')} placement="right" />
+      </h1>
 
       <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.voice.recognition.title')}</SettingTitle>
@@ -1230,10 +1232,10 @@ function VoiceSettings() {
         </div>
         <SettingDivider />
         <SettingRow id="setting-voice-auto-read" className="scroll-mt-6 flex-wrap gap-3">
-          <div>
-            <SettingRowTitle>{t('settings.voice.auto_read.label')}</SettingRowTitle>
-            <SettingDescription>{t('settings.voice.auto_read.description')}</SettingDescription>
-          </div>
+          <SettingRowTitle className="gap-1">
+            <span>{t('settings.voice.auto_read.label')}</span>
+            <HelpTooltip content={t('settings.voice.auto_read.description')} placement="right" />
+          </SettingRowTitle>
           <Switch
             ref={autoReadRef}
             aria-label={t('settings.voice.auto_read.label')}

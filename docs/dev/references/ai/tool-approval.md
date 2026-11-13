@@ -5,7 +5,7 @@ sources:
   - src/main/ai/agentSession/AgentSessionRuntimeService.ts
   - src/main/ai/agentSession/RootMessageProjection.ts
   - src/main/ipc/handlers/ai.ts
-  - src/renderer/hooks/useToolApprovalBridge.ts
+  - src/renderer/pages/home/hooks/useToolApprovalBridge.ts
   - src/renderer/components/chat/messages/tools/hooks/useToolApproval.ts
   - src/main/ai/runtime/claudeCode/settingsBuilder.ts
   - src/main/ai/runtime/claudeCode/ClaudeCodeRuntimeDriver.ts
@@ -55,7 +55,7 @@ question nothing can receive.
    the pause atomically.
 
 3. **User decides** — the approval card renders from the part. On click,
-   `useToolApprovalBridge` (`src/renderer/hooks/useToolApprovalBridge.ts`)
+   `useToolApprovalBridge` (`src/renderer/pages/home/hooks/useToolApprovalBridge.ts`)
    calls `ipcApi.request('ai.tool.respond_approval', ...)` with `approvalId`,
    `approved`, optional `reason` / `updatedInput`, `topicId`, `anchorId`.
 
@@ -238,6 +238,6 @@ The complete `allowedTools` list also includes `TaskCreate`, `TaskGet`,
 
 - IpcApi route: `src/main/ipc/handlers/ai.ts` (`ai.tool.respond_approval`)
 - Main decision owner: `src/main/ai/AiService.ts` (`respondToolApproval`)
-- Renderer bridge: `src/renderer/hooks/useToolApprovalBridge.ts`
+- Renderer bridge: `src/renderer/pages/home/hooks/useToolApprovalBridge.ts`
 - Persistent decisions: `src/renderer/components/chat/messages/tools/hooks/useToolApproval.ts`
 - Status broadcast: [Stream Manager](./stream-manager.md)

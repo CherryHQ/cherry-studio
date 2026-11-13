@@ -24,7 +24,6 @@ import {
   useConversationTurnController
 } from '@renderer/hooks/useConversationTurnController'
 import { type ExecutionFinishEvent, useExecutionOverlay } from '@renderer/hooks/useExecutionOverlay'
-import { useToolApprovalBridge } from '@renderer/hooks/useToolApprovalBridge'
 import {
   useTopicAwaitingApproval,
   useTopicOverlayHandoffOnTerminal,
@@ -42,6 +41,7 @@ import { hasClearContextPart, isBlankUserTurn } from '@shared/data/types/uiParts
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 
 import { useChatWriteActions } from './hooks/useChatWriteActions'
+import { useToolApprovalBridge } from './hooks/useToolApprovalBridge'
 import { useTopicMessagesCache, type UseTopicMessagesCacheParams } from './hooks/useTopicMessagesCache'
 
 const logger = loggerService.withContext('useChatRuntimeState')

@@ -183,7 +183,8 @@ const ModelCard: FC<ModelCardProps> = ({ id, capability, onStatusChange }) => {
                 return
               await remove()
             }}
-            aria-label={t('settings.dependencies.localModels.remove')}>
+            aria-label={t('settings.dependencies.localModels.remove')}
+            className="text-muted-foreground">
             <Trash2 className="size-3.5" />
           </Button>
         )}
@@ -209,7 +210,7 @@ const ModelCard: FC<ModelCardProps> = ({ id, capability, onStatusChange }) => {
 
       {!ready && (
         <div className="mt-auto pt-3">
-          <div className="border-border border-t pt-3">
+          <div className="pt-3">
             {downloading ? (
               <Button variant="outline" size="sm" className="h-7 w-full gap-1 text-xs" onClick={() => void cancel()}>
                 <X className="size-3.5" />

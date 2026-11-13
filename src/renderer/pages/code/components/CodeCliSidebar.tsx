@@ -65,7 +65,10 @@ export const CodeCliSidebar: FC<CodeCliSidebarProps> = ({
 
   return (
     <div data-ui="code.navigation" className="flex h-full min-h-0 w-66 shrink-0 flex-col border-border-subtle border-r">
-      <ScrollArea viewportProps={{ className: 'overflow-x-hidden p-2.5' }} className="min-h-0 flex-1">
+      <ScrollArea
+        contentProps={{ className: 'p-2.5' }}
+        viewportProps={{ className: 'overflow-x-hidden' }}
+        className="min-h-0 flex-1">
         {tools.length === 0 ? (
           <div className="py-8 text-center text-foreground-tertiary text-xs">{t('code.no_tools')}</div>
         ) : (
@@ -123,7 +126,7 @@ export const CodeCliSidebar: FC<CodeCliSidebarProps> = ({
                           variant="ghost"
                           size="icon-sm"
                           aria-label={t('common.more')}
-                          className="size-7 opacity-0 shadow-none group-focus-within/row:opacity-100 group-hover/row:opacity-100 data-[state=open]:opacity-100"
+                          className="size-7 opacity-0 shadow-none group-focus-within/row:opacity-100 group-hover/row:opacity-100 data-[state=open]:opacity-100 text-muted-foreground"
                           onClick={(event) => event.stopPropagation()}>
                           <MoreHorizontal className="size-4" />
                         </Button>

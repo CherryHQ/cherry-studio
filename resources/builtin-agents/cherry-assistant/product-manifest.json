@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "package": {
     "name": "CherryStudio",
-    "version": "2.1.10",
+    "version": "2.2.1",
     "description": "A powerful AI assistant for producer.",
     "homepage": "https://github.com/CherryHQ/cherry-studio"
   },
@@ -877,7 +877,7 @@
     }
   ],
   "providers": {
-    "version": "4dffd749a9a771f3",
+    "version": "ffdb91a2257b38b8",
     "count": 68,
     "entries": [
       {
@@ -995,6 +995,10 @@
       {
         "id": "omlx",
         "name": "oMLX"
+      },
+      {
+        "id": "rapid-mlx",
+        "name": "Rapid-MLX"
       },
       {
         "id": "openai",

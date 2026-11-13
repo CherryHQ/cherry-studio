@@ -26,7 +26,7 @@ export const agentSessionHandlers: HandlersFor<AgentSessionSchemas> = {
     GET: async ({ query }) => {
       const parsed = ListAgentSessionsQuerySchema.safeParse(query ?? {})
       if (!parsed.success) throw toDataApiError(parsed.error)
-      return agentSessionService.listByCursor(parsed.data)
+      return agentSessionService.listByCursor({ ...parsed.data, scope: 'ordinary' })
     },
 
     POST: async ({ body }) => {

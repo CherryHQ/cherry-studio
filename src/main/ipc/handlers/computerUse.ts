@@ -3,6 +3,8 @@ import type { computerUseRequestSchemas } from '@shared/ipc/schemas/computerUse'
 import type { IpcHandlersFor } from '@shared/ipc/types'
 
 export const computerUseHandlers: IpcHandlersFor<typeof computerUseRequestSchemas> = {
+  'computer_use.get_call_apps': async ({ cell }) => application.get('AutomationReplService').getCallApps(cell),
+  'computer_use.get_app_icon': ({ identity }) => application.get('ComputerUseService').getAppIcon(identity),
   'computer_use.get_controls': async () => application.get('ComputerUseService').getControls(),
   'computer_use.stop_app': async ({ ownerId, appId }) => {
     await application.get('ComputerUseService').stopApp(ownerId, appId)

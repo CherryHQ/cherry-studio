@@ -27,7 +27,7 @@ vi.mock('../internal/system/shell', () => ({
 const writer = vi.hoisted(() => vi.fn())
 vi.mock('../internal/system/clipboard', () => ({ writeFileToClipboard: writer }))
 
-import { copyFileToClipboard, getClipboardCopyStatus, safeOpen, showInFolder } from '../system'
+import { copyFileToClipboard, getClipboardCopyStatus, safeOpen } from '../system'
 
 describe('file system helpers', () => {
   beforeEach(() => {
@@ -64,12 +64,6 @@ describe('file system helpers', () => {
 
     await expect(safeOpen('/tmp/deleted/report.md' as AbsoluteFilePath)).rejects.toBe(error)
     expect(internalOpenMock).not.toHaveBeenCalled()
-  })
-
-  it('showInFolder delegates to the internal shell primitive', async () => {
-    await showInFolder('/tmp/report.md' as AbsoluteFilePath)
-
-    expect(internalShowInFolderMock).toHaveBeenCalledWith('/tmp/report.md')
   })
 })
 

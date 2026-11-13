@@ -18,7 +18,7 @@ interface ToolBinding {
 
 const PI_TOOL_BINDING = {
   pathFields: { write: 'path', edit: 'path' },
-  shellFields: { bash: 'command' },
+  shellFields: { bash: 'command', powershell: 'command' },
   normalizeStructuredPath: normalizePiNativePathInput
 } satisfies ToolBinding
 

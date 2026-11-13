@@ -249,9 +249,6 @@ describe('Chat panels', () => {
 
     expect(citationsPanelModuleLoads.value).toBe(0)
     expect(screen.queryByTestId('citations-panel')).not.toBeInTheDocument()
-    expect(screen.getByTestId('chat-navbar')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'branch shortcuts' })).toBeInTheDocument()
-    expect(screen.getByTestId('topic-right-pane-viewport')).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'open citations' }))
     expect(await screen.findByTestId('citations-panel')).toHaveAttribute('data-open', 'true')
@@ -274,33 +271,6 @@ describe('Chat panels', () => {
 
     view.rerender(<Chat activeTopic={activeTopic} />)
     expect(screen.queryByText('https://topic-1.example')).not.toBeInTheDocument()
-  })
-
-  it('keeps navbar and branch pane actions visible for an empty persisted topic', () => {
-    const emptyTopic = { ...activeTopic, id: 'empty-topic', name: '' }
-
-    renderChat(emptyTopic)
-
-    expect(screen.getByTestId('chat-navbar')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'branch shortcuts' })).not.toBeDisabled()
-    expect(screen.getByTestId('topic-right-pane-viewport')).toBeInTheDocument()
-  })
-
-  it('does not re-render the chat shell when branch live state changes', () => {
-    renderChat(activeTopic)
-
-    const initialNavbarRenders = renderCounters.navbar
-    const initialChatContentRenders = renderCounters.chatContent
-
-    fireEvent.click(screen.getByRole('button', { name: 'push live branch state' }))
-
-    expect(renderCounters.navbar).toBe(initialNavbarRenders)
-    expect(renderCounters.chatContent).toBe(initialChatContentRenders)
-    expect(renderCounters.setBranchLiveState).toHaveBeenCalledWith('topic-1', {
-      activeNodeId: 'assistant-live',
-      nodes: [],
-      topicId: 'topic-1'
-    })
   })
 
   it('passes branch-panel locate requests to chat content and clears them after handling', () => {

@@ -11,6 +11,7 @@ import {
   DialogTitle,
   ScrollArea
 } from '@cherrystudio/ui'
+import { useExitPresence } from '@renderer/hooks/useExitPresence'
 
 export interface AssistantPresetPreviewDialogPreset {
   description?: string
@@ -43,11 +44,12 @@ export function AssistantPresetPreviewDialog({
 }: Props) {
   const { t } = useTranslation()
 
-  if (!preset) return null
+  const { value: retainedPreset } = useExitPresence(preset)
+  if (!retainedPreset) return null
 
-  const description = preset.description?.trim()
-  const prompt = preset.prompt?.trim()
-  const groups = (preset.group || []).slice(0, 3)
+  const description = retainedPreset.description?.trim()
+  const prompt = retainedPreset.prompt?.trim()
+  const groups = (retainedPreset.group || []).slice(0, 3)
   const isAdded = Boolean(addedAssistantId)
 
   return (
@@ -67,10 +69,10 @@ export function AssistantPresetPreviewDialog({
         <DialogHeader className="shrink-0 border-b border-border-subtle px-5 pt-5 pr-12 pb-4 text-left">
           <div className="flex min-w-0 items-start gap-3">
             <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-secondary text-base">
-              {preset.emoji || '🤖'}
+              {retainedPreset.emoji || '🤖'}
             </div>
             <div className="min-w-0 pt-0.5">
-              <DialogTitle className="truncate">{preset.name}</DialogTitle>
+              <DialogTitle className="truncate">{retainedPreset.name}</DialogTitle>
               {groups.length > 0 && (
                 <DialogDescription className="mt-1 flex flex-wrap items-center gap-1">
                   {groups.map((group) => (

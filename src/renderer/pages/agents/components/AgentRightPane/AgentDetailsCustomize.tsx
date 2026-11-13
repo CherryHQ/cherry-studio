@@ -37,7 +37,12 @@ export function AgentDetailsCustomize({
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <Button type="button" variant="ghost" size="icon-sm" aria-label={t('agent.right_pane.details.customize')}>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          aria-label={t('agent.right_pane.details.customize')}
+          className="text-muted-foreground">
           <MoreVertical className="size-4" />
         </Button>
       </PopoverTrigger>

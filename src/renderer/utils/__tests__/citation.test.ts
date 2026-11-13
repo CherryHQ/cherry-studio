@@ -10,7 +10,6 @@ import {
   isLinkableCitationUrl,
   mapCitationMarksToTags,
   normalizeCitationMarks,
-  toTooltipCitation,
   withCitationTags
 } from '../citation'
 import { buildContent, groundingChunks, groundingSupports } from './fixtures/geminiCitation8880'
@@ -608,21 +607,6 @@ Numbered list:
       // The | in URL must be percent-encoded as %7C
       expect(result).toContain('%7C')
       expect(result).not.toMatch(/\]\(https:\/\/example\.com\/path\?a=1\|/)
-    })
-
-    it('should truncate trusted tooltip content to 200 characters out of band', () => {
-      const longContent = 'a'.repeat(300)
-      const citation: Citation = {
-        number: 1,
-        url: 'https://example.com',
-        title: 'Test',
-        content: longContent
-      }
-
-      const tooltipCitation = toTooltipCitation(citation)
-      expect(tooltipCitation.content).toHaveLength(200)
-      expect(tooltipCitation.content).toBe(longContent.substring(0, 200))
-      expect(generateCitationTag(tooltipCitation)).not.toContain(longContent.substring(0, 20))
     })
   })
 

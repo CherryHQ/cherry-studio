@@ -97,6 +97,7 @@ export function DictationControls({
             type="button"
             variant="ghost"
             size="icon-sm"
+            className="text-muted-foreground"
             aria-label={t('chat.input.dictation.title')}
             disabled={disabled}
             onClick={start}>

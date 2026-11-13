@@ -92,7 +92,7 @@ const TranslateOutputPane = ({
         <div
           ref={captureRef}
           data-ui="translate.output-content"
-          className="flex min-h-full flex-col bg-background p-4 pr-12 text-foreground">
+          className="flex min-h-full flex-col p-4 pr-12 text-foreground">
           {translating && !translatedContent ? (
             <div className="flex items-center gap-2 text-muted-foreground">
               <div className="h-4 w-4 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-muted-foreground" />
@@ -121,7 +121,7 @@ const TranslateOutputPane = ({
           size="icon-sm"
           aria-label={t('chat.message.read_aloud.label')}
           disabled={translating || !translatedContent.trim()}
-          className="ml-auto"
+          className="ml-auto text-muted-foreground"
           onClick={() => {
             playbackRef.current?.abort()
             const controller = new AbortController()

@@ -27,7 +27,6 @@ tests/e2e/
 │   │   ├── waitHelpers.ts
 │   │   ├── uiLocator.ts
 │   │   └── index.ts
-│   ├── appLaunch.test.ts
 │   └── composerFocus.test.ts
 └── regression/               # Controller-owned critical-path suite
     ├── README.md
@@ -69,10 +68,10 @@ pnpm test:e2e
 pnpm test:e2e --headed
 
 # Run a specific test file
-pnpm playwright test tests/e2e/smoke/appLaunch.test.ts
+pnpm playwright test tests/e2e/smoke/composerFocus.test.ts
 
 # Run tests matching a name
-pnpm playwright test -g "reasonable size"
+pnpm playwright test -g "focus"
 
 # Run in debug mode (pauses execution and opens the debugger)
 pnpm playwright test --debug

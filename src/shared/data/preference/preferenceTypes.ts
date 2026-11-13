@@ -292,6 +292,7 @@ export const WEB_SEARCH_PROVIDER_IDS = [
   'exa',
   'exa-mcp',
   'bocha',
+  'stepfun',
   'querit',
   'fetch',
   'jina',
@@ -303,6 +304,7 @@ export const WEB_SEARCH_PROVIDER_IDS = [
   'deepseek',
   'desearch',
   'searchapi',
+  'serpkite',
   'duckduckgo'
 ] as const satisfies readonly (RemoteProviderId | 'fetch' | 'duckduckgo')[]
 

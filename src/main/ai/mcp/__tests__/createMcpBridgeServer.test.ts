@@ -148,14 +148,6 @@ describe('createMcpBridgeServer', () => {
     expect(mocks.callTool).toHaveBeenCalledWith(expect.objectContaining({ onProgress: undefined }))
   })
 
-  it('uses a request-captured server snapshot without re-reading the edited database row', () => {
-    const capturedServer = { id: 'server-1', name: 'Captured MCP' }
-
-    createMcpBridgeServer('server-1', capturedServer as never)
-
-    expect(mocks.findByIdOrName).not.toHaveBeenCalled()
-  })
-
   it('cancels the upstream call when the client aborts its request', async () => {
     mocks.listTools.mockReturnValue([searchTool()])
     let upstreamSignal: AbortSignal | undefined

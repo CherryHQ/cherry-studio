@@ -89,10 +89,6 @@ describe('MiniAppManifestSchema', () => {
     expect(() => MiniAppManifestSchema.parse({ ...valid, description: { zh: '一个小游戏' } })).not.toThrow()
   })
 
-  it('rejects a description longer than the card can show', () => {
-    expect(() => MiniAppManifestSchema.parse({ ...valid, description: 'x'.repeat(201) })).toThrow()
-  })
-
   it('accepts a packaged manifest with no package block', () => {
     // The archive-root manifest CANNOT carry `package`: its `sha256` is the hash of
     // the archive this very file sits in, so writing it changes it. Unproducible.

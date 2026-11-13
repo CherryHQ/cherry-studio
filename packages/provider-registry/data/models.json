@@ -7516,7 +7516,7 @@
     },
     {
       "capabilities": ["function-call", "image-recognition", "reasoning", "structured-output"],
-      "contextWindow": 1000000,
+      "contextWindow": 1048576,
       "family": "deepseek-flash",
       "id": "deepseek-flash",
       "inputModalities": ["text", "image"],
@@ -7932,15 +7932,22 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output"],
+      "capabilities": ["function-call", "image-recognition", "reasoning", "structured-output"],
       "contextWindow": 1048576,
+      "family": "deepseek-flash",
       "id": "deepseek-v4-1-flash",
       "inputModalities": ["text", "image"],
+      "maxOutputTokens": 393216,
       "metadata": {},
-      "name": "DeepSeek: DeepSeek V4.1 Flash",
+      "name": "DeepSeek V4.1 Flash",
+      "openWeights": true,
       "outputModalities": ["text"],
       "ownedBy": "deepseek",
       "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.006
+        },
         "input": {
           "currency": "USD",
           "perMillionTokens": 0.3
@@ -23523,5 +23530,5 @@
       "ownedBy": "zhipu"
     }
   ],
-  "version": "a0418e1cc8f8499c"
+  "version": "6dbe101fa7cfc72b"
 }

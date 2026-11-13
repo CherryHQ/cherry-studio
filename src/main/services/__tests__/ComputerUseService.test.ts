@@ -19,6 +19,7 @@ const unknown: PermissionStatus = {
 
 function client(overrides: Partial<ComputerUseClient> = {}): ComputerUseClient {
   return {
+    getAppIcon: async () => ({ status: 'unavailable' }),
     getCapabilities: vi.fn(),
     listApps: vi.fn(),
     openAppSession: vi.fn(),
@@ -132,4 +133,38 @@ describe('ComputerUseService permission sessions', () => {
     expect(ComputerUse.start).toHaveBeenCalledOnce()
     await expect(service.getPermissionStatus()).rejects.toMatchObject({ name: 'AbortError' })
   })
+})
+
+it('queries icons without app control and closes the presentation client', async () => {
+  let closed = false
+  const native = Object.assign(client(), {
+    getAppIcon: async ({ identity }: { identity: string }) => {
+      expect(identity).toBe('com.apple.finder')
+      return { status: 'available', icon: { mimeType: 'image/png', dataBase64: 'aWNvbg==' } }
+    },
+    openAppSession: async () => {
+      throw new Error('Icon lookup must not open control')
+    },
+    close: async () => {
+      closed = true
+    }
+  })
+  vi.mocked(ComputerUse.start).mockResolvedValue(native)
+  const service = new TestService()
+  expect(await service.getAppIcon('com.apple.finder')).toEqual({
+    status: 'available',
+    icon: { mimeType: 'image/png', dataBase64: 'aWNvbg==' }
+  })
+  expect(closed).toBe(true)
+  expect(service.getControls()).toEqual([])
+})
+
+it('rejects invalid icon payloads', async () => {
+  vi.mocked(ComputerUse.start).mockResolvedValueOnce(
+    Object.assign(client(), {
+      getAppIcon: async () => ({ status: 'available', icon: { mimeType: 'image/svg+xml', dataBase64: 'YQ==' } })
+    })
+  )
+  const service = new TestService()
+  await expect(service.getAppIcon('com.apple.finder')).rejects.toThrow()
 })

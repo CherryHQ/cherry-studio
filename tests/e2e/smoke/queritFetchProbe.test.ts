@@ -80,8 +80,12 @@ test('Querit fetch check distinguishes page failure, usable content and HTTP fai
     await openSettings(page)
     await expect(page.locator('[data-ui~="settings.view"]')).toBeVisible({ timeout: 60_000 })
     await page
-      .locator('[data-ui~="settings.navigation"] [data-slot="menu-item"]')
-      .filter({ hasText: 'Web Search' })
+      .locator('[data-ui~="settings.navigation"]')
+      .getByRole('button', { name: 'Built-in Tools', exact: true })
+      .click()
+    await page
+      .getByRole('navigation', { name: 'Built-in Tools', exact: true })
+      .getByRole('button', { name: 'Web Search', exact: true })
       .click()
 
     const section = page.locator('section[aria-labelledby="web-search-fetchUrls-title"]')

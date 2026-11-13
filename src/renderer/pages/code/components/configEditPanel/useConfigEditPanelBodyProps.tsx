@@ -17,6 +17,7 @@ import type { ConfigEditPanelProps } from './types'
 import { useConfigDraftController } from './useConfigDraftController'
 
 export function useConfigEditPanelBodyProps({
+  open = true,
   onClose,
   cliTool,
   provider,
@@ -151,7 +152,7 @@ export function useConfigEditPanelBodyProps({
   const hasAdvancedSection = !!advancedFields || draft.files.length > 0
 
   return {
-    open: true,
+    open,
     onClose,
     provider,
     providerName,

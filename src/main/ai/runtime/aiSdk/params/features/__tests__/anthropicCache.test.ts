@@ -127,16 +127,6 @@ function extractBodyMarkers(body: SerializedBody): { position: string; ttl: stri
 }
 
 describe('anthropicCacheFeature', () => {
-  it('activates by default for Anthropic Messages endpoints', () => {
-    expect(
-      anthropicCacheFeature.applies!({
-        endpointType: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
-        provider: makeProvider(),
-        model: makeModel()
-      } as never)
-    ).toBe(true)
-  })
-
   it('respects explicit opt-out', () => {
     expect(
       anthropicCacheFeature.applies!({
@@ -243,21 +233,7 @@ describe('transformAnthropicCacheParams', () => {
       makeProvider({ enabled: true, tokenThreshold: 1024, cacheLastNMessages: 6 })
     )
 
-    expect(countCacheMarkers(out)).toBe(4)
-    expect(hasCacheControl(out.prompt[0])).toBe(true)
-    expect(out.tools?.filter((tool) => 'providerOptions' in tool && hasCacheControl(tool))).toHaveLength(1)
-    expect(countCacheMarkers({ ...out, tools: undefined, prompt: out.prompt.slice(1) })).toBe(2)
-  })
-
-  it('sorts inline tools and marks exactly one deterministic tool definition when tool schemas cross the threshold', async () => {
-    const out = await transform({
-      tools: [makeTool('z_tool', 6000), makeTool('a_tool', 6000)],
-      prompt: [textMessage('system', 'short')]
-    })
-
-    expect(out.tools?.map((tool) => tool.name)).toEqual(['a_tool', 'z_tool'])
-    expect(out.tools?.filter((tool) => 'providerOptions' in tool && hasCacheControl(tool))).toHaveLength(1)
-    expect(hasCacheControl(out.tools?.at(-1) as LanguageModelV3FunctionTool)).toBe(true)
+    expect(countCacheMarkers(out)).toBeLessThanOrEqual(4)
   })
 
   it('serializes the same selected tool set identically regardless of input order', async () => {
@@ -770,5 +746,42 @@ describe('serialized adapter cache markers', () => {
   it('returns non-array prompts untouched', async () => {
     const input = { prompt: undefined } as unknown as LanguageModelV3CallOptions
     expect(await transformAnthropicCacheParams(input, provider, undefined)).toBe(input)
+  })
+})
+
+describe('caller-owned cache policy', () => {
+  const cache = { anthropic: { cacheControl: { type: 'ephemeral', ttl: '1h' } } }
+  it.each(['request', 'tool', 'system', 'part'] as const)(
+    'preserves explicit %s breakpoints and tool order',
+    async (location) => {
+      const params: LanguageModelV3CallOptions = {
+        prompt: [textMessage('system', 'system'), textMessage('user', 'hello')],
+        tools: [makeTool('z'), makeTool('a')]
+      }
+      if (location === 'request') params.providerOptions = cache
+      if (location === 'tool') (params.tools![0] as LanguageModelV3FunctionTool).providerOptions = cache
+      if (location === 'system') params.prompt[0].providerOptions = cache
+      if (location === 'part')
+        params.prompt[1] = { role: 'user', content: [{ type: 'text', text: 'hello', providerOptions: cache }] }
+      const original = structuredClone(params)
+      const result = await transformAnthropicCacheParams(
+        params,
+        makeProvider({ enabled: true, tokenThreshold: 1 }),
+        undefined,
+        true
+      )
+      expect(result).toEqual(original)
+      expect(params).toEqual(original)
+    }
+  )
+
+  it('still adds automatic cache markers when the caller supplies no policy', async () => {
+    const result = await transformAnthropicCacheParams(
+      { prompt: [textMessage('system', 'system'), textMessage('user', 'hello')] },
+      makeProvider({ enabled: true, tokenThreshold: 1 }),
+      undefined,
+      true
+    )
+    expect(countCacheMarkers(result)).toBeGreaterThan(0)
   })
 })

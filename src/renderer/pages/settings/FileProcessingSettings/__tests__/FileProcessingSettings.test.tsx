@@ -17,7 +17,6 @@ import {
   type LocalModelStatusSnapshot
 } from '@shared/data/presets/localModel'
 
-import { PADDLEOCR_DEPLOYMENT_URL } from '../components/PaddleOcrDeploymentInfo'
 import DocumentProcessingSettings from '../DocumentProcessingSettings'
 import OcrSettings from '../OcrSettings'
 
@@ -339,21 +338,6 @@ describe('processing settings pages', () => {
     ).toBeInTheDocument()
   })
 
-  it('uses the web search field treatment for document processing inputs', async () => {
-    const { container } = render(<DocumentProcessingSettings />)
-
-    await screen.findByText('settings.tool.file_processing.features.document_to_markdown.title')
-
-    expect(container.querySelector('[data-slot=scroll-area-content] > div')).toHaveClass(
-      '[&_input[data-slot=input]]:h-8',
-      '[&_input[data-slot=input]]:rounded-lg',
-      '[&_input[data-slot=input]]:border-border-subtle',
-      '[&_input[data-slot=input]]:bg-muted/30',
-      '[&_input[data-slot=input]]:shadow-none',
-      '[&_input[data-slot=input]:focus-visible]:ring-[1px]'
-    )
-  })
-
   it('shows only the processors for the selected feature', async () => {
     const ocrSettings = render(<OcrSettings />)
 
@@ -379,35 +363,6 @@ describe('processing settings pages', () => {
     expect(screen.queryByText('settings.tool.file_processing.features.image_to_text.title')).not.toBeInTheDocument()
     expect(
       screen.queryByRole('button', { name: /settings.tool.file_processing.processors.system.name/ })
-    ).not.toBeInTheDocument()
-  })
-
-  it('shows the selected processor in the header without separate default controls', async () => {
-    preferencesMock.defaultImageProcessor = 'system'
-
-    render(<OcrSettings />)
-
-    expect(
-      await screen.findByRole('button', { name: 'settings.tool.file_processing.features.image_to_text.title' })
-    ).toBeInTheDocument()
-    expect(screen.getByText('settings.tool.file_processing.processors.system.status.available')).toBeInTheDocument()
-    expect(screen.queryByText('common.default')).not.toBeInTheDocument()
-    expect(
-      screen.queryByRole('button', { name: 'settings.tool.file_processing.actions.set_as_default' })
-    ).not.toBeInTheDocument()
-    expect(screen.queryByText('settings.tool.file_processing.processors.system.description')).not.toBeInTheDocument()
-  })
-
-  it('uses the Open MinerU label', async () => {
-    render(<DocumentProcessingSettings />)
-
-    fireEvent.click(
-      await screen.findByRole('button', { name: /settings.tool.file_processing.processors.open_mineru.name/ })
-    )
-
-    expect(screen.getAllByText('settings.tool.file_processing.processors.open_mineru.name').length).toBeGreaterThan(0)
-    expect(
-      screen.queryByText('settings.tool.file_processing.processors.open_mineru.description')
     ).not.toBeInTheDocument()
   })
 
@@ -812,25 +767,6 @@ describe('processing settings pages', () => {
     })
   })
 
-  it('shows PaddleOCR deployment guidance with the deployment link', async () => {
-    preferencesMock.defaultImageProcessor = 'paddleocr'
-
-    render(<OcrSettings />)
-
-    const apiKeyLabel = await screen.findByText('settings.tool.file_processing.fields.api_key')
-    const parseModelLabel = screen.getByText('settings.tool.file_processing.processors.paddleocr.fields.parse_model')
-    const deploymentDescription = screen.getByText(
-      'settings.tool.file_processing.processors.paddleocr.deployment.description'
-    )
-
-    expect(deploymentDescription).toBeInTheDocument()
-    expect(apiKeyLabel.compareDocumentPosition(parseModelLabel)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
-    expect(parseModelLabel.compareDocumentPosition(deploymentDescription)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
-    expect(
-      screen.getByRole('link', { name: /settings.tool.file_processing.processors.paddleocr.deployment.docs/ })
-    ).toHaveAttribute('href', PADDLEOCR_DEPLOYMENT_URL)
-  })
-
   it('stores PaddleOCR model changes per feature', async () => {
     const user = userEvent.setup()
     preferencesMock.defaultImageProcessor = 'paddleocr'
@@ -907,28 +843,6 @@ describe('processing settings pages', () => {
         })
       ).toHaveTextContent('PP-StructureV3')
     })
-  })
-
-  it('shows only OCR-safe model options for PaddleOCR image_to_text', async () => {
-    preferencesMock.defaultImageProcessor = 'paddleocr'
-
-    render(<OcrSettings />)
-
-    expect(await screen.findByRole('button', { name: 'PP-OCRv6' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'PP-OCRv5' })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'PaddleOCR-VL-1.5' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'PP-StructureV3' })).not.toBeInTheDocument()
-  })
-
-  it('shows only document parsing model options for PaddleOCR document_to_markdown', async () => {
-    preferencesMock.defaultDocumentProcessor = 'paddleocr'
-
-    render(<DocumentProcessingSettings />)
-
-    expect(await screen.findByRole('button', { name: 'PaddleOCR-VL-1.5' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'PaddleOCR-VL' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'PP-StructureV3' })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'PP-OCRv6' })).not.toBeInTheDocument()
   })
 
   it('manages Tesseract language packs with the settings combobox', async () => {

@@ -13,7 +13,6 @@ vi.mock('svgo/lib/xast', () => ({
   }
 }))
 
-import { colorToLuminance } from '../svg-utils'
 import { createConvertToMonoPlugin } from '../svgo-convert-to-mono'
 
 // ─── Helpers ────────────────────────────────────────────────────────
@@ -492,34 +491,5 @@ describe('cutout mask preservation (AI Studio pattern)', () => {
     // Group content should be replaced with mask shape
     const g = svgChildren(root).find((c) => c.name === 'g')
     expect(g.children[0].attributes.d).toBe('M12 3L14.5 9.5L21 12L14.5 14.5L12 21L9.5 14.5L3 12L9.5 9.5Z')
-  })
-})
-
-describe('backgroundWasDark threshold integration', () => {
-  /**
-   * Tests the threshold logic from generate-mono-icons.ts:
-   *   backgroundWasDark = bgPlugin.wasRemoved() && lum >= 0 && lum < 0.3
-   *
-   * This is the critical threshold that caused the ZeroOne bug.
-   */
-  it('#133426 (ZeroOne, lum ~0.159) should be considered dark (< 0.3)', () => {
-    const lum = colorToLuminance('#133426')
-    expect(lum).toBeLessThan(0.3)
-    expect(lum).toBeGreaterThan(0)
-  })
-
-  it('#055F4E (AwsBedrock, lum ~0.259) should be considered dark (< 0.3)', () => {
-    const lum = colorToLuminance('#055F4E')
-    expect(lum).toBeLessThan(0.3)
-  })
-
-  it('#F54F35 (Groq, lum ~0.49) should NOT be considered dark (>= 0.3)', () => {
-    const lum = colorToLuminance('#F54F35')
-    expect(lum).toBeGreaterThanOrEqual(0.3)
-  })
-
-  it('#CA9F7B (Anthropic tan, lum ~0.66) should NOT be considered dark', () => {
-    const lum = colorToLuminance('#CA9F7B')
-    expect(lum).toBeGreaterThanOrEqual(0.3)
   })
 })

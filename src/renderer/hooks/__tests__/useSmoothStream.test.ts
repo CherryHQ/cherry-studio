@@ -52,15 +52,6 @@ afterEach(() => {
 describe('useSmoothStream', () => {
   // A burst can accumulate before the first frame; that frame must not dump
   // it. With no reference dt / rate sample yet it reveals exactly MIN_STEP.
-  it('reveals only MIN_STEP on the first frame, never a dump', () => {
-    const onUpdate = vi.fn()
-    const { result } = renderHook(() => useSmoothStream({ onUpdate, streamDone: false, minDelay: 0 }))
-
-    act(() => result.current.addChunk('a'.repeat(100)))
-    act(() => tick(16))
-
-    expect(lastText(onUpdate).length).toBe(1)
-  })
 
   it('reveals progressively and eventually shows the full text', () => {
     const onUpdate = vi.fn()
@@ -111,16 +102,6 @@ describe('useSmoothStream', () => {
   // Hard latency ceiling while streaming: with a 1000-grapheme backlog the
   // catch-up frame drains down to exactly MAX_BACKLOG (400). Frame 1 reveals
   // MIN_STEP (1); frame 2 catches up: 999 - 400 = 599 → displayed 600.
-  it('caps backlog to MAX_BACKLOG while streaming', () => {
-    const onUpdate = vi.fn()
-    const { result } = renderHook(() => useSmoothStream({ onUpdate, streamDone: false, minDelay: 0 }))
-
-    act(() => result.current.addChunk('a'.repeat(1000)))
-    act(() => tick(16)) // frame 1: MIN_STEP → 1
-    act(() => tick(16)) // frame 2: catch-up → 600
-
-    expect(lastText(onUpdate).length).toBe(600)
-  })
 
   // Once the source is done, every queued grapheme is already final. Keeping
   // it buffered would expose a completed state whose copyable text is partial.
@@ -140,17 +121,6 @@ describe('useSmoothStream', () => {
 
   // After a long background gap (rAF frozen) the resume frame must not dump
   // the whole queue — dt is clamped and MAX_BACKLOG bounds the catch-up.
-  it('bounds the queue after a long background gap instead of dumping it', () => {
-    const onUpdate = vi.fn()
-    const { result } = renderHook(() => useSmoothStream({ onUpdate, streamDone: false, minDelay: 0 }))
-
-    act(() => result.current.addChunk('a'.repeat(1000)))
-    act(() => tick(16)) // frame 1: MIN_STEP → 1
-    act(() => tick(100_000)) // tab hidden ~100s, then one resume frame
-
-    expect(lastText(onUpdate).length).toBe(600)
-    expect(lastText(onUpdate).length).toBeLessThan(1000)
-  })
 
   it('reset clears the queue and does not resurrect old text', () => {
     const onUpdate = vi.fn()

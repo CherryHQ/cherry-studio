@@ -37,6 +37,7 @@ function backend(overrides: Partial<ComputerUseClient> = {}) {
   }
   const client: ComputerUseClient = {
     ...{ resolveApp: vi.fn(), resolveAppIdentity: vi.fn(), perform: vi.fn() },
+    getAppIcon: async () => ({ status: 'unavailable' }),
     getCapabilities: async () => ({ platform: 'darwin', capabilities: [] }),
     getPermissionStatus: async () => ({ permissions: [] }),
     requestPermissions: async () => ({ permissions: [] }),
@@ -549,4 +550,24 @@ describe('desktop control ownership and user stop', () => {
     expect(service.getControls()).toEqual([])
     await expect(service.listApps(task)).rejects.toMatchObject({ code: 'TASK_CLOSED' })
   })
+})
+
+it('exposes stable app identity for control-list presentation before and after stopping', async () => {
+  const app = { id: 'finder', name: 'Finder', identity: 'com.apple.finder' }
+  const native = backend({ openAppSession: async () => ({ id: 'finder-session', app, status: 'active' }) })
+  vi.mocked(ComputerUse.start).mockResolvedValue(native.client)
+  const service = new TestService()
+  service.init()
+  try {
+    await service.openApp(service.createTask('owner', 'Agent'), app.id, undefined, app)
+    expect(service.getControls()).toContainEqual(
+      expect.objectContaining({ appId: app.id, appIdentity: app.identity, status: 'active' })
+    )
+    await service.stopApp('owner', app.id)
+    expect(service.getControls()).toContainEqual(
+      expect.objectContaining({ appId: app.id, appIdentity: app.identity, status: 'stopped' })
+    )
+  } finally {
+    await service.stop()
+  }
 })

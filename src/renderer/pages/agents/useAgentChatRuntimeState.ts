@@ -2,6 +2,7 @@ import { isToolUIPart } from 'ai'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import type { ToastConfig } from '@cherrystudio/ui'
 import {
   createOverlayRefreshHandoff,
   useMessageStreamingLayers
@@ -208,26 +209,52 @@ export function useAgentChatRuntimeState({
   const currentSessionRef = useRef(sessionId)
   currentSessionRef.current = sessionId
   const reportEditError = useCallback(
-    (error: unknown) => {
+    (error: unknown, messageId: string) => {
       const forkReason = agentSessionForkFailureReason(error)
       const reason =
-        error instanceof IpcError &&
-        error.code === aiErrorCodes.AI_AGENT_SESSION_EDIT_FAILED &&
-        error.data &&
-        typeof error.data === 'object' &&
-        'reason' in error.data
+        error instanceof IpcError && error.data && typeof error.data === 'object' && 'reason' in error.data
           ? error.data.reason
           : undefined
-      const editReason = agentSessionEditFailureReasons.find((candidate) => candidate === reason)
-      toast.error(
-        editReason
-          ? t(`agent.edit_resend.error.${editReason}`)
-          : forkReason
-            ? agentSessionForkReasonLabel(t, forkReason)
-            : formatErrorMessage(error)
-      )
+      const editReason =
+        error instanceof IpcError && error.code === aiErrorCodes.AI_AGENT_SESSION_EDIT_FAILED
+          ? agentSessionEditFailureReasons.find((candidate) => candidate === reason)
+          : undefined
+      const originalError = formatErrorMessage(error)
+      const description = editReason
+        ? t(`agent.edit_resend.error.${editReason}`)
+        : forkReason
+          ? agentSessionForkReasonLabel(t, forkReason)
+          : originalError
+      const details = [
+        description,
+        error instanceof IpcError ? `code: ${error.code}` : undefined,
+        reason !== undefined ? `reason: ${String(reason)}` : undefined,
+        originalError,
+        `sessionId: ${sessionId}`,
+        `messageId: ${messageId}`
+      ]
+        .filter(Boolean)
+        .join('\n')
+      const notification: ToastConfig = {
+        title: t('agent.edit_resend.label'),
+        description,
+        details,
+        timeout: 0,
+        action: {
+          label: t('common.copy'),
+          onClick: async () => {
+            try {
+              await navigator.clipboard.writeText(details)
+            } catch {
+              toast.error(notification)
+              toast.error(t('common.copy_failed'))
+            }
+          }
+        }
+      }
+      toast.error(notification)
     },
-    [t]
+    [sessionId, t]
   )
   const sessionTopicId = useMemo(() => (sessionId ? buildAgentSessionTopicId(sessionId) : ''), [sessionId])
   const {
@@ -284,7 +311,9 @@ export function useAgentChatRuntimeState({
     buildStreamRequest,
     onAccepted: (ack) => errorToastsRef.current?.track(ack.activeExecutions, ack.reservedMessages),
     onError: (error, input) =>
-      input.editTarget ? reportEditError(error) : errorToastsRef.current?.report(error, modelId),
+      input.editTarget
+        ? reportEditError(error, input.editTarget.messageId)
+        : errorToastsRef.current?.report(error, modelId),
     openStream: async (request, input) => {
       if (!input.editTarget || request.trigger !== 'submit-message') return ipcApi.request('ai.stream.open', request)
       const ack = await ipcApi.request('ai.agent.session.edit_resend', {
@@ -484,7 +513,7 @@ export function useAgentChatRuntimeState({
         const draft = await ipcApi.request('ai.agent.session.edit_target', { sessionId, messageId })
         if (currentSessionRef.current === sessionId) setEditDraft({ ...draft, sessionId })
       } catch (error) {
-        if (currentSessionRef.current === sessionId) reportEditError(error)
+        if (currentSessionRef.current === sessionId) reportEditError(error, messageId)
       } finally {
         editRequestRef.current = false
         setEditPending(false)
@@ -520,7 +549,7 @@ export function useAgentChatRuntimeState({
         if (sent && currentSessionRef.current === sessionId) setEditDraft(undefined)
         return sent
       } catch (error) {
-        if (currentSessionRef.current === sessionId) reportEditError(error)
+        if (currentSessionRef.current === sessionId) reportEditError(error, editing.messageId)
         return false
       } finally {
         setResendingHistory(undefined)

@@ -147,7 +147,8 @@ export function PaintingPromptPresetsDialog({ open, onOpenChange, onApply }: Pai
                     size="icon"
                     disabled={busy}
                     aria-label={t('settings.prompts.reorder', { title: prompt.title })}
-                    title={t('settings.prompts.reorder', { title: prompt.title })}>
+                    title={t('settings.prompts.reorder', { title: prompt.title })}
+                    className="text-muted-foreground">
                     <GripVertical className="size-4" />
                   </Button>
                   <Button
@@ -168,7 +169,8 @@ export function PaintingPromptPresetsDialog({ open, onOpenChange, onApply }: Pai
                     size="icon"
                     disabled={busy}
                     aria-label={t('settings.prompts.edit')}
-                    onClick={() => setEditor({ prompt })}>
+                    onClick={() => setEditor({ prompt })}
+                    className="text-muted-foreground">
                     <Pencil className="size-4" />
                   </Button>
                   <Button
@@ -177,7 +179,8 @@ export function PaintingPromptPresetsDialog({ open, onOpenChange, onApply }: Pai
                     size="icon"
                     disabled={busy}
                     aria-label={t('settings.prompts.delete')}
-                    onClick={() => setDeleteTarget(prompt)}>
+                    onClick={() => setDeleteTarget(prompt)}
+                    className="text-muted-foreground">
                     <Trash2 className="size-4" />
                   </Button>
                 </div>

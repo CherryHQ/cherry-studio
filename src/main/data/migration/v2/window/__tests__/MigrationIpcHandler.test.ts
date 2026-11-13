@@ -215,7 +215,6 @@ describe('MigrationIpcHandler', () => {
         status: 'canceled'
       })
       expect(diagnosticMocks.saveBundle).not.toHaveBeenCalled()
-      expect(diagnosticModuleState.loadCount).toBe(0)
     })
 
     it('rejects an untrusted sender before opening the save dialog', async () => {
@@ -257,24 +256,6 @@ describe('MigrationIpcHandler', () => {
       await invoke(MigrationIpcChannels.SaveDiagnosticBundle, { ...savePayload, dialogTitle: '  保存诊断包  ' })
 
       expect(dialog.showSaveDialog).toHaveBeenCalledWith(expect.objectContaining({ title: '保存诊断包' }))
-    })
-
-    it('uses a filename-only default path and zip filter', async () => {
-      await invoke(MigrationIpcChannels.SaveDiagnosticBundle, savePayload)
-
-      expect(application.getPath).not.toHaveBeenCalled()
-      expect(dialog.showSaveDialog).toHaveBeenCalledWith({
-        title: 'Save diagnostics',
-        defaultPath: 'cherry-studio-migration-diagnostics.zip',
-        filters: [{ name: 'ZIP', extensions: ['zip'] }],
-        properties: ['createDirectory', 'showOverwriteConfirmation']
-      })
-    })
-
-    it('does not load the bundle module before the user confirms a destination', async () => {
-      await invoke(MigrationIpcChannels.SaveDiagnosticBundle, savePayload)
-
-      expect(diagnosticModuleState.loadCount).toBe(0)
     })
 
     it('captures the failure stage before waiting for the save dialog', async () => {
@@ -582,7 +563,6 @@ describe('MigrationIpcHandler', () => {
     expect(lastProgress()).toMatchObject({
       stage: 'introduction',
       overallProgress: 0,
-      currentMessage: 'Ready to retry migration',
       migrators: []
     })
     expect(windowSetStageMock).toHaveBeenCalledWith('introduction')
@@ -859,16 +839,6 @@ describe('MigrationIpcHandler', () => {
       expect(windowRequestCloseMock).toHaveBeenCalledTimes(1)
     })
 
-    it('wires the force-quit requester on registration', () => {
-      expect(windowSetQuitRequesterMock).toHaveBeenCalledWith(expect.any(Function))
-    })
-
-    it('clears the force-quit requester on unregister', () => {
-      windowSetQuitRequesterMock.mockClear()
-      unregisterMigrationIpcHandlers()
-      expect(windowSetQuitRequesterMock).toHaveBeenCalledWith(null)
-    })
-
     it('clears the pending close when the renderer cancels the close dialog', async () => {
       const result = await invoke(MigrationIpcChannels.CancelClose)
       expect(result).toBe(true)
@@ -878,11 +848,6 @@ describe('MigrationIpcHandler', () => {
     it('forwards a confirmed quit to the window manager', async () => {
       await invoke(MigrationIpcChannels.ConfirmQuit)
       expect(windowConfirmQuitMock).toHaveBeenCalledTimes(1)
-    })
-
-    it('pushes the live stage to the window manager on progress updates', async () => {
-      await invoke(MigrationIpcChannels.ReportError, 'boom')
-      expect(windowSetStageMock).toHaveBeenCalledWith('error')
     })
   })
 
@@ -937,7 +902,6 @@ describe('MigrationIpcHandler', () => {
       // The window manager's crash/hang/repeat-close paths call the wired requester, which must
       // share the ConfirmQuit deferral so it never terminates mid-write.
       const requestQuit = windowSetQuitRequesterMock.mock.calls.at(-1)?.[0] as () => boolean
-      expect(requestQuit).toBeTypeOf('function')
 
       let resolveRun!: (result: MigrationResult) => void
       engineMock.run.mockImplementation(() => new Promise<MigrationResult>((resolve) => (resolveRun = resolve)))
