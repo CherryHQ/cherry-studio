@@ -108,6 +108,7 @@ jobs:
             exit 1
           fi
           node -e 'const { scripts } = require("./release-source/package.json"); for (const name of ["build:release", "build:release:cn"]) { if (!scripts[name]) throw new Error(`Release source does not support ${name}`) }'
+          node -e 'require("node:fs").accessSync("release-source/scripts/release/js-bundle.js")'
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
 
       - name: Verify release commit passed CI
@@ -164,9 +165,65 @@ jobs:
           WORKFLOW_SHA="$RELEASE_SHA" \
             node scripts/release/validate-release-state.js build-start
 
+  bundle:
+    name: Build JS ${{ matrix.edition }}
+    needs: prepare
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        edition: [global, cn]
+      fail-fast: false
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          ref: ${{ inputs.expected_sha }}
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+      - uses: pnpm/action-setup@v5
+      - name: Locate pnpm store
+        id: store
+        shell: bash
+        run: echo "path=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@v6
+        id: dependencies
+        with:
+          path: ${{ steps.store.outputs.path }}
+          key: ${{ runner.os }}-pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-
+      - name: "Dependency cache: ${{ steps.dependencies.outputs.cache-hit == 'true' && 'exact-hit' || 'unknown' }}"
+        run: ":"
+      - name: Install Dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Build JS bundle
+        run: pnpm run ${{ matrix.edition == 'cn' && 'build:release:cn' || 'build:release' }}
+        env:
+          NODE_OPTIONS: --max-old-space-size=8192
+          MAIN_VITE_CHERRYAI_CLIENT_SECRET: ${{ secrets.MAIN_VITE_CHERRYAI_CLIENT_SECRET }}
+          MAIN_VITE_CHERRY_CLOUD_CLIENT_SECRET: ${{ secrets.MAIN_VITE_CHERRY_CLOUD_CLIENT_SECRET }}
+          SENTRY_SOURCE_MAP_UPLOAD: "true"
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
+          SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}
+          MAIN_VITE_MINERU_API_KEY: ${{ secrets.MAIN_VITE_MINERU_API_KEY }}
+          RENDERER_VITE_AIHUBMIX_SECRET: ${{ secrets.RENDERER_VITE_AIHUBMIX_SECRET }}
+          RENDERER_VITE_PPIO_APP_SECRET: ${{ secrets.RENDERER_VITE_PPIO_APP_SECRET }}
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: release-js-${{ matrix.edition }}
+          path: |
+            out/
+            release-bundle.json
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 3
+
   release:
     name: Build ${{ matrix.edition }} (${{ matrix.os }})
-    needs: prepare
+    needs: [prepare, bundle]
     runs-on: ${{ matrix.os == 'windows-latest' && fromJSON('["self-hosted", "windows-signing"]') || matrix.os }}
     permissions:
       contents: read
@@ -242,19 +299,12 @@ jobs:
         with:
           platforms: arm64
 
-      - name: Build JS
-        run: pnpm run ${{ matrix.edition == 'cn' && 'build:release:cn' || 'build:release' }}
-        env:
-          NODE_OPTIONS: --max-old-space-size=8192
-          MAIN_VITE_CHERRYAI_CLIENT_SECRET: ${{ secrets.MAIN_VITE_CHERRYAI_CLIENT_SECRET }}
-          MAIN_VITE_CHERRY_CLOUD_CLIENT_SECRET: ${{ secrets.MAIN_VITE_CHERRY_CLOUD_CLIENT_SECRET }}
-          SENTRY_SOURCE_MAP_UPLOAD: "true"
-          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
-          SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
-          SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}
-          MAIN_VITE_MINERU_API_KEY: ${{ secrets.MAIN_VITE_MINERU_API_KEY }}
-          RENDERER_VITE_AIHUBMIX_SECRET: ${{ secrets.RENDERER_VITE_AIHUBMIX_SECRET }}
-          RENDERER_VITE_PPIO_APP_SECRET: ${{ secrets.RENDERER_VITE_PPIO_APP_SECRET }}
+      - name: Download JS bundle
+        uses: actions/download-artifact@v8
+        with:
+          name: release-js-${{ matrix.edition }}
+      - name: Verify JS bundle
+        run: node scripts/release/js-bundle.js verify ${{ matrix.edition }}
 
       - name: Build Linux
         if: matrix.os == 'ubuntu-latest'
@@ -848,7 +898,7 @@ jobs:
 
   notify:
     runs-on: ubuntu-latest
-    needs: [prepare, release, finalize-build, approve, publish, sync-to-gitcode]
+    needs: [prepare, bundle, release, finalize-build, approve, publish, sync-to-gitcode]
     if: >-
       always() && !(inputs.mode == 'sync-only' && inputs.dry_run) &&
       (contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled'))

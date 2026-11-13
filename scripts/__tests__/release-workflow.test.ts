@@ -1134,7 +1134,7 @@ describe('release workflow gates', () => {
     expect(upload.run).toContain('release-cos.py upload')
     for (const job of Object.values(workflow.jobs) as { steps: { uses?: string; with?: { path?: string } }[] }[]) {
       for (const step of job.steps.filter((step) => /^actions\/(upload|download)-artifact@/.test(step.uses ?? ''))) {
-        expect(step.with?.path).toBe('release-performance.json')
+        expect(['release-performance.json', 'out/\nrelease-bundle.json\n', undefined]).toContain(step.with?.path)
       }
     }
   })
