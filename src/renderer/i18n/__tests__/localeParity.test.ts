@@ -42,12 +42,22 @@ describe('renderer locale catalogs', () => {
     expect(missing).toEqual([])
   })
 
+  // Languages differ in their plural categories: Polish carries `_few`/`_many` where English has
+  // `_one`/`_other`, so a catalog may hold a plural variant the base locale has no slot for. Any
+  // other key is a real drift.
+  const isPluralVariantOf = (key: string): boolean => {
+    const match = /_(?:zero|one|two|few|many|other)$/.exec(key)
+    if (!match) return false
+    const stem = key.slice(0, match.index)
+    return `${stem}_other` in base || `${stem}_one` in base
+  }
+
   it('ships no key in a translated catalog that the base locale lacks', () => {
     const extra: string[] = []
     for (const file of translatedFiles) {
       const catalog = readCatalog(file)
       for (const key of Object.keys(catalog)) {
-        if (!(key in base)) extra.push(`${file}: ${key}`)
+        if (!(key in base) && !isPluralVariantOf(key)) extra.push(`${file}: ${key}`)
       }
     }
     expect(extra).toEqual([])
