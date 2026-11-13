@@ -1,4 +1,4 @@
-import { ChevronRight } from 'lucide-react'
+import { ChevronRight, Gauge } from 'lucide-react'
 import { type ReactNode, useId, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -120,22 +120,34 @@ export function ContextUsageSummary({
             <AccordionTrigger
               aria-label={title}
               aria-describedby={open ? undefined : summaryId}
-              className={cn('group gap-2 py-1 text-xs font-normal text-foreground [&>svg]:hidden', summaryClassName)}>
-              <span className="flex items-center gap-1">
-                {title}
-                <ChevronRight
-                  aria-hidden
-                  className="size-3 text-muted-foreground transition-transform duration-150 group-data-[state=open]:rotate-90 motion-reduce:transition-none"
-                />
+              className={cn(
+                'group gap-2 py-1 text-xs font-medium text-muted-foreground [&>svg]:hidden',
+                summaryClassName
+              )}>
+              <span className="flex min-w-0 items-center gap-2">
+                <Gauge aria-hidden className="size-3.5 shrink-0" strokeWidth={1.5} />
+                <span>{title}</span>
               </span>
               {!open && (
-                <span className="flex items-center gap-2 text-muted-foreground tabular-nums">
+                <span className="ms-auto flex shrink-0 items-center gap-2 font-normal text-muted-foreground tabular-nums">
                   <span id={summaryId}>{percentage === null ? emptyLabel : `${percentage}%`}</span>
                   {percentage !== null && (
-                    <ContextUsageMeter label={title} percentage={percentage} isBusy={isBusy} tabIndex={-1} />
+                    <ContextUsageMeter
+                      label={title}
+                      percentage={percentage}
+                      isBusy={isBusy}
+                      tabIndex={-1}
+                      className="size-4"
+                    />
                   )}
                 </span>
               )}
+              <span className="flex size-4 shrink-0 items-center justify-center">
+                <ChevronRight
+                  aria-hidden
+                  className="size-3.5 transition-transform duration-150 group-data-[state=open]:rotate-90 motion-reduce:transition-none"
+                />
+              </span>
             </AccordionTrigger>
             <AccordionContent className="pt-2 pb-0 text-xs text-foreground">{content}</AccordionContent>
           </AccordionItem>
