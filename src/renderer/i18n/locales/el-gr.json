@@ -1855,6 +1855,8 @@
   "history_import.target": "Πράκτορας προορισμού",
   "history_import.title": "Εισαγωγή δεδομένων τοπικών εφαρμογών",
   "history_import.unsupported_target": "Υποστηρίζονται μόνο πράκτορες Pi",
+  "history_import.warning_unsupported": "Το μη υποστηριζόμενο περιεχόμενο παραλείφθηκε ή μετατράπηκε σε αναφορά ιστορικού.",
+  "history_import.warnings": "Προειδοποιήσεις εισαγωγής",
   "html_artifacts.capture.label": "Καταγραφή σελίδας",
   "html_artifacts.capture.to_clipboard": "Αντιγραφή στο πρόχειρο",
   "html_artifacts.capture.to_file": "Αποθήκευση ως εικόνα",

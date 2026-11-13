@@ -1855,6 +1855,8 @@
   "history_import.target": "Hedef ajan",
   "history_import.title": "Yerel uygulama verilerini içe aktar",
   "history_import.unsupported_target": "Yalnızca Pi ajanları desteklenir",
+  "history_import.warning_unsupported": "Desteklenmeyen içerik atlandı veya geçmiş referansına dönüştürüldü.",
+  "history_import.warnings": "İçe aktarma uyarıları",
   "html_artifacts.capture.label": "Sayfayı Yakala",
   "html_artifacts.capture.to_clipboard": "Panoya Kopyala",
   "html_artifacts.capture.to_file": "Görüntü Olarak Kaydet",

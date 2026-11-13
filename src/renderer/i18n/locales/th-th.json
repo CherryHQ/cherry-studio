@@ -1855,6 +1855,8 @@
   "history_import.target": "เอเจนต์ปลายทาง",
   "history_import.title": "นำเข้าข้อมูลแอปในเครื่อง",
   "history_import.unsupported_target": "รองรับเฉพาะเอเจนต์ Pi",
+  "history_import.warning_unsupported": "เนื้อหาที่ไม่รองรับถูกข้ามหรือแปลงเป็นข้อมูลอ้างอิงในประวัติ",
+  "history_import.warnings": "คำเตือนการนำเข้า",
   "html_artifacts.capture.label": "จับภาพหน้า",
   "html_artifacts.capture.to_clipboard": "คัดลอกไปยังคลิปบอร์ด",
   "html_artifacts.capture.to_file": "บันทึกเป็นรูปภาพ",

@@ -1855,6 +1855,8 @@
   "history_import.target": "Целевой агент",
   "history_import.title": "Импорт данных локальных приложений",
   "history_import.unsupported_target": "Поддерживаются только агенты Pi",
+  "history_import.warning_unsupported": "Неподдерживаемое содержимое пропущено или преобразовано в справочную запись истории.",
+  "history_import.warnings": "Предупреждения при импорте",
   "html_artifacts.capture.label": "Захват страницы",
   "html_artifacts.capture.to_clipboard": "Копировать в буфер обмена",
   "html_artifacts.capture.to_file": "Сохранить как изображение",

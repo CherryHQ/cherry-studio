@@ -85,6 +85,37 @@ describe('local history import dialog', () => {
     await user.click(screen.getByRole('combobox'))
     await user.click(screen.getByRole('option', { name }))
   }
+  it('keeps successful imports and exposes skipped content with source locations', async () => {
+    agents([{ id: 'a', name: 'Alpha', type: 'pi' }])
+    const normal = request.getMockImplementation()!
+    request.mockImplementation(async (...args) => {
+      const result = await normal(...args)
+      if (args[0] === 'conversation_import.preview') {
+        Object.assign(result.items[0], {
+          skippedRecords: 1,
+          downgradedParts: 2,
+          diagnostics: [
+            { code: 'invalid_json', severity: 'warning', path: '/source/task.jsonl', line: 2 },
+            { code: 'unsupported_attachment', severity: 'warning', path: '/source/task.jsonl', line: 3 }
+          ]
+        })
+      }
+      return result
+    })
+    const user = userEvent.setup()
+    render(<LocalHistoryImportDialog open source="claude-code" resolve={() => {}} />)
+    await chooseAgent(user)
+    await user.click(screen.getByRole('checkbox', { name: /Original task/ }))
+    await user.click(screen.getByRole('button', { name: enUS['history_import.confirm'] }))
+    await screen.findByText(enUS['history_import.results.imported'])
+    expect(screen.getByText('Skipped records: 1 · Converted content blocks: 2')).toBeVisible()
+    expect(screen.getByText(/2 messages/)).toBeVisible()
+    await user.click(screen.getByRole('button', { name: 'Import warnings' }))
+    expect(screen.getByText('/source/task.jsonl · Line 2')).toBeVisible()
+    expect(screen.getByText('/source/task.jsonl · Line 3')).toBeVisible()
+    expect(screen.queryByText(enUS['history_import.problems.unsupported'])).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: enUS['common.retry'] })).not.toBeInTheDocument()
+  })
   it('explains unsupported targets and does not expose a preview button', async () => {
     agents([{ id: 'claude', name: 'Cherry assistant', type: 'claude-code' }])
     const user = userEvent.setup()

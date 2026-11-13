@@ -84,6 +84,62 @@ describe('local history atomic import', () => {
     )
     return { ...result, scan }
   }
+  it('rejects conflicting Claude copies before importing any version', async () => {
+    const file = await source()
+    await writeFile(
+      path.join(root, 'source', 'copy.jsonl'),
+      (await readFile(file, 'utf8')).replace('Message 0', 'Conflicting request')
+    )
+    const prepared = await preview()
+    expect(
+      await service.commit(
+        'window',
+        prepared.previewId,
+        prepared.items.map(({ ref }) => ref)
+      )
+    ).toEqual([expect.objectContaining({ status: 'failed', reason: 'preview_blocked' })])
+    expect(counts()).toEqual([0, 0, 0, 0])
+    expect(prepared.items[0].diagnostics).toContainEqual(
+      expect.objectContaining({ code: 'identity_conflict', severity: 'error' })
+    )
+  })
+  it('revalidates identical Claude copies but still skips identities already imported', async () => {
+    const file = await source()
+    const copy = path.join(root, 'source', 'copy.jsonl')
+    const content = await readFile(file, 'utf8')
+    await writeFile(copy, content)
+    const prepared = await preview()
+    expect(prepared.items).toHaveLength(1)
+    expect(prepared.items[0].diagnostics).toEqual([])
+    await writeFile(file, content.replace('Message 0', 'Changed after preview'))
+    expect(
+      await service.commit(
+        'window',
+        prepared.previewId,
+        prepared.items.map(({ ref }) => ref)
+      )
+    ).toEqual([expect.objectContaining({ status: 'failed', reason: 'source_changed' })])
+    expect(counts()).toEqual([0, 0, 0, 0])
+    await writeFile(file, content)
+    const fresh = await preview()
+    const [imported] = await service.commit(
+      'window',
+      fresh.previewId,
+      fresh.items.map(({ ref }) => ref)
+    )
+    expect(imported.status).toBe('imported')
+    await writeFile(file, content.replace('Message 0', 'Conflicting later copy'))
+    const existing = await preview('other')
+    expect(existing.items[0].diagnostics).toEqual([])
+    expect(
+      await service.commit(
+        'window',
+        existing.previewId,
+        existing.items.map(({ ref }) => ref)
+      )
+    ).toEqual([expect.objectContaining({ status: 'existing', sessionId: imported.sessionId })])
+    expect(dbh.db.select().from(agentSessionTable).all()).toHaveLength(1)
+  })
   it('renders already imported Claude tool results without rewriting stored history', async () => {
     await source()
     const prepared = await preview()

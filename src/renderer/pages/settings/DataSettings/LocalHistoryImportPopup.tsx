@@ -2,6 +2,10 @@ import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
   Button,
   Checkbox,
   Dialog,
@@ -48,7 +52,7 @@ const sourceLabels = {
 } as const
 
 type Props = { source: HistorySource } & PopupInjectedProps<void>
-type Result = ImportOutcome & { title: string; terminal: boolean; problemCodes: string[] }
+type Result = ImportOutcome & { title: string; terminal: boolean; problemCodes: string[]; preview?: ImportPreviewItem }
 
 function isTerminalProblem(code: string) {
   return (
@@ -236,6 +240,7 @@ export function LocalHistoryImportDialog({ source, open, resolve }: Props) {
       const item = checked.items.find((item) => item.ref === outcome.ref)
       return {
         ...outcome,
+        preview: outcome.status === 'imported' ? item : undefined,
         title: item?.title ?? '',
         terminal:
           (outcome.status === 'failed' || outcome.status === 'unprocessed') &&
@@ -455,6 +460,51 @@ export function LocalHistoryImportDialog({ source, open, resolve }: Props) {
                     {result.title}
                   </p>
                   <p>{t(resultLabels[result.status])}</p>
+                  {result.preview && (
+                    <>
+                      <p className="text-sm text-muted-foreground">
+                        {t('history_import.details', {
+                          count: result.preview.messageCount,
+                          models: result.preview.models.join(', '),
+                          start: result.preview.startedAt ?? '',
+                          end: result.preview.endedAt ?? ''
+                        })}
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        {t('history_import.losses', {
+                          skipped: result.preview.skippedRecords,
+                          downgraded: result.preview.downgradedParts
+                        })}
+                      </p>
+                      {result.preview.diagnostics.some(({ severity }) => severity === 'warning') && (
+                        <Accordion type="single" collapsible>
+                          <AccordionItem value="warnings">
+                            <AccordionTrigger className="text-warning">{t('history_import.warnings')}</AccordionTrigger>
+                            <AccordionContent className="space-y-3">
+                              {result.preview.diagnostics
+                                .filter(({ severity }) => severity === 'warning')
+                                .map((diagnostic, index) => (
+                                  <div key={index} className="space-y-1">
+                                    <p>
+                                      {t(
+                                        problem(diagnostic.code) === 'history_import.problems.unsupported'
+                                          ? 'history_import.warning_unsupported'
+                                          : problem(diagnostic.code)
+                                      )}
+                                    </p>
+                                    <p className="break-all text-xs text-muted-foreground">
+                                      {diagnostic.path}
+                                      {diagnostic.line !== undefined &&
+                                        ' · ' + t('history_import.line', { line: diagnostic.line })}
+                                    </p>
+                                  </div>
+                                ))}
+                            </AccordionContent>
+                          </AccordionItem>
+                        </Accordion>
+                      )}
+                    </>
+                  )}
                   {result.initialization === 'failed' && (
                     <Button
                       disabled={busy}

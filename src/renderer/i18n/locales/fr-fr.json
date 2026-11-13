@@ -1855,6 +1855,8 @@
   "history_import.target": "Agent cible",
   "history_import.title": "Importer des données d’applications locales",
   "history_import.unsupported_target": "Seuls les agents Pi sont pris en charge",
+  "history_import.warning_unsupported": "Le contenu non pris en charge a été ignoré ou converti en référence historique.",
+  "history_import.warnings": "Avertissements d’importation",
   "html_artifacts.capture.label": "Capturer la page",
   "html_artifacts.capture.to_clipboard": "Copier dans le presse-papiers",
   "html_artifacts.capture.to_file": "Enregistrer en tant qu'image",

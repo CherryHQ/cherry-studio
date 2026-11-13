@@ -1855,6 +1855,8 @@
   "history_import.target": "Ziel-Agent",
   "history_import.title": "Lokale Anwendungsdaten importieren",
   "history_import.unsupported_target": "Nur Pi-Agenten werden unterstützt",
+  "history_import.warning_unsupported": "Nicht unterstützte Inhalte wurden übersprungen oder in einen historischen Verweis umgewandelt.",
+  "history_import.warnings": "Importwarnungen",
   "html_artifacts.capture.label": "Seite erfassen",
   "html_artifacts.capture.to_clipboard": "In Zwischenablage kopieren",
   "html_artifacts.capture.to_file": "Als Bild speichern",

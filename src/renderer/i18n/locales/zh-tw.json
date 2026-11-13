@@ -1855,6 +1855,8 @@
   "history_import.target": "目標智慧體",
   "history_import.title": "匯入本機應用程式資料",
   "history_import.unsupported_target": "僅支援 Pi 智慧體",
+  "history_import.warning_unsupported": "不支援的內容已略過，或轉為歷史參照。",
+  "history_import.warnings": "匯入警告",
   "html_artifacts.capture.label": "擷取頁面",
   "html_artifacts.capture.to_clipboard": "複製到剪貼簿",
   "html_artifacts.capture.to_file": "儲存為圖片",

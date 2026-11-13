@@ -1855,6 +1855,8 @@
   "history_import.target": "Agent țintă",
   "history_import.title": "Importă date din aplicații locale",
   "history_import.unsupported_target": "Sunt acceptați doar agenții Pi",
+  "history_import.warning_unsupported": "Conținutul neacceptat a fost omis sau convertit într-o referință istorică.",
+  "history_import.warnings": "Avertismente la import",
   "html_artifacts.capture.label": "Capturează pagina",
   "html_artifacts.capture.to_clipboard": "Copiază în clipboard",
   "html_artifacts.capture.to_file": "Salvează ca imagine",

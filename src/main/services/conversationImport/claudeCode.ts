@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto'
+
 import * as z from 'zod'
 
 import { formatClaudeHistoryText, formatClaudeTool, isClaudeLocalCommand } from '@data/services/importedHistoryText'
@@ -5,7 +7,7 @@ import type { MessageData } from '@shared/data/types/message'
 import type { ImportDiagnostic } from '@shared/ipc/schemas/conversationImport'
 
 import { discoverJsonl, readJsonl } from './files'
-import { IMPORT_LIMITS, type HistorySourceAdapter, type NormalizedSession } from './types'
+import { IMPORT_LIMITS, type HistorySourceAdapter, type NormalizedSession, type SessionRef } from './types'
 
 const RecordSchema = z
   .object({
@@ -94,18 +96,32 @@ function completeAncestry(records: RecordEntry[], nodes: Map<string, RecordEntry
 export const claudeCodeAdapter: HistorySourceAdapter = {
   source: 'claude-code',
   async *discover(root, signal) {
+    const sessions = new Map<string, SessionRef>()
+    let scanned = 0
     for await (const file of discoverJsonl(root, signal)) {
+      if (++scanned > 10_000) throw new Error('scan_limit')
       let title: string | undefined
       let filteredReason: NormalizedSession['filteredReason']
+      let originalSessionId: string | undefined
       try {
         const session = await claudeCodeAdapter.read({ path: file }, signal)
         title = session.title
         filteredReason = session.filteredReason
+        if (!session.diagnostics.some(({ code }) => code === 'unstable_identity'))
+          originalSessionId = session.originalSessionId
       } catch {
         signal.throwIfAborted()
       }
-      yield { path: file, title, filteredReason }
+      const key = originalSessionId || file
+      const existing = sessions.get(key)
+      if (existing) {
+        existing.sourcePaths!.push(file)
+        existing.filteredReason = undefined
+      } else {
+        sessions.set(key, { path: file, sourcePaths: [file], originalSessionId, title, filteredReason })
+      }
     }
+    yield* sessions.values()
   },
   async read(ref, signal, branchId) {
     const file = ref.path
@@ -113,6 +129,17 @@ export const claudeCodeAdapter: HistorySourceAdapter = {
     const diagnostics: ImportDiagnostic[] = []
     const diagnose = (code: string, line?: number, severity: 'warning' | 'error' = 'warning') =>
       diagnostics.push({ code, path: file, line, severity })
+    const fingerprint = createHash('sha256').update(input.fingerprint)
+    let inputBytes = input.bytes
+    for (const copy of ref.sourcePaths ?? []) {
+      if (copy === file) continue
+      const other = await readJsonl(copy, signal)
+      inputBytes += other.bytes
+      if (inputBytes > IMPORT_LIMITS.session) throw new Error('session_limit')
+      fingerprint.update(other.fingerprint)
+      if (other.fingerprint !== input.fingerprint)
+        diagnostics.push({ code: 'identity_conflict', path: copy, severity: 'error' })
+    }
     let unreadableRecords = 0
     const records: RecordEntry[] = []
     for (const { text, line } of input.lines) {
@@ -216,15 +243,15 @@ export const claudeCodeAdapter: HistorySourceAdapter = {
     const result: NormalizedSession = {
       source: 'claude-code',
       originalSessionId: agents.size === 1 ? originalSessionId + ':subagent:' + [...agents][0] : originalSessionId,
-      sourcePaths: [file],
+      sourcePaths: ref.sourcePaths ?? [file],
       sourceVersion: versions.join(', '),
       title,
       workingDirectory: directories.length === 1 ? directories[0] : undefined,
       messages: [],
       branches,
       selectedBranchId,
-      sourceFingerprint: input.fingerprint,
-      inputBytes: input.bytes,
+      sourceFingerprint: fingerprint.digest('hex'),
+      inputBytes,
       diagnostics,
       skippedRecords: unreadableRecords,
       downgradedParts: 0
@@ -234,7 +261,7 @@ export const claudeCodeAdapter: HistorySourceAdapter = {
       unreadableRecords === 0 &&
       versions.length > 0 &&
       versions.every((version) => ['2.1.207', '2.1.211', '2.1.284'].includes(version)) &&
-      !diagnostics.some((d) => ['unstable_identity', 'duplicate_message_id'].includes(d.code)) &&
+      !diagnostics.some((d) => ['unstable_identity', 'identity_conflict', 'duplicate_message_id'].includes(d.code)) &&
       records.every(
         (record) =>
           metadata.has(record.type) ||

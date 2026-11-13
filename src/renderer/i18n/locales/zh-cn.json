@@ -1855,6 +1855,8 @@
   "history_import.target": "目标智能体",
   "history_import.title": "导入本地应用数据",
   "history_import.unsupported_target": "仅支持 Pi 智能体",
+  "history_import.warning_unsupported": "不支持的内容已跳过，或转为历史引用。",
+  "history_import.warnings": "导入警告",
   "html_artifacts.capture.label": "捕获页面",
   "html_artifacts.capture.to_clipboard": "复制到剪贴板",
   "html_artifacts.capture.to_file": "保存为图片",

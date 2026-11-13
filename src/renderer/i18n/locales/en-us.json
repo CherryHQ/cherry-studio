@@ -1855,6 +1855,8 @@
   "history_import.target": "Target agent",
   "history_import.title": "Import local application data",
   "history_import.unsupported_target": "Only Pi agents are supported",
+  "history_import.warning_unsupported": "Unsupported content was skipped or converted to a historical reference.",
+  "history_import.warnings": "Import warnings",
   "html_artifacts.capture.label": "Capture Page",
   "html_artifacts.capture.to_clipboard": "Copy to Clipboard",
   "html_artifacts.capture.to_file": "Save as Image",

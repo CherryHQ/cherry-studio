@@ -1855,6 +1855,8 @@
   "history_import.target": "Tác nhân đích",
   "history_import.title": "Nhập dữ liệu ứng dụng cục bộ",
   "history_import.unsupported_target": "Chỉ hỗ trợ tác nhân Pi",
+  "history_import.warning_unsupported": "Nội dung không được hỗ trợ đã bị bỏ qua hoặc chuyển thành thông tin tham chiếu trong lịch sử.",
+  "history_import.warnings": "Cảnh báo nhập",
   "html_artifacts.capture.label": "Trang Thu Thập",
   "html_artifacts.capture.to_clipboard": "Sao chép vào bảng tạm",
   "html_artifacts.capture.to_file": "Lưu dưới dạng hình ảnh",
