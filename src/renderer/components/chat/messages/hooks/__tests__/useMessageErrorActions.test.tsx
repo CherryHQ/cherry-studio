@@ -212,6 +212,30 @@ describe('useMessageErrorActions', () => {
     expect(second.errorContext.responseBody).toBe('{"error":"second"}')
   })
 
+  it('records a provider-local model id that itself contains the separator', async () => {
+    const message = {
+      id: 'message-3',
+      role: 'assistant',
+      topicId: 'topic-1',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      status: 'error',
+      modelId: 'custom::org::model'
+    } satisfies MessageListItem
+    const { result } = renderHook(() => useMessageErrorActions({ getDoctorSubject: () => undefined }))
+
+    await result.current.openErrorDetail?.({
+      message,
+      partId: 'part-1',
+      error: { message: 'failed', name: 'ProviderError', stack: '' }
+    })
+
+    expect(mocks.showErrorDetailPopup).toHaveBeenCalledWith(
+      expect.objectContaining({
+        errorContext: expect.objectContaining({ providerId: 'custom', modelId: 'org::model' })
+      })
+    )
+  })
+
   it('drops the oldest message fault once the snapshot map is full', async () => {
     const { result } = renderHook(() => useMessageErrorActions({ getDoctorSubject: () => undefined }))
     const open = (id: string) =>
