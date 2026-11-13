@@ -3,6 +3,7 @@ import { modelService } from '@main/data/services/ModelService'
 import { providerService } from '@main/data/services/ProviderService'
 import { getAppEdition } from '@main/utils/appEdition'
 import { isDataApiNotFoundError } from '@shared/data/api/errors'
+import { isManagedCherryProviderId } from '@shared/data/presets/cherryai'
 import { parseUniqueModelId, UniqueModelIdSchema } from '@shared/data/types/model'
 import { isLoginBasedProvider } from '@shared/utils/provider'
 
@@ -112,7 +113,13 @@ export const providerApiKey = defineDoctorCheck({
       }
     }
 
-    if (isLoginBasedProvider(provider) || provider.authOptional || provider.apiKeys.some((key) => key.isEnabled)) {
+    // Managed Cherry providers authenticate with app-issued credentials, never a user key.
+    if (
+      isManagedCherryProviderId(provider.id) ||
+      isLoginBasedProvider(provider) ||
+      provider.authOptional ||
+      provider.apiKeys.some((key) => key.isEnabled)
+    ) {
       return { status: 'pass' }
     }
 

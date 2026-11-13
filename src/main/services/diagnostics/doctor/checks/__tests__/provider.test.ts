@@ -129,6 +129,21 @@ describe('provider-api-key-present', () => {
     await expect(providerApiKey.run(global)).resolves.toEqual({ status: 'pass' })
   })
 
+  it('passes for managed Cherry providers whose credentials come from the app', async () => {
+    services.getByProviderId.mockReturnValue(
+      provider({
+        id: 'cherryai-subscription',
+        name: 'CherryAI',
+        authMethods: undefined,
+        authOptional: undefined,
+        apiKeys: []
+      })
+    )
+    await expect(providerApiKey.run({ ...ctx, subject: { providerId: 'cherryai-subscription' } })).resolves.toEqual({
+      status: 'pass'
+    })
+  })
+
   it('passes for providers whose authentication is optional', async () => {
     services.getByProviderId.mockReturnValue(provider({ authOptional: true, apiKeys: [] }))
     await expect(providerApiKey.run(global)).resolves.toEqual({ status: 'pass' })
