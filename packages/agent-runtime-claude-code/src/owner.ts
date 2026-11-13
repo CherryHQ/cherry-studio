@@ -809,7 +809,8 @@ export class ClaudeOwner {
       await Promise.race([
         Promise.all([this.pump, this.exit]),
         new Promise<void>((resolve) => {
-          timeout = setTimeout(resolve, 5000)
+          // SDK 0.3.311 escalates after 2s + 5s; allow exit delivery and source drain afterward.
+          timeout = setTimeout(resolve, 10_000)
         })
       ])
       clearTimeout(timeout)

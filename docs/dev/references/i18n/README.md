@@ -4,6 +4,7 @@ sources:
   - src/renderer/i18n
   - src/main/i18n/locales
   - scripts/i18n-sync.ts
+  - scripts/i18n-plurals.ts
   - scripts/i18n-glossary.json
 ---
 
@@ -142,6 +143,14 @@ Both catalogs use `en-us.json` as the source of truth by default. Set `TRANSLATI
 pnpm i18n:sync
 pnpm i18n:check
 ```
+
+### Plural Forms
+
+`en-us.json` only carries `<key>_one` and `<key>_other`, but i18next selects the suffix from `Intl.PluralRules` of the active language. A missing form falls back to English, not to the same locale's `_other`.
+
+- Any locale may add the extra forms its language uses, such as `_few` and `_many` in `ru-ru.json`. Forms the language does not use are rejected.
+- Locales in `COMPLETE_PLURAL_LOCALES` (`scripts/i18n-plurals.ts`, currently `pl-pl`) must carry every form. `i18n:sync` scaffolds missing forms from the English `_other` text.
+- Removing an unused `_other` key also removes its locale-only forms.
 
 ### `i18n:unused` - Find Unused Keys
 

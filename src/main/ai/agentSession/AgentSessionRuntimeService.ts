@@ -1698,6 +1698,8 @@ export class AgentSessionRuntimeService extends BaseService {
       return { ok: false, reason: 'rejected' }
     }
 
+    if (pending.presentation === 'application') return { ok: false, reason: 'rejected' }
+
     if (pending.presentation === 'message') {
       if (!anchorId) {
         logger.warn('Persisted tool approval response is missing its anchor message', { approvalId })
