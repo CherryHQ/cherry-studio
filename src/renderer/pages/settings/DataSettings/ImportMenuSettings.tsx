@@ -58,6 +58,16 @@ const ImportMenuOptions: FC = () => {
             {t('history_import.start')}
           </Button>
         </SettingRow>
+        <SettingDivider />
+        <SettingRow id="setting-data-import-local-codex" className="scroll-mt-6 py-4">
+          <SettingRowTitle className="gap-4">
+            <CliIcon id={CodeCli.OPENAI_CODEX} />
+            {t('history_import.source.codex')}
+          </SettingRowTitle>
+          <Button variant="outline" onClick={() => void LocalHistoryImportPopup.show({ source: 'codex' })}>
+            {t('history_import.start')}
+          </Button>
+        </SettingRow>
       </SettingGroup>
     </>
   )
