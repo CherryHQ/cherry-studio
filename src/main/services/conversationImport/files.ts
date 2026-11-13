@@ -1,9 +1,42 @@
 import { createHash } from 'node:crypto'
 import { createReadStream } from 'node:fs'
-import { lstat, readdir } from 'node:fs/promises'
+import { lstat, open, readdir } from 'node:fs/promises'
 import path from 'node:path'
 
+import Database from 'better-sqlite3'
+
 import { IMPORT_LIMITS } from './types'
+
+export async function openReadonlyDatabase(file: string) {
+  const info = await lstat(file)
+  if (!info.isFile() || info.isSymbolicLink()) throw new Error('source_changed')
+  const handle = await open(file, 'r')
+  const header = Buffer.alloc(20)
+  try {
+    await handle.read(header, 0, header.length, 0)
+  } finally {
+    await handle.close()
+  }
+  if (header[18] === 2) {
+    for (const suffix of ['-wal', '-shm']) {
+      try {
+        const sidecar = await lstat(file + suffix)
+        if (!sidecar.isFile() || sidecar.isSymbolicLink()) throw new Error('unsupported_readonly_wal')
+      } catch {
+        throw new Error('unsupported_readonly_wal')
+      }
+    }
+  }
+  const db = new Database(file, { readonly: true, fileMustExist: true, timeout: 1000 })
+  try {
+    db.pragma('query_only = ON')
+    db.pragma('trusted_schema = OFF')
+    return db
+  } catch (error) {
+    db.close()
+    throw error
+  }
+}
 
 export async function* discoverJsonl(root: string, signal: AbortSignal, depth = 0): AsyncIterable<string> {
   signal.throwIfAborted()

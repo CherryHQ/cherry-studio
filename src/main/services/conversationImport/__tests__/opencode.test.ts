@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { mkdtemp, readFile, rm } from 'node:fs/promises'
+import { mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
@@ -61,6 +61,23 @@ async function fingerprintFiles() {
 }
 
 describe('OpenCode read-only source snapshots', () => {
+  it.each(['none', '-wal', '-shm'])(
+    'rejects closed WAL with %s sidecar without writing source files',
+    async (sidecar) => {
+      db.pragma('journal_mode = WAL')
+      schema(false)
+      db.close()
+      if (sidecar !== 'none') await writeFile(file + sidecar, '')
+      const names = await readdir(root)
+      const before = await Promise.all(names.map((name) => readFile(path.join(root, name))))
+      await expect(Array.fromAsync(opencodeAdapter.discover(root, signal()))).rejects.toThrow(
+        'unsupported_readonly_wal'
+      )
+      await expect(read()).rejects.toThrow('unsupported_readonly_wal')
+      expect(await readdir(root)).toEqual(names)
+      expect(await Promise.all(names.map((name) => readFile(path.join(root, name))))).toEqual(before)
+    }
+  )
   it('reads committed WAL data and leaves source DB/WAL bytes unchanged', async () => {
     db.pragma('journal_mode = WAL')
     db.pragma('wal_autocheckpoint = 0')

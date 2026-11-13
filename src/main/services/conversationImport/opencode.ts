@@ -1,12 +1,13 @@
 import { createHash } from 'node:crypto'
-import { lstat, readdir } from 'node:fs/promises'
+import { readdir } from 'node:fs/promises'
 import path from 'node:path'
 
-import Database from 'better-sqlite3'
+import type Database from 'better-sqlite3'
 import * as z from 'zod'
 
 import type { MessageData } from '@shared/data/types/message'
 
+import { openReadonlyDatabase } from './files'
 import { IMPORT_LIMITS, type HistorySourceAdapter, type NormalizedSession } from './types'
 
 type Layout = { session: 'session' | 'session_v2'; message: 'message' | 'session_message'; parts: boolean }
@@ -49,19 +50,6 @@ function layouts(db: Database.Database): Layout[] {
   if (!result.length) throw new Error('unsupported_database_layout')
   return result
 }
-async function open(file: string) {
-  const info = await lstat(file)
-  if (!info.isFile() || info.isSymbolicLink()) throw new Error('source_changed')
-  const db = new Database(file, { readonly: true, fileMustExist: true, timeout: 1000 })
-  try {
-    db.pragma('query_only = ON')
-    db.pragma('trusted_schema = OFF')
-    return db
-  } catch (error) {
-    db.close()
-    throw error
-  }
-}
 
 export const opencodeAdapter: HistorySourceAdapter = {
   source: 'opencode',
@@ -70,7 +58,7 @@ export const opencodeAdapter: HistorySourceAdapter = {
       signal.throwIfAborted()
       if (!entry.isFile() || !['opencode.db', 'opencode-next.db'].includes(entry.name)) continue
       const file = path.join(root, entry.name)
-      const db = await open(file)
+      const db = await openReadonlyDatabase(file)
       try {
         const candidates = db.transaction(() => {
           const candidates = new Map<string, { path: string; originalSessionId: string; title: string }>()
@@ -105,7 +93,7 @@ export const opencodeAdapter: HistorySourceAdapter = {
   },
   async read(ref, signal) {
     if (!ref.originalSessionId) throw new Error('unstable_identity')
-    const db = await open(ref.path)
+    const db = await openReadonlyDatabase(ref.path)
     try {
       return db.transaction(() => {
         const detected = layouts(db)
