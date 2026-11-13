@@ -2769,10 +2769,36 @@ export class AgentSessionRuntimeService extends BaseService {
       if (value !== undefined) merged[field] = value
     }
     cache.setShared(key, { ...events, [data.taskId]: merged as unknown as AgentTaskEventPartData })
-    for (const projection of entry.rootProjections?.values() ?? []) {
+    const projections = [...(entry.rootProjections?.values() ?? [])]
+    let retired: RootMessageProjection | undefined
+    if (
+      typeof merged.toolUseId === 'string' &&
+      (merged.status === 'completed' || merged.status === 'stopped' || merged.status === 'error')
+    ) {
+      const owners = projections.flatMap((projection) => {
+        const messageId = projection.toolCallMessageId(merged.toolUseId as string)
+        return messageId ? [{ projection, messageId }] : []
+      })
+      if (new Set(owners.map((owner) => owner.messageId)).size === 1) {
+        const owner = owners[0]
+        if (owner.projection.retireToolApproval(merged.toolUseId)) retired = owner.projection
+        application.get('AiStreamManager').retireToolApproval(entry.topicId, merged.toolUseId, {
+          anchorMessageId: owner.messageId
+        })
+      } else {
+        logger.warn('Cannot uniquely assign terminal task approval', {
+          sessionId: entry.sessionId,
+          toolCallId: merged.toolUseId,
+          messageIds: owners.map((owner) => owner.messageId)
+        })
+      }
+    }
+    for (const projection of projections) {
       const update = projection.taskEvent(merged as unknown as AgentTaskEventPartData)
-      if (!update) continue
-      this.publishRootMessage(entry, projection, update.messageId, update.parts)
+      const messageId =
+        update?.messageId ??
+        (projection === retired ? projection.toolCallMessageId(merged.toolUseId as string) : undefined)
+      if (messageId) this.publishRootMessage(entry, projection, messageId, projection.parts(messageId)!)
     }
     if (isAgentSessionRuntimeAwaitingBackground(entry.runtimeState)) {
       this.deliverRuntimeChunk(entry, {
