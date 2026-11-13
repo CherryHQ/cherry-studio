@@ -82,6 +82,7 @@ vi.mock('../skillArchive', async (importOriginal) => {
 import { getMarketplaceSkill, listMarketplaceSkills } from '../cherrySkillMarketplace'
 // Namespaced so the local `createTempDir` test helper cannot shadow the module export.
 import * as skillArchive from '../skillArchive'
+import * as skillExportPolicy from '../skillExportPolicy'
 import { SkillImportError } from '../SkillImportError'
 import { SkillInstaller } from '../SkillInstaller'
 import * as skillPaths from '../skillPaths'
@@ -182,6 +183,8 @@ describe('SkillService', () => {
     let service: SkillService
 
     beforeEach(async () => {
+      const parser = await vi.importActual<typeof MarkdownParserModule>('@main/utils/markdownParser')
+      vi.mocked(findSkillMdPath).mockImplementation(parser.findSkillMdPath)
       root = await createTempDir('external-skill-')
       storage = path.join(root, 'storage')
       mirror = path.join(root, 'mirror')
@@ -221,7 +224,193 @@ describe('SkillService', () => {
       ])
       service = new SkillService()
     })
-    afterEach(() => vi.mocked(application.getPath).mockRestore())
+    afterEach(() => {
+      vi.mocked(findSkillMdPath).mockReset()
+      vi.mocked(application.getPath).mockRestore()
+    })
+
+    async function seedExportSkill(folderName: string, source: 'builtin' | 'local' = 'builtin', mirrorEnabled = true) {
+      const dir = path.join(storage, folderName)
+      await fs.promises.mkdir(dir, { recursive: true })
+      await fs.promises.writeFile(path.join(dir, 'SKILL.md'), '# Trusted skill')
+      const contentHash = await service['computeBuiltinDirectoryHash'](dir)
+      return agentGlobalSkillService.insert({ name: folderName, folderName, source, contentHash, mirrorEnabled })
+    }
+
+    it.each(skillExportPolicy.CHERRY_RUNTIME_ONLY_BUILTIN_SKILLS)(
+      'keeps trusted %s internally and saves enabled without an external export',
+      async (name) => {
+        MockMainPreferenceServiceUtils.setPreferenceValue('agent.skills.external_export.enabled', true)
+        const skill = await seedExportSkill(name, 'builtin', false)
+        await expect(service.setMirrorEnabled(skill.id, true)).resolves.toMatchObject({ mirrorEnabled: true })
+        await service.syncExternalExports()
+        await expect(fs.promises.lstat(path.join(external, name))).rejects.toMatchObject({ code: 'ENOENT' })
+        for (const base of [storage, mirror]) {
+          expect(await fs.promises.readFile(path.join(base, name, 'SKILL.md'), 'utf8')).toBe('# Trusted skill')
+        }
+        expect(agentGlobalSkillService.getById(skill.id)?.mirrorEnabled).toBe(true)
+      }
+    )
+
+    it.each(['find-skills', 'office-transform', 'skill-creator', 'user-skill', 'cherry-browser'])(
+      'exports and toggles shareable %s',
+      async (name) => {
+        MockMainPreferenceServiceUtils.setPreferenceValue('agent.skills.external_export.enabled', true)
+        const source = ['user-skill', 'cherry-browser'].includes(name) ? 'local' : 'builtin'
+        const skill = await seedExportSkill(name, source)
+        await service.linkMirror(name)
+        expect(await fs.promises.readFile(path.join(external, name, 'SKILL.md'), 'utf8')).toBe('# Trusted skill')
+        await service.setMirrorEnabled(skill.id, false)
+        await expect(fs.promises.lstat(path.join(external, name))).rejects.toMatchObject({ code: 'ENOENT' })
+        await service.setMirrorEnabled(skill.id, true)
+        expect(await fs.promises.readFile(path.join(external, name, 'SKILL.md'), 'utf8')).toBe('# Trusted skill')
+      }
+    )
+
+    it('removes legacy runtime-only exports idempotently while keeping internal mirrors', async () => {
+      MockMainPreferenceServiceUtils.setPreferenceValue('agent.skills.external_export.enabled', true)
+      await fs.promises.mkdir(external, { recursive: true })
+      for (const name of skillExportPolicy.CHERRY_RUNTIME_ONLY_BUILTIN_SKILLS) {
+        await seedExportSkill(name)
+        await service.linkMirror(name)
+        await fs.promises.symlink(path.join(mirror, name), path.join(external, name), isWin ? 'junction' : 'dir')
+      }
+      for (let attempt = 0; attempt < 2; attempt++) {
+        await service.reconcileSkills()
+        expect(agentGlobalSkillService.getById(SKILL_ID_1)).toMatchObject({
+          folderName: 'skill-one',
+          source: 'local',
+          mirrorEnabled: true
+        })
+        expect(agentGlobalSkillService.getById(SKILL_ID_2)).toMatchObject({
+          folderName: 'skill-two',
+          source: 'local',
+          mirrorEnabled: false
+        })
+        for (const name of ['skill-one', 'skill-two']) {
+          expect(await fs.promises.readFile(path.join(mirror, name, 'SKILL.md'), 'utf8')).toBe('# Skill')
+        }
+        expect((await fs.promises.lstat(path.join(external, 'skill-one'))).isSymbolicLink()).toBe(true)
+        await expect(fs.promises.lstat(path.join(external, 'skill-two'))).rejects.toMatchObject({ code: 'ENOENT' })
+        for (const name of skillExportPolicy.CHERRY_RUNTIME_ONLY_BUILTIN_SKILLS) {
+          await expect(fs.promises.lstat(path.join(external, name))).rejects.toMatchObject({ code: 'ENOENT' })
+          expect(await fs.promises.readFile(path.join(mirror, name, 'SKILL.md'), 'utf8')).toBe('# Trusted skill')
+        }
+      }
+    })
+
+    it.each(['file', 'directory', 'link'])(
+      'preserves a user %s at a runtime-only export without conflicts',
+      async (kind) => {
+        MockMainPreferenceServiceUtils.setPreferenceValue('agent.skills.external_export.enabled', true)
+        const skill = await seedExportSkill('cherry-browser')
+        await fs.promises.mkdir(external, { recursive: true })
+        const target = path.join(external, 'cherry-browser')
+        if (kind === 'file') await fs.promises.writeFile(target, 'user file')
+        if (kind === 'directory') {
+          await fs.promises.mkdir(target)
+          await fs.promises.writeFile(path.join(target, 'keep'), 'user directory')
+        }
+        if (kind === 'link') await fs.promises.symlink(root, target, isWin ? 'junction' : 'dir')
+        await service.reconcileSkills()
+        await expect(service.setMirrorEnabled(skill.id, true)).resolves.toMatchObject({ mirrorEnabled: true })
+        if (kind === 'file') expect(await fs.promises.readFile(target, 'utf8')).toBe('user file')
+        if (kind === 'directory')
+          expect(await fs.promises.readFile(path.join(target, 'keep'), 'utf8')).toBe('user directory')
+        if (kind === 'link') expect(path.resolve(await fs.promises.readlink(target))).toBe(path.resolve(root))
+      }
+    )
+
+    it('cleans legacy and broken exports on app disable and restores only shareable skills', async () => {
+      MockMainPreferenceServiceUtils.setPreferenceValue('agent.skills.external_export.enabled', true)
+      const builtin = await seedExportSkill('cherry-browser')
+      await service.syncExternalExports()
+      await fs.promises.symlink(
+        path.join(mirror, 'cherry-browser'),
+        path.join(external, 'cherry-browser'),
+        isWin ? 'junction' : 'dir'
+      )
+      await fs.promises.symlink(path.join(mirror, 'orphan'), path.join(external, 'orphan'), isWin ? 'junction' : 'dir')
+      await fs.promises.writeFile(path.join(external, 'user-file'), 'keep')
+      MockMainPreferenceServiceUtils.setPreferenceValue('agent.skills.external_export.enabled', false)
+      await service.syncExternalExports()
+      for (const name of ['skill-one', 'cherry-browser', 'orphan']) {
+        await expect(fs.promises.lstat(path.join(external, name))).rejects.toMatchObject({ code: 'ENOENT' })
+      }
+      expect(agentGlobalSkillService.getById(SKILL_ID_1)?.mirrorEnabled).toBe(true)
+      expect(agentGlobalSkillService.getById(SKILL_ID_2)?.mirrorEnabled).toBe(false)
+      expect(agentGlobalSkillService.getById(builtin.id)?.mirrorEnabled).toBe(true)
+      MockMainPreferenceServiceUtils.setPreferenceValue('agent.skills.external_export.enabled', true)
+      await service.syncExternalExports()
+      expect((await fs.promises.lstat(path.join(external, 'skill-one'))).isSymbolicLink()).toBe(true)
+      await expect(fs.promises.lstat(path.join(external, 'cherry-browser'))).rejects.toMatchObject({ code: 'ENOENT' })
+      expect(await fs.promises.readFile(path.join(external, 'user-file'), 'utf8')).toBe('keep')
+    })
+
+    it.each(['catalog', 'policy'])('disabled cleanup bypasses a throwing %s dependency', async (dependency) => {
+      MockMainPreferenceServiceUtils.setPreferenceValue('agent.skills.external_export.enabled', true)
+      const spy =
+        dependency === 'catalog'
+          ? vi.spyOn(agentGlobalSkillService, 'getByFolderName')
+          : vi.spyOn(skillExportPolicy, 'isSkillExternallyExportable')
+      spy.mockImplementation(() => {
+        throw new Error('must not evaluate eligibility')
+      })
+      try {
+        await service['setExportEnabled']('skill-one', false)
+        await expect(fs.promises.lstat(external)).rejects.toMatchObject({ code: 'ENOENT' })
+        await fs.promises.mkdir(external)
+        await fs.promises.symlink(
+          path.join(mirror, 'skill-one'),
+          path.join(external, 'skill-one'),
+          isWin ? 'junction' : 'dir'
+        )
+        await service['setExportEnabled']('skill-one', false)
+        await expect(fs.promises.lstat(path.join(external, 'skill-one'))).rejects.toMatchObject({ code: 'ENOENT' })
+      } finally {
+        spy.mockRestore()
+      }
+    })
+
+    it('does not export a missing catalog row and still removes its owned link', async () => {
+      MockMainPreferenceServiceUtils.setPreferenceValue('agent.skills.external_export.enabled', true)
+      await service['setExportEnabled']('missing', true)
+      await expect(fs.promises.lstat(external)).rejects.toMatchObject({ code: 'ENOENT' })
+      await fs.promises.mkdir(external)
+      await fs.promises.symlink(
+        path.join(mirror, 'missing'),
+        path.join(external, 'missing'),
+        isWin ? 'junction' : 'dir'
+      )
+      await service['setExportEnabled']('missing', true)
+      await expect(fs.promises.lstat(path.join(external, 'missing'))).rejects.toMatchObject({ code: 'ENOENT' })
+    })
+
+    it.each([true, false])(
+      'keeps runtime-only exports absent after a database failure (previous: %s)',
+      async (previous) => {
+        MockMainPreferenceServiceUtils.setPreferenceValue('agent.skills.external_export.enabled', true)
+        const skill = await seedExportSkill('cherry-browser', 'builtin', previous)
+        await service.linkMirror(skill.folderName)
+        const competingConnection = new Database(dbh.sqlite.name)
+        dbh.sqlite.pragma('busy_timeout = 0')
+        competingConnection.exec('BEGIN IMMEDIATE')
+        try {
+          await expect(service.setMirrorEnabled(skill.id, !previous)).rejects.toThrow('database is locked')
+          expect(agentGlobalSkillService.getById(skill.id)?.mirrorEnabled).toBe(previous)
+          await expect(fs.promises.lstat(path.join(external, skill.folderName))).rejects.toMatchObject({
+            code: 'ENOENT'
+          })
+          expect(await fs.promises.readFile(path.join(mirror, skill.folderName, 'SKILL.md'), 'utf8')).toBe(
+            '# Trusted skill'
+          )
+        } finally {
+          competingConnection.exec('ROLLBACK')
+          competingConnection.close()
+          dbh.sqlite.pragma('busy_timeout = 5000')
+        }
+      }
+    )
 
     it('keeps the internal mirror without exporting by default', async () => {
       await service.linkMirror('skill-one')

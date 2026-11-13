@@ -48,6 +48,7 @@ describe.each(['modern', 'legacy'] as const)('Automation MCP output (%s)', (era)
         }
       if (name === 'AgentSessionRuntimeService')
         return {
+          getMcpInteractionHost: () => ({ windowId: 'window' }),
           getLiveAssistantMessageId: () => 'message',
           getAcceptedTurnAgentId: () => acceptedTurnAgentId,
           onTurnTerminal: terminal.event,
