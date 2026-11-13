@@ -16,7 +16,9 @@ Status: proposed
 
 ### 范围与归属
 
-第一版在启动时读取一份随应用发布的 JSON 策略。`ask` 和 `deny` 规则都放在这一份文档中。不提供工作区可控制的策略、用户覆盖、网络下载、文件监听、策略编辑器或新的数据库表。后续引入云端分发时，必须保持此 schema，并在引入前另行定义真实性校验、回滚及强制拒绝规则保护机制。
+用一个实现 PR 完整交付获批行为：方言解析与执行模型、命令语义、单份 JSON 策略、两个运行时接入、子智能体与代码模式内部调用、审批展示、迁移和回归证据。交付及记录转为 implemented 之前，必须一并满足 AC1–AC12。
+
+实现在启动时读取一份随应用发布的 JSON 策略。`ask` 和 `deny` 规则都放在这一份文档中。不提供工作区可控制的策略、用户覆盖、网络下载、文件监听、策略编辑器或新的数据库表。后续引入云端分发时，必须保持此 schema，并在引入前另行定义真实性校验、回滚及强制拒绝规则保护机制。
 
 解析、语义适配器、策略校验和匹配归属于主进程现有的 `ai/toolApproval` 领域。运行时适配器提供实际 Shell 方言、命令、工作目录、权限模式和有效智能体角色。只有不可变的审批依据通过共享审批类型传给渲染进程。渲染进程展示决策并响应，不负责计算命令策略。通过导入随应用发布的 JSON 无需文件系统服务；如需从文件系统加载，必须使用应用的集中路径注册表。
 
@@ -179,7 +181,7 @@ Auto 审批只允许当前完整调用及其确切输入和执行上下文。它
 - AC9 — 所有现有危险命令检测类别和内置命令安全回归场景都有对应样例；非 Shell、依赖安装、访问和角色专属审批要求仍然有效(verification: unit; owner: policy migration and affected consumers)
 - AC10 — 前台/后台子智能体将审批路由到正确根会话，继承当前模式和受保护调用方约束；没有响应者时阻止询问类调用且不挂起(verification: unit and Electron; owner: subagent approval routing)
 - AC11 — 审批界面展示来源、任务导航、完整命令、cwd、本地化原因/依据及单次调用操作；拒绝不提供允许操作，过期或上下文变化后的审批不能执行命令(verification: renderer and Electron; owner: approval UI and runtime adapters)
-- AC12 — 受支持桌面安装包包含策略和解析器资源并支持离线运行；最终实现记录限定范围的测试证据、候选文档审阅、记录交叉链接，以及明确的 auto 授权行为变化(verification: packaged artifact and docs gate; owner: final implementation layer)
+- AC12 — 受支持桌面安装包包含策略和解析器资源并支持离线运行；最终实现记录限定范围的测试证据、候选文档审阅、记录交叉链接，以及明确的 auto 授权行为变化(verification: packaged artifact and docs gate; owner: implementation PR)
 
 ## 风险
 
