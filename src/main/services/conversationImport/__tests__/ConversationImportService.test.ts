@@ -250,7 +250,11 @@ describe('local history atomic import', () => {
         accepted.items.map((item) => item.ref)
       )
       expect(outcome).toMatchObject({ status: 'imported', initialization: 'ready', agentId: 'pi' })
-      const stored = dbh.db.select().from(agentSessionMessageTable).all()
+      const stored = dbh.db
+        .select()
+        .from(agentSessionMessageTable)
+        .where(ne(agentSessionMessageTable.role, 'root'))
+        .all()
       expect(stored[0].data.parts).toEqual([{ type: 'text', text: 'changed' }])
       expect(agentSessionMessageService.getSessionMessage(outcome.sessionId!, stored[0].id).provenance?.source).toBe(
         'opencode'
