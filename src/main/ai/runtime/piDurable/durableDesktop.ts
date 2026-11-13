@@ -33,18 +33,23 @@ export async function prepareDurableDesktop(
   emit: (event: AgentRuntimeEvent) => void,
   namespace?: string
 ) {
+  // A turn already accepted and frozen to this connection's agent keeps its captured
+  // configuration through startup even if the session row was re-pointed mid-materialization.
+  const captureOpts = { servesAcceptedTurn: input.servesAcceptedTurn === true }
   const discovery = await capturePiConnectionSnapshot(
     input.sessionId,
     input.agentId,
     input.modelId,
-    input.knowledgeBaseIds
+    input.knowledgeBaseIds,
+    captureOpts
   )
   await warmAgentMcpToolCatalogs(discovery.agent.mcps ?? [])
   const snapshot = await capturePiConnectionSnapshot(
     input.sessionId,
     input.agentId,
     input.modelId,
-    input.knowledgeBaseIds
+    input.knowledgeBaseIds,
+    captureOpts
   )
   const { session, agent } = snapshot
   const cwd = session.workspace.path
@@ -251,7 +256,8 @@ export async function prepareDurableDesktop(
           next.sessionId,
           next.agentId,
           next.modelId,
-          next.knowledgeBaseIds
+          next.knowledgeBaseIds,
+          { servesAcceptedTurn: next.servesAcceptedTurn === true }
         )
         const mode = current.agent.configuration?.permission_mode ?? 'default'
         // The approval gate reads the mode per tool call, so a change applies mid-turn from the next call.

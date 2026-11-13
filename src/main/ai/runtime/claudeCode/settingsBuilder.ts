@@ -147,6 +147,11 @@ export interface ClaudeCodeSessionOptions {
   }
   /** Claude Code SDK-native Fast mode. */
   fastMode?: boolean
+  /**
+   * True when the turn these settings serve was already accepted and frozen to an agent the
+   * session row no longer names. Tool contexts then carry that execution ownership.
+   */
+  servesAcceptedTurn?: boolean
 }
 
 export type { LinkedChannelSnapshot, McpServerSnapshotMap } from '@main/ai/runtime/agentMcpServers'
@@ -253,7 +258,8 @@ export async function buildClaudeCodeSessionSettings(
     linkedChannelSnapshot,
     agentDataPath,
     options?.knowledgeBaseIds,
-    notificationContext
+    notificationContext,
+    options?.servesAcceptedTurn === true
   )
   let mcpToolMetadata = await buildMcpToolMetadata(agent)
   if (agent.mcps?.length) mcpToolMetadata ??= {}

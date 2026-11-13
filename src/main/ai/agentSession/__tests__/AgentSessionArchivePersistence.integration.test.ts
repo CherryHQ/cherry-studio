@@ -12,7 +12,8 @@ import { BaseService } from '@main/core/lifecycle/BaseService'
 const mocks = vi.hoisted(() => ({
   hasUnsettledTopicWork: vi.fn(),
   isSessionBusy: vi.fn(),
-  closeSession: vi.fn()
+  closeSession: vi.fn(),
+  listSessionIdsByExecutingAgent: vi.fn()
 }))
 
 vi.mock('@application', async () => {
@@ -28,8 +29,12 @@ vi.mock('@application', async () => {
       recoverSessionForks: vi.fn().mockResolvedValue(undefined),
       isSessionBusy: mocks.isSessionBusy,
       isSessionBusyForArchive: mocks.isSessionBusy,
-      closeSession: mocks.closeSession
-    }
+      closeSession: mocks.closeSession,
+      listSessionIdsByExecutingAgent: mocks.listSessionIdsByExecutingAgent
+    },
+    AgentSessionDeliveryService: { kick: vi.fn() },
+    ChannelManager: { reconcileAgent: vi.fn() },
+    JobManager: { syncJobScheduleTimerById: vi.fn() }
   } as Parameters<typeof mockApplicationFactory>[0])
 })
 
@@ -50,6 +55,7 @@ describe('Agent Session archive persistence', () => {
     mocks.hasUnsettledTopicWork.mockReturnValue(true)
     mocks.isSessionBusy.mockReturnValue(false)
     mocks.closeSession.mockResolvedValue(undefined)
+    mocks.listSessionIdsByExecutingAgent.mockReturnValue([])
 
     await dbh.db.insert(agentTable).values({
       id: AGENT_ID,
@@ -141,6 +147,32 @@ describe('Agent Session archive persistence', () => {
       status: 'success',
       data: { parts: [{ type: 'text', text: 'Reply persisted before archive' }] }
     })
+  })
+
+  it('refuses to archive an Agent whose live turn still executes after the Session switched agents', async () => {
+    const switchedAgentId = 'agent-archive-switched'
+    await dbh.db.insert(agentTable).values({
+      id: switchedAgentId,
+      type: 'claude-code',
+      name: 'Switched-to Agent',
+      instructions: 'Test instructions',
+      orderKey: 'a1'
+    })
+    // The top-bar switch re-points the row to B while A's turn keeps running: the runtime entry
+    // still executes for A, so A's archive must not read membership from the row alone.
+    await dbh.db.update(agentSessionTable).set({ agentId: switchedAgentId }).where(eq(agentSessionTable.id, SESSION_ID))
+    mocks.hasUnsettledTopicWork.mockReturnValue(false)
+    mocks.listSessionIdsByExecutingAgent.mockImplementation((agentId: string) =>
+      agentId === AGENT_ID ? [SESSION_ID] : []
+    )
+    mocks.isSessionBusy.mockReturnValue(true)
+    const service = new AgentLifecycleService()
+
+    await expect(service.archiveAgent(AGENT_ID, { archiveSessions: true })).rejects.toMatchObject({
+      name: 'AgentSessionArchiveBusyError',
+      sessionIds: [SESSION_ID]
+    })
+    expect(dbh.db.select().from(agentTable).where(eq(agentTable.id, AGENT_ID)).get()?.deletedAt).toBeNull()
   })
 
   it.each(['stream', 'runtime'])('refuses direct permanent deletion while %s work is unsettled', async (busy) => {

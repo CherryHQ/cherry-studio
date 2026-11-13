@@ -289,13 +289,18 @@ export async function deriveConnectionConfig(
   reasoningEffort: ReasoningEffortOption = 'default',
   fastMode = false,
   selectedKnowledgeBaseIds: readonly string[] = [],
-  serviceTier: AgentRuntimeConnectInput['serviceTier'] = 'standard'
+  serviceTier: AgentRuntimeConnectInput['serviceTier'] = 'standard',
+  /** Connection-scoped agent override: the reconcile derives the desired config for the agent the
+   *  connection was spawned under (a live turn freezes it across a mid-session reassignment),
+   *  which may no longer be the session row's current agent. Defaults to the session row. */
+  connectionAgentId?: string
 ): Promise<DeriveConnectionConfigResult> {
   const unroutable = { ok: false, reason: 'unroutable' } as const
 
   const session = agentSessionService.getById(sessionId)
-  if (!session?.agentId) return unroutable
-  const agent = agentService.getAgent(session.agentId)
+  const agentId = connectionAgentId ?? session?.agentId
+  if (!session || !agentId) return unroutable
+  const agent = agentService.getAgent(agentId)
   if (!agent?.model) return unroutable
   try {
     return {
@@ -478,12 +483,21 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
   fastMode = false,
   /** Composer knowledge selection frozen when the turn was submitted. */
   selectedKnowledgeBaseIds: readonly string[] = [],
-  serviceTier: AgentRuntimeConnectInput['serviceTier'] = 'standard'
+  serviceTier: AgentRuntimeConnectInput['serviceTier'] = 'standard',
+  /** Connection-scoped agent override: a live turn is frozen to the agent it was accepted under
+   *  (adoption never runs mid-turn), so after a mid-session reassignment the request must be
+   *  built from that agent — not the session row's current one — for configuration and
+   *  attribution to stay consistent. Defaults to the session row. */
+  connectionAgentId?: string,
+  /** Mirrors the connect flag: the request serves a turn already accepted under `connectionAgentId`,
+   *  so the tool context carries that execution ownership past the session-row check. */
+  servesAcceptedTurn?: boolean
 ): Promise<ClaudeCodeAgentSessionQueryRequest | undefined> {
   const session = agentSessionService.getById(sessionId)
-  if (!session?.agentId) return undefined
+  const agentId = connectionAgentId ?? session?.agentId
+  if (!session || !agentId) return undefined
 
-  const agent = agentService.getAgent(session.agentId)
+  const agent = agentService.getAgent(agentId)
   if (!agent?.model) return undefined
   const linkedChannelSnapshot = resolveLinkedNotifyChannel(session.id, agent.id)
   const notificationContext = resolveAgentNotificationContext(session.id, agent.id, linkedChannelSnapshot)
@@ -544,7 +558,8 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
         thinkingOptions:
           route.branch === 'external-cli' ? resolveClaudeCodeThinkingOptions(model, reasoningEffort) : undefined,
         fastMode: nativeFastMode,
-        effectiveLanguage
+        effectiveLanguage,
+        ...(servesAcceptedTurn ? { servesAcceptedTurn: true } : {})
       },
       agent
     ),

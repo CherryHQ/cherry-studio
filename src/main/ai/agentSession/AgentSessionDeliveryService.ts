@@ -41,6 +41,11 @@ export type AcceptSessionDeliveryInput = {
   receiverSessionId: string
   content: string
   replyPolicy?: 'none' | 'completion'
+  /**
+   * Owner of the accepted turn still executing on the sender Session's connection, when a top-bar
+   * switch re-pointed the row away from it. Validated by the runtime before reaching here.
+   */
+  senderExecutionOwnerId?: string
 }
 
 export type CreateSessionDeliveryInput = {
@@ -50,6 +55,7 @@ export type CreateSessionDeliveryInput = {
   sessionName: string
   workspace: AgentSessionWorkspaceSource
   content: string
+  senderExecutionOwnerId?: string
 }
 
 @Injectable('AgentSessionDeliveryService')

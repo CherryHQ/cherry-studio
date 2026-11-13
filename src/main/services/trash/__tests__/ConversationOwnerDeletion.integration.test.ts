@@ -30,6 +30,7 @@ vi.mock('@application', async () => {
     AgentSessionRuntimeService: {
       isSessionBusy: () => mocks.runtimeBusy,
       isSessionBusyForArchive: () => mocks.runtimeBusy,
+      listSessionIdsByExecutingAgent: () => [],
       closeSession: vi.fn(),
       cancelSessionForks: vi.fn().mockResolvedValue(undefined),
       recoverSessionForks: vi.fn().mockResolvedValue(undefined)
