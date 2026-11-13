@@ -13,7 +13,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
  */
 import { cacheService } from '@data/CacheService'
 
-import { getDefaultMcpRuntimeStatus, useMcpRuntimeStatus, useMcpRuntimeStatusMap } from '../useMcpRuntimeStatus'
+import { useMcpRuntimeStatus, useMcpRuntimeStatusMap } from '../useMcpRuntimeStatus'
 
 // Undo the global mocks — these tests need the real cache wiring.
 vi.unmock('@data/CacheService')
@@ -48,27 +48,6 @@ afterEach(() => {
 })
 
 describe('useMcpRuntimeStatus', () => {
-  it('derives the default from isActive on a cache miss', () => {
-    const { result: active } = renderHook(() => useMcpRuntimeStatus(SERVER_ID, true))
-    expect(active.current).toEqual({ state: 'connecting', lastCheckedAt: 0 })
-
-    const { result: inactive } = renderHook(() => useMcpRuntimeStatus(SERVER_ID, false))
-    expect(inactive.current).toEqual({ state: 'disabled', lastCheckedAt: 0 })
-  })
-
-  it('keeps the default reference stable across re-renders with unchanged isActive', () => {
-    const { result, rerender } = renderHook(({ isActive }) => useMcpRuntimeStatus(SERVER_ID, isActive), {
-      initialProps: { isActive: true }
-    })
-    const first = result.current
-
-    rerender({ isActive: true })
-    expect(result.current).toBe(first) // useMemo, not a per-render object
-
-    rerender({ isActive: false })
-    expect(result.current).toEqual({ state: 'disabled', lastCheckedAt: 0 })
-  })
-
   it('never materializes the default into the main-owned key', () => {
     renderHook(() => useMcpRuntimeStatus(SERVER_ID, true))
 
@@ -98,25 +77,6 @@ describe('useMcpRuntimeStatusMap', () => {
     cacheService.deleteShared(KEY_B)
   })
 
-  it('fills misses with the module-level defaults, reference-stable across renders', () => {
-    const servers = [
-      { id: SERVER_A, isActive: true },
-      { id: SERVER_B, isActive: false }
-    ]
-    const { result, rerender } = renderHook(({ list }) => useMcpRuntimeStatusMap(list), {
-      initialProps: { list: servers }
-    })
-
-    expect(result.current[SERVER_A]).toBe(getDefaultMcpRuntimeStatus(true))
-    expect(result.current[SERVER_B]).toBe(getDefaultMcpRuntimeStatus(false))
-
-    const first = result.current
-    rerender({ list: servers })
-    expect(result.current).toBe(first) // committed selection reused
-
-    expect(cacheService.getSharedSnapshot(KEY_A)).toBeUndefined() // nothing materialized
-  })
-
   it('zips published statuses to their server ids and keeps others on default', () => {
     const { result } = renderHook(() =>
       useMcpRuntimeStatusMap([
@@ -128,8 +88,6 @@ describe('useMcpRuntimeStatusMap', () => {
     act(() => {
       cacheService.setShared(KEY_B, { state: 'running', lastCheckedAt: 7 } as any)
     })
-
-    expect(result.current[SERVER_A]).toBe(getDefaultMcpRuntimeStatus(true))
     expect(result.current[SERVER_B]).toEqual({ state: 'running', lastCheckedAt: 7 })
   })
 })

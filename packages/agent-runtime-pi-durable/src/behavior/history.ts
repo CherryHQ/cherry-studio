@@ -1,5 +1,6 @@
 import {
   AssistantEntry,
+  defineDoc,
   GenerationTask,
   InboxDoc,
   CompactionEntry,
@@ -8,6 +9,7 @@ import {
   type ConversationId,
   type Cursor,
   type EntryRecord,
+  type EntryId,
   type GenerationInput,
   type Page,
   type TaskRecord,
@@ -23,9 +25,20 @@ import {
   type HistoryEntry,
   type UsageFact
 } from '@cherrystudio/agent-behavior'
+import type { GoalOwner } from '@cherrystudio/agent-behavior'
 import { runtimeId, type JsonValue, type ThreadId } from '@cherrystudio/agent-runtime'
 
 export const threadId = (id: ConversationId): ThreadId => runtimeId(String(id))
+
+export const nativeSummaryUsage = defineDoc({
+  kind: 'cherry.native-summary-usage',
+  version: 1,
+  scope: 'conversation',
+  history: 'latest',
+  fork: 'initial',
+  checkpointWhen: () => false,
+  initial: (): { records: Record<string, { owner: GoalOwner; usage: UsageFact; runId?: number }> } => ({ records: {} })
+})
 export function conversationId(thread: ThreadId): ConversationId {
   const id = Number(thread)
   if (!Number.isSafeInteger(id) || id < 0 || String(id) !== thread)
@@ -44,8 +57,10 @@ export async function pages<T>(read: (cursor?: Cursor) => Promise<Page<T, Cursor
   return items
 }
 
-export async function lineageEntries(tx: Tx, id: ConversationId): Promise<EntryRecord[]> {
-  return pages((cursor) => tx.scanEntries({ conversationId: id, order: 'ascending' }, 256, cursor))
+export async function lineageEntries(tx: Tx, id: ConversationId, at?: EntryId): Promise<EntryRecord[]> {
+  return pages((cursor) =>
+    tx.scanEntries({ conversationId: id, order: 'ascending', ...(at && { maxEntryId: at }) }, 256, cursor)
+  )
 }
 
 function summaryUsage(entry: EntryRecord) {
@@ -136,9 +151,10 @@ export function historyOf(
 export async function readFacts(
   tx: Tx,
   id: ConversationId,
-  abandoned: ReadonlySet<TaskId> = new Set()
+  abandoned: ReadonlySet<TaskId> = new Set(),
+  at?: EntryId
 ): Promise<ConversationFacts> {
-  const entries = await lineageEntries(tx, id)
+  const entries = await lineageEntries(tx, id, at)
   const tasks = (
     await Promise.all(
       [...new Set([id, ...entries.map((entry) => entry.conversationId)])].map((conversationId) =>
@@ -147,6 +163,14 @@ export async function readFacts(
     )
   ).flat()
   const history = historyOf(entries, tasks, id)
+  const summaries = await tx.doc(nativeSummaryUsage, id)
+  for (const [key, value] of Object.entries(summaries.records)) {
+    history.push({
+      kind: 'record',
+      id: runtimeId(`native-summary:${key}`),
+      record: { type: 'summary-usage', value: { ...value.owner, usage: { ...value.usage } } }
+    })
+  }
   const live = await tx.doc(LiveDoc, id)
   const inbox = await tx.doc(InboxDoc, id)
   const record = (await tx.conversation(id))!
@@ -167,6 +191,18 @@ export async function readFacts(
     const childTasks = await pages((cursor) => tx.scanTasks({ conversationId: childId }, 256, cursor))
     const ids = await runIds(tx, childId, childTasks, childEntries)
     const runUsage = Array.from(ids, () => ({ ...ZERO_USAGE }))
+    const childSummaries = await tx.doc(nativeSummaryUsage, childId)
+    for (const value of Object.values(childSummaries.records)) {
+      const run = ids.findIndex((id) => id === value.runId)
+      if (run < 0) continue
+      const total = runUsage[run]
+      total.input += value.usage.input
+      total.output += value.usage.output
+      total.cacheRead += value.usage.cacheRead
+      total.cacheWrite += value.usage.cacheWrite
+      total.totalTokens += value.usage.totalTokens
+      total.costUsd += value.usage.costUsd
+    }
     for (const entry of childEntries) {
       if (entry.conversationId !== childId) continue
       if (!AssistantEntry.is(entry) && !CompactionEntry.is(entry)) continue

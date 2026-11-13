@@ -74,6 +74,7 @@ const providerKeyMap = {
   qwencloud: 'provider.qwencloud',
   qwenlm: 'provider.qwenlm',
   'radeon-cloud': 'provider.radeon-cloud',
+  'rapid-mlx': 'provider.rapid-mlx',
   silicon: 'provider.silicon',
   stepfun: 'provider.stepfun',
   'tencent-cloud-ti': 'provider.tencent-cloud-ti',

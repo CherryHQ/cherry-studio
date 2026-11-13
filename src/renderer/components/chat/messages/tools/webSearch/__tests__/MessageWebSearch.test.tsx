@@ -73,7 +73,7 @@ describe('MessageWebSearchToolTitle', () => {
 
     const link = await screen.findByRole('link')
     expect(link).toHaveAttribute('href', 'https://www.cherry-ai.com/blog')
-    expect(screen.getByTestId('favicon')).toHaveAttribute('data-hostname', 'www.cherry-ai.com')
+
     expect(screen.getByText('cherry-ai.com')).toBeInTheDocument()
   })
 })

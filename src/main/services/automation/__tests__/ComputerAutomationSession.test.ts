@@ -1,5 +1,6 @@
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import * as z from 'zod'
 
 import { application } from '@application'
 import { ComputerUse, type ComputerUseClient, type Element, type Snapshot } from '@cherrystudio/computer-use'
@@ -128,6 +129,10 @@ describe('computer AX pages', () => {
     ]) {
       const result = await run.execute(code)
       expect(result.isError).toBe(false)
+      const cell = z.object({ replContext: z.object({ cell: z.string() }) }).parse(result.structuredContent)
+        .replContext.cell
+      expect(repl.getCallApps(cell)).toEqual([{ id: 'dia', name: 'Dia', identity: undefined }])
+      expect(result).not.toHaveProperty('_meta')
       const texts = result.content.filter((part) => part.type === 'text').map((part) => part.text)
       expect(Buffer.byteLength(texts.join('\n'))).toBeLessThan(20 * 1024)
       const observation = texts.filter((text) => text.startsWith('OBSERVATION '))
@@ -142,12 +147,21 @@ describe('computer AX pages', () => {
       "state.tree.elements.filter(e => e.role === 'AXStaticText').slice(0, 1).map(e => ({ name: e.name, value: e.value, actions: e.actions }))"
     )
     expect(extracted.isError).toBe(false)
+    expect(
+      repl.getCallApps(
+        z.object({ replContext: z.object({ cell: z.string() }) }).parse(extracted.structuredContent).replContext.cell
+      )
+    ).toEqual([])
     const result = extracted.content.find((part) => part.type === 'text' && part.text.startsWith('[{'))
     if (result?.type !== 'text') throw new Error('Missing extracted value')
     expect(JSON.parse(result.text)).toEqual([
       { name: expect.stringContaining('actions=press'), value: '正文🚀\\\n'.repeat(60), actions: ['click'] }
     ])
     expect(captures).toBe(2)
+    const repeated = await run.execute('await app.getAXState(); await app.getAXState()')
+    const repeatedCell = z.object({ replContext: z.object({ cell: z.string() }) }).parse(repeated.structuredContent)
+      .replContext.cell
+    expect(repl.getCallApps(repeatedCell)).toHaveLength(1)
   })
 
   it.each(['getScreenshot', 'getAXStateAndScreenshot'])('includes the page input target in %s', async (method) => {
@@ -281,4 +295,16 @@ describe('computer AX pages', () => {
       code: 'STALE_SNAPSHOT'
     })
   })
+})
+
+it('reports the resolved target outside the result for binding and subsequent observations', async () => {
+  const apps: unknown[] = []
+  snapshot.tree = { status: 'available', elements: [], truncated: [] }
+  const result = await session.execute('getApp', { query: 'Dia' }, undefined, signal, (app) => apps.push(app))
+  expect(apps).toEqual([{ id: 'dia', name: 'Dia' }])
+  expect(result).not.toHaveProperty('icon')
+  expect(result).not.toHaveProperty('_meta')
+  apps.length = 0
+  await session.execute('getAXState', {}, 'Dia', signal, (app) => apps.push(app))
+  expect(apps).toEqual([{ id: 'dia', name: 'Dia' }])
 })

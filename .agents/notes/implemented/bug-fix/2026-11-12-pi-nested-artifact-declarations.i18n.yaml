@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-12-pi-nested-artifact-declarations.md
+2026-11-12-pi-nested-artifact-declarations.md: 38958ce0ef9e8628c4b10e0f22af1cadc47604e6
+2026-11-12-pi-nested-artifact-declarations.zh.md: 8267226e7f2ebd69dd61f25f7bed00741190fc80

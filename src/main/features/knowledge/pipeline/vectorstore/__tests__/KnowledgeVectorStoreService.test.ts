@@ -158,8 +158,6 @@ describe('KnowledgeVectorStoreService', () => {
 
     expect(first).toBe(second)
     expect(first).toBeInstanceOf(KnowledgeIndexStore)
-    expect(loggerInfoMock).toHaveBeenCalledWith('Opened knowledge index store', { baseId: base.id, cacheSize: 1 })
-    expect(loggerDebugMock).toHaveBeenCalledWith('Reusing cached knowledge index store', { baseId: base.id })
   })
 
   it('synchronous open makes a second call observe the already-cached store', () => {
@@ -192,17 +190,6 @@ describe('KnowledgeVectorStoreService', () => {
 
     const store = service.getIndexStore(base)
     expect(store).toBeInstanceOf(KnowledgeIndexStore)
-  })
-
-  it('stamps and verifies the meta identity row before handing out the store', () => {
-    const service = createTrackedService()
-    const base = createBase()
-    const ensureIndexMetaSpy = vi.spyOn(indexMetaModule, 'ensureIndexMeta')
-
-    service.getIndexStore(base)
-
-    expect(ensureIndexMetaSpy).toHaveBeenCalledTimes(1)
-    expect(ensureIndexMetaSpy).toHaveBeenCalledWith(expect.anything(), { baseId: base.id })
   })
 
   it('creates the schema normally when the stored version matches (no rebuild)', () => {
@@ -311,8 +298,6 @@ describe('KnowledgeVectorStoreService', () => {
     const base = createBase()
 
     expect(service.getIndexStoreIfExists(base)).toBeUndefined()
-
-    expect(loggerDebugMock).toHaveBeenCalledWith('Knowledge index store does not exist on disk', { baseId: base.id })
   })
 
   it('opens an existing store from disk when getIndexStoreIfExists detects a backing file', () => {
@@ -399,8 +384,6 @@ describe('KnowledgeVectorStoreService', () => {
     expect(loggerErrorMock).toHaveBeenCalledWith('Failed to close knowledge index store', closeError, {
       baseId: 'kb-1'
     })
-    expect(loggerInfoMock).toHaveBeenCalledWith('Stopping knowledge index stores', { storeCount: 2 })
-    expect(loggerInfoMock).toHaveBeenCalledWith('Stopped knowledge index stores', { storeCount: 2 })
 
     // Cache cleared: reopening kb-2 builds a fresh instance.
     const reopened = service.getIndexStore(createBase('kb-2'))

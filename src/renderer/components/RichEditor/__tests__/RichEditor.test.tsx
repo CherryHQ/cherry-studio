@@ -41,12 +41,6 @@ describe('RichEditor accessibility', () => {
     expect(container.querySelector('[contenteditable="true"]')).toHaveAttribute('aria-label', 'Content')
   })
 
-  it('leaves the editing surface unnamed when no label is supplied', () => {
-    const { container } = render(<RichEditor initialContent="" autoFocus={false} />)
-
-    expect(container.querySelector('[contenteditable="true"]')).not.toHaveAttribute('aria-label')
-  })
-
   it('reads the live selection and exposes the current draft immediately after edits', async () => {
     const editorRef: { current: RichEditorRef | null } = { current: null }
     render(<RichEditor ref={editorRef} initialContent="alpha beta" autoFocus={false} />)

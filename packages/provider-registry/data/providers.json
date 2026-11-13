@@ -1132,6 +1132,37 @@
       "name": "oMLX"
     },
     {
+      "authOptional": true,
+      "availableInEditions": ["global", "cn"],
+      "defaultChatEndpoint": "openai-chat-completions",
+      "description": "Rapid-MLX - AI model provider",
+      "endpointConfigs": {
+        "anthropic-messages": {
+          "adapterFamily": "anthropic",
+          "baseUrl": "http://localhost:8000"
+        },
+        "openai-chat-completions": {
+          "adapterFamily": "openai-compatible",
+          "baseUrl": "http://localhost:8000",
+          "reasoningFormat": {
+            "type": "openai-chat"
+          }
+        },
+        "openai-responses": {
+          "adapterFamily": "open-responses",
+          "baseUrl": "http://localhost:8000"
+        }
+      },
+      "id": "rapid-mlx",
+      "metadata": {
+        "website": {
+          "docs": "https://github.com/raullenchai/Rapid-MLX",
+          "official": "https://rapidmlx.com"
+        }
+      },
+      "name": "Rapid-MLX"
+    },
+    {
       "availableInEditions": ["global"],
       "defaultChatEndpoint": "openai-responses",
       "description": "OpenAI - AI model provider",
@@ -2969,5 +3000,5 @@
       "name": "HopBase"
     }
   ],
-  "version": "cb9a3e2e3a8b267a"
+  "version": "3285bd8b128960ac"
 }
