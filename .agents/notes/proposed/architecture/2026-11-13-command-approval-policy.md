@@ -16,7 +16,9 @@ The [built-in delete-guard decision](../../implemented/bug-fix/2026-11-05-builti
 
 ### Scope and ownership
 
-The first version reads one application-bundled JSON policy at startup. Both `ask` and `deny` rules live in that document. There is no workspace-controlled policy, user override, network fetch, watcher, policy editor, or new database table. A later cloud delivery mechanism must preserve this schema and independently define authenticity, rollback, and protection of mandatory denials before it is introduced.
+Deliver the complete approved behavior in one implementation PR: dialect parsing and the execution model, command semantics, the single JSON policy, both runtime integrations, subagent and code-mode nested calls, approval presentation, migration, and regression evidence. All AC1–AC12 must be satisfied together before delivery and the note moves to implemented.
+
+The implementation reads one application-bundled JSON policy at startup. Both `ask` and `deny` rules live in that document. There is no workspace-controlled policy, user override, network fetch, watcher, policy editor, or new database table. A later cloud delivery mechanism must preserve this schema and independently define authenticity, rollback, and protection of mandatory denials before it is introduced.
 
 Parsing, semantic adapters, policy validation, and matching belong in the existing main-process `ai/toolApproval` domain. Runtime adapters supply the actual shell dialect, command, working directory, permission mode, and effective Agent role. Only immutable approval evidence crosses to the renderer through shared approval types. The renderer displays and responds to decisions; it does not evaluate command policy. A bundled JSON import needs no filesystem service; any filesystem loading must use the central application path registry.
 
@@ -179,7 +181,7 @@ These expected results are for auto with an ordinary Agent unless a row specifie
 - AC9 — All existing destructive-detector categories and built-in command-safety regressions are accounted for by fixtures; non-shell, dependency-install, access, and role-specific approval requirements remain effective (verification: unit; owner: policy migration and affected consumers)
 - AC10 — Foreground/background children route approvals to the correct root, inherit current mode and protected caller constraints, and missing responders block asks without hanging (verification: unit and Electron; owner: subagent approval routing)
 - AC11 — Approval UI displays origin, task navigation, full command, cwd, localized reasons/evidence, and per-invocation actions; denials expose no allow action and stale/context-changed approvals cannot execute (verification: renderer and Electron; owner: approval UI and runtime adapters)
-- AC12 — Supported desktop packages include the policy and parser assets and operate offline; final implementation records scoped test evidence, candidate documentation review, note cross-links, and the explicit auto consent behavior change (verification: packaged artifact and docs gate; owner: final implementation layer)
+- AC12 — Supported desktop packages include the policy and parser assets and operate offline; final implementation records scoped test evidence, candidate documentation review, note cross-links, and the explicit auto consent behavior change (verification: packaged artifact and docs gate; owner: implementation PR)
 
 ## Risks
 
