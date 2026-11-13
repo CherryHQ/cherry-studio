@@ -1,4 +1,4 @@
-import mime from 'mime-types'
+import mime from 'mime'
 
 import { ipcApi } from '@renderer/ipc'
 import { FILE_TYPE, type FileMetadata, type FileType } from '@renderer/types/file'
@@ -141,7 +141,7 @@ export async function filterSupportedFiles(files: FileMetadata[], supportExts: s
 
 export const mime2type = (mimeStr: string): FileType => {
   const mimeType = mimeStr.toLowerCase()
-  const ext = mime.extension(mimeType)
+  const ext = mime.getExtension(mimeType)
   if (ext) {
     if (textExts.includes(ext)) {
       return FILE_TYPE.TEXT
