@@ -53,7 +53,7 @@ import { findPersistedToolOutput } from '@main/ai/messages/persistedToolOutput'
 import { readConversation, type ReadConversationInput } from '@main/ai/messages/readConversation'
 import type { NotifyChannel } from '@main/ai/runtime/agentMcpServers'
 import { runtimeDriverRegistry } from '@main/ai/runtime/registry'
-import { detectGlobalInstall } from '@main/ai/toolApproval/dependencyGuard'
+import { detectGlobalInstall, detectMiseMutation } from '@main/ai/toolApproval/dependencyGuard'
 import { evaluateShellCommandSqliteGuard } from '@main/ai/toolApproval/userDataSqliteGuard'
 import { isHeartbeatEnabled } from '@shared/ai/agentHeartbeat'
 import {
@@ -1241,6 +1241,10 @@ async function startBackgroundTask(ctx: AutonomyToolsContext, args: BackgroundTa
     workspacePath: ctx.workspacePath
   })
   if (sqliteDecision) throw new Error(sqliteDecision.reason)
+  const miseMutationReason = detectMiseMutation(command)
+  if (miseMutationReason) {
+    throw new Error(`Blocked: ${miseMutationReason}.`)
+  }
   const globalInstallReason = detectGlobalInstall(command)
   if (globalInstallReason) {
     throw new Error(

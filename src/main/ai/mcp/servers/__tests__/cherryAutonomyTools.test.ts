@@ -2139,6 +2139,19 @@ describe('cherry-tools autonomy tools', () => {
       expect(await readdir(storage).catch(() => [] as string[])).toHaveLength(0)
     })
 
+    // `--help` keeps the command harmless if a regression ever lets it start.
+    it('denies a detached mise mutation the native shell blocks and spawns nothing', async () => {
+      const result = await callTool(
+        createServer('agent_test', workspaceDir),
+        { action: 'start', command: 'mise use --help' },
+        'background_task'
+      )
+      expect(result.isError).toBe(true)
+      expect(result.content[0].text).toContain('direct mise mutation')
+      const storage = path.join(agentsDataDir, 'agent_test', 'background-tasks')
+      expect(await readdir(storage).catch(() => [] as string[])).toHaveLength(0)
+    })
+
     it('starts a detached task stored under the agent data dir and rejects missing commands', async () => {
       const server = createServer('agent_test', workspaceDir)
       const result = await callTool(
