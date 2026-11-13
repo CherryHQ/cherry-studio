@@ -209,10 +209,9 @@ export class DurableBackend {
         this.models
       )
       this.models = binding.modelRuntime
-      const rootThread = runtimeId<'thread'>(context.nativeThreadId ?? '0')
       const behavior = await createPiBehaviorHost({
         input,
-        root: rootThread,
+        root: () => runtimeId(this.roots.get(context.id)?.context.nativeThreadId ?? context.nativeThreadId ?? '0'),
         binding,
         model: desktop.snapshot.model,
         rootModelKey: `${desktop.snapshot.model.providerId}/${formatGatewayModelId(desktop.snapshot.model.providerId, getRawModelId(desktop.snapshot.model))}`,
@@ -339,7 +338,6 @@ export class DurableBackend {
         current: (thread) => host(thread).models.current(thread)
       },
       verifier: { verify: (request, signal) => host(request.thread).verifier.verify(request, signal) },
-      summarizer: { summarize: (request, signal) => host(request.thread).summarizer.summarize(request, signal) },
       outputStore: { save: (file) => global().outputStore.save(file) },
       observation: { emit: (event) => host(event.thread).observation.emit(event) },
       settings: {

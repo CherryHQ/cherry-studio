@@ -35,7 +35,7 @@ export interface AgentRuntimeCapabilities {
   /** providerMetadata.cherry.transport tag stamped by the runtime's stream adapter. */
   transport: string
   /** Edit-dialog catalog rows. */
-  builtinTools: () => readonly {
+  builtinTools: (platform?: string) => readonly {
     id: string
     labelKey: string
     descriptionKey: string
@@ -91,8 +91,10 @@ const PI_CAPABILITIES = {
     isPiCompatibleModel(provider, model) &&
     !isManagedCherryAiDefaultModel(model.providerId, model.apiModelId ?? parseUniqueModelId(model.id).modelId),
   transport: 'pi-agent',
-  builtinTools: () =>
-    PI_BUILTIN_TOOLS.map((tool) => ({
+  builtinTools: (platform?: string) =>
+    PI_BUILTIN_TOOLS.filter(
+      (tool) => platform === undefined || !('platform' in tool) || tool.platform === platform
+    ).map((tool) => ({
       id: tool.name,
       labelKey: `agent.tools.builtin.${tool.name}.label`,
       descriptionKey: `agent.tools.builtin.${tool.name}.description`,
@@ -132,6 +134,7 @@ export const AGENT_RUNTIME_CAPABILITIES = {
     ...PI_CAPABILITIES,
     labelKey: 'library.config.agent.field.runtime.option.pi_durable',
     labelFallback: 'Pi Durable',
-    builtinTools: () => PI_CAPABILITIES.builtinTools().filter((tool) => tool.id !== PI_TOOL_RECALL_TOOL_NAME)
+    builtinTools: (platform?: string) =>
+      PI_CAPABILITIES.builtinTools(platform).filter((tool) => tool.id !== PI_TOOL_RECALL_TOOL_NAME)
   }
 } as const satisfies Record<AgentType, AgentRuntimeCapabilities>

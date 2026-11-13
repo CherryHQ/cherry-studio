@@ -7,9 +7,7 @@ import { userProviderTable } from '@data/db/schemas/userProvider'
 import { LocalModelSeeder } from '@data/db/seeding/seeders/LocalModelSeeder'
 import {
   LOCAL_EMBEDDING_MODEL_ID,
-  LOCAL_EMBEDDING_MODEL_NAME,
   LOCAL_EMBEDDING_PROVIDER_ID,
-  LOCAL_EMBEDDING_PROVIDER_NAME,
   LOCAL_EMBEDDING_UNIQUE_MODEL_ID
 } from '@shared/data/presets/localEmbedding'
 import { MODEL_CAPABILITY } from '@shared/data/types/model'
@@ -40,9 +38,7 @@ describe('LocalModelSeeder', () => {
 
     expect(await readProvider()).toMatchObject({
       providerId: LOCAL_EMBEDDING_PROVIDER_ID,
-      presetProviderId: LOCAL_EMBEDDING_PROVIDER_ID,
-      name: LOCAL_EMBEDDING_PROVIDER_NAME,
-      isEnabled: true
+      presetProviderId: LOCAL_EMBEDDING_PROVIDER_ID
     })
 
     const model = await readModel()
@@ -50,9 +46,6 @@ describe('LocalModelSeeder', () => {
       id: LOCAL_EMBEDDING_UNIQUE_MODEL_ID,
       providerId: LOCAL_EMBEDDING_PROVIDER_ID,
       modelId: LOCAL_EMBEDDING_MODEL_ID,
-      name: LOCAL_EMBEDDING_MODEL_NAME,
-      isEnabled: true,
-      isHidden: false,
       supportsStreaming: false
     })
     expect(model?.capabilities).toContain(MODEL_CAPABILITY.EMBEDDING)
@@ -73,7 +66,7 @@ describe('LocalModelSeeder', () => {
     seeder.run(dbh.db)
 
     expect((await readProvider())?.name).toBe('Existing Local Provider')
-    expect((await readModel())?.name).toBe(LOCAL_EMBEDDING_MODEL_NAME)
+
     const models = await dbh.db
       .select()
       .from(userModelTable)

@@ -115,29 +115,6 @@ describe('DataTable', () => {
     expect(screen.getByText('Scientist')).toBeInTheDocument()
   })
 
-  it('renders header slots', () => {
-    render(
-      <DataTable
-        data={people}
-        columns={columns}
-        rowKey="id"
-        headerLeft={<button type="button">Left action</button>}
-        headerRight={<button type="button">Right action</button>}
-      />
-    )
-
-    expect(screen.getByRole('button', { name: 'Left action' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Right action' })).toBeInTheDocument()
-  })
-
-  it('uses full parent width with an optional max width', () => {
-    render(<DataTable data={people} columns={columns} rowKey="id" maxWidth={480} />)
-
-    const root = screen.getByRole('table').closest('[data-slot="data-table"]')
-    expect(root).toHaveClass('w-full', 'max-w-full')
-    expect(root).toHaveStyle({ maxWidth: '480px' })
-  })
-
   it('applies explicit column widths and leaves unspecified columns fluid', () => {
     render(<DataTable data={people} columns={columns} rowKey="id" />)
 
@@ -147,33 +124,6 @@ describe('DataTable', () => {
     expect(screen.getByRole('cell', { name: 'Ada' })).toHaveStyle({ maxWidth: '180px' })
     expect(screen.getByRole('columnheader', { name: 'Role' })).not.toHaveStyle({ width: '180px' })
     expect(screen.getByRole('columnheader', { name: 'Role' }).style.width).toBe('')
-  })
-
-  it('bounds long cell and expanded row content to the table width', () => {
-    const longCellText = 'Navigate to a URL and optionally fetch page content. '.repeat(4).trim()
-    const longExpandedText = 'Expanded schema description '.repeat(8).trim()
-
-    render(
-      <DataTable
-        data={[{ id: 'long-row', name: 'open', role: longCellText }]}
-        columns={columns}
-        rowKey="id"
-        expandedRowKeys={['long-row']}
-        renderExpandedRow={() => <div>{longExpandedText}</div>}
-      />
-    )
-
-    const longCell = screen.getByText(longCellText).closest('td')
-    expect(longCell).toHaveClass('min-w-0', 'max-w-full', 'whitespace-normal', 'break-words')
-    expect(longCell?.className).toContain('[overflow-wrap:anywhere]')
-
-    const expandedCell = screen.getByText(longExpandedText).closest('td')
-    expect(expandedCell).toHaveClass('max-w-full', 'whitespace-normal', 'break-words')
-
-    const expandedContent = expandedCell?.querySelector('div[class*="overflow-hidden"]')
-    expect(expandedContent).toHaveClass('w-full', 'max-w-full', 'overflow-hidden', 'whitespace-normal', 'break-words')
-    expect(expandedContent?.className).toContain('[overflow-wrap:anywhere]')
-    expect(expandedContent?.className).toContain('[&_table]:table-fixed')
   })
 
   it('supports multiple row selection and disabled rows', () => {

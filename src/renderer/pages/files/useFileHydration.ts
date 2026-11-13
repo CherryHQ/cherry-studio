@@ -67,16 +67,16 @@ export function useFileHydration(pages: readonly { items: FileEntry[] }[], fileT
       items.filter((entry) => !fileType || getFileTypeByExt(entry.ext ?? '') === fileType)
     )
     const ids = rows.flatMap((items) => chunk(items.map(({ id }) => id).sort(), FILE_IPC_BATCH_SIZE))
-    const images = rows.flatMap((items) =>
+    const internalIds = rows.flatMap((items) =>
       chunk(
         items
-          .filter((entry) => getFileTypeByExt(entry.ext ?? '') === 'image')
+          .filter((entry) => entry.origin === 'internal')
           .map(({ id }) => id)
           .sort(),
         FILE_IPC_BATCH_SIZE
       )
     )
-    return { ids, images }
+    return { ids, internalIds }
   }, [fileType, pages])
   const scope = fileType ?? ''
   const {
@@ -88,7 +88,7 @@ export function useFileHydration(pages: readonly { items: FileEntry[] }[], fileT
     records: physicalPathById,
     refresh: refreshPaths,
     cacheKey: pathsCacheKey
-  } = useFileBatch('file.batch_get_physical_paths', batches.images, scope)
+  } = useFileBatch('file.batch_get_physical_paths', batches.internalIds, scope)
   const {
     records: danglingStateById,
     refresh: refreshDangling,

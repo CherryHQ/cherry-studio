@@ -15,6 +15,7 @@ import {
   ScrollArea
 } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
+import { useExitPresence } from '@renderer/hooks/useExitPresence'
 import { ipcApi } from '@renderer/ipc'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import { toast } from '@renderer/services/toast'
@@ -40,6 +41,7 @@ export function SkillSubscriptionBar({
   const { t } = useTranslation()
   const [sources] = usePreference('ui.marketplace.skill_sources')
   const [adding, setAdding] = useState(false)
+  const addDialog = useExitPresence(active && adding ? true : null)
   const [removeId, setRemoveId] = useState<string | null>(null)
   const [removing, setRemoving] = useState(false)
   const addRef = useRef<HTMLButtonElement>(null)
@@ -129,8 +131,9 @@ export function SkillSubscriptionBar({
         <Settings2 className="size-4" />
         {t('plugins.manage_skills')}
       </Button>
-      {active && adding ? (
+      {addDialog.isPresent ? (
         <AddSubscriptionDialog
+          open={active && adding}
           onClose={() => setAdding(false)}
           onAdded={onSelect}
           onReturnFocus={() => addRef.current?.focus()}
@@ -171,10 +174,12 @@ export function SkillSubscriptionBar({
 }
 
 function AddSubscriptionDialog({
+  open,
   onClose,
   onAdded,
   onReturnFocus
 }: {
+  open: boolean
   onClose: () => void
   onAdded: (id: string) => void
   onReturnFocus: () => void
@@ -186,7 +191,7 @@ function AddSubscriptionDialog({
   const pending = useRef(false)
   return (
     <Dialog
-      open
+      open={open}
       onOpenChange={(open) => {
         if (!open && !pending.current) onClose()
       }}>

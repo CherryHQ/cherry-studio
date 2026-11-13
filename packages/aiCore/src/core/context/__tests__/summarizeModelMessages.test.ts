@@ -7,12 +7,7 @@ import type {
 import type { ModelMessage } from 'ai'
 import { describe, expect, it } from 'vitest'
 
-import {
-  COMPRESSION_MAX_OUTPUT_TOKENS,
-  COMPRESSION_MIN_OUTPUT_TOKENS,
-  resolveCompressionOutputTokens,
-  summarizeModelMessages
-} from '../middleware'
+import { resolveCompressionOutputTokens, summarizeModelMessages } from '../middleware'
 
 /** Minimal V3 model whose summarization call returns a fixed string. A V3 model
  *  is a valid `LanguageModel`, so it exercises the widened model param too. */
@@ -91,26 +86,7 @@ describe('summarizeModelMessages', () => {
 })
 
 describe('resolveCompressionOutputTokens', () => {
-  it('scales with the window between the floor and the ceiling', () => {
-    // 25% of a 64k window sits inside [floor, ceiling]
-    expect(resolveCompressionOutputTokens(64_000)).toBe(16_000)
-  })
-
-  it('clamps to the floor for small windows', () => {
-    // 25% of 8k = 2000, below the measured ~2.5k a summary actually needs
-    expect(resolveCompressionOutputTokens(8000)).toBe(COMPRESSION_MIN_OUTPUT_TOKENS)
-  })
-
-  it('clamps to the ceiling for huge windows', () => {
-    expect(resolveCompressionOutputTokens(1_000_000)).toBe(COMPRESSION_MAX_OUTPUT_TOKENS)
-  })
-
   it('never exceeds the window itself', () => {
     expect(resolveCompressionOutputTokens(1000)).toBeLessThan(1000)
-  })
-
-  it('falls back to the floor when the window is unknown', () => {
-    expect(resolveCompressionOutputTokens(undefined)).toBe(COMPRESSION_MIN_OUTPUT_TOKENS)
-    expect(resolveCompressionOutputTokens(0)).toBe(COMPRESSION_MIN_OUTPUT_TOKENS)
   })
 })

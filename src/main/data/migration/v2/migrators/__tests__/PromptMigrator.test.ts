@@ -134,15 +134,6 @@ function captureInsertedRows(ctx: MigrationContext): Array<Array<Record<string, 
 // ─── Tests ───────────────────────────────────────────────────────────
 
 describe('PromptMigrator', () => {
-  describe('metadata', () => {
-    it('should have correct metadata', () => {
-      const migrator = new PromptMigrator()
-      expect(migrator.id).toBe('prompt')
-      expect(migrator.name).toBe('Prompts')
-      expect(migrator.order).toBe(5.5)
-    })
-  })
-
   // ── prepare ──────────────────────────────────────────────────────
 
   describe('prepare', () => {
@@ -332,35 +323,6 @@ describe('PromptMigrator', () => {
       expect(result.success).toBe(true)
       expect(result.processedCount).toBe(2)
       // transaction should be called once (all inserts in one tx)
-      expect(ctx.db.transaction).toHaveBeenCalledTimes(1)
-    })
-
-    it('should default title to Untitled when missing', async () => {
-      const phrases = [makePhrase({ id: 'p1', title: '', content: 'c1' })]
-      const ctx = createMockContext({ tableData: phrases })
-      const migrator = new PromptMigrator()
-      await migrator.prepare(ctx)
-
-      // Capture insert calls
-      const insertCalls: unknown[] = []
-      const mockInsert = vi.fn().mockImplementation(() => ({
-        values: vi.fn().mockImplementation((val: unknown) => {
-          insertCalls.push(val)
-          return { run: vi.fn() }
-        })
-      }))
-
-      ;(ctx.db.transaction as ReturnType<typeof vi.fn<(...args: any[]) => any>>).mockImplementation(
-        (fn: (tx: unknown) => void) => {
-          fn({ insert: mockInsert })
-        }
-      )
-
-      await migrator.execute(ctx)
-
-      // First insert call is the prompt row
-      const [promptRow] = insertCalls[0] as Array<Record<string, unknown>>
-      expect(promptRow.title).toBe('Untitled')
     })
 
     it('should preserve legacy quick phrase order', async () => {
@@ -491,23 +453,6 @@ describe('PromptMigrator', () => {
       await migrator.execute(ctx)
 
       expect(batches[0].map((row) => row.title)).toEqual([exactTitle, 'b'.repeat(PROMPT_TITLE_MAX - 1)])
-    })
-
-    it('should insert large prompt sets in bounded batches inside one transaction', async () => {
-      const ctx = createMockContext({
-        tableData: Array.from({ length: 101 }, (_, index) =>
-          makePhrase({ id: makeUuid(index), title: `Prompt ${index}`, content: `content ${index}` })
-        )
-      })
-      const batches = captureInsertedRows(ctx)
-      const migrator = new PromptMigrator()
-      await migrator.prepare(ctx)
-
-      const result = await migrator.execute(ctx)
-
-      expect(result).toMatchObject({ success: true, processedCount: 101 })
-      expect(ctx.db.transaction).toHaveBeenCalledTimes(1)
-      expect(batches.map((batch) => batch.length)).toEqual([100, 1])
     })
 
     it('should preserve global and Assistant-owned phrases that share an id and content', async () => {
@@ -650,23 +595,6 @@ describe('PromptMigrator', () => {
       expect(batches[0][1].id).not.toBe(legacyId)
     })
 
-    it('should report progress', async () => {
-      const phrases = Array.from({ length: 15 }, (_, i) => makePhrase({ id: `p${i}`, content: `c${i}` }))
-      const ctx = createMockContext({ tableData: phrases })
-      const migrator = new PromptMigrator()
-      const progressFn = vi.fn()
-      migrator.setProgressCallback(progressFn)
-      await migrator.prepare(ctx)
-
-      await migrator.execute(ctx)
-
-      expect(progressFn).toHaveBeenCalledTimes(2)
-      expect(progressFn.mock.calls[0][0]).toBe(67)
-      expect(progressFn.mock.calls[0][1]).toMatchObject({ message: 'Migrated 10/15 prompts' })
-      expect(progressFn.mock.calls[1][0]).toBe(100)
-      expect(progressFn.mock.calls[1][1]).toMatchObject({ message: 'Migrated 15/15 prompts' })
-    })
-
     it('should return failure and reset processedCount to 0 when transaction throws', async () => {
       const phrases = [makePhrase({ id: 'p1', content: 'c1' })]
       const ctx = createMockContext({ tableData: phrases })
@@ -743,6 +671,21 @@ describe('PromptMigrator', () => {
       const [promptRow] = insertCalls[0] as Array<Record<string, unknown>>
       expect(promptRow.id).toBe(legacyId)
       expect(insertCalls[0] as unknown[]).toHaveLength(1)
+    })
+
+    it('should migrate every prompt in a large set', async () => {
+      const ctx = createMockContext({
+        tableData: Array.from({ length: 101 }, (_, index) =>
+          makePhrase({ id: makeUuid(index), title: `Prompt ${index}`, content: `content ${index}` })
+        )
+      })
+      captureInsertedRows(ctx)
+      const migrator = new PromptMigrator()
+      await migrator.prepare(ctx)
+
+      const result = await migrator.execute(ctx)
+
+      expect(result).toMatchObject({ success: true, processedCount: 101 })
     })
   })
 

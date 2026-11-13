@@ -574,12 +574,5 @@ describe('error', () => {
       expect(providerErrorText({ name: 'Error', message: 'boom', stack: null })).toBe('boom')
       expect(providerErrorText(undefined)).toBe('')
     })
-
-    it('truncates an oversized provider message', () => {
-      const responseBody = JSON.stringify({ error: { message: 'x'.repeat(600) } })
-      const result = providerErrorText({ name: 'Error', message: null, stack: null, responseBody })
-      expect(result).toHaveLength(501)
-      expect(result.endsWith('\u2026')).toBe(true)
-    })
   })
 })

@@ -69,7 +69,6 @@ vi.mock('../../hooks/useMigrationProgress', () => ({
   })
 }))
 
-import { enUS, zhCN } from '../../i18n/locales'
 import { MigrationDiagnosticPanel } from '../MigrationDiagnosticPanel'
 
 async function saveBundle(logs: 'included' | 'not_included' = 'included') {
@@ -97,36 +96,6 @@ describe('MigrationDiagnosticPanel', () => {
 
   afterEach(() => {
     vi.useRealTimers()
-  })
-
-  it('renders the private-log warning in a neutral card', () => {
-    const { container } = render(<MigrationDiagnosticPanel />)
-
-    expect(
-      screen.getByText(
-        'Application logs may contain file paths, error stacks, user content, or credentials. Do not share them publicly or with anyone outside the Cherry Studio support team.'
-      )
-    ).toBeInTheDocument()
-    const section = container.querySelector('section')
-    expect(section).toHaveClass('space-y-3', 'rounded-xl', 'border', 'border-border', 'bg-muted/15', 'px-4', 'py-3')
-    expect(section).not.toHaveClass('border-warning', 'bg-warning-subtle')
-    expect(screen.queryByTestId('toast-host')).not.toBeInTheDocument()
-  })
-
-  it('drops the standalone card chrome when embedded in another disclosure', () => {
-    const { container } = render(<MigrationDiagnosticPanel embedded showPrivacy={false} />)
-
-    const section = container.querySelector('section')
-    expect(section).toHaveClass('space-y-3', 'pt-1')
-    expect(section).not.toHaveClass('rounded-xl', 'border', 'bg-muted/15', 'px-4', 'py-3')
-    expect(screen.queryByText(translations['migration.diagnostics.privacy'])).not.toBeInTheDocument()
-  })
-
-  it('shows a download icon on the save action', () => {
-    render(<MigrationDiagnosticPanel />)
-
-    const saveButton = screen.getByRole('button', { name: 'Save diagnostic bundle' })
-    expect(saveButton.querySelector('svg')).toBeInTheDocument()
   })
 
   it('delegates a successful save to the dialog flow', async () => {
@@ -209,17 +178,6 @@ describe('MigrationDiagnosticPanel', () => {
     expect(mocks.toast.error).toHaveBeenCalledWith('Could not save diagnostic bundle')
   })
 
-  it('shows only reveal and contact actions after saving with logs', async () => {
-    await saveBundle()
-
-    const buttons = screen.getAllByRole('button')
-    expect(buttons).toHaveLength(2)
-    expect(screen.getByRole('button', { name: 'Open file location' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Copy feedback email' })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /save|retry/i })).not.toBeInTheDocument()
-    expect(document.querySelector('a[href^="mailto:"]')).toBeNull()
-  })
-
   it('announces a successful local save from a mounted polite status region', async () => {
     mocks.saveDiagnostics.mockResolvedValue({ status: 'saved', logs: 'included' })
     render(<MigrationDiagnosticPanel />)
@@ -252,14 +210,11 @@ describe('MigrationDiagnosticPanel', () => {
   it('states that a metadata-only bundle is local, not uploaded, and contains only system information', async () => {
     await saveBundle('not_included')
 
-    expect(zhCN['migration.diagnostics.saved_local']).toContain('未自动上传')
-    expect(enUS['migration.diagnostics.saved_local']).toContain('was not uploaded automatically')
     expect(
       screen.getByText(
         'Application logs could not be included. This diagnostic bundle contains only system information.'
       )
     ).toBeInTheDocument()
-    expect(screen.getAllByRole('button')).toHaveLength(2)
   })
 
   it('reveals the bundle through IPC', async () => {

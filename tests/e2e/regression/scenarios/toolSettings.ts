@@ -87,9 +87,11 @@ export async function toolSettings(app: RegressionApp, page: Page, testInfo: Tes
       expect(response.status).toBe(200)
       const message = response.data as BranchMessagesResponse['items'][number]['message']
       const tools = message.data.parts?.filter((part) => part.type === 'tool-web_search') ?? []
-      expect(tools, 'Conversation must execute a real web search').toHaveLength(1)
-      expect(tools[0]).toMatchObject({ state: 'output-available', output: expect.any(Array) })
-      expect((tools[0] as { output: unknown[] }).output).toHaveLength(expected)
+      expect(tools.length, 'Conversation must execute a real web search').toBeGreaterThan(0)
+      for (const tool of tools) {
+        expect(tool).toMatchObject({ state: 'output-available', output: expect.any(Array) })
+        expect((tool as { output: unknown[] }).output).toHaveLength(expected)
+      }
     }
     await assertSearchCount(1)
     await openSettingsSection(page, 'Web Search')

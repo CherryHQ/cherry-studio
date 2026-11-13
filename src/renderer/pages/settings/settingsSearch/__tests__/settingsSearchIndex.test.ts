@@ -115,6 +115,20 @@ describe('settings search index', () => {
   })
 
   it.each([
+    { locale: enUS, language: 'en-US', query: 'Interface language' },
+    { locale: zhCN, language: 'zh-CN', query: '界面语言' }
+  ])('finds the interface language on General settings for $language', ({ locale, query }) => {
+    const t = (key: string) => String(lookup(locale, key) ?? key)
+    const results = rankEntries(query, settingsSearchSections, t)
+    expect(results).toContainEqual(
+      expect.objectContaining({ route: '/settings/general', focusId: 'setting-general-display-language' })
+    )
+    expect(results).not.toContainEqual(
+      expect.objectContaining({ route: '/settings/appearance', focusId: 'setting-appearance-display-language' })
+    )
+  })
+
+  it.each([
     { locale: enUS, language: 'en-US' },
     { locale: zhCN, language: 'zh-CN' }
   ])('finds the browser start page row by its translated title in $language', ({ locale }) => {

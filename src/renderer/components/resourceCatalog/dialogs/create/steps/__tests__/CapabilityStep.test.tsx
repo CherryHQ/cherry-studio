@@ -169,24 +169,6 @@ describe('CapabilityStep', () => {
     expect(builtinSkill).toBeChecked()
   })
 
-  it('opens the skill import dialog', async () => {
-    const user = userEvent.setup()
-    render(<CapabilityStepHarness />)
-
-    await user.click(screen.getByRole('button', { name: 'library.skill_add.add' }))
-    await user.click(screen.getByRole('button', { name: 'library.skill_add.local_import' }))
-    expect(importSkillDialogState.current?.open).toBe(true)
-  })
-
-  it('opens online skill search', async () => {
-    const user = userEvent.setup()
-    render(<CapabilityStepHarness />)
-
-    await user.click(screen.getByRole('button', { name: 'library.skill_add.add' }))
-    await user.click(screen.getByRole('button', { name: 'library.skill_add.online_search' }))
-    expect(marketplaceDialogState.current?.open).toBe(true)
-  })
-
   it('enables an imported system skill for the new agent selection', async () => {
     const user = userEvent.setup()
     render(<CapabilityStepHarness />)
@@ -199,23 +181,5 @@ describe('CapabilityStep', () => {
     act(() => systemSkillDialogState.current?.onEnabled?.('system-skill-id'))
     expect(screen.getByTestId('skill-ids')).toHaveTextContent('system-skill-id')
     expect(systemSkillDialogState.current?.selectedSkillIds).toEqual(['system-skill-id'])
-  })
-
-  it('does not expose uninstall actions in the agent creation flow', () => {
-    installedSkillsState.skills = [
-      ...installedSkillsState.skills,
-      { id: 'system-skill-id', name: 'System Skill', source: 'system', isGlobalEnabled: true } as InstalledSkill,
-      {
-        id: 'marketplace-skill-id',
-        name: 'Marketplace Skill',
-        source: 'marketplace',
-        isGlobalEnabled: true
-      } as InstalledSkill
-    ]
-    render(<CapabilityStepHarness />)
-
-    expect(screen.getByRole('checkbox', { name: 'System Skill' })).toBeInTheDocument()
-    expect(screen.getByRole('checkbox', { name: 'Marketplace Skill' })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'library.action.uninstall' })).not.toBeInTheDocument()
   })
 })

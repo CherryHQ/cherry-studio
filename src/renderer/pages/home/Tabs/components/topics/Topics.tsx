@@ -410,6 +410,7 @@ export function Topics({
         assistantIconType,
         {
           emoji: assistant.emoji,
+          avatarSrc: assistant.avatarSrc,
           modelId: assistant.modelId,
           modelName: assistant.modelName
         },
@@ -1252,6 +1253,7 @@ export function Topics({
 
       return renderAssistantEntityIcon(assistantIconType, {
         emoji: assistant.emoji,
+        avatarSrc: assistant.avatarSrc,
         modelId: assistant.modelId ?? defaultModelId,
         modelName: assistant.modelName
       })

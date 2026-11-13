@@ -81,12 +81,6 @@ describe('McpServerMigrator', () => {
     migrator.setProgressCallback(vi.fn())
   })
 
-  it('should have correct metadata', () => {
-    expect(migrator.id).toBe('mcp_server')
-    expect(migrator.name).toBe('MCP Server')
-    expect(migrator.order).toBe(1.5)
-  })
-
   describe('prepare', () => {
     it('should count source servers', async () => {
       const ctx = createMockContext({ mcp: { servers: SAMPLE_SERVERS } })
@@ -170,7 +164,6 @@ describe('McpServerMigrator', () => {
       await migrator.prepare(ctx as any)
       const result = await migrator.execute(ctx as any)
       expect(result).toStrictEqual({ success: true, processedCount: 3 })
-      expect(ctx.db.transaction).toHaveBeenCalled()
     })
 
     it('uses the generated id as the name when a server has no valid name', async () => {

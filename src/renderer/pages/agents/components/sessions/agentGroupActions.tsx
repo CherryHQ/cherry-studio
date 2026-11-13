@@ -100,6 +100,7 @@ agentGroupActionRegistry.registerAction(
     commandId: 'agent-group.toggle-pin',
     label: ({ pinned, t }) => (pinned ? t('agent.unpin.title') : t('agent.pin.title')),
     icon: ({ pinned }) => (pinned ? <PinOff size={14} /> : <Pin size={14} />),
+    group: 'pin',
     order: 20
   })
 )

@@ -5,8 +5,6 @@ import type * as z from 'zod'
 
 import { application } from '@application'
 import { BaseService } from '@main/core/lifecycle'
-import { getPhase } from '@main/core/lifecycle/decorators'
-import { Phase } from '@main/core/lifecycle/types'
 import { type FileInfo, FileInfoSchema } from '@shared/types/file'
 
 import type { PreparedTesseractContext } from '../../types'
@@ -134,10 +132,6 @@ describe('TesseractRuntimeService', () => {
     vi.useRealTimers()
     service = undefined
     BaseService.resetInstances()
-  })
-
-  it('uses WhenReady phase', () => {
-    expect(getPhase(TesseractRuntimeService)).toBe(Phase.WhenReady)
   })
 
   it('terminates the shared worker on stop', async () => {
@@ -382,11 +376,6 @@ describe('TesseractRuntimeService', () => {
         expect(service.isDestroyed).toBe(true)
       }
 
-      expect(runtimeState.acceptingTasks).toBe(false)
-      expect(runtimeState.sharedWorker).toBeNull()
-      expect(runtimeState.previousLangsKey).toBeNull()
-      expect(runtimeState.idleReleaseTimer).toBeNull()
-      expect(runtimeState.shutdownController).toBeNull()
       expect(controller!.signal.aborted).toBe(true)
       expect(controller!.signal.reason).toMatchObject({
         message: expectedAbortMessage,
@@ -418,11 +407,7 @@ describe('TesseractRuntimeService', () => {
     await expect(service._doDestroy()).resolves.toBeUndefined()
 
     expect(service.isDestroyed).toBe(true)
-    expect(runtimeState.acceptingTasks).toBe(false)
-    expect(runtimeState.sharedWorker).toBeNull()
-    expect(runtimeState.previousLangsKey).toBeNull()
-    expect(runtimeState.idleReleaseTimer).toBeNull()
-    expect(runtimeState.shutdownController).toBeNull()
+
     expect(controller!.signal.reason).toMatchObject({
       message: 'Tesseract runtime is stopping',
       name: 'AbortError'

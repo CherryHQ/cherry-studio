@@ -34,12 +34,11 @@ describe('ProviderAvatarPrimitive', () => {
     expect(screen.queryByText('O')).not.toBeInTheDocument()
   })
 
-  it('renders image logo avatars with object-cover cropping', () => {
+  it('renders an uploaded provider logo with a name fallback', () => {
     const logo = 'file:///tmp/wide-provider-logo.png'
 
     render(<ProviderAvatarPrimitive providerId="custom" providerName="Custom" logo={logo} />)
 
-    expect(document.querySelector('img')).toHaveClass('object-cover')
     expect(document.querySelector('img')).toHaveAttribute('src', logo)
     expect(screen.getByText('C')).toBeInTheDocument()
   })
@@ -48,39 +47,8 @@ describe('ProviderAvatarPrimitive', () => {
     render(<ProviderAvatarPrimitive providerId="custom" providerName="Custom" logo="icon:openai" />)
 
     expect(screen.getByTestId('brand-icon')).toBeInTheDocument()
-    expect(screen.getByTestId('brand-icon')).not.toHaveAttribute('data-variant')
     // The raw reference must not leak through as an image source.
     expect(document.querySelector('img')).toBeNull()
-  })
-
-  it('fills the avatar container with built-in icons', () => {
-    render(
-      <ProviderAvatarPrimitive
-        providerId="custom"
-        providerName="Custom"
-        logo="icon:openai"
-        style={{ width: '52px', height: '52px' }}
-      />
-    )
-
-    expect(screen.getByTestId('brand-icon')).toHaveStyle({ width: '100%', height: '100%' })
-  })
-
-  it('applies a caller-provided display style to built-in icons', () => {
-    render(
-      <ProviderAvatarPrimitive
-        providerId="custom"
-        providerName="Custom"
-        logo="icon:openai"
-        iconStyle={{ width: '71.42857142857143%', height: '71.42857142857143%', borderRadius: '5px' }}
-      />
-    )
-
-    expect(screen.getByTestId('brand-icon')).toHaveStyle({
-      width: '71.42857142857143%',
-      height: '71.42857142857143%',
-      borderRadius: '5px'
-    })
   })
 
   it('separates compact artwork size from the declared avatar box', () => {

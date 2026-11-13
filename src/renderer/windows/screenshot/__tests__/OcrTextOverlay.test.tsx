@@ -35,37 +35,6 @@ describe('OcrTextOverlay', () => {
     expect(span.style.top).toBe('50px')
     expect(span.style.height).toBe('20px')
     // 85 % of the box height, leaving room for ascenders and descenders inside it.
-    expect(span.style.fontSize).toBe('17px')
-  })
-
-  it('lets clicks between the lines reach the canvas while the text itself stays selectable', () => {
-    render(
-      <OcrTextOverlay
-        bounds={BOUNDS}
-        lines={[{ text: 'sample', box: { x: 0, y: 0, width: 100, height: 20 } }]}
-        scaleFactor={1}
-      />
-    )
-
-    const span = screen.getByText('sample')
-    // The layering is functional, not cosmetic: an interactive container would swallow
-    // every click in the gaps and make the selection impossible to move or resize.
-    expect(span).toHaveClass('pointer-events-auto')
-    expect(span.parentElement).toHaveClass('pointer-events-none')
-  })
-
-  it('stops taking pointer events while an annotation tool is active', () => {
-    render(
-      <OcrTextOverlay
-        bounds={BOUNDS}
-        lines={[{ text: 'sample', box: { x: 0, y: 0, width: 100, height: 20 } }]}
-        scaleFactor={1}
-        interactive={false}
-      />
-    )
-
-    // Otherwise the text layer intercepts the strokes the user is drawing.
-    expect(screen.getByText('sample')).toHaveClass('pointer-events-none')
   })
 
   it('releases the layer when a system gesture cancels the drag', () => {

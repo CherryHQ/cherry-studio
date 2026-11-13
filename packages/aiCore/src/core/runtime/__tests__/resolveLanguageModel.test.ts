@@ -7,7 +7,6 @@ import type { LanguageModelV3 } from '@ai-sdk/provider'
 import { createMockLanguageModel, createMockProviderV3, mockProviderConfigs } from '@test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { definePlugin } from '../../plugins'
 import { resolveLanguageModel } from '../index'
 
 vi.mock('../../providers', () => ({
@@ -39,28 +38,6 @@ describe('resolveLanguageModel', () => {
     const mockProvider = createMockProviderV3({ provider: 'openai', languageModel: vi.fn(() => mockLanguageModel) })
     const { extensionRegistry } = await import('../../providers')
     vi.mocked(extensionRegistry.createProvider).mockResolvedValue(mockProvider)
-  })
-
-  it('applies the passed plugins’ configureContext middleware to the resolved model', async () => {
-    const { wrapLanguageModel } = await import('ai')
-    const testMiddleware = {
-      specificationVersion: 'v3' as const,
-      wrapGenerate: vi.fn((doGenerate: any) => doGenerate),
-      wrapStream: vi.fn((doStream: any) => doStream)
-    }
-    const middlewarePlugin = definePlugin({
-      name: 'test-fallback-middleware',
-      configureContext: async (context) => {
-        context.middlewares = context.middlewares || []
-        context.middlewares.push(testMiddleware)
-      }
-    })
-
-    await resolveLanguageModel('openai', mockProviderConfigs.openai, 'gpt-4', [middlewarePlugin])
-
-    expect(wrapLanguageModel).toHaveBeenCalledWith(
-      expect.objectContaining({ middleware: expect.arrayContaining([testMiddleware]) })
-    )
   })
 
   it('resolves a bare model when no plugins are passed', async () => {

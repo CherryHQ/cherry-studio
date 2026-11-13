@@ -1,6 +1,7 @@
 import * as z from 'zod'
 
 import { defineRoute } from '../define'
+import { ImageBytesSchema } from './entityImage'
 
 /**
  * Agent Filesystem IPC — read-only access to the identity/memory files that live
@@ -39,6 +40,17 @@ const AgentIdInputSchema = z.strictObject({ agentId: z.string().min(1).max(200) 
 export const AGENT_MEMORY_MAX_WRITE_CHARS = 1_000_000
 
 export const agentRequestSchemas = {
+  'agent.set_avatar': defineRoute({
+    input: z.strictObject({
+      agentId: z.string().min(1).max(200),
+      avatar: z.discriminatedUnion('kind', [
+        z.strictObject({ kind: z.literal('image'), data: ImageBytesSchema }),
+        z.strictObject({ kind: z.literal('emoji'), emoji: z.emoji() }),
+        z.strictObject({ kind: z.literal('default') })
+      ])
+    }),
+    output: z.void()
+  }),
   'agent.memory.read': defineRoute({
     input: AgentIdInputSchema,
     output: AgentMemorySnapshotSchema

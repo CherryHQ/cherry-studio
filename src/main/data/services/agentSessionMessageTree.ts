@@ -49,7 +49,8 @@ export function agentSessionDescendantIds(sessionId: string, messageId: string) 
   return sql`(with recursive descendants(id) as (
     select id from agent_session_message where session_id = ${sessionId} and id = ${messageId}
     union
-    select m.id from agent_session_message m join descendants d on m.parent_id = d.id where m.session_id = ${sessionId}
+    -- CROSS JOIN pins descendants as the outer loop so each step probes parent_idx instead of rescanning the session.
+    select m.id from descendants d cross join agent_session_message m on m.parent_id = d.id and m.session_id = ${sessionId}
   ) select id from descendants)`
 }
 

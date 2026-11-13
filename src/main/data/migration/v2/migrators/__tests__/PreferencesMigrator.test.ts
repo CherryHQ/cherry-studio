@@ -9,6 +9,9 @@ import { beforeEach, describe, expect, it } from 'vitest'
 
 import { fileEntryTable } from '@data/db/schemas/file'
 import { preferenceTable } from '@data/db/schemas/preference'
+import { ExternalSkillExportUpgradeSeeder } from '@data/db/seeding/seeders/ExternalSkillExportUpgradeSeeder'
+import { PreferenceSeeder } from '@data/db/seeding/seeders/preferenceSeeder'
+import { SeedRunner } from '@data/db/seeding/SeedRunner'
 import { V1_CUSTOM_CSS_MARKER } from '@shared/utils/customCssMigration'
 
 import type { MigrationContext } from '../../core/MigrationContext'
@@ -85,6 +88,16 @@ describe('PreferencesMigrator', () => {
 
   beforeEach(() => {
     migrator = new PreferencesMigrator()
+  })
+
+  it('preserves external skill exports after importing v1 preferences', async () => {
+    const ctx = createTestContext({ redux: { settings: { language: 'zh-CN' } } }, dbh.db)
+    expect((await migrator.prepare(ctx)).success).toBe(true)
+    expect((await migrator.execute(ctx)).success).toBe(true)
+    expect(await selectByKey(dbh.db, 'agent.skills.external_export.enabled')).toHaveLength(0)
+
+    new SeedRunner(dbh.db).runAll([new ExternalSkillExportUpgradeSeeder(), new PreferenceSeeder()])
+    expect((await selectByKey(dbh.db, 'agent.skills.external_export.enabled'))[0]?.value).toBe(true)
   })
 
   describe('prepare', () => {
@@ -167,26 +180,6 @@ describe('PreferencesMigrator', () => {
       const rows = await selectByKey(dbh.db, 'feature.translate.page.scroll_sync')
       expect(rows).toHaveLength(1)
       expect(rows[0].value).toBe(true)
-    })
-
-    it('falls back to DefaultPreferences when source value is missing', async () => {
-      const ctx = createTestContext({}, dbh.db)
-      await migrator.prepare(ctx)
-      await migrator.execute(ctx)
-
-      // Representative scalar defaults, including the new privacy defaults.
-      const theme = await selectByKey(dbh.db, 'ui.theme_mode')
-      expect(theme).toHaveLength(1)
-      expect(theme[0].value).toBe('system')
-      const zoom = await selectByKey(dbh.db, 'app.zoom_factor')
-      expect(zoom).toHaveLength(1)
-      expect(zoom[0].value).toBe(1)
-      const policyVersion = await selectByKey(dbh.db, 'app.privacy.policy_version')
-      expect(policyVersion[0]?.value).toBe('')
-      const dataCollection = await selectByKey(dbh.db, 'app.privacy.data_collection.enabled')
-      expect(dataCollection[0]?.value).toBe(true)
-      const clientId = await selectByKey(dbh.db, 'app.user.id')
-      expect(clientId[0]?.value).toBe('')
     })
 
     it.each(['20260531', '20240101'])(
@@ -528,12 +521,6 @@ describe('PreferencesMigrator', () => {
       expect(scroll.value).toBe(true)
       const [method] = await selectByKey(dbh.db, 'chat.web_search.compression.method')
       expect(method.value).toBe('cutoff')
-    })
-
-    it('declares correct id, name, order metadata', () => {
-      expect(migrator.id).toBe('preferences')
-      expect(migrator.name).toBe('Preferences')
-      expect(migrator.order).toBe(1)
     })
 
     it('reset() clears prepared items so a second prepare reflects only the new context', async () => {

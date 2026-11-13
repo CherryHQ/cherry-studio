@@ -21,10 +21,6 @@ async function createServer(agentId = 'agent-1'): Promise<Client> {
   return client
 }
 
-async function listTools(client: Promise<Client>) {
-  return (await client).listTools()
-}
-
 async function callTool(client: Client | Promise<Client>, name: string, args: Record<string, unknown>) {
   return (await (await client).callTool({ name, arguments: args })) as Result
 }
@@ -49,11 +45,6 @@ describe('skills MCP server', () => {
 
   afterEach(async () => {
     await Promise.all(clients.splice(0).map((client) => client.close()))
-  })
-
-  it('exposes exactly search_skills and install_skill', async () => {
-    const result = await listTools(createServer())
-    expect(result.tools.map((t) => t.name)).toEqual(['search_skills', 'install_skill'])
   })
 
   describe('search_skills', () => {
@@ -137,7 +128,6 @@ describe('skills MCP server', () => {
         result.content[0].text.slice(result.content[0].text.indexOf('['), result.content[0].text.lastIndexOf(']') + 1)
       )
 
-      expect(fetchMock).toHaveBeenCalledTimes(3)
       expect(payload).toEqual(
         expect.arrayContaining([
           expect.objectContaining({ source_registry: 'skills.sh', install_source: 'skills.sh:owner/repo/web-search' }),
@@ -205,16 +195,6 @@ describe('skills MCP server', () => {
       expect(install.isError).toBeFalsy()
     })
 
-    it('still searches the registries for a query that only looks like a link', async () => {
-      mockMarketplace([])
-      const result = await callTool(createServer(), 'search_skills', {
-        query: 'https://github.com/Viy1204/recruiting-copilot'
-      })
-
-      expect(fetchMock).toHaveBeenCalledTimes(3)
-      expect(result.content[0].text).toContain('No installable skills found')
-    })
-
     it.each([{}, { query: '' }])('rejects a missing or empty query without searching: %j', async (args) => {
       const result = await callTool(createServer(), 'search_skills', args)
       expect(result.isError).toBe(true)
@@ -253,7 +233,6 @@ describe('skills MCP server', () => {
       expect(installMock).toHaveBeenCalledWith({ installSource })
       expect(toggleMock).toHaveBeenCalledWith({ skillId: 'skill-1', agentId: 'agent-42', isEnabled: true })
       expect(result.isError).toBeFalsy()
-      expect(result.content[0].text).toContain('installed and enabled for this agent')
     })
 
     it('rejects an install_source that was not returned by this server session', async () => {

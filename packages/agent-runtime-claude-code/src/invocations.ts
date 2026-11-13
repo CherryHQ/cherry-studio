@@ -1,5 +1,6 @@
 import type { SDKAssistantMessage, SDKMessage, SDKPartialAssistantMessage } from '@anthropic-ai/claude-agent-sdk'
 
+import { isSyntheticClaudeModel } from './synthetic'
 import type { ClaudeInvocation } from './types'
 
 type InvocationUsage = NonNullable<ClaudeInvocation['usage']>
@@ -142,7 +143,7 @@ export class ClaudeInvocations {
   }
 
   private captureAssistantInvocation(message: SDKAssistantMessage): void {
-    if (this.committedInvocationIds.has(message.message.id)) return
+    if (isSyntheticClaudeModel(message.message.model) || this.committedInvocationIds.has(message.message.id)) return
 
     const next = pendingInvocationFromAssistant(message, '')
     this.captureInvocationForLane(this.invocationLane(message.parent_tool_use_id), next)
@@ -155,6 +156,7 @@ export class ClaudeInvocations {
     const lane = this.invocationLane(message.parent_tool_use_id)
     if (message.event.type === 'message_start') {
       const sdkMessage = message.event.message
+      if (isSyntheticClaudeModel(sdkMessage.model)) return
       const startUsage = invocationUsage(sdkMessage.usage)
       const ttftMs = finiteNonnegativeDuration(message.ttft_ms)
       this.captureInvocationForLane(lane, {

@@ -61,7 +61,14 @@ it('constructs tray actions from real stopped, active and unconfirmed controls',
     }
   } as unknown as ComputerUseClient
   vi.mocked(ComputerUse.start).mockResolvedValue(client)
-  const service = new ComputerUseService()
+  const service = new (class extends ComputerUseService {
+    override createTask(ownerId: string, label: string, signal?: AbortSignal) {
+      return super.createTask(ownerId, label, signal, {
+        current: () => ({ sessionId: ownerId, topicId: ownerId, bypass: true }),
+        waiting: () => {}
+      })
+    }
+  })()
   MockApplicationUtils.setService('ComputerUseService', service)
   const tray = new TrayService()
   const menu = () => {
