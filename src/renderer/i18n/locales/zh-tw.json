@@ -4769,6 +4769,7 @@
   "settings.doctor.checks.permission-screen-capture.title": "螢幕錄製權限",
   "settings.doctor.checks.provider-api-key-present.detail.missing": "{{provider}} 沒有 API 金鑰。",
   "settings.doctor.checks.provider-api-key-present.detail.provider_unavailable": "{{provider}} 無法使用。",
+  "settings.doctor.checks.provider-api-key-present.detail.signed_out": "請登入 Cherry 帳戶以使用 Cherry Cloud 模型。",
   "settings.doctor.checks.provider-api-key-present.title": "模型服務 API 金鑰",
   "settings.doctor.checks.provider-cherry-account.detail.signed_out": "尚未登入 Cherry 帳戶。",
   "settings.doctor.checks.provider-cherry-account.title": "Cherry 帳戶",

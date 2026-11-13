@@ -129,18 +129,42 @@ describe('provider-api-key-present', () => {
     await expect(providerApiKey.run(global)).resolves.toEqual({ status: 'pass' })
   })
 
-  it('passes for managed Cherry providers whose credentials come from the app', async () => {
+  it('passes for CherryAI, whose key is issued by the app', async () => {
     services.getByProviderId.mockReturnValue(
-      provider({
-        id: 'cherryai-subscription',
-        name: 'CherryAI',
-        authMethods: undefined,
-        authOptional: undefined,
-        apiKeys: []
-      })
+      provider({ id: 'cherryai', name: 'CherryAI', authMethods: undefined, authOptional: undefined, apiKeys: [] })
     )
-    await expect(providerApiKey.run({ ...ctx, subject: { providerId: 'cherryai-subscription' } })).resolves.toEqual({
+    services.getCherryCloudStatus.mockResolvedValue({ phase: 'signed-out', accountId: null, displayName: null })
+    await expect(providerApiKey.run({ ...ctx, subject: { providerId: 'cherryai' } })).resolves.toEqual({
       status: 'pass'
+    })
+  })
+
+  describe('for Cherry Cloud, which authenticates with the account session', () => {
+    const cloudSubject = { ...ctx, subject: { providerId: 'cherryai-subscription' } }
+    beforeEach(() => {
+      services.getByProviderId.mockReturnValue(
+        provider({
+          id: 'cherryai-subscription',
+          name: 'CherryAI',
+          authMethods: undefined,
+          authOptional: undefined,
+          apiKeys: []
+        })
+      )
+    })
+
+    it('passes while signed in without a user key', async () => {
+      await expect(providerApiKey.run(cloudSubject)).resolves.toEqual({ status: 'pass' })
+    })
+
+    it.each(['cn', 'global'] as const)('fails as signed out in the %s edition', async (edition) => {
+      services.edition = edition
+      services.getCherryCloudStatus.mockResolvedValue({ phase: 'signed-out', accountId: null, displayName: null })
+      await expect(providerApiKey.run(cloudSubject)).resolves.toMatchObject({
+        status: 'fail',
+        attribution: 'user-fixable',
+        detail: { variant: 'signed_out' }
+      })
     })
   })
 
