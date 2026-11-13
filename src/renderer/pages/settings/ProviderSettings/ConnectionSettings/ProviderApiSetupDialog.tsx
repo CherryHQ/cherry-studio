@@ -196,7 +196,11 @@ export default function ProviderApiSetupDialog({ providerId, initialStep, onClos
         ...storedApiKeyEntries.map((entry) => entry.key)
       ])
       const summary = details.i18nKey ? t(details.i18nKey) : canSafelyShowSummary ? details.summary : ''
-      return { kind, message: summary ? `${fallback} ${summary}` : fallback, diagnostic: details.diagnostic }
+      return {
+        kind,
+        message: summary ? `${fallback} ${summary}` : fallback,
+        diagnostic: canSafelyShowSummary ? details.diagnostic : undefined
+      }
     },
     [apiKey, apiKeysData?.keys, storedApiKeyEntries, t]
   )
