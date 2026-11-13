@@ -42,6 +42,7 @@ import type { CompactionSink } from '@shared/ai/compaction'
 import type { AiToolApprovalRespondRequest, AiToolApprovalRespondResponse } from '@shared/ai/transport'
 import { isDataApiNotFoundError } from '@shared/data/api/errors'
 import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
+import { isManagedCherryCloudModel } from '@shared/data/presets/cherryai'
 import { type Assistant } from '@shared/data/types/assistant'
 import type { CleanupPolicy, FileEntry } from '@shared/data/types/file'
 import type { ImageGenerationMode, ListedModels } from '@shared/data/types/model'
@@ -437,6 +438,13 @@ export class AiService extends BaseService {
     // would otherwise overwrite (see installProviderUserAgentInterceptor).
     this.registerDisposable(installProviderUserAgentInterceptor())
     application.get('JobManager').registerHandler('image-generation.generate', imageGenerationJobHandler)
+    this.registerDisposable(
+      application.get('PreferenceService').subscribeChange('agent.skills.external_export.enabled', () => {
+        void skillService.syncExternalExports().catch((error) => {
+          logger.warn('Failed to sync external skill exports after preference change', { error })
+        })
+      })
+    )
     // Install built-in skills, then heal the CLAUDE_CONFIG_DIR/skills mirror once at
     // startup — chained (not two independent fire-and-forgets) so the mirror reconcile
     // always runs after builtin skills have synced to agent_global_skill this boot,
@@ -1432,7 +1440,8 @@ export class AiService extends BaseService {
       },
       modelId: resolveWireModelId(model, endpoint.endpointType),
       baseUrl: routeToEndpoint(endpoint.baseUrl).baseURL,
-      supportsModelListing: provider.modelListSource !== 'registry',
+      // Cherry Cloud has no model-list API; availability is the account's entitlement set.
+      supportsModelListing: provider.modelListSource !== 'registry' && !isManagedCherryCloudModel(provider.id),
       isExternalCli: isExternalCliProvider(provider),
       supportsChat: chatPrimary || !isNonChatModel(model),
       listModels: async (signal: AbortSignal) => {

@@ -272,6 +272,8 @@ export interface MessageRenderConfig {
   codeFancyBlock: boolean
   thoughtAutoCollapse: boolean
   collapseCompletedToolHistory: boolean
+  /** Open tool groups and the finished process by default, so each step reads without a click. */
+  expandToolSteps: boolean
   keepIntermediateAssistantText: boolean
   mathEnableSingleDollar: boolean
   showMessageOutline: boolean
@@ -292,6 +294,7 @@ export const defaultMessageRenderConfig: MessageRenderConfig = {
   codeFancyBlock: true,
   thoughtAutoCollapse: true,
   collapseCompletedToolHistory: true,
+  expandToolSteps: false,
   keepIntermediateAssistantText: false,
   mathEnableSingleDollar: false,
   showMessageOutline: false,

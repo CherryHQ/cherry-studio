@@ -440,3 +440,37 @@ it('retains an agent OCR notice across native message refresh and reload', () =>
     notice
   ])
 })
+
+// The approval request can arrive before its tool source; keep enough input to render the card.
+it('builds an approval card from the approval input when no tool source was projected', () => {
+  const f = fixture()
+  const id = f.reply()
+  const questions = [
+    {
+      question: 'Which database?',
+      header: 'Database',
+      options: [{ label: 'SQLite' }, { label: 'Postgres' }],
+      multiSelect: false
+    }
+  ]
+  f.projection.control(id, {
+    type: 'tool-input-available',
+    toolCallId: 'ask-1',
+    toolName: 'AskUserQuestion',
+    input: { questions },
+    providerExecuted: true,
+    dynamic: true
+  })
+  f.projection.control(id, { type: 'tool-approval-request', approvalId: 'approval-1', toolCallId: 'ask-1' })
+
+  expect(f.projection.parts(id)).toEqual([
+    expect.objectContaining({
+      type: 'dynamic-tool',
+      toolName: 'AskUserQuestion',
+      toolCallId: 'ask-1',
+      state: 'approval-requested',
+      input: { questions },
+      approval: { id: 'approval-1' }
+    })
+  ])
+})

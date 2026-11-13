@@ -1,8 +1,8 @@
 {
   "name": "@cherrystudio/file-preview",
-  "version": "0.2.6",
+  "version": "0.2.7",
   "description": "Portable read-only document preview for Cherry Studio",
-  "license": "AGPL-3.0-only",
+  "license": "MIT",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/CherryHQ/cherry-studio.git",

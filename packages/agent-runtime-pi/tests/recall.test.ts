@@ -24,18 +24,17 @@ async function createRecallSession(options: TestSessionOptions) {
       offloadThreshold: 20_000
     }
   })
-  host.giveSummary('Summary: CI was set up.')
   const errors: unknown[] = []
   const behavior = createPiBehavior({
     install: (ports) => {
       install(ports, host)
     },
-    openSession: ({ sessionManager, extension, summarize }) =>
+    openSession: ({ sessionManager, extension }) =>
       createTestSession({
         ...options,
         cwd,
         sessionManager,
-        compaction: { enabled: false, reserveTokens: 1, keepRecentTokens: 1, ...options.compaction, summarize },
+        compaction: { enabled: false, reserveTokens: 1, keepRecentTokens: 1, ...options.compaction },
         extensionFactories: [extension]
       }),
     onError: (error) => {
@@ -92,6 +91,8 @@ describe('vcc_recall', () => {
         [
           reply('Noted.'),
           reply('CI is ready.'),
+          reply('Summary: CI was set up.'),
+          reply('Summary: the current turn.'),
           recall('recall_1', { query: 'password hint' }),
           reply('It is BLUE-HERON.')
         ][call - 1]
@@ -106,7 +107,7 @@ describe('vcc_recall', () => {
     await session.compact()
     await session.prompt('What was the password hint?')
 
-    expect(JSON.stringify(first.calls[2].messages)).not.toContain('BLUE-HERON')
+    expect(JSON.stringify(first.calls[4].messages)).not.toContain('BLUE-HERON')
     const [found] = recallOutputs(host.entries)
     expect(found).toContain('#0 [user] The deploy password hint is BLUE-HERON')
 
