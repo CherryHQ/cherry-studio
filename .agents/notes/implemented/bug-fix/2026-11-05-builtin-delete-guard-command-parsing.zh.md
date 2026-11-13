@@ -12,13 +12,13 @@ Status: implemented
 
 ## 决定
 
-`assistantCommandSafety` 现在先解析命令再做判断。本地分词器把字符串拆成由简单命令组成的管道，识别引号、转义、注释、重定向、命令替换与 heredoc。守卫只匹配可执行的命令词及其参数，不再扫描原始文本。
+`assistantCommandSafety` 现在先解析命令再做判断。[结构化命令策略](../architecture/2026-11-13-command-approval-policy.md) 现在通过兼容桥接提供共享语法树解析器，保留引号、转义、注释、重定向、命令替换与 heredoc 归属。它取代原有本地分词器，同时保留本记录审计过的用例和破坏性操作检测器。守卫只匹配可执行的命令词及其参数，不再扫描原始文本。
 
 heredoc 正文与开启它的那一行分离。只有当该行把标准输入交给解释器时（`bash <<'EOF'`、`python3 - <<'PY'`、`cat <<'EOF' | bash`）才分析正文；由 `cat`、`tee`、`printf` 写入文件的 heredoc 一律忽略。`-c`、`-e`、`--eval` 传入的解释器代码同样会被分析，并且先剥离脚本字符串与注释，因此 `print("os.remove(x)")` 不会被当成调用。嵌套的 `$(…)` 与反引号命令替换会递归分析；经 `ssh`、`su`、`chroot`、`kubectl exec` 与 `docker`/`podman` 的 `exec`/`run` 执行的命令会解析出内层命令，避免被包装器掩盖。
 
 命令词会穿过赋值、`sudo`、`xargs`、`env`、`timeout` 等包装器解析。`halt`、`shutdown`、`reboot` 只作为命令词匹配，`-halt-on-error` 属于参数。`Remove-Item`、`del`、`sc delete`、`reg delete` 只在可执行位置匹配，包括经 `powershell -Command`（以及 base64 的 `-EncodedCommand`）和 `cmd /c` 调用的形式。
 
-拒绝文案现在写明这是内置 Tool Guard，由 Cherry Studio 强制实施，并说明设置里没有可检查或编辑的 hook。
+主进程持有的 JSON 策略在所有权限模式下强制执行命令拒绝规则。本地化原因引导已确认的工作区删除操作使用移入回收站工具。
 
 ## 备选方案
 
@@ -30,12 +30,12 @@ heredoc 正文与开启它的那一行分离。只有当该行把标准输入交
 ## 后果
 
 - 守卫按结构判断，因此写进脚本文件的删除要等解释器执行时才会被拦——旧检测器同样有这一盲区。该守卫仍是可用性守卫，不是安全边界。
-- 分析最多递归四层 `-c`、命令替换与 heredoc 嵌套，对对抗性输入的工作量有上界。
+- 兼容检测器保留四层递归上限。共享策略另行限制语法及嵌套源码分析，其后继说明记录这些边界。
 - `git restore --staged` 现在放行，因为它只取消暂存；不带 `--staged` 或带 `--worktree` 的 `git restore` 仍然拦截。
 - `fdisk` 等磁盘工具在只读形式下仍然拦截，保持原有行为。
 
 ## 验证
 
-- 回归 — `pnpm test:main src/main/ai/agents/builtin/__tests__/assistantCommandSafety.test.ts`：67 个测试；原有真实删除仍被拦截，审计中的误杀（heredoc 写文件、`-halt-on-error`、`.rmvb`、`del lines[0]`、引号内正则）被放行。
-- 回归 — `pnpm test:main src/main/ai/runtime/claudeCode/__tests__/guardRules.test.ts`：77 个测试；`builtin-destructive` 在所有权限模式下仍拒绝真实 `rm`，且不影响普通 Agent。
-- 回归 — `pnpm typecheck:node`：主进程类型检查通过。
+- 回归 — `pnpm test:main src/main/ai/agents/builtin/__tests__/assistantCommandSafety.test.ts`：97 个测试；原有真实删除仍被拦截，审计中的误杀（heredoc 写文件、`-halt-on-error`、`.rmvb`、`del lines[0]`、引号内正则）被放行。
+- 回归 — `pnpm test:main src/main/ai/runtime/claudeCode/__tests__/guardRules.test.ts`：86 个测试；命令策略拒绝规则在所有权限模式下仍阻止真实 `rm`，且不影响普通 Agent。
+- 回归 — [结构化策略验证](../architecture/2026-11-13-command-approval-policy.md#verification)：当前运行时、解析器和打包依据。

@@ -12,6 +12,13 @@ sources:
   - src/main/ai/runtime/claudeCode/ToolApprovalRegistry.ts
   - src/main/ai/runtime/claudeCode/hooks.ts
   - src/main/ai/toolApproval/ToolApprovalRegistry.ts
+  - src/main/ai/toolApproval/commandPolicy.ts
+  - src/main/ai/toolApproval/commandParser.ts
+  - src/main/ai/toolApproval/commandSemantics.ts
+  - src/main/ai/toolApproval/commandPolicySchema.ts
+  - src/main/ai/toolApproval/command-policy.json
+  - src/main/ai/runtime/pi/piApprovalFacts.ts
+  - packages/agent-behavior/src/orchestration/gate.ts
   - src/main/ai/toolApproval/builtinToolPolicy.ts
   - src/main/ai/mcp/createMcpBridgeServer.ts
   - src/main/ai/mcp/McpRuntimeService.ts
@@ -101,6 +108,48 @@ ID, including its real approval ID. Later native results may omit approval metad
 the projection reapplies the decision before publishing and persisting, and restores
 it from persisted parts after reconnecting. A host refusal remains `output-denied`;
 a permitted call can still finish with a genuine execution error.
+
+## Shell command policy
+
+Claude Code, Pi and Pi Durable evaluate the complete shell invocation before execution.
+In `auto`, ordinary commands run without a first-use Shell grant. A matching risk rule or
+incomplete analysis asks for that invocation only. A saved tool grant cannot bypass these asks.
+An applicable `deny` blocks every mode, including Full Access, and exposes no approval action.
+The built-in Assistant, Support and Doctor retain their destructive-operation denial; role
+scope is independent of a rule's effect. Children use their root's mode and protected role.
+
+The bundled [`command-policy.json`](../../../../src/main/ai/toolApproval/command-policy.json)
+is validated atomically. Unknown versions, fields, roles, detectors, invalid selectors,
+duplicate IDs and missing mandatory denial block shell execution. There is no cloud fetch,
+user override or live reload. Command selectors match one executable node: executable choices
+are OR, an ordered subcommand path and option groups are AND. `allOf`, `anyOf` and `noneOf`
+operate on recognized options, never substrings or other commands' flags.
+
+The parser loads matching Bash and PowerShell WebAssembly grammars from
+`feature.agents.command_parser_assets`. The main build emits the runtime and both grammars
+under `out/main/assets/command-parsers`; desktop packages include them for offline use.
+Each invocation disposes its syntax tree and parser. Syntax becomes executable nodes, literal
+and dynamic arguments, control context, pipeline identities, redirections, heredoc data and
+source ranges. Literal shell code is parsed in its nested dialect; Node/Python code triggers
+an inline-code rule. Git adapters consume option values before matching destructive forms.
+Ambiguous path/branch checkout, unsupported forms and parser limits require approval.
+
+Analysis is bounded to 65,536 characters per source, 10,000 nodes, 128 structural levels,
+8 nested interpreter levels and 64 nested sources, with a 200 ms parse budget. Valid complete
+nodes before an input truncation can still establish a denial. Across all analyzed nodes,
+`deny` wins over `ask`, and no constituent command starts before the final decision.
+
+The approval carries the full effective input, cwd, localized reasons and command evidence.
+Opening evidence with Enter does not grant consent. A grant permits this invocation only;
+mode, role, policy or input changes while waiting invalidate it. With a live background
+responder, child approvals remain answerable after the parent finishes. Without a responder,
+asks block rather than running or waiting indefinitely. Codemode itself remains automatic;
+its nested tools pass the same gate.
+
+This is a usability guard, not operating-system isolation or proof of safety. Unmatched
+programs, script files, aliases, Git hooks and ambient configuration can still have arbitrary
+side effects. Shell filesystem access is not contained by this policy. SQLite protection,
+disabled tools, install and role-specific guards can independently tighten the outcome.
 
 ## Persistent decisions
 

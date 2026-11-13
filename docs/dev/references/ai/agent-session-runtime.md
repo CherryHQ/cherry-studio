@@ -852,13 +852,11 @@ Allowed in v1:
   The approval extension still distinguishes Cherry-owned
   safe tools, Cherry tools that always require approval, and third-party MCP
   tools; `disabledTools` hard-blocks every class.
-- New pi agents start in `acceptEdits`: reads and writes inside the selected
-  workspace and current agent data directory do not prompt repeatedly. Shell,
-  third-party MCP, Cherry approval-required mutations, external paths, and
-  symlink escapes remain gated. `bypassPermissions` does not override the
-  runtime-neutral Cherry approval-required policy. Pi exposes neither `plan`
-  nor `auto`: the latter depends on Claude's model-side approval classifier,
-  which the Pi approval gate does not implement.
+- New Pi agents start in `auto`. Reads and writes inside canonical selected roots can run
+  automatically. Shell invocations use the shared [command policy](./tool-approval.md#shell-command-policy):
+  ordinary commands run without a first-use Shell grant; risk matches and incomplete analysis
+  ask for that invocation. Mandatory denials hold even in Full Access. Independent SQLite,
+  disabled-tool, install, path and built-in-role guards remain effective. Pi does not expose `plan`.
 - The agent's enabled Cherry-managed skills, passed explicitly as
   `additionalSkillPaths` (their canonical `{dataPath}/Skills/<folderName>` dirs).
   These load even under `noSkills` because the paths are Cherry-owned and
@@ -971,8 +969,8 @@ whether to run, ask or block. No new approval table is required.
 Pi and Pi Durable child threads use the root's live permission mode, interaction
 state and tool restrictions. Delegation does not grant Full Access. A child call
 that needs approval waits for the root session's responder, or is blocked when
-nobody can respond. Stream approvals include the tool input when the call has no
-part in the root reply, so its approval remains visible in the composer.
+nobody can respond. Command approvals refresh the effective tool input and policy evidence even when a native
+part already exists in the root reply, so the composer shows the operation awaiting consent.
 
 Runtime content uses whole native SDK messages. Pi and Claude decode deltas once at
 the adapter source; Durable materializes committed native view revisions directly.

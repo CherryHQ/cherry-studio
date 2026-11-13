@@ -1,18 +1,18 @@
 # Agent Note: 使用单份 JSON 策略进行结构化命令审批
 
-Status: proposed
+Status: implemented
 
 [English](2026-11-13-command-approval-policy.md) | 中文
 
 ## 问题
 
-目前 auto 命令审批混合了命令风险、运行时权限快捷路径和内置智能体保护规则。通用危险命令检测器采用字符串切分；内置保护规则的分词器更强，但丢失了重定向目标、源码范围和解析失败信息。这两种表示都不足以支撑共享的命令选择器：`git status` 和 `git reset --hard` 使用相同的可执行程序，而 `echo 'git reset --hard'` 并没有执行其中任何一条 Git 命令。
+变更前，auto 命令审批混合了命令风险、运行时权限快捷路径和内置智能体保护规则。通用危险命令检测器采用字符串切分；内置保护规则的分词器更强，但丢失了重定向目标、源码范围和解析失败信息。这两种表示都不足以支撑共享的命令选择器：`git status` 和 `git reset --hard` 使用相同的可执行程序，而 `echo 'git reset --hard'` 并没有执行其中任何一条 Git 命令。
 
-[PR #24382](https://github.com/CherryHQ/cherry-studio/pull/24382) 负责子智能体权限继承、嵌套工具审批路由和审批界面修复。首次 Shell 确认、整个会话的 Shell 授权及扩展命令模式已按维护者要求移出其范围。本独立提案定义 auto 模式下的结构化命令策略：普通命令自动执行，风险调用逐次询问，强制拒绝优先。它沿用审批来源和子智能体路由，不引入首次授权。这是一份授权策略契约，并不表示未命中规则的命令就是安全的。
+[PR #24382](https://github.com/CherryHQ/cherry-studio/pull/24382) 负责子智能体权限继承、嵌套工具审批路由和审批界面修复。首次 Shell 确认、整个会话的 Shell 授权及扩展命令模式已按维护者要求移出其范围。本独立决策定义 auto 模式下的结构化命令策略：普通命令自动执行，风险调用逐次询问，强制拒绝优先。它沿用审批来源和子智能体路由，不引入首次授权。这是一份授权策略契约，并不表示未命中规则的命令就是安全的。
 
-[内置删除保护决策](../../implemented/bug-fix/2026-11-05-builtin-delete-guard-command-parsing.md) 仍然负责记录已审计的误报、包装命令覆盖范围及其使用体验保护的局限。实现时必须交叉链接这两份记录，在替换解析器和迁移命令规则时保留这些事实。本 Spec 不删除任何已有记录，也不改变其状态。
+[内置删除保护决策](../../implemented/bug-fix/2026-11-05-builtin-delete-guard-command-parsing.md) 仍然负责记录已审计的误报、包装命令覆盖范围及其使用体验保护的局限。两份记录保持交叉链接，在共享语法解析器并将命令规则迁入 JSON 时保留这些事实。本 Spec 不删除任何已有记录，也不改变其状态。
 
-## 提案
+## 决策
 
 ### 范围与归属
 
@@ -39,14 +39,14 @@ Schema 包含版本、用于诊断的修订标识、固定的 auto 默认行为�
   "rules": [
     {
       "id": "builtin-destructive-command",
-      "appliesTo": { "builtinRoles": ["assistant", "support"] },
+      "appliesTo": { "builtinRoles": ["assistant", "support", "doctor"] },
       "selector": { "kind": "detector", "name": "builtin-destructive-command" },
       "effect": "deny",
-      "reasonCode": "builtin-destructive-command-forbidden"
+      "reasonCode": "builtin-destructive-command"
     },
     {
       "id": "permanent-deletion",
-      "selector": { "kind": "detector", "name": "permanent-deletion" },
+      "selector": { "kind": "command", "executables": ["rm", "rmdir", "unlink", "shred", "srm"] },
       "effect": "ask",
       "reasonCode": "permanent-deletion"
     },
@@ -54,7 +54,7 @@ Schema 包含版本、用于诊断的修订标识、固定的 auto 默认行为�
       "id": "git-discard-worktree",
       "selector": { "kind": "detector", "name": "git-discard-worktree" },
       "effect": "ask",
-      "reasonCode": "discard-local-changes"
+      "reasonCode": "git-discard-worktree"
     },
     {
       "id": "git-force-push",
@@ -76,19 +76,19 @@ Schema 包含版本、用于诊断的修订标识、固定的 auto 默认行为�
         "options": { "noneOf": ["--dry-run"] }
       },
       "effect": "ask",
-      "reasonCode": "publish-package"
+      "reasonCode": "package-publish"
     },
     {
       "id": "download-to-shell",
       "selector": { "kind": "detector", "name": "download-to-shell" },
       "effect": "ask",
-      "reasonCode": "execute-downloaded-code"
+      "reasonCode": "download-to-shell"
     },
     {
       "id": "inline-interpreter",
       "selector": { "kind": "detector", "name": "inline-interpreter" },
       "effect": "ask",
-      "reasonCode": "execute-inline-code"
+      "reasonCode": "inline-interpreter"
     }
   ]
 }
@@ -103,6 +103,8 @@ Schema 包含版本、用于诊断的修订标识、固定的 auto 默认行为�
 校验采用严格且原子的方式：拒绝未知版本、字段、处理结果、角色、检测器、格式错误的选择器、空规则集和重复规则 ID。不静默跳过无效规则。随应用发布的文档无效或缺失时，以配置错误阻止 Shell 执行并集中记录日志，绝不降级成空的放行策略。测试必须验证随应用发布的文档包含强制内置拒绝规则及其要求的范围和选择器。本阶段不存在能移除该拒绝规则的外部文档。
 
 ### 解析器与语义模型
+
+使用 `@vscode/tree-sitter-wasm` 0.3.1 及其配套运行时、Bash 和 PowerShell 语法。主进程构建打包 JavaScript，并仅输出这三份 WASM 资源供桌面端离线使用。原有内置 guard 复用同一语法解析器，同时保留各语言的破坏性操作检测。这取代了 [Windows PowerShell 说明](../bug-fix/2026-11-10-pi-windows-powershell.md) 中的启发式检测。
 
 ```mermaid
 flowchart TD
@@ -168,22 +170,22 @@ Auto 审批只允许当前完整调用及其确切输入和执行上下文。它
 - 拆分 allow/ask/deny 文件或立即下载云端规则：在选择器契约稳定之前引入优先级和分发问题。本阶段一份随应用发布的文档已经足够。
 - 将解析成功当作安全或隔离执行的证明：对别名、hook、脚本文件、运行时展开和任意程序都不成立。操作系统/文件权限仍然是独立边界。
 
-## 验收标准
+## 验证
 
-- AC1 — 单份随应用发布的 JSON 原子校验，拒绝无效版本/选择器/检测器/ID 及缺失的强制拒绝规则；加载失败时阻止 Shell 执行，而非放行(verification: unit and packaged artifact; owner: policy loader)
-- AC2 — 普通智能体在 auto 中首次执行 `git status` 无需 Shell 授权，每次风险调用重新询问，已有 Shell 授权不能绕过 JSON 决策(verification: unit and Electron; owner: runtime approval adapters)
-- AC3 — 适用的强制拒绝优先于询问和所有权限模式，包括 Full Access；在两个运行时和受保护子智能体中均生效；普通智能体不继承无关的内置角色规则(verification: unit and Electron; owner: runtime approval adapters)
-- AC4 — 命令选择器在节点内正确处理 AND/OR、有序子命令、选项参数个数/别名/值/组合短选项/`--` 和局部例外，不能跨命令泄漏(verification: unit; owner: matcher and semantic adapters)
-- AC5 — 真实解析器样例能够区分引号数据、可执行替换、重定向效果、heredoc 写入方/读取方、嵌套 Shell 代码、包装命令及实际 Bash/PowerShell 方言，且不执行输入(verification: unit; owner: parser)
-- AC6 — Git 样例覆盖全局选项及其值、reset、分支/路径 checkout、restore 的 staged/worktree 形式及全部支持的强推形式，不会错误地按安全前缀授权(verification: unit; owner: Git adapter)
-- AC7 — 无效语法、动态可执行输入、不支持的方言/形式和解析器达到限制时，在 auto 中询问；其他位置已确定的拒绝仍然是拒绝，完整解析的普通未知 CLI 则默认放行(verification: unit; owner: parser and evaluator)
-- AC8 — 复合调用存在任意询问/拒绝时，在最终决策之前不启动任何组成命令；dry-run 例外不能取消其他片段的风险(verification: unit and Electron with a harmless marker file; owner: evaluator and execution adapters)
-- AC9 — 所有现有危险命令检测类别和内置命令安全回归场景都有对应样例；非 Shell、依赖安装、访问和角色专属审批要求仍然有效(verification: unit; owner: policy migration and affected consumers)
-- AC10 — 前台/后台子智能体将审批路由到正确根会话，继承当前模式和受保护调用方约束；没有响应者时阻止询问类调用且不挂起(verification: unit and Electron; owner: subagent approval routing)
-- AC11 — 审批界面展示来源、任务导航、完整命令、cwd、本地化原因/依据及单次调用操作；拒绝不提供允许操作，过期或上下文变化后的审批不能执行命令(verification: renderer and Electron; owner: approval UI and runtime adapters)
-- AC12 — 受支持桌面安装包包含策略和解析器资源并支持离线运行；最终实现记录限定范围的测试证据、候选文档审阅、记录交叉链接，以及明确的 auto 授权行为变化(verification: packaged artifact and docs gate; owner: implementation PR)
+- AC1 — `commandPolicy.test.ts` 拒绝无效快照及缺少强制拒绝规则的配置；`commandParserAssets.test.ts` 验证语法资源缺失时阻止执行。Electron ASAR 冒烟检查从归档中加载两种语法。
+- AC2 — `piApprovalFacts.test.ts` 验证已有 shell 授权仍不能跳过后续风险调用。Electron 的 Pi 和 Claude auto 会话无需首次授权即可执行普通命令，风险调用则逐次审批。
+- AC3 — 共享审批、Claude guard 与 settings，以及 Pi 主任务和子任务测试验证所有模式下的强制拒绝。Electron 内置助手在完全访问模式下阻止破坏性组合命令，既不提供允许操作，也不写入标记文件。
+- AC4 — `commandPolicy.test.ts` 验证同一节点内的选项组、有序子命令、选项参数个数、别名、带值及组合标志、字面量 `--` 和 dry-run 例外范围。
+- AC5 — `commandParser.test.ts`、策略测试及内置安全语料覆盖引号、可执行替换、赋值、控制运算符、重定向、heredoc、嵌套字面量代码、包装器和 Bash/PowerShell 语法。
+- AC6 — 策略及内置回归用例覆盖 Git 全局选项值、reset、歧义及明确路径 checkout、分支创建、暂存区与工作区 restore、强推选项和 refspec 改写。
+- AC7 — 用例覆盖无效语法、动态名称、不支持的方言与包装器、输入及嵌套上限，并验证截断输入前的有效拒绝仍然生效。完整的普通未知 CLI 默认放行。
+- AC8 — 整体调用门禁测试及 Electron 标记文件场景证明，组合命令在等待审批或被拒绝时均不会执行前置写入，获准后才创建标记文件。局部例外不会豁免后续风险。
+- AC9 — 策略语料覆盖迁移前的全部通用风险类别，并保留内置安全回归用例。SQLite、依赖安装、禁用工具、非 shell 及角色专属消费者测试通过。
+- AC10 — 原生 Pi 和 Durable 连接测试保留主任务权限及无响应者时的阻止行为。Electron 前台及后台子任务均到达主会话审批卡片，后台子任务在父任务完成后仍可获批。
+- AC11 — 渲染器及主消息投影测试保留来源和策略事实。Electron 明暗主题卡片显示完整命令、工作目录、原因、依据和任务跳转。跳转不会批准执行；输入或模式变化用例拒绝过期授权。
+- AC12 — 主进程及 preload 构建输出三份跨平台 WASM 资源并打包 JSON。Electron 从构建产物加载资源，并在 ASAR 内离线解析两种方言。实现附带定向测试、lint、翻译及文档检查，中英文用户指南明确说明自动审批变化及其局限。
 
-## 风险
+## 影响
 
 默认放行明确无需首次 Shell 确认。未命中规则的自定义程序、别名、hook、编码载荷或脚本可能在不弹窗的情况下执行破坏性或外部操作。本策略用于改善使用体验，不是安全边界，也不为 Shell 增加文件系统范围限制。面向用户的文档和发布说明必须明确说明，不能将 auto 描述成安全模式。
 

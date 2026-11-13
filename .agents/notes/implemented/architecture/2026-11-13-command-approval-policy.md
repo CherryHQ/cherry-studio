@@ -1,18 +1,18 @@
 # Agent Note: Structured command approval with one JSON policy
 
-Status: proposed
+Status: implemented
 
 English | [中文](2026-11-13-command-approval-policy.zh.md)
 
 ## Problem
 
-Auto command approval currently mixes command risk, runtime permission shortcuts, and built-in Agent safeguards. The general destructive-command detector splits strings; the built-in guard has a stronger tokenizer but loses redirection targets, source ranges, and parse failures. Neither representation is enough for a shared command selector: `git status` and `git reset --hard` have the same executable, while `echo 'git reset --hard'` executes neither Git command.
+Before this change, auto command approval mixed command risk, runtime permission shortcuts, and built-in Agent safeguards. The general destructive-command detector splits strings; the built-in guard has a stronger tokenizer but loses redirection targets, source ranges, and parse failures. Neither representation is enough for a shared command selector: `git status` and `git reset --hard` have the same executable, while `echo 'git reset --hard'` executes neither Git command.
 
-[PR #24382](https://github.com/CherryHQ/cherry-studio/pull/24382) owns subagent permission inheritance, nested-tool approval routing, and approval UI fixes. First-use Shell consent, session-wide Shell grants, and expanded command patterns were removed from its scope at the maintainer's request. This separate proposal defines structured command policy in auto mode: ordinary commands run automatically, risky invocations ask individually, and forced denials take priority. It builds on approval origin and subagent routing without introducing a first-use grant. This is a consent-policy contract, not a claim that unmatched commands are safe.
+[PR #24382](https://github.com/CherryHQ/cherry-studio/pull/24382) owns subagent permission inheritance, nested-tool approval routing, and approval UI fixes. First-use Shell consent, session-wide Shell grants, and expanded command patterns were removed from its scope at the maintainer's request. This separate decision defines structured command policy in auto mode: ordinary commands run automatically, risky invocations ask individually, and forced denials take priority. It builds on approval origin and subagent routing without introducing a first-use grant. This is a consent-policy contract, not a claim that unmatched commands are safe.
 
-The [built-in delete-guard decision](../../implemented/bug-fix/2026-11-05-builtin-delete-guard-command-parsing.md) remains the owner of audited false positives, wrapper coverage, and its usability-guard limitation. Implementation must cross-link the two notes and retain those facts while replacing the parser and moving command rules. No existing note is deleted or relabeled by this Spec.
+The [built-in delete-guard decision](../../implemented/bug-fix/2026-11-05-builtin-delete-guard-command-parsing.md) remains the owner of audited false positives, wrapper coverage, and its usability-guard limitation. The two notes remain cross-linked, retaining those facts while sharing the syntax parser and moving command rules into JSON. No existing note is deleted or relabeled by this Spec.
 
-## Proposal
+## Decision
 
 ### Scope and ownership
 
@@ -39,14 +39,14 @@ The schema has a version, a diagnostic revision, fixed auto defaults, and unique
   "rules": [
     {
       "id": "builtin-destructive-command",
-      "appliesTo": { "builtinRoles": ["assistant", "support"] },
+      "appliesTo": { "builtinRoles": ["assistant", "support", "doctor"] },
       "selector": { "kind": "detector", "name": "builtin-destructive-command" },
       "effect": "deny",
-      "reasonCode": "builtin-destructive-command-forbidden"
+      "reasonCode": "builtin-destructive-command"
     },
     {
       "id": "permanent-deletion",
-      "selector": { "kind": "detector", "name": "permanent-deletion" },
+      "selector": { "kind": "command", "executables": ["rm", "rmdir", "unlink", "shred", "srm"] },
       "effect": "ask",
       "reasonCode": "permanent-deletion"
     },
@@ -54,7 +54,7 @@ The schema has a version, a diagnostic revision, fixed auto defaults, and unique
       "id": "git-discard-worktree",
       "selector": { "kind": "detector", "name": "git-discard-worktree" },
       "effect": "ask",
-      "reasonCode": "discard-local-changes"
+      "reasonCode": "git-discard-worktree"
     },
     {
       "id": "git-force-push",
@@ -76,19 +76,19 @@ The schema has a version, a diagnostic revision, fixed auto defaults, and unique
         "options": { "noneOf": ["--dry-run"] }
       },
       "effect": "ask",
-      "reasonCode": "publish-package"
+      "reasonCode": "package-publish"
     },
     {
       "id": "download-to-shell",
       "selector": { "kind": "detector", "name": "download-to-shell" },
       "effect": "ask",
-      "reasonCode": "execute-downloaded-code"
+      "reasonCode": "download-to-shell"
     },
     {
       "id": "inline-interpreter",
       "selector": { "kind": "detector", "name": "inline-interpreter" },
       "effect": "ask",
-      "reasonCode": "execute-inline-code"
+      "reasonCode": "inline-interpreter"
     }
   ]
 }
@@ -103,6 +103,8 @@ Detectors are a finite, code-owned registry for semantic conditions such as perm
 Validation is strict and atomic: reject unknown versions, fields, effects, roles, detectors, malformed selectors, empty rule sets, and duplicate rule IDs. Do not silently skip an invalid rule. An invalid or missing bundled document blocks shell execution with a configuration error and central logging; it never becomes an empty allow policy. Tests must verify that the bundled document contains the mandatory built-in denial with its required scope and selector. There is no externally supplied document in this phase that can remove that denial.
 
 ### Parser and semantic model
+
+Use `@vscode/tree-sitter-wasm` 0.3.1 with its matching runtime, Bash and PowerShell grammars. The main build bundles the JavaScript and emits only those three WASM assets for offline desktop use. The legacy built-in guard consumes the same syntax parser while retaining its language-specific destructive-operation detectors. This supersedes the heuristic described in the [Windows PowerShell note](../bug-fix/2026-11-10-pi-windows-powershell.md).
 
 ```mermaid
 flowchart TD
@@ -168,22 +170,22 @@ These expected results are for auto with an ordinary Agent unless a row specifie
 - Split allow/ask/deny files or fetch cloud rules immediately: adds precedence and delivery problems before the selector contract is stable. One bundled document is sufficient for this phase.
 - Treat successful parsing as proof of safety or sandboxing: incorrect for aliases, hooks, script files, runtime expansions, and arbitrary programs. OS/file permissions remain a separate boundary.
 
-## Acceptance criteria
+## Verification
 
-- AC1 — The single bundled JSON validates atomically, rejects invalid versions/selectors/detectors/IDs and missing mandatory denial, and a load failure blocks shell execution rather than allowing it (verification: unit and packaged artifact; owner: policy loader)
-- AC2 — For ordinary Agents in auto, the first `git status` runs without a Shell grant, each risky invocation asks again, and no saved Shell consent bypasses the JSON decision (verification: unit and Electron; owner: runtime approval adapters)
-- AC3 — Applicable forced denials beat asks and every permission mode, including Full Access, in both runtimes and protected subagents; ordinary Agents do not inherit unrelated built-in-role rules (verification: unit and Electron; owner: runtime approval adapters)
-- AC4 — Command selectors enforce node-local AND/OR, ordered subcommands, option arity/aliases/values/combined flags/`--`, and local exceptions without cross-command leakage (verification: unit; owner: matcher and semantic adapters)
-- AC5 — Real parser fixtures distinguish quoted data, executable substitutions, redirection effects, heredoc writers/readers, nested shell code, wrappers, and actual Bash/PowerShell dialects without executing input (verification: unit; owner: parser)
-- AC6 — The Git corpus covers global options and their values, reset, checkout branches/paths, restore staged/worktree, and all supported force-push forms with no false safe-prefix grant (verification: unit; owner: Git adapter)
-- AC7 — Invalid syntax, dynamic executable input, unsupported dialects/forms, and bounded parser exhaustion ask in auto; a proven denial elsewhere remains a denial, while complete ordinary unknown CLIs default to allow (verification: unit; owner: parser and evaluator)
-- AC8 — A composite invocation with any ask/deny starts no constituent command before the final decision, and dry-run exceptions never cancel another segment's risk (verification: unit and Electron with a harmless marker file; owner: evaluator and execution adapters)
-- AC9 — All existing destructive-detector categories and built-in command-safety regressions are accounted for by fixtures; non-shell, dependency-install, access, and role-specific approval requirements remain effective (verification: unit; owner: policy migration and affected consumers)
-- AC10 — Foreground/background children route approvals to the correct root, inherit current mode and protected caller constraints, and missing responders block asks without hanging (verification: unit and Electron; owner: subagent approval routing)
-- AC11 — Approval UI displays origin, task navigation, full command, cwd, localized reasons/evidence, and per-invocation actions; denials expose no allow action and stale/context-changed approvals cannot execute (verification: renderer and Electron; owner: approval UI and runtime adapters)
-- AC12 — Supported desktop packages include the policy and parser assets and operate offline; final implementation records scoped test evidence, candidate documentation review, note cross-links, and the explicit auto consent behavior change (verification: packaged artifact and docs gate; owner: implementation PR)
+- AC1 — `commandPolicy.test.ts` rejects invalid snapshots and missing mandatory denial; `commandParserAssets.test.ts` blocks execution when grammar assets are missing. The Electron ASAR smoke loads both grammars from the archive.
+- AC2 — `piApprovalFacts.test.ts` verifies repeated risky calls despite saved shell grants. Electron Pi and Claude auto sessions execute ordinary commands without a first-use grant and request per-invocation approval for risks.
+- AC3 — Shared approval, Claude guard and settings, and Pi root/child tests enforce mandatory denial across modes. Electron's protected Assistant blocks a destructive composite in Full Access with no allow action or marker write.
+- AC4 — `commandPolicy.test.ts` verifies node-local option groups, ordered command paths, arity, aliases, valued and combined flags, literal `--`, and dry-run exception scope.
+- AC5 — `commandParser.test.ts`, policy tests and the built-in safety corpus cover quotes, executable substitutions, assignments, control operators, redirections, heredocs, nested literal code, wrappers and Bash/PowerShell syntax.
+- AC6 — Policy and built-in regression fixtures cover Git global values, reset, ambiguous and explicit path checkout, branch creation, staged/worktree restore, force options and refspec rewrites.
+- AC7 — Fixtures cover invalid syntax, dynamic names, unsupported dialects and wrappers, input/nesting bounds, and a valid denial before truncated input. Complete ordinary unknown CLIs default to allow.
+- AC8 — Whole-call gate tests and Electron marker-file scenarios prove that neither a pending nor a rejected composite starts its leading write; an approved composite creates the marker. Local exceptions do not exempt later risk.
+- AC9 — The policy corpus covers every migrated general-risk category and retains the built-in safety regressions. SQLite, dependency-install, disabled-tool, non-shell and role-specific consumer suites pass.
+- AC10 — Native Pi and Durable connection tests preserve root authority and no-responder blocking. Electron foreground and background children reach the root approval card; a background child remains approvable after its parent finishes.
+- AC11 — Renderer and root projection tests preserve origin and policy facts. Electron light/dark cards show the complete command, cwd, reasons, evidence and task navigation. Navigation does not approve; changed-input/mode fixtures reject stale grants.
+- AC12 — The main/preload build emits the three platform-independent WASM assets and bundles the JSON. Electron loads the built assets and parses both dialects offline inside ASAR. Scoped tests, lint, i18n and documentation checks accompany the implementation; public Chinese/English guides state the auto-consent change and limitations.
 
-## Risks
+## Consequences
 
 Default allow intentionally requires no first-use Shell consent. An unmatched custom program, alias, hook, encoded payload, or script can perform destructive or external actions without a prompt. This policy is a usability guard, not a security boundary, and it does not add Shell filesystem containment. User-facing documentation and release notes must say so without calling auto safe.
 

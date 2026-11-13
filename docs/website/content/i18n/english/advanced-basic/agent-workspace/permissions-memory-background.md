@@ -13,11 +13,17 @@ Agents can perform file, terminal, and network operations, and can also invoke s
 | -------- | ------------- | ------------- | ---------------- |
 | **Ask Before Acting** | Asks before editing files or running commands | Default starting point, real project directories | Frequent confirmations for many operations, but easiest to control |
 | **Auto-accept Edits** | Edits files freely, asks before running commands | Document organization, recoverable code changes | Confirm working directory and version control status first |
-| **Approve for Me** | Runs without routine prompts; a safety check blocks risky actions | Model supports it and task boundaries are clear | Some models may still ask every time |
+| **Approve for Me** | Runs ordinary commands; asks for each risky or incompletely parsed invocation | Clear, recoverable tasks | No first-use Shell grant; risky commands ask again each time |
 | **Plan Only** | Plans without editing files; only read-only or vetted commands run | Solution review, pre-release audit | Suitable for reviewing the plan before execution |
-| **Full Access** | Skips permission checks | Isolated, trusted, recoverable environments | May delete files or access the network, highest risk |
+| **Full Access** | Skips bypassable approvals | Isolated, trusted, recoverable environments | May delete files or access the network, highest risk |
 
 Detected system or global package installs require approval and a live responder outside **Full Access**; **Plan Only** still blocks installation. **Full Access** permits unattended installs, but direct `mise` mutations remain blocked in every mode.
+
+**Approve for Me** distinguishes commands from ordinary text: `git status` runs automatically, `git reset --hard` asks for this invocation, and the text in `echo 'git reset --hard'` is not treated as a Git command. Composite commands are checked as a whole; no part starts before approval. “Allow this invocation” does not authorize later commands. The card shows the origin, child-task link, full command, working directory and matching reasons.
+
+Subagents use their root conversation's current permission mode. Background tasks can still ask when a responder is available; without one, approval-bound commands are blocked. Mandatory built-in Agent denials remain effective in **Full Access**: permanent deletion, for example, cannot be overridden by clicking Allow.
+
+Auto approval reduces interruptions; it is not operating-system isolation or proof of safety. Unmatched programs, scripts, aliases, Git hooks and ambient configuration can still delete data or perform other actions. Shell access is not contained within the working directory.
 
 The available modes depend on the runtime mode: Pi does not provide **Plan Only**, and new Pi Agents default to **Approve for Me**; **Claude Agent** provides all five modes.
 

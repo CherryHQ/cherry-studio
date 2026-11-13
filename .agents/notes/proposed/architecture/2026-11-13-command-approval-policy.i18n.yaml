@@ -1,5 +1,0 @@
-# Bilingual-pair consistency record (docs/dev/i18n/README.md).
-# After editing either side, update its counterpart and re-record with:
-#   pnpm docs:check-pairing --write .agents/notes/proposed/architecture/2026-11-13-command-approval-policy.md
-2026-11-13-command-approval-policy.md: 18aade7577ff23029d68d2f683a8bdbc116f8217
-2026-11-13-command-approval-policy.zh.md: a8a87658b2e44e6858dbade4fb765af7ce42bc70
