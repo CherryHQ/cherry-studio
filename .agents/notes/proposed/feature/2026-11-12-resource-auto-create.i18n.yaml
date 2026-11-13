@@ -1,5 +1,5 @@
 # Bilingual-pair consistency record (docs/dev/i18n/README.md).
 # After editing either side, update its counterpart and re-record with:
 #   pnpm docs:check-pairing --write .agents/notes/proposed/feature/2026-11-12-resource-auto-create.md
-2026-11-12-resource-auto-create.md: d8ebdfa996e47134f81ab3dfa09283000638de8d
-2026-11-12-resource-auto-create.zh.md: 81852883cb8305687be1020c9d00c003e4da177a
+2026-11-12-resource-auto-create.md: f5b281c692d1b2ae2585c195415527a64aa233a2
+2026-11-12-resource-auto-create.zh.md: 8b46962b06cd3a6284f96a21f51b775729c99751
