@@ -235,9 +235,3 @@ describe('AgentContextUsageSummary', () => {
     expect(screen.queryByRole('button', { name: 'MCP tools 1' })).not.toBeInTheDocument()
   })
 })
-
-it('shows last-measured provenance without opening the summary or hovering', () => {
-  renderSummary({ usage, percentage: 20, restored: true, measuredAt: '2026-11-12T00:00:00.000Z' })
-  expect(screen.getByText(/^Last measured /)).toBeVisible()
-  expect(screen.queryByTitle(/Last measured/)).not.toBeInTheDocument()
-})

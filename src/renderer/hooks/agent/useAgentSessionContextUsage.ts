@@ -6,8 +6,6 @@ import type { Model } from '@shared/data/types/model'
 interface AgentSessionContextUsageState {
   usage: ThreadContextUsage | null
   percentage: number | null
-  restored: boolean
-  measuredAt?: string
   maxTokens: number | null
 }
 
@@ -24,8 +22,6 @@ export function useAgentSessionContextUsage(
   return {
     usage,
     percentage,
-    maxTokens,
-    restored: !!usage && cached?.snapshot?.restored === true,
-    measuredAt: usage ? cached?.snapshot?.measuredAt : undefined
+    maxTokens
   }
 }

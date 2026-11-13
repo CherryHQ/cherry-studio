@@ -2551,7 +2551,7 @@ describe('AgentComposer', () => {
     expect(mocks.selectedKnowledgeBases).toEqual([knowledgeBaseOne])
   })
 
-  it.each([false, true])('renders the same context meter for the selected model (restored: %s)', async (restored) => {
+  it('renders the same context meter for the selected model', async () => {
     mocks.modelResult = {
       ...model,
       id: 'minimax::MiniMax-M3',
@@ -2561,7 +2561,6 @@ describe('AgentComposer', () => {
     }
     MockUseCacheUtils.setSharedCacheValue('agent.session.context_usage.session-1', {
       modelId: 'minimax::MiniMax-M3',
-      ...(restored ? { snapshot: { restored: true as const, measuredAt: '2026-11-12T00:00:00.000Z' } } : {}),
       result: {
         status: 'confirmed',
         value: {
@@ -2593,7 +2592,6 @@ describe('AgentComposer', () => {
     expect(mocks.ipcApiRequest).toHaveBeenCalledWith('ai.agent.session.refresh_context_usage', {
       sessionId: 'session-1'
     })
-    if (restored) expect(screen.getByText('agent.right_pane.info.context_details.last_measured')).toBeInTheDocument()
 
     await waitFor(() => expect(screen.getByText('42 / 100 (42%)')).toBeInTheDocument())
     expect(within(sendAccessory).getByText('MiniMax M3')).toBeInTheDocument()
