@@ -437,7 +437,10 @@ function createMarker(path: string): Element {
 
 function isSkippedElement(node: Element): boolean {
   if (SKIPPED_ELEMENTS.has(node.tagName)) return true
-  return (node.properties.className ?? []).some((value) => value.startsWith('katex'))
+  // hast types className as Array<string>, but parsed trees carry any runtime shape; narrow from unknown.
+  const className: unknown = node.properties?.className
+  const classes = Array.isArray(className) ? className : typeof className === 'string' ? className.split(/\s+/) : []
+  return classes.some((value) => typeof value === 'string' && value.startsWith('katex'))
 }
 
 function splitTextNode(node: Text, platform: BareFilePathPlatform): RootContent[] {

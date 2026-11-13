@@ -1514,19 +1514,14 @@ function useAgentRightPaneStatus(active = true): AgentRightPaneStatus {
 
 export function AgentTaskProgressCapsule() {
   const { t } = useTranslation()
-  const runtime = useAgentRightPaneRuntime()
   const status = useAgentRightPaneStatus()
 
-  if (status.totalTaskCount === 0 || status.completedTaskCount === status.totalTaskCount) return null
-
-  const hasActiveAssistantRun = runtime.messages.some(
-    (message) => message.role === 'assistant' && message.metadata?.status === 'pending'
-  )
+  if (!status.isTaskPlanActive || status.totalTaskCount === 0 || status.completedTaskCount === status.totalTaskCount) {
+    return null
+  }
   const explicitActiveTaskIndex = status.tasks.findIndex((task) => task.status === 'in_progress')
   const inferredActiveTaskIndex =
-    hasActiveAssistantRun && explicitActiveTaskIndex < 0
-      ? status.tasks.findIndex((task) => task.status === 'pending')
-      : -1
+    explicitActiveTaskIndex < 0 ? status.tasks.findIndex((task) => task.status === 'pending') : -1
   const currentTaskIndex =
     explicitActiveTaskIndex >= 0
       ? explicitActiveTaskIndex
