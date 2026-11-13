@@ -64,6 +64,7 @@ jobs:
     outputs:
       remote-tag-sha: ${{ steps.release-state.outputs.remote-tag-sha }}
       tag: ${{ steps.release-ref.outputs.tag }}
+      targets: ${{ steps.release-ref.outputs.targets }}
     steps:
       - name: Validate release selection
         shell: bash
@@ -101,13 +102,17 @@ jobs:
         shell: bash
         env:
           TAG: ${{ inputs.tag }}
+          PLATFORM: ${{ inputs.platform }}
         run: |
           PACKAGE_VERSION="$(node -p "JSON.parse(require('node:fs').readFileSync('release-source/package.json', 'utf8')).version")"
           if [ "$TAG" != "v$PACKAGE_VERSION" ]; then
             echo "Tag $TAG does not match package.json version $PACKAGE_VERSION" >&2
             exit 1
           fi
+          node -e 'const { scripts } = require("./release-source/package.json"); for (const name of ["build:release", "build:release:cn"]) { if (!scripts[name]) throw new Error(`Release source does not support ${name}`) }'
+          node -e 'require("node:fs").accessSync("release-source/scripts/release/js-bundle.js")'
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "targets=$(node scripts/release/targets.js "$PLATFORM")" >> "$GITHUB_OUTPUT"
 
       - name: Verify release commit passed CI
         shell: bash
@@ -163,84 +168,41 @@ jobs:
           WORKFLOW_SHA="$RELEASE_SHA" \
             node scripts/release/validate-release-state.js build-start
 
-  release:
-    name: Build ${{ matrix.edition }} (${{ matrix.os }})
+  bundle:
+    name: Build JS ${{ matrix.edition }}
     needs: prepare
-    runs-on: ${{ matrix.os == 'windows-latest' && fromJSON('["self-hosted", "windows-signing"]') || matrix.os }}
-    permissions:
-      contents: read
-
+    runs-on: ubuntu-latest
     strategy:
       matrix:
         edition: [global, cn]
-        os: ${{ fromJSON(
-          github.event.inputs.platform == 'all' && '["macos-latest", "windows-latest", "ubuntu-latest"]' ||
-          github.event.inputs.platform == 'linux' && '["ubuntu-latest"]' ||
-          github.event.inputs.platform == 'windows' && '["windows-latest"]' ||
-          github.event.inputs.platform == 'mac' && '["macos-latest"]' ||
-          '["macos-latest", "windows-latest", "ubuntu-latest"]'
-          ) }}
       fail-fast: false
-
     steps:
-      - name: Check out Git repository
-        uses: actions/checkout@v7
+      - uses: actions/checkout@v7
         with:
-          fetch-depth: 0
+          persist-credentials: false
           ref: ${{ inputs.expected_sha }}
-
-      - name: Install Node.js
-        uses: actions/setup-node@v7
+      - uses: actions/setup-node@v7
         with:
-          node-version-file: ".node-version"
-
-      - name: macos-latest dependencies fix
-        if: matrix.os == 'macos-latest'
-        run: |
-          brew install python-setuptools
-
-      - name: Install pnpm
-        uses: pnpm/action-setup@v5
-
-      - name: Get pnpm store directory
-        id: pnpm-cache
+          node-version-file: .node-version
+      - uses: pnpm/action-setup@v5
+      - name: Locate pnpm store
+        id: store
         shell: bash
-        run: echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_OUTPUT
-
-      - name: Cache pnpm dependencies
-        uses: actions/cache@v6
+        run: echo "path=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache/restore@v6
+        id: dependencies
         with:
-          path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
-          key: ${{ runner.os }}-pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
+          path: ${{ steps.store.outputs.path }}
+          key: ${{ runner.os }}-${{ runner.arch }}-pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
           restore-keys: |
-            ${{ runner.os }}-pnpm-
-
-      - name: Clean signing runner dependencies
-        if: matrix.os == 'windows-latest' && inputs.clean
-        shell: bash
-        run: rm -rf node_modules
-
-      - name: Clean build output
-        shell: bash
-        run: rm -rf dist
-
+            ${{ runner.os }}-${{ runner.arch }}-pnpm-
+      - name: "Dependency cache: ${{ steps.dependencies.outputs.cache-hit == 'true' && 'exact-hit' || 'unknown' }}"
+        run: ":"
       - name: Install Dependencies
-        run: pnpm install
-
-      - name: Enable Linux ARM64 addon builds
-        if: matrix.os == 'ubuntu-latest'
-        uses: docker/setup-qemu-action@v3
-        with:
-          platforms: arm64
-
-      - name: Build Linux
-        if: matrix.os == 'ubuntu-latest'
-        run: |
-          sudo apt-get install -y rpm libglib2.0-dev libgdk-pixbuf-2.0-dev libevdev-dev libxtst-dev libx11-dev libxfixes-dev libwayland-dev
-          pnpm ${{ matrix.edition == 'cn' && 'build:linux:cn' || 'build:linux' }}
-
+        run: pnpm install --frozen-lockfile
+      - name: Build JS bundle
+        run: pnpm run ${{ matrix.edition == 'cn' && 'build:release:cn' || 'build:release' }}
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NODE_OPTIONS: --max-old-space-size=8192
           MAIN_VITE_CHERRYAI_CLIENT_SECRET: ${{ secrets.MAIN_VITE_CHERRYAI_CLIENT_SECRET }}
           MAIN_VITE_CHERRY_CLOUD_CLIENT_SECRET: ${{ secrets.MAIN_VITE_CHERRY_CLOUD_CLIENT_SECRET }}
@@ -252,11 +214,124 @@ jobs:
           RENDERER_VITE_AIHUBMIX_SECRET: ${{ secrets.RENDERER_VITE_AIHUBMIX_SECRET }}
           RENDERER_VITE_PPIO_APP_SECRET: ${{ secrets.RENDERER_VITE_PPIO_APP_SECRET }}
 
+      - uses: actions/upload-artifact@v7
+        with:
+          name: release-js-${{ matrix.edition }}
+          path: |
+            out/
+            release-bundle.json
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 3
+
+      - name: Save pnpm dependencies
+        if: matrix.edition == 'global' && steps.dependencies.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: ${{ steps.store.outputs.path }}
+          key: ${{ steps.dependencies.outputs.cache-primary-key }}
+
+  release:
+    name: Build ${{ matrix.edition }} (${{ matrix.target.platform }}-${{ matrix.target.arch }})
+    needs: [prepare, bundle]
+    runs-on: ${{ matrix.target.platform == 'windows' && fromJSON('["self-hosted", "windows-signing"]') || matrix.target.os }}
+    permissions:
+      contents: read
+
+    strategy:
+      matrix:
+        edition: [global, cn]
+        target: ${{ fromJSON(needs.prepare.outputs.targets) }}
+      fail-fast: false
+
+    steps:
+      - name: Check out Git repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 1
+          ref: ${{ inputs.expected_sha }}
+
+      - name: Install Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: ".node-version"
+
+      - name: macos-latest dependencies fix
+        if: matrix.target.platform == 'mac'
+        run: |
+          brew install python-setuptools
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v5
+
+      - name: Get pnpm store directory
+        id: pnpm-cache
+        if: matrix.target.platform != 'windows'
+        shell: bash
+        run: echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_OUTPUT
+
+      - name: Cache pnpm dependencies
+        id: dependencies
+        if: matrix.target.platform != 'windows'
+        uses: actions/cache/restore@v6
+        with:
+          path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
+          key: ${{ runner.os }}-${{ runner.arch }}-pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ runner.arch }}-pnpm-
+
+      - name: "Dependency cache: ${{ matrix.target.platform == 'windows' && 'persistent-local' || steps.dependencies.outputs.cache-hit == 'true' && 'exact-hit' || 'unknown' }}"
+        shell: bash
+        run: ":"
+
+      - name: Clean signing runner dependencies
+        if: matrix.target.platform == 'windows' && inputs.clean
+        shell: bash
+        run: rm -rf node_modules
+
+      - name: Clean build output
+        shell: bash
+        run: |
+          node -e 'for (const directory of ["dist", "out"]) require("node:fs").rmSync(directory, { recursive: true, force: true })'
+
+      - name: Install Dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Cache verified Linux SQLite artifacts
+        if: matrix.target.platform == 'linux'
+        uses: actions/cache@v6
+        with:
+          path: scripts/linux-native/prebuilt
+          key: linux-sqlite-${{ matrix.target.arch }}-${{ hashFiles('pnpm-lock.yaml', 'scripts/linux-native/compat.js', 'scripts/linux-native/download.js', 'scripts/linux-native/release.json', 'patches/**') }}
+
+      - name: Download JS bundle
+        uses: actions/download-artifact@v8
+        with:
+          name: release-js-${{ matrix.edition }}
+      - name: Verify JS bundle
+        run: node scripts/release/js-bundle.js verify ${{ matrix.edition }}
+
+      - name: Enable Linux ARM64 addon builds
+        if: matrix.target.platform == 'linux' && matrix.target.arch == 'arm64'
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
+
+      - name: Build Linux
+        if: matrix.target.platform == 'linux'
+        run: |
+          sudo apt-get install -y rpm libglib2.0-dev libgdk-pixbuf-2.0-dev libevdev-dev libxtst-dev libx11-dev libxfixes-dev libwayland-dev
+          pnpm exec electron-builder --linux --${{ matrix.target.arch }} --publish never ${{ matrix.edition == 'cn' && '--config electron-builder.cn.config.cjs' || '' }}
+
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NODE_OPTIONS: --max-old-space-size=8192
+
       - name: Build Mac
-        if: matrix.os == 'macos-latest'
+        if: matrix.target.platform == 'mac'
         run: |
           sudo -H pip install setuptools
-          pnpm ${{ matrix.edition == 'cn' && 'build:mac:cn' || 'build:mac' }}
+          pnpm exec electron-builder --mac --${{ matrix.target.arch }} --publish never ${{ matrix.edition == 'cn' && '--config electron-builder.cn.config.cjs' || '' }}
         env:
           CSC_FOR_PULL_REQUEST: true
           CSC_LINK: ${{ secrets.CSC_LINK }}
@@ -266,20 +341,11 @@ jobs:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NODE_OPTIONS: --max-old-space-size=8192
-          MAIN_VITE_CHERRYAI_CLIENT_SECRET: ${{ secrets.MAIN_VITE_CHERRYAI_CLIENT_SECRET }}
-          MAIN_VITE_CHERRY_CLOUD_CLIENT_SECRET: ${{ secrets.MAIN_VITE_CHERRY_CLOUD_CLIENT_SECRET }}
-          SENTRY_SOURCE_MAP_UPLOAD: "true"
-          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
-          SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
-          SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}
-          MAIN_VITE_MINERU_API_KEY: ${{ secrets.MAIN_VITE_MINERU_API_KEY }}
-          RENDERER_VITE_AIHUBMIX_SECRET: ${{ secrets.RENDERER_VITE_AIHUBMIX_SECRET }}
-          RENDERER_VITE_PPIO_APP_SECRET: ${{ secrets.RENDERER_VITE_PPIO_APP_SECRET }}
 
       - name: Build Windows
-        if: matrix.os == 'windows-latest'
+        if: matrix.target.platform == 'windows'
         run: |
-          pnpm ${{ matrix.edition == 'cn' && 'build:win:cn' || 'build:win' }}
+          pnpm exec electron-builder --win --x64 --arm64 --publish never ${{ matrix.edition == 'cn' && '--config electron-builder.cn.config.cjs' || '' }}
         env:
           ELECTRON_BUILDER_7Z_FILTER: BCJ
           WIN_SIGN: true
@@ -288,153 +354,70 @@ jobs:
           CHERRY_CERT_CSP: ${{ secrets.CHERRY_CERT_CSP }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NODE_OPTIONS: --max-old-space-size=8192
-          MAIN_VITE_CHERRYAI_CLIENT_SECRET: ${{ secrets.MAIN_VITE_CHERRYAI_CLIENT_SECRET }}
-          MAIN_VITE_CHERRY_CLOUD_CLIENT_SECRET: ${{ secrets.MAIN_VITE_CHERRY_CLOUD_CLIENT_SECRET }}
-          SENTRY_SOURCE_MAP_UPLOAD: "true"
-          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
-          SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
-          SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}
-          MAIN_VITE_MINERU_API_KEY: ${{ secrets.MAIN_VITE_MINERU_API_KEY }}
-          RENDERER_VITE_AIHUBMIX_SECRET: ${{ secrets.RENDERER_VITE_AIHUBMIX_SECRET }}
-          RENDERER_VITE_PPIO_APP_SECRET: ${{ secrets.RENDERER_VITE_PPIO_APP_SECRET }}
 
-      - name: Validate edition release artifacts
-        run: node scripts/release/validate-edition-artifacts.js "${{ matrix.edition }}"
+      - name: Check out trusted release upload scripts
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          ref: ${{ github.workflow_sha }}
+          path: release-tools
+          sparse-checkout: scripts/release
 
-      - name: Resolve update manifest channel
-        id: release-channel
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install Tencent COS SDK
+        run: python -m pip install cos-python-sdk-v5==1.9.44
+
+      - name: Select and validate release files
         shell: bash
+        env:
+          TAG: ${{ needs.prepare.outputs.tag }}
         run: |
-          CHANNEL="$(node -p "require('./scripts/release/edition').getReleaseChannel(require('./package.json').version, '${{ matrix.edition }}')")"
-          echo "channel=$CHANNEL" >> "$GITHUB_OUTPUT"
+          export NODE_PATH="$(node -p "require('node:path').resolve('node_modules')")"
+          node release-tools/scripts/release/select-release-upload.js "${{ matrix.edition }}" "${{ matrix.target.platform }}" "${{ matrix.target.arch }}"
 
-      - name: Upload CN x64 installer
-        if: matrix.edition == 'cn'
-        uses: actions/upload-artifact@v7
-        with:
-          path: |
-            dist/Cherry-Studio-CN-*-x64-setup.exe
-            dist/Cherry-Studio-CN-*-x64.dmg
-            dist/Cherry-Studio-CN-*-x64.AppImage
-          archive: false
-          if-no-files-found: error
-          retention-days: 7
-          overwrite: true
+      - name: Upload release files directly to COS
+        env:
+          TAG: ${{ needs.prepare.outputs.tag }}
+          COS_SECRET_ID: ${{ secrets.COS_SECRET_ID }}
+          COS_SECRET_KEY: ${{ secrets.COS_SECRET_KEY }}
+        run: python release-tools/scripts/release/release-cos.py upload "${{ matrix.edition }}" "${{ matrix.target.platform }}" "${{ matrix.target.arch }}"
 
-      - name: Upload CN arm64 installer
-        if: matrix.edition == 'cn'
-        uses: actions/upload-artifact@v7
+      - name: Save pnpm dependencies
+        if: matrix.edition == 'global' && matrix.target.platform == 'mac' && matrix.target.arch == 'x64' && steps.dependencies.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6
         with:
-          path: |
-            dist/Cherry-Studio-CN-*-arm64-setup.exe
-            dist/Cherry-Studio-CN-*-arm64.dmg
-            dist/Cherry-Studio-CN-*-arm64.AppImage
-          archive: false
-          if-no-files-found: error
-          retention-days: 7
-          overwrite: true
-
-      - name: Stage Windows release artifacts
-        if: matrix.os == 'windows-latest'
-        uses: actions/upload-artifact@v7
-        with:
-          name: release-${{ needs.prepare.outputs.tag }}-${{ matrix.os }}-${{ matrix.edition }}
-          path: |
-            dist/*.exe
-            dist/*.zip
-            dist/${{ steps.release-channel.outputs.channel }}*.yml
-            dist/*.blockmap
-          if-no-files-found: error
-          overwrite: true
-          compression-level: 0
-
-      - name: Stage macOS release artifacts
-        if: matrix.os == 'macos-latest'
-        uses: actions/upload-artifact@v7
-        with:
-          name: release-${{ needs.prepare.outputs.tag }}-${{ matrix.os }}-${{ matrix.edition }}
-          path: |
-            dist/*.zip
-            dist/*.dmg
-            dist/${{ steps.release-channel.outputs.channel }}*.yml
-            dist/*.blockmap
-          if-no-files-found: error
-          overwrite: true
-          compression-level: 0
-
-      - name: Stage Linux release artifacts
-        if: matrix.os == 'ubuntu-latest'
-        uses: actions/upload-artifact@v7
-        with:
-          name: release-${{ needs.prepare.outputs.tag }}-${{ matrix.os }}-${{ matrix.edition }}
-          path: |
-            dist/*.AppImage
-            dist/*.snap
-            dist/*.deb
-            dist/*.rpm
-            dist/*.tar.gz
-            dist/${{ steps.release-channel.outputs.channel }}*.yml
-            dist/*.blockmap
-          if-no-files-found: error
-          overwrite: true
-          compression-level: 0
-
-      - name: Stage stable release history
-        if: matrix.os == 'ubuntu-latest' && matrix.edition == 'global' && !contains(needs.prepare.outputs.tag, '-')
-        uses: actions/upload-artifact@v7
-        with:
-          name: release-${{ needs.prepare.outputs.tag }}-history
-          path: resources/cherry-studio/release-history.json
-          if-no-files-found: error
-          overwrite: true
+          path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
+          key: ${{ steps.dependencies.outputs.cache-primary-key }}
 
   downloads:
     name: CN installer downloads
     needs: [prepare, release]
     if: always() && needs.prepare.result == 'success'
     runs-on: ubuntu-latest
-    permissions:
-      actions: read
     steps:
-      - name: Summarize CN installers
-        uses: actions/github-script@v8
-        env:
-          RELEASE_TAG: ${{ needs.prepare.outputs.tag }}
+      - uses: actions/checkout@v7
         with:
-          script: |
-            const artifacts = await github.paginate(github.rest.actions.listWorkflowRunArtifacts, {
-              ...context.repo,
-              run_id: context.runId,
-              per_page: 100
-            });
-            const version = process.env.RELEASE_TAG.slice(1);
-            const prefix = `Cherry-Studio-CN-${version}-`;
-            const platforms = { win: 'Windows', mac: 'macOS', linux: 'Linux' };
-            const rows = [];
-            for (const artifact of artifacts.sort((a, b) => a.name.localeCompare(b.name))) {
-              if (artifact.expired || !artifact.name.startsWith(prefix)) continue;
-              const match = /^(win|mac|linux)-(x64|arm64)(?:-setup\.exe|\.dmg|\.AppImage)$/.exec(artifact.name.slice(prefix.length));
-              if (!match) continue;
-              const [, platform, arch] = match;
-              const size = `${(artifact.size_in_bytes / 1024 / 1024).toFixed(1)} MiB`;
-              const url = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}/artifacts/${artifact.id}`;
-              rows.push(`| ${platforms[platform]} | ${arch} | ${version} | ${size} | [Download](${url}) |`);
-            }
-            const lines = [
-              '## CN installer downloads',
-              '',
-              'Sign in to GitHub to download an individual installer without an extra ZIP archive. Downloads are retained for 7 days.',
-              '',
-              'Only available uploads from this run are listed; check the build jobs for failures. Global installers are available in the GitHub draft release.',
-              ''
-            ];
-            if (rows.length) {
-              lines.push('| Platform | Architecture | Version | Size | Download |',
-                '| --- | --- | --- | --- | --- |', ...rows);
-            } else {
-              lines.push('No CN installers are available. Check the build jobs for details.');
-            }
-            await core.summary.addRaw(lines.join('\n') + '\n').write();
+          persist-credentials: false
+          ref: ${{ github.workflow_sha }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install Tencent COS SDK
+        run: python -m pip install cos-python-sdk-v5==1.9.44
+
+      - name: Summarize CN installers
+        env:
+          TAG: ${{ needs.prepare.outputs.tag }}
+          COS_SECRET_ID: ${{ secrets.COS_SECRET_ID }}
+          COS_SECRET_KEY: ${{ secrets.COS_SECRET_KEY }}
+        run: python scripts/release/release-cos.py summary
 
   finalize-build:
     name: Update draft release
@@ -446,6 +429,8 @@ jobs:
     permissions:
       actions: read
       contents: write
+    outputs:
+      artifacts: ${{ steps.inventory.outputs.artifacts }}
     steps:
       - name: Check out trusted workflow scripts
         uses: actions/checkout@v7
@@ -469,44 +454,33 @@ jobs:
       - name: Install release script dependencies
         shell: bash
         run: |
-          npm install --prefix "$RUNNER_TEMP/release-tools" --ignore-scripts --no-audit --no-fund yaml@2.8.2 semver@7.7.1
+          npm install --prefix "$RUNNER_TEMP/release-tools" --ignore-scripts --no-audit --no-fund yaml@2.8.2 zod@4.4.3 semver@7.7.1
           echo "NODE_PATH=$RUNNER_TEMP/release-tools/node_modules" >> "$GITHUB_ENV"
 
-      - name: Resolve same-SHA baseline archive
-        if: inputs.platform != 'all'
-        id: baseline
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
-          TAG: ${{ needs.prepare.outputs.tag }}
-          RELEASE_SHA: ${{ inputs.expected_sha }}
-        run: node scripts/release/release-artifact-source.js baseline
-
-      - name: Download baseline archive
-        if: inputs.platform != 'all'
-        uses: actions/download-artifact@v8
+      - name: Set up Python
+        uses: actions/setup-python@v6
         with:
-          artifact-ids: ${{ steps.baseline.outputs.artifact-id }}
-          github-token: ${{ github.token }}
-          run-id: ${{ steps.baseline.outputs.run-id }}
-          path: baseline-release-artifacts
-          merge-multiple: true
+          python-version: "3.12"
 
-      - name: Download selected release artifacts
-        uses: actions/download-artifact@v8
-        with:
-          pattern: release-${{ needs.prepare.outputs.tag }}-*
-          path: selected-release-artifacts
+      - name: Install Tencent COS SDK
+        run: python -m pip install cos-python-sdk-v5==1.9.44
 
-      - name: Assemble complete release artifacts
+      - name: Assemble release inventory from COS
+        id: inventory
         env:
-          GH_REPO: ${{ github.repository }}
           TAG: ${{ needs.prepare.outputs.tag }}
-          RELEASE_SHA: ${{ inputs.expected_sha }}
-          SOURCE_RUN_ID: ${{ github.run_id }}
+          COS_SECRET_ID: ${{ secrets.COS_SECRET_ID }}
+          COS_SECRET_KEY: ${{ secrets.COS_SECRET_KEY }}
           PLATFORM: ${{ inputs.platform }}
-          RELEASE_BUILDER_FILE: release-source/electron-builder.yml
-        run: node scripts/release/release-artifacts.js assemble release-bundle github-release-artifacts
+        run: |
+          node -e 'process.stdout.write(require("yaml").parse(require("node:fs").readFileSync("release-source/electron-builder.yml", "utf8")).releaseInfo.releaseNotes)' > release_body.txt
+          python scripts/release/release-cos.py assemble "$PLATFORM"
+          node <<'NODE'
+          const fs = require('node:fs')
+          const { files } = JSON.parse(fs.readFileSync('cos-release.json', 'utf8'))
+          const sizes = Object.fromEntries(Object.entries(files).map(([name, entry]) => [name, entry.size]))
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, `artifacts=${JSON.stringify(sizes)}\n`)
+          NODE
 
       - name: Revalidate current release head
         shell: bash
@@ -514,6 +488,8 @@ jobs:
           BRANCH: ${{ env.RELEASE_BRANCH }}
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
+          COS_SECRET_ID: ${{ secrets.COS_SECRET_ID }}
+          COS_SECRET_KEY: ${{ secrets.COS_SECRET_KEY }}
           TAG: ${{ needs.prepare.outputs.tag }}
         run: |
           BRANCH_SHA="$(gh api "repos/$REPO/git/ref/heads/$BRANCH" --jq '.object.sha')"
@@ -523,6 +499,7 @@ jobs:
           BRANCH_SHA="$BRANCH_SHA" RELEASE_JSON="$RELEASE" PLATFORM="${{ inputs.platform }}" \
           REMOTE_TAG_SHA="$REMOTE_TAG_SHA" TAG="$TAG" WORKFLOW_SHA="$RELEASE_SHA" \
             node scripts/release/validate-release-state.js build-start
+          python scripts/release/release-cos.py begin-draft
           if [ -n "$RELEASE" ]; then
             while IFS= read -r asset_id; do
               gh api --method DELETE "repos/$REPO/releases/assets/$asset_id"
@@ -692,48 +669,44 @@ jobs:
             exit 1
           fi
 
-      - name: Preserve complete dual-edition archive
-        uses: actions/upload-artifact@v7
-        with:
-          name: release-bundle-${{ needs.prepare.outputs.tag }}
-          path: release-bundle/
-          if-no-files-found: error
-          retention-days: 90
-          compression-level: 0
-          overwrite: true
+      - name: Record complete release inventory in COS
+        env:
+          TAG: ${{ needs.prepare.outputs.tag }}
+          COS_SECRET_ID: ${{ secrets.COS_SECRET_ID }}
+          COS_SECRET_KEY: ${{ secrets.COS_SECRET_KEY }}
+        run: python scripts/release/release-cos.py record
 
-  cleanup-artifacts:
-    name: Remove intermediate release artifacts
-    needs: [prepare, finalize-build]
+  performance:
+    name: Release build performance
+    needs: [prepare, release, finalize-build]
+    if: always() && needs.prepare.result == 'success'
     runs-on: ubuntu-latest
-    permissions:
-      actions: write
     steps:
-      - name: Delete staged artifacts after archive upload
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          ref: ${{ github.workflow_sha }}
+      - name: Summarize build attempt
         uses: actions/github-script@v8
         env:
-          RELEASE_TAG: ${{ needs.prepare.outputs.tag }}
+          ARTIFACT_SIZES: ${{ needs.finalize-build.outputs.artifacts }}
         with:
           script: |
-            const tag = process.env.RELEASE_TAG;
-            const artifacts = await github.paginate(github.rest.actions.listWorkflowRunArtifacts, {
-              ...context.repo,
-              run_id: context.runId,
-              per_page: 100
-            });
-            if (!artifacts.some(artifact => artifact.name === `release-bundle-${tag}` && !artifact.expired)) {
-              throw new Error('Complete release archive is missing; keeping intermediate artifacts.');
-            }
-            const stagedNames = new Set([`release-${tag}-history`]);
-            for (const platform of ['windows-latest', 'macos-latest', 'ubuntu-latest']) {
-              for (const edition of ['global', 'cn']) {
-                stagedNames.add(`release-${tag}-${platform}-${edition}`);
-              }
-            }
-            for (const artifact of artifacts) {
-              if (!stagedNames.has(artifact.name)) continue;
-              await github.rest.actions.deleteArtifact({ ...context.repo, artifact_id: artifact.id });
-            }
+            const { writeFileSync } = require('node:fs')
+            const { pathToFileURL } = require('node:url')
+            const { summarizeRelease, renderReleasePerformance } = await import(pathToFileURL(`${process.env.GITHUB_WORKSPACE}/scripts/release/performance.mjs`))
+            const attempt = Number(process.env.GITHUB_RUN_ATTEMPT)
+            const parameters = { ...context.repo, run_id: context.runId, attempt_number: attempt }
+            const { data: run } = await github.rest.actions.getWorkflowRunAttempt(parameters)
+            const jobs = await github.paginate(github.rest.actions.listJobsForWorkflowRunAttempt, { ...parameters, per_page: 100 })
+            const artifacts = process.env.ARTIFACT_SIZES ? JSON.parse(process.env.ARTIFACT_SIZES) : null
+            const report = summarizeRelease(run, jobs, process.env.RELEASE_SHA, artifacts)
+            writeFileSync('release-performance.json', JSON.stringify(report, null, 2))
+            await core.summary.addRaw(renderReleasePerformance(report)).write()
+      - uses: actions/upload-artifact@v7
+        with:
+          name: release-performance
+          path: release-performance.json
 
   approve:
     name: Approve production release
@@ -765,11 +738,20 @@ jobs:
         with:
           node-version-file: ".node-version"
 
-      - name: Install release script dependencies
-        shell: bash
-        run: |
-          npm install --prefix "$RUNNER_TEMP/release-tools" --ignore-scripts --no-audit --no-fund yaml@2.8.2 semver@7.7.1
-          echo "NODE_PATH=$RUNNER_TEMP/release-tools/node_modules" >> "$GITHUB_ENV"
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install Tencent COS SDK
+        run: python -m pip install cos-python-sdk-v5==1.9.44
+
+      - name: Check the draft still belongs to the approved run
+        env:
+          TAG: ${{ needs.prepare.outputs.tag }}
+          COS_SECRET_ID: ${{ secrets.COS_SECRET_ID }}
+          COS_SECRET_KEY: ${{ secrets.COS_SECRET_KEY }}
+        run: python scripts/release/release-cos.py check-draft
 
       - name: Validate and publish current draft
         shell: bash
@@ -874,14 +856,17 @@ jobs:
           fi
 
   sync-to-gitcode:
-    name: Sync both editions to COS and GitCode
+    name: Sync both editions to GitCode
     needs: [prepare, publish]
     if: >-
       !cancelled() && github.repository == 'CherryHQ/cherry-studio' && github.ref == 'refs/heads/main' &&
       (needs.publish.result == 'success' || inputs.mode == 'sync-only')
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
     concurrency:
-      group: gitcode-sync-${{ inputs.tag }}
+      group: gitcode-sync-${{ inputs.mode == 'sync-only' && inputs.tag || needs.prepare.outputs.tag }}
       cancel-in-progress: false
     env:
       GH_TOKEN: ${{ github.token }}
@@ -895,48 +880,37 @@ jobs:
           persist-credentials: false
           ref: ${{ github.workflow_sha }}
 
-      - name: Install Node.js
-        uses: actions/setup-node@v7
-        with:
-          node-version-file: ".node-version"
-
-      - name: Install release script dependencies
-        shell: bash
-        run: |
-          npm install --prefix "$RUNNER_TEMP/release-tools" --ignore-scripts --no-audit --no-fund yaml@2.8.2 semver@7.7.1
-          echo "NODE_PATH=$RUNNER_TEMP/release-tools/node_modules" >> "$GITHUB_ENV"
-
-      - name: Resolve published release archive
-        id: source
-        run: node scripts/release/release-artifact-source.js sync
-
-      - name: Download complete archive
-        uses: actions/download-artifact@v8
-        with:
-          artifact-ids: ${{ steps.source.outputs.artifact-id }}
-          github-token: ${{ github.token }}
-          run-id: ${{ steps.source.outputs.run-id }}
-          path: release-bundle
-          merge-multiple: true
-
-      - name: Stage both editions
-        run: node scripts/release/release-artifacts.js sync release-bundle release-assets
-
       - name: Set up Python
-        if: "!(inputs.mode == 'sync-only' && inputs.dry_run)"
         uses: actions/setup-python@v6
         with:
           python-version: "3.12"
 
-      - name: Install Tencent Cloud COS SDK
-        if: "!(inputs.mode == 'sync-only' && inputs.dry_run)"
+      - name: Install Tencent COS SDK
         run: python -m pip install cos-python-sdk-v5==1.9.44
+
+      - name: Check that the source run published the release
+        if: inputs.mode == 'sync-only'
+        run: |
+          if [[ ! "$SOURCE_RUN_ID" =~ ^[0-9]+$ ]]; then
+            echo "sync-only requires the original release run ID" >&2
+            exit 1
+          fi
+          gh api --paginate "repos/$GH_REPO/actions/runs/$SOURCE_RUN_ID/jobs?filter=all&per_page=100" |
+            jq -es 'any(.[].jobs[]; .name == "Publish approved release" and .conclusion == "success")' >/dev/null
+
+      - name: Read complete release inventory from COS
+        env:
+          COS_SECRET_ID: ${{ secrets.COS_SECRET_ID }}
+          COS_SECRET_KEY: ${{ secrets.COS_SECRET_KEY }}
+        run: python scripts/release/release-cos.py prepare-sync
 
       - name: Sync GitCode release
         shell: bash
         env:
-          COS_SECRET_ID: ${{ secrets.COS_SECRET_ID }}
-          COS_SECRET_KEY: ${{ secrets.COS_SECRET_KEY }}
+          RELEASE_FROM_COS: "true"
+          RELEASE_VIA_SCF: "true"
+          TENCENT_SECRET_ID: ${{ secrets.TENCENT_SECRET_ID }}
+          TENCENT_SECRET_KEY: ${{ secrets.TENCENT_SECRET_KEY }}
           GITCODE_TOKEN: ${{ secrets.GITCODE_TOKEN }}
           GITCODE_OWNER: ${{ vars.GITCODE_OWNER }}
           GITCODE_REPO: ${{ vars.GITCODE_REPO }}
@@ -944,11 +918,17 @@ jobs:
           DRY_RUN: ${{ inputs.mode == 'sync-only' && inputs.dry_run }}
           LANG: C.UTF-8
           LC_ALL: C.UTF-8
-        run: bash scripts/release/sync-gitcode.sh
+        run: |
+          if [ "$DRY_RUN" != "true" ]; then
+            : "${TENCENT_SECRET_ID:?TENCENT_SECRET_ID is required}"
+            : "${TENCENT_SECRET_KEY:?TENCENT_SECRET_KEY is required}"
+            python -m pip install tencentcloud-sdk-python-scf==3.1.100
+          fi
+          bash scripts/release/sync-gitcode.sh
 
   notify:
     runs-on: ubuntu-latest
-    needs: [prepare, release, finalize-build, cleanup-artifacts, approve, publish, sync-to-gitcode]
+    needs: [prepare, bundle, release, finalize-build, approve, publish, sync-to-gitcode]
     if: >-
       always() && !(inputs.mode == 'sync-only' && inputs.dry_run) &&
       (contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled'))

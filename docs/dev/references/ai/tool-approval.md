@@ -25,6 +25,11 @@ sources:
   - src/renderer/components/chat/messages/tools/toolResponse.ts
   - src/renderer/components/chat/messages/tools/shared/ArgsTable.tsx
   - src/shared/ipc/schemas/ai.ts
+  - src/main/services/ComputerUseApproval.ts
+  - src/main/services/ComputerUseService.ts
+  - src/main/ipc/handlers/computerUse.ts
+  - src/shared/ipc/schemas/computerUse.ts
+  - src/renderer/components/composer/variants/ComputerUseApprovalComposer.tsx
 ---
 
 # Tool Approval
@@ -110,6 +115,29 @@ subsequent calls of that tool skip the approval card. There is no generic
 per-tool default for non-MCP agent-runtime tools.
 
 For what a single approval authorizes, see [External MCP per-call approval guarantees](#external-mcp-per-call-approval-guarantees).
+
+## Computer Use application consent
+
+Computer Use is enabled by default; a previously saved disabled setting is preserved.
+Ordinary mode requires consent for the resolved native application before launch,
+control, content reads or input. The composer offers **Always** (persist this stable
+application identity), **Approve for session** (this conversation controller, across
+turns and REPL resets), and **Reject** (this request only). Session grants expire when
+the conversation controller closes or Cherry Studio exits. Computer Use settings list
+saved identities and allow revocation; existing handles recheck permission too.
+
+`bypassPermissions` skips application prompts without saving grants. Operating-system
+permissions, explicit Computer Use disablement, user stops and exclusive ownership
+still apply. A second application in a REPL cell needs its own consent. Discovery and
+identity resolution precede consent, but do not authorize content access.
+
+These in-flight host requests use `ToolApprovalRegistry` with `application` presentation.
+The requesting window reads `computer_use.get_approvals`, refreshes on
+`computer_use.approvals_changed`, and answers `computer_use.respond_approval` with an
+explicit scope. Generic `ai.tool.respond_approval` cannot approve an application request.
+The requests are transient and are removed on cancellation; they are not persisted
+as tool-result history or resumed through a synthetic conversation continuation.
+Human approval time is excluded from the REPL execution deadline.
 
 ## External MCP per-call approval guarantees
 

@@ -1,3 +1,4 @@
+import crypto from 'node:crypto'
 import { EventEmitter } from 'node:events'
 
 import { SdkError, SdkErrorCode, SseError, UnauthorizedError } from '@modelcontextprotocol/client'
@@ -6,6 +7,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { BaseService } from '@main/core/lifecycle'
 import type { McpServer } from '@shared/data/types/mcpServer'
+import { BuiltinMcpServerNames } from '@shared/utils/mcp'
 
 const mcpCatalogMock = vi.hoisted(() => ({
   clearSharedToolsCache: vi.fn(),
@@ -45,16 +47,25 @@ vi.mock('@data/services/McpServerService', () => ({
 const { McpRuntimeService, redactSensitive, McpCallToolPayloadSchema, McpGetResourcePayloadSchema } =
   await import('../McpRuntimeService')
 
-/** Build the JSON server key the service uses internally (only `id` is read by close logic). */
+/** Build the JSON server key shape the service uses internally (only `id` is read by close logic). */
 function serverKeyFor(id: string): string {
+  const fingerprint = crypto
+    .createHash('sha256')
+    .update(
+      JSON.stringify({
+        baseUrl: undefined,
+        command: undefined,
+        args: [],
+        registryUrl: undefined,
+        env: undefined,
+        headers: undefined
+      })
+    )
+    .digest('hex')
+
   return JSON.stringify({
-    baseUrl: undefined,
-    command: undefined,
-    args: [],
-    registryUrl: undefined,
-    env: undefined,
-    headers: undefined,
-    id
+    id,
+    fingerprint
   })
 }
 
@@ -618,6 +629,31 @@ describe('McpRuntimeService connect retry gate', () => {
       )
     }
   )
+
+  it('separates connection types with otherwise unchanged configuration', () => {
+    const service = new McpRuntimeService()
+    const server: McpServer = { id: 'server-1', name: 'Server', isActive: true }
+    expect(service.getServerKey({ ...server, type: 'stdio' })).not.toBe(
+      service.getServerKey({ ...server, type: 'streamableHttp' })
+    )
+  })
+
+  it('uses a distinct secret-free key when the API key changes', () => {
+    const service = new McpRuntimeService()
+    const serverWith = (apiKey: string): McpServer => ({
+      id: 'qveris-server',
+      name: BuiltinMcpServerNames.qveris,
+      env: { QVERIS_API_KEY: apiKey },
+      isActive: true
+    })
+
+    const first = service.getServerKey(serverWith('first-key'))
+    const second = service.getServerKey(serverWith('second-key'))
+
+    expect(first).not.toContain('first-key')
+    expect(second).not.toContain('second-key')
+    expect(first).not.toBe(second)
+  })
 })
 
 describe('McpRuntimeService.closeConnectionsForServer', () => {

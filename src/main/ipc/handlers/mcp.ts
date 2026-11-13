@@ -35,8 +35,9 @@ export const mcpHandlers: IpcHandlersFor<typeof mcpRequestSchemas> = {
   'mcp.server.cancel_authorization': async ({ serverId }) => {
     application.get('McpRuntimeService').cancelAuthorization(serverId)
   },
-  'mcp.server.refresh_tools': async ({ serverId }) => {
-    await application.get('McpCatalogService').refreshTools(serverId)
+  'mcp.server.refresh_tools': async ({ serverId }, { senderId }) => {
+    // The caller's window lets an OAuth-only server (QVeris) open the sign-in browser.
+    await application.get('McpCatalogService').refreshTools(serverId, senderId)
   },
   'mcp.server.list_skills': async ({ serverId, requestId }, { senderId }) => {
     if (!senderId) throw new Error('MCP skill discovery requires a managed window')
