@@ -364,12 +364,31 @@ jobs:
           sparse-checkout: scripts/release
 
       - name: Set up Python
+        if: matrix.target.platform != 'windows'
         uses: actions/setup-python@v6
         with:
           python-version: "3.12"
 
+      - name: Set up isolated Python on Windows
+        if: matrix.target.platform == 'windows'
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          version: "0.11.16"
+          python-version: "3.12"
+          activate-environment: true
+          no-project: true
+          venv-path: ${{ runner.temp }}/release-cos-venv
+          enable-cache: false
+        env:
+          UV_MANAGED_PYTHON: "1"
+
       - name: Install Tencent COS SDK
+        if: matrix.target.platform != 'windows'
         run: python -m pip install cos-python-sdk-v5==1.9.44
+
+      - name: Install Tencent COS SDK on Windows
+        if: matrix.target.platform == 'windows'
+        run: uv pip install cos-python-sdk-v5==1.9.44
 
       - name: Select and validate release files
         shell: bash
