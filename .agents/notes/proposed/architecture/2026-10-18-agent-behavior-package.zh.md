@@ -4,6 +4,8 @@ Status: proposed
 
 [English](2026-10-18-agent-behavior-package.md) | 中文
 
+[原生压缩提案](../simplification/2026-11-12-native-agent-compaction.md)获批准后将部分取代本文中关于摘要生成和必须接受摘要的决定。
+
 ## Problem
 
 Cherry 的智能体产品规则目前写成 Pi coding-agent 扩展。子智能体（前台与后台运行、续接、投递、名额、模型选择）、goal（状态、轮、停止、预算、进展、验证器、`/goal`）、`AskUserQuestion`、`todo_write`、offload、recall 和摘要接受规则都在 [agent-runtime-pi](../../../../packages/agent-runtime-pi/README.md) 里；审批规则层在[宿主 Pi 接入](../../../../src/main/ai/runtime/pi/README.md)里；plan 模式只有设计。

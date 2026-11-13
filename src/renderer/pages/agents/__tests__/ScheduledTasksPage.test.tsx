@@ -1,5 +1,6 @@
 import { MockUseDataApiUtils, mockUseQuery } from '@test-mocks/renderer/useDataApi'
 import { act, render, screen } from '@testing-library/react'
+import i18next from 'i18next'
 import type { ComponentProps } from 'react'
 import { afterEach, expect, it, vi } from 'vitest'
 
@@ -13,7 +14,14 @@ import { WindowFrameContext } from '@renderer/hooks/useWindowFrame'
 import type AgentChat from '../AgentChat'
 import ScheduledTasksPage from '../ScheduledTasksPage'
 
-const state = vi.hoisted(() => ({ active: true, visible: true, notificationId: undefined as string | undefined }))
+vi.unmock('@cherrystudio/ui')
+
+const state = vi.hoisted(() => ({
+  active: true,
+  visible: true,
+  notificationId: undefined as string | undefined,
+  runStatus: 'failed' as 'failed' | 'completed'
+}))
 vi.mock('@renderer/hooks/tab', async (importOriginal) => ({
   ...(await importOriginal<typeof TabHooks>()),
   useIsActiveTab: () => state.active
@@ -25,7 +33,9 @@ vi.mock('@tanstack/react-router', () => ({
 vi.mock('@renderer/hooks/agent/useTasks', () => ({
   TASKS_PAGE_LIMIT: 50,
   useAllTasks: () => ({ tasks: [] }),
-  useTask: () => ({ task: { id: 'task' } }),
+  useTask: () => ({
+    task: { id: 'task', runSummary: { status: state.runStatus, finishedAt: '2026-11-11T14:31:00Z' } }
+  }),
   useCreateTask: () => ({ createTask: vi.fn() })
 }))
 vi.mock('@renderer/hooks/agent/useTaskConversation', () => ({
@@ -37,10 +47,19 @@ vi.mock('@renderer/hooks/agent/useTaskConversation', () => ({
 vi.mock('../useAgentConversationBootstrap', () => ({ useAgentConversationBootstrap: (value: unknown) => value }))
 vi.mock('../components/ScheduledTaskSidebar', () => ({ ScheduledTaskGroup: () => null }))
 vi.mock('../AgentChat', () => ({
-  default: ({ locateMessageId, locateToEnd, onLocateMessageHandled, paneOpen }: ComponentProps<typeof AgentChat>) => (
-    <button type="button" aria-expanded={paneOpen} onClick={onLocateMessageHandled}>
-      {locateMessageId ?? (locateToEnd ? 'latest' : 'no request')}
-    </button>
+  default: ({
+    locateMessageId,
+    locateToEnd,
+    onLocateMessageHandled,
+    paneOpen,
+    conversationToolbar
+  }: ComponentProps<typeof AgentChat>) => (
+    <>
+      <header>{conversationToolbar}</header>
+      <button type="button" aria-expanded={paneOpen} onClick={onLocateMessageHandled}>
+        {locateMessageId ?? (locateToEnd ? 'latest' : 'no request')}
+      </button>
+    </>
   )
 }))
 
@@ -49,6 +68,7 @@ afterEach(() => {
   state.visible = true
   state.active = true
   state.notificationId = undefined
+  state.runStatus = 'failed'
   MockUseDataApiUtils.resetMocks()
 })
 
@@ -75,13 +95,15 @@ it.each(['message', null])('delivers navigation %s only when the task conversati
 })
 
 it.each([
-  { taskId: 'task', notificationId: 'notice', visible: true },
-  { taskId: 'another-task', notificationId: 'notice', visible: false },
-  { taskId: 'task', notificationId: 'stale-notice', visible: false }
+  { taskId: 'task', notificationId: 'notice', runStatus: 'failed' as const, visible: true },
+  { taskId: 'another-task', notificationId: 'notice', runStatus: 'failed' as const, visible: false },
+  { taskId: 'task', notificationId: 'stale-notice', runStatus: 'failed' as const, visible: false },
+  { taskId: 'task', notificationId: 'notice', runStatus: 'completed' as const, visible: false }
 ])(
-  'shows a notification error only for its matching task and notification: %j',
-  ({ taskId, notificationId, visible }) => {
+  'reveals the matching error from the failed run summary on keyboard focus: %j',
+  async ({ taskId, notificationId, runStatus, visible }) => {
     state.notificationId = 'notice'
+    state.runStatus = runStatus
     MockUseDataApiUtils.mockQueryResult('/notifications/:id', {
       data: {
         id: notificationId,
@@ -98,7 +120,19 @@ it.each([
         <ScheduledTasksPage />
       </TabIdContext>
     )
-    expect(screen.queryByText('Execution failed') !== null).toBe(visible)
+    expect(screen.queryByText('Execution failed')).not.toBeInTheDocument()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    const label = i18next
+      .t(runStatus === 'failed' ? 'agent.tasks.runSummary.failed' : 'agent.tasks.runSummary.completed', { time: '' })
+      .trim()
+    const summary = screen.getByText((text) => text.startsWith(label)).parentElement!
+    if (visible) {
+      act(() => summary.focus())
+      expect(await screen.findByRole('tooltip')).toHaveTextContent('Execution failed')
+    } else {
+      expect(summary).not.toHaveAttribute('tabindex')
+      expect(screen.queryByRole('tooltip')).not.toBeInTheDocument()
+    }
   }
 )
 

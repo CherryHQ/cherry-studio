@@ -3,6 +3,7 @@ import * as path from 'path'
 
 import { checkTranslationValues } from './i18n-check-values'
 import { collectMainTranslationKeys } from './i18n-main-keys'
+import { type LocaleKeySpec, localeKeySpec } from './i18n-plurals'
 import { sortedObjectByKeys } from './sort'
 
 const baseLocale = process.env.TRANSLATION_BASE_LOCALE ?? 'en-us'
@@ -17,21 +18,22 @@ const filePreviewLocalesDir = path.join(__dirname, '../packages/file-preview/src
 type I18N = { [key: string]: string }
 
 /**
- * 检查目标文件与基准模板的键集合是否完全一致（缺键、多键、值不是字符串都会抛错）。
+ * 检查目标文件的键集合是否符合预期（缺键、多键、值不是字符串都会抛错）。
+ * 预期键集合为基准模板的键，加上目标语言自身的复数形式（见 i18n-plurals.ts）。
  */
-function checkKeys(target: I18N, template: I18N): void {
-  for (const key in template) {
+function checkKeys(target: I18N, spec: LocaleKeySpec): void {
+  for (const key of spec.required) {
     if (!(key in target)) {
       throw new Error(`缺少属性 ${key}`)
-    }
-    if (typeof target[key] !== 'string') {
-      throw new Error(`属性 ${key} 不是字符串，catalog 必须是扁平的 key -> string`)
     }
   }
 
   for (const targetKey in target) {
-    if (!(targetKey in template)) {
+    if (!spec.allowed.has(targetKey)) {
       throw new Error(`多余属性 ${targetKey}`)
+    }
+    if (typeof target[targetKey] !== 'string') {
+      throw new Error(`属性 ${targetKey} 不是字符串，catalog 必须是扁平的 key -> string`)
     }
   }
 }
@@ -72,7 +74,7 @@ function checkCatalog(label: string, baseFilePath: string, files: string[]): I18
       throw new Error(`[${label}] 翻译文件 ${path.basename(filePath)} 的键值未按字典序排序。`)
     }
     try {
-      checkKeys(targetJson, baseJson)
+      checkKeys(targetJson, localeKeySpec(baseJson, filePath))
     } catch (e) {
       console.error(e)
       throw new Error(`[${label}] 在检查 ${filePath} 时出错`)

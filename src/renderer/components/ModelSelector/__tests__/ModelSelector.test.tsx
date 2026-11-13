@@ -1,5 +1,5 @@
 import { mockUseQuery } from '@test-mocks/renderer/useDataApi'
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactNode, Ref } from 'react'
 import { useEffect, useState } from 'react'
@@ -625,6 +625,22 @@ describe('ModelSelector', () => {
 
     await waitFor(() => expect(screen.getByText('dialog closed')).toBeInTheDocument())
     expect(mocks.openSettingsTab).toHaveBeenCalledWith(expectedPath)
+  })
+
+  it('exposes the whole model name through a tooltip instead of a native title', () => {
+    const longName = 'Deepseek: DeepSeek: DeepSeek V4.1 Flash (1017)'
+    const item = makeModelItem(`openai::${longName}`)
+    mocks.useModelSelectorData.mockReturnValue(
+      makeData({
+        listItems: [item],
+        modelItems: [item],
+        selectableModelsById: new Map([[item.modelId, item.model]])
+      })
+    )
+
+    render(<ModelSelector open multiple={false} trigger={<button type="button">open</button>} onSelect={vi.fn()} />)
+
+    expect(within(screen.getByRole('option')).getByTestId('tooltip')).toHaveAttribute('data-title', longName)
   })
 
   it('shows an empty result when no models match', () => {

@@ -19,6 +19,7 @@ const {
   getByIdMock,
   getInstalledSkillDirectoryMock,
   importSystemMock,
+  syncExternalExportsMock,
   reconcileMock,
   reconcileSkillMock,
   checkRemoteUpdateMock,
@@ -34,6 +35,7 @@ const {
   getByIdMock: vi.fn(),
   getInstalledSkillDirectoryMock: vi.fn(),
   importSystemMock: vi.fn(),
+  syncExternalExportsMock: vi.fn(),
   reconcileMock: vi.fn(),
   reconcileSkillMock: vi.fn(),
   checkRemoteUpdateMock: vi.fn(),
@@ -60,6 +62,7 @@ vi.mock('@main/ai/skills/SkillService', () => ({
     getById: getByIdMock,
     getInstalledSkillDirectory: getInstalledSkillDirectoryMock,
     importSystem: importSystemMock,
+    syncExternalExports: syncExternalExportsMock,
     reconcileSkills: reconcileMock,
     reconcileSkill: reconcileSkillMock,
     checkRemoteUpdate: checkRemoteUpdateMock,
@@ -81,6 +84,14 @@ beforeEach(() => {
 })
 
 describe('skillHandlers', () => {
+  it('routes export-only reconciliation without running full reconciliation', async () => {
+    syncExternalExportsMock.mockResolvedValueOnce(undefined)
+    await skillHandlers['skill.reconcile']({ externalExportsOnly: true }, ctx)
+    expect(syncExternalExportsMock).toHaveBeenCalledOnce()
+    expect(reconcileMock).not.toHaveBeenCalled()
+    expect(reconcileSkillMock).not.toHaveBeenCalled()
+  })
+
   it('returns mirror mutation data directly and propagates failures to IpcApi', async () => {
     const skill = { id: 's1', mirrorEnabled: false }
     setMirrorEnabledMock.mockResolvedValueOnce(skill)
