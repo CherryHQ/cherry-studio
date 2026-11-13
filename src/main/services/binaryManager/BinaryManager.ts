@@ -1675,7 +1675,7 @@ export class BinaryManager extends BaseService {
       // just removed; re-select the previous install or it stays on disk but
       // becomes unresolvable through `mise which`.
       const selectionsToRestore = [...stateBefore.selections.entries()]
-        .filter(([spec, version]) => !stateAfter?.selections.has(spec) && stateBefore.versions.has(version))
+        .filter(([spec, version]) => stateAfter?.selections.get(spec) !== version && stateBefore.versions.has(version))
         .map(([, version]) => `${tool}@${version}`)
       if (selectionsToRestore.length) await this.runMise(['use', '-g', ...selectionsToRestore])
       await this.runMise(['reshim'])
