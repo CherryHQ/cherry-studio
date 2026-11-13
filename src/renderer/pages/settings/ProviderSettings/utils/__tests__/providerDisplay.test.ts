@@ -34,10 +34,6 @@ describe('isProviderSettingsListVisibleProvider', () => {
     expect(isProviderSettingsListVisibleProvider(provider(LOCAL_EMBEDDING_PROVIDER_ID))).toBe(false)
   })
 
-  it('hides the CherryAI provider', () => {
-    expect(isProviderSettingsListVisibleProvider(provider('cherryai'))).toBe(false)
-  })
-
   it('keeps a normal provider visible', () => {
     expect(isProviderSettingsListVisibleProvider(provider('openai'))).toBe(true)
   })

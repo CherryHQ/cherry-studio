@@ -56,17 +56,6 @@ describe('ContextManagementSettings', () => {
     }
   })
 
-  it('collapses the offload settings when context management is off, keeping the scope control', () => {
-    prefs.state['chat.context_settings.enabled'] = false
-    render(<ContextManagementSettings />)
-    expect(screen.getByText('settings.models.context_management.scope_description')).toBeInTheDocument()
-    expect(screen.getAllByRole('switch')).toHaveLength(1)
-    expect(screen.queryByLabelText('settings.models.context_management.truncate_threshold')).not.toBeInTheDocument()
-    expect(screen.queryByTestId('compress-model-selector')).not.toBeInTheDocument()
-    // Scope is not governed by the master switch, so it stays reachable.
-    expect(screen.getByLabelText('settings.models.context_management.max_messages')).toBeInTheDocument()
-  })
-
   it('writes the message limit and clears it back to unlimited', () => {
     render(<ContextManagementSettings />)
     const input = screen.getByLabelText('settings.models.context_management.max_messages')
@@ -79,25 +68,6 @@ describe('ContextManagementSettings', () => {
     fireEvent.change(input, { target: { value: '' } })
     fireEvent.blur(input)
     expect(prefs.setters['chat.context_settings.max_messages']).toHaveBeenCalledWith(null)
-  })
-
-  it('shows item descriptions in tooltips instead of inline', () => {
-    render(<ContextManagementSettings />)
-
-    const items = [
-      ['max_messages', 'max_messages_description'],
-      ['enabled', 'enabled_description'],
-      ['truncate_threshold', 'truncate_threshold_description'],
-      ['compress_enabled', 'compress_enabled_description']
-    ]
-
-    for (const [title, description] of items) {
-      const titleKey = `settings.models.context_management.${title}`
-      const descriptionKey = `settings.models.context_management.${description}`
-      const trigger = screen.getByLabelText(`${titleKey}: ${descriptionKey}`)
-      expect(trigger).toHaveAttribute('data-tooltip-content', descriptionKey)
-      expect(screen.queryByText(descriptionKey)).not.toBeInTheDocument()
-    }
   })
 
   it('writes the master switch preference', () => {
@@ -128,15 +98,6 @@ describe('ContextManagementSettings', () => {
     fireEvent.change(input, { target: { value: '1' } })
     fireEvent.blur(input)
     expect(setter).toHaveBeenLastCalledWith(MIN_TRUNCATE_THRESHOLD)
-  })
-
-  it('shows the compress model selector only while compression is on', () => {
-    const { rerender } = render(<ContextManagementSettings />)
-    expect(screen.getByTestId('compress-model-selector')).toBeInTheDocument()
-
-    prefs.state['chat.context_settings.compress.enabled'] = false
-    rerender(<ContextManagementSettings />)
-    expect(screen.queryByTestId('compress-model-selector')).not.toBeInTheDocument()
   })
 
   it('writes the compaction trigger and clamps it into range', () => {

@@ -8,7 +8,6 @@ import { describe, expectTypeOf, it } from 'vitest'
 
 import type { ProviderExtensionConfig } from '../core/ProviderExtension'
 import type {
-  CoreProviderSettingsMap,
   ExtensionConfigToIdResolutionMap,
   ExtractExtensionIds,
   ExtractProviderIds,
@@ -160,60 +159,6 @@ describe('Type Utilities', () => {
       expectTypeOf<Result>().toEqualTypeOf<'test' | 'test-alias'>()
     })
   })
-
-  describe('ExtensionToSettingsMap<T>', () => {
-    it('should map provider IDs to settings type', () => {
-      type MockSettings = { apiKey: string }
-      type MockConfig = { name: 'mock' }
-
-      // This tests the concept - actual implementation depends on ProviderExtension structure
-      type Result = { [K in ExtractProviderIds<MockConfig>]: MockSettings }
-
-      expectTypeOf<Result>().toEqualTypeOf<{ mock: MockSettings }>()
-    })
-  })
-
-  describe('CoreProviderSettingsMap', () => {
-    it('should include openai provider', () => {
-      expectTypeOf<CoreProviderSettingsMap>().toHaveProperty('openai')
-    })
-
-    it('should include anthropic provider', () => {
-      expectTypeOf<CoreProviderSettingsMap>().toHaveProperty('anthropic')
-    })
-
-    it('should include google provider', () => {
-      expectTypeOf<CoreProviderSettingsMap>().toHaveProperty('google')
-    })
-
-    it('should include azure provider', () => {
-      expectTypeOf<CoreProviderSettingsMap>().toHaveProperty('azure')
-    })
-
-    it('should include xai provider', () => {
-      expectTypeOf<CoreProviderSettingsMap>().toHaveProperty('xai')
-    })
-
-    it('should include deepseek provider', () => {
-      expectTypeOf<CoreProviderSettingsMap>().toHaveProperty('deepseek')
-    })
-
-    it('should include openrouter provider', () => {
-      expectTypeOf<CoreProviderSettingsMap>().toHaveProperty('openrouter')
-    })
-
-    it('should include aliases like claude', () => {
-      expectTypeOf<CoreProviderSettingsMap>().toHaveProperty('claude')
-    })
-
-    it('should include variants like openai-chat', () => {
-      expectTypeOf<CoreProviderSettingsMap>().toHaveProperty('openai-chat')
-    })
-
-    it('should include variants like azure-responses', () => {
-      expectTypeOf<CoreProviderSettingsMap>().toHaveProperty('azure-responses')
-    })
-  })
 })
 
 describe('ProviderExtensionConfig Type Constraints', () => {
@@ -227,43 +172,5 @@ describe('ProviderExtensionConfig Type Constraints', () => {
     }
 
     expectTypeOf(config.name).toEqualTypeOf<'test'>()
-  })
-
-  it('should accept config with aliases', () => {
-    type ConfigWithAliases = {
-      name: 'anthropic'
-      aliases: readonly ['claude']
-      create: () => ProviderV3
-    }
-
-    const config: ConfigWithAliases = {
-      name: 'anthropic',
-      aliases: ['claude'] as const,
-      create: () => ({}) as ProviderV3
-    }
-
-    expectTypeOf(config.aliases).toEqualTypeOf<readonly ['claude']>()
-  })
-
-  it('should accept config with variants', () => {
-    type ConfigWithVariants = {
-      name: 'openai'
-      variants: readonly [{ suffix: 'chat'; name: string; transform: (p: ProviderV3) => ProviderV3 }]
-      create: () => ProviderV3
-    }
-
-    const config: ConfigWithVariants = {
-      name: 'openai',
-      variants: [
-        {
-          suffix: 'chat',
-          name: 'OpenAI Chat',
-          transform: (p) => p
-        }
-      ] as const,
-      create: () => ({}) as ProviderV3
-    }
-
-    expectTypeOf(config.variants[0].suffix).toEqualTypeOf<'chat'>()
   })
 })

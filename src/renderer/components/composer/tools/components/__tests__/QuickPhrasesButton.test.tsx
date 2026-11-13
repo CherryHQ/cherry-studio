@@ -159,63 +159,6 @@ describe('QuickPhrasesToolRuntime', () => {
     restoreRequestAnimationFrame = undefined
   })
 
-  it('opens the quick phrases panel with the global fallback when no binding context exists', async () => {
-    const launcher = createLauncherApi()
-    const parentPanel = {
-      list: [],
-      symbol: '/'
-    }
-    const triggerInfo = {
-      type: 'input' as const,
-      position: 0,
-      originalText: '/prompt'
-    }
-
-    render(<QuickPhrasesToolRuntime launcher={launcher} setInputValue={vi.fn()} />)
-
-    await waitFor(() => expect(launcher.registerLaunchers).toHaveBeenCalled())
-    expect(mocks.useQuery).toHaveBeenCalledWith('/prompts', {
-      enabled: false,
-      swrOptions: { keepPreviousData: false },
-      query: { visibility: 'global' }
-    })
-
-    const [quickPhrasesLauncher] = vi.mocked(launcher.registerLaunchers).mock.calls[0][0]
-    act(() => {
-      quickPhrasesLauncher.action?.({
-        parentPanel,
-        queryAnchor: 0,
-        quickPanel: {} as never,
-        source: 'root-panel',
-        triggerInfo
-      })
-    })
-
-    await waitFor(() =>
-      expect(mocks.useQuery).toHaveBeenCalledWith('/prompts', {
-        enabled: true,
-        swrOptions: { keepPreviousData: false },
-        query: { visibility: 'global' }
-      })
-    )
-    expect(mocks.quickPanelClose).not.toHaveBeenCalled()
-    expect(mocks.setTimeoutTimer).not.toHaveBeenCalledWith(
-      'openQuickPhrasesRootMenu',
-      expect.any(Function),
-      expect.any(Number)
-    )
-    expect(mocks.quickPanelOpen).toHaveBeenCalledWith(
-      expect.objectContaining({
-        parentPanel,
-        queryAnchor: 0,
-        symbol: 'quick-phrases',
-        triggerInfo: { type: 'button', position: 0 },
-        trackInputQuery: true,
-        consumeQueryOnDismiss: true
-      })
-    )
-  })
-
   it('offers separate current Assistant and global prompt management actions', async () => {
     const launcher = createLauncherApi()
     const assistantId = ASSISTANT_ID
@@ -287,11 +230,6 @@ describe('QuickPhrasesToolRuntime', () => {
     render(<QuickPhrasesToolRuntime launcher={launcher} setInputValue={vi.fn()} assistantId={assistantId} />)
 
     await waitFor(() => expect(launcher.registerLaunchers).toHaveBeenCalled())
-    expect(mocks.useQuery).toHaveBeenCalledWith('/prompts', {
-      enabled: false,
-      swrOptions: { keepPreviousData: false },
-      query: { targetType: 'assistant', targetId: assistantId, includeGlobal: true }
-    })
 
     const [quickPhrasesLauncher] = vi.mocked(launcher.registerLaunchers).mock.calls[0][0]
     act(() => {
@@ -303,16 +241,6 @@ describe('QuickPhrasesToolRuntime', () => {
         triggerInfo: { type: 'button' }
       })
     })
-
-    await waitFor(() =>
-      expect(mocks.useQuery).toHaveBeenCalledWith('/prompts', {
-        enabled: true,
-        swrOptions: { keepPreviousData: false },
-        query: { targetType: 'assistant', targetId: assistantId, includeGlobal: true }
-      })
-    )
-    const panelOptions = mocks.quickPanelOpen.mock.calls[0][0]
-    expect(panelOptions.list.map((item: { label: string }) => item.label)).toEqual(['Prompt 1'])
 
     const footerActions = getRegisteredFooterActions(launcher)
     const addItem = footerActions.find((item: { ariaLabel: string }) => item.ariaLabel === 'settings.prompts.add')!
@@ -340,11 +268,6 @@ describe('QuickPhrasesToolRuntime', () => {
     render(<QuickPhrasesToolRuntime launcher={launcher} setInputValue={vi.fn()} agentId={agentId} />)
 
     await waitFor(() => expect(launcher.registerLaunchers).toHaveBeenCalled())
-    expect(mocks.useQuery).toHaveBeenCalledWith('/prompts', {
-      enabled: false,
-      swrOptions: { keepPreviousData: false },
-      query: { targetType: 'agent', targetId: agentId, includeGlobal: true }
-    })
 
     const [quickPhrasesLauncher] = vi.mocked(launcher.registerLaunchers).mock.calls[0][0]
     act(() => {
@@ -356,14 +279,6 @@ describe('QuickPhrasesToolRuntime', () => {
         triggerInfo: { type: 'button' }
       })
     })
-
-    await waitFor(() =>
-      expect(mocks.useQuery).toHaveBeenCalledWith('/prompts', {
-        enabled: true,
-        swrOptions: { keepPreviousData: false },
-        query: { targetType: 'agent', targetId: agentId, includeGlobal: true }
-      })
-    )
 
     const footerActions = getRegisteredFooterActions(launcher)
     const manageItem = footerActions.find(

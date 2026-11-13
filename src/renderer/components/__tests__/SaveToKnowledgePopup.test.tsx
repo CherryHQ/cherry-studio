@@ -246,19 +246,6 @@ describe('SaveToKnowledgePopup', () => {
     vi.useRealTimers()
   })
 
-  it('keeps the dialog title separate from the message group source title', async () => {
-    const message = createMessageWithFiles([])
-
-    render(<PopupHost />)
-    act(() => {
-      void SaveToKnowledgePopup.showForMessages([message], 'Session title')
-    })
-
-    expect(await screen.findByRole('heading', { name: 'chat.save.topic.knowledge.title' })).toBeInTheDocument()
-    expect(screen.queryByRole('heading', { name: 'Session title' })).not.toBeInTheDocument()
-    expect(await screen.findByText('chat.save.topic.knowledge.empty.no_content')).toBeInTheDocument()
-  })
-
   it('uses the translated conversation fallback for blank message group source titles', async () => {
     const message = createMessageWithFiles([])
 

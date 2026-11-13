@@ -13,6 +13,7 @@ import {
   ensureAgentStorageDirectory
 } from '@main/ai/agents/agentDataDirectory'
 import { withAgentMemoryFileLock } from '@main/ai/agents/agentMemoryFileLock'
+import { agentAvatarService } from '@main/services/AgentAvatarService'
 import type { AgentMemoryFile, agentRequestSchemas } from '@shared/ipc/schemas/agent'
 import type { IpcHandlersFor } from '@shared/ipc/types'
 
@@ -207,6 +208,7 @@ async function writeMemoryFile(
 }
 
 export const agentHandlers: IpcHandlersFor<typeof agentRequestSchemas> = {
+  'agent.set_avatar': (input) => agentAvatarService.apply(input),
   'agent.memory.read': async ({ agentId }) => {
     const { root, directory } = await resolveAgentDirectory(agentId)
     const files = await Promise.all(MEMORY_FILES.map((file) => readMemoryFile(root, directory, file)))

@@ -5,14 +5,14 @@ import { toast } from '@renderer/services/toast'
 import { getCherryCloudSignInErrorMessage } from '@renderer/utils/cherryCloudSignIn'
 import { cherryCloudErrorCodes } from '@shared/ipc/errors/cherryCloud'
 import { IpcError } from '@shared/ipc/errors/IpcError'
-import type { SubscriptionEntrySource } from '@shared/ipc/schemas/cherryCloud'
+import type { SubscriptionEntrySource, SubscriptionEntryVia } from '@shared/ipc/schemas/cherryCloud'
 
 import { recordSubscribeClick } from './cherryCloudSubscriptionAnalytics'
 
 /** Main coalesces subscription clicks across windows and signs in when required. */
 export async function startCherryCloudSubscription(
   source: SubscriptionEntrySource,
-  details: { modelId?: string } = {}
+  details: { modelId?: string; via?: SubscriptionEntryVia } = {}
 ): Promise<void> {
   const flowId = recordSubscribeClick()
   cacheService.setPersist('ui.cherry_cloud.subscribe_prompt_seen', true)

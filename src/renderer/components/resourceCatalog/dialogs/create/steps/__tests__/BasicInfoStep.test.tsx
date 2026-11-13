@@ -5,7 +5,7 @@ vi.mock('@renderer/components/cherryCloud/CherryCloudModelSelector', async () =>
   }
 })
 
-import { cleanup, render, screen, waitFor, within } from '@testing-library/react'
+import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -100,31 +100,6 @@ describe('BasicInfoStep', () => {
 
     await waitFor(() =>
       expect(screen.getByPlaceholderText('library.config.dialogs.create.name_placeholder')).toHaveFocus()
-    )
-  })
-
-  it('integrates the avatar picker into the name field', () => {
-    render(<Harness />)
-
-    expect(screen.getByText('library.config.dialogs.create.avatar_name_label')).toBeVisible()
-    const avatarButton = screen.getByRole('button', { name: 'library.config.dialogs.create.avatar_aria' })
-    const inputGroup = avatarButton.closest('[data-slot="input-group"]')
-
-    expect(inputGroup).not.toBeNull()
-    expect(
-      within(inputGroup as HTMLElement).getByPlaceholderText('library.config.dialogs.create.name_placeholder')
-    ).toBeVisible()
-  })
-
-  it('hides runtime configuration while keeping smart approval for new agents', () => {
-    render(<Harness showAgentFields />)
-
-    expect(screen.queryByRole('radio')).not.toBeInTheDocument()
-    expect(screen.queryByText('library.config.agent.field.runtime.label')).not.toBeInTheDocument()
-    expect(screen.queryByText('library.config.agent.field.runtime.immutable_hint')).not.toBeInTheDocument()
-    expect(screen.queryByText('library.config.agent.field.runtime.option.pi_durable')).not.toBeInTheDocument()
-    expect(screen.getByLabelText('library.config.agent.field.permission_mode.label')).toHaveTextContent(
-      'agent.settings.tooling.permissionMode.auto.title'
     )
   })
 

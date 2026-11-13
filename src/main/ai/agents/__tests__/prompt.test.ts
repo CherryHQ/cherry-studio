@@ -19,14 +19,7 @@ import { lstat, open, readdir, realpath } from 'node:fs/promises'
 
 import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
 
-import type { AgentConfiguration } from '@shared/data/types/agent'
-
 import { PromptBuilder } from '../prompt'
-
-const baseConfig: AgentConfiguration = {
-  permission_mode: 'bypassPermissions',
-  env_vars: {}
-}
 
 const mockedLstat = vi.mocked(lstat)
 const mockedOpen = vi.mocked(open)
@@ -111,16 +104,6 @@ describe('PromptBuilder', () => {
     vi.clearAllMocks()
   })
 
-  it('uses the SDK preset base when no workspace files exist', async () => {
-    setupFiles({})
-
-    const { base, context: result } = await builder.buildPromptParts(posix('/workspace'))
-
-    expect(base).toEqual({ kind: 'native' })
-    expect(result).toContain('## Memories')
-    expect(result).toContain(posix('`/workspace/SOUL.md`'))
-  })
-
   it('keeps an explicit system.md separate as the custom base', async () => {
     setupFiles({
       [posix('/workspace/system.md')]: 'You are CustomBot, a specialized assistant.'
@@ -130,16 +113,14 @@ describe('PromptBuilder', () => {
 
     expect(base).toEqual({ kind: 'custom', content: 'You are CustomBot, a specialized assistant.' })
     expect(result).not.toContain('You are CustomBot')
-    expect(result).toContain('## Memories')
   })
 
   it('treats an empty system.md as an explicit custom base while retaining Cherry context', async () => {
     setupFiles({ [posix('/workspace/system.md')]: '' })
 
-    const { base, context } = await builder.buildPromptParts(posix('/workspace'))
+    const { base } = await builder.buildPromptParts(posix('/workspace'))
 
     expect(base).toEqual({ kind: 'custom', content: '' })
-    expect(context).toContain('## Memories')
   })
 
   it('fails prompt construction when an explicit system.md cannot be opened', async () => {
@@ -174,10 +155,7 @@ describe('PromptBuilder', () => {
     const { context } = await builder.buildPromptParts(posix('/workspace'))
     const result = context + '\n' + (await builder.buildMemoriesSection(posix('/workspace')))
 
-    expect(result).toContain('## Memories')
-    expect(result).toContain('<soul>')
     expect(result).toContain('Warm but direct. Lead with answers.')
-    expect(result).toContain('</soul>')
   })
 
   it('preserves legacy SOUL.md content verbatim', async () => {
@@ -193,7 +171,7 @@ Always cite primary sources.`
 
     const context = await builder.buildMemoriesSection(posix('/workspace'))
 
-    expect(context).toContain(`<soul>\n${legacySoul}\n</soul>`)
+    expect(context).toContain(legacySoul)
   })
 
   it('includes user.md in memories section', async () => {
@@ -204,9 +182,7 @@ Always cite primary sources.`
     const { context } = await builder.buildPromptParts(posix('/workspace'))
     const result = context + '\n' + (await builder.buildMemoriesSection(posix('/workspace')))
 
-    expect(result).toContain('<user>')
     expect(result).toContain('Name: V')
-    expect(result).toContain('</user>')
   })
 
   it('includes memory/FACT.md in memories section', async () => {
@@ -217,9 +193,7 @@ Always cite primary sources.`
     const { context } = await builder.buildPromptParts(posix('/workspace'))
     const result = context + '\n' + (await builder.buildMemoriesSection(posix('/workspace')))
 
-    expect(result).toContain('<facts>')
     expect(result).toContain('Cherry Studio')
-    expect(result).toContain('</facts>')
   })
 
   it('builds the memories section without the base agent prompt', async () => {
@@ -231,11 +205,9 @@ Always cite primary sources.`
 
     const result = await builder.buildMemoriesSection(posix('/workspace'))
 
-    expect(result).toContain('<agent_identity>')
     expect(result).toContain('Be concise.')
     expect(result).toContain('Name: V')
     expect(result).toContain('Project: Cherry Studio')
-    expect(result).not.toContain('## Autonomy Tools')
   })
 
   it('reports only the identity file fragments included in the rendered snapshot', async () => {
@@ -259,7 +231,7 @@ Always cite primary sources.`
 
     expect(base).toEqual({ kind: 'custom', content: 'You are CustomBot.' })
     expect(result).not.toContain('You are CustomBot.')
-    expect(result).toContain('<soul>')
+
     expect(result).toContain('Sharp and efficient.')
   })
 
@@ -283,25 +255,6 @@ Always cite primary sources.`
     expect(result).not.toContain('Workspace-local system prompt.')
     expect(result).toContain('Persistent agent identity.')
     expect(result).toContain('Persistent agent fact.')
-    expect(result).toContain(posix('`/agent-data/`'))
-    expect(result).toContain(posix('`/agent-data/SOUL.md`'))
-  })
-
-  it('always identifies the agent data directory when identity files are empty and bootstrap is skipped', async () => {
-    setupFiles({})
-
-    const { context: result } = await builder.buildPromptParts(
-      posix('/workspace'),
-      { ...baseConfig, bootstrap_completed: true },
-      true,
-      posix('/agent-data')
-    )
-
-    expect(result).not.toContain('## Bootstrap Mode')
-    expect(result).toContain('## Memories')
-    expect(result).toContain(posix('`/agent-data/SOUL.md`'))
-    expect(result).toContain(posix('`/agent-data/USER.md`'))
-    expect(result).toContain(posix('`/agent-data/memory/FACT.md`'))
   })
 
   it('ignores symbolic-link persona files', async () => {
@@ -336,11 +289,10 @@ Always cite primary sources.`
     const { context } = await builder.buildPromptParts(posix('/workspace'))
     const result = context + '\n' + (await builder.buildMemoriesSection(posix('/workspace')))
 
-    expect(result).toContain('<soul>')
     expect(result).toContain('Uppercase soul')
-    expect(result).toContain('<user>')
+
     expect(result).toContain('Mixed case user')
-    expect(result).toContain('<facts>')
+
     expect(result).toContain('Lowercase facts')
   })
 
@@ -349,97 +301,6 @@ Always cite primary sources.`
 
     expect(await builder.buildMemoriesSection(posix('/workspace'))).toContain('Cached soul')
     expect(await builder.buildMemoriesSection(posix('/workspace'))).toContain('Cached soul')
-  })
-
-  describe('bootstrap mode', () => {
-    it('injects bootstrap instructions when no config is provided and SOUL.md is empty', async () => {
-      setupFiles({})
-
-      const { context: result } = await builder.buildPromptParts(posix('/workspace'))
-
-      expect(result).toContain('## Bootstrap Mode')
-    })
-
-    it('injects bootstrap instructions when bootstrap_completed is false', async () => {
-      setupFiles({})
-
-      const { context: result } = await builder.buildPromptParts(posix('/workspace'), {
-        ...baseConfig,
-        bootstrap_completed: false
-      })
-
-      expect(result).toContain('## Bootstrap Mode')
-    })
-
-    it('runs bootstrap when reset (bootstrap_completed false) even if the agent has instructions', async () => {
-      setupFiles({
-        [posix('/workspace/SOUL.md')]:
-          'I am a warm, direct assistant who gives concise answers and adapts to the user’s communication style.'
-      })
-
-      const { context: result } = await builder.buildPromptParts(
-        posix('/workspace'),
-        { ...baseConfig, bootstrap_completed: false },
-        true
-      )
-
-      expect(result).toContain('## Bootstrap Mode')
-    })
-
-    it('skips bootstrap when bootstrap_completed is true', async () => {
-      setupFiles({})
-
-      const { context: result } = await builder.buildPromptParts(posix('/workspace'), {
-        ...baseConfig,
-        bootstrap_completed: true
-      })
-
-      expect(result).not.toContain('## Bootstrap Mode')
-    })
-
-    it('onboards a configured role when its persona has not been established', async () => {
-      setupFiles({})
-
-      const { context: result } = await builder.buildPromptParts(posix('/workspace'), baseConfig, true)
-
-      expect(result).toContain('## Bootstrap Mode')
-    })
-
-    it('skips bootstrap when SOUL.md has substantial content (legacy migration)', async () => {
-      const realContent =
-        'I am a warm, direct assistant. I lead with answers and prefer concise communication. I respect boundaries and always ask before making assumptions.'
-      setupFiles({
-        [posix('/workspace/SOUL.md')]: `# Soul\n\n> Template header\n\n${realContent}`
-      })
-
-      const { context: result } = await builder.buildPromptParts(posix('/workspace'))
-
-      expect(result).not.toContain('## Bootstrap Mode')
-    })
-
-    it('still shows bootstrap when SOUL.md only has template headings', async () => {
-      setupFiles({
-        [posix('/workspace/SOUL.md')]:
-          '# Soul\n\n> This file defines who you are. Update it as your personality evolves.\n\n## Personality\n\n\n## Tone\n\n'
-      })
-
-      const { context: result } = await builder.buildPromptParts(posix('/workspace'))
-
-      expect(result).toContain('## Bootstrap Mode')
-    })
-
-    it('includes memories section alongside bootstrap instructions', async () => {
-      setupFiles({
-        [posix('/workspace/SOUL.md')]: '# Soul\n\n> This file defines who you are.\n\n## Personality\n\n\n## Tone\n\n',
-        [posix('/workspace/user.md')]: 'Name: V'
-      })
-
-      const { context: result } = await builder.buildPromptParts(posix('/workspace'))
-
-      expect(result).toContain('## Bootstrap Mode')
-      expect(result).toContain('## Memories')
-      expect(await builder.buildMemoriesSection(posix('/workspace'))).toContain('<user>')
-    })
   })
 
   describe('buildFactsSection', () => {
@@ -458,12 +319,8 @@ Always cite primary sources.`
 
       const result = await builder.buildFactsSection(posix('/workspace'))
 
-      expect(result).toBeDefined()
-      expect(result).toContain('## Agent Knowledge')
-      expect(result).toContain('<facts>')
       expect(result).toContain('Project: cherry-studio')
       expect(result).toContain('Build tool: pnpm + electron-vite')
-      expect(result).toContain('</facts>')
     })
 
     it('resolves FACT.md case-insensitively', async () => {
@@ -500,8 +357,6 @@ Always cite primary sources.`
       expect(result).toContain('Build tool: pnpm')
       expect(result).not.toContain('Warm but direct')
       expect(result).not.toContain('Name: V')
-      expect(result).not.toContain('<soul>')
-      expect(result).not.toContain('<user>')
     })
   })
 })

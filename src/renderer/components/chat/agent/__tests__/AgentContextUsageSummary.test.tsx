@@ -1,3 +1,4 @@
+import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
 import { act, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { createInstance } from 'i18next'
@@ -77,7 +78,37 @@ const row = (name: string) => screen.getByRole('row', { name: new RegExp(name) }
 
 describe('AgentContextUsageSummary', () => {
   beforeEach(async () => {
+    MockUseDataApiUtils.resetMocks()
     await i18n.changeLanguage('en-US')
+  })
+
+  it.each([true, false])('resolves MCP server IDs to display names with source metadata: %s', async (hasSource) => {
+    const serverId = 'f010f487-1941-4f15-85ef-0faf31c69abc'
+    MockUseDataApiUtils.mockQueryData('/mcp-servers', {
+      items: [{ id: serverId, name: '团队 / GitHub', isActive: true }],
+      total: 1,
+      page: 1
+    })
+    renderSummary({
+      usage: {
+        ...usage,
+        resources: [
+          {
+            id: 'search',
+            category: 'mcp-tools',
+            name: `mcp__${serverId}__search_issues`,
+            ...(hasSource ? { source: serverId } : {}),
+            count: { tokens: 87, precision: 'estimated' }
+          }
+        ]
+      },
+      percentage: 20
+    })
+    await expandSummary()
+    await userEvent.setup().click(screen.getByRole('button', { name: 'MCP tools 1' }))
+    expect(screen.getByText('团队 / GitHub · Search Issues')).toBeVisible()
+    expect(screen.queryByText(new RegExp(serverId))).not.toBeInTheDocument()
+    expect(screen.getByTitle('87 · Estimated')).toBeInTheDocument()
   })
 
   it('starts as a single summary row and reveals details through keyboard activation', async () => {

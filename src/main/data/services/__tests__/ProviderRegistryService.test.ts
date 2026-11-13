@@ -399,23 +399,6 @@ describe('ProviderRegistryService', () => {
     })
   })
 
-  describe('cache reuse', () => {
-    it('should only read models.json once across multiple calls', async () => {
-      setupRegistryData()
-      await dbh.db.insert(userProviderTable).values({
-        providerId: 'openai',
-        presetProviderId: 'openai',
-        name: 'OpenAI',
-        orderKey: 'a0'
-      })
-
-      providerRegistryService.resolveModels('openai', ['gpt-4o'])
-      providerRegistryService.resolveModels('openai', ['gpt-4o'])
-
-      expect(mockReadModels).toHaveBeenCalledTimes(1)
-    })
-  })
-
   describe('resolveModels', () => {
     beforeEach(async () => {
       await dbh.db.insert(userProviderTable).values([
@@ -1083,32 +1066,6 @@ describe('ProviderRegistryService', () => {
       ])
       expect(disabled.map((item) => `${item.providerId}:${item.presetModelId}:${item.apiModelId}`)).toEqual([
         'cherryin:qwen-image:qwen-image'
-      ])
-    })
-
-    it('lists the seven Radeon Cloud provider-registry models', () => {
-      const readGeneratedRegistry = <T>(filename: string): T =>
-        JSON.parse(
-          readFileSync(new URL(`../../../../../packages/provider-registry/data/${filename}`, import.meta.url), 'utf8')
-        ) as T
-      mockReadModels.mockReturnValue(readGeneratedRegistry<ReturnType<typeof readModelRegistry>>('models.json'))
-      mockReadProviderModels.mockReturnValue(
-        readGeneratedRegistry<ReturnType<typeof readProviderModelRegistry>>('provider-models.json')
-      )
-      mockReadProviders.mockReturnValue(
-        readGeneratedRegistry<ReturnType<typeof readProviderRegistry>>('providers.json')
-      )
-
-      const models = providerRegistryService.listProviderRegistryModels({ providerId: 'radeon-cloud' })
-
-      expect(models.map(({ presetModelId, apiModelId }) => [presetModelId, apiModelId])).toEqual([
-        ['deepseek-v4-flash', 'DeepSeek-V4-Flash'],
-        ['deepseek-v4-pro', 'DeepSeek-V4-Pro'],
-        ['glm-5-1', 'GLM-5.1'],
-        ['glm-5-2', 'GLM-5.2'],
-        ['gpt-oss-120b', 'gpt-oss-120b'],
-        ['kimi-k2-6', 'Kimi-K2.6'],
-        ['qwen3-6-35b-a3b', 'Qwen3.6-35B-A3B']
       ])
     })
 

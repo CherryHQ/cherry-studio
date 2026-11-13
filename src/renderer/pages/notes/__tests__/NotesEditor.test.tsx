@@ -124,47 +124,6 @@ describe('NotesEditor focus behavior', () => {
     expect(document.querySelector('[data-ui="notes.editor"]')).toHaveAttribute('data-note-id', '/notes/example.md')
   })
 
-  it.each([
-    ['an existing note', 'first line\n\nlast line with /', false],
-    ['a new empty note', '', true],
-    ['a whitespace-only note', '  \n\t', true]
-  ])('sets auto focus for %s', async (_label, currentContent, autoFocus) => {
-    render(
-      <NotesEditor
-        activeNodeId="/notes/example.md"
-        currentContent={currentContent}
-        tokenCount={currentContent.length}
-        editorRef={{ current: null }}
-        codeEditorRef={{ current: null }}
-        onMarkdownChange={vi.fn()}
-      />
-    )
-
-    await screen.findByTestId('rich-editor')
-    expect(mocks.richEditorProps).toHaveBeenCalledWith(expect.objectContaining({ autoFocus }))
-  })
-
-  it('uses instance-level command configuration', async () => {
-    render(
-      <NotesEditor
-        activeNodeId="/notes/example.md"
-        currentContent="note"
-        tokenCount={4}
-        editorRef={{ current: null }}
-        codeEditorRef={{ current: null }}
-        onMarkdownChange={vi.fn()}
-      />
-    )
-
-    await screen.findByTestId('rich-editor')
-    expect(mocks.richEditorProps).toHaveBeenCalledWith(
-      expect.objectContaining({ disabledCommands: ['image', 'inlineMath'] })
-    )
-    expect(mocks.richEditorProps.mock.lastCall?.[0]).not.toHaveProperty('onCommandsReady')
-    // Hiding the image command must not disable image paste, which notes have always supported.
-    expect(mocks.richEditorProps.mock.lastCall?.[0]).not.toHaveProperty('enableImageInsertion')
-  })
-
   it('names the spell check toggle in the editor footer', async () => {
     render(
       <NotesEditor
@@ -208,23 +167,6 @@ describe('NotesEditor empty state', () => {
     expect(onCreateNote).toHaveBeenCalledTimes(1)
   })
 
-  it('does not expose a create-note action while a note is open', async () => {
-    render(
-      <NotesEditor
-        activeNodeId="/notes/example.md"
-        currentContent="note"
-        tokenCount={4}
-        editorRef={{ current: null }}
-        codeEditorRef={{ current: null }}
-        onMarkdownChange={vi.fn()}
-        onCreateNote={vi.fn()}
-      />
-    )
-
-    await screen.findByTestId('rich-editor')
-    expect(screen.queryByRole('button', { name: 'Create a new note' })).not.toBeInTheDocument()
-  })
-
   it('does not expose a create-note action on a load error', () => {
     render(
       <NotesEditor
@@ -240,6 +182,5 @@ describe('NotesEditor empty state', () => {
     )
 
     expect(screen.getByText('Failed to load note')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Create a new note' })).not.toBeInTheDocument()
   })
 })

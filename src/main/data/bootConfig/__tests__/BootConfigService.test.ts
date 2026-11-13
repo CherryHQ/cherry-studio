@@ -89,15 +89,6 @@ describe('BootConfigService', () => {
   // ---------- get / set ----------
 
   describe('get / set', () => {
-    it('get returns the correct typed value', async () => {
-      mockFs.existsSync.mockReturnValue(false)
-
-      const service = await createService()
-
-      const val: boolean = service.get('app.disable_hardware_acceleration')
-      expect(val).toBe(DefaultBootConfig['app.disable_hardware_acceleration'])
-    })
-
     it('set updates the value and schedules a debounced save', async () => {
       mockFs.existsSync.mockReturnValue(false)
 

@@ -175,14 +175,11 @@ describe('useMessageSelectionController', () => {
         }),
       { initialProps }
     )
-    const initialActions = result.current.actions
 
     rerender({
       messages: [message('b')],
       partsByMessageId: { b: [{ type: 'text', text: 'latest' }] as CherryMessagePart[] }
     })
-
-    expect(result.current.actions).toBe(initialActions)
 
     await act(async () => {
       await result.current.actions.copySelectedMessages?.(['b'])

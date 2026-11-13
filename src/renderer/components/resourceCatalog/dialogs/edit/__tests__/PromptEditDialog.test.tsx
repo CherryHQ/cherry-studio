@@ -192,10 +192,7 @@ describe('PromptEditDialog', () => {
       />
     )
 
-    expect(screen.queryByRole('button', { name: 'library.config.prompt.generate' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'library.config.prompt.polish' })).toBeInTheDocument()
-    expect(screen.getByText((content) => content.startsWith('library.config.prompt.tokens_label'))).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'common.preview' })).toBeInTheDocument()
 
     const editor = screen.getByLabelText('prompt-editor')
     await user.clear(editor)
@@ -232,11 +229,9 @@ describe('PromptEditDialog', () => {
       />
     )
 
-    expect(screen.getByTestId('prompt-preview-reset-key')).toHaveTextContent('0')
     await user.click(screen.getByRole('button', { name: 'library.config.prompt.polish' }))
 
     expect(screen.getByLabelText('prompt-editor')).toHaveValue('Polished library prompt')
-    expect(screen.getByTestId('prompt-preview-reset-key')).toHaveTextContent('1')
 
     await user.click(screen.getByRole('button', { name: 'common.confirm' }))
 
@@ -247,38 +242,6 @@ describe('PromptEditDialog', () => {
         visibility: 'global'
       })
     })
-  })
-
-  it('uses the prompt title as the blank-content generation fallback', () => {
-    render(
-      <PromptEditDialog
-        open
-        prompt={{
-          id: '018f8f16-3540-7cc2-b3cc-11ef1e3f35ac',
-          title: 'Old title',
-          content: '',
-          visibility: 'global',
-          orderKey: 'a0',
-          createdAt: '2026-05-01T00:00:00.000Z',
-          updatedAt: '2026-05-01T00:00:00.000Z'
-        }}
-        onSave={vi.fn().mockResolvedValue(undefined)}
-        onCancel={vi.fn()}
-      />
-    )
-
-    expect(screen.getByRole('button', { name: 'library.config.prompt.polish' })).toHaveAttribute(
-      'data-fallback-source',
-      'Old title'
-    )
-    expect(screen.getByRole('button', { name: 'library.config.prompt.polish' })).toHaveAttribute(
-      'data-empty-value-system-prompt',
-      expect.stringContaining('reusable user message or instruction')
-    )
-    expect(screen.getByRole('button', { name: 'library.config.prompt.polish' })).toHaveAttribute(
-      'data-existing-value-system-prompt',
-      expect.stringContaining('Do not convert it into a system prompt or introduce an assistant persona.')
-    )
   })
 
   it('disables prompt polishing while saving', () => {

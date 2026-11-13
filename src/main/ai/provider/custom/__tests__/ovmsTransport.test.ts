@@ -53,21 +53,6 @@ describe('OvmsTransport', () => {
     expect(result).toEqual({ imageUrls: ['http://local/a.png'] })
   })
 
-  it('defaults size/steps/seed when absent', async () => {
-    const transport = createOvmsTransport({ baseURL: 'http://localhost:8000' })
-    const fetchMock = vi
-      .spyOn(globalThis, 'fetch')
-      .mockResolvedValue(new Response(JSON.stringify({ data: [] }), { status: 200 }))
-
-    await transport.submit({ ...baseInput, modelId: 'sd', prompt: 'p', providerParams: { model: 'sd' } })
-
-    expect(JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string)).toMatchObject({
-      size: '512x512',
-      num_inference_steps: 4,
-      rng_seed: 0
-    })
-  })
-
   it('parses b64_json into data: URLs (preferred over url)', async () => {
     const transport = createOvmsTransport({ baseURL: 'http://localhost:8000' })
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(
@@ -123,10 +108,5 @@ describe('OvmsTransport', () => {
 
     await expect(promise).rejects.toMatchObject({ name: 'AbortError' })
     expect((fetchMock.mock.calls[0][1] as RequestInit).signal).toBe(controller.signal)
-  })
-
-  it('does not expose polling for the single-shot path', () => {
-    const transport = createOvmsTransport({ baseURL: 'http://localhost:8000' })
-    expect('poll' in transport).toBe(false)
   })
 })

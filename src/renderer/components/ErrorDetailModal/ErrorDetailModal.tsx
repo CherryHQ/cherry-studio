@@ -99,10 +99,10 @@ const truncateLargeData = (
   }
 }
 
-const ErrorDetailContainer = ({ className, viewportProps, ...props }: React.ComponentProps<typeof ScrollArea>) => (
+const ErrorDetailContainer = ({ className, contentProps, ...props }: React.ComponentProps<typeof ScrollArea>) => (
   <ScrollArea
     className={cn('max-h-[60vh]', className)}
-    viewportProps={{ ...viewportProps, className: cn('pr-[5px]', viewportProps?.className) }}
+    contentProps={{ ...contentProps, className: cn('pr-[5px]', contentProps?.className) }}
     {...props}
   />
 )

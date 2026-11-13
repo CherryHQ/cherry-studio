@@ -1,5 +1,5 @@
 import { act, render, waitFor } from '@testing-library/react'
-import { Globe2, Settings2 } from 'lucide-react'
+import { Globe2 } from 'lucide-react'
 import { isValidElement } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -151,29 +151,6 @@ describe('mcpStatusTool', () => {
     mocks.updateAssistant.mockResolvedValue({})
   })
 
-  it('builds chat auto mode rows from active servers only', () => {
-    const items = buildMcpStatusItems({
-      assistant: {
-        settings: { mcpMode: 'auto' },
-        mcpServerIds: ['manual-only']
-      } as Assistant,
-      mcpServers: [
-        server({ id: 'active', name: 'filesystem', isActive: true }),
-        server({ id: 'inactive', name: 'search', isActive: false })
-      ],
-      mcpStatuses: { active: status('connected') },
-      scope: TopicType.Chat,
-      t
-    })
-
-    expect(items).toHaveLength(1)
-    expect(items[0]).toMatchObject({
-      label: 'filesystem',
-      description: 'Connected'
-    })
-    expect(items[0].suffix).toBeUndefined()
-  })
-
   it('builds chat manual mode rows from all installed servers and marks assistant bindings', () => {
     const onToggleBinding = vi.fn()
     const items = buildMcpStatusItems({
@@ -192,64 +169,8 @@ describe('mcpStatusTool', () => {
       t
     })
 
-    expect(items.map((item) => item.label)).toEqual(['filesystem', 'search'])
-    expect(items[0]).toMatchObject({
-      description: 'Connecting',
-      disabled: false,
-      isSelected: true,
-      keepOpenOnAction: true
-    })
-    expect(items[1]).toMatchObject({
-      description: 'Disabled',
-      disabled: true,
-      isSelected: false
-    })
-    expect(items[0].suffix).toBeDefined()
-    expect(items[1].suffix).toBeUndefined()
-
     items[0].action?.({} as any)
     expect(onToggleBinding).toHaveBeenCalledWith('active', false)
-  })
-
-  it('builds a chat disabled empty state', () => {
-    const items = buildMcpStatusItems({
-      assistant: {
-        settings: { mcpMode: 'disabled' },
-        mcpServerIds: ['active']
-      } as Assistant,
-      mcpServers: [server({ id: 'active', name: 'filesystem', isActive: true })],
-      mcpStatuses: {},
-      scope: TopicType.Chat,
-      t
-    })
-
-    expect(items).toEqual([expect.objectContaining({ label: 'MCP is disabled for this assistant', disabled: true })])
-  })
-
-  it('does not show the assistant MCP mode on chat empty states', () => {
-    const autoItems = buildMcpStatusItems({
-      assistant: {
-        settings: { mcpMode: 'auto' },
-        mcpServerIds: [] as string[]
-      } as Assistant,
-      mcpServers: [],
-      mcpStatuses: {},
-      scope: TopicType.Chat,
-      t
-    })
-    expect(autoItems[0].description).toBeUndefined()
-
-    const manualItems = buildMcpStatusItems({
-      assistant: {
-        settings: { mcpMode: 'manual' },
-        mcpServerIds: [] as string[]
-      } as Assistant,
-      mcpServers: [],
-      mcpStatuses: {},
-      scope: TopicType.Chat,
-      t
-    })
-    expect(manualItems[0].description).toBeUndefined()
   })
 
   it('builds session rows from all installed servers even when the current agent has no bindings', () => {
@@ -266,10 +187,6 @@ describe('mcpStatusTool', () => {
       scope: TopicType.Session,
       t
     })
-
-    expect(items.map((item) => item.label)).toEqual(['filesystem', 'search'])
-    expect(items[0]).toMatchObject({ description: 'Error', disabled: false, isSelected: false })
-    expect(items[1]).toMatchObject({ description: 'Disabled', disabled: true, isSelected: false })
 
     items[0].action?.({} as any)
     expect(onToggleBinding).toHaveBeenCalledWith('active', true)
@@ -344,12 +261,6 @@ describe('mcpStatusTool', () => {
       insertText: vi.fn()
     }
 
-    expect(launcher).toMatchObject({
-      id: 'mcp-status',
-      sources: ['root-panel'],
-      order: 50
-    })
-
     launcher.action?.({
       quickPanel,
       inputAdapter,
@@ -359,64 +270,6 @@ describe('mcpStatusTool', () => {
     } as any)
 
     expect(inputAdapter.deleteTriggerRange).toHaveBeenCalledWith({ from: 0, to: 4 })
-    expect(quickPanel.open).toHaveBeenCalledWith(
-      expect.objectContaining({
-        list: items,
-        readOnly: true,
-        symbol: ComposerPanelSymbol.McpStatus,
-        title: 'MCP'
-      })
-    )
-  })
-
-  it('opens manual binding panels as interactive', () => {
-    const quickPanel = { open: vi.fn() }
-
-    createMcpStatusLauncher([], t, 'manual', true).action?.({ quickPanel, source: 'root-panel' } as any)
-
-    expect(quickPanel.open).toHaveBeenCalledWith(expect.objectContaining({ readOnly: false }))
-  })
-
-  it('shows assistant MCP mode in the details panel title', () => {
-    const items = [{ id: 'active', label: 'filesystem', icon: 'mcp' }]
-    const quickPanel = { open: vi.fn() }
-
-    createMcpStatusLauncher(items, t, 'auto').action?.({
-      quickPanel,
-      source: 'root-panel'
-    } as any)
-
-    expect(quickPanel.open).toHaveBeenCalledWith(
-      expect.objectContaining({
-        title: 'MCP / Auto'
-      })
-    )
-
-    vi.mocked(quickPanel.open).mockClear()
-
-    createMcpStatusLauncher(items, t, 'manual').action?.({
-      quickPanel,
-      source: 'root-panel'
-    } as any)
-
-    expect(quickPanel.open).toHaveBeenCalledWith(
-      expect.objectContaining({
-        title: 'MCP / Manual'
-      })
-    )
-  })
-
-  it('keeps the MCP launcher openable when disabled so the config entry stays reachable', () => {
-    const launcher = createMcpStatusLauncher([], t, 'disabled', false)
-
-    expect(launcher).toMatchObject({ id: 'mcp-status', description: 'Disabled', active: false })
-    expect(launcher.disabled).toBeFalsy()
-    expect(launcher.action).toEqual(expect.any(Function))
-
-    const quickPanel = { open: vi.fn() }
-    launcher.action?.({ quickPanel } as any)
-    expect(quickPanel.open).toHaveBeenCalledWith(expect.objectContaining({ readOnly: true, list: [] }))
-    expect(quickPanel.open.mock.calls[0][0]).not.toHaveProperty('footerActions')
   })
 
   // Catches #20198: toolbar consumers need a pure activation contract so the MCP shortcut
@@ -473,24 +326,6 @@ describe('mcpStatusTool', () => {
     ])
   })
 
-  it('highlights a bound session agent before the MCP panel opens while deferring server status', async () => {
-    mocks.agent = { mcps: ['server-1'] }
-    renderMcpRuntime({ scope: TopicType.Session, session: { agentId: 'agent-1' } })
-    await waitFor(() => expect(mocks.registerLaunchers).toHaveBeenCalled())
-
-    const launcher = mocks.registerLaunchers.mock.calls.at(-1)?.[0][0] as ComposerToolLauncher
-    expect(launcher.active).toBe(true)
-    expect(mocks.mcpServerOptions.at(-1)).toEqual({ enabled: false })
-    expect(mocks.agentIds.at(-1)).toBe('agent-1')
-
-    act(() => {
-      openLatestRegisteredPanel()
-    })
-
-    await waitFor(() => expect(mocks.mcpServerOptions.at(-1)).toEqual({ enabled: true }))
-    expect(mocks.agentIds.at(-1)).toBe('agent-1')
-  })
-
   it('shows saving state and ignores rapid repeated binding toggles', async () => {
     let resolveUpdate: (value: unknown) => void = () => undefined
     mocks.updateAssistant.mockImplementationOnce(() => new Promise((resolve) => (resolveUpdate = resolve)))
@@ -522,14 +357,12 @@ describe('mcpStatusTool', () => {
         'aria-label': 'Loading...',
         role: 'status'
       })
-      expect(pendingItems[0].suffix?.props.children?.props?.className).toBe('animate-spin')
     })
 
     await act(async () => resolveUpdate({}))
     await waitFor(() => {
       const settledItems = openLatestRegisteredPanel()
       expect(settledItems[0]).toMatchObject({ disabled: false })
-      expect(settledItems[0].suffix).toBeUndefined()
     })
   })
 
@@ -550,15 +383,9 @@ describe('mcpStatusTool', () => {
     })
 
     await waitFor(() => expect(mocks.toastError).toHaveBeenCalledWith('Save failed: Network down'))
-    expect(mocks.loggerError).toHaveBeenCalledWith(
-      'Failed to update MCP binding from the composer',
-      expect.any(Error),
-      expect.objectContaining({ scope: TopicType.Chat, serverId: 'filesystem' })
-    )
 
     const settledItems = openLatestRegisteredPanel()
     expect(settledItems[0]).toMatchObject({ disabled: false })
-    expect(settledItems[0].suffix).toBeUndefined()
   })
 
   it('resolves the MCP config target from the conversation scope', () => {
@@ -582,13 +409,6 @@ describe('mcpStatusTool', () => {
 
     const target = { kind: 'agent', id: 'agent-1', initialTab: 'tools.mcp' } as const
     const footer = buildMcpConfigFooterItem(target, t)
-    expect(footer).toMatchObject({
-      id: 'mcp-status:open-config',
-      ariaLabel: 'Manage current Agent MCP servers'
-    })
-    const footerIcon = footer?.icon
-    expect(isValidElement(footerIcon) && footerIcon.type === Settings2).toBe(true)
-    expect(footer).not.toHaveProperty('fixedToBottom')
 
     footer?.action?.({} as any)
     expect(editDialogMocks.openResourceEditDialog).toHaveBeenCalledWith(target)

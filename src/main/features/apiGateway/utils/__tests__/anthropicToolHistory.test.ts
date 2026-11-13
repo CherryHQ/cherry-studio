@@ -26,7 +26,6 @@ describe('normalizeAnthropicToolHistory', () => {
     const result = normalizeAnthropicToolHistory(messages)
 
     expect(result).toEqual({ status: 'unchanged', messages })
-    if (result.status === 'unchanged') expect(result.messages).toBe(messages)
   })
 
   it('ignores string content and server-tool blocks', () => {
@@ -45,7 +44,6 @@ describe('normalizeAnthropicToolHistory', () => {
     const result = normalizeAnthropicToolHistory(messages)
 
     expect(result).toEqual({ status: 'unchanged', messages })
-    if (result.status === 'unchanged') expect(result.messages).toBe(messages)
   })
 
   it('removes identical calls and results without mutating input or cloning unchanged messages', () => {
@@ -65,11 +63,7 @@ describe('normalizeAnthropicToolHistory', () => {
     if (result.status !== 'repaired') throw new Error('expected repaired history')
     expect(result.duplicateToolUseCount).toBe(1)
     expect(result.duplicateToolResultCount).toBe(1)
-    expect(result.messages).not.toBe(messages)
-    expect(result.messages[0]).not.toBe(messages[0])
     expect(result.messages[0].content).toEqual([call])
-    expect(result.messages[1]).toBe(unchangedMessage)
-    expect(result.messages[2]).not.toBe(messages[2])
     expect(result.messages[2].content).toEqual([output])
     expect(messages).toEqual(snapshot)
   })

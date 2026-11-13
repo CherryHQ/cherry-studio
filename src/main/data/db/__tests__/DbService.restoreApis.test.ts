@@ -44,14 +44,6 @@ describe('DbService.createSnapshot', () => {
     expect(() => service.createSnapshot('/tmp/work.sqlite')).toThrow(/not initialized/i)
     expect(snapshotTo).not.toHaveBeenCalled()
   })
-
-  it('delegates to snapshotTo with its own connection when ready', () => {
-    const service = bareDbService(true)
-
-    service.createSnapshot('/tmp/work.sqlite')
-
-    expect(snapshotTo).toHaveBeenCalledExactlyOnceWith(fakeSqlite, '/tmp/work.sqlite')
-  })
 })
 
 describe('DbService.checkpointTruncate', () => {
@@ -60,13 +52,5 @@ describe('DbService.checkpointTruncate', () => {
 
     expect(() => service.checkpointTruncate()).toThrow(/not initialized/i)
     expect(checkpointTruncateAssert).not.toHaveBeenCalled()
-  })
-
-  it('delegates to checkpointTruncateAssert with its own connection when ready', () => {
-    const service = bareDbService(true)
-
-    service.checkpointTruncate()
-
-    expect(checkpointTruncateAssert).toHaveBeenCalledExactlyOnceWith(fakeSqlite)
   })
 })

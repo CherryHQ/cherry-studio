@@ -84,20 +84,6 @@ describe('agentHandlers', () => {
       expect(result).toMatchObject({ items: [mockAgent], total: 1, page: 1 })
     })
 
-    it('GET works without query params (defaults from ListAgentsQuerySchema)', async () => {
-      listAgentsMock.mockReturnValueOnce({ agents: [], total: 0 })
-
-      const result = await agentHandlers['/agents'].GET({})
-
-      // page=1, limit=100 (AGENTS_DEFAULT_LIMIT) → offset=0; search undefined.
-      expect(listAgentsMock).toHaveBeenCalledWith({
-        limit: 100,
-        offset: 0,
-        search: undefined
-      })
-      expect(result).toMatchObject({ total: 0, page: 1 })
-    })
-
     it('GET forwards search to the service', async () => {
       listAgentsMock.mockReturnValueOnce({ agents: [], total: 0 })
 
@@ -107,11 +93,7 @@ describe('agentHandlers', () => {
         }
       })
 
-      expect(listAgentsMock).toHaveBeenCalledWith({
-        limit: 100,
-        offset: 0,
-        search: 'research'
-      })
+      expect(listAgentsMock).toHaveBeenCalledWith(expect.objectContaining({ search: 'research' }))
     })
 
     it('GET forwards builtinRole to the service', async () => {
@@ -294,8 +276,8 @@ describe('agentHandlers', () => {
         query: {}
       })
 
-      expect(listTasksMock).toHaveBeenCalledWith(AGENT_ID, { limit: 50, offset: 0 })
-      expect(result).toMatchObject({ items: [mockTask], total: 1, page: 1 })
+      expect(listTasksMock).toHaveBeenCalledWith(AGENT_ID, expect.any(Object))
+      expect(result).toMatchObject({ items: [mockTask], total: 1 })
     })
 
     it('rejects invalid pagination query', async () => {

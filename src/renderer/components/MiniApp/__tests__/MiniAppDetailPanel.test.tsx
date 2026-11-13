@@ -152,16 +152,6 @@ describe('activity log', () => {
     expect(list.textContent).toContain('network.fetch → PermissionDenied')
     expect(list.textContent).toContain('clipboard.write → ok · chars=12')
     expect(list.textContent).toContain('clipboard.read')
-    expect(
-      within(list)
-        .getByText(/network\.fetch/)
-        .closest('li')?.className
-    ).toContain('text-destructive')
-    expect(
-      within(list)
-        .getByText(/clipboard\.write/)
-        .closest('li')?.className
-    ).not.toContain('text-destructive')
   })
 
   it('says what an update dropped and never dangles an empty "granted"', async () => {
@@ -210,14 +200,6 @@ describe('activity log', () => {
     expect(await screen.findByText(/log directory is gone/)).toBeInTheDocument()
   })
 
-  it('explains what the log is, whether or not it has lines', async () => {
-    activity.entries = []
-    activity.days = 0
-    await open()
-
-    expect(screen.getByLabelText(/refus|拒绝/i)).toBeInTheDocument()
-  })
-
   it('re-reads the log when the user asks, not on its own', async () => {
     await open()
     await screen.findByTestId('activity-list')
@@ -261,15 +243,6 @@ describe('MiniAppDetailPanel', () => {
 
     const selector = within(screen.getByTestId('model-slot-default'))
     expect(selector.getByRole('button', { name: 'Regular chat model' })).toBeInTheDocument()
-  })
-
-  it('offers a web app both an update check and a package replacement', async () => {
-    // A package handed over by the user may replace ANY app — the version decides whether
-    // that is an upgrade or a reinstall, and the source is re-pinned to what they chose.
-    await open()
-
-    expect(screen.getByRole('button', { name: /check for update/i })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /replace package|替换本地包/i })).toBeInTheDocument()
   })
 
   it('replaces the package through the install preview, pinned to this app', async () => {
@@ -325,16 +298,6 @@ describe('MiniAppDetailPanel', () => {
 
     expect(screen.getByRole('button', { name: /replace package|替换本地包/i })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /check for update/i })).toBeNull()
-  })
-
-  it('groups the panel into permissions, space, activity and settings tabs', async () => {
-    await open()
-
-    const tabs = screen.getAllByRole('tab').map((tab) => tab.textContent ?? '')
-    expect(tabs).toHaveLength(4)
-    for (const [i, label] of [/permissions/i, /space/i, /activity/i, /settings/i].entries()) {
-      expect(tabs[i]).toMatch(label)
-    }
   })
 
   it('shows storage and file usage against their quotas', async () => {

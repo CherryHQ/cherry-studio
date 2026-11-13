@@ -12,11 +12,7 @@
  */
 
 import { endpointImpliedCapability, MODALITY, VENDOR_PATTERNS } from '@cherrystudio/provider-registry'
-import {
-  CHERRYAI_PROVIDER_ID,
-  isManagedCherryAiDefaultModel,
-  isManagedCherryCloudModel
-} from '@shared/data/presets/cherryai'
+import { CHERRYAI_PROVIDER_ID, isManagedCherryAiDefaultModel } from '@shared/data/presets/cherryai'
 import type { Model } from '@shared/data/types/model'
 import { MODEL_CAPABILITY, parseUniqueModelId } from '@shared/data/types/model'
 
@@ -113,8 +109,7 @@ export const isGatewayRoutableModel = (model: Model): boolean => {
 }
 
 /** Models the public API gateway and Code Mate may expose. */
-export const isPublicGatewayRoutableModel = (model: Model): boolean =>
-  isGatewayRoutableModel(model) && !isManagedCherryCloudModel(model.providerId)
+export const isPublicGatewayRoutableModel = isGatewayRoutableModel
 
 // ---------------------------------------------------------------------------
 // Reasoning configuration
