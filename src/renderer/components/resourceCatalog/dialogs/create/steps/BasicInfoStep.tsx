@@ -17,8 +17,7 @@ import { PermissionModeSelect } from '@renderer/components/PermissionModeOption'
 import { EmojiAvatarPicker } from '@renderer/components/resourceCatalog/dialogs/components/DialogFormFields'
 import {
   CompactModelField,
-  type ModelLabels,
-  TextInputField
+  type ModelLabels
 } from '@renderer/components/resourceCatalog/dialogs/components/EditDialogShared'
 import { getPermissionModeCards } from '@renderer/utils/agent'
 
@@ -47,8 +46,9 @@ export function CreateModelField({
   modelFilter,
   isModelDisabled,
   onSettingsNavigate,
-  includeAgentOnlyModels = false
-}: ModelFieldProps & { includeAgentOnlyModels?: boolean }) {
+  includeAgentOnlyModels = false,
+  labelClassName = 'font-medium'
+}: ModelFieldProps & { includeAgentOnlyModels?: boolean; labelClassName?: string }) {
   const { t } = useTranslation()
   const [modelLabels, setModelLabels] = useState<ModelLabels>(EMPTY_MODEL_LABELS)
 
@@ -58,7 +58,7 @@ export function CreateModelField({
       name="modelId"
       includeAgentOnlyModels={includeAgentOnlyModels}
       label={t('common.model')}
-      labelClassName="font-medium"
+      labelClassName={labelClassName}
       filter={modelFilter}
       isModelDisabled={isModelDisabled}
       portalContainer={portalContainer}
@@ -129,10 +129,10 @@ function AgentRuntimeModelFields({
 }
 
 /** Draft image state an Agent's avatar picker reports while it prepares a chosen image. */
-export type AgentImageDraft = { active: boolean; disabled: boolean; onPendingChange: (pending: boolean) => void }
+type AgentImageDraft = { active: boolean; disabled: boolean; onPendingChange: (pending: boolean) => void }
 
 /** Avatar + name input. The auto-create entry leaves the name optional (it is generated). */
-export function AvatarNameField({
+function AvatarNameField({
   form,
   portalContainer,
   fallbackAvatar,
@@ -207,7 +207,7 @@ export function AvatarNameField({
 }
 
 /**
- * Step 1 (shared by assistant + agent): avatar, name, model, description.
+ * Step 1 (shared by assistant + agent): avatar, name, model. The entry's purpose is the description.
  * Reuses the edit-dialog field components verbatim — field names match. Owns its
  * own emoji-picker and model-label state so selecting a model/avatar re-renders
  * only this step, never the dialog shell (keeps DialogContent's ref stable).
@@ -224,8 +224,6 @@ export function BasicInfoStep({
   showAgentFields = false,
   onSettingsNavigate
 }: BasicInfoStepProps) {
-  const { t } = useTranslation()
-
   useEffect(() => {
     form.setFocus('name')
   }, [form])
@@ -257,14 +255,6 @@ export function BasicInfoStep({
           onSettingsNavigate={onSettingsNavigate}
         />
       )}
-
-      <TextInputField
-        form={form}
-        name="description"
-        label={t('common.description')}
-        labelClassName="font-medium"
-        placeholder={t('library.config.dialogs.create.description_placeholder')}
-      />
     </div>
   )
 }
