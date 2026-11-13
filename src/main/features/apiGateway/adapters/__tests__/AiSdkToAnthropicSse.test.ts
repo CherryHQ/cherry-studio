@@ -794,8 +794,18 @@ it.each([null, undefined, [], true, 42, 'invalid json'])(
   }
 )
 
+it('completes an other finish reason successfully', async () => {
+  const adapter = new AiSdkToAnthropicSse({ model: 'test:model' })
+  const events = await collectEvents(adapter.transform(createMockStream([{ type: 'finish', finishReason: 'other' }])))
+  expect(events).toContainEqual(
+    expect.objectContaining({ type: 'message_delta', delta: expect.objectContaining({ stop_reason: 'end_turn' }) })
+  )
+  expect(events.at(-1)?.type).toBe('message_stop')
+  expect(events).not.toContainEqual(expect.objectContaining({ type: 'error' }))
+})
+
 describe('terminal failure reasons', () => {
-  it.each(['error', 'other'] as const)('rejects %s while reading after a tool call', async (reason) => {
+  it.each(['error'] as const)('rejects %s while reading after a tool call', async (reason) => {
     const adapter = new AiSdkToAnthropicSse({ model: 'test:model' })
     const stream = new ReadableStream<UIMessageChunk>({
       start(controller) {
@@ -812,7 +822,7 @@ describe('terminal failure reasons', () => {
     await expect(read()).rejects.toMatchObject({ statusCode: 502 })
   })
 
-  it.each(['error', 'other'] as const)('rejects %s with 502, including after a tool call', (reason) => {
+  it.each(['error'] as const)('rejects %s with 502, including after a tool call', (reason) => {
     for (const withTool of [false, true]) {
       const adapter = new AiSdkToAnthropicSse({ model: 'test:model' })
       if (withTool)

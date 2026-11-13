@@ -1209,8 +1209,37 @@ describe('processMessage (terminal finish reasons)', () => {
     { format: 'openai', path: '/v1/chat/completions' },
     { format: 'openai-responses', path: '/v1/responses' }
   ]
+  it.each([
+    { format: 'gemini', terminal: '"finishReason":"OTHER"', done: '"finishReason":"OTHER"' },
+    { format: 'anthropic', terminal: '"stop_reason":"end_turn"', done: 'event: message_stop' },
+    { format: 'openai', terminal: '"finish_reason":"stop"', done: 'data: [DONE]' },
+    { format: 'openai-responses', terminal: '"status":"completed"', done: 'event: response.completed' }
+  ] as const)('$format / other completes successfully', async ({ format, terminal, done }) => {
+    vi.mocked(StreamAdapterFactory.createAdapter).mockImplementation(
+      RealStreamAdapterFactory.createAdapter.bind(RealStreamAdapterFactory)
+    )
+    vi.mocked(StreamAdapterFactory.getFormatter).mockImplementation(
+      RealStreamAdapterFactory.getFormatter.bind(RealStreamAdapterFactory)
+    )
+    const pending = processMessage({
+      params: { model: 'openai:gpt-4', stream: true, messages: [] },
+      inputFormat: 'openai',
+      outputFormat: format
+    })
+    await vi.waitFor(() => expect(captured.listener).toBeDefined())
+    const listener = captured.listener!
+    listener.onChunk({ type: 'finish', finishReason: 'other' })
+    await listener.onDone({} as any)
+    const response = await pending
+    expect(response.status).toBe(200)
+    const body = await readAll(response.body)
+    expect(body).toContain(terminal)
+    expect(body).toContain(done)
+    expect(body).not.toContain('"error"')
+    expect(listener.isAlive?.()).toBe(false)
+  })
   for (const { format, path } of formats) {
-    for (const reason of ['error', 'other'] as const) {
+    for (const reason of ['error'] as const) {
       for (const withTool of [false, true]) {
         for (const stream of [false, true]) {
           it(`${format} / ${reason} / tool=${withTool} / stream=${stream}`, async () => {
