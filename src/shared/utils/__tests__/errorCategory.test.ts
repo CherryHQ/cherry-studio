@@ -60,6 +60,7 @@ describe('classifyErrorCategory HTTP 400', () => {
     "This model's maximum context length is 1048576 tokens",
     "This model's maximum context length is 1,048,576 tokens",
     'The context window was exceeded',
+    'input token count exceeds the maximum',
     "The input is longer than the model's context length"
   ])('recognizes explicit context overflow: %s', (text) => {
     expect(classifyErrorCategory({ status: 400, text })).toBe('context_length')
