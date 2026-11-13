@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/proposed/feature/2026-11-13-scheduled-task-session-picker.md
+2026-11-13-scheduled-task-session-picker.md: 68ea0ab8563a3077b09dd77fc6b47d2b2d6339e5
+2026-11-13-scheduled-task-session-picker.zh.md: e6eeb4d6b04231ae03c44708374647b7db271980
