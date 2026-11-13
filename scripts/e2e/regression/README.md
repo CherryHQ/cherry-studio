@@ -55,6 +55,8 @@ selection. It accepts only the complete contents of one isolated fixture directo
 so Select All cannot import an unrequested file. Native fixtures verify the returned paths.
 Both supported macOS panel layouts use bounded stage checks and one Enter to commit
 the path; the adapter waits for the sheet to close before accepting the panel.
+Once Open is enabled, the adapter verifies foreground ownership and sends Return once
+to activate the default button, then requires the panel window count to decrease.
 
 Windows development notification checks keep `APPDATA` isolated. The controller prepares
 the required shell directories and copies the SDK-generated shortcut into the real Start Menu
