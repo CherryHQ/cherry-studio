@@ -3155,14 +3155,22 @@ describe('AgentSessionRuntimeService', () => {
             approvalId: toolCallId
           })
         }
-        mocks.retireToolApproval.mockImplementation(manager.retireToolApproval.bind(manager))
+        realMessages.replaceMessageParts('session-1', messageId, projection.parts(messageId))
+        mocks.retireToolApproval.mockImplementation(((...args: unknown[]) => {
+          const forward = (manager as unknown as { retireToolApproval?: (...a: unknown[]) => boolean })
+            .retireToolApproval
+          return forward ? forward.apply(manager, args) : undefined
+        }) as never)
         const store: Record<string, any> = {}
         mocks.cacheSetShared.mockImplementation((key, value) => {
           store[key] = value
         })
         mocks.cacheGetShared.mockImplementation((key) => store[key])
-        const send = (data: Record<string, unknown>, owner = connection) =>
-          (service as any).publishBackgroundTaskEvent(entry, { event: 'notification', taskId: 'bg', ...data }, owner)
+        const send = (data: Record<string, unknown>) =>
+          (service as any).handleRuntimeEvent(entry, {
+            type: 'background-task-event',
+            data: { event: 'notification', taskId: 'bg', ...data }
+          })
         const unchanged = () => {
           expect(execution.pendingApprovalToolCallIds).toEqual(new Set(['A', 'B']))
           expect(projection.parts(messageId)).toContainEqual(
@@ -3179,7 +3187,11 @@ describe('AgentSessionRuntimeService', () => {
         unchanged()
         send({ status, toolUseId: 'unknown' })
         unchanged()
-        send({ status, toolUseId: 'A' }, { ...connection })
+        ;(service as any).publishBackgroundTaskEvent(
+          entry,
+          { event: 'notification', taskId: 'bg', status, toolUseId: 'A' },
+          { ...connection }
+        )
         unchanged()
         send({ status: 'in_progress', toolUseId: 'A' })
         unchanged()
