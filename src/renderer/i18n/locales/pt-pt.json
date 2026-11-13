@@ -5879,6 +5879,7 @@
   "settings.shortcuts.selection_assistant_toggle": "Ativar/desativar assistente de seleção de texto",
   "settings.shortcuts.show_app": "Exibir aplicação",
   "settings.shortcuts.show_settings": "Abrir configurações",
+  "settings.shortcuts.stop_generation": "Parar geração",
   "settings.shortcuts.title": "Atalhos",
   "settings.shortcuts.toggle_left_sidebar": "Alternar barra lateral esquerda",
   "settings.shortcuts.toggle_new_context": "Limpar contexto",

@@ -77,6 +77,9 @@ The default keys for each action are listed below by the **groups** shown on the
 | Edit last user message | `⌘ + ⇧ + E` | `Ctrl + Shift + E` | **Off by default** |
 | Search messages in current conversation | `⌘ + F` | `Ctrl + F` | Enabled |
 | Select model | `⌘ + ⇧ + M` | `Ctrl + Shift + M` | Enabled |
+| Stop Generation | `⌘ + ⇧ + S` | `Ctrl + Shift + S` | Enabled |
+
+> **Stop Generation:** stops the reply currently streaming in the conversation you are looking at, in both ordinary chats and agent sessions. It is enabled by default, and you can rebind it or turn it off like any other row. Pressing it when nothing is streaming does nothing.
 
 > **🔥 Clear context (`⌘ + K`):** it **doesn't delete** your chat history, but it makes the AI **"forget"** the earlier conversation. It's very useful when the AI gets stuck in a logic loop, or when you want to start an unrelated topic in the same window without the earlier content getting in the way.
 

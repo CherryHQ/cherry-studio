@@ -5879,6 +5879,7 @@
   "settings.shortcuts.selection_assistant_toggle": "Εναλλαγή βοηθού επιλογής κειμένου",
   "settings.shortcuts.show_app": "Εμφάνιση εφαρμογής",
   "settings.shortcuts.show_settings": "Άνοιγμα των ρυθμίσεων",
+  "settings.shortcuts.stop_generation": "Διακοπή δημιουργίας",
   "settings.shortcuts.title": "Συντομοί δρομολόγια",
   "settings.shortcuts.toggle_left_sidebar": "Εναλλαγή αριστερής πλευρικής γραμμής",
   "settings.shortcuts.toggle_new_context": "Άδειασμα σενάριων",

@@ -5879,6 +5879,7 @@
   "settings.shortcuts.selection_assistant_toggle": "Attiva/disattiva assistente di selezione",
   "settings.shortcuts.show_app": "Mostra/nascondi app",
   "settings.shortcuts.show_settings": "Apri impostazioni",
+  "settings.shortcuts.stop_generation": "Interrompi generazione",
   "settings.shortcuts.title": "Scorciatoie da tastiera",
   "settings.shortcuts.toggle_left_sidebar": "Mostra/nascondi barra laterale sinistra",
   "settings.shortcuts.toggle_new_context": "Cancella contesto",
