@@ -41,7 +41,8 @@ const DEFAULT_APPROVAL_FACTS: ApprovalHostFacts = {
   approvalRequired: false,
   nonBypassable: false,
   withinAllowedRoots: false,
-  destructive: false
+  destructive: false,
+  sessionGranted: false
 }
 const DEFAULT_MODEL_KEYS = { parentModelKey: 'scripted/parent-model', defaultChildModelKey: 'scripted/child-model' }
 

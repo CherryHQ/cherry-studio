@@ -25,8 +25,16 @@ type PermissionToolPart = CherryMessagePart & {
   toolCallId: string
   state?: string
   input?: unknown
-  approval?: { id?: string }
+  approval?: { id?: string; approved?: boolean }
 }
+
+/** States in which a call is already decided or finished, so it must never prompt again. */
+const RESOLVED_TOOL_STATES: ReadonlySet<string> = new Set([
+  'approval-responded',
+  'output-available',
+  'output-error',
+  'output-denied'
+])
 
 function getToolName(part: PermissionToolPart): string {
   if (part.toolName?.trim()) return part.toolName
@@ -68,9 +76,14 @@ export function findNextPendingPermissionRequest(
       const toolPart = part as PermissionToolPart
       const toolName = getToolName(toolPart)
       const approvalId = toolPart.approval?.id
-      if (toolName === AgentToolsType.AskUserQuestion || toolPart.state !== APPROVAL_REQUESTED || !approvalId) {
-        continue
-      }
+      if (toolName === AgentToolsType.AskUserQuestion || !approvalId) continue
+      // A provider-executed dynamic tool part can carry the approval id while its state never
+      // reaches `approval-requested`; an unresolved approval still needs a person to decide.
+      const partState = toolPart.state ?? ''
+      const awaitingApproval =
+        partState === APPROVAL_REQUESTED ||
+        (!RESOLVED_TOOL_STATES.has(partState) && toolPart.approval?.approved === undefined)
+      if (!awaitingApproval) continue
 
       const toolResponse = buildToolResponseFromPart(part)
       if (!toolResponse) continue
@@ -83,7 +96,7 @@ export function findNextPendingPermissionRequest(
         toolResponse,
         match: {
           part,
-          state: toolPart.state,
+          state: partState,
           toolCallId: toolPart.toolCallId,
           messageId,
           approvalId,

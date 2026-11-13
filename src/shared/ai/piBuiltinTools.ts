@@ -31,7 +31,7 @@ export const PI_BUILTIN_TOOLS = [
   ...PI_NATIVE_BUILTIN_TOOLS,
   { name: PI_TOOL_RECALL_TOOL_NAME, category: 'search', approval: 'auto', permissionClass: 'meta' },
   { name: PI_TOOL_SEARCH_TOOL_NAME, category: 'search', approval: 'auto', permissionClass: 'meta' },
-  { name: PI_TOOL_EXEC_TOOL_NAME, category: 'shell', approval: 'auto', permissionClass: 'meta' }
+  { name: PI_TOOL_EXEC_TOOL_NAME, category: 'shell', approval: 'prompt', permissionClass: 'shell' }
 ] as const satisfies readonly PiBuiltinToolDescriptor[]
 
 /** Keep runtime policy and the edit form aligned with previously stored tool names. */

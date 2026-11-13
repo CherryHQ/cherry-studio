@@ -150,4 +150,42 @@ describe('findNextPendingPermissionRequest', () => {
 
     expect(result).toBeNull()
   })
+
+  // Catches a provider-executed dynamic tool whose approval never reaches a person: the part can
+  // stay in `input-available` while `approval.id` is already set, which used to be skipped.
+  it('treats an unresolved approval on a dynamic tool as pending', () => {
+    const request = findNextPendingPermissionRequest({
+      'message-1': [
+        makePart({
+          type: 'dynamic-tool',
+          toolName: 'codemode',
+          state: 'input-available',
+          input: { code: 'return 1' },
+          approval: { id: 'codemode-approval-1' },
+          callProviderMetadata: undefined
+        })
+      ]
+    })
+
+    expect(request).toMatchObject({ approvalId: 'codemode-approval-1', toolCallId: 'call-1' })
+    expect(request?.toolResponse.tool.name).toBe('codemode')
+  })
+
+  // Catches a resolved decision re-prompting the same call.
+  it('ignores a dynamic tool approval that is already resolved', () => {
+    const result = findNextPendingPermissionRequest({
+      'message-1': [
+        makePart({
+          type: 'dynamic-tool',
+          toolName: 'codemode',
+          state: 'input-available',
+          input: { code: 'return 1' },
+          approval: { id: 'codemode-approval-1', approved: true },
+          callProviderMetadata: undefined
+        })
+      ]
+    })
+
+    expect(result).toBeNull()
+  })
 })

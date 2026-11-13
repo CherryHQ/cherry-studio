@@ -250,7 +250,8 @@ describe('purity (AC7)', () => {
     approvalRequired: false,
     nonBypassable: false,
     withinAllowedRoots: true,
-    destructive: false
+    destructive: false,
+    sessionGranted: false
   }
   const question = {
     questions: [

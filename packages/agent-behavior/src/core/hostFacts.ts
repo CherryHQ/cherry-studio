@@ -8,7 +8,7 @@ export type ApprovalOutcome = {
   readonly state: 'pending' | 'granted' | 'denied' | 'unavailable'
   readonly feedback?: string
 }
-export type ToolCategory = 'read' | 'edit' | 'meta' | 'other'
+export type ToolCategory = 'read' | 'edit' | 'meta' | 'shell' | 'other'
 /** C10, C11: what the host knows about one call. [plan choice] PR-3c may add facts. */
 export type ApprovalHostFacts = {
   readonly category: ToolCategory
@@ -30,6 +30,8 @@ export type ApprovalHostFacts = {
   readonly globalInstallPermissionMode?: PermissionMode
   /** The host's destructive-command detector flagged the call. */
   readonly destructive: boolean
+  /** A person already approved this shell tool once in the current session. */
+  readonly sessionGranted: boolean
   /** Cross-session delegation must originate in an interactive turn, even under full access. */
   readonly delegation?: 'interactive' | 'unattended'
 }

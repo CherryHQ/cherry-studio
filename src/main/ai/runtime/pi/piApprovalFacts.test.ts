@@ -236,10 +236,16 @@ describe('desktop facts and approvals through the shared behavior gate', () => {
     expect(emitted).toHaveLength(0)
   })
 
-  it('auto-allows code mode dispatch without treating its arguments as a file path', async () => {
+  it('asks before dispatching code mode instead of exempting it as a meta tool', async () => {
     const { handler, emitted } = buildGate()
-    await expect(handler(toolEvent('codemode', { code: 'return 1' }), extCtx)).resolves.toBeUndefined()
-    expect(emitted).toHaveLength(0)
+    const pending = handler(toolEvent('codemode', { code: 'return 1' }), extCtx)
+    await flush()
+
+    expect(emitted).toHaveLength(1)
+    expect(emitted[0].request).toMatchObject({ toolName: 'codemode', input: { code: 'return 1' } })
+
+    toolApprovalRegistry.dispatch(emitted[0].request.approvalId, { approved: true })
+    await expect(pending).resolves.toBeUndefined()
   })
 
   it('gates a bash call in default mode: emits a pi-agent approval request and blocks until dispatched', async () => {
@@ -513,9 +519,20 @@ describe('desktop facts and approvals through the shared behavior gate', () => {
   describe('auto mode', () => {
     const buildAutoGate = (overrides = {}) => buildGate({ getPermissionMode: () => 'auto', ...overrides })
 
-    it('runs an ordinary bash command and an in-workspace write without asking', async () => {
+    it('asks before the first shell call of the session, then runs it once approved', async () => {
       const { handler, emitted } = buildAutoGate()
-      await expect(handler(toolEvent('bash', { command: 'pnpm test' }), extCtx)).resolves.toBeUndefined()
+      const pending = handler(toolEvent('bash', { command: 'pnpm test' }), extCtx)
+      await flush()
+
+      expect(emitted).toHaveLength(1)
+      expect(emitted[0].request).toMatchObject({ toolName: 'bash', input: { command: 'pnpm test' } })
+
+      toolApprovalRegistry.dispatch(emitted[0].request.approvalId, { approved: true })
+      await expect(pending).resolves.toBeUndefined()
+    })
+
+    it('runs an in-workspace write without asking', async () => {
+      const { handler, emitted } = buildAutoGate()
       await expect(handler(toolEvent('write', { path: 'a.txt', content: 'b' }), extCtx)).resolves.toBeUndefined()
       expect(emitted).toHaveLength(0)
     })

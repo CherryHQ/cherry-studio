@@ -53,12 +53,13 @@ export function repeatBlock(call: GateCall, facts: GateFacts): string | undefine
   return count >= BLOCK_REPEAT_AT ? REPEATED_CALL : undefined
 }
 
-/** P7: whether `mode` asks a person for this call; `auto` stops only outside the allowed roots and for destructive shell. */
-function requiresApproval(mode: PermissionMode, tool: string, host: ApprovalHostFacts): boolean {
+/** P7: whether `mode` asks a person for this call; `auto` stops outside the allowed roots, and for a destructive or not-yet-granted shell. */
+function requiresApproval(mode: PermissionMode, host: ApprovalHostFacts): boolean {
   if (host.approvalRequired) return true
   if (host.category === 'meta') return false
   if (mode === 'auto') {
-    if (tool === 'bash' || tool === 'powershell') return host.destructive
+    // A person approves a shell tool once per session; a destructive command still asks every time.
+    if (host.category === 'shell') return host.destructive || !host.sessionGranted
     if (host.category === 'read' || host.category === 'edit') return !host.withinAllowedRoots
     return false
   }
@@ -96,13 +97,10 @@ export function decideApproval(
   const rewritten = host.rewrittenArgs === undefined ? {} : { args: host.rewrittenArgs }
   const autoAllowed = host.autoApproved && !host.approvalRequired
   // Plan mode is read-only whatever the permission mode: what would ask in `default` is blocked too.
-  if (
-    planActive(mode, plan) &&
-    (host.category === 'edit' || (!autoAllowed && requiresApproval('default', call.tool, host)))
-  )
+  if (planActive(mode, plan) && (host.category === 'edit' || (!autoAllowed && requiresApproval('default', host))))
     return { kind: 'block', reason: PLAN_BLOCK }
   if (mode === 'bypassPermissions' && !host.nonBypassable) return { kind: 'allow', ...rewritten }
-  if (autoAllowed || !requiresApproval(mode, call.tool, host)) return { kind: 'allow', ...rewritten }
+  if (autoAllowed || !requiresApproval(mode, host)) return { kind: 'allow', ...rewritten }
   if (attendance === 'unavailable') {
     return {
       kind: 'block',
