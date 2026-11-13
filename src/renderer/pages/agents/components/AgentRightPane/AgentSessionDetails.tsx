@@ -135,7 +135,7 @@ export function AgentSessionDetailsToggle({ children }: { children: ReactNode })
           <ScrollArea
             className="max-h-[min(70vh,var(--radix-popover-content-available-height))]"
             viewportProps={{ className: 'overflow-x-hidden' }}
-            contentProps={{ className: 'pr-3' }}>
+            contentProps={{ className: 'py-1' }}>
             {children}
           </ScrollArea>
         </PopoverContent>
@@ -189,7 +189,7 @@ export function AgentSessionDetailsLayout({ children, details }: { children: Rea
           <ScrollArea
             className="min-h-0"
             viewportProps={{ className: 'overflow-x-hidden' }}
-            contentProps={{ className: 'pr-3' }}>
+            contentProps={{ className: 'py-1' }}>
             {details}
           </ScrollArea>
         </aside>
