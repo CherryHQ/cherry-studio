@@ -262,7 +262,11 @@ const MiniAppDetailPanel: FC<Props> = ({ appId, open = true, onClose }) => {
     if (replaceError) toast.error(t(replaceError.key, replaceError.params))
   }, [replaceError, t])
   const handlePickReplacement = () =>
-    replace.settle(() => ipcApi.request('mini_app.install.pick_and_preview'), 'miniApp.install.preview_error')
+    replace.settle(
+      () => ipcApi.request('mini_app.install.pick_and_preview'),
+      'miniApp.install.preview_error',
+      'miniapp.install.pick_and_preview'
+    )
 
   const handleConfirmDestructive = async () => {
     if (!pendingAction) return

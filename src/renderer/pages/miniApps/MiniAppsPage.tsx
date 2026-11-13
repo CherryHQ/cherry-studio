@@ -138,7 +138,7 @@ const MiniAppsPage: FC = () => {
     if (droppedInstall.error) {
       toastAppError(t(droppedInstall.error.key, droppedInstall.error.params), droppedInstall.error.cause, {
         source: 'miniapp',
-        operation: 'miniapp.install.preview_builtin'
+        operation: droppedInstall.error.operation
       })
     }
   }, [droppedInstall.error, t])
