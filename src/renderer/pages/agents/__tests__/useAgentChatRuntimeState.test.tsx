@@ -17,6 +17,7 @@ import { useConversationErrorToasts } from '@renderer/hooks/useConversationError
 import type * as TurnControllerModule from '@renderer/hooks/useConversationTurnController'
 import en from '@renderer/i18n/locales/en-us.json'
 import zh from '@renderer/i18n/locales/zh-cn.json'
+import type * as RendererIpc from '@renderer/ipc'
 import { takeAgentDraftHandoffs } from '@renderer/services/agentDraftHandoff'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
@@ -62,7 +63,7 @@ const mocks = vi.hoisted(() => ({
 
 // respondToolApproval now goes through ipcApi.request('ai.tool.respond_approval', …).
 vi.mock('@renderer/ipc', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@renderer/ipc')>()),
+  ...(await importOriginal<typeof RendererIpc>()),
   ipcApi: {
     request: (route: string, input: unknown) =>
       route === 'ai.tool.respond_approval'
