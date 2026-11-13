@@ -3,7 +3,6 @@ import mime from 'mime'
 import { ipcApi } from '@renderer/ipc'
 import { FILE_TYPE, type FileMetadata, type FileType } from '@renderer/types/file'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
-import { GB, KB, MB } from '@shared/utils/constants'
 import { audioExts, createFilePathHandle, documentExts, imageExts, textExts, videoExts } from '@shared/utils/file'
 
 /** Wildcard entry accepting every extension, matching the file dialog's all-files filter. */
@@ -48,25 +47,18 @@ export function removeFileExtension(filePath: string): string {
   return filePath.slice(0, filePath.length - (baseName.length - dotIndex))
 }
 
-/**
- * 格式化文件大小，根据大小返回以 MB 或 KB 为单位的字符串。
- * @param {number} size 文件大小（字节）
- * @returns {string} 格式化后的文件大小字符串
- */
-export function formatFileSize(size: number): string {
-  if (size >= GB) {
-    return (size / GB).toFixed(1) + ' GB'
-  }
+export function formatFileSize(bytes: number | null | undefined): string {
+  if (bytes === null || bytes === undefined || !Number.isFinite(bytes)) return '—'
+  if (bytes < 1024) return `${bytes} B`
 
-  if (size >= MB) {
-    return (size / MB).toFixed(1) + ' MB'
+  const units = ['KB', 'MB', 'GB', 'TB'] as const
+  let value = bytes / 1024
+  let unitIndex = 0
+  while (value >= 1024 && unitIndex < units.length - 1) {
+    value /= 1024
+    unitIndex += 1
   }
-
-  if (size >= KB) {
-    return (size / KB).toFixed(0) + ' KB'
-  }
-
-  return (size / KB).toFixed(2) + ' KB'
+  return `${value >= 10 ? value.toFixed(0) : value.toFixed(1)} ${units[unitIndex]}`
 }
 
 /**

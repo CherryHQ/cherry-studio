@@ -649,7 +649,7 @@ describe('ComposerToken', () => {
       />
     )
 
-    expectTokenPathTooltip(container, '/tmp/config.schema.ts', '3 KB')
+    expectTokenPathTooltip(container, '/tmp/config.schema.ts', '3.0 KB')
   })
 
   it('shows pasted text preview with a right-aligned restore action', async () => {
