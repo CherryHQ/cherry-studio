@@ -21,6 +21,7 @@ const PERMISSION_KEY = 'computer_use.get_permission_status'
 
 export function ComputerUseSettings() {
   const { t } = useTranslation()
+  const [approvedApps] = usePreference('app.computer_use.approved_apps')
   const [enabled, setEnabled] = usePreference('app.computer_use.agent_control.enabled')
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState(false)
@@ -58,6 +59,35 @@ export function ComputerUseSettings() {
       <h1 className="text-xl font-semibold text-foreground">{t('settings.computerUse.title')}</h1>
       <SettingDescription>{t('settings.computerUse.description')}</SettingDescription>
 
+      <SettingGroup>
+        <SettingRowTitle>{t('settings.computerUse.approval.saved')}</SettingRowTitle>
+        {approvedApps.length === 0 && (
+          <SettingDescription>{t('settings.computerUse.approval.empty')}</SettingDescription>
+        )}
+        {approvedApps.map((identity) => (
+          <SettingRow key={identity}>
+            <span className="min-w-0 flex-1 break-all text-sm">{identity}</span>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={saving}
+              onClick={async () => {
+                setSaving(true)
+                setSaveError(false)
+                try {
+                  await ipcApi.request('computer_use.revoke_approval', { identity })
+                } catch (error) {
+                  logger.warn('Failed to revoke application approval', error as Error)
+                  setSaveError(true)
+                } finally {
+                  setSaving(false)
+                }
+              }}>
+              {t('common.delete')}
+            </Button>
+          </SettingRow>
+        ))}
+      </SettingGroup>
       <SettingGroup>
         <SettingRow className="flex-nowrap items-start">
           <div className="min-w-0 flex-1">
