@@ -6,6 +6,7 @@ import { useInstalledSkills } from '@renderer/hooks/useSkills'
 import { fetchGenerate } from '@renderer/utils/aiGeneration'
 import {
   type AutoConfigCatalogs,
+  type AutoConfigKind,
   type AutoConfigDraft,
   buildAutoConfigInput,
   parseAutoConfigDraft,
@@ -18,10 +19,10 @@ import { isBrowserMcpServer } from '@shared/utils/mcp'
  * Runs the creator skill against what the user actually has installed. Generation uses the
  * default model (as prompt polishing does); agent-only models may not serve one-shot text.
  */
-export function useResourceAutoConfigure(kind: 'assistant' | 'agent', enabled: boolean) {
-  const { skills, loading: skillsLoading } = useInstalledSkills(undefined, { enabled: enabled && kind === 'agent' })
-  const { bases, isLoading: basesLoading } = useKnowledgeBases({ enabled })
-  const { mcpServers, isLoading: mcpLoading } = useMcpServers(undefined, { enabled })
+export function useResourceAutoConfigure(kind: AutoConfigKind) {
+  const { skills, loading: skillsLoading } = useInstalledSkills(undefined, { enabled: kind === 'agent' })
+  const { bases, isLoading: basesLoading } = useKnowledgeBases()
+  const { mcpServers, isLoading: mcpLoading } = useMcpServers()
 
   const catalogs = useMemo<AutoConfigCatalogs>(
     () => ({

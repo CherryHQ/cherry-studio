@@ -18,6 +18,7 @@ export {
 export {
   type AutoConfigCatalogs,
   type AutoConfigDraft,
+  type AutoConfigKind,
   buildAutoConfigInput,
   parseAutoConfigDraft,
   RESOURCE_AUTO_CONFIG_SYSTEM_PROMPT
