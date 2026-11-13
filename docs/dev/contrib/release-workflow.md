@@ -132,6 +132,12 @@ Before building, the workflow verifies that:
 - CI succeeded for the exact branch commit.
 - A matching published release does not already exist.
 
+Formal release jobs compile JS with `build:release` or `build:release:cn`, then invoke electron-builder separately. These entry points rely on the exact-source CI gate instead of repeating the full typecheck; ordinary development, preview, and nightly build commands still run their existing checks. A release source missing either release entry point fails during preparation. Build jobs clear `out` and `dist` before compilation.
+
+The persistent Windows signing machine uses its local pnpm store without uploading or restoring an Actions dependency-store cache. Every job still installs with `--frozen-lockfile`. The `clean` input removes node_modules while retaining the store; signing continues through the machine's USB token and Windows CSP.
+
+The **Release build performance** summary and `release-performance` JSON artifact report build job/step durations, runner labels, cache state, source/workflow SHAs, and draft readiness. Approval waiting, publication, and GitCode synchronization are excluded from build timing. Parallel job durations contribute to runner time, not summed wall time. Unmeasured native/signing/notarization phases and artifact sizes remain unknown; reruns do not count time between attempts as queue or elapsed time.
+
 Every selected platform builds both editions from the same commit. Asset names, package IDs and update channels identify the edition. Both editions share the installed product name, executable, shortcut, protocol and `userData` location. Both Windows installers retain the Global NSIS GUID, so either edition can replace the installed app. Tag movement is allowed while the release is a draft.
 
 Each runner validates and uploads its local files directly to the private COS bucket. The self-hosted Windows signing runner uploads through the Shanghai regional endpoint. GitHub-hosted macOS and Linux build runners upload through the global acceleration endpoint. Once all required uploads succeed, the finalization job downloads only Global files and shared history for the GitHub draft. It records the complete file inventory under `releases-sync/<tag>/<run_id>/release.json` after updating the draft. A single-platform retry reuses other platforms from the last complete inventory for the same commit, replaces both editions of its selected platform, and keeps the existing tag. If the baseline is unavailable, rerun an `all` build.
