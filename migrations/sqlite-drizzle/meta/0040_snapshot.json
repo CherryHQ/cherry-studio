@@ -6894,6 +6894,45 @@
       "uniqueConstraints": {},
       "checkConstraints": {}
     },
+    "followup_queue_state": {
+      "name": "followup_queue_state",
+      "columns": {
+        "scope_key": {
+          "name": "scope_key",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "paused": {
+          "name": "paused",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
     "followup_queue": {
       "name": "followup_queue",
       "columns": {
@@ -7002,45 +7041,6 @@
           "value": "\"followup_queue\".\"status\" IN ('pending', 'sending', 'failed', 'closed')"
         }
       }
-    },
-    "followup_queue_state": {
-      "name": "followup_queue_state",
-      "columns": {
-        "scope_key": {
-          "name": "scope_key",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "paused": {
-          "name": "paused",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "checkConstraints": {}
     },
     "followup_queue_file_ref": {
       "name": "followup_queue_file_ref",

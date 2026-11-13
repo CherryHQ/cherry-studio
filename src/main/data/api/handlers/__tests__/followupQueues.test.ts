@@ -107,8 +107,24 @@ describe('followupQueueHandlers', () => {
   describe('/followup-queues/:id', () => {
     it('should delegate DELETE to remove', async () => {
       await followupQueueHandlers['/followup-queues/:id'].DELETE({ params: { id: ITEM_ID } })
-      expect(removeMock).toHaveBeenCalledWith(ITEM_ID)
+      expect(removeMock).toHaveBeenCalledWith(ITEM_ID, undefined)
     })
+  })
+
+  it('validates and forwards an edit-transfer DELETE body', async () => {
+    await followupQueueHandlers['/followup-queues/:id'].DELETE({
+      params: { id: ITEM_ID },
+      body: { transferHeldId: ITEM_ID }
+    })
+    expect(removeMock).toHaveBeenCalledWith(ITEM_ID, ITEM_ID)
+    removeMock.mockClear()
+    await expect(
+      followupQueueHandlers['/followup-queues/:id'].DELETE({
+        params: { id: ITEM_ID },
+        body: { transferHeldId: 'invalid' }
+      })
+    ).rejects.toHaveProperty('name', 'ZodError')
+    expect(removeMock).not.toHaveBeenCalled()
   })
 
   describe('/followup-queues/:id/claim', () => {
@@ -120,8 +136,19 @@ describe('followupQueueHandlers', () => {
         body: { claimToken: 'token-1' }
       })
 
-      expect(claimMock).toHaveBeenCalledWith(ITEM_ID, 'token-1')
+      expect(claimMock).toHaveBeenCalledWith(ITEM_ID, 'token-1', undefined)
       expect(result).toEqual({ claimed: true, alreadySent: false })
+    })
+
+    it('should forward a completion marker to claim', async () => {
+      claimMock.mockReturnValueOnce({ claimed: true, alreadySent: false })
+
+      await followupQueueHandlers['/followup-queues/:id/claim'].POST({
+        params: { id: ITEM_ID },
+        body: { claimToken: 'token-1', completionAt: 100 }
+      })
+
+      expect(claimMock).toHaveBeenCalledWith(ITEM_ID, 'token-1', 100)
     })
 
     it('should reject POST without a claim token', async () => {
@@ -140,8 +167,18 @@ describe('followupQueueHandlers', () => {
         body: { scopeKey: SCOPE, claimToken: 'token-1' }
       })
 
-      expect(claimHeadMock).toHaveBeenCalledWith(SCOPE, 'token-1')
+      expect(claimHeadMock).toHaveBeenCalledWith(SCOPE, 'token-1', undefined)
       expect(result).toEqual({ claimed: true, id: ITEM_ID, alreadySent: false })
+    })
+
+    it('should pass completionAt through to claimHead', async () => {
+      claimHeadMock.mockReturnValueOnce({ claimed: false, reason: 'already-claimed' })
+
+      await followupQueueHandlers['/followup-queues/claim:head'].POST({
+        body: { scopeKey: SCOPE, claimToken: 'token-2', completionAt: 100 }
+      })
+
+      expect(claimHeadMock).toHaveBeenCalledWith(SCOPE, 'token-2', 100)
     })
 
     it('should reject POST without a claim token', async () => {

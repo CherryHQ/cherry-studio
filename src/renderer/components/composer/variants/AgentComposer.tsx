@@ -631,7 +631,7 @@ const AgentComposerInner = ({
   const supportsPlan = !!agent && getPermissionModeCards(agent.type).some((card) => card.mode === 'plan')
   const [isDirectSending, setIsDirectSending] = useState(false)
   const directSendInFlightRef = useRef(false)
-  const releaseFollowupEditRef = useRef<() => void>(() => {})
+  const releaseFollowupEditRef = useRef<(outcome?: 'submitted' | 'released') => void>(() => {})
   const draftTokensRef = useRef(draftTokens)
   const sessionTopicId = buildAgentSessionTopicId(sessionId)
   const layerActive = useComposerLayerActive()
@@ -1325,7 +1325,10 @@ const AgentComposerInner = ({
   )
 
   const clearCurrentDraft = useCallback(() => {
-    releaseFollowupEditRef.current()
+    // Send/enqueue consumed the draft: mark the edit-session retirement so a
+    // suspended edit-switch closes its captured recovery copy instead of
+    // releasing a duplicate (cherry-pr-review retired-edit-recovery).
+    releaseFollowupEditRef.current('submitted')
     setText('')
     setFiles([])
     setSelectedSkills([])
@@ -1366,10 +1369,10 @@ const AgentComposerInner = ({
   const {
     items: queuedFollowups,
     enqueue: enqueueFollowup,
-    sendId: sendFollowup,
+    steer: steerFollowup,
     removeId: removeFollowup,
     reorder: reorderFollowups,
-    editItem: editFollowup,
+    takeForEdit: takeFollowupForEdit,
     releaseEdit,
     paused: followupPaused,
     setPaused: setFollowupPaused
@@ -1390,6 +1393,19 @@ const AgentComposerInner = ({
 
   // After editItem hands over the queued item, keep live tokens and managed selections aligned
   // with the restored draft so subsequent edits retain its tools.
+  const captureOutgoingFollowup = useCallback(
+    (taken: FollowupQueueItem) => {
+      const draft = actionsRef.current.getDraft()
+      const payload = buildQueuedPayload(draft)
+      if (payload === null) {
+        if (!draft.text.trim() && files.length === 0) return { draft: taken.draft, payload: taken.payload }
+        return null
+      }
+      return { draft, payload }
+    },
+    [actionsRef, buildQueuedPayload, files]
+  )
+
   const restoreFollowupDraft = useCallback(
     (item: FollowupQueueItem) => {
       const nextDraftTokens = getAgentDraftTokens(item.draft.tokens)
@@ -1436,7 +1452,7 @@ const AgentComposerInner = ({
       // the dock lets the user steer/edit/remove items. The steer shortcut opts out of the queue and
       // falls through to the direct send below, mirroring the dock's "insert" action.
       if (isStreaming && !options?.steer && !steerWhileBusy) {
-        enqueueFollowup(draft, payload)
+        void enqueueFollowup(draft, payload)
         clearCurrentDraft()
         return
       }
@@ -1670,16 +1686,30 @@ const AgentComposerInner = ({
                   items={queuedFollowups}
                   paused={followupPaused}
                   onTogglePause={() => setFollowupPaused(!followupPaused)}
-                  onSteer={sendFollowup}
-                  onEdit={(id) => {
+                  onSteer={async (id) => {
+                    // Claim-guarded send: only the window whose claim wins sends,
+                    // so a manual steer racing another window's auto-drain cannot
+                    // deliver the same queued message twice.
+                    await steerFollowup(id, sendQueuedPayload)
+                  }}
+                  onEdit={async (id) => {
                     if (directSendInFlightRef.current) return
-                    editFollowup(id, {
-                      editingMessage: Boolean(launchOptions?.editing),
-                      getDraft: () => actionsRef.current.getDraft(),
-                      buildPayload: buildQueuedPayload,
-                      hasFiles: files.length > 0,
-                      restore: restoreFollowupDraft
-                    })
+                    if (launchOptions?.editing) {
+                      // A message-edit session owns the composer: taking a queued
+                      // item must not try to capture it as an outgoing followup.
+                      releaseEdit()
+                      const item = await takeFollowupForEdit(id, () => null)
+                      if (!item) return
+                      restoreFollowupDraft(item)
+                      return
+                    }
+                    // Atomic take: undefined when the item is owned by an
+                    // in-flight drain, so an edit can never race its send.
+                    // Switching the edit target returns the outgoing draft to
+                    // its queue slot, rebuilt from the live editor, first.
+                    const incoming = await takeFollowupForEdit(id, captureOutgoingFollowup)
+                    if (!incoming) return
+                    restoreFollowupDraft(incoming)
                   }}
                   onRemove={removeFollowup}
                   onReorder={reorderFollowups}
