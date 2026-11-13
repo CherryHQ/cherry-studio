@@ -8,7 +8,7 @@ export type ApprovalOutcome = {
   readonly state: 'pending' | 'granted' | 'denied' | 'unavailable'
   readonly feedback?: string
 }
-export type ToolCategory = 'read' | 'edit' | 'meta' | 'shell' | 'other'
+export type ToolCategory = 'read' | 'edit' | 'meta' | 'other'
 /** C10, C11: what the host knows about one call. [plan choice] PR-3c may add facts. */
 export type ApprovalHostFacts = {
   readonly category: ToolCategory

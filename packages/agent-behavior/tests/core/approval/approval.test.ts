@@ -166,19 +166,10 @@ describe('approval decisions (D34)', () => {
     expect(decide('x', { autoApproved: true, approvalRequired: true })).toBe('ask')
   })
 
-  // Catches auto mode running destructive shell commands or prompting for every ordinary shell call.
+  // Catches auto mode running a command the host flagged as destructive, or stopping every shell command (P7).
   it('asks in auto mode only for destructive shell commands', () => {
-    expect(decide('bash', { category: 'shell', destructive: true }, 'auto')).toBe('ask')
-    expect(decide('bash', { category: 'shell' }, 'auto')).toBe('allow')
-  })
-
-  // Catches code execution bypassing approval as a meta tool.
-  it('always asks for codemode, and blocks it when nobody can answer', () => {
-    const codemode = { category: 'shell' as const, approvalRequired: true }
-    expect(decide('codemode', codemode, 'auto')).toBe('ask')
-    expect(decide('codemode', codemode, 'default')).toBe('ask')
-    expect(decide('codemode', codemode, 'auto', 'unavailable')).toBe('block')
-    expect(decide('codemode', codemode, 'bypassPermissions')).toBe('allow')
+    expect(decide('bash', { destructive: true }, 'auto')).toBe('ask')
+    expect(decide('bash', {}, 'auto')).toBe('allow')
   })
 
   // Catches an unattended run waiting forever for a person, and the host rewrite getting lost on an allowed call.

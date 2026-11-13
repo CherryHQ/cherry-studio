@@ -11,7 +11,7 @@ import type { ToolGuardInteractionState } from '@main/ai/toolApproval/toolGuards
 import { evaluateUserDataSqliteGuard, normalizePiNativePathInput } from '@main/ai/toolApproval/userDataSqliteGuard'
 import { canonicalizePathForContainment } from '@main/utils/file'
 import { rtkRewrite } from '@main/utils/rtk'
-import { PI_BUILTIN_TOOLS, PI_TOOL_EXEC_TOOL_NAME } from '@shared/ai/piBuiltinTools'
+import { PI_BUILTIN_TOOLS } from '@shared/ai/piBuiltinTools'
 import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
 
 export interface PiApprovalContext {
@@ -39,9 +39,6 @@ const BEHAVIOR_META_TOOLS = new Set([
   'stop_subagent'
 ])
 
-/** Code-mode dispatch requires per-call consent under default and auto, in addition to nested tool checks. */
-const AUTO_MODE_ALWAYS_APPROVE: ReadonlySet<string> = new Set([PI_TOOL_EXEC_TOOL_NAME])
-
 /** Gather environment facts; the shared behavior gate decides whether the call may run. */
 export async function readPiApprovalFacts(
   ctx: PiApprovalContext,
@@ -52,10 +49,7 @@ export async function readPiApprovalFacts(
   const permissionClass = PI_BUILTIN_TOOLS.find((tool) => tool.name === name)?.permissionClass
   const category = BEHAVIOR_META_TOOLS.has(name)
     ? 'meta'
-    : permissionClass === 'read' ||
-        permissionClass === 'edit' ||
-        permissionClass === 'meta' ||
-        permissionClass === 'shell'
+    : permissionClass === 'read' || permissionClass === 'edit' || permissionClass === 'meta'
       ? permissionClass
       : 'other'
   const interaction = ctx.getInteractionState()
@@ -81,7 +75,7 @@ export async function readPiApprovalFacts(
     category,
     disabled,
     autoApproved: browser === 'allow' || ctx.autoApprovedTools.has(name),
-    approvalRequired: ctx.approvalRequiredTools.has(name) || AUTO_MODE_ALWAYS_APPROVE.has(name),
+    approvalRequired: ctx.approvalRequiredTools.has(name),
     nonBypassable: ctx.nonBypassableApprovalTools.has(name),
     withinAllowedRoots:
       (category === 'read' || category === 'edit') &&
