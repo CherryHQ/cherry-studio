@@ -5984,8 +5984,6 @@
   "settings.theme.light": "Hell",
   "settings.theme.system": "System",
   "settings.theme.title": "Thema",
-  "settings.theme.window.style.opaque": "Undurchsichtiges Fenster",
-  "settings.theme.window.style.title": "Fensterstil",
   "settings.theme.window.style.transparent": "Transparentes Fenster",
   "settings.title": "Einstellungen",
   "settings.tool.file_processing.errors.invalid_api_host": "Ungültiger API-Host",

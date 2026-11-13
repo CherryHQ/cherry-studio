@@ -5984,8 +5984,6 @@
   "settings.theme.light": "Light",
   "settings.theme.system": "System",
   "settings.theme.title": "Theme",
-  "settings.theme.window.style.opaque": "Opaque Window",
-  "settings.theme.window.style.title": "Window Style",
   "settings.theme.window.style.transparent": "Transparent Window",
   "settings.title": "Settings",
   "settings.tool.file_processing.errors.invalid_api_host": "Invalid API host",

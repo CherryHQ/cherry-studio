@@ -5984,8 +5984,6 @@
   "settings.theme.light": "ライト",
   "settings.theme.system": "システム",
   "settings.theme.title": "テーマ",
-  "settings.theme.window.style.opaque": "不透明ウィンドウ",
-  "settings.theme.window.style.title": "ウィンドウスタイル",
   "settings.theme.window.style.transparent": "透明ウィンドウ",
   "settings.title": "設定",
   "settings.tool.file_processing.errors.invalid_api_host": "無効なAPIホスト",

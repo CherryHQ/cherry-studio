@@ -5984,8 +5984,6 @@
   "settings.theme.light": "สว่าง",
   "settings.theme.system": "ระบบ",
   "settings.theme.title": "ธีม",
-  "settings.theme.window.style.opaque": "หน้าต่างทึบ",
-  "settings.theme.window.style.title": "สไตล์หน้าต่าง",
   "settings.theme.window.style.transparent": "หน้าต่างโปร่งใส",
   "settings.title": "การตั้งค่า",
   "settings.tool.file_processing.errors.invalid_api_host": "API Host ไม่ถูกต้อง",

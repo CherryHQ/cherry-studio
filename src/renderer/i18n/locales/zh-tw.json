@@ -5984,8 +5984,6 @@
   "settings.theme.light": "淺色",
   "settings.theme.system": "系統",
   "settings.theme.title": "主題",
-  "settings.theme.window.style.opaque": "不透明視窗",
-  "settings.theme.window.style.title": "視窗樣式",
   "settings.theme.window.style.transparent": "透明視窗",
   "settings.title": "設定",
   "settings.tool.file_processing.errors.invalid_api_host": "API 位址不合法",

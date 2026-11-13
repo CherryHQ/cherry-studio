@@ -5984,8 +5984,6 @@
   "settings.theme.light": "Sáng",
   "settings.theme.system": "Hệ thống",
   "settings.theme.title": "Chủ đề",
-  "settings.theme.window.style.opaque": "Cửa sổ mờ",
-  "settings.theme.window.style.title": "Kiểu cửa sổ",
   "settings.theme.window.style.transparent": "Cửa sổ trong suốt",
   "settings.title": "Cài đặt",
   "settings.tool.file_processing.errors.invalid_api_host": "Máy chủ API không hợp lệ",

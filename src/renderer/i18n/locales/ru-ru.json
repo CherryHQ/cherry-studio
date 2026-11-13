@@ -5984,8 +5984,6 @@
   "settings.theme.light": "Светлая",
   "settings.theme.system": "Системная",
   "settings.theme.title": "Тема",
-  "settings.theme.window.style.opaque": "Непрозрачное окно",
-  "settings.theme.window.style.title": "Стиль окна",
   "settings.theme.window.style.transparent": "Прозрачное окно",
   "settings.title": "Настройки",
   "settings.tool.file_processing.errors.invalid_api_host": "Недопустимый хост API",

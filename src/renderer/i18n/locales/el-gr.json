@@ -5984,8 +5984,6 @@
   "settings.theme.light": "Φωτεινό",
   "settings.theme.system": "Σύστημα",
   "settings.theme.title": "Θέμα",
-  "settings.theme.window.style.opaque": "Μη διαφανή παράθυρα",
-  "settings.theme.window.style.title": "Στυλ παραθύρων",
   "settings.theme.window.style.transparent": "Διαφανή παράθυρα",
   "settings.title": "Ρυθμίσεις",
   "settings.tool.file_processing.errors.invalid_api_host": "Μη έγκυρος διακομιστής API",

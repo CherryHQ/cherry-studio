@@ -5984,8 +5984,6 @@
   "settings.theme.light": "Açık",
   "settings.theme.system": "Sistem",
   "settings.theme.title": "Tema",
-  "settings.theme.window.style.opaque": "Opak Pencere",
-  "settings.theme.window.style.title": "Pencere Stili",
   "settings.theme.window.style.transparent": "Şeffaf Pencere",
   "settings.title": "Ayarlar",
   "settings.tool.file_processing.errors.invalid_api_host": "Geçersiz API ana bilgisayarı",
