@@ -242,7 +242,7 @@ describe('local history atomic import', () => {
     const manager = SessionManager.open(path.join(directory, (await readdir(directory))[0]), directory)
     const { model } = scriptedModel([[...textParts('response', 'Continued'), finish('stop')]])
     const { upstream: port, requests } = gatewayModel(model)
-    const { session } = await createTestSession({
+    const session = await createTestSession({
       port,
       sessionManager: manager,
       builtinTools: [],
