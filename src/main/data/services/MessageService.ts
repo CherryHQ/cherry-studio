@@ -945,7 +945,6 @@ export class MessageService {
     return row.id
   }
 
-
   /**
    * Return the topic's virtual-root message id. Every topic has exactly one, created
    * eagerly at topic creation, so message-creation paths just read it. Throws if absent
