@@ -14,11 +14,13 @@ Agent 会话把用户配置的 OpenAI 兼容端点的响应当作可信指令来
 
 把代码执行视为绝不无人值守的能力，同时不改变 `auto` 的用途。
 
-两处改动都在共享审批闸门内：
+审批闸门与桌面宿主共同实施同意边界：
 
 - 闸门的 shell 分支改为按 `category` 判定，而不是匹配 `bash`/`powershell` 这两个工具名字符串；`ToolCategory` 新增 `shell`，shell 类工具不再依赖名字匹配。
 - `auto` 下 shell 调用会询问，直到用户在本会话内为该工具授权一次。删除类命令仍然每次都问，授权永不覆盖它。授权状态保存在 `createPiInteractionPorts`，Pi 与 Pi Durable 共用这一处。
 - `codemode` 归为 `shell` 类并进入强制确认集合，因此在所有交互模式下都会询问。它的提示由输入区承载：待审批扫描原先要求 `state === 'approval-requested'`，但 provider 执行的 dynamic tool 部件会停在 `input-available` 却已带上 `approval.id`，于是整轮卡死且没有提示。现在扫描把「尚未决的审批」也视为待审批。
+
+- 根线程与子线程读取相同的实时权限模式。桌面宿主不再为子线程指定 `bypassPermissions`，因此端点无法先返回 `subagent` 来绕过确认。子线程调用在根回复中没有对应部件时，审批流会包含工具输入，使输入区能够显示该请求。
 
 明确的边界：这是"同意"的边界，不是"执行"的边界。它不沙箱化命令，也不把删除名单提升为权威判定。
 
@@ -32,7 +34,7 @@ Agent 会话把用户配置的 OpenAI 兼容端点的响应当作可信指令来
 ## Consequences
 
 - `auto` 对读取、允许根内的编辑，以及首次授权之后的非删除类 shell 命令，保持低摩擦。
-- 需要 shell 或 `codemode` 的无人值守轮次现在会被阻断，而不是直接执行。依赖无人值守 shell 调用的定时任务会失败；是否提供会话级例外是后续的产品决策。
+- 未获得 shell 授权的无人值守轮次会阻断 shell 调用；需要审批的 `codemode` 同样会被阻断。shell 授权仍按连接保存，并可能沿用到该连接后续的无人值守轮次。根会话显式设置的 `bypassPermissions` 仍表示 Full Access。
 - `codemode` 在 `default` 与 `auto` 下都会询问；在 `bypassPermissions` 下仍然放行，除非同时标记为不可绕过。
 - 残余风险不变且很大：端点仍能促成用户批准的任何命令，已授权的会话在结束前会持续执行命令。权限模式的说明文字仍把 `auto` 描述为能识别风险，收紧该文案是另一项改动。
 - 授权按连接保存，因此会话恢复后会再问一次。
@@ -42,6 +44,8 @@ Agent 会话把用户配置的 OpenAI 兼容端点的响应当作可信指令来
 - Regression — `packages/agent-behavior/tests/core/approval/approval.test.ts`：shell 分类驱动 `auto` 判定，会话内首次未授权的 shell 调用会询问，已授权的会话放行，删除类命令无视授权仍然询问，`codemode` 在所有交互模式下询问且无人可答时阻断。
 - Regression — `src/main/ai/runtime/pi/piApprovalFacts.test.ts`：`auto` 下首条 shell 调用产生审批请求、批准后放行，同工作区内的写入仍然无需询问，而 `codemode` 会产生审批请求而非作为豁免的 meta 工具直接运行。
 - Regression — `src/renderer/components/composer/variants/__tests__/permissionRequestComposerRequest.test.ts`：dynamic tool 部件上未决的审批被视为待审批，已决的不再提示，显式等待审批的部件仍然能被找到。
+- Regression — `src/main/ai/runtime/pi/PiRuntimeConnection.test.ts`：原生前台、后台子线程在审批前均无法执行 `bash` 或已启用的 `codemode`；拒绝或无人可审批时不会生成验证文件，批准后才允许写入文件。根会话处于 `default` 模式时，Pi 与 Pi Durable 的子线程写入也需要审批。
+- Regression — `src/main/ai/agentSession/__tests__/AgentSessionRuntimeService.test.ts`：子线程审批会将工具输入带入根会话流，且不会重复发送已经缓冲的工具输入。
 - Regression — `pnpm typecheck`：新增的必填 `sessionGranted` 事实下所有工程均通过类型检查。
 - Manual — 打包的 Cherry Studio 2.1.10：改动前本地模拟端点的 `bash` 调用无任何提示即执行；该复现正是本笔记要修复的问题。
 - Manual — 改动后的 dev 构建：同一端点的首条 `bash` 调用弹出审批卡、未生成取证文件，只有批准后才执行。

@@ -1346,7 +1346,7 @@ describe('desktop Pi Durable connection', () => {
     expect(events.filter((event) => event.type === 'error')).toEqual([])
   })
 
-  it('lets subagents write without approval when the root uses default permissions', async () => {
+  it('requires approval for subagent writes when the root uses default permissions', async () => {
     snapshot.agent.configuration = { ...snapshot.agent.configuration, permission_mode: 'default' }
     let root = ''
     script = respondingModel((call) => {
@@ -1368,9 +1368,13 @@ describe('desktop Pi Durable connection', () => {
     })
     const { connection, events } = await connect()
     await connection.send({ message: message('delegate') })
+    const approvals = () => events.filter((event) => event.type === 'tool-approval-request')
+    await expect.poll(() => approvals().length).toBe(1)
+    expect(approvals()[0].request).toMatchObject({ toolCallId: 'child-write', toolName: 'write' })
+    expect(existsSync(join(directory, 'child-result.txt'))).toBe(false)
+    toolApprovalRegistry.dispatch(approvals()[0].request.approvalId, { approved: true })
     await done(events, 10_000)
     expect(readFileSync(join(directory, 'child-result.txt'), 'utf8')).toBe('child completed')
-    expect(events.filter((event) => event.type === 'tool-approval-request')).toEqual([])
     expect(events.filter((event) => event.type === 'error')).toEqual([])
   })
 

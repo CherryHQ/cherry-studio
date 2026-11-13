@@ -355,7 +355,7 @@ describe('desktop Pi root connection', () => {
     expect(events.filter((event) => event.type === 'error')).toEqual([])
   })
 
-  it('lets subagents write without approval when the root uses default permissions', async () => {
+  it('requires approval for subagent writes when the root uses default permissions', async () => {
     snapshot.agent.configuration = { ...snapshot.agent.configuration, permission_mode: 'default' }
     let root = ''
     script = respondingModel((call) => {
@@ -377,9 +377,13 @@ describe('desktop Pi root connection', () => {
     })
     const { connection, events } = await connect()
     await connection.send({ message: message('delegate') })
+    const approvals = () => events.filter((event) => event.type === 'tool-approval-request')
+    await expect.poll(() => approvals().length).toBe(1)
+    expect(approvals()[0].request).toMatchObject({ toolCallId: 'child-write', toolName: 'write' })
+    expect(existsSync(join(directory, 'child-result.txt'))).toBe(false)
+    toolApprovalRegistry.dispatch(approvals()[0].request.approvalId, { approved: true })
     await done(events)
     expect(readFileSync(join(directory, 'child-result.txt'), 'utf8')).toBe('child completed')
-    expect(events.filter((event) => event.type === 'tool-approval-request')).toEqual([])
     expect(events.filter((event) => event.type === 'error')).toEqual([])
   })
 
@@ -558,6 +562,76 @@ describe('desktop Pi root connection', () => {
     await consuming
     expect(toolApprovalRegistry.size()).toBe(0)
     expect(script.calls).toHaveLength(1)
+  })
+
+  // Catches a model endpoint escaping root approval by delegating code execution to a child.
+  it.each(
+    ['bash', 'codemode'].flatMap((tool) =>
+      [false, true].flatMap((background) =>
+        ['approved', 'denied', 'unavailable'].map((answer) => ({ tool, background, answer }))
+      )
+    )
+  )('gates child $tool with background=$background and answer=$answer', async ({ tool, background, answer }) => {
+    snapshot.agent.configuration = { ...snapshot.agent.configuration, permission_mode: 'auto' }
+    if (tool === 'codemode') {
+      const createHost = piBehaviorHost.createPiBehaviorHost
+      vi.spyOn(piBehaviorHost, 'createPiBehaviorHost').mockImplementation(async (options) => {
+        const host = await createHost(options)
+        return {
+          ...host,
+          configureChild: async (child) => ({
+            ...(await host.configureChild(child)),
+            // Pi registers codemode inactive; exercise its gate with the native tool enabled.
+            builtinTools: ['bash', 'read', 'write', 'edit', 'codemode']
+          })
+        }
+      })
+    }
+    if (answer === 'unavailable')
+      mocks.interaction.mockReturnValue({ currentTurn: 'headless', userResponse: 'unavailable' })
+    let root = ''
+    let childCalled = false
+    const proof = join(directory, 'child-proof.txt')
+    const args: Record<string, string> =
+      tool === 'bash'
+        ? { command: 'printf executed > child-proof.txt' }
+        : { code: 'await tools.write({ path: "child-proof.txt", content: "executed" })' }
+    script = respondingModel((call) => {
+      root ||= call.sessionId!
+      if (call.sessionId !== root) {
+        if (call.messages.at(-1)?.role === 'user') {
+          childCalled = true
+          return assistantReply([toolCallPart('child-exec', tool, args)], 'toolUse')
+        }
+        return assistantReply('child finished')
+      }
+      if (call.messages.at(-1)?.role === 'user')
+        return assistantReply(
+          [subagentCall('spawn', { description: 'run command', prompt: 'execute the task', background })],
+          'toolUse'
+        )
+      return assistantReply('parent finished')
+    })
+    const { connection, events } = await connect()
+    await connection.send({ message: message('delegate code execution') })
+    if (answer !== 'unavailable') {
+      const approvals = () => events.filter((event) => event.type === 'tool-approval-request')
+      await expect.poll(() => approvals().length).toBe(1)
+      expect(approvals()[0].request).toMatchObject({ toolName: tool, toolCallId: 'child-exec', input: args })
+      expect(existsSync(proof)).toBe(false)
+      toolApprovalRegistry.dispatch(approvals()[0].request.approvalId, { approved: answer === 'approved' })
+    }
+    await done(events)
+    await connection.drainChildWrites()
+    expect(childCalled).toBe(true)
+    expect(events.filter((event) => event.type === 'error')).toEqual([])
+    if (answer === 'approved') expect(readFileSync(proof, 'utf8')).toBe('executed')
+    else {
+      expect(existsSync(proof)).toBe(false)
+      const results = script.calls.flatMap((call) => call.messages.filter((message) => message.role === 'toolResult'))
+      expect(JSON.stringify(results)).toContain(answer === 'denied' ? 'tool use was rejected' : 'unattended')
+    }
+    expect(toolApprovalRegistry.size()).toBe(0)
   })
 
   // Catches a child stream being dropped or attributed to the root's text, and a continuation creating a new child.

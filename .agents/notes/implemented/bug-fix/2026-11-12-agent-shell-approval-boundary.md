@@ -14,11 +14,13 @@ Reproduced on a packaged 2.1.10 build: the endpoint received nine tool definitio
 
 Treat code execution as a capability that never runs unattended, without changing what `auto` is for.
 
-Both changes sit in the shared approval gate:
+The approval gate and desktop host enforce the consent boundary:
 
 - The gate's shell branch selects on `category` instead of the tool-name strings `bash`/`powershell`, and `ToolCategory` gains `shell`, so a shell-class tool no longer depends on a name match.
 - Under `auto`, a shell call asks until a person grants that tool once in the session. A destructive command still asks every time; the grant never covers it. The grant lives in `createPiInteractionPorts`, which both Pi and Pi Durable use.
 - `codemode` is `shell`-class and on an always-ask set in the host facts, so code execution asks in every interactive mode. Its prompt is composer-owned: the pending-approval scan used to require `state === 'approval-requested'`, but a provider-executed dynamic tool part keeps `input-available` while already carrying `approval.id`, so the turn hung with no prompt. The scan now also treats an unresolved approval on a not-yet-resolved part as pending.
+
+- Root and child threads read the same live permission mode. The desktop host no longer assigns `bypassPermissions` to children, so an endpoint cannot bypass consent by returning `subagent` first. When a child call has no part in the root reply, the approval stream includes its input so the composer can display the request.
 
 Deliberate limit: this is a boundary of consent, not of execution. It does not sandbox the command, and it does not make the destructive pattern list authoritative.
 
@@ -32,7 +34,7 @@ Deliberate limit: this is a boundary of consent, not of execution. It does not s
 ## Consequences
 
 - `auto` keeps its low friction for reads, edits inside the allowed roots, and non-destructive shell commands after the first grant.
-- An unattended turn that needs a shell or `codemode` call now blocks instead of running it. Scheduled agents that relied on unattended shell calls will fail; a session-level exception is a later product decision.
+- An unattended turn with no prior shell grant blocks shell calls; `codemode` also blocks when approval is required. A shell grant remains connection-scoped and can carry into a later unattended turn on that connection. An explicit root `bypassPermissions` remains Full Access.
 - `codemode` asks under `default` and `auto`, and stays allowed under `bypassPermissions` unless it is also marked non-bypassable.
 - Residual risk is unchanged and large: an endpoint can still get any command the person approves, and a granted session keeps running commands until it ends. The permission-mode descriptions still present `auto` as risk-aware; tightening that copy is a separate change.
 - The grant is per connection, so resuming a session asks once more.
@@ -42,6 +44,8 @@ Deliberate limit: this is a boundary of consent, not of execution. It does not s
 - Regression — `packages/agent-behavior/tests/core/approval/approval.test.ts`: the shell category drives the `auto` decision, the first ungranted shell call asks, a granted session allows, a destructive command asks regardless of the grant, and `codemode` asks in every interactive mode and blocks when nobody can answer.
 - Regression — `src/main/ai/runtime/pi/piApprovalFacts.test.ts`: the first `auto` shell call emits an approval request and the answer unblocks it, an in-workspace write still runs unprompted, and `codemode` asks instead of running as an exempt meta tool.
 - Regression — `src/renderer/components/composer/variants/__tests__/permissionRequestComposerRequest.test.ts`: an unresolved approval on a dynamic tool part is pending, a resolved one is not, and an explicitly waiting part still resolves.
+- Regression — `src/main/ai/runtime/pi/PiRuntimeConnection.test.ts`: native foreground/background children cannot execute `bash` or enabled `codemode` before approval; denial or unavailable attendance leaves no proof file, while approval permits the file write. Pi and Pi Durable child writes also require approval under root `default` mode.
+- Regression — `src/main/ai/agentSession/__tests__/AgentSessionRuntimeService.test.ts`: a child approval carries its input into the root stream, and an already-buffered tool input is not duplicated.
 - Regression — `pnpm typecheck`: every project compiles with the new required `sessionGranted` fact.
 - Manual — packaged Cherry Studio 2.1.10: before this change a local mock endpoint's `bash` call executed with no prompt; the reproduction is what this note repairs.
 - Manual — dev build after the change: the same endpoint's first `bash` call rendered an approval card, wrote no proof file, and executed only after the approval.

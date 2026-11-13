@@ -136,8 +136,7 @@ export async function createPiBehaviorHost(options: HostOptions): Promise<{
     settings: {
       goalDefaults: () => ({ maxGoalRounds: 100, maxGoalRoundsCeiling: 1000, blockedAfter: 3 }),
       autonomy: () => 'auto',
-      permissionMode: (thread) =>
-        thread === options.root() ? (approval.getPermissionMode() ?? 'default') : 'bypassPermissions',
+      permissionMode: () => approval.getPermissionMode() ?? 'default',
       attendance: () => approval.getInteractionState().userResponse,
       maxBackground: () => DEFAULT_MAX_BACKGROUND,
       offloadThreshold: () => 20_000
