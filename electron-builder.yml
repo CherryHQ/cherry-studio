@@ -63,8 +63,7 @@ files:
   - "!**/{.DS_Store,Thumbs.db,thumbs.db,__pycache__}"
   - "!**/{LICENSE,license,LICENSE.*,*.LICENSE.txt,NOTICE.txt,README.md,readme.md,CHANGELOG.md}"
   - "!node_modules/mammoth/{mammoth.browser.js,mammoth.browser.min.js}"
-  - "!**/node_modules/better-sqlite3/{bin,deps,src}/**"
-  - "!**/node_modules/better-sqlite3/build/{Debug,Release/obj}/**"
+  - "!**/node_modules/better-sqlite3/{bin,build,deps,src}/**"
   - "!**/node_modules/{selection-hook,@earendil-works/pi-coding-agent}/docs/**"
   # node-gyp-build prefers build/Release over prebuilds/, so ship the prebuilds and drop the
   # host-arch rebuild — a cross-built arm64 package would otherwise load the x86-64 binary (#20530).
@@ -74,6 +73,7 @@ files:
   - "!node_modules/tesseract.js-core/{tesseract-core.js,tesseract-core.wasm,tesseract-core.wasm.js}" # we don't need source files
   - "!node_modules/tesseract.js-core/{tesseract-core-lstm.js,tesseract-core-lstm.wasm,tesseract-core-lstm.wasm.js}" # we don't need source files
   - "!node_modules/tesseract.js-core/{tesseract-core-simd.js,tesseract-core-simd.wasm,tesseract-core-simd.wasm.js}" # tesseract.js loads tesseract-core-simd-lstm (default LSTM_ONLY OEM on SIMD)
+  - "!**/node_modules/tesseract.js-core/tesseract-core-simd-lstm.wasm.js"
   - "!node_modules/onnxruntime-web/**" # transformers.js's browser/WASM backend; local inference always runs onnxruntime-node instead
   - "!node_modules/@huggingface/transformers/node_modules/onnxruntime-web/**" # same package, nested copy
   - "!node_modules/onnxruntime-node/bin/**" # native binary is downloaded on first use (Toolchain/onnxruntime), never bundled — see OnnxRuntimeBinaryService
