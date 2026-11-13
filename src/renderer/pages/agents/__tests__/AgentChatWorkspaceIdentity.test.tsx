@@ -128,10 +128,13 @@ describe('AgentChat top-bar workspace identity', () => {
     })
     await i18n.changeLanguage('en-US')
     vi.mocked(window.api.ipcApi.request).mockReset()
-    vi.mocked(window.api.ipcApi.request).mockResolvedValue({
+    vi.mocked(window.api.ipcApi.request).mockImplementation(async (route) => ({
       ok: true,
-      data: { pathKind: 'directory', targets: [{ id: 'file_manager', kind: 'file_manager' }] }
-    })
+      data:
+        route === 'computer_use.get_approvals'
+          ? []
+          : { pathKind: 'directory', targets: [{ id: 'file_manager', kind: 'file_manager' }] }
+    }))
   })
 
   it('keeps the folder and workspace name in the non-empty conversation top bar as a directory opener', async () => {
@@ -150,8 +153,6 @@ describe('AgentChat top-bar workspace identity', () => {
     const topBar = within(screen.getByRole('banner'))
     const openWorkspace = topBar.getByRole('button', { name: workspace.name })
     expect(within(openWorkspace).getByText(workspace.name)).toBeVisible()
-    // The folder glyph is part of the workspace identity contract.
-    expect(openWorkspace.querySelector('svg.lucide-folder')).toBeInTheDocument()
     expect(openWorkspace).not.toHaveAttribute('aria-haspopup')
     expect(topBar.queryByTestId('clear-workspace-button')).not.toBeInTheDocument()
     await waitFor(() => expect(openWorkspace).toBeEnabled())

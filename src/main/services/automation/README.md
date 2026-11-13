@@ -43,7 +43,7 @@ Acorn extracts top-level lexical declarations. An execution-entry callback regis
 
 QuickJS provides the guest language boundary; the utility process provides crash isolation and killable execution, not an OS sandbox. Only validated, allow-listed Browser/Computer host calls cross the boundary. Each call rechecks the active run, owner and capability, intersected with the capabilities granted at run start. Native SDK ownership, snapshot validity, global control settings and sticky user-stop remain enforced by their host services.
 
-Cells have a 60-second deadline, a 32 MiB QuickJS allocation limit, 64,000-character source limit, 256,000-character bridge payload limit, and bounded text/image output. A timeout, cancel or process failure clears JS state and is reported explicitly. Side effects are never replayed. Unawaited host operations are drained before returning; cancellation closes admission and fences late RPC replies. Normal script errors preserve bindings; the model must observe state before deciding whether another action is appropriate.
+Cells have a 60-second execution deadline, excluding time spent waiting for application consent, a 32 MiB QuickJS allocation limit, 64,000-character source limit, 256,000-character bridge payload limit, and bounded text/image output. A timeout, cancel or process failure clears JS state and is reported explicitly. Side effects are never replayed. Unawaited host operations are drained before returning; cancellation closes admission and fences late RPC replies. Normal script errors preserve bindings; the model must observe state before deciding whether another action is appropriate.
 
 No cross-platform desktop acceptance is implied by kernel or protocol checks. Native accessibility, screenshots and user-stop behavior still need real macOS/Windows/Linux acceptance.
 
@@ -135,3 +135,25 @@ calls have no inferred targets. Published SDK 0.1.11 supplies the independent ic
 Session details share the icon cache and use stable identity from the live control list.
 Claude and Pi Durable can omit MCP annotations; the renderer also recognizes the existing
 validated `REPL_CONTEXT` footer in their text-only results.
+
+## Application consent
+
+Computer Use defaults to enabled unless the user stored an explicit disabled setting.
+The main-process application boundary requires consent before launch, native control,
+content reads or input. The composer shows the resolved application name and stable
+identity with Always, Approve for session and Reject. Always saves the stable identity
+in Preference; session consent stays in main-process memory across turns and REPL
+resets until the conversation controller closes or the app exits. Reject refuses the
+current request without adding a permanent deny rule.
+
+The live Agent permission mode controls bypass: `bypassPermissions` skips consent
+without creating a grant. Assistant topics use ordinary application consent. Both
+paths retain explicit disablement, user stops, native permissions and application
+ownership. Each target in a multi-application cell is checked independently, including
+cached AX pages and existing handles. Computer Use settings can revoke saved grants.
+
+Pending application requests use the shared approval registry with `application`
+presentation and window-bound `computer_use.get_approvals` /
+`computer_use.respond_approval` IPC. They are transient composer requests, not tool
+results or replayable message history; generic tool approval cannot answer them.
+Cancellation retires the request and prevents late decisions from saving a grant.

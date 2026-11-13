@@ -1,6 +1,6 @@
 {
   "name": "@cherrystudio/extension-table-plus",
-  "version": "3.0.13",
+  "version": "3.0.14",
   "description": "table extension for tiptap forked from tiptap/extension-table",
   "keywords": [
     "tiptap",

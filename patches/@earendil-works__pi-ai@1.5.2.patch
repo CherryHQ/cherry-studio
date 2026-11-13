@@ -69,6 +69,24 @@ index 41267bd..f29497b 100644
      toolChoice?: ResponseCreateParamsStreaming["tool_choice"];
  }
  /**
+diff --git a/dist/index.d.ts b/dist/index.d.ts
+index 9c19bb0fd38cc51e814d3680e8e06519908874b5..0fcbb1efce45f566ac45ab30d7287a705d800133 100644
+--- a/dist/index.d.ts
++++ b/dist/index.d.ts
+@@ -35,3 +35,4 @@ export { uuidv7 } from "./utils/uuid.ts";
+ export * from "./utils/validation.ts";
+ export { PI_AI_VERSION } from "./utils/version.ts";
+ //# sourceMappingURL=index.d.ts.map
++export { retainNestedToolCall } from "./nested-tool-records.js";
+diff --git a/dist/index.js b/dist/index.js
+index a45b61643634b192fb41453b8869e1be3eaab658..c2489650e1f12845cfe6ea5d033f5bd4dd384943 100644
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -23,3 +23,4 @@ export { uuidv7 } from "./utils/uuid.js";
+ export * from "./utils/validation.js";
+ export { PI_AI_VERSION } from "./utils/version.js";
+ //# sourceMappingURL=index.js.map
++export { retainNestedToolCall } from "./nested-tool-records.js";
 diff --git a/dist/models.js b/dist/models.js
 index c61de87..2a953e5 100644
 --- a/dist/models.js
@@ -95,6 +113,45 @@ index c61de87..2a953e5 100644
      });
  }
  export function clampThinkingLevel(model, level) {
+diff --git a/dist/nested-tool-records.d.ts b/dist/nested-tool-records.d.ts
+new file mode 100644
+index 0000000000000000000000000000000000000000..38224a50c2a8c5e92f43d6148e489c5c84efa638
+--- /dev/null
++++ b/dist/nested-tool-records.d.ts
+@@ -0,0 +1,2 @@
++import type { NestedToolCallRecord, NestedToolCalls } from "./types.js";
++export declare function retainNestedToolCall(previous: NestedToolCalls | undefined, call: NestedToolCallRecord): NestedToolCalls;
+diff --git a/dist/nested-tool-records.js b/dist/nested-tool-records.js
+new file mode 100644
+index 0000000000000000000000000000000000000000..5392b2fde2a1f64da50c215c3a671a96819b4768
+--- /dev/null
++++ b/dist/nested-tool-records.js
+@@ -0,0 +1,25 @@
++const encoder = new TextEncoder();
++export function retainNestedToolCall(previous, call) {
++    const record = previous ?? { version: 1, calls: [], complete: true };
++    const index = record.calls.findIndex((item) => item.id === call.id);
++    if (index < 0 && record.calls.length >= 256) {
++        return { ...record, complete: false, omittedCalls: (record.omittedCalls ?? 0) + 1 };
++    }
++    const next = JSON.parse(JSON.stringify(call));
++    for (const [field, perCall, total] of [["arguments", 8192, 32768], ["result", 65536, 1048576]]) {
++        if (next[field] === undefined) continue;
++        delete next[field + "Bytes"];
++        delete next[field + "Omitted"];
++        const bytes = encoder.encode(JSON.stringify(next[field])).length;
++        const used = record.calls.reduce((sum, item, i) => sum + (i === index || item[field] === undefined ? 0 : encoder.encode(JSON.stringify(item[field])).length), 0);
++        if (bytes > perCall || used + bytes > total) {
++            delete next[field];
++            next[field + "Bytes"] = bytes;
++            next[field + "Omitted"] = "budget";
++        }
++    }
++    const calls = record.calls.slice();
++    if (index < 0) calls.push(next);
++    else calls[index] = next;
++    return { ...record, version: 1, calls, complete: !record.omittedCalls && calls.every((item) => item.status !== "unfinished" && item.arguments !== undefined && item.result !== undefined) };
++}
 diff --git a/dist/providers/model-schema.d.ts b/dist/providers/model-schema.d.ts
 index f4015ca..f1f8dde 100644
 --- a/dist/providers/model-schema.d.ts
@@ -155,12 +212,10 @@ index 2aaea67..1d152b8 100644
  const PromptCacheLifetimeSchema = num({ exclusiveMinimum: 0 });
  export const ModelPromptCacheSchema = object({ short: opt(PromptCacheLifetimeSchema), long: opt(PromptCacheLifetimeSchema) }, {
 diff --git a/dist/types.d.ts b/dist/types.d.ts
-index b410a7b..685a297 100644
+index b410a7bab16c395090ab63e362288306950dec64..bb7fbd89e4abb3d4498653cf9a3a65adf90554a8 100644
 --- a/dist/types.d.ts
 +++ b/dist/types.d.ts
-@@ -355,11 +355,22 @@ export interface DeferredHandle {
-  * prompt sections, and `toolsAdded`/`toolsRemoved` change the tool set. Replaying
-  * every system message in order yields the current prompt and tools. Providers that
+@@ -357,7 +357,18 @@ export interface DeferredHandle {
   * accept system messages mid-conversation send each one in place; other providers
   * rebuild the leading system message from the replayed state.
   */
@@ -179,11 +234,34 @@ index b410a7b..685a297 100644
      role: "system";
      /** Instruction text. On the leading message this is the base prompt; later, additional instructions. */
      content: string | TextContent[];
-     /**
-      * Named, ordered prompt sections rendered verbatim after `content`. The leading message
-@@ -435,10 +446,12 @@ export type ToolResultMessage<TDetails = JsonValue> = IsJsonCompatible<TDetails>
-     role: "toolResult";
-     toolCallId: string;
+@@ -413,6 +424,11 @@ export interface AssistantMessage {
+ }
+ /** A tool call that another tool made while it ran, for example from a codemode script. */
+ export interface NestedToolCallRecord {
++    parentToolCallId?: string;
++    result?: JsonValue;
++    resultBytes?: number;
++    argumentsOmitted?: "budget";
++    resultOmitted?: "budget";
+     id: string;
+     name: string;
+     /** Omitted when over the size limits; `argumentsBytes` then gives their size. */
+@@ -425,10 +441,12 @@ export interface NestedToolCallRecord {
+     /** Error text, truncated. */
+     error?: string;
+ }
+-/** Bounded record of the nested calls a tool made. Results are not recorded. */
++/** Bounded presentation evidence of the nested calls a tool made. */
+ export interface NestedToolCalls {
++    version?: 1;
++    omittedCalls?: number;
+     calls: NestedToolCallRecord[];
+-    /** False when calls were dropped, arguments omitted, or calls had not finished. */
++    /** False when calls or payloads were omitted, or calls had not finished. */
+     complete: boolean;
+ }
+ export type ToolResultMessage<TDetails = JsonValue> = IsJsonCompatible<TDetails> extends true ? {
+@@ -437,6 +455,8 @@ export type ToolResultMessage<TDetails = JsonValue> = IsJsonCompatible<TDetails>
      toolName: string;
      content: (TextContent | ImageContent)[];
      details?: JsonRepresentation<TDetails>;
@@ -192,11 +270,9 @@ index b410a7b..685a297 100644
      /** Usage from the tool execution itself, if available. Not part of main LLM context accounting. */
      usage?: Usage;
      /** Calls this tool made to other tools. Kept for the session record; not sent to the model. */
-     nestedCalls?: NestedToolCalls;
-     isError: boolean;
-diff --git a/package/dist/utils/context-usage.d.ts b/dist/utils/context-usage.d.ts
+diff --git a/dist/utils/context-usage.d.ts b/dist/utils/context-usage.d.ts
 new file mode 100644
-index 0000000..c2422f3
+index 0000000000000000000000000000000000000000..c2422f31a9a21f6a2b204c9e1c029bfde09acf73
 --- /dev/null
 +++ b/dist/utils/context-usage.d.ts
 @@ -0,0 +1,10 @@
@@ -210,9 +286,9 @@ index 0000000..c2422f3
 +    resources?: ContextSource["resources"];
 +}
 +export declare function measureSystemContext(system: SystemMessage | undefined, deferred?: readonly (Tool & { contextSource?: ContextSource })[], estimate?: (promptCharacters: number, toolCharacters: number) => number, separator?: string): ContextPart[];
-diff --git a/package/dist/utils/context-usage.js b/dist/utils/context-usage.js
+diff --git a/dist/utils/context-usage.js b/dist/utils/context-usage.js
 new file mode 100644
-index 0000000..a37f8e8
+index 0000000000000000000000000000000000000000..a37f8e82c6eb306f36ecad165e6562b07f2df1c6
 --- /dev/null
 +++ b/dist/utils/context-usage.js
 @@ -0,0 +1,35 @@
@@ -252,18 +328,13 @@ index 0000000..a37f8e8
 +    return parts;
 +}
 diff --git a/dist/utils/estimate.d.ts b/dist/utils/estimate.d.ts
-index 6dcca6e..0b56a9f 100644
+index 6dcca6eff16b95b83e047a6e27b65d9d7694bf2c..0b56a9ffff6251cadfaecea62a6d8c7463b718cd 100644
 --- a/dist/utils/estimate.d.ts
 +++ b/dist/utils/estimate.d.ts
-@@ -12,6 +12,7 @@ export interface ContextUsageEstimate {
- export declare function calculateContextTokens(usage: Usage): number;
- export declare function estimateTextTokens(text: string): number;
- export declare function estimateTextAndImageContentTokens(content: string | Array<TextContent | ImageContent>): number;
+@@ -15,3 +15,4 @@ export declare function estimateTextAndImageContentTokens(content: string | Arra
  export declare function estimateMessageTokens(message: Message): number;
  export declare function estimateContextTokens(context: TranscriptContext | readonly Message[]): ContextUsageEstimate;
--//# sourceMappingURL=estimate.d.ts.map
-\ No newline at end of file
-+//# sourceMappingURL=estimate.d.ts.map
+ //# sourceMappingURL=estimate.d.ts.map
 +export declare function estimateSystemCharacters(promptCharacters: number, toolCharacters: number): number;
 diff --git a/dist/utils/estimate.js b/dist/utils/estimate.js
 index 45be26d..cfaf2b0 100644
