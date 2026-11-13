@@ -31,6 +31,12 @@ describe('textDirection', () => {
     expect(textDirection('راجع [المستند](https://example.com/docs) للتفاصيل')).toBe('rtl')
   })
 
+  it('keeps Arabic-Indic digits neutral', () => {
+    expect(textDirection('١٢٣')).toBe('auto')
+    expect(textDirection('Price: ١٢٣')).toBe('ltr')
+    expect(textDirection('السعر ١٢٣ جنيه')).toBe('rtl')
+  })
+
   it('returns auto without strong text', () => {
     expect(textDirection('')).toBe('auto')
     expect(textDirection('123 !!! ...')).toBe('auto')

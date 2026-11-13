@@ -16,8 +16,8 @@ import type { ChatMarkdownProps } from './ChatMarkdown'
 import { ChatMarkdownRenderProvider } from './ChatMarkdownRenderContext'
 import { CHAT_MARKDOWN_COMPONENTS } from './ChatMarkdownRenderers'
 import { rehypeBareFilePaths } from './plugins/rehypeBareFilePaths'
-import { remarkHtmlArtifact, transformMarkdownOutsideHtmlArtifacts } from './plugins/remarkHtmlArtifact'
 import { rehypeTextDirection } from './plugins/rehypeTextDirection'
+import { remarkHtmlArtifact, transformMarkdownOutsideHtmlArtifacts } from './plugins/remarkHtmlArtifact'
 
 const HTML_ARTIFACT_REMARK_PLUGINS: Pluggable[] = [remarkHtmlArtifact]
 const FILE_PATH_REHYPE_PLUGINS: Pluggable[] = [[rehypeBareFilePaths, { platform: isWin ? 'windows' : 'posix' }]]
