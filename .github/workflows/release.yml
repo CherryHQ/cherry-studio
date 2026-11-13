@@ -802,9 +802,10 @@ jobs:
       - name: Sync GitCode release
         shell: bash
         env:
-          COS_SECRET_ID: ${{ secrets.COS_SECRET_ID }}
-          COS_SECRET_KEY: ${{ secrets.COS_SECRET_KEY }}
           RELEASE_FROM_COS: "true"
+          RELEASE_VIA_SCF: "true"
+          TENCENT_SECRET_ID: ${{ secrets.TENCENT_SECRET_ID }}
+          TENCENT_SECRET_KEY: ${{ secrets.TENCENT_SECRET_KEY }}
           GITCODE_TOKEN: ${{ secrets.GITCODE_TOKEN }}
           GITCODE_OWNER: ${{ vars.GITCODE_OWNER }}
           GITCODE_REPO: ${{ vars.GITCODE_REPO }}
@@ -812,7 +813,13 @@ jobs:
           DRY_RUN: ${{ inputs.mode == 'sync-only' && inputs.dry_run }}
           LANG: C.UTF-8
           LC_ALL: C.UTF-8
-        run: bash scripts/release/sync-gitcode.sh
+        run: |
+          if [ "$DRY_RUN" != "true" ]; then
+            : "${TENCENT_SECRET_ID:?TENCENT_SECRET_ID is required}"
+            : "${TENCENT_SECRET_KEY:?TENCENT_SECRET_KEY is required}"
+            python -m pip install tencentcloud-sdk-python-scf==3.1.100
+          fi
+          bash scripts/release/sync-gitcode.sh
 
   notify:
     runs-on: ubuntu-latest

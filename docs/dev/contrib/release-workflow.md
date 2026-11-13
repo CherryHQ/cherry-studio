@@ -220,7 +220,7 @@ Publish only after the latest release branch commit has passed CI and an `all`-p
 
 The approval job does not hold the release-state lock. After approval, the publication job acquires that lock and takes one final state snapshot. It requires the approved run, draft, tag, branch, and selected SHA to agree; rejects open release-branch PRs and every merged `hotfix` after the release branch point that lacks `backported/v<version>`; and confirms that notes and artifacts exist. This explicit hotfix gate also blocks publication when a backport job is merely queued and has not opened its PR yet. If the release branch changed while approval was waiting, publication fails closed and the new exact-head build creates a new approval. The fetched `main` SHA in the final snapshot is the hotfix cutoff for the release; a hotfix merged after it belongs to the next release. Publication makes the tag immutable for this workflow. **Release** refuses to update an already published release; any later fix requires a new version.
 
-Publishing triggers **Post Release** automatically. The GitCode job reads the completed COS inventory and downloads and uploads one attachment at a time. GitCode synchronization failure fails the workflow without rolling back the GitHub release. GitCode currently has no documented draft API, so it receives assets only after approval and GitHub publication.
+Publishing triggers **Post Release** automatically. The GitCode job reads the completed COS inventory and invokes the Shanghai SCF once per attachment. SCF streams the file from the regional COS endpoint to the GitCode upload URL. The job checks that GitCode lists all expected attachments. GitCode synchronization failure fails the workflow without rolling back the GitHub release. GitCode currently has no documented draft API, so it receives assets only after approval and GitHub publication.
 
 ### Retry GitCode Synchronization
 
@@ -234,6 +234,8 @@ The COS lifecycle controls retention. Keep referenced objects available for the 
 Preparation, build, draft finalization, approval, publication, and GitCode synchronization failures or cancellations are included in the failure notification. Skipped dependent jobs do not hide the originating failure. Sync-only dry runs never send notifications.
 
 Configure `COS_SECRET_ID` and `COS_SECRET_KEY` with read, write, and multipart access under `releases-sync/` in `cherry-studio-1366585212`. The repository also needs `GITCODE_TOKEN`, `GITCODE_OWNER`, `GITCODE_REPO`, optional `GITCODE_API_URL`, Windows signing secrets, and Feishu failure-notification secrets. Builds and approval waits do not hold `release-state`; preparation, draft mutation and publication acquire it separately. GitCode syncs are serialized per tag.
+
+Configure `TENCENT_SECRET_ID` and `TENCENT_SECRET_KEY` for a CAM identity that can invoke the SCF. To deploy code with **Deploy release sync SCF** on `main`, that identity also needs `scf:GetFunction` and `scf:UpdateFunctionCode`. Create `cherry-release-sync` in the `default` namespace in Shanghai as a Python 3.10 event function. Set the timeout to at least 300 seconds, enable outbound HTTPS, and bind a runtime role with COS read access to `releases-sync/`. Run the deploy workflow before enabling release synchronization.
 
 ## 6. Merge the Release Metadata Pull Request
 
