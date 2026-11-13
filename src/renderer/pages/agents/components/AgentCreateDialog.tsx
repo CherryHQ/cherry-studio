@@ -23,14 +23,13 @@ export function AgentCreateDialog({ open, onOpenChange, onCreated }: AgentCreate
     async (values: ResourceCreateWizardValues) => {
       try {
         const created = await createAgent(buildCreateAgentCommand(values))
-        onOpenChange(false)
-        await onCreated(created.id)
+        return created.id
       } catch (error) {
         logger.error('Failed to create agent', error as Error)
         throw error
       }
     },
-    [createAgent, onCreated, onOpenChange]
+    [createAgent]
   )
 
   return (
@@ -40,6 +39,7 @@ export function AgentCreateDialog({ open, onOpenChange, onCreated }: AgentCreate
       isSubmitting={isCreatingAgent}
       onOpenChange={onOpenChange}
       onSubmit={handleSubmitCreate}
+      onStartConversation={(agentId) => void onCreated(agentId)}
     />
   )
 }

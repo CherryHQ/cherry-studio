@@ -56,9 +56,15 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => ({
 vi.mock('@renderer/components/resourceCatalog/dialogs/create', () => {
   dialogImplementationsLoadedMock('create')
   return {
-    ResourceCreateWizard: (props: { kind: string; open: boolean }) => {
+    ResourceCreateWizard: (props: { kind: string; open: boolean; onStartConversation: (id: string) => void }) => {
       resourceCreateWizardMock(props)
-      return props.open ? <div data-kind={props.kind} data-testid="resource-create-wizard" /> : null
+      return props.open ? (
+        <div data-kind={props.kind} data-testid="resource-create-wizard">
+          <button type="button" onClick={() => props.onStartConversation('created-id')}>
+            start conversation
+          </button>
+        </div>
+      ) : null
     }
   }
 })
@@ -210,6 +216,31 @@ describe('ResourceCatalogView', () => {
 
     expect(screen.queryByTestId('resource-create-wizard')).not.toBeInTheDocument()
   })
+
+  it.each(['assistant', 'agent'] as const)(
+    'opens a conversation with the new %s through the matching chat callback',
+    async (kind) => {
+      const controller = createController()
+      resourceCatalogControllerMock.mockReturnValue({
+        ...controller,
+        dialogs: { ...controller.dialogs, createDialogKind: kind, createDialogOpen: true }
+      })
+      const onOpenAssistantChat = vi.fn()
+      const onOpenAgentChat = vi.fn()
+      render(
+        <ResourceCatalogView
+          resourceType={kind}
+          onOpenAssistantChat={onOpenAssistantChat}
+          onOpenAgentChat={onOpenAgentChat}
+        />
+      )
+
+      fireEvent.click(await screen.findByRole('button', { name: 'start conversation' }))
+
+      expect(kind === 'agent' ? onOpenAgentChat : onOpenAssistantChat).toHaveBeenCalledExactlyOnceWith('created-id')
+      expect(kind === 'agent' ? onOpenAssistantChat : onOpenAgentChat).not.toHaveBeenCalled()
+    }
+  )
 
   it('filters controller resources before rendering the grid', () => {
     const enabledSkill = { id: 'enabled', type: 'skill', raw: { isGlobalEnabled: true } } as ResourceItem

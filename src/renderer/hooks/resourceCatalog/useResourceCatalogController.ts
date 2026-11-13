@@ -327,25 +327,24 @@ export function useResourceCatalogController(
   )
 
   const handleSubmitCreateResource = useCallback(
-    async (values: ResourceCreateValues) => {
+    async (values: ResourceCreateValues): Promise<string> => {
       const kind = createDialogKind
-      if (!kind || creatingResource) return
+      if (!kind || creatingResource) throw new Error(t('library.config.dialogs.create.submit_failed'))
 
       setCreatingResource(true)
       try {
-        if (kind === 'assistant') {
-          await createAssistant(buildCreateAssistantDto(values))
-        } else {
-          await createAgent(buildCreateAgentCommand(values))
-        }
+        const created =
+          kind === 'assistant'
+            ? await createAssistant(buildCreateAssistantDto(values))
+            : await createAgent(buildCreateAgentCommand(values))
 
-        setCreateDialogOpen(false)
         refetch()
+        return created.id
       } finally {
         setCreatingResource(false)
       }
     },
-    [createAgent, createAssistant, createDialogKind, creatingResource, refetch]
+    [createAgent, createAssistant, createDialogKind, creatingResource, refetch, t]
   )
 
   const refreshProtectedAgentResources = useCallback(async () => {
