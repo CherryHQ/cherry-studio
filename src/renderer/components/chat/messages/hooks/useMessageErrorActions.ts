@@ -7,7 +7,6 @@ import { contextFromUnknown } from '@renderer/services/AppErrorContextService'
 import { openRoute } from '@renderer/services/mainWindowNavigation'
 import { isAgentSessionTopic } from '@renderer/utils/agentSession'
 import { translateErrorMessage } from '@renderer/utils/errorLanguage'
-import { isUniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
 import type { AppErrorContext } from '@shared/types/appError'
 import type { DoctorSubjectRef } from '@shared/types/doctor'
 import { projectDiagnosticAiDiagnosis } from '@shared/utils/diagnosticAi'
@@ -31,11 +30,6 @@ function persistedAttemptTime(message: { createdAt: string; updatedAt?: string }
     return new Date(candidate).toISOString()
   }
   return undefined
-}
-
-function localModelId(id: string | undefined): string | undefined {
-  if (!id) return undefined
-  return isUniqueModelId(id) ? parseUniqueModelId(id).modelId : id
 }
 
 function messageFaultKey(
@@ -102,7 +96,7 @@ export function useMessageErrorActions(options: MessageErrorActionOptions): Mess
       const message = input.error?.message || input.localizedErrorMessage || ''
       const subject = getDoctorSubject(input.message)
       const faultKey = messageFaultKey(input.message, input.partId, input.error)
-      const modelId = localModelId(model?.id)
+      const modelId = model?.id
       const errorContext = rememberMessageFault(faultKey, () =>
         contextFromUnknown(input.error ?? message, {
           source: messageErrorSource(subject, input.message.topicId),
