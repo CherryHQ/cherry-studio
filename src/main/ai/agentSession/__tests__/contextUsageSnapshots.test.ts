@@ -75,10 +75,17 @@ describe('context usage snapshot policy', () => {
     }
     const remaining = 256 * 1024 - nestedBytes(records)
     expect(remaining).toBeGreaterThan(0)
-    records['026'].usage.resources![0].name += 'x'.repeat(remaining)
+    const paddedName = (extra: string) => {
+      const { resources } = records['026'].usage
+      return {
+        ...records['026'],
+        usage: { ...records['026'].usage, resources: [{ ...resources![0], name: resources![0].name + extra }] }
+      }
+    }
+    records['026'] = paddedName('x'.repeat(remaining))
     expect(nestedBytes(records)).toBe(256 * 1024)
     expect(pruneContextUsageSnapshots(records, () => true)).toEqual(records)
-    records['026'].usage.resources![0].name += 'x'
+    records['026'] = paddedName('x')
     const kept = pruneContextUsageSnapshots(records, () => true)
     expect(nestedBytes(kept)).toBeLessThanOrEqual(256 * 1024)
     expect(Object.keys(kept)).toHaveLength(26)
