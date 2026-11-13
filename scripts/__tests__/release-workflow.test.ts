@@ -1132,8 +1132,10 @@ describe('release workflow gates', () => {
     expect(build.strategy.matrix.edition).toEqual(['global', 'cn'])
     const upload = build.steps.find((step: { name?: string }) => step.name === 'Upload release files directly to COS')
     expect(upload.run).toContain('release-cos.py upload')
-    for (const job of Object.values(workflow.jobs) as { steps: { uses?: string }[] }[]) {
-      expect(job.steps.some((step) => /^actions\/(upload|download)-artifact@/.test(step.uses ?? ''))).toBe(false)
+    for (const job of Object.values(workflow.jobs) as { steps: { uses?: string; with?: { path?: string } }[] }[]) {
+      for (const step of job.steps.filter((step) => /^actions\/(upload|download)-artifact@/.test(step.uses ?? ''))) {
+        expect(step.with?.path).toBe('release-performance.json')
+      }
     }
   })
 
