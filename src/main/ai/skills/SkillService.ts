@@ -44,6 +44,7 @@ import {
   resolveSkillDirectory,
   validateZipFile
 } from './skillArchive'
+import { isSkillExternallyExportable } from './skillExportPolicy'
 import { SkillImportError } from './SkillImportError'
 import { SkillInstaller } from './SkillInstaller'
 import { createTempDir, normalizeFolderKey, safeRemoveDirectory, sanitizeFolderName } from './skillPaths'
@@ -874,7 +875,8 @@ export class SkillService {
 
   private async setExportEnabled(folderName: string, enabled: boolean): Promise<void> {
     const appEnabled = application.get('PreferenceService').get('agent.skills.external_export.enabled') !== false
-    const shouldExport = enabled && appEnabled
+    const skill = enabled && appEnabled ? agentGlobalSkillService.getByFolderName(folderName) : null
+    const shouldExport = enabled && appEnabled && skill !== null && isSkillExternallyExportable(skill)
     const root = path.resolve(application.getPath('external.agents.skills'))
     const target = path.resolve(root, folderName)
     if (!isPathInside(target, root) || target === root) throw new Error(`Invalid skill export: ${folderName}`)

@@ -35,9 +35,9 @@ describe('mcpHandlers', () => {
     expect(runtime.removeServer).toHaveBeenCalledWith('s')
   })
 
-  it('refresh_tools delegates to the separate McpCatalogService', async () => {
+  it('refresh_tools delegates to the separate McpCatalogService with the caller windowId', async () => {
     await mcpHandlers['mcp.server.refresh_tools']({ serverId: 's' }, ctx)
-    expect(catalog.refreshTools).toHaveBeenCalledWith('s')
+    expect(catalog.refreshTools).toHaveBeenCalledWith('s', 'w1')
   })
 
   it('list_prompts returns the prompt list from McpRuntimeService', async () => {
