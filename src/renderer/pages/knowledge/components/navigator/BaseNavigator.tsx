@@ -4,10 +4,7 @@ import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { ResourceList } from '@renderer/components/chat/resourceList/base'
-import {
-  buildKnowledgeBaseGroupSections,
-  DEFAULT_KNOWLEDGE_GROUP_LABEL_KEY
-} from '@renderer/pages/knowledge/utils/group'
+import { buildKnowledgeBaseGroupSections, DEFAULT_KNOWLEDGE_GROUP_LABEL_KEY } from '@renderer/utils/knowledgeGroup'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type { ReorderKnowledgeBaseDto } from '@shared/data/api/schemas/knowledges'
 import type { KnowledgeBaseListItem } from '@shared/data/api/schemas/knowledges'

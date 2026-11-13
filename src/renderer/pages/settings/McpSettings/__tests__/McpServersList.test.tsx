@@ -47,8 +47,8 @@ vi.mock('@tanstack/react-router', () => ({
 }))
 
 vi.mock('@renderer/pages/settings/DependenciesSettings/EnvironmentDependencies', () => ({ default: () => null }))
-vi.mock('../AddMcpServerModal', () => ({ default: () => null }))
-vi.mock('../QuickCreateMcpServerDialog', () => ({ default: () => null }))
+vi.mock('@renderer/components/mcp/AddMcpServerModal', () => ({ default: () => null }))
+vi.mock('@renderer/components/mcp/QuickCreateMcpServerDialog', () => ({ default: () => null }))
 vi.mock('../McpServerCard', () => ({ default: () => null }))
 
 vi.mock('react-i18next', async (importOriginal) => {

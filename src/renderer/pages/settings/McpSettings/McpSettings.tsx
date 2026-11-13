@@ -9,6 +9,19 @@ import { Alert, Button, Flex, Form, ScrollArea, SegmentedControl, Switch, Tabs, 
 import { loggerService } from '@logger'
 import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
 import DeleteIcon from '@renderer/components/icons/DeleteIcon'
+import {
+  buildMcpSchema,
+  McpEndpointField,
+  McpFormGrid,
+  type McpFormValues,
+  McpIdentityFields,
+  McpRuntimeFields,
+  McpTransportFields,
+  resolveMcpConfigInstallSource,
+  toMcpFormDefaultValues,
+  toMcpServerFields,
+  useMcpRegistryState
+} from '@renderer/components/mcp/McpServerFields'
 import { SettingContainer, SettingDivider, SettingTitle } from '@renderer/components/SettingsPrimitives'
 import { useSharedCacheValue } from '@renderer/data/hooks/useCache'
 import { useMcpRuntimeStatus } from '@renderer/hooks/useMcpRuntimeStatus'
@@ -32,19 +45,6 @@ import McpLogsTab from './McpLogsTab'
 import McpPromptsSection from './McpPrompt'
 import McpResourcesSection from './McpResource'
 import McpResourceTemplateView from './McpResourceTemplate'
-import {
-  buildMcpSchema,
-  McpEndpointField,
-  McpFormGrid,
-  type McpFormValues,
-  McpIdentityFields,
-  McpRuntimeFields,
-  McpTransportFields,
-  resolveMcpConfigInstallSource,
-  toMcpFormDefaultValues,
-  toMcpServerFields,
-  useMcpRegistryState
-} from './McpServerFields'
 import McpToolsSection from './McpTool'
 import { isQVerisApiKeyMissing, QVerisApiKeyGuide } from './QVerisApiKeyGuide'
 import { useMcpServerTrust } from './useMcpServerTrust'
