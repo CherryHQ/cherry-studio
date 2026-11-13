@@ -87,40 +87,40 @@ export function CherryCloudModelGuide({ anchorRef, ready, currentModelId, onSele
         <PopoverContent
           side="bottom"
           align="start"
+          // Line up with the spotlight cutout rather than the bare trigger.
+          alignOffset={-SPOTLIGHT_PADDING}
           sideOffset={12}
-          className="w-56 overflow-hidden rounded-xl p-0"
+          className="w-76 overflow-hidden rounded-xl p-0"
           aria-labelledby="cherry-cloud-model-guide-title">
-          <div className="h-13 overflow-hidden border-border border-b bg-muted px-2.5 pt-2">
-            <div className="rounded-t-md bg-popover px-1 pt-1 pb-1 shadow-md ring-1 ring-border">
+          <div className="border-border border-b bg-muted px-4 pt-3">
+            <div className="rounded-t-lg bg-popover p-1 shadow-md ring-1 ring-border">
               {previewModels.map((model) => (
                 <div
                   key={model.id}
                   className={cn(
-                    'relative flex h-5.5 items-center gap-1.5 rounded px-1.5 text-[10px]',
+                    'relative flex h-6 items-center gap-2 rounded-md px-2 text-xs',
                     model.id === switchedModel?.id && 'bg-accent'
                   )}>
                   {model.id === switchedModel?.id ? (
                     <span className="absolute top-[20%] left-0 h-[60%] w-0.5 rounded-full bg-primary" />
                   ) : null}
-                  <ModelAvatar model={model} size={12} />
+                  <ModelAvatar model={model} size={14} />
                   <span className="truncate">{model.name}</span>
                 </div>
               ))}
             </div>
           </div>
-          <div className="flex flex-col gap-0.5 px-3 pt-2.5 pb-2.5">
-            <p id="cherry-cloud-model-guide-title" className="font-semibold text-xs">
+          <div className="flex flex-col gap-1 p-4 pt-3">
+            <p id="cherry-cloud-model-guide-title" className="font-semibold text-sm leading-5">
               {switchedModel
                 ? t('settings.subscription.activation.guide_switched', { model: switchedModel.name })
                 : t('settings.subscription.activation.guide_title')}
             </p>
-            <p className="text-[11px] text-muted-foreground leading-snug">
+            <p className="text-muted-foreground text-xs leading-5">
               {t('settings.subscription.activation.guide_description')}
             </p>
-            <div className="mt-1.5 flex items-center justify-between">
-              <span className="text-[10px] text-muted-foreground">
-                {t('settings.subscription.activation.guide_once')}
-              </span>
+            <div className="mt-2 flex items-center justify-between">
+              <span className="text-muted-foreground text-xs">{t('settings.subscription.activation.guide_once')}</span>
               <Button variant="emphasis" size="sm" onClick={dismiss}>
                 {t('settings.subscription.activation.guide_dismiss')}
               </Button>

@@ -71,12 +71,12 @@ export function CherryCloudPlanActivationDialog({
 
   return (
     <Dialog open onOpenChange={(open) => !open && finish(null)}>
-      <DialogContent size="sm" className="gap-0 overflow-hidden p-0 sm:max-w-[312px]" closeLabel={t('common.close')}>
+      <DialogContent size="sm" className="gap-0 overflow-hidden p-0 sm:max-w-[340px]" closeLabel={t('common.close')}>
         <ActivationIllustration />
-        <div className="flex flex-col gap-2.5 px-4 pt-3 pb-3.5">
-          <div className="flex flex-col gap-0.5">
-            <DialogTitle className="text-sm leading-tight">{t('settings.subscription.activation.title')}</DialogTitle>
-            <DialogDescription className="text-[11px] leading-snug">
+        <div className="flex flex-col gap-3.5 px-5 pt-4 pb-5">
+          <div className="flex flex-col gap-1">
+            <DialogTitle className="text-base leading-6">{t('settings.subscription.activation.title')}</DialogTitle>
+            <DialogDescription className="text-xs leading-5">
               {expiresAt
                 ? t('settings.subscription.activation.description_until', { date: expiresAt })
                 : t('settings.subscription.activation.description')}
@@ -96,30 +96,30 @@ export function CherryCloudPlanActivationDialog({
                   aria-checked={checked}
                   onClick={() => setSelectedId(model.id)}
                   className={cn(
-                    'flex h-7 items-center gap-2 rounded-md px-2 text-left text-xs transition-colors',
+                    'flex h-8 items-center gap-2 rounded-md px-2 text-left text-xs transition-colors',
                     'focus-visible:bg-background focus-visible:outline-hidden',
                     checked ? 'bg-background shadow-xs' : 'hover:bg-background/50'
                   )}>
-                  <ModelAvatar model={model} size={16} />
+                  <ModelAvatar model={model} size={18} />
                   <span className="min-w-0 flex-1 truncate font-medium">{model.name}</span>
-                  <Check size={12} aria-hidden className={cn('shrink-0', !checked && 'invisible')} />
+                  <Check size={14} aria-hidden className={cn('shrink-0', !checked && 'invisible')} />
                 </button>
               )
             })}
             {hiddenCount > 0 ? (
-              <p className="px-2 pt-0.5 pb-0.5 text-[10px] text-muted-foreground">
+              <p className="px-2 py-1 text-muted-foreground text-xs">
                 {t('settings.subscription.activation.more_models', { count: hiddenCount })}
               </p>
             ) : null}
           </div>
-          <div className="flex items-center justify-between gap-2">
-            <label className="flex cursor-pointer items-center gap-1.5 text-[11px] text-muted-foreground">
+          <div className="flex items-center justify-between gap-3">
+            <label className="flex cursor-pointer items-center gap-2 text-muted-foreground text-xs">
               <Checkbox size="sm" checked={alsoDefault} onCheckedChange={(next) => setAlsoDefault(next === true)} />
               {t('settings.subscription.activation.set_default')}
             </label>
-            <Button variant="emphasis" size="sm" onClick={() => void startChat()}>
+            <Button variant="emphasis" onClick={() => void startChat()}>
               {t('settings.subscription.activation.start_chat')}
-              <ArrowRight size={12} aria-hidden />
+              <ArrowRight size={14} aria-hidden />
             </Button>
           </div>
         </div>
@@ -140,9 +140,9 @@ function ActivationIllustration() {
   return (
     <div
       aria-hidden
-      className="relative flex h-18 items-end justify-center overflow-hidden border-border border-b bg-muted">
+      className="relative flex h-22 items-end justify-center overflow-hidden border-border border-b bg-muted">
       <div className="absolute inset-0" style={DOT_GRID_STYLE} />
-      <div className="relative -mb-3 h-19 w-40 origin-bottom scale-[0.8]">
+      <div className="relative -mb-3 h-19 w-40 origin-bottom scale-90">
         <div className="absolute inset-x-5 top-0 bottom-0 -rotate-5 rounded-xl bg-popover opacity-60 shadow-lg ring-1 ring-border" />
         <div className="fade-in-0 slide-in-from-bottom-3 absolute inset-x-2 top-2.5 bottom-0 animate-in rounded-lg bg-popover px-1.5 py-2 shadow-lg ring-1 ring-border duration-500 motion-reduce:animate-none">
           <div className="flex items-center justify-between px-1.5 pb-1.5">
