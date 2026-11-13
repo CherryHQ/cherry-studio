@@ -24,6 +24,40 @@ function makePart(overrides: Partial<Record<string, unknown>> = {}): CherryMessa
 }
 
 describe('findNextPendingPermissionRequest', () => {
+  // Catch metadata being dropped when approvals are projected from a background child.
+  it.each(['providerMetadata', 'callProviderMetadata', 'resultProviderMetadata'])(
+    'retains authoritative command evidence from %s',
+    (field) => {
+      const commandPolicy = {
+        cwd: '/work',
+        revision: '1',
+        reason: 'Risky command',
+        rules: [{ ruleId: 'deletion', reasonCode: 'permanent-deletion', evidence: 'rm file' }]
+      }
+      const part = makePart({
+        callProviderMetadata: { cherry: { parentToolCallId: 'task-1' } },
+        [field]: { cherry: { commandPolicy, parentToolCallId: 'task-1' } }
+      })
+      const request = findNextPendingPermissionRequest({ child: [part] })
+      expect(request?.commandPolicy).toEqual(commandPolicy)
+      expect(request?.source?.toolCallId).toBe('task-1')
+    }
+  )
+
+  it('ignores malformed display metadata without dropping the pending approval', () => {
+    const result = findNextPendingPermissionRequest({
+      live: [
+        makePart({
+          callProviderMetadata: {
+            cherry: { commandPolicy: { cwd: 1, reason: 'untrusted', rules: [] } }
+          }
+        })
+      ]
+    })
+    expect(result?.approvalId).toBe('approval-1')
+    expect(result?.commandPolicy).toBeUndefined()
+  })
+
   it('attributes a child approval to its own task across message boundaries', () => {
     const request = makePart({ callProviderMetadata: { cherry: { parentToolCallId: 'spawn-a' } } })
     const task = (toolUseId: string, title: string, isBackgrounded: boolean): CherryMessagePart => ({

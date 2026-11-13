@@ -10,7 +10,7 @@ import { BasicTracerProvider } from '@opentelemetry/sdk-trace-base'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { v7 as uuid } from 'uuid'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
 import { runtimeId, type InputState } from '@cherrystudio/agent-runtime'
@@ -31,6 +31,7 @@ import { readForkResources } from '@main/ai/agentSession/fork/resources'
 import { bindNativeInput, prepareNativeSubmission } from '@main/ai/agentSession/nativeSubmission'
 import { ThreadMessageProjection } from '@main/ai/agentSession/ThreadMessageProjection'
 import { getPiTraceContext, observabilitySinks } from '@main/ai/observability'
+import { initializeCommandParser } from '@main/ai/toolApproval/commandParser'
 import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import type { ToolGuardInteractionState } from '@main/ai/toolApproval/toolGuards'
 import { serializeError } from '@main/ai/utils/serializeError'
@@ -93,6 +94,8 @@ vi.mock('@main/utils/shellEnv', () => ({
   getShellEnv: vi.fn(async (): Promise<Record<string, string>> => ({})),
   getPathFromEnvironment: () => undefined
 }))
+
+beforeAll(initializeCommandParser)
 
 // Real Runtime, native Pi and SQLite; only provider/environment configuration is substituted.
 /** An approval crosses the runtime boundary and starts a native tool, so the one-second default is a race on CI. */

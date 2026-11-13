@@ -148,25 +148,30 @@ vi.mock('@main/ai/tools/adapters/claudeCode/agentTools', () => ({
   createClaudeAgentToolPolicySnapshot: mocks.createToolPolicySnapshot
 }))
 
-vi.mock('@application', () => ({
-  application: {
-    // Session-keyed live state always resolves to the one real service instance (created below),
-    // so the many per-test `applicationGet` overrides don't each have to register it.
-    get: (name: string) => {
-      if (name === 'ClaudeCodeBinaryService') return { requireExecutable: () => '/sdk/claude' }
-      if (name === 'ClaudeCodeSessionStateService') return sessionStateService
-      if (name === 'AgentSessionRuntimeService') {
-        try {
-          return { getTurnTrustedNotifyChannels: mocks.getTurnTrustedNotifyChannels, ...mocks.applicationGet(name) }
-        } catch {
-          return { getTurnTrustedNotifyChannels: mocks.getTurnTrustedNotifyChannels }
+vi.mock('@application', async () => {
+  const { createMockApplication } = await import('@test-mocks/main/application')
+  const paths = createMockApplication().getPath
+  return {
+    application: {
+      // Session-keyed live state always resolves to the one real service instance (created below),
+      // so the many per-test `applicationGet` overrides don't each have to register it.
+      get: (name: string) => {
+        if (name === 'ClaudeCodeBinaryService') return { requireExecutable: () => '/sdk/claude' }
+        if (name === 'ClaudeCodeSessionStateService') return sessionStateService
+        if (name === 'AgentSessionRuntimeService') {
+          try {
+            return { getTurnTrustedNotifyChannels: mocks.getTurnTrustedNotifyChannels, ...mocks.applicationGet(name) }
+          } catch {
+            return { getTurnTrustedNotifyChannels: mocks.getTurnTrustedNotifyChannels }
+          }
         }
-      }
-      return mocks.applicationGet(name)
-    },
-    getPath: mocks.applicationGetPath
+        return mocks.applicationGet(name)
+      },
+      getPath: (key: string, filename?: string) =>
+        key === 'feature.agents.command_parser_assets' ? paths(key, filename) : mocks.applicationGetPath(key, filename)
+    }
   }
-}))
+})
 
 vi.mock('@main/core/platform', () => ({
   get isLinux() {
@@ -200,13 +205,16 @@ vi.mock('@main/ai/agents/agentDataDirectory', () => ({
   ensureAgentStorageDirectory: mocks.ensureAgentStorageDirectory
 }))
 
-vi.mock('@main/i18n', () => ({
-  getAppLanguage: mocks.getAppLanguage,
-  t: (key: string, params?: Record<string, unknown>) => {
-    if (params?.path) return `${key}:${params.path}`
-    return key
+vi.mock('@main/i18n', async () => {
+  const { default: english } = await import('@main/i18n/locales/en-us.json')
+  return {
+    getAppLanguage: mocks.getAppLanguage,
+    t: (key: string, params?: Record<string, unknown>) => {
+      if (params?.path) return `${key}:${params.path}`
+      return (english as Record<string, string>)[key] ?? key
+    }
   }
-}))
+})
 
 vi.mock('@main/utils/binaryResolver', () => ({
   getBinaryPath: mocks.getBinaryPath
@@ -1181,7 +1189,7 @@ describe('buildClaudeCodeSessionSettings', () => {
       {} as never
     )
     await expect(denyReasonOf(supportSettings, 'Bash', { command: 'rm -rf ./output' })).resolves.toContain(
-      'must never permanently delete data'
+      'mcp__assistant-files__move_to_trash'
     )
 
     mocks.getAgent.mockReturnValue({
@@ -1567,6 +1575,8 @@ describe('buildClaudeCodeSessionSettings', () => {
         const settings = await installSettings(mode, attendance)
         const input = { command }
         for (const approved of [true, false]) {
+          mocks.approvalRegister.mockClear()
+          vi.mocked(settings.approvalEmitter!.emit!).mockClear()
           const pending = settings.canUseTool!('Bash', input, {
             signal: new AbortController().signal,
             toolUseID: 'install',
@@ -1579,8 +1589,10 @@ describe('buildClaudeCodeSessionSettings', () => {
           await Promise.resolve()
           expect(settled).toBe(false)
           const presentation = agentID || attendance === 'message' ? 'message' : 'stream'
-          expect(settings.approvalEmitter!.emit).toHaveBeenCalledWith(
-            expect.objectContaining({ toolName: 'Bash', input, presentation })
+          await vi.waitFor(() =>
+            expect(settings.approvalEmitter!.emit).toHaveBeenCalledWith(
+              expect.objectContaining({ toolName: 'Bash', input, presentation })
+            )
           )
           expect(mocks.approvalRegister).toHaveBeenLastCalledWith(
             expect.objectContaining({ originalInput: input, presentation })
@@ -2694,7 +2706,7 @@ describe('buildClaudeCodeSessionSettings', () => {
       expect(mocks.approvalRegister).not.toHaveBeenCalled()
     })
 
-    it('auto-approves an ordinary background-agent request after the parent turn ended', async () => {
+    it('keeps background shell consent available after the parent turn ended', async () => {
       const getInteractionState = vi.fn(() => ({ currentTurn: 'interactive', userResponse: 'message' }))
       mocks.applicationGet.mockImplementation((name: string) => {
         if (name === 'PreferenceService') return { get: vi.fn(() => undefined) }
@@ -2705,39 +2717,16 @@ describe('buildClaudeCodeSessionSettings', () => {
         throw new Error(`Unexpected application.get(${name})`)
       })
       const settings = await buildClaudeCodeSessionSettings(sessionWith('warm-bg-auto'), {} as never)
+      settings.approvalEmitter!.emit = vi.fn()
 
-      await expect(
-        settings.canUseTool!('Read', { file_path: '/outside/file' }, {
-          signal: { aborted: false },
-          toolUseID: 'tu-bg-auto',
-          agentID: 'subagent-1'
-        } as never)
-      ).resolves.toEqual({ behavior: 'allow', updatedInput: { file_path: '/outside/file' } })
-      expect(getInteractionState).toHaveBeenCalledWith('warm-bg-auto')
-      expect(mocks.approvalRegister).not.toHaveBeenCalled()
-    })
-
-    it('auto-approves an ordinary background-agent request while the parent turn is still live', async () => {
-      mocks.applicationGet.mockImplementation((name: string) => {
-        if (name === 'PreferenceService') return { get: vi.fn(() => undefined) }
-        if (name === 'McpCatalogService') return { listTools: vi.fn(async () => []) }
-        if (name === 'AgentSessionRuntimeService') {
-          return {
-            getInteractionState: () => ({ currentTurn: 'interactive', userResponse: 'stream' })
-          }
-        }
-        throw new Error(`Unexpected application.get(${name})`)
-      })
-      const settings = await buildClaudeCodeSessionSettings(sessionWith('warm-bg-live'), {} as never)
-
-      await expect(
-        settings.canUseTool!('Bash', { command: 'pwd' }, {
-          signal: { aborted: false },
-          toolUseID: 'tu-bg-live',
-          agentID: 'subagent-1'
-        } as never)
-      ).resolves.toEqual({ behavior: 'allow', updatedInput: { command: 'pwd' } })
-      expect(mocks.approvalRegister).not.toHaveBeenCalled()
+      const call = settings.canUseTool!('Bash', { command: 'pwd' }, {
+        signal: { aborted: false },
+        toolUseID: 'tu-bg-auto',
+        agentID: 'subagent-1'
+      } as never)
+      await vi.waitFor(() => expect(mocks.approvalRegister).toHaveBeenCalled())
+      mocks.approvalRegister.mock.lastCall![0].resolve({ approved: false })
+      await expect(call).resolves.toMatchObject({ behavior: 'deny' })
     })
 
     it.each(['session_create', 'session_send'])(
@@ -2778,7 +2767,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     // A channel/scheduled turn has no approval UI, so an ordinary tool must not be denied for
     // lacking a responder — but an interactive turn on the same session must still prompt.
     it.each([
-      ['headless', { behavior: 'allow', updatedInput: { command: 'pwd' } }, false],
+      ['headless', { behavior: 'deny', message: expect.any(String) }, false],
       ['interactive', undefined, true]
     ] as const)('resolves an ordinary tool per turn kind: %s', async (currentTurn, expected, registers) => {
       const getInteractionState = vi.fn(() => ({
@@ -2800,7 +2789,11 @@ describe('buildClaudeCodeSessionSettings', () => {
       } as never)
 
       if (expected) await expect(call).resolves.toEqual(expected)
-      expect(mocks.approvalRegister).toHaveBeenCalledTimes(registers ? 1 : 0)
+      if (registers) {
+        await vi.waitFor(() => expect(mocks.approvalRegister).toHaveBeenCalled())
+        mocks.approvalRegister.mock.lastCall![0].resolve({ approved: false })
+        await expect(call).resolves.toMatchObject({ behavior: 'deny' })
+      } else expect(mocks.approvalRegister).not.toHaveBeenCalled()
     })
 
     it('emits an independent AskUserQuestion interaction for a background agent', () => {

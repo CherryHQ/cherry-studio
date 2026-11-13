@@ -167,7 +167,13 @@ export async function createPiInteractionPorts(
   const { input, approval } = options
   const outcomes = new Map<string, ApprovalOutcome>()
 
-  async function ask(call: CallRef, name: string, args: Record<string, JsonValue>, signal: AbortSignal) {
+  async function ask(
+    call: CallRef,
+    name: string,
+    args: Record<string, JsonValue>,
+    signal: AbortSignal,
+    details?: JsonValue
+  ) {
     signal.throwIfAborted()
     const { toolCallId, parentToolCallId } = await options.toolCallIdentity(call)
     signal.throwIfAborted()
@@ -195,7 +201,12 @@ export async function createPiInteractionPorts(
             input: args,
             presentation,
             providerMetadata: {
-              cherry: { transport: PI_TRANSPORT, toolName: name, ...(parentToolCallId ? { parentToolCallId } : {}) }
+              cherry: {
+                transport: PI_TRANSPORT,
+                toolName: name,
+                ...(parentToolCallId ? { parentToolCallId } : {}),
+                ...(details === undefined ? {} : { commandPolicy: z.json().parse(details) })
+              }
             }
           }
         })
@@ -207,11 +218,11 @@ export async function createPiInteractionPorts(
   return {
     approvals: {
       facts: (_call, tool) => readPiApprovalFacts(approval, tool.name, recordSchema.parse(tool.args)),
-      async ask({ call, tool }, signal) {
+      async ask({ call, tool, details }, signal) {
         const id = approvalId(call)
         outcomes.set(id, { call, state: 'pending' })
         try {
-          const decision = await ask(call, tool.name, recordSchema.parse(tool.args), signal)
+          const decision = await ask(call, tool.name, recordSchema.parse(tool.args), signal, details)
           const feedback = decision?.reasonSource === 'user' ? decision.reason : undefined
           outcomes.set(id, {
             call,

@@ -8,7 +8,7 @@ import { obj } from '@earendil-works/pi-schema'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { v7 as uuid } from 'uuid'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
 import { runtimeId, type InputState } from '@cherrystudio/agent-runtime'
@@ -23,6 +23,7 @@ import { agentSessionService } from '@data/services/AgentSessionService'
 import { savedChildView } from '@main/ai/agentSession/ChildThreadProjection'
 import { prepareNativeSubmission } from '@main/ai/agentSession/nativeSubmission'
 import { preparePiBranch } from '@main/ai/runtime/pi/piContext'
+import { initializeCommandParser } from '@main/ai/toolApproval/commandParser'
 import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import type { ToolGuardInteractionState } from '@main/ai/toolApproval/toolGuards'
 import type { AgentChildUpdate } from '@shared/ai/agentChildProjection'
@@ -98,6 +99,8 @@ vi.mock('./piMcpExtension', async (original) => ({
   }
 }))
 vi.mock('@main/utils/shellEnv', () => ({ getShellEnv: async () => ({}), getPathFromEnvironment: () => undefined }))
+
+beforeAll(initializeCommandParser)
 
 // Real Runtime, native Pi and SQLite; only provider/environment configuration is substituted.
 describe('desktop Pi root connection', () => {

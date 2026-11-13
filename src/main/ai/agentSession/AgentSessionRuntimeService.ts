@@ -2791,9 +2791,10 @@ export class AgentSessionRuntimeService extends BaseService {
         )
       if (
         turn &&
-        !hasBufferedInput &&
-        !turn.activeToolIds.has(request.toolCallId) &&
-        !turn.projection?.toolCallMessageId(request.toolCallId)
+        (request.providerMetadata?.cherry?.commandPolicy !== undefined ||
+          (!hasBufferedInput &&
+            !turn.activeToolIds.has(request.toolCallId) &&
+            !turn.projection?.toolCallMessageId(request.toolCallId)))
       )
         this.deliverRuntimeChunk(entry, {
           type: 'tool-input-available',

@@ -138,13 +138,19 @@ describe('CLAUDE_TOOL_GUARD_RULES', () => {
             input: { command: 'rm -rf /tmp/data' }
           })
         )
-        expect(decision?.ruleId).toBe('builtin-destructive')
+        expect(decision).toMatchObject({
+          effect: 'deny',
+          reason: expect.stringContaining('mcp__assistant-files__move_to_trash')
+        })
       }
     })
 
     it('denies permanent-deletion MCP tools for protected built-in agents', async () => {
       const decision = await evaluate(makeCtx({ builtinRole: 'support', toolName: 'mcp__files__delete_file' }))
-      expect(decision?.ruleId).toBe('builtin-destructive')
+      expect(decision).toMatchObject({
+        effect: 'deny',
+        reason: expect.stringContaining('mcp__assistant-files__move_to_trash')
+      })
     })
 
     it('does not gate ordinary agents', async () => {
@@ -158,7 +164,10 @@ describe('CLAUDE_TOOL_GUARD_RULES', () => {
           input: { command: 'rm -rf build' }
         })
       )
-      expect(decision?.ruleId).toBe('builtin-destructive')
+      expect(decision).toMatchObject({
+        effect: 'deny',
+        reason: expect.stringContaining('mcp__assistant-files__move_to_trash')
+      })
     })
   })
 

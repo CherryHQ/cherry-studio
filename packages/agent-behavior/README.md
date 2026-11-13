@@ -49,6 +49,13 @@ the texts of the results an adapter gives a child's open tool calls ([Applying a
 `workspace:*` and resolves it through its built `dist/`, so build it before the adapter's tests import it:
 `pnpm --filter @cherrystudio/agent-behavior build`.
 
+## Command approval facts
+
+The desktop host parses shell input and supplies mandatory `commandPolicyDenial`, per-call
+`approvalDetails` and a `policyContext` fingerprint. A denial precedes mode shortcuts.
+After a grant, the gate reads current host facts and rejects changed context or input before
+execution. It does not save executable, command-prefix or shell-wide consent.
+
 ## Ports
 
 The ports are the whole surface between the package and a harness or the host. Harness ports are `HarnessPorts` in

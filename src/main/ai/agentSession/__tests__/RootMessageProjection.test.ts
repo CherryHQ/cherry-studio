@@ -424,7 +424,13 @@ it('preserves the source metadata of an unprojected child approval', () => {
   const f = fixture()
   const id = f.reply()
   f.projection.accept(f.update([text('root-answer', 'Delegating work')]), id)
-  const metadata = { cherry: { transport: 'pi-agent', parentToolCallId: 'spawn' } }
+  const metadata = {
+    cherry: {
+      transport: 'pi-agent',
+      parentToolCallId: 'spawn',
+      commandPolicy: { cwd: '/work', revision: '1', reason: 'Risky command', rules: [] }
+    }
+  }
   f.projection.control(id, {
     type: 'tool-input-available',
     toolCallId: 'child-shell',

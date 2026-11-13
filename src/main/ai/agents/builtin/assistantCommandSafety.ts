@@ -1,3 +1,6 @@
+import { parseCommandSyntax } from '@main/ai/toolApproval/commandParser'
+import { discardsGitWorktree, interpretCommand } from '@main/ai/toolApproval/commandSemantics'
+
 import { parseShellCommand, resolveCommand, type ShellCommand, type ShellHeredoc } from './shellCommandParser'
 
 const MAX_ANALYSIS_DEPTH = 4
@@ -42,17 +45,6 @@ const POWERSHELL_VALUE_FLAGS = new Set([
   '-psconsolefile',
   '-configurationname',
   '-custompipename'
-])
-
-const GIT_VALUE_OPTIONS = new Set([
-  '-C',
-  '-c',
-  '--exec-path',
-  '--git-dir',
-  '--work-tree',
-  '--namespace',
-  '--super-prefix',
-  '--config-env'
 ])
 
 const SSH_VALUE_FLAGS = new Set([
@@ -471,49 +463,24 @@ function isDiskOperation(name: string, args: readonly string[]): boolean {
 }
 
 function gitReason(args: readonly string[]): string | undefined {
-  let index = 0
-  let subcommand: string | undefined
-  while (index < args.length) {
-    const arg = args[index]
-    if (GIT_VALUE_OPTIONS.has(arg)) {
-      index += 2
-      continue
-    }
-    if (arg.startsWith('-')) {
-      index++
-      continue
-    }
-    subcommand = arg.toLowerCase()
-    index++
-    break
-  }
-  if (!subcommand) return undefined
-  const rest = args.slice(index)
-  let destructive = false
-  switch (subcommand) {
-    case 'clean':
-      destructive = true
-      break
-    case 'restore':
-      // `--staged` alone only unstages; adding `--worktree` discards edits again.
-      destructive = !rest.includes('--staged') || rest.includes('--worktree')
-      break
-    case 'reset':
-      destructive = rest.includes('--hard')
-      break
-    case 'checkout':
-      destructive = rest.includes('--') || rest.includes('.') || rest.includes('-f') || rest.includes('--force')
-      break
-    case 'switch':
-      destructive = rest.includes('--discard-changes') || rest.includes('-f') || rest.includes('--force')
-      break
-    case 'branch':
-      destructive = rest.includes('-D')
-      break
-    case 'stash':
-      destructive = rest[0] === 'drop' || rest[0] === 'clear'
-      break
-  }
+  const range = { start: 0, end: 0, source: 0 }
+  const command = interpretCommand({
+    id: 0,
+    dialect: 'bash',
+    raw: '',
+    range,
+    pipeline: '',
+    controls: [],
+    substitutions: [],
+    words: ['git', ...args].map((value) => ({ raw: value, value, quoted: false, range }))
+  })
+  if (!command) return undefined
+  const [operation, action] = command.subcommands
+  const destructive =
+    discardsGitWorktree(command) ||
+    operation === 'clean' ||
+    (operation === 'branch' && command.options.has('-D')) ||
+    (operation === 'stash' && ['drop', 'clear'].includes(action))
   return destructive ? 'discarding version-control data' : undefined
 }
 
@@ -688,12 +655,10 @@ function findSubstitutionEnd(text: string, parenIndex: number): number {
 
 function reasonForHeredoc(heredoc: ShellHeredoc, depth: number): string | undefined {
   if (depth >= MAX_ANALYSIS_DEPTH) return undefined
-  const { pipelines } = parseShellCommand(heredoc.line)
-  for (const pipeline of pipelines) {
-    for (const command of pipeline.commands) {
-      // `sqlite3 app.db <<'SQL'` executes the heredoc body as SQL.
-      if (DATABASES.has(command.command) && SQL_DESTRUCTIVE.test(heredoc.body)) return 'destructive database operation'
-      if (!readsStandardInput(command.command, command.args)) continue
+  const command = heredoc.consumer
+  if (command) {
+    if (DATABASES.has(command.command) && SQL_DESTRUCTIVE.test(heredoc.body)) return 'destructive database operation'
+    if (readsStandardInput(command.command, command.args)) {
       if (SHELLS.has(command.command)) return analyze(heredoc.body, depth + 1)
       if (PYTHON.has(command.command)) return detectPythonDeletion(heredoc.body)
       if (NODE.has(command.command)) return detectNodeDeletion(heredoc.body)
@@ -730,19 +695,20 @@ function analyze(command: string, depth: number): string | undefined {
 }
 
 export function detectDestructiveAssistantCommand(command: string): string | undefined {
-  const normalized = command.replace(/\\\r?\n|\^\r?\n|`\r?\n/g, ' ')
-  // A fork bomb is a shell construct, not a command with arguments; tokenizing would split it apart.
-  if (/:\(\)\s*\{[^}]*:\|:&\s*;?\s*\}\s*;?\s*:/.test(normalized)) return 'a process-exhaustion payload'
+  const normalized = command.replace(/\\\r?\n/g, '').replace(/\^\r?\n|`\r?\n/g, ' ')
+  const functions = parseCommandSyntax(normalized, 'bash').commands
+  if (functions.some(({ functionSource }) => functionSource && /:\(\)\s*\{[^}]*:\|:&\s*;?\s*\}/.test(functionSource)))
+    return 'a process-exhaustion payload'
   return analyze(normalized, 0)
 }
 
 export function isLarkFormSubmissionCommand(command: string): boolean {
-  const normalized = command.replace(/\\\r?\n|\^\r?\n|`\r?\n/g, ' ')
+  const normalized = command.replace(/\\\r?\n/g, '').replace(/\^\r?\n|`\r?\n/g, ' ')
   return LARK_FORM_SUBMISSION_PATTERN.test(normalized)
 }
 
 export function isGitHubIssueCreationCommand(command: string): boolean {
-  const normalized = command.replace(/\\\r?\n|\^\r?\n|`\r?\n/g, ' ')
+  const normalized = command.replace(/\\\r?\n/g, '').replace(/\^\r?\n|`\r?\n/g, ' ')
   return GITHUB_ISSUE_CREATION_PATTERN.test(normalized)
 }
 

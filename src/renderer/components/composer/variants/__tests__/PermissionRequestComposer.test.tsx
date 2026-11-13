@@ -9,6 +9,8 @@ import type { CherryMessagePart } from '@shared/data/types/message'
 
 import PermissionRequestComposer, { type PermissionRequestComposerRequest } from '../PermissionRequestComposer'
 
+vi.mock('@cherrystudio/ui', async (importOriginal) => importOriginal())
+
 vi.mock('react-i18next', async (importOriginal) => ({
   ...(await importOriginal<typeof ReactI18next>()),
   useTranslation: () => ({
@@ -24,6 +26,9 @@ vi.mock('react-i18next', async (importOriginal) => ({
         'agent.toolPermission.confirmation': 'Allow tool call?',
         'agent.toolPermission.inputPreview': 'Tool input preview',
         'agent.toolPermission.button.allow': 'Allow',
+        'agent.toolPermission.button.allowOnce': 'Allow this invocation',
+        'agent.toolPermission.workingDirectory': 'Working directory',
+        'agent.toolPermission.policyEvidence': 'Matching command details',
         'agent.toolPermission.button.deny': 'Deny',
         'agent.toolPermission.button.run': 'Run',
         'agent.toolPermission.waiting': 'Waiting for tool permission decision...',
@@ -93,6 +98,30 @@ function makeRequest(overrides: Partial<PermissionRequestComposerRequest> = {}):
 }
 
 describe('PermissionRequestComposer', () => {
+  // Catch evidence disclosure accidentally granting permission through the global Enter shortcut.
+  it('shows execution facts and lets the user inspect evidence before granting one invocation', async () => {
+    const user = userEvent.setup()
+    const onRespond = vi.fn()
+    const request = makeRequest({
+      commandPolicy: {
+        cwd: '/workspace/project',
+        revision: '1',
+        reason: 'May discard working-tree changes.',
+        rules: [{ ruleId: 'git-risk', reasonCode: 'git-discard-worktree', evidence: 'git reset --hard' }]
+      }
+    })
+    render(<PermissionRequestComposer request={request} onRespond={onRespond} />)
+    expect(screen.getByText('May discard working-tree changes.')).toBeVisible()
+    expect(screen.getByText('/workspace/project')).toBeVisible()
+    const disclosure = screen.getByRole('button', { name: 'Matching command details' })
+    disclosure.focus()
+    await user.keyboard('{Enter}')
+    expect(screen.getByText('git reset --hard')).toBeVisible()
+    expect(onRespond).not.toHaveBeenCalled()
+    await user.click(screen.getByRole('button', { name: /Allow this invocation/ }))
+    expect(onRespond).toHaveBeenCalledWith({ match: request.match, approved: true })
+  })
+
   it('opens the requesting subagent without deciding its approval', async () => {
     const user = userEvent.setup()
     const onRespond = vi.fn()

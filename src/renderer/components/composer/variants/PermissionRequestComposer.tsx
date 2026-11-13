@@ -238,6 +238,7 @@ export default function PermissionRequestComposer({
   onOpenSource
 }: PermissionRequestComposerProps) {
   const { t } = useTranslation()
+  const [evidenceApprovalId, setEvidenceApprovalId] = useState<string | null>(null)
   const [submittingApprovalId, setSubmittingApprovalId] = useState<string | null>(null)
   const [rejectionDraft, setRejectionDraft] = useState({ approvalId: request.approvalId, value: '', expanded: false })
   const reasonExpanded = rejectionDraft.approvalId === request.approvalId && rejectionDraft.expanded
@@ -350,7 +351,48 @@ export default function PermissionRequestComposer({
           )}
         </div>
         {subtitle ? <p className="mt-1 break-words px-1 text-muted-foreground text-xs">{subtitle}</p> : null}
-        <PermissionRiskSummary toolName={request.toolResponse.tool.name} args={request.toolResponse.arguments} />
+        {request.commandPolicy ? (
+          <div className="mt-2 space-y-1 px-1 text-xs">
+            <p className="flex items-start gap-1.5 text-warning-subtle-foreground">
+              <TriangleAlert aria-hidden="true" className="mt-0.5 size-3 shrink-0" />
+              {request.commandPolicy.reason}
+            </p>
+            <p className="break-all text-muted-foreground">
+              {t('agent.toolPermission.workingDirectory')}:{' '}
+              <span className="font-mono text-foreground">{request.commandPolicy.cwd}</span>
+            </p>
+            {request.commandPolicy.rules.length > 0 ? (
+              <>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-auto gap-1 px-0 py-1 text-xs"
+                  aria-expanded={evidenceApprovalId === request.approvalId}
+                  onClick={() =>
+                    setEvidenceApprovalId((current) => (current === request.approvalId ? null : request.approvalId))
+                  }>
+                  <ChevronDown
+                    aria-hidden="true"
+                    className={cn('size-3', evidenceApprovalId === request.approvalId && 'rotate-180')}
+                  />
+                  {t('agent.toolPermission.policyEvidence')}
+                </Button>
+                {evidenceApprovalId === request.approvalId ? (
+                  <ul className="max-h-28 space-y-1 overflow-auto rounded bg-muted p-2 font-mono text-foreground">
+                    {request.commandPolicy.rules.map((rule) => (
+                      <li key={rule.ruleId} className="whitespace-pre-wrap break-all">
+                        {rule.evidence}
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+              </>
+            ) : null}
+          </div>
+        ) : (
+          <PermissionRiskSummary toolName={request.toolResponse.tool.name} args={request.toolResponse.arguments} />
+        )}
         <div className="mt-2 overflow-hidden rounded-[12px] bg-muted dark:bg-muted/30" data-testid="permission-preview">
           <PermissionPreview toolResponse={request.toolResponse} />
         </div>
@@ -395,7 +437,7 @@ export default function PermissionRequestComposer({
             </Kbd>
           </Button>
           <Button type="button" variant="emphasis" disabled={isSubmitting} onClick={() => void approve()}>
-            {t('agent.toolPermission.button.allow')}
+            {t(request.commandPolicy ? 'agent.toolPermission.button.allowOnce' : 'agent.toolPermission.button.allow')}
             {!hasRejectionReason && (
               <Kbd aria-hidden="true" className="bg-current/10 text-current">
                 Enter

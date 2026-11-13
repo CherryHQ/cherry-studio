@@ -242,6 +242,7 @@ export function buildPathRegistry() {
     'feature.ovms.ovocr': path.join(CHERRY_HOME, 'ovms', 'ovocr'),
 
     // Agents
+    'feature.agents.command_parser_assets': path.join(app.getAppPath(), 'out', 'main', 'assets', 'command-parsers'),
     'feature.code_cli.skills.builtin': path.join(appRootResources, 'code-cli-skills'), // conditional Code Mate skill templates (read-only)
     'feature.agents.skills.builtin': path.join(appRootResources, 'skills'), // bundled skill templates (read-only)
     'feature.agents.skills': path.join(appUserDataData, 'Skills'), // installed skills storage
@@ -438,6 +439,7 @@ type NoEnsureEntry = PathKey | `${TopNamespace}.`
  * Type-checked — typos or stale keys fail at compile time.
  */
 const NO_ENSURE = [
+  'feature.agents.command_parser_assets',
   'feature.agents.pi.sessions',
   'feature.agents.durable.stores',
   // Namespace prefixes

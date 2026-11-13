@@ -2904,6 +2904,55 @@ describe('AgentSessionRuntimeService', () => {
       await service.closeSession('session-1')
     })
 
+    // Catch the original streamed input hiding the effective command and policy evidence at approval.
+    it('refreshes an already streamed tool input when command approval facts arrive', async () => {
+      const service = new AgentSessionRuntimeService()
+      const handle = service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      entry.runtimeState.execution.reply.admission = 'admitted'
+      const metadata = { cherry: { commandPolicy: { cwd: '/work', revision: '1', reason: 'Risk', rules: [] } } }
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'chunk',
+        chunk: {
+          type: 'tool-input-available',
+          toolName: 'bash',
+          toolCallId: 'policy-call',
+          input: { command: 'original' }
+        }
+      })
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'tool-approval-request',
+        request: {
+          approvalId: 'policy-approval',
+          toolCallId: 'policy-call',
+          toolName: 'bash',
+          input: { command: 'effective' },
+          presentation: 'stream',
+          providerMetadata: metadata
+        }
+      })
+      const reader = openChunkStream(service, {
+        sessionId: 'session-1',
+        turnId: handle.turnId,
+        signal: new AbortController().signal
+      }).getReader()
+      await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' } })
+      await expect(reader.read()).resolves.toMatchObject({
+        value: { type: 'tool-input-available', input: { command: 'original' } }
+      })
+      await expect(reader.read()).resolves.toMatchObject({
+        value: {
+          type: 'tool-input-available',
+          input: { command: 'effective' },
+          providerMetadata: metadata
+        }
+      })
+      await expect(reader.read()).resolves.toMatchObject({
+        value: { type: 'tool-approval-request', approvalId: 'policy-approval' }
+      })
+      await service.closeSession('session-1')
+    })
+
     it('remembers whether the turn that spawned background work had an interactive responder', async () => {
       const interactive = new AgentSessionRuntimeService()
       interactive.beginTurn(baseTurnInput)

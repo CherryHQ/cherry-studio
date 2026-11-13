@@ -4,11 +4,14 @@ import path from 'node:path'
 import { application } from '@application'
 import type { ApprovalHostFacts } from '@cherrystudio/agent-behavior'
 import type { JsonValue } from '@cherrystudio/agent-runtime'
+import { BUILTIN_AGENT_TOOL_GUARD_RULES } from '@main/ai/agents/builtin/builtinAgentGuardRules'
 import { resolveBrowserToolPermission } from '@main/ai/toolApproval/browserToolPolicy'
+import { evaluateCommandPolicy } from '@main/ai/toolApproval/commandPolicy'
 import { detectGlobalInstall, detectMiseMutation } from '@main/ai/toolApproval/dependencyGuard'
-import { detectDestructiveCommand } from '@main/ai/toolApproval/destructiveCommand'
 import type { ToolGuardInteractionState } from '@main/ai/toolApproval/toolGuards'
+import { evaluateToolGuards } from '@main/ai/toolApproval/toolGuards'
 import { evaluateUserDataSqliteGuard, normalizePiNativePathInput } from '@main/ai/toolApproval/userDataSqliteGuard'
+import { t } from '@main/i18n'
 import { canonicalizePathForContainment } from '@main/utils/file'
 import { rtkRewrite } from '@main/utils/rtk'
 import { PI_BUILTIN_TOOLS } from '@shared/ai/piBuiltinTools'
@@ -26,6 +29,8 @@ export interface PiApprovalContext {
   approvalRequiredTools: ReadonlySet<string>
   nonBypassableApprovalTools: ReadonlySet<string>
   delegationTools: ReadonlySet<string>
+  builtinRole?: string
+  shellDialect?: string
 }
 
 const BEHAVIOR_META_TOOLS = new Set([
@@ -71,11 +76,55 @@ export async function readPiApprovalFacts(
     name === 'bash' && !disabled && !sqlite && !globalInstall && !miseMutation && command
       ? await rtkRewrite(command)
       : undefined
+  const dialect = name === 'powershell' ? 'powershell' : (ctx.shellDialect ?? 'bash')
+  const roles = ctx.builtinRole ? [ctx.builtinRole] : []
+  let commandPolicy =
+    command && !disabled
+      ? await evaluateCommandPolicy({ command, dialect, cwd: ctx.workspacePath, builtinRoles: roles })
+      : undefined
+  if (commandPolicy && rewritten && rewritten !== command) {
+    const effective = await evaluateCommandPolicy({
+      command: rewritten,
+      dialect,
+      cwd: ctx.workspacePath,
+      builtinRoles: roles
+    })
+    if (effective.effect === 'deny' || (effective.effect === 'ask' && commandPolicy.effect === 'allow'))
+      commandPolicy = effective
+  }
+  const guard = ctx.builtinRole
+    ? await evaluateToolGuards(BUILTIN_AGENT_TOOL_GUARD_RULES, {
+        toolName: name === 'bash' || name === 'powershell' ? 'Bash' : name,
+        input,
+        permissionMode: mode,
+        builtinRole: ctx.builtinRole,
+        mountedServers: new Set(),
+        pluginDirectories: new Map(),
+        cwd: ctx.workspacePath,
+        agentDataPath: ctx.agentDataPath,
+        interaction,
+        isDisabled: ctx.isDisabled
+      })
+    : undefined
+  const denial =
+    commandPolicy?.effect === 'deny' ? commandPolicy.reason : guard?.effect === 'deny' ? guard.reason : undefined
+  const policyAsk = commandPolicy?.effect === 'ask'
+  const policyDetails = commandPolicy
+    ? {
+        cwd: ctx.workspacePath,
+        revision: commandPolicy.revision,
+        reason:
+          guard?.reason ??
+          commandPolicy.reason ??
+          (globalInstall ? t('command_approval.dependency_install') : t('command_approval.permission_required')),
+        rules: commandPolicy.hits.map(({ ruleId, reasonCode, evidence }) => ({ ruleId, reasonCode, evidence }))
+      }
+    : undefined
   return {
     category,
     disabled,
     autoApproved: browser === 'allow' || ctx.autoApprovedTools.has(name),
-    approvalRequired: ctx.approvalRequiredTools.has(name),
+    approvalRequired: ctx.approvalRequiredTools.has(name) || (policyAsk && mode === 'auto') || guard?.effect === 'ask',
     nonBypassable: ctx.nonBypassableApprovalTools.has(name),
     withinAllowedRoots:
       (category === 'read' || category === 'edit') &&
@@ -90,7 +139,15 @@ export async function readPiApprovalFacts(
     globalInstall,
     miseMutation,
     ...(globalInstall ? { globalInstallPermissionMode: ctx.getPermissionMode() ?? 'default' } : {}),
-    destructive: Boolean(command && detectDestructiveCommand(command)),
+    destructive: policyAsk,
+    ...(denial ? { commandPolicyDenial: denial } : {}),
+    ...(policyDetails
+      ? {
+          approvalDetails: policyDetails,
+          policyContext: JSON.stringify([ctx.workspacePath, dialect, roles, mode, commandPolicy?.revision]),
+          policyChangedReason: t('command_approval.context_changed')
+        }
+      : {}),
     ...(rewritten ? { rewrittenArgs: { ...input, command: rewritten } } : {}),
     ...(ctx.delegationTools.has(name)
       ? {
