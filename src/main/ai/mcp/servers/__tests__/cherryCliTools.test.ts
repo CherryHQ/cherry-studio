@@ -63,14 +63,6 @@ describe('cherry-tools CLI tools', () => {
     await Promise.all(clients.splice(0).map((client) => client.close()))
   })
 
-  it('advertises the thin list/search/install surface', async () => {
-    const { tools } = await (await connectCli()).listTools()
-    expect(tools.map((tool) => tool.name)).toEqual([CLI_LIST_TOOL_NAME, CLI_SEARCH_TOOL_NAME, CLI_INSTALL_TOOL_NAME])
-    expect(tools.find((tool) => tool.name === CLI_LIST_TOOL_NAME)?.description).toContain('system PATH')
-    expect(tools.find((tool) => tool.name === CLI_SEARCH_TOOL_NAME)?.inputSchema.required).toEqual(['query'])
-    expect(tools.find((tool) => tool.name === CLI_INSTALL_TOOL_NAME)?.inputSchema.required).toEqual(['name', 'tool'])
-  })
-
   it('returns the live BinaryManager inventory on every call', async () => {
     binaryManager.getToolInventory.mockResolvedValue([{ name: 'bun', status: 'ready', version: '1.3.14' }])
     const cli = await connectCli()

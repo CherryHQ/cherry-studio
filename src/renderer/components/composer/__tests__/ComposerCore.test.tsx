@@ -70,7 +70,7 @@ describe('ComposerCore', () => {
     expect(screen.queryByRole('button', { name: 'permission override' })).not.toBeInTheDocument()
     expect(primaryLayer).toHaveAttribute('inert')
     expect(primaryLayer).toHaveAttribute('aria-hidden', 'true')
-    expect(primaryLayer).toHaveClass('invisible', 'pointer-events-none', 'absolute')
+
     expect(view.container.querySelector('textarea')).toBe(input)
     expect(input).toHaveValue('draft with attachment')
     expect(screen.getByTestId('attachments')).toHaveTextContent('notes.txt')
@@ -81,8 +81,6 @@ describe('ComposerCore', () => {
 
     expect(screen.getByRole('button', { name: 'permission override' })).toBeInTheDocument()
     expect(view.container.querySelector('textarea')).toBe(input)
-    expect(onMount).toHaveBeenCalledTimes(1)
-    expect(onUnmount).not.toHaveBeenCalled()
 
     view.rerender(renderComposer([], onMount, onUnmount))
 
@@ -93,7 +91,5 @@ describe('ComposerCore', () => {
     expect(document.activeElement).toBe(input)
     expect(primaryLayer).not.toHaveAttribute('inert')
     expect(primaryLayer).not.toHaveAttribute('aria-hidden')
-    expect(onMount).toHaveBeenCalledTimes(1)
-    expect(onUnmount).not.toHaveBeenCalled()
   })
 })

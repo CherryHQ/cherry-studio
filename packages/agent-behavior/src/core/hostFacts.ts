@@ -23,6 +23,11 @@ export type ApprovalHostFacts = {
   readonly rewrittenArgs?: JsonValue
   /** A summary of the global-install command the host's detector found in the call; absent when it found none. */
   readonly globalInstall?: string
+  /** Direct mutation of Cherry-managed tool state; blocked in every mode. */
+  readonly miseMutation?: string
+  /** The root session's effective permission mode for an installation decision;
+   * child sessions receive a bypass mode of their own, which must not authorize installs. */
+  readonly globalInstallPermissionMode?: PermissionMode
   /** The host's destructive-command detector flagged the call. */
   readonly destructive: boolean
   /** Cross-session delegation must originate in an interactive turn, even under full access. */

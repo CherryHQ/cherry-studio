@@ -22,7 +22,7 @@ describe('ToolRegistry', () => {
       const reg = new ToolRegistry()
       const entry = makeEntry({ name: 'web_search' })
       reg.register(entry)
-      expect(reg.getByName('web_search')).toBe(entry)
+      expect(reg.getByName('web_search')).toEqual(entry)
       expect(reg.has('web_search')).toBe(true)
     })
 

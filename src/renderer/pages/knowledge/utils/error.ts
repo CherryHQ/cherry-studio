@@ -13,8 +13,13 @@ type KnowledgeErrorTranslator = (
     | 'knowledge.error.missing_embedding_model'
     | 'knowledge.error.missing_vector_store'
     | 'knowledge.error.directory_not_migrated'
+    | 'knowledge.error.empty_indexable_text'
     | 'knowledge.error.indexing_interrupted'
 ) => string
+
+// Historical production value persisted before empty-text failures used an item error code.
+const LEGACY_EMPTY_INDEXABLE_TEXT_ERROR =
+  'No indexable text was extracted. Check the source, OCR, or document processing settings, then reindex.'
 
 /** Localized copy for a known base error code. Exhaustive over `KnowledgeBaseErrorCode`. */
 const translateKnowledgeBaseErrorCode = (code: KnowledgeBaseErrorCode, t: KnowledgeErrorTranslator): string => {
@@ -48,6 +53,8 @@ const translateKnowledgeItemErrorCode = (code: KnowledgeItemErrorCode, t: Knowle
   switch (code) {
     case 'directory_not_migrated':
       return t('knowledge.error.directory_not_migrated')
+    case 'empty_indexable_text':
+      return t('knowledge.error.empty_indexable_text')
     case 'indexing_interrupted':
       return t('knowledge.error.indexing_interrupted')
     default:
@@ -55,11 +62,15 @@ const translateKnowledgeItemErrorCode = (code: KnowledgeItemErrorCode, t: Knowle
   }
 }
 
-/** Failed item tooltip text: known error codes map to localized copy, free-form messages pass through. */
+/** Failed item reason: known codes and the legacy empty-text message are localized; other messages pass through. */
 export const getKnowledgeItemFailureReason = (item: Pick<KnowledgeItem, 'error'>, t: KnowledgeErrorTranslator) => {
   const parsedCode = KnowledgeItemErrorCodeSchema.safeParse(item.error)
   if (parsedCode.success) {
     return translateKnowledgeItemErrorCode(parsedCode.data, t)
+  }
+
+  if (item.error === LEGACY_EMPTY_INDEXABLE_TEXT_ERROR) {
+    return t('knowledge.error.empty_indexable_text')
   }
 
   return item.error

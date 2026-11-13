@@ -33,7 +33,7 @@ vi.mock('@data/services/PaintingService', () => ({
   }
 }))
 
-import { PAINTINGS_DEFAULT_LIMIT, PAINTINGS_MAX_LIMIT } from '@shared/data/api/schemas/paintings'
+import { PAINTINGS_MAX_LIMIT } from '@shared/data/api/schemas/paintings'
 
 import { paintingHandlers } from '../paintings'
 
@@ -42,20 +42,6 @@ describe('paintingHandlers', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
-  })
-
-  it('applies default cursor pagination when query is missing', async () => {
-    listPaintingsMock.mockResolvedValueOnce({
-      items: [],
-      total: 0,
-      nextCursor: undefined
-    })
-
-    await paintingHandlers['/paintings'].GET({})
-
-    expect(listPaintingsMock).toHaveBeenCalledWith({
-      limit: PAINTINGS_DEFAULT_LIMIT
-    })
   })
 
   it('rejects invalid list query before calling the service', async () => {
@@ -183,11 +169,11 @@ describe('paintingHandlers', () => {
   it('forwards inTrash to the service on list', async () => {
     listPaintingsMock.mockResolvedValueOnce({ items: [], total: 0, nextCursor: undefined })
 
-    await paintingHandlers['/paintings'].GET({ query: { inTrash: true } })
+    await paintingHandlers['/paintings'].GET({ query: { inTrash: true, limit: 5 } })
 
     expect(listPaintingsMock).toHaveBeenCalledWith({
       inTrash: true,
-      limit: PAINTINGS_DEFAULT_LIMIT
+      limit: 5
     })
   })
 

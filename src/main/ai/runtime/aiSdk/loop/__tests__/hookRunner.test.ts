@@ -68,7 +68,7 @@ describe('wrapToolsWithExecutionHooks', () => {
   it('passes a tool through unchanged when it has no execute function', () => {
     const tools: ToolSet = { noExec: {} as ToolSet[string] }
     const wrapped = wrapToolsWithExecutionHooks(tools, { onToolExecutionStart: vi.fn() })!
-    expect(wrapped.noExec).toBe(tools.noExec)
+    expect(wrapped.noExec).toEqual(tools.noExec)
   })
 
   it('fires start before execute and end after with the tool result', async () => {

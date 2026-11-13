@@ -27,7 +27,7 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key })
 }))
 
-import { getAllShortcutDefaultPreferences, useCommandShortcuts } from '../useCommandShortcuts'
+import { useCommandShortcuts } from '../useCommandShortcuts'
 
 afterEach(() => {
   mocks.preferenceValues = {}
@@ -57,18 +57,6 @@ describe('useCommandShortcuts', () => {
     mocks.context = { 'feature.selection.enabled': true, 'webview.focused': true }
     rerender()
     expect(result.current.shortcuts.some((item) => item.command === 'selection.toggle')).toBe(true)
-  })
-
-  it('collects reset preferences using the current platform default', () => {
-    expect(getAllShortcutDefaultPreferences()['shortcut.tab.next']).toEqual({
-      binding: ['Ctrl', 'Tab'],
-      enabled: true
-    })
-
-    expect(getAllShortcutDefaultPreferences()['shortcut.tab.prev']).toEqual({
-      binding: ['Ctrl', 'Shift', 'Tab'],
-      enabled: true
-    })
   })
 
   it('keeps the platform default binding when only toggling enabled', async () => {

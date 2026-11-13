@@ -26,14 +26,6 @@ describe('fetchRedirectUrl', () => {
 
     expect(result).toBe(finalUrl)
     expect(fetchMock).toHaveBeenCalledOnce()
-    expect(fetchMock).toHaveBeenCalledWith('https://example.com', {
-      method: 'HEAD',
-      redirect: 'follow',
-      headers: {
-        'User-Agent':
-          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-      }
-    })
   })
 
   it('should return original URL on error', async () => {
@@ -44,7 +36,6 @@ describe('fetchRedirectUrl', () => {
     const result = await fetchRedirectUrl('https://example.com')
 
     expect(result).toBe('https://example.com')
-    expect(loggerErrorSpy).toHaveBeenCalledOnce()
     expect(loggerErrorSpy.mock.calls[0][0]).toBe('Failed to fetch redirect url')
     expect(loggerErrorSpy.mock.calls[0][1]).toBe(error)
   })

@@ -25,6 +25,7 @@ files:
   - "!**/{.vscode,.yarn,.yarn-lock,.github,.cursorrules,.prettierrc}"
   - "!electron.vite.config.{js,ts,mjs,cjs}}"
   - "!electron-builder.cn.config.cjs"
+  - "!release-bundle.json"
   - "!electron.vite.entries.config.ts"
   - "!.*"
   - "!components.json"
@@ -165,6 +166,20 @@ mac:
 dmg:
   format: ULFO
   writeUpdateInfo: false
+  # PNGs are rendered from build/dmg-background.svg; Finder's title bar hides the bottom 32px.
+  background: build/dmg-background.png
+  window:
+    width: 600
+    height: 380
+  iconSize: 128
+  contents:
+    - x: 150
+      y: 154
+      type: file
+    - x: 450
+      y: 154
+      type: link
+      path: /Applications
 toolsets:
   appimage: "1.0.3"
 linux:
@@ -199,50 +214,70 @@ artifactBuildCompleted: scripts/packaging/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
     <!--LANG:en-->
-    Cherry Studio 2.1.10 - File Comments, Touch Reorder, and Update Timeline
+    Cherry Studio 2.2.2 - Agent Approvals, Provider Fixes, and Polish
 
     ✨ New Features
-    - [Agent Files] Comment on files for the agent. In a text file, hover a line and click '+' (or drag across several lines) to write a comment. In Word, Excel, PDF and PowerPoint files, pick a part and click Comment. Each comment is added to the message as a chip with its location.
-    - [Updates] View skipped stable-version release notes in a collapsible timeline; single-version updates show their notes directly. Markdown footnote navigation now works correctly with backlinks.
-    - [Proxy] Test proxy connection in General Settings before saving, with support for PAC proxy/direct fallback reporting.
-    - [Touch] Reorder lists by pressing and holding a row. Buttons inside a row no longer start a drag. Selection Assistant settings now show enabled and disabled actions in one list separated by a divider.
+    - [Computer Use] Computer Use is now on by default and asks before accessing each app. Choose Always, Approve for session, or Reject, and manage saved approvals in Settings. Bypass mode skips these prompts without saving permissions. (action required: turn it off in Settings if you do not want it.)
+    - [Skills] Added an "Export skills to external agents" switch in Settings → Skills. It is off by default for new installations, so the shared skills directory is no longer created without an explicit opt-in; installations that already exported keep it on, and turning it off removes only the links Cherry Studio created.
+    - [Agent] Agents on DeepSeek models now show a short intent line above each tool call. Agent sessions keep tool steps expanded by default and fold repeated calls of the same kind.
+    - [App] Added Polish language support.
+
+    💄 Improvements
+    - [MCP] QVeris now supports OAuth browser sign-in as its primary credential, with QVERIS_API_KEY as an optional fallback, so it can be enabled without an API key.
+    - [Files] File sizes use one consistent format across the app.
+    - [Agent] Polished session details typography, icon alignment, spacing, and the no-workspace placeholder.
 
     🐛 Bug Fixes
-    - [Chat] The message list no longer jumps back to the first message while scrolling a conversation that contains code blocks.
-    - [Agents] Existing conversations resume correctly after moving the data directory, preserving their history.
-    - [Local Dictation] Fix local speech recognition silently losing the second half of long utterances.
-    - [Streaming] Fix missing or duplicated response text when stream replay overlaps incoming output.
-    - [Composer] Option descriptions in question panels are no longer truncated.
-    - [Right Panel] The browser sidebar no longer opens unexpectedly when creating or switching Agent tasks.
-    - [Code Block] Diagram preview toolbars are no longer clipped. Mermaid, Graphviz, SVG, LaTeX, and ECharts previews blend into the message background.
-    - [Knowledge] File conversion progress starts from 0% and updates immediately instead of every 5 seconds.
-    - [Conversation List] Recent conversations no longer sort to the bottom after midnight.
-    - [MiMo] Fix MiMo models returning “Unsupported model” errors.
-
-    ⚡ Performance
-    - [Code Blocks] Reduce unnecessary rendering work while scrolling conversations with code blocks.
+    - [Models] CherryIN Claude Sonnet 4.5 tool requests no longer fail with a Bedrock parameter validation error.
+    - [Models] Claude Opus 5.5 requests on AWS Bedrock now use adaptive reasoning.
+    - [Models] SiliconFlow uses manual API key entry; the obsolete OAuth login was removed (action required if you signed in with OAuth).
+    - [Chat] "Input exceeds the context limit" errors are now recognized as context-length rejections, so the existing recovery guidance appears.
+    - [Chat] Local Markdown file links now open from chat surfaces that do not provide an artifact preview.
+    - [Chat] Fixed the first composer toolbar activation being lost while loading, and internal tab navigation no longer blocks interaction.
+    - [Agent] Fixed the missing AskUserQuestion card when a streamed approval request arrives before its tool source.
+    - [Agent] Fixed the Skip button getting stuck on the final AskUserQuestion when all questions are skipped.
+    - [Agent] Expanding a Pi Durable read tool call no longer shows blank file details.
+    - [Agent] Pi Durable agents now automatically load workspace instruction files such as AGENTS.md.
+    - [Agent] Ordinary MCP tools are discoverable through tool search in the Pi Durable runtime instead of returning "No matching tools found."
+    - [Agent] Agent tool guidance now treats deferred tools as available through discovery and uses the exact tool names from the session, so agents stop reporting available tools as missing.
+    - [Agent] When reasoning exhausts the response budget, you now get accurate output-token-limit guidance, and DeepSeek V4.1 Flash capacity resolves correctly for versioned model IDs.
+    - [API Gateway] Claude Code MCP ToolSearch results are no longer dropped for third-party models.
+    - [Code] Code Mate's Unified Gateway model picker now lists Cherry Cloud models that are available only to agents.
+    - [Doctor] Doctor no longer reports a missing API key or an unavailable model list for CherryAI and Cherry Cloud; for Cherry Cloud it now tells you when you need to sign in.
+    - [UI] Website favicons stay visible in dark mode with a soft light-gray backplate while keeping their original colors.
+    - [Updater] Release notes in the update dialog now follow the app's resolved language, including when the app follows the system language.
 
     <!--LANG:zh-CN-->
-    Cherry Studio 2.1.10 - 文件评论、触控排序与更新时间轴
+    Cherry Studio 2.2.2 - 智能体审批、服务商修复与波兰语支持
 
     ✨ 新功能
-    - [智能体文件] 为智能体评论文件。在文本文件中，悬停一行并点击 '+'（或拖动多行）来编写评论。在 Word、Excel、PDF 和 PowerPoint 文件中，选择部分后点击评论。每条评论作为带有位置的芯片添加到消息中。
-    - [更新] 通过可折叠时间轴查看跨越的稳定版本更新日志；仅一个版本时直接展示日志。Markdown 脚注跳转及返回现已正常工作。
-    - [代理] 在通用设置中保存前测试代理连接，支持 PAC 代理/直接回退报告。
-    - [触控] 按住行可重新排序列表。行内按钮不再触发拖动。选区助手设置现以分隔线分隔启用和禁用的操作。
+    - [电脑操作] 电脑操作现在默认开启，并在访问每个应用前请求批准。可选择「始终允许」「本次会话允许」或「拒绝」，并可在设置中管理已保存的批准。绕过模式会跳过这些提示且不保存权限。（需要操作：如不希望启用，请在设置中关闭。）
+    - [技能] 在「设置 → 技能」新增「导出技能给外部 Agent」开关。新安装默认关闭，不再未经同意就创建共享技能目录；此前已经导出的安装升级后保持开启，关闭后只会移除 Cherry Studio 创建的链接。
+    - [智能体] 使用 DeepSeek 模型的智能体现在会在每次工具调用上方显示一句简短意图。智能体会话默认展开工具步骤，并折叠同类的重复调用。
+    - [应用] 新增波兰语支持。
+
+    💄 改进
+    - [MCP] QVeris 现在支持通过浏览器 OAuth 登录作为主要凭证，QVERIS_API_KEY 为可选备用方式，因此无需配置 API Key 也能启用。
+    - [文件] 全应用统一文件大小的显示格式。
+    - [智能体] 优化会话详情的字体排版、图标对齐、间距以及无工作区占位状态的显示。
 
     🐛 问题修复
-    - [聊天] 滚动包含代码块的会话时，消息列表不再跳回第一条消息。
-    - [智能体] 移动数据目录后，现有对话可正确恢复并保留历史。
-    - [本地语音识别] 修复本地语音识别在长语音后半段静默丢失的问题。
-    - [流式传输] 修复流式回放与传入输出重叠时响应文本丢失或重复的问题。
-    - [编辑器] 问题面板中的选项描述不再被截断。
-    - [右侧面板] 创建或切换智能体任务时，浏览器侧边栏不再意外打开。
-    - [代码块] 图表预览工具栏不再被裁剪。Mermaid、Graphviz、SVG、LaTeX 和 ECharts 预览融入消息背景。
-    - [知识库] 文件转换进度从 0% 开始并即时更新，而非每 5 秒更新一次。
-    - [对话列表] 午夜后最近对话不再排到底部。
-    - [MiMo] 修复 MiMo 模型返回”不支持的模型”错误的问题。
-
-    ⚡ 性能优化
-    - [代码块] 减少滚动包含代码块的会话时的不必要渲染工作。
+    - [模型] CherryIN Claude Sonnet 4.5 的工具请求不再因 Bedrock 参数校验错误而失败。
+    - [模型] AWS Bedrock 上的 Claude Opus 5.5 请求现在使用自适应推理。
+    - [模型] SiliconFlow 改为手动填写 API Key，移除了已失效的 OAuth 登录（此前使用 OAuth 登录的用户需要操作）。
+    - [对话] 「输入超出上下文限制」错误现在会被识别为上下文长度问题，并显示原有的恢复建议。
+    - [对话] 在未提供工件预览的对话界面中，本地 Markdown 文件链接现在可以正常打开。
+    - [对话] 修复加载期间首次输入框工具栏操作丢失的问题；站内标签页切换后不再阻塞交互。
+    - [智能体] 修复流式批准请求先于工具来源到达时 AskUserQuestion 卡片缺失的问题。
+    - [智能体] 修复全部问题都跳过时，最后一个 AskUserQuestion 的「跳过」按钮卡住的问题。
+    - [智能体] Pi Durable 展开读取工具调用时不再显示空白文件详情。
+    - [智能体] Pi Durable 智能体现在会自动加载 AGENTS.md 等工作区指令文件。
+    - [智能体] Pi Durable 运行时中的普通 MCP 工具现在可通过工具搜索发现，而不再返回「未找到匹配的工具」。
+    - [智能体] 智能体工具指引现在会把延迟加载的工具视为可通过发现获取，并使用会话中真实的工具名称，避免把可用工具误报为缺失。
+    - [智能体] 当推理耗尽响应预算时会显示准确的最大输出 token 提示，并修正带版本号模型 ID 的 DeepSeek V4.1 Flash 容量查询。
+    - [API 网关] 使用第三方模型时，Claude Code 的 MCP ToolSearch 结果不再丢失。
+    - [代码] Code Mate 的统一网关模型选择器现在会列出仅对智能体开放的 Cherry Cloud 模型。
+    - [诊断] 诊断工具不再为 CherryAI 和 Cherry Cloud 误报缺少 API Key 或模型列表不可用；Cherry Cloud 未登录时会提示登录。
+    - [界面] 深色模式下网站图标通过柔和的浅灰底板保持清晰，同时保留原始颜色。
+    - [更新] 更新对话框中的版本说明现在会使用应用实际生效的语言，包括跟随系统语言的情况。
     <!--LANG:END-->

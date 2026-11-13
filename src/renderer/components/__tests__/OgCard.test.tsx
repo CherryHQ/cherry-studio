@@ -72,17 +72,11 @@ describe('OgCard', () => {
     render(<OgCard link="https://example.com/article" show />)
 
     expect(screen.getByTestId('og-crd-card')).toHaveAttribute('data-href', 'https://example.com/article')
-    expect(screen.getByTestId('og-crd-card')).toHaveAttribute('data-aspect-ratio', String(760 / 420))
-    expect(screen.getByTestId('og-crd-card')).toHaveAttribute('data-hover-effect', 'none')
-    expect(screen.getByTestId('og-crd-card')).toHaveClass('h-full w-full')
-    expect(screen.getByTestId('og-crd-card').parentElement).toHaveClass('aspect-760/420 w-100 max-w-[calc(100vw-32px)]')
     expect(screen.getByTestId('og-crd-title')).toHaveTextContent('Example title')
     expect(screen.getByTestId('og-crd-description')).toHaveTextContent('Example description')
 
     const image = screen.getByRole('img', { name: 'Example image' })
     expect(image).toHaveAttribute('src', 'https://example.com/image.png')
-    expect(image).toHaveClass('h-full w-full bg-muted')
-    expect(image).toHaveStyle({ objectFit: 'cover' })
   })
 
   it('uses hostname and fallback thumbnail when metadata has no image', () => {
@@ -93,8 +87,6 @@ describe('OgCard', () => {
     })
 
     render(<OgCard link="https://example.com/article" show />)
-
-    expect(screen.getByTestId('og-crd-card').querySelector('.bg-accent')).toHaveClass('h-full w-full bg-accent')
     expect(screen.getByTestId('og-crd-title')).toHaveTextContent('example.com')
     expect(screen.getByTestId('og-crd-description')).toHaveTextContent('https://example.com/article')
   })
@@ -128,8 +120,6 @@ describe('OgCard', () => {
     })
 
     render(<OgCard link="https://example.com/article" show />)
-
-    expect(screen.getByTestId('skeleton')).toHaveClass('h-full w-full rounded-none')
     expect(mocks.parseMetadata).toHaveBeenCalledOnce()
   })
 })

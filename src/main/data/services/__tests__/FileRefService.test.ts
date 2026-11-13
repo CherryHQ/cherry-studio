@@ -1,6 +1,7 @@
 import { setupTestDatabase, withRoot } from '@test-helpers/db'
 import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
 import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
+import { eq } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -8,7 +9,9 @@ import { application } from '@application'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
+import { assistantTable } from '@data/db/schemas/assistant'
 import { fileEntryTable } from '@data/db/schemas/file'
+import { assistantAvatarFileRefTable } from '@data/db/schemas/fileRelations'
 import {
   agentSessionMessageFileRefTable,
   chatMessageFileRefTable,
@@ -19,7 +22,9 @@ import { jobTable } from '@data/db/schemas/job'
 import { messageTable } from '@data/db/schemas/message'
 import { paintingTable } from '@data/db/schemas/painting'
 import { topicTable } from '@data/db/schemas/topic'
+import { fileEntryService } from '@data/services/FileEntryService'
 import { translateHistoryService } from '@data/services/TranslateHistoryService'
+import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import type { FileEntryId } from '@shared/data/types/file'
 
 vi.mock('@application', async () => {
@@ -308,5 +313,40 @@ describe('FileRefService', () => {
 
       expect(n).toBe(0)
     })
+  })
+
+  it('counts both avatar owners and frozen authors, and excludes them from cleanup', async () => {
+    const id = fileEntryId(987)
+    await seedEntry(id)
+    dbh.db
+      .update(fileEntryTable)
+      .set({ cleanupPolicy: 'delete_when_unreferenced', createdAt: 1 })
+      .where(eq(fileEntryTable.id, id))
+      .run()
+    const ownerId = uuidv4()
+    dbh.db
+      .insert(assistantTable)
+      .values({ id: ownerId, name: 'Owner', emoji: '🌟', settings: DEFAULT_ASSISTANT_SETTINGS, orderKey: 'a0' })
+      .run()
+    dbh.db.insert(assistantAvatarFileRefTable).values({ fileEntryId: id, sourceId: ownerId }).run()
+    const messageId = await seedChatMessage()
+    dbh.db.insert(chatMessageFileRefTable).values({ fileEntryId: id, sourceId: messageId, role: 'author_avatar' }).run()
+    expect(fileRefService.findBySource({ sourceType: 'assistant_avatar', sourceId: ownerId })).toEqual([
+      expect.objectContaining({ fileEntryId: id, sourceType: 'assistant_avatar', sourceId: ownerId })
+    ])
+    expect(
+      fileRefService
+        .findByEntryId(id)
+        .map((r) => r.sourceType)
+        .sort()
+    ).toEqual(['assistant_avatar', 'chat_message'])
+    expect(fileRefService.countByEntryIds([id]).get(id)).toBe(2)
+    expect(fileRefService.countPersistentRefsByEntryIdTx(dbh.db, id)).toBe(2)
+    expect(fileEntryService.findCleanupCandidates({ graceMs: 0, limit: 100 }).map((f) => f.id)).not.toContain(id)
+    dbh.db.delete(assistantTable).where(eq(assistantTable.id, ownerId)).run()
+    expect(fileRefService.countByEntryIds([id]).get(id)).toBe(1)
+    expect(fileEntryService.findCleanupCandidates({ graceMs: 0, limit: 100 }).map((f) => f.id)).not.toContain(id)
+    dbh.db.delete(messageTable).where(eq(messageTable.id, messageId)).run()
+    expect(fileEntryService.findCleanupCandidates({ graceMs: 0, limit: 100 }).map((f) => f.id)).toContain(id)
   })
 })

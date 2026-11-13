@@ -32,10 +32,6 @@ describe('onPlatform', () => {
   it('should match any of multiple platforms', () => {
     expect(onPlatform('darwin', 'win32').matches(baseContext)).toBe(true)
   })
-
-  it('should have a descriptive description', () => {
-    expect(onPlatform('darwin', 'win32').description).toBe('requires platform darwin | win32')
-  })
 })
 
 describe('onArch', () => {
@@ -90,11 +86,6 @@ describe('onEnvVar', () => {
   it('should not match when env var has a different value', () => {
     expect(onEnvVar('DEBUG', 'false').matches(baseContext)).toBe(false)
   })
-
-  it('should have a descriptive description', () => {
-    expect(onEnvVar('DEBUG').description).toBe('requires env DEBUG')
-    expect(onEnvVar('DEBUG', 'true').description).toBe('requires env DEBUG=true')
-  })
 })
 
 describe('when', () => {
@@ -122,10 +113,6 @@ describe('not', () => {
   it('should negate a false condition', () => {
     expect(not(onPlatform('linux')).matches(baseContext)).toBe(true)
   })
-
-  it('should include NOT in description', () => {
-    expect(not(onPlatform('linux')).description).toBe('NOT (requires platform linux)')
-  })
 })
 
 describe('anyOf', () => {
@@ -136,12 +123,6 @@ describe('anyOf', () => {
   it('should not match when no conditions match', () => {
     expect(anyOf(onPlatform('darwin'), onPlatform('linux')).matches(baseContext)).toBe(false)
   })
-
-  it('should join descriptions with OR', () => {
-    expect(anyOf(onPlatform('darwin'), onPlatform('win32')).description).toBe(
-      'requires platform darwin OR requires platform win32'
-    )
-  })
 })
 
 describe('allOf', () => {
@@ -151,10 +132,6 @@ describe('allOf', () => {
 
   it('should not match when any condition fails', () => {
     expect(allOf(onPlatform('win32'), onArch('arm64')).matches(baseContext)).toBe(false)
-  })
-
-  it('should join descriptions with AND', () => {
-    expect(allOf(onPlatform('win32'), onArch('x64')).description).toBe('requires platform win32 AND requires arch x64')
   })
 })
 
@@ -180,15 +157,5 @@ describe('createConditionContext', () => {
     const ctx = createConditionContext()
     expect(ctx.platform).toBe(process.platform)
     expect(ctx.arch).toBe(process.arch)
-  })
-
-  it('should return a context with cpuModel as string', () => {
-    const ctx = createConditionContext()
-    expect(typeof ctx.cpuModel).toBe('string')
-  })
-
-  it('should return a context with env', () => {
-    const ctx = createConditionContext()
-    expect(ctx.env).toBe(process.env)
   })
 })

@@ -371,8 +371,7 @@ export function ResourceCreateWizard({
 
               {/* Active step */}
               <ScrollArea
-                viewportProps={{ className: 'px-6 py-5' }}
-                contentProps={{ className: currentStep.id === 'system-prompt' ? 'h-full' : undefined }}
+                contentProps={{ className: cn('px-6 py-5', currentStep.id === 'system-prompt' && 'h-full') }}
                 className="min-w-0 flex-1">
                 {currentStep.id === 'basic' ? (
                   <BasicInfoStep

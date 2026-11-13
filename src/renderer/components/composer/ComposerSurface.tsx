@@ -249,7 +249,9 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
 
   if (Runtime && runtimeReady && !isComposing) {
     return (
+      // Tiptap fixes extensions when the editor is created, so a preview toggle needs a new editor.
       <Runtime
+        key={props.markdownLivePreview ? 'markdown' : 'plain'}
         {...props}
         showAiDisclaimer={showAiDisclaimer}
         initialTextSelection={selectionRef.current}

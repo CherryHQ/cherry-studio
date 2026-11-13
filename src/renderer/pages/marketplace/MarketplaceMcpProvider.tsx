@@ -250,7 +250,7 @@ const MarketplaceMcpProvider: React.FC<Props> = ({ provider, existingServers }) 
 }
 
 const DetailContainer = ({ className, ...props }: React.ComponentPropsWithoutRef<typeof SettingsContentColumn>) => (
-  <SettingsContentColumn className={cn('w-full min-w-0 pt-2', className)} {...props} />
+  <SettingsContentColumn className={cn('w-full min-w-0', className)} contentProps={{ className: 'pt-8' }} {...props} />
 )
 
 const ProviderHeader = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
