@@ -110,7 +110,12 @@ export async function documentAttachments(app: RegressionApp, page: Page, testIn
     const editor = composer.locator('[contenteditable="true"]').first()
     const tokens = composer.locator('[data-composer-token-kind="file"]')
     const upload = async (name: string) => {
-      await openAttachmentPicker(page, composer)
+      try {
+        await openAttachmentPicker(page, composer)
+      } catch (error) {
+        await screenshot('MP-31 attachment menu failure before cleanup')
+        throw error
+      }
       chooseNativeFile(app.record.platform, app.paths, app.fixturesPath('documents', name))
       await expect(tokens, `${name} must create exactly one composer attachment`).toHaveCount(1)
       await expect(tokens, `The composer attachment must show ${name}`).toContainText(name)

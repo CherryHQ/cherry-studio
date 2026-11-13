@@ -308,7 +308,7 @@ function reduce<TTurn, TPendingTurn>(
       if (
         execution.kind === 'idle' ||
         execution.kind === 'steer-transition' ||
-        !isAgentSessionRuntimeAwaitingBackground(state)
+        !['open', 'attaching', 'unopened'].includes(execution.reply.delivery.kind)
       )
         return invalid(state, event)
       const resumed = { ...execution, reply: { ...execution.reply, terminal: undefined } }
@@ -422,23 +422,24 @@ function reduce<TTurn, TPendingTurn>(
       const current = getAgentSessionRuntimeReply(state, event.turn)
       if (!current || current.delivery.kind === 'settled' || current.delivery.kind === 'awaiting-persistence')
         return { state, effects: [] }
+      const terminal = current.terminal && current.terminal.status !== 'success' ? current.terminal : event.outcome
       if (current.delivery.kind === 'failed') {
         const retry = execution.kind !== 'autonomous-turn' || execution.ownership === 'released'
         return {
           state: replaceReply(state, {
             ...current,
-            terminal: current.terminal ?? event.outcome,
+            terminal,
             ...(retry ? { delivery: { kind: 'reserved' } as const } : {})
           }),
           effects: []
         }
       }
-      const held = event.outcome.status === 'success' && current.pendingResultToolCallIds?.length !== 0
+      const held = terminal.status === 'success' && current.pendingResultToolCallIds?.length !== 0
       const settle = current.delivery.kind === 'open' && !held
       return {
         state: replaceReply(state, {
           ...current,
-          terminal: current.terminal ?? event.outcome,
+          terminal,
           ...(settle ? { delivery: { kind: 'awaiting-persistence' } as const } : {})
         }),
         effects: settle
@@ -446,9 +447,7 @@ function reduce<TTurn, TPendingTurn>(
               {
                 type: 'settle-turn',
                 turn: current.turn,
-                outcome: current.deliveryFailure
-                  ? { status: 'error', error: current.deliveryFailure.error }
-                  : (current.terminal ?? event.outcome)
+                outcome: current.deliveryFailure ? { status: 'error', error: current.deliveryFailure.error } : terminal
               }
             ]
           : []

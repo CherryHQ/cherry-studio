@@ -358,6 +358,38 @@ describe('toolResponse adapter', () => {
     expect(response?.tool.name).toBe(expectedName)
   })
 
+  it.each([
+    [
+      'read',
+      { path: '/workspace/input.py', offset: 3, limit: 10 },
+      { file_path: '/workspace/input.py', offset: 3, limit: 10 }
+    ],
+    [
+      'write',
+      { path: '/workspace/output.py', content: 'hello' },
+      { file_path: '/workspace/output.py', content: 'hello' }
+    ],
+    [
+      'edit',
+      { path: '/workspace/input.py', oldText: 'before', newText: 'after' },
+      { file_path: '/workspace/input.py', old_string: 'before', new_string: 'after' }
+    ]
+  ])('adapts native Pi %s arguments for file links and diff content', (toolName, input, expected) => {
+    const part: CherryMessagePart = {
+      type: 'dynamic-tool',
+      toolCallId: 'pi-file',
+      toolName,
+      state: 'output-available',
+      input,
+      output: { content: [{ type: 'text', text: 'Success' }] },
+      callProviderMetadata: { cherry: { transport: 'pi-agent' } }
+    }
+    const original = structuredClone(input)
+    expect(buildToolResponseFromPart(part)?.arguments).toMatchObject(expected)
+    expect(part.input).toEqual(original)
+    expect(buildToolResponseFromPart({ ...part, callProviderMetadata: undefined })?.arguments).toEqual(original)
+  })
+
   it('does not reinterpret an untagged lowercase dynamic tool as an agent builtin', () => {
     const part = {
       type: 'dynamic-tool',
@@ -371,6 +403,37 @@ describe('toolResponse adapter', () => {
     const response = buildToolResponseFromPart(part)
     expect(response?.tool.type).toBe('mcp')
     expect(response?.tool.name).toBe('read')
+  })
+
+  it('renders every native Pi edit hunk without changing the stored arguments', () => {
+    const input = {
+      path: '/workspace/input.py',
+      edits: [
+        { oldText: 'before first', newText: 'after first' },
+        { oldText: 'before second', newText: 'after second' }
+      ]
+    }
+    const part: CherryMessagePart = {
+      type: 'dynamic-tool',
+      toolCallId: 'pi-edits',
+      toolName: 'edit',
+      state: 'output-available',
+      input,
+      output: { content: [{ type: 'text', text: 'Success' }] },
+      callProviderMetadata: { cherry: { transport: 'pi-agent' } }
+    }
+    const original = structuredClone(input)
+    const response = buildToolResponseFromPart(part)
+    expect(response?.tool.name).toBe('MultiEdit')
+    expect(response?.arguments).toMatchObject({
+      file_path: '/workspace/input.py',
+      edits: [
+        { old_string: 'before first', new_string: 'after first' },
+        { old_string: 'before second', new_string: 'after second' }
+      ]
+    })
+    expect(input).toEqual(original)
+    expect(buildToolResponseFromPart({ ...part, callProviderMetadata: undefined })?.arguments).toEqual(original)
   })
 
   it('keeps migrated agent dynamic-tool calls without metadata on the provider renderer path', () => {

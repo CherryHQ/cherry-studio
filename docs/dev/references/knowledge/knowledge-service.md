@@ -141,6 +141,8 @@ caller
 
 Callers should not create item records through Data API and then call runtime IPC with item ids. `add-items` accepts `KnowledgeAddItemInput[]` and returns after root items are accepted and first jobs are queued, not after indexing completes.
 
+The `knowledge.add_items` handler rejects a batch containing a malformed or non-HTTP(S) URL before ingestion, returning `KNOWLEDGE_INVALID_SOURCE_URL`. Valid but unreachable URLs are accepted and report asynchronous indexing errors. This input policy does not tighten persisted item schemas or the internal base-restore path, so existing invalid sources remain accessible.
+
 Delete and reindex remain id-based because they operate on existing persisted items:
 
 ```text

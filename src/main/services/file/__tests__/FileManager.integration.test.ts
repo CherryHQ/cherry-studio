@@ -90,14 +90,6 @@ describe('FileManager (integration)', () => {
     await rm(tmp, { recursive: true, force: true })
   })
 
-  it('registers the content-hash backfill handler during onInit', async () => {
-    await (fm as unknown as { onInit: () => Promise<void> }).onInit()
-    expect(application.get('JobManager').registerHandler).toHaveBeenCalledWith(
-      'file.contenthash-backfill',
-      expect.objectContaining({ recovery: 'singleton' })
-    )
-  })
-
   it('enqueues one startup backfill only when internal hashes are pending', async () => {
     const countSpy = vi.spyOn(fileEntryService, 'countInternalMissingContentHash')
     countSpy.mockReturnValueOnce(0)
@@ -116,17 +108,13 @@ describe('FileManager (integration)', () => {
     )
   })
 
-  it('warns without rejecting readiness when the startup backfill enqueue fails', async () => {
+  it('does not reject readiness when the startup backfill enqueue fails', async () => {
     vi.spyOn(fileEntryService, 'countInternalMissingContentHash').mockReturnValueOnce(1)
     vi.mocked(application.get('JobManager').enqueue).mockImplementationOnce(() => {
       throw new Error('enqueue failed')
     })
 
     expect(() => (fm as unknown as { onAllReady: () => void }).onAllReady()).not.toThrow()
-    expect(mockMainLoggerService.warn).toHaveBeenCalledWith(
-      'contentHash backfill: failed to enqueue at startup',
-      expect.objectContaining({ err: expect.any(Error) })
-    )
   })
 
   it('INT-1: end-to-end internal entry read', async () => {

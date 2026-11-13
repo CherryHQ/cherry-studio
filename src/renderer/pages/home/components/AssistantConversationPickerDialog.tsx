@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 
 import { EmojiIcon, MenuItem, MenuList, Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
+import { AssistantAvatarImage } from '@renderer/components/Avatar/AssistantAvatarImage'
 import {
   getResourceCreateDefaultAvatar,
   ResourceCreateWizard,
@@ -65,12 +66,21 @@ export function AssistantConversationPickerDialog({
       assistants.map((assistant) => ({
         id: `assistant:${assistant.id}`,
         name: assistant.name,
-        icon: assistant.emoji ? (
-          <EmojiIcon emoji={assistant.emoji} size={24} />
-        ) : (
-          <span className="flex size-6 items-center justify-center rounded-full bg-sidebar-accent">
-            <Bot size={14} />
-          </span>
+        icon: (
+          <AssistantAvatarImage
+            src={assistant.avatarSrc}
+            alt={assistant.name}
+            className="size-6 rounded-full object-cover"
+            fallback={
+              assistant.emoji ? (
+                <EmojiIcon emoji={assistant.emoji} size={24} />
+              ) : (
+                <span className="flex size-6 items-center justify-center rounded-full bg-sidebar-accent">
+                  <Bot size={14} />
+                </span>
+              )
+            }
+          />
         ),
         searchText: assistant.description,
         selection: { type: 'assistant' as const, assistantId: assistant.id }

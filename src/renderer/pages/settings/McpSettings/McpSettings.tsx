@@ -46,7 +46,6 @@ import {
   useMcpRegistryState
 } from './McpServerFields'
 import McpToolsSection from './McpTool'
-import { isQVerisApiKeyMissing, QVerisApiKeyGuide } from './QVerisApiKeyGuide'
 import { useMcpServerTrust } from './useMcpServerTrust'
 import { toUpdateMcpServerDto } from './utils'
 
@@ -325,15 +324,6 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
       return
     }
 
-    if (active && isQVerisApiKeyMissing(server)) {
-      void popup.error({
-        title: t('settings.mcp.startError'),
-        content: <QVerisApiKeyGuide />,
-        centered: true
-      })
-      return
-    }
-
     const isValid = await form.trigger()
     if (!isValid) {
       return
@@ -600,7 +590,7 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
           onValueChange={(value) => setActiveTab(value as TabKey)}
           variant="line"
           className="flex min-h-0 flex-1 flex-col bg-transparent">
-          <div className="shrink-0 px-6 pt-2">
+          <div className="shrink-0 px-6 pt-4">
             <div className="mx-auto w-full max-w-3xl">
               <SettingTitle className="min-w-0 flex-wrap gap-2">
                 <Flex className="min-w-0 flex-1 flex-wrap items-center gap-2">
@@ -679,7 +669,10 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
               </div>
             </div>
           </div>
-          <ScrollArea viewportProps={{ className: 'px-6 pt-2 pb-6' }} className="min-h-0 flex-1">
+          <ScrollArea
+            contentProps={{ className: 'px-6 pt-2 pb-6' }}
+
+            className="min-h-0 flex-1">
             <div className="mx-auto w-full max-w-3xl">
               {tabs.map((tab) => (
                 <TabsContent key={tab.key} value={tab.key} className="mt-0 min-h-0">

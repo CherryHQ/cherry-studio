@@ -1,6 +1,6 @@
 import { BACKGROUND_CONTEXT as context } from '@earendil-works/chord/context'
-import { Type } from '@earendil-works/pi-ai'
 import { defineExtension, defineTool } from '@earendil-works/pi-durable'
+import { bool, obj } from '@earendil-works/pi-schema'
 import { expect, it } from 'vitest'
 
 import { conversationId, lineageEntries } from '../src/behavior/history'
@@ -21,9 +21,9 @@ it('preserves image positions, structured program output and UI details through 
           defineTool({
             name: 'mixed',
             description: 'Mixed output',
-            parameters: Type.Object({}),
+            parameters: obj({}),
             replay: 'safe',
-            structuredOutputSchema: Type.Object({ complete: Type.Boolean() }),
+            structuredOutputSchema: obj({ complete: bool() }),
             async execute() {
               return {
                 output: [image, { type: 'text', text: 'first' }, image, { type: 'text', text: 'last' }],
@@ -35,7 +35,7 @@ it('preserves image positions, structured program output and UI details through 
           defineTool({
             name: 'program',
             description: 'Program consumer',
-            parameters: Type.Object({}),
+            parameters: obj({}),
             replay: 'safe',
             async execute(_args, api, callContext) {
               const result = await api.executeTool('mixed', {}, callContext)

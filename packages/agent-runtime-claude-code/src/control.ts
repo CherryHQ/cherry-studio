@@ -15,6 +15,8 @@ import type {
 
 import type { OperationResult } from '@cherrystudio/agent-runtime'
 
+import { isSyntheticClaudeModel } from './synthetic'
+
 export interface ClaudeTaskFact {
   message: SdkTaskSystemMessage
   status?: 'pending' | 'in_progress' | 'completed' | 'stopped' | 'error'
@@ -148,6 +150,16 @@ export class ClaudeControlState {
   }
 
   accept(message: SDKMessage): void {
+    if (message.type === 'assistant' && isSyntheticClaudeModel(message.message.model)) {
+      this.sawAbortedMessage ||= message.aborted === true
+      return
+    }
+    if (
+      message.type === 'stream_event' &&
+      message.event.type === 'message_start' &&
+      isSyntheticClaudeModel(message.event.message.model)
+    )
+      return
     if ('parent_tool_use_id' in message && message.parent_tool_use_id != null) {
       if (message.type === 'assistant')
         this.emit({ type: 'response-start', responseId: message.message.id, messageUuid: message.uuid })
@@ -205,14 +217,14 @@ export class ClaudeControlState {
       this.emit({ type: 'response-start', responseId: message.message.id, messageUuid: message.uuid })
       this.sawAbortedMessage ||= message.aborted === true
       for (const block of message.message.content)
-        if (block.type === 'tool_use' && ['Task', 'Agent', 'Workflow'].includes(block.name))
+        if (block.type === 'tool_use' && ['Task', 'Agent', 'Workflow', 'Bash'].includes(block.name))
           this.taskTools.set(block.id, block.name)
     }
     if (message.type === 'user' && Array.isArray(message.message.content)) {
       for (const block of message.message.content) {
         if (block.type !== 'tool_result' || block.is_error) continue
         const name = this.taskTools.get(block.tool_use_id)
-        if (!name) continue
+        if (!name || name === 'Bash') continue
         const receipt = taskReceipt(block.content)
         if (typeof receipt !== 'object' || receipt === null || Array.isArray(receipt)) continue
         if (name === 'Workflow' && receipt.taskType !== 'local_workflow') continue
@@ -316,15 +328,29 @@ export class ClaudeControlState {
     const toolUseId = 'tool_use_id' in message ? message.tool_use_id : undefined
     if (
       toolUseId &&
-      ((message.subtype === 'task_started' &&
-        ['subagent', 'local_agent', 'local_workflow'].includes(message.task_type ?? '')) ||
+      (this.taskTools.has(toolUseId) ||
+        (message.subtype === 'task_started' &&
+          ['subagent', 'local_agent', 'local_workflow'].includes(message.task_type ?? '')) ||
         ('subagent_type' in message && message.subagent_type))
     ) {
       this.registerBackgroundTaskToolCallId(message.task_id, toolUseId, message.run_id)
     }
 
     if (message.subtype === 'task_notification') {
-      const pending = this.pendingResults.get(message.run_id ?? message.task_id)
+      const id = message.run_id ?? message.task_id
+      let pending = this.pendingResults.get(id)
+      const toolCallId = this.backgroundTaskToolCallIds.get(id)
+      if (
+        !pending &&
+        toolCallId &&
+        this.taskTools.get(toolCallId) === 'Bash' &&
+        !message.ambient &&
+        !message.skip_transcript
+      ) {
+        pending = { toolCallId, notified: true, answered: false }
+        this.pendingResults.set(id, pending)
+        this.emit({ type: 'background-results', result: this.resultSources() })
+      }
       if (pending) pending.notified = true
     }
     const status =

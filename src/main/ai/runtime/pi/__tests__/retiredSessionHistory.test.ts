@@ -15,15 +15,17 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { application } from '@application'
 import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
+import { agentSessionContextTable } from '@data/db/schemas/agentSessionContext'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
+import { AgentSessionContextSeeder } from '@data/db/seeding/seeders/AgentSessionContextSeeder'
 import { AgentSessionMessageTreeSeeder } from '@data/db/seeding/seeders/AgentSessionMessageTreeSeeder'
 import { RetiredAgentRuntimeSeeder } from '@data/db/seeding/seeders/RetiredAgentRuntimeSeeder'
 import { SeedRunner } from '@data/db/seeding/SeedRunner'
+import { agentSessionContextService } from '@data/services/AgentSessionContextService'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
-import * as runtimeMigration from '@data/services/retiredAgentRuntimeMigration'
 import {
   getRetiredAgentSessionMigration,
   listRetiredAgentSessionMigrations
@@ -275,8 +277,19 @@ describe('retired DSH session migration', () => {
   it('persists resumable context, attachments and inert tool history and regenerates historical fork boundaries', async () => {
     seeder.run(dbh.db)
     new AgentSessionMessageTreeSeeder().run(dbh.db)
+    new AgentSessionContextSeeder().run(dbh.db)
+    const intent = dbh.db
+      .select()
+      .from(agentSessionContextTable)
+      .where(eq(agentSessionContextTable.sessionId, 'conversation'))
+      .get()!
     const migration = getRetiredAgentSessionMigration(dbh.db, 'conversation')!
     await ensureRetiredSessionHistory('conversation')
+    expect(agentSessionContextService.branchTx(dbh.db, 'conversation', 'assistant-1')).toMatchObject({
+      id: intent.id,
+      bindingState: 'bound',
+      nativeThreadId: migration.resumeToken
+    })
     const file = resolveResumeTokenSessionFile(migration.resumeToken, path.join(directory, 'sessions'))!
     const manager = SessionManager.open(file, path.dirname(file), directory)
     expect(manager.getSessionId()).toBe(migration.resumeToken)
@@ -456,8 +469,8 @@ describe('retired DSH session migration', () => {
       .run()
     seeder.run(dbh.db)
     new AgentSessionMessageTreeSeeder().run(dbh.db)
-    const commit = vi.spyOn(runtimeMigration, 'commitRetiredAgentSessionMigration')
-    commit.mockImplementationOnce(() => {
+    const binding = vi.spyOn(agentSessionContextService, 'confirmBranchTx')
+    binding.mockImplementationOnce(() => {
       throw new Error('interrupted before commit')
     })
     await expect(ensureRetiredSessionHistory('conversation')).rejects.toThrow('interrupted before commit')
@@ -470,7 +483,8 @@ describe('retired DSH session migration', () => {
       dbh.db.select().from(agentSessionMessageTable).where(eq(agentSessionMessageTable.id, 'assistant-1')).get()
         ?.runtimeResumeToken
     ).toBe('old-dsh-token')
-    commit.mockRestore()
+    expect(agentSessionContextService.branchTx(dbh.db, 'conversation', 'assistant-1')).toBeUndefined()
+    binding.mockRestore()
     await ensureRetiredSessionHistory('conversation')
     const token = dbh.db
       .select()
@@ -642,30 +656,26 @@ describe('retired DSH session migration', () => {
         cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 }
       }
     })
-    dbh.db
-      .insert(agentSessionMessageTable)
-      .values({
-        id: 'assistant-3',
-        sessionId: 'conversation',
+    const continued = agentSessionMessageService.saveMessage({
+      sessionId: 'conversation',
+      nativeContextId: agentSessionContextService.branchTx(dbh.db, 'conversation', 'assistant-1')!.id,
+      runtimeResumeToken: retained.runtimeResumeToken!,
+      runtimeAnchor: {
+        checkpoint: {
+          runtime: 'pi',
+          runtimeSessionId: retained.runtimeResumeToken!,
+          leafId: manager.getLeafId()!
+        }
+      },
+      message: {
         role: 'assistant',
         status: 'success',
-        createdAt: 60,
-        runtimeResumeToken: retained.runtimeResumeToken,
-        data: {
-          parts: [{ type: 'text', text: answer }],
-          runtimeAnchor: {
-            checkpoint: {
-              runtime: 'pi',
-              runtimeSessionId: retained.runtimeResumeToken!,
-              leafId: manager.getLeafId()!
-            }
-          }
-        }
-      })
-      .run()
+        data: { parts: [{ type: 'text', text: answer }] }
+      }
+    })
     runtimeDriverRegistry.register(new PiRuntimeDriver())
     try {
-      const child = await new AgentSessionForkOperations().fork('conversation', 'assistant-3')
+      const child = await new AgentSessionForkOperations().fork('conversation', continued.id)
       const rows = dbh.db
         .select()
         .from(agentSessionMessageTable)

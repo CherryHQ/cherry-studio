@@ -110,11 +110,14 @@ export const allHandlers: ApiImplementation = {
 For example, active conversation removal uses `trash.topic.archive` or
 `trash.topic.delete_permanently` IPC. `TrashService` holds dispatch admission and
 rejects unsettled generation before calling the DB-only `TopicService` mutation.
-Archive retains the conversation for restore; confirmed permanent deletion removes
-it and its messages atomically. The existing DataApi permanent-delete endpoint
-accepts only archived conversations, so stale Recycle Bin views cannot delete
-already-restored conversations. UI archive and permanent-delete actions use
-separate labels, busy hints, and confirmation policies.
+Archive retains the conversation for restore. Direct permanent deletion removes
+the topic and its messages in one write transaction, after reading pin membership
+and before any delete. A pinned topic rejects the whole batch, so messages, pins,
+and targets remain. An explicit assistant cascade still deletes active and archived
+pinned child topics. Recycle Bin purge still accepts only archived topics and does
+not apply that pin rejection, so a stale Recycle Bin view cannot delete an
+already-restored topic. UI archive and permanent-delete actions use separate
+labels, busy hints, and confirmation policies.
 
 ### Cross-Service Table Access
 

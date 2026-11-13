@@ -1,4 +1,4 @@
-import type { Locator, Page } from '@playwright/test'
+import { expect, type Locator, type Page } from '@playwright/test'
 
 /**
  * Virtualized lists render only their visible window, so the whole list is read by
@@ -34,7 +34,10 @@ export async function revealVirtualized(page: Page, scroller: Locator, target: L
   })
   for (let step = 0; step < 100; step += 1) {
     if ((await target.count()) > 0 && (await target.first().isVisible())) {
-      await target.first().scrollIntoViewIfNeeded()
+      await expect(async () => {
+        await target.first().scrollIntoViewIfNeeded({ timeout: 2_000 })
+        await expect(target.first()).toBeVisible({ timeout: 2_000 })
+      }).toPass({ timeout: 10_000 })
       return
     }
     const moved = await scroller.evaluate((element) => {

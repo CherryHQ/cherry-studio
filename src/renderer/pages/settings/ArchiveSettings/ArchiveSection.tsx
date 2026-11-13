@@ -7,6 +7,7 @@ import { useTranslation } from 'react-i18next'
 import { Button, Checkbox, EmptyState } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { toast } from '@renderer/services/toast'
+import type { ArchiveDomain } from '@shared/data/api/schemas/archives'
 
 import type { ArchiveBatchOutcome, ArchiveItem } from './archive'
 import ArchiveItemRow from './ArchiveItemRow'
@@ -15,6 +16,8 @@ const logger = loggerService.withContext('ArchiveSection')
 
 export interface PendingPermanentDelete {
   items: ArchiveItem[]
+  /** Domains present in `items`; the confirmation states what deleting each one removes. */
+  domains: ArchiveDomain[]
   run: (items: ArchiveItem[]) => Promise<ArchiveBatchOutcome>
   fileEntryIds?: string[]
 }
@@ -33,6 +36,8 @@ export type ArchiveSectionPagination =
     }
 
 interface ArchiveSectionProps {
+  /** Omitted by the mixed "All" section, which supplies domains per request. */
+  domain?: ArchiveDomain
   icon?: LucideIcon
   items: ArchiveItem[]
   isLoading: boolean
@@ -54,6 +59,7 @@ interface ArchiveSectionProps {
 }
 
 const ArchiveSection: FC<ArchiveSectionProps> = ({
+  domain,
   icon,
   items,
   isLoading,
@@ -152,6 +158,7 @@ const ArchiveSection: FC<ArchiveSectionProps> = ({
     if (targets.length === 0) return
     onRequestDelete({
       items: targets,
+      domains: domain ? [domain] : [],
       fileEntryIds: includeFileReferencePreview ? targets.map((item) => item.id) : undefined,
       run: async (confirmedItems) => {
         setIsBatchActionPending(true)

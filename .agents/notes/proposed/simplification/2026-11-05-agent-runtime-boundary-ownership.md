@@ -481,6 +481,8 @@ Keep one waiting state within the existing reply; native owners retain native re
 
 #### 12.6 Implemented contract and verification (2026-11-07)
 
+The standalone background fallback described here is superseded by [background reply continuity](../../implemented/bug-fix/2026-11-09-agent-background-reply-continuity.md); background generation now reuses an existing assistant message.
+
 The approved scope in section 12.5 is implemented. `awaitingReply` and display-count completion inference are removed. Existing native records supply pending result origins; `AgentSessionRuntimeReply.pendingResultToolCallIds` owns product waiting. A notification resumes that reply only when all its source calls belong to it. Missing or mixed ownership follows the existing independent-turn handoff. The implementation adds no SDK patch, schema, manager or model parameter.
 
 | Boundary | Implemented authority and evidence |

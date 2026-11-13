@@ -96,7 +96,7 @@ function stripClaudeContextMarker(apiModelId: string): string {
   return apiModelId.replace(/\s*\[1m\]\s*$/i, '').trimEnd()
 }
 
-/** Resolve a `providerId:apiModelId`; Cherry Cloud models are served only to internal requests. */
+/** Resolve an enabled gateway model by its `providerId:apiModelId` address. */
 export async function resolveGatewayModelAddress(
   modelAddress: string,
   internal = false

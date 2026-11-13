@@ -171,22 +171,12 @@ const MessageAnchorLine = memo(function MessageAnchorLine({
   // • ticks overflow → the strip scrolls inside the fixed margins.
   // The margins live OUTSIDE the scroll area, so they never move while scrolling,
   // and every query (nearest tick, wave, card) is arithmetic against `scrollTop`.
-  // The alignment is latched at mount and never changes for this rail's
-  // lifetime (the list remounts per topic): a conversation that entered with
-  // unloaded history stays bottom-anchored even after the last page lands —
-  // flipping to centred at that moment would shift every visible tick.
-  const alignToBottomRef = useRef(hasOlder)
-
   const geometry = useMemo(() => {
     const count = turns.length
     const viewport = Math.max(0, railHeight - RAIL_MIN_EDGE_MARGIN_PX * 2)
     const content = count * RAIL_TICK_PITCH_PX
     const free = Math.max(0, viewport - content)
-    // Conversations that mounted fully loaded centre the cluster. Ones that
-    // mounted with history still above anchor it to the bottom (the newest
-    // turns, where the user enters), so older turns streaming in later grow
-    // upward without moving a single visible tick.
-    const padTop = alignToBottomRef.current ? free : free / 2
+    const padTop = free / 2
     const padBottom = free - padTop
     // Center of tick `index` in rail coordinates: fixed margin + top pad +
     // its slot, projected into the viewport by the strip's own scroll offset.

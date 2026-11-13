@@ -34,6 +34,7 @@ interface ModelSelectorCommonProps {
   onMultiSelectModeChange?: (enabled: boolean) => void
   onSettingsNavigate?: (navigate: () => void) => void
   shortcut?: CommandId
+  composition?: ModelSelectorComposition
 }
 
 export interface ModelSelectorSingleModelProps extends ModelSelectorCommonProps {
@@ -78,10 +79,10 @@ export type ModelSelectorProps =
 export interface ModelSelectorGroupItem {
   key: string
   type: 'group'
-  title: string
   groupKind: 'pinned' | 'provider'
   provider?: Provider
   canNavigateToSettings?: boolean
+  trailing?: ReactNode
 }
 
 export interface ModelSelectorModelItem {
@@ -96,7 +97,40 @@ export interface ModelSelectorModelItem {
   showIdentifier: boolean
 }
 
-export type FlatListItem = ModelSelectorGroupItem | ModelSelectorModelItem
+export interface ModelSelectorActionItem {
+  key: string
+  type: 'action'
+  groupId?: string
+  providerId: string
+  label: string
+  searchId: string
+  tags: readonly ModelSelectorTag[]
+  leading?: ReactNode
+  trailing?: ReactNode
+  detail?: ReactNode
+  onAction: () => void
+}
+
+export interface ModelSelectorPresentation {
+  tags: readonly ModelSelectorTag[]
+  description?: ReactNode
+  disabled?: boolean
+  priority?: number
+}
+
+export interface ModelSelectorComposition {
+  providerGroups?: readonly {
+    id: string
+    providerIds: readonly string[]
+    trailing?: ReactNode
+  }[]
+  actions?: readonly ModelSelectorActionItem[]
+  getModelPresentation?: (model: Model, provider: Provider) => ModelSelectorPresentation
+  emptyContent?: ReactNode
+}
+
+export type ModelSelectorNavigableItem = ModelSelectorModelItem | ModelSelectorActionItem
+export type FlatListItem = ModelSelectorGroupItem | ModelSelectorNavigableItem
 
 export interface UseModelSelectorDataOptions {
   enabled?: boolean
@@ -110,22 +144,20 @@ export interface UseModelSelectorDataOptions {
   showTagFilter?: boolean
   showPinnedModels?: boolean
   prioritizedProviderIds?: readonly string[]
+  composition?: ModelSelectorComposition
+  actionVisibilityFilter?: (action: ModelSelectorActionItem) => boolean
 }
 
 export interface UseModelSelectorDataResult {
   availableTags: ModelSelectorTag[]
-  getModelDescription: (model: Model) => string | undefined
-  isModelUnavailable: (model: Model) => boolean
-  /** True once the first Cherry Cloud availability snapshot has arrived. */
-  cloudAvailabilityReady: boolean
-  /** Set when the Cherry Cloud availability sync failed; availability stays unknown. */
-  cloudAvailabilityError?: Error
+  getModelPresentation: (model: Model, provider: Provider) => ModelSelectorPresentation
   isLoading: boolean
   modelsError?: Error
   providersError?: Error
   isPinActionDisabled: boolean
   listItems: FlatListItem[]
   modelItems: ModelSelectorModelItem[]
+  navigableItems: ModelSelectorNavigableItem[]
   pinnedIds: readonly UniqueModelId[]
   refetchModels: () => Promise<unknown>
   refetchPinnedModels: () => Promise<unknown>

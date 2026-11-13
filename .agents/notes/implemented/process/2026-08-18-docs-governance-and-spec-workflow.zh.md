@@ -138,7 +138,7 @@ sources: # code paths this document describes; directories preferred
 - **保留 `guides/` 与 `references/` 的二分。** 拒绝:这个分类已经名存实亡;按用途分类(tutorial = 有序步骤走到可观察结果)一照,这里几乎全是 reference 或流程材料。
 - **现在就整体移植 dsh 的翻译机械**(merge driver、`gen-translation-brief`、doc budgets)。缓行:dsh 自己也把重型路径标为仅显式调用;在失同步冲突成为真实成本之前,常规的单遍对照更新就够了。
 - **dsh 的逐 PR note 强制令。** 修订为 P4 的决策门槛;以这里的修复流量,强制令会沦为仪式。
-- **现在就做网站投影。** 缓行:docs.cherry-ai.com 在独立仓库;等语料被治理之后,投影是另一个独立决策。
+- **现在就做网站投影。** 缓行:cherryai.com.cn/docs 在独立仓库;等语料被治理之后,投影是另一个独立决策。
 
 ## Consequences
 

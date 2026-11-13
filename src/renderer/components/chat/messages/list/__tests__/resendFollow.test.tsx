@@ -69,7 +69,7 @@ function ResendRuntimeProbe({
 }
 
 // Geometry and scheduling helpers match chatVirtualizerRuntime.test.tsx.
-function createHandle(overrides?: Partial<VListHandle>): VListHandle {
+function createHandle(scroller: HTMLElement | null, overrides?: Partial<VListHandle>): VListHandle {
   return {
     get cache() {
       return [[], 40]
@@ -88,7 +88,10 @@ function createHandle(overrides?: Partial<VListHandle>): VListHandle {
     getItemSize: vi.fn(() => 40),
     scrollBy: vi.fn(),
     scrollTo: vi.fn(),
-    scrollToIndex: vi.fn(),
+    scrollToIndex: vi.fn((_index, options) => {
+      if (scroller && options?.align === 'end' && options.offset === undefined)
+        scroller.scrollTop = Math.max(0, scroller.scrollHeight - scroller.clientHeight)
+    }),
     ...overrides
   } as VListHandle
 }
@@ -217,7 +220,7 @@ function createReadingFixture(handler: ResendHandler) {
   })
   setElementMetric(scroller, 'clientHeight', () => V)
   setElementMetric(scroller, 'scrollHeight', () => naturalScrollHeight + freezeHeight())
-  runtime.vlistHandleRef.current = createHandle()
+  runtime.vlistHandleRef.current = createHandle(scroller)
   raf.tick(60)
   act(() => runtime.scrollToBottom())
 

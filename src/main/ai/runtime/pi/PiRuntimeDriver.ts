@@ -14,6 +14,7 @@ import type {
   AgentSessionRuntimeDriver,
   OrphanSessionReclaimOptions
 } from '../types'
+import { PiForkCheckpointSchema } from './forkCheckpoint'
 import { forkPiSession } from './piFork'
 import { PiRuntimeConnection } from './PiRuntimeConnection'
 import { ensureRetiredSessionHistory, migrateRetiredSessionHistories } from './retiredSessionHistory'
@@ -23,6 +24,9 @@ export class PiRuntimeDriver implements AgentSessionRuntimeDriver {
   readonly workspaceRelocation = piWorkspaceRelocation
   readonly type = 'pi'
   readonly fork = forkPiSession
+  isForkCheckpoint(value: unknown): boolean {
+    return PiForkCheckpointSchema.safeParse(value).success
+  }
   readonly recoverSessions = migrateRetiredSessionHistories
 
   async validateSession(session: AgentSessionEntity): Promise<void> {

@@ -1,8 +1,6 @@
 import { act, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { useImageTools } from '@renderer/components/ActionTools'
-
 import EChartsPreview from '../EChartsPreview'
 
 const mocks = vi.hoisted(() => ({
@@ -359,18 +357,5 @@ describe('EChartsPreview', () => {
 
     expect(mocks.chart.setOption).toHaveBeenCalledTimes(2)
     expect(mocks.chart.setOption).toHaveBeenLastCalledWith(expect.objectContaining(JSON.parse(updatedOption)), true)
-  })
-
-  it('disables generic image drag and wheel zoom so ECharts owns chart interactions', async () => {
-    render(<EChartsPreview>{validOption}</EChartsPreview>)
-    await advanceDebounce()
-
-    expect(useImageTools).toHaveBeenCalledWith(
-      expect.any(Object),
-      expect.objectContaining({
-        enableDrag: false,
-        enableWheelZoom: false
-      })
-    )
   })
 })

@@ -1,7 +1,11 @@
-import type { SDKControlGetContextUsageResponse } from '@anthropic-ai/claude-agent-sdk'
+import { randomUUID } from 'node:crypto'
+
+import type { SDKControlGetContextUsageResponse, SDKPartialAssistantMessage } from '@anthropic-ai/claude-agent-sdk'
 import { expect, it } from 'vitest'
 
 import { normalizeContextUsage } from '../src/contextUsage'
+import { observe } from './nativeFixture'
+import { wireFixture } from './wireFixture'
 
 const native: SDKControlGetContextUsageResponse = {
   model: 'gateway-model',
@@ -80,3 +84,115 @@ it('falls back from unknown category IDs and versions allocation changes', () =>
   const disabled = normalizeContextUsage({ ...native, isAutoCompactEnabled: false }, 1000000)
   expect(disabled.revision).not.toBe(normalizeContextUsage(native, 1000000).revision)
 })
+
+async function partial(test: Awaited<ReturnType<typeof wireFixture>>, event: SDKPartialAssistantMessage['event']) {
+  const uuid = randomUUID()
+  test.send({ type: 'stream_event', uuid, session_id: test.sessionId, parent_tool_use_id: null, event })
+  await test.view.event((message) => 'uuid' in message && message.uuid === uuid)
+}
+
+async function start(test: Awaited<ReturnType<typeof wireFixture>>, model: string) {
+  await partial(test, { type: 'message_start', message: { ...test.assistant('').message, model } })
+}
+
+it.each(['unmapped-model', 'gateway-model[1m]'])(
+  'keeps the active response model through output deltas: %s',
+  async (model) => {
+    const test = await wireFixture({
+      model: 'gateway-model',
+      contextWindow: { model: 'gateway-model', tokens: 1000000 }
+    })
+    try {
+      await start(test, 'gateway-model')
+      expect(test.view.snapshot.contextUsage).toMatchObject({ status: 'confirmed', value: { model: 'gateway-model' } })
+      await start(test, model)
+      await partial(test, {
+        type: 'message_delta',
+        context_management: null,
+        delta: { stop_reason: null, stop_sequence: null, container: null, stop_details: null },
+        usage: {
+          output_tokens: 2,
+          input_tokens: null,
+          cache_creation_input_tokens: null,
+          cache_read_input_tokens: null,
+          iterations: null,
+          server_tool_use: null
+        }
+      })
+      expect(test.view.snapshot.contextUsage).toMatchObject(
+        model === 'unmapped-model'
+          ? { status: 'unknown' }
+          : { status: 'confirmed', value: { model, contextWindow: 1000000 } }
+      )
+    } finally {
+      await test.close()
+    }
+  }
+)
+
+it.each(['failure', 'unknown-window'])(
+  'publishes a valid unknown context read to current and new observers: %s',
+  async (mode) => {
+    let reads = 0
+    const test = await wireFixture({
+      contextWindow: { model: native.model, tokens: 1000000 },
+      async contextUsage() {
+        if (reads++ === 0) return native
+        if (mode === 'failure') throw new Error('context read failed')
+        return { ...native, model: 'unmapped-model' }
+      }
+    })
+    try {
+      expect(await test.root.contextUsage()).toMatchObject({ status: 'confirmed' })
+      await test.view.subscription.drain()
+      expect(test.view.snapshot.contextUsage?.status).toBe('confirmed')
+      const result = await test.root.contextUsage()
+      expect(result).toMatchObject({
+        status: 'unknown',
+        error: { code: mode === 'failure' ? 'native-error' : 'unknown-window' }
+      })
+      await test.view.subscription.drain()
+      expect(test.view.snapshot.contextUsage).toEqual(result)
+      const late = await observe(test.root)
+      await late.subscription.drain()
+      expect(late.snapshot.contextUsage).toEqual(result)
+      await late.subscription.stop()
+    } finally {
+      await test.close()
+    }
+  }
+)
+
+it.each(['model', 'read'])(
+  'fences a late failed context read after a newer %s establishes a reading',
+  async (change) => {
+    let reads = 0
+    let fail!: (error: Error) => void
+    const pending = new Promise<SDKControlGetContextUsageResponse>((_resolve, reject) => {
+      fail = reject
+    })
+    const test = await wireFixture({
+      contextWindow: { model: native.model, tokens: 1000000 },
+      contextUsage: async () => (++reads === 2 ? pending : native)
+    })
+    try {
+      expect(await test.root.contextUsage()).toMatchObject({ status: 'confirmed' })
+      const reading = test.root.contextUsage()
+      await expect.poll(() => reads).toBe(2)
+      if (change === 'model') await start(test, 'gateway-model[1m]')
+      else expect(await test.root.contextUsage()).toMatchObject({ status: 'confirmed' })
+      const current = test.view.snapshot.contextUsage
+      expect(current).toMatchObject({
+        status: 'confirmed',
+        value: { model: change === 'model' ? 'gateway-model[1m]' : 'gateway-model' }
+      })
+      fail(new Error('late failure'))
+      expect(await reading).toMatchObject({ status: 'unknown', error: { code: 'context-changed' } })
+      await test.view.subscription.drain()
+      expect(test.view.snapshot.contextUsage).toEqual(current)
+    } finally {
+      fail(new Error('cleanup'))
+      await test.close()
+    }
+  }
+)

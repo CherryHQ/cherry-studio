@@ -40,6 +40,255 @@ afterEach(() => {
   providerRegistryService.clearCache()
 })
 
+it.each([
+  ['anthropic-messages', 'anthropic', '/v1/messages'],
+  ['openai-chat-completions', 'openai-compatible', '/v1/chat/completions'],
+  ['openai-responses', 'openai', '/v1/responses'],
+  ['google-generate-content', 'google', '/v1beta/'],
+  ['openai-chat-completions', 'azure', '/v1/chat/completions'],
+  ['openai-responses', 'azure-responses', '/v1/chat/completions'],
+  ['anthropic-messages', 'bedrock', '/v1/chat/completions'],
+  ['google-generate-content', 'google-vertex', '/v1/chat/completions'],
+  ['anthropic-messages', 'google-vertex-anthropic', '/v1/chat/completions'],
+  ['ollama-chat', 'ollama', '/v1/chat/completions']
+] as const)('sends %s / %s requests to the internal gateway', async (endpointType, adapterFamily, path) => {
+  const requests: { path?: string; key?: string; body: string }[] = []
+  const server = createServer(async (req, res) => {
+    let body = ''
+    for await (const chunk of req) body += chunk
+    requests.push({
+      path: req.url,
+      key:
+        req.headers.authorization ?? req.headers['x-api-key']?.toString() ?? req.headers['x-goog-api-key']?.toString(),
+      body
+    })
+    res.writeHead(401, { 'content-type': 'application/json' })
+    res.end(JSON.stringify({ error: { message: 'request capture' } }))
+  })
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+  onTestFinished(
+    () =>
+      new Promise<void>((resolve) => {
+        server.closeAllConnections()
+        server.close(() => resolve())
+      })
+  )
+  const address = server.address()
+  if (!address || typeof address === 'string') throw new Error('No test listener')
+  gateway.baseUrl = `http://127.0.0.1:${address.port}`
+  const provider = ProviderSchema.parse({
+    isEnabled: true,
+    apiKeys: [],
+    authType: 'api-key',
+    settings: {},
+    id: 'route-fixture',
+    name: 'Route fixture',
+    reportsActualCost: false,
+    defaultChatEndpoint: endpointType,
+    endpointConfigs: { [endpointType]: { adapterFamily, baseUrl: 'https://upstream.invalid' } }
+  })
+  const model = ModelSchema.parse({
+    isEnabled: true,
+    isHidden: false,
+    supportsStreaming: true,
+    id: 'route-fixture::logical-model',
+    providerId: provider.id,
+    name: 'Route fixture',
+    apiModelId: 'wire-model',
+    capabilities: []
+  })
+  const binding = await createPiGatewayModelBinding({ sessionId: 'session-1' }, provider, model)
+  await binding.modelRuntime.completeSimple(
+    binding.model,
+    normalizeContext({ messages: [{ role: 'user', content: 'fixture', timestamp: 1 }] })
+  )
+  expect(requests).toHaveLength(1)
+  expect(requests[0].path).toMatch(new RegExp(`^${path}`))
+  expect(requests[0].key).toMatch(/^(Bearer )?local-key$/)
+  expect(`${requests[0].path} ${requests[0].body}`).toContain('route-fixture:wire-model')
+})
+
+it.each(['grok-cli', 'openai-codex'])('registers %s OAuth models with internal credentials', async (providerId) => {
+  gateway.baseUrl = 'http://127.0.0.1:23333'
+  const provider = ProviderSchema.parse({
+    isEnabled: true,
+    apiKeys: [],
+    authType: 'api-key',
+    settings: {},
+    id: providerId,
+    name: 'OAuth fixture',
+    reportsActualCost: false,
+    authMethods: ['oauth'],
+    defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_RESPONSES
+  })
+  const model = ModelSchema.parse({
+    isEnabled: true,
+    isHidden: false,
+    supportsStreaming: true,
+    id: `${providerId}::model`,
+    providerId,
+    name: 'Fixture',
+    capabilities: []
+  })
+  const binding = await createPiGatewayModelBinding({ sessionId: 'session-1' }, provider, model)
+  expect(binding.model.api).toBe('openai-responses')
+  expect(await binding.modelRuntime.getAuth(binding.model)).toMatchObject({ auth: { apiKey: 'local-key' } })
+})
+
+it('prefers a model protocol over the provider default', async () => {
+  gateway.baseUrl = 'http://127.0.0.1:23333'
+  const provider = ProviderSchema.parse({
+    isEnabled: true,
+    apiKeys: [],
+    authType: 'api-key',
+    settings: {},
+    id: 'protocol-fixture',
+    name: 'Protocol fixture',
+    reportsActualCost: false,
+    defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+    endpointConfigs: {
+      'openai-chat-completions': { adapterFamily: 'openai-compatible' },
+      'anthropic-messages': { adapterFamily: 'anthropic', baseUrl: 'https://upstream.invalid' },
+      'openai-responses': { adapterFamily: 'openai' }
+    }
+  })
+  for (const endpointTypes of [
+    [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.ANTHROPIC_MESSAGES],
+    [ENDPOINT_TYPE.OPENAI_RESPONSES, ENDPOINT_TYPE.ANTHROPIC_MESSAGES]
+  ]) {
+    const model = ModelSchema.parse({
+      isEnabled: true,
+      isHidden: false,
+      supportsStreaming: true,
+      id: 'protocol-fixture::model',
+      providerId: provider.id,
+      name: 'Fixture',
+      capabilities: [],
+      endpointTypes
+    })
+    const binding = await createPiGatewayModelBinding({ sessionId: 'session-1' }, provider, model)
+    expect(binding.model.api).toBe(
+      endpointTypes[0] === ENDPOINT_TYPE.OPENAI_RESPONSES ? 'openai-responses' : 'anthropic-messages'
+    )
+  }
+})
+
+it.each([{ capabilities: ['image-recognition'] }, { capabilities: [], inputModalities: ['image'] }])(
+  'registers image and capacity facts used by native execution',
+  async (imageSupport) => {
+    gateway.baseUrl = 'http://127.0.0.1:23333'
+    const provider = ProviderSchema.parse({
+      isEnabled: true,
+      apiKeys: [],
+      authType: 'api-key',
+      settings: {},
+      id: 'capacity-fixture',
+      name: 'Fixture',
+      reportsActualCost: false
+    })
+    const model = ModelSchema.parse({
+      isEnabled: true,
+      isHidden: false,
+      supportsStreaming: true,
+      id: 'capacity-fixture::model',
+      providerId: provider.id,
+      name: 'Fixture',
+      contextWindow: 200_000,
+      maxOutputTokens: 32_768,
+      ...imageSupport
+    })
+    const binding = await createPiGatewayModelBinding({ sessionId: 'session-1' }, provider, model)
+    expect(binding.model).toMatchObject({ input: ['text', 'image'], contextWindow: 200_000, maxTokens: 32_768 })
+  }
+)
+
+it.each(['custom:anthropic', 'claude-code'])('rejects an unroutable provider %s', async (providerId) => {
+  const provider = ProviderSchema.parse({
+    isEnabled: true,
+    apiKeys: [],
+    authType: 'api-key',
+    settings: {},
+    id: providerId,
+    name: 'Fixture',
+    reportsActualCost: false,
+    ...(providerId === 'claude-code' ? { authMethods: ['external-cli'] } : {})
+  })
+  const model = ModelSchema.parse({
+    isEnabled: true,
+    isHidden: false,
+    supportsStreaming: true,
+    id: `${providerId}::model`,
+    providerId,
+    name: 'Fixture',
+    capabilities: []
+  })
+  await expect(createPiGatewayModelBinding({ sessionId: 'session-1' }, provider, model)).rejects.toThrow(
+    'cannot be routed through the internal gateway'
+  )
+})
+
+it('preserves a per-call output cap when native reasoning disagrees with the gateway selection', async () => {
+  const requests: { maxTokens: number; thinkingBudget?: number; reasoning?: string }[] = []
+  const server = createServer(async (req, res) => {
+    let raw = ''
+    for await (const chunk of req) raw += chunk
+    const body = JSON.parse(raw)
+    requests.push({
+      maxTokens: body.max_tokens,
+      thinkingBudget: body.thinking?.budget_tokens,
+      reasoning: req.headers['x-cherry-reasoning-effort']?.toString()
+    })
+    res.writeHead(401, { 'content-type': 'application/json' })
+    res.end(JSON.stringify({ error: { message: 'fixture captures the request without running a model' } }))
+  })
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+  onTestFinished(
+    () =>
+      new Promise<void>((resolve) => {
+        server.closeAllConnections()
+        server.close(() => resolve())
+      })
+  )
+  const address = server.address()
+  if (!address || typeof address === 'string') throw new Error('No test listener')
+  gateway.baseUrl = `http://127.0.0.1:${address.port}`
+  const provider = ProviderSchema.parse({
+    id: 'anthropic-fixture',
+    name: 'Anthropic fixture',
+    isEnabled: true,
+    reportsActualCost: false,
+    apiKeys: [],
+    authType: 'api-key',
+    settings: {},
+    defaultChatEndpoint: ENDPOINT_TYPE.ANTHROPIC_MESSAGES
+  })
+  const model = ModelSchema.parse({
+    id: 'anthropic-fixture::claude-sonnet-4-5',
+    providerId: provider.id,
+    name: 'Budget fixture',
+    apiModelId: 'claude-sonnet-4-5',
+    capabilities: ['reasoning'],
+    contextWindow: 128000,
+    maxOutputTokens: 32768,
+    isEnabled: true,
+    isHidden: false,
+    supportsStreaming: true
+  })
+  const binding = await createPiGatewayModelBinding(
+    { sessionId: 'session-1', reasoningEffort: 'ultra' },
+    provider,
+    model
+  )
+  await binding.modelRuntime.completeSimple(
+    binding.model,
+    normalizeContext({
+      messages: [{ role: 'user', content: 'fixture', timestamp: 1 }]
+    }),
+    { reasoning: 'high', maxTokens: 256 }
+  )
+  expect(requests).toEqual([{ maxTokens: 256, thinkingBudget: undefined, reasoning: 'ultra' }])
+})
+
 it.each(['same', 'provider', 'model', 'api'])(
   'replays Google signatures with %s history ownership after reconnect',
   async (ownership) => {
@@ -105,7 +354,7 @@ it.each(['same', 'provider', 'model', 'api'])(
     const history: Message[] = [{ role: 'user', content: 'Read fixtures.', timestamp: 1 }]
     for (let step = 0; step < 3; step++) {
       const answer = await binding.modelRuntime.completeSimple(binding.model, normalizeContext({ messages: history }))
-      expect(answer.stopReason).toBe(step < 2 ? 'toolUse' : 'stop')
+      expect(answer.stopReason, answer.errorMessage).toBe(step < 2 ? 'toolUse' : 'stop')
       history.push(answer)
       for (const part of answer.content) {
         if (part.type !== 'toolCall') continue
@@ -256,7 +505,7 @@ it('preserves each model route and usage owner when a child shares the native ga
 })
 
 // A direct-provider replay workaround must not invent a thinking signature from a gateway message ID.
-it('replays a tool-only CherryIN gateway response without a fabricated thinking block', async () => {
+it.each([false, true])('replays CherryIN thinking only when present (empty signature: %s)', async (hasThinking) => {
   let body: { messages: Array<{ role: string; content: unknown[] }> } | undefined
   const server = createServer(async (req, res) => {
     let raw = ''
@@ -324,7 +573,10 @@ it('replays a tool-only CherryIN gateway response without a fabricated thinking 
             provider: 'cherryin',
             model: binding.model.id,
             responseId: 'msg_gateway_generated_id',
-            content: [{ type: 'toolCall', id: 'call_read', name: 'read', arguments: { path: 'facts.txt' } }],
+            content: [
+              ...(hasThinking ? [{ type: 'thinking' as const, thinking: 'Read the file', thinkingSignature: '' }] : []),
+              { type: 'toolCall', id: 'call_read', name: 'read', arguments: { path: 'facts.txt' } }
+            ],
             stopReason: 'toolUse',
             timestamp: 2,
             usage: {
@@ -348,8 +600,9 @@ it('replays a tool-only CherryIN gateway response without a fabricated thinking 
       })
     )
     .result()
-  expect(answer.stopReason).toBe('stop')
+  expect(answer.stopReason, answer.errorMessage).toBe('stop')
   expect(body?.messages.find((message) => message.role === 'assistant')?.content).toEqual([
+    ...(hasThinking ? [{ type: 'thinking', thinking: 'Read the file', signature: '' }] : []),
     { type: 'tool_use', id: 'call_read', name: 'read', input: { path: 'facts.txt' } }
   ])
 })

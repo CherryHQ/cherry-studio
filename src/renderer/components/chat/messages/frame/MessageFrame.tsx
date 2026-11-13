@@ -35,7 +35,7 @@ import MessageMenuBar from './MessageMenuBar'
 import { MessageUserLayout } from './MessageUserLayout'
 
 const USER_MESSAGE_FOOTER_ACTIONS_CLASS =
-  'absolute inset-0 flex items-center gap-2 opacity-0 transition-opacity duration-150 focus-within:opacity-100 group-hover/message:opacity-100 no-hover:opacity-100'
+  'absolute inset-0 flex items-center gap-2 opacity-0 transition-opacity duration-150 focus-within:opacity-100 has-[[data-slot=dropdown-menu-trigger][data-state=open]]:opacity-100 group-hover/message:opacity-100 no-hover:opacity-100'
 
 interface Props {
   message: MessageListItem
@@ -122,7 +122,7 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
   const keepAssistantFooterVisible = isLatestAssistantMessage || isMessageMenuOpen
   const assistantFooterVisibilityClass = keepAssistantFooterVisible
     ? 'opacity-100'
-    : 'opacity-0 transition-opacity duration-150 focus-within:opacity-100 group-hover/message:opacity-100 no-hover:opacity-100'
+    : 'opacity-0 transition-opacity duration-150 focus-within:opacity-100 has-[[data-slot=dropdown-menu-trigger][data-state=open]]:opacity-100 group-hover/message:opacity-100 no-hover:opacity-100'
 
   const messageHighlightHandler = useCallback(
     (highlight: boolean = true) => {
@@ -207,7 +207,7 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
     )
   }
 
-  const messageContentClassName = 'message-content-container mt-0 min-h-0 max-w-full pl-0'
+  const messageContentClassName = 'message-content-container mt-0 min-h-0 max-w-full'
   const messageContentStyle = {
     fontFamily: messageFont === 'serif' ? 'var(--font-family-serif)' : 'var(--font-family)',
     fontSize

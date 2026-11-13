@@ -23,9 +23,11 @@ export function AgentGroupMoreMenu({
   onArchiveSessions,
   onDeleteAgent,
   onEdit,
+  onPermanentDeleteAgent,
   onSetAgentIconType,
   onTogglePin,
   onToggleSidebar,
+  permanentDeleteShortcut,
   sidebarPinned
 }: {
   agentId: string
@@ -38,9 +40,11 @@ export function AgentGroupMoreMenu({
   onArchiveSessions: (agentId: string) => void | Promise<void>
   onDeleteAgent: (agentId: string) => void | Promise<void>
   onEdit: (agentId: string) => void
+  onPermanentDeleteAgent?: (agentId: string) => void | Promise<void>
   onSetAgentIconType: (iconType: AssistantIconType) => void | Promise<void>
   onTogglePin: (agentId: string) => void | Promise<void>
   onToggleSidebar: (agentId: string) => void | Promise<void>
+  permanentDeleteShortcut?: string
 }) {
   const { t } = useTranslation()
   const actionContext: AgentGroupActionContext = {
@@ -51,9 +55,11 @@ export function AgentGroupMoreMenu({
     onArchiveSessions,
     onDeleteAgent,
     onEdit,
+    onPermanentDeleteAgent,
     onSetAgentIconType,
     onTogglePin,
     onToggleSidebar,
+    permanentDeleteShortcut,
     pinDisabled,
     pinned,
     sidebarPinned,
@@ -77,6 +83,10 @@ export function AgentGroupMoreMenu({
 }
 
 export function WorkdirGroupMoreMenu({
+  canPin,
+  pinned,
+  pinDisabled,
+  onTogglePin,
   canDelete,
   canRename,
   deleteDisabled,
@@ -89,6 +99,10 @@ export function WorkdirGroupMoreMenu({
 }: {
   canDelete: boolean
   canRename: boolean
+  canPin: boolean
+  pinned: boolean
+  pinDisabled?: boolean
+  onTogglePin: (group: ResourceListGroup) => void | Promise<void>
   deleteDisabled?: boolean
   group: ResourceListGroup
   onDelete: (group: ResourceListGroup) => void | Promise<void>
@@ -99,6 +113,10 @@ export function WorkdirGroupMoreMenu({
 }) {
   const { t } = useTranslation()
   const actionContext: WorkdirGroupActionContext = {
+    canPin,
+    pinned,
+    pinDisabled,
+    onTogglePin,
     canDelete,
     canRename,
     deleteDisabled,

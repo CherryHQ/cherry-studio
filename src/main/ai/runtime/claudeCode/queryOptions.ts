@@ -45,6 +45,8 @@ export function createClaudeCodeQueryOptions({
 
   const opts: Partial<Options> = {
     ...settingsRest,
+    // The SDK requires this launch flag for a confirmed mid-turn switch to Full Access.
+    allowDangerouslySkipPermissions: true,
     spawnClaudeCodeProcess,
     model: modelId,
     ...(abortController ? { abortController } : {}),

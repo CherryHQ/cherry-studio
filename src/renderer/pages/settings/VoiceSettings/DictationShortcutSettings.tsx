@@ -1,15 +1,10 @@
-import { CircleAlert, X } from 'lucide-react'
+import { X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button, Switch, Tooltip } from '@cherrystudio/ui'
+import { Button, HelpTooltip, Switch, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
-import {
-  SettingDescription,
-  SettingDivider,
-  SettingRow,
-  SettingRowTitle
-} from '@renderer/components/SettingsPrimitives'
+import { SettingDivider, SettingRow, SettingRowTitle } from '@renderer/components/SettingsPrimitives'
 import { useCommandContextSnapshot, useCommandShortcutPreferences } from '@renderer/hooks/command'
 import {
   dictationShortcutsConflict,
@@ -53,30 +48,27 @@ function ShortcutRow({ mode }: { mode: 'hold' | 'toggle' }) {
     }
   }, [recording])
   const label = t(mode === 'hold' ? 'settings.voice.shortcuts.hold.label' : 'settings.voice.shortcuts.toggle.label')
+  const description = t(
+    mode === 'hold' ? 'settings.voice.shortcuts.hold.description' : 'settings.voice.shortcuts.toggle.description'
+  )
   const display = (binding: string) =>
     formatDictationShortcut(binding, isMac, t('settings.voice.shortcuts.left'), t('settings.voice.shortcuts.right'))
   return (
     <SettingRow id={`setting-voice-dictation-${mode}`} className="scroll-mt-6 flex-wrap gap-3">
       <div className="flex flex-col gap-1">
         <SettingRowTitle className="gap-1.5">
-          {label}
-          <Tooltip content={t('settings.voice.shortcuts.rules')} asChild>
-            <span
-              role="img"
-              tabIndex={0}
-              aria-label={t('settings.voice.shortcuts.rules')}
-              className="text-muted-foreground inline-flex shrink-0 rounded-sm outline-none focus-visible:bg-accent">
-              <CircleAlert size={14} aria-hidden="true" />
-            </span>
-          </Tooltip>
+          <span>{label}</span>
+          <HelpTooltip
+            ariaLabel={description}
+            content={
+              <div className="space-y-2">
+                <p>{description}</p>
+                <p>{t('settings.voice.shortcuts.rules')}</p>
+              </div>
+            }
+            placement="right"
+          />
         </SettingRowTitle>
-        <SettingDescription>
-          {t(
-            mode === 'hold'
-              ? 'settings.voice.shortcuts.hold.description'
-              : 'settings.voice.shortcuts.toggle.description'
-          )}
-        </SettingDescription>
         {error && (
           <span role="alert" className="text-error">
             {t(
@@ -177,8 +169,10 @@ export function DictationShortcutSettings() {
     <>
       <SettingRow id="setting-voice-dictation-mouse-hold" className="scroll-mt-6 flex-wrap gap-3">
         <div>
-          <SettingRowTitle>{t('settings.voice.mouse_hold.label')}</SettingRowTitle>
-          <SettingDescription>{t('settings.voice.mouse_hold.description')}</SettingDescription>
+          <SettingRowTitle className="gap-1">
+            <span>{t('settings.voice.mouse_hold.label')}</span>
+            <HelpTooltip content={t('settings.voice.mouse_hold.description')} placement="right" />
+          </SettingRowTitle>
           {saveFailed && (
             <span role="alert" className="text-error">
               {t('settings.voice.shortcuts.save_failed')}

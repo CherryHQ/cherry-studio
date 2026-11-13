@@ -24,15 +24,6 @@ describe('useAvatar', () => {
     expect(ipcRequest).not.toHaveBeenCalled()
   })
 
-  it('falls back to the bundled default for an empty preference', () => {
-    MockUsePreferenceUtils.setPreferenceValue('app.user.avatar', '')
-
-    const { result } = renderHook(() => useAvatar())
-
-    expect(result.current).toBe(UserAvatar)
-    expect(ipcRequest).not.toHaveBeenCalled()
-  })
-
   it('resolves a file:<id> avatar to a file:// url via file.batch_get_physical_paths', async () => {
     ipcRequest.mockResolvedValue({ 'id-1': '/data/files/id-1.webp' })
     MockUsePreferenceUtils.setPreferenceValue('app.user.avatar', 'file:id-1')

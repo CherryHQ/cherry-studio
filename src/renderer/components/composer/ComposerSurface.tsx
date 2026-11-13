@@ -249,7 +249,9 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
 
   if (Runtime && runtimeReady && !isComposing) {
     return (
+      // Tiptap fixes extensions when the editor is created, so a preview toggle needs a new editor.
       <Runtime
+        key={props.markdownLivePreview ? 'markdown' : 'plain'}
         {...props}
         showAiDisclaimer={showAiDisclaimer}
         initialTextSelection={selectionRef.current}
@@ -399,12 +401,22 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
               onKeyDown={(event) => {
                 if (props.editable === false) return
                 requestRuntime()
-                if (event.key === 'Tab' && event.shiftKey && !event.nativeEvent.isComposing && props.onShiftTab?.()) {
+                if (navigateInputHistory(event)) {
                   event.preventDefault()
                   return
                 }
-                if (navigateInputHistory(event)) {
+                if (
+                  event.key === 'Tab' &&
+                  event.shiftKey &&
+                  !event.ctrlKey &&
+                  !event.metaKey &&
+                  !event.altKey &&
+                  !event.nativeEvent.isComposing &&
+                  props.onShiftTab
+                ) {
+                  if (!event.repeat) props.onShiftTab()
                   event.preventDefault()
+                  event.stopPropagation()
                   return
                 }
                 // Same priority order as the runtime surface, so the two never drift: steer wins over

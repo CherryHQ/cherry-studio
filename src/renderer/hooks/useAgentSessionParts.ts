@@ -313,8 +313,11 @@ export function useAgentSessionParts(sessionId: string, options: { enabled?: boo
     [enabled, hasNext, loadAllRequested, startLoadAll, stopLoadAll]
   )
 
+  const historyActions = useMemo(() => Object.fromEntries(rows.map((row) => [row.id, row.historyActions])), [rows])
+
   return {
     messages,
+    historyActions,
     getMessageSiblings,
     setActiveBranch,
     persistedPartsByMessageId,

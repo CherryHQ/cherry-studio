@@ -244,7 +244,7 @@ describe('RuntimeExecutor.generateImage', () => {
         expect.objectContaining({ prompt: 'A test image' }),
         expect.objectContaining({
           providerId: 'openai',
-          model: 'dall-e-3'
+          model: mockImageModel
         })
       )
 
@@ -266,9 +266,13 @@ describe('RuntimeExecutor.generateImage', () => {
         provider: 'openai'
       } as ImageModelV3
 
+      let modelAtResolution: unknown
       const modelResolutionPlugin: AiPlugin = {
         name: 'model-resolver',
-        resolveModel: vi.fn(async () => customImageModel)
+        resolveModel: vi.fn(async (_modelId, context) => {
+          modelAtResolution = context.model
+          return customImageModel
+        })
       }
 
       const executorWithPlugin = RuntimeExecutor.create(
@@ -282,14 +286,15 @@ describe('RuntimeExecutor.generateImage', () => {
 
       await executorWithPlugin.generateImage({ model: 'dall-e-3', prompt: 'A test image' })
 
-      // resolveModel receives model id and context with core fields
+      // resolveModel receives the model id and the pre-resolution context:
+      // capture context.model inside the hook, since resolution mutates the context object
       expect(modelResolutionPlugin.resolveModel).toHaveBeenCalledWith(
         'dall-e-3',
         expect.objectContaining({
-          providerId: 'openai',
-          model: 'dall-e-3'
+          providerId: 'openai'
         })
       )
+      expect(modelAtResolution).toBe('dall-e-3')
 
       expect(aiGenerateImage).toHaveBeenCalledWith({
         model: customImageModel,
@@ -417,12 +422,12 @@ describe('RuntimeExecutor.generateImage', () => {
         'Generation failed'
       )
 
-      // onError receives the original error and context with core fields
+      // onError receives the original error and context holding the resolved model
       expect(errorPlugin.onError).toHaveBeenCalledWith(
         error,
         expect.objectContaining({
           providerId: 'openai',
-          model: 'dall-e-3'
+          model: mockImageModel
         })
       )
     })

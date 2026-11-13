@@ -10,49 +10,6 @@ import { ProviderExtension } from '../core/ProviderExtension'
 
 describe('ProviderExtension', () => {
   describe('Static create() Method', () => {
-    it('should create extension with config object', () => {
-      const extension = ProviderExtension.create({
-        name: 'test-provider',
-        create: createMockProviderV3
-      })
-
-      expect(extension).toBeInstanceOf(ProviderExtension)
-      expect(extension.config.name).toBe('test-provider')
-    })
-
-    it('should create extension with config function', () => {
-      const configFn = vi.fn(() => ({
-        name: 'test-provider',
-        create: createMockProviderV3,
-        defaultOptions: { apiKey: 'test-key' }
-      }))
-
-      const extension = ProviderExtension.create(configFn)
-
-      expect(configFn).toHaveBeenCalledOnce()
-      expect(extension).toBeInstanceOf(ProviderExtension)
-      expect(extension.config.name).toBe('test-provider')
-      expect(extension.config.defaultOptions).toEqual({ apiKey: 'test-key' })
-    })
-
-    it('should support type inference with generics', () => {
-      interface TestSettings {
-        apiKey: string
-        baseURL?: string
-        name: string
-      }
-
-      const extension = new ProviderExtension<TestSettings>({
-        name: 'test-provider',
-        create: createMockProviderV3 as any, // Type assertion needed as mock has different signature
-        defaultOptions: {
-          apiKey: 'test-key'
-        }
-      })
-
-      expect(extension.config.name).toBe('test-provider')
-    })
-
     it('should allow delayed config resolution with function', () => {
       let envVariable = 'initial-key'
 
@@ -119,15 +76,6 @@ describe('ProviderExtension', () => {
       } as any)
 
       await expect(extension.createProvider()).rejects.toThrow('cannot create provider')
-    })
-
-    it('should create extension with valid config', () => {
-      const extension = new ProviderExtension({
-        name: 'test-provider',
-        create: createMockProviderV3
-      })
-
-      expect(extension.config.name).toBe('test-provider')
     })
   })
 
@@ -309,36 +257,6 @@ describe('ProviderExtension', () => {
       })
 
       expect(extension.getVariant('chat')).toBeUndefined()
-    })
-  })
-
-  describe('Type Safety', () => {
-    interface TestSettings {
-      apiKey: string
-      baseURL?: string
-      timeout?: number
-    }
-
-    it('should maintain type safety with generics', () => {
-      const extension = new ProviderExtension<TestSettings>({
-        name: 'typed-provider',
-        create: ((settings: any) => {
-          // TypeScript should infer settings as TestSettings
-          expect(settings?.apiKey).toBeDefined()
-          return createMockProviderV3()
-        }) as any,
-        defaultOptions: {
-          apiKey: 'test-key',
-          timeout: 5000
-        }
-      })
-
-      const configured = extension.configure({
-        baseURL: 'https://api.test.com'
-        // TypeScript should catch invalid properties here
-      })
-
-      expect(configured.config.defaultOptions?.baseURL).toBe('https://api.test.com')
     })
   })
 

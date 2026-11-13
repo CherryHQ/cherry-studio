@@ -3,9 +3,10 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 import { BACKGROUND_CONTEXT as context } from '@earendil-works/chord/context'
-import { createModels, fauxAssistantMessage, fauxProvider, fauxToolCall, Type } from '@earendil-works/pi-ai'
+import { createModels, fauxAssistantMessage, fauxProvider, fauxToolCall } from '@earendil-works/pi-ai'
 import { createRegistry, defineExtension, defineTool, Harness, LiveDoc } from '@earendil-works/pi-durable'
 import { openNodeSqliteStorage } from '@earendil-works/pi-durable/storage/sqlite/node'
+import { obj } from '@earendil-works/pi-schema'
 import { expect, it } from 'vitest'
 
 function gate() {
@@ -33,7 +34,7 @@ it('binds steers at consumption, retains run usage identity, and reopens without
         defineTool({
           name: 'hold',
           description: 'Wait',
-          parameters: Type.Object({}),
+          parameters: obj({}),
           replay: 'safe',
           async execute() {
             reached.resolve()

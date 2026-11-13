@@ -73,7 +73,7 @@ icon: circle-question
 
 <summary>支持哪些来源和文件格式？</summary>
 
-来源包括文件、Cherry Studio 笔记、本地目录和网页链接。文件格式包括 PDF、DOCX、DOC、PPTX、XLSX、XLS、Markdown、TXT、CSV、HTML 和 EPUB。
+来源包括文件、Cherry Studio 笔记、本地目录和网页链接。文件格式包括 PDF、DOCX、DOC、PPTX、XLSX、XLS、ODT、ODP、ODS、RTF、Markdown、TXT、CSV、HTML 和 EPUB。
 
 </details>
 

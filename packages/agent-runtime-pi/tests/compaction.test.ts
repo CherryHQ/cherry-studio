@@ -1,6 +1,7 @@
 import type { AssistantMessage } from '@earendil-works/pi-ai'
-import { normalizeContext, Type } from '@earendil-works/pi-ai'
+import { normalizeContext } from '@earendil-works/pi-ai'
 import { defineTool } from '@earendil-works/pi-coding-agent'
+import { Type } from 'typebox'
 import { describe, expect, it } from 'vitest'
 
 import type { CompactionSummarizer, CompactionSummaryRequest } from '../src/compaction'

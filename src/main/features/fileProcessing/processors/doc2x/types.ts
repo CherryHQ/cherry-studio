@@ -32,17 +32,41 @@ export const Doc2xPreuploadDataSchema = z.object({
   url: Doc2xUrlSchema
 })
 
+export const Doc2xLayoutBlockSchema = z.object({
+  id: z.string(),
+  type: z.string(),
+  text: z.string().default(''),
+  bbox: z.array(z.number()).length(4),
+  reading_order: z.number().int(),
+  parent_id: z.string().default(''),
+  src: z.string().default(''),
+  linking: z.record(z.string(), z.unknown()).optional(),
+  attributes: z.record(z.string(), z.unknown()).optional(),
+  table_data: z
+    .object({
+      html: z.string()
+    })
+    .optional()
+})
+
+export const Doc2xLayoutSchema = z.object({
+  blocks: z.array(Doc2xLayoutBlockSchema)
+})
+
 export const Doc2xParsePageSchema = z.object({
   url: Doc2xParsePageUrlSchema,
   page_idx: z.number(),
   page_width: z.number().optional(),
   page_height: z.number().optional(),
   md: z.string().optional(),
-  score: z.number().optional()
+  score: z.number().optional(),
+  layout: Doc2xLayoutSchema.optional()
 })
 
 export const Doc2xParseResultSchema = z.object({
-  pages: z.array(Doc2xParsePageSchema).default([])
+  version: z.string().optional(),
+  pages: z.array(Doc2xParsePageSchema).default([]),
+  inplace_pages: z.unknown().nullable().optional()
 })
 
 export const Doc2xParseStatusDataSchema = z.object({
@@ -67,14 +91,22 @@ export type PreparedDoc2xContext = {
   signal?: AbortSignal
 }
 
+export type Doc2xFormulaLevel = 0 | 1 | 2
+
 export type PreparedDoc2xStartContext = PreparedDoc2xContext & {
   file: FileInfo
   modelVersion?: string
+  formulaLevel?: Doc2xFormulaLevel
+  mergeCrossPageForms?: boolean
 }
 
 export type PreparedDoc2xQueryContext = PreparedDoc2xContext
 
 export type Doc2xPreuploadData = z.infer<typeof Doc2xPreuploadDataSchema>
+export type Doc2xLayoutBlock = z.infer<typeof Doc2xLayoutBlockSchema>
+export type Doc2xLayout = z.infer<typeof Doc2xLayoutSchema>
+export type Doc2xParsePage = z.infer<typeof Doc2xParsePageSchema>
+export type Doc2xParseResult = z.infer<typeof Doc2xParseResultSchema>
 export type Doc2xParseStatusData = z.infer<typeof Doc2xParseStatusDataSchema>
 export type Doc2xExportStatusData = z.infer<typeof Doc2xExportStatusDataSchema>
 export type Doc2xPreuploadResponse = z.infer<typeof Doc2xPreuploadResponseSchema>

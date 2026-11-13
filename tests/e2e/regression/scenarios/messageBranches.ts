@@ -11,7 +11,7 @@ import type { IpcResult } from '@shared/ipc/errors/IpcError'
 import { getSensitiveConfigValues } from '../../../../scripts/e2e/regression/config'
 import { captureMaskedScreenshot } from '../../../../scripts/e2e/regression/screenshotEvidence'
 import { startMockChatServer } from '../../../helpers/http/mockChatServer'
-import { sendChatMarker } from '../helpers/chat'
+import { sendChatMarker, submitChatMarker } from '../helpers/chat'
 import { selectSidebarApp } from '../helpers/navigation'
 import type { RegressionApp } from '../RegressionApp'
 
@@ -156,7 +156,12 @@ export async function messageBranches(app: RegressionApp, page: Page, testInfo: 
     const userMessage = () => messages.filter({ has: page.locator('.message-user') }).first()
     await userMessage().hover()
     await userMessage().getByRole('button', { name: 'Edit', exact: true }).click()
-    await Promise.all([sendChatMarker(page, second.prompt, second.answer), reply(second.prompt, second.answer)])
+    const composer = chat.locator('[data-ui~="chat.composer"] [contenteditable="true"]').first()
+    await expect(chat.locator('[data-composer-editing-header]')).toBeVisible()
+    await expect(composer).toHaveText(first.prompt)
+    await composer.fill(second.prompt)
+    await expect(composer).toHaveText(second.prompt)
+    await Promise.all([submitChatMarker(page, second.answer), reply(second.prompt, second.answer)])
     const editedMessages = await readMessages()
     expect(editedMessages.map(({ role }) => role)).toEqual(['user', 'assistant'])
     expect(editedMessages.every(({ id }) => !originalMessages.some((message) => message.id === id))).toBe(true)

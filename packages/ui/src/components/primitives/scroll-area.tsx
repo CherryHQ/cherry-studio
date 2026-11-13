@@ -57,12 +57,7 @@ function ScrollArea({
           )}>
           <ScrollAreaPrimitive.Thumb
             data-slot="scroll-area-thumb"
-            className={cn(
-              'relative flex-1 rounded-full border-solid border-transparent bg-[var(--scrollbar-thumb,color-mix(in_srgb,var(--foreground)_15%,transparent))] bg-clip-padding transition-[border-width,background-color] duration-150 group-hover/scrollbar:bg-[var(--scrollbar-thumb-hover,color-mix(in_srgb,var(--foreground)_20%,transparent))] motion-reduce:transition-none',
-              axis === 'vertical'
-                ? 'border-x-[3px] group-hover/scrollbar:border-x-0'
-                : 'border-y-[3px] group-hover/scrollbar:border-y-0'
-            )}
+            className="relative flex-1 rounded-full border-[1.5px] border-solid border-transparent bg-[var(--scrollbar-thumb,color-mix(in_srgb,var(--foreground)_15%,transparent))] bg-clip-padding transition-[border-width,background-color] duration-150 group-hover/scrollbar:border-0 group-hover/scrollbar:bg-[var(--scrollbar-thumb-hover,color-mix(in_srgb,var(--foreground)_20%,transparent))] motion-reduce:transition-none"
           />
         </ScrollAreaPrimitive.Scrollbar>
       ))}

@@ -726,7 +726,7 @@ const BinaryToolPresetCard: FC<{
       )}
 
       {canInstall && !failedRemove && (
-        <div className="mt-3 border-t border-border pt-3">
+        <div className="mt-3 pt-3">
           <Button
             variant="outline"
             size="sm"
@@ -894,7 +894,7 @@ const CustomToolCard: FC<{
       )}
 
       {canInstall && !failedRemove && (
-        <div className="mt-3 border-t border-border pt-3">
+        <div className="mt-3 pt-3">
           <Button
             variant="outline"
             size="sm"

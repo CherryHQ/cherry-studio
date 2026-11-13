@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto'
+import { once } from 'node:events'
 import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
@@ -16,6 +17,7 @@ import { appStateTable } from '@data/db/schemas/appState'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import type { RuntimeForkInput, RuntimeForkResult } from '@main/ai/runtime/fork'
+import { PiForkCheckpointSchema } from '@main/ai/runtime/pi/forkCheckpoint'
 import { preparePiBranch, reservePiBranchTx } from '@main/ai/runtime/pi/piContext'
 import { runtimeDriverRegistry } from '@main/ai/runtime/registry'
 import * as fileUtils from '@main/utils/file'
@@ -74,6 +76,7 @@ describe('Agent fork publication', () => {
     previous = runtimeDriverRegistry.getAgentSessionDriver('pi')
     runtimeDriverRegistry.register({
       type: 'pi',
+      isForkCheckpoint: (value) => PiForkCheckpointSchema.safeParse(value).success,
       validateSession() {},
       async connect() {
         throw new Error('Fork must not start a conversation')
@@ -151,6 +154,73 @@ describe('Agent fork publication', () => {
     await new AgentSessionForkOperations().recover()
     expect(await readForkResources()).toEqual([])
     await expect(readFile(publishedFile)).rejects.toMatchObject({ code: 'ENOENT' })
+  })
+
+  it('cancels a prepared native fork without publishing a child or retaining owned resources', async () => {
+    const prepared = Promise.withResolvers<void>()
+    beforeForkResult = async (input) => {
+      prepared.resolve()
+      await once(input.signal, 'abort')
+      input.signal.throwIfAborted()
+    }
+    const operations = new AgentSessionForkOperations()
+    const fork = operations.fork(sessionId, messageId)
+    const rejected = expect(fork).rejects.toMatchObject({ reason: 'cancelled' })
+    await prepared.promise
+    await operations.cancel(sessionId)
+    await rejected
+    expect(
+      dbh.db
+        .select()
+        .from(agentSessionTable)
+        .all()
+        .map((row) => row.id)
+    ).toEqual([sessionId])
+    expect(await readForkResources()).toEqual([])
+    await expect(readFile(publishedFile)).rejects.toMatchObject({ code: 'ENOENT' })
+  })
+
+  it('copies conversation content without inheriting approval authority or live task ownership', async () => {
+    const source = dbh.db
+      .select()
+      .from(agentSessionMessageTable)
+      .where(eq(agentSessionMessageTable.id, messageId))
+      .get()!
+    const parts = [
+      { type: 'text' as const, text: 'Preserved answer' },
+      {
+        type: 'dynamic-tool' as const,
+        toolName: 'bash',
+        toolCallId: 'live-approval',
+        state: 'approval-requested' as const,
+        input: { command: 'echo protected' },
+        approval: { id: 'source-approval' }
+      },
+      {
+        type: 'data-agent-task-event' as const,
+        data: { event: 'started' as const, taskId: 'live-task', status: 'in_progress' as const }
+      }
+    ]
+    dbh.db
+      .update(agentSessionMessageTable)
+      .set({ data: { ...source.data, parts } })
+      .where(eq(agentSessionMessageTable.id, messageId))
+      .run()
+    const childId = await new AgentSessionForkOperations().fork(sessionId, messageId)
+    const child = agentSessionMessageService.listSessionMessages(childId).items[0]
+    expect(child.data.parts).toEqual([
+      parts[0],
+      {
+        type: 'dynamic-tool',
+        toolName: 'bash',
+        toolCallId: 'live-approval',
+        input: { command: 'echo protected' },
+        state: 'output-error',
+        errorText: expect.any(String)
+      },
+      { type: 'data-agent-session-fork', data: { sourceSessionId: sessionId } }
+    ])
+    expect(agentSessionMessageService.getSessionMessage(sessionId, messageId).data.parts).toEqual(parts)
   })
 
   // Editing must never append the replacement to the old native prompt or partially delete a turn.
@@ -235,16 +305,8 @@ describe('Agent fork publication', () => {
             () => {}
           )
         ).rejects.toMatchObject({ reason: 'invalid_target' })
-        agentSessionMessageService.selectBranch(sessionId, tail[0].id)
-        expect(
-          agentSessionMessageService
-            .listSessionMessages(sessionId)
-            .items.toReversed()
-            .map((row) => row.id)
-        ).toEqual(outcome === 'commit' ? [messageId, ...tail.map((row) => row.id)] : tail.map((row) => row.id))
-        if (outcome === 'commit')
-          expect(agentSessionMessageService.getLastRuntimeResumeToken(sessionId)).toBe('native-parent')
-        agentSessionMessageService.selectBranch(sessionId, newId)
+        for (const row of tail) expect(() => agentSessionMessageService.getSessionMessage(sessionId, row.id)).toThrow()
+        expect(rows.at(-1)?.siblings).toEqual([newId])
         expect(agentSessionMessageService.getLastRuntimeResumeToken(sessionId)).toBe(
           outcome === 'commit' ? 'native-child' : null
         )
@@ -294,7 +356,7 @@ describe('Agent fork publication', () => {
         async () => {},
         () => {}
       )
-    ).rejects.toMatchObject({ reason: 'legacy_history' })
+    ).rejects.toMatchObject({ reason: 'checkpoint_unsupported' })
     expect(
       agentSessionMessageService
         .listSessionMessages(sessionId)
@@ -383,9 +445,12 @@ describe('Agent fork publication', () => {
       await entered.promise
       await owner.recover()
       const resources = (await readForkResources())[0]
-      expect(await readFile(path.join(resources.artifactDirectory, 'native.jsonl'), 'utf8')).toBe(
-        'native child history'
-      )
+      expect(
+        await readFile(
+          path.join(resources.artifactDirectory, (await readdir(resources.artifactDirectory))[0], 'native.jsonl'),
+          'utf8'
+        )
+      ).toBe('native child history')
     } finally {
       release.resolve()
     }

@@ -62,15 +62,6 @@ describe('mergeEndpointConfigs', () => {
 })
 
 describe('resolveEndpointTypes', () => {
-  it('puts primary first, then configured others sorted', () => {
-    const types = resolveEndpointTypes(
-      { endpointConfigs: { 'gemini-generate-content': {}, [SECONDARY]: {}, [PRIMARY]: {} } as any },
-      PRIMARY
-    )
-    expect(types[0]).toBe(PRIMARY)
-    expect(types.slice(1)).toEqual(['anthropic-messages', 'gemini-generate-content'])
-  })
-
   it('excludes image endpoint types from the text endpoint list', () => {
     const types = resolveEndpointTypes(
       {

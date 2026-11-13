@@ -218,7 +218,7 @@ const WebviewSearch: FC<WebviewSearchProps> = ({
       const guestTarget = event.target instanceof Element && event.target.tagName === 'WEBVIEW' ? event.target : null
       if (guestTarget && guestTarget !== webviewRef.current) return
 
-      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'f') {
+      if ((event.ctrlKey || event.metaKey) && !event.shiftKey && !event.altKey && event.key.toLowerCase() === 'f') {
         // Only the pane that owns the shortcut opens; the others must not, or
         // one keypress opens every mounted pane's search overlay.
         if (!guestTarget && !hostShortcutEnabled) return

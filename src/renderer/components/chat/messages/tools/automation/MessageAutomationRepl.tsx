@@ -10,7 +10,13 @@ import { getEffectiveStatus, ToolStatusIndicator } from '../shared/GenericTools'
 import { ToolApprovalOutcome } from '../shared/ToolApprovalOutcome'
 import { ToolDisclosure } from '../shared/ToolDisclosure'
 import type { ToolResponseLike } from '../toolResponse'
-import { formatAutomationReplOutput, getAutomationReplKind, parseAutomationReplOutput } from './automationRepl'
+import {
+  getAutomationCell,
+  formatAutomationReplOutput,
+  getAutomationReplKind,
+  parseAutomationReplOutput
+} from './automationRepl'
+import { ComputerUseAppIcons } from './ComputerUseAppIcons'
 
 export const MessageAutomationRepl = memo(({ toolResponse }: { toolResponse: ToolResponseLike }) => {
   const { t } = useTranslation()
@@ -38,7 +44,10 @@ export const MessageAutomationRepl = memo(({ toolResponse }: { toolResponse: Too
             key: id,
             label: (
               <span className="flex min-w-0 items-center gap-2">
-                <Icon aria-hidden="true" className="size-3.5 shrink-0" />
+                <ComputerUseAppIcons
+                  cell={getAutomationCell(response)}
+                  fallback={<Icon aria-hidden="true" className="size-3.5 shrink-0" />}
+                />
                 <span className="min-w-0 truncate">
                   {kind === 'reset'
                     ? t('message.tools.automation.reset')

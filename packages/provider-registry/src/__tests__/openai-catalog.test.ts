@@ -94,8 +94,11 @@ describe('OpenAI catalog', () => {
       apiModelId,
       endpointTypes: ['openai-image-generation', 'openai-image-edit']
     })
+    expect(model?.imageGeneration?.modes.generate?.supports?.frameCount).toMatchObject({ min: 2, max: 16, default: 9 })
     for (const mode of ['generate', 'edit'] as const) {
       const support = model?.imageGeneration
+      expect(support?.modes[mode]?.supports?.outputFormat).toMatchObject({ options: ['png', 'jpeg', 'webp', 'gif'] })
+      expect(support?.modes[mode]?.supports?.frameDurationMs).toMatchObject({ min: 20, max: 655350 })
       expect(support?.modes[mode]?.supports).toMatchObject({
         quality: { type: 'enum', options: ['auto', 'low', 'medium', 'high'] },
         size: { type: 'enum', options: ['auto', '1024x1024', '1536x1024', '1024x1536'] },

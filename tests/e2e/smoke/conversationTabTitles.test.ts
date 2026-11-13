@@ -1,30 +1,8 @@
-import { _electron as electron } from '@playwright/test'
 import * as z from 'zod'
 
 import { selectSidebarApp } from '../regression/navigation'
-import { expect, test as base } from './fixtures/electron.fixture'
+import { expect, test } from './fixtures/electron.fixture'
 import { uiLocator } from './utils/uiLocator'
-
-const test = base.extend({
-  electronApp: async ({}, provideApp, testInfo) => {
-    const env: NodeJS.ProcessEnv = {
-      ...process.env,
-      NODE_ENV: 'development',
-      CS_DEV_PROFILE_ROOT: testInfo.outputPath('profile')
-    }
-    delete env.ELECTRON_RENDERER_URL
-    const app = await electron.launch({
-      args: ['.'],
-      env: Object.fromEntries(Object.entries(env).filter((entry): entry is [string, string] => entry[1] !== undefined)),
-      timeout: 60_000
-    })
-    try {
-      await provideApp(app)
-    } finally {
-      await app.close()
-    }
-  }
-})
 
 test('Chat tabs display their own topic names and update a background tab after renaming', async ({
   mainWindow: page

@@ -1,12 +1,12 @@
 import { existsSync, readFileSync } from 'node:fs'
 
-import { Type } from '@earendil-works/pi-ai'
 import {
   createToolSearchExtension,
   defineTool,
   type ExtensionFactory,
   SessionManager
 } from '@earendil-works/pi-coding-agent'
+import { obj } from '@earendil-works/pi-schema'
 import { expect, it } from 'vitest'
 
 import { assistantReply, createTestSession, plain, scriptedModel, tempDir } from './sessionSupport'
@@ -73,7 +73,7 @@ it('restores activated tools beside newly enabled tools from native state', asyn
     name: 'get_weather',
     label: 'Weather',
     description: 'Weather forecast',
-    parameters: Type.Object({}),
+    parameters: obj({}),
     exposure: 'deferred',
     execute: async () => ({ content: [{ type: 'text' as const, text: 'Sunny' }], details: {} })
   })
@@ -81,7 +81,7 @@ it('restores activated tools beside newly enabled tools from native state', asyn
     name: 'host_new',
     label: 'New',
     description: 'Newly enabled tool',
-    parameters: Type.Object({}),
+    parameters: obj({}),
     execute: async () => ({ content: [{ type: 'text' as const, text: 'Done' }], details: {} })
   })
   const first = scriptedModel([

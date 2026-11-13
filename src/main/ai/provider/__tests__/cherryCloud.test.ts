@@ -137,21 +137,23 @@ describe('Cherry Cloud provider transport', () => {
     expect(mocks.authenticatedFetch).not.toHaveBeenCalled()
   })
 
-  it('rejects quota-exhausted models before sending a provider request', async () => {
+  it('lets the server refuse a quota-exhausted model so the plan wording reaches the caller', async () => {
     mocks.syncEntitledModelsIfStale.mockResolvedValueOnce({
       entitledModelIds: [MODEL_ID],
       freeModelIds: [MODEL_ID],
       availableModelIds: { agent: [], general: [MODEL_ID] },
       quotaExhaustedModelIds: [MODEL_ID]
     })
+    const refusal = { error: { code: 'QUOTA_EXHAUSTED', type: 'quota_error', message: 'Cherry Plus quota is used up' } }
+    mocks.authenticatedFetch.mockResolvedValueOnce(Response.json(refusal, { status: 429 }))
 
     const config = buildCherryCloudProviderConfig(ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, undefined, MODEL_ID)
-    await expect(
-      config.providerSettings.fetch!('https://cloud.cherryai.com.cn/v1/chat/completions', {
-        method: 'POST',
-        body: '{}'
-      })
-    ).rejects.toBeInstanceOf(ModelUnavailableError)
+    const response = await config.providerSettings.fetch!('https://cloud.cherryai.com.cn/v1/chat/completions', {
+      method: 'POST',
+      body: '{}'
+    })
+    expect(response.status).toBe(429)
+    expect(await response.json()).toEqual(refusal)
   })
 
   it('fails closed when model availability cannot be refreshed', async () => {
@@ -170,10 +172,10 @@ describe('Cherry Cloud provider transport', () => {
     'uses a configured fallback after cloud admission fails during %s',
     async (mode) => {
       mocks.syncEntitledModelsIfStale.mockResolvedValue({
-        entitledModelIds: [MODEL_ID],
+        entitledModelIds: [],
         freeModelIds: [],
-        availableModelIds: { agent: [], general: [MODEL_ID] },
-        quotaExhaustedModelIds: [MODEL_ID]
+        availableModelIds: { agent: [], general: [] },
+        quotaExhaustedModelIds: []
       })
       const config = buildCherryCloudProviderConfig(ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, undefined, MODEL_ID)
       const primary = createOpenAICompatible({

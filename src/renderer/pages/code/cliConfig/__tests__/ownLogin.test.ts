@@ -23,6 +23,8 @@ describe('ownLogin builders', () => {
     it('strips the Cherry model/provider and applies only the tool params', () => {
       const existing = {
         model: 'gpt-5-codex',
+        model_context_window: 1000000,
+        model_auto_compact_token_limit: 900000,
         model_provider: 'cherry-openai',
         model_providers: { 'cherry-openai': { base_url: 'x' }, 'user-provider': { base_url: 'y' } },
         approval_policy: 'never',
@@ -33,6 +35,8 @@ describe('ownLogin builders', () => {
       const result = buildCodexOwnLoginConfig(existing, { permissionMode: 'workspace', reasoningEffort: 'low' })
 
       // Cherry model + provider removed; the user's own provider entry survives.
+      expect(result).not.toHaveProperty('model_context_window')
+      expect(result).not.toHaveProperty('model_auto_compact_token_limit')
       expect(result.model).toBeUndefined()
       expect(result.model_provider).toBeUndefined()
       expect(result.model_providers).toEqual({ 'user-provider': { base_url: 'y' } })

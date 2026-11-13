@@ -43,7 +43,7 @@ export async function messageOperations(app: RegressionApp, page: Page, testInfo
       window.api.preference.setMultiple({
         'topic.naming.enabled': false,
         'menu.presentation_mode': 'cherry',
-        'feature.voice.speech.model_id': ''
+        'feature.voice.speech.model_id': 'mp28-unsupported-model'
       })
     )
     const provider = await page.evaluate(
@@ -273,9 +273,9 @@ export async function messageOperations(app: RegressionApp, page: Page, testInfo
       ])
     await messages.nth(3).hover()
     await messages.nth(3).getByRole('button', { name: 'Read aloud', exact: true }).click()
-    await expect(page.getByText('Not configured', { exact: true })).toBeVisible()
+    await expect(page.getByText('Not supported on this system', { exact: true })).toBeVisible()
     await expect(page.getByRole('button', { name: 'Open Voice Settings', exact: true })).toBeVisible()
-    await attachScreenshot('MP-28 regenerated reply and unconfigured speech warning')
+    await attachScreenshot('MP-28 regenerated reply and unsupported speech warning')
 
     const beforeDelete = await readMessages()
     const removedId = beforeDelete[3].id

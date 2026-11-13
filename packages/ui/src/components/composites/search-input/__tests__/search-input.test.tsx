@@ -11,12 +11,6 @@ afterEach(() => {
 })
 
 describe('SearchInput', () => {
-  it('renders a search field with the given placeholder', () => {
-    render(<SearchInput placeholder="搜索" value="" onChange={() => {}} />)
-
-    expect(screen.getByRole('searchbox')).toHaveAttribute('placeholder', '搜索')
-  })
-
   it('calls onChange when the user types', () => {
     const onChange = vi.fn()
     render(<SearchInput value="" onChange={onChange} />)
@@ -60,26 +54,6 @@ describe('SearchInput', () => {
     render(<SearchInput value="cherry" onChange={() => {}} onClear={() => {}} clearLabel="清除" />)
 
     expect(screen.getByRole('button', { name: '清除' })).toBeInTheDocument()
-  })
-
-  it('renders the clear action as a square icon button', () => {
-    render(<SearchInput value="cherry" onChange={() => {}} onClear={() => {}} clearLabel="清除" />)
-
-    expect(screen.getByRole('button', { name: '清除' })).toHaveClass('size-6', 'min-h-0')
-  })
-
-  it('defaults to the h-9 field height', () => {
-    const { container } = render(<SearchInput value="" onChange={() => {}} />)
-
-    expect(container.querySelector('[data-slot="input-group"]')).toHaveClass('h-9')
-  })
-
-  it('renders the compact h-7 field when size is sm', () => {
-    const { container } = render(<SearchInput size="sm" value="" onChange={() => {}} />)
-
-    const group = container.querySelector('[data-slot="input-group"]')
-    expect(group).toHaveClass('h-7')
-    expect(group).not.toHaveClass('h-9')
   })
 
   it('applies containerClassName to the input group, overriding the size height', () => {

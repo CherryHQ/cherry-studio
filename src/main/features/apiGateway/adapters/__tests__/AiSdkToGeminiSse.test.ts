@@ -28,6 +28,16 @@ function run(chunks: readonly UIMessageChunk[]): GeminiGenerateContentResponse[]
 }
 
 describe('AiSdkToGeminiSse (streaming)', () => {
+  it.each([{ chunks: [] }, { chunks: [textDelta('Answer')] }])(
+    'retains the billing response identity in both final responses: %j',
+    ({ chunks }) => {
+      const adapter = new AiSdkToGeminiSse({ model: 'test-model', messageId: 'billing-response' })
+      for (const chunk of chunks) adapter.transformChunk(chunk)
+      expect(adapter.finalizeEvents().at(-1)?.responseId).toBe('billing-response')
+      expect(adapter.buildNonStreamingResponse().responseId).toBe('billing-response')
+    }
+  )
+
   it('emits one delta frame per text-delta, then a terminal finishReason frame', () => {
     const frames = run([textDelta('Hello'), textDelta(' world'), finish('stop')])
     expect(frames.slice(0, 2)).toEqual([

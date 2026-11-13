@@ -1,5 +1,7 @@
 import { spawn } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
+import { homedir } from 'node:os'
+import path from 'node:path'
 
 import {
   query,
@@ -54,6 +56,14 @@ interface Input {
   resolve: (result: SubmitResult) => void
 }
 
+// Any explicit CLAUDE_CONFIG_DIR, even the CLI's own default, re-keys the macOS Keychain
+// credential and hides an existing `claude /login`, so only a non-default directory is passed.
+function childEnvironment(env: ClaudeSessionOptions['env'], configDir: string) {
+  const childEnv: Record<string, string | undefined> = { ...env, CLAUDE_CONFIG_DIR: configDir }
+  if (path.resolve(configDir) === path.join(homedir(), '.claude')) delete childEnv.CLAUDE_CONFIG_DIR
+  return childEnv
+}
+
 export class ClaudeOwner {
   readonly projections = new Map<string, ClaudeProjection>()
   private readonly tasks = new Map<string, Task>()
@@ -64,6 +74,7 @@ export class ClaudeOwner {
   private wake?: () => void
   private readonly contextWindows = new Map<string, number>()
   private contextEpoch = 0
+  private contextRead = 0
   private contextModel?: string
   private liveInputUsage: Partial<
     Pick<
@@ -173,25 +184,30 @@ export class ClaudeOwner {
       return rejected('contextUsage', 'closed')
     if (!this.sdk) return { status: 'unknown', error: runtimeError('contextUsage', 'not-connected') }
     const epoch = this.contextEpoch
+    const read = ++this.contextRead
+    let result: OperationResult<ThreadContextUsage>
     try {
       const native = await this.sdk.getContextUsage()
-      if (this.closing || this.lost || this.resetFrom) return rejected('contextUsage', 'closed')
-      if (epoch !== this.contextEpoch || projection.thread.id !== this.activeSession)
-        return { status: 'unknown', error: runtimeError('contextUsage', 'context-changed') }
       const window = this.contextWindow(native.model)
-      if (!window) return { status: 'unknown', error: runtimeError('contextUsage', 'unknown-window') }
-      const value = normalizeContextUsage(native, window)
-      const result = {
-        status: 'confirmed' as const,
-        value: { ...value, revision: `${this.activeSession}:${epoch}:${value.revision}` }
+      if (window) {
+        const value = normalizeContextUsage(native, window)
+        result = {
+          status: 'confirmed',
+          value: { ...value, revision: `${this.activeSession}:${epoch}:${value.revision}` }
+        }
+      } else {
+        result = { status: 'unknown', error: runtimeError('contextUsage', 'unknown-window') }
       }
-      if (JSON.stringify(projection.feed.snapshot.contextUsage) !== JSON.stringify(result))
-        projection.publish([{ type: 'context.changed', result }])
-      return result
     } catch (error) {
       this.report(error)
-      return { status: 'unknown', error: runtimeError('contextUsage', 'native-error') }
+      result = { status: 'unknown', error: runtimeError('contextUsage', 'native-error') }
     }
+    if (this.closing || this.lost || this.resetFrom) return rejected('contextUsage', 'closed')
+    if (epoch !== this.contextEpoch || read !== this.contextRead || projection.thread.id !== this.activeSession)
+      return { status: 'unknown', error: runtimeError('contextUsage', 'context-changed') }
+    if (JSON.stringify(projection.feed.snapshot.contextUsage) !== JSON.stringify(result))
+      projection.publish([{ type: 'context.changed', result }])
+    return result
   }
 
   private start(warm?: Parameters<ClaudeThreadHandle['claude']['start']>[0]): void {
@@ -207,7 +223,7 @@ export class ClaudeOwner {
           prompt: this.inputStream(),
           options: {
             ...this.config,
-            env: { ...this.config.env, CLAUDE_CONFIG_DIR: this.runtime.configDir },
+            env: childEnvironment(this.config.env, this.runtime.configDir),
             permissionMode: this.config.permissionMode ?? 'default',
             sessionId: this.fresh ? this.activeSession : undefined,
             resume: this.fresh ? undefined : this.activeSession,
@@ -478,7 +494,6 @@ export class ClaudeOwner {
     const projection =
       commandInput?.projection ?? (agentId ? this.projection(task?.sessionId ?? this.activeSession, agentId) : root)
     if (!agentId && 'parent_tool_use_id' in message && message.parent_tool_use_id) {
-      root.publish([{ type: 'gap', reason: 'mapping-reset' }])
       return
     }
     const events: ObservationPayload[] = []
@@ -503,12 +518,7 @@ export class ClaudeOwner {
       const event = message.event
       const usage =
         event.type === 'message_start' ? event.message.usage : event.type === 'message_delta' ? event.usage : undefined
-      const model =
-        event.type === 'message_start'
-          ? event.message.model
-          : projection.feed.snapshot.contextUsage?.status === 'confirmed'
-            ? projection.feed.snapshot.contextUsage.value.model
-            : this.config.model
+      const model = this.contextModel ?? this.config.model
       const window = model ? this.contextWindow(model) : undefined
       if (event.type === 'message_start') this.liveInputUsage = {}
       if (usage) {
@@ -534,12 +544,13 @@ export class ClaudeOwner {
           }
         })
     }
-    if (!agentId && message.type === 'system' && message.subtype === 'compact_boundary') {
+    const compactedContext =
+      !agentId && message.type === 'system' && message.subtype === 'compact_boundary'
+        ? { status: 'unknown' as const, error: runtimeError('contextUsage', 'compacted') }
+        : undefined
+    if (compactedContext) {
       this.contextEpoch++
-      events.push({
-        type: 'context.changed',
-        result: { status: 'unknown', error: runtimeError('contextUsage', 'compacted') }
-      })
+      events.push({ type: 'context.changed', result: compactedContext })
     }
     if (message.type === 'assistant') {
       events.push(...projection.remove(message.supersedes ?? []))
@@ -562,6 +573,7 @@ export class ClaudeOwner {
           break
         case 'compact_boundary':
           events.push({ type: 'gap', reason: 'mapping-reset' })
+          if (compactedContext) events.push({ ...projection.feed.snapshot, contextUsage: compactedContext })
           break
         case 'permission_denied':
           events.push(...projection.deny(message.tool_use_id))
@@ -797,7 +809,8 @@ export class ClaudeOwner {
       await Promise.race([
         Promise.all([this.pump, this.exit]),
         new Promise<void>((resolve) => {
-          timeout = setTimeout(resolve, 5000)
+          // SDK 0.3.311 escalates after 2s + 5s; allow exit delivery and source drain afterward.
+          timeout = setTimeout(resolve, 10_000)
         })
       ])
       clearTimeout(timeout)

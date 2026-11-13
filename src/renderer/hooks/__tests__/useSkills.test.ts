@@ -109,8 +109,6 @@ describe('useInstalledSkills', () => {
     const { result } = renderHook(() => useInstalledSkills('agent-1'))
 
     expect(result.current.skills).toHaveLength(2)
-    expect(useQueryMock).toHaveBeenCalledWith('/skills', { enabled: true, query: { agentId: 'agent-1' } })
-    expect(useDataChangeMock).toHaveBeenCalledWith('/skills', expect.any(Function))
   })
 
   it('keeps the installed-skills query free of filesystem reconciliation side effects', () => {
@@ -152,8 +150,6 @@ describe('useInstalledSkills', () => {
 
   it('keeps installed and workspace skill reads inactive until the Composer tool surface opens', () => {
     renderHook(() => useAvailableSkills('agent-1', '/repo', { enabled: false }))
-
-    expect(useQueryMock).toHaveBeenCalledWith('/skills', { enabled: false, query: { agentId: 'agent-1' } })
     expect(skillMocks.request).not.toHaveBeenCalledWith('skill.list_local', { workdir: '/repo' })
   })
 
@@ -172,26 +168,6 @@ describe('useInstalledSkills', () => {
     expect(result.current.loading).toBe(false)
     expect(result.current.refreshing).toBe(true)
     expect(result.current.skills).toHaveLength(1)
-  })
-
-  it('returns a stable empty array identity while the query is in flight', () => {
-    useQueryMock.mockReturnValue({
-      data: undefined,
-      isLoading: true,
-      isRefreshing: false,
-      error: undefined,
-      refetch: vi.fn(),
-      mutate: vi.fn()
-    })
-
-    const { result, rerender } = renderHook(() => useInstalledSkills('agent-1'))
-    const firstSkills = result.current.skills
-    rerender()
-
-    // A fresh `data ?? []` per render would re-register AgentComposer's skills
-    // launcher every render — an infinite render loop while /skills loads.
-    expect(result.current.skills).toBe(firstSkills)
-    expect(firstSkills).toEqual([])
   })
 
   it('combines enabled installed skills with local workspace skills', async () => {

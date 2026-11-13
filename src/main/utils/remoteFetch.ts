@@ -1,7 +1,10 @@
-import type { IncomingHttpHeaders } from 'node:http'
+import { createWriteStream } from 'node:fs'
+import type { IncomingHttpHeaders, IncomingMessage } from 'node:http'
 import { request as httpRequest } from 'node:http'
 import { request as httpsRequest, type RequestOptions } from 'node:https'
 import type { LookupFunction } from 'node:net'
+import { Transform } from 'node:stream'
+import { pipeline } from 'node:stream/promises'
 
 import { application } from '@application'
 
@@ -104,8 +107,9 @@ async function fetchRemoteResponse(
   url: string,
   options: ResolvedFetchRemoteTextOptions,
   signal: AbortSignal,
-  redirectsRemaining: number
-): Promise<{ body: Buffer; headers: IncomingHttpHeaders }> {
+  redirectsRemaining: number,
+  destination?: string
+): Promise<{ body: Buffer; headers: IncomingHttpHeaders; url: string }> {
   const target = await resolveRemoteFetchUrl(url, {
     signal,
     allowPrivateNetwork:
@@ -117,6 +121,7 @@ async function fetchRemoteResponse(
 
   return new Promise((resolve, reject) => {
     let settled = false
+    let fileResponse: IncomingMessage | undefined
 
     const fail = (error: Error): void => {
       if (settled) {
@@ -158,7 +163,10 @@ async function fetchRemoteResponse(
         settled = true
         response.resume()
         response.destroy()
-        void fetchRemoteResponse(redirectUrl.toString(), options, signal, redirectsRemaining - 1).then(resolve, reject)
+        void fetchRemoteResponse(redirectUrl.toString(), options, signal, redirectsRemaining - 1, destination).then(
+          resolve,
+          reject
+        )
         return
       }
 
@@ -177,30 +185,44 @@ async function fetchRemoteResponse(
         return
       }
 
-      const chunks: Buffer[] = []
       let totalBytes = 0
-
-      response.on('data', (chunk: Buffer | string) => {
-        if (settled) {
-          return
-        }
-
-        const buffer = typeof chunk === 'string' ? Buffer.from(chunk) : chunk
+      const checkChunk = (buffer: Buffer): Error | undefined => {
         totalBytes += buffer.length
-
         if (totalBytes > maxBytes) {
-          response.destroy()
-          fail(new Error(`Remote response too large: exceeded ${maxBytes} bytes`))
-          return
+          return new Error(`Remote response too large: exceeded ${maxBytes} bytes`)
         }
-
         if (options.byteBudget) {
           if (buffer.length > options.byteBudget.remaining) {
-            response.destroy()
-            fail(new Error('Remote responses exceeded the shared byte budget'))
-            return
+            return new Error('Remote responses exceeded the shared byte budget')
           }
           options.byteBudget.remaining -= buffer.length
+        }
+        return undefined
+      }
+
+      if (destination !== undefined) {
+        fileResponse = response
+        const limiter = new Transform({
+          transform(chunk: Buffer, _encoding, callback) {
+            callback(checkChunk(chunk), chunk)
+          }
+        })
+        void pipeline(response, limiter, createWriteStream(destination, { flags: 'wx' }), { signal }).then(() => {
+          settled = true
+          resolve({ body: Buffer.alloc(0), headers: response.headers, url: target.url })
+        }, fail)
+        return
+      }
+
+      const chunks: Buffer[] = []
+      response.on('data', (chunk: Buffer | string) => {
+        if (settled) return
+        const buffer = typeof chunk === 'string' ? Buffer.from(chunk) : chunk
+        const error = checkChunk(buffer)
+        if (error) {
+          response.destroy()
+          fail(error)
+          return
         }
         chunks.push(buffer)
       })
@@ -211,7 +233,7 @@ async function fetchRemoteResponse(
         }
 
         settled = true
-        resolve({ body: Buffer.concat(chunks), headers: response.headers })
+        resolve({ body: Buffer.concat(chunks), headers: response.headers, url: target.url })
       })
 
       response.on('aborted', () => fail(new Error('Remote response aborted before completion')))
@@ -219,7 +241,10 @@ async function fetchRemoteResponse(
       response.on('error', fail)
     })
 
-    clientRequest.on('error', fail)
+    clientRequest.on('error', (error) => {
+      if (fileResponse) fileResponse.destroy(error)
+      else fail(error)
+    })
     clientRequest.end()
   })
 }
@@ -237,6 +262,28 @@ export async function fetchRemoteBytes(
   url: string,
   options: FetchRemoteTextOptions = {}
 ): Promise<{ body: Buffer; headers: IncomingHttpHeaders }> {
+  const { body, headers } = await fetchRemoteBytesWithUrl(url, options)
+  return { body, headers }
+}
+
+/** Also expose the final validated URL for resolving relative links after redirects. */
+export async function fetchRemoteBytesWithUrl(
+  url: string,
+  options: FetchRemoteTextOptions = {}
+): Promise<{ body: Buffer; headers: IncomingHttpHeaders; url: string }> {
+  return fetchRemote(url, options)
+}
+
+/** Stream a bounded download into a new file; the caller owns cleanup if the download fails. */
+export async function fetchRemoteFile(
+  url: string,
+  destination: string,
+  options: FetchRemoteTextOptions = {}
+): Promise<void> {
+  await fetchRemote(url, options, destination)
+}
+
+async function fetchRemote(url: string, options: FetchRemoteTextOptions, destination?: string) {
   const maxRedirects = options.maxRedirects ?? 0
   if (!Number.isSafeInteger(maxRedirects) || maxRedirects < 0) {
     throw new Error('maxRedirects must be a non-negative safe integer')
@@ -244,5 +291,5 @@ export async function fetchRemoteBytes(
 
   const signal = buildSignal(options)
   const requestOptions: ResolvedFetchRemoteTextOptions = { ...options, headers: new Headers(options.headers) }
-  return fetchRemoteResponse(url, requestOptions, signal, maxRedirects)
+  return fetchRemoteResponse(url, requestOptions, signal, maxRedirects, destination)
 }

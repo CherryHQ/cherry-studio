@@ -1,4 +1,4 @@
-import { Type, type SystemMessage } from '@earendil-works/pi-ai'
+import { type SystemMessage } from '@earendil-works/pi-ai'
 import { measureSystemContext } from '@earendil-works/pi-ai/utils/context-usage'
 import {
   estimateMessageTokens,
@@ -11,6 +11,7 @@ import {
   estimateTokens,
   SessionManager
 } from '@earendil-works/pi-coding-agent'
+import { obj } from '@earendil-works/pi-schema'
 import { expect, it } from 'vitest'
 
 it.each([
@@ -24,13 +25,13 @@ it.each([
       content: 'Base',
       timestamp: 0,
       sections: { prompt: 'Second part', memory: 'Remember this', deleted: null },
-      toolsAdded: [{ name: 'ordinary_name', description: 'External lookup', parameters: Type.Object({}) }],
+      toolsAdded: [{ name: 'ordinary_name', description: 'External lookup', parameters: obj({}) }],
       contextSources: {
         sections: { memory: { kind: 'memory-files' } },
         tools: { ordinary_name: { kind: 'mcp-tools', source: 'server' } }
       }
     }
-    const deferred = [{ name: 'mcp_looking_name', description: 'Actually a system tool', parameters: Type.Object({}) }]
+    const deferred = [{ name: 'mcp_looking_name', description: 'Actually a system tool', parameters: obj({}) }]
     const parts = measureSystemContext(system, deferred, estimateCharacters, separator)
     expect(parts.filter((part) => part.state !== 'deferred').reduce((sum, part) => sum + part.tokens, 0)).toBe(
       estimate(system)

@@ -228,7 +228,7 @@ const { items, page, total, hasNext, hasPrev, nextPage, prevPage } =
 
 It manages the `page`/`limit` query params internally and resets to page 1 when
 the rest of the query changes. The full result also exposes `isLoading`,
-`isRefreshing`, `error`, `refresh`, and `reset`. Rejects cursor-paginated paths
+`isRefreshing`, `error`, `refresh`, `reset`, and `goToPage(page)`. The latter accepts a positive integer; consumers can return to the last valid page after a refreshed total shrinks. Rejects cursor-paginated paths
 at compile time.
 
 ### Cursor — `useInfiniteQuery` + `useInfiniteFlatItems`

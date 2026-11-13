@@ -120,7 +120,10 @@ export const defaultServiceInstances = {
   IpcApiService: mockIpcApiService,
   NotificationService: mockNotificationService,
   JobManager: mockJobManager,
-  PowerService: { preventSleep: vi.fn(() => ({ dispose: vi.fn() })) },
+  PowerService: {
+    preventSleep: vi.fn(() => ({ dispose: vi.fn() })),
+    onResume: vi.fn(() => ({ dispose: vi.fn() }))
+  },
   RuntimeActivityService: { begin: vi.fn(() => ({ dispose: vi.fn() })), hasActiveTasks: vi.fn(() => false) }
 } as const
 

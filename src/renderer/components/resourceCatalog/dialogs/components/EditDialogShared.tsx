@@ -30,7 +30,8 @@ import {
 } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { loggerService } from '@logger'
-import { ModelSelector, type ModelSelectorFilter } from '@renderer/components/ModelSelector'
+import { CherryCloudModelSelector as ModelSelector } from '@renderer/components/cherryCloud/CherryCloudModelSelector'
+import { type ModelSelectorFilter } from '@renderer/components/ModelSelector'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBase'
 import { useModelById } from '@renderer/hooks/useModel'
 import { toast } from '@renderer/services/toast'
@@ -542,7 +543,10 @@ export function EditDialogShell<TValues extends FieldValues>({
 
               <div className="flex min-h-0 min-w-0 flex-1 flex-col">
                 <ScrollArea
-                  viewportProps={{ ref: scrollContainerRef, className: 'px-6 pt-5 pb-3' }}
+                  viewportProps={{ ref: scrollContainerRef }}
+                  contentProps={{
+                    className: cn('px-6 pt-5 pb-3', (activeTab === 'prompt' || activeTab === 'memory') && 'h-full')
+                  }}
                   className="min-h-0 min-w-0 flex-1">
                   {children}
                 </ScrollArea>

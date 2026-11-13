@@ -1,10 +1,18 @@
 import { mockPreferenceState } from '@test-mocks/renderer/PreferenceService'
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
-import { Activity, type ReactNode, useState } from 'react'
+import userEvent from '@testing-library/user-event'
+import { Activity, type ReactNode, useRef, useState } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { CommandContextKeyProvider, CommandProvider } from '@renderer/components/command'
-import { TabIdContext, TabsContext, type TabsContextValue } from '@renderer/hooks/tab'
+import {
+  CommandContextKeyProvider,
+  CommandFocusScope,
+  CommandKeyboardLayer,
+  CommandProvider
+} from '@renderer/components/command'
+import { TabIdProvider } from '@renderer/components/layout/TabIdProvider'
+import { useCommandContextReader } from '@renderer/hooks/command'
+import { TabsContext, type TabsContextValue } from '@renderer/hooks/tab'
 import { isMac } from '@renderer/utils/platform'
 
 import { ResourceList } from '../base'
@@ -49,14 +57,33 @@ function List({ name }: { name: string }) {
     </>
   )
 }
-function Page({ name = 'chat', collapsed = [] }: { name?: string; collapsed?: string[] }) {
+function Page({
+  children,
+  name = 'chat',
+  collapsed = [],
+  listActive = true
+}: {
+  children?: ReactNode
+  name?: string
+  collapsed?: string[]
+  listActive?: boolean
+}) {
   const Provider = ResourceList.Provider<(typeof items)[number]>
+  const rootRef = useRef<HTMLDivElement>(null)
   return (
-    <TabIdContext value={name}>
-      <Provider items={items} groupBy={(item) => ({ id: item.group, label: item.group })} collapsedState={collapsed}>
-        <List name={name} />
-      </Provider>
-    </TabIdContext>
+    <CommandFocusScope rootRef={rootRef}>
+      <div ref={rootRef}>
+        <TabIdProvider tabId={name}>
+          <Provider
+            items={items}
+            groupBy={(item) => ({ id: item.group, label: item.group })}
+            collapsedState={collapsed}>
+            <ResourceList.Frame active={listActive}>{children ?? <List name={name} />}</ResourceList.Frame>
+          </Provider>
+          <textarea aria-label={`${name} composer`} />
+        </TabIdProvider>
+      </div>
+    </CommandFocusScope>
   )
 }
 function Root({ children, active = 'chat' }: { children: ReactNode; active?: string }) {
@@ -68,8 +95,20 @@ function Root({ children, active = 'chat' }: { children: ReactNode; active?: str
     </TabsContext>
   )
 }
-function pressDigit(digit: string) {
-  fireEvent.keyDown(window, { key: digit, code: `Digit${digit}`, ...modifier })
+function pressDigit(digit: string, page = 'chat') {
+  const composer = screen.getByRole('textbox', { name: `${page} composer` })
+  const event = new KeyboardEvent('keydown', {
+    key: digit,
+    code: `Digit${digit}`,
+    ...modifier,
+    bubbles: true,
+    cancelable: true
+  })
+  act(() => {
+    composer.focus()
+    composer.dispatchEvent(event)
+  })
+  return event.defaultPrevented
 }
 
 afterEach(() => {
@@ -79,6 +118,120 @@ afterEach(() => {
 })
 
 describe('conversation number shortcuts', () => {
+  it('continues switching after the focused conversation composer is replaced', async () => {
+    const user = userEvent.setup()
+    function Conversation() {
+      const [selected, setSelected] = useState('none')
+      useConversationListShortcuts((item) => setSelected(item.id))
+      return (
+        <>
+          <output aria-label="active conversation">{selected}</output>
+          <textarea key={selected} aria-label="Current conversation composer" />
+        </>
+      )
+    }
+    render(
+      <Root>
+        <Page>
+          <Conversation />
+        </Page>
+      </Root>
+    )
+    await user.click(screen.getByRole('textbox', { name: 'Current conversation composer' }))
+    for (const [digit, id] of [
+      ['1', 'pinned'],
+      ['2', 'recent'],
+      ['3', 'older'],
+      ['1', 'pinned']
+    ]) {
+      await user.keyboard(`{${modifierKey}>}${digit}{/${modifierKey}}`)
+      expect(screen.getByLabelText('active conversation')).toHaveTextContent(id)
+    }
+  })
+
+  it('blocks window-level conversation navigation while a keyboard layer is open', async () => {
+    const user = userEvent.setup()
+    const tree = (open: boolean) => (
+      <Root>
+        <Page />
+        <CommandKeyboardLayer element={null} active={open}>
+          {null}
+        </CommandKeyboardLayer>
+      </Root>
+    )
+    const view = render(tree(false))
+    await user.keyboard(`{${modifierKey}>}1{/${modifierKey}}`)
+    expect(screen.getByLabelText('chat')).toHaveTextContent('pinned')
+    view.rerender(tree(true))
+    await user.keyboard(`{${modifierKey}>}2{/${modifierKey}}`)
+    expect(screen.getByLabelText('chat')).toHaveTextContent('pinned')
+    view.rerender(tree(false))
+    await user.keyboard(`{${modifierKey}>}2{/${modifierKey}}`)
+    expect(screen.getByLabelText('chat')).toHaveTextContent('recent')
+  })
+
+  it('keeps navigation live when scope subscribers rerender the list with a new callback and order', () => {
+    function Selection({ prefix }: { prefix: string }) {
+      const [selected, setSelected] = useState('none')
+      useConversationListShortcuts((item) => setSelected(`${prefix}:${item.id}`))
+      return <output aria-label="subscribed selection">{selected}</output>
+    }
+    function SubscribedList({ prefix, collapsed }: { prefix: string; collapsed: string[] }) {
+      useCommandContextReader()
+      const Provider = ResourceList.Provider<(typeof items)[number]>
+      return (
+        <Provider
+          items={items.map((item) => ({ ...item }))}
+          groupBy={(item) => ({ id: item.group, label: item.group })}
+          collapsedState={collapsed}>
+          <Selection prefix={prefix} />
+        </Provider>
+      )
+    }
+    const tree = (prefix: string, collapsed: string[] = []) => (
+      <Root>
+        <Page collapsed={collapsed}>
+          <SubscribedList prefix={prefix} collapsed={collapsed} />
+        </Page>
+      </Root>
+    )
+    const view = render(tree('initial'))
+    expect(pressDigit('2')).toBe(true)
+    expect(screen.getByLabelText('subscribed selection')).toHaveTextContent('initial:recent')
+
+    view.rerender(tree('updated', ['pinned']))
+    expect(pressDigit('1')).toBe(true)
+    expect(screen.getByLabelText('subscribed selection')).toHaveTextContent('updated:recent')
+    expect(pressDigit('3')).toBe(false)
+  })
+
+  it.each(['chat', 'agent'])('switches %s conversations while its composer holds focus', (page) => {
+    render(
+      <Root active={page}>
+        <Page name={page} />
+      </Root>
+    )
+    expect(pressDigit('3', page)).toBe(true)
+    expect(screen.getByLabelText(page)).toHaveTextContent('older')
+    expect(screen.getByRole('textbox', { name: `${page} composer` })).toHaveFocus()
+  })
+
+  it('does not navigate a retained inactive list from the composer', () => {
+    const tree = (active: boolean) => (
+      <Root>
+        <Page listActive={active} />
+      </Root>
+    )
+    const view = render(tree(true))
+    expect(pressDigit('1')).toBe(true)
+    view.rerender(tree(false))
+    expect(pressDigit('2')).toBe(false)
+    expect(screen.getByLabelText('chat')).toHaveTextContent('pinned')
+    view.rerender(tree(true))
+    expect(pressDigit('2')).toBe(true)
+    expect(screen.getByLabelText('chat')).toHaveTextContent('recent')
+  })
+
   it('opens the visible position across pinned and recent groups, skipping collapsed groups and missing slots', () => {
     const view = render(
       <Root>
@@ -113,7 +266,7 @@ describe('conversation number shortcuts', () => {
     pressDigit('1')
     expect(screen.getByLabelText('chat')).toHaveTextContent('pinned')
     view.rerender(content('agent'))
-    pressDigit('2')
+    pressDigit('2', 'agent')
     expect(screen.getByLabelText('agent')).toHaveTextContent('recent')
     view.rerender(content('chat'))
     expect(screen.getByLabelText('chat')).toHaveTextContent('pinned')
@@ -160,7 +313,11 @@ describe('conversation number shortcuts', () => {
     fireEvent.keyDown(window, { key: isMac ? 'Control' : 'Alt', ...modifierState })
     await act(() => vi.advanceTimersByTime(500))
     expect(screen.getByLabelText('hint-pinned')).toHaveTextContent(isMac ? '⌃1' : 'Alt+1')
-    fireEvent.keyDown(window, { key: '1', ...modifierState })
+    fireEvent.keyDown(screen.getByRole('textbox', { name: 'chat composer' }), {
+      key: '1',
+      code: 'Digit1',
+      ...modifierState
+    })
     expect(screen.getByLabelText('chat')).toHaveTextContent('pinned')
     fireEvent.keyUp(window, { key: isMac ? 'Control' : 'Alt' })
     expect(screen.queryByLabelText('hint-pinned')).not.toBeInTheDocument()

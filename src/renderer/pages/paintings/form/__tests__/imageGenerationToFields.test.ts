@@ -335,4 +335,19 @@ describe('imageGenerationToFields', () => {
     expect(upscaleKeys).toContain('detail')
     expect(upscaleKeys).not.toContain('imageWeight')
   })
+  it('shows GIF timing only for animated output and offers complexity separately from quality', () => {
+    const support = ModelListSchema.parse(modelCatalog).models.find(
+      (model) => model.id === 'gpt-image-2-6-flare'
+    )?.imageGeneration
+    const fields = imageGenerationToFields(support)
+    const byKey = Object.fromEntries(fields.map((field) => [field.key, field]))
+    expect(staticOptions(byKey.complexity).map((option) => option.value)).toEqual(['low', 'medium', 'high'])
+    expect(staticOptions(byKey.outputFormat).map((option) => option.value)).toContain('gif')
+    expect(byKey.size?.condition?.({ outputFormat: 'gif' })).toBe(false)
+    expect(byKey.size?.condition?.({ outputFormat: 'png' })).toBe(true)
+    for (const key of ['frameCount', 'frameDurationMs']) {
+      expect(byKey[key]?.condition?.({ outputFormat: 'png' })).toBe(false)
+      expect(byKey[key]?.condition?.({ outputFormat: 'gif' })).toBe(true)
+    }
+  })
 })

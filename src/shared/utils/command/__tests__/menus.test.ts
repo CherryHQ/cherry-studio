@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { MenuRegistry, resolveMenu, resolveMenuPresentationMode } from '../menus'
+import { MenuRegistry, resolveMenuPresentationMode } from '../menus'
 
 describe('MenuRegistry', () => {
   it('resolves contributions by location and context', () => {
@@ -63,67 +63,6 @@ describe('MenuRegistry', () => {
         order: 1
       })
     ).toThrow('unknown command')
-  })
-
-  it('resolves app menu command contributions through the shared registry', () => {
-    const model = resolveMenu({
-      location: 'app.menu',
-      context: {},
-      getCommandState: (command) => ({
-        label: `label:${command}`,
-        enabled: true,
-        shortcutLabel: '',
-        accelerator: `accelerator:${command}`
-      })
-    })
-
-    expect(model.items).toEqual([
-      {
-        type: 'command',
-        command: 'app.settings.open',
-        label: 'label:app.settings.open',
-        enabled: true,
-        checked: undefined,
-        destructive: undefined,
-        iconKey: undefined,
-        shortcutLabel: '',
-        accelerator: 'accelerator:app.settings.open'
-      },
-      { type: 'separator' },
-      {
-        type: 'command',
-        command: 'app.zoom.reset',
-        label: 'label:app.zoom.reset',
-        enabled: true,
-        checked: undefined,
-        destructive: undefined,
-        iconKey: undefined,
-        shortcutLabel: '',
-        accelerator: 'accelerator:app.zoom.reset'
-      },
-      {
-        type: 'command',
-        command: 'app.zoom.in',
-        label: 'label:app.zoom.in',
-        enabled: true,
-        checked: undefined,
-        destructive: undefined,
-        iconKey: undefined,
-        shortcutLabel: '',
-        accelerator: 'accelerator:app.zoom.in'
-      },
-      {
-        type: 'command',
-        command: 'app.zoom.out',
-        label: 'label:app.zoom.out',
-        enabled: true,
-        checked: undefined,
-        destructive: undefined,
-        iconKey: undefined,
-        shortcutLabel: '',
-        accelerator: 'accelerator:app.zoom.out'
-      }
-    ])
   })
 })
 

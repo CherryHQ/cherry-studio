@@ -9,6 +9,12 @@ vi.mock('@main/services/readableContent/readableContentWorker?nodeWorker', () =>
   })
 }))
 
+vi.mock('@main/ai/messages/attachmentWorker?nodeWorker', () => ({
+  default: vi.fn(() => {
+    throw new Error('Attachment worker factory must be mocked by tests that invoke it')
+  })
+}))
+
 // Mock LoggerService globally for main process tests
 vi.mock('@logger', async () => {
   const { MockMainLoggerService, mockMainLoggerService } = await import('./__mocks__/MainLoggerService')

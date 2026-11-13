@@ -9,6 +9,7 @@
  */
 
 import type { LanguageModelV3CallOptions, LanguageModelV3FunctionTool, LanguageModelV3Message } from '@ai-sdk/provider'
+import type { ProviderOptions } from '@ai-sdk/provider-utils'
 import type { LanguageModelMiddleware } from 'ai'
 import { estimateTokenCount } from 'tokenx'
 
@@ -249,11 +250,28 @@ function clampCacheMarkers(params: LanguageModelV3CallOptions, selected: Set<str
   return result === params ? params : clampCacheMarkers(result as LanguageModelV3CallOptions, selected)
 }
 
+function hasExplicitCacheControl(value: { providerOptions?: ProviderOptions }): boolean {
+  const options = value.providerOptions?.anthropic
+  return options?.cacheControl != null || options?.cache_control != null
+}
+
 export async function transformAnthropicCacheParams(
   params: LanguageModelV3CallOptions,
   provider: Provider,
-  assistant: Assistant | undefined
+  assistant: Assistant | undefined,
+  callerOwned = false
 ): Promise<LanguageModelV3CallOptions> {
+  if (
+    callerOwned &&
+    (hasExplicitCacheControl(params) ||
+      params.tools?.some((tool) => isFunctionTool(tool) && hasExplicitCacheControl(tool)) ||
+      params.prompt.some(
+        (message) =>
+          hasExplicitCacheControl(message) ||
+          (Array.isArray(message.content) && message.content.some(hasExplicitCacheControl))
+      ))
+  )
+    return params
   const settings = resolveAnthropicCacheSettings(provider)
   if (!settings.enabled) return params
   if (!Array.isArray(params.prompt)) return params
@@ -328,20 +346,24 @@ export async function transformAnthropicCacheParams(
   )
 }
 
-function anthropicCacheMiddleware(provider: Provider, assistant: Assistant | undefined): LanguageModelMiddleware {
+function anthropicCacheMiddleware(
+  provider: Provider,
+  assistant: Assistant | undefined,
+  callerOwned: boolean
+): LanguageModelMiddleware {
   return {
     specificationVersion: 'v3',
-    transformParams: async ({ params }) => transformAnthropicCacheParams(params, provider, assistant)
+    transformParams: async ({ params }) => transformAnthropicCacheParams(params, provider, assistant, callerOwned)
   }
 }
 
-function createAnthropicCachePlugin(provider: Provider, assistant: Assistant | undefined) {
+function createAnthropicCachePlugin(provider: Provider, assistant: Assistant | undefined, callerOwned: boolean) {
   return definePlugin({
     name: 'anthropic-cache',
     enforce: 'pre',
     configureContext: (context) => {
       context.middlewares = context.middlewares || []
-      context.middlewares.push(anthropicCacheMiddleware(provider, assistant))
+      context.middlewares.push(anthropicCacheMiddleware(provider, assistant, callerOwned))
     }
   })
 }
@@ -350,5 +372,7 @@ export const anthropicCacheFeature: RequestFeature = {
   name: 'anthropic-cache',
   applies: (scope) =>
     scope.endpointType === ENDPOINT_TYPE.ANTHROPIC_MESSAGES && resolveAnthropicCacheSettings(scope.provider).enabled,
-  contributeModelAdapters: (scope) => [createAnthropicCachePlugin(scope.provider, scope.assistant)]
+  contributeModelAdapters: (scope) => [
+    createAnthropicCachePlugin(scope.provider, scope.assistant, scope.request.contextOwner === 'caller')
+  ]
 }

@@ -6,7 +6,12 @@ import { loggerService } from '@logger'
 import { AgentSessionForkError, type RuntimeForkInput, type RuntimeForkResult } from '@main/ai/runtime/fork'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 
-import { claudeWorkspaceRelocation, createClaudeCodeRuntimeDriver, readClaudeTranscriptEvidence } from './claudeCode'
+import {
+  ClaudeForkCheckpointSchema,
+  claudeWorkspaceRelocation,
+  createClaudeCodeRuntimeDriver,
+  readClaudeTranscriptEvidence
+} from './claudeCode'
 import { listEntries, reclaimStale } from './orphanSessionReclaim'
 import { PiRuntimeDriver } from './pi/PiRuntimeDriver'
 import { PiDurableRuntimeDriver } from './piDurable/PiDurableRuntimeDriver'
@@ -23,6 +28,10 @@ const logger = loggerService.withContext('LazyClaudeCodeRuntimeDriver')
 class LazyClaudeCodeRuntimeDriver implements AgentSessionRuntimeDriver {
   readonly workspaceRelocation = claudeWorkspaceRelocation
   readonly type = 'claude-code'
+
+  isForkCheckpoint(value: unknown): boolean {
+    return ClaudeForkCheckpointSchema.safeParse(value).success
+  }
 
   private implementationPromise: Promise<AgentSessionRuntimeDriver> | undefined
 

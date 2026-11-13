@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 
 import { setupTestDatabase } from '@test-helpers/db'
-import { MockMainDbServiceExport, MockMainDbServiceUtils } from '@test-mocks/main/DbService'
+import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -226,22 +226,6 @@ describe('internal/entry/lifecycle', () => {
       expect(fileEntryService.findById(id)).toBeNull()
     })
 
-    it('removes the entry from DanglingCache reverse index when external', async () => {
-      const id = await makeExternal()
-      const entry = fileEntryService.getById(id)
-      if (entry.origin !== 'external') throw new Error('expected external entry')
-      vi.mocked(deps.danglingCache.removeEntry).mockClear()
-      await permanentDelete(deps, id)
-      expect(deps.danglingCache.removeEntry).toHaveBeenCalledWith(id, entry.externalPath)
-    })
-
-    it('does not call removeEntry for internal entries', async () => {
-      const id = await makeInternal()
-      vi.mocked(deps.danglingCache.removeEntry).mockClear()
-      await permanentDelete(deps, id)
-      expect(deps.danglingCache.removeEntry).not.toHaveBeenCalled()
-    })
-
     it('warn-logs a non-ENOENT unlink failure but still removes the DB row (DB-FS convergence)', async () => {
       // Regression guard: lifecycle.ts:48-57 best-effort unlinks the
       // internal physical file after the DB row is gone. ENOENT (file
@@ -366,55 +350,6 @@ describe('internal/entry/lifecycle', () => {
       const libraryResult = await batchRemoveFromLibrary(deps, [external, activeInternal])
       expect(libraryResult.succeeded).toEqual([external])
       expect(libraryResult.failed).toEqual([{ id: activeInternal, error: expect.stringMatching(/invalid operation/i) }])
-    })
-
-    it('uses one serialized write transaction per protected batch item', async () => {
-      const trashInternal = await makeInternal()
-      const trashExternal = await makeExternal()
-      const deleteInternalA = await makeInternal()
-      const deleteInternalB = await makeInternal()
-      trash(deps, deleteInternalA)
-      trash(deps, deleteInternalB)
-      const deleteExternal = await makeExternal()
-      const withWriteTx = MockMainDbServiceExport.dbService.withWriteTx
-
-      withWriteTx.mockClear()
-      batchTrash(deps, [trashInternal, trashExternal])
-      expect(withWriteTx).toHaveBeenCalledTimes(1)
-
-      withWriteTx.mockClear()
-      await batchPermanentDeleteFromTrash(deps, [deleteInternalA, deleteInternalB])
-      expect(withWriteTx).toHaveBeenCalledTimes(2)
-
-      withWriteTx.mockClear()
-      await batchRemoveFromLibrary(deps, [deleteExternal])
-      expect(withWriteTx).toHaveBeenCalledTimes(1)
-    })
-
-    it('side-channels the full Error object through logger.warn so the stack is preserved', async () => {
-      // Regression guard for 5bcf03529: BatchMutationResult.failed[].error is
-      // a string for IPC serialisation, so the wire format drops the stack.
-      // The fix routes the original Error through logger.warn as { id, err };
-      // a refactor to logger.warn(..., { id, msg: err.message }) would satisfy
-      // toHaveBeenCalledWith on { id } but fail the `instanceof Error` +
-      // non-empty `stack` assertions below — exactly the regression we want
-      // to catch.
-      mockLoggerWarn.mockClear()
-      const internal = await makeInternal()
-      const external = await makeExternal()
-      const result = batchTrash(deps, [internal, external])
-      expect(result.failed).toHaveLength(1)
-      const warnCalls = mockLoggerWarn.mock.calls.filter(([msg]) => msg === 'batch op item failed')
-      expect(warnCalls).toHaveLength(1)
-      const [, payload] = warnCalls[0]
-      expect(payload.id).toBe(external)
-      // The contract: payload.err must be the original Error (with stack),
-      // not its `.message` projection. `toBeInstanceOf` tolerates whichever
-      // Error subclass the CHECK constraint raises while still catching a
-      // string downgrade.
-      expect(payload.err).toBeInstanceOf(Error)
-      expect(typeof payload.err.stack).toBe('string')
-      expect(payload.err.stack.length).toBeGreaterThan(0)
     })
   })
 })

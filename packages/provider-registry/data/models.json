@@ -7516,7 +7516,7 @@
     },
     {
       "capabilities": ["function-call", "image-recognition", "reasoning", "structured-output"],
-      "contextWindow": 1000000,
+      "contextWindow": 1048576,
       "family": "deepseek-flash",
       "id": "deepseek-flash",
       "inputModalities": ["text", "image"],
@@ -7932,15 +7932,22 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output"],
+      "capabilities": ["function-call", "image-recognition", "reasoning", "structured-output"],
       "contextWindow": 1048576,
+      "family": "deepseek-flash",
       "id": "deepseek-v4-1-flash",
       "inputModalities": ["text", "image"],
+      "maxOutputTokens": 393216,
       "metadata": {},
-      "name": "DeepSeek: DeepSeek V4.1 Flash",
+      "name": "DeepSeek V4.1 Flash",
+      "openWeights": true,
       "outputModalities": ["text"],
       "ownedBy": "deepseek",
       "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.006
+        },
         "input": {
           "currency": "USD",
           "perMillionTokens": 0.3
@@ -18451,11 +18458,33 @@
                 "options": ["auto", "transparent", "opaque"],
                 "type": "enum"
               },
+              "complexity": {
+                "options": ["low", "medium", "high"],
+                "type": "enum"
+              },
+              "frameCount": {
+                "default": 9,
+                "max": 16,
+                "min": 2,
+                "step": 1,
+                "type": "range"
+              },
+              "frameDurationMs": {
+                "default": 200,
+                "max": 655350,
+                "min": 20,
+                "step": 10,
+                "type": "range"
+              },
               "numImages": {
                 "default": 1,
                 "max": 10,
                 "min": 1,
                 "type": "range"
+              },
+              "outputFormat": {
+                "options": ["png", "jpeg", "webp", "gif"],
+                "type": "enum"
               },
               "quality": {
                 "options": ["auto", "low", "medium", "high"],
@@ -18475,6 +18504,24 @@
                 "options": ["auto", "transparent", "opaque"],
                 "type": "enum"
               },
+              "complexity": {
+                "options": ["low", "medium", "high"],
+                "type": "enum"
+              },
+              "frameCount": {
+                "default": 9,
+                "max": 16,
+                "min": 2,
+                "step": 1,
+                "type": "range"
+              },
+              "frameDurationMs": {
+                "default": 200,
+                "max": 655350,
+                "min": 20,
+                "step": 10,
+                "type": "range"
+              },
               "moderation": {
                 "options": ["auto", "low"],
                 "type": "enum"
@@ -18484,6 +18531,10 @@
                 "max": 10,
                 "min": 1,
                 "type": "range"
+              },
+              "outputFormat": {
+                "options": ["png", "jpeg", "webp", "gif"],
+                "type": "enum"
               },
               "quality": {
                 "options": ["auto", "low", "medium", "high"],
@@ -18518,11 +18569,33 @@
                 "options": ["auto", "transparent", "opaque"],
                 "type": "enum"
               },
+              "complexity": {
+                "options": ["low", "medium", "high"],
+                "type": "enum"
+              },
+              "frameCount": {
+                "default": 9,
+                "max": 16,
+                "min": 2,
+                "step": 1,
+                "type": "range"
+              },
+              "frameDurationMs": {
+                "default": 200,
+                "max": 655350,
+                "min": 20,
+                "step": 10,
+                "type": "range"
+              },
               "numImages": {
                 "default": 1,
                 "max": 10,
                 "min": 1,
                 "type": "range"
+              },
+              "outputFormat": {
+                "options": ["png", "jpeg", "webp", "gif"],
+                "type": "enum"
               },
               "quality": {
                 "options": ["auto", "low", "medium", "high"],
@@ -18542,6 +18615,24 @@
                 "options": ["auto", "transparent", "opaque"],
                 "type": "enum"
               },
+              "complexity": {
+                "options": ["low", "medium", "high"],
+                "type": "enum"
+              },
+              "frameCount": {
+                "default": 9,
+                "max": 16,
+                "min": 2,
+                "step": 1,
+                "type": "range"
+              },
+              "frameDurationMs": {
+                "default": 200,
+                "max": 655350,
+                "min": 20,
+                "step": 10,
+                "type": "range"
+              },
               "moderation": {
                 "options": ["auto", "low"],
                 "type": "enum"
@@ -18551,6 +18642,10 @@
                 "max": 10,
                 "min": 1,
                 "type": "range"
+              },
+              "outputFormat": {
+                "options": ["png", "jpeg", "webp", "gif"],
+                "type": "enum"
               },
               "quality": {
                 "options": ["auto", "low", "medium", "high"],
@@ -23435,5 +23530,5 @@
       "ownedBy": "zhipu"
     }
   ],
-  "version": "db4181752729e17e"
+  "version": "6dbe101fa7cfc72b"
 }

@@ -107,6 +107,15 @@ selection state and DOM while content grows. Existing worker sessions parse the 
 Lezer/StreamLanguage and return semantic classes for requested lines. Pending or failed syntax work leaves complete
 plain source readable. Tiptap decorations and snapshot/HTML/Markdown worker jobs use the same parser classification.
 
+A newly visible viewer paints plain source before starting its first syntax request, even when the highlighter is
+already warm. Ready tokens then update the same rows. Off-screen requests and subsequent range updates retain their
+debounce; leaving the viewer or changing its pending range cancels the scheduled first request.
+
+Viewport entry and exit notify the viewer even when TanStack's row range stays unchanged. A short block can keep the
+same `[0, 0]` range on both sides of the viewport; waiting for a range change or scroll-end would leave its source
+hidden after a compensating scroll returns it to view. The element and window offset observers track this boundary
+using cached geometry, without rectangle reads during scroll dispatch.
+
 ### CodeEditor
 
 The edit action loads `CodeEditor`, showing the same Viewer while loading. CodeBlockView retains local EditorState

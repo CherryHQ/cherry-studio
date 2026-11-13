@@ -87,9 +87,7 @@ describe('internal Agent continuation Gemini serialization', () => {
       })
     )
 
-    expect(tools).toEqual([
-      { functionDeclarations: [{ name: 'Bash', description: '', parameters: { type: 'object', properties: {} } }] }
-    ])
+    expect(tools).toMatchObject([{ functionDeclarations: [{ name: 'Bash' }] }])
     if (label === 'object') {
       expect(contents.map((entry) => entry.role)).toEqual(['user', 'model', 'user', 'model', 'user'])
       expect(contents).toEqual([

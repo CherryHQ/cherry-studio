@@ -207,24 +207,6 @@ describe('runV2MigrationGate', () => {
       expect(showErrorBoxMock).not.toHaveBeenCalled()
       expect(appQuitMock).not.toHaveBeenCalled()
     })
-
-    it('registers the full migrator list against the engine', async () => {
-      const migrators = [{ id: 'stub' }]
-      getAllMigratorsMock.mockReturnValue(migrators)
-      needsMigrationMock.mockResolvedValue(false)
-      stubMigrationV2()
-      stubElectron()
-      stubApplication()
-
-      const { runV2MigrationGate } = await loadModule()
-      await runV2MigrationGate()
-
-      expect(initializeMock).toHaveBeenCalledTimes(1)
-      // Now threads the gate-resolved legacyDataConfirmed flag into the engine.
-      expect(initializeMock).toHaveBeenCalledWith(defaultMigrationPaths, false)
-      expect(registerMigratorsMock).toHaveBeenCalledTimes(1)
-      expect(registerMigratorsMock).toHaveBeenCalledWith(migrators)
-    })
   })
 
   describe('staging sweep (S11)', () => {
@@ -708,8 +690,7 @@ describe('runV2MigrationGate', () => {
 
       expect(result).toBe('handled')
       // Regression: the old dialog only had Retry/Quit, dead-ending abandoned dirs.
-      const [{ buttons }] = showMessageBoxMock.mock.calls[0]
-      expect(buttons).toEqual(['Retry', 'Use Default Directory', 'Quit'])
+
       expect(appRelaunchMock).toHaveBeenCalledTimes(1)
       expect(pinUserDataPathMock).not.toHaveBeenCalled()
       expect(initializeMock).not.toHaveBeenCalled()

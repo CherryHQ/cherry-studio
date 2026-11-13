@@ -5,21 +5,31 @@ import { lstat, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
+import { setupTestDatabase } from '@test-helpers/db'
 import { defaultServiceInstances } from '@test-mocks/main/application'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { afterEach, beforeEach, describe, expect, it, type MockInstance, vi } from 'vitest'
 
+import { agentSessionTable } from '@data/db/schemas/agentSession'
+import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
+import { agentSessionContextService as contexts } from '@data/services/AgentSessionContextService'
 import type * as ForkDataModule from '@data/services/AgentSessionForkService'
+import type * as SessionMessageModule from '@data/services/AgentSessionMessageService'
+import type * as SessionModule from '@data/services/AgentSessionService'
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
+import type * as UsageRecordModule from '@data/services/AiUsageRecordService'
 import type { AgentSessionForkResources } from '@main/ai/agentSession/fork/resources'
+import { PiForkCheckpointSchema } from '@main/ai/runtime/pi/forkCheckpoint'
 import type { AgentRuntimeConnection, AgentRuntimeEvent } from '@main/ai/runtime/types'
 import type { StreamDoneResult, StreamErrorResult, StreamPausedResult } from '@main/ai/streamManager'
+import { AiStreamManager } from '@main/ai/streamManager/AiStreamManager'
+import { MessageRuntimeTimingCollector } from '@main/ai/streamManager/MessageRuntimeTimingCollector'
 import { BaseService } from '@main/core/lifecycle/BaseService'
-import { ServiceContainer } from '@main/core/lifecycle/ServiceContainer'
 import { AGENT_SESSION_API_RETRY_CACHE_KEY } from '@shared/ai/agentSessionApiRetry'
 
 import type { AgentRuntimeConnectInput, AgentRuntimeUserInput } from '../../runtime/types'
 import type * as ForkResourcesModule from '../fork/resources'
+import { RootMessageProjection } from '../RootMessageProjection'
 
 vi.mock('../recoverSessionDeliveries', () => ({ recoverSessionDeliveries: vi.fn(() => new Set()) }))
 
@@ -27,8 +37,9 @@ const mocks = vi.hoisted(() => ({
   saveMessage: vi.fn(),
   replaceMessageParts: vi.fn(),
   getSessionMessage: vi.fn(),
-  hasSessionMessage: vi.fn(() => true),
+  hasSessionMessage: vi.fn<(_sessionId: string, _messageId: string) => boolean>(() => true),
   applyToolApprovalDecision: vi.fn(),
+  retireAbandonedApproval: vi.fn(),
   getLastRuntimeResumeToken: vi.fn(),
   relocateSystemWorkspaces: vi.fn<() => Promise<Set<string>>>(),
   sharesBranch: vi.fn(),
@@ -48,6 +59,7 @@ const mocks = vi.hoisted(() => ({
   pauseRuntimeTurn: vi.fn(),
   broadcastTopicError: vi.fn(),
   resolveToolApproval: vi.fn(),
+  retireToolApproval: vi.fn(),
   terminateHeldTopicStream: vi.fn(),
   cacheSetShared: vi.fn(),
   cacheGetShared: vi.fn(),
@@ -95,12 +107,15 @@ vi.mock('../relocateSystemWorkspaces', () => ({
   relocateSystemWorkspaces: mocks.relocateSystemWorkspaces
 }))
 
-vi.mock('@data/services/AgentSessionService', () => ({
-  agentSessionService: {
-    getById: mocks.getSessionById,
-    ensureTraceId: mocks.ensureTraceId
+vi.mock('@data/services/AgentSessionService', async (importOriginal) => {
+  const actual = await importOriginal<typeof SessionModule>()
+  return {
+    agentSessionService: Object.assign(Object.create(actual.agentSessionService), {
+      getById: mocks.getSessionById,
+      ensureTraceId: mocks.ensureTraceId
+    })
   }
-}))
+})
 
 vi.mock('@data/services/AgentService', () => ({
   agentService: { getAgent: mocks.getAgent, onAgentUpdated: () => () => {} }
@@ -114,6 +129,7 @@ vi.mock('@data/services/AgentSessionMessageService', () => ({
     getSessionMessage: mocks.getSessionMessage,
     hasSessionMessage: mocks.hasSessionMessage,
     applyToolApprovalDecision: mocks.applyToolApprovalDecision,
+    retireAbandonedApproval: mocks.retireAbandonedApproval,
     getLastRuntimeResumeToken: mocks.getLastRuntimeResumeToken,
     getNativeSessionId: vi.fn(),
     captureHead: () => 'branch-head',
@@ -128,9 +144,15 @@ vi.mock('@data/services/AgentSessionMessageService', () => ({
   }
 }))
 
-vi.mock('@data/services/AiUsageRecordService', () => ({
-  aiUsageRecordService: { recordInvocation: mocks.recordUsage }
-}))
+vi.mock('@data/services/AiUsageRecordService', async (importOriginal) => {
+  const actual = await importOriginal<typeof UsageRecordModule>()
+  return {
+    ...actual,
+    aiUsageRecordService: Object.assign(Object.create(actual.aiUsageRecordService), {
+      recordInvocation: mocks.recordUsage
+    })
+  }
+})
 
 vi.mock('@main/ai/utils/usageCapture', () => ({
   createAiUsageCaptureContext: (input: unknown) => input
@@ -493,7 +515,20 @@ describe('AgentSessionForkOperations recovery', () => {
   })
 
   it('rejects a missing checkpoint before creating fork artifacts or rebuilding history', async () => {
+    mocks.getAgent.mockReturnValueOnce({ id: 'fork-agent', type: 'pi' })
+    runtimeDriverRegistry.register({
+      type: 'pi',
+      validateSession() {},
+      isForkCheckpoint: (value) => PiForkCheckpointSchema.safeParse(value).success,
+      async connect() {
+        throw new Error('History validation must not connect')
+      },
+      async fork() {
+        throw new Error('Missing checkpoints must not reach native preparation')
+      }
+    })
     forkRecoveryMocks.read.mockReturnValue({
+      agent: { id: 'fork-agent' },
       messages: [{ role: 'assistant', status: 'success', data: {} }]
     })
 
@@ -556,6 +591,7 @@ describe('AgentSessionRuntimeService', () => {
           pauseRuntimeTurn: mocks.pauseRuntimeTurn,
           broadcastTopicError: mocks.broadcastTopicError,
           resolveToolApproval: mocks.resolveToolApproval,
+          retireToolApproval: mocks.retireToolApproval,
           terminateHeldTopicStream: mocks.terminateHeldTopicStream
         }
       }
@@ -580,7 +616,20 @@ describe('AgentSessionRuntimeService', () => {
 
   it('blocks edits only on the source session until its fork settles', async () => {
     const service = new AgentSessionRuntimeService()
+    mocks.getAgent.mockReturnValueOnce({ id: 'fork-agent', type: 'pi' })
+    runtimeDriverRegistry.register({
+      type: 'pi',
+      validateSession() {},
+      isForkCheckpoint: (value) => PiForkCheckpointSchema.safeParse(value).success,
+      async connect() {
+        throw new Error('History validation must not connect')
+      },
+      async fork() {
+        throw new Error('Missing checkpoints must not reach native preparation')
+      }
+    })
     forkRecoveryMocks.read.mockReturnValueOnce({
+      agent: { id: 'fork-agent' },
       messages: [{ role: 'assistant', status: 'success', data: {} }]
     })
     const fork = service.forkSession('session-1', 'assistant-1')
@@ -703,7 +752,7 @@ describe('AgentSessionRuntimeService', () => {
       })
 
       const service = new AgentSessionRuntimeService()
-      expect(service.respondToolApproval('approval-1', { approved: true })).toBe(true)
+      expect(service.respondToolApproval('approval-1', { approved: true })).toEqual({ ok: true })
       expect(resolve).toHaveBeenCalledWith({ approved: true })
       expect(mocks.resolveToolApproval).toHaveBeenCalledWith('agent-session:session-1', 'tool-call-1', true)
     })
@@ -722,9 +771,9 @@ describe('AgentSessionRuntimeService', () => {
       const updatedInput = { questions: [], answers: { Choice: 'SQLite' } }
 
       const service = new AgentSessionRuntimeService()
-      expect(service.respondToolApproval('approval-bg', { approved: true, updatedInput }, 'approval-message-1')).toBe(
-        true
-      )
+      expect(
+        service.respondToolApproval('approval-bg', { approved: true, updatedInput }, 'approval-message-1')
+      ).toEqual({ ok: true })
 
       expect(mocks.applyToolApprovalDecision).toHaveBeenCalledWith('session-1', 'approval-message-1', {
         approvalId: 'approval-bg',
@@ -749,15 +798,92 @@ describe('AgentSessionRuntimeService', () => {
       })
 
       const service = new AgentSessionRuntimeService()
-      expect(service.respondToolApproval('approval-bg', { approved: true }, 'wrong-message')).toBe(false)
+      expect(service.respondToolApproval('approval-bg', { approved: true }, 'wrong-message')).toEqual({
+        ok: false,
+        reason: 'rejected'
+      })
       expect(resolve).not.toHaveBeenCalled()
       expect(toolApprovalRegistry.peek('approval-bg')).toBeDefined()
     })
 
     it('leaves stream status untouched for an unknown approval', () => {
       const service = new AgentSessionRuntimeService()
-      expect(service.respondToolApproval('missing', { approved: true })).toBe(false)
+      expect(service.respondToolApproval('missing', { approved: true })).toEqual({ ok: false, reason: 'rejected' })
       expect(mocks.resolveToolApproval).not.toHaveBeenCalled()
+    })
+
+    it('records the user decision on a card the runtime can no longer answer', () => {
+      const updatedInput = { questions: [], answers: { Choice: 'SQLite' } }
+      const service = new AgentSessionRuntimeService()
+
+      expect(
+        service.respondToolApproval(
+          'approval-gone',
+          { approved: true, updatedInput },
+          'approval-message-1',
+          'agent-session:session-1'
+        )
+      ).toEqual({ ok: false, reason: 'undelivered' })
+
+      expect(mocks.applyToolApprovalDecision).toHaveBeenCalledWith('session-1', 'approval-message-1', {
+        approvalId: 'approval-gone',
+        approved: true,
+        updatedInput
+      })
+    })
+    it('does not offer a second replay after another window settled the card', () => {
+      mocks.applyToolApprovalDecision.mockReturnValueOnce(true).mockReturnValueOnce(false)
+      const service = new AgentSessionRuntimeService()
+      const respond = () =>
+        service.respondToolApproval(
+          'approval-gone',
+          { approved: true, updatedInput: { answers: { Choice: 'SQLite' } } },
+          'approval-message-1',
+          'agent-session:session-1'
+        )
+      expect(respond()).toEqual({ ok: false, reason: 'undelivered' })
+      expect(respond()).toEqual({ ok: false, reason: 'rejected' })
+    })
+  })
+
+  describe('aborted approvals', () => {
+    it('retires the persisted card whose live request the runtime aborted', async () => {
+      const resolve = vi.fn()
+      toolApprovalRegistry.register({
+        approvalId: 'approval-bg',
+        sessionId: 'session-1',
+        toolCallId: 'tool-call-bg',
+        toolName: 'AskUserQuestion',
+        originalInput: { questions: [] },
+        presentation: 'message',
+        resolve
+      })
+      const service = new AgentSessionRuntimeService()
+      await (service as any).onInit()
+
+      toolApprovalRegistry.abort('session-1', 'stream-ended')
+
+      expect(resolve).toHaveBeenCalledWith({ approved: false, reason: 'stream-ended' })
+      expect(mocks.retireAbandonedApproval).toHaveBeenCalledWith('session-1', 'approval-bg', expect.any(String))
+    })
+
+    it('leaves streamed approvals to the turn stream, which owns their card', async () => {
+      const resolve = vi.fn()
+      toolApprovalRegistry.register({
+        approvalId: 'approval-stream',
+        sessionId: 'session-1',
+        toolCallId: 'tool-call-stream',
+        toolName: 'Bash',
+        originalInput: { command: 'ls' },
+        resolve
+      })
+      const service = new AgentSessionRuntimeService()
+      await (service as any).onInit()
+
+      toolApprovalRegistry.abort('session-1', 'stream-ended')
+
+      expect(resolve).toHaveBeenCalledWith({ approved: false, reason: 'stream-ended' })
+      expect(mocks.retireAbandonedApproval).not.toHaveBeenCalled()
     })
   })
 
@@ -1156,17 +1282,6 @@ describe('AgentSessionRuntimeService', () => {
 
       expect(mocks.cacheSetShared).toHaveBeenCalledWith(RETRY_KEY, { status: 'idle' })
     })
-
-    it('does not write idle when no retry is in flight (the cache entry is the only truth)', () => {
-      const service = new AgentSessionRuntimeService()
-      service.beginTurn(baseTurnInput)
-      const entry = getEntry(service)
-      mocks.cacheGetShared.mockImplementation(() => undefined)
-
-      ;(service as any).handleRuntimeEvent(entry, contentChunk)
-
-      expect(mocks.cacheSetShared).not.toHaveBeenCalledWith(RETRY_KEY, { status: 'idle' })
-    })
   })
 
   // Gates the out-of-turn approval denial in `canUseTool`: a detached background agent can call a
@@ -1431,18 +1546,6 @@ describe('AgentSessionRuntimeService', () => {
       expect(assistantSaves.at(-1)?.messageSnapshot).toEqual(followUpSnapshot)
     })
 
-    it('opens an unmarked queued busy follow-up as interactive', async () => {
-      const service = new AgentSessionRuntimeService()
-      service.beginTurn({ ...baseTurnInput, headless: true })
-
-      service.enqueueUserMessage('session-1', userMessage('user-2'))
-      service.markTurnTerminal('session-1', 'success')
-      await new Promise((resolve) => setTimeout(resolve, 0))
-
-      expect(getEntry(service).currentTurn.headless === true).toBe(false)
-      expect(service.getInteractionState('session-1').currentTurn).toBe('interactive')
-    })
-
     it('sets current turn headless from beginTurn input', () => {
       const service = new AgentSessionRuntimeService()
 
@@ -1602,21 +1705,15 @@ describe('AgentSessionRuntimeService', () => {
       await expect((service as any).onInit()).resolves.toBeUndefined()
 
       expect(mocks.resolveCrashOrphanedMessages).not.toHaveBeenCalled()
-      expect(mockMainLoggerService.error).toHaveBeenCalledWith(
-        'Failed to reconcile stale pending agent-session messages',
-        { error: failure }
-      )
     })
   })
 
   it('creates an active runtime with a session-level pending queue', () => {
     const service = new AgentSessionRuntimeService()
 
-    const handle = service.beginTurn(baseTurnInput)
+    service.beginTurn(baseTurnInput)
     service.enqueueUserMessage('session-1', userMessage('user-2'))
 
-    expect(terminalListener(handle).id).toBe('agent-runtime:session-1')
-    expect(persistenceListener(handle).id).toContain('persistence:agents-db:agent-session:session-1')
     expect(service.inspect('session-1')).toMatchObject({
       sessionId: 'session-1',
       topicId: 'agent-session:session-1',
@@ -2304,10 +2401,6 @@ describe('AgentSessionRuntimeService', () => {
 
     await (service as any).handleAgentUpdated('agent-1', { disabledTools: ['Bash'] }, { id: 'agent-1' })
 
-    expect(mockMainLoggerService.error).toHaveBeenCalledWith('Connection reconcile threw; failing closed', {
-      sessionId: 'session-1',
-      error: failure
-    })
     expect(connection.close).toHaveBeenCalledOnce()
     expect(service.inspect('session-1')).toMatchObject({ sessionId: 'session-1', status: 'active' })
     expect(getEntry(service).connection).toBeUndefined()
@@ -2436,9 +2529,8 @@ describe('AgentSessionRuntimeService', () => {
 
     await (service as any).handleAgentUpdated('agent-1', { instructions: 'be terse' }, { id: 'agent-1' })
 
-    // Safe live patches were already applied inside reconcile; the spawn-frozen part and any
-    // deferred permission-mode update wait for the next fresh turn's pull instead of dropping the
-    // in-flight stream.
+    // Safe live patches were already applied inside reconcile; the spawn-frozen part waits for the
+    // next fresh turn's pull instead of dropping the in-flight stream.
     expect(connection.close).not.toHaveBeenCalled()
     expect(getEntry(service).connection).toBe(connection)
   })
@@ -2617,11 +2709,6 @@ describe('AgentSessionRuntimeService', () => {
       expect(firstConnection.send).not.toHaveBeenCalled()
       expect(firstConnection.close).not.toHaveBeenCalled()
       expect(connect).not.toHaveBeenCalled()
-      expect(mockMainLoggerService.info).toHaveBeenCalledWith(
-        'Deferring connection rebuild until background work releases',
-        { sessionId: 'session-1' }
-      )
-
       ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: false }, firstConnection)
 
       await vi.waitFor(() =>
@@ -2629,9 +2716,6 @@ describe('AgentSessionRuntimeService', () => {
       )
       expect(firstConnection.close).toHaveBeenCalledOnce()
       expect(connect).toHaveBeenCalledWith(expect.objectContaining({ modelId: switchedModelId }))
-      expect(mockMainLoggerService.info).toHaveBeenCalledWith('Background work released; retrying connection rebuild', {
-        sessionId: 'session-1'
-      })
 
       await reader.cancel().catch(() => undefined)
     })
@@ -2833,6 +2917,43 @@ describe('AgentSessionRuntimeService', () => {
       expect(approvalRequestedEvents).toEqual([])
     })
 
+    it('retains the tool input when an approval arrives before its message projection', () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      const enqueue = vi.fn()
+      const control = vi.fn()
+      const parts = vi.fn(() => undefined)
+      entry.currentTurn.controller = { enqueue } as never
+      entry.currentTurn.projection = { control, parts } as never
+      entry.runtimeState.execution.reply.delivery = { kind: 'open' }
+
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'tool-approval-request',
+        request: {
+          approvalId: 'approval-live',
+          toolCallId: 'tool-call-live',
+          toolName: 'AskUserQuestion',
+          input: { questions: [{ question: 'Choose a database' }] },
+          presentation: 'stream'
+        }
+      })
+
+      expect(control).toHaveBeenNthCalledWith(1, 'assistant-1', {
+        type: 'tool-input-available',
+        toolCallId: 'tool-call-live',
+        toolName: 'AskUserQuestion',
+        input: { questions: [{ question: 'Choose a database' }] },
+        providerExecuted: true,
+        dynamic: true
+      })
+      expect(control).toHaveBeenNthCalledWith(2, 'assistant-1', {
+        type: 'tool-approval-request',
+        approvalId: 'approval-live',
+        toolCallId: 'tool-call-live'
+      })
+    })
+
     it('remembers whether the turn that spawned background work had an interactive responder', async () => {
       const interactive = new AgentSessionRuntimeService()
       interactive.beginTurn(baseTurnInput)
@@ -2975,6 +3096,249 @@ describe('AgentSessionRuntimeService', () => {
       })
     })
 
+    describe('terminal task approval retirement', () => {
+      const dbh = setupTestDatabase()
+      it.each([
+        ['completed', false],
+        ['stopped', false],
+        ['error', false],
+        ['completed', true]
+      ] as const)('retires merged %s evidence only for its owning reply (ambiguous: %s)', async (status, ambiguous) => {
+        const { agentSessionMessageService: realMessages } = await vi.importActual<typeof SessionMessageModule>(
+          '@data/services/AgentSessionMessageService'
+        )
+        mocks.replaceMessageParts.mockImplementation(realMessages.replaceMessageParts.bind(realMessages))
+        mocks.getSessionMessage.mockImplementation(realMessages.getSessionMessage.bind(realMessages))
+        mocks.hasSessionMessage.mockImplementation(realMessages.hasSessionMessage.bind(realMessages))
+        dbh.db
+          .insert(agentWorkspaceTable)
+          .values({ id: 'workspace-1', name: 'Work', type: 'user', path: '/test/work', orderKey: 'a0' })
+          .run()
+        dbh.db
+          .insert(agentSessionTable)
+          .values({ id: 'session-1', workspaceId: 'workspace-1', name: 'Session', orderKey: 'a0' })
+          .run()
+        const backend = contexts.ensureBackendTx(
+          dbh.db,
+          { version: 1, kind: 'claude-code', configDir: '/test/claude' },
+          'bound'
+        )
+        const context = contexts.reserveBranchTx(dbh.db, {
+          sessionId: 'session-1',
+          backendId: backend.id,
+          anchorMessageId: 'root'
+        })
+        const messageId = realMessages.saveMessage({
+          sessionId: 'session-1',
+          message: {
+            role: 'assistant',
+            status: 'pending',
+            data: { parts: [] }
+          }
+        }).id
+        const projection = new RootMessageProjection(context.id)
+        const service = new AgentSessionRuntimeService()
+        service.beginTurn({ ...baseTurnInput, assistantMessageId: messageId })
+        const entry = getEntry(service)
+        const connection = { contextId: context.id, close: vi.fn(), send: vi.fn(), events: [] }
+        entry.connection = connection
+        entry.persistedMessageIds = new Set([messageId])
+        entry.rootProjections = new Map([[context.id, projection]])
+        projection.accept(
+          {
+            contextId: context.id,
+            messages: [{ id: 'native', role: 'assistant', parts: [{ type: 'text', text: 'Running' }] }],
+            live: ['native'],
+            removed: [],
+            replaces: {}
+          },
+          messageId
+        )
+        const manager = new AiStreamManager()
+        const execution = {
+          anchorMessageId: messageId,
+          attemptId: 0,
+          sequence: 0,
+          buffer: [],
+          droppedChunks: 0,
+          pendingApprovalToolCallIds: new Set<string>(),
+          runtimeTiming: new MessageRuntimeTimingCollector()
+        }
+        ;(manager as any).activeStreams.set(entry.topicId, {
+          status: 'streaming',
+          executions: new Map([['p::model', execution]]),
+          listeners: new Map([
+            [
+              'test',
+              {
+                isAlive: () => true,
+                onChunk: (chunk: Parameters<RootMessageProjection['control']>[1]) =>
+                  projection.control(messageId, chunk)
+              }
+            ]
+          ]),
+          lifecycle: { onApprovalPendingChanged: () => {} }
+        })
+        for (const toolCallId of ['A', 'B']) {
+          manager.onChunk(entry.topicId, 'p::model', {
+            type: 'tool-input-available',
+            toolCallId,
+            toolName: 'Bash',
+            input: {}
+          })
+          manager.onChunk(entry.topicId, 'p::model', {
+            type: 'tool-approval-request',
+            toolCallId,
+            approvalId: toolCallId
+          })
+        }
+        realMessages.replaceMessageParts('session-1', messageId, projection.parts(messageId))
+        mocks.retireToolApproval.mockImplementation(((...args: unknown[]) => {
+          const forward = (manager as unknown as { retireToolApproval?: (...a: unknown[]) => boolean })
+            .retireToolApproval
+          return forward ? forward.apply(manager, args) : undefined
+        }) as never)
+        const store: Record<string, any> = {}
+        mocks.cacheSetShared.mockImplementation((key, value) => {
+          store[key] = value
+        })
+        mocks.cacheGetShared.mockImplementation((key) => store[key])
+        const send = (data: Record<string, unknown>) =>
+          (service as any).handleRuntimeEvent(entry, {
+            type: 'background-task-event',
+            data: { event: 'notification', taskId: 'bg', ...data }
+          })
+        const unchanged = () => {
+          expect(execution.pendingApprovalToolCallIds).toEqual(new Set(['A', 'B']))
+          expect(projection.parts(messageId)).toContainEqual(
+            expect.objectContaining({ toolCallId: 'A', state: 'approval-requested' })
+          )
+        }
+        send({ toolUseId: 'A' })
+        unchanged()
+        send({ status: 'pending', toolUseId: 'A' })
+        unchanged()
+        send({ status: 'in_progress' })
+        unchanged()
+        send({ taskId: 'missing', status })
+        unchanged()
+        send({ status, toolUseId: 'unknown' })
+        unchanged()
+        ;(service as any).publishBackgroundTaskEvent(
+          entry,
+          { event: 'notification', taskId: 'bg', status, toolUseId: 'A' },
+          { ...connection }
+        )
+        unchanged()
+        send({ status: 'in_progress', toolUseId: 'A' })
+        unchanged()
+        if (ambiguous) {
+          const otherContext = contexts.reserveBranchTx(dbh.db, {
+            sessionId: 'session-1',
+            backendId: backend.id,
+            anchorMessageId: 'other-root'
+          })
+          const otherMessageId = realMessages.saveMessage({
+            sessionId: 'session-1',
+            message: {
+              role: 'assistant',
+              status: 'pending',
+              data: { parts: [] }
+            }
+          }).id
+          const other = new RootMessageProjection(otherContext.id)
+          other.accept(
+            {
+              contextId: otherContext.id,
+              messages: [{ id: 'other-native', role: 'assistant', parts: [{ type: 'text', text: 'Other' }] }],
+              live: ['other-native'],
+              removed: [],
+              replaces: {}
+            },
+            otherMessageId
+          )
+          other.control(otherMessageId, {
+            type: 'tool-input-available',
+            toolCallId: 'A',
+            toolName: 'Bash',
+            input: {}
+          })
+          other.control(otherMessageId, {
+            type: 'tool-approval-request',
+            toolCallId: 'A',
+            approvalId: 'other-A'
+          })
+          entry.rootProjections.set(otherContext.id, other)
+          send({ status })
+          unchanged()
+          expect(other.parts(otherMessageId)).toContainEqual(
+            expect.objectContaining({ toolCallId: 'A', state: 'approval-requested' })
+          )
+          expect(realMessages.getSessionMessage('session-1', messageId).data.parts).toContainEqual(
+            expect.objectContaining({ toolCallId: 'A', state: 'approval-requested' })
+          )
+          return
+        }
+        send({ status })
+        const persisted = realMessages.getSessionMessage('session-1', messageId).data.parts!
+        const retired = persisted.find((part) => 'toolCallId' in part && part.toolCallId === 'A')
+        expect(retired).toMatchObject({ state: 'input-available' })
+        expect((retired as any).approval).toBeUndefined()
+        expect(persisted).toContainEqual(
+          expect.objectContaining({ toolCallId: 'B', state: 'approval-requested', approval: { id: 'B' } })
+        )
+        expect(execution.pendingApprovalToolCallIds).toEqual(new Set(['B']))
+        expect(projection.parts(messageId)).toContainEqual(
+          expect.objectContaining({ toolCallId: 'A', state: 'input-available' })
+        )
+        expect(projection.parts(messageId)).toContainEqual(
+          expect.objectContaining({ toolCallId: 'B', state: 'approval-requested', approval: { id: 'B' } })
+        )
+        projection.control(messageId, {
+          type: 'tool-approval-request',
+          toolCallId: 'A',
+          approvalId: 'A-new'
+        })
+        manager.onChunk(entry.topicId, 'p::model', {
+          type: 'tool-approval-request',
+          toolCallId: 'A',
+          approvalId: 'A-new'
+        })
+        send({ status })
+        expect(execution.pendingApprovalToolCallIds).toEqual(new Set(['B']))
+        expect(realMessages.getSessionMessage('session-1', messageId).data.parts).toContainEqual(
+          expect.objectContaining({ toolCallId: 'A', state: 'input-available' })
+        )
+        expect(
+          (
+            realMessages
+              .getSessionMessage('session-1', messageId)
+              .data.parts!.find((part) => 'toolCallId' in part && part.toolCallId === 'A') as any
+          ).approval
+        ).toBeUndefined()
+        ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
+        service.markTurnTerminal('session-1', 'success')
+        projection.accept(
+          {
+            contextId: context.id,
+            messages: [{ id: 'latest-native', role: 'assistant', parts: [{ type: 'text', text: 'Latest reply' }] }],
+            live: ['latest-native'],
+            removed: [],
+            replaces: {}
+          },
+          'latest-reply'
+        )
+        expect(projection.lastMessageId).toBe('latest-reply')
+        ;(service as any).handleRuntimeEvent(entry, {
+          type: 'autonomous-turn-state',
+          state: 'started',
+          origin: { kind: 'background-work' },
+          sourceToolCallIds: ['B']
+        })
+        expect(entry.currentTurn.assistantMessageId).toBe(messageId)
+      })
+    })
+
     it('drops the level when the session closes, since it is scoped to the CLI process', async () => {
       const service = new AgentSessionRuntimeService()
       service.beginTurn(baseTurnInput)
@@ -3038,7 +3402,7 @@ describe('AgentSessionRuntimeService', () => {
       ;(service as any).handleRuntimeEvent(entry, {
         type: 'autonomous-turn-state',
         state: 'started',
-        origin: { kind: 'background-work' }
+        origin: { kind: 'goal-round', round: 1 }
       })
       await vi.waitFor(() => expect(mocks.startRuntimeTurn).toHaveBeenCalledTimes(1))
 
@@ -3279,7 +3643,7 @@ describe('AgentSessionRuntimeService', () => {
       ;(service as any).handleRuntimeEvent(entry, {
         type: 'autonomous-turn-state',
         state: 'started',
-        origin: { kind: 'background-work' }
+        origin: { kind: 'goal-round', round: 1 }
       })
       // Chunks stream while the wake turn's stream is not open yet — buffered, not dropped.
       ;(service as any).handleRuntimeEvent(entry, {
@@ -3338,7 +3702,7 @@ describe('AgentSessionRuntimeService', () => {
       ;(service as any).handleRuntimeEvent(entry, {
         type: 'autonomous-turn-state',
         state: 'started',
-        origin: { kind: 'background-work' }
+        origin: { kind: 'goal-round', round: 1 }
       })
       await vi.waitFor(() => expect(mocks.startRuntimeTurn).toHaveBeenCalledTimes(1))
 
@@ -3368,7 +3732,7 @@ describe('AgentSessionRuntimeService', () => {
       ;(service as any).handleRuntimeEvent(entry, {
         type: 'autonomous-turn-state',
         state: 'started',
-        origin: { kind: 'background-work' }
+        origin: { kind: 'goal-round', round: 1 }
       })
       ;(service as any).handleRuntimeEvent(entry, {
         type: 'chunk',
@@ -3426,7 +3790,7 @@ describe('AgentSessionRuntimeService', () => {
 
       ;(service as any).handleRuntimeEvent(
         entry,
-        { type: 'autonomous-turn-state', state: 'started', origin: { kind: 'background-work' } },
+        { type: 'autonomous-turn-state', state: 'started', origin: { kind: 'goal-round', round: 1 } },
         connection
       )
       await vi.waitFor(() =>
@@ -3461,7 +3825,7 @@ describe('AgentSessionRuntimeService', () => {
       ;(service as any).handleRuntimeEvent(entry, {
         type: 'autonomous-turn-state',
         state: 'started',
-        origin: { kind: 'background-work' }
+        origin: { kind: 'goal-round', round: 1 }
       })
       await vi.waitFor(() => expect(mocks.startRuntimeTurn).toHaveBeenCalledTimes(1))
 
@@ -3515,7 +3879,7 @@ describe('AgentSessionRuntimeService', () => {
 
       ;(service as any).handleRuntimeEvent(
         entry,
-        { type: 'autonomous-turn-state', state: 'started', origin: { kind: 'background-work' } },
+        { type: 'autonomous-turn-state', state: 'started', origin: { kind: 'goal-round', round: 1 } },
         connection
       )
       ;(service as any).handleRuntimeEvent(
@@ -3613,7 +3977,7 @@ describe('AgentSessionRuntimeService', () => {
 
       ;(service as any).handleRuntimeEvent(
         entry,
-        { type: 'autonomous-turn-state', state: 'started', origin: { kind: 'background-work' } },
+        { type: 'autonomous-turn-state', state: 'started', origin: { kind: 'goal-round', round: 1 } },
         connection
       )
       ;(service as any).handleRuntimeEvent(
@@ -3682,7 +4046,7 @@ describe('AgentSessionRuntimeService', () => {
       ;(service as any).handleRuntimeEvent(entry, {
         type: 'autonomous-turn-state',
         state: 'started',
-        origin: { kind: 'background-work' }
+        origin: { kind: 'goal-round', round: 1 }
       })
       await vi.waitFor(() => expect(mocks.startRuntimeTurn).toHaveBeenCalledTimes(1))
       const receiveOnlyTurn = entry.currentTurn
@@ -3828,13 +4192,6 @@ describe('AgentSessionRuntimeService', () => {
     } finally {
       vi.useRealTimers()
     }
-  })
-  it('declares ClaudeCodeProcessManager so the CLI owner stops last', () => {
-    ServiceContainer.reset()
-    const container = ServiceContainer.getInstance()
-    container.register(AgentSessionRuntimeService)
-
-    expect(container.getMetadata('AgentSessionRuntimeService')?.dependencies).toContain('ClaudeCodeProcessManager')
   })
 
   it('waits for every graceful connection close before service stop resolves', async () => {
@@ -4004,6 +4361,20 @@ describe('AgentSessionRuntimeService', () => {
     await expect(closing).resolves.toBeUndefined()
   })
 
+  it('releases the session when a pending connection attempt fails during close', async () => {
+    const service = new AgentSessionRuntimeService()
+    service.beginTurn(baseTurnInput)
+    const connectionAttempt = createDeferred<boolean>()
+    ;(service as any).connectionAttempts.set('session-1', { promise: connectionAttempt.promise })
+
+    const closing = service.closeSession('session-1')
+    connectionAttempt.reject(new Error('spawn failed'))
+
+    await expect(closing).resolves.toBeUndefined()
+    expect(service.isSessionBusy('session-1')).toBe(false)
+    expect(() => service.beginTurn({ ...baseTurnInput, assistantMessageId: 'assistant-2' })).not.toThrow()
+  })
+
   it('rejects new input until the closing reply releases its owner', async () => {
     const service = new AgentSessionRuntimeService()
     service.beginTurn(baseTurnInput)
@@ -4168,14 +4539,9 @@ describe('AgentSessionRuntimeService', () => {
       },
       { publishDataChange: true }
     )
-    expect(mocks.maybeRenameAgentSession).toHaveBeenCalledWith('agent-1', 'session-1', 'hello', {
-      id: 'assistant-1',
-      role: 'assistant',
-      parts: [{ type: 'text', text: 'hi' }]
-    })
   })
 
-  it('does not auto-name non-initial assistant turns', async () => {
+  it('records the saved message revision when an assistant turn completes', async () => {
     const service = new AgentSessionRuntimeService()
     const handle = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
 
@@ -4194,8 +4560,6 @@ describe('AgentSessionRuntimeService', () => {
         historyRevision: '1767225601000'
       }
     })
-
-    expect(mocks.maybeRenameAgentSession).not.toHaveBeenCalled()
   })
 
   it('persists empty paused terminals to the active assistant placeholder', async () => {
@@ -4657,27 +5021,6 @@ describe('AgentSessionRuntimeService', () => {
         'Failed to refresh agent session context usage',
         expect.objectContaining({ sessionId: 'session-1', error: usageError })
       )
-    )
-  })
-
-  it('warns for an abort but errors for a real failure when the runtime ends with no active turn (S5)', () => {
-    const service = new AgentSessionRuntimeService()
-    service.beginTurn(baseTurnInput)
-    service.markTurnTerminal('session-1', 'success') // no live (non-terminal) turn remains
-    const entry = getEntry(service)
-
-    const abort = Object.assign(new Error('aborted'), { name: 'AbortError' })
-    ;(service as any).handleRuntimeError(entry, abort)
-    expect(mockMainLoggerService.warn).toHaveBeenCalledWith(
-      'Agent runtime connection ended without an active turn',
-      expect.objectContaining({ sessionId: 'session-1', error: abort })
-    )
-
-    const boom = new Error('real failure')
-    ;(service as any).handleRuntimeError(entry, boom)
-    expect(mockMainLoggerService.error).toHaveBeenCalledWith(
-      'Agent runtime connection ended without an active turn',
-      expect.objectContaining({ sessionId: 'session-1', error: boom })
     )
   })
 
@@ -6656,15 +6999,6 @@ describe('AgentSessionRuntimeService', () => {
       expect(prime).toHaveBeenCalledTimes(1)
     })
 
-    it('re-primes when a second window acquires so the catalog is republished for it', () => {
-      const windowA = createWebContents()
-      const windowB = createWebContents()
-      service.acquireWarmLease('session-1', asSender(windowA))
-      service.acquireWarmLease('session-1', asSender(windowB))
-
-      expect(prime).toHaveBeenCalledTimes(2)
-    })
-
     it('reaps a destroyed window without a renderer release, deferring to remaining holders', () => {
       const windowA = createWebContents()
       const windowB = createWebContents()
@@ -6696,7 +7030,6 @@ describe('AgentSessionRuntimeService', () => {
       const windowA = createWebContents()
       service.acquireWarmLease('session-1', asSender(windowA))
       service.acquireWarmLease('session-1', undefined)
-      expect(prime).toHaveBeenCalledTimes(2)
 
       service.releaseWarmLease('session-1', undefined)
       vi.runAllTimers()

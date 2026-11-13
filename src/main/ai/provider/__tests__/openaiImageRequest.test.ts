@@ -105,4 +105,56 @@ describe('GPT Image 2.6 OpenAI requests', () => {
       expect(result.images).toEqual(['QUJD'])
     })
   }
+  it.each(['flare', 'sunburst'])(
+    '%s forwards animation settings through the canonical request path',
+    async (variant) => {
+      const { vendorBag } = splitParamValues({
+        outputFormat: 'gif',
+        frameCount: 9,
+        frameDurationMs: 200,
+        complexity: 'low'
+      })
+      const providerOptions = buildVendorProviderOptions('openai', vendorBag, WIRE_REGISTRY.openai, vendorBag)
+      const bodies: unknown[] = []
+      const model = createOpenAI({
+        apiKey: 'fixture',
+        fetch: async (_url, init) => {
+          bodies.push(JSON.parse(init?.body as string))
+          return new Response(JSON.stringify({ data: [{ b64_json: 'QUJD' }] }), {
+            headers: { 'content-type': 'application/json' }
+          })
+        }
+      }).imageModel(`gpt-image-2.6-${variant}`)
+      await model.doGenerate({
+        prompt: 'a bouncing sun',
+        n: 1,
+        size: '1024x1024',
+        aspectRatio: undefined,
+        seed: undefined,
+        files: undefined,
+        mask: undefined,
+        providerOptions
+      })
+      expect(bodies).toEqual([
+        {
+          model: `gpt-image-2.6-${variant}`,
+          prompt: 'a bouncing sun',
+          n: 1,
+          size: '1024x1024',
+          output_format: 'gif',
+          frame_count: 9,
+          frame_duration_ms: 200,
+          complexity: 'low'
+        }
+      ])
+    }
+  )
+
+  it('omits stale animation timing when output switches back to PNG', () => {
+    const params = { outputFormat: 'png', frameCount: 9, frameDurationMs: 200, complexity: 'high' }
+    const { vendorBag } = splitParamValues(params)
+    expect(buildVendorProviderOptions('openai', params, WIRE_REGISTRY.openai, vendorBag)).toEqual({
+      openai: { outputFormat: 'png', complexity: 'high' }
+    })
+  })
 })

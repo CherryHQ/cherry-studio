@@ -480,6 +480,8 @@ Electron 验证还发现一条既有持久化旁路：手动压缩的完成标�
 
 #### 12.6 已实现契约与验证（2026-11-07）
 
+此处记录的独立后台回复兜底已由[后台回复连续性修复](../../implemented/bug-fix/2026-11-09-agent-background-reply-continuity.md)替代；后台生成现在复用已有助手消息。
+
 第 12.5 节已批准的范围已实现。`awaitingReply` 和根据展示任务数量判断结束的分支已删除。现有原生记录提供未排空结果的来源，`AgentSessionRuntimeReply.pendingResultToolCallIds` 持有产品等待状态。只有通知的全部来源调用均属于该回复时，才恢复该回复；来源缺失或混合归属沿用现有独立回合交接。此次实现没有增加 SDK patch、schema、manager 或模型参数。
 
 | 边界 | 实现依据与证据 |

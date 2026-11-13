@@ -39,6 +39,14 @@ A test is worth adding only when all of these are true:
 
 If the regression cannot be stated concretely, do not add the test.
 
+Being visible to the user is necessary for many component tests, but is not sufficient evidence of
+value. Do not freeze a changeable product choice merely because it can be queried by role or text:
+the default view, menu ordering, collapsed state, icon, control placement, and current catalog
+contents are not automatically regression contracts. State the failure independently of today's JSX
+or configuration. Prefer tests of saved choices, actions, data integrity, and recovery over an
+inventory of the current screen. In mixed cases, remove incidental presentation assertions while
+preserving the user outcome.
+
 ### Changes that normally require tests
 
 - New or changed business rules, state transitions, validation, or reconciliation logic.
@@ -61,14 +69,14 @@ When a no-test change is non-obvious, explain why in the PR instead of adding a 
 
 ## 2. Choose the Lowest Sufficient Layer
 
-| Behavior | Preferred test layer | What to assert |
-|---|---|---|
-| Pure transformation, parser, reducer, or state machine | Unit test | Inputs, outputs, transitions, and meaningful boundaries |
-| Hook with state or external effects | Hook or small harness test | Returned contract and externally observable effects |
-| Renderer component behavior | Component test | What a user can find, do, and observe |
-| Generic `@cherrystudio/ui` primitive/composite | `packages/ui` test using the real component | Accessibility, interaction, and documented visual contract |
-| Critical cross-window or cross-process workflow | E2E test | A complete user outcome |
-| Compile-time public type contract | Type test | Accepted and rejected usage, with no duplicate runtime test |
+| Behavior                                               | Preferred test layer                        | What to assert                                              |
+| ------------------------------------------------------ | ------------------------------------------- | ----------------------------------------------------------- |
+| Pure transformation, parser, reducer, or state machine | Unit test                                   | Inputs, outputs, transitions, and meaningful boundaries     |
+| Hook with state or external effects                    | Hook or small harness test                  | Returned contract and externally observable effects         |
+| Renderer component behavior                            | Component test                              | What a user can find, do, and observe                       |
+| Generic `@cherrystudio/ui` primitive/composite         | `packages/ui` test using the real component | Accessibility, interaction, and documented visual contract  |
+| Critical cross-window or cross-process workflow        | E2E test                                    | A complete user outcome                                     |
+| Compile-time public type contract                      | Type test                                   | Accepted and rejected usage, with no duplicate runtime test |
 
 Do not repeat the same behavior at every layer. A component test should not re-test every branch of
 an already tested pure helper, and an E2E test should not enumerate every component prop.
@@ -97,7 +105,9 @@ not a substitute for an observable outcome when the mocked function is an intern
 
 CSS/class assertions are allowed only when the class is itself the contract, for example an Electron
 drag-region marker, a maintained UI semantic token, or a regression involving layout mechanics.
-Add a short comment naming that contract.
+Add a short comment identifying the independent contract or concrete regression. A comment that
+only calls the current classes a "layout contract" does not justify freezing them. A class-presence
+assertion also cannot establish that an element is unclipped, readable, or reachable in a browser.
 
 ## 4. Query and Interaction Priority
 

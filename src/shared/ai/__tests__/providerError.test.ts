@@ -2,7 +2,11 @@ import { APICallError, EmptyResponseBodyError, JSONParseError, RetryError, TypeV
 import { describe, expect, it } from 'vitest'
 
 import type { SerializedError } from '../../types/error'
-import { getSafeProviderErrorMessage, serializeNestedProviderError } from '../providerError'
+import {
+  getSafeProviderErrorMessage,
+  serializeNestedProviderError,
+  stripClaudeCodeRejectionPrefix
+} from '../providerError'
 
 const PROVIDER_TEXT_FIELDS = [
   ['message', (value: string) => ({ message: value })],
@@ -240,6 +244,16 @@ describe('getSafeProviderErrorMessage', () => {
     })
     expect(serialized).toHaveProperty('errors.0.message', 'provider concurrency limit reached')
     expect(JSON.stringify(serialized)).not.toMatch(/url-secret|private user prompt|header-secret|data-secret/)
+  })
+})
+
+describe('stripClaudeCodeRejectionPrefix', () => {
+  it.each([
+    ['API Error: Request rejected (429) · 套餐额度已耗尽。', '套餐额度已耗尽。'],
+    ['API Error: 401 Authentication Fails', 'API Error: 401 Authentication Fails'],
+    ['Provider said: API Error: Request rejected (429) · x', 'Provider said: API Error: Request rejected (429) · x']
+  ])('turns %j into %j', (input, expected) => {
+    expect(stripClaudeCodeRejectionPrefix(input)).toBe(expected)
   })
 })
 

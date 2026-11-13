@@ -1,5 +1,5 @@
-import { Type } from '@earendil-works/pi-ai'
 import { defineTool } from '@earendil-works/pi-coding-agent'
+import { obj, opt, str } from '@earendil-works/pi-schema'
 import { createTestSession, finish, gatewayModel, scriptedModel, textParts } from '@test-helpers/piGateway'
 import { describe, expect, it } from 'vitest'
 
@@ -10,7 +10,7 @@ describe('client tool validation through the gateway', () => {
       name: 'read_file',
       label: 'read_file',
       description: 'Read a file',
-      parameters: Type.Object({ path: Type.String() }),
+      parameters: obj({ path: str() }),
       async execute(_id, args) {
         executed.push(args)
         return { content: [{ type: 'text', text: 'file contents' }], details: undefined }
@@ -50,7 +50,7 @@ describe('client tool validation through the gateway', () => {
             toolCallId: 'invalid-call',
             output: expect.objectContaining({
               value: expect.stringContaining(
-                failure === 'unknown-tool' ? 'Tool missing_tool not found' : 'path: must be string'
+                failure === 'unknown-tool' ? 'Tool missing_tool not found' : 'path: expected string, got object'
               )
             })
           })
@@ -70,7 +70,7 @@ describe('client tool validation through the gateway', () => {
         name: 'optional_tool',
         label: 'optional_tool',
         description: 'Accepts an optional path',
-        parameters: Type.Object({ path: Type.Optional(Type.String()) }),
+        parameters: obj({ path: opt(str()) }),
         async execute(_id, args) {
           executed.push(args)
           return { content: [{ type: 'text', text: 'done' }], details: undefined }

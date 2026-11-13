@@ -1,35 +1,19 @@
-import { rm } from 'node:fs/promises'
-
-import { _electron as electron } from '@playwright/test'
 import type { Page, TestInfo } from '@playwright/test'
 
 import en from '../../../src/renderer/i18n/locales/en-us.json'
 import { LATEST_PRIVACY_POLICY_VERSION } from '../../../src/shared/utils/constants'
+import { openSettingsSection } from '../regression/helpers/settings'
 import { expect, test as base } from './fixtures/electron.fixture'
 
 const test = base.extend({
-  electronApp: async ({}, use, testInfo) => {
-    const profile = testInfo.outputPath('profile')
-    const electronApp = await electron.launch({
-      args: ['.'],
-      env: { ...process.env, NODE_ENV: 'development', CS_DEV_PROFILE_ROOT: profile },
-      timeout: 60000
-    })
+  electronApp: async ({ electronApp }, use, testInfo) => {
     try {
       await electronApp.context().tracing.start({ screenshots: true, snapshots: true })
       await use(electronApp)
     } finally {
-      try {
-        const path = testInfo.outputPath('provider-api-host-reset-trace.zip')
-        await electronApp.context().tracing.stop({ path })
-        await testInfo.attach('provider-api-host-reset-trace', { path, contentType: 'application/zip' })
-      } finally {
-        try {
-          await electronApp.close()
-        } finally {
-          await rm(profile, { recursive: true, force: true })
-        }
-      }
+      const path = testInfo.outputPath('provider-api-host-reset-trace.zip')
+      await electronApp.context().tracing.stop({ path })
+      await testInfo.attach('provider-api-host-reset-trace', { path, contentType: 'application/zip' })
     }
   }
 })
@@ -55,15 +39,13 @@ test('confirms provider API host reset and keeps edits on cancel', async ({ main
     'Setup: the current privacy policy gate must not block provider settings'
   ).toHaveCount(0)
 
-  const sidebar = mainWindow.locator('[data-ui~="app.sidebar"]').filter({ visible: true })
-  await sidebar.getByRole('button', { name: en['settings.title'], exact: true }).click()
+  await openSettingsSection(mainWindow, en['settings.provider.title'])
   const settings = mainWindow.locator('[data-ui~="settings.view"]').filter({ visible: true })
   await expect(settings, 'Setup: Settings must open in exactly one visible view').toHaveCount(1)
-  const navigation = settings.locator('[data-ui~="settings.navigation"]')
   const detail = settings.getByTestId('provider-detail-shell')
 
   const openDeepseek = async () => {
-    await navigation.getByRole('button', { name: en['settings.provider.title'], exact: true }).click()
+    await openSettingsSection(mainWindow, en['settings.provider.title'])
     const search = settings.getByPlaceholder(en['settings.provider.search'], { exact: true })
     await expect(search, 'Setup: the provider list must load before selecting deepseek').toBeVisible()
     const row = settings.getByTestId('provider-list-item-deepseek')
@@ -86,7 +68,7 @@ test('confirms provider API host reset and keeps edits on cancel', async ({ main
   }
 
   const reopenDeepseek = async () => {
-    await navigation.getByRole('button', { name: en['settings.appearance.title'], exact: true }).click()
+    await openSettingsSection(mainWindow, en['settings.appearance.title'])
     await expect(detail, 'Persistence check must leave the provider detail before reopening it').toHaveCount(0)
     return openDeepseek()
   }

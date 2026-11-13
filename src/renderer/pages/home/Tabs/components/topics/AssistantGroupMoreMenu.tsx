@@ -23,6 +23,8 @@ export function AssistantGroupMoreMenu({
   sidebarPinned,
   onDeleteAssistant,
   onDeleteAllTopics,
+  onPermanentDeleteAssistant,
+  permanentDeleteShortcut,
   onEdit,
   onSetAssistantIconType,
   onToggleGrouping,
@@ -39,6 +41,8 @@ export function AssistantGroupMoreMenu({
   sidebarPinned: boolean
   onDeleteAssistant: (assistantId: string) => void | Promise<void>
   onDeleteAllTopics: (assistantId: string) => void | Promise<void>
+  onPermanentDeleteAssistant?: (assistantId: string) => void | Promise<void>
+  permanentDeleteShortcut?: string
   onEdit: (assistantId: string) => void
   onSetAssistantIconType: (iconType: AssistantIconType) => void | Promise<void>
   onToggleGrouping: () => void | Promise<void>
@@ -55,6 +59,8 @@ export function AssistantGroupMoreMenu({
     isGroupGrouping,
     onDeleteAssistant,
     onDeleteAllTopics,
+    onPermanentDeleteAssistant,
+    permanentDeleteShortcut,
     onEdit,
     onSetAssistantIconType,
     onToggleGrouping,

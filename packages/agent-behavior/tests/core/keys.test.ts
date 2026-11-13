@@ -65,7 +65,6 @@ describe('keys', () => {
     expect(keys.approvalMemo(call)).toBe('cherry.approval:task-7')
     expect(keys.askMemo(call)).toBe('cherry.ask:task-7')
     expect(keys.verdictMemo(call)).toBe('cherry.verdict:task-7')
-    expect(keys.summaryMemo('compaction-4')).toBe('cherry.summary:compaction-4')
   })
 
   // Review focus 3: one batch delivered in a different order must not get a second key, and different batches or

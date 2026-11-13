@@ -313,6 +313,14 @@ export function LinkComposerToken(props: ComposerTokenProps) {
   }
   const handleClick: MouseEventHandler<HTMLSpanElement> = (event) => {
     stopTokenActionEvent(event)
+    const selection = window.getSelection()
+    if (
+      props.readOnly &&
+      selection &&
+      !selection.isCollapsed &&
+      selection.getRangeAt(0).intersectsNode(event.currentTarget)
+    )
+      return
     openLink(event.metaKey || event.ctrlKey || event.shiftKey || event.altKey)
   }
   const handleKeyDown = (event: ReactKeyboardEvent<HTMLSpanElement>) => {
@@ -326,15 +334,19 @@ export function LinkComposerToken(props: ComposerTokenProps) {
   const chipElement = renderActiveComposerTokenElement({
     ...props,
     colorClassName: 'text-link',
-    className: cn('cursor-pointer rounded-[4px] focus-visible:bg-accent focus-visible:outline-none', props.className),
+    className: cn(
+      'cursor-pointer rounded-[4px] focus-visible:bg-accent focus-visible:outline-none',
+      props.readOnly && 'inline select-text',
+      props.className
+    ),
     // 编辑态也和只读态一样显示站点图标；拿不到图标时退回链接字形（而不是首字母方块），
     // 这样编辑中的链接和已发送消息里的链接长得一样。
     icon: (
-      <span className={composerLinkFaviconClassName} data-composer-link-favicon="">
+      <span className={cn(composerLinkFaviconClassName, props.readOnly && 'mr-1')} data-composer-link-favicon="">
         <Favicon hostname={link.hostname} alt="" fallback={tokenIconByKind.link} />
       </span>
     ),
-    children: <span className="min-w-0 truncate">{link.label}</span>,
+    children: <span className={props.readOnly ? undefined : 'min-w-0 truncate'}>{link.label}</span>,
     hideNativeTitle: true,
     interactionProps: {
       href: props.readOnly ? link.url : undefined,

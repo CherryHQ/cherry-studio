@@ -200,6 +200,8 @@ later collab operation K2 -> same Thread C -> later Turn T3
 
 ### 按协议版本研究 ACP 智能体
 
+[ACP v1 适配器记录](../../implemented/architecture/2026-11-09-agent-runtime-acp-v1.md) 记录 2026-11-09 的协议／SDK 更新、Claude/Gemini 调研，以及适配器／原生循环验证。下文保留原有固定基线；适配器证据仍不包含桌面验收。
+
 #### v1
 
 `session/prompt` 在处理期间保持 pending，智能体经 `session/update` 推送消息和工具更新，最终响应返回 stopReason。JSON-RPC request ID 关联本次调用，不因此建立可查询、持久化的执行对象。`session/cancel` 后仍可能有收尾更新，由 prompt 响应确认完成。[v1 Prompt turn](https://github.com/agentclientprotocol/agent-client-protocol/blob/e7dac67ac64ec7cf69079b3bb6eff46a21e026b3/docs/protocol/v1/prompt-turn.mdx)
