@@ -1,14 +1,15 @@
 import { readFileSync, renameSync, writeFileSync } from 'node:fs'
 
-import { REGRESSION_CASES, selectCases, supportsPlatform } from './cases'
+import { parseTaskSelection, REGRESSION_CASES, selectCases, serializeTaskSelection, supportsPlatform } from './cases'
 import type { CapabilityResult, CaseStatus, RegressionRun, RunMetadata, RunVerdict } from './types'
 
 export function createRun(metadata: RunMetadata): RegressionRun {
-  const selected = selectCases(metadata.task)
+  const selection = parseTaskSelection(metadata.task)
+  const selected = selectCases(selection)
   const selectedIds = new Set(selected.map(({ id }) => id))
   return {
     schemaVersion: 2,
-    metadata: { providerMode: 'real', ...metadata },
+    metadata: { providerMode: 'real', ...metadata, task: serializeTaskSelection(selection) },
     startedAt: new Date().toISOString(),
     capabilities: {},
     phases: Object.fromEntries(
