@@ -2,11 +2,10 @@ import type { UpdateInfo } from 'builder-util-runtime'
 
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
+import { presentedRouteService } from '@renderer/services/PresentedRouteService'
 import { openExternalWebsite } from '@renderer/services/website'
 import { getAppEdition } from '@renderer/utils/appEdition'
 import type { CacheAppUpdateState } from '@shared/data/cache/cacheValueTypes'
-
-import { presentedRouteService } from './PresentedRouteService'
 
 const logger = loggerService.withContext('AppUpdateCheckService')
 

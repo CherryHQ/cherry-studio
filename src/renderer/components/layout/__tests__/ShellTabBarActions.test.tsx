@@ -6,7 +6,7 @@ import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { cacheService } from '@data/CacheService'
-import type * as UpdateCheckModule from '@renderer/services/AppUpdateCheckService'
+import type * as UpdateCheckModule from '@renderer/components/appUpdate/AppUpdateCheckService'
 let appUpdateCheckService: typeof UpdateCheckModule.appUpdateCheckService
 
 import type * as ShellModule from '../ShellTabBarActions'
@@ -15,7 +15,7 @@ let ShellTabBarActions: typeof ShellModule.ShellTabBarActions
 
 beforeEach(async () => {
   vi.resetModules()
-  ;({ appUpdateCheckService } = await import('@renderer/services/AppUpdateCheckService'))
+  ;({ appUpdateCheckService } = await import('@renderer/components/appUpdate/AppUpdateCheckService'))
   ;({ AppUpdateButton, ShellTabBarActions } = await import('../ShellTabBarActions'))
 })
 

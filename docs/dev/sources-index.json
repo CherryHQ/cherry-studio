@@ -3,7 +3,7 @@
   "documents": [
     {
       "path": "docs/dev/contrib/app-upgrade.md",
-      "sources": ["dev-app-update.yml","electron-builder.cn.config.cjs","electron-builder.yml","package.json","resources/cherry-studio/release-history.json","src/main/services/AppUpdaterService.ts","src/renderer/services/AppUpdateCheckService.ts"]
+      "sources": ["dev-app-update.yml","electron-builder.cn.config.cjs","electron-builder.yml","package.json","resources/cherry-studio/release-history.json","src/main/services/AppUpdaterService.ts","src/renderer/components/appUpdate/AppUpdateCheckService.ts"]
     },
     {
       "path": "docs/dev/contrib/feishu-notify.md",

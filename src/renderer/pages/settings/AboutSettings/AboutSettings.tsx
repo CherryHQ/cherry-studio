@@ -17,6 +17,12 @@ import {
 } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import AppLogo from '@renderer/assets/images/logo.png'
+import { appUpdateCheckService } from '@renderer/components/appUpdate/AppUpdateCheckService'
+import {
+  updateCheckLabelKey,
+  updateNoticeIsFailure,
+  useAppUpdateCheck
+} from '@renderer/components/appUpdate/useAppUpdateCheck'
 import { DoctorPopup } from '@renderer/components/doctor'
 import FeedbackDialog from '@renderer/components/feedback/FeedbackDialog'
 import LogoAvatar from '@renderer/components/icons/LogoAvatar'
@@ -27,12 +33,10 @@ import {
   SettingsContentColumn
 } from '@renderer/components/SettingsPrimitives'
 import { UpgradeReleaseNotes } from '@renderer/components/UpgradeReleaseNotes'
-import { updateCheckLabelKey, updateNoticeIsFailure, useAppUpdateCheck } from '@renderer/hooks/useAppUpdateCheck'
 import { useOpenReleaseNotes } from '@renderer/hooks/useOpenReleaseNotes'
 import { useTheme } from '@renderer/hooks/useTheme'
 import i18n from '@renderer/i18n/resolver'
 import { ipcApi } from '@renderer/ipc'
-import { appUpdateCheckService } from '@renderer/services/AppUpdateCheckService'
 import { captureDiagnosticAiDiagnosis } from '@renderer/services/diagnosticAiSnapshot'
 import { toast } from '@renderer/services/toast'
 import { openExternalWebsite } from '@renderer/services/website'

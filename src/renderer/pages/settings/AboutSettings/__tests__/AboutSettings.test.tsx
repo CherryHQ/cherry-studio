@@ -6,9 +6,9 @@ import type * as ReactI18nextModule from 'react-i18next'
 import type * as StreamdownModule from 'streamdown'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { appUpdateCheckService } from '@renderer/components/appUpdate/AppUpdateCheckService'
 import enUS from '@renderer/i18n/locales/en-us.json'
 import i18n from '@renderer/i18n/resolver'
-import { appUpdateCheckService } from '@renderer/services/AppUpdateCheckService'
 import { UpgradeChannel, type PreferenceKeyType } from '@shared/data/preference/preferenceTypes'
 
 vi.unmock('@cherrystudio/ui')
