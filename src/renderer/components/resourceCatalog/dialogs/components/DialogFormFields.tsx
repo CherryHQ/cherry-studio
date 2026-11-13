@@ -1,10 +1,51 @@
-import { ChevronDown } from 'lucide-react'
+import { ChevronDown, Dices } from 'lucide-react'
 import { type ComponentProps, type ComponentPropsWithoutRef, type FC, type ReactNode } from 'react'
+import { useTranslation } from 'react-i18next'
 
-import { Button, EmojiAvatar, Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
+import { Button, EmojiAvatar, Popover, PopoverContent, PopoverTrigger, Tooltip } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { EmojiPicker } from '@renderer/components/EmojiPicker'
+
+const RANDOM_AVATAR_EMOJIS = [
+  '💬',
+  '✍️',
+  '🧑‍💻',
+  '📚',
+  '🧠',
+  '🔍',
+  '🎨',
+  '📈',
+  '🧪',
+  '🌐',
+  '🗂️',
+  '📝',
+  '⚡️',
+  '🛠️',
+  '🎯',
+  '🍒',
+  '🦉',
+  '🐙',
+  '🚀',
+  '🧭',
+  '📮',
+  '🎧',
+  '🧾',
+  '🦊',
+  '🐼',
+  '🐳',
+  '🌱',
+  '🍀',
+  '🌈',
+  '🔮',
+  '🎲'
+]
+
+/** A random avatar emoji that differs from `current`. */
+export function pickRandomAvatarEmoji(current?: string): string {
+  const pool = RANDOM_AVATAR_EMOJIS.filter((emoji) => emoji !== current)
+  return pool[Math.floor(Math.random() * pool.length)]
+}
 
 export const EmojiAvatarPicker: FC<{
   value: string
@@ -31,6 +72,7 @@ export const EmojiAvatarPicker: FC<{
   avatarClassName,
   avatarFontSize
 }) => {
+  const { t } = useTranslation()
   // 'md' matches the h-8 Input the avatar sits beside in the edit dialogs.
   const avatarSize = size === 'sm' ? 36 : 32
   const fontSize = avatarFontSize ?? (size === 'sm' ? 18 : 16)
@@ -56,7 +98,21 @@ export const EmojiAvatarPicker: FC<{
           </EmojiAvatar>
         </Button>
       </PopoverTrigger>
-      <PopoverContent portalContainer={portalContainer} className="w-auto p-0">
+      <PopoverContent portalContainer={portalContainer} className="w-auto overflow-hidden p-0">
+        <div className="flex items-center justify-between gap-2 px-3 pt-3">
+          <span className="font-medium text-foreground text-sm">{ariaLabel}</span>
+          <Tooltip content={t('library.config.dialogs.create.avatar_random')}>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              aria-label={t('library.config.dialogs.create.avatar_random')}
+              onClick={() => onChange(pickRandomAvatarEmoji(value || fallback))}
+              className="size-8 shrink-0 rounded-lg text-muted-foreground hover:bg-accent hover:text-foreground">
+              <Dices className="size-4" />
+            </Button>
+          </Tooltip>
+        </div>
         <EmojiPicker
           onEmojiClick={(emoji) => {
             onChange(emoji)
