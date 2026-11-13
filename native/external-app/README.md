@@ -10,8 +10,8 @@ worker is released; native crashes are not isolated from the host process.
 
 macOS uses NSWorkspace file URLs, Windows uses SHAssocEnumHandlers and
 IAssocHandler::Invoke, and Linux uses GIO content types and GAppInfo. Folder
-paths are enumerated through the same APIs: macOS and Linux shape folders as
-`inode/directory` content, while Windows enumerates the `Folder` and `Directory`
+paths are enumerated through the same APIs: macOS resolves folder URLs through
+NSWorkspace, Linux uses `inode/directory` content, while Windows enumerates the `Folder` and `Directory`
 programmatic identifiers and omits Explorer because Main presents the system file
 manager as its own row. Opening re-enumerates the path's current handlers and
 rejects missing identities. The list includes default metadata separately; Main
@@ -76,7 +76,9 @@ xvfb-run -a env LD_PRELOAD=libgtk-4.so.1 node native/external-app/linux/smoke.cj
 The Windows icon smoke creates temporary per-user file associations and compares
 different DLL resource indices for identical executables, then removes them.
 Linux smoke uses isolated XDG directories to check themed and absolute SVG icons,
-missing/corrupt icon fallback, and launching. Standalone Node preloads GTK for
+missing/corrupt icon fallback, and launching both files and folders with Unicode
+and spaces in their paths. Folder handlers declare `MimeType=inode/directory;`
+in their desktop entries. Standalone Node preloads GTK for
 this test; passing the Electron binary path as the first smoke argument runs the
 same assertions inside Electron (with `--gtk-version=3` or `--gtk-version=4` as the
 next argument). Electron provides its own loaded GTK. No display means themed icon

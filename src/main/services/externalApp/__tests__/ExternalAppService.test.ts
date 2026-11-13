@@ -14,6 +14,7 @@ const mocks = vi.hoisted(() => ({
   openNativeApplication: vi.fn(),
   safeOpen: vi.fn(),
   showInFolder: vi.fn(),
+  lstatSync: vi.fn(),
   statSync: vi.fn()
 }))
 
@@ -31,6 +32,7 @@ vi.mock('electron', () => ({
 }))
 vi.mock('node:fs', async (importOriginal) => ({
   ...(await importOriginal<typeof NodeFs>()),
+  lstatSync: mocks.lstatSync,
   statSync: mocks.statSync
 }))
 vi.mock('@main/services/file', () => ({ safeOpen: mocks.safeOpen, showInFolder: mocks.showInFolder }))
@@ -52,6 +54,9 @@ describe('ExternalAppService', () => {
   beforeEach(() => {
     MockMainCacheServiceUtils.resetMocks()
     vi.clearAllMocks()
+    mocks.lstatSync.mockImplementation(() => {
+      throw new Error('not installed')
+    })
     mocks.statSync.mockReturnValue({ isDirectory: () => false })
     mocks.isSafeExternalUrl.mockReturnValue(true)
     mocks.listNativeApplications.mockResolvedValue({ applications: [preview, editor], defaultApplication: preview })
@@ -63,6 +68,7 @@ describe('ExternalAppService', () => {
   afterEach(() => {
     vi.restoreAllMocks()
     vi.unstubAllGlobals()
+    vi.unstubAllEnvs()
   })
 
   // Directory expectations list the curated whitelist, which includes a Windows-only terminal.
@@ -214,6 +220,43 @@ describe('ExternalAppService', () => {
     })
     expect(externalAppRequestSchemas['external_app.target.list'].output.parse(result)).toEqual(result)
   })
+
+  it.each([{ applications: [] }, { applications: [{ id: '/Applications/Code.app', name: 'Code' }] }])(
+    'uses only native editors after successful folder enumeration: %j',
+    async ({ applications }) => {
+      stubPlatform('darwin')
+      mocks.statSync.mockReturnValue({ isDirectory: () => true })
+      mocks.listNativeApplications.mockResolvedValue({ applications, defaultApplication: null })
+      const result = await new ExternalAppService().listOpenTargets('/tmp/project')
+      expect(result.targets.map((target) => target.id)).toEqual([
+        'file_manager',
+        ...applications.map((item) => nativeTargetId(item.id))
+      ])
+    }
+  )
+
+  it.each(['missing', 'registered', 'unavailable'])(
+    'retains Windows Terminal without duplicating a native entry: %s',
+    async (association) => {
+      stubPlatform('win32')
+      vi.stubEnv('LOCALAPPDATA', 'C:\\Users\\test\\AppData\\Local')
+      mocks.statSync.mockReturnValue({ isDirectory: () => true })
+      mocks.lstatSync.mockReturnValue({})
+      const terminal = { id: 'windows-terminal', name: 'Windows Terminal' }
+      if (association === 'unavailable') mocks.listNativeApplications.mockRejectedValue(new Error('helper missing'))
+      else
+        mocks.listNativeApplications.mockResolvedValue({
+          applications: association === 'registered' ? [terminal] : [],
+          defaultApplication: null
+        })
+      const result = await new ExternalAppService().listOpenTargets('/tmp/project')
+      expect(result.targets.map((target) => target.id)).toEqual([
+        'file_manager',
+        ...(association === 'unavailable' ? ['known:vscode'] : []),
+        association === 'registered' ? nativeTargetId(terminal.id) : 'known:wt'
+      ])
+    }
+  )
 
   it('opens a folder with an application the OS registered for folders', async () => {
     mocks.statSync.mockReturnValue({ isDirectory: () => true })

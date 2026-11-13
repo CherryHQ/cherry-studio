@@ -153,10 +153,16 @@ export class ExternalAppService {
   }
 
   private async listDirectoryTargets(targetPath: AbsoluteFilePath): Promise<ExternalOpenTargetResult> {
-    const { targets: nativeTargets, names: nativeNames } = await this.listNativeDirectoryTargets(targetPath)
-    const compatibleApps = (await this.detectInstalledApps()).filter((item) => item.pathKinds.includes('directory'))
-    const knownTargets = compatibleApps
-      .filter((item) => !nativeNames.has(normalizeApplicationName(item.name)))
+    const nativeTargets = await this.listNativeDirectoryTargets(targetPath)
+    const apps = nativeTargets === null || process.platform === 'win32' ? await this.detectInstalledApps() : []
+    const knownTargets = apps
+      .filter((item) => item.pathKinds.includes('directory') && (nativeTargets === null || item.kind === 'terminal'))
+      .filter(
+        (item) =>
+          !nativeTargets?.some(
+            (target) => normalizeApplicationName(target.name ?? '') === normalizeApplicationName(item.name)
+          )
+      )
       .map((item) => this.toKnownTarget(item))
     const applicationTargets = knownTargets.filter((item) => item.kind === 'application')
     const terminalTargets = knownTargets.filter((item) => item.kind === 'terminal')
@@ -165,7 +171,7 @@ export class ExternalAppService {
       recommendedTargetId: FILE_MANAGER_TARGET_ID,
       targets: [
         { id: FILE_MANAGER_TARGET_ID, kind: 'file_manager' },
-        ...nativeTargets,
+        ...(nativeTargets ?? []),
         ...applicationTargets,
         ...terminalTargets
       ]
@@ -176,18 +182,14 @@ export class ExternalAppService {
    * Every application the OS registers for folders, minus the system file manager: the
    * `file_manager` row already opens folders with it, so listing it again would duplicate a row.
    */
-  private async listNativeDirectoryTargets(
-    targetPath: AbsoluteFilePath
-  ): Promise<{ targets: ExternalOpenTarget[]; names: Set<string> }> {
+  private async listNativeDirectoryTargets(targetPath: AbsoluteFilePath): Promise<ExternalOpenTarget[] | null> {
     const targets: ExternalOpenTarget[] = []
-    const names = new Set<string>()
     try {
       const { applications, defaultApplication } = await listNativeApplications(targetPath)
       const seen = new Set<string>(defaultApplication ? [defaultApplication.id] : [])
       for (const item of applications) {
         if (seen.has(item.id)) continue
         seen.add(item.id)
-        names.add(normalizeApplicationName(item.name))
         targets.push({
           id: nativeTargetId(item.id),
           kind: 'application',
@@ -197,8 +199,9 @@ export class ExternalAppService {
       }
     } catch (error) {
       logger.warn('Failed to discover directory associations', error as Error)
+      return null
     }
-    return { targets, names }
+    return targets
   }
 
   private async listFileTargets(targetPath: AbsoluteFilePath): Promise<ExternalOpenTargetResult> {
