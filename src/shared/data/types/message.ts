@@ -18,6 +18,7 @@ import type { AutonomousTurnOrigin } from '@shared/ai/agentSessionTurnOrigin'
 import type { CursorPaginationResponse } from '@shared/data/api/types'
 import { type ReasoningEffortOption, ReasoningEffortOptionSchema } from '@shared/types/aiSdk'
 
+import type { MessageProvenance } from './conversationImport'
 import { FileEntryIdSchema } from './file'
 import { type ServiceTierSelection, ServiceTierSelectionSchema } from './model'
 import type { CherryDataPartTypes } from './uiParts'
@@ -196,6 +197,8 @@ export interface CherryUIMessageMetadata {
   modelSelection?: MessageData['modelSelection']
   /** Snapshot of the producing author (assistant|agent, model nested) captured at creation. */
   messageSnapshot?: MessageSnapshot
+  /** Source identity for imported history; retained by display and capture projections. */
+  provenance?: MessageProvenance
   /** Persistence status: mirrors the DB row's `status` column. */
   status?: MessageStatus
   /** Main-authoritative request controls frozen with the persisted assistant row. */

@@ -46,6 +46,7 @@ export function toAgentSessionUIMessage(row: AgentSessionMessageEntity): CherryU
   metadata.status = row.status
   if (row.modelId) metadata.modelId = row.modelId
   if (row.messageSnapshot) metadata.messageSnapshot = row.messageSnapshot
+  if (row.provenance) metadata.provenance = row.provenance
   if (row.stats) metadata.stats = row.stats
   if (row.delivery) metadata.delivery = row.delivery
 

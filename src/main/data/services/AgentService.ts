@@ -629,6 +629,16 @@ export class AgentService {
     return result[0]
   }
 
+  getImportTargetTx(tx: DbOrTx, id: string) {
+    const row = tx
+      .select()
+      .from(agentsTable)
+      .where(and(eq(agentsTable.id, id), isNull(agentsTable.deletedAt)))
+      .get()
+    if (!row || row.type !== 'pi') throw new Error('target_changed')
+    return row
+  }
+
   getAgent(id: string): AgentEntity | null {
     const database = application.get('DbService').getDb()
     const [agent] = database

@@ -52,6 +52,7 @@ import { CitationPreviewService } from '@main/services/CitationPreviewService'
 import { CodeCliService } from '@main/services/codeCli'
 import { CommandService } from '@main/services/CommandService'
 import { ComputerUseService } from '@main/services/ComputerUseService'
+import { ConversationImportService } from '@main/services/conversationImport/ConversationImportService'
 import { ConversationNavigationService } from '@main/services/ConversationNavigationService'
 import { ConversationNotificationService } from '@main/services/ConversationNotificationService'
 import { DeepSeekHarnessService } from '@main/services/deepSeekHarness'
@@ -115,6 +116,7 @@ import { WebviewService } from '@main/services/webview'
  * Value = service class constructor
  */
 export const services = {
+  ConversationImportService,
   ComputerUseService,
   AutomationReplService,
   RemoteAccessService,

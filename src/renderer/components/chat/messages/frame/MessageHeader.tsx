@@ -1,5 +1,5 @@
 import dayjs from 'dayjs'
-import { ArrowUpRight, MousePointerClick, Sparkle, Target } from 'lucide-react'
+import { ArrowUpRight, MousePointerClick, Sparkle, Target, Terminal } from 'lucide-react'
 import type { FC, ReactNode } from 'react'
 import { memo, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -127,6 +127,7 @@ const MessageHeader: FC<Props> = memo(
     const avatarKey = `${message.id}:${avatarSource}`
     const authorAvatar = failedAvatarKey === avatarKey ? authorSnapshot?.emoji : avatarSource
     const getUserName = useCallback(() => {
+      if (message.role === 'system') return t('chat.message.system')
       if (message.role === 'assistant') {
         return authorName || displayModel?.name || displayModel?.id || ''
       }
@@ -156,7 +157,11 @@ const MessageHeader: FC<Props> = memo(
     return (
       <div
         className={`message-header group/header relative flex gap-2.5 ${hasBodySlot ? 'mb-0 items-start' : 'mb-2 items-center'}`}>
-        {isAssistantMessage ? (
+        {message.role === 'system' ? (
+          <MessageAvatarFrame className="bg-muted text-muted-foreground">
+            <Terminal className={MESSAGE_MODEL_AVATAR_ICON_CLASS} aria-hidden="true" />
+          </MessageAvatarFrame>
+        ) : isAssistantMessage ? (
           authorAvatar ? (
             <MessageAvatar
               avatar={authorAvatar}

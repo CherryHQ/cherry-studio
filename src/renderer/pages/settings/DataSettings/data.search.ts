@@ -128,6 +128,12 @@ export const entries: SettingsSearchEntry[] = [
     groupKey: 'settings.data.import_settings.title'
   },
   {
+    anchorId: 'import-local-claude-code',
+    titleKey: 'history_import.title',
+    panel: 'import_settings',
+    groupKey: 'settings.data.import_settings.title'
+  },
+  {
     anchorId: 'import-claude',
     titleKey: 'settings.data.import_settings.claude',
     panel: 'import_settings',

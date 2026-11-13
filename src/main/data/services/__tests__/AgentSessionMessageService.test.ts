@@ -12,6 +12,7 @@ import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { aiUsageRecordTable } from '@data/db/schemas/aiUsageRecord'
+import { appStateTable } from '@data/db/schemas/appState'
 import { fileEntryTable } from '@data/db/schemas/file'
 import { agentSessionMessageFileRefTable } from '@data/db/schemas/fileRelations'
 import { userModelTable } from '@data/db/schemas/userModel'
@@ -19,10 +20,16 @@ import { userProviderTable } from '@data/db/schemas/userProvider'
 import { AgentSessionMessageTreeSeeder } from '@data/db/seeding/seeders/AgentSessionMessageTreeSeeder'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionForkService } from '@data/services/AgentSessionForkService'
+import { sessionMessageOrdering } from '@data/services/agentSessionMessageOrder'
 import type { AgentSessionDeliveryRoutingError } from '@data/services/AgentSessionMessageService'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { aiUsageRecordService } from '@data/services/AiUsageRecordService'
+import {
+  getImportedHistoryState,
+  queueImportedHistoryTx,
+  setImportedMetadataTx
+} from '@data/services/importedSessionHistory'
 import { AgentSessionForkOperations } from '@main/ai/agentSession/fork/AgentSessionForkOperations'
 import { prepareClaudeBranch } from '@main/ai/runtime/claudeCode/claudeContext'
 import { ClaudeForkCheckpointSchema } from '@main/ai/runtime/claudeCode/forkCheckpoint'
@@ -150,6 +157,152 @@ describe('AgentSessionMessageService', () => {
     expect(agentSessionMessageService.hasSessionMessages(SESSION_ID)).toBe(true)
     expect(agentSessionMessageService.hasSessionMessages(SESSION_ID, USER_MESSAGE_ID)).toBe(false)
     expect(agentSessionMessageService.hasSessionMessages('session-2')).toBe(false)
+  })
+
+  it('keeps WorkBuddy causal order across pages, anchors, forks and native continuation', async () => {
+    const base = Date.UTC(2026, 0, 1)
+    const ids = ['wb-user', 'wb-call', 'wb-result', 'wb-answer']
+    const times = [base, base + 200, base + 9, base + 300]
+    application.get('DbService').withWriteTx((tx) => {
+      agentSessionMessageService.importMessagesTx(
+        tx,
+        SESSION_ID,
+        ids.map((id, sourceOrder) => ({
+          id,
+          role: sourceOrder === 0 ? 'user' : 'assistant',
+          status: 'success',
+          data: { parts: [{ type: 'text', text: id }] },
+          createdAt: times[sourceOrder],
+          updatedAt: times[sourceOrder],
+          runtimeResumeToken: 'imported-token',
+          provenance: { source: 'workbuddy', sourceOrder }
+        }))
+      )
+    })
+    agentSessionMessageService.saveMessage({
+      sessionId: SESSION_ID,
+      runtimeResumeToken: 'native-token',
+      message: { id: USER_MESSAGE_ID, role: 'user', data: { parts: [{ type: 'text', text: 'continue' }] } }
+    })
+    const read: string[] = []
+    let cursor: string | undefined
+    do {
+      const page = agentSessionMessageService.listSessionMessages(SESSION_ID, { limit: 2, cursor })
+      read.push(...page.items.map((row) => row.id))
+      cursor = page.nextCursor
+    } while (cursor)
+    expect(read.reverse()).toEqual([...ids, USER_MESSAGE_ID])
+    expect(
+      agentSessionMessageService
+        .listSessionMessages(SESSION_ID, { messageId: 'wb-result', limit: 2 })
+        .items.map((row) => row.id)
+    ).toEqual(['wb-result', 'wb-call'])
+    expect(agentSessionMessageService.getLastRuntimeResumeToken(SESSION_ID)).toBe('native-token')
+    const prefix = agentSessionMessageService.readForkPrefixTx(dbh.db, SESSION_ID, 'wb-result')!
+    expect(prefix.map((row) => row.id)).toEqual(ids.slice(0, 3))
+    expect(prefix.map((row) => row.createdAt)).toEqual(times.slice(0, 3))
+    await seedSession({ id: 'wb-copy', name: 'Copy', orderKey: 'wb-copy' })
+    application.get('DbService').withWriteTx((tx) =>
+      agentSessionMessageService.insertForkMessagesTx(
+        tx,
+        'wb-copy',
+        prefix.map((row) => ({ ...row, id: row.id + '-copy' }))
+      )
+    )
+    expect(
+      agentSessionMessageService.listSessionMessages('wb-copy').items.map((row) => row.provenance?.sourceOrder)
+    ).toEqual([2, 1, 0])
+
+    const prepare = vi.spyOn(dbh.sqlite, 'prepare')
+    agentSessionMessageService.listSessionMessages(SESSION_ID, { limit: 1 })
+    const smallPageQueries = prepare.mock.calls.length
+    prepare.mockClear()
+    agentSessionMessageService.listSessionMessages(SESSION_ID, { limit: 4 })
+    expect(prepare.mock.calls.length).toBe(smallPageQueries)
+    prepare.mockRestore()
+    const query = dbh.db
+      .select({ id: agentSessionMessageTable.id })
+      .from(agentSessionMessageTable)
+      .where(eq(agentSessionMessageTable.sessionId, SESSION_ID))
+      .orderBy(...sessionMessageOrdering(dbh.db, SESSION_ID).orderBy)
+      .limit(2)
+      .toSQL()
+    const plan = dbh.sqlite.prepare('EXPLAIN QUERY PLAN ' + query.sql).all(...query.params)
+    expect(JSON.stringify(plan)).toContain('SEARCH app_state USING INDEX sqlite_autoindex_app_state_1 (key=?)')
+
+    expect(
+      agentSessionMessageService.replaceMessageParts(SESSION_ID, 'wb-call', [{ type: 'text', text: 'Edited' }])
+        .provenance
+    ).toEqual({ source: 'workbuddy', sourceOrder: 1 })
+    agentSessionMessageService.deleteSessionMessage(SESSION_ID, 'wb-result')
+    expect(
+      dbh.db
+        .select()
+        .from(appStateTable)
+        .where(eq(appStateTable.key, 'conversation-import:message:' + SESSION_ID + ':wb-result'))
+        .get()
+    ).toBeUndefined()
+    const edit = agentSessionMessageService.readEditSnapshotTx(dbh.db, SESSION_ID, 'wb-user')
+    application
+      .get('DbService')
+      .withWriteTx((tx) =>
+        agentSessionMessageService.replaceEditBranchTx(tx, SESSION_ID, { messageId: 'wb-user', version: edit.version })
+      )
+    expect(agentSessionMessageService.listSessionMessages(SESSION_ID).items).toEqual([])
+    expect(
+      dbh.db
+        .select()
+        .from(appStateTable)
+        .all()
+        .map((row) => row.key)
+        .sort()
+    ).toEqual(
+      ids
+        .slice(0, 3)
+        .map((id) => 'conversation-import:message:wb-copy:' + id + '-copy')
+        .sort()
+    )
+  })
+
+  it('refreshes imported history count once after deleting an edit tail', () => {
+    application.get('DbService').withWriteTx((tx) => {
+      setImportedMetadataTx(tx, SESSION_ID, { source: 'claude-code', originalSessionId: 'tail-source' })
+      agentSessionMessageService.importMessagesTx(
+        tx,
+        SESSION_ID,
+        Array.from({ length: 32 }, (_, index) => ({
+          id: 'tail-' + index,
+          role: index === 0 || index === 8 ? 'user' : 'assistant',
+          status: 'success',
+          data: { parts: [{ type: 'text' as const, text: 'History ' + index }] },
+          createdAt: index,
+          updatedAt: index,
+          provenance: { source: 'claude-code' as const, sourceOrder: index }
+        }))
+      )
+      queueImportedHistoryTx(tx, SESSION_ID, 'af21c360-e55a-4ad7-bfb1-31d676a946ec', 32)
+    })
+    const snapshot = agentSessionMessageService.readEditSnapshotTx(dbh.db, SESSION_ID, 'tail-8')
+    const prepare = vi.spyOn(dbh.sqlite, 'prepare')
+    application.get('DbService').withWriteTx((tx) =>
+      agentSessionMessageService.replaceEditBranchTx(tx, SESSION_ID, {
+        messageId: 'tail-8',
+        version: snapshot.version
+      })
+    )
+    const countQueries = prepare.mock.calls.filter(([query]) =>
+      /select count\(\*\).*agent_session_message/i.test(query)
+    )
+    expect(countQueries).toHaveLength(1)
+    prepare.mockRestore()
+    expect(
+      agentSessionMessageService
+        .listSessionMessages(SESSION_ID)
+        .items.map((row) => row.id)
+        .reverse()
+    ).toEqual(Array.from({ length: 8 }, (_, index) => 'tail-' + index))
+    expect(getImportedHistoryState(SESSION_ID)?.messageCount).toBe(8)
+    expect(dbh.db.select().from(appStateTable).all()).toHaveLength(9)
   })
 
   describe('native fork persistence', () => {

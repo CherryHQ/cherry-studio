@@ -227,7 +227,7 @@
     },
     {
       "path": "docs/dev/references/data/app-state-overview.md",
-      "sources": ["src/main/data/db/schemas/appState.ts","src/main/data/db/seeding/SeedRunner.ts","src/main/data/migration/v2/core/MigrationEngine.ts","src/main/services/file/tasks/contentMetadataGeneration.ts"]
+      "sources": ["src/main/data/db/schemas/appState.ts","src/main/data/db/seeding/SeedRunner.ts","src/main/data/migration/v2/core/MigrationEngine.ts","src/main/data/services/importedSessionHistory.ts","src/main/services/file/tasks/contentMetadataGeneration.ts"]
     },
     {
       "path": "docs/dev/references/data/best-practice-default-values-and-nullability.md",
