@@ -219,11 +219,11 @@ These are the choices nothing enforces:
   regression to guard against. See
   [pi driver resource boundary](./agent-session-runtime.md#pi-driver-resource-boundary)
   for the concrete enforcement pattern.
-- **Permission posture matches the trust roots.** `claude-code` defaults to
-  `auto`, with its SDK brokering tool execution. An in-process
-  runtime may default to `acceptEdits` only when automatic writes are confined
-  to canonical user-selected roots; shell, external paths, third-party tools,
-  symlink escapes, and Cherry approval-required mutations must remain gated.
+- **Permission posture matches the shared policy.** Claude Code, Pi and Pi Durable use
+  `auto` with the same [command policy](./tool-approval.md#shell-command-policy).
+  A runtime must evaluate the whole invocation before starting any command, preserve forced
+  denials across mode shortcuts, and route per-call asks through the root responder.
+  Canonical file-root checks and independent tool guards remain separate requirements.
 - **Resume tokens are opaque to the host but not to you.** Persist a stable
   runtime id as the resume handle and resolve it under the Cherry-owned session
   directory at open time; never persist absolute paths, because DB-stored paths

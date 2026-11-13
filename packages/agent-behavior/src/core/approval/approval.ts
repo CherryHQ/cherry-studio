@@ -7,7 +7,12 @@ import type { ApprovalAnswer, ApprovalHostFacts, Attendance, PermissionMode } fr
 /** What the gate does with one call (D34): run it (perhaps with rewritten arguments), ask a person, or block it. */
 export type ApprovalDecision =
   | { readonly kind: 'allow'; readonly args?: JsonValue }
-  | { readonly kind: 'ask'; readonly presentation: 'stream' | 'message'; readonly args?: JsonValue }
+  | {
+      readonly kind: 'ask'
+      readonly presentation: 'stream' | 'message'
+      readonly args?: JsonValue
+      readonly details?: JsonValue
+    }
   | { readonly kind: 'block'; readonly reason: string }
 
 const REJECTED_HEADER =
@@ -82,6 +87,7 @@ export function decideApproval(
   plan: PlanState | undefined
 ): ApprovalDecision {
   let mode = permissionMode
+  if (host.commandPolicyDenial) return { kind: 'block', reason: host.commandPolicyDenial }
   if (host.disabled) return { kind: 'block', reason: `Tool "${call.tool}" is disabled for this agent.` }
   if (host.sqliteGuard) return { kind: 'block', reason: host.sqliteGuard }
   if (host.delegation === 'unattended')
@@ -114,7 +120,12 @@ export function decideApproval(
             : UNATTENDED
     }
   }
-  return { kind: 'ask', presentation: attendance === 'stream' ? 'stream' : 'message', ...rewritten }
+  return {
+    kind: 'ask',
+    presentation: attendance === 'stream' ? 'stream' : 'message',
+    ...rewritten,
+    ...(host.approvalDetails === undefined ? {} : { details: host.approvalDetails })
+  }
 }
 
 /** D35: what the person's answer does to the call; memoized under `cherry.approval:<callKey>`. */

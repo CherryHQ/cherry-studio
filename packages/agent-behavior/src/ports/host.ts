@@ -23,6 +23,7 @@ export type ApprovalRequest = {
   readonly call: CallRef
   readonly tool: ToolCallFact
   readonly presentation: 'stream' | 'message'
+  readonly details?: JsonValue
 }
 /**
  * P1. Ask a person whether a call may run; tell the rules how people answered before.

@@ -1,4 +1,6 @@
-import { describe, expect, it } from 'vitest'
+import { beforeAll, describe, expect, it } from 'vitest'
+
+import { initializeCommandParser } from '@main/ai/toolApproval/commandParser'
 
 import {
   detectDestructiveAssistantCommand,
@@ -6,6 +8,8 @@ import {
   isLarkFormSubmissionCommand,
   isPermanentDeletionToolName
 } from '../assistantCommandSafety'
+
+beforeAll(initializeCommandParser)
 
 describe('detectDestructiveAssistantCommand', () => {
   it.each([

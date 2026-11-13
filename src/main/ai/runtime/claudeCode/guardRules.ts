@@ -23,9 +23,11 @@ import {
   resolveDelegationApproval,
   toMcpRuntimeName
 } from '@main/ai/toolApproval/builtinToolPolicy'
+import { evaluateCommandPolicy, type CommandPolicyDecision } from '@main/ai/toolApproval/commandPolicy'
 import { detectGlobalInstall, detectMiseMutation } from '@main/ai/toolApproval/dependencyGuard'
 import type { GuardHit, ToolGuardContext, ToolGuardRule } from '@main/ai/toolApproval/toolGuards'
 import { evaluateUserDataSqliteGuard, USER_DATA_SQLITE_GUARD_REASON } from '@main/ai/toolApproval/userDataSqliteGuard'
+import { t } from '@main/i18n'
 import { claudeToolRequiresUserInteraction } from '@shared/ai/claudecode/toolRegistry'
 import { imageExts } from '@shared/utils/file'
 
@@ -129,7 +131,51 @@ const matchesRequiredApproval = (ctx: ToolGuardContext, bypassApproval: 'lift' |
   return policy?.approval === 'required' && policy.bypassApproval === bypassApproval ? {} : null
 }
 
+const commandDecisions = new WeakMap<ToolGuardContext, Promise<CommandPolicyDecision>>()
+
+function commandDecision(ctx: ToolGuardContext): Promise<CommandPolicyDecision> | undefined {
+  const command = bashCommand(ctx)
+  if (ctx.toolName !== 'Bash' || !command) return undefined
+  let pending = commandDecisions.get(ctx)
+  if (!pending) {
+    pending = evaluateCommandPolicy({
+      command,
+      dialect: 'bash',
+      cwd: ctx.cwd,
+      builtinRoles: ctx.builtinRole ? [ctx.builtinRole] : []
+    })
+    commandDecisions.set(ctx, pending)
+  }
+  return pending
+}
+
 const CROSS_CUTTING_TOOL_GUARD_RULES: readonly ToolGuardRule[] = [
+  {
+    id: 'command-policy-deny',
+    bypassBehavior: 'enforce',
+    match: {
+      when: async (ctx) => {
+        const decision = await commandDecision(ctx)
+        return decision?.effect === 'deny' ? { evidence: decision.reason } : null
+      }
+    },
+    effect: 'deny',
+    reason: (hit) => hit.evidence ?? t('command_approval.configuration_error')
+  },
+  {
+    id: 'command-policy-ask',
+    bypassBehavior: 'skipInteractiveEffect',
+    match: {
+      when: async (ctx) => {
+        if (ctx.permissionMode !== 'auto') return null
+        const decision = await commandDecision(ctx)
+        return decision?.effect === 'ask' ? { evidence: decision.reason } : null
+      }
+    },
+    effect: 'ask',
+    reason: (hit) => hit.evidence ?? t('command_approval.incomplete'),
+    headless: { predicate: 'responder-unavailable', reason: HEADLESS_INTERACTIVE_TOOL_DENIAL }
+  },
   {
     id: 'browser-tool-disabled',
     bypassBehavior: 'enforce',

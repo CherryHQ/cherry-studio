@@ -16,9 +16,11 @@ export function gateHandlers(host: HostPorts): GateHandlers {
       const ref: CallRef = { thread: call.thread, key: call.key }
       // A gate call carries no provider call id; the host identifies the call by its `CallRef`.
       const tool: ToolCallFact = { callId: call.key, callKey: call.key, name: call.tool, args: call.args }
+      const originalArguments = JSON.stringify(call.args)
+      const hostFacts = await host.approvals.facts(ref, tool)
       const decision = decideApproval(
         call,
-        await host.approvals.facts(ref, tool),
+        hostFacts,
         host.settings.permissionMode(call.thread),
         host.settings.attendance(call.thread),
         facts.plan
@@ -28,7 +30,8 @@ export function gateHandlers(host: HostPorts): GateHandlers {
       const request = {
         call: ref,
         tool: { ...tool, args: decision.args ?? call.args },
-        presentation: decision.presentation
+        presentation: decision.presentation,
+        ...(decision.details === undefined ? {} : { details: decision.details })
       }
       const answer = await ports.memory
         .remember(keys.approvalMemo(call.key), () => host.approvals.ask(request, call.signal))
@@ -37,7 +40,27 @@ export function gateHandlers(host: HostPorts): GateHandlers {
           if (call.signal.aborted) return undefined
           throw error
         })
-      return answer === undefined ? { block: ASK_WITHDRAWN } : answerVerdict(answer, decision.args)
+      if (answer === undefined) return { block: ASK_WITHDRAWN }
+      const verdict = answerVerdict(answer, decision.args)
+      if (answer.kind === 'granted' && hostFacts.policyContext !== undefined) {
+        const args = answer.args ?? decision.args ?? call.args
+        const latest = await host.approvals.facts(ref, { ...tool, args })
+        const checked = decideApproval(
+          { ...call, args },
+          latest,
+          host.settings.permissionMode(call.thread),
+          host.settings.attendance(call.thread),
+          facts.plan
+        )
+        if (checked.kind === 'block') return { block: checked.reason }
+        if (
+          latest.policyContext !== hostFacts.policyContext ||
+          JSON.stringify(call.args) !== originalArguments ||
+          (latest.rewrittenArgs !== undefined && JSON.stringify(latest.rewrittenArgs) !== JSON.stringify(args))
+        )
+          return { block: latest.policyChangedReason ?? ASK_WITHDRAWN }
+      }
+      return verdict
     },
     async after(call, result) {
       const name = offloadPlan(call, result, host.settings.offloadThreshold())

@@ -13,6 +13,7 @@ import {
   type GateHandlers
 } from '@cherrystudio/agent-behavior'
 import type { JsonValue } from '@cherrystudio/agent-runtime'
+import { initializeCommandParser } from '@main/ai/toolApproval/commandParser'
 import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
 
 import type { AgentRuntimeEvent } from '../types'
@@ -41,7 +42,8 @@ let skillRoot: string
 let userData: string
 let databaseFile: string
 
-beforeAll(() => {
+beforeAll(async () => {
+  await initializeCommandParser()
   testRoot = mkdtempSync(join(tmpdir(), 'pi-approval-paths-'))
   workspace = join(testRoot, 'workspace')
   agentData = join(testRoot, 'agent-data')
@@ -78,6 +80,8 @@ function buildGate(
     approvalRequiredTools: ReadonlySet<string>
     nonBypassableApprovalTools: ReadonlySet<string>
     delegationTools: ReadonlySet<string>
+    builtinRole: string
+    shellDialect: string
   }> = {}
 ) {
   const emitted: Extract<AgentRuntimeEvent, { type: 'tool-approval-request' }>[] = []
@@ -112,7 +116,7 @@ function buildGate(
     const interactions = await createPiInteractionPorts({
       input: { sessionId: 's1', agentId: 'agent', modelId: 'test::model' },
       approval: context,
-      toolCallId: async (call) => calls.get(call.key)!,
+      toolCallIdentity: async (call) => ({ toolCallId: calls.get(call.key)! }),
       emit: (event) => {
         if (event.type === 'tool-approval-request') emitted.push(event)
       }
@@ -186,6 +190,57 @@ beforeEach(() => {
 })
 
 describe('desktop facts and approvals through the shared behavior gate', () => {
+  // Catch session-wide shell grants bypassing each invocation or role constraints on a child.
+  it('asks again for each risky call despite a saved shell grant', async () => {
+    const { handler, emitted } = buildGate({ getPermissionMode: () => 'auto', autoApprovedTools: new Set(['bash']) })
+    await expect(handler(toolEvent('bash', { command: 'git status' }), extCtx)).resolves.toBeUndefined()
+    for (let index = 0; index < 2; index++) {
+      const pending = handler(toolEvent('bash', { command: 'git reset --hard' }), extCtx)
+      await flush()
+      expect(emitted[index].request.providerMetadata).toMatchObject({
+        cherry: {
+          commandPolicy: {
+            cwd: workspace,
+            rules: [{ ruleId: 'git-discard-worktree', evidence: 'git reset --hard' }]
+          }
+        }
+      })
+      toolApprovalRegistry.dispatch(emitted[index].request.approvalId, { approved: true })
+      await expect(pending).resolves.toBeUndefined()
+    }
+    expect(emitted).toHaveLength(2)
+  })
+
+  it.each(['default', 'auto', 'acceptEdits', 'plan', 'bypassPermissions'] as const)(
+    'denies a protected child in %s without offering approval',
+    async (mode) => {
+      const { handler, emitted } = buildGate({ builtinRole: 'assistant', getPermissionMode: () => mode })
+      const event = { ...toolEvent('bash', { command: 'echo marker > file; rm data' }), parentToolCallId: 'parent' }
+      await expect(handler(event, extCtx)).resolves.toMatchObject({ block: true })
+      expect(emitted).toHaveLength(0)
+    }
+  )
+
+  it('rejects an approval whose root mode changed while waiting', async () => {
+    let mode: AgentPermissionMode = 'auto'
+    const { handler, emitted } = buildGate({ getPermissionMode: () => mode })
+    const pending = handler(toolEvent('bash', { command: 'rm data' }), extCtx)
+    await flush()
+    mode = 'bypassPermissions'
+    toolApprovalRegistry.dispatch(emitted[0].request.approvalId, { approved: true })
+    await expect(pending).resolves.toMatchObject({ block: true, reason: expect.stringContaining('changed') })
+  })
+
+  it('rejects an input mutated after its approval card was emitted', async () => {
+    const { handler, emitted } = buildGate({ getPermissionMode: () => 'auto' })
+    const event = toolEvent('bash', { command: 'rm data' })
+    const pending = handler(event, extCtx)
+    await flush()
+    event.input.command = 'rm other-data'
+    toolApprovalRegistry.dispatch(emitted[0].request.approvalId, { approved: true })
+    await expect(pending).resolves.toMatchObject({ block: true })
+  })
+
   it('asks before PowerShell deletion in auto mode', async () => {
     const { handler, emitted } = buildGate({ getPermissionMode: () => 'auto' })
     const command = 'Remove-Item -Recurse -Force ./build'

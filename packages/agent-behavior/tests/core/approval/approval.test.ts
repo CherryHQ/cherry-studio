@@ -37,6 +37,22 @@ const decide = (
 ) => decideApproval(gateCall(tool), host(facts), mode, attendance, undefined).kind
 
 describe('approval decisions (D34)', () => {
+  // Catch mode and auto-approval shortcuts bypassing a mandatory host policy denial.
+  it.each(['default', 'acceptEdits', 'auto', 'plan', 'bypassPermissions'] as const)(
+    'keeps mandatory policy denial in %s',
+    (mode) => {
+      expect(
+        decideApproval(
+          gateCall('bash'),
+          host({ commandPolicyDenial: 'protected role', autoApproved: true }),
+          mode,
+          'stream',
+          undefined
+        )
+      ).toEqual({ kind: 'block', reason: 'protected role' })
+    }
+  )
+
   // Catches full access lifting a block that holds in every mode (P1–P3), or a non-bypassable tool's approval.
   it('blocks disabled tools and SQLite writes in every mode', () => {
     expect(decide('x', { disabled: true }, 'bypassPermissions')).toBe('block')

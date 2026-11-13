@@ -25,11 +25,17 @@ export type ApprovalHostFacts = {
   readonly globalInstall?: string
   /** Direct mutation of Cherry-managed tool state; blocked in every mode. */
   readonly miseMutation?: string
-  /** The root session's effective permission mode for an installation decision;
-   * child sessions receive a bypass mode of their own, which must not authorize installs. */
+  /** The root session's effective permission mode also governs child installation decisions. */
   readonly globalInstallPermissionMode?: PermissionMode
   /** The host's destructive-command detector flagged the call. */
   readonly destructive: boolean
+  /** A mandatory command-policy denial, enforced before every permission-mode shortcut. */
+  readonly commandPolicyDenial?: string
+  /** Host-owned presentation evidence for this exact approval request. */
+  readonly approvalDetails?: JsonValue
+  /** Identifies the policy and execution context used before waiting for consent. */
+  readonly policyContext?: string
+  readonly policyChangedReason?: string
   /** Cross-session delegation must originate in an interactive turn, even under full access. */
   readonly delegation?: 'interactive' | 'unattended'
 }

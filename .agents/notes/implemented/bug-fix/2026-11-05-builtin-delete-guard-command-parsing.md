@@ -12,13 +12,13 @@ A four-week audit of Agent sessions found roughly a quarter of the guard's block
 
 ## Decision
 
-`assistantCommandSafety` now parses the command before deciding. A local tokenizer splits the string into pipelines of simple commands, honouring quotes, escapes, comments, redirections, command substitutions, and heredocs. The guard matches the executable command word and its arguments, never the raw text.
+`assistantCommandSafety` now parses the command before deciding. The [structured command policy](../architecture/2026-11-13-command-approval-policy.md) now supplies the shared syntax-tree parser through a compatibility bridge, preserving quotes, escapes, comments, redirections, substitutions and heredoc ownership. It supersedes the original local tokenizer while retaining this note’s audited cases and destructive-operation detectors. The guard matches the executable command word and its arguments, never the raw text.
 
 Heredoc bodies are separated from the line that opened them. A body is analyzed only when that line feeds an interpreter that reads standard input (`bash <<'EOF'`, `python3 - <<'PY'`, `cat <<'EOF' | bash`); a heredoc written to a file by `cat`, `tee`, or `printf` is ignored. Interpreter code passed with `-c`/`-e`/`--eval` is analyzed too, and script literals and comments are stripped first so `print("os.remove(x)")` does not count as a call. Nested `$(…)` and backtick substitutions are analyzed recursively, and commands run through `ssh`, `su`, `chroot`, `kubectl exec`, and `docker`/`podman` `exec`/`run` are resolved to their inner command so the wrapper does not hide a deletion.
 
 The command word is resolved through assignments, `sudo`, `xargs`, `env`, `timeout`, and similar wrappers. `halt`, `shutdown`, and `reboot` match only as command words; `-halt-on-error` is an argument. `Remove-Item`, `del`, `sc delete`, and `reg delete` match only in executable position, including through `powershell -Command` (and base64 `-EncodedCommand`) and `cmd /c`.
 
-The denial text now names the built-in Tool Guard, says Cherry Studio enforces it, and states that no settings hook exists to inspect or edit.
+The main-owned JSON policy enforces the command denial in every permission mode. Its localized reason directs confirmed workspace deletion to the move-to-trash tool.
 
 ## Alternatives considered
 
@@ -30,12 +30,12 @@ The denial text now names the built-in Tool Guard, says Cherry Studio enforces i
 ## Consequences
 
 - The guard decides on structure, so a deletion written into a script file is not blocked until an interpreter executes it — the previous detector had the same blind spot. The guard remains a usability guard, not a security boundary.
-- Analysis recurses through at most four levels of `-c`, substitution, and heredoc nesting, which bounds work on adversarial input.
+- The compatibility detector retains its four-level recursion bound. The shared policy applies its own bounded syntax and nested-source analysis; its successor note records those limits.
 - `git restore --staged` is now allowed because it only unstages; `git restore` without `--staged`, or with `--worktree`, still blocks.
 - `fdisk` and similar disk tools remain blocked in read-only forms, preserving the previous behavior.
 
 ## Verification
 
-- Regression — `pnpm test:main src/main/ai/agents/builtin/__tests__/assistantCommandSafety.test.ts`: 67 tests; existing true positives stay blocked and the audited false positives (heredoc writers, `-halt-on-error`, `.rmvb`, `del lines[0]`, quoted regexes) are allowed.
-- Regression — `pnpm test:main src/main/ai/runtime/claudeCode/__tests__/guardRules.test.ts`: 77 tests; `builtin-destructive` still denies real `rm` in every permission mode and leaves ordinary agents untouched.
-- Regression — `pnpm typecheck:node`: main-process types compile.
+- Regression — `pnpm test:main src/main/ai/agents/builtin/__tests__/assistantCommandSafety.test.ts`: 97 tests; existing true positives stay blocked and the audited false positives (heredoc writers, `-halt-on-error`, `.rmvb`, `del lines[0]`, quoted regexes) are allowed.
+- Regression — `pnpm test:main src/main/ai/runtime/claudeCode/__tests__/guardRules.test.ts`: 86 tests; the command-policy denial still blocks real `rm` in every permission mode and leaves ordinary agents untouched.
+- Regression — [structured policy verification](../architecture/2026-11-13-command-approval-policy.md#verification): current runtime, parser and packaging evidence.

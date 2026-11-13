@@ -35,6 +35,7 @@ import { buildCitationsGuidance } from '@main/ai/runtime/citationsGuidance'
 import { preparePiBranch } from '@main/ai/runtime/pi/piContext'
 import { wrapSteerReminder } from '@main/ai/steerReminder'
 import { CHERRY_MCP_SERVER, listBuiltinToolPolicies } from '@main/ai/toolApproval/builtinToolPolicy'
+import { getShellDialect } from '@main/ai/toolApproval/commandParser'
 import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import { getPathFromEnvironment, getShellEnv } from '@main/utils/shellEnv'
@@ -198,6 +199,8 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       getInteractionState: () =>
         application.get('AgentSessionRuntimeService').getInteractionState(this.input.sessionId),
       getPermissionMode: () => this.permissionMode,
+      builtinRole: agent.configuration?.builtin_role,
+      shellDialect: getShellDialect(shellPath),
       isDisabled: (toolName: string) => this.isToolDisabled(toolName),
       additionalReadOnlyRoots: [...additionalSkillPaths, application.getPath('feature.agents.outputs')],
       // Approval follows the mounted server set; disabledTools still blocks at fire-time.
@@ -296,13 +299,13 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
           ]
         : [])
     ].map(withPiShellTimeout) as ToolDefinition[]
-    const toolCallId = async (call: CallRef) => {
+    const toolCallIdentity = async (call: CallRef) => {
       const opened = await this.runtime!.open({ backendId: runtimeId(this.context!.backendId), id: call.thread })
       if (opened.status !== 'confirmed') throw new Error(opened.error.message)
       try {
         const id = opened.value.pi.toolCallId(call)
         if (!id) throw new Error('Behavior call has no native tool identity')
-        return id
+        return { toolCallId: id, parentToolCallId: opened.value.pi.relation()?.origin?.toolCallId }
       } finally {
         await opened.value.release()
       }
@@ -315,7 +318,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       approval: approvalContext,
       emit: (event) => this.eventQueue.push(event),
       observe: (event) => this.handleBehaviorEvent(event),
-      toolCallId,
+      toolCallIdentity,
       usageSessionId: async (thread) => {
         if (thread === nativeId) return this.input.sessionId
         const child = await this.observeChild(thread)

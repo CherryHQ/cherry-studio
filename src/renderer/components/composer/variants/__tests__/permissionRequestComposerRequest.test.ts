@@ -24,6 +24,57 @@ function makePart(overrides: Partial<Record<string, unknown>> = {}): CherryMessa
 }
 
 describe('findNextPendingPermissionRequest', () => {
+  // Catch metadata being dropped when approvals are projected from a background child.
+  it.each(['providerMetadata', 'callProviderMetadata', 'resultProviderMetadata'])(
+    'retains authoritative command evidence from %s',
+    (field) => {
+      const commandPolicy = {
+        cwd: '/work',
+        revision: '1',
+        reason: 'Risky command',
+        rules: [{ ruleId: 'deletion', reasonCode: 'permanent-deletion', evidence: 'rm file' }]
+      }
+      const part = makePart({
+        callProviderMetadata: { cherry: { parentToolCallId: 'task-1' } },
+        [field]: { cherry: { commandPolicy, parentToolCallId: 'task-1' } }
+      })
+      const request = findNextPendingPermissionRequest({ child: [part] })
+      expect(request?.commandPolicy).toEqual(commandPolicy)
+      expect(request?.source?.toolCallId).toBe('task-1')
+    }
+  )
+
+  it('ignores malformed display metadata without dropping the pending approval', () => {
+    const result = findNextPendingPermissionRequest({
+      live: [
+        makePart({
+          callProviderMetadata: {
+            cherry: { commandPolicy: { cwd: 1, reason: 'untrusted', rules: [] } }
+          }
+        })
+      ]
+    })
+    expect(result?.approvalId).toBe('approval-1')
+    expect(result?.commandPolicy).toBeUndefined()
+  })
+
+  it('attributes a child approval to its own task across message boundaries', () => {
+    const request = makePart({ callProviderMetadata: { cherry: { parentToolCallId: 'spawn-a' } } })
+    const task = (toolUseId: string, title: string, isBackgrounded: boolean): CherryMessagePart => ({
+      type: 'data-agent-task-event',
+      data: { event: 'started', taskId: toolUseId, toolUseId, title, status: 'in_progress', isBackgrounded }
+    })
+    const result = findNextPendingPermissionRequest(
+      { live: [request] },
+      {
+        history: [task('spawn-a', 'Review changes', true), task('spawn-b', 'Unrelated task', false)],
+        live: [request]
+      }
+    )
+    expect(result?.source).toEqual({ toolCallId: 'spawn-a', title: 'Review changes', isBackgrounded: true })
+    expect(findNextPendingPermissionRequest({ live: [makePart()] })?.source).toBeUndefined()
+  })
+
   it('returns pending permissions in FIFO order', () => {
     const partsByMessageId = {
       'message-1': [makePart()],
@@ -145,6 +196,44 @@ describe('findNextPendingPermissionRequest', () => {
         makePart({ approval: undefined }),
         makePart({ toolCallId: undefined }),
         { type: 'text', text: 'hello' }
+      ]
+    })
+
+    expect(result).toBeNull()
+  })
+
+  // Catches a provider-executed dynamic tool whose approval never reaches a person: the part can
+  // stay in `input-available` while `approval.id` is already set, which used to be skipped.
+  it('treats an unresolved approval on a dynamic tool as pending', () => {
+    const request = findNextPendingPermissionRequest({
+      'message-1': [
+        makePart({
+          type: 'dynamic-tool',
+          toolName: 'codemode',
+          state: 'input-available',
+          input: { code: 'return 1' },
+          approval: { id: 'codemode-approval-1' },
+          callProviderMetadata: undefined
+        })
+      ]
+    })
+
+    expect(request).toMatchObject({ approvalId: 'codemode-approval-1', toolCallId: 'call-1' })
+    expect(request?.toolResponse.tool.name).toBe('codemode')
+  })
+
+  // Catches a resolved decision re-prompting the same call.
+  it('ignores a dynamic tool approval that is already resolved', () => {
+    const result = findNextPendingPermissionRequest({
+      'message-1': [
+        makePart({
+          type: 'dynamic-tool',
+          toolName: 'codemode',
+          state: 'input-available',
+          input: { code: 'return 1' },
+          approval: { id: 'codemode-approval-1', approved: true },
+          callProviderMetadata: undefined
+        })
       ]
     })
 

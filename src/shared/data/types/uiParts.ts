@@ -174,6 +174,8 @@ export interface CherryReasoningMeta {
 
 /** Cherry metadata on a ToolUIPart / DynamicToolUIPart. */
 export interface CherryToolMeta {
+  /** Host-computed command policy evidence; presentation only, never an authorization source. */
+  commandPolicy?: CommandApprovalDetails
   /** Approval bridge transport. */
   transport?: string
   /** Tool name (used by approval bridge before the part has been finalized). */
@@ -186,6 +188,13 @@ export interface CherryToolMeta {
     serverName?: string
     type?: 'mcp' | 'builtin' | 'provider'
   }
+}
+
+export interface CommandApprovalDetails {
+  cwd: string
+  revision: string
+  reason: string
+  rules: { ruleId: string; reasonCode: string; evidence: string }[]
 }
 
 /** A single actionable step in an AI error diagnosis. */
