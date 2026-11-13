@@ -26,6 +26,10 @@ const BLOCK_TAGS = new Set([
 
 const SKIP_TAGS = new Set(['a', 'code', 'math', 'pre', 'script', 'style', 'svg'])
 
+// Block containers own their text independently: when voting for a parent
+// block, only its own inline prose counts, not nested lists or quotes.
+const NESTED_CONTAINER_TAGS = new Set(['blockquote', 'li', 'ol', 'ul'])
+
 function collectText(node: Element | Root): string {
   let text = ''
 
@@ -34,7 +38,7 @@ function collectText(node: Element | Root): string {
       text += child.value
       continue
     }
-    if (child.type !== 'element' || SKIP_TAGS.has(child.tagName)) continue
+    if (child.type !== 'element' || SKIP_TAGS.has(child.tagName) || NESTED_CONTAINER_TAGS.has(child.tagName)) continue
     text += collectText(child)
   }
 

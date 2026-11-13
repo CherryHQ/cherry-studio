@@ -912,3 +912,14 @@
   border-right: 2px solid var(--primary);
   border-radius: var(--radius-md) 0 0 var(--radius-md);
 }
+
+/*
+ * Code surfaces stay LTR even inside RTL prose: the prose `dir` is excluded
+ * from the vote, so code must also keep an explicit LTR boundary instead of
+ * inheriting it (which would flip punctuation placement).
+ */
+.markdown pre:not([dir]),
+.markdown [data-streamdown='inline-code'] {
+  direction: ltr;
+  unicode-bidi: isolate;
+}

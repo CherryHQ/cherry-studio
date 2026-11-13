@@ -6,7 +6,7 @@
 export type TextDirection = 'ltr' | 'rtl' | 'auto'
 
 const STRONG_RTL_PATTERN = /[\u0590-\u05FF\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB1D-\uFB4F\uFE70-\uFEFF]/u
-const STRONG_LTR_PATTERN = /\p{L}/u
+const LETTER_PATTERN = /\p{L}/u
 const SENTENCE_SPLIT_PATTERN = /[\n.!?؟…]+/u
 
 function stripExcludedSpans(text: string): string {
@@ -24,10 +24,10 @@ function stripExcludedSpans(text: string): string {
   )
 }
 
-// A word votes for the script it contains; non-letter tokens are neutral.
+// A word votes for the script it contains (letters only); numeric and
+// punctuation tokens stay neutral so Arabic-Indic digits never vote RTL.
 function wordDirection(word: string): TextDirection {
-  const rtl = (word.match(/[\u0590-\u05FF\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB1D-\uFB4F\uFE70-\uFEFF]/gu) ?? [])
-    .length
+  const rtl = [...word].filter((char) => STRONG_RTL_PATTERN.test(char) && LETTER_PATTERN.test(char)).length
   const ltr = (
     word
       .replace(/[\u0590-\u05FF\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB1D-\uFB4F\uFE70-\uFEFF]/gu, '')
@@ -41,8 +41,9 @@ function wordDirection(word: string): TextDirection {
 
 function firstDirection(text: string): TextDirection {
   for (const char of text) {
+    if (!LETTER_PATTERN.test(char)) continue
     if (STRONG_RTL_PATTERN.test(char)) return 'rtl'
-    if (STRONG_LTR_PATTERN.test(char)) return 'ltr'
+    return 'ltr'
   }
   return 'auto'
 }

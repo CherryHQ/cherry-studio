@@ -68,6 +68,52 @@ describe('rehypeTextDirection', () => {
     expect(second?.properties?.dir).toBeUndefined()
   })
 
+  it('votes each block on its own prose, not nested list items', () => {
+    const tree = {
+      type: 'root',
+      children: [
+        {
+          type: 'element',
+          tagName: 'ul',
+          properties: {},
+          children: [
+            {
+              type: 'element',
+              tagName: 'li',
+              properties: {},
+              children: [
+                { type: 'text', value: 'Hello!' },
+                {
+                  type: 'element',
+                  tagName: 'ul',
+                  properties: {},
+                  children: [
+                    {
+                      type: 'element',
+                      tagName: 'li',
+                      properties: {},
+                      children: [{ type: 'text', value: 'هذا شرح عربي للمكتبة' }]
+                    },
+                    {
+                      type: 'element',
+                      tagName: 'li',
+                      properties: {},
+                      children: [{ type: 'text', value: 'هذا أيضًا شرح عربي' }]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    } as Root
+
+    const [parent, ...children] = findAll(transform(tree), 'li')
+    expect(parent?.properties?.dir).toBe('ltr')
+    expect(children.map((child) => child.properties?.dir)).toEqual(['rtl', 'rtl'])
+  })
+
   it('excludes link text from the vote', () => {
     const tree = {
       type: 'root',

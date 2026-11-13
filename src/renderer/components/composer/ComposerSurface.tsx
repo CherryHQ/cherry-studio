@@ -19,13 +19,13 @@ import SendMessageButton from '@renderer/components/SendMessageButton'
 import { toast } from '@renderer/services/toast'
 import { voiceTargetManager } from '@renderer/services/voice'
 import { getAppEdition } from '@renderer/utils/appEdition'
-import { textDirection } from '@renderer/utils/textDirection'
 import {
   getComposerShortcutLabel,
   matchesComposerShortcut,
   resolveNewlineShortcut,
   resolveSendShortcut
 } from '@renderer/utils/input'
+import { textDirection } from '@renderer/utils/textDirection'
 
 import { ComposerFocusShortcut } from './ComposerFocusShortcut'
 import { COMPOSER_INPUT_MAX_LENGTH } from './composerLimits'

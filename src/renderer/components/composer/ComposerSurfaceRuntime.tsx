@@ -41,7 +41,6 @@ import {
   resolveNewlineShortcut,
   resolveSendShortcut
 } from '@renderer/utils/input'
-import { textDirection } from '@renderer/utils/textDirection'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import {
   createComposerRichClipboardContentFromDraft,
@@ -49,6 +48,7 @@ import {
   readComposerClipboardFragmentFromSessionCache,
   writeComposerClipboardData
 } from '@renderer/utils/message/composerClipboard'
+import { textDirection } from '@renderer/utils/textDirection'
 import type { ComposerShortcut } from '@shared/data/preference/preferenceTypes'
 
 import { useComposerLayerActive } from './ComposerContext'
