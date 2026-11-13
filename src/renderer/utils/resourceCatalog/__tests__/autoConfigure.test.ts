@@ -58,6 +58,13 @@ describe('parseAutoConfigDraft', () => {
 
   it.each([
     ['a flag', '🇺🇸'],
+    ['a subdivision flag', '🏴󠁧󠁢󠁥󠁮󠁧󠁿'],
+    ['a rainbow flag', '🏳️‍🌈'],
+    ['a pirate flag', '🏴‍☠️'],
+    ['a digit', '1'],
+    ['a text-style symbol', '©'],
+    ['a lone zero-width joiner', '\u200d'],
+    ['a lone skin tone', '🏽'],
     ['two emoji', '🔍🐞'],
     ['text', 'magnifier'],
     ['a non-string', 42]
@@ -65,8 +72,8 @@ describe('parseAutoConfigDraft', () => {
     expect(parseAutoConfigDraft(reply({ emoji }), agent)?.emoji).toBeUndefined()
   })
 
-  it('keeps a multi-codepoint single emoji', () => {
-    expect(parseAutoConfigDraft(reply({ emoji: '👩‍💻' }), agent)?.emoji).toBe('👩‍💻')
+  it.each(['👩‍💻', '👍🏽', '1️⃣'])('keeps the multi-codepoint single emoji %s', (emoji) => {
+    expect(parseAutoConfigDraft(reply({ emoji }), agent)?.emoji).toBe(emoji)
   })
 
   it('keeps agent-only fields off an assistant and web search off an agent', () => {
