@@ -18,7 +18,15 @@ macOS can use different applications for HTTPS and local HTML files. Pinning the
 
 Cold Vite dependency optimization reloaded hosted renderers during cases. Phase steps masked failures with `continue-on-error`, so their successful conclusions did not establish passing cases. A Windows restore dialog appeared before CDP, and a new console process could precede its native handle. macOS accessibility snapshots could also briefly lose the correspondence between AX and CG windows.
 
+Single-task dispatch required separate runs for related repairs. Per-phase application teardown also closed the shared instance before the next selected phase could reuse it.
+
 ## Decision
+
+After committing a macOS open-panel path, wait for Open to become enabled, verify the owned process is still frontmost, and send Return once to activate the default button. Resolving `window 1` again to click Open raced with native window enumeration during directory navigation. Capture the nonzero window-count baseline when initially observing the panel, before path navigation. Keep the bounded window-closure check and exact returned-path assertions; do not retry the acceptance action.
+
+Every new CDP connection runs the existing owned Windows target preparation, including reconnections inside a scenario. Main-window focus selection skips windows without a valid URL. Annotation guest input converts CSS coordinates through the guest zoom factor before dispatch and awaits each native event; MP-123 runs at 110% and restores its prior application zoom.
+
+Accept comma-separated manifest task IDs through one string input, normalize duplicates, and execute their case union in manifest order. Validate before allocating desktop runners, including mock-provider support. Preserve the string report field and the `all` default. Keep the shared application alive between phases and stop it at the existing workflow boundary. A narrow branch run may add only the settings-search standalone smoke file.
 
 - Send Unicode PowerShell save scripts through standard input and verify the owned dialog and address-bar focus before typing.
 - Find the visible Windows notification panel through its native shell window handle before querying its UIA tree. Hide metadata-query consoles.
@@ -63,6 +71,8 @@ Cold Vite dependency optimization reloaded hosted renderers during cases. Phase 
 
 ## Alternatives considered
 
+- Per-module boolean inputs consume workflow input slots as the manifest grows; a validated string reuses the existing task IDs.
+
 - Larger timeouts alone do not fix wrong-window input, oversized command lines or ownership races.
 - Accepting a keypress or a notification history entry would not prove visible notification activation.
 - Resetting developer permissions or terminating applications by name would cross the run's ownership boundary.
@@ -73,6 +83,12 @@ Cold Vite dependency optimization reloaded hosted renderers during cases. Phase 
 Adapters remain platform specific and fail when native state cannot be confirmed. Notification scenarios still require a real system notification click to return to the completed topic. Local execution does not run the hosted permission observer.
 
 ## Verification
+
+- Regression — all three real macOS 27 open-panel fixtures (file, multiple files and directory) pass with exact returned paths after the single Return action. The 26 focused automation/syntax checks pass, with one existing Windows-only skip. On `a891c0b415`, the [hosted rerun](https://github.com/CherryHQ/cherry-studio/actions/runs/43416578189) passes both native-controller gates, including the original directory-confirmation failure on macOS 26.
+
+- Regression — 99 focused selection, phase, reporter, state, report and mock-provider checks passed, with two existing platform-specific skips. Real Playwright enumeration confirms the combined case union; the smoke shell selects only the settings-search file. The shared-resource test failed with per-phase teardown and passed after moving cleanup back to the workflow boundary. Hosted desktop execution remains separate.
+
+- Regression — 37 focused debug-bridge and connection/window-recovery checks pass, including an uninitialized window before the main window and repeated Windows reconnections without restarting the application. A real Electron annotation probe reproduces an empty second note at 110% before coordinate conversion and reopens both saved notes afterward. Native Windows acceptance still requires hosted execution.
 
 - Regression — 41 process, system-automation and permission-observer tests passed; 30 notification and system-automation tests passed, including a panel-content traversal case that failed before the breadth-first repair.
 - Regression — hosted Windows native checks passed all ten adapter cases, including real Unicode/suggested-name saves and fixture cleanup; the native syntax check also passed.
