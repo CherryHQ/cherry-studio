@@ -156,7 +156,7 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       }
     )
     expect(config.providerId).toBe('ollama')
-    expect(config.providerSettings.apiKey).toBe('transport-probe')
+    expect((config.providerSettings as Record<string, unknown>).apiKey).toBe('transport-probe')
   })
   it('rejects an authenticated builder before probe execution', async () => {
     getCopilotTokenMock.mockImplementation(() => {
