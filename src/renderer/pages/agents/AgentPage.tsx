@@ -658,6 +658,11 @@ const AgentPage = () => {
     [activateSession, pendingSessionDefaults, resolveEmptySession, t]
   )
 
+  const handleOpenAgentChatFromLibrary = useCallback(
+    (agentId: string) => void handleAgentConversationSelect(agentId),
+    [handleAgentConversationSelect]
+  )
+
   const requestSessionNavigation = useCallback(
     (sessionId: string | null, transition: () => void) => {
       const targetSession = sessionId ? agentSessions.find((session) => session.id === sessionId) : undefined
@@ -1102,6 +1107,7 @@ const AgentPage = () => {
             content: (
               <ConversationResourceView
                 kind={activeResourceKind}
+                onOpenAgentChat={handleOpenAgentChatFromLibrary}
                 toolbarLeading={
                   !isWindowFrame ? (
                     <ConversationSidebarToggleButton
@@ -1115,7 +1121,7 @@ const AgentPage = () => {
             )
           }
         : null,
-    [activeResourceKind, isWindowFrame, shellPaneOpen, toggleShellPane]
+    [activeResourceKind, handleOpenAgentChatFromLibrary, isWindowFrame, shellPaneOpen, toggleShellPane]
   )
   const historyRecordsCenter = historyRecordsActive
     ? {
