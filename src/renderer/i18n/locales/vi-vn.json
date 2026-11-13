@@ -4057,7 +4057,7 @@
   "settings.browser.startPageCustom": "URL tùy chỉnh",
   "settings.browser.startPageCustomUrl": "URL tùy chỉnh",
   "settings.browser.startPageCustomUrlHelp": "Nhập URL tuyệt đối dùng HTTP hoặc HTTPS, không chứa tên người dùng hoặc mật khẩu. Giá trị trống hoặc không hợp lệ sẽ mở trang trống.",
-  "settings.browser.startPageHelp": "Chọn nội dung mở trong tab trình duyệt độc lập mới khi không có địa chỉ được chỉ định.",
+  "settings.browser.startPageHelp": "Chọn trang sẽ mở trong thẻ trình duyệt mới khi không chỉ định địa chỉ.",
   "settings.browser.startPageLast": "Trang đã mở gần nhất",
   "settings.browser.title": "Trình duyệt",
   "settings.browser.unsupported": "Một số dữ liệu không được hỗ trợ",
@@ -6523,5 +6523,14 @@
   "webview.navigation.invalid_address": "Nhập URL HTTP, HTTPS hoặc tệp hợp lệ",
   "webview.navigation.load_failed": "Tải trang thất bại",
   "webview.navigation.open_external": "Mở trong trình duyệt bên ngoài",
-  "webview.navigation.reload": "Tải lại"
+  "webview.navigation.reload": "Tải lại",
+  "webview.tabs.agent_active": "Agent đang thao tác trên “{{title}}”",
+  "webview.tabs.all": "Tất cả thẻ",
+  "webview.tabs.close": "Đóng {{title}}",
+  "webview.tabs.close_all": "Đóng tất cả các thẻ",
+  "webview.tabs.copy_link": "Sao chép liên kết",
+  "webview.tabs.empty": "Mở trang web trong cuộc trò chuyện này",
+  "webview.tabs.label": "Thẻ trình duyệt",
+  "webview.tabs.new": "Thẻ mới",
+  "webview.tabs.view": "Xem"
 }

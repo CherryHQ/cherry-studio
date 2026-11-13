@@ -4057,7 +4057,7 @@
   "settings.browser.startPageCustom": "カスタム URL",
   "settings.browser.startPageCustomUrl": "カスタム URL",
   "settings.browser.startPageCustomUrlHelp": "ユーザー名やパスワードを含まない HTTP または HTTPS の絶対 URL を入力してください。空欄または無効な値の場合は、空白のページが開きます。",
-  "settings.browser.startPageHelp": "アドレスを指定せずに独立したブラウザータブを開いたときに表示するページを選択します。",
+  "settings.browser.startPageHelp": "アドレスを指定しない場合に、新しいブラウザータブで開くページを選択します。",
   "settings.browser.startPageLast": "最後に開いたページ",
   "settings.browser.title": "ブラウザー",
   "settings.browser.unsupported": "一部のデータは未対応です",
@@ -6523,5 +6523,14 @@
   "webview.navigation.invalid_address": "有効な HTTP、HTTPS、またはファイル URL を入力してください",
   "webview.navigation.load_failed": "ページの読み込みに失敗しました",
   "webview.navigation.open_external": "外部ブラウザで開く",
-  "webview.navigation.reload": "再読み込み"
+  "webview.navigation.reload": "再読み込み",
+  "webview.tabs.agent_active": "Agent が「{{title}}」を操作中",
+  "webview.tabs.all": "すべてのタブ",
+  "webview.tabs.close": "{{title}} を閉じる",
+  "webview.tabs.close_all": "すべてのタブを閉じる",
+  "webview.tabs.copy_link": "リンクをコピー",
+  "webview.tabs.empty": "この会話でウェブページを開く",
+  "webview.tabs.label": "ブラウザーのタブ",
+  "webview.tabs.new": "新しいタブ",
+  "webview.tabs.view": "表示"
 }

@@ -4057,7 +4057,7 @@
   "settings.browser.startPageCustom": "自訂 URL",
   "settings.browser.startPageCustomUrl": "自訂 URL",
   "settings.browser.startPageCustomUrlHelp": "請輸入不含使用者名稱或密碼的 HTTP 或 HTTPS 絕對 URL。留空或輸入無效值時會開啟空白頁。",
-  "settings.browser.startPageHelp": "選擇未指定網址時，新的獨立瀏覽器分頁要開啟的頁面。",
+  "settings.browser.startPageHelp": "選擇未指定網址時，新增瀏覽器分頁開啟的頁面。",
   "settings.browser.startPageLast": "上次開啟的頁面",
   "settings.browser.title": "瀏覽器",
   "settings.browser.unsupported": "部分資料不受支援",
@@ -6523,5 +6523,14 @@
   "webview.navigation.invalid_address": "請輸入有效的 HTTP、HTTPS 或檔案網址",
   "webview.navigation.load_failed": "頁面載入失敗",
   "webview.navigation.open_external": "在外部瀏覽器開啟",
-  "webview.navigation.reload": "重新載入"
+  "webview.navigation.reload": "重新載入",
+  "webview.tabs.agent_active": "Agent 正在操作「{{title}}」",
+  "webview.tabs.all": "所有分頁",
+  "webview.tabs.close": "關閉 {{title}}",
+  "webview.tabs.close_all": "關閉所有分頁",
+  "webview.tabs.copy_link": "複製連結",
+  "webview.tabs.empty": "在目前對話中開啟網頁",
+  "webview.tabs.label": "瀏覽器分頁",
+  "webview.tabs.new": "新增分頁",
+  "webview.tabs.view": "檢視"
 }

@@ -1,5 +1,5 @@
 import { ChevronDown, X } from 'lucide-react'
-import { useLayoutEffect, useRef, useState } from 'react'
+import { useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 
 import {
   Button,
@@ -14,21 +14,27 @@ import {
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { CommandContextMenu, type CommandContextMenuExtraItem, type MaybePromise } from '@renderer/components/command'
 
-export interface ArtifactPaneFileTab {
+export interface RightPaneTab {
   key: string
   title: string
   path: string
+  icon?: ReactNode
+  status?: ReactNode
 }
 
-interface ArtifactPaneFileTabsProps {
-  tabs: ArtifactPaneFileTab[]
+interface RightPaneTabsProps {
+  tabs: RightPaneTab[]
   activeKey: string | null
-  activeDirty: boolean
-  dirtyLabel: string
-  closeLabel: string
+  label?: string
+  activeDirty?: boolean
+  dirtyLabel?: string
+  closeLabel: string | ((tab: RightPaneTab) => string)
+  tabIdPrefix?: string
+  panelId?: string
+  italicActive?: boolean
   overflowLabel: string
   onActivate: (key: string) => void
-  onClose: (key: string) => void
+  onClose: (key: string, keyboard: boolean) => void
   getMenuItems?: (key: string) => MaybePromise<readonly CommandContextMenuExtraItem[]>
 }
 
@@ -37,7 +43,7 @@ const TAB_SLOT_PX = 116
 const OVERFLOW_BUTTON_PX = 32
 
 /** Keeps the active tab visible and moves overflow tabs into the menu; narrow strips may shrink the visible tab. */
-export function fitFileTabs<T extends { key: string }>(
+export function fitPaneTabs<T extends { key: string }>(
   tabs: T[],
   activeKey: string | null,
   width: number
@@ -50,17 +56,21 @@ export function fitFileTabs<T extends { key: string }>(
   return { visible, hidden: tabs.filter((tab) => !visible.includes(tab)) }
 }
 
-export function ArtifactPaneFileTabs({
+export function RightPaneTabs({
   tabs,
   activeKey,
+  label,
   activeDirty,
   dirtyLabel,
   closeLabel,
+  tabIdPrefix,
+  panelId,
+  italicActive = false,
   overflowLabel,
   onActivate,
   onClose,
   getMenuItems
-}: ArtifactPaneFileTabsProps) {
+}: RightPaneTabsProps) {
   const rootRef = useRef<HTMLDivElement>(null)
   const [width, setWidth] = useState(0)
   useLayoutEffect(() => {
@@ -71,7 +81,7 @@ export function ArtifactPaneFileTabs({
     observer.observe(root)
     return () => observer.disconnect()
   }, [])
-  const { visible, hidden } = fitFileTabs(tabs, activeKey, width)
+  const { visible, hidden } = fitPaneTabs(tabs, activeKey, width)
 
   return (
     <Tabs
@@ -80,7 +90,7 @@ export function ArtifactPaneFileTabs({
       value={activeKey ?? ''}
       onValueChange={onActivate}
       className="min-w-0 flex-1 flex-row items-center gap-1">
-      <TabsList className="min-w-0 flex-1 gap-1">
+      <TabsList aria-label={label} className="min-w-0 flex-1 gap-1">
         {visible.map((tab) => {
           const active = tab.key === activeKey
           const row = (
@@ -94,11 +104,21 @@ export function ArtifactPaneFileTabs({
                   : 'text-muted-foreground hover:bg-resource-list-row-hover hover:text-foreground'
               )}>
               <TabsTrigger
+                id={tabIdPrefix ? `${tabIdPrefix}-${tab.key}` : undefined}
+                aria-controls={panelId}
                 value={tab.key}
                 title={tab.path}
+                onKeyDown={(event) => {
+                  if (event.key === 'Delete' && !event.nativeEvent.isComposing) {
+                    event.preventDefault()
+                    onClose(tab.key, true)
+                  }
+                }}
                 // Start-aligned with a truncating span: the shared trigger centres flex content, which clips both ends.
                 className="min-w-0 flex-1 justify-start p-0 text-inherit data-[state=active]:text-inherit data-[state=active]:after:bg-transparent">
-                <span className={cn('truncate', active && 'pr-0.5 italic')}>{tab.title}</span>
+                {tab.icon}
+                <span className={cn('truncate', active && italicActive && 'pr-0.5 italic')}>{tab.title}</span>
+                {tab.status}
               </TabsTrigger>
               {active && activeDirty ? (
                 <span
@@ -109,9 +129,9 @@ export function ArtifactPaneFileTabs({
               ) : null}
               <button
                 type="button"
-                aria-label={`${closeLabel} ${tab.title}`}
+                aria-label={typeof closeLabel === 'function' ? closeLabel(tab) : `${closeLabel} ${tab.title}`}
                 className="flex size-5 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground"
-                onClick={() => onClose(tab.key)}>
+                onClick={(event) => onClose(tab.key, event.detail === 0)}>
                 <X size={12} />
               </button>
             </div>
@@ -141,11 +161,25 @@ export function ArtifactPaneFileTabs({
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="max-h-80 w-64 overflow-y-auto">
-            {hidden.map((tab) => (
-              <DropdownMenuItem key={tab.key} title={tab.path} onSelect={() => onActivate(tab.key)}>
-                <span className="truncate">{tab.title}</span>
-              </DropdownMenuItem>
-            ))}
+            {hidden.map((tab) => {
+              const item = (
+                <DropdownMenuItem key={tab.key} title={tab.path} onSelect={() => onActivate(tab.key)}>
+                  {tab.icon}
+                  <span className="min-w-0 flex-1 truncate">{tab.title}</span>
+                  {tab.status}
+                </DropdownMenuItem>
+              )
+              return getMenuItems ? (
+                <CommandContextMenu
+                  key={tab.key}
+                  location="webcontents.context"
+                  getExtraItems={() => getMenuItems(tab.key)}>
+                  {item}
+                </CommandContextMenu>
+              ) : (
+                item
+              )
+            })}
           </DropdownMenuContent>
         </DropdownMenu>
       ) : null}

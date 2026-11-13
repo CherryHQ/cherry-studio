@@ -4057,7 +4057,7 @@
   "settings.browser.startPageCustom": "URL personnalisée",
   "settings.browser.startPageCustomUrl": "URL personnalisée",
   "settings.browser.startPageCustomUrlHelp": "Saisissez une URL absolue HTTP ou HTTPS sans nom d’utilisateur ni mot de passe. Une valeur vide ou non valide ouvre une page vierge.",
-  "settings.browser.startPageHelp": "Choisissez ce qu’ouvre un nouvel onglet du navigateur autonome lorsqu’aucune adresse n’est fournie.",
+  "settings.browser.startPageHelp": "Choisissez la page ouverte dans les nouveaux onglets lorsqu’aucune adresse n’est précisée.",
   "settings.browser.startPageLast": "Dernière page ouverte",
   "settings.browser.title": "Navigateur",
   "settings.browser.unsupported": "Certaines données ne sont pas prises en charge",
@@ -6523,5 +6523,14 @@
   "webview.navigation.invalid_address": "Saisissez une URL HTTP, HTTPS ou de fichier valide",
   "webview.navigation.load_failed": "Échec du chargement de la page",
   "webview.navigation.open_external": "Ouvrir dans le navigateur externe",
-  "webview.navigation.reload": "Recharger"
+  "webview.navigation.reload": "Recharger",
+  "webview.tabs.agent_active": "L’agent utilise « {{title}} »",
+  "webview.tabs.all": "Tous les onglets",
+  "webview.tabs.close": "Fermer {{title}}",
+  "webview.tabs.close_all": "Fermer tous les onglets",
+  "webview.tabs.copy_link": "Copier le lien",
+  "webview.tabs.empty": "Ouvrir une page web dans cette conversation",
+  "webview.tabs.label": "Onglets du navigateur",
+  "webview.tabs.new": "Nouvel onglet",
+  "webview.tabs.view": "Afficher"
 }

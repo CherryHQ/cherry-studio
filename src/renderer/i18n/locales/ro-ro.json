@@ -4057,7 +4057,7 @@
   "settings.browser.startPageCustom": "URL personalizat",
   "settings.browser.startPageCustomUrl": "URL personalizat",
   "settings.browser.startPageCustomUrlHelp": "Introduceți un URL absolut HTTP sau HTTPS fără nume de utilizator sau parolă. Valorile goale sau nevalide deschid o pagină goală.",
-  "settings.browser.startPageHelp": "Alegeți ce deschide o filă nouă a browserului de sine stătător când nu este specificată nicio adresă.",
+  "settings.browser.startPageHelp": "Alege pagina deschisă în filele noi când nu este specificată o adresă.",
   "settings.browser.startPageLast": "Ultima pagină deschisă",
   "settings.browser.title": "Browser",
   "settings.browser.unsupported": "Unele date nu sunt acceptate",
@@ -6523,5 +6523,14 @@
   "webview.navigation.invalid_address": "Introduceți un URL valid HTTP, HTTPS sau de fișier",
   "webview.navigation.load_failed": "Încărcarea paginii a eșuat",
   "webview.navigation.open_external": "Deschide în browserul extern",
-  "webview.navigation.reload": "Reîncarcă"
+  "webview.navigation.reload": "Reîncarcă",
+  "webview.tabs.agent_active": "Agentul lucrează în „{{title}}”",
+  "webview.tabs.all": "Toate filele",
+  "webview.tabs.close": "Închide {{title}}",
+  "webview.tabs.close_all": "Închide toate filele",
+  "webview.tabs.copy_link": "Copiază linkul",
+  "webview.tabs.empty": "Deschide o pagină web în această conversație",
+  "webview.tabs.label": "Filele browserului",
+  "webview.tabs.new": "Filă nouă",
+  "webview.tabs.view": "Afișează"
 }

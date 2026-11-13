@@ -4057,7 +4057,7 @@
   "settings.browser.startPageCustom": "Προσαρμοσμένο URL",
   "settings.browser.startPageCustomUrl": "Προσαρμοσμένο URL",
   "settings.browser.startPageCustomUrlHelp": "Εισαγάγετε ένα απόλυτο URL HTTP ή HTTPS χωρίς όνομα χρήστη ή κωδικό πρόσβασης. Οι κενές ή μη έγκυρες τιμές ανοίγουν μια κενή σελίδα.",
-  "settings.browser.startPageHelp": "Επιλέξτε τι ανοίγει μια νέα αυτόνομη καρτέλα περιήγησης όταν δεν δίνεται διεύθυνση.",
+  "settings.browser.startPageHelp": "Επιλέξτε τη σελίδα που ανοίγουν οι νέες καρτέλες όταν δεν έχει οριστεί διεύθυνση.",
   "settings.browser.startPageLast": "Τελευταία ανοιγμένη σελίδα",
   "settings.browser.title": "Πρόγραμμα περιήγησης",
   "settings.browser.unsupported": "Ορισμένα δεδομένα δεν υποστηρίζονται",
@@ -6523,5 +6523,14 @@
   "webview.navigation.invalid_address": "Εισαγάγετε μια έγκυρη διεύθυνση URL HTTP, HTTPS ή αρχείου",
   "webview.navigation.load_failed": "Αποτυχία φόρτωσης της σελίδας",
   "webview.navigation.open_external": "Άνοιγμα σε εξωτερικό πρόγραμμα περιήγησης",
-  "webview.navigation.reload": "Επαναφόρτωση"
+  "webview.navigation.reload": "Επαναφόρτωση",
+  "webview.tabs.agent_active": "Ο Agent χειρίζεται το «{{title}}»",
+  "webview.tabs.all": "Όλες οι καρτέλες",
+  "webview.tabs.close": "Κλείσιμο {{title}}",
+  "webview.tabs.close_all": "Κλείσιμο όλων των καρτελών",
+  "webview.tabs.copy_link": "Αντιγραφή συνδέσμου",
+  "webview.tabs.empty": "Ανοίξτε μια ιστοσελίδα σε αυτή τη συνομιλία",
+  "webview.tabs.label": "Καρτέλες προγράμματος περιήγησης",
+  "webview.tabs.new": "Νέα καρτέλα",
+  "webview.tabs.view": "Προβολή"
 }

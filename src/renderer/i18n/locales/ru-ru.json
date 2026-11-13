@@ -4057,7 +4057,7 @@
   "settings.browser.startPageCustom": "Свой URL",
   "settings.browser.startPageCustomUrl": "Свой URL",
   "settings.browser.startPageCustomUrlHelp": "Введите абсолютный URL с протоколом HTTP или HTTPS без имени пользователя и пароля. При пустом или недопустимом значении откроется пустая страница.",
-  "settings.browser.startPageHelp": "Выберите, что открывать в новой отдельной вкладке браузера, если адрес не указан.",
+  "settings.browser.startPageHelp": "Выберите страницу для новых вкладок браузера, когда адрес не указан.",
   "settings.browser.startPageLast": "Последняя открытая страница",
   "settings.browser.title": "Браузер",
   "settings.browser.unsupported": "Часть данных не поддерживается",
@@ -6523,5 +6523,14 @@
   "webview.navigation.invalid_address": "Введите корректный URL HTTP, HTTPS или файла",
   "webview.navigation.load_failed": "Не удалось загрузить страницу",
   "webview.navigation.open_external": "Открыть во внешнем браузере",
-  "webview.navigation.reload": "Перезагрузить"
+  "webview.navigation.reload": "Перезагрузить",
+  "webview.tabs.agent_active": "Агент работает на вкладке «{{title}}»",
+  "webview.tabs.all": "Все вкладки",
+  "webview.tabs.close": "Закрыть {{title}}",
+  "webview.tabs.close_all": "Закрыть все вкладки",
+  "webview.tabs.copy_link": "Копировать ссылку",
+  "webview.tabs.empty": "Откройте веб-страницу в этом разговоре",
+  "webview.tabs.label": "Вкладки браузера",
+  "webview.tabs.new": "Новая вкладка",
+  "webview.tabs.view": "Показать"
 }

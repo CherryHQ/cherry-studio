@@ -4057,7 +4057,7 @@
   "settings.browser.startPageCustom": "URL personalizada",
   "settings.browser.startPageCustomUrl": "URL personalizada",
   "settings.browser.startPageCustomUrlHelp": "Introduce una URL absoluta HTTP o HTTPS sin nombre de usuario ni contraseña. Los valores vacíos o no válidos abren una página en blanco.",
-  "settings.browser.startPageHelp": "Elige qué abre una nueva pestaña del navegador independiente cuando no se indica ninguna dirección.",
+  "settings.browser.startPageHelp": "Elige la página que abren las nuevas pestañas cuando no se especifica una dirección.",
   "settings.browser.startPageLast": "Última página abierta",
   "settings.browser.title": "Navegador",
   "settings.browser.unsupported": "Algunos datos no son compatibles",
@@ -6523,5 +6523,14 @@
   "webview.navigation.invalid_address": "Introduce una URL válida de HTTP, HTTPS o de archivo",
   "webview.navigation.load_failed": "No se pudo cargar la página",
   "webview.navigation.open_external": "Abrir en el navegador externo",
-  "webview.navigation.reload": "Recargar"
+  "webview.navigation.reload": "Recargar",
+  "webview.tabs.agent_active": "El agente está trabajando en «{{title}}»",
+  "webview.tabs.all": "Todas las pestañas",
+  "webview.tabs.close": "Cerrar {{title}}",
+  "webview.tabs.close_all": "Cerrar todas las pestañas",
+  "webview.tabs.copy_link": "Copiar enlace",
+  "webview.tabs.empty": "Abre una página web en esta conversación",
+  "webview.tabs.label": "Pestañas del navegador",
+  "webview.tabs.new": "Nueva pestaña",
+  "webview.tabs.view": "Ver"
 }
