@@ -40,7 +40,7 @@ The footer offers Cancel, **Manual create**, and **Auto create**.
 - **Input builder.** It sends the purpose, the optional name, and compact catalogs of what is actually installed:
   - non-builtin skills (Agents only);
   - knowledge bases;
-  - MCP servers;
+  - MCP servers, plus the featured marketplace servers (`PRESET_MCP_SERVERS`) that need no configuration and are not installed yet;
   - the runtime's allowed permission modes.
 - **Validating parser.** It does the following:
   - strips code fences and slices out the JSON object;
@@ -68,7 +68,7 @@ The Assistant steps stay basic → System Prompt → knowledge. The Agent steps 
 
 - **Basic.** Avatar and name, then permission mode for Agents, then one model. The description field is removed from this step; the purpose entered on the entry view remains the description.
 - **Tools (Agent).** Browser control and computer use rows, each with an inactive badge when the feature is off globally and a link to its settings. Then the runtime's built-in tools grouped by category, one switch each. Switching a tool off adds it to `disabledTools`.
-- **Skills, knowledge, and MCP.** One list component for all three, also used by the edit dialog. It has a search box, an "Add …" menu, "Enable all", and one row per item with icon, name, description, and switch. The add menus are: skills — online search, local import, system search; knowledge — new knowledge base, import files; MCP — from marketplace, add manually, import JSON. Builtin skills are locked on. The add actions open in-dialog modals that reuse the existing settings-page dialogs.
+- **Skills, knowledge, and MCP.** One list component for all three, also used by the edit dialog. It has a search box, an "Add …" menu, "Enable all", and one row per item with icon, name, description, and switch. The add menus are: skills — online search, local import, system search; knowledge — new knowledge base; MCP — add manually, import JSON. Builtin skills are locked on. The add actions open in-dialog modals that reuse the existing settings-page dialogs. The MCP list also lists the featured marketplace servers that need no configuration and are not installed yet; switching one on installs it and enables it in place, with no dialog. Featured servers that need configuration are not offered.
 - **Channels (Agent).** A list of the channels this Agent will own, an "Add channel" menu with every supported platform, and a configuration dialog per channel: name, credentials, allowed chat IDs, mention-only where the platform supports it, and a permission mode that inherits the Agent's or overrides it. The channels are sent with the create command and created in the same main-process transaction as the Agent. Platforms that log in by QR code (WeChat, and Feishu registration) are created bound and inactive, and their QR login runs from the result page or the edit dialog.
 - **Advanced (Agent).** The full System Prompt, reply language, heartbeat, and environment variables:
   - **Full System Prompt.** A main-process IpcApi route assembles the prompt the Pi Durable runtime would send, from the draft (instructions, language, skills, disabled tools, knowledge bases), using the same builders the runtime uses. The renderer shows it as read-only segments around one editable block, the Agent's own instructions, with an approximate token count. It refreshes when skills or language change. When the instructions are empty, the sections that depend on them are omitted, as the runtime already does.
@@ -91,6 +91,7 @@ The create values gain `mcpServerIds`, and `enableWebSearch` for Assistants. Age
 
 - Agents send `mcps` when the runtime supports MCP, plus the existing `disabledTools` and `configuration` fields.
 - Assistants send `mcpServerIds`. When MCP servers or web search are selected, they also send the matching `settings`.
+- Selected featured marketplace MCP servers that are not installed yet are installed first, through the same path as the marketplace page, and their new IDs are sent like any other selected server. A failed install fails the create before anything is saved.
 
 ## Alternatives considered
 
@@ -109,7 +110,7 @@ The create values gain `mcpServerIds`, and `enableWebSearch` for Assistants. Age
 - AC1 — Opening the create dialog for an Agent or an Assistant shows the entry view with avatar, name, purpose, model, Manual create, and Auto create, and Auto create stays disabled until purpose and model are set (verification: renderer; owner: implementer)
 - AC2 — Manual create opens the existing first step with the entered avatar, name, model, and purpose (as description) already filled in (verification: renderer; owner: implementer)
 - AC3 — Auto create with a valid model response calls `onSubmit` once with the generated name, emoji, description, and prompt, while a user-typed name or picked avatar is kept instead of the generated one (verification: renderer; owner: implementer)
-- AC4 — Generated skill, knowledge base, and MCP IDs that are not in the installed catalogs never reach the create payload, and the generated permission mode is never `bypassPermissions` (verification: unit; owner: implementer)
+- AC4 — Generated skill, knowledge base, and MCP IDs that are not in the supplied catalogs (installed items plus configuration-free featured MCP servers) never reach the create payload, and the generated permission mode is never `bypassPermissions` (verification: unit; owner: implementer)
 - AC5 — A flag, multi-character, or non-emoji avatar value falls back to the kind's default emoji (verification: unit; owner: implementer)
 - AC6 — Unparseable output, an empty name or prompt, a generation error, or a timeout shows an error, creates nothing, and leaves Manual create usable (verification: renderer; owner: implementer)
 - AC7 — Selected MCP servers reach the created Agent as `mcps` when its runtime supports MCP, and reach the created Assistant as `mcpServerIds` with settings that use them; selected web search reaches the Assistant's settings (verification: unit; owner: implementer)
@@ -125,12 +126,13 @@ The create values gain `mcpServerIds`, and `enableWebSearch` for Assistants. Age
 - AC17 — The advanced step shows the assembled Pi Durable System Prompt with only the Agent's instructions editable, and the preview changes when a skill or the reply language changes (verification: main service test and renderer; owner: implementer)
 - AC18 — Reply language, heartbeat, and environment variables set in the advanced step reach the created Agent's configuration (verification: renderer; owner: implementer)
 - AC19 — In the running app, a manually created Agent with a channel, a disabled tool, and a heartbeat shows all three in its edit dialog after the result page's Adjust settings (verification: Electron; owner: implementer)
+- AC20 — A featured MCP server picked by auto create, or switched on in the MCP list, is installed once without any dialog and bound to the resource, and featured servers that need configuration are never offered (verification: renderer; owner: implementer)
 
 ## Risks
 
 - Model quality varies. Weak models may return prose or poor JSON. The parser rejects it and Manual create stays one click away.
 - Generation reads installed skills, knowledge bases, and MCP server names and descriptions and sends them to the default model's provider. This is the same exposure as any chat that lists those resources, but it now happens at create time.
-- Auto create can enable MCP servers and skills the user did not inspect. They are limited to resources the user already installed, and everything stays editable afterwards.
+- Auto create can enable MCP servers and skills the user did not inspect. Skills and knowledge bases are limited to what the user already installed. MCP servers can also come from the featured marketplace list, which auto create installs without asking; only servers that need no configuration qualify, and everything stays editable afterwards.
 - One extra model call adds latency (usually a few seconds) and token cost to each auto create.
 - The emoji picker restyle and the hidden flag apply everywhere the shared picker is used, including the user profile.
 - The result page adds one click before a chat opens for callers that used to open it directly.
