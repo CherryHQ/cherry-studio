@@ -71,12 +71,12 @@ export function CherryCloudPlanActivationDialog({
 
   return (
     <Dialog open onOpenChange={(open) => !open && finish(null)}>
-      <DialogContent size="sm" className="gap-0 overflow-hidden p-0" closeLabel={t('common.close')}>
+      <DialogContent size="sm" className="gap-0 overflow-hidden p-0 sm:max-w-[340px]" closeLabel={t('common.close')}>
         <ActivationIllustration />
-        <div className="flex flex-col gap-4 px-6 pt-5 pb-6">
-          <div className="flex flex-col gap-1.5">
-            <DialogTitle className="text-lg leading-tight">{t('settings.subscription.activation.title')}</DialogTitle>
-            <DialogDescription>
+        <div className="flex flex-col gap-3 px-5 pt-3.5 pb-4">
+          <div className="flex flex-col gap-1">
+            <DialogTitle className="text-base leading-tight">{t('settings.subscription.activation.title')}</DialogTitle>
+            <DialogDescription className="text-xs leading-relaxed">
               {expiresAt
                 ? t('settings.subscription.activation.description_until', { date: expiresAt })
                 : t('settings.subscription.activation.description')}
@@ -85,7 +85,7 @@ export function CherryCloudPlanActivationDialog({
           <div
             role="radiogroup"
             aria-label={t('settings.subscription.activation.models_label')}
-            className="flex flex-col gap-0.5 rounded-xl bg-accent p-1">
+            className="flex flex-col gap-0.5 rounded-lg bg-accent p-1">
             {listed.map((model) => {
               const checked = model.id === selected?.id
               return (
@@ -96,18 +96,18 @@ export function CherryCloudPlanActivationDialog({
                   aria-checked={checked}
                   onClick={() => setSelectedId(model.id)}
                   className={cn(
-                    'flex h-10 items-center gap-2.5 rounded-lg px-2.5 text-left text-sm transition-colors',
+                    'flex h-8 items-center gap-2 rounded-md px-2 text-left text-[13px] transition-colors',
                     'focus-visible:bg-background focus-visible:outline-hidden',
                     checked ? 'bg-background shadow-xs' : 'hover:bg-background/50'
                   )}>
-                  <ModelAvatar model={model} size={22} />
+                  <ModelAvatar model={model} size={18} />
                   <span className="min-w-0 flex-1 truncate font-medium">{model.name}</span>
-                  <Check size={16} aria-hidden className={cn('shrink-0', !checked && 'invisible')} />
+                  <Check size={14} aria-hidden className={cn('shrink-0', !checked && 'invisible')} />
                 </button>
               )
             })}
             {hiddenCount > 0 ? (
-              <p className="px-2.5 pt-1.5 pb-1 text-muted-foreground text-xs">
+              <p className="px-2 pt-1 pb-0.5 text-[11px] text-muted-foreground">
                 {t('settings.subscription.activation.more_models', { count: hiddenCount })}
               </p>
             ) : null}
@@ -117,9 +117,9 @@ export function CherryCloudPlanActivationDialog({
               <Checkbox size="sm" checked={alsoDefault} onCheckedChange={(next) => setAlsoDefault(next === true)} />
               {t('settings.subscription.activation.set_default')}
             </label>
-            <Button variant="emphasis" size="lg" onClick={() => void startChat()}>
+            <Button variant="emphasis" onClick={() => void startChat()}>
               {t('settings.subscription.activation.start_chat')}
-              <ArrowRight size={16} aria-hidden />
+              <ArrowRight size={14} aria-hidden />
             </Button>
           </div>
         </div>
@@ -140,34 +140,34 @@ function ActivationIllustration() {
   return (
     <div
       aria-hidden
-      className="relative flex h-40 items-end justify-center overflow-hidden border-border border-b bg-muted">
+      className="relative flex h-24 items-end justify-center overflow-hidden border-border border-b bg-muted">
       <div className="absolute inset-0" style={DOT_GRID_STYLE} />
-      <div className="relative -mb-4 h-32 w-56">
+      <div className="relative -mb-3 h-19 w-40">
         <div className="absolute inset-x-5 top-0 bottom-0 -rotate-5 rounded-xl bg-popover opacity-60 shadow-lg ring-1 ring-border" />
-        <div className="fade-in-0 slide-in-from-bottom-3 absolute inset-x-2 top-3 bottom-0 animate-in rounded-xl bg-popover px-2 py-2.5 shadow-lg ring-1 ring-border duration-500 motion-reduce:animate-none">
-          <div className="flex items-center justify-between px-1.5 pb-2">
-            <span className="h-1.5 w-12 rounded-full bg-accent" />
-            <span className="h-2.5 w-6 rounded-full ring-1 ring-border" />
+        <div className="fade-in-0 slide-in-from-bottom-3 absolute inset-x-2 top-2.5 bottom-0 animate-in rounded-lg bg-popover px-1.5 py-2 shadow-lg ring-1 ring-border duration-500 motion-reduce:animate-none">
+          <div className="flex items-center justify-between px-1.5 pb-1.5">
+            <span className="h-1 w-10 rounded-full bg-accent" />
+            <span className="h-2 w-5 rounded-full ring-1 ring-border" />
           </div>
-          <div className="relative flex h-7 items-center gap-2 rounded-lg bg-accent px-2">
+          <div className="relative flex h-5.5 items-center gap-1.5 rounded-md bg-accent px-1.5">
             <span className="absolute top-[22%] left-0 h-[56%] w-0.5 rounded-full bg-primary" />
-            <span className="size-3.5 rounded-full bg-border-strong" />
-            <span className="h-1.5 w-24 rounded-full bg-border-strong" />
-            <span className="ml-auto grid size-4 place-items-center rounded-full bg-foreground text-background">
-              <Check size={9} strokeWidth={3.4} />
+            <span className="size-3 rounded-full bg-border-strong" />
+            <span className="h-1 w-18 rounded-full bg-border-strong" />
+            <span className="ml-auto grid size-3.5 place-items-center rounded-full bg-foreground text-background">
+              <Check size={8} strokeWidth={3.4} />
             </span>
           </div>
-          {[72, 80].map((width) => (
-            <div key={width} className="flex h-7 items-center gap-2 px-2">
-              <span className="size-3.5 rounded-full bg-accent" />
-              <span className="h-1.5 rounded-full bg-accent" style={{ width }} />
+          {[56, 64].map((width) => (
+            <div key={width} className="flex h-5.5 items-center gap-1.5 px-1.5">
+              <span className="size-3 rounded-full bg-accent" />
+              <span className="h-1 rounded-full bg-accent" style={{ width }} />
             </div>
           ))}
         </div>
-        <svg viewBox="0 0 24 24" className="absolute top-1 -right-3.5 size-4 fill-muted-foreground">
+        <svg viewBox="0 0 24 24" className="absolute top-0 -right-3 size-3 fill-muted-foreground">
           <path d={SPARKLE_PATH} />
         </svg>
-        <svg viewBox="0 0 24 24" className="absolute top-8 -left-3 size-2.5 fill-muted-foreground opacity-60">
+        <svg viewBox="0 0 24 24" className="absolute top-6 -left-2.5 size-2 fill-muted-foreground opacity-60">
           <path d={SPARKLE_PATH} />
         </svg>
       </div>

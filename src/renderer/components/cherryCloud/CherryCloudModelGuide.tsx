@@ -88,28 +88,28 @@ export function CherryCloudModelGuide({ anchorRef, ready, currentModelId, onSele
           side="bottom"
           align="start"
           sideOffset={12}
-          className="w-76 overflow-hidden rounded-xl p-0"
+          className="w-64 overflow-hidden rounded-xl p-0"
           aria-labelledby="cherry-cloud-model-guide-title">
-          <div className="h-26 overflow-hidden border-border border-b bg-muted px-4 pt-3.5">
+          <div className="h-18 overflow-hidden border-border border-b bg-muted px-3 pt-2.5">
             <div className="rounded-t-lg bg-popover px-1 pt-1.5 pb-1 shadow-lg ring-1 ring-border">
               {previewModels.map((model) => (
                 <div
                   key={model.id}
                   className={cn(
-                    'relative flex h-6.5 items-center gap-2 rounded-md px-2 text-[11px]',
+                    'relative flex h-6 items-center gap-1.5 rounded-md px-1.5 text-[11px]',
                     model.id === switchedModel?.id && 'bg-accent'
                   )}>
                   {model.id === switchedModel?.id ? (
                     <span className="absolute top-[20%] left-0 h-[60%] w-0.5 rounded-full bg-primary" />
                   ) : null}
-                  <ModelAvatar model={model} size={16} />
+                  <ModelAvatar model={model} size={14} />
                   <span className="truncate">{model.name}</span>
                 </div>
               ))}
             </div>
           </div>
-          <div className="flex flex-col gap-1 px-4 pt-3.5 pb-3.5">
-            <p id="cherry-cloud-model-guide-title" className="font-semibold text-sm">
+          <div className="flex flex-col gap-1 px-3.5 pt-3 pb-3">
+            <p id="cherry-cloud-model-guide-title" className="font-semibold text-[13px]">
               {switchedModel
                 ? t('settings.subscription.activation.guide_switched', { model: switchedModel.name })
                 : t('settings.subscription.activation.guide_title')}
@@ -117,8 +117,10 @@ export function CherryCloudModelGuide({ anchorRef, ready, currentModelId, onSele
             <p className="text-muted-foreground text-xs leading-relaxed">
               {t('settings.subscription.activation.guide_description')}
             </p>
-            <div className="mt-2 flex items-center justify-between">
-              <span className="text-muted-foreground text-xs">{t('settings.subscription.activation.guide_once')}</span>
+            <div className="mt-1.5 flex items-center justify-between">
+              <span className="text-[11px] text-muted-foreground">
+                {t('settings.subscription.activation.guide_once')}
+              </span>
               <Button variant="emphasis" size="sm" onClick={dismiss}>
                 {t('settings.subscription.activation.guide_dismiss')}
               </Button>
