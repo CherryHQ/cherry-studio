@@ -37,7 +37,8 @@ vi.mock('react-i18next', () => ({
 
 vi.mock('@renderer/hooks/useModel', () => ({
   useDefaultModel: () => ({ defaultModel: undefined }),
-  useModels: () => ({ models: [] })
+  useModels: () => ({ models: [] }),
+  useModelById: () => ({ model: undefined })
 }))
 
 vi.mock('@renderer/components/ModelSelector', () => ({
@@ -236,14 +237,22 @@ function mockDeferredAnimationFrames() {
 describe('ResourceCreateWizard close protection', () => {
   it('blocks overlay / Esc close while a submit is in flight, then releases once it settles', async () => {
     const user = userEvent.setup()
-    let resolveSubmit: () => void = () => {}
-    const submitPromise = new Promise<void>((resolve) => {
+    let resolveSubmit: (id: string) => void = () => {}
+    const submitPromise = new Promise<string>((resolve) => {
       resolveSubmit = resolve
     })
     const onSubmit = vi.fn(() => submitPromise)
     const onOpenChange = vi.fn()
 
-    render(<ResourceCreateWizard kind="assistant" open onOpenChange={onOpenChange} onSubmit={onSubmit} />)
+    render(
+      <ResourceCreateWizard
+        kind="assistant"
+        open
+        onOpenChange={onOpenChange}
+        onStartConversation={vi.fn()}
+        onSubmit={onSubmit}
+      />
+    )
 
     // Walk to the final step and start the (still pending) submit.
     await user.click(screen.getByRole('button', { name: MANUAL }))
@@ -268,13 +277,13 @@ describe('ResourceCreateWizard close protection', () => {
     dialog.onOpenChange?.(false)
     expect(onOpenChange).not.toHaveBeenCalled()
 
-    // Once the submit settles, close protection releases.
+    // Once the submit settles, close protection releases on the result page.
     await act(async () => {
-      resolveSubmit()
+      resolveSubmit('assistant-1')
       await submitPromise
     })
     expect(dialog.closeOnOverlayClick).toBe(true)
-    expect(screen.getByRole('button', { name: OPEN_KNOWLEDGE })).toBeEnabled()
+    expect(screen.getByRole('heading', { name: 'library.config.dialogs.create.result.assistant_title' })).toBeVisible()
     dialog.onOpenChange?.(false)
     expect(onOpenChange).toHaveBeenCalledWith(false)
   })
@@ -284,7 +293,13 @@ describe('ResourceCreateWizard close protection', () => {
     const onOpenChange = vi.fn()
     const onSubmit = vi.fn()
     const { rerender } = render(
-      <ResourceCreateWizard kind="assistant" open onOpenChange={onOpenChange} onSubmit={onSubmit} />
+      <ResourceCreateWizard
+        kind="assistant"
+        open
+        onOpenChange={onOpenChange}
+        onStartConversation={vi.fn()}
+        onSubmit={onSubmit}
+      />
     )
 
     await user.click(screen.getByRole('button', { name: MANUAL }))
@@ -294,7 +309,14 @@ describe('ResourceCreateWizard close protection', () => {
     expect(screen.getByRole('button', { name: OPEN_KNOWLEDGE })).toBeEnabled()
 
     rerender(
-      <ResourceCreateWizard kind="assistant" open onOpenChange={onOpenChange} onSubmit={onSubmit} isSubmitting />
+      <ResourceCreateWizard
+        kind="assistant"
+        open
+        onOpenChange={onOpenChange}
+        onStartConversation={vi.fn()}
+        onSubmit={onSubmit}
+        isSubmitting
+      />
     )
 
     expect(screen.getByRole('button', { name: OPEN_KNOWLEDGE })).toBeDisabled()
@@ -302,7 +324,15 @@ describe('ResourceCreateWizard close protection', () => {
     expect(onOpenChange).not.toHaveBeenCalled()
     expect(ipc.request).not.toHaveBeenCalled()
 
-    rerender(<ResourceCreateWizard kind="assistant" open onOpenChange={onOpenChange} onSubmit={onSubmit} />)
+    rerender(
+      <ResourceCreateWizard
+        kind="assistant"
+        open
+        onOpenChange={onOpenChange}
+        onStartConversation={vi.fn()}
+        onSubmit={onSubmit}
+      />
+    )
     expect(screen.getByRole('button', { name: OPEN_KNOWLEDGE })).toBeEnabled()
   })
 
@@ -310,7 +340,15 @@ describe('ResourceCreateWizard close protection', () => {
     const user = userEvent.setup()
     const onOpenChange = vi.fn()
 
-    render(<ResourceCreateWizard kind="assistant" open onOpenChange={onOpenChange} onSubmit={vi.fn()} />)
+    render(
+      <ResourceCreateWizard
+        kind="assistant"
+        open
+        onOpenChange={onOpenChange}
+        onStartConversation={vi.fn()}
+        onSubmit={vi.fn()}
+      />
+    )
 
     await user.click(screen.getByRole('button', { name: MANUAL }))
     await user.click(screen.getByRole('button', { name: 'fill basic' }))
@@ -332,7 +370,15 @@ describe('ResourceCreateWizard close protection', () => {
     function Host() {
       const [open, setOpen] = useState(true)
 
-      return <ResourceCreateWizard kind="assistant" open={open} onOpenChange={setOpen} onSubmit={vi.fn()} />
+      return (
+        <ResourceCreateWizard
+          kind="assistant"
+          open={open}
+          onOpenChange={setOpen}
+          onStartConversation={vi.fn()}
+          onSubmit={vi.fn()}
+        />
+      )
     }
 
     render(<Host />)

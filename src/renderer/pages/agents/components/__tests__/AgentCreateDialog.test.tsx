@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -25,13 +25,7 @@ vi.mock('@logger', () => ({
 vi.mock('@renderer/components/resourceCatalog/dialogs/create', () => ({
   ResourceCreateWizard: (props: any) => {
     mocks.createDialogProps = props
-    return (
-      <div data-testid="create-dialog" data-open={String(props.open)} data-kind={props.kind}>
-        <button type="button" onClick={() => props.onSubmit(wizardValues)}>
-          submit-create
-        </button>
-      </div>
-    )
+    return <div data-testid="create-dialog" data-open={String(props.open)} data-kind={props.kind} />
   }
 }))
 
@@ -48,13 +42,14 @@ afterEach(() => {
 })
 
 describe('AgentCreateDialog', () => {
-  it('creates the agent with wizard values and reports the created id', async () => {
+  it('creates the agent with wizard values and hands the created id to the result page', async () => {
     mocks.createAgent.mockResolvedValue({ id: 'agent-new' })
     const onCreated = vi.fn()
+    const onOpenChange = vi.fn()
 
-    render(<AgentCreateDialog open onOpenChange={vi.fn()} onCreated={onCreated} />)
+    render(<AgentCreateDialog open onOpenChange={onOpenChange} onCreated={onCreated} />)
 
-    fireEvent.click(screen.getByText('submit-create'))
+    await expect(mocks.createDialogProps.onSubmit(wizardValues)).resolves.toBe('agent-new')
 
     await waitFor(() =>
       expect(mocks.createAgent).toHaveBeenCalledWith({
@@ -70,7 +65,18 @@ describe('AgentCreateDialog', () => {
         configuration: { avatar: '🤖', permission_mode: 'auto' }
       })
     )
-    await waitFor(() => expect(onCreated).toHaveBeenCalledWith('agent-new'))
+    // Creating alone neither closes nor opens the conversation; the result page decides.
+    expect(onOpenChange).not.toHaveBeenCalled()
+    expect(onCreated).not.toHaveBeenCalled()
+  })
+
+  it("opens the new agent's conversation from the result page's start action", () => {
+    const onCreated = vi.fn()
+    render(<AgentCreateDialog open onOpenChange={vi.fn()} onCreated={onCreated} />)
+
+    mocks.createDialogProps.onStartConversation('agent-new')
+
+    expect(onCreated).toHaveBeenCalledExactlyOnceWith('agent-new')
   })
 
   it('keeps the dialog open and does not report an agent when creation fails', async () => {

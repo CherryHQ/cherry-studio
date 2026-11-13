@@ -528,6 +528,7 @@ describe('AssistantSelector', () => {
     )
     await waitFor(() => expect(refetchAssistantsMock).toHaveBeenCalledTimes(1))
     expect(onChange).not.toHaveBeenCalled()
+    await user.click(await screen.findByRole('button', { name: 'library.config.dialogs.create.result.start' }))
     await waitFor(() => expect(screen.getByPlaceholderText('Search assistants')).toBeInTheDocument())
   })
 
@@ -552,6 +553,9 @@ describe('AssistantSelector', () => {
     await user.click(screen.getByRole('button', { name: 'Create' }))
 
     await waitFor(() => expect(refetchAssistantsMock).toHaveBeenCalledTimes(1))
+    // Selecting the new item is the result page's start action, not a side effect of creating.
+    expect(onChange).not.toHaveBeenCalled()
+    await user.click(await screen.findByRole('button', { name: 'library.config.dialogs.create.result.start' }))
     expect(onChange).toHaveBeenCalledWith('created-assistant')
   })
 
@@ -632,6 +636,7 @@ describe('AssistantSelector', () => {
     await waitFor(() => expect(refetchAssistantsMock).toHaveBeenCalledTimes(1))
 
     expect(toast.error).toHaveBeenCalledWith('Created, but refresh failed')
+    await user.click(await screen.findByRole('button', { name: 'library.config.dialogs.create.result.start' }))
     await waitFor(() => expect(screen.getByPlaceholderText('Search assistants')).toBeInTheDocument())
   })
 })

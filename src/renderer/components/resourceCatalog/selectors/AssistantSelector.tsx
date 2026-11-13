@@ -1,4 +1,4 @@
-import { lazy, type ReactElement, Suspense, useCallback, useMemo, useState } from 'react'
+import { lazy, type ReactElement, Suspense, useCallback, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { loggerService } from '@logger'
@@ -100,6 +100,7 @@ export function AssistantSelector(props: AssistantSelectorProps) {
   const [internalOpen, setInternalOpen] = useState(false)
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
   const [editDialogTarget, setEditDialogTarget] = useState<ResourceEditDialogTarget | null>(null)
+  const createdAssistantRef = useRef<Assistant | null>(null)
   const selectorOpen = open ?? internalOpen
   const handleSelectorOpenChange = useCallback(
     (nextOpen: boolean) => {
@@ -208,32 +209,37 @@ export function AssistantSelector(props: AssistantSelectorProps) {
         throw error
       }
 
-      setCreateDialogOpen(false)
-      onDialogCloseAutoFocus?.()
+      createdAssistantRef.current = created
       try {
         await refetch()
       } catch (error) {
         logger.warn('Failed to refresh assistants after selector create', { error })
         toast.error(t('selector.create_dialog.refresh_failed'))
       }
-      if (autoSelectOnCreate && props.multi !== true) {
-        if (props.selectionType === 'item') {
-          props.onChange({
-            id: created.id,
-            name: created.name,
-            emoji: created.emoji,
-            description: created.description
-          })
-        } else {
-          props.onChange(created.id)
-        }
-        handleSelectorOpenChange(false)
-        return
-      }
-      handleSelectorOpenChange(true)
+      return created.id
     },
-    [autoSelectOnCreate, createAssistant, handleSelectorOpenChange, onDialogCloseAutoFocus, props, refetch, t]
+    [createAssistant, refetch, t]
   )
+
+  // Runs only from the result page's "Start conversation"; the ref holds the entity just created.
+  const handleStartConversation = useCallback(() => {
+    const created = createdAssistantRef.current
+    if (autoSelectOnCreate && props.multi !== true && created) {
+      if (props.selectionType === 'item') {
+        props.onChange({
+          id: created.id,
+          name: created.name,
+          emoji: created.emoji,
+          description: created.description
+        })
+      } else {
+        props.onChange(created.id)
+      }
+      handleSelectorOpenChange(false)
+      return
+    }
+    handleSelectorOpenChange(true)
+  }, [autoSelectOnCreate, handleSelectorOpenChange, props])
 
   const createDialog = (
     <ResourceCreateWizard
@@ -242,6 +248,7 @@ export function AssistantSelector(props: AssistantSelectorProps) {
       isSubmitting={isCreatingAssistant}
       onOpenChange={handleCreateDialogOpenChange}
       onSubmit={handleSubmitCreate}
+      onStartConversation={handleStartConversation}
       modelFilter={(candidate) => !isNonChatModel(candidate)}
     />
   )

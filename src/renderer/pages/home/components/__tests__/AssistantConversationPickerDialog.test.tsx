@@ -157,7 +157,7 @@ describe('AssistantConversationPickerDialog', () => {
     expect(mocks.createDialogProps.initialName).toBe('测试助手')
   })
 
-  it('creates the assistant and starts a conversation with it on submit', async () => {
+  it('creates the assistant and starts a conversation with it from the result page', async () => {
     mocks.createAssistant.mockResolvedValue({ id: 'assistant-new' })
     const onSelect = vi.fn()
 
@@ -178,7 +178,20 @@ describe('AssistantConversationPickerDialog', () => {
         }
       })
     )
-    await waitFor(() => expect(onSelect).toHaveBeenCalledWith({ type: 'assistant', assistantId: 'assistant-new' }))
+    expect(onSelect).not.toHaveBeenCalled()
+
+    mocks.createDialogProps.onStartConversation('assistant-new')
+
+    expect(onSelect).toHaveBeenCalledExactlyOnceWith({ type: 'assistant', assistantId: 'assistant-new' })
+  })
+
+  it('resolves the created assistant id for the result page', async () => {
+    mocks.createAssistant.mockResolvedValue({ id: 'assistant-new' })
+    render(<AssistantConversationPickerDialog open onOpenChange={vi.fn()} assistants={[]} onSelect={vi.fn()} />)
+
+    await expect(
+      mocks.createDialogProps.onSubmit({ avatar: '🤖', name: 'New', modelId: 'p::m', description: '', prompt: '' })
+    ).resolves.toBe('assistant-new')
   })
 
   it('keeps the create dialog open and does not select when assistant creation fails', async () => {
