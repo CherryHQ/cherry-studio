@@ -293,6 +293,89 @@ describe('useChatRuntimeState', () => {
     expect(mocks.pinTrigger).not.toHaveBeenCalled()
   })
 
+  it('does not pin an existing topic when the turn controller declines the send', async () => {
+    mocks.sendTurn.mockResolvedValueOnce(false)
+    render(<RuntimeHost topicId="topic-1" messages={[reservedMessage]} />)
+    await act(async () => {
+      await expect(latestRuntime?.sendMessage('keep draft')).resolves.toBe(false)
+    })
+    expect(mocks.pinTrigger).not.toHaveBeenCalled()
+  })
+
+  it('does not pin an existing topic when the send rejects', async () => {
+    mocks.sendTurn.mockRejectedValueOnce(new Error('send failed'))
+    render(<RuntimeHost topicId="topic-1" messages={[reservedMessage]} />)
+    await act(async () => {
+      await expect(latestRuntime?.sendMessage('retry later')).rejects.toThrow('send failed')
+    })
+    expect(mocks.pinTrigger).not.toHaveBeenCalled()
+  })
+
+  it('keeps a successful send successful if the pin write fails', async () => {
+    mocks.pinTrigger.mockRejectedValueOnce(new Error('pin failed'))
+    render(<RuntimeHost topicId="topic-1" messages={[reservedMessage]} />)
+    await act(async () => {
+      await expect(latestRuntime?.sendMessage('continue')).resolves.toBe(true)
+    })
+    expect(mocks.pinTrigger).toHaveBeenCalledWith({ body: { entityType: 'topic', entityId: 'topic-1' } })
+  })
+
+  it('uses the pre-send empty-history snapshot even when the first turn appears before send resolves', async () => {
+    let finishSend!: (sent: boolean) => void
+    mocks.sendTurn.mockImplementationOnce(
+      () =>
+        new Promise<boolean>((resolve) => {
+          finishSend = resolve
+        })
+    )
+    const view = render(<RuntimeHost topicId="topic-1" />)
+    let sent!: Promise<boolean>
+    act(() => {
+      sent = latestRuntime!.sendMessage('first turn')
+    })
+    view.rerender(<RuntimeHost topicId="topic-1" messages={[reservedMessage]} />)
+    await act(async () => {
+      finishSend(true)
+      await sent
+    })
+    expect(mocks.pinTrigger).not.toHaveBeenCalled()
+  })
+
+  it('pins the original topic if navigation switches topics while a continued send is pending', async () => {
+    let finishSend!: (sent: boolean) => void
+    mocks.sendTurn.mockImplementationOnce(
+      () =>
+        new Promise<boolean>((resolve) => {
+          finishSend = resolve
+        })
+    )
+    const view = render(<RuntimeHost topicId="topic-1" messages={[reservedMessage]} />)
+    let sent!: Promise<boolean>
+    act(() => {
+      sent = latestRuntime!.sendMessage('continue original')
+    })
+    view.rerender(<RuntimeHost topicId="topic-2" />)
+    await act(async () => {
+      finishSend(true)
+      await sent
+    })
+    expect(mocks.pinTrigger).toHaveBeenCalledOnce()
+    expect(mocks.pinTrigger).toHaveBeenCalledWith({ body: { entityType: 'topic', entityId: 'topic-1' } })
+  })
+
+  it('keeps pin writes scoped to the same topic on a third continued turn', async () => {
+    render(<RuntimeHost topicId="topic-1" messages={[reservedMessage]} />)
+    await act(async () => {
+      await latestRuntime?.sendMessage('second turn')
+      await latestRuntime?.sendMessage('third turn')
+    })
+    expect(mocks.pinTrigger).toHaveBeenCalledTimes(2)
+    expect(mocks.pinTrigger.mock.calls).toEqual([
+      [{ body: { entityType: 'topic', entityId: 'topic-1' } }],
+      [{ body: { entityType: 'topic', entityId: 'topic-1' } }]
+    ])
+  })
+
   it('returns the viewport to bottom-follow after opening a conversation turn', async () => {
     const requestAnimationFrame = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
       callback(0)
