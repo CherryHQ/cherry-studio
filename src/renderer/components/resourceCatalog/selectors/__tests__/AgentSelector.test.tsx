@@ -121,7 +121,8 @@ vi.mock('@renderer/data/hooks/useDataApi', async () => ({
 
 vi.mock('@renderer/hooks/resourceCatalog', () => ({
   useAgentMutations: () => ({ createAgent: createAgentMock, isCreatingAgent: false }),
-  useAgentMutationsById: () => ({ updateAgent: updateAgentMock })
+  useAgentMutationsById: () => ({ updateAgent: updateAgentMock }),
+  useResourceAutoConfigure: () => ({ ready: true, generate: vi.fn() })
 }))
 
 vi.mock('@renderer/hooks/usePins', () => ({
@@ -378,6 +379,8 @@ async function openCreateDialog() {
   openPopover()
   fireEvent.click(screen.getByRole('button', { name: 'Create agent' }))
   await screen.findByRole('dialog')
+  // These cases cover the selector's create flow, so step past the auto-create entry.
+  fireEvent.click(screen.getByRole('button', { name: 'library.config.dialogs.create.auto.manual' }))
 }
 
 describe('AgentSelector', () => {

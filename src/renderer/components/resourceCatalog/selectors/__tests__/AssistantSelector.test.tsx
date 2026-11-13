@@ -299,6 +299,9 @@ beforeAll(() => {
 
 beforeEach(() => {
   useQueryMock.mockImplementation((path: string, options?: { enabled?: boolean }) => {
+    if (path === '/skills') {
+      return { data: [], isLoading: false, isRefreshing: false, error: undefined, refetch: vi.fn(), mutate: vi.fn() }
+    }
     const enabled = path !== '/assistants' || options?.enabled !== false
     if (path === '/assistants' && enabled) assistantReadMock()
     const data = enabled ? (path === '/assistants/:id' ? ASSISTANTS_RESPONSE.items[0] : ASSISTANTS_RESPONSE) : undefined
@@ -405,6 +408,8 @@ async function openCreateDialog() {
   openPopover()
   fireEvent.click(screen.getByRole('button', { name: 'Create assistant' }))
   await screen.findByRole('dialog')
+  // These cases cover the selector's create flow, so step past the auto-create entry.
+  fireEvent.click(screen.getByRole('button', { name: 'library.config.dialogs.create.auto.manual' }))
 }
 
 describe('AssistantSelector', () => {
