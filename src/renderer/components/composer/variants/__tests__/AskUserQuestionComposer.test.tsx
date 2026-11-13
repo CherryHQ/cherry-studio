@@ -46,6 +46,14 @@ const questions = [
   }
 ]
 
+const skipQuestions = [
+  questions[0],
+  {
+    ...questions[1],
+    options: [{ label: 'Bunyan' }, { label: 'No additional context' }]
+  }
+]
+
 function makeRequest(requestQuestions = questions): AskUserQuestionComposerRequest {
   const part = {
     type: 'tool-AskUserQuestion',
@@ -76,6 +84,69 @@ describe('AskUserQuestionComposer', () => {
   // one test's draft into the next one.
   beforeEach(() => {
     MockCacheUtils.resetMocks()
+  })
+
+  it.each([1, 2])('settles the request after skipping all %i questions', async (totalQuestions) => {
+    const user = userEvent.setup()
+    const onRespond = vi.fn().mockResolvedValue(undefined)
+    const request = makeRequest(skipQuestions.slice(0, totalQuestions))
+    render(<AskUserQuestionComposer request={request} onRespond={onRespond} />)
+
+    for (let index = 0; index < totalQuestions - 1; index++) {
+      await user.click(screen.getByRole('button', { name: 'Skip' }))
+    }
+
+    expect(screen.getByText(`${totalQuestions} of ${totalQuestions}`)).toBeInTheDocument()
+    expect(onRespond).not.toHaveBeenCalled()
+    await user.click(screen.getByRole('button', { name: 'Skip' }))
+
+    await waitFor(() => expect(onRespond).toHaveBeenCalledTimes(1))
+    expect(onRespond).toHaveBeenCalledWith({ match: request.match, approved: false })
+    expect(onRespond.mock.calls[0][0]).not.toHaveProperty('updatedInput')
+    expect(onRespond.mock.calls[0][0]).not.toHaveProperty('answers')
+  })
+
+  it.each(['', '   '])('settles the request with Enter on the unanswered final question (%j)', async (text) => {
+    const user = userEvent.setup()
+    const onRespond = vi.fn().mockResolvedValue(undefined)
+    const request = makeRequest(skipQuestions)
+    render(<AskUserQuestionComposer request={request} onRespond={onRespond} />)
+
+    await user.click(screen.getByRole('button', { name: 'Skip' }))
+    expect(screen.getByText('2 of 2')).toBeInTheDocument()
+    const field = screen.getByRole('textbox', { name: 'Enter your answer...' })
+    await user.click(field)
+    if (text) await user.type(field, text)
+    expect(onRespond).not.toHaveBeenCalled()
+    await user.keyboard('{Enter}')
+
+    await waitFor(() => expect(onRespond).toHaveBeenCalledTimes(1))
+    expect(onRespond).toHaveBeenCalledWith({ match: request.match, approved: false })
+    expect(onRespond.mock.calls[0][0]).not.toHaveProperty('updatedInput')
+    expect(onRespond.mock.calls[0][0]).not.toHaveProperty('answers')
+  })
+
+  it('approves an earlier answer when submitting a blank final question', async () => {
+    const user = userEvent.setup()
+    const onRespond = vi.fn().mockResolvedValue(undefined)
+    const request = makeRequest(skipQuestions)
+    render(<AskUserQuestionComposer request={request} onRespond={onRespond} />)
+
+    await user.click(screen.getByRole('button', { name: /Winston/ }))
+    expect(screen.getByText('2 of 2')).toBeInTheDocument()
+    expect(screen.getByRole('textbox', { name: 'Enter your answer...' })).toHaveValue('')
+    expect(onRespond).not.toHaveBeenCalled()
+    await user.click(screen.getByText('Submit'))
+
+    await waitFor(() => expect(onRespond).toHaveBeenCalledTimes(1))
+    expect(onRespond).toHaveBeenCalledWith({
+      match: request.match,
+      approved: true,
+      updatedInput: {
+        questions: request.input.questions,
+        answers: { 'Choose logger': 'Winston' }
+      }
+    })
   })
 
   it('keeps a 2000-character option description complete with wrapping and bounded scrolling', () => {

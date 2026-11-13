@@ -233,8 +233,15 @@ export default function AskUserQuestionComposer({ request, onRespond, className 
       return
     }
 
-    if (!isLastQuestion) setCurrentIndex((index) => index + 1)
-  }, [customActionSubmitsAll, isLastQuestion, isSubmitting, selectedAnswers, submitAnswers])
+    if (!isLastQuestion) {
+      setCurrentIndex((index) => index + 1)
+      return
+    }
+
+    // Everything is unanswered and there is nowhere left to advance, so reuse the
+    // dismissal path: the request must settle instead of the click doing nothing.
+    await handleDismiss()
+  }, [customActionSubmitsAll, handleDismiss, isLastQuestion, isSubmitting, selectedAnswers, submitAnswers])
 
   if (!currentQuestion) return null
 
