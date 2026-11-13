@@ -24,8 +24,8 @@ function messageErrorSource(subject: DoctorSubjectRef | undefined, topicId: stri
   return isAgentSessionTopic(topicId) ? 'agent' : 'chat'
 }
 
-function persistedAttemptTime(message: { createdAt: string; updatedAt?: string }): string | undefined {
-  for (const candidate of [message.updatedAt, message.createdAt]) {
+function persistedAttemptTime(message: { createdAt: string; persistedAt?: string }): string | undefined {
+  for (const candidate of [message.persistedAt, message.createdAt]) {
     if (!candidate || Number.isNaN(Date.parse(candidate))) continue
     return new Date(candidate).toISOString()
   }
@@ -48,7 +48,7 @@ function messageFaultKey(
   return [
     message.id,
     partId,
-    message.updatedAt ?? '',
+    message.persistedAt ?? '',
     error?.name ?? '',
     error?.message ?? '',
     error?.statusCode ?? '',
