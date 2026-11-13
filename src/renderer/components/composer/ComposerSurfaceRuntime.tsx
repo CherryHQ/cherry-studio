@@ -2278,6 +2278,7 @@ export default function ComposerSurfaceRuntime({
     if (!deferredIntent || !editor) return
     const { transfer, openPanel, insertToken: pendingToken } = deferredIntent
     if (!transfer && !openPanel && !pendingToken) return
+    if (openPanel && !unifiedPanelAvailable) return
 
     return setTimeoutTimer(
       'composerDeferredIntent',
@@ -2310,7 +2311,7 @@ export default function ComposerSurfaceRuntime({
       },
       0
     )
-  }, [deferredIntent, editor, setTimeoutTimer, unifiedPanelOpen])
+  }, [deferredIntent, editor, setTimeoutTimer, unifiedPanelAvailable, unifiedPanelOpen])
 
   const quickPanelElement = quickPanelReady && quickPanelEnabled ? <QuickPanelView inputAdapter={inputAdapter} /> : null
   const showPauseButton = isLoading && sendDisabled

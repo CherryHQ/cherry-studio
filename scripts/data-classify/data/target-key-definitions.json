@@ -22,9 +22,16 @@
     {
       "targetKey": "app.computer_use.agent_control.enabled",
       "type": "boolean",
-      "defaultValue": false,
+      "defaultValue": true,
       "status": "classified",
       "description": "Allow local agents to observe and control desktop applications through the Computer Use SDK"
+    },
+    {
+      "targetKey": "app.computer_use.approved_apps",
+      "type": "string[]",
+      "defaultValue": [],
+      "status": "classified",
+      "description": "Stable native application identities explicitly allowed for Computer Use on this installation"
     },
     {
       "targetKey": "agent.commit_attribution.enabled",

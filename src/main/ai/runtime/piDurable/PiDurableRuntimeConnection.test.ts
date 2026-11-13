@@ -33,6 +33,7 @@ import { ThreadMessageProjection } from '@main/ai/agentSession/ThreadMessageProj
 import { getPiTraceContext, observabilitySinks } from '@main/ai/observability'
 import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import type { ToolGuardInteractionState } from '@main/ai/toolApproval/toolGuards'
+import { serializeError } from '@main/ai/utils/serializeError'
 import { getShellEnv } from '@main/utils/shellEnv'
 import { ModelSchema } from '@shared/data/types/model'
 import { ProviderSchema } from '@shared/data/types/provider'
@@ -851,6 +852,25 @@ describe('desktop Pi Durable connection', () => {
       .filter((message) => message.role === 'assistant')
       .flatMap((message) => message.parts.flatMap((part) => (part.type === 'text' ? [part.text] : [])))
       .join('')
+  it('preserves output truncation through the desktop error boundary', async () => {
+    const response = assistantReply('', 'length')
+    response.content = [{ type: 'thinking', thinking: 'Partial reasoning' }]
+    setScript([response])
+    const { connection, events } = await connect()
+    await connection.send({ message: message('Solve a reasoning task') })
+    await done(events)
+
+    const failure = events.find((event) => event.type === 'error')
+    expect(failure).toBeDefined()
+    if (failure?.type !== 'error') throw new Error('Expected a truncation failure')
+    expect(serializeError(failure.error)).toMatchObject({
+      reason: 'output-truncated',
+      finishReason: 'length',
+      i18nKey: 'output_token_limit_reached'
+    })
+    expect(events.some((event) => event.type === 'turn-complete')).toBe(false)
+  })
+
   it('loads workspace instructions and reflects changes on later model requests', async () => {
     const project = join(directory, 'project')
     const cwd = join(project, 'nested')
