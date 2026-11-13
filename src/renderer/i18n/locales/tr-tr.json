@@ -6509,6 +6509,7 @@
   "webview.browser.import_hint": "Geçmişinizi ve site verilerinizi başka bir tarayıcıdan içe aktarın.",
   "webview.browser.load_failed": "Sayfa yüklenemedi",
   "webview.browser.loading": "Sayfa yükleniyor…",
+  "webview.browser.recreated": "Tarayıcı sayfası otomatik olarak yeniden oluşturuldu. Devam etmek için sayfayı yeniden açın.",
   "webview.navigation.address": "Web adresi",
   "webview.navigation.address_placeholder": "Bir URL girin",
   "webview.navigation.back": "Geri",

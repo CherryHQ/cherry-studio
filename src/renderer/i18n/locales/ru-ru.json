@@ -6509,6 +6509,7 @@
   "webview.browser.import_hint": "Импортируйте историю и данные сайтов из другого браузера.",
   "webview.browser.load_failed": "Не удалось загрузить страницу",
   "webview.browser.loading": "Загрузка страницы…",
+  "webview.browser.recreated": "Страница браузера автоматически создана заново. Откройте её снова, чтобы продолжить.",
   "webview.navigation.address": "Веб-адрес",
   "webview.navigation.address_placeholder": "Введите URL",
   "webview.navigation.back": "Назад",

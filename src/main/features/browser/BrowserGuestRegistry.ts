@@ -33,17 +33,37 @@ export interface BrowserGuestTarget extends BrowserGuestContext {
 }
 
 export class BrowserGuestRegistry implements Disposable {
+  private readonly shutdown = new AbortController()
   private readonly targets = new Map<string, BrowserGuestTarget>()
+  private readonly identities = new Map<
+    string,
+    { ownerId: string; windowId: WindowId; webContentsId: number; tabId: string }
+  >()
+  private readonly repairs = new Map<
+    string,
+    {
+      requestId: string
+      kind: 'reattach' | 'recreate'
+      expiresAt: number
+      identity: { ownerId: string; windowId: WindowId; webContentsId: number; tabId: string }
+      finish: (target: BrowserGuestTarget) => void
+    }
+  >()
+  private readonly recovering = new Map<
+    string,
+    { promise: Promise<BrowserGuestTarget>; abort: AbortController; waiters: number; deadline: number }
+  >()
   private readonly changed = new Emitter<void>()
   private readonly pendingFocus = new Map<string, { target: BrowserGuestTarget; finish: (error?: unknown) => void }>()
 
   constructor(
     private readonly resolveOwner: (id: string) => string,
     readonly scope: 'agent' | 'topic',
-    private readonly claims = new Map<WebContents, BrowserGuestTarget>()
+    private readonly claims = new Map<WebContents, BrowserGuestTarget>(),
+    private readonly checkGuest?: (target: BrowserGuestTarget) => Promise<boolean>
   ) {}
 
-  attach(sessionId: string, webviewId: number, senderId: WindowId | null): { tabId: string } {
+  attach(sessionId: string, webviewId: number, senderId: WindowId | null, requestId?: string): { tabId: string } {
     const ownerId = this.getOwner(sessionId)
     const window = senderId ? application.get('WindowManager').getWindow(senderId) : undefined
     const guest = webContents.fromId(webviewId)
@@ -65,11 +85,28 @@ export class BrowserGuestRegistry implements Disposable {
       throw new BrowserSessionError('not_allowed')
     }
     const existing = this.targets.get(sessionId)
-    if (existing?.guest === guest && existing.windowId === senderId && !existing.abort.signal.aborted)
+    const repair = requestId ? this.repairs.get(sessionId) : undefined
+    if (
+      requestId &&
+      (!repair ||
+        repair.requestId !== requestId ||
+        repair.expiresAt <= Date.now() ||
+        repair.identity.ownerId !== ownerId ||
+        repair.identity.windowId !== senderId ||
+        this.identities.get(sessionId) !== repair.identity ||
+        (repair.kind === 'reattach'
+          ? webviewId !== repair.identity.webContentsId
+          : webviewId === repair.identity.webContentsId) ||
+        guest.session !== session.fromPartition(getWebviewPartition(WebviewSecurityProfile.AgentBrowser)))
+    ) {
+      throw new BrowserSessionError('not_allowed')
+    }
+    if (existing?.guest === guest && existing.windowId === senderId && !existing.abort.signal.aborted && !repair)
       return { tabId: existing.tabId }
     const claim = this.claims.get(guest)
     if (claim && claim !== existing) throw new BrowserSessionError('not_allowed')
-    if (existing && existing.windowId !== senderId) throw new BrowserSessionError('not_allowed')
+    if (existing && !existing.abort.signal.aborted && existing.windowId !== senderId)
+      throw new BrowserSessionError('not_allowed')
     existing?.dispose()
     const tabId = randomUUID()
     const abort = new AbortController()
@@ -146,9 +183,11 @@ export class BrowserGuestRegistry implements Disposable {
       beginExecution,
       dispose
     })
+    this.identities.set(sessionId, { ownerId, windowId: senderId, webContentsId: webviewId, tabId })
     this.claims.set(guest, this.targets.get(sessionId)!)
     guest.once('destroyed', dispose)
     this.changed.fire()
+    if (repair) repair.finish(this.targets.get(sessionId)!)
     return { tabId }
   }
 
@@ -229,6 +268,14 @@ export class BrowserGuestRegistry implements Disposable {
     }
     void guest.loadURL(url, { httpReferrer: details.referrer }).catch((error) => {
       logger.warn('Failed to navigate browser popup in the Agent pane', { error })
+      if (this.checkGuest && this.targets.get(target.sessionId) === target && !target.abort.signal.aborted) {
+        void this.checkGuest(target)
+          .then((healthy) => {
+            if (!healthy && this.targets.get(target.sessionId) === target && !target.abort.signal.aborted)
+              void this.recover(target, 'recreate').catch(() => undefined)
+          })
+          .catch(() => undefined)
+      }
     })
     return true
   }
@@ -260,7 +307,24 @@ export class BrowserGuestRegistry implements Disposable {
 
   async ensureGuest(context: BrowserGuestContext, signal: AbortSignal, url?: string): Promise<BrowserGuestTarget> {
     signal.throwIfAborted()
-    const existing = this.get(context)
+    let deadline = Date.now() + 10_000
+    let existing = this.get(context)
+    let identity = this.identities.get(context.sessionId)
+    if (identity && identity.ownerId !== context.ownerId) {
+      this.identities.delete(context.sessionId)
+      identity = undefined
+    }
+    const pending = this.recovering.get(context.sessionId)
+    if (pending && identity) {
+      deadline = pending.deadline
+      await this.waitForRecovery(context.sessionId, signal)
+      existing = this.get(context)
+    } else if (!existing && identity && this.scope === 'agent' && !url?.startsWith('file:')) {
+      const previous = webContents.fromId(identity.webContentsId)
+      await this.recover(identity, previous && !previous.isDestroyed() ? 'reattach' : 'recreate', signal)
+      existing = this.get(context)
+    }
+    signal.throwIfAborted()
     const isFile = url?.startsWith('file:')
     const expectedSession = session.fromPartition(
       getWebviewPartition(isFile ? WebviewSecurityProfile.AgentHtmlArtifact : WebviewSecurityProfile.AgentBrowser)
@@ -270,10 +334,30 @@ export class BrowserGuestRegistry implements Disposable {
     if (existing && matches(existing)) {
       return existing
     }
-    const timeout = AbortSignal.timeout(10_000)
-    const abort = AbortSignal.any([signal, timeout])
+    return this.requestGuest(context, signal, url, deadline)
+  }
+
+  private requestGuest(
+    context: BrowserGuestContext,
+    signal: AbortSignal,
+    url: string | undefined,
+    deadline: number
+  ): Promise<BrowserGuestTarget> {
+    const isFile = url?.startsWith('file:')
+    const expectedSession = session.fromPartition(
+      getWebviewPartition(isFile ? WebviewSecurityProfile.AgentHtmlArtifact : WebviewSecurityProfile.AgentBrowser)
+    )
+    const abort = AbortSignal.any([signal, this.shutdown.signal])
     return new Promise((resolve, reject) => {
+      const timeout = setTimeout(
+        () => {
+          cleanup()
+          reject(new BrowserSessionError('timeout'))
+        },
+        Math.max(0, deadline - Date.now())
+      )
       const cleanup = () => {
+        clearTimeout(timeout)
         subscription.dispose()
         abort.removeEventListener('abort', onAbort)
       }
@@ -284,7 +368,10 @@ export class BrowserGuestRegistry implements Disposable {
       const subscription = this.changed.event(() => {
         try {
           const target = this.get(context)
-          if (target && matches(target)) {
+          if (
+            target &&
+            (!url || (target.guest.session === expectedSession && (!isFile || target.guest.getURL() === url)))
+          ) {
             cleanup()
             resolve(target)
           }
@@ -296,6 +383,7 @@ export class BrowserGuestRegistry implements Disposable {
       abort.addEventListener('abort', onAbort, { once: true })
       try {
         abort.throwIfAborted()
+        if (deadline <= Date.now()) throw new BrowserSessionError('timeout')
         application.get('IpcApiService').broadcast('browser.guest.ensure_requested', {
           sessionId: context.sessionId,
           ...(this.scope === 'topic' ? { scope: this.scope } : {}),
@@ -308,7 +396,118 @@ export class BrowserGuestRegistry implements Disposable {
     })
   }
 
+  private recover(
+    identity: {
+      ownerId: string
+      sessionId?: string
+      windowId: WindowId
+      webContentsId?: number
+      tabId: string
+      guest?: WebContents
+    },
+    kind: 'reattach' | 'recreate',
+    signal?: AbortSignal
+  ): Promise<BrowserGuestTarget> {
+    const sessionId = identity.sessionId ?? [...this.identities].find(([, value]) => value === identity)?.[0]
+    if (!sessionId) return Promise.reject(new BrowserSessionError('not_found'))
+    const current = this.recovering.get(sessionId)
+    if (current) return this.waitForRecovery(sessionId, signal)
+    const expected = this.identities.get(sessionId)
+    if (!expected) return Promise.reject(new BrowserSessionError('not_found'))
+    const deadline = Date.now() + 10_000
+    const abort = new AbortController()
+    const repairSignal = AbortSignal.any([abort.signal, this.shutdown.signal])
+    const request = (requestKind: 'reattach' | 'recreate', expiresAt: number) =>
+      new Promise<BrowserGuestTarget>((resolve, reject) => {
+        const timeout = setTimeout(
+          () => finish(undefined, new BrowserSessionError('timeout')),
+          Math.max(0, Math.min(expiresAt, Date.now() + 2000) - Date.now())
+        )
+        const onAbort = () => finish(undefined, repairSignal.reason)
+        const finish = (target?: BrowserGuestTarget, error?: unknown) => {
+          clearTimeout(timeout)
+          repairSignal.removeEventListener('abort', onAbort)
+          if (this.repairs.get(sessionId)?.requestId === requestId) this.repairs.delete(sessionId)
+          if (target) resolve(target)
+          else reject(error)
+        }
+        const requestId = randomUUID()
+        this.repairs.set(sessionId, {
+          requestId,
+          kind: requestKind,
+          expiresAt,
+          identity: expected,
+          finish: (target) => finish(target)
+        })
+        repairSignal.addEventListener('abort', onAbort, { once: true })
+        try {
+          repairSignal.throwIfAborted()
+          application.get('IpcApiService').send(expected.windowId, 'browser.guest.ensure_requested', {
+            sessionId,
+            repair: { requestId, kind: requestKind, expiresAt }
+          })
+        } catch (error) {
+          finish(undefined, error)
+        }
+      })
+    const operation = (async () => {
+      if (kind === 'reattach') {
+        try {
+          return await request('reattach', Math.min(deadline, Date.now() + 2000))
+        } catch (error) {
+          if (repairSignal.aborted || !(error instanceof BrowserSessionError && error.code === 'timeout')) throw error
+        }
+      }
+      try {
+        return await request('recreate', deadline)
+      } catch (error) {
+        if (repairSignal.aborted || !(error instanceof BrowserSessionError && error.code === 'timeout')) throw error
+      }
+      return await this.requestGuest({ ownerId: expected.ownerId, sessionId }, repairSignal, undefined, deadline)
+    })()
+    const recovery = { promise: operation, abort, waiters: 0, deadline }
+    this.recovering.set(sessionId, recovery)
+    void operation
+      .finally(() => {
+        if (this.recovering.get(sessionId) === recovery) this.recovering.delete(sessionId)
+      })
+      .catch(() => undefined)
+    return this.waitForRecovery(sessionId, signal)
+  }
+
+  private waitForRecovery(sessionId: string, signal?: AbortSignal): Promise<BrowserGuestTarget> {
+    const recovery = this.recovering.get(sessionId)!
+    recovery.waiters++
+    return new Promise((resolve, reject) => {
+      let settled = false
+      const finish = (target?: BrowserGuestTarget, error?: unknown) => {
+        if (settled) return
+        settled = true
+        signal?.removeEventListener('abort', onAbort)
+        recovery.waiters--
+        if (target) resolve(target)
+        else reject(error)
+      }
+      const onAbort = () => {
+        finish(undefined, signal?.reason)
+        if (!recovery.waiters) {
+          if (this.recovering.get(sessionId) === recovery) this.recovering.delete(sessionId)
+          recovery.abort.abort(signal?.reason)
+        }
+      }
+      signal?.addEventListener('abort', onAbort, { once: true })
+      void recovery.promise.then(
+        (target) => finish(target),
+        (error) => finish(undefined, error)
+      )
+      if (signal?.aborted) onAbort()
+    })
+  }
+
   dispose(): void {
+    this.shutdown.abort(new BrowserSessionError('not_found'))
+    this.identities.clear()
+    this.repairs.clear()
     for (const target of this.targets.values()) target.dispose()
     this.changed.dispose()
   }

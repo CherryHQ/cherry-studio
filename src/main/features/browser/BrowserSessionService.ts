@@ -48,7 +48,7 @@ export class BrowserSessionService extends BaseService {
   private readonly faviconTasks = new Set<Promise<void>>()
   private faviconCapture = new AbortController()
   private readonly guestClaims = new Map<Electron.WebContents, BrowserGuestTarget>()
-  readonly agentBrowser = new AgentBrowserRegistry(this.guestClaims)
+  readonly agentBrowser = new AgentBrowserRegistry(this.guestClaims, (target) => this.checkAgentGuest(target))
   readonly topicBrowser = new BrowserGuestRegistry(
     (id) => topicService.getById(id).assistantId ?? '',
     'topic',
@@ -246,6 +246,41 @@ export class BrowserSessionService extends BaseService {
 
   closeGuest(guest: Electron.WebContents): void {
     this.remove(guest.id, true)
+  }
+
+  private async checkAgentGuest(target: BrowserGuestTarget): Promise<boolean> {
+    const guest = target.guest
+    if (guest.isDestroyed()) return false
+    if (!application.get('PreferenceService').get('app.browser.agent_control.enabled')) return true
+    const owner = `agent-probe:${target.tabId}`
+    const deadline = Date.now() + 5000
+    const signal = AbortSignal.any([this.shutdown.signal, target.abort.signal, AbortSignal.timeout(5000)])
+    const acquisition = this.acquire(guest, owner, { ownership: 'borrowed' })
+    let acquired = false
+    try {
+      const lease = await Promise.race([
+        acquisition.then((value) => {
+          if (signal.aborted) {
+            this.release(guest, owner)
+            throw signal.reason
+          }
+          acquired = true
+          return value
+        }),
+        new Promise<never>((_, reject) => signal.addEventListener('abort', () => reject(signal.reason), { once: true }))
+      ])
+      const result = await lease.send('Page.getFrameTree', undefined, { signal, deadline })
+      return !!result.frameTree?.frame?.id
+    } catch (error) {
+      if (this.shutdown.signal.aborted || target.abort.signal.aborted) return true
+      return guest.isDestroyed() ||
+        signal.reason?.name === 'TimeoutError' ||
+        (error instanceof BrowserSessionError && error.code === 'timeout')
+        ? false
+        : true
+    } finally {
+      if (acquired) this.release(guest, owner)
+    }
   }
 
   async acquire(guest: Electron.WebContents, owner: string, ownership: SessionOwnership): Promise<GuestSession> {

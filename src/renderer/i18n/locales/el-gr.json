@@ -6509,6 +6509,7 @@
   "webview.browser.import_hint": "Εισαγάγετε το ιστορικό και τα δεδομένα ιστοτόπων από άλλο πρόγραμμα περιήγησης.",
   "webview.browser.load_failed": "Αποτυχία φόρτωσης της σελίδας",
   "webview.browser.loading": "Φόρτωση σελίδας…",
+  "webview.browser.recreated": "Η σελίδα του προγράμματος περιήγησης δημιουργήθηκε ξανά αυτόματα. Ανοίξτε την ξανά για να συνεχίσετε.",
   "webview.navigation.address": "Διεύθυνση ιστού",
   "webview.navigation.address_placeholder": "Εισαγάγετε μια διεύθυνση URL",
   "webview.navigation.back": "Πίσω",

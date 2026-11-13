@@ -6509,6 +6509,7 @@
   "webview.browser.import_hint": "Importez votre historique et les données des sites depuis un autre navigateur.",
   "webview.browser.load_failed": "Échec du chargement de la page",
   "webview.browser.loading": "Chargement de la page…",
+  "webview.browser.recreated": "La page du navigateur a été reconstruite automatiquement. Rouvrez-la pour continuer.",
   "webview.navigation.address": "Adresse web",
   "webview.navigation.address_placeholder": "Saisissez une URL",
   "webview.navigation.back": "Retour",
