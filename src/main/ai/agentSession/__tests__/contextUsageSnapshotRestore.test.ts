@@ -155,7 +155,7 @@ describe('root context snapshot restoration', () => {
   const attach = (service: AgentSessionRuntimeService, getContextUsage = vi.fn()) => {
     const connection = { contextId: snapshot.contextId, getContextUsage }
     const runtimeState = createAgentSessionRuntimeState()
-    runtimeState.execution = { kind: 'idle', lastTurn: turnFor(snapshot.headMessageId) as never }
+    runtimeState.execution = { kind: 'idle', lastTurn: turnFor(snapshot.headMessageId) }
     runtimeState.connection = { kind: 'connected', connection: connection as never, occupancy: {} }
     const entry = {
       sessionId: 'session',
@@ -186,7 +186,7 @@ describe('root context snapshot restoration', () => {
     turn = turnFor(id)
   ) => {
     const listener = service['createPersistenceListener'](entry as never, turn as never)
-    await listener.onDone!({
+    await listener.onDone({
       modelId: snapshot.modelId,
       finalMessage: { id, role: 'assistant', parts: [{ type: 'text', text: 'Answer' }] }
     } as never)
@@ -203,7 +203,7 @@ describe('root context snapshot restoration', () => {
       sessionId: 'session',
       message: { role: 'assistant', status: 'pending', data: { parts: [] } }
     })
-    entry.runtimeState.execution = createAgentSessionRuntimeState(turnFor(n.id)).execution as never
+    entry.runtimeState.execution = createAgentSessionRuntimeState(turnFor(n.id)).execution
     cache().setPersist(CONTEXT_USAGE_SNAPSHOTS_KEY, {})
     const before = service['captureContextUsageIdentity']('session')!
     service['refreshContextUsage'](entry as never)
@@ -239,7 +239,7 @@ describe('root context snapshot restoration', () => {
     )
     const a = turnFor(crypto.randomUUID())
     const b = turnFor(crypto.randomUUID())
-    entry.runtimeState = createAgentSessionRuntimeState(a) as typeof entry.runtimeState
+    entry.runtimeState = createAgentSessionRuntimeState(a)
     entry.runtimeState.connection = { kind: 'connected', connection: entry.connection as never, occupancy: {} }
     cache().setPersist(CONTEXT_USAGE_SNAPSHOTS_KEY, {})
     const writes = vi.spyOn(cache(), 'setPersist')
@@ -275,12 +275,12 @@ describe('root context snapshot restoration', () => {
       message: { role: 'assistant', status: 'pending', data: { parts: [] } }
     })
     const first = turnFor(n.id, 'attempt-1')
-    entry.runtimeState.execution = createAgentSessionRuntimeState(first).execution as never
+    entry.runtimeState.execution = createAgentSessionRuntimeState(first).execution
     cache().setPersist(CONTEXT_USAGE_SNAPSHOTS_KEY, {})
     service['refreshContextUsage'](entry as never)
     await vi.waitFor(() => expect(entry.contextUsageReading).toBeDefined())
     const second = turnFor(n.id, 'attempt-2')
-    entry.runtimeState.execution = createAgentSessionRuntimeState(second).execution as never
+    entry.runtimeState.execution = createAgentSessionRuntimeState(second).execution
     await persistAssistant(service, entry, n.id, second)
     expect(cache().getPersist(CONTEXT_USAGE_SNAPSHOTS_KEY)).toEqual({})
   })
@@ -293,7 +293,7 @@ describe('root context snapshot restoration', () => {
       sessionId: 'session',
       message: { role: 'assistant', status: 'pending', data: { parts: [] } }
     })
-    entry.runtimeState.execution = createAgentSessionRuntimeState(turnFor(n.id)).execution as never
+    entry.runtimeState.execution = createAgentSessionRuntimeState(turnFor(n.id)).execution
     cache().setPersist(CONTEXT_USAGE_SNAPSHOTS_KEY, {})
     service['refreshContextUsage'](entry as never)
     await vi.waitFor(() => expect(entry.contextUsageReading).toBeDefined())
@@ -388,7 +388,7 @@ describe('root context snapshot restoration', () => {
     if (action === 'close') service['closeConnection'](entry as never, false)
     else {
       const other = turnFor(crypto.randomUUID())
-      entry.runtimeState.execution = createAgentSessionRuntimeState(other).execution as never
+      entry.runtimeState.execution = createAgentSessionRuntimeState(other).execution
       vi.spyOn(service as unknown as { refreshIdleTimer: () => void }, 'refreshIdleTimer').mockImplementation(() => {})
       service.markTurnTerminal('session', 'success', other.turnId)
     }
@@ -423,7 +423,7 @@ describe('root context snapshot restoration', () => {
       sessionId: 'session',
       message: { role: 'assistant', status: 'pending', data: { parts: [] } }
     })
-    entry.runtimeState.execution = createAgentSessionRuntimeState(turnFor(n.id)).execution as never
+    entry.runtimeState.execution = createAgentSessionRuntimeState(turnFor(n.id)).execution
     cache().setPersist(CONTEXT_USAGE_SNAPSHOTS_KEY, {})
     service['refreshContextUsage'](entry as never)
     await vi.waitFor(() => expect(entry.contextUsageReading).toBeDefined())
