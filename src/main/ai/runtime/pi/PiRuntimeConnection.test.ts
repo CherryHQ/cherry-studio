@@ -47,6 +47,8 @@ import { PiRuntimeConnection } from './PiRuntimeConnection'
 import { buildPiLoginPathPrefix } from './piShell'
 
 const modelId = 'test::test-model'
+/** An approval crosses the runtime boundary and starts a native tool, so the one-second default is a race on CI. */
+const APPROVAL_WAIT = { timeout: 10_000 } as const
 
 const mocks = vi.hoisted(() => ({
   capture: vi.fn(),
@@ -378,7 +380,7 @@ describe('desktop Pi root connection', () => {
     const { connection, events } = await connect()
     await connection.send({ message: message('delegate') })
     const approvals = () => events.filter((event) => event.type === 'tool-approval-request')
-    await expect.poll(() => approvals().length).toBe(1)
+    await expect.poll(() => approvals().length, APPROVAL_WAIT).toBe(1)
     expect(approvals()[0].request).toMatchObject({ toolCallId: 'child-write', toolName: 'write' })
     expect(existsSync(join(directory, 'child-result.txt'))).toBe(false)
     toolApprovalRegistry.dispatch(approvals()[0].request.approvalId, { approved: true })
@@ -417,7 +419,9 @@ describe('desktop Pi root connection', () => {
       snapshot.agent.configuration = { ...snapshot.agent.configuration, permission_mode: 'default' }
       expect(await connection.reconcile({ modelId: input.modelId })).toBe('patched')
       await connection.send({ message: message('ask') })
-      await expect.poll(() => events.find((event) => event.type === 'tool-approval-request')).toBeDefined()
+      await expect
+        .poll(() => events.find((event) => event.type === 'tool-approval-request'), APPROVAL_WAIT)
+        .toBeDefined()
       const request = events.find((event) => event.type === 'tool-approval-request')!
       if (request.type !== 'tool-approval-request') throw new Error('No approval')
       expect(request.request.toolCallId).toBe('ask')
@@ -461,14 +465,14 @@ describe('desktop Pi root connection', () => {
     const { connection, events } = await connect()
     await connection.send({ message: message('write and ask') })
     const approvals = () => events.filter((event) => event.type === 'tool-approval-request')
-    await expect.poll(() => approvals().length).toBe(1)
+    await expect.poll(() => approvals().length, APPROVAL_WAIT).toBe(1)
     expect(existsSync(join(directory, 'original.txt'))).toBe(false)
     expect(approvals()[0].request.toolCallId).toBe('write')
     toolApprovalRegistry.dispatch(approvals()[0].request.approvalId, {
       approved: true,
       updatedInput: { path: 'approved.txt', content: 'approved' }
     })
-    await expect.poll(() => approvals().length).toBe(2)
+    await expect.poll(() => approvals().length, APPROVAL_WAIT).toBe(2)
     expect(approvals()[1].request).toMatchObject({ toolCallId: 'ask', toolName: 'AskUserQuestion' })
     toolApprovalRegistry.dispatch(approvals()[1].request.approvalId, {
       approved: true,
@@ -503,7 +507,7 @@ describe('desktop Pi root connection', () => {
     await connection.send({ message: message('hi') })
     const approvals = () => events.filter((event) => event.type === 'tool-approval-request')
 
-    await expect.poll(() => approvals().length).toBe(1)
+    await expect.poll(() => approvals().length, APPROVAL_WAIT).toBe(1)
     expect(approvals()[0].request).toMatchObject({
       toolCallId: 'root-1',
       toolName: 'bash',
@@ -514,8 +518,8 @@ describe('desktop Pi root connection', () => {
 
     // The grant is the point of `auto`: the next ordinary command runs with no second prompt. Inline
     // source is unbounded, so the grant never covers it and only the third call asks again.
-    await expect.poll(() => existsSync(second)).toBe(true)
-    await expect.poll(() => approvals().length).toBe(2)
+    await expect.poll(() => existsSync(second), APPROVAL_WAIT).toBe(true)
+    await expect.poll(() => approvals().length, APPROVAL_WAIT).toBe(2)
     expect(approvals().map((event) => event.request.toolCallId)).toEqual(['root-1', 'root-3'])
     expect(existsSync(third)).toBe(false)
     toolApprovalRegistry.dispatch(approvals()[1].request.approvalId, { approved: true })
@@ -559,7 +563,7 @@ describe('desktop Pi root connection', () => {
     const { connection, events } = await connect()
     await connection.send({ message: message('ask then write') })
     const approvals = () => events.filter((event) => event.type === 'tool-approval-request')
-    await expect.poll(() => approvals().length).toBe(1)
+    await expect.poll(() => approvals().length, APPROVAL_WAIT).toBe(1)
 
     snapshot.agent.configuration = { ...snapshot.agent.configuration, permission_mode: to }
     expect(await connection.reconcile({ modelId: input.modelId })).toBe('patched')
@@ -569,7 +573,7 @@ describe('desktop Pi root connection', () => {
     })
 
     if (asksForWrite) {
-      await expect.poll(() => approvals().length).toBe(2)
+      await expect.poll(() => approvals().length, APPROVAL_WAIT).toBe(2)
       expect(approvals()[1].request).toMatchObject({ toolCallId: 'write' })
       expect(existsSync(join(directory, 'after-switch.txt'))).toBe(false)
       toolApprovalRegistry.dispatch(approvals()[1].request.approvalId, { approved: true })
@@ -603,7 +607,7 @@ describe('desktop Pi root connection', () => {
     ])
     const { connection, events, consuming } = await connect()
     await connection.send({ message: message('ask') })
-    await expect.poll(() => events.some((event) => event.type === 'tool-approval-request')).toBe(true)
+    await expect.poll(() => events.some((event) => event.type === 'tool-approval-request'), APPROVAL_WAIT).toBe(true)
     await connection.close()
     await consuming
     expect(toolApprovalRegistry.size()).toBe(0)
@@ -662,7 +666,7 @@ describe('desktop Pi root connection', () => {
     await connection.send({ message: message('delegate code execution') })
     if (answer !== 'unavailable') {
       const approvals = () => events.filter((event) => event.type === 'tool-approval-request')
-      await expect.poll(() => approvals().length).toBe(1)
+      await expect.poll(() => approvals().length, APPROVAL_WAIT).toBe(1)
       expect(approvals()[0].request).toMatchObject({ toolName: tool, toolCallId: 'child-exec', input: args })
       expect(existsSync(proof)).toBe(false)
       toolApprovalRegistry.dispatch(approvals()[0].request.approvalId, { approved: answer === 'approved' })
