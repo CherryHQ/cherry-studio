@@ -132,7 +132,9 @@ Before building, the workflow verifies that:
 - CI succeeded for the exact branch commit.
 - A matching published release does not already exist.
 
-Formal release jobs compile JS with `build:release` or `build:release:cn`, then invoke electron-builder separately. These entry points rely on the exact-source CI gate instead of repeating the full typecheck; ordinary development, preview, and nightly build commands still run their existing checks. A release source missing either release entry point fails during preparation. Build jobs clear `out` and `dist` before compilation.
+Formal releases compile Global and CN JS once each on Linux with `build:release` or `build:release:cn`, then platform jobs download the corresponding `release-js-<edition>` artifact and invoke electron-builder separately. Each bundle includes main, preload, renderer, and utility-process outputs with a source SHA, edition, version, and SHA-256 file inventory. Packaging rejects missing, altered, or mismatched bundles. Native dependencies and helpers are prepared for the packaging target, rather than copied from the bundle builder. Sentry uploads run in each edition's bundle job, including utility-process sourcemaps.
+
+The release entry points rely on the exact-source CI gate instead of repeating the full typecheck; ordinary development, preview, and nightly build commands still run their existing checks. A release source missing either release entry point fails during preparation. Bundle jobs clear `out` before compilation; packaging jobs clear `out` and `dist` before downloading current output. Bundle artifacts have three-day retention; after expiry, retry the bundle jobs as well as packaging.
 
 The persistent Windows signing machine uses its local pnpm store without uploading or restoring an Actions dependency-store cache. Every job still installs with `--frozen-lockfile`. The `clean` input removes node_modules while retaining the store; signing continues through the machine's USB token and Windows CSP.
 
