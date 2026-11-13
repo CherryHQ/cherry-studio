@@ -101,6 +101,8 @@ class AppUpdateCheckService {
   }
 
   markUpdateDownloaded(info: UpdateInfo): void {
+    // The manual check ends here; a click on the downloaded release reopens it explicitly.
+    this.manualCheckActive = false
     this.phase = 'downloaded'
     this.latestInfo = info
     this.noteSuccessfulUpdateEvent()
