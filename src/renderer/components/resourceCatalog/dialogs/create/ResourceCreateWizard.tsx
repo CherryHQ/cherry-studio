@@ -1,3 +1,4 @@
+import { Sparkles } from 'lucide-react'
 import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
 import { useForm, type UseFormReturn, useFormState, useWatch } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -109,7 +110,6 @@ function EntryFooter({
   form,
   generating,
   isSubmitting,
-  onCancel,
   onManual,
   onAuto
 }: {
@@ -117,33 +117,28 @@ function EntryFooter({
   form: UseFormReturn<ResourceCreateWizardFormValues>
   generating: boolean
   isSubmitting: boolean
-  onCancel: () => void
   onManual: () => void
   onAuto: (generate: GenerateAutoConfig) => void
 }) {
   const { t } = useTranslation()
   const { ready: catalogsReady, generate } = useResourceAutoConfigure(kind)
   const [purpose, modelId] = useWatch({ control: form.control, name: ['description', 'modelId'] })
-  // Generation can be cancelled; the create call that follows cannot (same lock as the steps).
-  const creating = isSubmitting || form.formState.isSubmitting
-  const busy = generating || creating
+  const busy = generating || isSubmitting || form.formState.isSubmitting
   const rootError = form.formState.errors.root?.message
   const canAuto = (purpose?.trim().length ?? 0) > 0 && Boolean(modelId) && catalogsReady
 
   return (
-    <div className="flex shrink-0 items-center justify-end gap-2 border-border-subtle border-t px-6 py-3">
+    <div className="flex shrink-0 items-center justify-end gap-2 px-6 pb-5">
       {rootError ? (
         <span role="alert" className="mr-auto text-destructive text-xs">
           {rootError}
         </span>
       ) : null}
-      <Button type="button" variant="ghost" disabled={creating} className="text-muted-foreground" onClick={onCancel}>
-        {t('common.cancel')}
-      </Button>
       <Button type="button" variant="outline" disabled={busy} onClick={onManual}>
         {t('library.config.dialogs.create.auto.manual')}
       </Button>
-      <Button type="button" loading={busy} disabled={!canAuto} onClick={() => onAuto(generate)}>
+      <Button type="button" variant="emphasis" loading={busy} disabled={!canAuto} onClick={() => onAuto(generate)}>
+        {busy ? null : <Sparkles className="size-3.5" />}
         {busy ? t('library.config.dialogs.create.auto.configuring') : t('library.config.dialogs.create.auto.submit')}
       </Button>
     </div>
@@ -468,8 +463,12 @@ export function ResourceCreateWizard({
       <DialogContent
         ref={setDialogContentElement}
         closeOnOverlayClick={!submitting}
-        size="xl"
-        className={cn('flex h-[min(600px,76vh)] flex-col gap-0 p-0', resourceDialogCloseButtonClassName)}
+        size={view === 'entry' ? 'default' : 'xl'}
+        className={cn(
+          'flex flex-col gap-0 p-0',
+          view === 'entry' ? 'sm:max-w-[440px]' : 'h-[min(600px,76vh)]',
+          resourceDialogCloseButtonClassName
+        )}
         onPointerDownOutside={(event) => submitting && event.preventDefault()}>
         {/* Header — title */}
         <div className={resourceDialogHeaderClassName}>
@@ -482,7 +481,7 @@ export function ResourceCreateWizard({
           <form onSubmit={(event) => event.preventDefault()} className="flex min-h-0 flex-1 flex-col overflow-hidden">
             {view === 'entry' ? (
               <>
-                <ScrollArea contentProps={{ className: 'px-6 py-5' }} className="min-h-0 flex-1">
+                <div className="px-6 pt-6 pb-5">
                   <AutoCreateEntry
                     form={form}
                     portalContainer={dialogContentElement}
@@ -492,15 +491,18 @@ export function ResourceCreateWizard({
                     disabled={generating || submitting}
                     onSettingsNavigate={closeBeforeAction}
                   />
-                </ScrollArea>
+                </div>
                 <EntryFooter
                   kind={kind}
                   form={form}
                   generating={generating}
                   isSubmitting={isSubmitting}
-                  onCancel={() => onOpenChange(false)}
                   onManual={() => {
                     form.clearErrors('root')
+                    const { description, prompt } = form.getValues()
+                    if (kind === 'agent' && !prompt.trim() && description.trim()) {
+                      form.setValue('prompt', description.trim(), { shouldDirty: true })
+                    }
                     setView('steps')
                   }}
                   onAuto={(generate) => void handleAutoCreate(generate)}
