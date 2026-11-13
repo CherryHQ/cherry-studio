@@ -612,6 +612,12 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       if (event.type === 'subagent.upsert') this.discoverChild(event.subagent)
       if (event.type === 'snapshot') for (const child of event.subagents ?? []) this.discoverChild(child)
       if (event.type === 'closed' && event.reason !== 'shutdown' && !this.closing) {
+        logger.error('Claude runtime closed unexpectedly', {
+          runtime: 'claude-code',
+          sessionId: this.input.sessionId,
+          contextId,
+          reasonCode: event.reason === 'source-lost' ? 'source-lost' : 'unknown'
+        })
         const error = this.nativeError ?? new Error(`Claude observation ended: ${event.reason}`)
         const surfaced =
           isClaudeCodeProcessFailure(error, this.processDiagnostics) && this.processDiagnostics

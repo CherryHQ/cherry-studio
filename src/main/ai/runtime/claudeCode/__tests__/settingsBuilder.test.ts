@@ -2235,10 +2235,92 @@ describe('buildClaudeCodeSessionSettings', () => {
       signal: { aborted: false },
       toolUseID: 'tool-use-1'
     } as never)
-    void pending
+    let settled = false
+    void pending!.then(() => (settled = true))
+    await Promise.resolve()
+    expect(settled).toBe(false)
+    const updatedInput = { ...input, answers: { Logger: 'Pino' } }
+    mocks.approvalRegister.mock.lastCall![0].resolve({ approved: true, updatedInput })
+    await expect(pending).resolves.toEqual({ behavior: 'allow', updatedInput })
 
     expect(getInteractionState).toHaveBeenCalledWith('session-1')
     expect(settings.permissionMode).toBe('bypassPermissions')
+    expect(mocks.approvalRegister).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sessionId: 'session-1',
+        toolCallId: 'tool-use-1',
+        toolName: 'AskUserQuestion',
+        originalInput: input
+      })
+    )
+    expect(emit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        toolCallId: 'tool-use-1',
+        toolName: 'AskUserQuestion',
+        input,
+        presentation: 'stream',
+        providerMetadata: { cherry: { transport: 'claude-agent', toolName: 'AskUserQuestion' } }
+      })
+    )
+  })
+
+  it('keeps AskUserQuestion pending in acceptEdits mode', async () => {
+    const getInteractionState = vi.fn(() => ({ currentTurn: 'interactive', userResponse: 'stream' }))
+    mocks.applicationGet.mockImplementation((name: string) => {
+      if (name === 'PreferenceService') return { get: vi.fn(() => undefined) }
+      if (name === 'McpCatalogService') return { listTools: vi.fn(async () => []) }
+      if (name === 'AgentSessionRuntimeService') return { getInteractionState }
+      throw new Error(`Unexpected application.get(${name})`)
+    })
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      type: 'claude-code',
+      model: 'anthropic::claude-sonnet',
+      mcps: [],
+      allowedTools: [],
+      disabledTools: [],
+      configuration: { permission_mode: 'acceptEdits' }
+    })
+    mocks.createToolPolicySnapshot.mockResolvedValue({
+      resolve: vi.fn(() => ({ approval: 'auto' })),
+      isDisabled: vi.fn(() => false),
+      getPermissionMode: vi.fn(() => 'acceptEdits'),
+      update: vi.fn(),
+      setPermissionMode: vi.fn()
+    })
+    const session = {
+      id: 'session-1',
+      agentId: 'agent-1',
+      workspace: { type: 'user', path: '/workspace/project' }
+    }
+
+    const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
+    const emit = vi.fn()
+    const input = {
+      questions: [
+        {
+          question: 'Which logger should we use?',
+          header: 'Logger',
+          options: [{ label: 'Pino' }, { label: 'Winston' }],
+          multiSelect: false
+        }
+      ]
+    }
+    settings.approvalEmitter!.emit = emit
+    const pending = settings.canUseTool?.('AskUserQuestion', input, {
+      signal: { aborted: false },
+      toolUseID: 'tool-use-1'
+    } as never)
+    let settled = false
+    void pending!.then(() => (settled = true))
+    await Promise.resolve()
+    expect(settled).toBe(false)
+    const updatedInput = { ...input, answers: { Logger: 'Pino' } }
+    mocks.approvalRegister.mock.lastCall![0].resolve({ approved: true, updatedInput })
+    await expect(pending).resolves.toEqual({ behavior: 'allow', updatedInput })
+
+    expect(getInteractionState).toHaveBeenCalledWith('session-1')
+    expect(settings.permissionMode).toBe('acceptEdits')
     expect(mocks.approvalRegister).toHaveBeenCalledWith(
       expect.objectContaining({
         sessionId: 'session-1',

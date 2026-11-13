@@ -528,6 +528,7 @@ describe('AgentSessionRuntimeService', () => {
     runtimeDriverRegistry.clearForTest()
     toolApprovalRegistry.clear('test-reset')
     vi.clearAllMocks()
+    mocks.retireAbandonedApproval.mockReset()
     mocks.sharesBranch.mockReturnValue(true)
     mocks.saveMessage.mockImplementation(({ message }) => ({
       ...message,
@@ -846,7 +847,7 @@ describe('AgentSessionRuntimeService', () => {
       expect(mocks.retireAbandonedApproval).toHaveBeenCalledWith('session-1', 'approval-bg', expect.any(String))
     })
 
-    it('leaves streamed approvals to the turn stream, which owns their card', async () => {
+    it('retires a streamed approval in persistence when the runtime aborts it', async () => {
       const resolve = vi.fn()
       toolApprovalRegistry.register({
         approvalId: 'approval-stream',
@@ -862,7 +863,11 @@ describe('AgentSessionRuntimeService', () => {
       toolApprovalRegistry.abort('session-1', 'stream-ended')
 
       expect(resolve).toHaveBeenCalledWith({ approved: false, reason: 'stream-ended' })
-      expect(mocks.retireAbandonedApproval).not.toHaveBeenCalled()
+      expect(mocks.retireAbandonedApproval).toHaveBeenCalledWith(
+        'session-1',
+        'approval-stream',
+        'The runtime connection closed before this request was answered'
+      )
     })
   })
 

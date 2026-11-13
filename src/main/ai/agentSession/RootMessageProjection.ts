@@ -13,11 +13,17 @@ import { dropEmptyContentParts, finalizeInterruptedParts, stripTransientStatusPa
 import type { CherryUIMessage, CherryUIMessageChunk } from '@shared/data/types/message'
 import type { AgentTaskEventPartData } from '@shared/data/types/uiParts'
 
+export const ABANDONED_APPROVAL_ERROR = 'The runtime connection closed before this request was answered'
+
 type Source = { messageId: string; parts: CherryUIMessage['parts'] }
 
 /** Groups native sources into product replies; selected model context never deletes retained sources. */
 export class RootMessageProjection {
-  private readonly approvals = new Map<string, { id: string; approved: boolean }>()
+  private readonly abandoned = new Map<string, CherryUIMessage['parts'][number]>()
+  private readonly approvals = new Map<
+    string,
+    { id: string; approved: boolean; updatedInput?: Record<string, unknown> }
+  >()
   private readonly sources = new Map<string, Source>()
   private readonly replySources = new Map<string, Set<string>>()
   private readonly removed = new Set<string>()
@@ -44,7 +50,17 @@ export class RootMessageProjection {
         bodies.set(range.messageId, parts)
         for (const part of parts) {
           if (isToolUIPart(part) && part.approval?.approved !== undefined)
-            this.approvals.set(part.toolCallId, part.approval)
+            this.approvals.set(part.toolCallId, {
+              ...part.approval,
+              updatedInput: part.input as Record<string, unknown>
+            })
+          else if (
+            isToolUIPart(part) &&
+            part.state === 'output-error' &&
+            part.errorText === ABANDONED_APPROVAL_ERROR &&
+            part.approval?.id
+          )
+            this.abandoned.set(part.toolCallId, part)
         }
       }
       this.sources.set(id, { messageId: range.messageId, parts: parts.slice(range.offset, range.offset + range.count) })
@@ -126,7 +142,8 @@ export class RootMessageProjection {
       if (!isDeepStrictEqual(previous?.parts, message.parts)) changed.add(owner)
       this.sources.set(message.id, { messageId: owner, parts: message.parts })
       for (const part of message.parts) {
-        if (isToolUIPart(part) && part.state.startsWith('output-')) this.pendingTools.delete(part.toolCallId)
+        if (isToolUIPart(part) && part.state.startsWith('output-') && !this.abandoned.has(part.toolCallId))
+          this.pendingTools.delete(part.toolCallId)
       }
       const sources = this.replySources.get(owner) ?? new Set<string>()
       sources.add(message.id)
@@ -139,14 +156,26 @@ export class RootMessageProjection {
     const sources = [...(this.replySources.get(messageId) ?? [])].map((id) => this.sources.get(id)!)
     if (!sources.length && !this.extras.has(messageId)) return undefined
     const parts = sources.flatMap((source) => source.parts).map((part) => this.decorate(part))
-    return [...parts, ...this.pendingParts(messageId, parts), ...(this.extras.get(messageId) ?? [])]
+    const extras = (this.extras.get(messageId) ?? [])
+      .filter(
+        (part) =>
+          !isToolUIPart(part) || !parts.some((source) => isToolUIPart(source) && source.toolCallId === part.toolCallId)
+      )
+      .map((part) => this.decorate(part))
+    return [...parts, ...this.pendingParts(messageId, [...parts, ...extras]), ...extras]
   }
 
   toolCallMessageId(toolCallId: string): string | undefined {
     this.syncRemoved()
-    return [...this.sources.values()].find((source) =>
-      source.parts.some((part) => isToolUIPart(part) && part.toolCallId === toolCallId)
-    )?.messageId
+    return (
+      [...this.sources.values()].find((source) =>
+        source.parts.some((part) => isToolUIPart(part) && part.toolCallId === toolCallId)
+      )?.messageId ??
+      this.pendingTools.get(toolCallId)?.messageId ??
+      [...this.extras].find(([, parts]) =>
+        parts.some((part) => isToolUIPart(part) && part.toolCallId === toolCallId)
+      )?.[0]
+    )
   }
 
   get lastMessageId(): string | undefined {
@@ -166,6 +195,7 @@ export class RootMessageProjection {
           toolName: pending.input.toolName,
           input: pending.input.input,
           providerExecuted: pending.input.providerExecuted,
+          callProviderMetadata: pending.input.providerMetadata,
           state: 'approval-requested',
           approval: { id: pending.approvalId }
         })
@@ -196,8 +226,32 @@ export class RootMessageProjection {
     }
   }
 
-  resolveToolApproval(toolCallId: string, approvalId: string, approved: boolean): void {
-    this.approvals.set(toolCallId, { id: approvalId, approved })
+  abandonToolApproval(
+    toolCallId: string,
+    approvalId: string,
+    errorText: string
+  ): { messageId: string; parts: CherryUIMessage['parts'] } | undefined {
+    const messageId = this.toolCallMessageId(toolCallId)
+    if (!messageId || this.approvals.has(toolCallId)) return undefined
+    const part = this.parts(messageId)?.find((part) => isToolUIPart(part) && part.toolCallId === toolCallId)
+    if (!part || !isToolUIPart(part) || part.approval?.approved !== undefined) return undefined
+    this.abandoned.set(toolCallId, {
+      ...part,
+      state: 'output-error',
+      errorText,
+      approval: { id: approvalId }
+    } as CherryUIMessage['parts'][number])
+    return { messageId, parts: this.parts(messageId)! }
+  }
+
+  resolveToolApproval(
+    toolCallId: string,
+    approvalId: string,
+    approved: boolean,
+    updatedInput?: Record<string, unknown>
+  ): void {
+    this.abandoned.delete(toolCallId)
+    this.approvals.set(toolCallId, { id: approvalId, approved, updatedInput })
   }
 
   private decorate(part: CherryUIMessage['parts'][number]): CherryUIMessage['parts'][number] {
@@ -210,15 +264,18 @@ export class RootMessageProjection {
           state: 'output-denied',
           output: undefined,
           errorText: undefined,
-          approval: { ...approval, approved: false }
+          approval: { id: approval.id, approved: false },
+          input: approval.updatedInput ?? part.input
         }
       }
-      if (part.state === 'output-denied') return part
-      const allowed = { ...approval, approved: true as const }
+      const allowed = { id: approval.id, approved: true as const }
+      part = { ...part, input: approval.updatedInput ?? part.input }
       return part.state === 'output-available' || part.state === 'output-error'
         ? { ...part, approval: allowed }
         : { ...part, state: 'approval-responded', approval: allowed }
     }
+    const abandoned = this.abandoned.get(part.toolCallId)
+    if (abandoned) return abandoned
     if (part.state === 'output-available' || part.state === 'output-error' || part.state === 'output-denied')
       return part
     const pending = this.pendingTools.get(part.toolCallId)

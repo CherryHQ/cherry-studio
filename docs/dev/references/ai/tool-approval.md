@@ -38,8 +38,8 @@ persists, and resumes the stream.
 
 A card whose request is gone is never left answerable. When a connection or
 stream ends with an approval still pending, `ToolApprovalRegistry.onAborted`
-retires the persisted card to `output-error`, so the composer stops offering a
-question nothing can receive.
+marks the live card as an undecided `output-error` and retires an already
+persisted card, so the composer stops offering a question nothing can receive.
 
 ## End-to-end flow
 
@@ -135,7 +135,8 @@ Native Pi `edits` arrays use the shared MultiEdit card and map each hunk's
 `oldText` / `newText` independently, preserving all edit hunks.
 
 The rendered card is not byte-bound to that object: the stream approval chunk
-carries only IDs, the card uses earlier streamed tool input, and a configured
+carries only IDs; structured questions receive input from the host with the
+approval, while other cards use earlier streamed tool input. A configured
 `PreToolUse` hook may rewrite input before approval
 (`src/main/ai/agentSession/AgentSessionRuntimeService.ts:2582`,
 `src/main/ai/runtime/claudeCode/ClaudeCodeRuntimeDriver.ts`,

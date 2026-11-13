@@ -1,3 +1,4 @@
+import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { beforeEach, describe, expect, it } from 'vitest'
 
 import type { DispatchDecision } from '../ToolApprovalRegistry'
@@ -200,4 +201,46 @@ describe('ToolApprovalRegistry (driver-neutral)', () => {
   it('clear() is a no-op (returns 0) when nothing is pending', () => {
     expect(toolApprovalRegistry.clear()).toBe(0)
   })
+})
+
+it('dispatches cancellation to each pending entry exactly once', async () => {
+  const first = makeEntry()
+  const second = makeEntry()
+  toolApprovalRegistry.register(first.entry)
+  toolApprovalRegistry.register(second.entry)
+  expect(toolApprovalRegistry.abort('s1', 'stop')).toBe(2)
+  expect(toolApprovalRegistry.abort('s1', 'stop')).toBe(0)
+  await expect(first.result).resolves.toEqual({ approved: false, reason: 'stop' })
+  await expect(second.result).resolves.toEqual({ approved: false, reason: 'stop' })
+})
+
+it('logs each cancellation once without question content', () => {
+  toolApprovalRegistry.clear('test-reset')
+  mockMainLoggerService.info.mockClear()
+  const sentinel = 'private-question-options-answers'
+  const cancelled = makeEntry({
+    toolName: 'AskUserQuestion',
+    originalInput: { questions: [{ question: sentinel, options: [sentinel] }], answers: sentinel }
+  })
+  const decided = makeEntry({ sessionId: 'decided', originalInput: { answers: sentinel } })
+  toolApprovalRegistry.register(cancelled.entry)
+  toolApprovalRegistry.register(decided.entry)
+  toolApprovalRegistry.dispatch(decided.approvalId, { approved: true, updatedInput: { answers: sentinel } })
+  toolApprovalRegistry.abort('decided', 'stop')
+  toolApprovalRegistry.abort('s1', 'stop')
+  toolApprovalRegistry.abort('s1', 'stop')
+  const records = mockMainLoggerService.info.mock.calls.filter(([message]) => message === 'Tool approval cancelled')
+  expect(records).toEqual([
+    [
+      'Tool approval cancelled',
+      {
+        sessionId: 's1',
+        approvalId: cancelled.approvalId,
+        toolCallId: 'tc1',
+        toolName: 'AskUserQuestion',
+        reason: 'stop'
+      }
+    ]
+  ])
+  expect(JSON.stringify(records)).not.toContain(sentinel)
 })

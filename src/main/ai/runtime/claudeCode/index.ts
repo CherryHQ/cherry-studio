@@ -1,3 +1,4 @@
+export { ASK_USER_QUESTION_TOOL_NAME } from './guardRules'
 export { prepareClaudeBranch, reserveClaudeBranchTx } from './claudeContext'
 export { ClaudeCodeBinaryService } from './ClaudeCodeBinaryService'
 export { ClaudeCodeProcessManager } from './ClaudeCodeProcessManager'

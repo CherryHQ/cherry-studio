@@ -17,6 +17,7 @@ import { loggerService } from '@logger'
 import { AgentSessionForkOperations, getEditFailure, resolveForkBoundary } from '@main/ai/agentSession/fork'
 import { ProjectionSubscriptions } from '@main/ai/messages/ProjectionSubscriptions'
 import type { NotifyChannel } from '@main/ai/runtime/agentMcpServers'
+import { ASK_USER_QUESTION_TOOL_NAME } from '@main/ai/runtime/claudeCode'
 import type { RuntimeForkAnchor } from '@main/ai/runtime/fork'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import { serializeError } from '@main/ai/utils/serializeError'
@@ -128,7 +129,7 @@ import { validateEditedInput } from './editInput'
 import { AgentSessionMessageBackend } from './persistence/AgentSessionMessageBackend'
 import { recoverSessionDeliveries } from './recoverSessionDeliveries'
 import { relocateSystemWorkspaces } from './relocateSystemWorkspaces'
-import { RootMessageProjection } from './RootMessageProjection'
+import { ABANDONED_APPROVAL_ERROR, RootMessageProjection } from './RootMessageProjection'
 import { buildAgentSessionTopicId, extractAgentSessionId, isAgentSessionTopic } from './topic'
 
 const logger = loggerService.withContext('AgentSessionRuntimeService')
@@ -141,7 +142,6 @@ const DEFAULT_IDLE_TTL_MS = 5 * 60 * 1000
 const WARM_LEASE_RELEASE_DELAY_MS = 10_000
 const CONTEXT_USAGE_REFRESH_THROTTLE_MS = 3_000
 /** Shown on a card whose requesting runtime went away before the user could answer it. */
-const ABANDONED_APPROVAL_ERROR = 'The runtime connection closed before this request was answered'
 
 function knowledgeScopeEquals(left: readonly string[], right: readonly string[]): boolean {
   if (left.length !== right.length) return false
@@ -538,12 +538,14 @@ export class AgentSessionRuntimeService extends BaseService {
     this.registerDisposable(toolApprovalRegistry.onAborted((aborted) => this.retireAbortedApprovalCard(aborted)))
   }
 
-  /**
-   * Only `message`-presentation cards need this: they are parked in a row of their own that outlives
-   * the turn, so nothing else retires them once their request is aborted.
-   */
   private retireAbortedApprovalCard(aborted: AbortedApproval): void {
-    if (aborted.presentation !== 'message') return
+    if (aborted.presentation === 'stream') {
+      const entry = this.entries.get(aborted.sessionId)
+      for (const projection of entry?.rootProjections?.values() ?? []) {
+        const update = projection.abandonToolApproval(aborted.toolCallId, aborted.approvalId, ABANDONED_APPROVAL_ERROR)
+        if (update && entry) this.publishRootMessage(entry, projection, update.messageId, update.parts)
+      }
+    }
     try {
       agentSessionMessageService.retireAbandonedApproval(
         aborted.sessionId,
@@ -1693,6 +1695,16 @@ export class AgentSessionRuntimeService extends BaseService {
           ...(decision.reason !== undefined && { reason: decision.reason }),
           ...(decision.updatedInput !== undefined && { updatedInput: decision.updatedInput })
         })
+        if (applied) {
+          const entry = this.entries.get(extractAgentSessionId(topicId))
+          for (const projection of entry?.rootProjections?.values() ?? []) {
+            const part = projection
+              .parts(anchorId)
+              ?.find((part) => 'approval' in part && part.approval?.id === approvalId)
+            if (part && 'toolCallId' in part)
+              projection.resolveToolApproval(part.toolCallId, approvalId, decision.approved, decision.updatedInput)
+          }
+        }
         return { ok: false, reason: applied ? 'undelivered' : 'rejected' }
       }
       return { ok: false, reason: 'rejected' }
@@ -1732,7 +1744,8 @@ export class AgentSessionRuntimeService extends BaseService {
         getAgentSessionRuntimeNativeTurn(entry.runtimeState)?.projection?.resolveToolApproval(
           dispatched.toolCallId,
           approvalId,
-          decision.approved
+          decision.approved,
+          decision.updatedInput
         )
       }
       application
@@ -2788,7 +2801,18 @@ export class AgentSessionRuntimeService extends BaseService {
         approvalId: request.approvalId,
         toolCallId: request.toolCallId
       }
-      if (!this.deliverRuntimeChunk(entry, chunk)) {
+      const inputDelivered =
+        request.toolName !== ASK_USER_QUESTION_TOOL_NAME ||
+        this.deliverRuntimeChunk(entry, {
+          type: 'tool-input-available',
+          toolCallId: request.toolCallId,
+          toolName: request.toolName,
+          input: request.input,
+          dynamic: true,
+          providerExecuted: true,
+          providerMetadata: request.providerMetadata
+        })
+      if (!inputDelivered || !this.deliverRuntimeChunk(entry, chunk)) {
         logger.warn('Live tool approval request lost its turn stream', {
           sessionId: entry.sessionId,
           approvalId: request.approvalId
