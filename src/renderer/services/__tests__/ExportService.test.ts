@@ -177,7 +177,8 @@ import {
   messageToMarkdown,
   messageToMarkdownWithReasoning,
   rewriteAlertQuotesToCallouts,
-  topicToPlainText
+  topicToPlainText,
+  topicToMarkdown
 } from '../ExportService'
 
 // --- Helper Functions for Test Data ---
@@ -1680,5 +1681,64 @@ describe('ExportService image capture serialization', () => {
       blocker.remove()
       notesPage.remove()
     }
+  })
+})
+
+describe('Obsidian-only model attribution', () => {
+  beforeEach(async () => {
+    await preferenceService.set('data.export.markdown.show_model_name', false)
+    await preferenceService.set('data.export.markdown.show_model_provider', false)
+  })
+
+  const frozenReply = () => {
+    const reply = createExportView([
+      { type: 'text', text: 'Frozen reply text' },
+      { type: 'reasoning', text: 'Frozen reasoning' }
+    ])
+    reply.messageSnapshot = {
+      id: 'frozen-author',
+      name: 'Frozen Assistant',
+      emoji: 'F',
+      model: { id: 'frozen-model', name: 'Frozen Model', provider: 'openai' }
+    }
+    return reply
+  }
+
+  it.each([false, true])(
+    'attributes the frozen model with reasoning=%s without enabling global export preferences',
+    async (reasoning) => {
+      const converter = reasoning ? messageToMarkdownWithReasoning : messageToMarkdown
+      const reply = frozenReply()
+      const markdown = await converter(reply, undefined, undefined, true)
+      expect(markdown).toContain('## F Frozen Assistant\n\n**Frozen Model**')
+      expect(markdown).toContain('Frozen reply text')
+      if (reasoning) expect(markdown).toContain('Frozen reasoning')
+      expect(await converter(reply)).not.toContain('**Frozen Model**')
+    }
+  )
+
+  it.each(['user', 'system'] as const)('does not attribute %s messages even with a model snapshot', async (role) => {
+    const reply = frozenReply()
+    reply.role = role
+    expect(await messageToMarkdown(reply, undefined, undefined, true)).not.toContain('**Frozen Model**')
+  })
+
+  it('does not invent an empty model label when no model is available', async () => {
+    const reply = createExportView([{ type: 'text', text: 'No model reply' }])
+    expect(await messageToMarkdown(reply, undefined, undefined, true)).not.toContain('****')
+    expect(await messageToMarkdown(reply, undefined, undefined, true)).toContain('No model reply')
+  })
+
+  it('passes attribution through message-list and topic exporters and keeps raw overrides', async () => {
+    const reply = frozenReply()
+    const overrides = new Map([[reply.id, 'Overridden reply']])
+    const list = await messagesToMarkdown([reply], false, undefined, overrides, true)
+    expect(list).toContain('**Frozen Model**')
+    expect(list).toContain('Overridden reply')
+    expect(list).not.toContain('Frozen reply text')
+    const topic = await topicToMarkdown(createTopic(), true, undefined, undefined, [reply], true)
+    expect(topic).toContain('# Test Topic')
+    expect(topic).toContain('**Frozen Model**')
+    expect(topic).toContain('Frozen reasoning')
   })
 })
