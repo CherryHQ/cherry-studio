@@ -499,6 +499,58 @@ describe('native context storage and reconciliation', () => {
     expect(draft).toEqual({ inputId: id, text: 'wrapped edited', whenBusy: 'reject' })
   })
 
+  it('recovers a reserved directory without losing its contents or durable turn history', async () => {
+    const intent = prepareDurableBranch(sessionId)
+    const reserved = contexts.backend(intent.backendId)
+    if (reserved.locator.kind !== 'pi-durable') throw new Error('Expected Durable backend')
+    const target = application.getPath('feature.agents.durable.stores', reserved.locator.fileName)
+    mkdirSync(target, { recursive: true })
+    writeFileSync(join(target, 'sentinel'), 'preserved data')
+    const { backend, runtime, faux, options, create } = await durable()
+    expect(backend).toMatchObject({ id: reserved.id, locator: reserved.locator, state: 'bound' })
+    expect(lstatSync(target).isFile()).toBe(true)
+    const parent = application.getPath('feature.agents.durable.stores')
+    const quarantines = readdirSync(parent).filter((name) => name.startsWith(`.quarantine-${backend.id}-`))
+    expect(quarantines).toHaveLength(1)
+    expect(readFileSync(join(parent, quarantines[0], 'occupant', 'sentinel'), 'utf8')).toBe('preserved data')
+    const storage = await openDurableStorage(backend)
+    await storage.close(BACKGROUND_CONTEXT)
+    const created = await create({
+      ownership: { kind: 'ownerless' },
+      agent: { model: { provider: 'faux', modelId: 'faux-1' } }
+    })
+    const handle = confirmed(created.result)
+    const observer = await observeInputs(handle, created.context.id)
+    cleanup.push(() => observer.stop())
+    faux.setResponses([fauxAssistantMessage('recovered durable answer')])
+    const id = message()
+    expect((await submitInput(handle, id, created.context.id)).status).toBe('acknowledged')
+    await expect.poll(() => observer.inputs.get(id)?.outcome).toBe('completed')
+    await observer.stop()
+    await runtime.shutdown()
+    const reopened = confirmed(await openDurableBackend(backend.id, options))
+    cleanup.push(() => reopened.shutdown())
+    const restored = confirmed(await reopened.open(handle.thread))
+    const text: string[] = []
+    const history = confirmed(
+      await restored.observe((event) => {
+        if (event.type === 'snapshot')
+          for (const item of event.messages)
+            text.push(...item.parts.flatMap((part) => (part.type === 'text' ? [part.text] : [])))
+      })
+    )
+    cleanup.push(() => history.stop())
+    expect(text.join('\n')).toContain('recovered durable answer')
+    const inputs = await observeInputs(restored, created.context.id)
+    cleanup.push(() => inputs.stop())
+    expect(inputs.inputs.get(id)?.outcome).toBe('completed')
+    faux.setResponses([fauxAssistantMessage('second durable answer')])
+    const second = message('second question')
+    expect((await submitInput(restored, second, created.context.id)).status).toBe('acknowledged')
+    await expect.poll(() => inputs.inputs.get(second)?.outcome).toBe('completed')
+    expect(contexts.backend(backend.id).locator).toEqual(reserved.locator)
+  })
+
   it('restores Durable inputs by their original message key without scheduling work on reopen', async () => {
     const { backend, runtime, faux, options, create } = await durable()
     const created = await create({

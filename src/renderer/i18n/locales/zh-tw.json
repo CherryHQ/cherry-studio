@@ -1557,6 +1557,7 @@
   "error.diagnostics.preparing_result": "正在整理結果…",
   "error.diagnostics.result": "診斷結果",
   "error.diagnostics.result_summary": "<fixed>已修復：{{fixed}}；</fixed><attention>需要注意：{{attention}}</attention>。",
+  "error.durable_storage_failed": "無法存取本機代理程式資料。請檢查磁碟空間和資料夾權限，然後重試。路徑請見錯誤詳細資料。",
   "error.errors": "錯誤",
   "error.finishReason": "結束原因",
   "error.functionality": "功能",

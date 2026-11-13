@@ -1557,6 +1557,7 @@
   "error.diagnostics.preparing_result": "Preparando resultados…",
   "error.diagnostics.result": "Resultado del diagnóstico",
   "error.diagnostics.result_summary": "<fixed>Corregido: {{fixed}}; </fixed><attention>requiere atención: {{attention}}</attention>.",
+  "error.durable_storage_failed": "No se pudo acceder a los datos locales del agente. Comprueba el espacio en disco y los permisos de la carpeta y vuelve a intentarlo. Consulta la ruta en los detalles del error.",
   "error.errors": "error",
   "error.finishReason": "Razón de finalización",
   "error.functionality": "función",

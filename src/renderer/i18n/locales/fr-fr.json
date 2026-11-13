@@ -1557,6 +1557,7 @@
   "error.diagnostics.preparing_result": "Préparation des résultats…",
   "error.diagnostics.result": "Résultat du diagnostic",
   "error.diagnostics.result_summary": "<fixed>Corrigé : {{fixed}} ; </fixed><attention>nécessite une attention : {{attention}}</attention>.",
+  "error.durable_storage_failed": "Impossible d’accéder aux données locales de l’agent. Vérifiez l’espace disque et les autorisations du dossier, puis réessayez. Consultez les détails de l’erreur pour connaître le chemin.",
   "error.errors": "erreur",
   "error.finishReason": "Raison de la fin",
   "error.functionality": "fonction",

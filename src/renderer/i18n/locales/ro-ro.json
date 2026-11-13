@@ -1557,6 +1557,7 @@
   "error.diagnostics.preparing_result": "Se pregătesc rezultatele…",
   "error.diagnostics.result": "Rezultatul diagnosticului",
   "error.diagnostics.result_summary": "<fixed>Remediat: {{fixed}}; </fixed><attention>necesită atenție: {{attention}}</attention>.",
+  "error.durable_storage_failed": "Nu s-au putut accesa datele locale ale agentului. Verificați spațiul pe disc și permisiunile folderului, apoi încercați din nou. Consultați detaliile erorii pentru cale.",
   "error.errors": "Erori",
   "error.finishReason": "Motiv finalizare",
   "error.functionality": "Funcționalitate",

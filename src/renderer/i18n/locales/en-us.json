@@ -1557,6 +1557,7 @@
   "error.diagnostics.preparing_result": "Preparing results…",
   "error.diagnostics.result": "Diagnostic result",
   "error.diagnostics.result_summary": "<fixed>Fixed: {{fixed}}; </fixed><attention>needs attention: {{attention}}</attention>.",
+  "error.durable_storage_failed": "Could not access local agent data. Check disk space and folder permissions, then retry. See error details for the path.",
   "error.errors": "Errors",
   "error.finishReason": "Finish Reason",
   "error.functionality": "Functionality",

@@ -1557,6 +1557,7 @@
   "error.diagnostics.preparing_result": "Προετοιμασία αποτελεσμάτων…",
   "error.diagnostics.result": "Διαγνωστικό αποτέλεσμα",
   "error.diagnostics.result_summary": "<fixed>Διορθώθηκαν: {{fixed}}· </fixed><attention>χρειάζονται προσοχή: {{attention}}</attention>.",
+  "error.durable_storage_failed": "Δεν ήταν δυνατή η πρόσβαση στα τοπικά δεδομένα του πράκτορα. Ελέγξτε τον χώρο στον δίσκο και τα δικαιώματα φακέλου και δοκιμάστε ξανά. Δείτε τη διαδρομή στις λεπτομέρειες σφάλματος.",
   "error.errors": "Λάθος",
   "error.finishReason": "Αιτία λήξης",
   "error.functionality": "λειτουργία",

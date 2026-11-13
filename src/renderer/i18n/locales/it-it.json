@@ -1557,6 +1557,7 @@
   "error.diagnostics.preparing_result": "Preparazione dei risultati…",
   "error.diagnostics.result": "Risultato diagnostico",
   "error.diagnostics.result_summary": "<fixed>Risolti: {{fixed}}; </fixed><attention>da verificare: {{attention}}</attention>.",
+  "error.durable_storage_failed": "Impossibile accedere ai dati locali dell’agente. Controlla lo spazio su disco e i permessi della cartella, poi riprova. Consulta i dettagli dell’errore per il percorso.",
   "error.errors": "Errori",
   "error.finishReason": "Motivo della conclusione",
   "error.functionality": "Funzionalità",

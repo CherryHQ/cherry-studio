@@ -1557,6 +1557,7 @@
   "error.diagnostics.preparing_result": "Sonuçlar hazırlanıyor…",
   "error.diagnostics.result": "Tanı sonucu",
   "error.diagnostics.result_summary": "<fixed>Düzeltildi: {{fixed}}; </fixed><attention>dikkat gerektiren: {{attention}}</attention>.",
+  "error.durable_storage_failed": "Yerel ajan verilerine erişilemedi. Disk alanını ve klasör izinlerini kontrol edip yeniden deneyin. Yol için hata ayrıntılarına bakın.",
   "error.errors": "Hatalar",
   "error.finishReason": "Sonlanma Nedeni",
   "error.functionality": "İşlevsellik",

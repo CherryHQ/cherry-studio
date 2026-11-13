@@ -1557,6 +1557,7 @@
   "error.diagnostics.preparing_result": "Ergebnisse werden vorbereitet…",
   "error.diagnostics.result": "Diagnoseergebnis",
   "error.diagnostics.result_summary": "<fixed>Behoben: {{fixed}}; </fixed><attention>Handlungsbedarf: {{attention}}</attention>.",
+  "error.durable_storage_failed": "Auf lokale Agentendaten konnte nicht zugegriffen werden. Prüfen Sie den Speicherplatz und die Ordnerberechtigungen und versuchen Sie es erneut. Den Pfad finden Sie in den Fehlerdetails.",
   "error.errors": "Fehler",
   "error.finishReason": "Beendigungsgrund",
   "error.functionality": "Funktion",

@@ -1557,6 +1557,7 @@
   "error.diagnostics.preparing_result": "กำลังเตรียมผลลัพธ์…",
   "error.diagnostics.result": "ผลการวินิจฉัย",
   "error.diagnostics.result_summary": "<fixed>แก้แล้ว: {{fixed}}; </fixed><attention>ต้องดำเนินการ: {{attention}}</attention>",
+  "error.durable_storage_failed": "ไม่สามารถเข้าถึงข้อมูลเอเจนต์ในเครื่องได้ ตรวจสอบพื้นที่ว่างในดิสก์และสิทธิ์ของโฟลเดอร์ แล้วลองอีกครั้ง ดูเส้นทางได้ในรายละเอียดข้อผิดพลาด",
   "error.errors": "ข้อผิดพลาด",
   "error.finishReason": "เหตุผลที่สิ้นสุด",
   "error.functionality": "ฟังก์ชัน",

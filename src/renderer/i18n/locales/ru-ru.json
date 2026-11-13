@@ -1557,6 +1557,7 @@
   "error.diagnostics.preparing_result": "Подготовка результатов…",
   "error.diagnostics.result": "Результат диагностики",
   "error.diagnostics.result_summary": "<fixed>Исправлено: {{fixed}}; </fixed><attention>требует внимания: {{attention}}</attention>.",
+  "error.durable_storage_failed": "Не удалось получить доступ к локальным данным агента. Проверьте свободное место на диске и права доступа к папке, затем повторите попытку. Путь указан в сведениях об ошибке.",
   "error.errors": "ошибка",
   "error.finishReason": "Причина завершения",
   "error.functionality": "функция",

@@ -1557,6 +1557,7 @@
   "error.diagnostics.preparing_result": "Đang chuẩn bị kết quả…",
   "error.diagnostics.result": "Kết quả chẩn đoán",
   "error.diagnostics.result_summary": "<fixed>Đã sửa: {{fixed}}; </fixed><attention>cần chú ý: {{attention}}</attention>.",
+  "error.durable_storage_failed": "Không thể truy cập dữ liệu tác nhân cục bộ. Hãy kiểm tra dung lượng đĩa và quyền thư mục rồi thử lại. Xem đường dẫn trong chi tiết lỗi.",
   "error.errors": "Lỗi",
   "error.finishReason": "Lý do kết thúc",
   "error.functionality": "Chức năng",

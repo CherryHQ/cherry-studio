@@ -1557,6 +1557,7 @@
   "error.diagnostics.preparing_result": "結果をまとめています…",
   "error.diagnostics.result": "診断結果",
   "error.diagnostics.result_summary": "<fixed>修正済み：{{fixed}}、</fixed><attention>要確認：{{attention}}</attention>。",
+  "error.durable_storage_failed": "ローカルのエージェントデータにアクセスできませんでした。ディスクの空き容量とフォルダーのアクセス権限を確認してから、再試行してください。パスはエラーの詳細を確認してください。",
   "error.errors": "エラー",
   "error.finishReason": "終了理由",
   "error.functionality": "機能",

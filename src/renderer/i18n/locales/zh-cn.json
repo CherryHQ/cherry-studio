@@ -1557,6 +1557,7 @@
   "error.diagnostics.preparing_result": "正在整理结果…",
   "error.diagnostics.result": "诊断结果",
   "error.diagnostics.result_summary": "<fixed>已修复：{{fixed}}；</fixed><attention>需要关注：{{attention}}</attention>。",
+  "error.durable_storage_failed": "无法访问本地智能体数据。请检查磁盘空间和文件夹权限，然后重试。路径请见错误详情。",
   "error.errors": "错误",
   "error.finishReason": "结束原因",
   "error.functionality": "功能",
