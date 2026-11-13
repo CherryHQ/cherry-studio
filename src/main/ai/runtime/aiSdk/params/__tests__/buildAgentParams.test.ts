@@ -1907,9 +1907,15 @@ describe('buildAgentParams native-dialect resolution for catalog-backed custom r
 })
 
 describe('buildAgentParams Gemini 4 requests', () => {
-  it.each(['low', 'medium', 'high', undefined] as const)(
-    'serializes thinking=%s without sampling, budget, or explicit cache fields',
-    async (effort) => {
+  it.each([
+    ['gemini-4-argon', 'low'],
+    ['gemini-4-argon', 'medium'],
+    ['gemini-4-argon', 'high'],
+    ['gemini-4-argon', undefined],
+    ['gemini-4-carbon', 'high']
+  ] as const)(
+    'serializes %s thinking=%s without custom sampling, thinking budget, or explicit cache fields',
+    async (id, effort) => {
       let body: Record<string, any> | undefined
       resolveProviderAiSdkConfigMock.mockResolvedValue({
         config: {
@@ -1942,9 +1948,9 @@ describe('buildAgentParams Gemini 4 requests', () => {
         signal: undefined,
         provider,
         model: makeModel({
-          id: 'gemini::gemini-4-argon',
+          id: `gemini::${id}`,
           providerId: 'gemini',
-          apiModelId: 'gemini-4-argon',
+          apiModelId: id,
           capabilities: [MODEL_CAPABILITY.REASONING],
           reasoning: {
             controls: [{ kind: 'effort', values: ['low', 'medium', 'high'], default: 'medium' }],
@@ -1958,7 +1964,7 @@ describe('buildAgentParams Gemini 4 requests', () => {
         apiKey: 'test-key',
         baseURL: 'https://gemini.test/v1beta',
         fetch: result.sdkConfig.providerSettings.fetch
-      })('gemini-4-argon')
+      })(id)
       await expect(
         sdkModel.doGenerate({
           prompt: [{ role: 'user', content: [{ type: 'text', text: 'Hello' }] }],

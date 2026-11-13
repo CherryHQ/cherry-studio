@@ -8,6 +8,7 @@ import { and, eq, or } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
+import { REASONING_FORMAT_PROFILES } from '@cherrystudio/provider-registry'
 import { agentTable } from '@data/db/schemas/agent'
 import { knowledgeBaseTable } from '@data/db/schemas/knowledge'
 import { pinTable } from '@data/db/schemas/pin'
@@ -17,6 +18,7 @@ import { modelService, UPDATE_MODEL_FIELD_MAP } from '@data/services/ModelServic
 import { pinService } from '@data/services/PinService'
 import type * as ProviderRegistryServiceModule from '@data/services/ProviderRegistryService'
 import { generateOrderKeyBetween, generateOrderKeySequence } from '@data/services/utils/orderKey'
+import { encodeReasoningInvocation, resolveReasoningInvocation } from '@main/ai/utils/reasoningSerializers'
 import { ErrorCode } from '@shared/data/api/errors'
 import { MODELS_DELETE_MAX_IDS, type UpdateModelDto } from '@shared/data/api/schemas/models'
 import {
@@ -150,6 +152,7 @@ describe('UPDATE_MODEL_FIELD_MAP completeness', () => {
       'outputModalities',
       'endpointTypes',
       'parameterSupport',
+      'reasoning',
       'supportsStreaming',
       'contextWindow',
       'maxInputTokens',
@@ -580,6 +583,73 @@ describe('ModelService.update', () => {
 
 describe('ModelService.create', () => {
   const dbh = setupTestDatabase()
+
+  it('merges and clears a user default without losing inferred custom controls', () => {
+    dbh.db.insert(userProviderTable).values(providerRow('stepfun', 'StepFun')).run()
+    const registryData = { presetModel: null, registryOverride: null, reasoningProfile: OPENAI_CHAT_REASONING_PROFILE }
+    resolveModelMock.mockReturnValue(registryData)
+    const [created] = modelService.create([
+      {
+        dto: {
+          providerId: 'stepfun',
+          modelId: 'step-5-preview',
+          capabilities: [MODEL_CAPABILITY.REASONING],
+          reasoning: { defaultEffort: 'high' }
+        },
+        registryData
+      }
+    ])
+    const read = () => dbh.db.select().from(userModelTable).where(eq(userModelTable.id, created.id)).get()!
+    const controls = [{ kind: 'effort', values: ['low', 'medium', 'high'] }]
+    expect(read().reasoning).toMatchObject({ controls, defaultEffort: 'high' })
+    expect(created.reasoning?.defaultEffort).toBe('high')
+    expect(created.userDefaultReasoningEffort).toBe('high')
+    const intrinsic = { ...read().reasoning!, thinkingTokenLimits: { min: 1024, max: 8192 } }
+    dbh.db.update(userModelTable).set({ reasoning: intrinsic }).where(eq(userModelTable.id, created.id)).run()
+    modelService.update('stepfun', 'step-5-preview', { reasoning: { defaultEffort: 'low' } })
+    expect(read().reasoning).toMatchObject({ controls, defaultEffort: 'low' })
+    modelService.update('stepfun', 'step-5-preview', { name: 'Renamed' })
+    expect(read().reasoning?.defaultEffort).toBe('low')
+    modelService.update('stepfun', 'step-5-preview', { reasoning: { defaultEffort: null } })
+    expect(read().reasoning).toEqual({ ...intrinsic, defaultEffort: undefined })
+    expect(read().reasoning?.selectableEfforts).toEqual(created.reasoning?.selectableEfforts)
+    expect(read().reasoning).not.toHaveProperty('defaultEffort')
+    expect(modelService.getByKey('stepfun', 'step-5-preview').userDefaultReasoningEffort).toBeUndefined()
+  })
+
+  it('keeps catalog controls while exposing the preset row user default', () => {
+    dbh.db.insert(userProviderTable).values(providerRow('google', 'Google')).run()
+    const controls = [{ kind: 'effort' as const, values: ['low' as const, 'medium' as const, 'high' as const] }]
+    const registryData = {
+      presetModel: {
+        id: 'gemini-4-carbon',
+        name: 'Carbon',
+        capabilities: [MODEL_CAPABILITY.REASONING],
+        reasoning: { controls, defaultEffort: 'medium' as const }
+      },
+      registryOverride: null,
+      reasoningProfile: OPENAI_CHAT_REASONING_PROFILE
+    }
+    resolveModelMock.mockReturnValue(registryData)
+    const [created] = modelService.create([
+      { dto: { providerId: 'google', modelId: 'gemini-4-carbon', reasoning: { defaultEffort: 'high' } }, registryData }
+    ])
+    expect(created.reasoning).toMatchObject({ controls, defaultEffort: 'high' })
+    expect(created.userDefaultReasoningEffort).toBe('high')
+    expect(
+      encodeReasoningInvocation(
+        resolveReasoningInvocation({
+          model: created,
+          selection: 'default',
+          profile: REASONING_FORMAT_PROFILES.gemini.wire
+        })
+      )
+    ).toEqual({ thinkingConfig: { includeThoughts: true, thinkingLevel: 'high' } })
+    modelService.update('google', 'gemini-4-carbon', { reasoning: { defaultEffort: null } })
+    const cleared = modelService.getByKey('google', 'gemini-4-carbon')
+    expect(cleared.reasoning).toMatchObject({ controls, defaultEffort: 'medium' })
+    expect(cleared.userDefaultReasoningEffort).toBeUndefined()
+  })
 
   it('persists and exposes effort for a manually added StepFun preview without a catalog match', () => {
     const registryData = {
