@@ -40,9 +40,11 @@ Computer Use's locked npm platform packages, verified Linux SQLite cache, JS bun
 
 ### Delivery and evidence
 
-Deliver four stack layers: this Spec, archive caching, bounded concurrency, and workflow integration. Each implementation layer carries focused behavioral tests. The last layer updates the packaging README and bilingual release runbook.
+Review the design and implementation together in one PR: original-asset caching, bounded concurrency, and workflow integration carry focused behavioral tests. Update the packaging README and the existing release runbook. Direct packaging without an explicit cache directory uses a checkout-scoped OS temporary cache; temporary storage may be evicted.
 
 Distinguish cache state, transfer, verification, and extraction where measurable. Remote cold/warm runs require authorization; missing target execution remains unverified. Local fixtures cannot establish Windows speedup, USB signing validity, or installer startup. Keep the note proposed until all acceptance criteria have actual evidence.
+
+Local evidence covers offline reuse, corruption repair, changed digests, real archive extraction, bounded HTTP requests, concurrent publication, curl resume/Range fallback, workflow cache ownership, and source-interface rejection. Remote Windows cold/warm execution remains unverified; AC6 is not complete, so this note remains proposed.
 
 ## Alternatives considered
 
@@ -53,13 +55,13 @@ Distinguish cache state, transfer, verification, and extraction where measurable
 
 ## Acceptance criteria
 
-- AC1 — After one fetch, a fresh packaging directory prepares the tool offline; output mutation leaves its cache intact, and a changed digest cannot reuse the old blob. (verification: real local HTTP/cache fixtures; owner: archive cache layer)
-- AC2 — Corruption, interrupted transfers, Range refusal, and competing publishers cannot create trusted partial assets, overwrite another invocation's partial file, or leave download debris in shippable resources. (verification: corruption, resume, failure, and concurrent-publication fixtures; owner: archive cache layer)
-- AC3 — Cold tool requests overlap with at most three active downloads; all started work settles before exit, and successful tools retain correct target files and version markers. (verification: local HTTP concurrency/failure fixtures; owner: concurrency layer)
-- AC4 — Direct packaging works without CI preparation, development retains its shared cache and optional-tool policy, and release verification rejects incomplete tools for all declared targets. (verification: explicit downloader and before-pack regressions; owner: cache and concurrency layers)
-- AC5 — Both workflows use exact-source target tools, reject unsupported source interfaces before expensive work, retain sequential Windows architectures and signing, keep formal Windows cache local, and permit only one hosted writer per target without an edition dependency. (verification: workflow/interface checks and focused release tests; owner: integration layer)
-- AC6 — Preparation saves only complete verified assets before packaging; target manifests remain valid, and cold/warm target logs confirm complete tools with unchanged installed versions. (verification: save-order fixtures and authorized target-run logs; owner: integration layer)
-- AC7 — Documentation matches delivered behavior; reports identify cache states and measured/unknown phases without inferring stable speedup, USB signing, or install/startup validation from local checks. (verification: docs gate and actual evidence review; owner: integration layer)
+- AC1 — After one fetch, a fresh packaging directory prepares the tool offline; output mutation leaves its cache intact, and a changed digest cannot reuse the old blob. (verification: real local HTTP/cache fixtures; owner: tool asset preparation)
+- AC2 — Corruption, interrupted transfers, Range refusal, and competing publishers cannot create trusted partial assets, overwrite another invocation's partial file, or leave download debris in shippable resources. (verification: corruption, resume, failure, and concurrent-publication fixtures; owner: tool asset preparation)
+- AC3 — Cold tool requests overlap with at most three active downloads; all started work settles before exit, and successful tools retain correct target files and version markers. (verification: local HTTP concurrency/failure fixtures; owner: tool asset preparation)
+- AC4 — Direct packaging works without CI preparation, development retains its shared cache and optional-tool policy, and release verification rejects incomplete tools for all declared targets. (verification: explicit downloader and before-pack regressions; owner: tool asset preparation)
+- AC5 — Both workflows use exact-source target tools, reject unsupported source interfaces before expensive work, retain sequential Windows architectures and signing, keep formal Windows cache local, and permit only one hosted writer per target without an edition dependency. (verification: workflow/interface checks and focused release tests; owner: release integration)
+- AC6 — Preparation saves only complete verified assets before packaging; target manifests remain valid, and cold/warm target logs confirm complete tools with unchanged installed versions. (verification: save-order fixtures and authorized target-run logs; owner: release integration)
+- AC7 — Documentation matches delivered behavior; reports identify cache states and measured/unknown phases without inferring stable speedup, USB signing, or install/startup validation from local checks. (verification: docs gate and actual evidence review; owner: release integration)
 
 ## Risks
 

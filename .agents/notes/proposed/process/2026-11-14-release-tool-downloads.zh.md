@@ -40,9 +40,11 @@ Computer Use 锁定的 npm 平台包、已验证的 Linux SQLite 缓存、JS bun
 
 ### 交付与证据
 
-采用四层 stack：本 Spec、原包缓存、限流并行、工作流接入。各实现层包含定向行为测试，最后一层更新打包 README 与双语 Release 操作手册。
+设计与实现在一个 PR 中共同审查：原包缓存、限流并行和工作流接入包含定向行为测试。更新打包 README 与现有 Release 操作手册。直接打包未显式配置缓存目录时，使用按检出目录隔离的操作系统临时缓存，临时存储可能被驱逐。
 
 在可测量时区分缓存状态、传输、校验与解压。远程冷暖运行需获得授权，缺失的目标执行仍属未验证。本地 fixture 不能证明 Windows 提速、USB 签名有效性或安装启动完成。全部验收项具备实际证据前，说明保持 proposed。
+
+本地证据覆盖离线复用、损坏修复、摘要变化、真实原包解压、HTTP 并发限流、并发发布、curl 续传及 Range 回退、工作流缓存归属和源码接口拒绝。远程 Windows 冷暖执行仍未验证，AC6 未完成，因此说明保持 proposed。
 
 ## 考虑过的替代方案
 
@@ -53,13 +55,13 @@ Computer Use 锁定的 npm 平台包、已验证的 Linux SQLite 缓存、JS bun
 
 ## 验收标准
 
-- AC1 — 首次获取后，新的打包目录可离线准备工具；修改输出不改变缓存，摘要变化不能复用旧 blob。 (verification: 真实本地 HTTP 及缓存 fixture；owner: 原包缓存层)
-- AC2 — 损坏、中断传输、拒绝 Range 和并发发布不能产生可信的未完成资产、覆盖其他调用的未完成文件，或在可发布 resources 中留下下载残留。 (verification: 损坏、续传、失败及并发发布 fixture；owner: 原包缓存层)
-- AC3 — 冷工具请求实际重叠，同时下载不超过三个；退出前所有已启动工作结束，成功工具保留正确的目标文件与版本标记。 (verification: 本地 HTTP 并发及失败 fixture；owner: 并行层)
-- AC4 — 直接打包无需 CI 准备仍能工作，开发保留共享缓存及可选工具策略，Release 校验对全部声明目标拒绝不完整工具。 (verification: 显式 downloader 与 before-pack 回归测试；owner: 缓存层及并行层)
-- AC5 — 两个工作流使用精确源码对应的目标工具，在昂贵工作开始前拒绝不支持的源码接口，保留 Windows 架构串行及签名，正式 Windows 仅用本地缓存，每个 hosted 目标仅一个写入者且无版本间依赖。 (verification: 工作流及接口检查与定向 Release 测试；owner: 接入层)
-- AC6 — 准备后、打包前仅保存完整且校验通过的资产；目标清单仍有效，冷暖目标日志确认工具完整且安装版本不变。 (verification: 保存顺序 fixture 及获准目标运行日志；owner: 接入层)
-- AC7 — 文档符合交付行为，报告标明缓存状态和已测量及未知阶段，不凭本地检查推断稳定提速、USB 签名或安装启动验证完成。 (verification: 文档门禁及实际证据审查；owner: 接入层)
+- AC1 — 首次获取后，新的打包目录可离线准备工具；修改输出不改变缓存，摘要变化不能复用旧 blob。 (verification: 真实本地 HTTP 及缓存 fixture；owner: 工具资产准备)
+- AC2 — 损坏、中断传输、拒绝 Range 和并发发布不能产生可信的未完成资产、覆盖其他调用的未完成文件，或在可发布 resources 中留下下载残留。 (verification: 损坏、续传、失败及并发发布 fixture；owner: 工具资产准备)
+- AC3 — 冷工具请求实际重叠，同时下载不超过三个；退出前所有已启动工作结束，成功工具保留正确的目标文件与版本标记。 (verification: 本地 HTTP 并发及失败 fixture；owner: 工具资产准备)
+- AC4 — 直接打包无需 CI 准备仍能工作，开发保留共享缓存及可选工具策略，Release 校验对全部声明目标拒绝不完整工具。 (verification: 显式 downloader 与 before-pack 回归测试；owner: 工具资产准备)
+- AC5 — 两个工作流使用精确源码对应的目标工具，在昂贵工作开始前拒绝不支持的源码接口，保留 Windows 架构串行及签名，正式 Windows 仅用本地缓存，每个 hosted 目标仅一个写入者且无版本间依赖。 (verification: 工作流及接口检查与定向 Release 测试；owner: Release 接入)
+- AC6 — 准备后、打包前仅保存完整且校验通过的资产；目标清单仍有效，冷暖目标日志确认工具完整且安装版本不变。 (verification: 保存顺序 fixture 及获准目标运行日志；owner: Release 接入)
+- AC7 — 文档符合交付行为，报告标明缓存状态和已测量及未知阶段，不凭本地检查推断稳定提速、USB 签名或安装启动验证完成。 (verification: 文档门禁及实际证据审查；owner: Release 接入)
 
 ## 风险
 

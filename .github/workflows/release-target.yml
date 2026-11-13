@@ -105,6 +105,32 @@ jobs:
       - name: Verify JS bundle
         run: node scripts/release/js-bundle.js verify ${{ inputs.edition }}
 
+      - name: Locate bundled tool asset cache
+        id: tools
+        shell: bash
+        run: node scripts/release/prepare-tools.js cache-info ${{ fromJSON(inputs.target).platform }} ${{ fromJSON(inputs.target).arch }} >> "$GITHUB_OUTPUT"
+
+      - name: Restore bundled tool assets
+        id: tool-assets
+        if: fromJSON(inputs.target).platform != 'windows'
+        uses: actions/cache/restore@v6
+        with:
+          path: ${{ steps.tools.outputs.path }}
+          key: ${{ steps.tools.outputs.key }}
+          restore-keys: ${{ steps.tools.outputs.prefix }}
+
+      - name: Prepare bundled tools
+        run: node scripts/release/prepare-tools.js prepare ${{ fromJSON(inputs.target).platform }} ${{ fromJSON(inputs.target).arch }}
+        env:
+          CHERRY_BINARY_CACHE: ${{ steps.tools.outputs.root }}
+
+      - name: Save bundled tool assets
+        if: inputs.edition == 'global' && fromJSON(inputs.target).platform != 'windows' && steps.tool-assets.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: ${{ steps.tools.outputs.path }}
+          key: ${{ steps.tool-assets.outputs.cache-primary-key }}
+
       - name: Enable Linux ARM64 addon builds
         if: fromJSON(inputs.target).platform == 'linux' && fromJSON(inputs.target).arch == 'arm64'
         uses: docker/setup-qemu-action@v3
@@ -118,6 +144,7 @@ jobs:
           pnpm exec electron-builder --linux --${{ fromJSON(inputs.target).arch }} --publish never ${{ inputs.edition == 'cn' && '--config electron-builder.cn.config.cjs' || '' }}
 
         env:
+          CHERRY_BINARY_CACHE: ${{ steps.tools.outputs.root }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NODE_OPTIONS: --max-old-space-size=8192
 
@@ -127,6 +154,7 @@ jobs:
           sudo -H pip install setuptools
           pnpm exec electron-builder --mac --${{ fromJSON(inputs.target).arch }} --publish never ${{ inputs.edition == 'cn' && '--config electron-builder.cn.config.cjs' || '' }}
         env:
+          CHERRY_BINARY_CACHE: ${{ steps.tools.outputs.root }}
           CSC_FOR_PULL_REQUEST: true
           CSC_LINK: ${{ secrets.CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
@@ -141,6 +169,7 @@ jobs:
         run: |
           pnpm exec electron-builder --win --x64 --arm64 --publish never ${{ inputs.edition == 'cn' && '--config electron-builder.cn.config.cjs' || '' }}
         env:
+          CHERRY_BINARY_CACHE: ${{ steps.tools.outputs.root }}
           ELECTRON_BUILDER_7Z_FILTER: BCJ
           WIN_SIGN: true
           CHERRY_CERT_PATH: ${{ secrets.CHERRY_CERT_PATH }}
