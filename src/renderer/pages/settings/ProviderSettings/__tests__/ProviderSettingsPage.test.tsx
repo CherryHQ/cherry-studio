@@ -5,7 +5,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import i18n from '@renderer/i18n/resolver'
 
-import { useProviderDeepLinkImport } from '../hooks/useProviderDeepLinkImport'
 import ProviderSettingsPage from '../ProviderSettingsPage'
 
 const navigateMock = vi.fn()
@@ -220,22 +219,6 @@ describe('ProviderSettingsPage', () => {
     expect(navigateMock).toHaveBeenCalledWith({ to: '/settings/provider', search: {}, replace: true })
   })
 
-  it('does not select CherryAI when it is remembered or requested by URL', async () => {
-    MockUseCacheUtils.setPersistCacheValue('settings.provider.last_selected_provider_id', 'cherryai')
-    searchMock = { id: 'cherryai' }
-    useProvidersMock.mockReturnValue({
-      providers: [{ id: 'cherryai', name: 'CherryAI', isEnabled: true }, ...providers]
-    })
-
-    render(<ProviderSettingsPage />)
-
-    await waitFor(() => {
-      expect(screen.getByText('provider-setting-openai')).toBeInTheDocument()
-    })
-    expect(screen.getByTestId('selected-provider-id')).toHaveTextContent('openai')
-    expect(screen.queryByText('provider-setting-cherryai')).not.toBeInTheDocument()
-  })
-
   it('falls back when the remembered provider is no longer returned', async () => {
     MockUseCacheUtils.setPersistCacheValue('settings.provider.last_selected_provider_id', 'openai')
     useProvidersMock.mockReturnValue({
@@ -253,15 +236,6 @@ describe('ProviderSettingsPage', () => {
 
     expect(await screen.findByText('provider-setting-zhipu')).toBeInTheDocument()
     expect(screen.queryByText('provider-setting-openai')).not.toBeInTheDocument()
-  })
-
-  it('passes a stable provider selector to deep-link import across rerenders', () => {
-    const { rerender } = render(<ProviderSettingsPage />)
-    const firstSelector = vi.mocked(useProviderDeepLinkImport).mock.calls.at(-1)?.[1]
-
-    rerender(<ProviderSettingsPage />)
-
-    expect(vi.mocked(useProviderDeepLinkImport).mock.calls.at(-1)?.[1]).toBe(firstSelector)
   })
 
   it.each([

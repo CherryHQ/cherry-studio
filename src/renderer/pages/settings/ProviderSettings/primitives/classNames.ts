@@ -30,7 +30,7 @@ export const authConnectionClasses = {
  */
 export const providerDetailColumnClasses = {
   headerPad: 'shrink-0 px-6 py-2.5',
-  scrollStrip: 'min-h-0 flex-1 overflow-x-hidden px-6 pt-1.5 pb-6',
+  scrollViewport: 'px-6 pt-1.5 pb-6',
   contentMaxWidth: 'mx-auto w-full max-w-3xl',
   /** Header inner wrapper: same max-width as body content. */
   headerContentMaxWidth: 'mx-auto w-full max-w-3xl',
@@ -63,7 +63,7 @@ export const providerListClasses = {
     'min-w-0 flex-1 bg-transparent text-sm leading-5 text-foreground outline-none placeholder:text-muted-foreground',
   searchClearButton:
     'flex size-[22px] shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent/40 hover:text-foreground disabled:pointer-events-none disabled:opacity-30',
-  scroller: 'min-h-0 flex-1 px-2.5 pt-2 pb-0',
+  scrollViewport: 'px-2.5 pt-2',
   sectionStack: 'flex flex-col gap-2',
   section: 'space-y-2',
   sectionHeader: 'pb-0.5 pl-2 pr-2 pt-1.5',

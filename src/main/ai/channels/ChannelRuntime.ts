@@ -5,6 +5,9 @@ import type { ChannelAdapter, ChannelCommandEvent, ChannelMessageEvent } from '.
 import type { ChannelAdapterLoader } from './channelAdapterLoader'
 import type { ChannelLogEntry, ChannelStatusEvent } from './types'
 
+const CONNECT_RETRY_INITIAL_DELAY_MS = 1_000
+const CONNECT_RETRY_MAX_DELAY_MS = 60_000
+
 export type ChannelRuntimeDesired =
   | { kind: 'disconnected' }
   | { kind: 'connected'; channel: AgentChannelEntity; agentId: string }
@@ -44,6 +47,8 @@ export class ChannelRuntime {
   private ownership?: AdapterOwnership
   private qrWaiter?: QrWaiter
   private lastAgentId?: string
+  private connectRetryTimer: ReturnType<typeof setTimeout> | null = null
+  private connectRetryDelayMs = CONNECT_RETRY_INITIAL_DELAY_MS
 
   constructor(
     readonly channelId: string,
@@ -71,6 +76,8 @@ export class ChannelRuntime {
   }
 
   requestReconcile(): void {
+    this.clearConnectRetry()
+    this.connectRetryDelayMs = CONNECT_RETRY_INITIAL_DELAY_MS
     this.requestedRevision++
     if (this.ownership && !this.ownership.quarantined) {
       this.ownership.quarantined = true
@@ -110,6 +117,7 @@ export class ChannelRuntime {
   }
 
   async dispose(): Promise<void> {
+    this.clearConnectRetry()
     this.cancelQrWaiter(new Error('Channel runtime disposed'))
     this.reconciler.dispose()
     const ownership = this.ownership
@@ -166,6 +174,7 @@ export class ChannelRuntime {
         connected: false,
         error: error instanceof Error ? error.message : String(error)
       })
+      this.scheduleConnectRetry(target.revision)
       throw error
     }
 
@@ -174,6 +183,27 @@ export class ChannelRuntime {
       return
     }
     this.appliedRevision = target.revision
+    this.connectRetryDelayMs = CONNECT_RETRY_INITIAL_DELAY_MS
+  }
+
+  private scheduleConnectRetry(revision: number): void {
+    if (revision !== this.requestedRevision || this.connectRetryTimer) return
+
+    const delayMs = this.connectRetryDelayMs
+    this.connectRetryDelayMs = Math.min(delayMs * 2, CONNECT_RETRY_MAX_DELAY_MS)
+    this.connectRetryTimer = setTimeout(() => {
+      this.connectRetryTimer = null
+      if (revision !== this.requestedRevision) return
+      this.requestedRevision++
+      this.reconciler.request()
+    }, delayMs)
+    this.connectRetryTimer.unref?.()
+  }
+
+  private clearConnectRetry(): void {
+    if (!this.connectRetryTimer) return
+    clearTimeout(this.connectRetryTimer)
+    this.connectRetryTimer = null
   }
 
   private bindAdapterEvents(ownership: AdapterOwnership): void {

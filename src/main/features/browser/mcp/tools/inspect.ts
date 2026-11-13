@@ -10,10 +10,9 @@ export async function handleFind(controller: BrowserController, args: unknown, s
 
 export async function handleConsoleMessages(controller: BrowserController, args: unknown, signal?: AbortSignal) {
   const input = consoleSchema.parse(args ?? {})
-  return browserResult(controller, input, signal, async (session, options) => {
-    await session.send('Runtime.enable', undefined, options)
-    return session.consoleMessages(input.level, input.clear)
-  })
+  return browserResult(controller, input, signal, async (session, options) =>
+    session.readConsoleMessages(input.level, input.clear, options)
+  )
 }
 
 export async function handleNetworkRequests(controller: BrowserController, args: unknown, signal?: AbortSignal) {

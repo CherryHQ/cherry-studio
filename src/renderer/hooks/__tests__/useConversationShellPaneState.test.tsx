@@ -12,20 +12,17 @@ interface HarnessProps {
 function renderPaneState({
   initialProps = {},
   setPersistedPaneOpen = vi.fn(),
-  onManualPaneOpen,
   windowFrame
 }: {
   initialProps?: HarnessProps
   setPersistedPaneOpen?: ReturnType<typeof vi.fn<(...args: any[]) => any>>
-  onManualPaneOpen?: () => void
   windowFrame?: 'window'
 } = {}) {
   const rendered = renderHook(
     ({ persistedPaneOpen = true }: HarnessProps) =>
       useConversationShellPaneState({
         persistedPaneOpen,
-        setPersistedPaneOpen,
-        onManualPaneOpen
+        setPersistedPaneOpen
       }),
     {
       initialProps,
@@ -81,25 +78,21 @@ describe('useConversationShellPaneState', () => {
     expect(result.current.shellPaneOpen).toBe(true)
   })
 
-  it('bumps the manual signal in both directions and reports manual opens', () => {
-    const onManualPaneOpen = vi.fn()
-    const { result, rerender, setPersistedPaneOpen } = renderPaneState({ onManualPaneOpen })
+  it('bumps the manual signal in both directions', () => {
+    const { result, rerender, setPersistedPaneOpen } = renderPaneState()
 
     act(() => result.current.toggleShellPane())
     expect(result.current.paneManualToggle).toEqual({ seq: 1, open: false })
     expect(setPersistedPaneOpen).toHaveBeenLastCalledWith(false)
-    expect(onManualPaneOpen).not.toHaveBeenCalled()
 
     rerender({ persistedPaneOpen: false })
     act(() => result.current.toggleShellPane())
     expect(result.current.paneManualToggle).toEqual({ seq: 2, open: true })
     expect(setPersistedPaneOpen).toHaveBeenLastCalledWith(true)
-    expect(onManualPaneOpen).toHaveBeenCalledTimes(1)
   })
 
   it('treats a toggle while auto-collapsed as a manual reopen', () => {
-    const onManualPaneOpen = vi.fn()
-    const { result } = renderPaneState({ onManualPaneOpen })
+    const { result } = renderPaneState()
 
     act(() => result.current.handlePaneAutoCollapseChange(true))
     expect(result.current.shellPaneOpen).toBe(false)
@@ -107,7 +100,6 @@ describe('useConversationShellPaneState', () => {
     act(() => result.current.toggleShellPane())
     expect(result.current.shellPaneOpen).toBe(true)
     expect(result.current.paneManualToggle).toEqual({ seq: 1, open: true })
-    expect(onManualPaneOpen).toHaveBeenCalledTimes(1)
   })
 
   it('emits the manual signal from setShellPaneOpenManually for direct collapse controls', () => {

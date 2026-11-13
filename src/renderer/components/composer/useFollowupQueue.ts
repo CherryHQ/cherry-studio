@@ -46,7 +46,7 @@ interface UseFollowupQueueParams {
   /** Stream completion is independent of the conversation list read receipt. */
   status: TopicStreamStatus | undefined
   lastCompletedAt: number | null
-  /** Send a payload (busy → backend steer; idle → normal send). Resolves to whether it was sent. */
+  /** Resolves to whether the submission was accepted; execution completes separately. */
   onDrain: (payload: ComposerQueuedMessagePayload) => Promise<boolean>
   /** Called when a send fails and leaves the queued draft paused for retry. */
   onDrainFailed?: () => void

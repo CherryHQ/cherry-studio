@@ -161,8 +161,7 @@ export async function executeBrowserOperation(
     }
     if (name === 'getConsoleMessages') {
       const input = schemas.getConsoleMessages.parse(args)
-      await session.send('Runtime.enable', undefined, options)
-      return { value: { ...metadata(), ...session.consoleMessages(input.level, input.clear) } }
+      return { value: { ...metadata(), ...(await session.readConsoleMessages(input.level, input.clear, options)) } }
     }
     if (name === 'getNetworkRequests') {
       await session.send('Network.enable', undefined, options)

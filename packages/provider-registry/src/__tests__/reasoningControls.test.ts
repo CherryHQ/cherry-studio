@@ -7,18 +7,11 @@ import { inferReasoningControls } from '../patterns/reasoning-heuristics'
 import { REASONING_EFFORT, REASONING_EFFORT_ORDER } from '../schemas/enums'
 import type { ReasoningControl } from '../schemas/model'
 import { ReasoningSupportSchema } from '../schemas/model'
-import { REASONING_FORMAT_TYPES } from '../schemas/provider'
 import { deriveLegacyReasoningFields } from '../utils/reasoningControls'
 
 describe('REASONING_EFFORT_ORDER', () => {
   it('is a permutation of REASONING_EFFORT (exhaustiveness lock)', () => {
     expect([...REASONING_EFFORT_ORDER].sort()).toEqual(Object.values(REASONING_EFFORT).sort())
-  })
-})
-
-describe('REASONING_FORMAT_TYPES', () => {
-  it('derives every discriminator from the format union', () => {
-    expect(REASONING_FORMAT_TYPES).toEqual(['openai-chat', 'openai-responses', 'anthropic', 'gemini', 'ollama', 'none'])
   })
 })
 
@@ -72,6 +65,10 @@ describe('deriveLegacyReasoningFields', () => {
 })
 
 describe('inferReasoningControls (ingest-time heuristics)', () => {
+  it.each(['alibaba/qwen3.8-flash-next', 'qwen3-8-flash-next'])('infers selectable effort tiers for %s', (id) => {
+    expect(inferReasoningControls(id)).toContainEqual({ kind: 'effort', values: ['low', 'medium', 'xhigh'] })
+  })
+
   it.each(['step-5-preview', 'stepfun/step-5-preview', 'STEP-5-PREVIEW', 'StepFun/StEp-5-PrEvIeW'])(
     'infers only the documented effort control for %s',
     (id) => {

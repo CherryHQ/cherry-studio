@@ -11,6 +11,7 @@ import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+import { agentTable } from '@data/db/schemas/agent'
 import { pinTable } from '@data/db/schemas/pin'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
@@ -197,12 +198,10 @@ describe('ProviderService.delete — preset protection boundary', () => {
       expect(pins.find((row) => row.id === pin.id)).toBeUndefined()
     }
     expect(pins.find((row) => row.id === siblingPin.id)).toBeDefined()
-    expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([{ endpoint: '/pins', kind: 'membership' }])
+    expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([{ endpoint: '/pins', kind: 'membership' }])
   })
 
   it('purges pins for every model under the provider as part of the delete transaction', async () => {
-    const purgeForEntityTxSpy = vi.spyOn(pinService, 'purgeForEntityTx')
-    const purgeForEntitiesTxSpy = vi.spyOn(pinService, 'purgeForEntitiesTx')
     const gpt4 = createUniqueModelId('openai-work', 'gpt-4')
     const gpt35 = createUniqueModelId('openai-work', 'gpt-3.5')
     const claude = createUniqueModelId('anthropic', 'claude-3')
@@ -261,13 +260,6 @@ describe('ProviderService.delete — preset protection boundary', () => {
 
     providerService.delete('openai-work')
 
-    expect(purgeForEntitiesTxSpy).toHaveBeenCalledTimes(1)
-    const [, entityType, entityIds] = purgeForEntitiesTxSpy.mock.calls[0]
-    expect(entityType).toBe('model')
-    expect(entityIds).toHaveLength(2)
-    expect(new Set(entityIds)).toEqual(new Set([gpt4, gpt35]))
-    expect(purgeForEntityTxSpy).not.toHaveBeenCalled()
-
     // Pins for the deleted provider's models are gone.
     const deletedProviderPins = await dbh.db.select().from(pinTable).where(eq(pinTable.entityId, gpt4))
     expect(deletedProviderPins).toHaveLength(0)
@@ -277,6 +269,36 @@ describe('ProviderService.delete — preset protection boundary', () => {
     // Other providers' pins are untouched.
     const survivingPins = await dbh.db.select().from(pinTable).where(eq(pinTable.entityId, claude))
     expect(survivingPins).toHaveLength(1)
+  })
+
+  it('notifies live agent reads when an agent ran on one of its models', async () => {
+    const modelId = createUniqueModelId('my-local-llm', 'llama')
+    const [providerOrderKey, modelOrderKey] = generateOrderKeySequence(2)
+    await dbh.db
+      .insert(userProviderTable)
+      .values({ providerId: 'my-local-llm', name: 'My Local LLM', orderKey: providerOrderKey })
+    await dbh.db.insert(userModelTable).values({
+      id: modelId,
+      providerId: 'my-local-llm',
+      modelId: 'llama',
+      name: 'Llama',
+      capabilities: [],
+      supportsStreaming: true,
+      orderKey: modelOrderKey
+    })
+    await dbh.db
+      .insert(agentTable)
+      .values({ id: 'agent-1', type: 'claude-code', name: 'Agent', instructions: '', model: modelId, orderKey: 'a0' })
+    notifyDataApiDataChangeMock.mockClear()
+
+    providerService.delete('my-local-llm')
+
+    const [agent] = await dbh.db.select().from(agentTable)
+    expect(agent.model).toBeNull()
+    expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([
+      { endpoint: '/agents', kind: 'projection' },
+      { endpoint: '/agents/:agentId' }
+    ])
   })
 
   it('throws notFound when the provider row does not exist (no silent zero-row delete)', async () => {

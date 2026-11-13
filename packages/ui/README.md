@@ -313,7 +313,7 @@ semantics and emits the corresponding public `data-ui` `part:*` tokens without r
 Existing renderer code, application tests, and custom themes that use `data-slot` continue to work; new selectors can
 use the generated semantic layer. The application-level token grammar, stability tiers, maintained anchors, and
 selector rules are defined by the
-[UI Semantic Contract](../../docs/references/components/ui-semantic-contract.md). Explicit roles and maintained `part:*` tokens
+[UI Semantic Contract](../../docs/dev/references/components/ui-semantic-contract.md). Explicit roles and maintained `part:*` tokens
 are public selectors; inferred roles are best-effort discovery coordinates.
 
 ## Directory Structure
@@ -338,7 +338,7 @@ icons/                  # Raw icon assets for code generation
 
 ## Naming Conventions
 
-All file and directory names under `packages/ui/` follow **kebab-case** (per shadcn CLI convention and project-wide rule §4.5 in [`../../docs/references/architecture/naming-conventions.md`](../../docs/references/architecture/naming-conventions.md)). This covers `primitives/`, `composites/`, `icons/`, `hooks/`, and `stories/` alike. Exported identifiers inside files remain `PascalCase` for components and `camelCase` for utilities and hooks.
+All file and directory names under `packages/ui/` follow **kebab-case** (per shadcn CLI convention and project-wide rule §4.5 in [`../../docs/dev/references/architecture/naming-conventions.md`](../../docs/dev/references/architecture/naming-conventions.md)). This covers `primitives/`, `composites/`, `icons/`, `hooks/`, and `stories/` alike. Exported identifiers inside files remain `PascalCase` for components and `camelCase` for utilities and hooks.
 
 Examples:
 
@@ -402,3 +402,25 @@ Delay for imperative Dialog hosts before unmounting: 200 ms.
 ## License
 
 MIT
+
+## ScrollArea spacing contract
+
+`ScrollArea.className` owns the scroll region's dimensions and boundary. `viewportProps` owns
+scroll events, focus, and viewport behavior. Neither carries content padding; put that spacing
+in `contentProps.className`. The scrollbar stays anchored to the root, independently of the
+content inset. Internal scrollbar track spacing is part of the primitive and remains unchanged.
+
+```tsx
+<ScrollArea
+  className="max-h-60"
+  viewportProps={{ className: 'overflow-x-hidden', tabIndex: 0 }}
+  contentProps={{ className: 'pl-5 pr-3' }}>
+  {children}
+</ScrollArea>
+```
+
+An ancestor with padding still insets the whole scroll region. For edge-aligned nested lists,
+keep the group full width, pad its heading and content separately, and reserve a separate lane
+for the outer scrollbar when both tracks can be visible. Preserve native scroll chaining.
+The `cherry-scroll-area/no-container-padding` Oxlint rule checks explicit consumer padding;
+it cannot decide whether an ancestor's inset is intentional or verify rendered geometry.

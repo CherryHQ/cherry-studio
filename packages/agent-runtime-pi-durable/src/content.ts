@@ -1,28 +1,50 @@
 import type { Message } from '@earendil-works/pi-ai'
 import type { EntryRecord } from '@earendil-works/pi-durable'
 
-import { type RuntimeMessage } from '@cherrystudio/agent-runtime'
+import { projectNestedTool, runtimeId, type RuntimeMessage } from '@cherrystudio/agent-runtime'
 
 /** Stable committed identities; consumers never decode native entry IDs from these keys. */
 export const entryMessageId = (entry: EntryRecord, index: number): string => `entry:${entry.id}:${index}`
 
 export class ContentProjection {
   readonly messages: RuntimeMessage[] = []
+  readonly responseIds: Record<string, string> = {}
+  get legacy(): Record<string, { messageId: string; parts: number[] }> {
+    const legacy: Record<string, { messageId: string; parts: number[] }> = {}
+    for (const message of this.messages) {
+      const parts: number[] = []
+      message.parts.forEach((part, index) => {
+        if (part.type === 'dynamic-tool')
+          legacy[`${message.id}:call:${part.toolCallId}`] = { messageId: message.id, parts: [index] }
+        else parts.push(index)
+      })
+      legacy[message.id] = { messageId: message.id, parts }
+    }
+    return legacy
+  }
   private readonly calls = new Map<string, { message: RuntimeMessage; index: number }>()
 
   entry(entry: EntryRecord): void {
     for (const [index, message] of (entry.model ?? []).entries()) {
       this.message(message, entryMessageId(entry, index), 'complete')
+      const inputId = (entry.data as { cherryInputId?: string })?.cherryInputId
+      if (message.role === 'user' && inputId) {
+        const value = this.messages.at(-1)!
+        value.metadata = { ...value.metadata!, inputId: runtimeId(inputId) }
+      }
     }
   }
 
   message(message: Message, id: string, completeness: 'partial' | 'complete'): void {
+    if (message.role === 'assistant' && message.responseId) this.responseIds[message.responseId] = id
     if (message.role === 'system') return
     if (message.role === 'toolResult') {
+      for (const record of message.nestedCalls?.calls ?? []) this.nested(message.toolCallId, projectNestedTool(record))
       this.result(
         message.toolCallId,
         {
           content: message.content,
+          nestedCalls: message.nestedCalls,
           ...(message.details !== undefined && { details: message.details }),
           isError: message.isError
         },
@@ -63,6 +85,16 @@ export class ContentProjection {
         }
       }
     this.messages.push(value)
+  }
+
+  nested(parentCallId: string, part: RuntimeMessage['parts'][number]): void {
+    if (part.type !== 'dynamic-tool') return
+    const parent = this.calls.get(parentCallId)
+    if (!parent) return
+    const existing = this.calls.get(part.toolCallId)
+    const index = existing?.index ?? parent.message.parts.length
+    parent.message.parts[index] = part
+    this.calls.set(part.toolCallId, { message: parent.message, index })
   }
 
   private result(callId: string, output: unknown, error: boolean, preliminary = false): void {

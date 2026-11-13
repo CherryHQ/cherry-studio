@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/feature/2026-11-06-translation-copy-image.md
+2026-11-06-translation-copy-image.md: 3073431244ff8a265c544eafa00fc834bd12d0d6
+2026-11-06-translation-copy-image.zh.md: 6cd9c18a352b3f223b572ca548e9f3dd4a824d62

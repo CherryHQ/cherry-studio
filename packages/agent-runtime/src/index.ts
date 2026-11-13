@@ -4,11 +4,10 @@ export type {
   ThreadId,
   InputId,
   ItemId,
-  DelegationId,
+  SubagentId,
   NativeInputId,
   Thread,
   ItemRef,
-  DelegationRef,
   NativeInputRef,
   BusyPolicy,
   InputDraft,
@@ -17,24 +16,27 @@ export type {
   InputFact,
   SubmitResult,
   InputState,
-  InputQuery,
   InputLookup,
-  RetractionReceipt,
-  InterruptReceipt,
-  ResumeReceipt,
-  ShutdownReceipt,
   JsonValue,
   Completeness,
   RuntimeMessage,
-  Delegation,
+  Subagent,
   Activity,
   ThreadSnapshot,
+  ThreadContextUsage,
+  ContextCategoryKey,
+  ContextTokenCount,
+  ContextCategory,
+  ContextResource,
   ObservationPayload,
   ObservationSink,
   Observation,
   ThreadHandle,
+  ThreadInput,
   AgentRuntime
 } from './contracts'
 export { runtimeId } from './contracts'
 export { ThreadFeed } from './observation'
 export { RuntimeMessageStream } from './messageStream'
+
+export { projectNestedTool, type NestedToolRecord } from './nestedTool'

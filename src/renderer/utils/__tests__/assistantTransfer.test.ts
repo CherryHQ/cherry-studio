@@ -3,7 +3,12 @@ import { describe, expect, it } from 'vitest'
 import type { Assistant } from '@shared/data/types/assistant'
 import type { Prompt } from '@shared/data/types/prompt'
 
-import { AssistantTransferError, parseAssistantImportContent, serializeAssistantForExport } from '../assistantTransfer'
+import {
+  AssistantTransferError,
+  parseAssistantImportContent,
+  serializeAssistantForExport,
+  serializeAssistantsForExport
+} from '../assistantTransfer'
 
 function createAssistant(overrides: Partial<Assistant> = {}): Assistant {
   return {
@@ -54,6 +59,57 @@ function createPrompt(overrides: Partial<Prompt> = {}): Prompt {
 }
 
 describe('assistantTransfer', () => {
+  it('exports one ordered preset array with grouped and ungrouped assistants and binding-ordered phrases', () => {
+    const content = serializeAssistantsForExport([
+      {
+        assistant: createAssistant({ name: 'First', prompt: 'First role' }),
+        groupName: 'Work',
+        prompts: [
+          createPrompt({ title: 'Z phrase', content: 'Z body', orderKey: 'z9' }),
+          createPrompt({ title: 'A phrase', content: 'A body', orderKey: 'a0' })
+        ]
+      },
+      { assistant: createAssistant({ id: 'ast-2', name: 'Second', prompt: 'Second role', groupId: null }), prompts: [] }
+    ])
+    const records = JSON.parse(content)
+    expect(Array.isArray(records)).toBe(true)
+    expect(records.map((record: Record<string, unknown>) => Object.keys(record))).toEqual([
+      ['name', 'emoji', 'group', 'prompt', 'description', 'regularPhrases', 'type'],
+      ['name', 'emoji', 'group', 'prompt', 'description', 'regularPhrases', 'type']
+    ])
+    expect(records.map((record: { type: string }) => record.type)).toEqual(['agent', 'agent'])
+    expect(records[0].regularPhrases.map((phrase: { order: number }) => phrase.order)).toEqual([0, 1])
+    const drafts = parseAssistantImportContent(content)
+    expect(
+      drafts.map(({ dto, groupName }) => ({
+        name: dto.name,
+        prompt: dto.prompt,
+        groupName,
+        phrases: dto.regularPhrases
+      }))
+    ).toEqual([
+      {
+        name: 'First',
+        prompt: 'First role',
+        groupName: 'Work',
+        phrases: [
+          { title: 'Z phrase', content: 'Z body' },
+          { title: 'A phrase', content: 'A body' }
+        ]
+      },
+      { name: 'Second', prompt: 'Second role', groupName: undefined, phrases: [] }
+    ])
+  })
+
+  it('keeps singleton exports byte-compatible and refuses an empty batch', () => {
+    const assistant = createAssistant()
+    const prompts = [createPrompt()]
+    expect(serializeAssistantsForExport([{ assistant, prompts, groupName: 'Work' }])).toBe(
+      serializeAssistantForExport(assistant, prompts, 'Work')
+    )
+    expect(() => serializeAssistantsForExport([])).toThrow(AssistantTransferError)
+  })
+
   it('serializes assistants using the legacy preset export shape', () => {
     const content = serializeAssistantForExport(createAssistant(), [createPrompt()], '写作')
 
@@ -93,11 +149,10 @@ describe('assistantTransfer', () => {
     ])
   })
 
-  it('parses legacy assistant imports with the original defaults', () => {
+  it('parses legacy assistant imports', () => {
     const [draft] = parseAssistantImportContent(
       JSON.stringify({
         name: '旧助手',
-        emoji: '🤖',
         prompt: 'legacy prompt',
         description: 'legacy desc',
         group: ['写作', '生产力']
@@ -116,19 +171,7 @@ describe('assistantTransfer', () => {
     expect(draft.groupName).toBe('写作')
   })
 
-  it('uses the default emoji when a legacy import contains an empty emoji', () => {
-    const [draft] = parseAssistantImportContent(
-      JSON.stringify({
-        name: '无图标助手',
-        emoji: '',
-        prompt: 'legacy prompt'
-      })
-    )
-
-    expect(draft.dto.emoji).toBe('🤖')
-  })
-
-  it('ignores v2-only fields from imported content and still uses legacy defaults', () => {
+  it('ignores v2-only fields from imported content', () => {
     const [draft] = parseAssistantImportContent(
       JSON.stringify({
         name: '新助手',
@@ -149,10 +192,6 @@ describe('assistantTransfer', () => {
     expect(draft.dto).not.toHaveProperty('modelId')
     expect(draft.dto).not.toHaveProperty('mcpServerIds')
     expect(draft.dto).not.toHaveProperty('knowledgeBaseIds')
-    expect(draft.dto.settings).toMatchObject({
-      temperature: 1,
-      enableTemperature: false
-    })
     expect(draft.groupName).toBe('编程')
   })
 

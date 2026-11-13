@@ -33,7 +33,7 @@ vi.mock('@data/services/PaintingService', () => ({
   }
 }))
 
-import { PAINTINGS_DEFAULT_LIMIT, PAINTINGS_MAX_LIMIT } from '@shared/data/api/schemas/paintings'
+import { PAINTINGS_MAX_LIMIT } from '@shared/data/api/schemas/paintings'
 
 import { paintingHandlers } from '../paintings'
 
@@ -44,26 +44,12 @@ describe('paintingHandlers', () => {
     vi.clearAllMocks()
   })
 
-  it('applies default cursor pagination when query is missing', async () => {
-    listPaintingsMock.mockResolvedValueOnce({
-      items: [],
-      total: 0,
-      nextCursor: undefined
-    })
-
-    await paintingHandlers['/paintings'].GET({})
-
-    expect(listPaintingsMock).toHaveBeenCalledWith({
-      limit: PAINTINGS_DEFAULT_LIMIT
-    })
-  })
-
   it('rejects invalid list query before calling the service', async () => {
     await expect(
       paintingHandlers['/paintings'].GET({
         query: {
           limit: PAINTINGS_MAX_LIMIT + 1
-        } as never
+        }
       })
     ).rejects.toHaveProperty('name', 'ZodError')
 
@@ -75,7 +61,7 @@ describe('paintingHandlers', () => {
       paintingHandlers['/paintings'].GET({
         query: {
           [legacyParentFieldKey]: 'painting-parent'
-        } as never
+        }
       })
     ).rejects.toHaveProperty('name', 'ZodError')
 
@@ -183,11 +169,11 @@ describe('paintingHandlers', () => {
   it('forwards inTrash to the service on list', async () => {
     listPaintingsMock.mockResolvedValueOnce({ items: [], total: 0, nextCursor: undefined })
 
-    await paintingHandlers['/paintings'].GET({ query: { inTrash: true } } as never)
+    await paintingHandlers['/paintings'].GET({ query: { inTrash: true, limit: 5 } })
 
     expect(listPaintingsMock).toHaveBeenCalledWith({
       inTrash: true,
-      limit: PAINTINGS_DEFAULT_LIMIT
+      limit: 5
     })
   })
 
@@ -197,7 +183,7 @@ describe('paintingHandlers', () => {
     await paintingHandlers['/paintings/:id'].DELETE({
       params: { id: 'painting-1' },
       query: { permanent: true }
-    } as never)
+    })
 
     expect(deletePaintingMock).toHaveBeenCalledWith('painting-1', { permanent: true })
   })

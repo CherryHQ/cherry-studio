@@ -14,7 +14,7 @@
 @source '../../ui/src/components/primitives/tooltip.tsx';
 @source '../../ui/src/components/primitives/tabs.tsx';
 @source '../../ui/src/components/composites/empty-state/index.tsx';
-@source '../../ui/src/components/composites/scrollbar/index.tsx';
+@source '../../ui/src/components/primitives/scroll-area.tsx';
 @source '../../ui/src/components/composites/image-preview/*.tsx';
 @custom-variant dark (&:is(.dark *));
 @custom-variant no-hover (@media (hover: none));

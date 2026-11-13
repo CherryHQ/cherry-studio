@@ -1,15 +1,27 @@
 import { composeEventHandlers } from '@radix-ui/primitive'
 import * as DialogPrimitive from '@radix-ui/react-dialog'
+import { useControllableState } from '@radix-ui/react-use-controllable-state'
 import { XIcon } from 'lucide-react'
 import * as React from 'react'
 
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { DIALOG_CLOSE_DURATION_MS } from '@cherrystudio/ui/utils'
 
+import { KeyboardLayer, KeyboardLayerRoot, useKeyboardLayerState } from './keyboard-layer'
 import { PortalContainerProvider, useDialogPortalContainer } from './portal-container'
 
-function Dialog({ ...props }: React.ComponentProps<typeof DialogPrimitive.Root>) {
-  return <DialogPrimitive.Root data-slot="dialog" {...props} />
+function Dialog({
+  open: openProp,
+  defaultOpen = false,
+  onOpenChange,
+  ...props
+}: React.ComponentProps<typeof DialogPrimitive.Root>) {
+  const [open, setOpen] = useControllableState({ prop: openProp, defaultProp: defaultOpen, onChange: onOpenChange })
+  return (
+    <KeyboardLayerRoot open={open}>
+      <DialogPrimitive.Root data-slot="dialog" open={open} onOpenChange={setOpen} {...props} />
+    </KeyboardLayerRoot>
+  )
 }
 
 function DialogTrigger({ ...props }: React.ComponentProps<typeof DialogPrimitive.Trigger>) {
@@ -81,11 +93,13 @@ function DialogContent({
   motion = 'directional',
   overlayClassName,
   onPointerDown,
+  onCloseAutoFocus,
   size = 'default',
   style,
   ref,
   ...props
 }: DialogContentProps) {
+  const layer = useKeyboardLayerState(props.forceMount)
   const dialogPortalContainer = useDialogPortalContainer()
   const [contentElement, setContentElement] = React.useState<HTMLDivElement | null>(null)
   const [contentZIndex, setContentZIndex] = React.useState<string>()
@@ -107,7 +121,7 @@ function DialogContent({
   }, [contentElement, className, style])
 
   return (
-    <DialogPortal data-slot="dialog-portal">
+    <DialogPortal data-slot="dialog-portal" forceMount={props.forceMount}>
       {/* Keep this tree stable when async flows temporarily disable overlay dismissal. */}
       <DialogPrimitive.Close asChild>
         <DialogOverlay
@@ -131,6 +145,10 @@ function DialogContent({
       */}
       <DialogPrimitive.Content
         ref={handleRef}
+        onCloseAutoFocus={(event) => {
+          onCloseAutoFocus?.(event)
+          layer.onCloseAutoFocus()
+        }}
         data-slot="dialog-content"
         className={cn(
           // no-drag punches the dialog's area out of any titlebar drag region it overlaps,
@@ -149,20 +167,25 @@ function DialogContent({
         })}
         style={style}
         {...props}>
-        <PortalContainerProvider
-          container={contentElement}
-          tooltipContainer={dialogPortalContainer}
-          tooltipZIndex={contentZIndex}>
-          {children}
-          {showCloseButton && (
-            <DialogPrimitive.Close
-              data-slot="dialog-close"
-              className="absolute top-4 right-4 rounded-md opacity-70 transition-opacity hover:opacity-100 focus:outline-hidden focus-visible:bg-accent focus-visible:opacity-100 disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-muted-foreground [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4">
-              <XIcon />
-              <span className="sr-only">{closeLabel}</span>
-            </DialogPrimitive.Close>
-          )}
-        </PortalContainerProvider>
+        <KeyboardLayer
+          releaseAfterFocusRestore={layer.releaseAfterFocusRestore}
+          active={layer.active}
+          element={contentElement}>
+          <PortalContainerProvider
+            container={contentElement}
+            tooltipContainer={dialogPortalContainer}
+            tooltipZIndex={contentZIndex}>
+            {children}
+            {showCloseButton && (
+              <DialogPrimitive.Close
+                data-slot="dialog-close"
+                className="absolute top-4 right-4 rounded-md opacity-70 transition-opacity hover:opacity-100 focus:outline-hidden focus-visible:bg-accent focus-visible:opacity-100 disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-muted-foreground [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4">
+                <XIcon />
+                <span className="sr-only">{closeLabel}</span>
+              </DialogPrimitive.Close>
+            )}
+          </PortalContainerProvider>
+        </KeyboardLayer>
       </DialogPrimitive.Content>
     </DialogPortal>
   )

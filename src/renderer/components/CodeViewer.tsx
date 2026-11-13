@@ -1,4 +1,11 @@
-import { elementScroll, observeElementOffset, useVirtualizer, useWindowVirtualizer } from '@tanstack/react-virtual'
+import {
+  elementScroll,
+  observeElementOffset,
+  observeWindowOffset,
+  useVirtualizer,
+  useWindowVirtualizer,
+  type Virtualizer
+} from '@tanstack/react-virtual'
 import type { EditorState } from '@uiw/react-codemirror'
 import { debounce } from 'es-toolkit/compat'
 import React, { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
@@ -16,6 +23,30 @@ import { cn } from '@renderer/utils/style'
 import { uuid } from '@renderer/utils/uuid'
 
 const logger = loggerService.withContext('CodeViewer')
+
+function isOutsideCodeViewport(virtualizer: {
+  scrollOffset: number | null
+  scrollRect: { height: number } | null
+  options: { scrollMargin: number }
+  getTotalSize(): number
+}): boolean {
+  const offset = virtualizer.scrollOffset ?? 0
+  const margin = virtualizer.options.scrollMargin
+  return offset + (virtualizer.scrollRect?.height ?? 0) < margin || offset > margin + virtualizer.getTotalSize()
+}
+
+function observeCodeViewportOffset<TScroll extends Element | Window, TItem extends Element>(
+  instance: Virtualizer<TScroll, TItem>,
+  callback: (offset: number, isScrolling: boolean) => void
+) {
+  return (offset: number, isScrolling: boolean) => {
+    const wasOutside = isOutsideCodeViewport(instance)
+    callback(offset, isScrolling)
+    // A short block can cross the viewport without changing its [0, 0] row range.
+    // TanStack then needs a separate visibility notification before scroll-end.
+    if (isOutsideCodeViewport(instance) !== wasOutside) instance.options.onChange?.(instance, isScrolling)
+  }
+}
 
 interface SourcePoint {
   line: number
@@ -479,10 +510,11 @@ const CodeViewer = ({
     enabled: !expanded || scrollParent !== null,
     observeElementOffset: (instance, callback) => {
       const element = instance.scrollElement
+      const onOffset = observeCodeViewportOffset(instance, callback)
       instance.shouldAdjustScrollPositionOnItemSizeChange = isViewportOwned(element) ? () => false : undefined
       // Attachment restores the cached offset after subscribing, so seed it from the actual viewport first.
-      if (element) callback(element.scrollTop, false)
-      return observeElementOffset(instance, callback)
+      if (element) onOffset(element.scrollTop, false)
+      return observeElementOffset(instance, onOffset)
     },
     scrollToFn: (offset, options, instance) => {
       if (!isViewportOwned(instance.scrollElement)) elementScroll(offset, options, instance)
@@ -494,6 +526,8 @@ const CodeViewer = ({
     estimateSize,
     overscan: 20,
     scrollMargin,
+    observeElementOffset: (instance, callback) =>
+      observeWindowOffset(instance, observeCodeViewportOffset(instance, callback)),
     enabled: expanded && scrollParent === null
   })
   const virtualizer = expanded && scrollParent === null ? windowVirtualizer : elementVirtualizer
@@ -569,10 +603,7 @@ const CodeViewer = ({
     }
   }, [expanded, rawLines, virtualizer, wrapped])
 
-  const offset = virtualizer.scrollOffset ?? 0
-  const viewportHeight = virtualizer.scrollRect?.height ?? 0
-  const outsideViewport =
-    expanded && (offset + viewportHeight < scrollMargin || offset > scrollMargin + virtualizer.getTotalSize())
+  const outsideViewport = expanded && isOutsideCodeViewport(virtualizer)
   const virtualItems = outsideViewport ? [] : virtualizer.getVirtualItems()
   const firstIndex = virtualItems[0]?.index
   const lastIndex = virtualItems.at(-1)?.index
@@ -616,14 +647,14 @@ const CodeViewer = ({
     }
   }, [debouncedHighlightLines])
 
-  // 首帧仅让视口内代码块绕过防抖，避免可见文本闪烁和离屏 Worker 请求突发。
+  // Give plain code a painted frame before starting visible syntax work.
+  // Off-screen blocks keep the debounce to avoid a burst of worker requests.
   useEffect(() => {
     if (!highlight) return
     const shikiTheme = shikiThemeRef.current
     if (firstIndex === undefined || lastIndex === undefined || !shikiTheme) return
 
     if (!hasRequestedHighlightRef.current) {
-      hasRequestedHighlightRef.current = true
       const rect = shikiTheme.getBoundingClientRect()
       const intersectsViewport =
         rect.width > 0 &&
@@ -634,14 +665,21 @@ const CodeViewer = ({
         rect.left < window.innerWidth
 
       if (!intersectsViewport) {
+        hasRequestedHighlightRef.current = true
         void debouncedHighlightLines(firstIndex, lastIndex + 1)
         return
       }
-      void highlightLines(firstIndex, lastIndex + 1)
-      return
+      let frame = requestAnimationFrame(() => {
+        frame = requestAnimationFrame(() => {
+          hasRequestedHighlightRef.current = true
+          void highlightLines(firstIndex, lastIndex + 1)
+        })
+      })
+      return () => cancelAnimationFrame(frame)
     }
 
     void debouncedHighlightLines(firstIndex, lastIndex + 1)
+    return undefined
   }, [firstIndex, lastIndex, debouncedHighlightLines, highlightLines, highlight])
 
   // Monitor selection changes, clear stale selection state, and auto-expand in collapsed state

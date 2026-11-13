@@ -13,6 +13,35 @@ const demand = (key: string, patch: Partial<WebviewRequest> = {}): WebviewReques
 })
 
 describe('WebView resource lifetime', () => {
+  it('rejects callbacks from a guest replaced by restart', () => {
+    const service = new WebviewRuntimeService()
+    service.sync([demand('a')], 1)
+    const old = service.get('a')!
+    service.bind('a', old.instance, {} as WebviewTag)
+    service.reportLoaded('a', old.instance, true)
+
+    service.restart('a')
+    const current = service.get('a')!
+    expect(current.instance).not.toBe(old.instance)
+    expect(current).toMatchObject({ source: old.source, visible: true, element: null, loaded: false })
+    const guest = {} as WebviewTag
+    service.bind('a', current.instance, guest)
+    service.reportLoaded('a', old.instance, true)
+    service.bind('a', old.instance, null)
+    expect(service.get('a')).toMatchObject({ element: guest, loaded: false })
+    service.reportLoaded('a', current.instance, true)
+    service.bind('a', old.instance, {} as WebviewTag)
+    expect(service.get('a')).toMatchObject({ element: guest, loaded: true })
+  })
+
+  it('does not resurrect an unowned guest when a late restart arrives', () => {
+    const service = new WebviewRuntimeService()
+    service.sync([demand('a')], 1)
+    service.sync([], 1)
+    service.restart('a')
+    expect(service.getSnapshot()).toEqual([])
+  })
+
   it('releases unowned resources while keeping referenced guests unchanged', () => {
     const service = new WebviewRuntimeService()
     service.sync([demand('a'), demand('b')], 10)

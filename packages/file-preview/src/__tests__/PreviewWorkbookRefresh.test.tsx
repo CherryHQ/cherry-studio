@@ -22,6 +22,7 @@ class WorkbookWorker {
 }
 
 beforeEach(() => {
+  vi.useFakeTimers({ shouldAdvanceTime: true })
   vi.stubGlobal('Worker', WorkbookWorker)
   vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockReturnValue(400)
   vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockReturnValue(500)
@@ -29,8 +30,12 @@ beforeEach(() => {
   vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(500)
 })
 
-afterEach(() => {
+afterEach(async () => {
   cleanup()
+  // Drain the real virtualizer's scroll-end debounce before jsdom is destroyed.
+  await act(() => vi.runOnlyPendingTimersAsync())
+  expect(vi.getTimerCount()).toBe(0)
+  vi.useRealTimers()
   vi.restoreAllMocks()
   vi.unstubAllGlobals()
 })

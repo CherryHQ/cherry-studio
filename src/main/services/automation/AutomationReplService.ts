@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 
 import type { CallToolResult } from '@modelcontextprotocol/server'
 import { Mutex } from 'async-mutex'
+import { LRUCache } from 'lru-cache'
 import * as z from 'zod'
 
 import { application } from '@application'
@@ -11,6 +12,7 @@ import { defineUtilityProcess } from '@main/core/utilityProcess/defineUtilityPro
 import type { UtilityProcessInstance } from '@main/core/utilityProcess/types'
 import type { BrowserControlSession } from '@main/features/browser'
 import type { ComputerUseTask } from '@main/services/ComputerUseService'
+import type { ComputerUseApp } from '@shared/ipc/schemas/computerUse'
 
 import browserDocumentation from '../../../../resources/skills/cherry-browser/references/api.md?raw'
 import computerDocumentation from '../../../../resources/skills/cherry-computer/references/api.md?raw'
@@ -114,6 +116,11 @@ function clearedContext(cell: string, hostCallsStarted = 0): AutomationContext {
 export class AutomationReplService extends BaseService {
   private readonly sessions = new Map<string, ReplSession>()
   private accepting = false
+  private readonly callApps = new LRUCache<string, ComputerUseApp[]>({ max: 256 })
+
+  getCallApps(cell: string): ComputerUseApp[] {
+    return this.callApps.get(cell) ?? []
+  }
 
   protected onInit(): void {
     application.get('UtilityProcessManager').register(definition)
@@ -231,6 +238,8 @@ export class AutomationReplService extends BaseService {
           ])
           executionSignal.throwIfAborted()
           const cell = randomUUID()
+          const apps: ComputerUseApp[] = []
+          this.callApps.set(cell, apps)
           let hostCallsStarted = 0
           const observations = new AutomationOutput()
           let lastEmittedValue: string | undefined
@@ -313,7 +322,10 @@ export class AutomationReplService extends BaseService {
                   .get('ComputerUseService')
                   .createTask(`${owner.kind}:${owner.sessionId}:${owner.ownerId}`, owner.label, signal)
                 computerSession ??= new ComputerAutomationSession(application.get('ComputerUseService'), computer)
-                result = await computerSession.execute(name, args, target, childSignal)
+                result = await computerSession.execute(name, args, target, childSignal, (app) => {
+                  if (!apps.some((entry) => entry.id === app.id))
+                    apps.push({ id: app.id, name: app.name, identity: app.identity })
+                })
               }
               if (mutating) record({ domain, operation, target: boundTarget, status: 'completed' })
               if (!assertActive()[domain]) throw new Error('Automation capability was revoked')
@@ -487,6 +499,7 @@ export class AutomationReplService extends BaseService {
 
   protected async onStop(): Promise<void> {
     this.accepting = false
+    this.callApps.clear()
     const results = await Promise.allSettled([...this.sessions.values()].map((session) => this.close(session.owner)))
     const errors = results.flatMap((result) => (result.status === 'rejected' ? [result.reason] : []))
     if (errors.length) throw new AggregateError(errors, 'Failed to close automation sessions')

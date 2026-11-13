@@ -1,7 +1,7 @@
 import { type ReactNode, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { ReorderableList, Scrollbar, Sortable } from '@cherrystudio/ui'
+import { ReorderableList, ScrollArea, Sortable } from '@cherrystudio/ui'
 import { providerListClasses } from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives'
 import type { Provider } from '@shared/data/types/provider'
 
@@ -220,7 +220,9 @@ export default function ProviderListContent({
   const hasAnyGroup = entries.some((entry) => entry.kind === 'group')
 
   return (
-    <Scrollbar ref={scrollerRef} className={providerListClasses.scroller}>
+    <ScrollArea
+      className="min-h-0 flex-1"
+      viewportProps={{ ref: scrollerRef, className: providerListClasses.scrollViewport }}>
       <div className={providerListClasses.sectionStack}>
         {hasResults ? (
           <section className={providerListClasses.section}>{hasAnyGroup ? renderGrouped() : renderFlat()}</section>
@@ -228,6 +230,6 @@ export default function ProviderListContent({
           <div className={providerListClasses.emptyState}>{t('common.no_results')}</div>
         )}
       </div>
-    </Scrollbar>
+    </ScrollArea>
   )
 }

@@ -330,6 +330,42 @@ describe('AiSdkToAnthropicSse', () => {
   })
 
   describe('Reasoning/Thinking Processing', () => {
+    it('preserves redacted ciphertext in streamed and non-streaming blocks for native replay', async () => {
+      const adapter = new AiSdkToAnthropicSse({ model: 'test:model' })
+      const redacted = { type: 'redacted_thinking' as const, data: 'opaque-native-ciphertext' }
+      const events = await collectEvents(
+        adapter.transform(
+          createMockStream([
+            {
+              type: 'reasoning-start',
+              id: 'redacted',
+              providerMetadata: { anthropic: { redactedData: redacted.data } }
+            },
+            { type: 'reasoning-end', id: 'redacted' },
+            createTextDelta('answer'),
+            createFinish()
+          ])
+        )
+      )
+
+      expect(events.filter((event) => event.type.startsWith('content_block')).slice(0, 2)).toEqual([
+        { type: 'content_block_start', index: 0, content_block: redacted },
+        { type: 'content_block_stop', index: 0 }
+      ])
+      const response = adapter.buildNonStreamingResponse()
+      expect(response.content[0]).toEqual(redacted)
+      const replay = new AnthropicMessageConverter().toUIMessages({
+        model: 'test:model',
+        max_tokens: 1024,
+        messages: [{ role: 'assistant', content: response.content }]
+      })
+      expect(replay[0].parts[0]).toEqual({
+        type: 'reasoning',
+        text: '',
+        providerMetadata: { anthropic: { redactedData: redacted.data } }
+      })
+    })
+
     it('should emit thinking block for reasoning events', async () => {
       const adapter = new AiSdkToAnthropicSse({ model: 'test:model' })
 

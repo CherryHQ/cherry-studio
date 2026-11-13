@@ -37,7 +37,11 @@ export function getFileProcessorConfigById(processorId: FileProcessorId): FilePr
       return {
         ...capability,
         ...(capabilityOverride?.apiHost !== undefined ? { apiHost: capabilityOverride.apiHost } : {}),
-        ...(capabilityOverride?.modelId !== undefined ? { modelId: capabilityOverride.modelId } : {})
+        ...(capabilityOverride?.modelId !== undefined ? { modelId: capabilityOverride.modelId } : {}),
+        ...(capabilityOverride?.formulaLevel !== undefined ? { formulaLevel: capabilityOverride.formulaLevel } : {}),
+        ...(capabilityOverride?.mergeCrossPageForms !== undefined
+          ? { mergeCrossPageForms: capabilityOverride.mergeCrossPageForms }
+          : {})
       }
     }),
     apiKeys: override?.apiKeys,

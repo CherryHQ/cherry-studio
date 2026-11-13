@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/proposed/feature/2026-10-11-agent-runtime-goal.md
+2026-10-11-agent-runtime-goal.md: 10624b3f8753a95d32a600550cc46ff5f744ecdf
+2026-10-11-agent-runtime-goal.zh.md: 93e8647aa8f01cfd6c2ea335f541ff0ce235c1b3

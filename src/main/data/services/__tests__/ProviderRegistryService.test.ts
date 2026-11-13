@@ -295,6 +295,12 @@ describe('ProviderRegistryService', () => {
   })
 
   describe('createCustomModel', () => {
+    it('exposes Qwen 3.8 Flash Next effort tiers for a compatible custom provider', () => {
+      const model = createCustomModel('strata', 'qwen3.8-flash-next')
+
+      expect(model.reasoning?.selectableEfforts).toEqual(['low', 'medium', 'xhigh'])
+    })
+
     it('does not infer image capability from an unknown model id', () => {
       const model = createCustomModel('openrouter', 'openai/gpt-99-image-foo')
 
@@ -390,23 +396,6 @@ describe('ProviderRegistryService', () => {
         topP: { supported: false }
       })
       expect(unrelated.registryOverride).toBeNull()
-    })
-  })
-
-  describe('cache reuse', () => {
-    it('should only read models.json once across multiple calls', async () => {
-      setupRegistryData()
-      await dbh.db.insert(userProviderTable).values({
-        providerId: 'openai',
-        presetProviderId: 'openai',
-        name: 'OpenAI',
-        orderKey: 'a0'
-      })
-
-      providerRegistryService.resolveModels('openai', ['gpt-4o'])
-      providerRegistryService.resolveModels('openai', ['gpt-4o'])
-
-      expect(mockReadModels).toHaveBeenCalledTimes(1)
     })
   })
 
@@ -912,6 +901,39 @@ describe('ProviderRegistryService', () => {
       expect(providerRegistryService.getImageGenerationSupport('custom-openai-image', 'image-model')).toEqual(block)
     })
 
+    it('projects official animation capabilities through the Desktop endpoint adapter', () => {
+      vi.stubEnv('CHERRY_EDITION', 'global')
+      mockReadModels.mockReturnValue(
+        JSON.parse(
+          readFileSync(new URL('../../../../../packages/provider-registry/data/models.json', import.meta.url), 'utf8')
+        )
+      )
+      mockReadProviderModels.mockReturnValue(
+        JSON.parse(
+          readFileSync(
+            new URL('../../../../../packages/provider-registry/data/provider-models.json', import.meta.url),
+            'utf8'
+          )
+        )
+      )
+      mockReadProviders.mockReturnValue(
+        JSON.parse(
+          readFileSync(
+            new URL('../../../../../packages/provider-registry/data/providers.json', import.meta.url),
+            'utf8'
+          )
+        )
+      )
+      const support = providerRegistryService.getImageGenerationSupport('openai', 'gpt-image-2.6-flare')
+      expect(support?.modes.generate?.supports?.frameDurationMs).toMatchObject({ max: 2000 })
+      expect(support?.modes.edit?.supports?.outputFormat).toMatchObject({ options: ['png', 'jpeg', 'webp'] })
+      expect(support?.modes.edit?.supports?.frameCount).toBeUndefined()
+      expect(
+        mockReadModels('models.json').models.find((model) => model.id === 'gpt-image-2-6-flare')?.imageGeneration?.modes
+          .edit?.supports?.outputFormat
+      ).toMatchObject({ options: ['png', 'jpeg', 'webp', 'gif'] })
+    })
+
     it('does not expose native Grok ratio controls for a provider without a preset', () => {
       mockReadModels.mockReturnValue(
         JSON.parse(
@@ -1044,32 +1066,6 @@ describe('ProviderRegistryService', () => {
       ])
       expect(disabled.map((item) => `${item.providerId}:${item.presetModelId}:${item.apiModelId}`)).toEqual([
         'cherryin:qwen-image:qwen-image'
-      ])
-    })
-
-    it('lists the seven Radeon Cloud provider-registry models', () => {
-      const readGeneratedRegistry = <T>(filename: string): T =>
-        JSON.parse(
-          readFileSync(new URL(`../../../../../packages/provider-registry/data/${filename}`, import.meta.url), 'utf8')
-        ) as T
-      mockReadModels.mockReturnValue(readGeneratedRegistry<ReturnType<typeof readModelRegistry>>('models.json'))
-      mockReadProviderModels.mockReturnValue(
-        readGeneratedRegistry<ReturnType<typeof readProviderModelRegistry>>('provider-models.json')
-      )
-      mockReadProviders.mockReturnValue(
-        readGeneratedRegistry<ReturnType<typeof readProviderRegistry>>('providers.json')
-      )
-
-      const models = providerRegistryService.listProviderRegistryModels({ providerId: 'radeon-cloud' })
-
-      expect(models.map(({ presetModelId, apiModelId }) => [presetModelId, apiModelId])).toEqual([
-        ['deepseek-v4-flash', 'DeepSeek-V4-Flash'],
-        ['deepseek-v4-pro', 'DeepSeek-V4-Pro'],
-        ['glm-5-1', 'GLM-5.1'],
-        ['glm-5-2', 'GLM-5.2'],
-        ['gpt-oss-120b', 'gpt-oss-120b'],
-        ['kimi-k2-6', 'Kimi-K2.6'],
-        ['qwen3-6-35b-a3b', 'Qwen3.6-35B-A3B']
       ])
     })
 

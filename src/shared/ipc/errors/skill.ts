@@ -1,5 +1,8 @@
 /** Skill-domain IpcApi error codes. Import directly from this module on both sides. */
 export const skillErrorCodes = {
+  SUBSCRIPTION_INVALID: 'SKILL_SUBSCRIPTION_INVALID',
+  SUBSCRIPTION_EMPTY: 'SKILL_SUBSCRIPTION_EMPTY',
+  SUBSCRIPTION_REMOVED: 'SKILL_SUBSCRIPTION_REMOVED',
   /** The installed Skill is not backed by a supported, exact remote source. */
   REMOTE_UNSUPPORTED: 'SKILL_REMOTE_UNSUPPORTED',
   /** The checked remote/local revision no longer matches the apply request. */

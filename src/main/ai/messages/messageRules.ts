@@ -68,7 +68,7 @@ export function coalesceConsecutiveSameRole(messages: ModelMessage[]): ModelMess
   const out: ModelMessage[] = []
   for (const message of messages) {
     const prev = out.at(-1)
-    if (!prev || prev.role !== message.role) {
+    if (!prev || prev.role !== message.role || prev.providerOptions || message.providerOptions) {
       out.push(message)
       continue
     }
@@ -291,6 +291,35 @@ export function attributeUserDenialReasons<T extends UIMessage>(messages: T[]): 
 }
 
 /**
+ * Reasoning edited in the renderer keeps a `cherry.editedReasoningReplay`
+ * marker instead of its provider signature. Signed reasoning cannot be replayed
+ * natively after the text changed (the signature covers the original text), so
+ * the marker is rendered into a plain `<think>` text part; the model still sees
+ * the corrected thought without an invalid signature. Unsigned reasoning has no
+ * marker and keeps its native replay.
+ */
+export function renderEditedReasoningAsThinkText<T extends UIMessage>(messages: T[]): T[] {
+  let out: T[] | undefined
+  messages.forEach((message, messageIndex) => {
+    if (message.role !== 'assistant') return
+    let parts: T['parts'] | undefined
+    message.parts.forEach((part, partIndex) => {
+      if (part.type !== 'reasoning') return
+      const marker = (part as { providerMetadata?: { cherry?: { editedReasoningReplay?: unknown } } }).providerMetadata
+        ?.cherry?.editedReasoningReplay
+      if (marker !== 'think') return
+      parts ??= [...message.parts]
+      parts[partIndex] = { type: 'text', text: `<think>\n${part.text}\n</think>` }
+    })
+    if (parts) {
+      out ??= [...messages]
+      out[messageIndex] = { ...message, parts }
+    }
+  })
+  return out ?? messages
+}
+
+/**
  * The message-shaping pipeline `Agent.stream` runs on its conversion input
  * (`originalMessages` stays un-shaped upstream, so none of this leaks to the UI):
  *
@@ -299,6 +328,7 @@ export function attributeUserDenialReasons<T extends UIMessage>(messages: T[]): 
  * strip media the model can't accept → drop tool
  * calls parked on an unanswered approval → drop tool parts with non-object replay inputs →
  * restore inferable legacy step boundaries →
+ * rewrite renderer-edited signed reasoning as `<think>` text →
  * convert, dropping incomplete tool calls that would otherwise dangle without a result →
  * gate media inside tool-result outputs by `toolResultCaps` (wire-aware, see
  * `resolveToolResultMediaCapabilities`; defaults to `caps`) → merge adjacent same-role turns
@@ -316,7 +346,21 @@ export async function toModelMessages(
       dropNonObjectToolInputs(dropUnansweredApprovals(stripUnsupportedMedia(rendered, caps ?? ALL_MEDIA)))
     )
   )
-  const model = await convertToModelMessages(shaped, { ignoreIncompleteToolCalls: true, tools })
+  // Anthropic serializes signed reasoning even when blank, which Bedrock rejects.
+  // Redacted thinking has redactedData instead of a signature and must survive.
+  const replayable = shaped.map((message) => {
+    const parts = message.parts.filter(
+      (part) =>
+        part.type !== 'reasoning' ||
+        part.text.trim().length > 0 ||
+        typeof part.providerMetadata?.anthropic?.signature !== 'string'
+    )
+    return parts.length === message.parts.length ? message : { ...message, parts }
+  })
+  const model = await convertToModelMessages(renderEditedReasoningAsThinkText(replayable), {
+    ignoreIncompleteToolCalls: true,
+    tools
+  })
   const gated = routeToolResultMedia(model, caps ?? ALL_MEDIA, toolResultCaps ?? caps ?? ALL_MEDIA)
   return ensureNonEmptyAssistantContent(coalesceConsecutiveSameRole(gated))
 }

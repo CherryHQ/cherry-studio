@@ -36,7 +36,7 @@ export function extractHtmlTitle(html: string): string {
   if (!html) return ''
 
   // 处理标准闭合的标题标签
-  const titleRegex = /<title>(.*?)<\/title>/i
+  const titleRegex = /<title>(.*?)<\/title>/is
   const match = html.match(titleRegex)
 
   if (match) {
@@ -44,7 +44,7 @@ export function extractHtmlTitle(html: string): string {
   }
 
   // 处理未闭合的标题标签
-  const malformedTitleRegex = /<title>(.*?)($|<(?!\/title))/i
+  const malformedTitleRegex = /<title>(.*?)($|<(?!\/title))/is
   const malformedMatch = html.match(malformedTitleRegex)
 
   if (malformedMatch) {

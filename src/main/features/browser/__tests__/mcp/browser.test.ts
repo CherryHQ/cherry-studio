@@ -325,8 +325,10 @@ describe('MCP browser on shared sessions', () => {
     const result = await (kind === 'console' ? handleConsoleMessages : handleNetworkRequests)(c, { tabId })
     const data = JSON.parse((result.content as Array<{ text: string }>)[0].text)
     expect(data, JSON.stringify(data)).toMatchObject({ ok: true })
-    if (kind === 'console') expect(data.messages).toContainEqual(expect.objectContaining({ text: 'Fresh page output' }))
-    else expect(data.requests).toContainEqual(expect.objectContaining({ url: 'https://example.com/data' }))
+    if (kind === 'console') {
+      expect(data.messages).toContainEqual(expect.objectContaining({ text: 'Fresh page output' }))
+      expect(data.recordingStarted).toBe(true)
+    } else expect(data.requests).toContainEqual(expect.objectContaining({ url: 'https://example.com/data' }))
   })
 
   it.each([false, true])(

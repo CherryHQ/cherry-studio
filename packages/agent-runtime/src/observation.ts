@@ -50,16 +50,17 @@ export class ThreadFeed {
           ]
         }
         break
+      case 'context.changed':
+        if (JSON.stringify(this.value.contextUsage) === JSON.stringify(next.result)) return
+        this.value = { ...this.value, contextUsage: next.result }
+        break
       case 'activity.changed':
         this.value = { ...this.value, activity: next.activity }
         break
-      case 'delegation.upsert':
+      case 'subagent.upsert':
         this.value = {
           ...this.value,
-          delegations: [
-            ...(this.value.delegations ?? []).filter((item) => item.ref.id !== next.delegation.ref.id),
-            next.delegation
-          ]
+          subagents: [...(this.value.subagents ?? []).filter((item) => item.id !== next.subagent.id), next.subagent]
         }
         break
     }
@@ -67,11 +68,37 @@ export class ThreadFeed {
   }
 
   observe(sink: ObservationSink): Observation {
+    return this.observeCaptured(sink, (event) => ({ value: event }))
+  }
+
+  /**
+   * Capture cloneable adapter metadata synchronously on publication without mutating the supplied facts.
+   * The feed copies each captured value before asynchronous delivery can advance past it.
+   */
+  observeCaptured<T>(
+    sink: (value: T) => void | Promise<void>,
+    capture: (event: ObservationPayload, delivery: 'baseline' | 'update' | 'recovery') => { value: T; retain?: boolean }
+  ): Observation {
     if (this.ended) throw new Error('Observation source is closed')
     let stopped = false
     let running = false
     let started = false
-    let pending: ObservationPayload[] = [this.snapshot]
+    let sent = 1
+    let delivered = 0
+    let lost = false
+    type Delivery = { value: T; through: number; shouldClose: boolean; recovery?: T }
+    const captureFrame = (event: ObservationPayload, delivery: Parameters<typeof capture>[1]) =>
+      structuredClone(capture(event, delivery))
+    let pending: Delivery[] = [{ value: captureFrame(this.value, 'baseline').value, through: sent, shouldClose: false }]
+    const barriers = new Set<{ through: number; resolve(): void; reject(error: Error): void }>()
+    const settle = () => {
+      for (const barrier of barriers) {
+        if (delivered < barrier.through && !stopped) continue
+        barriers.delete(barrier)
+        if (delivered >= barrier.through) barrier.resolve()
+        else barrier.reject(new Error('Observation stopped before delivery drained'))
+      }
+    }
     const report = (error: unknown) => {
       try {
         this.report(error)
@@ -83,6 +110,7 @@ export class ThreadFeed {
       stopped = true
       pending = []
       this.observers.delete(observer)
+      settle()
     }
     const schedule = () => {
       if (running || stopped) return
@@ -91,9 +119,11 @@ export class ThreadFeed {
         try {
           while (!stopped && pending.length) {
             started = true
-            const event = pending.shift()!
-            await sink(event)
-            if (event.type === 'closed') stop()
+            const { value, through, shouldClose } = pending.shift()!
+            await sink(value)
+            delivered = Math.max(delivered, through)
+            settle()
+            if (shouldClose) stop()
           }
         } catch (error) {
           stop()
@@ -105,22 +135,62 @@ export class ThreadFeed {
     }
     const observer = {
       send: (event: ObservationPayload) => {
-        if (stopped) return
-        pending.push(structuredClone(event))
-        if (pending.length > 100)
+        if (stopped || lost) return
+        const captured = captureFrame(event, 'update')
+        const next: Delivery = {
+          value: captured.value,
+          through: ++sent,
+          shouldClose: event.type === 'closed',
+          ...(captured.retain && { recovery: captureFrame(this.value, 'recovery').value })
+        }
+        pending.push(next)
+        if (pending.length > 100) {
+          const retained = pending
+            .filter((item) => item.recovery !== undefined)
+            .map((item) => ({ ...item, value: item.recovery! }))
+          const gap: ObservationPayload = { type: 'gap', reason: 'overflow' }
+          const snapshot = this.value
+          if (retained.length > 1000) {
+            lost = true
+            const closed: ObservationPayload = { type: 'closed', reason: 'source-lost' }
+            pending = [
+              { value: captureFrame(gap, 'update').value, through: delivered, shouldClose: false },
+              { value: captureFrame(closed, 'update').value, through: sent, shouldClose: true }
+            ]
+            report(new Error('Observation exceeded recoverable delivery backlog'))
+            schedule()
+            return
+          }
           pending = [
             ...(started ? [] : [pending[0]]),
-            { type: 'gap', reason: 'overflow' },
-            this.snapshot,
-            ...(event.type === 'closed' ? [event] : [])
+            { value: captureFrame(gap, 'update').value, through: delivered, shouldClose: false },
+            ...retained,
+            ...(retained.at(-1)?.through === sent
+              ? []
+              : [
+                  {
+                    value: captureFrame(snapshot, 'recovery').value,
+                    through: next.shouldClose ? sent - 1 : sent,
+                    shouldClose: false
+                  }
+                ]),
+            ...(next.shouldClose ? [next] : [])
           ]
+        }
         schedule()
       },
       stop
     }
     this.observers.add(observer)
     schedule()
-    return { stop: async () => stop() }
+    return {
+      drain: () =>
+        new Promise<void>((resolve, reject) => {
+          barriers.add({ through: sent, resolve, reject })
+          settle()
+        }),
+      stop: async () => stop()
+    }
   }
 
   close(reason: 'shutdown' | 'source-lost'): void {

@@ -55,6 +55,7 @@ export function ResourceCatalogView({
   })
   const hasActiveDialog = Boolean(
     dialogs.assistantImportOpen ||
+    (resourceType === 'assistant' && dialogs.assistantExportOpen) ||
     (resourceType === 'assistant' && dialogs.assistantLibraryOpen) ||
     dialogs.skillImportOpen ||
     dialogs.skillMarketplaceOpen ||

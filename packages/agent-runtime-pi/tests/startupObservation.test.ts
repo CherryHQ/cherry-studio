@@ -9,6 +9,7 @@ import { expect, it, onTestFinished } from 'vitest'
 import { runtimeId, type ObservationPayload, type OperationResult } from '@cherrystudio/agent-runtime'
 
 import { createPiRuntime } from '../src'
+import { createTestBehavior } from './sessionSupport'
 
 function confirmed<T>(result: OperationResult<T>): T {
   expect(result.status).toBe('confirmed')
@@ -64,6 +65,7 @@ it.each(['create', 'open'] as const)('observes startup output before completion 
   }
   const manager = SessionManager.inMemory(cwd)
   const options = {
+    behavior: createTestBehavior(),
     cwd,
     agentDir: cwd,
     modelRuntime,

@@ -26,7 +26,7 @@ export interface UserDataRelocationWindow {
 
 interface OpenRelocationWindowOptions {
   getProgress(): RelocationProgress | null
-  onRestart(): void
+  onRestart(): boolean | Promise<boolean>
 }
 
 /**
@@ -57,11 +57,18 @@ export function openUserDataRelocationWindow(options: OpenRelocationWindowOption
     window = null
   }
 
-  const requestRestart = () => {
+  const requestRestart = async () => {
     if (restartRequested) return
-    options.onRestart()
     restartRequested = true
-    close()
+    try {
+      if (await options.onRestart()) close()
+    } finally {
+      restartRequested = false
+    }
+  }
+
+  const restartAfterWindowEvent = () => {
+    void requestRestart().catch((error) => logger.error('Could not restart after relocation', { error }))
   }
 
   const handleGuarded = (channel: string, handler: () => unknown) => {
@@ -105,18 +112,18 @@ export function openUserDataRelocationWindow(options: OpenRelocationWindowOption
       return
     }
     event.preventDefault()
-    requestRestart()
+    restartAfterWindowEvent()
   })
 
   window.webContents.on('render-process-gone', (_event, details) => {
     unavailable = true
     logger.error('Relocation renderer process exited', { reason: details.reason, stage })
-    if (!CRITICAL_STAGES.has(stage)) requestRestart()
+    if (!CRITICAL_STAGES.has(stage)) restartAfterWindowEvent()
   })
   window.webContents.on('unresponsive', () => {
     unavailable = true
     logger.error('Relocation renderer became unresponsive', { stage })
-    if (!CRITICAL_STAGES.has(stage)) requestRestart()
+    if (!CRITICAL_STAGES.has(stage)) restartAfterWindowEvent()
   })
 
   const readyPromise = new Promise<void>((resolve) => {

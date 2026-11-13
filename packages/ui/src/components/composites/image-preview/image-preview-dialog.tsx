@@ -114,8 +114,9 @@ export function ImagePreviewDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         aria-describedby={undefined}
+        motion="fade-scale"
         className={cn(
-          'fixed top-0 left-0 z-[80] h-screen w-screen max-w-none translate-x-0 translate-y-0 overflow-hidden rounded-none border-0 bg-transparent p-0 shadow-none data-[state=closed]:animate-none data-[state=open]:animate-none sm:max-w-none',
+          'fixed top-0 left-0 z-[80] h-screen w-screen max-w-none translate-x-0 translate-y-0 overflow-hidden rounded-none border-0 bg-transparent p-0 shadow-none sm:max-w-none',
           className
         )}
         data-testid="image-preview-dialog"
@@ -132,10 +133,7 @@ export function ImagePreviewDialog({
             showNext()
           }
         }}
-        overlayClassName={cn(
-          'bg-black/70 data-[state=closed]:animate-none data-[state=open]:animate-none',
-          overlayClassName
-        )}
+        overlayClassName={cn('bg-black/70', overlayClassName)}
         showCloseButton={false}>
         <div className="relative h-full w-full">
           <DialogTitle className="sr-only">{mergedLabels.dialogTitle ?? mergedLabels.close}</DialogTitle>

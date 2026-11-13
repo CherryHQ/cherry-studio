@@ -4,9 +4,12 @@ import { join, resolve } from 'node:path'
 import { probeCapabilities } from './capabilities'
 import { PHASE_IDS, TASK_SELECTIONS } from './cases'
 import { getSensitiveConfigValues, loadTestConfig, REQUIRED_CONFIG } from './config'
+import { cleanupExternalResources } from './externalResources'
 import { createFixtures } from './fixtureFiles'
 import { prepareRelease } from './installation'
 import { launchApp, stopOwnedApp } from './lifecycle'
+import { prepareMacRuntime } from './macRuntime'
+import { assertMockTask, startMockProvider, stopMockProvider, verifyMockProvider } from './mockProvider'
 import { ensureRunDirectories, getRunPaths } from './paths'
 import { runPhase } from './phases'
 import { createRedactor } from './redaction'
@@ -14,6 +17,7 @@ import { resolveRepositoryRef } from './ref'
 import { aggregateRuns, renderAggregateMarkdown, writeReports } from './report'
 import { createRun, finalizeRun, getRunVerdict, readRun, setCapabilities, updateRunMetadata, writeRun } from './state'
 import { PLATFORMS, RUN_MODES } from './types'
+import { cleanupWindowsNotificationShortcut } from './windowsNotificationShortcut'
 
 function argument(name: string, required = true): string | undefined {
   const index = process.argv.indexOf(`--${name}`)
@@ -84,6 +88,8 @@ async function initializeCommand(): Promise<void> {
   const mode = oneOf(argument('mode') ?? '', RUN_MODES, 'mode')
   const platform = oneOf(argument('platform') ?? '', PLATFORMS, 'platform')
   const task = oneOf(argument('task', false) ?? 'all', TASK_SELECTIONS, 'task')
+  const providerMode = oneOf(argument('provider-mode', false) ?? 'real', ['real', 'mock'] as const, 'provider mode')
+  if (providerMode === 'mock') assertMockTask(task)
   const ref = argument('ref') ?? ''
   const sha = argument('sha') ?? ''
   const runner = argument('runner') ?? ''
@@ -95,7 +101,8 @@ async function initializeCommand(): Promise<void> {
     platform,
     ref,
     runner,
-    task
+    task,
+    providerMode
   })
   await createFixtures(paths)
   run = setCapabilities(run, probeCapabilities(platform, paths))
@@ -104,7 +111,12 @@ async function initializeCommand(): Promise<void> {
 
 async function preflightCommand(): Promise<void> {
   const task = oneOf(argument('task', false) ?? 'all', TASK_SELECTIONS, 'task')
-  if (task === 'chat-stream-failure') return
+  const directory = argument('run-dir', false)
+  if (directory && readRun(getRunPaths(directory).runState).metadata.providerMode === 'mock') {
+    assertMockTask(task)
+    await verifyMockProvider(getRunPaths(directory))
+  }
+  if (task === 'chat-stream-failure' || task === 'translation-settings') return
   loadTestConfig()
   const redacted = createRedactor(getSensitiveConfigValues())
   process.stdout.write(`${JSON.stringify(redacted({ configured: REQUIRED_CONFIG }), null, 2)}\n`)
@@ -154,7 +166,7 @@ async function gateCommand(): Promise<void> {
   const paths = runDirectory()
   const verdict = getRunVerdict(readRun(paths.runState))
   process.stdout.write(`Cherry regression verdict: ${verdict}\n`)
-  if (!verdict.endsWith('_pass')) process.exitCode = 1
+  if (!verdict.endsWith('_pass') && !verdict.endsWith('_not_applicable')) process.exitCode = 1
 }
 
 async function aggregateCommand(): Promise<void> {
@@ -162,9 +174,13 @@ async function aggregateCommand(): Promise<void> {
   const output = resolve(argument('output') ?? '')
   const modeValue = argument('mode', false)
   const expectedMode = modeValue ? oneOf(modeValue, RUN_MODES, 'mode') : undefined
+  const providerModeValue = argument('provider-mode', false)
+  const expectedProviderMode = providerModeValue
+    ? oneOf(providerModeValue, ['real', 'mock'] as const, 'provider mode')
+    : undefined
   const resultFiles = findFiles(input, 'results.json')
   const runs = resultFiles.map(readRun)
-  const report = aggregateRuns(runs, expectedMode)
+  const report = aggregateRuns(runs, expectedMode, expectedProviderMode)
   mkdirSync(output, { recursive: true })
   const markdown = renderAggregateMarkdown(report)
   writeFileSync(join(output, 'combined-results.json'), `${JSON.stringify(report, null, 2)}\n`)
@@ -178,7 +194,7 @@ async function aggregateGateCommand(): Promise<void> {
   const report = JSON.parse(readFileSync(reportPath, 'utf8')) as {
     verdict: string
   }
-  if (!report.verdict.endsWith('_pass')) {
+  if (!report.verdict.endsWith('_pass') && !report.verdict.endsWith('_not_applicable')) {
     process.stderr.write(`Cherry aggregate regression failed: ${report.verdict}\n`)
     process.exitCode = 1
   }
@@ -186,12 +202,40 @@ async function aggregateGateCommand(): Promise<void> {
 
 async function cleanupCommand(): Promise<void> {
   const paths = runDirectory()
-  await stopOwnedApp(paths)
+  const errors: unknown[] = []
+  for (const cleanup of [
+    () => stopOwnedApp(paths),
+    () => stopMockProvider(paths),
+    () => cleanupExternalResources(paths),
+    () => cleanupWindowsNotificationShortcut(paths)
+  ]) {
+    try {
+      await Promise.resolve(cleanup())
+    } catch (error) {
+      errors.push(error)
+    }
+  }
+  if (errors.length) throw new AggregateError(errors, `Regression cleanup failed: ${errors.map(String).join('; ')}`)
+}
+
+async function mockStartCommand(): Promise<void> {
+  const record = await startMockProvider(runDirectory())
+  outputLine('base_url', `http://127.0.0.1:${record.port}/v1`)
+  outputLine('anthropic_base_url', `http://127.0.0.1:${record.port}`)
+  outputLine('api_key', 'mock-key-not-checked')
+  outputLine('chat_model', 'mock-chat')
+  outputLine('embedding_model', 'mock-embedding')
 }
 
 async function main(): Promise<void> {
   const command = process.argv[2]
   switch (command) {
+    case 'mock-start':
+      await mockStartCommand()
+      break
+    case 'mock-stop':
+      await stopMockProvider(runDirectory())
+      break
     case 'resolve-ref':
       await resolveRefCommand()
       break
@@ -203,6 +247,9 @@ async function main(): Promise<void> {
       break
     case 'release':
       await releaseCommand()
+      break
+    case 'prepare-mac-runtime':
+      await prepareMacRuntime(runDirectory(), resolve(argument('target-root') ?? ''))
       break
     case 'launch':
       await launchCommand()

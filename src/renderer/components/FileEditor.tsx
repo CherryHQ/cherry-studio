@@ -128,6 +128,8 @@ export default function FileEditor({
   const [messageFontSize] = usePreference('chat.message.font_size')
   const [showLineNumbers] = usePreference('chat.code.show_line_numbers')
   const fontSize = messageFontSize - 1
+  // Pierre places the caret at a row's integer offsetTop, so fractional rows leave it poking past the line highlight.
+  const lineHeight = Math.round(fontSize * 1.6)
   const { activeCodeTheme: theme, isCodeThemeDark } = useCodeStyle()
   const runtimeOptions = useMemo(() => ({ ...highlighterOptions, theme }), [theme])
   const editable = !readOnly && onChange !== undefined
@@ -299,12 +301,12 @@ export default function FileEditor({
           {
             '--diffs-font-family': 'var(--code-font-family)',
             '--diffs-font-size': `${fontSize}px`,
-            '--diffs-line-height': `${fontSize * 1.6}px`,
+            '--diffs-line-height': `${lineHeight}px`,
             '--diffs-tab-size': tabSize
           } as CSSProperties
         }
       />
-      {scrollPastEnd && !expanded ? <div aria-hidden style={{ height: `calc(100% - ${fontSize * 1.6}px)` }} /> : null}
+      {scrollPastEnd && !expanded ? <div aria-hidden style={{ height: `calc(100% - ${lineHeight}px)` }} /> : null}
     </div>
   )
 

@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-02-responses-tool-strict-default.md
+2026-11-02-responses-tool-strict-default.md: e7e55580a0996de02f335c10d63e4b1aa3ac4373
+2026-11-02-responses-tool-strict-default.zh.md: a5f440a3ba61eb526d9b7f57199dfff4c8f593bb

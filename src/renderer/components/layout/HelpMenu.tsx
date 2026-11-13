@@ -47,9 +47,7 @@ export function HelpMenu({
   const openDocs = () => {
     const language = i18n.resolvedLanguage ?? i18n.language
     const url =
-      language === 'zh-CN' || language === 'zh-TW'
-        ? 'https://docs.cherryai.com.cn/'
-        : 'https://docs.cherryai.com.cn/docs/en-us'
+      language === 'zh-CN' || language === 'zh-TW' ? 'https://cherryai.com.cn/docs' : 'https://cherryai.com/docs'
     openSmartMiniApp({
       appId: 'cherrystudio-guide',
       name: t('help.guide'),

@@ -3,7 +3,7 @@ import type { CSSProperties, KeyboardEvent, ReactNode } from 'react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button, Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
+import { Button, Popover, PopoverContent, PopoverTrigger, ScrollArea } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { getNodeText } from '@renderer/utils/reactNodeText'
 
@@ -16,6 +16,7 @@ interface SelectorOption<V = string | number> {
 }
 
 interface BaseSelectorProps<V = string | number> {
+  'aria-label'?: string
   options: SelectorOption<V>[]
   placeholder?: string
   placement?: 'topLeft' | 'topCenter' | 'topRight' | 'bottomLeft' | 'bottomCenter' | 'bottomRight' | 'top' | 'bottom'
@@ -60,6 +61,7 @@ const placementMap: Record<
 const isSameValue = <V extends string | number>(left: V, right: V) => left === right || String(left) === String(right)
 
 const Selector = <V extends string | number>({
+  'aria-label': ariaLabel,
   options,
   value,
   onChange,
@@ -177,7 +179,7 @@ const Selector = <V extends string | number>({
           variant="secondary"
           size="sm"
           role="combobox"
-          aria-label={accessibleLabel || undefined}
+          aria-label={ariaLabel || accessibleLabel || undefined}
           aria-expanded={open && !disabled}
           aria-disabled={disabled || undefined}
           tabIndex={disabled ? -1 : 0}
@@ -196,10 +198,13 @@ const Selector = <V extends string | number>({
       <PopoverContent
         align={popoverPlacement.align}
         side={popoverPlacement.side}
-        className="max-h-80 w-auto min-w-(--radix-popover-trigger-width) overflow-y-auto p-1">
-        <div role="listbox" aria-multiselectable={multiple || undefined}>
+        className="w-auto min-w-(--radix-popover-trigger-width) p-1">
+        <ScrollArea
+          type="auto"
+          className="max-h-[min(20rem,calc(var(--radix-popover-content-available-height)-0.5rem))]"
+          viewportProps={{ role: 'listbox', 'aria-multiselectable': multiple || undefined }}>
           {renderOptions(options)}
-        </div>
+        </ScrollArea>
       </PopoverContent>
     </Popover>
   )

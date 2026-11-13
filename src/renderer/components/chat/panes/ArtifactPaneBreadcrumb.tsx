@@ -26,6 +26,7 @@ interface ArtifactPaneBreadcrumbProps {
   onLoadFolder: (id: string) => void
   /** Right-click menu of the file segment (or the whole breadcrumb outside the workspace). */
   fileMenuItems: readonly CommandContextMenuExtraItem[]
+  getFileMenuItems: () => MaybePromise<readonly CommandContextMenuExtraItem[]>
   /** Right-click menu of a folder segment. */
   getFolderMenuItems: (id: string) => MaybePromise<readonly CommandContextMenuExtraItem[]>
 }
@@ -39,6 +40,7 @@ export function ArtifactPaneBreadcrumb({
   onOpenFile,
   onLoadFolder,
   fileMenuItems,
+  getFileMenuItems,
   getFolderMenuItems
 }: ArtifactPaneBreadcrumbProps) {
   const [openIndex, setOpenIndex] = useState<number | null>(null)
@@ -46,7 +48,10 @@ export function ArtifactPaneBreadcrumb({
     return (
       <Breadcrumb className="min-w-0" title={fullPath}>
         <BreadcrumbList className="flex-nowrap">
-          <CommandContextMenu location="webcontents.context" extraItems={fileMenuItems}>
+          <CommandContextMenu
+            location="webcontents.context"
+            pendingExtraItems={fileMenuItems}
+            getExtraItems={getFileMenuItems}>
             <BreadcrumbItem className="min-w-0">
               <BreadcrumbPage className="truncate px-1">{fallbackTitle}</BreadcrumbPage>
             </BreadcrumbItem>
@@ -76,7 +81,7 @@ export function ArtifactPaneBreadcrumb({
                   <CommandContextMenu
                     location="webcontents.context"
                     {...(isLast
-                      ? { extraItems: fileMenuItems }
+                      ? { pendingExtraItems: fileMenuItems, getExtraItems: getFileMenuItems }
                       : { getExtraItems: () => getFolderMenuItems(segments.slice(0, index + 1).join('/')) })}>
                     <PopoverTrigger asChild>
                       <button

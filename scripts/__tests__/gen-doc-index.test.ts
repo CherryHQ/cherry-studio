@@ -9,12 +9,12 @@ import { generateIndex } from '../docsGovernance/gen-doc-index'
 
 const scaffold = (root: string): void => {
   for (const dir of ['contrib', 'i18n', 'references']) {
-    fs.mkdirSync(path.join(root, 'docs', dir), { recursive: true })
+    fs.mkdirSync(path.join(root, 'docs', 'dev', dir), { recursive: true })
   }
 }
 
 const writeContribDoc = (root: string, name: string, content: string): void => {
-  fs.writeFileSync(path.join(root, 'docs', 'contrib', name), content)
+  fs.writeFileSync(path.join(root, 'docs', 'dev', 'contrib', name), content)
 }
 
 const withTempRoot = (run: (root: string) => void): void => {

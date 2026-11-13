@@ -112,7 +112,9 @@ describe('inference entry offline embedding', () => {
 
     const failure = await failureOf(embedding.embed({ modelDir, dtype: 'q8', texts: ['hello world'] }))
 
-    expect(failure).toContain(path.join(modelDir, 'onnx', 'model_quantized.onnx'))
+    expect(failure.replaceAll('\\', '/')).toContain(
+      path.join(modelDir, 'onnx', 'model_quantized.onnx').replaceAll('\\', '/')
+    )
     expect(failure).not.toContain(NETWORK_TRIPWIRE)
     expect(logs.join('\n')).not.toContain(NETWORK_TRIPWIRE)
   })
@@ -134,7 +136,9 @@ describe('inference entry offline embedding', () => {
 
     const failure = await failureOf(embedding.countTokens({ modelDir, dtype: 'q8', texts: ['hello'] }))
 
-    expect(failure).toContain(path.join(modelDir, 'onnx', 'model_quantized.onnx'))
+    expect(failure.replaceAll('\\', '/')).toContain(
+      path.join(modelDir, 'onnx', 'model_quantized.onnx').replaceAll('\\', '/')
+    )
     expect(failure).not.toContain(NETWORK_TRIPWIRE)
     expect(logs.join('\n')).not.toContain(NETWORK_TRIPWIRE)
   })

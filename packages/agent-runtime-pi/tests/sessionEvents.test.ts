@@ -1,9 +1,9 @@
 import { SessionManager } from '@earendil-works/pi-coding-agent'
-import { expect, it } from 'vitest'
+import { describe, expect, it } from 'vitest'
 
 import { type AgentRuntimeEvent, SessionEvents } from '../src/sessionEvents'
 
-it('retains the committed compaction identity across intermediate entry flushes and resets it per attempt', () => {
+it('delivers committed compaction entries before completion and preserves a later failure', () => {
   const manager = SessionManager.inMemory('/tmp/runtime-events')
   const events: AgentRuntimeEvent[] = []
   const observer = new SessionEvents(manager, (event) => events.push(event))
@@ -29,8 +29,24 @@ it('retains the committed compaction identity across intermediate entry flushes 
     result: undefined,
     errorMessage: 'summary unavailable'
   })
+  const appended = events.findIndex(
+    (event) => event.type === 'session-append' && event.entries.some((entry) => entry.id === id)
+  )
+  expect(appended).toBeGreaterThanOrEqual(0)
+  expect(appended).toBeLessThan(events.findIndex((event) => event.type === 'compaction-end'))
   expect(events.filter((event) => event.type === 'compaction-end')).toEqual([
-    { type: 'compaction-end', reason: 'manual', entryId: id },
-    { type: 'compaction-end', reason: 'threshold', error: 'summary unavailable' }
+    { type: 'compaction-end', reason: 'manual', aborted: false },
+    { type: 'compaction-end', reason: 'threshold', error: 'summary unavailable', aborted: false }
   ])
+})
+
+describe('compaction observation', () => {
+  it.each([true, false])('preserves native cancellation independently of an error message (aborted: %s)', (aborted) => {
+    const events: AgentRuntimeEvent[] = []
+    const observer = new SessionEvents(SessionManager.inMemory(), (event) => events.push(event))
+
+    observer.handle({ type: 'compaction_end', reason: 'threshold', result: undefined, aborted, willRetry: false })
+
+    expect(events).toEqual([{ type: 'compaction-end', reason: 'threshold', aborted }])
+  })
 })

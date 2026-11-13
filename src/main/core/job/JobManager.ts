@@ -124,7 +124,7 @@ interface RecoveryResumePoint {
  * 6-state state machine, schedule registry, retry backoff, startup recovery,
  * catch-up detection, GC.
  *
- * See `docs/references/job-and-scheduler/` for the full architecture, the
+ * See `docs/dev/references/job-and-scheduler/` for the full architecture, the
  * four-layer lock model, and the handler authoring contract.
  *
  * Current shape:
@@ -1274,7 +1274,7 @@ export class JobManager extends BaseService {
    * MUST call `syncJobScheduleTimerById(id)` on its own deterministic code
    * path. A rollback therefore has zero timer side effects. See
    * "Transactional schedule mutation" in
-   * `docs/references/job-and-scheduler/overview.md`.
+   * `docs/dev/references/job-and-scheduler/overview.md`.
    *
    * Handler, name, and trigger-semantics validation run up front (outside the
    * write) as the primitive's own precondition — an invalid cron expression /
@@ -2229,7 +2229,7 @@ export class JobManager extends BaseService {
    * fast-path is skipped — the normal dispatch loop handles them.
    *
    * Uses the reserved `job:${jobId}` SchedulerService id prefix (see the
-   * reserved-prefix table in `docs/references/job-and-scheduler/scheduler-usage.md`).
+   * reserved-prefix table in `docs/dev/references/job-and-scheduler/scheduler-usage.md`).
    * The disposable returned by `registerSchedule` is intentionally discarded —
    * cancel() drives termination via the dispatch path rather than disposing
    * the timer, and `scheduleOnce` self-cleans from its map before firing.

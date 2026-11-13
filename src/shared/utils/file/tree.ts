@@ -1,7 +1,7 @@
 /**
  * Directory-tree primitive — wire types + shared class hierarchy.
  *
- * SoT: `docs/references/file/directory-tree.md`.
+ * SoT: `docs/dev/references/file/directory-tree.md`.
  *
  * Lives in shared because both the main-process `DirectoryTreeBuilder`
  * (`src/main/services/file/tree/`) and the renderer-side `useDirectoryTree`

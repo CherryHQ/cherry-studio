@@ -16,9 +16,7 @@ import {
 } from '@main/core/lifecycle'
 import { buildPathRegistry, type PathKey, type PathMap, shouldAutoEnsure } from '@main/core/paths/pathRegistry'
 import { isDev, isLinux, isMac, isPortable, isWin } from '@main/core/platform'
-import { handleGuarded } from '@main/core/security/guardedIpc'
 import { bootConfigService } from '@main/data/bootConfig'
-import { IpcChannel } from '@shared/IpcChannel'
 
 import type { ServiceRegistry } from './serviceRegistry'
 
@@ -47,7 +45,6 @@ export class Application {
   private quitGuardsPassed = false
   private readonly quitGuards = new Set<QuitGuard>()
   private quitPreventionHolds = new Map<string, string>()
-  private ipcQuitHolds = new Map<string, QuitPreventionHold>()
 
   /**
    * Frozen path registry. `null` until `bootstrap()` is invoked, after
@@ -405,13 +402,15 @@ export class Application {
   public relaunch(options?: Electron.RelaunchOptions): void {
     if (isDev || !app.isPackaged) {
       logger.warn('Relaunch is not supported in dev mode. Please restart manually.')
-      dialog.showMessageBoxSync({
-        type: 'info',
-        title: 'Manual Restart Required',
-        message: 'Auto-relaunch is not available in development mode.',
-        detail: 'The app will now exit. Please run `pnpm dev` again to restart.',
-        buttons: ['OK']
-      })
+      if (app.isReady()) {
+        dialog.showMessageBoxSync({
+          type: 'info',
+          title: 'Manual Restart Required',
+          message: 'Auto-relaunch is not available in development mode.',
+          detail: 'The app will now exit. Please run `pnpm dev` again to restart.',
+          buttons: ['OK']
+        })
+      }
       app.exit(0)
       return
     }
@@ -583,29 +582,6 @@ export class Application {
     app.on('window-all-closed', () => {
       if (!isMac) {
         this.quit()
-      }
-    })
-
-    // Register Application-scoped IPC handlers (quit, relaunch, preventQuit)
-    this.registerApplicationIpc()
-  }
-
-  /**
-   * Register IPC handlers for the Application_* scope.
-   * All application lifecycle operations exposed to renderer live here.
-   */
-  private registerApplicationIpc(): void {
-    handleGuarded(IpcChannel.Application_PreventQuit, (_, reason: string): string => {
-      const hold = this.preventQuit(reason)
-      this.ipcQuitHolds.set(hold.id, hold)
-      return hold.id
-    })
-
-    handleGuarded(IpcChannel.Application_AllowQuit, (_, holdId: string) => {
-      const hold = this.ipcQuitHolds.get(holdId)
-      if (hold) {
-        hold.dispose()
-        this.ipcQuitHolds.delete(holdId)
       }
     })
   }

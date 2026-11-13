@@ -4,7 +4,7 @@ export {
   type ImagePreviewTransformControls,
   useImagePreviewTransform
 } from '@cherrystudio/ui/components/composites/image-preview/use-image-preview-transform'
-export { default as Scrollbar } from '@cherrystudio/ui/components/composites/scrollbar'
+export { ScrollArea } from '@cherrystudio/ui/components/primitives/scroll-area'
 export { Button } from '@cherrystudio/ui/components/primitives/button'
 export { Dialog, DialogContent, DialogTitle } from '@cherrystudio/ui/components/primitives/dialog'
 export { Input } from '@cherrystudio/ui/components/primitives/input'

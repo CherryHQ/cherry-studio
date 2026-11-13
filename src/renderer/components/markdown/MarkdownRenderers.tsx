@@ -6,9 +6,11 @@ import {
   type CSSProperties,
   type JSX,
   type MouseEvent as ReactMouseEvent,
+  type ReactNode,
   useMemo,
   useState
 } from 'react'
+import { useTranslation } from 'react-i18next'
 import type { Components, ExtraProps } from 'streamdown'
 
 import { CodeBlockView } from '@renderer/components/CodeBlockView/CodeBlockView'
@@ -30,6 +32,70 @@ type MarkdownRendererProps<Tag extends keyof JSX.IntrinsicElements> = JSX.Intrin
 
 const IMAGE_STYLE: CSSProperties = { maxWidth: 500, maxHeight: 500 }
 const PRE_STYLE: CSSProperties = { overflow: 'visible' }
+
+const IMAGE_URL_PATTERN = /^https?:\/\/[^\s?#]+\.(?:avif|bmp|gif|jpe?g|png|svg|webp)(?:[?#]\S*)?$/i
+
+const URL_SCHEME_PATTERN = /^[a-z][a-z0-9+.-]*:/i
+
+/**
+ * The pipeline rewrites a link's href but not its label: remark-rehype percent-encodes
+ * non-ASCII characters and rehypeNormalizeLinkScheme lowercases the scheme. A label is the
+ * same bare URL when the URL parser equates the two - parsing encodes raw non-ASCII
+ * (IDN hosts included), preserves valid percent-escapes, and lowercases the scheme and
+ * host - or when the label equals the href percent-decoded, which covers characters the
+ * URL parser preserves verbatim but normalize-uri encodes (a stray `%`). The label is
+ * never decoded: decoding it too would alias distinct spellings (a `%252F` label against
+ * a `%2F` destination) and blur the labelled-link boundary.
+ */
+function isSameBareUrl(label: string, href: string): boolean {
+  try {
+    if (new URL(label).href === new URL(href).href) return true
+  } catch {
+    // A label the URL parser rejects can still match the decoded href below.
+  }
+  try {
+    const lowerScheme = (value: string) => value.replace(URL_SCHEME_PATTERN, (scheme) => scheme.toLowerCase())
+    return lowerScheme(label) === decodeURI(lowerScheme(href))
+  } catch {
+    // Malformed percent-encoding in the href.
+    return false
+  }
+}
+
+/**
+ * Reads the text of a bare-URL link label. During animated streaming Streamdown splits the
+ * label into `data-sd-animate` spans, so plain `typeof children === 'string'` misses them.
+ * The attribute is the marker (surfaces may map `span` to their own component, e.g. chat's
+ * ChatSpanRenderer); sanitize strips it from author-supplied markup, so only Streamdown's
+ * animation output carries it. Any other element keeps the labelled-link boundary by
+ * returning null.
+ */
+function extractBareUrlText(node: ReactNode): string | null {
+  if (typeof node === 'string') return node
+  if (typeof node === 'number') return String(node)
+  if (Array.isArray(node)) {
+    let text = ''
+    for (const child of node) {
+      const part = extractBareUrlText(child)
+      if (part === null) return null
+      text += part
+    }
+    return text
+  }
+  if (isValidElement(node)) {
+    const props = node.props as { children?: ReactNode; 'data-sd-animate'?: unknown }
+    if (props['data-sd-animate'] !== undefined) {
+      return extractBareUrlText(props.children)
+    }
+  }
+  return null
+}
+
+function isBareImageUrlLink(href: string | undefined, children: ReactNode): href is string {
+  if (!href || !IMAGE_URL_PATTERN.test(href)) return false
+  const text = extractBareUrlText(children)
+  return text !== null && text !== '' && isSameBareUrl(text, href)
+}
 
 export function shouldShowMarkdownLinkFavicon(node: ExtraProps['node']): boolean {
   if (!node) return true
@@ -73,6 +139,7 @@ export function MarkdownLinkRenderer({
   openExternalUrl: urlOpener,
   ...props
 }: MarkdownRendererProps<'a'> & Pick<MarkdownHost, 'openFilePath' | 'openExternalUrl'>) {
+  const { t } = useTranslation()
   const host = useMarkdownHost()
   const openFilePath = fileOpener ?? host.openFilePath
   const openExternalUrl = urlOpener ?? host.openExternalUrl
@@ -101,6 +168,26 @@ export function MarkdownLinkRenderer({
         }}>
         {props.children}
       </a>
+    )
+  }
+
+  if (isBareImageUrlLink(props.href, props.children)) {
+    // The link this replaces was keyboard-focusable, so expose the preview with button
+    // semantics: focusable, named, and activated by Enter/Space (the img click action).
+    return (
+      <MarkdownImageRenderer
+        src={props.href}
+        alt={props.href}
+        role="button"
+        aria-label={t('preview.image', { url: props.href })}
+        tabIndex={0}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault()
+            event.currentTarget.click()
+          }
+        }}
+      />
     )
   }
 

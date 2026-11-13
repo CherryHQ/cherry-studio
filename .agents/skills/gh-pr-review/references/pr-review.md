@@ -182,7 +182,7 @@ When the PR head's `package.json` exposes `change:scope`, collect one versioned 
 pnpm change:scope --base origin/{BASE_BRANCH} --head {HEAD_SHA}
 ```
 
-If it also exposes `docs:affected` and contains `docs/sources-index.json`, run:
+If it also exposes `docs:affected` and contains `docs/dev/sources-index.json`, run:
 
 ```bash
 pnpm docs:affected --base origin/{BASE_BRANCH} --head {HEAD_SHA} --json

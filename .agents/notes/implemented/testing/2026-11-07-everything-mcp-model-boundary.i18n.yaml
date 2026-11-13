@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/testing/2026-11-07-everything-mcp-model-boundary.md
+2026-11-07-everything-mcp-model-boundary.md: 6a47bfd698bbdb1136eb4ae1a0eadb9567aea074
+2026-11-07-everything-mcp-model-boundary.zh.md: 43e08594dd5deeb8620f99a479ba5b0bde6bd18f

@@ -1,12 +1,31 @@
 import { ChevronDown } from 'lucide-react'
 import type { FC, FocusEvent } from 'react'
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button, Flex, InfoTooltip, Input, InputNumber, Switch } from '@cherrystudio/ui'
+import {
+  Button,
+  Flex,
+  InfoTooltip,
+  Input,
+  InputNumber,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  Switch
+} from '@cherrystudio/ui'
+import { cn } from '@cherrystudio/ui/lib/utils'
 import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
+import { CherryCloudModelSelector as ModelSelector } from '@renderer/components/cherryCloud/CherryCloudModelSelector'
+import { useCherryCloudModelSelectorData } from '@renderer/components/cherryCloud/useCherryCloudModelSelectorData'
 import CopyButton from '@renderer/components/CopyButton'
-import { ModelSelector, type ModelSelectorFilter } from '@renderer/components/ModelSelector'
+import {
+  countStaleSelectedModelIds,
+  hasStaleSelectedModelIds,
+  type ModelSelectorFilter
+} from '@renderer/components/ModelSelector'
 import { AgentLanguageField } from '@renderer/components/resourceCatalog/dialogs/components/AgentLanguageField'
 import Selector from '@renderer/components/Selector'
 import {
@@ -20,15 +39,46 @@ import {
 } from '@renderer/components/SettingsPrimitives'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { useTimer } from '@renderer/hooks/useTimer'
+import { appLanguageOptions, isAppLanguage } from '@renderer/i18n/languages'
+import i18n from '@renderer/i18n/resolver'
 import { ipcApi } from '@renderer/ipc'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { isValidProxyUrl } from '@renderer/utils/url'
+import { isManagedCherryCloudModel } from '@shared/data/presets/cherryai'
+import { isUniqueModelId, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { OutputFor } from '@shared/ipc/types'
+import { defaultLanguage } from '@shared/utils/languages'
 import { isNonChatModel } from '@shared/utils/model'
 
 import { ContextManagementSettings } from './ContextManagementSettings'
+
+function getRetryFallbackModelsTriggerLabel(
+  rawFallbackModelIds: readonly UniqueModelId[],
+  resolvedFallbackModelIds: readonly UniqueModelId[],
+  t: (key: string, options?: Record<string, number>) => string
+) {
+  if (rawFallbackModelIds.length === 0) {
+    return t('settings.models.empty')
+  }
+
+  const staleCount = countStaleSelectedModelIds(rawFallbackModelIds, resolvedFallbackModelIds)
+  const validCount = resolvedFallbackModelIds.length
+
+  if (validCount === 0) {
+    return t('settings.models.retry.fallback_models_unavailable', { count: staleCount })
+  }
+
+  if (staleCount > 0) {
+    return t('settings.models.retry.fallback_models_count_with_invalid', {
+      valid: validCount,
+      invalid: staleCount
+    })
+  }
+
+  return t('settings.models.retry.fallback_models_count', { count: validCount })
+}
 
 const defaultByPassRules = 'localhost,127.0.0.1,::1'
 
@@ -44,6 +94,7 @@ const GeneralSettings: FC = () => {
   const { theme } = useTheme()
   const { setTimeoutTimer } = useTimer()
 
+  const [language, setLanguage] = usePreference('app.language')
   const [disableHardwareAcceleration, setDisableHardwareAcceleration] = usePreference(
     'BootConfig.app.disable_hardware_acceleration'
   )
@@ -69,7 +120,12 @@ const GeneralSettings: FC = () => {
   const [retryBackoffEnabled, setRetryBackoffEnabled] = usePreference('chat.retry.backoff_enabled')
   const [retryFallbackModelIds, setRetryFallbackModelIds] = usePreference('chat.retry.fallback_model_ids')
   const [agentLanguage, setAgentLanguage] = usePreference('agent.language')
-
+  const resolvedLanguage = i18n.resolvedLanguage ?? i18n.language
+  const displayLanguage = isAppLanguage(language)
+    ? language
+    : isAppLanguage(resolvedLanguage)
+      ? resolvedLanguage
+      : defaultLanguage
   const [proxyUrl, setProxyUrl] = useState<string>(storeProxyUrl)
   const [proxyBypassRules, setProxyBypassRules] = useState<string>(storeProxyBypassRules)
   const [isSavingDeveloperSettings, setIsSavingDeveloperSettings] = useState(false)
@@ -81,6 +137,43 @@ const GeneralSettings: FC = () => {
   const proxyTestButtonRef = useRef<HTMLButtonElement>(null)
   const pendingProxyPreferenceSave = useRef<(() => void) | null>(null)
   const chatModelFilter = useCallback<ModelSelectorFilter>((model) => !isNonChatModel(model), [])
+  const configuredRetryFallbackModelIds = useMemo(() => retryFallbackModelIds ?? [], [retryFallbackModelIds])
+  const {
+    resolvedSelectedModelIds: resolvedRetryFallbackModelIds,
+    isLoading: isFallbackSelectorDataLoading,
+    modelsError: fallbackModelsCatalogError,
+    providersError: fallbackProvidersCatalogError,
+    cloudAvailabilityReady: fallbackCloudAvailabilityReady,
+    cloudAvailabilityError: fallbackCloudAvailabilityError
+  } = useCherryCloudModelSelectorData({
+    filter: chatModelFilter,
+    selectedModelIds: configuredRetryFallbackModelIds,
+    searchText: '',
+    showTagFilter: false,
+    showPinnedModels: false
+  })
+  // Catalog failures make all selections unknown. Cloud sync only affects managed
+  // Cloud IDs, so it must not hide known stale non-Cloud selections.
+  const canEvaluateFallbackStale =
+    !isFallbackSelectorDataLoading && fallbackModelsCatalogError == null && fallbackProvidersCatalogError == null
+  const isFallbackCloudAvailabilityKnown = fallbackCloudAvailabilityReady && fallbackCloudAvailabilityError == null
+  const classifiedRetryFallbackModelIds = useMemo(() => {
+    if (isFallbackCloudAvailabilityKnown) return resolvedRetryFallbackModelIds
+    const unknownCloudIds = configuredRetryFallbackModelIds.filter(
+      (id) => isUniqueModelId(id) && isManagedCherryCloudModel(parseUniqueModelId(id).providerId)
+    )
+    // Presentation-only: keep unknown Cloud selections neutral. Do not change
+    // selector resolution, persisted IDs, or runtime fallback behavior.
+    return [...new Set([...resolvedRetryFallbackModelIds, ...unknownCloudIds])]
+  }, [configuredRetryFallbackModelIds, isFallbackCloudAvailabilityKnown, resolvedRetryFallbackModelIds])
+  const hasInvalidRetryFallbackModels =
+    canEvaluateFallbackStale &&
+    hasStaleSelectedModelIds(configuredRetryFallbackModelIds, classifiedRetryFallbackModelIds)
+  const retryFallbackModelsTriggerLabel = canEvaluateFallbackStale
+    ? getRetryFallbackModelsTriggerLabel(configuredRetryFallbackModelIds, classifiedRetryFallbackModelIds, t)
+    : configuredRetryFallbackModelIds.length > 0
+      ? t('settings.models.retry.fallback_models_count', { count: configuredRetryFallbackModelIds.length })
+      : t('settings.models.empty')
 
   const proxyModeOptions: { value: 'system' | 'custom' | 'none'; label: string }[] = [
     { value: 'system', label: t('settings.proxy.mode.system') },
@@ -274,8 +367,45 @@ const GeneralSettings: FC = () => {
     }
   }
 
+  const onSelectLanguage = (value: string) => {
+    if (!isAppLanguage(value)) return
+
+    void i18n.changeLanguage(value)
+    void setLanguage(value)
+  }
+
   return (
     <SettingsContentColumn theme={theme}>
+      <SettingGroup theme={theme}>
+        <SettingTitle>{t('common.language')}</SettingTitle>
+        <SettingDivider />
+        <SettingRow id="setting-general-display-language" className="scroll-mt-6">
+          <SettingRowTitle>{t('settings.general.interface_language')}</SettingRowTitle>
+          <div className="w-full max-w-55 min-w-0">
+            <Select value={displayLanguage} onValueChange={onSelectLanguage}>
+              <SelectTrigger
+                size="sm"
+                className="w-full text-sm"
+                aria-label={appLanguageOptions.find((lang) => lang.value === displayLanguage)?.label}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="text-sm">
+                {appLanguageOptions.map((lang) => (
+                  <SelectItem className="text-sm" key={lang.value} value={lang.value}>
+                    <Flex className="items-center gap-2">
+                      <span role="img" aria-label={lang.flag}>
+                        {lang.flag}
+                      </span>
+                      {lang.label}
+                    </Flex>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </SettingRow>
+      </SettingGroup>
+
       <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.general.sections.startup')}</SettingTitle>
         <SettingDivider />
@@ -470,12 +600,13 @@ const GeneralSettings: FC = () => {
                     <Button
                       type="button"
                       variant="outline"
-                      className="h-7.5 min-w-0 flex-1 justify-between px-2.5 text-left font-normal">
-                      <span className="min-w-0 flex-1 truncate">
-                        {retryFallbackModelIds.length > 0
-                          ? t('settings.models.retry.fallback_models_count', { count: retryFallbackModelIds.length })
-                          : t('settings.models.empty')}
-                      </span>
+                      aria-invalid={hasInvalidRetryFallbackModels || undefined}
+                      className={cn(
+                        'h-7.5 min-w-0 flex-1 justify-between px-2.5 text-left font-normal',
+                        hasInvalidRetryFallbackModels &&
+                          'aria-expanded:border-error-border aria-expanded:ring-error/20 aria-invalid:border-error-border aria-invalid:ring-error/20 dark:aria-invalid:ring-error/40 dark:aria-expanded:ring-error/40'
+                      )}>
+                      <span className="min-w-0 flex-1 truncate">{retryFallbackModelsTriggerLabel}</span>
                       <ChevronDown size={14} className="shrink-0 text-muted-foreground" />
                     </Button>
                   }

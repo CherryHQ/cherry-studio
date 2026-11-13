@@ -200,10 +200,8 @@ describe('pathStorage relative-path safety', () => {
     )
 
     it.each(['legacy.odt', 'deck.odp', 'sheet.ods'])(
-      'does not reserve for %s — an OpenDocument format the knowledge base does not process',
+      'does not reserve for %s — AnydocReader reads it directly, so no .md artifact is emitted',
       (relativePath) => {
-        // These are in the app-wide `documentExts` but intentionally NOT a knowledge
-        // processing/supported ext, so no `.md` artifact is ever emitted for them.
         expect(needsProcessedArtifactReservation('some-processor', relativePath)).toBe(false)
       }
     )

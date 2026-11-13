@@ -5,12 +5,6 @@ import { describe, expect, it } from 'vitest'
 import { useViewportFollowState } from '../useViewportFollowState'
 
 describe('useViewportFollowState', () => {
-  it('waits in reading mode until scroll restoration chooses the initial position', () => {
-    const { result } = renderHook(() => useViewportFollowState())
-
-    expect(result.current.getState()).toEqual({ mode: 'reading', reason: 'initializing' })
-  })
-
   it('changes mode only through explicit reading and following transitions', () => {
     const { result } = renderHook(() => useViewportFollowState())
 

@@ -72,6 +72,9 @@ AGENTS.override.md
 # Local Electron development
 .context/cherry-electron-dev/
 
+# Website documentation renderer
+.context/website-docs-renderer/
+
 # vitest
 coverage
 .vitest-cache

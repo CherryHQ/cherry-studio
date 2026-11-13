@@ -147,6 +147,7 @@ jobs:
           pnpm --dir "$QA_TARGET_ROOT" download:binaries
           pnpm --dir "$QA_TARGET_ROOT" rebuild:electron
           pnpm --dir "$QA_TARGET_ROOT" run build:utility-process
+          pnpm --dir "$QA_TARGET_ROOT" exec dotenv -v CHERRY_EDITION=global -- electron-vite build
       - name: Install release and wait for completion
         if: needs.resolve.outputs.mode == 'tag'
         shell: bash

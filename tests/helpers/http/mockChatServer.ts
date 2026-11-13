@@ -10,6 +10,8 @@ const chatRequestSchema = z.looseObject({
 })
 
 export interface MockChatRequest {
+  readonly url: string
+  readonly method: string
   readonly body: z.infer<typeof chatRequestSchema>
   /** Resolves when the response closes, including client cancellation. */
   readonly closed: Promise<void>
@@ -17,6 +19,8 @@ export interface MockChatRequest {
   sendText(text: string): void
   /** Sends optional final text and completes the JSON or SSE response normally. */
   complete(text?: string): void
+  /** Finishes with a model-requested function call; the application executes the tool. */
+  completeToolCall(call: { id: string; name: string; arguments: Record<string, unknown> }): void
   /** Sends an SSE provider error, or HTTP 500 for a non-streaming request. */
   fail(message: string): void
   /** Destroys the socket without a finish chunk or [DONE]. */
@@ -37,7 +41,13 @@ function sendJson(res: ServerResponse, status: number, body: unknown): void {
   res.end(JSON.stringify(body))
 }
 
-function createChatRequest(body: MockChatRequest['body'], res: ServerResponse, id: string): MockChatRequest {
+function createChatRequest(
+  body: MockChatRequest['body'],
+  res: ServerResponse,
+  id: string,
+  url: string,
+  method: string
+): MockChatRequest {
   const metadata = { id, model: body.model, created: Math.floor(Date.now() / 1000) }
   const closed = new Promise<void>((resolve) => res.once('close', resolve))
 
@@ -45,7 +55,7 @@ function createChatRequest(body: MockChatRequest['body'], res: ServerResponse, i
     if (res.destroyed || res.writableEnded) throw new Error('Mock chat response is already closed')
   }
   const sendEvent = (data: unknown) => res.write(`data: ${JSON.stringify(data)}\n\n`)
-  const sendChunk = (delta: object, finishReason: 'stop' | null = null) =>
+  const sendChunk = (delta: object, finishReason: 'stop' | 'tool_calls' | null = null) =>
     sendEvent({
       ...metadata,
       object: 'chat.completion.chunk',
@@ -59,6 +69,8 @@ function createChatRequest(body: MockChatRequest['body'], res: ServerResponse, i
   }
 
   return {
+    url,
+    method,
     body,
     closed,
     sendText(text) {
@@ -80,6 +92,31 @@ function createChatRequest(body: MockChatRequest['body'], res: ServerResponse, i
         })
       }
     },
+    completeToolCall(call) {
+      assertOpen()
+      const toolCall = {
+        id: call.id,
+        type: 'function',
+        function: { name: call.name, arguments: JSON.stringify(call.arguments) }
+      }
+      if (body.stream) {
+        sendChunk({ tool_calls: [{ index: 0, ...toolCall }] })
+        sendChunk({}, 'tool_calls')
+        res.end('data: [DONE]\n\n')
+      } else {
+        sendJson(res, 200, {
+          ...metadata,
+          object: 'chat.completion',
+          choices: [
+            {
+              index: 0,
+              message: { role: 'assistant', content: null, tool_calls: [toolCall] },
+              finish_reason: 'tool_calls'
+            }
+          ]
+        })
+      }
+    },
     fail(message) {
       assertOpen()
       const error = { error: { message, type: 'server_error', code: 'mock_error' } }
@@ -97,9 +134,11 @@ function createChatRequest(body: MockChatRequest['body'], res: ServerResponse, i
 }
 
 /** Real loopback OpenAI-compatible HTTP server shared by Node tests and Electron E2E. */
-export async function startMockChatServer(): Promise<MockChatServer> {
+export async function startMockChatServer(options: { rejectOwnStore?: boolean } = {}): Promise<MockChatServer> {
   const modelId = 'mock-chat'
   const requests: MockChatRequest[] = []
+  /** Requests that reached the server but not the chat route, for diagnosing wrong base URLs. */
+  const unexpected: string[] = []
   const waiters = new Set<{ resolve(request: MockChatRequest): void; reject(error: Error): void }>()
   let requestId = 0
   let closing = false
@@ -112,6 +151,7 @@ export async function startMockChatServer(): Promise<MockChatServer> {
       return
     }
     if (req.method !== 'POST' || route !== '/v1/chat/completions') {
+      unexpected.push(`${req.method} ${route}`)
       sendJson(res, 404, { error: { message: 'Unknown mock endpoint', type: 'invalid_request_error' } })
       return
     }
@@ -121,16 +161,45 @@ export async function startMockChatServer(): Promise<MockChatServer> {
       for await (const chunk of req) chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk))
       const body = chatRequestSchema.parse(JSON.parse(Buffer.concat(chunks).toString('utf8')))
       if (closing || res.destroyed) return
-      const request = createChatRequest(body, res, `chatcmpl-mock-${++requestId}`)
+      const rejected = options.rejectOwnStore && Object.hasOwn(body, 'store')
+      let request: MockChatRequest
+      if (rejected) {
+        const closed = new Promise<void>((resolve) => res.once('close', resolve))
+        const rejectStream = () => {
+          throw new Error('Mock chat request was rejected before a response stream was opened')
+        }
+        request = {
+          url: req.url!,
+          method: req.method!,
+          body,
+          closed,
+          sendText: rejectStream,
+          complete: rejectStream,
+          completeToolCall: rejectStream,
+          fail: rejectStream,
+          disconnect: () => res.destroy()
+        }
+        sendJson(res, 400, {
+          error: {
+            message:
+              "fixture: [{'type': 'extra_forbidden', 'loc': ('body', 'store'), 'msg': 'Extra inputs are not permitted', 'input': false}]",
+            type: 'invalid_request_error'
+          }
+        })
+      } else {
+        request = createChatRequest(body, res, `chatcmpl-mock-${++requestId}`, req.url!, req.method!)
+      }
       const waiter = waiters.values().next().value
       if (waiter) {
         waiter.resolve(request)
       } else {
         requests.push(request)
-        void request.closed.then(() => {
-          const index = requests.indexOf(request)
-          if (index !== -1) requests.splice(index, 1)
-        })
+        if (!rejected) {
+          void request.closed.then(() => {
+            const index = requests.indexOf(request)
+            if (index !== -1) requests.splice(index, 1)
+          })
+        }
       }
     }
     void receive().catch(() => {
@@ -165,7 +234,15 @@ export async function startMockChatServer(): Promise<MockChatServer> {
             reject(error)
           }
         }
-        const timer = setTimeout(() => waiter.reject(new Error('Timed out waiting for a mock chat request')), timeoutMs)
+        const timer = setTimeout(
+          () =>
+            waiter.reject(
+              new Error(
+                `Timed out waiting for a mock chat request${unexpected.length ? ` (unexpected requests: ${unexpected.join(', ')})` : ''}`
+              )
+            ),
+          timeoutMs
+        )
         waiters.add(waiter)
       })
     },

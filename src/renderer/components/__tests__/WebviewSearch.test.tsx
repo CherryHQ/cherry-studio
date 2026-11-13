@@ -147,6 +147,31 @@ describe('WebviewSearch', () => {
     expect(screen.getByPlaceholderText('Search')).toBeInTheDocument()
   })
 
+  it.each([
+    { label: 'Ctrl+Shift+F', ctrlKey: true, shiftKey: true },
+    { label: 'Cmd+Shift+F', metaKey: true, shiftKey: true },
+    { label: 'Ctrl+Alt+F', ctrlKey: true, altKey: true },
+    { label: 'Cmd+Alt+F', metaKey: true, altKey: true }
+  ])('preserves another input for $label', ({ ctrlKey, metaKey, shiftKey, altKey }) => {
+    const { webview } = createWebviewMock()
+    const webviewRef = { current: webview } as React.RefObject<WebviewTag | null>
+    render(
+      <>
+        <input aria-label="Global search" />
+        <WebviewSearch webviewRef={webviewRef} isWebviewReady targetId="app-1" />
+      </>
+    )
+    const input = screen.getByRole('textbox', { name: 'Global search' })
+    input.focus()
+    const event = new KeyboardEvent('keydown', { key: 'f', cancelable: true, ctrlKey, metaKey, shiftKey, altKey })
+    act(() => {
+      window.dispatchEvent(event)
+    })
+    expect(event.defaultPrevented).toBe(false)
+    expect(screen.queryByPlaceholderText('Search')).not.toBeInTheDocument()
+    expect(input).toHaveFocus()
+  })
+
   it('opens the search overlay when the shortcut is replayed from its guest', async () => {
     const { webview } = createWebviewMock()
     const webviewRef = { current: webview } as React.RefObject<WebviewTag | null>
@@ -188,7 +213,6 @@ describe('WebviewSearch', () => {
     })
 
     rerender(<WebviewSearch webviewRef={webviewRef} isWebviewReady={false} targetId="app-1" />)
-    expect(getWebContentsIdMock).toHaveBeenCalled()
     expect(stopFindInPageMock).not.toHaveBeenCalled()
 
     unmount()

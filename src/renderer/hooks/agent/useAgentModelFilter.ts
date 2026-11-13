@@ -2,8 +2,8 @@
  * Filter that gates the model picker shown to an agent.
  *
  * Each runtime contributes its compatibility predicate through the shared
- * capability matrix. Claude Code uses the API Gateway's routability predicate;
- * Pi additionally validates that its provider wire protocol is supported.
+ * capability matrix. Claude Code, Pi and Pi Durable use gateway routability;
+ * Pi also excludes providers whose authentication requires an external CLI.
  *
  * Default `null`-typed agents fall through to the shared "agent-friendly"
  * filter (drops embedding / rerank / image-generation models — none of

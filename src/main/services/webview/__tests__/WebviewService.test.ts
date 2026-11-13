@@ -545,12 +545,20 @@ describe('WebviewService webview ownership', () => {
       guestById.set(7, guest)
       service.setOpenLinkExternal(7, true, 'owner')
       const external = guest.setWindowOpenHandler.mock.calls.at(-1)![0]
-      expect(external({ url: 'https://example.com' })).toEqual({ action: 'deny' })
+      expect(external({ url: 'https://accounts.google.com', disposition: 'new-window' })).toEqual({
+        action: 'allow'
+      })
+      expect(application.get('MainWindowService').openWebsite).not.toHaveBeenCalled()
+      expect(external({ url: 'https://example.com', disposition: 'foreground-tab' })).toEqual({ action: 'deny' })
       expect(application.get('MainWindowService').openWebsite).toHaveBeenLastCalledWith('https://example.com', true)
+      expect(external({ url: 'javascript:alert(1)', disposition: 'new-window' })).toEqual({ action: 'deny' })
 
       service.setOpenLinkExternal(7, false, 'owner')
       const automatic = guest.setWindowOpenHandler.mock.calls.at(-1)![0]
-      expect(automatic({ url: 'https://example.com' })).toEqual({ action: 'deny' })
+      expect(automatic({ url: 'https://accounts.google.com', disposition: 'new-window' })).toEqual({
+        action: 'allow'
+      })
+      expect(automatic({ url: 'https://example.com', disposition: 'foreground-tab' })).toEqual({ action: 'deny' })
       expect(application.get('MainWindowService').openWebsite).toHaveBeenLastCalledWith('https://example.com', false)
     } finally {
       await application.get('PreferenceService').set('app.browser.open_links_in_browser', false)

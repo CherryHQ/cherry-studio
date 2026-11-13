@@ -29,13 +29,14 @@ import { ipcApi } from '@renderer/ipc'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import type { AppInfo } from '@renderer/types/app'
+import { formatFileSize } from '@renderer/utils/file'
 import { cn } from '@renderer/utils/style'
 import type { CacheCleanupSizeSnapshot } from '@shared/types/cacheCleanupIpc'
 import { LOG_RETENTION_DAYS } from '@shared/types/logger'
 import type { UserDataRelocationValidationReason } from '@shared/types/userDataRelocation'
 
 import BackupPopup from './BackupPopup'
-import ClearCachePopup, { formatCacheCleanupSize } from './ClearCachePopup'
+import ClearCachePopup from './ClearCachePopup'
 import {
   beginLegacyV1Cleanup,
   clearLegacyV1BrowserData,
@@ -341,7 +342,13 @@ const BasicDataSettings: React.FC = () => {
               {appInfo?.appDataPath}
             </PathText>
             <Tooltip title={t('settings.data.app_data.select')}>
-              <FolderOutput onClick={handleSelectAppDataPath} style={{ cursor: 'pointer' }} size={16} />
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                aria-label={t('settings.data.app_data.select')}
+                onClick={handleSelectAppDataPath}>
+                <FolderOutput size={16} />
+              </Button>
             </Tooltip>
             <RowFlex className="ml-2 gap-1.25">
               <Button onClick={() => handleOpenPath(appInfo?.appDataPath)} variant="outline">
@@ -396,10 +403,10 @@ const BasicDataSettings: React.FC = () => {
                   ? t('settings.data.clear_cache.unavailable')
                   : cacheSize.completeness === 'partial'
                     ? t('settings.data.clear_cache.total_partial', {
-                        size: formatCacheCleanupSize(cacheSize.bytes)
+                        size: formatFileSize(cacheSize.bytes)
                       })
                     : t('settings.data.clear_cache.approximately', {
-                        size: formatCacheCleanupSize(cacheSize.bytes)
+                        size: formatFileSize(cacheSize.bytes)
                       })}
                 )
               </CacheText>

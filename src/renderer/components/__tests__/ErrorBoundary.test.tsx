@@ -1,7 +1,9 @@
 import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { loggerService } from '@logger'
+import i18n from '@renderer/i18n/resolver'
 
 import { ErrorBoundary } from '../ErrorBoundary'
 
@@ -48,6 +50,29 @@ describe('ErrorBoundary', () => {
     expect(customOnError).toHaveBeenCalledTimes(1)
     expect(customOnError.mock.calls[0]).toContain(boomError)
     expect(errorSpy).toHaveBeenCalledTimes(1)
+  })
+
+  it('discloses error details on demand and keeps recovery actions available', async () => {
+    const user = userEvent.setup()
+    const request = vi.fn().mockResolvedValue({ ok: true, data: undefined })
+    vi.stubGlobal('api', { ipcApi: { request } })
+    const writeText = vi.spyOn(navigator.clipboard, 'writeText').mockResolvedValue()
+    render(
+      <ErrorBoundary>
+        <Bomb />
+      </ErrorBoundary>
+    )
+
+    const details = screen.getByText(boomError.message)
+    expect(details).not.toBeVisible()
+    await user.click(screen.getByText(i18n.t('error.boundary.details')))
+    expect(details).toBeVisible()
+    await user.click(screen.getByRole('button', { name: i18n.t('common.copy') }))
+    expect(writeText).toHaveBeenCalledWith(boomError.message)
+    await user.click(screen.getByRole('button', { name: i18n.t('error.boundary.default.devtools') }))
+    expect(request).toHaveBeenCalledWith('system.toggle_dev_tools', undefined)
+    await user.click(screen.getByRole('button', { name: i18n.t('error.boundary.default.reload') }))
+    expect(request).toHaveBeenCalledWith('window.main.reload', undefined)
   })
 
   // B6: the boundary wraps every window's provider stack (incl. the lightest

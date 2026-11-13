@@ -26,7 +26,7 @@ export type ProviderEdition = z.infer<typeof ProviderEditionSchema>
  *
  * Model availability remains a provider-model concern; this only describes
  * how the provider carries an enabled Fast request. `openai-priority` means the
- * `serviceTier` provider option on the OpenAI namespace — the tier *value* is
+ * `service_tier` field on the OpenAI-compatible wire — the tier *value* is
  * vendor-specific and travels in `fastMode.serviceTier` (OpenAI's `priority`,
  * Ark's `fast`), so a new vendor never has to expand this enum: enum expansion
  * is a breaking wire change, an optional field is not.

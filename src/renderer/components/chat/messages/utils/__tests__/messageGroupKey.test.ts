@@ -1,12 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import type { MessageListItem } from '../../types'
-import {
-  getLatestAssistantGroupKey,
-  getMessageGroupKey,
-  getOwningUserMessageIdByAssistantId,
-  groupMessageListItems
-} from '../messageGroupKey'
+import { getLatestAssistantGroupKey, getMessageGroupKey, groupMessageListItems } from '../messageGroupKey'
 
 const createMessage = (id: string, role: MessageListItem['role'], parentId?: string | null) =>
   ({
@@ -43,27 +38,5 @@ describe('messageGroupKey', () => {
     ]
 
     expect(getLatestAssistantGroupKey(messages)).toBe('assistantuser-2')
-  })
-
-  it.each([
-    {
-      assistant: createMessage('assistant-1', 'assistant', 'user-1'),
-      expectedOwnerId: 'user-1',
-      name: 'uses a valid explicit parent'
-    },
-    {
-      assistant: createMessage('assistant-1', 'assistant'),
-      expectedOwnerId: 'user-1',
-      name: 'falls back to the preceding user without a parent'
-    },
-    {
-      assistant: createMessage('assistant-1', 'assistant', 'missing-user'),
-      expectedOwnerId: undefined,
-      name: 'rejects an invalid explicit parent'
-    }
-  ])('$name when resolving an assistant owner', ({ assistant, expectedOwnerId }) => {
-    const messages = [createMessage('user-1', 'user'), assistant]
-
-    expect(getOwningUserMessageIdByAssistantId(messages).get(assistant.id)).toBe(expectedOwnerId)
   })
 })

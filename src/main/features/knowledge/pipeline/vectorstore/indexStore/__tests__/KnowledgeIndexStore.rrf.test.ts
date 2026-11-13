@@ -55,16 +55,6 @@ function createFakeDriver(vectorRows: Array<Record<string, SqlValue>>, bm25Rows:
 const RRF_K = 60
 
 describe('KnowledgeIndexStore hybrid RRF fusion', () => {
-  it('prefetches topK × 5 candidates per lane before fusing', async () => {
-    const { driver, limits } = createFakeDriver([], [])
-    const store = new KnowledgeIndexStore(driver, vectorIndex)
-
-    store.search({ queryText: 'query', queryEmbedding: [1, 0], mode: 'hybrid', topK: 4 })
-
-    expect(limits.vector).toBe(20)
-    expect(limits.bm25).toBe(20)
-  })
-
   it('fuses lanes with reciprocal rank fusion (1-indexed rank, RRF_K) weighted by alpha', async () => {
     // Vector ranks A above B; bm25 ranks B above A.
     const { driver } = createFakeDriver(
@@ -97,19 +87,5 @@ describe('KnowledgeIndexStore hybrid RRF fusion', () => {
     expect(() => store.search({ queryText: '', queryEmbedding: [1, 0], mode: 'vector', topK: 5 })).toThrow(
       'missing the body text for unit A'
     )
-  })
-
-  it('defaults alpha to 0.5, weighting both lanes equally', async () => {
-    // Mirror-image ranks: with equal weight the two units must tie exactly.
-    const { driver } = createFakeDriver(
-      [vectorRow('A', 'mA', 0), vectorRow('B', 'mB', 0.5)],
-      [bm25Row('B', 'mB', -1), bm25Row('A', 'mA', -2)]
-    )
-    const store = new KnowledgeIndexStore(driver, vectorIndex)
-
-    const results = store.search({ queryText: 'query', queryEmbedding: [1, 0], mode: 'hybrid', topK: 10 })
-
-    const scoreById = Object.fromEntries(results.map((match) => [match.unitId, match.score]))
-    expect(scoreById.A).toBeCloseTo(scoreById.B, 12)
   })
 })

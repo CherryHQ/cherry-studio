@@ -2,7 +2,7 @@ import type { FC } from 'react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { MenuItem, MenuList, PageHeader, RowFlex, Scrollbar } from '@cherrystudio/ui'
+import { MenuItem, MenuList, PageHeader, RowFlex, ScrollArea } from '@cherrystudio/ui'
 import {
   settingsSubmenuItemClassName,
   settingsSubmenuItemLabelClassName,
@@ -22,7 +22,7 @@ const ChannelsSettings: FC = () => {
     <RowFlex className="flex-1">
       <div className={`flex flex-col ${settingsSubmenuScrollClassName}`}>
         <PageHeader title={t('settings.channels.title')} />
-        <Scrollbar className="min-h-0 flex-1">
+        <ScrollArea className="min-h-0 flex-1">
           <MenuList className={settingsSubmenuListClassName}>
             {AVAILABLE_CHANNELS.map((ch) => {
               const iconSrc = getChannelTypeIcon(ch.type)
@@ -41,7 +41,7 @@ const ChannelsSettings: FC = () => {
               )
             })}
           </MenuList>
-        </Scrollbar>
+        </ScrollArea>
       </div>
       <div className="relative flex-1">
         <ChannelDetail key={selectedType.type} channelDef={selectedType} />

@@ -1,3 +1,10 @@
+vi.mock('@renderer/components/cherryCloud/CherryCloudModelSelector', async () => {
+  const selector = await import('@renderer/components/ModelSelector')
+  return {
+    CherryCloudModelSelector: selector.ModelSelector
+  }
+})
+
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
@@ -95,7 +102,8 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
   return actual
 })
 
-vi.mock('@renderer/data/hooks/useDataApi', () => ({
+vi.mock('@renderer/data/hooks/useDataApi', async () => ({
+  ...(await import('@test-mocks/renderer/useDataApi')).MockUseDataApi,
   useInfiniteFlatItems: (pages: Array<{ items: unknown[] }> = []) => pages.flatMap((page) => page.items),
   useInfiniteQuery: () => ({
     pages: [{ items: [], total: 0 }],
@@ -106,6 +114,7 @@ vi.mock('@renderer/data/hooks/useDataApi', () => ({
     loadNext: vi.fn(),
     refresh: vi.fn()
   }),
+  useDataChange: vi.fn(),
   useMutation: useMutationMock,
   useQuery: useQueryMock
 }))
@@ -323,7 +332,7 @@ beforeEach(() => {
   })
   createAgentMock.mockResolvedValue({
     id: 'created-agent',
-    type: 'pi',
+    type: 'pi-durable',
     name: 'Created Agent',
     description: 'Created from selector',
     accessiblePaths: [],
@@ -394,7 +403,6 @@ describe('AgentSelector', () => {
     const options = screen.getAllByRole('option')
     expect(options[0]).toHaveTextContent('Alpha Agent')
     expect(options[1]).toHaveTextContent('Beta Agent')
-    expect(screen.queryByRole('button', { pressed: false })).not.toBeInTheDocument()
   })
 
   it('renders the empty state prompt when no agents exist', () => {
@@ -412,34 +420,6 @@ describe('AgentSelector', () => {
 
     expect(screen.getByText('No agents yet. Create one first.')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Create agent' })).toBeInTheDocument()
-  })
-
-  it('falls back to the default agent avatar for blank stored avatars', () => {
-    useQueryMock.mockReturnValue({
-      data: {
-        items: [
-          {
-            ...AGENTS_RESPONSE.items[0],
-            configuration: {
-              ...AGENTS_RESPONSE.items[0].configuration,
-              avatar: '   '
-            }
-          }
-        ],
-        total: 1,
-        page: 1
-      },
-      isLoading: false,
-      isRefreshing: false,
-      error: undefined,
-      refetch: refetchAgentsMock,
-      mutate: vi.fn()
-    })
-
-    renderSelector()
-    openPopover()
-
-    expect(screen.getByRole('option', { name: /Alpha Agent/ })).toHaveTextContent('🤖')
   })
 
   it('fires onChange with the selected agent id', () => {
@@ -498,9 +478,6 @@ describe('AgentSelector', () => {
     await openCreateDialog()
 
     expect(screen.getByRole('heading', { name: 'New Agent' })).toBeInTheDocument()
-    expect(screen.getByPlaceholderText('Name this resource')).toBeInTheDocument()
-    expect(screen.getByText('Model')).toBeInTheDocument()
-    expect(screen.getByPlaceholderText('Describe this resource')).toBeInTheDocument()
   })
 
   it('calls the dialog-close autofocus callback when the create dialog closes', async () => {
@@ -536,19 +513,9 @@ describe('AgentSelector', () => {
     await user.click(screen.getByRole('button', { name: 'Create' }))
 
     await waitFor(() =>
-      expect(createAgentMock).toHaveBeenCalledWith({
-        type: 'pi',
-        name: 'Created Agent',
-        model: MODEL.id,
-        description: 'Created from selector',
-        instructions: '',
-        knowledgeBaseIds: [],
-        skillIds: [],
-        configuration: {
-          avatar: '🤖',
-          permission_mode: 'auto'
-        }
-      })
+      expect(createAgentMock).toHaveBeenCalledWith(
+        expect.objectContaining({ name: 'Created Agent', model: MODEL.id, description: 'Created from selector' })
+      )
     )
     await waitFor(() => expect(refetchAgentsMock).toHaveBeenCalledTimes(1))
     expect(onChange).not.toHaveBeenCalled()

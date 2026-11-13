@@ -1,5 +1,35 @@
 # @cherrystudio/file-preview
 
+## Unreleased
+
+### Patch Changes
+
+- Change the package license from AGPL-3.0-only to MIT.
+
+## 0.2.7
+
+### Patch Changes
+
+- [#24234](https://github.com/CherryHQ/cherry-studio/pull/24234) [`2e65759`](https://github.com/CherryHQ/cherry-studio/commit/2e6575901a59e6edb5748a2df18713f48635f658) Thanks [@DeJeune](https://github.com/DeJeune)! - Standardize public libraries on MIT and include package-local license files.
+
+## 0.2.6
+
+### Patch Changes
+
+- [#24226](https://github.com/CherryHQ/cherry-studio/pull/24226) [`c6a70f5`](https://github.com/CherryHQ/cherry-studio/commit/c6a70f5325f7f4784da0bc691c43a5ad087aaf29) Thanks [@DeJeune](https://github.com/DeJeune)! - Keep preview scroll boundaries unpadded and reserve bottom clearance after long content while preserving full-height internally scrolling previews.
+
+## 0.2.5
+
+### Patch Changes
+
+- [#23122](https://github.com/CherryHQ/cherry-studio/pull/23122) [`11be419`](https://github.com/CherryHQ/cherry-studio/commit/11be419b8bc15f8180501695858a25b486fbd033) Thanks [@angri450](https://github.com/angri450)! - Fit DOCX previews to the pane width, allow them to scale up to 200%, and remove the grey mat around pages.
+
+## 0.2.4
+
+### Patch Changes
+
+- [#23515](https://github.com/CherryHQ/cherry-studio/pull/23515) [`5dabea2`](https://github.com/CherryHQ/cherry-studio/commit/5dabea2c85f467b52d87946b1486c6c1a8de260c) Thanks [@DeJeune](https://github.com/DeJeune)! - Use overlay scrollbars in document previews and PDF outlines so native scrollbar gutters do not reduce content width.
+
 ## 0.2.3
 
 ### Patch Changes

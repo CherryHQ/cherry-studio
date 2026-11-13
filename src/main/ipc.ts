@@ -4,6 +4,7 @@ import { dialog } from 'electron'
 
 import { loggerService } from '@logger'
 import { handleGuarded } from '@main/core/security/guardedIpc'
+import { runManualBackup } from '@main/services/backupNotifications'
 import {
   listDirectory as searchListDirectory,
   listDirectoryEntries as searchListDirectoryEntries
@@ -19,7 +20,6 @@ import { legacyBackupManager as backupManager } from './services/LegacyBackupMan
 import * as NutstoreService from './services/nutstore/NutstoreService'
 import { decrypt } from './utils/aes'
 import { getHostname } from './utils/system'
-import { decompress } from './utils/zip'
 
 const logger = loggerService.withContext('IPC')
 
@@ -36,7 +36,6 @@ export async function registerIpc() {
   // })
 
   // MainWindow_Reload handler moved into MainWindowService.registerIpcHandlers.
-  // Application lifecycle handlers live in core/application/Application.ts (registerApplicationIpc).
 
   // // theme
   // handleGuarded(IpcChannel.App_SetTheme, (_, theme: ThemeMode) => {
@@ -71,19 +70,18 @@ export async function registerIpc() {
     return isSameOrInside(childPath, parentPath)
   })
 
-  // zip
-  handleGuarded(IpcChannel.Zip_Decompress, (_, text: Buffer) => decompress(text))
-
   // system
   handleGuarded(IpcChannel.System_GetHostname, getHostname)
   // Git Bash has no IPC: the Claude Code runtime resolves it in-process via
   // autoDiscoverGitBash() (ai/runtime/claudeCode/settingsBuilder.ts).
 
   // backup
-  handleGuarded(IpcChannel.Backup_Backup, backupManager.backup.bind(backupManager))
+  handleGuarded(IpcChannel.Backup_Backup, (event, fileName, destinationPath, slimBackup) =>
+    runManualBackup(() => backupManager.backup(event, fileName, destinationPath, slimBackup))
+  )
   handleGuarded(IpcChannel.Backup_Restore, backupManager.restore.bind(backupManager))
   handleGuarded(IpcChannel.Backup_BackupToWebdav, async (event, config) => {
-    const { result, cleanupError } = await backupManager.backupToWebdav(event, config)
+    const { result, cleanupError } = await runManualBackup(() => backupManager.backupToWebdav(event, config))
     return { result, cleanupFailed: cleanupError !== null }
   })
   handleGuarded(IpcChannel.Backup_RestoreFromWebdav, backupManager.restoreFromWebdav.bind(backupManager))
@@ -92,14 +90,16 @@ export async function registerIpc() {
   handleGuarded(IpcChannel.Backup_CreateDirectory, backupManager.createDirectory.bind(backupManager))
   handleGuarded(IpcChannel.Backup_DeleteWebdavFile, backupManager.deleteWebdavFile.bind(backupManager))
   handleGuarded(IpcChannel.Backup_BackupToLocalDir, async (event, fileName, config) => {
-    const { result, cleanupError } = await backupManager.backupToLocalDir(event, fileName, config)
+    const { result, cleanupError } = await runManualBackup(() =>
+      backupManager.backupToLocalDir(event, fileName, config)
+    )
     return { result, cleanupFailed: cleanupError !== null }
   })
   handleGuarded(IpcChannel.Backup_RestoreFromLocalBackup, backupManager.restoreFromLocalBackup.bind(backupManager))
   handleGuarded(IpcChannel.Backup_ListLocalBackupFiles, backupManager.listLocalBackupFiles.bind(backupManager))
   handleGuarded(IpcChannel.Backup_DeleteLocalBackupFile, backupManager.deleteLocalBackupFile.bind(backupManager))
   handleGuarded(IpcChannel.Backup_BackupToS3, async (event, config) => {
-    const { result, cleanupError } = await backupManager.backupToS3(event, config)
+    const { result, cleanupError } = await runManualBackup(() => backupManager.backupToS3(event, config))
     return { result, cleanupFailed: cleanupError !== null }
   })
   handleGuarded(IpcChannel.Backup_RestoreFromS3, backupManager.restoreFromS3.bind(backupManager))

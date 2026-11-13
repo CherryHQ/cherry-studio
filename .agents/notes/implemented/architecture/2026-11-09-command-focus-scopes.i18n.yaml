@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/architecture/2026-11-09-command-focus-scopes.md
+2026-11-09-command-focus-scopes.md: 90db1c348ee78c77fc75ad39f680e1ab36bf9bcd
+2026-11-09-command-focus-scopes.zh.md: ed14b85b6da444c718d693ea6e7cf81c6bcb7e6e

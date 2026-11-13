@@ -19,7 +19,7 @@
  * @see https://platform.openai.com/docs/api-reference/responses-streaming
  */
 
-import type { FinishReason, UIMessageChunk } from 'ai'
+import type { FinishReason, ProviderMetadata, UIMessageChunk } from 'ai'
 
 import type OpenAI from '@cherrystudio/openai'
 import { loggerService } from '@logger'
@@ -89,6 +89,8 @@ interface ReasoningState {
   itemId: string
   outputIndex: number
   text: string
+  native: boolean
+  encryptedContent?: string
 }
 
 /**
@@ -110,6 +112,10 @@ export class AiSdkToOpenAiResponsesSse extends BaseStreamAdapter<ResponseStreamE
   private messageOutputIndex: number | null = null
   private reasoning: ReasoningState | null = null
   private reasoningCount = 0
+
+  override getMessageId(): string {
+    return `resp_${this.state.messageId}`
+  }
 
   constructor(options: StreamAdapterOptions) {
     super(options)
@@ -137,7 +143,7 @@ export class AiSdkToOpenAiResponsesSse extends BaseStreamAdapter<ResponseStreamE
    */
   private buildBaseResponse(status: ResponseStatus = 'in_progress'): PartialStreamingResponse {
     return {
-      id: `resp_${this.state.messageId}`,
+      id: this.getMessageId(),
       object: 'response',
       created_at: this.createdAt,
       status,
@@ -264,14 +270,19 @@ export class AiSdkToOpenAiResponsesSse extends BaseStreamAdapter<ResponseStreamE
         this.emitTextDelta(chunk.delta || '')
         break
 
-      // Reasoning rides in its own `reasoning` output item. `reasoning-start` is ignored:
-      // the item opens on the first non-empty delta, so a reasoning-less turn emits none.
+      case 'reasoning-start':
+        this.ensureReasoningItem(chunk.providerMetadata)
+        break
+
       case 'reasoning-delta':
+        this.ensureReasoningItem(chunk.providerMetadata)
         this.emitReasoningDelta(chunk.delta || '')
         break
 
       case 'reasoning-end':
-        this.closeReasoningItem()
+        this.ensureReasoningItem(chunk.providerMetadata)
+        // Native summary parts share one item; the final part supplies its encrypted content.
+        if (!this.reasoning?.native) this.closeReasoningItem()
         break
 
       case 'tool-input-error':
@@ -295,7 +306,7 @@ export class AiSdkToOpenAiResponsesSse extends BaseStreamAdapter<ResponseStreamE
         throw new Error(chunk.errorText)
 
       default:
-        // start / start-step / finish-step / text-start|end / reasoning-start /
+        // start / start-step / finish-step / text-start|end /
         // tool-input-start|delta / tool-output-available / source-url / file / abort —
         // no Responses-API semantic event here.
         break
@@ -346,9 +357,32 @@ export class AiSdkToOpenAiResponsesSse extends BaseStreamAdapter<ResponseStreamE
   private emitReasoningDelta(delta: string): void {
     if (!delta) return
 
-    if (!this.reasoning) {
+    this.ensureReasoningItem(undefined, true)
+    this.reasoning!.text += delta
+    this.emit({
+      type: 'response.reasoning_summary_text.delta',
+      item_id: this.reasoning!.itemId,
+      output_index: this.reasoning!.outputIndex,
+      summary_index: 0,
+      delta,
+      sequence_number: this.nextSequence()
+    })
+  }
+
+  private ensureReasoningItem(metadata?: ProviderMetadata, hasText = false): void {
+    const native = metadata?.openai ?? metadata?.azure
+    const itemId = typeof native?.itemId === 'string' ? native.itemId : undefined
+    const encryptedContent =
+      typeof native?.reasoningEncryptedContent === 'string' ? native.reasoningEncryptedContent : undefined
+    if (itemId && this.reasoning && this.reasoning.itemId !== itemId) this.closeReasoningItem()
+    if (!this.reasoning && (hasText || itemId || encryptedContent)) {
       const outputIndex = this.nextOutputIndex++
-      this.reasoning = { itemId: `rs_${this.state.messageId}_${this.reasoningCount++}`, outputIndex, text: '' }
+      this.reasoning = {
+        itemId: itemId ?? `rs_${this.state.messageId}_${this.reasoningCount++}`,
+        outputIndex,
+        text: '',
+        native: !!itemId
+      }
 
       this.emit({
         type: 'response.output_item.added',
@@ -366,21 +400,13 @@ export class AiSdkToOpenAiResponsesSse extends BaseStreamAdapter<ResponseStreamE
       })
     }
 
-    this.reasoning.text += delta
-    this.emit({
-      type: 'response.reasoning_summary_text.delta',
-      item_id: this.reasoning.itemId,
-      output_index: this.reasoning.outputIndex,
-      summary_index: 0,
-      delta,
-      sequence_number: this.nextSequence()
-    })
+    if (this.reasoning && encryptedContent !== undefined) this.reasoning.encryptedContent = encryptedContent
   }
 
   /** Close the open reasoning item, if any. Idempotent — several paths may reach it. */
   private closeReasoningItem(): void {
     if (!this.reasoning) return
-    const { itemId, outputIndex, text } = this.reasoning
+    const { itemId, outputIndex, text, encryptedContent } = this.reasoning
     this.reasoning = null
 
     this.emit({
@@ -403,8 +429,9 @@ export class AiSdkToOpenAiResponsesSse extends BaseStreamAdapter<ResponseStreamE
     const item: ResponseReasoningItem = {
       type: 'reasoning',
       id: itemId,
-      summary: [{ type: 'summary_text', text }],
-      content: [{ type: 'reasoning_text', text }],
+      summary: text ? [{ type: 'summary_text', text }] : [],
+      ...(text && { content: [{ type: 'reasoning_text' as const, text }] }),
+      ...(encryptedContent !== undefined && { encrypted_content: encryptedContent }),
       status: 'completed'
     }
     this.outputItems.set(outputIndex, item)
@@ -602,7 +629,7 @@ export class AiSdkToOpenAiResponsesSse extends BaseStreamAdapter<ResponseStreamE
    */
   buildNonStreamingResponse(): Response {
     const partialResponse: PartialStreamingResponse = {
-      id: `resp_${this.state.messageId}`,
+      id: this.getMessageId(),
       object: 'response',
       created_at: this.createdAt,
       status: this.terminalStatus(),

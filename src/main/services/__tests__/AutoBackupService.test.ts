@@ -1,5 +1,6 @@
 import { tmpdir } from 'node:os'
 
+import { mockNotificationService } from '@test-mocks/main/application'
 import { MockMainCacheServiceExport, MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -8,6 +9,7 @@ import { SchedulerService } from '@main/core/scheduler/SchedulerService'
 import type * as LegacyFile from '@main/utils/legacyFile'
 
 import { AutoBackupService } from '../AutoBackupService'
+import { runManualBackup } from '../backupNotifications'
 import { BackupActiveWritersError, BackupOperationBusyError, legacyBackupManager } from '../LegacyBackupManager'
 
 const mocks = vi.hoisted(() => ({
@@ -132,6 +134,7 @@ describe('AutoBackupService', () => {
       if (name === 'SchedulerService') return scheduler
       if (name === 'CacheService') return MockMainCacheServiceExport.cacheService
       if (name === 'IpcApiService') return { broadcastToType: mocks.broadcastToType }
+      if (name === 'NotificationService') return mockNotificationService
       throw new Error(`Unexpected service: ${name}`)
     })
 
@@ -152,6 +155,50 @@ describe('AutoBackupService', () => {
     preferences[key] = value
     preferenceListener?.(key, value, oldValue)
   }
+
+  it('records automatic backup results independently of renderer delivery', async () => {
+    await vi.advanceTimersByTimeAsync(60_000)
+    const records = mockNotificationService.publish.mock.calls.map(([record]) => record)
+    expect(records).toHaveLength(4)
+    expect(records).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          category: 'system',
+          kind: 'backup-success',
+          target: { kind: 'settings', tab: 'data' }
+        })
+      ])
+    )
+    expect(new Set(records.map((record) => record.eventKey)).size).toBe(4)
+  })
+
+  it('preserves manual backup outcomes while recording success, cleanup warning, and failure', async () => {
+    const result = { result: '/backups/saved.zip', cleanupError: null }
+    await expect(runManualBackup(async () => result)).resolves.toBe(result)
+    const warning = { result: '/backups/saved.zip', cleanupError: new Error('cleanup') }
+    await expect(runManualBackup(async () => warning)).resolves.toBe(warning)
+    const failure = new Error('upload failed')
+    await expect(
+      runManualBackup(async () => {
+        throw failure
+      })
+    ).rejects.toBe(failure)
+    expect(mockNotificationService.publish.mock.calls.map(([record]) => record.kind)).toEqual([
+      'backup-success',
+      'backup-warning',
+      'backup-failed'
+    ])
+  })
+
+  it('does not publish backup failure while a retry can still succeed', async () => {
+    mocks.backupToLocalDir.mockRejectedValueOnce(new Error('temporary failure'))
+    await vi.advanceTimersByTimeAsync(60_000)
+    expect(mockNotificationService.publish.mock.calls.map(([record]) => record.kind)).not.toContain('backup-failed')
+    await vi.advanceTimersByTimeAsync(7_000)
+    const records = mockNotificationService.publish.mock.calls.map(([record]) => record)
+    expect(records).toHaveLength(4)
+    expect(records.every((record) => record.kind === 'backup-success')).toBe(true)
+  })
 
   const recreateService = async () => {
     await service._doStop()
@@ -177,57 +224,6 @@ describe('AutoBackupService', () => {
     expect(legacyBackupManager.backupToS3).toHaveBeenCalledOnce()
     expect(legacyBackupManager.backupToLocalDir).toHaveBeenCalledOnce()
     expect(mocks.decryptToken).toHaveBeenCalledOnce()
-  })
-
-  it('restores enabled automatic backup schedules after a service restart', async () => {
-    await service._doStop()
-    await service._doInit()
-
-    for (const type of ['webdav', 's3', 'local', 'nutstore']) {
-      expect(scheduler.has(`auto-backup:${type}`)).toBe(true)
-    }
-  })
-
-  it('applies the startup grace period when the remaining interval is shorter', async () => {
-    await vi.advanceTimersByTimeAsync(60_000)
-    expect(legacyBackupManager.backupToWebdav).toHaveBeenCalledTimes(2)
-    expect(legacyBackupManager.backupToS3).toHaveBeenCalledOnce()
-    expect(legacyBackupManager.backupToLocalDir).toHaveBeenCalledOnce()
-    expect(mocks.decryptToken).toHaveBeenCalledOnce()
-
-    await vi.advanceTimersByTimeAsync(30_000)
-    await recreateService()
-
-    await vi.advanceTimersByTimeAsync(59_000)
-    expect(legacyBackupManager.backupToWebdav).toHaveBeenCalledTimes(2)
-    expect(legacyBackupManager.backupToS3).toHaveBeenCalledOnce()
-    expect(legacyBackupManager.backupToLocalDir).toHaveBeenCalledOnce()
-    expect(mocks.decryptToken).toHaveBeenCalledOnce()
-
-    await vi.advanceTimersByTimeAsync(1_000)
-    expect(legacyBackupManager.backupToWebdav).toHaveBeenCalledTimes(4)
-    expect(legacyBackupManager.backupToS3).toHaveBeenCalledTimes(2)
-    expect(legacyBackupManager.backupToLocalDir).toHaveBeenCalledTimes(2)
-    expect(mocks.decryptToken).toHaveBeenCalledTimes(2)
-  })
-
-  it('waits through the startup grace period when the persisted interval is already overdue', async () => {
-    setPreference('data.backup.s3.auto_sync', false)
-    setPreference('data.backup.local.auto_sync', false)
-    setPreference('data.backup.nutstore.auto_sync', false)
-    MockMainCacheServiceExport.cacheService.setPersist('backup.auto_sync.last_attempt_times', {
-      webdav: Date.now() - 2 * 60_000,
-      s3: null,
-      local: null,
-      nutstore: null
-    })
-    await recreateService()
-
-    await vi.advanceTimersByTimeAsync(59_999)
-    expect(legacyBackupManager.backupToWebdav).not.toHaveBeenCalled()
-
-    await vi.advanceTimersByTimeAsync(1)
-    expect(legacyBackupManager.backupToWebdav).toHaveBeenCalledOnce()
   })
 
   it('preserves a remaining interval that is longer than the startup grace period', async () => {

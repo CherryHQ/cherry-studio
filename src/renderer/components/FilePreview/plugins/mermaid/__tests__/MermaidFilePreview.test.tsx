@@ -1,3 +1,4 @@
+import { MockCherrystudioUI } from '@test-mocks/renderer/CherrystudioUI'
 import { fireEvent, render, screen } from '@testing-library/react'
 import type { ComponentPropsWithoutRef, ReactNode, RefObject } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -24,7 +25,7 @@ vi.mock('@renderer/components/Preview/MermaidPreview', () => ({
 
 vi.mock('@cherrystudio/ui', () => ({
   EmptyState: ({ title }: { title: string }) => <div>{title}</div>,
-  Scrollbar: ({ children, ...props }: ComponentPropsWithoutRef<'div'>) => <div {...props}>{children}</div>,
+  ScrollArea: MockCherrystudioUI.ScrollArea,
   Tooltip: ({ children }: { children: ReactNode }) => children,
   Button: (props: ComponentPropsWithoutRef<'button'>) => <button type="button" {...props} />
 }))

@@ -10,6 +10,7 @@ import { and, asc, eq, inArray, type SQLWrapper } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 
 import { application } from '@application'
+import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { providerLogoFileRefTable } from '@data/db/schemas/fileRelations'
 import { userModelTable } from '@data/db/schemas/userModel'
 import type { InsertUserProviderRow, UserProviderRow } from '@data/db/schemas/userProvider'
@@ -1020,7 +1021,11 @@ class ProviderService {
       return models.length
     })
 
-    if (deletedModelCount > 0) pinService.notifyPurged()
+    if (deletedModelCount > 0) {
+      pinService.notifyPurged()
+      // The cascaded models also drop out of agents through FK `ON DELETE SET NULL`, which no agent write announces.
+      notifyDataApiDataChange([{ endpoint: '/agents', kind: 'projection' }, { endpoint: '/agents/:agentId' }])
+    }
 
     logger.info('Deleted provider', { providerId })
   }

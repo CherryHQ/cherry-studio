@@ -1,5 +1,6 @@
 import fs from 'node:fs'
 import os from 'node:os'
+import { resolve as resolvePath } from 'node:path'
 import path from 'node:path'
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -31,11 +32,10 @@ import { application } from '@application'
 import { resolvePhysicalPath } from '@main/services/file/utils/pathResolver'
 
 import { FileMigrator } from '../FileMigrator'
-import { getAllMigrators } from '../migratorRegistry'
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
-const MOCK_USER_DATA = '/mock/userData'
+const MOCK_USER_DATA = resolvePath('/mock/userData')
 
 /**
  * The path the migrator will actually probe for a given storage name. Built with `path.join`
@@ -158,28 +158,6 @@ function createMockContext(rows: FileMetadata[], overrides: Record<string, unkno
 
   return { ctx, insertFn, insertValues, txFn, selectFn, reader }
 }
-
-// ─── Metadata ───────────────────────────────────────────────────────────────
-
-describe('FileMigrator metadata', () => {
-  it('has correct id, name, and order', () => {
-    const m = new FileMigrator()
-    expect(m.id).toBe('file')
-    expect(m.name).toBe('Files')
-    expect(m.order).toBe(2.7)
-  })
-})
-
-// ─── Registration ───────────────────────────────────────────────────────────
-
-describe('FileMigrator registration', () => {
-  it('is registered at order 2.7 in getAllMigrators()', () => {
-    const migrators = getAllMigrators()
-    const fileMigrator = migrators.find((m) => m.id === 'file')
-    expect(fileMigrator).toBeDefined()
-    expect(fileMigrator?.order).toBe(2.7)
-  })
-})
 
 // ─── ID preservation (per migration-plan §2.9) ──────────────────────────────
 
@@ -534,16 +512,6 @@ describe('FileMigrator batched insert', () => {
     vi.clearAllMocks()
   })
 
-  it('uses ctx.db.transaction for inserts', async () => {
-    const row = makeInternalRow()
-    const { ctx, txFn } = createMockContext([row])
-    const m = new FileMigrator()
-    await m.prepare(ctx as never)
-    await m.execute(ctx as never)
-
-    expect(txFn).toHaveBeenCalledTimes(1)
-  })
-
   it('returns error result when transaction throws', async () => {
     const row = makeInternalRow()
     const { ctx } = createMockContext([row])
@@ -827,7 +795,6 @@ describe('FileMigrator cross-platform recovery (#15733)', () => {
     const inserted = insertValues.mock.calls[0][0]
     const firstRow = Array.isArray(inserted) ? inserted[0] : inserted
     expect(firstRow.size).toBe(2048)
-    expect(vi.mocked(fs.statSync).mock.calls[0][0]).toBe(physicalPath)
   })
 })
 

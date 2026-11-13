@@ -466,7 +466,7 @@ describe('runDataReset', () => {
 
     expect(readStoredMarker()).toMatchObject({ status: 'pending', operation: 'v1_remigration', attempts: 1 })
     expect(rmSyncMock).not.toHaveBeenCalledWith(DATABASE_FILE, expect.anything())
-    expect(showErrorBoxMock).toHaveBeenCalledWith('Migration Reset Failed', expect.any(String))
+    expect(showErrorBoxMock).toHaveBeenCalledWith(expect.any(String), expect.any(String))
     expect(applicationMock.forceExit).toHaveBeenCalledWith(1)
     expect(applicationMock.relaunch).not.toHaveBeenCalled()
 
@@ -581,7 +581,7 @@ describe('runDataReset', () => {
 
     expect(rmSyncMock).not.toHaveBeenCalled()
     expect(markerExists()).toBe(false)
-    expect(showErrorBoxMock).toHaveBeenCalledWith('Data Reset Cancelled', expect.any(String))
+    expect(showErrorBoxMock).toHaveBeenCalledWith(expect.any(String), expect.any(String))
     expect(applicationMock.forceExit).not.toHaveBeenCalled()
   })
 
@@ -594,19 +594,21 @@ describe('runDataReset', () => {
 
     expect(rmSyncMock).not.toHaveBeenCalled()
     expect(markerExists()).toBe(true)
-    expect(showErrorBoxMock).toHaveBeenCalledWith('Data Reset Failed', expect.any(String))
+    expect(showErrorBoxMock).toHaveBeenCalledWith(expect.any(String), expect.any(String))
     expect(applicationMock.forceExit).toHaveBeenCalledWith(1)
     expect(applicationMock.relaunch).not.toHaveBeenCalled()
   })
 
-  it('quits without wiping when the attempt count cannot be durably recorded', async () => {
+  it('abandons the reset instead of quitting forever when the attempt count cannot be durably recorded', async () => {
     stubAll(pendingMarker())
     fsCtl.failWrite = true
     await runReset()
 
+    // The reset cannot make progress without a durable attempt count, and quitting would repeat on
+    // every start on the same unwritable disk: drop the marker and let the app boot.
     expect(rmSyncMock).not.toHaveBeenCalled()
-    expect(showErrorBoxMock).toHaveBeenCalled()
-    expect(applicationMock.forceExit).toHaveBeenCalledWith(1)
+    expect(readStoredMarker()).toBeNull()
+    expect(applicationMock.forceExit).not.toHaveBeenCalled()
     expect(applicationMock.relaunch).not.toHaveBeenCalled()
   })
 
@@ -673,7 +675,7 @@ describe('runDataReset', () => {
     await runReset()
 
     expect(readStoredMarker()?.status).toBe('completed')
-    expect(showErrorBoxMock).toHaveBeenCalledWith('Data Reset Incomplete', expect.any(String))
+    expect(showErrorBoxMock).toHaveBeenCalledWith(expect.any(String), expect.any(String))
     expect(applicationMock.forceExit).toHaveBeenCalledWith(1)
     expect(applicationMock.relaunch).not.toHaveBeenCalled()
   })

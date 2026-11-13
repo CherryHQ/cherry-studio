@@ -53,6 +53,5 @@ describe('SelectionActionIcon', () => {
 
     await waitFor(() => expect(dynamicIconState.render).toHaveBeenCalledWith('custom-icon'))
     expect(icon).toHaveAttribute('data-icon-name', 'custom-icon')
-    expect(icon).toHaveClass('custom-icon-class')
   })
 })

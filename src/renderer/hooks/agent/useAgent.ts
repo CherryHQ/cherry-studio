@@ -45,6 +45,9 @@ export const useAgent = (id: string | null) => {
       keepPreviousData: false
     }
   })
+  useDataChange('/agents/:agentId', (effects) => {
+    if (id && effects.some((effect) => !effect.entityIds || effect.entityIds.includes(id))) void refetch()
+  })
   const agent = useMemo((): AgentEntity | undefined => {
     if (!data) return undefined
     return {

@@ -26,6 +26,7 @@ interface ChatMainProps {
   hasOlder: boolean
   selectAllPagination?: MessageListSelectAllPagination
   openCitationsPanel?: MessageListActions['openCitationsPanel']
+  addGeneratedImageToComposer?: MessageListActions['addGeneratedImageToComposer']
   onStartBranchDraft?: MessageListActions['startMessageBranch']
 }
 
@@ -42,6 +43,7 @@ const ChatMain: FC<ChatMainProps> = ({
   hasOlder,
   selectAllPagination,
   openCitationsPanel,
+  addGeneratedImageToComposer,
   onStartBranchDraft
 }) => {
   const value = useHomeMessageListProviderValue({
@@ -57,6 +59,7 @@ const ChatMain: FC<ChatMainProps> = ({
     hasOlder,
     selectAllPagination,
     openCitationsPanel,
+    addGeneratedImageToComposer,
     onStartBranchDraft
   })
   return (

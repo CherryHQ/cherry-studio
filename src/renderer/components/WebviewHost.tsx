@@ -202,7 +202,6 @@ export function WebviewHost({
       webview.removeEventListener('page-favicon-updated', handleFaviconUpdated)
       if (readyWebviewRef.current === webview) readyWebviewRef.current = null
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- This lint version does not recognize React 19.2 Effect Events.
   }, [webview])
 
   useEffect(() => {

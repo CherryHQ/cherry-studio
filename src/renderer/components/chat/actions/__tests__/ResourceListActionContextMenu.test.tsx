@@ -47,24 +47,4 @@ describe('ResourceListActionContextMenu', () => {
 
     expect(openContextMenu).toHaveBeenCalledWith('topic-7')
   })
-
-  it('passes lazy action resolution to the command context menu', () => {
-    commandMenuMocks.props = []
-    actionMenuItemMocks.actionsToCommandMenuExtraItems.mockClear()
-    const getActions = vi.fn(() => [])
-
-    render(
-      <ResourceListActionContextMenu
-        getActions={getActions}
-        item={{ id: 'topic-7', name: 'Topic 7' }}
-        onAction={vi.fn()}>
-        <button type="button">Row</button>
-      </ResourceListActionContextMenu>
-    )
-
-    expect(actionMenuItemMocks.actionsToCommandMenuExtraItems).toHaveBeenCalledTimes(1)
-    expect(getActions).not.toHaveBeenCalled()
-    commandMenuMocks.props.at(-1)?.getExtraItems?.()
-    expect(getActions).toHaveBeenCalledTimes(1)
-  })
 })

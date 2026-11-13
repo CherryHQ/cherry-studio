@@ -16,11 +16,48 @@ function buildItemHaystack(item: QuickPanelListItem): string {
   return parts.join(' ')
 }
 
+const LINE_TERMINATOR = /[\n\r\u2028\u2029]/
+
+function matchesFuzzyQuery(text: string, query: string): boolean {
+  if (query.length > text.length) return false
+
+  // Single-character patterns preserve /i's UTF-16 case folding without permitting backtracking.
+  const characters = query.split('').map((char) => new RegExp(char.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'))
+
+  if (!LINE_TERMINATOR.test(query)) {
+    let matched = 0
+    for (let index = 0; index < text.length; index++) {
+      const char = text[index]
+      if (characters[matched].test(char)) {
+        if (++matched === characters.length) return true
+      } else if (LINE_TERMINATOR.test(char)) {
+        matched = 0
+      }
+    }
+    return false
+  }
+
+  // Literal newlines can consume line boundaries; retain overlapping prefixes without recursive retries.
+  const prefixes = new Uint8Array(characters.length + 1)
+  prefixes[0] = 1
+  for (let index = 0; index < text.length; index++) {
+    const char = text[index]
+    const canSkip = !LINE_TERMINATOR.test(char)
+    for (let length = characters.length - 1; length >= 0; length--) {
+      prefixes[length + 1] = Number(
+        (prefixes[length] && characters[length].test(char)) || (canSkip && prefixes[length + 1])
+      )
+    }
+    if (prefixes[characters.length]) return true
+  }
+  return false
+}
+
 /**
  * Default filter function
  * Implements standard filtering logic with pinyin support
  */
-export const defaultFilterFn: QuickPanelFilterFn = (item, searchText, fuzzyRegex, pinyinCache) => {
+export const defaultFilterFn: QuickPanelFilterFn = (item, searchText, _fuzzyRegex, pinyinCache) => {
   if (!searchText) return true
 
   const filterText = buildItemHaystack(item)
@@ -40,12 +77,12 @@ export const defaultFilterFn: QuickPanelFilterFn = (item, searchText, fuzzyRegex
         pinyinText = tinyPinyin.convertToPinyin(filterText, '', true).toLowerCase()
         pinyinCache.set(item, pinyinText)
       }
-      return fuzzyRegex.test(pinyinText)
+      return matchesFuzzyQuery(pinyinText, lowerSearchText)
     } catch (error) {
       return true
     }
   } else {
-    return fuzzyRegex.test(filterText.toLowerCase())
+    return matchesFuzzyQuery(lowerFilterText, lowerSearchText)
   }
 }
 

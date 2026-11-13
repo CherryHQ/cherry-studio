@@ -152,6 +152,8 @@ development profile must be isolated. Cherry home, BootConfig, legacy config
 discovery, Electron `userData`, and logs are placed below that root. Relative
 paths and the filesystem root abort startup. Packaged builds ignore the
 variable. When set, it takes precedence over `CS_DEV_USER_DATA_SUFFIX`.
+Electron's temporary directory is explicitly set to `{profileRoot}/home/temp`
+before the path registry is initialized; macOS does not honor `TMPDIR` for this API.
 
 ```bash
 CS_DEV_PROFILE_ROOT=/absolute/path/to/cherry-profile pnpm dev

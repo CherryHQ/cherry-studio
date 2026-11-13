@@ -15,12 +15,25 @@ const request = vi.mocked(window.api.ipcApi.request)
 beforeEach(async () => {
   vi.clearAllMocks()
   await i18n.changeLanguage('zh-CN')
+  let signedOut = false
   request.mockImplementation(async (route) => {
-    const status: CherryCloudStatus =
-      route === 'cherry_cloud.session.revoke'
-        ? { phase: 'signed-out', accountId: null, displayName: null }
-        : { phase: 'signed-in', accountId: 'account-1', displayName: 'current-account' }
-    return { ok: true, data: status }
+    if (route === 'cherry_cloud.session.revoke') signedOut = true
+    const status: Omit<CherryCloudStatus, 'scopeId' | 'revision'> = signedOut
+      ? { phase: 'signed-out', accountId: null, displayName: null }
+      : { phase: 'signed-in', accountId: 'account-1', displayName: 'current-account' }
+    return {
+      ok: true,
+      data:
+        route === 'cherry_cloud.account.get'
+          ? {
+              status: { ...status, scopeId: status.phase, revision: 1 },
+              reason: 'initial',
+              account: { freshness: 'unknown', error: null },
+              models: { freshness: 'unknown', error: null },
+              plans: { freshness: 'unknown', error: null }
+            }
+          : status
+    }
   })
 })
 
@@ -49,7 +62,16 @@ describe('AccountSignOutButton', () => {
   })
 
   it('uses a generic title when the account name is unavailable', async () => {
-    request.mockResolvedValue({ ok: true, data: { phase: 'signed-in', accountId: 'account-1', displayName: null } })
+    request.mockResolvedValue({
+      ok: true,
+      data: {
+        status: { phase: 'signed-in', accountId: 'account-1', displayName: null, scopeId: 'in', revision: 1 },
+        reason: 'initial',
+        account: { freshness: 'unknown', error: null },
+        models: { freshness: 'unknown', error: null },
+        plans: { freshness: 'unknown', error: null }
+      }
+    })
     const user = userEvent.setup()
     renderSignOut()
     await user.click(await screen.findByRole('button', { name: '退出登录' }))

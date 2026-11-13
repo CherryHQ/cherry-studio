@@ -82,7 +82,7 @@ CI 和本地 coding agent 花费时间检查无关代码，但各自维护的任
 
 不同 worktree 主要竞争 CPU、内存和 I/O。同一 worktree 内并发执行还会共享可变构建产物、缓存及 native binary。本轮没有进行本地多 agent 负载基准或冲突复现；资源竞争机制由命令结构支持，但本机减速比例尚未测量。
 
-Node/web tsconfig 已启用增量编译，并使用不同的 `.tsbuildinfo` 文件，不能把“启用增量”当作缺失功能。[二进制下载器](../../../../scripts/download-binaries.js)已有按版本共享的缓存，不能未经测量就假设每次都重复下载。Native 边界见 [ABI 契约](../../../../docs/references/testing/database-testing.md#better-sqlite3-native-module-abi)。
+Node/web tsconfig 已启用增量编译，并使用不同的 `.tsbuildinfo` 文件，不能把“启用增量”当作缺失功能。[二进制下载器](../../../../scripts/download-binaries.js)已有按版本共享的缓存，不能未经测量就假设每次都重复下载。Native 边界见 [ABI 契约](../../../../docs/dev/references/testing/database-testing.md#better-sqlite3-native-module-abi)。
 
 ## Proposal
 
@@ -134,6 +134,8 @@ Node/web tsconfig 已启用增量编译，并使用不同的 `.tsbuildinfo` 文�
 普通文档在 PR 和 push 都走轻量路径。将重 lint、typecheck、i18n 拆为可独立调度的 job；在确定分组前评估额外 checkout/install 成本。便宜的格式、docs、生成器检查在适合时保持合并。
 
 先保留 Linux main 和 renderer 当前分片数作为基线。更多分片会复制大缓存恢复和安装成本，平台 job 已有大量依赖准备开销。按平台敏感模块及其依赖选择 macOS/Windows 工作，不能只检查改动文件是否包含 `process.platform`。保留 main 测试适合 native module 的进程池。
+
+[九台 runner 执行策略](../../implemented/process/2026-11-10-ci-runner-consolidation.md)取代这里 main/renderer 的初始分片基线；任务选择、测试清单和必需门禁的契约仍然适用。
 
 取消被新提交替代的 PR 运行，concurrency 按工作流及 PR 隔离。不要自动将取消策略扩展到发布工作流。保留手动全量验证并增加定时全量验证作为兜底；它们都不能代替受影响改动必须执行的检查。
 

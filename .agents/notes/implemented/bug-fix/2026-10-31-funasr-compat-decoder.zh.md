@@ -12,7 +12,7 @@ Status: implemented
 
 模型目录固定使用 ModelScope 版本 `ce0975f2a7a8ad6441223db59ce6e1362295ddfe` 的兼容版解码器，安装文件名为 `llm.int8.compat.onnx`。模型包 ID 保持不变。已有安装只需补充该解码器；仅有旧文件时推理拒绝加载，修复后解析到新文件名。下载哈希校验和原子发布仍由现有获取层负责。
 
-旧 Hugging Face 版本仍提供不兼容的文件，因此该文件的来源排除了它及其镜像。模型包的其他文件保留已验证的来源。[本地模型](../../../../docs/references/ai/local-models.md) 负责描述安装行为。
+旧 Hugging Face 版本仍提供不兼容的文件，因此该文件的来源排除了它及其镜像。模型包的其他文件保留已验证的来源。[本地模型](../../../../docs/dev/references/ai/local-models.md) 负责描述安装行为。
 
 ## 考虑过的替代方案
 

@@ -1,3 +1,4 @@
+import { isNumberShortcut } from '@renderer/utils/numberShortcuts'
 import { platform } from '@renderer/utils/platform'
 import type { SupportedPlatform } from '@shared/types/command'
 import { COMMAND_DEFINITIONS, isPlatformSupported } from '@shared/utils/command'
@@ -41,8 +42,16 @@ const isSearchableCommand = (definition: CommandDefinition): boolean => {
   return isPlatformSupported(keybinding, currentPlatform)
 }
 
-export const entries: SettingsSearchEntry[] = COMMAND_DEFINITIONS.filter(isSearchableCommand).map((definition) => ({
+export const entries: SettingsSearchEntry[] = COMMAND_DEFINITIONS.filter(
+  (definition) => isSearchableCommand(definition) && !isNumberShortcut(definition.id)
+).map((definition) => ({
   anchorId: shortcutAnchorId(definition.id),
   titleKey: definition.titleKey,
   groupKey: categoryToBreadcrumbKey(definition.categoryKey)
 }))
+
+entries.push({
+  anchorId: 'number-keys',
+  titleKey: 'settings.shortcuts.number_keys.title',
+  groupKey: 'settings.shortcuts.categories.general'
+})

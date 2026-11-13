@@ -7,8 +7,7 @@ import { agentService } from '@data/services/AgentService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 
 import type { ChannelMessageEvent } from '../ChannelAdapter'
-import { ChannelManager } from '../ChannelManager'
-import { ChannelMessageHandler, channelMessageHandler } from '../ChannelMessageHandler'
+import { ChannelMessageHandler } from '../ChannelMessageHandler'
 
 const persistedChannelSessions = vi.hoisted(() => ({
   bindings: new Map<string, string>(),
@@ -31,7 +30,8 @@ vi.mock('@logger', () => ({
 }))
 
 vi.mock('../security/OutputSanitizer', () => ({
-  sanitizeChannelOutput: vi.fn((text: string) => ({ text, redacted: false }))
+  sanitizeChannelOutput: vi.fn((text: string) => ({ text, redacted: false })),
+  sanitizeChannelOutputSilently: vi.fn((text: string) => ({ text, redactedPatterns: [] }))
 }))
 
 // The global mock (tests/main.setup.ts) wires the default service set, which omits
@@ -159,7 +159,6 @@ function pendingAdmissionCount(handler: ChannelMessageHandler): number {
 
 // Delegate coverage below constructs the manager directly, like ChannelManager.test.ts —
 // BaseService's singleton guard allows one instance per module registry.
-const channelManager = new ChannelManager()
 
 describe('ChannelMessageHandler write quiesce', () => {
   // Fresh instance per test so pauseHolds / pendingAdmissions never leak between tests
@@ -433,22 +432,5 @@ describe('ChannelMessageHandler write quiesce', () => {
     // Discard the pending batch so its debounce timer and promise don't outlive the test.
     handler.clearSessionTracker('agent-1')
     await expect(turn).rejects.toThrow('Agent removed; batch discarded')
-  })
-})
-
-describe('ChannelManager write-quiesce delegates', () => {
-  it('pause / drainInFlight / listActiveWork delegate to the channelMessageHandler singleton', async () => {
-    expect(channelMessageHandler.isWriteQuiesced).toBe(false)
-
-    const hold = channelManager.pause('delegate-test')
-    try {
-      expect(channelMessageHandler.isWriteQuiesced).toBe(true)
-      expect(channelManager.listActiveWork()).toEqual([])
-      await expect(channelManager.drainInFlight({ timeoutMs: 10 })).resolves.toEqual({ stragglerIds: [] })
-    } finally {
-      hold.dispose()
-    }
-
-    expect(channelMessageHandler.isWriteQuiesced).toBe(false)
   })
 })

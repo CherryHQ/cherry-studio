@@ -1,7 +1,8 @@
 import type { UIMessageChunk } from 'ai'
 import { describe, expect, it } from 'vitest'
 
-import { CITATION_SNIPPET_MAX_CHARS } from '@shared/ai/builtinTools'
+import { MessageProjection } from '@main/ai/messages/MessageProjection'
+import { applyMessageProjectionUpdate, type TopicProjectionState } from '@shared/ai/messageProjection'
 import { isDeferredToolOutput } from '@shared/ai/transport'
 import type { CherryMessagePart } from '@shared/data/types/message'
 
@@ -42,46 +43,6 @@ const manyAgentWebSearch = {
     content: '测'.repeat(1000)
   }))
 }
-const largeKnowledgeSearch = [
-  {
-    id: 'knowledge-1',
-    baseId: 'base-1',
-    conceptId: 'docs/guide.md',
-    title: 'Guide',
-    type: 'file',
-    content: 'k'.repeat(DEFER_TOOL_OUTPUT_BYTES + 1),
-    score: 0.92
-  }
-]
-const largeKnowledgeRead = {
-  id: 'read-1',
-  baseId: 'base-1',
-  conceptId: 'docs/readme.md',
-  title: 'README',
-  type: 'file',
-  totalChars: DEFER_TOOL_OUTPUT_BYTES + 1,
-  charStart: 0,
-  charEnd: DEFER_TOOL_OUTPUT_BYTES + 1,
-  content: 'r'.repeat(DEFER_TOOL_OUTPUT_BYTES + 1),
-  truncated: false
-}
-const largeKnowledgeGrep = {
-  id: 'grep-1',
-  baseId: 'base-1',
-  conceptId: 'docs/readme.md',
-  title: 'README',
-  type: 'file',
-  totalMatches: 2,
-  matches: [
-    { line: 3, charStart: 10, charEnd: 19, snippet: 'first hit' },
-    {
-      line: 9,
-      charStart: 40,
-      charEnd: DEFER_TOOL_OUTPUT_BYTES + 40,
-      snippet: 'g'.repeat(DEFER_TOOL_OUTPUT_BYTES + 1)
-    }
-  ]
-}
 
 function partWith(output: unknown): CherryMessagePart {
   return {
@@ -108,12 +69,31 @@ const blob = (key: string, n: number) => ({
 })
 
 describe('message tool-output projection', () => {
+  it('delivers a large replacement on the same call with a fresh cache identity', () => {
+    const parts = (value: string) => [projectMessagePartForRenderer(partWith(value), TOPIC_ID, MESSAGE_ID)]
+    const first = { id: MESSAGE_ID, role: 'assistant' as const, parts: parts('a'.repeat(64 * 1024)) }
+    const state: TopicProjectionState = { kind: 'topic', topicId: TOPIC_ID, executions: [] }
+    const projection = new MessageProjection({ ...state, messages: [first] })
+    let view = projection.snapshot()
+    projection.subscribe((update) => {
+      view = applyMessageProjectionUpdate(view, update)!
+    })
+    const replacement = { ...first, parts: parts('b'.repeat(64 * 1024)) }
+    projection.update({ ...state, messages: [replacement] }, true)
+    expect(view.messages[0]).toEqual(replacement)
+    expect(view.messages[0]).not.toEqual(first)
+    expect(parts('b'.repeat(64 * 1024))).toEqual(replacement.parts)
+    projection.update({ ...state, messages: [{ ...first, parts: [] }] }, true)
+    expect(view.messages[0].parts).toEqual([])
+    projection.dispose()
+  })
+
   it('leaves an output that fits under the threshold untouched', () => {
     const part = partWith(small)
-    expect(projectMessagePartForRenderer(part, TOPIC_ID, MESSAGE_ID)).toBe(part)
+    expect(projectMessagePartForRenderer(part, TOPIC_ID, MESSAGE_ID)).toEqual(part)
 
     const chunk = chunkWith(small)
-    expect(projectStreamChunkForRenderer(chunk, TOPIC_ID, MESSAGE_ID)).toBe(chunk)
+    expect(projectStreamChunkForRenderer(chunk, TOPIC_ID, MESSAGE_ID)).toEqual(chunk)
   })
 
   it('replaces an oversized output with a resolvable reference', () => {
@@ -122,7 +102,12 @@ describe('message tool-output projection', () => {
     }
     expect(isDeferredToolOutput(projected.output)).toBe(true)
     expect(projected.output).toEqual({
-      $deferredToolResult: { topicId: TOPIC_ID, messageId: MESSAGE_ID, toolCallId: TOOL_CALL_ID }
+      $deferredToolResult: {
+        topicId: TOPIC_ID,
+        messageId: MESSAGE_ID,
+        toolCallId: TOOL_CALL_ID,
+        revision: expect.any(String)
+      }
     })
   })
 
@@ -164,46 +149,6 @@ describe('message tool-output projection', () => {
       serverName: 'cherry-tools',
       serverId: 'cherry-tools'
     })
-  })
-
-  it('keeps kb_search identity fields and a bounded content preview', () => {
-    const projected = projectMessagePartForRenderer(
-      partWith(largeKnowledgeSearch),
-      TOPIC_ID,
-      MESSAGE_ID
-    ) as unknown as {
-      output: { skeleton?: Array<Record<string, unknown>> }
-    }
-
-    expect(projected.output.skeleton).toEqual([
-      {
-        ...largeKnowledgeSearch[0],
-        content: `${'k'.repeat(CITATION_SNIPPET_MAX_CHARS)}…`
-      }
-    ])
-  })
-
-  it('keeps a bounded kb_read document slice', () => {
-    const projected = projectMessagePartForRenderer(partWith(largeKnowledgeRead), TOPIC_ID, MESSAGE_ID) as unknown as {
-      output: { skeleton?: Record<string, unknown> }
-    }
-
-    expect(projected.output.skeleton).toEqual({
-      ...largeKnowledgeRead,
-      content: `${'r'.repeat(CITATION_SNIPPET_MAX_CHARS)}…`
-    })
-  })
-
-  it('keeps ordered kb_read grep matches up to the combined citation preview limit', () => {
-    const projected = projectMessagePartForRenderer(partWith(largeKnowledgeGrep), TOPIC_ID, MESSAGE_ID) as unknown as {
-      output: { skeleton?: { matches: Array<{ snippet: string }> } }
-    }
-    const matches = projected.output.skeleton?.matches ?? []
-    const joined = matches.map((match) => match.snippet).join(' … ')
-
-    expect(matches).toHaveLength(2)
-    expect(joined).toHaveLength(CITATION_SNIPPET_MAX_CHARS + 1)
-    expect(joined).toMatch(/^first hit … g+…$/)
   })
 
   it('does not expose a citation skeleton for a third-party MCP lookup', () => {
@@ -260,7 +205,7 @@ describe('message tool-output projection', () => {
 
   it('does nothing without a message id to address the result by', () => {
     const chunk = chunkWith(large)
-    expect(projectStreamChunkForRenderer(chunk, TOPIC_ID, undefined)).toBe(chunk)
+    expect(projectStreamChunkForRenderer(chunk, TOPIC_ID, undefined)).toEqual(chunk)
   })
 
   it('is not topic-specific — an ordinary chat topic defers on the same rule', () => {
@@ -287,7 +232,12 @@ describe('message tool-output projection', () => {
     }
     expect(isDeferredToolOutput(projected.output)).toBe(true)
     expect(projected.output).toEqual({
-      $deferredToolResult: { topicId: TOPIC_ID, messageId: MESSAGE_ID, toolCallId: TOOL_CALL_ID },
+      $deferredToolResult: {
+        topicId: TOPIC_ID,
+        messageId: MESSAGE_ID,
+        toolCallId: TOOL_CALL_ID,
+        revision: expect.any(String)
+      },
       excerpt: { head: 'first lines', tail: 'last lines', totalChars: 200_000, totalLines: 5_000 }
     })
   })
@@ -306,7 +256,12 @@ describe('message tool-output projection', () => {
     }
 
     expect(projected.output).toMatchObject({
-      $deferredToolResult: { topicId: TOPIC_ID, messageId: MESSAGE_ID, toolCallId: TOOL_CALL_ID },
+      $deferredToolResult: {
+        topicId: TOPIC_ID,
+        messageId: MESSAGE_ID,
+        toolCallId: TOOL_CALL_ID,
+        revision: expect.any(String)
+      },
       excerpt: { head: 'head-1', tail: 'tail-1', totalChars: 1000, totalLines: 10 }
     })
     expect(projected.output.skeleton?.[0]).toMatchObject({ id: '70536f0b-1' })

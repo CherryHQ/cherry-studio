@@ -9,6 +9,12 @@ vi.mock('@main/services/readableContent/readableContentWorker?nodeWorker', () =>
   })
 }))
 
+vi.mock('@main/ai/messages/attachmentWorker?nodeWorker', () => ({
+  default: vi.fn(() => {
+    throw new Error('Attachment worker factory must be mocked by tests that invoke it')
+  })
+}))
+
 // Mock LoggerService globally for main process tests
 vi.mock('@logger', async () => {
   const { MockMainLoggerService, mockMainLoggerService } = await import('./__mocks__/MainLoggerService')
@@ -247,12 +253,13 @@ vi.mock('electron-store', () => {
 // tests assume this deterministic value when building expected paths.
 vi.mock('node:os', async () => {
   const actual = await vi.importActual<typeof import('node:os')>('node:os')
+  const { resolve } = await vi.importActual<typeof import('node:path')>('node:path')
   return {
     ...actual,
-    homedir: vi.fn(() => '/mock/home'),
+    homedir: vi.fn(() => resolve('/mock/home')),
     default: {
       ...actual,
-      homedir: () => '/mock/home'
+      homedir: () => resolve('/mock/home')
     }
   }
 })

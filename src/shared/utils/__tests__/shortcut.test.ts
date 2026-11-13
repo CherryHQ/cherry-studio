@@ -3,11 +3,44 @@ import { describe, expect, it } from 'vitest'
 import {
   convertAcceleratorToHotkey,
   formatShortcutDisplay,
+  getShortcutBindingFromKeyboardEvent,
   isValidShortcut,
   normalizeShortcutBinding,
   normalizeShortcutToken,
   type ShortcutBinding
 } from '../shortcut'
+
+describe('getShortcutBindingFromKeyboardEvent', () => {
+  it.each([
+    [{ key: 'c', code: 'KeyI', metaKey: true }, ['CommandOrControl', 'C']],
+    [{ key: 'i', code: 'KeyG', metaKey: true }, ['CommandOrControl', 'I']],
+    [{ key: '1', code: 'Digit2' }, ['1']],
+    [{ key: ';', code: 'KeyZ' }, [';']],
+    [{ key: 'i', code: 'KeyI', metaKey: true }, ['CommandOrControl', 'I']],
+    [{ key: 'c' }, ['C']],
+    [{ key: 'Process', code: 'KeyI', metaKey: true }, ['CommandOrControl', 'I']],
+    [{ key: 'Dead', code: 'KeyI' }, ['I']],
+    [{ key: 'Unidentified', code: 'KeyI' }, ['I']],
+    [{ key: 'Unidentified' }, []],
+    [{ key: 'ç', code: 'KeyC', altKey: true }, ['Alt', 'C']],
+    [{ key: 'Enter', code: 'NumpadEnter' }, ['numenter']],
+    [{ key: '+', code: 'NumpadAdd' }, ['numadd']],
+    [{ key: '-', code: 'NumpadSubtract', metaKey: true }, ['CommandOrControl', 'numsub']],
+    [{ key: 'End', code: 'Numpad1' }, ['1']],
+    [{ key: '+', code: 'Equal', shiftKey: true }, ['Shift', '=']],
+    [{ key: '_', code: 'Minus', shiftKey: true }, ['Shift', '-']],
+    [{ key: '!', code: 'Digit1', shiftKey: true }, ['Shift', '1']],
+    [{ key: ' ', code: 'Space' }, ['Space']],
+    [{ key: ' ', code: '' }, []],
+    [{ key: 'Enter', code: 'Enter' }, ['Enter']],
+    [{ key: 'Escape', code: 'Escape' }, ['Escape']],
+    [{ key: 'F1', code: 'F1' }, ['F1']],
+    [{ key: 'F24', code: 'F24' }, ['F24']],
+    [{ key: 'F25', code: 'F25' }, []]
+  ])('resolves %j to %j on darwin', (event, expected) => {
+    expect(getShortcutBindingFromKeyboardEvent(event, 'darwin')).toEqual(expected)
+  })
+})
 
 describe('normalizeShortcutToken', () => {
   it('returns canonical tokens unchanged', () => {

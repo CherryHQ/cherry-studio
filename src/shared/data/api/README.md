@@ -4,9 +4,9 @@ This directory contains type definitions for the DataApi system.
 
 ## Documentation
 
-- **DataApi Overview**: [docs/references/data/data-api-overview.md](../../../../docs/references/data/data-api-overview.md)
-- **API Types**: [api-types.md](../../../../docs/references/data/api-types.md)
-- **API Design Guidelines**: [api-design-guidelines.md](../../../../docs/references/data/api-design-guidelines.md)
+- **DataApi Overview**: [docs/dev/references/data/data-api-overview.md](../../../../docs/dev/references/data/data-api-overview.md)
+- **API Types**: [api-types.md](../../../../docs/dev/references/data/api-types.md)
+- **API Design Guidelines**: [api-design-guidelines.md](../../../../docs/dev/references/data/api-design-guidelines.md)
 
 ## Directory Structure
 

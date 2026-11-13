@@ -26,7 +26,7 @@ import {
 } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button, NormalTooltip, Popover, PopoverContent, PopoverTrigger, Scrollbar } from '@cherrystudio/ui'
+import { Button, NormalTooltip, Popover, PopoverContent, PopoverTrigger, ScrollArea } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import {
   getQuoteTooltipContent,
@@ -313,6 +313,14 @@ export function LinkComposerToken(props: ComposerTokenProps) {
   }
   const handleClick: MouseEventHandler<HTMLSpanElement> = (event) => {
     stopTokenActionEvent(event)
+    const selection = window.getSelection()
+    if (
+      props.readOnly &&
+      selection &&
+      !selection.isCollapsed &&
+      selection.getRangeAt(0).intersectsNode(event.currentTarget)
+    )
+      return
     openLink(event.metaKey || event.ctrlKey || event.shiftKey || event.altKey)
   }
   const handleKeyDown = (event: ReactKeyboardEvent<HTMLSpanElement>) => {
@@ -326,15 +334,19 @@ export function LinkComposerToken(props: ComposerTokenProps) {
   const chipElement = renderActiveComposerTokenElement({
     ...props,
     colorClassName: 'text-link',
-    className: cn('cursor-pointer rounded-[4px] focus-visible:bg-accent focus-visible:outline-none', props.className),
+    className: cn(
+      'cursor-pointer rounded-[4px] focus-visible:bg-accent focus-visible:outline-none',
+      props.readOnly && 'inline select-text',
+      props.className
+    ),
     // 编辑态也和只读态一样显示站点图标；拿不到图标时退回链接字形（而不是首字母方块），
     // 这样编辑中的链接和已发送消息里的链接长得一样。
     icon: (
-      <span className={composerLinkFaviconClassName} data-composer-link-favicon="">
+      <span className={cn(composerLinkFaviconClassName, props.readOnly && 'mr-1')} data-composer-link-favicon="">
         <Favicon hostname={link.hostname} alt="" fallback={tokenIconByKind.link} />
       </span>
     ),
-    children: <span className="min-w-0 truncate">{link.label}</span>,
+    children: <span className={props.readOnly ? undefined : 'min-w-0 truncate'}>{link.label}</span>,
     hideNativeTitle: true,
     interactionProps: {
       href: props.readOnly ? link.url : undefined,
@@ -461,11 +473,13 @@ function PastedTextTokenPreviewCard({
 
   return (
     <div className="w-80 overflow-hidden text-left">
-      <Scrollbar className="max-h-44 min-h-24 overflow-x-hidden bg-muted/50" data-file-token-text-scrollbar="">
+      <ScrollArea
+        viewportProps={{ className: 'overflow-x-hidden', 'data-file-token-text-scrollbar': '' }}
+        className="max-h-44 min-h-24 bg-muted/50">
         <pre className="m-0 p-3 font-[inherit] text-xs leading-5 break-words whitespace-pre-wrap text-popover-foreground">
           {previewText}
         </pre>
-      </Scrollbar>
+      </ScrollArea>
       {secondaryAction && (
         <div className="flex justify-end border-t border-border-subtle p-2" data-file-token-actions="">
           {secondaryAction}

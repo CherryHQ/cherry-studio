@@ -43,6 +43,36 @@ describe('useOptimisticResourceName', () => {
     expect(result.current.items[0]?.name).toBe('External name')
   })
 
+  it('applies the current overlays to a list read outside render', async () => {
+    const { result, rerender } = renderHook(
+      ({ sourceItems }: { sourceItems: readonly Resource[] }) => useOptimisticResourceName(sourceItems),
+      { initialProps: { sourceItems: [sourceItem] } }
+    )
+    const { withOptimisticNames } = result.current
+
+    let finishWrite!: (persisted: boolean) => void
+    let renameRequest!: Promise<boolean>
+    act(() => {
+      renameRequest = result.current.rename(
+        sourceItem,
+        'Renamed resource',
+        () => new Promise((resolve) => (finishWrite = resolve))
+      )
+    })
+    await vi.waitFor(() => expect(finishWrite).toBeDefined())
+
+    expect(withOptimisticNames([sourceItem])[0].name).toBe('Renamed resource')
+
+    await act(async () => {
+      finishWrite(false)
+      await renameRequest
+    })
+    rerender({ sourceItems: [sourceItem] })
+
+    expect(withOptimisticNames([sourceItem])[0].name).toBe('Original name')
+    expect(result.current.withOptimisticNames).toBe(withOptimisticNames)
+  })
+
   it('serializes writes while keeping the latest submitted name visible', async () => {
     const { result, rerender } = renderHook(
       ({ sourceItems }: { sourceItems: readonly Resource[] }) => useOptimisticResourceName(sourceItems),

@@ -22,7 +22,7 @@
  * `application.get('FileManager')`. The `internal/*` tree is a private
  * implementation area and is not re-exported via `src/main/services/file/index.ts`.
  *
- * See `docs/references/file/file-manager-architecture.md §1.6` for the full
+ * See `docs/dev/references/file/file-manager-architecture.md §1.6` for the full
  * implementation-layout decision.
  *
  * ## FileHandle dispatch at the IPC boundary
@@ -55,7 +55,7 @@
  * and each handler in `src/main/ipc/handlers/file.ts`; the public API surface
  * and `internal/*` pure-function structure both stay stable.
  *
- * See `docs/references/file/file-manager-architecture.md §1.6.5` for the
+ * See `docs/dev/references/file/file-manager-architecture.md §1.6.5` for the
  * full dispatch convention.
  *
  * ## External entries — best-effort reference semantics
@@ -68,8 +68,8 @@
  * Which callers use internal vs external is a business-layer decision —
  * FileManager makes no assumption. For module boundaries and dangling-state
  * tracking, see:
- * - [file-manager-architecture.md](../../../docs/references/file/file-manager-architecture.md)
- * - [architecture.md](../../../docs/references/file/architecture.md)
+ * - [file-manager-architecture.md](../../../docs/dev/references/file/file-manager-architecture.md)
+ * - [architecture.md](../../../docs/dev/references/file/architecture.md)
  *
  * Cherry **allows** user-initiated modification of external files:
  * - `write` / `writeIfUnchanged` → atomic write to `externalPath`

@@ -1,6 +1,6 @@
 import React from 'react'
 
-import { Divider as SettingDivider, Scrollbar } from '@cherrystudio/ui'
+import { Divider as SettingDivider, ScrollArea } from '@cherrystudio/ui'
 import { cn } from '@renderer/utils/style'
 import type { ThemeMode } from '@shared/data/preference/preferenceTypes'
 
@@ -27,14 +27,20 @@ export const SettingsContentColumn = ({
   innerClassName,
   theme,
   children,
+  viewportProps,
+  contentProps,
   ...rest
-}: React.ComponentPropsWithoutRef<typeof Scrollbar> & { theme?: ThemeMode; innerClassName?: string }) => (
-  <Scrollbar data-theme-mode={theme} className={cn('flex min-h-0 min-w-0 flex-1 flex-col p-6', className)} {...rest}>
-    <div className={cn('mx-auto w-full max-w-3xl shrink-0 [scrollbar-color:auto]', innerClassName)}>{children}</div>
-  </Scrollbar>
+}: React.ComponentPropsWithoutRef<typeof ScrollArea> & { theme?: ThemeMode; innerClassName?: string }) => (
+  <ScrollArea
+    className={cn('min-h-0 min-w-0 flex-1', className)}
+    viewportProps={{ ...viewportProps, 'data-theme-mode': theme }}
+    contentProps={{ ...contentProps, className: cn('p-6', contentProps?.className) }}
+    {...rest}>
+    <div className={cn('mx-auto w-full max-w-3xl shrink-0', innerClassName)}>{children}</div>
+  </ScrollArea>
 )
 
-// Body variant for pages that handle their own Scrollbar (e.g. ShortcutSettings).
+// Body variant for pages that handle their own scrolling (e.g. ShortcutSettings).
 // Renders the same two-layer structure (outer p-6, inner mx-auto max-w-3xl) without owning the scroll.
 export const SettingsContentBody = ({
   className,

@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-07-openclaw-stop-port-isolation.md
+2026-11-07-openclaw-stop-port-isolation.md: 216de1635facb6135c17f8f88e0f963b944593a9
+2026-11-07-openclaw-stop-port-isolation.zh.md: 5441760bff1caf452ae5fce1bf1d8b8f52342d28

@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/architecture/2026-10-31-conversation-list-row-ownership.md
+2026-10-31-conversation-list-row-ownership.md: 6c3fa29baa1a2e15e0e03834662177f649bf2d88
+2026-10-31-conversation-list-row-ownership.zh.md: 9e577e17795276bf1daf65e7d32a8b538f2fc0c5

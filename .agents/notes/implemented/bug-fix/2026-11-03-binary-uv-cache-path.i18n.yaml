@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-03-binary-uv-cache-path.md
+2026-11-03-binary-uv-cache-path.md: 25f31c07f0957bc47d18620e8b693e181d84402d
+2026-11-03-binary-uv-cache-path.zh.md: ed10943184819cfed4d83272b10bf4fed5d2c2c6
