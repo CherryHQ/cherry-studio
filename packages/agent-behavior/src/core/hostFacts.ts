@@ -28,7 +28,7 @@ export type ApprovalHostFacts = {
   /** The root session's effective permission mode for an installation decision;
    * child sessions receive a bypass mode of their own, which must not authorize installs. */
   readonly globalInstallPermissionMode?: PermissionMode
-  /** The host's destructive-command detector flagged the call. */
+  /** The host's command detector flagged the call as irreversible or unbounded, so `auto` still asks. */
   readonly destructive: boolean
   /** A person already approved this shell tool once in the current session. */
   readonly sessionGranted: boolean

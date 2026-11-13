@@ -482,6 +482,52 @@ describe('desktop Pi root connection', () => {
     expect(toolApprovalRegistry.size()).toBe(0)
   })
 
+  // Catches the reported endpoint path at the root: `auto` running a shell command from the model
+  // response with no approval surface. The grant then covers routine shell, but never a shape whose
+  // blast radius is unbounded, so `bash -c` asks again.
+  it('asks a person before the root runs an ungranted or unbounded shell command in auto mode', async () => {
+    snapshot.agent.configuration = { ...snapshot.agent.configuration, permission_mode: 'auto' }
+    const first = join(directory, 'root-proof-1.txt')
+    const second = join(directory, 'root-proof-2.txt')
+    const third = join(directory, 'root-proof-3.txt')
+    setScript([
+      assistantReply([toolCallPart('root-1', 'bash', { command: 'printf first > root-proof-1.txt' })], 'toolUse'),
+      assistantReply([toolCallPart('root-2', 'bash', { command: 'printf second > root-proof-2.txt' })], 'toolUse'),
+      assistantReply(
+        [toolCallPart('root-3', 'bash', { command: "bash -c 'printf third > root-proof-3.txt'" })],
+        'toolUse'
+      ),
+      assistantReply('finished')
+    ])
+    const { connection, events } = await connect()
+    await connection.send({ message: message('hi') })
+    const approvals = () => events.filter((event) => event.type === 'tool-approval-request')
+
+    await expect.poll(() => approvals().length).toBe(1)
+    expect(approvals()[0].request).toMatchObject({
+      toolCallId: 'root-1',
+      toolName: 'bash',
+      input: { command: 'printf first > root-proof-1.txt' }
+    })
+    expect(existsSync(first)).toBe(false)
+    toolApprovalRegistry.dispatch(approvals()[0].request.approvalId, { approved: true })
+
+    // The grant is the point of `auto`: the next ordinary command runs with no second prompt. Inline
+    // source is unbounded, so the grant never covers it and only the third call asks again.
+    await expect.poll(() => existsSync(second)).toBe(true)
+    await expect.poll(() => approvals().length).toBe(2)
+    expect(approvals().map((event) => event.request.toolCallId)).toEqual(['root-1', 'root-3'])
+    expect(existsSync(third)).toBe(false)
+    toolApprovalRegistry.dispatch(approvals()[1].request.approvalId, { approved: true })
+
+    await done(events)
+    expect(events.filter((event) => event.type === 'error')).toEqual([])
+    expect(readFileSync(first, 'utf8')).toBe('first')
+    expect(readFileSync(second, 'utf8')).toBe('second')
+    expect(readFileSync(third, 'utf8')).toBe('third')
+    expect(toolApprovalRegistry.size()).toBe(0)
+  })
+
   // Catches a mid-turn mode switch that only reaches the next turn: the running turn's next tool call
   // would still be approved (or skipped) under the mode the user just left.
   it.each([

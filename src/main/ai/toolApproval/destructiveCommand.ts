@@ -1,6 +1,7 @@
 /**
- * Detects shell commands whose damage is not undoable, so the `auto` permission mode can hand the
- * decision back to the user instead of running them unattended.
+ * Detects shell commands that `auto` should stop on: damage that cannot be undone (deletion, forced
+ * overwrite, history rewrite) and commands whose blast radius is unbounded (inline code handed to an
+ * interpreter, raw sockets, a downloaded script piped into a shell).
  *
  * SCOPE — this is a usability guard, not a security boundary. A shell can express deletion in
  * unbounded ways (`$(base64 -d <<< …)`, a script file, a here-doc, an alias), so a pattern list can
@@ -16,7 +17,11 @@
 
 /** Prefixes that delegate to the real command behind them. */
 const WRAPPERS = new Set(['time', 'nohup', 'env', 'command', 'exec', 'builtin', 'xargs'])
-const SHELLS = new Set(['sh', 'bash', 'zsh', 'ksh', 'dash', 'fish'])
+const SHELLS = new Set(['sh', 'bash', 'zsh', 'ksh', 'dash', 'fish', 'powershell', 'pwsh'])
+/** Interpreters that evaluate source given on the command line instead of a file the user can read. */
+const INTERPRETERS = new Set(['node', 'nodejs', 'perl', 'ruby', 'php', 'osascript', 'deno', 'bun'])
+/** Raw TCP carries the payload itself: a reverse shell, an exfiltration channel. */
+const NETWORK_CHANNELS = new Set(['nc', 'ncat', 'netcat', 'socat', 'telnet'])
 /** Service-manager subcommands that only report state (`list-units`, `is-system-running`, …). */
 const READ_ONLY_SERVICE_ARG = /(?:^|\s)(?:status|list[\w-]*|show|is-[\w-]+|cat|print|-l|--status-all)(?:\s|$)/
 /** `git restore --staged` only unstages; adding `--worktree` makes it discard edits again. */
@@ -25,10 +30,28 @@ const GIT_RESTORE_UNSTAGE_ONLY = /\s--staged\b/
 interface Stage {
   /** The resolved command word, lowercased and stripped of any path (`/bin/rm` → `rm`). */
   command: string
+  /** Everything after the command word, for the inline-source flag test. */
+  args: readonly string[]
   /** The stage as written, for flag tests. */
   text: string
   elevated: boolean
 }
+
+/**
+ * `-c` / `-lc` / `-e` / `-r` / `-p` / `-Command` / `--eval` … A shell only evaluates inline source with
+ * `c`; the other interpreters also use `e`/`p`/`r`. Long flags are matched by name, never by substring,
+ * so `bash -e script.sh` and `powershell -File build.ps1` stay quiet.
+ */
+const isInlineSourceFlag = (command: string, token: string) => {
+  const flag = token.toLowerCase()
+  if (flag === '--eval' || flag === '--print' || flag === '-command' || flag === '-encodedcommand') return true
+  if (!/^-[a-z]{1,4}$/.test(flag)) return false
+  const letters = SHELLS.has(command) ? 'c' : 'cepr'
+  return [...flag.slice(1)].some((letter) => letters.includes(letter))
+}
+
+/** `python`, `python3`, `python3.12` … */
+const isInterpreter = (command: string) => INTERPRETERS.has(command) || /^python3?(?:\.\d+)?$/.test(command)
 
 const RULES: Array<{ test: (stage: Stage) => boolean; reason: string }> = [
   {
@@ -110,6 +133,22 @@ const RULES: Array<{ test: (stage: Stage) => boolean; reason: string }> = [
   {
     test: (s) => s.elevated,
     reason: 'privilege escalation (sudo)'
+  },
+  {
+    // `bash -c '…'`, `node -e '…'`, `osascript -e '…'` put the real command behind a word every other
+    // rule reads as harmless, which is the shape a payload hiding after a session grant takes.
+    test: (s) =>
+      (SHELLS.has(s.command) || isInterpreter(s.command)) &&
+      s.args.some((token) => isInlineSourceFlag(s.command, token)),
+    reason: 'inline code passed to an interpreter'
+  },
+  {
+    test: (s) => NETWORK_CHANNELS.has(s.command),
+    reason: 'raw network connection'
+  },
+  {
+    test: (s) => /\/dev\/(?:tcp|udp)\//.test(s.text),
+    reason: 'raw socket redirect'
   }
 ]
 
@@ -134,15 +173,15 @@ function parseStage(text: string): Stage {
       index++
       continue
     }
-    return { command: name, text, elevated }
+    return { command: name, args: tokens.slice(index + 1), text, elevated }
   }
-  return { command: '', text, elevated }
+  return { command: '', args: [], text, elevated }
 }
 
 /**
- * Returns a short human reason when `command` looks irreversibly destructive, or `null` otherwise.
- * Each `&&`/`||`/`;`/newline segment is parsed on its own so a flag in one command is never
- * attributed to a keyword in another.
+ * Returns a short human reason when `command` is irreversible or has an unbounded blast radius, or
+ * `null` otherwise. Each `&&`/`||`/`;`/newline segment is parsed on its own so a flag in one command is
+ * never attributed to a keyword in another.
  */
 export function detectDestructiveCommand(command: string): string | null {
   for (const segment of command.split(/&&|\|\||[;\n]/)) {
