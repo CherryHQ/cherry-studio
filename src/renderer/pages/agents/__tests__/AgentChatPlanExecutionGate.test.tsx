@@ -351,6 +351,7 @@ describe('AgentChat plan-execution handoff gates', () => {
         return { ok: true, data: { ok: true, handoff: 'started', executionModelId: PLAN_EXECUTION_MODEL_ID } }
       // The right pane the merged AgentChat renders asks for the desktop-control snapshot.
       if (route === 'computer_use.get_controls') return { ok: true, data: [] }
+      if (route === 'computer_use.get_approvals') return { ok: true, data: [] }
       return { ok: true, data: { ok: true, mode: 'started' } }
     })
     ipcMocks.on.mockClear()
@@ -536,6 +537,7 @@ describe('AgentChat plan-execution handoff gates', () => {
     ipcMocks.request.mockImplementation((route: string) => {
       if (route === 'ai.tool.respond_approval') return new Promise((resolve) => (resolveApproval = resolve))
       if (route === 'computer_use.get_controls') return Promise.resolve({ ok: true, data: [] })
+      if (route === 'computer_use.get_approvals') return Promise.resolve({ ok: true, data: [] })
       return Promise.resolve({ ok: true, data: { ok: true, mode: 'started' } })
     })
     const view = renderAgentChat()
