@@ -2,7 +2,7 @@ import { ScanLine, Settings2, Terminal, ToolCase } from 'lucide-react'
 import React, { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Alert, Tooltip } from '@cherrystudio/ui'
+import { Alert, Button, Popover, PopoverContent, PopoverTrigger, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { AgentContextUsageSummary } from '@renderer/components/chat/agent/AgentContextUsageSummary'
 import { ContextUsageMeter } from '@renderer/components/chat/contextUsage'
@@ -462,42 +462,64 @@ function AgentComposerContextUsage({ model, sessionId }: { model?: Model; sessio
   const { t } = useTranslation()
   const { percentage, usage } = useAgentSessionContextUsage(sessionId, model)
   const compaction = useAgentSessionCompaction(sessionId)
+  const [detailsOpen, setDetailsOpen] = useState(false)
   if (percentage === null || !usage) return null
 
   const isCompacting = compaction.status === 'compacting'
   const label = t('agent.right_pane.info.context_usage')
 
+  const refreshUsage = () => {
+    void ipcApi.request('ai.agent.session.refresh_context_usage', { sessionId })
+  }
+
   return (
-    <Tooltip
-      placement="top"
-      sideOffset={8}
-      showArrow={false}
-      classNames={{
-        placeholder: 'inline-grid',
-        content:
-          'w-64 max-w-64 rounded-md border border-border bg-card p-3 text-card-foreground shadow-md dark:bg-card dark:text-card-foreground'
-      }}
-      content={
-        <AgentContextUsageSummary
-          usage={usage}
-          percentage={percentage}
-          isCompacting={isCompacting}
-          modelName={model?.name}
-          showCategories={false}
-        />
-      }>
-      <ContextUsageMeter
-        label={label}
-        percentage={percentage}
-        isBusy={isCompacting}
-        // The cached reading is only refreshed when a turn settles, so it goes stale mid-turn. Main
-        // throttles this and answers on the shared-cache key; a session with no live connection
-        // keeps showing its last reading.
-        onPointerEnter={() => {
-          void ipcApi.request('ai.agent.session.refresh_context_usage', { sessionId })
+    <Popover open={detailsOpen} onOpenChange={setDetailsOpen}>
+      <Tooltip
+        placement="top-end"
+        sideOffset={8}
+        showArrow={false}
+        {...(detailsOpen ? { open: false } : {})}
+        classNames={{
+          placeholder: 'inline-grid',
+          content:
+            'w-80 max-w-[calc(100vw-2rem)] rounded-lg border border-border bg-popover p-3 text-popover-foreground shadow-md dark:bg-popover dark:text-popover-foreground'
         }}
-      />
-    </Tooltip>
+        content={
+          <AgentContextUsageSummary
+            usage={usage}
+            percentage={percentage}
+            isCompacting={isCompacting}
+            modelName={model?.name}
+            presentation="preview"
+          />
+        }>
+        <PopoverTrigger asChild>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label={label}
+            onPointerEnter={refreshUsage}
+            onFocus={refreshUsage}>
+            <ContextUsageMeter label={label} percentage={percentage} isBusy={isCompacting} tabIndex={-1} />
+          </Button>
+        </PopoverTrigger>
+      </Tooltip>
+      {detailsOpen && (
+        <PopoverContent
+          side="top"
+          align="end"
+          sideOffset={8}
+          className="max-h-[min(32rem,70vh)] w-96 max-w-[calc(100vw-2rem)] overflow-y-auto p-3">
+          <AgentContextUsageSummary
+            usage={usage}
+            percentage={percentage}
+            isCompacting={isCompacting}
+            modelName={model?.name}
+            presentation="details"
+          />
+        </PopoverContent>
+      )}
+    </Popover>
   )
 }
 

@@ -63,8 +63,8 @@ interface AgentContextUsageSummaryProps {
   className?: string
   isCompacting?: boolean
   modelName?: string
-  /** The composer shows only the total; the status pane includes native details. */
   showCategories?: boolean
+  presentation?: 'collapsible' | 'preview' | 'details'
 }
 
 export function AgentContextUsageSummary({
@@ -73,11 +73,15 @@ export function AgentContextUsageSummary({
   className,
   isCompacting = false,
   modelName,
-  showCategories = true
+  showCategories = true,
+  presentation = 'collapsible'
 }: AgentContextUsageSummaryProps) {
   const { t, i18n } = useTranslation()
   const { mcpServers } = useMcpServers(undefined, {
-    enabled: showCategories && Boolean(usage?.resources?.some((resource) => resource.category === 'mcp-tools'))
+    enabled:
+      showCategories &&
+      presentation !== 'preview' &&
+      Boolean(usage?.resources?.some((resource) => resource.category === 'mcp-tools'))
   })
   const serverNames = new Map(mcpServers.map((server) => [server.id, server.name]))
   const windowTokens = usage?.contextWindow ?? 0
@@ -130,12 +134,16 @@ export function AgentContextUsageSummary({
 
   return (
     <ContextUsageSummary
-      title={t(showCategories ? 'agent.right_pane.info.context' : 'agent.right_pane.info.context_usage')}
+      title={t(
+        showCategories && presentation === 'collapsible'
+          ? 'agent.right_pane.info.context'
+          : 'agent.right_pane.info.context_usage'
+      )}
       emptyLabel={t('common.unknown')}
       data={data}
       className={className}
-      summaryClassName={showCategories ? 'px-3' : undefined}
-      collapsible={showCategories}
+      summaryClassName={showCategories && presentation === 'collapsible' ? 'px-3' : undefined}
+      collapsible={showCategories && presentation === 'collapsible'}
       description={[
         usage?.breakdown?.coverage === 'partial' && t('agent.right_pane.info.context_details.partial'),
         usage?.basis === 'last-request' && t('agent.right_pane.info.context_details.last_request')
@@ -144,43 +152,46 @@ export function AgentContextUsageSummary({
         .join(' · ')}
       isBusy={isCompacting}>
       {categories.length > 0 && (
-        <div className="px-3">
+        <div className={presentation === 'collapsible' ? 'px-3' : undefined}>
           <table
             className="w-full table-fixed border-separate border-spacing-y-1 text-muted-foreground"
             aria-label={t('agent.right_pane.info.context_usage')}>
             <tbody>
-              {categories.map((category) => (
-                <tr key={category.id}>
-                  <th scope="row" className="w-1/2 pr-2 text-left font-normal">
-                    <span className="flex min-w-0 items-center gap-2">
-                      <span className="size-2 shrink-0 rounded-xs" style={{ background: category.color }} />
-                      <span className="truncate" title={category.label}>
-                        {category.label}
+              {categories
+                .filter((category) => presentation !== 'preview' || category.kind === 'used')
+                .map((category) => (
+                  <tr key={category.id}>
+                    <th scope="row" className="w-1/2 pr-2 text-left font-normal">
+                      <span className="flex min-w-0 items-center gap-2">
+                        <span className="size-2 shrink-0 rounded-xs" style={{ background: category.color }} />
+                        <span className="truncate" title={category.label}>
+                          {category.label}
+                        </span>
                       </span>
-                    </span>
-                  </th>
-                  <td
-                    className="text-right tabular-nums"
-                    title={[
-                      formatExact(category.tokens),
-                      category.precision === 'estimated' && t('chat.message.token_details.cost_estimated')
-                    ]
-                      .filter(Boolean)
-                      .join(' · ')}>
-                    {formatTokens(category.tokens)}
-                  </td>
-                  <td className="text-right text-foreground tabular-nums">
-                    {category.kind === 'deferred' || windowTokens <= 0
-                      ? '—'
-                      : `${((category.tokens / windowTokens) * 100).toLocaleString(i18n.resolvedLanguage, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%`}
-                  </td>
-                </tr>
-              ))}
+                    </th>
+                    <td
+                      className="text-right tabular-nums"
+                      title={[
+                        formatExact(category.tokens),
+                        category.precision === 'estimated' && t('chat.message.token_details.cost_estimated')
+                      ]
+                        .filter(Boolean)
+                        .join(' · ')}>
+                      {presentation !== 'collapsible' && category.precision === 'estimated' ? '≈ ' : ''}
+                      {formatTokens(category.tokens)}
+                    </td>
+                    <td className="text-right text-foreground tabular-nums">
+                      {category.kind === 'deferred' || windowTokens <= 0
+                        ? '—'
+                        : `${((category.tokens / windowTokens) * 100).toLocaleString(i18n.resolvedLanguage, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%`}
+                    </td>
+                  </tr>
+                ))}
             </tbody>
           </table>
         </div>
       )}
-      {showCategories && groups.some((group) => group.rows?.length) && (
+      {showCategories && presentation !== 'preview' && groups.some((group) => group.rows?.length) && (
         <Accordion type="multiple">
           {groups
             .filter((group) => group.rows?.length)

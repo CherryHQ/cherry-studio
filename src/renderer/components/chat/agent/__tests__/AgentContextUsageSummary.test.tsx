@@ -220,7 +220,28 @@ describe('AgentContextUsageSummary', () => {
     expect(screen.getByText('github · Search Issues')).toBeVisible()
   })
 
-  it('keeps total-only runtimes honest and suppresses details in the composer', async () => {
+  it('shows only included categories in the hover preview, with estimate provenance', () => {
+    renderSummary({
+      usage: { ...usage, basis: 'last-request', breakdown: { ...usage.breakdown!, coverage: 'partial' } },
+      percentage: 20,
+      presentation: 'preview'
+    })
+    expect(within(row('^Messages')).getByText('≈ 125.7K')).toBeVisible()
+    expect(screen.queryByRole('row', { name: /^Deferred schemas/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('row', { name: /^Free space/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button')).not.toBeInTheDocument()
+    expect(screen.getByRole('meter')).toHaveAttribute('title', 'Partial breakdown · Last model request')
+    expect(within(screen.getByRole('meter')).queryByTitle(/Deferred/)).not.toBeInTheDocument()
+  })
+
+  it('opens resource details without requiring a second summary expansion', async () => {
+    renderSummary({ usage, percentage: 20, presentation: 'details' })
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Memory files 1' }))
+    expect(screen.getByText('AGENTS.md')).toBeVisible()
+    expect(within(row('^Deferred schemas')).getByText('—')).toBeVisible()
+  })
+
+  it('keeps total-only runtimes honest and supports total-only summaries', async () => {
     const { unmount } = renderSummary({
       usage: { ...usage, breakdown: undefined, reserved: undefined, free: undefined, resources: undefined },
       percentage: 20
