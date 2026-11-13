@@ -480,12 +480,32 @@ export class AiService extends BaseService {
         updatedInput: payload.updatedInput
       },
       payload.anchorId,
-      payload.topicId
+      payload.topicId,
+      { executionModelId: payload.executionModelId }
     )
-    if (result.ok) return result
+    if (result.ok) {
+      // The user's decision was applied; `handoff` says what came of the requested execution model.
+      // `refused` is reported rather than swallowed, so the renderer can tell the user the plan is
+      // running on the current model instead of letting a stale claim stand. The handoff echo tells
+      // the renderer the turn was stopped and it must complete the handoff (switch model + send the
+      // execution follow-up on a fresh turn).
+      return result.handoff === 'started' && payload.executionModelId
+        ? { ...result, executionModelId: payload.executionModelId }
+        : result
+    }
 
     // Agent-session anchors belong to the runtime path, never the chat message table.
     if (payload.topicId && isAgentSessionTopic(payload.topicId)) return result
+
+    // Nothing was applied on the live handoff path. A chosen execution model is only meaningful
+    // there — the MCP continuation below has no model to switch — so fail closed rather than report
+    // a successful chosen-model approval that left the execution on the old model.
+    if (payload.executionModelId) {
+      logger.warn('Tool-approval response requested an execution model without the live handoff path', {
+        approvalId: payload.approvalId
+      })
+      return { ok: false, reason: 'rejected' }
+    }
 
     // MCP path: write decisions to DB, then dispatch continue-conversation when nothing is pending.
     if (!payload.topicId || !payload.anchorId) {

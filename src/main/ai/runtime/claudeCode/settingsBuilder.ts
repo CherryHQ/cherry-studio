@@ -28,6 +28,7 @@ import {
   getBuiltinAgentPluginDirectory,
   loadBuiltinAgentDefinition
 } from '@main/ai/agents/builtin/BuiltinAgentProvisioner'
+import { getSessionEffectivePermissionMode } from '@main/ai/agentSession/sessionPermissionOverrides'
 import {
   type AgentNotificationContext,
   type LinkedChannelSnapshot,
@@ -354,7 +355,8 @@ export async function buildClaudeCodeSessionSettings(
     includePartialMessages: true,
     agentProgressSummaries: true,
     forwardSubagentText: true,
-    permissionMode: agentConfig?.permission_mode ?? 'default',
+    permissionMode:
+      getSessionEffectivePermissionMode(session.id, agent.id) ?? agentConfig?.permission_mode ?? 'default',
     allowedTools: finalAllowedTools,
     disallowedTools,
     plugins,
