@@ -194,6 +194,8 @@ class AppUpdateCheckService {
       const { default: UpdateDialogPopup } = await import('@renderer/components/UpdateDialogPopup')
       // An acknowledged channel switch is a new active session, so activity alone is not enough.
       if (this.session !== epoch) return
+      // The dialog opens now, so an earlier failure to open it is no longer current.
+      this.setUpdateNotice(null)
       await UpdateDialogPopup.show({ releaseInfo: info })
     } catch (error) {
       if (this.session !== epoch) return
