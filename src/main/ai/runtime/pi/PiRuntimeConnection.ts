@@ -46,7 +46,7 @@ import {
   WEB_FETCH_TOOL_NAME,
   WEB_SEARCH_TOOL_NAME
 } from '@shared/ai/builtinTools'
-import { normalizePiDisabledToolId } from '@shared/ai/piBuiltinTools'
+import { isPiToolDisabledByDependency, normalizePiDisabledToolId } from '@shared/ai/piBuiltinTools'
 import { LEGACY_DSH_TOOL_PREFIX } from '@shared/ai/retiredAgentRuntime'
 import { buildFunctionCallToolName } from '@shared/ai/tools/mcpToolName'
 import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
@@ -858,10 +858,15 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
   private isToolDisabled(name: string): boolean {
     if (this.disabledTools.has(name)) return true
     const tool = this.resolveMcpToolMetadata(name)
-    return (
+    if (
       tool !== undefined &&
       (this.disabledTools.has(buildFunctionCallToolName(tool.serverName, tool.name)) ||
         this.disabledTools.has(`mcp__${tool.serverId}__${tool.name}`))
+    ) {
+      return true
+    }
+    return isPiToolDisabledByDependency(name, this.disabledTools, (runtimeName) =>
+      this.resolveMcpToolMetadata(runtimeName)
     )
   }
 

@@ -13,7 +13,7 @@ import {
   Terminal,
   Workflow
 } from 'lucide-react'
-import { createContext, Fragment, type ReactNode, use, useRef, useState } from 'react'
+import { createContext, Fragment, type ReactNode, use, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger, Button, Tooltip } from '@cherrystudio/ui'
@@ -25,17 +25,19 @@ import { usePreference } from '@renderer/data/hooks/usePreference'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import { cn } from '@renderer/utils/style'
+import type { BackgroundTaskRecord } from '@shared/ai/backgroundTask'
 import type { AgentWorkspaceType } from '@shared/data/api/schemas/agentWorkspaces'
 import type { AgentDetailsSectionConfig } from '@shared/data/preference/preferenceTypes'
 import { getDefaultValue } from '@shared/data/preference/preferenceUtils'
 import type { ComputerUseControl } from '@shared/ipc/schemas/computerUse'
 
 import { AgentDetailsCustomize } from './AgentDetailsCustomize'
-import type {
-  AgentRightPaneStatus,
-  AgentRunTask,
-  AgentStatusTask,
-  AgentToolFlowOpenInput
+import {
+  isTaskListResponseCurrent,
+  type AgentRightPaneStatus,
+  type AgentRunTask,
+  type AgentStatusTask,
+  type AgentToolFlowOpenInput
 } from './agentRightPaneProjection'
 
 const logger = loggerService.withContext('AgentSessionDetails')
@@ -265,6 +267,7 @@ export function TaskStatusIcon({ status }: { status: AgentStatusTask['status'] |
 export function AgentSessionDetailsSections({
   status,
   sessionId,
+  agentId,
   workspacePath,
   workspaceName,
   workspaceType,
@@ -281,6 +284,7 @@ export function AgentSessionDetailsSections({
   stopDesktopControl?: (control: ComputerUseControl) => Promise<void>
   status: AgentRightPaneStatus
   sessionId?: string
+  agentId?: string
   workspacePath?: string
   workspaceName?: string
   workspaceType?: AgentWorkspaceType
@@ -318,6 +322,7 @@ export function AgentSessionDetailsSections({
     subagents: { label: t('agent.right_pane.info.subagents'), icon: <Bot className="size-4" /> },
     workflows: { label: t('agent.right_pane.info.workflows'), icon: <Workflow className="size-4" /> },
     shells: { label: t('agent.right_pane.info.shell_tasks'), icon: <Terminal className="size-4" /> },
+    detached_tasks: { label: t('agent.right_pane.detached_task.title'), icon: <Terminal className="size-4" /> },
     other: { label: t('agent.right_pane.info.other_tasks'), icon: <ListChecks className="size-4" /> },
     artifacts: { label: t('agent.right_pane.info.artifacts'), icon: <Package className="size-4" /> },
     context: { label: t('agent.right_pane.info.context'), icon: <Gauge className="size-4" /> }
@@ -444,6 +449,7 @@ export function AgentSessionDetailsSections({
         sessionId={sessionId}
       />
     ),
+    detached_tasks: <DetachedTaskSection agentId={agentId} />,
     other: (
       <RunSection
         id="other"
@@ -502,6 +508,114 @@ export function AgentSessionDetailsSections({
           ))}
       </Accordion>
     </>
+  )
+}
+
+function DetachedTaskSection({ agentId }: { agentId?: string }) {
+  const { t } = useTranslation()
+  // Carries its own identity: on an agent switch the previous agent's rows must not stay on screen
+  // (their Stop/Kill would be sent under the new agent id) while the refetch is still in flight.
+  const [loaded, setLoaded] = useState<{ agentId?: string; tasks: BackgroundTaskRecord[] }>({ tasks: [] })
+  const tasks = loaded.agentId === agentId ? loaded.tasks : []
+  const [busyId, setBusyId] = useState<string | null>(null)
+  // Bumped by every local mutation. A poll whose request started before the last mutation is
+  // answering a question about state that has since changed, so its rows are dropped.
+  const mutationRef = useRef(0)
+  // Polls are also numbered, so that when two overlap — one round trip outlasting the 3s interval —
+  // the slower, older response cannot overwrite the newer snapshot.
+  const issuedRef = useRef(0)
+  const appliedRef = useRef(0)
+  const setTasks = (update: (current: BackgroundTaskRecord[]) => BackgroundTaskRecord[]) =>
+    setLoaded((current) => (current.agentId === agentId ? { ...current, tasks: update(current.tasks) } : current))
+
+  useEffect(() => {
+    if (!agentId) return
+    let active = true
+    const refresh = () => {
+      const issued = { mutation: mutationRef.current, seq: (issuedRef.current += 1) }
+      void ipcApi.request('ai.agent.background_task.list', { agentId }).then(
+        (records) => {
+          if (
+            active &&
+            Array.isArray(records) &&
+            isTaskListResponseCurrent(issued, { mutation: mutationRef.current, appliedSeq: appliedRef.current })
+          ) {
+            appliedRef.current = issued.seq
+            setLoaded({ agentId, tasks: records })
+          }
+        },
+        (error) => logger.warn('Failed to list detached background tasks', { agentId, error })
+      )
+    }
+    refresh()
+    const timer = setInterval(refresh, 3_000)
+    return () => {
+      active = false
+      clearInterval(timer)
+    }
+  }, [agentId])
+
+  if (!agentId || tasks.length === 0) return null
+
+  const stop = async (taskId: string, force: boolean) => {
+    setBusyId(taskId)
+    mutationRef.current += 1
+    try {
+      const record = await ipcApi.request('ai.agent.background_task.stop', { agentId, taskId, force })
+      if (!record) throw new Error('Task is no longer running or its process identity could not be verified')
+      setTasks((current) => current.map((task) => (task.id === taskId ? record : task)))
+      // Applying the result is itself the newest state change: a poll issued while the stop was in
+      // flight shares the count the stop began under, and its listing may predate this application.
+      mutationRef.current += 1
+    } catch (error) {
+      logger.warn('Failed to stop detached background task', { agentId, taskId, error })
+      toast.error(t('agent.right_pane.detached_task.stop_failed'))
+    } finally {
+      setBusyId(null)
+    }
+  }
+
+  return (
+    <DetailsSection
+      id="detached_tasks"
+      title={t('agent.right_pane.detached_task.title')}
+      icon={<Terminal className="size-4" />}
+      summary={tasks.length}>
+      <ul className="space-y-1.5">
+        {tasks.map((task) => (
+          <li key={task.id} className="rounded-md border border-border-subtle bg-background-subtle px-2.5 py-2 text-xs">
+            <div className="flex min-w-0 items-center gap-2">
+              <span className="min-w-0 flex-1 truncate font-medium" title={task.command}>
+                {task.name}
+              </span>
+              <span className="text-muted-foreground">{t(`agent.right_pane.detached_task.status_${task.status}`)}</span>
+              {task.status === 'running' && (
+                <>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    disabled={busyId === task.id}
+                    onClick={() => void stop(task.id, false)}>
+                    {t('agent.right_pane.detached_task.stop')}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    disabled={busyId === task.id}
+                    onClick={() => void stop(task.id, true)}>
+                    {t('agent.right_pane.detached_task.kill')}
+                  </Button>
+                </>
+              )}
+            </div>
+            <div className="mt-1 truncate text-muted-foreground" title={task.logFile}>
+              {task.logFile}
+            </div>
+            {task.note && <div className="mt-1 text-muted-foreground">{task.note}</div>}
+          </li>
+        ))}
+      </ul>
+    </DetailsSection>
   )
 }
 

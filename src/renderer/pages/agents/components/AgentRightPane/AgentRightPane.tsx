@@ -1666,6 +1666,7 @@ function AgentDetailsContent() {
         }
         status={status}
         sessionId={meta.sessionId}
+        agentId={meta.agentId}
         workspacePath={meta.workspacePath}
         workspaceName={meta.workspaceName}
         workspaceType={meta.workspaceType}
