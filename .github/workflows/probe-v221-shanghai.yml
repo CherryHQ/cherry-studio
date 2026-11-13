@@ -1,0 +1,32 @@
+name: Test Shanghai COS reads for GitCode
+on:
+  push:
+    branches: [codex/backfill-v221-cos]
+    paths: [.github/workflows/probe-v221-shanghai.yml]
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 7
+    env:
+      TAG: v2.2.1
+      SOURCE_RUN_ID: "43229565814"
+      COS_SECRET_ID: ${{ secrets.COS_SECRET_ID }}
+      COS_SECRET_KEY: ${{ secrets.COS_SECRET_KEY }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - run: python -m pip install cos-python-sdk-v5==1.9.44
+      - name: Read the same COS attachment from Shanghai
+        run: |
+          set -euo pipefail
+          sed -i 's/cos\.accelerate\.myqcloud\.com/cos.ap-shanghai.myqcloud.com/' scripts/release/release-cos.py
+          time timeout 45 python -u scripts/release/release-cos.py prepare-sync
+          asset=$(grep -m1 -vE '\.(yml|yaml|json)$' release-assets.txt)
+          time timeout 150 python -u scripts/release/release-cos.py get-asset "$asset" "$RUNNER_TEMP/attachment"
+          stat --format '%s bytes read successfully from Shanghai' "$RUNNER_TEMP/attachment"
