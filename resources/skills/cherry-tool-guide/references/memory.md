@@ -1,15 +1,20 @@
 # Persistent memory
 
-Covers `mcp__agent-memory__memory` — memory that survives across sessions and workspaces
-for the same agent.
+Use server `agent-memory`, tool `memory` for memory that survives across sessions and
+workspaces for the same agent. Resolve its callable name from the live session using
+the guide's naming rule.
 
 Get exact argument shapes from the live tool schema — this reference gives routing and
 semantics only.
 
 ## Availability
 
-Ordinarily present. If absent from your live tool list, persistent memory is unavailable
-this session.
+Ordinarily mounted unless disabled; it may be deferred on some runtimes. Before
+claiming absence, check current tools and the discovery your session actually offers,
+following the guide's shared availability procedure. If discovery returns nothing,
+re-check tools already available and earlier successful discovery: the tool may
+already be loaded. Tool discovery is separate from the memory tool's own `search`
+action, which queries the journal.
 
 ## Intent gate
 
