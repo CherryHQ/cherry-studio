@@ -24,8 +24,8 @@ subsequent action results report `popupUnsupported`. User selection does not red
 and closing/replacing its guest makes it fail. Calls on this conversation host
 are serialized, and target revocation cancels active and queued work.
 
-The UI owns these guests. Control uses borrowed leases with explicit inspection observers;
-releasing control preserves the guest and concurrent annotation leases. Native dialogs are not
+The UI owns these guests. Control retains a borrowed lease and inspection observer per acquired page until that page or the control session closes; observing another page preserves its element refs.
+Releasing control preserves the guest and concurrent annotation leases. Native dialogs are not
 auto-dismissed, and hidden-page focus emulation is not applied. Fresh observation clears browser
 refs without invalidating a running annotation capture. The setting defaults on for unset preferences and runtime
 connection signatures reflect changes. Enabling Browser control grants all known browser tools

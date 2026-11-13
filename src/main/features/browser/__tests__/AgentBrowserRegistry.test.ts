@@ -344,6 +344,59 @@ describe('Agent browser authority and control lifetime', () => {
     return { ...page, ...binding }
   }
 
+  it('keeps observed element refs usable across page switches and releases each page independently', async () => {
+    const first = service.agentBrowser.attach(sessionId, 1, windowId, 'page-one')
+    const second = attachPage('page-two')
+    for (const [page, nodeId] of [
+      [fixture, 41],
+      [second, 42]
+    ] as const) {
+      const send = page.mock.debugger.sendCommand.getMockImplementation()!
+      page.mock.debugger.sendCommand.mockImplementation(async (method, params) => {
+        if (method === 'Accessibility.getFullAXTree')
+          return {
+            nodes: [
+              { nodeId: 'root', role: { value: 'RootWebArea' }, childIds: ['button'] },
+              {
+                nodeId: 'button',
+                parentId: 'root',
+                backendDOMNodeId: nodeId,
+                role: { value: 'button' },
+                name: { value: 'Submit' }
+              }
+            ]
+          }
+        if (method === 'DOMSnapshot.captureSnapshot')
+          return {
+            strings: ['main', 'BUTTON', 'auto', 'block', 'visible', '1'],
+            documents: [
+              {
+                frameId: 0,
+                nodes: { backendNodeId: [nodeId], nodeName: [1], attributes: [[]], parentIndex: [-1] },
+                layout: { nodeIndex: [0], bounds: [[0, 0, 80, 20]], styles: [[2, 3, 4, 5, 2]] }
+              }
+            ]
+          }
+        if (method === 'Runtime.evaluate') return { result: { value: { x: 0, y: 0, w: 800, h: 600 } } }
+        return send(method, params)
+      })
+    }
+    const observed = await controller.getSession(false, first.tabId)
+    const snapshot = await observed.session.snapshot({ full: true })
+    const ref = snapshot.snapshot.nodes.find((node) => node.role === 'button')?.ref
+    if (!ref) throw new Error('The visible Submit button must have an element ref')
+    const other = await controller.getSession(false, second.tabId)
+    await other.session.snapshot({ full: true })
+    const resumed = await controller.getSession(false, first.tabId)
+    expect(resumed.session.resolveRef(ref)).toBe(41)
+    service.agentBrowser.detach(sessionId, first.tabId, windowId)
+    await expect(controller.getSession(false, first.tabId)).rejects.toMatchObject({ code: 'not_found' })
+    expect((await controller.getSession(false, second.tabId)).session.isAvailable()).toBe(true)
+    await controller.dispose()
+    expect(service.get(second.guest.id)).toBeUndefined()
+    expect(second.guest.isDestroyed()).toBe(false)
+  })
+
   it('keeps exact handles independent and refuses a closed default instead of targeting its neighbor', async () => {
     const first = service.agentBrowser.attach(sessionId, 1, windowId, 'page-one')
     await controller.getSession()

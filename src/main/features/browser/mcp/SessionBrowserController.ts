@@ -46,7 +46,7 @@ export class SessionBrowserController extends BrowserPageController {
   private execution?: { target: BrowserGuestTarget; lease: Disposable }
   private readonly leaseMutex = new Mutex()
   private defaultTabId?: string
-  private lease?: { target: BrowserGuestTarget; session: GuestSession; release: () => void }
+  private readonly leases = new Map<string, { session: GuestSession; release: () => void }>()
 
   constructor(
     private readonly service: BrowserSessionService,
@@ -77,8 +77,8 @@ export class SessionBrowserController extends BrowserPageController {
         this.execution?.lease.dispose()
         this.execution = { target, lease: target.beginExecution() }
       }
-      if (this.lease?.target !== target) {
-        this.lease?.release()
+      let lease = this.leases.get(target.tabId)
+      if (!lease) {
         const session = await this.service.acquire(target.guest, this.owner, { ownership: 'borrowed' })
         let observation
         try {
@@ -95,7 +95,7 @@ export class SessionBrowserController extends BrowserPageController {
           target.cursor.hide()
           observation.dispose()
           this.service.release(target.guest, this.owner)
-          if (this.lease?.target === target) this.lease = undefined
+          this.leases.delete(target.tabId)
         }
         const signal = AbortSignal.any([this.signal, target.abort.signal])
         if (signal.aborted) {
@@ -103,12 +103,13 @@ export class SessionBrowserController extends BrowserPageController {
           signal.throwIfAborted()
         }
         target.abort.signal.addEventListener('abort', release, { once: true })
-        this.lease = { target, session, release }
+        lease = { session, release }
+        this.leases.set(target.tabId, lease)
       }
       return {
         tabId: target.tabId,
-        session: this.lease.session,
-        pointer: this.pointerFeedback(target, this.lease.session),
+        session: lease.session,
+        pointer: this.pointerFeedback(target, lease.session),
         focusInput: async (options: CommandOptions) => {
           this.assertAvailable()
           this.binding.reveal(target)
@@ -213,9 +214,9 @@ export class SessionBrowserController extends BrowserPageController {
     this.turnSubscription = undefined
     this.finishTool()
     this.abort.abort(new BrowserSessionError('debugger_unavailable'))
-    this.lease?.release()
+    for (const lease of this.leases.values()) lease.release()
     return (this.closing ??= this.leaseMutex.runExclusive(() => {
-      this.lease?.release()
+      for (const lease of this.leases.values()) lease.release()
     }))
   }
 }

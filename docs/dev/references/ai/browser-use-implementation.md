@@ -903,7 +903,7 @@ policy with standalone browsing; last-page memory is conversation-specific and c
 ordinary page. Explicit URLs and automation-created pages retain their requested destinations. Development preview updates reuse their preview identity without stealing selection.
 
 Extend `BrowserSessionService` with a main-owned binding from Agent Session to the attached guest:
-`{ ownerId, sessionId, pageId, tabId, guest, windowId, abort }`. The stable renderer `pageId` identifies one page. The guest determines its validated profile,
+`{ ownerId, sessionId, pageId, tabId, guest, windowId, abort }`. The controller retains a separate observation lease per acquired binding, so inspecting another page preserves existing element refs; page revocation and controller disposal release those leases. The stable renderer `pageId` identifies one page. The guest determines its validated profile,
 and each fresh opaque `tabId` is the binding generation. It changes when the guest is replaced,
 not when its presentation resumes. `AgentBrowserRuntimeHost` mounts beside the page Activities in
 `TabsProvider`; its session resources own the guest, native event listeners and binding effects.
