@@ -1,6 +1,7 @@
 ---
 description: Current chat-domain map covering shared renderer modules, page-owned adapters, rich clipboard, the message tree, and ordinary-chat context handling
 sources:
+  - packages/aiCore/src/contextOverflow.ts
   - packages/aiCore/src/core/context
   - src/renderer/components/chat
   - src/renderer/components/composer
@@ -170,9 +171,11 @@ chunk budget within a bounded retry limit. If a chunk cannot fit, or a summary i
 the fold fails without advancing the durable summary boundary. Existing tool-result and attachment
 reduction still applies before summarization.
 
-`src/shared/utils/errorCategory.ts` maps provider-message patterns such as
+The shared matcher in `packages/aiCore/src/contextOverflow.ts` recognizes provider-message patterns such as
 `context_length_exceeded`, `too many tokens`, `maximum context length`,
-`context window`, `prompt is too long`, and `input is too long` to `context_length`.
+`context window`, `prompt is too long`, and `input is too long`. Both overflow recovery and
+`src/shared/utils/errorCategory.ts` use it; recovery also requires an AI SDK HTTP 400 error and excludes
+authentication, quota, and rate-limit failures.
 The error toast offers one action for that category: `trimContext`, wired in
 `src/renderer/utils/errorToast.ts` and handled in `useChatRuntimeState.ts`.
 
