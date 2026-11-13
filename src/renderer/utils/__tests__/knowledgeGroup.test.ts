@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import type { KnowledgeBaseListItem } from '@shared/data/api/schemas/knowledges'
 import type { Group } from '@shared/data/types/group'
 
-import { buildKnowledgeBaseGroupSections } from '../group'
+import { buildKnowledgeBaseGroupSections } from '../knowledgeGroup'
 
 const createKnowledgeBase = (overrides: Partial<KnowledgeBaseListItem> = {}): KnowledgeBaseListItem => ({
   orderKey: 'a0',

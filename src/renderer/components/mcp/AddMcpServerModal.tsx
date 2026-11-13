@@ -33,12 +33,12 @@ import { toast } from '@renderer/services/toast'
 import { safeValidateMcpConfig } from '@renderer/types/mcp'
 import { formatZodError } from '@renderer/utils/error'
 import { parseJSON } from '@renderer/utils/json'
+import { toCreateMcpServerDto } from '@renderer/utils/mcpServerDraft'
 import { objectKeys } from '@renderer/utils/object'
 import type { CreateMcpServerDto } from '@shared/data/api/schemas/mcpServers'
 import type { McpServer } from '@shared/data/types/mcpServer'
 
 import { resolveMcpPackageIconUrl, resolveMcpPackagePathPlaceholders, resolveMcpPackageVersion } from './mcpPackage'
-import { toCreateMcpServerDto } from './utils'
 
 const logger = loggerService.withContext('AddMcpServerModal')
 

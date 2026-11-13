@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest'
 import enUs from '@renderer/i18n/locales/en-us.json'
 import zhCn from '@renderer/i18n/locales/zh-cn.json'
 
-import { getKnowledgeBaseFailureReason, getKnowledgeItemFailureReason } from '../error'
+import { getKnowledgeBaseFailureReason, getKnowledgeItemFailureReason } from '../knowledgeError'
 
 // Identity translator: returns the i18n key itself, so each assertion pins exactly which key the
 // mapping selected without coupling to real locale copy.
