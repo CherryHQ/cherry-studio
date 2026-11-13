@@ -88,6 +88,11 @@ export abstract class BaseStreamAdapter<TOutputEvent> implements IStreamAdapter<
    * `message_start` first (idempotent).
    */
   transformChunk(chunk: UIMessageChunk): TOutputEvent[] {
+    if (chunk.type === 'finish' && (chunk.finishReason === 'error' || chunk.finishReason === 'other')) {
+      throw Object.assign(new Error(`Upstream finished with a non-success finish reason: ${chunk.finishReason}`), {
+        statusCode: 502
+      })
+    }
     // JSON schemas may omit SDK validation, so both tool events must enforce the wire object shape.
     if (
       (chunk.type === 'tool-input-error' || (chunk.type === 'tool-input-available' && chunk.input !== undefined)) &&
