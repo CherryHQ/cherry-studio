@@ -17,9 +17,11 @@ import { ChatMarkdownRenderProvider } from './ChatMarkdownRenderContext'
 import { CHAT_MARKDOWN_COMPONENTS } from './ChatMarkdownRenderers'
 import { rehypeBareFilePaths } from './plugins/rehypeBareFilePaths'
 import { remarkHtmlArtifact, transformMarkdownOutsideHtmlArtifacts } from './plugins/remarkHtmlArtifact'
+import { rehypeTextDirection } from './plugins/rehypeTextDirection'
 
 const HTML_ARTIFACT_REMARK_PLUGINS: Pluggable[] = [remarkHtmlArtifact]
 const FILE_PATH_REHYPE_PLUGINS: Pluggable[] = [[rehypeBareFilePaths, { platform: isWin ? 'windows' : 'posix' }]]
+const TEXT_DIRECTION_REHYPE_PLUGINS: Pluggable[] = [rehypeTextDirection]
 const EMPTY_CITATION_REGISTRY = new Map()
 
 const ChatMarkdownRuntime: FC<ChatMarkdownProps> = ({
@@ -73,6 +75,14 @@ const ChatMarkdownRuntime: FC<ChatMarkdownProps> = ({
     [actions, t]
   )
 
+  // Extra rehype plugins run after the core sanitize + harden pipeline, so an
+  // explicit `dir` is never stripped. File-path links are created first so the
+  // direction vote can skip them like any other link.
+  const rehypePlugins = useMemo<Pluggable[]>(
+    () => [...(linkifyFilePaths ? FILE_PATH_REHYPE_PLUGINS : []), ...TEXT_DIRECTION_REHYPE_PLUGINS],
+    [linkifyFilePaths]
+  )
+
   return (
     <ChatMarkdownRenderProvider
       blockId={block.id}
@@ -93,7 +103,7 @@ const ChatMarkdownRuntime: FC<ChatMarkdownProps> = ({
           singleDollarMath={mathEnableSingleDollar}
           components={mergedComponents}
           remarkPlugins={remarkPlugins}
-          rehypePlugins={linkifyFilePaths ? FILE_PATH_REHYPE_PLUGINS : undefined}
+          rehypePlugins={rehypePlugins}
           className={className}
           transformSource={transformSource}>
           {content}

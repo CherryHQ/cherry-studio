@@ -19,6 +19,7 @@ import SendMessageButton from '@renderer/components/SendMessageButton'
 import { toast } from '@renderer/services/toast'
 import { voiceTargetManager } from '@renderer/services/voice'
 import { getAppEdition } from '@renderer/utils/appEdition'
+import { textDirection } from '@renderer/utils/textDirection'
 import {
   getComposerShortcutLabel,
   matchesComposerShortcut,
@@ -351,7 +352,7 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
             className="min-w-0 flex-1 [-webkit-app-region:no-drag]"
             style={{ height: editorMinHeight }}>
             <textarea
-              dir="auto"
+              dir={textDirection(props.text)}
               ref={textareaRef}
               data-voice-target-id={voiceTargetId}
               aria-label={props.placeholder}

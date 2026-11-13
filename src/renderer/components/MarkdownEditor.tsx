@@ -5,6 +5,7 @@ import { memo, useDeferredValue, useId } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { StaticMarkdown } from '@renderer/components/markdown'
+import { textDirection } from '@renderer/utils/textDirection'
 
 interface MarkdownEditorProps {
   value: string
@@ -40,6 +41,7 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({
   return (
     <div className="flex w-full overflow-hidden rounded-lg border border-border" style={{ height }}>
       <textarea
+        dir={textDirection(value)}
         className="flex-1 resize-none border-0 border-border border-r bg-background p-3 font-[var(--font-family)] text-foreground text-sm leading-[1.5] outline-none placeholder:text-muted-foreground focus:outline-none"
         value={value}
         onChange={(event) => onChange(event.target.value)}
