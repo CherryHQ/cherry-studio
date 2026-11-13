@@ -1,10 +1,10 @@
 import { describe, expect, it, vi } from 'vitest'
 
+import { resolveMcpPackageIconUrl } from '@renderer/components/mcp/mcpPackage'
 import { isSameMcpServerCandidate } from '@renderer/utils/mcpDiscovery'
 import type { McpServer } from '@shared/data/types/mcpServer'
 import type { McpServerLogEntry } from '@shared/types/mcp'
 
-import { resolveMcpPackageIconUrl } from '../mcpPackage'
 import { formatMcpLogs, toCreateMcpServerDto, toUpdateMcpServerDto } from '../utils'
 
 describe('McpSettings utils', () => {
