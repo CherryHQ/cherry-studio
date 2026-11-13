@@ -4774,6 +4774,7 @@
   "settings.doctor.checks.permission-screen-capture.title": "Permiso de grabación de pantalla",
   "settings.doctor.checks.provider-api-key-present.detail.missing": "{{provider}} no tiene una clave de API.",
   "settings.doctor.checks.provider-api-key-present.detail.provider_unavailable": "{{provider}} no está disponible.",
+  "settings.doctor.checks.provider-api-key-present.detail.signed_out": "Inicia sesión en tu cuenta de Cherry para usar los modelos de Cherry Cloud.",
   "settings.doctor.checks.provider-api-key-present.title": "Clave de API del proveedor predeterminado",
   "settings.doctor.checks.provider-cherry-account.detail.signed_out": "No se ha iniciado sesión en ninguna cuenta de Cherry.",
   "settings.doctor.checks.provider-cherry-account.title": "Cuenta de Cherry",

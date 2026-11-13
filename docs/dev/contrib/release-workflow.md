@@ -132,9 +132,21 @@ Before building, the workflow verifies that:
 - CI succeeded for the exact branch commit.
 - A matching published release does not already exist.
 
+Formal releases compile Global and CN JS once each on Linux with `build:release` or `build:release:cn`, then platform jobs download the corresponding `release-js-<edition>` artifact and invoke electron-builder separately. Each bundle includes main, preload, renderer, and utility-process outputs with a source SHA, edition, version, and SHA-256 file inventory. Packaging rejects missing, altered, or mismatched bundles. Native dependencies and helpers are prepared for the packaging target, rather than copied from the bundle builder. Sentry uploads run in each edition's bundle job, including utility-process sourcemaps.
+
+The release entry points rely on the exact-source CI gate instead of repeating the full typecheck; ordinary development, preview, and nightly build commands still run their existing checks. A release source missing either release entry point fails during preparation. Bundle jobs clear `out` before compilation; packaging jobs clear `out` and `dist` before downloading current output. Bundle artifacts have three-day retention; after expiry, retry the bundle jobs as well as packaging.
+
+macOS and Linux package each edition's x64 and arm64 targets in separate jobs using one hosted runner type per OS: `macos-latest` for macOS and `ubuntu-latest` for Linux. Each job passes its target architecture to electron-builder; Linux ARM64 jobs enable QEMU for the Docker-based addon build. Hosted dependency-store caches are separated by runner OS and host architecture. Linux SQLite artifacts use an exact cache keyed by target architecture, dependency lockfile, compatibility/download configuration, and patches; the existing pinned hashes and compatibility metadata are verified on reuse. Other native source builds retain their current preparation paths.
+
+The persistent Windows signing machine keeps one job per edition and packages both architectures in that job. It uses its local pnpm store without uploading or restoring an Actions dependency-store cache. Every job still installs with `--frozen-lockfile`. The `clean` input removes node_modules while retaining the store; signing continues through the machine's USB token and Windows CSP.
+
+The **Release build performance** summary and `release-performance` JSON artifact report build job/step durations, runner labels, cache state, source/workflow SHAs, draft readiness, and final inventory sizes. Approval waiting, publication, and GitCode synchronization are excluded from build timing. Parallel job durations contribute to runner time, not summed wall time. Unmeasured native/signing/notarization phases and unavailable inventory sizes remain unknown; reruns do not count time between attempts as queue or elapsed time.
+
 Every selected platform builds both editions from the same commit. Asset names, package IDs and update channels identify the edition. Both editions share the installed product name, executable, shortcut, protocol and `userData` location. Both Windows installers retain the Global NSIS GUID, so either edition can replace the installed app. Tag movement is allowed while the release is a draft.
 
-Each runner validates and uploads its local files directly to the private COS bucket through the global acceleration endpoint. Once all required uploads succeed, the finalization job downloads only Global files and shared history for the GitHub draft. It records the complete file inventory under `releases-sync/<tag>/<run_id>/release.json` after updating the draft. A single-platform retry reuses other platforms from the last complete inventory for the same commit, replaces both editions of its selected platform, and keeps the existing tag. If the baseline is unavailable, rerun an `all` build.
+Each runner validates and uploads its local files directly to the private COS bucket. The self-hosted Windows signing runner uploads through the Shanghai regional endpoint. GitHub-hosted macOS and Linux build runners upload through the global acceleration endpoint. macOS/Linux targets write separate edition/platform/architecture inventories; Windows writes one edition/platform inventory. macOS updater fragments have architecture-specific names until finalization merges their file entries and retains the release notes under the canonical edition channel. Linux updater manifests are already architecture-specific. Missing targets or conflicting file names fail assembly instead of producing a partial draft.
+
+Once all required uploads succeed, the finalization job downloads only Global files and shared history for the GitHub draft; CN macOS manifest fragments are read separately for aggregation. It records the complete file inventory under `releases-sync/<tag>/<run_id>/release.json` after updating the draft. A single-platform retry reuses other platforms from the last complete inventory for the same commit, replaces both editions of its selected platform, and keeps the existing tag. If the baseline is unavailable, rerun an `all` build. The release-source branch must contain `scripts/release/js-bundle.js` and both release entry points before dispatching the optimized control workflow; preparation rejects older sources.
 
 After the tag is exact, the workflow builds the GitHub Release body from the bilingual `electron-builder.yml` notes, a separator, and GitHub's generated `What's Changed` and contributor list. Stable release history remains generated during **Pre Release** in `resources/cherry-studio/release-history.json`; it is not maintained separately during publication.
 
@@ -145,7 +157,7 @@ Before publishing, inspect the draft release and confirm:
 - The tag and release branch point to the same commit.
 - All expected platform jobs succeeded.
 - GitHub contains only Global installers, archives, update manifests, blockmaps and release notes.
-- The complete Actions archive contains both Global and China editions, with manifests referencing only their own edition packages.
+- The complete COS inventory contains both Global and China editions, with manifests referencing only their own edition packages.
 - The version and release notes match the intended release.
 
 Keep the release as a draft while testing or while hotfixes are still expected.
@@ -220,7 +232,7 @@ Publish only after the latest release branch commit has passed CI and an `all`-p
 
 The approval job does not hold the release-state lock. After approval, the publication job acquires that lock and takes one final state snapshot. It requires the approved run, draft, tag, branch, and selected SHA to agree; rejects open release-branch PRs and every merged `hotfix` after the release branch point that lacks `backported/v<version>`; and confirms that notes and artifacts exist. This explicit hotfix gate also blocks publication when a backport job is merely queued and has not opened its PR yet. If the release branch changed while approval was waiting, publication fails closed and the new exact-head build creates a new approval. The fetched `main` SHA in the final snapshot is the hotfix cutoff for the release; a hotfix merged after it belongs to the next release. Publication makes the tag immutable for this workflow. **Release** refuses to update an already published release; any later fix requires a new version.
 
-Publishing triggers **Post Release** automatically. The GitCode job reads the completed COS inventory and downloads and uploads one attachment at a time. GitCode synchronization failure fails the workflow without rolling back the GitHub release. GitCode currently has no documented draft API, so it receives assets only after approval and GitHub publication.
+Publishing triggers **Post Release** automatically. The GitCode job reads the completed COS inventory and invokes the Shanghai SCF once per attachment. SCF streams the file from the regional COS endpoint to the GitCode upload URL. The job checks that GitCode lists all expected attachments. GitCode synchronization failure fails the workflow without rolling back the GitHub release. GitCode currently has no documented draft API, so it receives assets only after approval and GitHub publication.
 
 ### Retry GitCode Synchronization
 
@@ -234,6 +246,8 @@ The COS lifecycle controls retention. Keep referenced objects available for the 
 Preparation, build, draft finalization, approval, publication, and GitCode synchronization failures or cancellations are included in the failure notification. Skipped dependent jobs do not hide the originating failure. Sync-only dry runs never send notifications.
 
 Configure `COS_SECRET_ID` and `COS_SECRET_KEY` with read, write, and multipart access under `releases-sync/` in `cherry-studio-1366585212`. The repository also needs `GITCODE_TOKEN`, `GITCODE_OWNER`, `GITCODE_REPO`, optional `GITCODE_API_URL`, Windows signing secrets, and Feishu failure-notification secrets. Builds and approval waits do not hold `release-state`; preparation, draft mutation and publication acquire it separately. GitCode syncs are serialized per tag.
+
+Configure `TENCENT_SECRET_ID` and `TENCENT_SECRET_KEY` for a CAM identity that can invoke the SCF. To deploy code with **Deploy release sync SCF** on `main`, that identity also needs `scf:GetFunction` and `scf:UpdateFunctionCode`. Create `cherry-release-sync` in the `default` namespace in Shanghai as a Python 3.10 event function. Set the timeout to at least 300 seconds, enable outbound HTTPS, and bind a runtime role with COS read access to `releases-sync/`. Run the deploy workflow before enabling release synchronization.
 
 ## 6. Merge the Release Metadata Pull Request
 

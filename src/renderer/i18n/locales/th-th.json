@@ -4774,6 +4774,7 @@
   "settings.doctor.checks.permission-screen-capture.title": "สิทธิ์บันทึกหน้าจอ",
   "settings.doctor.checks.provider-api-key-present.detail.missing": "{{provider}} ยังไม่มี API Key",
   "settings.doctor.checks.provider-api-key-present.detail.provider_unavailable": "{{provider}} ใช้งานไม่ได้",
+  "settings.doctor.checks.provider-api-key-present.detail.signed_out": "ลงชื่อเข้าใช้บัญชี Cherry เพื่อใช้โมเดลของ Cherry Cloud",
   "settings.doctor.checks.provider-api-key-present.title": "API Key ของผู้ให้บริการ",
   "settings.doctor.checks.provider-cherry-account.detail.signed_out": "ยังไม่ได้ลงชื่อเข้าใช้บัญชี Cherry",
   "settings.doctor.checks.provider-cherry-account.title": "บัญชี Cherry",

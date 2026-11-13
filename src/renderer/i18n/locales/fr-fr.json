@@ -4774,6 +4774,7 @@
   "settings.doctor.checks.permission-screen-capture.title": "Autorisation d’enregistrement de l’écran",
   "settings.doctor.checks.provider-api-key-present.detail.missing": "{{provider}} ne dispose d’aucune clé API.",
   "settings.doctor.checks.provider-api-key-present.detail.provider_unavailable": "{{provider}} n’est pas disponible.",
+  "settings.doctor.checks.provider-api-key-present.detail.signed_out": "Connectez-vous à votre compte Cherry pour utiliser les modèles Cherry Cloud.",
   "settings.doctor.checks.provider-api-key-present.title": "Clé API du fournisseur par défaut",
   "settings.doctor.checks.provider-cherry-account.detail.signed_out": "Aucun compte Cherry n’est connecté.",
   "settings.doctor.checks.provider-cherry-account.title": "Compte Cherry",

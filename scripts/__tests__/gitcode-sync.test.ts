@@ -38,6 +38,12 @@ describe('GitCode sync recovery', () => {
       'python',
       `const fs = require('node:fs')
       const [, command, asset, target] = process.argv.slice(2)
+      if (command === 'upload') {
+        const signedUpload = JSON.parse(fs.readFileSync(0, 'utf8'))
+        if (!signedUpload.url.endsWith(asset.split('/').at(-1))) process.exit(1)
+        fs.appendFileSync('scf-requests.txt', asset + '\\n')
+        process.exit(0)
+      }
       if (command !== 'get-asset') process.exit(1)
       fs.writeFileSync(target, asset)
       fs.appendFileSync('cos-requests.txt', asset + '\\n')`
@@ -53,8 +59,12 @@ describe('GitCode sync recovery', () => {
       const payload = data && data.includes('payload.json') ? JSON.parse(fs.readFileSync(data.slice(1), 'utf8')) : null
       fs.appendFileSync('requests.jsonl', JSON.stringify({url, method, data, payload}) + '\\n')
       if (url.includes('/tags/')) {
-        fs.writeFileSync(args[args.indexOf('-o') + 1], '{}')
-        process.stdout.write(process.env.LOOKUP_STATUS || '404')
+        if (args.includes('-o')) {
+          fs.writeFileSync(args[args.indexOf('-o') + 1], '{}')
+          process.stdout.write(process.env.LOOKUP_STATUS || '404')
+        } else {
+          process.stdout.write(JSON.stringify({assets: ['CN.exe', 'Global.exe', 'latest.yml'].map(name => ({name}))}))
+        }
       } else if (url.includes('/upload_url?')) {
         process.stdout.write(JSON.stringify({url: 'https://upload.test/' + url.split('file_name=')[1], headers: {'Content-Type': 'application/octet-stream'}}))
       } else if (method === 'PUT' && process.env.FAIL_UPLOAD === 'true') {
@@ -163,6 +173,19 @@ describe('GitCode sync recovery', () => {
     const result = run({ PRE: 'true' })
     expect(result.status, result.stderr).toBe(0)
     expect(requests().find((call) => call.method === 'POST').payload.release_status).toBe('pre')
+  })
+
+  it('delegates attachment bytes to SCF and verifies the published GitCode list', () => {
+    const result = run({ RELEASE_FROM_COS: 'true', RELEASE_VIA_SCF: 'true' })
+    expect(result.status, result.stderr).toBe(0)
+    expect(existsSync(path.join(root, 'cos-requests.txt'))).toBe(false)
+    expect(requests().some((call) => call.method === 'PUT')).toBe(false)
+    expect(readFileSync(path.join(root, 'scf-requests.txt'), 'utf8').trim().split('\n')).toEqual([
+      'cn/windows/CN.exe',
+      'global/windows/Global.exe',
+      'global/windows/latest.yml'
+    ])
+    expect(result.stdout).toContain('Verified 3 GitCode attachments.')
   })
 
   it('stops on lookup errors and never mistakes an authentication failure for a missing release', () => {

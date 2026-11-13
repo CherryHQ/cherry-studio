@@ -347,7 +347,7 @@
     },
     {
       "path": "docs/dev/references/i18n/README.md",
-      "sources": ["scripts/i18n-glossary.json","scripts/i18n-sync.ts","src/main/i18n/locales","src/renderer/i18n"]
+      "sources": ["scripts/i18n-glossary.json","scripts/i18n-plurals.ts","scripts/i18n-sync.ts","src/main/i18n/locales","src/renderer/i18n"]
     },
     {
       "path": "docs/dev/references/ipc/ipc-migration-guide.md",

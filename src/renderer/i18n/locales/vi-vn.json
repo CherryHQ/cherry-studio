@@ -4774,6 +4774,7 @@
   "settings.doctor.checks.permission-screen-capture.title": "Quyền ghi màn hình",
   "settings.doctor.checks.provider-api-key-present.detail.missing": "{{provider}} không có khóa API.",
   "settings.doctor.checks.provider-api-key-present.detail.provider_unavailable": "{{provider}} hiện không khả dụng.",
+  "settings.doctor.checks.provider-api-key-present.detail.signed_out": "Hãy đăng nhập tài khoản Cherry để sử dụng các mô hình Cherry Cloud.",
   "settings.doctor.checks.provider-api-key-present.title": "Khóa API của nhà cung cấp mặc định",
   "settings.doctor.checks.provider-cherry-account.detail.signed_out": "Chưa đăng nhập tài khoản Cherry nào.",
   "settings.doctor.checks.provider-cherry-account.title": "Tài khoản Cherry",

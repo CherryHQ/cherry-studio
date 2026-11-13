@@ -4774,6 +4774,7 @@
   "settings.doctor.checks.permission-screen-capture.title": "Разрешение на запись экрана",
   "settings.doctor.checks.provider-api-key-present.detail.missing": "У {{provider}} отсутствует ключ API.",
   "settings.doctor.checks.provider-api-key-present.detail.provider_unavailable": "{{provider}} недоступен.",
+  "settings.doctor.checks.provider-api-key-present.detail.signed_out": "Войдите в учётную запись Cherry, чтобы использовать модели Cherry Cloud.",
   "settings.doctor.checks.provider-api-key-present.title": "Ключ API поставщика по умолчанию",
   "settings.doctor.checks.provider-cherry-account.detail.signed_out": "Вход в учётную запись Cherry не выполнен.",
   "settings.doctor.checks.provider-cherry-account.title": "Учётная запись Cherry",

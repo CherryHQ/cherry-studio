@@ -65,17 +65,20 @@ curl --fail-with-body -sS --connect-timeout 30 --max-time 60 -X "$METHOD" \
 upload_file() {
   local file="$1" filename encoded_filename info upload_url attempt
   filename=$(basename "$file")
-  if [ "${RELEASE_FROM_COS:-false}" = "true" ]; then
+  encoded_filename=$(printf '%s' "$filename" | jq -sRr @uri)
+  if [ "${RELEASE_FROM_COS:-false}" = "true" ] && [ "${RELEASE_VIA_SCF:-false}" != "true" ]; then
     echo "Downloading $filename from COS"
     python "$(dirname "$0")/release-cos.py" get-asset "$file" "$TEMP_DIR/$filename"
     file="$TEMP_DIR/$filename"
   fi
-  encoded_filename=$(printf '%s' "$filename" | jq -sRr @uri)
   for attempt in 1 2 3; do
     echo "Uploading $filename (attempt $attempt/3)"
-    if info=$(curl --fail -sS --connect-timeout 30 --max-time 60 \
-      -H "Authorization: Bearer $GITCODE_TOKEN" "$RELEASE_URL/$TAG/upload_url?file_name=$encoded_filename") &&
-      upload_url=$(jq -er '.url | select(length > 0)' <<< "$info") &&
+    if ! info=$(curl --fail -sS --connect-timeout 30 --max-time 60 \
+      -H "Authorization: Bearer $GITCODE_TOKEN" "$RELEASE_URL/$TAG/upload_url?file_name=$encoded_filename"); then
+      :
+    elif [ "${RELEASE_VIA_SCF:-false}" = "true" ]; then
+      if python "$(dirname "$0")/gitcode-scf.py" upload "$file" <<< "$info"; then return 0; fi
+    elif upload_url=$(jq -er '.url | select(length > 0)' <<< "$info") &&
       jq -r '.headers | to_entries[] | "header = " + ((.key + ": " + .value) | tojson)' <<< "$info" > "$TEMP_DIR/headers" &&
       curl --fail -sS --connect-timeout 30 --max-time 3600 -X PUT -K "$TEMP_DIR/headers" \
         --data-binary "@$file" "$upload_url" > "$TEMP_DIR/upload-response"; then
@@ -96,4 +99,21 @@ done
 for file in "${assets[@]}"; do
   case "$file" in *.yml|*.yaml|*.json) upload_file "$file" ;; esac
 done
+if [ "${RELEASE_VIA_SCF:-false}" = "true" ]; then
+  printf '%s\n' "${assets[@]##*/}" | sort -u > "$TEMP_DIR/expected-assets"
+  for attempt in 1 2 3 4 5 6; do
+    if curl --fail -sS --connect-timeout 20 --max-time 30 \
+      -H "Authorization: Bearer $GITCODE_TOKEN" "$RELEASE_URL/tags/$TAG" > "$TEMP_DIR/published.json" &&
+      jq -er '.assets[].name' "$TEMP_DIR/published.json" | tr -d '\r' | sort -u > "$TEMP_DIR/published-assets" &&
+      [ -z "$(comm -23 "$TEMP_DIR/expected-assets" "$TEMP_DIR/published-assets")" ]; then
+      echo "Verified ${#assets[@]} GitCode attachments."
+      break
+    fi
+    if [ "$attempt" = 6 ]; then
+      echo "GitCode did not list all expected attachments" >&2
+      exit 1
+    fi
+    sleep 5
+  done
+fi
 echo "GitCode release sync completed."
