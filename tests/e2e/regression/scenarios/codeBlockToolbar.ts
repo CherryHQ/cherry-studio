@@ -180,7 +180,12 @@ export async function codeBlockToolbar(app: RegressionApp, page: Page, testInfo:
     const viewer = block.locator('.shiki-scroller')
     await expect(viewer).toBeVisible()
     await block.getByRole('button', { name: 'Unwrap', exact: true }).click()
+    await viewer.evaluate((element) => {
+      element.scrollTop = 0
+      element.scrollIntoView({ block: 'start' })
+    })
     const longLine = block.locator('[data-index="4"]')
+    await expect(longLine).toBeVisible()
     const unwrappedHeight = await longLine.evaluate((element) => element.getBoundingClientRect().height)
     expect(await viewer.evaluate((element) => element.scrollWidth > element.clientWidth)).toBe(true)
     await block.getByRole('button', { name: 'Wrap', exact: true }).click()
