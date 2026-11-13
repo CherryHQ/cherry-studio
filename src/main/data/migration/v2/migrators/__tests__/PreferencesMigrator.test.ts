@@ -9,6 +9,9 @@ import { beforeEach, describe, expect, it } from 'vitest'
 
 import { fileEntryTable } from '@data/db/schemas/file'
 import { preferenceTable } from '@data/db/schemas/preference'
+import { ExternalSkillExportUpgradeSeeder } from '@data/db/seeding/seeders/ExternalSkillExportUpgradeSeeder'
+import { PreferenceSeeder } from '@data/db/seeding/seeders/preferenceSeeder'
+import { SeedRunner } from '@data/db/seeding/SeedRunner'
 import { V1_CUSTOM_CSS_MARKER } from '@shared/utils/customCssMigration'
 
 import type { MigrationContext } from '../../core/MigrationContext'
@@ -85,6 +88,16 @@ describe('PreferencesMigrator', () => {
 
   beforeEach(() => {
     migrator = new PreferencesMigrator()
+  })
+
+  it('preserves external skill exports after importing v1 preferences', async () => {
+    const ctx = createTestContext({ redux: { settings: { language: 'zh-CN' } } }, dbh.db)
+    expect((await migrator.prepare(ctx)).success).toBe(true)
+    expect((await migrator.execute(ctx)).success).toBe(true)
+    expect(await selectByKey(dbh.db, 'agent.skills.external_export.enabled')).toHaveLength(0)
+
+    new SeedRunner(dbh.db).runAll([new ExternalSkillExportUpgradeSeeder(), new PreferenceSeeder()])
+    expect((await selectByKey(dbh.db, 'agent.skills.external_export.enabled'))[0]?.value).toBe(true)
   })
 
   describe('prepare', () => {

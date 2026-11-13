@@ -12,6 +12,7 @@ import { AgentToolRenderer, isValidAgentToolsType } from '../agent'
 import { AskUserQuestionOptimisticInputProvider } from '../agent/AskUserQuestionOptimisticContext'
 import MessageTool from '../MessageTool'
 import MessageTools from '../MessageTools'
+import { buildToolResponseFromPart, PI_AGENT_TRANSPORT } from '../toolResponse'
 
 vi.mock('@renderer/services/AssistantService', () => ({
   getDefaultAssistant: vi.fn(() => ({
@@ -410,8 +411,30 @@ describe('AgentToolRenderer', () => {
       expect(screen.getByTestId('collapse-content-Skill')).toHaveTextContent('Loaded design review instructions')
     })
 
-    it('resolves a deferred output before handing it to the card', async () => {
-      mockGetToolResult.mockResolvedValue({ found: true, output: { content: 'lazy file content' } })
+    it('shows Pi Durable read content when the file details are expanded', async () => {
+      const user = userEvent.setup()
+      const toolResponse = buildToolResponseFromPart({
+        type: 'dynamic-tool',
+        toolCallId: 'durable-read',
+        toolName: 'read',
+        state: 'output-available',
+        input: { path: 'src/externalApp.cpp' },
+        output: { content: [{ type: 'text', text: 'int result = 42;' }], isError: false },
+        callProviderMetadata: { cherry: { transport: PI_AGENT_TRANSPORT } }
+      })!
+
+      render(<MessageTools toolResponse={toolResponse} />)
+
+      expect(await screen.findByText('externalApp.cpp')).toBeVisible()
+      await user.click(screen.getByRole('button', { expanded: false }))
+      expect(await screen.findByText('int result = 42;')).toBeVisible()
+    })
+
+    it('shows file content from a deferred Pi Durable read result', async () => {
+      mockGetToolResult.mockResolvedValue({
+        found: true,
+        output: { content: [{ type: 'text', text: 'lazy file content' }], isError: false }
+      })
       const toolResponse = createToolResponse({
         tool: { id: 'Read', name: 'Read', description: 'Read a file', type: 'provider' },
         status: 'done',
@@ -429,7 +452,7 @@ describe('AgentToolRenderer', () => {
         })
       )
       fireEvent.click(await screen.findByRole('button'))
-      expect(await screen.findByTestId('code-viewer')).toHaveTextContent('lazy file content')
+      expect(await screen.findByText('lazy file content')).toBeVisible()
     })
 
     it('surfaces an error when a deferred output can no longer be resolved', async () => {

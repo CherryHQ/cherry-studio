@@ -2492,6 +2492,74 @@
       }
     },
     {
+      "apiModelId": "global.anthropic.claude-opus-5-5",
+      "modelId": "claude-opus-5-5",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.2
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 5
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 4
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 20
+        }
+      },
+      "providerId": "aws-bedrock",
+      "reasoningContracts": {
+        "anthropic-messages": {
+          "wire": {
+            "auto": {
+              "operations": [
+                {
+                  "target": "reasoningConfig.type",
+                  "value": {
+                    "source": "literal",
+                    "value": "adaptive"
+                  }
+                }
+              ]
+            },
+            "effort": {
+              "operations": [
+                {
+                  "target": "reasoningConfig.type",
+                  "value": {
+                    "source": "literal",
+                    "value": "adaptive"
+                  }
+                },
+                {
+                  "target": "reasoningConfig.maxReasoningEffort",
+                  "value": {
+                    "source": "effort"
+                  }
+                }
+              ]
+            },
+            "off": {
+              "operations": [
+                {
+                  "target": "reasoningConfig.type",
+                  "value": {
+                    "source": "literal",
+                    "value": "disabled"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
       "apiModelId": "global.anthropic.claude-sonnet-4-5-20250929-v1:0",
       "modelId": "claude-sonnet-4-5",
       "pricing": {
@@ -44932,5 +45000,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "077b50109eabb0c8"
+  "version": "0aa679c6904d083d"
 }
