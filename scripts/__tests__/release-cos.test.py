@@ -80,6 +80,22 @@ class ReleaseCosTests(unittest.TestCase):
         self.assertEqual(self.store.objects[inventory["global/windows/one.exe"]["key"]], b"first")
         self.assertEqual(self.store.objects[inventory["global/windows/two.exe"]["key"]], b"second")
 
+    def test_upload_uses_shanghai_only_for_windows(self):
+        for edition in release.EDITIONS:
+            for platform in release.PLATFORMS:
+                with (
+                    self.subTest(edition=edition, platform=platform),
+                    patch.object(sys, "argv", ["release-cos.py", "upload", edition, platform]),
+                    patch.dict(os.environ, {"TAG": "v2.2.1", "COS_SECRET_ID": "id", "COS_SECRET_KEY": "key"}),
+                    patch.object(release, "CosConfig") as config,
+                    patch.object(release, "CosS3Client", return_value=self.store),
+                    patch.object(release, "stage_build") as stage,
+                ):
+                    release.main()
+                    endpoint = "ap-shanghai" if platform == "windows" else "accelerate"
+                    self.assertEqual(config.call_args.kwargs["Domain"], f"{release.BUCKET}.cos.{endpoint}.myqcloud.com")
+                    stage.assert_called_once_with(self.store, self.prefix, edition, platform)
+
     def test_partial_build_reuses_only_other_platforms_and_downloads_global(self):
         baseline = {}
         for edition in release.EDITIONS:
