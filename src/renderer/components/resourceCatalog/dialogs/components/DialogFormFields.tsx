@@ -56,7 +56,7 @@ export const EmojiAvatarPicker: FC<{
   ariaLabel: string
   disabled?: boolean
   portalContainer: HTMLElement | null
-  size?: 'sm' | 'md'
+  size?: 'sm' | 'md' | 'lg'
   avatarClassName?: string
   avatarFontSize?: number
 }> = ({
@@ -74,8 +74,8 @@ export const EmojiAvatarPicker: FC<{
 }) => {
   const { t } = useTranslation()
   // 'md' matches the h-8 Input the avatar sits beside in the edit dialogs.
-  const avatarSize = size === 'sm' ? 36 : 32
-  const fontSize = avatarFontSize ?? (size === 'sm' ? 18 : 16)
+  const avatarSize = size === 'lg' ? 84 : size === 'sm' ? 36 : 32
+  const fontSize = avatarFontSize ?? (size === 'lg' ? 42 : size === 'sm' ? 18 : 16)
 
   return (
     <Popover open={open} onOpenChange={onOpenChange}>
@@ -87,7 +87,7 @@ export const EmojiAvatarPicker: FC<{
           disabled={disabled}
           className={cn(
             'min-h-0 rounded-lg p-0 text-foreground shadow-none transition-opacity hover:bg-transparent hover:text-foreground hover:opacity-80 focus-visible:bg-transparent focus-visible:opacity-80',
-            size === 'sm' ? 'size-9' : 'size-8'
+            size === 'lg' ? 'size-21 rounded-[28%]' : size === 'sm' ? 'size-9' : 'size-8'
           )}>
           {/* Match the adjacent Input's rounded-lg + hairline border. */}
           <EmojiAvatar
