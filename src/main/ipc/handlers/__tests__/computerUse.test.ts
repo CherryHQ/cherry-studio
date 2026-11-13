@@ -40,7 +40,14 @@ beforeEach(() => {
 
 describe('computer-use control routes', () => {
   it('projects and controls real service state with strict stop-app validation', async () => {
-    const service = new ComputerUseService()
+    const service = new (class extends ComputerUseService {
+      override createTask(ownerId: string, label: string, signal?: AbortSignal) {
+        return super.createTask(ownerId, label, signal, {
+          current: () => ({ sessionId: ownerId, topicId: ownerId, bypass: true }),
+          waiting: () => {}
+        })
+      }
+    })()
     MockApplicationUtils.setService('ComputerUseService', service)
     const router = new IpcRouter(computerUseRequestSchemas, computerUseHandlers)
     const request = (route: string, input?: unknown) => router.dispatch(route, input, { senderId: null })

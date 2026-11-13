@@ -387,6 +387,22 @@ leftover inputs hold a conversation, the idle driver leaves results it would del
 status for later and exits, and a person's later turn does not wake it; they wait for its next wake (a child's run
 ending, a compaction or a reopen).
 
+## Tool intent
+
+`createToolIntent()` returns a transform an adapter applies to every tool it declares to the model, with whether that
+model is offered `intent` (`offersToolIntent(modelId)`: DeepSeek models only, because other models already narrate
+between calls). When offered, the transform adds an optional `intent` string (why this call is made) to an object
+schema that does not already declare one. Either way it wraps `prepareArguments` so the argument is removed before the
+tool's own argument repair, schema validation, gate and execution; a call that still carries `intent` after a model
+switch therefore runs normally. The model's call keeps it, so the transcript and the UI read it. Tools whose schema is
+not an object, or that declare `intent` themselves, are returned unchanged. One transform returns one wrapper per tool
+and offer, so repeated loadouts keep the schema object a validator is cached by. `TOOL_INTENT_GUIDE` is the one
+system-prompt paragraph that asks the model to fill it in; an adapter adds it exactly when it offers `intent`.
+
+The Pi adapter installs it through `AgentSession.setToolTransform` and the appended system prompt; the Durable adapter
+through the behavior extension's `wrapTools` and a `tool_intent` prompt section. Both hooks come from Cherry's patches
+of `pi-coding-agent` and `pi-durable`.
+
 ## Running the contract in an adapter
 
 `harnessContract` is the list of cases every harness must pass. A case is a plain async function over an opened harness
