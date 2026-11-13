@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 
 import type { ResourceCreateValues } from '@renderer/types/resourceCatalog'
+import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
+import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 
 import { buildCreateAgentCommand, buildCreateAssistantDto } from '../resourceCreate'
 
@@ -27,6 +29,27 @@ describe('resource create DTO mapping', () => {
       knowledgeBaseIds: ['kb-1']
     })
   })
+
+  it('links auto-selected MCP servers and enables web search on a new assistant', () => {
+    const dto = buildCreateAssistantDto({ ...values, mcpServerIds: ['mcp-1'], enableWebSearch: true })
+
+    expect(dto.mcpServerIds).toEqual(['mcp-1'])
+    expect(dto.settings).toEqual({ ...DEFAULT_ASSISTANT_SETTINGS, enableWebSearch: true })
+  })
+
+  it('keeps assistant settings at their defaults when web search is not selected', () => {
+    expect(buildCreateAssistantDto({ ...values, enableWebSearch: false })).not.toHaveProperty('settings')
+  })
+
+  it.each(['claude-code', 'pi', 'pi-durable'] as const)(
+    'sends auto-selected MCP servers to a %s agent only when its runtime supports MCP',
+    (agentType) => {
+      const command = buildCreateAgentCommand({ ...values, agentType, mcpServerIds: ['mcp-1'] })
+
+      if (AGENT_RUNTIME_CAPABILITIES[agentType].mcp) expect(command.mcps).toEqual(['mcp-1'])
+      else expect(command).not.toHaveProperty('mcps')
+    }
+  )
 
   it('maps every agent-specific field', () => {
     expect(buildCreateAgentCommand(values)).toEqual({
