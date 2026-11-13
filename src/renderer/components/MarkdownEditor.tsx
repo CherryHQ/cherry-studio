@@ -4,6 +4,7 @@ import type { FC } from 'react'
 import { memo, useDeferredValue, useId } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { rehypeTextDirection } from '@renderer/components/chat/messages/markdown/plugins/rehypeTextDirection'
 import { StaticMarkdown } from '@renderer/components/markdown'
 import { textDirection } from '@renderer/utils/textDirection'
 
@@ -23,7 +24,9 @@ interface MarkdownPreviewProps {
 
 const MarkdownPreview = memo(({ id, value, fallback }: MarkdownPreviewProps) => (
   <div className="markdown flex-1 overflow-auto bg-background p-3">
-    <StaticMarkdown id={id}>{value || fallback}</StaticMarkdown>
+    <StaticMarkdown id={id} rehypePlugins={[rehypeTextDirection]}>
+      {value || fallback}
+    </StaticMarkdown>
   </div>
 ))
 
