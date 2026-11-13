@@ -18,11 +18,11 @@ const screen: Omit<LegacyUpgradeScreen, 'dark'> = {
   olderVersions: 'Older version upgrade instructions',
   detail: 'Keep your data',
   prerequisite: 'Run 1.9.12 first',
-  download: 'Download 2.1.0',
+  download: 'Download 2.2.2',
   downloadPrerequisite: 'Download 1.9.12',
   quit: 'Quit'
 }
-const downloads = { bridge: 'https://example.com/2.1.0.dmg', prerequisite: 'https://example.com/1.9.12.dmg' }
+const downloads = { bridge: 'https://example.com/2.2.2.dmg', prerequisite: 'https://example.com/1.9.12.dmg' }
 
 function createWindow() {
   let destroyed = false
@@ -117,7 +117,7 @@ describe('preboot upgrade window boundary', () => {
 
   it('protects native handoff from ordinary quit, but permits updater-owned exit and recovers on error', async () => {
     const updater = Object.assign(new EventEmitter(), {
-      checkForUpdates: async () => ({ isUpdateAvailable: true, updateInfo: { version: '2.1.0' } }),
+      checkForUpdates: async () => ({ isUpdateAvailable: true, updateInfo: { version: '2.2.2' } }),
       downloadUpdate: async () => [],
       quitAndInstall: vi.fn()
     })

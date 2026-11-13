@@ -7,7 +7,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { LegacyBridgeInstaller } from '../legacyBridgeInstaller'
 import type { LegacyBridgeVersion } from '../legacyBridgeTarget'
 
-function fixture(prepareProfile?: () => () => void, version: LegacyBridgeVersion = '2.1.0') {
+function fixture(prepareProfile?: () => () => void, version: LegacyBridgeVersion = '2.2.2') {
   let finishDownload!: (files: string[]) => void
   let token: CancellationToken | undefined
   const updateInfo: { version: string } = { version }
@@ -35,7 +35,7 @@ function portableChain() {
   const versionLog = '/data/version.log'
   const createUpdater = vi.fn(() => next as unknown as AppUpdater)
   const installer = new LegacyBridgeInstaller('1.9.12', () => portable, vi.fn(), undefined, {
-    version: '2.1.0',
+    version: '2.2.2',
     sha512: 'pinned-bridge-hash',
     versionLog,
     createUpdater
@@ -45,7 +45,7 @@ function portableChain() {
 
 // These cases prevent canceled/failed downloads from reaching the destructive installer handoff.
 describe('bridge installation session', () => {
-  it.each(['1.9.12', '2.1.0'] as const)('installs pinned %s exactly once after download completes', async (version) => {
+  it.each(['1.9.12', '2.2.2'] as const)('installs pinned %s exactly once after download completes', async (version) => {
     const f = fixture(undefined, version)
     f.installer.start()
     f.installer.start()
@@ -96,7 +96,7 @@ describe('bridge installation session', () => {
 
   it('rejects the migration release when the selected stage is the prerequisite', async () => {
     const f = fixture(undefined, '1.9.12')
-    f.updater.checkForUpdates.mockResolvedValue({ isUpdateAvailable: true, updateInfo: { version: '2.1.0' } })
+    f.updater.checkForUpdates.mockResolvedValue({ isUpdateAvailable: true, updateInfo: { version: '2.2.2' } })
     f.installer.start()
     await vi.waitFor(() => expect(f.installer.state.phase).toBe('failed'))
     expect(f.updater.downloadUpdate).not.toHaveBeenCalled()

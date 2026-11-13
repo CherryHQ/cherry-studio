@@ -5,7 +5,7 @@ import type { AppEdition } from '@shared/types/appEdition'
 import targets from './legacyBridgeTargets.json'
 
 export const LEGACY_PREREQUISITE_VERSION = '1.9.12'
-export const LEGACY_UPGRADE_VERSION = '2.1.0'
+export const LEGACY_UPGRADE_VERSION = '2.2.2'
 export type LegacyBridgeVersion = typeof LEGACY_PREREQUISITE_VERSION | typeof LEGACY_UPGRADE_VERSION
 
 export type LegacyLinuxPackageType = 'AppImage' | 'deb' | 'rpm'

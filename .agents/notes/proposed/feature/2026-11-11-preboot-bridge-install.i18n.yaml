@@ -1,5 +1,5 @@
 # Bilingual-pair consistency record (docs/dev/i18n/README.md).
 # After editing either side, update its counterpart and re-record with:
 #   pnpm docs:check-pairing --write .agents/notes/proposed/feature/2026-11-11-preboot-bridge-install.md
-2026-11-11-preboot-bridge-install.md: a26518383b71a54dda5aff70749308ea1e422309
-2026-11-11-preboot-bridge-install.zh.md: 7a2d1f43a5efdb332feda1a7d5ed5423054e73fe
+2026-11-11-preboot-bridge-install.md: 4c3a0f7282815d580b39adc5ed0a4ecbf8e00e4b
+2026-11-11-preboot-bridge-install.zh.md: e8faed4943c2298cc1110496d9f42a79180cfa48

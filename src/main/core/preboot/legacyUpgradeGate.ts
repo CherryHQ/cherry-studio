@@ -71,7 +71,7 @@ export async function runLegacyUpgradeGate(): Promise<'handled' | 'skipped'> {
               { prerequisite: LEGACY_PREREQUISITE_VERSION, version: LEGACY_UPGRADE_VERSION },
               language
             )
-          : t('dialog.legacy_upgrade.prerequisite', undefined, language),
+          : t('dialog.legacy_upgrade.prerequisite', { version: LEGACY_UPGRADE_VERSION }, language),
         download: t('dialog.legacy_upgrade.download', { version: LEGACY_UPGRADE_VERSION }, language),
         downloadPrerequisite: t('dialog.legacy_upgrade.download', { version: LEGACY_PREREQUISITE_VERSION }, language),
         quit: t('dialog.legacy_upgrade.quit', undefined, language),
@@ -81,7 +81,7 @@ export async function runLegacyUpgradeGate(): Promise<'handled' | 'skipped'> {
           action: prerequisiteTarget
             ? t('dialog.legacy_upgrade.install_prerequisite', { version: LEGACY_PREREQUISITE_VERSION }, language)
             : t('dialog.legacy_upgrade.install', undefined, language),
-          detail: t('dialog.legacy_upgrade.install_detail', undefined, language),
+          detail: t('dialog.legacy_upgrade.install_detail', { version: LEGACY_UPGRADE_VERSION }, language),
           cancel: t('dialog.legacy_upgrade.cancel', undefined, language),
           retry: t('dialog.legacy_upgrade.retry', undefined, language),
           preparing: t('dialog.legacy_upgrade.preparing', undefined, language),

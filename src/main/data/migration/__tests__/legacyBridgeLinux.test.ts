@@ -97,7 +97,7 @@ describe('Linux bridge package continuity', () => {
     fs.writeFileSync(path.join(root, 'version.log'), '1.9.12|win|prod|packaged|portable|2026-09-01T00:00:00.000Z')
     expect(getLegacyBridgeEligibility(root).target?.url).toContain(`win-${arch}-portable.exe`)
     expect(getLegacyUpgradeDownloadUrl({ platform: 'win32', arch, translated: false, portable: true })).toBe(
-      `https://github.com/CherryHQ/cherry-studio/releases/download/v2.1.0/Cherry-Studio-2.1.0-win-${arch}-portable.exe`
+      `https://github.com/CherryHQ/cherry-studio/releases/download/v2.2.2/Cherry-Studio-2.2.2-win-${arch}-portable.exe`
     )
   })
 
@@ -124,7 +124,7 @@ describe('Linux bridge package continuity', () => {
     fs.copyFileSync(version, path.join(root, 'version.log'))
     expect(getLegacyBridgeEligibility(root)).toEqual({ prerequisite: true })
     fs.appendFileSync(version, '\n1.9.12|win|prod|packaged|portable|2026-09-02T00:00:00.000Z')
-    expect(getLegacyBridgeEligibility(profile)).toMatchObject({ prerequisite: false, target: { version: '2.1.0' } })
+    expect(getLegacyBridgeEligibility(profile)).toMatchObject({ prerequisite: false, target: { version: '2.2.2' } })
   })
 
   it('pins the selected custom directory only at handoff and restores the previous mapping on failure', () => {

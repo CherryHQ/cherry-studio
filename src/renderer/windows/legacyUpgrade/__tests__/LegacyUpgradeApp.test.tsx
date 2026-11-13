@@ -11,7 +11,7 @@ const copy: LegacyUpgradeScreen = {
   olderVersions: 'Older version upgrade instructions',
   detail: 'Keep your existing data',
   prerequisite: 'Run 1.9.12 if the old version is earlier or unknown',
-  download: 'Download 2.1.0',
+  download: 'Download 2.2.2',
   downloadPrerequisite: 'Download 1.9.12',
   quit: 'Quit',
   dark: false
@@ -20,7 +20,7 @@ const copy: LegacyUpgradeScreen = {
 beforeEach(() => vi.clearAllMocks())
 
 it.each([
-  ['Download 2.1.0', 'bridge'],
+  ['Download 2.2.2', 'bridge'],
   ['Download 1.9.12', 'prerequisite']
 ])('routes %s to its fixed installer choice and prevents duplicate actions', (label, target) => {
   render(<LegacyUpgradeApp screen={copy} />)
@@ -29,7 +29,7 @@ it.each([
   expect(screen.getByText(copy.prerequisite)).toBeVisible()
   fireEvent.click(screen.getByRole('button', { name: label }))
   expect(window.electron.ipcRenderer.invoke).toHaveBeenCalledWith('legacy-upgrade:download', target)
-  expect(screen.getByRole('button', { name: 'Download 2.1.0' })).toBeDisabled()
+  expect(screen.getByRole('button', { name: 'Download 2.2.2' })).toBeDisabled()
   expect(screen.getByRole('button', { name: 'Download 1.9.12' })).toBeDisabled()
 })
 
@@ -43,7 +43,7 @@ const installation = {
   enabled: true,
   prerequisite: false,
   action: 'Install migration version',
-  detail: 'Restart into 2.1.0',
+  detail: 'Restart into 2.2.2',
   cancel: 'Cancel',
   retry: 'Retry',
   preparing: 'Preparing',

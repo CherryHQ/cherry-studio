@@ -10,7 +10,7 @@ Shipping the complete v1-to-v2 converter indefinitely retains an obsolete conver
 
 ## Decision
 
-The application retains read-only legacy profile detection and directs unmigrated users through Cherry Studio **2.1.0**. This fixed release contains the converter and the required platform assets. The branded preboot window offers a direct installer download or quit, before lifecycle bootstrap. The download action opens the fixed asset URL in the system browser and exits; dismissing the dialog also exits. Users install and launch the intermediate release, complete its migration, then reinstall the current version while preserving their data.
+The application retains read-only legacy profile detection and directs unmigrated users through Cherry Studio **2.2.2**. This fixed release contains the converter and the required platform assets. The branded preboot window offers a direct installer download or quit, before lifecycle bootstrap. The download action opens the fixed asset URL in the system browser and exits; dismissing the dialog also exits. Users install and launch the intermediate release, complete its migration, then reinstall the current version while preserving their data.
 
 Installer selection uses operating system and architecture: macOS DMG, Windows setup or portable EXE matching the current installation, and Linux AppImage. Both x64 and arm64 are supported. Electron's ARM translation detection selects arm64 when an ARM computer runs an x64 application under Rosetta or WOW. No release page or moving latest-version link is involved.
 
@@ -26,7 +26,7 @@ Keeping conversion indefinitely retains its runtime and maintenance cost. Starti
 
 ## Consequences
 
-Users on 1.9.11 or earlier, or without an identifiable old version, must first install and launch 1.9.12 before migrating through 2.1.0. The window offers both direct installers. The application launches a browser download; it does not download in the background, install the binary, or claim download completion. GitHub asset availability and OS installation behavior remain external dependencies. Historical conversion status is retained for compatibility, not rewritten or removed.
+Users on 1.9.11 or earlier, or without an identifiable old version, must first install and launch 1.9.12 before migrating through 2.2.2. The window offers both direct installers. The application launches a browser download; it does not download in the background, install the binary, or claim download completion. GitHub asset availability and OS installation behavior remain external dependencies. Historical conversion status is retained for compatibility, not rewritten or removed.
 
 ## Verification
 

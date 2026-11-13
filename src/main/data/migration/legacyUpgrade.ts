@@ -64,7 +64,8 @@ export function getLegacyUpgradeDownloadUrl({
       asset = `${legacyArch}.${linuxPackageType}`
     }
   }
-  return `https://github.com/CherryHQ/cherry-studio/releases/download/v${version}/Cherry-Studio-${edition === 'cn' && version !== LEGACY_PREREQUISITE_VERSION ? 'CN-' : ''}${version}-${asset}`
+  const host = edition === 'cn' && version !== LEGACY_PREREQUISITE_VERSION ? 'gitcode.com' : 'github.com'
+  return `https://${host}/CherryHQ/cherry-studio/releases/download/v${version}/Cherry-Studio-${edition === 'cn' && version !== LEGACY_PREREQUISITE_VERSION ? 'CN-' : ''}${version}-${asset}`
 }
 
 function statIfPresent(file: string) {
