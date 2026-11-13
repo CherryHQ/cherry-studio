@@ -919,6 +919,7 @@
  * inheriting it (which would flip punctuation placement).
  */
 .markdown pre:not([dir]),
+.markdown :not(pre) > code,
 .markdown [data-streamdown='inline-code'] {
   direction: ltr;
   unicode-bidi: isolate;
