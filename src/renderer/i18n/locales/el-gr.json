@@ -964,6 +964,8 @@
   "chat.navigation.anchor.label": "Γύροι συνομιλίας",
   "chat.navigation.bottom": "Επιστροφή στο κάτω μέρος",
   "chat.navigation.close": "Κλείσιμο",
+  "chat.profile_pane.open": "Προβολή προφίλ του {{name}}",
+  "chat.profile_pane.permission": "Δικαιώματα",
   "chat.profile_pane.title": "Προφίλ",
   "chat.save.file.title": "Αποθήκευση σε τοπικό αρχείο",
   "chat.save.knowledge.content.citation.description": "Περιλαμβάνει πληροφορίες αναφοράς από αναζήτηση στο διαδίκτυο και από τη βάση γνώσεων",

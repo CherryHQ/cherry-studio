@@ -964,6 +964,8 @@
   "chat.navigation.anchor.label": "Gesprächsrunden",
   "chat.navigation.bottom": "Zum Boden scrollen",
   "chat.navigation.close": "Schließen",
+  "chat.profile_pane.open": "Profil von {{name}} anzeigen",
+  "chat.profile_pane.permission": "Berechtigungen",
   "chat.profile_pane.title": "Profil",
   "chat.save.file.title": "In lokale Datei speichern",
   "chat.save.knowledge.content.citation.description": "Einschließlich Websuche und Wissensdatenbank-Zitate",
