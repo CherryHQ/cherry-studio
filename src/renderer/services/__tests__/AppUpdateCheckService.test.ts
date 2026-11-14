@@ -22,7 +22,7 @@ function callsTo(channel: string): unknown[][] {
   return request.mock.calls.filter(([name]) => name === channel)
 }
 
-const idle = { checking: false, downloading: false, downloaded: false, info: null, manualCheck: false }
+const idle = { checking: false, downloading: false, downloaded: false, info: null }
 
 function setWindowSource(source: string) {
   let meta = document.querySelector('meta[name="logger-window-source"]')
@@ -110,7 +110,7 @@ describe('runAppUpdateCheck', () => {
     await appUpdateCheckService.runAppUpdateCheck(idle, update)
 
     expect(appUpdateCheckService.readUpdateNotice()).toBe('settings.about.updateError')
-    expect(update).toHaveBeenLastCalledWith(expect.objectContaining({ checking: false, manualCheck: false }))
+    expect(update).toHaveBeenLastCalledWith(expect.objectContaining({ checking: false }))
     expect(openExternal).not.toHaveBeenCalled()
     await appUpdateCheckService.runAppUpdateCheck(idle, update)
     expect(callsTo('app.updater.check_for_update')).toHaveLength(2)
@@ -225,8 +225,7 @@ describe('runAppUpdateCheck', () => {
     expect(update).toHaveBeenCalledWith({
       checking: false,
       downloading: false,
-      downloadProgress: 0,
-      manualCheck: false
+      downloadProgress: 0
     })
   })
 
@@ -260,14 +259,8 @@ describe('runAppUpdateCheck', () => {
     request.mockResolvedValue({ isPortable: false })
     const update = vi.fn()
 
-    const pending = appUpdateCheckService.runAppUpdateCheck(
-      { ...idle, downloaded: true, manualCheck: true, info },
-      update
-    )
-    const overlapped = appUpdateCheckService.runAppUpdateCheck(
-      { ...idle, downloaded: true, manualCheck: true, info },
-      update
-    )
+    const pending = appUpdateCheckService.runAppUpdateCheck({ ...idle, downloaded: true, info }, update)
+    const overlapped = appUpdateCheckService.runAppUpdateCheck({ ...idle, downloaded: true, info }, update)
     await Promise.resolve()
 
     expect(updateDialogShow).not.toHaveBeenCalled()
@@ -288,7 +281,7 @@ describe('runAppUpdateCheck', () => {
     expect(updateDialogShow).not.toHaveBeenCalled()
     expect(callsTo('app.updater.check_for_update')).toHaveLength(1)
     expect(update).toHaveBeenCalledTimes(1)
-    expect(update).toHaveBeenCalledWith({ checking: true, manualCheck: true })
+    expect(update).toHaveBeenCalledWith({ checking: true })
     expect(appUpdateCheckService.isActiveUpdateSession()).toBe(true)
   })
 
@@ -386,7 +379,7 @@ describe('runAppUpdateCheck', () => {
     expect(callsTo('app.get_info')).toHaveLength(1)
     expect(callsTo('app.updater.check_for_update')).toHaveLength(1)
     expect(update).toHaveBeenCalledTimes(1)
-    expect(update).toHaveBeenCalledWith({ checking: true, manualCheck: true })
+    expect(update).toHaveBeenCalledWith({ checking: true })
     expect(appUpdateCheckService.isActiveUpdateSession()).toBe(true)
   })
 
@@ -414,7 +407,7 @@ describe('runAppUpdateCheck', () => {
     expect(appUpdateCheckService.isManualUpdateCheck()).toBe(true)
     expect(appUpdateCheckService.readUpdateNotice()).toBeNull()
     expect(update).toHaveBeenCalledTimes(1)
-    expect(update).toHaveBeenCalledWith({ checking: true, manualCheck: true })
+    expect(update).toHaveBeenCalledWith({ checking: true })
 
     const overlapped = appUpdateCheckService.runAppUpdateCheck(idle, update)
     await overlapped
