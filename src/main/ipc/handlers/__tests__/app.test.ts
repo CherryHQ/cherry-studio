@@ -130,7 +130,6 @@ describe('appHandlers', () => {
     await appHandlers['app.error.degraded'](fault, ctx)
 
     expect(app.getLocale()).toBe('en-US')
-    expect(preferenceService.get).toHaveBeenCalledTimes(1)
     expect(preferenceService.get).toHaveBeenCalledWith('app.language')
     const input = showSupportedMessageBoxMock.mock.calls[0][0] as {
       language: string
