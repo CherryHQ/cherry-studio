@@ -304,6 +304,31 @@ export function hasSkillRemoteUpdateProvenance(skill: {
   )
 }
 
+/** A `file:` URL persisted for a system import that can be re-read as an update source. */
+export function isSkillFileSourceUrl(sourceUrl: string | null): boolean {
+  if (!sourceUrl) return false
+  try {
+    const url = new URL(sourceUrl.trim())
+    return url.protocol === 'file:' && !url.search && !url.hash
+  } catch {
+    return false
+  }
+}
+
+/** Local-directory provenance: a system skill whose `file:` origin can be re-read for updates. */
+export function hasSkillLocalUpdateProvenance(skill: {
+  source: string
+  sourceUrl: string | null
+  contentHash: string
+}): boolean {
+  return (
+    skill.source === 'system' &&
+    skill.sourceUrl !== null &&
+    isSkillFileSourceUrl(skill.sourceUrl) &&
+    isSkillDirectoryContentHash(skill.contentHash)
+  )
+}
+
 export function normalizeSkillsSh(raw: unknown): SkillSearchResult[] {
   const parsed = SkillsShSearchResponseSchema.safeParse(raw)
   if (!parsed.success) throw new Error('Invalid skills.sh search response')

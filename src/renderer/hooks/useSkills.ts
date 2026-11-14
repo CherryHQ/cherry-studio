@@ -298,7 +298,9 @@ export function useSystemSkills(enabled = true) {
 
   const importSkill = useCallback(
     async (skill: SystemSkillCandidate): Promise<InstalledSkill | null> => {
-      if (skill.status !== 'available') return null
+      // `registered` re-imports the same origin in place (id + agent enablement preserved);
+      // only a folder-name `conflict` has no safe target to write to.
+      if (skill.status === 'conflict') return null
       if (importingRef.current.has(skill.id)) return null
       importingRef.current.add(skill.id)
       setImporting((current) => new Set(current).add(skill.id))
