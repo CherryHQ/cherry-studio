@@ -41,6 +41,41 @@ export default defineCreator({
       parameterSupport: m3Parameters
     },
     {
+      id: 'minimax-h3-image',
+      name: 'MiniMax-H3-Image',
+      capabilities: ['image-generation'],
+      inputModalities: ['text', 'image'],
+      outputModalities: ['image'],
+      endpointTypes: ['openai-image-generation', 'openai-image-edit'],
+      imageGeneration: {
+        modes: {
+          edit: {
+            maxInputImages: 16,
+            supports: {
+              numImages: { default: 1, max: 10, min: 1, type: 'range' },
+              size: {
+                default: '1024x1024',
+                options: ['auto', '1024x1024', '2048x2048', '4096x4096'],
+                render: 'chips',
+                type: 'enum'
+              }
+            }
+          },
+          generate: {
+            supports: {
+              numImages: { default: 1, max: 10, min: 1, type: 'range' },
+              size: {
+                default: '1024x1024',
+                options: ['auto', '1024x1024', '2048x2048', '4096x4096'],
+                render: 'chips',
+                type: 'enum'
+              }
+            }
+          }
+        }
+      }
+    },
+    {
       id: 'image-01',
       name: 'image-01',
       capabilities: ['image-generation'],

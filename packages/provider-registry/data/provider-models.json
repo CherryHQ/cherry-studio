@@ -19098,6 +19098,12 @@
       "providerId": "minimax"
     },
     {
+      "apiModelId": "MiniMax-H3-Image",
+      "endpointTypes": ["openai-image-generation", "openai-image-edit"],
+      "modelId": "minimax-h3-image",
+      "providerId": "minimax"
+    },
+    {
       "endpointTypes": ["openai-chat-completions", "anthropic-messages"],
       "modelId": "minimax-m3",
       "providerId": "minimax"
@@ -19298,6 +19304,12 @@
         }
       },
       "modelId": "image-01-live",
+      "providerId": "minimax-global"
+    },
+    {
+      "apiModelId": "MiniMax-H3-Image",
+      "endpointTypes": ["openai-image-generation", "openai-image-edit"],
+      "modelId": "minimax-h3-image",
       "providerId": "minimax-global"
     },
     {
@@ -44887,5 +44899,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "3826264c0a8baa7b"
+  "version": "b8636ed37b3aba62"
 }
