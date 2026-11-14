@@ -196,6 +196,8 @@ type ResolvedPreferenceKey =
  * - Batch operations support
  * - Unified change notification broadcasting
  */
+export type PreferenceReadProvenance = 'bootConfig' | 'cache' | 'default' | 'not-ready'
+
 @Injectable('PreferenceService')
 @ServicePhase(Phase.BeforeReady)
 @DependsOn(['DbService'])
@@ -355,6 +357,40 @@ export class PreferenceService extends BaseService {
   }
 
   /**
+   * Get a preference value with the provenance of the result.
+   *
+   * Callers whose correctness depends on WHY a value came back (for example a
+   * migration classifier deciding which notes root is configured) use this
+   * instead of {@link get}: a ready read of an unset key is an affirmative
+   * default, while a fallback produced because the cache is not initialized
+   * must not be mistaken for the configured value.
+   */
+  public getWithProvenance<K extends UnifiedPreferenceKeyType>(
+    key: K
+  ): { value: UnifiedPreferenceType[K]; provenance: PreferenceReadProvenance } {
+    const route = this.resolveKey(key)
+    if (route.store === 'bootConfig') {
+      return { value: bootConfigService.get(route.key) as UnifiedPreferenceType[K], provenance: 'bootConfig' }
+    }
+
+    if (!this.isReady) {
+      return {
+        value: DefaultPreferences.default[route.key] as UnifiedPreferenceType[K],
+        provenance: 'not-ready'
+      }
+    }
+
+    if (route.key in this.cache) {
+      return { value: this.cache[route.key] as UnifiedPreferenceType[K], provenance: 'cache' }
+    }
+
+    return {
+      value: DefaultPreferences.default[route.key] as UnifiedPreferenceType[K],
+      provenance: 'default'
+    }
+  }
+
+  /**
    * Set a single preference value
    * Updates both database and memory cache, then broadcasts changes to all listeners
    * Optimized to skip database writes and notifications when value hasn't changed
@@ -397,18 +433,34 @@ export class PreferenceService extends BaseService {
         return
       }
 
-      application
-        .get('DbService')
-        .getDb()
-        .update(preferenceTable)
-        .set({
-          value: value
-        })
-        .where(and(eq(preferenceTable.scope, DefaultScope), eq(preferenceTable.key, cacheKey)))
-        .run()
+      const applyCommit = (): void => {
+        application
+          .get('DbService')
+          .getDb()
+          .update(preferenceTable)
+          .set({
+            value: value
+          })
+          .where(and(eq(preferenceTable.scope, DefaultScope), eq(preferenceTable.key, cacheKey)))
+          .run()
 
-      // Update memory cache immediately — safe after resolveKey + cache key check
-      ;(this.cache as Record<string, unknown>)[cacheKey] = value
+        // Update memory cache immediately — safe after resolveKey + cache key check
+        ;(this.cache as Record<string, unknown>)[cacheKey] = value
+      }
+
+      if (key === 'feature.notes.path') {
+        // A plain notes-root flip commits through the flip barrier: admission
+        // of new note edits closes before the drain and stays closed through
+        // this synchronous commit (DbService writes are sync), so no write
+        // can linearize between the drain and the flip; the drain is bounded
+        // and fails closed without committing on timeout. Lazy import: the
+        // data layer must not statically depend on the notes-relocation
+        // service module.
+        const { withNotesRootFlipBarrier } = await import('@main/services/notesRelocation')
+        await withNotesRootFlipBarrier(applyCommit)
+      } else {
+        applyCommit()
+      }
 
       // Unified notification to both main and renderer processes
       await this.notifyChange(key, value, oldValue)
@@ -528,22 +580,32 @@ export class PreferenceService extends BaseService {
 
       // Write changed preference values to DB
       if (Object.keys(actualUpdates).length > 0) {
-        application.get('DbService').withWriteTx((tx) => {
-          for (const [key, value] of Object.entries(actualUpdates)) {
-            tx.update(preferenceTable)
-              .set({
-                value
-              })
-              .where(and(eq(preferenceTable.scope, DefaultScope), eq(preferenceTable.key, key)))
-              .run()
-          }
-        })
+        const applyBatchCommit = (): void => {
+          application.get('DbService').withWriteTx((tx) => {
+            for (const [key, value] of Object.entries(actualUpdates)) {
+              tx.update(preferenceTable)
+                .set({
+                  value
+                })
+                .where(and(eq(preferenceTable.scope, DefaultScope), eq(preferenceTable.key, key)))
+                .run()
+            }
+          })
 
-        // Update memory cache for changed keys only
-        for (const [key, value] of Object.entries(actualUpdates)) {
-          if (key in this.cache) {
-            ;(this.cache as Record<string, unknown>)[key] = value
+          // Update memory cache for changed keys only
+          for (const [key, value] of Object.entries(actualUpdates)) {
+            if (key in this.cache) {
+              ;(this.cache as Record<string, unknown>)[key] = value
+            }
           }
+        }
+
+        if ('feature.notes.path' in actualUpdates) {
+          // Same plain-flip barrier as `set` (which see).
+          const { withNotesRootFlipBarrier } = await import('@main/services/notesRelocation')
+          await withNotesRootFlipBarrier(applyBatchCommit)
+        } else {
+          applyBatchCommit()
         }
 
         // Collect preference changes for notification

@@ -47,6 +47,8 @@ interface Session {
   needsRevalidation: boolean
   /** False while the owner saves explicitly; drafts still flush when the binding is released. */
   autoSave: boolean
+  /** Consecutive autosave retries after a transient migration-barrier rejection. */
+  transientSaveRetries: number
 }
 
 export interface SessionLease {
@@ -66,6 +68,13 @@ export interface SessionLease {
 export interface PreparedFileMutation {
   finish(): Promise<void>
 }
+
+/**
+ * A migration-barrier rejection is transient: the plain-flip drain is bounded
+ * (15s) and a sealed session never reaches the retry path, so an 800ms autosave
+ * retry outlasts the barrier within this budget before latching a saveError.
+ */
+const MAX_TRANSIENT_SAVE_RETRIES = 20
 
 function asError(value: unknown): Error {
   return value instanceof Error ? value : new Error(String(value))
@@ -210,6 +219,7 @@ export class FileEditSessionManager {
         transition: false,
         needsRevalidation: false,
         autoSave: true,
+        transientSaveRetries: 0,
         snapshot: {
           sessionId: crypto.randomUUID(),
           ownerId,
@@ -375,9 +385,31 @@ export class FileEditSessionManager {
       try {
         if (session.snapshot.conflict) throw new IpcError(fileErrorCodes.STALE_VERSION, 'File has external changes')
         await this.save(session, draft, resource)
+        session.transientSaveRetries = 0
         this.publish(session, { saveError: undefined })
         if (session.snapshot.isDirty && session.pending === 1) this.schedule(session)
       } catch (error) {
+        // Latching a transient migration-barrier rejection as saveError would
+        // silently stop autosaves (schedule() refuses while saveError is set)
+        // for unrelated files until manual recovery. Retry instead; sealed
+        // sessions (migration flush) keep the loud failure, and the retry
+        // budget falls back to the same explicit-recovery behavior.
+        // Sessions without autosave (explicit-save owners, e.g. artifacts)
+        // also keep the loud failure: schedule() is a no-op for them, so a
+        // swallowed retry would leave an explicit Save unsaved with no error
+        // and no retry, and a release-time flush with no recovery warning.
+        if (
+          session.autoSave &&
+          !session.snapshot.sealed &&
+          session.transientSaveRetries < MAX_TRANSIENT_SAVE_RETRIES &&
+          error instanceof IpcError &&
+          error.code === fileErrorCodes.EDIT_MIGRATION_BLOCKED
+        ) {
+          session.transientSaveRetries++
+          this.schedule(session)
+          return
+        }
+        session.transientSaveRetries = 0
         this.publish(session, { saveError: asError(error) })
         throw error
       }

@@ -9,6 +9,7 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { WindowType } from '@main/core/window/types'
 import { t } from '@main/i18n'
+import { assertNotesPathNotMutatingDuringMigration, withNotesFilesystemMutation } from '@main/services/notesRelocation'
 import type { PrintableDocumentPayload } from '@shared/ipc/schemas/print'
 import { sanitizeFilename } from '@shared/utils/file'
 
@@ -292,42 +293,45 @@ export class PrintService {
   }
 
   async exportToPdf(payload: PrintableDocumentPayload, senderId?: string | null): Promise<boolean> {
-    const dialogOptions = {
-      title: t('dialog.save_as_pdf'),
-      defaultPath: getDefaultPdfPath(payload.title),
-      filters: [{ name: t('dialog.pdf_files'), extensions: ['pdf'] }]
-    }
-    // Parented dialog avoids the unparented-save crash with Unicode names.
-    // Missing or destroyed caller window falls back to the unparented overload.
-    const candidate: BrowserWindow | undefined = senderId
-      ? application.get('WindowManager').getWindow(senderId)
-      : undefined
-    const parent = candidate && !candidate.isDestroyed() ? candidate : undefined
-    const { canceled, filePath } = parent
-      ? await dialog.showSaveDialog(parent, dialogOptions)
-      : await dialog.showSaveDialog(dialogOptions)
+    return withNotesFilesystemMutation(async () => {
+      const dialogOptions = {
+        title: t('dialog.save_as_pdf'),
+        defaultPath: getDefaultPdfPath(payload.title),
+        filters: [{ name: t('dialog.pdf_files'), extensions: ['pdf'] }]
+      }
+      // Parented dialog avoids the unparented-save crash with Unicode names.
+      // Missing or destroyed caller window falls back to the unparented overload.
+      const candidate: BrowserWindow | undefined = senderId
+        ? application.get('WindowManager').getWindow(senderId)
+        : undefined
+      const parent = candidate && !candidate.isDestroyed() ? candidate : undefined
+      const { canceled, filePath } = parent
+        ? await dialog.showSaveDialog(parent, dialogOptions)
+        : await dialog.showSaveDialog(dialogOptions)
 
-    if (canceled || !filePath) {
-      return false
-    }
+      if (canceled || !filePath) {
+        return false
+      }
 
-    const { windowId, window } = await this.openPrintWindow(payload)
-    const windowManager = application.get('WindowManager')
+      const { windowId, window } = await this.openPrintWindow(payload)
+      const windowManager = application.get('WindowManager')
 
-    try {
-      const pdfData = await window.webContents.printToPDF({
-        pageSize: 'A4',
-        preferCSSPageSize: true,
-        printBackground: true
-      })
-      await fs.writeFile(filePath, pdfData)
-      return true
-    } catch (error) {
-      logger.error('Failed to export printable document to PDF', error as Error)
-      throw error
-    } finally {
-      windowManager.close(windowId)
-    }
+      try {
+        const pdfData = await window.webContents.printToPDF({
+          pageSize: 'A4',
+          preferCSSPageSize: true,
+          printBackground: true
+        })
+        assertNotesPathNotMutatingDuringMigration(filePath)
+        await fs.writeFile(filePath, pdfData)
+        return true
+      } catch (error) {
+        logger.error('Failed to export printable document to PDF', error as Error)
+        throw error
+      } finally {
+        windowManager.close(windowId)
+      }
+    })
   }
 
   async print(payload: PrintableDocumentPayload): Promise<void> {

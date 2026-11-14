@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm } from 'node:fs/promises'
+import { mkdir, mkdtemp, rm, symlink } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
@@ -50,6 +50,20 @@ describe('validateNotesDirectory', () => {
 
   it('accepts a writable directory outside application-managed paths', () => {
     expect(validateNotesDirectory(path.join(root, 'CustomNotes'))).toBe(true)
+  })
+
+  it('accepts writable siblings that share the app-data or file-directory prefix', async () => {
+    const sibling = `${appDataPath}-notes`
+    const fileSibling = `${filesPath}-notes`
+    await Promise.all([mkdir(sibling), mkdir(fileSibling)])
+    expect(validateNotesDirectory(sibling)).toBe(true)
+    expect(validateNotesDirectory(fileSibling)).toBe(true)
+  })
+
+  it('rejects a symlink alias into protected app data', async () => {
+    const alias = path.join(root, 'alias')
+    await symlink(appDataPath, alias)
+    expect(validateNotesDirectory(alias)).toBe(false)
   })
 
   it('rejects application data, FileManager data, and the default Notes directory', () => {
