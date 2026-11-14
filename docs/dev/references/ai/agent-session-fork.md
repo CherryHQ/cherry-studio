@@ -131,9 +131,10 @@ coordinates runtime and filesystem operations in addition to SQLite writes.
 5. The coordinator clones visible messages with new IDs, remaps their anchors,
    strips execution state and statistics, and publishes the native artifacts.
 6. `DbService.withWriteTx` rechecks the source prefix, captured context bindings,
-   backend locators, Agent, and workspace, then creates the child, messages and
-   per-segment context bindings atomically. Later source appends are allowed;
-   changes to the selected prefix fail with `source_changed`. A read-model change
+   backend locators, Agent, workspace, and session model override, then creates the child,
+   messages and per-segment context bindings atomically. The child inherits the source
+   session model override, including `null` to follow the Agent default. Later source
+   appends are allowed; changes to the selected prefix fail with `source_changed`. A read-model change
    notification follows the commit, and IPC returns the child session ID.
 
 Copied contexts retain separate native histories. Only the context at the selected

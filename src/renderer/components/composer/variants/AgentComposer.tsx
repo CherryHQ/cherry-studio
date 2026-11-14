@@ -543,7 +543,7 @@ const AgentComposerInner = ({
   deferQuickPanel = false,
   resolvedWorkspaceWarning
 }: InnerProps) => {
-  const { updateAgent, updateModel } = useUpdateAgent()
+  const { updateAgent } = useUpdateAgent()
   const quotaExhaustion = useCherryCloudQuotaExhaustion(model, true)
   const quotaBlocksSend = !!quotaExhaustion && quotaExhaustion.reason !== 'unknown'
   const { updateSession } = useUpdateSession()
@@ -1058,7 +1058,6 @@ const AgentComposerInner = ({
       const nextReasoningEffort = resolveReasoningEffortForModel(nextModel, reasoningEffort) ?? 'default'
       const pendingReasoningEdit =
         pendingReasoningEditRef.current?.agentId === agent.id ? pendingReasoningEditRef.current : null
-      const pendingReasoningEffort = pendingReasoningEdit ? { reasoningEffort: pendingReasoningEdit.effort } : {}
       const previousReasoningOverride = activeReasoningOverride
       const version = ++reasoningMutationVersionRef.current
       setReasoningOverride({
@@ -1067,11 +1066,8 @@ const AgentComposerInner = ({
         version
       })
 
-      const updatedAgent = await updateModel(
-        { agentId: agent.id, modelId: nextModel.id, ...pendingReasoningEffort },
-        { showSuccessToast: false }
-      )
-      if (!updatedAgent) {
+      const updatedSession = await updateSession({ id: sessionId, model: nextModel.id }, { showSuccessToast: false })
+      if (!updatedSession) {
         setReasoningOverride((current) => {
           if (current?.agentId !== agent.id || current.version !== version) return current
           if (!previousReasoningOverride || previousReasoningOverride.version === failedReasoningVersionRef.current) {
@@ -1087,6 +1083,8 @@ const AgentComposerInner = ({
         })
         return
       }
+      // Replaying the selection-time Agent update could overwrite a newer setting from another surface;
+      // the agents API provides no conditional write to make that replay safe.
       if (
         pendingReasoningEdit &&
         pendingReasoningEditRef.current?.agentId === pendingReasoningEdit.agentId &&
@@ -1096,7 +1094,16 @@ const AgentComposerInner = ({
       }
       setReasoningOverride((current) => (current?.agentId === agent.id && current.version === version ? null : current))
     },
-    [activeReasoningOverride, agent, canChangeModel, canonicalReasoningEffort, model?.id, reasoningEffort, updateModel]
+    [
+      activeReasoningOverride,
+      agent,
+      canChangeModel,
+      canonicalReasoningEffort,
+      model?.id,
+      reasoningEffort,
+      sessionId,
+      updateSession
+    ]
   )
 
   const handleCreateEmptySession = useCallback(() => {
@@ -1155,7 +1162,9 @@ const AgentComposerInner = ({
       void updateAgent(
         {
           id: agent.id,
-          configuration: { reasoning_effort: option }
+          configuration: { reasoning_effort: option },
+          // Validate against the session's effective model: under a session-level override the agent default is unchanged and would normalize away an effort the effective model supports (cherry-pr-review inv_98911732422a84bf).
+          reasoningValidationModelId: model?.id
         },
         { showSuccessToast: false }
       ).then((updatedAgent) => {
@@ -1183,7 +1192,7 @@ const AgentComposerInner = ({
         )
       })
     },
-    [agent, canonicalReasoningEffort, updateAgent]
+    [agent, canonicalReasoningEffort, model?.id, updateAgent]
   )
   const handleServiceTierChange = useCallback(
     (tier: ServiceTierSelection) => {
