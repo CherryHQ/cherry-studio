@@ -21,11 +21,14 @@ import { agentChannelService } from '@data/services/AgentChannelService'
 import { agentWorkspaceService, rowToAgentWorkspace } from '@data/services/AgentWorkspaceService'
 import { getDataService } from '@data/services/dataServiceRegistry'
 import { followupQueueService } from '@data/services/FollowupQueueService'
+import { modelService } from '@data/services/ModelService'
 import { pinService } from '@data/services/PinService'
+import { providerService } from '@data/services/ProviderService'
 import { nullsToUndefined, timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
 import { Emitter, type Event } from '@main/core/lifecycle'
 import { buildSearchSnippet } from '@main/utils/searchSnippet'
+import { isPiCompatibleModel } from '@shared/ai/piModelCompatibility'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
@@ -44,6 +47,7 @@ import { AGENT_WORKSPACE_TYPE, type AgentSessionWorkspaceSource } from '@shared/
 import type { EntitySearchItem } from '@shared/data/api/schemas/search'
 import type { CursorPaginationResponse, DataApiDataChangeEffect } from '@shared/data/api/types'
 import { sessionFollowupScopePrefix } from '@shared/data/types/followupQueue'
+import { isUniqueModelId, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 
 import { ensureAgentSessionRootTx } from './agentSessionMessageTree'
 import { applyMoves, insertWithOrderKey } from './utils/orderKey'
@@ -110,6 +114,7 @@ function rowToSession(row: JoinedSessionRow): AgentSessionEntity {
     id: clean.id,
     // agentId is legitimately nullable (orphans only via cascade) — preserve T | null.
     agentId: row.session.agentId,
+    model: (row.session.model ?? null) as UniqueModelId | null,
     name: clean.name,
     isNameManuallyEdited: clean.isNameManuallyEdited,
     description: clean.description,
@@ -160,6 +165,17 @@ export function agentSessionReadModelEffects(
     { endpoint: '/agent-sessions/:sessionId', entityIds },
     { endpoint: '/agent-sessions/latest' }
   ]
+}
+
+// Pi needs a resolvable, gateway-routable chat model; stale or subscription-only overrides cannot run.
+function isPiServableUniqueModel(uniqueModelId: string): boolean {
+  try {
+    if (!isUniqueModelId(uniqueModelId)) return false
+    const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
+    return isPiCompatibleModel(providerService.getByProviderId(providerId), modelService.getByKey(providerId, modelId))
+  } catch {
+    return false
+  }
 }
 
 export class AgentSessionService {
@@ -334,6 +350,9 @@ export class AgentSessionService {
     taskId: string | null = null
   ): void {
     this.assertAgentExistsTx(tx, dto.agentId)
+    if (dto.model !== undefined && dto.model !== null && !isUniqueModelId(dto.model)) {
+      throw DataApiErrorFactory.invalidOperation('create session', `unknown model: ${dto.model}`)
+    }
 
     let workspaceId: string
     switch (dto.workspace.type) {
@@ -367,6 +386,7 @@ export class AgentSessionService {
       agentId: dto.agentId,
       name: dto.name,
       description: dto.description,
+      model: dto.model,
       taskId,
       workspaceId,
       createdAt,
@@ -780,16 +800,19 @@ export class AgentSessionService {
    * one pagination contract; recency ordering for the time-grouped view is
    * applied by the renderer over the loaded list.
    */
-  listByCursor(query: ListAgentSessionsQuery = {}): CursorPaginationResponse<AgentSessionEntity> {
+  listByCursor(
+    query: ListAgentSessionsQuery & { scope: 'ordinary' | 'all-conversations'; taskId?: string }
+  ): CursorPaginationResponse<AgentSessionEntity> {
     const db = application.get('DbService').getDb()
     const limit = Math.min(query.limit ?? DEFAULT_LIMIT, MAX_LIMIT)
     const cursor = decodePinnedListCursor(query.cursor, 'agent-session')
     const agentFilter = query.agentId ? eq(sessionsTable.agentId, query.agentId) : undefined
     const workspaceFilter = query.workspaceId ? eq(sessionsTable.workspaceId, query.workspaceId) : undefined
     const idFilter = query.ids ? inArray(sessionsTable.id, query.ids) : undefined
+    const taskIdFilter = query.taskId ? eq(sessionsTable.taskId, query.taskId) : undefined
     const inTrash = query.inTrash === true
-    // Explicit ID lookups also serve task history; only discovery lists hide task sessions.
-    const taskFilter = inTrash || query.ids ? undefined : ordinaryConversationFilter
+    const taskFilter =
+      query.scope === 'all-conversations' || inTrash || query.ids ? undefined : ordinaryConversationFilter
     const activeAgentFilter = !inTrash && query.agentId ? isNotNull(agentsTable.id) : undefined
 
     const items: Array<{ session: AgentSessionEntity; pinOrderKey?: string }> = []
@@ -811,6 +834,7 @@ export class AgentSessionService {
           and(
             conversationFilter,
             taskFilter,
+            taskIdFilter,
             agentFilter,
             workspaceFilter,
             idFilter,
@@ -870,6 +894,7 @@ export class AgentSessionService {
         and(
           conversationFilter,
           taskFilter,
+          taskIdFilter,
           agentFilter,
           workspaceFilter,
           idFilter,
@@ -909,6 +934,7 @@ export class AgentSessionService {
     }
     if (dto.description !== undefined) patch.description = dto.description
     if (dto.agentId !== undefined) patch.agentId = dto.agentId
+    if (dto.model !== undefined) patch.model = dto.model
     if (Object.keys(patch).length === 0) return this.getById(id)
 
     const result = withSqliteErrors(
@@ -928,15 +954,50 @@ export class AgentSessionService {
     patch: UpdateAgentSessionDto
   ): { row: SessionRow | undefined; clearedTaskScheduleIds: string[] } {
     const [current] = tx
-      .select({ agentId: sessionsTable.agentId, taskScheduleId: sessionsTable.taskId })
+      .select({
+        agentId: sessionsTable.agentId,
+        taskScheduleId: sessionsTable.taskId,
+        model: sessionsTable.model
+      })
       .from(sessionsTable)
       .where(and(eq(sessionsTable.id, id), isNull(sessionsTable.deletedAt)))
       .limit(1)
       .all()
     if (!current) return { row: undefined, clearedTaskScheduleIds: [] }
     if (patch.agentId !== undefined) this.assertAgentExistsTx(tx, patch.agentId)
+    if (patch.model !== undefined && patch.model !== null && !isUniqueModelId(patch.model)) {
+      throw DataApiErrorFactory.invalidOperation('update session', `unknown model: ${patch.model}`)
+    }
 
-    const reassigned = patch.agentId !== undefined && patch.agentId !== current.agentId
+    const previousAgentId = current.agentId
+    const reassigned = patch.agentId !== undefined && patch.agentId !== previousAgentId
+    if (reassigned && patch.model === undefined && current.model != null) {
+      // A cross-runtime reassignment may make the override unservable, so clear it atomically;
+      // same-runtime reassignment keeps the override.
+      const agentTypes = tx
+        .select({ id: agentsTable.id, type: agentsTable.type })
+        .from(agentsTable)
+        .where(
+          inArray(
+            agentsTable.id,
+            previousAgentId != null ? [previousAgentId, patch.agentId as string] : [patch.agentId as string]
+          )
+        )
+        .all()
+      const typeOf = new Map(agentTypes.map((row) => [row.id, row.type]))
+      if (previousAgentId != null) {
+        if (typeOf.get(previousAgentId) !== typeOf.get(patch.agentId as string)) {
+          patch.model = null
+        }
+      } else if (
+        ['pi', 'pi-durable'].includes(typeOf.get(patch.agentId as string) ?? '') &&
+        !isPiServableUniqueModel(current.model)
+      ) {
+        // A deleted parent leaves no runtime type to compare; discard an override the new Pi agent
+        // cannot serve so the session can use its default.
+        patch.model = null
+      }
+    }
     const clearedTaskScheduleIds = reassigned && current.taskScheduleId ? [current.taskScheduleId] : []
     if (reassigned && current.taskScheduleId) {
       this.clearTaskReuseTx(tx, eq(sessionsTable.id, id))
@@ -1034,6 +1095,7 @@ export class AgentSessionService {
       taskId?: string | null
       name: string
       description?: string
+      model?: UniqueModelId | null
       workspaceId: string
       createdAt: number
       updatedAt: number

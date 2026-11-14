@@ -6,7 +6,6 @@ sources:
   - packages/provider-registry/data/providers.json
   - packages/provider-registry/src/providers/new-api.ts
   - src/main/ai/provider/custom/wire/wireProfile.ts
-  - src/main/data/migration/v2/migrators/mappings/ProviderModelMappings.ts
 ---
 
 # Adapter Family
@@ -115,20 +114,12 @@ belongs on `open-responses`.**
 
 ### Write paths
 
-Only two paths write `adapterFamily`; both run in the **main** process at
-row-write time:
+The catalog supplies `adapterFamily` in the **main** process at row-write time:
 
 1. **Catalog (new installs)** — `packages/provider-registry/data/providers.json`
    declares `adapterFamily` per endpoint per provider. The seeder copies
    it through via `buildPersistedEndpointConfigs`.
-2. **v1 → v2 migration (existing users)** —
-   `src/main/data/migration/v2/migrators/mappings/ProviderModelMappings.ts`
-   looks up the catalog by legacy id and, on a miss, calls
-   `inferAdapterFamily(endpointType)` for the endpoint-type default
-   (`ProviderModelMigrator.ts` carries a preset's `adapterFamily` forward
-   on merge). The `ANTHROPIC_MESSAGES` endpoint skips the legacy-type hint
-   because v1 custom anthropic relays carried `legacy.type='openai'` even
-   when the endpoint was anthropic-format.
+Existing migrated rows retain their stored adapter family. V1 conversion now runs only in the [intermediate upgrade release](../data/v2-migration-guide.md).
 
 The renderer's custom-provider form does **not** set `adapterFamily`:
 `ProviderEditorDrawer.tsx` writes only `baseUrl` into the endpoint config,
@@ -156,7 +147,6 @@ mirrors this for catalog entries.
 | Target | File | Cases |
 |---|---|---|
 | `inferAdapterFamily` | `packages/provider-registry/src/__tests__/registry-utils.test.ts` | 5 |
-| Migrator backfill | `src/main/data/migration/v2/migrators/mappings/__tests__/ProviderModelMappings.test.ts` | 4 |
 | Runtime resolver | `src/main/ai/provider/__tests__/endpoint.test.ts` | 54 |
 | `buildPersistedEndpointConfigs` | `packages/provider-registry/src/__tests__/registry-utils.test.ts` | 10 |
 

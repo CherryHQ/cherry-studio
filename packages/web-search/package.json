@@ -1,6 +1,6 @@
 {
   "name": "@cherrystudio/web-search",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "description": "Portable web search provider protocols with host-owned transports and policies",
   "license": "MIT",
   "author": "Cherry Studio",

@@ -1,8 +1,8 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "f5cff893-e464-4fbd-8a08-e1e4764b6b2c",
-  "prevId": "48588181-f234-4284-b0ad-42d77aac81e4",
+  "id": "87d6badc-9cef-4872-84f7-7d76efd61959",
+  "prevId": "d46ad276-de68-4169-9d6c-3606a8c7d29f",
   "tables": {
     "agent": {
       "name": "agent",
@@ -811,6 +811,13 @@
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
+        },
+        "model": {
+          "name": "model",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
         }
       },
       "indexes": {
@@ -904,6 +911,19 @@
           "tableTo": "job_schedule",
           "columnsFrom": [
             "task_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "agent_session_model_user_model_id_fk": {
+          "name": "agent_session_model_user_model_id_fk",
+          "tableFrom": "agent_session",
+          "tableTo": "user_model",
+          "columnsFrom": [
+            "model"
           ],
           "columnsTo": [
             "id"
@@ -6999,7 +7019,7 @@
       "checkConstraints": {
         "followup_queue_status_check": {
           "name": "followup_queue_status_check",
-          "value": "\"followup_queue\".\"status\" IN ('pending', 'sending', 'failed', 'closed')"
+          "value": "\"followup_queue\".\"status\" IN ('pending', 'sending', 'failed')"
         }
       }
     },

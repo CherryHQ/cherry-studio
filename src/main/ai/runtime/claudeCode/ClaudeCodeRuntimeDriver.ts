@@ -177,7 +177,8 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       this.input.reasoningEffort ?? 'default',
       this.input.fastMode === true,
       this.input.knowledgeBaseIds,
-      this.input.serviceTier
+      this.input.serviceTier,
+      this.input.headless === true
     )
     if (!request) {
       throw new Error(`Unable to build Claude Code query options for agent session ${this.input.sessionId}`)
@@ -345,6 +346,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     serviceTier?: AgentRuntimeConnectInput['serviceTier']
     knowledgeBaseIds?: readonly string[]
     fastMode?: boolean
+    headless?: boolean
   }): Promise<AgentRuntimeReconcileResult> {
     // Serialize per connection: a push (agent-updated) and a pull (fresh-turn check) reconciling
     // concurrently could interleave the SDK setPermissionMode and snapshot writes, leaving the local
@@ -363,6 +365,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     serviceTier?: AgentRuntimeConnectInput['serviceTier']
     knowledgeBaseIds?: readonly string[]
     fastMode?: boolean
+    headless?: boolean
   }): Promise<AgentRuntimeReconcileResult> {
     if (!this.handle) return 'rebuild'
     const derived = await deriveConnectionConfig(
@@ -371,7 +374,8 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       input.reasoningEffort ?? 'default',
       input.fastMode === true,
       input.knowledgeBaseIds,
-      input.serviceTier
+      input.serviceTier,
+      input.headless === true
     )
     if (!derived.ok) return 'invalid'
     const baseline = this.connectionConfig
@@ -455,6 +459,29 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       return
     }
     for (const child of await this.childResources()) await child.projection.drain()
+  }
+
+  async interrupt(): Promise<void> {
+    const interrupt = this.handle?.interrupt
+    if (!interrupt) return
+    let timer: ReturnType<typeof setTimeout> | undefined
+    try {
+      const result = await Promise.race([
+        interrupt(),
+        new Promise<never>((_, reject) => {
+          timer = setTimeout(() => reject(new Error('Claude interruption timed out')), 3_000)
+        })
+      ])
+      if (result.status !== 'confirmed') throw new Error(result.error.message)
+    } catch (error) {
+      logger.warn('Claude interruption unconfirmed; closing the native owner', {
+        sessionId: this.input.sessionId,
+        error
+      })
+      await this.close()
+    } finally {
+      clearTimeout(timer)
+    }
   }
 
   close(): Promise<void> {
