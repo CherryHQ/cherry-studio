@@ -24,6 +24,7 @@ import { agentSessionReadModelEffects, agentSessionService } from '@data/service
 import { registerDataService } from '@data/services/dataServiceRegistry'
 import { timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
+import { projectMessagePartsForRenderer } from '@main/utils/messageOutputProjection'
 import { buildSearchSnippet } from '@main/utils/searchSnippet'
 import {
   extractFtsTokens,
@@ -181,6 +182,7 @@ type RankedSessionMessageSearchInput = {
 }
 
 type ListSessionMessagesOptions = {
+  deferToolOutputs?: boolean
   cursor?: string
   limit?: number
   messageId?: string
@@ -1040,7 +1042,11 @@ export class AgentSessionMessageService {
     }
 
     const rows = database
-      .select()
+      .select({
+        id: sessionMessagesTable.id,
+        parentId: sessionMessagesTable.parentId,
+        createdAt: sessionMessagesTable.createdAt
+      })
       .from(sessionMessagesTable)
       .where(and(...filters))
       .orderBy(...ordering.orderBy)
@@ -1065,10 +1071,21 @@ export class AgentSessionMessageService {
       if (group) group.push(sibling.id)
       else siblingsByParent.set(sibling.parentId, [sibling.id])
     }
-    const items = pageRows.map((row) => ({
-      ...this.rowToEntity(row),
-      siblings: siblingsByParent.get(row.parentId) ?? []
-    }))
+    const readRow = database
+      .select()
+      .from(sessionMessagesTable)
+      .where(eq(sessionMessagesTable.id, sql.placeholder('id')))
+      .prepare()
+    const items = pageRows.map(({ id, parentId }) => {
+      const item = this.rowToEntity(readRow.get({ id })!)
+      if (options.deferToolOutputs && item.role === 'assistant' && item.data.parts) {
+        item.data = {
+          ...item.data,
+          parts: projectMessagePartsForRenderer(item.data.parts, `agent-session:${sessionId}`, id)
+        }
+      }
+      return { ...item, siblings: siblingsByParent.get(parentId) ?? [] }
+    })
     const tail = pageRows[pageRows.length - 1]
     const nextCursor = hasNext && tail ? encodeCursor(tail.createdAt, tail.id) : undefined
 

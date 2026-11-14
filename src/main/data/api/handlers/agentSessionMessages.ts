@@ -5,28 +5,14 @@
 import { application } from '@application'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
-import { projectMessagePartsForRenderer } from '@main/utils/messageOutputProjection'
 import { toDataApiError } from '@shared/data/api/errors'
 import {
-  type AgentSessionMessageEntity,
   type AgentSessionMessageSchemas,
   AgentSessionMessagesListQuerySchema,
   SelectAgentSessionBranchSchema,
   UpdateAgentSessionMessageSchema
 } from '@shared/data/api/schemas/agentSessionMessages'
 import type { HandlersFor } from '@shared/data/api/types'
-
-/** Opt-in via `?deferToolOutputs`; a default read stays verbatim so read-modify-write is safe. */
-function projectMessageForRenderer(message: AgentSessionMessageEntity, sessionId: string): AgentSessionMessageEntity {
-  if (message.role !== 'assistant' || !message.data.parts) return message
-
-  // The stateless projection lives in the lower `utils/` tier so `data/` does not import from
-  // the `ai/` business tier (main-process-architecture §3).
-  const topicId = `agent-session:${sessionId}`
-  const parts = projectMessagePartsForRenderer(message.data.parts, topicId, message.id)
-  if (parts === message.data.parts) return message
-  return { ...message, data: { ...message.data, parts } }
-}
 
 export const agentSessionMessageHandlers: HandlersFor<AgentSessionMessageSchemas> = {
   '/agent-sessions/:sessionId/branch': {
@@ -49,7 +35,7 @@ export const agentSessionMessageHandlers: HandlersFor<AgentSessionMessageSchemas
         response.items.map((item) => item.id)
       )
       const items = response.items.map((item) => ({
-        ...(parsed.data.deferToolOutputs ? projectMessageForRenderer(item, params.sessionId) : item),
+        ...item,
         historyActions: actions.get(item.id)
       }))
       return { ...response, items }

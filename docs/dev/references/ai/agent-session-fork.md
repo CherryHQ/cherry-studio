@@ -90,6 +90,11 @@ archives follow the same appended migration path. Startup seeding remains respon
 Session roots and legacy delivery reply anchors. Previously deleted tails cannot
 be recovered.
 
+Message pages select IDs before loading payloads. With `deferToolOutputs`, each
+assistant message is projected as it is loaded, so raw oversized outputs do not
+accumulate across the page. Default reads retain the complete stored payload,
+and cursor ordering and the 50/200 default/maximum limits are unchanged.
+
 ## Ownership and dependencies
 
 ```mermaid
