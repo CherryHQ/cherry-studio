@@ -27,6 +27,7 @@ import type { CherryMessagePart, CherryUIMessage, MessageSnapshot } from '@share
 import { parseUniqueModelId, type ServiceTierSelection, type UniqueModelId } from '@shared/data/types/model'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 
+import { restoreStoredChannelContext } from '../../../utils/channelContextParts'
 import { validateEditedInput } from '../../agentSession/editInput'
 import { extractAgentSessionId, isAgentSessionTopic } from '../../agentSession/topic'
 import { applyTurnInputAttributes, startAiChildTurnSpan } from '../../observability'
@@ -201,6 +202,10 @@ export class AgentChatContextProvider implements ChatContextProvider {
         model: { id: rawModelId, name: modelName, provider: providerId }
       },
       userMessageId: deliveryMessage?.id ?? uuidv7(),
+      // Hidden channel metadata is host-owned and this layer TRUSTS its main-process callers:
+      // channel facades (ChannelMessageHandler via startAgentSessionRun) and the durable delivery
+      // message legitimately carry data-channel-context. Renderer-submitted parts are stripped at
+      // the IPC ingress (ai.stream.open / ai.agent.session.edit_resend), never here.
       userMessageParts: deliveryMessage?.data.parts ?? req.userMessageParts ?? [],
       ...(deliveryMessage ? { deliveryMessage } : {}),
       shouldAutoNameInitialTurn
@@ -367,11 +372,14 @@ export class AgentChatContextProvider implements ChatContextProvider {
       const persisted = await runtime.editSession(
         validated.sessionId,
         req.editTarget,
-        (tx, nativeSessionId, nativeContextId) => {
+        (tx, nativeSessionId, nativeContextId, storedUserParts) => {
           validated.parentMessageId = getAgentSessionHead(tx, validated.sessionId)!
           const result = this.persistDispatchTx(
             tx,
-            validated,
+            {
+              ...validated,
+              userMessageParts: restoreStoredChannelContext(validated.userMessageParts, storedUserParts)
+            },
             {
               id: validated.agentId,
               updatedAt: validated.agentUpdatedAt,

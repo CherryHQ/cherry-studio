@@ -994,6 +994,19 @@ describe('desktop Pi Durable connection', () => {
       .filter((message) => message.role === 'assistant')
       .flatMap((message) => message.parts.flatMap((part) => (part.type === 'text' ? [part.text] : [])))
       .join('')
+  it('passes the source-chat identity through to the desktop prompt', async () => {
+    input.channelContext = 'channel=feishu chat_id=oc_123 chat_type=group'
+    await connect()
+    expect(mocks.prompt).toHaveBeenCalledWith(expect.objectContaining({ channelContext: input.channelContext }))
+  })
+
+  it('rebuilds a warm connection prepared without the channel identity the next turn carries', async () => {
+    const { connection } = await connect()
+    const next = { modelId: input.modelId, channelContext: 'channel=feishu chat_id=oc_123 chat_type=group' }
+    await expect(connection.reconcile({ modelId: input.modelId })).resolves.toBe('current')
+    await expect(connection.reconcile(next)).resolves.toBe('rebuild')
+  })
+
   it('preserves output truncation through the desktop error boundary', async () => {
     const response = assistantReply('', 'length')
     response.content = [{ type: 'thinking', thinking: 'Partial reasoning' }]

@@ -70,6 +70,7 @@ export async function prepareDurableDesktop(
     agent,
     workspacePath: cwd,
     agentDataPath,
+    channelContext: input.channelContext,
     effectiveLanguage: snapshot.effectiveLanguage,
     modelName: snapshot.model.name ?? snapshot.model.id,
     citationsGuidance: buildCitationsGuidance({

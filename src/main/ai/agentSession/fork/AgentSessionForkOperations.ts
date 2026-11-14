@@ -20,6 +20,7 @@ import { AgentSessionForkError } from '@main/ai/runtime/fork'
 import { t } from '@main/i18n'
 import { isOutsidePath } from '@main/utils/file'
 import type { AgentSessionEditTarget } from '@shared/ai/agentSessionEdit'
+import type { CherryMessagePart } from '@shared/data/types/message'
 import { Sequencer } from '@shared/utils/async'
 
 import { ensureRetiredSessionHistory } from '../../runtime/pi/retiredSessionHistory'
@@ -78,7 +79,12 @@ export class AgentSessionForkOperations {
     sessionId: string,
     target: AgentSessionEditTarget,
     closeSource: () => Promise<void>,
-    persist: (tx: DbOrTx, nativeSessionId: string, nativeContextId?: string) => T
+    persist: (
+      tx: DbOrTx,
+      nativeSessionId: string,
+      nativeContextId: string | undefined,
+      storedUserParts: CherryMessagePart[]
+    ) => T
   ): Promise<T> {
     if (this.edits.has(sessionId)) return Promise.reject(new AgentSessionEditError('busy'))
     const operationId = randomUUID()
@@ -96,7 +102,12 @@ export class AgentSessionForkOperations {
     operationId: string,
     signal: AbortSignal,
     closeSource: () => Promise<void>,
-    persist: (tx: DbOrTx, nativeSessionId: string, nativeContextId?: string) => T
+    persist: (
+      tx: DbOrTx,
+      nativeSessionId: string,
+      nativeContextId: string | undefined,
+      storedUserParts: CherryMessagePart[]
+    ) => T
   ): Promise<T> {
     await ensureRetiredSessionHistory(sessionId)
     const database = application.get('DbService')
@@ -169,8 +180,8 @@ export class AgentSessionForkOperations {
           JSON.stringify(bindings)
         )
           throw new AgentSessionEditError('history_changed')
-        agentSessionMessageService.replaceEditBranchTx(tx, sessionId, target)
-        const result = persist(tx, nativeSessionId, nativeContextId)
+        const storedUserParts = agentSessionMessageService.replaceEditBranchTx(tx, sessionId, target)
+        const result = persist(tx, nativeSessionId, nativeContextId, storedUserParts)
         if (resources) {
           const checkpointMapping = Object.fromEntries(
             prefix.flatMap((row) => {

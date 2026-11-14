@@ -222,6 +222,49 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     expect(request?.knowledgeBaseIds).toEqual(['kb-selected'])
   })
 
+  it('keeps main service-tier argument position and fingerprints source-chat identity independently', async () => {
+    const context = '[channel-context] channel=feishu chat_id=oc_123 chat_type=group'
+    const request = await buildClaudeCodeQueryRequestForAgentSession(
+      'session-1',
+      undefined,
+      undefined,
+      'default',
+      false,
+      ['kb-selected'],
+      'standard',
+      context
+    )
+    expect(mocks.buildSessionSettings).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.objectContaining({ knowledgeBaseIds: ['kb-selected'], channelContext: context }),
+      expect.anything()
+    )
+    const same = await deriveConnectionConfig(
+      'session-1',
+      undefined,
+      'default',
+      false,
+      ['kb-selected'],
+      'standard',
+      context
+    )
+    const other = await deriveConnectionConfig(
+      'session-1',
+      undefined,
+      'default',
+      false,
+      ['kb-selected'],
+      'standard',
+      context.replace('oc_123', 'oc_other')
+    )
+    const absent = await deriveConnectionConfig('session-1', undefined, 'default', false, ['kb-selected'], 'standard')
+    if (!request || !same.ok || !other.ok || !absent.ok) throw new Error('expected routable context configurations')
+    expect(request.connectionConfig.rebuildSignature).toBe(same.config.rebuildSignature)
+    expect(other.config.rebuildSignature).not.toBe(same.config.rebuildSignature)
+    expect(absent.config.rebuildSignature).not.toBe(same.config.rebuildSignature)
+  })
+
   it('passes the connection rebuild signature into the warm query request', async () => {
     const warmRequest = await buildClaudeCodeWarmQueryRequestForAgentSession('session-1')
     const current = await deriveConnectionConfig('session-1')
@@ -258,6 +301,7 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
       false,
       [],
       'standard',
+      undefined,
       true
     )
     const overrideRequest = await buildClaudeCodeQueryRequestForAgentSession('session-1')
@@ -633,6 +677,7 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
       false,
       [],
       'standard',
+      undefined,
       true
     )
     expect(request?.settings.env).toMatchObject({
@@ -648,6 +693,7 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
       false,
       [],
       'standard',
+      undefined,
       true
     )
     expect(current.ok).toBe(true)
