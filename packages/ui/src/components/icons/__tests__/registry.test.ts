@@ -9,6 +9,12 @@ describe('resolveProviderIconRef', () => {
     )
   })
 
+  it('resolves the llamay provider icon', () => {
+    expect(resolveProviderIconRef('llamay')).toEqual(
+      expect.objectContaining({ kind: 'provider', key: 'llamay' })
+    )
+  })
+
   it('falls back to the model catalog for provider IDs that only exist there', () => {
     // `claude` is a model-catalog key with no provider-catalog entry
     expect(resolveProviderIconRef('claude')).toEqual(expect.objectContaining({ kind: 'model', key: 'claude' }))
