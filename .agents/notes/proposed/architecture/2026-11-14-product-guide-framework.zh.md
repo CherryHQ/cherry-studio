@@ -10,19 +10,21 @@ Status: proposed
 
 ## 提案
 
-- **Coachmark 组件。** 在 `@cherrystudio/ui` 里新增 `Coachmark` 组合组件：压暗窗口，只在目标周围留出带内边距的亮区，并把弹出卡片与亮区对齐。点卡片按钮、点外部、点目标本身或按 Escape 都会关闭。字号使用共享正文字号，浅色和深色主题都适配。
+- **Coachmark 组件。** 在 `@cherrystudio/ui` 里新增 `Coachmark` 组合组件：压暗窗口，只在目标周围留出带内边距的亮区，并把弹出卡片与亮区对齐。点卡片按钮、点外部、点目标本身或按 Escape 都会关闭。字号使用共享正文字号，浅色和深色主题都适配。组件提供可选的头部插槽用来放插画；锚定引导默认只放文字，因为亮区已经指出了目标。
+- **插画。** 把订阅开通弹窗里的示意图做成可复用的抽象插画，供 Coachmark 头部插槽和功能弹窗使用。插画只画界面结构（占位条、圆点、选中行），不出现 logo、模型图标、套餐或档位名、真实模型名。只使用共享的表面设计变量（底色 `bg-muted`，卡片 `bg-popover` 加 `ring-border`，选中态 `bg-accent`，唯一强调色 `primary`），不单独写 `dark:` 颜色。插画底色与卡片之间用边框分隔，保证深色主题下也能区分开。插画随头部高度整体等比缩放；点缀只用点阵底纹和最多两处星光；动效只有一次入场动画，并遵循 `motion-reduce`。
 - **登记表。** 渲染进程用一个模块登记所有引导：`id`、起始版本 `since`、受众 `audience`（`upgraded` 或 `everyone`）、锚点 key 和文案 key。目标元素用 `data-guide-anchor="<key>"` 属性标记，不再通过 props 传递 ref。
 - **调度。** 主窗口同一时间最多显示一个引导，并且只在以下条件都满足时显示：锚点在当前活动标签页上可见、没有强制关卡在显示（`useMandatoryGateOpen`）、没有其他对话框打开。看过的引导 id 存在渲染进程持久缓存 `ui.product_guide.seen` 里，每个引导只显示一次。
 - **受众。** `upgraded` 引导只给运行过早于 `since` 版本的用户看。首次运行时，渲染进程写入 `ui.product_guide.baseline_version`：取现有 `version.log` 里的上一个应用版本（`VersionService.getPreviousVersion`），新装用户则取当前版本。引导的 `since` 比基线新时才有资格显示。上一个版本通过一个只读的 IpcApi 路由传给渲染进程，主进程不新增任何记录。
 - **范围。** 需要用户做选择的功能弹窗（例如套餐开通弹窗）仍由各功能自己负责，框架只管锚定在元素上的一次性引导。功能可以主动请求显示一个已登记的引导，例如订阅流程在弹窗关闭后请求模型按钮引导。
 - **迁移。** 订阅开通引导（#24425）合并后，把对话顶部的模型引导迁到框架上：`ui.cherry_cloud.model_guide` 只保留待切换的模型选择，`ChatConversationControls` 去掉 `modelTriggerRef` prop。
-- **仓库 Skill。** `.agents/skills/product-guide/` 告诉 agent 在改了默认值、挪了入口，或者上线了用户不容易发现的功能时怎么做：按清单判断是否需要引导；登记引导；按规则写文案（简短、不出现套餐或档位名、使用共享字号）；添加 `en-us` 文案并翻译全部语言；编写契约测试（只显示一次、`upgraded` 引导不给新装用户看、遇到关卡会等待）；在 Electron 里用浅色和深色截图验证，并测量卡片与亮区是否对齐。
+- **仓库 Skill。** `.agents/skills/product-guide/` 告诉 agent 在改了默认值、挪了入口，或者上线了用户不容易发现的功能时怎么做：按清单判断是否需要引导；登记引导；按规则写文案（简短、不出现套餐或档位名、使用共享字号）；优先复用共享插画，只有弹窗或「东西在哪」类引导确实需要时才按插画规则新增；添加 `en-us` 文案并翻译全部语言；编写契约测试（只显示一次、`upgraded` 引导不给新装用户看、遇到关卡会等待）；在 Electron 里用浅色和深色截图验证，测量卡片与亮区是否对齐，并检查插画底色与卡片能区分开、没有出现任何具体名称。
 
 ## 考虑过的替代方案
 
 - 使用 react-joyride 或 driver.js 这类导览库：会引入一个自带样式和层级模型的依赖，而实际需求只是同一时间一个锚定提示，并且要遵循 `@cherrystudio/ui` 的设计变量和现有的强制关卡。
 - 把「已看过」状态存在 Preference 里：可以跨窗口同步、清缓存后也不丢，但引导状态属于可丢失的界面状态，Preference 只用于用户设置。
 - 新增持久化的「首次安装版本」记录：`version.log` 已经记录了每次版本变化，读一次上一个版本就足以确定基线。
+- 插画使用套餐专属图案或模型 logo：套餐和模型都会变，而且不同套餐面向的用户不应看到其他套餐的名称。
 - 只写 Skill、不做共享代码：agent 每次都会复制订阅引导，重复出现对齐和叠加问题。
 
 ## 验收标准
@@ -32,7 +34,8 @@ Status: proposed
 - AC3 — 强制关卡或其他引导正在显示时，到期的引导会等待，关闭后再显示；任何时候最多只显示一个引导。(verification: renderer)
 - AC4 — Coachmark 的弹出卡片与亮区对齐，只使用共享正文字号，浅色和深色主题下都清晰可读。(verification: Electron)
 - AC5 — 订阅模型引导运行在框架上，行为不变；`ChatConversationControls` 不再接收触发按钮的 ref。(verification: renderer + Electron)
-- AC6 — `.agents/skills/product-guide/SKILL.md` 已加入 `public-skills.txt`，通过 `pnpm skills:check`，并写明判断清单、登记方式、文案规则、多语言、测试和 Electron 验证步骤。(verification: CI gate)
+- AC6 — `.agents/skills/product-guide/SKILL.md` 已加入 `public-skills.txt`，通过 `pnpm skills:check`，并写明判断清单、登记方式、文案规则、插画规则、多语言、测试和 Electron 验证步骤。(verification: CI gate)
+- AC7 — 共享插画能在 Coachmark 头部插槽和订阅开通弹窗中渲染，只使用共享表面设计变量、不含任何具体名称，并且在浅色和深色主题下插画底色都能与卡片区分开。(verification: renderer + Electron)
 
 ## 风险
 
