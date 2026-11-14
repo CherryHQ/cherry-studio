@@ -4,7 +4,7 @@ import type { FC } from 'react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button, InfoTooltip, Input, RowFlex, Switch, WarnTooltip } from '@cherrystudio/ui'
+import { Button, Input, RowFlex, Switch, WarnTooltip, HelpTooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import AppLogo from '@renderer/assets/images/logo.png'
 import { S3BackupManager } from '@renderer/components/S3BackupManager'
@@ -13,7 +13,6 @@ import Selector from '@renderer/components/Selector'
 import {
   SettingDivider,
   SettingGroup,
-  SettingHelpText,
   SettingRow,
   SettingRowTitle,
   SettingTitle
@@ -105,16 +104,20 @@ const S3Settings: FC = () => {
 
   return (
     <SettingGroup theme={theme}>
-      <SettingTitle style={{ justifyContent: 'flex-start', gap: 10 }}>
+      <SettingTitle style={{ justifyContent: 'flex-start', gap: 10 }} className="justify-start gap-1.5">
         {t('settings.data.s3.title.label')}
-        <InfoTooltip
-          content={t('settings.data.s3.title.tooltip')}
-          placement="right"
-          iconProps={{ className: 'text-color-text-2 cursor-pointer' }}
+        <HelpTooltip
+          content={
+            <div className="space-y-2">
+              <p>{t('settings.data.s3.title.help')}</p>
+              <p>{t('settings.data.s3.title.tooltip')}</p>
+            </div>
+          }
+          ariaLabel={t('settings.data.s3.title.tooltip')}
+          delay={1000}
           onClick={handleTitleClick}
         />
       </SettingTitle>
-      <SettingHelpText>{t('settings.data.s3.title.help')}</SettingHelpText>
       <SettingDivider />
       <SettingRow id="setting-data-s3-endpoint" className="scroll-mt-6">
         <SettingRowTitle>{t('settings.data.s3.endpoint.label')}</SettingRowTitle>
@@ -246,11 +249,11 @@ const S3Settings: FC = () => {
       </SettingRow>
       <SettingDivider />
       <SettingRow>
-        <SettingRowTitle>{t('settings.data.s3.skipBackupFile.label')}</SettingRowTitle>
+        <SettingRowTitle className="flex items-center gap-1.5">
+          {t('settings.data.s3.skipBackupFile.label')}{' '}
+          <HelpTooltip content={t('settings.data.s3.skipBackupFile.help')} delay={1000} />
+        </SettingRowTitle>
         <Switch checked={s3SkipBackupFile} onCheckedChange={(value) => void setS3SkipBackupFile(value)} />
-      </SettingRow>
-      <SettingRow>
-        <SettingHelpText>{t('settings.data.s3.skipBackupFile.help')}</SettingHelpText>
       </SettingRow>
       {s3SyncInterval > 0 && (
         <>
@@ -270,7 +273,6 @@ const S3Settings: FC = () => {
           customFileName={customFileName}
           setCustomFileName={setCustomFileName}
         />
-
         <S3BackupManager
           visible={backupManagerVisible}
           onClose={closeBackupManager}

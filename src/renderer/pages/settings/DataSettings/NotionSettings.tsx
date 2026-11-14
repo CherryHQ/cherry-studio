@@ -2,13 +2,12 @@ import { Client } from '@notionhq/client'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button, InfoTooltip, Input, RowFlex, Switch } from '@cherrystudio/ui'
+import { Button, InfoTooltip, Input, RowFlex, Switch, HelpTooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import {
   SettingDivider,
   SettingGroup,
-  SettingHelpText,
   SettingRow,
   SettingRowTitle,
   SettingTitle
@@ -136,11 +135,11 @@ const NotionSettings: FC = () => {
       </SettingRow>
       <SettingDivider />
       <SettingRow>
-        <SettingRowTitle>{t('settings.data.notion.export_reasoning.title')}</SettingRowTitle>
+        <SettingRowTitle className="flex items-center gap-1.5">
+          {t('settings.data.notion.export_reasoning.title')}{' '}
+          <HelpTooltip content={t('settings.data.notion.export_reasoning.help')} delay={1000} />
+        </SettingRowTitle>
         <Switch checked={notionExportReasoning} onCheckedChange={handleNotionExportReasoningChange} />
-      </SettingRow>
-      <SettingRow>
-        <SettingHelpText>{t('settings.data.notion.export_reasoning.help')}</SettingHelpText>
       </SettingRow>
     </SettingGroup>
   )

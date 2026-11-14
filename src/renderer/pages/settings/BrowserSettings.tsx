@@ -11,7 +11,8 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-  Switch
+  Switch,
+  HelpTooltip
 } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { BrowserImportDialog } from '@renderer/components/BrowserImportDialog'
@@ -86,14 +87,18 @@ export function BrowserSettings() {
         <SettingDivider />
         <SettingRow id="setting-browser-agent-control" className="scroll-mt-6 flex-nowrap">
           <div className="min-w-0">
-            <SettingRowTitle id="browser-control-title">{t('settings.browser.control')}</SettingRowTitle>
-            <SettingDescription id="browser-control-help">{t('settings.browser.controlHelp')}</SettingDescription>
+            <SettingRowTitle className="flex items-center gap-1.5">
+              <span id="browser-control-title">{t('settings.browser.control')}</span>{' '}
+              <span id="browser-control-help" className="sr-only">
+                {t('settings.browser.controlHelp')}
+              </span>
+              <HelpTooltip content={t('settings.browser.controlHelp')} delay={1000} />
+            </SettingRowTitle>
           </div>
           <Switch
             id="browser-agent-control"
             aria-labelledby="browser-control-title"
             aria-describedby="browser-control-help"
-            className="mt-0.5"
             checked={enabled}
             disabled={saving}
             onCheckedChange={async (value) => {
@@ -112,16 +117,18 @@ export function BrowserSettings() {
         <SettingDivider />
         <SettingRow id="setting-browser-auto-open-panel" className="scroll-mt-6 flex-nowrap">
           <div className="min-w-0">
-            <SettingRowTitle id="browser-auto-open-panel-title">{t('settings.browser.autoOpenPanel')}</SettingRowTitle>
-            <SettingDescription id="browser-auto-open-panel-help">
-              {t('settings.browser.autoOpenPanelHelp')}
-            </SettingDescription>
+            <SettingRowTitle className="flex items-center gap-1.5">
+              <span id="browser-auto-open-panel-title">{t('settings.browser.autoOpenPanel')}</span>{' '}
+              <span id="browser-auto-open-panel-help" className="sr-only">
+                {t('settings.browser.autoOpenPanelHelp')}
+              </span>
+              <HelpTooltip content={t('settings.browser.autoOpenPanelHelp')} delay={1000} />
+            </SettingRowTitle>
           </div>
           <Switch
             id="browser-auto-open-panel"
             aria-labelledby="browser-auto-open-panel-title"
             aria-describedby="browser-auto-open-panel-help"
-            className="mt-0.5"
             checked={autoOpenPanel}
             disabled={saving}
             onCheckedChange={async (value) => {
@@ -140,14 +147,18 @@ export function BrowserSettings() {
         <SettingDivider />
         <SettingRow id="setting-browser-open-links" className="scroll-mt-6 flex-nowrap">
           <div className="min-w-0">
-            <SettingRowTitle id="browser-open-links-title">{t('settings.browser.openLinks')}</SettingRowTitle>
-            <SettingDescription id="browser-open-links-help">{t('settings.browser.openLinksHelp')}</SettingDescription>
+            <SettingRowTitle className="flex items-center gap-1.5">
+              <span id="browser-open-links-title">{t('settings.browser.openLinks')}</span>{' '}
+              <span id="browser-open-links-help" className="sr-only">
+                {t('settings.browser.openLinksHelp')}
+              </span>
+              <HelpTooltip content={t('settings.browser.openLinksHelp')} delay={1000} />
+            </SettingRowTitle>
           </div>
           <Switch
             id="browser-open-links"
             aria-labelledby="browser-open-links-title"
             aria-describedby="browser-open-links-help"
-            className="mt-0.5"
             checked={openLinks}
             disabled={saving}
             onCheckedChange={async (value) => {
@@ -166,8 +177,10 @@ export function BrowserSettings() {
         <SettingDivider />
         <SettingRow id="setting-browser-start-page" className="scroll-mt-6 flex-wrap gap-3">
           <div className="min-w-0 flex-1">
-            <SettingRowTitle>{t('settings.browser.startPage')}</SettingRowTitle>
-            <SettingDescription>{t('settings.browser.startPageHelp')}</SettingDescription>
+            <SettingRowTitle className="flex items-center gap-1.5">
+              {t('settings.browser.startPage')}{' '}
+              <HelpTooltip content={t('settings.browser.startPageHelp')} delay={1000} />
+            </SettingRowTitle>
           </div>
           <Select
             value={startPageMode === 'last' || startPageMode === 'custom' ? startPageMode : 'blank'}
@@ -229,8 +242,9 @@ export function BrowserSettings() {
             {kind !== 'import' && <SettingDivider />}
             <SettingRow id={`setting-browser-${kind}`} className="scroll-mt-6 flex-nowrap">
               <div className="min-w-0 flex-1">
-                <SettingRowTitle id={`browser-${kind}-title`}>{t(title)}</SettingRowTitle>
-                <SettingDescription>{t(help)}</SettingDescription>
+                <SettingRowTitle className="flex items-center gap-1.5">
+                  <span id={`browser-${kind}-title`}>{t(title)}</span> <HelpTooltip content={t(help)} delay={1000} />
+                </SettingRowTitle>
               </div>
               <DialogTrigger asChild>
                 <Button variant="outline" aria-labelledby={`browser-${kind}-action browser-${kind}-title`}>

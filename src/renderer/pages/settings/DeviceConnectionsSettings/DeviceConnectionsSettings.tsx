@@ -26,7 +26,8 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-  Tooltip
+  Tooltip,
+  HelpTooltip
 } from '@cherrystudio/ui'
 import { usePersistCache, useSharedCacheValue } from '@data/hooks/useCache'
 import { useDataChange, useMutation, useQuery } from '@data/hooks/useDataApi'
@@ -289,10 +290,9 @@ const DeviceConnectionsSettings: FC = () => {
         <SettingTitle className="justify-start gap-2">
           <MonitorSmartphone size={16} />
           {t('deviceConnections.title')}
+          <HelpTooltip content={t('deviceConnections.description')} delay={1000} />
         </SettingTitle>
-        <PageDescription>{t('deviceConnections.description')}</PageDescription>
       </div>
-
       <Dialog open={endpointDialogOpen} onOpenChange={setEndpointDialogOpen}>
         <DialogContent closeLabel={t('common.close')}>
           <RemoteEndpointSettings
@@ -343,7 +343,6 @@ const DeviceConnectionsSettings: FC = () => {
               </div>
               {connectionAction}
             </StatusCard>
-
             <Sections>
               <SettingGroup theme={theme} className="mt-0 overflow-hidden p-0">
                 <SectionFields>
@@ -373,7 +372,6 @@ const DeviceConnectionsSettings: FC = () => {
                       </div>
                     </div>
                   </div>
-
                   {(invitation || claims.length > 0) && (
                     <div
                       role="alert"
@@ -539,7 +537,6 @@ const DeviceConnectionsSettings: FC = () => {
                   )}
                 </SectionFields>
               </SettingGroup>
-
               <SettingGroup theme={theme} className="mt-0 overflow-hidden p-0">
                 <SectionFields>
                   <SettingRowTitle>{t('deviceConnections.devices.title')}</SettingRowTitle>
@@ -614,10 +611,6 @@ const DeviceConnectionsSettings: FC = () => {
     </SettingsContentColumn>
   )
 }
-
-const PageDescription = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('mt-2 max-w-140 text-foreground-tertiary text-xs leading-5', className)} {...props} />
-)
 
 const StatusCard = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
   <div

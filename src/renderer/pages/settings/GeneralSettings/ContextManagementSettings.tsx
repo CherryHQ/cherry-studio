@@ -8,13 +8,13 @@ import {
   InputGroupInputNumber,
   InputGroupText,
   InputNumber,
-  Switch
+  Switch,
+  HelpTooltip
 } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { DefaultModelSelector } from '@renderer/components/DefaultModelSelector'
 import type { ModelSelectorFilter } from '@renderer/components/ModelSelector'
 import {
-  SettingDescription,
   SettingDivider,
   SettingGroup,
   SettingRow,
@@ -74,8 +74,10 @@ export const ContextManagementSettings = () => {
 
   return (
     <SettingGroup theme={theme}>
-      <SettingTitle>{t('settings.models.context_management.title')}</SettingTitle>
-      <SettingDescription>{t('settings.models.context_management.scope_description')}</SettingDescription>
+      <SettingTitle className="justify-start gap-1.5">
+        {t('settings.models.context_management.title')}{' '}
+        <HelpTooltip content={t('settings.models.context_management.scope_description')} delay={1000} />
+      </SettingTitle>
       <SettingDivider />
       {/* Outside the master switch: scope is not an overflow policy. */}
       <SettingRow id="setting-general-context-max-messages" className="scroll-mt-6">

@@ -123,6 +123,8 @@ vi.mock('@cherrystudio/ui', () => {
         )
       : null
   return {
+    HelpTooltip: () => null,
+
     Badge: passthrough('span'),
     Button: ({ children, onClick, 'aria-label': ariaLabel, disabled, title }: any) =>
       React.createElement('button', { onClick, 'aria-label': ariaLabel, disabled, title }, children),

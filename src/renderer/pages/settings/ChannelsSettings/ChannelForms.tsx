@@ -15,7 +15,8 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-  Switch
+  Switch,
+  HelpTooltip
 } from '@cherrystudio/ui'
 import { FullAccessConfirmDialog, PermissionModeSelectItem } from '@renderer/components/PermissionModeOption'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
@@ -193,7 +194,10 @@ const ChannelFieldsForm: FC<ChannelFieldsFormProps> = ({
         ))}
         {extraContent}
         <div className={chatIdsConfig.fullWidth ? 'col-span-2' : ''}>
-          <Label className="mb-1 block text-xs">{chatIdsConfig.label}</Label>
+          <div className="mb-1 flex items-center gap-1.5">
+            <Label className="text-xs">{chatIdsConfig.label}</Label>
+            <HelpTooltip content={chatIdsConfig.hint} delay={1000} />
+          </div>
           <Input
             value={chatIds}
             onChange={(e) => setChatIds(e.target.value)}
@@ -201,7 +205,6 @@ const ChannelFieldsForm: FC<ChannelFieldsFormProps> = ({
             placeholder={chatIdsConfig.placeholder}
             className="h-8 text-sm"
           />
-          <span className="mt-1 block text-xs text-muted-foreground">{chatIdsConfig.hint}</span>
           {!chatIds.trim() && idsKey === 'allowed_chat_ids' && (
             <span className="mt-1 block text-xs text-warning">{t('agent.channels.chatIdsAutoTrackHint')}</span>
           )}
@@ -363,7 +366,6 @@ export const FeishuForm: FC<ChannelFormProps> = ({ channel, onConfigChange }) =>
           hint: t('agent.channels.feishu.chatIdsHint')
         }}
       />
-
       <Dialog
         open={!!qrUrl}
         onOpenChange={(open) => {
@@ -533,9 +535,7 @@ export const WeChatForm: FC<ChannelFormProps & { onRemove?: () => void }> = ({ c
           </span>
         )}
       </div>
-
       <ChannelPermissionMode channel={channel} onConfigChange={onConfigChange} />
-
       <Dialog
         open={!!qrUrl}
         onOpenChange={(open) => {

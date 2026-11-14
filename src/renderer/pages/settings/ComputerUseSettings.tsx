@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import useSWR from 'swr'
 import useSWRMutation from 'swr/mutation'
 
-import { Button, Switch } from '@cherrystudio/ui'
+import { Button, Switch, HelpTooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import {
@@ -56,19 +56,22 @@ export function ComputerUseSettings() {
 
   return (
     <SettingsContentColumn>
-      <h1 className="text-xl font-semibold text-foreground">{t('settings.computerUse.title')}</h1>
-      <SettingDescription>{t('settings.computerUse.description')}</SettingDescription>
-
+      <h1 className="flex items-center gap-1.5 text-xl font-semibold text-foreground">
+        {t('settings.computerUse.title')}
+        <HelpTooltip content={t('settings.computerUse.description')} delay={1000} />
+      </h1>
       <SettingGroup>
-        <SettingRow className="flex-nowrap items-start">
+        <SettingRow className="flex-nowrap">
           <div className="min-w-0 flex-1">
-            <SettingRowTitle id="computer-use-control-title">{t('settings.computerUse.control')}</SettingRowTitle>
-            <SettingDescription id="computer-use-control-help">
-              {t('settings.computerUse.controlHelp')}
-            </SettingDescription>
+            <SettingRowTitle className="flex items-center gap-1.5">
+              <span id="computer-use-control-title">{t('settings.computerUse.control')}</span>{' '}
+              <span id="computer-use-control-help" className="sr-only">
+                {t('settings.computerUse.controlHelp')}
+              </span>
+              <HelpTooltip content={t('settings.computerUse.controlHelp')} delay={1000} />
+            </SettingRowTitle>
           </div>
           <Switch
-            className="mt-0.5"
             checked={enabled}
             disabled={saving}
             aria-labelledby="computer-use-control-title"

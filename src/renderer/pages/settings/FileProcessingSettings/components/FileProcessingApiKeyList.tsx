@@ -3,7 +3,7 @@ import type { FC } from 'react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { ScrollArea } from '@cherrystudio/ui'
+import { ScrollArea, HelpTooltip } from '@cherrystudio/ui'
 import { Button, Dialog, DialogContent, DialogHeader, DialogTitle, Input } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import EditIcon from '@renderer/components/icons/EditIcon'
@@ -236,9 +236,7 @@ export const FileProcessingApiKeyList: FC<FileProcessingApiKeyListProps> = ({ pr
       </div>
 
       <div className="mt-3.5 flex items-center justify-between gap-3">
-        <span className="min-w-0 text-xs leading-tight text-muted-foreground">
-          {t('settings.provider.api_key.tip')}
-        </span>
+        <HelpTooltip content={t('settings.provider.api_key.tip')} delay={1000} />
         <Button
           type="button"
           size="sm"

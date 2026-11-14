@@ -12,14 +12,14 @@ import {
   SelectTrigger,
   SelectValue,
   Switch,
-  Tooltip
+  Tooltip,
+  HelpTooltip
 } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import {
   SettingDivider,
   SettingGroup,
-  SettingHelpText,
   SettingRow,
   SettingRowTitle,
   SettingTitle
@@ -296,11 +296,11 @@ const BasicDataSettings: React.FC = () => {
         </SettingRow>
         <SettingDivider />
         <SettingRow id="setting-data-data-skip-file-data" className="scroll-mt-6">
-          <SettingRowTitle>{t('settings.data.backup.skip_file_data_title')}</SettingRowTitle>
+          <SettingRowTitle className="flex items-center gap-1.5">
+            {t('settings.data.backup.skip_file_data_title')}{' '}
+            <HelpTooltip content={t('settings.data.backup.skip_file_data_help')} delay={1000} />
+          </SettingRowTitle>
           <Switch checked={skipBackupFile} onCheckedChange={(value) => void setSkipBackupFile(value)} />
-        </SettingRow>
-        <SettingRow>
-          <SettingHelpText>{t('settings.data.backup.skip_file_data_help')}</SettingHelpText>
         </SettingRow>
       </SettingGroup>
       <SettingGroup theme={theme}>
@@ -348,7 +348,10 @@ const BasicDataSettings: React.FC = () => {
         </SettingRow>
         <SettingDivider />
         <SettingRow id="setting-data-data-log-retention" className="scroll-mt-6">
-          <SettingRowTitle>{t('settings.data.log_retention.label')}</SettingRowTitle>
+          <SettingRowTitle className="flex items-center gap-1.5">
+            {t('settings.data.log_retention.label')}{' '}
+            <HelpTooltip content={t('settings.data.log_retention.help')} delay={1000} />
+          </SettingRowTitle>
           <Select value={String(logRetentionDays)} onValueChange={(value) => void setLogRetentionDays(Number(value))}>
             <SelectTrigger className="w-40" aria-label={t('settings.data.log_retention.label')}>
               <SelectValue />
@@ -361,9 +364,6 @@ const BasicDataSettings: React.FC = () => {
               ))}
             </SelectContent>
           </Select>
-        </SettingRow>
-        <SettingRow>
-          <SettingHelpText>{t('settings.data.log_retention.help')}</SettingHelpText>
         </SettingRow>
         <SettingDivider />
         <SettingRow id="setting-data-data-clear-cache" className="scroll-mt-6">

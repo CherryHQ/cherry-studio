@@ -142,6 +142,9 @@ export const MockCherrystudioUI = {
   // Content deliberately dropped: a tooltip is not an accessible name, so a trigger that
   // depends on it for meaning is a bug the test should catch, not one the mock hides.
   NormalTooltip: ({ children }: { children?: ReactNode }) => <>{children}</>,
+  HelpTooltip: ({ content }: { content?: ReactNode }) => (
+    <span role="img" aria-label={typeof content === 'string' ? content : undefined} tabIndex={0} />
+  ),
   RowFlex: ({ children, ...props }: { children?: ReactNode }) => <div {...props}>{children}</div>,
   ScrollArea: ({
     children,

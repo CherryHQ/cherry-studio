@@ -18,7 +18,8 @@ import {
   InputNumber,
   Label,
   SegmentedControl,
-  Switch
+  Switch,
+  HelpTooltip
 } from '@cherrystudio/ui'
 import { useIcon } from '@cherrystudio/ui/icons'
 import { showErrorDetailPopup } from '@renderer/components/ErrorDetailModal'
@@ -342,7 +343,6 @@ export default function ModelCheckDialog() {
             {t(view === 'single' ? 'message.api.check.model.title' : 'settings.models.check.title')}
           </DialogTitle>
         </DialogHeader>
-
         {view === 'single' ? (
           <div className="space-y-4">
             <div className="space-y-3">
@@ -387,7 +387,6 @@ export default function ModelCheckDialog() {
                   <div className={drawerClasses.emptyInline}>{t('settings.provider.no_models_for_check')}</div>
                 )}
               </div>
-
               {health.canSelectApiKey ? (
                 <SingleApiKeyField
                   entries={enabledApiKeyEntries}
@@ -400,7 +399,6 @@ export default function ModelCheckDialog() {
                 />
               ) : null}
             </div>
-
             {singleErrorText ? (
               <button
                 type="button"
@@ -444,7 +442,7 @@ export default function ModelCheckDialog() {
               <div className="flex items-center justify-between gap-4">
                 <div>
                   <Label htmlFor="model-check-concurrent">{t('settings.models.check.enable_concurrent')}</Label>
-                  <p className="mt-1 text-muted-foreground text-xs">{t('settings.models.check.concurrent_hint')}</p>
+                  <HelpTooltip content={t('settings.models.check.concurrent_hint')} delay={1000} />
                 </div>
                 <Switch id="model-check-concurrent" checked={isConcurrent} onCheckedChange={setIsConcurrent} />
               </div>

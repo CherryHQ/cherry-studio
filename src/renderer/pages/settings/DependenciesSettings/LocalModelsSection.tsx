@@ -1,9 +1,9 @@
 import { Boxes, Download, RefreshCw, ScanText, Mic, Volume2, Trash2, X } from 'lucide-react'
 import type { FC, ReactNode } from 'react'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Badge, Button, DescriptionSwitch } from '@cherrystudio/ui'
+import { Badge, Button, HelpTooltip, Label, Switch } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { useLocalModel } from '@renderer/hooks/useLocalModel'
@@ -189,7 +189,6 @@ const ModelCard: FC<ModelCardProps> = ({ id, capability, onStatusChange }) => {
           </Button>
         )}
       </div>
-
       {notice && (
         <p className={cn('mt-2 text-xs leading-4', notice === 'inUse' ? 'text-muted-foreground' : 'text-destructive')}>
           {t(CARD_NOTICE_KEYS[notice])}
@@ -236,6 +235,7 @@ type ListedModel = { id: LocalModelBundleId; capability: LocalModelCapability }
  * Each is wired to its own download backend over IpcApi.
  */
 const LocalModelsSection: FC = () => {
+  const accelerationId = useId()
   const { t } = useTranslation()
   const [hardwareAccelerationEnabled, setHardwareAccelerationEnabled] = usePreference(
     'feature.local_model.hardware_acceleration.enabled'
@@ -271,23 +271,28 @@ const LocalModelsSection: FC = () => {
 
   return (
     <div className="min-w-0">
-      <h2 className="font-semibold text-[15px] text-foreground leading-6">
-        {t('settings.dependencies.localModels.title')}
-      </h2>
-      <p className="mt-1 mb-3 text-muted-foreground text-xs leading-5">
-        {t('settings.dependencies.localModels.description')}
-      </p>
-      {accelerationSupported && !unsupported ? (
-        <div className="mb-3 border-border border-y py-1">
-          <DescriptionSwitch
-            size="sm"
-            label={t('settings.dependencies.localModels.acceleration.label')}
-            description={t('settings.dependencies.localModels.acceleration.description')}
-            checked={hardwareAccelerationEnabled}
-            onCheckedChange={(enabled) => void setHardwareAccelerationEnabled(enabled)}
-          />
-        </div>
-      ) : null}
+      <div className="mb-4 flex min-h-8 flex-wrap items-center justify-between gap-x-6 gap-y-3">
+        <h2 className="flex items-center gap-1.5 text-[15px] leading-6 font-semibold text-foreground">
+          {t('settings.dependencies.localModels.title')}
+          <HelpTooltip content={t('settings.dependencies.localModels.description')} delay={1000} />
+        </h2>
+        {accelerationSupported && !unsupported ? (
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1.5">
+              <Label htmlFor={accelerationId} className="text-xs font-normal text-muted-foreground">
+                {t('settings.dependencies.localModels.acceleration.label')}
+              </Label>
+              <HelpTooltip content={t('settings.dependencies.localModels.acceleration.description')} delay={1000} />
+            </div>
+            <Switch
+              id={accelerationId}
+              size="sm"
+              checked={hardwareAccelerationEnabled}
+              onCheckedChange={(enabled) => void setHardwareAccelerationEnabled(enabled)}
+            />
+          </div>
+        ) : null}
+      </div>
       {unsupported ? (
         <div
           role="status"

@@ -13,7 +13,8 @@ import {
   InputGroupButton,
   InputGroupInput,
   InputNumber,
-  Tooltip
+  Tooltip,
+  HelpTooltip
 } from '@cherrystudio/ui'
 import CopyButton from '@renderer/components/CopyButton'
 import { GatewayIcon } from '@renderer/components/icons/GatewayIcon'
@@ -115,11 +116,10 @@ const ApiGatewaySettings: FC = () => {
           <SettingTitle className="justify-start gap-2">
             <GatewayIcon width={16} height={16} />
             {t('apiGateway.title')}
+            <HelpTooltip content={t('apiGateway.description')} delay={1000} />
           </SettingTitle>
-          <PageDescription>{t('apiGateway.description')}</PageDescription>
         </div>
       </HeaderRow>
-
       <StatusCard $running={apiGatewayRunning}>
         <StatusSection>
           <StatusIcon $running={apiGatewayRunning}>
@@ -140,7 +140,6 @@ const ApiGatewaySettings: FC = () => {
             <StatusSubtext>{apiGatewayRunning ? serverUrl : t('apiGateway.messages.notEnabled')}</StatusSubtext>
           </StatusContent>
         </StatusSection>
-
         <StatusActions>
           {apiGatewayRunning && (
             <Button variant="outline" onClick={openApiDocs}>
@@ -169,7 +168,6 @@ const ApiGatewaySettings: FC = () => {
           )}
         </StatusActions>
       </StatusCard>
-
       <Sections>
         {!apiGatewayRunning && (
           <SettingGroup theme={theme} className="mt-0 overflow-hidden p-0">
@@ -263,7 +261,6 @@ const ApiGatewaySettings: FC = () => {
                 </InputGroupAddon>
               </InputGroup>
             </Field>
-
             <Field>
               <SettingRowTitle>{t('apiGateway.authHeader.title')}</SettingRowTitle>
               <InputGroup className="mt-2 min-w-0">
@@ -304,10 +301,6 @@ const Container = ({ className, ...props }: React.ComponentPropsWithoutRef<typeo
 
 const HeaderRow = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
   <div className={cn('flex items-center justify-between gap-4', className)} {...props} />
-)
-
-const PageDescription = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('mt-2 max-w-140 text-foreground-tertiary text-xs leading-5', className)} {...props} />
 )
 
 const StatusCard = ({

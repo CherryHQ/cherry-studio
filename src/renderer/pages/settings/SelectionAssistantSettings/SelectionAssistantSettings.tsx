@@ -5,7 +5,7 @@ import type { FC } from 'react'
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button, RadioGroup, RadioGroupItem, Slider, Switch, Tooltip } from '@cherrystudio/ui'
+import { Button, RadioGroup, RadioGroupItem, Slider, Switch, Tooltip, HelpTooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import SelectionToolbarView from '@renderer/components/selection/SelectionToolbarView'
 import {
@@ -129,7 +129,6 @@ const SelectionAssistantSettings: FC = () => {
             disabled={!isSupportedOS}
           />
         </SettingRow>
-
         {!selectionEnabled && (
           <DemoContainer>
             <SelectionToolbarView
@@ -190,7 +189,6 @@ const SelectionAssistantSettings: FC = () => {
           </>
         )}
       </SettingGroup>
-
       {selectionEnabled && !isCompositorIncompatible && (
         <>
           <SettingGroup theme={theme}>
@@ -198,14 +196,14 @@ const SelectionAssistantSettings: FC = () => {
             <SettingDivider />
             <SettingRow>
               <SettingLabel>
-                <SettingRowTitle>
+                <SettingRowTitle className="flex items-center gap-1.5">
                   <div style={{ marginRight: '4px' }}>{t('selection.settings.toolbar.trigger_mode.title')}</div>
                   {/* FIXME: 没有考虑Linux？ */}
                   <Tooltip content={t(getSelectionDescriptionLabelKey(isWin ? 'windows' : isLinux ? 'linux' : 'mac'))}>
                     <QuestionIcon size={14} />
                   </Tooltip>
+                  <HelpTooltip content={t('selection.settings.toolbar.trigger_mode.description')} delay={1000} />
                 </SettingRowTitle>
-                <SettingDescription>{t('selection.settings.toolbar.trigger_mode.description')}</SettingDescription>
               </SettingLabel>
               <RadioGroup
                 value={triggerMode}
@@ -245,52 +243,63 @@ const SelectionAssistantSettings: FC = () => {
             <SettingDivider />
             <SettingRow>
               <SettingLabel>
-                <SettingRowTitle>{t('selection.settings.toolbar.compact_mode.title')}</SettingRowTitle>
-                <SettingDescription>{t('selection.settings.toolbar.compact_mode.description')}</SettingDescription>
+                <SettingRowTitle className="flex items-center gap-1.5">
+                  {t('selection.settings.toolbar.compact_mode.title')}{' '}
+                  <HelpTooltip content={t('selection.settings.toolbar.compact_mode.description')} delay={1000} />
+                </SettingRowTitle>
               </SettingLabel>
               <Switch checked={isCompact} onCheckedChange={setIsCompact} />
             </SettingRow>
           </SettingGroup>
-
           <SettingGroup theme={theme}>
             <SettingTitle>{t('selection.settings.window.title')}</SettingTitle>
             <SettingDivider />
             <SettingRow>
               <SettingLabel>
-                <SettingRowTitle>{t('selection.settings.window.follow_toolbar.title')}</SettingRowTitle>
-                <SettingDescription>{t('selection.settings.window.follow_toolbar.description')}</SettingDescription>
+                <SettingRowTitle className="flex items-center gap-1.5">
+                  {t('selection.settings.window.follow_toolbar.title')}{' '}
+                  <HelpTooltip content={t('selection.settings.window.follow_toolbar.description')} delay={1000} />
+                </SettingRowTitle>
               </SettingLabel>
               <Switch checked={isFollowToolbar} onCheckedChange={setIsFollowToolbar} />
             </SettingRow>
             <SettingDivider />
             <SettingRow>
               <SettingLabel>
-                <SettingRowTitle>{t('selection.settings.window.remember_size.title')}</SettingRowTitle>
-                <SettingDescription>{t('selection.settings.window.remember_size.description')}</SettingDescription>
+                <SettingRowTitle className="flex items-center gap-1.5">
+                  {t('selection.settings.window.remember_size.title')}{' '}
+                  <HelpTooltip content={t('selection.settings.window.remember_size.description')} delay={1000} />
+                </SettingRowTitle>
               </SettingLabel>
               <Switch checked={isRemeberWinSize} onCheckedChange={setIsRemeberWinSize} />
             </SettingRow>
             <SettingDivider />
             <SettingRow>
               <SettingLabel>
-                <SettingRowTitle>{t('selection.settings.window.auto_close.title')}</SettingRowTitle>
-                <SettingDescription>{t('selection.settings.window.auto_close.description')}</SettingDescription>
+                <SettingRowTitle className="flex items-center gap-1.5">
+                  {t('selection.settings.window.auto_close.title')}{' '}
+                  <HelpTooltip content={t('selection.settings.window.auto_close.description')} delay={1000} />
+                </SettingRowTitle>
               </SettingLabel>
               <Switch checked={isAutoClose} onCheckedChange={setIsAutoClose} />
             </SettingRow>
             <SettingDivider />
             <SettingRow>
               <SettingLabel>
-                <SettingRowTitle>{t('selection.settings.window.auto_pin.title')}</SettingRowTitle>
-                <SettingDescription>{t('selection.settings.window.auto_pin.description')}</SettingDescription>
+                <SettingRowTitle className="flex items-center gap-1.5">
+                  {t('selection.settings.window.auto_pin.title')}{' '}
+                  <HelpTooltip content={t('selection.settings.window.auto_pin.description')} delay={1000} />
+                </SettingRowTitle>
               </SettingLabel>
               <Switch checked={isAutoPin} onCheckedChange={setIsAutoPin} />
             </SettingRow>
             <SettingDivider />
             <SettingRow>
               <SettingLabel>
-                <SettingRowTitle>{t('selection.settings.window.opacity.title')}</SettingRowTitle>
-                <SettingDescription>{t('selection.settings.window.opacity.description')}</SettingDescription>
+                <SettingRowTitle className="flex items-center gap-1.5">
+                  {t('selection.settings.window.opacity.title')}{' '}
+                  <HelpTooltip content={t('selection.settings.window.opacity.description')} delay={1000} />
+                </SettingRowTitle>
               </SettingLabel>
               <div style={{ marginRight: '16px' }}>{opacityValue}%</div>
               <Slider
@@ -303,9 +312,7 @@ const SelectionAssistantSettings: FC = () => {
               />
             </SettingRow>
           </SettingGroup>
-
           <SelectionActionsList actionItems={actions} setActionItems={setActionItems} />
-
           {/* Wayland sessions report no program name, so filter mode never applies there. */}
           {!isLinuxWaylandDisplay && (
             <SettingGroup theme={theme}>
@@ -313,8 +320,10 @@ const SelectionAssistantSettings: FC = () => {
               <SettingDivider />
               <SettingRow>
                 <SettingLabel>
-                  <SettingRowTitle>{t('selection.settings.advanced.filter_mode.title')}</SettingRowTitle>
-                  <SettingDescription>{t('selection.settings.advanced.filter_mode.description')}</SettingDescription>
+                  <SettingRowTitle className="flex items-center gap-1.5">
+                    {t('selection.settings.advanced.filter_mode.title')}{' '}
+                    <HelpTooltip content={t('selection.settings.advanced.filter_mode.description')} delay={1000} />
+                  </SettingRowTitle>
                 </SettingLabel>
                 <RadioGroup
                   value={filterMode ?? 'default'}
@@ -334,16 +343,15 @@ const SelectionAssistantSettings: FC = () => {
                   </label>
                 </RadioGroup>
               </SettingRow>
-
               {filterMode && filterMode !== 'default' && (
                 <>
                   <SettingDivider />
                   <SettingRow>
                     <SettingLabel>
-                      <SettingRowTitle>{t('selection.settings.advanced.filter_list.title')}</SettingRowTitle>
-                      <SettingDescription>
-                        {t('selection.settings.advanced.filter_list.description')}
-                      </SettingDescription>
+                      <SettingRowTitle className="flex items-center gap-1.5">
+                        {t('selection.settings.advanced.filter_list.title')}{' '}
+                        <HelpTooltip content={t('selection.settings.advanced.filter_list.description')} delay={1000} />
+                      </SettingRowTitle>
                     </SettingLabel>
                     <Button onClick={() => setIsFilterListModalOpen(true)}>
                       <Edit2 size={14} />

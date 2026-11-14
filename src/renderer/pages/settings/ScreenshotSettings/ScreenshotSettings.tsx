@@ -4,7 +4,7 @@ import type { FC } from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Badge, Button, DescriptionSwitch, NormalTooltip } from '@cherrystudio/ui'
+import { Badge, Button, DescriptionSwitch, NormalTooltip, HelpTooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import {
@@ -133,13 +133,13 @@ const ScreenshotSettings: FC = () => {
         <SettingTitle>{t('settings.screenshot.title')}</SettingTitle>
         <SettingDivider />
         <DescriptionSwitch
+          descriptionDisplay="tooltip"
           size="sm"
           label={t('settings.screenshot.enable.title')}
           description={t('settings.screenshot.enable.description')}
           checked={screenshotEnabled}
           onCheckedChange={(checked) => void setScreenshotEnabled(checked)}
         />
-
         {permissionView && (
           <div className="mt-2 flex items-center justify-between gap-3 rounded-xl border border-border p-3">
             <div className="min-w-0">
@@ -167,10 +167,10 @@ const ScreenshotSettings: FC = () => {
             row lines up with the switches above it — there is no read-only variant to reuse. */}
         <div className="flex w-full justify-between gap-3 p-2">
           <div className="flex min-w-0 flex-col gap-1">
-            <p className="font-medium text-sm leading-4 tracking-normal">{t('settings.screenshot.shortcut.title')}</p>
-            <span className="text-[10px] text-muted-foreground leading-3">
-              {t('settings.screenshot.shortcut.description')}
-            </span>
+            <p className="font-medium text-sm leading-4 tracking-normal">
+              {t('settings.screenshot.shortcut.title')}{' '}
+              <HelpTooltip content={t('settings.screenshot.shortcut.description')} delay={1000} />
+            </p>
           </div>
           <div className="flex shrink-0 items-center gap-2">
             {captureShortcut ? (
@@ -208,11 +208,11 @@ const ScreenshotSettings: FC = () => {
           </div>
         </div>
       </SettingGroup>
-
       <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.screenshot.ocr.title')}</SettingTitle>
         <SettingDivider />
         <DescriptionSwitch
+          descriptionDisplay="tooltip"
           size="sm"
           label={t('settings.screenshot.ocr.auto.title')}
           description={t('settings.screenshot.ocr.auto.description')}
@@ -220,7 +220,6 @@ const ScreenshotSettings: FC = () => {
           disabled={!ocrReady}
           onCheckedChange={(checked) => void setAutoOcr(checked)}
         />
-
         <div className="mt-2 px-2">
           {systemOcrAvailable ? (
             <Badge variant="secondary">{t('provider.system')}</Badge>

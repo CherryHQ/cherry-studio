@@ -14,7 +14,8 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-  Switch
+  Switch,
+  HelpTooltip
 } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
@@ -405,7 +406,6 @@ const GeneralSettings: FC = () => {
           </div>
         </SettingRow>
       </SettingGroup>
-
       <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.general.sections.startup')}</SettingTitle>
         <SettingDivider />
@@ -429,7 +429,6 @@ const GeneralSettings: FC = () => {
           <Switch checked={trayOnClose} onCheckedChange={(checked) => updateTrayOnClose(checked)} />
         </SettingRow>
       </SettingGroup>
-
       <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.general.sections.network')}</SettingTitle>
         <SettingDivider />
@@ -523,7 +522,6 @@ const GeneralSettings: FC = () => {
           />
         </SettingRow>
       </SettingGroup>
-
       <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.general.sections.runtime')}</SettingTitle>
         <SettingDivider />
@@ -537,12 +535,12 @@ const GeneralSettings: FC = () => {
           <Switch checked={preventSleepWhenBusy} onCheckedChange={(checked) => void setPreventSleepWhenBusy(checked)} />
         </SettingRow>
       </SettingGroup>
-
       <ContextManagementSettings />
-
       <SettingGroup theme={theme}>
-        <SettingTitle>{t('settings.general.sections.retry')}</SettingTitle>
-        <SettingDescription>{t('settings.models.retry.description')}</SettingDescription>
+        <SettingTitle className="justify-start gap-1.5">
+          {t('settings.general.sections.retry')}{' '}
+          <HelpTooltip content={t('settings.models.retry.description')} delay={1000} />
+        </SettingTitle>
         <SettingDivider />
         <SettingRow id="setting-general-retry-enabled" className="scroll-mt-6">
           <SettingRowTitle className="gap-1">
@@ -582,12 +580,12 @@ const GeneralSettings: FC = () => {
               />
             </SettingRow>
             <SettingDivider />
-            <SettingRow className="items-start gap-6">
+            <SettingRow className="gap-6">
               <div className="min-w-0 flex-1">
-                <SettingRowTitle>{t('settings.models.retry.fallback_models')}</SettingRowTitle>
-                <SettingDescription className="mt-1.5 leading-5">
-                  {t('settings.models.retry.fallback_models_description')}
-                </SettingDescription>
+                <SettingRowTitle className="flex items-center gap-1.5">
+                  {t('settings.models.retry.fallback_models')}{' '}
+                  <HelpTooltip content={t('settings.models.retry.fallback_models_description')} delay={1000} />
+                </SettingRowTitle>
               </div>
               <div className="flex w-[220px] min-w-0 shrink-0 items-center">
                 <ModelSelector
@@ -616,7 +614,6 @@ const GeneralSettings: FC = () => {
           </>
         )}
       </SettingGroup>
-
       <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.general.sections.agent')}</SettingTitle>
         <SettingDivider />
@@ -640,10 +637,10 @@ const GeneralSettings: FC = () => {
         <SettingDivider />
         <SettingRow id="setting-general-commit-attribution" className="scroll-mt-6 flex-nowrap">
           <div className="min-w-0 flex-1">
-            <SettingRowTitle id="commit-attribution-title">
-              {t('settings.general.commit_attribution.title')}
+            <SettingRowTitle className="flex items-center gap-1.5">
+              <span id="commit-attribution-title">{t('settings.general.commit_attribution.title')}</span>
+              <HelpTooltip content={t('settings.general.commit_attribution.description')} delay={1000} />
             </SettingRowTitle>
-            <SettingDescription>{t('settings.general.commit_attribution.description')}</SettingDescription>
           </div>
           <Switch
             checked={commitAttribution}
@@ -652,7 +649,6 @@ const GeneralSettings: FC = () => {
           />
         </SettingRow>
       </SettingGroup>
-
       <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.general.sections.developer')}</SettingTitle>
         <SettingDivider />

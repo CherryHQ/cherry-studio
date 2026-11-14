@@ -1,16 +1,12 @@
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { InputGroup, InputGroupAddon, InputGroupInputNumber, InputGroupText } from '@cherrystudio/ui'
+import { InputGroup, InputGroupAddon, InputGroupInputNumber, InputGroupText, HelpTooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { toast } from '@renderer/services/toast'
 
-import {
-  ProviderHelpText,
-  ProviderHelpTextRow,
-  ProviderSettingsSubtitle
-} from '../primitives/ProviderSettingsPrimitives'
+import { ProviderSettingsSubtitle } from '../primitives/ProviderSettingsPrimitives'
 
 const logger = loggerService.withContext('GpuStackSettings')
 
@@ -39,7 +35,10 @@ const GpuStackSettings: FC<Props> = ({ providerId }) => {
 
   return (
     <div>
-      <ProviderSettingsSubtitle className="mb-1">{t('gpustack.keep_alive_time.title')}</ProviderSettingsSubtitle>
+      <ProviderSettingsSubtitle className="mb-1 flex items-center gap-1.5">
+        {t('gpustack.keep_alive_time.title')}{' '}
+        <HelpTooltip content={t('gpustack.keep_alive_time.description')} delay={1000} />
+      </ProviderSettingsSubtitle>
       <InputGroup>
         <InputGroupInputNumber
           aria-label={t('gpustack.keep_alive_time.title')}
@@ -52,9 +51,6 @@ const GpuStackSettings: FC<Props> = ({ providerId }) => {
           <InputGroupText>{t('gpustack.keep_alive_time.placeholder')}</InputGroupText>
         </InputGroupAddon>
       </InputGroup>
-      <ProviderHelpTextRow>
-        <ProviderHelpText>{t('gpustack.keep_alive_time.description')}</ProviderHelpText>
-      </ProviderHelpTextRow>
     </div>
   )
 }
