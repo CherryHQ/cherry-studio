@@ -1,5 +1,23 @@
 # @cherrystudio/provider-registry
 
+## 0.5.2
+
+### Patch Changes
+
+- [#23402](https://github.com/CherryHQ/cherry-studio/pull/23402) [`5ed9f0c`](https://github.com/CherryHQ/cherry-studio/commit/5ed9f0c7068eae541ac9897ce7c75a2b446a3578) Thanks [@copilot-swe-agent](https://github.com/apps/copilot-swe-agent)! - Route Claude Opus 5.5 Bedrock requests through the adaptive reasoning wire contract.
+
+## 0.5.1
+
+### Patch Changes
+
+- [#24343](https://github.com/CherryHQ/cherry-studio/pull/24343) [`6cfe3be`](https://github.com/CherryHQ/cherry-studio/commit/6cfe3be3e9e87b5f74ab907fe75b49426c1598ea) Thanks [@DeJeune](https://github.com/DeJeune)! - Share the documented DeepSeek V4.1 Flash capacity across its model IDs so versioned IDs resolve the output token limit correctly.
+
+## 0.5.0
+
+### Minor Changes
+
+- [#23363](https://github.com/CherryHQ/cherry-studio/pull/23363) [`c53a5e0`](https://github.com/CherryHQ/cherry-studio/commit/c53a5e02941bc2f35d3270dc73a33b13da82df15) Thanks [@raullenchai](https://github.com/raullenchai)! - Add Rapid-MLX as a keyless local provider, with its provider icon.
+
 ## 0.4.0
 
 ### Minor Changes

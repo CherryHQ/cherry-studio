@@ -494,6 +494,33 @@ describe('MessageAnchorLine', () => {
   })
 
   describe('strip geometry', () => {
+    it('centers a short strip while older history loads and after resizing', () => {
+      const metrics = { wrapperHeight: RAIL_HEIGHT_PX, scrollHeight: 50, clientHeight: RAIL_VIEWPORT_PX }
+      const geometry = installRailGeometry(metrics)
+      restoreGeometry = geometry.restore
+      const initial = makeTurnMessages(5, 100)
+      const { container, rerender } = renderRail({ messages: initial, hasOlder: true })
+      const assertCentered = () => {
+        const ticks = container.querySelectorAll<HTMLElement>('[data-message-anchor-tick]')
+        const content = ticks[0].parentElement as HTMLElement
+        const top = Number.parseFloat(content.style.paddingTop)
+        const bottom = Number.parseFloat(content.style.paddingBottom)
+        expect(top).toBeGreaterThan(0)
+        expect(top).toBe(bottom)
+        expect(top + ticks.length * 10 + bottom).toBe(metrics.clientHeight)
+      }
+
+      assertCentered()
+      metrics.scrollHeight = 80
+      rerender(rail({ messages: [...makeTurnMessages(3), ...initial], hasOlder: false }))
+      assertCentered()
+
+      metrics.wrapperHeight = 300
+      metrics.clientHeight = 252
+      act(() => geometry.notifyResize())
+      assertCentered()
+    })
+
     it('compensates the scroll when older turns prepend so visible ticks stay put', () => {
       const metrics = { scrollHeight: 400, clientHeight: RAIL_VIEWPORT_PX }
       restoreGeometry = installRailGeometry(metrics).restore

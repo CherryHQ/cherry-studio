@@ -82,7 +82,7 @@ import { resolveReasoningEffortForModel } from '@renderer/utils/model'
 import type { ComposerQueuedMessagePayload } from '@shared/ai/transport'
 import type { AgentEntity } from '@shared/data/types/agent'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
-import type { CherryMessagePart, FileUIPart } from '@shared/data/types/message'
+import type { CherryMessagePart, CherryUIMessage, FileUIPart } from '@shared/data/types/message'
 import type { Model, ServiceTierSelection } from '@shared/data/types/model'
 import { getKnowledgeBaseIdsFromParts, withKnowledgeScopePart } from '@shared/data/types/uiParts'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
@@ -121,6 +121,7 @@ import {
   writeAgentDraftCache
 } from './agent/agentDraftCache'
 import { buildAgentFilePartsForAttachments, toAccessiblePaths } from './agent/agentFileParts'
+import { useAgentPromptSuggestion } from './agent/useAgentPromptSuggestion'
 import { createAttachmentFromPath, useAgentResourceMentionSource } from './agent/useAgentResourceMentionSource'
 import {
   AGENT_MANAGED_TOKEN_KINDS,
@@ -212,6 +213,7 @@ type Props = {
   workspaceChanging?: boolean
   canChangeModel?: boolean
   isStreaming: boolean
+  messages?: readonly CherryUIMessage[]
   sendDisabled?: boolean
   compactWhenSingleLine?: boolean
   previewInputFile?: ComposerInputFilePreviewAction
@@ -244,6 +246,7 @@ const AgentComposerRoot = ({
   workspaceChanging,
   canChangeModel = true,
   isStreaming,
+  messages,
   sendDisabled = false,
   compactWhenSingleLine = false,
   previewInputFile,
@@ -403,6 +406,7 @@ const AgentComposerRoot = ({
         workspaceChanging={workspaceChanging}
         canChangeModel={canChangeModel}
         isStreaming={isStreaming}
+        messages={messages}
         sendDisabled={sendDisabled}
         compactWhenSingleLine={compactWhenSingleLine}
         previewInputFile={previewInputFile}
@@ -447,6 +451,7 @@ interface InnerProps {
   workspaceChanging?: boolean
   canChangeModel: boolean
   isStreaming: boolean
+  messages?: readonly CherryUIMessage[]
   sendDisabled: boolean
   compactWhenSingleLine: boolean
   previewInputFile?: ComposerInputFilePreviewAction
@@ -527,6 +532,7 @@ const AgentComposerInner = ({
   workspaceChanging,
   canChangeModel,
   isStreaming,
+  messages,
   sendDisabled,
   compactWhenSingleLine,
   previewInputFile,
@@ -1395,6 +1401,24 @@ const AgentComposerInner = ({
     onDrain: sendQueuedPayload
   })
   releaseFollowupEditRef.current = releaseEdit
+  const promptSuggestion = useAgentPromptSuggestion({
+    sessionId,
+    messages,
+    model,
+    busy: isStreaming,
+    blocked:
+      !layerActive ||
+      sendDisabled ||
+      isDirectSending ||
+      quotaBlocksSend ||
+      !!launchOptions ||
+      text.length > 0 ||
+      draftTokens.length > 0 ||
+      files.length > 0 ||
+      selectedSkills.length > 0 ||
+      selectedKnowledgeBases.length > 0 ||
+      queuedFollowups.length > 0
+  })
 
   useEffect(() => {
     if (launchOptions?.editing) return
@@ -1647,6 +1671,8 @@ const AgentComposerInner = ({
           resolveKnowledgeBaseMarker={resolveKnowledgeBaseMarker}
           resolveSkillMarker={resolveSkillMarker}
           placeholder={placeholderText}
+          promptSuggestion={promptSuggestion.text}
+          onDismissPromptSuggestion={promptSuggestion.dismiss}
           sendMessageShortcut={sendMessageShortcut}
           steerShortcut={isStreaming && !steerWhileBusy ? resolvedSteerShortcut : undefined}
           sendDisabled={

@@ -9,7 +9,7 @@ import {
   paintingFileRefTable,
   providerLogoFileRefTable
 } from '@data/db/schemas/fileRelations'
-import { readMigrationV2CompletedAt } from '@data/migration/v2'
+import { readMigrationV2CompletedAt } from '@data/migration/migrationStatus'
 
 import type { DbType, ISeeder } from '../../types'
 

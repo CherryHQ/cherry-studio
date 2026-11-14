@@ -9,6 +9,7 @@ import { providerListClasses } from '@renderer/pages/settings/ProviderSettings/p
 import { cn } from '@renderer/utils/style'
 import type { Provider } from '@shared/data/types/provider'
 
+import { restoreProviderStatusSlots } from './providerGrouping'
 import type { ProviderListContentItemState } from './ProviderListContent'
 
 export interface ProviderListGroupProps {
@@ -109,11 +110,17 @@ export default function ProviderListGroup({
       {expanded && (
         <div id={bodyId} className={providerListClasses.groupBody} data-no-dnd>
           <ReorderableList
-            items={items}
+            items={[
+              ...items.filter((provider) => provider.isEnabled),
+              ...items.filter((provider) => !provider.isEnabled)
+            ]}
             visibleItems={members}
             getId={(provider) => provider.id}
             onDragStateChange={onDragStateChange}
-            onReorder={onReorder}
+            onReorder={(reordered) => {
+              const next = restoreProviderStatusSlots(items, reordered)
+              if (next !== items) return onReorder(next)
+            }}
             onReorderError={onReorderError}
             className="w-full"
             gap="0.5rem"

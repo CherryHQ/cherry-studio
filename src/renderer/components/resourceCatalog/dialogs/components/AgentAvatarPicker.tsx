@@ -114,6 +114,19 @@ export function AgentAvatarPicker({
           />
         </Button>
       </PopoverTrigger>
+      <input
+        ref={inputRef}
+        type="file"
+        className="hidden"
+        disabled={pending}
+        aria-label={t('settings.general.image_upload')}
+        accept="image/png, image/jpeg, image/gif, image/webp"
+        onChange={(event) => {
+          const file = event.target.files?.[0]
+          event.target.value = ''
+          if (file) void save(file)
+        }}
+      />
       <PopoverContent portalContainer={portalContainer} className="w-auto p-2" align="center" sideOffset={6}>
         {view === 'emoji' ? (
           <fieldset disabled={pending} aria-busy={pending}>
@@ -121,19 +134,6 @@ export function AgentAvatarPicker({
           </fieldset>
         ) : (
           <ColFlex className="w-40 gap-1">
-            <input
-              ref={inputRef}
-              type="file"
-              className="hidden"
-              disabled={pending}
-              aria-label={t('settings.general.image_upload')}
-              accept="image/png, image/jpeg, image/gif, image/webp"
-              onChange={(event) => {
-                const file = event.target.files?.[0]
-                event.target.value = ''
-                if (file) void save(file)
-              }}
-            />
             <Button
               type="button"
               variant="ghost"

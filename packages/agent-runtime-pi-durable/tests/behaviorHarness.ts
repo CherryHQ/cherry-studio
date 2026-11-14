@@ -26,7 +26,11 @@ import { meteredModels } from '../src/behavior/models'
 export async function openDurableHarness(
   install: (ports: HarnessPorts) => void,
   extensions: readonly Extension[] = [],
-  options: { settings?: HarnessOptions['settings']; configureChild?: PiDurableBehaviorOptions['configureChild'] } = {}
+  options: {
+    settings?: HarnessOptions['settings']
+    configureChild?: PiDurableBehaviorOptions['configureChild']
+    modelId?: string
+  } = {}
 ): Promise<{ harness: ContractHarness; errors: unknown[]; native(): Harness; behavior(): PiDurableBehavior }> {
   const directory = await mkdtemp(join(tmpdir(), 'durable-behavior-'))
   const path = join(directory, 'store.sqlite')
@@ -36,7 +40,11 @@ export async function openDurableHarness(
   const provider = (thread: ThreadId) => {
     let found = providers.get(thread)
     if (!found) {
-      found = fauxProvider({ provider: `thread-${thread}`, tokensPerSecond: 100000 })
+      found = fauxProvider({
+        provider: `thread-${thread}`,
+        tokensPerSecond: 100000,
+        ...(options.modelId && { models: [{ id: options.modelId }] })
+      })
       providers.set(thread, found)
       models.setProvider({
         ...found.provider,

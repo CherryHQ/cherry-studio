@@ -83,9 +83,7 @@ type AgentTopBarControlsProps = Omit<AgentConversationControlsProps, 'iconOnly' 
 function AgentTopBarControls(props: AgentTopBarControlsProps) {
   const { iconOnly } = useConversationTopBarPortalLayout()
 
-  return (
-    <AgentConversationControls {...props} side="bottom" iconOnly={iconOnly} showWorkspace={!!props.onWorkspaceChange} />
-  )
+  return <AgentConversationControls {...props} side="bottom" iconOnly={iconOnly} />
 }
 
 interface AgentChatProps {
@@ -651,6 +649,7 @@ const AgentChatSessionCenter = ({
         sendMessage={runtime.sendMessage}
         stop={runtime.stop}
         isStreaming={runtime.isPending}
+        messages={runtime.uiMessages}
         sendDisabled={composerPending}
         onAgentChange={onAgentChange}
         agentChanging={agentChanging}

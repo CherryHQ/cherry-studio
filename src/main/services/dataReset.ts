@@ -70,8 +70,7 @@ export const USER_DATA_KEPT = ['logs', 'Crashpad', 'Runtime', 'Toolchain', 'tess
 // Absorb transient Windows file locks before consuming a reset attempt.
 const RM_OPTIONS = { recursive: true, force: true, maxRetries: 3, retryDelay: 100 } as const
 
-const dataResetOperationSchema = z.enum(['full_reset', 'v1_remigration'])
-type DataResetOperation = z.infer<typeof dataResetOperationSchema>
+const dataResetOperationSchema = z.literal('full_reset')
 
 /**
  * Strict on-disk marker schema. `pending` binds authorization to a canonical
@@ -215,15 +214,10 @@ export async function requestDataReset(): Promise<void> {
   })
   if (response !== 1) return
 
-  await stageDataReset('full_reset', true)
+  await stageDataReset()
 }
 
-/** Stages a targeted v2 cleanup so the existing v1 migration can run again. */
-export async function requestV1Remigration(): Promise<void> {
-  await stageDataReset('v1_remigration', false)
-}
-
-async function stageDataReset(operation: DataResetOperation, shouldClearChromiumState: boolean): Promise<void> {
+async function stageDataReset(): Promise<void> {
   const userDataPath = application.getPath('app.userdata')
   // Bind authorization to the physical directory the user confirmed.
   try {
@@ -232,7 +226,7 @@ async function stageDataReset(operation: DataResetOperation, shouldClearChromium
       status: 'pending',
       requestedAt: new Date().toISOString(),
       canonicalPath: canonicalize(userDataPath),
-      operation
+      operation: 'full_reset'
     })
   } catch (error) {
     if (!(error instanceof MarkerCommitError)) throw error
@@ -242,10 +236,7 @@ async function stageDataReset(operation: DataResetOperation, shouldClearChromium
     })
   }
 
-  if (shouldClearChromiumState) {
-    // Full reset removes Chromium storage. Remigration must retain it as a v1 source.
-    await clearChromiumState()
-  }
+  await clearChromiumState()
 
   // Give services time to release files before the next boot wipes them.
   const timer = setTimeout(() => {
@@ -304,7 +295,7 @@ export function runDataReset(): void {
 
     const attempts = marker.attempts ?? 0
     const operation = marker.operation ?? 'full_reset'
-    if (operation === 'full_reset' && attempts >= MAX_WIPE_ATTEMPTS) {
+    if (attempts >= MAX_WIPE_ATTEMPTS) {
       logger.error('Data reset abandoned: attempt cap reached with critical failures — clearing the marker', {
         attempts
       })
@@ -333,30 +324,15 @@ export function runDataReset(): void {
     }
 
     const failures: string[] = []
-    if (operation === 'v1_remigration') {
-      wipeV1RemigrationData(failures)
-    } else {
-      wipeDirectoryEntries(userData, shouldWipe, failures)
-      wipeNestedUserDataTargets(failures)
-      // Temporary cache removal is best-effort.
-      try {
-        fs.rmSync(application.getPath('app.temp'), RM_OPTIONS)
-      } catch (error) {
-        logger.warn('Failed to remove the app temp dir during data reset', { error: String(error) })
-      }
+    wipeDirectoryEntries(userData, shouldWipe, failures)
+    wipeNestedUserDataTargets(failures)
+    try {
+      fs.rmSync(application.getPath('app.temp'), RM_OPTIONS)
+    } catch (error) {
+      logger.warn('Failed to remove the app temp dir during data reset', { error: String(error) })
     }
 
     if (failures.length > 0) {
-      if (operation === 'v1_remigration') {
-        logger.error('v1 remigration cleanup failed — keeping the marker and refusing to boot', { failures })
-        showDataResetError(
-          'Migration Reset Failed',
-          'Cherry Studio could not safely remove the current v2 data required to rerun migration. ' +
-            'The app will quit and keep the pending request so the cleanup can retry on the next launch.\n\n' +
-            'Please check disk space, file permissions, and antivirus locks, then start Cherry Studio again.'
-        )
-        return
-      }
       if (attempts + 1 < MAX_WIPE_ATTEMPTS) {
         logger.error('Data reset pass had critical failures — relaunching to retry in preboot', { failures })
         application.relaunch()
@@ -408,27 +384,6 @@ export function runDataReset(): void {
         'The app will quit instead of starting with a reset marker still present.\n\n' +
         'Please check disk space and file permissions, then start Cherry Studio again.'
     )
-  }
-}
-
-/** Removes only current v2 state while preserving every source consumed by v1 migration. */
-function wipeV1RemigrationData(failures: string[]): void {
-  const databaseFile = application.getPath('app.database.file')
-  const targets = [
-    `${databaseFile}-wal`,
-    `${databaseFile}-shm`,
-    application.getPath('feature.agents.claude.root'),
-    databaseFile
-  ]
-
-  for (const target of targets) {
-    try {
-      fs.rmSync(target, RM_OPTIONS)
-    } catch (error) {
-      logger.warn('Failed to remove v2 data during v1 remigration cleanup', { target, error: String(error) })
-      failures.push(target)
-      return
-    }
   }
 }
 

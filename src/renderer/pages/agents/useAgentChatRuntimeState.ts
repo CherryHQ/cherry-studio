@@ -493,6 +493,7 @@ export function useAgentChatRuntimeState({
     [refresh, removeOptimisticAskUserQuestionInput, sendMessage, sessionId, sessionTopicId]
   )
   const toolApprovalComposerOverrides = useToolApprovalComposerOverrides({
+    topicId: sessionTopicId,
     partsByMessageId,
     persistedPartsByMessageId,
     streamingLayers,

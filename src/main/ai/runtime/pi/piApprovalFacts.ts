@@ -5,7 +5,7 @@ import { application } from '@application'
 import type { ApprovalHostFacts } from '@cherrystudio/agent-behavior'
 import type { JsonValue } from '@cherrystudio/agent-runtime'
 import { resolveBrowserToolPermission } from '@main/ai/toolApproval/browserToolPolicy'
-import { detectGlobalInstall } from '@main/ai/toolApproval/dependencyGuard'
+import { detectGlobalInstall, detectMiseMutation } from '@main/ai/toolApproval/dependencyGuard'
 import { detectDestructiveCommand } from '@main/ai/toolApproval/destructiveCommand'
 import type { ToolGuardInteractionState } from '@main/ai/toolApproval/toolGuards'
 import { evaluateUserDataSqliteGuard, normalizePiNativePathInput } from '@main/ai/toolApproval/userDataSqliteGuard'
@@ -66,8 +66,11 @@ export async function readPiApprovalFacts(
       })
   const command = (name === 'bash' || name === 'powershell') && typeof input.command === 'string' ? input.command : ''
   const globalInstall = command ? (detectGlobalInstall(command) ?? undefined) : undefined
+  const miseMutation = command ? (detectMiseMutation(command) ?? undefined) : undefined
   const rewritten =
-    name === 'bash' && !disabled && !sqlite && !globalInstall && command ? await rtkRewrite(command) : undefined
+    name === 'bash' && !disabled && !sqlite && !globalInstall && !miseMutation && command
+      ? await rtkRewrite(command)
+      : undefined
   return {
     category,
     disabled,
@@ -85,6 +88,8 @@ export async function readPiApprovalFacts(
       )),
     sqliteGuard: sqlite?.reason,
     globalInstall,
+    miseMutation,
+    ...(globalInstall ? { globalInstallPermissionMode: ctx.getPermissionMode() ?? 'default' } : {}),
     destructive: Boolean(command && detectDestructiveCommand(command)),
     ...(rewritten ? { rewrittenArgs: { ...input, command: rewritten } } : {}),
     ...(ctx.delegationTools.has(name)

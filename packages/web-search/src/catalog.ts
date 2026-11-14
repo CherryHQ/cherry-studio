@@ -58,6 +58,7 @@ export const WEB_SEARCH_PROVIDER_CATALOG: Readonly<Record<RemoteProviderId, WebS
     desearch: provider('desearch', 'Desearch', [capability('searchKeywords', 'required', 'https://api.desearch.ai')]),
     searchapi: provider('searchapi', 'SearchApi', [
       capability('searchKeywords', 'required', 'https://www.searchapi.io')
-    ])
+    ]),
+    serpkite: provider('serpkite', 'SerpKite', [capability('searchKeywords', 'required', 'https://api.serpkite.com')])
   }
 )
