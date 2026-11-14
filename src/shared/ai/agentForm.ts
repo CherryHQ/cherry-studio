@@ -1,19 +1,21 @@
-import type { AgentCreateSettings, AgentDetail } from '@renderer/types/resourceCatalog'
-import { type AgentLanguageMode, normalizeAgentLanguageInput } from '@renderer/utils/agent/agentLanguage'
-import { normalizePermissionMode } from '@renderer/utils/agent/permissionMode'
 import {
   clampHeartbeatIntervalMinutes,
   isHeartbeatEnabled,
   normalizeHeartbeatTimeoutMinutes
 } from '@shared/ai/agentHeartbeat'
+import { normalizePermissionMode } from '@shared/ai/agentPermissionMode'
 import { normalizePiDisabledToolId } from '@shared/ai/piBuiltinTools'
-import type { AgentSkillUpdateDto, UpdateAgentDto } from '@shared/data/api/schemas/agents'
+import type { AgentEntity, AgentSkillUpdateDto, UpdateAgentDto } from '@shared/data/api/schemas/agents'
 import type { AgentConfiguration } from '@shared/data/types/agent'
+import { AgentLanguageSchema } from '@shared/data/types/agentLanguage'
 import type { UniqueModelId } from '@shared/data/types/model'
 
 // ---------------------------------------------------------------------------
 // Form state
 // ---------------------------------------------------------------------------
+
+/** Tri-state reply language: follow the global setting, no constraint, or a custom label. */
+export type AgentLanguageMode = 'inherit' | 'off' | 'custom'
 
 /**
  * Flat, controlled form-state for the Agent create/edit dialogs.
@@ -96,7 +98,7 @@ function envVarsFromText(text: string): Record<string, string> {
   return Object.fromEntries(entries)
 }
 
-export function buildInitialAgentFormState(agent?: AgentDetail | null, skillIds: string[] = []): AgentFormState {
+export function buildInitialAgentFormState(agent?: AgentEntity | null, skillIds: string[] = []): AgentFormState {
   const cfg: AgentConfiguration = agent?.configuration ?? {}
   return {
     name: agent?.name ?? '',
@@ -251,6 +253,17 @@ export function diffAgentUpdate(baseline: AgentFormState, next: AgentFormState):
   return { dto }
 }
 
+/** Reply language, heartbeat and env vars in the edit form's shape, so create saves what edit would. */
+export type AgentCreateSettings = Pick<
+  AgentFormState,
+  | 'languageMode'
+  | 'languageCustom'
+  | 'heartbeatEnabled'
+  | 'heartbeatInterval'
+  | 'heartbeatTimeoutMinutes'
+  | 'envVarsText'
+>
+
 /**
  * The configuration a new Agent's advanced settings produce: the keys that differ from a blank Agent,
  * parsed exactly as the edit dialog saves them.
@@ -258,6 +271,11 @@ export function diffAgentUpdate(baseline: AgentFormState, next: AgentFormState):
 export function buildAgentSettingsConfiguration(settings: AgentCreateSettings): AgentConfiguration {
   const blank = buildInitialAgentFormState()
   return diffAgentUpdate(blank, { ...blank, ...settings })?.dto.configuration ?? {}
+}
+
+function normalizeAgentLanguageInput(raw: unknown): string | null {
+  const result = AgentLanguageSchema.safeParse(raw)
+  return result.success ? result.data : null
 }
 
 function diffLanguageUpdate(

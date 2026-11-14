@@ -7,7 +7,12 @@ import { ScrollArea } from '@cherrystudio/ui'
 import { Button, Kbd, Textarea } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { getToolGroupIcon, getToolGroupSemanticTitle } from '@renderer/components/chat/messages/blocks/ToolBlockGroup'
-import { isValidAgentToolsType, renderTool, UnknownToolRenderer } from '@renderer/components/chat/messages/tools/agent'
+import {
+  getAgentConfigToolKind,
+  isValidAgentToolsType,
+  renderTool,
+  UnknownToolRenderer
+} from '@renderer/components/chat/messages/tools/agent'
 import { AgentToolsType } from '@renderer/components/chat/messages/tools/shared/agentToolTypes'
 import { ToolArgsTable } from '@renderer/components/chat/messages/tools/shared/ArgsTable'
 import { ToolDisclosure, type ToolDisclosureItem } from '@renderer/components/chat/messages/tools/shared/ToolDisclosure'
@@ -18,6 +23,7 @@ import type { McpToolResponse, NormalToolResponse } from '@renderer/types/mcpToo
 import { cn } from '@renderer/utils/style'
 
 import type { ComposerOverride } from '../ComposerContext'
+import { AgentConfigChangePreview } from './AgentConfigChangePreview'
 import type { PermissionRequestComposerRequest } from './permissionRequestComposerRequest'
 import { getPermissionRiskEffects, type PermissionRiskEffect } from './permissionRisk'
 
@@ -33,12 +39,15 @@ function isHandledElsewhere(event: KeyboardEvent) {
 type PermissionRequestComposerProps = {
   request: PermissionRequestComposerRequest
   onRespond: (input: MessageToolApprovalInput) => void | Promise<void>
+  /** The Agent Session this approval belongs to; resolves whose settings a self-update changes. */
+  agentSessionId?: string
   className?: string
 }
 
 type PermissionRequestComposerOverrideOptions = {
   request: PermissionRequestComposerRequest
   onRespond: (input: MessageToolApprovalInput) => void | Promise<void>
+  agentSessionId?: string
 }
 
 function isMcpToolResponse(toolResponse: ToolResponseLike): toolResponse is McpToolResponse {
@@ -77,13 +86,19 @@ function renderBuiltinPreviewChildren(toolName: string, children: ToolDisclosure
 
 export function createPermissionRequestComposerOverride({
   request,
-  onRespond
+  onRespond,
+  agentSessionId
 }: PermissionRequestComposerOverrideOptions): ComposerOverride {
   return {
     id: `tool-permission:${request.approvalId}`,
     priority: 90,
     render: ({ className }) => (
-      <PermissionRequestComposer request={request} onRespond={onRespond} className={className} />
+      <PermissionRequestComposer
+        request={request}
+        onRespond={onRespond}
+        agentSessionId={agentSessionId}
+        className={className}
+      />
     )
   }
 }
@@ -116,14 +131,27 @@ function BuiltinPermissionPreview({ toolResponse }: { toolResponse: NormalToolRe
   )
 }
 
-function McpPermissionPreview({ toolResponse }: { toolResponse: McpToolResponse }) {
+function McpPermissionPreview({
+  toolResponse,
+  agentSessionId
+}: {
+  toolResponse: McpToolResponse
+  agentSessionId?: string
+}) {
   const { t } = useTranslation()
   const args = normalizeArgs(toolResponse.arguments)
+  const configKind = getAgentConfigToolKind(toolResponse)
 
   return (
     <div className="px-3 py-2">
       <PermissionPreviewHeader toolName={toolResponse.tool.name} description={toolResponse.tool.description} />
-      {args ? (
+      {configKind === 'update' ? (
+        <AgentConfigChangePreview request={{ tool: 'update_agent', input: toolResponse.arguments }} />
+      ) : configKind === 'self_update' && agentSessionId ? (
+        <AgentConfigChangePreview
+          request={{ tool: 'config_update', sessionId: agentSessionId, input: toolResponse.arguments }}
+        />
+      ) : args ? (
         <ScrollArea
           viewportProps={{ className: 'overflow-x-hidden', 'data-testid': 'permission-mcp-args-scroll' }}
           className="max-h-60">
@@ -136,9 +164,15 @@ function McpPermissionPreview({ toolResponse }: { toolResponse: McpToolResponse 
   )
 }
 
-function PermissionPreview({ toolResponse }: { toolResponse: ToolResponseLike }) {
+function PermissionPreview({
+  toolResponse,
+  agentSessionId
+}: {
+  toolResponse: ToolResponseLike
+  agentSessionId?: string
+}) {
   if (isMcpToolResponse(toolResponse)) {
-    return <McpPermissionPreview toolResponse={toolResponse} />
+    return <McpPermissionPreview toolResponse={toolResponse} agentSessionId={agentSessionId} />
   }
 
   return <BuiltinPermissionPreview toolResponse={toolResponse} />
@@ -196,7 +230,12 @@ function PermissionRiskSummary({ toolName, args }: { toolName: string; args: unk
   )
 }
 
-export default function PermissionRequestComposer({ request, onRespond, className }: PermissionRequestComposerProps) {
+export default function PermissionRequestComposer({
+  request,
+  onRespond,
+  agentSessionId,
+  className
+}: PermissionRequestComposerProps) {
   const { t } = useTranslation()
   const [submittingApprovalId, setSubmittingApprovalId] = useState<string | null>(null)
   const [rejectionDraft, setRejectionDraft] = useState({ approvalId: request.approvalId, value: '' })
@@ -290,7 +329,7 @@ export default function PermissionRequestComposer({ request, onRespond, classNam
 
         <PermissionRiskSummary toolName={request.toolResponse.tool.name} args={request.toolResponse.arguments} />
         <div className="mt-2 overflow-hidden rounded-[12px] bg-muted dark:bg-muted/30" data-testid="permission-preview">
-          <PermissionPreview toolResponse={request.toolResponse} />
+          <PermissionPreview toolResponse={request.toolResponse} agentSessionId={agentSessionId} />
         </div>
 
         <label className="mt-2.5 block px-1 text-muted-foreground text-xs">

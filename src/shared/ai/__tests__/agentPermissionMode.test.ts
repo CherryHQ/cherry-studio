@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import { AgentPermissionModeSchema } from '@shared/data/api/schemas/agents'
 
-import { normalizePermissionMode } from '../permissionMode'
+import { normalizePermissionMode } from '../agentPermissionMode'
 
 describe('normalizePermissionMode', () => {
   // Enumerated from the schema, not hand-listed: a mode added there must round-trip

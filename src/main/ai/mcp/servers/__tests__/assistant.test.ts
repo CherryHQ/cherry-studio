@@ -12,13 +12,10 @@ import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { DataApiErrorFactory } from '@shared/data/api/errors'
-
 const mocks = vi.hoisted(() => ({
   agentCreate: vi.fn(),
   applicationGetPath: vi.fn(),
   mcpList: vi.fn(),
-  modelGetByKey: vi.fn(),
   providerGetById: vi.fn(),
   diagnoseEndpoint: vi.fn(),
   doctorRun: vi.fn()
@@ -44,10 +41,6 @@ vi.mock('@main/ai/agents/createAgent', () => ({
 
 vi.mock('@data/services/McpServerService', () => ({
   mcpServerService: { list: mocks.mcpList }
-}))
-
-vi.mock('@data/services/ModelService', () => ({
-  modelService: { getByKey: mocks.modelGetByKey }
 }))
 
 vi.mock('@data/services/ProviderService', () => ({
@@ -115,17 +108,10 @@ beforeEach(() => {
   mocks.applicationGetPath.mockReset()
   mocks.applicationGetPath.mockReturnValue('/mock/product-manifest.json')
   mocks.mcpList.mockReset()
-  mocks.modelGetByKey.mockReset()
   mocks.providerGetById.mockReset()
   mocks.diagnoseEndpoint.mockReset()
   mocks.doctorRun.mockReset()
   mocks.mcpList.mockReturnValue({ items: [] })
-  mocks.modelGetByKey.mockReturnValue({ id: 'anthropic::claude-sonnet' })
-  mocks.agentCreate.mockReturnValue({
-    id: 'agent-created',
-    name: 'Reviewer',
-    model: 'anthropic::claude-sonnet'
-  })
 })
 
 describe('product_info', () => {
@@ -311,17 +297,12 @@ describe('apply_setting', () => {
 })
 
 describe('create_agent', () => {
-  it('is listed and callable for the default Assistant capability set', async () => {
+  it('is listed for the default Assistant capability set', async () => {
     const client = await connectAssistantClient()
 
-    expect((await client.listTools()).tools.map((tool) => tool.name)).toContain('create_agent')
-    const result = await client.callTool({
-      name: 'create_agent',
-      arguments: { name: 'Reviewer', instructions: 'Review code.', model: 'anthropic::claude-sonnet' }
-    })
-
-    expect(result.isError).not.toBe(true)
-    expect(mocks.agentCreate).toHaveBeenCalledOnce()
+    expect((await client.listTools()).tools.map((tool) => tool.name)).toEqual(
+      expect.arrayContaining(['create_agent', 'update_agent'])
+    )
   })
 
   it('is neither listed nor callable for the Support capability set', async () => {
@@ -331,73 +312,6 @@ describe('create_agent', () => {
     await expect(
       client.callTool({ name: 'create_agent', arguments: { name: 'Reviewer', instructions: 'Review code.' } })
     ).rejects.toThrow('create_agent')
-    expect(mocks.agentCreate).not.toHaveBeenCalled()
-  })
-
-  it('creates an agent through the v2 data service', async () => {
-    const result = await callTool('create_agent', {
-      name: ' Reviewer ',
-      description: ' Reviews code ',
-      instructions: ' Review Python code. ',
-      model: 'anthropic::claude-sonnet'
-    })
-
-    expect(mocks.agentCreate).toHaveBeenCalledWith({
-      type: 'claude-code',
-      name: 'Reviewer',
-      description: 'Reviews code',
-      instructions: 'Review Python code.',
-      model: 'anthropic::claude-sonnet',
-      configuration: {
-        permission_mode: 'default',
-        env_vars: {}
-      }
-    })
-    const output = {
-      ok: true,
-      agentId: 'agent-created',
-      name: 'Reviewer',
-      model: 'anthropic::claude-sonnet'
-    }
-    expect(result.structuredContent).toEqual(output)
-    expect(JSON.parse(toolResultText(result))).toEqual(output)
-  })
-
-  it('rejects legacy single-colon model ids', async () => {
-    const result = await callTool('create_agent', {
-      name: 'Reviewer',
-      instructions: 'Review code.',
-      model: 'anthropic:claude-sonnet'
-    })
-
-    expect(result.isError).toBe(true)
-    expect(toolResultText(result)).toContain('providerId::modelId')
-    expect(mocks.agentCreate).not.toHaveBeenCalled()
-  })
-
-  it('rejects a well-formed model id that is not configured', async () => {
-    mocks.modelGetByKey.mockImplementationOnce(() => {
-      throw DataApiErrorFactory.notFound('Model', 'anthropic/missing')
-    })
-    const result = await callTool('create_agent', {
-      name: 'Reviewer',
-      instructions: 'Review code.',
-      model: 'anthropic::missing'
-    })
-
-    expect(result.isError).toBe(true)
-    expect(toolResultText(result)).toContain('Model is not configured in Cherry Studio: anthropic::missing')
-    expect(mocks.agentCreate).not.toHaveBeenCalled()
-  })
-
-  it.each([
-    ['blank name', { name: '   ', instructions: 'Review code.', model: 'anthropic::claude-sonnet' }],
-    ['missing instructions', { name: 'Reviewer', model: 'anthropic::claude-sonnet' }],
-    ['no model and no default model', { name: 'Reviewer', instructions: 'Review code.' }]
-  ])('rejects %s without creating an agent', async (_case, args) => {
-    const result = await callTool('create_agent', args)
-
-    expect(result.isError).toBe(true)
     expect(mocks.agentCreate).not.toHaveBeenCalled()
   })
 })

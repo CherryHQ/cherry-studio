@@ -15,14 +15,9 @@ import { useModelById } from '@renderer/hooks/useModel'
 import { toast } from '@renderer/services/toast'
 import type { PermissionMode } from '@renderer/types/agent'
 import { getPermissionModeCards } from '@renderer/utils/agent'
-import {
-  type AgentFormState,
-  buildInitialAgentFormState,
-  diffAgentUpdate,
-  diffAssistantUpdate,
-  initialAssistantFormState
-} from '@renderer/utils/resourceCatalog'
+import { diffAssistantUpdate, initialAssistantFormState } from '@renderer/utils/resourceCatalog'
 import { cn } from '@renderer/utils/style'
+import { type AgentFormState, buildInitialAgentFormState, diffAgentUpdate } from '@shared/ai/agentForm'
 import type { AgentEntity } from '@shared/data/types/agent'
 import type { Assistant } from '@shared/data/types/assistant'
 import type { Model } from '@shared/data/types/model'

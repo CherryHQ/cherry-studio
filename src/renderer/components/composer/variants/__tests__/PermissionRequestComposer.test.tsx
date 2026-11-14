@@ -407,4 +407,85 @@ describe('PermissionRequestComposer', () => {
     expect(screen.getByRole('button', { name: 'Allow' })).not.toBeDisabled()
     expect(screen.getByRole('button', { name: 'Deny' })).not.toBeDisabled()
   })
+
+  describe('Agent settings changes', () => {
+    function agentConfigRequest(serverId: string, name: string, args: Record<string, unknown>) {
+      return makeRequest({
+        title: name,
+        toolResponse: {
+          id: 'call-1',
+          toolCallId: 'call-1',
+          status: 'pending',
+          arguments: args,
+          tool: {
+            id: `${serverId}__${name}`,
+            name,
+            type: 'mcp',
+            serverId,
+            serverName: serverId,
+            inputSchema: { type: 'object', properties: {}, required: [] }
+          }
+        }
+      })
+    }
+
+    it("shows each changed field's current and new value instead of the raw arguments", async () => {
+      vi.mocked(window.api.ipcApi.request).mockResolvedValueOnce({
+        ok: true,
+        data: { ok: true, summary: ['Model: Default Model → Other Model'] }
+      })
+      render(
+        <PermissionRequestComposer
+          request={agentConfigRequest('assistant', 'update_agent', { agentId: 'agent-1', model: 'wire::other' })}
+          onRespond={vi.fn()}
+        />
+      )
+
+      expect(await screen.findByText('Model: Default Model → Other Model')).toBeInTheDocument()
+      expect(screen.queryByText('wire::other')).not.toBeInTheDocument()
+      expect(window.api.ipcApi.request).toHaveBeenCalledWith('ai.agent.preview_config_update', {
+        tool: 'update_agent',
+        input: { agentId: 'agent-1', model: 'wire::other' }
+      })
+    })
+
+    it("resolves a self-update against this conversation's Session", async () => {
+      vi.mocked(window.api.ipcApi.request).mockResolvedValueOnce({
+        ok: true,
+        data: { ok: true, summary: ['Avatar: 🦊 → 🐼'] }
+      })
+      render(
+        <PermissionRequestComposer
+          request={agentConfigRequest('cherry_tools', 'config_update', { emoji: '🐼' })}
+          agentSessionId="session-1"
+          onRespond={vi.fn()}
+        />
+      )
+
+      expect(await screen.findByText('Avatar: 🦊 → 🐼')).toBeInTheDocument()
+      expect(window.api.ipcApi.request).toHaveBeenCalledWith('ai.agent.preview_config_update', {
+        tool: 'config_update',
+        sessionId: 'session-1',
+        input: { emoji: '🐼' }
+      })
+    })
+
+    it('surfaces a change main would refuse before the user approves it', async () => {
+      vi.mocked(window.api.ipcApi.request).mockResolvedValueOnce({
+        ok: true,
+        data: { ok: false, error: 'bypassPermissions is refused' }
+      })
+      render(
+        <PermissionRequestComposer
+          request={agentConfigRequest('assistant', 'update_agent', {
+            agentId: 'a',
+            permissionMode: 'bypassPermissions'
+          })}
+          onRespond={vi.fn()}
+        />
+      )
+
+      expect(await screen.findByText('agent.toolPermission.agent_config.error')).toBeInTheDocument()
+    })
+  })
 })

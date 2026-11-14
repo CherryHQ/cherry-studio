@@ -13,7 +13,7 @@ import { usePins } from '@renderer/hooks/usePins'
 import { toast } from '@renderer/services/toast'
 import type { AgentDetail, ResourceEditDialogTarget } from '@renderer/types/resourceCatalog'
 import { getAgentAvatarFromConfiguration, getAgentDescriptionForDisplay } from '@renderer/utils/agent'
-import { buildCreateAgentCommand } from '@renderer/utils/resourceCatalog'
+import { buildCreateAgentCommand } from '@shared/ai/agentCreateCommand'
 import { AGENTS_MAX_LIMIT } from '@shared/data/api/schemas/agents'
 
 import { ResourceSelectorShell, type ResourceSelectorShellItem } from './ResourceSelectorShell'

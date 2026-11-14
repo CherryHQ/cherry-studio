@@ -1,4 +1,5 @@
-import { type AgentLanguageMode, normalizeAgentLanguageInput } from '@renderer/utils/agent/agentLanguage'
+import { normalizeAgentLanguageInput } from '@renderer/utils/agent/agentLanguage'
+import type { AgentLanguageMode } from '@shared/ai/agentForm'
 import type { UpdateAssistantDto } from '@shared/data/api/schemas/assistants'
 import type { Assistant, AssistantReplyLanguage, AssistantSettings } from '@shared/data/types/assistant'
 import { AssistantSettingsSchema, DEFAULT_ASSISTANT_SETTINGS, McpModeSchema } from '@shared/data/types/assistant'

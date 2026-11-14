@@ -18,6 +18,14 @@ import { AgentSessionDeliveryRoutingError, agentSessionMessageService } from '@d
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentTaskService as taskService } from '@data/services/AgentTaskService'
 import { loggerService } from '@logger'
+import {
+  AgentConfigToolOutputSchema,
+  createAgentFromTool,
+  CreateAgentToolInputSchema,
+  SelfUpdateToolInputSchema,
+  toolOutput,
+  updateAgentFromTool
+} from '@main/ai/agents/agentConfigTool'
 import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
 import {
   createAgentChannel,
@@ -47,7 +55,14 @@ import {
   SESSION_SEARCH_TOOL_NAME,
   SESSION_SEND_TOOL_NAME
 } from '@shared/ai/agentSessionDelivery'
-import { CONFIG_TOOL_NAME, CRON_TOOL_NAME, NOTIFY_TOOL_NAME } from '@shared/ai/builtinTools'
+import { isProtectedBuiltinAgentRole } from '@shared/ai/builtinAgent'
+import {
+  AGENT_CREATE_TOOL_NAME,
+  CONFIG_TOOL_NAME,
+  CONFIG_UPDATE_TOOL_NAME,
+  CRON_TOOL_NAME,
+  NOTIFY_TOOL_NAME
+} from '@shared/ai/builtinTools'
 import { AGENT_WORKSPACE_TYPE, type AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 import { JOB_ERROR_CODES, type Trigger } from '@shared/data/api/schemas/jobs'
 import { ChannelConfigSchema } from '@shared/data/types/channel'
@@ -67,6 +82,8 @@ export interface AutonomyToolsContext {
   trustedNotifyChannels: readonly NotifyChannel[]
   /** Source-channel turns may explicitly select another live channel owned by this Agent. */
   allowAnyOwnedNotifyChannel: boolean
+  /** Offer `agent_create`; see the `createAgents` Agent capability. */
+  agentCreateEnabled?: boolean
 }
 
 /**
@@ -229,7 +246,7 @@ const CHANNEL_CONFIG_SCHEMAS: Record<string, { required: string[]; optional: str
 }
 
 const CONFIG_DESCRIPTION =
-  'Inspect or change your agent config: status, rename, add/update/remove/reconnect channels, complete or reset bootstrap.'
+  'Inspect or change your agent config: status, rename, add/update/remove/reconnect channels, complete or reset bootstrap. Use config_update for other settings.'
 
 const ConfigInputSchema = z.object({
   action: z
@@ -384,7 +401,11 @@ function listAgents(): CallToolResult {
   const agents = agentService.listAgents().agents.map((agent) => ({
     id: agent.id,
     name: agent.name,
+    emoji: agent.configuration?.avatar ?? '',
     description: agent.description ?? '',
+    model: agent.model,
+    // Built-in Agents cannot be changed from a conversation.
+    readOnly: isProtectedBuiltinAgentRole(agent.configuration?.builtin_role),
     runtime: {
       type: agent.type,
       available: runtimeDriverRegistry.getAgentSessionDriver(agent.type) !== undefined
@@ -1174,6 +1195,35 @@ export function registerAutonomyTools(server: McpServer, ctx: AutonomyToolsConte
   server.registerTool(CONFIG_TOOL_NAME, { description: CONFIG_DESCRIPTION, inputSchema: ConfigInputSchema }, (args) =>
     runConfig(ctx, args)
   )
+  server.registerTool(
+    CONFIG_UPDATE_TOOL_NAME,
+    {
+      description:
+        'Change your own settings: avatar, description, instructions, model, permission mode, skills, knowledge bases, MCP servers, built-in tools, reply language, heartbeat. Pass only the fields to change; the user approves every call.',
+      inputSchema: SelfUpdateToolInputSchema,
+      outputSchema: AgentConfigToolOutputSchema
+    },
+    (args) => {
+      assertConfigMutationAuthorized(ctx)
+      return toolOutput(updateAgentFromTool(ctx.agentId, args, { self: true }))
+    }
+  )
+  if (ctx.agentCreateEnabled) {
+    server.registerTool(
+      AGENT_CREATE_TOOL_NAME,
+      {
+        description:
+          'Create a new Pi Durable Agent after the user asks for one and confirms the proposed config. Omit model to use the default model.',
+        inputSchema: CreateAgentToolInputSchema,
+        outputSchema: AgentConfigToolOutputSchema
+      },
+      async (args) => {
+        assertConfigMutationAuthorized(ctx)
+        const fallbackModel = agentService.getAgent(ctx.agentId)?.model ?? undefined
+        return toolOutput(await createAgentFromTool(args, { fallbackModel }))
+      }
+    )
+  }
   server.registerTool(
     SESSION_LIST_TOOL_NAME,
     {

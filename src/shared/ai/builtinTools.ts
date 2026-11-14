@@ -574,6 +574,9 @@ export { GENERATE_IMAGE_TOOL_NAME, generateImageOutputItemSchema, generateImageO
 export const CRON_TOOL_NAME = 'cron'
 export const NOTIFY_TOOL_NAME = 'notify'
 export const CONFIG_TOOL_NAME = 'config'
+/** The approval-gated sibling of `config` that changes the calling Agent's own settings. */
+export const CONFIG_UPDATE_TOOL_NAME = 'config_update'
+export const AGENT_CREATE_TOOL_NAME = 'agent_create'
 
 // ── read_file ────────────────────────────────────────────────────
 

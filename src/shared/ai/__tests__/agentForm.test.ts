@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import type { AgentDetail } from '@renderer/types/resourceCatalog'
+import type { AgentEntity } from '@shared/data/api/schemas/agents'
 
 import {
   type AgentFormState,
@@ -10,7 +10,7 @@ import {
   diffAgentUpdate
 } from '../agentForm'
 
-function createAgent(overrides: Partial<AgentDetail> = {}): AgentDetail {
+function createAgent(overrides: Partial<AgentEntity> = {}): AgentEntity {
   return {
     id: 'a-1',
     type: 'claude-code',
