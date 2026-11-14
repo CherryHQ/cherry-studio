@@ -29,7 +29,6 @@ function extractCodexAccountId(accessToken: string): string | null {
 
 export const codexOAuthProvider = {
   providerId: OPENAI_CODEX_PROVIDER_ID,
-  clientId: CODEX_CONFIG.CLIENT_ID,
   // OAuth is the only credential; logout/token loss disables the provider.
   clearDisablesProvider: true,
   transport: {

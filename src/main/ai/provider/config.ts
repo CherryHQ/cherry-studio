@@ -37,6 +37,7 @@ import {
   resolveEndpointDialect
 } from '@shared/utils/provider'
 import { SystemProviderIds } from '@shared/utils/systemProviderId'
+import { isVertexAuthorizedUserCredentials } from '@shared/utils/vertexGoogleCredentials'
 
 import type { ProviderConfig } from '../types'
 import { type AppProviderId, appProviderIds, type AppProviderSettingsMap } from '../types'
@@ -676,18 +677,41 @@ function buildBedrockConfig(ctx: BuilderContext): ResolvedProviderConfigBuild {
   }
 }
 
-function buildVertexConfig(
+/** Vertex "Sign in with Google" access token from the OAuth runtime, which owns refresh and expiry. */
+async function getVertexGoogleAccessToken(providerId: string): Promise<string> {
+  const credentials = await application.get('OAuthRuntimeService').getValidAccessToken(providerId)
+  if (!credentials) {
+    throw new Error('Vertex AI: sign in with Google again in the Vertex AI provider settings.')
+  }
+  return credentials.accessToken
+}
+
+/**
+ * google-auth-library options whose client serves the runtime-managed token, so the
+ * Node Vertex SDK never holds a refresh token. Fails fast when nobody is signed in.
+ */
+async function buildVertexGoogleAuthOptions(providerId: string) {
+  await getVertexGoogleAccessToken(providerId)
+  return { authClient: { getAccessToken: async () => ({ token: await getVertexGoogleAccessToken(providerId) }) } }
+}
+
+async function buildVertexConfig(
   ctx: BuilderContext
-): ProviderConfig<'google-vertex'> | ProviderConfig<'google-vertex-maas'> {
-  const authConfig = providerService.getAuthConfig(ctx.actualProvider.id)
+): Promise<ProviderConfig<'google-vertex'> | ProviderConfig<'google-vertex-maas'>> {
+  const providerId = ctx.actualProvider.id
+  const authConfig = providerService.getAuthConfig(providerId)
 
   if (authConfig?.type !== 'iam-gcp') {
     throw new Error('VertexAI requires iam-gcp auth configuration.')
   }
 
   const { project, location, credentials } = authConfig
-  const googleCredentials = credentials as Record<string, string> | undefined
 
+  // A signed-in Google user rides the Node SDK's `googleAuthOptions`; a service-account key the edge SDK.
+  const usesGoogleSignIn = isVertexAuthorizedUserCredentials(credentials)
+  const googleAuthOptions = usesGoogleSignIn ? await buildVertexGoogleAuthOptions(providerId) : undefined
+
+  const googleCredentials = usesGoogleSignIn ? undefined : (credentials as Record<string, string> | undefined)
   const { privateKey, clientEmail } = normalizeVertexCredentials(googleCredentials)
   const creds = googleCredentials
     ? { ...googleCredentials, clientEmail, privateKey: formatPrivateKey(privateKey ?? '') }
@@ -714,6 +738,7 @@ function buildVertexConfig(
         // from project+location; a custom host (proxy) passes through untouched.
         ...(ctx.baseConfig.baseURL && { baseURL: ctx.baseConfig.baseURL }),
         ...(creds && { googleCredentials: creds }),
+        ...(googleAuthOptions && { googleAuthOptions }),
         headers: { ...getProviderAppHeaders(ctx.actualProvider), ...getExtraHeaders(ctx.actualProvider) }
       }
     } as ProviderConfig<'google-vertex-maas'>
@@ -734,7 +759,8 @@ function buildVertexConfig(
       baseURL,
       project,
       location,
-      ...(creds && { googleCredentials: creds })
+      ...(creds && { googleCredentials: creds }),
+      ...(googleAuthOptions && { googleAuthOptions })
     }
   } as ProviderConfig<'google-vertex'>
 }

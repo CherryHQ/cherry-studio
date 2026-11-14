@@ -49,6 +49,7 @@ import { maskApiKey } from '@shared/utils/api'
 import { resolveEndpointDialect } from '@shared/utils/provider'
 
 import { isRetiredProvider } from '../retiredProviders'
+import { preserveVertexGoogleSession } from './vertexGoogleSession'
 
 const logger = loggerService.withContext('DataApi:ProviderService')
 
@@ -572,7 +573,8 @@ class ProviderService {
           providerId: userProviderTable.providerId,
           providerSettings: userProviderTable.providerSettings,
           endpointConfigs: userProviderTable.endpointConfigs,
-          presetProviderId: userProviderTable.presetProviderId
+          presetProviderId: userProviderTable.presetProviderId,
+          authConfig: userProviderTable.authConfig
         })
         .from(userProviderTable)
         .where(eq(userProviderTable.providerId, providerId))
@@ -599,7 +601,10 @@ class ProviderService {
           current.endpointConfigs
         )
       }
-      if (dto.authConfig !== undefined) updates.authConfig = dto.authConfig
+      // The renderer only sees Vertex Google credentials without their session; a save must not sign out.
+      if (dto.authConfig !== undefined) {
+        updates.authConfig = preserveVertexGoogleSession(current.authConfig, dto.authConfig)
+      }
       const presetMetadata =
         dto.defaultChatEndpoint !== undefined
           ? getDataService('ProviderRegistryService').getProviderDisplayMetadata(providerId, current.presetProviderId)
@@ -747,6 +752,26 @@ class ProviderService {
     assertProviderAvailable(row, providerId)
 
     return row.authConfig ?? null
+  }
+
+  /**
+   * Store `authConfig` exactly as given, for main-process OAuth token stores.
+   * Unlike `update`, it does not keep a stored Vertex Google session, so a logout can clear it.
+   */
+  setAuthConfig(providerId: string, authConfig: AuthConfig): void {
+    const [updated] = application
+      .get('DbService')
+      .getDb()
+      .update(userProviderTable)
+      .set({ authConfig })
+      .where(eq(userProviderTable.providerId, providerId))
+      .returning({ providerId: userProviderTable.providerId })
+      .all()
+
+    if (!updated) {
+      throw DataApiErrorFactory.notFound('Provider', providerId)
+    }
+    logger.info('Updated provider auth config', { providerId })
   }
 
   /**

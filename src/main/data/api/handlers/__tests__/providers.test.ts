@@ -252,6 +252,40 @@ describe('providerHandlers', () => {
       expect(result).not.toHaveProperty('accessToken')
       expect(result).not.toHaveProperty('refreshToken')
     })
+
+    it('returns a Vertex Google sign-in as the client plus a signed-in flag, never its tokens', async () => {
+      getAuthConfigMock.mockReturnValueOnce({
+        type: 'iam-gcp',
+        project: 'proj',
+        location: 'us-central1',
+        credentials: {
+          type: 'authorized_user',
+          clientId: 'cid',
+          clientSecret: 'cs',
+          refreshToken: 'secret-refresh',
+          accessToken: 'secret-access',
+          expiresAt: 123,
+          account: 'person@example.com'
+        }
+      })
+
+      const result = await providerHandlers['/providers/:providerId/auth-config'].GET({
+        params: { providerId: 'vertexai' }
+      })
+
+      expect(result).toEqual({
+        type: 'iam-gcp',
+        project: 'proj',
+        location: 'us-central1',
+        credentials: {
+          type: 'authorized_user',
+          clientId: 'cid',
+          clientSecret: 'cs',
+          account: 'person@example.com',
+          signedIn: true
+        }
+      })
+    })
   })
 
   describe('/providers/:providerId/preset', () => {

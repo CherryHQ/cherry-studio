@@ -21,6 +21,13 @@ export function parseProvidersImportData(data: string) {
   }
 }
 
+// URLSearchParams decodes `+` as a space, so swap the base64 alphabet around parsing.
+function readImportDataParam(url: URL): { params: URLSearchParams; data: string | null } {
+  const params = new URLSearchParams(url.search.replaceAll('+', '_').replaceAll('/', '-'))
+  const data = parseProvidersImportData(params.get('data')?.replaceAll('_', '+').replaceAll('-', '/') || '')
+  return { params, data }
+}
+
 export async function handleProvidersProtocolUrl(url: URL) {
   switch (url.pathname) {
     case '/api-keys': {
@@ -33,11 +40,7 @@ export async function handleProvidersProtocolUrl(url: URL) {
       //   "type": "openai" // optional
       // }
       // cherrystudio://providers/api-keys?v=1&data={base64Encode(JSON.stringify(jsonConfig))}
-
-      // replace + and / to _ and - because + and / are processed by URLSearchParams
-      const processedSearch = url.search.replaceAll('+', '_').replaceAll('/', '-')
-      const params = new URLSearchParams(processedSearch)
-      const data = parseProvidersImportData(params.get('data')?.replaceAll('_', '+').replaceAll('-', '/') || '')
+      const { params, data } = readImportDataParam(url)
 
       if (!data) {
         logger.error('handleProvidersProtocolUrl data is null or invalid')
@@ -51,6 +54,17 @@ export async function handleProvidersProtocolUrl(url: URL) {
       }
 
       openSettingsInMainWindow(`/settings/provider?addProviderData=${encodeURIComponent(data)}`)
+      break
+    }
+    case '/vertex-google': {
+      // cherrystudio://providers/vertex-google?data={base64Encode(JSON.stringify({ project, location, clientId, clientSecret }))}
+      // Any `v` param is ignored; the renderer confirms the org-provisioned setup before saving.
+      const { data } = readImportDataParam(url)
+      if (!data) {
+        logger.error('Vertex Google setup link data is missing or invalid')
+        return
+      }
+      openSettingsInMainWindow(`/settings/provider?vertexGoogleSetup=${encodeURIComponent(data)}`)
       break
     }
     default:

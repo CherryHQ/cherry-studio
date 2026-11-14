@@ -12,6 +12,7 @@ import type { Provider } from '@shared/data/types/provider'
 
 import type { ProviderApiSetupInitialStep } from './ConnectionSettings/ProviderApiSetupDialog'
 import { useProviderDeepLinkImport } from './hooks/useProviderDeepLinkImport'
+import { useVertexGoogleSetupLink } from './hooks/useVertexGoogleSetupLink'
 import { ProviderList } from './ProviderList'
 import ProviderSetting from './ProviderSetting'
 
@@ -66,6 +67,7 @@ function ProviderSettingsContent({ rawProviders }: ProviderSettingsContentProps)
   }, [])
 
   useProviderDeepLinkImport(search.addProviderData, setSelectedProviderId)
+  useVertexGoogleSetupLink(search.vertexGoogleSetup, setSelectedProviderId)
 
   useEffect(() => {
     let shouldConsume = false
