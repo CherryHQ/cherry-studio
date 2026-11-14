@@ -3,9 +3,11 @@ import { access, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:f
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { Writable } from 'node:stream'
+import { pathToFileURL } from 'node:url'
 
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockApplicationUtils } from '@test-mocks/main/application'
+import { JSONParseError } from 'ai'
 import { ipcMain } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import winston from 'winston'
@@ -19,15 +21,19 @@ import { ApiServer } from '@main/data/api/core/ApiServer'
 import { messageTable } from '@main/data/db/schemas/message'
 import { classifyDatabaseFailure } from '@main/data/failureFacts'
 import { fileHandlers } from '@main/ipc/handlers/file'
+import { IpcApiService } from '@main/ipc/IpcApiService'
+import { IpcRouter } from '@main/ipc/IpcRouter'
 import { FileEditService, FileManager } from '@main/services/file'
 import * as fileUtils from '@main/utils/file'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { FileHandle } from '@shared/data/types/file'
 import { fileErrorCodes } from '@shared/ipc/errors/file'
+import { IpcError } from '@shared/ipc/errors/IpcError'
 import { IpcChannel } from '@shared/IpcChannel'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { LATEST_PRIVACY_POLICY_VERSION } from '@shared/utils/constants'
 import { markReportingHandled } from '@shared/utils/errorReporting'
+import { sanitizeSentryEvent } from '@shared/utils/sentry'
 
 const { captureExceptionMock, captureEventMock, preferences, tmpLogsDir } = vi.hoisted(() => {
   const { mkdtempSync } = require('node:fs')
@@ -46,6 +52,7 @@ vi.unmock('@logger')
 vi.unmock('winston')
 vi.unmock('winston-daily-rotate-file')
 vi.mock('@main/core/paths/constants', () => ({ LOGS_DIR: tmpLogsDir }))
+vi.mock('@main/ipc/handlers/ipcHandlers', () => ({ ipcHandlers: {} }))
 vi.mock('node:fs/promises', async (importOriginal) => {
   const actual = await importOriginal<typeof FsPromises>()
   return { ...actual, access: vi.fn(actual.access) }
@@ -101,6 +108,108 @@ afterEach(async () => {
 })
 
 describe('Sentry log reporting', () => {
+  it.each(['AbortError', 'ERR_CANCELED'])('keeps %s IPC cancellations local', async (kind) => {
+    setConsent(true)
+    const error = Object.assign(new Error('cancelled'), kind === 'AbortError' ? { name: kind } : { code: kind })
+    const appRoot = vi.spyOn(application, 'getPath').mockReturnValue(tmpLogsDir)
+    const dispatch = vi.spyOn(IpcRouter.prototype, 'dispatch').mockRejectedValue(error)
+    const ipc = new IpcApiService()
+    try {
+      await ipc._doInit()
+      const request = vi
+        .mocked(ipcMain.handle)
+        .mock.calls.find(([channel]) => channel === IpcChannel.IpcApi_Request)![1]
+      const event = {
+        sender: { getType: () => 'window' },
+        senderFrame: { url: pathToFileURL(path.join(tmpLogsDir, 'index.html')).href, parent: null }
+      } as Electron.IpcMainInvokeEvent
+      await expect(request(event, 'file.get_metadata', {})).resolves.toEqual({
+        ok: false,
+        error: { code: 'INTERNAL', message: 'cancelled', reportingHandled: true }
+      })
+      await drainLogs()
+      expect(captureExceptionMock.mock.calls).toHaveLength(0)
+      expect(captureEventMock.mock.calls).toHaveLength(0)
+    } finally {
+      await ipc._doDestroy()
+      dispatch.mockRestore()
+      appRoot.mockRestore()
+    }
+  })
+
+  it.each(['syntax', 'sdk-json', 'unknown'])(
+    'keeps private %s IPC failure content local while reporting once',
+    async (kind) => {
+      setConsent(true)
+      const privateContent = 'my diary'
+      let parsingError: unknown
+      try {
+        messageTable.data.mapFromDriverValue(privateContent)
+      } catch (error) {
+        parsingError = error
+      }
+      expect(parsingError).toBeInstanceOf(SyntaxError)
+      const error =
+        kind === 'syntax'
+          ? (parsingError as SyntaxError)
+          : kind === 'sdk-json'
+            ? new JSONParseError({ text: privateContent, cause: parsingError })
+            : new Error(privateContent)
+      const lines: string[] = []
+      loggerService.getBaseLogger().add(
+        new winston.transports.Stream({
+          stream: new Writable({
+            write(chunk, _encoding, callback) {
+              lines.push(chunk.toString())
+              callback()
+            }
+          })
+        })
+      )
+      const appRoot = vi.spyOn(application, 'getPath').mockReturnValue(tmpLogsDir)
+      const dispatch = vi.spyOn(IpcRouter.prototype, 'dispatch').mockRejectedValue(error)
+      const ipc = new IpcApiService()
+      try {
+        await ipc._doInit()
+        const request = vi
+          .mocked(ipcMain.handle)
+          .mock.calls.find(([channel]) => channel === IpcChannel.IpcApi_Request)![1]
+        const event = {
+          sender: { getType: () => 'window' },
+          senderFrame: { url: pathToFileURL(path.join(tmpLogsDir, 'index.html')).href, parent: null }
+        } as Electron.IpcMainInvokeEvent
+        const result = await request(event, 'file.get_metadata', {})
+        await drainLogs()
+
+        expect(result).toEqual({
+          ok: false,
+          error: { code: 'INTERNAL', message: error.message, reportingHandled: true }
+        })
+        expect(lines.join('')).toContain(privateContent)
+        expect(captureExceptionMock.mock.calls).toHaveLength(1)
+        expect(captureEventMock.mock.calls).toHaveLength(0)
+        const [reported, context] = captureExceptionMock.mock.calls[0]
+        const sanitized = sanitizeSentryEvent({
+          ...context,
+          error: { name: reported.name, message: reported.message, stack: reported.stack }
+        })
+        expect(JSON.stringify(sanitized)).not.toContain(privateContent)
+        expect(context.tags).toMatchObject({ operation: 'file.get_metadata', 'failure.reason': 'ipc_handler_failed' })
+
+        await request(event, 'file.get_metadata', {})
+        loggerService
+          .withContext('Receiver')
+          .error('IPC failed again', IpcError.fromJSON(result.error), reportableFailure)
+        await drainLogs()
+        expect(captureExceptionMock.mock.calls).toHaveLength(1)
+      } finally {
+        await ipc._doDestroy()
+        dispatch.mockRestore()
+        appRoot.mockRestore()
+      }
+    }
+  )
+
   it.each(['cancelled', 'already classified'])('keeps %s startup failures local', async (kind) => {
     setConsent(true)
     const error = new Error('startup failed')

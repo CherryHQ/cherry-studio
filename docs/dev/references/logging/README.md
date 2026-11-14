@@ -145,6 +145,8 @@ network failures stay local; broken feeds, signatures and checksums remain eligi
 Sensitive data/storage boundaries use `core/logger/logFailure`: local diagnostics
 retain the error, while reporting receives only stable facts and stack frames.
 SQL text, parameters, remote responses and file contents are not reporting fields.
+The IpcApi fallback uses the same projection for unowned handler failures, including
+JSON parse errors. Its structured IPC response retains the original error message.
 These helpers do not resolve lifecycle services or depend on Sentry.
 
 Logged failures require valid domain classification; error severity, a stack,

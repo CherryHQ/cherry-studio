@@ -5,13 +5,14 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { DIAGNOSTICS_ENABLED, SLOW_THRESHOLD_MS } from '@main/core/diagnostics'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { logFailure } from '@main/core/logger/logFailure'
 import { validateSender } from '@main/core/security/validateSender'
 import type { WindowType } from '@main/core/window/types'
 import { IpcError, IpcErrorCode, type IpcResult } from '@shared/ipc/errors/IpcError'
 import { type IpcEventName, type IpcRequestSchemas, ipcRequestSchemas } from '@shared/ipc/schemas/ipcSchemas'
 import type { EventPayload, IpcContext, WindowId } from '@shared/ipc/types'
 import { IpcChannel } from '@shared/IpcChannel'
-import { hasReportingOwner } from '@shared/utils/errorReporting'
+import { hasReportingOwner, isCancellation } from '@shared/utils/errorReporting'
 
 import { ipcHandlers } from './handlers/ipcHandlers'
 import { IpcRouter } from './IpcRouter'
@@ -76,9 +77,12 @@ export class IpcApiService extends BaseService {
     } catch (e) {
       const error = IpcError.from(e)
       if (!hasReportingOwner(e) && (!(e instanceof IpcError) || e.code === IpcErrorCode.INTERNAL)) {
-        logger.error('IPC handler failed', e instanceof Error ? e : undefined, {
-          operation: route,
-          failure: { source: 'application', kind: 'unknown', reason: 'ipc_handler_failed', outcome: 'failed' }
+        const cancelled = isCancellation(e)
+        logFailure(logger, 'IPC handler failed', e, route, {
+          source: 'application',
+          kind: cancelled ? 'expected' : 'unknown',
+          reason: cancelled ? 'cancelled' : 'ipc_handler_failed',
+          outcome: cancelled ? 'cancelled' : 'failed'
         })
         error.reportingHandled = true
       } else if (hasReportingOwner(e)) {
