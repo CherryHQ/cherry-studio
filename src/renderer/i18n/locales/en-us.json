@@ -1510,7 +1510,6 @@
   "error.boundary.export_busy": "An export is already in progress. Try again when it finishes.",
   "error.boundary.feedback": "Send feedback",
   "error.boundary.mcp.invalid": "Invalid MCP server",
-  "error.boundary.releases": "Open releases",
   "error.cause": "Error cause",
   "error.chat.chunk.non_json": "Returned an invalid data format",
   "error.chat.insufficient_balance": "Please go to the <provider>{{provider}}</provider> to recharge.",

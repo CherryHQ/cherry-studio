@@ -1510,7 +1510,6 @@
   "error.boundary.export_busy": "書き出しが進行中です。完了してから再度試してください。",
   "error.boundary.feedback": "フィードバックを送る",
   "error.boundary.mcp.invalid": "無効なMCPサーバー",
-  "error.boundary.releases": "リリースを開く",
   "error.cause": "エラーの原因",
   "error.chat.chunk.non_json": "無効なデータ形式が返されました",
   "error.chat.insufficient_balance": "<provider>{{provider}}</provider>でチャージしてください。",

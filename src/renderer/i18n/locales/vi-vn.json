@@ -1510,7 +1510,6 @@
   "error.boundary.export_busy": "Một lần xuất đang chạy. Hãy thử lại khi nó hoàn tất.",
   "error.boundary.feedback": "Gửi phản hồi",
   "error.boundary.mcp.invalid": "Máy chủ MCP không hợp lệ",
-  "error.boundary.releases": "Mở trang phát hành",
   "error.cause": "Nguyên nhân lỗi",
   "error.chat.chunk.non_json": "Dữ liệu trả về có định dạng không hợp lệ",
   "error.chat.insufficient_balance": "Vui lòng đến <provider>{{provider}}</provider> để nạp tiền.",

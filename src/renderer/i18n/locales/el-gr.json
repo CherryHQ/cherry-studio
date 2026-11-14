@@ -1510,7 +1510,6 @@
   "error.boundary.export_busy": "Μια εξαγωγή είναι ήδη σε εξέλιξη. Δοκιμάστε ξανά όταν ολοκληρωθεί.",
   "error.boundary.feedback": "Αποστολή σχολίων",
   "error.boundary.mcp.invalid": "Μη έγκυρος διακομιστής MCP",
-  "error.boundary.releases": "Άνοιγμα εκδόσεων",
   "error.cause": "Αιτία σφάλματος",
   "error.chat.chunk.non_json": "Επέστρεψε μη έγκυρη μορφή δεδομένων",
   "error.chat.insufficient_balance": "Παρακαλώ μεταβείτε στο <provider>{{provider}}</provider> για επαναφόρτωση.",

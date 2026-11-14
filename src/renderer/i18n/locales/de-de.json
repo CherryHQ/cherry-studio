@@ -1510,7 +1510,6 @@
   "error.boundary.export_busy": "Ein Export läuft bereits. Versuchen Sie es erneut, wenn er abgeschlossen ist.",
   "error.boundary.feedback": "Feedback senden",
   "error.boundary.mcp.invalid": "Ungültiger MCP-Server",
-  "error.boundary.releases": "Veröffentlichungen öffnen",
   "error.cause": "Fehlerursache",
   "error.chat.chunk.non_json": "Ungültiges Datenformat zurückgegeben",
   "error.chat.insufficient_balance": "Bitte gehen Sie zu <provider>{{provider}}</provider> zum Aufladen",

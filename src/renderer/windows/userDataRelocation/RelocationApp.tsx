@@ -3,7 +3,8 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@cherrystudio/ui'
-import { UserDataRelocationIpcChannels, type UserDataRelocationSupportLink } from '@shared/types/userDataRelocation'
+import { UserDataRelocationIpcChannels } from '@shared/types/userDataRelocation'
+import type { SupportLinkPurpose } from '@shared/utils/officialLinks'
 
 import { useRelocationProgress } from './hooks/useRelocationProgress'
 
@@ -105,7 +106,7 @@ const Failure = ({
   const { t } = useTranslation()
   const [linkError, setLinkError] = useState<string | null>(null)
   const [copyError, setCopyError] = useState<string | null>(null)
-  const openSupportLink = (purpose: UserDataRelocationSupportLink) => {
+  const openSupportLink = (purpose: SupportLinkPurpose) => {
     void window.electron.ipcRenderer.invoke(UserDataRelocationIpcChannels.OpenSupportLink, purpose).then(
       (opened: unknown) => {
         setLinkError(opened === true ? null : t('relocation.support.open_failed'))
@@ -144,8 +145,8 @@ const Failure = ({
         <Button variant="outline" size="sm" onClick={() => openSupportLink('feedback')}>
           {t('relocation.support.feedback')}
         </Button>
-        <Button variant="outline" size="sm" onClick={() => openSupportLink('releases')}>
-          {t('relocation.support.releases')}
+        <Button variant="outline" size="sm" onClick={() => openSupportLink('download')}>
+          {t('relocation.support.download')}
         </Button>
       </div>
       <Button onClick={onRestart} className="mt-2 w-full">

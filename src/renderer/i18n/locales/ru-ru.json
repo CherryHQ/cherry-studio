@@ -1510,7 +1510,6 @@
   "error.boundary.export_busy": "Экспорт уже выполняется. Повторите попытку после его завершения.",
   "error.boundary.feedback": "Отправить отзыв",
   "error.boundary.mcp.invalid": "Недействительный сервер MCP",
-  "error.boundary.releases": "Открыть выпуски",
   "error.cause": "Ошибка произошла по следующей причине",
   "error.chat.chunk.non_json": "Вернулся недопустимый формат данных",
   "error.chat.insufficient_balance": "Пожалуйста, перейдите в <provider>{{provider}}</provider> для пополнения баланса.",

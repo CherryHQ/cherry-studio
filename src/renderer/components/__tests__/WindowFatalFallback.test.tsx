@@ -104,6 +104,16 @@ describe('WindowFatalFallback', () => {
     expect(inlineError).toHaveAttribute('role', 'alert')
   })
 
+  it('opens the download page of the running edition', async () => {
+    const user = userEvent.setup()
+    vi.stubGlobal('__APP_EDITION__', 'cn')
+    render(<WindowFatalFallback error={new Error('boom')} resetErrorBoundary={vi.fn()} />)
+
+    await user.click(screen.getByRole('button', { name: i18n.t('error.update_banner.open_releases') }))
+
+    expect(request).toHaveBeenCalledWith('system.shell.open_external_website', 'https://cherryai.com.cn/download')
+  })
+
   it('opens devtools when the devtools button is clicked', async () => {
     const user = userEvent.setup()
     render(<WindowFatalFallback error={new Error('boom')} resetErrorBoundary={vi.fn()} />)

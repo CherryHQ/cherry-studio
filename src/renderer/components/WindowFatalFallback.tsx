@@ -5,10 +5,9 @@ import { Alert, Button } from '@cherrystudio/ui'
 import { ErrorFallbackDetails } from '@renderer/components/ErrorFallbackDetails'
 import i18n from '@renderer/i18n/resolver'
 import { ipcApi } from '@renderer/ipc'
+import { getAppEdition } from '@renderer/utils/appEdition'
 import { formatErrorDetails } from '@renderer/utils/errorDetails'
-
-const RELEASES_URL = 'https://github.com/CherryHQ/cherry-studio/releases'
-const FEEDBACK_URL = 'mailto:support@cherry-ai.com?subject=Cherry%20Studio%20Feedback'
+import { FEEDBACK_MAILTO, officialDownloadUrl } from '@shared/utils/officialLinks'
 
 /**
  * Fallback for the top-level ErrorBoundary that wraps each window's provider stack.
@@ -95,11 +94,17 @@ export const WindowFatalFallback = ({ error }: FallbackProps) => {
           }}>
           {i18n.t('error.boundary.export')}
         </Button>
-        <Button size="sm" onClick={() => run(() => ipcApi.request('system.shell.open_external_website', FEEDBACK_URL))}>
+        <Button
+          size="sm"
+          onClick={() => run(() => ipcApi.request('system.shell.open_external_website', FEEDBACK_MAILTO))}>
           {i18n.t('error.boundary.feedback')}
         </Button>
-        <Button size="sm" onClick={() => run(() => ipcApi.request('system.shell.open_external_website', RELEASES_URL))}>
-          {i18n.t('error.boundary.releases')}
+        <Button
+          size="sm"
+          onClick={() =>
+            run(() => ipcApi.request('system.shell.open_external_website', officialDownloadUrl(getAppEdition())))
+          }>
+          {i18n.t('error.update_banner.open_releases')}
         </Button>
         <Button size="sm" onClick={() => run(() => ipcApi.request('system.toggle_dev_tools'))}>
           {i18n.t('error.boundary.default.devtools')}

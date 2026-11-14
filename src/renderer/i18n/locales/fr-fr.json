@@ -1510,7 +1510,6 @@
   "error.boundary.export_busy": "Une exportation est déjà en cours. Réessayez lorsqu’elle sera terminée.",
   "error.boundary.feedback": "Envoyer un retour",
   "error.boundary.mcp.invalid": "Serveur MCP invalide",
-  "error.boundary.releases": "Ouvrir les publications",
   "error.cause": "Erreur causée par",
   "error.chat.chunk.non_json": "a renvoyé un format de données invalide",
   "error.chat.insufficient_balance": "Veuillez vous rendre sur <provider>{{provider}}</provider> pour recharger.",

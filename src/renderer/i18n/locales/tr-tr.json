@@ -1510,7 +1510,6 @@
   "error.boundary.export_busy": "Bir dışa aktarma zaten sürüyor. Bitince yeniden deneyin.",
   "error.boundary.feedback": "Geri bildirim gönder",
   "error.boundary.mcp.invalid": "Geçersiz MCP sunucusu",
-  "error.boundary.releases": "Sürümleri aç",
   "error.cause": "Hatanın nedeni",
   "error.chat.chunk.non_json": "Geçersiz bir veri biçimi döndürüldü",
   "error.chat.insufficient_balance": "Bakiye yüklemek için <provider>{{provider}}</provider> sağlayıcısına gidin.",

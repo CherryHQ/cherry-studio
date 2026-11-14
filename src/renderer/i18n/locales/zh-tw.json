@@ -1510,7 +1510,6 @@
   "error.boundary.export_busy": "已有匯出正在進行。請在完成後重試。",
   "error.boundary.feedback": "傳送意見回饋",
   "error.boundary.mcp.invalid": "無效的 MCP 伺服器",
-  "error.boundary.releases": "開啟發布頁",
   "error.cause": "錯誤原因",
   "error.chat.chunk.non_json": "回傳了無效的資料格式",
   "error.chat.insufficient_balance": "請前往 <provider>{{provider}}</provider> 儲值。",

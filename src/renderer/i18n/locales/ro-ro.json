@@ -1510,7 +1510,6 @@
   "error.boundary.export_busy": "O exportare este deja în curs. Încearcă din nou când se termină.",
   "error.boundary.feedback": "Trimite feedback",
   "error.boundary.mcp.invalid": "Server MCP invalid",
-  "error.boundary.releases": "Deschide versiunile",
   "error.cause": "Cauză eroare",
   "error.chat.chunk.non_json": "S-a returnat un format de date invalid",
   "error.chat.insufficient_balance": "Te rugăm să mergi la <provider>{{provider}}</provider> pentru a reîncărca.",

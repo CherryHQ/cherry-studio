@@ -1510,7 +1510,6 @@
   "error.boundary.export_busy": "มีการส่งออกที่กำลังดำเนินการอยู่ โปรดลองอีกครั้งเมื่อเสร็จสิ้น",
   "error.boundary.feedback": "ส่งข้อเสนอแนะ",
   "error.boundary.mcp.invalid": "MCP Server ไม่ถูกต้อง",
-  "error.boundary.releases": "เปิดหน้ารุ่นที่เผยแพร่",
   "error.cause": "สาเหตุของข้อผิดพลาด",
   "error.chat.chunk.non_json": "ส่งคืนรูปแบบข้อมูลที่ไม่ถูกต้อง",
   "error.chat.insufficient_balance": "กรุณาไปที่ <provider>{{provider}}</provider> เพื่อเติมเงิน",
