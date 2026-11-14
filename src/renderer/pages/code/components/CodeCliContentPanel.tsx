@@ -141,6 +141,7 @@ export const CodeCliContentPanel: FC<CodeCliContentPanelProps> = ({
               : null
           }
           onOpenChange={(open) => !open && setShowInstallError(false)}
+          source="code.dependencies"
         />
 
         {providerState.providerless ? (
