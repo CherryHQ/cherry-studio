@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-12-translator-chunks.md
+2026-11-12-translator-chunks.md: 57d3daa73a9865d88247fbb1f6003fa8df80572b
+2026-11-12-translator-chunks.zh.md: 705f42cf179a7c60669ea0933377353e803e4539
