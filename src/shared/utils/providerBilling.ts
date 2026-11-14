@@ -13,6 +13,7 @@ export function resolveProviderBilling(
     multiplier: billing.defaultMultiplier,
     timeZone: billing.timeZone,
     reason: 'default',
+    ...(billing.source ? { source: billing.source, ruleVersion: '2026-11-14-weekdays' } : {}),
     ...(startedAt ? { pricedAt: startedAt.toISOString() } : {})
   }
   if (billing.scheduleEnabled && billing.periods.length > 0) {
@@ -22,7 +23,8 @@ export function resolveProviderBilling(
         return total + (duration > 0 ? duration : duration + 1440)
       }, 0)
       // Legacy model-price rules use the default multiplier for this time-independent estimate.
-      const defaultApplies = coveredMinutes < 1440 || billing.periods.some((period) => period.mode === 'prices')
+      const defaultApplies =
+        Boolean(billing.calendar) || coveredMinutes < 1440 || billing.periods.some((period) => period.mode === 'prices')
       const peak = billing.periods
         .filter((period) => period.mode === 'multiplier')
         .sort((a, b) => b.multiplier - a.multiplier)[0]
@@ -36,17 +38,22 @@ export function resolveProviderBilling(
       const parts = new Intl.DateTimeFormat('en-GB', {
         timeZone: billing.timeZone,
         hourCycle: 'h23',
+        weekday: 'short',
         hour: '2-digit',
         minute: '2-digit'
       }).formatToParts(startedAt)
       const minute =
         Number(parts.find((part) => part.type === 'hour')?.value) * 60 +
         Number(parts.find((part) => part.type === 'minute')?.value)
-      const period = billing.periods.find(({ start, end }) => {
-        const from = billingTimeMinutes(start)
-        const to = billingTimeMinutes(end)
-        return to > from ? minute >= from && minute < to : minute >= from || minute < to
-      })
+      const weekday = parts.find((part) => part.type === 'weekday')?.value
+      const weekend = billing.calendar === 'cn-weekdays' && (weekday === 'Sat' || weekday === 'Sun')
+      const period = weekend
+        ? undefined
+        : billing.periods.find(({ start, end }) => {
+            const from = billingTimeMinutes(start)
+            const to = billingTimeMinutes(end)
+            return to > from ? minute >= from && minute < to : minute >= from || minute < to
+          })
       if (period) {
         resolution.periodId = period.id
         resolution.periodName = period.name

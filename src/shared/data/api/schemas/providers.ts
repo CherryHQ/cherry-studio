@@ -56,6 +56,8 @@ const ProviderSettingsMergePatchSchema = z.object({
     .strictObject({
       defaultMultiplier: ProviderBillingSchema.shape.defaultMultiplier.nullable().optional(),
       scheduleEnabled: ProviderBillingSchema.shape.scheduleEnabled.nullable().optional(),
+      calendar: ProviderBillingSchema.shape.calendar.nullable(),
+      source: ProviderBillingSchema.shape.source.nullable(),
       timeZone: ProviderBillingSchema.shape.timeZone.nullable().optional(),
       periods: ProviderBillingSchema.shape.periods.nullable().optional()
     })
