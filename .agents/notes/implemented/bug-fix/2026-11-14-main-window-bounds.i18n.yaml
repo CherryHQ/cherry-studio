@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-14-main-window-bounds.md
+2026-11-14-main-window-bounds.md: 2afa51217a2ebe7156e60b1732fce33411028180
+2026-11-14-main-window-bounds.zh.md: 6d44ed847bd465d71abf4201e463d151ddb7dc3e
