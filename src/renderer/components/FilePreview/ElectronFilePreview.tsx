@@ -7,6 +7,7 @@ import type { PreviewDiagnostic, PreviewOptions, PreviewResources } from '@cherr
 import { loggerService } from '@logger'
 import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
 import { ipcApi } from '@renderer/ipc'
+import { toastInlineError } from '@renderer/services/toast'
 import { safeOpen } from '@renderer/utils/file/safeOpen'
 import { createFilePathHandle } from '@shared/utils/file'
 
@@ -80,12 +81,14 @@ export default function ElectronFilePreview({
       )
       if (diagnostic.code === 'navigation_error') {
         const cause = diagnostic.detail instanceof Error ? diagnostic.detail : new Error(diagnostic.message)
-        void import('@renderer/services/AppErrorDetailService').then(({ toastAppError }) => {
-          toastAppError(t('file_preview.pdf.navigation_error'), cause, {
-            source: 'file.preview',
-            operation: 'file.preview.navigation'
+        void import('@renderer/services/AppErrorDetailService')
+          .then(({ toastAppError }) => {
+            toastAppError(t('file_preview.pdf.navigation_error'), cause, {
+              source: 'file.preview',
+              operation: 'file.preview.navigation'
+            })
           })
-        })
+          .catch(() => toastInlineError(t('file_preview.pdf.navigation_error')))
       }
     },
     [t]
@@ -94,12 +97,14 @@ export default function ElectronFilePreview({
     void safeOpen(createFilePathHandle(filePath)).catch((error: unknown) => {
       const normalized = error instanceof Error ? error : new Error(String(error))
       logger.error('Failed to open preview file externally', normalized)
-      void import('@renderer/services/AppErrorDetailService').then(({ toastAppError }) => {
-        toastAppError(t('file_preview.open_error'), normalized, {
-          source: 'file.preview',
-          operation: 'file.preview.open'
+      void import('@renderer/services/AppErrorDetailService')
+        .then(({ toastAppError }) => {
+          toastAppError(t('file_preview.open_error'), normalized, {
+            source: 'file.preview',
+            operation: 'file.preview.open'
+          })
         })
-      })
+        .catch(() => toastInlineError(t('file_preview.open_error')))
     })
   }, [filePath, t])
 

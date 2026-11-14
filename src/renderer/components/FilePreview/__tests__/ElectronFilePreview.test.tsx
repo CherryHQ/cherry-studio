@@ -1,17 +1,38 @@
 import '@testing-library/jest-dom/vitest'
-import { act, render, screen } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { resetToastMocks } from '@test-mocks/renderer/toast'
+import { act, render, screen, waitFor } from '@testing-library/react'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { PreviewError } from '@cherrystudio/file-preview/core'
+import type { PreviewDiagnostic } from '@cherrystudio/file-preview/react'
+import { toast } from '@renderer/services/toast'
 import type { AbsoluteFilePath } from '@shared/types/file'
 
-const preview = vi.hoisted(() => ({ onError: undefined as ((error: PreviewError) => void) | undefined }))
+const preview = vi.hoisted(() => ({
+  onError: undefined as ((error: PreviewError) => void) | undefined,
+  onDiagnostic: undefined as ((diagnostic: PreviewDiagnostic) => void) | undefined,
+  onRequestOpen: undefined as (() => void) | undefined
+}))
 
 vi.mock('@cherrystudio/file-preview/react', () => ({
-  Preview: ({ onError }: { onError?: (error: PreviewError) => void }) => {
-    preview.onError = onError
+  Preview: (props: {
+    onError?: (error: PreviewError) => void
+    onDiagnostic?: (diagnostic: PreviewDiagnostic) => void
+    onRequestOpen?: () => void
+  }) => {
+    preview.onError = props.onError
+    preview.onDiagnostic = props.onDiagnostic
+    preview.onRequestOpen = props.onRequestOpen
     return <div data-testid="preview" />
   }
+}))
+
+// Simulates the detail chunk failing to load (offline after an update, evicted cache).
+vi.mock('@renderer/services/AppErrorDetailService', () => {
+  throw new Error('chunk load failed')
+})
+vi.mock('@renderer/utils/file/safeOpen', () => ({
+  safeOpen: vi.fn(() => Promise.reject(new Error('no handler')))
 }))
 
 vi.mock('@renderer/ipc', () => ({ ipcApi: { request: vi.fn() } }))
@@ -46,5 +67,37 @@ describe('ElectronFilePreview error details', () => {
 
     view.rerender(<ElectronFilePreview filePath={filePath} fileName="report.pdf" metadata={metadata} refreshKey={1} />)
     expect(screen.queryByRole('button', { name: 'common.detail' })).not.toBeInTheDocument()
+  })
+})
+
+describe('ElectronFilePreview failure toasts without the detail chunk', () => {
+  beforeEach(() => resetToastMocks())
+
+  // Without a catch the failure would vanish silently as an unhandled rejection.
+  it('still tells the user an external open failed', async () => {
+    renderPreview()
+    act(() => preview.onRequestOpen?.())
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith(
+        expect.objectContaining({ title: 'file_preview.open_error', data: { suppressDetail: true } })
+      )
+    )
+  })
+
+  it('still tells the user a PDF navigation failed', async () => {
+    renderPreview()
+    act(() =>
+      preview.onDiagnostic?.({
+        code: 'navigation_error',
+        level: 'warn',
+        context: 'pdf',
+        message: 'outline target missing'
+      })
+    )
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith(
+        expect.objectContaining({ title: 'file_preview.pdf.navigation_error', data: { suppressDetail: true } })
+      )
+    )
   })
 })
