@@ -34,16 +34,22 @@ export const REPORT_ARTIFACTS_PROMPT = `## Reporting deliverables
 
 When you finish producing the file(s) the user asked for, call the \`${REPORT_ARTIFACTS_RUNTIME_NAME}\` tool once with the final file path(s) and a one-line summary. List only the final deliverables — never intermediate, scratch, or temporary files. Skip the call entirely if the task produced no files.`
 
+// Claude Code exposes MCP tools as `mcp__cherry-tools__x`; Pi defers them behind `tool_search` and
+// names them `mcp__cherry_tools__x`. Naming both and the search step works on either runtime.
+const toolRef = (server: string, name: string) =>
+  `\`${name}\` (\`mcp__${server}__${name}\` or \`mcp__${server.replace(/-/g, '_')}__${name}\`)`
+const LOAD_HINT = 'If these tools are not in your tool list yet, load them with `tool_search` first.'
+
 const CREATE_REQUEST_EXAMPLES = '(for example "build me an Agent that reviews pull requests" or "建一个翻译助手")'
 
-/** Without this the model describes UI steps instead of calling the tools it has. */
+/** Without this the model describes UI steps or writes files instead of calling the tools it has. */
 const HOST_CONFIG_TOOLS_PROMPT = `## Creating Agents and Assistants
 
-When the user asks you to create or set up an Agent or an Assistant ${CREATE_REQUEST_EXAMPLES}, propose a configuration, then call \`create_agent\` or \`create_assistant\` instead of describing UI steps. To change a user-created Agent, find it with \`agent_list\` and call \`update_agent\`. The user approves every call.`
+When the user asks you to create or set up an Agent or an Assistant ${CREATE_REQUEST_EXAMPLES}, propose a configuration, then call ${toolRef('assistant', 'create_agent')} or ${toolRef('assistant', 'create_assistant')} instead of describing UI steps or writing files. To change a user-created Agent, find it with ${toolRef('cherry-tools', 'agent_list')} and call ${toolRef('assistant', 'update_agent')}. ${LOAD_HINT} The user approves every call.`
 
 const SELF_CONFIG_TOOLS_PROMPT = `## Creating Agents and Assistants, and changing your own settings
 
-When the user asks you to create or set up an Agent or an Assistant ${CREATE_REQUEST_EXAMPLES}, propose a configuration, then call \`${AGENT_CREATE_TOOL_NAME}\` or \`${ASSISTANT_CREATE_TOOL_NAME}\`. When the user asks you to change your own avatar, description, instructions, model, permission mode, skills, knowledge bases, MCP servers, built-in tools, reply language or heartbeat, call \`${CONFIG_UPDATE_TOOL_NAME}\` with only the fields to change. The user approves every call.`
+When the user asks you to create or set up an Agent or an Assistant ${CREATE_REQUEST_EXAMPLES}, propose a configuration, then call ${toolRef('cherry-tools', AGENT_CREATE_TOOL_NAME)} or ${toolRef('cherry-tools', ASSISTANT_CREATE_TOOL_NAME)} instead of describing UI steps or writing files. When the user asks you to change your own avatar, description, instructions, model, permission mode, skills, knowledge bases, MCP servers, built-in tools, reply language or heartbeat, call ${toolRef('cherry-tools', CONFIG_UPDATE_TOOL_NAME)} with only the fields to change. ${LOAD_HINT} The user approves every call.`
 
 /** The guidance for whichever create tools this Agent mounts; none for an Agent closed to creating. */
 export function getConfigToolsPrompt(agent: Pick<AgentEntity, 'configuration'>): string | undefined {
