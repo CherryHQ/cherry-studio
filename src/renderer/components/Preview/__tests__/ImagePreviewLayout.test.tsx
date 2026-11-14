@@ -1,7 +1,16 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import i18n from '@renderer/i18n/resolver'
+
 import ImagePreviewLayout from '../ImagePreviewLayout'
+
+const detailMocks = vi.hoisted(() => ({ open: vi.fn() }))
+
+vi.mock('@renderer/services/appErrorDetailOpen', () => ({
+  openLoadedErrorDetail: (request: unknown) => detailMocks.open(request),
+  showDetailOpenFailed: vi.fn()
+}))
 
 const mocks = vi.hoisted(() => ({
   pan: vi.fn(),
@@ -55,5 +64,18 @@ describe('ImagePreviewLayout', () => {
 
     expect(screen.queryByText('Invalid diagram')).not.toBeInTheDocument()
     expect(screen.getByTestId('image-toolbar')).toBeInTheDocument()
+  })
+
+  // Parser output is technical evidence; the detail's explanation slot must be translated text.
+  it('explains a render failure with translated text and keeps the parser output as the cause', async () => {
+    const parserText = 'Parse error on line 2: unexpected token'
+    render(<ImagePreviewLayout {...defaultProps} error={parserText} cause={new Error(parserText)} />)
+
+    fireEvent.click(screen.getByRole('button', { name: i18n.t('common.detail') }))
+    await waitFor(() => expect(detailMocks.open).toHaveBeenCalled())
+    const request = detailMocks.open.mock.calls[0][0]
+    expect(request.localizedErrorMessage).toBe(i18n.t('preview.render.failed'))
+    expect(request.localizedErrorMessage).not.toBe(parserText)
+    expect(request.error.message).toBe(parserText)
   })
 })

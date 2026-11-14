@@ -1,4 +1,5 @@
 import { memo, useImperativeHandle } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import { useImageTools } from '@renderer/components/ActionTools'
 import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
@@ -37,6 +38,7 @@ const ImagePreviewLayout = ({
   enableWheelZoom = true,
   className
 }: ImagePreviewLayoutProps) => {
+  const { t } = useTranslation()
   // 使用通用图像工具
   const { pan, zoom, copy, download, dialog } = useImageTools(imageRef, {
     imgSelector: 'svg',
@@ -67,7 +69,12 @@ const ImagePreviewLayout = ({
       {error && <PreviewError>{error}</PreviewError>}
       {error && cause != null && (
         <div className="flex justify-center p-2">
-          <ErrorDetailAction error={cause} message={error} source="preview" operation="preview.render" />
+          <ErrorDetailAction
+            error={cause}
+            message={t('preview.render.failed')}
+            source="preview"
+            operation="preview.render"
+          />
         </div>
       )}
       {children}
