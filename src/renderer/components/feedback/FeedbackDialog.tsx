@@ -18,6 +18,7 @@ import {
 import { loggerService } from '@logger'
 import { DoctorPopup } from '@renderer/components/doctor'
 import { ipcApi } from '@renderer/ipc'
+import { captureDiagnosticAiDiagnosis } from '@renderer/services/diagnosticAiSnapshot'
 import { openRoute } from '@renderer/services/mainWindowNavigation'
 import { toastInlineError } from '@renderer/services/toast'
 import { openExternalWebsite } from '@renderer/services/website'
@@ -119,7 +120,8 @@ export function FeedbackDialog({ open, onOpenChange }: FeedbackDialogProps) {
             description={t('settings.about.feedback.diagnostics.description')}
             onSelect={() =>
               selectOption(async () => {
-                await DoctorPopup.show({ initialPanel: 'report' })
+                const aiDiagnosis = captureDiagnosticAiDiagnosis({ scope: 'global' })
+                await DoctorPopup.show({ initialPanel: 'report', ...(aiDiagnosis ? { aiDiagnosis } : {}) })
               })
             }
           />

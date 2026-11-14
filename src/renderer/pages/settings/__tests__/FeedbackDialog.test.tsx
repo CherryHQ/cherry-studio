@@ -1,12 +1,17 @@
 import '@testing-library/jest-dom/vitest'
+import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useState } from 'react'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as CherryStudioUi from '@cherrystudio/ui'
+import { cacheService } from '@data/CacheService'
 import enUs from '@renderer/i18n/locales/en-us.json'
 import { toast } from '@renderer/services/toast'
+import type { DoctorState } from '@shared/types/doctor'
+import type { DoctorAgentState } from '@shared/types/doctorAgent'
+import { doctorAgentStateCacheKey, doctorStateCacheKey } from '@shared/utils/doctor'
 
 const mocks = vi.hoisted(() => ({
   ipcRequest: vi.fn(),
@@ -103,6 +108,38 @@ describe('FeedbackDialog', () => {
 
     await waitFor(() => expect(mocks.showDoctor).toHaveBeenCalledWith({ initialPanel: 'report' }))
     expect(mocks.ipcRequest).not.toHaveBeenCalled()
+  })
+
+  it('attaches the current global AI analysis to the problem report, like the help menu', async () => {
+    MockCacheUtils.resetMocks()
+    cacheService.setShared(doctorStateCacheKey('global'), {
+      status: 'completed',
+      report: { runId: 'report-1' }
+    } as DoctorState)
+    const agent: DoctorAgentState = {
+      status: 'completed',
+      runId: 'agent-run-1',
+      scope: 'global',
+      reportRunId: 'report-1',
+      sessionId: 'session-1',
+      modelId: 'openai::gpt-4o',
+      startedAt: '2026-05-01T00:00:02.000Z',
+      text: 'The proxy blocks the provider.',
+      toolCalls: [],
+      proposals: [],
+      changes: []
+    }
+    cacheService.setShared(doctorAgentStateCacheKey('global'), agent)
+    render(<ControlledFeedbackDialog />)
+
+    await userEvent.setup().click(screen.getByRole('button', { name: /Report a problem/i }))
+
+    await waitFor(() =>
+      expect(mocks.showDoctor).toHaveBeenCalledWith({
+        initialPanel: 'report',
+        aiDiagnosis: expect.objectContaining({ scope: 'global', text: 'The proxy blocks the provider.' })
+      })
+    )
   })
 
   it('creates an isolated feedback session before opening the Agent route', async () => {
