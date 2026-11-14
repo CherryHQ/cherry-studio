@@ -128,16 +128,20 @@ export function AssistantConversationPickerDialog({
         const created = await createAssistant({
           body: buildCreateAssistantDto(values)
         })
-        setCreateDialogOpen(false)
-        // Start a conversation with the new assistant so it surfaces in the rail (a fresh assistant
-        // has no topic yet), mirroring picking an existing one.
-        await onSelect({ type: 'assistant', assistantId: created.id })
+        return created.id
       } catch (error) {
         logger.error('Failed to create assistant from conversation picker', error as Error)
         throw error
       }
     },
-    [createAssistant, onSelect]
+    [createAssistant]
+  )
+
+  // Start a conversation with the new assistant so it surfaces in the rail (a fresh assistant
+  // has no topic yet), mirroring picking an existing one.
+  const handleStartConversation = useCallback(
+    (assistantId: string) => void onSelect({ type: 'assistant', assistantId }),
+    [onSelect]
   )
 
   // null = combined 资源库 + 助手库 (the default "全部" view).
@@ -231,6 +235,7 @@ export function AssistantConversationPickerDialog({
         isSubmitting={isCreatingAssistant}
         onOpenChange={setCreateDialogOpen}
         onSubmit={handleSubmitCreate}
+        onStartConversation={handleStartConversation}
         modelFilter={(candidate) => !isNonChatModel(candidate)}
       />
     </>

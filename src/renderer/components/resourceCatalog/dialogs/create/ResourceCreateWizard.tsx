@@ -1,5 +1,5 @@
 import { Sparkles } from 'lucide-react'
-import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
 import { useForm, type UseFormReturn, useFormState, useWatch } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 
@@ -11,6 +11,7 @@ import { useIsCherryCloudModelSelectable } from '@renderer/hooks/cherryCloud/use
 import { useResourceAutoConfigure } from '@renderer/hooks/resourceCatalog'
 import { useDefaultModel, useModels } from '@renderer/hooks/useModel'
 import { useProviderById } from '@renderer/hooks/useProvider'
+import type { ResourceEditDialogTarget } from '@renderer/types/resourceCatalog'
 import { getErrorMessage } from '@renderer/utils/error'
 import type { AutoConfigDraft } from '@renderer/utils/resourceCatalog'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
@@ -22,6 +23,7 @@ import {
   resourceDialogRailItemClassName,
   resourceDialogTitleClassName
 } from '../components/EditDialogShared'
+import { type CreatedResource, ResourceCreateResultView, ResourceCreateWorkingView } from './ResourceCreateResult'
 import { AutoCreateEntry } from './steps/AutoCreateEntry'
 import { BasicInfoStep } from './steps/BasicInfoStep'
 import { CapabilityStep } from './steps/CapabilityStep'
@@ -31,11 +33,19 @@ import type { ResourceCreateWizardFormValues, ResourceCreateWizardKind, Resource
 
 export type { ResourceCreateWizardKind, ResourceCreateWizardValues } from './types'
 
+// Lazy so the edit dialog's form deps load only when "Adjust settings" is used.
+const ResourceEditDialogHost = lazy(() =>
+  import('../edit').then((module) => ({ default: module.ResourceEditDialogHost }))
+)
+
 type ResourceCreateWizardProps = {
   kind: ResourceCreateWizardKind
   open: boolean
   onOpenChange: (open: boolean) => void
-  onSubmit: (values: ResourceCreateWizardValues) => Promise<void> | void
+  /** Creates the resource and resolves to its ID, which the result page acts on. */
+  onSubmit: (values: ResourceCreateWizardValues) => Promise<string> | string
+  /** The caller's "Start conversation" action; the wizard has already closed when it runs. */
+  onStartConversation: (id: string) => void
   modelFilter?: ModelSelectorFilter
   isSubmitting?: boolean
   /** Seeds the name field when the caller already knows it (e.g. the picker's search query). */
@@ -44,7 +54,7 @@ type ResourceCreateWizardProps = {
 }
 
 type StepId = 'basic' | 'system-prompt' | 'knowledge' | 'capability'
-type WizardView = 'entry' | 'steps'
+type WizardView = 'entry' | 'steps' | 'working' | 'result'
 
 const AUTO_CREATE_TIMEOUT_MS = 60_000
 
@@ -108,14 +118,12 @@ type GenerateAutoConfig = ReturnType<typeof useResourceAutoConfigure>['generate'
 function EntryFooter({
   kind,
   form,
-  generating,
   isSubmitting,
   onManual,
   onAuto
 }: {
   kind: ResourceCreateWizardKind
   form: UseFormReturn<ResourceCreateWizardFormValues>
-  generating: boolean
   isSubmitting: boolean
   onManual: () => void
   onAuto: (generate: GenerateAutoConfig) => void
@@ -123,7 +131,7 @@ function EntryFooter({
   const { t } = useTranslation()
   const { ready: catalogsReady, generate } = useResourceAutoConfigure(kind)
   const [purpose, modelId] = useWatch({ control: form.control, name: ['description', 'modelId'] })
-  const busy = generating || isSubmitting || form.formState.isSubmitting
+  const busy = isSubmitting || form.formState.isSubmitting
   const rootError = form.formState.errors.root?.message
   const canAuto = (purpose?.trim().length ?? 0) > 0 && Boolean(modelId) && catalogsReady
 
@@ -203,6 +211,8 @@ function WizardFooter({
  * Create flow shared by assistant + agent. It opens on an entry view (avatar, name, purpose,
  * model) where Auto create generates the configuration once and submits it, and Manual create
  * continues into the steps; callers that seed a prompt (catalog templates) start on the steps.
+ * Every successful create ends on a result page whose actions open the edit dialog or run the
+ * caller's `onStartConversation`.
  *
  * In the steps, basic info and System Prompt are identical across kinds; agents then
  * configure skills before both kinds configure knowledge bases. A left rail tracks step progress
@@ -220,6 +230,7 @@ export function ResourceCreateWizard({
   open,
   onOpenChange,
   onSubmit,
+  onStartConversation,
   modelFilter,
   isSubmitting = false,
   initialName,
@@ -248,7 +259,8 @@ export function ResourceCreateWizard({
   const autoSelectedDefaultModelIdRef = useRef<UniqueModelId | null>(null)
   const [stepIndex, setStepIndex] = useState(0)
   const [view, setView] = useState<WizardView>(() => getInitialView(initialValues))
-  const [generating, setGenerating] = useState(false)
+  const [created, setCreated] = useState<CreatedResource | null>(null)
+  const [editTarget, setEditTarget] = useState<ResourceEditDialogTarget | null>(null)
   const autoAbortRef = useRef<AbortController | null>(null)
   const [dialogContentElement, setDialogContentElement] = useState<HTMLDivElement | null>(null)
   const [dialogKey, setDialogKey] = useState(0)
@@ -286,6 +298,7 @@ export function ResourceCreateWizard({
     form.clearErrors()
     setStepIndex(0)
     setView(getInitialView(initialValues))
+    setCreated(null)
   })
 
   /** Last `(kind, open)` pair this wizard already initialised for. <Activity> destroys the
@@ -378,30 +391,36 @@ export function ResourceCreateWizard({
     return () => window.cancelAnimationFrame(frameId)
   }, [open, runPendingCloseAction])
 
-  const submitValues = async (values: ResourceCreateWizardFormValues) => {
-    if (!values.modelId) return
+  /** Resolves whether the resource was created; on success the dialog moves to the result page. */
+  const submitValues = async (values: ResourceCreateWizardFormValues, generated = false): Promise<boolean> => {
+    if (!values.modelId) return false
     form.clearErrors('root')
+    const payload: ResourceCreateWizardValues = {
+      avatar: values.avatar,
+      agentType: values.agentType,
+      permissionMode: values.permissionMode,
+      name: values.name.trim(),
+      modelId: values.modelId,
+      description: values.description.trim(),
+      prompt: values.prompt.trim(),
+      knowledgeBaseIds: values.knowledgeBaseIds,
+      skillIds: values.skillIds,
+      mcpServerIds: values.mcpServerIds,
+      enableWebSearch: values.enableWebSearch
+    }
     try {
-      await onSubmit({
-        avatar: values.avatar,
-        agentType: values.agentType,
-        permissionMode: values.permissionMode,
-        name: values.name.trim(),
-        modelId: values.modelId,
-        description: values.description.trim(),
-        prompt: values.prompt.trim(),
-        knowledgeBaseIds: values.knowledgeBaseIds,
-        skillIds: values.skillIds,
-        mcpServerIds: values.mcpServerIds,
-        enableWebSearch: values.enableWebSearch
-      })
+      const id = await onSubmit(payload)
+      setCreated({ id, values: payload, generated })
+      setView('result')
+      return true
     } catch (error) {
       const message =
         error instanceof Error && error.message ? error.message : t('library.config.dialogs.create.submit_failed')
       form.setError('root', { message })
+      return false
     }
   }
-  const handleCreate = form.handleSubmit(submitValues)
+  const handleCreate = form.handleSubmit((values) => submitValues(values))
 
   // Closing (or hiding) the dialog cancels an in-flight generation.
   useEffect(() => () => autoAbortRef.current?.abort(), [open])
@@ -418,7 +437,7 @@ export function ResourceCreateWizard({
     const controller = new AbortController()
     const timeout = AbortSignal.timeout(AUTO_CREATE_TIMEOUT_MS)
     autoAbortRef.current = controller
-    setGenerating(true)
+    setView('working')
     let draft: AutoConfigDraft | null
     try {
       draft = await generate({
@@ -431,160 +450,199 @@ export function ResourceCreateWizard({
       if (!controller.signal.aborted) {
         form.setError('root', { message: timeout.aborted ? t('error.request_timeout') : getErrorMessage(error) })
       }
+      setView('entry')
       return
     } finally {
       if (autoAbortRef.current === controller) autoAbortRef.current = null
-      setGenerating(false)
     }
-    if (controller.signal.aborted) return
-    if (!draft) {
-      form.setError('root', { message: t('library.config.dialogs.create.auto.failed') })
+    // An abort (close or <Activity> hide) returns to the entry so a re-show is not stuck working.
+    if (controller.signal.aborted || !draft) {
+      if (!draft) form.setError('root', { message: t('library.config.dialogs.create.auto.failed') })
+      setView('entry')
       return
     }
 
     // Submit the merged values without writing the draft into the form, so a failed create
     // leaves the entry (and the manual path) exactly as the user filled it in.
     const generated = draft
-    await form.handleSubmit((current) =>
-      submitValues({
-        ...current,
-        ...applyAutoConfigDraft(current, generated, current.avatar !== form.formState.defaultValues?.avatar)
-      })
-    )()
+    let createdResource = false
+    await form.handleSubmit(async (current) => {
+      createdResource = await submitValues(
+        {
+          ...current,
+          ...applyAutoConfigDraft(current, generated, current.avatar !== form.formState.defaultValues?.avatar)
+        },
+        true
+      )
+    })()
+    if (!createdResource) setView('entry')
   }
 
-  const title = t(
-    kind === 'assistant' ? 'library.config.dialogs.create.assistant_title' : 'library.config.dialogs.create.agent_title'
-  )
+  const closeThen = (action: () => void) => {
+    onOpenChange(false)
+    action()
+  }
+
+  const title =
+    view === 'working'
+      ? t('library.config.dialogs.create.result.working_title')
+      : view === 'result'
+        ? t(
+            kind === 'assistant'
+              ? 'library.config.dialogs.create.result.assistant_title'
+              : 'library.config.dialogs.create.result.agent_title'
+          )
+        : t(
+            kind === 'assistant'
+              ? 'library.config.dialogs.create.assistant_title'
+              : 'library.config.dialogs.create.agent_title'
+          )
   const currentStep = steps[Math.min(stepIndex, steps.length - 1)]
 
   return (
-    <Dialog key={dialogKey} open={open} onOpenChange={(nextOpen) => !submitting && onOpenChange(nextOpen)}>
-      <DialogContent
-        ref={setDialogContentElement}
-        closeOnOverlayClick={!submitting}
-        size={view === 'entry' ? 'default' : 'xl'}
-        className={cn(
-          'flex flex-col gap-0 p-0',
-          view === 'entry' ? 'sm:max-w-[440px]' : 'h-[min(600px,76vh)]',
-          resourceDialogCloseButtonClassName
-        )}
-        onPointerDownOutside={(event) => submitting && event.preventDefault()}>
-        {/* Header — title */}
-        <div className={resourceDialogHeaderClassName}>
-          <div className="min-w-0">
-            <DialogTitle className={resourceDialogTitleClassName}>{title}</DialogTitle>
+    <>
+      <Dialog key={dialogKey} open={open} onOpenChange={(nextOpen) => !submitting && onOpenChange(nextOpen)}>
+        <DialogContent
+          ref={setDialogContentElement}
+          closeOnOverlayClick={!submitting}
+          size={view === 'steps' ? 'xl' : 'default'}
+          className={cn(
+            'flex flex-col gap-0 p-0',
+            view === 'steps' ? 'h-[min(600px,76vh)]' : 'sm:max-w-[440px]',
+            resourceDialogCloseButtonClassName
+          )}
+          onPointerDownOutside={(event) => submitting && event.preventDefault()}>
+          {/* Header — title */}
+          <div className={resourceDialogHeaderClassName}>
+            <div className="min-w-0">
+              <DialogTitle className={resourceDialogTitleClassName}>{title}</DialogTitle>
+            </div>
           </div>
-        </div>
 
-        <Form {...form}>
-          <form onSubmit={(event) => event.preventDefault()} className="flex min-h-0 flex-1 flex-col overflow-hidden">
-            {view === 'entry' ? (
-              <>
-                <div className="px-6 pt-6 pb-5">
-                  <AutoCreateEntry
+          <Form {...form}>
+            <form onSubmit={(event) => event.preventDefault()} className="flex min-h-0 flex-1 flex-col overflow-hidden">
+              {view === 'entry' ? (
+                <>
+                  <div className="px-6 pt-6 pb-5">
+                    <AutoCreateEntry
+                      kind={kind}
+                      form={form}
+                      portalContainer={dialogContentElement}
+                      fallbackAvatar={getResourceCreateDefaultAvatar(kind)}
+                      modelFilter={activeModelFilter}
+                      includeAgentOnlyModels={kind === 'agent'}
+                      disabled={submitting}
+                      onSettingsNavigate={closeBeforeAction}
+                    />
+                  </div>
+                  <EntryFooter
+                    kind={kind}
                     form={form}
-                    portalContainer={dialogContentElement}
-                    fallbackAvatar={getResourceCreateDefaultAvatar(kind)}
-                    modelFilter={activeModelFilter}
-                    includeAgentOnlyModels={kind === 'agent'}
-                    disabled={generating || submitting}
-                    onSettingsNavigate={closeBeforeAction}
+                    isSubmitting={isSubmitting}
+                    onManual={() => {
+                      form.clearErrors('root')
+                      const { description, prompt } = form.getValues()
+                      if (kind === 'agent' && !prompt.trim() && description.trim()) {
+                        form.setValue('prompt', description.trim(), { shouldDirty: true })
+                      }
+                      setView('steps')
+                    }}
+                    onAuto={(generate) => void handleAutoCreate(generate)}
                   />
-                </div>
-                <EntryFooter
+                </>
+              ) : view === 'working' ? (
+                <ResourceCreateWorkingView kind={kind} form={form} />
+              ) : view === 'result' && created ? (
+                <ResourceCreateResultView
                   kind={kind}
-                  form={form}
-                  generating={generating}
-                  isSubmitting={isSubmitting}
-                  onManual={() => {
-                    form.clearErrors('root')
-                    const { description, prompt } = form.getValues()
-                    if (kind === 'agent' && !prompt.trim() && description.trim()) {
-                      form.setValue('prompt', description.trim(), { shouldDirty: true })
-                    }
-                    setView('steps')
-                  }}
-                  onAuto={(generate) => void handleAutoCreate(generate)}
+                  created={created}
+                  onAdjust={() => closeThen(() => setEditTarget({ kind, id: created.id }))}
+                  onStart={() => closeThen(() => onStartConversation(created.id))}
                 />
-              </>
-            ) : (
-              <>
-                <div className="flex min-h-0 flex-1">
-                  {/* Step rail */}
-                  <ol className="w-48 shrink-0 space-y-1 border-border border-r-[0.5px] bg-background-subtle p-3">
-                    {steps.map((step, index) => {
-                      const active = index === stepIndex
-                      const done = index < stepIndex
-                      return (
-                        <li key={step.id}>
-                          <MenuItem
-                            icon={
-                              <span
-                                className={cn(
-                                  'flex size-5 shrink-0 items-center justify-center rounded-full font-medium text-[11px]',
-                                  active
-                                    ? 'bg-foreground text-background'
-                                    : done
-                                      ? 'bg-foreground/10 text-foreground'
-                                      : 'border border-border text-muted-foreground'
-                                )}>
-                                {index + 1}
-                              </span>
-                            }
-                            label={step.label}
-                            active={active}
-                            disabled={!done}
-                            onClick={() => done && setStepIndex(index)}
-                            aria-current={active ? 'step' : undefined}
-                            className={cn(resourceDialogRailItemClassName, 'disabled:opacity-100')}
-                          />
-                        </li>
-                      )
-                    })}
-                  </ol>
+              ) : (
+                <>
+                  <div className="flex min-h-0 flex-1">
+                    {/* Step rail */}
+                    <ol className="w-48 shrink-0 space-y-1 border-border border-r-[0.5px] bg-background-subtle p-3">
+                      {steps.map((step, index) => {
+                        const active = index === stepIndex
+                        const done = index < stepIndex
+                        return (
+                          <li key={step.id}>
+                            <MenuItem
+                              icon={
+                                <span
+                                  className={cn(
+                                    'flex size-5 shrink-0 items-center justify-center rounded-full font-medium text-[11px]',
+                                    active
+                                      ? 'bg-foreground text-background'
+                                      : done
+                                        ? 'bg-foreground/10 text-foreground'
+                                        : 'border border-border text-muted-foreground'
+                                  )}>
+                                  {index + 1}
+                                </span>
+                              }
+                              label={step.label}
+                              active={active}
+                              disabled={!done}
+                              onClick={() => done && setStepIndex(index)}
+                              aria-current={active ? 'step' : undefined}
+                              className={cn(resourceDialogRailItemClassName, 'disabled:opacity-100')}
+                            />
+                          </li>
+                        )
+                      })}
+                    </ol>
 
-                  {/* Active step */}
-                  <ScrollArea
-                    contentProps={{ className: cn('px-6 py-5', currentStep.id === 'system-prompt' && 'h-full') }}
-                    className="min-w-0 flex-1">
-                    {currentStep.id === 'basic' ? (
-                      <BasicInfoStep
-                        form={form}
-                        portalContainer={dialogContentElement}
-                        fallbackAvatar={getResourceCreateDefaultAvatar(kind)}
-                        modelFilter={activeModelFilter}
-                        showAgentFields={kind === 'agent'}
-                        onSettingsNavigate={closeBeforeAction}
-                      />
-                    ) : null}
-                    {currentStep.id === 'system-prompt' ? (
-                      <SystemPromptStep form={form} portalContainer={dialogContentElement} />
-                    ) : null}
-                    {currentStep.id === 'knowledge' ? (
-                      <KnowledgeStep form={form} isSubmitting={submitting} portalContainer={dialogContentElement} />
-                    ) : null}
-                    {currentStep.id === 'capability' ? (
-                      <CapabilityStep form={form} portalContainer={dialogContentElement} />
-                    ) : null}
-                  </ScrollArea>
-                </div>
+                    {/* Active step */}
+                    <ScrollArea
+                      contentProps={{ className: cn('px-6 py-5', currentStep.id === 'system-prompt' && 'h-full') }}
+                      className="min-w-0 flex-1">
+                      {currentStep.id === 'basic' ? (
+                        <BasicInfoStep
+                          form={form}
+                          portalContainer={dialogContentElement}
+                          fallbackAvatar={getResourceCreateDefaultAvatar(kind)}
+                          modelFilter={activeModelFilter}
+                          showAgentFields={kind === 'agent'}
+                          onSettingsNavigate={closeBeforeAction}
+                        />
+                      ) : null}
+                      {currentStep.id === 'system-prompt' ? (
+                        <SystemPromptStep form={form} portalContainer={dialogContentElement} />
+                      ) : null}
+                      {currentStep.id === 'knowledge' ? (
+                        <KnowledgeStep form={form} isSubmitting={submitting} portalContainer={dialogContentElement} />
+                      ) : null}
+                      {currentStep.id === 'capability' ? (
+                        <CapabilityStep form={form} portalContainer={dialogContentElement} />
+                      ) : null}
+                    </ScrollArea>
+                  </div>
 
-                <WizardFooter
-                  form={form}
-                  stepIndex={stepIndex}
-                  isLast={isLast}
-                  isSubmitting={isSubmitting}
-                  onCancel={() => onOpenChange(false)}
-                  onBack={goBack}
-                  onNext={goNext}
-                  onCreate={() => void handleCreate()}
-                />
-              </>
-            )}
-          </form>
-        </Form>
-      </DialogContent>
-    </Dialog>
+                  <WizardFooter
+                    form={form}
+                    stepIndex={stepIndex}
+                    isLast={isLast}
+                    isSubmitting={isSubmitting}
+                    onCancel={() => onOpenChange(false)}
+                    onBack={goBack}
+                    onNext={goNext}
+                    onCreate={() => void handleCreate()}
+                  />
+                </>
+              )}
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
+      {/* Outside the Dialog so it outlives the wizard closing. */}
+      {editTarget ? (
+        <Suspense fallback={null}>
+          <ResourceEditDialogHost target={editTarget} onOpenChange={(nextOpen) => !nextOpen && setEditTarget(null)} />
+        </Suspense>
+      ) : null}
+    </>
   )
 }
