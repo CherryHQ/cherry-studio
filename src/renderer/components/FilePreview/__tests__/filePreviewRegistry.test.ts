@@ -1,6 +1,8 @@
 import type { ComponentType } from 'react'
 import { describe, expect, it } from 'vitest'
 
+import { previewFormats } from '@cherrystudio/file-preview/react'
+
 import {
   canProduceSelectionReference,
   createFilePreviewRegistry,
@@ -71,6 +73,14 @@ describe('file preview registry', () => {
 
   it.each(['md', 'markdown', 'mdx'])('registers the Markdown plugin for .%s files', (extension) => {
     expect(resolveExtensionPlugin(`/tmp/readme.${extension}`, filePreviewRegistry)?.id).toBe('markdown')
+  })
+
+  it('routes every format the file-preview package declares', () => {
+    for (const format of previewFormats) {
+      for (const extension of format.extensions) {
+        expect(resolveExtensionPlugin(`/tmp/source.${extension}`, filePreviewRegistry)?.id).toBe(format.id)
+      }
+    }
   })
 
   it('does not route an unknown extension through the registry', () => {

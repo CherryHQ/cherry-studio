@@ -81,6 +81,7 @@ describe('file', () => {
       expect(getFileType('.ogg')).toBe(FILE_TYPE.AUDIO)
       expect(getFileType('.flac')).toBe(FILE_TYPE.AUDIO)
       expect(getFileType('.aac')).toBe(FILE_TYPE.AUDIO)
+      expect(getFileType('.m4a')).toBe(FILE_TYPE.AUDIO)
     })
 
     it('should return TEXT for text extensions', () => {
