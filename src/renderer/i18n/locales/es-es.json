@@ -834,6 +834,7 @@
   "chat.input.pasted_text_file_name": "Texto pegado.txt",
   "chat.input.pause": "Pausar",
   "chat.input.placeholder": "Escribe un mensaje. Escribe / para ver las herramientas y acciones, o @ para hacer referencia a temas.",
+  "chat.input.prefill.dont_ask_again": "No volver a preguntar",
   "chat.input.prefill.replace": "Reemplazar",
   "chat.input.prefill.replace_content": "El texto que ha escrito se reemplazará.",
   "chat.input.prefill.replace_title": "¿Reemplazar el borrador?",

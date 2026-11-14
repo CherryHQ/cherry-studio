@@ -834,6 +834,7 @@
   "chat.input.pasted_text_file_name": "text.txt lipit",
   "chat.input.pause": "Pauză",
   "chat.input.placeholder": "Scrie mesajul tău aici - @ pentru a selecta modelul, / pentru a include instrumente",
+  "chat.input.prefill.dont_ask_again": "Nu mai întreba",
   "chat.input.prefill.replace": "Înlocuiește",
   "chat.input.prefill.replace_content": "Textul pe care l-ați introdus va fi înlocuit.",
   "chat.input.prefill.replace_title": "Înlocuiți ciorna?",

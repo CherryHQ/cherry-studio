@@ -834,6 +834,7 @@
   "chat.input.pasted_text_file_name": "Texto colado.txt",
   "chat.input.pause": "Pausar",
   "chat.input.placeholder": "Escreva uma mensagem. Escreva / para ver ferramentas e ações e @ para referenciar tópicos.",
+  "chat.input.prefill.dont_ask_again": "Não perguntar novamente",
   "chat.input.prefill.replace": "Substituir",
   "chat.input.prefill.replace_content": "O texto que escreveu será substituído.",
   "chat.input.prefill.replace_title": "Substituir o rascunho?",

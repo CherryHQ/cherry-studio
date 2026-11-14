@@ -834,6 +834,7 @@
   "chat.input.pasted_text_file_name": "Επικολλημένο κείμενο.txt",
   "chat.input.pause": "Παύση",
   "chat.input.placeholder": "Πληκτρολογήστε ένα μήνυμα. Πληκτρολογήστε / για εργαλεία και ενέργειες ή @ για αναφορά σε θέματα.",
+  "chat.input.prefill.dont_ask_again": "Να μην ερωτηθώ ξανά",
   "chat.input.prefill.replace": "Αντικατάσταση",
   "chat.input.prefill.replace_content": "Το κείμενο που έχετε πληκτρολογήσει θα αντικατασταθεί.",
   "chat.input.prefill.replace_title": "Αντικατάσταση του προσχεδίου;",

@@ -834,6 +834,7 @@
   "chat.input.pasted_text_file_name": "貼り付けたテキスト.txt",
   "chat.input.pause": "一時停止",
   "chat.input.placeholder": "ここにメッセージを入力...",
+  "chat.input.prefill.dont_ask_again": "次回から表示しない",
   "chat.input.prefill.replace": "置き換える",
   "chat.input.prefill.replace_content": "入力中のテキストは置き換えられます。",
   "chat.input.prefill.replace_title": "下書きを置き換えますか？",
