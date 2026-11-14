@@ -6,6 +6,7 @@ import { ScrollArea } from '@cherrystudio/ui'
 import { Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, Tooltip } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { usePreference } from '@data/hooks/usePreference'
+import { preferenceService } from '@data/PreferenceService'
 import CodeViewer from '@renderer/components/CodeViewer'
 import { DoctorPopup } from '@renderer/components/doctor'
 import { DoctorAgentDialog } from '@renderer/components/doctor'
@@ -571,7 +572,9 @@ const ErrorDetailContent: React.FC<ErrorDetailContentInternalProps> = ({
     appUpdateCheckService.setUpdateNotice(null)
   }, [])
   const [availableVersion, setAvailableVersion] = useState<string | null>(null)
-  const [autoUpdateEnabled] = usePreference('app.dist.auto_update.enabled')
+  const [autoUpdatePreference] = usePreference('app.dist.auto_update.enabled')
+  // The hook reports the default (on) until the stored value loads; never query on that guess.
+  const autoUpdateEnabled = autoUpdatePreference && preferenceService.isCached('app.dist.auto_update.enabled')
   const [testPlan] = usePreference('app.dist.test_plan.enabled')
   const [testChannel] = usePreference('app.dist.test_plan.channel')
   const updateChannel = testPlan ? testChannel : UpgradeChannel.LATEST
