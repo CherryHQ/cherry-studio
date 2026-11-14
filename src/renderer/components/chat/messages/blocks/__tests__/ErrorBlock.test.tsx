@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, renderHook, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import React from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -12,7 +12,8 @@ const mocks = vi.hoisted(() => ({
   actions: {} as MessageListActions,
   i18nKeys: new Set<string>(),
   language: 'en',
-  translations: new Map<string, string>()
+  translations: new Map<string, string>(),
+  showErrorDetailPopup: vi.fn()
 }))
 
 const GO_TO_SETTINGS_LABEL = enUS['error.diagnosis.go_to_settings']
@@ -67,6 +68,11 @@ vi.mock('../../MessageListProvider', () => ({
   useMessageListActions: () => mocks.actions
 }))
 
+vi.mock('@renderer/components/ErrorDetailModal', () => ({
+  showErrorDetailPopup: mocks.showErrorDetailPopup
+}))
+
+import { useMessageErrorActions } from '../../hooks/useMessageErrorActions'
 import ErrorBlock from '../ErrorBlock'
 
 const message: MessageListItem = {
@@ -711,7 +717,7 @@ required service tier.`
     expect(diagnoseMessageError).toHaveBeenLastCalledWith(expect.objectContaining({ language: 'zh-CN' }))
   })
 
-  it('sends the visible summary to the detail and drops it when the fault identity changes', async () => {
+  it('drops a visible translation when the fault identity changes', async () => {
     // A non-English UI, so the English provider text is sent for translation.
     mocks.language = 'de-DE'
     const resolvers: Array<(value: string) => void> = []
@@ -721,8 +727,7 @@ required service tier.`
           resolvers.push(resolve)
         })
     )
-    const openErrorDetail = vi.fn()
-    mocks.actions = { diagnoseMessageError, openErrorDetail }
+    mocks.actions = { diagnoseMessageError }
     const error = {
       name: 'UnknownError',
       message: 'unmapped provider failure',
@@ -733,12 +738,6 @@ required service tier.`
     await waitFor(() => expect(resolvers).toHaveLength(1))
     resolvers[0]?.('Visible conclusion.')
     expect(await screen.findByText('Visible conclusion.')).toBeInTheDocument()
-    fireEvent.click(screen.getByText('common.detail'))
-    expect(openErrorDetail).toHaveBeenCalledWith(
-      expect.objectContaining({ aiSummary: 'Visible conclusion.', message, partId: 'message-1-part-0' })
-    )
-    expect(openErrorDetail.mock.calls[0]?.[0]).not.toHaveProperty('modelId')
-    expect(openErrorDetail.mock.calls[0]?.[0]).not.toHaveProperty('runId')
 
     rerender(
       <ErrorBlock
@@ -783,12 +782,28 @@ required service tier.`
     expect(screen.queryByText('Current language summary.')).not.toBeInTheDocument()
   })
 
+  it('never attaches a visible translation to the detail as an AI diagnosis', async () => {
+    mocks.language = 'de-DE'
+    const { result } = renderHook(() => useMessageErrorActions({ getDoctorSubject: () => undefined }))
+    mocks.actions = {
+      ...result.current,
+      diagnoseMessageError: vi.fn().mockResolvedValue('Übersetzter Fehler.')
+    }
+    const error = { name: 'UnknownError', message: 'unmapped provider failure', stack: null }
+    render(<ErrorBlock partId="message-1-part-0" error={error} message={message} />)
+    expect(await screen.findByText('Übersetzter Fehler.')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByText('common.detail'))
+
+    await waitFor(() => expect(mocks.showErrorDetailPopup).toHaveBeenCalled())
+    expect(mocks.showErrorDetailPopup.mock.calls[0]?.[0]).not.toHaveProperty('aiDiagnosis')
+  })
+
   it('hides a stored summary when the same text becomes classifiable', async () => {
     // A non-English UI, so the English provider text is sent for translation.
     mocks.language = 'de-DE'
     const diagnoseMessageError = vi.fn().mockResolvedValue('Visible conclusion.')
-    const openErrorDetail = vi.fn()
-    mocks.actions = { diagnoseMessageError, openErrorDetail }
+    mocks.actions = { diagnoseMessageError }
     mocks.translations.set('error.notice.auth.title', 'Not signed in')
     const error = {
       name: 'UnknownError',
@@ -801,8 +816,6 @@ required service tier.`
     rerender(<ErrorBlock partId="message-1-part-0" error={{ ...error, statusCode: 401 }} message={message} />)
     expect(await screen.findByText('Not signed in')).toBeInTheDocument()
     expect(screen.queryByText('Visible conclusion.')).not.toBeInTheDocument()
-    fireEvent.click(screen.getByText('common.detail'))
-    expect(openErrorDetail.mock.calls.at(-1)?.[0]).not.toHaveProperty('aiSummary')
 
     mocks.i18nKeys.add('error.tool_call_limit_reached')
     rerender(
@@ -814,8 +827,6 @@ required service tier.`
     )
     expect(screen.getByText('error.tool_call_limit_reached')).toBeInTheDocument()
     expect(screen.queryByText('Visible conclusion.')).not.toBeInTheDocument()
-    fireEvent.click(screen.getByText('common.detail'))
-    expect(openErrorDetail.mock.calls.at(-1)?.[0]).not.toHaveProperty('aiSummary')
   })
 
   it('offers network settings for a client-certificate authentication failure', async () => {

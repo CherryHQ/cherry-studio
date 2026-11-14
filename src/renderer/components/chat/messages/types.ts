@@ -200,8 +200,6 @@ export interface MessageErrorDetailInput {
   partId: string
   error?: SerializedError
   localizedErrorMessage?: string
-  /** Visible classify summary. This is not the localized error text. */
-  aiSummary?: string
 }
 
 export interface OpenAgentToolFlowInput {

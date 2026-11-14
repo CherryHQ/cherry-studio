@@ -160,7 +160,7 @@ const MessageErrorInfo: React.FC<{
     !!error &&
     !!diagnoseMessageError
   const summarySettled = summaryEligible && storedSummary?.fault === summaryFault
-  const aiSummary = summarySettled ? storedSummary.text : ''
+  const translation = summarySettled ? storedSummary.text : ''
 
   useEffect(() => {
     const currentError = errorRef.current
@@ -226,7 +226,7 @@ const MessageErrorInfo: React.FC<{
         provider: providerLabelKey ? t(providerLabelKey) : t('error.notice.provider_fallback')
       })
     }
-    if (aiSummary) return aiSummary
+    if (translation) return translation
     if (summaryEligible && !summarySettled) return t('error.notice.unknown.summarizing')
     const original = providerErrorText(error)
     return original && !isLikelyInLanguage(original, i18n.language)
@@ -254,8 +254,7 @@ const MessageErrorInfo: React.FC<{
       message,
       error,
       partId,
-      localizedErrorMessage: title,
-      ...(aiSummary ? { aiSummary } : {})
+      localizedErrorMessage: title
     })
   }
 

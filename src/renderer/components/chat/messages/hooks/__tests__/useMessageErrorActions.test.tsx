@@ -62,41 +62,6 @@ describe('useMessageErrorActions', () => {
     expect(mocks.errorDetailModuleEvaluated).toHaveBeenCalledOnce()
   })
 
-  it('projects a visible summary as an error-summary for that fault without inventing a run', async () => {
-    const message = {
-      id: 'message-1',
-      role: 'assistant',
-      topicId: 'topic-1',
-      createdAt: '2026-01-01T00:00:00.000Z',
-      status: 'error'
-    } satisfies MessageListItem
-    const error = { message: 'provider unavailable', name: 'ProviderError', stack: '' }
-    const { result } = renderHook(() => useMessageErrorActions({ getDoctorSubject: () => undefined }))
-
-    await result.current.openErrorDetail?.({ message, partId: 'part-1', error, aiSummary: 'Visible conclusion.' })
-
-    const handoff = mocks.showErrorDetailPopup.mock.calls[0]?.[0] as {
-      aiDiagnosis?: {
-        errorId?: string
-        modelId?: string
-        runId?: string
-        source?: string
-        status?: string
-        text?: string
-      }
-      errorContext: { id: string }
-    }
-    expect(handoff.aiDiagnosis).toEqual({
-      source: 'error-summary',
-      status: 'completed',
-      text: 'Visible conclusion.',
-      errorId: handoff.errorContext.id
-    })
-    expect(handoff.aiDiagnosis).not.toHaveProperty('modelId')
-    expect(handoff.aiDiagnosis).not.toHaveProperty('runId')
-    expect(handoff.aiDiagnosis).not.toHaveProperty('reportRunId')
-  })
-
   it('keeps the Agent identity when its runtime error has no model fields', async () => {
     const message = {
       id: 'message-1',

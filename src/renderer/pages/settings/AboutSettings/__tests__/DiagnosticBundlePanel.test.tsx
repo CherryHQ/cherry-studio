@@ -398,12 +398,12 @@ describe('DiagnosticBundlePanel', () => {
 
   it('discloses the included AI result and retries export with the first snapshot', async () => {
     const first: DiagnosticAiDiagnosis = {
-      source: 'error-summary',
+      source: 'doctor-agent',
       status: 'completed',
       text: 'First conclusion.'
     }
     const replacement: DiagnosticAiDiagnosis = {
-      source: 'error-summary',
+      source: 'doctor-agent',
       status: 'completed',
       text: 'Replacement conclusion.'
     }

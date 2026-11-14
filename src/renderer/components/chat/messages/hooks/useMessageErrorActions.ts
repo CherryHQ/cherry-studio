@@ -9,7 +9,6 @@ import { isAgentSessionTopic } from '@renderer/utils/agentSession'
 import { translateErrorMessage } from '@renderer/utils/errorLanguage'
 import type { AppErrorContext } from '@shared/types/appError'
 import type { DoctorSubjectRef } from '@shared/types/doctor'
-import { projectDiagnosticAiDiagnosis } from '@shared/utils/diagnosticAi'
 
 import type { MessageListItem } from '../types'
 import { getMessageListItemModel } from '../utils/messageListItem'
@@ -109,14 +108,6 @@ export function useMessageErrorActions(options: MessageErrorActionOptions): Mess
           params: { partId: input.partId, topicId: input.message.topicId }
         })
       )
-      const legacyDiagnosis = input.aiSummary
-        ? projectDiagnosticAiDiagnosis({
-            source: 'error-summary',
-            status: 'completed',
-            text: input.aiSummary,
-            errorId: errorContext.id
-          })
-        : undefined
       try {
         await showErrorDetailPopup({
           error: input.error,
@@ -125,7 +116,6 @@ export function useMessageErrorActions(options: MessageErrorActionOptions): Mess
           incident: { topicId: input.message.topicId, messageId: input.message.id, errorId: errorContext.id },
           diagnosisContext: { providerId: model?.provider, modelId: model?.id },
           localizedErrorMessage: input.localizedErrorMessage,
-          ...(legacyDiagnosis ? { aiDiagnosis: legacyDiagnosis } : {}),
           diagnosticReport
         })
       } catch (error) {
