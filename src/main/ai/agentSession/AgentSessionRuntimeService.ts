@@ -12,6 +12,7 @@ import { agentSessionForkService } from '@data/services/AgentSessionForkService'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { aiUsageRecordService, type SourceSnapshot } from '@data/services/AiUsageRecordService'
+import { modelService } from '@data/services/ModelService'
 import { getRetiredAgentSessionMigration } from '@data/services/retiredAgentRuntimeMigration'
 import { loggerService } from '@logger'
 import { AgentSessionForkOperations, getEditFailure, resolveForkBoundary } from '@main/ai/agentSession/fork'
@@ -64,6 +65,7 @@ import type { AgentSessionMessageEntity } from '@shared/data/types/agent'
 import type { CherryMessagePart, CherryUIMessage, MessageSnapshot } from '@shared/data/types/message'
 import {
   createUniqueModelId,
+  isUniqueModelId,
   parseUniqueModelId,
   UniqueModelIdSchema,
   type ServiceTierSelection,
@@ -276,6 +278,8 @@ type AgentSessionConnectionTarget = AgentSessionRuntimeConnectionTarget & {
   reasoningEffort: ReasoningEffortOption
   serviceTier: ServiceTierSelection
   fastMode: boolean
+  /** The target turn's dispatch mode: headless turns resolve against the agent default. */
+  headless?: boolean
 }
 
 type RuntimeState = AgentSessionRuntimeState<AgentSessionTurn, PendingAgentSessionTurn>
@@ -880,6 +884,20 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   /**
+   * Best-effort read of a session's model override for runtime bookkeeping.
+   * Returns null when the session is gone (callers keep prior behavior) and
+   * never throws: entry bookkeeping must not fail on a stale entry.
+   */
+  private readSessionModelOverride(sessionId: string): UniqueModelId | null {
+    try {
+      const model = agentSessionService.getById(sessionId).model ?? null
+      return model && isUniqueModelId(model) ? model : null
+    } catch {
+      return null
+    }
+  }
+
+  /**
    * Open the session's runtime connection ahead of the first turn (on session open) so the driver's
    * slash-command catalog (`query.supportedCommands()`) is read into the shared cache before the user
    * types — the SDK warm-query handle can't expose commands without a live connection. Best-effort and
@@ -905,7 +923,10 @@ export class AgentSessionRuntimeService extends BaseService {
       const session = agentSessionService.getById(sessionId)
       if (!session?.agentId) return
       const agent = agentService.getAgent(session.agentId)
-      if (!agent?.model) return
+      if (!agent) return
+      // Prime on the effective model so a session override doesn't force a rebuild on first turn.
+      const effectiveModel = session.model ?? agent.model
+      if (!effectiveModel) return
       if (agent.type === 'claude-code' && application.get('ClaudeCodeBinaryService').getStatus().phase !== 'ready')
         return
       if (!runtimeDriverRegistry.getAgentSessionDriver(agent.type)) return
@@ -930,7 +951,7 @@ export class AgentSessionRuntimeService extends BaseService {
         sessionTraceId,
         agentId: session.agentId,
         agentType: agent.type,
-        modelId: agent.model,
+        modelId: effectiveModel,
         runtimeState: createAgentSessionRuntimeState()
       }
       this.entries.set(sessionId, entry)
@@ -967,16 +988,19 @@ export class AgentSessionRuntimeService extends BaseService {
     for (const entry of this.entries.values()) {
       if (entry.agentId !== agentId) continue
 
-      // A cleared model (`PATCH { model: null }`) is unroutable, not stale — fully invalidate.
-      if (modelEdited && !agent.model) {
+      // A cleared model (`PATCH { model: null }`) is unroutable only when no
+      // session override remains — a session with its own model stays routable.
+      const effectiveModel = this.readSessionModelOverride(entry.sessionId) ?? agent.model ?? null
+      if (modelEdited && !effectiveModel) {
         this.invalidateModelClearedEntry(entry)
         continue
       }
 
       // Bookkeeping: fresh turns are stamped with (and steers gated on) the entry's latest model. A
-      // live turn keeps its captured `turn.modelId` regardless.
-      if (agent.model && entry.modelId !== agent.model) {
-        entry.modelId = agent.model
+      // live turn keeps its captured `turn.modelId` regardless. A per-session override wins over
+      // the agent default so an agent edit can't clobber a session that pinned its own model.
+      if (effectiveModel && entry.modelId !== effectiveModel) {
+        entry.modelId = effectiveModel
         this.invalidateContextUsage(entry)
       }
       reconciles.push(this.reconcileEntryConnection(entry, agent))
@@ -1140,12 +1164,15 @@ export class AgentSessionRuntimeService extends BaseService {
     const fastMode = opts.fastMode === true
 
     const turn = this.currentTurn(entry)
-    // Open normal turn + a backend that can steer → inject into the running turn (claude's PreToolUse steer
-    // hook): the steer is folded into the current turn — no new turn, no queue entry. If the turn
-    // ends before it's injected, the connection emits `steer-undelivered` and we queue it below.
-    // The gate compares the live turn's frozen model/reasoning/Fast/knowledge config with the incoming
-    // message: a changed effective connection scope must queue as the NEXT turn instead of being
-    // folded into a query already running with different tools.
+    // Refresh before steering so a changed session model queues a new turn.
+    // Headless inputs continue to use the Agent default.
+    const latestEffectiveModel =
+      (headless ? null : this.readSessionModelOverride(sessionId)) ??
+      agentService.getAgent(entry.agentId)?.model ??
+      entry.modelId
+    if (latestEffectiveModel !== entry.modelId) entry.modelId = latestEffectiveModel
+    // Submit steer natively into the open turn; `steer-undelivered` queues it if delivery fails.
+    // A changed model/reasoning/service-tier/Fast/knowledge scope must queue as the next turn.
     const configuredKnowledgeBaseIds = agentService.getAgent(entry.agentId)?.knowledgeBaseIds
     const canRedirectOnCurrentConfig =
       turn?.modelId === entry.modelId &&
@@ -1944,6 +1971,7 @@ export class AgentSessionRuntimeService extends BaseService {
           knowledgeBaseIds: turn.knowledgeBaseIds,
           channelContext: turn.channelContext,
           fastMode: turn.fastMode,
+          headless: turn.headless === true,
           trustedNotifyChannels: turn.trustedNotifyChannels
         }
       : {
@@ -1966,6 +1994,7 @@ export class AgentSessionRuntimeService extends BaseService {
       current.serviceTier === target.serviceTier &&
       current.fastMode === target.fastMode &&
       current.channelContext === target.channelContext &&
+      (current.headless === true) === (target.headless === true) &&
       knowledgeScopeEquals(
         resolveKnowledgeBaseScope(configuredKnowledgeBaseIds, current.knowledgeBaseIds),
         resolveKnowledgeBaseScope(configuredKnowledgeBaseIds, target.knowledgeBaseIds)
@@ -2124,6 +2153,7 @@ export class AgentSessionRuntimeService extends BaseService {
       knowledgeBaseIds: target.knowledgeBaseIds,
       channelContext: target.channelContext,
       fastMode: target.fastMode,
+      headless: target.headless,
       resumeToken: entry.lastResumeToken,
       trace: this.sessionTraceContext(entry, target.modelId),
       nativeSessionId: agentSessionMessageService.getNativeSessionId(entry.sessionId, entry.branchHead),
@@ -3145,6 +3175,18 @@ export class AgentSessionRuntimeService extends BaseService {
     const pending = entry.runtimeState.queue[0]
     if (!pending) return
     const liveAgent = agentService.getAgent(entry.agentId)
+    const sessionOverride = pending.headless ? null : this.readSessionModelOverride(entry.sessionId)
+    const effectiveModel = sessionOverride ?? liveAgent?.model ?? null
+    if (effectiveModel && effectiveModel !== entry.modelId) {
+      entry.modelId = effectiveModel
+      this.invalidateContextUsage(entry)
+    }
+    const effectiveModelName =
+      sessionOverride && sessionOverride !== liveAgent?.model
+        ? (modelService
+            .getNamesByUniqueIdsTx(application.get('DbService').getDb(), [sessionOverride])
+            .get(sessionOverride) ?? parseUniqueModelId(sessionOverride).modelId)
+        : liveAgent?.modelName
     const turn = createSessionTurn({
       taskIds: [pending.message.id],
       userMessage: pending.message,
@@ -3154,7 +3196,7 @@ export class AgentSessionRuntimeService extends BaseService {
       messageSnapshot: reconcileSnapshotModel(
         pending.messageSnapshot ?? entry.messageSnapshot,
         entry.modelId,
-        liveAgent?.modelName
+        effectiveModelName
       ),
       reasoningEffort: pending.reasoningEffort,
       serviceTier: pending.serviceTier,
@@ -3166,7 +3208,7 @@ export class AgentSessionRuntimeService extends BaseService {
     })
     this.applyRuntimeStateEvent(entry, { type: 'dequeue-turn' })
     this.applyRuntimeStateEvent(entry, { type: 'begin-turn', turn, reserved: true })
-    if (!liveAgent?.model) {
+    if (!effectiveModel) {
       this.applyRuntimeStateEvent(entry, { type: 'clear-queue' })
       this.applyRuntimeStateEvent(entry, {
         type: 'reply-delivery-failed',

@@ -195,6 +195,18 @@ describe('buildSystemPrompt — Agent System Prompt authority', () => {
     expect(text).not.toContain('{{model_name}}')
   })
 
+  it('prefers the effective turn model name over the parent agent default for {{model_name}}', async () => {
+    mockReplacePromptVariables.mockResolvedValueOnce('Use Claude Opus.')
+    const agent = makeAgent({
+      instructions: 'Use {{model_name}}.',
+      modelName: 'Claude Sonnet 4.5'
+    })
+
+    await buildSystemPrompt(agent, '/tmp/cwd', undefined, [], [], undefined, undefined, 'Claude Opus')
+
+    expect(mockReplacePromptVariables).toHaveBeenCalledWith('Use {{model_name}}.', 'Claude Opus')
+  })
+
   it('preserves agent instructions, workspace instructions, and persona as distinct sources', async () => {
     mockBuildPrompt.mockResolvedValueOnce({
       base: { kind: 'custom', content: 'WORKSPACE_ROLE: You are the workspace reviewer.' },
