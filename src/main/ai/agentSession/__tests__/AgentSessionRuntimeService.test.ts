@@ -2887,15 +2887,12 @@ describe('AgentSessionRuntimeService', () => {
       expect(approvalRequestedEvents).toEqual([])
     })
 
-    it('keeps an in-turn approval on the live assistant stream', () => {
+    // Catches child approvals reaching the root stream without the tool input needed to render a prompt.
+    it('includes an unprojected child tool in its in-turn approval stream', async () => {
       const service = new AgentSessionRuntimeService()
-      const approvalRequestedEvents: unknown[] = []
-      service.onApprovalRequested((event) => approvalRequestedEvents.push(event))
-      service.beginTurn(baseTurnInput)
+      const handle = service.beginTurn(baseTurnInput)
       const entry = getEntry(service)
-      const enqueue = vi.fn()
-      entry.currentTurn.controller = { enqueue } as never
-      entry.runtimeState.execution.reply.delivery = { kind: 'open' }
+      entry.runtimeState.execution.reply.admission = 'admitted'
 
       ;(service as any).handleRuntimeEvent(entry, {
         type: 'tool-approval-request',
@@ -2908,13 +2905,24 @@ describe('AgentSessionRuntimeService', () => {
         }
       })
 
-      expect(enqueue).toHaveBeenCalledWith({
-        type: 'tool-approval-request',
-        approvalId: 'approval-live',
-        toolCallId: 'tool-call-live'
+      const reader = openChunkStream(service, {
+        sessionId: 'session-1',
+        turnId: handle.turnId,
+        signal: new AbortController().signal
+      }).getReader()
+      await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' } })
+      await expect(reader.read()).resolves.toMatchObject({
+        value: {
+          type: 'tool-input-available',
+          toolName: 'Bash',
+          toolCallId: 'tool-call-live',
+          input: { command: 'pwd' }
+        }
       })
-      expect(mocks.saveMessage).not.toHaveBeenCalledWith(expect.anything(), { publishDataChange: true })
-      expect(approvalRequestedEvents).toEqual([])
+      await expect(reader.read()).resolves.toMatchObject({
+        value: { type: 'tool-approval-request', approvalId: 'approval-live', toolCallId: 'tool-call-live' }
+      })
+      await service.closeSession('session-1')
     })
 
     it('retains the tool input when an approval arrives before its message projection', () => {
@@ -2925,7 +2933,7 @@ describe('AgentSessionRuntimeService', () => {
       const control = vi.fn()
       const parts = vi.fn(() => undefined)
       entry.currentTurn.controller = { enqueue } as never
-      entry.currentTurn.projection = { control, parts } as never
+      entry.currentTurn.projection = { control, parts, toolCallMessageId: () => 'assistant-1' } as never
       entry.runtimeState.execution.reply.delivery = { kind: 'open' }
 
       ;(service as any).handleRuntimeEvent(entry, {

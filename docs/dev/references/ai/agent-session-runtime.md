@@ -968,6 +968,12 @@ parts. Environment facts (disabled tools, protected paths, delegation attendance
 and shell classification) come from `piApprovalFacts.ts`; shared behavior decides
 whether to run, ask or block. No new approval table is required.
 
+Pi and Pi Durable child threads use the root's live permission mode, interaction
+state and tool restrictions. Delegation does not grant Full Access. A child call
+that needs approval waits for the root session's responder, or is blocked when
+nobody can respond. Stream approvals include the tool input when the call has no
+part in the root reply, so its approval remains visible in the composer.
+
 Runtime content uses whole native SDK messages. Pi and Claude decode deltas once at
 the adapter source; Durable materializes committed native view revisions directly.
 Tool results and preliminary progress update the originating tool part, while activity
@@ -1057,7 +1063,7 @@ Every nested call emits its own tool events and passes Cherry's approval gate,
 including disabled-tool, SQLite, global-install approval, direct-mise mutation, and
 permission-mode policies. Global-install decisions use the root session's effective
 permission mode, including for child sessions. The script itself needs no separate
-approval because all outward effects pass through those tool calls.
+approval because its file and shell operations pass through those tool calls.
 
 Pi and Pi Durable project nested calls as ordinary tool parts with native call and
 parent identities. Native session storage retains the executed arguments, terminal

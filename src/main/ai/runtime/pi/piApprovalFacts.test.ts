@@ -112,7 +112,7 @@ function buildGate(
     const interactions = await createPiInteractionPorts({
       input: { sessionId: 's1', agentId: 'agent', modelId: 'test::model' },
       approval: context,
-      toolCallId: async (call) => calls.get(call.key)!,
+      toolCallIdentity: async (call) => ({ toolCallId: calls.get(call.key)! }),
       emit: (event) => {
         if (event.type === 'tool-approval-request') emitted.push(event)
       }
