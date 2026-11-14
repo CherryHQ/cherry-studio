@@ -103,6 +103,7 @@ beforeEach(() => {
   mocks.saveMessage.mockImplementation(({ message }: any) => ({ ...message, id: message.id ?? 'receive-only-row' }))
   mocks.getSessionMessage.mockReturnValue({ id: 'assistant-1', role: 'assistant', data: { parts: [] } })
   mocks.getLastRuntimeResumeToken.mockReturnValue(null)
+  mocks.getSessionById.mockReturnValue({ id: baseTurnInput.sessionId, agentId: baseTurnInput.agentId })
   mocks.findCrashOrphanedAssistantMessages.mockReturnValue([])
   mocks.ensureTraceId.mockReturnValue('b'.repeat(32))
   mocks.getAgent.mockReturnValue({ id: 'agent-1', type: 'test-runtime', model: baseTurnInput.modelId })
