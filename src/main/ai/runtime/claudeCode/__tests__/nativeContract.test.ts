@@ -701,8 +701,8 @@ it('compacts through native commands without deleting the retained conversation'
   }
 })
 
-it.each(['retry', 'compaction'] as const)(
-  'keeps native continuation after forking history with a missing %s reference',
+it.each(['retry', 'compaction', 'opaque metadata', 'preserved context'] as const)(
+  'keeps native continuation through a fork and historical refork with %s',
   async (kind) => {
     const probe = await nativeProbe()
     try {
@@ -712,7 +712,7 @@ it.each(['retry', 'compaction'] as const)(
       first.reply.finish()
       const result = await probe.event((event) => event.type === 'result' && event.user_message_uuid === firstId)
       if (result.type !== 'result') throw new Error('Missing original session')
-      if (kind === 'compaction') {
+      if (kind !== 'retry') {
         probe.send('/compact Keep the folder decision')
         const compact = await probe.request()
         compact.reply.block({ type: 'text', text: '<summary>The blue folder is selected.</summary>' })
@@ -746,7 +746,7 @@ it.each(['retry', 'compaction'] as const)(
         .map((line) => JSON.parse(line))
       const end = entries.findIndex((entry) => entry.uuid === boundary.uuid)
       expect(end).toBeGreaterThan(0)
-      if (kind !== 'compaction') {
+      if (kind === 'retry') {
         const retryUuid = randomUUID()
         entries[end].parentUuid = retryUuid
         entries.splice(end, 0, {
@@ -759,8 +759,27 @@ it.each(['retry', 'compaction'] as const)(
         })
       } else {
         const compact = entries.find((entry) => entry.type === 'system' && entry.subtype === 'compact_boundary')
-        expect(compact).toBeDefined()
-        compact!.logicalParentUuid = randomUUID()
+        if (!compact) throw new Error('Missing compact boundary')
+        compact.logicalParentUuid = randomUUID()
+        const compactMetadata = compact.compactMetadata
+        if (!compactMetadata || typeof compactMetadata !== 'object') throw new Error('Missing compact metadata')
+        if (kind === 'opaque metadata') {
+          const progressUuid = randomUUID()
+          entries.splice(end, 0, { type: 'progress', uuid: progressUuid, parentUuid: selectedId })
+          compact.compactMetadata = {
+            ...compactMetadata,
+            annotation: { [firstId]: [firstId, { value: progressUuid }] }
+          }
+        }
+        if (kind === 'preserved context') {
+          const firstAnswer = probe.events.find((event) => event.type === 'assistant')
+          const summary = entries.find((entry) => entry.isCompactSummary)
+          if (firstAnswer?.type !== 'assistant' || !summary) throw new Error('Missing preserved context')
+          compact.compactMetadata = {
+            ...compactMetadata,
+            preservedSegment: { headUuid: firstId, tailUuid: firstAnswer.uuid, anchorUuid: summary.uuid }
+          }
+        }
       }
       const source = entries.map((entry) => JSON.stringify(entry)).join('\n') + '\n'
       await writeFile(sourceFile, source)
@@ -789,6 +808,9 @@ it.each(['retry', 'compaction'] as const)(
       const originalInput = probe.send('Continue using the selected folder')
       const original = await probe.request()
       expect(JSON.stringify(original.body.messages)).toContain('CONFIRMED_BLUE_FOLDER')
+      if (kind === 'preserved context') {
+        expect(JSON.stringify(original.body.messages)).toContain('Keep the decision: use the blue folder.')
+      }
       original.reply.block({ type: 'text', text: 'SOURCE_ONLY_LATER_REPLY' })
       original.reply.finish()
       await probe.event((event) => event.type === 'result' && event.user_message_uuid === originalInput)
@@ -801,6 +823,29 @@ it.each(['retry', 'compaction'] as const)(
       child.reply.finish()
       expect(
         await probe.event((event) => event.type === 'result' && event.user_message_uuid === childInput)
+      ).toMatchObject({ is_error: false })
+
+      const refork = await forkClaudeSession({
+        sourceSessionId: 'child',
+        targetSessionId: 'grandchild',
+        checkpoint: fork.checkpoints[0],
+        checkpoints: fork.checkpoints,
+        artifactDirectory: path.join(probe.directory, 'refork'),
+        targetCwd: probe.cwd,
+        signal: new AbortController().signal
+      })
+      for (const artifact of refork.publish) {
+        await mkdir(path.dirname(artifact.target), { recursive: true })
+        await copyFile(artifact.source, artifact.target)
+      }
+      await probe.restart(refork.resumeToken)
+      const grandchildInput = probe.send('Continue using the selected folder')
+      const grandchild = await probe.request()
+      expect(grandchild.body.messages).toEqual(original.body.messages)
+      grandchild.reply.block({ type: 'text', text: 'Grandchild continued from the historical checkpoint.' })
+      grandchild.reply.finish()
+      expect(
+        await probe.event((event) => event.type === 'result' && event.user_message_uuid === grandchildInput)
       ).toMatchObject({ is_error: false })
     } finally {
       await probe.close()

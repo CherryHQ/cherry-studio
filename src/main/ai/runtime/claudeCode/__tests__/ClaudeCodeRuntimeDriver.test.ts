@@ -289,6 +289,18 @@ describe('Claude native forks', () => {
       },
       { name: 'verbatim metadata', compactMetadata: { trigger: 'manual', preTokens: 1000 } },
       {
+        name: 'opaque UUID annotation',
+        compactMetadata: { trigger: 'manual', preTokens: 1000, annotation: userUuid }
+      },
+      {
+        name: 'opaque annotation alongside preservedSegment',
+        compactMetadata: { trigger: 'manual', preTokens: 1000, preservedSegment, annotation: userUuid }
+      },
+      {
+        name: 'nested UUID annotation key',
+        compactMetadata: { trigger: 'manual', preTokens: 1000, annotation: { nested: { [userUuid]: 'retained' } } }
+      },
+      {
         name: 'missing logical parent with preserved context',
         compactMetadata: { trigger: 'auto', preTokens: 1000, preservedSegment },
         missingLogicalParent: true
@@ -380,7 +392,12 @@ describe('Claude native forks', () => {
 
     it('preserves loaded compacted context with a dropped progress record', async () => {
       const progressUuid = 'a17ef839-8a1d-4f13-99e8-e9636f123456'
-      const history = await writeCompactedHistory({ trigger: 'manual', preTokens: 1000, preservedSegment })
+      const history = await writeCompactedHistory({
+        trigger: 'manual',
+        preTokens: 1000,
+        preservedSegment,
+        annotation: progressUuid
+      })
       const entries = history
         .toString('utf8')
         .trim()
@@ -435,58 +452,41 @@ describe('Claude native forks', () => {
         'POST_COMPACT_PROMPT',
         'POST_COMPACT_REPLY'
       ])
-
-      await rm(input.artifactDirectory, { recursive: true })
-      await mkdir(input.artifactDirectory)
-      entries.find((entry) => entry.uuid === boundaryUuid).compactMetadata.unknownReference = progressUuid
-      const unresolvedSource = Buffer.from(entries.map((entry) => JSON.stringify(entry)).join('\n') + '\n')
-      await writeFile(file, unresolvedSource)
-      await expect(forkClaudeSession(input)).rejects.toMatchObject({ reason: 'unsupported_checkpoint' })
-      expect(await readFile(file)).toEqual(unresolvedSource)
-      expect(await readdir(input.artifactDirectory)).toEqual([])
     })
 
-    it('refuses unresolved source references in non-system compaction metadata before staging', async () => {
+    it('preserves context with opaque metadata on a non-system record', async () => {
       const history = await writeCompactedHistory({ trigger: 'manual', preTokens: 1000, preservedSegment })
       const entries = history
         .toString('utf8')
         .trim()
         .split('\n')
         .map((line) => JSON.parse(line))
-      entries[0].compactMetadata = { unknownReference: userUuid }
+      entries[0].compactMetadata = { annotation: userUuid }
       const source = Buffer.from(entries.map((entry) => JSON.stringify(entry)).join('\n') + '\n')
       await writeFile(file, source)
       const input = forkInput()
-      await mkdir(input.artifactDirectory)
-      await expect(forkClaudeSession(input)).rejects.toMatchObject({ reason: 'unsupported_checkpoint' })
-      expect(await readFile(file)).toEqual(source)
-      expect(await readdir(input.artifactDirectory)).toEqual([])
-    })
-
-    it.each([
-      {
-        name: 'unknown reference alone',
-        compactMetadata: { trigger: 'manual', preTokens: 1000, unknownReference: userUuid }
-      },
-      {
-        name: 'unknown reference alongside preservedSegment',
-        compactMetadata: { trigger: 'manual', preTokens: 1000, preservedSegment, unknownReference: userUuid }
-      },
-      {
-        name: 'nested UUID object key',
-        compactMetadata: {
-          trigger: 'manual',
-          preTokens: 1000,
-          unknownReference: { nested: { [userUuid]: 'retained' } }
+      const result = await forkClaudeSession(input)
+      const output = (await readFile(result.publish[0].source, 'utf8'))
+        .trim()
+        .split('\n')
+        .map((line) => JSON.parse(line))
+      const messages = await getSessionMessages(result.resumeToken, {
+        dir: directory,
+        sessionStore: {
+          load: async () => structuredClone(output),
+          append: async () => {
+            throw new Error('Read-only history')
+          }
         }
-      }
-    ])('refuses unresolved source references in $name before staging', async ({ compactMetadata }) => {
-      const source = await writeCompactedHistory(compactMetadata)
-      const input = forkInput()
-      await mkdir(input.artifactDirectory)
-      await expect(forkClaudeSession(input)).rejects.toMatchObject({ reason: 'unsupported_checkpoint' })
+      })
+      expect(messages.map((message) => message.message)).toEqual([
+        { role: 'user', content: 'COMPACT_SUMMARY secret=24250' },
+        { role: 'user', content: 'PRESERVED_USER' },
+        { role: 'assistant', content: [{ type: 'text', text: 'PRESERVED_REPLY' }] },
+        { role: 'user', content: 'POST_COMPACT_PROMPT' },
+        { role: 'assistant', content: [{ type: 'text', text: 'POST_COMPACT_REPLY' }] }
+      ])
       expect(await readFile(file)).toEqual(source)
-      expect(await readdir(input.artifactDirectory)).toEqual([])
     })
   })
 

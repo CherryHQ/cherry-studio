@@ -184,7 +184,8 @@ failure, cancellation, or timeout before the coordinator can clean up files.
 Adapters validate the returned native result before publication.
 
 Claude uses the SDK history reader to select context across retry and compaction
-records. A missing parent reference alone does not reject a fork. Before staging
+records. Compaction metadata is opaque to Cherry; the SDK owns its interpretation
+and UUID remapping. A missing parent reference alone does not reject a fork. Before staging
 the child, the worker reads both prefixes through the SDK and requires the same
 ordered messages, types and contents under the SDK's UUID mapping. The selected
 checkpoint must remain readable. A failed read or changed context is rejected;

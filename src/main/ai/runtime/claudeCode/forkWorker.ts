@@ -96,18 +96,6 @@ async function run(input: ClaudeForkWorkerInput): Promise<unknown> {
     })
   )
     throw new Error('unsupported_checkpoint')
-  // Verify the opaque compaction records survive SDK processing. Fail closed rather than
-  // silently resume with a different context if an SDK version drops required metadata.
-  for (const source of input.entries) {
-    if (!source.compactMetadata || !source.uuid) continue
-    const mapped = output.find((entry) => entry.uuid === mapping.get(source.uuid!))
-    if (!mapped || !isDeepStrictEqual(mapped.compactMetadata, normalizeCompactionMetadata(source, mapping))) {
-      throw new Error('unsupported_checkpoint')
-    }
-    // Some SDK releases copy preserved-segment UUIDs verbatim. Do not publish dangling
-    // compaction references, and do not allocate a second set of UUIDs to repair them.
-    if (containsSourceUuid(mapped.compactMetadata, sourceIds)) throw new Error('unsupported_checkpoint')
-  }
   const replacements = input.entries
     .filter((entry) => entry.type === 'content-replacement')
     .flatMap((entry) => (Array.isArray(entry.replacements) ? entry.replacements : []))
@@ -153,22 +141,6 @@ async function run(input: ClaudeForkWorkerInput): Promise<unknown> {
       }
     ]
   }
-}
-
-function normalizeCompactionMetadata(source: SessionStoreEntry, mapping: ReadonlyMap<string, string>): unknown {
-  function remap(value: unknown, isRoot = false): unknown {
-    if (typeof value === 'string') return mapping.get(value) ?? value
-    if (Array.isArray(value)) return value.map((item) => remap(item))
-    if (value && typeof value === 'object') {
-      return Object.fromEntries(
-        Object.entries(value)
-          .filter(([key]) => !(isRoot && source.type === 'system' && key === 'runningTurnSends'))
-          .map(([key, item]) => [mapping.get(key) ?? key, remap(item)])
-      )
-    }
-    return value
-  }
-  return remap(source.compactMetadata, true)
 }
 
 function containsSourceUuid(value: unknown, sourceIds: ReadonlySet<string>): boolean {
