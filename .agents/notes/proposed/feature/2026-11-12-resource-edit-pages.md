@@ -14,17 +14,19 @@ The design prototype (`bot-profile-cherry`) replaces the rail with a narrow page
 
 ### Paged shell
 
-The edit dialog becomes a narrow dialog with a page stack and a back button. The main page is the entry; "More settings" lists grouped cards; each capability opens a sub-page. Back from a sub-page returns to More settings, and back from More settings returns to the main page. The dialog keeps the existing autosave (500 ms debounce), the flush on close, and name validation. Avatars, channels, tasks, heartbeat tasks, and memory keep saving immediately through their existing IPC and DataApi calls.
+The edit dialog becomes a narrow dialog with a page stack and a back button. The dialog opens on the settings page, which carries the identity block above grouped cards; each capability opens a sub-page. Back from a sub-page returns to the settings page, which has no back button. The dialog keeps the existing autosave (500 ms debounce), the flush on close, and name validation. Avatars, channels, tasks, heartbeat tasks, and memory keep saving immediately through their existing IPC and DataApi calls.
 
-### Main page
+### Identity block
+
+At the top of the settings page:
 
 - A large centred avatar. Clicking it opens the existing avatar picker, which keeps image upload.
 - The name as large borderless text, and a one-line description below it. Both get a light background on hover and focus, and an empty name still shows the required-field message.
-- One row with the model as a chip and a "More settings ›" link.
+- The model as a chip below the description.
 
 The runtime row is removed. The plan and small model fields are removed; changing the model clears both, so they follow the main model.
 
-### More settings: Agent
+### Settings page: Agent
 
 Cards, each with rows that show the name on the left and the control or a summary on the right:
 
@@ -35,10 +37,10 @@ Cards, each with rows that show the name on the left and the control or a summar
 
 Counting rules: built-in tools count the runtime's tools after knowledge-tool gating and exclude browser control and computer use; skills count builtin skills as enabled; MCP excludes the browser server; scheduled tasks count only active tasks.
 
-### More settings: Assistant
+### Settings page: Assistant
 
 - **Capabilities.** Knowledge bases ›, the MCP mode (auto, manual, disabled) with an "MCP servers ›" row when manual, and browser.
-- **Answers.** Temperature, Top-P, and max tokens, each a switch that reveals its slider or input; streaming; maximum tool calls; custom context › (message count and the existing compression and truncation settings); and custom parameters ›.
+- **Answers.** Temperature, Top-P, and max tokens, each a switch that reveals its slider or input; streaming; maximum tool calls; custom context › (message count and the existing compression and truncation settings); custom parameters ›; and reply language.
 - **Advanced.** System Prompt › and group.
 
 ### Sub-pages
@@ -60,7 +62,7 @@ One select replaces the segmented control and combobox: follow the global settin
 
 ### Deep links
 
-The existing `initialTab` IDs keep working and open the matching page: `basic` the main page; `prompt` System Prompt; `tools.builtin` built-in tools (Assistants: More settings); `tools.skills` Skills; `tools.knowledge` Knowledge bases; `tools.mcp` MCP servers (Assistants: More settings); `advanced` More settings; `memory` Memory. New IDs `channels` and `tasks` open those sub-pages, so the Agent list's "Connect to IM…" entry from the channel-binding proposal lands on Channels.
+The existing `initialTab` IDs keep working and open the matching page: `basic` and `advanced` open the settings page; `prompt` System Prompt; `tools.builtin` built-in tools (Assistants: the settings page); `tools.skills` Skills; `tools.knowledge` Knowledge bases; `tools.mcp` MCP servers (Assistants: the settings page); `memory` Memory. New IDs `channels` and `tasks` open those sub-pages, so the Agent list's "Connect to IM…" entry from the channel-binding proposal lands on Channels.
 
 ### Relation to the channel-binding proposal
 
@@ -76,8 +78,8 @@ The existing `initialTab` IDs keep working and open the matching page: `basic` t
 
 ## Acceptance criteria
 
-- AC1 — Opening an Agent or Assistant edit dialog shows the main page with avatar, name, description, model chip, and More settings, without runtime, plan model, or small model fields (verification: renderer; owner: implementer)
-- AC2 — More settings shows the grouped cards for each kind, sub-pages open from their rows, and back returns to the previous page without closing the dialog (verification: renderer; owner: implementer)
+- AC1 — Opening an Agent or Assistant edit dialog shows the settings page with the avatar, name, description, and model chip editable above the grouped cards, without runtime, plan model, or small model fields (verification: renderer; owner: implementer)
+- AC2 — The settings page shows the grouped cards for each kind, sub-pages open from their rows, and back returns to the settings page without closing the dialog (verification: renderer; owner: implementer)
 - AC3 — Capability rows show `Enabled X / Y` (`Linked X / Y` for knowledge bases) computed with the counting rules in this Spec (verification: renderer; owner: implementer)
 - AC4 — Edits on any page autosave, closing the dialog flushes pending edits, and an empty name is never saved (verification: renderer; owner: implementer)
 - AC5 — Changing an Agent's model clears its plan and small models (verification: unit; owner: implementer)
