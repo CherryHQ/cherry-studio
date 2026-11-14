@@ -120,6 +120,7 @@ import { useComposerQuoteInsertion } from './shared/composerQuote'
 import { type ComposerToolbarCustomTool, ComposerToolbarShortcuts } from './shared/ComposerToolbarShortcuts'
 import { useComposerFileCapabilities } from './shared/useComposerFileCapabilities'
 import { useComposerKnowledgeBaseScope } from './shared/useComposerKnowledgeBaseScope'
+import { useComposerPrefill } from './shared/useComposerPrefill'
 import { useComposerToolbarPinnedTools } from './shared/useComposerToolbarPinnedTools'
 import { useEntityReferenceMentionSource } from './shared/useEntityReferenceMentionSource'
 import { useScreenshotChat } from './shared/useScreenshotChat'
@@ -1383,6 +1384,7 @@ const ChatComposerInner = ({
   }, [actionsRef, addNewTopic])
 
   useComposerQuoteInsertion(actionsRef)
+  useComposerPrefill(actionsRef, streamScopeKey)
 
   const isActiveTab = useIsActiveTab()
   useCommandHandler('topic.create', handleNewTopicShortcut, { enabled: isActiveTab })
