@@ -1,5 +1,5 @@
 ---
-description: Per-attachment routing to native file parts or capped extracted analysis, with read_file paging for truncated overflow
+description: Per-attachment routing to native file parts or capped extracted text and analysis, with read_file paging for truncated overflow and full audio/video analysis
 sources:
   - src/main/ai/messages/attachmentRouting.ts
   - src/main/ai/messages/attachmentBudget.ts
@@ -73,8 +73,11 @@ Decided per file part in `prepareChatMessages`
 - Any other per-file failure (missing entry, parse error, failed materialization)
   degrades to a `[could not read this file].` note rather than dropping the
   file or failing the request.
-- Audio/video probe or analysis failure degrades to a clear model-visible note.
-  Cancellation is not degraded and continues to abort the request.
+- A failed probe degrades to the unreadable-file note. Failed non-native
+  audio/video analysis on the latest user message stops before the provider
+  request with a localized error; on an earlier message it degrades to a
+  model-visible note so history cannot block later turns. Cancellation
+  continues to abort the request.
 - **Non-native** → the file part is replaced by its extracted text (see the
   cap below). The internal `fileEntryId` is never written into the prompt.
 
@@ -124,7 +127,7 @@ This can inline less text than exact token counting, especially for ASCII.
 
 Without a computable request budget, the fallback cap is 8k characters per file.
 
-## `read_file` — text-only overflow tool
+## `read_file` — paged full attachment detail
 
 `src/main/ai/tools/adapters/aiSdk/builtin/ReadFileTool.ts`, using the
 per-request attachment allow-list from the tool-call context.
@@ -133,8 +136,9 @@ per-request attachment allow-list from the tool-call context.
   **handle** (unique, normalized — see `collectFileAttachments`), resolved to an
   entry id against a per-request allow-list. The model never sees or guesses
   entry ids, and can only read files attached to the current conversation.
-- Returns **text only** (extracted / OCR), paginated. Errors are sanitized to
-  filename-level messages; details are logged, not returned.
+- Returns paginated text: extracted document text, image OCR, or full
+  timestamped audio/video analysis. Errors are sanitized to filename-level
+  messages; details are logged, not returned. Cancellation propagates.
 - Exposed to tool-capable models whenever the request carries first-party file
   attachments (`applies: scope.hasFileAttachments`). It pages over-cap text; when
   everything inlines within the cap the model simply never needs to call it.
@@ -159,7 +163,8 @@ to the shared chat runtime or to ordinary Agents.
 |---|---|
 | office/pdf/text → text | `extractDocumentText` (`src/main/ai/messages/attachmentTextExtraction.ts`) |
 | image → text (non-vision) | `FileProcessingService.ocrImage` (`src/main/features/fileProcessing/`) |
-| audio/video → compact analysis | `MediaAnalysisService` (`src/main/features/fileProcessing/media/`) |
+| audio/video chat turn → compact analysis | `MediaAnalysisService` (`src/main/features/fileProcessing/media/`) |
+| audio/video read_file → timestamped analysis | `MediaAnalysisService` (`src/main/features/fileProcessing/media/`) |
 
 `ai/` reaches OCR through the `FileProcessingService` rather than deep-importing
 the feature, keeping processor/handler internals in that domain. Both
@@ -184,6 +189,10 @@ existing path.
 `MediaAnalysisService` caches compact chat analysis by file identity/version and
 the ASR, Vision, OCR, and execution-budget configuration. A repeated turn does
 not duplicate preprocessing, and configuration changes invalidate the cache.
+`read_file` reaches the full timestamped analysis through the same service and
+cache key. Its first page (no `offset`) analyzes; later pages reuse that page's
+text for 30 minutes, so a partial analysis, which the service does not cache,
+is neither re-run nor allowed to shift offsets between pages.
 
 ## Capability resolution
 

@@ -307,19 +307,37 @@ describe('prepareChatMessages — routing', () => {
   })
 
   it.each(['probe failed', 'unusable_media_analysis'])(
-    'degrades a non-native video to a clear note when media analysis fails: %s',
+    'stops the request when media analysis fails: %s',
     async (message) => {
       getByIdMock.mockResolvedValueOnce({ ext: 'mp4' })
       mediaAnalysisMock.mockRejectedValueOnce(new Error(message))
 
-      const [out] = await run([fileWithEntry('e1', 'media.mp4', 'video/mp4')], NONE)
-
-      expect(textOf(out.parts)[0]).toBe(
-        'Attached file "media.mp4":\nCould not analyze the attached video file "media.mp4".'
-      )
+      await expect(run([fileWithEntry('e1', 'media.mp4', 'video/mp4')], NONE)).rejects.toMatchObject({
+        name: 'NonNativeMediaAnalysisError',
+        i18nKey: 'media_unreadable_without_preprocessing'
+      })
       expect(resolveMock).not.toHaveBeenCalled()
     }
   )
+
+  it('keeps a later turn sendable when media analysis fails for an earlier message', async () => {
+    getByIdMock.mockResolvedValueOnce({ ext: 'mp4' })
+    mediaAnalysisMock.mockRejectedValueOnce(new Error('provider unavailable'))
+    const messages = [
+      { id: 'u1', role: 'user', parts: [fileWithEntry('e1', 'media.mp4', 'video/mp4')] },
+      { id: 'a1', role: 'assistant', parts: [{ type: 'text', text: 'It shows a cat.' }] },
+      { id: 'u2', role: 'user', parts: [{ type: 'text', text: 'Thanks' }] }
+    ] as UIMessage[]
+
+    const [history, , current] = await prepareChatMessages(messages, {
+      attachments: collectFileAttachments(messages),
+      nativeSupport: NONE,
+      isToolCapable: true
+    })
+
+    expect(textOf(history.parts)[0]).toContain('Could not analyze the attached video file "media.mp4"')
+    expect(textOf(current.parts)).toEqual(['Thanks'])
+  })
 
   it('rethrows cancellation from media analysis', async () => {
     const controller = new AbortController()
@@ -496,6 +514,45 @@ describe('prepareChatMessages — routing', () => {
       expect(mediaAnalysisMock).not.toHaveBeenCalled()
       expect(out.parts).toEqual([
         expect.objectContaining({ type: 'file', filename: 'song.mp3', mediaType: 'audio/mpeg' })
+      ])
+    })
+
+    it('analyzes m4a and opus when OpenAI chat rejects their dispatch MIME', async () => {
+      for (const [ext, mediaType] of [
+        ['m4a', 'audio/mp4'],
+        ['opus', 'audio/ogg']
+      ] as const) {
+        getByIdMock.mockResolvedValueOnce({ ext })
+        mediaAnalysisMock.mockResolvedValueOnce(`${ext} transcript`)
+
+        const [out] = await run([fileWithEntry('e1', `clip.${ext}`, mediaType)], openAiChatAudio)
+
+        expect(probeMock).not.toHaveBeenCalled()
+        expect(mediaAnalysisMock).toHaveBeenCalledWith({ kind: 'entry', entryId: 'e1' }, undefined)
+        expect(out.parts.some((part) => part.type === 'file')).toBe(false)
+        expect(textOf(out.parts)[0]).toBe(`Attached file "clip.${ext}":\n${ext} transcript`)
+        mediaAnalysisMock.mockClear()
+      }
+    })
+
+    it('keeps m4a native when the converter allows audio/mp4', async () => {
+      materializerMode.real = true
+      getByIdMock.mockResolvedValueOnce({ ext: 'm4a' })
+      readMock.mockResolvedValueOnce({ content: 'TQ==', mime: 'audio/mp4' })
+
+      const [out] = await run([fileWithEntry('e1', 'clip.m4a', 'audio/mp4')], {
+        ...openAiChatAudio,
+        audioMediaTypes: ['audio/mp4']
+      })
+
+      expect(mediaAnalysisMock).not.toHaveBeenCalled()
+      expect(out.parts).toEqual([
+        expect.objectContaining({
+          type: 'file',
+          filename: 'clip.m4a',
+          mediaType: 'audio/mp4',
+          url: 'data:audio/mp4;base64,TQ=='
+        })
       ])
     })
 
