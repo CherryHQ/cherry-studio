@@ -34,8 +34,9 @@ describe('release performance', () => {
       run,
       [
         job('Prepare release ref', 1, 2),
-        job('Build global (windows-latest)', 2, 20),
-        job('Build cn (macos-latest)', 2, 15),
+        job('Build global (windows-all) / Package target', 2, 20),
+        job('Build global (windows-all) / Upload draft target', 20, 21),
+        job('Build cn (mac-x64) / Package target', 2, 15),
         job('Update draft release', 20, 23),
         job('Approve production release', 30, 31),
         job('Publish approved release', 31, 35),
@@ -47,7 +48,7 @@ describe('release performance', () => {
     expect(report.sourceSha).toBe('source')
     expect(report.workflowSha).toBe('workflow')
     expect(report.draftReadySeconds).toBe(23 * 60)
-    expect(report.runnerSeconds).toBe(35 * 60)
+    expect(report.runnerSeconds).toBe(36 * 60)
     expect(report.jobs.find(({ name }) => name.startsWith('Build global'))?.cache).toBe('persistent-local')
     expect(renderReleasePerformance(report)).toContain('23.00 min')
   })

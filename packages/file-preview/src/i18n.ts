@@ -1,5 +1,6 @@
 import { createInstance, type i18n } from 'i18next'
 
+import csCZ from './locales/cs-cz.json'
 import deDE from './locales/de-de.json'
 import elGR from './locales/el-gr.json'
 import enUS from './locales/en-us.json'
@@ -17,6 +18,7 @@ import zhCN from './locales/zh-cn.json'
 import zhTW from './locales/zh-tw.json'
 
 const catalogs = {
+  'cs-cz': csCZ,
   'de-de': deDE,
   'el-gr': elGR,
   'en-us': enUS,

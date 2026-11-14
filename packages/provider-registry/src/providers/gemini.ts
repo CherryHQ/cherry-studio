@@ -4,6 +4,7 @@ const webToolModels = [
   'gemini-2',
   'gemini-3',
   'gemini-4-argon',
+  'gemini-4-hydrogen',
   'gemini-flash-latest',
   'gemini-pro-latest',
   'gemini-flash-lite-latest'
