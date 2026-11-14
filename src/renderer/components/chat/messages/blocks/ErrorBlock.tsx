@@ -25,10 +25,10 @@ import { getMessageListItemModel } from '../utils/messageListItem'
 
 const logger = loggerService.withContext('ErrorBlock')
 
-/** Short conclusion + one-sentence cause/next step; `unknown` has no fixed info (AI summary or raw text). */
 /** A slow or unreachable summarizer must not leave the card on its placeholder. */
 const SUMMARY_TIMEOUT_MS = 8000
 
+/** Short conclusion + one-sentence cause/next step; `unknown` has no fixed info (translation or raw text). */
 const NOTICE_KEYS: Record<ErrorCategory, { readonly title: string; readonly info?: string }> = {
   auth: { title: 'error.notice.auth.title', info: 'error.notice.auth.info' },
   bad_request: { title: 'error.notice.bad_request.title', info: 'error.notice.bad_request.info' },
