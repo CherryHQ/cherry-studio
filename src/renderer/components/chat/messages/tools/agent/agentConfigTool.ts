@@ -1,14 +1,16 @@
 import type { McpToolResponse, NormalToolResponse } from '@renderer/types/mcpTool'
-import { AGENT_CREATE_TOOL_NAME, CONFIG_UPDATE_TOOL_NAME } from '@shared/ai/builtinTools'
+import { AGENT_CREATE_TOOL_NAME, ASSISTANT_CREATE_TOOL_NAME, CONFIG_UPDATE_TOOL_NAME } from '@shared/ai/builtinTools'
 import { parseFunctionCallToolName } from '@shared/ai/tools/mcpToolName'
 
-/** `create` makes a new Agent, `update` changes another Agent, `self_update` changes this conversation's Agent. */
+/** `create` makes an Agent or Assistant, `update` changes another Agent, `self_update` this conversation's Agent. */
 export type AgentConfigToolKind = 'create' | 'update' | 'self_update'
 
 const KIND_BY_TOOL: Record<string, AgentConfigToolKind> = {
   'assistant/create_agent': 'create',
+  'assistant/create_assistant': 'create',
   'assistant/update_agent': 'update',
   [`cherry-tools/${AGENT_CREATE_TOOL_NAME}`]: 'create',
+  [`cherry-tools/${ASSISTANT_CREATE_TOOL_NAME}`]: 'create',
   [`cherry-tools/${CONFIG_UPDATE_TOOL_NAME}`]: 'self_update'
 }
 
