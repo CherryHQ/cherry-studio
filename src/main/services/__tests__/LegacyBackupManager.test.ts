@@ -206,6 +206,12 @@ vi.mock('electron', () => ({
   }
 }))
 
+vi.mock('drizzle-orm/migrator', () => ({
+  readMigrationFiles: vi.fn(() => {
+    throw new Error('unavailable')
+  })
+}))
+
 vi.mock('fs-extra', () => ({
   default: {
     pathExists: vi.fn(),
@@ -251,6 +257,7 @@ vi.mock('fs-extra', () => ({
   readFile: vi.fn(),
   writeFile: vi.fn(),
   readJson: vi.fn(),
+  readJsonSync: vi.fn(),
   writeJson: vi.fn(),
   createWriteStream: vi.fn(),
   createReadStream: vi.fn(),
@@ -330,6 +337,7 @@ vi.mock('node-stream-zip', () => ({
 
 // Import after mocks
 import { ZipArchive } from 'archiver'
+import { readMigrationFiles } from 'drizzle-orm/migrator'
 import * as fs from 'fs-extra'
 
 import BackupManager, { BackupOperationBusyError } from '../LegacyBackupManager'
@@ -821,6 +829,116 @@ describe('BackupManager direct v2 data compatibility', () => {
     ])
     vi.spyOn(backupManager as any, 'fsyncTree').mockImplementation(() => {})
   }
+
+  it.each([
+    ['hash', { folderMillis: 2, hash: 'different' }, 'hash'],
+    ['timestamp', { folderMillis: 3, hash: 'b' }, 'timestamp'],
+    ['both', { folderMillis: 3, hash: 'different' }, 'hash_and_timestamp']
+  ])('reports a %s disagreement with the matching bundled tag', async (_name, second, reason) => {
+    arrangeDirectRestore()
+    vi.mocked(readMigrationFiles).mockReturnValueOnce([
+      { folderMillis: 1, hash: 'a' },
+      { folderMillis: 2, hash: 'b' }
+    ] as never)
+    vi.mocked(fs.readJsonSync).mockReturnValue({
+      entries: [
+        { when: 1, tag: 'first' },
+        { when: 2, tag: 'second' }
+      ]
+    })
+    vi.mocked((backupManager as any).validateStagedDatabase).mockReturnValue([{ folderMillis: 1, hash: 'a' }, second])
+    const error = await (backupManager as any).restoreDirect('/extract').catch((e: Error) => e)
+    expect(error).toBeInstanceOf(Error)
+    expect(error.message).toMatch(/^BACKUP_MIGRATION_MISMATCH:/)
+    expect(JSON.parse(error.message.slice('BACKUP_MIGRATION_MISMATCH:'.length))).toMatchObject({
+      reason,
+      firstDifferingIndex: 1,
+      bundledTag: 'second'
+    })
+    expect(mockWriteRestoreJournal).not.toHaveBeenCalled()
+  })
+
+  it('reports an extra applied migration and sanitizes untrusted metadata', async () => {
+    arrangeDirectRestore({
+      ...metadata,
+      appVersion: {} as string,
+      platform: 'bad platform' as typeof process.platform,
+      arch: '' as typeof process.arch
+    })
+    vi.mocked(readMigrationFiles).mockReturnValueOnce([{ folderMillis: 1, hash: 'a' }] as never)
+    vi.mocked((backupManager as any).validateStagedDatabase).mockReturnValue([
+      { folderMillis: 1, hash: 'a' },
+      { folderMillis: 2, hash: 'b' }
+    ])
+    const error = await (backupManager as any).restoreDirect('/extract').catch((e: Error) => e)
+    expect(JSON.parse(error.message.slice('BACKUP_MIGRATION_MISMATCH:'.length))).toMatchObject({
+      reason: 'count_overflow',
+      firstDifferingIndex: 1,
+      bundledTag: null,
+      backupAppVersion: null,
+      backupPlatform: null,
+      backupArch: null
+    })
+  })
+
+  it.each([
+    ['Unicode', '2.0.0版本', '平台', '架构'],
+    ['overlength', `2${'a'.repeat(64)}`, 'a'.repeat(33), 'a'.repeat(33)]
+  ])('removes %s metadata from the mismatch payload', async (_name, appVersion, platform, arch) => {
+    arrangeDirectRestore({
+      ...metadata,
+      appVersion,
+      platform: platform as typeof process.platform,
+      arch: arch as typeof process.arch
+    })
+    vi.mocked(readMigrationFiles).mockReturnValueOnce([{ folderMillis: 1, hash: 'a' }] as never)
+    const error = await (backupManager as any).restoreDirect('/extract').catch((e: Error) => e)
+    expect(JSON.parse(error.message.slice('BACKUP_MIGRATION_MISMATCH:'.length))).toMatchObject({
+      backupAppVersion: null,
+      backupPlatform: null,
+      backupArch: null,
+      appliedCount: 1,
+      bundledCount: 1,
+      firstDifferingIndex: 0,
+      reason: 'hash'
+    })
+    expect(mockWriteRestoreJournal).not.toHaveBeenCalled()
+  })
+
+  it.each(['unreadable', 'invalid'])('preserves mismatch details when the bundled tag is %s', async (condition) => {
+    arrangeDirectRestore()
+    vi.mocked(readMigrationFiles).mockReturnValueOnce([{ folderMillis: 1, hash: 'a' }] as never)
+    if (condition === 'unreadable') {
+      vi.mocked(fs.readJsonSync).mockImplementationOnce(() => {
+        throw new Error('unreadable')
+      })
+    } else {
+      vi.mocked(fs.readJsonSync).mockReturnValueOnce({ entries: [{ when: 1, tag: 'invalid tag' }] })
+    }
+    const error = await (backupManager as any).restoreDirect('/extract').catch((e: Error) => e)
+    expect(JSON.parse(error.message.slice('BACKUP_MIGRATION_MISMATCH:'.length))).toMatchObject({
+      backupAppVersion: metadata.appVersion,
+      backupPlatform: metadata.platform,
+      backupArch: metadata.arch,
+      appliedCount: 1,
+      bundledCount: 1,
+      firstDifferingIndex: 0,
+      reason: 'hash',
+      bundledTag: null
+    })
+    expect(mockWriteRestoreJournal).not.toHaveBeenCalled()
+  })
+
+  it.each([1, 2])('admits a matching chain of %i bundled entries', async (count) => {
+    arrangeDirectRestore()
+    const bundled = [
+      { folderMillis: 1, hash: 'a' },
+      { folderMillis: 2, hash: 'b' }
+    ]
+    vi.mocked(readMigrationFiles).mockReturnValueOnce(bundled as never)
+    vi.mocked((backupManager as any).validateStagedDatabase).mockReturnValue(bundled.slice(0, count))
+    await expect((backupManager as any).restoreDirect('/extract')).resolves.toBeUndefined()
+  })
 
   it('keeps restore progress monotonic after copying Data', async () => {
     arrangeDirectRestore(completeDataMetadata)

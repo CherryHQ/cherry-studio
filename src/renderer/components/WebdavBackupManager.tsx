@@ -16,10 +16,15 @@ import {
   Spinner,
   Tooltip
 } from '@cherrystudio/ui'
+import i18n from '@renderer/i18n/resolver'
 import { restoreFromWebdav } from '@renderer/services/BackupService'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
-import { getLocalizedBackupErrorMessage } from '@renderer/utils/backup'
+import {
+  getBackupErrorTitleKey,
+  getLocalizedBackupErrorMessage,
+  isBackupMigrationMismatch
+} from '@renderer/utils/backup'
 import { formatFileSize } from '@renderer/utils/file'
 
 interface BackupFile {
@@ -238,11 +243,19 @@ export function WebdavBackupManager({
       toast.success(t('settings.data.webdav.backup.manager.restore.success'))
       onClose() // 关闭模态框
     } catch (error) {
-      toast.error(
-        getLocalizedBackupErrorMessage(error, 'settings.data.webdav.backup.manager.restore.error', {
-          tlsCertificateHint
+      if (isBackupMigrationMismatch(error)) {
+        void popup.error({
+          title: i18n.t(getBackupErrorTitleKey(error)),
+          content: getLocalizedBackupErrorMessage(error, 'settings.data.webdav.backup.manager.restore.error'),
+          centered: true
         })
-      )
+      } else {
+        toast.error(
+          getLocalizedBackupErrorMessage(error, 'settings.data.webdav.backup.manager.restore.error', {
+            tlsCertificateHint
+          })
+        )
+      }
     } finally {
       setRestoring(false)
     }

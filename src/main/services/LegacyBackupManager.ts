@@ -48,7 +48,9 @@ import {
   BACKUP_ACTIVE_WRITERS_ERROR_CODE,
   BACKUP_BACKGROUND_TASKS_ERROR_CODE,
   BACKUP_DISK_FULL_ERROR_CODE,
+  BACKUP_MIGRATION_MISMATCH_ERROR_CODE,
   BACKUP_NEWER_VERSION_ERROR_CODE,
+  type BackupMigrationMismatchDetails,
   BACKUP_OPERATION_BUSY_ERROR_CODE,
   type LocalBackupConfig,
   type S3Config,
@@ -80,6 +82,9 @@ const isSkippableLevelDbLockError = (sourcePath: string, error: unknown): error 
   const nodeError = error as NodeJS.ErrnoException
   return nodeError.code === 'EBUSY' || nodeError.errno === WINDOWS_UV_EBUSY_ERRNO
 }
+
+const sanitizeBackupIdentifier = (value: unknown, pattern: RegExp): string | null =>
+  typeof value === 'string' && pattern.test(value) ? value : null
 
 interface DirectBackupMetadata {
   version: number
@@ -869,10 +874,9 @@ class BackupManager {
       }
 
       const chain = this.validateStagedDatabase(workDatabase)
-      if (!this.isChainBundledPrefix(chain)) {
-        throw new Error(
-          `${BACKUP_NEWER_VERSION_ERROR_CODE}: This backup was created by a newer version of Cherry Studio (database is ahead of this version) and cannot be restored here. Please update Cherry Studio and try again. Backup appVersion: ${metadata.appVersion ?? 'unknown'}, current: ${app.getVersion()}.`
-        )
+      const comparison = this.compareChainWithBundled(chain, metadata)
+      if (comparison.kind === 'mismatch') {
+        throw new Error(`${BACKUP_MIGRATION_MISMATCH_ERROR_CODE}:${JSON.stringify(comparison.details)}`)
       }
       onProgress({ stage: 'restoring_database', progress: 95, total: 100 })
 
@@ -1081,23 +1085,69 @@ class BackupManager {
     return chain
   }
 
-  private isChainBundledPrefix(chain: RestoreJournal['db']['chain']): boolean {
+  private compareChainWithBundled(
+    chain: RestoreJournal['db']['chain'],
+    metadata: DirectBackupMetadata
+  ): { kind: 'compatible' } | { kind: 'mismatch'; details: BackupMigrationMismatchDetails } {
     let bundled: ReturnType<typeof readMigrationFiles>
+    let migrationsFolder: string
     try {
-      bundled = readMigrationFiles({ migrationsFolder: application.getPath('app.database.migrations') })
+      migrationsFolder = application.getPath('app.database.migrations')
+      bundled = readMigrationFiles({ migrationsFolder })
     } catch (error) {
       logger.warn(
         '[restoreDirect] Failed to read bundled migrations for downgrade check, allowing promotion gate to decide',
         error as Error
       )
-      return true
+      return { kind: 'compatible' }
     }
-    if (chain.length > bundled.length) {
-      return false
-    }
-    return chain.every(
-      (item, index) => item.folderMillis === bundled[index].folderMillis && item.hash === bundled[index].hash
+    const index = chain.findIndex(
+      (item, i) =>
+        i < bundled.length && (item.folderMillis !== bundled[i].folderMillis || item.hash !== bundled[i].hash)
     )
+    if (index === -1 && chain.length <= bundled.length) return { kind: 'compatible' }
+    const firstDifferingIndex = index === -1 ? bundled.length : index
+    const hashDiffers = index !== -1 && chain[index].hash !== bundled[index].hash
+    const timestampDiffers = index !== -1 && chain[index].folderMillis !== bundled[index].folderMillis
+    const reason =
+      index === -1
+        ? 'count_overflow'
+        : hashDiffers && timestampDiffers
+          ? 'hash_and_timestamp'
+          : hashDiffers
+            ? 'hash'
+            : 'timestamp'
+    let bundledTag: string | null = null
+    if (index !== -1) {
+      try {
+        const journal = fs.readJsonSync(path.join(migrationsFolder, 'meta', '_journal.json'))
+        const entry = journal.entries?.[index]
+        if (
+          Array.isArray(journal.entries) &&
+          journal.entries.length === bundled.length &&
+          entry?.when === bundled[index].folderMillis
+        ) {
+          bundledTag = sanitizeBackupIdentifier(entry.tag, /^[A-Za-z0-9_-]{1,96}$/)
+        }
+      } catch {
+        // The tag is optional diagnostic context.
+      }
+    }
+    return {
+      kind: 'mismatch',
+      details: {
+        v: 1,
+        backupAppVersion: sanitizeBackupIdentifier(metadata.appVersion, /^[0-9][A-Za-z0-9.+_-]{0,63}$/),
+        backupPlatform: sanitizeBackupIdentifier(metadata.platform, /^[a-z0-9_-]{1,32}$/),
+        backupArch: sanitizeBackupIdentifier(metadata.arch, /^[a-z0-9_-]{1,32}$/),
+        currentAppVersion: sanitizeBackupIdentifier(app.getVersion(), /^[0-9][A-Za-z0-9.+_-]{0,63}$/),
+        appliedCount: chain.length,
+        bundledCount: bundled.length,
+        firstDifferingIndex,
+        reason,
+        bundledTag
+      }
+    }
   }
 
   private async createJournalResource(input: {

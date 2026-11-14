@@ -17,10 +17,15 @@ import {
   Spinner,
   Tooltip
 } from '@cherrystudio/ui'
+import i18n from '@renderer/i18n/resolver'
 import { restoreFromLocal } from '@renderer/services/BackupService'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
-import { getLocalizedBackupErrorMessage } from '@renderer/utils/backup'
+import {
+  getBackupErrorTitleKey,
+  getLocalizedBackupErrorMessage,
+  isBackupMigrationMismatch
+} from '@renderer/utils/backup'
 import { formatFileSize } from '@renderer/utils/file'
 
 interface BackupFile {
@@ -182,7 +187,15 @@ export function LocalBackupManager({ visible, onClose, localBackupDir, restoreMe
       toast.success(t('settings.data.local.backup.manager.restore.success'))
       onClose() // Close the modal
     } catch (error) {
-      toast.error(getLocalizedBackupErrorMessage(error, 'settings.data.local.backup.manager.restore.error'))
+      if (isBackupMigrationMismatch(error)) {
+        void popup.error({
+          title: i18n.t(getBackupErrorTitleKey(error)),
+          content: getLocalizedBackupErrorMessage(error, 'settings.data.local.backup.manager.restore.error'),
+          centered: true
+        })
+      } else {
+        toast.error(getLocalizedBackupErrorMessage(error, 'settings.data.local.backup.manager.restore.error'))
+      }
     } finally {
       setRestoring(false)
     }

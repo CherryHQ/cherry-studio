@@ -450,6 +450,20 @@ describe('runRestorePromotion', () => {
     expect(readMarker(livePath())).toBe('old')
   })
 
+  it('expires when the journal has an extra applied migration', async () => {
+    makeDb(livePath(), 'old')
+    makeDb(workPath(), 'new')
+    const chain = chainOf(workPath())
+    chain.push({ folderMillis: 9999999999999, hash: 'extra' })
+    writeRestoreJournal(await buildJournal({ chain }))
+
+    await runRestorePromotion()
+
+    expect(journalState()).toBe('expired')
+    expect(readMarker(livePath())).toBe('old')
+    expect(existsSync(asidePath())).toBe(false)
+  })
+
   it('promotes when the journal chain is a strict prefix (app ahead by a patch migration)', async () => {
     makeDb(livePath(), 'old')
     makeDb(workPath(), 'new')
