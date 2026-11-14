@@ -13,6 +13,12 @@ sources:
   - src/main/ai/runtime/claudeCode/hooks.ts
   - src/main/ai/toolApproval/ToolApprovalRegistry.ts
   - src/main/ai/toolApproval/builtinToolPolicy.ts
+  - src/main/ai/toolApproval/toolGuards.ts
+  - src/main/ai/toolApproval/dependencyGuard.ts
+  - src/main/ai/toolApproval/userDataSqliteGuard.ts
+  - src/main/ai/runtime/claudeCode/guardRules.ts
+  - src/main/ai/runtime/pi/piApprovalFacts.ts
+  - src/main/utils/rtk.ts
   - src/main/ai/mcp/createMcpBridgeServer.ts
   - src/main/ai/mcp/McpRuntimeService.ts
   - src/main/ai/mcp/mcpRequestOptions.ts
@@ -249,6 +255,32 @@ The complete `allowedTools` list also includes `TaskCreate`, `TaskGet`,
 | `disabledTools` | Tools are omitted from exposure, and runtime calls are rejected; this is not an approval decision (`src/main/ai/tools/adapters/claudeCode/agentTools.ts:78`, `src/main/ai/mcp/McpRuntimeService.ts:728`). |
 | Explicit `updatedInput` from another caller | The decision adapter accepts replacement input; argument fidelity above describes this dialog, not every possible approval sender (`src/main/ai/runtime/claudeCode/ToolApprovalRegistry.ts:16`). |
 | OAuth authentication challenge | The URL transport can resend a request rejected before acceptance after credentials are reloaded or authorization completes, within the same approval (`src/main/ai/mcp/connections/ExternalMcpConnection.ts:260`). |
+
+## Shared built-in tool guards
+
+Cherry-owned conduct rules are shared by the native runtimes instead of being
+re-implemented per adapter. The rules are pure in-process TypeScript and never
+run as user shell hooks.
+
+| Capability | Owner | Claude Code | Pi |
+|---|---|---|---|
+| Global/shared install detection | `toolApproval/dependencyGuard.ts` (`detectGlobalInstall`) | Guard table row in `runtime/claudeCode/guardRules.ts`, enforced by the single PreToolUse guard hook | `runtime/pi/piApprovalFacts.ts` |
+| User SQLite write guard | `toolApproval/userDataSqliteGuard.ts` | Guard table row in `guardRules.ts` | `piApprovalFacts.ts` |
+| RTK command rewrite | `utils/rtk.ts` (`rtkRewrite`) | `rtkRewriteHook` in `runtime/claudeCode/hooks.ts`, Bash only | `piApprovalFacts.ts`, `bash` only |
+
+- Global-install and mise-mutation detection have one implementation. Changing
+  a rule in `dependencyGuard.ts` changes both backends.
+- Claude's guard table folds deny over ask in `toolApproval/toolGuards.ts`. The
+  SDK runs PreToolUse hooks in parallel and does not apply hook order, so a
+  rewrite and a guard denial are not ordered against each other.
+- Pi computes the RTK rewrite only when the Bash call is not disabled and no
+  SQLite, global-install, or mise guard has matched. Claude does not skip the
+  rewrite for those cases; a denial still wins the fold.
+- The DSH bridge has no RTK or global-install integration in this tree, so
+  those rules do not apply to DSH-delegated calls.
+- Headless denials hold in `bypassPermissions` except the approval-required and
+  global-install rules, which opt out with `skipHeadlessDenyInBypass`
+  (`runtime/claudeCode/guardRules.ts`).
 
 ## Why this design
 
