@@ -1,4 +1,4 @@
-import { Globe2, Plus, Settings2, Zap } from 'lucide-react'
+import { Globe2, Plus, Zap } from 'lucide-react'
 import type { Dispatch, SetStateAction } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -20,7 +20,6 @@ import {
 } from '@renderer/components/QuickPanel'
 import { useQuickPanel } from '@renderer/components/QuickPanel'
 import { PromptEditDialog } from '@renderer/components/resourceCatalog/dialogs/edit'
-import { openResourceEditDialog } from '@renderer/components/resourceCatalog/dialogs/ResourceEditDialogEventHost'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import { toast } from '@renderer/services/toast'
@@ -149,11 +148,6 @@ const useQuickPhrasesToolController = ({ agentId, assistantId, launcher, setInpu
     restoreInputFocus()
   }, [restoreInputFocus])
 
-  const openCurrentPromptManagement = useCallback(() => {
-    if (!bindingTarget) return
-    openResourceEditDialog({ kind: bindingTarget.type, id: bindingTarget.id, initialTab: 'prompts' })
-  }, [bindingTarget])
-
   const openGlobalPromptManagement = useCallback(() => {
     openSettingsTab('/settings/prompts')
   }, [])
@@ -203,26 +197,6 @@ const useQuickPhrasesToolController = ({ agentId, assistantId, launcher, setInpu
       }
     ]
 
-    if (bindingTarget) {
-      const ariaLabel =
-        bindingTarget.type === 'assistant'
-          ? t('settings.prompts.manageCurrentAssistant')
-          : t('settings.prompts.manageCurrentAgent')
-      actions.push({
-        id: 'quick-phrases:manage-current',
-        panelSymbol: ComposerPanelSymbol.QuickPhrases,
-        order: 20,
-        label:
-          bindingTarget.type === 'assistant'
-            ? t('settings.quickPanel.scope.currentAssistant')
-            : t('settings.quickPanel.scope.currentAgent'),
-        ariaLabel,
-        tooltip: ariaLabel,
-        icon: <Settings2 />,
-        action: openCurrentPromptManagement
-      })
-    }
-
     const globalAriaLabel = t('settings.prompts.manageGlobal')
     actions.push({
       id: 'quick-phrases:manage-global',
@@ -236,7 +210,7 @@ const useQuickPhrasesToolController = ({ agentId, assistantId, launcher, setInpu
     })
 
     return actions
-  }, [bindingTarget, openAddModal, openCurrentPromptManagement, openGlobalPromptManagement, t])
+  }, [openAddModal, openGlobalPromptManagement, t])
 
   const quickPanelOpenOptions = useMemo<QuickPanelOpenOptions>(
     () => ({
