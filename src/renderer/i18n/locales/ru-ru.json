@@ -2424,6 +2424,8 @@
   "marketplace.view_all": "Показать всё",
   "marketplace.view_repository": "Открыть репозиторий",
   "marketplace.view_source": "Открыть источник",
+  "mcp.skills.unavailable": "Навыки MCP недоступны",
+  "mcp.skills.use": "Используй навык MCP «{{name}}» с {{server}} ({{origin}}).",
   "message.agents.import.error": "Импорт не выполнен",
   "message.agents.imported": "Успешно импортировано ассистентов: {{count}}",
   "message.api.check.model.title": "Выберите модель для проверки",

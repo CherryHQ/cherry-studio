@@ -147,7 +147,9 @@ all artifacts prepared or published by the operation.
 The public checkpoint envelope knows only `runtime`; all other checkpoint fields
 are opaque to the host and data layer. Native schemas live in each adapter's
 `forkCheckpoint.ts` and validate capture, fork input, and remapped results. Public
-message reads strip `runtimeAnchor`. The child uses the existing
+message reads strip `runtimeAnchor` and the private `mcpSkills` load provenance.
+Forks retain MCP skill origins and manifests, but no reusable approvals; the child
+requires explicit tool approval for each host code-execution call outside Full Access. See [MCP Skills Client](./mcp-skills-client.md). The child uses the existing
 `runtimeResumeToken` persistence and normal runtime resume path.
 
 The message-list API composes Main-authored `historyActions` alongside the visible rows.

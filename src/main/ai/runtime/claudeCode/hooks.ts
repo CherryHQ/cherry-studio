@@ -87,6 +87,7 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
     const snapshot = sessionState().getToolPolicySnapshot(sessionId)
     const interaction = application.get('AgentSessionRuntimeService').getInteractionState(sessionId)
     const decision = await evaluateToolGuards(CLAUDE_TOOL_GUARD_RULES, {
+      sessionId,
       toolName,
       input: toolInput,
       permissionMode: snapshot?.getPermissionMode(),

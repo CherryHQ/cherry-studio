@@ -2424,6 +2424,8 @@
   "marketplace.view_all": "Vezi tot",
   "marketplace.view_repository": "Vezi depozitul",
   "marketplace.view_source": "Vezi sursa",
+  "mcp.skills.unavailable": "Abilități MCP indisponibile",
+  "mcp.skills.use": "Folosește abilitatea MCP „{{name}}” de la {{server}} ({{origin}}).",
   "message.agents.import.error": "Import eșuat",
   "message.agents.imported": "S-au importat cu succes {{count}} asistent/asistenți",
   "message.api.check.model.title": "Selectează modelul de utilizat pentru detectare",

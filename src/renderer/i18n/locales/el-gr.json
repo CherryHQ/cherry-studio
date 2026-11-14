@@ -2424,6 +2424,8 @@
   "marketplace.view_all": "Προβολή όλων",
   "marketplace.view_repository": "Προβολή αποθετηρίου",
   "marketplace.view_source": "Προβολή πηγής",
+  "mcp.skills.unavailable": "Μη διαθέσιμες δεξιότητες MCP",
+  "mcp.skills.use": "Χρησιμοποίησε τη δεξιότητα MCP «{{name}}» από {{server}} ({{origin}}).",
   "message.agents.import.error": "Η εισαγωγή απέτυχε",
   "message.agents.imported": "Εισήχθησαν επιτυχώς {{count}} βοηθοί",
   "message.api.check.model.title": "Επιλέξτε το μοντέλο που θα ελέγξετε",

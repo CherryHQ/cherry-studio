@@ -46,6 +46,10 @@ stream ends with an approval still pending, `ToolApprovalRegistry.onAborted`
 retires the persisted card to `output-error`, so the composer stops offering a
 question nothing can receive.
 
+MCP skill loading uses the same tool approval path. While remote skills are active,
+host code-execution calls require per-call approval outside
+Full Access; see [MCP Skills Client](./mcp-skills-client.md).
+
 ## End-to-end flow
 
 1. **Tool needs approval** — at `execute` time, the wrapper checks

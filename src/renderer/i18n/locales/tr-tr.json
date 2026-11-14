@@ -2424,6 +2424,8 @@
   "marketplace.view_all": "Tümünü göster",
   "marketplace.view_repository": "Depoyu görüntüle",
   "marketplace.view_source": "Kaynağı görüntüle",
+  "mcp.skills.unavailable": "MCP becerileri kullanılamıyor",
+  "mcp.skills.use": "{{server}} üzerindeki “{{name}}” MCP becerisini kullan ({{origin}}).",
   "message.agents.import.error": "İçe aktarma başarısız oldu",
   "message.agents.imported": "{{count}} asistan başarıyla içe aktarıldı",
   "message.api.check.model.title": "Denetim için kullanılacak modeli seçin",

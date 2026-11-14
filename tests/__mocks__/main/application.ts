@@ -120,6 +120,15 @@ export const defaultServiceInstances = {
   IpcApiService: mockIpcApiService,
   NotificationService: mockNotificationService,
   JobManager: mockJobManager,
+  McpSkillService: {
+    openSession: vi.fn(),
+    closeSession: vi.fn(),
+    guardTool: vi.fn(() => undefined),
+    toolApproval: vi.fn<() => { signal: AbortSignal; approve: () => Record<string, unknown> } | undefined>(
+      () => undefined
+    ),
+    guardResourceRead: vi.fn(async (_sessionId, _serverId, _uri, signal, run) => run(signal))
+  },
   PowerService: {
     preventSleep: vi.fn(() => ({ dispose: vi.fn() })),
     onResume: vi.fn(() => ({ dispose: vi.fn() }))

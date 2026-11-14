@@ -2424,6 +2424,8 @@
   "marketplace.view_all": "Mostra tutto",
   "marketplace.view_repository": "Visualizza repository",
   "marketplace.view_source": "Visualizza fonte",
+  "mcp.skills.unavailable": "Skill MCP non disponibili",
+  "mcp.skills.use": "Usa la skill MCP «{{name}}» di {{server}} ({{origin}}).",
   "message.agents.import.error": "Importazione non riuscita",
   "message.agents.imported": "{{count}} assistenti importati",
   "message.api.check.model.title": "Seleziona il modello da usare per il rilevamento",

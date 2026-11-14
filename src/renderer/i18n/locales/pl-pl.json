@@ -2446,6 +2446,8 @@
   "marketplace.view_all": "Pokaż wszystko",
   "marketplace.view_repository": "Wyświetl repozytorium",
   "marketplace.view_source": "Pokaż źródło",
+  "mcp.skills.unavailable": "Umiejętności MCP są niedostępne",
+  "mcp.skills.use": "Użyj umiejętności MCP „{{name}}” z serwera {{server}} ({{origin}}).",
   "message.agents.import.error": "Import nie powiódł się",
   "message.agents.imported": "Pomyślnie zaimportowano asystentów: {{count}}",
   "message.api.check.model.title": "Wybierz model do wykrywania",

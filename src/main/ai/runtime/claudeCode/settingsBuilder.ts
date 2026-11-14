@@ -551,7 +551,13 @@ async function buildToolPermissions(
     }
     // Ordinary delegation is approved by PreToolUse. Reaching this callback means the SDK still
     // requires a user decision, even when matchedAskRule is absent.
+    const skillDenial = application.get('McpSkillService').guardTool(session.id, toolName)
+    if (skillDenial) return { behavior: 'deny', message: skillDenial }
+    const skillApproval = application
+      .get('McpSkillService')
+      .toolApproval(session.id, toolName, input, snapshot.getPermissionMode(), opts.signal)
     const approvalHoldsInThisMode =
+      !!skillApproval ||
       installApprovalHolds ||
       policy?.approval === 'delegation' ||
       (policy?.approval === 'required' &&
@@ -623,8 +629,19 @@ async function buildToolPermissions(
         toolName,
         originalInput: input,
         presentation,
-        signal: opts.signal,
-        resolve: (decision) => resolve(decisionToPermissionResult(decision, input))
+        signal: skillApproval?.signal ?? opts.signal,
+        resolve: (decision) => {
+          if (decision.approved && skillApproval) {
+            try {
+              if (decision.updatedInput) throw new Error('Retry the edited call for a new skill approval.')
+              decision = { ...decision, updatedInput: skillApproval.approve() }
+            } catch (error) {
+              resolve({ behavior: 'deny', message: error instanceof Error ? error.message : String(error) })
+              return
+            }
+          }
+          resolve(decisionToPermissionResult(decision, input))
+        }
       })
       if (!pending) return
       emit({
@@ -634,7 +651,10 @@ async function buildToolPermissions(
         input,
         presentation,
         providerMetadata: {
-          cherry: { transport: AGENT_RUNTIME_CAPABILITIES['claude-code'].transport, toolName } satisfies CherryToolMeta
+          cherry: {
+            transport: AGENT_RUNTIME_CAPABILITIES['claude-code'].transport,
+            toolName
+          } satisfies CherryToolMeta
         }
       })
     })

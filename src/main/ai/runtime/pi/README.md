@@ -57,6 +57,9 @@ interaction facts; `agent-behavior` decides permission policy. Cross-session del
 an interactive user turn. Child threads default to `bypassPermissions`; root threads use the live agent permission mode.
 Child tools retain the root's disabled-tool and non-bypassable approval restrictions.
 
+The interaction host also binds remote-skill approvals to their original provenance, cancels them
+on invalidation, and forwards single-use load receipts through the shared gate's approved arguments.
+
 Approval and question identities use `CallRef`. The Pi facet resolves these opaque keys to native
 `toolCallId` values for cards, including nested calls. Persisted approval outcomes are read from the
 existing message parts; pending questions do not resume after restart. No new database table is used.

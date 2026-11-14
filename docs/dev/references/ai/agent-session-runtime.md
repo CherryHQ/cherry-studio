@@ -1056,7 +1056,7 @@ Native file and shell tools remain available both directly and from scripts.
 Every nested call emits its own tool events and passes Cherry's approval gate,
 including disabled-tool, SQLite, global-install approval, direct-mise mutation, and
 permission-mode policies. Global-install decisions use the root session's effective
-permission mode, including for child sessions. The script itself needs no separate
+permission mode, including for child sessions. The script itself normally needs no separate
 approval because all outward effects pass through those tool calls.
 
 Pi and Pi Durable project nested calls as ordinary tool parts with native call and
@@ -1068,6 +1068,10 @@ failure does not erase an earlier successful child. Retention is limited to 256 
 total); over-budget fields are omitted whole with byte counts and omission metadata.
 Legacy sessions cannot recover results that were never recorded. These presentation
 records do not change the model-facing codemode output or native approval checks.
+
+A loaded MCP skill requires explicit per-call tool approval for code mode outside Full Access;
+the builtin skills server is directly exposed so verified reads remain available.
+See [MCP Skills Client](./mcp-skills-client.md).
 
 Scripts have no default time limit. An explicit `timeout_ms` includes time spent
 waiting for tool approval and cancels pending calls when it expires. Native MCP

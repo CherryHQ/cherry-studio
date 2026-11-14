@@ -2424,6 +2424,8 @@
   "marketplace.view_all": "すべて表示",
   "marketplace.view_repository": "リポジトリを表示",
   "marketplace.view_source": "提供元を表示",
+  "mcp.skills.unavailable": "MCP スキルを利用できません",
+  "mcp.skills.use": "{{server}} の MCP スキル「{{name}}」（{{origin}}）を使用してください。",
   "message.agents.import.error": "インポートに失敗しました",
   "message.agents.imported": "{{count}} 件のアシスタントをインポートしました",
   "message.api.check.model.title": "検出に使用するモデルを選択してください",

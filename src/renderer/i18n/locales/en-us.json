@@ -2424,6 +2424,8 @@
   "marketplace.view_all": "View all",
   "marketplace.view_repository": "View repository",
   "marketplace.view_source": "View source",
+  "mcp.skills.unavailable": "MCP skills unavailable",
+  "mcp.skills.use": "Use the MCP skill “{{name}}” from {{server}} ({{origin}}).",
   "message.agents.import.error": "Import failed",
   "message.agents.imported": "Successfully imported {{count}} assistant(s)",
   "message.api.check.model.title": "Select the model to use for detection",

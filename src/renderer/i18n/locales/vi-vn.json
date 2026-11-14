@@ -2424,6 +2424,8 @@
   "marketplace.view_all": "Xem tất cả",
   "marketplace.view_repository": "Xem kho mã",
   "marketplace.view_source": "Xem nguồn",
+  "mcp.skills.unavailable": "Kỹ năng MCP không khả dụng",
+  "mcp.skills.use": "Dùng kỹ năng MCP “{{name}}” từ {{server}} ({{origin}}).",
   "message.agents.import.error": "Nhập thất bại",
   "message.agents.imported": "Đã nhập thành công {{count}} trợ lý",
   "message.api.check.model.title": "Chọn mô hình để sử dụng cho việc phát hiện",

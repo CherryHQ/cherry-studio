@@ -2424,6 +2424,8 @@
   "marketplace.view_all": "Ver tudo",
   "marketplace.view_repository": "Ver repositório",
   "marketplace.view_source": "Ver origem",
+  "mcp.skills.unavailable": "Competências MCP indisponíveis",
+  "mcp.skills.use": "Utilize a competência MCP «{{name}}» de {{server}} ({{origin}}).",
   "message.agents.import.error": "Falha na importação",
   "message.agents.imported": "Foram importados {{count}} assistentes com êxito",
   "message.api.check.model.title": "Selecione o modelo a ser verificado",

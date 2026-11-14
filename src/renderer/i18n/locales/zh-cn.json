@@ -2424,6 +2424,8 @@
   "marketplace.view_all": "查看全部",
   "marketplace.view_repository": "查看源仓库",
   "marketplace.view_source": "查看来源",
+  "mcp.skills.unavailable": "MCP 技能不可用",
+  "mcp.skills.use": "使用来自 {{server}} 的 MCP 技能“{{name}}”（{{origin}}）。",
   "message.agents.import.error": "导入失败",
   "message.agents.imported": "成功导入 {{count}} 个助手",
   "message.api.check.model.title": "请选择要检测的模型",

@@ -630,6 +630,14 @@ describe('McpRuntimeService connect retry gate', () => {
     }
   )
 
+  it('separates connection types with otherwise unchanged configuration', () => {
+    const service = new McpRuntimeService()
+    const server: McpServer = { id: 'server-1', name: 'Server', isActive: true }
+    expect(service.getServerKey({ ...server, type: 'stdio' })).not.toBe(
+      service.getServerKey({ ...server, type: 'streamableHttp' })
+    )
+  })
+
   it('uses a distinct secret-free key when the API key changes', () => {
     const service = new McpRuntimeService()
     const serverWith = (apiKey: string): McpServer => ({
