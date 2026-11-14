@@ -99,10 +99,28 @@ function commandFromInput(input: unknown): string {
   return typeof command === 'string' ? command.trim() : ''
 }
 
+// Shell metacharacters that chain, redirect, substitute, or background a command. Their presence
+// means the Bash payload is more than a single simple command, so the first-token allowlist below
+// can no longer describe what will actually run.
+//
+// Why this matters: the acceptEdits auto-approval is a *lexical* decision made on the first
+// whitespace-delimited token, but `canUseTool` later executes the *entire, unchanged* command
+// string. A command like `cp ./a ./b; <second action>` would auto-approve on the `cp` prefix yet
+// still run the appended action — an approval/execution mismatch. Refusing to auto-approve any
+// compound/redirected/substituted command realigns the approval decision point with the real
+// execution point: only a single simple command whose verb is allowlisted may skip the prompt.
+const SHELL_COMPOUND_METACHARACTERS = /[;&|\n\r`$(){}<>]/
+
 function matchesAcceptEditsBashInvocation(descriptor: ClaudeToolDescriptor, invocation: ClaudeToolInvocation): boolean {
   if (normalizeClaudeBuiltinName(descriptor.id) !== 'Bash') return false
-  const command = commandFromInput(invocation.input).split(/\s+/, 1)[0]
-  return ACCEPT_EDITS_BASH_COMMANDS.has(command)
+  const command = commandFromInput(invocation.input)
+  if (!command) return false
+  // Any shell control/substitution operator (`;` `&&` `||` `|` `&` `$()` backticks `(` `)` `{` `}`
+  // redirections, newlines) means a second action could ride along behind the allowlisted verb.
+  // Fall through to the normal prompt rather than auto-approving the whole string.
+  if (SHELL_COMPOUND_METACHARACTERS.test(command)) return false
+  const verb = command.split(/\s+/, 1)[0]
+  return ACCEPT_EDITS_BASH_COMMANDS.has(verb)
 }
 
 export function resolveClaudeToolInvocationAccess(
