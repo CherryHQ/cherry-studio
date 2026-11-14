@@ -4625,7 +4625,6 @@
   "settings.developer.fake.countries.SG": "Singapore",
   "settings.developer.fake.countries.US": "Statele Unite (Los Angeles)",
   "settings.developer.fake.description": "Selectează regiunea fiecărei miniaplicații web din meniul său. Limba, fusul orar și locația orașului urmează regiunea aleasă.",
-  "settings.developer.fake.limits": "IP-ul, Canvas, WebGL, sunetul și fonturile instalate nu sunt înlocuite. Redarea textului și unele scripturi de fundal pot dezvălui în continuare mediul original.",
   "settings.developer.fake.title": "Regiunile miniaplicațiilor web",
   "settings.developer.help": "După activarea modului dezvoltator, poți folosi funcția de urmărire (trace) pentru a vizualiza fluxul de date în timpul invocării modelului.",
   "settings.display.custom.css.label": "CSS personalizat",

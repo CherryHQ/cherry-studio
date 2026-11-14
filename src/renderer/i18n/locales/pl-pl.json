@@ -4689,7 +4689,6 @@
   "settings.developer.fake.countries.SG": "Singapur",
   "settings.developer.fake.countries.US": "Stany Zjednoczone (Los Angeles)",
   "settings.developer.fake.description": "Wybierz region każdej miniaplikacji internetowej w jej menu. Język, strefa czasowa i położenie miasta odpowiadają temu regionowi.",
-  "settings.developer.fake.limits": "Adres IP, Canvas, WebGL, dźwięk i zainstalowane czcionki nie są zastępowane. Renderowanie tekstu i niektóre skrypty w tle mogą nadal ujawniać rzeczywiste środowisko.",
   "settings.developer.fake.title": "Regiony miniaplikacji internetowych",
   "settings.developer.help": "Po włączeniu trybu deweloperskiego można korzystać z funkcji śledzenia, aby przeglądać przepływ danych podczas wywoływania modelu. Zmiany zaczną obowiązywać po ponownym uruchomieniu aplikacji.",
   "settings.display.custom.css.label": "Niestandardowy CSS",

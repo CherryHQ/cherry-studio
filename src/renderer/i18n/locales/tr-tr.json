@@ -4625,7 +4625,6 @@
   "settings.developer.fake.countries.SG": "Singapur",
   "settings.developer.fake.countries.US": "ABD (Los Angeles)",
   "settings.developer.fake.description": "Her web mini uygulamasının bölgesini kendi menüsünden seçin. Dil, saat dilimi ve şehir konumu bu bölgeye uyar.",
-  "settings.developer.fake.limits": "IP, Canvas, WebGL, ses ve yüklü yazı tipleri değiştirilmez. Metin oluşturma ve bazı arka plan betikleri asıl ortamı hâlâ açığa çıkarabilir.",
   "settings.developer.fake.title": "Web mini uygulaması bölgeleri",
   "settings.developer.help": "Geliştirici modu etkinleştirildikten sonra, model çağrısı sırasındaki veri akışını görüntülemek için izleme özelliği kullanılabilir. Değişiklikler uygulama yeniden başlatıldıktan sonra geçerli olur.",
   "settings.display.custom.css.label": "Özel CSS",

@@ -4625,7 +4625,6 @@
   "settings.developer.fake.countries.SG": "Singapur",
   "settings.developer.fake.countries.US": "USA (Los Angeles)",
   "settings.developer.fake.description": "Wählen Sie die Region jeder Website-MiniApp in deren Menü. Sprache, Zeitzone und Stadtstandort folgen dieser Region.",
-  "settings.developer.fake.limits": "IP, Canvas, WebGL, Audio und installierte Schriftarten werden nicht ersetzt. Textdarstellung und einige Hintergrundskripte können die ursprüngliche Umgebung weiterhin erkennen.",
   "settings.developer.fake.title": "Regionen für Website-MiniApps",
   "settings.developer.help": "Nach Aktivierung des Entwicklermodus kann die Aufrufkette zur Ansicht des Datenflusses verwendet werden.",
   "settings.display.custom.css.label": "Benutzerdefiniertes CSS",

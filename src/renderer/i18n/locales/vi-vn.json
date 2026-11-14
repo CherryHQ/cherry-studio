@@ -4625,7 +4625,6 @@
   "settings.developer.fake.countries.SG": "Singapore",
   "settings.developer.fake.countries.US": "Hoa Kỳ (Los Angeles)",
   "settings.developer.fake.description": "Chọn khu vực trong menu của từng tiện ích web. Ngôn ngữ, múi giờ và vị trí thành phố sẽ theo khu vực đó.",
-  "settings.developer.fake.limits": "IP, Canvas, WebGL, âm thanh và phông chữ đã cài đặt không được thay thế. Kết xuất văn bản và một số tập lệnh nền vẫn có thể tiết lộ môi trường gốc.",
   "settings.developer.fake.title": "Khu vực của tiện ích web",
   "settings.developer.help": "Sau khi bật chế độ nhà phát triển, bạn có thể sử dụng tính năng dò dữ liệu để xem luồng dữ liệu trong quá trình gọi mô hình.",
   "settings.display.custom.css.label": "CSS Tùy chỉnh",

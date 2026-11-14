@@ -4625,7 +4625,6 @@
   "settings.developer.fake.countries.SG": "Singapura",
   "settings.developer.fake.countries.US": "Estados Unidos (Los Angeles)",
   "settings.developer.fake.description": "Selecione a região de cada miniaplicação web no respetivo menu. O idioma, o fuso horário e a localização da cidade seguem essa região.",
-  "settings.developer.fake.limits": "O IP, Canvas, WebGL, áudio e tipos de letra instalados não são substituídos. A apresentação do texto e alguns scripts em segundo plano ainda podem revelar o ambiente original.",
   "settings.developer.fake.title": "Regiões das miniaplicações web",
   "settings.developer.help": "Após ativar o modo de programador, será possível utilizar a função de rastreamento de chamadas para visualizar o fluxo de dados durante o processo de chamada do modelo.",
   "settings.display.custom.css.label": "CSS personalizado",

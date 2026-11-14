@@ -4625,7 +4625,6 @@
   "settings.developer.fake.countries.SG": "Singapur",
   "settings.developer.fake.countries.US": "Estados Unidos (Los Ángeles)",
   "settings.developer.fake.description": "Seleccione la región de cada miniaplicación web en su menú. El idioma, la zona horaria y la ubicación de ciudad seguirán esa región.",
-  "settings.developer.fake.limits": "La IP, Canvas, WebGL, el audio y las fuentes instaladas no se sustituyen. El renderizado de texto y algunos scripts en segundo plano aún pueden revelar el entorno original.",
   "settings.developer.fake.title": "Regiones de miniaplicaciones web",
   "settings.developer.help": "Una vez habilitado el modo de desarrollador, se podrá utilizar la función de cadena de llamadas para ver el flujo de datos del proceso de invocación del modelo.",
   "settings.display.custom.css.label": "CSS personalizado",

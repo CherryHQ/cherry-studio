@@ -4625,7 +4625,6 @@
   "settings.developer.fake.countries.SG": "新加坡",
   "settings.developer.fake.countries.US": "美国（洛杉矶）",
   "settings.developer.fake.description": "在每个网页小程序的菜单中选择地区，语言、时区和城市定位随所选地区变化。",
-  "settings.developer.fake.limits": "IP、Canvas、WebGL、音频和已安装字体不会被替换。文字渲染和部分后台脚本仍可能暴露原始环境。",
   "settings.developer.fake.title": "网页小程序地区设置",
   "settings.developer.help": "启用开发者模式后，将可以使用调用链功能查看模型调用过程的数据流。更改将在重启应用后生效。",
   "settings.display.custom.css.label": "自定义 CSS",

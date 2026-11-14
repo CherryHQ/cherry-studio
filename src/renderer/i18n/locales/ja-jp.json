@@ -4625,7 +4625,6 @@
   "settings.developer.fake.countries.SG": "シンガポール",
   "settings.developer.fake.countries.US": "米国（ロサンゼルス）",
   "settings.developer.fake.description": "各ウェブミニアプリのメニューから地域を選択します。言語、タイムゾーン、都市の位置がその地域に従います。",
-  "settings.developer.fake.limits": "IP、Canvas、WebGL、音声、インストール済みフォントは置き換わりません。文字の描画や一部のバックグラウンドスクリプトから元の環境が分かる場合があります。",
   "settings.developer.fake.title": "ウェブミニアプリの地域",
   "settings.developer.help": "開発者モードを有効にすると、トレース機能を使用してモデルの呼び出しプロセスにおけるデータフローを確認できるようになります。",
   "settings.display.custom.css.label": "カスタムCSS",

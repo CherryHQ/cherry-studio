@@ -4625,7 +4625,6 @@
   "settings.developer.fake.countries.SG": "Singapore",
   "settings.developer.fake.countries.US": "Stati Uniti (Los Angeles)",
   "settings.developer.fake.description": "Seleziona la regione di ogni mini app web dal suo menu. Lingua, fuso orario e posizione della città seguono quella regione.",
-  "settings.developer.fake.limits": "IP, Canvas, WebGL, audio e caratteri installati non vengono sostituiti. Il rendering del testo e alcuni script in background possono ancora rivelare l’ambiente originale.",
   "settings.developer.fake.title": "Regioni delle mini app web",
   "settings.developer.help": "Dopo aver attivato la modalità sviluppatore, puoi usare il tracciamento per visualizzare il flusso dei dati durante le chiamate al modello. Le modifiche hanno effetto dopo il riavvio dell'applicazione.",
   "settings.display.custom.css.label": "CSS personalizzato",

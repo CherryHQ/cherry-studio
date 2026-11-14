@@ -4625,7 +4625,6 @@
   "settings.developer.fake.countries.SG": "Singapore",
   "settings.developer.fake.countries.US": "United States (Los Angeles)",
   "settings.developer.fake.description": "Select each website MiniApp’s region from its menu. Language, time zone and city location follow that region.",
-  "settings.developer.fake.limits": "IP, Canvas, WebGL, audio and installed fonts are not replaced. Text rendering and some background scripts can still reveal the original environment.",
   "settings.developer.fake.title": "Website MiniApp regions",
   "settings.developer.help": "After enabling developer mode, you can use the trace feature to view the data flow during model invocation. Changes take effect after restarting the application.",
   "settings.display.custom.css.label": "Custom CSS",

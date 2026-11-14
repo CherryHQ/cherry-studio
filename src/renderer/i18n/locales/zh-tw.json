@@ -4625,7 +4625,6 @@
   "settings.developer.fake.countries.SG": "新加坡",
   "settings.developer.fake.countries.US": "美國（洛杉磯）",
   "settings.developer.fake.description": "在每個網頁小程式的選單中選擇地區，語言、時區和城市定位隨所選地區變更。",
-  "settings.developer.fake.limits": "IP、Canvas、WebGL、音訊和已安裝字型不會被替換。文字繪製和部分背景指令碼仍可能暴露原始環境。",
   "settings.developer.fake.title": "網頁小程式地區設定",
   "settings.developer.help": "啟用開發者模式後，可使用呼叫鏈功能檢視模型呼叫過程的資料流。更改將在重啟應用程式後生效。",
   "settings.display.custom.css.label": "自訂 CSS",
