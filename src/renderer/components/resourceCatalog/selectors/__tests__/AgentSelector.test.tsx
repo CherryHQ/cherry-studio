@@ -379,7 +379,7 @@ async function openCreateDialog(purpose?: string) {
   fireEvent.click(screen.getByRole('button', { name: 'Create agent' }))
   await screen.findByRole('dialog')
   if (purpose) {
-    fireEvent.change(screen.getByPlaceholderText('library.config.dialogs.create.auto.purpose_placeholder'), {
+    fireEvent.change(screen.getByPlaceholderText('library.config.dialogs.create.auto.agent_purpose_placeholder'), {
       target: { value: purpose }
     })
   }
