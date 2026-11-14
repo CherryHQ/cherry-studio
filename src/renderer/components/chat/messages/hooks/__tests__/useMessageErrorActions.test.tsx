@@ -48,7 +48,9 @@ describe('useMessageErrorActions', () => {
     const error = { message: 'provider unavailable', name: 'ProviderError', stack: '' }
     mocks.translateErrorByAI.mockResolvedValueOnce('服务商不可用')
 
-    const { result } = renderHook(() => useMessageErrorActions({ getDoctorSubject: () => undefined }))
+    const { result } = renderHook(() =>
+      useMessageErrorActions({ errorSource: 'chat', getDoctorSubject: () => undefined })
+    )
 
     expect(modulesEvaluatedDuringHookImport).toEqual({ diagnosis: 0, errorDetail: 0 })
 
@@ -80,7 +82,9 @@ describe('useMessageErrorActions', () => {
     }
     const diagnosticReport = { location: 'Agent conversation' }
     const getDoctorSubject = () => ({ kind: 'agent' as const, agentId: 'agent-1' })
-    const { result } = renderHook(() => useMessageErrorActions({ diagnosticReport, getDoctorSubject }))
+    const { result } = renderHook(() =>
+      useMessageErrorActions({ diagnosticReport, errorSource: 'agent', getDoctorSubject })
+    )
 
     await result.current.openErrorDetail?.({ message, partId: 'message-1-part-0', error })
 
@@ -122,24 +126,24 @@ describe('useMessageErrorActions', () => {
     expect(second.errorContext.occurredAt).toBe('2026-01-02T03:04:05.000Z')
   })
 
-  it('uses the doctor subject when it disagrees with the topic id prefix', async () => {
+  it('records the error source its list adapter declares, whatever the topic id looks like', async () => {
     const message = {
       id: 'message-2',
       role: 'assistant',
-      topicId: 'agent-session:session-1',
+      topicId: 'topic-1',
       createdAt: '2026-01-01T00:00:00.000Z',
       status: 'error'
     } satisfies MessageListItem
-    const error = { message: 'chat failed', name: 'ProviderError', stack: '' }
+    const error = { message: 'runtime failed', name: 'AgentRuntimeError', stack: '' }
     const { result } = renderHook(() =>
-      useMessageErrorActions({ getDoctorSubject: () => ({ kind: 'chat', providerId: 'openai', modelId: 'chat' }) })
+      useMessageErrorActions({ errorSource: 'agent', getDoctorSubject: () => undefined })
     )
 
     await result.current.openErrorDetail?.({ message, partId: 'part-1', error })
 
     expect(mocks.showErrorDetailPopup).toHaveBeenCalledWith(
       expect.objectContaining({
-        errorContext: expect.objectContaining({ source: 'chat', operation: 'message.error' })
+        errorContext: expect.objectContaining({ source: 'agent', operation: 'message.error' })
       })
     )
   })
@@ -160,7 +164,9 @@ describe('useMessageErrorActions', () => {
       responseBody: '{"error":"first"}'
     }
     const nextError = { ...firstError, responseBody: '{"error":"second"}', statusCode: 429 }
-    const { result } = renderHook(() => useMessageErrorActions({ getDoctorSubject: () => undefined }))
+    const { result } = renderHook(() =>
+      useMessageErrorActions({ errorSource: 'chat', getDoctorSubject: () => undefined })
+    )
 
     await result.current.openErrorDetail?.({ message, partId: 'part-1', error: firstError })
     const first = mocks.showErrorDetailPopup.mock.calls[0]?.[0] as {
@@ -190,7 +196,9 @@ describe('useMessageErrorActions', () => {
       status: 'error',
       modelId: 'custom::org::model'
     } satisfies MessageListItem
-    const { result } = renderHook(() => useMessageErrorActions({ getDoctorSubject: () => undefined }))
+    const { result } = renderHook(() =>
+      useMessageErrorActions({ errorSource: 'chat', getDoctorSubject: () => undefined })
+    )
 
     await result.current.openErrorDetail?.({
       message,
@@ -226,7 +234,9 @@ describe('useMessageErrorActions', () => {
         } satisfies SharedMessage),
         { topicId: 'topic-1' }
       )
-    const { result } = renderHook(() => useMessageErrorActions({ getDoctorSubject: () => undefined }))
+    const { result } = renderHook(() =>
+      useMessageErrorActions({ errorSource: 'chat', getDoctorSubject: () => undefined })
+    )
     const open = async (message: MessageListItem) => {
       await result.current.openErrorDetail?.({ message, partId: 'message-retry-part-0', error })
       return mocks.showErrorDetailPopup.mock.calls.at(-1)?.[0] as {
@@ -244,7 +254,9 @@ describe('useMessageErrorActions', () => {
   })
 
   it('drops the oldest message fault once the snapshot map is full', async () => {
-    const { result } = renderHook(() => useMessageErrorActions({ getDoctorSubject: () => undefined }))
+    const { result } = renderHook(() =>
+      useMessageErrorActions({ errorSource: 'chat', getDoctorSubject: () => undefined })
+    )
     const open = (id: string) =>
       result.current.openErrorDetail?.({
         message: {

@@ -5,7 +5,6 @@ import type { MessageListActions } from '@renderer/components/chat/messages/type
 import type { ErrorDetailContentProps } from '@renderer/components/ErrorDetailModal'
 import { contextFromUnknown } from '@renderer/services/AppErrorContextService'
 import { openRoute } from '@renderer/services/mainWindowNavigation'
-import { isAgentSessionTopic } from '@renderer/utils/agentSession'
 import { translateErrorMessage } from '@renderer/utils/errorLanguage'
 import type { AppErrorContext } from '@shared/types/appError'
 import type { DoctorSubjectRef } from '@shared/types/doctor'
@@ -16,12 +15,6 @@ import { getMessageListItemModel } from '../utils/messageListItem'
 const logger = loggerService.withContext('MessageErrorActions')
 export const MESSAGE_FAULT_LIMIT = 50
 const messageFaults = new Map<string, AppErrorContext>()
-
-function messageErrorSource(subject: DoctorSubjectRef | undefined, topicId: string): 'agent' | 'chat' {
-  if (subject?.kind === 'agent') return 'agent'
-  if (subject?.kind === 'chat') return 'chat'
-  return isAgentSessionTopic(topicId) ? 'agent' : 'chat'
-}
 
 function persistedAttemptTime(message: { createdAt: string; persistedAt?: string }): string | undefined {
   for (const candidate of [message.persistedAt, message.createdAt]) {
@@ -76,11 +69,13 @@ type MessageErrorActions = Pick<MessageListActions, 'diagnoseMessageError' | 'op
 
 interface MessageErrorActionOptions {
   diagnosticReport?: ErrorDetailContentProps['diagnosticReport']
+  /** Which conversation kind this list shows; recorded as the fault's source. */
+  errorSource: 'agent' | 'chat'
   getDoctorSubject: (message: MessageListItem) => DoctorSubjectRef | undefined
 }
 
 export function useMessageErrorActions(options: MessageErrorActionOptions): MessageErrorActions {
-  const { diagnosticReport, getDoctorSubject } = options
+  const { diagnosticReport, errorSource, getDoctorSubject } = options
 
   const diagnoseMessageError = useCallback<NonNullable<MessageListActions['diagnoseMessageError']>>(
     ({ error, language }) => translateErrorMessage(error.message ?? '', language),
@@ -98,7 +93,7 @@ export function useMessageErrorActions(options: MessageErrorActionOptions): Mess
       const modelId = model?.id
       const errorContext = rememberMessageFault(faultKey, () =>
         contextFromUnknown(input.error ?? message, {
-          source: messageErrorSource(subject, input.message.topicId),
+          source: errorSource,
           operation: 'message.error',
           message,
           ...(occurredAt ? { occurredAt } : {}),
@@ -122,7 +117,7 @@ export function useMessageErrorActions(options: MessageErrorActionOptions): Mess
         logger.error('Failed to open the message error detail', error as Error)
       }
     },
-    [diagnosticReport, getDoctorSubject]
+    [diagnosticReport, errorSource, getDoctorSubject]
   )
 
   const navigateErrorTarget = useCallback<NonNullable<MessageListActions['navigateErrorTarget']>>((target) => {

@@ -407,8 +407,10 @@ describe('useHomeMessageListProviderValue topic image actions', () => {
   it('diagnoses the message model without falling back to the current selection', () => {
     render(<MessageListAdapterHarness topic={createTopic('topic-a')} />)
     const options = useMessageErrorActionsMock.mock.calls.at(-1)?.[0] as {
+      errorSource: string
       getDoctorSubject: (message: MessageListItem) => unknown
     }
+    expect(options.errorSource).toBe('chat')
     expect(
       options.getDoctorSubject({
         id: 'm1',
