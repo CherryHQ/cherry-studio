@@ -16,7 +16,7 @@ import {
 import { useTranslation } from 'react-i18next'
 
 import { Avatar, AvatarFallback, Button, Checkbox, Tooltip } from '@cherrystudio/ui'
-import { useIcon } from '@cherrystudio/ui/icons'
+import { resolveProviderIconRef, useIcon } from '@cherrystudio/ui/icons'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { loggerService } from '@logger'
 import { ModelTag } from '@renderer/components/tags/Model'
@@ -30,6 +30,7 @@ import { isUniqueModelId, type Model, type UniqueModelId } from '@shared/data/ty
 import type { Provider } from '@shared/data/types/provider'
 import type { SettingsPath } from '@shared/data/types/settingsPath'
 
+import { ProviderAvatarPrimitive } from '../ProviderAvatar'
 import type { SelectorShellBottomAction, SelectorShellLayout } from '../SelectorShell'
 import { SelectorShell } from '../SelectorShell'
 import type { ModelSelectorTag } from './filters'
@@ -50,6 +51,7 @@ import { getProviderDisplayName } from './utils'
 
 const logger = loggerService.withContext('ModelSelector')
 
+const PROVIDER_QUICK_JUMP_STRIP_HEIGHT = 32
 const ITEM_HEIGHT = 36
 const MODEL_SELECTOR_LIST_VERTICAL_PADDING = 8
 const ROW_TAG_SIZE = 9
@@ -63,6 +65,26 @@ const DEFAULT_MODEL_SELECTOR_KEYBOARD_PAGE_SIZE = Math.max(1, Math.floor(MODEL_S
 
 const estimateModelSelectorItemSize = () => ITEM_HEIGHT
 type ModelSelectorScrollAlign = NonNullable<Parameters<DynamicVirtualListRef['scrollToIndex']>[1]>['align']
+
+function resolveProviderLabel(provider: Provider, fallback: string) {
+  const displayName = getProviderDisplayName(provider)
+  return displayName.trim() ? displayName : provider.id.trim() || fallback
+}
+
+function ProviderQuickJumpAvatar({ provider, name }: { provider: Provider; name: string }) {
+  const systemIconRef = resolveProviderIconRef(provider.id)
+  const systemIcon = useIcon(systemIconRef)
+  const customLogo = systemIconRef ? undefined : (provider.logo ?? provider.logoSrc)
+  return (
+    <ProviderAvatarPrimitive
+      providerId={provider.id}
+      providerName={name}
+      logo={systemIconRef ? systemIcon : customLogo || undefined}
+      size={22}
+      displayContext="toolbar"
+    />
+  )
+}
 
 function getModelSelectorOptionDomId(listboxId: string, itemKey: string) {
   return `${listboxId}-option-${encodeURIComponent(itemKey)}`
@@ -436,6 +458,9 @@ export function ModelSelector(props: ModelSelectorProps) {
   const [shellKey, setShellKey] = useState(0)
   const [searchText, setSearchText] = useState('')
   const deferredSearchText = useDeferredValue(searchText)
+  const [highlightedGroupKey, setHighlightedGroupKey] = useState<string | null>(null)
+  const jumpFrameRef = useRef<number | null>(null)
+  const highlightTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [focusedItemKey, _setFocusedItemKey] = useState('')
   const [hasActivatedLazyData, setHasActivatedLazyData] = useState(openProp === true && mountStrategy === 'lazy-keep')
   // 用 startTransition 包裹：滚动时虚拟列表内部可能已进入 layout lifecycle（flushSync），
@@ -476,6 +501,10 @@ export function ModelSelector(props: ModelSelectorProps) {
   }, [])
 
   const open = openProp ?? internalOpen
+  const openRef = useRef(open)
+  useLayoutEffect(() => {
+    openRef.current = open
+  }, [open])
   const dataEnabled = open || (mountStrategy === 'lazy-keep' && hasActivatedLazyData)
 
   // A lazy-kept filtered list still owns Radix hover-card anchors. Adjusting the key while
@@ -584,12 +613,45 @@ export function ModelSelector(props: ModelSelectorProps) {
     composition,
     actionVisibilityFilter: (action) => !recoveryProviderId || action.providerId === recoveryProviderId
   })
+  const providerJumpEntries = useMemo(
+    () =>
+      listItems.flatMap((item) =>
+        item.type === 'group' && item.groupKind === 'provider' && item.provider
+          ? [{ key: item.key, provider: item.provider }]
+          : []
+      ),
+    [listItems]
+  )
+  const clearProviderJump = useCallback(() => {
+    if (jumpFrameRef.current !== null) window.cancelAnimationFrame(jumpFrameRef.current)
+    if (highlightTimerRef.current !== null) clearTimeout(highlightTimerRef.current)
+    jumpFrameRef.current = null
+    highlightTimerRef.current = null
+  }, [])
+
+  useLayoutEffect(() => {
+    if (
+      !open ||
+      (highlightedGroupKey !== null && !providerJumpEntries.some((item) => item.key === highlightedGroupKey))
+    ) {
+      clearProviderJump()
+      setHighlightedGroupKey(null)
+    }
+  }, [clearProviderJump, highlightedGroupKey, open, providerJumpEntries])
+
+  useEffect(() => clearProviderJump, [clearProviderJump])
+
   const isSelectionDisabled = useCallback(
     (model: Model, provider?: Provider) =>
       Boolean(provider && getModelPresentation(model, provider).disabled) ||
       Boolean(isModelDisabled?.(model, provider)),
     [getModelPresentation, isModelDisabled]
   )
+  const listItemsForJumpRef = useRef(listItems)
+  useLayoutEffect(() => {
+    listItemsForJumpRef.current = listItems
+  }, [listItems])
+
   const listItemsRef = useRef(listItems)
   const navigableItemsRef = useRef(navigableItems)
   const visibleSelectedModelIdSetRef = useRef(visibleSelectedModelIdSet)
@@ -674,6 +736,29 @@ export function ModelSelector(props: ModelSelectorProps) {
       listRef.current?.scrollToIndex(index, { align })
     },
     [setFocusedItemKey]
+  )
+
+  const jumpToProviderGroup = useCallback(
+    (groupKey: string): void => {
+      if (jumpFrameRef.current !== null) window.cancelAnimationFrame(jumpFrameRef.current)
+      jumpFrameRef.current = null
+      const isTarget = (item: FlatListItem) =>
+        item.key === groupKey && item.type === 'group' && item.groupKind === 'provider' && Boolean(item.provider)
+      if (!openRef.current || !listItemsForJumpRef.current.some(isTarget)) return
+
+      if (highlightTimerRef.current !== null) clearTimeout(highlightTimerRef.current)
+      setHighlightedGroupKey(groupKey)
+      highlightTimerRef.current = setTimeout(() => {
+        clearProviderJump()
+        setHighlightedGroupKey(null)
+      }, 1600)
+      jumpFrameRef.current = window.requestAnimationFrame(() => {
+        jumpFrameRef.current = null
+        const index = listItemsForJumpRef.current.findIndex(isTarget)
+        if (openRef.current && index >= 0) listRef.current?.scrollToIndex(index, { align: 'start' })
+      })
+    },
+    [clearProviderJump]
   )
 
   const handleSelectItem = useCallback(
@@ -911,12 +996,23 @@ export function ModelSelector(props: ModelSelectorProps) {
     (item: FlatListItem, detailPortalContainer?: SelectorShellLayout['portalContainer']) => {
       if (item.type === 'group') {
         const groupTitle =
-          item.groupKind === 'pinned' ? t('models.pinned') : item.provider ? getProviderDisplayName(item.provider) : ''
+          item.groupKind === 'pinned'
+            ? t('models.pinned')
+            : item.provider
+              ? resolveProviderLabel(item.provider, t('models.detail.provider'))
+              : ''
         // Ends where the row tags end: rows keep a pin slot plus gap (20px) inside 6px of padding.
         const groupActionInset = showPinActions && 'mr-2.5'
 
         return (
-          <div className="group flex h-7 items-center gap-1 bg-popover px-4 text-[11px] text-muted-foreground">
+          <div
+            data-provider-jump-highlighted={
+              item.groupKind === 'provider' && highlightedGroupKey === item.key ? 'true' : undefined
+            }
+            className={cn(
+              'group flex h-7 items-center gap-1 px-4 text-[11px] text-muted-foreground',
+              item.groupKind === 'provider' && highlightedGroupKey === item.key ? 'bg-accent' : 'bg-popover'
+            )}>
             <span className="flex h-4 items-center truncate leading-4">{groupTitle}</span>
             {item.provider && item.canNavigateToSettings && (
               <Tooltip content={t('navigate.provider_settings')} delay={500}>
@@ -1002,6 +1098,7 @@ export function ModelSelector(props: ModelSelectorProps) {
     },
     [
       focusedItemKey,
+      highlightedGroupKey,
       handleNavigateToProviderSettings,
       handleSelectItem,
       handleTogglePin,
@@ -1112,31 +1209,64 @@ export function ModelSelector(props: ModelSelectorProps) {
         bottomAction={bottomActions}
         data-testid="model-selector-content">
         {({ availableListHeight, portalContainer: detailPortalContainer }) => {
-          const visibleListHeight = availableListHeight === undefined ? initialListHeight : availableListHeight
+          const stripHeight = providerJumpEntries.length >= 2 ? PROVIDER_QUICK_JUMP_STRIP_HEIGHT : 0
+          const visibleListHeight = Math.max(
+            0,
+            (availableListHeight === undefined ? initialListHeight : availableListHeight) - stripHeight
+          )
           const virtualListHeight = Math.max(0, visibleListHeight - MODEL_SELECTOR_LIST_VERTICAL_PADDING)
 
           return listItems.length > 0 ? (
-            <div
-              id={listboxId}
-              className="py-1"
-              role="listbox"
-              aria-multiselectable={multiple && multiSelectMode}
-              style={{ height: visibleListHeight }}>
-              <DynamicVirtualList
-                ref={listRef}
-                list={listItems}
-                size={virtualListHeight}
-                estimateSize={estimateModelSelectorItemSize}
-                getItemKey={getListItemKey}
-                isSticky={isStickyListItem}
-                keepMountedIndexes={keepMountedIndexes}
-                scrollPaddingStart={ITEM_HEIGHT}
-                onScroll={handleListScroll}
-                autoHideScrollbar
-                overscan={6}>
-                {(item) => rowRenderer(item, detailPortalContainer)}
-              </DynamicVirtualList>
-            </div>
+            <>
+              {providerJumpEntries.length >= 2 && (
+                <div
+                  role="group"
+                  aria-label={t('models.detail.provider')}
+                  className="flex h-8 shrink-0 flex-nowrap items-center gap-1 overflow-x-auto overflow-y-hidden px-1"
+                  style={{ height: PROVIDER_QUICK_JUMP_STRIP_HEIGHT }}>
+                  {providerJumpEntries.map(({ key, provider }) => {
+                    const label = resolveProviderLabel(provider, t('models.detail.provider'))
+                    return (
+                      <Tooltip key={key} content={label}>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon-sm"
+                          className="size-7 shrink-0"
+                          aria-label={label}
+                          onMouseDown={(event) => event.preventDefault()}
+                          onClick={() => jumpToProviderGroup(key)}>
+                          <span aria-hidden="true">
+                            <ProviderQuickJumpAvatar provider={provider} name={label} />
+                          </span>
+                        </Button>
+                      </Tooltip>
+                    )
+                  })}
+                </div>
+              )}
+              <div
+                id={listboxId}
+                className="overflow-hidden py-1"
+                role="listbox"
+                aria-multiselectable={multiple && multiSelectMode}
+                style={{ height: visibleListHeight }}>
+                <DynamicVirtualList
+                  ref={listRef}
+                  list={listItems}
+                  size={virtualListHeight}
+                  estimateSize={estimateModelSelectorItemSize}
+                  getItemKey={getListItemKey}
+                  isSticky={isStickyListItem}
+                  keepMountedIndexes={keepMountedIndexes}
+                  scrollPaddingStart={ITEM_HEIGHT}
+                  onScroll={handleListScroll}
+                  autoHideScrollbar
+                  overscan={6}>
+                  {(item) => rowRenderer(item, detailPortalContainer)}
+                </DynamicVirtualList>
+              </div>
+            </>
           ) : (
             <div
               className="flex flex-col items-center justify-center gap-2 px-3 py-4 text-muted-foreground text-xs"

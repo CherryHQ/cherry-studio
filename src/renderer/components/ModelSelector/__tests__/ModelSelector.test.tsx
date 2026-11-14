@@ -5,6 +5,7 @@ import type { ReactNode, Ref } from 'react'
 import { useEffect, useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type * as UiIcons from '@cherrystudio/ui/icons'
 import type * as ModelTags from '@renderer/components/tags/Model'
 import { CommandRuntimeContext, type CommandHandler } from '@renderer/hooks/command'
 import { toast } from '@renderer/services/toast'
@@ -24,6 +25,7 @@ const mocks = vi.hoisted(() => ({
   shellEvents: [] as string[],
   scrollToIndex: vi.fn(),
   virtualize: false,
+  availableListHeight: undefined as number | undefined,
   useModelSelectorData: vi.fn(),
   displayTags: [] as string[]
 }))
@@ -55,8 +57,10 @@ vi.mock('@renderer/utils/platform', () => ({
   isProd: false
 }))
 
-vi.mock('@cherrystudio/ui/icons', () => ({
-  useIcon: () => undefined
+vi.mock('@cherrystudio/ui/icons', async (importOriginal) => ({
+  ...(await importOriginal<typeof UiIcons>()),
+  useIcon: (ref: { meta: { id: string } } | undefined) =>
+    ref ? () => <svg role="img" aria-label={`brand-${ref.meta.id}`} /> : undefined
 }))
 
 vi.mock('@renderer/utils/model', async (importOriginal) => ({
@@ -87,12 +91,14 @@ vi.mock('@renderer/components/VirtualList', async () => {
       ref,
       list,
       children,
-      keepMountedIndexes = []
+      keepMountedIndexes = [],
+      size
     }: {
       ref?: Ref<{ scrollToIndex: typeof mocks.scrollToIndex }>
       list: FlatListItem[]
       children: (item: FlatListItem, index: number) => ReactNode
       keepMountedIndexes?: readonly number[]
+      size: number
     }) => {
       React.useImperativeHandle(ref, () => ({
         scrollToIndex: mocks.scrollToIndex
@@ -103,11 +109,11 @@ vi.mock('@renderer/components/VirtualList', async () => {
         : new Set(list.map((_, index) => index))
 
       return (
-        <>
+        <div data-testid="virtual-viewport" style={{ height: size }}>
           {list.map((item, index) =>
             renderedIndexes.has(index) ? <React.Fragment key={item.key}>{children(item, index)}</React.Fragment> : null
           )}
-        </>
+        </div>
       )
     }
   }
@@ -134,7 +140,8 @@ vi.mock('@renderer/components/SelectorShell', () => ({
 
     const actions = Array.isArray(bottomAction) ? bottomAction : bottomAction ? [bottomAction] : []
     mocks.bottomActions = actions
-    const content = typeof children === 'function' ? children({ availableListHeight: undefined }) : children
+    const content =
+      typeof children === 'function' ? children({ availableListHeight: mocks.availableListHeight }) : children
 
     return (
       <>
@@ -268,6 +275,7 @@ describe('ModelSelector', () => {
     mocks.bottomActions = []
     mocks.shellEvents = []
     mocks.virtualize = false
+    mocks.availableListHeight = undefined
     mocks.useModelSelectorData.mockReturnValue(makeData())
     vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
       callback(0)
@@ -278,6 +286,168 @@ describe('ModelSelector', () => {
 
   afterEach(() => {
     vi.restoreAllMocks()
+  })
+
+  function quickJumpData() {
+    const data = makeData()
+    const otherProvider = { ...provider, id: 'custom-other', name: 'Other Provider' }
+    return makeData({
+      listItems: [
+        { key: 'pinned', type: 'group', groupKind: 'pinned' },
+        { ...data.modelItems[0], key: 'pinned-model', groupKind: 'pinned', isPinned: true },
+        ...data.listItems,
+        { key: 'provider-composed-group', type: 'group', groupKind: 'provider', provider: otherProvider }
+      ]
+    })
+  }
+
+  it.each([
+    ['', 'custom-other', 'custom-other'],
+    ['   ', '  custom-other  ', 'custom-other'],
+    ['   ', '   ', 'models.detail.provider'],
+    ['  Other Provider  ', 'custom-other', '  Other Provider  ']
+  ])('shares a nonblank label across provider surfaces (%j, %j)', (name, id, label) => {
+    const data = quickJumpData()
+    const header = data.listItems.at(-1)!
+    if (header.type === 'group' && header.provider) header.provider = { ...header.provider, name, id }
+    mocks.useModelSelectorData.mockReturnValue(data)
+    render(<ModelSelector multiple={false} open onSelect={() => {}} trigger={<button type="button">Open</button>} />)
+    const button = within(screen.getByRole('group', { name: 'models.detail.provider' })).getByRole('button', {
+      name: label.trim()
+    })
+    expect(button).toHaveAttribute('aria-label', label)
+    if (!name.trim()) expect(button).toHaveTextContent(label[0])
+    expect(within(screen.getByRole('listbox')).getByText(label.trim())).toBeInTheDocument()
+  })
+
+  it('preserves preset precedence and custom brand or uploaded logos in jump buttons', () => {
+    const data = quickJumpData()
+    const header = data.listItems.at(-1)!
+    if (header.type !== 'group' || !header.provider) throw new Error('Missing provider fixture')
+    header.provider = { ...header.provider, logo: 'icon:anthropic', logoSrc: 'https://example.com/upload.png' }
+    const preset = data.listItems.find((item) => item.type === 'group' && item.provider?.id === 'openai')!
+    if (preset.type === 'group' && preset.provider) preset.provider = { ...preset.provider, logo: 'icon:anthropic' }
+    mocks.useModelSelectorData.mockReturnValue(data)
+    const props = {
+      multiple: false as const,
+      open: true,
+      onSelect: () => {},
+      trigger: <button type="button">Open</button>
+    }
+    const view = render(<ModelSelector {...props} />)
+    const group = screen.getByRole('group', { name: 'models.detail.provider' })
+    expect(within(group).getByRole('button', { name: 'OpenAI' }).querySelector('svg')).toHaveAttribute(
+      'aria-label',
+      'brand-openai'
+    )
+    expect(within(group).getByRole('button', { name: 'Other Provider' }).querySelector('svg')).toHaveAttribute(
+      'aria-label',
+      'brand-anthropic'
+    )
+    header.provider = { ...header.provider, logo: undefined }
+    mocks.useModelSelectorData.mockReturnValue({ ...data, listItems: [...data.listItems] })
+    view.rerender(<ModelSelector {...props} />)
+    expect(within(group).getByRole('button', { name: 'Other Provider' }).querySelector('img')).toHaveAttribute(
+      'src',
+      'https://example.com/upload.png'
+    )
+  })
+
+  it('excludes pinned headers and preserves search, selection and active descendant when jumping to composed groups', async () => {
+    mocks.useModelSelectorData.mockReturnValue(quickJumpData())
+    render(
+      <ModelSelector
+        multiple
+        open
+        multiSelectMode
+        value={['openai::gpt-4']}
+        selectionType="id"
+        onSelect={() => {
+          throw new Error('Jump changed selection')
+        }}
+        trigger={<button type="button">Open</button>}
+      />
+    )
+    const group = screen.getByRole('group', { name: 'models.detail.provider' })
+    expect(
+      within(group)
+        .getAllByRole('button')
+        .map((button) => button.getAttribute('aria-label'))
+    ).toEqual(['OpenAI', 'Other Provider'])
+    const input = screen.getByRole('textbox')
+    fireEvent.change(input, { target: { value: 'gpt' } })
+    const activeId = input.getAttribute('aria-activedescendant')
+    await userEvent.setup().click(within(group).getByRole('button', { name: 'Other Provider' }))
+    expect(input).toHaveValue('gpt')
+    expect(input).toHaveAttribute('aria-activedescendant', activeId)
+    expect(document.getElementById(activeId!)).toHaveAttribute('role', 'option')
+    expect(screen.getByRole('listbox')).toHaveAttribute('aria-multiselectable', 'true')
+    expect(document.querySelectorAll('[data-provider-jump-highlighted="true"]')).toHaveLength(1)
+    expect(document.querySelector('[data-provider-jump-highlighted="true"]')).toHaveTextContent('Other Provider')
+  })
+
+  it('restarts same-target expiry and prevents an old timer clearing the next target', async () => {
+    vi.useFakeTimers()
+    mocks.useModelSelectorData.mockReturnValue(quickJumpData())
+    const view = render(
+      <ModelSelector multiple={false} open onSelect={() => {}} trigger={<button type="button">Open</button>} />
+    )
+    const click = (name: string) =>
+      fireEvent.click(
+        within(screen.getByRole('group', { name: 'models.detail.provider' })).getByRole('button', { name })
+      )
+    const highlighted = () => document.querySelector('[data-provider-jump-highlighted="true"]')
+    click('Other Provider')
+    await act(() => vi.advanceTimersByTime(1000))
+    click('Other Provider')
+    await act(() => vi.advanceTimersByTime(601))
+    expect(highlighted()).toHaveTextContent('Other Provider')
+    click('OpenAI')
+    await act(() => vi.advanceTimersByTime(1000))
+    expect(highlighted()).toHaveTextContent('OpenAI')
+    await act(() => vi.advanceTimersByTime(600))
+    expect(highlighted()).toBeNull()
+    click('Other Provider')
+    mocks.useModelSelectorData.mockReturnValue(makeData())
+    view.rerender(
+      <ModelSelector multiple={false} open onSelect={() => {}} trigger={<button type="button">Open</button>} />
+    )
+    expect(highlighted()).toBeNull()
+    mocks.useModelSelectorData.mockReturnValue(quickJumpData())
+    view.rerender(
+      <ModelSelector multiple={false} open onSelect={() => {}} trigger={<button type="button">Open</button>} />
+    )
+    click('Other Provider')
+    view.rerender(
+      <ModelSelector multiple={false} open={false} onSelect={() => {}} trigger={<button type="button">Open</button>} />
+    )
+    view.rerender(
+      <ModelSelector multiple={false} open onSelect={() => {}} trigger={<button type="button">Open</button>} />
+    )
+    expect(highlighted()).toBeNull()
+    view.unmount()
+    vi.useRealTimers()
+  })
+
+  it.each([undefined, 100, 20, 0])('deducts strip height once and clamps the %s body budget', (budget) => {
+    mocks.availableListHeight = budget
+    const data = quickJumpData()
+    mocks.useModelSelectorData.mockReturnValue(data)
+    const view = render(
+      <ModelSelector multiple={false} open onSelect={() => {}} trigger={<button type="button">Open</button>} />
+    )
+    expect(screen.getByRole('listbox')).toHaveStyle({
+      height: `${Math.max(0, (budget ?? 8 + data.listItems.length * 36) - 32)}px`
+    })
+    expect(screen.getByTestId('virtual-viewport')).toHaveStyle({
+      height: `${Math.max(0, (budget ?? 8 + data.listItems.length * 36) - 32 - 8)}px`
+    })
+    mocks.useModelSelectorData.mockReturnValue(makeData())
+    view.rerender(
+      <ModelSelector multiple={false} open onSelect={() => {}} trigger={<button type="button">Open</button>} />
+    )
+    expect(screen.queryByRole('group', { name: 'models.detail.provider' })).toBeNull()
+    expect(screen.getByRole('listbox')).toHaveStyle({ height: `${budget ?? 116}px` })
   })
 
   it('activates action rows without changing selection or showing pin/checkbox controls', async () => {
