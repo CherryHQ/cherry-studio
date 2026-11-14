@@ -1622,6 +1622,7 @@
   "error.image_unreadable_for_non_vision_model": "Vybraný model nemá nastavený vstup obrázků a Cherry Studio z přílohy nedokázalo extrahovat čitelný text. Zapněte pro tento model funkci Vision v nastavení poskytovatele, vyberte jiný model s podporou vidění, nebo obrázek odeberte a zkuste to znovu.",
   "error.lastError": "Poslední chyba",
   "error.maxEmbeddingsPerCall": "Maximum embeddingů na volání",
+  "error.media_unreadable_without_preprocessing": "Cherry Studio nedokázalo převést tuto zvukovou nebo video přílohu na text. Vyberte model rozpoznávání řeči v nastavení Hlas a Model Vision pro video v nastavení modelů, nebo přílohu odeberte a zkuste to znovu.",
   "error.message": "Zpráva o chybě",
   "error.missing_finish_reason": "<provider>{{provider}}</provider> ukončil odpověď bez důvodu ukončení. Částečná odpověď byla zachována; zopakujte požadavek.",
   "error.missing_user_message": "Nelze přepnout odpověď modelu: původní zpráva uživatele byla smazána. Odešlete novou zprávu, abyste získali odpověď tímto modelem.",
