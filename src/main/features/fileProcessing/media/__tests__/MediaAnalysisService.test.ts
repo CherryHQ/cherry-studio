@@ -854,6 +854,99 @@ describe('MediaAnalysisService', () => {
     expect(runtime.transcribe).toHaveBeenCalledTimes(2)
   })
 
+  describe('paid vision calls across retries', () => {
+    const systemOcr: MediaExecutionConfig['ocr'] = {
+      processor: {
+        id: 'system',
+        type: 'builtin',
+        capabilities: [{ feature: 'image_to_text', inputs: ['image'], output: 'text' }]
+      },
+      identity: { processorId: 'system', modelId: '', apiHost: '', optionsJson: '{}' }
+    }
+
+    beforeEach(() => {
+      runtime.config = { ...runtime.config, asr: null, vision: visionExecution() }
+      runtime.probe.mockResolvedValue({
+        durationMs: 60_000,
+        hasAudio: false,
+        hasVideo: true,
+        mime: 'video/mp4',
+        kind: 'video'
+      })
+      runtime.extractFrames.mockImplementation(async ({ outputDir, timestampsMs }) => ({
+        frames: await Promise.all(
+          timestampsMs.map(async (timestampMs: number) => {
+            const path = join(outputDir, `frame-${timestampMs}.jpg`)
+            await writeFile(path, Buffer.from(`jpeg-${timestampMs}`))
+            return { path, timestampMs }
+          })
+        )
+      }))
+    })
+
+    const requestedFrames = (call: number): string[] => {
+      const request: { messages: Array<{ content: Array<{ type: string; text?: string }> }> } =
+        runtime.generateText.mock.calls[call][2]
+      return request.messages[0].content.flatMap((part) =>
+        part.type === 'text' && part.text?.startsWith('FRAME_') ? [part.text] : []
+      )
+    }
+
+    it('does not pay for described frames again while OCR keeps failing', async () => {
+      runtime.config = { ...runtime.config, ocr: systemOcr }
+      runtime.ocrImage.mockRejectedValue(new Error('OCR processor is misconfigured'))
+      runtime.generateText.mockImplementation(async () => ({
+        text: requestedFrames(runtime.generateText.mock.calls.length - 1)
+          .map((frame) => `${frame}: slide`)
+          .join('\n')
+      }))
+
+      const first = await service.analyze(file)
+      const second = await service.analyze(file)
+
+      expect(first.warnings).toContain('ocr_failed')
+      expect(runtime.generateText).toHaveBeenCalledTimes(1)
+      expect(second.visuals?.every((frame) => frame.summary === 'slide')).toBe(true)
+    })
+
+    it('keeps a paid reply that skips a frame instead of asking again', async () => {
+      runtime.generateText.mockImplementation(async () => ({
+        text: `${requestedFrames(0)[0]}: only the first frame`
+      }))
+
+      const first = await service.analyze(file)
+      await service.analyze(file)
+
+      expect(first.warnings).not.toContain('vision_failed')
+      expect(runtime.generateText).toHaveBeenCalledTimes(1)
+    })
+
+    it('resends only the frames whose batch failed', async () => {
+      runtime.config = {
+        ...runtime.config,
+        budget: { maxFrames: 7, targetIntervalMs: 1_000, maxEdgePx: 640, jpegQuality: 70 }
+      }
+      const answer = async () => ({
+        text: requestedFrames(runtime.generateText.mock.calls.length - 1)
+          .map((frame) => `${frame}: kept`)
+          .join('\n')
+      })
+      runtime.generateText
+        .mockImplementationOnce(answer)
+        .mockRejectedValueOnce(new Error('vision provider rejected the batch'))
+        .mockImplementation(answer)
+
+      const failed = await service.analyze(file)
+      const recovered = await service.analyze(file)
+
+      expect(failed.warnings).toContain('vision_failed')
+      expect(runtime.generateText).toHaveBeenCalledTimes(3)
+      expect(requestedFrames(2)).toEqual(requestedFrames(1))
+      expect(recovered.warnings).not.toContain('vision_failed')
+      expect(recovered.visuals?.every((frame) => frame.summary === 'kept')).toBe(true)
+    })
+  })
+
   it('retries frame extraction after a recoverable visual failure instead of caching it', async () => {
     runtime.probe.mockResolvedValue({
       durationMs: 10_000,
