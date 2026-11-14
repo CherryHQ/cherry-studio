@@ -229,7 +229,6 @@ const NotesEditor: FC<NotesEditorProps> = memo(
             message={t('notes.load_failed')}
             source="notes"
             operation="notes.load"
-            recordId={activeNodeId}
           />
         </div>
       )
