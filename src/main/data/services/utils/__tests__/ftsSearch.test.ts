@@ -1,6 +1,8 @@
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { describe, expect, it, vi } from 'vitest'
 
+import { buildSearchSnippet } from '@main/utils/searchSnippet'
+
 import { searchWithCursor } from '../ftsSearch'
 
 type TestSearchRow = {
@@ -47,6 +49,24 @@ describe('searchWithCursor', () => {
 
     expect(buildSnippet).toHaveBeenCalledWith('**needle**', ['needle'], 'substring')
     expect(result.items).toEqual([{ id: 'message-1', createdAt: 100, snippet: 'custom snippet' }])
+  })
+
+  it('retains a candidate whose search term is between literal comparison operators', () => {
+    const text = 'score < 100 and limit > 10'
+    const row = { id: 'comparison', createdAt: 100, searchableText: text }
+    const result = searchWithCursor<TestSearchRow, TestSearchItem>({
+      q: 'limit',
+      cursorConfig: { fieldMessage: 'invalid cursor', errorMessage: 'Invalid cursor' },
+      fetchRows: ({ offset }) => (offset === 0 ? [row] : []),
+      getSearchableText: (candidate) => candidate.searchableText,
+      buildSnippet: buildSearchSnippet,
+      mapRow: (candidate, { snippet }) => ({
+        item: { id: candidate.id, createdAt: candidate.createdAt, snippet },
+        sort: { createdAt: candidate.createdAt, id: candidate.id }
+      })
+    })
+
+    expect(result.items).toEqual([{ id: 'comparison', createdAt: 100, snippet: text }])
   })
 
   it('rejects an empty raw cursor before fetching rows', async () => {
