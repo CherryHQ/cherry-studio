@@ -939,6 +939,21 @@ const jinaFetcher: ModelFetcher = {
   }
 }
 
+// HopBase serves Claude models only over Anthropic Messages (`/v1/chat/completions` answers 404 for
+// them); every other family it lists speaks the provider's default Chat Completions endpoint.
+const hopBaseFetcher: ModelFetcher = {
+  match: (p) => matchesPreset(p, SystemProviderIds.hopbase),
+  fetch: async (provider, signal) => {
+    const listed = await listOpenAICompatibleModels(provider, formatApiHost(getBaseUrl(provider)), signal)
+    return {
+      ...listed,
+      models: listed.models.map((m) =>
+        /^claude-/i.test(m.apiModelId ?? '') ? { ...m, endpointTypes: [ENDPOINT_TYPE.ANTHROPIC_MESSAGES] } : m
+      )
+    }
+  }
+}
+
 // The public router serves both dialects; custom destinations may only support their configured one.
 const huggingFaceFetcher: ModelFetcher = {
   match: (p) => matchesPreset(p, SystemProviderIds.huggingface),
@@ -1238,6 +1253,7 @@ const fetchers: ModelFetcher[] = [
   gatewayFetcher,
   anthropicFetcher,
   jinaFetcher,
+  hopBaseFetcher,
   huggingFaceFetcher,
   openAIFetcher,
   poeFetcher,
