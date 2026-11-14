@@ -34,6 +34,7 @@ import { useMiniAppUpdate } from '@renderer/hooks/useMiniAppUpdate'
 import { useModelById } from '@renderer/hooks/useModel'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { ipcApi } from '@renderer/ipc'
+import { toastAppError } from '@renderer/services/AppErrorDetailService'
 import { toast } from '@renderer/services/toast'
 import { formatFileSize } from '@renderer/utils/file'
 import { permissionLabel } from '@renderer/utils/miniAppPermission'
@@ -174,7 +175,7 @@ const MiniAppDetailPanel: FC<Props> = ({ appId, open = true, onClose }) => {
       setError({
         message: t('miniApp.activity.load_error', { message: errorMessage(e) }),
         cause: e,
-        operation: 'mini_app.activity'
+        operation: 'miniapp.activity'
       })
     }
   }, [appId, deniedOnly, t])
@@ -207,7 +208,7 @@ const MiniAppDetailPanel: FC<Props> = ({ appId, open = true, onClose }) => {
       setError({
         message: t('miniApp.detail.load_error', { message: errorMessage(e) }),
         cause: e,
-        operation: 'mini_app.detail'
+        operation: 'miniapp.detail'
       })
     }
   }, [appId, t])
@@ -229,7 +230,7 @@ const MiniAppDetailPanel: FC<Props> = ({ appId, open = true, onClose }) => {
       setError({
         message: t('miniApp.detail.action_error', { message: errorMessage(e) }),
         cause: e,
-        operation: 'mini_app.action'
+        operation: 'miniapp.action'
       })
       return false
     } finally {
@@ -259,8 +260,13 @@ const MiniAppDetailPanel: FC<Props> = ({ appId, open = true, onClose }) => {
   const { value: replacePreview } = useExitPresence(replace.preview)
   const replaceError = replace.error
   useEffect(() => {
-    if (replaceError) toast.error(t(replaceError.key, replaceError.params))
-  }, [replaceError, t])
+    if (!replaceError) return
+    toastAppError(t(replaceError.key, replaceError.params), replaceError.cause, {
+      source: 'miniapp',
+      operation: replaceError.operation,
+      recordId: appId
+    })
+  }, [appId, replaceError, t])
   const handlePickReplacement = () =>
     replace.settle(
       () => ipcApi.request('mini_app.install.pick_and_preview'),
@@ -333,7 +339,7 @@ const MiniAppDetailPanel: FC<Props> = ({ appId, open = true, onClose }) => {
                   <ErrorDetailAction
                     error={error.cause}
                     message={error.message}
-                    source="mini_app"
+                    source="miniapp"
                     operation={error.operation}
                     recordId={appId}
                   />
