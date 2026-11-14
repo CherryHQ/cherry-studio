@@ -98,6 +98,8 @@ export function serializeError(error: unknown): SerializedError {
     if ('diagnosticReference' in e && typeof e.diagnosticReference === 'string') {
       serialized.diagnosticReference = e.diagnosticReference
     }
+    if ('processExitDetail' in e && typeof e.processExitDetail === 'string')
+      serialized.processExitDetail = e.processExitDetail
     if ('processExitCode' in e && typeof e.processExitCode === 'number') serialized.processExitCode = e.processExitCode
     if ('processExitSignal' in e && typeof e.processExitSignal === 'string') {
       serialized.processExitSignal = e.processExitSignal

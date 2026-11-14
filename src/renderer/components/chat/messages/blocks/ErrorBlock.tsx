@@ -43,9 +43,21 @@ const ErrorMessage: React.FC<{ error: Props['error'] }> = ({ error }) => {
   const claudeCodeExit = getClaudeCodeExitInfo(error)
   if (claudeCodeExit) {
     const { reference, exitCode, exitSignal } = claudeCodeExit
-    if (exitCode !== undefined) return t('error.claude_code_exit.code', { code: exitCode, reference })
-    if (exitSignal !== undefined) return t('error.claude_code_exit.signal', { signal: exitSignal, reference })
-    return t('error.claude_code_exit.start', { reference })
+    const status =
+      exitCode !== undefined
+        ? t('error.claude_code_exit.code', { code: exitCode, reference })
+        : exitSignal !== undefined
+          ? t('error.claude_code_exit.signal', { signal: exitSignal, reference })
+          : t('error.claude_code_exit.start', { reference })
+    const detail = typeof error?.processExitDetail === 'string' ? error.processExitDetail : ''
+    return (
+      <span>
+        {status}
+        <span className="mt-1 block whitespace-pre-wrap break-words">
+          {detail || t('settings.doctor.error_category.unknown')}
+        </span>
+      </span>
+    )
   }
 
   const i18nKey = error && 'i18nKey' in error ? `error.${(error as Record<string, unknown>).i18nKey}` : ''

@@ -1,11 +1,13 @@
 import { randomUUID } from 'node:crypto'
 
 import { classifyErrorCategory, type ErrorCategory, extractHttpStatus } from '@shared/utils/errorCategory'
+import { redactSecretText, redactSecretTokens } from '@shared/utils/redaction'
 
 export interface ClaudeCodeProcessDiagnostics {
   readonly reference: string
   exited?: Promise<void>
   terminalReason?: string
+  output?: string
   category?: ErrorCategory
   exitCode?: number
   exitSignal?: NodeJS.Signals
@@ -17,6 +19,7 @@ export function createClaudeCodeProcessDiagnostics(reference: string = randomUUI
 }
 
 export function resetClaudeCodeProcessDiagnostics(diagnostics: ClaudeCodeProcessDiagnostics): void {
+  delete diagnostics.output
   delete diagnostics.terminalReason
   delete diagnostics.category
   delete diagnostics.exitCode
@@ -38,25 +41,75 @@ export function recordClaudeCodeProcessExit(
   const stderr = stderrTail.trim()
   const status = code !== null ? `exited with code ${code}` : `terminated by signal ${String(signal)}`
   diagnostics.terminalReason = `Claude Code process ${status}${stderr ? `. stderr: ${stderr}` : ''}`
+  diagnostics.output = stderr
   diagnostics.category = classifyClaudeCodeTerminalReason(stderr)
   if (code !== null) diagnostics.exitCode = code
   if (signal !== null) diagnostics.exitSignal = signal
+  if (code !== 0) notifyProcessFailure(diagnostics)
 }
 
 export function recordClaudeCodeSpawnError(diagnostics: ClaudeCodeProcessDiagnostics, error: Error): void {
   diagnostics.terminalReason = `Failed to spawn Claude Code process: ${error.message}`
   diagnostics.category = classifyClaudeCodeTerminalReason(diagnostics.terminalReason)
+  diagnostics.output = error.message
   diagnostics.spawnFailed = true
+  notifyProcessFailure(diagnostics)
+}
+
+const failureListeners = new WeakMap<ClaudeCodeProcessDiagnostics, Set<() => void>>()
+
+export function hasClaudeCodeProcessFailure(diagnostics?: ClaudeCodeProcessDiagnostics): boolean {
+  return (
+    diagnostics?.spawnFailed === true ||
+    diagnostics?.exitSignal !== undefined ||
+    (diagnostics?.exitCode !== undefined && diagnostics.exitCode !== 0)
+  )
+}
+
+function notifyProcessFailure(diagnostics: ClaudeCodeProcessDiagnostics): void {
+  for (const listener of failureListeners.get(diagnostics) ?? []) listener()
+}
+
+/** Separate from the SDK transport stream, including failures recorded during prewarm. */
+export function subscribeClaudeCodeProcessFailure(
+  diagnostics: ClaudeCodeProcessDiagnostics,
+  listener: () => void
+): () => void {
+  const listeners = failureListeners.get(diagnostics) ?? new Set()
+  failureListeners.set(diagnostics, listeners)
+  listeners.add(listener)
+  if (hasClaudeCodeProcessFailure(diagnostics)) listener()
+  return () => listeners.delete(listener)
 }
 
 export function isClaudeCodeProcessFailure(error: unknown, diagnostics?: ClaudeCodeProcessDiagnostics): error is Error {
   return (
-    error instanceof Error &&
-    (diagnostics?.spawnFailed === true ||
-      /Claude Code process (?:exited with code|terminated by signal|failed to spawn)|Failed to spawn Claude Code process/i.test(
-        error.message
-      ))
+    error instanceof Error && (error.name === 'ClaudeCodeProcessExitError' || hasClaudeCodeProcessFailure(diagnostics))
   )
+}
+
+function safeProcessOutput(output: string): string {
+  // An unquoted path's end is ambiguous when it contains spaces. Prefer losing
+  // the remainder of that diagnostic line to exposing a private path suffix.
+  const ansiColor = new RegExp(String.fromCharCode(27) + '\\[[0-9;]*[A-Za-z]', 'g')
+  const text = output
+    .replace(ansiColor, '')
+    .replace(/(\/\/)[^\s/\\?#]+@/g, '$1<redacted>@')
+    .replace(/https?:\/\/[^\s"']+/gi, '<redacted-url>')
+    .replace(/(?:[A-Za-z]:[\\/]|\\\\)[^\r\n]*/g, '<redacted-path>')
+    .replace(/(^|[\s"'=(:[{,;~`<>)])\/[^\r\n]*/g, '$1<redacted-path>')
+  return redactSecretTokens(redactSecretText(text)).slice(0, 1000)
+}
+
+/** Retain the queued SDK result as bounded diagnostic data, never a second terminal. */
+export function withClaudeCodeSdkFailure(processError: unknown, sdkError: unknown): unknown {
+  if (!(processError instanceof Error) || !(sdkError instanceof Error)) return processError
+  const detail = (processError as Error & { processExitDetail?: string }).processExitDetail ?? ''
+  return Object.assign(processError, {
+    processExitDetail: [detail.slice(0, 480), `SDK: ${safeProcessOutput(sdkError.message).slice(0, 500)}`]
+      .filter(Boolean)
+      .join('\n')
+  })
 }
 
 export function createClaudeCodeProcessExitError(
@@ -71,6 +124,7 @@ export function createClaudeCodeProcessExitError(
         : 'failed to start'
   return Object.assign(new Error(`Claude Code process ${status}`), {
     name: 'ClaudeCodeProcessExitError',
+    processExitDetail: safeProcessOutput(diagnostics.output ?? ''),
     claudeCodeExitCategory:
       diagnostics.category ?? classifyClaudeCodeTerminalReason(diagnostics.terminalReason ?? originalError.message),
     diagnosticReference: diagnostics.reference,

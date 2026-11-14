@@ -469,6 +469,51 @@ required service tier.`
     expect(navigateErrorTarget).toHaveBeenCalledWith('/settings/provider?id=openai')
   })
 
+  it('shows the safe process diagnostic in the visible error, not only raw details', () => {
+    mocks.translations = new Map(Object.entries(enUS))
+    render(
+      <ErrorBlock
+        partId="process-detail"
+        error={{
+          name: 'ClaudeCodeProcessExitError',
+          message: 'Claude Code process exited with code 2',
+          stack: null,
+          claudeCodeExitCategory: 'unknown',
+          diagnosticReference: 'safe-ref',
+          processExitCode: 2,
+          processExitDetail: 'Native library could not be loaded'
+        }}
+        message={message}
+      />
+    )
+    expect(screen.getByText('Native library could not be loaded')).toBeVisible()
+    expect(screen.getByText(/code 2.*safe-ref/)).toBeVisible()
+  })
+
+  it('shows an unknown-reason explanation when no stderr was captured', () => {
+    mocks.translations = new Map(Object.entries(enUS))
+    render(
+      <ErrorBlock
+        partId="process-empty"
+        error={{
+          name: 'ClaudeCodeProcessExitError',
+          message: 'Claude Code process terminated',
+          stack: null,
+          claudeCodeExitCategory: 'unknown',
+          diagnosticReference: 'empty-ref',
+          processExitSignal: 'SIGSEGV',
+          processExitDetail: ''
+        }}
+        message={message}
+      />
+    )
+    expect(
+      screen
+        .getAllByText(enUS['settings.doctor.error_category.unknown'])
+        .some((node) => node.closest('.whitespace-pre-wrap'))
+    ).toBe(true)
+  })
+
   it('does not treat an unknown exit category as a Claude Code diagnostic', async () => {
     const diagnoseMessageError = vi.fn().mockResolvedValue('diagnosed')
     mocks.actions = { diagnoseMessageError }
