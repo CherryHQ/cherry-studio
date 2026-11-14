@@ -1,3 +1,5 @@
 # Bilingual-pair consistency record (docs/dev/i18n/README.md).
-2026-11-14-webz-news-search-provider.md: f2b8eb3c4a744303496be25a890f16c4d8a55fb0
-2026-11-14-webz-news-search-provider.zh.md: eca9daacc1b5a9f704557ec97ea8a0d64fdd09be
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/proposed/feature/2026-11-14-webz-news-search-provider.md
+2026-11-14-webz-news-search-provider.md: 87ecb90855ab8917e62533a78aa2f6727303f168
+2026-11-14-webz-news-search-provider.zh.md: 0d161c5eb0594548d0566fd5e8ec4259d34dd898
