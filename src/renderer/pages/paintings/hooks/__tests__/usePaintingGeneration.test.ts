@@ -73,6 +73,23 @@ describe('usePaintingGeneration error details', () => {
     }))
   })
 
+  // Doctor needs the local model id and image-only flag to diagnose an image model, not run a chat probe.
+  it('files a generation failure with the image model, provider and non-content params', async () => {
+    mocks.paintingGenerate.mockRejectedValueOnce(new Error('upstream 500'))
+
+    await runGenerate()
+
+    expect(presentedContext()).toEqual(
+      expect.objectContaining({
+        operation: 'painting.generate',
+        providerId: 'openai',
+        modelId: 'local-image',
+        imageOnly: true,
+        params: { size: '1024x1024', quality: 'high' }
+      })
+    )
+  })
+
   // A local DB write failure is not a model fault; tagging the model sends Doctor after the wrong cause.
   it('files a record-save failure without the model', async () => {
     mocks.updatePainting.mockRejectedValueOnce(new Error('SQLITE_BUSY'))
