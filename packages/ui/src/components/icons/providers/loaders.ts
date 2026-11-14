@@ -12,6 +12,7 @@ export const PROVIDER_ICON_LOADERS = {
   '302ai': () => import('./302ai').then(({ Ai302Icon }) => Ai302Icon),
   '3min-top': () => import('./3min-top').then(({ MinTop3Icon }) => MinTop3Icon),
   abacus: () => import('./abacus').then(({ AbacusIcon }) => AbacusIcon),
+  acctoken: () => import('./acctoken/acctoken').then(({ AcctokenIcon }) => AcctokenIcon),
   'ai-only': () => import('./ai-only').then(({ AiOnlyIcon }) => AiOnlyIcon),
   'ai-studio': () => import('./ai-studio').then(({ AiStudioIcon }) => AiStudioIcon),
   ai21: () => import('./ai21').then(({ Ai21Icon }) => Ai21Icon),
