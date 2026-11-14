@@ -1,7 +1,6 @@
-/** Pages of the paged edit dialog. Sub-pages go back to `more`, and `more` goes back to `main`. */
+/** Pages of the paged edit dialog. The dialog opens on `settings`, and every sub-page goes back to it. */
 export type EditPage =
-  | 'main'
-  | 'more'
+  | 'settings'
   | 'prompt'
   | 'tools'
   | 'skills'
@@ -13,46 +12,41 @@ export type EditPage =
   | 'context'
   | 'parameters'
 
-export type EditSubPage = Exclude<EditPage, 'main' | 'more'>
+export type EditSubPage = Exclude<EditPage, 'settings'>
 
 const AGENT_INITIAL_PAGES: Record<string, EditPage> = {
-  basic: 'main',
+  basic: 'settings',
   prompt: 'prompt',
   'tools.builtin': 'tools',
   'tools.skills': 'skills',
   'tools.knowledge': 'knowledge',
   'tools.mcp': 'mcp',
-  advanced: 'more',
+  advanced: 'settings',
   memory: 'memory',
   channels: 'channels',
   tasks: 'tasks'
 }
 
 const ASSISTANT_INITIAL_PAGES: Record<string, EditPage> = {
-  basic: 'main',
+  basic: 'settings',
   prompt: 'prompt',
-  'tools.builtin': 'more',
+  'tools.builtin': 'settings',
   'tools.knowledge': 'knowledge',
-  'tools.mcp': 'more',
-  advanced: 'more'
+  'tools.mcp': 'settings',
+  advanced: 'settings'
 }
 
 /**
- * The page a deep link (`initialTab`) opens. Unknown IDs open the main page; a sub-page the
- * resource does not offer (its runtime has no MCP, say) opens More settings instead.
+ * The page a deep link (`initialTab`) opens. Unknown IDs, and a sub-page the resource does not
+ * offer (its runtime has no MCP, say), open the settings page.
  */
 export function resolveInitialEditPage(
   kind: 'agent' | 'assistant',
   initialTab: string | undefined,
   availableSubPages: ReadonlySet<EditSubPage>
 ): EditPage {
-  const page = (kind === 'agent' ? AGENT_INITIAL_PAGES : ASSISTANT_INITIAL_PAGES)[initialTab ?? ''] ?? 'main'
-  if (page === 'main' || page === 'more') return page
-  return availableSubPages.has(page) ? page : 'more'
-}
-
-export function parentEditPage(page: EditPage): EditPage {
-  return page === 'more' ? 'main' : 'more'
+  const page = (kind === 'agent' ? AGENT_INITIAL_PAGES : ASSISTANT_INITIAL_PAGES)[initialTab ?? ''] ?? 'settings'
+  return page === 'settings' || availableSubPages.has(page) ? page : 'settings'
 }
 
 /** `Enabled 2 / 5`-style summary for a capability row; nothing to count reads as not added. */

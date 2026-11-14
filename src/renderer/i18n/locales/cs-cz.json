@@ -2349,7 +2349,6 @@
   "library.config.dialogs.edit.page.channels": "Kanály",
   "library.config.dialogs.edit.page.context": "Vlastní kontext",
   "library.config.dialogs.edit.page.mcp": "Servery MCP",
-  "library.config.dialogs.edit.page.more": "Další nastavení",
   "library.config.dialogs.edit.parameters_count": "Parametry: {{count}}",
   "library.config.dialogs.edit.permission_tab": "Oprávnění",
   "library.config.dialogs.edit.prompt_empty": "Nevyplněno",
