@@ -1,4 +1,5 @@
 import { useReducedMotion } from 'motion/react'
+import { memo } from 'react'
 
 import { buildCartesianChart } from './charts/buildCartesianChart'
 import { buildPieChart } from './charts/buildPieChart'
@@ -6,7 +7,7 @@ import { Echarts } from './runtime/Echarts'
 import type { ChartProps } from './types'
 import { useChartTheme } from './useChartTheme'
 
-export function Chart(props: ChartProps) {
+export const Chart = memo(function Chart(props: ChartProps) {
   const theme = useChartTheme()
   const animation = !useReducedMotion()
   const option =
@@ -23,4 +24,4 @@ export function Chart(props: ChartProps) {
       option={option}
     />
   )
-}
+})
