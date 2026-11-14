@@ -3,14 +3,16 @@ import os from 'node:os'
 import path from 'node:path'
 
 import { setupTestDatabase } from '@test-helpers/db'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { agentTable } from '@data/db/schemas/agent'
+import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { artifactService } from '@data/services/ArtifactService'
 
 import { createCherryToolsServer } from '../cherryBuiltinTools'
+import { backfillPastOutputs } from '../cherryReportArtifacts'
 import { callBuiltinTool, toolText } from './builtinMcpClient'
 
 describe('report_artifacts indexes the Agent outputs', () => {
@@ -46,6 +48,7 @@ describe('report_artifacts indexes the Agent outputs', () => {
   })
 
   afterEach(async () => {
+    vi.restoreAllMocks()
     await rm(workspacePath, { recursive: true, force: true })
   })
 
@@ -85,5 +88,62 @@ describe('report_artifacts indexes the Agent outputs', () => {
 
     expect(result.isError, toolText(result)).not.toBe(true)
     expect(toolText(result)).toContain('Recorded 1 artifact')
+  })
+
+  describe('past reports', () => {
+    function pastReport(artifacts: { path: string; description?: string }[]) {
+      dbh.db
+        .insert(agentSessionMessageTable)
+        .values({
+          sessionId,
+          role: 'assistant',
+          status: 'success',
+          data: {
+            parts: [
+              {
+                type: 'dynamic-tool',
+                toolName: 'mcp__cherry-tools__report_artifacts',
+                toolCallId: 'call-1',
+                state: 'output-available',
+                input: { artifacts },
+                output: { content: 'Recorded' }
+              }
+            ]
+          } as never
+        })
+        .run()
+    }
+
+    it('indexes deliverables reported before outputs were indexed, sized from the files still on disk', async () => {
+      await writeFile(path.join(workspacePath, 'summary.md'), '# Summary')
+      pastReport([{ path: 'summary.md', description: 'Summary' }, { path: 'deleted.pdf' }])
+
+      await backfillPastOutputs()
+
+      const byTitle = Object.fromEntries(
+        artifactService.list({ agentId: 'reporter' }).items.map((item) => [item.title, item])
+      )
+      expect(byTitle.Summary).toMatchObject({ path: path.join(workspacePath, 'summary.md'), kind: 'page', size: 9 })
+      expect(byTitle['deleted.pdf']).toMatchObject({ kind: 'file', size: undefined })
+    })
+
+    it('leaves the Outputs list working when the backfill fails, and retries on the next start', async () => {
+      pastReport([{ path: 'old.md' }])
+      await callBuiltinTool(createServer, 'report_artifacts', { artifacts: [{ path: 'new.md' }] })
+      vi.spyOn(artifactService, 'findPastAgentReports').mockImplementationOnce(() => {
+        throw new Error('corrupt history')
+      })
+
+      await expect(backfillPastOutputs()).resolves.toBeUndefined()
+      expect(artifactService.list({ agentId: 'reporter' }).items.map((item) => item.title)).toEqual(['new.md'])
+
+      await backfillPastOutputs()
+      expect(
+        artifactService
+          .list({ agentId: 'reporter' })
+          .items.map((item) => item.title)
+          .sort()
+      ).toEqual(['new.md', 'old.md'])
+    })
   })
 })
