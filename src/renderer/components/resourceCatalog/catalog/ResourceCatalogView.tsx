@@ -104,7 +104,7 @@ export function ResourceCatalogView({
                     </Button>
                     <ErrorDetailAction
                       error={resourceError}
-                      message={resourceError.message}
+                      message={t('common.error')}
                       source="resource.catalog"
                       operation={`${resourceType}.list`}
                     />
