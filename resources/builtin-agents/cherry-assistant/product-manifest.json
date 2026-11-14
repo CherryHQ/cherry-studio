@@ -877,8 +877,8 @@
     }
   ],
   "providers": {
-    "version": "a6291a3a00ded246",
-    "count": 68,
+    "version": "a3d72a4b8834f38e",
+    "count": 69,
     "entries": [
       {
         "id": "cherryin",
@@ -963,6 +963,10 @@
       {
         "id": "tokendance",
         "name": "TokenDance"
+      },
+      {
+        "id": "uberllm",
+        "name": "UberLLM"
       },
       {
         "id": "new-api",
