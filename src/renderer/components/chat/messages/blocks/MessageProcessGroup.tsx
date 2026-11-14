@@ -61,7 +61,13 @@ function getApprovalWaitDurationMs(runtimeTiming: MessageRuntimeTiming): number 
   return durationMs
 }
 
-const LazyCompletedProcessContent = React.memo(function LazyCompletedProcessContent({
+/**
+ * Radix `AccordionContent` mounts its children only while the item is open (and
+ * during the close animation), so this component never renders for a collapsed
+ * group. The render function therefore always receives `true`: passing the live
+ * `isExpanded` value would blank the content while the close animation runs.
+ */
+const CompletedProcessContent = React.memo(function CompletedProcessContent({
   render
 }: {
   render: (isExpanded: boolean) => React.ReactNode
@@ -166,7 +172,7 @@ const MessageProcessGroup = React.memo(function MessageProcessGroup(props: Props
             data-testid="tool-history-content"
             className={`${PROCESS_CONTENT_CLASS_NAME} px-0 pt-2 pb-0 text-inherit`}
             contentClassName="text-inherit motion-safe:data-[state=open]:[animation-duration:200ms] motion-safe:data-[state=closed]:[animation-duration:160ms] motion-reduce:animate-none">
-            <LazyCompletedProcessContent render={children} />
+            <CompletedProcessContent render={children} />
           </AccordionContent>
         </AccordionItem>
       </Accordion>
