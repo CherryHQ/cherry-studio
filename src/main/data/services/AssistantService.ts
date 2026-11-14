@@ -16,6 +16,7 @@ import { assistantAvatarFileRefTable } from '@data/db/schemas/fileRelations'
 import { pinTable } from '@data/db/schemas/pin'
 import type { DbOrTx, DbType } from '@data/db/types'
 import { loggerService } from '@logger'
+import { Emitter } from '@main/core/lifecycle'
 import { DataApiError, DataApiErrorFactory, ErrorCode } from '@shared/data/api/errors'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type {
@@ -99,6 +100,9 @@ function rethrowAssistantOrderError(error: unknown): never {
 }
 
 export class AssistantDataService {
+  private readonly memoryAccessRevoked = new Emitter<string>()
+  readonly onMemoryAccessRevoked = this.memoryAccessRevoked.event
+
   notifyReadModelChange(assistantIds: readonly string[], kind: 'membership' | 'projection'): void {
     if (assistantIds.length === 0) return
     const entityIds = [...new Set(assistantIds)]
@@ -631,6 +635,7 @@ export class AssistantDataService {
     })
 
     logger.info('Updated assistant', { id, changes: Object.keys(dto) })
+    if (settingsPatch?.enableSharedMemory === false) this.memoryAccessRevoked.fire(id)
 
     return rowToAssistant(row, nextRelations, modelName, this.getAvatarIds([id]).get(id))
   }
@@ -712,6 +717,7 @@ export class AssistantDataService {
     }
     topicService.notifyReadModelChange(deletedTopicIds ?? [], 'membership', { deleted: true })
     this.notifyReadModelChange([id], 'membership')
+    this.memoryAccessRevoked.fire(id)
     pinService.notifyPurged()
 
     logger.info(options.permanent === true ? 'Permanently deleted assistant' : 'Moved assistant to Recycle Bin', {
@@ -763,6 +769,7 @@ export class AssistantDataService {
 
     this.notifyReadModelChange([id], 'membership')
     logger.info('Restored assistant', { id })
+    this.memoryAccessRevoked.fire(id)
     const relations = this.getRelationIdsByAssistantIds([id])
     return rowToAssistant(
       row,
