@@ -13,6 +13,7 @@ import {
   ensureAgentStorageDirectory
 } from '@main/ai/agents/agentDataDirectory'
 import { withAgentMemoryFileLock } from '@main/ai/agents/agentMemoryFileLock'
+import { previewDurableSystemPrompt } from '@main/ai/runtime/piDurable/durablePromptPreview'
 import { agentAvatarService } from '@main/services/AgentAvatarService'
 import type { AgentMemoryFile, agentRequestSchemas } from '@shared/ipc/schemas/agent'
 import type { IpcHandlersFor } from '@shared/ipc/types'
@@ -224,5 +225,6 @@ export const agentHandlers: IpcHandlersFor<typeof agentRequestSchemas> = {
     const { directory } = await resolveAgentDirectory(agentId)
     const errorMessage = await shell.openPath(directory)
     if (errorMessage) throw new Error(`Failed to open agent memory folder: ${errorMessage}`)
-  }
+  },
+  'agent.system_prompt.preview': (draft) => previewDurableSystemPrompt(draft)
 }
