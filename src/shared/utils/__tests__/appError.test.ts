@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest'
 
-import { PAINTING_ERROR_PARAM_KEYS } from '../../types/appError'
 import {
   appErrorContextSchema,
   createAppErrorContext,
@@ -53,7 +52,7 @@ describe('createAppErrorContext', () => {
 })
 
 describe('summarizeErrorParams', () => {
-  it('keeps only the painting allowlist and still drops prompt aliases', () => {
+  it('keeps only allowlisted keys and still drops prompt aliases', () => {
     const summary = summarizeErrorParams(
       {
         size: '1024x1024',
@@ -64,7 +63,7 @@ describe('summarizeErrorParams', () => {
         vendor_extra: 'keep-me-out',
         apiKey: 'plain-secret-value'
       },
-      PAINTING_ERROR_PARAM_KEYS
+      ['size', 'seed', 'prompt']
     )
     expect(summary).toEqual({ size: '1024x1024', seed: 7 })
   })
