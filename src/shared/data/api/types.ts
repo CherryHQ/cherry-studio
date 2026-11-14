@@ -142,6 +142,10 @@ export interface DataRequest<T = any> {
     timestamp: number
     /** OpenTelemetry span context for tracing */
     spanContext?: any
+    source?: string
+    operationId?: string
+    /** 0-based attempt number, set by the renderer per send. */
+    retryAttempt?: number
   }
 }
 
@@ -317,7 +321,8 @@ export interface Middleware {
 /**
  * Request context passed through middleware chain
  */
-export interface RequestContext {
+export interface RequestContext<Ctx = unknown> {
+  context?: Ctx
   /** Original request */
   request: DataRequest
   /** Response being built */
@@ -455,6 +460,7 @@ export interface ApiClient {
       body?: BodyForPath<TPath, 'PATCH'>
       query?: QueryParamsForPath<TPath, 'PATCH'>
       headers?: Record<string, string>
+      metadata?: { source?: string; operationId?: string }
     }
   ): Promise<ResponseForPath<TPath, 'PATCH'>>
 }
@@ -495,23 +501,27 @@ type HasRequiredParams<Path extends ApiPaths, Method extends ApiMethods<Path>> =
  * - Data directly (T) - status code will be auto-inferred
  * - { data: T, status: SuccessStatusCode } - custom status code
  */
-export type ApiHandler<Path extends ApiPaths, Method extends ApiMethods<Path>> = (
+export type ApiHandler<Path extends ApiPaths, Method extends ApiMethods<Path>, Ctx = unknown> = (
   params: (HasRequiredParams<Path, Method> extends true
     ? { params: ApiParams<Path, Method> }
     : { params?: ApiParams<Path, Method> }) &
     (HasRequiredQuery<Path, Method> extends true
       ? { query: ApiQuery<Path, Method> }
       : { query?: ApiQuery<Path, Method> }) &
-    (HasRequiredBody<Path, Method> extends true ? { body: ApiBody<Path, Method> } : { body?: ApiBody<Path, Method> })
+    (HasRequiredBody<Path, Method> extends true
+      ? { body: ApiBody<Path, Method> }
+      : { body?: ApiBody<Path, Method> }) & {
+      context?: Ctx
+    }
 ) => Promise<HandlerResult<ApiResponse<Path, Method>>>
 
 /**
  * Complete API implementation that must match ApiSchemas structure
  * TypeScript will error if any endpoint is missing - this ensures exhaustive coverage
  */
-export type ApiImplementation = {
+export type ApiImplementation<Ctx = unknown> = {
   [Path in ApiPaths]: {
-    [Method in ApiMethods<Path>]: ApiHandler<Path, Method>
+    [Method in ApiMethods<Path>]: ApiHandler<Path, Method, Ctx>
   }
 }
 
@@ -523,7 +533,10 @@ export type ApiImplementation = {
  * Narrows paths to the module's own schema (prevents typos and cross-module
  * leakage) while keeping the exhaustiveness guarantee inside that scope.
  */
-export type HandlersFor<Schemas> = Pick<ApiImplementation, Extract<keyof Schemas, keyof ApiImplementation>>
+export type HandlersFor<Schemas, Ctx = unknown> = Pick<
+  ApiImplementation<Ctx>,
+  Extract<keyof Schemas, keyof ApiImplementation<Ctx>>
+>
 
 // ============================================================================
 // Data Change Notification Protocol

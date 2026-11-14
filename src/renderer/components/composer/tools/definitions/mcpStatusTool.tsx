@@ -60,7 +60,10 @@ interface UpdateMcpBindingOptions {
   scope: TopicType.Chat | TopicType.Session
   serverId: string
   updateAgent: (patch: { mcps: string[] }) => Promise<unknown>
-  updateAssistant: (patch: { mcpServerIds: string[] }) => Promise<unknown>
+  updateAssistant: (
+    patch: { mcpServerIds: string[] },
+    metadata?: { source?: string; operationId?: string }
+  ) => Promise<unknown>
 }
 
 function getMcpStatusLabel(t: TFunction, state: McpRuntimeStatus['state']) {
@@ -157,7 +160,10 @@ export async function updateMcpBinding({
   }
 
   if (!assistant || (assistant.settings?.mcpMode ?? DEFAULT_MCP_MODE) !== 'manual') return false
-  await updateAssistant({ mcpServerIds: nextBindingIds(assistant.mcpServerIds ?? [], serverId, enabled) })
+  await updateAssistant(
+    { mcpServerIds: nextBindingIds(assistant.mcpServerIds ?? [], serverId, enabled) },
+    { source: 'composer.mcp-toggle' }
+  )
   return true
 }
 

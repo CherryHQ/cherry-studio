@@ -112,14 +112,23 @@ export function useAssistantMutations() {
     return created
   }, [])
 
-  const updateAssistant = useCallback(async (id: string, dto: UpdateAssistantDto): Promise<Assistant> => {
-    if (!id) {
-      throw new Error('updateAssistant called with empty id; refusing to issue PATCH /assistants/')
-    }
-    const updated = await updateTriggerRef.current({ params: { id }, body: dto })
-    logger.info('Updated assistant', { id })
-    return updated
-  }, [])
+  const updateAssistant = useCallback(
+    async (
+      id: string,
+      dto: UpdateAssistantDto,
+      metadata?: { source?: string; operationId?: string }
+    ): Promise<Assistant> => {
+      if (!id) {
+        throw new Error('updateAssistant called with empty id; refusing to issue PATCH /assistants/')
+      }
+      const updated = metadata
+        ? await updateTriggerRef.current({ params: { id }, body: dto, metadata })
+        : await updateTriggerRef.current({ params: { id }, body: dto })
+      logger.info('Updated assistant', { id })
+      return updated
+    },
+    []
+  )
 
   const deleteAssistant = useCallback(
     async (

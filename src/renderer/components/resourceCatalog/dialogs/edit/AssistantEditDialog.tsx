@@ -315,7 +315,7 @@ function AssistantEditDialogContent({
     failedSaveKeyRef.current = null
 
     try {
-      await updateAssistant(pending.payload)
+      await updateAssistant(pending.payload, { source: 'assistant-edit.save' })
     } catch (error) {
       logger.error('Failed to auto-save assistant edit dialog', error as Error, { assistantId: resource.id })
       failedSaveKeyRef.current = attemptedKey

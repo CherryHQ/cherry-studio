@@ -12,6 +12,7 @@ import { isDeepStrictEqual } from 'node:util'
 import * as z from 'zod'
 
 import { application } from '@application'
+import type { DataApiCallContext } from '@data/api'
 import type { UnifiedPreferenceKeyType } from '@shared/data/preference/preferenceTypes'
 import type { DoctorFixResult } from '@shared/types/doctor'
 import type { DoctorAgentWrite } from '@shared/types/doctorAgent'
@@ -119,13 +120,24 @@ interface DataApiResult {
 
 /** Raw in-process DataApi call; never hand its `data` to the model. */
 async function fetchDataApi(input: DataApiQuery): Promise<DataApiResult> {
-  const response = await application.get('DataApiService').getApiServer().handleRequest({
-    id: randomUUID(),
-    method: input.method,
-    path: input.path,
-    params: input.query,
-    body: input.body
-  })
+  const requestId = randomUUID()
+  const context: DataApiCallContext = {
+    requestId,
+    operationId: null,
+    retryAttempt: null,
+    source: 'doctor.data-api',
+    actor: { kind: 'main', source: 'doctor' }
+  }
+  const response = await application.get('DataApiService').getApiServer().handleRequest(
+    {
+      id: requestId,
+      method: input.method,
+      path: input.path,
+      params: input.query,
+      body: input.body
+    },
+    context
+  )
   return {
     status: response.status,
     ...(response.data !== undefined ? { data: response.data } : {}),

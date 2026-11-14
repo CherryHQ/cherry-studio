@@ -151,7 +151,10 @@ export class DataApiService implements ApiClient {
       // original response instead of sending overlapping retries after three seconds.
       let timeoutId: ReturnType<typeof setTimeout> | undefined
       const response = await Promise.race([
-        window.api.dataApi.request(request),
+        window.api.dataApi.request({
+          ...request,
+          metadata: { timestamp: Date.now(), ...request.metadata, retryAttempt: retryCount }
+        }),
         new Promise<never>((_, reject) => {
           timeoutId = setTimeout(() => {
             didTimeout = true
@@ -355,12 +358,19 @@ export class DataApiService implements ApiClient {
       body?: BodyForPath<TPath, 'PATCH'>
       query?: QueryParamsForPath<TPath, 'PATCH'>
       headers?: Record<string, string>
+      metadata?: { source?: string; operationId?: string }
     }
   ): Promise<ResponseForPath<TPath, 'PATCH'>> {
+    const metadata = options.metadata
+    const callMetadata =
+      metadata?.source !== undefined && metadata.operationId === undefined
+        ? { ...metadata, operationId: crypto.randomUUID() }
+        : metadata
     return this.makeRequest<ResponseForPath<TPath, 'PATCH'>>('PATCH', path, {
       params: options.query,
       body: options.body,
-      headers: options.headers
+      headers: options.headers,
+      ...(callMetadata ? { metadata: callMetadata } : {})
     })
   }
 
