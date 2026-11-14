@@ -44,7 +44,7 @@ import {
   resolveArtifactPaneFileSelection
 } from '@renderer/components/chat/panes/ArtifactPane'
 import { getPathBasename } from '@renderer/components/chat/panes/artifactPanePath'
-import { PROFILE_PANE_ID, ProfilePaneFrame } from '@renderer/components/chat/panes/profile'
+import { AgentProfilePane, PROFILE_PANE_ID } from '@renderer/components/chat/panes/profile'
 import {
   createResourcePaneCapability,
   RESOURCE_PANE_TAB,
@@ -1667,8 +1667,8 @@ function ProfileDetailsExclusivity() {
   return null
 }
 
-function AgentProfileRightPanel() {
-  return <ProfilePaneFrame />
+function AgentProfileRightPanel({ scope }: RightPanelComponentProps<AgentRightPanelScope>) {
+  return scope.meta.agentId ? <AgentProfilePane agentId={scope.meta.agentId} /> : null
 }
 
 function AgentDetailsContent() {

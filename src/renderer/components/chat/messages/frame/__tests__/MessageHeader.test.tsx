@@ -13,6 +13,7 @@ const providerState = vi.hoisted(() => ({
   actions: {} as {
     navigateToRoute?: (target: { path: string; query?: Record<string, string> }) => void
     selectMessage?: (messageId: string, selected: boolean) => void
+    toggleAuthorProfile?: () => void
   },
   selection: undefined as { isMultiSelectMode: boolean; selectedMessageIds: string[] } | undefined,
   meta: {} as Partial<MessageListMeta>
@@ -164,6 +165,22 @@ describe('MessageHeader', () => {
     } finally {
       vi.unstubAllGlobals()
     }
+  })
+
+  it('turns the assistant avatar into the profile toggle only when the conversation offers a profile', () => {
+    providerState.meta = { assistantProfile: { name: 'Writer', avatar: '✍️' } }
+    const { rerender } = render(<MessageHeader message={createMessage()} />)
+    expect(screen.queryByRole('button', { name: 'chat.profile_pane.open' })).toBeNull()
+
+    let opened = 0
+    providerState.actions = { toggleAuthorProfile: () => opened++ }
+    rerender(<MessageHeader message={createMessage('assistant', { id: 'message-2' })} />)
+    fireEvent.click(screen.getByRole('button', { name: 'chat.profile_pane.open' }))
+    expect(opened).toBe(1)
+
+    // A user message never opens the Assistant's profile from its own avatar.
+    rerender(<MessageHeader message={createMessage('user', { id: 'message-3' })} />)
+    expect(screen.queryByRole('button', { name: 'chat.profile_pane.open' })).toBeNull()
   })
 
   it('explains a runtime-started assistant turn with its origin', () => {

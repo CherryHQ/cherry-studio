@@ -15,7 +15,7 @@ type Props = {
   avatarSrc?: string
   ariaLabel: string
   portalContainer: HTMLElement | null
-  size?: 'sm' | 'md'
+  size?: 'sm' | 'md' | 'lg'
   onChanged?: (next: { avatarSrc?: string; emoji: string }) => void
 }
 

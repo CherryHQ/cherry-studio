@@ -964,6 +964,8 @@
   "chat.navigation.anchor.label": "Rândurile conversației",
   "chat.navigation.bottom": "Înapoi jos",
   "chat.navigation.close": "Închide",
+  "chat.profile_pane.open": "Vedeți profilul lui {{name}}",
+  "chat.profile_pane.permission": "Permisiuni",
   "chat.profile_pane.title": "Profil",
   "chat.save.file.title": "Salvează în fișier local",
   "chat.save.knowledge.content.citation.description": "Include informații de referință din căutarea web și baza de cunoștințe",

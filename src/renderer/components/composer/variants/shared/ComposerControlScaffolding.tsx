@@ -14,6 +14,9 @@ export const COMPOSER_SEND_ACCESSORY_BUTTON_CLASS =
   'size-7.5 shrink-0 rounded-full text-muted-foreground! duration-150 ease-in-out hover:bg-accent/60 hover:text-foreground! dark:text-foreground! dark:disabled:text-muted-foreground! dark:data-[active=true]:text-primary! dark:data-[active=true]:hover:text-primary! data-[active=true]:bg-accent data-[active=true]:text-primary! data-[active=true]:hover:text-primary! [&_.lucide:not(.lucide-custom)]:text-current!'
 export const COMPOSER_ICON_ONLY_SELECTOR_BUTTON_CLASS = 'w-8 justify-center px-0'
 export const COMPOSER_ICON_ONLY_LABEL_CLASS = 'sr-only'
+/** The top bar's Assistant / Agent avatar, a button of its own that toggles the profile pane. */
+export const COMPOSER_PROFILE_AVATAR_BUTTON_CLASS =
+  'flex size-7 shrink-0 items-center justify-center rounded-md outline-none transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring aria-pressed:bg-accent'
 
 type RenderContextControls = (args: { side: 'top' | 'bottom'; iconOnly: boolean }) => ReactNode
 
