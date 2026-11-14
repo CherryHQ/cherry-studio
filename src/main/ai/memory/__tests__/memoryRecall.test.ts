@@ -190,6 +190,59 @@ describe('FTS conversation recall in memory references', () => {
   }
 
   it.each(['assistant', 'agent'] as const)(
+    'excludes the current %s question from keyword hits and expanded context',
+    async (kind) => {
+      const source = conversation(kind, [
+        'I washed my car on February 27th and discussed AI.',
+        'Recorded.',
+        'When did I wash my car and discuss AI?',
+        ''
+      ])
+      const owner = {
+        ...(kind === 'assistant' ? { topicId: source.id, assistantId } : { sessionId: source.id }),
+        assistantMessageId: source.ids[3]
+      }
+      for (const query of ['car', 'AI']) {
+        const items = excerpts(await conversationRecallReference(owner, query, turn))
+        expect(items.find((item) => item.matchRank === 1)?.messageId).toBe(source.ids[0])
+        expect(items.map((item) => item.messageId)).not.toContain(source.ids[2])
+      }
+      const expanded = excerpts(
+        await conversationRecallReference(owner, '', turn, {
+          conversationId: source.id,
+          messageId: source.ids[0]
+        })
+      )
+      expect(expanded.map((item) => item.messageId)).toEqual(source.ids.slice(0, 2))
+      expect(
+        excerpts(
+          await conversationRecallReference(owner, '', turn, {
+            conversationId: source.id,
+            messageId: source.ids[2]
+          })
+        )
+      ).toEqual([])
+    }
+  )
+
+  it.each(['assistant', 'agent'] as const)(
+    'preserves older identical %s questions in the current and other conversations',
+    async (kind) => {
+      const question = 'When did I wash my car?'
+      const source = conversation(kind, [question, 'February 27th.', question, ''])
+      const other = history(kind, question)
+      const owner = {
+        ...(kind === 'assistant' ? { topicId: source.id, assistantId } : { sessionId: source.id }),
+        assistantMessageId: source.ids[3]
+      }
+      const ids = excerpts(await conversationRecallReference(owner, question, turn)).map((item) => item.messageId)
+      expect(ids).toContain(source.ids[0])
+      expect(ids).toContain(other.message)
+      expect(ids).not.toContain(source.ids[2])
+    }
+  )
+
+  it.each(['assistant', 'agent'] as const)(
     'expands only the first %s match with five neighbors and three messages at each end',
     async (kind) => {
       const source = conversation(
@@ -457,10 +510,12 @@ describe('FTS conversation recall in memory references', () => {
 
   it('exposes scoped search and expansion through the Agent tool transport', async () => {
     const source = history('agent', 'car washed February 27th')
+    const current = conversation('agent', ['car previously discussed', 'Recorded.', 'When was my car washed?', ''])
+    liveMessageId = current.ids[3]
     const client = await connectMcpTestClient(() => {
       const server = new McpServer({ name: 'recall-test', version: '1.0.0' })
       registerAutonomyTools(server, {
-        sessionId,
+        sessionId: current.id,
         agentId,
         workspacePath: directory,
         workspaceSource: { type: 'system' },
@@ -473,6 +528,7 @@ describe('FTS conversation recall in memory references', () => {
       const result = await client.callTool({ name: 'memory_search', arguments: { query: 'car' } })
       expect(result.isError).not.toBe(true)
       expect(JSON.stringify(result)).toContain('February 27th')
+      expect(JSON.stringify(result)).not.toContain(current.ids[2])
       const expanded = await client.callTool({
         name: 'memory_search',
         arguments: { conversationId: source.id, messageId: source.message }
