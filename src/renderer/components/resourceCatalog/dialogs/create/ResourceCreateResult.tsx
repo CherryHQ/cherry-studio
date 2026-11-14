@@ -118,10 +118,13 @@ export function ResourceCreateResultView({
       ? t('library.config.dialogs.create.result.prompt_generated')
       : t('library.config.dialogs.create.result.prompt_filled')
   const permissionCard = permissionModeCards.find((card) => card.mode === values.permissionMode)
+  const caps = AGENT_RUNTIME_CAPABILITIES[values.agentType]
   // Matches the edit dialog: knowledge tools only count once a knowledge base is bound.
-  const builtinToolCount = AGENT_RUNTIME_CAPABILITIES[values.agentType]
+  const builtinTools = caps
     .builtinTools(platform)
-    .filter((tool) => values.knowledgeBaseIds.length > 0 || !CLAUDE_KNOWLEDGE_TOOL_NAMES.has(tool.id)).length
+    .filter((tool) => values.knowledgeBaseIds.length > 0 || !CLAUDE_KNOWLEDGE_TOOL_NAMES.has(tool.id))
+  const disabledTools = new Set(values.disabledTools)
+  const settings = values.agentSettings
   // Builtin skills are always enabled for a new Agent, whatever was picked.
   const skillIds = [
     ...skills.filter((skill) => skill.source === 'builtin').map((skill) => skill.id),
@@ -143,8 +146,8 @@ export function ResourceCreateResultView({
           <SummaryRow label={t('library.config.agent.section.tools.tab.tools')}>
             {isAgent
               ? t('library.config.dialogs.create.result.tools_enabled', {
-                  enabled: builtinToolCount,
-                  total: builtinToolCount
+                  enabled: builtinTools.filter((tool) => !disabledTools.has(tool.id)).length,
+                  total: builtinTools.length
                 })
               : values.enableWebSearch
                 ? t('library.config.dialogs.create.result.web_search')
@@ -165,6 +168,13 @@ export function ResourceCreateResultView({
           <SummaryRow label={t('library.config.dialogs.create.step.knowledge')}>
             {namesOf(bases, values.knowledgeBaseIds, t('library.config.dialogs.create.result.empty.not_linked'))}
           </SummaryRow>
+          {isAgent && caps.heartbeat ? (
+            <SummaryRow label={t('library.config.agent.field.heartbeat_enabled.label')}>
+              {settings?.heartbeatEnabled
+                ? t('library.config.dialogs.create.result.heartbeat_every', { minutes: settings.heartbeatInterval })
+                : t('library.config.dialogs.create.result.heartbeat_off')}
+            </SummaryRow>
+          ) : null}
         </div>
       </div>
       <div className="flex shrink-0 items-center justify-end gap-2 px-6 pb-5">
