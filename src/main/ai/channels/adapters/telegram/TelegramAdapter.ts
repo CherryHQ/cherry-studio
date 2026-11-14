@@ -1,6 +1,8 @@
-import { type ApiCallFn, Bot, InputFile, type Transformer } from 'grammy'
+import { type ApiCallFn, Bot, type Context, InputFile, type Transformer } from 'grammy'
 import { convert as toMarkdownV2 } from 'telegram-markdown-v2'
 
+import { transcribeChannelAudio } from '@main/ai/voice/channelTranscription'
+import { t } from '@main/i18n'
 import {
   downloadFileAsBase64,
   downloadImageAsBase64,
@@ -203,6 +205,9 @@ class TelegramAdapter extends ChannelAdapter {
       })
     })
 
+    bot.on('message:voice', (ctx) => this.handleAudioMessage(ctx, true))
+    bot.on('message:audio', (ctx) => this.handleAudioMessage(ctx, false))
+
     // Register bot commands with Telegram
     await bot.api.setMyCommands([
       { command: 'new', description: 'Start a new conversation' },
@@ -334,6 +339,50 @@ class TelegramAdapter extends ChannelAdapter {
       await this.bot.stop()
       this.bot = null
       this.log.info('Telegram bot stopped')
+    }
+  }
+
+  private async handleAudioMessage(ctx: Context, voice: boolean): Promise<void> {
+    const media = voice ? ctx.message?.voice : ctx.message?.audio
+    if (!media || !ctx.chat) return
+    const chatId = ctx.chat.id.toString()
+    const caption = ctx.message?.caption?.trim() ?? ''
+    const identity = {
+      chatId,
+      userId: ctx.from?.id?.toString() ?? '',
+      userName: ctx.from?.first_name ?? ''
+    }
+    const mimeType = media.mime_type ?? (voice ? 'audio/ogg' : undefined)
+    const normalizedMime = mimeType?.split(';')[0].trim().toLowerCase()
+    const filename = voice
+      ? `voice-${media.file_unique_id}${normalizedMime === 'audio/ogg' ? '.ogg' : ''}`
+      : (ctx.message?.audio?.file_name ?? `audio-${media.file_unique_id}`)
+    const files =
+      media.file_size && media.file_size > MAX_FILE_SIZE_BYTES
+        ? []
+        : await this.downloadTelegramDocument(media.file_id, filename, mimeType)
+    const audio = files[0]
+    let transcript = ''
+    if (audio && !(media.file_size && media.file_size > 32 * 1024 * 1024)) {
+      const bytes = Buffer.from(audio.data, 'base64')
+      const mime = audio.media_type.split(';')[0].trim().toLowerCase()
+      if (mime === 'audio/ogg' && bytes.length <= 32 * 1024 * 1024) {
+        try {
+          transcript = (await transcribeChannelAudio({ audio: bytes, mimeType: mime })).trim()
+        } catch {
+          this.log.warn('Channel audio transcription unavailable', { mimeType: mime, bytes: bytes.length })
+        }
+      }
+    }
+    if (transcript) {
+      this.emit('message', { ...identity, text: [caption, transcript].filter(Boolean).join('\n\n'), files: [] })
+      return
+    }
+    if (caption || files.length) this.emit('message', { ...identity, text: caption, files })
+    try {
+      await this.sendMessage(chatId, t('common.channel_voice_transcription_missing'))
+    } catch {
+      this.log.warn('Failed to send channel audio transcription hint')
     }
   }
 
