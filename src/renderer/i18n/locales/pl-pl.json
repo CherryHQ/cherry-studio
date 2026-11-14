@@ -5350,6 +5350,7 @@
   "settings.models.default_assistant_model_description": "Używany, gdy asystent nie ma przypisanego modelu.",
   "settings.models.docs": "Dokumentacja modelu",
   "settings.models.edit.classification_save_hint": "Ustawienia mogą pochodzić z katalogu modeli. Zmiany są zapisywane natychmiast. Wstępnie ustawione modalności wejściowe zgodne z katalogiem nadal śledzą jego aktualizacje; odmienne wartości są zapisywane jako nadpisania. Niestandardowe modele jawnie zapisują wyświetlane modalności wejściowe. Włączaj tylko te wejścia, które obsługuje Twój dostawca.",
+  "settings.models.edit.default_reasoning_effort": "Domyślny poziom rozumowania",
   "settings.models.empty": "Wybierz model",
   "settings.models.empty_hint": "Kliknij Synchronizuj modele powyżej, aby dodać modele.",
   "settings.models.expand_all": "Rozwiń wszystko",

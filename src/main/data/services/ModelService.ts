@@ -300,6 +300,7 @@ export const UPDATE_MODEL_FIELD_MAP: Array<keyof UpdateModelDto | [keyof UpdateM
   'outputModalities',
   'endpointTypes',
   ['parameterSupport', 'parameters'],
+  'reasoning',
   'supportsStreaming',
   'contextWindow',
   'maxInputTokens',
@@ -310,6 +311,17 @@ export const UPDATE_MODEL_FIELD_MAP: Array<keyof UpdateModelDto | [keyof UpdateM
   'isDeprecated',
   'notes'
 ]
+
+function mergeUserReasoning(
+  existing: InsertUserModelRow['reasoning'],
+  patch: UpdateModelDto['reasoning']
+): InsertUserModelRow['reasoning'] {
+  if (patch?.defaultEffort === undefined) return existing ?? null
+  const reasoning = { ...existing }
+  if (patch.defaultEffort === null) delete reasoning.defaultEffort
+  else reasoning.defaultEffort = patch.defaultEffort
+  return Object.keys(reasoning).length ? reasoning : null
+}
 
 /** Convert CreateModelDto to an InsertUserModelRow (shared by preset and custom paths). */
 function dtoToNewUserModel(dto: CreateModelDto): NewUserModelInput {
@@ -395,7 +407,7 @@ function presetDeltaToNewUserModel(
     maxInputTokens: fields.has('maxInputTokens') ? (dto.maxInputTokens ?? null) : null,
     maxOutputTokens: fields.has('maxOutputTokens') ? (dto.maxOutputTokens ?? null) : null,
     supportsStreaming: fields.has('supportsStreaming') ? (dto.supportsStreaming ?? null) : null,
-    reasoning: null,
+    reasoning: mergeUserReasoning(null, dto.reasoning),
     parameters: fields.has('parameters') ? (dto.parameterSupport ?? null) : null,
     pricing: fields.has('pricing') ? (dto.pricing ?? null) : null,
     isEnabled: true,
@@ -458,6 +470,7 @@ function customRowToRuntimeModel(row: UserModelRow): Model {
     // Strip legacy fields (notably `type`) and materialize the runtime-only
     // selection list until registry enrichment projects the active profile.
     reasoning: reasoning ? { ...reasoning, selectableEfforts: reasoning.selectableEfforts ?? [] } : undefined,
+    userDefaultReasoningEffort: row.reasoning?.defaultEffort,
     parameterSupport: (row.parameters ?? undefined) as RuntimeParameterSupport | undefined,
     pricing: row.pricing ?? undefined,
     isEnabled: row.isEnabled,
@@ -470,6 +483,10 @@ function customRowToRuntimeModel(row: UserModelRow): Model {
 function applyStoredModelState(model: Model, row: UserModelRow): Model {
   return {
     ...model,
+    ...(model.reasoning && row.reasoning?.defaultEffort !== undefined
+      ? { reasoning: { ...model.reasoning, defaultEffort: row.reasoning.defaultEffort } }
+      : {}),
+    userDefaultReasoningEffort: row.reasoning?.defaultEffort,
     id: createUniqueModelId(row.providerId, row.modelId),
     providerId: row.providerId,
     apiModelId: row.modelId,
@@ -508,7 +525,10 @@ class ModelService {
 
   private buildCreateValues(dto: CreateModelDto, registryData?: CreateModelRegistryData): NewUserModelInput {
     if (registryData?.providerModel) {
-      return dtoToNewUserModel({ ...registryData.providerModel, ...dto, presetModelId: undefined })
+      return {
+        ...dtoToNewUserModel({ ...registryData.providerModel, ...dto, presetModelId: undefined }),
+        reasoning: mergeUserReasoning(null, dto.reasoning)
+      }
     }
     const presetModel = registryData?.presetModel ?? null
     const dtoValues = dtoToNewUserModel(dto)
@@ -544,6 +564,7 @@ class ModelService {
       if (inferred) dtoValues.reasoning = inferred
     }
 
+    dtoValues.reasoning = mergeUserReasoning(dtoValues.reasoning, dto.reasoning)
     return dtoValues
   }
 
@@ -577,6 +598,11 @@ class ModelService {
       const [dtoKey, dbKey] = Array.isArray(entry) ? entry : [entry, entry as keyof InsertUserModelRow]
       const value = dto[dtoKey]
       if (value === undefined) continue
+
+      if (dtoKey === 'reasoning') {
+        updates.reasoning = mergeUserReasoning(existing.reasoning, dto.reasoning)
+        continue
+      }
 
       if (existing.presetModelId && isPresetDeltaField(String(dbKey))) {
         const field = String(dbKey) as PresetDeltaField
@@ -827,7 +853,11 @@ class ModelService {
             declaredReasoning: model.capabilities.includes(MODEL_CAPABILITY.REASONING)
           })
         }
-        if (reasoning) updates.reasoning = reasoning
+        if (reasoning)
+          updates.reasoning = {
+            ...reasoning,
+            ...(row.reasoning?.defaultEffort !== undefined ? { defaultEffort: row.reasoning.defaultEffort } : {})
+          }
         else if (model.reasoning) updates.reasoning = undefined
         return Object.keys(updates).length > 0 ? { ...model, ...updates } : model
       } catch (error) {

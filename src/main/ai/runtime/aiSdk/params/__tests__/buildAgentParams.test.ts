@@ -1912,6 +1912,7 @@ describe('buildAgentParams Gemini 4 requests', () => {
     ['gemini-4-argon', 'medium'],
     ['gemini-4-argon', 'high'],
     ['gemini-4-argon', undefined],
+    ['gemini-4-carbon', 'high'],
     ['gemini-4-hydrogen', 'low'],
     ['gemini-4-hydrogen', 'medium'],
     ['gemini-4-hydrogen', 'high'],

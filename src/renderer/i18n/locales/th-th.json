@@ -5278,6 +5278,7 @@
   "settings.models.default_assistant_model_description": "ใช้เมื่อผู้ช่วยไม่มีโมเดล",
   "settings.models.docs": "เอกสารโมเดล",
   "settings.models.edit.classification_save_hint": "การตั้งค่าบางส่วนอาจมาจากแคตตาล็อกโมเดล การเปลี่ยนแปลงถูกบันทึกทันที มอดาลิตีอินพุตที่ตั้งล่วงหน้าซึ่งตรงกับแคตตาล็อกจะยังตามการอัปเดตของแคตตาล็อก ส่วนค่าที่ต่างจะถูกบันทึกเป็น override โมเดล custom จะบันทึกมอดาลิตีอินพุตที่แสดงตามที่เห็น",
+  "settings.models.edit.default_reasoning_effort": "ระดับการใช้เหตุผลเริ่มต้น",
   "settings.models.empty": "เลือกโมเดล",
   "settings.models.empty_hint": "คลิกซิงค์โมเดลด้านบนเพื่อเพิ่มโมเดล",
   "settings.models.expand_all": "ขยายทั้งหมด",

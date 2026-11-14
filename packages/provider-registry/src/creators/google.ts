@@ -9,6 +9,7 @@ export default defineCreator({
   reasoningFamilies: [
     { pattern: '^gemini-4(?:[.-]|$)', wireDialect: 'effort', template: true },
     { pattern: '^gemini-4-argon(?:$|[ @:-])', effort: ['low', 'medium', 'high'], toggle: false },
+    { pattern: '^gemini-4-carbon(?:$|[ @:-])', effort: ['low', 'medium', 'high'], toggle: false },
     { pattern: '^gemini-4-hydrogen(?:$|[ @:-])', effort: ['low', 'medium', 'high', 'xhigh'], toggle: false },
     // Native-protocol dialect (google-generate-content). Gemini 2.x takes
     // `thinkingConfig.thinkingBudget` and hard-rejects the Gemini 3
@@ -81,6 +82,39 @@ export default defineCreator({
     {
       id: 'gemini-4-argon',
       name: 'Gemini 4 Argon',
+      family: 'gemini-4',
+      capabilities: [
+        'reasoning',
+        'function-call',
+        'image-recognition',
+        'audio-recognition',
+        'video-recognition',
+        'structured-output',
+        'file-input'
+      ],
+      inputModalities: ['text', 'image', 'audio', 'video'],
+      outputModalities: ['text'],
+      contextWindow: 1048576,
+      maxOutputTokens: 1048576,
+      reasoning: {
+        controls: [{ kind: 'effort', values: ['low', 'medium', 'high'], default: 'medium' }],
+        defaultEffort: 'medium',
+        wireDialect: 'effort'
+      },
+      parameterSupport: {
+        temperature: { supported: false },
+        topP: { supported: false },
+        topK: { supported: false },
+        frequencyPenalty: false,
+        presencePenalty: false,
+        maxTokens: true,
+        stopSequences: true,
+        systemMessage: true
+      }
+    },
+    {
+      id: 'gemini-4-carbon',
+      name: 'Gemini 4 Carbon',
       family: 'gemini-4',
       capabilities: [
         'reasoning',

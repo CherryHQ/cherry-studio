@@ -9778,6 +9778,68 @@
       ],
       "contextWindow": 1048576,
       "family": "gemini-4",
+      "id": "gemini-4-carbon",
+      "inputModalities": ["text", "image", "audio", "video"],
+      "maxOutputTokens": 1048576,
+      "metadata": {},
+      "name": "Gemini 4 Carbon",
+      "outputModalities": ["text"],
+      "ownedBy": "google",
+      "parameterSupport": {
+        "frequencyPenalty": false,
+        "maxTokens": true,
+        "presencePenalty": false,
+        "stopSequences": true,
+        "systemMessage": true,
+        "temperature": {
+          "supported": false
+        },
+        "topK": {
+          "supported": false
+        },
+        "topP": {
+          "supported": false
+        }
+      },
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.1
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 2
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 10
+        }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "default": "medium",
+            "kind": "effort",
+            "values": ["low", "medium", "high"]
+          }
+        ],
+        "defaultEffort": "medium",
+        "supportedEfforts": ["low", "medium", "high"],
+        "wireDialect": "effort"
+      }
+    },
+    {
+      "capabilities": [
+        "reasoning",
+        "function-call",
+        "image-recognition",
+        "audio-recognition",
+        "video-recognition",
+        "structured-output",
+        "file-input"
+      ],
+      "contextWindow": 1048576,
+      "family": "gemini-4",
       "id": "gemini-4-hydrogen",
       "inputModalities": ["text", "image", "audio", "video"],
       "maxOutputTokens": 1048576,
@@ -23592,5 +23654,5 @@
       "ownedBy": "zhipu"
     }
   ],
-  "version": "c820cff31671ab4e"
+  "version": "856fd6686c5d9369"
 }
