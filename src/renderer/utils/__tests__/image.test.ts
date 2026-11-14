@@ -21,6 +21,7 @@ import {
   isKatexGeneratedSvg,
   makeSvgSizeAdaptive,
   MAX_ENTITY_IMAGE_UPLOAD_BYTES,
+  EntityImageProcessError,
   prepareEntityImageBytes,
   svgToCanvas,
   transformImageToPng,
@@ -176,6 +177,17 @@ describe('utils/image', () => {
       const file = new File(['x'], 'logo.svg', { type: 'image/svg+xml' })
 
       await expect(prepareEntityImageBytes(file)).rejects.toThrow('message.error.image_process_failed')
+    })
+
+    it('keeps the decode failure as the cause of a typed processing error', async () => {
+      const decodeError = new Error('cannot decode')
+      vi.stubGlobal('createImageBitmap', vi.fn().mockRejectedValue(decodeError))
+      const file = new File(['x'], 'logo.svg', { type: 'image/svg+xml' })
+
+      const rejection = await prepareEntityImageBytes(file).catch((error: unknown) => error)
+
+      expect(rejection).toBeInstanceOf(EntityImageProcessError)
+      expect((rejection as Error).cause).toBe(decodeError)
     })
   })
 

@@ -20,7 +20,7 @@ import useAvatar from '@renderer/hooks/useAvatar'
 import { ipcApi } from '@renderer/ipc'
 import { toastAppError } from '@renderer/services/AppErrorDetailService'
 import { toast } from '@renderer/services/toast'
-import { checkEntityImageSize, prepareEntityImageBytes } from '@renderer/utils/image'
+import { checkEntityImageSize, EntityImageProcessError, prepareEntityImageBytes } from '@renderer/utils/image'
 import { isEmoji } from '@renderer/utils/naming'
 
 import { EmojiPicker } from './EmojiPicker'
@@ -104,9 +104,9 @@ export function UserProfileEditor() {
       setAvatarPopoverView('menu')
     } catch (error: unknown) {
       // Image processing already throws a localized retry message. IPC failures do not.
-      const processed =
-        error instanceof Error && error.message === t('message.error.image_process_failed') ? error.message : undefined
-      toastAppError(processed ?? t('settings.general.avatar.update_failed'), error, {
+      const message =
+        error instanceof EntityImageProcessError ? error.message : t('settings.general.avatar.update_failed')
+      toastAppError(message, error, {
         source: 'profile',
         operation: 'profile.set_avatar'
       })
