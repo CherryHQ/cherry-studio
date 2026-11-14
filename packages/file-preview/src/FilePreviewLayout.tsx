@@ -36,10 +36,14 @@ function FilePreviewContent({
     <ScrollArea
       className="min-h-0 flex-1"
       viewportProps={{
-        'data-testid': 'file-preview-content',
-        className: cn(reserveInset && 'pb-[var(--file-preview-bottom-inset,0px)]')
+        'data-testid': 'file-preview-content'
       }}
-      contentProps={{ className: 'h-full' }}>
+      contentProps={{
+        className: cn(
+          scrollsInternally ? 'h-full' : 'grid min-h-full grid-cols-[minmax(0,1fr)]',
+          reserveInset && 'pb-[var(--file-preview-bottom-inset,0px)]'
+        )
+      }}>
       {children}
     </ScrollArea>
   )

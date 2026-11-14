@@ -71,14 +71,12 @@ describe('ImageViewer', () => {
     vi.stubGlobal('fetch', mocks.fetch)
   })
 
-  it('opens the shared preview dialog with the save-as toolbar action', async () => {
+  it('opens the shared preview dialog', async () => {
     renderWithI18n(<ImageViewer src="https://example.com/image.png" alt="Example image" />)
 
     await user.click(screen.getByRole('img', { name: 'Example image' }))
 
     expect(screen.getByTestId('image-preview-dialog')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Save As' })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Copy as image' })).not.toBeInTheDocument()
   })
 
   it('respects preview=false', async () => {
@@ -148,15 +146,6 @@ describe('ImageViewer', () => {
     })
   })
 
-  it('does not expose a download action in the preview toolbar or context menu', async () => {
-    renderWithI18n(<ImageViewer src="https://example.com/image.png" alt="Example image" />)
-
-    await user.click(screen.getByRole('img', { name: 'Example image' }))
-    expect(screen.queryByRole('button', { name: 'Download' })).not.toBeInTheDocument()
-
-    fireEvent.contextMenu(screen.getAllByRole('img', { name: 'Example image' })[0])
-    expect(screen.queryByRole('button', { name: 'Download' })).not.toBeInTheDocument()
-  })
   it.each([{}, { rotation: 90, flipX: true }, { flipY: true }])(
     'preserves original GIF bytes after preview transforms %j',
     async (transform) => {

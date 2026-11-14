@@ -31,6 +31,7 @@ import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { MiniAppDebuggingIndicator } from '@renderer/components/MiniApp/MiniAppDebuggingIndicator'
 import MiniAppDetailPanel from '@renderer/components/MiniApp/MiniAppDetailPanel'
+import { useExitPresence } from '@renderer/hooks/useExitPresence'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import { useWebviewNavigation } from '@renderer/hooks/useWebviewNavigation'
 import { ipcApi } from '@renderer/ipc'
@@ -79,6 +80,7 @@ const MinimalToolbar: FC<Props> = ({
   const { pinned, updateAppStatus, allApps } = useMiniApps()
   const [openLinkExternal, setOpenLinkExternal] = usePreference('feature.mini_app.open_link_external')
   const [detailOpen, setDetailOpen] = useState(false)
+  const detailDialog = useExitPresence(detailOpen ? true : null)
   const {
     canGoBack,
     canGoForward,
@@ -404,7 +406,9 @@ const MinimalToolbar: FC<Props> = ({
           </DropdownMenu>
         </div>
       </div>
-      {detailOpen && <MiniAppDetailPanel appId={app.appId} onClose={() => setDetailOpen(false)} />}
+      {detailDialog.isPresent && (
+        <MiniAppDetailPanel open={detailOpen} appId={app.appId} onClose={() => setDetailOpen(false)} />
+      )}
     </div>
   )
 }

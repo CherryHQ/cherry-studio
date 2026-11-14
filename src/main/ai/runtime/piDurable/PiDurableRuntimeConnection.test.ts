@@ -1,4 +1,5 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync, realpathSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs'
+import { realpath } from 'node:fs/promises'
 import { join } from 'node:path'
 
 import { BACKGROUND_CONTEXT } from '@earendil-works/chord/context'
@@ -7,6 +8,7 @@ import { AgentDoc, configure, createSession, type ConversationId } from '@earend
 import { trace } from '@opentelemetry/api'
 import { BasicTracerProvider } from '@opentelemetry/sdk-trace-base'
 import { setupTestDatabase } from '@test-helpers/db'
+import { connectMcpTestClient } from '@test-helpers/mcp/client'
 import { eq } from 'drizzle-orm'
 import { v7 as uuid } from 'uuid'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -32,6 +34,10 @@ import { ThreadMessageProjection } from '@main/ai/agentSession/ThreadMessageProj
 import { getPiTraceContext, observabilitySinks } from '@main/ai/observability'
 import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import type { ToolGuardInteractionState } from '@main/ai/toolApproval/toolGuards'
+import { serializeError } from '@main/ai/utils/serializeError'
+import { getShellEnv } from '@main/utils/shellEnv'
+import { BUILTIN_AGENT_ROLE } from '@shared/ai/builtinAgent'
+import { McpServerSchema } from '@shared/data/types/mcpServer'
 import { ModelSchema } from '@shared/data/types/model'
 import { ProviderSchema } from '@shared/data/types/provider'
 import type { SpanEntity } from '@shared/data/types/trace'
@@ -45,10 +51,13 @@ import {
   tempDir
 } from '../../../../../packages/agent-runtime-pi/tests/sessionSupport'
 import { gate, toolCallPart } from '../../../../../packages/agent-runtime-pi/tests/subagentSupport'
+import type * as AgentMcpServers from '../agentMcpServers'
+import type * as AgentPrompt from '../agentPrompt'
 import type { PiConnectionSnapshot } from '../pi/piConnectionSignature'
 import { runtimeDriverRegistry } from '../registry'
 import type { AgentRuntimeConnectInput, AgentRuntimeEvent } from '../types'
 import { allocateDurableBackendTx, prepareDurableBranch, reserveDurableBranchTx } from './durableContext'
+import { prepareDurableDesktop } from './durableDesktop'
 import type { PiDurableRuntimeConnection } from './PiDurableRuntimeConnection'
 import { PiDurableRuntimeDriver } from './PiDurableRuntimeDriver'
 
@@ -58,6 +67,8 @@ const mocks = vi.hoisted(() => ({
   capture: vi.fn(),
   binding: vi.fn(),
   prompt: vi.fn(),
+  mcpServers: vi.fn(),
+  catalog: vi.fn(),
   interaction: vi.fn<() => ToolGuardInteractionState>(),
   delegated: vi.fn(),
   prime: vi.fn()
@@ -71,8 +82,20 @@ vi.mock('@application', async () => {
       ensureInternalGateway: async () => ({ baseUrl: 'http://gateway.invalid', apiKey: 'fixture' }),
       getAgentSessionUsageHeaders: () => ({})
     },
-    McpCatalogService: { listTools: () => [] },
-    AgentSessionRuntimeService: { getInteractionState: mocks.interaction, primeConnection: mocks.prime }
+    McpCatalogService: { listTools: mocks.catalog, onToolsCacheUpdated: () => ({ dispose() {} }) },
+    McpRuntimeService: {
+      getConnectedServerInstructions: () => undefined,
+      onCatalogChanged: () => ({ dispose() {} }),
+      onResourceUpdated: () => ({ dispose() {} }),
+      callTool: async ({ interactionContext }: { interactionContext: { model?: string } }) => ({
+        content: [{ type: 'text', text: `Sampling model: ${interactionContext.model}` }]
+      })
+    },
+    AgentSessionRuntimeService: {
+      getInteractionState: mocks.interaction,
+      primeConnection: mocks.prime,
+      getTurnTrustedNotifyChannels: () => undefined
+    }
   }
   return mockApplicationFactory(overrides)
 })
@@ -84,9 +107,12 @@ vi.mock('../pi/gatewayModelBinding', () => ({ createPiGatewayModelBinding: mocks
 vi.mock('@main/ai/runtime/agentPrompt', () => ({ buildAgentRuntimePrompt: mocks.prompt }))
 vi.mock('@main/ai/runtime/agentMcpServers', () => ({
   warmAgentMcpToolCatalogs: async () => {},
-  buildAgentMcpServers: () => ({})
+  buildAgentMcpServers: mocks.mcpServers
 }))
-vi.mock('@main/utils/shellEnv', () => ({ getShellEnv: async () => ({}), getPathFromEnvironment: () => undefined }))
+vi.mock('@main/utils/shellEnv', () => ({
+  getShellEnv: vi.fn(async (): Promise<Record<string, string>> => ({})),
+  getPathFromEnvironment: () => undefined
+}))
 
 // Real Runtime, native Pi and SQLite; only provider/environment configuration is substituted.
 describe('desktop Pi Durable connection', () => {
@@ -98,12 +124,13 @@ describe('desktop Pi Durable connection', () => {
   const connections: PiDurableRuntimeConnection[] = []
   let driver: PiDurableRuntimeDriver
 
-  beforeEach(() => {
+  beforeEach(async () => {
     driver = new PiDurableRuntimeDriver()
+    vi.mocked(getShellEnv).mockReset()
     mocks.interaction.mockReturnValue({ currentTurn: 'interactive', userResponse: 'stream' })
     mocks.delegated.mockClear()
     mocks.prime.mockReset()
-    directory = realpathSync(tempDir('desktop-pi'))
+    directory = await realpath(tempDir('desktop-pi'))
     vi.mocked(application.getPath).mockImplementation((key, file) => {
       const dir = join(directory, key)
       if (key !== 'external.pi.settings_file' && key !== 'feature.agents.pi.sessions')
@@ -160,7 +187,9 @@ describe('desktop Pi Durable connection', () => {
       signature: 'frozen'
     }
     mocks.capture.mockImplementation(async () => snapshot)
-    mocks.prompt.mockResolvedValue({ base: { kind: 'custom', content: 'You are Cherry.' } })
+    mocks.mcpServers.mockReset().mockReturnValue({})
+    mocks.catalog.mockReset().mockReturnValue([])
+    mocks.prompt.mockReset().mockResolvedValue({ base: { kind: 'custom', content: 'You are Cherry.' } })
     setScript([assistantReply('Hello world')])
     mocks.binding.mockImplementation(async () => createTestBinding({ model: MODEL, stream: script.model }))
   })
@@ -169,6 +198,119 @@ describe('desktop Pi Durable connection', () => {
     for (const connection of connections.splice(0)) await connection.close()
     vi.restoreAllMocks()
   })
+  it.each([false, true])('materializes the captured model name for headless=%s', async (headless) => {
+    const { buildAgentRuntimePrompt } = await vi.importActual<typeof AgentPrompt>('../agentPrompt')
+    mocks.prompt.mockImplementation(buildAgentRuntimePrompt)
+    snapshot.agent.instructions = 'My model is {{model_name}}.'
+    snapshot.agent.modelName = 'Agent default'
+    snapshot.session.model = 'test::later-selection'
+    snapshot.model.name = 'Captured model'
+    input.headless = headless
+
+    const current = await connect()
+    await current.connection.send({ message: message('Identify your model') })
+    await done(current.events)
+
+    expect(script.calls[0].systemPrompt).toContain('My model is Captured model.')
+    expect(script.calls[0].systemPrompt).not.toContain('My model is Agent default.')
+  })
+
+  it.each([false, true])('creates an Agent with the captured model for headless=%s', async (headless) => {
+    sharedHosts()
+    dbh.db
+      .insert(userModelTable)
+      .values({
+        id: 'test::later-selection',
+        providerId: 'test',
+        modelId: 'later-selection',
+        name: 'Later model',
+        capabilities: ['function-call'],
+        supportsStreaming: true,
+        isEnabled: true,
+        orderKey: 'a1'
+      })
+      .run()
+    dbh.db
+      .update(agentSessionTable)
+      .set({ model: 'test::later-selection' })
+      .where(eq(agentSessionTable.id, input.sessionId))
+      .run()
+    snapshot.agent.configuration = { ...snapshot.agent.configuration, builtin_role: BUILTIN_AGENT_ROLE.ASSISTANT }
+    input.headless = headless
+    const { buildAgentMcpServers } = await vi.importActual<typeof AgentMcpServers>('../agentMcpServers')
+    mocks.mcpServers.mockImplementation((...args: Parameters<typeof buildAgentMcpServers>) => {
+      const servers = buildAgentMcpServers(...args)
+      return { assistant: servers.assistant }
+    })
+    const desktop = await prepareDurableDesktop(input, () => {})
+    try {
+      const tool = desktop.mcp.extension.tools!.find((tool) => tool.name === 'mcp__assistant__create_agent')!
+      const result = await tool.execute(
+        { name: 'Created Agent', instructions: 'Help with testing.' },
+        undefined as never,
+        BACKGROUND_CONTEXT
+      )
+      expect(result.isError).toBe(false)
+      expect(result.details).toMatchObject({ ok: true, model: modelId })
+      const created = dbh.db
+        .select()
+        .from(agentTable)
+        .all()
+        .find((agent) => agent.name === 'Created Agent')
+      expect(created?.model).toBe(modelId)
+    } finally {
+      await desktop.close()
+    }
+  })
+
+  it.each([
+    { captured: modelId, selected: 'test::selected', expected: modelId },
+    { captured: undefined, selected: 'test::selected', expected: 'test::selected' },
+    { captured: undefined, selected: null, expected: 'test::agent-default' }
+  ] as const)(
+    'routes MCP sampling with $expected (captured=$captured, selected=$selected)',
+    async ({ captured, selected, expected }) => {
+      const { buildAgentMcpServers } = await vi.importActual<typeof AgentMcpServers>('../agentMcpServers')
+      const server = McpServerSchema.parse({
+        id: '9c4cda7c-6bb8-4eb6-a0b5-e3e7d79ca337',
+        name: 'Sampling',
+        isActive: true
+      })
+      snapshot.agent.model = 'test::agent-default'
+      snapshot.agent.mcps = [server.id]
+      snapshot.session.model = selected
+      mocks.catalog.mockReturnValue([
+        {
+          name: 'sample',
+          inputSchema: { type: 'object', properties: {} },
+          id: 'sample',
+          serverId: server.id,
+          serverName: server.name,
+          type: 'mcp'
+        }
+      ])
+      const servers = buildAgentMcpServers(
+        snapshot.session,
+        snapshot.agent,
+        new Set(),
+        new Map([[server.id, server]]),
+        null,
+        directory,
+        [],
+        undefined,
+        captured
+      )
+      const client = await connectMcpTestClient(servers[server.id])
+      try {
+        const result = await client.callTool({ name: 'sample', arguments: {} })
+        expect(result.isError).not.toBe(true)
+        expect(result.content).toEqual([{ type: 'text', text: `Sampling model: ${expected}` }])
+      } finally {
+        await client.close()
+      }
+    }
+  )
+
   function setScript(parts: AssistantMessage[], delay?: number) {
     script = scriptedModel(parts, delay)
   }
@@ -474,6 +616,7 @@ describe('desktop Pi Durable connection', () => {
     const sourceId = input.sessionId
     const workspace = join(application.getPath('feature.agents.system_workspaces'), 'source-workspace')
     mkdirSync(workspace)
+    writeFileSync(join(workspace, 'AGENTS.md'), 'Parent instructions only')
     const workspaceId = snapshot.session.workspace.id
     dbh.db
       .update(agentWorkspaceTable)
@@ -486,6 +629,7 @@ describe('desktop Pi Durable connection', () => {
     const answer = await savedAnswer(parent)
     const forkId = await new AgentSessionForkOperations().fork(sourceId, answer.id)
     const forkWorkspace = agentSessionService.getById(forkId).workspace.path
+    writeFileSync(join(forkWorkspace, 'AGENTS.md'), 'Fork instructions only')
     input = { ...input, sessionId: forkId }
     const child = await connect()
     expect(child.connection['runtime']).toBe(parent.connection['runtime'])
@@ -509,6 +653,12 @@ describe('desktop Pi Durable connection', () => {
     ])
     const approvals = (events: AgentRuntimeEvent[]) => events.filter((event) => event.type === 'tool-approval-request')
     await expect.poll(() => approvals(parent.events).length + approvals(child.events).length).toBe(2)
+    const parentPrompt = script.calls.find((call) => call.model.provider === sourceId)?.systemPrompt
+    const forkPrompt = script.calls.find((call) => call.model.provider === forkId)?.systemPrompt
+    expect(parentPrompt).toContain('Parent instructions only')
+    expect(parentPrompt).not.toContain('Fork instructions only')
+    expect(forkPrompt).toContain('Fork instructions only')
+    expect(forkPrompt).not.toContain('Parent instructions only')
     expect(approvals(parent.events)).toHaveLength(1)
     expect(approvals(child.events)).toHaveLength(1)
     expect(approvals(parent.events)[0].request.approvalId).not.toBe(approvals(child.events)[0].request.approvalId)
@@ -641,55 +791,62 @@ describe('desktop Pi Durable connection', () => {
     expect(next.events.filter((event) => event.type === 'error')).toEqual([])
   })
 
-  it('attaches a pending peer before shared recovery and restores its frozen request settings', async () => {
-    sharedHosts()
-    input = { ...input, reasoningEffort: 'high', fastMode: true }
-    const sourceInput = { ...input }
-    const parent = await connect()
-    await parent.connection.send({ message: message('initial boundary') })
-    const answer = await savedAnswer(parent)
-    const forkId = await new AgentSessionForkOperations().fork(input.sessionId, answer.id)
-    const held = gate()
-    script = respondingModel(() => held.wait(assistantReply('unfinished source answer')))
-    parent.events.length = 0
-    await parent.connection.send({ message: message('pending source input') })
-    await held.reached
-    await parent.connection.close()
-    const recoveredEvents: AgentRuntimeEvent[] = []
-    let recovered: PiDurableRuntimeConnection | undefined
-    mocks.binding.mockImplementation(async (next: AgentRuntimeConnectInput, _provider, _model, _usage, shared) => {
-      const model = { ...MODEL, provider: next.sessionId }
-      const stream = respondingModel(() =>
-        assistantReply(`${next.sessionId}:${next.reasoningEffort}:${next.fastMode}`)
-      ).model
-      if (!shared) return createTestBinding({ model, stream })
-      shared.registerProvider(model.provider, {
-        api: model.api,
-        apiKey: 'fixture',
-        baseUrl: model.baseUrl,
-        models: [model],
-        streamSimple: stream
+  it.each([false, true])(
+    'restores a pending peer with cleared Agent default=%s and its frozen request settings',
+    async (clearDefault) => {
+      sharedHosts()
+      input = { ...input, reasoningEffort: 'high', fastMode: true }
+      const sourceInput = { ...input }
+      const parent = await connect()
+      await parent.connection.send({ message: message('initial boundary') })
+      const answer = await savedAnswer(parent)
+      const forkId = await new AgentSessionForkOperations().fork(input.sessionId, answer.id)
+      const held = gate()
+      script = respondingModel(() => held.wait(assistantReply('unfinished source answer')))
+      parent.events.length = 0
+      await parent.connection.send({ message: message('pending source input') })
+      await held.reached
+      await parent.connection.close()
+      if (clearDefault) {
+        dbh.db.update(agentSessionTable).set({ model: modelId }).where(eq(agentSessionTable.id, input.sessionId)).run()
+        dbh.db.update(agentTable).set({ model: null }).where(eq(agentTable.id, input.agentId)).run()
+      }
+      const recoveredEvents: AgentRuntimeEvent[] = []
+      let recovered: PiDurableRuntimeConnection | undefined
+      mocks.binding.mockImplementation(async (next: AgentRuntimeConnectInput, _provider, _model, _usage, shared) => {
+        const model = { ...MODEL, provider: next.sessionId }
+        const stream = respondingModel(() =>
+          assistantReply(`${next.sessionId}:${next.reasoningEffort}:${next.fastMode}`)
+        ).model
+        if (!shared) return createTestBinding({ model, stream })
+        shared.registerProvider(model.provider, {
+          api: model.api,
+          apiKey: 'fixture',
+          baseUrl: model.baseUrl,
+          models: [model],
+          streamSimple: stream
+        })
+        return { modelRuntime: shared, model: shared.getModel(model.provider, model.id)! }
       })
-      return { modelRuntime: shared, model: shared.getModel(model.provider, model.id)! }
-    })
-    mocks.prime.mockImplementation(async (sessionId: string) => {
-      recovered = await driver.connect({ sessionId, agentId: sourceInput.agentId, modelId })
-      connections.push(recovered)
-      void (async () => {
-        for await (const event of recovered.events) recoveredEvents.push(event)
-      })()
-    })
-    input = { ...input, sessionId: forkId, reasoningEffort: 'low', fastMode: false }
-    const fork = await connect()
-    await expect.poll(() => recoveredEvents.some((event) => event.type === 'turn-complete')).toBe(true)
-    expect(text(recoveredEvents)).toContain(`${sourceInput.sessionId}:high:true`)
-    expect(recovered!['runtime']).toBe(fork.connection['runtime'])
-    await fork.connection.send({ message: message('independent fork input') })
-    await done(fork.events)
-    expect(text(fork.events)).toContain(`${forkId}:low:false`)
-    expect([...recoveredEvents, ...fork.events].filter((event) => event.type === 'error')).toEqual([])
-    held.open()
-  })
+      mocks.prime.mockImplementation(async (sessionId: string) => {
+        recovered = await driver.connect({ sessionId, agentId: sourceInput.agentId, modelId })
+        connections.push(recovered)
+        void (async () => {
+          for await (const event of recovered.events) recoveredEvents.push(event)
+        })()
+      })
+      input = { ...input, sessionId: forkId, reasoningEffort: 'low', fastMode: false }
+      const fork = await connect()
+      await expect.poll(() => recoveredEvents.some((event) => event.type === 'turn-complete')).toBe(true)
+      expect(text(recoveredEvents)).toContain(`${sourceInput.sessionId}:high:true`)
+      expect(recovered!['runtime']).toBe(fork.connection['runtime'])
+      await fork.connection.send({ message: message('independent fork input') })
+      await done(fork.events)
+      expect(text(fork.events)).toContain(`${forkId}:low:false`)
+      expect([...recoveredEvents, ...fork.events].filter((event) => event.type === 'error')).toEqual([])
+      held.open()
+    }
+  )
 
   it('retains an identifiable inert native preparation when product publication fails', async () => {
     sharedHosts()
@@ -814,8 +971,10 @@ describe('desktop Pi Durable connection', () => {
     })()
     return { connection, events, consuming, nativeInputs, handle }
   }
-  async function done(events: AgentRuntimeEvent[]) {
-    await expect.poll(() => events.some((event) => event.type === 'turn-complete' || event.type === 'error')).toBe(true)
+  async function done(events: AgentRuntimeEvent[], timeout?: number) {
+    await expect
+      .poll(() => events.some((event) => event.type === 'turn-complete' || event.type === 'error'), { timeout })
+      .toBe(true)
   }
   function projected(events: AgentRuntimeEvent[]) {
     const messages = new Map<
@@ -835,6 +994,117 @@ describe('desktop Pi Durable connection', () => {
       .filter((message) => message.role === 'assistant')
       .flatMap((message) => message.parts.flatMap((part) => (part.type === 'text' ? [part.text] : [])))
       .join('')
+  it('preserves output truncation through the desktop error boundary', async () => {
+    const response = assistantReply('', 'length')
+    response.content = [{ type: 'thinking', thinking: 'Partial reasoning' }]
+    setScript([response])
+    const { connection, events } = await connect()
+    await connection.send({ message: message('Solve a reasoning task') })
+    await done(events)
+
+    const failure = events.find((event) => event.type === 'error')
+    expect(failure).toBeDefined()
+    if (failure?.type !== 'error') throw new Error('Expected a truncation failure')
+    expect(serializeError(failure.error)).toMatchObject({
+      reason: 'output-truncated',
+      finishReason: 'length',
+      i18nKey: 'output_token_limit_reached'
+    })
+    expect(events.some((event) => event.type === 'turn-complete')).toBe(false)
+  })
+
+  it('loads workspace instructions and reflects changes on later model requests', async () => {
+    const project = join(directory, 'project')
+    const cwd = join(project, 'nested')
+    mkdirSync(cwd, { recursive: true })
+    writeFileSync(join(project, 'AGENTS.md'), 'Parent workspace instruction')
+    writeFileSync(join(cwd, 'AGENTS.md'), 'Original workspace instruction')
+    writeFileSync(join(cwd, 'CLAUDE.md'), 'Fallback workspace instruction')
+    const agentDir = application.getPath('feature.agents.pi.root')
+    writeFileSync(join(agentDir, 'AGENTS.md'), 'Global workspace instruction')
+    dbh.db
+      .update(agentWorkspaceTable)
+      .set({ path: cwd })
+      .where(eq(agentWorkspaceTable.id, snapshot.session.workspaceId))
+      .run()
+    snapshot.session = agentSessionService.getById(input.sessionId)
+
+    const { connection, events } = await connect()
+    await connection.send({ message: message('First request') })
+    await done(events)
+    expect(script.calls[0].systemPrompt).toContain('Global workspace instruction')
+    expect(script.calls[0].systemPrompt).toContain('Parent workspace instruction')
+    expect(script.calls[0].systemPrompt).toContain('Original workspace instruction')
+    expect(script.calls[0].systemPrompt).not.toContain('Fallback workspace instruction')
+
+    writeFileSync(join(cwd, 'AGENTS.md'), 'Updated workspace instruction')
+    events.length = 0
+    await connection.send({ message: message('Second request') })
+    await done(events)
+    expect(script.calls[1].systemPrompt).toContain('Updated workspace instruction')
+    expect(script.calls[1].systemPrompt).not.toContain('Original workspace instruction')
+
+    unlinkSync(join(cwd, 'AGENTS.md'))
+    events.length = 0
+    await connection.send({ message: message('Third request') })
+    await done(events)
+    expect(script.calls[2].systemPrompt).toContain('Fallback workspace instruction')
+    expect(script.calls[2].systemPrompt).not.toContain('Updated workspace instruction')
+  })
+  it.each([false, true])('limits PowerShell exposure to Windows and honors disabledTools (%s)', async (disabled) => {
+    snapshot.agent.disabledTools = disabled ? ['PowerShell'] : []
+    const { connection, events } = await connect()
+    await connection.send({ message: message('List available tools') })
+    await done(events)
+    const names = script.calls[0].tools.map((tool) => tool.name)
+    if (process.platform === 'win32' && !disabled) expect(names).toContain('powershell')
+    else expect(names).not.toContain('powershell')
+  })
+
+  it.runIf(process.platform === 'win32')(
+    'runs PowerShell file commands with Unicode paths and preserves the configured PATH',
+    async () => {
+      const binDirectory = join(directory, 'test bin')
+      mkdirSync(binDirectory)
+      writeFileSync(join(binDirectory, 'cherry-path-probe.cmd'), '@echo off\r\necho PATH probe succeeded\r\n')
+      const pathKey = Object.keys(process.env).find((key) => key.toLowerCase() === 'path') ?? 'Path'
+      vi.mocked(getShellEnv).mockResolvedValue({
+        [pathKey]: `${binDirectory};${process.env[pathKey] ?? ''}`
+      })
+      setScript([
+        assistantReply(
+          [
+            {
+              type: 'toolCall',
+              id: 'powershell-file',
+              name: 'powershell',
+              arguments: {
+                command:
+                  "Set-Content -LiteralPath './报告 with spaces.txt' -Value 'PowerShell 正常' -Encoding utf8; Get-Content -LiteralPath './报告 with spaces.txt'; & cherry-path-probe.cmd"
+              }
+            }
+          ],
+          'toolUse'
+        ),
+        assistantReply('PowerShell finished')
+      ])
+      const { connection, events } = await connect()
+      await connection.send({ message: message('Write and read the PowerShell fixture') })
+      await done(events, 10_000)
+      expect(
+        readFileSync(join(directory, '报告 with spaces.txt'), 'utf8')
+          .replace(/^\uFEFF/, '')
+          .trim()
+      ).toBe('PowerShell 正常')
+      const output = projected(events)
+        .flatMap((entry) => entry.parts)
+        .find((part) => part.type === 'dynamic-tool' && part.toolCallId === 'powershell-file')
+      expect(JSON.stringify(output)).toContain('PATH probe succeeded')
+      expect(JSON.stringify(output)).toContain('PowerShell 正常')
+      expect(output).toMatchObject({ state: 'output-available' })
+    }
+  )
+
   // An idle observation during summary generation must not finish the owning desktop turn.
   it.each(['complete', 'error', 'stop', 'close'] as const)(
     'keeps manual compaction owned through %s',
@@ -844,7 +1114,7 @@ describe('desktop Pi Durable connection', () => {
         createTestBinding({ model: { ...MODEL, contextWindow: 1_000_000 }, stream: script.model })
       )
       script = respondingModel((call) =>
-        call.systemPrompt.startsWith('Summarize the conversation')
+        call.systemPrompt.startsWith('You are a context summarization assistant')
           ? summary.wait(assistantReply('Remember the original objective', outcome === 'error' ? 'error' : 'stop'))
           : assistantReply('answer')
       )
@@ -875,10 +1145,8 @@ describe('desktop Pi Durable connection', () => {
       }
       await done(events)
       if (outcome === 'error') {
-        expect(events.filter((event) => event.type === 'compaction-complete')).toEqual([
-          { type: 'compaction-complete' }
-        ])
-        expect(events.filter((event) => event.type === 'error')).toEqual([])
+        expect(events.filter((event) => event.type === 'compaction-complete')).toEqual([])
+        expect(events.filter((event) => event.type === 'error')).toHaveLength(1)
         return
       }
       if (outcome !== 'complete') {
@@ -1164,6 +1432,90 @@ describe('desktop Pi Durable connection', () => {
     expect(events.filter((event) => event.type === 'error')).toEqual([])
   })
 
+  // Catches a child's incidental bypass mode overriding the root's installation policy.
+  it.each([
+    { mode: 'default', approved: true },
+    { mode: 'default', approved: false },
+    { mode: 'auto', approved: true },
+    { mode: 'auto', approved: false },
+    { mode: 'plan', approved: false },
+    { mode: 'bypassPermissions', approved: true }
+  ] as const)('uses root $mode for child installs (approved=$approved)', async ({ mode, approved }) => {
+    snapshot.agent.configuration = { ...snapshot.agent.configuration, permission_mode: mode }
+    const marker = join(directory, 'child-install.txt')
+    const prefixMarker = join(directory, 'before-install.txt')
+    // A shell function records execution without installing a real package.
+    const command = `echo started > "${prefixMarker}"\nnpm() { echo installed > "${marker}"; }\nnpm install -g left-pad`
+    let root = ''
+    let childResult = ''
+    script = respondingModel((call) => {
+      root ||= call.sessionId!
+      if (call.sessionId !== root) {
+        const result = call.messages.find(
+          (entry) => entry.role === 'toolResult' && entry.toolCallId === 'child-install'
+        )
+        if (!result) return assistantReply([toolCallPart('child-install', 'bash', { command })], 'toolUse')
+        childResult = JSON.stringify(result)
+        return assistantReply('child done')
+      }
+      if (!call.messages.some((entry) => entry.role === 'toolResult'))
+        return assistantReply(
+          [toolCallPart('spawn', 'subagent', { description: 'install', prompt: 'install tool', fork: false })],
+          'toolUse'
+        )
+      return assistantReply('parent done')
+    })
+    const { connection, events } = await connect()
+    await connection.send({ message: message('delegate') })
+    if (mode === 'default' || mode === 'auto') {
+      await expect
+        .poll(() => events.filter((event) => event.type === 'tool-approval-request').length, { timeout: 15_000 })
+        .toBe(1)
+      expect(existsSync(marker)).toBe(false)
+      expect(existsSync(prefixMarker)).toBe(false)
+      const event = events.find((event) => event.type === 'tool-approval-request')!
+      if (event.type !== 'tool-approval-request') throw new Error('Missing installation approval')
+      expect(event.request.input).toEqual({ command })
+      toolApprovalRegistry.dispatch(event.request.approvalId, { approved })
+    }
+    await done(events, 15_000)
+    expect(existsSync(marker)).toBe(approved)
+    expect(existsSync(prefixMarker)).toBe(approved)
+    if (mode === 'plan') expect(childResult).toContain('Plan mode is read-only')
+    else if (!approved) expect(childResult).toContain('rejected')
+    if (mode === 'plan' || mode === 'bypassPermissions')
+      expect(events.filter((event) => event.type === 'tool-approval-request')).toEqual([])
+    expect(events.filter((event) => event.type === 'error')).toEqual([])
+  })
+
+  it('lets subagents write without approval when the root uses default permissions', async () => {
+    snapshot.agent.configuration = { ...snapshot.agent.configuration, permission_mode: 'default' }
+    let root = ''
+    script = respondingModel((call) => {
+      root ||= call.sessionId!
+      if (call.sessionId !== root) {
+        if (!call.messages.some((entry) => entry.role === 'toolResult' && entry.toolCallId === 'child-write'))
+          return assistantReply(
+            [toolCallPart('child-write', 'write', { path: 'child-result.txt', content: 'child completed' })],
+            'toolUse'
+          )
+        return assistantReply('child done')
+      }
+      if (!call.messages.some((entry) => entry.role === 'toolResult'))
+        return assistantReply(
+          [toolCallPart('spawn', 'subagent', { description: 'write', prompt: 'write result', fork: false })],
+          'toolUse'
+        )
+      return assistantReply('parent done')
+    })
+    const { connection, events } = await connect()
+    await connection.send({ message: message('delegate') })
+    await done(events, 10_000)
+    expect(readFileSync(join(directory, 'child-result.txt'), 'utf8')).toBe('child completed')
+    expect(events.filter((event) => event.type === 'tool-approval-request')).toEqual([])
+    expect(events.filter((event) => event.type === 'error')).toEqual([])
+  })
+
   it.each(['reopen', 'retry archive flush'] as const)(
     'retains independent child output and continuation after %s',
     async (scenario) => {
@@ -1249,6 +1601,80 @@ describe('desktop Pi Durable connection', () => {
       await reopened.connection.messageChild(contextId, 'continue after reopen')
       await expect.poll(() => JSON.stringify(restored!.snapshot().messages)).toContain('child answer after reopen')
       expect(script.calls[0].model.id).toBe(MODEL.id)
+    }
+  )
+
+  // Catches a continuation saved ahead of child output that the projection has received but not yet written.
+  it.each(['acknowledged', 'rejected'] as const)(
+    'keeps a %s continuation after child output that is still pending its archive write',
+    async (outcome) => {
+      const held = gate()
+      let root = ''
+      let childRuns = 0
+      script = respondingModel((call) => {
+        root ||= call.sessionId!
+        if (call.sessionId !== root) {
+          childRuns++
+          return childRuns === 1
+            ? held.wait(assistantReply('child first answer'))
+            : assistantReply('child continued answer')
+        }
+        if (!call.messages.some((entry) => entry.role === 'toolResult'))
+          return assistantReply(
+            [
+              toolCallPart('spawn', 'subagent', {
+                description: 'research',
+                prompt: 'child work',
+                background: true,
+                fork: false
+              })
+            ],
+            'toolUse'
+          )
+        return assistantReply('parent done')
+      })
+      const { connection, events } = await connect()
+      await connection.send({ message: message('delegate') })
+      await held.reached
+      await done(events)
+      const view = (await connection.childProjection('spawn'))!
+      const contextId = view.snapshot().contextId
+      const [child] = await connection['childResources']()
+      if (outcome === 'rejected')
+        vi.spyOn(child.handle.input, 'submit').mockImplementationOnce(async (draft) => ({
+          status: 'rejected',
+          inputId: draft.inputId,
+          error: { operation: 'submit', code: 'busy', message: 'child is busy' }
+        }))
+      const order = (messages: readonly { parts: readonly { type: string; text?: string }[] }[]) => {
+        const texts = messages.flatMap((entry) =>
+          entry.parts.flatMap((part) => (part.type === 'text' ? [part.text] : []))
+        )
+        return { answer: texts.indexOf('child first answer'), steer: texts.indexOf('steer now') }
+      }
+      const inverted: unknown[] = []
+      view.subscribe(() => {
+        const { answer, steer } = order(view.snapshot().messages)
+        if (steer >= 0 && steer < answer) inverted.push(view.snapshot().messages)
+      })
+      let steering: Promise<string> | undefined
+      await child.handle.observe(async (event) => {
+        if (!steering && event.type === 'snapshot' && JSON.stringify(event.messages).includes('child first answer'))
+          steering = connection.messageChild(contextId, 'steer now').then(
+            () => 'sent',
+            (error: Error) => error.message
+          )
+      })
+      held.open()
+      await expect.poll(() => steering !== undefined).toBe(true)
+      expect(await steering).toBe(outcome === 'rejected' ? 'child is busy' : 'sent')
+      if (outcome === 'acknowledged')
+        await expect.poll(() => JSON.stringify(view.snapshot().messages)).toContain('child continued answer')
+      await connection.drainChildWrites()
+      const saved = order(savedChildView(contexts.context(contextId)).messages)
+      expect(saved.answer).toBeGreaterThanOrEqual(0)
+      expect(saved.steer).toBeGreaterThan(saved.answer)
+      expect(inverted).toEqual([])
     }
   )
 
@@ -1505,21 +1931,16 @@ describe('desktop Pi Durable connection', () => {
   })
 
   it('persists cancellation during a native tool and does not continue after reopen', async () => {
-    setScript([
-      assistantReply(
-        [
-          toolCallPart('bash', 'bash', {
-            command: 'echo ready > started.txt; /bin/sleep 30; echo late > completed.txt'
-          })
-        ],
-        'toolUse'
-      ),
-      assistantReply('must not run')
-    ])
+    const tool = process.platform === 'win32' ? 'powershell' : 'bash'
+    const command =
+      tool === 'powershell'
+        ? 'Set-Content -LiteralPath started.txt -Value ready; Start-Sleep -Seconds 30; Set-Content -LiteralPath completed.txt -Value late'
+        : 'echo ready > started.txt; /bin/sleep 30; echo late > completed.txt'
+    setScript([assistantReply([toolCallPart(tool, tool, { command })], 'toolUse'), assistantReply('must not run')])
     const { connection, events, nativeInputs } = await connect()
     const user = message('run a tool')
     await connection.send({ message: user })
-    await expect.poll(() => existsSync(join(directory, 'started.txt'))).toBe(true)
+    await expect.poll(() => existsSync(join(directory, 'started.txt')), { timeout: 10_000 }).toBe(true)
     await connection.interrupt()
     await connection.close()
     expect(nativeInputs.some((state) => state.inputId === user.id && state.outcome === 'aborted')).toBe(true)

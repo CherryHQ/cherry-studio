@@ -1,5 +1,6 @@
 import '@testing-library/jest-dom/vitest'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -29,43 +30,42 @@ vi.mock('@renderer/utils/error', () => ({
     `${prefix}: ${error instanceof Error ? error.message : String(error)}`
 }))
 
-vi.mock('@cherrystudio/ui', () => ({
-  Button: ({
-    children,
-    type = 'button',
-    ...props
-  }: {
-    children: ReactNode
-    type?: 'button' | 'submit' | 'reset'
-    [key: string]: unknown
-  }) => (
-    <button type={type} {...props}>
-      {children}
-    </button>
-  ),
-  Checkbox: ({
-    checked,
-    onCheckedChange,
-    'aria-label': ariaLabel
-  }: {
-    checked?: boolean | 'indeterminate'
-    onCheckedChange?: (checked: boolean | 'indeterminate') => void
-    'aria-label'?: string
-  }) => (
-    <input
-      type="checkbox"
-      aria-label={ariaLabel}
-      checked={checked === true}
-      onChange={(event) => onCheckedChange?.(event.target.checked)}
-    />
-  ),
-  NormalTooltip: ({ children, content }: { children: ReactNode; content?: ReactNode }) => (
-    <span>
-      {children}
-      {content ? <span role="tooltip">{content}</span> : null}
-    </span>
-  )
-}))
+vi.mock('@cherrystudio/ui', async () => {
+  const { NormalTooltip } = await import('@cherrystudio/ui/components/primitives/tooltip')
+
+  return {
+    Button: ({
+      children,
+      type = 'button',
+      ...props
+    }: {
+      children: ReactNode
+      type?: 'button' | 'submit' | 'reset'
+      [key: string]: unknown
+    }) => (
+      <button type={type} {...props}>
+        {children}
+      </button>
+    ),
+    Checkbox: ({
+      checked,
+      onCheckedChange,
+      'aria-label': ariaLabel
+    }: {
+      checked?: boolean | 'indeterminate'
+      onCheckedChange?: (checked: boolean | 'indeterminate') => void
+      'aria-label'?: string
+    }) => (
+      <input
+        type="checkbox"
+        aria-label={ariaLabel}
+        checked={checked === true}
+        onChange={(event) => onCheckedChange?.(event.target.checked)}
+      />
+    ),
+    NormalTooltip
+  }
+})
 
 // The row's actions live behind a whole-row right-click menu (CommandContextMenu). Stub it as a
 // wrapper that opens on contextMenu and renders the `extraItems` as plain buttons so tests can
@@ -247,11 +247,104 @@ describe('KnowledgeItemRow', () => {
     expect(screen.getByText('就绪')).toBeInTheDocument()
   })
 
-  it('renders the failed status label for failed items', () => {
-    render(<KnowledgeItemRow item={createFileItem({ id: 'file-1', status: 'failed' })} {...defaultHandlers} />)
+  it('shows the failure reason in the name cell before hover or focus', () => {
+    const failureReason = 'Embedding request failed: provider quota exceeded (request kb-22396).'
+    const item = { ...createFileItem({ id: 'file-1' }), status: 'failed' as const, error: failureReason }
+
+    render(<KnowledgeItemRow item={item} {...defaultHandlers} />)
 
     expect(screen.getByText('失败')).toBeInTheDocument()
-    expect(screen.getByRole('tooltip')).toHaveTextContent('Indexing failed')
+    const nameCell = within(screen.getByRole('row')).getAllByRole('gridcell')[1]
+    expect(within(nameCell).getByText(failureReason)).toBeVisible()
+    expect(screen.queryByRole('tooltip')).not.toBeInTheDocument()
+  })
+
+  it('keeps the complete failure reason accessible from the status badge', async () => {
+    const user = userEvent.setup()
+    const failureReason =
+      'Embedding request failed for /documents/research/library/quarterly-analysis-22396.pdf: provider quota exceeded. Request ID 273b923e-0bbc-4b84-a97b-f89a8306717e. Check the provider quota and retry indexing after the quota is available.'
+    const item = { ...createFileItem({ id: 'file-1' }), status: 'failed' as const, error: failureReason }
+
+    render(<KnowledgeItemRow item={item} {...defaultHandlers} />)
+
+    const nameCell = within(screen.getByRole('row')).getAllByRole('gridcell')[1]
+    expect(within(nameCell).getByText(failureReason)).toBeVisible()
+    const badge = screen.getByLabelText(failureReason)
+    expect(badge).toHaveAttribute('aria-label', failureReason)
+    expect(badge).toHaveAttribute('tabindex', '0')
+    const originalMatches = badge.matches.bind(badge)
+    const matchesSpy = vi
+      .spyOn(badge, 'matches')
+      .mockImplementation((selector) => selector === ':focus-visible' || originalMatches(selector))
+
+    try {
+      await user.tab()
+      await user.tab()
+      await user.tab()
+
+      expect(badge).toHaveFocus()
+      expect(await screen.findByRole('tooltip')).toHaveTextContent(failureReason)
+    } finally {
+      matchesSpy.mockRestore()
+    }
+  })
+
+  it('removes the inline failure reason when a retry starts', () => {
+    const failureReason = 'Embedding request failed: provider quota exceeded.'
+    const item = { ...createFileItem({ id: 'file-1' }), status: 'failed' as const, error: failureReason }
+    const { rerender } = render(<KnowledgeItemRow item={item} {...defaultHandlers} />)
+    const nameCell = within(screen.getByRole('row')).getAllByRole('gridcell')[1]
+    const reasonText = within(nameCell).getByText(failureReason)
+    expect(reasonText).toBeVisible()
+
+    for (const [status, label] of [
+      ['processing', '处理中'],
+      ['completed', '就绪']
+    ] as const) {
+      rerender(<KnowledgeItemRow item={createFileItem({ id: 'file-1', status })} {...defaultHandlers} />)
+
+      expect(reasonText).not.toBeInTheDocument()
+      expect(within(nameCell).queryByText(failureReason)).not.toBeInTheDocument()
+      expect(screen.queryByLabelText(failureReason)).not.toBeInTheDocument()
+      expect(screen.getByText(label)).toBeVisible()
+    }
+  })
+
+  it('keeps failed-row activation separate from retry and selection', async () => {
+    const user = userEvent.setup()
+    const handleClick = vi.fn()
+    const handleReindex = vi.fn()
+    const handleToggleSelect = vi.fn()
+    const failureReason = 'Parser error: document conversion failed (request kb-22396).'
+    const item = { ...createFileItem({ id: 'file-1' }), status: 'failed' as const, error: failureReason }
+
+    render(
+      <KnowledgeItemRow
+        item={item}
+        {...defaultHandlers}
+        onClick={handleClick}
+        onReindex={handleReindex}
+        onToggleSelect={handleToggleSelect}
+      />
+    )
+
+    const nameCell = within(screen.getByRole('row')).getAllByRole('gridcell')[1]
+    await user.click(within(nameCell).getByText(failureReason))
+
+    expect(handleClick).toHaveBeenCalledTimes(1)
+    expect(handleReindex).not.toHaveBeenCalled()
+    expect(handleToggleSelect).not.toHaveBeenCalled()
+
+    await user.click(screen.getByRole('checkbox', { name: '选择行' }))
+    expect(handleToggleSelect).toHaveBeenCalledWith(true)
+    expect(handleClick).toHaveBeenCalledTimes(1)
+    expect(handleReindex).not.toHaveBeenCalled()
+
+    await user.click(screen.getByRole('button', { name: '更多' }))
+    await user.click(screen.getByRole('button', { name: '重新索引' }))
+    expect(handleReindex).toHaveBeenCalledTimes(1)
+    expect(handleClick).toHaveBeenCalledTimes(1)
+    expect(handleToggleSelect).toHaveBeenCalledTimes(1)
   })
 
   it('renders a not-migrated directory as a red failure, reindexable but not chunk-viewable', () => {
@@ -266,9 +359,11 @@ describe('KnowledgeItemRow', () => {
       />
     )
 
-    // Red failure label with the localized migration-failed tooltip.
+    // The failure reason is localized in the name cell before opening its tooltip.
     expect(screen.getByText('失败')).toBeInTheDocument()
-    expect(screen.getByRole('tooltip')).toHaveTextContent('该文件夹内容迁移失败')
+    const nameCell = within(screen.getByRole('row')).getAllByRole('gridcell')[1]
+    expect(within(nameCell).getByText('该文件夹内容迁移失败，请删除后重新上传。')).toBeVisible()
+    expect(screen.queryByRole('tooltip')).not.toBeInTheDocument()
 
     // Re-indexing restores the index, but there are no chunks to view yet.
     fireEvent.contextMenu(screen.getByRole('row'))

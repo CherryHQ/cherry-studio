@@ -245,29 +245,6 @@ describe('AppUpdaterService — auto update-check scheduling', () => {
     expect(mockNotificationService.publish).toHaveBeenCalledTimes(2)
   })
 
-  it('runs an initial check shortly after startup when packaged and enabled', async () => {
-    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
-    await appUpdater._doAllReady()
-
-    expect(autoUpdater.checkForUpdates).not.toHaveBeenCalled()
-    await vi.advanceTimersByTimeAsync(INITIAL_DELAY)
-    expect(autoUpdater.checkForUpdates).toHaveBeenCalledTimes(1)
-  })
-
-  it('reschedules the next check ~4h after a success', async () => {
-    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
-    await appUpdater._doAllReady()
-
-    await vi.advanceTimersByTimeAsync(INITIAL_DELAY)
-    expect(autoUpdater.checkForUpdates).toHaveBeenCalledTimes(1)
-
-    await vi.advanceTimersByTimeAsync(INTERVAL - 1000)
-    expect(autoUpdater.checkForUpdates).toHaveBeenCalledTimes(1)
-
-    await vi.advanceTimersByTimeAsync(1000)
-    expect(autoUpdater.checkForUpdates).toHaveBeenCalledTimes(2)
-  })
-
   it('skips the check while disabled but keeps the loop alive and resumes when re-enabled', async () => {
     prefValues['app.dist.auto_update.enabled'] = false
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })

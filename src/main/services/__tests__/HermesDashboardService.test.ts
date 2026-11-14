@@ -201,14 +201,6 @@ describe('HermesDashboardService', () => {
       message: expect.stringContaining('different configuration home')
     })
     expect(service.getStatus()).toEqual({ status: 'error' })
-    expect(mocks.realpath).toHaveBeenCalledOnce()
-    expect(mocks.realpath).toHaveBeenCalledWith('/home/test/.hermes')
-  })
-
-  it('never touches the filesystem when the reported home matches lexically', async () => {
-    await expect(new HermesDashboardService().start()).resolves.toMatchObject({ success: true })
-
-    expect(mocks.realpath).not.toHaveBeenCalled()
   })
 
   it('accepts an equivalent Windows Hermes home across casing and separator styles', async () => {

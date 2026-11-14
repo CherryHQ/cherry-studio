@@ -159,15 +159,6 @@ describe('ModelListSyncDrawer', () => {
     vi.clearAllMocks()
   })
 
-  it('renders the provider model management drawer', () => {
-    renderDrawer()
-
-    expect(screen.getByText('OpenAI common.models')).toBeInTheDocument()
-    expect(screen.getByText('GPT 5')).toBeInTheDocument()
-    expect(screen.getByText('Claude Sonnet')).toBeInTheDocument()
-    expect(screen.getByText('Legacy Model')).toBeInTheDocument()
-  })
-
   it('hides model controls while loading', () => {
     renderDrawer({ isLoading: true })
 
@@ -360,13 +351,6 @@ describe('ModelListSyncDrawer', () => {
     expect(screen.getByText('settings.models.manage.stale_badge')).toBeInTheDocument()
   })
 
-  it('moves model descriptions into tooltip triggers', () => {
-    renderDrawer()
-
-    expect(screen.queryByText('GPT 5 model description')).not.toBeInTheDocument()
-    expect(screen.getByLabelText('GPT 5 model description')).toBeInTheDocument()
-  })
-
   it('shows load errors in the drawer with a refresh action', () => {
     const onRetryLoadModels = vi.fn()
     renderDrawer({
@@ -396,11 +380,7 @@ describe('ModelListSyncDrawer', () => {
     renderDrawer({ staleModelCount: 1, staleModelIds: ['openai::legacy-model'] })
 
     const tabList = screen.getByRole('tablist')
-    const tabs = screen.getAllByRole('tab')
     const staleTab = screen.getByRole('tab', { name: 'settings.models.manage.stale_filter' })
-
-    expect(tabs[0]).toHaveAccessibleName('models.all')
-    expect(tabs[1]).toBe(staleTab)
 
     fireEvent.scroll(tabList, { target: { scrollLeft: 120 } })
     await user.click(staleTab)

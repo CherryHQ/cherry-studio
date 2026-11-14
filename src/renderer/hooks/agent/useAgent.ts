@@ -1,9 +1,9 @@
 /**
  * DataApi-backed agent queries and mutations.
  *
- * `agent` is the canonical reusable blueprint — sessions are pure instances of
- * it. Config (model / instructions / mcps / disabledTools /
- * configuration) lives here, not on sessions.
+ * `agent` is the canonical reusable blueprint — sessions are instances of
+ * it with their own per-session model override. Remaining config (instructions /
+ * mcps / disabledTools / configuration) lives here, not on sessions.
  */
 
 import { useCallback, useMemo } from 'react'

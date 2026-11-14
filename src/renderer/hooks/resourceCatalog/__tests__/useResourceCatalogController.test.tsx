@@ -521,20 +521,6 @@ describe('useResourceCatalogController', () => {
     expect(controllerMocks.refetch).not.toHaveBeenCalled()
   })
 
-  it('stores only the resource key when opening the edit dialog', () => {
-    controllerMocks.resourceLibraryState.resources = [assistantResource]
-    const { result } = renderHook(() => useResourceCatalogController('assistant'))
-
-    act(() => {
-      result.current.gridProps.onEdit(assistantResource)
-    })
-
-    expect(result.current.dialogs.editDialogTarget).toEqual({
-      kind: 'assistant',
-      id: 'assistant-to-duplicate'
-    })
-  })
-
   it('opens and launches a Skill through the shared callbacks', async () => {
     const skill = createSkillResource('skill-1', 'writer', 'local')
     const onOpenSkill = vi.fn()

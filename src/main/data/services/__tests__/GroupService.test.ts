@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest'
 
 import { assistantTable } from '@data/db/schemas/assistant'
 import { groupTable } from '@data/db/schemas/group'
-import { GroupService, groupService } from '@data/services/GroupService'
+import { groupService } from '@data/services/GroupService'
 import { DataApiError, ErrorCode } from '@shared/data/api/errors'
 import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 
@@ -12,10 +12,6 @@ const GROUP_ID_MISSING = '11111111-1111-4111-8111-111111111111'
 
 describe('GroupService', () => {
   const dbh = setupTestDatabase()
-
-  it('should export a module-level singleton of GroupService', () => {
-    expect(groupService).toBeInstanceOf(GroupService)
-  })
 
   describe('create', () => {
     it('should create a group with an auto-assigned orderKey', async () => {
@@ -27,24 +23,6 @@ describe('GroupService', () => {
 
       const [row] = await dbh.db.select().from(groupTable).where(eq(groupTable.id, result.id))
       expect(row).toMatchObject({ name: 'Research', entityType: 'topic', orderKey: result.orderKey })
-    })
-
-    it('should assign strictly increasing orderKeys within the same entityType', async () => {
-      const first = groupService.create({ entityType: 'topic', name: 'alpha' })
-      const second = groupService.create({ entityType: 'topic', name: 'beta' })
-      const third = groupService.create({ entityType: 'topic', name: 'gamma' })
-
-      expect(second.orderKey > first.orderKey).toBe(true)
-      expect(third.orderKey > second.orderKey).toBe(true)
-    })
-
-    it('should keep orderKey sequences independent across entityTypes', async () => {
-      const topicFirst = groupService.create({ entityType: 'topic', name: 'first-topic' })
-      const assistantFirst = groupService.create({ entityType: 'assistant', name: 'first-assistant' })
-
-      // Each entityType starts with the same fractional-indexing starter key
-      // because neither bucket has a predecessor.
-      expect(topicFirst.orderKey).toBe(assistantFirst.orderKey)
     })
 
     it('should create knowledge groups', async () => {

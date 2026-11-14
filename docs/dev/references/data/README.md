@@ -37,7 +37,7 @@ This is the main entry point for Cherry Studio's data management documentation. 
 - [Default Values & Nullability](./best-practice-default-values-and-nullability.md) - Column nullability rules, default value placement across DB / `$defaultFn` / service, PATCH derivation patterns
 - [Ordering Guide](./data-ordering-guide.md) - Unified RESTful spec for sortable resources (fractional indexing)
 - [Pagination Guide](./data-pagination-guide.md) - Canonical spec for offset vs cursor (keyset) pagination: types, server impl, hooks, FTS, gotchas
-- [V2 Migration Guide](./v2-migration-guide.md) - Migration system
+- [V1 Upgrade Guide](./v2-migration-guide.md) - Intermediate release and preboot compatibility checks
 - [Database Seeding Guide](./database-seeding-guide.md) - Seeding architecture, version strategies, adding new seeders
 
 ### Testing

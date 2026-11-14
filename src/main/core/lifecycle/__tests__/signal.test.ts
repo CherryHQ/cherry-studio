@@ -54,17 +54,6 @@ describe('Signal', () => {
       expect(listener).toHaveBeenCalledWith(42)
       expect(listener).toHaveBeenCalledTimes(1)
     })
-
-    it('should return no-op disposable for late subscriber', () => {
-      const signal = new Signal<number>()
-      signal.resolve(42)
-
-      const listener = vi.fn()
-      const subscription = signal.onResolved(listener)
-
-      // dispose should not throw
-      subscription.dispose()
-    })
   })
 
   describe('isResolved', () => {

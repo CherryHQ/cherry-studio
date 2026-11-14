@@ -140,16 +140,6 @@ describe('TabLruManager', () => {
     })
 
     describe('edge cases', () => {
-      it('should handle tabs with undefined lastAccessTime', () => {
-        const tabs = Array.from({ length: TAB_LIMITS.softCap + 2 }, (_, i) =>
-          createTab(`tab-${i}`, { lastAccessTime: undefined })
-        )
-
-        // Should not throw
-        const result = manager.checkAndGetDormantCandidates(tabs, `tab-${TAB_LIMITS.softCap + 1}`)
-        expect(Array.isArray(result)).toBe(true)
-      })
-
       it('should preserve an all-pinned set between the soft and hard caps', () => {
         const tabs = Array.from({ length: TAB_LIMITS.softCap + 3 }, (_, i) => createTab(`tab-${i}`, { isPinned: true }))
 

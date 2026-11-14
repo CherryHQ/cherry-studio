@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { Badge, Button, Dialog, DialogContent, DialogDescription, DialogFooter, DialogTitle } from '@cherrystudio/ui'
 import { McpLogo } from '@renderer/components/icons/SvgIcon'
 import type { useBuiltinMcpCatalog } from '@renderer/hooks/useBuiltinMcpCatalog'
+import { useExitPresence } from '@renderer/hooks/useExitPresence'
 import { getBuiltInMcpServerDescriptionLabelKey } from '@renderer/i18n/label'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import { toast } from '@renderer/services/toast'
@@ -59,6 +60,7 @@ export function MarketplaceMcp({
   )
   const trigger = useRef<HTMLButtonElement | null>(null)
   const selectedProvider = providerConfigs.find((provider) => provider.key === providerKey)
+  const providerPresence = useExitPresence(selectedProvider ?? null)
   const keyword = query.trim().toLocaleLowerCase()
   const description = (server: McpServerPreset) => t(getBuiltInMcpServerDescriptionLabelKey(server.name))
   const matches = (values: string[]) => values.join(' ').toLocaleLowerCase().includes(keyword)
@@ -113,7 +115,7 @@ export function MarketplaceMcp({
     return (
       <>
         <Dialog open={Boolean(selectedProvider) && active} onOpenChange={(open) => !open && onProviderChange()}>
-          {selectedProvider ? (
+          {providerPresence.value ? (
             <DialogContent
               className="flex max-h-[90vh] flex-col gap-0 overflow-hidden p-0"
               showCloseButton={false}
@@ -121,9 +123,9 @@ export function MarketplaceMcp({
                 event.preventDefault()
                 trigger.current?.focus()
               }}>
-              <DialogTitle className="sr-only">{getProviderDisplayName(selectedProvider, t)}</DialogTitle>
+              <DialogTitle className="sr-only">{getProviderDisplayName(providerPresence.value, t)}</DialogTitle>
               <DialogDescription className="sr-only">{t('settings.mcp.providers')}</DialogDescription>
-              <MarketplaceMcpProvider provider={selectedProvider} existingServers={catalog.mcpServers} />
+              <MarketplaceMcpProvider provider={providerPresence.value} existingServers={catalog.mcpServers} />
               <DialogFooter className="shrink-0 border-t border-border-subtle px-6 py-3">
                 <Button variant="outline" onClick={() => onProviderChange()}>
                   {t('common.close')}

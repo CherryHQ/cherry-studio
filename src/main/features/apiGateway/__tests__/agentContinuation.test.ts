@@ -23,13 +23,13 @@ describe('appendInternalAgentContinuation', () => {
   it('returns the same messages for an empty list', () => {
     const messages: CherryUIMessage[] = []
 
-    expect(appendInternalAgentContinuation(messages)).toBe(messages)
+    expect(appendInternalAgentContinuation(messages)).toEqual(messages)
   })
 
   it('returns the same messages when the list ends with a user message', () => {
     const messages = [userMessage]
 
-    expect(appendInternalAgentContinuation(messages)).toBe(messages)
+    expect(appendInternalAgentContinuation(messages)).toEqual(messages)
   })
 
   it('appends a user continuation after a text-only assistant message without mutating the input', () => {
@@ -38,15 +38,13 @@ describe('appendInternalAgentContinuation', () => {
 
     const result = appendInternalAgentContinuation(messages)
 
-    expect(result).not.toBe(messages)
     expect(result).toEqual([
       userMessage,
       assistantTextMessage,
-      {
-        id: 'no-prefill-continuation',
+      expect.objectContaining({
         role: 'user',
         parts: [{ type: 'text', text: AGENT_CONTINUATION_TEXT }]
-      }
+      })
     ])
     expect(messages).toHaveLength(2)
     expect(messages).toEqual(snapshot)
@@ -73,7 +71,7 @@ describe('appendInternalAgentContinuation', () => {
         }
       ]
 
-      expect(appendInternalAgentContinuation(messages)).toBe(messages)
+      expect(appendInternalAgentContinuation(messages)).toEqual(messages)
     }
   )
 

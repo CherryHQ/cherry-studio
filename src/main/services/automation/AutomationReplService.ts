@@ -2,15 +2,18 @@ import { randomUUID } from 'node:crypto'
 
 import type { CallToolResult } from '@modelcontextprotocol/server'
 import { Mutex } from 'async-mutex'
+import { LRUCache } from 'lru-cache'
 import * as z from 'zod'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
+import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase, Signal } from '@main/core/lifecycle'
 import { defineUtilityProcess } from '@main/core/utilityProcess/defineUtilityProcess'
 import type { UtilityProcessInstance } from '@main/core/utilityProcess/types'
 import type { BrowserControlSession } from '@main/features/browser'
 import type { ComputerUseTask } from '@main/services/ComputerUseService'
+import type { ComputerUseApp } from '@shared/ipc/schemas/computerUse'
 
 import browserDocumentation from '../../../../resources/skills/cherry-browser/references/api.md?raw'
 import computerDocumentation from '../../../../resources/skills/cherry-computer/references/api.md?raw'
@@ -43,6 +46,7 @@ const MAX_SESSIONS = 16
 const READ_OPERATIONS = new Set([
   'documentation',
   'getTab',
+  'listTabs',
   'getAXState',
   'getScreenshot',
   'getAXStateAndScreenshot',
@@ -114,6 +118,11 @@ function clearedContext(cell: string, hostCallsStarted = 0): AutomationContext {
 export class AutomationReplService extends BaseService {
   private readonly sessions = new Map<string, ReplSession>()
   private accepting = false
+  private readonly callApps = new LRUCache<string, ComputerUseApp[]>({ max: 256 })
+
+  getCallApps(cell: string): ComputerUseApp[] {
+    return this.callApps.get(cell) ?? []
+  }
 
   protected onInit(): void {
     application.get('UtilityProcessManager').register(definition)
@@ -158,7 +167,11 @@ export class AutomationReplService extends BaseService {
       runId,
       () => {
         const live = access()
-        return { browser: ceiling.browser && live.browser, computer: ceiling.computer && live.computer }
+        return {
+          browser: ceiling.browser && live.browser,
+          computer: ceiling.computer && live.computer,
+          computerApproval: live.computerApproval
+        }
       },
       signal
     )
@@ -198,6 +211,7 @@ export class AutomationReplService extends BaseService {
     let computer: ComputerUseTask | undefined
     let closing: Promise<void> | undefined
     let activeCell: AbortController | undefined
+    let approvalWaiting: (waiting: boolean) => void = () => {}
     let computerSession: ComputerAutomationSession | undefined
     const operations = new Mutex()
     const children = new Set<Promise<unknown>>()
@@ -222,15 +236,35 @@ export class AutomationReplService extends BaseService {
       execute: (code, callSignal) =>
         state.queue.runExclusive(async () => {
           assertActive()
+          callSignal?.throwIfAborted()
           activeCell = new AbortController()
+          const deadline = new AbortController()
+          let approvalWaitMs = 0
+          let waitingSince = 0
+          let remaining = 60_000
+          let resumedAt = Date.now()
+          let timer = setTimeout(() => deadline.abort(new Error('Automation execution timed out')), remaining)
+          approvalWaiting = (waiting) => {
+            clearTimeout(timer)
+            if (waiting) {
+              remaining = Math.max(0, remaining - (Date.now() - resumedAt))
+              waitingSince = Date.now()
+            } else {
+              resumedAt = Date.now()
+              approvalWaitMs += resumedAt - waitingSince
+              timer = setTimeout(() => deadline.abort(new Error('Automation execution timed out')), remaining)
+            }
+          }
           const executionSignal = AbortSignal.any([
             activeCell.signal,
             signal,
-            AbortSignal.timeout(60_000),
+            deadline.signal,
             ...(callSignal ? [callSignal] : [])
           ])
           executionSignal.throwIfAborted()
           const cell = randomUUID()
+          const apps: ComputerUseApp[] = []
+          this.callApps.set(cell, apps)
           let hostCallsStarted = 0
           const observations = new AutomationOutput()
           let lastEmittedValue: string | undefined
@@ -293,7 +327,9 @@ export class AutomationReplService extends BaseService {
               }
               if (
                 !documentedInCell.has(domain) &&
-                (name === 'documentation' || ((name === 'getTab' || name === 'getApp') && !state.documents.has(domain)))
+                (name === 'documentation' ||
+                  ((name === 'getTab' || name === 'newTab' || name === 'listTabs' || name === 'getApp') &&
+                    !state.documents.has(domain)))
               ) {
                 documents.push({
                   type: 'text',
@@ -311,9 +347,24 @@ export class AutomationReplService extends BaseService {
               } else {
                 computer ??= application
                   .get('ComputerUseService')
-                  .createTask(`${owner.kind}:${owner.sessionId}:${owner.ownerId}`, owner.label, signal)
+                  .createTask(`${owner.kind}:${owner.sessionId}:${owner.ownerId}`, owner.label, signal, {
+                    current: () => {
+                      if (!assertActive().computer) throw new Error('Computer Use access was revoked')
+                      const policy = access().computerApproval
+                      return {
+                        sessionId: owner.sessionId,
+                        topicId: owner.kind === 'agent' ? buildAgentSessionTopicId(owner.sessionId) : owner.sessionId,
+                        bypass: policy?.bypass === true,
+                        windowId: policy?.windowId
+                      }
+                    },
+                    waiting: (waiting) => approvalWaiting(waiting)
+                  })
                 computerSession ??= new ComputerAutomationSession(application.get('ComputerUseService'), computer)
-                result = await computerSession.execute(name, args, target, childSignal)
+                result = await computerSession.execute(name, args, target, childSignal, (app) => {
+                  if (!apps.some((entry) => entry.id === app.id))
+                    apps.push({ id: app.id, name: app.name, identity: app.identity })
+                })
               }
               if (mutating) record({ domain, operation, target: boundTarget, status: 'completed' })
               if (!assertActive()[domain]) throw new Error('Automation capability was revoked')
@@ -378,7 +429,11 @@ export class AutomationReplService extends BaseService {
                 signal: executionSignal,
                 onHostCall: (domain, input, rpcSignal) => {
                   hostCallsStarted++
-                  const child = operations.runExclusive(() => dispatch(domain, input, rpcSignal))
+                  const child = operations.runExclusive(async () => {
+                    const before = approvalWaitMs
+                    const reply = await dispatch(domain, input, rpcSignal)
+                    return { ...reply, approvalWaitMs: approvalWaitMs - before }
+                  })
                   children.add(child)
                   void child.finally(() => children.delete(child)).catch(() => {})
                   return child
@@ -435,6 +490,8 @@ export class AutomationReplService extends BaseService {
             )
           } finally {
             await Promise.allSettled([...children])
+            clearTimeout(timer)
+            approvalWaiting = () => {}
             activeCell = undefined
             state.lastUsed = Date.now()
           }
@@ -475,6 +532,7 @@ export class AutomationReplService extends BaseService {
   async close(owner: AutomationOwner): Promise<void> {
     const key = JSON.stringify([owner.kind, owner.sessionId, owner.ownerId])
     const session = this.sessions.get(key)
+    application.get('ComputerUseService').approvals.clear(`${owner.kind}:${owner.sessionId}:${owner.ownerId}`)
     if (!session) return
     session.closing = true
     try {
@@ -487,6 +545,7 @@ export class AutomationReplService extends BaseService {
 
   protected async onStop(): Promise<void> {
     this.accepting = false
+    this.callApps.clear()
     const results = await Promise.allSettled([...this.sessions.values()].map((session) => this.close(session.owner)))
     const errors = results.flatMap((result) => (result.status === 'rejected' ? [result.reason] : []))
     if (errors.length) throw new AggregateError(errors, 'Failed to close automation sessions')
