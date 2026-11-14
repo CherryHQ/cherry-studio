@@ -341,5 +341,18 @@ required service tier.`,
       expect(request.content).toBe('Service temporarily unavailable')
       expect(request.prompt).toContain('zh-CN')
     })
+
+    it('sends the error text without local home directories or secrets', async () => {
+      mockFetchGenerate.mockResolvedValue('无法打开文件')
+
+      await translateErrorByAI(
+        'Cannot open /Users/alice/Documents/notes.txt with key sk-proj-abcdefghijklmnopqrstuvwxyz123456',
+        'zh-CN'
+      )
+      const request = mockFetchGenerate.mock.calls[0][0]
+      expect(request.content).toContain('~/Documents/notes.txt')
+      expect(request.content).not.toContain('alice')
+      expect(request.content).not.toContain('sk-proj-abcdefghijklmnopqrstuvwxyz123456')
+    })
   })
 })
