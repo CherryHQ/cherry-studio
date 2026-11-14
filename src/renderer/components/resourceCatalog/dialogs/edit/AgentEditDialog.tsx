@@ -14,7 +14,11 @@ import {
   InputGroupAddon,
   InputGroupInput,
   InputNumber,
-  SegmentedControl,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
   Switch,
   TabsContent,
   Textarea
@@ -38,7 +42,7 @@ import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import { toast } from '@renderer/services/toast'
 import type { AgentDetail } from '@renderer/types/resourceCatalog'
 import { getPermissionModeCards } from '@renderer/utils/agent'
-import { type AgentLanguageMode, resolveAgentLanguagePreview } from '@renderer/utils/agent/agentLanguage'
+import type { AgentLanguageMode } from '@renderer/utils/agent/agentLanguage'
 import { platform } from '@renderer/utils/platform'
 import {
   type AgentFormState,
@@ -920,9 +924,8 @@ function PermissionModeField({
 function AgentLanguageOverrideField({ form }: { form: UseFormReturn<AgentEditFormValues> }) {
   const { t } = useTranslation()
   const [globalLanguage] = usePreference('agent.language')
-  const languageMode = useWatch({ control: form.control, name: 'languageMode' })
   const languageCustom = useWatch({ control: form.control, name: 'languageCustom' })
-  const preview = resolveAgentLanguagePreview(languageMode, languageCustom, globalLanguage)
+  const inheritLabel = `${t('library.config.agent.field.language.mode.inherit')} · ${globalLanguage ?? t('settings.agent.language.follow_conversation')}`
 
   return (
     <FormField
@@ -934,17 +937,18 @@ function AgentLanguageOverrideField({ form }: { form: UseFormReturn<AgentEditFor
             {t('library.config.agent.field.language.label')}
           </FormLabel>
           <div className="flex flex-col gap-2">
-            <SegmentedControl
-              size="sm"
-              value={field.value}
-              onValueChange={(value) => field.onChange(value)}
-              aria-label={t('library.config.agent.field.language.label')}
-              options={[
-                { value: 'inherit', label: t('library.config.agent.field.language.mode.inherit') },
-                { value: 'off', label: t('library.config.agent.field.language.mode.off') },
-                { value: 'custom', label: t('library.config.agent.field.language.mode.custom') }
-              ]}
-            />
+            <Select value={field.value} onValueChange={field.onChange}>
+              <FormControl>
+                <SelectTrigger className="w-full" aria-label={t('library.config.agent.field.language.label')}>
+                  <SelectValue />
+                </SelectTrigger>
+              </FormControl>
+              <SelectContent>
+                <SelectItem value="inherit">{inheritLabel}</SelectItem>
+                <SelectItem value="off">{t('library.config.agent.field.language.mode.off')}</SelectItem>
+                <SelectItem value="custom">{t('library.config.agent.field.language.mode.custom')}</SelectItem>
+              </SelectContent>
+            </Select>
             {field.value === 'custom' ? (
               <AgentLanguageField
                 value={languageCustom.trim() ? languageCustom : null}
@@ -958,11 +962,6 @@ function AgentLanguageOverrideField({ form }: { form: UseFormReturn<AgentEditFor
                 inputLabel={t('settings.agent.language.custom_label')}
               />
             ) : null}
-            <span className="text-muted-foreground text-xs">
-              {preview
-                ? t('library.config.agent.field.language.effective_value', { language: preview })
-                : t('library.config.agent.field.language.effective_follow')}
-            </span>
           </div>
           <FormMessage className="col-start-2" />
         </FormItem>
