@@ -93,10 +93,6 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
   return actual
 })
 
-vi.mock('@renderer/components/resourceCatalog/dialogs/components/PromptBindingTab', () => ({
-  PromptBindingTab: () => <div data-testid="prompt-binding-tab" />
-}))
-
 vi.mock('@renderer/data/hooks/useDataApi', async () => {
   const { MockUseDataApi } = await import('@test-mocks/renderer/useDataApi')
 

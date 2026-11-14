@@ -112,6 +112,35 @@ describe('applyAgentFormPatch', () => {
   })
 })
 
+// AC5: an Agent whose model changes must not keep a plan or small model chosen for the old one.
+describe('applyAgentFormPatch model change', () => {
+  const agent = createAgent({ planModel: 'anthropic::claude-opus-4', smallModel: 'anthropic::claude-haiku-4' })
+
+  it('clears the plan and small models and saves them as cleared', () => {
+    const baseline = buildInitialAgentFormState(agent)
+    const next = applyAgentFormPatch(baseline, { model: 'openai::gpt-5' })
+
+    expect(diffAgentUpdate(baseline, next)?.dto).toEqual({
+      model: 'openai::gpt-5',
+      planModel: null,
+      smallModel: null
+    })
+  })
+
+  it('keeps them when the model is unchanged or another field is patched', () => {
+    const baseline = buildInitialAgentFormState(agent)
+
+    expect(applyAgentFormPatch(baseline, { model: baseline.model })).toMatchObject({
+      planModel: 'anthropic::claude-opus-4',
+      smallModel: 'anthropic::claude-haiku-4'
+    })
+    expect(applyAgentFormPatch(baseline, { name: 'Renamed' })).toMatchObject({
+      planModel: 'anthropic::claude-opus-4',
+      smallModel: 'anthropic::claude-haiku-4'
+    })
+  })
+})
+
 describe('diffAgentSaveIntent', () => {
   it('wraps update diffs for the edit dialog save handler', () => {
     const agent = createAgent()
