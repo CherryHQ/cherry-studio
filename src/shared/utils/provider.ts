@@ -10,7 +10,7 @@ import {
   supportsServerToolFunctionMixing
 } from '@cherrystudio/provider-registry'
 import { CHERRYAI_PROVIDER_ID, isManagedCherryProviderId } from '@shared/data/presets/cherryai'
-import { ENDPOINT_TYPE, type EndpointType, type Model } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, type EndpointType, MODEL_CAPABILITY, type Model } from '@shared/data/types/model'
 import type { EndpointDialect, Provider } from '@shared/data/types/provider'
 
 import { getLowerBaseModelName, getRawModelId, isFunctionCallingModel, isGeminiModel, isNonChatModel } from './model'
@@ -290,6 +290,19 @@ function isBuiltinServerToolAvailable(
   toolId: ServerTool,
   endpointType?: EndpointType
 ): boolean {
+  // A user-set model capability waives only the model-eligibility match, so unrecognized
+  // models can still search on providers that serve native search. It never manufactures a
+  // native path: without a declaration for this endpoint the 'server' route has no factory
+  // to serve it and would silently drop a configured client fallback.
+  if (toolId === SERVER_TOOL.WEB_SEARCH && model.capabilities?.includes(MODEL_CAPABILITY.WEB_SEARCH)) {
+    if (isNonChatModel(model)) return false
+    const endpoint = resolveServerToolEndpoint(model, provider, endpointType)
+    return (
+      provider.serverTools?.some(
+        (tool) => tool.id === SERVER_TOOL.WEB_SEARCH && serverToolServesEndpoint(tool, endpoint)
+      ) ?? false
+    )
+  }
   const endpoint = resolveServerToolEndpoint(model, provider, endpointType)
   const declarations =
     provider.serverTools?.filter(
