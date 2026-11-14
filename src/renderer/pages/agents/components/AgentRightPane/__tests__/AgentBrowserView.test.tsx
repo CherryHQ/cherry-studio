@@ -5,6 +5,7 @@ import { Activity } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { AgentBrowserRuntimeHost } from '@renderer/components/AgentBrowserRuntimeHost'
+import type * as TabHooks from '@renderer/hooks/tab'
 import { agentBrowserRuntimeService as browserRuntime } from '@renderer/services/AgentBrowserRuntimeService'
 
 import { AgentBrowserView } from '../AgentBrowserView'
@@ -15,7 +16,10 @@ vi.mock('@renderer/data/hooks/usePreference', async () => {
   return MockUsePreference
 })
 const bridge = vi.hoisted(() => ({ binding: undefined as number | undefined, tabs: [{ id: 'tab-a' }] }))
-vi.mock('@renderer/hooks/tab', () => ({ useTabs: () => ({ tabs: bridge.tabs }) }))
+vi.mock('@renderer/hooks/tab', async (importOriginal) => ({
+  ...(await importOriginal<typeof TabHooks>()),
+  useTabs: () => ({ tabs: bridge.tabs })
+}))
 vi.mock('@renderer/ipc/ipcApi', () => ({
   ipcApi: {
     on: () => () => {},
@@ -59,7 +63,6 @@ describe('AgentBrowserView', () => {
     browserRuntime.ensure('session-a', url, profile)
     const browser = (
       <AgentBrowserView
-        onNavigate={vi.fn()}
         sessionId="session-a"
         securityProfile="agent-browser"
         isHostActive
@@ -73,10 +76,9 @@ describe('AgentBrowserView', () => {
     expect(browserRuntime.get('session-a')).toMatchObject({ sourceUrl: url, securityProfile: profile })
   })
 
-  it('creates an empty browser without a URL and still honors explicit navigation requests', () => {
+  it('creates an empty browser and honors explicit page opens', () => {
     browserRuntime.declare('session-a', 'tab-a')
     const props = {
-      onNavigate: vi.fn(),
       sessionId: 'session-a',
       securityProfile: 'agent-browser' as const,
       isHostActive: true,
@@ -84,12 +86,18 @@ describe('AgentBrowserView', () => {
     }
     const view = render(<AgentBrowserView {...props} />)
     expect(browserRuntime.get('session-a')?.sourceUrl).toBe('about:blank')
-    view.rerender(<AgentBrowserView {...props} initialUrl="file:///workspace/index.html" />)
+    act(() => {
+      browserRuntime.openPage('session-a', 'file:///workspace/index.html')
+    })
+    view.rerender(<AgentBrowserView {...props} />)
     expect(browserRuntime.get('session-a')).toMatchObject({
       sourceUrl: 'file:///workspace/index.html',
       securityProfile: 'agent-html-artifact'
     })
-    view.rerender(<AgentBrowserView {...props} initialUrl="about:blank" />)
+    act(() => {
+      browserRuntime.openPage('session-a')
+    })
+    view.rerender(<AgentBrowserView {...props} />)
     expect(browserRuntime.get('session-a')).toMatchObject({
       sourceUrl: 'about:blank',
       securityProfile: 'agent-browser'
@@ -114,7 +122,6 @@ describe('AgentBrowserView', () => {
         sessionId="session-a"
         initialUrl="https://example.com/"
         securityProfile="agent-browser"
-        onNavigate={(url) => browserRuntime.ensure('session-a', url)}
         target={{ id: 'agent-browser:session-a', label: 'Browser' }}
         isHostActive
       />

@@ -234,6 +234,7 @@ export const aiRequestSchemas = {
       // Callers that do not need cancellation keep the existing wire shape.
       requestId: z.string().min(1).optional(),
       ...aiChatRequestShape,
+      disableTools: z.boolean().optional(),
       reasoningEffort: ReasoningEffortOptionSchema.optional(),
       serviceTier: ServiceTierSelectionSchema.optional(),
       system: z.string().optional(),
