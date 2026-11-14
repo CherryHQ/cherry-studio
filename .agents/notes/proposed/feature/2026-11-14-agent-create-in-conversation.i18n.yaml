@@ -1,5 +1,5 @@
 # Bilingual-pair consistency record (docs/dev/i18n/README.md).
 # After editing either side, update its counterpart and re-record with:
 #   pnpm docs:check-pairing --write .agents/notes/proposed/feature/2026-11-14-agent-create-in-conversation.md
-2026-11-14-agent-create-in-conversation.md: b15983c5be14e9a197432bec29d507a26b63c82a
-2026-11-14-agent-create-in-conversation.zh.md: 5932f3c1ae0474512d6d340c1d5db0c85942286e
+2026-11-14-agent-create-in-conversation.md: b042618c675589cbc4d56904376e6bbee16d017f
+2026-11-14-agent-create-in-conversation.zh.md: afa7d964cd45355cdb7cdb9a6b95bd90393ee659
