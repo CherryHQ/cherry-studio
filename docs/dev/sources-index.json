@@ -47,7 +47,7 @@
     },
     {
       "path": "docs/dev/references/ai/ai-usage-records.md",
-      "sources": ["src/main/ai/hooks/billingHook.ts","src/main/ai/utils/usageCapture.ts","src/main/data/db/schemas/aiUsageRecord.ts","src/main/data/services/AiUsageRecordService.ts","src/renderer/pages/settings/ProviderSettings/BillingSettings/BillingPreview.tsx","src/shared/data/types/providerBilling.ts","src/shared/utils/providerBilling.ts","src/shared/utils/usagePricing.ts"]
+      "sources": ["src/main/ai/hooks/billingHook.ts","src/main/ai/utils/usageCapture.ts","src/main/data/db/schemas/aiUsageRecord.ts","src/main/data/services/AiUsageRecordService.ts","src/renderer/pages/settings/ProviderSettings/BillingSettings/BillingPreview.tsx","src/shared/data/types/providerBilling.ts","src/shared/utils/providerBilling.ts","src/shared/utils/providerBillingDefaults.ts","src/shared/utils/usagePricing.ts"]
     },
     {
       "path": "docs/dev/references/ai/browser-use-design.md",

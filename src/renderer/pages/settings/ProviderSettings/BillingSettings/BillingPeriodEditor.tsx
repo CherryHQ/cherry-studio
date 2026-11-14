@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next'
 
-import { Button, Input } from '@cherrystudio/ui'
+import { Button, Input, PageSidePanelSection } from '@cherrystudio/ui'
 import type { ProviderBillingPeriod } from '@shared/data/types/providerBilling'
 
 import { BillingField } from './BillingField'
@@ -22,13 +22,15 @@ export function BillingPeriodEditor({
   const { t } = useTranslation()
   const timeLabels = { start: t('settings.provider.billing.start'), end: t('settings.provider.billing.end') }
   return (
-    <section aria-label={`${period.start}–${period.end}`} className="space-y-4 border-t border-border-subtle pt-4">
-      <div className="flex items-center justify-between gap-2">
-        <span className="text-sm font-medium">{t('settings.provider.billing.period')}</span>
+    <PageSidePanelSection
+      role="region"
+      aria-label={`${period.start}–${period.end}`}
+      title={t('settings.provider.billing.period')}
+      actions={
         <Button variant="ghost" onClick={onRemove}>
           {t('common.delete')}
         </Button>
-      </div>
+      }>
       <div className="grid grid-cols-2 gap-3">
         {(['start', 'end'] as const).map((field) => (
           <BillingField key={field} label={timeLabels[field]} error={errors[`${path}.${field}`]}>
@@ -61,6 +63,6 @@ export function BillingPeriodEditor({
         />
         <p className="text-xs text-muted-foreground">{t('settings.provider.billing.multiplier_help')}</p>
       </BillingField>
-    </section>
+    </PageSidePanelSection>
   )
 }

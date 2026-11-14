@@ -44,6 +44,7 @@ import { formatApiHost, withoutTrailingApiVersion } from '@shared/utils/api'
 import { formatGatewayModelId } from '@shared/utils/apiGateway'
 import { isVisionModel, supportsDynamicallyLoadedTools } from '@shared/utils/model'
 import { isExternalCliProvider, isSupportFastMode } from '@shared/utils/provider'
+import { getDefaultProviderBilling } from '@shared/utils/providerBillingDefaults'
 
 import { resolveEffectiveEndpoint } from '../../provider/endpoint'
 import { gatewayCredentialsFingerprint, resolveApiGatewayRuntime } from '../agentApiGateway'
@@ -196,7 +197,15 @@ function buildUsageModels(
         providerId: ref.providerId,
         modelId: ref.modelId,
         pricing: ref.model?.pricing,
-        billing: ref.provider?.settings?.billing,
+        billing:
+          ref.provider?.settings?.billing ??
+          (ref.provider && ref.model
+            ? getDefaultProviderBilling(
+                ref.provider,
+                ref.model,
+                resolveEffectiveEndpoint(ref.provider, ref.model, ENDPOINT_TYPE.ANTHROPIC_MESSAGES).baseUrl
+              )
+            : undefined),
         invocationStartedAt: null
       }).pricingSnapshot,
       aliases: new Set<string>()
