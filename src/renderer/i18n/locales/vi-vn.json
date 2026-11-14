@@ -834,6 +834,7 @@
   "chat.input.pasted_text_file_name": "Văn bản đã dán.txt",
   "chat.input.pause": "Tạm dừng",
   "chat.input.placeholder": "Nhập tin nhắn của bạn ở đây - @ để Chọn Mô hình, / để Bao gồm Công cụ",
+  "chat.input.prefill.dont_ask_again": "Không hỏi lại",
   "chat.input.prefill.replace": "Thay thế",
   "chat.input.prefill.replace_content": "Nội dung bạn đã nhập sẽ bị thay thế.",
   "chat.input.prefill.replace_title": "Thay thế bản nháp?",

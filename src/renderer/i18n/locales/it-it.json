@@ -834,6 +834,7 @@
   "chat.input.pasted_text_file_name": "Testo incollato.txt",
   "chat.input.pause": "Sospendi",
   "chat.input.placeholder": "Scrivi un messaggio. Digita / per strumenti e azioni, @ per fare riferimento agli argomenti.",
+  "chat.input.prefill.dont_ask_again": "Non chiedere più",
   "chat.input.prefill.replace": "Sostituisci",
   "chat.input.prefill.replace_content": "Il testo che hai digitato verrà sostituito.",
   "chat.input.prefill.replace_title": "Sostituire la bozza?",

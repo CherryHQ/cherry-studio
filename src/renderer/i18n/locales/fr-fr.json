@@ -834,6 +834,7 @@
   "chat.input.pasted_text_file_name": "Texte collé.txt",
   "chat.input.pause": "Pause",
   "chat.input.placeholder": "Saisissez un message. Saisissez / pour afficher les outils et les actions, ou @ pour référencer des conversations.",
+  "chat.input.prefill.dont_ask_again": "Ne plus demander",
   "chat.input.prefill.replace": "Remplacer",
   "chat.input.prefill.replace_content": "Le texte que vous avez saisi sera remplacé.",
   "chat.input.prefill.replace_title": "Remplacer le brouillon ?",

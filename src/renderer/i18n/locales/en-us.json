@@ -834,6 +834,7 @@
   "chat.input.pasted_text_file_name": "Pasted text.txt",
   "chat.input.pause": "Pause",
   "chat.input.placeholder": "Type a message. Type / for tools and actions, @ to reference topics.",
+  "chat.input.prefill.dont_ask_again": "Don't ask again",
   "chat.input.prefill.replace": "Replace",
   "chat.input.prefill.replace_content": "The text you have typed will be replaced.",
   "chat.input.prefill.replace_title": "Replace your draft?",

@@ -834,6 +834,7 @@
   "chat.input.pasted_text_file_name": "Yapıştırılan metin.txt",
   "chat.input.pause": "Duraklat",
   "chat.input.placeholder": "Bir mesaj yazın. Araçlar ve eylemler için /, konulara başvurmak için @ yazın.",
+  "chat.input.prefill.dont_ask_again": "Bir daha sorma",
   "chat.input.prefill.replace": "Değiştir",
   "chat.input.prefill.replace_content": "Yazdığınız metin değiştirilecek.",
   "chat.input.prefill.replace_title": "Taslak değiştirilsin mi?",

@@ -834,6 +834,7 @@
   "chat.input.pasted_text_file_name": "Eingefügter Text.txt",
   "chat.input.pause": "Pausieren",
   "chat.input.placeholder": "Geben Sie hier eine Nachricht ein - @ für Modellauswahl, / für Tools",
+  "chat.input.prefill.dont_ask_again": "Nicht mehr fragen",
   "chat.input.prefill.replace": "Ersetzen",
   "chat.input.prefill.replace_content": "Der Text, den Sie eingegeben haben, wird ersetzt.",
   "chat.input.prefill.replace_title": "Entwurf ersetzen?",
