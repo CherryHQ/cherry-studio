@@ -49,7 +49,11 @@ native workspace context can still load according to that driver's trust
 boundary. Cherry-owned persona, memory, workspace-path, security, citation,
 artifact, create-tool, and language guidance is appended independently of the
 base. The create-tool guidance names only the Agent and Assistant create and
-settings tools the Agent's capabilities mount.
+settings tools the Agent's capabilities mount, in the call form of the Agent's
+runtime: Claude Code calls `mcp__cherry-tools__…` directly, Pi loads
+`mcp__cherry_tools__…` with `tool_search`, and Pi Durable calls
+`tools.mcp__cherry_tools__…()` inside `codemode`, because it registers MCP tools
+for scripts only and its `tool_search` loads model tools.
 
 ## Persona and onboarding
 
