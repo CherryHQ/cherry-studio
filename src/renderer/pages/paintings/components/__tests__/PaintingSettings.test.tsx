@@ -88,3 +88,56 @@ it('hides animation settings when reference images change generation into editin
   expect(screen.queryByRole('spinbutton', { name: 'Frame count' })).not.toBeInTheDocument()
   expect(screen.getByLabelText('Scene complexity')).toBeInTheDocument()
 })
+
+describe('PaintingSettings output format note', () => {
+  it('does not show a format claim without registry support', () => {
+    renderSettings()
+    expect(screen.queryByTestId('painting-output-format-note')).not.toBeInTheDocument()
+  })
+
+  it('lists the model output format options', () => {
+    const support = ModelListSchema.parse(catalog).models.find(
+      (model) => model.id === 'gpt-image-2-6-flare'
+    )?.imageGeneration
+    if (!support?.modes.generate) throw new Error('Missing generation support')
+    support.modes.generate.supports = { outputFormat: { type: 'enum', options: ['png', 'jpeg', 'webp'] } }
+    vi.mocked(useImageGenerationSupport).mockReturnValue(support)
+    renderSettings()
+    expect(screen.getByTestId('painting-output-format-note')).toHaveTextContent(
+      'Supported output formats: PNG, JPEG, WEBP.'
+    )
+  })
+
+  it('explains provider-selected output when no format control exists', () => {
+    const support = ModelListSchema.parse(catalog).models.find(
+      (model) => model.id === 'gpt-image-2-6-flare'
+    )?.imageGeneration
+    if (!support?.modes.generate) throw new Error('Missing generation support')
+    support.modes.generate.supports = {}
+    vi.mocked(useImageGenerationSupport).mockReturnValue(support)
+    renderSettings()
+    expect(screen.getByTestId('painting-output-format-note')).toHaveTextContent(
+      'Output format is chosen by the provider'
+    )
+    expect(screen.getByTestId('painting-output-format-note')).not.toHaveTextContent('Supported output formats:')
+  })
+})
+
+it.each(['image-01', 'image-01-live'])(
+  'does not describe MiniMax %s response delivery as an image encoding',
+  (modelId) => {
+    const support = ModelListSchema.parse(catalog).models.find((model) => model.id === modelId)?.imageGeneration
+    if (!support) throw new Error('Missing real MiniMax catalog support')
+    vi.mocked(useImageGenerationSupport).mockReturnValue(support)
+    renderWithI18n(
+      <PaintingSettings painting={{ ...painting, providerId: 'minimax', model: modelId }} onConfigChange={vi.fn()} />
+    )
+    const note = screen.getByTestId('painting-output-format-note')
+    expect(note).toHaveTextContent('URL and base64 select response delivery, not image encoding')
+    expect(note).toHaveTextContent('no local conversion is applied')
+    expect(note).not.toHaveTextContent('no selectable format')
+    expect(screen.getAllByText('Output Format').length).toBeGreaterThan(0)
+    expect(note).not.toHaveTextContent('Supported output formats:')
+    expect(note).not.toHaveTextContent('BASE64')
+  }
+)
