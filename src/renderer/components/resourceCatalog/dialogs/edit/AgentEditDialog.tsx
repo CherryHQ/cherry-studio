@@ -12,19 +12,14 @@ import {
   InputGroup,
   InputGroupAddon,
   InputGroupInput,
-  InputNumber,
-  SegmentedControl,
-  Switch,
   TabsContent,
   Textarea
 } from '@cherrystudio/ui'
-import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { AgentRuntimeSummary } from '@renderer/components/AgentRuntimeOption'
 import type { ModelSelectorFilter } from '@renderer/components/ModelSelector'
 import { PermissionModeSelect } from '@renderer/components/PermissionModeOption'
 import PromptEditorField from '@renderer/components/PromptEditorField'
-import { AgentLanguageField } from '@renderer/components/resourceCatalog/dialogs/components/AgentLanguageField'
 import { SkillCatalogPicker } from '@renderer/components/resourceCatalog/dialogs/skill'
 import { useAgentMutationsById } from '@renderer/hooks/resourceCatalog'
 import { useCloseBeforeAction } from '@renderer/hooks/useCloseBeforeAction'
@@ -37,7 +32,7 @@ import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import { toast } from '@renderer/services/toast'
 import type { AgentDetail } from '@renderer/types/resourceCatalog'
 import { getPermissionModeCards } from '@renderer/utils/agent'
-import { type AgentLanguageMode, resolveAgentLanguagePreview } from '@renderer/utils/agent/agentLanguage'
+import type { AgentLanguageMode } from '@renderer/utils/agent/agentLanguage'
 import {
   type AgentFormState,
   applyAgentFormPatch,
@@ -45,11 +40,7 @@ import {
   diffAgentSaveIntent,
   RESOURCE_PROMPT_POLISH_SYSTEM_PROMPT
 } from '@renderer/utils/resourceCatalog'
-import {
-  MAX_HEARTBEAT_INTERVAL_MINUTES,
-  MAX_HEARTBEAT_TIMEOUT_MINUTES,
-  MIN_HEARTBEAT_INTERVAL_MINUTES
-} from '@shared/ai/agentHeartbeat'
+import { cn } from '@renderer/utils/style'
 import { AGENT_RUNTIME_CAPABILITIES, type AgentRuntimeCapabilities } from '@shared/ai/agentRuntimeCapabilities'
 import { isSealedBuiltinAgentRole } from '@shared/ai/builtinAgent'
 import { AGENT_PROMPT } from '@shared/ai/prompts'
@@ -76,10 +67,12 @@ import {
   TextInputField,
   useDebouncedAutoSave
 } from '../components/EditDialogShared'
+import { HeartbeatCard } from '../components/HeartbeatCard'
 import { KnowledgeCapabilityList } from '../components/KnowledgeCapabilityList'
 import { McpCapabilityList } from '../components/McpCapabilityList'
 import { PromptBindingTab } from '../components/PromptBindingTab'
 import { PromptPolishActions } from '../components/PromptPolishActions'
+import { ReplyLanguageSelect } from '../components/ReplyLanguageSelect'
 import { AgentMemoryPanel, type AgentMemoryPanelHandle } from './AgentMemoryPanel'
 import { HeartbeatEditorDialog } from './HeartbeatEditorDialog'
 
@@ -741,25 +734,20 @@ function AgentBasicFields({
         patchAgentForm={patchAgentForm}
         permissionModeCards={getPermissionModeCards(agentType)}
       />
-      <AgentLanguageOverrideField form={form} />
+      <AgentLanguageOverrideField form={form} portalContainer={portalContainer} patchAgentForm={patchAgentForm} />
       {caps.heartbeat ? (
-        <div>
-          <HeartbeatSettingsField
-            form={form}
-            enabled={heartbeatEnabled}
-            onEnabledChange={(checked) => patchAgentForm({ heartbeatEnabled: checked })}
-          />
-          <div className="flex justify-end pb-4">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={async () => {
-                if (await beforeHeartbeatOpen()) setHeartbeatOpen(true)
-              }}>
-              {t('agent.heartbeat.edit')}
-            </Button>
-          </div>
+        <div className={editDialogFormRowClassName}>
+          <HeartbeatSettingsField form={form} patchAgentForm={patchAgentForm} />
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="col-start-2 mt-1.5 justify-self-end"
+            onClick={async () => {
+              if (await beforeHeartbeatOpen()) setHeartbeatOpen(true)
+            }}>
+            {t('agent.heartbeat.edit')}
+          </Button>
           {heartbeatPresent ? (
             <HeartbeatEditorDialog
               agentId={agentId}
@@ -892,143 +880,49 @@ function PermissionModeField({
   )
 }
 
-function AgentLanguageOverrideField({ form }: { form: UseFormReturn<AgentEditFormValues> }) {
+function AgentLanguageOverrideField({
+  form,
+  portalContainer,
+  patchAgentForm
+}: {
+  form: UseFormReturn<AgentEditFormValues>
+  portalContainer: HTMLElement | null
+  patchAgentForm: (patch: Partial<AgentFormState>) => void
+}) {
   const { t } = useTranslation()
-  const [globalLanguage] = usePreference('agent.language')
-  const languageMode = useWatch({ control: form.control, name: 'languageMode' })
-  const languageCustom = useWatch({ control: form.control, name: 'languageCustom' })
-  const preview = resolveAgentLanguagePreview(languageMode, languageCustom, globalLanguage)
+  const [languageMode, languageCustom] = useWatch({ control: form.control, name: ['languageMode', 'languageCustom'] })
 
   return (
-    <FormField
-      control={form.control}
-      name="languageMode"
-      render={({ field }) => (
-        <FormItem className={editDialogFormRowClassName}>
-          <FormLabel className={editDialogFormRowLabelClassName}>
-            {t('library.config.agent.field.language.label')}
-          </FormLabel>
-          <div className="flex flex-col gap-2">
-            <SegmentedControl
-              size="sm"
-              value={field.value}
-              onValueChange={(value) => field.onChange(value)}
-              aria-label={t('library.config.agent.field.language.label')}
-              options={[
-                { value: 'inherit', label: t('library.config.agent.field.language.mode.inherit') },
-                { value: 'off', label: t('library.config.agent.field.language.mode.off') },
-                { value: 'custom', label: t('library.config.agent.field.language.mode.custom') }
-              ]}
-            />
-            {field.value === 'custom' ? (
-              <AgentLanguageField
-                value={languageCustom.trim() ? languageCustom : null}
-                onChange={(next) => {
-                  if (next === null) field.onChange('inherit')
-                  else form.setValue('languageCustom', next, { shouldDirty: true })
-                }}
-                nullOptionLabel={t('library.config.agent.field.language.mode.inherit')}
-                customPlaceholder={t('settings.agent.language.custom_placeholder')}
-                comboLabel={t('settings.agent.language.combo_label')}
-                inputLabel={t('settings.agent.language.custom_label')}
-              />
-            ) : null}
-            <span className="text-muted-foreground text-xs">
-              {preview
-                ? t('library.config.agent.field.language.effective_value', { language: preview })
-                : t('library.config.agent.field.language.effective_follow')}
-            </span>
-          </div>
-          <FormMessage className="col-start-2" />
-        </FormItem>
-      )}
-    />
+    // The "Other language…" input goes in the next grid row, under the select.
+    <div className={cn(editDialogFormRowClassName, '[&>input]:col-start-2 [&>input]:mt-1')}>
+      <span className={editDialogFormRowLabelClassName}>{t('library.config.agent.field.language.label')}</span>
+      <ReplyLanguageSelect
+        value={{ languageMode, languageCustom }}
+        onChange={patchAgentForm}
+        portalContainer={portalContainer}
+      />
+    </div>
   )
 }
 
 function HeartbeatSettingsField({
   form,
-  enabled,
-  onEnabledChange
+  patchAgentForm
 }: {
   form: UseFormReturn<AgentEditFormValues>
-  enabled: boolean
-  onEnabledChange: (checked: boolean) => void
+  patchAgentForm: (patch: Partial<AgentFormState>) => void
 }) {
-  const { t } = useTranslation()
-  const label = t('library.config.agent.field.heartbeat_enabled.label')
+  const [heartbeatEnabled, heartbeatInterval, heartbeatTimeoutMinutes] = useWatch({
+    control: form.control,
+    name: ['heartbeatEnabled', 'heartbeatInterval', 'heartbeatTimeoutMinutes']
+  })
 
   return (
-    <div className="divide-y divide-border-subtle">
-      <FormField
-        control={form.control}
-        name="heartbeatEnabled"
-        render={({ field }) => (
-          <FormItem className={editDialogFormRowClassName}>
-            <FormLabel className={editDialogFormRowLabelClassName}>{label}</FormLabel>
-            <FormControl>
-              <div className="flex h-9 items-center">
-                <Switch size="sm" checked={field.value} onCheckedChange={onEnabledChange} aria-label={label} />
-              </div>
-            </FormControl>
-            <FormMessage className="col-start-2" />
-          </FormItem>
-        )}
+    <div className="col-start-2">
+      <HeartbeatCard
+        value={{ heartbeatEnabled, heartbeatInterval, heartbeatTimeoutMinutes }}
+        onChange={patchAgentForm}
       />
-      {enabled ? (
-        <>
-          <FormField
-            control={form.control}
-            name="heartbeatInterval"
-            render={({ field }) => (
-              <FormItem className={editDialogFormRowClassName}>
-                <FormLabel className={editDialogFormRowLabelClassName}>
-                  {t('library.config.agent.field.heartbeat_interval.label')}
-                </FormLabel>
-                <FormControl>
-                  <InputNumber
-                    min={MIN_HEARTBEAT_INTERVAL_MINUTES}
-                    max={MAX_HEARTBEAT_INTERVAL_MINUTES}
-                    step={1}
-                    className="h-9 w-full"
-                    value={field.value || null}
-                    // Emptying the field is how you retype the interval, not how you
-                    // turn the heartbeat off — the switch above does that.
-                    onBlur={(v) => {
-                      if (v !== null) field.onChange(v)
-                    }}
-                  />
-                </FormControl>
-                <FormMessage className="col-start-2" />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="heartbeatTimeoutMinutes"
-            render={({ field }) => (
-              <FormItem className={editDialogFormRowClassName}>
-                <FormLabel className={editDialogFormRowLabelClassName}>
-                  {t('agent.tasks.timeout.label')} ({t('agent.tasks.intervalUnit')})
-                </FormLabel>
-                <FormControl>
-                  <InputNumber
-                    min={1}
-                    max={MAX_HEARTBEAT_TIMEOUT_MINUTES}
-                    step={1}
-                    className="h-9 w-full"
-                    value={field.value}
-                    onBlur={(value) => {
-                      if (value !== null) field.onChange(value)
-                    }}
-                  />
-                </FormControl>
-                <FormMessage className="col-start-2" />
-              </FormItem>
-            )}
-          />
-        </>
-      ) : null}
     </div>
   )
 }
