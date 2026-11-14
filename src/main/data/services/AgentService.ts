@@ -12,6 +12,7 @@ import { knowledgeBaseTable } from '@data/db/schemas/knowledge'
 import { pinTable } from '@data/db/schemas/pin'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbOrTx } from '@data/db/types'
+import { agentChannelService } from '@data/services/AgentChannelService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentTaskService } from '@data/services/AgentTaskService'
 import { getDataService } from '@data/services/dataServiceRegistry'
@@ -28,6 +29,7 @@ import { BUILTIN_AGENT_ROLE, type BuiltinAgentRole, CHERRY_SUPPORT_AGENT_ID } fr
 import { resolveReasoningEffortForModel } from '@shared/ai/reasoning'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
+import { type AgentChannelDraft, isQrLoginChannel } from '@shared/data/api/schemas/agentChannels'
 import {
   AGENT_MUTABLE_FIELDS,
   type AgentBase,
@@ -36,6 +38,7 @@ import {
   sanitizeAgentConfiguration,
   type UpdateAgentDto
 } from '@shared/data/api/schemas/agents'
+import { AGENT_WORKSPACE_TYPE } from '@shared/data/api/schemas/agentWorkspaces'
 import type { EntitySearchItem } from '@shared/data/api/schemas/search'
 import type { ListOptions } from '@shared/data/api/types'
 import type { AgentType } from '@shared/data/types/agent'
@@ -69,6 +72,7 @@ type AgentRelationField = 'mcps' | 'knowledgeBaseIds'
 type AgentCreateInput = AgentBase & {
   type: AgentType
   skillIds?: string[]
+  channels?: AgentChannelDraft[]
 }
 
 interface EnsureBuiltinAgentInput {
@@ -424,7 +428,19 @@ export class AgentService {
           for (const skillId of skillIds) {
             globalSkillService.upsertJoinTx(tx, id, skillId, true)
           }
-          return result
+          if (!result) return null
+          // A rejected channel throws here and rolls back the Agent with it.
+          const channelIds = (req.channels ?? []).map(
+            (channel) =>
+              agentChannelService.createChannelTx(tx, {
+                ...channel,
+                agentId: id,
+                workspace: { type: AGENT_WORKSPACE_TYPE.SYSTEM },
+                // QR login needs the Agent to exist, so it runs after create.
+                isActive: isQrLoginChannel(channel) ? false : channel.isActive
+              }).id
+          )
+          return { ...result, channelIds }
         }),
       defaultHandlersFor('Agent', id)
     )
@@ -434,6 +450,7 @@ export class AgentService {
 
     const agent = rowToAgent(row.agent, row.modelName || null, mcps, knowledgeBaseIds)
     notifyDataApiDataChange([{ endpoint: '/agents', kind: 'membership', entityIds: [id] }])
+    for (const channelId of row.channelIds) agentChannelService.notifyReadModelChange(channelId, 'membership')
     this._onAgentCreated.fire({ agentId: id, agent })
     return agent
   }

@@ -1,9 +1,11 @@
 import { Loader2 } from 'lucide-react'
-import type { ReactNode } from 'react'
+import { Fragment, type ReactNode, useState } from 'react'
 import { type UseFormReturn, useWatch } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 
 import { Button, EmojiAvatar } from '@cherrystudio/ui'
+import { ChannelQrLoginDialog } from '@renderer/components/channel/ChannelQrLoginDialog'
+import { useChannels } from '@renderer/hooks/agent/useChannels'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBase'
 import { useMcpServers } from '@renderer/hooks/useMcpServer'
 import { useModelById } from '@renderer/hooks/useModel'
@@ -12,6 +14,7 @@ import { permissionModeCards } from '@renderer/utils/agent'
 import { platform } from '@renderer/utils/platform'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import { CLAUDE_KNOWLEDGE_TOOL_NAMES } from '@shared/ai/claudecode/toolRegistry'
+import { isQrLoginChannel } from '@shared/data/api/schemas/agentChannels'
 
 import type { ResourceCreateWizardFormValues, ResourceCreateWizardKind, ResourceCreateWizardValues } from './types'
 
@@ -43,6 +46,49 @@ function SummaryRow({ label, children }: { label: string; children: ReactNode })
       <span className="shrink-0 text-[13px] text-muted-foreground">{label}</span>
       <span className="min-w-0 truncate text-right text-[13px] text-foreground">{children}</span>
     </div>
+  )
+}
+
+/** The new Agent's channels, read back so a pending QR login can start from here. */
+function ChannelsSummary({ agentId }: { agentId: string }) {
+  const { t } = useTranslation()
+  const { channels, updateChannel } = useChannels({ agentId })
+  const [loginId, setLoginId] = useState<string | null>(null)
+  const login = channels.find((channel) => channel.id === loginId)
+
+  if (channels.length === 0) return <>{t('library.config.dialogs.create.result.empty.not_connected')}</>
+  return (
+    <>
+      {channels.map((channel, index) => {
+        const pending = isQrLoginChannel(channel) && !channel.isActive
+        return (
+          <Fragment key={channel.id}>
+            {index > 0 ? t('library.config.dialogs.create.result.list_separator') : null}
+            {channel.name}
+            {pending ? (
+              <>
+                <span className="ml-0.5">{t('library.config.dialogs.create.result.qr_pending')}</span>
+                <Button
+                  type="button"
+                  variant="link"
+                  size="sm"
+                  className="ml-1.5 h-auto p-0 text-[13px] underline shadow-none"
+                  onClick={() => setLoginId(channel.id)}>
+                  {t('library.config.dialogs.create.result.qr_login')}
+                </Button>
+              </>
+            ) : null}
+          </Fragment>
+        )
+      })}
+      {login && (login.type === 'wechat' || login.type === 'feishu') ? (
+        <ChannelQrLoginDialog
+          channel={{ id: login.id, type: login.type }}
+          onActiveChange={(isActive) => updateChannel(login.id, { isActive })}
+          onClose={() => setLoginId(null)}
+        />
+      ) : null}
+    </>
   )
 }
 
@@ -168,6 +214,11 @@ export function ResourceCreateResultView({
           <SummaryRow label={t('library.config.dialogs.create.step.knowledge')}>
             {namesOf(bases, values.knowledgeBaseIds, t('library.config.dialogs.create.result.empty.not_linked'))}
           </SummaryRow>
+          {isAgent ? (
+            <SummaryRow label={t('settings.channels.title')}>
+              <ChannelsSummary agentId={created.id} />
+            </SummaryRow>
+          ) : null}
           {isAgent && caps.heartbeat ? (
             <SummaryRow label={t('library.config.agent.field.heartbeat_enabled.label')}>
               {settings?.heartbeatEnabled

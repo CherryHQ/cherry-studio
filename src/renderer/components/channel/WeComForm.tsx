@@ -3,16 +3,12 @@ import { useTranslation } from 'react-i18next'
 
 import { Input, Label } from '@cherrystudio/ui'
 
+import { ChannelPermissionMode } from './ChannelPermissionMode'
 import { ChannelQrRegistration } from './ChannelQrRegistration'
-import type { ChannelData, ChannelUpdates } from './channelTypes'
+import type { ChannelFormProps } from './channelTypes'
 
-export function WeComForm({
-  channel,
-  onConfigChange
-}: {
-  channel: ChannelData
-  onConfigChange: (updates: ChannelUpdates) => void
-}) {
+export function WeComForm(props: ChannelFormProps) {
+  const { channel, onConfigChange, draft } = props
   const { t } = useTranslation()
   const id = useId()
   const fields = [
@@ -23,7 +19,7 @@ export function WeComForm({
   ]
   return (
     <div className="flex flex-col gap-3">
-      <ChannelQrRegistration key={channel.id} channel={channel} />
+      {!draft && <ChannelQrRegistration key={channel.id} channel={channel} />}
       <p className="text-xs text-muted-foreground">{t('agent.channels.wecom.setupHint')}</p>
       <div className="grid grid-cols-2 gap-3">
         {fields.map((field) => {
@@ -32,7 +28,7 @@ export function WeComForm({
             : ((channel.config[field.key] as string) ?? '')
           return (
             <div key={field.key}>
-              <Label htmlFor={`${id}-${field.key}`} className="mb-1 block text-xs">
+              <Label htmlFor={`${id}-${field.key}`} className="mb-1 block font-normal text-xs">
                 {field.label}
               </Label>
               <Input
@@ -65,6 +61,7 @@ export function WeComForm({
       </div>
       <p className="text-xs text-muted-foreground">{t('agent.channels.wecom.allowlistHint')}</p>
       <p className="text-xs text-muted-foreground">{t('agent.channels.wecom.privacyHint')}</p>
+      <ChannelPermissionMode {...props} />
     </div>
   )
 }
