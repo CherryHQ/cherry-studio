@@ -2925,6 +2925,8 @@
   "miniApps.zhihu": "Zhihu",
   "models.action.configure_custom": "Konfigurovat vlastní modely",
   "models.action.pin": "Připnout tento model",
+  "models.action.switch_to_dialog": "Přepnout na dialog",
+  "models.action.switch_to_dropdown": "Přepnout na rozbalovací nabídku",
   "models.action.unpin": "Odepnout model",
   "models.all": "Vše",
   "models.detail.context_window": "Kontextové okno",
