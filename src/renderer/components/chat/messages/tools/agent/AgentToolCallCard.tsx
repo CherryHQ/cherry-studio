@@ -1,10 +1,12 @@
 import { Check, ChevronRight, Circle, CircleStop, Loader2, TriangleAlert } from 'lucide-react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button, Tooltip } from '@cherrystudio/ui'
 import { cn } from '@renderer/utils/style'
 import { SESSION_CREATE_TOOL_NAME, SESSION_SEND_TOOL_NAME } from '@shared/ai/agentSessionDelivery'
 
+import { formatPlaceholderElapsed, usePlaceholderElapsedMs } from '../../blocks/PlaceholderBlock'
 import { useOptionalMessageListActions } from '../../MessageListProvider'
 import {
   AgentToolsType,
@@ -21,6 +23,14 @@ import { SessionSendTool } from './SessionSendTool'
 import { ToMarkdownTool } from './ToMarkdownTool'
 import { isValidAgentToolsType, renderTool } from './toolRendererRegistry'
 import { UnknownToolRenderer } from './UnknownToolRenderer'
+
+function BashElapsedTime() {
+  const { t } = useTranslation()
+  // Reattachment restarts observation because native execution timestamps are unavailable here.
+  const [observedAt] = useState(() => new Date().toISOString())
+  const elapsedMs = usePlaceholderElapsedMs(true, observedAt, 1000)
+  return <span className="shrink-0 tabular-nums">{formatPlaceholderElapsed(elapsedMs, t)}</span>
+}
 
 function shouldShowHeaderErrorText(toolName: string | undefined, renderedItem: ToolDisclosureItem) {
   return renderedItem.children === undefined || renderedItem.children === null || toolName === AgentToolsType.Write
@@ -167,9 +177,12 @@ export function AgentToolCallCard({
         label={
           <div className="flex min-w-0 items-center gap-1.5">
             <div className="min-w-0">{renderedItem.label}</div>
-            {status && (status !== 'done' || hasError || openFlowOnClick) && (
-              <ToolStatusIndicator status={status} hasError={hasError} errorText={errorText} />
-            )}
+            <div className="flex max-w-full shrink-0 flex-wrap items-center gap-1.5">
+              {status && (status !== 'done' || hasError || openFlowOnClick) && (
+                <ToolStatusIndicator status={status} hasError={hasError} errorText={errorText} />
+              )}
+              {toolName === AgentToolsType.Bash && status === 'invoking' && <BashElapsedTime key={toolCallId} />}
+            </div>
           </div>
         }
       />

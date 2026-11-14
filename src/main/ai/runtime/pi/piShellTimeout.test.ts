@@ -75,3 +75,68 @@ it.skipIf(process.platform === 'win32')('preserves native validation and explici
     tool().execute('short', { command: 'sleep 600', timeout: 0.05 }, undefined, undefined, context)
   ).rejects.toThrow('timed out after 0.05 seconds')
 })
+
+it.skipIf(process.platform === 'win32')(
+  'aborts the real shell process tree promptly despite an explicit long timeout',
+  async () => {
+    const ready = Promise.withResolvers<number[]>()
+    const controller = new AbortController()
+    let output = ''
+    const bounded = async <T>(promise: Promise<T>, ms: number): Promise<T> => {
+      let timer: ReturnType<typeof setTimeout> | undefined
+      try {
+        return await Promise.race([
+          promise,
+          new Promise<never>((_, reject) => {
+            timer = setTimeout(() => reject(new Error(`Wait exceeded ${ms} ms`)), ms)
+          })
+        ])
+      } finally {
+        clearTimeout(timer)
+      }
+    }
+    const execution = tool().execute(
+      'aborted-command',
+      {
+        // A failed run must not leave a long-lived child process behind.
+        command: 'sleep 30 & child=$!; echo "shell:$$ child:$child"; wait "$child"; echo POST_WAIT_SENTINEL',
+        timeout: 600
+      },
+      controller.signal,
+      (result) => {
+        for (const part of result.content) {
+          if (part.type !== 'text') continue
+          output += part.text
+          const match = /shell:(\d+) child:(\d+)/.exec(part.text)
+          if (match) {
+            ready.resolve([Number(match[1]), Number(match[2])])
+          }
+        }
+      },
+      context
+    )
+    const outcome = execution.catch((error: unknown) => error)
+    try {
+      const runningPids = await bounded(ready.promise, 5000)
+      // Signal 0 checks PID liveness, not whether the process still belongs to this test.
+      for (const pid of runningPids) process.kill(pid, 0)
+      const abortedAt = performance.now()
+      controller.abort()
+      await expect(bounded(execution, 5000)).rejects.toThrow('Command aborted')
+      expect(performance.now() - abortedAt).toBeLessThan(3000)
+      await vi.waitFor(
+        () => {
+          for (const pid of runningPids) {
+            expect(() => process.kill(pid, 0)).toThrow(expect.objectContaining({ code: 'ESRCH' }))
+          }
+        },
+        { timeout: 2000 }
+      )
+      expect(output).not.toContain('POST_WAIT_SENTINEL')
+    } finally {
+      controller.abort()
+      await bounded(outcome, 2000)
+    }
+  },
+  15_000
+)
