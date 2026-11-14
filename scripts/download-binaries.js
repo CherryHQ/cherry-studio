@@ -288,7 +288,7 @@ function linuxFfmpegPackage(arch, sha256) {
  * @property {string} versionFile
  * @property {boolean} [required]
  * @property {string[]} [supportedPlatforms]
- * @property {Record<string, {url: string, archive: 'none' | 'zip' | 'zip-tree' | 'tar.gz', binaries: string[], sha256: string, dir?: string, strip?: string, stripComponents?: number, archiveFiles?: string[], localFiles?: {source: string, name: string}[], executableFiles?: string[]}>} packages
+ * @property {Record<string, {url: string, archive: 'none' | 'zip' | 'zip-tree' | 'tar.gz', binaries: string[], sha256: string, dir?: string, strip?: string, stripComponents?: number, archiveFiles?: string[], localFiles?: {source: string, name: string}[], executableFiles?: string[], version?: string, tree?: {executables?: string[], sharedLibraries?: string[], notices?: string[]}}>} packages
  */
 
 /** @type {BundledTool[]} */
@@ -955,7 +955,9 @@ async function prepareTools(
       isUpToDate(
         pkg.binaries.map((name) => path.join(bundleDir, name)),
         path.join(bundleDir, tool.versionFile),
-        tool.version
+        packageVersion(tool, platformKey),
+        pkg.dir ? path.join(bundleDir, pkg.dir) : null,
+        pkg.tree
       )
     ) {
       downloadTool(tool, platformKey, bundleDir, { versionFile: tool.versionFile })
