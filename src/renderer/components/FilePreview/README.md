@@ -1,9 +1,9 @@
 # FilePreview
 
-`FilePreview` is the canonical read-only preview host for local files. Callers provide a file path and decide where the preview appears. The host validates the path target and selects the preview strategy. PDF, DOCX, PPTX, XLSX, RTF and images use the portable [file-preview package](../../../../packages/file-preview/README.md); HTML, Markdown, Mermaid, text and video remain local plugins. The Mermaid plugin renders the
+`FilePreview` is the canonical read-only preview host for local files. Callers provide a file path and decide where the preview appears. The host validates the path target and selects the preview strategy. PDF, DOCX, PPTX, XLSX, RTF and images use the portable [file-preview package](../../../../packages/file-preview/README.md); HTML, Markdown, Mermaid, EPUB, text and video remain local plugins. The Mermaid plugin renders the
 file with `MermaidPreview` in `contain` fit, edge to edge on the host's own background.
 
-The built-in plugins currently support HTML, images (`.jpg`, `.jpeg`, `.png`, `.gif`, `.bmp`, `.webp`, `.avif`, `.ico`, `.svg` — SVG renders via `<img>`, which never executes embedded scripts), browser-playable video (`.mp4`, `.webm`, `.m4v`), PDF, Word (`.docx`), Rich Text Format (`.rtf`), PowerPoint (`.pptx`), spreadsheets (`.xlsx`), Markdown (`.md`, `.markdown`, `.mdx`), Mermaid diagrams (`.mmd`, `.mermaid`), and text/source files. Files outside the text extension whitelist still use the text plugin when content sniffing identifies them as text.
+The built-in plugins currently support HTML, images (`.jpg`, `.jpeg`, `.png`, `.gif`, `.bmp`, `.webp`, `.avif`, `.ico`, `.svg` — SVG renders via `<img>`, which never executes embedded scripts), browser-playable video (`.mp4`, `.webm`, `.m4v`), PDF, Word (`.docx`), Rich Text Format (`.rtf`), PowerPoint (`.pptx`), spreadsheets (`.xlsx`), Markdown (`.md`, `.markdown`, `.mdx`), Mermaid diagrams (`.mmd`, `.mermaid`), EPUB (`.epub`), and text/source files. EPUB displays text in spine order without images, original formatting, or a table-of-contents tree; the plugin explains preview failures. Files outside the text extension whitelist still use the text plugin when content sniffing identifies them as text.
 
 ## Path Contract
 
@@ -108,7 +108,7 @@ Embedded and tab previews are host composition choices, not `FilePreview` displa
 The public package has a static registry for its document and image formats. `ElectronFilePreview` supplies
 `PreviewSource` through file IPC, forwards PDF resource reads and diagnostics, and builds
 `SelectionReference` from its path and the same metadata request used to open the document. The desktop registry routes those formats through
-that adapter. Only HTML, Markdown, text and video keep application-owned plugins under `plugins/`.
+that adapter. HTML, Markdown, Mermaid, EPUB, text and video keep application-owned plugins under `plugins/`.
 All formats reuse layout and toolbar components exported by the package.
 
 For a desktop-only plugin, use this structure:
