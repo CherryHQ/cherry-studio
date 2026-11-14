@@ -861,15 +861,35 @@ export class JobManager extends BaseService {
       try {
         const snapshot = jobScheduleService.getById(id)
         if (!snapshot?.enabled || snapshot.trigger.kind === 'once') continue
-        const nextRun = scheduler.getNextRun(`schedule:${id}`)?.getTime() ?? null
-        const persistedNextRun = snapshot.nextRun === null ? null : Date.parse(snapshot.nextRun)
-        if (nextRun !== persistedNextRun) jobScheduleService.setNextRun(id, nextRun)
+        this.syncPersistedNextRun(id, 'after pause release')
       } catch (err) {
         logger.warn('Failed to persist nextRun after pause release', {
           scheduleId: id,
           err: (err as Error).message
         })
       }
+    }
+  }
+
+  /**
+   * Single writer for the automatic `nextRun` column from SchedulerService's
+   * registered calendar. Writes only when the persisted value differs; errors
+   * are logged and swallowed (the timer keeps running, and startup catch-up
+   * reads whatever was last persisted).
+   */
+  private syncPersistedNextRun(id: string, context: string): void {
+    try {
+      const scheduler = application.get('SchedulerService')
+      const snapshot = jobScheduleService.getById(id)
+      if (!snapshot) return
+      const nextRun = scheduler.getNextRun(`schedule:${id}`)?.getTime() ?? null
+      const persistedNextRun = snapshot.nextRun === null ? null : Date.parse(snapshot.nextRun)
+      if (nextRun !== persistedNextRun) jobScheduleService.setNextRun(id, nextRun)
+    } catch (err) {
+      logger.warn(`Failed to persist nextRun ${context}`, {
+        scheduleId: id,
+        err: (err as Error).message
+      })
     }
   }
 
@@ -2200,16 +2220,7 @@ export class JobManager extends BaseService {
       }
     })
     this.scheduleDisposables.set(schedule.id, disp)
-    try {
-      const nextRun = scheduler.getNextRun(scheduleKey)?.getTime() ?? null
-      const persistedNextRun = schedule.nextRun === null ? null : Date.parse(schedule.nextRun)
-      if (nextRun !== persistedNextRun) jobScheduleService.setNextRun(schedule.id, nextRun)
-    } catch (err) {
-      logger.warn('Failed to persist nextRun after arming schedule', {
-        scheduleId: schedule.id,
-        err: (err as Error).message
-      })
-    }
+    this.syncPersistedNextRun(schedule.id, 'after arming schedule')
     // Crons registered (or re-armed) while autonomy is suspended (pause hold
     // or post-release barrier) are paused at the croner layer in the same
     // synchronous section — a timer callback cannot interleave, so there is

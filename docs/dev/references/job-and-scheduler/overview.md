@@ -27,6 +27,19 @@ Two independent main-process lifecycle services:
 
 For chained intervals, SchedulerService installs the next timeout after the callback settles. A query made from the tail of that callback predicts `now + interval`; the installed timeout follows immediately after the final synchronous persistence write.
 
+All writes to the automatic `nextRun` column from SchedulerService's registered calendar go through `JobManager.syncPersistedNextRun`, which writes only when the persisted value differs. The spent-once clear and the natural-fire `markFired` are the only other `nextRun` writers.
+
+| Event | `nextRun` | `lastRun` |
+|---|---|---|
+| Arm / re-arm | synced from SchedulerService | unchanged |
+| Natural fire (cron, interval, once) | advanced by `markFired` (`null` for once) | set to fire time (once clamped to `>= at`) |
+| Manual fire, cron armed | unchanged (croner `.trigger()`; the armed callback records it) | set by the armed callback |
+| Manual fire, fallback (interval, once, or not armed) | unchanged, except overdue `once` consumes it (`null`) | set to now (overdue `once` via `markFired`) |
+| Spent once re-arm | cleared to `null` | unchanged |
+| Pause hold / release | suppressed fires do not write; released intervals and crons are synced | unchanged |
+| Disable / trigger change | cleared to `null` by the DAO | unchanged (a stale `lastRun` can mark a re-timed `once` spent) |
+| Catch-up at startup | read as the overdue cursor; enqueue does not write it | unchanged |
+
 ## DB-driven dispatch
 
 `jobTable` is the **single source of truth**. Memory state (handlers Map, queues Map, AbortControllers) is a derived view that JobManager rebuilds on every startup.
