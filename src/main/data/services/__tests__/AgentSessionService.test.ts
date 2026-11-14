@@ -2000,6 +2000,7 @@ describe('AgentSessionService', () => {
         .values({
           id: crypto.randomUUID(),
           sessionId: lastTaskSessionId,
+          parentId: seedSessionRoot(dbh.db, lastTaskSessionId),
           role: 'assistant',
           status: 'success',
           data: { parts: [{ type: 'text', text: 'Last run' }] },

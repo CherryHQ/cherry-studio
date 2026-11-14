@@ -85,8 +85,8 @@ These constraints do not enforce acyclicity or native execution bindings.
 An appended data migration converts untouched flat archives into one selected
 path before the constraint migration rebuilds the table. Existing branches and
 selections are preserved; invalid existing parent edges abort the upgrade without
-changing user rows. The v1 importer writes a valid rooted chain directly, ordered
-by normalized `(created_at, id)`. Startup seeding remains responsible for empty
+changing user rows. V1 conversion runs in the 2.2.2 bridge release; its v2
+archives follow the same appended migration path. Startup seeding remains responsible for empty
 Session roots and legacy delivery reply anchors. Previously deleted tails cannot
 be recovered.
 

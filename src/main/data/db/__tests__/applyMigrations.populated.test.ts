@@ -1475,7 +1475,7 @@ describe('applyMigrations over a populated database', () => {
     expect(sqlite.pragma('integrity_check', { simple: true })).toBe('ok')
   })
   it('migrates populated agent avatar ownership and message references', () => {
-    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline')))
+    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0037_agent_avatar'))
     sqlite.exec(`INSERT INTO agent (id, type, name, instructions, order_key, created_at, updated_at) VALUES ('agent', 'claude-code', 'Agent', '', 'a0', 1, 1);
       INSERT INTO agent_workspace (id, name, path, type, order_key, created_at, updated_at) VALUES ('ws', 'Workspace', '/tmp/ws', 'user', 'a0', 1, 1);
       INSERT INTO agent_session (id, agent_id, name, workspace_id, order_key, last_activity_at, created_at, updated_at) VALUES ('session', 'agent', 'Session', 'ws', 'a0', 1, 1, 1);

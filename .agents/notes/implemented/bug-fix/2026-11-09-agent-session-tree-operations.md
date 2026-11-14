@@ -28,7 +28,7 @@ Pagination retains its timestamp/ID cursor and still walks the selected ancestry
 
 ## Verification
 
-- Regression — `AgentsMigrator.treeValidation.test.ts`: 10,001 v1 messages preserve data and order through import, seeding and pagination; in-flight delivery PATCH must reject without changing the row.
+- Regression — `agentSessionTreeConstraints.test.ts` preserves 10,001 messages through upgrade; `AgentSessionMessageService.test.ts` rejects in-flight delivery PATCH without changing the row.
 - Regression — `agentSessionMessageTree.test.ts`: immediate-child ordering, timestamp ties, siblings, empty sessions, repeated seeding and delayed replies retain their contracts.
 
 Local service measurements use identical file-backed SQLite fixtures and alternate before/after operations. Timing observations are not packaged-app or live-provider acceptance.

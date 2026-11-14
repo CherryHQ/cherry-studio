@@ -573,6 +573,34 @@ describe('AgentSessionMessageService', () => {
   })
 
   describe('cross-session delivery', () => {
+    it.each(['accepted', 'delivering'] as const)(
+      'rejects edits to a %s delivery before native binding',
+      async (state) => {
+        await seedAgent('agent-a', 'Agent A')
+        await seedSession({ id: 'sender', agentId: 'agent-a', name: 'Sender', orderKey: 'b0' })
+        await seedSession({ id: 'receiver', agentId: 'agent-a', name: 'Receiver', orderKey: 'b1' })
+        const request = agentSessionMessageService.acceptSessionDelivery({
+          senderAgentId: 'agent-a',
+          senderSessionId: 'sender',
+          receiverSessionId: 'receiver',
+          content: 'original instruction'
+        })
+        if (state === 'delivering')
+          agentSessionMessageService.transitionSessionDelivery('receiver', request.id, 'delivering', {
+            expected: ['accepted'],
+            turnRef: 'running-reply'
+          })
+        const before = agentSessionMessageService.getSessionMessage('receiver', request.id)
+        expect(() => agentSessionMessageService.deleteSessionMessage('receiver', request.id)).toThrow()
+        expect(() =>
+          agentSessionMessageService.updateSessionMessage('receiver', request.id, {
+            data: { parts: [{ type: 'text', text: 'changed instruction' }] }
+          })
+        ).toThrow(expect.objectContaining({ code: 'RESOURCE_LOCKED' }))
+        expect(agentSessionMessageService.getSessionMessage('receiver', request.id)).toEqual(before)
+      }
+    )
+
     it('persists same-Agent and cross-Agent envelopes before scheduling', async () => {
       await seedAgent('agent-a', 'Agent A')
       await seedAgent('agent-b', 'Agent B')

@@ -78,6 +78,40 @@ describe('Session tree storage constraints', () => {
 describe('Session tree populated upgrade', () => {
   const dbh = setupTestDatabase({ beforeMigration: '0039_agent_session_tree_backfill' })
 
+  it('preserves all 10,001 flat messages and their order across upgrade', () => {
+    seedSessions(dbh)
+    const insert = dbh.sqlite.prepare(
+      "INSERT INTO agent_session_message (id, session_id, role, data, status, created_at, updated_at) VALUES (?, 'flat', 'user', ?, 'success', ?, ?)"
+    )
+    dbh.sqlite.transaction(() => {
+      for (let i = 0; i < 10001; i++)
+        insert.run(
+          `archive-${i}`,
+          JSON.stringify({ parts: [{ type: 'text', text: `content-${i}` }] }),
+          i + 100,
+          i + 200
+        )
+    })()
+    applyMigrations(dbh.db, resolveMigrationsPath())
+    const path = readAgentSessionPath(dbh.db, 'flat')
+    expect(path).toHaveLength(10001)
+    for (let i = 0; i < path.length; i++)
+      expect(path[i]).toMatchObject({
+        id: `archive-${i}`,
+        data: { parts: [{ type: 'text', text: `content-${i}` }] },
+        createdAt: i + 100,
+        updatedAt: i + 200
+      })
+    expect(dbh.sqlite.pragma('foreign_key_check')).toEqual([])
+    dbh.sqlite.exec(
+      "INSERT INTO agent_session_message_fts(agent_session_message_fts, rank) VALUES ('integrity-check', 1)"
+    )
+  })
+})
+
+describe('Session tree populated branch upgrade', () => {
+  const dbh = setupTestDatabase({ beforeMigration: '0039_agent_session_tree_backfill' })
+
   it('backfills flat history while preserving message facts, existing branches, selection and FTS', () => {
     seedSessions(dbh)
     for (const id of ['b', 'a']) {

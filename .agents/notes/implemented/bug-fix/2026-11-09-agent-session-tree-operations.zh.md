@@ -28,7 +28,7 @@ Session 消息 PATCH 允许修改投递中的正文，而 DELETE 会拒绝同一
 
 ## Verification
 
-- Regression — `AgentsMigrator.treeValidation.test.ts`：10,001 条 v1 消息经过导入、补树和分页后保留数据与顺序；未完成投递的 PATCH 必须拒绝且不改变原行。
+- Regression — `agentSessionTreeConstraints.test.ts` 验证升级后保留 10,001 条消息；`AgentSessionMessageService.test.ts` 验证未完成投递的 PATCH 被拒绝且不改变原行。
 - Regression — `agentSessionMessageTree.test.ts`：直接子节点排序、相同时间戳、兄弟节点、空会话、重复补树及延迟回复保持原有契约。
 
 本地服务测量使用相同的文件型 SQLite 测试数据，交替执行优化前后操作。耗时观察不代表打包应用或真实供应商验收。
