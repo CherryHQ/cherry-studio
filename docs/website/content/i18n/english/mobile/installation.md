@@ -22,7 +22,11 @@ If you cannot use Google Play, switch the Android column on the download page to
 3. If Android blocks the installer, follow the system prompt to temporarily allow your browser or file manager to install unknown apps.
 4. Return to the installer and finish installation.
 
-You can revoke the “install unknown apps” permission after installation. When a new version is released, download the new APK from the official page and install it over the existing app. Review the release notes before upgrading.
+You can revoke the “install unknown apps” permission after installation. If you installed the app from a direct APK, download the new APK from the official page and install it over the existing app when a new version is released. Review the release notes before upgrading.
+
+{% hint style="warning" %}
+**Export a backup before switching Android installation channels.** Google Play and direct APK downloads use different signing keys, so one cannot update the other in place. To switch channels, create a [full backup](backup-and-restore.md), save it outside the App, and confirm the file is accessible. Check the target channel's version and backup compatibility before uninstalling; do not assume a backup from a newer version can be restored to an older one. Once checked, uninstall the existing app, install from the target channel, and follow the backup guide to restore. Updates within the same channel do not require uninstalling first. See the [0.5.3 release notes](https://github.com/CherryHQ/cherry-studio-app/releases/tag/v0.5.3) for this restriction.
+{% endhint %}
 
 ## iPhone and iPad
 
@@ -47,7 +51,7 @@ These guides describe 0.3.0. Check your installed version in **Settings → Abou
 
 For APK installations, follow app update notices or the official download page; use the relevant store for store installations. Compatible code and resource updates can download in the background and apply on a later launch. Native capability changes still require a new App package: an older package cannot gain 0.3.0 health support through code updates alone.
 
-Create a [full backup](backup-and-restore.md) before upgrading or changing devices. Restoring a backup differs from updating in place; do not uninstall the app just to update it.
+Create a [full backup](backup-and-restore.md) before upgrading or changing devices. Restoring a backup differs from updating in place; do not uninstall the app for an update within the same channel. Follow the backup steps above before switching Android installation channels.
 
 ## After installation
 

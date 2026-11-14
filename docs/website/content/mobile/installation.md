@@ -15,13 +15,17 @@ icon: download
 3. 如果系统阻止安装，按提示临时允许当前浏览器或文件管理器“安装未知应用”。
 4. 返回安装界面并完成安装。
 
-安装完成后，可以关闭刚才授予的“安装未知应用”权限。新版本发布时，重新从官方下载页获取 APK 并覆盖安装；升级前请先查看版本说明。
+安装完成后，可以关闭刚才授予的“安装未知应用”权限。已通过直接 APK 安装的用户，新版本发布时可重新从官方下载页获取 APK 并覆盖安装；升级前请先查看版本说明。
 
 ### 其他方式：Google Play
 
 可使用 [Google Play](https://play.google.com/store/apps/details?id=com.cherryai.cherrystudio_app) 的用户，也可以在 Android 一栏切换到 **Google Play** 安装，后续更新由商店管理。
 
 [国际站](https://cherryai.com/download?platform=mobile)默认推荐 Google Play，其备用 APK 下载来自 GitHub。
+
+{% hint style="warning" %}
+**切换 Android 安装渠道前先导出备份。** Google Play 与直接下载的 APK 使用不同签名，不能相互覆盖安装。如需切换渠道，先创建[完整备份](backup-and-restore.md)，保存到 App 之外，并确认文件可访问。切换前检查目标渠道版本和备份兼容性，不要假设新版本备份能恢复到旧版。确认后再卸载原来的 App、安装目标渠道版本并按备份教程恢复。仅在原渠道内更新时，不需要先卸载。此限制见 [0.5.3 版本说明](https://github.com/CherryHQ/cherry-studio-app/releases/tag/v0.5.3)。
+{% endhint %}
 
 ## iPhone 与 iPad
 
@@ -46,7 +50,7 @@ TestFlight 名额和测试版本有效期由 Apple 的测试机制管理。如�
 
 APK 渠道可按应用的更新提示或官方下载入口获取新包；商店安装按对应商店更新。兼容的代码与资源更新可以在后台下载，并在之后一次启动时生效，但涉及原生能力变化时仍需安装新版 App。0.3.0 的健康等原生能力不能只靠旧安装包接收代码更新启用。
 
-更新或换机前建议先创建[完整备份](backup-and-restore.md)。恢复备份与覆盖安装是不同操作，不要为更新而先卸载当前 App。
+更新或换机前建议先创建[完整备份](backup-and-restore.md)。恢复备份与覆盖安装是不同操作，同一渠道内更新不要先卸载当前 App；Android 跨渠道切换请先完成上面的备份步骤。
 
 ## 安装后
 
