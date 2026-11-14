@@ -340,37 +340,6 @@ describe('doctor failure detail', () => {
       source: 'external',
       text: 'not started: busy'
     })
-    expect(doctorRunFailureDetail({ error: 'not started: something else' })).toEqual({
-      source: 'external',
-      text: 'not started: something else'
-    })
-  })
-
-  it('still recognizes service sentences published before errorSource existed', () => {
-    expect(doctorRunFailureDetail({ error: 'not started: busy' })).toEqual({
-      source: 'service',
-      failure: { kind: 'not_started', reason: 'busy' }
-    })
-    expect(doctorRunFailureDetail({ error: 'not started: session-invalid' })).toEqual({
-      source: 'service',
-      failure: { kind: 'not_started', reason: 'session-invalid' }
-    })
-    expect(doctorRunFailureDetail({ error: 'Execution failed' })).toEqual({
-      source: 'service',
-      failure: { kind: 'execution_failed' }
-    })
-    expect(doctorRunFailureDetail({ error: 'unknown error' })).toEqual({
-      source: 'service',
-      failure: { kind: 'unknown' }
-    })
-    expect(doctorRunFailureDetail({ error: 'disk full' })).toEqual({ source: 'external', text: 'disk full' })
-  })
-
-  it('keeps inherited property names as external evidence on unmarked legacy state', () => {
-    for (const error of ['__proto__', 'constructor']) {
-      expect(doctorRunFailureDetail({ error })).toEqual({ source: 'external', text: error })
-      expect(doctorProposalFailureDetail({ error })).toEqual({ source: 'external', text: error })
-    }
   })
 
   it('maps a superseded proposal and keeps an external proposal error', () => {
@@ -381,14 +350,6 @@ describe('doctor failure detail', () => {
         ownedError: 'report_superseded'
       })
     ).toEqual({ source: 'service', failure: { kind: 'report_superseded' } })
-    expect(doctorProposalFailureDetail({ error: 'report superseded' })).toEqual({
-      source: 'service',
-      failure: { kind: 'report_superseded' }
-    })
-    expect(doctorProposalFailureDetail({ error: 'unknown error' })).toEqual({
-      source: 'service',
-      failure: { kind: 'unknown' }
-    })
     expect(doctorProposalFailureDetail({ error: 'unknown error', errorSource: 'external' })).toEqual({
       source: 'external',
       text: 'unknown error'

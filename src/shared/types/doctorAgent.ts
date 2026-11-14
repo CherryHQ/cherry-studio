@@ -55,7 +55,7 @@ export interface DoctorAgentProposal {
   readonly summary: string
   readonly status: DoctorAgentProposalStatus
   readonly error?: string
-  /** Who wrote `error`. Absent on proposals published before this field existed. */
+  /** Who wrote `error`; set together with it. */
   readonly errorSource?: DoctorAgentErrorSource
   /** Set when `errorSource` is `service`. */
   readonly ownedError?: DoctorAgentOwnedProposalError
@@ -101,8 +101,8 @@ export type DoctorAgentState =
   | ({
       readonly status: 'failed'
       readonly error: string
-      /** Who wrote `error`. Absent on states published before this field existed. */
-      readonly errorSource?: DoctorAgentErrorSource
+      /** Who wrote `error`. */
+      readonly errorSource: DoctorAgentErrorSource
       /** Set when `errorSource` is `service`. */
       readonly ownedFailure?: DoctorAgentOwnedRunFailure
     } & DoctorAgentRun)

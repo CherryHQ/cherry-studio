@@ -480,7 +480,7 @@ export class DoctorAgentService extends BaseService {
         ? {
             status: 'failed',
             error: state.error,
-            ...(state.errorSource ? { errorSource: state.errorSource } : {}),
+            errorSource: state.errorSource,
             ...(state.ownedFailure ? { ownedFailure: state.ownedFailure } : {}),
             ...run
           }

@@ -335,6 +335,8 @@ describe('DoctorAgentConsultation', () => {
     mocks.agentState = {
       status: 'failed',
       error: 'unknown error',
+      errorSource: 'service',
+      ownedFailure: { kind: 'unknown' },
       runId: 'run-1',
       scope: 'global',
       reportRunId: 'report-1',
@@ -348,6 +350,8 @@ describe('DoctorAgentConsultation', () => {
           id: 'p1',
           status: 'rejected',
           error: 'report superseded',
+          errorSource: 'service',
+          ownedError: 'report_superseded',
           summary: 'Enable the proxy.',
           write: { kind: 'preference_set', key: 'proxy.enabled', value: true }
         },
@@ -355,6 +359,7 @@ describe('DoctorAgentConsultation', () => {
           id: 'p2',
           status: 'failed',
           error: 'disk full',
+          errorSource: 'external',
           summary: 'Clear the cache.',
           write: { kind: 'preference_set', key: 'cache.enabled', value: false }
         }
@@ -381,6 +386,7 @@ describe('DoctorAgentConsultation', () => {
     mocks.agentState = {
       status: 'failed',
       error: 'database locked',
+      errorSource: 'external',
       runId: 'run-1',
       scope: 'global',
       reportRunId: 'report-1',
@@ -459,6 +465,8 @@ describe('DoctorAgentConsultation', () => {
     show({
       status: 'failed',
       error: 'not started: session-invalid',
+      errorSource: 'service',
+      ownedFailure: { kind: 'not_started', reason: 'session-invalid' },
       ...base,
       proposals: [
         {

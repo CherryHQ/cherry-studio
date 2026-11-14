@@ -73,29 +73,11 @@ type DoctorFailureDetail =
     }
   | { readonly source: 'external'; readonly text: string }
 
-/** Exact sentences published before `errorSource` existed. Map keys ignore inherited names such as `__proto__`. */
-const LEGACY_RUN_FAILURES = new Map<string, DoctorAgentOwnedRunFailure>([
-  ['not started: busy', { kind: 'not_started', reason: 'busy' }],
-  ['not started: session-invalid', { kind: 'not_started', reason: 'session-invalid' }],
-  ['Execution failed', { kind: 'execution_failed' }],
-  ['unknown error', { kind: 'unknown' }]
-])
-
-const LEGACY_PROPOSAL_ERRORS = new Map<string, 'report_superseded' | 'unknown'>([
-  ['report superseded', 'report_superseded'],
-  ['unknown error', 'unknown']
-])
-
 export function doctorRunFailureDetail(
   failure: Pick<FailedDoctorAgentState, 'error' | 'errorSource' | 'ownedFailure'>
 ): DoctorFailureDetail {
   if (failure.errorSource === 'external') return { source: 'external', text: failure.error }
-  if (failure.ownedFailure) return { source: 'service', failure: failure.ownedFailure }
-  if (failure.errorSource === 'service') {
-    return { source: 'service', failure: LEGACY_RUN_FAILURES.get(failure.error) ?? { kind: 'unknown' } }
-  }
-  const legacy = LEGACY_RUN_FAILURES.get(failure.error)
-  return legacy ? { source: 'service', failure: legacy } : { source: 'external', text: failure.error }
+  return { source: 'service', failure: failure.ownedFailure ?? { kind: 'unknown' } }
 }
 
 export function doctorProposalFailureDetail(
@@ -104,19 +86,10 @@ export function doctorProposalFailureDetail(
   if (proposal.errorSource === 'external') {
     return proposal.error ? { source: 'external', text: proposal.error } : undefined
   }
-  if (proposal.ownedError === 'report_superseded') return { source: 'service', failure: { kind: 'report_superseded' } }
-  if (proposal.ownedError === 'unknown') return { source: 'service', failure: { kind: 'unknown' } }
-  if (proposal.errorSource === 'service') {
-    const legacy = proposal.error ? LEGACY_PROPOSAL_ERRORS.get(proposal.error) : undefined
-    return legacy === 'report_superseded'
-      ? { source: 'service', failure: { kind: 'report_superseded' } }
-      : { source: 'service', failure: { kind: 'unknown' } }
-  }
-  if (!proposal.error) return undefined
-  const legacy = LEGACY_PROPOSAL_ERRORS.get(proposal.error)
-  if (legacy === 'report_superseded') return { source: 'service', failure: { kind: 'report_superseded' } }
-  if (legacy === 'unknown') return { source: 'service', failure: { kind: 'unknown' } }
-  return { source: 'external', text: proposal.error }
+  if (proposal.errorSource !== 'service') return undefined
+  return proposal.ownedError === 'report_superseded'
+    ? { source: 'service', failure: { kind: 'report_superseded' } }
+    : { source: 'service', failure: { kind: 'unknown' } }
 }
 
 /** Sibling of `doctorStateCacheKey`: one AI analysis, of a scope's report or of one failed message. */
