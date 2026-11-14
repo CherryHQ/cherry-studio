@@ -65,7 +65,7 @@ import {
 } from '@shared/ai/builtinTools'
 import { claudeToolRequiresUserInteraction } from '@shared/ai/claudecode/toolRegistry'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
-import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
+import type { AgentSessionEntity, SessionWorktree } from '@shared/data/api/schemas/agentSessions'
 import type { Provider } from '@shared/data/types/provider'
 import type { CherryToolMeta } from '@shared/data/types/uiParts'
 import { isExternalCliProvider } from '@shared/utils/provider'
@@ -241,7 +241,8 @@ export async function buildClaudeCodeSessionSettings(
     agentDataPath,
     knowledgeBaseScope,
     disallowedTools,
-    options?.effectiveLanguage
+    options?.effectiveLanguage,
+    session.worktree
   )
 
   // 6. MCP servers (session + built-in)
@@ -667,7 +668,8 @@ export async function buildSystemPrompt(
   /** Final SDK visibility after declarative exposure, runtime gates, and dependency propagation. */
   disallowedTools: readonly string[] = resolveDisallowedTools({ disabledTools: agent.disabledTools }, { cwd }),
   /** Materialized effective language; when omitted the preference is read live. */
-  effectiveLanguage?: string | null
+  effectiveLanguage?: string | null,
+  worktree?: SessionWorktree
 ): Promise<ClaudeCodeSettings['systemPrompt']> {
   const canReadAllKnowledgeBases = resolveAgentCapabilities(agent).allKnowledgeBases
   const unavailableTools = new Set(disallowedTools)
@@ -685,6 +687,7 @@ export async function buildSystemPrompt(
   ].join('\n')
   const prompt = await buildAgentRuntimePrompt({
     workspacePath: cwd,
+    worktree,
     agentDataPath,
     agent,
     citationsGuidance,

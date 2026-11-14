@@ -5,6 +5,7 @@ import { getEffectiveAgentLanguage } from '@main/ai/utils/agentLanguage'
 import { replacePromptVariables } from '@main/utils/prompt'
 import { REPORT_ARTIFACTS_TOOL_NAME } from '@shared/ai/builtinTools'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
+import type { SessionWorktree } from '@shared/data/api/schemas/agentSessions'
 
 const logger = loggerService.withContext('AgentPrompt')
 const MINIMAL_CHERRY_ASSISTANT_INSTRUCTIONS =
@@ -33,6 +34,7 @@ export interface AgentRuntimePrompt {
 }
 
 export interface BuildAgentRuntimePromptOptions {
+  worktree?: SessionWorktree
   workspacePath: string
   agentDataPath: string
   agent: AgentEntity
@@ -49,6 +51,7 @@ const promptBuilder = new PromptBuilder()
 /** Materialize Cherry-owned prompt policy once; runtime adapters only map base/append into their SDK. */
 export async function buildAgentRuntimePrompt({
   workspacePath,
+  worktree,
   agentDataPath,
   agent,
   citationsGuidance,
@@ -84,6 +87,7 @@ export async function buildAgentRuntimePrompt({
   const append = [
     hasAgentInstructions ? AGENT_INSTRUCTION_PRECEDENCE_PROMPT : undefined,
     REPORT_ARTIFACTS_PROMPT,
+    buildWorktreeContext(worktree),
     hasAgentInstructions ? buildAgentInstructionsSection(resolvedInstructions) : undefined,
     parts.context,
     parts.base.kind === 'custom' ? customBaseContext : undefined,
@@ -111,4 +115,16 @@ function getLanguageInstruction(agent: AgentEntity, effectiveLanguage?: string |
   const language = effectiveLanguage !== undefined ? effectiveLanguage : getEffectiveAgentLanguage(agent)
   if (!language) return ''
   return `By default, respond in ${language}. If the Agent System Prompt, Workspace Instructions, or Agent Persona (SOUL.md) specifies a different language, follow that instruction instead.`
+}
+
+export function buildWorktreeContext(worktree?: SessionWorktree): string {
+  const guidance =
+    'When adopting a linked Git worktree for this task, explicitly associate it with session_worktree after shell creation. Creation alone is not association. Native cwd, file-pane root, artifact locations and filesystem permissions remain unchanged. Use explicit paths or per-command working directories; existing authorization still applies.'
+  if (!worktree) return guidance
+  const target = JSON.stringify(worktree.path)
+  return `${guidance}\nSession development worktree: ${target}. ${
+    worktree.available
+      ? `Verified branch: ${JSON.stringify(worktree.branch ?? 'detached HEAD')}. Develop using this target explicitly.`
+      : 'UNAVAILABLE. Do not silently fall back to development in the original workspace; ask the user to restore, replace or clear the association.'
+  }`
 }

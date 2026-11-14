@@ -1449,6 +1449,20 @@ describe('deriveConnectionConfig', () => {
     expect(mocks.apiGatewayStart).not.toHaveBeenCalled()
   })
 
+  it('rebuilds after association, invalidation and clearing so resumed prompts cannot retain stale targets', async () => {
+    const original = await deriveSignature()
+    const worktree = { path: '/linked', commonGitDirectory: '/repo/.git', branch: 'feature', available: true }
+    mocks.getSessionById.mockReturnValue({ ...sessionWithWorkspace, worktree })
+    const linked = await deriveSignature()
+    mocks.getSessionById.mockReturnValue({ ...sessionWithWorkspace, worktree: { ...worktree, available: false } })
+    const unavailable = await deriveSignature()
+    mocks.getSessionById.mockReturnValue(sessionWithWorkspace)
+    const cleared = await deriveSignature()
+    expect(linked.rebuildSignature).not.toBe(original.rebuildSignature)
+    expect(unavailable.rebuildSignature).not.toBe(linked.rebuildSignature)
+    expect(cleared.rebuildSignature).toBe(original.rebuildSignature)
+  })
+
   it('changes a Cloud route rebuild signature when the internal gateway restarts', async () => {
     mocks.getAgent.mockReturnValue({
       id: 'agent-1',

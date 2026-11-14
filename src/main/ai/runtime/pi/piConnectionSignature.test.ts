@@ -229,6 +229,21 @@ describe('capturePiConnectionSnapshot', () => {
     })
   })
 
+  it('rebuilds after a target becomes unavailable or is cleared', async () => {
+    const session = mocks.getSession()
+    const original = await capturePiConnectionSnapshot('session-1', agent.id, 'provider::model')
+    const worktree = { path: '/linked', commonGitDirectory: '/repo/.git', branch: 'feature', available: true }
+    mocks.getSession.mockReturnValue({ ...session, worktree })
+    const linked = await capturePiConnectionSnapshot('session-1', agent.id, 'provider::model')
+    mocks.getSession.mockReturnValue({ ...session, worktree: { ...worktree, available: false } })
+    const unavailable = await capturePiConnectionSnapshot('session-1', agent.id, 'provider::model')
+    mocks.getSession.mockReturnValue(session)
+    const cleared = await capturePiConnectionSnapshot('session-1', agent.id, 'provider::model')
+    expect(linked.signature).not.toBe(original.signature)
+    expect(unavailable.signature).not.toBe(linked.signature)
+    expect(cleared.signature).toBe(original.signature)
+  })
+
   it('invalidates cached tools when Agent browser control changes', async () => {
     MockMainPreferenceServiceUtils.setPreferenceValue('app.browser.agent_control.enabled', false)
     const disabled = await capturePiConnectionSnapshot('session-1', agent.id, 'provider::model')

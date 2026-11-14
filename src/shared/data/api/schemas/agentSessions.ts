@@ -25,6 +25,14 @@ import {
  */
 export const SessionNameEntitySchema = z.string().max(255)
 
+export const SessionWorktreeSchema = z.strictObject({
+  path: z.string(),
+  commonGitDirectory: z.string(),
+  branch: z.string().nullable(),
+  available: z.boolean()
+})
+export type SessionWorktree = z.infer<typeof SessionWorktreeSchema>
+
 export const AgentSessionEntitySchema = z.strictObject({
   id: z.string(),
   agentId: z.string().nullable(),
@@ -34,6 +42,7 @@ export const AgentSessionEntitySchema = z.strictObject({
   description: z.string().optional(),
   workspaceId: z.string(),
   workspace: AgentWorkspaceEntitySchema,
+  worktree: SessionWorktreeSchema.optional(),
   /** Container-level OTel trace id — one trace tree per session. */
   traceId: TraceIdSchema.optional(),
   orderKey: z.string(),

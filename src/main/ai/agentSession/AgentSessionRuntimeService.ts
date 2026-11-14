@@ -1944,6 +1944,8 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   private async ensureConnection(entry: AgentSessionRuntimeEntry): Promise<boolean> {
+    if (agentSessionService.getById(entry.sessionId).worktree)
+      await agentSessionService.refreshWorktree(entry.sessionId)
     entry.branchHead ??= agentSessionMessageService.captureHead(entry.sessionId)
     while (this.isCurrentEntry(entry)) {
       if (entry.closing) return false

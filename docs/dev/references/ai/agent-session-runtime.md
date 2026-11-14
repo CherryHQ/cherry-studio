@@ -43,6 +43,16 @@ The built-in drivers are Claude Code, Pi and Pi Durable. Their
 query/session transports, tool surfaces, approval gates, and resume formats are
 driver internals behind the same host contract.
 
+## Development worktree association
+
+A session can record a linked Git worktree separately from its original workspace. After creating or adopting a worktree through shell commands, the Agent calls `session_worktree` with `action: associate` and its root path. The tool acts only on its trusted current session and requires normal tool approval. `action: clear` removes the association without deleting the directory or branch; archiving a session also leaves Git data intact.
+
+The session data service validates canonical paths, Git registration and common repository identity before saving the association. It rejects the primary checkout, unrelated repositories and invalid paths without replacing an existing association. Validation runs outside the synchronous write transaction; the commit checks that the original session binding and prior association still match.
+
+Session activation and new-turn preparation revalidate saved targets. Sidebar list data carries the path, current branch (or detached HEAD) and availability; rows do not run Git. A missing or invalid target keeps its saved path and displays an unavailable indicator. Runtime prompts carry this status after resume and compaction; association changes invalidate warm connection configuration. Unavailable guidance requires recovery or explicit clearing rather than silently developing in the original directory.
+
+Association does not switch native cwd, the file pane or artifact storage, and grants no additional filesystem permissions. Agents must use explicit worktree paths or per-command working directories under existing authorization.
+
 ## Ownership
 
 | Owner | Responsibility |

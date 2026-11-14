@@ -129,6 +129,37 @@ sessionMenuActions.exportMenuOptions = {
 }
 
 describe('SessionItem', () => {
+  // Catch a stale healthy label after invalidation and a leftover indicator after clearing.
+  it('updates the accessible worktree status and removes it when cleared', () => {
+    const Provider = ResourceList.Provider<AgentSessionEntity>
+    const row = (worktree?: AgentSessionEntity['worktree']) => {
+      const item = { ...session, worktree }
+      return (
+        <Provider items={[item]} selectedId={item.id}>
+          <SessionHoverPreviewGroup>
+            <SessionItem
+              session={item}
+              reserveLeadingIconSlot={false}
+              sessionMenuActions={sessionMenuActions}
+              onDelete={vi.fn()}
+              onOpenRenameDialog={vi.fn()}
+              onPress={vi.fn()}
+            />
+          </SessionHoverPreviewGroup>
+        </Provider>
+      )
+    }
+    const worktree = { path: '/linked tree', commonGitDirectory: '/repo/.git', available: true, branch: 'feature' }
+    const { rerender } = render(row(worktree))
+    expect(screen.getByRole('img', { name: 'agent.session.worktree.available' })).toBeInTheDocument()
+    rerender(row({ ...worktree, available: false, branch: null }))
+    expect(screen.queryByRole('img', { name: 'agent.session.worktree.available' })).not.toBeInTheDocument()
+    expect(screen.getByRole('img', { name: 'agent.session.worktree.unavailable' })).toBeInTheDocument()
+    rerender(row())
+    expect(screen.queryByRole('img', { name: 'agent.session.worktree.unavailable' })).not.toBeInTheDocument()
+    expect(screen.getByText('Session A')).toBeInTheDocument()
+  })
+
   it('shows the number shortcut in place of the stream status until the hint clears', () => {
     using statusSpy = vi.spyOn(topicStreamStatus, 'useTopicStreamStatus')
     statusSpy.mockReturnValue({
