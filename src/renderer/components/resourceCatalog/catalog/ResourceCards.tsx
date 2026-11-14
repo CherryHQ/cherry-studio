@@ -1,8 +1,8 @@
 import { Play, Trash2 } from 'lucide-react'
-import { type KeyboardEvent, useId } from 'react'
+import type { KeyboardEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Badge, Button, Label, Switch, Tooltip } from '@cherrystudio/ui'
+import { Badge, Button, Switch, Tooltip } from '@cherrystudio/ui'
 import { AssistantAvatarImage } from '@renderer/components/Avatar/AssistantAvatarImage'
 import { useSkillMutationsById } from '@renderer/hooks/resourceCatalog'
 import { toast } from '@renderer/services/toast'
@@ -29,7 +29,6 @@ function activateCardOnKeyDown(event: KeyboardEvent<HTMLDivElement>, activate: (
 interface ResourceCardProps {
   resource: ResourceItem
   variant?: 'library' | 'settings'
-  columnCount?: number
   allGroups: Group[]
   onDelete: (resource: ResourceItem) => void
   onDuplicate: (resource: ResourceItem) => void
@@ -44,7 +43,6 @@ function hasOverflowActions(resource: ResourceItem) {
 
 function SkillGlobalToggle({ resource }: { resource: Extract<ResourceItem, { type: 'skill' }> }) {
   const { t } = useTranslation()
-  const toggleId = useId()
   const { updateGlobalEnabled, isUpdating } = useSkillMutationsById(resource.id)
 
   const handleCheckedChange = async (checked: boolean) => {
@@ -56,26 +54,23 @@ function SkillGlobalToggle({ resource }: { resource: Extract<ResourceItem, { typ
   }
 
   return (
-    <div className="flex items-center gap-2 px-1">
-      <Label htmlFor={toggleId} className="whitespace-nowrap text-xs text-muted-foreground">
-        {t('settings.skills.globalEnabled')}
-      </Label>
-      <Switch
-        id={toggleId}
-        size="sm"
-        checked={resource.raw.isGlobalEnabled}
-        disabled={isUpdating}
-        aria-label={t('settings.skills.globalToggle', { name: resource.name })}
-        onCheckedChange={handleCheckedChange}
-      />
-    </div>
+    <Tooltip title={t('settings.skills.globalEnabled')} asChild>
+      <span className="inline-flex shrink-0">
+        <Switch
+          size="sm"
+          checked={resource.raw.isGlobalEnabled}
+          disabled={isUpdating}
+          aria-label={t('settings.skills.globalToggle', { name: resource.name })}
+          onCheckedChange={handleCheckedChange}
+        />
+      </span>
+    </Tooltip>
   )
 }
 
 export function ResourceCard({
   resource: r,
   variant = 'library',
-  columnCount = 1,
   allGroups,
   onDelete,
   onDuplicate,
@@ -86,7 +81,7 @@ export function ResourceCard({
   const { t } = useTranslation()
   const cfg = RESOURCE_TYPE_META[r.type]
   const isSettings = variant === 'settings'
-  const isSkillGrid = isSettings && r.type === 'skill' && columnCount === 2
+  const isSkillSettings = isSettings && r.type === 'skill'
   const showTypeIcon = r.type === 'skill'
   const TypeIcon = cfg.icon
   const showOverflowMenu = hasOverflowActions(r)
@@ -99,25 +94,34 @@ export function ResourceCard({
         'group relative cursor-pointer border bg-card transition-[border-color,box-shadow] hover:shadow-sm focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none',
         isSettings
           ? 'hover:border-border-strong rounded-xl border-border'
-          : 'rounded-lg border-border-subtle hover:border-border-subtle'
+          : 'rounded-lg border-border-subtle hover:border-border-subtle',
+        isSkillSettings &&
+          'shadow-none transition-colors hover:bg-background-subtle hover:shadow-none focus-visible:bg-accent focus-visible:ring-0 focus-visible:shadow-[inset_0_0_0_1px_var(--ring)]',
+        isSkillSettings && 'rounded-none border-0'
       )}
-      style={r.type === 'skill' ? { backgroundColor: 'var(--settings-group-background, var(--card))' } : undefined}
+      style={
+        r.type === 'skill' && !isSkillSettings
+          ? { backgroundColor: 'var(--settings-group-background, var(--card))' }
+          : undefined
+      }
       role="button"
       tabIndex={0}
       aria-label={r.name}
       onClick={() => onEdit(r)}
       onKeyDown={(e) => activateCardOnKeyDown(e, () => onEdit(r))}>
-      <div className={isSkillGrid ? 'px-4 py-2' : isSettings ? 'p-4' : 'p-3.5'}>
-        <div
-          className={isSkillGrid ? 'grid grid-cols-[2.5rem_minmax(0,1fr)] gap-x-3 gap-y-1' : 'flex items-center gap-3'}>
+      <div className={isSkillSettings ? 'px-4 py-4' : isSettings ? 'p-4' : 'p-3.5'}>
+        <div className="flex items-center gap-3">
           <div
             className={cn(
               'flex size-10 shrink-0 items-center justify-center rounded-lg text-base',
-              isSkillGrid && 'self-center',
-              showTypeIcon ? cfg.color : 'bg-secondary text-secondary-foreground'
+              isSkillSettings
+                ? 'size-8 bg-secondary text-muted-foreground'
+                : showTypeIcon
+                  ? cfg.color
+                  : 'bg-secondary text-secondary-foreground'
             )}>
             {showTypeIcon ? (
-              <TypeIcon size={20} aria-hidden className="lucide-custom" />
+              <TypeIcon size={isSkillSettings ? 18 : 20} aria-hidden className="lucide-custom" />
             ) : (
               <AssistantAvatarImage
                 src={r.avatarSrc}
@@ -129,29 +133,38 @@ export function ResourceCard({
           </div>
           <div className="min-w-0 flex-1">
             <div className="flex min-w-0 items-center gap-1.5">
-              <Tooltip title={r.name} isDisabled={!isSkillGrid} asChild>
+              <Tooltip title={r.name} isDisabled={!isSkillSettings} asChild>
                 <h4
                   className="min-w-0 truncate text-sm leading-5 font-medium text-foreground"
-                  tabIndex={isSkillGrid ? 0 : undefined}>
+                  tabIndex={isSkillSettings ? 0 : undefined}>
                   {r.name}
                 </h4>
               </Tooltip>
               {skillVersion && (
                 <Badge
                   variant="secondary"
-                  className="text-muted-foreground shrink-0 border-0 bg-secondary px-1.5 py-px text-xs font-normal">
+                  className={cn(
+                    'text-muted-foreground shrink-0 border-0 bg-secondary px-1.5 py-px text-xs font-normal',
+                    isSkillSettings && 'bg-transparent px-0'
+                  )}>
                   {skillVersion}
                 </Badge>
               )}
-              {r.type === 'skill' ? <SkillSourceBadge source={r.raw.source} sourceUrl={r.raw.sourceUrl} /> : null}
+              {r.type === 'skill' ? (
+                <SkillSourceBadge
+                  source={r.raw.source}
+                  sourceUrl={r.raw.sourceUrl}
+                  className={isSkillSettings ? 'border border-border bg-transparent text-muted-foreground' : undefined}
+                />
+              ) : null}
             </div>
-            <Tooltip title={r.description} isDisabled={!isSkillGrid} asChild>
+            <Tooltip title={r.description} isDisabled={!isSkillSettings} asChild>
               <p
                 className={cn(
                   'text-muted-foreground mt-0.5 text-xs leading-4',
-                  isSkillGrid ? 'min-h-4 truncate' : isSettings ? 'line-clamp-2 min-h-8' : 'truncate'
+                  isSkillSettings ? 'min-h-4 truncate' : isSettings ? 'line-clamp-2 min-h-8' : 'truncate'
                 )}
-                tabIndex={isSkillGrid ? 0 : undefined}>
+                tabIndex={isSkillSettings ? 0 : undefined}>
                 {r.description}
               </p>
             </Tooltip>
@@ -165,15 +178,15 @@ export function ResourceCard({
               </div>
             )}
           </div>
-          <div className={cn('shrink-0', isSkillGrid && 'col-span-2')} onClick={(e) => e.stopPropagation()}>
+          <div className="shrink-0" onClick={(e) => e.stopPropagation()}>
             {r.type === 'skill' && isSettings ? (
-              <div className={cn('flex items-center gap-1', isSkillGrid && 'flex-wrap justify-end')}>
+              <div className="flex items-center gap-3">
                 {onLaunchSkill ? (
                   <Button
                     variant="ghost"
                     size="sm"
                     onClick={() => onLaunchSkill(r)}
-                    className={cn('gap-1.5', isSkillGrid && 'mr-auto -ml-2.5 pl-1.5')}>
+                    className="gap-1.5 text-muted-foreground">
                     <Play size={12} aria-hidden />
                     {t('settings.skills.tryNow')}
                   </Button>

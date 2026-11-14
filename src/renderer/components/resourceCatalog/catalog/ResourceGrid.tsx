@@ -7,11 +7,9 @@ import {
   Download,
   FolderSearch,
   Import,
-  LayoutGrid,
   Library,
   Pencil,
   Plus,
-  Rows2,
   Search,
   Tag,
   Trash2
@@ -93,8 +91,8 @@ interface Props {
   /** Settings variant only: page heading rendered above the search row. */
   title?: ReactNode
   description?: ReactNode
+  headerActions?: ReactNode
   toolbarFooter?: ReactNode
-  allowColumnToggle?: boolean
 }
 
 function getGridColumnCount(width: number) {
@@ -247,23 +245,20 @@ export const ResourceGrid: FC<Props> = ({
   variant = 'library',
   title,
   description,
-  toolbarFooter,
-  allowColumnToggle = false
+  headerActions,
+  toolbarFooter
 }) => {
   const { t } = useTranslation()
   const hasNoMatches = Boolean(search) || hasHiddenResources
   const isSettings = variant === 'settings'
+  const isSkillSettings = isSettings && activeResourceType === 'skill'
   const { updateGroup, deleteGroup } = useGroupMutations('assistant', {
     refreshOnDelete: ['/assistants', '/assistants/*']
   })
   const scrollRef = useRef<HTMLDivElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
   const responsiveColumnCount = useGridColumnCount(contentRef)
-  const [preferredColumns, setPreferredColumns] = useState<1 | 2>(1)
-  const columnCount = isSettings
-    ? Math.min(allowColumnToggle ? preferredColumns : 1, responsiveColumnCount)
-    : responsiveColumnCount
-  const layoutLabel = t(columnCount === 1 ? 'common.layout.two_columns' : 'common.layout.single_column')
+  const columnCount = isSettings ? 1 : responsiveColumnCount
   const [showAllGroups, setShowAllGroups] = useState(false)
   const [createGroupDialogOpen, setCreateGroupDialogOpen] = useState(false)
   const [renamingGroup, setRenamingGroup] = useState<GroupItem | null>(null)
@@ -387,7 +382,20 @@ export const ResourceGrid: FC<Props> = ({
       value={search}
       onValueChange={onSearchChange}
       placeholder={t('library.toolbar.search_placeholder')}
-      className="max-w-64 flex-1"
+      className="min-w-0 max-w-64 flex-1"
+    />
+  )
+
+  const settingsSearchInput = (
+    <CollapsibleSearchBar
+      onSearch={onSearchChange}
+      value={search}
+      placeholder={t('library.toolbar.search_placeholder')}
+      tooltip={t('common.search')}
+      maxWidth={220}
+      collapsedSize={isSkillSettings ? 28 : 30}
+      icon={isSkillSettings ? <Search size={16} aria-hidden className="text-muted-foreground" /> : undefined}
+      style={{ borderRadius: 8 }}
     />
   )
 
@@ -399,27 +407,29 @@ export const ResourceGrid: FC<Props> = ({
           isSettings ? 'mx-auto w-[calc(100%-3rem)] max-w-5xl' : 'border-b border-border-subtle'
         )}>
         {isSettings ? (
-          <div className="flex min-w-0 items-center justify-between gap-4">
+          <div
+            className={cn(
+              'flex min-w-0 items-center justify-between gap-4',
+              isSkillSettings && 'border-b border-border-subtle pb-3'
+            )}>
             <div className="min-w-0">
               <div className="flex min-w-0 items-center gap-1.5">
                 <SettingTitle className="shrink-0">
                   <span>{title}</span>
                 </SettingTitle>
-                <CollapsibleSearchBar
-                  onSearch={onSearchChange}
-                  value={search}
-                  placeholder={t('library.toolbar.search_placeholder')}
-                  tooltip={t('common.search')}
-                  maxWidth={220}
-                  collapsedSize={30}
-                  style={{ borderRadius: 8 }}
-                />
+                {isSkillSettings && toolbarFooter ? <div className="ml-3 shrink-0">{toolbarFooter}</div> : null}
+                {!isSkillSettings ? settingsSearchInput : null}
               </div>
               {description ? (
                 <SettingDescription className="mt-1 text-sm leading-5">{description}</SettingDescription>
               ) : null}
             </div>
-            <div className="shrink-0">{addActions}</div>
+            <div className="flex min-w-0 shrink-0 items-center justify-end gap-2">
+              {headerActions}
+              {isSkillSettings ? toolbarLeading : null}
+              {isSkillSettings ? settingsSearchInput : null}
+              {addActions}
+            </div>
           </div>
         ) : (
           <div className="flex h-12 shrink-0 items-center gap-2 px-5">
@@ -432,25 +442,12 @@ export const ResourceGrid: FC<Props> = ({
           </div>
         )}
 
-        {toolbarFooter || (isSettings && (toolbarLeading || allowColumnToggle)) ? (
+        {!isSkillSettings && (toolbarFooter || (isSettings && toolbarLeading)) ? (
           <div className="mt-3 flex shrink-0 items-center justify-between gap-3 border-b border-border-subtle">
             {toolbarFooter}
-            {isSettings && (toolbarLeading || allowColumnToggle) && (
-              <div className="ml-auto flex shrink-0 items-center gap-3">
-                {toolbarLeading}
-                {allowColumnToggle && (
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    aria-label={layoutLabel}
-                    title={layoutLabel}
-                    disabled={responsiveColumnCount < 2}
-                    onClick={() => setPreferredColumns(columnCount === 1 ? 2 : 1)}>
-                    {columnCount === 1 ? <Rows2 size={20} aria-hidden /> : <LayoutGrid size={20} aria-hidden />}
-                  </Button>
-                )}
-              </div>
-            )}
+            {isSettings && toolbarLeading ? (
+              <div className="ml-auto flex shrink-0 items-center gap-3">{toolbarLeading}</div>
+            ) : null}
           </div>
         ) : null}
         {showGroupToolbar && (
@@ -659,6 +656,7 @@ function VirtualizedResourceGrid({
   onExport,
   onLaunchSkill
 }: VirtualizedResourceGridProps) {
+  const isSkillList = variant === 'settings' && columnCount === 1 && resources[0]?.type === 'skill'
   const rows = useMemo(() => {
     const nextRows: ResourceItem[][] = []
     for (let i = 0; i < resources.length; i += columnCount) {
@@ -670,12 +668,14 @@ function VirtualizedResourceGrid({
   const rowVirtualizer = useVirtualizer({
     count: rows.length,
     getScrollElement: () => scrollRef.current,
-    estimateSize: () => RESOURCE_CARD_ROW_ESTIMATE_PX + GRID_GAP_PX,
+    estimateSize: () => (isSkillList ? 80 : RESOURCE_CARD_ROW_ESTIMATE_PX + GRID_GAP_PX),
     overscan: 4
   })
 
   return (
-    <div style={{ height: rowVirtualizer.getTotalSize(), position: 'relative' }}>
+    <div
+      className={cn(isSkillList && 'overflow-hidden rounded-lg border border-border bg-card')}
+      style={{ height: rowVirtualizer.getTotalSize(), position: 'relative' }}>
       {rowVirtualizer.getVirtualItems().map((virtualRow) => {
         const row = rows[virtualRow.index] ?? []
         return (
@@ -683,7 +683,11 @@ function VirtualizedResourceGrid({
             key={virtualRow.key}
             ref={rowVirtualizer.measureElement}
             data-index={virtualRow.index}
-            className="grid gap-3 pb-3"
+            className={cn(
+              'grid gap-3 pb-3',
+              isSkillList && 'gap-0 border-b border-border-subtle pb-0',
+              isSkillList && virtualRow.index === rows.length - 1 && 'border-b-0'
+            )}
             style={{
               position: 'absolute',
               top: 0,
@@ -697,7 +701,6 @@ function VirtualizedResourceGrid({
                 key={resource.id}
                 resource={resource}
                 variant={variant}
-                columnCount={columnCount}
                 allGroups={allGroups}
                 onDelete={onDelete}
                 onDuplicate={onDuplicate}
