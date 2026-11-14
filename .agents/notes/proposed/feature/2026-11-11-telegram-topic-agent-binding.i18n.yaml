@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/proposed/feature/2026-11-11-telegram-topic-agent-binding.md
+2026-11-11-telegram-topic-agent-binding.md: 3bd5e45bdf1fbd2eedd64b97064e01dbff55b5c4
+2026-11-11-telegram-topic-agent-binding.zh.md: 4fc9d5366f9c0e8f633724c4b2e320c3dab7ed3b
