@@ -409,6 +409,9 @@ export const ModelSchema = z.object({
   reasoning: RuntimeReasoningSchema.optional(),
   /** User-row provenance for request defaults; never persisted as model metadata. */
   userDefaultReasoningEffort: ReasoningEffortSchema.optional(),
+  /** Provider-reported intrinsic reasoning controls (e.g. Ollama `/api/show`); server-managed
+   *  discovery metadata exposed read-only so reconcile flows can diff without guessing. */
+  reportedReasoning: ReasoningConfigSchema.optional(),
   /** Whether this exact provider-model pair supports the provider's Fast transport. */
   supportsFastMode: z.boolean().optional(),
   /** Endpoint-projected request controls safe to expose to the renderer. */

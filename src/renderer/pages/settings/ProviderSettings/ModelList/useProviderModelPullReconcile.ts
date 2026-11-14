@@ -15,8 +15,9 @@ import { enableProviderWhenModelsAvailable } from '@renderer/pages/settings/Prov
 import { toast } from '@renderer/services/toast'
 import { serializeHealthCheckError } from '@renderer/utils/error'
 import { classifyError } from '@renderer/utils/errorClassifier'
-import { MODELS_BATCH_MAX_ITEMS } from '@shared/data/api/schemas/models'
-import type { Model, UniqueModelId } from '@shared/data/types/model'
+import { MODELS_BATCH_MAX_ITEMS, MODELS_BULK_UPDATE_MAX_ITEMS } from '@shared/data/api/schemas/models'
+import type { Model, ReasoningConfig, UniqueModelId } from '@shared/data/types/model'
+import { MODEL_CAPABILITY } from '@shared/data/types/model'
 
 import { chunkArray } from '../utils/chunkArray'
 import { getModelInUseAsDefaultUniqueModelId } from './errorMessage'
@@ -76,13 +77,19 @@ export function useProviderModelPullReconcile(providerId: string) {
   const [isLoadingModels, setIsLoadingModels] = useState(false)
   const [hasLoadedCompleteRemoteModels, setHasLoadedCompleteRemoteModels] = useState(false)
   const [loadErrorMessage, setLoadErrorMessage] = useState<string | null>(null)
+  // Natively reported reasoning controls (Ollama `/api/show`) from the latest fetch, keyed by
+  // unique model id, so both adding and refreshing rows can persist them.
+  const [nativeReasoningById, setNativeReasoningById] = useState<Map<UniqueModelId, ReasoningConfig>>(new Map())
   const loadModelsSequenceRef = useRef(0)
   const [defaultModelId] = usePreference('chat.default_model_id')
   const [quickAssistantModelId] = usePreference('feature.quick_assistant.model_id')
   const [translateModelId] = usePreference('feature.translate.model_id')
   const { provider, enableProvider } = useProvider(providerId)
   const { models } = useModels({ providerId })
-  const { createModels, deleteModels, isCreating, isDeleting, isBulkDeleting } = useModelMutations()
+  // `loadModels` shadows `models` with the fetched list; the local rows stay reachable here.
+  const localModelsRef = useRef(models)
+  localModelsRef.current = models
+  const { createModels, deleteModels, updateModels, isCreating, isDeleting, isBulkDeleting } = useModelMutations()
   const { trigger: reconcileModels, isLoading: isReconciling } = useMutation(
     'POST',
     '/providers/:providerId/models:reconcile',
@@ -123,7 +130,7 @@ export function useProviderModelPullReconcile(providerId: string) {
     setHasLoadedCompleteRemoteModels(false)
     setLoadErrorMessage(null)
     try {
-      const { models, skippedModels = [] } = await fetchResolvedProviderModels(providerId)
+      const { models, skippedModels = [], discoveredReasoning = [] } = await fetchResolvedProviderModels(providerId)
       if (!isLatestLoad()) return null
 
       const fetched = models.filter((model) => model.name?.trim())
@@ -132,6 +139,39 @@ export function useProviderModelPullReconcile(providerId: string) {
           title: t('settings.models.manage.models_not_listed', { count: skippedModels.length }),
           description: skippedModels.join(', ')
         })
+      }
+      const discoveredById = new Map(discoveredReasoning.map(({ id, reasoning }) => [id, reasoning]))
+      setNativeReasoningById(discoveredById)
+      // Refresh natively reported reasoning controls on existing rows too, so a stale locally
+      // inferred tier is retired instead of overriding what the model reports.
+      const localById = new Map(localModelsRef.current.map((model) => [model.id, model]))
+      const reasoningPatches = discoveredReasoning.flatMap(({ id, reasoning, capabilities }) => {
+        const local = localById.get(id)
+        if (!local) return []
+        // The reported controls own the REASONING capability; every other local capability stays,
+        // including ones the user disabled — the discovered list must not revive them.
+        const patchCapabilities = Array.from(
+          new Set([
+            ...(local.capabilities ?? []).filter((capability) => capability !== MODEL_CAPABILITY.REASONING),
+            ...(capabilities.includes(MODEL_CAPABILITY.REASONING) ? [MODEL_CAPABILITY.REASONING] : [])
+          ])
+        )
+        const stored = local.reportedReasoning
+        const sameReasoning =
+          JSON.stringify(stored?.controls ?? null) === JSON.stringify(reasoning.controls ?? null) &&
+          JSON.stringify(stored?.selectableEfforts ?? null) === JSON.stringify(reasoning.selectableEfforts ?? null) &&
+          (stored?.defaultEffort ?? null) === (reasoning.defaultEffort ?? null)
+        const sameCapabilities =
+          JSON.stringify([...(local.capabilities ?? [])].sort()) === JSON.stringify([...patchCapabilities].sort())
+        return sameReasoning && sameCapabilities
+          ? []
+          : [{ uniqueModelId: id, patch: { reportedReasoning: reasoning, capabilities: patchCapabilities } }]
+      })
+      // Bulk updates have their own schema limit. A persistence error must
+      // reach the load error path, not report a clean fetch with stale controls.
+      for (const batch of chunkArray(reasoningPatches, MODELS_BULK_UPDATE_MAX_ITEMS)) {
+        if (!isLatestLoad()) return null
+        await updateModels(batch)
       }
       setFetchedModels(fetched)
       setHasLoadedCompleteRemoteModels(true)
@@ -152,7 +192,7 @@ export function useProviderModelPullReconcile(providerId: string) {
     } finally {
       if (isLatestLoad()) setIsLoadingModels(false)
     }
-  }, [providerId, t])
+  }, [providerId, t, updateModels])
 
   const openPullReconcile = useCallback(() => {
     setPullReconcileDrawerOpen(true)
@@ -172,7 +212,14 @@ export function useProviderModelPullReconcile(providerId: string) {
       }
 
       const chunks = chunkArray(
-        toAdd.map((model) => toCreateModelDto(providerId, model, resolveCreateModelEndpointTypes(provider, model))),
+        toAdd.map((model) =>
+          toCreateModelDto(
+            providerId,
+            model,
+            resolveCreateModelEndpointTypes(provider, model),
+            nativeReasoningById.get(model.id)
+          )
+        ),
         MODELS_BATCH_MAX_ITEMS
       )
       // A batch that lands commits and cannot be undone here, so the batches after
@@ -223,7 +270,7 @@ export function useProviderModelPullReconcile(providerId: string) {
         toast.warning(t('settings.models.manage.add_success_enable_failed'))
       }
     },
-    [createModels, enableProvider, models, provider, providerId, t]
+    [createModels, enableProvider, models, nativeReasoningById, provider, providerId, t]
   )
 
   const removeModels = useCallback(
@@ -295,6 +342,7 @@ export function useProviderModelPullReconcile(providerId: string) {
     cleanStaleModels,
     isLoadingModels,
     loadErrorMessage,
+    nativeReasoningById,
     isApplyingPullReconcile: isCreating || isDeleting || isBulkDeleting || isReconciling,
     isBusy: isLoadingModels || isCreating || isDeleting || isBulkDeleting || isReconciling
   }

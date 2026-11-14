@@ -50,6 +50,9 @@ export const CreateModelSchema = z.strictObject({
   group: z.string().optional(),
   /** Capabilities */
   capabilities: z.array(z.enum(objectValues(MODEL_CAPABILITY))).optional(),
+  /** Provider-reported intrinsic reasoning controls (e.g. Ollama `/api/show`); discovery
+   * metadata managed by the server-side model flows, never a user setting. `null` clears it. */
+  reportedReasoning: ReasoningConfigSchema.nullable().optional(),
   /** Input modalities */
   inputModalities: z.array(z.enum(objectValues(MODALITY))).optional(),
   /** Output modalities */

@@ -87,6 +87,42 @@ function resolveNativeAnthropicEffort(
   return typeof emission?.value === 'string' ? (emission.value as GatewayReasoningEffort) : undefined
 }
 
+/**
+ * Build the Ollama `think` value strictly from the model's reported controls (#18695, #23375):
+ * a named level only when the model advertises that level (projected onto its declared
+ * vocabulary by the serializer), a boolean when the model advertises the boolean switch, and
+ * no `think` field when the accepted values are unknown so Ollama applies its own default.
+ */
+function buildOllamaThinkingOptions(
+  context: ProviderReasoningContext,
+  effort: GatewayReasoningEffort,
+  maxTokens?: number
+): ProviderOptions | undefined {
+  const reasoning = context.invocationModel.reasoning
+  const controls = reasoning?.controls
+  // No declared controls (never discovered) means the accepted values are unknown: omit `think`.
+  if (effort === 'default' || controls === undefined) return undefined
+
+  const values = reasoning?.selectableEfforts ?? []
+  const tiers = values.filter((value) => value !== 'none' && value !== 'auto')
+  const allowsBoolean = controls.some((control) => control.kind === 'toggle') || values.includes('auto')
+  const allowsLevels = controls.some((control) => control.kind === 'effort') && tiers.length > 0
+
+  if (effort === 'none') {
+    return controls.length > 0 || values.includes('none') ? buildProviderOptions(context, 'none', maxTokens) : undefined
+  }
+  if (effort === 'auto') {
+    if (allowsBoolean) return buildProviderOptions(context, 'auto', maxTokens)
+    // Levels-only model: `think: true` may not be accepted, so fall back to the reported default
+    // level; without one, omit `think` and let Ollama apply its default.
+    const advertisedDefault = tiers.find((tier) => tier === reasoning?.defaultEffort)
+    return allowsLevels && advertisedDefault ? buildProviderOptions(context, advertisedDefault, maxTokens) : undefined
+  }
+  // A requested named level is clamped onto the advertised tiers by the reasoning serializer.
+  if (allowsLevels) return buildProviderOptions(context, effort, maxTokens)
+  return allowsBoolean ? buildProviderOptions(context, 'auto', maxTokens) : undefined
+}
+
 function canPassThroughAnthropicReasoning(
   context: ProviderReasoningContext,
   config: AnthropicThinkingConfig | undefined
@@ -168,12 +204,16 @@ export function mapAnthropicThinkingToProviderOptions(
   if (endpointType === ENDPOINT_TYPE.OLLAMA_CHAT) {
     if (config?.type !== 'disabled' && effort == null && config?.type !== 'enabled') return undefined
     const context = resolveProviderReasoningContext(provider, model, resolvedEndpoint)
-    if (config?.type === 'disabled') return buildProviderOptions(context, 'none', maxTokens)
-    if (effort != null) return buildProviderOptions(context, effort, maxTokens)
+    if (config?.type === 'disabled') return buildOllamaThinkingOptions(context, 'none', maxTokens)
+    if (effort != null) return buildOllamaThinkingOptions(context, effort, maxTokens)
     if (config?.type === 'enabled') {
-      const budgetEffort =
-        nearestEffortForBudget(config.budget_tokens, context.invocationModel.reasoning?.thinkingTokenLimits) ?? 'high'
-      return buildProviderOptions(context, budgetEffort, maxTokens)
+      const values = context.invocationModel.reasoning?.selectableEfforts ?? []
+      if (values.some((value) => value !== 'none' && value !== 'auto')) {
+        const budgetEffort =
+          nearestEffortForBudget(config.budget_tokens, context.invocationModel.reasoning?.thinkingTokenLimits) ?? 'high'
+        return buildOllamaThinkingOptions(context, budgetEffort, maxTokens)
+      }
+      return buildOllamaThinkingOptions(context, 'auto', maxTokens)
     }
     return undefined
   }
@@ -221,11 +261,11 @@ export function mapGeminiThinkingToProviderOptions(
   else if (includeThoughts === false) effort = 'none'
 
   if (effort === undefined) return undefined
-  return buildProviderOptions(
-    context ?? resolveProviderReasoningContext(provider, model, resolvedEndpoint),
-    effort,
-    maxTokens
-  )
+  const targetContext = context ?? resolveProviderReasoningContext(provider, model, resolvedEndpoint)
+  if (endpointType === ENDPOINT_TYPE.OLLAMA_CHAT) {
+    return buildOllamaThinkingOptions(targetContext, effort, maxTokens)
+  }
+  return buildProviderOptions(targetContext, effort, maxTokens)
 }
 
 /** Map OpenAI-style reasoning_effort to the resolved model's target dialect. */
@@ -235,7 +275,13 @@ export function mapReasoningEffortToProviderOptions(
   reasoningEffort?: ReasoningEffort,
   maxTokens?: number
 ): ProviderOptions | undefined {
-  return reasoningEffort == null
-    ? undefined
-    : buildProviderOptions(resolveProviderReasoningContext(provider, model), reasoningEffort, maxTokens)
+  if (reasoningEffort == null) return undefined
+  const resolvedEndpoint = resolveEffectiveEndpoint(provider, model)
+  const context = resolveProviderReasoningContext(provider, model, resolvedEndpoint)
+  // A native Ollama target needs the same guard as the Anthropic dialect: a named effort a
+  // toggle-only model cannot express still means "think", not silence.
+  if (resolvedEndpoint.endpointType === ENDPOINT_TYPE.OLLAMA_CHAT) {
+    return buildOllamaThinkingOptions(context, reasoningEffort, maxTokens)
+  }
+  return buildProviderOptions(context, reasoningEffort, maxTokens)
 }

@@ -3,7 +3,7 @@ import { serializeHealthCheckError } from '@renderer/utils/error'
 import { classifyError } from '@renderer/utils/errorClassifier'
 import type { BulkUpdateModelsDto, CreateModelsDto } from '@shared/data/api/schemas/models'
 import { MODELS_BATCH_MAX_ITEMS, MODELS_BULK_UPDATE_MAX_ITEMS } from '@shared/data/api/schemas/models'
-import type { Model } from '@shared/data/types/model'
+import type { Model, ReasoningConfig, UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 
 import { chunkArray } from './chunkArray'
@@ -14,6 +14,8 @@ interface PersistProviderModelsOptions {
   selectedModels: readonly Model[]
   localModels: readonly Model[]
   knownModels?: Iterable<Model>
+  /** Reasoning controls natively reported by the provider (Ollama `/api/show`), keyed by model id. */
+  nativeReasoningById?: ReadonlyMap<UniqueModelId, ReasoningConfig>
   createModels: (models: CreateModelsDto) => Promise<Model[]>
   updateModels: (models: BulkUpdateModelsDto) => Promise<Model[]>
   onPersisted?: (models: Model[]) => void
@@ -24,6 +26,7 @@ export async function persistProviderModels({
   selectedModels,
   localModels,
   knownModels = [],
+  nativeReasoningById,
   createModels,
   updateModels,
   onPersisted
@@ -53,7 +56,14 @@ export async function persistProviderModels({
   const missingModels = uniqueSelectedModels.filter((model) => !persistedModels.has(model.id))
   for (const modelChunk of chunkArray(missingModels, MODELS_BATCH_MAX_ITEMS)) {
     const createdModels = await createModels(
-      modelChunk.map((model) => toCreateModelDto(provider.id, model, resolveCreateModelEndpointTypes(provider, model)))
+      modelChunk.map((model) =>
+        toCreateModelDto(
+          provider.id,
+          model,
+          resolveCreateModelEndpointTypes(provider, model),
+          nativeReasoningById?.get(model.id)
+        )
+      )
     )
     const createdModelsById = new Map(createdModels.map((model) => [model.id, model]))
     const missingResult = modelChunk.find((model) => !createdModelsById.has(model.id))
