@@ -16,7 +16,6 @@ import {
   operationSubject
 } from './AppErrorContextService'
 import { showDetailOpenFailed } from './appErrorDetailOpen'
-import { degradedFaultHostService } from './DegradedFaultHostService'
 import { errorDetailPopupService } from './ErrorDetailPopupService'
 import { toast } from './toast'
 
@@ -67,31 +66,6 @@ function translatedExplanation(request: AppErrorDetailRequest): string {
   return i18n.t('error.unexpected')
 }
 
-function pushUnique(parts: string[], value: string | null | undefined): void {
-  const text = value?.trim()
-  if (!text || parts.includes(text)) return
-  parts.push(text)
-}
-
-/** Raw cause kept beside the localized wrapper when no detail dialog can open. */
-function degradedFaultText(request: AppErrorDetailRequest): string {
-  const summary = translatedExplanation(request)
-  const parts: string[] = []
-  pushUnique(parts, request.context.message)
-  const errorMessage = request.error?.message?.trim()
-  if (errorMessage && errorMessage !== request.context.message.trim()) {
-    const errorName = request.error?.name?.trim()
-    pushUnique(parts, errorName ? `${errorName}: ${errorMessage}` : errorMessage)
-  }
-  pushUnique(parts, request.error?.stack)
-  pushUnique(parts, request.context.stack)
-  if (typeof request.context.statusCode === 'number') pushUnique(parts, String(request.context.statusCode))
-  pushUnique(parts, request.context.responseBody)
-  const raw = parts.join('\n')
-  if (!raw || raw === summary) return summary
-  return `${summary}\n\n${raw}`
-}
-
 function faultSummary(operation: string): string {
   if (operation === 'window.unhandledrejection' || operation === 'process.unhandledRejection') {
     return i18n.t('error.unhandled_rejection')
@@ -129,7 +103,6 @@ class AppErrorDetailService {
       const popup = await errorDetailPopupService.load()
       if (!popup?.isErrorDetailHostMounted()) {
         this.detailReserved = false
-        if (degradedFaultHostService.presentDegradedFault(degradedFaultText(request))) return 'opened'
         showDetailOpenFailed(() => void this.openAppErrorDetail(request))
         return 'failed'
       }
