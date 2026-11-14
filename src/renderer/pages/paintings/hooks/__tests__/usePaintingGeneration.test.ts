@@ -41,7 +41,7 @@ const painting: PaintingData = {
   model: 'gpt-image-1',
   prompt: 'a private prompt',
   files: [],
-  params: { size: '1024x1024', quality: 'high' },
+  params: { size: '1024x1024', quality: 'high', vendor_option: 'unknown' },
   persistedAt: '2026-01-01T00:00:00.000Z'
 }
 

@@ -9,7 +9,6 @@ import {
 } from '@shared/ai/paintingGenerateError'
 import type { Model } from '@shared/data/types/model'
 import { parseUniqueModelId } from '@shared/data/types/model'
-import { PAINTING_ERROR_PARAM_KEYS } from '@shared/types/appError'
 import { summarizeErrorParams } from '@shared/utils/appError'
 import { isNonChatModel } from '@shared/utils/model'
 
@@ -52,6 +51,24 @@ export function translatePaintingGenerateError(error: Error): string {
 
   return i18n.t(keyMap[error.code])
 }
+
+/**
+ * Painting parameter names safe to keep on an error snapshot.
+ * Anything else — prompts, images, and unknown vendor fields — stays out.
+ */
+const PAINTING_ERROR_PARAM_KEYS = [
+  'aspect_ratio',
+  'guidance',
+  'height',
+  'mode',
+  'n',
+  'quality',
+  'seed',
+  'size',
+  'steps',
+  'style',
+  'width'
+] as const
 
 interface PaintingErrorPresentation {
   readonly operation?: string
