@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import type { CSSProperties, ReactNode } from 'react'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef } from 'react'
 
 import { useLatest } from '@renderer/hooks/useLatest'
@@ -341,6 +341,7 @@ export type ResourceListProviderProps<T extends ResourceListItemBase> = {
   getGroupHeaderTooltip?: ResourceListMeta<T>['getGroupHeaderTooltip']
   groupHeaderClickBehavior?: ResourceListGroupHeaderClickBehaviorResolver
   getGroupHeaderKind?: (group: ResourceListGroup) => ResourceListGroupHeaderKind
+  getGroupHeaderStyle?: (group: ResourceListGroup) => CSSProperties | undefined
   collapsedState?: readonly string[]
   revealRequest?: ResourceListRevealRequest
   dragCapabilities?: ResourceListDragCapabilities
@@ -563,6 +564,7 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
   getGroupHeaderTooltip,
   groupHeaderClickBehavior = 'toggle',
   getGroupHeaderKind,
+  getGroupHeaderStyle,
   collapsedState,
   revealRequest,
   dragCapabilities,
@@ -951,6 +953,7 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
       getGroupHeaderTooltip,
       getGroupHeaderClickBehavior,
       getGroupHeaderKind,
+      getGroupHeaderStyle,
       onGroupHeaderDeletePermanently,
       isGroupHeaderPermanentDeleteEligible,
       onEmptyGroupHeaderClick,
@@ -988,6 +991,7 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
       getGroupHeaderAction,
       getGroupHeaderClickBehavior,
       getGroupHeaderKind,
+      getGroupHeaderStyle,
       onGroupHeaderDeletePermanently,
       isGroupHeaderPermanentDeleteEligible,
       getGroupHeaderContextMenu,

@@ -58,6 +58,7 @@ import {
 } from '@renderer/services/recycleBinFeedback'
 import { toast } from '@renderer/services/toast'
 import { getAgentModelFallbackSnapshot } from '@renderer/utils/agent'
+import { getAgentColorStyle } from '@renderer/utils/agentColor'
 import { buildAgentFileWorkspaceKey, buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { withSoleGroupLabelHidden } from '@renderer/utils/chat/resourceListBase'
 import {
@@ -1480,6 +1481,16 @@ const Sessions = ({
       : 'entity'
   }, [])
 
+  const getGroupHeaderStyle = useCallback(
+    (group: ResourceListGroup) => {
+      if (displayMode !== 'agent') return undefined
+      if (group.id === SESSION_PINNED_GROUP_ID || group.id === SESSION_UNKNOWN_AGENT_GROUP_ID) return undefined
+      const agentId = getAgentIdFromSessionGroupId(group.id)
+      return agentId ? getAgentColorStyle(agentId) : undefined
+    },
+    [displayMode]
+  )
+
   const isGroupHeaderIconVisible = useCallback(
     (group: ResourceListGroup) => {
       if (group.id === SESSION_PINNED_GROUP_ID) return false
@@ -1640,6 +1651,7 @@ const Sessions = ({
       isGroupHeaderIconVisible={isGroupHeaderIconVisible}
       getGroupHeaderTooltip={getGroupHeaderTooltip}
       getGroupHeaderKind={getGroupHeaderKind}
+      getGroupHeaderStyle={getGroupHeaderStyle}
       groupHeaderClickBehavior={getGroupHeaderClickBehavior}
       dragCapabilities={{
         groups: displayMode === 'agent' ? agentDragReady : workdirDragReady,

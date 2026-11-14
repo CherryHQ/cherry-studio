@@ -90,6 +90,16 @@ export const CHERRY_PRODUCT_VARIABLE_TOKENS = [
   'error-subtle-foreground',
   'error-border',
 
+  /* Agent identity palette (runtime variables, not Tailwind utilities). */
+  'agent-color-0',
+  'agent-color-1',
+  'agent-color-2',
+  'agent-color-3',
+  'agent-color-4',
+  'agent-color-5',
+  'agent-color-6',
+  'agent-color-7',
+
   /* Product domains */
   'code-block',
   'inline-code',

@@ -141,6 +141,7 @@ Use `--destructive` for a dangerous action. Use the `--error*` family for error 
 
 | Domain | Variables | Intended properties |
 | --- | --- | --- |
+| Agent identity | `--agent-color-0`, `--agent-color-1`, `--agent-color-2`, `--agent-color-3`, `--agent-color-4`, `--agent-color-5`, `--agent-color-6`, `--agent-color-7` | Stable per-agent row/group accent and translucent tint; runtime CSS variables only, no Tailwind utilities |
 | Code blocks | `--code-block` | Block code `background-color` |
 | Inline code | `--inline-code`, `--inline-code-foreground` | Inline code `background-color` / `color` |
 | Default code theme | `--cherry-code-background`, `--cherry-code-foreground`, `--cherry-code-muted`, `--cherry-code-selection`, `--cherry-code-keyword`, `--cherry-code-string`, `--cherry-code-constant`, `--cherry-code-type`, `--cherry-code-function`, `--cherry-code-tag`, `--cherry-code-link`, `--cherry-code-inserted`, `--cherry-code-deleted` | Palette of the `cherry` code theme: transparent surface, text, selection, syntax roles, and diff text `color` |

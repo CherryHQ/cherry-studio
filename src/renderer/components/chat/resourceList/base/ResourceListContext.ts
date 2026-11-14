@@ -1,4 +1,4 @@
-import { createContext, type ReactNode, use, useCallback, useSyncExternalStore } from 'react'
+import { type CSSProperties, createContext, type ReactNode, use, useCallback, useSyncExternalStore } from 'react'
 
 import type { CommandContextMenuExtraItem } from '@renderer/components/command'
 
@@ -151,6 +151,7 @@ export type ResourceListMeta<T extends ResourceListItemBase> = {
   getGroupHeaderTooltip?: (group: ResourceListGroup) => string | undefined
   getGroupHeaderClickBehavior: (group: ResourceListGroup) => ResourceListGroupHeaderClickBehavior
   getGroupHeaderKind?: (group: ResourceListGroup) => ResourceListGroupHeaderKind
+  getGroupHeaderStyle?: (group: ResourceListGroup) => CSSProperties | undefined
   onGroupHeaderDeletePermanently?: (group: ResourceListGroup) => void | Promise<void>
   isGroupHeaderPermanentDeleteEligible?: (group: ResourceListGroup) => boolean
   onEmptyGroupHeaderClick?: (group: ResourceListGroup) => boolean | void
