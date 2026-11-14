@@ -196,6 +196,7 @@
   "notification.result.failed": "任务失败",
   "notification.result.interrupted": "任务已中断",
   "notification.result.succeeded": "任务已完成",
+  "notification.scheduled_task.started": "定时任务已开始",
   "notification.subscription.activated_message": "订阅权益已生效，请在模型选择器中选择 CherryAI 提供的模型进行使用。",
   "notification.subscription.auto_renew_enabled_message": "自动续费状态已更新，可在【设置-个人信息-管理订阅】查看订阅详情。",
   "notification.subscription.entitlement_restored_message": "订阅权益已恢复，可在【设置-个人信息-管理订阅】查看订阅详情。",

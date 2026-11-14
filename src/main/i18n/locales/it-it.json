@@ -196,6 +196,7 @@
   "notification.result.failed": "Attività non riuscita",
   "notification.result.interrupted": "Attività interrotta",
   "notification.result.succeeded": "Attività completata",
+  "notification.scheduled_task.started": "Attività pianificata avviata",
   "notification.subscription.activated_message": "Il tuo abbonamento è attivo. Scegli un modello fornito da CherryAI nel selettore dei modelli per usarlo.",
   "notification.subscription.auto_renew_enabled_message": "Lo stato del rinnovo automatico è stato aggiornato. Vedi i dettagli in «Impostazioni › Informazioni personali › Gestisci abbonamento».",
   "notification.subscription.entitlement_restored_message": "I diritti del tuo abbonamento sono stati ripristinati. Vedi i dettagli in «Impostazioni › Informazioni personali › Gestisci abbonamento».",

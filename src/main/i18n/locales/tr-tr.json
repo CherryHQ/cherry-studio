@@ -196,6 +196,7 @@
   "notification.result.failed": "Görev başarısız oldu",
   "notification.result.interrupted": "Görev kesintiye uğradı",
   "notification.result.succeeded": "Görev tamamlandı",
+  "notification.scheduled_task.started": "Zamanlanmış görev başladı",
   "notification.subscription.activated_message": "Aboneliğiniz etkin. Kullanmak için model seçicide CherryAI tarafından sunulan bir model seçin.",
   "notification.subscription.auto_renew_enabled_message": "Otomatik yenileme durumu güncellendi. Ayrıntılar için \"Ayarlar › Kişisel Bilgiler › Aboneliği yönet\" bölümüne bakın.",
   "notification.subscription.entitlement_restored_message": "Abonelik haklarınız geri yüklendi. Ayrıntılar için \"Ayarlar › Kişisel Bilgiler › Aboneliği yönet\" bölümüne bakın.",

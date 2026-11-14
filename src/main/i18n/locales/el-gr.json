@@ -196,6 +196,7 @@
   "notification.result.failed": "Η εργασία απέτυχε",
   "notification.result.interrupted": "Η εργασία διακόπηκε",
   "notification.result.succeeded": "Η εργασία ολοκληρώθηκε",
+  "notification.scheduled_task.started": "Η προγραμματισμένη εργασία ξεκίνησε",
   "notification.subscription.activated_message": "Η συνδρομή σας είναι ενεργή. Επιλέξτε ένα μοντέλο του CherryAI στον επιλογέα μοντέλων για να το χρησιμοποιήσετε.",
   "notification.subscription.auto_renew_enabled_message": "Η κατάσταση της αυτόματης ανανέωσης ενημερώθηκε. Δείτε λεπτομέρειες στις «Ρυθμίσεις › Προσωπικές πληροφορίες › Διαχείριση συνδρομής».",
   "notification.subscription.entitlement_restored_message": "Τα δικαιώματα της συνδρομής σας αποκαταστάθηκαν. Δείτε λεπτομέρειες στις «Ρυθμίσεις › Προσωπικές πληροφορίες › Διαχείριση συνδρομής».",

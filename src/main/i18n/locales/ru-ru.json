@@ -196,6 +196,7 @@
   "notification.result.failed": "Ошибка задачи",
   "notification.result.interrupted": "Задача прервана",
   "notification.result.succeeded": "Задача завершена",
+  "notification.scheduled_task.started": "Запланированная задача запущена",
   "notification.subscription.activated_message": "Подписка активна. Выберите модель CherryAI в списке моделей, чтобы начать ей пользоваться.",
   "notification.subscription.auto_renew_enabled_message": "Статус автопродления обновлён. Подробности — в разделе «Настройки › Личная информация › Управление подпиской».",
   "notification.subscription.entitlement_restored_message": "Права подписки восстановлены. Подробности — в разделе «Настройки › Личная информация › Управление подпиской».",

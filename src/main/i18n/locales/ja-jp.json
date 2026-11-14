@@ -196,6 +196,7 @@
   "notification.result.failed": "タスクが失敗しました",
   "notification.result.interrupted": "タスクが中断されました",
   "notification.result.succeeded": "タスクが完了しました",
+  "notification.scheduled_task.started": "スケジュールタスクを開始しました",
   "notification.subscription.activated_message": "サブスクリプションが有効になりました。モデル選択で CherryAI が提供するモデルを選んでご利用ください。",
   "notification.subscription.auto_renew_enabled_message": "自動更新の状態が更新されました。詳細は【設定 › 個人情報 › サブスクリプションを管理】で確認できます。",
   "notification.subscription.entitlement_restored_message": "サブスクリプション特典が復元されました。詳細は【設定 › 個人情報 › サブスクリプションを管理】で確認できます。",

@@ -196,6 +196,7 @@
   "notification.result.failed": "Tác vụ thất bại",
   "notification.result.interrupted": "Tác vụ bị gián đoạn",
   "notification.result.succeeded": "Tác vụ đã hoàn thành",
+  "notification.scheduled_task.started": "Tác vụ theo lịch đã bắt đầu",
   "notification.subscription.activated_message": "Gói đăng ký đã có hiệu lực. Hãy chọn một mô hình do CherryAI cung cấp trong bộ chọn mô hình để sử dụng.",
   "notification.subscription.auto_renew_enabled_message": "Trạng thái tự động gia hạn đã được cập nhật. Xem chi tiết tại “Cài đặt › Thông tin cá nhân › Quản lý gói đăng ký”.",
   "notification.subscription.entitlement_restored_message": "Quyền lợi gói đăng ký của bạn đã được khôi phục. Xem chi tiết tại “Cài đặt › Thông tin cá nhân › Quản lý gói đăng ký”.",

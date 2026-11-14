@@ -196,6 +196,7 @@
   "notification.result.failed": "Sarcina a eșuat",
   "notification.result.interrupted": "Sarcină întreruptă",
   "notification.result.succeeded": "Sarcină finalizată",
+  "notification.scheduled_task.started": "Sarcină programată pornită",
   "notification.subscription.activated_message": "Abonamentul tău este activ. Alege un model oferit de CherryAI din selectorul de modele pentru a-l folosi.",
   "notification.subscription.auto_renew_enabled_message": "Starea reînnoirii automate a fost actualizată. Vezi detaliile în „Setări › Informații personale › Gestionează abonamentul”.",
   "notification.subscription.entitlement_restored_message": "Drepturile abonamentului tău au fost restabilite. Vezi detaliile în „Setări › Informații personale › Gestionează abonamentul”.",

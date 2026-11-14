@@ -25,6 +25,8 @@ const logger = loggerService.withContext('NotificationService')
 /** OS notification category gates — all off means the Dock badge must clear (#20709). */
 const OS_NOTIFICATION_PREF_KEYS = [
   'app.notification.assistant.enabled',
+  'app.notification.approval.enabled',
+  'app.notification.scheduled_task.enabled',
   'app.notification.backup.enabled',
   'app.notification.knowledge.enabled',
   'app.notification.update.enabled',
@@ -214,6 +216,33 @@ export class NotificationService extends BaseService {
     }
   }
 
+  /** Announces a scheduled agent task run; only shown as an OS notification while no Cherry window is focused. */
+  public notifyScheduledTaskStarted({
+    jobId,
+    sessionId,
+    taskName
+  }: {
+    jobId: string
+    sessionId: string
+    taskName: string
+  }): void {
+    if (getFullChromeWindowInfos().some((window) => window.isFocused)) return
+    if (!application.get('PreferenceService').get('app.notification.scheduled_task.enabled')) return
+
+    const target: ConversationNavigationTarget = { conversationType: 'agent', conversationId: sessionId }
+    const conversationName = resolveNotificationConversationName(target, taskName)
+    void this.sendNotification({
+      id: `scheduled-task-start:${jobId}`,
+      type: 'info',
+      title: t('notification.scheduled_task.started'),
+      message: taskName || conversationName,
+      timestamp: Date.now(),
+      actionKey: CONVERSATION_NOTIFICATION_ACTION_KEY,
+      meta: target,
+      source: 'assistant'
+    })
+  }
+
   public deliverConversationNotification(notification: ConversationNotification): void {
     const focusedWindow = getFullChromeWindowInfos().find((window) => window.isFocused)
     if (focusedWindow) {
@@ -221,7 +250,11 @@ export class NotificationService extends BaseService {
       return
     }
 
-    if (!application.get('PreferenceService').get('app.notification.assistant.enabled')) return
+    const enabledKey =
+      notification.kind === 'approval-request'
+        ? 'app.notification.approval.enabled'
+        : 'app.notification.assistant.enabled'
+    if (!application.get('PreferenceService').get(enabledKey)) return
     void this.sendNotification(notification)
   }
 

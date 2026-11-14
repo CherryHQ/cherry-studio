@@ -196,6 +196,7 @@
   "notification.result.failed": "Échec de la tâche",
   "notification.result.interrupted": "Tâche interrompue",
   "notification.result.succeeded": "Tâche terminée",
+  "notification.scheduled_task.started": "Tâche planifiée démarrée",
   "notification.subscription.activated_message": "Votre abonnement est actif. Choisissez un modèle fourni par CherryAI dans le sélecteur de modèles pour l’utiliser.",
   "notification.subscription.auto_renew_enabled_message": "Le statut du renouvellement automatique a été mis à jour. Consultez les détails dans « Paramètres › Informations personnelles › Gérer l’abonnement ».",
   "notification.subscription.entitlement_restored_message": "Les droits de votre abonnement ont été rétablis. Consultez les détails dans « Paramètres › Informations personnelles › Gérer l’abonnement ».",

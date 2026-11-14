@@ -196,6 +196,7 @@
   "notification.result.failed": "งานล้มเหลว",
   "notification.result.interrupted": "งานถูกขัดจังหวะ",
   "notification.result.succeeded": "งานเสร็จสิ้นแล้ว",
+  "notification.scheduled_task.started": "งานที่กำหนดเวลาไว้เริ่มทำงานแล้ว",
   "notification.subscription.activated_message": "การสมัครสมาชิกมีผลแล้ว เลือกโมเดลที่ CherryAI ให้บริการในตัวเลือกโมเดลเพื่อใช้งาน",
   "notification.subscription.auto_renew_enabled_message": "อัปเดตสถานะการต่ออายุอัตโนมัติแล้ว ดูรายละเอียดได้ที่ \"การตั้งค่า › ข้อมูลส่วนตัว › จัดการการสมัครสมาชิก\"",
   "notification.subscription.entitlement_restored_message": "คืนสิทธิ์การสมัครสมาชิกแล้ว ดูรายละเอียดได้ที่ \"การตั้งค่า › ข้อมูลส่วนตัว › จัดการการสมัครสมาชิก\"",
