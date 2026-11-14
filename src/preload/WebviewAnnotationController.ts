@@ -519,6 +519,7 @@ export class WebviewAnnotationController {
           type: 'snapshot_ready',
           sessionId: command.sessionId,
           requestId: command.requestId,
+          // oxlint-disable-next-line no-restricted-globals -- Explicit annotation snapshots detach current page annotations before host delivery.
           annotations: structuredClone(this.annotations)
         })
         break
@@ -1119,6 +1120,7 @@ export class WebviewAnnotationController {
         type: 'editor_saved',
         sessionId: this.sessionId,
         requestId,
+        // oxlint-disable-next-line no-restricted-globals -- Capture one saved annotation before the page editor can change it again.
         annotation: structuredClone(saved),
         updated
       })

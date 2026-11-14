@@ -315,6 +315,7 @@ export class ClaudeOwner {
         message: {
           type: 'user',
           uuid,
+          // oxlint-disable-next-line no-restricted-globals -- Detach one submitted user content payload before asynchronous SDK consumption.
           message: { role: 'user', content: structuredClone(content) },
           priority: policy === 'steer' ? 'next' : 'later',
           parent_tool_use_id: null,

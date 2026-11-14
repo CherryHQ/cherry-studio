@@ -69,6 +69,7 @@ export function respondingModel(
   const model: TestStream = (model, context, options) => {
     const stream = createAssistantMessageEventStream()
     const call = {
+      // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
       ...structuredClone(context),
       ...options,
       model,
@@ -86,6 +87,7 @@ export function respondingModel(
     void (async () => {
       try {
         options?.signal?.throwIfAborted()
+        // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
         message = structuredClone(await Promise.race([respond(call, calls.length), aborted]))
         Object.assign(message, { api: model.api, provider: model.provider, model: model.id })
         calculateCost(model, message.usage)

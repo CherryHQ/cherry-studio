@@ -49,7 +49,7 @@ export class ClaudeFeed {
         : [],
       live: [...this.live],
       replaces: Object.fromEntries(this.replaces),
-      legacy: structuredClone(this.legacy),
+      legacy: this.legacy,
       native: [...this.native.values()],
       retracted: [...this.retracted]
     }
@@ -65,6 +65,7 @@ export class ClaudeFeed {
   ): void {
     if (this.ended) return
     if (state) this.controlState = state
+    // oxlint-disable-next-line no-restricted-globals -- Own the legacy map only when bindings change; ordinary deltas omit it.
     if (legacy) this.legacy = structuredClone(legacy)
     const replaces: Record<string, string> = {}
     native = native
@@ -119,7 +120,7 @@ export class ClaudeFeed {
         event.type === 'message.upsert' && this.live.has(event.message.id) ? [event.message.id] : []
       ),
       replaces,
-      legacy: structuredClone(this.legacy),
+      legacy: legacy ? this.legacy : undefined,
       retracted: [...this.pendingRetractions]
     }
     this.pendingRetractions.clear()

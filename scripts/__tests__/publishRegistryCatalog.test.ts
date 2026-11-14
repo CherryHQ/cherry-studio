@@ -321,6 +321,7 @@ describe('publishRegistryCatalog', () => {
       }
     }
     expect(readV3('models.json', { version: 'm1', models: [model] }).models).toHaveLength(1)
+    // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
     const expanded = structuredClone(model)
     Object.assign(expanded.imageGeneration.modes.generate.supports, {
       futureImageOption: { type: 'text' }

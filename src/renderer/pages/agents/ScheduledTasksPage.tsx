@@ -129,6 +129,7 @@ export default function ScheduledTasksPage() {
       </div>
     </ConversationNavigationPane>
   )
+  const selectedRun = conversation.result?.selectedRun
   const toolbar = (
     <div className="flex min-h-(--navbar-height) flex-wrap items-center gap-2 px-3 py-1.5">
       <ConversationSidebarToggleButton sidebarOpen={shell.shellPaneOpen} onSidebarToggle={shell.toggleShellPane} />
@@ -142,7 +143,7 @@ export default function ScheduledTasksPage() {
           </span>
         </Tooltip>
       )}
-      {!!conversation.result?.logs.length && (
+      {conversation.result && (!!conversation.result.logs.length || !!selectedRun) && (
         <Select value={runId ?? conversation.result.runId ?? ''} onValueChange={selectRun}>
           <SelectTrigger className="w-auto max-w-full" aria-label={t('scheduledTasks.conversation')}>
             <SelectValue placeholder={t('scheduledTasks.conversation')} />
@@ -211,6 +212,46 @@ export default function ScheduledTasksPage() {
       )}
     </div>
   )
+  const storedResult =
+    selectedRun && !error && !pending ? (
+      <div className="h-full min-h-0 overflow-y-auto p-6 text-sm select-text">
+        <p className="mb-4 text-muted-foreground">{t('scheduledTasks.noConversation')}</p>
+        <p>
+          {t('agent.tasks.logs.runAt')}: {formatTaskCardTime(selectedRun.startedAt)}
+        </p>
+        <p>
+          {t('agent.tasks.logs.status')}:{' '}
+          {selectedRun.status === 'pending' || selectedRun.status === 'delayed'
+            ? t('agent.tasks.runSummary.queued')
+            : t(
+                selectedRun.status === 'completed'
+                  ? 'agent.tasks.logs.completed'
+                  : selectedRun.status === 'failed'
+                    ? 'agent.tasks.logs.failed'
+                    : selectedRun.status === 'cancelled'
+                      ? 'agent.tasks.logs.cancelled'
+                      : 'agent.tasks.logs.running'
+              )}
+        </p>
+        {selectedRun.result !== null && (
+          <section className="mt-4">
+            <h2>{t('agent.tasks.logs.result')}</h2>
+            <p className="whitespace-pre-wrap break-words">{selectedRun.result}</p>
+          </section>
+        )}
+        {selectedRun.error !== null && (
+          <section className="mt-4">
+            <h2>{t('common.error')}</h2>
+            <p className="whitespace-pre-wrap break-words">{selectedRun.error}</p>
+          </section>
+        )}
+        {selectedRun.result === null && selectedRun.error === null && (
+          <p className="mt-4">{t('scheduledTasks.noStoredResult')}</p>
+        )}
+      </div>
+    ) : (
+      empty
+    )
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
       <AgentChat
@@ -226,7 +267,7 @@ export default function ScheduledTasksPage() {
         paneManualToggle={shell.paneManualToggle}
         showResourceListControls={false}
         conversationToolbar={toolbar}
-        centerSurface={!conversation.session ? { content: empty } : null}
+        centerSurface={!conversation.session ? { content: storedResult } : null}
       />
       {conversation.session && !!error && (
         <div role="alert" className="flex items-center gap-2 px-3 py-1 text-sm">

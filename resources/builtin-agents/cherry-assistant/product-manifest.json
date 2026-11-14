@@ -1171,6 +1171,11 @@
       "label": "English"
     },
     {
+      "value": "cs-CZ",
+      "flag": "🇨🇿",
+      "label": "Čeština"
+    },
+    {
       "value": "de-DE",
       "flag": "🇩🇪",
       "label": "Deutsch"

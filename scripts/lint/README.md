@@ -1,4 +1,34 @@
-# UI lint rules
+# Lint rules
+
+## Structured cloning
+
+The built-in Oxlint rules `no-restricted-globals` and `no-restricted-properties`
+reject `structuredClone`, including static access and destructuring through
+`globalThis`, `window`, `self`, and `global`. The restriction also applies to tests
+within the existing lint scope. It does not resolve global-object aliases or dynamic
+property names; this is a code-review guardrail, not a security boundary.
+
+Prefer explicit construction or structural sharing. Do not mechanically replace a
+deep copy with another deep-copy helper or JSON serialization. When isolation or
+transfer semantics require this API, suppress only the specific call and explain
+the preserved boundary, expected frequency and data size. Remaining
+exceptions preserve explicit isolation or transfer boundaries; they do not certify
+that the copy is inexpensive. Streaming paths must select changed data before copying.
+
+```ts
+// oxlint-disable-next-line no-restricted-globals -- Capture the small form once per save while editing continues.
+const submitted = structuredClone(form.getValues())
+```
+
+Qualified access uses `no-restricted-properties` in the suppression instead.
+Reasons are required by review convention; the built-in rules do not validate
+comment descriptions. Avoid file-wide or directory-wide exceptions.
+
+Run `pnpm test:scripts scripts/lint/__tests__/structured-clone.test.ts` to check
+the actual repository configuration against rejected accesses, single-line
+exceptions and unrelated local identifiers.
+
+## UI rules
 
 `scroll-area.mjs` is the Oxlint JavaScript plugin for the shared ScrollArea padding contract.
 It reports padding in `className` and `viewportProps.className` on recognized imports from

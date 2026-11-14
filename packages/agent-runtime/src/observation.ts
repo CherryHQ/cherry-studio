@@ -1,4 +1,11 @@
-import type { Observation, ObservationPayload, ObservationSink, ThreadSnapshot } from './contracts'
+import type {
+  InputId,
+  Observation,
+  ObservationPayload,
+  ObservationSink,
+  RuntimeMessage,
+  ThreadSnapshot
+} from './contracts'
 
 /** Bounded delivery for normalized facts; never schedules native execution. */
 export class ThreadFeed {
@@ -11,6 +18,7 @@ export class ThreadFeed {
   constructor(
     private value: ThreadSnapshot,
     private readonly report: (error: unknown) => void,
+    // oxlint-disable-next-line no-restricted-globals -- Isolate caller-owned snapshots by default.
     private readonly copy: <T extends ObservationPayload>(value: T) => T = structuredClone
   ) {
     this.value = this.copy(value)
@@ -18,6 +26,26 @@ export class ThreadFeed {
 
   get snapshot(): ThreadSnapshot {
     return this.copy(this.value)
+  }
+
+  get state(): Omit<ThreadSnapshot, 'messages'> {
+    const { type, inputs, activity, contextUsage, subagents } = this.value
+    // oxlint-disable-next-line no-restricted-globals -- Copy only non-message state for internal reads; never traverse history here.
+    return structuredClone({ type, inputs, activity, contextUsage, subagents })
+  }
+
+  get messageIds(): string[] {
+    return this.value.messages.map((message) => message.id)
+  }
+
+  message(id: string | undefined): RuntimeMessage | undefined {
+    const message = this.value.messages.find((message) => message.id === id)
+    // oxlint-disable-next-line no-restricted-globals -- Copy one selected message instead of the complete history for adapter lookups.
+    return message && structuredClone(message)
+  }
+
+  messageInputId(id: string): InputId | undefined {
+    return this.value.messages.find((message) => message.id === id)?.metadata?.inputId
   }
 
   publish(event: ObservationPayload): void {
@@ -89,6 +117,7 @@ export class ThreadFeed {
     let lost = false
     type Delivery = { value: T; through: number; shouldClose: boolean; recovery?: T }
     const captureFrame = (event: ObservationPayload, delivery: Parameters<typeof capture>[1]) =>
+      // oxlint-disable-next-line no-restricted-globals -- Isolate each asynchronous observer once; baseline/recovery intentionally include the full snapshot.
       structuredClone(capture(event, delivery))
     let pending: Delivery[] = [{ value: captureFrame(this.value, 'baseline').value, through: sent, shouldClose: false }]
     const barriers = new Set<{ through: number; resolve(): void; reject(error: Error): void }>()

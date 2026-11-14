@@ -265,7 +265,9 @@ describe('remarkLiteralAutolinkFix', () => {
     }
     const processor = unified().use(remarkLiteralAutolinkFix)
     const before = JSON.stringify(tree)
+    // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
     expect(() => processor.runSync(structuredClone(tree), { value: '**https://a.com/x**.html' })).not.toThrow()
+    // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
     expect(JSON.stringify(processor.runSync(structuredClone(tree), { value: '**https://a.com/x**.html' }))).toBe(before)
   })
 
@@ -323,12 +325,14 @@ describe('remarkLiteralAutolinkFix', () => {
       children: [{ type: 'paragraph', children: [{ type: 'text', value: '**' }, link] }]
     }
     const processor = unified().use(remarkLiteralAutolinkFix)
+    // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
     expect(processor.runSync(structuredClone(tree), { value: '**https://a.com/x**(y)' })).toEqual(tree)
   })
 
   it('is idempotent: an already-repaired tree passes through unchanged', () => {
     const once = parse('**https://a.com/x**（note）')
     const processor = unified().use(remarkLiteralAutolinkFix)
+    // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
     expect(processor.runSync(structuredClone(once), { value: '**https://a.com/x**（note）' })).toEqual(once)
   })
 })

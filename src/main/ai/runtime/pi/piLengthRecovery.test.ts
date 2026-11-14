@@ -92,6 +92,7 @@ async function createSession(responses: ReturnType<typeof response>[], cancelCom
   })
   const contexts: Context[] = []
   const streamSimple = (_model: Model<Api>, context: Context) => {
+    // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
     contexts.push(structuredClone(context))
     const message = responses[contexts.length - 1]
     if (!message) throw new Error('Unexpected extra provider request')

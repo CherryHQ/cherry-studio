@@ -299,6 +299,7 @@ function AssistantEditDialogContent({
     )
 
   const persist = async () => {
+    // oxlint-disable-next-line no-restricted-globals -- Capture one submitted form across async save while the user continues editing.
     const submittedValues = structuredClone(form.getValues())
     if (!submittedValues.name.trim()) return
     const submittedFormState = buildAssistantFormState(formBaselineRef.current, submittedValues)

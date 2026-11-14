@@ -44,6 +44,7 @@ describe('Gemini thought signatures', () => {
           }
         ]
       }
+      // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
       const original = structuredClone(params)
       const model = createOpenAICompatible({ name: 'gateway', baseURL: 'https://gateway.test' })('gemini-4-argon')
       const transformed = await context.middlewares![0].transformParams!({ params, model, type: 'generate' })
