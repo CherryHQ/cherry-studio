@@ -18,6 +18,8 @@ import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import { autoReadService, readMessageAloud, voiceTargetManager } from '@renderer/services/voice'
+import { classifyError } from '@renderer/utils/errorClassifier'
+import { serializeToastError } from '@renderer/utils/errorToast'
 import { getTextFromParts } from '@renderer/utils/message/partsHelpers'
 import { isMac } from '@renderer/utils/platform'
 import { cn } from '@renderer/utils/style'
@@ -143,15 +145,23 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
       currentModel ? { providerId: currentModel.providerId, modelId: parseUniqueModelId(currentModel.id).modelId } : {},
     [currentModel]
   )
+  // The card shows a localized conclusion; the provider's raw text stays in Details.
+  const summarizeFlowError = useCallback(
+    (cause: unknown) => {
+      const { category, i18nKey } = classifyError(serializeToastError(cause), currentModel?.providerId)
+      return category === 'unknown' ? t('error.diagnosis.unknown') : t(i18nKey)
+    },
+    [currentModel, t]
+  )
 
   const {
     messages: chatMessages,
     sendMessage,
     stop: stopChat,
     setMessages
-  } = useStreamCommands(temporaryTopicId ?? 'pending-temp', undefined, (err, cause) => {
+  } = useStreamCommands(temporaryTopicId ?? 'pending-temp', undefined, (_err, cause) => {
     setIsPreparing(false)
-    setFlowError({ message: err.message, cause, ...failedModel })
+    setFlowError({ message: summarizeFlowError(cause), cause, ...failedModel })
   })
 
   // Local inputs and projected assistant messages share the existing message list.
@@ -414,8 +424,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
           void sendMessage(message)
         }
       } catch (streamError) {
-        const message = streamError instanceof Error ? streamError.message : t('error.unexpected')
-        setFlowError({ message, cause: streamError, ...failedModel })
+        setFlowError({ message: summarizeFlowError(streamError), cause: streamError, ...failedModel })
         logger.error(
           'Error fetching result:',
           streamError instanceof Error
@@ -424,7 +433,16 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
         )
       }
     },
-    [currentModel, failedModel, isAssistantMode, isTopicReady, requestText, sendMessage, t, temporaryTopicId]
+    [
+      currentModel,
+      failedModel,
+      isAssistantMode,
+      isTopicReady,
+      requestText,
+      sendMessage,
+      summarizeFlowError,
+      temporaryTopicId
+    ]
   )
 
   const handlePause = useCallback(() => {
