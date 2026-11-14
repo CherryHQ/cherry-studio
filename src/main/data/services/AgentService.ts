@@ -6,6 +6,7 @@ import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { type AgentRow, agentTable as agentsTable, type InsertAgentRow } from '@data/db/schemas/agent'
 import { agentChannelTable } from '@data/db/schemas/agentChannel'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
+import { appStateTable } from '@data/db/schemas/appState'
 import { agentKnowledgeBaseTable, agentMcpServerTable } from '@data/db/schemas/assistantRelations'
 import { agentAvatarFileRefTable } from '@data/db/schemas/fileRelations'
 import { knowledgeBaseTable } from '@data/db/schemas/knowledge'
@@ -106,6 +107,9 @@ function getAgentDescription(id: string, description: string, configuration: unk
 
 /** The doctor Agent only ever runs inside the System Doctor; it has no place in the Agents page. */
 const notDoctorAgent: SQL = sql`coalesce(json_extract(${agentsTable.configuration}, '$.builtin_role'), '') <> ${BUILTIN_AGENT_ROLE.DOCTOR}`
+
+/** app_state key prefix recording a permanently deleted built-in Agent role. */
+const PURGED_BUILTIN_AGENT_KEY_PREFIX = 'builtinAgent:purged:'
 
 /** Support also requires its reserved ID, so a legacy marker on another Agent never matches. */
 function builtinRolePredicate(builtinRole: string): SQL {
@@ -480,6 +484,17 @@ export class AgentService {
     return agent ?? null
   }
 
+  /** Whether the user permanently deleted this built-in role; seeders must not recreate it. */
+  isBuiltinAgentPurgedTx(tx: DbOrTx, builtinRole: string): boolean {
+    const [row] = tx
+      .select({ key: appStateTable.key })
+      .from(appStateTable)
+      .where(eq(appStateTable.key, `${PURGED_BUILTIN_AGENT_KEY_PREFIX}${builtinRole}`))
+      .limit(1)
+      .all()
+    return row !== undefined
+  }
+
   /** Remove legacy Support markers from non-system IDs without changing other Agent data. */
   clearUntrustedBuiltinSupportRolesTx(tx: DbOrTx): void {
     const rows = tx
@@ -568,6 +583,10 @@ export class AgentService {
         restored
       }
     }
+
+    tx.delete(appStateTable)
+      .where(eq(appStateTable.key, `${PURGED_BUILTIN_AGENT_KEY_PREFIX}${input.builtinRole}`))
+      .run()
 
     const preferredModel = input.preferredModelId ? modelService.findByIdTx(tx, input.preferredModelId) : null
     const model = preferredModel && isGatewayRoutableModel(preferredModel) ? input.preferredModelId : null
@@ -1018,6 +1037,22 @@ export class AgentService {
   }
 
   deleteAgentTx(tx: DbOrTx, id: string): { rowsAffected: number } {
+    const [target] = tx
+      .select({ configuration: agentsTable.configuration })
+      .from(agentsTable)
+      .where(eq(agentsTable.id, id))
+      .limit(1)
+      .all()
+    const builtinRole = getBuiltinRole(target?.configuration)
+    if (
+      typeof builtinRole === 'string' &&
+      (builtinRole !== BUILTIN_AGENT_ROLE.SUPPORT || id === CHERRY_SUPPORT_AGENT_ID)
+    ) {
+      tx.insert(appStateTable)
+        .values({ key: `${PURGED_BUILTIN_AGENT_KEY_PREFIX}${builtinRole}`, value: { purgedAt: Date.now() } })
+        .onConflictDoNothing()
+        .run()
+    }
     pinService.purgeForEntityTx(tx, 'agent', id)
     promptService.purgeForTargetTx(tx, 'agent', id)
     const result = tx.delete(agentsTable).where(eq(agentsTable.id, id)).run()
