@@ -1,16 +1,12 @@
-import { ImageUp, RotateCcw, Smile } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
-import { Button, ColFlex, EmojiAvatar, Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
 import { dataApiService } from '@data/DataApiService'
-import { AssistantAvatarImage } from '@renderer/components/Avatar/AssistantAvatarImage'
-import { EmojiPicker } from '@renderer/components/EmojiPicker'
 import { useInvalidateCache } from '@renderer/data/hooks/useDataApi'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import type { InputFor } from '@shared/ipc/types'
 
+import { AvatarPicker } from './AvatarPicker'
 import { prepareAvatarImage } from './prepareAvatarImage'
 
 type Props = {
@@ -32,25 +28,22 @@ export function AgentAvatarPicker({
   size = 'md',
   onChanged
 }: Props) {
-  const { t } = useTranslation()
   const invalidate = useInvalidateCache()
   const [open, setOpen] = useState(false)
-  const [view, setView] = useState<'menu' | 'emoji'>('menu')
   const [pending, setPending] = useState(false)
-  const inputRef = useRef<HTMLInputElement>(null)
   const sessionRef = useRef({ active: true, pending: false })
   useEffect(() => {
     const session = { active: true, pending: false }
     sessionRef.current = session
     setPending(false)
     setOpen(false)
-    setView('menu')
     return () => {
       session.active = false
     }
   }, [agentId])
 
-  const save = async (intent: InputFor<'agent.set_avatar'>['avatar'] | File) => {
+  // The picker closes itself on an emoji pick, and 🎲 stays open for another roll.
+  const save = async (intent: InputFor<'agent.set_avatar'>['avatar'] | File, keepOpen = false) => {
     const id = agentId
     const session = sessionRef.current
     if (session.pending) return
@@ -69,8 +62,7 @@ export function AgentAvatarPicker({
       await ipcApi.request('agent.set_avatar', { agentId: id, avatar })
       await invalidate([`/agents/${id}`, '/agents'])
       if (!session.active) return
-      setOpen(false)
-      setView('menu')
+      if (!keepOpen) setOpen(false)
       if (onChanged) {
         const data = await dataApiService.get(`/agents/${id}`)
         if (session.active) onChanged({ avatarSrc: data.avatarSrc, emoji: data.configuration?.avatar ?? '🤖' })
@@ -83,87 +75,19 @@ export function AgentAvatarPicker({
     }
   }
 
-  const avatarSize = size === 'sm' ? 36 : 32
   return (
-    <Popover
+    <AvatarPicker
+      emoji={emoji}
+      imageSrc={avatarSrc}
       open={open}
-      onOpenChange={(next) => {
-        setOpen(next)
-        if (!next) setView('menu')
-      }}>
-      <PopoverTrigger asChild>
-        <Button
-          type="button"
-          variant="ghost"
-          disabled={pending}
-          aria-label={ariaLabel}
-          className={`shrink-0 rounded-lg p-0 ${size === 'sm' ? 'size-9' : 'size-8'}`}>
-          <AssistantAvatarImage
-            src={avatarSrc}
-            alt={ariaLabel}
-            size={avatarSize}
-            className="rounded-lg object-cover"
-            fallback={
-              <EmojiAvatar
-                size={avatarSize}
-                fontSize={size === 'sm' ? 18 : 16}
-                className="rounded-lg border border-border">
-                {emoji}
-              </EmojiAvatar>
-            }
-          />
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent portalContainer={portalContainer} className="w-auto p-2" align="center" sideOffset={6}>
-        {view === 'emoji' ? (
-          <fieldset disabled={pending} aria-busy={pending}>
-            <EmojiPicker onEmojiClick={(next) => void save({ kind: 'emoji', emoji: next })} />
-          </fieldset>
-        ) : (
-          <ColFlex className="w-40 gap-1">
-            <input
-              ref={inputRef}
-              type="file"
-              className="hidden"
-              disabled={pending}
-              aria-label={t('settings.general.image_upload')}
-              accept="image/png, image/jpeg, image/gif, image/webp"
-              onChange={(event) => {
-                const file = event.target.files?.[0]
-                event.target.value = ''
-                if (file) void save(file)
-              }}
-            />
-            <Button
-              type="button"
-              variant="ghost"
-              className="w-full justify-start"
-              disabled={pending}
-              onClick={() => inputRef.current?.click()}>
-              <ImageUp aria-hidden />
-              {t('settings.general.image_upload')}
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              className="w-full justify-start"
-              disabled={pending}
-              onClick={() => setView('emoji')}>
-              <Smile aria-hidden />
-              {t('settings.general.emoji_picker')}
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              className="w-full justify-start"
-              disabled={pending}
-              onClick={() => void save({ kind: 'default' })}>
-              <RotateCcw aria-hidden />
-              {t('settings.general.avatar.reset')}
-            </Button>
-          </ColFlex>
-        )}
-      </PopoverContent>
-    </Popover>
+      onOpenChange={setOpen}
+      onEmojiChange={(next) => void save({ kind: 'emoji', emoji: next }, true)}
+      onUpload={(file) => void save(file)}
+      onReset={() => void save({ kind: 'default' })}
+      ariaLabel={ariaLabel}
+      pending={pending}
+      portalContainer={portalContainer}
+      size={size}
+    />
   )
 }

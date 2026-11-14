@@ -14,7 +14,6 @@ import {
 } from '@cherrystudio/ui'
 import type { ModelSelectorFilter } from '@renderer/components/ModelSelector'
 import { PermissionModeSelect } from '@renderer/components/PermissionModeOption'
-import { EmojiAvatarPicker } from '@renderer/components/resourceCatalog/dialogs/components/DialogFormFields'
 import {
   CompactModelField,
   type ModelLabels
@@ -22,6 +21,7 @@ import {
 import { getPermissionModeCards } from '@renderer/utils/agent'
 
 import type { ResourceCreateWizardFormValues } from '../types'
+import { CreateAvatarPicker } from './CreateAvatarPicker'
 
 const EMPTY_MODEL_LABELS: ModelLabels = {
   modelId: null,
@@ -139,8 +139,6 @@ function AvatarNameField({
   placeholder?: string
 }) {
   const { t } = useTranslation()
-  const [emojiPickerOpen, setEmojiPickerOpen] = useState(false)
-  const avatar = useWatch({ control: form.control, name: 'avatar' })
 
   return (
     <FormField
@@ -152,13 +150,9 @@ function AvatarNameField({
           <FormLabel className="font-medium">{t('library.config.dialogs.create.avatar_name_label')}</FormLabel>
           <InputGroup>
             <InputGroupAddon className="py-0">
-              <EmojiAvatarPicker
-                value={avatar}
-                fallback={fallbackAvatar}
-                open={emojiPickerOpen}
-                onOpenChange={setEmojiPickerOpen}
-                onChange={(value) => form.setValue('avatar', value, { shouldDirty: true })}
-                ariaLabel={t('library.config.dialogs.create.avatar_aria')}
+              <CreateAvatarPicker
+                form={form}
+                fallbackAvatar={fallbackAvatar}
                 portalContainer={portalContainer}
                 avatarClassName="border-0"
                 avatarFontSize={18}
