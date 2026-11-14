@@ -13,7 +13,7 @@ Status: proposed
 - **模型选择范围窄。** 只有 PaddleOCR 暴露了模型字段，且选项硬编码在 `PaddleOcrModelSettings.tsx`（`PP-OCRv6`、`PP-OCRv5`）中。其他提供方的 `modelId`（例如 Mistral 的 `mistral-ocr-latest`）只能由预设设置。
 - **没有重置。** 覆盖配置会一直保留，直到用户逐项修改；没有一个操作可以把某个处理器恢复为预设的提供方、模型和选项。
 - **保存前不校验不受支持的组合。** API 地址已有校验，但保存前无人检查所选模型是否属于该提供方声明的模型、处理器是否支持所选选项，或所需的本地模型是否已安装。
-- **适用范围没有说明，且有一个入口独立配置。** `image_to_text` 驱动聊天 `read_file` 的 OCR（`ocrImageToText.ts`）、翻译页的图片，以及知识库的图片导入。截图区域 OCR（`ScreenshotOverlayService.recognizeText` → `recognizeScreenshotText`、`OcrInferenceService`）使用自己的运行时，不读取 `image_to_text`。扫描版 PDF 页面走 `local-document` 的 OCR（`pdfPageOcr.ts`）。设置页没有说明哪个入口适用哪份配置。
+- **适用范围没有说明，且有一个入口独立配置。** `image_to_text` 目前驱动聊天 `read_file` 的 OCR（`ocrImageToText.ts`）和翻译页的图片，并不驱动知识库图片导入。`KnowledgeIngestionService` 的受支持扩展名检查会拒绝 PNG/JPEG；现有文件处理路径通过知识库的 `fileProcessorId` 使用 `document_to_markdown`。因此，知识库图片 OCR 需要新增导入和路由工作，而不只是修改设置。截图区域 OCR（`ScreenshotOverlayService.recognizeText` → `recognizeScreenshotText`、`OcrInferenceService`）使用自己的运行时，不读取 `image_to_text`。扫描版 PDF 页面走 `local-document` 的 OCR（`pdfPageOcr.ts`）。设置页没有说明哪个入口适用哪份配置。
 
 现有用户没有覆盖配置，因此解析出的处理器是平台默认值（`resolveDefaultImageToTextProcessor`：macOS 和 Windows 为系统 OCR，其他平台为 Tesseract）。这一行为不得改变。
 
@@ -23,7 +23,7 @@ Status: proposed
 - **选项支持。** 只有当所选处理器的预设声明了某个选项时才显示对应字段（Tesseract 与系统 OCR 为语言；PaddleOCR 与 Mistral 为模型；远程处理器为 API 地址）。不暴露任意的提供方参数。
 - **保存前校验。** `setCapabilityField` 只在值通过 `src/shared/data/presets/fileProcessing.ts` 中的共享校验后调用。校验拒绝以下情况：`image_to_text` 的处理器不支持 `image` 输入；模型不在预设列表中；处理器未声明该选项；API 地址为空或无效；本地处理器所需的本地模型（`FILE_PROCESSOR_LOCAL_MODEL`）未安装。拒绝原因会以内联方式显示在字段旁，并给出修复方法（例如“请先在本地模型中下载本地 OCR 模型”）。
 - **重置为默认。** 处理器面板上的“重置为默认”操作会删除该处理器的覆盖配置（`image_to_text` 的 `FileProcessorOverride` 及其能力条目），并恢复预设值。它同样要经过保存时的校验。
-- **图片 OCR 的单一文档化来源。** 设置 → OCR 中的 `image_to_text` 是聊天图片 OCR、翻译页图片 OCR 和知识库图片导入的唯一配置。设置页与 `docs/website` 会说明每个入口使用哪份配置，包括截图区域 OCR 和扫描版 PDF 页面在别处配置。
+- **图片 OCR 的单一文档化来源。** 设置 → OCR 中的 `image_to_text` 是聊天图片 OCR、翻译页图片 OCR 和知识库图片导入的唯一配置。要交付这一拟议的知识库图片行为，需扩展 `KnowledgeIngestionService`，接收受支持的图片输入，并使用已保存的 OCR 偏好将这些输入路由到 `image_to_text`。对于文档输入，保留现有的 `document_to_markdown` 路径。主进程测试必须覆盖图片接收、处理器选择和拒绝/错误传播。设置页与 `docs/website` 会区分现有支持与新增的导入路径，包括截图区域 OCR 和扫描版 PDF 页面在别处配置。
 - **兼容性。** 不做迁移。没有覆盖配置时，解析结果与之前完全一致，偏好存储的 schema 也不变。
 
 不在范围内：同时控制截图 OCR 或 PDF OCR 的统一 OCR 页面；自由文本模型 ID；新的 OCR 引擎。
@@ -37,7 +37,7 @@ Status: proposed
 
 ## Acceptance criteria
 
-- AC1 — 设置 → OCR 允许用户从共享列表中选择任一 `image_to_text` 处理器并持久化；该选择用于聊天 `read_file` OCR、翻译页图片 OCR 和知识库图片导入。(verification: renderer)
+- AC1 — 设置 → OCR 允许用户从共享列表中选择任一 `image_to_text` 处理器并持久化；该选择用于聊天 `read_file` OCR、翻译页图片 OCR 和新增的知识库图片导入路径，包括主进程中的图片接收和处理器路由。(verification: unit on `KnowledgeIngestionService`; renderer)
 - AC2 — 模型选择器只列出所选处理器预设声明的模型，显示的字段与该处理器声明的选项完全一致。(verification: renderer)
 - AC3 — 不受支持的处理器、模型、选项、API 地址，或缺失的本地模型都会阻止保存，并以内联方式显示原因和修复方法；已存储的偏好保持不变。(verification: unit; renderer)
 - AC4 — “重置为默认”会删除该处理器的覆盖配置并恢复预设值；之后解析出的配置与全新安装相同。(verification: unit; renderer)
