@@ -44,6 +44,7 @@ import {
   resolveArtifactPaneFileSelection
 } from '@renderer/components/chat/panes/ArtifactPane'
 import { getPathBasename } from '@renderer/components/chat/panes/artifactPanePath'
+import { PROFILE_PANE_ID, ProfilePaneFrame } from '@renderer/components/chat/panes/profile'
 import {
   createResourcePaneCapability,
   RESOURCE_PANE_TAB,
@@ -285,6 +286,7 @@ interface AgentRightPanelScope {
   filePreviewSelection: ArtifactPaneFileSelection | null
   hasSystemWorkspaceEntries: boolean
   filesTitle: string
+  profileTitle: string
   flowTab: AgentFlowTab | null
   previousFlowTab: AgentFlowTab | null
   goBackFlow: () => void
@@ -1000,6 +1002,7 @@ function AgentRightPaneStateProvider({
       previousFlowTab,
       goBackFlow,
       meta,
+      profileTitle: t('chat.profile_pane.title'),
       resourcePane,
       traceTitle: t('trace.label')
     }),
@@ -1654,6 +1657,7 @@ function AgentDetailsScope({ children, present }: { children: ReactNode; present
         sessionId={meta.sessionId}
         available={present && meta.conversationState === 'ready' && !!meta.sessionId && !panel.presentationMaximized}>
         <AgentRunTaskStopsProvider>
+          <ProfileDetailsExclusivity />
           {present && meta.conversationState === 'ready' && meta.sessionId && meta.workspacePath && (
             <AgentWorkspaceOpenShortcut workspacePath={meta.workspacePath} />
           )}
@@ -1662,6 +1666,30 @@ function AgentDetailsScope({ children, present }: { children: ReactNode; present
       </AgentSessionDetailsProvider>
     </DesktopControlsContext>
   )
+}
+
+/** The profile pane and the session details card never show together: opening either closes the other. */
+function ProfileDetailsExclusivity() {
+  const panel = useRightPanelState()
+  const panelActions = useRightPanelActions()
+  const details = useAgentSessionDetails()
+  const profileOpen = panel.isActive(PROFILE_PANE_ID)
+  const detailsOpen = details.available && (details.mode === 'inline' ? details.inlineOpen : details.popupOpen)
+  const previousRef = useRef({ profileOpen, detailsOpen })
+
+  useEffect(() => {
+    const previous = previousRef.current
+    previousRef.current = { profileOpen, detailsOpen }
+    if (!profileOpen || !detailsOpen) return
+    if (!previous.profileOpen) details.setOpen(false)
+    else if (!previous.detailsOpen) panelActions.close()
+  }, [details, detailsOpen, panelActions, profileOpen])
+
+  return null
+}
+
+function AgentProfileRightPanel() {
+  return <ProfilePaneFrame />
 }
 
 function AgentDetailsContent() {
@@ -1793,6 +1821,19 @@ const AGENT_RIGHT_PANEL_CAPABILITIES = [
         readiness: scope.meta.conversationState
       }
     }
+  },
+  // Last, so it never becomes the fallback the sidebar shortcut opens; the avatars are its entry.
+  {
+    component: AgentProfileRightPanel,
+    widthPreset: 'profile',
+    resolve: (scope) => ({
+      id: PROFILE_PANE_ID,
+      instanceKey: `profile:agent:${scope.meta.agentId ?? 'unavailable'}`,
+      title: scope.profileTitle,
+      readiness: scope.meta.agentId ? 'ready' : 'unavailable',
+      headerMode: 'content',
+      canMaximize: false
+    })
   }
 ] satisfies readonly RightPanelCapability<AgentRightPanelScope>[]
 
