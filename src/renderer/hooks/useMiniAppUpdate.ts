@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
+import { toastAppError } from '@renderer/services/AppErrorDetailService'
 import { toast } from '@renderer/services/toast'
 import type { OutputFor } from '@shared/ipc/types'
 
@@ -50,7 +51,11 @@ export function useMiniAppUpdate(
       options.onChecked?.()
     } catch (e) {
       logger.error('Mini app update check failed', e as Error)
-      toast.error(t('miniApp.detail.action_error', { message: errorMessage(e) }))
+      toastAppError(t('miniApp.detail.action_error', { message: errorMessage(e) }), e, {
+        source: 'miniapp',
+        operation: 'miniapp.update.check',
+        recordId: appId
+      })
     } finally {
       setBusy(false)
     }
@@ -74,7 +79,11 @@ export function useMiniAppUpdate(
       options.onApplied?.()
     } catch (e) {
       logger.error('Mini app update failed', e as Error)
-      toast.error(t('miniApp.detail.action_error', { message: errorMessage(e) }))
+      toastAppError(t('miniApp.detail.action_error', { message: errorMessage(e) }), e, {
+        source: 'miniapp',
+        operation: 'miniapp.update.apply',
+        recordId: appId
+      })
     } finally {
       // Consumed either way: main deletes the review on `consume`, so the token is spent
       // even when the publish failed and a retry has to re-check. Dropped HERE rather than
