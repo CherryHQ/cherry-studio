@@ -4,11 +4,59 @@ import type { Provider } from '@shared/data/types/provider'
 import { CLI_API_GATEWAY_PROVIDER_ID } from '@shared/types/codeCli'
 
 import {
+  openCodeNpmInfoFromPackage,
   resolveGeminiBaseUrl,
   resolveHermesProviderInfo,
   resolveMinimaxProviderInfo,
   resolvePiProviderInfo
 } from '../resolvers'
+
+describe('openCodeNpmInfoFromPackage', () => {
+  it('passes native V2 builtin packages through unchanged', () => {
+    expect(openCodeNpmInfoFromPackage('@opencode/ai/providers/anthropic')).toEqual({
+      package: '@opencode/ai/providers/anthropic',
+      providerType: 'anthropic',
+      endpointType: 'anthropic-messages'
+    })
+  })
+
+  it('normalizes a V1 `npm` AI SDK package to the V2 `aisdk:` form with the right providerType', () => {
+    expect(openCodeNpmInfoFromPackage('@ai-sdk/anthropic')).toEqual({
+      package: 'aisdk:@ai-sdk/anthropic',
+      providerType: 'anthropic',
+      endpointType: 'anthropic-messages'
+    })
+    expect(openCodeNpmInfoFromPackage('@ai-sdk/google')).toEqual({
+      package: 'aisdk:@ai-sdk/google',
+      providerType: 'google',
+      endpointType: 'google-generate-content'
+    })
+  })
+
+  it('normalizes the V1 openai package with the responses endpoint', () => {
+    expect(openCodeNpmInfoFromPackage('@ai-sdk/openai')).toEqual({
+      package: 'aisdk:@ai-sdk/openai',
+      providerType: 'openai',
+      endpointType: 'openai-responses'
+    })
+  })
+
+  it('normalizes an unrecognized V1 AI SDK package as openai-compatible', () => {
+    expect(openCodeNpmInfoFromPackage('@ai-sdk/openai-compatible')).toEqual({
+      package: 'aisdk:@ai-sdk/openai-compatible',
+      providerType: 'openai-compatible',
+      endpointType: 'openai-chat-completions'
+    })
+  })
+
+  it('passes unknown packages through with the openai-compatible default', () => {
+    expect(openCodeNpmInfoFromPackage('custom-provider-package')).toEqual({
+      package: 'custom-provider-package',
+      providerType: 'openai-compatible',
+      endpointType: 'openai-chat-completions'
+    })
+  })
+})
 
 const provider = (partial: Record<string, unknown>): Provider => partial as unknown as Provider
 

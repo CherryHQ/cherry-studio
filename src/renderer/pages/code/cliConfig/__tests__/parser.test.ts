@@ -169,10 +169,10 @@ describe('extractConnectionFromCliConfigDraft', () => {
         path: '',
         language: 'json',
         content: JSON.stringify({
-          provider: {
+          providers: {
             'cherry-gateway': {
-              npm: '@ai-sdk/anthropic',
-              options: { apiKey: 'cs-sk', baseURL: 'http://127.0.0.1:23333/v1' },
+              package: '@opencode/ai/providers/anthropic',
+              settings: { apiKey: 'cs-sk', baseURL: 'http://127.0.0.1:23333/v1' },
               models: { 'deepseek:deepseek-chat': { name: 'DeepSeek Chat' } }
             }
           }
