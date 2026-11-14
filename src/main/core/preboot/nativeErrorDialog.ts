@@ -2,23 +2,20 @@ import { app, clipboard, dialog, shell } from 'electron'
 
 import { loggerService } from '@logger'
 import { resolveSystemLanguage, t } from '@main/i18n'
+import { FEEDBACK_MAILTO, officialDownloadUrl, SUPPORT_EMAIL } from '@shared/utils/officialLinks'
 
 const logger = loggerService.withContext('nativeErrorDialog')
-
-const SUPPORT_EMAIL = 'support@cherry-ai.com'
-const FEEDBACK_URL = `mailto:${SUPPORT_EMAIL}?subject=Cherry%20Studio%20Feedback`
-const DOWNLOAD_URLS = { global: 'https://cherryai.com/download', cn: 'https://cherryai.com.cn/download' } as const
 
 /** A support failure whose message is already the localized line to show. */
 class SupportActionFailure extends Error {}
 
 /** Loaded lazily: preboot dialogs can open before the app root that names the edition is readable. */
-async function officialDownloadUrl(): Promise<string> {
+async function editionDownloadUrl(): Promise<string> {
   try {
     const { getAppEdition } = await import('@main/utils/appEdition')
-    return DOWNLOAD_URLS[getAppEdition()]
+    return officialDownloadUrl(getAppEdition())
   } catch {
-    return DOWNLOAD_URLS.global
+    return officialDownloadUrl('global')
   }
 }
 
@@ -58,7 +55,7 @@ function supportActions(
         copyError = error
       }
       try {
-        await shell.openExternal(FEEDBACK_URL)
+        await shell.openExternal(FEEDBACK_MAILTO)
       } catch (error) {
         if (copyError) throw error
         // The error is on the clipboard; say so and name where to send it.
@@ -70,7 +67,7 @@ function supportActions(
   const releases: SupportedDialogAction = {
     label: t('dialog.support.releases', undefined, language),
     run: async () => {
-      await shell.openExternal(await officialDownloadUrl())
+      await shell.openExternal(await editionDownloadUrl())
     }
   }
   const actions = input.action ? [input.action, copyAndFeedback, releases] : [copyAndFeedback, releases]
