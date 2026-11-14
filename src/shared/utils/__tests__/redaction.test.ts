@@ -8,6 +8,7 @@ import {
   redactDiagnosticText,
   redactLiteral,
   redactRecord,
+  redactSecretLiterals,
   redactSecretText,
   redactServerKey,
   redactUrlParams,
@@ -368,5 +369,20 @@ describe('redactLiteral', () => {
   it('ignores an empty secret instead of destroying the text', () => {
     expect(redactLiteral('text', '')).toBe('text')
     expect(redactLiteral('text', undefined)).toBe('text')
+  })
+})
+
+describe('redactSecretLiterals', () => {
+  it('masks every known secret in nested strings and leaves other values intact', () => {
+    const value = { statusCode: 401, body: { detail: ['bad key gw7Qx9LmZ2vR4nT8'] }, note: 'other gw7Qx9LmZ2vR4nT8' }
+    expect(redactSecretLiterals(value, ['gw7Qx9LmZ2vR4nT8'])).toEqual({
+      statusCode: 401,
+      body: { detail: [`bad key ${REDACTED}`] },
+      note: `other ${REDACTED}`
+    })
+  })
+
+  it('ignores an empty secret instead of destroying the text', () => {
+    expect(redactSecretLiterals('text', [''])).toBe('text')
   })
 })
