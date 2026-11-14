@@ -726,7 +726,9 @@ export function willAgentSessionRuntimeContinue<TTurn, TPendingTurn>(
     state.queue.length > 0 ||
     state.launch.kind !== 'idle' ||
     state.execution.kind === 'steer-transition' ||
-    (state.execution.kind === 'autonomous-turn' && state.execution.deferred !== undefined)
+    (state.execution.kind === 'autonomous-turn' &&
+      state.execution.deferred !== undefined &&
+      state.execution.deferred.delivery.kind !== 'settled')
   )
 }
 
