@@ -256,8 +256,13 @@ describe('SkillFileBrowser', () => {
     renderBrowser('read_write')
 
     await waitFor(() => expect(screen.getByText('settings.skills.editor.loadFailed')).toBeInTheDocument())
-    expect(screen.getByRole('button', { name: 'common.detail' })).toBeInTheDocument()
     expect(screen.queryByText('unreadable')).not.toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: 'common.detail' }))
+    await waitFor(() => expect(mocks.openErrorDetail).toHaveBeenCalledTimes(1))
+    const [request] = mocks.openErrorDetail.mock.calls[0]
+    expect(request.context.recordId).toBe('skill-1:SKILL.md')
+    expect(JSON.stringify(request.context)).not.toContain('/managed/writer')
   })
 
   it('selects SKILL.md from the generic directory tree and previews its absolute path', async () => {
@@ -331,8 +336,16 @@ describe('SkillFileBrowser', () => {
 
       expect(screen.getByRole('textbox', { name: 'code-editor' })).toHaveValue('# Draft stays')
       expect(screen.getByText('settings.skills.editor.saveFailed')).toBeInTheDocument()
-      expect(screen.getByRole('button', { name: 'common.detail' })).toBeInTheDocument()
       expect(screen.queryByText('disk full')).not.toBeInTheDocument()
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: 'common.detail' }))
+        await vi.advanceTimersByTimeAsync(0)
+      })
+      expect(mocks.openErrorDetail).toHaveBeenCalledTimes(1)
+      const [request] = mocks.openErrorDetail.mock.calls[0]
+      expect(request.context.recordId).toBe('skill-1:SKILL.md')
+      expect(JSON.stringify(request.context)).not.toContain('/managed/writer')
     } finally {
       vi.useRealTimers()
     }
