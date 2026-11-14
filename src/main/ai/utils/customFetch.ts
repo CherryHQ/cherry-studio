@@ -85,6 +85,18 @@ function shouldRedirectWithGet(status: number, method: string): boolean {
   )
 }
 
+function isHttp2ProtocolError(error: unknown): boolean {
+  if (typeof error !== 'object' || error === null) return false
+
+  const candidate = error as { code?: unknown; message?: unknown; cause?: unknown }
+  const text = [candidate.code, candidate.message]
+    .filter((value): value is string => typeof value === 'string')
+    .join(' ')
+  if (text.includes('ERR_HTTP2_PROTOCOL_ERROR') || text.includes('ERR_HTTP2_PING_FAILED')) return true
+
+  return candidate.cause !== undefined && isHttp2ProtocolError(candidate.cause)
+}
+
 async function fetchFollowingRedirects(
   target: string,
   initialInit: RequestInit | undefined,
@@ -152,16 +164,26 @@ export const customFetch: FetchFunction = (input: RequestInfo | URL, init?: Requ
   const finalBodySlot = (init as { [HTTP_TRACE_FINAL_BODY_SLOT]?: HttpTraceFinalBodySlot } | undefined)?.[
     HTTP_TRACE_FINAL_BODY_SLOT
   ]
-  const sendRequest = (requestTarget: string | Request, requestInit?: RequestInit) => {
+  const userAgent = init?.headers ? resolveUserAgent(init.headers) : null
+  const sendRequest = async (requestTarget: string | Request, requestInit?: RequestInit) => {
     if (finalBodySlot) finalBodySlot.body = requestInit?.body ?? null
-    return net.fetch(requestTarget, requestInit)
+    try {
+      return await net.fetch(requestTarget, requestInit)
+    } catch (error) {
+      if (!isHttp2ProtocolError(error)) throw error
+      if (!userAgent || !requestInit) return globalThis.fetch(requestTarget, requestInit)
+
+      const headers = new Headers(requestInit.headers)
+      headers.delete(PROVIDER_USER_AGENT_HEADER)
+      headers.set('User-Agent', userAgent)
+      return globalThis.fetch(requestTarget, { ...requestInit, headers })
+    }
   }
 
   // A custom `User-Agent` in the request headers is overwritten by Chromium's net
   // stack, so smuggle it through PROVIDER_USER_AGENT_HEADER and let the default-session
   // interceptor restore it. Only the (string, init) call shape carries headers here;
   // the AI SDK always uses it, so the Request-input path needs no handling.
-  const userAgent = init?.headers ? resolveUserAgent(init.headers) : null
   if (userAgent) {
     const headers = new Headers(init?.headers)
     headers.set(PROVIDER_USER_AGENT_HEADER, userAgent)
