@@ -7,6 +7,16 @@ import type { UniqueModelId } from '@shared/data/types/model'
 export type ResourceCreateWizardKind = 'assistant' | 'agent'
 
 /**
+ * An uploaded avatar held until the resource exists. An Agent sends the bytes with its create command;
+ * an Assistant saves them right after create.
+ */
+export type AvatarImageDraft = {
+  /** Prepared by `prepareAvatarImage`. */
+  data: Uint8Array<ArrayBuffer>
+  previewUrl: string
+}
+
+/**
  * Internal react-hook-form state for the stepped create wizard.
  *
  * Field names are deliberately aligned with the shared edit-dialog field
@@ -15,8 +25,9 @@ export type ResourceCreateWizardKind = 'assistant' | 'agent'
  * `skillIds` is set by the Agent capability step or by auto create.
  */
 export type ResourceCreateWizardFormValues = {
-  avatarImage?: Uint8Array<ArrayBuffer>
   avatar: string
+  /** Shown instead of `avatar` while set; the emoji stays the fallback. */
+  avatarImage: AvatarImageDraft | null
   name: string
   description: string
   /** Agent runtime driver. Ignored for the assistant kind. */
