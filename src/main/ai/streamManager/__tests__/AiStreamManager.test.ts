@@ -4087,6 +4087,7 @@ describe('AiStreamManager', () => {
           name: 'StreamError',
           message: errorText,
           stack: null,
+          failureStage: 'stream',
           streamStage: 'response-stream'
         })
         expect(terminal.finalMessage?.parts).toContainEqual(
@@ -4230,7 +4231,7 @@ describe('AiStreamManager', () => {
         } else {
           expect(listener.errorResults[0].error.executionFailure).toMatchObject({
             retryable: false,
-            failure: { reasonCode: 'internal', source: { layer: 'host' } }
+            failure: { reasonCode: 'internal', source: { layer: 'host' }, stage: 'parse' }
           })
           expect(writes[0].finalMessage?.parts).toContainEqual(
             expect.objectContaining({
@@ -4384,6 +4385,7 @@ describe('AiStreamManager', () => {
         name: 'StreamError',
         message: 'boom',
         stack: null,
+        failureStage: 'stream',
         streamStage: 'response-stream'
       })
       expect(listener.errorResults[0].status).toBe('error')

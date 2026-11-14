@@ -1,0 +1,267 @@
+/**
+ * Every terminal failure must name the pipeline stage it happened in, so a user
+ * can tell "retry it" from "fix your account". These three surfaced as bare
+ * strings that identified neither cause nor stage (#20941 expected result).
+ */
+
+import { describe, expect, it } from 'vitest'
+
+import { executionFailureSchema } from '@cherrystudio/remote-protocol/failure'
+
+import { serializeError } from '../../../main/ai/utils/serializeError'
+import { toExecutionFailure, toWireExecutionFailure } from '../executionFailure'
+
+const SSE_QUOTA_FRAME =
+  'API Error: Request rejected (429) · event:error data:{"type":"error","error":{"type":"rate_limit_error","message":"You exceeded your current quota."}}'
+
+describe('execution failure — pipeline stage', () => {
+  it('names the parse stage for AI SDK "Failed to process successful response"', () => {
+    // A 2xx body the client could not decode; the provider never failed.
+    const failure = toExecutionFailure({
+      name: 'APICallError',
+      message: 'Failed to process successful response',
+      stack: null,
+      statusCode: 200
+    })
+    expect(failure.failure.stage).toBe('parse')
+  })
+
+  it('names the parse stage for a 2xx body that could not be decoded', () => {
+    // SiliconFlow/MiniMax raise an APICallError carrying the 2xx status, so the status alone
+    // would attribute this to `http` and claim the provider rejected a request it accepted.
+    const failure = toExecutionFailure({
+      name: 'APICallError',
+      message: 'Invalid JSON response',
+      stack: null,
+      statusCode: 200
+    })
+    expect(failure.failure.stage).toBe('parse')
+  })
+
+  it('names the runtime stage for a bare "No response"', () => {
+    const failure = toExecutionFailure({
+      name: 'AgentRuntimeError',
+      message: 'No response',
+      stack: null
+    })
+    expect(failure.failure.stage).toBe('runtime')
+  })
+
+  it('names the runtime stage for pi-ai "An unknown error occurred"', () => {
+    const failure = toExecutionFailure({
+      name: 'Error',
+      message: 'An unknown error occurred',
+      stack: null
+    })
+    expect(failure.failure.stage).toBe('runtime')
+  })
+
+  it('names the persistence stage when storing the turn failed', () => {
+    const failure = toExecutionFailure(
+      { name: 'Error', message: 'SQLITE_BUSY: database is locked', stack: null },
+      'openai::gpt-4o',
+      'host'
+    )
+    expect(failure.failure.stage).toBe('persistence')
+  })
+
+  it('names the http stage when the provider answered with an error status', () => {
+    const failure = toExecutionFailure({
+      name: 'APICallError',
+      message: 'Provider returned error',
+      stack: null,
+      statusCode: 403
+    })
+    expect(failure.failure.stage).toBe('http')
+  })
+
+  it('does not mistake an HTTP quota rejection for a transport or runtime failure', () => {
+    // Billing signals arrive as 402/429 responses: the request reached the provider.
+    const failure = toExecutionFailure({
+      name: 'APICallError',
+      message: 'Insufficient balance',
+      stack: null,
+      statusCode: 402
+    })
+    expect(failure.failure.stage).toBe('http')
+    expect(failure.failure.reasonCode).toBe('quota')
+  })
+
+  it('names the stream stage when an accepted response carried the provider failure', () => {
+    // The stream opened with 2xx and the provider then reported an error inside it; the request
+    // was never rejected at the HTTP layer, so neither `http` nor a bare `unknown` is honest.
+    const failure = toExecutionFailure({
+      name: 'APICallError',
+      message: 'You exceeded your current quota.',
+      stack: null,
+      statusCode: 200
+    })
+    expect(failure.failure.stage).toBe('stream')
+    expect(failure.failure.reasonCode).toBe('quota')
+  })
+
+  it('leaves the stage unknown rather than guessing when nothing identifies it', () => {
+    const failure = toExecutionFailure({ name: 'Error', message: 'Insufficient balance', stack: null })
+    expect(failure.failure.stage).toBe('unknown')
+    expect(failure.failure.reasonCode).toBe('quota')
+  })
+
+  it('honours a stage the caller already attributed', () => {
+    const failure = toExecutionFailure({
+      name: 'Error',
+      message: 'boom',
+      stack: null,
+      failureStage: 'transport'
+    })
+    expect(failure.failure.stage).toBe('transport')
+  })
+
+  it('keeps older failures without a stage parseable', () => {
+    const failure = toExecutionFailure({
+      name: 'Error',
+      message: 'legacy',
+      stack: null,
+      executionFailure: {
+        message: 'legacy',
+        retryable: false,
+        failure: { version: 1, reasonCode: 'unknown', source: { layer: 'runtime' } }
+      }
+    })
+    expect(failure.failure.stage).toBeUndefined()
+  })
+})
+
+describe('execution failure — v1 wire contract', () => {
+  it('keeps the strict v1 schema rejecting stage-bearing snapshots', () => {
+    // Deployed peers parse failures with the v1 strict schema; a snapshot carrying
+    // `stage` makes them drop the whole event batch or checkpoint. This is why the
+    // remote boundary projects the stage away while `agentFailureVersion` stays 1.
+    const persisted = toExecutionFailure({
+      name: 'APICallError',
+      message: 'Provider returned error',
+      stack: null,
+      statusCode: 403
+    })
+    expect(persisted.failure.stage).toBe('http')
+    expect(executionFailureSchema.safeParse(persisted).success).toBe(false)
+  })
+
+  it('projects a persisted failure onto a snapshot the v1 schema accepts', () => {
+    const persisted = toExecutionFailure({
+      name: 'APICallError',
+      message: 'Provider returned error',
+      stack: null,
+      statusCode: 403
+    })
+    const wire = toWireExecutionFailure(persisted)
+    expect(wire.failure).not.toHaveProperty('stage')
+    expect(executionFailureSchema.safeParse(wire).success).toBe(true)
+  })
+
+  it('round-trips a stored stage-bearing failure without re-deriving it', () => {
+    const failure = toExecutionFailure({
+      name: 'Error',
+      message: 'stored',
+      stack: null,
+      executionFailure: {
+        message: 'stored',
+        retryable: false,
+        failure: { version: 1, reasonCode: 'quota', source: { layer: 'provider' }, stage: 'http' }
+      }
+    })
+    expect(failure.failure.stage).toBe('http')
+  })
+})
+
+describe('execution failure — SSE frame residue', () => {
+  it("projects the frame's provider message, not the protocol scaffolding", () => {
+    const failure = toExecutionFailure({
+      name: 'StreamError',
+      message: SSE_QUOTA_FRAME,
+      stack: null
+    })
+
+    expect(failure.message).toBe('You exceeded your current quota.')
+    // The user must never see SSE syntax.
+    expect(JSON.stringify(failure)).not.toMatch(/event:|data:\s*\{/)
+  })
+
+  it('still classifies a framed quota failure as quota', () => {
+    const failure = toExecutionFailure({ name: 'StreamError', message: SSE_QUOTA_FRAME, stack: null })
+    expect(failure.failure.reasonCode).toBe('quota')
+    expect(failure.failure.source.layer).toBe('provider')
+  })
+
+  it('attributes an in-stream error frame to the stream stage', () => {
+    const failure = toExecutionFailure({ name: 'StreamError', message: SSE_QUOTA_FRAME, stack: null })
+    expect(failure.failure.stage).toBe('stream')
+  })
+
+  it('attributes a framed provider failure that names no status to the stream stage', () => {
+    // The ordinary-chat path hands the API call's own error, not a `StreamError`. The frame is
+    // still the provider failing inside an open response, so the stage must not read `unknown`.
+    const failure = toExecutionFailure({
+      name: 'APICallError',
+      message:
+        'Request failed · event:error data:{"type":"error","error":{"type":"server_error","code":"server_overloaded","message":"The server is overloaded"}}',
+      stack: null
+    })
+
+    expect(failure.failure.stage).toBe('stream')
+    expect(failure.failure.reasonCode).toBe('provider_unavailable')
+  })
+
+  it('attributes a bare mid-stream provider payload to the stream stage once named a StreamError', () => {
+    // The AI SDK hands the error chunk's payload over as a bare object; the Agent layer
+    // normalizes it to a `StreamError`. Before that, the nameless serialized error read
+    // as stage `unknown` even though the failure happened inside an open response.
+    const normalized = new Error('The server is overloaded, please retry')
+    normalized.name = 'StreamError'
+    ;(normalized as unknown as Record<string, unknown>).providerErrorCode = 'server_overloaded'
+    ;(normalized as unknown as Record<string, unknown>).providerErrorType = 'server_error'
+
+    const failure = toExecutionFailure(serializeError(normalized))
+    expect(failure.failure.stage).toBe('stream')
+    expect(failure.failure.reasonCode).toBe('provider_unavailable')
+    expect(failure.message).toBe('The server is overloaded, please retry')
+  })
+
+  it('attributes a provider 504 saying "No response from upstream" to the HTTP stage', () => {
+    // The provider rejected the request; its wording must not be read as a silent runtime.
+    const failure = toExecutionFailure({
+      name: 'APICallError',
+      message: 'No response from upstream',
+      stack: null,
+      statusCode: 504
+    })
+    expect(failure.failure.stage).toBe('http')
+  })
+
+  it('reads a retry wrapper’s nested status so its 504 stays an HTTP failure', () => {
+    // AI_RetryError carries the provider status on `lastError`, and the retry text repeats the 504
+    // body; without the nested status the runtime wording would claim it.
+    const failure = toExecutionFailure({
+      name: 'AI_RetryError',
+      message: 'Failed after 3 attempts. Last error: No response from upstream',
+      stack: null,
+      lastError: { statusCode: 504, message: 'No response from upstream' }
+    })
+    expect(failure.failure.stage).toBe('http')
+  })
+
+  it('keeps the runtime wording when the failure carries no HTTP status', () => {
+    // The same wording without a provider status is still the runtime stopping before answering.
+    const failure = toExecutionFailure({ name: 'Error', message: 'No response from upstream', stack: null })
+    expect(failure.failure.stage).toBe('runtime')
+  })
+
+  it('does not truncate a normal provider message', () => {
+    const failure = toExecutionFailure({
+      name: 'APICallError',
+      message: 'Model gpt-5 does not exist',
+      stack: null,
+      statusCode: 404
+    })
+    expect(failure.message).toBe('Model gpt-5 does not exist')
+  })
+})
