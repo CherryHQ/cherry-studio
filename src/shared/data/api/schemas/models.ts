@@ -50,8 +50,9 @@ export const CreateModelSchema = z.strictObject({
   group: z.string().optional(),
   /** Capabilities */
   capabilities: z.array(z.enum(objectValues(MODEL_CAPABILITY))).optional(),
-  /** Natively reported reasoning controls (e.g. Ollama `/api/show`); persisted verbatim */
-  reasoning: ReasoningConfigSchema.optional(),
+  /** Provider-reported intrinsic reasoning controls (e.g. Ollama `/api/show`); discovery
+   * metadata managed by the server-side model flows, never a user setting. `null` clears it. */
+  reportedReasoning: ReasoningConfigSchema.nullable().optional(),
   /** Input modalities */
   inputModalities: z.array(z.enum(objectValues(MODALITY))).optional(),
   /** Output modalities */
@@ -68,6 +69,10 @@ export const CreateModelSchema = z.strictObject({
   supportsStreaming: z.boolean().optional(),
   /** Parameter support (DB form) */
   parameterSupport: ParameterSupportDbSchema.optional(),
+  /** User default only; intrinsic controls remain catalog-owned. */
+  reasoning: z
+    .strictObject({ defaultEffort: ReasoningConfigSchema.shape.defaultEffort.unwrap().nullable().optional() })
+    .optional(),
   /** Pricing configuration */
   pricing: RuntimeModelPricingSchema.optional()
 })

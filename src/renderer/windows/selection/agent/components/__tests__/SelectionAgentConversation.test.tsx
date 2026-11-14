@@ -21,16 +21,21 @@ const mocks = vi.hoisted(() => ({
   agent: undefined as
     | { id: string; name: string; type: string; model: string | null; modelName: string | null }
     | undefined,
+  sessionModel: undefined as string | undefined,
   model: undefined as { id: string } | undefined,
   sendMessage: vi.fn(async () => true)
 }))
 
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }))
 vi.mock('@renderer/hooks/agent/useSession', () => ({
-  useSession: (sessionId: string) => ({ session: { id: sessionId, agentId: 'agent-1', name: '' } })
+  useSession: (sessionId: string) => ({
+    session: { id: sessionId, agentId: 'agent-1', name: '', model: mocks.sessionModel }
+  })
 }))
 vi.mock('@renderer/hooks/agent/useAgent', () => ({ useAgent: () => ({ agent: mocks.agent, isLoading: false }) }))
-vi.mock('@renderer/hooks/useModel', () => ({ useModelById: () => ({ model: mocks.model }) }))
+vi.mock('@renderer/hooks/useModel', () => ({
+  useModelById: (id: string) => ({ model: mocks.model?.id === id ? mocks.model : undefined })
+}))
 vi.mock('@renderer/hooks/agent/useAgentWorkspaceWarning', () => ({ useAgentWorkspaceWarning: () => undefined }))
 vi.mock('@renderer/pages/agents/useAgentChatRuntimeState', () => ({
   useAgentChatRuntimeState: ({ sessionId }: { sessionId: string }) => ({
@@ -85,6 +90,7 @@ describe('SelectionAgentConversation', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.agent = { id: 'agent-1', name: 'Dev', type: 'claude-code', model: 'openai::gpt-5', modelName: 'GPT-5' }
+    mocks.sessionModel = undefined
     mocks.model = { id: 'openai::gpt-5' }
     mocks.status = undefined
     mocks.approvalAnchors = []
@@ -168,6 +174,28 @@ describe('SelectionAgentConversation', () => {
         }
       }
     )
+  })
+
+  it('sends with a pinned session model even when the Agent default has been cleared', async () => {
+    mocks.agent = { ...mocks.agent!, model: null, modelName: null }
+    mocks.sessionModel = 'test::session-model'
+    mocks.model = { id: mocks.sessionModel }
+    renderConversation()
+    await act(async () => {})
+
+    expect(screen.queryByText('selection.agent.no_model_notice')).not.toBeInTheDocument()
+    expect(mocks.sendMessage).toHaveBeenCalledExactlyOnceWith(
+      { text: QUOTE_DRAFT.text },
+      { body: expect.objectContaining({ agentId: 'agent-1', sessionId: 'session-1' }) }
+    )
+  })
+
+  it('does not silently use the Agent default when the pinned session model is unavailable', () => {
+    mocks.sessionModel = 'test::missing-model'
+    renderConversation()
+
+    expect(mocks.sendMessage).not.toHaveBeenCalled()
+    expect(screen.getByText('selection.agent.no_model_notice')).toBeInTheDocument()
   })
 
   describe('state rules', () => {

@@ -71,17 +71,22 @@ export type {
 } from './core/context'
 export {
   compactModelMessages,
+  compactHistory,
   COMPRESSION_MAX_OUTPUT_TOKENS,
   COMPRESSION_MIN_OUTPUT_TOKENS,
   computeHeadTailExcerpt,
   ContextPrompts,
   createContextMiddleware,
+  createCompressionAdapter,
+  fromAISDK,
   getContextTokens,
   groupIntoTurns,
+  isContextOverflowError,
   Offloader,
   PERSISTED_OUTPUT_TAG,
   resolveCompressionOutputTokens,
-  summarizeModelMessages
+  summarizeModelMessages,
+  toAISDK
 } from './core/context'
 
 // ==================== 错误处理 ====================

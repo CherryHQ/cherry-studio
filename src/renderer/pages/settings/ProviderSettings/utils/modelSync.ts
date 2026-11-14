@@ -84,7 +84,7 @@ export function toCreateModelDto(
     // With native controls, capabilities are an explicit delta even when empty: omitting an
     // empty list would leave a preset baseline's stale REASONING capability in place.
     ...(nativeReasoning || capabilities.length ? { capabilities } : {}),
-    ...(nativeReasoning ? { reasoning: nativeReasoning } : {}),
+    ...(nativeReasoning ? { reportedReasoning: nativeReasoning } : {}),
     ...(resolvedEndpointTypes?.length ? { endpointTypes: [...resolvedEndpointTypes] } : {}),
     // Discovered rather than registry-supplied for local providers — Ollama's window comes from
     // `/api/show`, and dropping it here leaves the row without one, so no `num_ctx` is ever sent.

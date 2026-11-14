@@ -109,6 +109,7 @@ export enum ThemeMode {
 export type LanguageVarious =
   | 'zh-CN'
   | 'zh-TW'
+  | 'cs-CZ'
   | 'de-DE'
   | 'el-GR'
   | 'en-US'
@@ -116,6 +117,7 @@ export type LanguageVarious =
   | 'fr-FR'
   | 'it-IT'
   | 'ja-JP'
+  | 'pl-PL'
   | 'pt-PT'
   | 'ro-RO'
   | 'ru-RU'

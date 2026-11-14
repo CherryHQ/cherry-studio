@@ -62,7 +62,7 @@ describe('fetchResolvedProviderModels', () => {
     const dto = toCreateModelDto('ollama', listing.models[0], undefined, nativeReasoning)
 
     expect(listing.models[0].reasoning).toEqual(nativeModel.reasoning)
-    expect(dto).toMatchObject({ reasoning: nativeModel.reasoning, capabilities: [MODEL_CAPABILITY.REASONING] })
+    expect(dto).toMatchObject({ reportedReasoning: nativeModel.reasoning, capabilities: [MODEL_CAPABILITY.REASONING] })
     expect(listing.discoveredReasoning).toEqual([
       {
         id: nativeModel.id,
@@ -93,7 +93,7 @@ describe('fetchResolvedProviderModels', () => {
     // The reasoning override ships as an explicit capability list; it must carry the preset's
     // unrelated abilities too, or the replacement write would drop function calling.
     expect(dto.capabilities).toEqual([MODEL_CAPABILITY.FUNCTION_CALL, MODEL_CAPABILITY.REASONING])
-    expect(dto.reasoning).toEqual(nativeModel.reasoning)
+    expect(dto.reportedReasoning).toEqual(nativeModel.reasoning)
   })
 
   it('does not mark registry fallback as native metadata when show has no thinking declaration', async () => {

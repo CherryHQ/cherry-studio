@@ -134,7 +134,7 @@ describe('useProviderModelPullReconcile', () => {
     }
     useModelsMock.mockReturnValue({ models: [saved] })
     fetchResolvedProviderModelsMock.mockResolvedValueOnce({
-      models: [{ ...saved, reasoning }],
+      models: [{ ...saved, reportedReasoning: reasoning }],
       discoveredReasoning: [{ id: saved.id, reasoning, capabilities: [MODEL_CAPABILITY.REASONING] }]
     })
     const { result } = renderHook(() => useProviderModelPullReconcile('ollama'))
@@ -144,7 +144,10 @@ describe('useProviderModelPullReconcile', () => {
     expect(updateModelsMock).toHaveBeenCalledWith([
       {
         uniqueModelId: saved.id,
-        patch: { reasoning, capabilities: [MODEL_CAPABILITY.FUNCTION_CALL, MODEL_CAPABILITY.REASONING] }
+        patch: {
+          reportedReasoning: reasoning,
+          capabilities: [MODEL_CAPABILITY.FUNCTION_CALL, MODEL_CAPABILITY.REASONING]
+        }
       }
     ])
     expect(createModelsMock).not.toHaveBeenCalled()
@@ -211,11 +214,11 @@ describe('useProviderModelPullReconcile', () => {
       id: 'ollama::qwen3.8:27b',
       providerId: 'ollama',
       capabilities: [MODEL_CAPABILITY.REASONING],
-      reasoning: { ...reasoning, summaryOptions: undefined, thinkingTokenLimits: undefined }
+      reportedReasoning: { ...reasoning, summaryOptions: undefined, thinkingTokenLimits: undefined }
     }
     useModelsMock.mockReturnValue({ models: [saved] })
     fetchResolvedProviderModelsMock.mockResolvedValueOnce({
-      models: [{ ...saved, reasoning }],
+      models: [{ ...saved, reportedReasoning: reasoning }],
       // The model natively advertises tool use, but the user disabled function calling on the
       // saved row: the reported controls own REASONING only, so the refresh adds nothing back.
       discoveredReasoning: [
@@ -249,7 +252,7 @@ describe('useProviderModelPullReconcile', () => {
     const saved = {
       ...localModel,
       capabilities: [MODEL_CAPABILITY.REASONING],
-      reasoning: { ...reasoning, summaryOptions: undefined, thinkingTokenLimits: undefined }
+      reportedReasoning: { ...reasoning, summaryOptions: undefined, thinkingTokenLimits: undefined }
     }
     useModelsMock.mockReturnValue({ models: [saved] })
     fetchResolvedProviderModelsMock.mockResolvedValueOnce({

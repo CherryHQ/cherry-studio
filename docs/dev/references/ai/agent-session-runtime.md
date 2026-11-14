@@ -165,6 +165,7 @@ Runtime adapters own only native mechanics:
 | Enabled managed skill content | Claude injects plugin/config representation; Pi uses `additionalSkillPaths`. |
 | Current workspace guarantee | Each driver supplies cwd/workspace context through its native base or the common custom-base compensation block. |
 | Coding/runtime handbook and native tool snippets | Owned by each runtime's native base, never copied into the common materializer. |
+| Per-call `intent` (why a tool is called, shown above the tool row) | For a DeepSeek model (`offersToolIntent`), Pi and Pi Durable apply `@cherrystudio/agent-behavior`'s `createToolIntent()` to every tool and carry `TOOL_INTENT_GUIDE` with it (Pi appends it to the system prompt; Durable renders a `tool_intent` section). Other models narrate between calls themselves and are not offered the argument; their calls still have a stray `intent` removed. The guide never enters the common materializer, because only runtimes that offer the argument may ask for it. |
 
 Claude Code uses its bundled `agents-md@builtin` plugin to load workspace instructions. Nested `AGENTS.md` files follow the native text `Read` behavior; Cherry does not inject them before `Edit`, `Write`, or other tools. Sealed sessions retain `settingSources: []` and do not automatically load workspace instruction files.
 
@@ -178,7 +179,9 @@ Do not add Cherry policy directly to one driver. Extend the common materializer,
    - system workspaces are materialized under Cherry's managed root, while user
      workspace paths must already resolve to a directory;
    - the agent type must have a registered runtime driver;
-   - the agent must have a model.
+   - an effective model must be configured: interactive turns use `session.model ?? agent.model`,
+     while headless turns use the Agent default and ignore the session override. See
+     [Agent Prompt Layers](./agent-prompt-layers.md#update-and-variable-lifecycle).
 3. The provider atomically saves:
    - a `user` message with the submitted parts;
    - a pending `assistant` message with the selected model id.

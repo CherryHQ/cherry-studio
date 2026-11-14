@@ -266,6 +266,20 @@
       "when": 1794385698412,
       "tag": "0037_agent_avatar",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "6",
+      "when": 1794411221036,
+      "tag": "0038_clammy_jigsaw",
+      "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "6",
+      "when": 1794411221046,
+      "tag": "0039_ollama_reported_reasoning",
+      "breakpoints": true
     }
   ],
   "version": "7"

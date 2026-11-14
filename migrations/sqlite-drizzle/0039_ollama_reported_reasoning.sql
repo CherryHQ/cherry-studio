@@ -1,0 +1,1 @@
+ALTER TABLE `user_model` ADD `reported_reasoning` text;

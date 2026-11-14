@@ -156,16 +156,16 @@ export function useProviderModelPullReconcile(providerId: string) {
             ...(capabilities.includes(MODEL_CAPABILITY.REASONING) ? [MODEL_CAPABILITY.REASONING] : [])
           ])
         )
+        const stored = local.reportedReasoning
         const sameReasoning =
-          JSON.stringify(local.reasoning?.controls ?? null) === JSON.stringify(reasoning.controls ?? null) &&
-          JSON.stringify(local.reasoning?.selectableEfforts ?? null) ===
-            JSON.stringify(reasoning.selectableEfforts ?? null) &&
-          (local.reasoning?.defaultEffort ?? null) === (reasoning.defaultEffort ?? null)
+          JSON.stringify(stored?.controls ?? null) === JSON.stringify(reasoning.controls ?? null) &&
+          JSON.stringify(stored?.selectableEfforts ?? null) === JSON.stringify(reasoning.selectableEfforts ?? null) &&
+          (stored?.defaultEffort ?? null) === (reasoning.defaultEffort ?? null)
         const sameCapabilities =
           JSON.stringify([...(local.capabilities ?? [])].sort()) === JSON.stringify([...patchCapabilities].sort())
         return sameReasoning && sameCapabilities
           ? []
-          : [{ uniqueModelId: id, patch: { reasoning, capabilities: patchCapabilities } }]
+          : [{ uniqueModelId: id, patch: { reportedReasoning: reasoning, capabilities: patchCapabilities } }]
       })
       // Bulk updates have their own schema limit. A persistence error must
       // reach the load error path, not report a clean fetch with stale controls.
