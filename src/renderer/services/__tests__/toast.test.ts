@@ -15,6 +15,8 @@ i18nMock.t = (key: string) => enUS[key as keyof typeof enUS] ?? key
 vi.mock('@renderer/i18n/resolver', () => ({ default: i18nMock }))
 vi.mock('@renderer/utils/errorDiagnosis', () => ({ translateErrorByAI }))
 
+import { appErrorContextService } from '../AppErrorContextService'
+import { presentedRouteService } from '../PresentedRouteService'
 import { toast } from '../toast'
 
 beforeEach(() => {
@@ -90,6 +92,22 @@ it('keeps Cloud rate limits retryable even when their text mentions quota', asyn
   expect(shown.action?.label).toBe(enUS['toast.error.retry'])
   await shown.action!.onClick()
   expect(retry).toHaveBeenCalledOnce()
+})
+
+describe('error toast origin', () => {
+  const contextOf = (key: string) => {
+    const shown = toast.getToastQueue().toasts.find((item) => item.key === key)!
+    return appErrorContextService.contextForHostError(String(shown.occurrence), shown)
+  }
+
+  it('attributes a generic exception to the route it was shown on, and a provider failure to the provider', () => {
+    presentedRouteService.recordPresentedRoute('/files')
+
+    expect(contextOf(toast.errorFromException(new Error('disk full'))).source).toBe('/files')
+    expect(
+      contextOf(toast.errorFromException(new Error('upstream down'), { provider: { id: 'acme', name: 'Acme' } })).source
+    ).toBe('provider')
+  })
 })
 
 describe('unclassified error toast translation', () => {
