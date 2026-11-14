@@ -192,7 +192,14 @@ export class MainWindowService extends BaseService {
   private registerActivateHandler() {
     // showMainWindow's fallback re-opens via WindowManager when the previous window
     // has been destroyed; reuse path falls through to focus + restore.
-    const handler = () => this.showMainWindow()
+    const handler = () => {
+      // A global shortcut activates the app through Quick Assistant; don't redirect focus to Main.
+      const quickAssistantIsFocused = application
+        .get('WindowManager')
+        .getWindowsByType(WindowType.QuickAssistant)
+        .some((window) => window.isFocused())
+      if (!quickAssistantIsFocused) this.showMainWindow()
+    }
     app.on('activate', handler)
     this.registerDisposable(() => app.removeListener('activate', handler))
   }
