@@ -1668,7 +1668,20 @@ function ProfileDetailsExclusivity() {
 }
 
 function AgentProfileRightPanel({ scope }: RightPanelComponentProps<AgentRightPanelScope>) {
-  return scope.meta.agentId ? <AgentProfilePane agentId={scope.meta.agentId} /> : null
+  const actions = useRightPanelActions()
+  const { agentId, sessionId, workspacePath } = scope.meta
+  const filesReady = actions.canOpen(FILES_PANE_ID)
+  const workspace = useMemo(
+    () =>
+      workspacePath
+        ? {
+            path: workspacePath,
+            open: filesReady ? () => actions.tryOpen(FILES_PANE_ID, { userInitiated: true }) : undefined
+          }
+        : undefined,
+    [actions, filesReady, workspacePath]
+  )
+  return agentId ? <AgentProfilePane agentId={agentId} sessionId={sessionId} workspace={workspace} /> : null
 }
 
 function AgentDetailsContent() {
