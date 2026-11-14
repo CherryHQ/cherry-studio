@@ -46,3 +46,4 @@ Binding rules:
 - Credential-gated channels created from the tab stay inactive until configured. Users may read the switch as "connected"; the inactive hint is the mitigation.
 - The resource-catalog grid has its own Agent menu. It is out of scope here and needs its own AC if wanted.
 - Written after the implementation draft, not before. The implementation PR must not be marked ready until this Spec is approved on its current head.
+- Partially superseded by [Paged edit dialog for Agents and Assistants](2026-11-12-resource-edit-pages.md): the Agent's Channels page becomes a list of bound channels with full configuration instead of one toggle per platform. The Agent list menu entry and the unchanged global Settings > Channels stay.
