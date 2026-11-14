@@ -340,6 +340,14 @@ describe('redactDiagnosticText', () => {
     expect(redactDiagnosticText('missing C:\\Users\\bob is gone; retry')).toBe('missing ~ is gone; retry')
   })
 
+  it('does not absorb the rest of a sentence into a Windows username', () => {
+    expect(redactDiagnosticText('C:\\Users\\bob failed with code 5/6')).toBe('~ failed with code 5/6')
+  })
+
+  it('leaves lowercase API routes that look like POSIX home paths intact', () => {
+    expect(redactDiagnosticText('GET /users/me returned 404')).toBe('GET /users/me returned 404')
+  })
+
   it('leaves URL paths that merely contain a home-like segment intact', () => {
     const text = 'GET https://example.com/home/docs and https://example.com/Users/list failed'
     expect(redactDiagnosticText(text)).toBe(text)
