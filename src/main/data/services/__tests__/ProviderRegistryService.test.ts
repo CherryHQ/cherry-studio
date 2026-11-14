@@ -13,6 +13,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { providerService } from '@data/services/ProviderService'
 import { generateOrderKeyBetween } from '@data/services/utils/orderKey'
+import { encodeReasoningInvocation, resolveReasoningInvocation } from '@main/ai/utils/reasoningSerializers'
 import { createUniqueModelId } from '@shared/data/types/model'
 import { computeLanguageCost, createAiUsagePricingSnapshot } from '@shared/utils/usagePricing'
 
@@ -263,6 +264,46 @@ describe('ProviderRegistryService', () => {
     vi.clearAllMocks()
     clearServiceCache()
     MockMainDbServiceUtils.setDb(dbh.db)
+  })
+
+  it('uses the row default on the Gemini wire while catalog controls remain authoritative', () => {
+    const readGeneratedRegistry = <T>(filename: string): T =>
+      JSON.parse(
+        readFileSync(new URL(`../../../../../packages/provider-registry/data/${filename}`, import.meta.url), 'utf8')
+      ) as T
+    mockReadModels.mockReturnValue(readGeneratedRegistry<ReturnType<typeof readModelRegistry>>('models.json'))
+    mockReadProviderModels.mockReturnValue(
+      readGeneratedRegistry<ReturnType<typeof readProviderModelRegistry>>('provider-models.json')
+    )
+    mockReadProviders.mockReturnValue(readGeneratedRegistry<ReturnType<typeof readProviderRegistry>>('providers.json'))
+    const model = providerRegistryService
+      .listProviderRegistryModels({ providerId: 'vertexai' })
+      .find((model) => model.presetModelId === 'gemini-4-carbon')!
+    expect(model).toBeDefined()
+    const saved = {
+      ...model,
+      userDefaultReasoningEffort: 'high' as const,
+      reasoning: { ...model.reasoning!, controls: [{ kind: 'toggle' as const }], defaultEffort: 'high' as const }
+    }
+    const profile = providerRegistryService.resolveReasoningProfile(
+      { id: 'vertexai', defaultChatEndpoint: 'google-generate-content' },
+      saved
+    )
+    expect(profile.support?.controls).toEqual(model.reasoning?.controls)
+    expect(profile.support?.defaultEffort).toBe('high')
+    const invocationModel = { ...saved, reasoning: projectRuntimeReasoning(profile.support!, profile.wire) }
+    expect(
+      encodeReasoningInvocation(
+        resolveReasoningInvocation({ model: invocationModel, selection: 'default', profile: profile.wire })
+      )
+    ).toEqual({ thinkingConfig: { includeThoughts: true, thinkingLevel: 'high' } })
+    const original = providerRegistryService.resolveReasoningProfile(
+      { id: 'vertexai', defaultChatEndpoint: 'google-generate-content' },
+      model
+    )
+    expect(
+      encodeReasoningInvocation(resolveReasoningInvocation({ model, selection: 'default', profile: original.wire }))
+    ).toEqual({})
   })
 
   it('lists MiMo presets using dotted wire identities and canonical preset links', () => {

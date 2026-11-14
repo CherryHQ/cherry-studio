@@ -11,12 +11,10 @@ import type { ReactNode } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { cacheService } from '@renderer/data/CacheService'
-import { preferenceService } from '@renderer/data/PreferenceService'
 import { ipcApi } from '@renderer/ipc'
+import { getBrowserStartPageUrl, rememberBrowserPageUrl } from '@renderer/services/browserStartPage'
 import { getGuestAuthorizationKey } from '@renderer/utils/webviewGuest'
 import type { WebviewAnnotationTarget } from '@shared/types/webviewAnnotation'
-import { normalizeBrowserUrl, sanitizeBrowserVisitUrl } from '@shared/utils/browserUrl'
 import { getWebviewPartition, WebviewSecurityProfile } from '@shared/utils/webviewSecurity'
 
 import { BrowserChrome } from './BrowserChrome'
@@ -73,18 +71,7 @@ export function WebviewBrowser({
       sourceProfile !== WebviewSecurityProfile.AgentBrowser
     )
       return 'about:blank'
-    const mode = preferenceService.getCachedValue('app.browser.start_page.mode')
-    let url: unknown
-    if (mode === 'custom') url = preferenceService.getCachedValue('app.browser.start_page.custom_url')
-    else if (mode === 'last') {
-      const urls = cacheService.getPersist('ui.browser.last_urls')
-      if (urls && typeof urls === 'object' && !Array.isArray(urls)) url = urls[startPageContext]
-    }
-    try {
-      return typeof url === 'string' ? normalizeBrowserUrl(url) : 'about:blank'
-    } catch {
-      return 'about:blank'
-    }
+    return getBrowserStartPageUrl(startPageContext)
   })
   const initialUrl = requestedUrl ?? startPageUrl
   const securityProfile = initialUrl.startsWith('file:')
@@ -161,15 +148,7 @@ export function WebviewBrowser({
     (event: DidNavigateEvent | DidNavigateInPageEvent) => {
       if ('isMainFrame' in event && !event.isMainFrame) return
       if (startPageContext !== undefined && securityProfile === WebviewSecurityProfile.AgentBrowser) {
-        // Blank and artifact destinations must leave remembered HTTP(S) history intact.
-        const url = sanitizeBrowserVisitUrl(event.url)
-        // Remembering powers last mode, so it must not run before the user opts in.
-        if (url !== undefined && preferenceService.getCachedValue('app.browser.start_page.mode') === 'last') {
-          cacheService.setPersist('ui.browser.last_urls', (urls) => ({
-            ...(urls && typeof urls === 'object' && !Array.isArray(urls) ? urls : {}),
-            [startPageContext]: url
-          }))
-        }
+        rememberBrowserPageUrl(startPageContext, event.url)
       }
       onUrlChange?.(event.url)
     },
@@ -235,6 +214,7 @@ export function WebviewBrowser({
         onPageTitleUpdated={handlePageTitleUpdated}
         onPageFaviconUpdated={handlePageFaviconUpdated}
         onDidFinishLoad={handleDidFinishLoad}
+        onDidStopLoading={() => setIsLoading(false)}
         onDidFailLoad={handleDidFailLoad}
       />
       <BrowserOverlays

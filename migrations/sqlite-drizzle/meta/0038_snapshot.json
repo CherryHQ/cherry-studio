@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "a3060522-415f-4f03-b43c-00d9eafa00b2",
+  "id": "d46ad276-de68-4169-9d6c-3606a8c7d29f",
   "prevId": "bbe3bf61-b9ed-451f-b7ec-94db86dd1dd9",
   "tables": {
     "agent": {
@@ -811,6 +811,13 @@
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
+        },
+        "model": {
+          "name": "model",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
         }
       },
       "indexes": {
@@ -904,6 +911,19 @@
           "tableTo": "job_schedule",
           "columnsFrom": [
             "task_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "agent_session_model_user_model_id_fk": {
+          "name": "agent_session_model_user_model_id_fk",
+          "tableFrom": "agent_session",
+          "tableTo": "user_model",
+          "columnsFrom": [
+            "model"
           ],
           "columnsTo": [
             "id"
@@ -2980,7 +3000,7 @@
       "checkConstraints": {
         "asmfr_role_check": {
           "name": "asmfr_role_check",
-          "value": "\"agent_session_message_file_ref\".\"role\" IN ('attachment', 'author_avatar', 'generated')"
+          "value": "\"agent_session_message_file_ref\".\"role\" IN ('attachment', 'author_avatar')"
         }
       }
     },
@@ -3175,7 +3195,7 @@
       "checkConstraints": {
         "cmfr_role_check": {
           "name": "cmfr_role_check",
-          "value": "\"chat_message_file_ref\".\"role\" IN ('attachment', 'tool_output', 'author_avatar', 'generated')"
+          "value": "\"chat_message_file_ref\".\"role\" IN ('attachment', 'tool_output', 'author_avatar')"
         }
       }
     },
