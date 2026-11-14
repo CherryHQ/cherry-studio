@@ -1,3 +1,4 @@
+import type { ChannelDraftItem } from '@renderer/components/channel/channelDraft'
 import type { AgentCreateSettings, ResourceCreateValues } from '@renderer/types/resourceCatalog'
 import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
 import type { AgentType } from '@shared/data/types/agent'
@@ -33,6 +34,8 @@ export type ResourceCreateWizardFormValues = {
   enableWebSearch: boolean
   // agent tools step
   disabledTools: string[]
+  // agent channels step
+  channels: ChannelDraftItem[]
   // agent advanced step: reply language, heartbeat, env vars
 } & AgentCreateSettings
 

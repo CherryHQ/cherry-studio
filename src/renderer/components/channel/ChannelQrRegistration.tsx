@@ -11,7 +11,7 @@ import type { ChannelData } from './channelTypes'
 
 export function ChannelQrRegistration({ channel }: { channel: ChannelData }) {
   const { t } = useTranslation()
-  const { mutate } = useChannels(channel.type as AgentChannelType)
+  const { mutate } = useChannels({ type: channel.type as AgentChannelType })
   const attempt = useRef<string | null>(null)
   const [url, setUrl] = useState<string | null>(null)
   const [status, setStatus] = useState<'idle' | 'pending' | 'confirmed' | 'expired' | 'cancelled' | 'error'>('idle')

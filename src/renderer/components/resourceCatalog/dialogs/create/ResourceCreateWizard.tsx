@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 
 import { Button, Dialog, DialogContent, DialogTitle, Form, MenuItem, ScrollArea } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
+import { toAgentChannelDraft } from '@renderer/components/channel/channelDraft'
 import { type ModelSelectorFilter } from '@renderer/components/ModelSelector'
 import { useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
 import { useIsCherryCloudModelSelectable } from '@renderer/hooks/cherryCloud/useIsCherryCloudModelSelectable'
@@ -33,6 +34,7 @@ import { AdvancedStep } from './steps/AdvancedStep'
 import { AutoCreateEntry } from './steps/AutoCreateEntry'
 import { BasicInfoStep } from './steps/BasicInfoStep'
 import { CapabilityStep } from './steps/CapabilityStep'
+import { ChannelsStep } from './steps/ChannelsStep'
 import { KnowledgeStep } from './steps/KnowledgeStep'
 import { McpStep } from './steps/McpStep'
 import { SystemPromptStep } from './steps/SystemPromptStep'
@@ -61,7 +63,7 @@ type ResourceCreateWizardProps = {
   initialValues?: Partial<Pick<ResourceCreateWizardFormValues, 'name' | 'description' | 'avatar' | 'prompt'>>
 }
 
-type StepId = 'basic' | 'system-prompt' | 'tools' | 'capability' | 'knowledge' | 'mcp' | 'advanced'
+type StepId = 'basic' | 'system-prompt' | 'tools' | 'capability' | 'knowledge' | 'mcp' | 'channels' | 'advanced'
 type WizardView = 'entry' | 'steps' | 'working' | 'result'
 
 const AUTO_CREATE_TIMEOUT_MS = 60_000
@@ -90,6 +92,7 @@ function getDefaultValues(
     mcpServerIds: [],
     enableWebSearch: false,
     disabledTools: [],
+    channels: [],
     languageMode: 'inherit',
     languageCustom: '',
     heartbeatEnabled: DEFAULT_HEARTBEAT_ENABLED,
@@ -179,6 +182,7 @@ function EntryFooter({
  */
 function WizardFooter({
   form,
+  stepId,
   stepIndex,
   isLast,
   isSubmitting,
@@ -188,6 +192,7 @@ function WizardFooter({
   onCreate
 }: {
   form: UseFormReturn<ResourceCreateWizardFormValues>
+  stepId: StepId
   stepIndex: number
   isLast: boolean
   isSubmitting: boolean
@@ -197,11 +202,13 @@ function WizardFooter({
   onCreate: () => void
 }) {
   const { t } = useTranslation()
-  const [name, modelId] = useWatch({ control: form.control, name: ['name', 'modelId'] })
+  const [name, modelId, channels] = useWatch({ control: form.control, name: ['name', 'modelId', 'channels'] })
   const submitting = isSubmitting || form.formState.isSubmitting
   const rootError = form.formState.errors.root?.message
   const basicValid = (name?.trim().length ?? 0) > 0 && Boolean(modelId)
-  const canProceed = stepIndex !== 0 || basicValid
+  // A channel the main process would reject fails the whole create, so it blocks here instead.
+  const channelsValid = channels.every((channel) => toAgentChannelDraft(channel) !== null)
+  const canProceed = (stepIndex !== 0 || basicValid) && (stepId !== 'channels' || channelsValid)
 
   return (
     <div className="flex shrink-0 items-center justify-end gap-2 border-border-subtle border-t px-6 py-3">
@@ -215,7 +222,7 @@ function WizardFooter({
         </Button>
       ) : null}
       {isLast ? (
-        <Button type="button" loading={submitting} disabled={!basicValid} onClick={onCreate}>
+        <Button type="button" loading={submitting} disabled={!basicValid || !channelsValid} onClick={onCreate}>
           {t('library.config.dialogs.create.submit')}
         </Button>
       ) : (
@@ -235,7 +242,7 @@ function WizardFooter({
  * caller's `onStartConversation`.
  *
  * In the steps, Assistants go basic → System Prompt → knowledge; Agents go basic → tools → skills →
- * knowledge → MCP → advanced (System Prompt, language, heartbeat, env vars), each shown only when
+ * knowledge → MCP → channels → advanced (System Prompt, language, heartbeat, env vars), each shown only when
  * the runtime supports it. A left rail tracks step progress
  * (completed and current steps keep their numbers); the right pane swaps the active
  * step's form as the footer drives navigation. One form collects every field
@@ -304,6 +311,7 @@ export function ResourceCreateWizard({
     const tools = { id: 'tools' as const, label: t('library.config.dialogs.edit.tools_tab') }
     const capability = { id: 'capability' as const, label: t('library.config.dialogs.create.step.capability') }
     const mcp = { id: 'mcp' as const, label: t('library.config.agent.section.tools.tab.mcp') }
+    const channels = { id: 'channels' as const, label: t('settings.channels.title') }
     const advanced = { id: 'advanced' as const, label: t('library.config.dialogs.edit.advanced_tab') }
     const caps = AGENT_RUNTIME_CAPABILITIES[agentType]
     return [
@@ -312,6 +320,7 @@ export function ResourceCreateWizard({
       ...(caps.skills ? [capability] : []),
       ...(caps.knowledgeBases ? [knowledge] : []),
       ...(caps.mcp ? [mcp] : []),
+      channels,
       advanced
     ]
   }, [agentType, kind, t])
@@ -426,6 +435,11 @@ export function ResourceCreateWizard({
   const submitValues = async (values: ResourceCreateWizardFormValues, generated = false): Promise<boolean> => {
     if (!values.modelId) return false
     form.clearErrors('root')
+    const channels = values.channels.map(toAgentChannelDraft)
+    if (channels.some((channel) => channel === null)) {
+      form.setError('root', { message: t('library.config.dialogs.create.channels.invalid') })
+      return false
+    }
     const payload: ResourceCreateWizardValues = {
       avatar: values.avatar,
       agentType: values.agentType,
@@ -439,6 +453,7 @@ export function ResourceCreateWizard({
       mcpServerIds: values.mcpServerIds,
       enableWebSearch: values.enableWebSearch,
       disabledTools: values.disabledTools,
+      channels: channels.filter((channel) => channel !== null),
       agentSettings: {
         languageMode: values.languageMode,
         languageCustom: values.languageCustom,
@@ -668,6 +683,9 @@ export function ResourceCreateWizard({
                       {currentStep.id === 'mcp' ? (
                         <McpStep form={form} isSubmitting={submitting} portalContainer={dialogContentElement} />
                       ) : null}
+                      {currentStep.id === 'channels' ? (
+                        <ChannelsStep form={form} portalContainer={dialogContentElement} />
+                      ) : null}
                       {currentStep.id === 'advanced' ? (
                         <AdvancedStep form={form} portalContainer={dialogContentElement} />
                       ) : null}
@@ -676,6 +694,7 @@ export function ResourceCreateWizard({
 
                   <WizardFooter
                     form={form}
+                    stepId={currentStep.id}
                     stepIndex={stepIndex}
                     isLast={isLast}
                     isSubmitting={isSubmitting}
