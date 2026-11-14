@@ -2341,7 +2341,6 @@
   "library.config.dialogs.edit.page.channels": "Kênh",
   "library.config.dialogs.edit.page.context": "Ngữ cảnh tùy chỉnh",
   "library.config.dialogs.edit.page.mcp": "Máy chủ MCP",
-  "library.config.dialogs.edit.page.more": "Cài đặt khác",
   "library.config.dialogs.edit.parameters_count": "{{count}} tham số",
   "library.config.dialogs.edit.permission_tab": "Quyền",
   "library.config.dialogs.edit.prompt_empty": "Chưa điền",

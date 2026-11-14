@@ -23,7 +23,7 @@ import {
   resourceDialogTitleClassName
 } from './EditDialogShared'
 
-/** The pill look shared by More settings' drill-in links and compact selects. */
+/** The pill look shared by the settings page's drill-in links and compact selects. */
 export const settingsPillClassName =
   'h-8 max-w-56 justify-between gap-1.5 rounded-lg border-0 bg-muted/50 px-2.5 font-normal text-[13px] text-foreground shadow-none hover:bg-muted aria-expanded:bg-muted dark:bg-muted/50'
 
@@ -31,7 +31,7 @@ const inlineInputClassName =
   'h-auto rounded-lg border-transparent bg-transparent px-2 text-center shadow-none hover:bg-muted/50 focus-visible:border-transparent focus-visible:bg-muted/50 focus-visible:ring-0 dark:bg-transparent dark:hover:bg-muted/50 dark:focus-visible:bg-muted/50'
 
 /**
- * Narrow paged edit dialog: a header with the page title (and a back button off the main page) above
+ * Narrow paged edit dialog: a header with the page title (and a back button on sub-pages) above
  * one scrolling page. `fill` gives the dialog a fixed height for pages that stretch, such as Memory.
  */
 export function EditDialogPageShell<TValues extends FieldValues>({
@@ -111,29 +111,27 @@ export function EditDialogPageShell<TValues extends FieldValues>({
 }
 
 /**
- * The main page: a large avatar, the name and description as borderless inputs, then the model
- * and the way into More settings. The name is required and an empty one shows the message.
+ * The identity block atop the settings page: a large avatar, the name and description as borderless
+ * inputs, then the model. The name is required and an empty one shows the message.
  */
-export function EditMainPage({
+export function EditIdentityHeader({
   form,
   avatar,
   namePlaceholder,
   descriptionPlaceholder,
-  model,
-  onOpenMore
+  model
 }: {
   form: UseFormReturn<any>
   avatar: ReactNode
   namePlaceholder: string
   descriptionPlaceholder: string
   model: ReactNode
-  onOpenMore: () => void
 }) {
   const { t } = useTranslation()
 
   return (
-    <div className="flex flex-col gap-5">
-      <div className="flex flex-col items-center">
+    <div className="flex flex-col items-center gap-3">
+      <div className="flex w-full flex-col items-center">
         {avatar}
         <FormField
           control={form.control}
@@ -170,24 +168,12 @@ export function EditMainPage({
           )}
         />
       </div>
-      <div className="flex items-center gap-1.5">
-        <div className="min-w-0">{model}</div>
-        <div className="flex-1" />
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          onClick={onOpenMore}
-          className="h-8 min-h-0 shrink-0 gap-0.5 rounded-lg px-2 font-normal text-muted-foreground text-sm shadow-none hover:bg-muted/50 hover:text-foreground">
-          {t('library.config.dialogs.edit.page.more')}
-          <ChevronRight className="size-3.5" />
-        </Button>
-      </div>
+      <div className="min-w-0 max-w-full">{model}</div>
     </div>
   )
 }
 
-/** A titled group of More settings rows in a lightly bordered card without dividers. */
+/** A titled group of settings rows in a lightly bordered card without dividers. */
 export function SettingsSection({ title, children }: { title: string; children: ReactNode }) {
   return (
     <section aria-label={title}>
@@ -197,7 +183,7 @@ export function SettingsSection({ title, children }: { title: string; children: 
   )
 }
 
-/** One More settings row: the name (and an optional hint) on the left, the control on the right. */
+/** One settings row: the name (and an optional hint) on the left, the control on the right. */
 export function SettingsRow({
   label,
   hint,

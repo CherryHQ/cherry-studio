@@ -2341,7 +2341,6 @@
   "library.config.dialogs.edit.page.channels": "Canale",
   "library.config.dialogs.edit.page.context": "Context personalizat",
   "library.config.dialogs.edit.page.mcp": "Servere MCP",
-  "library.config.dialogs.edit.page.more": "Mai multe setări",
   "library.config.dialogs.edit.parameters_count": "Parametri: {{count}}",
   "library.config.dialogs.edit.permission_tab": "Permisiune",
   "library.config.dialogs.edit.prompt_empty": "Necompletat",
