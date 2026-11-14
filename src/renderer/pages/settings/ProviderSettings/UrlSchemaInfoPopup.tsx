@@ -29,6 +29,7 @@ interface ShowParams {
   baseUrl: string
   type?: ProviderType
   name?: string
+  autoSyncModels?: boolean
 }
 
 interface ImportedProviderData {
@@ -44,11 +45,12 @@ interface PopupResult {
   isNew: boolean
   nameOnly: boolean
   displayName: string
+  autoSyncModels: boolean
 }
 
 type Props = ShowParams & PopupInjectedProps<PopupResult>
 
-const PopupContainer = ({ id, apiKey: newApiKey, baseUrl, type, name, open, resolve }: Props) => {
+const PopupContainer = ({ id, apiKey: newApiKey, baseUrl, type, name, autoSyncModels, open, resolve }: Props) => {
   const { t } = useTranslation()
   const { providers: rawProviders } = useProviders()
   const [showFullKey, setShowFullKey] = useState(false)
@@ -56,6 +58,8 @@ const PopupContainer = ({ id, apiKey: newApiKey, baseUrl, type, name, open, reso
   const providers = useMemo(() => (Array.isArray(rawProviders) ? rawProviders : []), [rawProviders])
 
   const foundProvider = providers.find((p) => p.id === id)
+  const isNewProvider = foundProvider === undefined
+  const willAutoSyncModels = autoSyncModels === true && isNewProvider
   const existingApiHost = getProviderHostTopology(foundProvider).primaryBaseUrl
   const { data: apiKeysData, isLoading: apiKeysLoading } = useQuery('/providers/:providerId/api-keys', {
     params: { providerId: id },
@@ -101,7 +105,7 @@ const PopupContainer = ({ id, apiKey: newApiKey, baseUrl, type, name, open, reso
     const finalApiHost = baseUrlChanged ? baseUrl : baseProvider.apiHost
 
     if (!nameChanged && finalApiKey === baseProvider.apiKey && finalApiHost === baseProvider.apiHost) {
-      resolve({ updatedProvider: undefined, isNew: !foundProvider, nameOnly: false, displayName })
+      resolve({ updatedProvider: undefined, isNew: isNewProvider, nameOnly: false, displayName, autoSyncModels: false })
       return
     }
 
@@ -115,12 +119,13 @@ const PopupContainer = ({ id, apiKey: newApiKey, baseUrl, type, name, open, reso
       updatedProvider,
       isNew: !foundProvider,
       nameOnly: Boolean(foundProvider) && keyAlreadyExists && !baseUrlChanged,
-      displayName
+      displayName,
+      autoSyncModels: willAutoSyncModels
     })
   }
 
   const handleCancel = () => {
-    resolve({ updatedProvider: undefined, isNew: !foundProvider, nameOnly: false, displayName })
+    resolve({ updatedProvider: undefined, isNew: isNewProvider, nameOnly: false, displayName, autoSyncModels: false })
   }
 
   const rows = [
@@ -141,7 +146,10 @@ const PopupContainer = ({ id, apiKey: newApiKey, baseUrl, type, name, open, reso
           <DialogTitle className="text-sm leading-5 text-foreground">
             {t('settings.models.provider_key_confirm_title', { provider: displayName })}
           </DialogTitle>
-          <DialogDescription className="text-sm leading-5 text-muted-foreground">{confirmMessage}</DialogDescription>
+          <DialogDescription className="text-sm leading-5 text-muted-foreground">
+            {confirmMessage}
+            {willAutoSyncModels ? ` ${t('settings.models.provider_import_auto_sync')}` : null}
+          </DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
           <div className="overflow-hidden rounded-xl border border-border-subtle bg-transparent">
@@ -191,7 +199,7 @@ const PopupContainer = ({ id, apiKey: newApiKey, baseUrl, type, name, open, reso
 }
 
 const UrlSchemaInfoPopup = createPopup<ShowParams, PopupResult>(PopupContainer, {
-  dismissResult: { updatedProvider: undefined, isNew: false, nameOnly: false, displayName: '' }
+  dismissResult: { updatedProvider: undefined, isNew: false, nameOnly: false, displayName: '', autoSyncModels: false }
 })
 
 export default UrlSchemaInfoPopup
