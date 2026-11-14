@@ -11,7 +11,7 @@ import { app, BrowserWindow, screen } from 'electron'
  *   - feature flag gate (`feature.quick_assistant.enabled`)
  *   - pin / blur auto-hide
  *   - cursor-aware repositioning across displays
- *   - platform-specific hide branch (Windows minimize+opacity, macOS app.hide)
+ *   - platform-specific hide branch (Windows blur+hide+opacity, macOS app.hide)
  *   - mainWindow lifecycle coupling (auto-hide when main window appears)
  *   - strict navigation safety (block navigation outside the renderer origin)
  *   - bounds persistence (via WindowManager's rememberBounds capability)
@@ -216,6 +216,8 @@ export class QuickAssistantService extends BaseService implements Activatable {
       this.mainWindowRef = mainWindow
 
       const onMainVisible = () => {
+        // Direct hide(): the main window is taking activation itself via show/restore,
+        // so no blur()+opacity dance is needed — focus already has an explicit owner.
         const window = this.getQuickAssistant()
         if (window) window.hide()
       }
@@ -313,7 +315,9 @@ export class QuickAssistantService extends BaseService implements Activatable {
 
     // Blur → hide is intentionally kept here (not downsunk to behavior.hideOnBlur)
     // because `hideQuickAssistant()` is a platform-specific business flow:
-    //   - Windows uses minimize + setOpacity(0) to avoid a show-flash
+    //   - Windows uses blur + hide + setOpacity(0): blur hands activation back to the
+    //     previous app (minimize() does not for this alwaysOnTop skipTaskbar tool window),
+    //     opacity keeps the hide/show visually clean
     //   - macOS <26 additionally calls `app.hide()` to return focus to the previous app
     // A generic `window.hide()` dispatch in WM cannot express either path.
     const onBlur = () => {
@@ -379,7 +383,9 @@ export class QuickAssistantService extends BaseService implements Activatable {
 
     this.wasMainWindowFocused = this.mainWindowRef?.isFocused() ?? false
 
-    // [Windows] Recovery from the minimize-instead-of-hide branch in hideQuickAssistant.
+    // [Windows] Recovery from the legacy minimize-instead-of-hide branch in hideQuickAssistant
+    // (pre-#23292: setOpacity(0) + minimize()). Minimized windows still report isVisible()
+    // true, so an old minimized window must be shown again before repositioning.
     // Note: do NOT use restore() — Electron has a bug across screens with different scale
     // factors. Use show() then setPosition/setBounds. setOpacity(0) hides the visual
     // glitch while we reposition.
@@ -418,13 +424,28 @@ export class QuickAssistantService extends BaseService implements Activatable {
   public hideQuickAssistant() {
     const window = this.getQuickAssistant()
     if (!window) return
+    // Already hidden: hide() is idempotent, so skip redundant work.
+    // Minimized windows still report isVisible() true, so legacy minimized windows
+    // correctly fall through to the platform branches below.
+    // Note: re-entrancy from onBlur (hide → blur() → blur event → hide) is bounded by
+    // the isFocused() guard around blur() below, not by this check — if blur emits
+    // synchronously the inner call still sees isVisible() true and simply re-hides
+    // idempotently.
+    if (!window.isVisible()) return
 
     if (isWin) {
-      // Hide() vs minimize() on Windows: minimize avoids a visible flicker on next show
-      // and skipTaskbar:true keeps it out of the taskbar. setOpacity(0) hides the
-      // minimize animation entirely.
+      // Windows: blur + hide returns activation to the previously foreground app.
+      // The previous minimize()+setOpacity(0) trick (shared with MainWindowService for
+      // normal overlapped windows) does not hand focus back for this alwaysOnTop +
+      // skipTaskbar tool window, and a minimized window still reports isVisible() true,
+      // which broke the next toggle. setOpacity(0) keeps the hide visually clean and
+      // proceedShow() restores opacity 1 on next show. Guard blur() with isFocused()
+      // so the blur auto-hide path does not re-enter itself.
       window.setOpacity(0)
-      window.minimize()
+      if (window.isFocused()) {
+        window.blur()
+      }
+      window.hide()
       return
     }
 
@@ -455,14 +476,27 @@ export class QuickAssistantService extends BaseService implements Activatable {
    * only need the window to disappear — hide() satisfies that. True teardown
    * happens in onDeactivate() when the feature preference is turned off, and
    * as a final fallback in WindowManager.onDestroy() at app quit.
+   *
+   * Windows delegates to hideQuickAssistant() for the blur()+hide focus hand-back.
+   * macOS/Linux use a plain hide(): an explicit settings-initiated close must not
+   * trigger the macOS <26 app.hide() path, which consults wasMainWindowFocused
+   * captured at show time — by close time the user is interacting with the main
+   * window settings, so a stale false would hide the settings window itself.
    */
   public closeQuickAssistant() {
+    if (isWin) {
+      this.hideQuickAssistant()
+      return
+    }
     this.getQuickAssistant()?.hide()
   }
 
   public toggleQuickAssistant() {
     const window = this.getQuickAssistant()
-    if (window?.isVisible()) {
+    // isVisible() stays true for a minimized window on Windows; focus() cannot restore
+    // it (and legacy minimize() left opacity 0) — treat minimized as hidden so the
+    // shortcut re-shows instead of hiding again. Mirrors MainWindowService.toggleMainWindow.
+    if (window && window.isVisible() && !window.isMinimized()) {
       this.hideQuickAssistant()
       return
     }
