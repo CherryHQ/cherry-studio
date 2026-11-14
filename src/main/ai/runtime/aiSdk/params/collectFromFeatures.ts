@@ -33,7 +33,7 @@ export function collectFromFeatures(scope: RequestScope, features: readonly Requ
   }
 
   for (const feature of features) {
-    if (!shouldRun(feature, scope)) continue
+    if (!featureApplies(feature, scope)) continue
 
     const modelAdapters = invokeContribution(feature, 'contributeModelAdapters', scope)
     if (modelAdapters) out.modelAdapters.push(...modelAdapters)
@@ -48,7 +48,7 @@ export function collectFromFeatures(scope: RequestScope, features: readonly Requ
   return out
 }
 
-function shouldRun(feature: RequestFeature, scope: RequestScope): boolean {
+export function featureApplies(feature: RequestFeature, scope: RequestScope): boolean {
   if (!feature.applies) return true
   try {
     return feature.applies(scope)
