@@ -4,7 +4,7 @@ import type { Tab } from '@shared/data/cache/cacheValueTypes'
 import type { SettingsPath } from '@shared/data/types/settingsPath'
 import { normalizeSettingsPath } from '@shared/data/types/settingsPath'
 import type { IpcEventName } from '@shared/ipc/schemas/ipcSchemas'
-import type { EventPayload } from '@shared/ipc/types'
+import type { EventPayload, InputFor } from '@shared/ipc/types'
 import type { AppErrorContext } from '@shared/types/appError'
 import type { MainWindowInitData } from '@shared/types/mainWindow'
 import { createAppErrorContext } from '@shared/utils/appError'
@@ -62,7 +62,7 @@ let isMainRendererReadyForTabAttach = false
 let errorReceiverReady = false
 let updateReceiverReady = false
 
-type MainSurfaceReceiver = 'error' | 'update'
+type MainSurfaceReceiver = InputFor<'app.surface.receiver'>['kind']
 
 /**
  * The tab-ready flag stays set after a provider crash: the webContents is still

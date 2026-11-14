@@ -411,11 +411,7 @@ export class AppUpdaterService extends BaseService {
     }
   }
 
-  public async queryUpdateAvailability(): Promise<
-    | { status: 'unsupported' }
-    | { status: 'current'; currentVersion: string }
-    | { status: 'available'; currentVersion: string; version: string }
-  > {
+  public async queryUpdateAvailability(): Promise<OutputFor<'app.updater.query_availability'>> {
     if (this.isPortable()) return { status: 'unsupported' }
     const { currentVersion, updateChannel, updateHeaders } = await this.getUpdateRequest()
     const updater = new ReleaseNotesUpdater()
