@@ -1680,6 +1680,7 @@ function ProfileDetailsExclusivity() {
 
 function AgentProfileRightPanel({ scope }: RightPanelComponentProps<AgentRightPanelScope>) {
   const actions = useRightPanelActions()
+  const paneActions = useAgentRightPaneActions()
   const { agentId, sessionId, workspacePath } = scope.meta
   const filesReady = actions.canOpen(FILES_PANE_ID)
   const workspace = useMemo(
@@ -1692,7 +1693,14 @@ function AgentProfileRightPanel({ scope }: RightPanelComponentProps<AgentRightPa
         : undefined,
     [actions, filesReady, workspacePath]
   )
-  return agentId ? <AgentProfilePane agentId={agentId} sessionId={sessionId} workspace={workspace} /> : null
+  return agentId ? (
+    <AgentProfilePane
+      agentId={agentId}
+      sessionId={sessionId}
+      workspace={workspace}
+      onOpenOutput={paneActions.canOpenArtifactFile ? paneActions.openArtifactFile : undefined}
+    />
+  ) : null
 }
 
 function AgentDetailsContent() {

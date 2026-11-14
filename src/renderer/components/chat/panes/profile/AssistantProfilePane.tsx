@@ -12,11 +12,13 @@ import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBase'
 import type { Assistant } from '@shared/data/types/assistant'
 
+import { AssistantOutputs } from './ProfileOutputs'
 import { ProfilePaneFrame } from './ProfilePaneFrame'
 import {
   ProfilePaneHeader,
   ProfilePaneSection,
   ProfilePaneSectionAction,
+  ProfilePaneTabs,
   ProfileSettingButton,
   ProfileSettingsRow,
   ProfileStartersSection
@@ -63,38 +65,45 @@ export function AssistantProfilePane({
         name={assistant.name}
         description={assistant.description}
       />
-      <AssistantUsage
-        assistantId={assistant.id}
-        activeTopicId={activeTopicId}
-        onOpenTopic={onOpenTopic}
-        onShowAllTopics={onShowAllTopics}
+      <ProfilePaneTabs
+        activity={
+          <>
+            <AssistantUsage
+              assistantId={assistant.id}
+              activeTopicId={activeTopicId}
+              onOpenTopic={onOpenTopic}
+              onShowAllTopics={onShowAllTopics}
+            />
+            <KnowledgeBasesSection assistant={assistant} onManage={() => openEdit('tools.knowledge')} />
+            <TryAskingSection assistant={assistant} topicId={activeTopicId} />
+            <ProfilePaneSection
+              title={t('common.settings')}
+              action={
+                <ProfilePaneSectionAction withChevron onClick={() => openEdit()}>
+                  {t('common.all')}
+                </ProfilePaneSectionAction>
+              }>
+              <ProfileSettingsRow label={modelLabel}>
+                <ProfileSettingButton
+                  label={modelLabel}
+                  value={model?.name ?? assistant.modelName ?? t('button.select_model')}
+                  icon={model ? <ModelAvatar model={model} size={18} /> : undefined}
+                  onClick={() => openEdit('basic')}
+                />
+              </ProfileSettingsRow>
+              <ProfileSettingsRow label={browserLabel}>
+                <Switch
+                  size="sm"
+                  aria-label={browserLabel}
+                  checked={assistant.settings.enableBrowser !== false}
+                  onCheckedChange={(enableBrowser) => void updateAssistantSettings({ enableBrowser })}
+                />
+              </ProfileSettingsRow>
+            </ProfilePaneSection>
+          </>
+        }
+        outputs={<AssistantOutputs assistantId={assistant.id} />}
       />
-      <KnowledgeBasesSection assistant={assistant} onManage={() => openEdit('tools.knowledge')} />
-      <TryAskingSection assistant={assistant} topicId={activeTopicId} />
-      <ProfilePaneSection
-        title={t('common.settings')}
-        action={
-          <ProfilePaneSectionAction withChevron onClick={() => openEdit()}>
-            {t('common.all')}
-          </ProfilePaneSectionAction>
-        }>
-        <ProfileSettingsRow label={modelLabel}>
-          <ProfileSettingButton
-            label={modelLabel}
-            value={model?.name ?? assistant.modelName ?? t('button.select_model')}
-            icon={model ? <ModelAvatar model={model} size={18} /> : undefined}
-            onClick={() => openEdit('basic')}
-          />
-        </ProfileSettingsRow>
-        <ProfileSettingsRow label={browserLabel}>
-          <Switch
-            size="sm"
-            aria-label={browserLabel}
-            checked={assistant.settings.enableBrowser !== false}
-            onCheckedChange={(enableBrowser) => void updateAssistantSettings({ enableBrowser })}
-          />
-        </ProfileSettingsRow>
-      </ProfilePaneSection>
     </ProfilePaneFrame>
   )
 }
