@@ -79,6 +79,7 @@ import { GroupSelector } from '../components/GroupSelector'
 import { KnowledgeCapabilityList } from '../components/KnowledgeCapabilityList'
 import { McpCapabilityList } from '../components/McpCapabilityList'
 import { PromptPolishActions } from '../components/PromptPolishActions'
+import { ReplyLanguageSelect } from '../components/ReplyLanguageSelect'
 import { countSummary, type EditPage, type EditSubPage, parentEditPage, resolveInitialEditPage } from './editPages'
 
 export type AssistantEditDialogResource = Parameters<typeof initialAssistantFormState>[0]
@@ -105,6 +106,8 @@ type AssistantEditFormValues = {
   customParameters: AssistantFormState['customParameters']
   enableBrowser: boolean
   mcpMode: AssistantFormState['mcpMode']
+  languageMode: AssistantFormState['languageMode']
+  languageCustom: string
   contextOverrideEnabled: boolean
   contextCompressEnabled: boolean
   contextTruncateThreshold: number
@@ -145,6 +148,8 @@ function defaultValuesForAssistant(resource: AssistantEditDialogResource): Assis
     customParameters: form.customParameters.map((parameter) => ({ ...parameter })),
     enableBrowser: form.enableBrowser,
     mcpMode: form.mcpMode,
+    languageMode: form.languageMode,
+    languageCustom: form.languageCustom,
     contextOverrideEnabled: form.contextOverrideEnabled,
     contextCompressEnabled: form.contextCompressEnabled,
     contextTruncateThreshold: form.contextTruncateThreshold,
@@ -185,6 +190,8 @@ function buildAssistantFormState(baseline: AssistantFormState, values: Assistant
     customParameters: values.customParameters,
     enableBrowser: values.enableBrowser,
     mcpMode: values.mcpMode,
+    languageMode: values.languageMode,
+    languageCustom: values.languageCustom,
     contextOverrideEnabled: values.contextOverrideEnabled,
     contextCompressEnabled: values.contextCompressEnabled,
     contextTruncateThreshold: values.contextTruncateThreshold,
@@ -752,6 +759,16 @@ function AssistantMoreSettings({
             onCheckedChange={(checked) => set('streamOutput', checked)}
           />
         </SettingsRow>
+        {/* The "Other language…" input spans the next grid row, under the name and the select. */}
+        <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 py-1.5 [&>input]:col-span-2 [&>input]:mt-2">
+          <span className="text-foreground text-sm">{t('library.config.agent.field.language.label')}</span>
+          <ReplyLanguageSelect
+            value={{ languageMode: values.languageMode, languageCustom: values.languageCustom }}
+            onChange={(patch) => setFormValues<AssistantEditFormValues>(form, patch)}
+            portalContainer={portalContainer}
+            triggerClassName={cn(settingsPillClassName, 'w-auto')}
+          />
+        </div>
         <SettingsRow
           label={labels.maxToolCalls}
           hint={
