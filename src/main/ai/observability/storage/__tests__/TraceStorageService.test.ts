@@ -297,6 +297,31 @@ describe('TraceStorageService', () => {
     expect(service['pendingEvents'].size).toBe(0)
   })
 
+  it('keeps attribute occupancy charged after escaped events roll out', async () => {
+    await service._doInit()
+    Object.defineProperty(service, 'store', { value: new TraceSpanStore(1000, 11 * 1024 * 1024) })
+    service.saveEntity(
+      span({
+        id: 'active',
+        traceId: 'active-trace',
+        topicId: 'topic',
+        isEnd: false,
+        attributes: { body: 'x'.repeat(800_000) },
+        events: Array.from({ length: 200 }, (_, i) => ({
+          ...timedEvent(`old-${i}`),
+          attributes: { body: '\n'.repeat(1000) }
+        }))
+      })
+    )
+    for (let i = 0; i < 200; i++) service.addSpanEvent('active-trace', 'active', timedEvent(`new-${i}`))
+    expect(service['store'].getSpan('active')?.events).toHaveLength(200)
+    service.saveEntity(
+      span({ id: 'competitor', traceId: 'other', topicId: 'topic', attributes: { body: 'x'.repeat(1_200_000) } })
+    )
+    expect(service['store'].getSpan('competitor')).toBeUndefined()
+    expect(service['store'].getSpan('active')?.attributes?.body).toHaveLength(800_000)
+  })
+
   it('appends a span event directly when the span is already stored', async () => {
     await service._doInit()
     service.saveEntity(span({ id: 's', traceId: 'trace', topicId: 'topic', events: [timedEvent('first')] }))

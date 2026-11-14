@@ -1,5 +1,5 @@
 # Bilingual-pair consistency record (docs/dev/i18n/README.md).
 # After editing either side, update its counterpart and re-record with:
 #   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-14-agent-trace-memory-recovery.md
-2026-11-14-agent-trace-memory-recovery.md: caeb5de78c4fbc14cb1df18c5b1e25ebacdefe69
-2026-11-14-agent-trace-memory-recovery.zh.md: ff5f49f7f688876853cd6cbcd01e1e3aed30159e
+2026-11-14-agent-trace-memory-recovery.md: 9563567c89147944fba566497a919b7d6d67f2fa
+2026-11-14-agent-trace-memory-recovery.zh.md: 5a686d4ce47505e05b6974ca07bcfe4d3d77ff09

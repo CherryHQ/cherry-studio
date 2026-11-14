@@ -127,7 +127,7 @@ describe('TraceSpanStore eviction', () => {
     // trace-b grows in place past the budget: the oldest fully-ended trace ages out and the span
     // that grew survives. A span larger than the whole budget cannot arise — the per-span event cap
     // is 2 MiB against a 64 MiB store.
-    store.touchSpan('b', 2_000)
+    store.touchSpan('b', 12_000)
 
     expect(store.getSpan('a')).toBeUndefined()
     expect(store.getSpan('b')).toBeDefined()
@@ -185,4 +185,26 @@ it('rejects an oversized active diagnostic span before whole-span serialization'
   const store = new TraceSpanStore(10, 10_000)
   store.setSpan(span({ isEnd: false, attributes: { body: 'x'.repeat(100_000) } }))
   expect(store.getSpans({ traceId: 'trace' })).toEqual([])
+})
+
+it('bounds metadata of evicted traces while preserving live and recently evicted attribution', () => {
+  const store = new TraceSpanStore(1)
+  store.setSpan(span({ id: 'first', traceId: 'first', topicId: 'topic', isEnd: false }))
+  store.setSpan(span({ id: 'second', traceId: 'second', topicId: 'topic', isEnd: false }))
+  expect(store.getTraceMeta('first')?.topicId).toBe('topic')
+  for (let i = 0; i < 1100; i++) {
+    store.setSpan(span({ id: `live-${i}`, traceId: `trace-${i}`, topicId: 'topic', isEnd: false }))
+  }
+  expect(store.getTraceIdsByTopic('topic').length).toBeLessThanOrEqual(1001)
+  expect(store.getTraceMeta('first')).toBeUndefined()
+  expect(store.getTraceMeta('trace-1099')?.topicId).toBe('topic')
+  expect(store.getTraceMeta('trace-1098')?.topicId).toBe('topic')
+  for (let i = 0; i < 1100; i++) store.registerTraceMeta(`pending-${i}`, { topicId: 'topic' })
+  expect(store.getTraceIdsByTopic('topic').length).toBeLessThanOrEqual(1001)
+  expect(store.getTraceMeta('trace-1099')?.topicId).toBe('topic')
+})
+it('bounds metadata registered before spans arrive', () => {
+  const store = new TraceSpanStore()
+  for (let i = 0; i < 1100; i++) store.registerTraceMeta(`trace-${i}`, { topicId: 'topic' })
+  expect(store.getTraceIdsByTopic('topic').length).toBeLessThanOrEqual(1000)
 })

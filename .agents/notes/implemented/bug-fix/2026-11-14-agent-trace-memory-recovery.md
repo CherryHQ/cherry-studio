@@ -14,7 +14,7 @@ An active recovered Durable input can arrive before any product projection check
 
 Disable full SDK input/output telemetry through the SDK options before serialization. Keep execution metadata, usage, bounded HTTP captures and turn text. The adapter excludes raw payload namespaces already represented by converted fields and omits JSON inputs above 512 Ki characters before parsing.
 
-Estimate retained span size recursively without whole-span serialization. Enforce the existing span-count and size budgets across active traces: remove completed traces, completed spans, then oldest active diagnostic spans if necessary. Deletion resets viewer cursors. Terminal export restores an evicted span when it fits the budget. This discards diagnostics, not execution state.
+Estimate retained span size recursively without whole-span serialization. Enforce the existing span-count and size budgets across active traces: remove completed traces, completed spans, then oldest active diagnostic spans if necessary. Deletion resets viewer cursors. Terminal export restores an evicted span when it fits the budget. This discards diagnostics, not execution state. Full-span accounting and added/removed event contributions use the same estimator, so escaped JSON cannot skew rolling retention. Metadata for traces without retained spans has a separate 1,000-trace recency window; retained spans protect their trace metadata.
 
 Durable passes the bound identity of a placed, unfinished input with recovered activity. Main resolves its unique direct assistant reply in the same context, including before the first checkpoint, and attaches output to that reply. Ambiguous or foreign bindings do not authorize choosing a reply. Existing background provenance remains the fallback.
 
@@ -34,6 +34,7 @@ SDK spans carry less content; bounded HTTP captures remain sensitive local diagn
 
 - Regression — `buildTelemetry.test.ts`: real AI SDK streaming with a large synthetic input retains the provider input and token usage without full input/output span attributes.
 - Regression — `aiSdkSpanAdapter.test.ts` and `TraceSpanStore.test.ts`: duplicate payload removal, oversized input omission, bounded long active traces, oversized active spans and stale viewer cursor resets.
+- Regression — `TraceStorageService.test.ts` and `TraceSpanStore.test.ts`: rolling escaped events retain the attribute budget; evicted and metadata-only traces stay bounded while recent attribution remains available. These three cases fail before the follow-up repair.
 - Regression — `PiDurableRuntimeConnection.test.ts` and `AgentSessionRuntimeService.handoff.test.ts`: placed input identity precedes content, recovery without a checkpoint writes the original reply, releases busy state and permits another input in the same session.
 
 Local focused checks do not establish Windows packaged-app acceptance under the user's original workload. User diagnostic databases and dumps are not used as executable fixtures.

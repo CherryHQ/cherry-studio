@@ -1,5 +1,7 @@
 import type { SpanEntity } from '@shared/data/types/trace'
 
+import { estimateTraceValueBytes } from './traceSize'
+
 export interface TraceSpanMeta {
   topicId?: string
   modelName?: string
@@ -21,17 +23,13 @@ export interface TraceSpanChanges {
 const DEFAULT_MAX_SPANS = 50_000
 const DEFAULT_MAX_SPAN_BYTES = 64 * 1024 * 1024
 
-// Conservative serialized-size estimate without allocating another copy of captured bodies.
-function estimateSpanBytes(value: unknown, seen = new Set<object>()): number {
-  if (typeof value === 'string') return value.length * 6 + 2
-  if (value === null || typeof value !== 'object') return 16
-  if (seen.has(value)) return 0
-  seen.add(value)
-  let bytes = 32
-  for (const [key, child] of Object.entries(value)) {
-    bytes += key.length * 6 + 4 + estimateSpanBytes(child, seen)
-  }
-  return bytes
+function estimateSpanBytes(span: SpanEntity): number {
+  const { events, ...fields } = span
+  return (
+    estimateTraceValueBytes(fields) +
+    32 +
+    (events ?? []).reduce((sum, event) => sum + estimateTraceValueBytes(event), 0)
+  )
 }
 
 /**
@@ -42,9 +40,11 @@ function estimateSpanBytes(value: unknown, seen = new Set<object>()): number {
  * than anything dropped is forced to resync rather than silently missing a deletion.
  */
 const MAX_TRACKED_RESETS = 1_000
+const MAX_INACTIVE_TRACE_META = 1_000
 
 export class TraceSpanStore {
   private readonly traceMeta = new Map<string, TraceSpanMeta>()
+  private readonly inactiveTraceMeta = new Set<string>()
   private readonly spans = new Map<string, SpanEntity>()
   // Per-trace span-id index, used for O(span-count) eviction without scanning all spans.
   private readonly traceSpanIds = new Map<string, Set<string>>()
@@ -74,6 +74,7 @@ export class TraceSpanStore {
       topicId: meta.topicId ?? current.topicId,
       modelName: meta.modelName ?? current.modelName
     })
+    this.retainInactiveTraceMeta(traceId)
   }
 
   getTraceMeta(traceId: string): TraceSpanMeta | undefined {
@@ -106,6 +107,7 @@ export class TraceSpanStore {
         this.traceSpanIds.set(span.traceId, ids)
       }
       ids.add(span.id)
+      this.inactiveTraceMeta.delete(span.traceId)
       this.traceOrder.set(span.traceId, this.orderSeq++)
     }
     if (span.traceId && (span.topicId || span.modelName)) {
@@ -129,7 +131,7 @@ export class TraceSpanStore {
     if (!span) return
     this.spanRevisions.set(spanId, this.nextRevision())
     if (span.traceId) this.traceOrder.set(span.traceId, this.orderSeq++)
-    this.trackBytes(spanId, (this.spanBytes.get(spanId) ?? 0) + deltaBytes * 6)
+    this.trackBytes(spanId, (this.spanBytes.get(spanId) ?? 0) + deltaBytes)
     this.enforceSpanLimit()
   }
 
@@ -178,6 +180,7 @@ export class TraceSpanStore {
     }
     this.spans.clear()
     this.traceMeta.clear()
+    this.inactiveTraceMeta.clear()
     this.traceSpanIds.clear()
     this.traceOrder.clear()
     this.spanRevisions.clear()
@@ -198,6 +201,7 @@ export class TraceSpanStore {
     this.removeSpans(removedIds)
     if (!modelName) {
       this.traceMeta.delete(traceId)
+      this.inactiveTraceMeta.delete(traceId)
     }
   }
 
@@ -300,6 +304,18 @@ export class TraceSpanStore {
     if (ids.size === 0) {
       this.traceSpanIds.delete(traceId)
       this.traceOrder.delete(traceId)
+      this.retainInactiveTraceMeta(traceId)
+    }
+  }
+
+  private retainInactiveTraceMeta(traceId: string): void {
+    this.inactiveTraceMeta.delete(traceId)
+    if (this.traceSpanIds.has(traceId) || !this.traceMeta.has(traceId)) return
+    this.inactiveTraceMeta.add(traceId)
+    while (this.inactiveTraceMeta.size > MAX_INACTIVE_TRACE_META) {
+      const oldest = this.inactiveTraceMeta.values().next().value!
+      this.inactiveTraceMeta.delete(oldest)
+      this.traceMeta.delete(oldest)
     }
   }
 
