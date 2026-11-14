@@ -116,8 +116,10 @@ describe('Agent prompt onboarding', () => {
       agent: agentService.getAgent(id)!
     })
 
-    expect(append).toContain('`agent_create` or `assistant_create`')
-    expect(append).toContain('`config_update`')
+    expect(append).toContain('`mcp__cherry-tools__agent_create` or `mcp__cherry_tools__agent_create`')
+    expect(append).toContain('`mcp__cherry_tools__assistant_create`')
+    expect(append).toContain('`tool_search`')
+    expect(append).toContain('`mcp__cherry_tools__config_update`')
   })
 })
 
@@ -125,8 +127,9 @@ describe('getConfigToolsPrompt', () => {
   it('points Cherry Assistant at its host create and update tools', () => {
     const prompt = getConfigToolsPrompt({ configuration: { builtin_role: BUILTIN_AGENT_ROLE.ASSISTANT } })
 
-    expect(prompt).toContain('`create_agent` or `create_assistant`')
-    expect(prompt).toContain('`update_agent`')
+    expect(prompt).toContain('`mcp__assistant__create_agent`')
+    expect(prompt).toContain('`mcp__assistant__create_assistant`')
+    expect(prompt).toContain('`mcp__assistant__update_agent`')
     expect(prompt).not.toContain('config_update')
   })
 
