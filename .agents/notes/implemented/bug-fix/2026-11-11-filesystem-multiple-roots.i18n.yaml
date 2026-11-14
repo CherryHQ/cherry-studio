@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-11-filesystem-multiple-roots.md
+2026-11-11-filesystem-multiple-roots.md: 1f4372784a791905c801653a5f5109546cd64d42
+2026-11-11-filesystem-multiple-roots.zh.md: 1782e5cb11a60da0645f0335ea31918ba938cd60

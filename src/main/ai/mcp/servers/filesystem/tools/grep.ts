@@ -8,7 +8,15 @@ import { isTextByContent } from '@main/utils/file'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 
 import type { GrepMatch } from '../types'
-import { logger, MAX_GREP_MATCHES, MAX_LINE_LENGTH, runRipgrep, validatePath } from '../types'
+import {
+  type BaseDirInput,
+  logger,
+  MAX_GREP_MATCHES,
+  MAX_LINE_LENGTH,
+  primaryBaseDir,
+  runRipgrep,
+  validatePath
+} from '../types'
 
 // Schema definition
 export const GrepToolSchema = z.object({
@@ -68,12 +76,15 @@ function parseRipgrepMatch(line: string): GrepMatch | null {
 }
 
 // Handler implementation
-export async function handleGrepTool(data: z.infer<typeof GrepToolSchema>, baseDir: string): Promise<CallToolResult> {
+export async function handleGrepTool(
+  data: z.infer<typeof GrepToolSchema>,
+  baseDir: BaseDirInput
+): Promise<CallToolResult> {
   if (!data.pattern) {
     throw new Error('Pattern is required for grep')
   }
 
-  const searchPath = data.path || baseDir
+  const searchPath = data.path || primaryBaseDir(baseDir)
   const validPath = await validatePath(searchPath, baseDir)
 
   const matches: GrepMatch[] = []
@@ -233,7 +244,7 @@ export async function handleGrepTool(data: z.infer<typeof GrepToolSchema>, baseD
 
           const absoluteFilePath = path.isAbsolute(parsedMatch.file)
             ? parsedMatch.file
-            : path.resolve(baseDir, parsedMatch.file)
+            : path.resolve(primaryBaseDir(baseDir), parsedMatch.file)
 
           // Re-validate each result to filter out symlink escapes
           try {
