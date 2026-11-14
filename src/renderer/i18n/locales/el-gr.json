@@ -2341,7 +2341,6 @@
   "library.config.dialogs.edit.page.channels": "Κανάλια",
   "library.config.dialogs.edit.page.context": "Προσαρμοσμένο πλαίσιο",
   "library.config.dialogs.edit.page.mcp": "Διακομιστές MCP",
-  "library.config.dialogs.edit.page.more": "Περισσότερες ρυθμίσεις",
   "library.config.dialogs.edit.parameters_count": "Παράμετροι: {{count}}",
   "library.config.dialogs.edit.permission_tab": "Άδεια",
   "library.config.dialogs.edit.prompt_empty": "Μη συμπληρωμένο",

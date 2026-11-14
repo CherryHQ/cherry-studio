@@ -2341,7 +2341,6 @@
   "library.config.dialogs.edit.page.channels": "ช่องทาง",
   "library.config.dialogs.edit.page.context": "บริบทที่กำหนดเอง",
   "library.config.dialogs.edit.page.mcp": "เซิร์ฟเวอร์ MCP",
-  "library.config.dialogs.edit.page.more": "การตั้งค่าเพิ่มเติม",
   "library.config.dialogs.edit.parameters_count": "พารามิเตอร์ {{count}} รายการ",
   "library.config.dialogs.edit.permission_tab": "สิทธิ์",
   "library.config.dialogs.edit.prompt_empty": "ยังไม่ได้กรอก",

@@ -2341,7 +2341,6 @@
   "library.config.dialogs.edit.page.channels": "频道",
   "library.config.dialogs.edit.page.context": "自定义上下文",
   "library.config.dialogs.edit.page.mcp": "MCP 服务",
-  "library.config.dialogs.edit.page.more": "更多设置",
   "library.config.dialogs.edit.parameters_count": "{{count}} 个参数",
   "library.config.dialogs.edit.permission_tab": "权限",
   "library.config.dialogs.edit.prompt_empty": "未填写",
