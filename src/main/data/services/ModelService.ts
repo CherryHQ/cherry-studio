@@ -1012,7 +1012,7 @@ class ModelService {
         'api key id must not be empty'
       )
     }
-    if (apiKeyId != null && apiKeyId !== '') {
+    if (apiKeyId != null) {
       if (!getProviderKeyIds(providerId).has(apiKeyId)) {
         throw DataApiErrorFactory.invalidOperation(
           `update model ${providerId}/${modelId}`,

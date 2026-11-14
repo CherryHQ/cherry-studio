@@ -7,10 +7,10 @@ import type { RuntimeApiKey } from '@shared/data/types/provider'
 
 const AUTO_VALUE = '__auto__'
 
-function formatKeyLabel(entry: RuntimeApiKey): string {
+function formatKeyLabel(entry: RuntimeApiKey, unnamedLabel: string, ordinal: number): string {
   const label = entry.label?.trim()
   if (label) return label
-  return entry.id
+  return `${unnamedLabel} #${ordinal}`
 }
 
 interface ModelApiKeyFieldProps {
@@ -26,9 +26,9 @@ export function ModelApiKeyField({ apiKeys, value, disabled, onChange }: ModelAp
 
   const options: ComboboxOption[] = [
     { value: AUTO_VALUE, label: t('settings.models.edit.api_key.auto') },
-    ...apiKeys.map((entry) => ({
+    ...apiKeys.map((entry, index) => ({
       value: entry.id,
-      label: formatKeyLabel(entry),
+      label: formatKeyLabel(entry, t('settings.provider.api_key.unnamed'), index + 1),
       description: entry.isEnabled ? undefined : t('settings.models.edit.api_key.disabled')
     }))
   ]
