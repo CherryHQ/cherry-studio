@@ -29,6 +29,7 @@ interface UseMessageListAdapterCapabilitiesOptions {
   deleteMessage?: MessageListActions['deleteMessage']
   canDeleteMessage?: MessageListActions['canDeleteMessage']
   diagnosticReport?: ErrorDetailContentProps['diagnosticReport']
+  errorSource: 'agent' | 'chat'
   getDoctorSubject: (message: MessageListItem) => DoctorSubjectRef | undefined
   /** Load-all pagination handle for select-all; absent = fully loaded. */
   selectAllPagination?: MessageListSelectAllPagination
@@ -49,6 +50,7 @@ export function useMessageListAdapterCapabilities({
   deleteMessage,
   canDeleteMessage,
   diagnosticReport,
+  errorSource,
   getDoctorSubject,
   selectAllPagination
 }: UseMessageListAdapterCapabilitiesOptions) {
@@ -59,7 +61,7 @@ export function useMessageListAdapterCapabilities({
   const leafCapabilities = useMessageLeafCapabilities({ partsByMessageId, streamingLayers })
   const headerCapabilities = useMessageHeaderCapabilities()
   const messageUiStateCache = useMessageUiStateCache()
-  const errorActions = useMessageErrorActions({ diagnosticReport, getDoctorSubject })
+  const errorActions = useMessageErrorActions({ diagnosticReport, errorSource, getDoctorSubject })
   const selectionController = useMessageSelectionController({
     topicId,
     exportMessages: exportActions.exportMessages,

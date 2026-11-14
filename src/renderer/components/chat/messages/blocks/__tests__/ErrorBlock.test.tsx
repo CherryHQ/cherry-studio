@@ -784,7 +784,9 @@ required service tier.`
 
   it('never attaches a visible translation to the detail as an AI diagnosis', async () => {
     mocks.language = 'de-DE'
-    const { result } = renderHook(() => useMessageErrorActions({ getDoctorSubject: () => undefined }))
+    const { result } = renderHook(() =>
+      useMessageErrorActions({ errorSource: 'chat', getDoctorSubject: () => undefined })
+    )
     mocks.actions = {
       ...result.current,
       diagnoseMessageError: vi.fn().mockResolvedValue('Übersetzter Fehler.')
