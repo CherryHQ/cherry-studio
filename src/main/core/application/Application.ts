@@ -19,7 +19,6 @@ import { isDev, isLinux, isMac, isPortable, isWin } from '@main/core/platform'
 import { showSupportedMessageBox } from '@main/core/preboot/nativeErrorDialog'
 import { bootConfigService } from '@main/data/bootConfig'
 import { resolveSystemLanguage, t } from '@main/i18n'
-import { defaultLanguage } from '@shared/utils/languages'
 
 import type { ServiceRegistry } from './serviceRegistry'
 
@@ -27,12 +26,6 @@ const logger = loggerService.withContext('Lifecycle')
 
 type StartupLanguage = ReturnType<typeof resolveSystemLanguage>
 type BootConfigDialogKind = 'read_error' | 'validation_error' | 'parse_error'
-
-/** System catalog only. These dialogs run before PreferenceService exists. */
-function startupLanguage(): StartupLanguage {
-  if (typeof app.isReady === 'function' && app.isReady()) return resolveSystemLanguage(app.getLocale())
-  return defaultLanguage
-}
 
 function bootConfigDialog(
   kind: BootConfigDialogKind,
@@ -452,9 +445,10 @@ export class Application {
   public relaunch(options?: Electron.RelaunchOptions): void {
     if (isDev || !app.isPackaged) {
       logger.warn('Relaunch is not supported in dev mode. Please restart manually.')
+      // Preboot can relaunch before ready, when no dialog (or getLocale) is available.
       if (app.isReady()) {
-        // getLocale is only valid once Electron is ready. Preboot can relaunch earlier.
-        const language = startupLanguage()
+        // System catalog: PreferenceService may not exist yet.
+        const language = resolveSystemLanguage(app.getLocale())
         dialog.showMessageBoxSync({
           type: 'info',
           title: t('dialog.startup.manual_restart.title', undefined, language),
