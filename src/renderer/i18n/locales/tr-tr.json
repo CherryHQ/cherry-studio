@@ -2924,6 +2924,8 @@
   "miniApps.zhihu": "Zhihu",
   "models.action.configure_custom": "Özel modelleri yapılandır",
   "models.action.pin": "Bu modeli sabitle",
+  "models.action.switch_to_dialog": "İletişim kutusuna geç",
+  "models.action.switch_to_dropdown": "Açılır menüye geç",
   "models.action.unpin": "Modelin sabitlemesini kaldır",
   "models.all": "Tümü",
   "models.detail.context_window": "Bağlam penceresi",

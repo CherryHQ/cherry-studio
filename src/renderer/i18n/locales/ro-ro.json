@@ -2924,6 +2924,8 @@
   "miniApps.zhihu": "Zhihu",
   "models.action.configure_custom": "Configurează modele personalizate",
   "models.action.pin": "Fixează acest model",
+  "models.action.switch_to_dialog": "Comută la dialog",
+  "models.action.switch_to_dropdown": "Comută la lista derulantă",
   "models.action.unpin": "Dezactivează modelul",
   "models.all": "Toate",
   "models.detail.context_window": "Fereastră de context",

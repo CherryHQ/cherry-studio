@@ -75,6 +75,7 @@ const PaintingModelSelector: FC<PaintingModelSelectorProps> = ({ className, pain
         </PaintingSectionTitle>
       )}
       <ModelSelector
+        allowPresentationSwitch
         showSubscriptionOffers={false}
         open={open}
         onOpenChange={setOpen}

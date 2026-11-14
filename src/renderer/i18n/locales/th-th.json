@@ -2924,6 +2924,8 @@
   "miniApps.zhihu": "Zhihu",
   "models.action.configure_custom": "กำหนดค่าโมเดลแบบกำหนดเอง",
   "models.action.pin": "ปักหมุดโมเดลนี้",
+  "models.action.switch_to_dialog": "สลับเป็นกล่องโต้ตอบ",
+  "models.action.switch_to_dropdown": "สลับเป็นรายการแบบเลื่อนลง",
   "models.action.unpin": "เลิกปักหมุดโมเดล",
   "models.all": "ทั้งหมด",
   "models.detail.context_window": "หน้าต่างคอนเท็กซ์",

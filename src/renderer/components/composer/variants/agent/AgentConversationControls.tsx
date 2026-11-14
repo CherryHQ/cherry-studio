@@ -188,6 +188,7 @@ function ModelControl({
   )
   return (
     <ModelSelector
+      allowPresentationSwitch
       multiple={false}
       includeAgentOnlyModels
       value={model}

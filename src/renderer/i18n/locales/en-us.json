@@ -2924,6 +2924,8 @@
   "miniApps.zhihu": "Zhihu",
   "models.action.configure_custom": "Configure custom models",
   "models.action.pin": "Pin this model",
+  "models.action.switch_to_dialog": "Switch to dialog",
+  "models.action.switch_to_dropdown": "Switch to dropdown",
   "models.action.unpin": "Unpin model",
   "models.all": "All",
   "models.detail.context_window": "Context window",

@@ -2924,6 +2924,8 @@
   "miniApps.zhihu": "Zhihu",
   "models.action.configure_custom": "Настроить пользовательские модели",
   "models.action.pin": "Закрепить эту модель",
+  "models.action.switch_to_dialog": "Переключить на диалог",
+  "models.action.switch_to_dropdown": "Переключить на выпадающий список",
   "models.action.unpin": "Открепить модель",
   "models.all": "Все",
   "models.detail.context_window": "контекстное окно",

@@ -2924,6 +2924,8 @@
   "miniApps.zhihu": "知乎直答",
   "models.action.configure_custom": "配置自定义模型",
   "models.action.pin": "置顶此模型",
+  "models.action.switch_to_dialog": "切换为弹窗",
+  "models.action.switch_to_dropdown": "切换为下拉",
   "models.action.unpin": "取消置顶",
   "models.all": "全部",
   "models.detail.context_window": "上下文窗口",

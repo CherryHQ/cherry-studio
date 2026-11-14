@@ -2924,6 +2924,8 @@
   "miniApps.zhihu": "Zhihu",
   "models.action.configure_custom": "Benutzerdefinierte Modelle konfigurieren",
   "models.action.pin": "Dieses Modell anheften",
+  "models.action.switch_to_dialog": "Zum Dialog wechseln",
+  "models.action.switch_to_dropdown": "Zum Dropdown wechseln",
   "models.action.unpin": "Anheften des Modells aufheben",
   "models.all": "Alle",
   "models.detail.context_window": "Kontextfenster",

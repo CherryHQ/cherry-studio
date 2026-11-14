@@ -2924,6 +2924,8 @@
   "miniApps.zhihu": "Zhihu",
   "models.action.configure_custom": "Cấu hình các mô hình tùy chỉnh",
   "models.action.pin": "Ghim mô hình này",
+  "models.action.switch_to_dialog": "Chuyển sang hộp thoại",
+  "models.action.switch_to_dropdown": "Chuyển sang danh sách thả xuống",
   "models.action.unpin": "Gỡ ghim mô hình",
   "models.all": "Tất cả",
   "models.detail.context_window": "Cửa sổ ngữ cảnh",

@@ -2924,6 +2924,8 @@
   "miniApps.zhihu": "Zhihu",
   "models.action.configure_custom": "カスタムモデルを設定",
   "models.action.pin": "このモデルをピン留め",
+  "models.action.switch_to_dialog": "ダイアログに切り替え",
+  "models.action.switch_to_dropdown": "ドロップダウンに切り替え",
   "models.action.unpin": "モデルのピン留めを解除",
   "models.all": "すべて",
   "models.detail.context_window": "コンテキストウィンドウ",
