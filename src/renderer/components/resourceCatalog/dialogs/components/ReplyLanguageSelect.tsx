@@ -15,6 +15,7 @@ import {
 import { usePreference } from '@data/hooks/usePreference'
 import { AGENT_LANGUAGE_MAX_LENGTH, AGENT_LANGUAGE_PRESETS } from '@renderer/utils/agent/agentLanguage'
 import type { AgentFormState } from '@renderer/utils/resourceCatalog'
+import { cn } from '@renderer/utils/style'
 
 type ReplyLanguageValue = Pick<AgentFormState, 'languageMode' | 'languageCustom'>
 
@@ -24,13 +25,14 @@ type ReplyLanguageSelectProps = {
   value: ReplyLanguageValue
   onChange: (patch: Partial<ReplyLanguageValue>) => void
   portalContainer?: HTMLElement | null
+  triggerClassName?: string
 }
 
 /**
  * Reply language as one select over the `languageMode` / `languageCustom` mapping. Renders the select and,
  * for "Other language…", the input as siblings so the parent lays them out.
  */
-export function ReplyLanguageSelect({ value, onChange, portalContainer }: ReplyLanguageSelectProps) {
+export function ReplyLanguageSelect({ value, onChange, portalContainer, triggerClassName }: ReplyLanguageSelectProps) {
   const { t } = useTranslation()
   const [globalLanguage] = usePreference('agent.language')
   const isPreset = AGENT_LANGUAGE_PRESETS.includes(value.languageCustom)
@@ -57,7 +59,7 @@ export function ReplyLanguageSelect({ value, onChange, portalContainer }: ReplyL
   return (
     <>
       <Select value={selected} onValueChange={handleChange}>
-        <SelectTrigger aria-label={label} className="h-9 w-full rounded-md">
+        <SelectTrigger aria-label={label} className={cn('h-9 w-full rounded-md', triggerClassName)}>
           <SelectValue />
         </SelectTrigger>
         <SelectContent portalContainer={portalContainer}>

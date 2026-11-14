@@ -1440,6 +1440,21 @@ describe('edit dialogs', () => {
     )
   })
 
+  it('saves the Assistant reply language from More settings, starting from no constraint', async () => {
+    render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'More settings' }))
+    const answers = await screen.findByRole('region', { name: 'Answers' })
+    const select = within(answers).getByRole('combobox', { name: 'Reply language' })
+    expect(select).toHaveTextContent('No constraint')
+    fireEvent.click(select)
+    fireEvent.click(await screen.findByRole('option', { name: 'Follow global' }))
+
+    await waitFor(() =>
+      expect(updateAssistantMock).toHaveBeenCalledWith({ body: { settings: { replyLanguage: { mode: 'inherit' } } } })
+    )
+  })
+
   it('cancels Full Access on authoritative editor refresh without losing other edits (inv_787184d14a5afca7)', async () => {
     const user = userEvent.setup()
     const agent = { ...AGENT, configuration: { ...AGENT.configuration, permission_mode: 'auto' as const } }

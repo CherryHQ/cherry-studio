@@ -201,6 +201,8 @@ export function PermissionModeSelect({
   ariaLabel,
   scopeName,
   scopeKind = 'agent',
+  standalone = false,
+  triggerClassName,
   t
 }: {
   cards: PermissionModeCard[]
@@ -210,9 +212,24 @@ export function PermissionModeSelect({
   ariaLabel: string
   scopeName?: string
   scopeKind?: FullAccessScopeKind
+  /** Rendered outside a react-hook-form field, so the trigger skips the `FormControl` wiring. */
+  standalone?: boolean
+  triggerClassName?: string
   t: TFunction
 }) {
   const selectedCard = cards.find((card) => card.mode === value)
+  const trigger = (
+    <SelectTrigger className={cn('h-9 w-full rounded-md', triggerClassName)} aria-label={ariaLabel}>
+      <SelectValue>
+        {selectedCard ? (
+          <span className={cn('flex min-w-0 items-center gap-2', selectedCard.dangerous && 'text-destructive')}>
+            <PermissionModeIcon mode={selectedCard.mode} size={16} />
+            <span className="truncate">{t(selectedCard.titleKey, selectedCard.titleFallback)}</span>
+          </span>
+        ) : null}
+      </SelectValue>
+    </SelectTrigger>
+  )
   const [fullAccessPending, setFullAccessPending] = useState(false)
 
   // Any newer mode (local or from another window) wins; confirming must never apply a stale dialog.
@@ -234,18 +251,7 @@ export function PermissionModeSelect({
           setFullAccessPending(false)
           onValueChange(next as PermissionMode)
         }}>
-        <FormControl>
-          <SelectTrigger className="h-9 w-full rounded-md" aria-label={ariaLabel}>
-            <SelectValue>
-              {selectedCard ? (
-                <span className={cn('flex min-w-0 items-center gap-2', selectedCard.dangerous && 'text-destructive')}>
-                  <PermissionModeIcon mode={selectedCard.mode} size={16} />
-                  <span className="truncate">{t(selectedCard.titleKey, selectedCard.titleFallback)}</span>
-                </span>
-              ) : null}
-            </SelectValue>
-          </SelectTrigger>
-        </FormControl>
+        {standalone ? trigger : <FormControl>{trigger}</FormControl>}
         <SelectContent portalContainer={portalContainer} className="min-w-[360px]">
           {cards.map((card) => (
             <PermissionModeSelectItem key={card.mode} card={card} portalContainer={portalContainer} t={t} />
