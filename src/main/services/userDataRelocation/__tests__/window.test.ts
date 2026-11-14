@@ -2,25 +2,33 @@ import { EventEmitter } from 'node:events'
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { browserWindowMock, ipcHandleMock, ipcRemoveHandlerMock, shellOpenExternalMock, validateSenderMock } =
-  vi.hoisted(() => ({
-    browserWindowMock: vi.fn(),
-    ipcHandleMock: vi.fn(),
-    ipcRemoveHandlerMock: vi.fn(),
-    shellOpenExternalMock: vi.fn(),
-    validateSenderMock: vi.fn(() => true)
-  }))
+const {
+  browserWindowMock,
+  getAppEditionMock,
+  ipcHandleMock,
+  ipcRemoveHandlerMock,
+  shellOpenExternalMock,
+  validateSenderMock
+} = vi.hoisted(() => ({
+  browserWindowMock: vi.fn(),
+  getAppEditionMock: vi.fn(() => 'global'),
+  ipcHandleMock: vi.fn(),
+  ipcRemoveHandlerMock: vi.fn(),
+  shellOpenExternalMock: vi.fn(),
+  validateSenderMock: vi.fn(() => true)
+}))
 
 vi.mock('@main/core/platform', () => ({ isDev: false, isMac: false }))
 vi.mock('@application', () => ({ application: { getPath: vi.fn(() => '/app') } }))
 vi.mock('@main/core/security/validateSender', () => ({ validateSender: validateSenderMock }))
+vi.mock('@main/utils/appEdition', () => ({ getAppEdition: getAppEditionMock }))
 vi.mock('electron', () => ({
   BrowserWindow: browserWindowMock,
   ipcMain: { handle: ipcHandleMock, removeHandler: ipcRemoveHandlerMock },
   shell: { openExternal: shellOpenExternalMock }
 }))
 
-import { UserDataRelocationIpcChannels, UserDataRelocationSupportLinks } from '@shared/types/userDataRelocation'
+import { UserDataRelocationIpcChannels } from '@shared/types/userDataRelocation'
 
 import { openUserDataRelocationWindow } from '../window'
 
@@ -184,36 +192,34 @@ describe('userDataRelocation window', () => {
     expect(invoke(UserDataRelocationIpcChannels.GetProgress)).toEqual(progress)
   })
 
-  it('opens only the allowlisted feedback and releases destinations', async () => {
+  it('opens support feedback and the download page of the running edition', async () => {
     shellOpenExternalMock.mockResolvedValue(undefined)
+    getAppEditionMock.mockReturnValue('cn')
     openUserDataRelocationWindow({ getProgress: () => null, onRestart: vi.fn() })
 
     await expect(invoke(UserDataRelocationIpcChannels.OpenSupportLink, 'feedback')).resolves.toBe(true)
-    await expect(invoke(UserDataRelocationIpcChannels.OpenSupportLink, 'releases')).resolves.toBe(true)
+    await expect(invoke(UserDataRelocationIpcChannels.OpenSupportLink, 'download')).resolves.toBe(true)
 
-    expect(UserDataRelocationSupportLinks).toEqual({
-      feedback: 'mailto:support@cherry-ai.com?subject=Cherry%20Studio%20Feedback',
-      releases: 'https://github.com/CherryHQ/cherry-studio/releases'
-    })
-    expect(shellOpenExternalMock).toHaveBeenCalledTimes(2)
-    expect(shellOpenExternalMock).toHaveBeenCalledWith(UserDataRelocationSupportLinks.feedback)
-    expect(shellOpenExternalMock).toHaveBeenCalledWith(UserDataRelocationSupportLinks.releases)
+    expect(shellOpenExternalMock.mock.calls).toEqual([
+      [expect.stringMatching(/^mailto:support@cherry-ai\.com/)],
+      ['https://cherryai.com.cn/download']
+    ])
   })
 
-  it('rejects an untrusted sender and an unapproved destination without opening either', () => {
+  it('rejects an untrusted sender and an unapproved destination without opening either', async () => {
     const onRestart = vi.fn()
     validateSenderMock.mockReturnValue(false)
     openUserDataRelocationWindow({ getProgress: () => null, onRestart })
 
-    expect(() => invoke(UserDataRelocationIpcChannels.OpenSupportLink, 'releases')).toThrow('untrusted sender')
+    expect(() => invoke(UserDataRelocationIpcChannels.OpenSupportLink, 'download')).toThrow('untrusted sender')
     expect(shellOpenExternalMock).not.toHaveBeenCalled()
     expect(onRestart).not.toHaveBeenCalled()
 
     validateSenderMock.mockReturnValue(true)
-    expect(
-      invoke(UserDataRelocationIpcChannels.OpenSupportLink, 'https://github.com/CherryHQ/cherry-studio/releases')
-    ).toBe(false)
-    expect(invoke(UserDataRelocationIpcChannels.OpenSupportLink, 'https://evil.example')).toBe(false)
+    await expect(invoke(UserDataRelocationIpcChannels.OpenSupportLink, 'https://cherryai.com/download')).resolves.toBe(
+      false
+    )
+    await expect(invoke(UserDataRelocationIpcChannels.OpenSupportLink, 'https://evil.example')).resolves.toBe(false)
     expect(shellOpenExternalMock).not.toHaveBeenCalled()
   })
 
@@ -222,7 +228,7 @@ describe('userDataRelocation window', () => {
     openUserDataRelocationWindow({ getProgress: () => null, onRestart: vi.fn() })
 
     await expect(invoke(UserDataRelocationIpcChannels.OpenSupportLink, 'feedback')).resolves.toBe(false)
-    expect(shellOpenExternalMock).toHaveBeenCalledWith(UserDataRelocationSupportLinks.feedback)
+    expect(shellOpenExternalMock).toHaveBeenCalledWith(expect.stringMatching(/^mailto:/))
   })
 
   it('rejects relocation IPC requests from an untrusted sender', () => {

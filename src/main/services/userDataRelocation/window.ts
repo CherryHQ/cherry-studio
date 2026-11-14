@@ -6,13 +6,13 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { isDev, isMac } from '@main/core/platform'
 import { validateSender } from '@main/core/security/validateSender'
+import { getAppEdition } from '@main/utils/appEdition'
 import {
   type RelocationProgress,
   type RelocationStage,
-  UserDataRelocationIpcChannels,
-  type UserDataRelocationSupportLink,
-  UserDataRelocationSupportLinks
+  UserDataRelocationIpcChannels
 } from '@shared/types/userDataRelocation'
+import { isSupportLinkPurpose, supportLinkUrl } from '@shared/utils/officialLinks'
 
 const logger = loggerService.withContext('UserDataRelocationWindow')
 const CRITICAL_STAGES: ReadonlySet<RelocationStage> = new Set(['preparing', 'copying', 'committing'])
@@ -84,21 +84,18 @@ export function openUserDataRelocationWindow(options: OpenRelocationWindowOption
     })
   }
 
-  const isSupportLink = (purpose: unknown): purpose is UserDataRelocationSupportLink =>
-    purpose === 'feedback' || purpose === 'releases'
-
-  const openSupportLink = (purpose: unknown): Promise<boolean> | false => {
-    if (!isSupportLink(purpose)) {
+  const openSupportLink = async (purpose: unknown): Promise<boolean> => {
+    if (!isSupportLinkPurpose(purpose)) {
       logger.warn('Rejected relocation support link')
       return false
     }
-    return shell.openExternal(UserDataRelocationSupportLinks[purpose]).then(
-      () => true,
-      (error: unknown) => {
-        logger.warn('Failed to open relocation support link', error as Error)
-        return false
-      }
-    )
+    try {
+      await shell.openExternal(supportLinkUrl(purpose, getAppEdition()))
+      return true
+    } catch (error) {
+      logger.warn('Failed to open relocation support link', error as Error)
+      return false
+    }
   }
 
   // The lifecycle IpcApiService never starts during a relocation launch, so the
