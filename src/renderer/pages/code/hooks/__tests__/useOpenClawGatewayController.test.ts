@@ -192,6 +192,37 @@ describe('useOpenClawGatewayController', () => {
     expect(detail.stack).toBeUndefined()
   })
 
+  it('names the dashboard step when the gateway started but the dashboard could not open', async () => {
+    mocks.requestMock.mockImplementation((route: string) => {
+      if (route === 'openclaw.get_dashboard_url') return Promise.resolve('not a url')
+      return Promise.resolve({ success: true })
+    })
+
+    const { result } = renderHook(() =>
+      useOpenClawGatewayController({
+        selectedCliTool: CodeCli.OPENCLAW,
+        enabledProvider,
+        currentProviderConfig: { modelId: 'anthropic::claude-sonnet-4-5' },
+        upsertProviderConfig: vi.fn(),
+        setCurrentProvider: vi.fn()
+      })
+    )
+
+    await act(async () => {
+      await result.current.onLaunch()
+    })
+
+    expect(mocks.openSmartMiniApp).not.toHaveBeenCalled()
+    expect(mocks.toastError).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: 'code.launch.error',
+        data: expect.objectContaining({
+          errorContext: expect.objectContaining({ operation: 'openclaw.open_dashboard', source: 'code.openclaw' })
+        })
+      })
+    )
+  })
+
   it('tells the user to pick another port when the gateway port is taken', async () => {
     const portMessage = 'Port 18789 is already in use by another application. Please choose a different port.'
     mocks.requestMock.mockImplementation((route: string) => {
@@ -382,7 +413,7 @@ describe('useOpenClawGatewayController', () => {
         data: expect.objectContaining({
           errorContext: expect.objectContaining({
             message: 'dashboard url rejected',
-            operation: 'openclaw.get_dashboard_url',
+            operation: 'openclaw.open_dashboard',
             source: 'code.openclaw'
           }),
           localizedErrorMessage: 'code.launch.error'
