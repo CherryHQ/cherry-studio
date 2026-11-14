@@ -106,8 +106,8 @@ export function useBinaryActions() {
           toast.error({
             title: t('settings.dependencies.uninstallFailed'),
             description: detail,
-            cause: detail ? new Error(detail) : result,
-            data: { source: 'code.dependencies', operation: 'binary.remove_tool' }
+            cause: detail ? { message: detail } : undefined,
+            data: { source: 'code.dependencies', operation: 'binary.remove_tool', params: { reason: result.reason } }
           })
           return false
         }

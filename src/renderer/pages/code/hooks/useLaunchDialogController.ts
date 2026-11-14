@@ -120,7 +120,7 @@ export function useLaunchDialogController({
           toast.error({
             title: t('code.launch.error'),
             description: detail,
-            cause: detail ? new Error(detail) : runResult,
+            cause: detail ? { message: detail } : undefined,
             data: { source: 'code.launch', operation: 'code_cli.run' }
           })
           return
@@ -244,7 +244,7 @@ export function useLaunchDialogController({
         toast.error({
           title: t('code.launch.error'),
           description: detail,
-          cause: detail ? new Error(detail) : runResult,
+          cause: detail ? { message: detail } : undefined,
           data: { source: 'code.launch', operation: 'code_cli.run' }
         })
       } else {
