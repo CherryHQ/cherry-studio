@@ -58,7 +58,7 @@ function FoldGroup() {
         actions: {
           updateRenderConfig: (updates) => updateRenderConfig((config) => ({ ...config, ...updates }))
         },
-        meta: {}
+        meta: { selectionLayer: false }
       }}>
       <MessageGroupMenuBar
         multiModelMessageStyle="fold"
