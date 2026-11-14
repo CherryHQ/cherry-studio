@@ -307,6 +307,39 @@ describe('useProviderConnectionCheck', () => {
     }
   )
 
+  it('keeps a prefix-less key echoed in a 401 body out of the toast Details and the stored result', async () => {
+    const key = 'c7f1e9a2b4d6tenantkey'
+    apiKeyEntries = [{ id: 'key-1', key, label: 'Primary', isEnabled: true }]
+    checkModelWithMultipleKeysMock.mockImplementation(async (_model, credentials: ModelCheckCredential[]) => [
+      {
+        ...failedResult(credentials[0], `Unauthorized: invalid key ${key}`),
+        error: {
+          name: 'AI_APICallError',
+          message: `Unauthorized: invalid key ${key}`,
+          stack: null,
+          statusCode: 401,
+          responseBody: `{"error":"key ${key} is not valid"}`
+        }
+      }
+    ])
+    const { result } = renderHook(() => useProviderConnectionCheck('cherryin', getCredentialsState()))
+
+    await act(async () => {
+      await result.current.startSingleModelCheck({ model, keySelection: { mode: 'all' } })
+    })
+
+    const shown = toast.getToastQueue().toasts[0]
+    expect(shown).toBeDefined()
+    expect(JSON.stringify({ cause: shown.cause, data: shown.data, title: shown.title })).not.toContain(key)
+    const stored = result.current.singleModelResult
+    const storedErrors = [
+      stored?.kind === 'failed' ? stored.error : undefined,
+      ...(stored?.keyResults ?? []).map((keyResult) => (keyResult.kind === 'failed' ? keyResult.error : undefined))
+    ]
+    expect(storedErrors.some(Boolean)).toBe(true)
+    expect(JSON.stringify(storedErrors)).not.toContain(key)
+  })
+
   it('uses the first failed credential for mixed-error feedback while retaining every result', async () => {
     apiKeyEntries.push({ id: 'key-3', key: 'sk-third', label: 'Third', isEnabled: true })
     const firstFailure = {
