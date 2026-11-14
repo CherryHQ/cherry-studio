@@ -6,13 +6,17 @@ import { describe, expect, it } from 'vitest'
 import { applyMigrations } from '@data/db/applyMigrations'
 
 describe('per-model api key routing migration: upgrade from main', () => {
-  const dbh = setupTestDatabase({ beforeMigration: '0038_great_rafael_vega' })
+  const dbh = setupTestDatabase({ beforeMigration: '0039_talented_dust' })
 
   it('preserves an existing model and adds a null api_key_id', () => {
     const columnsBefore = (dbh.sqlite.pragma('table_info(user_model)') as Array<{ name: string }>).map(
       (column) => column.name
     )
     expect(columnsBefore).not.toContain('api_key_id')
+    const sessionColumns = (dbh.sqlite.pragma('table_info(agent_session)') as Array<{ name: string }>).map(
+      (column) => column.name
+    )
+    expect(sessionColumns).toContain('model')
     dbh.sqlite
       .prepare(
         "INSERT INTO user_provider (provider_id, name, order_key, created_at, updated_at) VALUES ('p1', 'Provider', 'a0', 1, 1)"

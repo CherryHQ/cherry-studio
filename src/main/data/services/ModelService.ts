@@ -13,12 +13,12 @@ import { isEqual } from 'es-toolkit/compat'
 import { application } from '@application'
 import type { ModelLookupResult } from '@cherrystudio/provider-registry'
 import { inferReasoningOwnedBy } from '@cherrystudio/provider-registry'
-import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import type { InsertUserModelRow, UserModelRow } from '@data/db/schemas/userModel'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { defaultHandlersFor, type SqliteErrorHandlers, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbType } from '@data/db/types'
+import { notifyModelsDeleted, selectSessionsUsingModelsTx } from '@data/services/modelDeletionEffects'
 import { pinService } from '@data/services/PinService'
 import {
   createCustomModel,
@@ -280,12 +280,6 @@ function deleteModelsSqliteHandlers(identifier: string): SqliteErrorHandlers {
   } satisfies SqliteErrorHandlers
 }
 
-/** Deleted models also drop out of agents through FK `ON DELETE SET NULL`, which no agent write announces. */
-function notifyModelsDeleted(): void {
-  pinService.notifyPurged()
-  notifyDataApiDataChange([{ endpoint: '/agents', kind: 'projection' }, { endpoint: '/agents/:agentId' }])
-}
-
 /**
  * Mapping from UpdateModelDto field → DB column for the update path.
  * Entries are either a shared key name, or [dtoKey, dbColumn] when names differ.
@@ -300,6 +294,7 @@ export const UPDATE_MODEL_FIELD_MAP: Array<keyof UpdateModelDto | [keyof UpdateM
   'outputModalities',
   'endpointTypes',
   ['parameterSupport', 'parameters'],
+  'reasoning',
   'supportsStreaming',
   'contextWindow',
   'maxInputTokens',
@@ -311,6 +306,17 @@ export const UPDATE_MODEL_FIELD_MAP: Array<keyof UpdateModelDto | [keyof UpdateM
   'notes',
   'apiKeyId'
 ]
+
+function mergeUserReasoning(
+  existing: InsertUserModelRow['reasoning'],
+  patch: UpdateModelDto['reasoning']
+): InsertUserModelRow['reasoning'] {
+  if (patch?.defaultEffort === undefined) return existing ?? null
+  const reasoning = { ...existing }
+  if (patch.defaultEffort === null) delete reasoning.defaultEffort
+  else reasoning.defaultEffort = patch.defaultEffort
+  return Object.keys(reasoning).length ? reasoning : null
+}
 
 /** Convert CreateModelDto to an InsertUserModelRow (shared by preset and custom paths). */
 function dtoToNewUserModel(dto: CreateModelDto): NewUserModelInput {
@@ -396,7 +402,7 @@ function presetDeltaToNewUserModel(
     maxInputTokens: fields.has('maxInputTokens') ? (dto.maxInputTokens ?? null) : null,
     maxOutputTokens: fields.has('maxOutputTokens') ? (dto.maxOutputTokens ?? null) : null,
     supportsStreaming: fields.has('supportsStreaming') ? (dto.supportsStreaming ?? null) : null,
-    reasoning: null,
+    reasoning: mergeUserReasoning(null, dto.reasoning),
     parameters: fields.has('parameters') ? (dto.parameterSupport ?? null) : null,
     pricing: fields.has('pricing') ? (dto.pricing ?? null) : null,
     isEnabled: true,
@@ -459,6 +465,7 @@ function customRowToRuntimeModel(row: UserModelRow): Model {
     // Strip legacy fields (notably `type`) and materialize the runtime-only
     // selection list until registry enrichment projects the active profile.
     reasoning: reasoning ? { ...reasoning, selectableEfforts: reasoning.selectableEfforts ?? [] } : undefined,
+    userDefaultReasoningEffort: row.reasoning?.defaultEffort,
     parameterSupport: (row.parameters ?? undefined) as RuntimeParameterSupport | undefined,
     pricing: row.pricing ?? undefined,
     isEnabled: row.isEnabled,
@@ -472,6 +479,10 @@ function customRowToRuntimeModel(row: UserModelRow): Model {
 function applyStoredModelState(model: Model, row: UserModelRow): Model {
   return {
     ...model,
+    ...(model.reasoning && row.reasoning?.defaultEffort !== undefined
+      ? { reasoning: { ...model.reasoning, defaultEffort: row.reasoning.defaultEffort } }
+      : {}),
+    userDefaultReasoningEffort: row.reasoning?.defaultEffort,
     id: createUniqueModelId(row.providerId, row.modelId),
     providerId: row.providerId,
     apiModelId: row.modelId,
@@ -511,7 +522,10 @@ class ModelService {
 
   private buildCreateValues(dto: CreateModelDto, registryData?: CreateModelRegistryData): NewUserModelInput {
     if (registryData?.providerModel) {
-      return dtoToNewUserModel({ ...registryData.providerModel, ...dto, presetModelId: undefined })
+      return {
+        ...dtoToNewUserModel({ ...registryData.providerModel, ...dto, presetModelId: undefined }),
+        reasoning: mergeUserReasoning(null, dto.reasoning)
+      }
     }
     const presetModel = registryData?.presetModel ?? null
     const dtoValues = dtoToNewUserModel(dto)
@@ -547,6 +561,7 @@ class ModelService {
       if (inferred) dtoValues.reasoning = inferred
     }
 
+    dtoValues.reasoning = mergeUserReasoning(dtoValues.reasoning, dto.reasoning)
     return dtoValues
   }
 
@@ -580,6 +595,11 @@ class ModelService {
       const [dtoKey, dbKey] = Array.isArray(entry) ? entry : [entry, entry as keyof InsertUserModelRow]
       const value = dto[dtoKey]
       if (value === undefined) continue
+
+      if (dtoKey === 'reasoning') {
+        updates.reasoning = mergeUserReasoning(existing.reasoning, dto.reasoning)
+        continue
+      }
 
       if (existing.presetModelId && isPresetDeltaField(String(dbKey))) {
         const field = String(dbKey) as PresetDeltaField
@@ -830,7 +850,11 @@ class ModelService {
             declaredReasoning: model.capabilities.includes(MODEL_CAPABILITY.REASONING)
           })
         }
-        if (reasoning) updates.reasoning = reasoning
+        if (reasoning)
+          updates.reasoning = {
+            ...reasoning,
+            ...(row.reasoning?.defaultEffort !== undefined ? { defaultEffort: row.reasoning.defaultEffort } : {})
+          }
         else if (model.reasoning) updates.reasoning = undefined
         return Object.keys(updates).length > 0 ? { ...model, ...updates } : model
       } catch (error) {
@@ -1203,11 +1227,15 @@ class ModelService {
     const dbService = application.get('DbService')
     const values = payload.toAdd.map(({ dto, registryData }) => this.buildCreateValues(dto, registryData))
     const deletedIds: string[] = []
+    const affectedSessionIds: string[] = []
     const rows = withSqliteErrors(
       () =>
         dbService.withWriteTx((tx) => {
           for (let i = 0; i < payload.toRemove.length; i += SQLITE_INARRAY_CHUNK) {
             const chunk = payload.toRemove.slice(i, i + SQLITE_INARRAY_CHUNK)
+            // Read affected session overrides before the rows go: the FK clears
+            // agent_session.model on delete and only these ids know which sessions re-fetched.
+            affectedSessionIds.push(...selectSessionsUsingModelsTx(tx, chunk))
             const deletedRows = tx
               .delete(userModelTable)
               .where(and(eq(userModelTable.providerId, providerId), inArray(userModelTable.id, chunk)))
@@ -1242,7 +1270,8 @@ class ModelService {
       createModelsSqliteHandlers(values)
     )
 
-    if (deletedIds.length > 0) notifyModelsDeleted()
+    if (deletedIds.length > 0) pinService.notifyPurged()
+    notifyModelsDeleted(deletedIds, affectedSessionIds)
     return { models: this.enrichRowsFromRegistryTx(dbService.getDb(), rows), deletedIds }
   }
 
@@ -1256,9 +1285,11 @@ class ModelService {
     const uniqueModelId = createUniqueModelId(providerId, modelId)
     assertModelNotUsedAsDefaultModel(uniqueModelId, `delete model ${uniqueModelId}`)
 
+    let affectedSessionIds: string[] = []
     withSqliteErrors(
       () =>
         application.get('DbService').withWriteTx((tx) => {
+          affectedSessionIds = selectSessionsUsingModelsTx(tx, [uniqueModelId])
           const rows = tx
             .delete(userModelTable)
             .where(and(eq(userModelTable.providerId, providerId), eq(userModelTable.modelId, modelId)))
@@ -1273,7 +1304,8 @@ class ModelService {
         }),
       deleteModelsSqliteHandlers(`${providerId}/${modelId}`)
     )
-    notifyModelsDeleted()
+    pinService.notifyPurged()
+    notifyModelsDeleted([uniqueModelId], affectedSessionIds)
 
     logger.info('Deleted model', { providerId, modelId })
   }
@@ -1301,6 +1333,7 @@ class ModelService {
     }
 
     const ids = [...uniqueItems.keys()]
+    let affectedSessionIds: string[] = []
 
     withSqliteErrors(
       () =>
@@ -1321,6 +1354,7 @@ class ModelService {
             throw DataApiErrorFactory.notFound('Model', missingId)
           }
 
+          affectedSessionIds = selectSessionsUsingModelsTx(tx, ids)
           for (let i = 0; i < ids.length; i += SQLITE_INARRAY_CHUNK) {
             const chunk = ids.slice(i, i + SQLITE_INARRAY_CHUNK)
             const deletedRows = tx
@@ -1340,7 +1374,8 @@ class ModelService {
         }),
       deleteModelsSqliteHandlers(ids.length === 1 ? ids[0] : `batch(${ids.length} items)`)
     )
-    notifyModelsDeleted()
+    pinService.notifyPurged()
+    notifyModelsDeleted(ids, affectedSessionIds)
 
     logger.info('Bulk deleted models', {
       count: ids.length,

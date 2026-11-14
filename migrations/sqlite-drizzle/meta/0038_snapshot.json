@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "321361f7-5c0a-4e55-a09c-f78f35d19e0d",
+  "id": "d46ad276-de68-4169-9d6c-3606a8c7d29f",
   "prevId": "bbe3bf61-b9ed-451f-b7ec-94db86dd1dd9",
   "tables": {
     "agent": {
@@ -811,6 +811,13 @@
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
+        },
+        "model": {
+          "name": "model",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
         }
       },
       "indexes": {
@@ -904,6 +911,19 @@
           "tableTo": "job_schedule",
           "columnsFrom": [
             "task_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "agent_session_model_user_model_id_fk": {
+          "name": "agent_session_model_user_model_id_fk",
+          "tableFrom": "agent_session",
+          "tableTo": "user_model",
+          "columnsFrom": [
+            "model"
           ],
           "columnsTo": [
             "id"
@@ -6692,13 +6712,6 @@
         },
         "notes": {
           "name": "notes",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "api_key_id": {
-          "name": "api_key_id",
           "type": "text",
           "primaryKey": false,
           "notNull": false,

@@ -10,7 +10,6 @@ import { and, asc, eq, inArray, type SQLWrapper } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 
 import { application } from '@application'
-import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { providerLogoFileRefTable } from '@data/db/schemas/fileRelations'
 import { userModelTable } from '@data/db/schemas/userModel'
 import type { InsertUserProviderRow, UserProviderRow } from '@data/db/schemas/userProvider'
@@ -19,6 +18,7 @@ import { type SqliteErrorHandlers, withSqliteErrors } from '@data/db/sqliteError
 import type { DbType } from '@data/db/types'
 import { isMigratedFromV1 } from '@data/migration/v1MigrationOrigin'
 import { getDataService, registerDataService } from '@data/services/dataServiceRegistry'
+import { notifyModelsDeleted, selectSessionsUsingModelsTx } from '@data/services/modelDeletionEffects'
 import { pinService } from '@data/services/PinService'
 import type { ProviderDisplayMetadata, ReasoningProviderContext } from '@data/services/ProviderRegistryService'
 import { applyMoves, insertManyWithOrderKey, insertWithOrderKey } from '@data/services/utils/orderKey'
@@ -885,6 +885,8 @@ class ProviderService {
   delete(providerId: string): void {
     assertManagedCherryProviderMutationAllowed(providerId, `delete provider ${providerId}`)
 
+    const providerModelIds: string[] = []
+    let affectedSessionIds: string[] = []
     const deletedModelCount = application.get('DbService').withWriteTx((tx) => {
       const [provider] = tx
         .select({
@@ -916,11 +918,15 @@ class ProviderService {
         .where(eq(userModelTable.providerId, providerId))
         .all()
 
+      providerModelIds.push(...models.map((model) => model.id))
       pinService.purgeForEntitiesTx(
         tx,
         'model',
         models.map((model) => model.id)
       )
+      // Read affected session overrides before the provider-row delete: the FK
+      // cascade clears agent_session.model (via user_model) inside this same tx.
+      affectedSessionIds = selectSessionsUsingModelsTx(tx, providerModelIds)
 
       // DB-only: drop the logo slot's ref (the file is preserved per the
       // file layer's policy). The FK cascade would also clear it on row delete;
@@ -940,11 +946,8 @@ class ProviderService {
       return models.length
     })
 
-    if (deletedModelCount > 0) {
-      pinService.notifyPurged()
-      // The cascaded models also drop out of agents through FK `ON DELETE SET NULL`, which no agent write announces.
-      notifyDataApiDataChange([{ endpoint: '/agents', kind: 'projection' }, { endpoint: '/agents/:agentId' }])
-    }
+    if (deletedModelCount > 0) pinService.notifyPurged()
+    notifyModelsDeleted(providerModelIds, affectedSessionIds)
 
     logger.info('Deleted provider', { providerId })
   }

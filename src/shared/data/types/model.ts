@@ -407,6 +407,8 @@ export const ModelSchema = z.object({
   supportsStreaming: z.boolean(),
   /** Reasoning configuration */
   reasoning: RuntimeReasoningSchema.optional(),
+  /** User-row provenance for request defaults; never persisted as model metadata. */
+  userDefaultReasoningEffort: ReasoningEffortSchema.optional(),
   /** Whether this exact provider-model pair supports the provider's Fast transport. */
   supportsFastMode: z.boolean().optional(),
   /** Endpoint-projected request controls safe to expose to the renderer. */

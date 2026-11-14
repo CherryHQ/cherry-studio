@@ -14,7 +14,7 @@ Issue CherryHQ/cherry-studio#21074 requests a model-specific API key within a mu
 - Show the model key selector when the provider has multiple keys. Named keys retain their label; unnamed keys use the localized unnamed label plus their one-based position. No secret-bearing key request is needed to render the selector.
 - Honor an enabled binding without alternate-key failover on HTTP 401/429. Existing handling of disabled or removed keys remains unchanged by this review follow-up.
 - Preserve the binding through chat configuration, agent gateway requests, Ollama probes, retry, OpenClaw, Antigravity, DeepSeek Harness and CLI config drafts. Reject direct Claude CLI writes when role-model bindings differ, including a bound context model with an unbound role model. Reject OpenClaw sync if its schema cannot represent a per-model API key.
-- Migration `0038_great_rafael_vega` adds the nullable column without changing an existing model row's other fields. Earlier unreleased experimental builds that already added the column are not a supported upgrade path.
+- Migration `0039_talented_dust` adds the nullable column without changing an existing model row's other fields. Earlier unreleased experimental builds that already added the column are not a supported upgrade path.
 
 ## Alternatives considered
 
@@ -28,7 +28,7 @@ Issue CherryHQ/cherry-studio#21074 requests a model-specific API key within a mu
 - AC2 — Unnamed and whitespace-only labels use distinct localized ordinal labels instead of raw key IDs, without fetching secret-bearing records (verification: renderer)
 - AC3 — Empty or foreign-provider key IDs are rejected and a valid binding is preserved (verification: service unit)
 - AC4 — Bound-key routing and no alternate-key 401/429 failover hold across the supported runtime paths; unrepresentable Claude/OpenClaw configurations fail explicitly (verification: runtime unit; integration)
-- AC5 — Production migrations from the schema before 0038 preserve an existing model and add `api_key_id: null` (verification: migration unit)
+- AC5 — Production migrations from the schema before 0039 preserve an existing model and add `api_key_id: null` (verification: migration unit)
 
 ## Risks
 

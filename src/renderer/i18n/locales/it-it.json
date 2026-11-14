@@ -5282,6 +5282,7 @@
   "settings.models.edit.api_key.label": "Chiave API",
   "settings.models.edit.api_key.tooltip": "Scegli quale chiave API del fornitore usare per questo modello. Con l'impostazione predefinita le chiavi attive ruotano automaticamente.",
   "settings.models.edit.classification_save_hint": "Le impostazioni possono provenire dal catalogo dei modelli. Le modifiche vengono salvate subito. Le modalità di input preimpostate corrispondenti al catalogo ne seguono gli aggiornamenti; i valori diversi vengono salvati come personalizzazioni. I modelli personalizzati salvano esplicitamente le modalità di input visualizzate. Abilita solo gli input supportati dal tuo fornitore.",
+  "settings.models.edit.default_reasoning_effort": "Sforzo di ragionamento predefinito",
   "settings.models.empty": "Seleziona un modello",
   "settings.models.empty_hint": "Fai clic su Sincronizza modelli qui sopra per aggiungerne.",
   "settings.models.expand_all": "Espandi tutti",

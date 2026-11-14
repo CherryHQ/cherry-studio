@@ -14,7 +14,7 @@ Issue CherryHQ/cherry-studio#21074 要求在多 key 提供方中为模型指定 
 - 提供方有多个 key 时显示模型 key 选择器。有名称的 key 保留其标签；未命名的 key 使用本地化的未命名标签加上从一开始的位置序号。渲染选择器不需要请求包含密钥的记录。
 - 遵守已启用的绑定，在 HTTP 401/429 时不切换到其他 key。本次审阅跟进不改变禁用或已删除 key 的现有处理方式。
 - 在聊天配置、智能体网关请求、Ollama 探测、重试、OpenClaw、Antigravity、DeepSeek Harness 及 CLI 配置草稿中保留绑定。角色模型的绑定不同时，拒绝直接写入 Claude CLI 配置，包括上下文模型已绑定而角色模型未绑定的情况。OpenClaw schema 无法表达按模型 API key 时，拒绝同步。
-- 迁移 `0038_great_rafael_vega` 添加可空列，不改变已有模型行的其他字段。已添加该列的早期未发布实验版本不属于受支持的升级路径。
+- 迁移 `0039_talented_dust` 添加可空列，不改变已有模型行的其他字段。已添加该列的早期未发布实验版本不属于受支持的升级路径。
 
 ## Alternatives considered
 
@@ -28,7 +28,7 @@ Issue CherryHQ/cherry-studio#21074 要求在多 key 提供方中为模型指定 
 - AC2 — 未命名或仅含空白的标签使用不同的本地化序号标签，而非原始 key ID，且不获取包含密钥的记录（verification: renderer）
 - AC3 — 拒绝空 ID 或其他提供方的 key ID，并保留有效绑定（verification: service unit）
 - AC4 — 受支持的运行时路径遵守绑定 key 路由，且在 401/429 时不切换 key；无法表达绑定的 Claude/OpenClaw 配置明确报错（verification: runtime unit; integration）
-- AC5 — 从 0038 之前的 schema 运行生产迁移，保留已有模型并添加 `api_key_id: null`（verification: migration unit）
+- AC5 — 从 0039 之前的 schema 运行生产迁移，保留已有模型并添加 `api_key_id: null`（verification: migration unit）
 
 ## Risks
 

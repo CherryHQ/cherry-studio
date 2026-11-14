@@ -1,8 +1,7 @@
 diff --git a/dist/index.js b/dist/index.js
-index bc47fc6b0d..d1c6424599 100644
 --- a/dist/index.js
 +++ b/dist/index.js
-@@ -1324,7 +1324,7 @@ async function downloadToolResultFiles(prompt, {
+@@ -1490,7 +1490,7 @@
  
  // src/get-model-path.ts
  function getModelPath(modelId) {
@@ -11,29 +10,28 @@ index bc47fc6b0d..d1c6424599 100644
  }
  
  // src/google-generative-ai-options.ts
-@@ -3546,7 +3546,7 @@ var GoogleGenerativeAIImageModel = class {
+@@ -3807,7 +3807,7 @@
        parameters
      };
-     const { responseHeaders, value: response } = await (0, import_provider_utils16.postJsonToApi)({
+     const { responseHeaders, value: response } = await (0, import_provider_utils17.postJsonToApi)({
 -      url: `${this.config.baseURL}/models/${this.modelId}:predict`,
 +      url: `${this.config.baseURL}/${getModelPath(this.modelId)}:predict`,
-       headers: (0, import_provider_utils16.combineHeaders)(await (0, import_provider_utils16.resolve)(this.config.headers), headers),
+       headers: (0, import_provider_utils17.combineHeaders)(await (0, import_provider_utils17.resolve)(this.config.headers), headers),
        body,
        failedResponseHandler: googleFailedResponseHandler,
-@@ -3705,7 +3705,7 @@ var GoogleGenerativeAIImageModel = class {
+@@ -3966,7 +3966,7 @@
    }
  };
  function isGeminiModel(modelId) {
 -  return modelId.startsWith("gemini-");
 +  return /^(?:google\/|models\/)?(?:gemini-|nano-banana-)/i.test(modelId);
  }
- var googleImageResponseSchema = (0, import_provider_utils16.lazySchema)(
-   () => (0, import_provider_utils16.zodSchema)(
+ var googleImageResponseSchema = (0, import_provider_utils17.lazySchema)(
+   () => (0, import_provider_utils17.zodSchema)(
 diff --git a/dist/index.mjs b/dist/index.mjs
-index a63765d629..0b55cf9b21 100644
 --- a/dist/index.mjs
 +++ b/dist/index.mjs
-@@ -1349,7 +1349,7 @@ async function downloadToolResultFiles(prompt, {
+@@ -1523,7 +1523,7 @@
  
  // src/get-model-path.ts
  function getModelPath(modelId) {
@@ -42,7 +40,7 @@ index a63765d629..0b55cf9b21 100644
  }
  
  // src/google-generative-ai-options.ts
-@@ -3606,7 +3606,7 @@ var GoogleGenerativeAIImageModel = class {
+@@ -3875,7 +3875,7 @@
        parameters
      };
      const { responseHeaders, value: response } = await postJsonToApi4({
@@ -51,20 +49,19 @@ index a63765d629..0b55cf9b21 100644
        headers: combineHeaders4(await resolve4(this.config.headers), headers),
        body,
        failedResponseHandler: googleFailedResponseHandler,
-@@ -3765,7 +3765,7 @@ var GoogleGenerativeAIImageModel = class {
+@@ -4034,7 +4034,7 @@
    }
  };
  function isGeminiModel(modelId) {
 -  return modelId.startsWith("gemini-");
 +  return /^(?:google\/|models\/)?(?:gemini-|nano-banana-)/i.test(modelId);
  }
- var googleImageResponseSchema = lazySchema11(
-   () => zodSchema11(
+ var googleImageResponseSchema = lazySchema13(
+   () => zodSchema13(
 diff --git a/dist/internal/index.js b/dist/internal/index.js
-index 57866f9f35..3ab940ea4e 100644
 --- a/dist/internal/index.js
 +++ b/dist/internal/index.js
-@@ -896,7 +896,7 @@ async function downloadToolResultFiles(prompt, {
+@@ -1019,7 +1019,7 @@
  
  // src/get-model-path.ts
  function getModelPath(modelId) {
@@ -74,10 +71,9 @@ index 57866f9f35..3ab940ea4e 100644
  
  // src/google-error.ts
 diff --git a/dist/internal/index.mjs b/dist/internal/index.mjs
-index f6cc7f0a40..0228399c85 100644
 --- a/dist/internal/index.mjs
 +++ b/dist/internal/index.mjs
-@@ -888,7 +888,7 @@ async function downloadToolResultFiles(prompt, {
+@@ -1014,7 +1014,7 @@
  
  // src/get-model-path.ts
  function getModelPath(modelId) {
