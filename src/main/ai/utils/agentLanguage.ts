@@ -15,7 +15,10 @@ function normalizeAgentLanguage(value: unknown): string | null {
  *   explicitly opts out; anything else inherits the global value.
  * - Global `agent.language` preference: valid label = default; null/invalid = none.
  */
-function resolveEffectiveAgentLanguage(agent: AgentEntity, globalLanguage: string | null | undefined): string | null {
+function resolveEffectiveAgentLanguage(
+  agent: Pick<AgentEntity, 'configuration'>,
+  globalLanguage: string | null | undefined
+): string | null {
   const perAgent = agent.configuration?.language
 
   if (perAgent === null) return null
@@ -31,6 +34,6 @@ function resolveEffectiveAgentLanguage(agent: AgentEntity, globalLanguage: strin
  *
  * Values are human-readable language labels (e.g. "English", "ไทย"), not app locale codes.
  */
-export function getEffectiveAgentLanguage(agent: AgentEntity): string | null {
+export function getEffectiveAgentLanguage(agent: Pick<AgentEntity, 'configuration'>): string | null {
   return resolveEffectiveAgentLanguage(agent, application.get('PreferenceService').get('agent.language'))
 }
