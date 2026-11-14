@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { ScrollArea } from '@cherrystudio/ui'
 import { Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, Tooltip } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
+import { usePreference } from '@data/hooks/usePreference'
 import CodeViewer from '@renderer/components/CodeViewer'
 import { DoctorPopup } from '@renderer/components/doctor'
 import { DoctorAgentDialog } from '@renderer/components/doctor'
@@ -44,6 +45,7 @@ import {
 } from '@renderer/types/error'
 import { formatAiSdkError, formatError, safeToString } from '@renderer/utils/error'
 import type { DiagnosisContext } from '@renderer/utils/errorDiagnosis'
+import { UpgradeChannel } from '@shared/data/preference/preferenceTypes'
 import type { AppErrorContext } from '@shared/types/appError'
 import type { DiagnosticAiDiagnosis } from '@shared/types/diagnosticAi'
 import type { DoctorNavigateTarget, DoctorSubjectRef } from '@shared/types/doctor'
@@ -569,18 +571,21 @@ const ErrorDetailContent: React.FC<ErrorDetailContentInternalProps> = ({
     appUpdateCheckService.setUpdateNotice(null)
   }, [])
   const [availableVersion, setAvailableVersion] = useState<string | null>(null)
+  const [testPlan] = usePreference('app.dist.test_plan.enabled')
+  const [testChannel] = usePreference('app.dist.test_plan.channel')
+  const updateChannel = testPlan ? testChannel : UpgradeChannel.LATEST
   const initialUpdateState = useRef(appUpdateState)
   useEffect(() => {
     const { checking, downloading, downloaded } = initialUpdateState.current
     if (checking || downloading || downloaded) return
     let active = true
-    void appUpdateCheckService.queryAvailableVersion().then((version) => {
+    void appUpdateCheckService.queryAvailableVersion(updateChannel).then((version) => {
       if (active) setAvailableVersion(version)
     })
     return () => {
       active = false
     }
-  }, [])
+  }, [updateChannel])
   const copyErrorDetails = useCallback(() => {
     if (!shownError) {
       return
