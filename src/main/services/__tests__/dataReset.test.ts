@@ -1,7 +1,7 @@
 import type * as NodePathModule from 'node:path'
 
 import { createMockApplication } from '@test-mocks/main/application'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 // The in-memory filesystem exercises the reset marker protocol without disk I/O.
 
@@ -13,6 +13,7 @@ const REGISTRY_OVERRIDE = `${USER_DATA}/Runtime/provider-registry-override`
 
 let applicationMock: ReturnType<typeof createMockApplication>
 const showMessageBoxMock = vi.fn()
+const showErrorBoxMock = vi.fn()
 const appendFileSyncMock = vi.fn()
 const rmSyncMock = vi.fn()
 const readdirSyncMock = vi.fn()
@@ -149,7 +150,7 @@ function stubElectron() {
   vi.doMock('electron', () => ({
     __esModule: true,
     app: { isPackaged: false, isReady: () => true, getLocale: () => 'en-US' },
-    dialog: { showErrorBox: showMessageBoxMock, showMessageBox: showMessageBoxMock },
+    dialog: { showErrorBox: showErrorBoxMock, showMessageBox: showMessageBoxMock },
     session: { defaultSession, fromPartition: vi.fn(() => webviewSession) }
   }))
 }
@@ -365,6 +366,11 @@ function wipedEntries(): string[] {
 beforeEach(() => {
   vi.resetModules()
   vi.clearAllMocks()
+})
+
+// Every reset outcome goes through the supported dialog, never the bare error box.
+afterEach(() => {
+  expect(showErrorBoxMock).not.toHaveBeenCalled()
 })
 
 describe('runDataReset', () => {
