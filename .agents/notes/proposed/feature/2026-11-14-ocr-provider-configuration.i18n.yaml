@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/proposed/feature/2026-11-14-ocr-provider-configuration.md
+2026-11-14-ocr-provider-configuration.md: 7b5747b75e509df46aa321c2645002eb31fd0056
+2026-11-14-ocr-provider-configuration.zh.md: d8be2ca3e3222df904502581b865d41a4244cf03
