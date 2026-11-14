@@ -61,7 +61,13 @@ export function useCherryCloudSubscriptionReminder(): {
       )
     }
     const modelIds = availablePlanModelIds(activePaid, receipt)
-    const expiresAt = activePaid.expires_at ?? null
+    // Monthly subscriptions carry no expires_at; their date is the current billing period's end.
+    const expiresAt =
+      activePaid.expires_at ??
+      activePaid.quota_pools
+        .flatMap((pool) => pool.windows)
+        .find((window) => window.window_type === 'subscription_month')?.period_end ??
+      null
     const message = t('settings.subscription.activated', { plan: activePaid.plan.display_name })
     // While the China notification stream is live, the notification center announces the change instead.
     void notificationsAnnounceChanges().then((announced) => {

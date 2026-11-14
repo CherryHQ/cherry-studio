@@ -35,7 +35,11 @@ const planModel = (id: string, features: Array<'agent' | 'chat' | 'translate'> =
   display_name: id,
   available_features: features
 })
-const paid = (planName: string, models?: ReturnType<typeof planModel>[]): CherryCloudAccountPlans => ({
+const paid = (
+  planName: string,
+  models?: ReturnType<typeof planModel>[],
+  quotaPools: CherryCloudAccountPlans['entitlements'][number]['quota_pools'] = []
+): CherryCloudAccountPlans => ({
   ...unpaid(),
   entitlements: [
     {
@@ -53,7 +57,7 @@ const paid = (planName: string, models?: ReturnType<typeof planModel>[]): Cherry
       },
       state: 'active',
       starts_at: '2026-10-27T00:00:00Z',
-      quota_pools: []
+      quota_pools: quotaPools
     }
   ]
 })
@@ -154,6 +158,46 @@ describe('useCherryCloudSubscriptionReminder', () => {
     expect(toast.success).not.toHaveBeenCalled()
     act(() => result.current.dismiss())
     expect(result.current.activation).toBeNull()
+  })
+  it('dates a monthly subscription without expires_at by the end of its current billing period', async () => {
+    syncedModels = {
+      entitledModelIds: [],
+      freeModelIds: [],
+      availableModelIds: { agent: [], general: ['cherryai-subscription::chat-a'] },
+      quotaExhaustedModelIds: []
+    }
+    const { result } = renderHook(() => useCherryCloudSubscriptionReminder(), { wrapper })
+    await waitFor(() =>
+      expect(request.mock.calls.some(([route]) => route === 'cherry_cloud.account.refresh')).toBe(true)
+    )
+    await act(async () => Promise.resolve())
+    plans = paid(
+      'Plus',
+      [planModel('chat-a')],
+      [
+        {
+          allocation_id: '33333333-3333-4333-8333-333333333333',
+          display_name: 'Plus',
+          measurement_kind: 'requests',
+          model_ids: ['chat-a'],
+          windows: [
+            {
+              window_type: 'subscription_month',
+              duration_seconds: 2_678_400,
+              limit_units: 100,
+              used_units: 0,
+              active_reserved_units: 0,
+              remaining_units: 100,
+              period_start: '2026-11-13T08:00:00Z',
+              period_end: '2026-12-13T08:00:00Z'
+            }
+          ]
+        }
+      ]
+    )
+    await returnFromBrowser()
+
+    await waitFor(() => expect(result.current.activation?.expiresAt).toBe('2026-12-13T08:00:00Z'))
   })
   it('keeps the toast when none of the plan models are synced locally', async () => {
     syncedModels = {
