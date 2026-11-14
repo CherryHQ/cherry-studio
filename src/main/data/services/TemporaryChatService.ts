@@ -27,8 +27,7 @@ import type { Message, MessageRole, MessageRuntimeStatsInput, MessageStatus } fr
 import type { Topic } from '@shared/data/types/topic'
 
 import { aiUsageRecordService, mergeMessageUsageProjection } from './AiUsageRecordService'
-import { applyMaxMessagesWindow } from './maxMessagesWindow'
-import { messageService } from './MessageService'
+import { applyMaxMessagesWindow, messageService } from './MessageService'
 import { topicService } from './TopicService'
 import { isConversationActivityRole } from './utils/activityTime'
 import { insertWithOrderKey } from './utils/orderKey'

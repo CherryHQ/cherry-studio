@@ -29,9 +29,8 @@ Business-logic layer for DataApi: one service per domain, each a **direct-import
 
 ## Message context window
 
-`maxMessagesWindow.ts` owns the shared conversation policy used by persistent
+`MessageService.ts` owns the shared conversation policy used by persistent
 context reads and `TemporaryChatService.listMessages(topicId, maxMessages)`. It
 keeps the last N rows and extends backward to the current user turn. Temporary
 reads select this window before copying message payloads; omitting the limit
-continues to return an isolated full history. The helper lives beside its data
-owners because user-turn alignment is message-domain policy.
+continues to return an isolated full history.
