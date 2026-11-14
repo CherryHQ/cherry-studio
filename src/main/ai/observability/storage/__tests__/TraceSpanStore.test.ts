@@ -102,7 +102,7 @@ describe('TraceSpanStore eviction', () => {
   // A count cap cannot bound a store whose spans carry captured request/response bodies — 50k spans
   // at megabytes each is unbounded — so the byte budget evicts by the same oldest-fully-ended rule.
   it('evicts the oldest fully-ended trace when the byte budget is exceeded', () => {
-    const store = new TraceSpanStore(1_000, 4_000)
+    const store = new TraceSpanStore(1_000, 22_000)
     const body = 'x'.repeat(3_000)
 
     store.setSpan(span({ id: 'a', traceId: 'trace-a', attributes: { body } }))
@@ -118,7 +118,7 @@ describe('TraceSpanStore eviction', () => {
   // Claude Code log events grow a span that is already stored, so the budget has to follow in-place
   // growth reported through touchSpan, not just what setSpan measured on insert.
   it('keeps the byte total in step when a stored span grows in place', () => {
-    const store = new TraceSpanStore(1_000, 4_000)
+    const store = new TraceSpanStore(1_000, 22_000)
 
     store.setSpan(span({ id: 'a', traceId: 'trace-a', attributes: { body: 'x'.repeat(2_500) } }))
     store.setSpan(span({ id: 'b', traceId: 'trace-b' }))
@@ -147,14 +147,15 @@ describe('TraceSpanStore eviction', () => {
     expect(store.getSpan('c')).toBeDefined()
   })
 
-  it('keeps all spans when no fully-ended trace can be evicted', () => {
+  it('bounds active spans and resets stale viewer cursors when none have ended', () => {
     const store = new TraceSpanStore(1)
 
     store.setSpan(span({ id: 'a', traceId: 'trace-a', isEnd: false }))
+    const cursor = store.getSpanChanges({ traceId: 'trace-a' }).revision
     store.setSpan(span({ id: 'b', traceId: 'trace-b', isEnd: false }))
 
-    // No fully-ended trace exists, so the cap is exceeded rather than dropping live spans.
-    expect(store.getSpan('a')).toBeDefined()
+    expect(store.getSpanChanges({ traceId: 'trace-a' }, cursor).reset).toBe(true)
+    expect(store.getSpan('a')).toBeUndefined()
     expect(store.getSpan('b')).toBeDefined()
   })
 
@@ -168,4 +169,20 @@ describe('TraceSpanStore eviction', () => {
     expect(store.getTraceMeta('trace-a')).toBeUndefined()
     expect(store.getTraceIdsByTopic('topic-a')).toEqual([])
   })
+})
+
+it('bounds a long active trace while preserving its live root', () => {
+  const store = new TraceSpanStore(10, 30_000)
+  store.setSpan(span({ id: 'root', isEnd: false }))
+  for (let i = 0; i < 100; i++) {
+    store.setSpan(span({ id: `request-${i}`, parentId: 'root', attributes: { body: '图'.repeat(2_000) } }))
+    expect(store.getSpans({ traceId: 'trace' }).length).toBeLessThanOrEqual(3)
+    expect(store.getSpan('root')?.isEnd).toBe(false)
+  }
+  expect(Number(store.getSpan('root')?.attributes?.['cs.trace.dropped_spans'])).toBeGreaterThan(0)
+})
+it('rejects an oversized active diagnostic span before whole-span serialization', () => {
+  const store = new TraceSpanStore(10, 10_000)
+  store.setSpan(span({ isEnd: false, attributes: { body: 'x'.repeat(100_000) } }))
+  expect(store.getSpans({ traceId: 'trace' })).toEqual([])
 })

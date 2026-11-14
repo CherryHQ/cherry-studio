@@ -189,14 +189,18 @@ export class TraceStorageService extends BaseService implements TraceStore, Acti
     if (!spanEntity) {
       // Missing on end means the start span was evicted or never recorded (e.g. flush race);
       // the captured end status/body would otherwise be lost silently.
-      logger.warn('endSpan: span not found in store', { spanId })
+      this.saveEntity(convertSpanToSpanEntity(span))
       return
     }
 
     this.applyTraceMeta(spanEntity)
     spanEntity.endTime = span.endTime ? span.endTime[0] * 1e3 + Math.floor(span.endTime[1] / 1e6) : null
     spanEntity.status = SpanStatusCode[span.status.code]
-    spanEntity.attributes = span.attributes ? ({ ...span.attributes } as Attributes) : {}
+    const dropped = spanEntity.attributes?.['cs.trace.dropped_spans']
+    spanEntity.attributes = {
+      ...span.attributes,
+      ...(dropped !== undefined && { 'cs.trace.dropped_spans': dropped })
+    }
     this.setRetainedEvents(spanEntity, span.events)
     spanEntity.links = span.links
     spanEntity.isEnd = true

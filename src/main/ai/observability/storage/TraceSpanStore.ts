@@ -17,31 +17,21 @@ export interface TraceSpanChanges {
   spans: SpanEntity[]
 }
 
-/**
- * Default cap on the total number of spans held in memory. When exceeded, the oldest
- * fully-ended trace is evicted (see {@link TraceSpanStore.enforceSpanLimit}). In-flight
- * traces are never evicted, so this bound prevents an abandoned trace that never reaches
- * a terminal flush from growing memory without bound, while preserving correctness for
- * traces that are still streaming.
- */
+// Diagnostic retention is bounded even while a root span remains active.
 const DEFAULT_MAX_SPANS = 50_000
-
-/**
- * Companion byte budget to {@link DEFAULT_MAX_SPANS}. A count cap does not bound memory: a single
- * span can carry megabytes of captured request/response bodies, so 50k spans is unbounded in bytes.
- * Evicted by the same oldest-fully-ended-trace rule, so an in-flight trace is still never dropped.
- */
 const DEFAULT_MAX_SPAN_BYTES = 64 * 1024 * 1024
 
-// Byte proxy for a stored span; `.length` counts UTF-16 units rather than exact bytes, which tracks
-// span size closely enough to bound the store. Only the cold path (a span export) measures a whole
-// span — the hot path adjusts the total incrementally through `touchSpan`.
-function estimateSpanBytes(span: SpanEntity): number {
-  try {
-    return JSON.stringify(span).length
-  } catch {
-    return 0
+// Conservative serialized-size estimate without allocating another copy of captured bodies.
+function estimateSpanBytes(value: unknown, seen = new Set<object>()): number {
+  if (typeof value === 'string') return value.length * 6 + 2
+  if (value === null || typeof value !== 'object') return 16
+  if (seen.has(value)) return 0
+  seen.add(value)
+  let bytes = 32
+  for (const [key, child] of Object.entries(value)) {
+    bytes += key.length * 6 + 4 + estimateSpanBytes(child, seen)
   }
+  return bytes
 }
 
 /**
@@ -139,7 +129,7 @@ export class TraceSpanStore {
     if (!span) return
     this.spanRevisions.set(spanId, this.nextRevision())
     if (span.traceId) this.traceOrder.set(span.traceId, this.orderSeq++)
-    this.trackBytes(spanId, (this.spanBytes.get(spanId) ?? 0) + deltaBytes)
+    this.trackBytes(spanId, (this.spanBytes.get(spanId) ?? 0) + deltaBytes * 6)
     this.enforceSpanLimit()
   }
 
@@ -258,19 +248,26 @@ export class TraceSpanStore {
     }
   }
 
-  /**
-   * Evict the oldest fully-ended trace(s) until the store is within BOTH the span-count cap and the
-   * byte budget — a count alone cannot bound a store whose spans carry captured request/response
-   * bodies. A trace is "fully-ended" when every span it holds has `isEnd === true`; in-flight traces
-   * are skipped so streaming spans are never dropped mid-trace. If no fully-ended trace exists,
-   * eviction stops and the caps are allowed to be exceeded temporarily.
-   */
   private enforceSpanLimit(): void {
     while (this.spans.size > this.maxSpans || this.totalBytes > this.maxSpanBytes) {
       const victim = this.oldestEndedTraceId()
-      if (!victim) break
-      this.clearTrace(victim)
-      this.traceOrder.delete(victim)
+      if (victim) {
+        this.clearTrace(victim)
+        continue
+      }
+      const ended = [...this.spans.values()].find((span) => span.isEnd)
+      const oldest = ended ?? this.spans.values().next().value
+      if (!oldest) break
+      this.deleteSpan(oldest.id)
+      const root = [...this.spans.values()].find((span) => span.traceId === oldest.traceId && !span.isEnd)
+      if (root) {
+        root.attributes = {
+          ...root.attributes,
+          'cs.trace.dropped_spans': Number(root.attributes?.['cs.trace.dropped_spans'] ?? 0) + 1
+        }
+        this.spanRevisions.set(root.id, this.nextRevision())
+        this.trackBytes(root.id, estimateSpanBytes(root))
+      }
     }
   }
 

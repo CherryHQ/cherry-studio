@@ -198,6 +198,7 @@ export type AgentRuntimeEvent =
       state: 'started'
       origin: AutonomousTurnOrigin
       sourceToolCallIds?: readonly string[]
+      recoveredInputId?: string
     }
   | { type: 'autonomous-turn-state'; state: 'finished' }
   | { type: 'error'; error: unknown }
