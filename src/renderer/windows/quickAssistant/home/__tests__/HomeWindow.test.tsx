@@ -386,20 +386,25 @@ describe('HomeWindow', () => {
     fireEvent.change(screen.getByTestId('quick-input'), { target: { value: 'hello' } })
     fireEvent.keyDown(screen.getByTestId('quick-input'), { code: 'Enter', key: 'Enter' })
 
-    expect(screen.getByText('error.unexpected')).toBeInTheDocument()
+    expect(screen.getByText('error.diagnosis.unknown')).toBeInTheDocument()
     expect(screen.queryByText('socket down')).not.toBeInTheDocument()
   })
 
-  it('keeps a stream Error message as the visible explanation', () => {
+  it('shows a localized summary for a thrown send failure and keeps its raw text in Details', async () => {
+    state.openDetail.mockClear()
     state.sendMessage.mockImplementation(() => {
-      throw new Error('stream closed')
+      throw new Error('unmapped quick failure')
     })
     render(<HomeWindow draggable={false} />)
 
     fireEvent.change(screen.getByTestId('quick-input'), { target: { value: 'hello' } })
     fireEvent.keyDown(screen.getByTestId('quick-input'), { code: 'Enter', key: 'Enter' })
 
-    expect(screen.getByText('stream closed')).toBeInTheDocument()
+    expect(screen.getByText('error.diagnosis.unknown')).toBeInTheDocument()
+    expect(screen.queryByText('unmapped quick failure')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'common.detail' }))
+    await waitFor(() => expect(state.openDetail).toHaveBeenCalled())
+    expect(state.openDetail.mock.calls.at(-1)?.[0].error).toMatchObject({ message: 'unmapped quick failure' })
   })
 
   // Doctor needs the failed model and the provider status to diagnose a stream failure.
@@ -419,9 +424,12 @@ describe('HomeWindow', () => {
         responseBody: 'overloaded'
       })
     })
+    expect(screen.getByText('error.diagnosis.server')).toBeInTheDocument()
+    expect(screen.queryByText('Service Unavailable')).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'common.detail' }))
 
     await waitFor(() => expect(state.openDetail).toHaveBeenCalled())
+    expect(state.openDetail.mock.calls.at(-1)?.[0].error).toMatchObject({ message: 'Service Unavailable' })
     expect(state.openDetail.mock.calls.at(-1)?.[0].context).toMatchObject({
       providerId: 'anthropic',
       modelId: 'claude-sonnet',
