@@ -132,7 +132,8 @@ preboot/
 │                        Detection lives in data/migration/legacyUpgrade.ts.
 ├── nativeErrorDialog.ts showSupportedMessageBox(): native error dialog with
 │                        caller buttons plus Copy-and-feedback / Download page
-│                        support actions (four buttons at most); usable
+│                        support actions, always on the first row; secondary
+│                        entries move behind "More…" past four buttons; usable
 │                        before any window or lifecycle service exists
 └── __tests__/           unit tests for each sibling module
 ```
