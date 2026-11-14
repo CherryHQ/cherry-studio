@@ -94,7 +94,14 @@ export class MediaAnalysisService extends BaseService {
     const jobDir = application.getPath('app.temp', `media-analysis-${randomUUID()}`)
     await mkdir(jobDir, { recursive: true })
     try {
-      const analysis = await this.runAnalysis(fileInfo.path, fileInfo.ext, jobDir, execution, signal)
+      const analysis = await this.runAnalysis(
+        fileInfo.path,
+        fileInfo.ext,
+        jobDir,
+        execution,
+        `${cacheKey}:vision`,
+        signal
+      )
       // Without an ASR model the transcription warning is a settings state the cache key already carries.
       const retryable = analysis.warnings.some(
         (warning) =>
@@ -122,6 +129,7 @@ export class MediaAnalysisService extends BaseService {
     fallbackExt: string | null,
     jobDir: string,
     execution: MediaExecutionConfig,
+    visionCacheKey: string,
     signal?: AbortSignal
   ): Promise<MediaAnalysis> {
     signal?.throwIfAborted()
@@ -129,7 +137,7 @@ export class MediaAnalysisService extends BaseService {
     const probe = await ffmpeg.probe({ filePath, fallbackExt: fallbackExt ?? undefined }, signal)
     const [audio, visual] = await Promise.all([
       this.analyzeAudio(filePath, probe, jobDir, execution, signal),
-      this.analyzeVisuals(filePath, probe, jobDir, execution, signal)
+      this.analyzeVisuals(filePath, probe, jobDir, execution, visionCacheKey, signal)
     ])
     signal?.throwIfAborted()
 
@@ -235,6 +243,7 @@ export class MediaAnalysisService extends BaseService {
     probe: ClassifiedMediaProbe,
     jobDir: string,
     execution: MediaExecutionConfig,
+    visionCacheKey: string,
     signal?: AbortSignal
   ): Promise<{ frames: MediaVisualFrame[]; warnings: MediaAnalysisWarningCode[] }> {
     if (!probe.hasVideo) return { frames: [], warnings: [] }
@@ -312,16 +321,19 @@ export class MediaAnalysisService extends BaseService {
       }
 
       if (execution.vision) {
+        // Answered frames are already paid for; a retry caused by another modality must not resend them.
+        const answered = readAnsweredFrames(visionCacheKey)
         try {
-          const summaries = await summarizeFrames(execution.vision, distinctFrames, signal)
-          for (const [timestampMs, summary] of summaries) {
-            frames.set(timestampMs, { ...frames.get(timestampMs)!, summary })
-          }
-          if (summaries.size < distinctFrames.length) warnings.add('vision_failed')
-        } catch {
-          signal?.throwIfAborted()
-          warnings.add('vision_failed')
+          const unanswered = distinctFrames.filter((frame) => !answered.has(frame.timestampMs))
+          await summarizeFrames(execution.vision, unanswered, answered, signal)
+        } finally {
+          application.get('CacheService').set(visionCacheKey, Object.fromEntries(answered), CACHE_TTL_MS)
         }
+        for (const frame of distinctFrames) {
+          const summary = answered.get(frame.timestampMs)
+          if (summary) frames.set(frame.timestampMs, { ...frames.get(frame.timestampMs)!, summary })
+        }
+        if (distinctFrames.some((frame) => !answered.has(frame.timestampMs))) warnings.add('vision_failed')
       } else {
         warnings.add('vision_model_unavailable')
       }
@@ -342,12 +354,24 @@ export class MediaAnalysisService extends BaseService {
   }
 }
 
+function readAnsweredFrames(key: string): Map<number, string | null> {
+  const cached = application.get('CacheService').get<unknown>(key)
+  if (!cached || typeof cached !== 'object') return new Map()
+  return new Map(
+    Object.entries(cached).flatMap(
+      ([timestampMs, summary]): Array<[number, string | null]> =>
+        typeof summary === 'string' || summary === null ? [[Number(timestampMs), summary]] : []
+    )
+  )
+}
+
+/** Records every frame of a successful batch in `answered`; a failed batch leaves its frames for a retry. */
 async function summarizeFrames(
   vision: MediaVisionExecutionConfig,
   frames: Array<{ path: string; timestampMs: number }>,
+  answered: Map<number, string | null>,
   signal?: AbortSignal
-): Promise<Map<number, string>> {
-  const summaries = new Map<number, string>()
+): Promise<void> {
   for (let index = 0; index < frames.length; index += VISION_BATCH_SIZE) {
     signal?.throwIfAborted()
     const batch = frames.slice(index, index + VISION_BATCH_SIZE)
@@ -373,25 +397,28 @@ async function summarizeFrames(
         },
         [createAiUsagePlugin(vision.usage)]
       )
-      assignSummaries(batch, result.text, summaries)
+      assignSummaries(batch, result.text, answered)
     } catch {
       signal?.throwIfAborted()
     }
   }
-  return summaries
 }
 
 function sourceAudioMs(audioStartMs: number | undefined, chunkMs: number, segmentSeconds = 0): number {
   return Math.max(0, audioStartMs ?? 0) + chunkMs + Math.round(segmentSeconds * 1000)
 }
 
-function assignSummaries(batch: Array<{ timestampMs: number }>, text: string, summaries: Map<number, string>): void {
-  const timestamps = new Set(batch.map((frame) => frame.timestampMs))
+function assignSummaries(
+  batch: Array<{ timestampMs: number }>,
+  text: string,
+  answered: Map<number, string | null>
+): void {
+  const parsed = new Map<number, string>()
   for (const line of text.split('\n')) {
     const match = /^\s*FRAME_(\d+)\s*:\s*(.+)\s*$/i.exec(line)
-    if (!match) continue
-    const timestampMs = Number(match[1])
-    const summary = match[2]?.trim()
-    if (timestamps.has(timestampMs) && summary) summaries.set(timestampMs, summary)
+    const summary = match?.[2]?.trim()
+    if (match && summary) parsed.set(Number(match[1]), summary)
   }
+  // A paid reply that skips a frame still answers it; asking again would bill the same frame.
+  for (const frame of batch) answered.set(frame.timestampMs, parsed.get(frame.timestampMs) ?? null)
 }
