@@ -3,6 +3,7 @@
     "target": "esnext",
     "module": "esnext",
     "moduleResolution": "bundler",
+    "rewriteRelativeImportExtensions": true,
     "jsx": "preserve",
     "sourceMap": false,
     "strict": true,

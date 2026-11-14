@@ -237,7 +237,8 @@ type AgentSessionTurn = {
   knowledgeBaseIds: readonly string[]
   fastMode: boolean
   abortController: AbortController
-  controller?: Pick<ReadableStreamDefaultController<UIMessageChunk>, 'enqueue' | 'error' | 'close'> & {
+  controller?: Pick<ReadableStreamDefaultController<UIMessageChunk>, 'error' | 'close'> & {
+    enqueue: (chunk: UIMessageChunk) => void
     message: (parts: CherryUIMessage['parts']) => void
   }
   activeToolIds: Set<string>

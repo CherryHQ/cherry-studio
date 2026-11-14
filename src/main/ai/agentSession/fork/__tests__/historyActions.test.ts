@@ -16,6 +16,7 @@ import { BaseService } from '@main/core/lifecycle/BaseService'
 
 import { AgentSessionRuntimeService } from '../../AgentSessionRuntimeService'
 import { AgentSessionForkOperations } from '../AgentSessionForkOperations'
+import { getEditFailure, resolveForkBoundary } from '../historyActions'
 
 const dbh = setupTestDatabase()
 let sessionId: string
@@ -250,4 +251,15 @@ it('enables Durable edits at first inputs and committed predecessor boundaries',
   expect(actions.get(later.id)?.edit).toBeNull()
   expect((await runtime.getEditTarget(sessionId, first.id)).parts).toEqual(first.data.parts)
   expect((await runtime.getEditTarget(sessionId, later.id)).parts).toEqual(later.data.parts)
+})
+
+it('allows a valid non-assistant predecessor for edit while keeping public fork assistant-only', () => {
+  const driver = runtimeDriverRegistry.getAgentSessionDriver('pi')
+  const parent = {
+    role: 'user' as const,
+    status: 'success' as const,
+    anchor: { checkpoint: { runtime: 'pi', runtimeSessionId: 'native', leafId: 'leaf' } }
+  }
+  expect(getEditFailure(driver, { role: 'user', delivery: null }, parent)).toBeNull()
+  expect(resolveForkBoundary(driver, parent).reason).toBe('not_turn_boundary')
 })

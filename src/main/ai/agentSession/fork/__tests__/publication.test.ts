@@ -34,6 +34,7 @@ describe('Agent fork publication', () => {
   let messageId: string
   let publishedFile: string
   let beforeForkResult: (input: RuntimeForkInput) => Promise<void>
+  let validatePublication: RuntimeForkResult['validatePublication']
   let invalidCheckpoint: boolean
   let artifactSourceFor: (artifactDirectory: string) => string
   let previous: ReturnType<typeof runtimeDriverRegistry.getAgentSessionDriver>
@@ -43,6 +44,7 @@ describe('Agent fork publication', () => {
     forkRoot = path.join(directory, 'forks')
     publishedFile = path.join(directory, 'native', 'child.jsonl')
     beforeForkResult = async () => {}
+    validatePublication = undefined
     invalidCheckpoint = false
     artifactSourceFor = (artifactDirectory) => path.join(artifactDirectory, 'native.jsonl')
     vi.spyOn(application, 'getPath').mockImplementation((_key, filename) =>
@@ -88,6 +90,7 @@ describe('Agent fork publication', () => {
         await beforeForkResult(input)
         return {
           resumeToken: 'native-child',
+          validatePublication,
           publish: [{ source, target: publishedFile }],
           checkpoints: input.checkpoints.map((checkpoint) => ({
             ...checkpoint,
@@ -105,6 +108,76 @@ describe('Agent fork publication', () => {
     if (previous) runtimeDriverRegistry.register(previous)
     vi.restoreAllMocks()
     await rm(directory, { recursive: true, force: true })
+  })
+
+  it('validates published bytes before committing and rolls back on failure, allowing retry', async () => {
+    const originalRows = agentSessionMessageService.listSessionMessages(sessionId).items
+    validatePublication = async () => {
+      expect(await readFile(publishedFile, 'utf8')).toBe('native child history')
+      expect(agentSessionMessageService.listSessionMessages(sessionId).items).toEqual(originalRows)
+      throw new Error('validation failed')
+    }
+    await expect(new AgentSessionForkOperations().fork(sessionId, messageId)).rejects.toThrow('validation failed')
+    await expect(readFile(publishedFile)).rejects.toMatchObject({ code: 'ENOENT' })
+    expect(agentSessionMessageService.listSessionMessages(sessionId).items).toEqual(originalRows)
+    validatePublication = async () => {
+      expect(await readFile(publishedFile, 'utf8')).toBe('native child history')
+    }
+    await new AgentSessionForkOperations().fork(sessionId, messageId)
+    expect(await readFile(publishedFile, 'utf8')).toBe('native child history')
+  })
+
+  it.each(['failure', 'abort'] as const)('rolls back an edit on validation %s and permits retry', async (outcome) => {
+    const [user] = agentSessionMessageService.saveMessages({
+      sessionId,
+      messages: [{ role: 'user', status: 'success', data: { parts: [{ type: 'text', text: 'Old question' }] } }]
+    })
+    const originalRows = agentSessionMessageService.listSessionMessages(sessionId).items
+    const target = {
+      messageId: user.id,
+      version: agentSessionMessageService.readEditSnapshotTx(dbh.db, sessionId, user.id).version
+    }
+    let closed = false
+    const operations = new AgentSessionForkOperations()
+    const entered = Promise.withResolvers<void>()
+    validatePublication = async (signal) => {
+      expect(closed).toBe(false)
+      expect(agentSessionMessageService.listSessionMessages(sessionId).items).toEqual(originalRows)
+      expect(await readFile(publishedFile, 'utf8')).toBe('native child history')
+      entered.resolve()
+      if (outcome === 'failure') throw new Error('validation failed')
+      await once(signal, 'abort')
+      signal.throwIfAborted()
+    }
+    const edit = () =>
+      operations.edit(
+        sessionId,
+        target,
+        async () => {
+          closed = true
+        },
+        (tx, nativeId) => {
+          const [saved] = agentSessionMessageService.saveMessagesTx(tx, {
+            sessionId,
+            messages: [{ role: 'user', status: 'success', data: { parts: [{ type: 'text', text: 'New question' }] } }]
+          })
+          reservePiBranchTx(tx, sessionId, saved.id, nativeId)
+          agentSessionMessageService.setEditRuntimeTx(tx, sessionId, saved.id, nativeId)
+          return saved.id
+        }
+      )
+    const pending = edit()
+    const rejected = expect(pending).rejects.toThrow()
+    await entered.promise
+    if (outcome === 'abort') await operations.cancel(sessionId)
+    await rejected
+    expect(closed).toBe(false)
+    expect(agentSessionMessageService.listSessionMessages(sessionId).items).toEqual(originalRows)
+    expect(await readForkResources()).toEqual([])
+    await expect(readFile(publishedFile)).rejects.toMatchObject({ code: 'ENOENT' })
+    validatePublication = async () => {}
+    await edit()
+    expect(closed).toBe(true)
   })
 
   it('publishes an independent child without app_state and keeps its files after source deletion', async () => {

@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { existsSync } from 'node:fs'
-import { mkdir, realpath, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, readdir, realpath, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 
@@ -25,6 +25,7 @@ import { agentSessionContextService as contexts } from '@data/services/AgentSess
 import { agentSessionMessageService as messages } from '@data/services/AgentSessionMessageService'
 import { AgentSessionRuntimeService } from '@main/ai/agentSession/AgentSessionRuntimeService'
 import { ChildThreadProjection, savedChildView } from '@main/ai/agentSession/ChildThreadProjection'
+import { AgentSessionMessageBackend } from '@main/ai/agentSession/persistence/AgentSessionMessageBackend'
 import { ThreadMessageProjection } from '@main/ai/agentSession/ThreadMessageProjection'
 import { prepareClaudeBranch, reserveClaudeBranchTx } from '@main/ai/runtime/claudeCode/claudeContext'
 import { runtimeDriverRegistry } from '@main/ai/runtime/registry'
@@ -169,6 +170,55 @@ async function desktop(options: Parameters<typeof fixture>[0] = {}) {
   }
   return { ...test, sessionId, input, connect, events, wait, nativeInputs }
 }
+
+it('emits the committed compact summary as the successful command checkpoint', async () => {
+  const test = await desktop()
+  const connection = await test.connect()
+  await connection.send(test.input('Remember the decision. ' + 'Context. '.repeat(500)))
+  const first = await test.request()
+  first.reply.block({ type: 'text', text: 'The decision is retained.' })
+  first.reply.finish()
+  await test.wait('turn-complete')
+  await connection.send(test.input('/compact Preserve the decision'))
+  const reply = messages.saveMessage({
+    sessionId: test.sessionId,
+    message: { role: 'assistant', status: 'pending', data: { parts: [] } }
+  })
+  const compact = await test.request()
+  compact.reply.block({ type: 'text', text: '<summary>The decision is retained.</summary>' })
+  compact.reply.finish()
+  await expect
+    .poll(() => test.events.filter((event) => event.type === 'turn-complete').length, { timeout: 15000 })
+    .toBe(2)
+  const result = test.events.filter((event) => event.type === 'turn-complete')[1]
+  if (result.type !== 'turn-complete') throw new Error('Missing compact result')
+  const checkpoint = result.forkAnchor?.checkpoint as { runtimeSessionId: string; messageUuid: string } | undefined
+  expect(checkpoint).toBeDefined()
+  const projectDir = path.join(test.configDir, 'projects')
+  const files = await readdir(projectDir, { recursive: true })
+  const transcript = files.find((file) => file.endsWith(`${checkpoint!.runtimeSessionId}.jsonl`))
+  expect(transcript).toBeDefined()
+  const entries = (await readFile(path.join(projectDir, transcript!), 'utf8'))
+    .trim()
+    .split('\n')
+    .map((line) => JSON.parse(line))
+  const boundary = entries.findIndex((entry) => entry.type === 'system' && entry.subtype === 'compact_boundary')
+  expect(boundary).toBeGreaterThanOrEqual(0)
+  expect(entries[boundary + 1]).toMatchObject({
+    type: 'user',
+    isCompactSummary: true,
+    parentUuid: entries[boundary].uuid,
+    uuid: checkpoint!.messageUuid
+  })
+  new AgentSessionMessageBackend({
+    sessionId: test.sessionId,
+    assistantMessageId: reply.id,
+    forkAnchor: () => result.forkAnchor
+  }).persistAssistant({ status: 'success', finalMessage: { id: reply.id, role: 'assistant', parts: [] } })
+  const row = dbh.db.select().from(sessionMessagesTable).where(eq(sessionMessagesTable.id, reply.id)).get()!
+  expect(row.data.runtimeAnchor).toMatchObject({ checkpoint: { messageUuid: entries[boundary + 1].uuid } })
+  expect(entries[boundary].uuid).not.toBe(entries[boundary + 1].uuid)
+}, 30000)
 
 it('keeps both real SDK background notifications in one persisted Main reply until the final summary', async () => {
   const test = await desktop()

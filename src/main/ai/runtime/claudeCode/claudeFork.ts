@@ -24,6 +24,13 @@ async function findSession(configDir: string, sessionId: string): Promise<string
   return files[0]
 }
 
+function assertRestorePoint(entry: SessionStoreEntry): void {
+  // The SDK cuts off the linked summary after a boundary, losing compacted context;
+  // the summary itself is a valid restore point.
+  if (entry.type === 'system' && entry.subtype === 'compact_boundary')
+    throw new AgentSessionForkError('unsupported_checkpoint')
+}
+
 export async function forkClaudeSession(input: RuntimeForkInput): Promise<RuntimeForkResult> {
   return readNativeForkHistory(() => prepareClaudeFork(input))
 }
@@ -41,9 +48,10 @@ async function prepareClaudeFork(input: RuntimeForkInput): Promise<RuntimeForkRe
     if (line.trim().length === 0) continue
     const entry = JSON.parse(line) as SessionStoreEntry
     entries.push(entry)
-    if (entry.uuid === checkpoint.messageUuid && entry.type === 'assistant' && !entry.isSidechain) break
+    if (entry.uuid === checkpoint.messageUuid && !entry.isSidechain) break
   }
   if (end < 0) throw new AgentSessionForkError('history_missing')
+  assertRestorePoint(entries[entries.length - 1])
   if (!bytes.subarray(0, start).equals(await readForkPrefix(file, start)))
     throw new AgentSessionForkError('history_changed')
   const checkpoints = input.checkpoints.map(parseClaudeForkCheckpoint).map((value) => {
@@ -53,10 +61,9 @@ async function prepareClaudeFork(input: RuntimeForkInput): Promise<RuntimeForkRe
     return value
   })
   const checkpointEntryCounts = checkpoints.map((value) => {
-    const index = entries.findIndex(
-      (entry) => entry.uuid === value.messageUuid && entry.type === 'assistant' && !entry.isSidechain
-    )
+    const index = entries.findIndex((entry) => entry.uuid === value.messageUuid && !entry.isSidechain)
     if (index < 0) throw new AgentSessionForkError('history_changed')
+    assertRestorePoint(entries[index])
     return index + 1
   })
   const { default: createWorker } = await import('./forkWorker?nodeWorker')
@@ -72,5 +79,23 @@ async function prepareClaudeFork(input: RuntimeForkInput): Promise<RuntimeForkRe
   const worker = createWorker({ workerData, env: { ...process.env } })
   const result = ClaudeForkResultSchema.safeParse(await runForkWorker(worker, input.signal))
   if (!result.success) throw new AgentSessionForkError('history_corrupt')
-  return result.data
+  const { expectation, ...prepared } = result.data
+  return {
+    ...prepared,
+    async validatePublication(signal) {
+      const { default: createValidationWorker } = await import('./forkValidationWorker?nodeWorker')
+      signal.throwIfAborted()
+      const worker = createValidationWorker({
+        workerData: {
+          configDir: checkpoint.configDir,
+          targetCwd: input.targetCwd,
+          sessionId: prepared.resumeToken,
+          file: prepared.publish[0].target,
+          expectation
+        },
+        env: { ...process.env }
+      })
+      await runForkWorker(worker, signal)
+    }
+  }
 }

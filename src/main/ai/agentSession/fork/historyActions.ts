@@ -12,7 +12,16 @@ export function resolveForkBoundary(
   | { reason: null; anchor: RuntimeForkAnchor; fork: NonNullable<AgentSessionRuntimeDriver['fork']> }
   | { reason: NonNullable<AgentSessionHistoryActions['fork']> } {
   if (!driver?.fork || !driver.isForkCheckpoint) return { reason: 'unsupported_checkpoint' }
-  if (boundary.role !== 'assistant' || boundary.status !== 'success') return { reason: 'not_turn_boundary' }
+  if (boundary.role !== 'assistant') return { reason: 'not_turn_boundary' }
+  return resolveRestoreBoundary(driver, boundary)
+}
+
+export function resolveRestoreBoundary(
+  driver: AgentSessionRuntimeDriver | undefined,
+  boundary: HistoryBoundary
+): ReturnType<typeof resolveForkBoundary> {
+  if (!driver?.fork || !driver.isForkCheckpoint) return { reason: 'unsupported_checkpoint' }
+  if (boundary.status !== 'success') return { reason: 'not_turn_boundary' }
   if (boundary.anchor == null) return { reason: 'legacy_history' }
   const anchor = RuntimeForkAnchorSchema.safeParse(boundary.anchor)
   if (
@@ -31,5 +40,7 @@ export function getEditFailure(
 ): AgentSessionHistoryActions['edit'] {
   if (target.role !== 'user' || target.delivery) return 'invalid_target'
   if (!driver?.fork || !driver.isForkCheckpoint || !parent) return 'checkpoint_unsupported'
-  return parent.role === 'root' || resolveForkBoundary(driver, parent).reason === null ? null : 'checkpoint_unsupported'
+  return parent.role === 'root' || resolveRestoreBoundary(driver, parent).reason === null
+    ? null
+    : 'checkpoint_unsupported'
 }

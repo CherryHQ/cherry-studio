@@ -6,8 +6,13 @@ import { Worker } from 'node:worker_threads'
 import { getSessionMessages } from '@anthropic-ai/claude-agent-sdk'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { RuntimeForkResult } from '../../fork'
+import { runForkWorker, type RuntimeForkResult } from '../../fork'
 import { forkClaudeSession } from '../claudeFork'
+
+vi.mock('../forkValidationWorker?nodeWorker', () => ({
+  default: (options: ConstructorParameters<typeof Worker>[1]) =>
+    new Worker(new URL('../forkValidationWorker.ts', import.meta.url), options)
+}))
 
 vi.mock('../forkWorker?nodeWorker', () => ({
   default: (options: ConstructorParameters<typeof Worker>[1]) =>
@@ -186,6 +191,21 @@ describe('Claude native forks', () => {
       return source
     }
 
+    it.each(['primary', 'earlier'] as const)(
+      'rejects a %s boundary checkpoint before creating artifacts',
+      async (which) => {
+        const source = await writeCompactedHistory({ trigger: 'manual', preTokens: 1000 })
+        const input = forkInput()
+        const boundary = { ...input.checkpoint, messageUuid: boundaryUuid }
+        if (which === 'primary') input.checkpoint = boundary
+        input.checkpoints = [boundary, ...(which === 'earlier' ? [input.checkpoint] : [])]
+        await mkdir(input.artifactDirectory)
+        await expect(forkClaudeSession(input)).rejects.toMatchObject({ reason: 'unsupported_checkpoint' })
+        expect(await readdir(input.artifactDirectory)).toEqual([])
+        expect(await readFile(file)).toEqual(source)
+      }
+    )
+
     it.each([
       {
         name: 'preservedSegment with reordered object keys',
@@ -215,6 +235,7 @@ describe('Claude native forks', () => {
         .map((line) => JSON.parse(line))
       const child = (uuid: string) => output.find((entry) => entry.forkedFrom?.messageUuid === uuid)
       const boundary = child(boundaryUuid)
+      expect(output.findIndex((entry) => entry.uuid === boundary.uuid)).toBe(2)
       const summary = child(summaryUuid)
       expect(boundary).toMatchObject({ type: 'system', subtype: 'compact_boundary' })
       expect(summary).toMatchObject({
@@ -230,6 +251,39 @@ describe('Claude native forks', () => {
       ])
       expect(staged).not.toContain('FUTURE_ONLY')
       expect(await readFile(file)).toEqual(source)
+      await mkdir(path.dirname(result.publish[0].target), { recursive: true })
+      await writeFile(result.publish[0].target, staged)
+      await expect(result.validatePublication!(new AbortController().signal)).resolves.toBeUndefined()
+      const shifted = new Worker(new URL('../forkValidationWorker.ts', import.meta.url), {
+        workerData: {
+          configDir: directory,
+          targetCwd: directory,
+          sessionId: result.resumeToken,
+          file: result.publish[0].target,
+          expectation: {
+            messageCount: 'preservedSegment' in compactMetadata || 'preservedMessages' in compactMetadata ? 6 : 4,
+            boundaries: [{ uuid: boundary.uuid, index: 1 }]
+          }
+        },
+        env: { ...process.env }
+      })
+      await expect(runForkWorker(shifted, new AbortController().signal)).rejects.toMatchObject({
+        reason: 'unsupported_checkpoint'
+      })
+      await writeFile(
+        result.publish[0].target,
+        output
+          .filter((entry) => entry.uuid !== boundary.uuid)
+          .map((entry) => JSON.stringify(entry))
+          .join('\n') + '\n'
+      )
+      await expect(result.validatePublication!(new AbortController().signal)).rejects.toMatchObject({
+        reason: 'unsupported_checkpoint'
+      })
+      await writeFile(result.publish[0].target, staged + '{bad json}\n')
+      await expect(result.validatePublication!(new AbortController().signal)).rejects.toMatchObject({
+        reason: 'history_corrupt'
+      })
 
       const hasPreservedMessages = 'preservedSegment' in compactMetadata || 'preservedMessages' in compactMetadata
       if ('preservedSegment' in compactMetadata) {
@@ -273,6 +327,8 @@ describe('Claude native forks', () => {
           }
         }
       })
+      expect(messages.findIndex((entry) => entry.uuid === boundary.uuid)).toBe(0)
+      if (hasPreservedMessages) expect(messages).toHaveLength(6)
       expect(messages.map((entry) => entry.type)).toEqual([
         'system',
         'user',
@@ -295,21 +351,6 @@ describe('Claude native forks', () => {
         name: 'a dropped progress record',
         progressUuid: 'a17ef839-8a1d-4f13-99e8-e9636f123456',
         compactMetadata: { trigger: 'manual', preTokens: 1000, preservedSegment }
-      },
-      // This fixture deliberately duplicates a UUID, which the SDK loader cannot rebuild into a chain.
-      // Loaded context is asserted by the positive cases with distinct UUIDs.
-      {
-        name: 'duplicate preserved-message UUIDs in order',
-        progressUuid: undefined,
-        compactMetadata: {
-          trigger: 'manual',
-          preTokens: 1000,
-          preservedMessages: {
-            anchorUuid: summaryUuid,
-            uuids: [userUuid, userUuid, replyUuid],
-            allUuids: [userUuid, userUuid, replyUuid]
-          }
-        }
       }
     ])('preserves loaded compacted context with $name', async ({ compactMetadata, progressUuid }) => {
       const history = await writeCompactedHistory(compactMetadata)
@@ -350,7 +391,6 @@ describe('Claude native forks', () => {
       }
       expect(staged).not.toContain('FUTURE_ONLY')
       expect(await readFile(file)).toEqual(source)
-      if (!progressUuid) return
       const messages = await getSessionMessages(result.resumeToken, {
         dir: directory,
         includeSystemMessages: true,
@@ -385,13 +425,19 @@ describe('Claude native forks', () => {
         entries.find((entry) => entry.uuid === boundaryUuid).compactMetadata.unknownReference = progressUuid
         const unresolvedSource = Buffer.from(entries.map((entry) => JSON.stringify(entry)).join('\n') + '\n')
         await writeFile(file, unresolvedSource)
-        await expect(forkClaudeSession(input)).rejects.toMatchObject({ reason: 'unsupported_checkpoint' })
+        await expect(forkClaudeSession(input)).resolves.toBeDefined()
         expect(await readFile(file)).toEqual(unresolvedSource)
-        expect(await readdir(input.artifactDirectory)).toEqual([])
       }
     })
 
-    it('refuses unresolved source references in non-system compaction metadata before staging', async () => {
+    it('rejects duplicate ordered preserved messages', async () => {
+      await writeCompactedHistory({
+        preservedMessages: { anchorUuid: summaryUuid, uuids: [userUuid, userUuid, replyUuid] }
+      })
+      await expect(forkClaudeSession(forkInput())).rejects.toMatchObject({ reason: 'history_corrupt' })
+    })
+
+    it('accepts opaque non-system compaction metadata', async () => {
       const history = await writeCompactedHistory({ trigger: 'manual', preTokens: 1000, preservedSegment })
       const entries = history
         .toString('utf8')
@@ -403,9 +449,8 @@ describe('Claude native forks', () => {
       await writeFile(file, source)
       const input = forkInput()
       await mkdir(input.artifactDirectory)
-      await expect(forkClaudeSession(input)).rejects.toMatchObject({ reason: 'unsupported_checkpoint' })
+      await expect(forkClaudeSession(input)).resolves.toBeDefined()
       expect(await readFile(file)).toEqual(source)
-      expect(await readdir(input.artifactDirectory)).toEqual([])
     })
 
     it.each([
@@ -425,13 +470,12 @@ describe('Claude native forks', () => {
           unknownReference: { nested: { [userUuid]: 'retained' } }
         }
       }
-    ])('refuses unresolved source references in $name before staging', async ({ compactMetadata }) => {
+    ])('accepts opaque metadata in $name', async ({ compactMetadata }) => {
       const source = await writeCompactedHistory(compactMetadata)
       const input = forkInput()
       await mkdir(input.artifactDirectory)
-      await expect(forkClaudeSession(input)).rejects.toMatchObject({ reason: 'unsupported_checkpoint' })
+      await expect(forkClaudeSession(input)).resolves.toBeDefined()
       expect(await readFile(file)).toEqual(source)
-      expect(await readdir(input.artifactDirectory)).toEqual([])
     })
   })
 

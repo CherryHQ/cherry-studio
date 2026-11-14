@@ -26,7 +26,7 @@ import { ensureRetiredSessionHistory } from '../../runtime/pi/retiredSessionHist
 import { runtimeDriverRegistry } from '../../runtime/registry'
 import type { AgentSessionRuntimeDriver } from '../../runtime/types'
 import { copyForkWorkspace, forkFileIdentity, publishForkArtifact } from './files'
-import { getEditFailure, resolveForkBoundary } from './historyActions'
+import { getEditFailure, resolveForkBoundary, resolveRestoreBoundary } from './historyActions'
 import { type AgentSessionForkResources, readForkResources, writeForkResources, removeForkResources } from './resources'
 import { workspaceHasReferences } from './workspaceCleanup'
 
@@ -119,7 +119,7 @@ export class AgentSessionForkOperations {
     try {
       if (prefix.length) {
         const row = prefix.at(-1)!
-        const boundary = resolveForkBoundary(driver, { ...row, anchor: row.data.runtimeAnchor })
+        const boundary = resolveRestoreBoundary(driver, { ...row, anchor: row.data.runtimeAnchor })
         if (boundary.reason) throw new AgentSessionEditError('checkpoint_unsupported')
         const { anchor } = boundary
         if (anchor.excludedMessageIds?.some((id) => prefix.some((row) => row.id === id)))
@@ -158,7 +158,7 @@ export class AgentSessionForkOperations {
         resources.resumeToken = native.resumeToken
         await writeForkResources(resources)
         remapNativeHistory(prefix, [{ group, result: native }])
-        await this.publish(resources, native.publish, signal)
+        await this.publish(resources, [native], signal)
       }
       signal.throwIfAborted()
       await closeSource()
@@ -292,7 +292,7 @@ export class AgentSessionForkOperations {
         signal.throwIfAborted()
         if (group.context.locator.kind !== driver?.type) throw new AgentSessionForkError('unsupported_checkpoint')
         const row = group.rows.at(-1)!
-        const selected = resolveForkBoundary(driver, { ...row, anchor: row.data.runtimeAnchor })
+        const selected = resolveRestoreBoundary(driver, { ...row, anchor: row.data.runtimeAnchor })
         if (selected.reason) throw new AgentSessionForkError(selected.reason)
         const artifactDirectory = path.join(resources.artifactDirectory, group.context.id)
         await mkdir(artifactDirectory)
@@ -337,7 +337,7 @@ export class AgentSessionForkOperations {
       })
       await this.publish(
         resources,
-        prepared.flatMap(({ result }) => result.publish),
+        prepared.map(({ result }) => result),
         signal
       )
       signal.throwIfAborted()
@@ -386,10 +386,10 @@ export class AgentSessionForkOperations {
 
   private async publish(
     resources: AgentSessionForkResources,
-    artifacts: Array<{ source: string; target: string }>,
+    results: readonly RuntimeForkResult[],
     signal: AbortSignal
   ): Promise<void> {
-    for (const artifact of artifacts) {
+    for (const artifact of results.flatMap((result) => result.publish)) {
       assertArtifactSource(resources.artifactDirectory, artifact.source)
       await forkFileIdentity(artifact.source)
       await mkdir(path.dirname(artifact.target), { recursive: true })
@@ -400,6 +400,11 @@ export class AgentSessionForkOperations {
         owned.identity = identity
         await writeForkResources(resources)
       })
+    }
+    for (const result of results) {
+      signal.throwIfAborted()
+      await result.validatePublication?.(signal)
+      signal.throwIfAborted()
     }
   }
 
