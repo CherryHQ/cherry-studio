@@ -1,5 +1,5 @@
 import { Sparkles, Trash2 } from 'lucide-react'
-import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useForm, type UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 
@@ -8,7 +8,6 @@ import {
   FormControl,
   FormField,
   FormItem,
-  FormLabel,
   FormMessage,
   Input,
   InputGroup,
@@ -24,9 +23,9 @@ import {
   SelectValue,
   Slider,
   Switch,
-  TabsContent,
   Textarea
 } from '@cherrystudio/ui'
+import { cn } from '@cherrystudio/ui/lib/utils'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { CreateGroupDialog } from '@renderer/components/CreateGroupDialog'
@@ -34,8 +33,9 @@ import PromptEditorField from '@renderer/components/PromptEditorField'
 import { useAssistantMutationsById } from '@renderer/hooks/resourceCatalog'
 import { useCloseBeforeAction } from '@renderer/hooks/useCloseBeforeAction'
 import { useGroupMutations, useGroups } from '@renderer/hooks/useGroups'
+import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBase'
+import { useMcpServers } from '@renderer/hooks/useMcpServer'
 import { usePromptProcessor } from '@renderer/hooks/usePromptProcessor'
-import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import { toast } from '@renderer/services/toast'
 import { MCP_MODE_OPTIONS, RESOURCE_PROMPT_POLISH_SYSTEM_PROMPT } from '@renderer/utils/resourceCatalog'
 import {
@@ -52,30 +52,34 @@ import {
 } from '@shared/data/types/contextSettings'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import { clampThresholdPercent } from '@shared/utils/contextSettings'
+import { isBrowserMcpServer } from '@shared/utils/mcp'
 import { isNonChatModel } from '@shared/utils/model'
 
 import { AssistantAvatarPicker } from '../components/AssistantAvatarPicker'
+import {
+  EditDialogPageShell,
+  EditMainPage,
+  SettingsLinkButton,
+  settingsPillClassName,
+  SettingsRow,
+  SettingsSection
+} from '../components/EditDialogPages'
 import {
   CompactModelField,
   EDIT_DIALOG_PROMPT_MAX_HEIGHT,
   EDIT_DIALOG_PROMPT_MIN_HEIGHT,
   type EditDialogBaseProps,
-  editDialogFormRowClassName,
-  editDialogFormRowLabelClassName,
-  EditDialogShell,
-  type EditDialogTab,
   FieldLabelWithHelp,
   type ModelLabels,
   PromptVariablesPopover,
   setFormValues,
-  TextInputField,
   useDebouncedAutoSave
 } from '../components/EditDialogShared'
 import { GroupSelector } from '../components/GroupSelector'
 import { KnowledgeCapabilityList } from '../components/KnowledgeCapabilityList'
 import { McpCapabilityList } from '../components/McpCapabilityList'
-import { PromptBindingTab } from '../components/PromptBindingTab'
 import { PromptPolishActions } from '../components/PromptPolishActions'
+import { countSummary, type EditPage, type EditSubPage, parentEditPage, resolveInitialEditPage } from './editPages'
 
 export type AssistantEditDialogResource = Parameters<typeof initialAssistantFormState>[0]
 
@@ -113,14 +117,10 @@ type AssistantEditFormValues = {
 
 type CustomParameter = AssistantFormState['customParameters'][number]
 type CustomParameterType = CustomParameter['type']
-type AssistantToolTab = 'tools.builtin' | 'tools.mcp' | 'tools.knowledge'
 
 const logger = loggerService.withContext('AssistantEditDialog')
 const UI_DEFAULT_MAX_TOKENS = 4096
-
-function isAssistantToolTab(value: string): value is AssistantToolTab {
-  return value === 'tools.builtin' || value === 'tools.mcp' || value === 'tools.knowledge'
-}
+const ASSISTANT_SUB_PAGES = new Set<EditSubPage>(['prompt', 'knowledge', 'mcp', 'context', 'parameters'])
 
 function defaultValuesForAssistant(resource: AssistantEditDialogResource): AssistantEditFormValues {
   const form = initialAssistantFormState(resource)
@@ -224,14 +224,15 @@ function AssistantEditDialogContent({
   initialTab
 }: EditDialogBaseProps & { resource: AssistantEditDialogResource }) {
   const { t } = useTranslation()
-  const [activeTab, setActiveTab] = useState(initialTab ?? 'basic')
+  const [page, setPage] = useState<EditPage>(() => resolveInitialEditPage('assistant', initialTab, ASSISTANT_SUB_PAGES))
   const [createGroupDialogOpen, setCreateGroupDialogOpen] = useState(false)
   const [dialogContentElement, setDialogContentElement] = useState<HTMLDivElement | null>(null)
   const [modelLabels, setModelLabels] = useState<ModelLabels>(() => modelLabelsForAssistant(resource))
   const [formBaseline, setFormBaseline] = useState(() => initialAssistantFormState(resource))
   const formBaselineRef = useRef(formBaseline)
   const defaultValues = useMemo(() => defaultValuesForAssistant(resource), [resource])
-  const form = useForm<AssistantEditFormValues>({ defaultValues })
+  // Validate as the user types so an emptied name shows its required message.
+  const form = useForm<AssistantEditFormValues>({ defaultValues, mode: 'onChange' })
   const values = form.watch()
   const { groups, isLoading: isGroupsLoading, error: groupsError } = useGroups('assistant')
   const { createGroup } = useGroupMutations('assistant')
@@ -239,24 +240,6 @@ function AssistantEditDialogContent({
   const saveIntent = useMemo(() => {
     return diffAssistantSaveIntent(buildAssistantFormState(formBaseline, values), formBaseline, resource)
   }, [formBaseline, resource, values])
-  const tabs = useMemo<EditDialogTab[]>(
-    () => [
-      { id: 'basic', label: t('library.config.dialogs.edit.basic_tab') },
-      { id: 'advanced', label: t('library.config.agent.model_config') },
-      { id: 'prompt', label: t('library.config.dialogs.edit.prompt_tab') },
-      { id: 'prompts', label: t('settings.prompts.binding.tabTitle') },
-      {
-        id: 'tools',
-        label: t('library.config.dialogs.edit.tools_tab'),
-        children: [
-          { id: 'tools.builtin', label: t('settings.skills.tabs.builtin') },
-          { id: 'tools.knowledge', label: t('library.config.dialogs.edit.knowledge_tab') },
-          { id: 'tools.mcp', label: t('library.config.agent.section.tools.tab.mcp') }
-        ]
-      }
-    ],
-    [t]
-  )
 
   // Tracks the exact form snapshot that failed so it cannot be retried until
   // the user changes the form, while a later close can explicitly discard it.
@@ -276,7 +259,7 @@ function AssistantEditDialogContent({
     formBaselineRef.current = initialAssistantFormState(resource)
     setFormBaseline(formBaselineRef.current)
     form.clearErrors()
-    setActiveTab(initialTab ?? 'basic')
+    setPage(resolveInitialEditPage('assistant', initialTab, ASSISTANT_SUB_PAGES))
     setCreateGroupDialogOpen(false)
     setModelLabels(modelLabelsForAssistant(resource))
     // A fresh open is a fresh editing session — a stale failure from a prior
@@ -386,136 +369,6 @@ function AssistantEditDialogContent({
     }
   }
 
-  return (
-    <EditDialogShell
-      activeTab={activeTab}
-      form={form}
-      groupPresentation="inline"
-      onActiveTabChange={setActiveTab}
-      onOpenChange={handleOpenChange}
-      open={open}
-      rootError={rootError}
-      setDialogContentElement={setDialogContentElement}
-      tabs={tabs}
-      title={t('library.config.dialogs.edit.assistant_title')}>
-      <>
-        <TabsContent value="basic" forceMount hidden={activeTab !== 'basic'} className="m-0">
-          <AssistantBasicFields
-            resource={resource}
-            open={open}
-            form={form}
-            modelFilter={modelFilter}
-            isModelDisabled={isModelDisabled}
-            portalContainer={dialogContentElement}
-            modelLabels={modelLabels}
-            setModelLabels={setModelLabels}
-            groups={groups}
-            groupsLoading={isGroupsLoading}
-            groupsError={groupsError}
-            onCreateGroup={() => setCreateGroupDialogOpen(true)}
-            onSettingsNavigate={closeBeforeAction}
-          />
-        </TabsContent>
-        <TabsContent
-          value="prompt"
-          forceMount
-          hidden={activeTab !== 'prompt'}
-          className="m-0 flex h-full min-h-0 flex-col">
-          <AssistantPromptField
-            form={form}
-            resource={resource}
-            modelName={modelLabels.modelId}
-            portalContainer={dialogContentElement}
-          />
-        </TabsContent>
-        <TabsContent value="prompts" forceMount hidden={activeTab !== 'prompts'} className="m-0">
-          <PromptBindingTab
-            enabled={open && activeTab === 'prompts'}
-            target={{ type: 'assistant', id: resource.id }}
-            onManageGlobal={() => closeBeforeAction(() => openSettingsTab('/settings/prompts'))}
-            portalContainer={dialogContentElement}
-          />
-        </TabsContent>
-        {isAssistantToolTab(activeTab) ? (
-          <TabsContent value={activeTab} forceMount className="m-0">
-            {activeTab === 'tools.builtin' ? (
-              <FormField
-                control={form.control}
-                name="enableBrowser"
-                render={({ field }) => (
-                  <FormItem className="flex items-center justify-between gap-3">
-                    <span>{t('settings.browser.title')}</span>
-                    <FormControl>
-                      <Switch
-                        aria-label={t('settings.browser.title')}
-                        checked={field.value}
-                        onCheckedChange={field.onChange}
-                      />
-                    </FormControl>
-                  </FormItem>
-                )}
-              />
-            ) : activeTab === 'tools.mcp' ? (
-              <AssistantToolsFields form={form} portalContainer={dialogContentElement} />
-            ) : (
-              <KnowledgeCapabilityList
-                selectedIds={values.knowledgeBaseIds}
-                onSelectedIdsChange={(ids) => form.setValue('knowledgeBaseIds', ids, { shouldDirty: true })}
-                portalContainer={dialogContentElement}
-              />
-            )}
-          </TabsContent>
-        ) : null}
-        <TabsContent value="advanced" forceMount hidden={activeTab !== 'advanced'} className="m-0">
-          <AssistantAdvancedFields
-            form={form}
-            modelFilter={modelFilter}
-            isModelDisabled={isModelDisabled}
-            portalContainer={dialogContentElement}
-            modelLabels={modelLabels}
-            setModelLabels={setModelLabels}
-          />
-        </TabsContent>
-        <CreateGroupDialog
-          open={createGroupDialogOpen}
-          onCreate={handleCreateGroup}
-          onOpenChange={setCreateGroupDialogOpen}
-        />
-      </>
-    </EditDialogShell>
-  )
-}
-
-function AssistantBasicFields({
-  resource,
-  open,
-  form,
-  modelFilter,
-  isModelDisabled,
-  portalContainer,
-  modelLabels,
-  setModelLabels,
-  groups,
-  groupsLoading,
-  groupsError,
-  onCreateGroup,
-  onSettingsNavigate
-}: {
-  resource: AssistantEditDialogResource
-  open: boolean
-  form: UseFormReturn<AssistantEditFormValues>
-  modelFilter: EditDialogBaseProps['modelFilter']
-  isModelDisabled: EditDialogBaseProps['isModelDisabled']
-  portalContainer: HTMLElement | null
-  modelLabels: ModelLabels
-  setModelLabels: (labels: ModelLabels) => void
-  groups: ReturnType<typeof useGroups>['groups']
-  groupsLoading: ReturnType<typeof useGroups>['isLoading']
-  groupsError: ReturnType<typeof useGroups>['error']
-  onCreateGroup: () => void
-  onSettingsNavigate?: (navigate: () => void) => void
-}) {
-  const { t } = useTranslation()
   const handleAssistantModelChange = (modelId: UniqueModelId | null, model?: Model) => {
     const patch: Partial<AssistantEditFormValues> = { modelId }
     const nameLower = model?.name.toLowerCase() ?? ''
@@ -526,72 +379,131 @@ function AssistantBasicFields({
     }
     setFormValues(form, patch)
   }
+  const pageTitles: Record<EditPage, string> = {
+    main: t('library.config.dialogs.edit.assistant_title'),
+    more: t('library.config.dialogs.edit.page.more'),
+    prompt: t('library.config.prompt.label'),
+    knowledge: t('library.config.dialogs.edit.knowledge_tab'),
+    mcp: t('library.config.dialogs.edit.page.mcp'),
+    context: t('library.config.dialogs.edit.page.context'),
+    parameters: t('library.config.basic.custom_params'),
+    tools: '',
+    skills: '',
+    channels: '',
+    tasks: '',
+    memory: ''
+  }
 
   return (
-    <div className="divide-y divide-border-subtle border-border-subtle border-b [&>*:first-child]:pt-0">
-      <div className={editDialogFormRowClassName}>
-        <span className={editDialogFormRowLabelClassName}>{t('common.avatar')}</span>
-        <AssistantAvatarPicker
-          key={`${resource.id}:${open}`}
-          assistantId={resource.id}
-          emoji={resource.emoji}
-          avatarSrc={resource.avatarSrc}
-          ariaLabel={t('library.config.dialogs.create.avatar_aria')}
-          portalContainer={portalContainer}
-          size="sm"
-        />
-      </div>
-      <TextInputField
-        form={form}
-        name="name"
-        label={t('common.name')}
-        placeholder={t('library.config.basic.field.name.placeholder')}
-        required
-        layout="row"
-      />
-      <TextInputField
-        form={form}
-        name="description"
-        label={t('common.description')}
-        placeholder={t('library.config.basic.field.description.placeholder')}
-        layout="row"
-      />
-      <CompactModelField
-        form={form}
-        name="modelId"
-        label={t('common.model')}
-        allowClear
-        filter={modelFilter}
-        isModelDisabled={isModelDisabled}
-        portalContainer={portalContainer}
-        modelLabels={modelLabels}
-        setModelLabels={setModelLabels}
-        onModelChange={handleAssistantModelChange}
-        onSettingsNavigate={onSettingsNavigate}
-        layout="row"
-        triggerClassName="h-9 rounded-md border border-input bg-transparent px-3 hover:bg-accent/50"
-      />
-      <FormField
-        control={form.control}
-        name="groupId"
-        render={({ field }) => (
-          <FormItem className={editDialogFormRowClassName}>
-            <FormLabel className={editDialogFormRowLabelClassName}>{t('library.config.basic.group')}</FormLabel>
-            <GroupSelector
-              value={field.value}
-              onChange={field.onChange}
-              groups={groups}
-              isLoading={groupsLoading}
-              error={groupsError}
-              portalContainer={portalContainer}
-              onCreateGroup={onCreateGroup}
-              triggerClassName="h-9 rounded-md border border-input bg-transparent px-3 shadow-none hover:bg-accent/50 focus-visible:ring-1 focus-visible:ring-ring/40"
+    <EditDialogPageShell
+      form={form}
+      open={open}
+      onOpenChange={handleOpenChange}
+      page={page}
+      title={pageTitles[page]}
+      onBack={page === 'main' ? undefined : () => setPage(parentEditPage(page))}
+      fill={page === 'prompt'}
+      rootError={rootError}
+      setDialogContentElement={setDialogContentElement}>
+      {page === 'main' ? (
+        <EditMainPage
+          form={form}
+          avatar={
+            <AssistantAvatarPicker
+              key={`${resource.id}:${open}`}
+              assistantId={resource.id}
+              emoji={resource.emoji}
+              avatarSrc={resource.avatarSrc}
+              ariaLabel={t('library.config.dialogs.create.avatar_aria')}
+              portalContainer={dialogContentElement}
+              size="lg"
             />
-            <FormMessage className="col-start-2" />
-          </FormItem>
-        )}
+          }
+          namePlaceholder={t('library.config.basic.field.name.placeholder')}
+          descriptionPlaceholder={t('library.config.basic.field.description.placeholder')}
+          model={
+            <CompactModelField
+              form={form}
+              name="modelId"
+              label={t('common.model')}
+              allowClear
+              filter={modelFilter}
+              isModelDisabled={isModelDisabled}
+              portalContainer={dialogContentElement}
+              modelLabels={modelLabels}
+              setModelLabels={setModelLabels}
+              onModelChange={handleAssistantModelChange}
+              onSettingsNavigate={closeBeforeAction}
+              layout="chip"
+              triggerClassName="w-auto max-w-56"
+            />
+          }
+          onOpenMore={() => setPage('more')}
+        />
+      ) : null}
+      {page === 'more' ? (
+        <AssistantMoreSettings
+          form={form}
+          portalContainer={dialogContentElement}
+          groups={groups}
+          groupsLoading={isGroupsLoading}
+          groupsError={groupsError}
+          onCreateGroup={() => setCreateGroupDialogOpen(true)}
+          onOpen={setPage}
+        />
+      ) : null}
+      {page === 'prompt' ? (
+        <AssistantPromptField
+          form={form}
+          resource={resource}
+          modelName={modelLabels.modelId}
+          portalContainer={dialogContentElement}
+        />
+      ) : null}
+      {page === 'knowledge' ? (
+        <KnowledgeCapabilityList
+          selectedIds={values.knowledgeBaseIds}
+          onSelectedIdsChange={(ids) => form.setValue('knowledgeBaseIds', ids, { shouldDirty: true })}
+          portalContainer={dialogContentElement}
+        />
+      ) : null}
+      {page === 'mcp' ? (
+        <McpCapabilityList
+          selectedIds={values.mcpServerIds}
+          onSelectedIdsChange={(ids) => form.setValue('mcpServerIds', ids, { shouldDirty: true })}
+          emptyLabel={t('library.config.tools.empty_title')}
+          portalContainer={dialogContentElement}
+        />
+      ) : null}
+      {page === 'context' ? (
+        <AssistantContextPage
+          form={form}
+          modelFilter={modelFilter}
+          isModelDisabled={isModelDisabled}
+          portalContainer={dialogContentElement}
+          modelLabels={modelLabels}
+          setModelLabels={setModelLabels}
+        />
+      ) : null}
+      {page === 'parameters' ? (
+        <FormField
+          control={form.control}
+          name="customParameters"
+          render={({ field }) => (
+            <CustomParametersField
+              value={field.value}
+              onChange={(customParameters) => field.onChange(customParameters)}
+              portalContainer={dialogContentElement}
+            />
+          )}
+        />
+      ) : null}
+      <CreateGroupDialog
+        open={createGroupDialogOpen}
+        onCreate={handleCreateGroup}
+        onOpenChange={setCreateGroupDialogOpen}
       />
-    </div>
+    </EditDialogPageShell>
   )
 }
 
@@ -665,68 +577,252 @@ function AssistantPromptField({
   )
 }
 
-function AssistantToolsFields({
+function AssistantMoreSettings({
   form,
-  portalContainer
+  portalContainer,
+  groups,
+  groupsLoading,
+  groupsError,
+  onCreateGroup,
+  onOpen
 }: {
   form: UseFormReturn<AssistantEditFormValues>
   portalContainer: HTMLElement | null
+  groups: ReturnType<typeof useGroups>['groups']
+  groupsLoading: ReturnType<typeof useGroups>['isLoading']
+  groupsError: ReturnType<typeof useGroups>['error']
+  onCreateGroup: () => void
+  onOpen: (page: EditPage) => void
 }) {
   const { t } = useTranslation()
-  const mcpMode = form.watch('mcpMode')
-  const mcpServerIds = form.watch('mcpServerIds')
-  const mcpModeLabel = t('library.config.basic.mcp_mode')
+  const values = form.watch()
+  const { bases } = useKnowledgeBases()
+  const { mcpServers } = useMcpServers()
+  const servers = mcpServers.filter((server) => !isBrowserMcpServer(server))
+  const linkedBases = bases.filter((base) => values.knowledgeBaseIds.includes(base.id)).length
+  const enabledServers = servers.filter((server) => values.mcpServerIds.includes(server.id)).length
+  const set = <K extends keyof AssistantEditFormValues>(key: K, value: AssistantEditFormValues[K]) =>
+    form.setValue(key, value as never, { shouldDirty: true })
+  const modelDefault = t('library.config.basic.default_value')
+  const labels = {
+    knowledge: t('library.config.dialogs.edit.knowledge_tab'),
+    mcp: t('library.config.basic.mcp_mode'),
+    mcpServers: t('library.config.dialogs.edit.page.mcp'),
+    browser: t('settings.browser.title'),
+    temperature: t('library.config.basic.temperature'),
+    topP: t('library.config.basic.top_p'),
+    maxTokens: t('library.config.basic.max_tokens'),
+    stream: t('library.config.basic.stream_output'),
+    maxToolCalls: t('library.config.basic.max_tool_calls'),
+    context: t('library.config.dialogs.edit.page.context'),
+    parameters: t('library.config.basic.custom_params'),
+    prompt: t('library.config.prompt.label'),
+    group: t('library.config.basic.group')
+  }
+  const contextSummary =
+    values.contextMaxMessages !== null
+      ? t('library.config.dialogs.edit.context.recent', { count: values.contextMaxMessages })
+      : values.contextOverrideEnabled
+        ? t('library.config.dialogs.edit.context.custom')
+        : t('library.config.dialogs.edit.context.global')
 
   return (
-    <div className="grid gap-4">
-      <FormField
-        control={form.control}
-        name="mcpMode"
-        render={() => (
-          <FormItem>
-            <div className="flex items-center justify-between gap-3">
-              <FormLabel className="font-normal text-[13px]">{mcpModeLabel}</FormLabel>
-              <FormControl>
-                <SegmentedControl<AssistantFormState['mcpMode']>
-                  size="sm"
-                  className="shrink-0"
-                  aria-label={mcpModeLabel}
-                  value={mcpMode}
-                  onValueChange={(value) => form.setValue('mcpMode', value, { shouldDirty: true })}
-                  options={MCP_MODE_OPTIONS.map((mode) => ({
-                    value: mode.id,
-                    label: t(mode.labelKey)
-                  }))}
-                />
-              </FormControl>
-            </div>
-            <FormMessage />
-          </FormItem>
-        )}
-      />
+    <div className="flex flex-col gap-5">
+      <SettingsSection title={t('library.config.dialogs.edit.section.capabilities')}>
+        <SettingsRow label={labels.knowledge}>
+          <SettingsLinkButton
+            label={labels.knowledge}
+            summary={countSummary(t, 'linked', linkedBases, bases.length)}
+            onClick={() => onOpen('knowledge')}
+          />
+        </SettingsRow>
+        <SettingsRow label={labels.mcp}>
+          <SegmentedControl<AssistantFormState['mcpMode']>
+            size="sm"
+            aria-label={labels.mcp}
+            value={values.mcpMode}
+            onValueChange={(value) => set('mcpMode', value)}
+            options={MCP_MODE_OPTIONS.map((mode) => ({ value: mode.id, label: t(mode.labelKey) }))}
+          />
+        </SettingsRow>
+        {values.mcpMode === 'manual' ? (
+          <SettingsRow label={labels.mcpServers}>
+            <SettingsLinkButton
+              label={labels.mcpServers}
+              summary={countSummary(t, 'enabled', enabledServers, servers.length)}
+              onClick={() => onOpen('mcp')}
+            />
+          </SettingsRow>
+        ) : null}
+        <SettingsRow label={labels.browser} hint={t('library.config.dialogs.edit.browser_hint')}>
+          <Switch
+            size="sm"
+            aria-label={labels.browser}
+            checked={values.enableBrowser}
+            onCheckedChange={(checked) => set('enableBrowser', checked)}
+          />
+        </SettingsRow>
+      </SettingsSection>
 
-      {mcpMode === 'manual' ? (
-        <FormField
-          control={form.control}
-          name="mcpServerIds"
-          render={() => (
-            <FormItem>
-              <McpCapabilityList
-                selectedIds={mcpServerIds}
-                onSelectedIdsChange={(ids) => form.setValue('mcpServerIds', ids, { shouldDirty: true })}
-                emptyLabel={t('library.config.tools.empty_title')}
-                portalContainer={portalContainer}
+      <SettingsSection title={t('library.config.dialogs.edit.section.answers')}>
+        <SettingsRow
+          label={labels.temperature}
+          hint={values.enableTemperature ? values.temperature.toFixed(1) : modelDefault}
+          below={
+            values.enableTemperature ? (
+              <Slider
+                min={0}
+                max={2}
+                step={0.1}
+                value={[values.temperature]}
+                marks={[
+                  { value: 0, label: t('library.config.basic.precise') },
+                  { value: 1, label: '1' },
+                  { value: 2, label: t('library.config.basic.creative') }
+                ]}
+                onValueChange={([value]) => set('temperature', value)}
               />
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-      ) : null}
+            ) : null
+          }>
+          <Switch
+            size="sm"
+            aria-label={labels.temperature}
+            checked={values.enableTemperature}
+            onCheckedChange={(checked) => set('enableTemperature', checked)}
+          />
+        </SettingsRow>
+        <SettingsRow
+          label={labels.topP}
+          hint={values.enableTopP ? values.topP.toFixed(2) : modelDefault}
+          below={
+            values.enableTopP ? (
+              <Slider
+                min={0}
+                max={1}
+                step={0.05}
+                value={[values.topP]}
+                marks={[
+                  { value: 0, label: '0' },
+                  { value: 0.5, label: '0.5' },
+                  { value: 1, label: '1' }
+                ]}
+                onValueChange={([value]) => set('topP', value)}
+              />
+            ) : null
+          }>
+          <Switch
+            size="sm"
+            aria-label={labels.topP}
+            checked={values.enableTopP}
+            onCheckedChange={(checked) => set('enableTopP', checked)}
+          />
+        </SettingsRow>
+        <SettingsRow label={labels.maxTokens} hint={values.enableMaxTokens ? undefined : modelDefault}>
+          {values.enableMaxTokens ? (
+            <InputNumber
+              min={1}
+              max={Number.MAX_SAFE_INTEGER}
+              step={1}
+              aria-label={t('library.config.dialogs.edit.value_label', { name: labels.maxTokens })}
+              className="h-8 w-24 rounded-lg px-2.5"
+              value={values.maxTokens}
+              onBlur={(value) =>
+                set('maxTokens', typeof value === 'number' && value > 0 ? value : UI_DEFAULT_MAX_TOKENS)
+              }
+            />
+          ) : null}
+          <Switch
+            size="sm"
+            aria-label={labels.maxTokens}
+            checked={values.enableMaxTokens}
+            onCheckedChange={(checked) => set('enableMaxTokens', checked)}
+          />
+        </SettingsRow>
+        <SettingsRow label={labels.stream}>
+          <Switch
+            size="sm"
+            aria-label={labels.stream}
+            checked={values.streamOutput}
+            onCheckedChange={(checked) => set('streamOutput', checked)}
+          />
+        </SettingsRow>
+        <SettingsRow
+          label={labels.maxToolCalls}
+          hint={
+            values.enableMaxToolCalls
+              ? undefined
+              : t('library.config.basic.max_tool_calls_default', { count: DEFAULT_ASSISTANT_SETTINGS.maxToolCalls })
+          }>
+          {values.enableMaxToolCalls ? (
+            <InputNumber
+              min={MIN_TOOL_CALLS}
+              max={MAX_TOOL_CALLS}
+              step={1}
+              aria-label={t('library.config.dialogs.edit.value_label', { name: labels.maxToolCalls })}
+              className="h-8 w-24 rounded-lg px-2.5"
+              value={values.maxToolCalls}
+              onBlur={(value) =>
+                set(
+                  'maxToolCalls',
+                  typeof value === 'number' && value > 0 ? value : DEFAULT_ASSISTANT_SETTINGS.maxToolCalls
+                )
+              }
+            />
+          ) : null}
+          <Switch
+            size="sm"
+            aria-label={labels.maxToolCalls}
+            checked={values.enableMaxToolCalls}
+            onCheckedChange={(checked) => set('enableMaxToolCalls', checked)}
+          />
+        </SettingsRow>
+        <SettingsRow label={labels.context}>
+          <SettingsLinkButton label={labels.context} summary={contextSummary} onClick={() => onOpen('context')} />
+        </SettingsRow>
+        <SettingsRow label={labels.parameters}>
+          <SettingsLinkButton
+            label={labels.parameters}
+            summary={
+              values.customParameters.length
+                ? t('library.config.dialogs.edit.parameters_count', { count: values.customParameters.length })
+                : t('library.config.dialogs.edit.count.none')
+            }
+            onClick={() => onOpen('parameters')}
+          />
+        </SettingsRow>
+      </SettingsSection>
+
+      <SettingsSection title={t('library.config.dialogs.edit.advanced_tab')}>
+        <SettingsRow label={labels.prompt}>
+          <SettingsLinkButton
+            label={labels.prompt}
+            summary={
+              values.prompt.trim()
+                ? t('library.config.dialogs.edit.prompt_filled')
+                : t('library.config.dialogs.edit.prompt_empty')
+            }
+            onClick={() => onOpen('prompt')}
+          />
+        </SettingsRow>
+        <SettingsRow label={labels.group}>
+          <GroupSelector
+            value={values.groupId}
+            onChange={(groupId) => set('groupId', groupId)}
+            groups={groups}
+            isLoading={groupsLoading}
+            error={groupsError}
+            portalContainer={portalContainer}
+            onCreateGroup={onCreateGroup}
+            triggerClassName={cn(settingsPillClassName, 'w-auto')}
+          />
+        </SettingsRow>
+      </SettingsSection>
     </div>
   )
 }
 
-function AssistantAdvancedFields({
+/** Message count plus the context override (compression and truncation), seeded from the globals. */
+function AssistantContextPage({
   form,
   modelFilter,
   isModelDisabled,
@@ -741,169 +837,15 @@ function AssistantAdvancedFields({
   modelLabels: ModelLabels
   setModelLabels: (labels: ModelLabels) => void
 }) {
-  const { t } = useTranslation()
-  const values = form.watch()
-  // Global defaults, shown as the seed when the user turns the override on for
-  // an assistant that has none stored yet.
   const [globalContextEnabled] = usePreference('chat.context_settings.enabled')
   const [globalMaxMessages] = usePreference('chat.context_settings.max_messages')
   const [globalCompressEnabled] = usePreference('chat.context_settings.compress.enabled')
   const [globalTruncateThreshold] = usePreference('chat.context_settings.truncate_threshold')
   const [globalCompressModelId] = usePreference('chat.context_settings.compress.model_id')
   const [globalCompressThreshold] = usePreference('chat.context_settings.compress.threshold_percent')
-  const temperatureMarks = [
-    { value: 0, label: t('library.config.basic.precise') },
-    { value: 1, label: '1' },
-    { value: 2, label: t('library.config.basic.creative') }
-  ]
-  const topPMarks = [
-    { value: 0, label: '0' },
-    { value: 0.5, label: '0.5' },
-    { value: 1, label: '1' }
-  ]
 
   return (
-    <div className="divide-y divide-border-subtle [&>*:first-child]:pt-0 [&>*:last-child]:pb-0 [&>*]:py-4">
-      <ToggleFieldGroup
-        label={t('library.config.basic.temperature')}
-        valueLabel={values.enableTemperature ? values.temperature.toFixed(1) : t('library.config.basic.default_value')}
-        description={t('library.config.basic.field.temperature.hint')}
-        enabled={values.enableTemperature}
-        onEnabledChange={(checked) => form.setValue('enableTemperature', checked, { shouldDirty: true })}>
-        <FormField
-          control={form.control}
-          name="temperature"
-          render={({ field }) => (
-            <div className="-mb-2 mt-3 w-full">
-              <Slider
-                min={0}
-                max={2}
-                step={0.1}
-                value={[field.value]}
-                marks={temperatureMarks}
-                onValueChange={([value]) => field.onChange(value)}
-                className="w-full"
-              />
-            </div>
-          )}
-        />
-      </ToggleFieldGroup>
-
-      <ToggleFieldGroup
-        label={t('library.config.basic.top_p')}
-        valueLabel={values.enableTopP ? values.topP.toFixed(2) : t('library.config.basic.default_value')}
-        description={t('library.config.basic.field.top_p.hint')}
-        enabled={values.enableTopP}
-        onEnabledChange={(checked) => form.setValue('enableTopP', checked, { shouldDirty: true })}>
-        <FormField
-          control={form.control}
-          name="topP"
-          render={({ field }) => (
-            <div className="-mb-2 mt-3 w-full">
-              <Slider
-                min={0}
-                max={1}
-                step={0.05}
-                value={[field.value]}
-                marks={topPMarks}
-                onValueChange={([value]) => field.onChange(value)}
-                className="w-full"
-              />
-            </div>
-          )}
-        />
-      </ToggleFieldGroup>
-
-      <ToggleFieldGroup
-        label={t('library.config.basic.max_tokens')}
-        valueLabel={values.enableMaxTokens ? undefined : t('library.config.basic.default_value')}
-        description={t('library.config.basic.field.max_tokens.hint')}
-        enabled={values.enableMaxTokens}
-        onEnabledChange={(checked) => form.setValue('enableMaxTokens', checked, { shouldDirty: true })}
-        control={
-          <FormField
-            control={form.control}
-            name="maxTokens"
-            render={({ field }) => (
-              <InputNumber
-                min={1}
-                max={Number.MAX_SAFE_INTEGER}
-                step={1}
-                aria-label={t('library.config.basic.max_tokens')}
-                className="h-8 rounded-lg px-2.5"
-                value={field.value}
-                onBlur={(value) =>
-                  field.onChange(typeof value === 'number' && value > 0 ? value : UI_DEFAULT_MAX_TOKENS)
-                }
-              />
-            )}
-          />
-        }
-      />
-
-      <FormField
-        control={form.control}
-        name="streamOutput"
-        render={({ field }) => (
-          <FormItem>
-            <div className="flex items-center justify-between gap-3">
-              <div className="min-w-0">
-                <FieldLabelWithHelp
-                  label={t('library.config.basic.stream_output')}
-                  help={t('library.config.basic.field.stream_output.hint')}
-                />
-              </div>
-              <FormControl>
-                <Switch
-                  size="sm"
-                  checked={field.value}
-                  onCheckedChange={field.onChange}
-                  aria-label={t('library.config.basic.stream_output')}
-                />
-              </FormControl>
-            </div>
-            <FormMessage />
-          </FormItem>
-        )}
-      />
-
-      <ToggleFieldGroup
-        label={t('library.config.basic.max_tool_calls')}
-        valueLabel={
-          values.enableMaxToolCalls
-            ? undefined
-            : t('library.config.basic.max_tool_calls_default', {
-                count: DEFAULT_ASSISTANT_SETTINGS.maxToolCalls
-              })
-        }
-        description={t('library.config.basic.field.max_tool_calls.hint', {
-          count: DEFAULT_ASSISTANT_SETTINGS.maxToolCalls
-        })}
-        enabled={values.enableMaxToolCalls}
-        onEnabledChange={(checked) => form.setValue('enableMaxToolCalls', checked, { shouldDirty: true })}
-        control={
-          <FormField
-            control={form.control}
-            name="maxToolCalls"
-            render={({ field }) => (
-              <InputNumber
-                min={MIN_TOOL_CALLS}
-                max={MAX_TOOL_CALLS}
-                step={1}
-                aria-label={t('library.config.basic.max_tool_calls')}
-                className="h-8 rounded-lg px-2.5"
-                value={field.value}
-                onBlur={(value) =>
-                  field.onChange(
-                    typeof value === 'number' && value > 0 ? value : DEFAULT_ASSISTANT_SETTINGS.maxToolCalls
-                  )
-                }
-              />
-            )}
-          />
-        }
-      />
-
+    <div className="grid gap-4">
       <ContextManagementFields
         form={form}
         modelFilter={modelFilter}
@@ -919,18 +861,6 @@ function AssistantAdvancedFields({
           compressThreshold: clampThresholdPercent(globalCompressThreshold),
           compressModelId: globalCompressModelId || null
         }}
-      />
-
-      <FormField
-        control={form.control}
-        name="customParameters"
-        render={({ field }) => (
-          <CustomParametersField
-            value={field.value}
-            onChange={(customParameters) => field.onChange(customParameters)}
-            portalContainer={portalContainer}
-          />
-        )}
       />
     </div>
   )
@@ -1007,12 +937,19 @@ function ContextManagementFields({
         )}
       />
 
-      <ToggleFieldGroup
-        label={t('library.config.basic.context_management')}
-        description={t('library.config.basic.field.context_management.hint')}
-        enabled={values.contextOverrideEnabled}
-        onEnabledChange={onOverrideToggle}
-      />
+      <div className="flex items-center justify-between gap-3">
+        <FieldLabelWithHelp
+          label={t('library.config.basic.context_management')}
+          help={t('library.config.basic.field.context_management.hint')}
+          formLabel={false}
+        />
+        <Switch
+          size="sm"
+          checked={values.contextOverrideEnabled}
+          onCheckedChange={onOverrideToggle}
+          aria-label={t('library.config.basic.context_management')}
+        />
+      </div>
       {!globalDefaults.enabled ? (
         // Stored but inert while the global master switch is off — say so
         // rather than showing live-looking controls.
@@ -1147,41 +1084,6 @@ function ContextManagementFields({
         </div>
       ) : null}
     </>
-  )
-}
-
-function ToggleFieldGroup({
-  label,
-  valueLabel,
-  description,
-  enabled,
-  onEnabledChange,
-  control,
-  children
-}: {
-  label: string
-  valueLabel?: string
-  description: string
-  enabled: boolean
-  onEnabledChange: (checked: boolean) => void
-  /** Compact control rendered beside the switch when enabled (title-left / control-right row). */
-  control?: ReactNode
-  children?: ReactNode
-}) {
-  return (
-    <div>
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex min-w-0 items-center gap-1.5">
-          <FieldLabelWithHelp label={label} help={description} formLabel={false} />
-          {valueLabel ? <span className="text-muted-foreground text-xs">{valueLabel}</span> : null}
-        </div>
-        <div className="flex shrink-0 items-center gap-3">
-          {enabled && control ? <div className="w-36">{control}</div> : null}
-          <Switch size="sm" checked={enabled} onCheckedChange={onEnabledChange} aria-label={label} />
-        </div>
-      </div>
-      {enabled && children ? <div className="mt-2">{children}</div> : null}
-    </div>
   )
 }
 
