@@ -195,4 +195,53 @@ describe('listModels - LM Studio response isolation', () => {
       expect(logs).not.toContain(payloadValue)
     }
   })
+
+  it('keeps every valid model in a large fallback catalog', async () => {
+    const modelIds = Array.from({ length: 78 }, (_, index) => `catalog-model-${index + 1}`)
+    const data: Array<{ id: string | number; name: string }> = modelIds.map((id) => ({ id, name: id }))
+    data.splice(39, 0, { id: 42, name: 'Unusable Model' })
+
+    // Native v1 is unavailable, so this guards the OpenAI-compatible fallback against catalog truncation.
+    const server = createServer((request, response) => {
+      response.setHeader('content-type', 'application/json')
+      if (request.method === 'GET' && request.url === '/api/v1/models') {
+        response.statusCode = 404
+        response.end(JSON.stringify({ error: { message: 'native v1 unavailable' } }))
+        return
+      }
+      if (request.method === 'GET' && request.url === '/v1/models') {
+        response.end(JSON.stringify({ object: 'list', data }))
+        return
+      }
+
+      response.statusCode = 404
+      response.end(JSON.stringify({ error: { message: 'unexpected route' } }))
+    })
+    const port = await listen(server)
+    const provider = makeProvider({
+      id: SystemProviderIds.lmstudio,
+      presetProviderId: SystemProviderIds.lmstudio,
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: `http://127.0.0.1:${port}/v1` }
+      }
+    })
+
+    const { models } = await listModels(provider)
+    const actualIds = models.map((model) => model.apiModelId)
+
+    expect(actualIds).toEqual(modelIds)
+    expect(actualIds).toHaveLength(78)
+    expect(new Set(actualIds).size).toBe(78)
+    expect(
+      mockMainLoggerService.warn.mock.calls.filter(
+        ([message]) => message === 'Skipped malformed OpenAI-compatible model entries'
+      )
+    ).toEqual([
+      [
+        'Skipped malformed OpenAI-compatible model entries',
+        { providerId: SystemProviderIds.lmstudio, skippedModelCount: 1 }
+      ]
+    ])
+  })
 })
