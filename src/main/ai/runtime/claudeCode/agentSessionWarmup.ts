@@ -25,6 +25,7 @@ import {
 } from '@main/ai/runtime/agentMcpServers'
 import { getEffectiveAgentLanguage } from '@main/ai/utils/agentLanguage'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
+import { getUserReasoningEffortMap } from '@main/ai/utils/reasoningEffortPreferences'
 import { encodeReasoningInvocation, resolveReasoningInvocation } from '@main/ai/utils/reasoningSerializers'
 import { createAiUsageCaptureContext } from '@main/ai/utils/usageCapture'
 import {
@@ -129,6 +130,7 @@ interface ConnectionMaterializationFacts {
   fastMode: boolean
   proxyEnvironmentFingerprint: string
   effectiveLanguage?: string | null
+  reasoningEffortMapping?: ReturnType<typeof getUserReasoningEffortMap>
   promptModelName?: string | null
 }
 
@@ -407,6 +409,9 @@ async function deriveConnectionConfigFromSnapshot(
     contextWindow,
     maxOutputTokens,
     reasoningEffort,
+    reasoningEffortMapping: Object.entries(
+      materialized?.reasoningEffortMapping ?? resolveConnectionEffortMap(uniqueModelId, routeFacts.branch)
+    ).sort(([a], [b]) => a.localeCompare(b)),
     serviceTier: routeFacts.branch === 'gateway' ? serviceTier : undefined,
     fastMode: effectiveFastMode,
     route: buildRebuildRouteFacts(routeFacts),
@@ -555,6 +560,9 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
       icon: agent.configuration?.avatar ?? null
     }
   )
+  // CLI subscriptions serialize reasoning here. Gateway requests retain the raw canonical
+  // header and apply the map in buildAgentParams against the actual target profile instead.
+  const userEffortMapSnapshot = resolveConnectionEffortMap(uniqueModelId, route.branch, model)
   const resumeSessionId =
     (effectiveResume === undefined
       ? agentSessionMessageService.getLastRuntimeResumeToken(session.id)
@@ -575,7 +583,9 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
         knowledgeBaseIds: selectedKnowledgeBaseIds,
         supportsImages: Array.isArray(model.capabilities) && isVisionModel(model),
         thinkingOptions:
-          route.branch === 'external-cli' ? resolveClaudeCodeThinkingOptions(model, reasoningEffort) : undefined,
+          route.branch === 'external-cli'
+            ? resolveClaudeCodeThinkingOptions(model, reasoningEffort, userEffortMapSnapshot)
+            : undefined,
         fastMode: nativeFastMode,
         effectiveLanguage,
         promptModelName,
@@ -608,6 +618,7 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
         additionalBypassRule: gatewayBypassRule(route)
       }),
       effectiveLanguage,
+      reasoningEffortMapping: userEffortMapSnapshot,
       promptModelName
     },
     serviceTier,
@@ -638,10 +649,30 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
   }
 }
 
+function resolveConnectionEffortMap(
+  uniqueModelId: UniqueModelId,
+  branch: ClaudeCodeRouteFacts['branch'],
+  capturedModel?: Model
+) {
+  const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
+  const model = capturedModel ?? modelService.getByKey(providerId, modelId)
+  if (branch === 'gateway') return getUserReasoningEffortMap({ id: providerId }, model)
+  const profile = providerRegistryService.resolveReasoningProfile(
+    { id: 'anthropic', presetProviderId: 'anthropic', defaultChatEndpoint: ENDPOINT_TYPE.ANTHROPIC_MESSAGES },
+    model,
+    ENDPOINT_TYPE.ANTHROPIC_MESSAGES
+  )
+  const invocationModel = profile.support
+    ? { ...model, reasoning: projectRuntimeReasoning(profile.support, profile.wire) }
+    : model
+  return getUserReasoningEffortMap({ id: providerId }, invocationModel)
+}
+
 /** Encode reasoning for CLI subscriptions, whose requests bypass Cherry's provider execution. */
 function resolveClaudeCodeThinkingOptions(
   model: Model,
-  reasoningEffort: ReasoningEffortOption
+  reasoningEffort: ReasoningEffortOption,
+  userEffortMap: ReturnType<typeof getUserReasoningEffortMap>
 ): { effort?: Options['effort']; thinking?: Options['thinking'] } {
   const profile = providerRegistryService.resolveReasoningProfile(
     {
@@ -659,7 +690,8 @@ function resolveClaudeCodeThinkingOptions(
     selection: reasoningEffort,
     model: invocationModel,
     profile: profile.wire,
-    maxTokens: model.maxOutputTokens
+    maxTokens: model.maxOutputTokens,
+    userEffortMap
   })
   const encoded = encodeReasoningInvocation(invocation)
 

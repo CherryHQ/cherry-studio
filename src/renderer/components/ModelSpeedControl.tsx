@@ -15,6 +15,7 @@ import { Button, Popover, PopoverContent, PopoverTrigger, RadioGroup, RadioGroup
 import type { ThinkingOption } from '@renderer/types/reasoning'
 import { cn } from '@renderer/utils/style'
 import { deriveThinkingOptions } from '@shared/ai/reasoning'
+import { previewMappedReasoningEffort, type UserReasoningEffortMap } from '@shared/ai/reasoningEffortMappings'
 import type { Model, ReasoningSummary, ServiceTierSelection } from '@shared/data/types/model'
 
 const SLIDER_EFFORT_ORDER: readonly ThinkingOption[] = [
@@ -73,6 +74,11 @@ interface ModelSpeedControlProps {
   onServiceTierChange?: (tier: ServiceTierSelection) => void
   /** Omitting the handler hides the fast toggle — a surface with nowhere to persist it. */
   onFastModeChange?: (enabled: boolean) => void
+  /**
+   * The user's effective effort mapping for this model (see `useUserReasoningEffortMap`), used only
+   * to preview the mapped effort. The caller owns the preference read; omit for no preview.
+   */
+  userEffortMap?: UserReasoningEffortMap
 }
 
 interface WheelStepControlProps {
@@ -176,7 +182,8 @@ export function ModelSpeedControl({
   onReasoningEffortChange,
   onReasoningSummaryChange,
   onServiceTierChange,
-  onFastModeChange
+  onFastModeChange,
+  userEffortMap
 }: ModelSpeedControlProps) {
   const { t } = useTranslation()
   const [peakBurst, setPeakBurst] = useState(0)
@@ -213,7 +220,13 @@ export function ModelSpeedControl({
   const currentIndex = selectedIndex >= 0 ? selectedIndex : 0
   const isPeakEffort = effectiveReasoningEffort !== 'default' && currentIndex === sliderEfforts.length - 1
   const displayedEffort = showEffortSlider ? effectiveReasoningEffort : selectedOption
+  const mappedEffort =
+    displayedEffort && displayedEffort !== 'default'
+      ? previewMappedReasoningEffort(displayedEffort, model, userEffortMap)
+      : displayedEffort
   const effortLabel = displayedEffort ? t(EFFORT_LABEL_KEYS[displayedEffort]) : ''
+  const mappedEffortLabel =
+    mappedEffort && mappedEffort !== displayedEffort ? t(EFFORT_LABEL_KEYS[mappedEffort]) : undefined
   const effortControlLabel = t('agent.speed.effort')
   const serviceTierControlLabel = t('agent.speed.service_tier.label')
   const effectiveServiceTier = resolveSupportedServiceTier(model, serviceTier)
@@ -237,7 +250,15 @@ export function ModelSpeedControl({
           className="h-7 gap-1 rounded-md px-1.5 text-muted-foreground text-xs hover:text-foreground focus-visible:text-foreground dark:text-foreground dark:hover:text-foreground dark:focus-visible:text-foreground"
           aria-label={t('agent.speed.title')}>
           <Gauge size={14} className="shrink-0" />
-          <span>{supportsReasoning ? effortLabel : supportsServiceTier ? serviceTierLabel : triggerLabel}</span>
+          <span>
+            {supportsReasoning
+              ? mappedEffortLabel
+                ? `${effortLabel} → ${mappedEffortLabel}`
+                : effortLabel
+              : supportsServiceTier
+                ? serviceTierLabel
+                : triggerLabel}
+          </span>
           {supportsReasoning && fastMode && supportsFast ? <span>· {t('agent.speed.fast')}</span> : null}
           <ChevronDown size={13} className="shrink-0 text-muted-foreground dark:text-current" />
         </Button>

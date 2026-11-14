@@ -1471,6 +1471,53 @@ describe('buildAgentParams web-tool routing', () => {
   // Owning a knowledge base is global account state; the KB tools only load when this request also
   // scopes one (their `applies` requires both). Treating the global flag as a function-tool signal
   // made every Gemini 2.5 request look like a native-tool conflict and lose the server route.
+  it('withholds the server web-search route when the user map lowers the effective effort to a forbidden tier', async () => {
+    resolveProviderAiSdkConfigMock.mockResolvedValue({
+      config: { providerId: 'openai', providerSettings: {} },
+      credentialReceipt: { attribution: 'unknown' }
+    })
+    const openaiProvider = makeProvider({
+      id: 'openai',
+      presetProviderId: 'openai',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_RESPONSES,
+      endpointConfigs: { [ENDPOINT_TYPE.OPENAI_RESPONSES]: { adapterFamily: 'openai' } },
+      serverTools: [
+        {
+          id: SERVER_TOOL.WEB_SEARCH,
+          modelScope: 'model-dependent',
+          endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES]
+        }
+      ]
+    })
+    const gpt5Model = makeModel({
+      id: 'openai::gpt-5',
+      providerId: 'openai',
+      apiModelId: 'gpt-5',
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES],
+      capabilities: [MODEL_CAPABILITY.REASONING],
+      reasoning: {
+        controls: [{ kind: 'effort', values: ['minimal', 'low', 'medium', 'high'] }],
+        selectableEfforts: ['minimal', 'low', 'medium', 'high']
+      }
+    })
+    preferenceGetMock.mockImplementation((key: string) => {
+      if (key === 'chat.web_search.model_tools_preferred') return true
+      if (key === 'feature.reasoning.effort_mappings')
+        return { providers: { openai: { models: { 'gpt-5': { high: 'minimal', minimal: 'medium' } } } } }
+      return null
+    })
+
+    const result = await buildAgentParams({
+      request: { conversation: CONVERSATION, reasoningEffort: 'high' },
+      signal: undefined,
+      provider: openaiProvider,
+      model: gpt5Model,
+      assistant
+    })
+
+    expect(result.options.providerOptions?.openai).toMatchObject({ reasoningEffort: 'minimal' })
+    expect(result.plugins.some((plugin) => plugin.name === 'webSearch')).toBe(false)
+  })
 })
 
 describe('buildAgentParams assistant-less reasoning', () => {

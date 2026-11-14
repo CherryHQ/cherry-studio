@@ -209,6 +209,75 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     expect(mocks.getLastRuntimeResumeToken).toHaveBeenCalledWith('session-1')
   })
 
+  it('applies the user effort map exactly once on a direct route', async () => {
+    mocks.getProviderByProviderId.mockReturnValue({ id: 'provider-1', authMethods: ['external-cli'] })
+    mocks.getModelByKey.mockReturnValue({
+      id: 'model-1',
+      apiModelId: 'claude-sonnet',
+      contextWindow: 128_000,
+      reasoning: { selectableEfforts: ['low', 'medium', 'high'] }
+    })
+    mocks.preferenceGet.mockImplementation((key: string) =>
+      key === 'feature.reasoning.effort_mappings' ? { global: { high: 'medium', medium: 'low' } } : undefined
+    )
+
+    await buildClaudeCodeQueryRequestForAgentSession('session-1', undefined, undefined, 'high')
+
+    const thinkingOptions = mocks.buildSessionSettings.mock.calls.at(-1)?.[2]?.thinkingOptions
+    expect(thinkingOptions?.effort).toBe('medium')
+  })
+
+  it('fingerprints the same effort-map snapshot that materialized the thinking options', async () => {
+    mocks.getProviderByProviderId.mockReturnValue({ id: 'provider-1', authMethods: ['external-cli'] })
+    mocks.getModelByKey.mockReturnValue({
+      id: 'model-1',
+      apiModelId: 'claude-sonnet',
+      contextWindow: 128_000,
+      reasoning: { selectableEfforts: ['low', 'medium', 'high'] }
+    })
+    let effortMappings: Record<string, Record<string, string>> = { global: { high: 'medium' } }
+    mocks.preferenceGet.mockImplementation((key: string) =>
+      key === 'feature.reasoning.effort_mappings' ? effortMappings : undefined
+    )
+    mocks.buildSessionSettings.mockImplementationOnce(async (_session, _provider, options) => {
+      expect(options?.thinkingOptions?.effort).toBe('medium')
+      // Simulate a mapping edit while the async settings builder is still materializing.
+      effortMappings = { global: { high: 'low' } }
+      return { env: {}, skills: [] }
+    })
+
+    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1', undefined, undefined, 'high')
+    const current = await deriveConnectionConfig('session-1', undefined, 'high')
+
+    // The spawned options carry the pre-edit mapping (medium); the connect-time baseline must
+    // fingerprint that same snapshot so the next pure reconcile sees the edit and rebuilds
+    // instead of matching the edited signature and keeping the stale connection
+    // (cherry-pr-review inv_e4f402f1b93ca636).
+    expect(current.ok).toBe(true)
+    if (!request || !current.ok) throw new Error('expected request and current config')
+    expect(request.connectionConfig.rebuildSignature).not.toBe(current.config.rebuildSignature)
+  })
+
+  it.each(['high', 'minimal', 'xhigh', 'default'] as const)(
+    'keeps the unmapped canonical %s selection in gateway headers',
+    async (effort) => {
+      mocks.getModelByKey.mockReturnValue({
+        id: 'model-1',
+        apiModelId: 'gpt-5',
+        contextWindow: 128_000,
+        reasoning: { selectableEfforts: ['minimal', 'low', 'medium', 'high', 'xhigh'] }
+      })
+      mocks.preferenceGet.mockImplementation((key: string) =>
+        key === 'feature.reasoning.effort_mappings'
+          ? { global: { high: 'minimal', minimal: 'medium', xhigh: 'low' } }
+          : undefined
+      )
+      const request = await buildClaudeCodeQueryRequestForAgentSession('session-1', undefined, undefined, effort)
+      expect(mocks.buildSessionSettings.mock.calls.at(-1)?.[2]?.thinkingOptions).toBeUndefined()
+      expect(request?.settings.env?.ANTHROPIC_CUSTOM_HEADERS).toContain(`X-Cherry-Reasoning-Effort: ${effort}`)
+    }
+  )
+
   it('passes the per-turn knowledge selection into settings and the warm signature', async () => {
     const request = await buildClaudeCodeQueryRequestForAgentSession(
       'session-1',
@@ -1972,6 +2041,29 @@ describe('deriveConnectionConfig', () => {
     )
     const enabled = await deriveSignature()
     expect(enabled.rebuildSignature).not.toBe(base.rebuildSignature)
+  })
+
+  it('rebuilds when reasoning effort mappings change', async () => {
+    const originalGet = mocks.preferenceGet.getMockImplementation()
+    const originalModelByKey = mocks.getModelByKey.getMockImplementation()
+    mocks.getModelByKey.mockImplementation((_providerId: string, modelId: string) => ({
+      id: modelId,
+      apiModelId: `${modelId}-api`,
+      reasoning: { selectableEfforts: ['low', 'medium', 'high'] }
+    }))
+    const base = await deriveSignature()
+    mocks.preferenceGet.mockImplementation((key) =>
+      key === 'feature.reasoning.effort_mappings' ? { global: { high: 'medium' } } : originalGet?.(key)
+    )
+    const mapped = await deriveSignature()
+    mocks.getModelByKey.mockImplementation(originalModelByKey!)
+    mocks.preferenceGet.mockImplementation(originalGet!)
+    expect(mapped.rebuildSignature).not.toBe(base.rebuildSignature)
+    expect(
+      Object.keys(base.rebuildFactFingerprints).filter(
+        (name) => base.rebuildFactFingerprints[name] !== mapped.rebuildFactFingerprints[name]
+      )
+    ).toEqual(['reasoningEffortMapping'])
   })
 
   it('changes the rebuild signature for each rebuild-group input', async () => {

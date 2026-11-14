@@ -264,6 +264,48 @@ describe('resolveReasoningInvocation logging', () => {
   })
 })
 
+describe('resolveReasoningInvocation user effort mappings', () => {
+  it('applies user auto mapping before auto is normalized away for models without auto', () => {
+    const controls = inferReasoningControls('gpt-5')
+    const model = makeModel({
+      id: 'openai::gpt-5',
+      reasoning: {
+        controls,
+        selectableEfforts: controls?.flatMap((control) => (control.kind === 'effort' ? control.values : [])) ?? []
+      }
+    })
+    const profile = REASONING_FORMAT_PROFILES['openai-responses'].wire
+    const invocation = resolveReasoningInvocation({
+      selection: 'auto',
+      model,
+      profile,
+      userEffortMap: { auto: 'high' }
+    })
+
+    expect(invocation.effort).toBe('high')
+  })
+
+  it('applies user tier translation before model projection', () => {
+    const controls = inferReasoningControls('gpt-5')
+    const model = makeModel({
+      id: 'openai::gpt-5',
+      reasoning: {
+        controls,
+        selectableEfforts: controls?.flatMap((control) => (control.kind === 'effort' ? control.values : [])) ?? []
+      }
+    })
+    const profile = REASONING_FORMAT_PROFILES['openai-responses'].wire
+    const invocation = resolveReasoningInvocation({
+      selection: 'high',
+      model,
+      profile,
+      userEffortMap: { high: 'medium' }
+    })
+
+    expect(invocation.effort).toBe('medium')
+  })
+})
+
 // Prevent catalog defaults from opting requests in, while honoring saved user choices.
 describe('per-model user reasoning default on the Gemini wire', () => {
   const profile = REASONING_FORMAT_PROFILES.gemini.wire
