@@ -27,10 +27,12 @@ import { application } from '@application'
 import type { AgentSessionType } from '@data/db/schemas/agentSession'
 import { agentChannelService } from '@data/services/AgentChannelService'
 import { agentService } from '@data/services/AgentService'
+import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import {
   HEARTBEAT_PROMPT_SENTINEL,
   normalizeTaskSessionReuseRevision,
+  readTaskDependency,
   readTaskSessionReuse,
   type TaskSessionReuse
 } from '@data/services/AgentTaskService'
@@ -47,6 +49,7 @@ import type { JobContext } from '@main/core/job/types'
 import { isHeartbeatEnabled } from '@shared/ai/agentHeartbeat'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import { AGENT_WORKSPACE_TYPE, type AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
+import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
 
 const logger = loggerService.withContext('runAgentTask')
 
@@ -140,6 +143,94 @@ function resolveTaskSession(params: {
   return session
 }
 
+/**
+ * Skip markers a pre-upgrade runner could persist, from when a skip was just
+ * text in `result` with no structured field. Successful runs stored raw
+ * assistant prose there, so historical classification must match these exact
+ * strings rather than any "Skipped (" prefix. Enumerated from every shipped
+ * version of this file.
+ */
+const LEGACY_SKIP_MARKERS = new Set([
+  'Skipped (assistant role)',
+  'Skipped (capability)',
+  'Skipped (disabled)',
+  'Skipped (no file)',
+  'Skipped (session busy)',
+  'Skipped (untrusted agent data path)',
+  'Skipped (untrusted workspace path)',
+  'Skipped (workspace deleted)'
+])
+
+/**
+ * Execution evidence for an ambiguous legacy dependency row. A pre-upgrade
+ * skip was only ever text written to the job's `output` - the runner returned
+ * before (or at) session admission, so no transcript message exists. A genuine
+ * run persists its assistant reply in the session the job links via
+ * `metadata.sessionId` (or legacy `output.sessionId`), inside its [startedAt, finishedAt] window. A matching
+ * assistant message therefore proves the stored text is real prose, not a
+ * skip marker. Any missing link, window, or transcript means "no evidence",
+ * never "proven skip".
+ */
+function hasLegacyTranscriptEvidence(last: JobSnapshot, result: string): boolean {
+  const output = last.output as { sessionId?: unknown } | null
+  const sessionId = last.metadata?.sessionId ?? output?.sessionId
+  if (typeof sessionId !== 'string' || !last.startedAt || !last.finishedAt) return false
+  const fromMs = Date.parse(last.startedAt)
+  const toMs = Date.parse(last.finishedAt)
+  if (Number.isNaN(fromMs) || Number.isNaN(toMs)) return false
+  try {
+    return agentSessionMessageService.hasAssistantMessageWithTextInWindow(sessionId, result, fromMs, toMs)
+  } catch (error) {
+    logger.warn('Legacy dependency transcript lookup failed; treating the row as unproven', {
+      jobId: last.id,
+      sessionId,
+      error
+    })
+    return false
+  }
+}
+
+/** Returns why the dependency blocks this fire, or `null` when its latest run succeeded in the window. */
+function dependencyBlockReason(metadata: Record<string, unknown> | undefined): string | null {
+  const dependency = readTaskDependency(metadata)
+  if (!dependency) return null
+  if (!jobScheduleService.getById(dependency.taskId)) return 'dependency missing'
+  const last = jobService.listRecentTerminalByScheduleId(dependency.taskId, 1)[0]
+  if (!last) return 'dependency not run'
+  const output = last.output as { result?: unknown; skipped?: unknown; kind?: unknown } | null
+  // The structured marker wins. Runs persisted before it existed stored raw
+  // assistant prose in `result`, so a prefix test collides with a genuine
+  // reply that happens to begin with "Skipped (". Every skip the pre-upgrade
+  // runner could persist is one of the exact LEGACY_SKIP_MARKERS strings, so
+  // exact matching keeps old skipped runs blocking dependents without
+  // misclassifying prose.
+  let skipped = output?.kind === 'skipped' || (output?.kind !== 'executed' && output?.skipped === true)
+  if (
+    !skipped &&
+    output?.skipped === undefined &&
+    output?.kind === undefined &&
+    typeof output?.result === 'string' &&
+    LEGACY_SKIP_MARKERS.has(output.result)
+  ) {
+    // An exact legacy marker match is still ambiguous: a successful
+    // pre-upgrade reply could equal a marker verbatim (e.g. a task reporting
+    // another scheduler's status), and suppressing it would cascade skips
+    // down the chain. Resolve the ambiguity with transcript evidence
+    // independent of the prose; without evidence keep blocking, because
+    // "skip unless the dependency succeeded" is not satisfied by an unproven
+    // row, and the chain heals on the dependency's next run.
+    skipped = !hasLegacyTranscriptEvidence(last, output.result)
+  }
+  if (last.status !== 'completed' || skipped) {
+    return 'dependency failed'
+  }
+  const finishedAt = last.finishedAt ? Date.parse(last.finishedAt) : NaN
+  if (dependency.withinMinutes !== undefined && !(Date.now() - finishedAt <= dependency.withinMinutes * 60_000)) {
+    return 'dependency stale'
+  }
+  return null
+}
+
 export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<AgentTaskOutput> {
   const { agentId, prompt, timeoutMinutes } = ctx.input
 
@@ -149,6 +240,12 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
   const scheduleId = jobSnapshot?.scheduleId ?? null
   const scheduleSnapshot = scheduleId ? jobScheduleService.getById(scheduleId) : null
   const taskName = scheduleSnapshot?.name ?? null
+
+  const blockReason = dependencyBlockReason(scheduleSnapshot?.metadata)
+  if (blockReason) {
+    logger.info('Task skipped', { scheduleId, reason: blockReason })
+    return { kind: 'skipped', result: `Skipped (${blockReason})` }
+  }
 
   const agent = agentService.getAgent(agentId)
   if (!agent) {

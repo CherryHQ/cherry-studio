@@ -23,6 +23,9 @@ import type { AgentSessionDeliveryRoutingError } from '@data/services/AgentSessi
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { aiUsageRecordService } from '@data/services/AiUsageRecordService'
+import { jobScheduleService } from '@data/services/JobScheduleService'
+import { jobService } from '@data/services/JobService'
+import { runAgentTask } from '@main/ai/agents/runAgentTask'
 import { AgentSessionForkOperations } from '@main/ai/agentSession/fork/AgentSessionForkOperations'
 import { prepareClaudeBranch } from '@main/ai/runtime/claudeCode/claudeContext'
 import { ClaudeForkCheckpointSchema } from '@main/ai/runtime/claudeCode/forkCheckpoint'
@@ -30,6 +33,7 @@ import { AgentSessionForkError, type RuntimeForkInput } from '@main/ai/runtime/f
 import { PiForkCheckpointSchema } from '@main/ai/runtime/pi/forkCheckpoint'
 import { runtimeDriverRegistry } from '@main/ai/runtime/registry'
 import { createAiUsageCaptureContext } from '@main/ai/utils/usageCapture'
+import type { JobContext } from '@main/core/job/types'
 
 const { notifyDataApiDataChangeMock } = vi.hoisted(() => ({
   notifyDataApiDataChangeMock: vi.fn()
@@ -150,6 +154,109 @@ describe('AgentSessionMessageService', () => {
     expect(agentSessionMessageService.hasSessionMessages(SESSION_ID)).toBe(true)
     expect(agentSessionMessageService.hasSessionMessages(SESSION_ID, USER_MESSAGE_ID)).toBe(false)
     expect(agentSessionMessageService.hasSessionMessages('session-2')).toBe(false)
+  })
+
+  describe('hasAssistantMessageWithTextInWindow', () => {
+    const WINDOW_FROM = 1_000_000
+    const WINDOW_TO = 2_000_000
+
+    async function seedMessage(id: string, role: 'user' | 'assistant', text: string, createdAt: number) {
+      await dbh.db.insert(agentSessionMessageTable).values({
+        id,
+        sessionId: SESSION_ID,
+        role,
+        status: 'success',
+        data: { parts: [{ type: 'text', text }] },
+        createdAt,
+        updatedAt: createdAt
+      })
+    }
+
+    it('finds a matching assistant message inside the window', async () => {
+      await seedMessage('m-in', 'assistant', 'Skipped (session busy)', WINDOW_FROM + 1)
+      expect(
+        agentSessionMessageService.hasAssistantMessageWithTextInWindow(
+          SESSION_ID,
+          'Skipped (session busy)',
+          WINDOW_FROM,
+          WINDOW_TO
+        )
+      ).toBe(true)
+    })
+
+    it.each(['metadata', 'output'])(
+      'uses real transcript evidence through a legacy job %s session link',
+      async (link) => {
+        await seedMessage('legacy-dependency-reply', 'assistant', 'Skipped (session busy)', WINDOW_FROM + 1)
+        vi.spyOn(jobService, 'getById').mockReturnValue({ scheduleId: 'dependent' } as never)
+        vi.spyOn(jobScheduleService, 'getById').mockImplementation(
+          (id) =>
+            ({
+              id,
+              metadata: id === 'dependent' ? { dependsOn: { taskId: 'dependency' } } : {}
+            }) as never
+        )
+        vi.spyOn(jobService, 'listRecentTerminalByScheduleId').mockReturnValue([
+          {
+            status: 'completed',
+            startedAt: new Date(WINDOW_FROM).toISOString(),
+            finishedAt: new Date(WINDOW_TO).toISOString(),
+            metadata: link === 'metadata' ? { sessionId: SESSION_ID } : {},
+            output: { result: 'Skipped (session busy)', ...(link === 'output' && { sessionId: SESSION_ID }) }
+          }
+        ] as never)
+        // Stop immediately after the real dependency gate; no native turn is launched.
+        const lookup = vi.spyOn(agentService, 'getAgent').mockReturnValue(null)
+        const ctx = {
+          jobId: 'dependent-fire',
+          input: { agentId: 'missing-after-gate', prompt: 'go', timeoutMinutes: 1 }
+        } as JobContext<never>
+        await expect(runAgentTask(ctx)).rejects.toThrow('Agent not found: missing-after-gate')
+        expect(lookup).toHaveBeenCalledOnce()
+        lookup.mockClear()
+        await dbh.db.delete(agentSessionMessageTable).where(eq(agentSessionMessageTable.id, 'legacy-dependency-reply'))
+        await expect(runAgentTask(ctx)).resolves.toEqual({ kind: 'skipped', result: 'Skipped (dependency failed)' })
+        expect(lookup).not.toHaveBeenCalled()
+      }
+    )
+
+    it('matches text persisted with surrounding whitespace (the stored result is trimmed prose)', async () => {
+      await seedMessage('m-padded', 'assistant', 'Skipped (session busy)\n', WINDOW_FROM + 1)
+      expect(
+        agentSessionMessageService.hasAssistantMessageWithTextInWindow(
+          SESSION_ID,
+          'Skipped (session busy)',
+          WINDOW_FROM,
+          WINDOW_TO
+        )
+      ).toBe(true)
+    })
+
+    it('rejects matches outside the window, with the wrong role, or with different text', async () => {
+      await seedMessage('m-before', 'assistant', 'Skipped (session busy)', WINDOW_FROM - 1)
+      await seedMessage('m-after', 'assistant', 'Skipped (session busy)', WINDOW_TO + 1)
+      await seedMessage('m-user', 'user', 'Skipped (session busy)', WINDOW_FROM + 1)
+      await seedMessage('m-other', 'assistant', 'Skipped (disabled)', WINDOW_FROM + 1)
+      expect(
+        agentSessionMessageService.hasAssistantMessageWithTextInWindow(
+          SESSION_ID,
+          'Skipped (session busy)',
+          WINDOW_FROM,
+          WINDOW_TO
+        )
+      ).toBe(false)
+    })
+
+    it('returns false for a missing session instead of throwing', () => {
+      expect(
+        agentSessionMessageService.hasAssistantMessageWithTextInWindow(
+          'session-gone',
+          'Skipped (session busy)',
+          WINDOW_FROM,
+          WINDOW_TO
+        )
+      ).toBe(false)
+    })
   })
 
   describe('native fork persistence', () => {

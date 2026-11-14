@@ -583,3 +583,107 @@ describe('JobService.pruneTerminalKeepLatestPerSchedule', () => {
     expect(jobService.list({ type: 'test.echo' })).toHaveLength(2)
   })
 })
+
+describe('JobService.pruneTerminalOlderThan', () => {
+  setupTestDatabase()
+
+  const gcTrigger: Trigger = { kind: 'interval', ms: 60_000 }
+  const makeGcSchedule = (name: string) =>
+    jobScheduleService.create({
+      type: 'agent.task',
+      name,
+      trigger: gcTrigger,
+      jobInputTemplate: {},
+      catchUpPolicy: { kind: 'skip-missed' }
+    })
+
+  it("keeps a live schedule's latest old terminal row so an age-unlimited dependency never loses its last run", () => {
+    const schedule = makeGcSchedule('monthly-upstream')
+    const now = Date.now()
+    const cutoff = now - 7 * 24 * 60 * 60 * 1000
+    // Latest run: 30 days old, completed, with its real outcome payload.
+    jobService.create(
+      baseRow({
+        type: 'agent.task',
+        scheduleId: schedule.id,
+        status: 'completed',
+        finishedAt: now - 30 * 24 * 60 * 60 * 1000,
+        output: { result: 'monthly digest', skipped: false }
+      })
+    )
+    // Older sibling runs: beyond the TTL and not the latest.
+    for (let i = 1; i <= 3; i++) {
+      jobService.create(
+        baseRow({
+          type: 'agent.task',
+          scheduleId: schedule.id,
+          status: 'completed',
+          finishedAt: now - (30 + i * 30) * 24 * 60 * 60 * 1000
+        })
+      )
+    }
+
+    expect(jobService.pruneTerminalOlderThan(cutoff)).toBe(3)
+
+    const kept = jobService.listRecentTerminalByScheduleId(schedule.id, 10)
+    expect(kept).toHaveLength(1)
+    expect(kept[0].status).toBe('completed')
+    expect(kept[0].output).toEqual({ result: 'monthly digest', skipped: false })
+  })
+
+  it('keeps exactly the (finishedAt, id)-latest row among same-timestamp ties, matching the gate read', () => {
+    const schedule = makeGcSchedule('tied')
+    const now = Date.now()
+    const cutoff = now - 7 * 24 * 60 * 60 * 1000
+    const tiedAt = now - 10 * 24 * 60 * 60 * 1000
+    // Mixed terminal outcomes at the SAME max timestamp: the deterministic
+    // tiebreak is desc(id) (UUID v7, time-ordered), so the later-created row is
+    // the single survivor - the same row the gate's limit-1 read returns.
+    jobService.create(baseRow({ type: 'agent.task', scheduleId: schedule.id, status: 'completed', finishedAt: tiedAt }))
+    const later = jobService.create(
+      baseRow({ type: 'agent.task', scheduleId: schedule.id, status: 'failed', finishedAt: tiedAt })
+    )
+    jobService.create(
+      baseRow({ type: 'agent.task', scheduleId: schedule.id, status: 'completed', finishedAt: tiedAt - 60_000 })
+    )
+
+    expect(jobService.pruneTerminalOlderThan(cutoff)).toBe(2)
+    const kept = jobService.list({ scheduleId: schedule.id })
+    expect(kept).toHaveLength(1)
+    expect(kept[0].id).toBe(later.id)
+    // The gate read agrees: its limit-1 "latest" is the same surviving row.
+    expect(jobService.listRecentTerminalByScheduleId(schedule.id, 1)[0]?.id).toBe(later.id)
+  })
+
+  it("prunes all old rows of a deleted schedule - the gate reports 'dependency missing' before reading history", () => {
+    const schedule = makeGcSchedule('gone')
+    const now = Date.now()
+    const cutoff = now - 7 * 24 * 60 * 60 * 1000
+    jobService.create(
+      baseRow({
+        type: 'agent.task',
+        scheduleId: schedule.id,
+        status: 'completed',
+        finishedAt: now - 30 * 24 * 60 * 60 * 1000
+      })
+    )
+    jobScheduleService.delete(schedule.id)
+
+    expect(jobService.pruneTerminalOlderThan(cutoff)).toBe(1)
+    expect(jobService.list({ type: 'agent.task' })).toHaveLength(0)
+  })
+
+  it('fully prunes old schedule-less (ad-hoc) terminal rows and leaves recent and non-terminal rows alone', () => {
+    const now = Date.now()
+    const cutoff = now - 7 * 24 * 60 * 60 * 1000
+    jobService.create(baseRow({ status: 'completed', finishedAt: now - 30 * 24 * 60 * 60 * 1000 }))
+    jobService.create(baseRow({ status: 'cancelled', finishedAt: now - 10 * 24 * 60 * 60 * 1000 }))
+    jobService.create(baseRow({ status: 'completed', finishedAt: now - 1_000 }))
+    jobService.create(baseRow({ status: 'running', finishedAt: null }))
+
+    expect(jobService.pruneTerminalOlderThan(cutoff)).toBe(2)
+    const remaining = jobService.list({ type: 'test.echo' })
+    expect(remaining).toHaveLength(2)
+    expect(remaining.map((r) => r.status).sort()).toEqual(['completed', 'running'])
+  })
+})

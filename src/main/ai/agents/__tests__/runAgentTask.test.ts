@@ -9,12 +9,16 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import type { JobContext } from '@main/core/job/types'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
 
+vi.mock('@data/services/AgentSessionMessageService', () => ({
+  agentSessionMessageService: { hasAssistantMessageWithTextInWindow: vi.fn() }
+}))
 const {
   mockAbort,
   mockRemoveListener,
@@ -82,7 +86,7 @@ vi.mock('@data/services/JobScheduleService', () => ({
   jobScheduleService: { getById: vi.fn(), getByIdTx: vi.fn() }
 }))
 vi.mock('@data/services/JobService', () => ({
-  jobService: { getById: vi.fn() }
+  jobService: { getById: vi.fn(), listRecentTerminalByScheduleId: vi.fn() }
 }))
 vi.mock('@main/ai/agents/heartbeat', () => ({
   readHeartbeat: vi.fn()
@@ -233,6 +237,8 @@ function makeSchedule(
 
 describe('runAgentTask', () => {
   beforeEach(() => {
+    vi.mocked(jobService.listRecentTerminalByScheduleId).mockReset()
+    vi.mocked(agentSessionMessageService.hasAssistantMessageWithTextInWindow).mockReset()
     vi.mocked(application.getPath).mockReturnValue('/agent-data')
     vi.mocked(jobService.getById).mockReset()
     vi.mocked(jobScheduleService.getById).mockReset()
@@ -369,6 +375,219 @@ describe('runAgentTask', () => {
 
     expect(out).toEqual({ kind: 'skipped', result: 'Skipped (no file)' })
     expect(agentSessionService.create).not.toHaveBeenCalled()
+  })
+
+  describe('task dependency', () => {
+    const lastRun = (status: string, finishedAt: string, result = 'ok', skipped?: boolean) =>
+      [{ status, finishedAt, output: skipped === undefined ? { result } : { result, skipped } }] as never
+
+    function arm(dependsOn: Record<string, unknown>, runs: unknown[]) {
+      vi.mocked(jobService.getById).mockReturnValue(makeJobSnapshot())
+      vi.mocked(jobScheduleService.getById).mockImplementation((id: string) =>
+        id === 'dep' ? makeSchedule('dep') : makeSchedule('b', { dependsOn })
+      )
+      vi.mocked(jobService.listRecentTerminalByScheduleId).mockReturnValue(runs as never)
+      vi.mocked(agentService.getAgent).mockReturnValue(makeAgent())
+      vi.mocked(agentSessionService.create).mockReturnValue(makeSession('/ws/a'))
+    }
+
+    const runTask = () => runAgentTask(makeCtx({ input: { agentId: 'a1', prompt: 'hi' } }))
+
+    it('skips without starting a run when the dependency last failed', async () => {
+      arm({ taskId: 'dep' }, lastRun('failed', new Date().toISOString()))
+      await expect(runTask()).resolves.toEqual({ kind: 'skipped', result: 'Skipped (dependency failed)' })
+      expect(mockStartRun).not.toHaveBeenCalled()
+      expect(agentSessionService.create).not.toHaveBeenCalled()
+    })
+
+    it('skips when the dependency has never run', async () => {
+      arm({ taskId: 'dep' }, [])
+      await expect(runTask()).resolves.toEqual({ kind: 'skipped', result: 'Skipped (dependency not run)' })
+    })
+
+    it('skips when the dependency succeeded outside the window', async () => {
+      arm({ taskId: 'dep', withinMinutes: 10 }, lastRun('completed', new Date(Date.now() - 3_600_000).toISOString()))
+      await expect(runTask()).resolves.toEqual({ kind: 'skipped', result: 'Skipped (dependency stale)' })
+      expect(mockStartRun).not.toHaveBeenCalled()
+    })
+
+    it('blocks the current main structured skipped kind without inspecting prose', async () => {
+      arm({ taskId: 'dep' }, [
+        {
+          status: 'completed',
+          finishedAt: new Date().toISOString(),
+          output: { kind: 'skipped', result: 'not a legacy marker' }
+        }
+      ])
+      await expect(runTask()).resolves.toEqual({ kind: 'skipped', result: 'Skipped (dependency failed)' })
+      expect(mockStartRun).not.toHaveBeenCalled()
+    })
+
+    it('accepts main executed provenance even when the reply exactly equals a legacy marker', async () => {
+      arm({ taskId: 'dep' }, [
+        {
+          status: 'completed',
+          finishedAt: new Date().toISOString(),
+          output: { kind: 'executed', result: 'Skipped (disabled)' }
+        }
+      ])
+      const promise = runTask()
+      await vi.waitFor(() => expect(mockStartRun).toHaveBeenCalled())
+      captured.listeners[0].onDone({ status: 'completed' })
+      await expect(promise).resolves.toMatchObject({ kind: 'executed' })
+      expect(agentSessionMessageService.hasAssistantMessageWithTextInWindow).not.toHaveBeenCalled()
+    })
+
+    it.each(['cancelled', 'failed'])('blocks a %s upstream job under main cancellation semantics', async (status) => {
+      arm({ taskId: 'dep' }, [
+        { status, finishedAt: new Date().toISOString(), metadata: { taskResultStatus: 'interrupted' }, output: null }
+      ])
+      await expect(runTask()).resolves.toEqual({ kind: 'skipped', result: 'Skipped (dependency failed)' })
+      expect(mockStartRun).not.toHaveBeenCalled()
+    })
+
+    it('blocks when the dependency latest run carries a structured skip marker', async () => {
+      arm({ taskId: 'dep' }, lastRun('completed', new Date().toISOString(), 'Skipped (session busy)', true))
+      await expect(runTask()).resolves.toEqual({ kind: 'skipped', result: 'Skipped (dependency failed)' })
+      expect(mockStartRun).not.toHaveBeenCalled()
+    })
+
+    it('blocks when the dependency latest run was stopped externally (structured session-stop skip)', async () => {
+      arm({ taskId: 'dep' }, lastRun('completed', new Date().toISOString(), 'Skipped (session stopped)', true))
+      await expect(runTask()).resolves.toEqual({ kind: 'skipped', result: 'Skipped (dependency failed)' })
+      expect(mockStartRun).not.toHaveBeenCalled()
+    })
+
+    it.each([
+      'Skipped (assistant role)',
+      'Skipped (capability)',
+      'Skipped (disabled)',
+      'Skipped (no file)',
+      'Skipped (session busy)',
+      'Skipped (untrusted agent data path)',
+      'Skipped (untrusted workspace path)',
+      'Skipped (workspace deleted)'
+    ])('keeps blocking on the legacy text-only skip marker %s', async (marker) => {
+      arm({ taskId: 'dep' }, lastRun('completed', new Date().toISOString(), marker))
+      await expect(runTask()).resolves.toEqual({ kind: 'skipped', result: 'Skipped (dependency failed)' })
+      expect(mockStartRun).not.toHaveBeenCalled()
+    })
+
+    it('runs when a legacy successful reply begins with the Skipped ( prefix', async () => {
+      arm(
+        { taskId: 'dep' },
+        lastRun('completed', new Date().toISOString(), 'Skipped (2 duplicate files); backup completed successfully.')
+      )
+      const promise = runTask()
+      await vi.waitFor(() => expect(mockStartRun).toHaveBeenCalled())
+      captured.listeners[0].onDone({ status: 'completed' })
+      await expect(promise).resolves.toBeDefined()
+    })
+
+    it('runs when a legacy reply extends a historical marker beyond its exact text', async () => {
+      arm({ taskId: 'dep' }, lastRun('completed', new Date().toISOString(), 'Skipped (disabled) items were kept'))
+      const promise = runTask()
+      await vi.waitFor(() => expect(mockStartRun).toHaveBeenCalled())
+      captured.listeners[0].onDone({ status: 'completed' })
+      await expect(promise).resolves.toBeDefined()
+    })
+
+    it('runs when a successful dependency reply merely starts with the word Skipped', async () => {
+      arm({ taskId: 'dep' }, lastRun('completed', new Date().toISOString(), 'Skipped 2 of 10 items', false))
+      const promise = runTask()
+      await vi.waitFor(() => expect(mockStartRun).toHaveBeenCalled())
+      captured.listeners[0].onDone({ status: 'completed' })
+      await expect(promise).resolves.toBeDefined()
+    })
+
+    it('runs when a legacy successful reply merely starts with the word Skipped', async () => {
+      arm({ taskId: 'dep' }, lastRun('completed', new Date().toISOString(), 'Skipped frames without motion'))
+      const promise = runTask()
+      await vi.waitFor(() => expect(mockStartRun).toHaveBeenCalled())
+      captured.listeners[0].onDone({ status: 'completed' })
+      await expect(promise).resolves.toBeDefined()
+    })
+
+    it('runs when the dependency succeeded within the window', async () => {
+      arm({ taskId: 'dep', withinMinutes: 10 }, lastRun('completed', new Date().toISOString()))
+      const promise = runTask()
+      await vi.waitFor(() => expect(mockStartRun).toHaveBeenCalled())
+      captured.listeners[0].onDone({ status: 'completed' })
+      await expect(promise).resolves.toBeDefined()
+    })
+
+    it.each(['metadata', 'output'])(
+      'runs when a legacy exact-marker reply links its transcript through %s',
+      async (link) => {
+        const finishedMs = Date.now()
+        const startedMs = finishedMs - 30_000
+        arm({ taskId: 'dep' }, [
+          {
+            status: 'completed',
+            startedAt: new Date(startedMs).toISOString(),
+            finishedAt: new Date(finishedMs).toISOString(),
+            metadata: link === 'metadata' ? { sessionId: 'dep-session' } : {},
+            output: { result: 'Skipped (session busy)', ...(link === 'output' && { sessionId: 'dep-session' }) }
+          }
+        ] as never)
+        vi.mocked(agentSessionMessageService.hasAssistantMessageWithTextInWindow).mockReturnValue(true)
+        const promise = runTask()
+        await vi.waitFor(() => expect(mockStartRun).toHaveBeenCalled())
+        captured.listeners[0].onDone({ status: 'completed' })
+        await expect(promise).resolves.toBeDefined()
+        expect(agentSessionMessageService.hasAssistantMessageWithTextInWindow).toHaveBeenCalledWith(
+          'dep-session',
+          'Skipped (session busy)',
+          startedMs,
+          finishedMs
+        )
+      }
+    )
+
+    it('prefers the metadata session link over an output link for legacy evidence', async () => {
+      const finishedMs = Date.now()
+      arm({ taskId: 'dep' }, [
+        {
+          status: 'completed',
+          startedAt: new Date(finishedMs - 30000).toISOString(),
+          finishedAt: new Date(finishedMs).toISOString(),
+          metadata: { sessionId: 'authoritative' },
+          output: { result: 'Skipped (session busy)', sessionId: 'legacy' }
+        }
+      ] as never)
+      vi.mocked(agentSessionMessageService.hasAssistantMessageWithTextInWindow).mockReturnValue(false)
+      await expect(runTask()).resolves.toEqual({ kind: 'skipped', result: 'Skipped (dependency failed)' })
+      expect(agentSessionMessageService.hasAssistantMessageWithTextInWindow).toHaveBeenCalledWith(
+        'authoritative',
+        'Skipped (session busy)',
+        finishedMs - 30000,
+        finishedMs
+      )
+      expect(mockStartRun).not.toHaveBeenCalled()
+    })
+
+    it('blocks when a legacy exact-marker row has no transcript evidence', async () => {
+      const finishedMs = Date.now()
+      arm({ taskId: 'dep' }, [
+        {
+          status: 'completed',
+          startedAt: new Date(finishedMs - 30_000).toISOString(),
+          finishedAt: new Date(finishedMs).toISOString(),
+          metadata: { sessionId: 'dep-session' },
+          output: { result: 'Skipped (session busy)' }
+        }
+      ] as never)
+      vi.mocked(agentSessionMessageService.hasAssistantMessageWithTextInWindow).mockReturnValue(false)
+      await expect(runTask()).resolves.toEqual({ kind: 'skipped', result: 'Skipped (dependency failed)' })
+      expect(mockStartRun).not.toHaveBeenCalled()
+    })
+
+    it('blocks on a legacy exact-marker row without consulting the transcript when no session link exists', async () => {
+      arm({ taskId: 'dep' }, lastRun('completed', new Date().toISOString(), 'Skipped (session busy)'))
+      await expect(runTask()).resolves.toEqual({ kind: 'skipped', result: 'Skipped (dependency failed)' })
+      expect(agentSessionMessageService.hasAssistantMessageWithTextInWindow).not.toHaveBeenCalled()
+      expect(mockStartRun).not.toHaveBeenCalled()
+    })
   })
 
   describe('session reuse', () => {
