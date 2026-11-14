@@ -80,6 +80,13 @@ external file parts (no `fileEntryId`) are still eagerly materialized, but
 image/audio/video parts are omitted when native support is false. Other
 gateway/external file types keep their existing behavior.
 
+External inline `text/*` files are normalized at the gateway protocol boundary,
+before shared chat routing: Responses tool-output `input_file` payloads and
+Gemini `inlineData` (including function-response media) become text parts. Their
+full decoded content is preserved without a page-size cap; the gateway caller
+owns its context window. Remote file URLs are not fetched by conversion and
+remain file parts.
+
 ## Supported extensions (upload allowlist)
 
 What the composer lets the user pick is `imageExts`, `documentExts`, and
