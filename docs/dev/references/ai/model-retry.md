@@ -35,7 +35,7 @@ AiService.streamText/generateText
 | `chat.retry.enabled` | `false` | Enables transient chat retry, cross-model fallback, and the embedding/rerank retry policy; API-key failover remains independent |
 | `chat.retry.max_attempts` | `3` | Retry count, normalized to the integer range 1–10 at the request boundary |
 | `chat.retry.backoff_enabled` | `true` | Exponential backoff (2s, 4s, 8s… with the library's attempt-count exponent) |
-| `chat.retry.fallback_model_ids` | `[]` | `UniqueModelId[]` tried in order after same-model retry is exhausted |
+| `chat.retry.fallback_model_ids` | `[]` | `UniqueModelId[]` tried in order after same-model retry is exhausted; only the first 5 entries are used |
 
 Settings UI lives in `src/renderer/pages/settings/ModelSettings/ModelSettings.tsx`
 (toggle + max attempts + backoff + multi-model picker via `ModelSelector`
@@ -174,6 +174,11 @@ per-batch retry handles residual 429s. The degrade-to-vector-results fallback in
 
 ## Limitations
 
+- **Bounded fan-out:** one failed call issues at most `max_attempts + 1` same-model
+  attempts plus one attempt per configured fallback, and `readRetryPolicy`
+  truncates the fallback list to `MAX_RETRY_FALLBACK_MODELS` (5, shared with the
+  settings selector). API-key failover stays one attempt per remaining enabled
+  key and is not covered by this cap.
 - **Streaming:** retries/fallbacks only apply before the first content chunk
   is emitted. Once content streams, the response is committed to the current
   model; mid-stream errors surface as stream errors (existing behavior).
@@ -183,6 +188,8 @@ per-batch retry handles residual 429s. The degrade-to-vector-results fallback in
 
 ## Tests
 
+- `src/main/ai/runtime/aiSdk/retry/__tests__/retryPolicy.test.ts` —
+  attempt normalization and the fallback-list cap.
 - `src/main/ai/runtime/aiSdk/retry/__tests__/createRetryableWrap.test.ts` —
   same-model retry ordering, ordered fallback, lazy/memoized resolution,
   retry events and settlement, and original error preservation.

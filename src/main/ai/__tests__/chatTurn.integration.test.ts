@@ -156,7 +156,9 @@ describe('chat turn integration trajectory', () => {
       if (name === 'AiService') return aiService
       if (name === 'RuntimeActivityService') return defaultServiceInstances.RuntimeActivityService
       if (name === 'CacheService') return fakeCacheService
-      if (name === 'PreferenceService') return { get: () => false }
+      // Mirror the real preference contract: array-typed keys return arrays, never false.
+      if (name === 'PreferenceService')
+        return { get: (key: string) => (key === 'chat.retry.fallback_model_ids' ? [] : false) }
       if (name === 'AgentSessionRuntimeService') return { willContinueTopic: () => false }
       if (name === 'TraceStorageService') return { saveSpans: async () => undefined }
       if (name === 'AnalyticsService') return { trackTokenUsage: vi.fn() }

@@ -2298,6 +2298,14 @@ describe('resolveToolCallLimit', () => {
     expect(resolveToolCallLimit(makeAssistant({ settings: { maxToolCalls: 7 } }))).toBe(7)
   })
 
+  it('retains the SDK default cap for assistant-less requests', () => {
+    expect(resolveToolCallLimit(undefined)).toBe(20)
+  })
+
+  it('caps a request whose limit is disabled at the SDK default instead of the configured maximum', () => {
+    expect(resolveToolCallLimit(makeAssistant({ settings: { enableMaxToolCalls: false, maxToolCalls: 7 } }))).toBe(20)
+  })
+
   it('accepts a limit above the previous 100-round ceiling', () => {
     expect(resolveToolCallLimit(makeAssistant({ settings: { maxToolCalls: 500 } }))).toBe(500)
   })
