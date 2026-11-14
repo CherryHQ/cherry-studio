@@ -271,6 +271,9 @@ const EXEC_OPTIONS: Readonly<Record<string, readonly string[]>> = {
   fd: ['-x', '--exec', '-X', '--exec-batch']
 }
 
+// PowerShell built-in aliases whose cmdlet a rule selects; `ri` is Ruby's doc tool elsewhere.
+const POWERSHELL_ALIASES: Readonly<Record<string, string>> = { ri: 'remove-item', clc: 'clear-content' }
+
 export function executableName(value: string, insensitive = false): string {
   const name = value.replace(/\\/g, '/').split('/').at(-1) ?? value
   return (insensitive ? name.toLowerCase() : name).replace(/\.exe$/, '')
@@ -290,7 +293,8 @@ export function resolveCommandWords(
       index++
       continue
     }
-    const name = executableName(words[index], insensitive)
+    const base = executableName(words[index], insensitive)
+    const name = (insensitive && POWERSHELL_ALIASES[base]) || base
     if (!(name in WRAPPERS)) return { command: name, args: words.slice(index + 1), offset: index, elevated, wrappers }
     elevated ||= ['sudo', 'doas', 'pkexec'].includes(name)
     const start = index++

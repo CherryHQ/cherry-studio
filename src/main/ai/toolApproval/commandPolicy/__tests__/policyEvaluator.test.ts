@@ -135,6 +135,14 @@ describe('structured command policy', () => {
     expect((await evaluate(`powershell -EncodedCommand ${code}`, 'assistant')).effect).toBe('deny')
   })
 
+  it('resolves PowerShell deletion aliases only in PowerShell', async () => {
+    for (const command of ['ri -Recurse C:\\temp', 'clc notes.txt', 'RI.exe file']) {
+      expect((await evaluate(command, undefined, 'powershell')).effect).toBe('ask')
+      expect((await evaluate(command, 'assistant', 'powershell')).effect).toBe('deny')
+    }
+    expect((await evaluate('ri Array', undefined, 'bash')).effect).toBe('allow')
+  })
+
   // Catch analysis gaps that would prompt for ordinary work no rule could match.
   it.each<[string, CommandDialect]>([
     ['pnpm -r build', 'bash'],

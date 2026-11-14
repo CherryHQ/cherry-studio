@@ -1164,6 +1164,7 @@ describe('buildClaudeCodeSessionSettings', () => {
 
     for (const [toolName, toolInput] of [
       ['Bash', { command: 'rm -rf ./output' }],
+      ['PowerShell', { command: 'Remove-Item -Recurse .\\output' }],
       ['mcp__filesystem__delete', { path: 'output' }]
     ] as const) {
       await expect(denyReasonOf(assistantSettings, toolName, toolInput)).resolves.toContain(

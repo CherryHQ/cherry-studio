@@ -23,7 +23,7 @@ import {
   resolveDelegationApproval,
   toMcpRuntimeName
 } from '@main/ai/toolApproval/builtinToolPolicy'
-import { type CommandCheck, checkCommand } from '@main/ai/toolApproval/commandPolicy'
+import { type CommandCheck, checkCommand, type CommandDialect } from '@main/ai/toolApproval/commandPolicy'
 import { detectGlobalInstall, detectMiseMutation } from '@main/ai/toolApproval/dependencyGuard'
 import type { GuardHit, ToolGuardContext, ToolGuardRule } from '@main/ai/toolApproval/toolGuards'
 import { evaluateUserDataSqliteGuard, USER_DATA_SQLITE_GUARD_REASON } from '@main/ai/toolApproval/userDataSqliteGuard'
@@ -131,12 +131,18 @@ const matchesRequiredApproval = (ctx: ToolGuardContext, bypassApproval: 'lift' |
   return policy?.approval === 'required' && policy.bypassApproval === bypassApproval ? {} : null
 }
 
+/** Claude Code's shell tools; on Windows it may run PowerShell instead of Git Bash. */
+export function shellToolDialect(toolName: string): CommandDialect | undefined {
+  return toolName === 'Bash' ? 'bash' : toolName === 'PowerShell' ? 'powershell' : undefined
+}
+
 function commandDecision(ctx: ToolGuardContext): Promise<CommandCheck> | undefined {
   const command = bashCommand(ctx)
-  if (ctx.toolName !== 'Bash' || !command) return undefined
+  const dialect = shellToolDialect(ctx.toolName)
+  if (!dialect || !command) return undefined
   return checkCommand({
     command,
-    dialect: 'bash',
+    dialect,
     cwd: ctx.cwd,
     builtinRole: ctx.builtinRole,
     permissionMode: ctx.permissionMode

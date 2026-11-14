@@ -87,7 +87,8 @@ import {
   ASK_USER_QUESTION_TOOL_NAME,
   GLOBAL_INSTALL_PLAN_DENIAL,
   GLOBAL_INSTALL_UNATTENDED_DENIAL,
-  HEADLESS_INTERACTIVE_TOOL_DENIAL
+  HEADLESS_INTERACTIVE_TOOL_DENIAL,
+  shellToolDialect
 } from './guardRules'
 import { buildClaudeCodeHooks, surfaceExitPlanModeInput } from './hooks'
 import { buildMcpServers, buildMcpToolMetadata, warmAgentMcpToolCaches } from './mcpCatalog'
@@ -533,12 +534,11 @@ async function buildToolPermissions(
     }
 
     const permissionMode = snapshot.getPermissionMode()
-    const checkBash = (command: string, mode: typeof permissionMode) =>
-      checkCommand({ command, dialect: 'bash', cwd, builtinRole, permissionMode: mode })
+    const dialect = shellToolDialect(toolName)
+    const checkShell = (command: string, mode: typeof permissionMode) =>
+      checkCommand({ command, dialect: dialect ?? 'bash', cwd, builtinRole, permissionMode: mode })
     const commandPolicy =
-      toolName === 'Bash' && typeof input.command === 'string'
-        ? await checkBash(input.command, permissionMode)
-        : undefined
+      dialect && typeof input.command === 'string' ? await checkShell(input.command, permissionMode) : undefined
     const globalInstall =
       toolName === 'Bash' && typeof input.command === 'string' && detectGlobalInstall(input.command) !== null
     if (globalInstall && permissionMode === 'plan') {
@@ -658,7 +658,7 @@ async function buildToolPermissions(
             return
           }
           const updated = decision.updatedInput ?? input
-          void checkBash(
+          void checkShell(
             typeof updated.command === 'string' ? updated.command : '',
             sessionState().getToolPolicySnapshot(session.id)?.getPermissionMode()
           )

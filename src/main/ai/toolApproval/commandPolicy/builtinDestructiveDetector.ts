@@ -11,7 +11,7 @@ const POWERSHELL = new Set(['powershell', 'pwsh'])
 const CMD = new Set(['cmd'])
 
 const UNIX_DELETION = new Set(['rm', 'unlink', 'shred', 'srm'])
-const WINDOWS_DELETION = new Set(['remove-item', 'clear-content', 'del', 'erase', 'rd', 'rmdir'])
+const WINDOWS_DELETION = new Set(['remove-item', 'ri', 'clear-content', 'clc', 'del', 'erase', 'rd', 'rmdir'])
 
 const DISK_COMMANDS = new Set([
   'wipefs',
