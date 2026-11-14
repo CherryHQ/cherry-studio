@@ -27,14 +27,18 @@ export interface ErrorDetailPopupModule {
 
 type ErrorDetailPopupLoader = () => Promise<ErrorDetailPopupModule>
 
-let loader: ErrorDetailPopupLoader | undefined
+class ErrorDetailPopupService {
+  private loader: ErrorDetailPopupLoader | undefined
 
-/** Composition-layer registration; the registrant owns lazy-loading the popup module. */
-export function registerErrorDetailPopup(fn: ErrorDetailPopupLoader): void {
-  loader = fn
+  /** Composition-layer registration; the registrant owns lazy-loading the popup module. */
+  register(loader: ErrorDetailPopupLoader): void {
+    this.loader = loader
+  }
+
+  /** Undefined when this window registered no popup. */
+  load(): Promise<ErrorDetailPopupModule> | undefined {
+    return this.loader?.()
+  }
 }
 
-/** Undefined when this window registered no popup. */
-export function loadErrorDetailPopup(): Promise<ErrorDetailPopupModule> | undefined {
-  return loader?.()
-}
+export const errorDetailPopupService = new ErrorDetailPopupService()
