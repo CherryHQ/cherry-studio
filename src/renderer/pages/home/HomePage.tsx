@@ -763,6 +763,7 @@ const HomePage: FC = () => {
   // decides whether a visited right-panel subtree survives.
   return (
     <TopicRightPane.Scope
+      assistantId={visibleAssistantId}
       resourcePane={resourcePane}
       topicId={visibleTopic?.id}
       topicName={visibleTopic?.name}
