@@ -13355,6 +13355,85 @@
     },
     {
       "capabilities": [
+        "reasoning",
+        "function-call",
+        "image-recognition",
+        "audio-recognition",
+        "video-recognition",
+        "structured-output",
+        "file-input"
+      ],
+      "contextWindow": 1048576,
+      "family": "gemini-4",
+      "id": "gemini-4-hydrogen",
+      "inputModalities": [
+        "text",
+        "image",
+        "audio",
+        "video"
+      ],
+      "maxOutputTokens": 1048576,
+      "metadata": {},
+      "name": "Gemini 4 Hydrogen",
+      "outputModalities": [
+        "text"
+      ],
+      "ownedBy": "google",
+      "parameterSupport": {
+        "frequencyPenalty": false,
+        "maxTokens": true,
+        "presencePenalty": false,
+        "stopSequences": true,
+        "systemMessage": true,
+        "temperature": {
+          "supported": false
+        },
+        "topK": {
+          "supported": false
+        },
+        "topP": {
+          "supported": false
+        }
+      },
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.075
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 1.5
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 7.5
+        }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "default": "high",
+            "kind": "effort",
+            "values": [
+              "low",
+              "medium",
+              "high",
+              "xhigh"
+            ]
+          }
+        ],
+        "defaultEffort": "high",
+        "supportedEfforts": [
+          "low",
+          "medium",
+          "high",
+          "xhigh"
+        ],
+        "wireDialect": "effort"
+      }
+    },
+    {
+      "capabilities": [
         "embedding"
       ],
       "contextWindow": 8192,
@@ -32833,5 +32912,5 @@
       "ownedBy": "zhipu"
     }
   ],
-  "version": "b6c00b2ca1b69646"
+  "version": "a6ee5864771bf017"
 }
