@@ -104,6 +104,21 @@ describe('WindowFatalFallback', () => {
     expect(inlineError).toHaveAttribute('role', 'alert')
   })
 
+  it('clears a stale action error once a retry starts, and confirms a successful copy inline', async () => {
+    const user = userEvent.setup()
+    const writeText = vi.fn().mockRejectedValueOnce(new Error('clipboard denied')).mockResolvedValueOnce(undefined)
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } })
+    render(<WindowFatalFallback error={new Error('boom from provider')} resetErrorBoundary={vi.fn()} />)
+    const copy = screen.getByRole('button', { name: i18n.t('error.boundary.copy') })
+
+    await user.click(copy)
+    expect(await screen.findByText(i18n.t('error.boundary.action_failed'))).toBeInTheDocument()
+
+    await user.click(copy)
+    expect(await screen.findByText(i18n.t('common.copied'))).toBeInTheDocument()
+    expect(screen.queryByText(i18n.t('error.boundary.action_failed'))).not.toBeInTheDocument()
+  })
+
   it('opens the download page of the running edition', async () => {
     const user = userEvent.setup()
     vi.stubGlobal('__APP_EDITION__', 'cn')

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { FallbackProps } from 'react-error-boundary'
 
 import { Alert, Button } from '@cherrystudio/ui'
@@ -7,6 +7,7 @@ import i18n from '@renderer/i18n/resolver'
 import { ipcApi } from '@renderer/ipc'
 import { getAppEdition } from '@renderer/utils/appEdition'
 import { formatErrorDetails } from '@renderer/utils/errorDetails'
+import { createAppErrorContext } from '@shared/utils/appErrorSnapshot'
 import { FEEDBACK_MAILTO, officialDownloadUrl } from '@shared/utils/officialLinks'
 
 /**
@@ -20,15 +21,17 @@ import { FEEDBACK_MAILTO, officialDownloadUrl } from '@shared/utils/officialLink
  */
 export const WindowFatalFallback = ({ error }: FallbackProps) => {
   const [actionError, setActionError] = useState<string | null>(null)
+  const [copied, setCopied] = useState(false)
   const [exporting, setExporting] = useState(false)
-  const faultRef = useRef({
-    id: crypto.randomUUID(),
-    occurredAt: new Date().toISOString(),
-    source: 'renderer',
-    operation: 'react.render',
-    message: error instanceof Error ? error.message : String(error),
-    ...(error instanceof Error ? { name: error.name, ...(error.stack ? { stack: error.stack } : {}) } : {})
-  })
+  // Imported from the snapshot module: `@shared/utils/appError` would pull zod into every window.
+  const [fault] = useState(() =>
+    createAppErrorContext({
+      source: 'renderer',
+      operation: 'react.render',
+      message: error instanceof Error ? error.message : String(error),
+      ...(error instanceof Error ? { name: error.name, ...(error.stack ? { stack: error.stack } : {}) } : {})
+    })
+  )
   // The main window's boot spinner is normally removed by the main-only ready effect
   // in MainWindowRuntime, a leaf inside the provider stack; when a provider throws it
   // never runs, and the leftover fixed full-viewport overlay would block clicks here.
@@ -36,21 +39,20 @@ export const WindowFatalFallback = ({ error }: FallbackProps) => {
     document.getElementById('spinner')?.remove()
   }, [])
 
-  const run = (action: () => Promise<unknown>) => {
-    void action().catch(() => {
+  const run = (action: () => Promise<unknown>, onSuccess?: () => void) => {
+    setActionError(null)
+    setCopied(false)
+    void action().then(onSuccess, () => {
       setActionError(i18n.t('error.boundary.action_failed'))
     })
   }
 
-  const copyError = () => {
-    const text = formatErrorDetails(error)
-    const write = navigator.clipboard?.writeText(text)
-    if (!write) {
-      setActionError(i18n.t('error.boundary.action_failed'))
-      return
-    }
-    run(() => write)
-  }
+  // No toast: the providers that host one may be the ones that crashed.
+  const copyError = () =>
+    run(
+      async () => navigator.clipboard.writeText(formatErrorDetails(error)),
+      () => setCopied(true)
+    )
 
   return (
     <div className="flex h-screen w-screen flex-col items-center justify-center gap-4 p-4">
@@ -68,6 +70,11 @@ export const WindowFatalFallback = ({ error }: FallbackProps) => {
           {actionError}
         </p>
       ) : null}
+      {copied ? (
+        <p role="status" className="max-w-xl text-center text-sm text-muted-foreground">
+          {i18n.t('common.copied')}
+        </p>
+      ) : null}
       <div className="flex max-w-xl flex-wrap items-center justify-center gap-2">
         <Button size="sm" onClick={copyError}>
           {i18n.t('error.boundary.copy')}
@@ -78,13 +85,14 @@ export const WindowFatalFallback = ({ error }: FallbackProps) => {
           onClick={() => {
             setExporting(true)
             setActionError(null)
+            setCopied(false)
             void ipcApi
               .request('diagnostics.bundle.export', {
                 includeChatRecords: false,
                 includeLogs: true,
                 includeTraces: false,
                 range: '24h',
-                errorContext: faultRef.current
+                errorContext: fault
               })
               .then((result) => {
                 if (result.status === 'busy') setActionError(i18n.t('error.boundary.export_busy'))
