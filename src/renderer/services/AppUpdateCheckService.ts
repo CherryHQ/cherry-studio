@@ -6,18 +6,9 @@ import { presentedRouteService } from '@renderer/services/PresentedRouteService'
 import { openExternalWebsite } from '@renderer/services/website'
 import { getAppEdition } from '@renderer/utils/appEdition'
 import type { CacheAppUpdateState } from '@shared/data/cache/cacheValueTypes'
+import { officialDownloadUrl } from '@shared/utils/officialLinks'
 
 const logger = loggerService.withContext('AppUpdateCheckService')
-
-const OFFICIAL_DOWNLOAD_URLS = {
-  global: 'https://cherryai.com/download',
-  cn: 'https://cherryai.com.cn/download'
-} as const
-
-/** The official download page for this build's edition. */
-export function officialDownloadUrl(): string {
-  return OFFICIAL_DOWNLOAD_URLS[getAppEdition()]
-}
 
 /** How long a manual check may stay "checking" when the updater emits nothing. */
 export const UPDATE_CHECK_EVENT_WAIT_MS = 20_000
@@ -243,7 +234,7 @@ class AppUpdateCheckService {
   }
 
   private async openOfficialReleases(): Promise<void> {
-    await openExternalWebsite(officialDownloadUrl())
+    await openExternalWebsite(officialDownloadUrl(getAppEdition()))
   }
 
   private ownsCheck(owner: number): boolean {

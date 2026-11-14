@@ -5,9 +5,10 @@ import { useTranslation } from 'react-i18next'
 import { Button } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { updateNoticeIsFailure } from '@renderer/hooks/useAppUpdateCheck'
-import { officialDownloadUrl } from '@renderer/services/AppUpdateCheckService'
 import { openExternalWebsite } from '@renderer/services/website'
+import { getAppEdition } from '@renderer/utils/appEdition'
 import type { CacheAppUpdateState } from '@shared/data/cache/cacheValueTypes'
+import { officialDownloadUrl } from '@shared/utils/officialLinks'
 
 const logger = loggerService.withContext('ErrorUpdateBanner')
 
@@ -33,7 +34,7 @@ export function ErrorUpdateBanner({
 
   const openOfficialReleases = () => {
     setReleasesOpenFailed(false)
-    void openExternalWebsite(officialDownloadUrl()).catch((error: unknown) => {
+    void openExternalWebsite(officialDownloadUrl(getAppEdition())).catch((error: unknown) => {
       logger.error('Failed to open official releases', error as Error)
       setReleasesOpenFailed(true)
     })
