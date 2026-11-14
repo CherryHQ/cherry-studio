@@ -1,4 +1,5 @@
 import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
+import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import i18next from 'i18next'
@@ -1381,6 +1382,9 @@ describe('ErrorDetailContent automatic update check', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    MockUsePreferenceUtils.resetMocks()
+    // The preference mock has no app defaults; Auto Update ships enabled.
+    MockUsePreferenceUtils.setPreferenceValue('app.dist.auto_update.enabled', true)
     mocks.appUpdateState = undefined
     // A channel switch drops the reused availability result, so every test asks the feed again.
     appUpdateCheckService.resumeSharedUpdateSession(appUpdateCheckService.invalidateSharedUpdateCheck())
@@ -1423,6 +1427,19 @@ describe('ErrorDetailContent automatic update check', () => {
     await act(async () => {})
     expect(screen.queryByRole('button', { name: 'Update now' })).not.toBeInTheDocument()
     expect(screen.queryByText(UPDATE_CHECK_FAILED)).not.toBeInTheDocument()
+  })
+
+  it('leaves the feed alone on open when automatic updates are off, yet still checks on request', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('app.dist.auto_update.enabled', false)
+    answerQuery(() => Promise.resolve({ status: 'available', currentVersion: '2.0.0', version: '2.1.0' }))
+    const user = userEvent.setup()
+    renderErrorDetailContent({ error: providerError })
+    await act(async () => {})
+
+    expect(updateRouteCalls('app.updater.query_availability')).toHaveLength(0)
+    expect(screen.queryByText(UPDATE_AVAILABLE)).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Check Update' }))
+    await waitFor(() => expect(updateRouteCalls('app.updater.check_for_update')).toHaveLength(1))
   })
 
   it('does not query the feed while an update is already downloading', () => {
