@@ -20,8 +20,10 @@ export {
   type AutoConfigDraft,
   type AutoConfigKind,
   buildAutoConfigInput,
+  getFeaturedMcpName,
   parseAutoConfigDraft,
-  RESOURCE_AUTO_CONFIG_SYSTEM_PROMPT
+  RESOURCE_AUTO_CONFIG_SYSTEM_PROMPT,
+  toFeaturedMcpId
 } from './autoConfigure'
 export {
   type AssistantConfigMcpMode,

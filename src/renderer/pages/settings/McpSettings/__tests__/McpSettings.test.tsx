@@ -84,7 +84,7 @@ vi.mock('../McpPrompt', () => ({ default: () => null }))
 vi.mock('../McpResource', () => ({ default: () => null }))
 vi.mock('../McpTool', () => ({ default: () => null }))
 
-vi.mock('../McpServerFields', async (importOriginal) => {
+vi.mock('@renderer/components/mcp/McpServerFields', async (importOriginal) => {
   const actual = await importOriginal<Record<string, unknown>>()
   return {
     ...actual,

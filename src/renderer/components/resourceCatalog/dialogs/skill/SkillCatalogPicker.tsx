@@ -1,20 +1,11 @@
-import { ChevronDown, FolderSearch, Import, Plus, Search, Sparkles } from 'lucide-react'
+import { FolderSearch, Import, Search, Zap } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import {
-  Button,
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-  Switch
-} from '@cherrystudio/ui'
-import { ResourceCatalogSearchInput } from '@renderer/components/resourceCatalog/ResourceCatalogSearchInput'
 import type { InstalledSkill } from '@shared/data/types/agent'
 
-import { type CatalogItem, CatalogToggleGrid } from '../components/CatalogPicker'
+import { CapabilityIconTile, type CapabilityItem, CapabilityList } from '../components/CapabilityList'
 import { ImportSkillDialog } from './ImportSkillDialog'
 import { SkillMarketplaceDialog } from './SkillMarketplaceDialog'
 import { SystemSkillDialog } from './SystemSkillDialog'
@@ -28,10 +19,19 @@ type SkillCatalogPickerProps = {
   emptyLabel: ReactNode
   portalContainer: HTMLElement | null
   disabled?: boolean
-  trailingItem?: ReactNode
 }
 
-/** Shared Skill search, bulk-selection, and installation surface for Agent forms. */
+const skillIcon = (
+  <CapabilityIconTile>
+    <Zap size={13} strokeWidth={1.6} />
+  </CapabilityIconTile>
+)
+
+/**
+ * Skill list for Agent forms. In create mode builtin skills are shown locked on and never
+ * written to the selection (the server always enables them), and the selection only keeps
+ * skills that are still available.
+ */
 export function SkillCatalogPicker({
   mode,
   skills,
@@ -40,126 +40,66 @@ export function SkillCatalogPicker({
   onSelectedIdsChange,
   emptyLabel,
   portalContainer,
-  disabled = false,
-  trailingItem
+  disabled = false
 }: SkillCatalogPickerProps) {
   const { t } = useTranslation()
-  const [query, setQuery] = useState('')
   const [marketplaceOpen, setMarketplaceOpen] = useState(false)
   const [importOpen, setImportOpen] = useState(false)
   const [systemSkillOpen, setSystemSkillOpen] = useState(false)
   const availableSkills = useMemo(() => skills.filter((skill) => skill.isGlobalEnabled), [skills])
 
-  const builtinIds = useMemo(
+  const items = useMemo<CapabilityItem[]>(
     () =>
-      mode === 'create' ? availableSkills.filter((skill) => skill.source === 'builtin').map((skill) => skill.id) : [],
-    [availableSkills, mode]
-  )
-  const selectableIds = useMemo(
-    () => availableSkills.filter((skill) => mode === 'edit' || skill.source !== 'builtin').map((skill) => skill.id),
-    [availableSkills, mode]
-  )
-  const selectableIdSet = useMemo(() => new Set(selectableIds), [selectableIds])
-  const preservedHiddenSelectedIds = useMemo(
-    () => (mode === 'edit' ? selectedIds.filter((id) => !selectableIdSet.has(id)) : []),
-    [mode, selectableIdSet, selectedIds]
-  )
-  const selectedIdSet = useMemo(() => new Set(selectedIds), [selectedIds])
-  const enabledIds = useMemo(() => new Set([...selectedIds, ...builtinIds]), [builtinIds, selectedIds])
-  const catalog = useMemo<CatalogItem[]>(() => {
-    const normalizedQuery = query.trim().toLowerCase()
-
-    return availableSkills
-      .filter((skill) => !normalizedQuery || skill.name.toLowerCase().includes(normalizedQuery))
-      .map((skill) => {
-        if (mode === 'create' && skill.source === 'builtin') {
-          return {
-            id: skill.id,
-            name: skill.name,
-            disableToggle: true,
-            inactiveBadge: t('library.config.dialogs.create.capability.builtin_badge')
-          }
-        }
-
+      availableSkills.map((skill) => {
+        const locked = mode === 'create' && skill.source === 'builtin'
         return {
           id: skill.id,
           name: skill.name,
-          description: mode === 'edit' ? skill.description : undefined,
-          icon: mode === 'edit' ? <Sparkles size={13} strokeWidth={1.5} className="text-warning" /> : undefined
+          description: skill.description,
+          icon: skillIcon,
+          locked,
+          badge: locked ? t('library.config.dialogs.create.capability.builtin_badge') : undefined
         }
-      })
-  }, [availableSkills, mode, query, t])
-  const allSelected = selectableIds.length > 0 && selectableIds.every((id) => selectedIdSet.has(id))
-
-  const setSelected = (id: string, enabled: boolean) => {
-    onSelectedIdsChange(
-      enabled ? Array.from(new Set([...selectedIds, id])) : selectedIds.filter((selectedId) => selectedId !== id)
-    )
+      }),
+    [availableSkills, mode, t]
+  )
+  const changeSelection = (ids: string[]) => {
+    if (mode === 'edit') return onSelectedIdsChange(ids)
+    const selectable = new Set(items.filter((item) => !item.locked).map((item) => item.id))
+    onSelectedIdsChange(ids.filter((id) => selectable.has(id)))
   }
 
   return (
-    <div className={mode === 'create' ? 'flex flex-col gap-3' : 'grid gap-4'}>
-      <div className="flex items-center gap-2">
-        <ResourceCatalogSearchInput
-          value={query}
-          onValueChange={setQuery}
-          placeholder={t('library.config.dialogs.create.capability.search')}
-          className="min-w-0 flex-1"
-        />
-        <DropdownMenu modal={false}>
-          <DropdownMenuTrigger asChild>
-            <Button type="button" size="sm" className="shrink-0" disabled={disabled}>
-              <Plus size={13} />
-              {t('library.skill_add.add')}
-              <ChevronDown size={13} />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="min-w-44" portalContainer={portalContainer}>
-            <DropdownMenuItem onSelect={() => setMarketplaceOpen(true)}>
-              <Search />
-              {t('library.skill_add.online_search')}
-            </DropdownMenuItem>
-            <DropdownMenuItem onSelect={() => setImportOpen(true)}>
-              <Import />
-              {t('library.skill_add.local_import')}
-            </DropdownMenuItem>
-            <DropdownMenuItem onSelect={() => setSystemSkillOpen(true)}>
-              <FolderSearch />
-              {t('library.skill_add.system_search')}
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
-
-      <div className="flex items-center justify-between gap-3">
-        <span className="text-sm font-medium text-foreground">
-          {t('library.config.agent.section.tools.skills_enable_all')}
-        </span>
-        <Switch
-          size="sm"
-          checked={allSelected}
-          disabled={loading || disabled || selectableIds.length === 0}
-          onCheckedChange={(selected) =>
-            onSelectedIdsChange(
-              selected ? [...preservedHiddenSelectedIds, ...selectableIds] : preservedHiddenSelectedIds
-            )
-          }
-          aria-label={t('library.config.agent.section.tools.skills_enable_all')}
-        />
-      </div>
-
-      <CatalogToggleGrid
-        items={catalog}
-        enabledIds={enabledIds}
-        loading={loading}
-        disabled={disabled}
-        onToggle={setSelected}
-        emptyLabel={emptyLabel}
-        portalContainer={portalContainer}
-        trailingItem={trailingItem}
-        variant={mode === 'create' ? 'checkbox' : 'switch'}
-      />
-
+    <CapabilityList
+      items={items}
+      selectedIds={selectedIds}
+      onSelectedIdsChange={changeSelection}
+      searchPlaceholder={t('library.config.dialogs.create.capability.search')}
+      addLabel={t('library.skill_add.add')}
+      addActions={[
+        {
+          id: 'online',
+          label: t('library.skill_add.online_search'),
+          icon: <Search />,
+          onSelect: () => setMarketplaceOpen(true)
+        },
+        {
+          id: 'import',
+          label: t('library.skill_add.local_import'),
+          icon: <Import />,
+          onSelect: () => setImportOpen(true)
+        },
+        {
+          id: 'system',
+          label: t('library.skill_add.system_search'),
+          icon: <FolderSearch />,
+          onSelect: () => setSystemSkillOpen(true)
+        }
+      ]}
+      emptyLabel={emptyLabel}
+      portalContainer={portalContainer}
+      loading={loading}
+      disabled={disabled}>
       <SkillMarketplaceDialog open={marketplaceOpen} onOpenChange={setMarketplaceOpen} />
       <ImportSkillDialog open={importOpen} onOpenChange={setImportOpen} />
       <SystemSkillDialog
@@ -169,6 +109,6 @@ export function SkillCatalogPicker({
         selectedSkillIds={selectedIds}
         onEnabled={(skillId) => onSelectedIdsChange(Array.from(new Set([...selectedIds, skillId])))}
       />
-    </div>
+    </CapabilityList>
   )
 }
