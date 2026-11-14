@@ -136,7 +136,7 @@ const MiniApp: FC<Props> = ({
       toast.error({ title: t(fallbackKey), description: e.message, data: { suppressDetail: true } })
       return
     }
-    toastAppError(t(fallbackKey), e, { source: 'miniApp', operation: fallbackKey })
+    toastAppError(t(fallbackKey), e, { source: 'miniapp', operation: 'miniapp.update_status', recordId: app.appId })
   }
 
   const togglePinLabel = isPinned ? t('miniApp.remove_from_launchpad') : t('miniApp.add_to_launchpad')
@@ -163,7 +163,11 @@ const MiniApp: FC<Props> = ({
       if (isDataApiError(error) && error.code === ErrorCode.NOT_FOUND) {
         toast.warning(t('miniApp.error.not_found'))
       } else {
-        toast.error(t('settings.miniApps.custom.remove_error'))
+        toastAppError(t('settings.miniApps.custom.remove_error'), error, {
+          source: 'miniapp',
+          operation: 'miniapp.remove_custom',
+          recordId: app.appId
+        })
       }
       logger.error('Failed to remove custom mini app:', error as Error)
     } finally {
@@ -179,7 +183,18 @@ const MiniApp: FC<Props> = ({
       await ipcApi.request(route, { appId: app.appId })
       setPendingOpen(false)
     } catch (error) {
-      toast.error(t('miniApp.detail.action_error', { message: error instanceof Error ? error.message : String(error) }))
+      toastAppError(
+        t('miniApp.detail.action_error', { message: error instanceof Error ? error.message : String(error) }),
+        error,
+        {
+          source: 'miniapp',
+          operation:
+            route === 'mini_app.grant.approve_pending'
+              ? 'miniapp.grant.approve_pending'
+              : 'miniapp.grant.snooze_pending',
+          recordId: app.appId
+        }
+      )
     } finally {
       setPendingBusy(false)
     }
