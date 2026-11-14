@@ -59,6 +59,7 @@ import { createAiRepair } from '../../../tools/adapters/aiSdk/repair'
 import type { ToolEntry } from '../../../tools/adapters/aiSdk/types'
 import { resolveConfiguredPaintingModel } from '../../../tools/painting'
 import type { AiChatRequest, CallOverrides } from '../../../types'
+import { applyChatPromptCacheIdentity } from '../../../utils/chatPromptCacheKey'
 import {
   adjustMaxOutputTokensForReasoning,
   filterStandardParams,
@@ -747,6 +748,16 @@ function buildAgentOptions(
     effectiveProviderOptions = { ...effectiveProviderOptions, [namespace]: options }
     // Compatible adapters use different namespaces; Responses can drop tiers for non-OpenAI model IDs.
     bodyParams = { ...bodyParams, service_tier: provider.fastMode.serviceTier ?? 'priority' }
+  }
+  // Caller-owned turns (the API gateway) use a fresh stream id as conversation.id.
+  // A chat-derived key would change on every request and bust the caller's cache.
+  if (request.contextOwner !== 'caller') {
+    effectiveProviderOptions = applyChatPromptCacheIdentity(
+      provider,
+      model,
+      effectiveProviderOptions,
+      request.conversation.id
+    )
   }
   const effectiveBudgetTokens = resolveEffectiveThinkingBudget(
     effectiveProviderOptions,
