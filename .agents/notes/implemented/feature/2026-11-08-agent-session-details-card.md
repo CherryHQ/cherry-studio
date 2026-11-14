@@ -10,7 +10,7 @@ Agent session status is registered as a full-height right-panel capability. Even
 
 The requested reference is T3 Code's content-height thread details card: compact rows, quiet section dividers, an inline card when space permits, and a toolbar-anchored popup otherwise. Only Agent session details are in scope. Files, Browser, Trace, resources and task execution views retain their existing large panels.
 
-This is a new presentation decision. It preserves the data semantics in [Harness-owned context usage](../../proposed/architecture/2026-10-30-agent-context-usage.md) and the work-panel identity rules in [Bind right-panel presentation to its instance](../../implemented/bug-fix/2026-10-31-right-panel-presentation-identity.md). It does not claim to complete either proposal's outstanding acceptance work.
+This is a new presentation decision. It preserves the data semantics in [Harness-owned context usage](../../proposed/architecture/2026-10-30-agent-context-usage.md) and the work-panel identity rules in [Bind right-panel presentation to its instance](../../implemented/bug-fix/2026-10-31-right-panel-presentation-identity.md). It does not claim to complete either proposal's outstanding acceptance work. Partially superseded: the card becomes mutually exclusive with the chat profile pane — see [Profile pane for Assistants and Agents in chat](../../proposed/feature/2026-11-12-chat-profile-pane.md).
 
 ## Decision
 
