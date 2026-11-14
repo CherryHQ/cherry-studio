@@ -72,4 +72,49 @@ describe('ScrollArea content padding ownership', () => {
   it('does not interpret arbitrary function arguments as classes', () => {
     expect(lint(`${named}<ScrollArea className={translate('p-3')} />`)).toEqual([])
   })
+
+  it.each(['DynamicVirtualList', 'GroupedVirtualList', 'GroupedSortableVirtualList'])(
+    'rejects padding forwarded to the viewport by %s',
+    (component) => {
+      const source = `import { ${component} as List } from '@renderer/components/VirtualList';`
+      expect(lint(`${source}<List className="px-4" />`)).toHaveLength(1)
+      expect(lint(`${source}<List scrollAreaClassName="pr-2" />`)).toHaveLength(1)
+      expect(lint(`${source}<List contentProps={{className: 'px-4'}} />`)).toEqual([])
+    }
+  )
+
+  it('recognizes default and namespace virtual list imports', () => {
+    expect(
+      lint('import List from "@renderer/components/VirtualList/DynamicVirtualList"; <List className="px-3" />')
+    ).toHaveLength(1)
+    expect(
+      lint('import * as Lists from "@renderer/components/VirtualList"; <Lists.GroupedVirtualList className="pb-4" />')
+    ).toHaveLength(1)
+  })
+
+  it('catches padding in resolvable prop spreads and inline styles', () => {
+    expect(lint(`${named}const props = {className: 'p-3'}; <ScrollArea {...props} />`)).toHaveLength(1)
+    expect(lint(`${named}<ScrollArea style={{paddingInline: 12}} />`)).toHaveLength(1)
+    expect(lint(`${named}<ScrollArea viewportProps={{style: {paddingTop: 8}}} />`)).toHaveLength(1)
+    expect(
+      lint(
+        'import { DynamicVirtualList } from "@renderer/components/VirtualList"; <DynamicVirtualList scrollerStyle={{paddingBottom: 20}} />'
+      )
+    ).toHaveLength(1)
+  })
+
+  it('rejects arbitrary padding properties while allowing descendant padding', () => {
+    expect(lint(`${named}<ScrollArea className="[padding-inline:12px]" />`)).toHaveLength(1)
+    expect(lint(`${named}<ScrollArea className="[&>div]:px-3" />`)).toEqual([])
+  })
+
+  it('allows content spacing and externally scrolling virtual lists', () => {
+    const source = 'import { DynamicVirtualList } from "@renderer/components/VirtualList";'
+    expect(lint(`${source}<DynamicVirtualList contentProps={{style: {padding: 12}}} />`)).toEqual([])
+    expect(lint(`${source}<DynamicVirtualList externalScrollElement={viewport} className="px-3" />`)).toEqual([])
+    expect(lint(`${source}<DynamicVirtualList externalScrollElement={undefined} className="px-3" />`)).toHaveLength(1)
+    expect(
+      lint(`${source}function Panel(DynamicVirtualList) { return <DynamicVirtualList className="p-3" /> }`)
+    ).toEqual([])
+  })
 })

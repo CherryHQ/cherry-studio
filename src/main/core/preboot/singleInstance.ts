@@ -31,7 +31,7 @@ const logger = loggerService.withContext('SingleInstance')
  *     cannot copy/commit the same `temp.user_data_relocation`.
  *   - Does not depend on any lifecycle-managed service: `application.quit()`
  *     is the container's own top-level method, identical in spirit to
- *     how v2MigrationGate uses it on its fatal branches.
+ *     how legacyUpgradeGate uses it on its fatal branches.
  *
  * See core/preboot/README.md for the preboot membership criteria.
  */

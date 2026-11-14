@@ -5,7 +5,7 @@ import { ReorderableList, ScrollArea, Sortable } from '@cherrystudio/ui'
 import { providerListClasses } from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives'
 import type { Provider } from '@shared/data/types/provider'
 
-import { groupProvidersByPreset } from './providerGrouping'
+import { groupProvidersByPreset, restoreProviderStatusSlots } from './providerGrouping'
 import ProviderListGroup from './ProviderListGroup'
 
 export type ProviderListContentItemState = {
@@ -65,8 +65,25 @@ function reorderProviderBlocks({
     return providers
   }
 
+  const sourceMembers = source.kind === 'group' ? source.members : [source.provider]
+  const destinationMembers = target.kind === 'group' ? target.members : [target.provider]
+  // Enabled and disabled rows occupy separate display partitions. Crossing that
+  // boundary cannot change status, so reject the drop rather than persist a jump.
+  if (
+    sourceMembers.some((provider) => provider.isEnabled) !== destinationMembers.some((provider) => provider.isEnabled)
+  ) {
+    return providers
+  }
+
   const sourceIds = new Set(source.providerIds)
-  const targetIds = new Set(target.providerIds)
+  // A mixed-status group is displayed where its enabled members occur, not
+  // where an earlier disabled member sits in storage. Anchor to that displayed
+  // partition while still moving every source member as one full block.
+  const targetMembers = target.kind === 'group' ? target.members : [target.provider]
+  const enabledTargetMembers = targetMembers.filter((provider) => provider.isEnabled)
+  const targetIds = new Set(
+    (enabledTargetMembers.length > 0 ? enabledTargetMembers : targetMembers).map((provider) => provider.id)
+  )
   const moving = providers.filter((provider) => sourceIds.has(provider.id))
   const remaining = providers.filter((provider) => !sourceIds.has(provider.id))
 
@@ -111,11 +128,19 @@ export default function ProviderListContent({
 
   const renderFlat = () => (
     <ReorderableList
-      items={providers}
+      // Match the displayed status partition before translating visible indexes.
+      // Crossing the boundary then leaves each status's relative order intact.
+      items={[
+        ...providers.filter((provider) => provider.isEnabled),
+        ...providers.filter((provider) => !provider.isEnabled)
+      ]}
       visibleItems={visibleProviders}
       getId={(provider) => provider.id}
       onDragStateChange={onDragStateChange}
-      onReorder={onReorder}
+      onReorder={(reordered) => {
+        const next = restoreProviderStatusSlots(providers, reordered)
+        if (next !== providers) return onReorder(next)
+      }}
       onReorderError={onReorderError}
       className="w-full"
       gap="0.5rem"

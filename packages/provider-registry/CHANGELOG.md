@@ -1,5 +1,21 @@
 # @cherrystudio/provider-registry
 
+## 0.6.0
+
+### Minor Changes
+
+- [#24517](https://github.com/CherryHQ/cherry-studio/pull/24517) [`5db46f5`](https://github.com/CherryHQ/cherry-studio/commit/5db46f59b909f21bee6496816f078da83b220965) Thanks [@DeJeune](https://github.com/DeJeune)! - Add Gemini 4 Hydrogen with low, medium, high, and xhigh reasoning levels. Update Google SDK support and the Pi adapter patch so all four levels reach the provider.
+
+### Patch Changes
+
+- [#24476](https://github.com/CherryHQ/cherry-studio/pull/24476) [`f62d636`](https://github.com/CherryHQ/cherry-studio/commit/f62d636d5b1e75378ae6ba848456cebd2e73a6b8) Thanks [@cherry-coding](https://github.com/apps/cherry-coding)! - Add Gemini 4 Carbon to the model catalog with low/medium/high reasoning effort, and recognize the id on custom providers.
+
+## 0.5.2
+
+### Patch Changes
+
+- [#23402](https://github.com/CherryHQ/cherry-studio/pull/23402) [`5ed9f0c`](https://github.com/CherryHQ/cherry-studio/commit/5ed9f0c7068eae541ac9897ce7c75a2b446a3578) Thanks [@copilot-swe-agent](https://github.com/apps/copilot-swe-agent)! - Route Claude Opus 5.5 Bedrock requests through the adaptive reasoning wire contract.
+
 ## 0.5.1
 
 ### Patch Changes
