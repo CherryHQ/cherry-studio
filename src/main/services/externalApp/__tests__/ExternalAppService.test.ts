@@ -143,8 +143,19 @@ describe('ExternalAppService', () => {
     ])
     await service.openTarget('/tmp/a.txt', 'system_default')
     await service.openTarget('/tmp/a.txt', 'file_manager')
-    expect(mocks.safeOpen).toHaveBeenCalledWith(path.resolve('/tmp/a.txt'))
+    expect(mocks.safeOpen).toHaveBeenCalledExactlyOnceWith(path.resolve('/tmp/a.txt'), {
+      channel: 'external_app.target.open'
+    })
     expect(mocks.showInFolder).toHaveBeenCalledWith(path.resolve('/tmp/a.txt'))
+  })
+
+  it('passes external-app provenance when opening a directory in the file manager', async () => {
+    mocks.statSync.mockReturnValue({ isDirectory: () => true })
+    await new ExternalAppService().openTarget('/tmp/folder', 'file_manager')
+    expect(mocks.safeOpen).toHaveBeenCalledExactlyOnceWith(path.resolve('/tmp/folder'), {
+      channel: 'external_app.target.open'
+    })
+    expect(mocks.showInFolder).not.toHaveBeenCalled()
   })
 
   it('opens a discovered application using its private native identity', async () => {

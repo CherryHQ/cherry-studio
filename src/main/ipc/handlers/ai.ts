@@ -315,7 +315,9 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
     application.get('AgentSessionRuntimeService').stopBackgroundTask(sessionId, taskId),
   'ai.agent.session.open_path': async ({ sessionId, path }) => {
     const workspacePath = agentSessionService.getById(sessionId).workspace.path
-    await openRequestPath(path, AbsoluteFilePathSchema.safeParse(workspacePath).data)
+    await openRequestPath(path, AbsoluteFilePathSchema.safeParse(workspacePath).data, {
+      channel: 'ai.agent.session.open_path'
+    })
   },
 
   // ── Agent scheduled-task commands — thin delegation to the owning AgentJobsService. ──
