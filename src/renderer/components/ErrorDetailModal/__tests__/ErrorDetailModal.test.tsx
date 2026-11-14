@@ -1353,6 +1353,27 @@ describe('ErrorDetailContent diagnostics', () => {
       process.off('unhandledRejection', onProcessRejection)
     }
   })
+  it('drops a releases-open failure once a different update notice replaces it', async () => {
+    const user = userEvent.setup()
+    mocks.request.mockImplementation((channel: string) =>
+      channel === 'system.shell.open_external_website'
+        ? Promise.reject(new Error('shell failed'))
+        : Promise.resolve({ status: 'completed' })
+    )
+    renderErrorDetailContent({ error: providerError })
+    act(() => {
+      appUpdateCheckService.setUpdateNotice('settings.about.updateError')
+    })
+    await user.click(screen.getByRole('button', { name: 'Open download page' }))
+    expect(await screen.findByText('Error opening the external browser.')).toBeInTheDocument()
+
+    act(() => {
+      appUpdateCheckService.setUpdateNotice('settings.about.updateNotPublished')
+    })
+
+    expect(screen.getByText('No published update is available yet. Please try again later.')).toBeInTheDocument()
+    expect(screen.queryByText('Error opening the external browser.')).not.toBeInTheDocument()
+  })
 })
 
 describe('ErrorDetailContent update check', () => {
