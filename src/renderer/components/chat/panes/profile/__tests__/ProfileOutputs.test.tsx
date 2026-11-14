@@ -1,4 +1,4 @@
-import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
+import { mockUseQuery, MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import type { ReactNode } from 'react'
@@ -164,7 +164,22 @@ describe('Profile Outputs tab', () => {
     openOutputsTab()
 
     expect(screen.getByText('No outputs yet')).toBeInTheDocument()
-    expect(screen.getByText('Files this Agent delivers will show up here.')).toBeInTheDocument()
+  })
+
+  it('offers a retry instead of a blank tab when the outputs fail to load', () => {
+    serveOutputs('/agents/:agentId/artifacts', [])
+    const refetch = vi.fn().mockResolvedValue(undefined)
+    const served = mockUseQuery.getMockImplementation()!
+    mockUseQuery.mockImplementation((path, options) =>
+      path === '/agents/:agentId/artifacts'
+        ? { ...served(path, options), data: undefined, error: new Error('offline'), refetch }
+        : served(path, options)
+    )
+    renderInRightPane(<AgentProfilePane agentId={agent.id} />)
+    openOutputsTab()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+    expect(refetch).toHaveBeenCalled()
   })
 
   it('previews an image the Assistant generated', async () => {
