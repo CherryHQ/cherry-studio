@@ -4,6 +4,7 @@ import type { FallbackProps } from 'react-error-boundary'
 import { ErrorBoundary } from 'react-error-boundary'
 import { useTranslation } from 'react-i18next'
 
+import { Button } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
 import { ErrorNotice } from '@renderer/components/ErrorNotice'
@@ -33,12 +34,14 @@ const DefaultFallback: ComponentType<FallbackProps> = (props: FallbackProps): Re
         }}
         extra={
           isDev ? (
-            <button
+            <Button
               type="button"
-              className="cursor-pointer text-foreground-tertiary text-xs transition-colors hover:text-foreground"
+              variant="link"
+              size="sm"
+              className="h-auto min-h-0 px-0 text-foreground-tertiary shadow-none hover:text-foreground hover:no-underline dark:text-foreground-tertiary dark:hover:text-foreground"
               onClick={() => void debug()}>
               {t('error.boundary.default.devtools')}
-            </button>
+            </Button>
           ) : undefined
         }
         detail={<ErrorDetailAction error={error} source="renderer" operation="react.render" />}

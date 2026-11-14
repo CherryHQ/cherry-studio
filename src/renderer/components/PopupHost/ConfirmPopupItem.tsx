@@ -174,7 +174,6 @@ export default function ConfirmPopupItem({ entry }: { entry: ConfirmPopupEntry }
             {showDetails ? (
               <ErrorDetailLink
                 className="me-auto"
-                label={i18n.t('error.diagnosis.view_details')}
                 onClick={(event) => {
                   event.preventDefault()
                   if (!presentedContext) return
