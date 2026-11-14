@@ -1,8 +1,8 @@
 import { ChevronDown, ChevronRight } from 'lucide-react'
-import type { ReactNode } from 'react'
+import { type ReactNode, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button, Skeleton } from '@cherrystudio/ui'
+import { Button, SegmentedControl, Skeleton } from '@cherrystudio/ui'
 import { cn } from '@renderer/utils/style'
 
 /** A titled group: the label row (with an optional action on the right) above a bordered card. */
@@ -167,5 +167,30 @@ export function ProfileStartersSection({
         )}
       </div>
     </ProfilePaneSection>
+  )
+}
+
+type ProfilePaneTab = 'activity' | 'outputs'
+
+/** The Activity and Outputs tabs below the header; Activity shows first. */
+export function ProfilePaneTabs({ activity, outputs }: { activity: ReactNode; outputs: ReactNode }) {
+  const { t } = useTranslation()
+  const [tab, setTab] = useState<ProfilePaneTab>('activity')
+
+  return (
+    <>
+      <SegmentedControl
+        size="sm"
+        className="self-center"
+        aria-label={t('chat.profile_pane.tabs.label')}
+        value={tab}
+        onValueChange={setTab}
+        options={[
+          { value: 'activity', label: t('chat.profile_pane.tabs.activity') },
+          { value: 'outputs', label: t('chat.profile_pane.tabs.outputs') }
+        ]}
+      />
+      {tab === 'activity' ? activity : outputs}
+    </>
   )
 }
