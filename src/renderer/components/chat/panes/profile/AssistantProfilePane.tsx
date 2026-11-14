@@ -5,6 +5,7 @@ import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { AssistantAvatarPicker } from '@renderer/components/resourceCatalog/dialogs/components/AssistantAvatarPicker'
 import { KnowledgeBaseAvatar } from '@renderer/components/resourceCatalog/dialogs/components/EditDialogShared'
 import { openResourceEditDialog } from '@renderer/components/resourceCatalog/dialogs/ResourceEditDialogEventHost'
+import { useDataChange, useQuery } from '@renderer/data/hooks/useDataApi'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBase'
 import type { Assistant } from '@shared/data/types/assistant'
@@ -17,9 +18,22 @@ import {
   ProfileSettingButton,
   ProfileSettingsRow
 } from './ProfilePaneParts'
+import { ProfileStatTiles, RecentTopicsSection } from './ProfilePaneStats'
 
 /** Profile of the conversation's Assistant: who it is, its activity, and a few settings. */
-export function AssistantProfilePane({ assistantId }: { assistantId: string }) {
+export function AssistantProfilePane({
+  assistantId,
+  activeTopicId,
+  onOpenTopic,
+  onShowAllTopics
+}: {
+  assistantId: string
+  /** The conversation's topic, marked in the recent topics. */
+  activeTopicId?: string
+  onOpenTopic?: (topicId: string) => void
+  /** Shows the topic list of this Assistant. */
+  onShowAllTopics?: () => void
+}) {
   const { t } = useTranslation()
   const { assistant, model, updateAssistantSettings } = useAssistant(assistantId)
 
@@ -44,6 +58,12 @@ export function AssistantProfilePane({ assistantId }: { assistantId: string }) {
         }
         name={assistant.name}
         description={assistant.description}
+      />
+      <AssistantUsage
+        assistantId={assistant.id}
+        activeTopicId={activeTopicId}
+        onOpenTopic={onOpenTopic}
+        onShowAllTopics={onShowAllTopics}
       />
       <KnowledgeBasesSection assistant={assistant} onManage={() => openEdit('tools.knowledge')} />
       <ProfilePaneSection
@@ -99,5 +119,41 @@ function KnowledgeBasesSection({ assistant, onManage }: { assistant: Assistant; 
         </div>
       ))}
     </ProfilePaneSection>
+  )
+}
+
+function AssistantUsage({
+  assistantId,
+  activeTopicId,
+  onOpenTopic,
+  onShowAllTopics
+}: {
+  assistantId: string
+  activeTopicId?: string
+  onOpenTopic?: (topicId: string) => void
+  onShowAllTopics?: () => void
+}) {
+  const { t } = useTranslation()
+  const { data: stats, refetch } = useQuery('/assistants/:id/stats', { params: { id: assistantId } })
+  useDataChange('/topics', () => void refetch())
+  useDataChange('/ai-usage-records', () => void refetch())
+  if (!stats) return null
+
+  return (
+    <>
+      <ProfileStatTiles
+        stats={[
+          { label: t('chat.profile_pane.stats.topics'), value: stats.topicCount },
+          { label: t('chat.profile_pane.stats.messages'), value: stats.messageCount },
+          { label: t('chat.profile_pane.stats.recent_tokens'), value: stats.recentTokens }
+        ]}
+      />
+      <RecentTopicsSection
+        topics={stats.recentTopics}
+        activeTopicId={activeTopicId}
+        onOpenTopic={onOpenTopic}
+        onShowAll={onShowAllTopics}
+      />
+    </>
   )
 }
