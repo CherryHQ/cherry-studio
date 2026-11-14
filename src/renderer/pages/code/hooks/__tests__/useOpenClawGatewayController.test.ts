@@ -2,6 +2,7 @@ import { act, renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { cacheService } from '@data/CacheService'
+import { appErrorContextService } from '@renderer/services/AppErrorContextService'
 import type { Provider } from '@shared/data/types/provider'
 import { CodeCli } from '@shared/types/codeCli'
 
@@ -184,14 +185,11 @@ describe('useOpenClawGatewayController', () => {
     })
 
     expect(mocks.requestMock).not.toHaveBeenCalledWith('openclaw.start_gateway', expect.anything())
-    expect(mocks.toastError).toHaveBeenCalledWith(
-      expect.objectContaining({
-        title: 'code.apply_failed',
-        description: validationMessage,
-        cause: expect.objectContaining({ message: validationMessage }),
-        data: { source: 'code.openclaw', operation: 'openclaw.sync_config' }
-      })
-    )
+    const payload = mocks.toastError.mock.calls[0][0]
+    expect(payload).toMatchObject({ title: 'code.apply_failed', description: validationMessage })
+    const detail = appErrorContextService.contextForHostError('openclaw-sync-rejected', payload)
+    expect(detail).toMatchObject({ message: validationMessage, operation: 'openclaw.sync_config' })
+    expect(detail.stack).toBeUndefined()
   })
 
   it('tells the user to pick another port when the gateway port is taken', async () => {

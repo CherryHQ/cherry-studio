@@ -90,7 +90,7 @@ export function useOpenClawGatewayController({
         toast.error({
           title: t('code.apply_failed'),
           description: detail,
-          cause: detail ? new Error(detail) : syncResult,
+          cause: detail ? { message: detail } : undefined,
           data: { source: 'code.openclaw', operation: 'openclaw.sync_config' }
         })
         return
@@ -102,7 +102,7 @@ export function useOpenClawGatewayController({
         toast.error({
           title: t('code.launch.error'),
           description: detail,
-          cause: detail ? new Error(detail) : startResult,
+          cause: detail ? { message: detail } : undefined,
           data: { source: 'code.openclaw', operation: 'openclaw.start_gateway' }
         })
         return
@@ -129,7 +129,7 @@ export function useOpenClawGatewayController({
         toast.error({
           title: t('code.stop_failed'),
           description: detail,
-          cause: detail ? new Error(detail) : result,
+          cause: detail ? { message: detail } : undefined,
           data: { source: 'code.openclaw', operation: 'openclaw.stop_gateway' }
         })
         return

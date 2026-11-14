@@ -1,6 +1,7 @@
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { appErrorContextService } from '@renderer/services/AppErrorContextService'
 import { toast } from '@renderer/services/toast'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
@@ -175,14 +176,17 @@ describe('useLaunchDialogController', () => {
       expect.objectContaining({ cliTool: CodeCli.QODER_CLI, directory: '/tmp/project', mode: 'own-login' })
     )
     expect(result.current.launchDialogProps.open).toBe(true)
-    expect(toast.error).toHaveBeenCalledWith(
-      expect.objectContaining({
-        title: 'code.launch.error',
-        description: 'Directory does not exist: /tmp/project',
-        cause: expect.objectContaining({ message: 'Directory does not exist: /tmp/project' }),
-        data: { source: 'code.launch', operation: 'code_cli.run' }
-      })
-    )
+    const payload = vi.mocked(toast.error).mock.calls[0][0] as Parameters<
+      typeof appErrorContextService.contextForHostError
+    >[1]
+    expect(payload).toMatchObject({ title: 'code.launch.error', description: 'Directory does not exist: /tmp/project' })
+    const detail = appErrorContextService.contextForHostError('launch-run-rejected', payload)
+    expect(detail).toMatchObject({
+      message: 'Directory does not exist: /tmp/project',
+      operation: 'code_cli.run',
+      source: 'code.launch'
+    })
+    expect(detail.stack).toBeUndefined()
   })
 
   // The run payload's `gateway` flag is derived from the enabled provider: a CLI (here gemini-cli)
