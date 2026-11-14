@@ -613,6 +613,8 @@ beforeAll(() => {
 
 beforeEach(() => {
   promptProcessorMock.mockReset().mockImplementation(({ prompt }: { prompt: string }) => prompt)
+  // The settings page reads the heartbeat document on open; IPC always answers with a promise.
+  ipcRequestMock.mockReset().mockResolvedValue({ content: '' })
   installedSkillsState.current = {
     skills: [
       {
@@ -717,7 +719,7 @@ function settingsLink() {
   return screen.getByRole('button', { name: 'Open model settings' })
 }
 
-/** Opens a More settings row's sub-page by the row's label. */
+/** Opens a settings row's sub-page by the row's label. */
 async function openSubPage(user: ReturnType<typeof userEvent.setup>, label: string) {
   await user.click(screen.getByRole('button', { name: new RegExp(`^${label}:`) }))
 }
@@ -741,7 +743,6 @@ async function expectVariablesHelpOnOpen() {
 }
 
 function openGroupSelect() {
-  fireEvent.click(screen.getByRole('button', { name: 'More settings' }))
   const select = screen.getByRole('combobox', { name: 'Group' })
   fireEvent.pointerDown(select)
   fireEvent.click(select)
@@ -913,11 +914,9 @@ describe('edit dialogs', () => {
     }
     render(<Host />)
     const editParameter = async (value: string) => {
-      await user.click(screen.getByRole('button', { name: 'More settings' }))
       await openSubPage(user, 'Custom parameters')
       await user.clear(screen.getByRole('textbox', { name: 'Parameter value: stop' }))
       await user.type(screen.getByRole('textbox', { name: 'Parameter value: stop' }), value)
-      await back(user)
       await back(user)
     }
     await editParameter('TEMP')
@@ -1225,7 +1224,6 @@ describe('edit dialogs', () => {
   it('clears the assistant group from the single-select group field', async () => {
     render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'More settings' }))
     const clearButton = screen.getByRole('button', { name: 'Group Clear' })
     fireEvent.click(clearButton)
     await waitFor(() =>
@@ -1270,11 +1268,9 @@ describe('edit dialogs', () => {
       target: { value: 'Updated instructions {{model_name}}' }
     })
     await back(user)
-    await back(user)
     const modelTrigger = screen.getByRole('button', { name: 'Model' })
     expect(modelTrigger).toHaveTextContent('Old Model')
     await user.click(screen.getByRole('button', { name: 'Pick model' }))
-    await user.click(screen.getByRole('button', { name: 'More settings' }))
     await openSubPage(user, 'System Prompt')
 
     await waitFor(() =>
@@ -1440,10 +1436,9 @@ describe('edit dialogs', () => {
     )
   })
 
-  it('saves the Assistant reply language from More settings, starting from no constraint', async () => {
+  it('saves the Assistant reply language from the Answers card, starting from no constraint', async () => {
     render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'More settings' }))
     const answers = await screen.findByRole('region', { name: 'Answers' })
     const select = within(answers).getByRole('combobox', { name: 'Reply language' })
     expect(select).toHaveTextContent('No constraint')
@@ -1463,7 +1458,6 @@ describe('edit dialogs', () => {
     fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Local name' } })
     await waitFor(() => expect(updateAgentMock).toHaveBeenCalled())
     updateAgentMock.mockClear()
-    await user.click(screen.getByRole('button', { name: 'More settings' }))
     await user.click(screen.getByRole('combobox', { name: 'Permission mode' }))
     await user.click(screen.getByRole('option', { name: /Full Access/ }))
     expect(screen.getByText('Enable Full Access?')).toBeInTheDocument()
@@ -1474,7 +1468,6 @@ describe('edit dialogs', () => {
       />
     )
     await waitFor(() => expect(screen.queryByText('Enable Full Access?')).not.toBeInTheDocument())
-    await back(user)
     expect(screen.getByLabelText('Name')).toHaveValue('Local name')
     expect(updateAgentMock).not.toHaveBeenCalled()
   })
@@ -1549,7 +1542,6 @@ describe('edit dialogs', () => {
       refreshing: false
     }
     rerender(<AgentEditDialog {...props} />)
-    fireEvent.click(screen.getByRole('button', { name: 'More settings' }))
     fireEvent.click(screen.getByRole('button', { name: /^技能:/ }))
     await waitFor(() => {
       expect(screen.getByRole('switch', { name: 'Skill One' })).toBeChecked()
@@ -1621,14 +1613,13 @@ describe('edit dialogs', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Back' }))
 
     await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false))
-    expect(screen.getByRole('heading', { name: 'More settings' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Edit Agent' })).toBeInTheDocument()
   })
 
   it('submits assistant knowledge, MCP, and model parameter changes', async () => {
     const user = userEvent.setup()
     render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} />)
 
-    await user.click(screen.getByRole('button', { name: 'More settings' }))
     await openSubPage(user, 'Knowledge')
     await user.click(await screen.findByRole('switch', { name: 'Knowledge One' }))
     await back(user)
@@ -1675,7 +1666,6 @@ describe('edit dialogs', () => {
       />
     )
 
-    fireEvent.click(screen.getByRole('button', { name: 'More settings' }))
     fireEvent.click(screen.getByRole('button', { name: /^Custom parameters:/ }))
 
     expect(await screen.findByRole('textbox', { name: 'Parameter value: stop' })).toHaveValue('END')
@@ -1701,7 +1691,6 @@ describe('edit dialogs', () => {
       />
     )
 
-    fireEvent.click(screen.getByRole('button', { name: 'More settings' }))
     fireEvent.click(screen.getByRole('button', { name: /^Custom parameters:/ }))
 
     const input = await screen.findByRole('spinbutton', { name: 'Parameter value: temperature' })
@@ -1715,7 +1704,6 @@ describe('edit dialogs', () => {
   it('names the context override for what it does and states what is inherited while off', async () => {
     render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'More settings' }))
     fireEvent.click(screen.getByRole('button', { name: /^Custom context:/ }))
 
     // The switch overrides the globals — it does not turn context management
@@ -1736,7 +1724,6 @@ describe('edit dialogs', () => {
   it('offers the compression trigger as an inheritable field carrying its unit', async () => {
     render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'More settings' }))
     fireEvent.click(screen.getByRole('button', { name: /^Custom context:/ }))
 
     fireEvent.click(await screen.findByRole('switch', { name: 'Customize context management' }))
@@ -1753,7 +1740,6 @@ describe('edit dialogs', () => {
   it('expresses "no message limit" as an empty named field rather than a second switch', async () => {
     render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'More settings' }))
     fireEvent.click(screen.getByRole('button', { name: /^Custom context:/ }))
 
     const input = await screen.findByLabelText('Recent messages kept')
@@ -1779,7 +1765,6 @@ describe('edit dialogs', () => {
       />
     )
 
-    fireEvent.click(screen.getByRole('button', { name: 'More settings' }))
     fireEvent.click(await screen.findByRole('switch', { name: 'Max tokens' }))
 
     await waitFor(() =>
@@ -1806,7 +1791,6 @@ describe('edit dialogs', () => {
       />
     )
 
-    fireEvent.click(screen.getByRole('button', { name: 'More settings' }))
     const maxTokensInput = await screen.findByRole('spinbutton', { name: 'Max tokens value' })
 
     fireEvent.focus(maxTokensInput)
@@ -1836,7 +1820,6 @@ describe('edit dialogs', () => {
       />
     )
 
-    fireEvent.click(screen.getByRole('button', { name: 'More settings' }))
     const maxToolCallsSwitch = await screen.findByRole('switch', { name: 'Max tool call rounds' })
 
     expect(maxToolCallsSwitch).not.toBeChecked()
@@ -1920,7 +1903,7 @@ describe('edit dialogs', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Back' }))
 
     await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false))
-    expect(screen.getByRole('heading', { name: 'More settings' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Edit Assistant' })).toBeInTheDocument()
   })
 
   it('submits agent permission defaults and advanced changes', async () => {
@@ -2042,11 +2025,12 @@ describe('edit dialogs', () => {
     )
   })
 
-  // AC1: runtime, plan model, and small model are gone from the Agent dialog.
-  it('opens the agent on a main page without runtime or extra model fields', async () => {
-    const user = userEvent.setup()
+  // AC1: the Agent dialog opens on its settings page; runtime, plan model, and small model are gone.
+  it('opens the agent on its settings page with identity, model, and cards but no runtime or extra models', () => {
     render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} />)
 
+    expect(screen.getByRole('heading', { name: 'Edit Agent' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Back' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Pick avatar' })).toBeInTheDocument()
     expect(screen.getByLabelText('Name')).toHaveValue(AGENT.name)
     expect(screen.getByLabelText('Description')).toHaveValue(AGENT.description)
@@ -2055,13 +2039,9 @@ describe('edit dialogs', () => {
       expect(screen.queryByRole('button', { name: label })).not.toBeInTheDocument()
     }
     expect(screen.queryByText('Cannot be changed after creation')).not.toBeInTheDocument()
-
-    await user.click(screen.getByRole('button', { name: 'More settings' }))
     for (const section of ['Capabilities', 'Run', 'Heartbeat', 'Advanced']) {
       expect(screen.getByRole('region', { name: section })).toBeInTheDocument()
     }
-    expect(screen.queryByRole('button', { name: 'Plan model' })).not.toBeInTheDocument()
-    expect(screen.queryByText('Cannot be changed after creation')).not.toBeInTheDocument()
   })
 
   // AC3: the counting rules — tool gating, builtin skills, live knowledge bases, no browser server.
@@ -2161,7 +2141,7 @@ describe('edit dialogs', () => {
     ['tools.skills', '技能'],
     ['tools.knowledge', 'Knowledge'],
     ['tools.mcp', 'MCP servers'],
-    ['advanced', 'More settings'],
+    ['advanced', 'Edit Agent'],
     ['memory', 'Memory'],
     ['channels', 'Channels'],
     ['tasks', 'Scheduled Tasks'],
@@ -2172,12 +2152,12 @@ describe('edit dialogs', () => {
     expect(screen.getByRole('heading', { name: title })).toBeInTheDocument()
   })
 
-  // A sealed builtin role has no skills page, so its deep link lands one level up.
-  it('opens More settings for a skills deep link on an Agent without a skills page', () => {
+  // A sealed builtin role has no skills page, so its deep link lands on the settings page.
+  it('opens the settings page for a skills deep link on an Agent without a skills page', () => {
     const sealed = { ...AGENT, configuration: { ...AGENT.configuration, builtin_role: 'support' as const } }
     render(<AgentEditDialog open resource={sealed} onOpenChange={vi.fn()} initialTab="tools.skills" />)
 
-    expect(screen.getByRole('heading', { name: 'More settings' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Edit Agent' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /^技能:/ })).not.toBeInTheDocument()
   })
 
@@ -2282,45 +2262,42 @@ describe('edit dialogs', () => {
     )
   })
 
-  // AC1: the main page carries identity and the model only; everything else is a level down.
-  it('opens the assistant on a main page with avatar, name, description, model, and More settings', () => {
+  // AC1: one settings page carries the identity block above the cards, with nothing to go back to.
+  it('opens the assistant on its settings page with avatar, name, description, model, and cards', () => {
     render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} />)
 
+    expect(screen.getByRole('heading', { name: 'Edit Assistant' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Back' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Pick avatar' })).toBeInTheDocument()
     expect(screen.getByLabelText('Name')).toHaveValue(ASSISTANT.name)
     expect(screen.getByLabelText('Description')).toHaveValue(ASSISTANT.description)
     expect(screen.getByRole('button', { name: 'Model' })).toHaveTextContent('Old Model')
-    expect(screen.getByRole('button', { name: 'More settings' })).toBeInTheDocument()
-    expect(screen.queryByRole('combobox', { name: 'Group' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('switch', { name: 'Temperature' })).not.toBeInTheDocument()
+    for (const section of ['Capabilities', 'Answers', 'Advanced']) {
+      expect(screen.getByRole('region', { name: section })).toBeInTheDocument()
+    }
   })
 
-  // AC2: pages stack inside one dialog; back steps up a level and keeps unsaved edits.
-  it('steps through More settings and a sub-page and back without closing or losing edits', async () => {
+  // AC2: a sub-page's back returns to the settings page inside the dialog and keeps unsaved edits.
+  it('returns from a sub-page to the settings page without closing or losing edits', async () => {
     const user = userEvent.setup()
     const onOpenChange = vi.fn()
     render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={onOpenChange} />)
 
     await user.clear(screen.getByLabelText('Name'))
     await user.type(screen.getByLabelText('Name'), 'Draft name')
-    await user.click(screen.getByRole('button', { name: 'More settings' }))
-    for (const section of ['Capabilities', 'Answers', 'Advanced']) {
-      expect(screen.getByRole('region', { name: section })).toBeInTheDocument()
-    }
+    await user.type(screen.getByLabelText('Description'), ' draft')
     await openSubPage(user, 'System Prompt')
     expect(screen.getByRole('heading', { name: 'System Prompt' })).toBeInTheDocument()
-    await back(user)
-    expect(screen.getByRole('heading', { name: 'More settings' })).toBeInTheDocument()
     await back(user)
 
     expect(screen.getByRole('heading', { name: 'Edit Assistant' })).toBeInTheDocument()
     expect(screen.getByLabelText('Name')).toHaveValue('Draft name')
+    expect(screen.getByLabelText('Description')).toHaveValue(`${ASSISTANT.description} draft`)
     expect(onOpenChange).not.toHaveBeenCalledWith(false)
   })
 
   // AC3: knowledge counts only bases that still exist; MCP leaves out the browser server.
-  it('summarizes linked knowledge bases and enabled MCP servers on the assistant rows', async () => {
-    const user = userEvent.setup()
+  it('summarizes linked knowledge bases and enabled MCP servers on the assistant rows', () => {
     knowledgeBasesState.current = [
       { id: 'kb-1', name: 'Knowledge One', itemCount: 3 },
       { id: 'kb-2', name: 'Knowledge Two', itemCount: 1 }
@@ -2347,8 +2324,6 @@ describe('edit dialogs', () => {
     }
     render(<AssistantEditDialog open resource={resource} onOpenChange={vi.fn()} />)
 
-    await user.click(screen.getByRole('button', { name: 'More settings' }))
-
     expect(screen.getByRole('button', { name: 'Knowledge: Linked 1 / 2' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'MCP servers: Enabled 1 / 1' })).toBeInTheDocument()
   })
@@ -2370,10 +2345,10 @@ describe('edit dialogs', () => {
     [undefined, 'Edit Assistant'],
     ['basic', 'Edit Assistant'],
     ['prompt', 'System Prompt'],
-    ['tools.builtin', 'More settings'],
+    ['tools.builtin', 'Edit Assistant'],
     ['tools.knowledge', 'Knowledge'],
-    ['tools.mcp', 'More settings'],
-    ['advanced', 'More settings'],
+    ['tools.mcp', 'Edit Assistant'],
+    ['advanced', 'Edit Assistant'],
     ['memory', 'Edit Assistant']
   ])('opens the assistant deep link %s on the %s page', (initialTab, title) => {
     render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} initialTab={initialTab} />)
@@ -2399,14 +2374,12 @@ describe('edit dialogs', () => {
 
   it('binds an MCP server from the shared list in assistant and agent editing', async () => {
     render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} />)
-    fireEvent.click(screen.getByRole('button', { name: 'More settings' }))
     fireEvent.click(within(screen.getByRole('radiogroup', { name: 'MCP' })).getByRole('radio', { name: 'Manual' }))
     fireEvent.click(screen.getByRole('button', { name: /^MCP servers:/ }))
     expect(screen.getByRole('switch', { name: 'MCP One' })).not.toBeChecked()
 
     cleanup()
     render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} />)
-    fireEvent.click(screen.getByRole('button', { name: 'More settings' }))
     fireEvent.click(screen.getByRole('button', { name: /^MCP servers:/ }))
     fireEvent.click(screen.getByRole('switch', { name: 'MCP One' }))
 
@@ -2504,9 +2477,7 @@ describe('edit dialogs', () => {
     render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} />)
 
     fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Draft Agent' } })
-    await user.click(screen.getByRole('button', { name: 'More settings' }))
     await openSubPage(user, 'System Prompt')
-    await back(user)
     await back(user)
 
     expect(screen.getByLabelText('Name')).toHaveValue('Draft Agent')
@@ -2775,7 +2746,6 @@ describe('Agent configuration memory', () => {
   it('opens memory from configuration and saves only the explicitly submitted file revision', async () => {
     const user = userEvent.setup()
     render(<Harness />)
-    await user.click(screen.getByRole('button', { name: 'More settings' }))
     await user.click(screen.getByRole('button', { name: 'Memory' }))
     await user.click(await screen.findByRole('button', { name: 'Edit' }))
     const editor = screen.getByRole('textbox', { name: 'Edit SOUL.md' })
@@ -2816,7 +2786,6 @@ describe('Agent configuration memory', () => {
     async (destination) => {
       const user = userEvent.setup()
       render(<Harness />)
-      await user.click(screen.getByRole('button', { name: 'More settings' }))
       await user.click(screen.getByRole('button', { name: 'Memory' }))
       await user.click(await screen.findByRole('button', { name: 'Edit' }))
       await user.type(screen.getByRole('textbox', { name: 'Edit SOUL.md' }), ' unsaved')
@@ -2837,7 +2806,7 @@ describe('Agent configuration memory', () => {
         })
       )
       await waitFor(() => expect(screen.queryByRole('textbox', { name: 'Edit SOUL.md' })).not.toBeInTheDocument())
-      if (destination === 'back') expect(screen.getByRole('heading', { name: 'More settings' })).toBeInTheDocument()
+      if (destination === 'back') expect(screen.getByRole('heading', { name: 'Edit Agent' })).toBeInTheDocument()
       else if (destination === 'file')
         expect(screen.getByRole('tab', { name: 'User profile' })).toHaveAttribute('aria-selected', 'true')
       else expect(screen.queryByRole('dialog', { name: 'Edit Agent' })).not.toBeInTheDocument()

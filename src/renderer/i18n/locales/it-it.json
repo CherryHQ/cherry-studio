@@ -2341,7 +2341,6 @@
   "library.config.dialogs.edit.page.channels": "Canali",
   "library.config.dialogs.edit.page.context": "Contesto personalizzato",
   "library.config.dialogs.edit.page.mcp": "Server MCP",
-  "library.config.dialogs.edit.page.more": "Altre impostazioni",
   "library.config.dialogs.edit.parameters_count": "Parametri: {{count}}",
   "library.config.dialogs.edit.permission_tab": "Autorizzazioni",
   "library.config.dialogs.edit.prompt_empty": "Non compilato",

@@ -58,7 +58,7 @@ import { isNonChatModel } from '@shared/utils/model'
 import { AssistantAvatarPicker } from '../components/AssistantAvatarPicker'
 import {
   EditDialogPageShell,
-  EditMainPage,
+  EditIdentityHeader,
   SettingsLinkButton,
   settingsPillClassName,
   SettingsRow,
@@ -80,7 +80,7 @@ import { KnowledgeCapabilityList } from '../components/KnowledgeCapabilityList'
 import { McpCapabilityList } from '../components/McpCapabilityList'
 import { PromptPolishActions } from '../components/PromptPolishActions'
 import { ReplyLanguageSelect } from '../components/ReplyLanguageSelect'
-import { countSummary, type EditPage, type EditSubPage, parentEditPage, resolveInitialEditPage } from './editPages'
+import { countSummary, type EditPage, type EditSubPage, resolveInitialEditPage } from './editPages'
 
 export type AssistantEditDialogResource = Parameters<typeof initialAssistantFormState>[0]
 
@@ -390,8 +390,7 @@ function AssistantEditDialogContent({
     setFormValues(form, patch)
   }
   const pageTitles: Record<EditPage, string> = {
-    main: t('library.config.dialogs.edit.assistant_title'),
-    more: t('library.config.dialogs.edit.page.more'),
+    settings: t('library.config.dialogs.edit.assistant_title'),
     prompt: t('library.config.prompt.label'),
     knowledge: t('library.config.dialogs.edit.knowledge_tab'),
     mcp: t('library.config.dialogs.edit.page.mcp'),
@@ -411,56 +410,55 @@ function AssistantEditDialogContent({
       onOpenChange={handleOpenChange}
       page={page}
       title={pageTitles[page]}
-      onBack={page === 'main' ? undefined : () => setPage(parentEditPage(page))}
+      onBack={page === 'settings' ? undefined : () => setPage('settings')}
       fill={page === 'prompt'}
       rootError={rootError}
       setDialogContentElement={setDialogContentElement}>
-      {page === 'main' ? (
-        <EditMainPage
-          form={form}
-          avatar={
-            <AssistantAvatarPicker
-              key={`${resource.id}:${open}`}
-              assistantId={resource.id}
-              emoji={resource.emoji}
-              avatarSrc={resource.avatarSrc}
-              ariaLabel={t('library.config.dialogs.create.avatar_aria')}
-              portalContainer={dialogContentElement}
-              size="lg"
-            />
-          }
-          namePlaceholder={t('library.config.basic.field.name.placeholder')}
-          descriptionPlaceholder={t('library.config.basic.field.description.placeholder')}
-          model={
-            <CompactModelField
-              form={form}
-              name="modelId"
-              label={t('common.model')}
-              allowClear
-              filter={modelFilter}
-              isModelDisabled={isModelDisabled}
-              portalContainer={dialogContentElement}
-              modelLabels={modelLabels}
-              setModelLabels={setModelLabels}
-              onModelChange={handleAssistantModelChange}
-              onSettingsNavigate={closeBeforeAction}
-              layout="chip"
-              triggerClassName="w-auto max-w-56"
-            />
-          }
-          onOpenMore={() => setPage('more')}
-        />
-      ) : null}
-      {page === 'more' ? (
-        <AssistantMoreSettings
-          form={form}
-          portalContainer={dialogContentElement}
-          groups={groups}
-          groupsLoading={isGroupsLoading}
-          groupsError={groupsError}
-          onCreateGroup={() => setCreateGroupDialogOpen(true)}
-          onOpen={setPage}
-        />
+      {page === 'settings' ? (
+        <div className="flex flex-col gap-5">
+          <EditIdentityHeader
+            form={form}
+            avatar={
+              <AssistantAvatarPicker
+                key={`${resource.id}:${open}`}
+                assistantId={resource.id}
+                emoji={resource.emoji}
+                avatarSrc={resource.avatarSrc}
+                ariaLabel={t('library.config.dialogs.create.avatar_aria')}
+                portalContainer={dialogContentElement}
+                size="lg"
+              />
+            }
+            namePlaceholder={t('library.config.basic.field.name.placeholder')}
+            descriptionPlaceholder={t('library.config.basic.field.description.placeholder')}
+            model={
+              <CompactModelField
+                form={form}
+                name="modelId"
+                label={t('common.model')}
+                allowClear
+                filter={modelFilter}
+                isModelDisabled={isModelDisabled}
+                portalContainer={dialogContentElement}
+                modelLabels={modelLabels}
+                setModelLabels={setModelLabels}
+                onModelChange={handleAssistantModelChange}
+                onSettingsNavigate={closeBeforeAction}
+                layout="chip"
+                triggerClassName="w-auto max-w-56"
+              />
+            }
+          />
+          <AssistantSettingsCards
+            form={form}
+            portalContainer={dialogContentElement}
+            groups={groups}
+            groupsLoading={isGroupsLoading}
+            groupsError={groupsError}
+            onCreateGroup={() => setCreateGroupDialogOpen(true)}
+            onOpen={setPage}
+          />
+        </div>
       ) : null}
       {page === 'prompt' ? (
         <AssistantPromptField
@@ -587,7 +585,7 @@ function AssistantPromptField({
   )
 }
 
-function AssistantMoreSettings({
+function AssistantSettingsCards({
   form,
   portalContainer,
   groups,
