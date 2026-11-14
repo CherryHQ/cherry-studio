@@ -1,4 +1,5 @@
 import fs from 'node:fs/promises'
+import { createServer, type AddressInfo } from 'node:net'
 import os from 'node:os'
 import path from 'node:path'
 
@@ -22,7 +23,9 @@ vi.mock('electron', () => ({
 
 import { application } from '@application'
 import type { McpServer } from '@shared/data/types/mcpServer'
+import { shouldReportFailure } from '@shared/utils/errorReporting'
 
+import { classifyMcpFailure } from '../../failureFacts'
 import { McpAuthorizationCompleted, McpOAuthCoordinator } from '../../oauth/McpOAuthCoordinator'
 import { McpOAuthClientProvider } from '../../oauth/provider'
 import { oauthServerUrlHash } from '../../oauth/storage'
@@ -76,6 +79,109 @@ beforeEach(() => {
 })
 
 describe('ExternalMcpConnection transport fallback policy', () => {
+  it.each(['auto', 'legacy'] as const)(
+    'keeps a real refused TCP connection local during the %s handshake',
+    async (mode) => {
+      const listener = createServer()
+      await new Promise<void>((resolve) => listener.listen(0, '127.0.0.1', resolve))
+      const port = (listener.address() as AddressInfo).port
+      await new Promise<void>((resolve, reject) => listener.close((error) => (error ? reject(error) : resolve())))
+      const methods: string[] = []
+      fetchMock.mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const request = new Request(input, init)
+        if (request.method === 'POST') {
+          const method = (await request.clone().json()).method
+          methods.push(method)
+          if (mode === 'legacy' && method === 'server/discover') return new Response(null, { status: 404 })
+        }
+        return fetch(request)
+      })
+      const error = await createExternalMcpConnection({
+        server: { ...server, baseUrl: `http://127.0.0.1:${port}/mcp` },
+        appVersion: '0.0.0-test',
+        events,
+        log: createLog(),
+        connectTimeoutMs: 5_000
+      }).then(
+        (connection) => connection.close(),
+        (rejection: unknown) => rejection
+      )
+      expect(error).toBeInstanceOf(Error)
+      expect(methods).toEqual(mode === 'auto' ? ['server/discover'] : ['server/discover', 'initialize'])
+      const codes: unknown[] = []
+      const seen = new Set<object>()
+      let cause = error
+      while (cause && typeof cause === 'object' && !seen.has(cause)) {
+        seen.add(cause)
+        if ('code' in cause) codes.push(cause.code)
+        cause = 'cause' in cause ? cause.cause : undefined
+      }
+      expect(codes).toContain('ECONNREFUSED')
+      expect(classifyMcpFailure(error, true)).toMatchObject({
+        source: 'environment',
+        kind: 'expected',
+        reason: 'transport_unavailable'
+      })
+      expect(shouldReportFailure(classifyMcpFailure(error, false))).toBe(true)
+    }
+  )
+
+  it.each([
+    { error: new Error('net::ERR_CONNECTION_REFUSED'), eligible: false },
+    { error: new TypeError('net::ERR_CONNECTION_REFUSED'), eligible: true },
+    { error: new TypeError('Cannot read properties of undefined'), eligible: true },
+    {
+      error: new TypeError('Cannot read properties of undefined with a transport cause', {
+        cause: Object.assign(new Error('Connection refused'), { code: 'ECONNREFUSED' })
+      }),
+      eligible: true
+    },
+    {
+      error: new Error('Request assembly failed with a nested TypeError', {
+        cause: new TypeError('Cannot read properties of undefined', {
+          cause: Object.assign(new Error('Connection refused'), { code: 'ECONNREFUSED' })
+        })
+      }),
+      eligible: true
+    },
+    {
+      error: new ReferenceError('Network handler is undefined', {
+        cause: Object.assign(new Error('Connection refused'), { code: 'ECONNREFUSED' })
+      }),
+      eligible: true
+    },
+    {
+      error: new SyntaxError('Invalid request data', {
+        cause: Object.assign(new Error('Connection refused'), { code: 'ECONNREFUSED' })
+      }),
+      eligible: true
+    },
+    {
+      error: new SdkError(SdkErrorCode.NotConnected, 'Not connected', undefined, {
+        cause: Object.assign(new Error('Connection refused'), { code: 'ECONNREFUSED' })
+      }),
+      eligible: true
+    }
+  ])(
+    'retains network provenance without hiding programming errors: $error.name $error.message',
+    async ({ error, eligible }) => {
+      fetchMock.mockRejectedValueOnce(error)
+      const failure = await createExternalMcpConnection({
+        server,
+        appVersion: '0.0.0-test',
+        events,
+        log: createLog(),
+        connectTimeoutMs: 5_000
+      }).then(
+        (connection) => connection.close(),
+        (rejection: unknown) => rejection
+      )
+      expect(failure).toBeInstanceOf(Error)
+      expect(shouldReportFailure(classifyMcpFailure(failure, true))).toBe(eligible)
+      expect(shouldReportFailure(classifyMcpFailure(failure, false))).toBe(true)
+    }
+  )
+
   it('coalesces authorization before credentials can be overwritten and releases failed attempts', async () => {
     const coordinator = new McpOAuthCoordinator()
     const controller = new AbortController()

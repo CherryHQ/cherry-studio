@@ -21,7 +21,7 @@ import { removeEnvProxy } from '@main/utils/processRunner'
 import type { McpServer, McpServerType } from '@shared/data/types/mcpServer'
 import { BuiltinMcpServerNames } from '@shared/utils/mcp'
 
-import { McpConfigurationError } from '../failureFacts'
+import { McpConfigurationError, normalizeMcpTransportError } from '../failureFacts'
 import { buildStdioEnvironment } from '../mcpLaunch'
 import { resolveStdioLaunch } from '../mcpStdioLaunch'
 import { CallBackServer } from '../oauth/callback'
@@ -171,16 +171,21 @@ export async function createExternalMcpConnection({
   const createTransport = async (typeOverride?: McpServerType): Promise<Transport> => {
     if (server.baseUrl) {
       const serverUrl = new URL(server.baseUrl)
-      const fetchUrl = (input: RequestInfo | URL, init?: RequestInit) => {
+      const fetchUrl = async (input: RequestInfo | URL, init?: RequestInit) => {
         const target = input.toString()
+        let requestInit = init
         if (fallbackAuthorization && target === serverUrl.href) {
           const merged = new Headers(init?.headers)
           if (!merged.has('authorization')) {
             merged.set('authorization', fallbackAuthorization)
-            return net.fetch(target, { ...init, headers: merged })
+            requestInit = { ...init, headers: merged }
           }
         }
-        return net.fetch(target, init)
+        try {
+          return await net.fetch(target, requestInit)
+        } catch (error) {
+          throw normalizeMcpTransportError(error)
+        }
       }
       const type = typeOverride ?? server.type ?? 'sse'
       if (type === 'streamableHttp') {

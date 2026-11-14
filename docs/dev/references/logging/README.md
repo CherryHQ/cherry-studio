@@ -95,7 +95,10 @@ MCP owns classification at connection and request boundaries. Known external
 transport failures, protocol rejections, missing capabilities, auth and
 configuration failures stay local. The corresponding built-in server protocol
 failures remain reportable, as do invalid client lifecycle states and native
-programming errors. A tool's `isError` result stays a tool outcome. Server names,
+programming errors. The external fetch boundary preserves recognized Node and
+Chromium transport failures through SDK cause wrappers; cause traversal is bounded
+and does not turn an unclassified programming error into a network failure.
+A tool's `isError` result stays a tool outcome. Server names,
 URLs, arguments and result bodies are not copied into reporting context.
 
 After consent, classification and rate limits accept an event, the main process
