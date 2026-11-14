@@ -31,10 +31,7 @@ vi.mock('@renderer/components/EmojiPicker', () => ({
 }))
 
 const {
-  bindPromptMock,
   applyReorderedListMock,
-  boundPromptsRefetchMock,
-  createPromptMock,
   createGroupMock,
   fetchGenerateMock,
   invalidateCacheMock,
@@ -43,20 +40,15 @@ const {
   knowledgeBasesState,
   mcpStatusState,
   openSettingsTabMock,
-  promptCatalogState,
   promptProcessorMock,
   settingsNavigateMock,
   skillCatalogPickerMock,
   updateAgentMock,
   updateAssistantMock,
-  unbindPromptMock,
   useMutationMock,
   useQueryMock
 } = vi.hoisted(() => ({
-  bindPromptMock: vi.fn(),
   applyReorderedListMock: vi.fn(),
-  boundPromptsRefetchMock: vi.fn(),
-  createPromptMock: vi.fn(),
   createGroupMock: vi.fn(),
   fetchGenerateMock: vi.fn(),
   invalidateCacheMock: vi.fn(),
@@ -86,36 +78,11 @@ const {
   },
   mcpStatusState: { current: {} },
   openSettingsTabMock: vi.fn(),
-  promptCatalogState: {
-    current: {
-      all: [
-        {
-          id: '00000000-0000-4000-8000-000000000001',
-          title: 'Reusable prompt',
-          content: 'Reusable prompt content',
-          visibility: 'restricted' as const,
-          orderKey: 'a0',
-          createdAt: '2024-01-01T00:00:00.000Z',
-          updatedAt: '2024-01-01T00:00:00.000Z'
-        }
-      ],
-      bound: [] as Array<{
-        id: string
-        title: string
-        content: string
-        visibility: 'global' | 'restricted'
-        orderKey: string
-        createdAt: string
-        updatedAt: string
-      }>
-    }
-  },
   promptProcessorMock: vi.fn(({ prompt }: { prompt: string }) => prompt),
   settingsNavigateMock: vi.fn(),
   skillCatalogPickerMock: vi.fn(),
   updateAgentMock: vi.fn(),
   updateAssistantMock: vi.fn(),
-  unbindPromptMock: vi.fn(),
   useMutationMock: vi.fn(),
   useQueryMock: vi.fn()
 }))
@@ -535,18 +502,6 @@ vi.mock('react-i18next', async (importOriginal) => {
           'settings.mcp.runtimeStatus.connecting': 'Connecting',
           'settings.mcp.runtimeStatus.unavailable': 'Unavailable',
           'settings.prompts.add': 'Add prompt',
-          'settings.prompts.binding.bind': 'Bind prompt',
-          'settings.prompts.binding.noLinked': 'No prompts linked',
-          'settings.prompts.binding.noMore': 'No more prompts available',
-          'settings.prompts.binding.remove': `Remove prompt ${
-            typeof fallbackOrOptions === 'object' && typeof fallbackOrOptions.title === 'string'
-              ? fallbackOrOptions.title
-              : ''
-          }`.trim(),
-          'settings.prompts.binding.search': 'Search prompts',
-          'settings.prompts.binding.tabTitle': 'Prompts',
-          'settings.prompts.binding.globalDescription':
-            'Global prompts are available in every conversation and managed in Settings.',
           'settings.prompts.manageGlobal': 'Manage Global Prompts',
           'settings.quickPanel.scope.currentAgent': 'Current Agent',
           'settings.quickPanel.scope.currentAssistant': 'Current Assistant',
@@ -573,7 +528,6 @@ vi.mock('react-i18next', async (importOriginal) => {
   }
 })
 
-import { PromptBindingTab } from '../../components/PromptBindingTab'
 import { AgentEditDialog } from '../AgentEditDialog'
 import { AssistantEditDialog } from '../AssistantEditDialog'
 
@@ -675,11 +629,6 @@ beforeEach(() => {
   mcpStatusState.current = {
     'mcp-1': { state: 'connected', lastCheckedAt: 1 }
   }
-  promptCatalogState.current.bound = []
-  boundPromptsRefetchMock.mockResolvedValue(undefined)
-  bindPromptMock.mockResolvedValue(undefined)
-  createPromptMock.mockResolvedValue(promptCatalogState.current.all[0])
-  unbindPromptMock.mockResolvedValue(undefined)
   useQueryMock.mockImplementation((path: string) => {
     if (path.startsWith('/models/')) {
       const id = path.slice('/models/'.length)
@@ -724,26 +673,9 @@ beforeEach(() => {
     if (path === '/agent-channels') {
       return { data: [], isLoading: false, refetch: vi.fn(), mutate: vi.fn() }
     }
-    if (path === '/prompts') {
-      return {
-        data: promptCatalogState.current.all,
-        isLoading: false,
-        refetch: vi.fn()
-      }
-    }
-    if (path.startsWith('/prompt-bindings/')) {
-      return {
-        data: promptCatalogState.current.bound,
-        isLoading: false,
-        refetch: boundPromptsRefetchMock
-      }
-    }
     return { data: { items: [] }, isLoading: false }
   })
   useMutationMock.mockImplementation((method: string, path: string) => {
-    if (method === 'POST' && path === '/prompts') {
-      return { trigger: createPromptMock, isLoading: false, error: undefined }
-    }
     if (method === 'PATCH' && path.startsWith('/assistants/')) {
       return {
         trigger: ({ body }: { body: unknown }) => updateAssistantMock({ body }),
@@ -753,12 +685,6 @@ beforeEach(() => {
     }
     if (method === 'PATCH' && path.startsWith('/agents/')) {
       return { trigger: updateAgentMock, isLoading: false, error: undefined }
-    }
-    if (method === 'PUT' && path === '/prompts/:id/bindings/:targetType/:targetId') {
-      return { trigger: bindPromptMock, isLoading: false, error: undefined }
-    }
-    if (method === 'DELETE' && path === '/prompts/:id/bindings/:targetType/:targetId') {
-      return { trigger: unbindPromptMock, isLoading: false, error: undefined }
     }
     return { trigger: vi.fn(), isLoading: false, error: undefined }
   })
@@ -1169,150 +1095,6 @@ describe('edit dialogs', () => {
       }
     }
   )
-
-  it('keeps global prompt management available beside existing linked prompts', () => {
-    promptCatalogState.current.bound = [...promptCatalogState.current.all]
-    render(<PromptBindingTab onManageGlobal={vi.fn()} enabled target={{ type: 'agent', id: AGENT.id }} />)
-    expect(screen.getByText('Reusable prompt')).toBeVisible()
-    expect(screen.getByRole('button', { name: 'Manage Global Prompts' })).toBeEnabled()
-  })
-
-  it('binds a prompt to the assistant being edited', async () => {
-    render(<PromptBindingTab onManageGlobal={vi.fn()} enabled target={{ type: 'assistant', id: ASSISTANT.id }} />)
-
-    fireEvent.click(screen.getByRole('button', { name: 'Bind prompt' }))
-    fireEvent.click(await screen.findByText('Reusable prompt'))
-
-    await waitFor(() =>
-      expect(bindPromptMock).toHaveBeenCalledWith({
-        params: {
-          id: '00000000-0000-4000-8000-000000000001',
-          targetType: 'assistant',
-          targetId: ASSISTANT.id
-        }
-      })
-    )
-    expect(unbindPromptMock).not.toHaveBeenCalled()
-  })
-
-  it('unbinds a prompt from the agent being edited', async () => {
-    const user = userEvent.setup()
-    promptCatalogState.current.bound = [...promptCatalogState.current.all]
-    render(<PromptBindingTab onManageGlobal={vi.fn()} enabled target={{ type: 'agent', id: AGENT.id }} />)
-    expect(screen.getByText('Reusable prompt')).toBeInTheDocument()
-    const removeButton = screen.getByRole('button', { name: 'Remove prompt Reusable prompt' })
-    await user.hover(removeButton)
-    expect(await screen.findByRole('tooltip')).toHaveTextContent('Remove prompt Reusable prompt')
-    await user.click(removeButton)
-
-    await waitFor(() =>
-      expect(unbindPromptMock).toHaveBeenCalledWith({
-        params: {
-          id: '00000000-0000-4000-8000-000000000001',
-          targetType: 'agent',
-          targetId: AGENT.id
-        }
-      })
-    )
-    expect(bindPromptMock).not.toHaveBeenCalled()
-  })
-
-  it('keeps a new target binding locked when the previous target request settles', async () => {
-    const previousBinding = createDeferred<void>()
-    const currentBinding = createDeferred<void>()
-    bindPromptMock.mockReturnValueOnce(previousBinding.promise).mockReturnValueOnce(currentBinding.promise)
-    const { rerender } = render(
-      <PromptBindingTab onManageGlobal={vi.fn()} enabled target={{ type: 'assistant', id: 'assistant-old' }} />
-    )
-
-    fireEvent.click(screen.getByRole('button', { name: 'Bind prompt' }))
-    fireEvent.click(await screen.findByText('Reusable prompt'))
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Bind prompt' })).toBeDisabled())
-
-    rerender(<PromptBindingTab onManageGlobal={vi.fn()} enabled target={{ type: 'assistant', id: 'assistant-new' }} />)
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Bind prompt' })).toBeEnabled())
-    fireEvent.click(screen.getByRole('button', { name: 'Bind prompt' }))
-    fireEvent.click(await screen.findByText('Reusable prompt'))
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Bind prompt' })).toBeDisabled())
-
-    await act(async () => {
-      previousBinding.resolve(undefined)
-      await previousBinding.promise
-      await Promise.resolve()
-    })
-
-    expect(screen.getByRole('button', { name: 'Bind prompt' })).toBeDisabled()
-
-    await act(async () => {
-      currentBinding.resolve(undefined)
-      await currentBinding.promise
-    })
-  })
-
-  it('creates a selected prompt and binds it to the assistant being edited', async () => {
-    const user = userEvent.setup()
-    render(<PromptBindingTab onManageGlobal={vi.fn()} enabled target={{ type: 'assistant', id: ASSISTANT.id }} />)
-    await user.click(screen.getByRole('button', { name: 'Add prompt' }))
-    const createDialog = screen.getByRole('dialog', { name: 'Add prompt' })
-    await user.type(within(createDialog).getByLabelText('Title'), 'Created prompt')
-    await user.type(within(createDialog).getByLabelText('Prompt editor'), 'Created prompt content')
-    await user.click(within(createDialog).getByRole('button', { name: 'Confirm' }))
-
-    await waitFor(() =>
-      expect(createPromptMock).toHaveBeenCalledWith({
-        body: {
-          title: 'Created prompt',
-          content: 'Created prompt content',
-          visibility: 'restricted',
-          bindingTarget: { type: 'assistant', id: ASSISTANT.id }
-        }
-      })
-    )
-  })
-
-  it('creates a global prompt without binding it to the assistant being edited', async () => {
-    const user = userEvent.setup()
-    render(<PromptBindingTab onManageGlobal={vi.fn()} enabled target={{ type: 'assistant', id: ASSISTANT.id }} />)
-    await user.click(screen.getByRole('button', { name: 'Add prompt' }))
-    const createDialog = screen.getByRole('dialog', { name: 'Add prompt' })
-    await user.type(within(createDialog).getByLabelText('Title'), 'Global prompt')
-    await user.type(within(createDialog).getByLabelText('Prompt editor'), 'Global prompt content')
-    await user.click(within(createDialog).getByRole('switch', { name: 'Use globally' }))
-    await user.click(within(createDialog).getByRole('button', { name: 'Confirm' }))
-
-    await waitFor(() =>
-      expect(createPromptMock).toHaveBeenCalledWith({
-        body: {
-          title: 'Global prompt',
-          content: 'Global prompt content',
-          visibility: 'global'
-        }
-      })
-    )
-    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Add prompt' })).not.toBeInTheDocument())
-    expect(screen.getByRole('button', { name: 'Manage Global Prompts' })).toBeEnabled()
-  })
-
-  it('disables prompt visibility while a create request is pending', async () => {
-    const user = userEvent.setup()
-    const pendingCreate = createDeferred<void>()
-    createPromptMock.mockReturnValueOnce(pendingCreate.promise)
-    render(<PromptBindingTab onManageGlobal={vi.fn()} enabled target={{ type: 'assistant', id: ASSISTANT.id }} />)
-    await user.click(screen.getByRole('button', { name: 'Add prompt' }))
-    const createDialog = screen.getByRole('dialog', { name: 'Add prompt' })
-    await user.type(within(createDialog).getByLabelText('Title'), 'Pending prompt')
-    await user.type(within(createDialog).getByLabelText('Prompt editor'), 'Pending prompt content')
-    await user.click(within(createDialog).getByRole('button', { name: 'Confirm' }))
-
-    await waitFor(() => {
-      expect(within(createDialog).getByRole('switch', { name: 'Use globally' })).toBeDisabled()
-    })
-
-    await act(async () => {
-      pendingCreate.resolve(undefined)
-      await pendingCreate.promise
-    })
-  })
 
   it('submits assistant name, description, and model changes as a PATCH', async () => {
     render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} />)
