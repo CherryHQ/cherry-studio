@@ -176,7 +176,19 @@ describe('OwnLoginConfigPanel', () => {
 
     fireEvent.click(saveButton)
 
-    await waitFor(() => expect(toastErrorMock).toHaveBeenCalledWith('code.apply_failed'))
+    await waitFor(() =>
+      expect(toastErrorMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: 'code.apply_failed',
+          data: expect.objectContaining({
+            errorContext: expect.objectContaining({
+              message: 'write failed',
+              operation: 'code_cli.save_own_login_config'
+            })
+          })
+        })
+      )
+    )
     expect(onClose).not.toHaveBeenCalled()
     // The user's edits survive: the panel is still savable for a retry.
     expect(saveButton).not.toBeDisabled()
