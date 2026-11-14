@@ -1,4 +1,4 @@
-import type { AgentDetail } from '@renderer/types/resourceCatalog'
+import type { AgentCreateSettings, AgentDetail } from '@renderer/types/resourceCatalog'
 import { type AgentLanguageMode, normalizeAgentLanguageInput } from '@renderer/utils/agent/agentLanguage'
 import { normalizePermissionMode } from '@renderer/utils/agent/permissionMode'
 import {
@@ -244,6 +244,15 @@ export function diffAgentUpdate(baseline: AgentFormState, next: AgentFormState):
   if (!dirty) return null
 
   return { dto }
+}
+
+/**
+ * The configuration a new Agent's advanced settings produce: the keys that differ from a blank Agent,
+ * parsed exactly as the edit dialog saves them.
+ */
+export function buildAgentSettingsConfiguration(settings: AgentCreateSettings): AgentConfiguration {
+  const blank = buildInitialAgentFormState()
+  return diffAgentUpdate(blank, { ...blank, ...settings })?.dto.configuration ?? {}
 }
 
 function diffLanguageUpdate(
