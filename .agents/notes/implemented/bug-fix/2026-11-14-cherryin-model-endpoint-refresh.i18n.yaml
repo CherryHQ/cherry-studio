@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-14-cherryin-model-endpoint-refresh.md
+2026-11-14-cherryin-model-endpoint-refresh.md: 2c3bd5d3d9e2e34a57aee7b0d1432620b6fde877
+2026-11-14-cherryin-model-endpoint-refresh.zh.md: c9af9f84d5f6ba290cfeaaecdb29413f8504d9fa
