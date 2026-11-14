@@ -1499,6 +1499,8 @@
   "error.boundary.default.reload": "Yeniden yükle",
   "error.boundary.details": "Ayrıntılar",
   "error.boundary.mcp.invalid": "Geçersiz MCP sunucusu",
+  "error.branch_runtime_mismatch": "Bu konuşma dalı mevcut aracı ayarlarıyla devam edemez.",
+  "error.branch_runtime_mismatch_detail": "Bu dal farklı bir aracı türü veya farklı ayarlarla oluşturuldu. Yeni bir konuşma başlatın ya da özgün aracıyı ve ayarlarını geri yükleyin. Bu bir ağ sorunu değildir.",
   "error.cause": "Hatanın nedeni",
   "error.chat.chunk.non_json": "Geçersiz bir veri biçimi döndürüldü",
   "error.chat.insufficient_balance": "Bakiye yüklemek için <provider>{{provider}}</provider> sağlayıcısına gidin.",

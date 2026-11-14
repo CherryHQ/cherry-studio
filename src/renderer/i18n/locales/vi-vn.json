@@ -1499,6 +1499,8 @@
   "error.boundary.default.reload": "Tải lại",
   "error.boundary.details": "Chi tiết",
   "error.boundary.mcp.invalid": "Máy chủ MCP không hợp lệ",
+  "error.branch_runtime_mismatch": "Không thể tiếp tục nhánh hội thoại này với cài đặt tác nhân hiện tại.",
+  "error.branch_runtime_mismatch_detail": "Nhánh này được tạo bằng loại tác nhân hoặc cài đặt khác. Hãy bắt đầu cuộc hội thoại mới hoặc khôi phục tác nhân và cài đặt ban đầu. Đây không phải là sự cố mạng.",
   "error.cause": "Nguyên nhân lỗi",
   "error.chat.chunk.non_json": "Dữ liệu trả về có định dạng không hợp lệ",
   "error.chat.insufficient_balance": "Vui lòng đến <provider>{{provider}}</provider> để nạp tiền.",

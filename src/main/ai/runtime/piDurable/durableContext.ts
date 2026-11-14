@@ -6,6 +6,8 @@ import { agentSessionContextService as contexts } from '@data/services/AgentSess
 import { ensureAgentSessionRootTx } from '@data/services/agentSessionMessageTree'
 import { agentSessionService } from '@data/services/AgentSessionService'
 
+import { BranchRuntimeMismatchError } from '../branchRuntimeMismatch'
+
 export function allocateDurableBackendTx(tx: DbOrTx) {
   return contexts.ensureBackendTx(tx, { version: 1, kind: 'pi-durable', fileName: `${uuid()}.sqlite` }, 'creating')
 }
@@ -43,7 +45,7 @@ export function prepareDurableBranch(sessionId: string, messageId?: string) {
     const existing = contexts.branchTx(tx, sessionId, messageId ?? root)
     if (existing) {
       if (contexts.backendTx(tx, existing.backendId).locator.kind !== 'pi-durable')
-        throw new Error('The selected branch belongs to another runtime')
+        throw new BranchRuntimeMismatchError('The selected branch belongs to another runtime')
       return existing
     }
     const backend = allocateDurableBackendTx(tx)

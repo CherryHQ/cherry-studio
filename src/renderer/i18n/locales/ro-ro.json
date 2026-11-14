@@ -1499,6 +1499,8 @@
   "error.boundary.default.reload": "Reîncarcă",
   "error.boundary.details": "Detalii",
   "error.boundary.mcp.invalid": "Server MCP invalid",
+  "error.branch_runtime_mismatch": "Această ramură a conversației nu poate continua cu setările actuale ale agentului.",
+  "error.branch_runtime_mismatch_detail": "Această ramură a fost creată cu un alt tip de agent sau cu alte setări. Începeți o conversație nouă sau restabiliți agentul și setările inițiale. Aceasta nu este o problemă de rețea.",
   "error.cause": "Cauză eroare",
   "error.chat.chunk.non_json": "S-a returnat un format de date invalid",
   "error.chat.insufficient_balance": "Te rugăm să mergi la <provider>{{provider}}</provider> pentru a reîncărca.",

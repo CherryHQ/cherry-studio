@@ -1,5 +1,5 @@
 import { ArrowLeft, Copy, FileUp, Sparkles } from 'lucide-react'
-import React, { memo, useCallback, useRef, useState } from 'react'
+import React, { memo, useCallback, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { ScrollArea } from '@cherrystudio/ui'
@@ -10,6 +10,7 @@ import { DoctorPopup } from '@renderer/components/doctor'
 import { DoctorAgentDialog } from '@renderer/components/doctor'
 import { useExitPresence } from '@renderer/hooks/useExitPresence'
 import i18n from '@renderer/i18n/resolver'
+import { resolveAppOwnedError } from '@renderer/services/appOwnedError'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import { createPopup, POPUP_EXIT_MS, type PopupInjectedProps } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
@@ -487,8 +488,8 @@ const AiSdkError = memo(({ error }: { error: SerializedAiSdkErrorUnion }) => {
 // --- Main Content Component ---
 
 const ErrorDetailContent: React.FC<ErrorDetailContentInternalProps> = ({
-  error,
-  localizedErrorMessage,
+  error: originalError,
+  localizedErrorMessage: originalLocalizedErrorMessage,
   diagnosisContext,
   subject,
   incident,
@@ -498,7 +499,19 @@ const ErrorDetailContent: React.FC<ErrorDetailContentInternalProps> = ({
   doctorCloseBlocked = false,
   onDoctorCloseBlockedChange
 }) => {
-  const { t } = useTranslation()
+  const { t, i18n: translation } = useTranslation()
+  const localized = useMemo(() => {
+    return originalError && resolveAppOwnedError(originalError, translation)
+    // The i18n instance is mutable; language changes must invalidate this result.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [originalError, translation, translation.language])
+  const localizedErrorMessage = localized
+    ? [localized.title, localized.detail].filter(Boolean).join('\n\n')
+    : originalLocalizedErrorMessage
+  const error = useMemo(
+    () => (localized ? { name: null, message: localizedErrorMessage!, stack: null } : originalError),
+    [localized, localizedErrorMessage, originalError]
+  )
   const [detailsOpen, setDetailsOpen] = useState(false)
   const [agentOpen, setAgentOpen] = useState(false)
   const { isPresent: agentPresent } = useExitPresence(agentOpen ? true : null)
@@ -568,7 +581,7 @@ const ErrorDetailContent: React.FC<ErrorDetailContentInternalProps> = ({
       </DialogHeader>
       <ErrorDetailContainer>
         <div className="space-y-4">
-          {subject ? (
+          {localized ? null : subject ? (
             <ErrorDoctorDiagnostics
               key={doctorScopeKey(subject)}
               subject={subject}
@@ -600,7 +613,7 @@ const ErrorDetailContent: React.FC<ErrorDetailContentInternalProps> = ({
               {t('error.diagnostic_report.action')}
             </Button>
           ) : null}
-          {subject ? (
+          {subject && !localized ? (
             <Button variant="emphasis" disabled={doctorCloseBlocked} onClick={() => setAgentOpen(true)}>
               <Sparkles size={14} />
               {t('settings.doctor.agent.title')}
@@ -608,7 +621,7 @@ const ErrorDetailContent: React.FC<ErrorDetailContentInternalProps> = ({
           ) : null}
         </div>
       ) : null}
-      {subject && agentPresent ? (
+      {subject && !localized && agentPresent ? (
         <DoctorAgentDialog
           subject={subject}
           incident={incident}

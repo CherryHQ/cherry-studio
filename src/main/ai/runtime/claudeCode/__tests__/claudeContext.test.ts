@@ -13,6 +13,9 @@ import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { agentSessionContextService as contexts } from '@data/services/AgentSessionContextService'
 import { agentSessionMessageService as messages } from '@data/services/AgentSessionMessageService'
 
+import { BranchRuntimeMismatchError } from '../../branchRuntimeMismatch'
+import { preparePiBranch } from '../../pi/piContext'
+import { prepareDurableBranch } from '../../piDurable/durableContext'
 import { prepareClaudeBranch, reserveClaudeBranchTx } from '../claudeContext'
 
 const dbh = setupTestDatabase()
@@ -34,7 +37,17 @@ it('reuses a reserved Claude identity only within its captured backend', () => {
   expect(context.bindingState).toBe('pending')
   expect(context.nativeThreadId).toBeTruthy()
   expect(prepareClaudeBranch(sessionId, '/test/claude').id).toBe(context.id)
-  expect(() => prepareClaudeBranch(sessionId, '/test/another-config')).toThrow('another runtime backend')
+  try {
+    prepareClaudeBranch(sessionId, '/test/another-config')
+    expect.fail('Expected a runtime mismatch')
+  } catch (error) {
+    expect(error).toBeInstanceOf(BranchRuntimeMismatchError)
+    expect(error).toMatchObject({
+      name: 'BranchRuntimeMismatchError',
+      i18nKey: 'branch_runtime_mismatch',
+      detailI18nKey: 'branch_runtime_mismatch_detail'
+    })
+  }
   expect(sessionContexts().map((row) => row.id)).toEqual([context.id])
   expect(
     dbh.db
@@ -77,4 +90,30 @@ it('rolls back an edit binding with its message metadata and then captures the s
     bindingState: 'pending'
   })
   expect(contexts.context(original.id).nativeThreadId).toBe(original.nativeThreadId)
+})
+
+it.each([
+  ['Claude Code', (id: string) => prepareClaudeBranch(id, '/test/claude'), 'Pi', preparePiBranch],
+  ['Claude Code', (id: string) => prepareClaudeBranch(id, '/test/claude'), 'Pi durable', prepareDurableBranch],
+  ['Pi', preparePiBranch, 'Claude Code', (id: string) => prepareClaudeBranch(id, '/test/claude')],
+  ['Pi', preparePiBranch, 'Pi durable', prepareDurableBranch],
+  ['Pi durable', prepareDurableBranch, 'Claude Code', (id: string) => prepareClaudeBranch(id, '/test/claude')],
+  ['Pi durable', prepareDurableBranch, 'Pi', preparePiBranch]
+])('rejects a %s branch when preparing another runtime', (_owner, prepareOwner, _runtime, prepareOther) => {
+  const context = prepareOwner(sessionId)
+  const beforeContexts = sessionContexts()
+  const beforeBackends = dbh.db.select().from(agentRuntimeBackendTable).all()
+  try {
+    prepareOther(sessionId)
+    expect.fail('Expected a runtime mismatch')
+  } catch (error) {
+    expect(error).toBeInstanceOf(BranchRuntimeMismatchError)
+    expect(error).toMatchObject({
+      i18nKey: 'branch_runtime_mismatch',
+      detailI18nKey: 'branch_runtime_mismatch_detail'
+    })
+  }
+  expect(sessionContexts()).toEqual(beforeContexts)
+  expect(dbh.db.select().from(agentRuntimeBackendTable).all()).toEqual(beforeBackends)
+  expect(contexts.context(context.id).backendId).toBe(context.backendId)
 })

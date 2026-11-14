@@ -1499,6 +1499,8 @@
   "error.boundary.default.reload": "โหลดซ้ำ",
   "error.boundary.details": "รายละเอียด",
   "error.boundary.mcp.invalid": "MCP Server ไม่ถูกต้อง",
+  "error.branch_runtime_mismatch": "ไม่สามารถดำเนินการต่อในสาขาการสนทนานี้ด้วยการตั้งค่าเอเจนต์ปัจจุบัน.",
+  "error.branch_runtime_mismatch_detail": "สาขานี้สร้างขึ้นด้วยเอเจนต์ประเภทอื่นหรือการตั้งค่าที่ต่างออกไป โปรดเริ่มการสนทนาใหม่ หรือคืนค่าเอเจนต์และการตั้งค่าเดิม ปัญหานี้ไม่เกี่ยวกับเครือข่าย.",
   "error.cause": "สาเหตุของข้อผิดพลาด",
   "error.chat.chunk.non_json": "ส่งคืนรูปแบบข้อมูลที่ไม่ถูกต้อง",
   "error.chat.insufficient_balance": "กรุณาไปที่ <provider>{{provider}}</provider> เพื่อเติมเงิน",

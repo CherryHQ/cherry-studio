@@ -1499,6 +1499,8 @@
   "error.boundary.default.reload": "Ricarica",
   "error.boundary.details": "Dettagli",
   "error.boundary.mcp.invalid": "Server MCP non valido",
+  "error.branch_runtime_mismatch": "Questo ramo della conversazione non può continuare con le impostazioni attuali dell’agente.",
+  "error.branch_runtime_mismatch_detail": "Questo ramo è stato creato con un tipo di agente o impostazioni diversi. Avvia una nuova conversazione oppure ripristina l’agente e le impostazioni originali. Non si tratta di un problema di rete.",
   "error.cause": "Causa dell'errore",
   "error.chat.chunk.non_json": "Il formato dei dati restituiti non è valido",
   "error.chat.insufficient_balance": "Vai su <provider>{{provider}}</provider> per ricaricare il credito.",

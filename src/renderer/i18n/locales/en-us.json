@@ -1499,6 +1499,8 @@
   "error.boundary.default.reload": "Reload",
   "error.boundary.details": "Details",
   "error.boundary.mcp.invalid": "Invalid MCP server",
+  "error.branch_runtime_mismatch": "This conversation branch cannot continue with the current agent settings.",
+  "error.branch_runtime_mismatch_detail": "This branch was created with a different agent type or settings. Start a new conversation, or restore the original agent and settings. This is not a network problem.",
   "error.cause": "Error cause",
   "error.chat.chunk.non_json": "Returned an invalid data format",
   "error.chat.insufficient_balance": "Please go to the <provider>{{provider}}</provider> to recharge.",

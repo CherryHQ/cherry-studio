@@ -1499,6 +1499,8 @@
   "error.boundary.default.reload": "Neu laden",
   "error.boundary.details": "Details",
   "error.boundary.mcp.invalid": "Ungültiger MCP-Server",
+  "error.branch_runtime_mismatch": "Dieser Gesprächszweig kann mit den aktuellen Agenteneinstellungen nicht fortgesetzt werden.",
+  "error.branch_runtime_mismatch_detail": "Dieser Zweig wurde mit einem anderen Agententyp oder anderen Einstellungen erstellt. Starten Sie eine neue Unterhaltung oder stellen Sie den ursprünglichen Agenten und seine Einstellungen wieder her. Dies ist kein Netzwerkproblem.",
   "error.cause": "Fehlerursache",
   "error.chat.chunk.non_json": "Ungültiges Datenformat zurückgegeben",
   "error.chat.insufficient_balance": "Bitte gehen Sie zu <provider>{{provider}}</provider> zum Aufladen",
