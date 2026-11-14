@@ -1453,13 +1453,17 @@ export class AiUsageRecordService {
     return getAiUsageRecordStats(query)
   }
 
-  totalTokens(range: { from: number; to: number }): number {
+  /** Tokens used in `range`, optionally only those attributed to one Assistant / Agent / mini app. */
+  totalTokens(range: { from: number; to: number }, source?: { type: AiUsageRecordSourceType; id: string }): number {
+    const sourceConditions = source
+      ? [eq(aiUsageRecordTable.sourceType, source.type), eq(aiUsageRecordTable.sourceId, source.id)]
+      : []
     const [row] = application
       .get('DbService')
       .getDb()
       .select({ totalTokens: totalTokensSum() })
       .from(aiUsageRecordTable)
-      .where(and(...rangeConditions(range)))
+      .where(and(...sourceConditions, ...rangeConditions(range)))
       .all()
     return row.totalTokens
   }

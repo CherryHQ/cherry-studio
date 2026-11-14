@@ -117,6 +117,25 @@ describe('AgentProfilePane', () => {
   describe('activity', () => {
     const SESSION_TOPIC = buildAgentSessionTopicId('session-1')
 
+    it("shows this Agent's usage in compact numbers", () => {
+      serveQueries({
+        '/agents/:agentId': () => agent,
+        '/agents/:agentId/stats': ({ params }) =>
+          params?.agentId === agent.id
+            ? { sessionCount: 31, recentTaskRunCount: 18, recentTokens: 1_200_000 }
+            : undefined
+      })
+      renderInRightPane(<AgentProfilePane agentId={agent.id} sessionId="session-1" />)
+
+      for (const [value, label] of [
+        ['31', 'Sessions'],
+        ['18', 'Task runs'],
+        ['1.2M', 'Tokens, 7 days']
+      ]) {
+        expect(screen.getByText(label).closest('div')).toHaveTextContent(`${label}${value}`)
+      }
+    })
+
     it("lists only this Agent's scheduled tasks with their schedule or paused state", () => {
       serveAgentData({
         tasks: [
