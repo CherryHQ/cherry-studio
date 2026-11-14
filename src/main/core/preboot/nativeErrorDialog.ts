@@ -39,7 +39,8 @@ interface SupportedDialogInput {
   readonly action?: SupportedDialogAction
 }
 
-/** Native dialogs stack every button; past four they stop reading as a choice. */
+// Past four buttons a native dialog stops reading as a choice, so two or more secondary entries fold
+// behind "More…"; a single one stays on the row, since "More…" would only take its slot.
 const MAX_BUTTONS = 4
 
 function supportActions(input: SupportedDialogInput, language: DialogLanguage): SupportedDialogAction[] {
@@ -91,9 +92,9 @@ async function runAction(action: SupportedDialogAction, language: DialogLanguage
 /**
  * Show the original dialog with "Copy error and send feedback" and "Open download
  * page" always on the first row next to the caller buttons. Secondary entries
- * (`secondaryButtons`, then `action`) join that row when it stays within four
- * buttons, else they move behind "More…", a second box with Cancel. Actions loop
- * back to the same dialog. The returned index is a caller button or secondary
+ * (`secondaryButtons`, then `action`) join that row when there is only one or the
+ * row stays within four buttons, else they move behind "More…", a second box with
+ * Cancel. Actions loop back to the same dialog. The returned index is a caller button or secondary
  * choice; any other response returns the original cancel button. Technical text
  * is copied on request and is not placed on the dialog options.
  */
@@ -106,7 +107,7 @@ export async function showSupportedMessageBox(input: SupportedDialogInput): Prom
     ...(input.secondaryButtons ?? []).map((label, index) => ({ label, response: primary.length + index })),
     ...(input.action ? [input.action] : [])
   ]
-  const inline = secondary.length === 0 || primary.length + support.length + secondary.length <= MAX_BUTTONS
+  const inline = secondary.length <= 1 || primary.length + support.length + secondary.length <= MAX_BUTTONS
   const more = t('dialog.support.more', undefined, language)
   const row: SecondaryEntry[] = inline ? [...secondary, ...support] : support
   const cancelId = cancelIndex(input.box.cancelId, primary.length)
