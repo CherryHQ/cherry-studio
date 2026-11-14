@@ -1,4 +1,5 @@
 import '@data/services/AgentGlobalSkillService'
+import '@data/services/AgentSessionMessageService'
 import { randomUUID } from 'node:crypto'
 
 import { setupTestDatabase } from '@test-helpers/db'
@@ -132,6 +133,24 @@ describe('session runtime upgrade', () => {
     }
     context(native, { version: 1, kind: 'pi-durable', fileName: 'wrong.sqlite' })
     expect(() => agentSessionService.getRuntimeType(native)).toThrow('conflicts')
+  })
+
+  it('keeps a retained context-free session readable when its original Agent was permanently deleted', () => {
+    const id = session('claude-code')
+    agentService.deleteAgent(id)
+    agentService.deleteAgent(id, { permanent: true })
+
+    upgrade.run(dbh.db)
+    upgrade.run(dbh.db)
+
+    const restored = agentSessionService.getById(id)
+    expect(restored.agentId).toBeNull()
+    expect(restored.name).toBe(id)
+    expect(restored.runtimeType).toBeUndefined()
+    expect(dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, id)).get()?.runtimeType).toBe(
+      'unknown'
+    )
+    expect(() => agentSessionService.getRuntimeType(id)).toThrow('unresolved')
   })
 
   it('retains pending retired-runtime conversion ownership', () => {

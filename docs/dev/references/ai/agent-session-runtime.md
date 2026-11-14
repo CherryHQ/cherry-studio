@@ -7,6 +7,8 @@ sources:
   - src/main/ai/agents/AgentWorkspaceStorageService.ts
   - src/main/data/services/AgentSessionService.ts
   - src/main/data/db/schemas/agentSession.ts
+  - src/main/data/db/seeding/seeders/AgentSessionContextSeeder.ts
+  - src/main/data/db/seeding/seeders/AgentSessionRuntimeSeeder.ts
   - src/main/ai/agents/runAgentTask.ts
   - src/main/ai/agents/heartbeatSchedule.ts
   - src/shared/ai/agentHeartbeat.ts
@@ -60,6 +62,12 @@ retry. Such history remains readable but cannot execute. Native backend identity
 must agree with the session binding before dispatch, prewarming or history edits.
 Message-list reads return disabled fork/edit actions when ownership is unresolved
 or conflicts with a backend; that quarantine does not block reading saved messages.
+
+Legacy Pi context backfill honors a persisted session binding before the Agent type
+or pending retired-runtime conversion. It skips sessions with any non-Pi context,
+so changing Agents cannot cause another engine's resume token to become Pi evidence.
+Version 2 reruns the corrected backfill for existing installations without deleting
+contexts or automatically resolving previously ambiguous bindings.
 
 Model choices, instructions and configuration remain Agent-owned. Legacy CLI-only
 model selections are not converted into API models; a fresh Durable conversation

@@ -11,7 +11,7 @@ import type { DbType, ISeeder } from '../../types'
 
 export class AgentSessionContextSeeder implements ISeeder {
   readonly name = 'agentSessionContext'
-  readonly version = '1'
+  readonly version = '2'
   readonly description = 'Record existing Pi context identities for later native verification'
   readonly executionPolicy = 'run-on-change' as const
 
@@ -22,7 +22,7 @@ export class AgentSessionContextSeeder implements ISeeder {
           listRetiredAgentSessionMigrations(tx).map((migration) => [migration.sessionId, migration.resumeToken])
         )
         const sessions = tx
-          .select({ id: agentSessionTable.id, type: agentTable.type })
+          .select({ id: agentSessionTable.id, type: agentTable.type, runtimeType: agentSessionTable.runtimeType })
           .from(agentSessionTable)
           .leftJoin(agentTable, eq(agentSessionTable.agentId, agentTable.id))
           .all()
@@ -31,7 +31,14 @@ export class AgentSessionContextSeeder implements ISeeder {
 
         for (const session of sessions) {
           const migratedId = migrations.get(session.id)
-          if (!migratedId && session.type !== 'pi') continue
+          if ((session.runtimeType ?? (migratedId ? 'pi' : session.type)) !== 'pi') continue
+          const existingBackends = tx
+            .select({ locator: backends.locator })
+            .from(contexts)
+            .innerJoin(backends, eq(contexts.backendId, backends.id))
+            .where(eq(contexts.sessionId, session.id))
+            .all()
+          if (existingBackends.some(({ locator }) => locator.kind !== 'pi')) continue
           // Pending DSH conversion owns a new Pi identity; its old message tokens still belong to DSH.
           const ids = migratedId
             ? [migratedId]

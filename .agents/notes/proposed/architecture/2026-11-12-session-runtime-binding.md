@@ -22,6 +22,8 @@ Use a new appended schema migration and an ordered, transactional data upgrade b
 
 Include soft-deleted records so restore does not change engines. Preserve already recorded bindings on retries. Unknown, conflicting or orphaned histories without sufficient evidence remain unresolved and non-executable; never guess Pi Durable for them. Use an explicit unresolved representation instead of a schema default that silently labels old rows. An unresolved session must not prevent unrelated valid sessions from upgrading. No transcript, native store, checkpoint, resume token or attachment is converted or discarded.
 
+The legacy Pi context backfill must honor a persisted session binding before consulting the Agent type or pending retired-runtime conversion. Skip Pi backfill when any existing context belongs to another engine; a resume token alone does not establish Pi ownership. Rerunning the corrected backfill preserves existing contexts, including unresolved or conflicting evidence, rather than deleting them or automatically rebinding those sessions.
+
 After bindings are captured, normalize existing Agents to `pi-durable` in the same transactional upgrade. Preserve IDs, model choices, instructions and configuration. New Agent creation, duplication, import, built-in seeding and updates must converge on Pi Durable at the data owner, not only in the wizard. Backup restoration and legacy imports must bind sessions before normalizing their Agents, and preserve explicit bindings. Existing Agent configuration continues to supply models and tools; runtime capability interpretation follows the session's engine.
 
 ### Route execution and presentation by session
