@@ -20,9 +20,13 @@ import { checkEntityImageSize, prepareEntityImageBytes } from '@renderer/utils/i
 import type { Assistant } from '@shared/data/types/assistant'
 
 vi.mock('@renderer/utils/image', () => ({ checkEntityImageSize: vi.fn(() => null), prepareEntityImageBytes: vi.fn() }))
-vi.mock('@renderer/components/EmojiPicker/emojiSupport', () => ({
-  detectEmojiSupportLevel: async () => 15,
-  detectUnsupportedZwjEmojiIds: async () => []
+// The real picker's `:has()` styles break jsdom's selector engine for later pointer checks.
+vi.mock('@renderer/components/EmojiPicker', () => ({
+  EmojiPicker: ({ onEmojiClick }: { onEmojiClick: (emoji: string) => void }) => (
+    <button type="button" onClick={() => onEmojiClick('🎓')}>
+      Graduation cap
+    </button>
+  )
 }))
 
 const {
@@ -352,9 +356,8 @@ vi.mock('react-i18next', async (importOriginal) => {
           // Permission-mode titles intentionally absent: they fall through to the card
           // definitions' own fallbacks, so copy changes need no edit here.
           'common.avatar': 'Avatar',
-          'settings.general.image_upload': 'Image Upload',
-          'settings.general.emoji_picker': 'Emoji Picker',
-          'settings.general.avatar.reset': 'Reset Avatar',
+          'library.config.dialogs.create.avatar_upload': 'Image Upload',
+          'library.config.dialogs.create.avatar_remove_image': 'Remove image',
           'common.add': 'Add',
           'common.cancel': 'Cancel',
           'common.more': 'More',
@@ -1405,7 +1408,7 @@ describe('edit dialogs', () => {
     expect(updateAssistantMock.mock.calls[0][0].body).not.toHaveProperty('emoji')
     await user.click(screen.getByRole('button', { name: 'Pick avatar' }))
     const file = new File(['image'], 'avatar.png', { type: 'image/png' })
-    await user.upload(screen.getByLabelText('Image Upload'), file)
+    await user.upload(screen.getByLabelText('Image Upload', { selector: 'input' }), file)
     await waitFor(() =>
       expect(ipcRequestMock).toHaveBeenCalledWith('assistant.set_avatar', {
         assistantId: ASSISTANT.id,
@@ -1427,18 +1430,19 @@ describe('edit dialogs', () => {
     const pendingAvatar = createDeferred<void>()
     ipcRequestMock.mockReturnValueOnce(pendingAvatar.promise)
     const user = userEvent.setup()
-    const { rerender } = render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} />)
+    const resource = { ...ASSISTANT, avatarSrc: 'file:///saved.webp' }
+    const { rerender } = render(<AssistantEditDialog open resource={resource} onOpenChange={vi.fn()} />)
     await user.click(screen.getByRole('button', { name: 'Pick avatar' }))
-    await user.click(screen.getByRole('button', { name: 'Reset Avatar' }))
+    await user.click(screen.getByRole('button', { name: 'Remove image' }))
     expect(ipcRequestMock).toHaveBeenCalledWith('assistant.set_avatar', {
       assistantId: ASSISTANT.id,
       avatar: { kind: 'default' }
     })
-    rerender(<AssistantEditDialog open={false} resource={ASSISTANT} onOpenChange={vi.fn()} />)
-    rerender(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} />)
+    rerender(<AssistantEditDialog open={false} resource={resource} onOpenChange={vi.fn()} />)
+    rerender(<AssistantEditDialog open resource={resource} onOpenChange={vi.fn()} />)
     await user.click(screen.getByRole('button', { name: 'Pick avatar' }))
     await act(async () => pendingAvatar.resolve(undefined))
-    expect(screen.getByRole('button', { name: 'Reset Avatar' })).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Remove image' })).toBeVisible()
     expect(updateAssistantMock).not.toHaveBeenCalled()
   })
 
@@ -2515,7 +2519,7 @@ describe('edit dialogs', () => {
     frames.restore()
   })
 
-  it('opens the agent avatar menu from its only avatar control', async () => {
+  it('opens the agent avatar picker from its only avatar control', async () => {
     const user = userEvent.setup()
     render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} />)
 
@@ -2524,10 +2528,8 @@ describe('edit dialogs', () => {
     expect(avatarControls).toHaveLength(1)
     await user.click(avatarControls[0])
 
+    expect(screen.getByRole('button', { name: 'Graduation cap' })).toBeVisible()
     expect(screen.getByRole('button', { name: 'Image Upload' })).toBeVisible()
-    expect(screen.getByRole('button', { name: 'Emoji Picker' })).toBeVisible()
-    expect(screen.getByRole('button', { name: 'Reset Avatar' })).toBeVisible()
-    expect(screen.queryByRole('textbox', { name: 'Type to search for an emoji' })).not.toBeInTheDocument()
   })
 
   it('keeps popover content inside the dialog container', async () => {
@@ -2535,9 +2537,8 @@ describe('edit dialogs', () => {
 
     const dialog = screen.getByRole('dialog')
     fireEvent.click(screen.getByLabelText('Pick avatar'))
-    fireEvent.click(screen.getByRole('button', { name: 'Emoji Picker' }))
 
-    expect(dialog).toContainElement(await screen.findByRole('textbox', { name: 'Type to search for an emoji' }))
+    expect(dialog).toContainElement(screen.getByRole('button', { name: 'Graduation cap' }))
   })
 
   it('keeps edited values while switching tabs before save', async () => {

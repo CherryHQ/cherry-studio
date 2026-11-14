@@ -76,7 +76,6 @@ function Harness({
   return (
     <Form {...form}>
       <BasicInfoStep
-        active
         disabled={false}
         onImagePendingChange={vi.fn()}
         form={form}
