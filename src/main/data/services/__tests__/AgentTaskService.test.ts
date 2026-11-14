@@ -35,7 +35,12 @@ import { agentSessionService } from '@data/services/AgentSessionService'
 import { jobScheduleService } from '@data/services/JobScheduleService'
 import { jobService } from '@data/services/JobService'
 
-import { agentTaskService, readTaskSessionReuse, writeTaskSessionReuse } from '../AgentTaskService'
+import {
+  agentTaskService,
+  readTaskSessionReuse,
+  reconcileTaskAdmissions,
+  writeTaskSessionReuse
+} from '../AgentTaskService'
 
 const AGENT_ID = 'agent-a1'
 const TASK_ID = 'sched-1'
@@ -344,6 +349,31 @@ describe('AgentTaskService (read side)', () => {
       expect(result.tasks.find((task) => task.id === unfinished.id)?.runSummary).toEqual({ status: 'queued' })
     })
 
+    it.each([{ kind: 'skipped' }, { skipped: true }])(
+      'distinguishes skipped completed output %j from a succeeded agent run',
+      (output) => {
+        const task = makeSnapshot()
+        vi.mocked(jobScheduleService.listAll).mockReturnValue([task])
+        vi.mocked(jobService.getRunStatesByScheduleIds).mockReturnValue(
+          new Map([
+            [
+              task.id,
+              {
+                kind: 'terminal',
+                status: 'completed',
+                finishedAt: Date.parse('2026-05-20T00:00:05.000Z'),
+                output
+              }
+            ]
+          ])
+        )
+        expect(agentTaskService.listAllTasks().tasks[0].runSummary).toEqual({
+          status: 'skipped',
+          finishedAt: '2026-05-20T00:00:05.000Z'
+        })
+      }
+    )
+
     it('projects the newest terminal run and leaves tasks without jobs empty', () => {
       const withJobs = makeSnapshot({ id: 'terminal-task', name: 'terminal-task' })
       const withoutJobs = makeSnapshot({ id: 'empty-task', name: 'empty-task' })
@@ -544,5 +574,27 @@ describe('AgentTaskService (read side)', () => {
 
       expect(merged).toEqual({ reuse: { enabled: true, revision: 0 } })
     })
+  })
+})
+
+describe('reconcileTaskAdmissions', () => {
+  it('removes recovered terminal/pruned memberships without changing watermark or replayable IDs', () => {
+    const metadata = {
+      lastExecutedRunStartedAt: 1000,
+      lastExecutedRunJobId: 'terminal',
+      lastAdmittedRunJobIds: ['terminal', 'pruned', 'running', 'pending'],
+      unrelated: true
+    }
+    const before = structuredClone(metadata)
+    expect(reconcileTaskAdmissions(metadata, new Set(['running', 'pending']))).toEqual({
+      ...metadata,
+      lastAdmittedRunJobIds: ['running', 'pending']
+    })
+    expect(reconcileTaskAdmissions(metadata, new Set())).toEqual({
+      lastExecutedRunStartedAt: 1000,
+      lastExecutedRunJobId: 'terminal',
+      unrelated: true
+    })
+    expect(metadata).toEqual(before)
   })
 })

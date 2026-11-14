@@ -1,6 +1,7 @@
 import { Cron } from 'croner'
 import type { TFunction } from 'i18next'
 
+import type { TaskGuard } from '@shared/data/api/schemas/agents'
 import { AGENT_WORKSPACE_TYPE } from '@shared/data/api/schemas/agentWorkspaces'
 import type { Trigger } from '@shared/data/api/schemas/jobs'
 import type { ScheduledTaskEntity } from '@shared/data/types/agent'
@@ -20,6 +21,7 @@ export type TaskDraftSnapshot = {
   channelIds: string[]
   workspaceId: string | null
   reuseSession: boolean
+  guard: TaskGuard
 }
 
 export const DEFAULT_SCHEDULE: ScheduleFormState = {
@@ -176,7 +178,8 @@ export function taskToDraftSnapshot(task: ScheduledTaskEntity): TaskDraftSnapsho
     },
     channelIds: task.channelIds ?? [],
     workspaceId: task.workspace.type === AGENT_WORKSPACE_TYPE.USER ? task.workspace.workspaceId : null,
-    reuseSession: task.reuseSession
+    reuseSession: task.reuseSession,
+    guard: task.guard
   }
 }
 

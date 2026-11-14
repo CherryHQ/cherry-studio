@@ -330,10 +330,16 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
   },
   'ai.agent.heartbeat.run': ({ agentId }) => application.get('AgentJobsService').runHeartbeat(agentId),
   'ai.agent.task.create': ({ agentId, ...form }) =>
-    exposeAgentTaskError(() => application.get('AgentJobsService').createTask(agentId, form)),
+    // Renderer-origin: the user typed any command guard into the form
+    // themselves, so the save doubles as its approval.
+    exposeAgentTaskError(() =>
+      application.get('AgentJobsService').createTask(agentId, form, { guardApprovedByUser: true })
+    ),
   'ai.agent.task.update': ({ agentId, taskId, patch }) =>
     exposeAgentTaskError(async () => {
-      const updated = application.get('AgentJobsService').updateTask(agentId, taskId, patch)
+      const updated = application
+        .get('AgentJobsService')
+        .updateTask(agentId, taskId, patch, { guardApprovedByUser: true })
       if (!updated) throw agentTaskNotFound(taskId)
       return updated
     }),
@@ -355,6 +361,12 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
     const fired = await application.get('AgentJobsService').runTask(agentId, taskId)
     if (!fired) throw agentTaskNotFound(taskId)
   },
+  'ai.agent.task.approve_guard': ({ agentId, taskId, expectedCommand }) =>
+    exposeAgentTaskError(() => {
+      const approved = application.get('AgentJobsService').approveTaskGuardCommand(agentId, taskId, expectedCommand)
+      if (!approved) throw agentTaskNotFound(taskId)
+      return approved
+    }),
   'ai.temporary_topic.create': async (dto) => temporaryChatService.createTopic(dto),
   'ai.temporary_topic.delete': async ({ id }) => {
     temporaryChatService.deleteTopic(id)

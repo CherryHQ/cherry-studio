@@ -36,6 +36,14 @@ export const TaskRunSummaryLine: FC<{ summary: TaskRunSummary }> = ({ summary })
   }
 
   const time = formatTaskCardTime(summary.finishedAt)
+  if (summary.status === 'skipped') {
+    return (
+      <span className="flex items-center gap-1.5 text-muted-foreground">
+        <CircleStop aria-hidden className="size-3 shrink-0" />
+        {t('agent.tasks.logs.skipped')} · {time}
+      </span>
+    )
+  }
   if (summary.status === 'completed') {
     return (
       <span className="flex items-center gap-1.5 text-muted-foreground">
