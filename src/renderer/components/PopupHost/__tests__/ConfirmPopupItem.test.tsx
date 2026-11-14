@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
@@ -199,11 +199,13 @@ describe('ConfirmPopupItem (via PopupHost + confirm presets)', () => {
     })
 
     await user.click(await screen.findByRole('button', { name: i18n.t('error.diagnosis.view_details') }))
-    expect(openAppErrorDetail).toHaveBeenCalledWith(
-      expect.objectContaining({
-        error: expect.objectContaining({ message: 'disk full', name: 'Error' }),
-        localizedErrorMessage: 'Backup failed'
-      })
+    await waitFor(() =>
+      expect(openAppErrorDetail).toHaveBeenCalledWith(
+        expect.objectContaining({
+          error: expect.objectContaining({ message: 'disk full', name: 'Error' }),
+          localizedErrorMessage: 'Backup failed'
+        })
+      )
     )
     expect(settled).toBe(false)
     expect(screen.getByRole('dialog')).toBeInTheDocument()
@@ -222,7 +224,11 @@ describe('ConfirmPopupItem (via PopupHost + confirm presets)', () => {
     })
 
     await user.click(await screen.findByRole('button', { name: i18n.t('error.diagnosis.view_details') }))
-    expect(openAppErrorDetail).toHaveBeenCalledWith(expect.objectContaining({ localizedErrorMessage: 'Backup failed' }))
+    await waitFor(() =>
+      expect(openAppErrorDetail).toHaveBeenCalledWith(
+        expect.objectContaining({ localizedErrorMessage: 'Backup failed' })
+      )
+    )
     expect(screen.getByRole('button', { name: i18n.t('common.confirm') })).toBeInTheDocument()
   })
 
@@ -239,11 +245,13 @@ describe('ConfirmPopupItem (via PopupHost + confirm presets)', () => {
     })
 
     await user.click(await screen.findByRole('button', { name: i18n.t('error.diagnosis.view_details') }))
-    expect(openAppErrorDetail).toHaveBeenCalledWith(
-      expect.objectContaining({
-        error: expect.objectContaining({ message: 'disk full' }),
-        localizedErrorMessage: i18n.t('error.unexpected')
-      })
+    await waitFor(() =>
+      expect(openAppErrorDetail).toHaveBeenCalledWith(
+        expect.objectContaining({
+          error: expect.objectContaining({ message: 'disk full' }),
+          localizedErrorMessage: i18n.t('error.unexpected')
+        })
+      )
     )
     expect(screen.queryByText(/\[object Object\]/)).not.toBeInTheDocument()
   })

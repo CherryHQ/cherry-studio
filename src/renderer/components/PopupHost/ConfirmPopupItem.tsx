@@ -20,7 +20,7 @@ import {
   localizedSummaryFromHost,
   appErrorContextService
 } from '@renderer/services/AppErrorContextService'
-import { appErrorDetailService } from '@renderer/services/AppErrorDetailService'
+import { openLoadedErrorDetail } from '@renderer/services/appErrorDetailOpen'
 import type { ConfirmPopupEntry, ConfirmPopupProps, ConfirmPopupType } from '@renderer/services/popup'
 import { popupService } from '@renderer/services/popup'
 
@@ -182,7 +182,7 @@ export default function ConfirmPopupItem({ entry }: { entry: ConfirmPopupEntry }
                   const localizedErrorMessage =
                     localizedSummaryFromHost({ data: props.data, description: props.content, title: props.title }) ??
                     i18n.t('error.unexpected')
-                  void appErrorDetailService.openAppErrorDetail(
+                  openLoadedErrorDetail(
                     error
                       ? { context: presentedContext, error, localizedErrorMessage }
                       : { context: presentedContext, localizedErrorMessage }
