@@ -192,10 +192,13 @@ describe('AgentService', () => {
       .onConflictDoNothing()
   }
 
+  // Installed skills are globally enabled by default (AgentGlobalSkillService.insertTx
+  // forces isEnabled: true); the column's schema default is false, so the fixture must
+  // opt in explicitly or agent-scoped list() projections exclude the skill.
   async function insertGlobalSkill(id: string, folderName?: string, source: string = 'local'): Promise<void> {
     await dbh.db
       .insert(agentGlobalSkillTable)
-      .values({ id, name: id, folderName: folderName ?? id, source, contentHash: `hash-${id}` })
+      .values({ id, name: id, folderName: folderName ?? id, source, contentHash: `hash-${id}`, isEnabled: true })
       .onConflictDoNothing()
   }
 
@@ -1194,6 +1197,83 @@ describe('AgentService', () => {
         ])
       )
       expect(rows).toHaveLength(3)
+    })
+
+    it('keeps skill enablement independent between agents', async () => {
+      await insertGlobalSkill('skill_a')
+      await insertGlobalSkill('skill_b')
+      const agentA = createAgentForTest({ type: 'claude-code', name: 'Agent A', model: TEST_MODEL_ID })
+      const agentB = createAgentForTest({ type: 'claude-code', name: 'Agent B', model: TEST_MODEL_ID })
+
+      agentService.updateAgent(agentA.id, {
+        skillUpdates: [
+          { skillId: 'skill_a', isEnabled: true },
+          { skillId: 'skill_b', isEnabled: true }
+        ]
+      })
+      agentService.updateAgent(agentB.id, { skillUpdates: [{ skillId: 'skill_b', isEnabled: true }] })
+      agentService.updateAgent(agentB.id, { skillUpdates: [{ skillId: 'skill_b', isEnabled: false }] })
+
+      const enabledIds = (agentId: string) =>
+        agentGlobalSkillService
+          .list({ agentId })
+          .filter((skill) => skill.isEnabled)
+          .map((skill) => skill.id)
+      expect(enabledIds(agentA.id)).toEqual(['skill_a', 'skill_b'])
+      expect(enabledIds(agentB.id)).toEqual([])
+    })
+
+    it('keeps an explicit builtin opt-out local to its agent while another agent retains the default', async () => {
+      await insertGlobalSkill('skill_builtin_shared', undefined, 'builtin')
+      const agentA = createAgentForTest({ type: 'claude-code', name: 'Builtin A', model: TEST_MODEL_ID })
+      const agentB = createAgentForTest({ type: 'claude-code', name: 'Builtin B', model: TEST_MODEL_ID })
+      const enabledFor = (agentId: string) =>
+        agentGlobalSkillService.list({ agentId }).find((skill) => skill.id === 'skill_builtin_shared')?.isEnabled
+
+      expect(enabledFor(agentA.id)).toBe(true)
+      expect(enabledFor(agentB.id)).toBe(true)
+      agentService.updateAgent(agentA.id, {
+        skillUpdates: [{ skillId: 'skill_builtin_shared', isEnabled: false }]
+      })
+      expect(enabledFor(agentA.id)).toBe(false)
+      expect(enabledFor(agentB.id)).toBe(true)
+      expect(agentGlobalSkillService.getById('skill_builtin_shared')?.isGlobalEnabled).toBe(true)
+
+      agentService.updateAgent(agentB.id, {
+        skillUpdates: [{ skillId: 'skill_builtin_shared', isEnabled: false }]
+      })
+      agentService.updateAgent(agentA.id, {
+        skillUpdates: [{ skillId: 'skill_builtin_shared', isEnabled: true }]
+      })
+      expect(enabledFor(agentA.id)).toBe(true)
+      expect(enabledFor(agentB.id)).toBe(false)
+    })
+
+    it('restores distinct agent preferences after a global skill is disabled and re-enabled', async () => {
+      await insertGlobalSkill('skill_shared')
+      const agentA = createAgentForTest({
+        type: 'claude-code',
+        name: 'Global Toggle A',
+        model: TEST_MODEL_ID,
+        skillIds: ['skill_shared']
+      })
+      const agentB = createAgentForTest({ type: 'claude-code', name: 'Global Toggle B', model: TEST_MODEL_ID })
+      agentService.updateAgent(agentB.id, { skillUpdates: [{ skillId: 'skill_shared', isEnabled: false }] })
+      const rowsBefore = dbh.db.select().from(agentSkillTable).all()
+      const enabledFor = (agentId: string) =>
+        agentGlobalSkillService.list({ agentId }).find((skill) => skill.id === 'skill_shared')?.isEnabled
+      expect(enabledFor(agentA.id)).toBe(true)
+      expect(enabledFor(agentB.id)).toBe(false)
+
+      agentGlobalSkillService.updateGlobalEnabled('skill_shared', false)
+      expect(enabledFor(agentA.id)).toBeUndefined()
+      expect(enabledFor(agentB.id)).toBeUndefined()
+      expect(dbh.db.select().from(agentSkillTable).all()).toEqual(rowsBefore)
+
+      agentGlobalSkillService.updateGlobalEnabled('skill_shared', true)
+      expect(enabledFor(agentA.id)).toBe(true)
+      expect(enabledFor(agentB.id)).toBe(false)
+      expect(dbh.db.select().from(agentSkillTable).all()).toEqual(rowsBefore)
     })
 
     it('writes an explicit disabled row when a builtin skill is disabled', async () => {
