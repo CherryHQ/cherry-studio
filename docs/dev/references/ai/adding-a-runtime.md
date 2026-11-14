@@ -128,6 +128,14 @@ Create `src/main/ai/runtime/<name>/` implementing the contract in
        inputs as aborted when execution ends without placing them, without automatic resend.
        Claude uses native next-priority admission across the turn boundary and never
        returns an accepted input for host resend.
+     - `abortTurn()` — graceful interrupt of the current turn while the
+       session stays alive (background tasks and subagents survive). Resolve
+       `true` when the turn was interrupted and the connection lives — a warm
+       connection whose turn already settled also resolves `true`, since a
+       re-dispatched stop has nothing to interrupt; resolve `false` when the
+       driver cannot gracefully stop (unsupported, or no timely answer) — the
+       host then tears the session down. Without it the host always tears the
+       session down on a user Stop.
      - `retainWhileIdle` — keep an owned in-process runtime beyond the host idle TTL;
        explicit retirement and service shutdown still close it.
      - `background-work-state` — retain the connection while native background work exists.

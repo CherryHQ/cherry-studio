@@ -109,7 +109,8 @@ export interface ClaudeArchive {
 
 export interface ClaudeThreadHandle extends ThreadHandle {
   readonly claude: {
-    state(): { readonly active: boolean }
+    /** `generation` identifies the open turn: a stop latches it so a successor cannot stand in. */
+    state(): { readonly active: boolean; readonly generation: number }
     relation(): Subagent | undefined
     openChild(
       toolCallId: string,

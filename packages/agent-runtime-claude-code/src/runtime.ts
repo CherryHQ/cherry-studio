@@ -94,7 +94,7 @@ export function createClaudeCodeRuntime(options: ClaudeCodeRuntimeOptions): Clau
           for (const event of batch.events) await sink(event)
         }),
       claude: {
-        state: () => ({ active: projection.control.isTurnActive }),
+        state: () => ({ active: projection.control.isTurnActive, generation: projection.control.turnGeneration }),
         relation: () =>
           [...owner.projections.values()]
             .flatMap((parent) => parent.feed.snapshot.subagents ?? [])

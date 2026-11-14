@@ -84,6 +84,12 @@ import { claudeWorkspaceRelocation } from './workspaceRelocation'
 
 const logger = loggerService.withContext('ClaudeCodeRuntimeDriver')
 const HOST_MANAGED_SLASH_COMMANDS = new Set(['effort', 'fast'])
+/** How long to wait for the CLI to answer the interrupt control request. Interactive interrupts
+ *  are acknowledged in milliseconds; a CLI still booting cannot answer at all. */
+const GRACEFUL_INTERRUPT_TIMEOUT_MS = 5_000
+/** How long to wait for the interrupted turn to settle after the interrupt was acknowledged. */
+const GRACEFUL_TURN_SETTLE_TIMEOUT_MS = 5_000
+const GRACEFUL_TURN_SETTLE_POLL_MS = 50
 
 function isHostManagedSlashCommand(command: AgentSessionSlashCommand): boolean {
   return HOST_MANAGED_SLASH_COMMANDS.has(command.name)
@@ -157,6 +163,8 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   private _usageCapture?: AgentSessionUsageCapture
   /** Serializes reconciles per connection so push/pull can't interleave SDK and snapshot writes. */
   private reconcileChain: Promise<unknown> = Promise.resolve()
+  /** Invalidates a `send()` still materializing attachments when a Stop lands in that window. */
+  private sendSequence = 0
 
   readonly events = this.eventQueue
   get usageCapture(): AgentSessionUsageCapture | undefined {
@@ -290,16 +298,32 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     application.get('ClaudeCodeTraceBridgeService').refreshTraceContext(context)
   }
 
-  async send(input: AgentRuntimeCommand): Promise<void> {
+  async send(input: AgentRuntimeCommand): Promise<boolean> {
     this.currentSources.clear()
     if (isFastSlashCommand(input)) {
       throw new Error('The /fast command is unavailable; use the host Fast control instead')
     }
 
+    const sendId = ++this.sendSequence
+    const baselineGeneration = this.handle?.claude.state().generation
     const sdkMessage = await toSdkUserMessage(input.message, this.resumeToken, input.systemReminder, {
       supportsAttachmentReads: this.assistantFileToolsEnabled,
       supportsImages: resolveModelImageSupport(this.input.modelId)
     })
+    // Attachment materialization is async, so a Stop can land in that window. The stopped prompt
+    // never reached the CLI — admitting it now would execute it inside the settlement window.
+    if (sendId !== this.sendSequence) return false
+    // Claim the runtime's turn only once the prompt is actually on its way to the CLI, so a stop
+    // arriving before then sees an idle turn instead of one that never started. A generation the
+    // runtime opened on its own during materialization must not be reset: wait it out, then claim.
+    const successorGenerationActive = () => {
+      const state = this.handle?.claude.state()
+      return state?.active === true && state.generation !== baselineGeneration
+    }
+    while (successorGenerationActive() && sendId === this.sendSequence && !this.abortController.signal.aborted) {
+      await new Promise((resolve) => setTimeout(resolve, GRACEFUL_TURN_SETTLE_POLL_MS))
+    }
+    if (sendId !== this.sendSequence) return false
     const contextId = this.context!.id
     const draft = prepareNativeSubmission(this.input.sessionId, input.message.id, contextId, 'follow-up', {
       text: JSON.stringify(sdkMessage.message.content),
@@ -310,6 +334,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     this.eventQueue.push({ type: 'input-submission', contextId, result })
     applyNativeSubmissionResult(this.input.sessionId, contextId, result)
     if (result.status !== 'acknowledged') throw new Error(result.error?.message ?? result.status)
+    return true
   }
 
   lookupInput(contextId: string, inputId: string) {
@@ -455,6 +480,50 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       return
     }
     for (const child of await this.childResources()) await child.projection.drain()
+  }
+
+  async abortTurn(): Promise<boolean> {
+    const handle = this.handle
+    if (!handle?.interrupt) return false
+    // Invalidate any send still materializing attachments: its prompt is not in the CLI yet, so it
+    // must never be admitted behind this stop. The discarded send resolves `false` so the host can
+    // demote the turn's admission instead of letting it claim another turn's completion.
+    this.sendSequence++
+    // A warm connection whose turn already settled has nothing to interrupt: report success so
+    // the stop keeps the preserved runtime instead of falling back to the teardown.
+    const latched = handle.claude.state()
+    if (!latched.active) return true
+    // Latch the generation this stop interrupts: the connection-wide turn flag is re-armed by
+    // background content opening a successor generation, whose lifetime must not decide the verdict.
+    const interruptedGeneration = latched.generation
+    const generationActive = () => {
+      const state = this.handle?.claude.state()
+      return state?.active === true && state.generation === interruptedGeneration
+    }
+    logger.info('Gracefully interrupting Claude Code turn', { sessionId: this.input.sessionId })
+    let ackTimeout: ReturnType<typeof setTimeout> | undefined
+    const acknowledged = await Promise.race([
+      handle.interrupt().then(
+        (result) => result.status === 'confirmed',
+        (error) => {
+          logger.warn('Claude Code interrupt request failed', { sessionId: this.input.sessionId, error })
+          return false
+        }
+      ),
+      new Promise<boolean>((resolve) => {
+        ackTimeout = setTimeout(() => resolve(false), GRACEFUL_INTERRUPT_TIMEOUT_MS)
+      })
+    ])
+    // A settling interrupt leaves the timeout scheduled and referenced for its full period.
+    clearTimeout(ackTimeout)
+    if (!acknowledged) return false
+    // The interrupt control response only says the CLI took the request; wait (bounded) for the
+    // SDK's interrupt-truncated result so the host only trusts a turn that actually settled.
+    const deadline = Date.now() + GRACEFUL_TURN_SETTLE_TIMEOUT_MS
+    while (generationActive() && Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, GRACEFUL_TURN_SETTLE_POLL_MS))
+    }
+    return !generationActive()
   }
 
   async interrupt(): Promise<void> {

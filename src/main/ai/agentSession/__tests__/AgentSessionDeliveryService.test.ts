@@ -171,6 +171,7 @@ const manager = {
   abortAndDrain: mocks.abortAndDrain,
   hasTerminalPersistenceInFlight: mocks.hasTerminalPersistenceInFlight,
   whenTerminalDispatchSettled: mocks.whenTerminalDispatchSettled,
+  forgetStoppedStops: vi.fn(),
   send: mocks.send
 }
 const dbService = {

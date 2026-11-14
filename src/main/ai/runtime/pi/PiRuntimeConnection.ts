@@ -110,6 +110,8 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
   private nativeClosed = false
   private active = false
   private sending = false
+  /** A user Stop asked for a graceful interrupt: settle the turn as complete, not failed. */
+  private stopRequested = false
   private manualCompactInFlight = false
   private autonomous = false
   private nextOrigin: AutonomousTurnOrigin = { kind: 'background-work' }
@@ -758,6 +760,12 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     this.cancelQueuedInputs()
     this.flushInputs()
     this.sending = false
+    if (this.stopRequested) {
+      // A graceful Stop settles through the normal stream: report the turn complete and do not
+      // surface the abort as a failure. The host keeps this connection and its background work.
+      this.stopRequested = false
+      this.failure = undefined
+    }
     if (this.failure) this.eventQueue.push({ type: 'error', error: this.failure })
     else {
       const checkpoint = PiForkCheckpointSchema.safeParse({
@@ -872,6 +880,44 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
           status: 'unknown' as const,
           error: { operation: 'contextUsage', code: 'not-connected', message: 'Runtime not connected' }
         }
+  }
+
+  /** Stop the active Pi prompt while retaining the session and its conversation state. */
+  async abortTurn(): Promise<boolean> {
+    const handle = this.handle
+    if (this.closing || !handle) return false
+    // A warm connection whose turn already settled has nothing to interrupt: report success so
+    // the stop keeps the preserved runtime instead of falling back to the teardown. A manual
+    // `/compact` is a live host turn, so it counts as work even while Pi observes idle.
+    if (!this.active && !this.manualCompactInFlight) return true
+    if (!handle.interrupt) return false
+    this.stopRequested = true
+    const interrupted = await handle.interrupt()
+    if (interrupted.status !== 'confirmed') {
+      this.stopRequested = false
+      return false
+    }
+    // The runtime answers the interrupt before its observation reaches idle; wait for the turn
+    // (or compaction) to actually settle so the caller knows the connection is reusable.
+    const settled = await new Promise<boolean>((resolve) => {
+      const poll = setInterval(() => {
+        if (this.closing) {
+          clearInterval(poll)
+          clearTimeout(timeout)
+          resolve(false)
+        } else if (!this.active && !this.manualCompactInFlight) {
+          clearInterval(poll)
+          clearTimeout(timeout)
+          resolve(true)
+        }
+      }, 25)
+      const timeout = setTimeout(() => {
+        clearInterval(poll)
+        resolve(false)
+      }, 5_000)
+    })
+    if (!settled) this.stopRequested = false
+    return settled
   }
 
   close(): Promise<void> {

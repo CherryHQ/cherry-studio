@@ -21,7 +21,8 @@ vi.mock('@application', async () => {
     AiStreamManager: {
       isWriteQuiesced: false,
       withDispatchLock: (_topicId: string, operation: () => Promise<unknown>) => operation(),
-      hasUnsettledTopicWork: mocks.hasUnsettledTopicWork
+      hasUnsettledTopicWork: mocks.hasUnsettledTopicWork,
+      forgetStoppedStops: vi.fn()
     },
     AgentSessionRuntimeService: {
       cancelSessionForks: vi.fn().mockResolvedValue(undefined),
