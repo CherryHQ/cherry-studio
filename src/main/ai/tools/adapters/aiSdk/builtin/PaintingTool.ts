@@ -10,6 +10,8 @@
 
 import { dynamicTool } from 'ai'
 
+import { artifactService } from '@data/services/ArtifactService'
+import { loggerService } from '@logger'
 import { GENERATE_IMAGE_TOOL_NAME } from '@shared/ai/builtinTools'
 
 import { buildGenerateImageToolSchema, type GenerateImageToolInput } from '../../../generateImageTool'
@@ -17,6 +19,7 @@ import {
   type ConfiguredPaintingModel,
   GENERATE_IMAGE_DESCRIPTION,
   generateImageFromPrompt,
+  isPaintingError,
   paintingModelOutput,
   type PaintingResult
 } from '../../../painting'
@@ -25,6 +28,20 @@ import type { ToolEntry } from '../types'
 
 export { GENERATE_IMAGE_TOOL_NAME }
 
+const logger = loggerService.withContext('PaintingTool')
+
+/** Index the images for the Assistant's Outputs; a failed index write never fails the generation. */
+function recordTopicImages(topicId: string, files: readonly { id: string }[]): void {
+  try {
+    artifactService.recordTopicFiles(
+      topicId,
+      files.map((file) => file.id)
+    )
+  } catch (error) {
+    logger.warn('Failed to index generated images', { topicId, error })
+  }
+}
+
 function buildGenerateImageTool(configuredModel?: ConfiguredPaintingModel) {
   const inputSchema = buildGenerateImageToolSchema(configuredModel?.support)
   return dynamicTool({
@@ -32,9 +49,13 @@ function buildGenerateImageTool(configuredModel?: ConfiguredPaintingModel) {
     inputSchema,
     execute: async (input, options) => {
       const parsed = inputSchema.parse(input) as GenerateImageToolInput
-      return configuredModel === undefined
-        ? generateImageFromPrompt(parsed, getToolCallContext(options).request.abortSignal)
-        : generateImageFromPrompt(parsed, getToolCallContext(options).request.abortSignal, configuredModel)
+      const { request } = getToolCallContext(options)
+      const output =
+        configuredModel === undefined
+          ? await generateImageFromPrompt(parsed, request.abortSignal)
+          : await generateImageFromPrompt(parsed, request.abortSignal, configuredModel)
+      if (request.topicId && !isPaintingError(output)) recordTopicImages(request.topicId, output)
+      return output
     },
     toModelOutput: ({ output }) => paintingModelOutput(output as PaintingResult)
   })

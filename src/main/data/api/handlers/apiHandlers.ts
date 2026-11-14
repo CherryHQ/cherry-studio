@@ -21,6 +21,7 @@ import { agentWorkspaceHandlers } from './agentWorkspaces'
 import { aiUsageRecordHandlers } from './aiUsageRecords'
 import { apiGatewayPairedDeviceHandlers } from './apiGatewayPairedDevices'
 import { archiveHandlers } from './archives'
+import { artifactHandlers } from './artifacts'
 import { assistantHandlers } from './assistants'
 import { browserVisitHandlers } from './browserVisits'
 import { diagnosticReportHandlers } from './diagnosticReports'
@@ -54,6 +55,7 @@ import { translateHandlers } from './translate'
 export const apiHandlers: ApiImplementation = {
   ...apiGatewayPairedDeviceHandlers,
   ...agentHandlers,
+  ...artifactHandlers,
   ...archiveHandlers,
   ...assistantHandlers,
   ...agentChannelHandlers,
