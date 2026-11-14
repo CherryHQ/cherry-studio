@@ -210,7 +210,7 @@ export default function ScheduledTasksPage() {
             error={error}
             message={t('scheduledTasks.unavailable')}
             source="agent.tasks"
-            operation="task.load"
+            operation={taskError ? 'task.load' : 'task.logs.load'}
             {...(taskId ? { recordId: taskId } : {})}
           />
         </div>

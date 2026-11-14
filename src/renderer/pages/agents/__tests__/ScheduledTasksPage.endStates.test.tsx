@@ -346,3 +346,26 @@ it('offers failure details beside Retry when the selected task cannot be loaded'
   expect(request.context).toMatchObject({ operation: 'task.load', recordId: 'deleted-task' })
   expect(request.error?.message).toBe('task store unavailable')
 })
+
+it('files a run-history failure under its own operation rather than the task load', async () => {
+  const user = userEvent.setup()
+  const open = vi.spyOn(appErrorDetailService, 'openAppErrorDetail').mockResolvedValue('opened')
+  const { router } = await openPage()
+  const read = vi.mocked(dataApiService.get)
+  const readAll = read.getMockImplementation()!
+  read.mockImplementation(async (path, options) => {
+    if (path.endsWith('/logs')) throw new Error('history store unavailable')
+    return readAll(path, options)
+  })
+  await act(async () => {
+    await router.navigate({ to: '/app/scheduled-tasks', search: { taskId: 'completed-0' } })
+  })
+
+  const alert = await screen.findByRole('alert')
+  await user.click(within(alert).getByRole('button', { name: 'Details' }))
+
+  await waitFor(() => expect(open).toHaveBeenCalledTimes(1))
+  const [request] = open.mock.calls[0]
+  expect(request.context).toMatchObject({ operation: 'task.logs.load', recordId: 'completed-0' })
+  expect(request.error?.message).toBe('history store unavailable')
+})
