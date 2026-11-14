@@ -3,6 +3,7 @@ import i18n from '@renderer/i18n/resolver'
 import { getCherryCloudErrorPresentation } from '@renderer/utils/cherryCloudErrorPresentation'
 import { isAbortError, providerErrorText } from '@renderer/utils/error'
 import { classifyError, type ErrorCategory } from '@renderer/utils/errorClassifier'
+import { isLikelyInLanguage, translateErrorMessage } from '@renderer/utils/errorLanguage'
 import {
   type ErrorToastAction,
   type ErrorToastPresentation,
@@ -54,7 +55,6 @@ function errorFromException(error: unknown, context: ErrorToastContext = {}): st
   const cloudPresentation = getCherryCloudErrorPresentation(serialized, provider?.id, category)
   const planQuota = cloudPresentation.quota
   const presentation: ErrorToastPresentation = planQuota ? { type: 'warning' } : errorToastPresentations[category]
-  const details = planQuota ? cloudPresentation.text : providerErrorText(serialized)
   const configure = provider
     ? () => openSettingsTab(`/settings/provider?id=${encodeURIComponent(provider.id)}`)
     : undefined
@@ -71,25 +71,37 @@ function errorFromException(error: unknown, context: ErrorToastContext = {}): st
   const diagnosisKey = `error.diagnosis.${category}`
   const actionLabelKey = `toast.error.${actionKind}`
   const run = actionKind ? actions[actionKind] : undefined
+  // An unclassified error's own text is often app-localized recovery copy, so it stays the title.
+  const original = !planQuota && category === 'unknown' ? providerErrorText(serialized) : ''
+  const title = planQuota
+    ? i18n.t('models.detail.quota_exhausted')
+    : category === 'unknown'
+      ? original || i18n.t('error.unknown')
+      : i18n.t(diagnosisKey)
   let running = false
-  const key = notifications[presentation.type]({
+  const config = {
     key: context.key,
-    title: planQuota
-      ? i18n.t('models.detail.quota_exhausted')
-      : category === 'unknown'
-        ? details || i18n.t('error.unknown')
-        : i18n.t(diagnosisKey),
-    description:
-      [
-        context.mcpServer?.name ?? provider?.name,
-        context.modelName,
-        category === 'rate_limit' && context.retryAfterSeconds !== undefined
-          ? i18n.t('toast.error.retry_after', { seconds: context.retryAfterSeconds })
-          : undefined
-      ]
-        .filter(Boolean)
-        .join(' · ') || undefined,
-    details: category === 'unknown' ? undefined : details,
+    title,
+    // Plan-quota text is Cherry's own localized wording (plan name, when it resets), not provider text.
+    description: planQuota
+      ? cloudPresentation.text || undefined
+      : [
+          context.mcpServer?.name ?? provider?.name,
+          context.modelName,
+          category === 'rate_limit' && context.retryAfterSeconds !== undefined
+            ? i18n.t('toast.error.retry_after', { seconds: context.retryAfterSeconds })
+            : undefined
+        ]
+          .filter(Boolean)
+          .join(' · ') || undefined,
+    cause: error,
+    data: {
+      ...(context.mcpServer ? { source: 'mcp' } : provider ? { source: 'provider' } : {}),
+      operation: `toast.${category}`,
+      localizedErrorMessage: title,
+      ...(provider ? { providerId: provider.id } : {}),
+      ...(context.mcpServer ? { recordId: context.mcpServer.id } : {})
+    },
     action:
       run && actionKind
         ? {
@@ -129,8 +141,32 @@ function errorFromException(error: unknown, context: ErrorToastContext = {}): st
             }
           }
         : undefined
-  })
+  }
+  const key = notifications[presentation.type](config)
+  // Early toasts can fire before i18n has resolved a language; those keep the original text.
+  if (original && i18n.language && !isLikelyInLanguage(original, i18n.language)) {
+    const shown = notifications.getToastQueue().toasts.find((item) => item.key === key)?.occurrence
+    void translateErrorMessage(original, i18n.language).then((translated) => {
+      const current = notifications.getToastQueue().toasts.find((item) => item.key === key)
+      // Retitle only the toast this call showed, never one that has since replaced it.
+      if (!translated || current?.occurrence !== shown) return
+      notifications[presentation.type]({
+        ...config,
+        key,
+        title: translated,
+        data: { ...config.data, localizedErrorMessage: translated }
+      })
+    })
+  }
   return key
+}
+
+/** An error toast that must not open another error-detail dialog. */
+export function toastInlineError(message: string): string {
+  return notifications.error({
+    title: message,
+    data: { suppressDetail: true }
+  })
 }
 
 export const toast = { ...notifications, errorFromException }

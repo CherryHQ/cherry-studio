@@ -28,6 +28,10 @@ export interface ToastConfig {
   onClose?: () => void
   className?: string
   style?: React.CSSProperties
+  /** Opaque host payload. The toast library never reads it. */
+  data?: unknown
+  /** Original failure retained for the host. The toast library never reads it. */
+  cause?: unknown
 }
 
 export interface LoadingToastConfig<T = unknown> extends ToastConfig {
@@ -38,6 +42,8 @@ export interface LoadingToastConfig<T = unknown> extends ToastConfig {
 export interface ToastRecord extends ToastConfig {
   key: string
   type: ToastType
+  /** New value on every write, including a replacement of the same key. */
+  occurrence: number
 }
 
 export interface ToastLabels {
@@ -88,6 +94,7 @@ const createToastStore = () => {
   const remaining = new Map<string, number>()
   let paused = false
   const loadingTokens = new Map<string, symbol>()
+  let nextOccurrence = 1
 
   const notify = () => {
     listeners.forEach((listener) => listener())
@@ -174,16 +181,17 @@ const createToastStore = () => {
     }
   }
 
-  const upsert = (toast: ToastRecord) => {
-    const existingIndex = toastQueue.findIndex((item) => item.key === toast.key)
+  const upsert = (toast: Omit<ToastRecord, 'occurrence'>) => {
+    const record: ToastRecord = { ...toast, occurrence: nextOccurrence++ }
+    const existingIndex = toastQueue.findIndex((item) => item.key === record.key)
 
     if (existingIndex >= 0) {
-      toastQueue = toastQueue.map((item, index) => (index === existingIndex ? toast : item))
+      toastQueue = toastQueue.map((item, index) => (index === existingIndex ? record : item))
     } else {
-      toastQueue = [...toastQueue, toast]
+      toastQueue = [...toastQueue, record]
     }
 
-    schedule(toast)
+    schedule(record)
     notify()
   }
 
@@ -215,7 +223,7 @@ const createToastStore = () => {
 const defaultToastStore = createToastStore()
 const ToastLabelsContext = createContext<ToastLabelsInput | undefined>(undefined)
 
-const upsertToast = (toast: ToastRecord, store = defaultToastStore) => {
+const upsertToast = (toast: Omit<ToastRecord, 'occurrence'>, store = defaultToastStore) => {
   store.upsert(toast)
 }
 
@@ -288,6 +296,7 @@ const createLoadingToast =
         upsertToast(
           {
             ...restConfig,
+            cause: err,
             description: err?.message || description || toastLabels.errorDescription,
             key,
             title: title || toastLabels.error,
@@ -355,7 +364,7 @@ export const ToastProvider = ({ children, labels }: { children: React.ReactNode;
 )
 
 const typeIconMap: Record<ToastType, React.ReactNode> = {
-  error: <AlertCircle className="size-4 text-destructive" />,
+  error: <AlertCircle className="size-4 text-error" />,
   success: <CheckCircle2 className="size-4 text-success" />,
   warning: <AlertTriangle className="size-4 text-warning" />,
   info: <Info className="size-4 text-info" />,
@@ -370,11 +379,32 @@ const getToastA11yProps = (type: ToastType): Pick<React.HTMLAttributes<HTMLDivEl
   return { 'aria-live': 'polite', role: 'status' }
 }
 
-const ToastItem = ({ labels, store, toast }: { labels: ToastLabels; store: ToastStore; toast: ToastRecord }) => {
+const ToastItem = ({
+  labels,
+  renderExtra,
+  store,
+  toast
+}: {
+  labels: ToastLabels
+  renderExtra?: (toast: ToastRecord) => React.ReactNode
+  store: ToastStore
+  toast: ToastRecord
+}) => {
+  const extra = renderExtra?.(toast)
   const action = toast.action
   const secondaryAction = toast.secondaryAction
+  const hasActions = Boolean(action || secondaryAction)
   const icon = toast.icon ?? typeIconMap[toast.type]
   const a11yProps = getToastA11yProps(toast.type)
+  // The host extra always ends the last row: the description row, or the action row when there is one.
+  const extraSlot = extra ? <div className="ml-auto flex shrink-0 items-center">{extra}</div> : null
+  const showMetaRow = Boolean(toast.description) || (extraSlot !== null && !hasActions)
+
+  const runAction = (event: React.MouseEvent, item: ToastAction) => {
+    event.stopPropagation()
+    store.remove(toast.key)
+    void item.onClick()
+  }
 
   return (
     <div
@@ -382,9 +412,9 @@ const ToastItem = ({ labels, store, toast }: { labels: ToastLabels; store: Toast
       className={cn(
         // no-drag punches the popup's area out of any titlebar drag region it overlaps,
         // so hover/click reach the items instead of the window-drag hit test (Electron).
-        'pointer-events-auto flex w-[min(420px,calc(100vw-2rem))] items-start gap-3 [-webkit-app-region:no-drag]',
+        'group pointer-events-auto flex w-[min(420px,calc(100vw-2rem))] items-start gap-3 [-webkit-app-region:no-drag]',
         'rounded-md border border-border bg-popover px-4 py-3 text-popover-foreground shadow-lg',
-        action && 'w-[min(480px,calc(100vw-2rem))]',
+        (hasActions || extra) && 'w-[min(480px,calc(100vw-2rem))]',
         toast.className
       )}
       style={toast.style}
@@ -394,18 +424,18 @@ const ToastItem = ({ labels, store, toast }: { labels: ToastLabels; store: Toast
         {toast.title && (
           <div
             title={typeof toast.title === 'string' ? toast.title : undefined}
-            className={cn('min-h-7 py-1 text-sm leading-5 font-medium', toast.details ? 'break-words' : 'truncate')}>
+            className="line-clamp-3 py-1 text-sm leading-5 font-medium break-words">
             {toast.title}
           </div>
         )}
-        {toast.description && (
+        {showMetaRow && (
           <div
             className={cn(
-              'text-xs leading-5 break-words text-muted-foreground',
-              (toast.title || !action) && 'mt-0.5',
-              action && !toast.title && 'min-h-7 py-1'
+              'flex items-center gap-2 text-xs leading-5 text-muted-foreground',
+              toast.title ? 'mt-0.5' : 'min-h-7 py-1'
             )}>
-            {toast.description}
+            {toast.description && <div className="min-w-0 flex-1 break-words">{toast.description}</div>}
+            {!hasActions && extraSlot}
           </div>
         )}
         {toast.details && (
@@ -416,35 +446,32 @@ const ToastItem = ({ labels, store, toast }: { labels: ToastLabels; store: Toast
             <pre className="mt-1 max-h-40 overflow-auto font-mono break-words whitespace-pre-wrap">{toast.details}</pre>
           </details>
         )}
+        {hasActions && (
+          <div className="mt-2.5 flex flex-wrap items-center gap-2">
+            {secondaryAction && (
+              <Button
+                type="button"
+                className="shrink-0"
+                size="sm"
+                variant="link"
+                onClick={(event) => runAction(event, secondaryAction)}>
+                {secondaryAction.label}
+              </Button>
+            )}
+            {action && (
+              <Button
+                type="button"
+                className="shrink-0 rounded-[5px] text-muted-foreground hover:border-border-strong hover:bg-accent hover:text-foreground"
+                size="sm"
+                variant="outline"
+                onClick={(event) => runAction(event, action)}>
+                {action.label}
+              </Button>
+            )}
+            {extraSlot}
+          </div>
+        )}
       </div>
-      {secondaryAction && (
-        <Button
-          type="button"
-          className="shrink-0"
-          size="sm"
-          variant="link"
-          onClick={(event) => {
-            event.stopPropagation()
-            store.remove(toast.key)
-            void secondaryAction.onClick()
-          }}>
-          {secondaryAction.label}
-        </Button>
-      )}
-      {action && (
-        <Button
-          type="button"
-          className="shrink-0"
-          size="sm"
-          variant="outline"
-          onClick={(event) => {
-            event.stopPropagation()
-            store.remove(toast.key)
-            void action.onClick()
-          }}>
-          {action.label}
-        </Button>
-      )}
       <div className="flex min-h-7 shrink-0 items-center">
         <button
           type="button"
@@ -463,9 +490,12 @@ const ToastItem = ({ labels, store, toast }: { labels: ToastLabels; store: Toast
 
 export const ToastViewport = ({
   labels,
+  renderExtra,
   store = defaultToastStore
 }: {
   labels?: ToastLabelsInput
+  /** Host-supplied control. The library does not interpret the node. */
+  renderExtra?: (toast: ToastRecord) => React.ReactNode
   store?: ToastStore
 }) => {
   const toasts = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot)
@@ -528,7 +558,7 @@ export const ToastViewport = ({
             }}
             transition={transition}
             className="origin-top">
-            <ToastItem labels={toastLabels} store={store} toast={toast} />
+            <ToastItem labels={toastLabels} renderExtra={renderExtra} store={store} toast={toast} />
           </motion.div>
         </motion.div>
       ))}

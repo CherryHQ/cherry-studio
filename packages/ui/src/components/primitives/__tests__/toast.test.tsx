@@ -204,28 +204,26 @@ describe('Toast', () => {
     expect(screen.queryByText('Archived Draft')).not.toBeInTheDocument()
   })
 
-  it('aligns actionable toast controls to the primary content row', () => {
+  it('shows the full title and description with the secondary action before the primary one', () => {
+    const title = 'Item deleted from the shared workspace together with its attachments and history'
     render(<ToastViewport />)
 
     act(() => {
       toast.info({
         action: { label: 'Undo', onClick: vi.fn() },
         description: 'The item can be restored for 30 days.',
-        title: 'Item deleted'
+        secondaryAction: { label: 'View', onClick: vi.fn() },
+        title
       })
     })
 
     const actionButton = screen.getByRole('button', { name: 'Undo' })
-    const closeButton = screen.getByRole('button', { name: 'Close' })
-    const title = screen.getByText('Item deleted')
+    const secondaryButton = screen.getByRole('button', { name: 'View' })
 
-    expect(actionButton).toHaveAttribute('data-variant', 'outline')
-    // These layout classes keep the 28px action, primary copy, and close control on one row
-    // while the root remains top-aligned so the description stays below that row.
-    expect(screen.getByRole('status')).toHaveClass('items-start')
-    expect(actionButton).toHaveClass('min-h-7')
-    expect(title).toHaveClass('min-h-7', 'py-1')
-    expect(closeButton.parentElement).toHaveClass('flex', 'min-h-7', 'items-center')
+    expect(screen.getByText(title)).toBeVisible()
+    expect(screen.getByText('The item can be restored for 30 days.')).toBeVisible()
+    expect(secondaryButton.compareDocumentPosition(actionButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Close' })).toBeVisible()
   })
 
   it('marks toast items as no-drag so they stay clickable over titlebar drag regions', () => {
@@ -472,4 +470,94 @@ describe('Toast', () => {
     expect(screen.queryByText('First')).not.toBeInTheDocument()
     expect(screen.queryByText('Second')).not.toBeInTheDocument()
   })
+
+  it('keeps a loading rejection sticky, retains its cause, and still renders both actions', async () => {
+    const onError = vi.fn()
+    const failure = new Error('Network failed')
+    render(
+      <ToastViewport
+        renderExtra={(record) => (record.type === 'error' ? <button type="button">Details</button> : null)}
+      />
+    )
+
+    await act(async () => {
+      toast.loading({
+        action: { label: 'Retry', onClick: () => undefined },
+        key: 'failed-task',
+        onError,
+        promise: Promise.reject(failure),
+        secondaryAction: { label: 'Logs', onClick: () => undefined }
+      })
+    })
+
+    const record = toast.getToastQueue().toasts.find((item) => item.key === 'failed-task')
+    expect(onError).toHaveBeenCalledWith(failure)
+    expect(record?.cause).toBe(failure)
+    expect(record?.timeout).toBe(0)
+    expect(screen.getByRole('button', { name: 'Details' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Logs' })).toBeInTheDocument()
+    expect(screen.getByRole('alert')).toHaveTextContent('Network failed')
+  })
+
+  it('assigns a new occurrence when the same key is written again', () => {
+    render(<ToastViewport />)
+
+    act(() => {
+      toast.error({ key: 'sync', title: 'First failure' })
+    })
+    const first = toast.getToastQueue().toasts.find((item) => item.key === 'sync')?.occurrence
+
+    act(() => {
+      toast.error({ key: 'sync', title: 'Second failure' })
+    })
+    const second = toast.getToastQueue().toasts.find((item) => item.key === 'sync')?.occurrence
+
+    expect(first).toEqual(expect.any(Number))
+    expect(second).not.toBe(first)
+    expect(screen.getByText('Second failure')).toBeInTheDocument()
+    expect(screen.queryByText('First failure')).not.toBeInTheDocument()
+  })
+
+  it('ends the description row with the host extra when the toast has no action', () => {
+    render(<ViewportWithDetailLink />)
+
+    act(() => {
+      toast.error({ description: 'OpenAI · GPT 5.4', title: 'Too many requests' })
+    })
+
+    const details = screen.getByRole('button', { name: 'Details' })
+    expect(screen.getByText('OpenAI · GPT 5.4').parentElement).toContainElement(details)
+  })
+
+  it('moves the host extra after the actions, off the title and description rows, when there is an action', () => {
+    render(<ViewportWithDetailLink />)
+
+    act(() => {
+      toast.error({
+        action: { label: 'Retry', onClick: () => undefined },
+        description: 'The provider rejected the image request with status 429.',
+        secondaryAction: { label: 'Logs', onClick: () => undefined },
+        title: 'Image generation failed because the provider rejected the request'
+      })
+    })
+
+    const details = screen.getByRole('button', { name: 'Details' })
+    const retry = screen.getByRole('button', { name: 'Retry' })
+    const footer = retry.parentElement!
+    expect(footer).toContainElement(details)
+    expect(footer).toContainElement(screen.getByRole('button', { name: 'Logs' }))
+    expect(retry.compareDocumentPosition(details) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(
+      screen.getByText('The provider rejected the image request with status 429.').parentElement
+    ).not.toContainElement(details)
+  })
 })
+
+function ViewportWithDetailLink() {
+  return (
+    <ToastViewport
+      renderExtra={(record) => (record.type === 'error' ? <button type="button">Details</button> : null)}
+    />
+  )
+}

@@ -18,8 +18,9 @@ import {
 import { loggerService } from '@logger'
 import { DoctorPopup } from '@renderer/components/doctor'
 import { ipcApi } from '@renderer/ipc'
+import { captureDiagnosticAiDiagnosis } from '@renderer/services/diagnosticAiSnapshot'
 import { openRoute } from '@renderer/services/mainWindowNavigation'
-import { toast } from '@renderer/services/toast'
+import { toastInlineError } from '@renderer/services/toast'
 import { openExternalWebsite } from '@renderer/services/website'
 
 export const FEEDBACK_GITHUB_URL = 'https://github.com/CherryHQ/cherry-studio/issues/new/choose'
@@ -82,7 +83,7 @@ export function FeedbackDialog({ open, onOpenChange }: FeedbackDialogProps) {
       openRoute(getFeedbackAgentRoute(sessionId))
     } catch (error) {
       logger.error('Failed to create Cherry Support feedback session', error as Error)
-      toast.error(t('settings.about.feedback.agent_error'))
+      toastInlineError(t('settings.about.feedback.agent_error'))
     }
   }
 
@@ -91,7 +92,7 @@ export function FeedbackDialog({ open, onOpenChange }: FeedbackDialogProps) {
       await openExternalWebsite(FEEDBACK_GITHUB_URL)
     } catch (error) {
       logger.error('Failed to open GitHub issue chooser', error as Error)
-      toast.error(t('settings.about.feedback.github.error'))
+      toastInlineError(t('settings.about.feedback.github.error'))
     }
   }
 
@@ -119,7 +120,8 @@ export function FeedbackDialog({ open, onOpenChange }: FeedbackDialogProps) {
             description={t('settings.about.feedback.diagnostics.description')}
             onSelect={() =>
               selectOption(async () => {
-                await DoctorPopup.show({ initialPanel: 'report' })
+                const aiDiagnosis = captureDiagnosticAiDiagnosis({ scope: 'global' })
+                await DoctorPopup.show({ initialPanel: 'report', ...(aiDiagnosis ? { aiDiagnosis } : {}) })
               })
             }
           />

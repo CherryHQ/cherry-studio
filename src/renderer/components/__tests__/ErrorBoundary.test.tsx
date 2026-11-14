@@ -52,25 +52,19 @@ describe('ErrorBoundary', () => {
     expect(errorSpy).toHaveBeenCalledTimes(1)
   })
 
-  it('discloses error details on demand and keeps recovery actions available', async () => {
+  it('shows a localized conclusion without raw error text inline and keeps reload available', async () => {
     const user = userEvent.setup()
     const request = vi.fn().mockResolvedValue({ ok: true, data: undefined })
     vi.stubGlobal('api', { ipcApi: { request } })
-    const writeText = vi.spyOn(navigator.clipboard, 'writeText').mockResolvedValue()
     render(
       <ErrorBoundary>
         <Bomb />
       </ErrorBoundary>
     )
 
-    const details = screen.getByText(boomError.message)
-    expect(details).not.toBeVisible()
-    await user.click(screen.getByText(i18n.t('error.boundary.details')))
-    expect(details).toBeVisible()
-    await user.click(screen.getByRole('button', { name: i18n.t('common.copy') }))
-    expect(writeText).toHaveBeenCalledWith(boomError.message)
-    await user.click(screen.getByRole('button', { name: i18n.t('error.boundary.default.devtools') }))
-    expect(request).toHaveBeenCalledWith('system.toggle_dev_tools', undefined)
+    expect(screen.getByText(i18n.t('error.boundary.default.title'))).toBeInTheDocument()
+    // Raw text and copy live in the error detail modal, not in the fallback.
+    expect(screen.queryByText(boomError.message, { exact: false })).not.toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: i18n.t('error.boundary.default.reload') }))
     expect(request).toHaveBeenCalledWith('window.main.reload', undefined)
   })

@@ -77,6 +77,7 @@ export function useDoctorController({
     createDoctorSession
   )
   const [now, setNow] = useState(Date.now)
+  const [actionError, setActionError] = useState<string | null>(null)
   const [isAutoRunPending, setIsAutoRunPending] = useState(
     initialPanel === 'checks' && (doctorState.status === 'idle' || initialRunTier !== undefined)
   )
@@ -126,6 +127,7 @@ export function useDoctorController({
   const run = useCallback(
     async (mode: DoctorRunTier | 'contextual') => {
       const tier = mode === 'contextual' ? 'live' : mode
+      setActionError(null)
       dispatch({
         type: 'start-interaction',
         interaction: { kind: 'run', tier }
@@ -138,7 +140,7 @@ export function useDoctorController({
         }
       } catch (error) {
         logger.error('Failed to run system diagnostics', error as Error)
-        toast.error(t('settings.doctor.messages.run_failed'))
+        setActionError(t('settings.doctor.messages.run_failed'))
       } finally {
         dispatch({ type: 'finish-interaction', kind: 'run' })
       }
@@ -169,12 +171,13 @@ export function useDoctorController({
 
   const cancel = useCallback(async () => {
     if (!canCancelDoctorRun(doctorState)) return
+    setActionError(null)
     dispatch({ type: 'start-interaction', interaction: { kind: 'cancel' } })
     try {
       await ipcApi.request('diagnostics.doctor.cancel', { scope, runId: doctorState.runId })
     } catch (error) {
       logger.error('Failed to cancel system diagnostics', error as Error)
-      toast.error(t('settings.doctor.messages.cancel_failed'))
+      setActionError(t('settings.doctor.messages.cancel_failed'))
     } finally {
       dispatch({ type: 'finish-interaction', kind: 'cancel' })
     }
@@ -183,6 +186,7 @@ export function useDoctorController({
   const confirmCheck = useCallback(
     async (pending: DoctorPendingCheck) => {
       if (!viewModel.runId) return
+      setActionError(null)
       dispatch({ type: 'start-interaction', interaction: { kind: 'confirm-check' } })
       try {
         const result = await ipcApi.request('diagnostics.doctor.confirm_check', {
@@ -190,11 +194,11 @@ export function useDoctorController({
           runId: viewModel.runId,
           requestId: pending.requestId
         })
-        if (result.status === 'stale') toast.error(t('settings.doctor.messages.result_changed'))
-        if (result.status === 'busy') toast.error(t('settings.doctor.messages.run_failed'))
+        if (result.status === 'stale') setActionError(t('settings.doctor.messages.result_changed'))
+        if (result.status === 'busy') setActionError(t('settings.doctor.messages.run_failed'))
       } catch (error) {
         logger.error('Failed to confirm a diagnostic check', error as Error)
-        toast.error(t('settings.doctor.messages.action_failed'))
+        setActionError(t('settings.doctor.messages.action_failed'))
       } finally {
         dispatch({ type: 'finish-interaction', kind: 'confirm-check' })
       }
@@ -208,12 +212,13 @@ export function useDoctorController({
       operation: () => Promise<unknown>,
       errorMessage: string
     ) => {
+      setActionError(null)
       dispatch({ type: 'start-interaction', interaction: { kind: 'action', ...interaction } })
       try {
         await operation()
       } catch (error) {
         logger.error(errorMessage, error as Error)
-        toast.error(t('settings.doctor.messages.action_failed'))
+        setActionError(t('settings.doctor.messages.action_failed'))
       } finally {
         dispatch({ type: 'finish-interaction', kind: 'action' })
       }
@@ -223,6 +228,7 @@ export function useDoctorController({
 
   const performFix = useCallback(
     async (request: DoctorFixRequest) => {
+      setActionError(null)
       dispatch({ type: 'start-interaction', interaction: { kind: 'fixing', request } })
       try {
         const result = await ipcApi.request('diagnostics.doctor.fix', request)
@@ -237,15 +243,15 @@ export function useDoctorController({
             toast.success(t('settings.doctor.messages.relaunch_required'))
             break
           case 'failed':
-            toast.error(t('settings.doctor.messages.fix_failed'))
+            setActionError(t('settings.doctor.messages.fix_failed'))
             break
           case 'stale':
-            toast.error(t('settings.doctor.messages.result_changed'))
+            setActionError(t('settings.doctor.messages.result_changed'))
             break
         }
       } catch (error) {
         logger.error('Failed to apply a system diagnostics action', error as Error)
-        toast.error(t('settings.doctor.messages.fix_failed'))
+        setActionError(t('settings.doctor.messages.fix_failed'))
       } finally {
         dispatch({ type: 'finish-interaction', kind: 'fixing' })
       }
@@ -255,8 +261,9 @@ export function useDoctorController({
 
   const executeAction = useCallback(
     async (checkId: DoctorCheckId, action: DoctorAction, runId?: string) => {
+      setActionError(null)
       if (viewModel.isStale) {
-        toast.error(t('settings.doctor.messages.stale'))
+        setActionError(t('settings.doctor.messages.stale'))
         return
       }
       switch (action.kind) {
@@ -380,6 +387,7 @@ export function useDoctorController({
   }, [])
 
   return {
+    actionError,
     appUpdateState,
     cancel,
     canChangePanel,
