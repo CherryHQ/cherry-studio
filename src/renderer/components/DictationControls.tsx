@@ -3,6 +3,7 @@ import { useSyncExternalStore } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { BarVisualizer, Button, NormalTooltip } from '@cherrystudio/ui'
+import { useDictationEnabled } from '@renderer/hooks/useDictationEnabled'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import { dictationService, voiceTargetManager } from '@renderer/services/voice'
 import type { DictationErrorCategory, DictationPhase } from '@renderer/services/voice'
@@ -35,6 +36,7 @@ export function DictationControls({
   disabled: boolean
   focusInput: () => void
 }) {
+  const enabled = useDictationEnabled()
   const { t } = useTranslation()
   const snapshot = useSyncExternalStore(dictationService.subscribe, dictationService.getSnapshot)
   const target = useSyncExternalStore(voiceTargetManager.subscribe, voiceTargetManager.getSnapshot)
@@ -49,6 +51,8 @@ export function DictationControls({
     void dictationService.startScoped().result.catch(() => undefined)
     focusInput()
   }
+
+  if (!enabled) return null
 
   return (
     <div

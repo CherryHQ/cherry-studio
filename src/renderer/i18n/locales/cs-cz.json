@@ -6242,6 +6242,7 @@
   "settings.voice.playback.title": "Ovládací prvky přehrávání hlasu",
   "settings.voice.recognition.language": "Jazyk rozpoznávání",
   "settings.voice.recognition.model": "Model rozpoznávání",
+  "settings.voice.recognition.off": "Vypnuto",
   "settings.voice.recognition.title": "Rozpoznávání řeči",
   "settings.voice.resources.open_settings": "Otevřít systémová nastavení hlasu",
   "settings.voice.resources.remove_description": "Rozpoznávání řeči pomocí tohoto modelu nebude dostupné, dokud jej znovu nestáhnete. Výběr modelu se zachová.",

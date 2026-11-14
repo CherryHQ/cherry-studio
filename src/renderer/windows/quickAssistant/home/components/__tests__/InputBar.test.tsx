@@ -1,3 +1,4 @@
+import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { act, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { type RefObject, useRef, useState } from 'react'
@@ -94,6 +95,26 @@ describe('InputBar', () => {
     voice.snapshot = snapshot
     voice.listeners.forEach((listener) => listener())
   }
+
+  it('hides dictation while Off and restores it on On while keeping input usable', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('feature.voice.recognition.model_id', 'off')
+    const handleChange = vi.fn()
+    const props = {
+      text: 'draft',
+      loading: false,
+      placeholder: 'Ask',
+      handleChange,
+      handleKeyDown: vi.fn(),
+      dictationTargetId: 'input'
+    }
+    const view = render(<InputBar {...props} />)
+    expect(screen.queryByRole('button', { name: 'Dictate' })).toBeNull()
+    await userEvent.setup().type(screen.getByPlaceholderText('Ask'), 'x')
+    expect(handleChange).toHaveBeenCalled()
+    MockUsePreferenceUtils.setPreferenceValue('feature.voice.recognition.model_id', '')
+    view.rerender(<InputBar {...props} />)
+    expect(screen.getByRole('button', { name: 'Dictate' })).toBeInTheDocument()
+  })
 
   it('exposes the real text input so callers can capture its live selection', () => {
     const inputRef: RefObject<HTMLInputElement | null> = { current: null }

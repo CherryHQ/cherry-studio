@@ -32,6 +32,7 @@ describe('mouse hold dictation', () => {
   beforeEach(() => {
     vi.useFakeTimers()
     MockUsePreferenceUtils.resetMocks()
+    MockUsePreferenceUtils.setPreferenceValue('feature.voice.recognition.model_id', '')
     MockUsePreferenceUtils.setPreferenceValue('feature.voice.dictation.mouse_hold_enabled', true)
     unbind = voiceTargetManager.bind({
       targetId: 'input',
@@ -52,6 +53,21 @@ describe('mouse hold dictation', () => {
     vi.useRealTimers()
   })
 
+  it('keeps mouse hold disabled by Off even with mouse hold enabled, then restores On', () => {
+    MockUsePreferenceUtils.setPreferenceValue('feature.voice.recognition.model_id', 'off')
+    const view = render(<Host />)
+    const input = screen.getByRole('textbox')
+    input.focus()
+    pointer(input, 'pointerdown')
+    void act(() => vi.advanceTimersByTime(800))
+    expect(dictationService.startScoped).not.toHaveBeenCalled()
+    MockUsePreferenceUtils.setPreferenceValue('feature.voice.recognition.model_id', '')
+    view.rerender(<Host />)
+    pointer(input, 'pointerdown')
+    void act(() => vi.advanceTimersByTime(800))
+    expect(dictationService.startScoped).toHaveBeenCalledOnce()
+  })
+
   it('starts after 800 ms in the input and stops its own run on release', () => {
     render(<Host />)
     const input = screen.getByRole('textbox')
@@ -69,6 +85,7 @@ describe('mouse hold dictation', () => {
   it.each(['release', 'unmount'])('preserves startup failure after mouse %s', async (ending) => {
     vi.mocked(dictationService.getSnapshot).mockRestore()
     vi.mocked(dictationService.startScoped).mockRestore()
+    vi.spyOn(voiceService, 'readTranscriptionPreferenceInput').mockResolvedValue({})
     vi.spyOn(voiceService, 'initialize').mockRejectedValue({ reason: 'voice_unavailable' })
     const host = render(<Host />)
     try {

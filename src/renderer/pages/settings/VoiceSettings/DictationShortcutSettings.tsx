@@ -16,7 +16,7 @@ import {
 import { isMac, isWin } from '@renderer/utils/platform'
 import { getShortcutBindingFromKeyboardEvent, isShortcutModifier } from '@shared/utils/shortcut'
 
-function ShortcutRow({ mode }: { mode: 'hold' | 'toggle' }) {
+function ShortcutRow({ mode, disabled }: { mode: 'hold' | 'toggle'; disabled: boolean }) {
   const { t } = useTranslation()
   const platform = isMac ? 'darwin' : isWin ? 'win32' : 'linux'
   const [value, setValue] = usePreference(`feature.voice.dictation.${mode}_shortcut`)
@@ -32,7 +32,15 @@ function ShortcutRow({ mode }: { mode: 'hold' | 'toggle' }) {
     .set('webview.focused', false)
   const pressed = useRef(new Map<string, string>())
   useEffect(() => {
-    if (!recording) return
+    if (disabled) {
+      pressed.current.clear()
+      setPending('')
+      setRecording(false)
+      setError(undefined)
+    }
+  }, [disabled])
+  useEffect(() => {
+    if (disabled || !recording) return
     const cancel = () => {
       pressed.current.clear()
       setRecording(false)
@@ -46,7 +54,7 @@ function ShortcutRow({ mode }: { mode: 'hold' | 'toggle' }) {
       window.removeEventListener('blur', cancel)
       document.removeEventListener('visibilitychange', visibility)
     }
-  }, [recording])
+  }, [disabled, recording])
   const label = t(mode === 'hold' ? 'settings.voice.shortcuts.hold.label' : 'settings.voice.shortcuts.toggle.label')
   const description = t(
     mode === 'hold' ? 'settings.voice.shortcuts.hold.description' : 'settings.voice.shortcuts.toggle.description'
@@ -83,6 +91,7 @@ function ShortcutRow({ mode }: { mode: 'hold' | 'toggle' }) {
       </div>
       <div className="flex items-center gap-1">
         <Button
+          disabled={disabled}
           variant="outline"
           className="w-full justify-start sm:w-64"
           aria-label={label}
@@ -98,7 +107,7 @@ function ShortcutRow({ mode }: { mode: 'hold' | 'toggle' }) {
             setRecording(false)
           }}
           onKeyDown={(event) => {
-            if (!recording) return
+            if (disabled || !recording) return
             event.preventDefault()
             event.stopPropagation()
             if (event.key === 'Escape') {
@@ -110,7 +119,7 @@ function ShortcutRow({ mode }: { mode: 'hold' | 'toggle' }) {
             setPending([...pressed.current.keys()].sort().join('+'))
           }}
           onKeyUp={(event) => {
-            if (!recording || !pressed.current.has(event.code)) return
+            if (disabled || !recording || !pressed.current.has(event.code)) return
             event.preventDefault()
             event.stopPropagation()
             const candidate = parseDictationShortcut([...pressed.current.keys()].join('+')).join('+')
@@ -148,6 +157,7 @@ function ShortcutRow({ mode }: { mode: 'hold' | 'toggle' }) {
         {value && (
           <Tooltip content={t('settings.voice.shortcuts.clear', { name: label })}>
             <Button
+              disabled={disabled}
               variant="ghost"
               size="icon-sm"
               aria-label={t('settings.voice.shortcuts.clear', { name: label })}
@@ -161,7 +171,7 @@ function ShortcutRow({ mode }: { mode: 'hold' | 'toggle' }) {
   )
 }
 
-export function DictationShortcutSettings() {
+export function DictationShortcutSettings({ disabled = false }: { disabled?: boolean }) {
   const { t } = useTranslation()
   const [mouseHold, setMouseHold] = usePreference('feature.voice.dictation.mouse_hold_enabled')
   const [saveFailed, setSaveFailed] = useState(false)
@@ -180,6 +190,7 @@ export function DictationShortcutSettings() {
           )}
         </div>
         <Switch
+          disabled={disabled}
           aria-label={t('settings.voice.mouse_hold.label')}
           checked={mouseHold}
           onCheckedChange={(value) => {
@@ -189,9 +200,9 @@ export function DictationShortcutSettings() {
         />
       </SettingRow>
       <SettingDivider />
-      <ShortcutRow mode="hold" />
+      <ShortcutRow mode="hold" disabled={disabled} />
       <SettingDivider />
-      <ShortcutRow mode="toggle" />
+      <ShortcutRow mode="toggle" disabled={disabled} />
     </>
   )
 }

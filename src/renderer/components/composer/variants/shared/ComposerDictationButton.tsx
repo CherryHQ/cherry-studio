@@ -5,11 +5,13 @@ import { useTranslation } from 'react-i18next'
 import { BarVisualizer, Button, Tooltip } from '@cherrystudio/ui'
 import { useComposerToolLauncherController } from '@renderer/components/composer/ComposerToolRuntime'
 import type { QuickPanelInputAdapter } from '@renderer/components/QuickPanel'
+import { useDictationEnabled } from '@renderer/hooks/useDictationEnabled'
 import { dictationService } from '@renderer/services/voice'
 
 import { COMPOSER_SEND_ACCESSORY_BUTTON_CLASS } from './ComposerControlScaffolding'
 
 export function ComposerDictationButton({ inputAdapter }: { inputAdapter?: QuickPanelInputAdapter }) {
+  const enabled = useDictationEnabled()
   const { t } = useTranslation()
   const { getLaunchers, dispatchLauncher } = useComposerToolLauncherController()
   const launcher = getLaunchers('root-panel').find((item) => item.id === 'dictation')
@@ -20,6 +22,8 @@ export function ComposerDictationButton({ inputAdapter }: { inputAdapter?: Quick
     snapshot.phase === 'recorded' || snapshot.retryAvailable || snapshot.recoveryAvailable
       ? launcher?.submenu?.find((item) => item.id === 'dictation:discard')
       : undefined
+
+  if (!enabled) return null
 
   return (
     <div

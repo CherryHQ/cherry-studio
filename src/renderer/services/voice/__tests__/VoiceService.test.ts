@@ -54,6 +54,17 @@ function emitVoiceEvent(event: any): void {
 }
 
 describe('VoiceService state ownership', () => {
+  it.each(['off', ' off '])('decodes %s as disabled without resolving Automatic or sending IPC', async (modelId) => {
+    const readTranscriptionPreferences = vi.fn(async () => ({ modelId, language: 'en-US' }))
+    const service = new VoiceService({ ipc: { request, on }, ownerWindow, readTranscriptionPreferences })
+    await expect(service.readTranscriptionPreferenceInput()).resolves.toBeNull()
+    await expect(service.resolveTranscriptionPreferences()).resolves.toBeNull()
+    readTranscriptionPreferences.mockClear()
+    await expect(service.resolveTranscriptionPreferences(null)).resolves.toBeNull()
+    expect(readTranscriptionPreferences).not.toHaveBeenCalled()
+    expect(request).not.toHaveBeenCalled()
+  })
+
   it('delivers an unexecuted playback command after a newer state snapshot and deduplicates commands separately', async () => {
     request.mockImplementation(async (route, input) => {
       if (route === 'ai.voice.session.state') return { phase: 'idle', revision: 0 }

@@ -6244,6 +6244,7 @@
   "settings.voice.playback.title": "Voice playback controls",
   "settings.voice.recognition.language": "Recognition language",
   "settings.voice.recognition.model": "Recognition model",
+  "settings.voice.recognition.off": "Off",
   "settings.voice.recognition.title": "Speech recognition",
   "settings.voice.resources.open_settings": "Open system voice settings",
   "settings.voice.resources.remove_description": "Speech recognition using this model will be unavailable until you download it again. Your model selection will be kept.",

@@ -6320,6 +6320,7 @@
   "settings.voice.playback.title": "Sterowanie odtwarzaniem mowy",
   "settings.voice.recognition.language": "Język rozpoznawania",
   "settings.voice.recognition.model": "Model rozpoznawania",
+  "settings.voice.recognition.off": "Wyłączone",
   "settings.voice.recognition.title": "Rozpoznawanie mowy",
   "settings.voice.resources.open_settings": "Otwórz systemowe ustawienia mowy",
   "settings.voice.resources.remove_description": "Rozpoznawanie mowy przy użyciu tego modelu będzie niedostępne, dopóki nie pobierzesz go ponownie. Twój wybór modelu zostanie zachowany.",

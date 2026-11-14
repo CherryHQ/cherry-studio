@@ -3,7 +3,7 @@ import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import i18n from 'i18next'
-import { Activity } from 'react'
+import { Activity, Profiler } from 'react'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { cacheService } from '@data/CacheService'
@@ -232,6 +232,96 @@ describe('VoiceSettings', () => {
     voice.speech = { phase: 'idle', progress: { completed: 0, total: 0 } }
     confirm.mockReset()
     vi.clearAllMocks()
+  })
+
+  it('only navigates when downloading a model from Off', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('feature.voice.recognition.model_id', 'off')
+    const user = userEvent.setup()
+    render(<VoiceSettings />)
+    await user.click(screen.getByRole('combobox', { name: 'Recognition model' }))
+    await user.click(await screen.findByRole('option', { name: /FunASR Nano.*Download/i }))
+    expect(navigate).toHaveBeenCalledWith({ to: '/settings/local-models', hash: 'voice-resources' })
+    expect(MockUsePreferenceUtils.getPreferenceValue('feature.voice.recognition.model_id')).toBe('off')
+  })
+
+  it('persists Off across remount and restores recognition after selecting an engine', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('feature.voice.recognition.language', 'zh-CN')
+    const user = userEvent.setup()
+    let view = render(<VoiceSettings />)
+    const model = () => screen.getByRole('combobox', { name: 'Recognition model' })
+    await user.click(model())
+    await user.click(await screen.findByRole('option', { name: 'Off' }))
+    await waitFor(() =>
+      expect(MockUsePreferenceUtils.getPreferenceValue('feature.voice.recognition.model_id')).toBe('off')
+    )
+    view.unmount()
+    view = render(<VoiceSettings />)
+    expect(model()).toHaveTextContent('Off')
+    expect(MockUsePreferenceUtils.getPreferenceValue('feature.voice.recognition.language')).toBe('zh-CN')
+    expect(screen.getByRole('combobox', { name: 'Recognition language' })).toBeDisabled()
+    expect(document.getElementById('setting-voice-recognition-status')).toBeNull()
+    expect(screen.queryByText(/unsupported/i)).toBeNull()
+    await user.click(model())
+    await user.click(await screen.findByRole('option', { name: 'Apple System Speech Recognition' }))
+    await waitFor(() =>
+      expect(MockUsePreferenceUtils.getPreferenceValue('feature.voice.recognition.model_id')).toBe(APPLE_ASR_MODEL_ID)
+    )
+    view.rerender(<VoiceSettings />)
+    await waitFor(() => expect(screen.getByRole('combobox', { name: 'Recognition language' })).toBeEnabled())
+  })
+
+  it('ignores a recognition query that finishes after Off and uses a fresh query on On', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('feature.voice.recognition.model_id', APPLE_ASR_MODEL_ID)
+    const old = deferred<any>()
+    const fresh = deferred<any>()
+    voice.resolveTranscription.mockReturnValueOnce(old.promise).mockReturnValueOnce(fresh.promise)
+    const view = render(<VoiceSettings />)
+    await waitFor(() => expect(voice.resolveTranscription).toHaveBeenCalledOnce())
+    MockUsePreferenceUtils.setPreferenceValue('feature.voice.recognition.model_id', 'off')
+    view.rerender(<VoiceSettings />)
+    await act(async () => old.resolve({ modelId: APPLE_ASR_MODEL_ID, status: { status: 'ready' } }))
+    expect(document.getElementById('setting-voice-recognition-status')).toBeNull()
+    MockUsePreferenceUtils.setPreferenceValue('feature.voice.recognition.model_id', APPLE_ASR_MODEL_ID)
+    view.rerender(<VoiceSettings />)
+    await waitFor(() => expect(voice.resolveTranscription).toHaveBeenCalledTimes(2))
+    expect(recognitionStatus()).not.toHaveTextContent(/^ready$/i)
+    await act(async () =>
+      fresh.resolve({ modelId: APPLE_ASR_MODEL_ID, status: { status: 'unsupported', reason: 'unsupported' } })
+    )
+    expect(recognitionStatus()).toHaveTextContent(i18n.t('settings.voice.status.unsupported'))
+  })
+
+  it('invalidates a completed recognition status before the first On commit', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('feature.voice.recognition.model_id', APPLE_ASR_MODEL_ID)
+    const fresh = deferred<any>()
+    voice.resolveTranscription
+      .mockResolvedValueOnce({ modelId: APPLE_ASR_MODEL_ID, status: { status: 'ready' } })
+      .mockReturnValueOnce(fresh.promise)
+    const commits: string[] = []
+    const content = () => (
+      <Profiler
+        id="recognition"
+        onRender={() => {
+          commits.push(document.getElementById('setting-voice-recognition-status')?.textContent ?? '')
+        }}>
+        <VoiceSettings />
+      </Profiler>
+    )
+    const view = render(content())
+    await waitFor(() => expect(recognitionStatus()).toHaveTextContent(/^ready$/i))
+    MockUsePreferenceUtils.setPreferenceValue('feature.voice.recognition.model_id', 'off')
+    view.rerender(content())
+    expect(document.getElementById('setting-voice-recognition-status')).toBeNull()
+    commits.length = 0
+    MockUsePreferenceUtils.setPreferenceValue('feature.voice.recognition.model_id', APPLE_ASR_MODEL_ID)
+    view.rerender(content())
+    await waitFor(() => expect(voice.resolveTranscription).toHaveBeenCalledTimes(2))
+    expect(commits.length).toBeGreaterThan(0)
+    expect(commits.some((text) => /^ready$/i.test(text))).toBe(false)
+    await act(async () =>
+      fresh.resolve({ modelId: APPLE_ASR_MODEL_ID, status: { status: 'unsupported', reason: 'unsupported' } })
+    )
+    expect(recognitionStatus()).toHaveTextContent(i18n.t('settings.voice.status.unsupported'))
   })
 
   it('shows effective defaults without persisting platform-specific choices', async () => {
