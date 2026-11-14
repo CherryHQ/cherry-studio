@@ -68,6 +68,16 @@ export const useAllTasks = (status?: ListTasksQuery['status']) => {
   }
 }
 
+/** One Agent's scheduled tasks (first page), refreshed by the task commands' invalidation. */
+export const useAgentTasks = (agentId: string) => {
+  const { data, error, isLoading, refetch } = useQuery('/agents/:agentId/tasks', {
+    params: { agentId },
+    query: { limit: TASKS_PAGE_LIMIT }
+  })
+  useDataChange('/agent-tasks', () => void refetch())
+  return { tasks: data?.items ?? [], error, isLoading }
+}
+
 export const useTask = (taskId: string | null) => {
   const activated = useRef(false)
   const { data, error, isLoading, refetch } = useQuery('/agent-tasks/:taskId', {
