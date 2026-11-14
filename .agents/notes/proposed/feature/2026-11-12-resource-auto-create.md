@@ -18,7 +18,7 @@ The design prototype (`bot-profile-cherry`) settled on one entry page with avata
 
 `ResourceCreateWizard` opens on a new entry view. Both kinds share it. It contains:
 
-- a large, centred emoji avatar, using `EmojiAvatarPicker`;
+- a large, centred avatar, using the shared avatar picker;
 - a name, which is optional for auto create;
 - a purpose text area, bound to the existing `description` field;
 - a model selector, with the same filters as the basic step.
@@ -55,12 +55,12 @@ Generation calls `fetchGenerate` with the default model, the same one `PromptPol
 ### Avatars
 
 - The default avatar is 💬 for Assistants and ✨ for Agents. The creator prompt still forbids 🤖.
-- The `EmojiAvatarPicker` popover gets a header with a 🎲 button that picks a random emoji.
+- One avatar picker serves the create flow and the edit dialogs. Its popover has a header titled "Choose avatar" with an upload button, a 🎲 button that picks a random emoji, and, while an image is set, a button that removes it; the emoji picker sits below. There are no tabs and no image gallery.
 - The shared emoji picker (`src/renderer/components/EmojiPicker`) is restyled: a borderless muted search field, foreground instead of primary for the active category and highlight, 16 px muted category icons with an accent background on hover and selection, 24 px emoji eight per row, and 12 px muted category labels. Keyboard focus stays visible.
 - The 🇹🇼 flag (`1f1f9-1f1fc`) is hidden from browsing and search in that picker.
 - Whether the user picked an avatar is read from the form's dirty state, not by comparing against the default.
 
-Avatars stay emoji-only in the create flow. Image upload remains available in the edit dialog.
+In the create flow an uploaded image is prepared like the edit dialog's upload and kept as a draft. After the create succeeds, the wizard saves it through the same avatar command the edit dialog uses. If that save fails, the resource stays created with its emoji and the result page says the image was not saved. Auto create still generates an emoji, and an uploaded image wins over it. In the edit dialogs every pick still saves immediately.
 
 ### Steps
 
@@ -127,6 +127,7 @@ The create values gain `mcpServerIds`, and `enableWebSearch` for Assistants. Age
 - AC18 — Reply language, heartbeat, and environment variables set in the advanced step reach the created Agent's configuration (verification: renderer; owner: implementer)
 - AC19 — In the running app, a manually created Agent with a channel, a disabled tool, and a heartbeat shows all three in its edit dialog after the result page's Adjust settings (verification: Electron; owner: implementer)
 - AC20 — A featured MCP server picked by auto create, or switched on in the MCP list, is installed once without any dialog and bound to the resource, and featured servers that need configuration are never offered (verification: renderer; owner: implementer)
+- AC21 — An image uploaded in the create flow is saved as the new resource's avatar after the create, a failed image save keeps the created resource with its emoji and tells the user, and the edit dialogs offer the same picker with upload, 🎲, and emoji (verification: renderer; owner: implementer)
 
 ## Risks
 
