@@ -40,6 +40,7 @@ const normalizeKnowledgeError = (error: unknown): Error => {
 const addLogger = loggerService.withContext('useAddKnowledgeItems')
 const deleteLogger = loggerService.withContext('useDeleteKnowledgeItem')
 const reindexLogger = loggerService.withContext('useReindexKnowledgeItem')
+const renameLogger = loggerService.withContext('useRenameKnowledgeItem')
 
 type KnowledgeItemsLogger = typeof addLogger
 
@@ -334,4 +335,35 @@ export const useReindexKnowledgeItem = (baseId: string) => {
     isReindexing,
     error
   }
+}
+
+export const useRenameKnowledgeItem = (baseId: string) => {
+  const invalidateCache = useInvalidateCache()
+
+  const renameItem = useCallback(
+    async (item: KnowledgeItem, name: string): Promise<void> => {
+      if (!baseId) {
+        return Promise.reject(new Error('Knowledge base id is required'))
+      }
+
+      try {
+        await ipcApi.request('knowledge.rename_item', { baseId, itemId: item.id, name })
+      } catch (error) {
+        const renameError = normalizeKnowledgeError(error)
+        renameLogger.error('Failed to rename knowledge source', renameError, { baseId, itemId: item.id })
+        throw renameError
+      } finally {
+        await refreshKnowledgeItemsCaches(
+          invalidateCache,
+          baseId,
+          renameLogger,
+          'Failed to refresh knowledge source list after rename',
+          { baseId, itemId: item.id }
+        )
+      }
+    },
+    [baseId, invalidateCache]
+  )
+
+  return { renameItem }
 }

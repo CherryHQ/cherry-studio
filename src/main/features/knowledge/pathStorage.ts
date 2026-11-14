@@ -285,6 +285,23 @@ export async function assertKnowledgeFileTargetAvailable(baseId: string, relativ
   await assertTargetAvailable(getKnowledgeBaseFilePath(baseId, relativePath))
 }
 
+/**
+ * Rename a base-relative material file in place. Refuses to overwrite an existing file; a
+ * case-only rename is allowed because on a case-insensitive volume the target is the file itself.
+ */
+export async function renameKnowledgeBaseFile(
+  baseId: string,
+  fromRelativePath: string,
+  toRelativePath: string
+): Promise<void> {
+  const from = getKnowledgeBaseFilePath(baseId, fromRelativePath)
+  const to = getKnowledgeBaseFilePath(baseId, toRelativePath)
+  if (from.toLowerCase() !== to.toLowerCase()) {
+    await assertTargetAvailable(to)
+  }
+  await fs.rename(from, to)
+}
+
 export async function deleteKnowledgeItemFiles(
   baseId: string,
   items: Array<{ id?: string; type: string; data: unknown }>
