@@ -1,4 +1,4 @@
-import { ChevronLeft, ChevronRight, RotateCcw, ZoomIn, ZoomOut } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Scan, ZoomIn, ZoomOut } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import { FilePreviewToolbar } from '../../FilePreviewToolbar'
@@ -64,7 +64,7 @@ export function WordFilePreviewToolbar({
         <ZoomIn aria-hidden />
       </FilePreviewToolbarButton>
       <FilePreviewToolbarButton label={t('preview.reset')} disabled={!canResetZoom} onClick={onResetZoom}>
-        <RotateCcw aria-hidden />
+        <Scan aria-hidden />
       </FilePreviewToolbarButton>
     </FilePreviewToolbar>
   )

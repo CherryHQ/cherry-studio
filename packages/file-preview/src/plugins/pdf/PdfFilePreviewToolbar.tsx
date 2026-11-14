@@ -1,4 +1,4 @@
-import { ChevronLeft, ChevronRight, ListTree, RotateCcw, ZoomIn, ZoomOut } from 'lucide-react'
+import { ChevronLeft, ChevronRight, ListTree, Scan, ZoomIn, ZoomOut } from 'lucide-react'
 import { type FormEvent, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -110,7 +110,7 @@ export function PdfFilePreviewToolbar({
         <ZoomIn aria-hidden />
       </FilePreviewToolbarButton>
       <FilePreviewToolbarButton label={t('preview.reset')} disabled={!hasPages} onClick={onResetZoom}>
-        <RotateCcw aria-hidden />
+        <Scan aria-hidden />
       </FilePreviewToolbarButton>
     </FilePreviewToolbar>
   )
