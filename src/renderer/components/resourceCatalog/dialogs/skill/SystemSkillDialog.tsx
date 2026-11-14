@@ -2,7 +2,17 @@ import { Check, FolderSearch, Import, Loader2, TriangleAlert } from 'lucide-reac
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button, Center, Dialog, DialogContent, DialogHeader, DialogTitle, EmptyState, Spinner } from '@cherrystudio/ui'
+import {
+  Button,
+  Center,
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  EmptyState,
+  ScrollArea,
+  Spinner
+} from '@cherrystudio/ui'
 import { ResourceCatalogSearchInput } from '@renderer/components/resourceCatalog/ResourceCatalogSearchInput'
 import { useSystemSkills } from '@renderer/hooks/useSkills'
 import { toast } from '@renderer/services/toast'
@@ -87,7 +97,11 @@ export function SystemSkillDialog({ mode, open, onOpenChange, onEnabled, selecte
           ) : visibleSkills.length === 0 ? (
             <EmptyState preset="no-result" title={t('common.no_results')} className="min-h-0 flex-1" />
           ) : (
-            <div role="list" className="min-h-0 flex-1 overflow-y-auto px-6 py-1">
+            <ScrollArea
+              type="auto"
+              className="min-h-0 flex-1"
+              viewportProps={{ role: 'list' }}
+              contentProps={{ className: 'px-6 py-1' }}>
               {visibleSkills.map((skill) => (
                 <SystemSkillRow
                   key={skill.id}
@@ -99,7 +113,7 @@ export function SystemSkillDialog({ mode, open, onOpenChange, onEnabled, selecte
                   onEnable={() => handleEnable(skill)}
                 />
               ))}
-            </div>
+            </ScrollArea>
           )}
         </div>
       </DialogContent>

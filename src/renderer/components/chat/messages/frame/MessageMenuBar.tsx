@@ -94,7 +94,7 @@ const MessageMenuBar: FC<Props> = (props) => {
 
   const actionContext = useMemo<MessageMenuBarActionContext>(
     () => ({
-      actions,
+      actions: actions.canDeleteMessage?.(message) === false ? { ...actions, deleteMessage: undefined } : actions,
       message,
       messageParts,
       messageForExport,

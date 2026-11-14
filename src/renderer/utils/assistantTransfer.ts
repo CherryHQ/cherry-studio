@@ -136,6 +136,17 @@ export function serializeAssistantForExport(
   return JSON.stringify([buildExportRecord(assistant, prompts, groupName)], null, 2)
 }
 
+export function serializeAssistantsForExport(
+  entries: readonly { assistant: Assistant; prompts: readonly Prompt[]; groupName?: string }[]
+): string {
+  if (entries.length === 0) throw new AssistantTransferError('invalid_format')
+  return JSON.stringify(
+    entries.map(({ assistant, prompts, groupName }) => buildExportRecord(assistant, prompts, groupName)),
+    null,
+    2
+  )
+}
+
 export function parseAssistantImportContent(content: string): ImportedAssistantDraft[] {
   let parsed: unknown
 

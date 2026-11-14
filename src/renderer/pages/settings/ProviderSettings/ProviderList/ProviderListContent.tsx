@@ -1,12 +1,11 @@
-import { closestCenter } from '@dnd-kit/core'
 import { type ReactNode, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { ReorderableList, Scrollbar, Sortable } from '@cherrystudio/ui'
+import { ReorderableList, ScrollArea, Sortable } from '@cherrystudio/ui'
 import { providerListClasses } from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives'
 import type { Provider } from '@shared/data/types/provider'
 
-import { groupProvidersByPreset } from './providerGrouping'
+import { groupProvidersByPreset, restoreProviderStatusSlots } from './providerGrouping'
 import ProviderListGroup from './ProviderListGroup'
 
 export type ProviderListContentItemState = {
@@ -66,8 +65,25 @@ function reorderProviderBlocks({
     return providers
   }
 
+  const sourceMembers = source.kind === 'group' ? source.members : [source.provider]
+  const destinationMembers = target.kind === 'group' ? target.members : [target.provider]
+  // Enabled and disabled rows occupy separate display partitions. Crossing that
+  // boundary cannot change status, so reject the drop rather than persist a jump.
+  if (
+    sourceMembers.some((provider) => provider.isEnabled) !== destinationMembers.some((provider) => provider.isEnabled)
+  ) {
+    return providers
+  }
+
   const sourceIds = new Set(source.providerIds)
-  const targetIds = new Set(target.providerIds)
+  // A mixed-status group is displayed where its enabled members occur, not
+  // where an earlier disabled member sits in storage. Anchor to that displayed
+  // partition while still moving every source member as one full block.
+  const targetMembers = target.kind === 'group' ? target.members : [target.provider]
+  const enabledTargetMembers = targetMembers.filter((provider) => provider.isEnabled)
+  const targetIds = new Set(
+    (enabledTargetMembers.length > 0 ? enabledTargetMembers : targetMembers).map((provider) => provider.id)
+  )
   const moving = providers.filter((provider) => sourceIds.has(provider.id))
   const remaining = providers.filter((provider) => !sourceIds.has(provider.id))
 
@@ -112,11 +128,19 @@ export default function ProviderListContent({
 
   const renderFlat = () => (
     <ReorderableList
-      items={providers}
+      // Match the displayed status partition before translating visible indexes.
+      // Crossing the boundary then leaves each status's relative order intact.
+      items={[
+        ...providers.filter((provider) => provider.isEnabled),
+        ...providers.filter((provider) => !provider.isEnabled)
+      ]}
       visibleItems={visibleProviders}
       getId={(provider) => provider.id}
       onDragStateChange={onDragStateChange}
-      onReorder={onReorder}
+      onReorder={(reordered) => {
+        const next = restoreProviderStatusSlots(providers, reordered)
+        if (next !== providers) return onReorder(next)
+      }}
       onReorderError={onReorderError}
       className="w-full"
       gap="0.5rem"
@@ -181,11 +205,7 @@ export default function ProviderListContent({
         onDragEnd={handleDragEnd}
         onDragCancel={handleDragEnd}
         onSortEnd={handleSortEnd}
-        collisionDetection={closestCenter}
-        // The drag overlay renders a collapsed (header-only) group, which is a
-        // different size than the in-list card, so the overlay must NOT scale to
-        // the source rect — otherwise dnd-kit stretches the compact header.
-        adjustScale={false}
+        collisionDetection="closest-center"
         className="w-full"
         gap="0.5rem"
         restrictions={{ scrollableAncestor: true }}
@@ -225,7 +245,9 @@ export default function ProviderListContent({
   const hasAnyGroup = entries.some((entry) => entry.kind === 'group')
 
   return (
-    <Scrollbar ref={scrollerRef} className={providerListClasses.scroller}>
+    <ScrollArea
+      className="min-h-0 flex-1"
+      viewportProps={{ ref: scrollerRef, className: providerListClasses.scrollViewport }}>
       <div className={providerListClasses.sectionStack}>
         {hasResults ? (
           <section className={providerListClasses.section}>{hasAnyGroup ? renderGrouped() : renderFlat()}</section>
@@ -233,6 +255,6 @@ export default function ProviderListContent({
           <div className={providerListClasses.emptyState}>{t('common.no_results')}</div>
         )}
       </div>
-    </Scrollbar>
+    </ScrollArea>
   )
 }

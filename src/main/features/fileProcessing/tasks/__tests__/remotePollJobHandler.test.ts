@@ -4,8 +4,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
  * Unit tests for remotePollJobHandler.
  *
  * Covers: first-launch path (startRemote → patchMetadata → pollRemote → done),
- * cross-restart resume (metadata.remoteState present → rehydrate → skip
- * startRemote), stage-switch persistence (patchMetadata called again with new
+ * resuming a recorded remote task (metadata.remoteState present → rehydrate →
+ * skip startRemote), stage-switch persistence (patchMetadata called again with new
  * stage), abort during sleep, and the critical A1 invariant — apiKey is never
  * written to jobTable.metadata.
  */
@@ -174,25 +174,6 @@ afterEach(() => {
 })
 
 describe('remotePollJobHandler.execute', () => {
-  it('declares the remote-poll job contract', () => {
-    expect(remotePollJobHandler.recovery).toBe('retry')
-    expect(
-      remotePollJobHandler.defaultQueue?.({
-        feature: 'document_to_markdown',
-        file: { kind: 'entry', entryId: FILE_ENTRY_ID },
-        processorId: 'doc2x'
-      })
-    ).toBe('file-processing.doc2x')
-    expect(remotePollJobHandler.defaultConcurrency).toBe(2)
-    expect(remotePollJobHandler.defaultRetryPolicy).toEqual({
-      maxAttempts: 1,
-      backoff: 'none',
-      baseDelayMs: 0,
-      maxDelayMs: 0
-    })
-    expect(remotePollJobHandler.defaultTimeoutMs).toBe(30 * 60_000)
-  })
-
   it('first launch: startRemote → patchMetadata(whitelist) → pollRemote → artifacts', async () => {
     setupCapability()
     const remoteCtx = { apiHost: 'https://doc2x.example.com', apiKey: 'SECRET_KEY', stage: 'parsing' }

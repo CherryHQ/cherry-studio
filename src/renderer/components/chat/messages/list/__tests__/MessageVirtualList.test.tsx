@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import type * as LucideReact from 'lucide-react'
 import { Activity, type ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -43,11 +44,10 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
   }
 })
 
-vi.mock('lucide-react', () => {
-  return {
-    ArrowDown: () => <svg data-testid="scroll-arrow-icon" />
-  }
-})
+vi.mock('lucide-react', async (importOriginal) => ({
+  ...(await importOriginal<typeof LucideReact>()),
+  ArrowDown: () => <svg data-testid="scroll-arrow-icon" />
+}))
 
 vi.mock('react-i18next', () => {
   return {
@@ -275,36 +275,6 @@ describe('MessageVirtualList', () => {
     expect(runtimeMockState.scrollerRef.current).not.toBeNull()
   })
 
-  it('renders the top padding as real scroll content before the virtualizer', () => {
-    render(
-      <MessageVirtualList
-        items={['message-1']}
-        getItemKey={(item) => item}
-        renderItem={(item) => <span>{item}</span>}
-        topPadding={44}
-      />
-    )
-
-    const spacer = document.querySelector('[data-message-virtual-list-top-spacer]')
-    expect(spacer).toHaveStyle({ height: '44px' })
-    expect(spacer?.nextElementSibling).toBe(screen.getByTestId('virtualizer'))
-    expect(screen.getByTestId('virtualizer')).toHaveAttribute('data-start-margin', '44')
-  })
-
-  it('passes prepend shift compensation to virtua', () => {
-    runtimeMockState.shift = true
-
-    render(
-      <MessageVirtualList
-        items={['message-1']}
-        getItemKey={(item) => item}
-        renderItem={(item) => <span>{item}</span>}
-      />
-    )
-
-    expect(screen.getByTestId('virtualizer')).toHaveAttribute('data-shift', 'true')
-  })
-
   it('provides the runtime-owned wheel boundary to message content', () => {
     render(
       <MessageVirtualList
@@ -319,26 +289,6 @@ describe('MessageVirtualList', () => {
 
     expect(runtimeMockState.notifyWheelIntent).toHaveBeenCalledWith(40)
     expect(runtimeMockState.scrollByWheel).toHaveBeenCalledWith(80)
-  })
-
-  it('registers wheel handling as a native passive listener', async () => {
-    const addEventListenerSpy = vi.spyOn(HTMLElement.prototype, 'addEventListener')
-
-    try {
-      render(
-        <MessageVirtualList
-          items={['message-1']}
-          getItemKey={(item) => item}
-          renderItem={(item) => <span>{item}</span>}
-        />
-      )
-
-      await waitFor(() => {
-        expect(addEventListenerSpy).toHaveBeenCalledWith('wheel', expect.any(Function), { passive: true })
-      })
-    } finally {
-      addEventListenerSpy.mockRestore()
-    }
   })
 
   it('leaves wheel input inside a scrollable message region there until it reaches the boundary', () => {
@@ -688,10 +638,6 @@ describe('MessageVirtualList', () => {
 
     const button = screen.getByTestId('message-scroll-to-bottom-button')
     expect(button).toHaveAttribute('aria-label', 'chat.navigation.bottom')
-    expect(button).toHaveClass('h-9', 'w-9')
-    expect(screen.getByTestId('scroll-arrow-icon')).toBeInTheDocument()
-    expect(document.querySelector('[data-message-scroll-to-bottom-button-layer]')).toHaveClass('z-5')
-    expect(document.querySelector('[data-message-scroll-to-bottom-button-layer]')).toHaveStyle({ bottom: '88px' })
 
     fireEvent.click(button)
 

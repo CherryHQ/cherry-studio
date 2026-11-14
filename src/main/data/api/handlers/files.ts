@@ -5,7 +5,7 @@
  * (FileManager); ref writes are called directly by business services via
  * fileRefService.
  *
- * DataApi boundary rule (CLAUDE.md / docs/references/data/api-design-guidelines.md):
+ * DataApi boundary rule (CLAUDE.md / docs/dev/references/data/api-design-guidelines.md):
  * pure SQL, no FS IO, no main-side resolvers, no in-memory caches outside the DB.
  * Handlers are thin per `data-api-in-main.md` — all SQL lives in the owning
  * services (`FileEntryService`, `FileRefService`). Inputs flowing in from the

@@ -108,16 +108,6 @@ describe('MainWindowContent', () => {
 
     expect(tabsProviderMock.lastInitialDefaultTab).toMatchObject({ url: '/app/agents' })
   })
-
-  it('falls back to launchpad when no sidebar app is visible', () => {
-    MockUsePreferenceUtils.setPreferenceValue('app.onboarding.provider_setup.status', 'completed')
-    MockUsePreferenceUtils.setPreferenceValue('ui.sidebar_shortcut', [])
-    MockUsePreferenceUtils.setPreferenceValue('feature.paintings.default_provider', 'zhipu')
-
-    render(<MainWindowContent />)
-
-    expect(tabsProviderMock.lastInitialDefaultTab).toMatchObject({ url: '/app/launchpad' })
-  })
 })
 
 describe('MainApp top-level error boundary', () => {

@@ -33,7 +33,7 @@ describe('translateHandlers', () => {
   it('open resolves the caller WebContents and delegates to translateService', async () => {
     openMock.mockReturnValue({ streamId: 'translate:1' })
     expect(await translateHandlers['translate.open'](req, { senderId: 'w1' })).toEqual({ streamId: 'translate:1' })
-    expect(windowManager.getWindow).toHaveBeenCalledWith('w1')
+
     expect(openMock).toHaveBeenCalledWith(webContents, req)
   })
 

@@ -1,6 +1,6 @@
+import { MockCherrystudioUI } from '@test-mocks/renderer/CherrystudioUI'
 import '@testing-library/jest-dom/vitest'
 import { cleanup, render, screen, waitFor } from '@testing-library/react'
-import type { ComponentPropsWithoutRef } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { FilePreviewLayout, FilePreviewToolbar } from '@cherrystudio/file-preview/react'
@@ -24,7 +24,7 @@ vi.mock('@cherrystudio/ui', () => ({
       <div>{description}</div>
     </div>
   ),
-  Scrollbar: ({ children, ...props }: ComponentPropsWithoutRef<'div'>) => <div {...props}>{children}</div>
+  ScrollArea: MockCherrystudioUI.ScrollArea
 }))
 
 vi.mock('react-i18next', () => ({
@@ -152,25 +152,6 @@ describe('FilePreview plugin loading', () => {
     expect(screen.getByTestId('plugin-preview')).toHaveAttribute('data-refresh-key', '4')
     expect(screen.getByTestId('plugin-preview')).toHaveAttribute('data-preview-type', 'artifact')
     expect(mocks.load).toHaveBeenCalledTimes(1)
-  })
-
-  it('places an embedded header on the left and the plugin toolbar on the right of one row', async () => {
-    render(
-      <FilePreview
-        filePath={'/tmp/README.md' as AbsoluteFilePath}
-        header={<span data-testid="preview-title">README.md</span>}
-      />
-    )
-
-    const toolbar = await screen.findByRole('toolbar', { name: 'Preview tools' })
-    const header = screen.getByTestId('file-preview-header')
-    const toolbarHost = screen.getByTestId('file-preview-toolbar-host')
-
-    expect(header).toHaveClass('h-11', 'after:left-3', 'after:right-3', 'after:border-border', 'after:border-b')
-    expect(header.nextElementSibling).not.toHaveClass('px-3')
-    expect(header.firstElementChild).toContainElement(screen.getByTestId('preview-title'))
-    expect(header.lastElementChild).toBe(toolbarHost)
-    expect(toolbarHost).toContainElement(toolbar)
   })
 
   it('contains plugin loader failures inside the preview surface', async () => {

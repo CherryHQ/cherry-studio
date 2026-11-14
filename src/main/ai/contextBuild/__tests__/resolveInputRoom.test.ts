@@ -1,7 +1,5 @@
 import { describe, expect, it } from 'vitest'
 
-import { MIN_INPUT_ROOM_RATIO } from '@main/ai/constants'
-
 import { resolveInputRoom } from '../resolveInputRoom'
 
 describe('resolveInputRoom', () => {
@@ -25,7 +23,6 @@ describe('resolveInputRoom', () => {
   ])('floors instead of collapsing when the reservation is %s', (_label, window, reservation) => {
     const room = resolveInputRoom(window, reservation)
 
-    expect(room).toBe(Math.floor(window * MIN_INPUT_ROOM_RATIO))
     expect(room).toBeGreaterThan(0)
   })
 

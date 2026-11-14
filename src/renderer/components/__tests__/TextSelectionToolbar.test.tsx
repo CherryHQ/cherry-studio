@@ -124,6 +124,25 @@ describe('automatic selected-text actions', () => {
     expect(await screen.findByRole('button', { name: 'common.copy' })).toBeInTheDocument()
   })
 
+  it('keeps a completed keyboard selection actionable when it follows pointer release in the same frame', async () => {
+    renderContent()
+    const content = screen.getByText('Selected message text')
+    fireEvent(content, new MouseEvent('pointerdown', { button: 0, bubbles: true }))
+    const range = document.createRange()
+    range.setStart(content.firstChild!, 0)
+    range.setEnd(content.firstChild!, 1)
+    window.getSelection()!.addRange(range)
+    fireEvent(content, new MouseEvent('pointerup', { button: 0, bubbles: true }))
+    fireEvent.keyDown(content, { key: 'ArrowRight', shiftKey: true })
+    range.setEnd(content.firstChild!, content.textContent.length)
+    fireEvent.keyUp(content, { key: 'ArrowRight', shiftKey: true })
+    await act(() => new Promise((resolve) => requestAnimationFrame(resolve)))
+    fireEvent(document, new Event('selectionchange'))
+
+    expect(window.getSelection()?.toString()).toBe('Selected message text')
+    expect(await screen.findByRole('button', { name: 'common.copy' })).toBeVisible()
+  })
+
   it('waits for selection keys to finish across modifier releases and consecutive gestures', async () => {
     renderContent()
     const content = screen.getByText('Selected message text')

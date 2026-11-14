@@ -1,7 +1,8 @@
 import { spawn } from 'node:child_process'
 import { createRequire } from 'node:module'
 
-import { type PhaseId, selectCases } from './cases'
+import { caseGrep, parseTaskSelection, type PhaseId, selectCases, supportsPlatform } from './cases'
+import { verifyMockProvider } from './mockProvider'
 import type { RunPaths } from './paths'
 import { readRun, updatePhase, writeRun } from './state'
 
@@ -9,10 +10,14 @@ const require = createRequire(import.meta.url)
 
 export async function runPhase(paths: RunPaths, phase: PhaseId): Promise<void> {
   const run = readRun(paths.runState)
-  if (selectCases(run.metadata.task, phase).length === 0) return
+  const selection = parseTaskSelection(run.metadata.task)
+  const selected = selectCases(selection, phase).filter(({ id }) => supportsPlatform(id, run.metadata.platform))
+  if (selected.length === 0) return
+  if (run.metadata.providerMode === 'mock') await verifyMockProvider(paths)
   writeRun(paths.runState, updatePhase(run, phase, 'running'))
-  const args = ['test', '--config', 'playwright.regression.config.ts', `${phase}.test.ts`]
-  if (run.metadata.task !== 'all') args.push('--grep', `@${run.metadata.task}(?:\\s|$)`)
+  const args = ['test', '--config', 'playwright.regression.config.ts', `phases/${phase}.test.ts`]
+  const grep = caseGrep(selection)
+  if (grep) args.push('--grep', grep)
   const code = await new Promise<number>((resolve) => {
     const child = spawn(process.execPath, [require.resolve('@playwright/test/cli'), ...args], {
       stdio: 'inherit',

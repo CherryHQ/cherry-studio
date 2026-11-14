@@ -27,15 +27,16 @@ const MAX_RESULT_BYTES = 48 * 1024 * 1024
  */
 const MAX_OCR_REGION_SIDE = 8192
 
-/** Runtime form of {@link ScreenshotResultData}; the annotation binds the two structurally. */
-const screenshotResultSchema: z.ZodType<ScreenshotResultData> = z.object({
+/** Result bytes plus the capture identity checked before invoking the business service. */
+const screenshotResultSchema = z.object({
+  mediaId: z.string().min(1),
   // Raw bytes rather than a data URL: base64 adds a third to a payload that is already
   // tens of MB, plus an encode in the renderer and a decode in main.
   pngBytes: uint8ArraySchema.refine(
     (bytes) => bytes.byteLength <= MAX_RESULT_BYTES,
     'screenshot result exceeds the size cap'
   )
-})
+}) satisfies z.ZodType<ScreenshotResultData & { mediaId: string }>
 
 /** One text line with glyph bounds in physical pixels relative to the OCR crop. */
 const ocrTextLine = z.object({
@@ -66,8 +67,7 @@ export type OcrRecognitionResult = z.infer<typeof ocrRecognitionResult>
 // ── Request: renderer→main calls (zod values, always parsed) ──
 export const screenshotRequestSchemas = {
   'screenshot.submit_result': defineRoute({
-    input: z.object({
-      pngBytes: uint8ArraySchema.refine((bytes) => bytes.byteLength <= MAX_RESULT_BYTES),
+    input: screenshotResultSchema.extend({
       text: z.string().max(10000)
     }),
     output: z.void()

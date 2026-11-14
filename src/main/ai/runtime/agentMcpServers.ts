@@ -25,6 +25,7 @@ import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import { AGENT_WORKSPACE_TYPE, type AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 import type { McpServer as McpServerEntity } from '@shared/data/types/mcpServer'
+import type { UniqueModelId } from '@shared/data/types/model'
 import { BuiltinMcpServerNames, isInMemoryBuiltinMcpServer } from '@shared/utils/mcp'
 
 const logger = loggerService.withContext('AgentMcpServers')
@@ -65,12 +66,14 @@ export function buildAgentMcpServers(
   linkedChannelSnapshot?: LinkedChannelSnapshot,
   agentDataPath = session.workspace.path,
   selectedKnowledgeBaseIds: readonly string[] = [],
-  notificationContext = resolveAgentNotificationContext(session.id, agent.id, linkedChannelSnapshot)
+  notificationContext = resolveAgentNotificationContext(session.id, agent.id, linkedChannelSnapshot),
+  effectiveModelId?: UniqueModelId | null
 ): Record<string, AgentMcpServer> {
+  const modelId = effectiveModelId ?? session.model ?? agent.model ?? undefined
   const interactionContext = {
     sessionId: session.id,
     topicId: `agent-session:${session.id}`,
-    model: agent.model ?? undefined,
+    model: modelId,
     roots: [{ uri: pathToFileURL(session.workspace.path).toString(), name: session.workspace.name }]
   }
   const servers: Record<string, AgentMcpServer> = {}
@@ -153,14 +156,18 @@ export function buildAgentMcpServers(
   if (mountedServers.has(CHERRY_MCP_SERVER.ASSISTANT)) {
     servers.assistant = {
       name: CHERRY_MCP_SERVER.ASSISTANT,
-      connect: serveAgentMcpServer(() => createAssistantServer(agent.model ?? undefined, hostTools?.tools))
+      connect: serveAgentMcpServer(() => createAssistantServer(modelId, hostTools?.tools))
     }
   }
   if (mountedServers.has(CHERRY_MCP_SERVER.ASSISTANT_FILES)) {
     servers['assistant-files'] = {
       name: CHERRY_MCP_SERVER.ASSISTANT_FILES,
       connect: serveAgentMcpServer(() =>
-        createAssistantFileToolsServer({ sessionId: session.id, workspacePath: session.workspace.path })
+        createAssistantFileToolsServer({
+          sessionId: session.id,
+          workspacePath: session.workspace.path,
+          workspaceType: session.workspace.type
+        })
       )
     }
   }

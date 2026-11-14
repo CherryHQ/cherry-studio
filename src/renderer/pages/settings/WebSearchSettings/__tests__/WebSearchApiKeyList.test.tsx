@@ -29,10 +29,6 @@ vi.mock('react-i18next', async (importOriginal) => {
   }
 })
 
-vi.mock('@renderer/components/Scrollbar', () => ({
-  default: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => <div {...props}>{children}</div>
-}))
-
 vi.mock('@cherrystudio/ui', async (importOriginal) => ({
   ...(await importOriginal<typeof CherryStudioUi>()),
   Button: ({ children, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement>) => (

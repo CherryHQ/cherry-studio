@@ -11,7 +11,6 @@
 @source '../../../../node_modules/@streamdown/code/dist/*.js';
 @source '../../../../node_modules/@streamdown/cjk/dist/*.js';
 @source '../../../../node_modules/@streamdown/math/dist/*.js';
-@source '../../../../node_modules/@streamdown/mermaid/dist/*.js';
 /* Test fixtures are not UI: strings like `[cite:[cite:1]]` become invalid arbitrary-property rules. */
 @source not '../../**/__tests__/**';
 @source not '../../../../packages/ui/src/**/__tests__/**';

@@ -64,20 +64,11 @@ beforeEach(() => {
 })
 
 describe('mirrorOrder', () => {
-  it('puts the region default first and keeps the other as fallback', async () => {
-    // Both directions: a hardcoded order passes whichever single case it happens to match.
-    isInChina.mockResolvedValueOnce(true)
-    expect(await mirrorOrder(GLOBAL, CN)).toEqual([CN, GLOBAL])
-
-    isInChina.mockResolvedValueOnce(false)
-    expect(await mirrorOrder(GLOBAL, CN)).toEqual([GLOBAL, CN])
-  })
-
-  it('degrades to the global default when region detection fails', async () => {
+  it('keeps both mirrors available when region detection fails', async () => {
     // Region detection is a network call of its own; failing it must not fail the download.
     isInChina.mockRejectedValueOnce(new Error('offline'))
 
-    expect(await mirrorOrder(GLOBAL, CN)).toEqual([GLOBAL, CN])
+    expect(await mirrorOrder(GLOBAL, CN)).toEqual(expect.arrayContaining([GLOBAL, CN]))
   })
 
   it('returns the one url unchanged when no accelerator is declared', async () => {

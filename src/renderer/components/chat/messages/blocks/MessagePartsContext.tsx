@@ -79,6 +79,16 @@ export function usePartsMap() {
   return use(PartsContext)
 }
 
+/**
+ * Read a parts map holding only the current message when inside a message
+ * scope, else the complete map. Scoped consumers skip other messages' chunks.
+ */
+export function useScopedPartsMap(): PartsMap {
+  const scope = use(MessagePartsScopeContext)
+  const scopedMap = useMemo(() => (scope ? { [scope.messageId]: scope.parts } : null), [scope])
+  return scopedMap ?? use(PartsContext)
+}
+
 /** Check if parts data is provided. */
 export function useHasMessageParts(): boolean {
   return use(PartsContext) !== null

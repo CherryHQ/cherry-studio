@@ -61,9 +61,8 @@ Annotation capture preserves the existing isolated-world selector resolution,
 Shadow DOM traversal, request budgets, cancellation, and form-value suppression.
 
 The MCP adapter and input tools live in `mcp/` and `actions/`. The builtin factory calls
-`BrowserSessionService.createMcpEndpoint()`; Agent runtimes connect through
-`createAgentMcpServer()`, which serves each transport with its own pane controller. Both build the
-same v2 `McpServer`. The factory has no direct feature import.
+`BrowserSessionService.createMcpEndpoint()`, which builds a v2 `McpServer`; the automation REPL
+drives pane controllers through `createControl()`. The factory has no direct feature import.
 See [Browser MCP server](./mcp/README.md) for tools, outputs and ownership limits.
 
 `AgentBrowserRegistry` binds verified renderer guests to their actual Agent Sessions. Pane MCP
@@ -76,7 +75,7 @@ remain unchanged. Configure both in Settings → Browser.
 Runtime gates and queued dispatch recheck the switch, so turning it off revokes Agent access. Ordinary pages use
 `persist:agent-browser` and permit public/LAN/loopback HTTP(S); preview/artifact profiles stay separate.
 The session service owns ordinary guests' popup handlers across all host windows. HTTP(S) popup
-links navigate an Agent-bound guest in place or open a standalone browser tab. Agent attachment and
+links create a page in the bound guest’s conversation or open a standalone browser tab. Background-tab requests preserve the current conversation page selection. Agent attachment and
 control revocation do not replace this handler; shutdown removes the routing along with history tracking.
 History is SQLite-backed through `BrowserHistoryService`. The session service tracks ordinary webview
 lifetimes independently of Agent bindings; history entries reopen in browser tabs sharing the same partition. Import readers live in `import/` and
@@ -84,7 +83,7 @@ run as tracked, cancellable operations of this lifecycle service. Cookie decrypt
 keys from macOS Keychain, Windows current-user DPAPI or Linux Secret Service/KWallet. Helpers are
 bounded, cancelled and awaited; keys are not persisted. Windows app-bound cookies and partitioned
 cookies remain unsupported, with per-reason counts. See the
-[import support matrix](../../../../docs/references/ai/browser-use-implementation.md#127-delivered-import-support-and-validation).
+[import support matrix](../../../../docs/dev/references/ai/browser-use-implementation.md#127-delivered-import-support-and-validation).
 `list_web_tools` / `call_web_tool` use native CDP WebMCP in managed and Agent-bound guests.
 `GuestSession` owns the memory-only `WebMcpTools` registry; document changes invalidate tool IDs.
 Invocation results and metadata are untrusted, input schemas use the MCP SDK validator, and
@@ -143,3 +142,9 @@ and exact guest binding before and after renderer acknowledgement. Inert retaine
 guests acknowledge background execution without taking DOM focus or revealing the
 pane; visible guests must focus successfully. Missing guests, cancellation and
 ownership changes reject the input before CDP keyboard dispatch.
+
+Conversation panes retain multiple independent pages. The renderer runtime owns their ordered collection,
+selection and guests; main verifies each stable `pageId` and issues a fresh binding `tabId` on attachment.
+Switching pages changes only presentation anchors. Agent handles retain their exact target independently
+of user selection, and closing a page revokes only that binding. Page collection restoration after restart
+is not provided. See the [session-browser Spec](../../../../.agents/notes/proposed/feature/2026-11-14-session-browser-tabs.md).

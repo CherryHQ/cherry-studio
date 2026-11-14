@@ -1,14 +1,7 @@
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, redirect } from '@tanstack/react-router'
 
-import { SettingsContentColumn } from '@renderer/components/SettingsPrimitives'
-import McpMarketList from '@renderer/pages/settings/McpSettings/McpMarketList'
+export function redirectToMcpSources() {
+  throw redirect({ to: '/app/marketplace', search: { mcpView: 'sources' } })
+}
 
-const MarketplacesWrapper = () => (
-  <SettingsContentColumn className="pt-2">
-    <McpMarketList />
-  </SettingsContentColumn>
-)
-
-export const Route = createFileRoute('/settings/mcp/marketplaces')({
-  component: MarketplacesWrapper
-})
+export const Route = createFileRoute('/settings/mcp/marketplaces')({ beforeLoad: redirectToMcpSources })

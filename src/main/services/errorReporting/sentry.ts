@@ -4,7 +4,7 @@ import { application } from '@application'
 import { getClientId } from '@main/utils/systemInfo'
 import { getSentryBuildContext, getSentryLogContext, sanitizeSentryEvent } from '@shared/utils/sentry'
 
-import { dependencies, devDependencies, name, version } from '../../../../package.json'
+import { dependencies, name, version } from '../../../../package.json'
 
 const SENTRY_DSN = 'https://194ceab3bd44e686bd3ebda9de3c20fd@o4509184559218688.ingest.us.sentry.io/4509184569442304'
 
@@ -65,7 +65,7 @@ export function initSentry(): void {
           : runtime === 'pi'
             ? dependencies['@earendil-works/pi-coding-agent']
             : runtime === 'ai-sdk'
-              ? devDependencies.ai
+              ? dependencies.ai
               : undefined
       return sanitizeSentryEvent({
         ...filtered,

@@ -5,6 +5,7 @@ import {
   use,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState
@@ -130,10 +131,29 @@ export function SessionHoverPreview({
   const { remove } = group
   useEffect(() => () => remove(id), [id, remove])
   const open = group.activeId === id
+  const triggerRef = useRef<HTMLAnchorElement>(null)
+  const [sideOffset, setSideOffset] = useState(12)
+
+  useLayoutEffect(() => {
+    if (!open || !triggerRef.current) return
+    const trigger = triggerRef.current
+    const boundary = trigger.closest('[role="option"]')
+    if (!boundary) return
+
+    const updateOffset = () => {
+      setSideOffset(Math.max(0, boundary.getBoundingClientRect().right - trigger.getBoundingClientRect().right) + 12)
+    }
+    updateOffset()
+    const observer = new ResizeObserver(updateOffset)
+    observer.observe(trigger)
+    observer.observe(boundary)
+    return () => observer.disconnect()
+  }, [open])
 
   return (
     <HoverCard open={open} onOpenChange={(next) => group.change(id, next)} openDelay={500} closeDelay={100}>
       <HoverCardTrigger
+        ref={triggerRef}
         asChild
         onPointerEnter={(event) => {
           if (event.pointerType !== 'touch') group.enter(id)
@@ -146,7 +166,7 @@ export function SessionHoverPreview({
       {open && (
         <HoverCardContent
           side="right"
-          sideOffset={4}
+          sideOffset={sideOffset}
           className="w-auto max-w-80 animate-none! p-3 text-xs break-words"
           onPointerEnter={(event) => {
             if (event.pointerType !== 'touch') group.enter(id)

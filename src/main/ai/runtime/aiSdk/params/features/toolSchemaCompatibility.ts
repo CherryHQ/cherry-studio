@@ -24,6 +24,11 @@
  *     Custom Gemini relays translate client schemas literally, so the
  *     repo-owned middleware is the last choke point that can remove them.
  *
+ * On the OpenAI Responses endpoint a function tool without `strict` gets an
+ * explicit `strict: false`: Responses (and Azure OpenAI) otherwise default to
+ * strict mode, which marks every property required and makes the model fill
+ * optional fields. Other endpoints never receive a `strict` key they didn't ask for.
+ *
  * Local input validation is unaffected: the AI SDK still checks tool calls
  * against the original zod schema.
  */
@@ -133,7 +138,7 @@ function dropKeywords(node: JSONSchema7, keywords: ReadonlySet<string>): JSONSch
   let changed = false
   const kept: Record<string, unknown> = {}
   for (const [key, value] of Object.entries(node)) {
-    if (keywords.has(key)) {
+    if (keywords.has(key) || (key === 'required' && value === null)) {
       changed = true
       continue
     }
@@ -255,6 +260,7 @@ function normalizeToolSchemas(params: LanguageModelV3CallOptions, scope: Request
 
   const isGeminiEndpoint =
     scope.endpointType === ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT && scope.sdkConfig.providerId !== 'google-vertex-maas'
+  const isResponsesEndpoint = scope.endpointType === ENDPOINT_TYPE.OPENAI_RESPONSES
 
   let changed = false
   const droppedTools: string[] = []
@@ -275,10 +281,15 @@ function normalizeToolSchemas(params: LanguageModelV3CallOptions, scope: Request
     if (isGeminiEndpoint) inputSchema = stripKeywords(inputSchema, GEMINI_UNSUPPORTED)
     if (isGeminiEndpoint) inputSchema = mapSchemas(inputSchema, expandTypeArrays)
     if (isGeminiEndpoint) inputSchema = mapSchemas(inputSchema, stripNonStringEnums)
-    if (inputSchema === tool.inputSchema) transformedTools.push(tool)
+    const optOutOfStrict = isResponsesEndpoint && tool.strict === undefined
+    if (inputSchema === tool.inputSchema && !optOutOfStrict) transformedTools.push(tool)
     else {
       changed = true
-      transformedTools.push({ ...tool, inputSchema: inputSchema as JSONSchema7 })
+      transformedTools.push({
+        ...tool,
+        inputSchema: inputSchema as JSONSchema7,
+        ...(optOutOfStrict ? { strict: false } : {})
+      })
     }
   }
 
@@ -309,7 +320,7 @@ const createToolSchemaCompatibilityPlugin = (scope: RequestScope) =>
     }
   })
 
-/** Drop provider-rejected JSON Schema keywords and unsafe Gemini array tools. */
+/** Drop provider-rejected JSON Schema keywords and unsafe Gemini array tools; opt Responses tools out of default strict mode. */
 export const toolSchemaCompatibilityFeature: RequestFeature = {
   name: 'tool-schema-compatibility',
   contributeModelAdapters: (scope) => [createToolSchemaCompatibilityPlugin(scope)]

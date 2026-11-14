@@ -1,3 +1,4 @@
+import { MockCherrystudioUI } from '@test-mocks/renderer/CherrystudioUI'
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
@@ -24,16 +25,13 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
+  ScrollArea: MockCherrystudioUI.ScrollArea,
   Button: ({ children, ...props }: { children: ReactNode }) => (
     <button type="button" {...props}>
       {children}
     </button>
   ),
   Tooltip: ({ children }: { children: ReactNode }) => <>{children}</>
-}))
-
-vi.mock('@renderer/components/Scrollbar', () => ({
-  default: ({ children }: { children: ReactNode }) => <div>{children}</div>
 }))
 
 // `pinned` stays empty on purpose: presets seed as `enabled`, so a picker that
@@ -123,13 +121,5 @@ describe('SplitPanePicker', () => {
     const selectable = screen.getByTestId('tile-kimi')
     expect(selectable).not.toHaveAttribute('aria-disabled')
     expect(selectable).toHaveAttribute('tabindex', '0')
-  })
-
-  it('opts back into pointer events so the panel is not inert', () => {
-    const { container } = render(<SplitPanePicker occupiedAppId="deepseek" onClose={mocks.onClose} />)
-
-    // MiniAppPage's split container is `pointer-events-none` so clicks reach pooled
-    // webviews; without an explicit opt-in the picker inherits it and goes inert.
-    expect(container.firstElementChild?.className).toContain('pointer-events-auto')
   })
 })

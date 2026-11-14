@@ -159,6 +159,44 @@ describe('AiSdkToOpenAiResponsesSse', () => {
   describe('Reasoning Processing', () => {
     const createReasoningDelta = (text: string): UIMessageChunk => ({ type: 'reasoning-delta', id: 'r_0', delta: text })
 
+    // Catches duplicating one native reasoning item when the SDK streams multiple summary parts.
+    it('keeps one native identity and the final ciphertext across summary parts', async () => {
+      const adapter = new AiSdkToOpenAiResponsesSse({ model: 'openai:gpt-5' })
+      const providerMetadata = { openai: { itemId: 'rs_native' } }
+      const events = await collectEvents(
+        adapter.transform(
+          createMockStream([
+            { type: 'reasoning-start', id: 'rs_native:0', providerMetadata },
+            { type: 'reasoning-delta', id: 'rs_native:0', delta: 'first ' },
+            { type: 'reasoning-end', id: 'rs_native:0', providerMetadata },
+            { type: 'reasoning-start', id: 'rs_native:1', providerMetadata },
+            { type: 'reasoning-delta', id: 'rs_native:1', delta: 'second' },
+            {
+              type: 'reasoning-end',
+              id: 'rs_native:1',
+              providerMetadata: { openai: { itemId: 'rs_native', reasoningEncryptedContent: 'final-ciphertext' } }
+            },
+            createTextDelta('answer'),
+            createFinish()
+          ])
+        )
+      )
+      const completed = events.find((event) => event.type === 'response.completed')!
+      expect(completed.response.output.filter((item) => item.type === 'reasoning')).toEqual([
+        {
+          type: 'reasoning',
+          id: 'rs_native',
+          status: 'completed',
+          summary: [{ type: 'summary_text', text: 'first second' }],
+          content: [{ type: 'reasoning_text', text: 'first second' }],
+          encrypted_content: 'final-ciphertext'
+        }
+      ])
+      expect(
+        events.filter((event) => event.type === 'response.output_item.added' && event.item.type === 'reasoning')
+      ).toHaveLength(1)
+    })
+
     it('emits a reasoning output item ahead of the message and carries it in response.completed', async () => {
       const adapter = new AiSdkToOpenAiResponsesSse({ model: 'openai:deepseek-v4-pro' })
       const stream = createMockStream([
@@ -413,3 +451,19 @@ describe('AiSdkToOpenAiResponsesSse', () => {
     })
   })
 })
+
+it.each([null, undefined, [], true, 42, 'invalid json'])(
+  'rejects non-object tool input without fabricating arguments: %j',
+  (input) => {
+    const adapter = new AiSdkToOpenAiResponsesSse({ model: 'test-model' })
+    expect(() =>
+      adapter.transformChunk({
+        type: 'tool-input-error',
+        toolCallId: 'bad-input',
+        toolName: 'read_file',
+        input,
+        errorText: 'Invalid tool arguments'
+      })
+    ).toThrow('Invalid tool arguments')
+  }
+)

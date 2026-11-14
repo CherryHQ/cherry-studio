@@ -1,7 +1,8 @@
 import i18n from '@renderer/i18n/resolver'
 import { ipcApi } from '@renderer/ipc'
+import { healthCheckErrorToDisplayString } from '@renderer/services/modelHealthCheck'
 import type { SerializedError } from '@renderer/types/error'
-import { providerErrorText, serializeHealthCheckError } from '@renderer/utils/error'
+import { serializeHealthCheckError } from '@renderer/utils/error'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { ApiKeyEntry, Provider } from '@shared/data/types/provider'
 import {
@@ -75,26 +76,6 @@ export function resolveModelCheckCredentials(
   }
 
   return enabledEntries.map((entry) => ({ kind: 'api-key', entry }))
-}
-
-export function healthCheckErrorToDisplayString(error: SerializedError | string | undefined | null): string {
-  if (error == null) {
-    return ''
-  }
-  if (typeof error === 'string') {
-    return error.trim()
-  }
-  // `providerErrorText` prefers the provider's own response body — `message` alone is the
-  // HTTP statusText ("Forbidden") whenever the body misses the SDK's error schema.
-  const msg = providerErrorText(error).trim()
-  if (msg) {
-    return msg
-  }
-  const name = error.name?.trim()
-  if (name) {
-    return name
-  }
-  return ''
 }
 
 export async function checkModelWithMultipleKeys(

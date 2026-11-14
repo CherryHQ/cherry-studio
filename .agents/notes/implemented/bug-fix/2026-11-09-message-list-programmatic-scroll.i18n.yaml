@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-09-message-list-programmatic-scroll.md
+2026-11-09-message-list-programmatic-scroll.md: 32ccc434694245880fbeeba6745f8ef13bcaa934
+2026-11-09-message-list-programmatic-scroll.zh.md: 9f51630642bd8eed424b00827b04f1c0c225c274

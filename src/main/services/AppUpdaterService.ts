@@ -1,29 +1,35 @@
 import type { ProgressInfo, UpdateInfo } from 'builder-util-runtime'
 import { CancellationError, CancellationToken, HttpError } from 'builder-util-runtime'
+import { eq } from 'drizzle-orm'
 import { app, net } from 'electron'
 import type { Logger, NsisUpdater, UpdateCheckResult } from 'electron-updater'
 import { AppUpdater, autoUpdater } from 'electron-updater'
 import semver from 'semver'
 
 import { application } from '@application'
+import { appStateTable } from '@data/db/schemas/appState'
 import { loggerService } from '@logger'
 import { computeBackoff } from '@main/core/job/runtime/backoff'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { logFailure } from '@main/core/logger/logFailure'
 import { isWin } from '@main/core/platform'
 import { WindowType } from '@main/core/window/types'
+import { getAppLanguage, t } from '@main/i18n'
 import { regionService } from '@main/services/RegionService'
 import { getAppEdition } from '@main/utils/appEdition'
 import { generateUserAgent, getClientId } from '@main/utils/systemInfo'
 import type { RetryPolicy } from '@shared/data/api/schemas/jobs'
 import { UpgradeChannel } from '@shared/data/preference/preferenceTypes'
+import { IpcError, IpcErrorCode } from '@shared/ipc/errors/IpcError'
 import type { AppUpdaterNotAvailablePayload } from '@shared/ipc/schemas/app'
+import type { OutputFor } from '@shared/ipc/types'
 import type { AppEdition } from '@shared/types/appEdition'
 import type { FailureFacts } from '@shared/types/errorReporting'
 import { APP_NAME } from '@shared/utils/constants'
 import { isCancellation } from '@shared/utils/errorReporting'
 import {
   hasMultiLanguageReleaseNotes,
+  isStableReleaseVersion,
   localizeReleaseNotes,
   mergeReleaseHistory,
   parseReleaseHistory,
@@ -133,8 +139,9 @@ const CHECK_RETRY_POLICY: RetryPolicy = {
 
 @Injectable('AppUpdaterService')
 @ServicePhase(Phase.WhenReady)
-@DependsOn(['WindowManager', 'SchedulerService'])
+@DependsOn(['WindowManager', 'SchedulerService', 'NotificationService'])
 export class AppUpdaterService extends BaseService {
+  private readonly pendingReleaseNotifications = new Set<string>()
   private cancellationToken: CancellationToken = new CancellationToken()
   private updateCheckResult: UpdateCheckResult | null = null
   // Consecutive scheduled-check failures, drives backoff; reset on success.
@@ -187,6 +194,48 @@ export class AppUpdaterService extends BaseService {
     this.scheduleNextUpdateCheck(INITIAL_CHECK_DELAY_MS)
   }
 
+  private async publishReleaseNotification(releaseInfo: UpdateInfo): Promise<void> {
+    if (this.pendingReleaseNotifications.has(releaseInfo.version)) return
+    this.pendingReleaseNotifications.add(releaseInfo.version)
+    try {
+      const db = application.get('DbService').getDb()
+      const key = `appUpdater:notification:${releaseInfo.version}`
+      if (db.select().from(appStateTable).where(eq(appStateTable.key, key)).get()) return
+
+      const releaseNotes =
+        typeof releaseInfo.releaseNotes === 'string'
+          ? releaseInfo.releaseNotes
+          : (releaseInfo.releaseNotes
+              ?.map(({ note }) => note)
+              .filter(Boolean)
+              .join('\n\n') ?? '')
+      const title = t('notification.center.version_available', { version: releaseInfo.version })
+      const summary = releaseNotes
+        .split('\n')
+        .find((line) => line.trim() && !/^\s*#/.test(line))
+        ?.replace(/^\s*[-*>]\s*/, '')
+        .trim()
+        .slice(0, 240)
+      const recorded = await application.get('NotificationService').publish(
+        {
+          eventKey: `release:${releaseInfo.version}`,
+          category: 'official',
+          kind: 'release',
+          title,
+          message: summary || title,
+          createdAt: Date.now(),
+          target: { kind: 'release', version: releaseInfo.version, releaseNotes }
+        },
+        { source: 'update' }
+      )
+      if (recorded) db.insert(appStateTable).values({ key, value: true }).onConflictDoNothing().run()
+    } catch (error) {
+      logger.warn('Failed to publish release notification', error as Error)
+    } finally {
+      this.pendingReleaseNotifications.delete(releaseInfo.version)
+    }
+  }
+
   private registerAutoUpdaterListeners(): void {
     const onError = (error: Error) => {
       logFailure(logger, 'update error', error, 'update.run', classifyUpdateFailure(error))
@@ -198,6 +247,7 @@ export class AppUpdaterService extends BaseService {
     const onUpdateAvailable = (releaseInfo: UpdateInfo) => {
       logger.info('update available', releaseInfo)
       const processedReleaseInfo = this.processReleaseInfo(releaseInfo)
+      void this.publishReleaseNotification(processedReleaseInfo)
       application.get('IpcApiService').broadcastToType(WindowType.Main, 'app.updater.available', processedReleaseInfo)
     }
     autoUpdater.on('update-available', onUpdateAvailable)
@@ -359,6 +409,26 @@ export class AppUpdaterService extends BaseService {
     return latestRelease ? mergeReleaseHistory([latestRelease], history) : history
   }
 
+  public async getUpgradeReleaseNotes(targetVersion: string): Promise<OutputFor<'app.updater.upgrade_notes.get'>> {
+    const fromVersion = app.getVersion()
+    if (
+      !isStableReleaseVersion(fromVersion) ||
+      !isStableReleaseVersion(targetVersion) ||
+      !semver.gt(targetVersion, fromVersion)
+    ) {
+      throw new IpcError(IpcErrorCode.VALIDATION_FAILED, 'Expected a stable upgrade range')
+    }
+    const history = await this.fetchReleaseHistory()
+    return {
+      fromVersion,
+      toVersion: targetVersion,
+      historyStatus: history ? 'available' : 'unavailable',
+      releases: (history ?? [])
+        .filter(({ version }) => semver.gt(version, fromVersion) && semver.lte(version, targetVersion))
+        .sort((left, right) => semver.rcompare(left.version, right.version))
+    }
+  }
+
   public cancelDownload() {
     this.cancellationToken.cancel()
     this.cancellationToken = new CancellationToken()
@@ -502,7 +572,7 @@ export class AppUpdaterService extends BaseService {
     if (releaseInfo.releaseNotes && typeof releaseInfo.releaseNotes === 'string') {
       if (hasMultiLanguageReleaseNotes(releaseInfo.releaseNotes)) {
         try {
-          const language = application.get('PreferenceService').get('app.language')
+          const language = getAppLanguage()
           processedInfo.releaseNotes = localizeReleaseNotes(releaseInfo.releaseNotes, language)
         } catch (error) {
           logger.error('Failed to localize release notes', error as Error)

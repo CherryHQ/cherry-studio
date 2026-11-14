@@ -1,6 +1,6 @@
 /**
  * Decide which tools to defer behind `tool_search`. See
- * `docs/references/ai/tool-registry.md` for the design (threshold,
+ * `docs/dev/references/ai/tool-registry.md` for the design (threshold,
  * gates, defer policies).
  */
 

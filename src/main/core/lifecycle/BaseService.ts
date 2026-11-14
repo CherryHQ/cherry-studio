@@ -182,6 +182,10 @@ export abstract class BaseService {
    * Register a disposable for automatic cleanup on service stop/destroy.
    * Accepts either a Disposable object or a plain cleanup function.
    * Returns the registered disposable for optional inline assignment.
+   * Disposing a cleanup-function registration early also stops tracking it.
+   *
+   * Do not register an `Emitter` the service owns: stop would dispose it for good,
+   * and a later start reuses this instance. Dispose it in `onDestroy()` instead.
    *
    * @example
    * // Disposable object (e.g., Emitter subscription)
@@ -189,14 +193,19 @@ export abstract class BaseService {
    *
    * // Plain cleanup function (e.g., PreferenceService.subscribeChange)
    * this.registerDisposable(preferenceService.subscribeChange('key', handler))
-   *
-   * // Inline assignment
-   * this.emitter = this.registerDisposable(new Emitter<void>())
    */
   protected registerDisposable<T extends Disposable>(disposable: T): T
   protected registerDisposable(dispose: () => void): Disposable
   protected registerDisposable<T extends Disposable>(disposableOrFn: T | (() => void)): T | Disposable {
-    const disposable = typeof disposableOrFn === 'function' ? toDisposable(disposableOrFn) : disposableOrFn
+    if (typeof disposableOrFn !== 'function') {
+      this._disposables.push(disposableOrFn)
+      return disposableOrFn
+    }
+    const disposable = toDisposable(() => {
+      const index = this._disposables.indexOf(disposable)
+      if (index !== -1) this._disposables.splice(index, 1)
+      disposableOrFn()
+    })
     this._disposables.push(disposable)
     return disposable
   }
@@ -206,10 +215,8 @@ export abstract class BaseService {
    * Called automatically after onStop() and in _doDestroy().
    */
   private _cleanupDisposables(): void {
-    for (const disposable of this._disposables) {
-      disposable.dispose()
-    }
-    this._disposables = []
+    let disposable: Disposable | undefined
+    while ((disposable = this._disposables.shift())) disposable.dispose()
   }
 
   /**

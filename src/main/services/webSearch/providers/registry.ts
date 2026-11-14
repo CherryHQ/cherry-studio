@@ -4,6 +4,7 @@ import type { ApiKeyRotationState } from '../utils/provider'
 import { BochaProvider } from './api/BochaProvider'
 import { Crawl4AIProvider } from './api/Crawl4AIProvider'
 import { DeepSeekProvider } from './api/DeepSeekProvider'
+import { DesearchProvider } from './api/DesearchProvider'
 import { DuckduckgoProvider } from './api/DuckduckgoProvider'
 import { ExaProvider } from './api/ExaProvider'
 import { FetchProvider } from './api/FetchProvider'
@@ -11,8 +12,11 @@ import { FirecrawlProvider } from './api/FirecrawlProvider'
 import { JinaProvider } from './api/JinaProvider'
 import { ParallelProvider } from './api/ParallelProvider'
 import { QueritProvider } from './api/QueritProvider'
+import { SearchApiProvider } from './api/SearchApiProvider'
 import { SearxngProvider } from './api/SearxngProvider'
+import { SerpKiteProvider } from './api/SerpKiteProvider'
 import { SerplyProvider } from './api/SerplyProvider'
+import { StepfunProvider } from './api/StepfunProvider'
 import { TavilyProvider } from './api/TavilyProvider'
 import { YuanbaoProvider } from './api/YuanbaoProvider'
 import { ZhipuProvider } from './api/ZhipuProvider'
@@ -31,6 +35,7 @@ export const WEB_SEARCH_PROVIDER_REGISTRY = {
   exa: ExaProvider,
   'exa-mcp': ExaMcpProvider,
   bocha: BochaProvider,
+  stepfun: StepfunProvider,
   querit: QueritProvider,
   fetch: FetchProvider,
   jina: JinaProvider,
@@ -40,5 +45,8 @@ export const WEB_SEARCH_PROVIDER_REGISTRY = {
   serply: SerplyProvider,
   yuanbao: YuanbaoProvider,
   deepseek: DeepSeekProvider,
+  desearch: DesearchProvider,
+  searchapi: SearchApiProvider,
+  serpkite: SerpKiteProvider,
   duckduckgo: DuckduckgoProvider
 } as const satisfies Record<WebSearchProvider['id'], WebSearchProviderConstructor>

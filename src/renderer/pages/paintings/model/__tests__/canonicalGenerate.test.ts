@@ -186,6 +186,31 @@ describe('canonicalGenerate', () => {
     expect(generatePaintingMock).not.toHaveBeenCalled()
   })
 
+  it('accepts multiple Qwen edit references when the registry does not declare a limit', async () => {
+    const support = ModelListSchema.parse(modelCatalog).models.find(
+      (model) => model.id === 'qwen-image-edit'
+    )?.imageGeneration
+    if (!support?.modes.edit) throw new Error('Expected qwen-image-edit edit support')
+
+    const binaryImage = vi.fn(async () => ({ data: [1, 2, 3], mime: 'image/png' }))
+    ;(window as unknown as { api: unknown }).api = { file: { binaryImage } }
+    const inputFiles = [
+      { id: 'file-1', ext: 'png' },
+      { id: 'file-2', ext: 'png' },
+      { id: 'file-3', ext: 'png' }
+    ] as unknown as FileEntry[]
+
+    expect(support.modes.edit.maxInputImages).toBeUndefined()
+    await canonicalGenerate(makeInput({}, { inputFiles }), { mode: 'edit', support })
+
+    expect(binaryImage).toHaveBeenCalledTimes(3)
+    expect(lastGenerateCall().inputImages).toEqual([
+      'data:image/png;base64,AQID',
+      'data:image/png;base64,AQID',
+      'data:image/png;base64,AQID'
+    ])
+  })
+
   it('skips non-image input files (e.g. a pasted-text .txt) so they never ship as images', async () => {
     const binaryImage = vi.fn(async () => ({ data: [1, 2, 3], mime: 'image/png' }))
     ;(window as unknown as { api: unknown }).api = { file: { binaryImage } }
@@ -217,5 +242,50 @@ describe('canonicalGenerate', () => {
 
   it('allows the generate mode without any input image', async () => {
     await expect(canonicalGenerate(makeInput({}), { mode: 'generate' })).resolves.toEqual([])
+  })
+  it('uses automatic GIF frame sizing instead of a stale static-image size', async () => {
+    const support = ModelListSchema.parse(modelCatalog).models.find(
+      (model) => model.id === 'gpt-image-2-6-flare'
+    )?.imageGeneration
+    await canonicalGenerate(
+      makeInput(
+        { size: '1024x1024', outputFormat: 'gif', frameCount: 4, frameDurationMs: 200 },
+        { providerId: 'openai', model: 'gpt-image-2.6-flare' }
+      ),
+      { support, mode: 'generate' }
+    )
+    expect(lastGenerateCall().paramValues).toMatchObject({
+      size: 'auto',
+      outputFormat: 'gif',
+      frameCount: 4,
+      frameDurationMs: 200
+    })
+  })
+  it('drops stale animation parameters when references select a static-only edit mode', async () => {
+    Object.assign(window, {
+      api: { file: { binaryImage: vi.fn().mockResolvedValue({ data: [1], mime: 'image/png' }) } }
+    })
+    await canonicalGenerate(
+      makeInput(
+        { outputFormat: 'gif', frameCount: 4, frameDurationMs: 200, complexity: 'low' },
+        {
+          inputFiles: [{ id: 'reference', ext: 'png' }] as unknown as FileEntry[]
+        }
+      ),
+      {
+        mode: 'edit',
+        support: {
+          modes: {
+            edit: {
+              supports: {
+                outputFormat: { type: 'enum', options: ['png', 'jpeg', 'webp'] },
+                complexity: { type: 'enum', options: ['low', 'medium', 'high'] }
+              }
+            }
+          }
+        }
+      }
+    )
+    expect(lastGenerateCall().paramValues).toEqual({ complexity: 'low' })
   })
 })

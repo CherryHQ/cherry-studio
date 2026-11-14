@@ -33,6 +33,17 @@ const WEB_SEARCH_PROVIDER_DISPLAY_META: Record<WebSearchProviderId, WebSearchPro
     descriptionKey: 'settings.tool.websearch.provider_description.crawl4ai',
     officialWebsite: 'https://crawl4ai.com'
   },
+  desearch: {
+    descriptionKey: 'settings.tool.websearch.provider_description.desearch',
+    iconRef: providerIconRef('desearch'),
+    officialWebsite: 'https://desearch.ai',
+    apiKeyWebsite: 'https://console.desearch.ai/api-keys'
+  },
+  stepfun: {
+    descriptionKey: 'settings.tool.websearch.provider_description.stepfun',
+    iconRef: providerIconRef('step'),
+    officialWebsite: 'https://platform.stepfun.com/docs/zh/api-reference/search/search'
+  },
   bocha: {
     descriptionKey: 'settings.tool.websearch.provider_description.bocha',
     iconRef: providerIconRef('bocha'),
@@ -78,10 +89,21 @@ const WEB_SEARCH_PROVIDER_DISPLAY_META: Record<WebSearchProviderId, WebSearchPro
     officialWebsite: 'https://querit.ai',
     apiKeyWebsite: 'https://www.querit.ai/en/dashboard/api-keys'
   },
+  searchapi: {
+    descriptionKey: 'settings.tool.websearch.provider_description.searchapi',
+    officialWebsite: 'https://www.searchapi.io',
+    apiKeyWebsite: 'https://www.searchapi.io/api_tokens'
+  },
   searxng: {
     descriptionKey: 'settings.tool.websearch.provider_description.searxng',
     iconRef: providerIconRef('searxng'),
     officialWebsite: 'https://docs.searxng.org'
+  },
+  serpkite: {
+    descriptionKey: 'settings.tool.websearch.provider_description.serpkite',
+    iconRef: providerIconRef('serpkite'),
+    officialWebsite: 'https://serpkite.com',
+    apiKeyWebsite: 'https://app.serpkite.com/keys'
   },
   serply: {
     descriptionKey: 'settings.tool.websearch.provider_description.serply',
@@ -99,7 +121,7 @@ const WEB_SEARCH_PROVIDER_DISPLAY_META: Record<WebSearchProviderId, WebSearchPro
     descriptionKey: 'settings.tool.websearch.provider_description.yuanbao',
     iconRef: providerIconRef('yuanbao'),
     officialWebsite: 'https://cloud.tencent.com/document/product/1806/130615',
-    apiKeyWebsite: 'https://console.cloud.tencent.com/wsa'
+    apiKeyWebsite: 'https://console.cloud.tencent.com/wsapi/index?tab=apikey'
   },
   zhipu: {
     descriptionKey: 'settings.tool.websearch.provider_description.zhipu',

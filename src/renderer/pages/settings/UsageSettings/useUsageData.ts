@@ -86,7 +86,10 @@ export function useUsageData({
   )
   const overviewStatsResult = useQuery('/ai-usage-records/stats', { query: overviewStatsQuery })
   const previousOverviewStatsResult = useQuery('/ai-usage-records/stats', { query: previousOverviewStatsQuery })
-  const exploreStatsResult = useQuery('/ai-usage-records/stats', { query: exploreQuery })
+  const exploreStatsResult = useQuery('/ai-usage-records/stats', {
+    query: exploreQuery,
+    swrOptions: { keepPreviousData: false }
+  })
   const exploreTimelineResult = useQuery('/ai-usage-records/timeline', {
     query: exploreQuery,
     enabled: rollup !== 'total'
@@ -135,6 +138,7 @@ export function useUsageData({
     exploreOther: exploreStatsResult.data?.other ?? EMPTY_STATS_METRICS,
     timelineLoading: timelineQueryResult.isLoading && timelineQueryResult.data === undefined,
     overviewLoading: overviewStatsResult.isLoading && overviewStatsResult.data === undefined,
+    exploreStatsError: exploreStatsResult.data === undefined ? exploreStatsResult.error : undefined,
     exploreStatsLoading: exploreStatsResult.isLoading && exploreStatsResult.data === undefined,
     exploreTimelineLoading: exploreTimelineResult.isLoading && exploreTimelineResult.data === undefined
   }

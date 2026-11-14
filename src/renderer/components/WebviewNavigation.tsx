@@ -1,10 +1,20 @@
 import type { WebviewTag } from 'electron'
-import { ArrowLeft, ArrowRight, ExternalLink, History, RotateCw } from 'lucide-react'
+import { ArrowLeft, ArrowRight, ExternalLink, Globe, RotateCw } from 'lucide-react'
 import type { ReactNode, RefObject } from 'react'
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button, Input, Popover, PopoverAnchor, PopoverContent, Tooltip } from '@cherrystudio/ui'
+import {
+  Avatar,
+  AvatarFallback,
+  AvatarImage,
+  Button,
+  Input,
+  Popover,
+  PopoverAnchor,
+  PopoverContent,
+  Tooltip
+} from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { useQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
@@ -29,6 +39,7 @@ interface Props {
   isWebviewReady: boolean
   isHostActive: boolean
   target: WebviewAnnotationTarget
+  autoFocusAddress?: boolean
   onReload?: () => void
   onNavigate?: (url: string) => void
   onAnnotationSaved?: (payload: WebviewAnnotationSavedPayload) => void
@@ -54,6 +65,7 @@ export function WebviewNavigation({
   isWebviewReady,
   isHostActive,
   target,
+  autoFocusAddress = false,
   onReload,
   onNavigate,
   onAnnotationSaved,
@@ -77,6 +89,9 @@ export function WebviewNavigation({
     url: currentUrl || initialUrl
   })
   const addressInputRef = useRef<HTMLInputElement | null>(null)
+  useEffect(() => {
+    if (autoFocusAddress && isWebviewReady && isHostActive) addressInputRef.current?.focus()
+  }, [autoFocusAddress, isWebviewReady, isHostActive])
   const [isAddressFocused, setIsAddressFocused] = useState(false)
   const historyListId = useId()
   const [historyOpen, setHistoryOpen] = useState(false)
@@ -359,7 +374,12 @@ export function WebviewNavigation({
                 )}
                 onMouseDown={(event) => event.preventDefault()}
                 onClick={() => navigateToAddress(visit.url)}>
-                <History aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />
+                <Avatar className="size-4 shrink-0 rounded-none">
+                  <AvatarImage src={visit.favicon} alt="" />
+                  <AvatarFallback className="rounded-none bg-transparent text-muted-foreground">
+                    <Globe aria-hidden="true" className="size-4" />
+                  </AvatarFallback>
+                </Avatar>
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-sm">{visit.title || visit.url}</span>
                   <span className="block truncate text-muted-foreground text-xs">{visit.url}</span>

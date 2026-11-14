@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-09-composer-manual-height.md
+2026-11-09-composer-manual-height.md: f9a97d9e7e30f9c73ad3e92e169086c05c0cdd8b
+2026-11-09-composer-manual-height.zh.md: 22a2c10536e5e251325b53db06088d85a769006d

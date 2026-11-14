@@ -1,4 +1,5 @@
 import type { AnthropicCacheTtl, Provider } from '@shared/data/types/provider'
+import { isAIGatewayProvider } from '@shared/utils/provider'
 
 // This is Cherry's local marker-placement default, not Anthropic's model-specific minimum.
 // Anthropic owns the real cacheability rules and reports actual read/write usage; keeping
@@ -27,4 +28,13 @@ export function resolveAnthropicCacheSettings(provider: Pick<Provider, 'settings
     cacheLastNMessages: settings?.cacheLastNMessages ?? ANTHROPIC_CACHE_DEFAULT_LAST_N_MESSAGES,
     ttl: settings?.ttl ?? ANTHROPIC_CACHE_DEFAULT_TTL
   }
+}
+
+/**
+ * Vercel AI Gateway owns cache placement through its request-level `caching: 'auto'` option:
+ * it drops the per-message breakpoints Cherry writes, so the Anthropic marker path must not
+ * run there.
+ */
+export function usesGatewayAutoCaching(provider: Provider): boolean {
+  return isAIGatewayProvider(provider)
 }

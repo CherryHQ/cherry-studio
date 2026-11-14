@@ -4,13 +4,17 @@ import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { describe, expect, it, vi } from 'vitest'
 
+import { ProviderModelOverrideSchema } from '@cherrystudio/provider-registry'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { providerService } from '@data/services/ProviderService'
 import { makeModel } from '@main/ai/__tests__/fixtures/model'
 import { resolveAiSdkProviderId, resolveEffectiveEndpoint } from '@main/ai/provider/endpoint'
+import { resolveSdkConfig } from '@main/ai/provider/sdkConfig'
 import { ErrorCode } from '@shared/data/api/errors'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import { ProviderSchema } from '@shared/data/types/provider'
+
+import providerModels from '../../../../../packages/provider-registry/data/provider-models.json'
 
 vi.mock('@main/utils/appEdition', () => ({ getAppEdition: () => 'global' }))
 
@@ -24,7 +28,7 @@ vi.mock('@cherrystudio/provider-registry/node', async () => {
   class RegistryLoader {
     loadProviders() {
       return [
-        ...registry.providers.filter(({ id }) => ['huggingface', 'openai'].includes(id)),
+        ...registry.providers.filter(({ id }) => ['grok', 'huggingface', 'openai'].includes(id)),
         {
           id: 'cherryin',
           endpointConfigs: {
@@ -74,6 +78,127 @@ vi.mock('@cherrystudio/provider-registry/node', async () => {
 
 describe('ProviderService read-time registry merge (#17096)', () => {
   const dbh = setupTestDatabase()
+  const grokImageOverride = ProviderModelOverrideSchema.parse(
+    providerModels.overrides.find(
+      ({ providerId, modelId }) => providerId === 'grok' && modelId === 'grok-imagine-image-2-0'
+    )
+  )
+
+  it.each(['grok', 'grok-copy'])(
+    'preserves the saved Grok connection without an image URL override on %s',
+    (providerId) => {
+      dbh.db
+        .insert(userProviderTable)
+        .values({
+          providerId,
+          presetProviderId: 'grok',
+          name: 'Grok',
+          orderKey: 'a0',
+          defaultChatEndpoint: null,
+          endpointConfigs: {
+            [ENDPOINT_TYPE.OPENAI_RESPONSES]: { baseUrl: 'https://xai-proxy.example/v1' },
+            [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://xai-proxy.example/v1' }
+          }
+        })
+        .run()
+
+      const provider = providerService.getByProviderId(providerId)
+      const model = makeModel({
+        id: `${providerId}::${grokImageOverride.modelId}`,
+        providerId,
+        apiModelId: grokImageOverride.apiModelId,
+        endpointTypes: grokImageOverride.endpointTypes
+      })
+
+      expect(resolveEffectiveEndpoint(provider, model)).toMatchObject({
+        endpointType: ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION,
+        baseUrl: 'https://xai-proxy.example/v1'
+      })
+      expect(resolveAiSdkProviderId(provider, ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION)).toBe('xai')
+
+      providerService.update(providerId, { endpointConfigs: provider.endpointConfigs })
+      const row = dbh.db.select().from(userProviderTable).where(eq(userProviderTable.providerId, providerId)).get()
+      expect(row?.endpointConfigs?.[ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION]?.baseUrl).toBeUndefined()
+
+      providerService.update(providerId, {
+        endpointConfigs: {
+          ...providerService.getByProviderId(providerId).endpointConfigs,
+          [ENDPOINT_TYPE.OPENAI_RESPONSES]: { baseUrl: 'https://updated-proxy.example/v1' }
+        }
+      })
+      expect(resolveEffectiveEndpoint(providerService.getByProviderId(providerId), model)).toMatchObject({
+        endpointType: ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION,
+        baseUrl: 'https://updated-proxy.example/v1'
+      })
+    }
+  )
+
+  it.each([
+    {
+      scenario: 'the default connection',
+      endpointConfigs: {},
+      defaultChatEndpoint: null,
+      expectedBaseUrl: 'https://api.x.ai/v1',
+      expectedSdkBaseUrl: 'https://api.x.ai/v1'
+    },
+    {
+      scenario: 'an explicit image destination',
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION]: { baseUrl: 'https://image-proxy.example/v1' },
+        [ENDPOINT_TYPE.OPENAI_RESPONSES]: { baseUrl: 'https://chat-proxy.example/v1' }
+      },
+      defaultChatEndpoint: null,
+      expectedBaseUrl: 'https://image-proxy.example/v1',
+      expectedSdkBaseUrl: 'https://image-proxy.example/v1'
+    },
+    {
+      scenario: 'the selected Chat proxy with a bare host',
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://chat-proxy.example' }
+      },
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      expectedBaseUrl: 'https://chat-proxy.example',
+      expectedSdkBaseUrl: 'https://chat-proxy.example/v1'
+    },
+    {
+      scenario: 'the default Responses connection when only Chat has a proxy',
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://chat-proxy.example' }
+      },
+      defaultChatEndpoint: null,
+      expectedBaseUrl: 'https://api.x.ai/v1',
+      expectedSdkBaseUrl: 'https://api.x.ai/v1'
+    }
+  ])(
+    'resolves Grok image requests using $scenario',
+    async ({ endpointConfigs, defaultChatEndpoint, expectedBaseUrl, expectedSdkBaseUrl }) => {
+      dbh.db
+        .insert(userProviderTable)
+        .values({
+          providerId: 'grok',
+          presetProviderId: 'grok',
+          name: 'Grok',
+          orderKey: 'a0',
+          endpointConfigs,
+          defaultChatEndpoint
+        })
+        .run()
+
+      const provider = providerService.getByProviderId('grok')
+      const model = makeModel({
+        id: `grok::${grokImageOverride.modelId}`,
+        providerId: 'grok',
+        apiModelId: grokImageOverride.apiModelId,
+        endpointTypes: grokImageOverride.endpointTypes
+      })
+      const endpoint = resolveEffectiveEndpoint(provider, model)
+
+      expect(endpoint).toMatchObject({ endpointType: ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION, baseUrl: expectedBaseUrl })
+      const { sdkConfig } = await resolveSdkConfig(provider, model, endpoint, 'test-api-key')
+      expect(sdkConfig.providerId).toBe('xai')
+      expect(sdkConfig.providerSettings).toMatchObject({ baseURL: expectedSdkBaseUrl })
+    }
+  )
 
   it('restores OpenAI summary permission for a seed-shaped row with no stored dialect', () => {
     dbh.db

@@ -1,5 +1,6 @@
+import { MockCherrystudioUI } from '@test-mocks/renderer/CherrystudioUI'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { type MouseEvent as ReactMouseEvent, useEffect } from 'react'
+import { type MouseEvent as ReactMouseEvent, type ReactNode, useCallback, useRef, useState } from 'react'
 import type ReactType from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -35,11 +36,13 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key })
 }))
 
-vi.mock('@cherrystudio/ui', () => {
+vi.mock('@cherrystudio/ui', async () => {
+  const { KeyboardLayerProvider } = await import('@cherrystudio/ui/components/primitives/keyboard-layer')
   const React = require('react') as typeof ReactType
   const MenuOpenContext = React.createContext<((open: boolean) => void) | null>(null)
 
   return {
+    KeyboardLayerProvider,
     ContextMenu: ({
       children,
       onOpenChange
@@ -193,17 +196,14 @@ vi.mock('@cherrystudio/ui', () => {
         {children}
       </span>
     ),
-    Scrollbar: ({ children, className }: React.HTMLAttributes<HTMLDivElement>) => (
-      <div data-testid="mock-scrollbar" className={className}>
-        {children}
-      </div>
-    )
+    ScrollArea: MockCherrystudioUI.ScrollArea
   }
 })
 
 import { useCommandHandler } from '@renderer/hooks/command'
 
 import { CommandContextKeyProvider } from '../CommandContextKeyProvider'
+import { CommandFocusScope } from '../CommandFocusScope'
 import { CommandContextMenu, type CommandContextMenuExtraItem, CommandPopupMenu } from '../CommandMenus'
 import { CommandProvider } from '../CommandProvider'
 
@@ -246,6 +246,81 @@ function renderMenu({
   )
 }
 
+function NativeMenuSurface({
+  name,
+  active = true,
+  popup = false,
+  getExtraItems,
+  onSelect = () => {}
+}: {
+  name: string
+  active?: boolean
+  popup?: boolean
+  getExtraItems?: Parameters<typeof CommandContextMenu>[0]['getExtraItems']
+  onSelect?: () => void
+}) {
+  const rootRef = useRef<HTMLDivElement>(null)
+  return (
+    <CommandFocusScope rootRef={rootRef} active={active}>
+      <div ref={rootRef}>
+        <NativeMenuActions name={name} />
+        {popup ? (
+          <CommandPopupMenu
+            location="chat.input.tools.context"
+            extraItems={[{ type: 'item', id: 'custom', label: 'Custom', onSelect }]}>
+            <button type="button">Open {name}</button>
+          </CommandPopupMenu>
+        ) : (
+          <CommandContextMenu
+            location="chat.input.tools.context"
+            getExtraItems={getExtraItems}
+            extraItems={[{ type: 'item', id: 'custom', label: 'Custom', onSelect }]}>
+            <button type="button">Open {name}</button>
+          </CommandContextMenu>
+        )}
+      </div>
+    </CommandFocusScope>
+  )
+}
+
+function NativeMenuActions({ name }: { name: string }) {
+  const [count, setCount] = useState(0)
+  useCommandHandler('topic.create', () => setCount((value) => value + 1))
+  return <output aria-label={`${name} actions`}>{count}</output>
+}
+
+function NativeTargetActions({ target, onExecute }: { target: string; onExecute: (target: string) => void }) {
+  const execute = useCallback(() => onExecute(target), [onExecute, target])
+  useCommandHandler('topic.create', execute)
+  return null
+}
+
+function NativeTargetMenu({ target, onExecute }: { target: string; onExecute: (target: string) => void }) {
+  const rootRef = useRef<HTMLDivElement>(null)
+  return (
+    <CommandFocusScope rootRef={rootRef}>
+      <div ref={rootRef}>
+        <NativeTargetActions target={target} onExecute={onExecute} />
+        <CommandPopupMenu location="chat.input.tools.context">
+          <button type="button">Open {target}</button>
+        </CommandPopupMenu>
+      </div>
+    </CommandFocusScope>
+  )
+}
+
+function MenuProviders({ children }: { children: ReactNode }) {
+  return (
+    <CommandContextKeyProvider>
+      <CommandProvider>{children}</CommandProvider>
+    </CommandContextKeyProvider>
+  )
+}
+
+function pressCreate(target: HTMLElement) {
+  fireEvent.keyDown(target, { key: 'n', code: 'KeyN', metaKey: true })
+}
+
 describe('CommandContextMenu', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -259,6 +334,165 @@ describe('CommandContextMenu', () => {
 
   afterEach(() => {
     cleanup()
+  })
+
+  it('captures the native menu owner and blocks other scopes until the menu closes', async () => {
+    const result = Promise.withResolvers<{ type: 'command'; command: 'topic.create' }>()
+    showNativePopupMenuMock.mockReturnValueOnce(result.promise)
+    render(
+      <MenuProviders>
+        <NativeMenuSurface name="A" />
+        <NativeMenuSurface name="B" />
+      </MenuProviders>
+    )
+    fireEvent.contextMenu(screen.getByRole('button', { name: 'Open A' }))
+    await waitFor(() => expect(showNativePopupMenuMock).toHaveBeenCalledOnce())
+    const second = screen.getByRole('button', { name: 'Open B' })
+    second.focus()
+    pressCreate(second)
+    expect(screen.getByLabelText('B actions')).toHaveTextContent('0')
+
+    await act(async () => result.resolve({ type: 'command', command: 'topic.create' }))
+    expect(screen.getByLabelText('A actions')).toHaveTextContent('1')
+    expect(screen.getByLabelText('B actions')).toHaveTextContent('0')
+    pressCreate(second)
+    expect(screen.getByLabelText('B actions')).toHaveTextContent('1')
+  })
+
+  it('refuses an old native result after the origin handler changes its business target', async () => {
+    const result = Promise.withResolvers<{ type: 'command'; command: 'topic.create' }>()
+    const onExecute = vi.fn()
+    showNativePopupMenuMock.mockReturnValueOnce(result.promise)
+    const tree = (target: string) => (
+      <MenuProviders>
+        <NativeTargetMenu target={target} onExecute={onExecute} />
+      </MenuProviders>
+    )
+    const { rerender } = render(tree('A'))
+    fireEvent.click(screen.getByRole('button', { name: 'Open A' }))
+    rerender(tree('B'))
+    await act(async () => result.resolve({ type: 'command', command: 'topic.create' }))
+    expect(onExecute).not.toHaveBeenCalled()
+    pressCreate(screen.getByRole('button', { name: 'Open B' }))
+    expect(onExecute).toHaveBeenCalledWith('B')
+  })
+
+  it('keeps a captured stable callback valid through an unrelated parent rerender', async () => {
+    const result = Promise.withResolvers<{ type: 'command'; command: 'topic.create' }>()
+    const onExecute = vi.fn()
+    showNativePopupMenuMock.mockReturnValueOnce(result.promise)
+    const tree = (revision: number) => (
+      <MenuProviders>
+        <div data-revision={revision}>
+          <NativeTargetMenu target="A" onExecute={onExecute} />
+        </div>
+      </MenuProviders>
+    )
+    const { rerender } = render(tree(0))
+    fireEvent.click(screen.getByRole('button', { name: 'Open A' }))
+    rerender(tree(1))
+    await act(async () => result.resolve({ type: 'command', command: 'topic.create' }))
+    expect(onExecute).toHaveBeenCalledExactlyOnceWith('A')
+  })
+
+  it('opens its keyboard boundary before asynchronous extra items resolve', async () => {
+    const items = Promise.withResolvers<readonly CommandContextMenuExtraItem[]>()
+    showNativePopupMenuMock.mockResolvedValueOnce(null)
+    render(
+      <MenuProviders>
+        <NativeMenuSurface name="A" getExtraItems={() => items.promise} />
+      </MenuProviders>
+    )
+    const trigger = screen.getByRole('button', { name: 'Open A' })
+    fireEvent.contextMenu(trigger)
+    pressCreate(trigger)
+    expect(screen.getByLabelText('A actions')).toHaveTextContent('0')
+    await act(async () => items.resolve([]))
+    pressCreate(trigger)
+    expect(screen.getByLabelText('A actions')).toHaveTextContent('1')
+  })
+
+  it.each(['command', 'custom'] as const)('rejects a %s result from an inactive origin', async (type) => {
+    const result = Promise.withResolvers<
+      { type: 'command'; command: 'topic.create' } | { type: 'custom'; id: 'custom' }
+    >()
+    const onSelect = vi.fn()
+    showNativePopupMenuMock.mockReturnValueOnce(result.promise)
+    const tree = (active: boolean) => (
+      <MenuProviders>
+        <NativeMenuSurface name="A" active={active} onSelect={onSelect} />
+      </MenuProviders>
+    )
+    const { rerender } = render(tree(true))
+    fireEvent.contextMenu(screen.getByRole('button', { name: 'Open A' }))
+    await waitFor(() => expect(showNativePopupMenuMock).toHaveBeenCalledOnce())
+    rerender(tree(false))
+    await act(async () =>
+      result.resolve(type === 'command' ? { type, command: 'topic.create' } : { type, id: 'custom' })
+    )
+    expect(screen.getByLabelText('A actions')).toHaveTextContent('0')
+    expect(onSelect).not.toHaveBeenCalled()
+  })
+
+  it('releases a native boundary on unmount and ignores its later result', async () => {
+    const result = Promise.withResolvers<{ type: 'custom'; id: 'custom' }>()
+    const onSelect = vi.fn()
+    showNativePopupMenuMock.mockReturnValueOnce(result.promise)
+    const tree = (showA: boolean) => (
+      <MenuProviders>
+        {showA && <NativeMenuSurface name="A" onSelect={onSelect} />}
+        <NativeMenuSurface name="B" />
+      </MenuProviders>
+    )
+    const { rerender } = render(tree(true))
+    fireEvent.contextMenu(screen.getByRole('button', { name: 'Open A' }))
+    await waitFor(() => expect(showNativePopupMenuMock).toHaveBeenCalledOnce())
+    rerender(tree(false))
+    pressCreate(screen.getByRole('button', { name: 'Open B' }))
+    expect(screen.getByLabelText('B actions')).toHaveTextContent('1')
+    await act(async () => result.resolve({ type: 'custom', id: 'custom' }))
+    expect(onSelect).not.toHaveBeenCalled()
+  })
+
+  it('supersedes native popup requests without releasing the current boundary', async () => {
+    const first = Promise.withResolvers<{ type: 'command'; command: 'topic.create' }>()
+    const second = Promise.withResolvers<{ type: 'command'; command: 'topic.create' }>()
+    showNativePopupMenuMock.mockReturnValueOnce(first.promise).mockReturnValueOnce(second.promise)
+    render(
+      <MenuProviders>
+        <NativeMenuSurface name="A" popup />
+      </MenuProviders>
+    )
+    const trigger = screen.getByRole('button', { name: 'Open A' })
+    fireEvent.click(trigger)
+    fireEvent.click(trigger)
+    await act(async () => first.resolve({ type: 'command', command: 'topic.create' }))
+    pressCreate(trigger)
+    expect(screen.getByLabelText('A actions')).toHaveTextContent('0')
+    await act(async () => second.resolve({ type: 'command', command: 'topic.create' }))
+    expect(screen.getByLabelText('A actions')).toHaveTextContent('1')
+    pressCreate(trigger)
+    expect(screen.getByLabelText('A actions')).toHaveTextContent('2')
+  })
+
+  it.each(['cancel', 'failure'] as const)('releases a native popup boundary after %s', async (outcome) => {
+    const result = Promise.withResolvers<null>()
+    showNativePopupMenuMock.mockReturnValueOnce(result.promise)
+    render(
+      <MenuProviders>
+        <NativeMenuSurface name="A" popup />
+      </MenuProviders>
+    )
+    const trigger = screen.getByRole('button', { name: 'Open A' })
+    fireEvent.click(trigger)
+    pressCreate(trigger)
+    expect(screen.getByLabelText('A actions')).toHaveTextContent('0')
+    await act(async () => {
+      if (outcome === 'cancel') result.resolve(null)
+      else result.reject(new Error('native popup failed'))
+    })
+    pressCreate(trigger)
+    expect(screen.getByLabelText('A actions')).toHaveTextContent('1')
   })
 
   it('passes command and extra items to the native menu and runs the selected extra action', async () => {
@@ -649,43 +883,6 @@ describe('CommandContextMenu', () => {
     await waitFor(() => expect(onSelect).toHaveBeenCalledOnce())
   })
 
-  it('does not remount trigger children after selecting a cherry extra item', async () => {
-    const onSelect = vi.fn()
-    const mountCount = vi.fn()
-    const unmountCount = vi.fn()
-    preferenceValues['menu.presentation_mode'] = 'cherry'
-
-    function TriggerContent() {
-      useEffect(() => {
-        mountCount()
-        return unmountCount
-      }, [])
-
-      return <button type="button">trigger</button>
-    }
-
-    render(
-      <CommandContextKeyProvider>
-        <CommandProvider>
-          <CommandContextMenu
-            location="webcontents.context"
-            extraItems={[{ type: 'item', id: 'tool:branch', label: 'Branch', onSelect }]}>
-            <TriggerContent />
-          </CommandContextMenu>
-        </CommandProvider>
-      </CommandContextKeyProvider>
-    )
-
-    await waitFor(() => expect(mountCount).toHaveBeenCalledOnce())
-
-    fireEvent.contextMenu(screen.getByRole('button', { name: 'trigger' }))
-    fireEvent.click(screen.getByRole('button', { name: /Branch/ }))
-
-    await waitFor(() => expect(onSelect).toHaveBeenCalledOnce())
-    expect(unmountCount).not.toHaveBeenCalled()
-    expect(mountCount).toHaveBeenCalledOnce()
-  })
-
   it('uses extra items as pending lazy cherry items by default', async () => {
     preferenceValues['menu.presentation_mode'] = 'cherry'
     let resolveItems: (items: readonly CommandContextMenuExtraItem[]) => void = () => {}
@@ -750,6 +947,38 @@ describe('CommandContextMenu', () => {
       expect(showNativePopupMenuMock).toHaveBeenCalled()
       expect(onOpenChange).toHaveBeenLastCalledWith(false)
     })
+  })
+
+  it('runs an immediate popup item synchronously without scheduling a frame', () => {
+    preferenceValues['menu.presentation_mode'] = 'cherry'
+    const onSelect = vi.fn()
+    const onOpenChange = vi.fn()
+    const frame = vi.spyOn(window, 'requestAnimationFrame')
+    render(
+      <CommandContextKeyProvider>
+        <CommandProvider>
+          <CommandPopupMenu
+            location="webcontents.context"
+            onOpenChange={onOpenChange}
+            deferActionsUntilClosed
+            extraItems={[{ type: 'item', id: 'instant', label: 'Instant', executeImmediately: true, onSelect }]}>
+            <button type="button">trigger-popup</button>
+          </CommandPopupMenu>
+        </CommandProvider>
+      </CommandContextKeyProvider>
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'trigger-popup' }))
+    frame.mockClear()
+    fireEvent.click(screen.getByRole('button', { name: 'Instant' }))
+    expect(onOpenChange).toHaveBeenLastCalledWith(false)
+    expect(onSelect).toHaveBeenCalledOnce()
+    expect(onSelect.mock.invocationCallOrder[0]).toBeLessThan(onOpenChange.mock.invocationCallOrder.at(-1)!)
+    expect(frame).not.toHaveBeenCalled()
+    const close = screen.getByTestId('dropdown-menu-close-complete')
+    expect(fireEvent.click(close)).toBe(false)
+    expect(fireEvent.click(close)).toBe(true)
+    expect(frame).not.toHaveBeenCalled()
+    frame.mockRestore()
   })
 
   it('runs deferred cherry popup actions after the close lifecycle finishes', () => {

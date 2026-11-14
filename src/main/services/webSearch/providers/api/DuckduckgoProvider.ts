@@ -1,4 +1,3 @@
-import * as cheerio from 'cheerio'
 import { net } from 'electron'
 
 import { loggerService } from '@logger'
@@ -37,7 +36,8 @@ function decodeResultUrl(href: string): string {
   }
 }
 
-function parseSearchItems(html: string): { title: string; url: string }[] {
+async function parseSearchItems(html: string): Promise<{ title: string; url: string }[]> {
+  const cheerio = await import('cheerio')
   const $ = cheerio.load(html)
   const items: { title: string; url: string }[] = []
 
@@ -82,7 +82,7 @@ export class DuckduckgoProvider extends BaseWebSearchProvider {
     }
 
     const html = await response.text()
-    const searchItems = parseSearchItems(html)
+    const searchItems = await parseSearchItems(html)
 
     // 202 is DDG's block status for this endpoint (never a real search response). For the 200
     // shape, challenge interstitials carry no .result blocks, so gate on a zero parse to avoid

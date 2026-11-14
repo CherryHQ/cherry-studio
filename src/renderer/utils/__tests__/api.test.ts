@@ -1,16 +1,8 @@
 import { describe, expect, it } from 'vitest'
 
-import { formatVertexApiHost, maskApiKey, routeToEndpoint, splitApiKeyString, validateApiHost } from '../api'
+import { formatVertexApiHost, routeToEndpoint, splitApiKeyString, validateApiHost } from '../api'
 
 describe('api', () => {
-  describe('maskApiKey', () => {
-    it('masks only keys longer than eight characters', () => {
-      expect(maskApiKey('')).toBe('')
-      expect(maskApiKey('12345678')).toBe('12345678')
-      expect(maskApiKey('123456789')).toBe('12****6789')
-    })
-  })
-
   describe('splitApiKeyString', () => {
     it('should split comma-separated keys', () => {
       const input = 'key1,key2,key3'

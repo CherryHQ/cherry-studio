@@ -1,4 +1,5 @@
-import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises'
+import type * as FsPromises from 'node:fs/promises'
+import { access, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { Writable } from 'node:stream'
@@ -44,6 +45,10 @@ vi.unmock('@logger')
 vi.unmock('winston')
 vi.unmock('winston-daily-rotate-file')
 vi.mock('@main/core/paths/constants', () => ({ LOGS_DIR: tmpLogsDir }))
+vi.mock('node:fs/promises', async (importOriginal) => {
+  const actual = await importOriginal<typeof FsPromises>()
+  return { ...actual, access: vi.fn(actual.access) }
+})
 vi.mock('@sentry/electron/main', () => ({ captureException: captureExceptionMock, captureEvent: captureEventMock }))
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
@@ -105,7 +110,10 @@ describe('Sentry log reporting', () => {
     expect(captureEventMock.mock.calls).toHaveLength(0)
     expect(
       service.filterEvent(
-        { exception: { values: [{ type: 'Error', mechanism: { type: 'onunhandledrejection', handled: false } }] } },
+        {
+          type: undefined,
+          exception: { values: [{ type: 'Error', mechanism: { type: 'onunhandledrejection', handled: false } }] }
+        },
         { originalException: error }
       )
     ).not.toBeNull()
@@ -336,6 +344,7 @@ describe('Sentry log reporting', () => {
       { process: 'renderer', window: 'main', module: 'ErrorBoundary', context: { apiKey: 'secret' } },
       'error',
       'Caught a render error',
+      // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
       structuredClone([
         { name: error.name, errorMessage: error.message, stack: error.stack },
         { componentStack, prompt: 'private conversation' }
@@ -352,10 +361,14 @@ describe('Sentry log reporting', () => {
     logger.info('Started', new Error('not a failure'))
     logger.warn('Retrying', new Error('temporary failure'))
     logger.error('Status text without exception')
-    logger.error('Cancelled', Object.assign(new Error('cancelled'), { name: 'AbortError' }))
-    logger.error('Cancelled', Object.assign(new Error('cancelled'), { code: 'ERR_CANCELED' }))
-    loggerService.withContext('Sentry').error('Fatal main-process error', new Error('already captured'))
-    loggerService.withContext('CrashTelemetry').error('Uncaught Exception', new Error('already captured'))
+    logger.error('Cancelled', Object.assign(new Error('cancelled'), { name: 'AbortError' }), reportableFailure)
+    logger.error('Cancelled', Object.assign(new Error('cancelled'), { code: 'ERR_CANCELED' }), reportableFailure)
+    loggerService
+      .withContext('Sentry')
+      .error('Fatal main-process error', new Error('already captured'), reportableFailure)
+    loggerService
+      .withContext('CrashTelemetry')
+      .error('Uncaught Exception', new Error('already captured'), reportableFailure)
     await drainLogs()
     expect(captureExceptionMock).not.toHaveBeenCalled()
   })
@@ -641,6 +654,63 @@ describe('file reporting through IPC', () => {
       expect(sentryContext.tags['failure.kind']).toBe('reliability')
       expect(JSON.stringify(sentryContext)).not.toContain(target)
     }
+  })
+
+  it.each([
+    ...['path', 'external', 'internal'].flatMap((origin) =>
+      ['ENOENT', 'EACCES', 'EIO', 'EMFILE'].map((code) => ({ origin, code }))
+    ),
+    ...['managed-path', 'managed-alias'].flatMap((origin) => ['ENOENT', 'EACCES'].map((code) => ({ origin, code })))
+  ])('preserves $origin clipboard failure classification for $code', async ({ origin, code }) => {
+    let target = AbsoluteFilePathSchema.parse(path.join(root, 'clipboard.md'))
+    await writeFile(target, 'base')
+    let handle: FileHandle = { kind: 'path', path: target }
+    if (origin !== 'path') {
+      const entry =
+        origin === 'external'
+          ? await files.ensureExternalEntry({ externalPath: target, cleanupPolicy: 'manual' })
+          : await files.createInternalEntry({
+              source: 'bytes',
+              data: new TextEncoder().encode('base'),
+              name: 'clipboard',
+              ext: 'md',
+              cleanupPolicy: 'manual'
+            })
+      handle = { kind: 'entry', entryId: entry.id }
+      target = files.getPhysicalPath(entry.id)
+      if (origin === 'managed-alias') {
+        const alias = path.join(root, 'managed-alias')
+        await symlink(path.dirname(target), alias, 'junction')
+        target = AbsoluteFilePathSchema.parse(path.join(alias, path.basename(target)))
+      }
+      if (origin === 'managed-path' || origin === 'managed-alias') handle = { kind: 'path', path: target }
+    }
+    if (code === 'ENOENT') await rm(target)
+    else vi.mocked(access).mockRejectedValueOnce(Object.assign(new Error('Target unreadable'), { code }))
+
+    await expect(fileHandlers['file.copy_to_clipboard'](handle, context)).rejects.toMatchObject({
+      code: fileErrorCodes.COPY_TARGET_UNAVAILABLE,
+      data: { path: target, reason: code === 'ENOENT' ? 'missing' : 'inaccessible' },
+      reportingHandled: true
+    })
+    await drainLogs()
+    const reports = !['path', 'external'].includes(origin) || code === 'EIO' || code === 'EMFILE' ? 1 : 0
+    expect(captureExceptionMock.mock.calls).toHaveLength(reports)
+    expect(captureEventMock.mock.calls).toHaveLength(0)
+    if (reports) {
+      const [, sentryContext] = captureExceptionMock.mock.calls[0]
+      expect(sentryContext.tags.operation).toBe('file.copy_to_clipboard')
+      expect(sentryContext.tags['failure.kind']).not.toBe('expected')
+      expect(JSON.stringify(sentryContext)).not.toContain(target)
+    }
+    if (code !== 'ENOENT') {
+      expect(await readFile(target, 'utf8')).toBe('base')
+      vi.mocked(access).mockRejectedValueOnce(Object.assign(new Error('Target unreadable'), { code }))
+    }
+    await expect(fileHandlers['file.get_clipboard_status'](handle, context)).resolves.toEqual({
+      ok: false,
+      reason: code === 'ENOENT' ? 'missing' : 'inaccessible'
+    })
   })
 
   it.each(

@@ -5,7 +5,6 @@ import { useTranslation } from 'react-i18next'
 import useSWR from 'swr'
 
 import {
-  Button,
   ContextMenu,
   ContextMenuContent,
   ContextMenuItem,
@@ -151,49 +150,28 @@ export const ClickableFilePath = memo(function ClickableFilePath({
 
   return (
     <ContextMenu onOpenChange={setActionsMenuOpen}>
-      <span className="group/file-path inline">
-        <Tooltip asChild content={targetPath} delay={500}>
-          <ContextMenuTrigger
-            asChild
-            disabled={!hasMoreActions}
-            onContextMenu={hasMoreActions ? (e) => e.stopPropagation() : undefined}>
-            <span
-              role={canOpen ? 'link' : undefined}
-              tabIndex={canOpen ? 0 : undefined}
-              onClick={canOpen ? handleOpen : undefined}
-              onKeyDown={canOpen ? handleKeyDown : undefined}
-              className={`break-all [table_&]:break-normal ${
-                canOpen ? 'cursor-pointer text-link hover:underline' : 'cursor-default text-muted-foreground'
-              }`}>
-              <Icon
-                icon={`material-icon-theme:${iconName}`}
-                className="mr-1 inline-block align-text-top"
-                style={{ fontSize: '1.1em' }}
-              />
-              {displayName ?? displayPath}
-            </span>
-          </ContextMenuTrigger>
-        </Tooltip>
-        {hasMoreActions && (
-          <Tooltip asChild content={revealLabel} delay={500}>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              aria-label={revealLabel}
-              className="pointer-events-none ml-0.5 inline-flex size-5 shrink-0 translate-y-0.5 items-center justify-center align-middle text-muted-foreground opacity-0 transition-opacity duration-150 hover:bg-accent hover:text-foreground group-hover/file-path:pointer-events-auto group-hover/file-path:opacity-100 group-focus-within/file-path:pointer-events-auto group-focus-within/file-path:opacity-100 no-hover:pointer-events-auto no-hover:opacity-100"
-              onClick={(event) => {
-                event.stopPropagation()
-                void handleReveal()
-              }}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter' || event.key === ' ') event.stopPropagation()
-              }}>
-              <OpenTargetIcon target={{ id: 'file_manager', kind: 'file_manager' }} />
-            </Button>
-          </Tooltip>
-        )}
-      </span>
+      <Tooltip asChild content={targetPath} delay={500}>
+        <ContextMenuTrigger
+          asChild
+          disabled={!hasMoreActions}
+          onContextMenu={hasMoreActions ? (e) => e.stopPropagation() : undefined}>
+          <span
+            role={canOpen ? 'link' : undefined}
+            tabIndex={canOpen ? 0 : undefined}
+            onClick={canOpen ? handleOpen : undefined}
+            onKeyDown={canOpen ? handleKeyDown : undefined}
+            className={`break-all [table_&]:break-normal ${
+              canOpen ? 'cursor-pointer text-link hover:underline' : 'cursor-default text-muted-foreground'
+            }`}>
+            <Icon
+              icon={`material-icon-theme:${iconName}`}
+              className="mr-1 inline-block align-text-top"
+              style={{ fontSize: '1.1em' }}
+            />
+            {displayName ?? displayPath}
+          </span>
+        </ContextMenuTrigger>
+      </Tooltip>
       {hasMoreActions && (
         <ContextMenuContent className="w-56" onClick={(e) => e.stopPropagation()}>
           <ContextMenuItem onSelect={() => void handleOpen()}>

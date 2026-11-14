@@ -2,7 +2,6 @@ import { ChevronRight } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 
 import { cn } from '@cherrystudio/ui/lib/utils'
-import Scrollbar from '@renderer/components/Scrollbar'
 
 /**
  * 水平滚动容器
@@ -85,16 +84,23 @@ const HorizontalScrollContainer: React.FC<HorizontalScrollContainerProps> = ({
       checkScrollability()
     }
 
-    const resizeObserver = new ResizeObserver(checkScrollability)
-    resizeObserver.observe(scrollElement)
+    const resizeObserver = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(checkScrollability)
+
+    if (resizeObserver) {
+      resizeObserver.observe(scrollElement)
+    } else {
+      window.addEventListener('resize', checkScrollability)
+    }
 
     scrollElement.addEventListener('scroll', handleScroll)
-    window.addEventListener('resize', checkScrollability)
 
     return () => {
-      resizeObserver.disconnect()
+      if (resizeObserver) {
+        resizeObserver.disconnect()
+      } else {
+        window.removeEventListener('resize', checkScrollability)
+      }
       scrollElement.removeEventListener('scroll', handleScroll)
-      window.removeEventListener('resize', checkScrollability)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, dependencies)
@@ -108,8 +114,9 @@ const HorizontalScrollContainer: React.FC<HorizontalScrollContainerProps> = ({
         classNames?.container
       )}
       onClick={expandable ? handleContainerClick : undefined}>
-      <Scrollbar
+      <div
         ref={scrollRef}
+        data-horizontal-scroll-viewport=""
         className={cn('relative z-0 flex min-w-0 flex-1 overflow-y-hidden', classNames?.content)}
         style={{
           gap,
@@ -119,7 +126,7 @@ const HorizontalScrollContainer: React.FC<HorizontalScrollContainerProps> = ({
           scrollbarWidth: 'none'
         }}>
         {children}
-      </Scrollbar>
+      </div>
       {canScroll && !isExpanded && !isScrolledToEnd && (
         <div
           onClick={handleScrollRight}

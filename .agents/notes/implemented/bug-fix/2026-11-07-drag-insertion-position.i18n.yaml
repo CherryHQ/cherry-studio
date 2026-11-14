@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-07-drag-insertion-position.md
+2026-11-07-drag-insertion-position.md: 802d44dc004f68c0ca97e7d95438237567474a2f
+2026-11-07-drag-insertion-position.zh.md: 096395cc70765781d0cecb5f4a2dbf3fd1fc91b1

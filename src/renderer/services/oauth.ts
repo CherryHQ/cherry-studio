@@ -6,7 +6,6 @@ import { openExternalWebsite } from '@renderer/services/website'
 
 const logger = loggerService.withContext('oauth')
 
-const SILICON_CLIENT_ID = 'SFaJLLq0y6CAMoyDm81aMu'
 const PPIO_CLIENT_ID = '37d0828c96b34936a600b62c'
 const PPIO_APP_SECRET = import.meta.env.RENDERER_VITE_PPIO_APP_SECRET || ''
 
@@ -153,21 +152,8 @@ function startPopupMessageOAuth<T>({
   window.addEventListener('message', messageHandler)
 }
 
-export const oauthWithSiliconFlow = async (setKey) => {
-  const authUrl = `https://account.siliconflow.cn/oauth?client_id=${SILICON_CLIENT_ID}`
-
-  startPopupMessageOAuth({
-    authUrl,
-    popupName: 'oauth',
-    matches: isSecretKeyOAuthPayload,
-    getKey: (data) => data[0].secretKey,
-    setKey,
-    onError: (error) => logger.error('[oauthWithSiliconFlow] error', error as Error)
-  })
-}
-
 export const oauthWithAihubmix = async (setKey) => {
-  const authUrl = `https://console.inferera.com/token?client_id=cherry_studio_oauth&lang=${await getLanguageCode()}&aff=SJyh`
+  const authUrl = `https://console.inferera.com/token?lang=${await getLanguageCode()}&aff=SJyh`
 
   startPopupMessageOAuth({
     authUrl,

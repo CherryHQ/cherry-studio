@@ -68,7 +68,7 @@ jobs:
         run: |
           echo "QA_RUN_DIR=$RUNNER_TEMP/qa-ondemand" >> "$GITHUB_ENV"
           echo "QA_OUT=$RUNNER_TEMP/qa-ondemand/report" >> "$GITHUB_ENV"
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.sha }}
           persist-credentials: false
@@ -92,7 +92,7 @@ jobs:
         run: pnpm exec tsx scripts/e2e/ondemand/run.ts resolve
       - name: Upload input failure
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: qa-ondemand-input-errors-${{ github.run_id }}
           path: ${{ env.QA_OUT }}
@@ -118,13 +118,13 @@ jobs:
         run: |
           echo "QA_RUN_DIR=$RUNNER_TEMP/qa-ondemand" >> "$GITHUB_ENV"
           echo "QA_OUT=$RUNNER_TEMP/qa-ondemand/report" >> "$GITHUB_ENV"
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.sha }}
           persist-credentials: false
       - name: Checkout application under test
         if: needs.resolve.outputs.mode == 'branch'
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ needs.resolve.outputs.sha }}
           persist-credentials: false
@@ -147,6 +147,7 @@ jobs:
           pnpm --dir "$QA_TARGET_ROOT" download:binaries
           pnpm --dir "$QA_TARGET_ROOT" rebuild:electron
           pnpm --dir "$QA_TARGET_ROOT" run build:utility-process
+          pnpm --dir "$QA_TARGET_ROOT" exec dotenv -v CHERRY_EDITION=global -- electron-vite build
       - name: Install release and wait for completion
         if: needs.resolve.outputs.mode == 'tag'
         shell: bash
@@ -195,7 +196,7 @@ jobs:
           JS
       - name: Upload evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: qa-ondemand-${{ needs.resolve.outputs.spec }}-${{ needs.resolve.outputs.platform }}-${{ needs.resolve.outputs.short_sha }}
           path: ${{ env.QA_OUT }}

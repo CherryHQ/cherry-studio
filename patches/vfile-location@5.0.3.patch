@@ -1,0 +1,23 @@
+diff --git a/lib/index.js b/lib/index.js
+index d2c13c48991b657e27219762d9762df2e9c4a918..4874253a8ac72d9073567fa10cc143580054ae47 100644
+--- a/lib/index.js
++++ b/lib/index.js
+@@ -80,14 +80,13 @@ export function location(file) {
+   }
+ }
+ 
++const lineEnding = /\r\n|[\r\n]/g
++
+ /**
+  * @param {string} value
+  * @param {number} from
+  */
+ function next(value, from) {
+-  const cr = value.indexOf('\r', from)
+-  const lf = value.indexOf('\n', from)
+-  if (lf === -1) return cr
+-  if (cr === -1 || cr + 1 === lf) return lf
+-  return cr < lf ? cr : lf
++  lineEnding.lastIndex = from || 0
++  return lineEnding.exec(value) ? lineEnding.lastIndex - 1 : -1
+ }

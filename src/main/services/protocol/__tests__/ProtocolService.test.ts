@@ -11,13 +11,20 @@ const {
   mainWindowServiceMock,
   mcpServerServiceMock,
   openSettingsInMainWindowMock,
+  profileMock,
+  protocolHandlers,
   platformMock,
   windowManagerMock
 } = vi.hoisted(() => {
+  const protocolHandlers = new Map<string, { executable?: string; args?: string[] }>()
+  const profileMock = { root: undefined as string | undefined }
   const appMock = {
     on: vi.fn(),
     removeListener: vi.fn(),
-    setAsDefaultProtocolClient: vi.fn()
+    setAsDefaultProtocolClient: vi.fn((scheme: string, executable?: string, args?: string[]) => {
+      protocolHandlers.set(scheme, { executable, args })
+      return true
+    })
   }
   const loggerMock = {
     debug: vi.fn(),
@@ -57,6 +64,8 @@ const {
     mainWindowServiceMock,
     mcpServerServiceMock,
     openSettingsInMainWindowMock,
+    profileMock,
+    protocolHandlers,
     platformMock,
     windowManagerMock
   }
@@ -106,6 +115,12 @@ vi.mock('@main/services/mainWindowNavigation', () => ({
 
 vi.mock('@main/core/platform', () => platformMock)
 
+vi.mock('@main/core/paths/constants', () => ({
+  get DEV_PROFILE_ROOT() {
+    return profileMock.root
+  }
+}))
+
 vi.mock('../handlers/mcpInstall', () => ({
   parseMcpInstallProtocolUrl: handlersMock.parseMcpInstallProtocolUrl
 }))
@@ -142,6 +157,8 @@ describe('ProtocolService', () => {
     originalArgv = process.argv
     originalDefaultApp = (process as NodeJS.Process & { defaultApp?: boolean }).defaultApp
     vi.clearAllMocks()
+    profileMock.root = undefined
+    protocolHandlers.clear()
     platformMock.isLinux = false
     platformMock.isPortable = false
     platformMock.isWin = false
@@ -154,22 +171,13 @@ describe('ProtocolService', () => {
     vi.unstubAllEnvs()
   })
 
-  it('logs malformed protocol URLs instead of throwing', async () => {
-    await markProtocolHandlingReady()
-
-    expect(() => (service as any).handleProtocolUrl('not a url')).not.toThrow()
-
-    expect(loggerMock.error).toHaveBeenCalledWith('Failed to handle protocol URL', expect.any(TypeError))
-  })
-
   it('registers the packaged protocol handler without dev arguments', async () => {
     setDefaultApp(false)
     process.argv = ['Cherry Studio.exe']
 
     await (service as any).onInit()
 
-    expect(appMock.setAsDefaultProtocolClient).toHaveBeenCalledTimes(1)
-    expect(appMock.setAsDefaultProtocolClient).toHaveBeenCalledWith('cherrystudio')
+    expect(protocolHandlers.get('cherrystudio')).toEqual({ executable: undefined, args: undefined })
   })
 
   it('registers the stable launcher for packaged Windows portable builds', async () => {
@@ -180,12 +188,10 @@ describe('ProtocolService', () => {
 
     await (service as any).onInit()
 
-    expect(appMock.setAsDefaultProtocolClient).toHaveBeenCalledTimes(1)
-    expect(appMock.setAsDefaultProtocolClient).toHaveBeenCalledWith(
-      'cherrystudio',
-      'D:\\Apps\\Cherry Studio Portable.exe',
-      []
-    )
+    expect(protocolHandlers.get('cherrystudio')).toEqual({
+      executable: 'D:\\Apps\\Cherry Studio Portable.exe',
+      args: []
+    })
   })
 
   it('registers the dev protocol handler with an absolute app entry', async () => {
@@ -194,23 +200,30 @@ describe('ProtocolService', () => {
 
     await (service as any).onInit()
 
-    expect(appMock.setAsDefaultProtocolClient).toHaveBeenCalledTimes(1)
-    expect(appMock.setAsDefaultProtocolClient).toHaveBeenCalledWith('cherrystudio', process.execPath, [
-      path.resolve(process.cwd(), '.')
-    ])
-  })
-
-  it('logs asynchronous providers handler failures', async () => {
-    const error = new Error('failed')
-    handlersMock.handleProvidersProtocolUrl.mockRejectedValueOnce(error)
-    await markProtocolHandlingReady()
-
-    ;(service as any).handleProtocolUrl('cherrystudio://providers/api-keys?v=1&data=abc')
-
-    await vi.waitFor(() => {
-      expect(loggerMock.error).toHaveBeenCalledWith('Failed to handle providers protocol URL', error)
+    expect(protocolHandlers.get('cherrystudio')).toEqual({
+      executable: process.execPath,
+      args: [path.resolve(process.cwd(), '.')]
     })
   })
+
+  it.each([false, true])(
+    'preserves the installed protocol handler in an isolated profile (defaultApp=%s)',
+    async (defaultApp) => {
+      setDefaultApp(defaultApp)
+      process.argv = ['electron', '.', 'cherrystudio://navigate/agents']
+      profileMock.root = '/private/tmp/isolated-cherry-profile'
+      const installedHandler = { executable: '/Applications/Cherry Studio.app', args: [] }
+      protocolHandlers.set('cherrystudio', installedHandler)
+      const navigations: string[] = []
+      handlersMock.handleNavigateProtocolUrl.mockImplementation((url: URL) => navigations.push(url.href))
+
+      await (service as any).onInit()
+      await markProtocolHandlingReady()
+
+      expect(protocolHandlers.get('cherrystudio')).toBe(installedHandler)
+      expect(navigations).toEqual(['cherrystudio://navigate/agents'])
+    }
+  )
 
   it('broadcasts unknown protocol hosts to all windows', async () => {
     await markProtocolHandlingReady()
@@ -379,7 +392,6 @@ describe('ProtocolService', () => {
       service.onMainRendererReady('main-1')
 
       expect(handledUrls).toEqual(['cherrystudio://mcp/install?servers=first', 'cherrystudio://navigate/agents'])
-      expect(loggerMock.error).toHaveBeenCalledWith('Failed to handle protocol URL', expect.any(TypeError))
     })
 
     it('waits for services when the main renderer becomes ready first', async () => {
@@ -443,5 +455,11 @@ describe('ProtocolService', () => {
       expect(mainWindowServiceMock.showMainWindow).toHaveBeenCalledTimes(1)
       expect(ipcApiServiceMock.broadcast).not.toHaveBeenCalled()
     })
+  })
+
+  it('handles malformed protocol URLs without throwing', async () => {
+    await markProtocolHandlingReady()
+
+    expect(() => (service as any).handleProtocolUrl('not a url')).not.toThrow()
   })
 })

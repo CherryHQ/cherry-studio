@@ -15,14 +15,12 @@ const ARCH_TO_ELF_MACHINE = Object.freeze({
 })
 const ELF_MACHINE_TO_ARCH = new Map(Object.entries(ARCH_TO_ELF_MACHINE).map(([arch, machine]) => [machine, arch]))
 const ARTIFACT_CACHE_RELATIVE_PATH = path.join('scripts', 'linux-native', 'prebuilt')
-const NATIVE_MODULE_RELATIVE_PATH = path.join(
+const PREBUILDS_RELATIVE_PATH = path.join(
   'resources',
   'app.asar.unpacked',
   'node_modules',
   'better-sqlite3',
-  'build',
-  'Release',
-  'better_sqlite3.node'
+  'prebuilds'
 )
 
 function compareVersions(left, right) {
@@ -153,7 +151,7 @@ function replacePackagedBetterSqlite3({ projectRoot, appOutDir, arch, metadata }
   const artifactPaths = getNativeArtifactPaths(projectRoot, arch)
   const expected = { ...metadata, arch }
   const verified = verifyNativeArtifact({ ...artifactPaths, expected })
-  const destination = path.join(appOutDir, NATIVE_MODULE_RELATIVE_PATH)
+  const destination = path.join(appOutDir, PREBUILDS_RELATIVE_PATH, `linux-${arch}.node`)
 
   if (!fs.existsSync(destination)) {
     throw new Error(`Packaged better-sqlite3 artifact is missing: ${destination}`)

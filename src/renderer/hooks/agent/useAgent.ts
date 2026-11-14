@@ -1,9 +1,9 @@
 /**
  * DataApi-backed agent queries and mutations.
  *
- * `agent` is the canonical reusable blueprint — sessions are pure instances of
- * it. Config (model / instructions / mcps / disabledTools /
- * configuration) lives here, not on sessions.
+ * `agent` is the canonical reusable blueprint — sessions are instances of
+ * it with their own per-session model override. Remaining config (instructions /
+ * mcps / disabledTools / configuration) lives here, not on sessions.
  */
 
 import { useCallback, useMemo } from 'react'
@@ -44,6 +44,9 @@ export const useAgent = (id: string | null) => {
       dedupingInterval: 2000,
       keepPreviousData: false
     }
+  })
+  useDataChange('/agents/:agentId', (effects) => {
+    if (id && effects.some((effect) => !effect.entityIds || effect.entityIds.includes(id))) void refetch()
   })
   const agent = useMemo((): AgentEntity | undefined => {
     if (!data) return undefined

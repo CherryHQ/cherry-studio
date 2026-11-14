@@ -2,6 +2,7 @@ import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { loggerService } from '@logger'
+import { ipcApi } from '@renderer/ipc'
 import { popup } from '@renderer/services/popup'
 import { FILE_TYPE, type FileType } from '@renderer/types/file'
 
@@ -26,7 +27,7 @@ export function useAttachment() {
           const { default: TextFilePreviewPopup } = await import('@renderer/components/TextFilePreviewPopup')
           void TextFilePreviewPopup.show(content, title, ext)
         } else {
-          void window.api.file.openPath(path)
+          void ipcApi.request('system.shell.open_path', path)
         }
       } catch (err) {
         logger.error(`Error opening ${path}:`, err as Error)

@@ -7,29 +7,39 @@ import { IpcError } from '@shared/ipc/errors/IpcError'
 import { shouldReportFailure } from '@shared/utils/errorReporting'
 import { getSentryLogContext } from '@shared/utils/sentry'
 
+import { ClaudeCodeResultError } from '../claudeCode/ClaudeRuntimeState'
 import { classifyClaudeFailure } from '../claudeCode/failureFacts'
-import { ClaudeCodeResultError } from '../claudeCode/streamAdapter'
 import { classifyPiFailure } from '../pi/failureFacts'
 
 describe('runtime reporting decisions', () => {
   it.each(['error_max_turns', 'error_max_budget_usd', 'error_max_structured_output_retries'] as const)(
     'keeps Claude %s in diagnostics, regardless of the wrapper exitCode',
     (subtype) => {
-      const failure = classifyClaudeFailure(new ClaudeCodeResultError('Limit reached', subtype, []))
+      const failure = classifyClaudeFailure(
+        new ClaudeCodeResultError({ message: 'Limit reached', subtype, errors: [] })
+      )
       expect(shouldReportFailure(failure)).toBe(false)
       expect(failure.reason).toBe(subtype)
     }
   )
 
   it('uses the API status even when Claude returns subtype success', () => {
-    const failure = classifyClaudeFailure(new ClaudeCodeResultError('Unauthorized', 'success', [], 'api_error', 401))
+    const failure = classifyClaudeFailure(
+      new ClaudeCodeResultError({
+        message: 'Unauthorized',
+        subtype: 'success',
+        errors: [],
+        terminalReason: 'api_error',
+        statusCode: 401
+      })
+    )
     expect(failure.source).toBe('provider')
     expect(shouldReportFailure(failure)).toBe(false)
   })
 
   it('retains unknown Claude execution errors and actual process crashes', () => {
     const failure = classifyClaudeFailure(
-      new ClaudeCodeResultError('Unexpected SDK state', 'error_during_execution', [])
+      new ClaudeCodeResultError({ message: 'Unexpected SDK state', subtype: 'error_during_execution', errors: [] })
     )
     expect(shouldReportFailure(failure)).toBe(true)
     expect(failure.kind).toBe('unknown')

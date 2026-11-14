@@ -28,7 +28,7 @@
 
 ## 配置开发环境
 
-请参阅[开发者指南](docs/contrib/development.md)，了解配置本地开发环境所需的前置条件、安装步骤和可用命令。
+请参阅[开发者指南](docs/dev/contrib/development.md)，了解配置本地开发环境所需的前置条件、安装步骤和可用命令。
 
 关于项目架构、技术栈、约定和可用命令的完整概览，请参阅 [`CLAUDE.md`](CLAUDE.md)。
 
@@ -38,7 +38,7 @@
 
 ### 测试
 
-没有测试的功能视为不存在。为了确保代码真正有效，相关流程应由单元测试和功能测试覆盖。因此，请在贡献时同时考虑可测试性。所有测试都可以在本地运行，不依赖 CI。详情请参阅[开发者指南](docs/contrib/development.md)中的“Testing”部分。
+没有测试的功能视为不存在。为了确保代码真正有效，相关流程应由单元测试和功能测试覆盖。因此，请在贡献时同时考虑可测试性。所有测试都可以在本地运行，不依赖 CI。详情请参阅[开发者指南](docs/dev/contrib/development.md)中的“Testing”部分。
 
 ### Pull Request 自动测试
 
@@ -70,7 +70,7 @@ git commit --signoff -m "Your commit message"
 
 ### 参与 Test Plan
 
-Test Plan 旨在为用户提供更稳定的应用体验和更快的迭代速度。详情请参阅 [Test Plan](docs/contrib/test-plan.md)。
+Test Plan 旨在为用户提供更稳定的应用体验和更快的迭代速度。详情请参阅 [Test Plan](docs/dev/contrib/test-plan.md)。
 
 ### 其他建议
 

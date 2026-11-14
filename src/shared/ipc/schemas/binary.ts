@@ -119,6 +119,10 @@ export const binaryRequestSchemas = {
     input: z.array(toolNameSchema),
     output: z.record(z.string(), binaryToolSnapshotSchema)
   }),
+  'binary.get_tool_installed_sizes': defineRoute({
+    input: z.array(toolNameSchema),
+    output: z.record(z.string(), z.number().int().nonnegative().nullable())
+  }),
   'binary.search_registry': defineRoute({ input: z.string(), output: z.array(registryEntrySchema) }),
   // false = read session shared cache only; true = run mise latest and refresh the cache.
   'binary.get_latest_versions': defineRoute({ input: z.boolean(), output: z.record(z.string(), z.string()) })

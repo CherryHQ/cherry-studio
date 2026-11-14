@@ -3,6 +3,7 @@ import path from 'node:path'
 
 import { application } from '@application'
 import { isLinux, isMac, isWin } from '@main/core/platform'
+import { isPathInside } from '@main/utils/file'
 import type { UserDataRelocationValidationReason } from '@shared/types/userDataRelocation'
 
 import type { PendingRelocation } from './types'
@@ -265,14 +266,6 @@ function isRootPath(value: string): boolean {
 export function normalizeForCompare(value: string): string {
   const resolved = path.resolve(value)
   return isWin || isMac ? resolved.toLowerCase() : resolved
-}
-
-// ".." must only be excluded as a whole path segment: a child entry named
-// "..archive" also starts with ".." but IS inside the parent.
-export function isPathInside(child: string, parent: string): boolean {
-  const relative = path.relative(parent, child)
-  if (relative === '' || relative === '..' || path.isAbsolute(relative)) return false
-  return !relative.startsWith(`..${path.sep}`)
 }
 
 export function isErrno(error: unknown, code: string): error is NodeJS.ErrnoException {

@@ -1,4 +1,4 @@
-import { APICallError, NoSuchToolError, RetryError } from 'ai'
+import { APICallError, JSONParseError, NoSuchToolError, RetryError, TypeValidationError } from 'ai'
 import { describe, expect, it } from 'vitest'
 
 import { serializeError } from '../serializeError'
@@ -12,6 +12,8 @@ describe('serializeError', () => {
         requestBodyValues: { prompt: 'private prompt' },
         statusCode: 401
       }),
+      new JSONParseError({ text: 'private prompt', cause: new SyntaxError('private prompt') }),
+      new TypeValidationError({ value: { prompt: 'private prompt' }, cause: new Error('private prompt') }),
       { type: 'error', error: { message: 'Unauthorized' }, prompt: 'private prompt' }
     ]) {
       Object.defineProperty(error, 'reportingHandled', { value: true })

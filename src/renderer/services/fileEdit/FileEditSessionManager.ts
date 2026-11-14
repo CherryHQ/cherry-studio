@@ -45,6 +45,8 @@ interface Session {
   readGeneration: number
   transition: boolean
   needsRevalidation: boolean
+  /** False while the owner saves explicitly; drafts still flush when the binding is released. */
+  autoSave: boolean
 }
 
 export interface SessionLease {
@@ -52,6 +54,7 @@ export interface SessionLease {
   subscribe(listener: () => void): () => void
   readonly writable: boolean
   acceptEdit(text: string, documentEpoch?: number, bindingEpoch?: number): boolean
+  setAutoSave(enabled: boolean): void
   flush(): Promise<void>
   discard(): Promise<void>
   reload(): Promise<void>
@@ -206,6 +209,7 @@ export class FileEditSessionManager {
         readGeneration: 0,
         transition: false,
         needsRevalidation: false,
+        autoSave: true,
         snapshot: {
           sessionId: crypto.randomUUID(),
           ownerId,
@@ -275,6 +279,12 @@ export class FileEditSessionManager {
         this.schedule(session)
         return true
       },
+      setAutoSave: (enabled) => {
+        if (!current() || session.autoSave === enabled) return
+        session.autoSave = enabled
+        if (enabled && session.snapshot.isDirty) this.schedule(session)
+        else this.cancelTimer(session)
+      },
       flush: () => command(() => this.flush(session)),
       discard: () => command(() => this.replace(session, 'discard')),
       reload: () => command(() => this.replace(session, 'reload')),
@@ -329,7 +339,7 @@ export class FileEditSessionManager {
 
   private schedule(session: Session): void {
     this.cancelTimer(session)
-    if (session.snapshot.saveError || session.snapshot.conflict || session.snapshot.sealed) return
+    if (!session.autoSave || session.snapshot.saveError || session.snapshot.conflict || session.snapshot.sealed) return
     session.timer = setTimeout(() => {
       void this.flush(session).catch(() => {})
     }, 800)

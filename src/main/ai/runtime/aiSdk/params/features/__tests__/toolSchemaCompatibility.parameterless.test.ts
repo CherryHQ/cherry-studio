@@ -3,7 +3,7 @@ import { createGoogleGenerativeAI } from '@ai-sdk/google'
 import { createOpenAI } from '@ai-sdk/openai'
 import type { JSONSchema7, LanguageModelV3CallOptions } from '@ai-sdk/provider'
 import type { LanguageModelMiddleware } from 'ai'
-import { generateText, jsonSchema, tool, wrapLanguageModel } from 'ai'
+import { generateText, tool, wrapLanguageModel } from 'ai'
 import { describe, expect, it } from 'vitest'
 
 import { createMcpInputSchema } from '@main/ai/tools/adapters/aiSdk/mcpSchema'
@@ -41,6 +41,7 @@ describe('parameterless function-tool schemas', () => {
     { type: 'object', additionalProperties: true },
     { type: 'object', additionalProperties: { type: 'string' } }
   ] satisfies JSONSchema7[])('adds only root properties to $type schema %j without mutation', async (inputSchema) => {
+    // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
     const original = structuredClone(inputSchema)
     const descriptor = { type: 'function' as const, name: 'parameterless', inputSchema }
     const params: LanguageModelV3CallOptions = { prompt: [], tools: [descriptor] }
@@ -104,6 +105,7 @@ describe('parameterless function-tool schemas', () => {
       $ref: '#/$defs/Input',
       $defs: { Input: { type: 'object', properties: { query: { type: 'string' } }, required: ['query'] } }
     }
+    // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
     const original = structuredClone(inputSchema)
     const params: LanguageModelV3CallOptions = {
       prompt: [],
@@ -199,7 +201,7 @@ describe('parameterless function-tool schemas', () => {
       generateText({
         model,
         prompt: 'hello',
-        tools: { lookup: tool({ description: 'lookup', inputSchema: jsonSchema(inputSchema) }) }
+        tools: { lookup: tool({ description: 'lookup', inputSchema: createMcpInputSchema(inputSchema) }) }
       })
     ).rejects.toBeDefined()
 

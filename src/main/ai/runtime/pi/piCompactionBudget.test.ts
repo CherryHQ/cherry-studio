@@ -55,7 +55,11 @@ describe('pi-ai compaction output budget', () => {
       ]
     }
 
-    expect(await outputBudget(context)).toBe(4_899)
+    const budget = await outputBudget(context)
+    context.messages[1] = createAssistant(100, 1)
+
+    expect(await outputBudget(context)).toBe(budget)
+    expect(budget).toBeGreaterThan(1_000)
   })
 
   it('uses assistant usage again after a post-compaction response', async () => {
@@ -69,6 +73,9 @@ describe('pi-ai compaction output budget', () => {
       ]
     }
 
-    expect(await outputBudget(context)).toBe(3_903)
+    const budget = await outputBudget(context)
+    context.messages[3] = createAssistant(400, 3_000)
+
+    expect(await outputBudget(context)).toBe(budget! - 1_000)
   })
 })

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  applyOptimisticOrder,
   findLatestActive,
   findLatestUpdated,
   isUntouchedSinceCreation,
@@ -8,6 +9,23 @@ import {
 } from '../resourceEntity'
 
 describe('resourceEntity', () => {
+  describe('applyOptimisticOrder', () => {
+    const items = [{ id: 'a' }, { id: 'b' }, { id: 'c' }]
+    const ids = (ordered: { id: string }[]) => ordered.map((item) => item.id)
+
+    it('follows the pending order', () => {
+      expect(ids(applyOptimisticOrder(items, ['c', 'a', 'b']))).toEqual(['c', 'a', 'b'])
+    })
+
+    it('keeps items created during the move after the listed ones', () => {
+      expect(ids(applyOptimisticOrder(items, ['b', 'a']))).toEqual(['b', 'a', 'c'])
+    })
+
+    it('drops ids of items deleted during the move', () => {
+      expect(ids(applyOptimisticOrder(items, ['gone', 'c']))).toEqual(['c', 'a', 'b'])
+    })
+  })
+
   describe('isUntouchedSinceCreation', () => {
     it('is true only when updatedAt equals a present createdAt', () => {
       expect(

@@ -1,16 +1,10 @@
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { resolveCommandDisplayState } from '@renderer/utils/command'
+import { resolveCommandDisplayState, resolveCommandPresentationKeybinding } from '@renderer/utils/command'
 import { isMac, platform } from '@renderer/utils/platform'
 import type { MenuLocation, ResolvedMenuModel, SupportedPlatform } from '@shared/types/command'
-import {
-  type CommandId,
-  findCommandDefinition,
-  findKeybindingRule,
-  resolveCommandKeybinding,
-  resolveMenu
-} from '@shared/utils/command'
+import { type CommandId, findCommandDefinition, findKeybindingRule, resolveMenu } from '@shared/utils/command'
 
 import { useCommandContextReader } from './useCommandContext'
 import { useCommandRuntime, useCommandShortcutPreferences } from './useCommandRuntime'
@@ -30,9 +24,7 @@ export function useResolvedCommandMenu(location: MenuLocation): ResolvedMenuMode
           const definition = findCommandDefinition(command)
           const rule = findKeybindingRule(command)
           const preference = rule ? shortcutPreferences[command] : undefined
-          const keybinding = resolveCommandKeybinding({
-            command,
-            preference,
+          const keybinding = resolveCommandPresentationKeybinding(command, preference, {
             context,
             platform: platform as SupportedPlatform
           })

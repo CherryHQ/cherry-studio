@@ -1,6 +1,6 @@
+import { MockCherrystudioUI } from '@test-mocks/renderer/CherrystudioUI'
 import '@testing-library/jest-dom/vitest'
 import { act, render, waitFor } from '@testing-library/react'
-import type { PropsWithChildren } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const state = vi.hoisted(() => ({
@@ -20,7 +20,7 @@ const state = vi.hoisted(() => ({
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
-  Scrollbar: ({ children }: PropsWithChildren) => <div>{children}</div>
+  ScrollArea: MockCherrystudioUI.ScrollArea
 }))
 
 vi.mock('@data/hooks/usePreference', () => ({

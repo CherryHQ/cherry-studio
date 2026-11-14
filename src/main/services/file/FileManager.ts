@@ -22,7 +22,7 @@
  * `application.get('FileManager')`. The `internal/*` tree is a private
  * implementation area and is not re-exported via `src/main/services/file/index.ts`.
  *
- * See `docs/references/file/file-manager-architecture.md §1.6` for the full
+ * See `docs/dev/references/file/file-manager-architecture.md §1.6` for the full
  * implementation-layout decision.
  *
  * ## FileHandle dispatch at the IPC boundary
@@ -55,7 +55,7 @@
  * and each handler in `src/main/ipc/handlers/file.ts`; the public API surface
  * and `internal/*` pure-function structure both stay stable.
  *
- * See `docs/references/file/file-manager-architecture.md §1.6.5` for the
+ * See `docs/dev/references/file/file-manager-architecture.md §1.6.5` for the
  * full dispatch convention.
  *
  * ## External entries — best-effort reference semantics
@@ -68,8 +68,8 @@
  * Which callers use internal vs external is a business-layer decision —
  * FileManager makes no assumption. For module boundaries and dangling-state
  * tracking, see:
- * - [file-manager-architecture.md](../../../docs/references/file/file-manager-architecture.md)
- * - [architecture.md](../../../docs/references/file/architecture.md)
+ * - [file-manager-architecture.md](../../../docs/dev/references/file/file-manager-architecture.md)
+ * - [architecture.md](../../../docs/dev/references/file/architecture.md)
  *
  * Cherry **allows** user-initiated modification of external files:
  * - `write` / `writeIfUnchanged` → atomic write to `externalPath`
@@ -174,6 +174,7 @@ import {
   batchRestore as internalBatchRestore,
   batchTrash as internalBatchTrash,
   deleteInternalTemporaryEntry as internalDeleteInternalTemporaryEntry,
+  deleteUnreferencedInternalEntry as internalDeleteUnreferencedInternalEntry,
   permanentDelete as internalPermanentDelete,
   restore as internalRestore,
   trash as internalTrash
@@ -196,7 +197,7 @@ import {
 import { showInFolder as internalShellShowInFolder } from './internal/system/shell'
 import { withTempCopy as internalWithTempCopy } from './internal/system/tempCopy'
 import { runPathMutationExclusive } from './pathMutationLock'
-import { safeOpen } from './system'
+import { copyFileToClipboard, safeOpen } from './system'
 import { createContentHashBackfillJobHandler } from './tasks/contentHashBackfillJobHandler'
 import { ensureContentMetadataGeneration } from './tasks/contentMetadataGeneration'
 import { readEditSnapshot as readEditingSnapshot } from './utils/editSnapshot'
@@ -618,6 +619,9 @@ export interface IFileManager {
    */
   permanentDelete(id: FileEntryId): Promise<void>
 
+  /** Delete an internal entry only when no persistent refs hold it, checked atomically with row deletion. */
+  deleteUnreferencedInternalEntry(id: FileEntryId): Promise<boolean>
+
   /** Batch internal-only — external ids in the batch will fail with the same error as `trash`. */
   batchTrash(ids: FileEntryId[]): Promise<BatchMutationResult>
   /** Batch internal-only — external ids fail like `restore`. */
@@ -704,6 +708,9 @@ export interface IFileManager {
 
   /** Reveal in the system file manager. */
   showInFolder(id: FileEntryId): Promise<void>
+
+  /** Copy the entry's physical file while retaining its storage origin for failure reporting. */
+  copyToClipboard(id: FileEntryId): Promise<void>
 }
 
 // ─── Runtime ───
@@ -1285,6 +1292,12 @@ export class FileManager extends BaseService implements IFileManager {
     this.notifyReadModelChange([id])
   }
 
+  async deleteUnreferencedInternalEntry(id: FileEntryId): Promise<boolean> {
+    const removed = await internalDeleteUnreferencedInternalEntry(this.deps, id)
+    if (removed) this.notifyReadModelChange([id])
+    return removed
+  }
+
   async batchTrash(ids: FileEntryId[]): Promise<BatchMutationResult> {
     const result = internalBatchTrash(this.deps, ids)
     this.notifyReadModelChange(result.succeeded)
@@ -1338,6 +1351,11 @@ export class FileManager extends BaseService implements IFileManager {
   async showInFolder(id: FileEntryId): Promise<void> {
     const entry = this.deps.fileEntryService.getById(id)
     return internalShellShowInFolder(resolvePhysicalPath(entry))
+  }
+
+  async copyToClipboard(id: FileEntryId): Promise<void> {
+    const entry = this.deps.fileEntryService.getById(id)
+    return copyFileToClipboard(resolvePhysicalPath(entry), entry.origin === 'external')
   }
 
   // ─── Dangling state ───

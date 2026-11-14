@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/proposed/feature/2026-10-30-file-pane-comments.md
+2026-10-30-file-pane-comments.md: 821b5d04d21f590868c676f3437730a53c14dba5
+2026-10-30-file-pane-comments.zh.md: 8606c3e810c5e820fa13faca6915036d741c3297

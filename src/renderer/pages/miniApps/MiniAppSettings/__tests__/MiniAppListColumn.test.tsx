@@ -1,3 +1,4 @@
+import { MockCherrystudioUI } from '@test-mocks/renderer/CherrystudioUI'
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
@@ -9,7 +10,7 @@ import type { MiniApp } from '@shared/data/types/miniApp'
 import MiniAppListColumn from '../MiniAppListColumn'
 
 vi.mock('@cherrystudio/ui', () => ({
-  Scrollbar: ({ children }: React.PropsWithChildren<{ className?: string }>) => <div>{children}</div>,
+  ScrollArea: MockCherrystudioUI.ScrollArea,
   Sortable: ({
     items,
     renderItem

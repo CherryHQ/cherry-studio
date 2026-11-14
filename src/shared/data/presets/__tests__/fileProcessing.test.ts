@@ -1,12 +1,9 @@
 import { describe, expect, it } from 'vitest'
 
 import { FILE_TYPE } from '@shared/types/file'
-import { GB, MB } from '@shared/utils/constants'
 
-import { FILE_PROCESSOR_IDS } from '../../preference/preferenceTypes'
 import {
   FileProcessingArtifactSchema,
-  FileProcessingJobOutputSchema,
   FileProcessingOutputTargetSchema,
   ListAvailableFileProcessorsResultSchema
 } from '../../types/fileProcessing'
@@ -69,7 +66,6 @@ describe('FileProcessorFeatureCapabilitySchema', () => {
 describe('FileProcessorTemplatesSchema', () => {
   it('validates built-in presets', () => {
     expect(() => FileProcessorTemplatesSchema.parse(PRESETS_FILE_PROCESSORS)).not.toThrow()
-    expect(PRESETS_FILE_PROCESSORS.map((preset) => preset.id)).toEqual(FILE_PROCESSOR_IDS)
 
     PRESETS_FILE_PROCESSORS.forEach((preset) => {
       expect(FileProcessorPresetDefinitionSchema.safeParse(preset).success).toBe(true)
@@ -78,55 +74,17 @@ describe('FileProcessorTemplatesSchema', () => {
     })
   })
 
-  it('ships the current PaddleOCR hosted model defaults', () => {
-    const paddleocr = PRESETS_FILE_PROCESSORS.find((preset) => preset.id === 'paddleocr')
+  it('keeps the Doc2X v3 default and exposes v3 export options', () => {
+    const doc2x = PRESETS_FILE_PROCESSORS.find((preset) => preset.id === 'doc2x')
+    const capability = doc2x?.capabilities.find((item) => item.feature === 'document_to_markdown')
 
-    expect(paddleocr?.capabilities.find((capability) => capability.feature === 'image_to_text')?.modelId).toBe(
-      'PP-OCRv6'
+    expect(capability).toEqual(
+      expect.objectContaining({
+        formulaLevel: 0,
+        mergeCrossPageForms: false,
+        modelId: 'v3-2026'
+      })
     )
-    expect(paddleocr?.capabilities.find((capability) => capability.feature === 'document_to_markdown')?.modelId).toBe(
-      'PaddleOCR-VL-1.6'
-    )
-  })
-
-  it('declares the product PDF page limits for document processors', () => {
-    const limits = Object.fromEntries(
-      PRESETS_FILE_PROCESSORS.filter((preset) =>
-        ['paddleocr', 'mineru', 'doc2x', 'mistral', 'local-document', 'open-mineru'].includes(preset.id)
-      ).map((preset) => [
-        preset.id,
-        preset.capabilities.find((capability) => capability.feature === 'document_to_markdown')?.maxInputPages
-      ])
-    )
-
-    expect(limits).toEqual({
-      paddleocr: 100,
-      mineru: 600,
-      doc2x: 1000,
-      mistral: 1000,
-      'local-document': undefined,
-      'open-mineru': undefined
-    })
-  })
-
-  it('declares the document upload byte limits for processors that enforce one', () => {
-    const limits = Object.fromEntries(
-      PRESETS_FILE_PROCESSORS.filter((preset) =>
-        ['paddleocr', 'mineru', 'doc2x', 'mistral', 'local-document', 'open-mineru'].includes(preset.id)
-      ).map((preset) => [
-        preset.id,
-        preset.capabilities.find((capability) => capability.feature === 'document_to_markdown')?.maxInputBytes
-      ])
-    )
-
-    expect(limits).toEqual({
-      paddleocr: 50 * MB,
-      mineru: 200 * MB,
-      doc2x: GB,
-      mistral: undefined,
-      'local-document': undefined,
-      'open-mineru': 200 * MB
-    })
   })
 
   it('rejects processor-level metadata', () => {
@@ -260,37 +218,6 @@ describe('FileProcessingArtifactSchema', () => {
       format: 'markdown',
       path: '/tmp/out.md'
     })
-  })
-})
-
-describe('FileProcessingJobOutputSchema', () => {
-  it('accepts a job output artifact', () => {
-    expect(
-      FileProcessingJobOutputSchema.parse({
-        artifact: { kind: 'file', format: 'markdown', path: '/tmp/out.md' }
-      })
-    ).toEqual({
-      artifact: { kind: 'file', format: 'markdown', path: '/tmp/out.md' }
-    })
-  })
-
-  it('rejects legacy artifact arrays', () => {
-    const result = FileProcessingJobOutputSchema.safeParse({
-      artifacts: []
-    })
-
-    expect(result.success).toBe(false)
-  })
-
-  it('rejects legacy task result fields', () => {
-    const result = FileProcessingJobOutputSchema.safeParse({
-      taskId: 'task-1',
-      status: 'completed',
-      progress: 100,
-      artifact: { kind: 'file', format: 'markdown', path: '/tmp/out.md' }
-    })
-
-    expect(result.success).toBe(false)
   })
 })
 

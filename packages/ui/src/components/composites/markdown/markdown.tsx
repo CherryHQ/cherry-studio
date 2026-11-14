@@ -33,6 +33,8 @@ export interface MarkdownProps {
   footnoteLabel?: string
   /** Preserve local file hrefs for a custom anchor while retaining URL hardening. */
   preserveFileLinkHrefs?: boolean
+  /** Extra href schemes permitted by the caller. */
+  additionalLinkProtocols?: readonly string[]
   /** Preserve relative image destinations for a custom image renderer. */
   preserveRelativeImageSrcs?: boolean
 }
@@ -48,6 +50,7 @@ export function Markdown({
   className,
   footnoteLabel,
   preserveFileLinkHrefs,
+  additionalLinkProtocols,
   preserveRelativeImageSrcs
 }: MarkdownProps): ReactElement {
   return (
@@ -62,6 +65,7 @@ export function Markdown({
       className={className}
       footnoteLabel={footnoteLabel}
       preserveFileLinkHrefs={preserveFileLinkHrefs}
+      additionalLinkProtocols={additionalLinkProtocols}
       preserveRelativeImageSrcs={preserveRelativeImageSrcs}>
       {children}
     </MarkdownCore>

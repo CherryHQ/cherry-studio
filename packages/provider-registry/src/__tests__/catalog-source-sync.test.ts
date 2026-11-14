@@ -12,13 +12,14 @@
  * (pricing on md-derived rows, inferred metadata) remain out of scope. Runs in the network-free
  * `provider-registry` test project (CI: test:provider-registry).
  */
+import { createHash } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import { describe, expect, it } from 'vitest'
 
-import { canonOf, prefixHit, splitOverrideWireId } from '../../scripts/canonicalize'
+import { canonOf, deriveOverrideModelId, prefixHit } from '../../scripts/canonicalize'
 import { CREATORS } from '../creators'
 import { REASONING_FAMILY_RULES } from '../patterns/reasoning-families.gen'
 import {
@@ -54,7 +55,13 @@ const stable = (v: unknown): string =>
 
 // Mirror buildProviders: drop the generation-only fields, template `description` (always overrides any
 // source `description`). The result is the exact source-derived provider payload the generator emits.
-const GEN_ONLY_PROVIDER_FIELDS = ['modelsDevProvider', 'fetchModels', 'standaloneModelIds', 'overrides']
+const GEN_ONLY_PROVIDER_FIELDS = [
+  'modelsDevProvider',
+  'fetchModels',
+  'standaloneModelIds',
+  'overrides',
+  'modelTemplates'
+]
 const expectedProviderPayload = (p: Record<string, unknown>) => {
   const conn = { ...p }
   for (const k of GEN_ONLY_PROVIDER_FIELDS) delete conn[k]
@@ -76,6 +83,23 @@ const overrideIdentity = (o: { providerId: string; modelId: string; apiModelId?:
   `${o.providerId}|${o.modelId}|${o.apiModelId ?? ''}|${(o.modelVariants ?? []).slice().sort().join(',')}`
 
 describe('catalog ↔ source sync (regenerate guard)', () => {
+  it.each(['models.json', 'providers.json', 'provider-models.json'])(
+    '%s version identifies its current content',
+    (file) => {
+      const { version, ...body } = read(file)
+      const canonical = JSON.stringify(body, (_key, value) =>
+        value && typeof value === 'object' && !Array.isArray(value)
+          ? Object.fromEntries(
+              Object.keys(value)
+                .sort()
+                .map((key) => [key, value[key]])
+            )
+          : value
+      )
+      expect(version).toBe(createHash('sha256').update(canonical).digest('hex').slice(0, 16))
+    }
+  )
+
   it('keeps AMD GPU Cloud in the twentieth slot used to seed new profiles', () => {
     expect(PROVIDERS[19]?.id).toBe('radeon-cloud')
     expect(providers[19]?.id).toBe('radeon-cloud')
@@ -129,47 +153,35 @@ describe('catalog ↔ source sync (regenerate guard)', () => {
     // (pricing/imageGeneration/disabled/… not regenerated) both fail.
     const rowByIdentity = new Map(overrides.map((o) => [overrideIdentity(o), o]))
     const problems: string[] = []
-    for (const p of PROVIDERS)
-      for (const raw of p.overrides ?? []) {
-        if (!raw.modelId) continue
-        // Generation splits an authored served-id into canonical key + apiModelId; mirror it here.
-        const ov = splitOverrideWireId(raw)
-        if (
-          p.modelsDevProvider &&
-          !ov.apiModelId &&
-          (ov.endpointTypes ||
-            ov.reasoningContracts ||
-            ov.requestControls ||
-            ov.parameterSupport ||
-            ov.name ||
-            ov.ownedBy ||
-            Object.hasOwn(ov, 'pricing'))
+    for (const p of PROVIDERS) {
+      for (const ov of p.modelTemplates ?? []) {
+        const rows = overrides.filter((row) => row.providerId === p.id && row.modelId === ov.modelId)
+        if (rows.length === 0) problems.push(`missing ${p.id}/${ov.modelId}/model-template`)
+        else if (
+          rows.some(
+            (row) =>
+              (Object.hasOwn(ov, 'endpointTypes') && stable(row.endpointTypes) !== stable(ov.endpointTypes)) ||
+              (Object.hasOwn(ov, 'pricing') && stable(row.pricing) !== stable(ov.pricing)) ||
+              (Object.hasOwn(ov, 'reasoningContracts') &&
+                stable(row.reasoningContracts) !== stable(ov.reasoningContracts)) ||
+              (Object.hasOwn(ov, 'requestControls') && stable(row.requestControls) !== stable(ov.requestControls)) ||
+              (Object.hasOwn(ov, 'parameterSupport') && stable(row.parameterSupport) !== stable(ov.parameterSupport)) ||
+              (Object.hasOwn(ov, 'name') && stable(row.name) !== stable(ov.name)) ||
+              (Object.hasOwn(ov, 'ownedBy') && stable(row.ownedBy) !== stable(ov.ownedBy))
+          )
         ) {
-          const rows = overrides.filter((row) => row.providerId === p.id && row.modelId === ov.modelId)
-          if (rows.length === 0) problems.push(`missing ${p.id}/${ov.modelId}/model-template`)
-          else if (
-            rows.some(
-              (row) =>
-                (Object.hasOwn(ov, 'endpointTypes') && stable(row.endpointTypes) !== stable(ov.endpointTypes)) ||
-                (Object.hasOwn(ov, 'pricing') && stable(row.pricing) !== stable(ov.pricing)) ||
-                (Object.hasOwn(ov, 'reasoningContracts') &&
-                  stable(row.reasoningContracts) !== stable(ov.reasoningContracts)) ||
-                (Object.hasOwn(ov, 'requestControls') && stable(row.requestControls) !== stable(ov.requestControls)) ||
-                (Object.hasOwn(ov, 'parameterSupport') &&
-                  stable(row.parameterSupport) !== stable(ov.parameterSupport)) ||
-                (Object.hasOwn(ov, 'name') && stable(row.name) !== stable(ov.name)) ||
-                (Object.hasOwn(ov, 'ownedBy') && stable(row.ownedBy) !== stable(ov.ownedBy))
-            )
-          ) {
-            problems.push(`stale ${p.id}/${ov.modelId}/model-template`)
-          }
-          continue
+          problems.push(`stale ${p.id}/${ov.modelId}/model-template`)
         }
+      }
+      for (const raw of p.overrides ?? []) {
+        // Generation derives the canonical key from the authored apiModelId; mirror it here.
+        const ov = deriveOverrideModelId(raw)
         const expected = { providerId: p.id, ...ov }
-        const row = rowByIdentity.get(overrideIdentity(expected as Parameters<typeof overrideIdentity>[0]))
+        const row = rowByIdentity.get(overrideIdentity(expected))
         if (!row) problems.push(`missing ${p.id}/${ov.modelId}/${ov.apiModelId ?? ''}`)
         else if (stable(row) !== stable(expected)) problems.push(`stale ${p.id}/${ov.modelId}/${ov.apiModelId ?? ''}`)
       }
+    }
     expect(problems).toEqual([])
   })
 
@@ -186,23 +198,44 @@ describe('catalog ↔ source sync (regenerate guard)', () => {
     const declaredKeys = new Set<string>()
 
     for (const provider of PROVIDERS) {
+      // Same-tool declarations split the serving scope; align each with its generated entry in order.
+      const declarationsByTool = new Map<string, NonNullable<typeof provider.serverTools>>()
       for (const tool of provider.serverTools ?? []) {
         if (tool.modelScope !== 'model-dependent') continue
-        const key = `${provider.id}/${tool.id}`
-        declaredKeys.add(key)
-        const generated = PROVIDER_SERVER_TOOL_MODEL_IDS[provider.id]?.[tool.id] ?? []
-        const exactIds = new Set(tool.modelIds ?? [])
-        const prefixes = tool.modelIdPrefixes ?? []
+        declaredKeys.add(`${provider.id}/${tool.id}`)
+        const list = declarationsByTool.get(tool.id) ?? []
+        list.push(tool)
+        declarationsByTool.set(tool.id, list)
+      }
+
+      for (const [toolId, declarations] of declarationsByTool) {
+        const key = `${provider.id}/${toolId}`
+        const generated = PROVIDER_SERVER_TOOL_MODEL_IDS[provider.id]?.[toolId] ?? []
 
         if (generated.length === 0) problems.push(`${key}: no generated models`)
-        for (const id of exactIds) {
-          if (!generated.includes(id)) problems.push(`${key}: exact model ${id} was not generated`)
+        if (generated.length !== declarations.length) {
+          problems.push(`${key}: ${generated.length} generated entries vs ${declarations.length} declarations`)
         }
-        for (const id of generated) {
-          if (!exactIds.has(id) && !prefixes.some((prefix) => prefixHit(id, prefix))) {
-            problems.push(`${key}: stale generated model ${id}`)
+        declarations.forEach((tool, i) => {
+          const entry = generated[i]
+          if (!entry) return
+          const exactIds = new Set(tool.modelIds ?? [])
+          const prefixes = tool.modelIdPrefixes ?? []
+
+          for (const id of exactIds) {
+            if (!entry.ids.includes(id)) problems.push(`${key}[${i}]: exact model ${id} was not generated`)
           }
-        }
+          for (const id of entry.ids) {
+            if (!exactIds.has(id) && !prefixes.some((prefix) => prefixHit(id, prefix))) {
+              problems.push(`${key}[${i}]: stale generated model ${id}`)
+            }
+          }
+          const declaredEndpoints = [...(tool.endpointTypes ?? [])].sort().join(',')
+          const generatedEndpoints = [...(entry.endpointTypes ?? [])].sort().join(',')
+          if (declaredEndpoints !== generatedEndpoints) {
+            problems.push(`${key}[${i}]: endpoint scope mismatch (${generatedEndpoints} vs ${declaredEndpoints})`)
+          }
+        })
       }
     }
 

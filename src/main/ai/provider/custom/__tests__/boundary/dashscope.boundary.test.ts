@@ -102,6 +102,23 @@ const CASES: Case[] = [
     })
   },
   {
+    name: 'chat-like (canonical qwen-image-3-0) → same family as the dotted apiModelId',
+    input: {
+      ...base,
+      modelId: 'qwen-image-3.0',
+      prompt: 'a fox',
+      modelDescriptor: descriptor('qwen-image-3-0', 'generate'),
+      providerParams: {}
+    },
+    schema: z.strictObject({
+      model: z.string(),
+      input: z.strictObject({
+        messages: z.array(z.strictObject({ role: z.literal('user'), content: z.array(messagePart) }))
+      }),
+      parameters: z.unknown().optional()
+    })
+  },
+  {
     name: 'wanx-v1 → input.ref_image + parameters.style/ref_*',
     input: {
       ...base,
@@ -198,6 +215,36 @@ describe('DashScope request boundary', () => {
       expect(req.body).toMatchSnapshot()
     })
   }
+
+  it('honors the injected proxy-aware fetch and provider extra headers', async () => {
+    const fetchSpy = vi
+      .fn()
+      .mockResolvedValue(
+        new Response(JSON.stringify({ output: { task_id: 't-1', task_status: 'PENDING' } }), { status: 200 })
+      )
+    const proxiedTransport = createDashScopeTransport({
+      apiKey: 'ds-key',
+      imageBaseURL: host,
+      fetch: fetchSpy,
+      headers: { 'X-Custom': 'on' }
+    })
+
+    const submit = await proxiedTransport.submit({
+      ...base,
+      modelId: 'qwen-image-3.0',
+      prompt: 'a fox',
+      modelDescriptor: descriptor('qwen-image-3.0', 'generate'),
+      providerParams: {}
+    })
+
+    expect(submit).toEqual({ taskId: 't-1' })
+    expect(fetchSpy).toHaveBeenCalledTimes(1)
+    const [url, init] = fetchSpy.mock.calls[0]
+    expect(String(url)).toBe(`${host}/api/v1/services/aigc/image`)
+    const headers = new Headers(init.headers as HeadersInit)
+    expect(headers.get('authorization')).toBe('Bearer ds-key')
+    expect(headers.get('x-custom')).toBe('on')
+  })
 
   it.each([
     {

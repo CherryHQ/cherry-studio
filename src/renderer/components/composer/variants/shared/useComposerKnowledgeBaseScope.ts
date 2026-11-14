@@ -1,4 +1,13 @@
-import { type Dispatch, type SetStateAction, useCallback, useEffect, useMemo, useRef } from 'react'
+import {
+  type Dispatch,
+  type RefObject,
+  type SetStateAction,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState
+} from 'react'
 
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 
@@ -15,6 +24,8 @@ interface UseComposerKnowledgeBaseScopeParams {
   scopeKey: string
   selectedKnowledgeBases: KnowledgeBase[]
   setSelectedKnowledgeBases: Dispatch<SetStateAction<KnowledgeBase[]>>
+  /** Ids saved in the draft cache, restored once the knowledge bases have loaded. */
+  initialKnowledgeBaseIds: readonly string[]
   /**
    * The caller remounts this hook whenever `scopeKey` changes — the Agent composer's tool provider is
    * keyed by agent + session, the same granularity as the scope. That makes a selection already
@@ -30,9 +41,18 @@ interface UseComposerKnowledgeBaseScopeResult {
   selectedKnowledgeBasesInScope: KnowledgeBase[]
   resolveKnowledgeBaseMarker: (marker: string) => ComposerDraftToken | null
   restoreKnowledgeBaseSelection: (baseIds: readonly string[]) => void
+  /** Whether the saved selection has been restored; draft writes must wait for this. */
+  isKnowledgeBaseDraftHydrated: boolean
+  /** Ids to persist with the draft, including saved ids that are not selectable right now. */
+  knowledgeBaseIdsRef: RefObject<string[]>
+  /** Folds the current selection into `knowledgeBaseIdsRef`, keeping ids that are unavailable for now. */
+  syncKnowledgeBaseIds: () => void
 }
 
-/** Owns knowledge-base availability, marker resolution, and selection pruning for one composer scope. */
+/**
+ * Owns knowledge-base availability, marker resolution, selection pruning, and the draft's saved
+ * knowledge-base ids for one composer scope.
+ */
 export function useComposerKnowledgeBaseScope({
   configuredKnowledgeBaseIds,
   allKnowledgeBases,
@@ -40,9 +60,15 @@ export function useComposerKnowledgeBaseScope({
   scopeKey,
   selectedKnowledgeBases,
   setSelectedKnowledgeBases,
+  initialKnowledgeBaseIds,
   remountsOnScopeChange
 }: UseComposerKnowledgeBaseScopeParams): UseComposerKnowledgeBaseScopeResult {
   const selectedKnowledgeBasesScopeKeyRef = useRef<string | null>(remountsOnScopeChange ? scopeKey : null)
+  const knowledgeBaseIdsRef = useRef([...initialKnowledgeBaseIds])
+  const observedKnowledgeBaseSelectionKeyRef = useRef<string | null>(
+    initialKnowledgeBaseIds.length === 0 ? JSON.stringify([]) : null
+  )
+  const [isKnowledgeBaseDraftHydrated, setIsKnowledgeBaseDraftHydrated] = useState(initialKnowledgeBaseIds.length === 0)
 
   const configuredKnowledgeBaseIdsKey = (configuredKnowledgeBaseIds ?? []).join(KNOWLEDGE_BASE_IDS_KEY_SEPARATOR)
   const configuredKnowledgeBaseIdSet = useMemo(
@@ -112,6 +138,22 @@ export function useComposerKnowledgeBaseScope({
     [selectableKnowledgeBases, setSelectedKnowledgeBases]
   )
 
+  // Draft-persist effects see selection changes only through this identity, so it must keep these deps.
+  const syncKnowledgeBaseIds = useCallback(() => {
+    const selectedKnowledgeBaseIds = selectedKnowledgeBasesInScope.map((base) => base.id)
+    const selectedKnowledgeBaseIdsKey = JSON.stringify(selectedKnowledgeBaseIds)
+    if (observedKnowledgeBaseSelectionKeyRef.current === null) {
+      observedKnowledgeBaseSelectionKeyRef.current = selectedKnowledgeBaseIdsKey
+    } else if (observedKnowledgeBaseSelectionKeyRef.current !== selectedKnowledgeBaseIdsKey) {
+      observedKnowledgeBaseSelectionKeyRef.current = selectedKnowledgeBaseIdsKey
+      const selectableKnowledgeBaseIdSet = new Set(selectableKnowledgeBases.map((base) => base.id))
+      const unresolvedKnowledgeBaseIds = knowledgeBaseIdsRef.current.filter(
+        (id) => !selectableKnowledgeBaseIdSet.has(id)
+      )
+      knowledgeBaseIdsRef.current = [...new Set([...unresolvedKnowledgeBaseIds, ...selectedKnowledgeBaseIds])]
+    }
+  }, [selectableKnowledgeBases, selectedKnowledgeBasesInScope])
+
   useEffect(() => {
     const scopeChanged = selectedKnowledgeBasesScopeKeyRef.current !== scopeKey
     selectedKnowledgeBasesScopeKeyRef.current = scopeKey
@@ -122,10 +164,29 @@ export function useComposerKnowledgeBaseScope({
     })
   }, [filterSelectableKnowledgeBases, scopeKey, setSelectedKnowledgeBases])
 
+  useEffect(() => {
+    if (isKnowledgeBaseDraftHydrated || isKnowledgeBasesLoading) return
+
+    const wantedIds = new Set(initialKnowledgeBaseIds)
+    const restoredIds = selectableKnowledgeBases.filter((base) => wantedIds.has(base.id)).map((base) => base.id)
+    observedKnowledgeBaseSelectionKeyRef.current = JSON.stringify(restoredIds)
+    restoreKnowledgeBaseSelection(initialKnowledgeBaseIds)
+    setIsKnowledgeBaseDraftHydrated(true)
+  }, [
+    initialKnowledgeBaseIds,
+    isKnowledgeBaseDraftHydrated,
+    isKnowledgeBasesLoading,
+    restoreKnowledgeBaseSelection,
+    selectableKnowledgeBases
+  ])
+
   return {
     selectableKnowledgeBases,
     selectedKnowledgeBasesInScope,
     resolveKnowledgeBaseMarker,
-    restoreKnowledgeBaseSelection
+    restoreKnowledgeBaseSelection,
+    isKnowledgeBaseDraftHydrated,
+    knowledgeBaseIdsRef,
+    syncKnowledgeBaseIds
   }
 }

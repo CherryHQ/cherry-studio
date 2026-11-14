@@ -1,7 +1,7 @@
 import { Icon } from '@iconify/react'
 import type { TFunction } from 'i18next'
 import { ChevronDown } from 'lucide-react'
-import { type MouseEvent, useCallback, useMemo, useState } from 'react'
+import { type MouseEvent, useCallback, useId, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@cherrystudio/ui'
@@ -31,6 +31,11 @@ interface ReportArtifactsViewModel {
 }
 
 export function isReportArtifactsToolResponse(toolResponse: ReportArtifactsToolResponse): boolean {
+  if (
+    toolResponse.tool.type === 'mcp' &&
+    (!('serverName' in toolResponse.tool) || toolResponse.tool.serverName !== 'cherry-tools')
+  )
+    return false
   const toolName = toolResponse.tool.name
   return toolName === REPORT_ARTIFACTS_TOOL_NAME || toolName.endsWith(`__${REPORT_ARTIFACTS_TOOL_NAME}`)
 }
@@ -42,7 +47,7 @@ export function getReportArtifactsViewModel(
   let summary: string | undefined
 
   for (const toolResponse of toolResponses) {
-    if (!isReportArtifactsToolResponse(toolResponse)) continue
+    if (!isReportArtifactsToolResponse(toolResponse) || toolResponse.status !== 'done') continue
 
     const parsed = reportArtifactsInputSchema.safeParse(toolResponse.arguments)
     if (!parsed.success) continue
@@ -74,8 +79,10 @@ const artifactDocumentFormats: Record<string, [string, string]> = {
   pdf: ['chat.input.tools.file_type.document', 'PDF'],
   md: ['chat.input.tools.file_type.document', 'Markdown'],
   markdown: ['chat.input.tools.file_type.document', 'Markdown'],
+  mdx: ['chat.input.tools.file_type.document', 'Markdown'],
   rtf: ['chat.input.tools.file_type.document', 'RTF'],
   odt: ['chat.input.tools.file_type.document', 'OpenDocument'],
+  epub: ['chat.input.tools.file_type.document', 'EPUB'],
   ppt: ['chat.input.tools.file_type.presentation', 'PowerPoint'],
   pptx: ['chat.input.tools.file_type.presentation', 'PowerPoint'],
   odp: ['chat.input.tools.file_type.presentation', 'OpenDocument'],
@@ -269,6 +276,8 @@ function ReportArtifactFileCard({ artifact }: { artifact: ReportArtifactView }) 
   )
 }
 
+const COLLAPSED_ARTIFACT_LIMIT = 3
+
 /**
  * Message-level footer for `report_artifacts` declarations. The tool call itself is hidden from the
  * inline tool stream; this card is appended after the complete message content so deliverables stay
@@ -279,17 +288,35 @@ export const MessageReportArtifacts = ({
 }: {
   toolResponses: readonly ReportArtifactsToolResponse[]
 }) => {
-  // Memoised: `getReportArtifactsViewModel` zod-parses each response, and this
-  // card re-renders on every streaming tick. `toolResponses` is already a stable
-  // memoised ref from `MessagePartsRenderer`, so this skips re-parsing per tick.
+  const { t } = useTranslation()
+  const [expanded, setExpanded] = useState(false)
+  const listId = useId()
   const viewModel = useMemo(() => getReportArtifactsViewModel(toolResponses), [toolResponses])
   if (!viewModel) return null
 
+  const hiddenCount = viewModel.artifacts.length - COLLAPSED_ARTIFACT_LIMIT
+  const visibleArtifacts = expanded ? viewModel.artifacts : viewModel.artifacts.slice(0, COLLAPSED_ARTIFACT_LIMIT)
+
   return (
     <div className="my-1 flex w-full flex-col gap-1.5">
-      {viewModel.artifacts.map((artifact) => (
-        <ReportArtifactFileCard key={artifact.path} artifact={artifact} />
-      ))}
+      <div id={listId} className="flex min-w-0 flex-col gap-1.5">
+        {visibleArtifacts.map((artifact) => (
+          <ReportArtifactFileCard key={artifact.path} artifact={artifact} />
+        ))}
+      </div>
+      {hiddenCount > 0 && (
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          aria-expanded={expanded}
+          aria-controls={listId}
+          className="self-start text-muted-foreground"
+          onClick={() => setExpanded((value) => !value)}>
+          <ChevronDown aria-hidden className={expanded ? 'rotate-180' : undefined} />
+          {expanded ? t('common.collapse') : t('chat.artifacts.show_remaining', { count: hiddenCount })}
+        </Button>
+      )}
     </div>
   )
 }

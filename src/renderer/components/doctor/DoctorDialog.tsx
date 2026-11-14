@@ -148,7 +148,7 @@ export function DoctorDialog({ initialDescription, initialPanel, initialRunTier,
                   aria-label={t('settings.about.feedback.history.title')}
                   title={t('settings.about.feedback.history.title')}
                   onClick={() => setHistoryOpen(true)}>
-                  <History className="size-4" aria-hidden />
+                  <History className="size-4 text-muted-foreground!" aria-hidden />
                 </Button>
               ) : null}
             </div>

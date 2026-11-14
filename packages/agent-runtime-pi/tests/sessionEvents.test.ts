@@ -1,0 +1,52 @@
+import { SessionManager } from '@earendil-works/pi-coding-agent'
+import { describe, expect, it } from 'vitest'
+
+import { type AgentRuntimeEvent, SessionEvents } from '../src/sessionEvents'
+
+it('delivers committed compaction entries before completion and preserves a later failure', () => {
+  const manager = SessionManager.inMemory('/tmp/runtime-events')
+  const events: AgentRuntimeEvent[] = []
+  const observer = new SessionEvents(manager, (event) => events.push(event))
+  const firstKeptEntryId = manager.appendMessage({ role: 'user', content: 'hello', timestamp: 1 })
+  observer.handle({ type: 'compaction_start', reason: 'manual' })
+  const id = manager.appendCompaction('summary', firstKeptEntryId, 100)
+  observer.flush()
+  manager.appendCustomEntry('unrelated', {})
+  observer.flush()
+  observer.handle({
+    type: 'compaction_end',
+    reason: 'manual',
+    aborted: false,
+    willRetry: false,
+    result: { summary: 'summary', firstKeptEntryId, tokensBefore: 100 }
+  })
+  observer.handle({ type: 'compaction_start', reason: 'threshold' })
+  observer.handle({
+    type: 'compaction_end',
+    reason: 'threshold',
+    aborted: false,
+    willRetry: false,
+    result: undefined,
+    errorMessage: 'summary unavailable'
+  })
+  const appended = events.findIndex(
+    (event) => event.type === 'session-append' && event.entries.some((entry) => entry.id === id)
+  )
+  expect(appended).toBeGreaterThanOrEqual(0)
+  expect(appended).toBeLessThan(events.findIndex((event) => event.type === 'compaction-end'))
+  expect(events.filter((event) => event.type === 'compaction-end')).toEqual([
+    { type: 'compaction-end', reason: 'manual', aborted: false },
+    { type: 'compaction-end', reason: 'threshold', error: 'summary unavailable', aborted: false }
+  ])
+})
+
+describe('compaction observation', () => {
+  it.each([true, false])('preserves native cancellation independently of an error message (aborted: %s)', (aborted) => {
+    const events: AgentRuntimeEvent[] = []
+    const observer = new SessionEvents(SessionManager.inMemory(), (event) => events.push(event))
+
+    observer.handle({ type: 'compaction_end', reason: 'threshold', result: undefined, aborted, willRetry: false })
+
+    expect(events).toEqual([{ type: 'compaction-end', reason: 'threshold', aborted }])
+  })
+})

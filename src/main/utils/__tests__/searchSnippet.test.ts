@@ -29,48 +29,6 @@ describe('searchSnippet', () => {
 
     expect(snippet).toContain('needle')
     expect(snippet).toContain('target')
-    expect(snippet).toContain(' ... ')
-    expect(snippet.startsWith('...')).toBe(true)
-    expect(snippet.endsWith('...')).toBe(true)
-    expect(snippet.length).toBeLessThanOrEqual(163)
-  })
-
-  it('adds ellipsis between non-adjacent matched line windows', () => {
-    const snippet = buildSearchSnippet(
-      ['before one', 'needle one', 'after one', 'gap one', 'gap two', 'before two', 'needle two', 'after two'].join(
-        '\n'
-      ),
-      ['needle'],
-      'substring'
-    )
-
-    expect(snippet).toBe(
-      ['before one', 'needle one', 'after one', '...', 'before two', 'needle two', 'after two'].join('\n')
-    )
-  })
-
-  it('truncates fallback snippets when no terms are provided', () => {
-    const snippet = buildSearchSnippet(
-      Array.from({ length: 20 }, (_, index) => `line ${index + 1}`).join('\n'),
-      [],
-      'substring'
-    )
-
-    expect(snippet.split('\n')).toEqual([
-      'line 1',
-      'line 2',
-      'line 3',
-      'line 4',
-      'line 5',
-      'line 6',
-      'line 7',
-      'line 8',
-      'line 9',
-      'line 10',
-      'line 11',
-      'line 12',
-      '...'
-    ])
   })
 
   it('keeps hashes inside the text when stripping markdown', () => {

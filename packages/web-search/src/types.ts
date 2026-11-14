@@ -5,6 +5,7 @@ export const REMOTE_PROVIDER_IDS = Object.freeze([
   'exa',
   'exa-mcp',
   'bocha',
+  'stepfun',
   'querit',
   'jina',
   'firecrawl',
@@ -12,7 +13,10 @@ export const REMOTE_PROVIDER_IDS = Object.freeze([
   'parallel',
   'serply',
   'yuanbao',
-  'deepseek'
+  'deepseek',
+  'desearch',
+  'searchapi',
+  'serpkite'
 ] as const)
 
 export type RemoteProviderId = (typeof REMOTE_PROVIDER_IDS)[number]

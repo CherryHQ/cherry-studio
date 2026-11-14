@@ -13,7 +13,7 @@ import { useWindowInitData } from '@renderer/hooks/useWindowInitData'
 import { ipcApi } from '@renderer/ipc'
 import { isMac } from '@renderer/utils/platform'
 import { cn } from '@renderer/utils/style'
-import type { SelectionActionSession } from '@shared/types/selection'
+import { SELECTION_BUILTIN_ACTION_ID, type SelectionActionSession } from '@shared/types/selection'
 
 import ActionGeneral from './components/ActionGeneral'
 import ActionTranslate from './components/ActionTranslate'
@@ -58,6 +58,7 @@ const SelectionActionContent: FC<{ action: SelectionActionSession }> = ({ action
   const [prevAction, setPrevAction] = useState(action)
   const [sessionId, setSessionId] = useState(0)
   const sourceEntityId = action.sessionId
+  const isTranslate = action.isBuiltIn && action.id === SELECTION_BUILTIN_ACTION_ID.TRANSLATE
   if (action !== prevAction) {
     setPrevAction(action)
     setSessionId((n) => n + 1)
@@ -234,6 +235,7 @@ const SelectionActionContent: FC<{ action: SelectionActionSession }> = ({ action
             placement="bottom">
             <WindowButton
               onClick={togglePin}
+              aria-label={isPinned ? t('selection.action.window.pinned') : t('selection.action.window.pin')}
               className={isPinned ? 'bg-accent text-accent-foreground hover:bg-accent' : ''}>
               <Pin className={cn('size-[13px] transition-transform', isPinned && 'rotate-45 text-accent-foreground')} />
             </WindowButton>
@@ -280,7 +282,7 @@ const SelectionActionContent: FC<{ action: SelectionActionSession }> = ({ action
         <div
           ref={contentElementRef}
           className="flex min-w-0 max-w-[1280px] flex-1 flex-col overflow-auto p-4 text-sm select-text">
-          {action.id == 'translate' && (
+          {isTranslate && (
             <ActionTranslate
               key={sessionId}
               action={action}
@@ -288,7 +290,7 @@ const SelectionActionContent: FC<{ action: SelectionActionSession }> = ({ action
               scrollToBottom={handleScrollToBottom}
             />
           )}
-          {action.id != 'translate' && (
+          {!isTranslate && (
             <ActionGeneral
               key={sessionId}
               action={action}

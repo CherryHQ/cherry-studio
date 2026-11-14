@@ -29,7 +29,7 @@ const getFileExtension = (fileName: string) => {
   return lastDotIndex > 0 ? fileName.slice(lastDotIndex) : ''
 }
 
-const createAttachmentFromPath = (filePath: AbsoluteFilePath): ComposerAttachment => {
+export const createAttachmentFromPath = (filePath: AbsoluteFilePath): ComposerAttachment => {
   const name = getBaseName(filePath)
   const ext = getFileExtension(name)
   return {

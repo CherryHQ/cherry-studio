@@ -434,4 +434,19 @@ describe('PowerService', () => {
       expect(service.isPreventingSleep()).toBe(false)
     })
   })
+
+  describe('restart', () => {
+    it('keeps firing power events after a stop and a restart', async () => {
+      const service = new PowerService()
+      await service._doInit()
+      await service._doStop()
+      await service._doInit()
+      const spy = vi.fn()
+      service.onSuspend(spy)
+
+      fire('suspend')
+
+      expect(spy).toHaveBeenCalledTimes(1)
+    })
+  })
 })

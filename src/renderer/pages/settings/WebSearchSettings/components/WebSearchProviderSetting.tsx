@@ -1,6 +1,6 @@
 import { useNavigate } from '@tanstack/react-router'
 import { isEmpty } from 'es-toolkit/compat'
-import { Activity, ArrowRight, ExternalLink, List, Loader2 } from 'lucide-react'
+import { Activity, ArrowRight, ExternalLink, List, Loader2, RefreshCw } from 'lucide-react'
 import type { FC, ReactNode } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -17,6 +17,7 @@ import {
   SelectValue,
   Tooltip
 } from '@cherrystudio/ui'
+import { useQuery } from '@data/hooks/useDataApi'
 import {
   SettingDivider,
   SettingGroup,
@@ -29,6 +30,7 @@ import {
 } from '@renderer/components/SettingsPrimitives'
 import { useTheme } from '@renderer/hooks/useTheme'
 import type { WebSearchBasicAuthPatch } from '@renderer/hooks/useWebSearch'
+import { toast } from '@renderer/services/toast'
 import { formatApiKeys, splitApiKeyString, withoutTrailingSlash } from '@renderer/utils/api'
 import {
   getWebSearchProviderApiKeyWebsite,
@@ -167,6 +169,16 @@ export const WebSearchProviderSetting: FC<Props> = ({
   const apiKeyWebsite = getWebSearchProviderApiKeyWebsite(provider.id)
   const officialWebsite = getWebSearchProviderOfficialWebsite(provider.id)
   const usesLlmProviderApiKey = provider.id === 'zhipu'
+  const syncsLlmProviderApiKey = provider.id === 'deepseek'
+  const { data: llmProviderApiKeyEntries } = useQuery('/providers/:providerId/api-keys', {
+    params: { providerId: provider.id },
+    query: { enabled: true },
+    enabled: syncsLlmProviderApiKey
+  })
+  const llmProviderApiKeys = useMemo(
+    () => llmProviderApiKeyEntries?.keys.map(({ key }) => key) ?? [],
+    [llmProviderApiKeyEntries]
+  )
   const showApiKeySettings =
     provider.type === 'api' && provider.id !== 'fetch' && provider.id !== 'searxng' && provider.id !== 'duckduckgo'
   const showInlineApiKeySettings = showApiKeySettings && !usesLlmProviderApiKey
@@ -175,6 +187,7 @@ export const WebSearchProviderSetting: FC<Props> = ({
   const showApiKeyCheckButton = showInlineApiKeySettings && providerCheck.canCheck
   const showApiHostCheckButton = !showApiKeyCheckButton && providerCheck.canCheck
   const showApiHostSetting = entry.providerCapability.apiHost !== undefined
+  const showApiKeySyncButton = syncsLlmProviderApiKey && llmProviderApiKeys.length > 0
 
   const commitApiKeysDraft = useCallback(async () => {
     if (!apiKeysDirty) {
@@ -286,6 +299,20 @@ export const WebSearchProviderSetting: FC<Props> = ({
     setApiKeyListOpen(true)
   }
 
+  const syncApiKeysFromLlmProvider = async () => {
+    const saved = await persist(
+      () => onSetApiKeys(provider.id, llmProviderApiKeys),
+      'Failed to sync web search API keys from model provider'
+    )
+    if (!saved.ok) {
+      return
+    }
+
+    setApiKeysInput(apiKeysToInput(llmProviderApiKeys))
+    setApiKeysBaseline(apiKeysToSignature(llmProviderApiKeys))
+    toast.success(t('settings.tool.websearch.sync_provider_api_keys_success'))
+  }
+
   const openLlmProviderSettings = () => {
     void navigate({ to: '/settings/provider', search: { id: provider.id } })
   }
@@ -375,6 +402,19 @@ export const WebSearchProviderSetting: FC<Props> = ({
                 spellCheck={false}
                 className="min-w-0 flex-1"
               />
+              {showApiKeySyncButton && (
+                <Tooltip content={t('settings.tool.websearch.sync_provider_api_keys')} delay={500}>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon-sm"
+                    className="size-8 shrink-0 text-muted-foreground shadow-none hover:text-foreground"
+                    aria-label={t('settings.tool.websearch.sync_provider_api_keys')}
+                    onClick={() => void syncApiKeysFromLlmProvider()}>
+                    <RefreshCw size={14} />
+                  </Button>
+                </Tooltip>
+              )}
               <Tooltip content={t('settings.provider.api.key.list.open')} delay={500}>
                 <Button
                   type="button"

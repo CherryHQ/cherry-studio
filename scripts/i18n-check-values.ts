@@ -2,6 +2,8 @@
 import * as fs from 'fs'
 import * as path from 'path'
 
+import { localeKeySpec } from './i18n-plurals'
+
 /** Catalogs are flat: every key is a dotted path mapping straight to its translated string. */
 type I18N = { [key: string]: string }
 type Glossary = { doNotTranslate: string[] }
@@ -12,7 +14,9 @@ const CATALOG_DIRECTORIES = ['src/renderer/i18n/locales', 'src/main/i18n/locales
 const ALLOWED_EMPTY_SOURCE_KEYS = new Set(['src/renderer/i18n/locales:settings.provider.oauth.provided_by_suffix'])
 
 const interpolations = (text: string) => (text.match(/{{[^}]*}}/g) ?? []).sort()
-const tagPlaceholders = (text: string) => (text.match(/<\/?[\w-]+\s*\/?>/g) ?? []).sort()
+// The name stays [\w-]+ so numeric Trans tags like <0> are still compared; [^>]* keeps
+// attribute-bearing tags like <a href="..."> in the comparison too.
+const tagPlaceholders = (text: string) => (text.match(/<\/?[\w-]+(?:\s[^>]*)?\/?>/g) ?? []).sort()
 const nestedKeys = (text: string) => (text.match(/\$t\([^)]*\)/g) ?? []).sort()
 
 /** Case and separators vary legitimately: "Github", "Cherry-Studio-Diagnose". Spelling does not. */
@@ -85,8 +89,10 @@ export const checkTranslationValues = (): { checked: number; failures: string[] 
       if (filename === `${BASE_LOCALE}.json`) continue
 
       const target = readJson(path.join(catalogPath, filename))
+      const { sourceKey } = localeKeySpec(base, filename)
       for (const [key, translation] of Object.entries(target)) {
-        const english = base[key]
+        const source = sourceKey.get(key)
+        const english = source === undefined ? undefined : base[source]
         if (english === undefined) continue
 
         checked++

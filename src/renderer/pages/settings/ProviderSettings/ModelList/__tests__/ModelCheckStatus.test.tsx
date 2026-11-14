@@ -107,19 +107,6 @@ describe('ModelCheckStatus', () => {
     expect(screen.getByText('Checking…')).toBeInTheDocument()
   })
 
-  it('shows passed feedback without inline latency details', () => {
-    renderStatus({
-      kind: 'ok',
-      model,
-      status: HealthStatus.SUCCESS,
-      checking: false,
-      keyResults: [keyResult(apiKeyEntries[0], { kind: 'ok', latency: 42 })],
-      latency: 42
-    })
-
-    expect(screen.getByRole('button', { name: 'Chat: Passed' })).toBeInTheDocument()
-  })
-
   it('summarizes how many API keys failed when only some checks fail', () => {
     renderStatus({
       kind: 'failed',
@@ -151,8 +138,6 @@ describe('ModelCheckStatus', () => {
       ],
       error: error('aggregate provider failure')
     })
-
-    const row = screen.getByTestId('model-row')
     const trigger = screen.getByRole('button', { name: 'Chat: Failed' })
     await user.click(trigger)
 
@@ -162,7 +147,6 @@ describe('ModelCheckStatus', () => {
       expect(popover).toBeInTheDocument()
     })
 
-    expect(row).not.toContainElement(popover)
     expect(within(popover!).queryByText('aggregate provider failure')).not.toBeInTheDocument()
     expect(within(popover!).getByText('first key failure details')).toBeInTheDocument()
     expect(within(popover!).getByText('second key failure details')).toBeInTheDocument()

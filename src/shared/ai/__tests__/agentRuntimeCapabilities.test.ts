@@ -10,6 +10,7 @@ import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 
 import { AGENT_RUNTIME_CAPABILITIES } from '../agentRuntimeCapabilities'
+import { normalizePiDisabledToolId } from '../piBuiltinTools'
 
 function makeProvider(overrides: Partial<Provider>): Provider {
   return {
@@ -36,14 +37,12 @@ function makeModel(overrides: Partial<Model>): Model {
 }
 
 describe('AGENT_RUNTIME_CAPABILITIES', () => {
-  it('keeps permission choices aligned with each runtime approval implementation', () => {
-    expect(AGENT_RUNTIME_CAPABILITIES['claude-code'].permissionModes).toContain('plan')
-    expect(AGENT_RUNTIME_CAPABILITIES['claude-code'].permissionModes).toContain('auto')
-    expect(AGENT_RUNTIME_CAPABILITIES.pi.permissionModes).not.toContain('plan')
-    // pi implements `auto` itself in the approval extension, so it offers it.
-    expect(AGENT_RUNTIME_CAPABILITIES.pi.permissionModes).toContain('auto')
-    expect(AGENT_RUNTIME_CAPABILITIES['claude-code'].createDefaults.permissionMode).toBe('auto')
-    expect(AGENT_RUNTIME_CAPABILITIES.pi.createDefaults.permissionMode).toBe('auto')
+  it.each(['pi', 'pi-durable'] as const)('offers PowerShell only on Windows for %s', (runtime) => {
+    const tools = AGENT_RUNTIME_CAPABILITIES[runtime].builtinTools
+    expect(tools('win32').map((tool) => tool.id)).toContain('powershell')
+    expect(tools('darwin').map((tool) => tool.id)).not.toContain('powershell')
+    expect(tools('linux').map((tool) => tool.id)).not.toContain('powershell')
+    expect(normalizePiDisabledToolId('PowerShell')).toBe('powershell')
   })
 
   describe('isModelCompatible — managed CherryAI default model', () => {

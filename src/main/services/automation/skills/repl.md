@@ -1,7 +1,7 @@
 # Automation REPL
 
 This persistent standard-JavaScript environment works independently of Code Mode.
-Only enabled Browser/Computer host APIs are available. Node modules, filesystem,
+Only the host APIs enabled for this session are available. Node modules, filesystem,
 subprocesses, fetch and timers are unavailable. Use the live API documentation.
 
 First bind a target in its own cell, then read the documentation and initial state.
@@ -23,11 +23,12 @@ fails, do not repeat earlier completed actions. Stop at a failure and observe be
 recovery; never automatically replay a cell. Output marked OMITTED is not evidence.
 
 Ordinary JS errors retain valid bindings. Cancellation, process failure or an API
-change clears JS state. Cells have a 60-second deadline; idle sessions expire after
+change clears JS state. Cells have a 60-second execution deadline, excluding time
+waiting for application approval; idle sessions expire after
 30 minutes. Reset clears variables and releases leases without closing user apps or
 pages, restoring permissions, or bypassing user stop. The host owns all control.
 
 Across turns, observe before using a retained handle. After context loss, call
-`browser.documentation()` or `computer.documentation()` to reread these rules and
+the `documentation()` method of an enabled capability to reread these rules and
 the enabled surface's API. A new generation requires rebinding. Do not invent
 permission instructions or claim a runtime failure means the user stopped control.

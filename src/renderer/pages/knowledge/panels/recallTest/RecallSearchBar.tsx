@@ -2,7 +2,7 @@ import { History, Search, Zap } from 'lucide-react'
 import type { FocusEvent, MouseEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button, Input } from '@cherrystudio/ui'
+import { Button, Input, ScrollArea } from '@cherrystudio/ui'
 
 import RecallHistoryList from './RecallHistoryList'
 import { useRecallQuery, useRecallResult } from './RecallTestProvider'
@@ -72,12 +72,14 @@ const RecallSearchBar = () => {
         ) : null}
 
         {hasHistory && isHistoryOpen ? (
-          <div
+          <ScrollArea
+            type="auto"
             data-recall-history
-            className="absolute top-full right-0 left-0 z-300 mt-1 max-h-45 overflow-y-auto rounded-lg border border-border bg-popover p-1 shadow-lg [&::-webkit-scrollbar]:w-0.75 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-[var(--scrollbar-thumb)]"
+            className="absolute top-full right-0 left-0 z-300 mt-1 max-h-45 rounded-lg border border-border bg-popover shadow-lg"
+            contentProps={{ className: 'p-1' }}
             onMouseDown={keepInputFocus}>
             <RecallHistoryList />
-          </div>
+          </ScrollArea>
         ) : null}
       </div>
 

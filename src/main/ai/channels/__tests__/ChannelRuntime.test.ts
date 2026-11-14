@@ -159,7 +159,8 @@ describe('ChannelRuntime', () => {
     await runtime.dispose()
   })
 
-  it('stops after a failed target and retries only after a later request', async () => {
+  it('retries failed connections with exponential backoff and exposes disconnected status', async () => {
+    vi.useFakeTimers()
     const connectError = new Error('invalid token')
     let attempt = 0
     const hooks = createHooks(
@@ -175,20 +176,76 @@ describe('ChannelRuntime', () => {
           },
           channel.type === 'telegram' ? channel.config.bot_token : '',
           undefined,
-          attempt === 1 ? connectError : undefined
+          attempt < 3 ? connectError : undefined
         )
       }
     )
     const runtime = new ChannelRuntime('ch-1', hooks)
 
-    runtime.requestReconcile()
-    await expect(runtime.flush()).rejects.toBe(connectError)
-    expect(attempt).toBe(1)
+    try {
+      runtime.requestReconcile()
+      await expect(runtime.flush()).rejects.toBe(connectError)
+      expect(attempt).toBe(1)
+      expect(hooks.onStatus).toHaveBeenLastCalledWith({
+        channelId: 'ch-1',
+        connected: false,
+        error: 'invalid token'
+      })
 
-    await runtime.reconcile()
-    expect(attempt).toBe(2)
-    expect(runtime.adapter?.connected).toBe(true)
-    await runtime.dispose()
+      await vi.advanceTimersByTimeAsync(999)
+      expect(attempt).toBe(1)
+      await vi.advanceTimersByTimeAsync(1)
+      await expect(runtime.flush()).rejects.toBe(connectError)
+      expect(attempt).toBe(2)
+
+      await vi.advanceTimersByTimeAsync(1_999)
+      expect(attempt).toBe(2)
+      await vi.advanceTimersByTimeAsync(1)
+      await runtime.flush()
+      expect(attempt).toBe(3)
+      expect(runtime.adapter?.connected).toBe(true)
+    } finally {
+      await runtime.dispose()
+      vi.useRealTimers()
+    }
+  })
+
+  it('cancels a scheduled connection retry when the channel is disabled', async () => {
+    vi.useFakeTimers()
+    let desired: ChannelRuntimeDesired = { kind: 'connected', channel: makeChannel(), agentId: 'agent-1' }
+    let attempt = 0
+    const hooks = createHooks(
+      () => desired,
+      async (channel, agentId) => {
+        attempt++
+        return new ControlledAdapter(
+          {
+            channelId: channel.id,
+            channelType: channel.type,
+            agentId,
+            channelConfig: channel.config
+          },
+          channel.type === 'telegram' ? channel.config.bot_token : '',
+          undefined,
+          new Error('network unavailable')
+        )
+      }
+    )
+    const runtime = new ChannelRuntime('ch-1', hooks)
+
+    try {
+      runtime.requestReconcile()
+      await expect(runtime.flush()).rejects.toThrow('network unavailable')
+      desired = { kind: 'disconnected' }
+      await runtime.reconcile()
+
+      await vi.advanceTimersByTimeAsync(60_000)
+      expect(attempt).toBe(1)
+      expect(runtime.adapter).toBeUndefined()
+    } finally {
+      await runtime.dispose()
+      vi.useRealTimers()
+    }
   })
 
   it('does not create a replacement transport until the old one disconnects', async () => {

@@ -4,6 +4,7 @@
 
 import * as z from 'zod'
 
+import { UniqueModelIdSchema } from '@shared/data/types/model'
 import { TraceIdSchema } from '@shared/data/types/trace'
 
 import type { CursorPaginationResponse } from '../types'
@@ -28,6 +29,8 @@ export const SessionNameEntitySchema = z.string().max(255)
 export const AgentSessionEntitySchema = z.strictObject({
   id: z.string(),
   agentId: z.string().nullable(),
+  /** Per-session model override; null/missing follows the parent agent's model. */
+  model: UniqueModelIdSchema.nullable().optional(),
   /** May be empty for an untitled placeholder session, matching topic.name semantics. */
   name: SessionNameEntitySchema,
   isNameManuallyEdited: z.boolean(),
@@ -51,6 +54,7 @@ export const CreateAgentSessionSchema = z.strictObject({
   agentId: z.string().min(1),
   name: SessionNameEntitySchema,
   description: z.string().optional(),
+  model: UniqueModelIdSchema.nullable().optional(),
   workspace: AgentSessionWorkspaceSourceSchema
 })
 export type CreateAgentSessionDto = z.infer<typeof CreateAgentSessionSchema>
@@ -59,7 +63,8 @@ export const UpdateAgentSessionSchema = z.strictObject({
   name: SessionNameEntitySchema.optional(),
   isNameManuallyEdited: z.boolean().optional(),
   description: z.string().optional(),
-  agentId: z.string().min(1).optional()
+  agentId: z.string().min(1).optional(),
+  model: UniqueModelIdSchema.nullable().optional()
 })
 
 export type UpdateAgentSessionDto = z.infer<typeof UpdateAgentSessionSchema>
@@ -86,6 +91,12 @@ export const ListAgentSessionsQuerySchema = z.strictObject({
 })
 export type ListAgentSessionsQueryParams = z.input<typeof ListAgentSessionsQuerySchema>
 export type ListAgentSessionsQuery = z.output<typeof ListAgentSessionsQuerySchema>
+
+/** Ordinary conversation entry can reject task-owned sessions without restricting task history reads. */
+export const GetAgentSessionQuerySchema = z.strictObject({
+  excludeTaskSessions: z.boolean().optional()
+})
+export type GetAgentSessionQuery = z.infer<typeof GetAgentSessionQuerySchema>
 
 /** Optional owner scope for `GET /agent-sessions/latest`; omitted means global latest. */
 export const LatestAgentSessionQuerySchema = z.strictObject({
@@ -152,6 +163,7 @@ export type AgentSessionSchemas = {
   '/agent-sessions/:sessionId': {
     GET: {
       params: { sessionId: string }
+      query?: GetAgentSessionQuery
       response: AgentSessionEntity
     }
     PATCH: {

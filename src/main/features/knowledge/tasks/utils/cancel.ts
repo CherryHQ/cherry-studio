@@ -1,7 +1,9 @@
 import { application } from '@application'
 import { knowledgeItemService } from '@data/services/KnowledgeItemService'
+import type { FileProcessingTaskId } from '@main/features/fileProcessing'
 import { ACTIVE_JOB_STATUSES, type JobSnapshot } from '@shared/data/api/schemas/jobs'
 
+import type { FileProcessingWaitManager } from '../../ingestion/FileProcessingWaitManager'
 import { KNOWLEDGE_ACTIVE_JOB_LIMIT, KNOWLEDGE_JOB_TYPES, knowledgeQueueName, toKnowledgeBaseId } from '../../types'
 import { narrowKnowledgeJobInput } from './jobInput'
 
@@ -9,6 +11,13 @@ export async function cancelJobOrThrow(jobId: string, reason: string): Promise<v
   const result = await application.get('JobManager').cancel(jobId, reason)
   if (result.outcome === 'timed-out') {
     throw new Error(`Job cancel timed out: ${jobId}`)
+  }
+}
+
+export async function cancelFileProcessingTaskOrThrow(taskId: FileProcessingTaskId, reason: string): Promise<void> {
+  const outcome = await application.get('FileProcessingService').cancelTask(taskId, reason)
+  if (outcome === 'timed-out') {
+    throw new Error(`File processing task cancel timed out: ${taskId}`)
   }
 }
 
@@ -25,6 +34,8 @@ export interface CancelActiveKnowledgeJobsOptions {
    *  'proceed': cancel without checking outcome — base deletion must not get stuck on
    *  one slow-to-cancel job. */
   onCancelTimeout: 'throw' | 'proceed'
+  /** The file-processing tasks items are waiting on, cancelled along with the knowledge jobs. */
+  fileProcessingWaits: FileProcessingWaitManager
 }
 
 /**
@@ -41,7 +52,7 @@ export async function cancelActiveKnowledgeJobs(
   reason: string,
   options: CancelActiveKnowledgeJobsOptions
 ): Promise<void> {
-  const { rootItemIds, excludeJobId, onCancelTimeout } = options
+  const { rootItemIds, excludeJobId, onCancelTimeout, fileProcessingWaits } = options
 
   let subtreeItemIds: Set<string> | undefined
   if (rootItemIds) {
@@ -58,14 +69,22 @@ export async function cancelActiveKnowledgeJobs(
     onCancelTimeout === 'throw'
       ? (jobId) => cancelJobOrThrow(jobId, reason)
       : (jobId) => jobManager.cancel(jobId, reason)
+  const cancelTask: (taskId: FileProcessingTaskId) => Promise<unknown> =
+    onCancelTimeout === 'throw'
+      ? (taskId) => cancelFileProcessingTaskOrThrow(taskId, reason)
+      : (taskId) => application.get('FileProcessingService').cancelTask(taskId, reason)
 
   const collectAndCancel = async (activeJobs: JobSnapshot[]): Promise<void> => {
     const jobIds = activeJobs
       .filter((job) => job.id !== excludeJobId)
       .filter((job) => !subtreeItemIds || jobTouchesSubtree(job, subtreeItemIds))
       .map((job) => job.id)
-    const fileProcessingJobIds = activeJobs.flatMap((job) => getLinkedFileProcessingJobIds(job, subtreeItemIds))
-    await Promise.all([...jobIds, ...fileProcessingJobIds].map(cancelOne))
+    await Promise.all(jobIds.map(cancelOne))
+  }
+  // Read the waits only after the knowledge cancels settle: a copy job cancelled after its commit
+  // still starts file processing before it returns.
+  const cancelFileProcessingTasks = async (): Promise<void> => {
+    await Promise.all(fileProcessingWaits.taskIds(baseId, subtreeItemIds).map(cancelTask))
   }
 
   if (subtreeItemIds) {
@@ -82,6 +101,7 @@ export async function cancelActiveKnowledgeJobs(
       type: [...KNOWLEDGE_JOB_TYPES]
     })
     await collectAndCancel(activeJobs)
+    await cancelFileProcessingTasks()
     return
   }
 
@@ -101,6 +121,7 @@ export async function cancelActiveKnowledgeJobs(
       break
     }
   }
+  await cancelFileProcessingTasks()
 }
 
 function jobTouchesSubtree(job: { type: string; input: unknown }, subtreeIds: Set<string>): boolean {
@@ -112,20 +133,4 @@ function jobTouchesSubtree(job: { type: string; input: unknown }, subtreeIds: Se
     return true
   }
   return 'rootItemIds' in narrowed.input && narrowed.input.rootItemIds.some((itemId) => subtreeIds.has(itemId))
-}
-
-/** Linked file-processing jobs for a knowledge job, optionally filtered to a subtree scope. */
-function getLinkedFileProcessingJobIds(
-  job: { type: string; input: unknown },
-  subtreeIds: Set<string> | undefined
-): string[] {
-  const narrowed = narrowKnowledgeJobInput(job)
-  if (
-    narrowed?.type === 'knowledge.check-file-processing-result' &&
-    (!subtreeIds || subtreeIds.has(narrowed.input.itemId)) &&
-    narrowed.input.fileProcessingJobId
-  ) {
-    return [narrowed.input.fileProcessingJobId]
-  }
-  return []
 }

@@ -150,7 +150,7 @@ export type McpFunctionCallToolNameParts = {
  * `mcp__{server}__{tool}`.
  *
  * Callers feed this raw provider payloads, where a tool name typed as `string`
- * can still be absent at runtime (see `ClaudeCodeStreamAdapter`), so a missing
+ * can still be absent at runtime (see `ClaudeMessageMetadata`), so a missing
  * name parses as "not an MCP name" rather than throwing.
  */
 export function parseFunctionCallToolName(toolName: string | undefined): McpFunctionCallToolNameParts | null {

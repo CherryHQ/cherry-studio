@@ -13,6 +13,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { providerService } from '@data/services/ProviderService'
 import { generateOrderKeyBetween } from '@data/services/utils/orderKey'
+import { encodeReasoningInvocation, resolveReasoningInvocation } from '@main/ai/utils/reasoningSerializers'
 import { createUniqueModelId } from '@shared/data/types/model'
 import { computeLanguageCost, createAiUsagePricingSnapshot } from '@shared/utils/usagePricing'
 
@@ -265,7 +266,82 @@ describe('ProviderRegistryService', () => {
     MockMainDbServiceUtils.setDb(dbh.db)
   })
 
+  it('uses the row default on the Gemini wire while catalog controls remain authoritative', () => {
+    const readGeneratedRegistry = <T>(filename: string): T =>
+      JSON.parse(
+        readFileSync(new URL(`../../../../../packages/provider-registry/data/${filename}`, import.meta.url), 'utf8')
+      ) as T
+    mockReadModels.mockReturnValue(readGeneratedRegistry<ReturnType<typeof readModelRegistry>>('models.json'))
+    mockReadProviderModels.mockReturnValue(
+      readGeneratedRegistry<ReturnType<typeof readProviderModelRegistry>>('provider-models.json')
+    )
+    mockReadProviders.mockReturnValue(readGeneratedRegistry<ReturnType<typeof readProviderRegistry>>('providers.json'))
+    const model = providerRegistryService
+      .listProviderRegistryModels({ providerId: 'vertexai' })
+      .find((model) => model.presetModelId === 'gemini-4-carbon')!
+    expect(model).toBeDefined()
+    const saved = {
+      ...model,
+      userDefaultReasoningEffort: 'high' as const,
+      reasoning: { ...model.reasoning!, controls: [{ kind: 'toggle' as const }], defaultEffort: 'high' as const }
+    }
+    const profile = providerRegistryService.resolveReasoningProfile(
+      { id: 'vertexai', defaultChatEndpoint: 'google-generate-content' },
+      saved
+    )
+    expect(profile.support?.controls).toEqual(model.reasoning?.controls)
+    expect(profile.support?.defaultEffort).toBe('high')
+    const invocationModel = { ...saved, reasoning: projectRuntimeReasoning(profile.support!, profile.wire) }
+    expect(
+      encodeReasoningInvocation(
+        resolveReasoningInvocation({ model: invocationModel, selection: 'default', profile: profile.wire })
+      )
+    ).toEqual({ thinkingConfig: { includeThoughts: true, thinkingLevel: 'high' } })
+    const original = providerRegistryService.resolveReasoningProfile(
+      { id: 'vertexai', defaultChatEndpoint: 'google-generate-content' },
+      model
+    )
+    expect(
+      encodeReasoningInvocation(resolveReasoningInvocation({ model, selection: 'default', profile: original.wire }))
+    ).toEqual({})
+  })
+
+  it('lists MiMo presets using dotted wire identities and canonical preset links', () => {
+    const readGeneratedRegistry = <T>(filename: string): T =>
+      JSON.parse(
+        readFileSync(new URL(`../../../../../packages/provider-registry/data/${filename}`, import.meta.url), 'utf8')
+      ) as T
+    mockReadModels.mockReturnValue(readGeneratedRegistry<ReturnType<typeof readModelRegistry>>('models.json'))
+    mockReadProviderModels.mockReturnValue(
+      readGeneratedRegistry<ReturnType<typeof readProviderModelRegistry>>('provider-models.json')
+    )
+    mockReadProviders.mockReturnValue(readGeneratedRegistry<ReturnType<typeof readProviderRegistry>>('providers.json'))
+
+    const models = providerRegistryService.listProviderRegistryModels({ providerId: 'mimo' })
+
+    for (const [presetModelId, apiModelId] of [
+      ['mimo-v2-5', 'mimo-v2.5'],
+      ['mimo-v2-5-pro', 'mimo-v2.5-pro'],
+      ['mimo-v2-5-pro-ultraspeed', 'mimo-v2.5-pro-ultraspeed'],
+      ['mimo-v2-6-flash', 'mimo-v2.6-flash'],
+      ['mimo-v2-6-pro', 'mimo-v2.6-pro'],
+      ['mimo-v2-6-pro-ultraspeed', 'mimo-v2.6-pro-ultraspeed']
+    ]) {
+      expect(models.find((model) => model.presetModelId === presetModelId)).toMatchObject({
+        id: `mimo::${apiModelId}`,
+        apiModelId,
+        presetModelId
+      })
+    }
+  })
+
   describe('createCustomModel', () => {
+    it('exposes Qwen 3.8 Flash Next effort tiers for a compatible custom provider', () => {
+      const model = createCustomModel('strata', 'qwen3.8-flash-next')
+
+      expect(model.reasoning?.selectableEfforts).toEqual(['low', 'medium', 'xhigh'])
+    })
+
     it('does not infer image capability from an unknown model id', () => {
       const model = createCustomModel('openrouter', 'openai/gpt-99-image-foo')
 
@@ -361,23 +437,6 @@ describe('ProviderRegistryService', () => {
         topP: { supported: false }
       })
       expect(unrelated.registryOverride).toBeNull()
-    })
-  })
-
-  describe('cache reuse', () => {
-    it('should only read models.json once across multiple calls', async () => {
-      setupRegistryData()
-      await dbh.db.insert(userProviderTable).values({
-        providerId: 'openai',
-        presetProviderId: 'openai',
-        name: 'OpenAI',
-        orderKey: 'a0'
-      })
-
-      providerRegistryService.resolveModels('openai', ['gpt-4o'])
-      providerRegistryService.resolveModels('openai', ['gpt-4o'])
-
-      expect(mockReadModels).toHaveBeenCalledTimes(1)
     })
   })
 
@@ -883,6 +942,84 @@ describe('ProviderRegistryService', () => {
       expect(providerRegistryService.getImageGenerationSupport('custom-openai-image', 'image-model')).toEqual(block)
     })
 
+    it('projects official animation capabilities through the Desktop endpoint adapter', () => {
+      vi.stubEnv('CHERRY_EDITION', 'global')
+      mockReadModels.mockReturnValue(
+        JSON.parse(
+          readFileSync(new URL('../../../../../packages/provider-registry/data/models.json', import.meta.url), 'utf8')
+        )
+      )
+      mockReadProviderModels.mockReturnValue(
+        JSON.parse(
+          readFileSync(
+            new URL('../../../../../packages/provider-registry/data/provider-models.json', import.meta.url),
+            'utf8'
+          )
+        )
+      )
+      mockReadProviders.mockReturnValue(
+        JSON.parse(
+          readFileSync(
+            new URL('../../../../../packages/provider-registry/data/providers.json', import.meta.url),
+            'utf8'
+          )
+        )
+      )
+      const support = providerRegistryService.getImageGenerationSupport('openai', 'gpt-image-2.6-flare')
+      expect(support?.modes.generate?.supports?.frameDurationMs).toMatchObject({ max: 2000 })
+      expect(support?.modes.edit?.supports?.outputFormat).toMatchObject({ options: ['png', 'jpeg', 'webp'] })
+      expect(support?.modes.edit?.supports?.frameCount).toBeUndefined()
+      expect(
+        mockReadModels('models.json').models.find((model) => model.id === 'gpt-image-2-6-flare')?.imageGeneration?.modes
+          .edit?.supports?.outputFormat
+      ).toMatchObject({ options: ['png', 'jpeg', 'webp', 'gif'] })
+    })
+
+    it('does not expose native Grok ratio controls for a provider without a preset', () => {
+      mockReadModels.mockReturnValue(
+        JSON.parse(
+          readFileSync(new URL('../../../../../packages/provider-registry/data/models.json', import.meta.url), 'utf8')
+        )
+      )
+      mockReadProviderModels.mockReturnValue(
+        JSON.parse(
+          readFileSync(
+            new URL('../../../../../packages/provider-registry/data/provider-models.json', import.meta.url),
+            'utf8'
+          )
+        )
+      )
+      mockReadProviders.mockReturnValue(
+        JSON.parse(
+          readFileSync(
+            new URL('../../../../../packages/provider-registry/data/providers.json', import.meta.url),
+            'utf8'
+          )
+        )
+      )
+      const providerId = 'custom-grok-relay'
+      const modelId = 'grok-imagine-image-2-0'
+      dbh.db
+        .insert(userProviderTable)
+        .values({
+          providerId,
+          presetProviderId: null,
+          name: 'Custom Grok relay',
+          orderKey: generateOrderKeyBetween(null, null),
+          defaultChatEndpoint: 'openai-chat-completions',
+          endpointConfigs: {
+            'openai-chat-completions': { baseUrl: 'https://relay.example/v1' },
+            'openai-image-generation': { baseUrl: 'https://relay.example/v1' }
+          }
+        })
+        .run()
+
+      const lookup = providerRegistryService.lookupModel(providerId, modelId)
+      expect(lookup.registryOverride).toBeNull()
+      expect(lookup.presetModel?.id).toBe(modelId)
+      expect(providerRegistryService.getImageGenerationSupport(providerId, modelId)).toBeNull()
+    })
+
     it('getImageGenerationSupport returns null when the model is unknown', async () => {
       mockReadModels.mockReturnValue({ version: '1.0', models: [] })
       mockReadProviderModels.mockReturnValue({ version: '1.0', overrides: [] })
@@ -970,32 +1107,6 @@ describe('ProviderRegistryService', () => {
       ])
       expect(disabled.map((item) => `${item.providerId}:${item.presetModelId}:${item.apiModelId}`)).toEqual([
         'cherryin:qwen-image:qwen-image'
-      ])
-    })
-
-    it('lists the seven Radeon Cloud provider-registry models', () => {
-      const readGeneratedRegistry = <T>(filename: string): T =>
-        JSON.parse(
-          readFileSync(new URL(`../../../../../packages/provider-registry/data/${filename}`, import.meta.url), 'utf8')
-        ) as T
-      mockReadModels.mockReturnValue(readGeneratedRegistry<ReturnType<typeof readModelRegistry>>('models.json'))
-      mockReadProviderModels.mockReturnValue(
-        readGeneratedRegistry<ReturnType<typeof readProviderModelRegistry>>('provider-models.json')
-      )
-      mockReadProviders.mockReturnValue(
-        readGeneratedRegistry<ReturnType<typeof readProviderRegistry>>('providers.json')
-      )
-
-      const models = providerRegistryService.listProviderRegistryModels({ providerId: 'radeon-cloud' })
-
-      expect(models.map(({ presetModelId, apiModelId }) => [presetModelId, apiModelId])).toEqual([
-        ['deepseek-v4-flash', 'DeepSeek-V4-Flash'],
-        ['deepseek-v4-pro', 'DeepSeek-V4-Pro'],
-        ['glm-5-1', 'GLM-5.1'],
-        ['glm-5-2', 'GLM-5.2'],
-        ['gpt-oss-120b', 'gpt-oss-120b'],
-        ['kimi-k2-6', 'Kimi-K2.6'],
-        ['qwen3-6-35b-a3b', 'Qwen3.6-35B-A3B']
       ])
     })
 

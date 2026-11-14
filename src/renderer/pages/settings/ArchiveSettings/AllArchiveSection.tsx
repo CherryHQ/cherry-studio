@@ -1,12 +1,12 @@
 import { ListTodo, MessageSquare } from 'lucide-react'
-import { useMemo, useRef } from 'react'
+import { useCallback, useLayoutEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { loggerService } from '@logger'
 import { SIDEBAR_ICON_COMPONENTS } from '@renderer/components/app/sidebarIcons'
 import { useDataChange, useInfiniteFlatItems, useInfiniteQuery } from '@renderer/data/hooks/useDataApi'
 import { formatErrorMessage } from '@renderer/utils/error'
-import type { ArchiveDomain } from '@shared/data/api/schemas/archives'
+import { ARCHIVE_DOMAINS, type ArchiveDomain } from '@shared/data/api/schemas/archives'
 
 import type { ArchiveBatchOutcome, ArchiveItem } from './archive'
 import type { ArchiveDomainSectionProps } from './ArchiveDomainSections'
@@ -34,18 +34,28 @@ const DOMAIN_PRESENTATION = {
 export default function AllArchiveSection(props: ArchiveDomainSectionProps) {
   const { t } = useTranslation()
   const { pages, isLoading, isRefreshing, error, hasNext, loadNext, refresh } = useInfiniteQuery('/archives', {
-    limit: 50
+    limit: 50,
+    swrOptions: { revalidateOnMount: false, revalidateIfStale: false }
   })
   const entries = useInfiniteFlatItems(pages)
   const pendingActions = useRef(0)
-  const refreshArchive = async () => {
+  const refreshArchive = useCallback(async () => {
     if (pendingActions.current > 0) return
     try {
       await refresh()
     } catch (error) {
       logger.warn('Failed to refresh archive', error as Error)
     }
-  }
+  }, [refresh])
+  useLayoutEffect(() => {
+    let cancelled = false
+    queueMicrotask(() => {
+      if (!cancelled) void refreshArchive()
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [refreshArchive])
   useDataChange(['/topics', '/assistants', '/agents', '/agent-sessions', '/paintings', '/files/entries'], () => {
     void refreshArchive()
   })
@@ -108,7 +118,7 @@ export default function AllArchiveSection(props: ArchiveDomainSectionProps) {
     <ArchiveSection
       {...props}
       items={items}
-      isLoading={isLoading}
+      isLoading={isLoading || (pages.length === 0 && !error)}
       error={error}
       onRetry={refresh}
       pagination={{ kind: 'cursor', hasMore: hasNext, isLoadingMore: isRefreshing, onLoadMore: loadNext }}
@@ -136,7 +146,12 @@ export default function AllArchiveSection(props: ArchiveDomainSectionProps) {
           const entry = entriesById.get(item.id)!
           return entry.domain === 'files' ? [entry.entityId] : []
         })
-        props.onRequestDelete({ ...request, fileEntryIds: fileEntryIds.length > 0 ? fileEntryIds : undefined })
+        const domains = new Set(request.items.map((item) => entriesById.get(item.id)!.domain))
+        props.onRequestDelete({
+          ...request,
+          domains: ARCHIVE_DOMAINS.filter((domain) => domains.has(domain)),
+          fileEntryIds: fileEntryIds.length > 0 ? fileEntryIds : undefined
+        })
       }}
     />
   )

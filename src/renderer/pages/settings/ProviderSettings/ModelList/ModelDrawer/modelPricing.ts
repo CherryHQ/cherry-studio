@@ -248,6 +248,7 @@ export function buildModelImagePricing(
   const parsed = imagePrice === undefined ? {} : parsePrice(imagePrice, true)
   if (parsed.error) return { error: parsed.error }
 
+  // oxlint-disable-next-line no-restricted-globals -- Edit nested pricing tiers independently of saved model configuration.
   const pricing: ModelPricing = structuredClone(
     currentPricing ?? { input: { perMillionTokens: null }, output: { perMillionTokens: null } }
   )

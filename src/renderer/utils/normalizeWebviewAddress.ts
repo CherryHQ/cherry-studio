@@ -8,7 +8,7 @@ export function normalizeWebviewAddress(value: string): string | null {
   if (!trimmedValue) return null
 
   const candidate = LOCAL_ADDRESS_PATTERN.test(trimmedValue)
-    ? `http://${trimmedValue}`
+    ? `http://${trimmedValue.replace(/^::1(?=[/?#]|$)/, '[::1]')}`
     : URL_SCHEME_PATTERN.test(trimmedValue) && !HOST_PORT_PATTERN.test(trimmedValue)
       ? trimmedValue
       : `https://${trimmedValue}`

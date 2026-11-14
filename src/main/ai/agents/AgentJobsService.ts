@@ -25,6 +25,7 @@ import {
 } from '@shared/data/api/schemas/agentWorkspaces'
 import { triggersEqual, type JobScheduleSnapshot, type UpdateJobScheduleDto } from '@shared/data/api/schemas/jobs'
 import type { AgentTaskForm, AgentTaskPatch, HeartbeatDocument, HeartbeatRunResult } from '@shared/ipc/schemas/ai'
+import { KeyedMutex } from '@shared/utils/async'
 
 import { agentDataDirectoryPath, assertAgentStorageDirectory } from './agentDataDirectory'
 import { DEFAULT_AGENT_TASK_TIMEOUT_MINUTES } from './agentTaskDefaults'
@@ -99,8 +100,10 @@ function readAgentTaskJobInputTemplate(value: unknown): AgentTaskJobInputTemplat
  */
 @Injectable('AgentJobsService')
 @ServicePhase(Phase.WhenReady)
-@DependsOn(['JobManager'])
+@DependsOn(['JobManager', 'NotificationService'])
 export class AgentJobsService extends BaseService {
+  private readonly taskLocks = new KeyedMutex()
+
   // All autonomous schedule writes participate in shutdown and backup quiescence.
   private readonly inFlightWork = createInFlightWorkTracker()
 
@@ -318,7 +321,6 @@ export class AgentJobsService extends BaseService {
     const reuseConfigChanged = reuseChanged || workspaceChanged
 
     const jobManager = application.get('JobManager')
-    let bindingCleared = false
     application.get('DbService').withWriteTx((tx) => {
       const snapshot = jobScheduleService.getByIdTx(tx, taskId)
       const currentReuse = readTaskSessionReuse(snapshot?.metadata)
@@ -330,7 +332,7 @@ export class AgentJobsService extends BaseService {
           enabled: nextReuseEnabled,
           revision: reuseRevision
         })
-        bindingCleared = agentSessionService.clearTaskScheduleTx(tx, taskId)
+        agentSessionService.clearTaskScheduleTx(tx, taskId)
       }
       if (
         snapshot &&
@@ -357,8 +359,9 @@ export class AgentJobsService extends BaseService {
         agentChannelService.replaceTaskSubscriptionsTx(tx, taskId, patch.channelIds)
       }
     })
-    if (reuseConfigChanged || bindingCleared || patch.workspace !== undefined)
-      agentTaskService.notifyReadModelChange([taskId])
+    // Unconditional: the projection carries name/prompt/trigger too, and
+    // updateTx always bumps updatedAt — a silent rename strands IM/MCP windows.
+    agentTaskService.notifyReadModelChange([taskId])
     if (schedulePatch.trigger !== undefined) {
       jobManager.syncJobScheduleTimerById(taskId)
     }
@@ -375,6 +378,7 @@ export class AgentJobsService extends BaseService {
     // read-decide-write sequence is fully synchronous — no await gap.
     if (!existing.enabled) return existing
     await application.get('JobManager').pauseJobScheduleById(taskId)
+    agentTaskService.notifyReadModelChange([taskId])
     logger.info('Task paused', { taskId, agentId })
     return this.getActiveTask(agentId, taskId)
   }
@@ -386,29 +390,53 @@ export class AgentJobsService extends BaseService {
     // State-aware no-op: resuming an already-enabled task would re-register
     // the SchedulerService timer and reset an interval's phase.
     if (existing.enabled) return existing
-    application.get('JobManager').resumeJobScheduleById(taskId)
+    try {
+      application.get('JobManager').resumeJobScheduleById(taskId)
+    } catch (error) {
+      // `resumeJobScheduleById` commits the enable before arming, so an
+      // enabled row classifies the failure as arm-only — broadcast, rethrow.
+      try {
+        if (jobScheduleService.getById(taskId)?.enabled) agentTaskService.notifyReadModelChange([taskId])
+      } catch (classificationError) {
+        logger.warn('Failed to classify resume failure for read-model notification', classificationError as Error)
+      }
+      throw error
+    }
+    agentTaskService.notifyReadModelChange([taskId])
     logger.info('Task resumed', { taskId, agentId })
     return this.getActiveTask(agentId, taskId)
   }
 
   /** @returns `false` when the task is not found / not owned by `agentId` (no distinction — no existence leak). */
   async deleteTask(agentId: string, taskId: string): Promise<boolean> {
-    const existing = this.getActiveTask(agentId, taskId)
-    if (!existing) return false
-    // Channel subscriptions cascade via the agentChannelTaskTable FK; historical
-    // jobs keep their rows with scheduleId set NULL (ON DELETE SET NULL).
-    const deleted = await application.get('JobManager').unregisterJobScheduleById(taskId)
-    if (deleted) {
-      agentTaskService.notifyReadModelChange([taskId], 'membership')
-      logger.info('Task deleted', { taskId, agentId })
-    }
-    return deleted
+    return this.taskLocks.runExclusive(taskId, async () => {
+      const existing = this.getActiveTask(agentId, taskId)
+      if (!existing) return false
+      const jobs = application.get('JobManager')
+      const wasEnabled = jobScheduleService.getById(taskId)?.enabled
+      await jobs.pauseJobScheduleById(taskId)
+      let deleted: boolean
+      try {
+        for (const job of jobService.list({ scheduleId: taskId, status: ['pending', 'delayed', 'running'] })) {
+          await jobs.cancel(job.id, 'Task deleted')
+        }
+        deleted = await application.get('AgentLifecycleService').deleteTaskWithSessions(taskId)
+      } catch (error) {
+        if (wasEnabled) jobs.resumeJobScheduleById(taskId)
+        throw error
+      }
+      if (deleted) {
+        agentTaskService.notifyReadModelChange([taskId], 'membership')
+        logger.info('Task deleted', { taskId, agentId })
+      }
+      return deleted
+    })
   }
 
   /**
    * Delete every `agent.task` schedule owned by `agentId` — the schedule-side
    * half of agent deletion. Historical jobs keep their rows with `scheduleId`
-   * set NULL (`ON DELETE SET NULL`, same as `deleteTask`).
+   * set NULL (`ON DELETE SET NULL`).
    *
    * @returns How many schedule rows were removed.
    */
@@ -465,28 +493,30 @@ export class AgentJobsService extends BaseService {
 
   /** Run a scheduled agent task now (`ai.agent.task.run`). @returns whether the trigger fired (`false` = not found / not owned). */
   async runTask(agentId: string, taskId: string): Promise<boolean> {
-    const existing = this.getActiveTask(agentId, taskId)
-    if (!existing) return false
-    if (existing.status === 'missed') {
-      const enqueued = application.get('DbService').withWriteTx((tx) => {
-        const schedule = jobScheduleService.getByIdTx(tx, taskId)
-        if (!schedule || !isMissedTask(schedule.metadata)) return false
-        const template = readAgentTaskJobInputTemplate(schedule.jobInputTemplate)
-        if (!template) return false
-        const missed = schedule.metadata.missed as { reason: string; at: number; jobId?: string }
-        const job = application.get('JobManager').enqueueTx(tx, AGENT_TASK_TYPE, template, {
-          scheduleId: taskId,
-          idempotencyKey: `agent-task-missed:${taskId}:${missed.at}`
+    return this.taskLocks.runExclusive(taskId, async () => {
+      const existing = this.getActiveTask(agentId, taskId)
+      if (!existing) return false
+      if (existing.status === 'missed') {
+        const enqueued = application.get('DbService').withWriteTx((tx) => {
+          const schedule = jobScheduleService.getByIdTx(tx, taskId)
+          if (!schedule || !isMissedTask(schedule.metadata)) return false
+          const template = readAgentTaskJobInputTemplate(schedule.jobInputTemplate)
+          if (!template) return false
+          const missed = schedule.metadata.missed as { reason: string; at: number; jobId?: string }
+          const job = application.get('JobManager').enqueueTx(tx, AGENT_TASK_TYPE, template, {
+            scheduleId: taskId,
+            idempotencyKey: `agent-task-missed:${taskId}:${missed.at}`
+          })
+          jobScheduleService.updateTx(tx, taskId, {
+            metadata: { ...schedule.metadata, missed: { ...missed, jobId: job.id } }
+          })
+          return true
         })
-        jobScheduleService.updateTx(tx, taskId, {
-          metadata: { ...schedule.metadata, missed: { ...missed, jobId: job.id } }
-        })
-        return true
-      })
-      if (enqueued) agentTaskService.notifyReadModelChange([taskId])
-      return enqueued
-    }
-    return application.get('JobManager').triggerJobScheduleNowById(taskId)
+        if (enqueued) agentTaskService.notifyReadModelChange([taskId])
+        return enqueued
+      }
+      return application.get('JobManager').triggerJobScheduleNowById(taskId)
+    })
   }
 
   /**

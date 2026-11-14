@@ -1,6 +1,6 @@
 import { Activity, GitBranch, Globe } from 'lucide-react'
 import type { PropsWithChildren } from 'react'
-import { createContext, lazy, Suspense, use, useCallback, useMemo, useRef, useSyncExternalStore } from 'react'
+import { createContext, lazy, Suspense, use, useCallback, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import type { TopicMessageFlowLiveState } from '@renderer/components/chat/flow'
@@ -12,9 +12,11 @@ import {
   type RightPanelCapability,
   type RightPanelComponentProps,
   type RightPanelComposition,
+  RightPanelHeaderControls,
   RightPanelProvider,
   RightPanelShortcut,
   RightPanelViewport,
+  useOptionalRightPanelState,
   useRightPanelActions,
   useRightPanelState
 } from '@renderer/components/chat/panes/Shell'
@@ -95,14 +97,15 @@ function createTopicBranchLiveStateStore(): TopicBranchLiveStateStore {
 }
 
 const TopicBranchLiveStateStoreContext = createContext<TopicBranchLiveStateStore | null>(null)
-const TopicRightPaneViewportContext = createContext<TopicRightPaneViewportCallbacks | null>(null)
+type TopicRightPaneViewportValue = TopicRightPaneViewportCallbacks & { branchOpenCycle: number }
+const TopicRightPaneViewportContext = createContext<TopicRightPaneViewportValue | null>(null)
 function useTopicBranchLiveStateStore(): TopicBranchLiveStateStore {
   const store = use(TopicBranchLiveStateStoreContext)
   if (!store) throw new Error('useTopicBranchLiveStateStore must be used within <TopicRightPane.Scope>')
   return store
 }
 
-function useTopicRightPaneViewport(): TopicRightPaneViewportCallbacks {
+function useTopicRightPaneViewport(): TopicRightPaneViewportValue {
   const value = use(TopicRightPaneViewportContext)
   if (!value) throw new Error('useTopicRightPaneViewport must be used within <TopicRightPane.Viewport>')
   return value
@@ -124,7 +127,7 @@ function TopicBranchRightPanel({ active, scope }: RightPanelComponentProps<Topic
   const panelState = useRightPanelState()
   const branchLiveState = useTopicBranchLiveState(scope.topicId ?? '')
   const callbacks = useTopicRightPaneViewport()
-  const canvasFocusKey = `${scope.topicId ?? ''}:${panelState.maximized ? 'maximized' : 'docked'}:${panelState.pdfLayoutRefreshKey}`
+  const canvasFocusKey = `${scope.topicId ?? ''}:${panelState.maximized ? 'maximized' : 'docked'}:${panelState.pdfLayoutRefreshKey}:${callbacks.branchOpenCycle}`
   const canvasLayoutReady = panelState.maximized || !panelState.pdfLayoutPending
 
   if (!scope.topicId) return null
@@ -145,6 +148,7 @@ function TopicBranchRightPanel({ active, scope }: RightPanelComponentProps<Topic
 }
 
 function TopicBrowserRightPanel({ active, scope }: RightPanelComponentProps<TopicRightPanelScope>) {
+  const actions = useRightPanelActions()
   if (!scope.topicId) return null
   return (
     <SessionBrowserView
@@ -153,15 +157,17 @@ function TopicBrowserRightPanel({ active, scope }: RightPanelComponentProps<Topi
       securityProfile={WebviewSecurityProfile.AgentBrowser}
       isHostActive={active}
       target={{ id: `topic-browser:${scope.topicId}`, label: scope.browserTitle }}
-      onNavigate={(url) => browserRuntime.ensure(scope.topicId!, url)}
+      toolbarActions={<RightPanelHeaderControls canMaximize />}
+      onEmpty={actions.close}
     />
   )
 }
 
 function TopicBrowserPaneOpener({ topicId }: { topicId?: string }) {
   const actions = useRightPanelActions()
+  const [autoOpenPanel] = usePreference('app.browser.auto_open_panel')
   useIpcOn('browser.pane.open_requested', ({ sessionId, scope }) => {
-    if (scope === 'topic' && sessionId === topicId) actions.tryOpen('browser')
+    if (autoOpenPanel && scope === 'topic' && sessionId === topicId) actions.tryOpen('browser')
   })
   return null
 }
@@ -206,6 +212,7 @@ const TOPIC_RIGHT_PANEL_CAPABILITIES = [
       instanceKey: `browser:${scope.topicId ?? 'unavailable'}`,
       title: scope.browserTitle,
       readiness: scope.topicId ? 'ready' : 'unavailable',
+      headerMode: 'content',
       canMaximize: true
     })
   },
@@ -268,7 +275,20 @@ function TopicRightPaneProvider({
 }
 
 function TopicRightPaneViewport({ onLocateMessage }: TopicRightPaneViewportCallbacks) {
-  const callbacks = useMemo<TopicRightPaneViewportCallbacks>(() => ({ onLocateMessage }), [onLocateMessage])
+  const branchActive = useOptionalRightPanelState()?.isActive('branch') ?? false
+  const [branchOpening, setBranchOpening] = useState({ active: branchActive, cycle: 0 })
+
+  if (branchOpening.active !== branchActive) {
+    setBranchOpening({
+      active: branchActive,
+      cycle: branchOpening.cycle + (branchActive ? 1 : 0)
+    })
+  }
+
+  const callbacks = useMemo<TopicRightPaneViewportValue>(
+    () => ({ onLocateMessage, branchOpenCycle: branchOpening.cycle }),
+    [onLocateMessage, branchOpening.cycle]
+  )
 
   return (
     <TopicRightPaneViewportContext value={callbacks}>

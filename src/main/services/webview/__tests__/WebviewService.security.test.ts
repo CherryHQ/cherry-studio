@@ -1,4 +1,5 @@
 import type * as FsModule from 'fs'
+import { resolve } from 'node:path'
 
 import { app, session } from 'electron'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -46,7 +47,7 @@ describe('the site webview preload', () => {
 
     willAttach({}, webPreferences, { partition: 'persist:webview' })
 
-    expect(webPreferences.preload).toBe('/mock/feature.webview.preload_file')
+    expect(webPreferences.preload).toBe(resolve('/mock/feature.webview.preload_file'))
     expect(webPreferences.sandbox).toBe(true)
   })
 

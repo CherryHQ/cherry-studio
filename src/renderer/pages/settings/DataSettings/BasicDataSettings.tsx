@@ -29,13 +29,14 @@ import { ipcApi } from '@renderer/ipc'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import type { AppInfo } from '@renderer/types/app'
+import { formatFileSize } from '@renderer/utils/file'
 import { cn } from '@renderer/utils/style'
 import type { CacheCleanupSizeSnapshot } from '@shared/types/cacheCleanupIpc'
 import { LOG_RETENTION_DAYS } from '@shared/types/logger'
 import type { UserDataRelocationValidationReason } from '@shared/types/userDataRelocation'
 
 import BackupPopup from './BackupPopup'
-import ClearCachePopup, { formatCacheCleanupSize } from './ClearCachePopup'
+import ClearCachePopup from './ClearCachePopup'
 import {
   beginLegacyV1Cleanup,
   clearLegacyV1BrowserData,
@@ -43,11 +44,8 @@ import {
   mergeLegacyV1CleanupResults
 } from './legacyV1BrowserData'
 import RestorePopup from './RestorePopup'
-import V1RemigrationPopup from './V1RemigrationPopup'
 
 const DATA_SETTINGS_SUBTLE_TEXT_COLOR = 'var(--foreground-tertiary)'
-const V1_INDEXED_DB_NAME = 'CherryStudio'
-const V1_REDUX_PERSIST_KEY = 'persist:cherry-studio'
 const logger = loggerService.withContext('BasicDataSettings')
 
 const BasicDataSettings: React.FC = () => {
@@ -59,30 +57,6 @@ const BasicDataSettings: React.FC = () => {
   const [skipBackupFile, setSkipBackupFile] = usePreference('data.backup.general.skip_backup_file')
   const [enableDataCollection, setEnableDataCollection] = usePreference('app.privacy.data_collection.enabled')
   const [logRetentionDays, setLogRetentionDays] = usePreference('app.logs.retention_days')
-  const [hasV1MigrationSource, setHasV1MigrationSource] = useState(
-    () => localStorage.getItem(V1_REDUX_PERSIST_KEY) !== null
-  )
-
-  useEffect(() => {
-    if (hasV1MigrationSource) return
-
-    let cancelled = false
-    void indexedDB
-      .databases()
-      .then((databases) => {
-        if (!cancelled && databases.some((database) => database.name === V1_INDEXED_DB_NAME)) {
-          setHasV1MigrationSource(true)
-        }
-      })
-      .catch((error) => {
-        logger.warn('Failed to inspect IndexedDB for retained v1 data', { error: String(error) })
-      })
-
-    return () => {
-      cancelled = true
-    }
-  }, [hasV1MigrationSource])
-
   const refreshCacheSize = useCallback(async () => {
     try {
       const response = await ipcApi.request('app.cache_cleanup.inspect', { groups: ['normal_cache'] })
@@ -341,7 +315,13 @@ const BasicDataSettings: React.FC = () => {
               {appInfo?.appDataPath}
             </PathText>
             <Tooltip title={t('settings.data.app_data.select')}>
-              <FolderOutput onClick={handleSelectAppDataPath} style={{ cursor: 'pointer' }} size={16} />
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                aria-label={t('settings.data.app_data.select')}
+                onClick={handleSelectAppDataPath}>
+                <FolderOutput size={16} />
+              </Button>
             </Tooltip>
             <RowFlex className="ml-2 gap-1.25">
               <Button onClick={() => handleOpenPath(appInfo?.appDataPath)} variant="outline">
@@ -396,10 +376,10 @@ const BasicDataSettings: React.FC = () => {
                   ? t('settings.data.clear_cache.unavailable')
                   : cacheSize.completeness === 'partial'
                     ? t('settings.data.clear_cache.total_partial', {
-                        size: formatCacheCleanupSize(cacheSize.bytes)
+                        size: formatFileSize(cacheSize.bytes)
                       })
                     : t('settings.data.clear_cache.approximately', {
-                        size: formatCacheCleanupSize(cacheSize.bytes)
+                        size: formatFileSize(cacheSize.bytes)
                       })}
                 )
               </CacheText>
@@ -411,19 +391,6 @@ const BasicDataSettings: React.FC = () => {
             </Button>
           </RowFlex>
         </SettingRow>
-        {hasV1MigrationSource && (
-          <>
-            <SettingDivider />
-            <SettingRow>
-              <SettingRowTitle>{t('settings.data.v1_remigration.title')}</SettingRowTitle>
-              <RowFlex className="gap-1.25">
-                <Button onClick={() => V1RemigrationPopup.show()} variant="outline">
-                  {t('settings.data.v1_remigration.button')}
-                </Button>
-              </RowFlex>
-            </SettingRow>
-          </>
-        )}
         <SettingDivider />
         <SettingRow id="setting-data-data-reset" className="scroll-mt-6">
           <SettingRowTitle>{t('settings.data.data_reset.title')}</SettingRowTitle>

@@ -2,7 +2,7 @@ import { ArrowLeft } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button, Scrollbar } from '@cherrystudio/ui'
+import { Button, ScrollArea } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { useQuery } from '@data/hooks/useDataApi'
 
@@ -14,7 +14,7 @@ interface KnowledgeItemNoteContentPanelProps {
 }
 
 const KnowledgeItemNoteContentState = ({ children }: { children: ReactNode }) => (
-  <div className="text-foreground-muted flex min-h-full items-center justify-center px-4 py-10 text-center text-sm leading-5">
+  <div className="text-muted-foreground flex min-h-full items-center justify-center px-4 py-10 text-center text-sm leading-5">
     {children}
   </div>
 )
@@ -48,7 +48,7 @@ const KnowledgeItemNoteContentPanel = ({ itemId, onBack }: KnowledgeItemNoteCont
           variant="ghost"
           size="icon-sm"
           aria-label={t('common.back')}
-          className="text-foreground-muted size-5 min-h-5 min-w-5 rounded p-0 shadow-none transition-colors hover:bg-accent hover:text-foreground"
+          className="size-5 min-h-5 min-w-5 rounded p-0 text-muted-foreground shadow-none transition-colors hover:bg-accent hover:text-foreground"
           onClick={onBack}>
           <ArrowLeft className="size-3.5" />
         </Button>
@@ -61,21 +61,25 @@ const KnowledgeItemNoteContentPanel = ({ itemId, onBack }: KnowledgeItemNoteCont
           <span className="block truncate text-sm leading-5 text-foreground">
             {viewModel?.title ?? t('common.loading')}
           </span>
-          <div className="text-foreground-muted flex items-center gap-2 text-xs leading-4">
+          <div className="text-muted-foreground flex items-center gap-2 text-xs leading-4">
             <span>{t('knowledge.data_source.actions.preview_source')}</span>
           </div>
         </div>
       </div>
 
-      <Scrollbar autoHideScrollbar={false} className="min-h-0 flex-1 px-4 py-3">
+      <ScrollArea
+        contentProps={{ className: 'px-4 py-3' }}
+
+        type="auto"
+        className="min-h-0 flex-1">
         {isLoading ? <KnowledgeItemNoteContentState>{t('common.loading')}</KnowledgeItemNoteContentState> : null}
         {!isLoading && error ? <KnowledgeItemNoteContentState>{error.message}</KnowledgeItemNoteContentState> : null}
         {!isLoading && !error ? (
-          <pre className="text-foreground-secondary font-sans text-sm leading-relaxed break-words whitespace-pre-wrap">
+          <pre className="text-muted-foreground font-sans text-sm leading-relaxed break-words whitespace-pre-wrap">
             {content}
           </pre>
         ) : null}
-      </Scrollbar>
+      </ScrollArea>
     </div>
   )
 }

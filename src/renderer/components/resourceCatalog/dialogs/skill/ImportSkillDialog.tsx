@@ -3,7 +3,7 @@ import { AnimatePresence, motion } from 'motion/react'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Alert, Button, Dialog, DialogContent, Dropzone, DropzoneEmptyState, Scrollbar } from '@cherrystudio/ui'
+import { Alert, Button, Dialog, DialogContent, Dropzone, DropzoneEmptyState, ScrollArea } from '@cherrystudio/ui'
 import { useSkillInstall } from '@renderer/hooks/useSkills'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
@@ -282,11 +282,15 @@ export function ImportSkillDialog({ open, onOpenChange }: Props) {
                 'dataTransfer' in event && event.dataTransfer ? Array.from(event.dataTransfer.files) : files
               void handleDroppedEntries(droppedFiles)
             }}
-            className="flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-border-subtle bg-transparent p-8 text-center shadow-none transition-colors hover:border-border-strong hover:bg-accent disabled:pointer-events-none disabled:opacity-60">
+            className="flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-border-subtle bg-transparent p-8 text-center whitespace-normal shadow-none transition-colors hover:border-border-strong hover:bg-accent disabled:pointer-events-none disabled:opacity-60">
             <DropzoneEmptyState>
               <Import size={26} strokeWidth={1.2} className="mb-3 text-foreground-tertiary" />
-              <p className="mb-1 text-xs text-muted-foreground">{t('library.import_skill_dialog.local.drop_hint')}</p>
-              <p className="text-xs text-muted-foreground">{t('library.import_skill_dialog.local.formats')}</p>
+              <p className="mb-1 w-full text-xs whitespace-normal text-wrap break-words text-muted-foreground">
+                {t('library.import_skill_dialog.local.drop_hint')}
+              </p>
+              <p className="w-full text-xs whitespace-normal text-wrap break-words text-muted-foreground">
+                {t('library.import_skill_dialog.local.formats')}
+              </p>
             </DropzoneEmptyState>
           </Dropzone>
 
@@ -325,9 +329,9 @@ function ImportResultList({ items }: { items: ImportItem[] }) {
   if (items.length === 0) return null
 
   return (
-    <Scrollbar
-      data-testid="skill-import-results"
-      className="mt-4 max-h-44 w-full max-w-full min-w-0 overflow-x-hidden rounded-md border border-border-subtle bg-background-subtle/50">
+    <ScrollArea
+      viewportProps={{ 'data-testid': 'skill-import-results', className: 'overflow-x-hidden' }}
+      className="mt-4 max-h-44 w-full max-w-full min-w-0 rounded-md border border-border-subtle bg-background-subtle/50">
       <div className="min-w-0 divide-y divide-border-subtle">
         {items.map((item) => {
           const displayName = item.status === 'success' ? (item.skillName ?? item.name) : item.name
@@ -353,7 +357,7 @@ function ImportResultList({ items }: { items: ImportItem[] }) {
           )
         })}
       </div>
-    </Scrollbar>
+    </ScrollArea>
   )
 }
 

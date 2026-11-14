@@ -1,10 +1,15 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { McpToolResponse, NormalToolResponse } from '@renderer/types/mcpTool'
 import type * as SharedFileUtils from '@shared/utils/file'
 
-const { getPhysicalPath } = vi.hoisted(() => ({ getPhysicalPath: vi.fn() }))
+const mocks = vi.hoisted(() => ({
+  getPhysicalPath: vi.fn(),
+  messageListActions: undefined as
+    | { addGeneratedImageToComposer?: (image: { url: string; name: string }) => void }
+    | undefined
+}))
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key })
@@ -15,13 +20,13 @@ vi.mock('@shared/utils/file', async (importOriginal) => ({
   ...(await importOriginal<typeof SharedFileUtils>()),
   toSafeFileUrl: (path: string) => `file://${path}`
 }))
-vi.mock('@renderer/components/Spinner', () => ({
-  default: ({ text }: { text: React.ReactNode }) => <div data-testid="spinner">{text}</div>
+vi.mock('@renderer/components/chat/messages/MessageListProvider', () => ({
+  useOptionalMessageListActions: () => mocks.messageListActions
 }))
-vi.mock('../../../blocks/ImageBlock', () => ({
-  default: ({ images, isPending }: { images: string[]; isPending?: boolean }) => (
-    <div data-testid="image-block" data-pending={String(isPending)}>
-      {images.join('|')}
+vi.mock('@renderer/components/ImageViewer', () => ({
+  default: ({ src }: { src: string }) => (
+    <div data-testid="image-viewer" data-src={src}>
+      {src}
     </div>
   )
 }))
@@ -59,18 +64,19 @@ function mcpToolResponse(response: unknown): McpToolResponse {
 
 describe('MessageGenerateImageToolTitle', () => {
   beforeEach(() => {
-    getPhysicalPath.mockReset().mockResolvedValue('/data/f1.png')
-    ;(window as unknown as { api: unknown }).api = { file: { getPhysicalPath } }
+    mocks.messageListActions = undefined
+    mocks.getPhysicalPath.mockReset().mockResolvedValue('/data/f1.png')
+    ;(window as unknown as { api: unknown }).api = { file: { getPhysicalPath: mocks.getPhysicalPath } }
   })
 
   it('renders the generated images resolved to file URLs', async () => {
     render(<MessageGenerateImageToolTitle toolResponse={toolResponse({ response: [{ id: 'f1', name: 'a.png' }] })} />)
-    await waitFor(() => expect(screen.getByTestId('image-block')).toHaveTextContent('file:///data/f1.png'))
-    expect(getPhysicalPath).toHaveBeenCalledWith({ id: 'f1' })
+    await waitFor(() => expect(screen.getByTestId('image-viewer')).toHaveTextContent('file:///data/f1.png'))
+    expect(mocks.getPhysicalPath).toHaveBeenCalledWith({ id: 'f1' })
   })
 
   it('groups multiple generated images into one preview sequence', async () => {
-    getPhysicalPath.mockImplementation(({ id }: { id: string }) => Promise.resolve(`/data/${id}.png`))
+    mocks.getPhysicalPath.mockImplementation(({ id }: { id: string }) => Promise.resolve(`/data/${id}.png`))
     render(
       <MessageGenerateImageToolTitle
         toolResponse={toolResponse({
@@ -81,10 +87,45 @@ describe('MessageGenerateImageToolTitle', () => {
         })}
       />
     )
-    await waitFor(() =>
-      expect(screen.getByTestId('image-block')).toHaveTextContent('file:///data/f1.png|file:///data/f2.png')
+    await waitFor(() => expect(screen.getAllByTestId('image-viewer')).toHaveLength(2))
+    expect(screen.getAllByTestId('image-viewer').map((image) => image.getAttribute('data-src'))).toEqual([
+      'file:///data/f1.png',
+      'file:///data/f2.png'
+    ])
+  })
+
+  it('uses the matching image name when only part of a generated image group resolves', async () => {
+    const addGeneratedImageToComposer = vi.fn()
+    mocks.messageListActions = { addGeneratedImageToComposer }
+    mocks.getPhysicalPath
+      .mockReset()
+      .mockImplementation(({ id }: { id: string }) =>
+        id === 'f1' ? Promise.reject(new Error('gone')) : Promise.resolve(`/data/${id}.png`)
+      )
+    render(
+      <MessageGenerateImageToolTitle
+        toolResponse={toolResponse({
+          response: [
+            { id: 'f1', name: 'a.png' },
+            { id: 'f2', name: 'b.png' }
+          ]
+        })}
+      />
     )
-    expect(screen.getAllByTestId('image-block')).toHaveLength(1)
+
+    await waitFor(() => expect(screen.getByRole('button', { name: 'chat.input.use_as_reference' })).toBeInTheDocument())
+    fireEvent.click(screen.getByRole('button', { name: 'chat.input.use_as_reference' }))
+
+    expect(addGeneratedImageToComposer).toHaveBeenCalledWith({
+      url: 'file:///data/f2.png',
+      name: 'b.png'
+    })
+  })
+
+  it('does not show the reference action when the message surface does not provide it', async () => {
+    render(<MessageGenerateImageToolTitle toolResponse={toolResponse({ response: [{ id: 'f1', name: 'a.png' }] })} />)
+    await waitFor(() => expect(screen.getByTestId('image-viewer')).toHaveTextContent('file:///data/f1.png'))
+    expect(screen.queryByRole('button', { name: 'chat.input.use_as_reference' })).not.toBeInTheDocument()
   })
 
   it('renders agent MCP image blocks without resolving FileEntry paths', () => {
@@ -100,8 +141,8 @@ describe('MessageGenerateImageToolTitle', () => {
       />
     )
 
-    expect(screen.getByTestId('image-block')).toHaveTextContent('data:image/png;base64,iVBORw0KGgo=')
-    expect(getPhysicalPath).not.toHaveBeenCalled()
+    expect(screen.getByTestId('image-viewer')).toHaveTextContent('data:image/png;base64,iVBORw0KGgo=')
+    expect(mocks.getPhysicalPath).not.toHaveBeenCalled()
   })
 
   it('shows localized failure copy (not the English MCP text) when no image block was returned', () => {
@@ -113,18 +154,18 @@ describe('MessageGenerateImageToolTitle', () => {
 
     expect(screen.getByText('chat.input.tools.generate_image.failed')).toBeInTheDocument()
     expect(screen.queryByText('Image generation failed')).not.toBeInTheDocument()
-    expect(screen.queryByTestId('image-block')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('image-viewer')).not.toBeInTheDocument()
   })
 
   it('shows localized failure copy (not the English error note) when generation returned an error', () => {
     render(<MessageGenerateImageToolTitle toolResponse={toolResponse({ response: { error: 'boom' } })} />)
     expect(screen.getByText('chat.input.tools.generate_image.failed')).toBeInTheDocument()
     expect(screen.queryByText('boom')).not.toBeInTheDocument()
-    expect(screen.queryByTestId('image-block')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('image-viewer')).not.toBeInTheDocument()
   })
 
   it('keeps the resolvable images when only some FileEntry paths fail', async () => {
-    getPhysicalPath
+    mocks.getPhysicalPath
       .mockReset()
       .mockImplementation(({ id }: { id: string }) =>
         id === 'f2' ? Promise.reject(new Error('gone')) : Promise.resolve(`/data/${id}.png`)
@@ -140,16 +181,16 @@ describe('MessageGenerateImageToolTitle', () => {
       />
     )
     // Only the resolvable tile renders; the failed one is dropped, not shown as an overall failure.
-    await waitFor(() => expect(screen.getByTestId('image-block')).toHaveTextContent('file:///data/f1.png'))
-    expect(screen.getAllByTestId('image-block')).toHaveLength(1)
+    await waitFor(() => expect(screen.getByTestId('image-viewer')).toHaveTextContent('file:///data/f1.png'))
+    expect(screen.getAllByTestId('image-viewer')).toHaveLength(1)
     expect(screen.queryByText('chat.input.tools.generate_image.failed')).not.toBeInTheDocument()
   })
 
   it('falls back to an error note (not a perpetual spinner) when path resolution fails', async () => {
-    getPhysicalPath.mockReset().mockRejectedValue(new Error('file gone'))
+    mocks.getPhysicalPath.mockReset().mockRejectedValue(new Error('file gone'))
     render(<MessageGenerateImageToolTitle toolResponse={toolResponse({ response: [{ id: 'f1', name: 'a.png' }] })} />)
     await waitFor(() => expect(screen.getByText('chat.input.tools.generate_image.failed')).toBeInTheDocument())
-    expect(screen.queryByTestId('image-block')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('image-viewer')).not.toBeInTheDocument()
   })
 
   it('renders a spinner while the tool is still running', () => {

@@ -8,7 +8,6 @@ import { ENDPOINT_TYPE, type Model, MODEL_CAPABILITY } from '@shared/data/types/
 import type { Provider } from '@shared/data/types/provider'
 
 import {
-  applyFastModeToProviderOptions,
   applyServiceTierToProviderOptions,
   buildCapabilityProviderOptions,
   buildResolvedReasoningProviderOptions,
@@ -17,45 +16,6 @@ import {
   resolveServiceTierWireValue
 } from '../options'
 import type { ResolvedReasoningInvocation } from '../reasoningSerializers'
-
-describe('applyFastModeToProviderOptions', () => {
-  const provider = {
-    fastMode: { transport: 'openai-priority' }
-  } satisfies Pick<Provider, 'fastMode'>
-  const model = {
-    id: 'openai-codex::gpt-5-6-sol',
-    providerId: 'openai-codex',
-    name: 'GPT-5.6 Sol',
-    capabilities: [],
-    supportsStreaming: true,
-    supportsFastMode: true,
-    isEnabled: true,
-    isHidden: false
-  } satisfies Model
-
-  it('maps Fast to priority only for an eligible provider-model pair', () => {
-    expect(applyFastModeToProviderOptions(provider, model, { openai: { reasoningEffort: 'high' } }, true)).toEqual({
-      openai: { reasoningEffort: 'high', serviceTier: 'priority' }
-    })
-    expect(applyFastModeToProviderOptions(provider, { ...model, supportsFastMode: false }, {}, true)).toEqual({})
-    expect(applyFastModeToProviderOptions(provider, model, {}, false)).toEqual({})
-  })
-
-  it('honours a provider-declared service tier value (Ark asks for fast, not priority)', () => {
-    expect(
-      applyFastModeToProviderOptions(
-        { fastMode: { transport: 'openai-priority', serviceTier: 'fast' } },
-        model,
-        {},
-        true
-      )
-    ).toEqual({ openai: { serviceTier: 'fast' } })
-  })
-
-  it('sends no service tier for SDK-carried transports (claude-code)', () => {
-    expect(applyFastModeToProviderOptions({ fastMode: { transport: 'claude-code' } }, model, {}, true)).toEqual({})
-  })
-})
 
 describe('service tier provider options', () => {
   const control = {

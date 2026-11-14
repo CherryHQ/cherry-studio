@@ -113,6 +113,8 @@ export interface BehaviorHost {
  *     listener installed in {@link applyWindowBehavior}.
  *   - Per-type override for `behavior.macShowInDock`, consulted by the
  *     Dock-visibility predicate in WindowManager.
+ *   - Per-window Dock holds from {@link BehaviorController.hideMacDockWhileShown},
+ *     which hide the Dock icon whatever that predicate says.
  *
  * `setAlwaysOnTop` is stateless — it forwards to Electron using the level
  * declared in the registry as the single source of truth.
@@ -125,6 +127,7 @@ export class BehaviorController {
   private hideOnBlurOverride = new Map<string, boolean>()
   private alwaysOnTopLevelOverride = new Map<string, AlwaysOnTopLevel>()
   private macShowInDockOverrideByType = new Map<WindowType, boolean>()
+  private macDockHiders = new Set<string>()
 
   constructor(private readonly host: BehaviorHost) {}
 
@@ -205,6 +208,29 @@ export class BehaviorController {
     this.host.updateDockVisibility()
   }
 
+  /**
+   * [macOS] Take the app out of the Dock until this window next hides, closes,
+   * or returns to its pool, whatever the contributing windows want.
+   *
+   * macOS keeps a regular app's windows out of another app's full-screen Space.
+   * A window can opt in itself, but the windows the system opens for it cannot —
+   * the IME candidate panel among them. While the Dock icon is gone the app runs
+   * as an accessory process, whose windows all join the active Space; it also
+   * drops out of Cmd+Tab for that time.
+   *
+   * Unlike `macShowInDock`, this follows visibility: it is meant for a window
+   * shown over a full-screen app, and is released when that window goes away.
+   */
+  public hideMacDockWhileShown(windowId: string): void {
+    const managed = this.host.getManagedWindow(windowId)
+    if (!managed || managed.window.isDestroyed() || this.macDockHiders.has(windowId)) return
+    this.macDockHiders.add(windowId)
+    managed.window.once('hide', () => {
+      if (this.macDockHiders.delete(windowId)) this.host.updateDockVisibility()
+    })
+    this.host.updateDockVisibility()
+  }
+
   // ─── Internal hooks (called by WindowManager) ────────────────────
 
   /** @internal */
@@ -215,6 +241,11 @@ export class BehaviorController {
   /** @internal */
   public getMacShowInDockOverride(type: WindowType): boolean | undefined {
     return this.macShowInDockOverrideByType.get(type)
+  }
+
+  /** @internal */
+  public isHidingMacDock(): boolean {
+    return this.macDockHiders.size > 0
   }
 
   /**
@@ -266,5 +297,6 @@ export class BehaviorController {
   public clearForWindow(windowId: string): void {
     this.hideOnBlurOverride.delete(windowId)
     this.alwaysOnTopLevelOverride.delete(windowId)
+    this.macDockHiders.delete(windowId)
   }
 }

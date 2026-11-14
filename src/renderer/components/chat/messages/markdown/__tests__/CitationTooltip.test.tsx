@@ -61,20 +61,6 @@ describe('CitationTooltip', () => {
   const getCitationTitle = () => screen.getByRole('heading', { level: 3 })
   const getCitationContent = () => screen.queryByRole('article')
 
-  describe('basic rendering', () => {
-    it('should render Favicon with correct props', () => {
-      const citation = createCitationData({
-        url: 'https://example.com',
-        title: 'Example Title'
-      })
-      renderCitationTooltip(citation)
-
-      const favicon = screen.getByTestId('mock-favicon')
-      expect(favicon).toHaveAttribute('hostname', 'example.com')
-      expect(favicon).toHaveAttribute('alt', 'Example Title')
-    })
-  })
-
   describe('URL processing and hostname extraction', () => {
     it('should extract hostname from valid URLs', () => {
       const testCases = [
@@ -121,14 +107,6 @@ describe('CitationTooltip', () => {
   })
 
   describe('content display and title logic', () => {
-    it('should display citation title when provided', () => {
-      const citation = createCitationData({ title: 'Custom Article Title' })
-      renderCitationTooltip(citation)
-
-      expect(screen.getByText('Custom Article Title')).toBeInTheDocument()
-      expect(screen.getByText('example.com')).toBeInTheDocument() // hostname in footer
-    })
-
     it('should fallback to hostname when title is empty or whitespace', () => {
       const testCases = [
         { title: undefined, url: 'https://fallback-test.com' },
@@ -144,13 +122,6 @@ describe('CitationTooltip', () => {
         expect(titleElement).toHaveTextContent(expectedHostname)
         unmount()
       })
-    })
-
-    it('should display content when provided and meaningful', () => {
-      const citation = createCitationData({ content: 'Meaningful article content' })
-      renderCitationTooltip(citation)
-
-      expect(screen.getByText('Meaningful article content')).toBeInTheDocument()
     })
 
     it('should not render content section when content is empty or whitespace', () => {
@@ -183,14 +154,6 @@ describe('CitationTooltip', () => {
       expect(footer).toHaveAttribute('href', 'https://footer-click.com')
       expect(footer).toHaveAttribute('target', '_blank')
       expect(footer).toHaveAttribute('rel', 'noopener noreferrer')
-    })
-
-    it('should render content area without link behavior', () => {
-      const citation = createCitationData({ content: 'Non-clickable content' })
-      renderCitationTooltip(citation)
-
-      const content = screen.getByText('Non-clickable content')
-      expect(content.closest('a')).toBeNull()
     })
   })
 

@@ -43,11 +43,11 @@ import {
   SESSION_DELIVERIES_TOOL_NAME,
   SESSION_LIST_TOOL_NAME,
   SESSION_READ_TOOL_NAME,
+  SESSION_RENAME_TOOL_NAME,
   SESSION_SEARCH_TOOL_NAME,
   SESSION_SEND_TOOL_NAME
 } from '@shared/ai/agentSessionDelivery'
 import { CONFIG_TOOL_NAME, CRON_TOOL_NAME, NOTIFY_TOOL_NAME } from '@shared/ai/builtinTools'
-import { TimeoutMinutesAtomSchema } from '@shared/data/api/schemas/agents'
 import { AGENT_WORKSPACE_TYPE, type AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 import { JOB_ERROR_CODES, type Trigger } from '@shared/data/api/schemas/jobs'
 import { ChannelConfigSchema } from '@shared/data/types/channel'
@@ -119,8 +119,20 @@ const CronInputSchema = z.object({
     .describe(
       'Channel IDs to send task results to. On add, omit to use this turn’s configured notification recipients; on update, omit to keep existing recipients; use an empty array [] to skip channel delivery. Explicit IDs must be configured recipients, except a source-channel session may select another live channel owned by this Agent.'
     ),
-  timeout_minutes: TimeoutMinutesAtomSchema.describe(
-    'Timeout in minutes before the task is aborted. Default is 2 on add; omit on update to keep the current timeout. Use null for no timeout.'
+  // Gemini's function-declaration schema rejects a nullable union (`anyOf: [number, null]`)
+  // with "didn't specify the schema type field". Agent runtimes consume this schema straight
+  // from MCP tools/list, without the provider middleware that rewrites such unions, so
+  // advertise a plain number. 0 already means "no timeout" in AgentJobsService; preprocess
+  // keeps older callers that send null working.
+  timeout_minutes: z.preprocess(
+    (value) => (value === null ? 0 : value),
+    z
+      .number()
+      .min(0)
+      .optional()
+      .describe(
+        'Timeout in minutes before the task is aborted. Default is 2 on add; omit on update to keep the current timeout. Use 0 for no timeout.'
+      )
   ),
   reuse_session: z
     .boolean()
@@ -289,6 +301,16 @@ const SessionDeliveriesInputSchema = z.object({
   limit: z.number().optional().describe('Maximum deliveries to return (default 20, max 100).')
 })
 
+const SessionRenameInputSchema = z.strictObject({
+  title: z.string().trim().min(1).max(255).describe('New Session title (1–255 characters).'),
+  session_id: z
+    .string()
+    .trim()
+    .min(1)
+    .optional()
+    .describe('Target Agent Session id, including another Agent’s Session. Omit to rename the current Session.')
+})
+
 const SessionCreateInputSchema = z.object({
   message: z.string().describe('First message for the new Session.'),
   title: z.string().max(255).optional().describe('Optional Session title.'),
@@ -370,6 +392,14 @@ function listAgents(): CallToolResult {
     modelConfigured: agent.model !== null
   }))
   return { content: [{ type: 'text', text: JSON.stringify({ agents }) }] }
+}
+
+function renameSession(ctx: AutonomyToolsContext, args: z.output<typeof SessionRenameInputSchema>): CallToolResult {
+  const sessionId = args.session_id ?? ctx.sessionId
+  const updated = agentSessionService.update(sessionId, { name: args.title })
+  return {
+    content: [{ type: 'text', text: JSON.stringify({ sessionId: updated.id, sessionName: updated.name }) }]
+  }
 }
 
 function searchSessions(ctx: AutonomyToolsContext, args: z.output<typeof SessionSearchInputSchema>): CallToolResult {
@@ -1177,6 +1207,15 @@ export function registerAutonomyTools(server: McpServer, ctx: AutonomyToolsConte
       inputSchema: SessionReadInputSchema
     },
     (args) => runSessionTool(ctx, () => readSession(args))
+  )
+  server.registerTool(
+    SESSION_RENAME_TOOL_NAME,
+    {
+      description:
+        'Rename the current Agent Session, or another Agent Session by id. The title is protected from automatic renaming.',
+      inputSchema: SessionRenameInputSchema
+    },
+    (args) => runSessionTool(ctx, () => renameSession(ctx, args))
   )
   server.registerTool(
     SESSION_CREATE_TOOL_NAME,

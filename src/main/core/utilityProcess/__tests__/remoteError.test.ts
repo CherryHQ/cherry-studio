@@ -12,6 +12,7 @@ function unrenderable(): object {
 describe('toRemoteError', () => {
   it('produces a structured-cloneable shape for a value that cannot be stringified', () => {
     const shape = toRemoteError(unrenderable())
+    // oxlint-disable-next-line no-restricted-globals -- Verify that the wire error shape survives the real structured-clone transport.
     expect(() => structuredClone(shape)).not.toThrow()
     expect(shape.name).toBe('Error')
   })
@@ -23,6 +24,7 @@ describe('toRemoteError', () => {
       }
     }
     const shape = toRemoteError(new Nasty())
+    // oxlint-disable-next-line no-restricted-globals -- Verify that the wire error shape survives the real structured-clone transport.
     expect(() => structuredClone(shape)).not.toThrow()
     expect(fromRemoteError(shape)).toBeInstanceOf(Error)
   })
@@ -45,6 +47,7 @@ describe('toRemoteError', () => {
       expect(shape[field]).toBe(expected)
       expect(typeof shape.name).toBe('string')
       expect(typeof shape.message).toBe('string')
+      // oxlint-disable-next-line no-restricted-globals -- Verify that the wire error shape survives the real structured-clone transport.
       expect(structuredClone(shape)).toEqual(shape)
       expect(() => `${fromRemoteError(shape)}`).not.toThrow()
     })
@@ -56,6 +59,7 @@ describe('toRemoteError', () => {
 
       expect(typeof shape.name).toBe('string')
       expect(typeof shape.message).toBe('string')
+      // oxlint-disable-next-line no-restricted-globals -- Verify that the wire error shape survives the real structured-clone transport.
       expect(structuredClone(shape)).toEqual(shape)
       expect(() => `${fromRemoteError(shape)}`).not.toThrow()
     })

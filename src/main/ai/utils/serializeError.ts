@@ -1,4 +1,4 @@
-import { APICallError, RetryError } from 'ai'
+import { APICallError, JSONParseError, RetryError, TypeValidationError } from 'ai'
 
 import { getSafeProviderErrorMessage, serializeNestedProviderError } from '@shared/ai/providerError'
 import type { SerializedError } from '@shared/types/error'
@@ -37,8 +37,9 @@ function toSerializable(value: unknown): Serializable {
  *  fields and the renderer's type guards match. */
 export function serializeError(error: unknown): SerializedError {
   const ownership: Record<string, Serializable> = hasReportingOwner(error) ? { reportingHandled: true } : {}
-  if (APICallError.isInstance(error))
+  if (APICallError.isInstance(error) || JSONParseError.isInstance(error) || TypeValidationError.isInstance(error)) {
     return { ...(serializeNestedProviderError(error) as SerializedError), ...ownership }
+  }
   if (error instanceof Error) {
     const e = error as unknown as Record<string, unknown>
     const isRetryError = RetryError.isInstance(error)

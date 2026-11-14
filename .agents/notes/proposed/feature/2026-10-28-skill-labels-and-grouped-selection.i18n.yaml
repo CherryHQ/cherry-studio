@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/proposed/feature/2026-10-28-skill-labels-and-grouped-selection.md
+2026-10-28-skill-labels-and-grouped-selection.md: a5424d4da885b04bc5078f76be4793b5851ed7ff
+2026-10-28-skill-labels-and-grouped-selection.zh.md: ebc8614d85156fbcf471ffff2b07dd54189cff23

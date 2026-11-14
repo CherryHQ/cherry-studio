@@ -155,6 +155,11 @@ export interface EnqueueOptions {
   timeoutMs?: number
   maxAttempts?: number
   metadata?: Record<string, unknown>
+  /**
+   * Startup recovery for this job, overriding its handler's `recovery`. `singleton` is a per-type
+   * rule, so it cannot be set per job.
+   */
+  recovery?: Exclude<RecoveryStrategy, 'singleton'>
 }
 
 export interface JobScheduleRegistrationInput<K extends JobType = JobType> {

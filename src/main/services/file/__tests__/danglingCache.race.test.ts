@@ -8,9 +8,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { fileEntryService } from '@data/services/FileEntryService'
 import { fileRefService } from '@data/services/FileRefService'
-import { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
 import { type DanglingState, FileEntrySchema } from '@shared/data/types/file'
 import type { AbsoluteFilePath } from '@shared/types/file'
+import { KeyedMutex } from '@shared/utils/async'
 import { canonicalizeFilePath } from '@shared/utils/file'
 
 import { createDanglingCacheImpl, type DanglingStateChangedEvent } from '../danglingCache'

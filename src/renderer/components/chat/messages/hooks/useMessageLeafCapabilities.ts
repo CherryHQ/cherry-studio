@@ -12,12 +12,14 @@ import type {
 } from '@renderer/components/chat/messages/types'
 import { ipcApi } from '@renderer/ipc'
 import { popup } from '@renderer/services/popup'
+import { openExternalWebsite } from '@renderer/services/website'
 import { FILE_TYPE, type FileMetadata } from '@renderer/types/file'
 import type { McpTool } from '@renderer/types/tool'
 import { safeOpen } from '@renderer/utils/file/safeOpen'
 import type { FileHandle } from '@shared/data/types/file'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import type { AbsoluteFilePath } from '@shared/types/file'
+import { resolveSafeExternalUrl } from '@shared/utils/externalUrlSafety'
 import { getFileTypeByExt, isFilePathHandle } from '@shared/utils/file'
 
 import { useAttachment } from './useAttachment'
@@ -169,6 +171,10 @@ export function useMessageLeafCapabilities({
   )
 
   const openExternalUrl = useCallback<NonNullable<MessageListActions['openExternalUrl']>>((url) => {
+    if (resolveSafeExternalUrl(url)?.requiresConfirmation) {
+      void openExternalWebsite(url)
+      return
+    }
     window.open(url, '_blank', 'noopener,noreferrer')
   }, [])
 

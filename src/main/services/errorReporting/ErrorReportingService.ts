@@ -15,14 +15,7 @@ import { captureLoggedError } from './sentry'
 const WINDOW_MS = 10 * 60 * 1000
 const BUDGET_WINDOW_MS = 60 * 60 * 1000
 const EVENTS_PER_BUDGET = 10
-const CRITICAL_OPERATIONS = new Set([
-  'window.renderer.exit',
-  'react.render',
-  'database.open',
-  'database.migrate',
-  'migration.open',
-  'migration.check'
-])
+const CRITICAL_OPERATIONS = new Set(['window.renderer.exit', 'react.render', 'database.open', 'database.migrate'])
 const logger = loggerService.withContext('ErrorReportingService')
 
 @Injectable('ErrorReportingService')

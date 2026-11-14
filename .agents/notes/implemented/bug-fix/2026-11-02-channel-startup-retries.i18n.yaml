@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-02-channel-startup-retries.md
+2026-11-02-channel-startup-retries.md: 9348aeeedc7ad91f044dc33b87635a583d930964
+2026-11-02-channel-startup-retries.zh.md: ea0ef3532ab62a5c2c047cf9cbcb07c6ecdf2101

@@ -1,7 +1,7 @@
 import type { FC } from 'react'
 import { memo, useCallback } from 'react'
 
-import { RowFlex, Scrollbar, SegmentedControl, Tooltip } from '@cherrystudio/ui'
+import { RowFlex, SegmentedControl, Tooltip } from '@cherrystudio/ui'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 
 import type { MessageListItem } from '../types'
@@ -11,9 +11,16 @@ interface MessageGroupModelListProps {
   messages: MessageListItem[]
   selectMessageId: string
   setSelectedMessage: (message: MessageListItem) => void
+  displayMode: 'expanded' | 'compact'
 }
 
-const MessageGroupModelList: FC<MessageGroupModelListProps> = ({ messages, selectMessageId, setSelectedMessage }) => {
+const MessageGroupModelList: FC<MessageGroupModelListProps> = ({
+  messages,
+  selectMessageId,
+  setSelectedMessage,
+  displayMode
+}) => {
+  const isCompact = displayMode === 'compact'
   const renderLabel = useCallback(
     (message: MessageListItem) => {
       const isProcessing = isMessageListItemProcessing(message)
@@ -21,21 +28,22 @@ const MessageGroupModelList: FC<MessageGroupModelListProps> = ({ messages, selec
       const model = getMessageListItemModel(message)
       const modelName = model?.name || model?.id
       const avatar = <ModelAvatar className={isProcessing ? 'animation-pulse' : ''} model={model} size={20} />
+      const showName = !isCompact || isSelected
 
       return (
         <SegmentedLabel>
-          {isSelected || !modelName ? (
+          {showName || !modelName ? (
             avatar
           ) : (
             <Tooltip content={modelName} delay={600}>
               {avatar}
             </Tooltip>
           )}
-          {isSelected && <ModelName>{modelName}</ModelName>}
+          {showName && <ModelName>{modelName}</ModelName>}
         </SegmentedLabel>
       )
     },
-    [selectMessageId]
+    [isCompact, selectMessageId]
   )
 
   return (
@@ -63,9 +71,9 @@ const Container = ({ className, ...props }: React.ComponentPropsWithoutRef<typeo
   <RowFlex className={['ml-1 flex-1 items-center overflow-hidden', className].filter(Boolean).join(' ')} {...props} />
 )
 
-const ModelsContainer = ({ className, ...props }: React.ComponentPropsWithoutRef<typeof Scrollbar>) => {
+const ModelsContainer = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => {
   return (
-    <Scrollbar
+    <div
       className={[
         'flex flex-1 flex-row items-center justify-start overflow-x-auto px-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
         className

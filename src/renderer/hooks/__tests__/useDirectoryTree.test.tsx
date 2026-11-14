@@ -251,7 +251,6 @@ describe('useDirectoryTree', () => {
 
   it('does not retain the previous root when the next root fails to load', async () => {
     const nextError = new Error('notes2 failed')
-    const errorSpy = vi.spyOn(loggerService, 'error').mockImplementation(() => undefined)
     let resolveThird: ((value: CreateTreeIpcResult) => void) | null = null
     mocks.create
       .mockResolvedValueOnce({ treeId: 't-first', revision: 0, snapshot: makeSnapshot('/notes', ['a.md']) })
@@ -279,7 +278,6 @@ describe('useDirectoryTree', () => {
     expect(result.current.root).toBeNull()
     expect(result.current.treeId).toBeNull()
     expect(result.current.getNode('/notes/a.md')).toBeNull()
-    expect(errorSpy).toHaveBeenCalledWith('Failed to create directory tree for /notes2', nextError)
 
     rerender({ root: '/notes' })
 
@@ -636,7 +634,6 @@ describe('useDirectoryTree', () => {
   })
 
   it('reports a forward revision gap instead of applying a stale stream', async () => {
-    const errorSpy = vi.spyOn(loggerService, 'error').mockImplementation(() => undefined)
     mocks.create.mockResolvedValue({ treeId: 't-gap', revision: 2, snapshot: makeSnapshot('/notes', []) })
     let pushListener: ((payload: TreeMutationPushPayload) => void) | null = null
     mocks.onMutation.mockImplementation((cb) => {
@@ -670,7 +667,6 @@ describe('useDirectoryTree', () => {
     })
     expect(result.current.root).toBeNull()
     expect(result.current.getNode('/notes/skipped.md')).toBeNull()
-    expect(errorSpy).toHaveBeenCalledWith('Directory tree mutation stream became stale for /notes', expect.any(Error))
   })
 
   it('retakes the handshake when main refuses activation, and publishes the fresh snapshot', async () => {

@@ -2,8 +2,8 @@ import { providerFailureFacts } from '@main/ai/errorReporting'
 import type { FailureFacts } from '@shared/types/errorReporting'
 import { isCancellation } from '@shared/utils/errorReporting'
 
+import { ClaudeCodeResultError } from './ClaudeRuntimeState'
 import { isClaudeCodeProcessFailure, type ClaudeCodeProcessDiagnostics } from './processExitDiagnostics'
-import { ClaudeCodeResultError } from './streamAdapter'
 
 export function classifyClaudeFailure(
   error: unknown,

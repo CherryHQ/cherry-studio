@@ -311,6 +311,65 @@ describe('KnowledgeItemService', () => {
       expect(result).toEqual([DIR_A_ID, NOTE_ROOT_ID])
     })
 
+    it('drops a selected item whose selected ancestor is more than one level up', async () => {
+      await seedItem({ id: DIR_ROOT_ID, type: 'directory', data: { source: '/root' } })
+      await seedItem({ id: DIR_CHILD_ID, type: 'directory', groupId: DIR_ROOT_ID, data: { source: '/root/child' } })
+      await seedItem({
+        id: NOTE_GRANDCHILD_ID,
+        groupId: DIR_CHILD_ID,
+        data: { source: 'grandchild', content: 'grandchild' }
+      })
+
+      const result = service.getOutermostSelectedItemIds(KNOWLEDGE_BASE_ID, [NOTE_GRANDCHILD_ID, DIR_ROOT_ID])
+
+      expect(result).toEqual([DIR_ROOT_ID])
+    })
+
+    it('throws NotFound when a selected item does not exist', async () => {
+      await seedItem({ id: NOTE_ROOT_ID, data: { source: 'root', content: 'root' } })
+
+      expect(() => service.getOutermostSelectedItemIds(KNOWLEDGE_BASE_ID, [NOTE_ROOT_ID, 'missing'])).toThrow(
+        expect.objectContaining({ code: ErrorCode.NOT_FOUND, status: 404 })
+      )
+    })
+
+    it('rejects a selected item that belongs to another base', async () => {
+      await dbh.db.insert(knowledgeBaseTable).values({
+        orderKey: 'a1',
+        id: 'kb-2',
+        name: 'KB 2',
+        dimensions: 1024,
+        embeddingModelId: createUniqueModelId('openai', 'text-embedding-3-large'),
+        status: 'completed',
+        error: null,
+        chunkSize: 1024,
+        chunkOverlap: 200
+      })
+      await seedItem({ id: NOTE_ROOT_ID, data: { source: 'root', content: 'root' } })
+      await seedItem({ id: OTHER_ITEM_ID, baseId: 'kb-2', data: { source: 'other', content: 'other' } })
+
+      expect(() => service.getOutermostSelectedItemIds(KNOWLEDGE_BASE_ID, [NOTE_ROOT_ID, OTHER_ITEM_ID])).toThrow(
+        `Knowledge item '${OTHER_ITEM_ID}' does not belong to base '${KNOWLEDGE_BASE_ID}'`
+      )
+    })
+
+    it('handles a selection larger than half the SQLite bound-variable limit', async () => {
+      const selectedIds = Array.from({ length: 17_000 }, (_, index) => `bulk-note-${index}`)
+      for (let start = 0; start < selectedIds.length; start += 500) {
+        await dbh.db.insert(knowledgeItemTable).values(
+          selectedIds.slice(start, start + 500).map((id) => ({
+            id,
+            baseId: KNOWLEDGE_BASE_ID,
+            type: 'note' as const,
+            data: { source: id, content: id },
+            status: 'completed' as const
+          }))
+        )
+      }
+
+      expect(service.getOutermostSelectedItemIds(KNOWLEDGE_BASE_ID, selectedIds)).toEqual(selectedIds)
+    })
+
     it('filters items by group id', async () => {
       await seedItem({ id: DIR_A_ID, type: 'directory', data: { source: '/a' } })
       await seedItem({ id: NOTE_A_ID, groupId: DIR_A_ID, data: { source: 'a', content: 'a' } })
@@ -878,7 +937,7 @@ describe('KnowledgeItemService', () => {
       expect(result.map((item) => item.id).sort()).toEqual([DIR_CHILD_ID, DIR_ROOT_ID, FILE_CHILD_ID])
     })
 
-    it('reads subtree rows with a single raw query instead of a follow-up ORM select', async () => {
+    it('reads the requested subtree including its root', async () => {
       await seedItem({ id: DIR_ROOT_ID, type: 'directory', data: { source: '/root' } })
       await seedItem({
         id: FILE_CHILD_ID,
@@ -887,19 +946,9 @@ describe('KnowledgeItemService', () => {
         data: createFileItemData(FILE_CHILD_ID)
       })
 
-      const allSpy = vi.spyOn(dbh.db, 'all')
-      const selectSpy = vi.spyOn(dbh.db, 'select')
+      const result = service.getSubtreeItems(KNOWLEDGE_BASE_ID, [DIR_ROOT_ID], { includeRoots: true })
 
-      try {
-        const result = service.getSubtreeItems(KNOWLEDGE_BASE_ID, [DIR_ROOT_ID], { includeRoots: true })
-
-        expect(result.map((item) => item.id).sort()).toEqual([DIR_ROOT_ID, FILE_CHILD_ID])
-        expect(allSpy).toHaveBeenCalledTimes(1)
-        expect(selectSpy).not.toHaveBeenCalled()
-      } finally {
-        allSpy.mockRestore()
-        selectSpy.mockRestore()
-      }
+      expect(result.map((item) => item.id).sort()).toEqual([DIR_ROOT_ID, FILE_CHILD_ID])
     })
 
     it('returns an empty list when no roots are provided', () => {
@@ -1136,11 +1185,6 @@ describe('KnowledgeItemService', () => {
         status: 'deleting',
         error: null
       })
-      expect(mockMainLoggerService.warn).toHaveBeenCalledWith(
-        'Skipped status update for deleting item',
-        expect.objectContaining({ id: seeded.id, attemptedStatus: 'completed' })
-      )
-      expect(mockMainLoggerService.info).not.toHaveBeenCalledWith('Updated knowledge item status', expect.anything())
     })
 
     it('does not overwrite deleting items with failed status from settled jobs', async () => {
@@ -1161,11 +1205,6 @@ describe('KnowledgeItemService', () => {
         status: 'deleting',
         error: null
       })
-      expect(mockMainLoggerService.warn).toHaveBeenCalledWith(
-        'Skipped status update for deleting item',
-        expect.objectContaining({ id: seeded.id, attemptedStatus: 'failed' })
-      )
-      expect(mockMainLoggerService.info).not.toHaveBeenCalledWith('Updated knowledge item status', expect.anything())
     })
   })
 

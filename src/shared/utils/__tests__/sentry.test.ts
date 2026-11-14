@@ -32,7 +32,12 @@ describe('Sentry context', () => {
 
   it('does not report an IPC failure again in its receiving process', () => {
     expect(
-      getSentryLogContext({ level: 'error', stack: 'Error: remote error', reportingHandled: true })
+      getSentryLogContext({
+        level: 'error',
+        stack: 'Error: remote error',
+        reportingHandled: true,
+        failure: { source: 'application', kind: 'defect', reason: 'execution_failed', outcome: 'failed' }
+      })
     ).toBeUndefined()
   })
 

@@ -30,7 +30,12 @@ import {
 } from '@modelcontextprotocol/client'
 import { withInputRequired } from '@modelcontextprotocol/client'
 import { CfWorkerJsonSchemaValidator } from '@modelcontextprotocol/client/validators/cf-worker'
-import { GetPromptResultSchema, ReadResourceResultSchema } from '@modelcontextprotocol/core'
+import {
+  GetPromptResultSchema,
+  ReadResourceResultSchema,
+  RequestMetaSchema,
+  ResultSchema
+} from '@modelcontextprotocol/core'
 
 import type {
   McpCallToolOptions,
@@ -45,6 +50,9 @@ import { ResourceObservations } from './ResourceObservations'
 
 const INTERACTION_TIMEOUT_MS = 10 * 60 * 1000
 const HEALTH_CHECK_TIMEOUT_MS = 5_000
+const HEALTH_PING_RESULT_SCHEMA = ResultSchema.extend({
+  _meta: RequestMetaSchema.optional()
+})
 type HealthCatalogMethod = 'listTools' | 'listPrompts' | 'listResources'
 
 interface ActiveInteraction {
@@ -454,8 +462,10 @@ export class ClientMcpConnection implements McpConnection {
     const era = this.era
     const method = this.healthCatalogMethod ?? (era === 'modern' ? 'discover' : 'ping')
     const check = async (selected: 'discover' | 'ping' | HealthCatalogMethod) => {
-      if (selected === 'discover' || selected === 'ping') {
+      if (selected === 'discover') {
         await this.client[selected]({ timeout: HEALTH_CHECK_TIMEOUT_MS })
+      } else if (selected === 'ping') {
+        await this.client.request({ method: 'ping' }, HEALTH_PING_RESULT_SCHEMA, { timeout: HEALTH_CHECK_TIMEOUT_MS })
       } else {
         await this.client[selected](this.paramsWithLogLevel({}), {
           cacheMode: 'refresh',

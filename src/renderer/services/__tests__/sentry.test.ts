@@ -35,7 +35,9 @@ describe('renderer Sentry initialization', () => {
   it('keeps remote-owned failures local even when caught by a global exception handler', () => {
     initSentry()
     const error = IpcError.fromJSON({ code: 'INTERNAL', message: 'Main failure', reportingHandled: true })
-    loggerService.withContext('Caller').error('IPC failed', error)
+    loggerService.withContext('Caller').error('IPC failed', error, {
+      failure: { source: 'application', kind: 'defect', reason: 'execution_failed', outcome: 'failed' }
+    })
     expect(captureExceptionMock).not.toHaveBeenCalled()
     expect(initMock.mock.calls[0][0].beforeSend({}, { originalException: error })).toBeNull()
     expect(

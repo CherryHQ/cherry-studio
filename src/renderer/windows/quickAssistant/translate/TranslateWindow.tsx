@@ -5,7 +5,7 @@ import { useEffect, useEffectEvent, useState } from 'react'
 import { useHotkeys } from 'react-hotkeys-hook'
 import { useTranslation } from 'react-i18next'
 
-import { Scrollbar } from '@cherrystudio/ui'
+import { ScrollArea } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import LanguageSelect from '@renderer/components/LanguageSelect'
 import { useTranslate } from '@renderer/hooks/translate'
@@ -46,9 +46,6 @@ const Translate: FC<Props> = ({ text }) => {
 
   useEffect(() => {
     translateCurrentText()
-    // `translateCurrentText` is an Effect Event that reads the latest request functions.
-    // Only primitive request inputs should start or replace a translation.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [text, targetLanguage, translateModel?.id])
 
   useHotkeys('c', () => {
@@ -77,9 +74,9 @@ const Translate: FC<Props> = ({ text }) => {
         {isEmpty(result) ? (
           <div className="text-foreground-tertiary italic">{t('translate.output.placeholder')}...</div>
         ) : (
-          <Scrollbar className="flex flex-1 flex-col gap-2.5">
+          <ScrollArea contentProps={{ className: 'flex flex-col gap-2.5' }} className="flex-1">
             <div className="w-full whitespace-pre-wrap break-words">{result}</div>
-          </Scrollbar>
+          </ScrollArea>
         )}
       </div>
     </div>

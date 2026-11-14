@@ -82,6 +82,10 @@ export function getTaskActiveText(record: TaskRecordLike): string | undefined {
   return getTaskField(record, ['activeText', 'activeForm', 'description'])
 }
 
+export function isDeletedTaskStatus(value: TaskScalar): boolean {
+  return typeof value === 'string' && value.trim().toLowerCase() === 'deleted'
+}
+
 export function normalizeTaskStatus(value: TaskScalar): NormalizedTaskStatus | undefined {
   switch (value) {
     case 'pending':
@@ -91,7 +95,6 @@ export function normalizeTaskStatus(value: TaskScalar): NormalizedTaskStatus | u
     case 'paused':
       return 'in_progress'
     case 'completed':
-    case 'deleted':
       return 'completed'
     case 'error':
     case 'failed':

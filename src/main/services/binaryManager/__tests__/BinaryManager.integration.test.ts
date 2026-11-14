@@ -2,11 +2,16 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 
+import { McpServer } from '@modelcontextprotocol/server'
+import { connectMcpTestClient } from '@test-helpers/mcp/client'
+import { MockApplicationUtils } from '@test-mocks/main/application'
 import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
+import { CLI_INSTALL_TOOL_NAME, registerCliTools } from '@main/ai/mcp/servers/cherryCliTools'
+import { BaseService } from '@main/core/lifecycle'
 import type * as ShellEnvModule from '@main/utils/shellEnv'
 
 import { BinaryManager } from '../BinaryManager'
@@ -33,6 +38,7 @@ describeFakeMise('BinaryManager fake-mise integration', () => {
   let misePath: string
 
   beforeEach(() => {
+    BaseService.resetInstances()
     MockMainCacheServiceUtils.resetMocks()
     MockMainPreferenceServiceUtils.resetMocks()
     tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cherry-fake-mise-'))
@@ -47,7 +53,8 @@ describeFakeMise('BinaryManager fake-mise integration', () => {
       FAKE_MISE_ROOT: tempDir
     }
     vi.mocked(application.getPath).mockImplementation((key: string, filename?: string) => {
-      const base = key === 'feature.binary.data' ? tempDir : `/mock/${key}`
+      const base =
+        key === 'feature.binary.data' ? tempDir : key === 'cherry.bin' ? path.join(tempDir, 'bundled') : `/mock/${key}`
       return filename ? path.join(base, filename) : base
     })
 
@@ -107,6 +114,7 @@ if (command === 'use') {
   })
 
   afterEach(() => {
+    MockApplicationUtils.resetServices()
     shellEnvRef.current = {}
     fs.rmSync(tempDir, { recursive: true, force: true })
   })
@@ -117,6 +125,61 @@ if (command === 'use') {
     ;(service as any).isolatedEnv = { env: { ...shellEnvRef.current }, usesDefaultChinaPipIndex: false }
     return service
   }
+
+  it('returns a real MCP tool error for an unmet bundled target and recovers on a name-only request', async () => {
+    const bundledDir = path.join(tempDir, 'bundled')
+    fs.mkdirSync(bundledDir)
+    fs.writeFileSync(path.join(bundledDir, 'uv'), '#!/bin/sh\nexit 0\n', { mode: 0o755 })
+    fs.writeFileSync(path.join(bundledDir, '.uv-version'), '0.11.16')
+    const service = createService()
+    MockApplicationUtils.setService('BinaryManager', service)
+    const preferenceSet = vi.mocked(application.get('PreferenceService').set)
+    preferenceSet.mockClear()
+    const client = await connectMcpTestClient(() => {
+      const server = new McpServer({ name: 'bundled-version-test', version: '1.0.0' })
+      registerCliTools(server)
+      return server
+    })
+    try {
+      const result = await client.callTool({
+        name: CLI_INSTALL_TOOL_NAME,
+        arguments: { name: 'uv', tool: 'uv', requestedVersion: '0.13.4' }
+      })
+      const error =
+        'Cannot satisfy uv@0.13.4: source=bundled; bundled version=0.11.16. The requested version could not be verified as an exact semantic-version match. Omit the version target (requestedVersion in cli_install) to use the bundled copy, or update/reinstall Cherry Studio; bundled tools cannot be updated independently.'
+      expect(result.isError).toBe(true)
+      expect(result.content).toContainEqual(
+        expect.objectContaining({ type: 'text', text: expect.stringContaining(error) })
+      )
+      expect((await service.getToolSnapshots(['uv'])).uv.operation).toEqual({
+        status: 'failed',
+        action: 'install',
+        error,
+        targetVersion: '0.13.4'
+      })
+      await expect(service.getToolInventory()).resolves.toContainEqual({
+        name: 'uv',
+        recipe: 'uv',
+        status: 'failed',
+        version: '0.11.16'
+      })
+
+      const recovered = await client.callTool({ name: CLI_INSTALL_TOOL_NAME, arguments: { name: 'uv', tool: 'uv' } })
+      expect(recovered.isError).toBeFalsy()
+      expect(recovered.content).toContainEqual(
+        expect.objectContaining({
+          type: 'text',
+          text: expect.stringContaining('"ready"')
+        })
+      )
+      expect((await service.getToolSnapshots(['uv'])).uv.operation).toBeUndefined()
+      expect(fs.existsSync(path.join(tempDir, 'fake-installed-tools.json'))).toBe(false)
+      expect(fs.existsSync(path.join(tempDir, 'shims', 'uv'))).toBe(false)
+      expect(preferenceSet).not.toHaveBeenCalled()
+    } finally {
+      await client.close()
+    }
+  })
 
   it('installs, snapshots, and removes through the production process runner', async () => {
     const service = createService()

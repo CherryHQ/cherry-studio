@@ -9,9 +9,15 @@ import { makeSvgSizeAdaptive } from '@renderer/utils/image'
  *
  * @param svgContent The SVG string to render.
  * @param hostElement The container element that will host the Shadow DOM.
+ * @param options.fit `width` (default) scales to the host's width; `contain` also fits its height and centres the
+ *   SVG, never enlarging it past its intrinsic size.
  * @throws An error if the SVG content is invalid or cannot be parsed.
  */
-export function renderSvgInShadowHost(svgContent: string, hostElement: HTMLElement): void {
+export function renderSvgInShadowHost(
+  svgContent: string,
+  hostElement: HTMLElement,
+  { fit = 'width' }: { fit?: 'width' | 'contain' } = {}
+): void {
   if (!hostElement) {
     throw new Error('Host element for SVG rendering is not available.')
   }
@@ -45,6 +51,12 @@ export function renderSvgInShadowHost(svgContent: string, hostElement: HTMLEleme
       height: 100%;
     }
   `
+  if (fit === 'contain') {
+    style.textContent += `
+      :host { display: flex; align-items: center; justify-content: center; box-sizing: border-box; }
+      svg { height: 100%; }
+    `
+  }
 
   // Clear previous content and append new style
   shadowRoot.innerHTML = ''
@@ -83,6 +95,15 @@ export function renderSvgInShadowHost(svgContent: string, hostElement: HTMLEleme
   if (svgElement instanceof SVGSVGElement) {
     // Standardize the SVG element for proper scaling
     makeSvgSizeAdaptive(svgElement)
+    if (fit === 'contain') {
+      const intrinsicHeight = Number(
+        svgElement
+          .getAttribute('viewBox')
+          ?.trim()
+          .split(/[\s,]+/)[3]
+      )
+      if (intrinsicHeight > 0) svgElement.style.setProperty('max-height', `${intrinsicHeight}px`)
+    }
 
     // Append the SVG element to the shadow root
     shadowRoot.appendChild(svgElement)

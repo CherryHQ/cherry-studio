@@ -41,8 +41,8 @@ export function logAiFailure(
   level: 'error' | 'warn' | 'debug' = 'error'
 ): void {
   logger[level](message, {
-    ...context,
     ...chatErrorContext(error),
+    ...context,
     operation,
     failure,
     reportingHandled: hasReportingOwner(error)

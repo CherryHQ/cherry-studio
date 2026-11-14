@@ -90,6 +90,26 @@ async function permanentDeleteLocked(deps: FileManagerDeps, id: FileEntryId): Pr
   await cleanupDeletedEntry(deps, entry)
 }
 
+export async function deleteUnreferencedInternalEntry(deps: FileManagerDeps, id: FileEntryId): Promise<boolean> {
+  return deps.contentWriteLock.runExclusive(id, () =>
+    runPathMutationExclusive(() => deleteUnreferencedInternalEntryLocked(deps, id))
+  )
+}
+
+async function deleteUnreferencedInternalEntryLocked(deps: FileManagerDeps, id: FileEntryId): Promise<boolean> {
+  const entry = deps.fileEntryService.withWriteTx((tx) => {
+    const current = deps.fileEntryService.findByIdTx(tx, id)
+    if (!current || current.origin !== 'internal' || deps.fileRefService.countPersistentRefsByEntryIdTx(tx, id) > 0) {
+      return null
+    }
+    deps.fileEntryService.deleteTx(tx, id)
+    return current
+  })
+  if (!entry) return false
+  await cleanupDeletedEntry(deps, entry)
+  return true
+}
+
 export async function deleteInternalTemporaryEntry(deps: FileManagerDeps, id: FileEntryId): Promise<void> {
   return deps.contentWriteLock.runExclusive(id, () =>
     runPathMutationExclusive(() => deleteInternalTemporaryEntryLocked(deps, id))

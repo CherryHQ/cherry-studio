@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-07-knowledge-url-validation.md
+2026-11-07-knowledge-url-validation.md: 367fbd4bbb2f3d723a2ed7de4ffe8e8f38be0e7b
+2026-11-07-knowledge-url-validation.zh.md: 8e0a024ec3c4c84b7e9af513e4da8c1332ab69d6

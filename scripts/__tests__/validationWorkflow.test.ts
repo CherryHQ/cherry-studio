@@ -1,5 +1,5 @@
 import { execFileSync, spawnSync } from 'node:child_process'
-import { cpSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { cpSync, existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -16,6 +16,103 @@ const verify = (gate: string, jobs: unknown, steps?: unknown) =>
 const directories: string[] = []
 afterEach(() => {
   for (const directory of directories.splice(0)) rmSync(directory, { recursive: true, force: true })
+})
+
+describe('nine-runner full validation', () => {
+  it('uses seven Linux runners and one runner per native platform', () => {
+    const jobs = Object.values(workflow.jobs) as {
+      'runs-on': string
+      steps: { uses?: string }[]
+      strategy?: { matrix: { os?: string[]; shard?: number[] } }
+    }[]
+    const runners = jobs
+      .filter((job) => job.steps.some((step) => step.uses === './.github/actions/setup-validation'))
+      .flatMap((job) => {
+        const matrix = job.strategy?.matrix
+        return matrix?.os ?? Array.from({ length: matrix?.shard?.length ?? 1 }, () => job['runs-on'])
+      })
+
+    expect(runners.sort()).toEqual([
+      'macos-latest',
+      'ubuntu-latest',
+      'ubuntu-latest',
+      'ubuntu-latest',
+      'ubuntu-latest',
+      'ubuntu-latest',
+      'ubuntu-latest',
+      'ubuntu-latest',
+      'windows-2022'
+    ])
+  })
+
+  it('runs the complete selected package group without shard filters', () => {
+    const job = workflow.jobs['package-test']
+    expect(job.steps.find((step: { run?: string }) => step.run?.startsWith('pnpm check')).run).toBe(
+      'pnpm check --group packages'
+    )
+  })
+
+  it('covers both main/preload shards without cancelling siblings on failure', () => {
+    const job = workflow.jobs['main-test-shard']
+    expect(job.strategy).toEqual({ 'fail-fast': false, matrix: { shard: [1, 2] } })
+    expect(job.steps.find((step: { run?: string }) => step.run?.startsWith('pnpm check')).run).toBe(
+      'pnpm check --group main --shard=${{ matrix.shard }}/2'
+    )
+    expect(workflow.jobs['general-test'].needs).toContain('main-test-shard')
+  })
+
+  it('covers all three renderer shards without cancelling siblings on failure', () => {
+    const job = workflow.jobs['renderer-test-shard']
+    expect(job.strategy).toEqual({ 'fail-fast': false, matrix: { shard: [1, 2, 3] } })
+    expect(job.steps.find((step: { run?: string }) => step.run?.startsWith('pnpm check')).run).toBe(
+      'pnpm check --group renderer --shard=${{ matrix.shard }}/3'
+    )
+    expect(workflow.jobs['render-test'].needs).toContain('renderer-test-shard')
+  })
+})
+
+describe('CI preparation and preflight', () => {
+  it.each([0, 7])('marks workspace exports prepared only after installation succeeds: exit %s', (exitCode) => {
+    const action = parse(readFileSync('.github/actions/setup-validation/action.yml', 'utf8'))
+    const install = action.runs.steps.find((step: { name?: string }) => step.name === 'Install dependencies')
+    const cwd = mkdtempSync(join(tmpdir(), 'cherry-ci-install-'))
+    directories.push(cwd)
+    writeFileSync(join(cwd, 'pnpm'), '#!/bin/sh\nexit "$INSTALL_EXIT"\n', { mode: 0o755 })
+    const envFile = join(cwd, 'environment')
+    const result = spawnSync('bash', ['-e', '-o', 'pipefail', '-c', install.run], {
+      env: { ...process.env, PATH: `${cwd}:${process.env.PATH}`, INSTALL_EXIT: String(exitCode), GITHUB_ENV: envFile }
+    })
+    expect(result.status).toBe(exitCode)
+    expect(existsSync(envFile) ? readFileSync(envFile, 'utf8') : '').toBe(
+      exitCode === 0 ? 'VALIDATION_WORKSPACE_PREPARED=true\n' : ''
+    )
+  })
+
+  it('checks formatting without installing workspace dependencies', () => {
+    const format = workflow.jobs.changes.steps.find((step: { name?: string }) => step.name === 'Check formatting')
+    const cwd = mkdtempSync(join(tmpdir(), 'cherry-ci-preflight-'))
+    directories.push(cwd)
+    const log = join(cwd, 'arguments')
+    writeFileSync(join(cwd, 'pnpm'), '#!/bin/sh\nprintf "%s\\n" "$@" > "$COMMAND_LOG"\n', { mode: 0o755 })
+    const result = spawnSync('bash', ['-e', '-o', 'pipefail', '-c', format.run], {
+      env: { ...process.env, PATH: `${cwd}:${process.env.PATH}`, COMMAND_LOG: log }
+    })
+    expect(result.status).toBe(0)
+    const manifest = JSON.parse(readFileSync('package.json', 'utf8'))
+    expect(readFileSync(log, 'utf8').trim().split('\n')).toEqual([
+      'dlx',
+      `oxfmt@${manifest.devDependencies.oxfmt}`,
+      '--check',
+      '.'
+    ])
+    const setup = workflow.jobs['basic-checks'].steps.find((step: { id?: string }) => step.id === 'dependencies')
+    expect(
+      new Function('needs', 'cancelled', `return (${setup.if})`)(
+        { changes: { result: 'failure', outputs: { repository: 'true', types: 'true', lint: 'true', i18n: 'true' } } },
+        () => false
+      )
+    ).toBe(false)
+  })
 })
 
 describe('CI validation planning', () => {
@@ -89,6 +186,23 @@ describe('CI validation planning', () => {
       jobs.changes.outputs.plan = JSON.stringify(createPlan(['README.md']))
       for (const dependency of job.needs.filter((id: string) => id !== 'changes')) jobs[dependency].result = 'skipped'
       expect(verify(gate, jobs)).toBe(0)
+    }
+  })
+
+  it('accepts omitted native jobs for portable changes while requiring Linux consumer tests', () => {
+    const jobs = Object.fromEntries(
+      workflow.jobs['general-test'].needs.map((dependency: string) => [dependency, { result: 'success' }])
+    )
+    jobs.changes = {
+      result: 'success',
+      outputs: { plan: JSON.stringify(createPlan(['packages/web-search/src/providers/tavily.ts'])) }
+    }
+    jobs['platform-test'].result = 'skipped'
+    expect(verify('general', jobs)).toBe(0)
+    for (const dependency of ['main-test-shard', 'package-test']) {
+      jobs[dependency].result = 'skipped'
+      expect(verify('general', jobs)).not.toBe(0)
+      jobs[dependency].result = 'success'
     }
   })
 
