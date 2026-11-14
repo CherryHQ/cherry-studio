@@ -41,6 +41,30 @@ Object.defineProperty(CSS, 'highlights', {
 })
 
 describe('NotesEditor RichEditor integration', () => {
+  it('forwards wiki clicks without changing content and uses the latest callback', async () => {
+    const editorRef: RefObject<RichEditorRef | null> = { current: null }
+    const onChange = vi.fn()
+    const first = vi.fn()
+    const second = vi.fn()
+    const props = {
+      activeNodeId: '/notes/example.md',
+      currentContent: '[[T]]',
+      tokenCount: 5,
+      editorRef,
+      codeEditorRef: { current: null },
+      onMarkdownChange: onChange
+    }
+    const { container, rerender } = render(<NotesEditor {...props} onWikiLinkClick={first} />)
+    await waitFor(() => expect(container.querySelector('[data-wiki-link]')).not.toBeNull(), { timeout: 10_000 })
+    const link = container.querySelector('[data-wiki-link]')!
+    rerender(<NotesEditor {...props} onWikiLinkClick={second} />)
+    fireEvent.click(link, { ctrlKey: true })
+    expect(first).not.toHaveBeenCalled()
+    expect(second).toHaveBeenCalledWith('T')
+    expect(onChange).not.toHaveBeenCalled()
+    expect(container.querySelector('[data-wiki-link]')).toBe(link)
+  })
+
   it('keeps command filtering local while preserving toolbar transactions', async () => {
     const editorRef: RefObject<RichEditorRef | null> = { current: null }
     const initialContent = '12345678901234567890'

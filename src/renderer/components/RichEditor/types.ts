@@ -1,6 +1,7 @@
 export interface RichEditorProps {
   /** Initial markdown content for the editor */
   initialContent?: string
+  onWikiLinkClick?: (target: string) => void
   /** Placeholder text when editor is empty */
   placeholder?: string
   /** Enable in-editor content search UI */

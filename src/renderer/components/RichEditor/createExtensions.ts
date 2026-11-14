@@ -7,7 +7,7 @@ import {
   TableOfContents
 } from '@tiptap/extension-table-of-contents'
 import Typography from '@tiptap/extension-typography'
-import { Markdown } from '@tiptap/markdown'
+import { Markdown, MarkdownManager } from '@tiptap/markdown'
 import { StarterKit } from '@tiptap/starter-kit'
 
 import { TableCell, TableHeader, TableRow } from '@cherrystudio/extension-table-plus'
@@ -19,7 +19,34 @@ import { EnhancedLink, type EnhancedLinkOptions } from './extensions/enhancedLin
 import { EnhancedMath, type EnhancedMathOptions } from './extensions/enhancedMath'
 import { MarkdownTable } from './extensions/markdownTable'
 import { Placeholder } from './extensions/placeholder'
+import { MarkdownLiteral, WikiLink } from './extensions/wikiLink'
 import { YamlFrontMatter } from './extensions/yamlFrontMatter'
+
+function createIsolatedMarked() {
+  const marked = new MarkdownManager({ extensions: [] }).instance
+  const options = {
+    ...marked.getDefaults(),
+    extensions: { block: [], inline: [], startBlock: [], startInline: [], childTokens: {} }
+  } as any
+  return {
+    ...marked,
+    setOptions: (value: object) => Object.assign(options, value),
+    use: ({ extensions }: { extensions: any[] }) => {
+      for (const extension of extensions) {
+        options.extensions[extension.level].unshift(extension.tokenizer)
+        if (extension.start)
+          options.extensions[extension.level === 'block' ? 'startBlock' : 'startInline'].push(extension.start)
+        options.extensions.childTokens[extension.name] = extension.childTokens
+      }
+    },
+    Lexer: class extends marked.Lexer {
+      constructor() {
+        super(options)
+      }
+    },
+    lexer: (source: string) => marked.Lexer.lex(source, options)
+  } as typeof marked
+}
 
 /** Table row/column action handler shape (mirrors `@cherrystudio/extension-table-plus`). */
 type TableActionHandler<T extends 'rowIndex' | 'colIndex'> = (
@@ -29,6 +56,7 @@ type TableActionHandler<T extends 'rowIndex' | 'colIndex'> = (
 export interface CreateRichEditorExtensionsOptions {
   /** Whether the editor is editable (affects link hover behavior). */
   editable?: boolean
+  onWikiLinkClick?: (target: string) => void
   /** Placeholder text shown in the empty editor. */
   placeholder?: string
   /** Code theme for the code block extension. */
@@ -67,6 +95,7 @@ export interface CreateRichEditorExtensionsOptions {
 export const createRichEditorExtensions = (options: CreateRichEditorExtensionsOptions = {}): Extensions => {
   const {
     editable = true,
+    onWikiLinkClick,
     placeholder = '',
     codeTheme = 'one-light',
     onLinkHover,
@@ -85,6 +114,7 @@ export const createRichEditorExtensions = (options: CreateRichEditorExtensionsOp
     // Native Markdown parsing/serialization via the official @tiptap/markdown AST
     // (marked-based). Custom nodes contribute their own parse/render hooks.
     Markdown.configure({
+      marked: onWikiLinkClick ? createIsolatedMarked() : undefined,
       markedOptions: {
         gfm: true
       }
@@ -122,6 +152,7 @@ export const createRichEditorExtensions = (options: CreateRichEditorExtensionsOp
       includeChildren: false
     }),
     YamlFrontMatter,
+    ...(onWikiLinkClick ? [WikiLink.configure({ onClick: onWikiLinkClick }), MarkdownLiteral] : []),
     Mention.configure({
       HTMLAttributes: {
         class: 'mention'

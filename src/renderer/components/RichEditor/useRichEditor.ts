@@ -5,7 +5,7 @@ import { migrateMathStrings } from '@tiptap/extension-mathematics'
 import type { TableOfContentDataItem } from '@tiptap/extension-table-of-contents'
 import { useEditor, useEditorState } from '@tiptap/react'
 import { t } from 'i18next'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { loggerService } from '@logger'
 import type { FormattingState } from '@renderer/components/RichEditor/types'
@@ -26,6 +26,7 @@ function canAutoFocus(editor: Editor): boolean {
 export interface UseRichEditorOptions {
   /** Initial markdown content */
   initialContent?: string
+  onWikiLinkClick?: (target: string) => void
   /** Callback when markdown content changes */
   onChange?: (markdown: string) => void
   /** Callback when HTML content changes */
@@ -96,6 +97,7 @@ export interface UseRichEditorReturn {
 export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditorReturn => {
   const {
     initialContent = '',
+    onWikiLinkClick,
     onChange,
     onHtmlChange,
     onContentChange,
@@ -111,6 +113,10 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
     onShowTableActionMenu,
     scrollParent
   } = options
+
+  const wikiClickRef = useRef(onWikiLinkClick)
+  wikiClickRef.current = onWikiLinkClick
+  const hasWikiLink = !!onWikiLinkClick
 
   const [markdown, setMarkdownState] = useState<string>(initialContent)
 
@@ -164,6 +170,7 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
     () =>
       createRichEditorExtensions({
         editable,
+        onWikiLinkClick: hasWikiLink ? (target) => wikiClickRef.current?.(target) : undefined,
         placeholder,
         codeTheme: activeCodeTheme,
         onLinkHover: handleLinkHover,
@@ -278,7 +285,15 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
         disabledCommands
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [placeholder, activeCodeTheme, handleLinkHover, handleLinkHoverEnd, enableImageInsertion, disabledCommands]
+    [
+      placeholder,
+      activeCodeTheme,
+      handleLinkHover,
+      handleLinkHoverEnd,
+      enableImageInsertion,
+      disabledCommands,
+      hasWikiLink
+    ]
   )
 
   const editor = useEditor({
@@ -333,6 +348,14 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
 
         // Default behavior for non-code blocks: insert clipboard text via the native markdown AST
         const text = clipboardText
+        let hasWikiLink = false
+        slice.content.descendants((node) => {
+          if (node.type.name === 'wikiLink') hasWikiLink = true
+        })
+        if (hasWikiLink) {
+          onPaste?.(text)
+          return false
+        }
         if (text) {
           if (!enableImageInsertion) {
             const parsed = editor.markdown?.parse(text)
