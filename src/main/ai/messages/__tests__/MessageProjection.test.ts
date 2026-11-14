@@ -67,3 +67,43 @@ it('isolates a broken subscriber and orders replacements and removals', () => {
   expect(view.messages.map((message) => message.id)).toEqual(['m'])
   expect(view.messages[0].parts).toEqual(msg('only').parts)
 })
+
+it('reuses unchanged history and tool parts while isolating mutations to new producer values', () => {
+  const history = { ...msg('history'), id: 'history' }
+  const tool: CherryUIMessage['parts'][number] = {
+    type: 'dynamic-tool',
+    toolName: 'read',
+    toolCallId: 'call',
+    state: 'output-available',
+    input: {},
+    output: { rows: ['large saved output'] }
+  }
+  const message: CherryUIMessage = { ...msg('A'), parts: [tool, { type: 'text', text: 'A' }] }
+  const projection = new MessageProjection<TopicProjectionState>({ ...state, messages: [history, message] })
+  const before = projection.snapshot()
+  message.parts[1] = { type: 'text', text: 'AB' }
+  projection.update({ ...state, messages: [history, message] }, true)
+  const after = projection.snapshot()
+  expect(after.messages[0]).toBe(before.messages[0])
+  expect(after.messages[1].parts[0]).toBe(before.messages[1].parts[0])
+  expect(before.messages[1].parts[1]).toEqual({ type: 'text', text: 'A' })
+  message.parts[1] = { type: 'text', text: 'caller edit' }
+  tool.output = { rows: ['caller edit'] }
+  expect(after.messages[1].parts[1]).toEqual({ type: 'text', text: 'AB' })
+  expect(after.messages[1].parts[0]).toMatchObject({ output: { rows: ['large saved output'] } })
+  projection.dispose()
+})
+
+it('captures only the latest unobserved update when a baseline is requested', () => {
+  const projection = new MessageProjection<TopicProjectionState>({ ...state, messages: [] })
+  let reads = 0
+  for (const text of ['A', 'AB', 'ABC'])
+    projection.update(() => {
+      reads++
+      return { ...state, messages: [msg(text)] }
+    })
+  expect(reads).toBe(0)
+  expect(projection.snapshot().messages[0].parts).toEqual(msg('ABC').parts)
+  expect(reads).toBe(1)
+  projection.dispose()
+})

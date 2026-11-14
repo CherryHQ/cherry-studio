@@ -43,6 +43,7 @@ export class ClaudeProjection {
   readonly retracted = new Set<string>()
   private readonly sources = new Set<string>()
   private readonly legacy: Record<string, { messageId: string; parts: number[] }> = {}
+  private legacyChanged = false
   private readonly messages = new Map<string, RuntimeMessage>()
   private readonly calls = new Map<string, { id: string; part: ToolPart }>()
   private readonly results = new Map<string, Set<string>>()
@@ -214,7 +215,11 @@ export class ClaudeProjection {
         this.calls.set(part.toolCallId, { id: uuid, part })
         if (previous?.type === 'dynamic-tool' && previous.state.startsWith('output-')) part = previous
       }
-      this.legacy[`${uuid}:${index}`] = { messageId: uuid, parts: [value.parts.length] }
+      const key = `${uuid}:${index}`
+      if (this.legacy[key]?.messageId !== uuid || this.legacy[key]?.parts[0] !== value.parts.length) {
+        this.legacy[key] = { messageId: uuid, parts: [value.parts.length] }
+        this.legacyChanged = true
+      }
       value.parts.push(part)
     }
     this.sources.add(uuid)
@@ -463,6 +468,7 @@ export class ClaudeProjection {
       }),
       this.legacy
     )
+    this.legacyChanged = false
     const content = selected.flatMap((message) =>
       this.messages.has(message.uuid) ? [this.messages.get(message.uuid)!] : []
     )
@@ -508,10 +514,11 @@ export class ClaudeProjection {
     this.feed.publish(
       events,
       message ? [message] : [],
-      this.legacy,
+      this.legacyChanged ? this.legacy : undefined,
       invocations,
       [...controls, ...this.pendingControls.splice(0)],
       this.control.snapshot
     )
+    this.legacyChanged = false
   }
 }

@@ -717,7 +717,16 @@ function AgentRightPaneStateProvider({
         return
       }
       explicitBrowserBaselineRef.current = null
-      if (browserUrl !== url) setBrowserUrlState({ sessionId, url, profile: WebviewSecurityProfile.AgentDevPreview })
+      if (browserUrl !== url) {
+        if (sessionId)
+          agentBrowserRuntimeService.openPage(sessionId, url, WebviewSecurityProfile.AgentDevPreview, {
+            previewKey: new URL(url).origin,
+            activate:
+              !agentBrowserRuntimeService.get(sessionId) ||
+              agentBrowserRuntimeService.get(sessionId)?.url === 'about:blank'
+          })
+        setBrowserUrlState({ sessionId, url, profile: WebviewSecurityProfile.AgentDevPreview })
+      }
     },
     [browserUrl, messages, partsByMessageId, sessionId]
   )
@@ -738,6 +747,7 @@ function AgentRightPaneStateProvider({
         waitingForHistory: isMessageHistoryLoading && !frontier,
         url
       }
+      if (sessionId) agentBrowserRuntimeService.openPage(sessionId, url)
       setBrowserUrlState({
         sessionId,
         url,
@@ -1169,6 +1179,7 @@ function AgentRightPaneFilesPanel({ active, scope }: RightPanelComponentProps<Ag
 const ANNOTATION_TOKEN_LABEL_MAX = 32
 
 function AgentBrowserRightPanel({ active, scope }: RightPanelComponentProps<AgentRightPanelScope>) {
+  const panelActions = useRightPanelActions()
   const runtime = useAgentRightPaneRuntime()
   const { acceptDetectedBrowserUrl } = runtime
   const sessionId = scope.meta.sessionId
@@ -1216,11 +1227,11 @@ function AgentBrowserRightPanel({ active, scope }: RightPanelComponentProps<Agen
       initialUrl={runtime.browserUrl ?? undefined}
       securityProfile={runtime.browserProfile}
       sessionId={sessionId}
-      onNavigate={runtime.openBrowserUrl}
       target={target}
       isHostActive={active}
       onAnnotationSaved={handleAnnotationSaved}
       toolbarActions={<RightPanelHeaderControls canMaximize />}
+      onEmpty={panelActions.close}
     />
   )
 }

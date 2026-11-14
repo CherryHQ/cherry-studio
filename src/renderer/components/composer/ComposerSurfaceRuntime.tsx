@@ -66,6 +66,7 @@ import {
   PASTED_TEXT_FILE_EXTENSION
 } from './composerPaste'
 import { createComposerEditorPreset } from './composerPreset'
+import { ComposerPromptSuggestion } from './ComposerPromptSuggestion'
 import { COMPOSER_TOKEN_NODE_NAME, type ComposerTokenRenderer } from './ComposerTokenNode'
 import { ComposerToolFooterActionsSync, ComposerToolMenu, useComposerPinnedTools } from './ComposerToolRuntime'
 import type { ComposerInputFilePreviewAction } from './filePreview'
@@ -228,6 +229,8 @@ export interface ComposerSurfaceProps {
   managedTokenKinds: readonly ComposerDraftToken['kind'][]
   onTokensChange: (tokens: readonly ComposerSerializedToken[]) => void
   placeholder: string
+  promptSuggestion?: string
+  onDismissPromptSuggestion?: () => void
   sendMessageShortcut?: ComposerShortcut
   /** Only set by the agent composer while streaming: sends the draft into the running turn. */
   steerShortcut?: ComposerShortcut
@@ -576,6 +579,8 @@ export default function ComposerSurfaceRuntime({
   managedTokenKinds,
   onTokensChange,
   placeholder,
+  promptSuggestion,
+  onDismissPromptSuggestion,
   sendMessageShortcut: _sendMessageShortcut,
   steerShortcut,
   sendDisabled,
@@ -647,6 +652,8 @@ export default function ComposerSurfaceRuntime({
   const previousLayerActiveRef = useRef(layerActive)
   const pinnedLauncherIds = useComposerPinnedTools()
   const pinnedLauncherIdSet = useMemo(() => new Set(pinnedLauncherIds), [pinnedLauncherIds])
+  const promptSuggestionRef = useRef({ text: promptSuggestion, dismiss: onDismissPromptSuggestion })
+  promptSuggestionRef.current = { text: promptSuggestion, dismiss: onDismissPromptSuggestion }
   const quickPanelRef = useRef(quickPanel)
   const { setTimeoutTimer, clearTimeoutTimer } = useTimer()
   const [isEditingBorderHighlighted, setEditingBorderHighlighted] = useState(false)
@@ -1565,11 +1572,11 @@ export default function ComposerSurfaceRuntime({
     () =>
       createComposerEditorPreset({
         markdownLivePreview,
-        placeholder,
+        placeholder: promptSuggestion ? '' : placeholder,
         renderToken: renderComposerToken,
         suggestionSources: activeSuggestionSources
       }),
-    [activeSuggestionSources, markdownLivePreview, placeholder, renderComposerToken]
+    [activeSuggestionSources, markdownLivePreview, placeholder, promptSuggestion, renderComposerToken]
   )
 
   // ProseMirror may finish composition without another document update, leaving the quick panel
@@ -1637,6 +1644,31 @@ export default function ComposerSurfaceRuntime({
           if (handled) {
             event.preventDefault()
             event.stopPropagation()
+            return true
+          }
+        }
+
+        const suggestion = promptSuggestionRef.current
+        if (
+          suggestion.text &&
+          view.editable &&
+          !textRef.current &&
+          view.state.doc.content.size <= 2 &&
+          !event.isComposing &&
+          !view.composing &&
+          !qp.isVisible
+        ) {
+          if (event.key === 'Escape') {
+            suggestion.dismiss?.()
+            event.preventDefault()
+            event.stopPropagation()
+            return true
+          }
+          if (event.key === 'Tab' && !event.shiftKey && !event.ctrlKey && !event.metaKey && !event.altKey) {
+            event.preventDefault()
+            event.stopPropagation()
+            if (!event.repeat) editorRef.current?.commands.insertContent({ type: 'text', text: suggestion.text })
+            suggestion.dismiss?.()
             return true
           }
         }
@@ -1758,6 +1790,7 @@ export default function ComposerSurfaceRuntime({
           return true
         },
         compositionstart: () => {
+          promptSuggestionRef.current.dismiss?.()
           const editor = editorRef.current
           if (!editor || editor.isDestroyed) return false
           const selectedPromptVariable = getSelectedPromptVariableToken(editor)
@@ -2494,6 +2527,9 @@ export default function ComposerSurfaceRuntime({
               }}
             />
           </ScrollArea>
+          {!text && tokens.length === 0 && editable && !quickPanel.isVisible && (
+            <ComposerPromptSuggestion text={promptSuggestion ?? ''} fontSize={fontSize} compact={isCompact} />
+          )}
           <ComposerFocusShortcut focus={focusEditor} editable={editable} />
         </div>
         {isCompact ? (

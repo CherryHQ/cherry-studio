@@ -232,7 +232,7 @@ Implemented in `normalizeModelId()` (`packages/provider-registry/src/utils/norma
 | `name` / `capabilities` / `supportsStreaming` | Required for custom rows; nullable preset deltas |
 | `inputModalities` / `outputModalities` | Complete custom config or nullable preset deltas |
 | `contextWindow` / `maxOutputTokens` | Complete custom config or nullable preset deltas |
-| `reasoning` | Custom-model intrinsic controls/token limits; preset rows resolve it from the registry |
+| `reasoning` | Custom-model intrinsic controls/token limits and user `defaultEffort` overrides; preset controls resolve from the registry |
 | `pricing` | Complete custom config or nullable preset delta |
 | `parameters` | Complete custom config or nullable preset delta |
 | `orderKey` | Fractional order key in the provider's model list |
@@ -322,6 +322,8 @@ Reasoning is split across two boundaries:
 - **Provider registry data** declares a closed `reasoningFormat` wire profile. It is resolved and interpreted in Main only; it is never copied into SQLite, DataApi, or renderer state.
 
 The request path resolves one profile from exact provider-model, endpoint override/default, then exhaustive format defaults. It combines that profile with the submit-time canonical selection and emits either native AI SDK provider options or generic compatible parameters.
+
+The model settings drawer saves only `{ reasoning: { defaultEffort } }`; `null` clears that override. Runtime `userDefaultReasoningEffort` carries its user-row provenance to the request resolver. An explicit composer selection wins; composer `default` uses the user override when present and otherwise preserves the endpoint default behavior. Catalog defaults alone do not opt a request into reasoning.
 
 See [Reasoning Control](../../../../packages/provider-registry/docs/reasoning-control.md) for the schemas, precedence rules, and UI-to-request data flow.
 

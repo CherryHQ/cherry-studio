@@ -1489,6 +1489,7 @@ export class AiService extends BaseService {
 
   /** Captures one model configuration for related probes without re-reading changing settings. */
   prepareModelCheck(uniqueModelId: UniqueModelId) {
+    // oxlint-disable-next-line no-restricted-globals -- Resolve one request model independently of mutable provider/model settings.
     const resolvedModel = structuredClone(this.getProviderAndModel({ uniqueModelId }))
     const { provider, model } = resolvedModel
     const endpoint = resolveEffectiveEndpoint(provider, model)

@@ -315,6 +315,7 @@ export class ClaudeOwner {
         message: {
           type: 'user',
           uuid,
+          // oxlint-disable-next-line no-restricted-globals -- Detach one submitted user content payload before asynchronous SDK consumption.
           message: { role: 'user', content: structuredClone(content) },
           priority: policy === 'steer' ? 'next' : 'later',
           parent_tool_use_id: null,
@@ -765,7 +766,8 @@ export class ClaudeOwner {
       if (refresh || !this.archives.has(projection.thread.id)) await this.refresh(projection.thread.id.split('/')[0])
       const archive = this.archives.get(projection.thread.id)
       return archive
-        ? { status: 'confirmed', value: structuredClone(refresh ? archive : projection.committed(archive)) }
+        ? // oxlint-disable-next-line no-restricted-globals -- Explicit archive reads isolate committed SDK content from callers; no token-loop copy.
+          { status: 'confirmed', value: structuredClone(refresh ? archive : projection.committed(archive)) }
         : rejected('archive', 'native-storage-missing')
     } catch (error) {
       this.report(error)

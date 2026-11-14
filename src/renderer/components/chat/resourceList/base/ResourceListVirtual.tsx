@@ -112,14 +112,13 @@ function isSectionVirtualGroup(group: ResourceListVirtualGroupData) {
   return group.__resourceListKind === 'section'
 }
 
-function getListViewportClassName(className?: string) {
+function getListViewportClassName() {
   return cn(
-    'py-1.5 pt-0.5! pr-2 [contain:layout_paint]',
+    '[contain:layout_paint]',
     '[&>div>div>[data-index]]:transition-transform [&>div>div>[data-index]]:duration-200 [&>div>div>[data-index]]:ease-out',
     'motion-reduce:[&>div>div>[data-index]]:transition-none [&[data-virtual-scrolling=true]>div>div>[data-index]]:transition-none',
     '[&:has([data-dragging=true])>div>div>[data-index]]:transition-none',
-    '[&[data-virtual-scrolling=true]_[data-index]]:pointer-events-none!',
-    className
+    '[&[data-virtual-scrolling=true]_[data-index]]:pointer-events-none!'
   )
 }
 
@@ -525,7 +524,8 @@ export function VirtualItems<T extends ResourceListItemBase>({
         scrollElementRef={setScrollElementRef}
         role="listbox"
         groups={groups}
-        className={getListViewportClassName(className)}
+        className={getListViewportClassName()}
+        contentProps={{ className: cn('pt-0.5 pr-2 pb-1.5', className) }}
         scrollerProps={{
           'aria-label': ariaLabel,
           onKeyDown: handleListboxKeyDown,
@@ -766,7 +766,8 @@ export function VirtualDraggableItems<T extends ResourceListItemBase>({
         scrollElementRef={setScrollElementRef}
         role="listbox"
         groups={groups}
-        className={getListViewportClassName(className)}
+        className={getListViewportClassName()}
+        contentProps={{ className: cn('pt-0.5 pr-2 pb-1.5', className) }}
         scrollerProps={{
           'aria-label': ariaLabel,
           onKeyDown: handleListboxKeyDown,

@@ -90,6 +90,7 @@ export interface ClaudeObservation {
   readonly live?: readonly string[]
   /** Provisional-to-committed source aliases retained after their update batch is folded. */
   readonly replaces?: Readonly<Record<string, string>>
+  /** Full mapping on baseline/recovery or a binding change; omission retains the last mapping. */
   readonly legacy?: Readonly<Record<string, { messageId: string; parts: number[] }>>
   readonly events: readonly ObservationPayload[]
   /** Native payload captured with this batch, never looked up at delivery time. */

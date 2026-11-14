@@ -7,6 +7,7 @@ export function resolveProviderBilling(
   modelId: string,
   startedAt: Date | null
 ): { pricing: RuntimeModelPricing | null; billing?: BillingResolution } {
+  // oxlint-disable-next-line no-restricted-globals -- Resolve nested pricing tiers once per estimate/request without exposing configured prices.
   if (!billing) return { pricing: pricing ? structuredClone(pricing) : null }
   const resolution: BillingResolution = {
     mode: 'multiplier',
@@ -55,6 +56,7 @@ export function resolveProviderBilling(
           const override = period.models.find((model) => model.modelId === modelId)
           if (override) {
             delete resolution.multiplier
+            // oxlint-disable-next-line no-restricted-globals -- Resolve one scheduled pricing override without exposing provider configuration.
             return { pricing: structuredClone(override.pricing), billing: { ...resolution, mode: 'prices' } }
           }
           resolution.reason = 'model_fallback'
@@ -63,6 +65,7 @@ export function resolveProviderBilling(
     }
   }
   if (!pricing) return { pricing: null, billing: resolution }
+  // oxlint-disable-next-line no-restricted-globals -- Apply billing multipliers to private nested pricing tiers once per estimate/request.
   const effective = structuredClone(pricing)
   const multiplier = resolution.multiplier ?? 1
   for (const rates of [effective, ...(effective.inputTokenTiers ?? [])]) {
