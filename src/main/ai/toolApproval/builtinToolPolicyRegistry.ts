@@ -26,6 +26,7 @@ import {
 } from '@shared/ai/agentSessionDelivery'
 import {
   AGENT_CREATE_TOOL_NAME,
+  ASSISTANT_CREATE_TOOL_NAME,
   CONFIG_TOOL_NAME,
   CONFIG_UPDATE_TOOL_NAME,
   CRON_TOOL_NAME,
@@ -102,8 +103,9 @@ const BUILTIN_TOOL_POLICIES = {
   cherrySessionRead: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, SESSION_READ_TOOL_NAME, 'auto'),
   cherrySessionRename: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, SESSION_RENAME_TOOL_NAME, 'auto'),
   cherryAgentList: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, 'agent_list', 'auto'),
-  // An Agent creating Agents or changing its own prompt and capabilities always asks, Full Access included.
+  // An Agent creating Agents or Assistants or changing its own prompt always asks, Full Access included.
   cherryAgentCreate: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, AGENT_CREATE_TOOL_NAME, 'required', 'enforce'),
+  cherryAssistantCreate: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, ASSISTANT_CREATE_TOOL_NAME, 'required', 'enforce'),
   cherryConfigUpdate: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, CONFIG_UPDATE_TOOL_NAME, 'required', 'enforce'),
   cherrySessionDeliveries: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, SESSION_DELIVERIES_TOOL_NAME, 'auto'),
   cherrySessionCreate: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, SESSION_CREATE_TOOL_NAME, 'delegation'),
@@ -126,8 +128,9 @@ const BUILTIN_TOOL_POLICIES = {
   assistantProductInfo: tool(CHERRY_MCP_SERVER.ASSISTANT, 'product_info', 'auto'),
   assistantDiagnose: tool(CHERRY_MCP_SERVER.ASSISTANT, 'diagnose', 'required'),
   assistantApplySetting: tool(CHERRY_MCP_SERVER.ASSISTANT, 'apply_setting', 'required'),
-  assistantCreateAgent: tool(CHERRY_MCP_SERVER.ASSISTANT, 'create_agent', 'required'),
-  // Rewrites another Agent's prompt and capabilities, so even Full Access asks first.
+  // Creating Agents or Assistants and rewriting another Agent's prompt always ask, Full Access included.
+  assistantCreateAgent: tool(CHERRY_MCP_SERVER.ASSISTANT, 'create_agent', 'required', 'enforce'),
+  assistantCreateAssistant: tool(CHERRY_MCP_SERVER.ASSISTANT, 'create_assistant', 'required', 'enforce'),
   assistantUpdateAgent: tool(CHERRY_MCP_SERVER.ASSISTANT, 'update_agent', 'required', 'enforce'),
   assistantPrepareDiagnosticReport: tool(CHERRY_MCP_SERVER.ASSISTANT, 'prepare_diagnostic_report', 'auto'),
   assistantReadFile: tool(CHERRY_MCP_SERVER.ASSISTANT_FILES, READ_FILE_TOOL_NAME, 'auto'),

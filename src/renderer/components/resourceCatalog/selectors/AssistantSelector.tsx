@@ -12,7 +12,7 @@ import { useGroups } from '@renderer/hooks/useGroups'
 import { usePins } from '@renderer/hooks/usePins'
 import { toast } from '@renderer/services/toast'
 import type { ResourceEditDialogTarget } from '@renderer/types/resourceCatalog'
-import { buildCreateAssistantDto } from '@renderer/utils/resourceCatalog'
+import { buildCreateAssistantDto } from '@shared/ai/assistantCreateDto'
 import type { Assistant } from '@shared/data/types/assistant'
 import { isNonChatModel } from '@shared/utils/model'
 

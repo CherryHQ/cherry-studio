@@ -33,8 +33,8 @@ export interface AgentCapabilities {
   environment: 'open' | 'sealed'
   /** Read every knowledge base, not just those bound to the Agent or picked in the composer. */
   allKnowledgeBases: boolean
-  /** Offer cherry-tools `agent_create`. Cherry Assistant creates through its host tools instead. */
-  createAgents: boolean
+  /** Offer cherry-tools `agent_create` / `assistant_create`. Cherry Assistant creates through its host tools. */
+  createResources: boolean
   /** Tools that act on Cherry Studio itself. Absent for an Agent with no host access. */
   hostTools?: {
     /** Omit for the default assistant tool set. */
@@ -53,20 +53,20 @@ export interface AgentCapabilities {
 const DEFAULT_CAPABILITIES: AgentCapabilities = {
   environment: 'open',
   allKnowledgeBases: false,
-  createAgents: true
+  createResources: true
 }
 
 const CAPABILITIES_BY_ROLE: Record<BuiltinAgentRole, AgentCapabilities> = {
   [BUILTIN_AGENT_ROLE.ASSISTANT]: {
     environment: 'open',
     allKnowledgeBases: true,
-    createAgents: false,
+    createResources: false,
     hostTools: { runtimes: AGENT_TYPES }
   },
   [BUILTIN_AGENT_ROLE.SUPPORT]: {
     environment: 'sealed',
     allKnowledgeBases: false,
-    createAgents: false,
+    createResources: false,
     // Product-support capabilities intentionally exclude creation of arbitrary Agents. Reusable
     // channel-linked sessions keep the full surface; per-turn guards deny UI-backed tools headlessly.
     hostTools: {
@@ -78,7 +78,7 @@ const CAPABILITIES_BY_ROLE: Record<BuiltinAgentRole, AgentCapabilities> = {
   [BUILTIN_AGENT_ROLE.DOCTOR]: {
     environment: 'sealed',
     allKnowledgeBases: false,
-    createAgents: false,
+    createResources: false,
     // Runs headless inside the System Doctor panel: reads through diagnose + the doctor server,
     // writes only through bounded proposals the user applies from the panel.
     hostTools: {

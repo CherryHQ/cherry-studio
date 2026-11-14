@@ -1,32 +1,19 @@
 import { describe, expect, it } from 'vitest'
 
-import type { ResourceCreateValues } from '@renderer/types/resourceCatalog'
-import { buildCreateAgentCommand } from '@shared/ai/agentCreateCommand'
 import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 
-import { buildCreateAssistantDto } from '../resourceCreate'
+import { type AssistantCreateValues, buildCreateAssistantDto } from '../assistantCreateDto'
 
-const values: ResourceCreateValues = {
-  agentType: 'claude-code',
-  permissionMode: 'auto',
+const values: AssistantCreateValues = {
   avatar: '🤖',
   name: 'Researcher',
   modelId: 'provider::model',
   description: 'Investigates a topic',
   prompt: 'Use cited sources',
-  knowledgeBaseIds: ['kb-1'],
-  skillIds: ['skill-1']
+  knowledgeBaseIds: ['kb-1']
 }
 
-describe('resource create DTO mapping', () => {
-  it('carries image bytes only in the Agent creation command, preserving its emoji fallback', () => {
-    const avatarImage = new Uint8Array([1, 2, 3])
-    expect(buildCreateAgentCommand({ ...values, avatarImage })).toMatchObject({
-      avatarImage,
-      configuration: { avatar: values.avatar }
-    })
-    expect(buildCreateAssistantDto({ ...values, avatarImage })).not.toHaveProperty('avatarImage')
-  })
+describe('buildCreateAssistantDto', () => {
   it('maps every assistant-specific field', () => {
     expect(buildCreateAssistantDto(values)).toEqual({
       name: 'Researcher',
@@ -47,5 +34,14 @@ describe('resource create DTO mapping', () => {
 
   it('keeps assistant settings at their defaults when web search is not selected', () => {
     expect(buildCreateAssistantDto({ ...values, enableWebSearch: false })).not.toHaveProperty('settings')
+  })
+
+  it('stores a chosen reply language in the settings', () => {
+    const dto = buildCreateAssistantDto({ ...values, replyLanguage: { mode: 'custom', language: 'English' } })
+
+    expect(dto.settings).toEqual({
+      ...DEFAULT_ASSISTANT_SETTINGS,
+      replyLanguage: { mode: 'custom', language: 'English' }
+    })
   })
 })

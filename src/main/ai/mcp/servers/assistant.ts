@@ -12,8 +12,11 @@ import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
 import {
   AgentConfigToolOutputSchema,
+  AssistantCreateToolOutputSchema,
   createAgentFromTool,
   CreateAgentToolInputSchema,
+  createAssistantFromTool,
+  CreateAssistantToolInputSchema,
   toolOutput,
   UpdateAgentToolInputSchema,
   updateAgentFromTool
@@ -669,18 +672,29 @@ ${Object.values(APPLY_SETTING_REGISTRY)
       'create_agent',
       {
         description:
-          'Create a Pi Durable Agent after the user asks for one and confirms the proposed config. Omit model to use the default model.',
+          'Create a new Agent (an autonomous worker with its own tools, skills and workspace) when the user asks to create or set up an Agent, e.g. "建一个 Agent". Propose the configuration first; the user approves every call. Omit model to use the default model.',
         inputSchema: CreateAgentToolInputSchema,
         outputSchema: AgentConfigToolOutputSchema
       },
       async (args) => toolOutput(await createAgentFromTool(args, { fallbackModel: defaultModel }))
+    ),
+  create_assistant: (server, defaultModel) =>
+    server.registerTool(
+      'create_assistant',
+      {
+        description:
+          'Create a new Assistant (a chat persona with a prompt, a model and optional knowledge bases, MCP servers and web search) when the user asks to create or set up an Assistant, e.g. "建一个助手". Propose the configuration first; the user approves every call. Omit model to use the default model.',
+        inputSchema: CreateAssistantToolInputSchema,
+        outputSchema: AssistantCreateToolOutputSchema
+      },
+      async (args) => toolOutput(createAssistantFromTool(args, { fallbackModel: defaultModel }))
     ),
   update_agent: (server) =>
     server.registerTool(
       'update_agent',
       {
         description:
-          'Change settings of a user-created Agent. Pass only the fields to change; the user approves every call. Built-in Agents are refused.',
+          'Change the settings of a user-created Agent when the user asks to edit one. Find its ID with agent_list and pass only the fields to change; the user approves every call. Built-in Agents are refused.',
         inputSchema: UpdateAgentToolInputSchema,
         outputSchema: AgentConfigToolOutputSchema
       },
