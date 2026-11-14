@@ -680,6 +680,7 @@ describe('heartbeatSchedule', () => {
       },
       catchUpPolicy: { kind: 'skip-missed' }
     })
+    // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
     const templateBefore = structuredClone(jobScheduleService.getById(id)?.jobInputTemplate)
 
     const outcome = await syncHeartbeatSchedule(AGENT_ID)
@@ -758,6 +759,7 @@ describe('heartbeatSchedule', () => {
       },
       catchUpPolicy: { kind: 'skip-missed' }
     })
+    // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
     const templateBefore = structuredClone(jobScheduleService.getById(id)?.jobInputTemplate)
 
     const outcome = await syncHeartbeatSchedule(AGENT_ID)
@@ -791,6 +793,7 @@ describe('heartbeatSchedule', () => {
       },
       catchUpPolicy: { kind: 'skip-missed' }
     })
+    // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
     const templateBefore = structuredClone(jobScheduleService.getById(id)?.jobInputTemplate)
 
     const outcome = await syncHeartbeatSchedule(AGENT_ID)

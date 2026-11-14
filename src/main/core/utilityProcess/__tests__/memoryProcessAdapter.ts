@@ -41,6 +41,7 @@ class FakePort implements PortLike {
 
   postMessage(message: unknown): void {
     if (this.closed) return
+    // oxlint-disable-next-line no-restricted-globals -- Emulate the real process transport ownership boundary for synthetic frames.
     this.peer.enqueue(structuredClone(message))
   }
 
@@ -245,12 +246,14 @@ function createHandle(child: MemoryChild, options: MemoryAdapterOptions): Proces
       return child.exited ? undefined : child.pid
     },
     connect(frame) {
+      // oxlint-disable-next-line no-restricted-globals -- Emulate the real process transport ownership boundary for synthetic frames.
       const cloned = structuredClone(frame)
       queueMicrotask(() => {
         if (!child.exited) child.receiveConnect(cloned)
       })
     },
     send(frame) {
+      // oxlint-disable-next-line no-restricted-globals -- Emulate the real process transport ownership boundary for synthetic frames.
       const cloned = structuredClone(frame)
       child.frames.push(cloned)
       child.childPort.enqueue(cloned)
