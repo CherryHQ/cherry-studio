@@ -30,6 +30,12 @@ export interface SkillFileBrowserHandles {
   flush: () => Promise<void>
 }
 
+// Record ids reach uploaded diagnostics verbatim, so only the root-relative file path is kept.
+function fileRecordIdOf(skillId: string, rootPath: string, filePath: string | null): string {
+  if (!filePath?.startsWith(rootPath)) return skillId
+  return `${skillId}:${filePath.slice(rootPath.length).replace(/^[\\/]+/, '')}`
+}
+
 function isMarkdownFile(filePath: string): boolean {
   const extension = filePath.split('.').pop()?.toLowerCase() ?? ''
   return MARKDOWN_EXTENSIONS.has(extension)
@@ -256,10 +262,10 @@ export const SkillFileBrowser = function SkillFileBrowser({
       toastAppError(t('settings.skills.editor.saveFailed'), error, {
         source: 'skills',
         operation: 'skill.file.save',
-        recordId: `${skillId}:${selectedFile ?? ''}`
+        recordId: fileRecordIdOf(skillId, rootPath, selectedFile)
       })
     }
-  }, [flush, pendingFile, selectedFile, skillId, t])
+  }, [flush, pendingFile, rootPath, selectedFile, skillId, t])
 
   const reloadConflictedFile = useCallback(async () => {
     try {
@@ -269,10 +275,10 @@ export const SkillFileBrowser = function SkillFileBrowser({
       toastAppError(t('library.skill_detail.file_load_failed'), error, {
         source: 'skills',
         operation: 'skill.file.load',
-        recordId: `${skillId}:${selectedFile ?? ''}`
+        recordId: fileRecordIdOf(skillId, rootPath, selectedFile)
       })
     }
-  }, [reloadFile, selectedFile, skillId, t])
+  }, [reloadFile, rootPath, selectedFile, skillId, t])
 
   const saveCurrentDraft = useCallback(async () => {
     try {
@@ -282,10 +288,10 @@ export const SkillFileBrowser = function SkillFileBrowser({
       toastAppError(t('settings.skills.editor.saveFailed'), error, {
         source: 'skills',
         operation: 'skill.file.save',
-        recordId: `${skillId}:${selectedFile ?? ''}`
+        recordId: fileRecordIdOf(skillId, rootPath, selectedFile)
       })
     }
-  }, [keepCurrentDraft, selectedFile, skillId, t])
+  }, [keepCurrentDraft, rootPath, selectedFile, skillId, t])
 
   if (isLoading) {
     return (
@@ -314,7 +320,7 @@ export const SkillFileBrowser = function SkillFileBrowser({
     )
   }
 
-  const fileRecordId = `${skillId}:${selectedFile ?? ''}`
+  const fileRecordId = fileRecordIdOf(skillId, rootPath, selectedFile)
   let sessionFailure: { error: Error; message: string; operation: string } | null = null
   // A conflict has its own reload / keep-draft recovery instead of a failure detail.
   if (fileSession.saveError && !fileSession.conflict) {
@@ -562,7 +568,7 @@ export const SkillFileBrowser = function SkillFileBrowser({
             toastAppError(t('settings.skills.editor.saveFailed'), error, {
               source: 'skills',
               operation: 'skill.file.save',
-              recordId: `${skillId}:${selectedFile ?? ''}`
+              recordId: fileRecordIdOf(skillId, rootPath, selectedFile)
             })
           }
         }}
