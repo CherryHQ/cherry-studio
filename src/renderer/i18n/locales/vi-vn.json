@@ -3426,6 +3426,7 @@
   "preview.plantuml.other": "Kết xuất sơ đồ thất bại, máy chủ trả về: {{status}} {{statusText}}",
   "preview.plantuml.server": "Kết xuất sơ đồ thất bại ({{status}}): máy chủ PlantUML tạm thời không dùng được. Vui lòng thử lại sau.",
   "preview.previous": "Ảnh Trước",
+  "preview.render.failed": "Không thể hiển thị sơ đồ",
   "preview.render.unknown": "Lỗi kết xuất không xác định",
   "preview.reset": "Đặt lại",
   "preview.rotate_left": "Xoay Trái",

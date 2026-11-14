@@ -3426,6 +3426,7 @@
   "preview.plantuml.other": "Diyagram çizilemedi. Sunucu şunu döndürdü: {{status}} {{statusText}}",
   "preview.plantuml.server": "Diyagram çizilemedi ({{status}}): PlantUML sunucusu geçici olarak kullanılamıyor. Lütfen daha sonra tekrar deneyin.",
   "preview.previous": "Önceki Görsel",
+  "preview.render.failed": "Diyagram oluşturulamadı",
   "preview.render.unknown": "Bilinmeyen çizim hatası",
   "preview.reset": "Sıfırla",
   "preview.rotate_left": "Sola Döndür",

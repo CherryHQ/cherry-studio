@@ -3426,6 +3426,7 @@
   "preview.plantuml.other": "Diagram rendering failed, server returned: {{status}} {{statusText}}",
   "preview.plantuml.server": "Diagram rendering failed ({{status}}): The PlantUML server is temporarily unavailable. Please try again later.",
   "preview.previous": "Previous Image",
+  "preview.render.failed": "Diagram rendering failed",
   "preview.render.unknown": "Unknown rendering error",
   "preview.reset": "Reset",
   "preview.rotate_left": "Rotate Left",

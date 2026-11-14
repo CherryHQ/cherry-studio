@@ -3426,6 +3426,7 @@
   "preview.plantuml.other": "แสดงผลไดอะแกรมไม่สำเร็จ เซิร์ฟเวอร์ตอบกลับ: {{status}} {{statusText}}",
   "preview.plantuml.server": "แสดงผลไดอะแกรมไม่สำเร็จ ({{status}}): เซิร์ฟเวอร์ PlantUML ไม่พร้อมใช้งานชั่วคราว โปรดลองอีกครั้งภายหลัง",
   "preview.previous": "รูปภาพก่อนหน้า",
+  "preview.render.failed": "แสดงผลแผนภาพไม่สำเร็จ",
   "preview.render.unknown": "ข้อผิดพลาดในการแสดงผลที่ไม่ทราบสาเหตุ",
   "preview.reset": "รีเซ็ต",
   "preview.rotate_left": "หมุนซ้าย",

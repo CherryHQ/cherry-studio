@@ -3426,6 +3426,7 @@
   "preview.plantuml.other": "図の描画に失敗しました。サーバーが返しました：{{status}} {{statusText}}",
   "preview.plantuml.server": "図の描画に失敗しました（{{status}}）：PlantUML サーバーは一時的に利用できません。しばらくしてからもう一度試してください。",
   "preview.previous": "前の画像",
+  "preview.render.failed": "図の描画に失敗しました",
   "preview.render.unknown": "不明な描画エラー",
   "preview.reset": "リセット",
   "preview.rotate_left": "左回転",

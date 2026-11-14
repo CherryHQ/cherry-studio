@@ -3426,6 +3426,7 @@
   "preview.plantuml.other": "Das Diagramm konnte nicht gerendert werden. Der Server hat zurückgegeben: {{status}} {{statusText}}",
   "preview.plantuml.server": "Das Diagramm konnte nicht gerendert werden ({{status}}): Der PlantUML-Server ist vorübergehend nicht verfügbar. Bitte versuchen Sie es später erneut.",
   "preview.previous": "Vorheriges Bild",
+  "preview.render.failed": "Diagramm konnte nicht gerendert werden",
   "preview.render.unknown": "Unbekannter Renderfehler",
   "preview.reset": "Zurücksetzen",
   "preview.rotate_left": "Nach links drehen",

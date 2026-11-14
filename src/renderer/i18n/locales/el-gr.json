@@ -3426,6 +3426,7 @@
   "preview.plantuml.other": "Η απόδοση του διαγράμματος απέτυχε. Ο διακομιστής επέστρεψε: {{status}} {{statusText}}",
   "preview.plantuml.server": "Η απόδοση του διαγράμματος απέτυχε ({{status}}): Ο διακομιστής PlantUML δεν είναι προσωρινά διαθέσιμος. Δοκιμάστε ξανά αργότερα.",
   "preview.previous": "Προηγούμενη Εικόνα",
+  "preview.render.failed": "Η απόδοση του διαγράμματος απέτυχε",
   "preview.render.unknown": "Άγνωστο σφάλμα απόδοσης",
   "preview.reset": "Επαναφορά",
   "preview.rotate_left": "Περιστροφή Αριστερά",

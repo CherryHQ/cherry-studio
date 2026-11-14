@@ -3426,6 +3426,7 @@
   "preview.plantuml.other": "图表渲染失败，服务器返回：{{status}} {{statusText}}",
   "preview.plantuml.server": "图表渲染失败（{{status}}）：PlantUML 服务器暂时不可用。请稍后再试。",
   "preview.previous": "上一张图片",
+  "preview.render.failed": "图表渲染失败",
   "preview.render.unknown": "未知的渲染错误",
   "preview.reset": "重置",
   "preview.rotate_left": "向左旋转",

@@ -3426,6 +3426,7 @@
   "preview.plantuml.other": "圖表繪製失敗，伺服器傳回：{{status}} {{statusText}}",
   "preview.plantuml.server": "圖表繪製失敗（{{status}}）：PlantUML 伺服器暫時無法使用。請稍後再試。",
   "preview.previous": "上一張圖片",
+  "preview.render.failed": "圖表渲染失敗",
   "preview.render.unknown": "未知的繪製錯誤",
   "preview.reset": "重設",
   "preview.rotate_left": "向左旋轉",

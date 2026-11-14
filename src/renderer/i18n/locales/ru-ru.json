@@ -3426,6 +3426,7 @@
   "preview.plantuml.other": "Не удалось отрисовать диаграмму. Сервер вернул: {{status}} {{statusText}}",
   "preview.plantuml.server": "Не удалось отрисовать диаграмму ({{status}}): сервер PlantUML временно недоступен. Повторите попытку позже.",
   "preview.previous": "Предыдущее изображение",
+  "preview.render.failed": "Не удалось отрисовать диаграмму",
   "preview.render.unknown": "Неизвестная ошибка отрисовки",
   "preview.reset": "Сбросить",
   "preview.rotate_left": "Повернуть влево",

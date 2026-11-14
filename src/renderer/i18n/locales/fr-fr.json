@@ -3426,6 +3426,7 @@
   "preview.plantuml.other": "Le rendu du diagramme a échoué, le serveur a renvoyé : {{status}} {{statusText}}",
   "preview.plantuml.server": "Le rendu du diagramme a échoué ({{status}}) : le serveur PlantUML est temporairement indisponible. Veuillez réessayer plus tard.",
   "preview.previous": "Image précédente",
+  "preview.render.failed": "Échec du rendu du diagramme",
   "preview.render.unknown": "Erreur de rendu inconnue",
   "preview.reset": "Réinitialiser",
   "preview.rotate_left": "Rotation vers la gauche",

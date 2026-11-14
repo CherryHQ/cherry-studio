@@ -3426,6 +3426,7 @@
   "preview.plantuml.other": "Error al renderizar el diagrama. El servidor devolvió: {{status}} {{statusText}}",
   "preview.plantuml.server": "Error al renderizar el diagrama ({{status}}): el servidor de PlantUML no está disponible temporalmente. Inténtelo más tarde.",
   "preview.previous": "Imagen anterior",
+  "preview.render.failed": "No se pudo renderizar el diagrama",
   "preview.render.unknown": "Error de renderizado desconocido",
   "preview.reset": "Restablecer",
   "preview.rotate_left": "Rotar a la izquierda",
