@@ -2228,7 +2228,6 @@
   "library.config.basic.max_tokens": "Max tokens",
   "library.config.basic.max_tool_calls": "Max tool call rounds",
   "library.config.basic.max_tool_calls_default": "Default ({{count}} rounds)",
-  "library.config.basic.mcp_mode": "MCP Mode",
   "library.config.basic.model_clear": "Clear",
   "library.config.basic.model_not_found": "Model not found (may have been removed): {{id}}",
   "library.config.basic.model_pick": "Pick model",

@@ -2228,7 +2228,6 @@
   "library.config.basic.max_tokens": "最大トークン",
   "library.config.basic.max_tool_calls": "最大ツール呼び出し",
   "library.config.basic.max_tool_calls_default": "デフォルト（{{count}} ラウンド）",
-  "library.config.basic.mcp_mode": "MCPモード",
   "library.config.basic.model_clear": "クリア",
   "library.config.basic.model_not_found": "モデルが見つかりません（削除された可能性があります）: {{id}}",
   "library.config.basic.model_pick": "+ モデルを選択",
