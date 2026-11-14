@@ -968,6 +968,8 @@
   "chat.navigation.anchor.label": "Kola konverzace",
   "chat.navigation.bottom": "Zpět dolů",
   "chat.navigation.close": "Zavřít",
+  "chat.profile_pane.open": "Zobrazit profil: {{name}}",
+  "chat.profile_pane.permission": "Oprávnění",
   "chat.profile_pane.title": "Profil",
   "chat.save.file.title": "Uložit do místního souboru",
   "chat.save.knowledge.content.citation.description": "Zahrnuje informace o webovém vyhledávání a odkazy na znalostní bázi",
