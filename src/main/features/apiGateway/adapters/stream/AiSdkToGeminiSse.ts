@@ -66,6 +66,10 @@ function toGeminiFinishReason(reason: FinishReason | undefined): string {
     // Gemini reports STOP even when the turn ends on a function call.
     case 'stop':
     case 'tool-calls':
+      return 'STOP'
+    // An unrecognised/abnormal upstream termination must not be reported as a normal STOP (#24438).
+    case 'other':
+      return 'OTHER'
     default:
       return 'STOP'
   }
