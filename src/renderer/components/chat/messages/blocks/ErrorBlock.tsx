@@ -24,7 +24,6 @@ import type { MessageListItem } from '../types'
 import { getMessageListItemModel } from '../utils/messageListItem'
 
 const logger = loggerService.withContext('ErrorBlock')
-const CLAUDE_CODE_SETTINGS_TARGET = '/settings/provider?id=claude-code'
 
 /** Short conclusion + one-sentence cause/next step; `unknown` has no fixed info (AI summary or raw text). */
 /** A slow or unreachable summarizer must not leave the card on its placeholder. */
@@ -270,13 +269,11 @@ const MessageErrorInfo: React.FC<{
   const navTarget = cherryCloudQuotaRejection ? null : classification.navTarget
   const canRetry = !!regenerateMessage && RETRY_CATEGORIES.has(category) && message.status !== 'pending'
   let action: ErrorNoticeAction | undefined
-  if (claudeCodeLogin && navigateErrorTarget) {
+  if (navTarget && navigateErrorTarget) {
     action = {
-      label: t('error.notice.claude_code_login.action'),
-      onClick: () => void navigateErrorTarget(CLAUDE_CODE_SETTINGS_TARGET)
+      label: claudeCodeLogin ? t('error.notice.claude_code_login.action') : t('error.diagnosis.go_to_settings'),
+      onClick: () => void navigateErrorTarget(navTarget)
     }
-  } else if (navTarget && navigateErrorTarget) {
-    action = { label: t('error.diagnosis.go_to_settings'), onClick: () => void navigateErrorTarget(navTarget) }
   } else if (canRetry) {
     action = { label: t('common.retry'), onClick: () => void retry() }
   }

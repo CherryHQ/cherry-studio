@@ -190,6 +190,15 @@ required service tier.`
     expect(result.category).toBe('rate_limit')
   })
 
+  it('sends a Claude Code sign-in failure to Claude Code settings, not the message provider', () => {
+    const result = classifyError(
+      makeError({ name: 'ClaudeCodeResultError', message: 'Not logged in \u00b7 Please run /login' }),
+      'anthropic'
+    )
+    expect(result.category).toBe('auth')
+    expect(result.navTarget).toBe('/settings/provider?id=claude-code')
+  })
+
   it('returns unknown for undefined error', () => {
     const result = classifyError(undefined)
     expect(result.category).toBe('unknown')
