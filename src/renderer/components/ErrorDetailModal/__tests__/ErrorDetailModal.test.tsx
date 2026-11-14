@@ -1145,7 +1145,7 @@ describe('ErrorDetailContent diagnostics', () => {
     const onOpenDiagnosticReport = vi.fn()
     publishDiagnosis('global', 'Global cached conclusion.')
     const snapshot: DiagnosticAiDiagnosis = {
-      source: 'error-summary',
+      source: 'doctor-agent',
       status: 'completed',
       text: 'Explicit conclusion.'
     }
@@ -1161,7 +1161,7 @@ describe('ErrorDetailContent diagnostics', () => {
     expect(onOpenDiagnosticReport).toHaveBeenCalledWith(
       expect.stringContaining('Location: Home conversation'),
       undefined,
-      expect.objectContaining({ source: 'error-summary', status: 'completed', text: 'Explicit conclusion.' })
+      expect.objectContaining({ source: 'doctor-agent', status: 'completed', text: 'Explicit conclusion.' })
     )
     expect(onOpenDiagnosticReport.mock.calls[0]?.[2]).not.toHaveProperty('errorId')
     expect(onOpenDiagnosticReport.mock.calls[0]?.[2].text).not.toContain('Global cached conclusion.')

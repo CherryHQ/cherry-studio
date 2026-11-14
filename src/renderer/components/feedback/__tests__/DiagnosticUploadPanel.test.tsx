@@ -666,12 +666,12 @@ describe('DiagnosticUploadPanel', () => {
 
   it('keeps the first AI snapshot in a retry upload after the prop changes', async () => {
     const first: DiagnosticAiDiagnosis = {
-      source: 'error-summary',
+      source: 'doctor-agent',
       status: 'completed',
       text: 'First conclusion.'
     }
     const replacement: DiagnosticAiDiagnosis = {
-      source: 'error-summary',
+      source: 'doctor-agent',
       status: 'completed',
       text: 'Replacement conclusion.'
     }
