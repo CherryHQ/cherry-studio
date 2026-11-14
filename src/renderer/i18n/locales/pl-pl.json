@@ -2312,7 +2312,6 @@
   "library.config.basic.max_tokens": "Maks. liczba tokenów",
   "library.config.basic.max_tool_calls": "Maks. liczba rund wywołań narzędzi",
   "library.config.basic.max_tool_calls_default": "Domyślnie ({{count}} rund)",
-  "library.config.basic.mcp_mode": "Tryb MCP",
   "library.config.basic.model_clear": "Wyczyść",
   "library.config.basic.model_not_found": "Nie znaleziono modelu (mógł zostać usunięty): {{id}}",
   "library.config.basic.model_pick": "Wybierz model",
