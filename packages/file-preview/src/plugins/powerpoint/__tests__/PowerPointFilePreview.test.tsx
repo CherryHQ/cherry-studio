@@ -16,7 +16,10 @@ interface MockViewerOptions {
 }
 
 const mocks = vi.hoisted(() => {
-  const shapeNode = (id: string, paragraphs: string[]) => ({
+  const shapeNode = (id: string, paragraphs: string[], x = 96) => ({
+    position: { x, y: 96 },
+    size: { w: 192, h: 96 },
+    rotation: 0,
     id,
     nodeType: 'shape',
     textBody: { paragraphs: paragraphs.map((text) => ({ runs: [{ text }] })) }
@@ -27,6 +30,8 @@ const mocks = vi.hoisted(() => {
    * Slides are pre-materialized, so the mocked `materializeSlideNodes` has nothing left to do.
    */
   const createMockPresentation = () => ({
+    width: 960,
+    height: 720,
     slides: [
       {
         nodes: [shapeNode('cover', ['Cover'])],
@@ -58,7 +63,7 @@ const mocks = vi.hoisted(() => {
         ])
       },
       {
-        nodes: [shapeNode('title', ['Roadmap']), shapeNode('body', ['Q3 goals'])],
+        nodes: [shapeNode('title', ['Roadmap']), shapeNode('body', ['Q3 goals'], 384), shapeNode('blank', [''], 672)],
         nodesMaterialized: true,
         rels: new Map()
       },
@@ -223,6 +228,36 @@ describe('PowerPointFilePreview', () => {
     container.appendChild(slide)
     return slide
   }
+
+  it('switches shapes, toggles a repeat, and falls back or clears on blank text', async () => {
+    const onSelection = vi.fn()
+    renderWithCapture(onSelection)
+    await waitFor(() => expect(mocks.load).toHaveBeenCalledTimes(1))
+    const item = renderSlide('', '1')
+    const wrapper = item.appendChild(document.createElement('div'))
+    const root = wrapper.appendChild(document.createElement('div'))
+    const rect = { left: 100, top: 50, width: 480, height: 360 } as DOMRect
+    vi.spyOn(wrapper, 'getBoundingClientRect').mockReturnValue(rect)
+    vi.spyOn(root, 'getBoundingClientRect').mockReturnValue(rect)
+    fireEvent.click(root, { clientX: 155, clientY: 105 })
+    expect(onSelection).toHaveBeenLastCalledWith(
+      expect.objectContaining({ anchor: { format: 'pptx', slide: 2, nodeId: 'title' }, excerpt: 'Roadmap' })
+    )
+    fireEvent.click(root, { clientX: 300, clientY: 105 })
+    expect(onSelection).toHaveBeenLastCalledWith(
+      expect.objectContaining({ anchor: { format: 'pptx', slide: 2, nodeId: 'body' }, excerpt: 'Q3 goals' })
+    )
+    fireEvent.click(root, { clientX: 300, clientY: 105 })
+    expect(onSelection).toHaveBeenLastCalledWith(null)
+    expect(item).not.toHaveAttribute('data-pptx-picked')
+    fireEvent.click(root, { clientX: 110, clientY: 60 })
+    expect(onSelection).toHaveBeenLastCalledWith(
+      expect.objectContaining({ anchor: { format: 'pptx', slide: 2 }, excerpt: 'Roadmap Q3 goals' })
+    )
+    fireEvent.click(root, { clientX: 450, clientY: 105 })
+    expect(onSelection).toHaveBeenLastCalledWith(null)
+    expect(item).not.toHaveAttribute('data-pptx-picked')
+  })
 
   function renderWithCapture(onSelectionReference?: (reference: unknown) => void) {
     return render(

@@ -13,7 +13,7 @@ import { createPreviewSelection } from '../../selection'
 import { PreviewError, readPreviewDocument } from '../../source'
 import type { FilePreviewPluginProps } from '../../types'
 import { PowerPointFilePreviewToolbar } from './PowerPointFilePreviewToolbar'
-import { slideExcerpt, slideToPptxAnchor } from './pptxSelectionAnchor'
+import { pickPptxSelection, type PptxPick } from './pptxSelectionAnchor'
 
 const PPTX_PREVIEW_DEFAULT_ZOOM = 100
 const PPTX_PREVIEW_ZOOM_STEP = 10
@@ -95,7 +95,7 @@ function stripExternalMediaRelationships(presentation: PresentationData): void {
 }
 
 /**
- * PowerPoint preview with slide-level selection picking. The pick lives in React state and the DOM
+ * PowerPoint preview picks the top-level text shape under the pointer, falling back to the slide. The pick lives in React state and the DOM
  * marker is derived from it, because the renderer rebuilds every slide element on zoom (`setZoom` ->
  * `queueRender` -> `container.innerHTML = ''`) and a DOM-only truth would be wiped. The excerpt comes
  * from the parsed deck rather than the clicked element (see `slideExcerpt`), so a slide the windowed
@@ -139,7 +139,7 @@ export default function PowerPointFilePreview({
   const [pageCount, setPageCount] = useState(0)
   const [zoom, setZoom] = useState(PPTX_PREVIEW_DEFAULT_ZOOM)
   const [controlsBusy, setControlsBusy] = useState(false)
-  const [pickedSlide, setPickedSlide] = useState<number | null>(null)
+  const [picked, setPicked] = useState<PptxPick | null>(null)
 
   const setPreviewControlsBusy = useCallback((busy: boolean) => {
     controlsBusyRef.current = busy
@@ -350,24 +350,26 @@ export default function PowerPointFilePreview({
       if (!onSelection || !(event.target instanceof Element)) return
       if (event.target.closest('a[href]')) event.preventDefault()
 
-      const result = slideToPptxAnchor(event.target)
       const presentation = presentationRef.current
-      if (!result || !presentation || result.anchor.slide === pickedSlide) {
-        setPickedSlide(null)
+      const result = presentation ? pickPptxSelection(event.target, presentation, event, logger.warn) : null
+      if (!result || (picked?.slide === result.anchor.slide && picked.nodeId === result.anchor.nodeId)) {
+        setPicked(null)
         onSelection(null)
         return
       }
       const reference = createPreviewSelection({
         sourceId,
         anchor: result.anchor,
-        excerpt: slideExcerpt(presentation, result.anchor.slide, logger.warn),
+        excerpt: result.excerpt,
         revision: previewDocument.revision
       })
-      setPickedSlide(reference ? result.anchor.slide : null)
+      setPicked(reference ? result.anchor : null)
       onSelection(reference)
     },
-    [sourceId, previewDocument, onSelection, pickedSlide, logger.warn]
+    [sourceId, previewDocument, onSelection, picked, logger.warn]
   )
+
+  const pickedSlide = picked?.slide
 
   // Sole owner of the marker: the renderer replaces the container's children wholesale on zoom and fit
   // changes, so a childList mutation repaints it. A rebuild is not a pick — report nothing.
@@ -377,7 +379,7 @@ export default function PowerPointFilePreview({
 
     const applyMarker = () => {
       container.querySelectorAll('[data-pptx-picked]').forEach((marked) => marked.removeAttribute('data-pptx-picked'))
-      if (pickedSlide === null) return
+      if (pickedSlide === undefined) return
       container.querySelector(`[data-slide-index="${pickedSlide - 1}"]`)?.setAttribute('data-pptx-picked', 'true')
     }
 
@@ -389,13 +391,13 @@ export default function PowerPointFilePreview({
 
   useEffect(() => {
     if (onSelection) return
-    setPickedSlide(null)
+    setPicked(null)
   }, [onSelection])
 
   // A different document — or the same one reloaded — carries no pick; the host drops its reference
   // on refresh too.
   useEffect(() => {
-    setPickedSlide(null)
+    setPicked(null)
   }, [sourceId, previewDocument])
 
   const hasPages = !error && pageCount > 0
