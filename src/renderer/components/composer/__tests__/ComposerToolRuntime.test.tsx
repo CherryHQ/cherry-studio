@@ -54,6 +54,7 @@ vi.mock('@cherrystudio/ui', () => ({
 
 import {
   ComposerActiveToolControls,
+  ComposerPinnedToolsProvider,
   ComposerToolFooterActionsSync,
   ComposerToolMenu,
   ComposerToolRuntimeHost,
@@ -400,6 +401,75 @@ describe('ComposerToolMenu', () => {
 })
 
 describe('ComposerActiveToolControls', () => {
+  it('preserves per-server status tooltips on active unpinned controls', async () => {
+    const action = vi.fn()
+    renderRuntime(
+      [
+        {
+          key: 'mcp-status',
+          label: 'MCP',
+          composer: {
+            menuItems: {
+              createItems: () => [
+                {
+                  id: 'mcp-status',
+                  kind: 'command',
+                  label: 'MCP',
+                  active: true,
+                  icon: <span data-testid="mcp-status-dot" />,
+                  sources: ['popover'],
+                  tooltip: 'Filesystem: Connected · Search: Failed',
+                  action
+                }
+              ]
+            }
+          }
+        }
+      ],
+      <ComposerActiveToolControls />
+    )
+    const control = await screen.findByRole('button', { name: 'MCP' })
+    expect(control.closest('[data-testid="composer-tool-tooltip"]')).toHaveAttribute(
+      'data-tooltip-content',
+      'Filesystem: Connected · Search: Failed'
+    )
+    expect(screen.getByTestId('mcp-status-dot')).toBeInTheDocument()
+    fireEvent.click(control)
+    expect(action).toHaveBeenCalledWith(expect.objectContaining({ source: 'popover' }))
+  })
+
+  it('does not duplicate a pinned active control or its tooltip', async () => {
+    renderRuntime(
+      [
+        {
+          key: 'mcp-status',
+          label: 'MCP',
+          composer: {
+            menuItems: {
+              createItems: () => [
+                {
+                  id: 'mcp-status',
+                  kind: 'command',
+                  label: 'MCP',
+                  active: true,
+                  icon: 'status',
+                  sources: ['popover'],
+                  tooltip: 'Filesystem: Connected',
+                  action: vi.fn()
+                }
+              ]
+            }
+          }
+        }
+      ],
+      <ComposerPinnedToolsProvider value={['mcp-status']}>
+        <ComposerActiveToolControls />
+      </ComposerPinnedToolsProvider>
+    )
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'MCP' })).not.toBeInTheDocument())
+    expect(screen.queryByTestId('composer-tool-tooltip')).not.toBeInTheDocument()
+  })
+
   it('does not pin disabled active launchers in the composer input', async () => {
     renderRuntime(
       [
