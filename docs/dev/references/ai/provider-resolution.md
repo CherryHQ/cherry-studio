@@ -16,7 +16,7 @@ settings, hitting which URL. Three pieces of state determine that:
 | Field | Lives on | Example |
 |---|---|---|
 | `provider.id` | `Provider` row | `minimax`, `silicon`, `my-relay` |
-| `endpointType` | `model.endpointTypes[0]` or `provider.defaultChatEndpoint` | `openai-chat-completions`, `anthropic-messages` |
+| `endpointType` | forced SDK dialect, valid provider chat default, model/native selection or gateway fallback | `openai-chat-completions`, `anthropic-messages` |
 | `adapterFamily` | `provider.endpointConfigs[endpointType].adapterFamily` | `openai-compatible`, `anthropic`, `azure-responses` |
 
 `adapterFamily` is the actual SDK selector. `provider.id` is the user-facing
@@ -40,6 +40,22 @@ resolveProviderOptionsKey(aiSdkProviderId, context): string
 `provider.endpointConfigs[endpointType].adapterFamily`, applies the
 variant suffix if the endpoint type has one, falls back to
 `openai-compatible` when no family is set.
+
+For ordinary chat, a configured `provider.defaultChatEndpoint` supported by the model
+wins over automatic selection, whether inherited from the registry or saved by the
+user. No separate explicit-choice state is needed. A caller's forced SDK dialect
+still wins when declared by the model and configured with a base URL. If the chat
+default is absent, unsupported or unconfigured, New API Gemini/Claude models may
+select a declared, configured native endpoint; other model selections retain their
+listed order. Gateway routing and the provider fallback apply when no model choice
+is available.
+
+Image intent does not use the chat-default preference. An image-capable primary
+endpoint stays primary. Otherwise a New API image endpoint is promoted only when
+its configuration uses the `newapi` adapter, preserving that adapter's URL handling;
+if none qualifies, the listed primary remains. OpenAI-compatible requests keep
+OpenAI tool-schema semantics even when the backend model is Gemini. Native Gemini
+schema compatibility is scoped to the native Google endpoint, excluding Vertex MaaS.
 
 `resolveEffectiveEndpoint` also resolves registered multi-backend gateway routes
 (AiHubMix and DMXAPI) once. The route supplies both the wire endpoint and the

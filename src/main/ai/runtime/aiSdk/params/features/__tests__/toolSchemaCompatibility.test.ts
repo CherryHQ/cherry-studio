@@ -9,6 +9,7 @@ import { describe, expect, it } from 'vitest'
 import * as z from 'zod'
 
 import { createCherryIn } from '@cherrystudio/ai-sdk-provider'
+import { makeModel, makeProvider } from '@main/ai/__tests__/fixtures'
 import { createAihubmix } from '@main/ai/provider/custom/aihubmix/aihubmixProvider'
 import { createToolInspectTool } from '@main/ai/tools/adapters/aiSdk/meta/toolInspect'
 import { createToolInvokeTool } from '@main/ai/tools/adapters/aiSdk/meta/toolInvoke'
@@ -16,14 +17,24 @@ import { createToolSearchTool } from '@main/ai/tools/adapters/aiSdk/meta/toolSea
 import { ToolRegistry } from '@main/ai/tools/adapters/aiSdk/registry'
 import { readFileInputSchema } from '@shared/ai/builtinTools'
 import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
+import type { Model } from '@shared/data/types/model'
+import type { Provider } from '@shared/data/types/provider'
 
 import { toolSchemaCompatibilityFeature } from '../toolSchemaCompatibility'
 
 async function getMiddleware(
-  scope: { aiSdkProviderId?: string; endpointType?: EndpointType; runtimeProviderId?: string } = {}
+  scope: {
+    aiSdkProviderId?: string
+    endpointType?: EndpointType
+    runtimeProviderId?: string
+    model?: Model
+    provider?: Provider
+  } = {}
 ): Promise<LanguageModelMiddleware> {
   const [plugin] = toolSchemaCompatibilityFeature.contributeModelAdapters!({
     ...scope,
+    model: scope.model ?? makeModel({ apiModelId: 'gpt-4o' }),
+    provider: scope.provider ?? makeProvider({ id: 'openai' }),
     sdkConfig: { providerId: scope.runtimeProviderId ?? scope.aiSdkProviderId ?? 'openai-compatible' }
   } as never)
   if (!plugin) throw new Error('Tool-schema compatibility plugin was not contributed')
@@ -36,7 +47,13 @@ async function getMiddleware(
 
 async function transform(
   params: LanguageModelV3CallOptions,
-  scope: { aiSdkProviderId?: string; endpointType?: EndpointType; runtimeProviderId?: string } = {}
+  scope: {
+    aiSdkProviderId?: string
+    endpointType?: EndpointType
+    runtimeProviderId?: string
+    model?: Model
+    provider?: Provider
+  } = {}
 ): Promise<LanguageModelV3CallOptions> {
   const middleware = await getMiddleware(scope)
   return middleware.transformParams!({ params, type: 'generate', model: {} as never })
@@ -831,6 +848,36 @@ describe('toolSchemaCompatibilityFeature', () => {
         required: ['query']
       })
     }
+  })
+
+  it('preserves OpenAI-compatible Gemini constraints and untyped-array tools on New API relays', async () => {
+    const params: LanguageModelV3CallOptions = {
+      prompt: [],
+      tools: [
+        {
+          type: 'function',
+          name: 'relay_tool',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              count: { type: 'integer', enum: [1, 2] },
+              flag: { const: true },
+              values: { type: 'array' }
+            },
+            propertyNames: { pattern: '^[a-z]+$' },
+            additionalProperties: false
+          }
+        }
+      ]
+    }
+    const result = await transform(params, {
+      runtimeProviderId: 'newapi',
+      endpointType: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      model: makeModel({ apiModelId: 'gemini-3.8-flash' }),
+      provider: makeProvider({ id: 'aionly', presetProviderId: 'aionly' })
+    })
+    expect(result.tools).toHaveLength(1)
+    expect(result.tools?.[0]).toBe(params.tools?.[0])
   })
 
   it('keeps propertyNames and additionalProperties out of Gemini wire declarations', async () => {

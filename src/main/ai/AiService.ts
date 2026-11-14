@@ -71,7 +71,7 @@ import { deleteImageInputEntries, imageGenerationJobHandler } from './provider/c
 import type { ImageGenerationJobOutput, ImageGenerationJobPayload } from './provider/custom/tasks/jobTypes'
 import { buildVendorProviderOptions } from './provider/custom/wire/buildImageRequest'
 import { DEFAULT_DIFFUSION_REGISTRATION, WIRE_REGISTRY } from './provider/custom/wire/wireProfile'
-import { resolveEffectiveEndpoint, resolveWireModelId } from './provider/endpoint'
+import { resolveEffectiveEndpoint, type ResolveEndpointIntent, resolveWireModelId } from './provider/endpoint'
 import { listModels as listModelsFromProvider, probeOllamaModel } from './provider/listModels'
 import { resolveSdkConfig } from './provider/sdkConfig'
 import type { AgentLoopHooks, NativeFileSupport, RequestFeature } from './runtime/aiSdk'
@@ -1066,7 +1066,7 @@ export class AiService extends BaseService {
       )
     }
 
-    const { sdkConfig, credentialReceipt } = await this.resolveTransportFor(request)
+    const { sdkConfig, credentialReceipt } = await this.resolveTransportFor(request, 'image')
     const promptParam = inputImages
       ? { text: request.prompt, images: inputImages, ...(request.mask && { mask: request.mask }) }
       : request.prompt
@@ -1284,7 +1284,10 @@ export class AiService extends BaseService {
     logger.info('embedMany started', { assistantId: request.assistantId, count: request.values.length })
     const signal = request.requestOptions?.signal
 
-    const { sdkConfig, credentialReceipt, provider, model, assistant } = await this.resolveTransportFor(request)
+    const { sdkConfig, credentialReceipt, provider, model, assistant } = await this.resolveTransportFor(
+      request,
+      'embedding'
+    )
     const usageContext = createCaptureContext({
       provider,
       model,
@@ -1317,7 +1320,10 @@ export class AiService extends BaseService {
     logger.info('rerank started', { assistantId: request.assistantId, count: request.documents.length })
     const signal = request.requestOptions?.signal
 
-    const { sdkConfig, credentialReceipt, provider, model, assistant } = await this.resolveTransportFor(request)
+    const { sdkConfig, credentialReceipt, provider, model, assistant } = await this.resolveTransportFor(
+      request,
+      'rerank'
+    )
     const usageContext = createCaptureContext({
       provider,
       model,
@@ -1522,7 +1528,10 @@ export class AiService extends BaseService {
             const { config } = await resolveProviderAiSdkConfig(provider, model, {
               apiKeyOverride: request.apiKeyOverride
             })
-            const wireModelId = resolveWireModelId(model, resolveEffectiveEndpoint(provider, model).endpointType)
+            const wireModelId = resolveWireModelId(
+              model,
+              resolveEffectiveEndpoint(provider, model, undefined, 'image').endpointType
+            )
             const transport = resolveImageTransport(config.providerId, wireModelId, config.providerSettings)
             if (!transport) {
               throw new Error(`Image health check: no transport for '${config.providerId}' (model '${wireModelId}')`)
@@ -1585,12 +1594,12 @@ export class AiService extends BaseService {
   // ── Shared agent parameter resolution ──
 
   /** Transport resolution shared by every modality: provider, model, credential, wire model id. */
-  private async resolveTransportFor(request: AsInProcess<AiRequest>) {
+  private async resolveTransportFor(request: AsInProcess<AiRequest>, intent: ResolveEndpointIntent = 'chat') {
     const { provider, model, assistant } = this.getProviderAndModel(request)
     const { sdkConfig, credentialReceipt } = await resolveSdkConfig(
       provider,
       model,
-      resolveEffectiveEndpoint(provider, model),
+      resolveEffectiveEndpoint(provider, model, undefined, intent),
       request.apiKeyOverride
     )
     applyHttpTrace(sdkConfig.providerSettings, { modelName: model.name ?? model.id })

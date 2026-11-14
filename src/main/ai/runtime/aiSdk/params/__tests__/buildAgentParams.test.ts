@@ -71,6 +71,36 @@ beforeEach(() => {
 })
 
 describe('buildAgentParams provider resolution', () => {
+  it.each([ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, undefined])(
+    'uses the existing New API default in the production request builder (%s)',
+    async (defaultChatEndpoint) => {
+      resolveProviderAiSdkConfigMock.mockResolvedValue({
+        config: { providerId: 'newapi', providerSettings: {} },
+        credentialReceipt: { attribution: 'unknown' }
+      })
+      const provider = makeProvider({
+        id: 'aionly',
+        presetProviderId: 'aionly',
+        defaultChatEndpoint,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://relay.example/v1', adapterFamily: 'newapi' },
+          [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: { baseUrl: 'https://relay.example/v1beta', adapterFamily: 'newapi' }
+        }
+      })
+      const model = makeModel({
+        apiModelId: 'gemini-3.8-flash',
+        endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]
+      })
+      await buildAgentParams({ request: { conversation: CONVERSATION }, signal: undefined, provider, model })
+      expect(resolveProviderAiSdkConfigMock).toHaveBeenLastCalledWith(provider, model, {
+        apiKeyOverride: undefined,
+        resolvedEndpoint: expect.objectContaining({
+          endpointType: defaultChatEndpoint ?? ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT
+        })
+      })
+    }
+  )
+
   it('sends only selected MCP guidance to the provider and suppresses it for tool-disabled requests', async () => {
     const server = { id: 'docs', name: 'Documents', isActive: true, disabledTools: [], disabledAutoApproveTools: [] }
     const toolId = 'mcp__docs__read'
@@ -1484,7 +1514,7 @@ describe('buildAgentParams assistant-less reasoning', () => {
     })
     const provider = makeProvider({
       id: 'dashscope',
-      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_RESPONSES,
       endpointConfigs: {
         [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { adapterFamily: 'openai-compatible' },
         [ENDPOINT_TYPE.OPENAI_RESPONSES]: { adapterFamily: 'openai' }

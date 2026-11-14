@@ -3,15 +3,20 @@
  * `docs/dev/references/ai/adapter-family.md` for design rationale.
  */
 
+import { endpointImpliedCapability, MODEL_CAPABILITY, VENDOR_PATTERNS } from '@cherrystudio/provider-registry'
 import type { Model } from '@shared/data/types/model'
 import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { getRawModelId } from '@shared/utils/model'
+import { getLowerBaseModelName, getRawModelId } from '@shared/utils/model'
+import { isNewApiProvider } from '@shared/utils/provider'
 import { SystemProviderIds } from '@shared/utils/systemProviderId'
 
 import { type AppProviderId, appProviderIds } from '../types'
 import { getBaseUrl } from '../utils/provider'
 import { resolveGatewayRoute } from './gatewayRouting'
+
+/** Operation selecting the transport; chat defaults must not redirect other modalities. */
+export type ResolveEndpointIntent = 'chat' | 'image' | 'embedding' | 'rerank'
 
 export interface ResolvedEndpoint {
   /** `undefined` when neither model nor provider declares an endpoint. */
@@ -37,8 +42,44 @@ export function resolveWireModelId(model: Model, endpointType: EndpointType | un
   return endpointType === ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT ? rawId.replace(/^models\//, '') : rawId
 }
 
+/** New API listings often put `openai` before vendor-native protocols; pick the native wire when configured. */
+function resolveNewApiModelEndpoint(
+  provider: Provider,
+  model: Model,
+  intent: ResolveEndpointIntent
+): EndpointType | undefined {
+  const endpointTypes = model.endpointTypes
+  if (!endpointTypes?.length || !isNewApiProvider(provider)) return endpointTypes?.[0]
+
+  const primaryEndpoint = endpointTypes[0]
+  if (endpointImpliedCapability(primaryEndpoint) !== undefined) {
+    return primaryEndpoint
+  }
+
+  if (intent === 'image') {
+    const imageEndpoint = endpointTypes.find(
+      (endpointType) =>
+        endpointImpliedCapability(endpointType) === MODEL_CAPABILITY.IMAGE_GENERATION &&
+        provider.endpointConfigs?.[endpointType]?.adapterFamily === 'newapi'
+    )
+    return imageEndpoint ?? primaryEndpoint
+  }
+
+  const modelId = getLowerBaseModelName(getRawModelId(model))
+  const pick = (endpointType: EndpointType, matches: boolean): EndpointType | undefined =>
+    matches && endpointTypes.includes(endpointType) && provider.endpointConfigs?.[endpointType]
+      ? endpointType
+      : undefined
+
+  return (
+    pick(ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT, VENDOR_PATTERNS.gemini.test(modelId)) ??
+    pick(ENDPOINT_TYPE.ANTHROPIC_MESSAGES, VENDOR_PATTERNS.anthropic.test(modelId)) ??
+    endpointTypes[0]
+  )
+}
+
 /**
- * Priority: `preferredEndpointType` → `model.endpointTypes[0]` → gateway per-model route →
+ * Priority: `preferredEndpointType` → provider chat default → model endpoint (including native New API selection) → gateway per-model route →
  * `provider.defaultChatEndpoint` → `undefined`. The gateway step resolves the wire endpoint from the
  * model id for multi-backend gateways (AiHubMix, …) whose models carry no explicit `endpointTypes`
  * (see `gatewayRouting`). `getBaseUrl` applies its own fallback among `endpointConfigs`.
@@ -54,7 +95,8 @@ export function resolveWireModelId(model: Model, endpointType: EndpointType | un
 export function resolveEffectiveEndpoint(
   provider: Provider,
   model: Model,
-  preferredEndpointType?: EndpointType
+  preferredEndpointType?: EndpointType,
+  intent: ResolveEndpointIntent = 'chat'
 ): ResolvedEndpoint {
   const gatewayRoute = resolveGatewayRoute(provider, model)
   const preferred =
@@ -63,8 +105,19 @@ export function resolveEffectiveEndpoint(
     provider.endpointConfigs?.[preferredEndpointType]?.baseUrl
       ? preferredEndpointType
       : undefined
+  const userPreference =
+    intent === 'chat' &&
+    provider.defaultChatEndpoint &&
+    model.endpointTypes?.includes(provider.defaultChatEndpoint) &&
+    provider.endpointConfigs?.[provider.defaultChatEndpoint]
+      ? provider.defaultChatEndpoint
+      : undefined
   const endpointType =
-    preferred ?? model.endpointTypes?.[0] ?? gatewayRoute?.endpointType ?? provider.defaultChatEndpoint
+    preferred ??
+    userPreference ??
+    resolveNewApiModelEndpoint(provider, model, intent) ??
+    gatewayRoute?.endpointType ??
+    provider.defaultChatEndpoint
   const providerOptionsKey =
     gatewayRoute && endpointType === gatewayRoute.endpointType ? gatewayRoute.providerOptionsKey : undefined
   return { endpointType, baseUrl: getBaseUrl(provider, endpointType), providerOptionsKey }
