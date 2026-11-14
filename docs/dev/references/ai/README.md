@@ -132,10 +132,12 @@ src/main/ai/
    signal)` to open the AI SDK stream and yield `UIMessageChunk`s.
    Agent-session runtime requests are the exception: `AiService.streamText`
    routes them to `AgentSessionRuntimeService.openTurnStream()` so the
-   registered driver can own the concrete agent runtime.
+   registered driver can own the concrete agent runtime. Dedicated image models
+   instead call the existing image-generation service before Agent parameter building;
+   they return managed image file parts through the `messages` source.
 6. Each execution selects one content source. `chunks` uses `pipeStreamLoop` and
    `readUIMessageStream`; Pi, Pi Durable, and Claude use `messages` and `pipeMessageStream` over native
-   projection views. Both publish the same `CherryUIMessage` model through the
+   projection views; dedicated-image chat turns also use `messages`. Both publish the same `CherryUIMessage` model through the
    root projection and `onMessage` listeners. See [Stream Manager](./stream-manager.md).
 7. On terminal (done / error / aborted / paused-for-approval), listeners get
    a typed terminal callback. `PersistenceListener` writes the final

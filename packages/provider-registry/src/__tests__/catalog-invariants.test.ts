@@ -141,6 +141,35 @@ describe('catalog invariants (data/*.json)', () => {
     })
   })
 
+  it('keeps chat routing on OpenRouter models its text catalog also serves', () => {
+    // Chat and image catalogs overlap for these; pinning them to the image endpoint alone would demote
+    // them to one-shot image APIs in chat and drop their text output.
+    const shared = providerModelOverrides.filter(
+      (override) =>
+        override.providerId === 'openrouter' && override.imageGeneration && override.outputModalities?.includes('text')
+    )
+
+    expect(shared.length).toBeGreaterThan(0)
+    for (const override of shared) {
+      expect(override.endpointTypes, override.apiModelId).toEqual([
+        'openai-chat-completions',
+        'openai-image-generation'
+      ])
+    }
+  })
+
+  it('pins image-catalog-only OpenRouter models to the image endpoint', () => {
+    const imageOnly = providerModelOverrides.filter(
+      (override) =>
+        override.providerId === 'openrouter' && override.imageGeneration && !override.outputModalities?.includes('text')
+    )
+
+    expect(imageOnly.length).toBeGreaterThan(0)
+    for (const override of imageOnly) {
+      expect(override.endpointTypes, override.apiModelId).toEqual(['openai-image-generation'])
+    }
+  })
+
   it('drops Vercel OpenAI fast routing aliases without dropping real fast models', () => {
     expect(isModelsDevRoutingAlias('vercel', 'openai/gpt-5-fast')).toBe(true)
     expect(isModelsDevRoutingAlias('vercel', 'bytedance/seedance-2.0-fast')).toBe(false)

@@ -38,6 +38,7 @@ import { modelService } from '@main/data/services/ModelService'
 import { providerService } from '@main/data/services/ProviderService'
 import { installBuiltinSkills } from '@main/utils/builtinSkills'
 import { downloadImageAsBase64 } from '@main/utils/downloadAsBase64'
+import { isAbortError } from '@main/utils/error'
 import type { CompactionSink } from '@shared/ai/compaction'
 import type { AiToolApprovalRespondRequest, AiToolApprovalRespondResponse } from '@shared/ai/transport'
 import { isDataApiNotFoundError } from '@shared/data/api/errors'
@@ -50,9 +51,10 @@ import { type Model, type UniqueModelId, parseUniqueModelId } from '@shared/data
 import type { Provider } from '@shared/data/types/provider'
 import type { Base64String, CreateInternalEntryIpcParams, UrlString } from '@shared/types/file'
 import {
+  getRawModelId,
   isEmbeddingModel,
   isFunctionCallingModel,
-  isGenerateImageModel,
+  isImageGenerationOnlyModel,
   isNonChatModel,
   isRerankModel
 } from '@shared/utils/model'
@@ -61,8 +63,10 @@ import { isExternalCliProvider, isOllamaProvider } from '@shared/utils/provider'
 import { isAgentSessionTopic } from './agentSession/topic'
 import { createAnalyticsHook } from './hooks/analyticsHook'
 import { createAiUsagePlugin } from './hooks/billingHook'
+import { collectImageTurnInput, imageTurnFileParts, imageTurnParamValues } from './imageTurn/imageTurn'
 import { resolveAttachmentBudget } from './messages/attachmentBudget'
 import { prepareChatMessages } from './messages/attachmentRouting'
+import { readImageInputDataUrls } from './messages/imageInputDataUrls'
 import { resolveMediaCapabilities, resolveToolResultMediaCapabilities } from './messages/messageCapabilities'
 import { applyHttpTrace } from './observability'
 import { resolveProviderAiSdkConfig } from './provider/config'
@@ -71,7 +75,7 @@ import { deleteImageInputEntries, imageGenerationJobHandler } from './provider/c
 import type { ImageGenerationJobOutput, ImageGenerationJobPayload } from './provider/custom/tasks/jobTypes'
 import { buildVendorProviderOptions } from './provider/custom/wire/buildImageRequest'
 import { DEFAULT_DIFFUSION_REGISTRATION, WIRE_REGISTRY } from './provider/custom/wire/wireProfile'
-import { resolveEffectiveEndpoint, resolveWireModelId } from './provider/endpoint'
+import { resolveEffectiveEndpoint, resolveWireModelId, type ResolveEndpointIntent } from './provider/endpoint'
 import { listModels as listModelsFromProvider, probeOllamaModel } from './provider/listModels'
 import { resolveSdkConfig } from './provider/sdkConfig'
 import type { AgentLoopHooks, NativeFileSupport, RequestFeature } from './runtime/aiSdk'
@@ -274,6 +278,11 @@ export type AsInProcess<T extends AiRequest> = Omit<T, 'requestOptions'> & {
   /** Trusted in-process classification for remote token analytics. */
   tokenUsageSource?: TokenUsageSource
   resolvedModel?: { readonly provider: Provider; readonly model: Model }
+}
+
+/** Image attribution is supplied only by trusted main-process callers. */
+type InProcessImageRequest = AsInProcess<AiImageRequest> & {
+  attribution?: { source: SourceSnapshot | null; messageRef: MessageRef | null }
 }
 
 /** Chat requests additionally carry the turn's correlation and the stream manager's sinks. */
@@ -622,6 +631,11 @@ export class AiService extends BaseService {
 
     if (isAgentSessionTopic(request.conversation.topicId)) {
       throw new Error(`Agent session stream ${request.conversation.topicId} requires an agent-session runtime request`)
+    }
+
+    const selected = this.getProviderAndModel(request)
+    if (isImageGenerationOnlyModel(selected.model)) {
+      return this.openImageTurnStream(request, selected.provider, selected.model, signal, selected.assistant)
     }
 
     const repairUsagePlugins: { current?: AiPlugin[] } = {}
@@ -1012,6 +1026,77 @@ export class AiService extends BaseService {
     }
   }
 
+  private async openImageTurnStream(
+    request: AsInProcessChat<AiStreamRequest>,
+    provider: Provider,
+    model: Model,
+    signal: AbortSignal,
+    assistant: Assistant | undefined
+  ): Promise<AiStreamSource> {
+    const support = providerRegistryService.getImageGenerationSupport(provider.id, getRawModelId(model))
+    const input = collectImageTurnInput(request.messages, support)
+
+    return {
+      kind: 'messages',
+      stream: new ReadableStream({
+        start: async (controller) => {
+          controller.enqueue({ type: 'control', chunk: { type: 'start' } })
+          try {
+            const inputImages =
+              input.inputImageIds.length > 0 ? await readImageInputDataUrls(input.inputImageIds, { signal }) : undefined
+            const result = await this.generateImage({
+              uniqueModelId: request.uniqueModelId ?? model.id,
+              assistantId: request.assistantId,
+              resolvedModel: { provider, model },
+              attribution: {
+                source: request.source ?? sourceSnapshotForAssistant(assistant) ?? null,
+                messageRef: request.messageId ? { kind: 'chat', id: request.messageId } : null
+              },
+              prompt: input.prompt,
+              mode: input.mode,
+              ...(inputImages && { inputImages }),
+              paramValues: imageTurnParamValues(input.mode, support),
+              cleanupPolicy: 'delete_when_unreferenced',
+              requestOptions: {
+                ...request.requestOptions,
+                signal
+              }
+            })
+            if (signal.aborted) {
+              closeQuietly()
+              return
+            }
+            if (result.files.length === 0) {
+              throw Object.assign(new Error('Image generation returned no images.'), { i18nKey: 'image_result_empty' })
+            }
+            const fileManager = application.get('FileManager')
+            controller.enqueue({
+              type: 'message',
+              parts: imageTurnFileParts(result.files, (id) => fileManager.getUrl(id))
+            })
+            controller.close()
+          } catch (error) {
+            // An aborted turn already cancelled the reader, so closing again can throw.
+            if (signal.aborted || isAbortError(error)) {
+              closeQuietly()
+              return
+            }
+            controller.enqueue({ type: 'error', error })
+            controller.close()
+          }
+
+          function closeQuietly(): void {
+            try {
+              controller.close()
+            } catch {
+              // The consumer cancelled the stream first.
+            }
+          }
+        }
+      })
+    }
+  }
+
   // ── Image generation ──
 
   /**
@@ -1025,19 +1110,15 @@ export class AiService extends BaseService {
     )
   }
 
-  async generateImage(request: AsInProcess<AiImageRequest>): Promise<AiImageResult> {
+  async generateImage(request: InProcessImageRequest): Promise<AiImageResult> {
     logger.info('generateImage started', { assistantId: request.assistantId, uniqueModelId: request.uniqueModelId })
     const signal = request.requestOptions?.signal
 
     const { provider, model, assistant } = this.getProviderAndModel(request)
-    const source = sourceSnapshotForAssistant(assistant)
+    const source = request.attribution ? request.attribution.source : sourceSnapshotForAssistant(assistant)
 
-    // `request.paramValues` is already a strict, coerced `ParamValues` — the
-    // `ai.image.generate` IPC validated it via the catalog `imageParamsSchema` at
-    // the boundary (no main-side re-parse / cast). Split it into the structured
-    // fields the AI SDK call consumes (n/size/seed/aspectRatio → imageParams
-    // below) vs the leftover vendor bag (cfg, the diffusion/openai knobs, …) the
-    // WireProfile engine forwards.
+    // IPC validates parameter values; chat turns supply registry defaults.
+    // Keep SDK fields separate from vendor parameters forwarded by WireProfile.
     const params = request.paramValues
     const { structured, vendorBag } = splitParamValues(params)
     const inputImages = request.inputImages ? await normalizeImageEditInputs(request.inputImages, signal) : undefined
@@ -1066,7 +1147,7 @@ export class AiService extends BaseService {
       )
     }
 
-    const { sdkConfig, credentialReceipt } = await this.resolveTransportFor(request)
+    const { sdkConfig, credentialReceipt } = await this.resolveTransportFor(request, 'image')
     const promptParam = inputImages
       ? { text: request.prompt, images: inputImages, ...(request.mask && { mask: request.mask }) }
       : request.prompt
@@ -1119,7 +1200,7 @@ export class AiService extends BaseService {
       sdkModelId: sdkConfig.modelId,
       credentialReceipt,
       source,
-      messageRef: null
+      messageRef: request.attribution?.messageRef ?? null
     })
     return this.withRuntimeActivity('ai:generate-image', async () => {
       const result = await aiCoreGenerateImage<AppProviderSettingsMap>(
@@ -1153,7 +1234,13 @@ export class AiService extends BaseService {
       const fileManager = application.get('FileManager')
       const files = await Promise.all(
         dataUrls.map((data) =>
-          fileManager.createInternalEntry({ source: 'base64', data, cleanupPolicy: request.cleanupPolicy })
+          fileManager.createInternalEntry({
+            source: 'base64',
+            data,
+            cleanupPolicy: request.cleanupPolicy,
+            // FileManager otherwise names the entry "Pasted <date>".
+            name: 'Generated image'
+          })
         )
       )
 
@@ -1174,11 +1261,11 @@ export class AiService extends BaseService {
    * what it would take to make results restart-durable.
    */
   private async generateImageViaJob(
-    request: AsInProcess<AiImageRequest>,
+    request: InProcessImageRequest,
     structured: SplitImageParams['structured'],
     providerParams: Record<string, unknown>,
     signal: AbortSignal | undefined,
-    source: SourceSnapshot | undefined
+    source: SourceSnapshot | null | undefined
   ): Promise<AiImageResult> {
     const uniqueModelId = request.uniqueModelId
     if (!uniqueModelId) throw new Error('generateImageViaJob requires a uniqueModelId')
@@ -1227,6 +1314,7 @@ export class AiService extends BaseService {
         ...(modelDescriptor && { modelDescriptor }),
         ...(request.requestTimeoutMs && { requestTimeoutMs: request.requestTimeoutMs }),
         ...(source && { source }),
+        messageRef: request.attribution?.messageRef ?? null,
         providerParams,
         cleanupPolicy: request.cleanupPolicy
       }
@@ -1410,8 +1498,6 @@ export class AiService extends BaseService {
     const resolvedModel = structuredClone(this.getProviderAndModel({ uniqueModelId }))
     const { provider, model } = resolvedModel
     const endpoint = resolveEffectiveEndpoint(provider, model)
-    const primaryEndpoint = model.endpointTypes?.[0]
-    const chatPrimary = primaryEndpoint != null && endpointImpliedCapability(primaryEndpoint) === undefined
     return {
       uniqueModelId: model.id,
       modelName: model.name,
@@ -1428,7 +1514,7 @@ export class AiService extends BaseService {
       // Cherry Cloud has no model-list API; availability is the account's entitlement set.
       supportsModelListing: provider.modelListSource !== 'registry' && !isManagedCherryCloudModel(provider.id),
       isExternalCli: isExternalCliProvider(provider),
-      supportsChat: chatPrimary || !isNonChatModel(model),
+      supportsChat: !isNonChatModel(model),
       listModels: async (signal: AbortSignal) => {
         const { models } = await listModelsFromProvider(
           { ...provider, defaultChatEndpoint: endpoint.endpointType },
@@ -1458,8 +1544,8 @@ export class AiService extends BaseService {
     const start = performance.now()
     const timeout = request.timeout ?? 15000
 
-    const primaryEndpoint = model.endpointTypes?.[0]
-    const hasChatPrimaryEndpoint = primaryEndpoint != null && endpointImpliedCapability(primaryEndpoint) === undefined
+    const hasChatEndpoint = model.endpointTypes?.some((endpointType) => endpointImpliedCapability(endpointType) == null)
+    const imageOnly = isImageGenerationOnlyModel(model)
 
     // AbortController on timeout so the HTTP work cancels too (otherwise tokens keep burning).
     const controller = new AbortController()
@@ -1484,9 +1570,9 @@ export class AiService extends BaseService {
           }
           return result
         })
-      } else if (!options?.chatOnly && isEmbeddingModel(model) && !hasChatPrimaryEndpoint) {
+      } else if (!options?.chatOnly && isEmbeddingModel(model) && !hasChatEndpoint) {
         probe = this.embedMany({ ...probeRequest, values: ['test'] })
-      } else if (!options?.chatOnly && isGenerateImageModel(model) && !hasChatPrimaryEndpoint) {
+      } else if (!options?.chatOnly && imageOnly) {
         // Image-only models reject /chat/completions with a 400 — probe the image endpoint.
         // Edit-only models (qwen-image-edit / wan2.5-i2i / qwen-mt-image …) serve no
         // `generate` mode: the bare default leaves the job path without a transport
@@ -1502,13 +1588,7 @@ export class AiService extends BaseService {
         const probeMode: ImageGenerationMode = editOnly
           ? (EDIT_ONLY_PROBE_FALLBACK_MODES.find((mode) => mode in imageSupport.modes) ?? 'edit')
           : 'generate'
-        const probeSupports = imageSupport?.modes?.[probeMode]?.supports
-        const probeParams: ParamValues = {}
-        for (const [key, spec] of Object.entries(probeSupports ?? {})) {
-          if (spec && typeof spec === 'object' && 'default' in spec && spec.default !== undefined) {
-            probeParams[key] = spec.default
-          }
-        }
+        const probeParams = imageTurnParamValues(probeMode, imageSupport)
         const transportProviderId = provider.presetProviderId ?? provider.id
         if (request.uniqueModelId && hasImageTransport(transportProviderId, model.apiModelId ?? model.id)) {
           // Transport models run their submit/poll loop on the job system, whose
@@ -1519,10 +1599,11 @@ export class AiService extends BaseService {
           // with the caller's key, no job row, no result download.
           const vendorTransport = imageSupport?.modes?.[probeMode]?.vendorTransport
           probe = (async () => {
-            const { config } = await resolveProviderAiSdkConfig(provider, model, {
-              apiKeyOverride: request.apiKeyOverride
+            const { config, endpointType } = await resolveProviderAiSdkConfig(provider, model, {
+              apiKeyOverride: request.apiKeyOverride,
+              intent: 'image'
             })
-            const wireModelId = resolveWireModelId(model, resolveEffectiveEndpoint(provider, model).endpointType)
+            const wireModelId = resolveWireModelId(model, endpointType)
             const transport = resolveImageTransport(config.providerId, wireModelId, config.providerSettings)
             if (!transport) {
               throw new Error(`Image health check: no transport for '${config.providerId}' (model '${wireModelId}')`)
@@ -1585,12 +1666,12 @@ export class AiService extends BaseService {
   // ── Shared agent parameter resolution ──
 
   /** Transport resolution shared by every modality: provider, model, credential, wire model id. */
-  private async resolveTransportFor(request: AsInProcess<AiRequest>) {
+  private async resolveTransportFor(request: AsInProcess<AiRequest>, intent: ResolveEndpointIntent = 'chat') {
     const { provider, model, assistant } = this.getProviderAndModel(request)
     const { sdkConfig, credentialReceipt } = await resolveSdkConfig(
       provider,
       model,
-      resolveEffectiveEndpoint(provider, model),
+      resolveEffectiveEndpoint(provider, model, undefined, intent),
       request.apiKeyOverride
     )
     applyHttpTrace(sdkConfig.providerSettings, { modelName: model.name ?? model.id })

@@ -331,13 +331,34 @@ export default defineCreator({
       outputModalities: ['image'],
       imageGeneration: gptImage25ImageGeneration
     },
+    // `gpt-image-1-mini`, `gpt-image-1-5` and `chatgpt-image-latest` serve only the
+    // Images API; models.dev's `text` output tag would otherwise route chat to
+    // /chat/completions, which they reject with 400.
     {
       id: 'gpt-image-1-mini',
       name: 'GPT-Image-1-Mini',
       family: 'gpt-image',
       capabilities: ['image-recognition', 'image-generation', 'file-input'],
       inputModalities: ['text', 'image'],
-      outputModalities: ['text', 'image'],
+      outputModalities: ['image'],
+      imageGeneration: gptImageFullImageGeneration
+    },
+    {
+      id: 'gpt-image-1-5',
+      name: 'GPT Image 1.5',
+      family: 'gpt-image',
+      capabilities: ['image-recognition', 'image-generation', 'file-input'],
+      inputModalities: ['text', 'image'],
+      outputModalities: ['image'],
+      imageGeneration: gptImageFullImageGeneration
+    },
+    {
+      id: 'chatgpt-image-latest',
+      name: 'ChatGPT Image Latest',
+      family: 'gpt-image',
+      capabilities: ['image-recognition', 'image-generation', 'file-input'],
+      inputModalities: ['text', 'image'],
+      outputModalities: ['image'],
       imageGeneration: gptImageFullImageGeneration
     },
     {

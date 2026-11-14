@@ -1001,7 +1001,7 @@ describe('listModels — openRouterFetcher image models', () => {
     })
   }
 
-  it('unions the dedicated image catalog and marks duplicate image models for image routing', async () => {
+  it('unions the dedicated image catalog and keeps chat routing only for dual-catalog models', async () => {
     const provider = makeOpenRouterProvider()
     aiSdkGetFromApiMock.mockImplementation(({ url }: { url: string }) => {
       if (url.endsWith('/rerank/models')) {
@@ -1015,12 +1015,17 @@ describe('listModels — openRouterFetcher image models', () => {
           value: {
             data: [
               { id: 'openai/gpt-image-2', name: 'OpenAI: GPT Image 2' },
+              { id: 'google/gemini-2.5-flash-image', name: 'Google: Nano Banana' },
               { id: 'sourceful/riverflow-v2.5-fast', name: 'Sourceful: Riverflow V2.5 Fast' }
             ]
           }
         })
       }
-      return Promise.resolve({ value: { data: [{ id: 'anthropic/claude-sonnet-4' }, { id: 'openai/gpt-image-2' }] } })
+      return Promise.resolve({
+        value: {
+          data: [{ id: 'anthropic/claude-sonnet-4' }, { id: 'google/gemini-2.5-flash-image' }]
+        }
+      })
     })
 
     const { models } = await listModels(provider)
@@ -1033,10 +1038,17 @@ describe('listModels — openRouterFetcher image models', () => {
     ])
     expect(models.map((model) => model.apiModelId)).toEqual([
       'anthropic/claude-sonnet-4',
-      'openai/gpt-image-2',
+      'google/gemini-2.5-flash-image',
       'openai/text-embedding-3-small',
+      'openai/gpt-image-2',
       'sourceful/riverflow-v2.5-fast'
     ])
+    // Served by both catalogs: chat keeps it on /chat/completions, paintings keeps the image endpoint.
+    expect(models.find((model) => model.apiModelId === 'google/gemini-2.5-flash-image')).toMatchObject({
+      capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION],
+      name: 'Google: Nano Banana'
+    })
     expect(models.find((model) => model.apiModelId === 'openai/gpt-image-2')).toMatchObject({
       capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
       endpointTypes: [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION]
@@ -1139,7 +1151,7 @@ describe('listModels — openRouterFetcher image models', () => {
     expect(models[0]).toMatchObject({
       apiModelId: 'openai/gpt-image-2',
       name: 'Image Name',
-      endpointTypes: [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION],
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION],
       capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION, MODEL_CAPABILITY.RERANK]
     })
   })
@@ -1241,6 +1253,7 @@ describe('listModels — openRouterFetcher image models', () => {
         description: undefined,
         capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
         endpointTypes: [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION],
+        outputModalities: [MODALITY.IMAGE],
         supportsStreaming: true,
         isEnabled: true,
         isHidden: false

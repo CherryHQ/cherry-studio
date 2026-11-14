@@ -1,20 +1,81 @@
 diff --git a/dist/index.js b/dist/index.js
+index ea415b862b2c36c3771b52ed8cd4fe88a784a46a..fa75ab52b8ed49d4fe4c83912fb22001ba7a3e0c 100644
 --- a/dist/index.js
 +++ b/dist/index.js
-@@ -257,7 +257,11 @@
-         messages.push({
-           role: "assistant",
-           content: toolCalls.length > 0 ? text || null : text,
+@@ -124,7 +124,13 @@ function getAudioFormat(mediaType) {
+ function convertToOpenAICompatibleChatMessages(prompt) {
+   var _a, _b, _c;
+   const messages = [];
++  let pendingImages = [];
+   for (const { role, content, ...message } of prompt) {
++    // Tool results must remain adjacent to their assistant call.
++    if (role !== "tool" && pendingImages.length > 0) {
++      messages.push({ role: "user", content: pendingImages });
++      pendingImages = [];
++    }
+     const metadata = getOpenAIMetadata({ ...message });
+     switch (role) {
+       case "system": {
+@@ -220,6 +226,7 @@ function convertToOpenAICompatibleChatMessages(prompt) {
+         let text = "";
+         let reasoning = "";
+         const toolCalls = [];
++        const images = [];
+         for (const part of content) {
+           const partMetadata = getOpenAIMetadata(part);
+           switch (part.type) {
+@@ -231,6 +238,12 @@ function convertToOpenAICompatibleChatMessages(prompt) {
+               reasoning += part.text;
+               break;
+             }
++            case "file": {
++              if (part.mediaType.startsWith("image/")) {
++                images.push({ type: "image_url", image_url: { url: part.data instanceof URL ? part.data.toString() : `data:${part.mediaType === "image/*" ? "image/jpeg" : part.mediaType};base64,${(0, import_provider_utils.convertToBase64)(part.data)}` } });
++              }
++              break;
++            }
+             case "tool-call": {
+               const thoughtSignature = (_b = (_a = part.providerOptions) == null ? void 0 : _a.google) == null ? void 0 : _b.thoughtSignature;
+               toolCalls.push({
+@@ -254,13 +267,22 @@ function convertToOpenAICompatibleChatMessages(prompt) {
+             }
+           }
+         }
+-        messages.push({
+-          role: "assistant",
+-          content: toolCalls.length > 0 ? text || null : text,
 -          ...reasoning.length > 0 ? { reasoning_content: reasoning } : {},
-+          // Thinking-mode dialects (DeepSeek, GLM, Kimi, MiniMax, …) reject a request whose
-+          // assistant turns dropped `reasoning_content` once one performed a tool call. Send the
-+          // key unconditionally — an empty string when the turn produced none, matching
-+          // `@ai-sdk/deepseek`; the field is ignored when the turn did not need it.
-+          reasoning_content: reasoning,
-           tool_calls: toolCalls.length > 0 ? toolCalls : void 0,
-           ...metadata
-         });
-@@ -599,6 +603,17 @@
+-          tool_calls: toolCalls.length > 0 ? toolCalls : void 0,
+-          ...metadata
+-        });
++        if (text || reasoning || toolCalls.length > 0 || images.length === 0) {
++          messages.push({
++            role: "assistant",
++            content: toolCalls.length > 0 ? text || null : text,
++            // Thinking-mode dialects (DeepSeek, GLM, Kimi, MiniMax, …) reject a request whose
++            // assistant turns dropped `reasoning_content` once one performed a tool call. Send the
++            // key unconditionally — an empty string when the turn produced none, matching
++            // `@ai-sdk/deepseek`; the field is ignored when the turn did not need it.
++            reasoning_content: reasoning,
++            tool_calls: toolCalls.length > 0 ? toolCalls : void 0,
++            ...metadata
++          });
++        }
++        // Chat-completions image inputs belong to user messages. Replay generated images
++        // before the next instruction without discarding the assistant's text or reasoning.
++        pendingImages = images;
+         break;
+       }
+       case "tool": {
+@@ -300,6 +322,7 @@ function convertToOpenAICompatibleChatMessages(prompt) {
+       }
+     }
+   }
++  if (pendingImages.length > 0) messages.push({ role: "user", content: pendingImages });
+   return messages;
+ }
+
+@@ -599,6 +622,17 @@ var OpenAICompatibleChatLanguageModel = class {
          text: reasoning
        });
      }
@@ -32,7 +93,7 @@ diff --git a/dist/index.js b/dist/index.js
      if (choice.message.tool_calls != null) {
        for (const toolCall of choice.message.tool_calls) {
          const thoughtSignature = (_c = (_b = toolCall.extra_content) == null ? void 0 : _b.google) == null ? void 0 : _c.thought_signature;
-@@ -758,6 +773,17 @@
+@@ -758,6 +792,17 @@ var OpenAICompatibleChatLanguageModel = class {
                  delta: delta.content
                });
              }
@@ -50,7 +111,7 @@ diff --git a/dist/index.js b/dist/index.js
              if (delta.tool_calls != null) {
                if (isActiveReasoning) {
                  controller.enqueue({
-@@ -867,7 +893,7 @@
+@@ -867,7 +912,7 @@ var OpenAICompatibleChatLanguageModel = class {
                  controller.enqueue({
                    type: "tool-input-delta",
                    id: toolCall.id,
@@ -59,7 +120,7 @@ diff --git a/dist/index.js b/dist/index.js
                  });
                }
              }
-@@ -983,6 +1009,14 @@
+@@ -983,6 +1028,14 @@ var OpenAICompatibleChatResponseSchema = import_v43.z.looseObject({
                }).nullish()
              }).nullish()
            })
@@ -74,7 +135,7 @@ diff --git a/dist/index.js b/dist/index.js
          ).nullish()
        }),
        finish_reason: import_v43.z.string().nullish()
-@@ -1011,7 +1045,7 @@
+@@ -1011,7 +1064,7 @@ var chunkBaseSchema = import_v43.z.looseObject({
              function: import_v43.z.object({
                name: import_v43.z.string().nullish(),
                arguments: import_v43.z.string().nullish()
@@ -83,7 +144,7 @@ diff --git a/dist/index.js b/dist/index.js
              // Support for Google Gemini thought signatures via OpenAI compatibility
              extra_content: import_v43.z.object({
                google: import_v43.z.object({
-@@ -1019,6 +1053,14 @@
+@@ -1019,6 +1072,14 @@ var chunkBaseSchema = import_v43.z.looseObject({
                }).nullish()
              }).nullish()
            })
@@ -98,7 +159,7 @@ diff --git a/dist/index.js b/dist/index.js
          ).nullish()
        }).nullish(),
        finish_reason: import_v43.z.string().nullish()
-@@ -1577,7 +1619,7 @@
+@@ -1577,7 +1638,7 @@ var OpenAICompatibleEmbeddingModel = class {
      return {
        warnings,
        embeddings: response.data.map((item) => item.embedding),
@@ -107,7 +168,7 @@ diff --git a/dist/index.js b/dist/index.js
        providerMetadata: response.providerMetadata,
        response: { headers: responseHeaders, body: rawValue }
      };
-@@ -1585,13 +1627,23 @@
+@@ -1585,13 +1646,23 @@ var OpenAICompatibleEmbeddingModel = class {
  };
  var openaiTextEmbeddingResponseSchema = import_v47.z.object({
    data: import_v47.z.array(import_v47.z.object({ embedding: import_v47.z.array(import_v47.z.number()) })),
@@ -115,7 +176,7 @@ diff --git a/dist/index.js b/dist/index.js
 +  usage: import_v47.z.object({ prompt_tokens: import_v47.z.number().nullish(), total_tokens: import_v47.z.number().nullish() }).nullish(),
    providerMetadata: import_v47.z.record(import_v47.z.string(), import_v47.z.record(import_v47.z.string(), import_v47.z.any())).optional()
  });
- 
+
  // src/image/openai-compatible-image-model.ts
  var import_provider_utils5 = require("@ai-sdk/provider-utils");
  var import_v48 = require("zod/v4");
@@ -132,7 +193,7 @@ diff --git a/dist/index.js b/dist/index.js
  var OpenAICompatibleImageModel = class {
    constructor(modelId, config) {
      this.modelId = modelId;
-@@ -1667,7 +1719,11 @@
+@@ -1667,7 +1738,11 @@ var OpenAICompatibleImageModel = class {
          fetch: this.config.fetch
        });
        return {
@@ -145,7 +206,7 @@ diff --git a/dist/index.js b/dist/index.js
          warnings,
          response: {
            timestamp: currentDate,
-@@ -1676,7 +1732,7 @@
+@@ -1676,7 +1751,7 @@ var OpenAICompatibleImageModel = class {
          }
        };
      }
@@ -154,7 +215,7 @@ diff --git a/dist/index.js b/dist/index.js
        url: this.config.url({
          path: "/images/generations",
          modelId: this.modelId
-@@ -1687,8 +1743,8 @@
+@@ -1687,8 +1762,8 @@ var OpenAICompatibleImageModel = class {
          prompt,
          n,
          size,
@@ -165,7 +226,7 @@ diff --git a/dist/index.js b/dist/index.js
        },
        failedResponseHandler: (0, import_provider_utils5.createJsonErrorResponseHandler)(
          (_e = this.config.errorStructure) != null ? _e : defaultOpenAICompatibleErrorStructure
-@@ -1699,8 +1755,28 @@
+@@ -1699,8 +1774,28 @@ var OpenAICompatibleImageModel = class {
        abortSignal,
        fetch: this.config.fetch
      });
@@ -195,7 +256,7 @@ diff --git a/dist/index.js b/dist/index.js
        warnings,
        response: {
          timestamp: currentDate,
-@@ -1711,7 +1787,7 @@
+@@ -1711,7 +1806,7 @@ var OpenAICompatibleImageModel = class {
    }
  };
  var openaiCompatibleImageResponseSchema = import_v48.z.object({
@@ -205,22 +266,83 @@ diff --git a/dist/index.js b/dist/index.js
  async function fileToBlob(file) {
    if (file.type === "url") {
 diff --git a/dist/index.mjs b/dist/index.mjs
+index 66ab6a1aeeb1c4c72a81136a042052e50b55ba4b..1b03039666545b7af2779f391851d509cec17c78 100644
 --- a/dist/index.mjs
 +++ b/dist/index.mjs
-@@ -241,7 +241,11 @@
-         messages.push({
-           role: "assistant",
-           content: toolCalls.length > 0 ? text || null : text,
+@@ -108,7 +108,13 @@ function getAudioFormat(mediaType) {
+ function convertToOpenAICompatibleChatMessages(prompt) {
+   var _a, _b, _c;
+   const messages = [];
++  let pendingImages = [];
+   for (const { role, content, ...message } of prompt) {
++    // Tool results must remain adjacent to their assistant call.
++    if (role !== "tool" && pendingImages.length > 0) {
++      messages.push({ role: "user", content: pendingImages });
++      pendingImages = [];
++    }
+     const metadata = getOpenAIMetadata({ ...message });
+     switch (role) {
+       case "system": {
+@@ -204,6 +210,7 @@ function convertToOpenAICompatibleChatMessages(prompt) {
+         let text = "";
+         let reasoning = "";
+         const toolCalls = [];
++        const images = [];
+         for (const part of content) {
+           const partMetadata = getOpenAIMetadata(part);
+           switch (part.type) {
+@@ -215,6 +222,12 @@ function convertToOpenAICompatibleChatMessages(prompt) {
+               reasoning += part.text;
+               break;
+             }
++            case "file": {
++              if (part.mediaType.startsWith("image/")) {
++                images.push({ type: "image_url", image_url: { url: part.data instanceof URL ? part.data.toString() : `data:${part.mediaType === "image/*" ? "image/jpeg" : part.mediaType};base64,${convertToBase64(part.data)}` } });
++              }
++              break;
++            }
+             case "tool-call": {
+               const thoughtSignature = (_b = (_a = part.providerOptions) == null ? void 0 : _a.google) == null ? void 0 : _b.thoughtSignature;
+               toolCalls.push({
+@@ -238,13 +251,22 @@ function convertToOpenAICompatibleChatMessages(prompt) {
+             }
+           }
+         }
+-        messages.push({
+-          role: "assistant",
+-          content: toolCalls.length > 0 ? text || null : text,
 -          ...reasoning.length > 0 ? { reasoning_content: reasoning } : {},
-+          // Thinking-mode dialects (DeepSeek, GLM, Kimi, MiniMax, …) reject a request whose
-+          // assistant turns dropped `reasoning_content` once one performed a tool call. Send the
-+          // key unconditionally — an empty string when the turn produced none, matching
-+          // `@ai-sdk/deepseek`; the field is ignored when the turn did not need it.
-+          reasoning_content: reasoning,
-           tool_calls: toolCalls.length > 0 ? toolCalls : void 0,
-           ...metadata
-         });
-@@ -585,6 +589,17 @@
+-          tool_calls: toolCalls.length > 0 ? toolCalls : void 0,
+-          ...metadata
+-        });
++        if (text || reasoning || toolCalls.length > 0 || images.length === 0) {
++          messages.push({
++            role: "assistant",
++            content: toolCalls.length > 0 ? text || null : text,
++            // Thinking-mode dialects (DeepSeek, GLM, Kimi, MiniMax, …) reject a request whose
++            // assistant turns dropped `reasoning_content` once one performed a tool call. Send the
++            // key unconditionally — an empty string when the turn produced none, matching
++            // `@ai-sdk/deepseek`; the field is ignored when the turn did not need it.
++            reasoning_content: reasoning,
++            tool_calls: toolCalls.length > 0 ? toolCalls : void 0,
++            ...metadata
++          });
++        }
++        // Chat-completions image inputs belong to user messages. Replay generated images
++        // before the next instruction without discarding the assistant's text or reasoning.
++        pendingImages = images;
+         break;
+       }
+       case "tool": {
+@@ -284,6 +306,7 @@ function convertToOpenAICompatibleChatMessages(prompt) {
+       }
+     }
+   }
++  if (pendingImages.length > 0) messages.push({ role: "user", content: pendingImages });
+   return messages;
+ }
+
+@@ -585,6 +608,17 @@ var OpenAICompatibleChatLanguageModel = class {
          text: reasoning
        });
      }
@@ -238,7 +360,7 @@ diff --git a/dist/index.mjs b/dist/index.mjs
      if (choice.message.tool_calls != null) {
        for (const toolCall of choice.message.tool_calls) {
          const thoughtSignature = (_c = (_b = toolCall.extra_content) == null ? void 0 : _b.google) == null ? void 0 : _c.thought_signature;
-@@ -744,6 +759,17 @@
+@@ -744,6 +778,17 @@ var OpenAICompatibleChatLanguageModel = class {
                  delta: delta.content
                });
              }
@@ -256,7 +378,7 @@ diff --git a/dist/index.mjs b/dist/index.mjs
              if (delta.tool_calls != null) {
                if (isActiveReasoning) {
                  controller.enqueue({
-@@ -853,7 +879,7 @@
+@@ -853,7 +898,7 @@ var OpenAICompatibleChatLanguageModel = class {
                  controller.enqueue({
                    type: "tool-input-delta",
                    id: toolCall.id,
@@ -265,7 +387,7 @@ diff --git a/dist/index.mjs b/dist/index.mjs
                  });
                }
              }
-@@ -969,6 +995,14 @@
+@@ -969,6 +1014,14 @@ var OpenAICompatibleChatResponseSchema = z3.looseObject({
                }).nullish()
              }).nullish()
            })
@@ -280,7 +402,7 @@ diff --git a/dist/index.mjs b/dist/index.mjs
          ).nullish()
        }),
        finish_reason: z3.string().nullish()
-@@ -997,7 +1031,7 @@
+@@ -997,7 +1050,7 @@ var chunkBaseSchema = z3.looseObject({
              function: z3.object({
                name: z3.string().nullish(),
                arguments: z3.string().nullish()
@@ -289,7 +411,7 @@ diff --git a/dist/index.mjs b/dist/index.mjs
              // Support for Google Gemini thought signatures via OpenAI compatibility
              extra_content: z3.object({
                google: z3.object({
-@@ -1005,6 +1039,14 @@
+@@ -1005,6 +1058,14 @@ var chunkBaseSchema = z3.looseObject({
                }).nullish()
              }).nullish()
            })
@@ -304,7 +426,7 @@ diff --git a/dist/index.mjs b/dist/index.mjs
          ).nullish()
        }).nullish(),
        finish_reason: z3.string().nullish()
-@@ -1581,7 +1623,7 @@
+@@ -1581,7 +1642,7 @@ var OpenAICompatibleEmbeddingModel = class {
      return {
        warnings,
        embeddings: response.data.map((item) => item.embedding),
@@ -313,7 +435,7 @@ diff --git a/dist/index.mjs b/dist/index.mjs
        providerMetadata: response.providerMetadata,
        response: { headers: responseHeaders, body: rawValue }
      };
-@@ -1589,7 +1631,7 @@
+@@ -1589,7 +1650,7 @@ var OpenAICompatibleEmbeddingModel = class {
  };
  var openaiTextEmbeddingResponseSchema = z7.object({
    data: z7.array(z7.object({ embedding: z7.array(z7.number()) })),
@@ -321,8 +443,8 @@ diff --git a/dist/index.mjs b/dist/index.mjs
 +  usage: z7.object({ prompt_tokens: z7.number().nullish(), total_tokens: z7.number().nullish() }).nullish(),
    providerMetadata: z7.record(z7.string(), z7.record(z7.string(), z7.any())).optional()
  });
- 
-@@ -1605,6 +1647,16 @@
+
+@@ -1605,6 +1666,16 @@ import {
    postJsonToApi as postJsonToApi4
  } from "@ai-sdk/provider-utils";
  import { z as z8 } from "zod/v4";
@@ -339,7 +461,7 @@ diff --git a/dist/index.mjs b/dist/index.mjs
  var OpenAICompatibleImageModel = class {
    constructor(modelId, config) {
      this.modelId = modelId;
-@@ -1680,7 +1732,11 @@
+@@ -1680,7 +1751,11 @@ var OpenAICompatibleImageModel = class {
          fetch: this.config.fetch
        });
        return {
@@ -352,7 +474,7 @@ diff --git a/dist/index.mjs b/dist/index.mjs
          warnings,
          response: {
            timestamp: currentDate,
-@@ -1689,7 +1745,7 @@
+@@ -1689,7 +1764,7 @@ var OpenAICompatibleImageModel = class {
          }
        };
      }
@@ -361,7 +483,7 @@ diff --git a/dist/index.mjs b/dist/index.mjs
        url: this.config.url({
          path: "/images/generations",
          modelId: this.modelId
-@@ -1700,8 +1756,8 @@
+@@ -1700,8 +1775,8 @@ var OpenAICompatibleImageModel = class {
          prompt,
          n,
          size,
@@ -372,7 +494,7 @@ diff --git a/dist/index.mjs b/dist/index.mjs
        },
        failedResponseHandler: createJsonErrorResponseHandler4(
          (_e = this.config.errorStructure) != null ? _e : defaultOpenAICompatibleErrorStructure
-@@ -1712,8 +1768,28 @@
+@@ -1712,8 +1787,28 @@ var OpenAICompatibleImageModel = class {
        abortSignal,
        fetch: this.config.fetch
      });
@@ -402,7 +524,7 @@ diff --git a/dist/index.mjs b/dist/index.mjs
        warnings,
        response: {
          timestamp: currentDate,
-@@ -1724,7 +1800,7 @@
+@@ -1724,7 +1819,7 @@ var OpenAICompatibleImageModel = class {
    }
  };
  var openaiCompatibleImageResponseSchema = z8.object({

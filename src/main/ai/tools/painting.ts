@@ -22,6 +22,7 @@ import { buildParamsSchema, type ParamValues } from '@cherrystudio/provider-regi
 import { modelService } from '@data/services/ModelService'
 import { providerRegistryService } from '@data/services/ProviderRegistryService'
 import { loggerService } from '@logger'
+import { readImageInputDataUrls } from '@main/ai/messages/imageInputDataUrls'
 import { isAbortError } from '@main/utils/error'
 import type { GenerateImageOutput } from '@shared/ai/builtinTools'
 import { isDataApiNotFoundError } from '@shared/data/api/errors'
@@ -32,7 +33,7 @@ import {
   type UniqueModelId
 } from '@shared/data/types/model'
 
-import { type GenerateImageToolInput, editInputImageLimit, limitGenerateImageInputIds } from './generateImageTool'
+import { type GenerateImageToolInput, editInputImageLimit } from './generateImageTool'
 
 const logger = loggerService.withContext('Painting')
 
@@ -144,14 +145,7 @@ async function resolveInputImages(
   imageIds: readonly string[],
   support: ConfiguredPaintingModel['support']
 ): Promise<string[]> {
-  const ids = limitGenerateImageInputIds(imageIds, editInputImageLimit(support))
-  return Promise.all(
-    ids.map(async (id) => {
-      const { content, mime } = await application.get('FileManager').read(id, { encoding: 'base64' })
-      if (!mime.startsWith('image/')) throw new Error(`FileEntry ${id} is not an image`)
-      return `data:${mime};base64,${content}`
-    })
-  )
+  return readImageInputDataUrls(imageIds, { limit: editInputImageLimit(support) })
 }
 
 export async function generateImageFromPrompt(

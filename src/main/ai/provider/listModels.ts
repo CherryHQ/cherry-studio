@@ -746,6 +746,9 @@ const openRouterFetcher: ModelFetcher = {
       rerankModelsResponse
     )
     const imageModelsById = new Map(imageModelsResponse.data.map((model) => [model.id, model]))
+    // A model OpenRouter lists in BOTH catalogs answers chat with text and image, so it keeps the
+    // chat protocol alongside the image endpoint; only image-catalog-exclusive ids are pinned.
+    const chatServedIds = new Set(modelsResponse.data.map((model) => model.id.trim()))
     const rerankModelIds = new Set(rerankModelsResponse.data.map((model) => model.id.trim()))
     const all = [
       ...modelsResponse.data,
@@ -756,13 +759,19 @@ const openRouterFetcher: ModelFetcher = {
     return listing(
       dedup(all, (m) => m.id).map((m) => {
         const imageModel = imageModelsById.get(m.id)
+        const chatServed = chatServedIds.has(m.id.trim())
         const model = toModel(m.id, provider, {
           name: imageModel?.name ?? m.name,
           ownedBy: m.owned_by,
           ...(imageModel
             ? {
                 capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
-                endpointTypes: [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION]
+                endpointTypes: chatServed
+                  ? [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION]
+                  : [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION],
+                // Chat classification reads modalities; without them a dual-catalog model
+                // would be taken for a dedicated image API.
+                outputModalities: chatServed ? [MODALITY.TEXT, MODALITY.IMAGE] : [MODALITY.IMAGE]
               }
             : {})
         })

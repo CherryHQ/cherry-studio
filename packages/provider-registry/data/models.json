@@ -16197,10 +16197,70 @@
       "capabilities": ["image-recognition", "image-generation", "file-input"],
       "family": "gpt-image",
       "id": "chatgpt-image-latest",
+      "imageGeneration": {
+        "modes": {
+          "edit": {
+            "supports": {
+              "background": {
+                "options": ["auto", "transparent", "opaque"],
+                "type": "enum"
+              },
+              "moderation": {
+                "options": ["auto", "low"],
+                "type": "enum"
+              },
+              "numImages": {
+                "default": 1,
+                "max": 10,
+                "min": 1,
+                "type": "range"
+              },
+              "quality": {
+                "options": ["auto", "low", "medium", "high"],
+                "type": "enum"
+              },
+              "size": {
+                "default": "1024x1024",
+                "options": ["auto", "1024x1024", "1536x1024", "1024x1536"],
+                "render": "chips",
+                "type": "enum"
+              }
+            }
+          },
+          "generate": {
+            "supports": {
+              "background": {
+                "options": ["auto", "transparent", "opaque"],
+                "type": "enum"
+              },
+              "moderation": {
+                "options": ["auto", "low"],
+                "type": "enum"
+              },
+              "numImages": {
+                "default": 1,
+                "max": 10,
+                "min": 1,
+                "type": "range"
+              },
+              "quality": {
+                "options": ["auto", "low", "medium", "high"],
+                "type": "enum"
+              },
+              "size": {
+                "default": "1024x1024",
+                "options": ["auto", "1024x1024", "1536x1024", "1024x1536"],
+                "render": "chips",
+                "type": "enum"
+              }
+            }
+          }
+        }
+      },
       "inputModalities": ["text", "image"],
       "metadata": {},
-      "name": "chatgpt-image-latest",
-      "outputModalities": ["text", "image"],
+      "name": "ChatGPT Image Latest",
+      "outputModalities": ["image"],
       "ownedBy": "openai"
     },
     {
@@ -18175,10 +18235,70 @@
       "capabilities": ["image-recognition", "image-generation", "file-input"],
       "family": "gpt-image",
       "id": "gpt-image-1-5",
+      "imageGeneration": {
+        "modes": {
+          "edit": {
+            "supports": {
+              "background": {
+                "options": ["auto", "transparent", "opaque"],
+                "type": "enum"
+              },
+              "moderation": {
+                "options": ["auto", "low"],
+                "type": "enum"
+              },
+              "numImages": {
+                "default": 1,
+                "max": 10,
+                "min": 1,
+                "type": "range"
+              },
+              "quality": {
+                "options": ["auto", "low", "medium", "high"],
+                "type": "enum"
+              },
+              "size": {
+                "default": "1024x1024",
+                "options": ["auto", "1024x1024", "1536x1024", "1024x1536"],
+                "render": "chips",
+                "type": "enum"
+              }
+            }
+          },
+          "generate": {
+            "supports": {
+              "background": {
+                "options": ["auto", "transparent", "opaque"],
+                "type": "enum"
+              },
+              "moderation": {
+                "options": ["auto", "low"],
+                "type": "enum"
+              },
+              "numImages": {
+                "default": 1,
+                "max": 10,
+                "min": 1,
+                "type": "range"
+              },
+              "quality": {
+                "options": ["auto", "low", "medium", "high"],
+                "type": "enum"
+              },
+              "size": {
+                "default": "1024x1024",
+                "options": ["auto", "1024x1024", "1536x1024", "1024x1536"],
+                "render": "chips",
+                "type": "enum"
+              }
+            }
+          }
+        }
+      },
       "inputModalities": ["text", "image"],
       "metadata": {},
       "name": "GPT Image 1.5",
-      "outputModalities": ["image", "text"],
+      "outputModalities": ["image"],
       "ownedBy": "openai",
       "pricing": {
         "cacheRead": {
@@ -18262,7 +18382,7 @@
       "inputModalities": ["text", "image"],
       "metadata": {},
       "name": "GPT-Image-1-Mini",
-      "outputModalities": ["text", "image"],
+      "outputModalities": ["image"],
       "ownedBy": "openai",
       "pricing": {
         "cacheRead": {
@@ -23530,5 +23650,5 @@
       "ownedBy": "zhipu"
     }
   ],
-  "version": "6dbe101fa7cfc72b"
+  "version": "81b92857d6bf1b64"
 }

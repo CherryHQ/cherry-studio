@@ -6,6 +6,9 @@
  * Maps on the main process and is discarded on delete, persist, or process
  * exit.
  *
+ * Managed files are retained while the chat exists. Deletion releases them to
+ * FileManager cleanup; promotion first replaces retention with persistent refs.
+ *
  * Simplifications relative to the persistent topic / message API:
  * - Linear messages (no branching / siblings / activeNodeId).
  * - Messages are immutable once appended (no PATCH / delete-message).
@@ -27,6 +30,8 @@ import type { Message, MessageRole, MessageRuntimeStatsInput, MessageStatus } fr
 import type { Topic } from '@shared/data/types/topic'
 
 import { aiUsageRecordService, mergeMessageUsageProjection } from './AiUsageRecordService'
+import { extractChatMessageFileRefs } from './chatMessageFileRefs'
+import { fileEntryService } from './FileEntryService'
 import { messageService } from './MessageService'
 import { topicService } from './TopicService'
 import { isConversationActivityRole } from './utils/activityTime'
@@ -71,6 +76,7 @@ function rowToMessage(row: TemporaryMessageRow): Message {
 }
 
 export class TemporaryChatService {
+  private fileRetentions = new Map<string, Map<string, Disposable>>()
   private topics = new Map<string, TemporaryTopicRow>()
   private messages = new Map<string, TemporaryMessageRow[]>()
   private avatarRetentions = new Map<string, Map<FileEntryId, Disposable>>()
@@ -119,6 +125,7 @@ export class TemporaryChatService {
     this.releaseAvatars(id)
     this.topics.delete(id)
     this.messages.delete(id)
+    this.releaseFiles(id)
     logger.info('Deleted temporary topic', { id })
   }
 
@@ -176,6 +183,15 @@ export class TemporaryChatService {
       throw DataApiErrorFactory.notFound('TemporaryTopic', topicId)
     }
     this.retainAvatar(topicId, row.messageSnapshot?.avatarFileId)
+    const retentions = this.fileRetentions.get(topicId) ?? new Map<string, Disposable>()
+    for (const { fileEntryId } of extractChatMessageFileRefs(row.data)) {
+      if (retentions.has(fileEntryId)) continue
+      const entry = fileEntryService.findById(fileEntryId)
+      if (entry?.origin === 'internal' && entry.cleanupPolicy === 'delete_when_unreferenced') {
+        retentions.set(fileEntryId, application.get('FileManager').retainTemporaryEntry(entry.id))
+      }
+    }
+    this.fileRetentions.set(topicId, retentions)
     list.push(row)
     const topic = this.topics.get(topicId)
     if (topic && isConversationActivityRole(row.role)) {
@@ -290,6 +306,7 @@ export class TemporaryChatService {
     }
 
     this.releaseAvatars(topicId)
+    this.releaseFiles(topicId)
     topicService.notifyReadModelChange([topicId], 'membership')
 
     // Promotion never creates or repairs facts. Rebuild the materialized
@@ -302,6 +319,11 @@ export class TemporaryChatService {
 
     logger.info('Persisted temporary topic', { topicId, messageCount: msgs.length })
     return { topicId, messageCount: msgs.length }
+  }
+
+  private releaseFiles(topicId: string): void {
+    for (const reference of this.fileRetentions.get(topicId)?.values() ?? []) reference.dispose()
+    this.fileRetentions.delete(topicId)
   }
 
   private assertAcceptableAppendDto(dto: CreateMessageDto): void {

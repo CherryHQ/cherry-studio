@@ -63,7 +63,7 @@
     },
     {
       "path": "docs/dev/references/ai/core-architecture.md",
-      "sources": ["src/main/ai/AiService.ts","src/main/ai/streamManager","src/main/ipc/handlers/ai.ts","src/renderer/services/aiTransport"]
+      "sources": ["src/main/ai/AiService.ts","src/main/ai/imageTurn","src/main/ai/streamManager","src/main/ipc/handlers/ai.ts","src/renderer/services/aiTransport"]
     },
     {
       "path": "docs/dev/references/ai/execution-overlay.md",
@@ -71,7 +71,7 @@
     },
     {
       "path": "docs/dev/references/ai/image-generation-parameters.md",
-      "sources": ["packages/provider-registry/src/schemas/imageParamCatalog.ts","src/main/ai/provider/custom/tasks/imageGenerationJobHandler.ts","src/main/ai/provider/custom/wire/wireProfile.ts","src/renderer/pages/paintings"]
+      "sources": ["packages/provider-registry/src/schemas/imageParamCatalog.ts","src/main/ai/imageTurn","src/main/ai/provider/custom/tasks/imageGenerationJobHandler.ts","src/main/ai/provider/custom/wire/wireProfile.ts","src/renderer/pages/paintings"]
     },
     {
       "path": "docs/dev/references/ai/ipc-transport.md",

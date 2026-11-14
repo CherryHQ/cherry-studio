@@ -20,7 +20,7 @@ import { topicTable } from '@data/db/schemas/topic'
 import type { DbOrTx } from '@data/db/types'
 import { loggerService } from '@logger'
 import { buildSearchSnippet } from '@main/utils/searchSnippet'
-import { applyApprovalDecisions, type ApprovalDecision, blobRefsOf, isPersistedToolOutput } from '@shared/ai/transport'
+import { applyApprovalDecisions, type ApprovalDecision } from '@shared/ai/transport'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type {
   ActiveNodeStrategy,
@@ -30,7 +30,6 @@ import type {
 } from '@shared/data/api/schemas/messages'
 import type { TopicMessageContentSearchItem } from '@shared/data/api/schemas/search'
 import type { CursorPaginationResponse } from '@shared/data/api/types'
-import type { chatMessageRoles } from '@shared/data/types/file'
 import {
   type BranchMessage,
   type BranchMessagesResponse,
@@ -48,9 +47,10 @@ import {
   type TreeResponse
 } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
-import { hasClearContextPart, isBlankUserTurn, readCherryMeta } from '@shared/data/types/uiParts'
+import { hasClearContextPart, isBlankUserTurn } from '@shared/data/types/uiParts'
 
 import { aiUsageRecordService, mergeMessageRuntimeStats } from './AiUsageRecordService'
+import { extractChatMessageFileRefs } from './chatMessageFileRefs'
 import { getDataService, registerDataService } from './dataServiceRegistry'
 import { isAssistantActivityTransition, isConversationActivityRole } from './utils/activityTime'
 import { type SearchFetchContext, searchWithCursor } from './utils/ftsSearch'
@@ -243,32 +243,6 @@ function extractPreview(message: Message): string {
   }
 
   return ''
-}
-
-type ChatMessageFileRefEntry = { fileEntryId: string; role: (typeof chatMessageRoles)[number] }
-
-function extractChatMessageFileRefs(
-  data: MessageData | null | undefined,
-  snapshot: Message['messageSnapshot']
-): ChatMessageFileRefEntry[] {
-  const refs: ChatMessageFileRefEntry[] = []
-  const seen = new Set<string>()
-  const add = (fileEntryId: string | undefined, role: ChatMessageFileRefEntry['role']) => {
-    if (!fileEntryId) return
-    const key = `${role}:${fileEntryId}`
-    if (seen.has(key)) return
-    seen.add(key)
-    refs.push({ fileEntryId, role })
-  }
-  for (const part of data?.parts ?? []) {
-    if (part.type === 'file') {
-      add(readCherryMeta(part)?.fileEntryId, 'attachment')
-    } else if (isToolUIPart(part) && part.state === 'output-available' && isPersistedToolOutput(part.output)) {
-      for (const blob of blobRefsOf(part.output.$persistedToolOutput)) add(blob.fileEntryId, 'tool_output')
-    }
-  }
-  add(snapshot?.avatarFileId, 'author_avatar')
-  return refs
 }
 
 function selectExistingFileEntryIdsTx(tx: DbOrTx, ids: readonly string[]): Set<string> {

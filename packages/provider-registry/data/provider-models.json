@@ -25795,7 +25795,7 @@
       "capabilities": {
         "add": ["image-generation"]
       },
-      "endpointTypes": ["openai-image-generation"],
+      "endpointTypes": ["openai-chat-completions", "openai-image-generation"],
       "imageGeneration": {
         "modes": {
           "edit": {
@@ -25982,7 +25982,7 @@
       "capabilities": {
         "add": ["image-generation"]
       },
-      "endpointTypes": ["openai-image-generation"],
+      "endpointTypes": ["openai-chat-completions", "openai-image-generation"],
       "imageGeneration": {
         "modes": {
           "edit": {
@@ -26093,7 +26093,7 @@
       "capabilities": {
         "add": ["image-generation"]
       },
-      "endpointTypes": ["openai-image-generation"],
+      "endpointTypes": ["openai-chat-completions", "openai-image-generation"],
       "imageGeneration": {
         "modes": {
           "edit": {
@@ -26246,7 +26246,7 @@
       "capabilities": {
         "add": ["image-generation"]
       },
-      "endpointTypes": ["openai-image-generation"],
+      "endpointTypes": ["openai-chat-completions", "openai-image-generation"],
       "imageGeneration": {
         "modes": {
           "edit": {
@@ -26706,7 +26706,7 @@
       "capabilities": {
         "add": ["image-generation"]
       },
-      "endpointTypes": ["openai-image-generation"],
+      "endpointTypes": ["openai-chat-completions", "openai-image-generation"],
       "imageGeneration": {
         "modes": {
           "edit": {
@@ -26783,7 +26783,7 @@
       "capabilities": {
         "add": ["image-generation"]
       },
-      "endpointTypes": ["openai-image-generation"],
+      "endpointTypes": ["openai-chat-completions", "openai-image-generation"],
       "imageGeneration": {
         "modes": {
           "edit": {
@@ -26936,7 +26936,7 @@
       "capabilities": {
         "add": ["image-generation"]
       },
-      "endpointTypes": ["openai-image-generation"],
+      "endpointTypes": ["openai-chat-completions", "openai-image-generation"],
       "imageGeneration": {
         "modes": {
           "edit": {
@@ -28275,7 +28275,7 @@
       "capabilities": {
         "add": ["image-generation"]
       },
-      "endpointTypes": ["openai-image-generation"],
+      "endpointTypes": ["openai-chat-completions", "openai-image-generation"],
       "imageGeneration": {
         "modes": {
           "edit": {
@@ -28796,7 +28796,7 @@
       "capabilities": {
         "add": ["image-generation"]
       },
-      "endpointTypes": ["openai-image-generation"],
+      "endpointTypes": ["openai-chat-completions", "openai-image-generation"],
       "imageGeneration": {
         "modes": {
           "edit": {
@@ -28877,7 +28877,7 @@
       "capabilities": {
         "add": ["image-generation"]
       },
-      "endpointTypes": ["openai-image-generation"],
+      "endpointTypes": ["openai-chat-completions", "openai-image-generation"],
       "imageGeneration": {
         "modes": {
           "edit": {
@@ -44716,5 +44716,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "c0831692783fc80d"
+  "version": "3061fae5ed416a6a"
 }

@@ -3,6 +3,7 @@ description: Data-driven image-generation params — registry supports to form f
 sources:
   - packages/provider-registry/src/schemas/imageParamCatalog.ts
   - src/renderer/pages/paintings
+  - src/main/ai/imageTurn
   - src/main/ai/provider/custom/wire/wireProfile.ts
   - src/main/ai/provider/custom/tasks/imageGenerationJobHandler.ts
 ---
@@ -18,6 +19,18 @@ The goal: adding a new image model (or a whole new vendor) should be a **data**
 change. A new param that several models share is a one-row catalog addition that
 flows to the form, the validation, the wire body, and the static types at once.
 Vendor wire-format quirks live in exactly one declarative place each.
+
+A dedicated image model started from a chat turn seeds its parameters from the
+selected mode's registry defaults only (`imageTurnParamValues` in
+`src/main/ai/imageTurn/imageTurn.ts`) — there is no per-turn form, so the user
+cannot edit them. Those values still flow through the same canonical
+`paramValues` → `splitParamValues` path as the paintings form. Per-turn
+parameter controls remain owned by the paintings form.
+
+Mode selection in a chat turn mirrors the paintings form: attached images select
+`edit` when the model declares that mode, and ride `generate` for a model that
+only declares `generate` (seedream and similar accept references there). Both
+modes cap references with their own `maxInputImages`.
 
 ---
 

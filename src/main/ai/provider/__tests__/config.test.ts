@@ -112,6 +112,34 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
     }
   )
 
+  it('requests native image output from OpenRouter chat image models', async () => {
+    const provider = makeProvider({
+      id: 'openrouter',
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+          baseUrl: 'https://openrouter.ai/api/v1',
+          adapterFamily: 'openrouter'
+        }
+      }
+    })
+    const model = makeModel({
+      id: 'openrouter::google/gemini-3.1-flash-image',
+      providerId: 'openrouter',
+      apiModelId: 'google/gemini-3.1-flash-image',
+      capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS],
+      outputModalities: ['text', 'image']
+    })
+
+    const config = await providerToAiSdkConfig(provider, model)
+
+    expect(config.providerSettings).toMatchObject({
+      extraBody: {
+        modalities: ['text', 'image']
+      }
+    })
+  })
+
   it('does not route an ordinary CherryAI model from its display group', async () => {
     const provider = makeProvider({ id: CHERRYAI_PROVIDER_ID })
     const model = makeModel({

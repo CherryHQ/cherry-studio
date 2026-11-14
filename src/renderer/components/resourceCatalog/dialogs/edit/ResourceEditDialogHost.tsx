@@ -9,7 +9,7 @@ import { useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
 import { useAssistantApiById } from '@renderer/hooks/useAssistant'
 import { toast } from '@renderer/services/toast'
 import type { ResourceEditDialogTarget } from '@renderer/types/resourceCatalog'
-import { isNonChatModel } from '@shared/utils/model'
+import { isChatSelectableModel } from '@shared/utils/model'
 
 import { AgentEditDialog } from './AgentEditDialog'
 import { AssistantEditDialog } from './AssistantEditDialog'
@@ -79,7 +79,7 @@ function AssistantEditDialogHost({
 }) {
   const { t } = useTranslation()
   const { assistant, error } = useAssistantApiById(target.id)
-  const assistantModelFilter = useCallback<ModelSelectorFilter>((model) => !isNonChatModel(model), [])
+  const assistantModelFilter = useCallback<ModelSelectorFilter>((model) => isChatSelectableModel(model), [])
 
   useEffect(() => {
     if (!error) return
