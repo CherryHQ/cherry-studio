@@ -182,6 +182,188 @@ describe('MessageHeader', () => {
     expect(queryByText('agent.session_turn_origin.background_work')).toBeNull()
   })
 
+  it('shows the snapshot assistant name without repeating the model beside it', () => {
+    const { getByText, queryByText } = render(
+      <MessageHeader
+        message={createMessage('assistant', {
+          model: { id: 'gpt-4', name: 'GPT-4', provider: 'openai' },
+          messageSnapshot: {
+            id: 'a1',
+            name: 'My Assistant',
+            emoji: '🤖',
+            model: { id: 'gpt-4', name: 'GPT-4', provider: 'openai' }
+          }
+        })}
+      />
+    )
+    expect(getByText('My Assistant')).toBeTruthy()
+    expect(queryByText('GPT-4')).toBeNull()
+  })
+
+  it('shows the model avatar and name beside the assistant when model identity is requested', () => {
+    const { getByText } = render(
+      <MessageHeader
+        showModelIdentity
+        message={createMessage('assistant', {
+          model: { id: 'gpt-4', name: 'GPT-4', provider: 'openai' },
+          messageSnapshot: {
+            id: 'a1',
+            name: 'My Assistant',
+            emoji: '🤖',
+            model: { id: 'gpt-4', name: 'GPT-4', provider: 'openai' }
+          }
+        })}
+      />
+    )
+
+    expect(getByText('My Assistant')).toBeTruthy()
+    expect(getByText('G').closest('[aria-hidden="true"]')).toBeTruthy()
+    expect(getByText('GPT-4')).toBeTruthy()
+  })
+
+  it('shows the snapshotted provider beside the model when provider identity is available', () => {
+    const { getByText } = render(
+      <MessageHeader
+        showModelIdentity
+        message={createMessage('assistant', {
+          model: { id: 'gpt-4', name: 'GPT-4', provider: 'openai', providerName: 'OpenAI Relay' },
+          messageSnapshot: {
+            id: 'a1',
+            name: 'My Assistant',
+            emoji: '🤖',
+            model: {
+              id: 'gpt-4',
+              name: 'GPT-4',
+              provider: 'openai',
+              providerName: 'OpenAI Relay'
+            }
+          }
+        })}
+      />
+    )
+
+    expect(getByText('GPT-4')).toBeTruthy()
+    expect(getByText('OpenAI Relay')).toBeTruthy()
+    expect(getByText('|', { selector: 'span[aria-hidden="true"]' })).toBeTruthy()
+  })
+
+  it('keeps model-only identity when provider metadata is missing', () => {
+    const { getByText, queryByText } = render(
+      <MessageHeader
+        showModelIdentity
+        message={createMessage('assistant', {
+          model: { id: 'gpt-4', name: 'GPT-4', provider: 'openai' },
+          messageSnapshot: {
+            id: 'a1',
+            name: 'My Assistant',
+            emoji: '🤖',
+            model: { id: 'gpt-4', name: 'GPT-4', provider: 'openai' }
+          }
+        })}
+      />
+    )
+
+    expect(getByText('GPT-4')).toBeTruthy()
+    expect(queryByText('OpenAI')).toBeNull()
+  })
+
+  it('truncates long provider labels without hiding the model name', () => {
+    const longProviderName = 'Very Long Provider Channel Name That Should Truncate'
+    const { container, getByText } = render(
+      <MessageHeader
+        showModelIdentity
+        message={createMessage('assistant', {
+          model: {
+            id: 'gpt-4',
+            name: 'GPT-4',
+            provider: 'custom-relay',
+            providerName: longProviderName
+          },
+          messageSnapshot: {
+            id: 'a1',
+            name: 'My Assistant',
+            emoji: '🤖',
+            model: {
+              id: 'gpt-4',
+              name: 'GPT-4',
+              provider: 'custom-relay',
+              providerName: longProviderName
+            }
+          }
+        })}
+      />
+    )
+
+    expect(getByText('GPT-4')).toBeTruthy()
+    const providerLabel = container.querySelector('.max-w-\\[min\\(9rem\\,28vw\\)\\]')
+    expect(providerLabel?.textContent).toBe(longProviderName)
+  })
+
+  it('keeps provider labels message-local for multi-model replies', () => {
+    const { container: firstContainer, getByText: getFirstText } = render(
+      <MessageHeader
+        showModelIdentity
+        message={createMessage('assistant', {
+          id: 'assistant-a',
+          model: { id: 'gpt-4', name: 'GPT-4', provider: 'openai', providerName: 'OpenAI A' },
+          messageSnapshot: {
+            id: 'a1',
+            name: 'My Assistant',
+            emoji: '🤖',
+            model: { id: 'gpt-4', name: 'GPT-4', provider: 'openai', providerName: 'OpenAI A' }
+          }
+        })}
+      />
+    )
+    const { container: secondContainer, getByText: getSecondText } = render(
+      <MessageHeader
+        showModelIdentity
+        message={createMessage('assistant', {
+          id: 'assistant-b',
+          model: { id: 'gpt-4', name: 'GPT-4', provider: 'openai', providerName: 'OpenAI B' },
+          messageSnapshot: {
+            id: 'a1',
+            name: 'My Assistant',
+            emoji: '🤖',
+            model: { id: 'gpt-4', name: 'GPT-4', provider: 'openai', providerName: 'OpenAI B' }
+          }
+        })}
+      />
+    )
+
+    expect(getFirstText('OpenAI A')).toBeTruthy()
+    expect(getSecondText('OpenAI B')).toBeTruthy()
+    expect(firstContainer.textContent).toContain('OpenAI A')
+    expect(firstContainer.textContent).not.toContain('OpenAI B')
+    expect(secondContainer.textContent).toContain('OpenAI B')
+    expect(secondContainer.textContent).not.toContain('OpenAI A')
+  })
+
+  it('shows the snapshot agent name as primary', () => {
+    const { getByText } = render(
+      <MessageHeader
+        message={createMessage('assistant', {
+          model: { id: 'claude', name: 'Claude', provider: 'anthropic' },
+          messageSnapshot: {
+            id: 'ag1',
+            name: 'My Agent',
+            model: { id: 'claude', name: 'Claude', provider: 'anthropic' }
+          }
+        })}
+      />
+    )
+    expect(getByText('My Agent')).toBeTruthy()
+  })
+
+  it('marks the real message selection checkbox for drag selection lookup', () => {
+    providerState.actions = { selectMessage: vi.fn() }
+    providerState.selection = { isMultiSelectMode: true, selectedMessageIds: [] }
+
+    const { container } = render(<MessageHeader message={createMessage()} />)
+
+    expect(container.querySelector('[data-message-select-checkbox]')).not.toBeNull()
+  })
+
   it('shows durable sender attribution without transport status on a received message', () => {
     const sender = { agentId: 'agent-a', sessionId: 'session-a' }
     const { getByText } = render(

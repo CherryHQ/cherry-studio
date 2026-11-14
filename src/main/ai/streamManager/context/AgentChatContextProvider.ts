@@ -23,12 +23,13 @@ import { reserveDurableBranchTx } from '@main/ai/runtime/piDurable/durableContex
 import { topicNamingService } from '@main/services/TopicNamingService'
 import { DataApiErrorFactory, ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
-import type { CherryMessagePart, CherryUIMessage, MessageSnapshot } from '@shared/data/types/message'
+import { type CherryMessagePart, type CherryUIMessage, type MessageSnapshot } from '@shared/data/types/message'
 import { parseUniqueModelId, type ServiceTierSelection, type UniqueModelId } from '@shared/data/types/model'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 
 import { validateEditedInput } from '../../agentSession/editInput'
 import { extractAgentSessionId, isAgentSessionTopic } from '../../agentSession/topic'
+import { createModelSnapshot, resolveSnapshotProviderName } from '../../messages/modelSnapshot'
 import { applyTurnInputAttributes, startAiChildTurnSpan } from '../../observability'
 import { runtimeDriverRegistry } from '../../runtime/registry'
 import type { StreamListener } from '../types'
@@ -198,7 +199,12 @@ export class AgentChatContextProvider implements ChatContextProvider {
         // Normalized effective avatar (mirrors renderer `getAgentAvatar`).
         emoji: agent.configuration?.avatar?.trim() || '🤖',
         ...(agent.avatarFileId ? { avatarFileId: agent.avatarFileId } : {}),
-        model: { id: rawModelId, name: modelName, provider: providerId }
+        model: createModelSnapshot({
+          id: rawModelId,
+          name: modelName,
+          provider: providerId,
+          providerName: resolveSnapshotProviderName(providerId)
+        })
       },
       userMessageId: deliveryMessage?.id ?? uuidv7(),
       userMessageParts: deliveryMessage?.data.parts ?? req.userMessageParts ?? [],
