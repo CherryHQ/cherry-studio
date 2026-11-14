@@ -27,6 +27,13 @@ interface Params {
   inputCapability: InputCapability
   /** Provider of the current painting; a change means switchModel reset the context. */
   providerId: string | undefined
+  /**
+   * Model of the current painting. A provider change WITH a model change resets
+   * the context (switchModel dropped the inputs); a provider change alone means
+   * the same model id is now served elsewhere and the draft survives as long as
+   * the destination still accepts images.
+   */
+  modelId?: string
 }
 
 const withDot = (ext: string | null | undefined): string => {
@@ -68,10 +75,12 @@ async function entryStillExists(id: FileEntryId): Promise<boolean> {
  * - CLEAR: a same-painting model switch does NOT remount the composer (the provider
  *   is keyed on painting id only), so SEED never re-runs to reconcile `switchModel`
  *   dropping `inputFiles`. This effect is that reconciliation: switching to a model
- *   that can't accept images (`accept`→`reject`) or to a different provider clears
- *   the draft, mirroring `switchModel`'s `inputFiles: []`. It does NOT rely on the
- *   stale `painting.inputFiles === files` assumption the removed writeback used to
- *   uphold.
+ *   that can't accept images (`accept`→`reject`), or to a different provider AND a
+ *   different model, clears the draft, mirroring `switchModel`'s `inputFiles: []`.
+ *   A provider change that keeps the same model id (the same model now served
+ *   elsewhere) retains the draft — `switchModel` keeps the inputs there too. It does
+ *   NOT rely on the stale `painting.inputFiles === files` assumption the removed
+ *   writeback used to uphold.
  *
  * SEED and CLEAR are separate effects racing over the same draft, so both go through
  * `draftEpochRef`: CLEAR bumps it, SEED refuses to commit results from a superseded
@@ -87,7 +96,8 @@ export function usePaintingComposerInputFiles({
   files,
   setFiles,
   inputCapability,
-  providerId
+  providerId,
+  modelId
 }: Params) {
   const { t } = useTranslation()
   const entryCacheRef = useRef(new Map<string, FileEntry>())
@@ -109,9 +119,13 @@ export function usePaintingComposerInputFiles({
   const filesRef = useRef(files)
   filesRef.current = files
   // CLEAR bookkeeping: last *resolved* capability (ignores 'unknown' load blips) and
-  // the last provider, to detect the model-switch transitions that drop the draft.
+  // the last provider/model, to detect the model-switch transitions that drop the draft.
   const lastCapabilityRef = useRef<'accept' | 'reject' | null>(null)
   const lastProviderIdRef = useRef<string | undefined>(providerId)
+  const lastModelIdRef = useRef<string | undefined>(modelId)
+  // A provider-only switch made while the model is still unresolved: the next
+  // resolved capability is the destination's verdict on the seeded draft.
+  const providerSwitchPendingRef = useRef(false)
 
   // SEED — once per painting.
   useEffect(() => {
@@ -167,13 +181,39 @@ export function usePaintingComposerInputFiles({
   useEffect(() => {
     const providerChanged = lastProviderIdRef.current !== providerId
     lastProviderIdRef.current = providerId
+    const modelChanged = lastModelIdRef.current !== modelId
+    lastModelIdRef.current = modelId
 
     const droppedImageSupport = lastCapabilityRef.current === 'accept' && inputCapability === 'reject'
     // 'unknown' (catalog still loading) carries the last resolved capability forward,
     // so a load blip between two edit models never looks like a support drop.
     if (inputCapability !== 'unknown') lastCapabilityRef.current = inputCapability
 
-    if (!providerChanged && !droppedImageSupport) return
+    // A provider change alone keeps the draft when the same model id is served
+    // elsewhere and still accepts images (switchModel retains the inputs there);
+    // only a provider change onto a DIFFERENT model resets the context.
+    const switchedModelAcrossProviders = providerChanged && modelChanged
+
+    // A provider-only switch whose model is still unresolved ('unknown' — e.g. a
+    // historical painting whose original model left the catalog) cannot know the
+    // destination's verdict yet. Arm the pending switch: the first resolved
+    // capability decides, however many unknown renders later it arrives — reject
+    // clears (the archive was dropped, the chips must not outlive it), accept keeps.
+    const providerOnlySwitch = providerChanged && !modelChanged
+    if (providerOnlySwitch) providerSwitchPendingRef.current = inputCapability === 'unknown'
+    const pendingVerdict =
+      !providerOnlySwitch && providerSwitchPendingRef.current && inputCapability !== 'unknown'
+        ? inputCapability
+        : undefined
+    if (pendingVerdict !== undefined) providerSwitchPendingRef.current = false
+
+    const clearsDraft =
+      switchedModelAcrossProviders ||
+      droppedImageSupport ||
+      (providerOnlySwitch && inputCapability === 'reject') ||
+      pendingVerdict === 'reject'
+
+    if (!clearsDraft) return
 
     // Bump first: a SEED still awaiting `getPhysicalPath` must lose the right to
     // write back, or it would undo this clear the moment it resolves.
@@ -181,7 +221,7 @@ export function usePaintingComposerInputFiles({
     entryCacheRef.current = new Map()
     unseededEntriesRef.current = []
     setFiles([])
-  }, [inputCapability, providerId, setFiles])
+  }, [inputCapability, providerId, modelId, setFiles])
 
   // MATERIALIZE — at generate time. Promote the current composer attachments to
   // FileEntry[]; a cache hit (seeded, or promoted earlier this session) is reused,

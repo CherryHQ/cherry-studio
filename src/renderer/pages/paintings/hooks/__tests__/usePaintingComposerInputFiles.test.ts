@@ -260,6 +260,7 @@ describe('usePaintingComposerInputFiles', () => {
   interface SwitchProps {
     inputCapability: InputCapability
     providerId: string
+    modelId?: string
   }
   const renderSwitchHarness = (initial: SwitchProps) =>
     renderHook(
@@ -271,7 +272,8 @@ describe('usePaintingComposerInputFiles', () => {
           files,
           setFiles,
           inputCapability: props.inputCapability,
-          providerId: props.providerId
+          providerId: props.providerId,
+          modelId: props.modelId
         })
         return { files, setFiles, materializeInputs }
       },
@@ -309,13 +311,96 @@ describe('usePaintingComposerInputFiles', () => {
     expect(out.entries).toEqual([])
   })
 
-  it('clears the draft when switching provider', async () => {
-    const { result, rerender } = renderSwitchHarness({ inputCapability: 'accept', providerId: 'openai' })
+  it('clears the draft when switching provider to a different model', async () => {
+    const { result, rerender } = renderSwitchHarness({
+      inputCapability: 'accept',
+      providerId: 'openai',
+      modelId: 'qwen-image'
+    })
     await attachChip(result)
     expect(result.current.files).toHaveLength(1)
 
-    rerender({ inputCapability: 'accept', providerId: 'gemini' })
+    // A different provider AND a different model resets the form context — never
+    // carry input images across to a different provider's model.
+    rerender({ inputCapability: 'accept', providerId: 'gemini', modelId: 'gemini-image' })
     expect(result.current.files).toEqual([])
+  })
+
+  it('keeps the draft when the same model id switches provider and still accepts images', async () => {
+    // Same model served elsewhere: the switch hook keeps the archived inputs, so the
+    // composer's live chips — the draft generation consumes — must survive too.
+    const { result, rerender } = renderSwitchHarness({
+      inputCapability: 'accept',
+      providerId: 'openai',
+      modelId: 'qwen-image'
+    })
+    await attachChip(result)
+    expect(result.current.files).toHaveLength(1)
+
+    rerender({ inputCapability: 'accept', providerId: 'gemini', modelId: 'qwen-image' })
+    expect(result.current.files).toHaveLength(1)
+  })
+
+  it('clears the draft when the same model switches provider but rejects images', async () => {
+    const { result, rerender } = renderSwitchHarness({
+      inputCapability: 'accept',
+      providerId: 'openai',
+      modelId: 'qwen-image'
+    })
+    await attachChip(result)
+    expect(result.current.files).toHaveLength(1)
+
+    rerender({ inputCapability: 'reject', providerId: 'gemini', modelId: 'qwen-image' })
+    expect(result.current.files).toEqual([])
+  })
+
+  it('clears seeded chips when an unresolved source model switches provider to a resolved reject', async () => {
+    // A historical painting whose original model left the catalog: capability stays
+    // 'unknown' (never 'accept'), so the accept→reject transition cannot fire. The
+    // destination's resolved reject verdict must still clear the seeded draft.
+    const { result, rerender } = renderSwitchHarness({
+      inputCapability: 'unknown',
+      providerId: 'openai',
+      modelId: 'ghost-model'
+    })
+    await attachChip(result)
+    expect(result.current.files).toHaveLength(1)
+
+    rerender({ inputCapability: 'reject', providerId: 'gemini', modelId: 'ghost-model' })
+    expect(result.current.files).toEqual([])
+  })
+
+  it('clears seeded chips when the destination resolves to reject through unknown renders', async () => {
+    // Same trigger with DELAYED resolution: the switch happens while the destination
+    // catalog is still loading; the first resolved verdict decides.
+    const { result, rerender } = renderSwitchHarness({
+      inputCapability: 'unknown',
+      providerId: 'openai',
+      modelId: 'ghost-model'
+    })
+    await attachChip(result)
+    expect(result.current.files).toHaveLength(1)
+
+    rerender({ inputCapability: 'unknown', providerId: 'gemini', modelId: 'ghost-model' })
+    expect(result.current.files).toHaveLength(1)
+
+    rerender({ inputCapability: 'reject', providerId: 'gemini', modelId: 'ghost-model' })
+    expect(result.current.files).toEqual([])
+  })
+
+  it('keeps seeded chips when the pending provider-only switch resolves to accept', async () => {
+    // The intended companion behavior: unknown-to-accept keeps the draft.
+    const { result, rerender } = renderSwitchHarness({
+      inputCapability: 'unknown',
+      providerId: 'openai',
+      modelId: 'ghost-model'
+    })
+    await attachChip(result)
+    expect(result.current.files).toHaveLength(1)
+
+    rerender({ inputCapability: 'unknown', providerId: 'gemini', modelId: 'ghost-model' })
+    rerender({ inputCapability: 'accept', providerId: 'gemini', modelId: 'ghost-model' })
+    expect(result.current.files).toHaveLength(1)
   })
 
   it('does not clear on a load blip (accept → unknown → accept)', async () => {
@@ -351,7 +436,8 @@ describe('usePaintingComposerInputFiles', () => {
           files,
           setFiles,
           inputCapability: props.inputCapability,
-          providerId: props.providerId
+          providerId: props.providerId,
+          modelId: props.modelId
         })
         return { files, materializeInputs }
       },
@@ -400,9 +486,15 @@ describe('usePaintingComposerInputFiles', () => {
 
   it('ignores an in-flight SEED that resolves after a provider switch cleared the draft', async () => {
     const release = deferPhysicalPath()
-    const { result, rerender } = renderRaceHarness({ inputCapability: 'accept', providerId: 'openai' })
+    const { result, rerender } = renderRaceHarness({
+      inputCapability: 'accept',
+      providerId: 'openai',
+      modelId: 'qwen-image'
+    })
 
-    rerender({ inputCapability: 'accept', providerId: 'gemini' })
+    // Provider AND model change: the context reset clears the draft, and the parked
+    // SEED must not reinstate it.
+    rerender({ inputCapability: 'accept', providerId: 'gemini', modelId: 'gemini-image' })
     release()
     await flushMicrotasks()
 
