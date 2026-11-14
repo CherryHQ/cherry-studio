@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 
-import { setupTestDatabase } from '@test-helpers/db'
+import { setupTestDatabase, seedSessionRoot } from '@test-helpers/db'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { eq } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -181,6 +181,7 @@ describe('system workspace relocation', () => {
         dbh.db
           .insert(agentSessionMessageTable)
           .values({
+            parentId: seedSessionRoot(dbh.db, sessionId),
             id,
             sessionId,
             role: 'assistant',
@@ -234,6 +235,7 @@ describe('system workspace relocation', () => {
     dbh.db
       .insert(agentSessionMessageTable)
       .values({
+        parentId: seedSessionRoot(dbh.db, workspace.sessionId),
         id: randomUUID(),
         sessionId: workspace.sessionId,
         role: 'assistant',
@@ -426,6 +428,7 @@ describe('system workspace relocation', () => {
       dbh.db
         .insert(agentSessionMessageTable)
         .values({
+          parentId: seedSessionRoot(dbh.db, workspace.sessionId),
           sessionId: workspace.sessionId,
           role: 'assistant',
           status: 'success',
@@ -547,6 +550,7 @@ describe('system workspace relocation', () => {
       dbh.db
         .insert(agentSessionMessageTable)
         .values({
+          parentId: seedSessionRoot(dbh.db, workspace.sessionId),
           sessionId: workspace.sessionId,
           role: 'assistant',
           status: 'success',
@@ -684,6 +688,7 @@ describe('system workspace relocation', () => {
         dbh.db
           .insert(agentSessionMessageTable)
           .values({
+            parentId: seedSessionRoot(dbh.db, workspace.sessionId),
             sessionId: workspace.sessionId,
             role: 'assistant',
             status: 'paused',
@@ -953,6 +958,7 @@ describe('system workspace relocation', () => {
         .insert(agentSessionMessageTable)
         .values([
           {
+            parentId: seedSessionRoot(dbh.db, workspace.sessionId),
             sessionId: workspace.sessionId,
             role: 'user',
             status: 'success',
@@ -960,6 +966,7 @@ describe('system workspace relocation', () => {
             createdAt: 1
           },
           {
+            parentId: seedSessionRoot(dbh.db, workspace.sessionId),
             sessionId: workspace.sessionId,
             id: assistantId,
             role: 'assistant',
@@ -969,6 +976,7 @@ describe('system workspace relocation', () => {
             createdAt: 2
           },
           {
+            parentId: seedSessionRoot(dbh.db, workspace.sessionId),
             sessionId: workspace.sessionId,
             role: 'user',
             status: 'success',
@@ -1010,6 +1018,7 @@ describe('system workspace relocation', () => {
     dbh.db
       .insert(agentSessionMessageTable)
       .values({
+        parentId: seedSessionRoot(dbh.db, workspace.sessionId),
         sessionId: workspace.sessionId,
         role: 'user',
         status: 'success',
@@ -1029,6 +1038,7 @@ describe('system workspace relocation', () => {
       dbh.db
         .insert(agentSessionMessageTable)
         .values({
+          parentId: seedSessionRoot(dbh.db, workspace.sessionId),
           sessionId: workspace.sessionId,
           role: 'assistant',
           status: 'success',
@@ -1171,6 +1181,7 @@ describe('system workspace relocation', () => {
     dbh.db
       .insert(agentSessionMessageTable)
       .values({
+        parentId: seedSessionRoot(dbh.db, workspace.sessionId),
         sessionId: workspace.sessionId,
         role: 'assistant',
         status: 'success',

@@ -61,7 +61,11 @@ including outgoing cross-session deliveries. Failed preparation or publication p
 Pi Durable noninitial edits publish the native fork's allocated product context identity and remapped checkpoints in the replacement input transaction. First-input edits reserve a fresh empty backend/context and create native storage only on dispatch. Native numeric IDs are local to a store, so publication and recovery check the exact context rather than matching an unrelated backend's token.
 Neither edit/resend nor branch selection restores workspace files.
 
-The sibling navigator selects the chosen sibling's latest descendant. Selection
+Public message PATCH and DELETE reject in-flight deliveries (`accepted` or
+`delivering`), including messages without a native input binding yet.
+
+The sibling navigator follows the newest immediate child by `(createdAt, id)`
+at each level until it reaches a leaf beneath the chosen sibling. Selection
 only changes the stored view; it does not run the harness. The next send resolves
 that branch's native context. An idle connection on another branch is closed
 before connecting; an active connection prevents a cross-branch send.
@@ -73,10 +77,23 @@ history token from the captured branch; an allocated identity alone is not proof
 that native history exists. Other edits publish their verified native fork before
 startup, and switching the UI selection does not change the captured branch.
 
-The additive schema migration supplies parent/selection and binding fields.
-`AgentSessionMessageTreeSeeder` converts old flat archives into one selected
-path, preserving existing IDs and message facts. Previously deleted tails cannot
+SQLite enforces that only roots have a null parent, and every non-root parent
+exists in the same Session. Deleting a message with children requires reparenting
+those children first; deleting the whole Session still removes its entire archive.
+These constraints do not enforce acyclicity or native execution bindings.
+
+An appended data migration converts untouched flat archives into one selected
+path before the constraint migration rebuilds the table. Existing branches and
+selections are preserved; invalid existing parent edges abort the upgrade without
+changing user rows. V1 conversion runs in the 2.2.2 bridge release; its v2
+archives follow the same appended migration path. Startup seeding remains responsible for empty
+Session roots and legacy delivery reply anchors. Previously deleted tails cannot
 be recovered.
+
+Message pages select IDs before loading payloads. With `deferToolOutputs`, each
+assistant message is projected as it is loaded, so raw oversized outputs do not
+accumulate across the page. Default reads retain the complete stored payload,
+and cursor ordering and the 50/200 default/maximum limits are unchanged.
 
 ## Ownership and dependencies
 

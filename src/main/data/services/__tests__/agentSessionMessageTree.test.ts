@@ -1,8 +1,6 @@
-import { randomUUID } from 'node:crypto'
-
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable as sessions } from '@data/db/schemas/agentSession'
@@ -10,7 +8,6 @@ import { agentSessionMessageTable as messages } from '@data/db/schemas/agentSess
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { AgentSessionMessageTreeSeeder } from '@data/db/seeding/seeders/AgentSessionMessageTreeSeeder'
 import { agentSessionMessageService as service } from '@data/services/AgentSessionMessageService'
-import { readAgentSessionPath } from '@data/services/agentSessionMessageTree'
 
 // Catch lost branches, orphaned descendants, and output retargeted by a later UI selection.
 describe('Agent message tree', () => {
@@ -40,35 +37,86 @@ describe('Agent message tree', () => {
       .map((row) => row.id)
   }
 
-  it('migrates flat history deterministically without changing message facts and never resets a later selection', () => {
-    const ids = [randomUUID(), randomUUID()].sort()
-    for (const id of ids) {
-      dbh.db
-        .insert(messages)
-        .values({
-          id,
-          sessionId,
-          role: 'user',
-          status: 'success',
-          createdAt: 100,
-          updatedAt: 200,
-          data: { parts: [{ type: 'text', text: id }], nativeSessionId: 'native' },
-          runtimeResumeToken: 'native',
-          deliveryStatus: 'accepted'
-        })
-        .run()
+  it('projects large outputs as each page is read without hydrating the lookahead message', () => {
+    const output = { content: 'x'.repeat(128 * 1024) }
+    let parentId = service.captureHead(sessionId)
+    dbh.db.transaction((tx) => {
+      for (let i = 0; i < 52; i++) {
+        const id = `page-${i}`
+        tx.insert(messages)
+          .values({
+            id,
+            sessionId,
+            parentId,
+            role: 'assistant',
+            status: 'success',
+            createdAt: i + 100,
+            updatedAt: i + 100,
+            data: {
+              parts: [
+                {
+                  type: 'dynamic-tool',
+                  toolName: 'probe',
+                  toolCallId: `call-${i}`,
+                  state: 'output-available',
+                  input: {},
+                  output
+                }
+              ]
+            }
+          })
+          .run()
+        parentId = id
+      }
+      tx.update(sessions).set({ activeNodeId: parentId }).where(eq(sessions.id, sessionId)).run()
+    })
+    const decode = messages.data.mapFromDriverValue.bind(messages.data)
+    const guard = vi.spyOn(messages.data, 'mapFromDriverValue').mockImplementation((raw) => {
+      if (typeof raw === 'string' && raw.includes('"call-1"')) throw new Error('Lookahead payload must not be hydrated')
+      return decode(raw)
+    })
+    let page: ReturnType<typeof service.listSessionMessages>
+    try {
+      page = service.listSessionMessages(sessionId, { deferToolOutputs: true })
+    } finally {
+      guard.mockRestore()
     }
-    const before = dbh.db.select().from(messages).all()
-    new AgentSessionMessageTreeSeeder().run(dbh.db)
-    expect(visibleIds()).toEqual(ids)
-    const migrated = readAgentSessionPath(dbh.db, sessionId)
-    expect(migrated).toEqual(before.map((row) => ({ ...row, parentId: expect.any(String) })))
-    const rootId = migrated[0].parentId!
-    dbh.db.update(sessions).set({ activeNodeId: rootId }).where(eq(sessions.id, sessionId)).run()
-    const alternate = append('Alternative', rootId)
-    new AgentSessionMessageTreeSeeder().run(dbh.db)
-    expect(visibleIds()).toEqual([alternate.id])
-    expect(dbh.db.select().from(messages).where(eq(messages.id, ids[1])).get()?.deliveryStatus).toBe('accepted')
+    expect(page.items).toHaveLength(50)
+    expect(page.items.map((item) => item.id)).toEqual(Array.from({ length: 50 }, (_, i) => `page-${51 - i}`))
+    expect(page.items[0].data.parts![0]).toMatchObject({
+      output: {
+        $deferredToolResult: { topicId: `agent-session:${sessionId}`, messageId: 'page-51', toolCallId: 'call-51' }
+      }
+    })
+    const older = service.listSessionMessages(sessionId, { cursor: page.nextCursor, deferToolOutputs: true })
+    expect(older.items.map((item) => item.id)).toEqual(['page-1', 'page-0'])
+    expect(older.nextCursor).toBeUndefined()
+    const raw = service.listSessionMessages(sessionId, { limit: 1 })
+    expect(raw.items[0].data.parts![0]).toMatchObject({ output })
+    expect(service.getSessionMessage(sessionId, 'page-51').data.parts![0]).toMatchObject({ output })
+  })
+
+  it('keeps small tool outputs and user parts verbatim when deferral is requested', () => {
+    const data = {
+      parts: [
+        {
+          type: 'dynamic-tool' as const,
+          toolName: 'probe',
+          toolCallId: 'small',
+          state: 'output-available' as const,
+          input: {},
+          output: { value: 1 }
+        }
+      ]
+    }
+    service.saveMessage({ sessionId, message: { role: 'assistant', data } })
+    const user = service.saveMessage({
+      sessionId,
+      message: { role: 'user', data: { parts: [{ type: 'text', text: 'user text' }] } }
+    })
+    const page = service.listSessionMessages(sessionId, { deferToolOutputs: true })
+    expect(page.items[0].data).toEqual(user.data)
+    expect(page.items[1].data.parts).toEqual(data.parts)
   })
 
   it('keeps both sibling paths and routes late output to the captured parent without changing selection', () => {
@@ -195,7 +243,11 @@ describe('Agent message tree', () => {
       replyPolicy: 'completion'
     })
     expect(request.data).not.toHaveProperty('deliveryReplyAnchor')
-    service.updateSessionMessage('receiver', request.id, { data: { parts: [{ type: 'text', text: 'Work updated' }] } })
+    expect(() =>
+      service.updateSessionMessage('receiver', request.id, {
+        data: { parts: [{ type: 'text', text: 'Work updated' }] }
+      })
+    ).toThrow(expect.objectContaining({ code: 'RESOURCE_LOCKED' }))
     dbh.db.update(sessions).set({ activeNodeId: prefix.id }).where(eq(sessions.id, sessionId)).run()
     const alternate = append('Alternate branch', prefix.id)
     const response = service.saveMessage({
@@ -221,5 +273,80 @@ describe('Agent message tree', () => {
     service.selectBranch(sessionId, senderHead.id)
     expect(visibleIds()).toEqual([prefix.id, senderHead.id, result.id])
     expect(result.data.parts).toEqual([{ type: 'text', text: 'Completed result' }])
+  })
+
+  it('selects the newest immediate child at each fork, rather than the newest leaf in the subtree', () => {
+    const rootId = service.captureHead(sessionId)
+    dbh.db
+      .insert(messages)
+      .values([
+        {
+          id: 'older',
+          sessionId,
+          parentId: rootId,
+          role: 'user',
+          status: 'success',
+          data: { parts: [] },
+          createdAt: 1
+        },
+        {
+          id: 'newer-a',
+          sessionId,
+          parentId: rootId,
+          role: 'user',
+          status: 'success',
+          data: { parts: [] },
+          createdAt: 2
+        },
+        {
+          id: 'newer-b',
+          sessionId,
+          parentId: rootId,
+          role: 'user',
+          status: 'success',
+          data: { parts: [] },
+          createdAt: 2
+        },
+        {
+          id: 'old-branch-late-reply',
+          sessionId,
+          parentId: 'older',
+          role: 'assistant',
+          status: 'success',
+          data: { parts: [] },
+          createdAt: 100
+        },
+        {
+          id: 'chosen-reply',
+          sessionId,
+          parentId: 'newer-b',
+          role: 'assistant',
+          status: 'success',
+          data: { parts: [] },
+          createdAt: 3
+        }
+      ])
+      .run()
+    expect(service.branchTip(sessionId, rootId)).toBe('chosen-reply')
+    expect(service.branchTip(sessionId, 'older')).toBe('old-branch-late-reply')
+    expect(service.branchTip(sessionId, 'newer-a')).toBe('newer-a')
+    service.selectBranch(sessionId, rootId)
+    expect(visibleIds()).toEqual(['newer-b', 'chosen-reply'])
+    expect(service.listSessionMessages(sessionId).items.find((row) => row.id === 'newer-b')?.siblings).toEqual([
+      'older',
+      'newer-a',
+      'newer-b'
+    ])
+  })
+
+  it('seeds empty sessions without resetting their timestamps or an existing branch selection', () => {
+    dbh.db.update(sessions).set({ updatedAt: 123 }).where(eq(sessions.id, sessionId)).run()
+    new AgentSessionMessageTreeSeeder().run(dbh.db)
+    const session = dbh.db.select().from(sessions).where(eq(sessions.id, sessionId)).get()!
+    expect(session.updatedAt).toBe(123)
+    expect(dbh.db.select().from(messages).where(eq(messages.id, session.activeNodeId!)).get()?.role).toBe('root')
+    expect(visibleIds()).toEqual([])
+    new AgentSessionMessageTreeSeeder().run(dbh.db)
+    expect(dbh.db.select().from(sessions).where(eq(sessions.id, sessionId)).get()).toEqual(session)
   })
 })

@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
-import { setupTestDatabase } from '@test-helpers/db'
+import { setupTestDatabase, seedSessionRoot } from '@test-helpers/db'
 import { resolveMigrationsPath } from '@test-helpers/db/internal/migrationsPath'
 import type Database from 'better-sqlite3'
 import { describe, expect, it } from 'vitest'
@@ -59,6 +59,7 @@ describe('agent session message reasoning backfill (migration 0016)', () => {
     dbh.db
       .insert(agentSessionMessageTable)
       .values({
+        parentId: seedSessionRoot(dbh.db, 'sess-1'),
         id: 'msg-1',
         sessionId: 'sess-1',
         role: 'assistant',

@@ -1,4 +1,4 @@
-import { setupTestDatabase, withRoot } from '@test-helpers/db'
+import { setupTestDatabase, withRoot, seedSessionRoot } from '@test-helpers/db'
 import type Database from 'better-sqlite3'
 import { isNull } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
@@ -138,6 +138,7 @@ describe('FTS5 rowid-reshuffle resistance (fts_rowid keying)', () => {
       .values({ id: 'sess-1', name: 'Session', workspaceId: 'ws-1', orderKey: 'a0' })
     await dbh.db.insert(agentSessionMessageTable).values([
       {
+        parentId: seedSessionRoot(dbh.db, 'sess-1'),
         id: 'a1',
         sessionId: 'sess-1',
         role: 'user',
@@ -147,6 +148,7 @@ describe('FTS5 rowid-reshuffle resistance (fts_rowid keying)', () => {
         updatedAt: 10
       },
       {
+        parentId: seedSessionRoot(dbh.db, 'sess-1'),
         id: 'a2',
         sessionId: 'sess-1',
         role: 'assistant',
@@ -156,6 +158,7 @@ describe('FTS5 rowid-reshuffle resistance (fts_rowid keying)', () => {
         updatedAt: 20
       },
       {
+        parentId: seedSessionRoot(dbh.db, 'sess-1'),
         id: 'a3',
         sessionId: 'sess-1',
         role: 'assistant',
@@ -165,6 +168,7 @@ describe('FTS5 rowid-reshuffle resistance (fts_rowid keying)', () => {
         updatedAt: 30
       },
       {
+        parentId: seedSessionRoot(dbh.db, 'sess-1'),
         id: 'a4',
         sessionId: 'sess-1',
         role: 'assistant',

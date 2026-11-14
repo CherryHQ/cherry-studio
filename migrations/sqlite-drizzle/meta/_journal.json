@@ -273,6 +273,20 @@
       "when": 1794411221036,
       "tag": "0038_clammy_jigsaw",
       "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "6",
+      "when": 1794662249449,
+      "tag": "0039_agent_session_tree_backfill",
+      "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "6",
+      "when": 1794662254214,
+      "tag": "0040_agent_session_tree_constraints",
+      "breakpoints": true
     }
   ],
   "version": "7"

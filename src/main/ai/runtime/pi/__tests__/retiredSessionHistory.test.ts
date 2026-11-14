@@ -5,7 +5,7 @@ import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 
 import { SessionManager } from '@earendil-works/pi-coding-agent'
-import { setupTestDatabase } from '@test-helpers/db'
+import { setupTestDatabase, seedSessionRoot } from '@test-helpers/db'
 import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
 import Database from 'better-sqlite3'
 import { eq, ne } from 'drizzle-orm'
@@ -126,6 +126,7 @@ describe('retired DSH session migration', () => {
       .insert(agentSessionMessageTable)
       .values([
         {
+          parentId: seedSessionRoot(dbh.db, 'conversation'),
           id: 'user-1',
           sessionId: 'conversation',
           role: 'user',
@@ -150,6 +151,7 @@ describe('retired DSH session migration', () => {
           runtimeResumeToken: 'old-dsh-token'
         },
         {
+          parentId: seedSessionRoot(dbh.db, 'conversation'),
           id: 'assistant-1',
           sessionId: 'conversation',
           role: 'assistant',
@@ -172,6 +174,7 @@ describe('retired DSH session migration', () => {
           runtimeResumeToken: 'old-dsh-token'
         },
         {
+          parentId: seedSessionRoot(dbh.db, 'conversation'),
           id: 'user-2',
           sessionId: 'conversation',
           role: 'user',
@@ -180,6 +183,7 @@ describe('retired DSH session migration', () => {
           data: { parts: [{ type: 'text', text: 'Second turn' }] }
         },
         {
+          parentId: seedSessionRoot(dbh.db, 'conversation'),
           id: 'assistant-2',
           sessionId: 'conversation',
           role: 'assistant',
@@ -383,6 +387,7 @@ describe('retired DSH session migration', () => {
     dbh.db
       .insert(agentSessionMessageTable)
       .values({
+        parentId: seedSessionRoot(dbh.db, 'conversation'),
         id: 'user-3',
         sessionId: 'conversation',
         role: 'user',
@@ -395,6 +400,7 @@ describe('retired DSH session migration', () => {
       dbh.db
         .insert(agentSessionMessageTable)
         .values({
+          parentId: seedSessionRoot(dbh.db, 'conversation'),
           id: 'assistant-3',
           sessionId: 'conversation',
           role: 'assistant',
@@ -459,6 +465,7 @@ describe('retired DSH session migration', () => {
     dbh.db
       .insert(agentSessionMessageTable)
       .values({
+        parentId: seedSessionRoot(dbh.db, 'conversation'),
         id: 'unacknowledged-tail',
         sessionId: 'conversation',
         role: 'user',
@@ -526,6 +533,7 @@ describe('retired DSH session migration', () => {
     dbh.db
       .insert(agentSessionMessageTable)
       .values({
+        parentId: seedSessionRoot(dbh.db, 'conversation'),
         id: 'queued',
         sessionId: 'conversation',
         role: 'user',
@@ -565,6 +573,7 @@ describe('retired DSH session migration', () => {
     dbh.db
       .insert(agentSessionMessageTable)
       .values({
+        parentId: seedSessionRoot(dbh.db, 'conversation'),
         id: 'queued-after-crash',
         sessionId: 'conversation',
         role: 'user',
@@ -589,6 +598,7 @@ describe('retired DSH session migration', () => {
         .insert(agentSessionMessageTable)
         .values([
           {
+            parentId: seedSessionRoot(dbh.db, 'conversation'),
             id: 'user-after-restart',
             sessionId: 'conversation',
             role: 'user',
@@ -597,6 +607,7 @@ describe('retired DSH session migration', () => {
             data: { parts: [{ type: 'text', text: 'Confirmed turn after restart' }] }
           },
           {
+            parentId: seedSessionRoot(dbh.db, 'conversation'),
             id: 'assistant-after-restart',
             sessionId: 'conversation',
             role: 'assistant',
@@ -712,6 +723,7 @@ describe('retired DSH session migration', () => {
     dbh.db
       .insert(agentSessionMessageTable)
       .values({
+        parentId: seedSessionRoot(dbh.db, 'conversation'),
         id: 'consumed-tail',
         sessionId: 'conversation',
         role: 'user',
@@ -741,6 +753,7 @@ describe('retired DSH session migration', () => {
       .insert(agentSessionMessageTable)
       .values([
         {
+          parentId: seedSessionRoot(dbh.db, 'conversation'),
           id: 'failed-first',
           sessionId: 'conversation',
           role: 'user',
@@ -750,6 +763,7 @@ describe('retired DSH session migration', () => {
           data: { parts: [{ type: 'text', text: 'Never dispatched' }] }
         },
         {
+          parentId: seedSessionRoot(dbh.db, 'conversation'),
           id: 'pending-second',
           sessionId: 'conversation',
           role: 'user',
@@ -799,6 +813,7 @@ describe('retired DSH session migration', () => {
     dbh.db
       .insert(agentSessionMessageTable)
       .values({
+        parentId: seedSessionRoot(dbh.db, sessionId),
         sessionId,
         role: 'assistant',
         status: 'success',
