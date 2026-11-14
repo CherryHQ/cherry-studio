@@ -3386,6 +3386,7 @@
   "provider.comfyui": "ComfyUI",
   "provider.copilot": "GitHub Copilot",
   "provider.dashscope": "千问 AI 平台",
+  "provider.deapi": "deAPI",
   "provider.deepseek": "深度求索",
   "provider.dmxapi": "DMXAPI",
   "provider.doc2x": "Doc2X",

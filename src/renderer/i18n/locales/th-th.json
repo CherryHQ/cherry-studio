@@ -3386,6 +3386,7 @@
   "provider.comfyui": "ComfyUI",
   "provider.copilot": "GitHub Copilot",
   "provider.dashscope": "Qianwen AI platform - CN",
+  "provider.deapi": "deAPI",
   "provider.deepseek": "DeepSeek",
   "provider.dmxapi": "DMXAPI",
   "provider.doc2x": "Doc2X",
