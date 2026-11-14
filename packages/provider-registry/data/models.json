@@ -6720,81 +6720,6 @@
       "ownedBy": "bytedance"
     },
     {
-      "capabilities": ["image-generation"],
-      "id": "doubao-seedream-5-5",
-      "imageGeneration": {
-        "modes": {
-          "edit": {
-            "maxInputImages": 10,
-            "supports": {
-              "addWatermark": {
-                "default": true,
-                "type": "switch"
-              },
-              "background": {
-                "default": "auto",
-                "options": ["auto", "transparent", "opaque"],
-                "type": "enum"
-              },
-              "customSize": {
-                "maxSide": 8601,
-                "minSide": 240,
-                "pairedEnumKey": "imageResolution",
-                "type": "size"
-              },
-              "imageResolution": {
-                "default": "1K",
-                "options": ["1K", "1.5K", "2K"],
-                "render": "chips",
-                "type": "enum"
-              },
-              "outputFormat": {
-                "default": "jpeg",
-                "options": ["jpeg", "png"],
-                "type": "enum"
-              }
-            }
-          },
-          "generate": {
-            "maxInputImages": 10,
-            "supports": {
-              "addWatermark": {
-                "default": true,
-                "type": "switch"
-              },
-              "background": {
-                "default": "auto",
-                "options": ["auto", "transparent", "opaque"],
-                "type": "enum"
-              },
-              "customSize": {
-                "maxSide": 8601,
-                "minSide": 240,
-                "pairedEnumKey": "imageResolution",
-                "type": "size"
-              },
-              "imageResolution": {
-                "default": "1K",
-                "options": ["1K", "1.5K", "2K"],
-                "render": "chips",
-                "type": "enum"
-              },
-              "outputFormat": {
-                "default": "jpeg",
-                "options": ["jpeg", "png"],
-                "type": "enum"
-              }
-            }
-          }
-        }
-      },
-      "inputModalities": ["text", "image"],
-      "metadata": {},
-      "name": "Doubao Seedream 5.5",
-      "outputModalities": ["image"],
-      "ownedBy": "bytedance"
-    },
-    {
       "capabilities": ["function-call", "reasoning", "image-recognition", "video-recognition", "structured-output"],
       "contextWindow": 262144,
       "family": "seed",
@@ -9838,6 +9763,130 @@
         ],
         "defaultEffort": "medium",
         "supportedEfforts": ["low", "medium", "high"],
+        "wireDialect": "effort"
+      }
+    },
+    {
+      "capabilities": [
+        "reasoning",
+        "function-call",
+        "image-recognition",
+        "audio-recognition",
+        "video-recognition",
+        "structured-output",
+        "file-input"
+      ],
+      "contextWindow": 1048576,
+      "family": "gemini-4",
+      "id": "gemini-4-carbon",
+      "inputModalities": ["text", "image", "audio", "video"],
+      "maxOutputTokens": 1048576,
+      "metadata": {},
+      "name": "Gemini 4 Carbon",
+      "outputModalities": ["text"],
+      "ownedBy": "google",
+      "parameterSupport": {
+        "frequencyPenalty": false,
+        "maxTokens": true,
+        "presencePenalty": false,
+        "stopSequences": true,
+        "systemMessage": true,
+        "temperature": {
+          "supported": false
+        },
+        "topK": {
+          "supported": false
+        },
+        "topP": {
+          "supported": false
+        }
+      },
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.1
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 2
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 10
+        }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "default": "medium",
+            "kind": "effort",
+            "values": ["low", "medium", "high"]
+          }
+        ],
+        "defaultEffort": "medium",
+        "supportedEfforts": ["low", "medium", "high"],
+        "wireDialect": "effort"
+      }
+    },
+    {
+      "capabilities": [
+        "reasoning",
+        "function-call",
+        "image-recognition",
+        "audio-recognition",
+        "video-recognition",
+        "structured-output",
+        "file-input"
+      ],
+      "contextWindow": 1048576,
+      "family": "gemini-4",
+      "id": "gemini-4-hydrogen",
+      "inputModalities": ["text", "image", "audio", "video"],
+      "maxOutputTokens": 1048576,
+      "metadata": {},
+      "name": "Gemini 4 Hydrogen",
+      "outputModalities": ["text"],
+      "ownedBy": "google",
+      "parameterSupport": {
+        "frequencyPenalty": false,
+        "maxTokens": true,
+        "presencePenalty": false,
+        "stopSequences": true,
+        "systemMessage": true,
+        "temperature": {
+          "supported": false
+        },
+        "topK": {
+          "supported": false
+        },
+        "topP": {
+          "supported": false
+        }
+      },
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.075
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 1.5
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 7.5
+        }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "default": "high",
+            "kind": "effort",
+            "values": ["low", "medium", "high", "xhigh"]
+          }
+        ],
+        "defaultEffort": "high",
+        "supportedEfforts": ["low", "medium", "high", "xhigh"],
         "wireDialect": "effort"
       }
     },
@@ -23605,5 +23654,5 @@
       "ownedBy": "zhipu"
     }
   ],
-  "version": "f1c320b0a272a767"
+  "version": "856fd6686c5d9369"
 }

@@ -4009,6 +4009,25 @@
       "providerId": "copilot"
     },
     {
+      "apiModelId": "gemini-4-carbon",
+      "modelId": "gemini-4-carbon",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.1
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 2
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 10
+        }
+      },
+      "providerId": "copilot"
+    },
+    {
       "apiModelId": "gpt-5.3-codex",
       "modelId": "gpt-5-3-codex",
       "pricing": {
@@ -10893,10 +10912,6 @@
       }
     },
     {
-      "modelId": "doubao-seedream-5-5",
-      "providerId": "doubao"
-    },
-    {
       "apiModelId": "glm-4-7-251222",
       "endpointTypes": ["openai-chat-completions"],
       "modelId": "glm-4-7",
@@ -13003,6 +13018,44 @@
         "output": {
           "currency": "USD",
           "perMillionTokens": 10
+        }
+      },
+      "providerId": "gateway"
+    },
+    {
+      "apiModelId": "google/gemini-4-carbon",
+      "modelId": "gemini-4-carbon",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.1
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 2
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 10
+        }
+      },
+      "providerId": "gateway"
+    },
+    {
+      "apiModelId": "google/gemini-4-hydrogen",
+      "modelId": "gemini-4-hydrogen",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.075
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 1.5
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 7.5
         }
       },
       "providerId": "gateway"
@@ -26893,6 +26946,82 @@
             ],
             "defaultEffort": "medium",
             "supportedEfforts": ["high", "medium", "low"]
+          }
+        }
+      }
+    },
+    {
+      "apiModelId": "google/gemini-4-carbon",
+      "modelId": "gemini-4-carbon",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.1
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 0.1875
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 2
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 10
+        }
+      },
+      "providerId": "openrouter",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "support": {
+            "controls": [
+              {
+                "default": "medium",
+                "kind": "effort",
+                "values": ["high", "medium", "low"]
+              }
+            ],
+            "defaultEffort": "medium",
+            "supportedEfforts": ["high", "medium", "low"]
+          }
+        }
+      }
+    },
+    {
+      "apiModelId": "google/gemini-4-hydrogen",
+      "modelId": "gemini-4-hydrogen",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.075
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 0.083333
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 1.5
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 7.5
+        }
+      },
+      "providerId": "openrouter",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "support": {
+            "controls": [
+              {
+                "default": "medium",
+                "kind": "effort",
+                "values": ["xhigh", "high", "medium", "low"]
+              }
+            ],
+            "defaultEffort": "medium",
+            "supportedEfforts": ["xhigh", "high", "medium", "low"]
           }
         }
       }
@@ -44176,6 +44305,44 @@
       "providerId": "vertexai"
     },
     {
+      "apiModelId": "gemini-4-carbon",
+      "modelId": "gemini-4-carbon",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.1
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 2
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 10
+        }
+      },
+      "providerId": "vertexai"
+    },
+    {
+      "apiModelId": "gemini-4-hydrogen",
+      "modelId": "gemini-4-hydrogen",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.075
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 1.5
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 7.5
+        }
+      },
+      "providerId": "vertexai"
+    },
+    {
       "apiModelId": "gemini-embedding-001",
       "modelId": "gemini-embedding-001",
       "pricing": {
@@ -44720,5 +44887,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "e5fb6fdcfa46c1a6"
+  "version": "3826264c0a8baa7b"
 }
