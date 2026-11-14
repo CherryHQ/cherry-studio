@@ -3,6 +3,7 @@ import type { DiagnosisContext } from '@renderer/utils/errorDiagnosis'
 import type { AppErrorContext } from '@shared/types/appError'
 import { projectAppErrorContext } from '@shared/utils/appError'
 import { normalizeDiagnosticDescription } from '@shared/utils/diagnostics'
+import { redactDiagnosticText } from '@shared/utils/redaction'
 
 export const DIAGNOSTIC_REPORT_PREFILL_MAX_BYTES = 2_048
 
@@ -182,9 +183,13 @@ export function buildDiagnosticReportDescription({
   location,
   localizedErrorMessage
 }: BuildDiagnosticReportDescriptionInput): string {
-  const lines = diagnosticReportFields({ diagnosisContext, error, location, localizedErrorMessage }).map(
-    ({ id, value }) => `${labels[id]}: ${value}`
-  )
+  const redact = <T>(text: T): T => (typeof text === 'string' ? (redactDiagnosticText(text) as T) : text)
+  const lines = diagnosticReportFields({
+    diagnosisContext,
+    error: error && { ...error, name: redact(error.name), message: redact(error.message) },
+    location,
+    localizedErrorMessage: redact(localizedErrorMessage)
+  }).map(({ id, value }) => `${labels[id]}: ${value}`)
 
   return truncateUtf8(lines.join('\n'))
 }

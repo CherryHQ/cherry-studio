@@ -117,6 +117,23 @@ describe('buildDiagnosticReportDescription', () => {
     expect(description).not.toContain('secret response payload')
   })
 
+  it('prefills the error message without secrets or home directories', () => {
+    const description = buildDiagnosticReportDescription({
+      error: {
+        name: 'ProviderError',
+        message: 'cannot open /Users/alice/a.pdf with Bearer sk-proj-abcdefghijklmnopqrstuvwxyz123456',
+        stack: null
+      },
+      localizedErrorMessage: '无法打开 /Users/alice/a.pdf',
+      labels,
+      location: 'Home conversation'
+    })
+
+    expect(description).toContain('Error message: 无法打开 ~/a.pdf (cannot open ~/a.pdf')
+    expect(description).not.toContain('alice')
+    expect(description).not.toContain('sk-proj-abcdefghijklmnopqrstuvwxyz123456')
+  })
+
   it('omits unavailable context', () => {
     expect(
       buildDiagnosticReportDescription({
