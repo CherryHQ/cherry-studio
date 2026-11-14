@@ -256,6 +256,7 @@ export function useHomeMessageListProviderValue({
     streamingLayers,
     deleteMessage: normalInteractionsEnabled ? deleteMessage : undefined,
     diagnosticReport,
+    errorSource: 'chat',
     getDoctorSubject,
     selectAllPagination
   })

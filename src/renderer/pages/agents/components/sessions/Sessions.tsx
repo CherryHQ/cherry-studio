@@ -1707,7 +1707,9 @@ const Sessions = ({
           </>
         )}
       </ResourceList.Header>
-      {refreshError && <ResourceRefreshErrorBanner onRetry={handleRetry} retrying={listValidating} />}
+      {refreshError && (
+        <ResourceRefreshErrorBanner error={refreshError} onRetry={handleRetry} retrying={listValidating} />
+      )}
       <SessionHoverPreviewGroup enabled={dataEnabled}>
         <SessionListBody
           activeSessionId={activeSessionId}

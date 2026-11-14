@@ -570,8 +570,10 @@ describe('useAgentMessageListProviderValue', () => {
 
     const options = useMessageErrorActionsMock.mock.calls.at(-1)?.[0] as {
       diagnosticReport: { location: string }
+      errorSource: string
       getDoctorSubject: (message?: { model?: { id: string; provider: string; name: string } }) => unknown
     }
+    expect(options.errorSource).toBe('agent')
     expect(options.getDoctorSubject()).toEqual({ kind: 'agent', agentId: topic.assistantId })
     expect(
       options.getDoctorSubject({

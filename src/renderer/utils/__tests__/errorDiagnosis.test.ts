@@ -32,7 +32,7 @@ vi.mock('@logger', () => ({
 import { fetchGenerate } from '@renderer/utils/aiGeneration'
 import { readDefaultModel } from '@renderer/utils/model'
 
-import { classifyErrorByAI, diagnoseError, translateErrorByAI } from '../errorDiagnosis'
+import { diagnoseError, translateErrorByAI } from '../errorDiagnosis'
 
 const mockFetchGenerate = vi.mocked(fetchGenerate)
 const mockReadDefaultModel = vi.mocked(readDefaultModel)
@@ -299,22 +299,6 @@ required service tier.`,
       const callArgs = mockFetchGenerate.mock.calls[0][0]
       expect(callArgs.content).toContain('anthropic')
       expect(callArgs.content).toContain('claude-sonnet-4-5')
-    })
-  })
-
-  describe('classifyErrorByAI', () => {
-    it('returns an empty result instead of falling back when free Qwen fails', async () => {
-      mockFetchGenerate.mockRejectedValue(new Error('network unavailable'))
-
-      await expect(classifyErrorByAI(makeError(), 'en')).resolves.toBe('')
-      expect(mockFetchGenerate).toHaveBeenCalledTimes(1)
-      expect(mockFetchGenerate).toHaveBeenCalledWith(
-        expect.objectContaining({
-          model: expect.objectContaining({ id: CHERRYAI_DEFAULT_UNIQUE_MODEL_ID }),
-          throwOnError: true
-        })
-      )
-      expect(mockReadDefaultModel).not.toHaveBeenCalled()
     })
   })
 

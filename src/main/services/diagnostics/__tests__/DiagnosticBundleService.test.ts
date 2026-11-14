@@ -874,7 +874,7 @@ describe('DiagnosticBundleService', () => {
       message: 'upstream failed'
     }
     const aiDiagnosis = {
-      source: 'error-summary' as const,
+      source: 'doctor-agent' as const,
       status: 'completed' as const,
       text: `Quota exceeded. ${marker}`,
       errorId: 'err-1'

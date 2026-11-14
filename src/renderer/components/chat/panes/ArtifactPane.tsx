@@ -39,6 +39,7 @@ import { usePersistCache } from '@data/hooks/useCache'
 import { loggerService } from '@logger'
 import { EmptyState, LoadingState } from '@renderer/components/chat/primitives'
 import type { CommandContextMenuExtraItem } from '@renderer/components/command'
+import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
 import FileCommentBox from '@renderer/components/FileCommentBox'
 import type { LineComment } from '@renderer/components/FileEditor'
 import { canProduceSelectionReference, FilePreview, hasRenderedFilePreview } from '@renderer/components/FilePreview'
@@ -1014,6 +1015,16 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
                 onClick={handleDiscardFailedSave}>
                 {t('agent.preview_pane.edit.discard')}
               </Button>
+              <ErrorDetailAction
+                error={fileSession.saveError}
+                message={t(
+                  fileSession.metadataRecoveryPending
+                    ? 'agent.preview_pane.edit.metadata_pending'
+                    : 'agent.preview_pane.edit.save_failed'
+                )}
+                operation="file.save"
+                source="agent.preview"
+              />
             </div>
           )}
           <div data-file-edit className="relative min-h-0 flex-1 overflow-hidden">

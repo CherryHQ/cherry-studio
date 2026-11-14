@@ -5,6 +5,8 @@ import { useTranslation } from 'react-i18next'
 
 import { Button, EmptyState as UiEmptyState, Input, MenuItem, Skeleton, Tooltip } from '@cherrystudio/ui'
 import { CommandFocusScope, CommandHint } from '@renderer/components/command'
+import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
+import type { InlineErrorDetailInput } from '@renderer/services/AppErrorDetailService'
 import { cn } from '@renderer/utils/style'
 import type { CommandId } from '@shared/utils/command'
 
@@ -751,10 +753,11 @@ function LoadingState({ className, ref, ...props }: LoadingStateProps) {
 
 type ErrorStateProps = ComponentProps<'div'> & {
   message?: ReactNode
+  detail?: InlineErrorDetailInput
   ref?: Ref<HTMLDivElement>
 }
 
-function ErrorState({ className, message, ref, children, ...props }: ErrorStateProps) {
+function ErrorState({ className, message, detail, ref, children, ...props }: ErrorStateProps) {
   const { t } = useTranslation()
 
   return (
@@ -767,6 +770,11 @@ function ErrorState({ className, message, ref, children, ...props }: ErrorStateP
       )}
       {...props}>
       {message ?? children ?? t('error.boundary.default.message')}
+      {detail ? (
+        <div className="mt-2">
+          <ErrorDetailAction {...detail} />
+        </div>
+      ) : null}
     </div>
   )
 }

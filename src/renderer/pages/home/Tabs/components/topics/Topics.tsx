@@ -56,6 +56,7 @@ import {
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { useWindowFrame } from '@renderer/hooks/useWindowFrame'
 import { useWindowScopedPersistCache } from '@renderer/hooks/useWindowScopedPersistCache'
+import { toastAppError } from '@renderer/services/AppErrorDetailService'
 import { showImageActionFeedback } from '@renderer/services/imageActionFeedback'
 import {
   restoreRecycleBinItem,
@@ -84,7 +85,7 @@ import {
   TOPIC_UNLINKED_ASSISTANT_GROUP_ID,
   type TopicDisplayMode
 } from '@renderer/utils/chat/topicsHelpers'
-import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
+import { formatErrorMessage, formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { applyOptimisticOrder, findLatestActive, pickNeighbourAfterRemoval } from '@renderer/utils/resourceEntity'
 import {
   createSidebarShortcutTarget,
@@ -498,7 +499,12 @@ export function Topics({
         () => toast.success(t('common.saved')),
         (err) => {
           logger.error('Failed to rename topic', { err, topicId })
-          toast.error(formatErrorMessageWithPrefix(err, t('common.error')))
+          toast.error({
+            title: t('chat.topics.manage.rename.error'),
+            description: formatErrorMessage(err),
+            cause: err,
+            data: { source: 'chat', operation: 'topic.rename', recordId: topicId }
+          })
         }
       )
     },
@@ -534,7 +540,12 @@ export function Topics({
         toast.success(t('chat.topics.manage.move.success', { count: 1 }))
       } catch (err) {
         logger.error('Failed to move topic to assistant', { assistantId, err, topicId: topic.id })
-        toast.error(formatErrorMessageWithPrefix(err, t('common.error')))
+        toast.error({
+          title: t('chat.topics.manage.move.error'),
+          description: formatErrorMessage(err),
+          cause: err,
+          data: { source: 'chat', operation: 'topic.move', recordId: topic.id }
+        })
       }
     },
     [patchTopic, setActiveTopic, t]
@@ -556,7 +567,13 @@ export function Topics({
         logger.error('Failed to delete topic', { topicId: topic.id, err })
         if (isTrashTargetNotFoundError(err)) toast.info(t('recycle_bin.already_moved'))
         else if (isTrashTopicBusyError(err)) toast.info(t('recycle_bin.move.blocked_generation'))
-        else toast.error(err instanceof Error ? err.message : t('chat.topics.manage.delete.error'))
+        else {
+          toastAppError(t('chat.topics.manage.delete.error'), err, {
+            source: 'chat',
+            operation: 'topic.delete',
+            recordId: topic.id
+          })
+        }
         return
       }
 
@@ -919,7 +936,7 @@ export function Topics({
         logger.error('Failed to delete assistant topics', { assistantId, err })
         if (isTrashTopicBusyError(err)) toast.info(t('recycle_bin.move.blocked_generation'))
         else if (isTrashTargetNotFoundError(err)) toast.info(t('recycle_bin.already_moved'))
-        else toast.error(t('chat.topics.manage.delete.error'))
+        else toastAppError(t('chat.topics.manage.delete.error'), err, { source: 'chat', operation: 'topic.delete' })
       } finally {
         deletingAssistantGroupIdRef.current = null
         setDeletingAssistantGroupId(null)
@@ -1639,13 +1656,16 @@ export function Topics({
           )}
         </ResourceList.Header>
 
-        {refreshError && <ResourceRefreshErrorBanner onRetry={refetchTopics} retrying={isRefreshing} />}
+        {refreshError && (
+          <ResourceRefreshErrorBanner error={refreshError} onRetry={refetchTopics} retrying={isRefreshing} />
+        )}
         <SessionHoverPreviewGroup enabled={dataEnabled}>
           <TopicListBody
             activeTopic={activeTopic}
             assistantMoveTargets={assistantMoveTargets}
             displayMode={displayMode}
             exportMenuOptions={exportMenuOptions}
+            listError={listError}
             listRef={listRef}
             notesPath={notesPath}
             onAutoRename={handleAutoRename}

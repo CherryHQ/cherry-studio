@@ -1859,6 +1859,7 @@ describe('Sessions', () => {
 
     expect(screen.getByRole('alert')).toHaveTextContent('Failed to get tasks')
     expect(screen.getByRole('alert')).toHaveTextContent('Failed request')
+    expect(within(screen.getByRole('alert')).getByRole('button', { name: /common\.detail/ })).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
 

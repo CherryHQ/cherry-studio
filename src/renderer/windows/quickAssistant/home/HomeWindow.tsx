@@ -7,6 +7,7 @@ import { Separator } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
+import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { type ExecutionFinishEvent, useExecutionOverlay } from '@renderer/hooks/useExecutionOverlay'
 import { useDefaultModel } from '@renderer/hooks/useModel'
@@ -17,11 +18,14 @@ import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import { autoReadService, readMessageAloud, voiceTargetManager } from '@renderer/services/voice'
+import { classifyError } from '@renderer/utils/errorClassifier'
+import { serializeToastError } from '@renderer/utils/errorToast'
 import { getTextFromParts } from '@renderer/utils/message/partsHelpers'
 import { isMac } from '@renderer/utils/platform'
 import { cn } from '@renderer/utils/style'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
+import { parseUniqueModelId } from '@shared/data/types/model'
 import { type CherryReasoningMeta, readCherryMeta, withCherryMeta } from '@shared/data/types/uiParts'
 
 import ClipboardPreview from './components/ClipboardPreview'
@@ -129,16 +133,35 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
   }, [clipboardText, isFirstMessage, userInputText])
 
   const [isPreparing, setIsPreparing] = useState(false)
-  const [flowError, setFlowError] = useState<string | null>(null)
+  const [flowError, setFlowError] = useState<{
+    message: string
+    cause: unknown
+    providerId?: string
+    modelId?: string
+  } | null>(null)
+  // Doctor resolves the failed model from the provider and its local model id.
+  const failedModel = useMemo(
+    () =>
+      currentModel ? { providerId: currentModel.providerId, modelId: parseUniqueModelId(currentModel.id).modelId } : {},
+    [currentModel]
+  )
+  // The card shows a localized conclusion; the provider's raw text stays in Details.
+  const summarizeFlowError = useCallback(
+    (cause: unknown) => {
+      const { category, i18nKey } = classifyError(serializeToastError(cause), currentModel?.providerId)
+      return category === 'unknown' ? t('error.diagnosis.unknown') : t(i18nKey)
+    },
+    [currentModel, t]
+  )
 
   const {
     messages: chatMessages,
     sendMessage,
     stop: stopChat,
     setMessages
-  } = useStreamCommands(temporaryTopicId ?? 'pending-temp', undefined, (err) => {
+  } = useStreamCommands(temporaryTopicId ?? 'pending-temp', undefined, (_err, cause) => {
     setIsPreparing(false)
-    setFlowError(err.message)
+    setFlowError({ message: summarizeFlowError(cause), cause, ...failedModel })
   })
 
   // Local inputs and projected assistant messages share the existing message list.
@@ -401,12 +424,25 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
           void sendMessage(message)
         }
       } catch (streamError) {
-        const resolvedError = streamError instanceof Error ? streamError : new Error('An error occurred')
-        setFlowError(resolvedError.message)
-        logger.error('Error fetching result:', resolvedError)
+        setFlowError({ message: summarizeFlowError(streamError), cause: streamError, ...failedModel })
+        logger.error(
+          'Error fetching result:',
+          streamError instanceof Error
+            ? streamError
+            : new Error(typeof streamError === 'string' ? streamError : 'An error occurred')
+        )
       }
     },
-    [currentModel, isAssistantMode, isTopicReady, requestText, sendMessage, temporaryTopicId]
+    [
+      currentModel,
+      failedModel,
+      isAssistantMode,
+      isTopicReady,
+      requestText,
+      sendMessage,
+      summarizeFlowError,
+      temporaryTopicId
+    ]
   )
 
   const handlePause = useCallback(() => {
@@ -570,7 +606,15 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
           </Suspense>
           {flowError && (
             <div className="mb-3 rounded border border-error-border bg-error-subtle px-3 py-2 text-[13px] break-all text-error-subtle-foreground">
-              {flowError}
+              <div>{flowError.message}</div>
+              <ErrorDetailAction
+                error={flowError.cause}
+                message={flowError.message}
+                source="quickAssistant"
+                operation="quick_assistant.send"
+                providerId={flowError.providerId}
+                modelId={flowError.modelId}
+              />
             </div>
           )}
 

@@ -125,7 +125,13 @@ export function SessionListBody({
       listRef={listRef}
       draggable={isDraggable}
       errorFallback={
-        <ResourceList.ErrorState>
+        <ResourceList.ErrorState
+          detail={{
+            error,
+            message: t('agent.session.get.error.failed'),
+            source: 'agent.session',
+            operation: 'agent.session.list'
+          }}>
           <div className="flex flex-col gap-2">
             <div className="font-medium text-destructive">{t('agent.session.get.error.failed')}</div>
             <div className="text-muted-foreground">{formatErrorMessage(error)}</div>

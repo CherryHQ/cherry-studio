@@ -12,7 +12,8 @@ import TopicBranchPanel from '../TopicBranchPanel'
 
 vi.mock('@cherrystudio/ui', async () => {
   const { ConfirmDialog } = await import('@cherrystudio/ui/components/composites/confirm-dialog')
-  return { ConfirmDialog }
+  const { Button } = await import('@cherrystudio/ui/components/primitives/button')
+  return { Button, ConfirmDialog }
 })
 
 const mocks = vi.hoisted(() => ({
@@ -190,6 +191,12 @@ vi.mock('react-i18next', () => ({
         'common.cancel': 'Cancel'
       })[key] ?? key
   })
+}))
+
+const detailMocks = vi.hoisted(() => ({ open: vi.fn() }))
+vi.mock('@renderer/services/appErrorDetailOpen', () => ({
+  openLoadedErrorDetail: (request: unknown) => detailMocks.open(request),
+  showDetailOpenFailed: vi.fn()
 }))
 
 function deletionTree(): TreeResponse {
@@ -712,6 +719,43 @@ describe('TopicBranchPanel', () => {
     })
     expect(toast.success).toHaveBeenCalledWith('chat.message.flow.copy_topic.created')
   })
+
+  it('binds a topic tree failure to that topic without adding retry', async () => {
+    const cause = new Error('tree down')
+    mocks.useQuery.mockReturnValue({
+      data: undefined,
+      error: cause,
+      isLoading: false,
+      refetch: mocks.refetchTree
+    })
+    const { rerender } = render(<TopicBranchPanel open topicId="topic-a" />)
+
+    expect(screen.getByRole('alert')).toHaveTextContent('common.error')
+    expect(screen.queryByRole('button', { name: 'common.retry' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'common.detail' }))
+    await waitFor(() => expect(detailMocks.open).toHaveBeenCalled())
+    expect(detailMocks.open.mock.calls.at(-1)?.[0]).toMatchObject({
+      localizedErrorMessage: 'common.error',
+      error: { message: 'tree down' },
+      context: { source: 'chat.topic', operation: 'topic.tree', recordId: 'topic-a' }
+    })
+
+    mocks.useQuery.mockReturnValue({
+      data: undefined,
+      error: new Error('other tree'),
+      isLoading: false,
+      refetch: mocks.refetchTree
+    })
+    rerender(<TopicBranchPanel open topicId="topic-b" />)
+    detailMocks.open.mockClear()
+    fireEvent.click(screen.getByRole('button', { name: 'common.detail' }))
+    await waitFor(() => expect(detailMocks.open).toHaveBeenCalled())
+    expect(detailMocks.open.mock.calls.at(-1)?.[0]).toMatchObject({
+      error: { message: 'other tree' },
+      context: { recordId: 'topic-b' }
+    })
+  })
+
   it('cancels without deleting, confirms once, and renders only the refreshed surviving previews', async () => {
     const user = userEvent.setup()
     const tree = showDeletionTree()

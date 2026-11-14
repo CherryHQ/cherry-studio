@@ -223,6 +223,8 @@ export interface MessageListItem {
   parentId?: string | null
   createdAt: string
   updatedAt?: string
+  /** The persisted row's last write; an in-place retry keeps the id but changes this. */
+  persistedAt?: string
   status: MessageStatus
   modelId?: string
   /** Resolved model identity (from the author snapshot or the topic fallback). */

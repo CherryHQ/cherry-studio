@@ -41,6 +41,8 @@ const state = vi.hoisted(() => ({
   sendMessage: vi.fn(),
   stopChat: vi.fn(),
   setMessages: vi.fn(),
+  streamError: undefined as ((error: Error, cause: unknown) => void) | undefined,
+  openDetail: vi.fn(),
   resetExecutionMessages: vi.fn(),
   clearExecutionMessages: vi.fn(),
   resetTemporaryTopic: vi.fn(),
@@ -69,12 +71,20 @@ vi.mock('@renderer/ipc', () => ({
 }))
 
 vi.mock('@renderer/hooks/useStreamCommands', () => ({
-  useStreamCommands: () => ({
-    messages: state.messages,
-    sendMessage: state.sendMessage,
-    stop: state.stopChat,
-    setMessages: state.setMessages
-  })
+  useStreamCommands: (_topicId: string, _initial: unknown, onError?: (error: Error, cause: unknown) => void) => {
+    state.streamError = onError
+    return {
+      messages: state.messages,
+      sendMessage: state.sendMessage,
+      stop: state.stopChat,
+      setMessages: state.setMessages
+    }
+  }
+}))
+
+vi.mock('@renderer/services/appErrorDetailOpen', () => ({
+  openLoadedErrorDetail: (request: unknown) => state.openDetail(request),
+  showDetailOpenFailed: vi.fn()
 }))
 
 vi.mock('@data/hooks/usePreference', () => ({
@@ -207,7 +217,14 @@ vi.mock('../components/FeatureMenus', () => ({
       setRoute: (route: 'chat' | 'translate' | 'summary' | 'explanation') => void
     }) => {
       if (ref) {
-        ref.current = { useFeature: onSendMessage, resetSelectedIndex: vi.fn() }
+        // Match FeatureMenus: the selected home action opens its route before sending.
+        ref.current = {
+          resetSelectedIndex: vi.fn(),
+          useFeature: () => {
+            setRoute('chat')
+            onSendMessage()
+          }
+        }
       }
       return (
         <div data-testid="feature-menus">
@@ -358,6 +375,67 @@ describe('HomeWindow', () => {
 
     expect(screen.queryByTestId('quick-input')).not.toBeInTheDocument()
     expect(state.sendMessage).not.toHaveBeenCalled()
+  })
+
+  it('shows a translated explanation when sending fails without an Error', () => {
+    state.sendMessage.mockImplementation(() => {
+      throw 'socket down'
+    })
+    render(<HomeWindow draggable={false} />)
+
+    fireEvent.change(screen.getByTestId('quick-input'), { target: { value: 'hello' } })
+    fireEvent.keyDown(screen.getByTestId('quick-input'), { code: 'Enter', key: 'Enter' })
+
+    expect(screen.getByText('error.diagnosis.unknown')).toBeInTheDocument()
+    expect(screen.queryByText('socket down')).not.toBeInTheDocument()
+  })
+
+  it('shows a localized summary for a thrown send failure and keeps its raw text in Details', async () => {
+    state.openDetail.mockClear()
+    state.sendMessage.mockImplementation(() => {
+      throw new Error('unmapped quick failure')
+    })
+    render(<HomeWindow draggable={false} />)
+
+    fireEvent.change(screen.getByTestId('quick-input'), { target: { value: 'hello' } })
+    fireEvent.keyDown(screen.getByTestId('quick-input'), { code: 'Enter', key: 'Enter' })
+
+    expect(screen.getByText('error.diagnosis.unknown')).toBeInTheDocument()
+    expect(screen.queryByText('unmapped quick failure')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'common.detail' }))
+    await waitFor(() => expect(state.openDetail).toHaveBeenCalled())
+    expect(state.openDetail.mock.calls.at(-1)?.[0].error).toMatchObject({ message: 'unmapped quick failure' })
+  })
+
+  // Doctor needs the failed model and the provider status to diagnose a stream failure.
+  it('opens stream failure details with the provider status and the failed model', async () => {
+    state.openDetail.mockClear()
+    state.sendMessage.mockImplementation(() => undefined)
+    render(<HomeWindow draggable={false} />)
+    fireEvent.change(screen.getByTestId('quick-input'), { target: { value: 'hello' } })
+    fireEvent.keyDown(screen.getByTestId('quick-input'), { code: 'Enter', key: 'Enter' })
+
+    act(() => {
+      state.streamError?.(new Error('Service Unavailable'), {
+        name: 'AI_APICallError',
+        message: 'Service Unavailable',
+        stack: 'stored stack',
+        statusCode: 503,
+        responseBody: 'overloaded'
+      })
+    })
+    expect(screen.getByText('error.diagnosis.server')).toBeInTheDocument()
+    expect(screen.queryByText('Service Unavailable')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'common.detail' }))
+
+    await waitFor(() => expect(state.openDetail).toHaveBeenCalled())
+    expect(state.openDetail.mock.calls.at(-1)?.[0].error).toMatchObject({ message: 'Service Unavailable' })
+    expect(state.openDetail.mock.calls.at(-1)?.[0].context).toMatchObject({
+      providerId: 'anthropic',
+      modelId: 'claude-sonnet',
+      statusCode: 503,
+      stack: 'stored stack'
+    })
   })
 
   it('keeps typed input out of the clipboard preview', () => {

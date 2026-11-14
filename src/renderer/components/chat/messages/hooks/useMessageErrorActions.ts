@@ -1,45 +1,84 @@
 import { useCallback, useMemo } from 'react'
 
-import { cacheService } from '@data/CacheService'
+import { loggerService } from '@logger'
 import type { MessageListActions } from '@renderer/components/chat/messages/types'
 import type { ErrorDetailContentProps } from '@renderer/components/ErrorDetailModal'
+import { contextFromUnknown } from '@renderer/services/AppErrorContextService'
 import { openRoute } from '@renderer/services/mainWindowNavigation'
+import { translateErrorMessage } from '@renderer/utils/errorLanguage'
+import type { AppErrorContext } from '@shared/types/appError'
 import type { DoctorSubjectRef } from '@shared/types/doctor'
 
 import type { MessageListItem } from '../types'
 import { getMessageListItemModel } from '../utils/messageListItem'
 
-const AI_CLASSIFY_TTL_MS = 60 * 60 * 1000
-const aiClassifyCacheKey = (message: string, language: string) => `error.classify.${message}:${language}`
+const logger = loggerService.withContext('MessageErrorActions')
+export const MESSAGE_FAULT_LIMIT = 50
+const messageFaults = new Map<string, AppErrorContext>()
+
+function persistedAttemptTime(message: { createdAt: string; persistedAt?: string }): string | undefined {
+  for (const candidate of [message.persistedAt, message.createdAt]) {
+    if (!candidate || Number.isNaN(Date.parse(candidate))) continue
+    return new Date(candidate).toISOString()
+  }
+  return undefined
+}
+
+function messageFaultKey(
+  message: MessageListItem,
+  partId: string,
+  error:
+    | {
+        readonly name?: string | null
+        readonly message?: string | null
+        readonly statusCode?: number | null
+        readonly responseBody?: unknown
+      }
+    | undefined
+): string {
+  const response = typeof error?.responseBody === 'string' ? error.responseBody.slice(0, 240) : ''
+  return [
+    message.id,
+    partId,
+    message.persistedAt ?? '',
+    error?.name ?? '',
+    error?.message ?? '',
+    error?.statusCode ?? '',
+    response
+  ].join('\0')
+}
+
+function rememberMessageFault(key: string, create: () => AppErrorContext): AppErrorContext {
+  const cached = messageFaults.get(key)
+  if (cached) {
+    messageFaults.delete(key)
+    messageFaults.set(key, cached)
+    return cached
+  }
+  const created = create()
+  messageFaults.set(key, created)
+  while (messageFaults.size > MESSAGE_FAULT_LIMIT) {
+    const oldest = messageFaults.keys().next().value
+    if (oldest === undefined) break
+    messageFaults.delete(oldest)
+  }
+  return created
+}
 
 type MessageErrorActions = Pick<MessageListActions, 'diagnoseMessageError' | 'openErrorDetail' | 'navigateErrorTarget'>
 
 interface MessageErrorActionOptions {
   diagnosticReport?: ErrorDetailContentProps['diagnosticReport']
+  /** Which conversation kind this list shows; recorded as the fault's source. */
+  errorSource: 'agent' | 'chat'
   getDoctorSubject: (message: MessageListItem) => DoctorSubjectRef | undefined
 }
 
 export function useMessageErrorActions(options: MessageErrorActionOptions): MessageErrorActions {
-  const { diagnosticReport, getDoctorSubject } = options
+  const { diagnosticReport, errorSource, getDoctorSubject } = options
 
   const diagnoseMessageError = useCallback<NonNullable<MessageListActions['diagnoseMessageError']>>(
-    ({ error, language }) => {
-      const errorMessage = error.message
-      if (!errorMessage) return Promise.resolve(null)
-
-      const cacheKey = aiClassifyCacheKey(errorMessage, language)
-      const cached = cacheService.getCasual<Promise<string>>(cacheKey)
-      if (cached) return cached
-
-      const promise = import('@renderer/utils/errorDiagnosis')
-        .then(({ classifyErrorByAI }) => classifyErrorByAI(error, language))
-        .catch((classificationError) => {
-          cacheService.deleteCasual(cacheKey)
-          throw classificationError
-        })
-      cacheService.setCasual<Promise<string>>(cacheKey, promise, AI_CLASSIFY_TTL_MS)
-      return promise
-    },
+    ({ error, language }) => translateErrorMessage(error.message ?? '', language),
     []
   )
 
@@ -47,16 +86,38 @@ export function useMessageErrorActions(options: MessageErrorActionOptions): Mess
     async (input) => {
       const { showErrorDetailPopup } = await import('@renderer/components/ErrorDetailModal')
       const model = getMessageListItemModel(input.message)
-      void showErrorDetailPopup({
-        error: input.error,
-        subject: getDoctorSubject(input.message),
-        incident: { topicId: input.message.topicId, messageId: input.message.id },
-        diagnosisContext: { providerId: model?.provider, modelId: model?.id },
-        localizedErrorMessage: input.localizedErrorMessage,
-        diagnosticReport
-      })
+      const occurredAt = persistedAttemptTime(input.message)
+      const message = input.error?.message || input.localizedErrorMessage || ''
+      const subject = getDoctorSubject(input.message)
+      const faultKey = messageFaultKey(input.message, input.partId, input.error)
+      const modelId = model?.id
+      const errorContext = rememberMessageFault(faultKey, () =>
+        contextFromUnknown(input.error ?? message, {
+          source: errorSource,
+          operation: 'message.error',
+          message,
+          ...(occurredAt ? { occurredAt } : {}),
+          ...(model?.provider ? { providerId: model.provider } : {}),
+          ...(modelId ? { modelId } : {}),
+          recordId: input.message.id,
+          params: { partId: input.partId, topicId: input.message.topicId }
+        })
+      )
+      try {
+        await showErrorDetailPopup({
+          error: input.error,
+          errorContext,
+          subject,
+          incident: { topicId: input.message.topicId, messageId: input.message.id, errorId: errorContext.id },
+          diagnosisContext: { providerId: model?.provider, modelId: model?.id },
+          localizedErrorMessage: input.localizedErrorMessage,
+          diagnosticReport
+        })
+      } catch (error) {
+        logger.error('Failed to open the message error detail', error as Error)
+      }
     },
-    [diagnosticReport, getDoctorSubject]
+    [diagnosticReport, errorSource, getDoctorSubject]
   )
 
   const navigateErrorTarget = useCallback<NonNullable<MessageListActions['navigateErrorTarget']>>((target) => {
