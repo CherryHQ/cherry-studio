@@ -1,0 +1,236 @@
+diff --git a/es/index.js b/es/index.js
+index b80da7a..a0a8edd 100644
+--- a/es/index.js
++++ b/es/index.js
+@@ -102243,7 +102243,7 @@ class WSClient {
+             }
+         });
+     }
+-    connect() {
++    connect(generation = this.reconnectGeneration) {
+         const connectUrl = this.wsConfig.getWS('connectUrl');
+         let wsInstance;
+         try {
+@@ -102263,10 +102263,18 @@ class WSClient {
+                 if (settled)
+                     return;
+                 settled = true;
++                if (this.cancelPendingConnect === cancelPending) this.cancelPendingConnect = undefined;
+                 if (timer)
+                     clearTimeout(timer);
+                 resolve(ok);
+             };
++            const cancelPending = () => {
++                wsInstance.removeAllListeners();
++                wsInstance.on('error', () => {});
++                try { wsInstance.terminate(); } catch (_) { /* best effort */ }
++                settleOnce(false);
++            };
++            this.cancelPendingConnect = cancelPending;
+             // Optional handshake watchdog: if neither 'open' nor 'error' fires
+             // within the configured window (stuck DNS / proxy / NAT path), abort
+             // the attempt and let tryConnect treat it as a retryable failure.
+@@ -102282,6 +102290,10 @@ class WSClient {
+                 }, this.handshakeTimeoutMs);
+             }
+             wsInstance.on('open', () => {
++                if (generation !== this.reconnectGeneration) {
++                    cancelPending();
++                    return;
++                }
+                 this.logger.debug('[ws]', 'ws connect success');
+                 this.wsConfig.setWSInstance(wsInstance);
+                 this.pingLoop();
+@@ -102305,9 +102317,11 @@ class WSClient {
+             const tryConnect = () => __awaiter(this, void 0, void 0, function* () {
+                 this.reconnectInfo.lastConnectTime = Date.now();
+                 const pullResult = yield this.pullConnectConfig();
++                if (currentGeneration !== this.reconnectGeneration) return { ok: false, retryable: false };
+                 if (!pullResult.ok)
+                     return pullResult;
+-                const connected = yield this.connect();
++                const connected = yield this.connect(currentGeneration);
++                if (currentGeneration !== this.reconnectGeneration) return { ok: false, retryable: false };
+                 if (!connected)
+                     return { ok: false, retryable: true };
+                 this.communicate();
+@@ -102329,8 +102343,9 @@ class WSClient {
+                     result = yield tryConnect();
+                 }
+                 finally {
+-                    this.isConnecting = false;
++                    if (currentGeneration === this.reconnectGeneration) this.isConnecting = false;
+                 }
++                if (currentGeneration !== this.reconnectGeneration) return;
+                 if (result.ok) {
+                     this.hasEverConnected = true;
+                     this.safeInvoke('onReady', this.onReady);
+@@ -102579,6 +102594,7 @@ class WSClient {
+         const { force = false } = params;
+         // Invalidate any in-flight reconnect loops
+         this.reconnectGeneration++;
++        if (this.cancelPendingConnect) this.cancelPendingConnect();
+         if (this.pingInterval) {
+             clearTimeout(this.pingInterval);
+             this.pingInterval = undefined;
+@@ -106454,17 +106470,20 @@ class LarkChannel {
+         return __awaiter(this, void 0, void 0, function* () {
+             if (this.connectPromise)
+                 return this.connectPromise;
+-            this.connectPromise = this.doConnect().catch((err) => {
++            const generation = this.lifecycleGeneration = (this.lifecycleGeneration || 0) + 1;
++            this.connectPromise = this.doConnect(generation).catch((err) => {
+                 this.connectPromise = undefined;
+                 throw err;
+             });
+             return this.connectPromise;
+         });
+     }
+-    doConnect() {
++    doConnect(generation) {
+         var _a;
+         return __awaiter(this, void 0, void 0, function* () {
+-            this.botIdentity = yield this.fetchBotIdentity();
++            const identity = yield this.fetchBotIdentity();
++            if (generation !== this.lifecycleGeneration) return;
++            this.botIdentity = identity;
+             this.safety.setBotIdentity(this.botIdentity);
+             this.registerDispatcherHandlers();
+             const transport = (_a = this.opts.transport) !== null && _a !== void 0 ? _a : 'websocket';
+@@ -106473,6 +106492,7 @@ class LarkChannel {
+             }
+             // webhook transport wiring is external: user plugs this.dispatcher into
+             // their HTTP handler via the existing adaptor modules.
++            if (generation !== this.lifecycleGeneration) return;
+             this.connected = true;
+         });
+     }
+@@ -106530,9 +106550,8 @@ class LarkChannel {
+     }
+     disconnect() {
+         var _a;
++        this.lifecycleGeneration = (this.lifecycleGeneration || 0) + 1;
+         return __awaiter(this, void 0, void 0, function* () {
+-            if (!this.connected)
+-                return;
+             try {
+                 (_a = this.rawWsClient) === null || _a === void 0 ? void 0 : _a.close({});
+             }
+diff --git a/lib/index.js b/lib/index.js
+index 6d68699..028ef3d 100644
+--- a/lib/index.js
++++ b/lib/index.js
+@@ -102261,7 +102261,7 @@ class WSClient {
+             }
+         });
+     }
+-    connect() {
++    connect(generation = this.reconnectGeneration) {
+         const connectUrl = this.wsConfig.getWS('connectUrl');
+         let wsInstance;
+         try {
+@@ -102281,10 +102281,18 @@ class WSClient {
+                 if (settled)
+                     return;
+                 settled = true;
++                if (this.cancelPendingConnect === cancelPending) this.cancelPendingConnect = undefined;
+                 if (timer)
+                     clearTimeout(timer);
+                 resolve(ok);
+             };
++            const cancelPending = () => {
++                wsInstance.removeAllListeners();
++                wsInstance.on('error', () => {});
++                try { wsInstance.terminate(); } catch (_) { /* best effort */ }
++                settleOnce(false);
++            };
++            this.cancelPendingConnect = cancelPending;
+             // Optional handshake watchdog: if neither 'open' nor 'error' fires
+             // within the configured window (stuck DNS / proxy / NAT path), abort
+             // the attempt and let tryConnect treat it as a retryable failure.
+@@ -102300,6 +102308,10 @@ class WSClient {
+                 }, this.handshakeTimeoutMs);
+             }
+             wsInstance.on('open', () => {
++                if (generation !== this.reconnectGeneration) {
++                    cancelPending();
++                    return;
++                }
+                 this.logger.debug('[ws]', 'ws connect success');
+                 this.wsConfig.setWSInstance(wsInstance);
+                 this.pingLoop();
+@@ -102323,9 +102335,11 @@ class WSClient {
+             const tryConnect = () => __awaiter(this, void 0, void 0, function* () {
+                 this.reconnectInfo.lastConnectTime = Date.now();
+                 const pullResult = yield this.pullConnectConfig();
++                if (currentGeneration !== this.reconnectGeneration) return { ok: false, retryable: false };
+                 if (!pullResult.ok)
+                     return pullResult;
+-                const connected = yield this.connect();
++                const connected = yield this.connect(currentGeneration);
++                if (currentGeneration !== this.reconnectGeneration) return { ok: false, retryable: false };
+                 if (!connected)
+                     return { ok: false, retryable: true };
+                 this.communicate();
+@@ -102347,8 +102361,9 @@ class WSClient {
+                     result = yield tryConnect();
+                 }
+                 finally {
+-                    this.isConnecting = false;
++                    if (currentGeneration === this.reconnectGeneration) this.isConnecting = false;
+                 }
++                if (currentGeneration !== this.reconnectGeneration) return;
+                 if (result.ok) {
+                     this.hasEverConnected = true;
+                     this.safeInvoke('onReady', this.onReady);
+@@ -102597,6 +102612,7 @@ class WSClient {
+         const { force = false } = params;
+         // Invalidate any in-flight reconnect loops
+         this.reconnectGeneration++;
++        if (this.cancelPendingConnect) this.cancelPendingConnect();
+         if (this.pingInterval) {
+             clearTimeout(this.pingInterval);
+             this.pingInterval = undefined;
+@@ -106472,17 +106488,20 @@ class LarkChannel {
+         return __awaiter(this, void 0, void 0, function* () {
+             if (this.connectPromise)
+                 return this.connectPromise;
+-            this.connectPromise = this.doConnect().catch((err) => {
++            const generation = this.lifecycleGeneration = (this.lifecycleGeneration || 0) + 1;
++            this.connectPromise = this.doConnect(generation).catch((err) => {
+                 this.connectPromise = undefined;
+                 throw err;
+             });
+             return this.connectPromise;
+         });
+     }
+-    doConnect() {
++    doConnect(generation) {
+         var _a;
+         return __awaiter(this, void 0, void 0, function* () {
+-            this.botIdentity = yield this.fetchBotIdentity();
++            const identity = yield this.fetchBotIdentity();
++            if (generation !== this.lifecycleGeneration) return;
++            this.botIdentity = identity;
+             this.safety.setBotIdentity(this.botIdentity);
+             this.registerDispatcherHandlers();
+             const transport = (_a = this.opts.transport) !== null && _a !== void 0 ? _a : 'websocket';
+@@ -106491,6 +106510,7 @@ class LarkChannel {
+             }
+             // webhook transport wiring is external: user plugs this.dispatcher into
+             // their HTTP handler via the existing adaptor modules.
++            if (generation !== this.lifecycleGeneration) return;
+             this.connected = true;
+         });
+     }
+@@ -106548,9 +106568,8 @@ class LarkChannel {
+     }
+     disconnect() {
+         var _a;
++        this.lifecycleGeneration = (this.lifecycleGeneration || 0) + 1;
+         return __awaiter(this, void 0, void 0, function* () {
+-            if (!this.connected)
+-                return;
+             try {
+                 (_a = this.rawWsClient) === null || _a === void 0 ? void 0 : _a.close({});
+             }
