@@ -42,8 +42,8 @@ describe('openAppErrorDetail', () => {
     vi.resetModules()
     ;({ buildInlineErrorDetailRequest, presentHandedOffError, presentUncaught, toastAppError, appErrorDetailService } =
       await import('../AppErrorDetailService'))
-    const { registerErrorDetailPopup } = await import('../errorDetailPopup')
-    registerErrorDetailPopup(async () => ({
+    const { errorDetailPopupService } = await import('../ErrorDetailPopupService')
+    errorDetailPopupService.register(async () => ({
       isErrorDetailHostMounted: () => mocks.hostMounted(),
       showErrorDetailPopup: (params) => mocks.show(params)
     }))

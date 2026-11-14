@@ -3,7 +3,7 @@ import { useEffect } from 'react'
 import { loggerService } from '@logger'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { degradedFaultHostService } from '@renderer/services/DegradedFaultHostService'
-import { registerErrorDetailPopup } from '@renderer/services/errorDetailPopup'
+import { errorDetailPopupService } from '@renderer/services/ErrorDetailPopupService'
 
 const logger = loggerService.withContext('AppErrorRuntime')
 const BENIGN_ERROR_NAMES = new Set(['AbortError', 'NotAllowedError'])
@@ -23,7 +23,7 @@ function isBenignFault(error: unknown): boolean {
 export function AppErrorRuntime({ mode }: { readonly mode: 'main' | 'local' | 'handoff' | 'degraded' }) {
   // Detail service opens this window's popup through the seam; the module stays lazy.
   useEffect(() => {
-    registerErrorDetailPopup(() => import('@renderer/components/ErrorDetailModal'))
+    errorDetailPopupService.register(() => import('@renderer/components/ErrorDetailModal'))
   }, [])
 
   useEffect(() => {

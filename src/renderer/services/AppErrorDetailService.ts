@@ -16,7 +16,7 @@ import {
   operationSubject
 } from './AppErrorContextService'
 import { degradedFaultHostService } from './DegradedFaultHostService'
-import { loadErrorDetailPopup } from './errorDetailPopup'
+import { errorDetailPopupService } from './ErrorDetailPopupService'
 import { toast } from './toast'
 
 const logger = loggerService.withContext('AppErrorDetailService')
@@ -145,7 +145,7 @@ class AppErrorDetailService {
     if (this.detailReserved) return 'busy'
     this.detailReserved = true
     try {
-      const popup = await loadErrorDetailPopup()
+      const popup = await errorDetailPopupService.load()
       if (!popup?.isErrorDetailHostMounted()) {
         this.detailReserved = false
         if (degradedFaultHostService.presentDegradedFault(degradedFaultText(request))) return 'opened'
