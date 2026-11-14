@@ -124,8 +124,36 @@ vi.mock('../steps/KnowledgeStep', () => ({
   )
 }))
 vi.mock('../steps/CapabilityStep', () => ({
-  CapabilityStep: () => <div data-testid="capability-step" />
+  CapabilityStep: ({ form }: { form: ReactHookForm.UseFormReturn<ResourceCreateWizardFormValues> }) => (
+    <div data-testid="capability-step">
+      <button type="button" onClick={() => form.setValue('skillIds', ['skill-review'])}>
+        select skill
+      </button>
+    </div>
+  )
 }))
+// The tools and advanced steps run for real; only their catalog-backed and Radix-select fields are stubbed.
+vi.mock('@renderer/services/mainWindowNavigation', () => ({ openSettingsTab: vi.fn() }))
+vi.mock('@renderer/components/resourceCatalog/dialogs/components/McpCapabilityList', () => ({
+  McpCapabilityList: ({ onSelectedIdsChange }: { onSelectedIdsChange: (ids: string[]) => void }) => (
+    <button type="button" onClick={() => onSelectedIdsChange(['mcp-github'])}>
+      select MCP server
+    </button>
+  )
+}))
+vi.mock('@renderer/components/resourceCatalog/dialogs/components/ReplyLanguageSelect', () => ({
+  ReplyLanguageSelect: ({
+    onChange
+  }: {
+    onChange: (patch: { languageMode: 'custom'; languageCustom: string }) => void
+  }) => (
+    <button type="button" onClick={() => onChange({ languageMode: 'custom', languageCustom: '日本語' })}>
+      reply in Japanese
+    </button>
+  )
+}))
+
+import { buildCreateAgentCommand } from '@renderer/utils/resourceCatalog'
 
 import { ResourceCreateWizard } from '../ResourceCreateWizard'
 
@@ -142,6 +170,7 @@ const TOOLS_ROW = 'library.config.agent.section.tools.tab.tools'
 const SKILLS_ROW = 'library.config.agent.section.tools.tab.skills'
 const MCP_ROW = 'library.config.agent.section.tools.tab.mcp'
 const KNOWLEDGE_ROW = 'library.config.dialogs.create.step.knowledge'
+const HEARTBEAT_ROW = 'library.config.agent.field.heartbeat_enabled.label'
 const RESULT = 'library.config.dialogs.create.result'
 const LIST_SEPARATOR = `${RESULT}.list_separator`
 
@@ -153,6 +182,17 @@ const dialogCloseButton = () => document.querySelector<HTMLElement>('[data-slot=
 
 const BASIC = /library\.config\.dialogs\.create\.step\.basic$/
 const KNOWLEDGE = /library\.config\.dialogs\.create\.step\.knowledge$/
+const DEFAULT_AGENT_SETTINGS_PAYLOAD = {
+  disabledTools: [],
+  agentSettings: {
+    languageMode: 'inherit',
+    languageCustom: '',
+    heartbeatEnabled: false,
+    heartbeatInterval: 30,
+    heartbeatTimeoutMinutes: 2,
+    envVarsText: ''
+  }
+}
 const onSubmitSpy = vi.fn()
 const draft = {
   name: '  Activity draft  ',
@@ -273,15 +313,30 @@ async function fillDraftToKnowledge(user: ReturnType<typeof userEvent.setup>, ki
   await user.type(screen.getByRole('textbox', { name: 'draft description' }), draft.description)
   await user.click(screen.getByRole('button', { name: MANUAL }))
   await user.click(screen.getByRole('button', { name: NEXT }))
-  // Manual create prefills an Agent's empty prompt with the purpose; replace it with the draft.
+  if (kind === 'assistant') {
+    await replacePrompt(user)
+    await user.click(screen.getByRole('button', { name: NEXT }))
+    await user.click(screen.getByRole('button', { name: 'select knowledge base' }))
+    return
+  }
+  // Agents: tools → skills → knowledge, then the prompt on the last step, then back to knowledge.
+  await user.click(screen.getByRole('button', { name: NEXT }))
+  expect(screen.getByTestId('capability-step')).toBeInTheDocument()
+  await user.click(screen.getByRole('button', { name: NEXT }))
+  await user.click(screen.getByRole('button', { name: 'select knowledge base' }))
+  await walkToLastStep(user)
+  await replacePrompt(user)
+  await user.click(screen.getByRole('button', { name: KNOWLEDGE }))
+}
+
+/** Manual create prefills an Agent's empty prompt with the purpose; replace it with the draft. */
+async function replacePrompt(user: ReturnType<typeof userEvent.setup>) {
   await user.clear(screen.getByRole('textbox', { name: 'draft prompt' }))
   await user.paste(draft.prompt)
-  await user.click(screen.getByRole('button', { name: NEXT }))
-  if (kind === 'agent') {
-    expect(screen.getByTestId('capability-step')).toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: NEXT }))
-  }
-  await user.click(screen.getByRole('button', { name: 'select knowledge base' }))
+}
+
+async function walkToLastStep(user: ReturnType<typeof userEvent.setup>) {
+  while (screen.queryByRole('button', { name: NEXT })) await user.click(screen.getByRole('button', { name: NEXT }))
 }
 
 function expectDraft() {
@@ -339,9 +394,10 @@ describe('ResourceCreateWizard', () => {
       />
     )
     await waitFor(() => expect(screen.getByRole('button', { name: NEXT })).toBeEnabled())
-    for (let step = 0; step < 3; step++) await user.click(screen.getByRole('button', { name: NEXT }))
+    await walkToLastStep(user)
     await user.click(screen.getByRole('button', { name: CREATE }))
     expect(onSubmit).toHaveBeenCalledWith({
+      ...DEFAULT_AGENT_SETTINGS_PAYLOAD,
       name: 'Product manager',
       avatar: '👨‍💼',
       description: 'Plan products',
@@ -368,6 +424,7 @@ describe('ResourceCreateWizard', () => {
       await hideAndShow(rerender, { kind })
 
       expectDraft()
+      await walkToLastStep(user)
       await user.click(screen.getByRole('button', { name: CREATE }))
       expect(onSubmitSpy).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -671,9 +728,7 @@ describe('ResourceCreateWizard', () => {
     }
     await user.click(screen.getByRole('button', { name: 'fill basic' }))
     await user.click(screen.getByRole('button', { name: MANUAL }))
-    await user.click(screen.getByRole('button', { name: NEXT }))
-    await user.click(screen.getByRole('button', { name: NEXT }))
-    await user.click(screen.getByRole('button', { name: NEXT }))
+    await walkToLastStep(user)
     await user.click(screen.getByRole('button', { name: CREATE }))
 
     expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ agentType: runtime, permissionMode: 'auto' }))
@@ -695,9 +750,7 @@ describe('ResourceCreateWizard', () => {
 
     await user.click(screen.getByRole('button', { name: 'fill basic' }))
     await user.click(screen.getByRole('button', { name: MANUAL }))
-    await user.click(screen.getByRole('button', { name: NEXT }))
-    await user.click(screen.getByRole('button', { name: NEXT }))
-    await user.click(screen.getByRole('button', { name: NEXT }))
+    await walkToLastStep(user)
     await user.click(screen.getByRole('button', { name: CREATE }))
 
     expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ agentType: 'pi-durable', permissionMode: 'auto' }))
@@ -779,6 +832,115 @@ describe('ResourceCreateWizard', () => {
       await waitFor(() => expect(screen.getByTestId('model-id')).toHaveTextContent('provider::default'))
     }
   )
+})
+
+describe('ResourceCreateWizard agent steps', () => {
+  const WRITE_TOOL = 'agent.tools.builtin.write.label'
+  const railLabels = () =>
+    Array.from(screen.getByRole('button', { name: BASIC }).closest('ol')!.querySelectorAll('li'), (item) =>
+      item.textContent?.replace(/^\d+/, '')
+    )
+
+  async function startManual(user: ReturnType<typeof userEvent.setup>, kind: ResourceCreateWizardKind = 'agent') {
+    const onSubmit = vi.fn().mockResolvedValue('created-1')
+    render(
+      <ResourceCreateWizard kind={kind} open onOpenChange={vi.fn()} onStartConversation={vi.fn()} onSubmit={onSubmit} />
+    )
+    await user.click(screen.getByRole('button', { name: 'fill basic' }))
+    await user.click(screen.getByRole('button', { name: MANUAL }))
+    return onSubmit
+  }
+
+  /** The command the caller would send for the submitted values. */
+  const submittedCommand = (onSubmit: ReturnType<typeof vi.fn>) => buildCreateAgentCommand(onSubmit.mock.calls[0][0])
+
+  it('keeps the Assistant on basic, System Prompt and knowledge', async () => {
+    await startManual(userEvent.setup(), 'assistant')
+
+    expect(railLabels()).toEqual([
+      'library.config.dialogs.create.step.basic',
+      PROMPT_ROW,
+      'library.config.dialogs.create.step.knowledge'
+    ])
+  })
+
+  it('walks an Agent through six steps and sends what each one set', async () => {
+    const user = userEvent.setup()
+    const onSubmit = await startManual(user)
+
+    expect(railLabels()).toEqual([
+      'library.config.dialogs.create.step.basic',
+      'library.config.dialogs.edit.tools_tab',
+      'library.config.dialogs.create.step.capability',
+      'library.config.dialogs.create.step.knowledge',
+      MCP_ROW,
+      'library.config.dialogs.edit.advanced_tab'
+    ])
+    await user.click(screen.getByRole('button', { name: NEXT }))
+    await user.click(screen.getByRole('switch', { name: WRITE_TOOL }))
+    await user.click(screen.getByRole('button', { name: NEXT }))
+    await user.click(screen.getByRole('button', { name: 'select skill' }))
+    await user.click(screen.getByRole('button', { name: NEXT }))
+    await user.click(screen.getByRole('button', { name: 'select knowledge base' }))
+    await user.click(screen.getByRole('button', { name: NEXT }))
+    await user.click(screen.getByRole('button', { name: 'select MCP server' }))
+    await user.click(screen.getByRole('button', { name: NEXT }))
+    await user.clear(screen.getByRole('textbox', { name: 'draft prompt' }))
+    await user.type(screen.getByRole('textbox', { name: 'draft prompt' }), 'Review carefully')
+    await user.click(screen.getByRole('button', { name: 'reply in Japanese' }))
+    await user.click(screen.getByRole('switch', { name: HEARTBEAT_ROW }))
+    const interval = screen.getByRole('spinbutton', { name: 'library.config.agent.field.heartbeat_interval.label' })
+    await user.clear(interval)
+    await user.type(interval, '45')
+    await user.tab()
+    await user.type(screen.getByRole('textbox', { name: /env_vars\.label/ }), 'API_KEY=secret{Enter}REGION=eu')
+    await user.click(screen.getByRole('button', { name: CREATE }))
+
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1))
+    expect(submittedCommand(onSubmit)).toMatchObject({
+      type: 'pi-durable',
+      instructions: 'Review carefully',
+      disabledTools: ['write'],
+      skillIds: ['skill-review'],
+      knowledgeBaseIds: ['knowledge-draft'],
+      mcps: ['mcp-github'],
+      configuration: {
+        language: '日本語',
+        heartbeat_enabled: true,
+        heartbeat_interval: 45,
+        env_vars: { API_KEY: 'secret', REGION: 'eu' }
+      }
+    })
+  })
+
+  it('creates the Agent with a tool switched off in disabledTools, and drops one switched back on', async () => {
+    const user = userEvent.setup()
+    const onSubmit = await startManual(user)
+
+    await user.click(screen.getByRole('button', { name: NEXT }))
+    await user.click(screen.getByRole('switch', { name: WRITE_TOOL }))
+    await user.click(screen.getByRole('switch', { name: 'agent.tools.builtin.read.label' }))
+    await user.click(screen.getByRole('switch', { name: 'agent.tools.builtin.read.label' }))
+    await walkToLastStep(user)
+    await user.click(screen.getByRole('button', { name: CREATE }))
+
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1))
+    expect(submittedCommand(onSubmit).disabledTools).toEqual(['write'])
+  })
+
+  it('adds no language, heartbeat or env vars to the configuration when the advanced step is left alone', async () => {
+    const user = userEvent.setup()
+    const onSubmit = await startManual(user)
+
+    await walkToLastStep(user)
+    await user.click(screen.getByRole('button', { name: CREATE }))
+
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1))
+    const command = submittedCommand(onSubmit)
+    expect(command.configuration).toEqual({ avatar: '✨', permission_mode: 'auto' })
+    expect(command).not.toHaveProperty('disabledTools')
+    expect(command).not.toHaveProperty('mcps')
+  })
 })
 
 describe('ResourceCreateWizard auto create', () => {
@@ -910,6 +1072,7 @@ describe('ResourceCreateWizard auto create', () => {
     await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1))
     expect(autoConfigure.generate.mock.calls[0][0]).toMatchObject({ purpose: 'Review my GitHub PRs', name: '' })
     expect(onSubmit).toHaveBeenCalledWith({
+      ...DEFAULT_AGENT_SETTINGS_PAYLOAD,
       avatar: '🔍',
       agentType: 'pi-durable',
       permissionMode: 'default',
@@ -1221,13 +1384,11 @@ describe('ResourceCreateWizard auto create', () => {
 })
 
 describe('ResourceCreateWizard result page', () => {
-  async function createManually(user: ReturnType<typeof userEvent.setup>, kind: ResourceCreateWizardKind) {
+  async function createManually(user: ReturnType<typeof userEvent.setup>) {
     await user.type(screen.getByRole('textbox', { name: 'draft description' }), 'Review my GitHub PRs')
     await user.click(screen.getByRole('button', { name: 'fill basic' }))
     await user.click(screen.getByRole('button', { name: MANUAL }))
-    for (let step = 0; step < (kind === 'agent' ? 3 : 2); step++) {
-      await user.click(screen.getByRole('button', { name: NEXT }))
-    }
+    await walkToLastStep(user)
     await user.click(screen.getByRole('button', { name: CREATE }))
   }
 
@@ -1235,7 +1396,7 @@ describe('ResourceCreateWizard result page', () => {
     const user = userEvent.setup()
     render(<ResultHost kind="agent" onSubmit={vi.fn().mockResolvedValue('agent-1')} />)
 
-    await createManually(user, 'agent')
+    await createManually(user)
 
     expect(
       await screen.findByRole('heading', { name: 'library.config.dialogs.create.result.agent_title' })
@@ -1249,13 +1410,32 @@ describe('ResourceCreateWizard result page', () => {
     expect(summaryValue(SKILLS_ROW)).toHaveTextContent(/^Builtin skill$/)
     expect(summaryValue(MCP_ROW)).toHaveTextContent(`${RESULT}.empty.not_bound`)
     expect(summaryValue(KNOWLEDGE_ROW)).toHaveTextContent(`${RESULT}.empty.not_linked`)
+    expect(summaryValue(HEARTBEAT_ROW)).toHaveTextContent(`${RESULT}.heartbeat_off`)
+  })
+
+  it('counts a tool switched off and shows the heartbeat interval', async () => {
+    const user = userEvent.setup()
+    render(<ResultHost kind="agent" onSubmit={vi.fn().mockResolvedValue('agent-1')} />)
+
+    await user.click(screen.getByRole('button', { name: 'fill basic' }))
+    await user.click(screen.getByRole('button', { name: MANUAL }))
+    await user.click(screen.getByRole('button', { name: NEXT }))
+    await user.click(screen.getByRole('switch', { name: 'agent.tools.builtin.write.label' }))
+    await walkToLastStep(user)
+    await user.click(screen.getByRole('switch', { name: HEARTBEAT_ROW }))
+    await user.click(screen.getByRole('button', { name: CREATE }))
+
+    await screen.findByRole('heading', { name: 'library.config.dialogs.create.result.agent_title' })
+    const [, enabled, total] = summaryValue(TOOLS_ROW)?.textContent?.match(/tools_enabled:(\d+)\/(\d+)$/) ?? []
+    expect(Number(enabled)).toBe(Number(total) - 1)
+    expect(summaryValue(HEARTBEAT_ROW)).toHaveTextContent(`${RESULT}.heartbeat_every:30`)
   })
 
   it('says what an empty manual Assistant lacks in its own words', async () => {
     const user = userEvent.setup()
     render(<ResultHost kind="assistant" onSubmit={vi.fn().mockResolvedValue('assistant-1')} />)
 
-    await createManually(user, 'assistant')
+    await createManually(user)
 
     expect(
       await screen.findByRole('heading', { name: 'library.config.dialogs.create.result.assistant_title' })
@@ -1275,7 +1455,7 @@ describe('ResourceCreateWizard result page', () => {
         onStartConversation={onStartConversation}
       />
     )
-    await createManually(user, 'assistant')
+    await createManually(user)
 
     await user.click(await screen.findByRole('button', { name: START }))
 
@@ -1296,7 +1476,7 @@ describe('ResourceCreateWizard result page', () => {
         onStartConversation={onStartConversation}
       />
     )
-    await createManually(user, 'agent')
+    await createManually(user)
 
     await user.click(await screen.findByRole('button', { name: ADJUST }))
 
