@@ -1,12 +1,9 @@
-type MigrationOriginReader = () => boolean
+import { application } from '@application'
+import type { DbType } from '@data/db/types'
 
-let readMigrationOrigin: MigrationOriginReader = () => false
+import { readMigrationV2Status } from './migrationStatus'
 
-export function isMigratedFromV1(): boolean {
-  return readMigrationOrigin()
-}
-
-/** Registered by MigrationEngine when its singleton is initialized. */
-export function registerMigrationOriginReader(reader: MigrationOriginReader): void {
-  readMigrationOrigin = reader
+export function isMigratedFromV1(db: Pick<DbType, 'select'> = application.get('DbService').getDb()): boolean {
+  const status = readMigrationV2Status(db)
+  return status?.status === 'completed' && status.migratedFromV1 === true
 }

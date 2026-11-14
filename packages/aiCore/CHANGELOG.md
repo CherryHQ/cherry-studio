@@ -6,6 +6,12 @@
 
 - Include a package-local MIT license file and correct the README license link.
 
+## 2.5.0
+
+### Minor Changes
+
+- [#24410](https://github.com/CherryHQ/cherry-studio/pull/24410) [`1885c63`](https://github.com/CherryHQ/cherry-studio/commit/1885c63d7bdf66dd6d6f535dbcb32ee5661a6e7f) Thanks [@DeJeune](https://github.com/DeJeune)! - Export a shared matcher for provider context-overflow messages.
+
 ## 2.4.9
 
 ### Patch Changes

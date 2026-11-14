@@ -91,12 +91,10 @@ cd scripts/data-classify
 npm run generate
 ```
 
-This regenerates all four coupled outputs:
+This regenerates both schema outputs:
 
 - `src/shared/data/preference/preferenceSchemas.ts`
 - `src/shared/data/bootConfig/bootConfigSchemas.ts`
-- `src/main/data/migration/v2/migrators/mappings/PreferencesMappings.ts`
-- `src/main/data/migration/v2/migrators/mappings/BootConfigMappings.ts`
 
 Then consume the generated key through the normal Preference API:
 
@@ -109,21 +107,9 @@ const [enabled, setEnabled] = usePreference('feature.my_feature.enabled')
 Run `pnpm lint` after changing a key. It checks generated types, key naming,
 formatting, and all Preference call sites.
 
-## Migration-only Additions
+## Legacy Data
 
-For a simple migrated value, update the corresponding classified entry in
-`classification.json` with its legacy source and target key. For a value that
-combines or transforms multiple legacy inputs:
-
-1. Define the emitted target key in `target-key-definitions.json`.
-2. Add the conversion to
-   `src/main/data/migration/v2/migrators/transformers/PreferenceTransformers.ts`.
-3. Register it in
-   `src/main/data/migration/v2/migrators/mappings/ComplexPreferenceMappings.ts`.
-4. Run `npm run generate`.
-
-Do not add a v1 read fallback or a second runtime source of truth. Legacy data
-reaches the current Preference table only through the v2 migrator.
+V1 conversion runs only in the fixed intermediate release described in the [upgrade guide](./v2-migration-guide.md). Do not add runtime v1 fallbacks or restore migration mapping generation.
 
 ## Related Documentation
 

@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 
 import { setupTestDatabase } from '@test-helpers/db'
+import { isToolUIPart } from 'ai'
 import { eq } from 'drizzle-orm'
 import { expect, it } from 'vitest'
 
@@ -330,6 +331,236 @@ it('updates a settled parent task and keeps the status after replay and reopen',
   expect(restored.parts(id)).toContainEqual({ type: 'data-knowledge-scope', data: { baseIds: ['knowledge'] } })
 })
 
+it.each([
+  ['completed', true],
+  ['stopped', true],
+  ['error', true],
+  ['completed', false]
+] as const)(
+  'retires a %s task approval (native part: %s) across snapshots, persistence and reopen without deciding siblings',
+  (status, nativePart) => {
+    const f = fixture()
+    const id = f.reply()
+    const source: CherryUIMessage = {
+      id: 'native-bash',
+      role: 'assistant',
+      parts: [
+        {
+          type: 'dynamic-tool',
+          toolName: 'Bash',
+          toolCallId: 'A',
+          state: 'approval-requested',
+          input: { command: 'sleep 10' },
+          approval: { id: 'approve-A' }
+        }
+      ]
+    }
+    f.projection.accept(f.update([nativePart ? source : text(source.id, 'Running')]), id)
+    for (const toolCallId of ['A', 'B']) {
+      f.projection.control(id, {
+        type: 'tool-input-available',
+        toolCallId,
+        toolName: 'Bash',
+        input: { command: 'sleep 10' }
+      })
+      f.projection.control(id, { type: 'tool-approval-request', toolCallId, approvalId: `approve-${toolCallId}` })
+    }
+    expect(f.projection.parts(id)).toContainEqual(
+      expect.objectContaining({ toolCallId: 'B', state: 'approval-requested' })
+    )
+    f.projection.taskEvent({ event: 'notification', taskId: 'bg', toolUseId: 'A', status })
+    expect(f.projection.retireToolApproval('A')).toBe(true)
+    expect(f.projection.retireToolApproval('A')).toBe(false)
+    const check = (projection: RootMessageProjection) => {
+      const parts = projection.parts(id)!
+      expect(parts).toContainEqual({
+        type: 'dynamic-tool',
+        toolName: 'Bash',
+        toolCallId: 'A',
+        state: 'input-available',
+        input: { command: 'sleep 10' }
+      })
+      expect(parts).toContainEqual(
+        expect.objectContaining({ toolCallId: 'B', state: 'approval-requested', approval: { id: 'approve-B' } })
+      )
+      expect(parts).toContainEqual(
+        expect.objectContaining({ type: 'data-agent-task-event', data: expect.objectContaining({ status }) })
+      )
+    }
+    check(f.projection)
+    f.projection.accept(f.update([source]), id)
+    check(f.projection)
+    const prepared = f.projection.prepare({ id, role: 'assistant', parts: f.projection.parts(id)! }, 'success')
+    messages.replaceMessageParts(f.sessionId, id, prepared.parts, f.projection.checkpoint())
+    const restored = new RootMessageProjection(f.context.id)
+    check(restored)
+    restored.accept(f.update([source]), id)
+    check(restored)
+    const output: CherryUIMessage = {
+      ...source,
+      parts: [
+        {
+          type: 'dynamic-tool',
+          toolName: 'Bash',
+          toolCallId: 'A',
+          state: 'output-available',
+          input: {},
+          output: 'done'
+        }
+      ]
+    }
+    restored.accept(f.update([output]), id)
+    expect(restored.parts(id)).toContainEqual(output.parts[0])
+  }
+)
+
+it('revives a real approval request after retirement, including ordered persisted parts', () => {
+  const f = fixture()
+  const id = f.reply()
+  f.projection.accept(f.update([text('native', 'Running')]), id)
+  f.projection.control(id, { type: 'tool-input-available', toolCallId: 'A', toolName: 'Bash', input: {} })
+  f.projection.control(id, { type: 'tool-approval-request', toolCallId: 'A', approvalId: 'old' })
+  const event = { event: 'notification' as const, taskId: 'bg', toolUseId: 'A', status: 'completed' as const }
+  f.projection.taskEvent(event)
+  f.projection.retireToolApproval('A')
+  f.projection.control(id, { type: 'tool-approval-request', toolCallId: 'A', approvalId: 'new' })
+  expect(f.projection.parts(id)).toContainEqual(
+    expect.objectContaining({ state: 'approval-requested', approval: { id: 'new' } })
+  )
+  const task = f.projection.parts(id)!.find((part) => part.type === 'data-agent-task-event')!
+  const request = f.projection.parts(id)!.find((part) => 'toolCallId' in part)!
+  const checkpoint = f.projection.checkpoint()
+  for (const [parts, state] of [
+    [[task, request], 'approval-requested'],
+    [[request, task], 'input-available']
+  ] as const) {
+    messages.replaceMessageParts(f.sessionId, id, [...parts], {
+      ...checkpoint,
+      root: { ...checkpoint.root, sources: { native: { messageId: id, offset: 0, count: 2 } } }
+    })
+    expect(new RootMessageProjection(f.context.id).parts(id)).toContainEqual(
+      expect.objectContaining({ toolCallId: 'A', state })
+    )
+  }
+})
+
+it('retires a persisted synthetic approval without a native tool and accepts its later output once', () => {
+  const f = fixture()
+  const id = f.reply()
+  f.projection.accept(f.update([text('native', 'Running')]), id)
+  f.projection.control(id, { type: 'tool-input-available', toolCallId: 'A', toolName: 'Bash', input: {} })
+  f.projection.control(id, { type: 'tool-approval-request', toolCallId: 'A', approvalId: 'approval' })
+  const prepared = f.projection.prepare({ id, role: 'assistant', parts: f.projection.parts(id)! }, 'success')
+  messages.replaceMessageParts(f.sessionId, id, prepared.parts, f.projection.checkpoint())
+  const restored = new RootMessageProjection(f.context.id)
+  expect(restored.toolCallMessageId('A')).toBe(id)
+  restored.retireToolApproval('A')
+  restored.taskEvent({ event: 'notification', taskId: 'bg', toolUseId: 'A', status: 'completed' })
+  const tools = restored.parts(id)!.filter((part) => 'toolCallId' in part)
+  expect(tools).toHaveLength(1)
+  expect(tools[0]).toMatchObject({ state: 'input-available' })
+  expect((tools[0] as any).approval).toBeUndefined()
+  messages.replaceMessageParts(f.sessionId, id, restored.parts(id), restored.checkpoint())
+  const reopened = new RootMessageProjection(f.context.id)
+  expect(reopened.parts(id)).toEqual(restored.parts(id))
+  reopened.accept(
+    f.update([
+      {
+        id: 'native',
+        role: 'assistant',
+        parts: [
+          {
+            type: 'dynamic-tool',
+            toolName: 'Bash',
+            toolCallId: 'A',
+            state: 'output-available',
+            input: {},
+            output: 'done'
+          }
+        ]
+      }
+    ]),
+    id
+  )
+  const outputs = reopened.parts(id)!.filter((part) => 'toolCallId' in part)
+  expect(outputs).toHaveLength(1)
+  expect(outputs[0]).toMatchObject({ state: 'output-available', output: 'done' })
+})
+
+it('resolves a control-only autonomous call to its old reply instead of the newest reply', () => {
+  const f = fixture()
+  const old = f.reply()
+  f.projection.accept(f.update([text('old', 'Old')]), old)
+  f.projection.control(old, { type: 'tool-input-available', toolCallId: 'A', toolName: 'Bash', input: {} })
+  f.projection.control(old, { type: 'tool-approval-request', toolCallId: 'A', approvalId: 'approval' })
+  const latest = f.reply()
+  f.projection.accept(f.update([text('new', 'New')]), latest)
+  expect(f.projection.lastMessageId).toBe(latest)
+  expect(
+    f.projection.taskEvent({ event: 'notification', taskId: 'bg', toolUseId: 'A', status: 'completed' })?.messageId
+  ).toBe(old)
+})
+
+it('retires an approval when the task finishes after the parent was persisted', () => {
+  const f = fixture()
+  const id = f.reply()
+  const source: CherryUIMessage = {
+    id: 'native',
+    role: 'assistant',
+    parts: [{ type: 'dynamic-tool', toolName: 'Bash', toolCallId: 'A', state: 'input-available', input: {} }]
+  }
+  f.projection.accept(f.update([source]), id)
+  f.projection.control(id, { type: 'tool-approval-request', toolCallId: 'A', approvalId: 'approval' })
+  const prepared = f.projection.prepare({ id, role: 'assistant', parts: f.projection.parts(id)! }, 'success')
+  messages.replaceMessageParts(f.sessionId, id, prepared.parts, f.projection.checkpoint())
+  const restored = new RootMessageProjection(f.context.id)
+  restored.taskEvent({ event: 'notification', taskId: 'bg', toolUseId: 'A', status: 'completed' })
+  restored.retireToolApproval('A')
+  expect(restored.parts(id)).toContainEqual(
+    expect.objectContaining({ toolCallId: 'A', state: 'input-available', approval: undefined })
+  )
+  messages.replaceMessageParts(f.sessionId, id, restored.parts(id), restored.checkpoint())
+  expect(new RootMessageProjection(f.context.id).parts(id)).toContainEqual(
+    expect.objectContaining({ toolCallId: 'A', state: 'input-available' })
+  )
+})
+
+it('finalizes a retired input on interruption without an approval decision', () => {
+  const f = fixture()
+  const id = f.reply()
+  f.projection.accept(f.update([text('native', 'Running')]), id)
+  f.projection.control(id, { type: 'tool-input-available', toolCallId: 'A', toolName: 'Bash', input: {} })
+  f.projection.control(id, { type: 'tool-approval-request', toolCallId: 'A', approvalId: 'approval' })
+  f.projection.taskEvent({ event: 'notification', taskId: 'bg', toolUseId: 'A', status: 'stopped' })
+  expect(f.projection.retireToolApproval('A')).toBe(true)
+  const prepared = f.projection.prepare({ id, role: 'assistant', parts: f.projection.parts(id)! }, 'paused')
+  messages.replaceMessageParts(f.sessionId, id, prepared.parts, f.projection.checkpoint())
+  const parts = new RootMessageProjection(f.context.id).parts(id)!
+  expect(parts).toContainEqual(expect.objectContaining({ toolCallId: 'A', state: 'output-error', input: {} }))
+  const tool = parts.find((part) => 'toolCallId' in part && part.toolCallId === 'A')!
+  expect((tool as any).approval).toBeUndefined()
+  expect((tool as any).approved).toBeUndefined()
+  expect(parts.filter((part) => isToolUIPart(part) && part.state === 'approval-requested')).toEqual([])
+  expect(parts.filter((part) => 'approval' in part)).toEqual([])
+})
+
+it.each([true, false])('keeps a real approval decision (%s) ahead of retirement', (approved) => {
+  const f = fixture()
+  const id = f.reply()
+  f.projection.accept(f.update([text('native', 'Running')]), id)
+  f.projection.control(id, { type: 'tool-input-available', toolCallId: 'A', toolName: 'Bash', input: {} })
+  f.projection.control(id, { type: 'tool-approval-request', toolCallId: 'A', approvalId: 'approval' })
+  f.projection.resolveToolApproval('A', 'approval', approved)
+  expect(f.projection.retireToolApproval('A')).toBe(false)
+  expect(f.projection.parts(id)).toContainEqual(
+    expect.objectContaining({
+      toolCallId: 'A',
+      state: approved ? 'approval-responded' : 'output-denied',
+      approval: { id: 'approval', approved }
+    })
+  )
+})
+
 // Canonicalizing a pre-steer source must not move it to the new product reply.
 it('keeps source ownership across steer, canonical replacement and replay', () => {
   const f = fixture()
@@ -441,4 +672,38 @@ it('preserves the source metadata of an unprojected child approval', () => {
   expect(new RootMessageProjection(f.context.id).parts(id)).toContainEqual(
     expect.objectContaining({ toolCallId: 'child-shell', callProviderMetadata: metadata })
   )
+})
+
+// The approval request can arrive before its tool source; keep enough input to render the card.
+it('builds an approval card from the approval input when no tool source was projected', () => {
+  const f = fixture()
+  const id = f.reply()
+  const questions = [
+    {
+      question: 'Which database?',
+      header: 'Database',
+      options: [{ label: 'SQLite' }, { label: 'Postgres' }],
+      multiSelect: false
+    }
+  ]
+  f.projection.control(id, {
+    type: 'tool-input-available',
+    toolCallId: 'ask-1',
+    toolName: 'AskUserQuestion',
+    input: { questions },
+    providerExecuted: true,
+    dynamic: true
+  })
+  f.projection.control(id, { type: 'tool-approval-request', approvalId: 'approval-1', toolCallId: 'ask-1' })
+
+  expect(f.projection.parts(id)).toEqual([
+    expect.objectContaining({
+      type: 'dynamic-tool',
+      toolName: 'AskUserQuestion',
+      toolCallId: 'ask-1',
+      state: 'approval-requested',
+      input: { questions },
+      approval: { id: 'approval-1' }
+    })
+  ])
 })

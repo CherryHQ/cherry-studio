@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as Ui from '@cherrystudio/ui'
+import { InputGroup, InputGroupAddon, InputGroupInput } from '@cherrystudio/ui'
 import { dataApiService } from '@data/DataApiService'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
@@ -65,13 +66,20 @@ async function openPicker() {
 }
 
 describe('AgentAvatarPicker persistence', () => {
-  it('uploads the selected image through the agent avatar command', async () => {
-    render(<AgentAvatarPicker {...props} />)
+  it('uploads an image from the name-field addon without closing the picker before selection', async () => {
+    render(
+      <InputGroup>
+        <InputGroupAddon>
+          <AgentAvatarPicker {...props} />
+        </InputGroupAddon>
+        <InputGroupInput aria-label="Agent name" defaultValue="Agent" />
+      </InputGroup>
+    )
     const user = await openPicker()
     const input = screen.getByLabelText(uploadLabel)
-    const openFileDialog = vi.spyOn(input, 'click')
     await user.click(screen.getByRole('button', { name: uploadLabel }))
-    expect(openFileDialog).toHaveBeenCalledOnce()
+    expect(screen.getByRole('textbox', { name: 'Agent name' })).not.toHaveFocus()
+    expect(input).toBeInTheDocument()
     await user.upload(input, file)
     expect(ipcApi.request).toHaveBeenCalledWith('agent.set_avatar', {
       agentId: 'agent-1',

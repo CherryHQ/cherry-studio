@@ -1,3 +1,4 @@
+import { APICallError } from 'ai'
 import { describe, expect, it, vi } from 'vitest'
 
 import { summarizeHistory } from '../janitor'
@@ -160,10 +161,7 @@ describe('summarizeHistory', () => {
       expect(toolEntry?.content).toBe('x'.repeat(100))
     })
 
-    // Stubbing only helps when there ARE tool results. A long prose conversation
-    // has no bulk to stub, so the request must still be clamped or it goes out
-    // over the window.
-    it('clamps prose-only history that stubbing cannot shrink', async () => {
+    it('summarizes all prose in order when history exceeds the input budget', async () => {
       const prose: ContextMessage[] = [
         { role: 'user', content: 'FIRST — a prior summary the caller leads with' },
         ...Array.from(
@@ -184,15 +182,55 @@ describe('summarizeHistory', () => {
 
       await summarizeHistory(prose, compress, { maxInputTokens: 3000 })
 
-      expect(captured.length).toBeLessThan(prose.length + 1)
-      // first message survives (it may be the accumulated prior summary)
-      expect(captured[0].content).toContain('FIRST')
-      // the omission is announced, not silent
-      expect(captured.some((m) => m.content.includes('omitted'))).toBe(true)
-      // the newest turn is kept
-      expect(captured.some((m) => m.content.includes('NEWEST'))).toBe(true)
-      // and the instruction is still last
-      expect(captured[captured.length - 1].content.toLowerCase()).toContain('summary')
+      expect(captured.filter((message) => prose.some((entry) => entry.content === message.content))).toEqual(prose)
+      expect(compress.mock.calls.length).toBeGreaterThan(1)
+      expect(captured.some((message) => message.content.includes('earlier message(s) omitted'))).toBe(false)
+    })
+
+    it('splits a single oversized text without losing characters', async () => {
+      const text = 'long text 😀 '.repeat(1500)
+      const parts: string[] = []
+      await summarizeHistory(
+        [{ role: 'user', content: text }],
+        async (messages) => {
+          parts.push(
+            ...messages
+              .slice(0, -1)
+              .filter((message) => !message.content.includes('previous'))
+              .map((message) => message.content)
+          )
+          return '<summary>previous</summary>'
+        },
+        { maxInputTokens: 3000 }
+      )
+      expect(parts.join('')).toBe(text)
+      expect(parts.length).toBeGreaterThan(1)
+    })
+
+    it('reduces an underestimated chunk after a context overflow', async () => {
+      const input = [{ role: 'user' as const, content: 'z'.repeat(15_000) }]
+      let rejected = false
+      const covered: string[] = []
+      await summarizeHistory(
+        input,
+        async (messages) => {
+          const content = messages.filter((message) => /^z+$/.test(message.content)).map((message) => message.content)
+          if (content.join('').length > 5000) {
+            rejected = true
+            throw new APICallError({
+              message: 'context_length_exceeded',
+              url: 'test',
+              requestBodyValues: {},
+              statusCode: 400
+            })
+          }
+          covered.push(...content)
+          return '<summary>summary</summary>'
+        },
+        { maxInputTokens: 10_000 }
+      )
+      expect(rejected).toBe(true)
+      expect(covered.join('')).toBe(input[0].content)
     })
 
     it('is a no-op when maxInputTokens is not supplied (existing behaviour)', async () => {

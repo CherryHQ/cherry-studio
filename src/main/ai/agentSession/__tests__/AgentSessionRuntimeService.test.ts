@@ -5,21 +5,31 @@ import { lstat, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
+import { setupTestDatabase } from '@test-helpers/db'
 import { defaultServiceInstances } from '@test-mocks/main/application'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { afterEach, beforeEach, describe, expect, it, type MockInstance, vi } from 'vitest'
 
+import { agentSessionTable } from '@data/db/schemas/agentSession'
+import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
+import { agentSessionContextService as contexts } from '@data/services/AgentSessionContextService'
 import type * as ForkDataModule from '@data/services/AgentSessionForkService'
+import type * as SessionMessageModule from '@data/services/AgentSessionMessageService'
+import type * as SessionModule from '@data/services/AgentSessionService'
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
+import type * as UsageRecordModule from '@data/services/AiUsageRecordService'
 import type { AgentSessionForkResources } from '@main/ai/agentSession/fork/resources'
 import { PiForkCheckpointSchema } from '@main/ai/runtime/pi/forkCheckpoint'
 import type { AgentRuntimeConnection, AgentRuntimeEvent } from '@main/ai/runtime/types'
 import type { StreamDoneResult, StreamErrorResult, StreamPausedResult } from '@main/ai/streamManager'
+import { AiStreamManager } from '@main/ai/streamManager/AiStreamManager'
+import { MessageRuntimeTimingCollector } from '@main/ai/streamManager/MessageRuntimeTimingCollector'
 import { BaseService } from '@main/core/lifecycle/BaseService'
 import { AGENT_SESSION_API_RETRY_CACHE_KEY } from '@shared/ai/agentSessionApiRetry'
 
 import type { AgentRuntimeConnectInput, AgentRuntimeUserInput } from '../../runtime/types'
 import type * as ForkResourcesModule from '../fork/resources'
+import { RootMessageProjection } from '../RootMessageProjection'
 
 vi.mock('../recoverSessionDeliveries', () => ({ recoverSessionDeliveries: vi.fn(() => new Set()) }))
 
@@ -27,7 +37,7 @@ const mocks = vi.hoisted(() => ({
   saveMessage: vi.fn(),
   replaceMessageParts: vi.fn(),
   getSessionMessage: vi.fn(),
-  hasSessionMessage: vi.fn(() => true),
+  hasSessionMessage: vi.fn<(_sessionId: string, _messageId: string) => boolean>(() => true),
   applyToolApprovalDecision: vi.fn(),
   retireAbandonedApproval: vi.fn(),
   getLastRuntimeResumeToken: vi.fn(),
@@ -49,6 +59,7 @@ const mocks = vi.hoisted(() => ({
   pauseRuntimeTurn: vi.fn(),
   broadcastTopicError: vi.fn(),
   resolveToolApproval: vi.fn(),
+  retireToolApproval: vi.fn(),
   terminateHeldTopicStream: vi.fn(),
   cacheSetShared: vi.fn(),
   cacheGetShared: vi.fn(),
@@ -96,12 +107,15 @@ vi.mock('../relocateSystemWorkspaces', () => ({
   relocateSystemWorkspaces: mocks.relocateSystemWorkspaces
 }))
 
-vi.mock('@data/services/AgentSessionService', () => ({
-  agentSessionService: {
-    getById: mocks.getSessionById,
-    ensureTraceId: mocks.ensureTraceId
+vi.mock('@data/services/AgentSessionService', async (importOriginal) => {
+  const actual = await importOriginal<typeof SessionModule>()
+  return {
+    agentSessionService: Object.assign(Object.create(actual.agentSessionService), {
+      getById: mocks.getSessionById,
+      ensureTraceId: mocks.ensureTraceId
+    })
   }
-}))
+})
 
 vi.mock('@data/services/AgentService', () => ({
   agentService: { getAgent: mocks.getAgent, onAgentUpdated: () => () => {} }
@@ -130,9 +144,15 @@ vi.mock('@data/services/AgentSessionMessageService', () => ({
   }
 }))
 
-vi.mock('@data/services/AiUsageRecordService', () => ({
-  aiUsageRecordService: { recordInvocation: mocks.recordUsage }
-}))
+vi.mock('@data/services/AiUsageRecordService', async (importOriginal) => {
+  const actual = await importOriginal<typeof UsageRecordModule>()
+  return {
+    ...actual,
+    aiUsageRecordService: Object.assign(Object.create(actual.aiUsageRecordService), {
+      recordInvocation: mocks.recordUsage
+    })
+  }
+})
 
 vi.mock('@main/ai/utils/usageCapture', () => ({
   createAiUsageCaptureContext: (input: unknown) => input
@@ -571,6 +591,7 @@ describe('AgentSessionRuntimeService', () => {
           pauseRuntimeTurn: mocks.pauseRuntimeTurn,
           broadcastTopicError: mocks.broadcastTopicError,
           resolveToolApproval: mocks.resolveToolApproval,
+          retireToolApproval: mocks.retireToolApproval,
           terminateHeldTopicStream: mocks.terminateHeldTopicStream
         }
       }
@@ -2904,6 +2925,43 @@ describe('AgentSessionRuntimeService', () => {
       await service.closeSession('session-1')
     })
 
+    it('retains the tool input when an approval arrives before its message projection', () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      const enqueue = vi.fn()
+      const control = vi.fn()
+      const parts = vi.fn(() => undefined)
+      entry.currentTurn.controller = { enqueue } as never
+      entry.currentTurn.projection = { control, parts, toolCallMessageId: () => 'assistant-1' } as never
+      entry.runtimeState.execution.reply.delivery = { kind: 'open' }
+
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'tool-approval-request',
+        request: {
+          approvalId: 'approval-live',
+          toolCallId: 'tool-call-live',
+          toolName: 'AskUserQuestion',
+          input: { questions: [{ question: 'Choose a database' }] },
+          presentation: 'stream'
+        }
+      })
+
+      expect(control).toHaveBeenNthCalledWith(1, 'assistant-1', {
+        type: 'tool-input-available',
+        toolCallId: 'tool-call-live',
+        toolName: 'AskUserQuestion',
+        input: { questions: [{ question: 'Choose a database' }] },
+        providerExecuted: true,
+        dynamic: true
+      })
+      expect(control).toHaveBeenNthCalledWith(2, 'assistant-1', {
+        type: 'tool-approval-request',
+        approvalId: 'approval-live',
+        toolCallId: 'tool-call-live'
+      })
+    })
+
     it('remembers whether the turn that spawned background work had an interactive responder', async () => {
       const interactive = new AgentSessionRuntimeService()
       interactive.beginTurn(baseTurnInput)
@@ -3043,6 +3101,249 @@ describe('AgentSessionRuntimeService', () => {
         title: 'Create worktree',
         taskType: 'local_bash',
         summary: 'long prose…'
+      })
+    })
+
+    describe('terminal task approval retirement', () => {
+      const dbh = setupTestDatabase()
+      it.each([
+        ['completed', false],
+        ['stopped', false],
+        ['error', false],
+        ['completed', true]
+      ] as const)('retires merged %s evidence only for its owning reply (ambiguous: %s)', async (status, ambiguous) => {
+        const { agentSessionMessageService: realMessages } = await vi.importActual<typeof SessionMessageModule>(
+          '@data/services/AgentSessionMessageService'
+        )
+        mocks.replaceMessageParts.mockImplementation(realMessages.replaceMessageParts.bind(realMessages))
+        mocks.getSessionMessage.mockImplementation(realMessages.getSessionMessage.bind(realMessages))
+        mocks.hasSessionMessage.mockImplementation(realMessages.hasSessionMessage.bind(realMessages))
+        dbh.db
+          .insert(agentWorkspaceTable)
+          .values({ id: 'workspace-1', name: 'Work', type: 'user', path: '/test/work', orderKey: 'a0' })
+          .run()
+        dbh.db
+          .insert(agentSessionTable)
+          .values({ id: 'session-1', workspaceId: 'workspace-1', name: 'Session', orderKey: 'a0' })
+          .run()
+        const backend = contexts.ensureBackendTx(
+          dbh.db,
+          { version: 1, kind: 'claude-code', configDir: '/test/claude' },
+          'bound'
+        )
+        const context = contexts.reserveBranchTx(dbh.db, {
+          sessionId: 'session-1',
+          backendId: backend.id,
+          anchorMessageId: 'root'
+        })
+        const messageId = realMessages.saveMessage({
+          sessionId: 'session-1',
+          message: {
+            role: 'assistant',
+            status: 'pending',
+            data: { parts: [] }
+          }
+        }).id
+        const projection = new RootMessageProjection(context.id)
+        const service = new AgentSessionRuntimeService()
+        service.beginTurn({ ...baseTurnInput, assistantMessageId: messageId })
+        const entry = getEntry(service)
+        const connection = { contextId: context.id, close: vi.fn(), send: vi.fn(), events: [] }
+        entry.connection = connection
+        entry.persistedMessageIds = new Set([messageId])
+        entry.rootProjections = new Map([[context.id, projection]])
+        projection.accept(
+          {
+            contextId: context.id,
+            messages: [{ id: 'native', role: 'assistant', parts: [{ type: 'text', text: 'Running' }] }],
+            live: ['native'],
+            removed: [],
+            replaces: {}
+          },
+          messageId
+        )
+        const manager = new AiStreamManager()
+        const execution = {
+          anchorMessageId: messageId,
+          attemptId: 0,
+          sequence: 0,
+          buffer: [],
+          droppedChunks: 0,
+          pendingApprovalToolCallIds: new Set<string>(),
+          runtimeTiming: new MessageRuntimeTimingCollector()
+        }
+        ;(manager as any).activeStreams.set(entry.topicId, {
+          status: 'streaming',
+          executions: new Map([['p::model', execution]]),
+          listeners: new Map([
+            [
+              'test',
+              {
+                isAlive: () => true,
+                onChunk: (chunk: Parameters<RootMessageProjection['control']>[1]) =>
+                  projection.control(messageId, chunk)
+              }
+            ]
+          ]),
+          lifecycle: { onApprovalPendingChanged: () => {} }
+        })
+        for (const toolCallId of ['A', 'B']) {
+          manager.onChunk(entry.topicId, 'p::model', {
+            type: 'tool-input-available',
+            toolCallId,
+            toolName: 'Bash',
+            input: {}
+          })
+          manager.onChunk(entry.topicId, 'p::model', {
+            type: 'tool-approval-request',
+            toolCallId,
+            approvalId: toolCallId
+          })
+        }
+        realMessages.replaceMessageParts('session-1', messageId, projection.parts(messageId))
+        mocks.retireToolApproval.mockImplementation(((...args: unknown[]) => {
+          const forward = (manager as unknown as { retireToolApproval?: (...a: unknown[]) => boolean })
+            .retireToolApproval
+          return forward ? forward.apply(manager, args) : undefined
+        }) as never)
+        const store: Record<string, any> = {}
+        mocks.cacheSetShared.mockImplementation((key, value) => {
+          store[key] = value
+        })
+        mocks.cacheGetShared.mockImplementation((key) => store[key])
+        const send = (data: Record<string, unknown>) =>
+          (service as any).handleRuntimeEvent(entry, {
+            type: 'background-task-event',
+            data: { event: 'notification', taskId: 'bg', ...data }
+          })
+        const unchanged = () => {
+          expect(execution.pendingApprovalToolCallIds).toEqual(new Set(['A', 'B']))
+          expect(projection.parts(messageId)).toContainEqual(
+            expect.objectContaining({ toolCallId: 'A', state: 'approval-requested' })
+          )
+        }
+        send({ toolUseId: 'A' })
+        unchanged()
+        send({ status: 'pending', toolUseId: 'A' })
+        unchanged()
+        send({ status: 'in_progress' })
+        unchanged()
+        send({ taskId: 'missing', status })
+        unchanged()
+        send({ status, toolUseId: 'unknown' })
+        unchanged()
+        ;(service as any).publishBackgroundTaskEvent(
+          entry,
+          { event: 'notification', taskId: 'bg', status, toolUseId: 'A' },
+          { ...connection }
+        )
+        unchanged()
+        send({ status: 'in_progress', toolUseId: 'A' })
+        unchanged()
+        if (ambiguous) {
+          const otherContext = contexts.reserveBranchTx(dbh.db, {
+            sessionId: 'session-1',
+            backendId: backend.id,
+            anchorMessageId: 'other-root'
+          })
+          const otherMessageId = realMessages.saveMessage({
+            sessionId: 'session-1',
+            message: {
+              role: 'assistant',
+              status: 'pending',
+              data: { parts: [] }
+            }
+          }).id
+          const other = new RootMessageProjection(otherContext.id)
+          other.accept(
+            {
+              contextId: otherContext.id,
+              messages: [{ id: 'other-native', role: 'assistant', parts: [{ type: 'text', text: 'Other' }] }],
+              live: ['other-native'],
+              removed: [],
+              replaces: {}
+            },
+            otherMessageId
+          )
+          other.control(otherMessageId, {
+            type: 'tool-input-available',
+            toolCallId: 'A',
+            toolName: 'Bash',
+            input: {}
+          })
+          other.control(otherMessageId, {
+            type: 'tool-approval-request',
+            toolCallId: 'A',
+            approvalId: 'other-A'
+          })
+          entry.rootProjections.set(otherContext.id, other)
+          send({ status })
+          unchanged()
+          expect(other.parts(otherMessageId)).toContainEqual(
+            expect.objectContaining({ toolCallId: 'A', state: 'approval-requested' })
+          )
+          expect(realMessages.getSessionMessage('session-1', messageId).data.parts).toContainEqual(
+            expect.objectContaining({ toolCallId: 'A', state: 'approval-requested' })
+          )
+          return
+        }
+        send({ status })
+        const persisted = realMessages.getSessionMessage('session-1', messageId).data.parts!
+        const retired = persisted.find((part) => 'toolCallId' in part && part.toolCallId === 'A')
+        expect(retired).toMatchObject({ state: 'input-available' })
+        expect((retired as any).approval).toBeUndefined()
+        expect(persisted).toContainEqual(
+          expect.objectContaining({ toolCallId: 'B', state: 'approval-requested', approval: { id: 'B' } })
+        )
+        expect(execution.pendingApprovalToolCallIds).toEqual(new Set(['B']))
+        expect(projection.parts(messageId)).toContainEqual(
+          expect.objectContaining({ toolCallId: 'A', state: 'input-available' })
+        )
+        expect(projection.parts(messageId)).toContainEqual(
+          expect.objectContaining({ toolCallId: 'B', state: 'approval-requested', approval: { id: 'B' } })
+        )
+        projection.control(messageId, {
+          type: 'tool-approval-request',
+          toolCallId: 'A',
+          approvalId: 'A-new'
+        })
+        manager.onChunk(entry.topicId, 'p::model', {
+          type: 'tool-approval-request',
+          toolCallId: 'A',
+          approvalId: 'A-new'
+        })
+        send({ status })
+        expect(execution.pendingApprovalToolCallIds).toEqual(new Set(['B']))
+        expect(realMessages.getSessionMessage('session-1', messageId).data.parts).toContainEqual(
+          expect.objectContaining({ toolCallId: 'A', state: 'input-available' })
+        )
+        expect(
+          (
+            realMessages
+              .getSessionMessage('session-1', messageId)
+              .data.parts!.find((part) => 'toolCallId' in part && part.toolCallId === 'A') as any
+          ).approval
+        ).toBeUndefined()
+        ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
+        service.markTurnTerminal('session-1', 'success')
+        projection.accept(
+          {
+            contextId: context.id,
+            messages: [{ id: 'latest-native', role: 'assistant', parts: [{ type: 'text', text: 'Latest reply' }] }],
+            live: ['latest-native'],
+            removed: [],
+            replaces: {}
+          },
+          'latest-reply'
+        )
+        expect(projection.lastMessageId).toBe('latest-reply')
+        ;(service as any).handleRuntimeEvent(entry, {
+          type: 'autonomous-turn-state',
+          state: 'started',
+          origin: { kind: 'background-work' },
+          sourceToolCallIds: ['B']
+        })
+        expect(entry.currentTurn.assistantMessageId).toBe(messageId)
       })
     })
 
