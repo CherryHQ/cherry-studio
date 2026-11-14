@@ -13,7 +13,8 @@ import type { ResourceCreateWizardFormValues, ResourceCreateWizardKind } from '.
 
 const autoConfigure = vi.hoisted(() => ({
   ready: true,
-  generate: vi.fn<(input: { purpose: string; name: string; signal: AbortSignal }) => Promise<unknown>>()
+  generate: vi.fn<(input: { purpose: string; name: string; signal: AbortSignal }) => Promise<unknown>>(),
+  installFeaturedMcpServers: vi.fn<(ids: string[]) => Promise<string[]>>()
 }))
 
 const modelHook = vi.hoisted(() => ({
@@ -96,7 +97,11 @@ vi.mock('../steps/BasicInfoStep', () => ({ BasicInfoStep: StepHarness }))
 // The entry shares the basic step's fields (one form), so it gets the same harness.
 vi.mock('../steps/AutoCreateEntry', () => ({ AutoCreateEntry: StepHarness }))
 vi.mock('@renderer/hooks/resourceCatalog', () => ({
-  useResourceAutoConfigure: () => ({ ready: autoConfigure.ready, generate: autoConfigure.generate })
+  useResourceAutoConfigure: () => ({
+    ready: autoConfigure.ready,
+    generate: autoConfigure.generate,
+    installFeaturedMcpServers: autoConfigure.installFeaturedMcpServers
+  })
 }))
 vi.mock('../steps/SystemPromptStep', () => ({
   SystemPromptStep: ({ form }: { form: ReactHookForm.UseFormReturn<ResourceCreateWizardFormValues> }) => (
@@ -310,6 +315,7 @@ afterEach(() => {
   modelHook.unavailableModelIds.clear()
   autoConfigure.ready = true
   autoConfigure.generate.mockReset()
+  autoConfigure.installFeaturedMcpServers.mockReset()
 })
 
 describe('ResourceCreateWizard', () => {
@@ -796,6 +802,7 @@ describe('ResourceCreateWizard auto create', () => {
     // Generation needs a default model; keeping it out of the selector leaves the model field to each test.
     modelHook.defaultModel = makeModel()
     modelHook.unavailableModelIds.add('provider::default')
+    autoConfigure.installFeaturedMcpServers.mockImplementation(async (ids) => ids)
   })
 
   it.each(['assistant', 'agent'] as const)(
@@ -1036,6 +1043,59 @@ describe('ResourceCreateWizard auto create', () => {
         enableWebSearch: false
       })
     )
+  })
+
+  it('installs a picked featured MCP server before creating, and sends its new server ID', async () => {
+    const user = userEvent.setup()
+    const onSubmit = vi.fn()
+    autoConfigure.generate.mockResolvedValue({ ...generated, mcpServerIds: ['mcp-github', 'preset:fetch'] })
+    autoConfigure.installFeaturedMcpServers.mockImplementation(async (ids) => {
+      expect(onSubmit).not.toHaveBeenCalled()
+      return ids.map((id) => (id === 'preset:fetch' ? 'mcp-fetch-new' : id))
+    })
+    render(
+      <ResourceCreateWizard
+        kind="agent"
+        open
+        onOpenChange={vi.fn()}
+        onStartConversation={vi.fn()}
+        onSubmit={onSubmit}
+      />
+    )
+
+    await describePurpose(user)
+    await user.click(screen.getByRole('button', { name: 'fill model' }))
+    await user.click(screen.getByRole('button', { name: AUTO }))
+
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1))
+    expect(autoConfigure.installFeaturedMcpServers).toHaveBeenCalledTimes(1)
+    expect(onSubmit.mock.calls[0][0].mcpServerIds).toEqual(['mcp-github', 'mcp-fetch-new'])
+  })
+
+  it('creates nothing and keeps the entry when a featured MCP server fails to install', async () => {
+    const user = userEvent.setup()
+    const onSubmit = vi.fn()
+    autoConfigure.generate.mockResolvedValue({ ...generated, mcpServerIds: ['preset:fetch'] })
+    autoConfigure.installFeaturedMcpServers.mockRejectedValue(new Error('npm offline'))
+    render(
+      <ResourceCreateWizard
+        kind="agent"
+        open
+        onOpenChange={vi.fn()}
+        onStartConversation={vi.fn()}
+        onSubmit={onSubmit}
+      />
+    )
+
+    await describePurpose(user)
+    await user.click(screen.getByRole('button', { name: 'fill model' }))
+    await user.click(screen.getByRole('button', { name: AUTO }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('npm offline')
+    expect(onSubmit).not.toHaveBeenCalled()
+    expect(screen.getByRole('textbox', { name: 'draft name' })).toHaveValue('')
+    expect(screen.getByRole('textbox', { name: 'draft description' })).toHaveValue('Review my GitHub PRs')
+    expect(screen.getByRole('button', { name: MANUAL })).toBeEnabled()
   })
 
   it('cannot be closed once the generated resource is being created', async () => {

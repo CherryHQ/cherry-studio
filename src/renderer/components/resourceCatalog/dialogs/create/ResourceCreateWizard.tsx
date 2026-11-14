@@ -12,7 +12,7 @@ import { useResourceAutoConfigure } from '@renderer/hooks/resourceCatalog'
 import { useDefaultModel, useModels } from '@renderer/hooks/useModel'
 import { useProviderById } from '@renderer/hooks/useProvider'
 import type { ResourceEditDialogTarget } from '@renderer/types/resourceCatalog'
-import { getErrorMessage } from '@renderer/utils/error'
+import { formatErrorMessageWithPrefix, getErrorMessage } from '@renderer/utils/error'
 import type { AutoConfigDraft } from '@renderer/utils/resourceCatalog'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import type { UniqueModelId } from '@shared/data/types/model'
@@ -109,7 +109,7 @@ function applyAutoConfigDraft(
   }
 }
 
-type GenerateAutoConfig = ReturnType<typeof useResourceAutoConfigure>['generate']
+type AutoConfigure = Pick<ReturnType<typeof useResourceAutoConfigure>, 'generate' | 'installFeaturedMcpServers'>
 
 /**
  * Entry footer — gates Auto create on purpose + model and owns the catalog queries, in a leaf
@@ -126,10 +126,10 @@ function EntryFooter({
   form: UseFormReturn<ResourceCreateWizardFormValues>
   isSubmitting: boolean
   onManual: () => void
-  onAuto: (generate: GenerateAutoConfig) => void
+  onAuto: (autoConfigure: AutoConfigure) => void
 }) {
   const { t } = useTranslation()
-  const { ready: catalogsReady, generate } = useResourceAutoConfigure(kind)
+  const { ready: catalogsReady, generate, installFeaturedMcpServers } = useResourceAutoConfigure(kind)
   const [purpose, modelId] = useWatch({ control: form.control, name: ['description', 'modelId'] })
   const busy = isSubmitting || form.formState.isSubmitting
   const rootError = form.formState.errors.root?.message
@@ -145,7 +145,12 @@ function EntryFooter({
       <Button type="button" variant="outline" disabled={busy} onClick={onManual}>
         {t('library.config.dialogs.create.auto.manual')}
       </Button>
-      <Button type="button" variant="emphasis" loading={busy} disabled={!canAuto} onClick={() => onAuto(generate)}>
+      <Button
+        type="button"
+        variant="emphasis"
+        loading={busy}
+        disabled={!canAuto}
+        onClick={() => onAuto({ generate, installFeaturedMcpServers })}>
         {busy ? null : <Sparkles className="size-3.5" />}
         {busy ? t('library.config.dialogs.create.auto.configuring') : t('library.config.dialogs.create.auto.submit')}
       </Button>
@@ -425,7 +430,7 @@ export function ResourceCreateWizard({
   // Closing (or hiding) the dialog cancels an in-flight generation.
   useEffect(() => () => autoAbortRef.current?.abort(), [open])
 
-  const handleAutoCreate = async (generate: GenerateAutoConfig) => {
+  const handleAutoCreate = async ({ generate, installFeaturedMcpServers }: AutoConfigure) => {
     const values = form.getValues()
     if (!values.modelId || !values.description.trim()) return
     if (!defaultModel && !isDefaultModelLoading) {
@@ -467,13 +472,19 @@ export function ResourceCreateWizard({
     const generated = draft
     let createdResource = false
     await form.handleSubmit(async (current) => {
-      createdResource = await submitValues(
-        {
-          ...current,
-          ...applyAutoConfigDraft(current, generated, current.avatar !== form.formState.defaultValues?.avatar)
-        },
-        true
-      )
+      const merged = {
+        ...current,
+        ...applyAutoConfigDraft(current, generated, current.avatar !== form.formState.defaultValues?.avatar)
+      }
+      // Featured MCP servers are installed before anything is created, so a failed install creates nothing.
+      let mcpServerIds: string[]
+      try {
+        mcpServerIds = await installFeaturedMcpServers(merged.mcpServerIds)
+      } catch (error) {
+        form.setError('root', { message: formatErrorMessageWithPrefix(error, t('settings.mcp.addError')) })
+        return
+      }
+      createdResource = await submitValues({ ...merged, mcpServerIds }, true)
     })()
     if (!createdResource) setView('entry')
   }
@@ -547,7 +558,7 @@ export function ResourceCreateWizard({
                       }
                       setView('steps')
                     }}
-                    onAuto={(generate) => void handleAutoCreate(generate)}
+                    onAuto={(autoConfigure) => void handleAutoCreate(autoConfigure)}
                   />
                 </>
               ) : view === 'working' ? (

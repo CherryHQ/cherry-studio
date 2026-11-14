@@ -65,7 +65,6 @@ import {
   EditDialogShell,
   type EditDialogTab,
   FieldLabelWithHelp,
-  KnowledgeBaseField,
   type ModelLabels,
   PromptVariablesPopover,
   setFormValues,
@@ -73,7 +72,8 @@ import {
   useDebouncedAutoSave
 } from '../components/EditDialogShared'
 import { GroupSelector } from '../components/GroupSelector'
-import { McpServerCatalogGrid } from '../components/McpServerCatalogGrid'
+import { KnowledgeCapabilityList } from '../components/KnowledgeCapabilityList'
+import { McpCapabilityList } from '../components/McpCapabilityList'
 import { PromptBindingTab } from '../components/PromptBindingTab'
 import { PromptPolishActions } from '../components/PromptPolishActions'
 
@@ -458,9 +458,11 @@ function AssistantEditDialogContent({
             ) : activeTab === 'tools.mcp' ? (
               <AssistantToolsFields form={form} portalContainer={dialogContentElement} />
             ) : (
-              <div className="grid gap-4">
-                <KnowledgeBaseField form={form} portalContainer={dialogContentElement} />
-              </div>
+              <KnowledgeCapabilityList
+                selectedIds={values.knowledgeBaseIds}
+                onSelectedIdsChange={(ids) => form.setValue('knowledgeBaseIds', ids, { shouldDirty: true })}
+                portalContainer={dialogContentElement}
+              />
             )}
           </TabsContent>
         ) : null}
@@ -675,14 +677,6 @@ function AssistantToolsFields({
   const mcpServerIds = form.watch('mcpServerIds')
   const mcpModeLabel = t('library.config.basic.mcp_mode')
 
-  const enabledIds = useMemo(() => new Set(mcpServerIds), [mcpServerIds])
-  const toggleMcpServer = (id: string, enabled: boolean) =>
-    form.setValue(
-      'mcpServerIds',
-      enabled ? Array.from(new Set([...mcpServerIds, id])) : mcpServerIds.filter((serverId) => serverId !== id),
-      { shouldDirty: true }
-    )
-
   return (
     <div className="grid gap-4">
       <FormField
@@ -717,10 +711,9 @@ function AssistantToolsFields({
           name="mcpServerIds"
           render={() => (
             <FormItem>
-              <McpServerCatalogGrid
-                title={t('library.config.tools.added')}
-                enabledIds={enabledIds}
-                onToggle={toggleMcpServer}
+              <McpCapabilityList
+                selectedIds={mcpServerIds}
+                onSelectedIdsChange={(ids) => form.setValue('mcpServerIds', ids, { shouldDirty: true })}
                 emptyLabel={t('library.config.tools.empty_title')}
                 portalContainer={portalContainer}
               />
