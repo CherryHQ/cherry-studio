@@ -1,7 +1,7 @@
 import dayjs from 'dayjs'
 import { FolderOpen, RefreshCw, Save } from 'lucide-react'
 import type { FC } from 'react'
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button, Input, RowFlex, Switch, WarnTooltip } from '@cherrystudio/ui'
@@ -44,10 +44,6 @@ const WebDavSettings: FC = () => {
   const { t } = useTranslation()
 
   const webdavSync = useBackupSyncState('webdav')
-  const webdavSyncError = useMemo(
-    () => (webdavSync.lastSyncError ? new Error(webdavSync.lastSyncError) : null),
-    [webdavSync.lastSyncError]
-  )
 
   const onSyncIntervalChange = async (value: number) => {
     await setWebdavSyncInterval(value)
@@ -76,14 +72,14 @@ const WebDavSettings: FC = () => {
     return (
       <RowFlex className="items-center gap-1.25">
         {webdavSync.syncing && <RefreshCw className="animate-spin" size={14} />}
-        {!webdavSync.syncing && webdavSyncError && (
+        {!webdavSync.syncing && webdavSync.lastSyncError && (
           <>
             <WarnTooltip
               content={`${t('settings.data.webdav.syncError')}: ${webdavSync.lastSyncError}`}
               iconProps={{ color: 'var(--error)' }}
             />
             <ErrorDetailAction
-              error={webdavSyncError}
+              error={webdavSync.lastSyncError}
               message={t('settings.data.webdav.syncError')}
               source="settings.data.webdav"
               operation="backup.sync"

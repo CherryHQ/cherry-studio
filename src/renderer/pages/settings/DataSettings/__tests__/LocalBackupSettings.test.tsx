@@ -5,13 +5,11 @@ import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import i18n from '@renderer/i18n/resolver'
+import type { AppErrorDetailRequest } from '@renderer/services/AppErrorDetailService'
 import { setBackupSyncState } from '@renderer/services/BackupService'
 import { toast } from '@renderer/services/toast'
 
 const detailMocks = vi.hoisted(() => ({ open: vi.fn() }))
-vi.mock('@renderer/services/AppErrorDetailService', () => ({
-  buildInlineErrorDetailRequest: (input: unknown) => input
-}))
 vi.mock('@renderer/services/appErrorDetailOpen', () => ({
   openLoadedErrorDetail: (request: unknown) => detailMocks.open(request),
   showDetailOpenFailed: vi.fn()
@@ -33,6 +31,11 @@ vi.mock('@renderer/components/LocalBackupModals', () => ({
 vi.mock('@renderer/components/Selector', () => ({ default: () => null }))
 
 import LocalBackupSettings from '../LocalBackupSettings'
+
+function lastDetailRequest(): AppErrorDetailRequest {
+  const [request] = detailMocks.open.mock.lastCall ?? []
+  return request
+}
 
 const appInfo = {
   version: 'test',
@@ -99,25 +102,24 @@ describe('LocalBackupSettings', () => {
     )
     fireEvent.click(screen.getByRole('button', { name: i18n.t('common.detail') }))
     await waitFor(() => expect(detailMocks.open).toHaveBeenCalled())
-    const first = detailMocks.open.mock.calls.at(-1)?.[0]
-    expect(first.localizedErrorMessage ?? first.message).toBe(i18n.t('settings.data.local.syncError'))
-    expect(first.error.message).toBe('disk full')
-    expect(first.context?.source ?? first.source).toBe('settings.data.local')
-    expect(first.context?.operation ?? first.operation).toBe('backup.sync')
+    const first = lastDetailRequest()
+    expect(first.localizedErrorMessage).toBe(i18n.t('settings.data.local.syncError'))
+    expect(first.context.message).toBe('disk full')
+    expect(first.context.stack).toBeUndefined()
+    expect(first.context.source).toBe('settings.data.local')
+    expect(first.context.operation).toBe('backup.sync')
 
     detailMocks.open.mockClear()
     rerender(<LocalBackupSettings />)
     fireEvent.click(screen.getByRole('button', { name: i18n.t('common.detail') }))
     await waitFor(() => expect(detailMocks.open).toHaveBeenCalled())
-    const again = detailMocks.open.mock.calls.at(-1)?.[0]
-    expect(again.error.message).toBe('disk full')
-    expect(again.localizedErrorMessage ?? again.message).toBe(first.localizedErrorMessage ?? first.message)
+    expect(lastDetailRequest().context.id).toBe(first.context.id)
 
     setBackupSyncState('local', { lastSyncError: 'permission denied' })
     rerender(<LocalBackupSettings />)
     detailMocks.open.mockClear()
     fireEvent.click(screen.getByRole('button', { name: i18n.t('common.detail') }))
-    await waitFor(() => expect(detailMocks.open.mock.calls.at(-1)?.[0].error.message).toBe('permission denied'))
-    expect(detailMocks.open.mock.calls.at(-1)?.[0]).not.toBe(first)
+    await waitFor(() => expect(lastDetailRequest()?.context.message).toBe('permission denied'))
+    expect(lastDetailRequest().context.id).not.toBe(first.context.id)
   })
 })

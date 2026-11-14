@@ -101,7 +101,7 @@ const PopupContainer: React.FC<Props> = ({ open, resolve, source }) => {
         resolve({})
       } else {
         const detail = result.error?.trim()
-        toastAppError(t(translations.unknownError), detail ? new Error(detail) : result, {
+        toastAppError(t(translations.unknownError), detail || result, {
           source: 'settings.import',
           operation: `import.${source}`
         })

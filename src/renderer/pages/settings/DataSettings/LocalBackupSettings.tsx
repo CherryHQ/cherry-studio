@@ -1,6 +1,6 @@
 import dayjs from 'dayjs'
 import { FolderOpen, RefreshCw, Save, Trash2 } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button, Input, RowFlex, Switch, WarnTooltip } from '@cherrystudio/ui'
@@ -59,10 +59,6 @@ const LocalBackupSettings: React.FC = () => {
   const { t } = useTranslation()
 
   const localBackupSync = useBackupSyncState('local')
-  const localSyncError = useMemo(
-    () => (localBackupSync.lastSyncError ? new Error(localBackupSync.lastSyncError) : null),
-    [localBackupSync.lastSyncError]
-  )
 
   const onSyncIntervalChange = async (value: number) => {
     await setLocalBackupSyncInterval(value)
@@ -165,14 +161,14 @@ const LocalBackupSettings: React.FC = () => {
     return (
       <RowFlex className="items-center gap-1.25">
         {localBackupSync.syncing && <RefreshCw className="animate-spin" size={14} />}
-        {!localBackupSync.syncing && localSyncError && (
+        {!localBackupSync.syncing && localBackupSync.lastSyncError && (
           <>
             <WarnTooltip
               content={`${t('settings.data.local.syncError')}: ${localBackupSync.lastSyncError}`}
               iconProps={{ style: { color: 'var(--error)' } }}
             />
             <ErrorDetailAction
-              error={localSyncError}
+              error={localBackupSync.lastSyncError}
               message={t('settings.data.local.syncError')}
               source="settings.data.local"
               operation="backup.sync"

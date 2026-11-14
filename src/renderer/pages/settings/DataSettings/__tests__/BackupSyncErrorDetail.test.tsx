@@ -3,13 +3,11 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import i18n from '@renderer/i18n/resolver'
+import type { AppErrorDetailRequest } from '@renderer/services/AppErrorDetailService'
 import { setBackupSyncState } from '@renderer/services/BackupService'
 
 const detailMocks = vi.hoisted(() => ({ open: vi.fn() }))
 
-vi.mock('@renderer/services/AppErrorDetailService', () => ({
-  buildInlineErrorDetailRequest: (input: unknown) => input
-}))
 vi.mock('@renderer/services/appErrorDetailOpen', () => ({
   openLoadedErrorDetail: (request: unknown) => detailMocks.open(request),
   showDetailOpenFailed: vi.fn()
@@ -58,28 +56,23 @@ import NutstoreSettings from '../NutstoreSettings'
 import S3Settings from '../S3Settings'
 import WebDavSettings from '../WebDavSettings'
 
-function readDetail(request: {
-  message?: string
-  localizedErrorMessage?: string
-  source?: string
-  operation?: string
-  recordId?: string
-  error?: { message?: string | null }
-  context?: { source?: string; operation?: string; recordId?: string; message?: string }
-}) {
-  return {
-    localized: request.localizedErrorMessage ?? request.message,
-    cause: request.error?.message,
-    source: request.context?.source ?? request.source,
-    operation: request.context?.operation ?? request.operation,
-    recordId: request.context?.recordId ?? request.recordId
-  }
-}
-
-async function openDetail() {
+async function openRequest(): Promise<AppErrorDetailRequest> {
   fireEvent.click(screen.getByRole('button', { name: i18n.t('common.detail') }))
   await waitFor(() => expect(detailMocks.open).toHaveBeenCalled())
-  return readDetail(detailMocks.open.mock.calls.at(-1)?.[0])
+  return detailMocks.open.mock.calls.at(-1)?.[0]
+}
+
+// A stored sync reason has no stack; a renderer-side Error wrapper would fabricate one.
+async function openDetail() {
+  const request = await openRequest()
+  return {
+    localized: request.localizedErrorMessage,
+    cause: request.context.message,
+    stack: request.context.stack,
+    source: request.context.source,
+    operation: request.context.operation,
+    recordId: request.context.recordId
+  }
 }
 
 describe('backup sync error details', () => {
@@ -109,17 +102,18 @@ describe('backup sync error details', () => {
     expect(screen.getByTestId('warn-tooltip')).toHaveTextContent(
       `${i18n.t('settings.data.webdav.syncError')}: unauthorized`
     )
-    const first = await openDetail()
-    expect(first).toEqual({
+    expect(await openDetail()).toEqual({
       localized: i18n.t('settings.data.webdav.syncError'),
       cause: 'unauthorized',
+      stack: undefined,
       source: 'settings.data.webdav',
       operation: 'backup.sync',
       recordId: undefined
     })
+    const first = detailMocks.open.mock.calls.at(-1)?.[0] as AppErrorDetailRequest
     detailMocks.open.mockClear()
     rerender(<WebDavSettings />)
-    expect(await openDetail()).toEqual(first)
+    expect((await openRequest()).context.id).toBe(first.context.id)
   })
 
   it('uses the WebDAV caption for Nutstore and isolates its cause', async () => {
@@ -135,6 +129,7 @@ describe('backup sync error details', () => {
     expect(await openDetail()).toEqual({
       localized: i18n.t('settings.data.webdav.syncError'),
       cause: 'quota',
+      stack: undefined,
       source: 'settings.data.nutstore',
       operation: 'backup.sync',
       recordId: undefined
@@ -152,6 +147,7 @@ describe('backup sync error details', () => {
     expect(await openDetail()).toEqual({
       localized: caption,
       cause: 'bucket missing',
+      stack: undefined,
       source: 'settings.data.s3',
       operation: 'backup.sync',
       recordId: undefined

@@ -1,7 +1,7 @@
 import dayjs from 'dayjs'
 import { FolderOpen, RefreshCw, Save } from 'lucide-react'
 import type { FC } from 'react'
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button, InfoTooltip, Input, RowFlex, Switch, WarnTooltip } from '@cherrystudio/ui'
@@ -46,7 +46,6 @@ const S3Settings: FC = () => {
 
   const s3Sync = useBackupSyncState('s3')
   const s3SyncErrorReason = s3Sync?.lastSyncError
-  const s3SyncError = useMemo(() => (s3SyncErrorReason ? new Error(s3SyncErrorReason) : null), [s3SyncErrorReason])
   const s3SyncErrorMessage = s3SyncErrorReason
     ? t('settings.data.s3.syncStatus.error', { message: s3SyncErrorReason })
     : ''
@@ -83,11 +82,11 @@ const S3Settings: FC = () => {
     return (
       <RowFlex className="items-center gap-1.25">
         {s3Sync?.syncing && <RefreshCw className="animate-spin" size={14} />}
-        {!s3Sync?.syncing && s3SyncError && (
+        {!s3Sync?.syncing && s3SyncErrorReason && (
           <>
             <WarnTooltip content={s3SyncErrorMessage} iconProps={{ style: { color: 'var(--error)' } }} />
             <ErrorDetailAction
-              error={s3SyncError}
+              error={s3SyncErrorReason}
               message={s3SyncErrorMessage}
               source="settings.data.s3"
               operation="backup.sync"
