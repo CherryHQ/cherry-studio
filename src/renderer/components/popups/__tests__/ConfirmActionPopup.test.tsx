@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import i18n from '@renderer/i18n/resolver'
+import { appErrorContextService } from '@renderer/services/AppErrorContextService'
 import { createPopup, POPUP_EXIT_MS, popupService } from '@renderer/services/popup'
 
 const { toastError } = vi.hoisted(() => ({ toastError: vi.fn() }))
@@ -119,22 +120,13 @@ describe('ConfirmActionPopup', () => {
     await user.click(screen.getByRole('button', { name: 'Delete' }))
     await act(async () => {})
 
-    expect(toastError).toHaveBeenCalledWith(
-      expect.objectContaining({
-        cause: error,
-        data: expect.objectContaining({
-          errorContext: expect.objectContaining({
-            message: 'boom',
-            operation: 'confirm_action.run',
-            source: 'popup.confirm_action'
-          }),
-          localizedErrorMessage: i18n.t('common.error'),
-          serializedError: expect.objectContaining({ message: 'boom' })
-        }),
-        title: i18n.t('common.error')
-      })
-    )
-    expect(toastError.mock.calls[0]?.[0]).not.toHaveProperty('description')
+    const payload = toastError.mock.calls[0]?.[0]
+    expect(payload).toMatchObject({ title: i18n.t('common.error'), description: 'boom' })
+    expect(appErrorContextService.contextForHostError('confirm-action-failed', payload)).toMatchObject({
+      message: 'boom',
+      operation: 'confirm_action.run',
+      source: 'popup.confirm_action'
+    })
     expect(settled).toBe(false)
     expect(screen.getByRole('button', { name: 'Delete' })).toBeEnabled()
 

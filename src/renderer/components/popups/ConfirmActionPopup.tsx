@@ -13,8 +13,9 @@ import {
   DialogTitle
 } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
-import { toastAppError } from '@renderer/services/AppErrorDetailService'
 import { createPopup, type PopupInjectedProps } from '@renderer/services/popup'
+import { toast } from '@renderer/services/toast'
+import { formatErrorMessage } from '@renderer/utils/error'
 
 export interface ConfirmActionParams {
   title?: React.ReactNode
@@ -61,11 +62,12 @@ const PopupContainer: React.FC<Props> = ({
     try {
       await action()
     } catch (error) {
-      // Keep the dialog open for retry. The toast title is the localized wrapper; the
-      // thrown value stays the cause so details are not the raw string alone.
-      toastAppError(t('common.error'), error, {
-        operation: 'confirm_action.run',
-        source: 'popup.confirm_action'
+      // Keep the dialog open for retry; the thrown value stays the cause for Details.
+      toast.error({
+        title: t('common.error'),
+        description: formatErrorMessage(error),
+        cause: error,
+        data: { source: 'popup.confirm_action', operation: 'confirm_action.run' }
       })
       setLoading(false)
       return
