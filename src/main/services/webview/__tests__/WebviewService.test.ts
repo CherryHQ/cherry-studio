@@ -9,6 +9,7 @@ import { WebSocketServer } from 'ws'
 
 import { application } from '@application'
 import type * as LifecycleModule from '@main/core/lifecycle'
+import { MINI_APP_REGIONS, type MiniAppRegionProfile } from '@shared/types/miniAppRegion'
 import { WEBVIEW_ANNOTATION_BRIDGE_CHANNEL, type WebviewAnnotation } from '@shared/types/webviewAnnotation'
 
 const {
@@ -222,6 +223,80 @@ const input = (documentSessionId: string, annotations: WebviewAnnotation[] = [an
 })
 
 describe('WebviewService request identity', () => {
+  it.each([undefined, MINI_APP_REGIONS.US])(
+    'preserves the Google sign-in identity while application requests match the page UA with profile %s',
+    (profile) => {
+      const service = new WebviewService()
+      ;(
+        service as unknown as { initSessionUserAgent: (guestSession: unknown, profile?: MiniAppRegionProfile) => void }
+      ).initSessionUserAgent(siteSession, profile)
+      const handleRequest = siteSession.webRequest.onBeforeSendHeaders.mock.calls.at(-1)![0]
+      for (const [url, expectedUA] of [
+        ['https://google.com/', 'Browser/1.0'],
+        ['https://accounts.google.com/', 'CherryStudio/1.0 Electron/1.0 Browser/1.0'],
+        ['https://accounts.google.com/v3/signin/identifier', 'CherryStudio/1.0 Electron/1.0 Browser/1.0'],
+        ['https://accounts.google.com/o/oauth2/v2/auth', 'CherryStudio/1.0 Electron/1.0 Browser/1.0'],
+        ['https://aistudio.google.com/', 'Browser/1.0'],
+        [
+          'https://alkalimakersuite-pa.clients6.google.com/$rpc/google.internal.alkali.applications.makersuite.v1.MakerSuiteService/CreateCloudProject',
+          'Browser/1.0'
+        ],
+        ['https://waa-pa.clients6.google.com/$rpc/google.internal.waa.v1.Waa/Create', 'Browser/1.0'],
+        ['https://www.google.com/recaptcha/enterprise.js', 'Browser/1.0'],
+        ['https://generativelanguage.googleapis.com/', 'Browser/1.0'],
+        ['https://ACCOUNTS.GOOGLE.COM/', 'CherryStudio/1.0 Electron/1.0 Browser/1.0'],
+        ['https://example.com/echo?google.com', 'Browser/1.0'],
+        ['https://google.com.example.com/', 'Browser/1.0'],
+        ['https://notgoogle.com/', 'Browser/1.0'],
+        ['https://google.com@example.com/', 'Browser/1.0'],
+        ['https://accounts.google.com.example.com/', 'Browser/1.0'],
+        ['https://example.com/?next=https://accounts.google.com/', 'Browser/1.0'],
+        ['https://accounts.google.com@example.com/', 'Browser/1.0']
+      ]) {
+        let headers: Record<string, string> = {}
+        handleRequest(
+          { url, requestHeaders: { 'User-Agent': 'CherryStudio/1.0 Electron/1.0 Browser/1.0', Accept: '*/*' } },
+          (response: { requestHeaders: Record<string, string> }) => {
+            headers = response.requestHeaders
+          }
+        )
+        expect(headers['User-Agent'], url).toBe(expectedUA)
+        expect(headers.Accept).toBe('*/*')
+        if (profile) expect(headers['Accept-Language']).toBe('en-US,en;q=0.9')
+      }
+      if (!profile) expect(app.userAgentFallback).toBe('Browser/1.0')
+    }
+  )
+
+  it('retains the original Google identity for regional sessions created after the fallback is cleaned', () => {
+    const service = new WebviewService() as unknown as {
+      initSessionUserAgent: (guestSession: unknown, profile?: MiniAppRegionProfile) => void
+    }
+    service.initSessionUserAgent(siteSession)
+    expect(app.userAgentFallback).toBe('Browser/1.0')
+    const regionalSession = {
+      ...siteSession,
+      getUserAgent: () => app.userAgentFallback,
+      webRequest: { onBeforeSendHeaders: vi.fn() }
+    }
+    service.initSessionUserAgent(regionalSession, MINI_APP_REGIONS.SG)
+    const handleRequest = regionalSession.webRequest.onBeforeSendHeaders.mock.calls.at(-1)![0]
+    let headers: Record<string, string> = {}
+    handleRequest(
+      { url: 'https://accounts.google.com/v3/signin/identifier', requestHeaders: { Accept: '*/*' } },
+      (response: { requestHeaders: Record<string, string> }) => {
+        headers = response.requestHeaders
+      }
+    )
+    expect(headers).toEqual({
+      Accept: '*/*',
+      'User-Agent': 'CherryStudio/1.0 Electron/1.0 Browser/1.0',
+      'Accept-Language': 'en-SG,en;q=0.9'
+    })
+  })
+})
+
+describe('WebviewService request identity', () => {
   it.each([
     ['https://accounts.google.com/', 'CherryStudio/1.0 Electron/1.0 Browser/1.0'],
     ['https://accounts.google.com/v3/signin/identifier', 'CherryStudio/1.0 Electron/1.0 Browser/1.0'],
@@ -393,6 +468,36 @@ describe('WebviewService webview ownership', () => {
     expect(guest.listenerCount('did-start-navigation')).toBe(0)
     expect((service as any).preloadBindings.size).toBe(0)
     expect((service as any).annotationSessions.size).toBe(0)
+  })
+
+  it.each(Object.entries(MINI_APP_REGIONS))(
+    'sets the %s renderer language before a regional webview can create shared workers',
+    (country, profile) => {
+      const hostContents = createContents(1, null, { type: 'window' })
+      const partition = `persist:webview-fake:${country}:test`
+      const internals = service as unknown as {
+        attachWebviewPreload: (contents: Electron.WebContents) => void
+        regionalSessions: Map<object, { profile: MiniAppRegionProfile }>
+      }
+      vi.spyOn(service, 'isPreparedRegionalPartition').mockReturnValue(true)
+      internals.regionalSessions.set(localSession, { profile })
+      internals.attachWebviewPreload(hostContents as unknown as Electron.WebContents)
+      const preferences: Electron.WebPreferences = { additionalArguments: ['--existing-option'] }
+      hostContents.emit('will-attach-webview', {}, preferences, { partition })
+      expect(preferences.additionalArguments).toEqual(['--existing-option', `--lang=${profile.locale}`])
+    }
+  )
+
+  it('retains the native renderer language for default and unrelated mini app partitions', () => {
+    const hostContents = createContents(1, null, { type: 'window' })
+    ;(service as unknown as { attachWebviewPreload: (contents: Electron.WebContents) => void }).attachWebviewPreload(
+      hostContents as unknown as Electron.WebContents
+    )
+    for (const partition of ['persist:webview', 'persist:miniapp:local']) {
+      const preferences: Electron.WebPreferences = { additionalArguments: ['--existing-option'] }
+      hostContents.emit('will-attach-webview', {}, preferences, { partition })
+      expect(preferences.additionalArguments).toEqual(['--existing-option'])
+    }
   })
 
   it('is idempotent for one identity and replaces a reused numeric id without stale cleanup deleting it', () => {

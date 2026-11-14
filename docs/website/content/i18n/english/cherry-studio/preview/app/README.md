@@ -73,6 +73,20 @@ After opening a mini app, its window includes a toolbar: **Back**, **Forward**, 
 
 <figure><img src="../../../../../assets/ecae29a8ae999f7eb89cb915.webp" alt=""><figcaption><p>Mini app window toolbar: Back / Forward / Refresh on the left, Open in Browser, Add to Launchpad, and in-page link opening method on the right</p></figcaption></figure>
 
+### Website MiniApp Regions
+
+This optional feature applies to HTTP(S) website mini apps. It is off by default.
+
+1. Enable **Developer Mode** in Settings, then enable **Website MiniApp regions**.
+2. Right-click a mini app and open **Environment**. Select the United States, Japan, Singapore, United Kingdom, France, or Germany.
+3. The mini app reloads with that region's language, time zone, and city location. Each mini app can select its own region.
+
+Each mini app keeps separate sign-in data for each country. You may need to sign in when you first use a profile. Selecting that country again restores its saved sign-in data. Closing the app, selecting the default environment, or disabling regional profiles retains regional sign-ins.
+
+To remove that data, right-click the mini app and select **Environment** → **Clear regional sign-in data…**, then confirm. This closes its regional pages and clears sign-in data, storage, and caches for all six countries. The default environment and other apps keep their data. Deleting a custom website mini app also clears its regional data. If clearing fails, the mini app stays blocked. Resolve the error, then repeat the clear action.
+
+Selecting a country does not change the public IP. All profiles follow the global proxy, including direct, bypass, and PAC rules. Changing the global proxy can interrupt streams, and pages need to reconnect.
+
 ### Tips and Tricks
 
 * Website-type mini apps use the service's web version; login state, Cookies, and settings are saved locally and isolated from the system browser

@@ -6,6 +6,34 @@
   },
   "definitions": [
     {
+      "targetKey": "feature.mini_app.region_profiles",
+      "type": "Record<string, 'US' | 'JP' | 'SG' | 'GB' | 'FR' | 'DE' | null>",
+      "defaultValue": {},
+      "status": "classified",
+      "description": "Per-website MiniApp country selections; null explicitly selects the default session"
+    },
+    {
+      "targetKey": "feature.mini_app.fake_environment.enabled",
+      "type": "boolean",
+      "defaultValue": false,
+      "status": "classified",
+      "description": "Enable per-mini-app Fake environments while developer mode is enabled"
+    },
+    {
+      "targetKey": "feature.mini_app.fake_environment.country",
+      "type": "'US' | 'JP' | 'SG' | 'GB' | 'FR' | 'DE'",
+      "defaultValue": "US",
+      "status": "classified",
+      "description": "Country profile for Fake mini apps"
+    },
+    {
+      "targetKey": "feature.mini_app.us_environment_app_ids",
+      "type": "string[]",
+      "defaultValue": [],
+      "status": "classified",
+      "description": "Website mini apps using Fake mode; retains the original US opt-in key for existing selections"
+    },
+    {
       "targetKey": "agent.input.suggestions.enabled",
       "type": "boolean",
       "defaultValue": true,

@@ -9,6 +9,7 @@
  * All input validation (Zod) happens here at the system boundary.
  */
 
+import { application } from '@application'
 import { miniAppService } from '@data/services/MiniAppService'
 import { OrderBatchRequestSchema, OrderRequestSchema } from '@shared/data/api/schemas/_endpointHelpers'
 import type { MiniAppSchemas } from '@shared/data/api/schemas/miniApps'
@@ -36,7 +37,9 @@ export const miniAppHandlers: HandlersFor<MiniAppSchemas> = {
       return miniAppService.update(params.appId, parsed)
     },
     DELETE: async ({ params }) => {
-      miniAppService.delete(params.appId)
+      const app = miniAppService.getByAppId(params.appId)
+      if (app.kind === 'site') await application.get('WebviewService').removeSiteMiniApp(params.appId)
+      else miniAppService.delete(params.appId)
       return undefined
     }
   },

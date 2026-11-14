@@ -1,16 +1,14 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
+import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { act, cleanup, render, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-
-vi.mock('@data/hooks/usePreference', () => ({
-  usePreference: () => [false]
-}))
 
 vi.mock('@logger', () => ({
   loggerService: {
     withContext: () => ({
       debug: vi.fn(),
+      warn: vi.fn(),
       error: vi.fn(),
       info: vi.fn()
     })
@@ -33,7 +31,7 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key })
 }))
 
-import { ipcApi } from '@renderer/ipc'
+import { ipcApi, useIpcOn } from '@renderer/ipc'
 import type { MiniAppKind } from '@shared/data/types/miniApp'
 import { WEBVIEW_KEYDOWN_CHANNEL } from '@shared/utils/webviewKey'
 
@@ -58,8 +56,8 @@ const renderWebview = (props: {
   return container
 }
 
-/** A `site` webview attaches in the same render; an `app` one only after `mini_app.runtime.prepare` resolves. */
-const attachedWebview = (container: HTMLElement) => {
+const attachedWebview = async (container: HTMLElement) => {
+  await act(async () => {})
   const webview = container.querySelector('webview')!
   expect(webview).not.toBeNull()
   return webview
@@ -71,7 +69,10 @@ const webviewIn = async (container: HTMLElement) => {
 }
 
 beforeEach(() => {
-  vi.mocked(ipcApi.request).mockResolvedValue(undefined)
+  MockUsePreferenceUtils.resetMocks()
+  vi.mocked(ipcApi.request).mockImplementation(async (route) =>
+    route === 'webview.region.prepare' ? { partition: 'persist:webview', fake: false } : undefined
+  )
 })
 
 afterEach(() => {
@@ -116,7 +117,7 @@ describe('WebviewContainer', () => {
     vi.clearAllMocks()
   })
 
-  it('cancels a delayed loaded callback when the WebView is evicted', () => {
+  it('cancels a delayed loaded callback when the WebView is evicted', async () => {
     const onLoaded = vi.fn()
     const { container, unmount } = render(
       <WebviewContainer
@@ -127,8 +128,7 @@ describe('WebviewContainer', () => {
         onLoadedCallback={onLoaded}
       />
     )
-    const webview = container.querySelector('webview')
-    expect(webview).not.toBeNull()
+    const webview = await attachedWebview(container)
 
     act(() => {
       webview?.dispatchEvent(new Event('did-finish-load'))
@@ -141,7 +141,7 @@ describe('WebviewContainer', () => {
     expect(onLoaded).not.toHaveBeenCalled()
   })
 
-  it('reports the WebView as loaded when dom-ready is the only readiness event', () => {
+  it('reports the WebView as loaded when dom-ready is the only readiness event', async () => {
     const onLoaded = vi.fn()
     const { container } = render(
       <WebviewContainer
@@ -152,8 +152,7 @@ describe('WebviewContainer', () => {
         onLoadedCallback={onLoaded}
       />
     )
-    const webview = container.querySelector('webview')
-    expect(webview).not.toBeNull()
+    const webview = await attachedWebview(container)
     Object.defineProperty(webview, 'getWebContentsId', { value: () => 42 })
 
     act(() => {
@@ -164,7 +163,7 @@ describe('WebviewContainer', () => {
     expect(onLoaded).toHaveBeenCalledWith('chatgpt')
   })
 
-  it('cancels the previous loaded callback when a new load cycle starts', () => {
+  it('cancels the previous loaded callback when a new load cycle starts', async () => {
     const onLoaded = vi.fn()
     const { container } = render(
       <WebviewContainer
@@ -175,8 +174,7 @@ describe('WebviewContainer', () => {
         onLoadedCallback={onLoaded}
       />
     )
-    const webview = container.querySelector('webview')
-    expect(webview).not.toBeNull()
+    const webview = await attachedWebview(container)
 
     act(() => {
       webview?.dispatchEvent(new Event('did-finish-load'))
@@ -187,7 +185,7 @@ describe('WebviewContainer', () => {
     expect(onLoaded).not.toHaveBeenCalled()
   })
 
-  it('keeps the delayed loaded callback for an in-place main-frame navigation', () => {
+  it('keeps the delayed loaded callback for an in-place main-frame navigation', async () => {
     const onLoaded = vi.fn()
     const { container } = render(
       <WebviewContainer
@@ -198,8 +196,7 @@ describe('WebviewContainer', () => {
         onLoadedCallback={onLoaded}
       />
     )
-    const webview = container.querySelector('webview')
-    expect(webview).not.toBeNull()
+    const webview = await attachedWebview(container)
 
     act(() => {
       webview?.dispatchEvent(new Event('did-finish-load'))
@@ -210,8 +207,8 @@ describe('WebviewContainer', () => {
     expect(onLoaded).toHaveBeenCalledWith('chatgpt')
   })
 
-  it('replays a guest keydown on the host window, targeted at the WebView it came from', () => {
-    const webview = attachedWebview(renderWebview({ kind: 'site' }))
+  it('replays a guest keydown on the host window, targeted at the WebView it came from', async () => {
+    const webview = await attachedWebview(renderWebview({ kind: 'site' }))
     focusOn(webview)
     const { seen, stop } = captureWindowKeydown()
 
@@ -224,8 +221,8 @@ describe('WebviewContainer', () => {
     expect(seen[0].target).toBe(webview)
   })
 
-  it('drops a keydown the guest page synthesized instead of a real key press', () => {
-    const webview = attachedWebview(renderWebview({ kind: 'site' }))
+  it('drops a keydown the guest page synthesized instead of a real key press', async () => {
+    const webview = await attachedWebview(renderWebview({ kind: 'site' }))
     focusOn(webview)
     const { seen, stop } = captureWindowKeydown()
 
@@ -235,8 +232,8 @@ describe('WebviewContainer', () => {
     expect(seen).toHaveLength(0)
   })
 
-  it('drops a guest keydown that arrives while the WebView is not focused', () => {
-    const webview = attachedWebview(renderWebview({ kind: 'site' }))
+  it('drops a guest keydown that arrives while the WebView is not focused', async () => {
+    const webview = await attachedWebview(renderWebview({ kind: 'site' }))
     focusOn(document.body)
     const { seen, stop } = captureWindowKeydown()
 
@@ -246,9 +243,9 @@ describe('WebviewContainer', () => {
     expect(seen).toHaveLength(0)
   })
 
-  it('reports focus and blur so the pool can own the context key', () => {
+  it('reports focus and blur so the pool can own the context key', async () => {
     const onFocusChange = vi.fn()
-    const webview = attachedWebview(renderWebview({ kind: 'site', onFocusChange }))
+    const webview = await attachedWebview(renderWebview({ kind: 'site', onFocusChange }))
 
     act(() => {
       webview.dispatchEvent(new Event('focus'))
@@ -262,11 +259,11 @@ describe('WebviewContainer', () => {
   })
 
   it('prints the WebView the key came from, not another mounted pane', async () => {
-    const other = attachedWebview(renderWebview({ appid: 'claude', kind: 'site' }))
-    const target = attachedWebview(renderWebview({ appid: 'chatgpt', kind: 'site' }))
+    const other = await attachedWebview(renderWebview({ appid: 'claude', kind: 'site' }))
+    const target = await attachedWebview(renderWebview({ appid: 'chatgpt', kind: 'site' }))
     Object.defineProperty(other, 'getWebContentsId', { value: () => 11 })
     Object.defineProperty(target, 'getWebContentsId', { value: () => 22 })
-    vi.mocked(ipcApi.request).mockResolvedValue(null)
+    vi.mocked(ipcApi.request).mockClear().mockResolvedValue(null)
 
     const event = new KeyboardEvent('keydown', { key: 'p', ctrlKey: true, cancelable: true })
     Object.defineProperty(event, 'target', { get: () => target })
@@ -343,6 +340,98 @@ describe('WebviewContainer partitioning', () => {
 })
 
 describe('WebviewContainer partition readiness', () => {
+  it('releases its regional lease and prepares the default guest after an HTTPS-to-file edit', async () => {
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'app.developer_mode.enabled': true,
+      'feature.mini_app.fake_environment.enabled': true,
+      'feature.mini_app.region_profiles': { chatgpt: 'JP' }
+    })
+    const leaseId = '00000000-0000-4000-8000-000000000013'
+    let fileSite = false
+    vi.mocked(ipcApi.request).mockImplementation(async (route) => {
+      if (route !== 'webview.region.prepare') return undefined
+      return fileSite
+        ? { partition: 'persist:webview', fake: false, leaseId: null }
+        : { partition: 'persist:webview-fake:JP:chatgpt', fake: true, leaseId }
+    })
+    const props = {
+      appid: 'chatgpt',
+      kind: 'site' as const,
+      onSetRefCallback: vi.fn(),
+      onLoadedCallback: vi.fn()
+    }
+    const view = render(<WebviewContainer {...props} url="https://chatgpt.com" />)
+    const original = await webviewIn(view.container)
+    expect(original).toHaveAttribute('partition', 'persist:webview-fake:JP:chatgpt')
+
+    fileSite = true
+    view.rerender(<WebviewContainer {...props} url="file:///C:/mini-app/index.html" />)
+    await waitFor(() => expect(view.container.querySelector('webview')).toHaveAttribute('partition', 'persist:webview'))
+    const current = await webviewIn(view.container)
+    expect(current).not.toBe(original)
+    expect(current).toHaveAttribute('src', 'file:///C:/mini-app/index.html')
+    expect(ipcApi.request).toHaveBeenCalledWith('webview.region.release', { leaseId })
+  })
+
+  it('prepares a new guest and releases the old lease when its regional session is invalidated', async () => {
+    const leases = ['00000000-0000-4000-8000-000000000011', '00000000-0000-4000-8000-000000000012']
+    let prepared = 0
+    vi.mocked(ipcApi.request).mockImplementation(async (route) =>
+      route === 'webview.region.prepare'
+        ? { partition: 'persist:webview-us:chatgpt', fake: true, leaseId: leases[prepared++] }
+        : undefined
+    )
+    const container = renderWebview({ kind: 'site' })
+    const old = await webviewIn(container)
+    const invalidate = vi.mocked(useIpcOn).mock.calls.find(([name]) => name === 'webview.region.invalidated')![1]
+    await act(async () => invalidate({ appId: 'chatgpt' }))
+    const current = await webviewIn(container)
+    expect(current).not.toBe(old)
+    expect(ipcApi.request).toHaveBeenCalledWith('webview.region.release', { leaseId: leases[0] })
+    expect(prepared).toBe(2)
+  })
+  it('releases a regional preparation that finishes after its host component unmounts', async () => {
+    const leaseId = '00000000-0000-4000-8000-000000000001'
+    let finish!: (value: unknown) => void
+    vi.mocked(ipcApi.request).mockImplementation(async (route) => {
+      if (route === 'webview.region.prepare')
+        return new Promise((resolve) => {
+          finish = resolve
+        })
+      return undefined
+    })
+    const view = render(
+      <WebviewContainer
+        appid="chatgpt"
+        kind="site"
+        url="https://chatgpt.com"
+        onSetRefCallback={vi.fn()}
+        onLoadedCallback={vi.fn()}
+      />
+    )
+    view.unmount()
+    await act(async () => finish({ partition: 'persist:webview-us:chatgpt', fake: true, leaseId }))
+    expect(ipcApi.request).toHaveBeenCalledWith('webview.region.release', { leaseId })
+  })
+
+  it('releases its regional lease when the mounted guest is removed', async () => {
+    const leaseId = '00000000-0000-4000-8000-000000000002'
+    vi.mocked(ipcApi.request).mockImplementation(async (route) =>
+      route === 'webview.region.prepare' ? { partition: 'persist:webview-us:chatgpt', fake: true, leaseId } : undefined
+    )
+    const view = render(
+      <WebviewContainer
+        appid="chatgpt"
+        kind="site"
+        url="https://chatgpt.com"
+        onSetRefCallback={vi.fn()}
+        onLoadedCallback={vi.fn()}
+      />
+    )
+    await webviewIn(view.container)
+    view.unmount()
+    expect(ipcApi.request).toHaveBeenCalledWith('webview.region.release', { leaseId })
+  })
   it('does not mount a local app webview before prepare resolves', async () => {
     // The bug this guards: attaching first makes `will-attach-webview` veto the
     // attach, and the veto is silent — the user sees a spinner that never ends.
@@ -405,11 +494,92 @@ describe('WebviewContainer partition readiness', () => {
     await waitFor(() => expect(wv.getAttribute('src')).toBe('cherry-miniapp://com.example.a/index.html'))
   })
 
-  it('mounts a site mini app without asking the main process at all', () => {
+  it('does not contact a Fake website before native emulation is ready', async () => {
+    let ready: () => void = () => {}
+    vi.mocked(ipcApi.request).mockImplementation(async (route) => {
+      if (route === 'webview.region.prepare') return { partition: 'persist:webview-us:google', fake: true }
+      if (route === 'webview.region.wait_until_ready')
+        return new Promise<void>((resolve) => {
+          ready = resolve
+        })
+      return undefined
+    })
     const container = renderWebview({ appid: 'google', url: 'https://google.com', kind: 'site' })
+    const guest = await webviewIn(container)
+    Object.defineProperty(guest, 'getWebContentsId', { value: () => 7 })
+    expect(guest).toHaveAttribute('src', 'about:blank')
+    await act(async () => {
+      guest.dispatchEvent(new Event('dom-ready'))
+    })
+    expect(guest).toHaveAttribute('src', 'about:blank')
+    await act(async () => ready())
+    expect(guest).toHaveAttribute('src', 'https://google.com')
+    expect(guest).toHaveAttribute('partition', 'persist:webview-us:google')
+  })
 
-    expect(container.querySelector('webview')).not.toBeNull()
-    expect(ipcApi.request).not.toHaveBeenCalled()
+  it('recreates Fake guests on country changes while preserving Default guests', async () => {
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'app.developer_mode.enabled': true,
+      'feature.mini_app.fake_environment.enabled': true,
+      'feature.mini_app.us_environment_app_ids': ['chatgpt']
+    })
+    vi.mocked(ipcApi.request).mockImplementation(async (route, input) => {
+      if (route !== 'webview.region.prepare') return undefined
+      const active =
+        (input as { appId: string }).appId === 'chatgpt' &&
+        MockUsePreferenceUtils.getPreferenceValue('app.developer_mode.enabled')
+      return {
+        partition: active
+          ? `persist:fake:${MockUsePreferenceUtils.getPreferenceValue('feature.mini_app.fake_environment.country')}`
+          : 'persist:webview',
+        fake: Boolean(active)
+      }
+    })
+    const props = {
+      kind: 'site' as const,
+      url: 'https://example.com',
+      onSetRefCallback: vi.fn(),
+      onLoadedCallback: vi.fn(),
+      onNavigateCallback: vi.fn()
+    }
+    const views = () => (
+      <>
+        <WebviewContainer {...props} appid="chatgpt" />
+        <WebviewContainer {...props} appid="default-app" />
+      </>
+    )
+    const { container, rerender } = render(views())
+    await waitFor(() => expect(container.querySelectorAll('webview')).toHaveLength(2))
+    const initialFake = container.querySelector('[data-mini-app-id="chatgpt"]')!
+    const originalDefault = container.querySelector('[data-mini-app-id="default-app"]')!
+    MockUsePreferenceUtils.setPreferenceValue('feature.mini_app.fake_environment.country', 'JP')
+    rerender(views())
+    await waitFor(() =>
+      expect(container.querySelector('[data-mini-app-id="chatgpt"]')).toHaveAttribute('partition', 'persist:fake:JP')
+    )
+    expect(container.querySelector('[data-mini-app-id="chatgpt"]')).not.toBe(initialFake)
+    expect(container.querySelector('[data-mini-app-id="default-app"]')).toBe(originalDefault)
+    MockUsePreferenceUtils.setPreferenceValue('app.developer_mode.enabled', false)
+    rerender(views())
+    await waitFor(() =>
+      expect(container.querySelector('[data-mini-app-id="chatgpt"]')).toHaveAttribute('partition', 'persist:webview')
+    )
+  })
+
+  it('does not fall back to the system environment when native emulation fails', async () => {
+    vi.mocked(ipcApi.request).mockImplementation(async (route) => {
+      if (route === 'webview.region.prepare') return { partition: 'persist:webview-us:google', fake: true }
+      if (route === 'webview.region.wait_until_ready') throw new Error('Debugger unavailable')
+      return undefined
+    })
+    const container = renderWebview({ appid: 'google', url: 'https://google.com', kind: 'site' })
+    const guest = await webviewIn(container)
+    Object.defineProperty(guest, 'getWebContentsId', { value: () => 7 })
+    await act(async () => {
+      guest.dispatchEvent(new Event('dom-ready'))
+    })
+    expect(container.querySelector('webview')).toBeNull()
+    expect(container).toHaveTextContent('miniApp.region.failed')
   })
 
   it('surfaces a prepare failure instead of spinning forever', async () => {

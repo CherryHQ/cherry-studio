@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type { ComponentProps, ReactNode } from 'react'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { MiniApp as MiniAppType } from '@shared/data/types/miniApp'
 
@@ -18,6 +19,7 @@ const calculatorApp: MiniAppType = {
 }
 
 const mocks = vi.hoisted(() => ({
+  regionRequest: vi.fn<(route: string, input: unknown) => Promise<void>>(async () => {}),
   openTab: vi.fn(),
   updateAppStatus: vi.fn(() => Promise.resolve()),
   hideMiniApp: vi.fn(() => Promise.resolve()),
@@ -29,7 +31,31 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
-  ConfirmDialog: ({ open }: { open?: boolean }) => (open ? <div role="dialog" /> : null),
+  ConfirmDialog: ({
+    open,
+    title,
+    onConfirm,
+    onOpenChange
+  }: {
+    open?: boolean
+    title?: string
+    onConfirm?: () => Promise<boolean>
+    onOpenChange?: (open: boolean) => void
+  }) =>
+    open ? (
+      <div role="dialog" aria-label={title}>
+        <button type="button" onClick={() => onOpenChange?.(false)}>
+          cancel-confirmation
+        </button>
+        <button
+          type="button"
+          onClick={async () => {
+            if ((await onConfirm?.()) !== false) onOpenChange?.(false)
+          }}>
+          accept-confirmation
+        </button>
+      </div>
+    ) : null,
   IndicatorLight: () => <div data-testid="indicator-light" />,
   // The hover text is rendered inline so a case can read what the dot means.
   Tooltip: ({ children, content, isDisabled }: { children: ReactNode; content?: ReactNode; isDisabled?: boolean }) => (
@@ -63,24 +89,41 @@ vi.mock('@logger', () => ({
   }
 }))
 
-vi.mock('@renderer/components/command', () => ({
-  CommandContextMenu: ({
-    children,
-    extraItems
-  }: {
-    children: ReactNode
-    extraItems: Array<{ id: string; label: string; onSelect: () => void }>
-  }) => (
-    <div>
-      {children}
-      {extraItems.map((item) => (
-        <button key={item.id} type="button" onClick={item.onSelect}>
+vi.mock('@renderer/components/command', () => {
+  type MenuItem = {
+    id?: string
+    label?: string
+    enabled?: boolean
+    checked?: boolean
+    onSelect?: () => void
+    children?: MenuItem[]
+  }
+  const items = (entries: MenuItem[]) =>
+    entries.map((item, index) =>
+      item.children ? (
+        <div key={item.id} role="group" aria-label={item.label}>
+          {items(item.children)}
+        </div>
+      ) : item.label ? (
+        <button
+          key={item.id ?? index}
+          type="button"
+          disabled={item.enabled === false}
+          aria-pressed={item.checked}
+          onClick={item.onSelect}>
           {item.label}
         </button>
-      ))}
-    </div>
-  )
-}))
+      ) : null
+    )
+  return {
+    CommandContextMenu: ({ children, extraItems }: { children: ReactNode; extraItems: MenuItem[] }) => (
+      <div>
+        {children}
+        {items(extraItems)}
+      </div>
+    )
+  }
+})
 
 vi.mock('@renderer/components/icons/MiniAppIcon', () => ({
   default: ({ app }: { app: MiniAppType }) => <div data-testid={`mini-app-icon-${app.appId}`} />
@@ -92,11 +135,14 @@ vi.mock('@renderer/components/MarqueeText', () => ({
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (key: string) => key
+    t: (key: string, options?: { country?: string }) => (options?.country ? `${key}:${options.country}` : key)
   })
 }))
 
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
+import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
+
+vi.mock('@renderer/ipc', () => ({ ipcApi: { request: mocks.regionRequest }, useIpcOn: vi.fn() }))
 
 import MiniApp from '../MiniApp'
 
@@ -136,16 +182,140 @@ const TestMiniApp = (props: TestMiniAppProps) => {
   )
 }
 
+beforeEach(() => {
+  mocks.regionRequest.mockImplementation(async (route, input) => {
+    if (route === 'webview.region.set_country') {
+      const { appId, country } = input as { appId: string; country: 'US' | 'JP' | null }
+      MockUsePreferenceUtils.setPreferenceValue('feature.mini_app.region_profiles', {
+        ...MockUsePreferenceUtils.getPreferenceValue('feature.mini_app.region_profiles'),
+        [appId]: country
+      })
+    }
+  })
+})
+
 afterEach(() => {
   cleanup()
   vi.clearAllMocks()
   MockUseCacheUtils.resetMocks()
+  MockUsePreferenceUtils.resetMocks()
   mocks.pinned = []
   mocks.openedKeepAliveMiniApps = []
   mocks.sidebarFavoriteIds = []
 })
 
 describe('MiniApp launchpad pin menu', () => {
+  it('updates country controls on URL-only edits with stable handlers and keeps historical reset access', () => {
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'app.developer_mode.enabled': true,
+      'feature.mini_app.fake_environment.enabled': true,
+      'feature.mini_app.region_profiles': { calculator: 'JP' }
+    })
+    const props: Omit<ComponentProps<typeof MiniApp>, 'app'> = {
+      onClick: vi.fn(),
+      onOpen: mocks.openTab,
+      onEditCustom: vi.fn(),
+      onUpdateStatus: mocks.updateAppStatus,
+      onHide: mocks.hideMiniApp,
+      onRemoveCustom: mocks.removeCustomMiniApp,
+      onToggleSidebarFavorite: mocks.toggleMiniApp,
+      isPinned: false,
+      isSidebarFavorite: false,
+      isOpened: false,
+      isActive: false
+    }
+    const fileSite = { ...calculatorApp, url: 'file:///C:/mini-app/index.html' }
+    const view = render(<MiniApp {...props} app={fileSite} />)
+    expect(screen.queryByRole('button', { name: /^miniApp.region.enable:/ })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'miniApp.region.clear_data' })).toBeEnabled()
+
+    view.rerender(<MiniApp {...props} app={calculatorApp} />)
+    expect(
+      screen.getByRole('button', { name: 'miniApp.region.enable:settings.developer.fake.countries.JP' })
+    ).toBeEnabled()
+
+    view.rerender(<MiniApp {...props} app={fileSite} />)
+    expect(screen.queryByRole('button', { name: /^miniApp.region.enable:/ })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'miniApp.region.clear_data' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'miniApp.region.disable' })).toBeEnabled()
+  })
+
+  it('selects a country for one mini app while preserving another app’s saved country', async () => {
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'app.developer_mode.enabled': true,
+      'feature.mini_app.fake_environment.enabled': true,
+      'feature.mini_app.region_profiles': { 'other-app': 'US' }
+    })
+    render(<TestMiniApp app={calculatorApp} variant="launchpad" />)
+    fireEvent.click(screen.getByRole('button', { name: 'miniApp.region.enable:settings.developer.fake.countries.JP' }))
+    await waitFor(() =>
+      expect(MockUsePreferenceUtils.getPreferenceValue('feature.mini_app.region_profiles')).toEqual({
+        'other-app': 'US',
+        calculator: 'JP'
+      })
+    )
+    await waitFor(() => expect(screen.getByRole('button', { name: 'miniApp.region.disable' })).toBeEnabled())
+    fireEvent.click(screen.getByRole('button', { name: 'miniApp.region.disable' }))
+    await waitFor(() =>
+      expect(MockUsePreferenceUtils.getPreferenceValue('feature.mini_app.region_profiles')).toEqual({
+        'other-app': 'US',
+        calculator: null
+      })
+    )
+  })
+
+  it('hides the environment menu outside developer mode and disables Fake when the master switch is off', () => {
+    const { rerender } = render(<TestMiniApp app={calculatorApp} variant="launchpad" />)
+    expect(screen.queryByRole('button', { name: /^miniApp.region.enable:/ })).not.toBeInTheDocument()
+    MockUsePreferenceUtils.setPreferenceValue('app.developer_mode.enabled', true)
+    rerender(<TestMiniApp app={calculatorApp} variant="launchpad" />)
+    expect(
+      screen.getByRole('button', { name: 'miniApp.region.enable:settings.developer.fake.countries.JP' })
+    ).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'miniApp.region.disable' })).toHaveAttribute('aria-pressed', 'true')
+  })
+
+  it('keeps reset and default actions available after failed cleanup and an edit to a file URL', async () => {
+    const user = userEvent.setup()
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'app.developer_mode.enabled': true,
+      'feature.mini_app.fake_environment.enabled': true,
+      'feature.mini_app.region_profiles': { calculator: 'JP' }
+    })
+    const view = render(<TestMiniApp app={calculatorApp} />)
+    fireEvent.click(screen.getByRole('button', { name: 'miniApp.region.clear_data' }))
+    expect(mocks.regionRequest).not.toHaveBeenCalledWith('webview.region.clear_data', expect.anything())
+    fireEvent.click(screen.getByRole('button', { name: 'cancel-confirmation' }))
+    expect(screen.queryByRole('dialog', { name: 'miniApp.region.clear_data_title' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'miniApp.region.clear_data' }))
+    mocks.regionRequest.mockRejectedValueOnce(new Error('disk failure'))
+    fireEvent.click(screen.getByRole('button', { name: 'accept-confirmation' }))
+    await waitFor(() =>
+      expect(mocks.regionRequest).toHaveBeenCalledWith('webview.region.clear_data', { appId: 'calculator' })
+    )
+    await waitFor(() => expect(screen.getByRole('button', { name: 'miniApp.region.clear_data' })).toBeEnabled())
+    expect(screen.getByRole('dialog', { name: 'miniApp.region.clear_data_title' })).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'cancel-confirmation' }))
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'app.developer_mode.enabled': false,
+      'feature.mini_app.fake_environment.enabled': false
+    })
+    view.rerender(<TestMiniApp app={{ ...calculatorApp, url: 'file:///C:/mini-app/index.html' }} />)
+    expect(screen.queryByRole('button', { name: /^miniApp.region.enable:/ })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'miniApp.region.disable' }))
+    await waitFor(() =>
+      expect(MockUsePreferenceUtils.getPreferenceValue('feature.mini_app.region_profiles')).toEqual({
+        calculator: null
+      })
+    )
+    await waitFor(() => expect(screen.getByRole('button', { name: 'miniApp.region.clear_data' })).toBeEnabled())
+    await user.click(screen.getByRole('button', { name: 'miniApp.region.clear_data' }))
+    await user.click(screen.getByRole('button', { name: 'accept-confirmation' }))
+    await waitFor(() =>
+      expect(screen.queryByRole('dialog', { name: 'miniApp.region.clear_data_title' })).not.toBeInTheDocument()
+    )
+    expect(mocks.regionRequest.mock.calls.filter(([route]) => route === 'webview.region.clear_data')).toHaveLength(2)
+  })
   it.each(['Enter', ' '])('opens the mini app tab with the %j key', (key) => {
     render(<TestMiniApp app={calculatorApp} variant="launchpad" />)
     fireEvent.keyDown(screen.getByRole('button', { name: 'Calculator' }), { key })
