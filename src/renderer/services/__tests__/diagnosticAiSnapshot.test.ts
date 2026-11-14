@@ -66,7 +66,8 @@ function agentState(input: {
     changes: [],
     ...(input.incident ? { incident: input.incident } : {})
   }
-  if (input.status === 'failed') return { status: 'failed', error: 'the model stopped', ...run }
+  if (input.status === 'failed')
+    return { status: 'failed', error: 'the model stopped', errorSource: 'external', ...run }
   return { status: input.status ?? 'completed', ...run }
 }
 
