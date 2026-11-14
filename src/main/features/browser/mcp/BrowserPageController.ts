@@ -26,7 +26,8 @@ export abstract class BrowserPageController {
     privateMode?: boolean,
     newTab?: boolean,
     showWindow?: boolean,
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    tabId?: string
   ): Promise<{ currentUrl: string; title: string; tabId: string }>
   abstract validateUrl(url: string): string
 

@@ -11,6 +11,9 @@ const require = createRequire(import.meta.url)
 const childProcess = require('child_process') as typeof childProcessModule
 const execSync = vi.spyOn(childProcess, 'execSync')
 const sign = require('../packaging/win-sign').default as (configuration: { path: string }) => Promise<void>
+const builderRequire = createRequire(require.resolve('electron-builder/package.json'))
+const { getConfig } = builderRequire('app-builder-lib/out/util/config/config')
+const { WindowsSignToolManager } = builderRequire('app-builder-lib/out/codeSign/windowsSignToolManager')
 const prebuilds = path.resolve(import.meta.dirname, '../../node_modules/selection-hook/prebuilds')
 let directory: string
 
@@ -53,6 +56,34 @@ afterEach(() => {
 afterAll(() => execSync.mockRestore())
 
 describe('Windows signing format policy', () => {
+  it.each(['electron-builder.yml', 'electron-builder.cn.config.cjs'])(
+    'signs each Windows binary once with the effective %s configuration',
+    async (configFile) => {
+      const projectDir = path.resolve(import.meta.dirname, '../..')
+      const config = await getConfig(projectDir, path.join(projectDir, configFile))
+      const manager = new WindowsSignToolManager({
+        platformSpecificBuildOptions: config.win,
+        appInfo: { productName: 'Cherry Studio', type: 'commonjs', computePackageUrl: async () => null },
+        info: { getWorkspaceRoot: async () => projectDir },
+        getCscLink: () => null
+      })
+      for (const name of ['native.node', 'setup.exe', 'portable.exe']) {
+        const file = fixture('win32-x64', name)
+        const commands: string[] = []
+        execSync.mockImplementation((command: string) => {
+          commands.push(command)
+          return Buffer.alloc(0)
+        })
+
+        await expect(manager.signFile({ path: file, options: config.win })).resolves.toBe(true)
+        expect(commands).toHaveLength(1)
+        expect(commands[0]).toContain('/fd sha256')
+        expect(commands[0]).toContain('/td sha256')
+        expect(commands[0]).toContain('/tr "https://timestamp.test"')
+      }
+    }
+  )
+
   it.each(['linux-x64', 'linux-arm64', 'darwin-x64', 'darwin-arm64'])(
     'keeps the %s prebuild without attempting Windows signing',
     async (platform) => {

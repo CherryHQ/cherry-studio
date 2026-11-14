@@ -1035,6 +1035,9 @@ class ProviderRegistryService {
 
     const presetReasoning = this.getLoader().findModel(matchedOverride?.modelId ?? model.presetModelId ?? '')?.reasoning
     const support = mergeReasoningSupport(presetReasoning ?? model.reasoning, contract?.support)
+    if (support && model.userDefaultReasoningEffort !== undefined) {
+      support.defaultEffort = model.userDefaultReasoningEffort
+    }
 
     // The dialect is a CATALOG fact that is deliberately not persisted on the
     // row (`projectRuntimeReasoning` drops it), so a catalog-backed CUSTOM row —

@@ -66,21 +66,18 @@ export class DurableBackend {
     let storageOwned = true
     try {
       for (const binding of contexts.roots(context.backendId)) {
+        if (binding.id === context.id) {
+          await owner.prepare(input, binding)
+          continue
+        }
         const session = agentSessionService.getById(binding.sessionId)
         const agent = session.agentId ? agentService.getAgent(session.agentId) : undefined
-        if (!agent?.model && binding.id !== context.id) continue
-        const saved = binding.nativeThreadId && (await readDurableRequest(root.storage, binding.nativeThreadId))
-        await owner.prepare(
-          binding.id === context.id
-            ? input
-            : {
-                sessionId: binding.sessionId,
-                agentId: agent!.id,
-                modelId: agent!.model!,
-                ...saved
-              },
-          binding
-        )
+        const saved = binding.nativeThreadId
+          ? await readDurableRequest(root.storage, binding.nativeThreadId)
+          : undefined
+        const modelId = saved?.modelId ?? session.model ?? agent?.model
+        if (!agent || !modelId) continue
+        await owner.prepare({ sessionId: binding.sessionId, agentId: agent.id, modelId, ...saved }, binding)
       }
       const records = new Map<number, Awaited<ReturnType<typeof root.storage.scanConversations>>['items'][number]>()
       let cursor: Parameters<typeof root.storage.scanConversations>[2]
@@ -338,7 +335,6 @@ export class DurableBackend {
         current: (thread) => host(thread).models.current(thread)
       },
       verifier: { verify: (request, signal) => host(request.thread).verifier.verify(request, signal) },
-      summarizer: { summarize: (request, signal) => host(request.thread).summarizer.summarize(request, signal) },
       outputStore: { save: (file) => global().outputStore.save(file) },
       observation: { emit: (event) => host(event.thread).observation.emit(event) },
       settings: {

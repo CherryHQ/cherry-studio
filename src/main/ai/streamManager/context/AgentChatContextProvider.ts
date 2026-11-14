@@ -15,6 +15,7 @@ import { AgentSessionEditError } from '@data/services/AgentSessionEditError'
 import { AgentSessionDeliveryRoutingError, agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { getAgentSessionHead } from '@data/services/agentSessionMessageTree'
 import { agentSessionService } from '@data/services/AgentSessionService'
+import { modelService } from '@data/services/ModelService'
 import type { NotifyChannel } from '@main/ai/runtime/agentMcpServers'
 import { reserveClaudeBranchTx } from '@main/ai/runtime/claudeCode'
 import { reservePiBranchTx } from '@main/ai/runtime/pi/piContext'
@@ -60,6 +61,8 @@ export type ValidatedAgentDispatch = {
   agentUpdatedAt: string
   agentType: string
   agentName: string
+  /** Parent agent default model — used for optimistic concurrency, not turn routing. */
+  agentDefaultModel: UniqueModelId | null
   uniqueModelId: UniqueModelId
   reasoningEffort: ReasoningEffortOption
   serviceTier: ServiceTierSelection
@@ -125,8 +128,27 @@ export class AgentChatContextProvider implements ChatContextProvider {
     if (!agent) {
       throw new AgentSessionDeliveryRoutingError('TARGET_UNAVAILABLE', `Agent not found for Session ${sessionId}`)
     }
-    if (!agent.model) {
-      throw new AgentSessionDeliveryRoutingError('TARGET_UNAVAILABLE', `Agent ${agent.id} has no model configured`)
+
+    const isHeadless = req.headless === true
+    // Interactive turns prefer the per-session override; headless runs keep the
+    // agent default so background tasks stay independent of sibling sessions.
+    const candidate = !isHeadless && session.model ? session.model : agent.model
+    let uniqueModelId: UniqueModelId | null = null
+    if (candidate) {
+      try {
+        parseUniqueModelId(candidate)
+        uniqueModelId = candidate
+      } catch {
+        uniqueModelId = null
+      }
+    }
+    if (!uniqueModelId) {
+      throw new AgentSessionDeliveryRoutingError(
+        'TARGET_UNAVAILABLE',
+        isHeadless && session.model
+          ? `Agent ${agent.id} has no model configured (scheduled runs use the agent default)`
+          : `Agent ${agent.id} has no model configured`
+      )
     }
 
     const driver = runtimeDriverRegistry.getAgentSessionDriver(agent.type)
@@ -134,7 +156,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
       throw new AgentSessionDeliveryRoutingError('TARGET_UNAVAILABLE', `Unsupported agent runtime type: ${agent.type}`)
     }
     const parentMessageId = agentSessionMessageService.captureHead(sessionId)
-    await driver.validateSession(session)
+    await driver.validateSession(session, { headless: isHeadless })
 
     const deliveryMessage = req.agentDeliveryMessage
     if (
@@ -144,8 +166,13 @@ export class AgentChatContextProvider implements ChatContextProvider {
       throw new Error('Invalid durable agent delivery message')
     }
 
-    const uniqueModelId = agent.model
     const { providerId, modelId: rawModelId } = parseUniqueModelId(uniqueModelId)
+    const modelName =
+      uniqueModelId === agent.model
+        ? (agent.modelName ?? rawModelId)
+        : (modelService
+            .getNamesByUniqueIdsTx(application.get('DbService').getDb(), [uniqueModelId])
+            .get(uniqueModelId) ?? rawModelId)
     const shouldAutoNameInitialTurn = deliveryMessage
       ? !agentSessionMessageService.hasSessionMessages(sessionId, deliveryMessage.id)
       : !agentSessionMessageService.hasSessionMessages(sessionId)
@@ -157,11 +184,12 @@ export class AgentChatContextProvider implements ChatContextProvider {
       agentUpdatedAt: agent.updatedAt,
       agentType: agent.type,
       agentName: agent.name,
+      agentDefaultModel: agent.model,
       uniqueModelId,
       reasoningEffort: req.reasoningEffort ?? agent.configuration?.reasoning_effort ?? 'default',
       serviceTier: req.serviceTier ?? agent.configuration?.service_tier ?? 'standard',
       fastMode: req.fastMode,
-      headless: req.headless === true,
+      headless: isHeadless,
       ...(authority.trustedNotifyChannels !== undefined
         ? { trustedNotifyChannels: authority.trustedNotifyChannels }
         : {}),
@@ -173,7 +201,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
         ...(agent.avatarFileId ? { avatarFileId: agent.avatarFileId } : {}),
         model: createModelSnapshot({
           id: rawModelId,
-          name: agent.modelName ?? rawModelId,
+          name: modelName,
           provider: providerId,
           providerName: resolveSnapshotProviderName(providerId)
         })
@@ -188,7 +216,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
   persistDispatchTx(
     tx: DbOrTx,
     validated: ValidatedAgentDispatch,
-    expectedAgent?: string | { id: string; updatedAt: string; model: string; type: string },
+    expectedAgent?: string | { id: string; updatedAt: string; model: string | null; type: string },
     intent: 'append' | 'edit' = 'append'
   ): PersistedAgentDispatch {
     if (intent === 'append') this.assertAppendable(validated, tx)
@@ -353,7 +381,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
             {
               id: validated.agentId,
               updatedAt: validated.agentUpdatedAt,
-              model: validated.uniqueModelId,
+              model: validated.agentDefaultModel,
               type: validated.agentType
             },
             'edit'

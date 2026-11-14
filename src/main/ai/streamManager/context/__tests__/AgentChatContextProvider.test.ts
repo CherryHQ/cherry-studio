@@ -21,12 +21,22 @@ const mocks = vi.hoisted(() => ({
   runtimeEnqueueUserMessage: vi.fn(),
   runtimeIsSessionBusy: vi.fn(),
   runtimeAssertWritable: vi.fn(),
-  runtimeValidateSession: vi.fn()
+  runtimeAssertSessionEditable: vi.fn(),
+  runtimeEditSession: vi.fn(),
+  runtimeValidateSession: vi.fn(),
+  setEditRuntimeTx: vi.fn(),
+  reserveDurableBranchTx: vi.fn(),
+  getModelNames: vi.fn(() => new Map<string, string>())
 }))
 
 vi.mock('@data/services/AgentSessionService', () => ({
   agentSessionService: { getById: mocks.getSession, ensureTraceIdTx: mocks.ensureTraceIdTx }
 }))
+
+vi.mock('@data/services/agentSessionMessageTree', () => ({ getAgentSessionHead: () => mocks.captureHead() }))
+vi.mock('@main/ai/runtime/claudeCode', () => ({ reserveClaudeBranchTx: vi.fn() }))
+vi.mock('@main/ai/runtime/pi/piContext', () => ({ reservePiBranchTx: vi.fn() }))
+vi.mock('@main/ai/runtime/piDurable/durableContext', () => ({ reserveDurableBranchTx: mocks.reserveDurableBranchTx }))
 
 vi.mock('@data/services/AgentService', () => ({
   agentService: { getAgent: mocks.getAgent }
@@ -46,7 +56,8 @@ vi.mock('@data/services/AgentSessionMessageService', () => ({
     branchTip: mocks.branchTip,
     saveMessage: mocks.saveMessage,
     saveMessagesTx: mocks.saveMessagesTx,
-    hasSessionMessages: mocks.hasSessionMessages
+    hasSessionMessages: mocks.hasSessionMessages,
+    setEditRuntimeTx: mocks.setEditRuntimeTx
   }
 }))
 
@@ -57,8 +68,12 @@ vi.mock('@main/services/TopicNamingService', () => ({
   }
 }))
 
+vi.mock('@data/services/ModelService', () => ({
+  modelService: { getNamesByUniqueIdsTx: () => mocks.getModelNames() }
+}))
+
 vi.mock('@application', () => ({
-  application: { get: mocks.applicationGet }
+  application: { get: mocks.applicationGet, isReady: () => true }
 }))
 
 vi.mock('@main/data/services/ProviderService', () => ({
@@ -152,10 +167,12 @@ describe('AgentChatContextProvider', () => {
           beginTurn: mocks.runtimeBeginTurn,
           enqueueUserMessage: mocks.runtimeEnqueueUserMessage,
           isSessionBusy: mocks.runtimeIsSessionBusy,
-          assertSessionWritable: mocks.runtimeAssertWritable
+          assertSessionWritable: mocks.runtimeAssertWritable,
+          assertSessionEditable: mocks.runtimeAssertSessionEditable,
+          editSession: mocks.runtimeEditSession
         }
       }
-      if (name === 'DbService') return { withWriteTx: (fn: (tx: object) => unknown) => fn({}) }
+      if (name === 'DbService') return { getDb: () => ({}), withWriteTx: (fn) => fn({}) }
       throw new Error(`Unexpected application.get(${name})`)
     })
     mocks.runtimeBeginTurn.mockReturnValue({
@@ -164,6 +181,10 @@ describe('AgentChatContextProvider', () => {
     })
     mocks.runtimeValidateSession.mockResolvedValue(undefined)
     mocks.runtimeIsSessionBusy.mockReturnValue(false)
+    mocks.runtimeEditSession.mockImplementation(async (_sessionId, _target, fn) => fn({}, 'native-session'))
+    // clearAllMocks preserves return values: re-seed the name map so override
+    // tests can't leak state into later cases.
+    mocks.getModelNames.mockReturnValue(new Map())
   })
 
   it('keeps the captured branch when the user changes selection during validation', async () => {
@@ -226,7 +247,8 @@ describe('AgentChatContextProvider', () => {
     const prepared = await provider.prepareDispatch(subscriber, openReq())
 
     expect(mocks.runtimeValidateSession).toHaveBeenCalledWith(
-      expect.objectContaining({ id: 'session-1', workspace: { path: '/tmp' } })
+      expect.objectContaining({ id: 'session-1', workspace: { path: '/tmp' } }),
+      { headless: false }
     )
     expect(mocks.saveMessagesTx).toHaveBeenCalledOnce()
     expect(mocks.saveMessage).not.toHaveBeenCalled()
@@ -436,6 +458,121 @@ describe('AgentChatContextProvider', () => {
       expect.objectContaining({ role: 'user' }),
       expect.objectContaining({ reasoningEffort: 'low', serviceTier: 'fast' })
     )
+  })
+
+  it('prefers a per-session model override for interactive turns', async () => {
+    mocks.getSession.mockReturnValue({
+      id: 'session-1',
+      agentId: 'agent-1',
+      model: 'anthropic::claude-opus',
+      workspace: { path: '/tmp' }
+    })
+    mocks.getModelNames.mockReturnValue(new Map([['anthropic::claude-opus', 'Claude Opus']]))
+
+    const prepared = await provider.prepareDispatch(makeSubscriber(), openReq())
+
+    expect(prepared.models[0].modelId).toBe('anthropic::claude-opus')
+    expect(mocks.runtimeBeginTurn).toHaveBeenCalledWith(expect.objectContaining({ modelId: 'anthropic::claude-opus' }))
+    expect(mocks.runtimeValidateSession).toHaveBeenCalledWith(expect.objectContaining({ id: 'session-1' }), {
+      headless: false
+    })
+  })
+
+  it('checks the agent default model when editing with a per-session override', async () => {
+    mocks.getSession.mockReturnValue({
+      id: 'session-1',
+      agentId: 'agent-1',
+      model: 'anthropic::claude-opus',
+      workspace: { path: '/tmp' }
+    })
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      name: 'My Agent',
+      type: 'claude-code',
+      model: 'anthropic::claude-sonnet',
+      modelName: 'Claude Sonnet',
+      updatedAt: '2026-01-01T00:00:00.000Z'
+    })
+    mocks.getModelNames.mockReturnValue(new Map([['anthropic::claude-opus', 'Claude Opus']]))
+
+    await provider.prepareDispatch(makeSubscriber(), {
+      ...openReq({ userMessageParts: [{ type: 'text', text: 'edited' }] }),
+      trigger: 'edit-agent-message',
+      editTarget: { messageId: 'msg-1', version: 'v1' }
+    } as MainDispatchRequest)
+
+    expect(mocks.saveMessagesTx).toHaveBeenCalledWith({}, expect.anything(), {
+      id: 'agent-1',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      model: 'anthropic::claude-sonnet',
+      type: 'claude-code'
+    })
+  })
+
+  it.each([undefined, 'context-1'])(
+    'preserves durable edit reservation and model-default guard (context: %s)',
+    async (nativeContextId) => {
+      runtimeDriverRegistry.register({
+        type: 'pi-durable',
+        connect: vi.fn(),
+        validateSession: mocks.runtimeValidateSession
+      })
+      mocks.getSession.mockReturnValue({
+        id: 'session-1',
+        agentId: 'agent-1',
+        model: 'anthropic::claude-opus',
+        workspace: { path: '/tmp' }
+      })
+      mocks.getAgent.mockReturnValue({
+        id: 'agent-1',
+        name: 'My Agent',
+        type: 'pi-durable',
+        model: 'anthropic::claude-sonnet',
+        updatedAt: '2026-01-01T00:00:00.000Z'
+      })
+      mocks.runtimeEditSession.mockImplementation(async (_sessionId, _target, fn) =>
+        fn({}, 'native-session', nativeContextId)
+      )
+      await provider.prepareDispatch(makeSubscriber(), {
+        ...openReq({ userMessageParts: [{ type: 'text', text: 'edited' }] }),
+        trigger: 'edit-agent-message',
+        editTarget: { messageId: 'msg-1', version: 'v1' }
+      } as MainDispatchRequest)
+      expect(mocks.saveMessagesTx).toHaveBeenCalledWith(
+        {},
+        expect.anything(),
+        expect.objectContaining({ model: 'anthropic::claude-sonnet', type: 'pi-durable' })
+      )
+      expect(mocks.reserveDurableBranchTx).toHaveBeenCalledWith(
+        {},
+        'session-1',
+        expect.any(String),
+        'native-session',
+        nativeContextId
+      )
+      if (nativeContextId)
+        expect(mocks.setEditRuntimeTx).toHaveBeenCalledWith({}, 'session-1', expect.any(String), 'native-session')
+      else expect(mocks.setEditRuntimeTx).not.toHaveBeenCalled()
+    }
+  )
+
+  it('keeps headless scheduled runs on the agent default model', async () => {
+    mocks.getSession.mockReturnValue({
+      id: 'session-1',
+      agentId: 'agent-1',
+      model: 'anthropic::claude-opus',
+      workspace: { path: '/tmp' }
+    })
+
+    const prepared = await provider.prepareDispatch(makeSubscriber(), openReq({ headless: true }))
+
+    expect(prepared.models[0].modelId).toBe('anthropic::claude-sonnet')
+    expect(mocks.runtimeBeginTurn).toHaveBeenCalledWith(
+      expect.objectContaining({ modelId: 'anthropic::claude-sonnet' })
+    )
+    expect(mocks.runtimeValidateSession).toHaveBeenCalledWith(expect.objectContaining({ id: 'session-1' }), {
+      headless: true
+    })
   })
 
   it('rejects agent sessions without a registered runtime driver', async () => {

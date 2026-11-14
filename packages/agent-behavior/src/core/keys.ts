@@ -9,6 +9,8 @@ export type Key = string & { readonly __key: true }
 // The single sanctioned cast that mints a Key.
 const mint = (value: string): Key => value as Key // eslint-disable-line no-restricted-syntax
 
+export const nativeSummaryKey = (compactionKey: string): Key => mint(`cherry.summary-usage:${compactionKey}`)
+
 type NotifiedRun = { readonly child: ThreadId; readonly run: number }
 // Code-unit order, not localeCompare: the key must not depend on the host's locale.
 const byChildThenRun = ([childA, runA]: readonly [string, number], [childB, runB]: readonly [string, number]) =>
@@ -73,9 +75,7 @@ export const keys = {
   reopenStop: (round: ItemId): Key => mint(`reopen-stop:${round}`),
   approvalMemo: (call: CallKey): Key => mint(`cherry.approval:${call}`),
   askMemo: (call: CallKey): Key => mint(`cherry.ask:${call}`),
-  verdictMemo: (call: CallKey): Key => mint(`cherry.verdict:${call}`),
-  summaryUsage: (compactionKey: string): Key => mint(`cherry.summary-usage:${compactionKey}`),
-  summaryMemo: (compactionKey: string): Key => mint(`cherry.summary:${compactionKey}`)
+  verdictMemo: (call: CallKey): Key => mint(`cherry.verdict:${call}`)
 } as const
 
 /** How many times goal `goalId` went from unarmed (or unrecorded) to armed; a resumed goal keeps its revision but not its armSeq. */

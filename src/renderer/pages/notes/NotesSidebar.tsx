@@ -428,10 +428,11 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
           </div>
         )}
 
-        <div className="min-h-0 flex-1 px-2 pt-2">
+        <div className="min-h-0 flex-1">
           <CommandContextMenu location="webcontents.context" extraItems={emptyAreaMenuItems}>
             <div className="h-full min-h-0">
               <FileTree
+                contentProps={{ className: 'px-2 pt-2' }}
                 nodes={fileTreeNodes}
                 expandedIds={expandedIds}
                 onExpandedChange={handleFileTreeExpandedChange}

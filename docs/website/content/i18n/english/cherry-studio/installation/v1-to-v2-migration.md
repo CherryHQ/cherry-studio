@@ -9,7 +9,7 @@ Migration is one-way: V1 data can be imported into V2, but new V2 data will not 
 {% endhint %}
 
 {% hint style="warning" %}
-The correct path for data retention is: **V1.9.13 → V2 (direct data migration)**; no intermediate V2 release is required.
+The correct path for data retention is: **V1.9.13 → V2.2.2 (complete data migration) → the current version**. 2.2.2 is the last published release containing the migration code.
 {% endhint %}
 
 ## Choose Based on Your Current Situation
@@ -56,7 +56,7 @@ When using a portable hard drive, network volume, or other custom location, ensu
 {% step %}
 ### First Launch of V2
 
-Download the V2 installer matching your system and chip from [V2 Official Download](https://cherryai.com/download), or use the [GitHub Release Page](https://github.com/CherryHQ/cherry-studio/releases). Fully exit V1 before installing and launching.
+Download the 2.2.2 installer matching your system and chip from the [2.2.2 Release Page](https://github.com/CherryHQ/cherry-studio/releases/tag/v2.2.2). Fully exit V1 before installing and launching.
 {% endstep %}
 
 {% step %}
@@ -127,5 +127,5 @@ No. Valid indexes will be migrated; only process sources that show as failed, la
 * [Cherry Studio V2 Official Download](https://cherryai.com/download)
 * [Cherry Studio V1 Official Download](https://cherryai.com/download/v1)
 * V2 Release Page: [GitHub](https://github.com/CherryHQ/cherry-studio/releases)
-* [Official Migration Design Notes](https://github.com/CherryHQ/cherry-studio/blob/main/src/main/data/migration/v2/README.md#version-compatibility-gate)
+* [Official Migration Design Notes](https://github.com/CherryHQ/cherry-studio/blob/v2.2.2/src/main/data/migration/v2/README.md#version-compatibility-gate)
 * [Issue Feedback and Feature Suggestions](../../question-contact/suggestions.md)

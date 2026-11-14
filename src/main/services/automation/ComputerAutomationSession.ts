@@ -101,7 +101,7 @@ export class ComputerAutomationSession {
     onApp?.(binding.app)
     if (continuation) {
       signal.throwIfAborted()
-      this.service.validateAppSession(this.task, binding.sessionId)
+      await this.service.validateAppSession(this.task, binding.sessionId, signal)
       if (!binding.page || binding.page.cursor !== continuation.cursor)
         throw new ComputerUseError('STALE_SNAPSHOT', 'AX page cursor expired; obtain a fresh observation.')
       return this.page(binding, target!, 'getAXState')
