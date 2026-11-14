@@ -620,7 +620,8 @@ export function TextInputField({
   placeholder,
   required = false,
   layout = 'stacked',
-  rows = 2
+  rows = 2,
+  textareaClassName
 }: {
   form: UseFormReturn<any>
   name: 'name' | 'description'
@@ -631,6 +632,7 @@ export function TextInputField({
   required?: boolean
   layout?: 'stacked' | 'row'
   rows?: number
+  textareaClassName?: string
 }) {
   const { t } = useTranslation()
 
@@ -656,7 +658,7 @@ export function TextInputField({
                 rows={rows}
                 placeholder={placeholder}
                 onValueChange={field.onChange}
-                className="min-h-16"
+                className={cn('min-h-16', textareaClassName)}
               />
             ) : (
               <Input {...field} placeholder={placeholder} />

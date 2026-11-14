@@ -67,6 +67,7 @@ export function PromptPolishActions({
   const usesFallback = !value.trim()
   const generationSource = usesFallback ? (fallbackSource?.trim() ?? '') : value
   const modelLabel = defaultModel?.name?.trim() || t('library.config.prompt.no_default_model')
+  const actionText = t(usesFallback ? 'library.config.prompt.generate' : 'library.config.prompt.polish')
   const actionLabel = t(
     usesFallback ? 'library.config.prompt.generate_with_model' : 'library.config.prompt.polish_with_model',
     { model: modelLabel }
@@ -270,9 +271,10 @@ export function PromptPolishActions({
             variant="ghost"
             aria-label={cancelLabel}
             onClick={handleCancel}
-            className="group flex size-6 min-h-0 items-center justify-center rounded-md border border-border-subtle p-0 text-muted-foreground! shadow-none transition-colors hover:bg-accent/50 hover:text-error! focus-visible:bg-accent/50 focus-visible:text-error! focus-visible:ring-0">
+            className="group flex h-6 min-h-0 items-center gap-1 rounded-md border border-border-subtle px-2 py-0 font-normal text-muted-foreground! text-xs shadow-none transition-colors hover:bg-accent/50 hover:text-error! focus-visible:bg-accent/50 focus-visible:text-error! focus-visible:ring-0">
             <LoaderCircle className="size-3 group-hover:hidden group-focus-visible:hidden motion-safe:animate-spin" />
             <X className="hidden size-3 group-hover:block group-focus-visible:block" />
+            <span>{t('common.cancel')}</span>
           </Button>
         </Tooltip>
       ) : (
@@ -283,8 +285,9 @@ export function PromptPolishActions({
             aria-label={actionLabel}
             aria-disabled={actionDisabled}
             onClick={() => void handlePolish()}
-            className="flex size-6 min-h-0 items-center justify-center rounded-md border border-border-subtle p-0 text-muted-foreground! shadow-none transition-colors hover:bg-accent/50 hover:text-foreground! focus-visible:bg-accent/50 focus-visible:text-foreground! focus-visible:ring-0 aria-disabled:pointer-events-none aria-disabled:cursor-not-allowed aria-disabled:opacity-40">
+            className="flex h-6 min-h-0 items-center gap-1 rounded-md border border-border-subtle px-2 py-0 font-normal text-muted-foreground! text-xs shadow-none transition-colors hover:bg-accent/50 hover:text-foreground! focus-visible:bg-accent/50 focus-visible:text-foreground! focus-visible:ring-0 aria-disabled:pointer-events-none aria-disabled:cursor-not-allowed aria-disabled:opacity-40">
             <Sparkles className="size-3" />
+            <span>{actionText}</span>
           </Button>
         </Tooltip>
       )}

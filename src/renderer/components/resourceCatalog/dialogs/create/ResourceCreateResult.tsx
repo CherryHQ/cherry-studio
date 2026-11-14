@@ -25,7 +25,10 @@ export type CreatedResource = {
 function ResultAvatar({ avatar, name, description }: { avatar: string; name: string; description?: string }) {
   return (
     <div className="flex flex-col items-center gap-2 text-center">
-      <EmojiAvatar size={84} fontSize={42} className="rounded-[28%] border-0">
+      <EmojiAvatar
+        size={84}
+        fontSize={42}
+        className="shrink-0 cursor-default rounded-[28%] border border-border hover:opacity-100">
         {avatar}
       </EmojiAvatar>
       <div className="mt-1 max-w-full truncate font-semibold text-foreground text-lg leading-tight">{name}</div>
@@ -53,15 +56,19 @@ export function ResourceCreateWorkingView({
 }) {
   const { t } = useTranslation()
   const [avatar, name, purpose] = useWatch({ control: form.control, name: ['avatar', 'name', 'description'] })
+  const isAgent = kind === 'agent'
   const items = [
-    t('library.config.prompt.label'),
-    t('library.config.agent.section.tools.tab.tools'),
-    ...(kind === 'agent' ? [t('library.config.agent.section.tools.tab.skills')] : [])
+    t('library.config.dialogs.create.result.working.prompt'),
+    t('library.config.dialogs.create.result.working.tools'),
+    ...(isAgent ? [t('library.config.dialogs.create.result.working.skills')] : [])
   ]
+  const fallbackName = isAgent
+    ? t('library.config.dialogs.create.result.agent_fallback_name')
+    : t('library.config.dialogs.create.result.assistant_fallback_name')
 
   return (
     <div className="flex flex-col gap-5 px-6 pt-6 pb-5">
-      <ResultAvatar avatar={avatar} name={name.trim() || purpose.trim()} />
+      <ResultAvatar avatar={avatar} name={name.trim() || fallbackName} description={purpose.trim()} />
       <div className="rounded-xl border border-border-subtle px-3.5 py-2">
         {items.map((item) => (
           <div key={item} className="flex min-h-8 items-center gap-2.5 text-[13px] text-foreground">
@@ -97,12 +104,13 @@ export function ResourceCreateResultView({
   const { bases } = useKnowledgeBases()
   const { mcpServers } = useMcpServers()
 
-  const none = t('common.none')
-  const namesOf = (items: readonly { id: string; name: string }[], ids: readonly string[]) => {
+  const namesOf = (items: readonly { id: string; name: string }[], ids: readonly string[], empty: string) => {
     const selected = new Set(ids)
     const names = items.filter((item) => selected.has(item.id)).map((item) => item.name)
-    return names.length > 0 ? names.join(', ') : none
+    // Intl.ListFormat adds "and"/"和" before the last item, which reads wrong for a name list.
+    return names.length > 0 ? names.join(t('library.config.dialogs.create.result.list_separator')) : empty
   }
+  const notAdded = t('library.config.dialogs.create.result.empty.not_added')
 
   const promptState = !values.prompt
     ? t('library.config.dialogs.create.result.prompt_empty')
@@ -140,18 +148,22 @@ export function ResourceCreateResultView({
                 })
               : values.enableWebSearch
                 ? t('library.config.dialogs.create.result.web_search')
-                : none}
+                : t('library.config.dialogs.create.result.empty.not_enabled')}
           </SummaryRow>
           {isAgent ? (
             <SummaryRow label={t('library.config.agent.section.tools.tab.skills')}>
-              {namesOf(skills, skillIds)}
+              {namesOf(skills, skillIds, notAdded)}
             </SummaryRow>
           ) : null}
           <SummaryRow label={t('library.config.agent.section.tools.tab.mcp')}>
-            {namesOf(mcpServers, values.mcpServerIds ?? [])}
+            {namesOf(
+              mcpServers,
+              values.mcpServerIds ?? [],
+              isAgent ? t('library.config.dialogs.create.result.empty.not_bound') : notAdded
+            )}
           </SummaryRow>
           <SummaryRow label={t('library.config.dialogs.create.step.knowledge')}>
-            {namesOf(bases, values.knowledgeBaseIds)}
+            {namesOf(bases, values.knowledgeBaseIds, t('library.config.dialogs.create.result.empty.not_linked'))}
           </SummaryRow>
         </div>
       </div>
