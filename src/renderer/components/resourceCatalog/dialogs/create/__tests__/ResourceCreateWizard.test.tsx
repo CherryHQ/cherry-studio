@@ -137,6 +137,8 @@ const TOOLS_ROW = 'library.config.agent.section.tools.tab.tools'
 const SKILLS_ROW = 'library.config.agent.section.tools.tab.skills'
 const MCP_ROW = 'library.config.agent.section.tools.tab.mcp'
 const KNOWLEDGE_ROW = 'library.config.dialogs.create.step.knowledge'
+const RESULT = 'library.config.dialogs.create.result'
+const LIST_SEPARATOR = `${RESULT}.list_separator`
 
 /** The value cell of a result-page summary row. */
 const summaryValue = (label: string) => screen.getByText(label).nextElementSibling
@@ -1064,6 +1066,34 @@ describe('ResourceCreateWizard auto create', () => {
     expect(onOpenChange).toHaveBeenCalledWith(false)
   })
 
+  it.each([
+    ['assistant', 'assistant_fallback_name', 2],
+    ['agent', 'agent_fallback_name', 3]
+  ] as const)(
+    'names an unnamed %s by its kind while generating and keeps the purpose as the subtitle',
+    async (kind, fallbackKey, stepCount) => {
+      const user = userEvent.setup()
+      autoConfigure.generate.mockReturnValue(new Promise(() => {}))
+      render(
+        <ResourceCreateWizard
+          kind={kind}
+          open
+          onOpenChange={vi.fn()}
+          onStartConversation={vi.fn()}
+          onSubmit={vi.fn()}
+        />
+      )
+
+      await describePurpose(user)
+      await user.click(screen.getByRole('button', { name: 'fill model' }))
+      await user.click(screen.getByRole('button', { name: AUTO }))
+
+      expect(screen.getByText(`${RESULT}.${fallbackKey}`)).toBeVisible()
+      expect(screen.getByText('Review my GitHub PRs')).toBeVisible()
+      expect(screen.getAllByText(new RegExp(`^${RESULT}\\.working\\.`))).toHaveLength(stepCount)
+    }
+  )
+
   it('lets the user cancel while generating and abandons the request', async () => {
     const user = userEvent.setup()
     const onSubmit = vi.fn()
@@ -1078,9 +1108,7 @@ describe('ResourceCreateWizard auto create', () => {
     await describePurpose(user)
     await user.click(screen.getByRole('button', { name: 'fill model' }))
     await user.click(screen.getByRole('button', { name: AUTO }))
-    // The working view stands in for the entry, titled with the purpose until a name exists.
     expect(screen.getByRole('heading', { name: 'library.config.dialogs.create.result.working_title' })).toBeVisible()
-    expect(screen.getByText('Review my GitHub PRs')).toBeVisible()
     expect(screen.queryByRole('button', { name: MANUAL })).not.toBeInTheDocument()
     fireEvent.click(dialogCloseButton())
 
@@ -1108,7 +1136,7 @@ describe('ResourceCreateWizard auto create', () => {
     expect(summaryValue(PROMPT_ROW)).toHaveTextContent('library.config.dialogs.create.result.prompt_generated')
     expect(summaryValue('common.model')).toHaveTextContent('Picked model')
     expect(summaryValue(PERMISSION_ROW)).toHaveTextContent('agent.settings.tooling.permissionMode.default.title')
-    expect(summaryValue(SKILLS_ROW)).toHaveTextContent('Builtin skill, Review skill')
+    expect(summaryValue(SKILLS_ROW)).toHaveTextContent(`Builtin skill${LIST_SEPARATOR}Review skill`)
     expect(summaryValue(MCP_ROW)).toHaveTextContent('GitHub')
     expect(summaryValue(KNOWLEDGE_ROW)).toHaveTextContent('Docs')
   })
@@ -1126,7 +1154,7 @@ describe('ResourceCreateWizard auto create', () => {
       await screen.findByRole('heading', { name: 'library.config.dialogs.create.result.assistant_title' })
     ).toBeVisible()
     expect(summaryValue(TOOLS_ROW)).toHaveTextContent('library.config.dialogs.create.result.web_search')
-    expect(summaryValue(MCP_ROW)).toHaveTextContent('common.none')
+    expect(summaryValue(MCP_ROW)).toHaveTextContent(`${RESULT}.empty.not_added`)
     expect(screen.queryByText(PERMISSION_ROW)).not.toBeInTheDocument()
     expect(screen.queryByText(SKILLS_ROW)).not.toBeInTheDocument()
   })
@@ -1159,8 +1187,22 @@ describe('ResourceCreateWizard result page', () => {
     expect(summaryValue(PERMISSION_ROW)).toHaveTextContent('agent.settings.tooling.permissionMode.auto.title')
     expect(summaryValue(TOOLS_ROW)?.textContent).toMatch(/tools_enabled:(\d+)\/\1$/)
     expect(summaryValue(SKILLS_ROW)).toHaveTextContent(/^Builtin skill$/)
-    expect(summaryValue(MCP_ROW)).toHaveTextContent('common.none')
-    expect(summaryValue(KNOWLEDGE_ROW)).toHaveTextContent('common.none')
+    expect(summaryValue(MCP_ROW)).toHaveTextContent(`${RESULT}.empty.not_bound`)
+    expect(summaryValue(KNOWLEDGE_ROW)).toHaveTextContent(`${RESULT}.empty.not_linked`)
+  })
+
+  it('says what an empty manual Assistant lacks in its own words', async () => {
+    const user = userEvent.setup()
+    render(<ResultHost kind="assistant" onSubmit={vi.fn().mockResolvedValue('assistant-1')} />)
+
+    await createManually(user, 'assistant')
+
+    expect(
+      await screen.findByRole('heading', { name: 'library.config.dialogs.create.result.assistant_title' })
+    ).toBeVisible()
+    expect(summaryValue(TOOLS_ROW)).toHaveTextContent(`${RESULT}.empty.not_enabled`)
+    expect(summaryValue(MCP_ROW)).toHaveTextContent(`${RESULT}.empty.not_added`)
+    expect(summaryValue(KNOWLEDGE_ROW)).toHaveTextContent(`${RESULT}.empty.not_linked`)
   })
 
   it('closes and runs the start action with the created ID, then reopens on a fresh entry', async () => {

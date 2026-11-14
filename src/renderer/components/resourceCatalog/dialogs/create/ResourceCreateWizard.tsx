@@ -525,6 +525,7 @@ export function ResourceCreateWizard({
                 <>
                   <div className="px-6 pt-6 pb-5">
                     <AutoCreateEntry
+                      kind={kind}
                       form={form}
                       portalContainer={dialogContentElement}
                       fallbackAvatar={getResourceCreateDefaultAvatar(kind)}

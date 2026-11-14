@@ -6,12 +6,13 @@ import type { ModelSelectorFilter } from '@renderer/components/ModelSelector'
 import { EmojiAvatarPicker } from '@renderer/components/resourceCatalog/dialogs/components/DialogFormFields'
 import { TextInputField } from '@renderer/components/resourceCatalog/dialogs/components/EditDialogShared'
 
-import type { ResourceCreateWizardFormValues } from '../types'
+import type { ResourceCreateWizardFormValues, ResourceCreateWizardKind } from '../types'
 import { CreateModelField } from './BasicInfoStep'
 
 const ENTRY_LABEL_CLASS = 'text-muted-foreground text-xs'
 
 type AutoCreateEntryProps = {
+  kind: ResourceCreateWizardKind
   form: UseFormReturn<ResourceCreateWizardFormValues>
   portalContainer: HTMLElement | null
   fallbackAvatar: string
@@ -27,6 +28,7 @@ type AutoCreateEntryProps = {
  * carries it into the basic step unchanged; "Auto create" turns it into a full configuration.
  */
 export function AutoCreateEntry({
+  kind,
   form,
   portalContainer,
   fallbackAvatar,
@@ -51,7 +53,7 @@ export function AutoCreateEntry({
           onChange={(value) => form.setValue('avatar', value, { shouldDirty: true })}
           ariaLabel={t('library.config.dialogs.create.avatar_aria')}
           portalContainer={portalContainer}
-          avatarClassName="rounded-[28%] border-0"
+          avatarClassName="rounded-[28%]"
           disabled={disabled}
         />
       </div>
@@ -60,15 +62,24 @@ export function AutoCreateEntry({
         name="name"
         label={t('common.name')}
         labelClassName={ENTRY_LABEL_CLASS}
-        placeholder={t('library.config.dialogs.create.auto.name_placeholder')}
+        placeholder={
+          kind === 'agent'
+            ? t('library.config.dialogs.create.auto.agent_name_placeholder')
+            : t('library.config.dialogs.create.auto.assistant_name_placeholder')
+        }
       />
       <TextInputField
         form={form}
         name="description"
         rows={3}
+        textareaClassName="min-h-20 resize-none"
         label={t('library.config.dialogs.create.auto.purpose_label')}
         labelClassName={ENTRY_LABEL_CLASS}
-        placeholder={t('library.config.dialogs.create.auto.purpose_placeholder')}
+        placeholder={
+          kind === 'agent'
+            ? t('library.config.dialogs.create.auto.agent_purpose_placeholder')
+            : t('library.config.dialogs.create.auto.assistant_purpose_placeholder')
+        }
       />
       <CreateModelField
         form={form}
