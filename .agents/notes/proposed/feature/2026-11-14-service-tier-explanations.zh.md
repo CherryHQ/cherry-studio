@@ -19,7 +19,7 @@ Status: proposed
 
 1. **通俗的层级文案。** 在渲染进程的语言目录中，为每个层级在 `agent.speed.service_tier.<tier>.description` 下添加一句简短描述。文案由 Cherry 自行撰写，不引用服务商的营销术语。每条描述用一句话说明实际的取舍，并指出它影响的维度（速度、费用、优先级或容量）。
 2. **服务商术语保持独立。** 服务商特有的名称（例如 OpenAI 的 `priority` 或 `flex`）保留在注册表的 `values` 映射中，仅在用户展开详情时以“服务商值”的次要行显示，绝不作为主标签。
-3. **由注册表决定可选项。** 只显示当前端点 `requestControls.serviceTier.options` 中声明的层级。模型未声明的层级不会列出，因此无法选中隐藏的层级。
+3. **由注册表决定可选项。** 可选层级仅来自当前端点 `requestControls.serviceTier.options`。唯一例外是不受支持的已保存层级：保留其单选项，但禁用且不可选择，并显示提案第 4 项中的说明。其他未声明的层级不会列出。
 4. **不受支持的选择直接禁用，而非强制替换。** 当保存的层级不在当前模型的选项中时，该单选项被禁用并附上说明（“此模型不支持，将使用 Standard”），旁边显示生效的层级。界面上以禁用状态取代静默回退。读取时不改写已保存的值。
 5. **保存值与生效值保持可见。** 两者不同时，触发按钮和弹窗同时显示二者。
 6. **安全默认值。** 默认值仍为 `standard`。本次变更不会把任何层级设为新的默认值。
@@ -37,7 +37,7 @@ Status: proposed
 
 - AC1 — 每个显示的层级在 `en-us` 以及 `pnpm i18n:sync` 和翻译之后的所有语言目录中都有描述（verification: renderer）
 - AC2 — 层级描述将速度、费用、优先级或容量之一作为主要取舍，且不把服务商营销术语用作标签（verification: renderer）
-- AC3 — 只列出当前端点 `requestControls.serviceTier.options` 中声明的层级；未声明的层级从不渲染（verification: renderer）
+- AC3 — 仅当前端点 `requestControls.serviceTier.options` 中声明的层级可选；不受支持的已保存层级仅作为 AC4 要求的禁用单选项保持可见，其他未声明的层级不渲染（verification: renderer）
 - AC4 — 当前模型不支持的已保存层级渲染为禁用状态，附带说明和生效层级；读取时不覆盖已保存的值（verification: renderer）
 - AC5 — 保存值与生效值不同时，触发按钮和弹窗同时显示二者；关闭后重新打开，显示的值保持一致（verification: renderer）
 - AC6 — 对没有已保存层级的模型，默认选择保持为 `standard`（verification: unit）

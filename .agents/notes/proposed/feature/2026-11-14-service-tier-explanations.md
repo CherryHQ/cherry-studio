@@ -19,7 +19,7 @@ Two current behaviors make this worse:
 
 1. **Plain-language tier copy.** Add one short description per tier in the renderer locale catalogs under `agent.speed.service_tier.<tier>.description`. Copy is Cherry-authored and never quotes provider marketing terms. Each description states the practical tradeoff in one sentence and names which dimension it touches (speed, cost, priority, or capacity).
 2. **Provider terms stay separate.** Provider-specific names (for example OpenAI's `priority` or `flex`) remain in the registry `values` mapping and appear only in a secondary "Provider value" line when the user expands details. They are never used as the primary label.
-3. **Eligibility from the registry.** Show only the tiers in `requestControls.serviceTier.options` for the active endpoint. Tiers the model does not declare are not listed, so no hidden tier can be selected.
+3. **Eligibility from the registry.** Show selectable tiers only from `requestControls.serviceTier.options` for the active endpoint. The sole exception is an unsupported saved tier: keep it visible as a disabled, unselectable radio with the explanation in Proposal 4. Other undeclared tiers are not listed.
 4. **Unsupported selections are disabled, not coerced.** When the stored tier is not in the options for the active model, the radio for that tier is disabled with an explanation ("Not available for this model; using Standard"), and the effective tier is shown next to it. Disabled state replaces the silent fallback in the UI. The stored value is not rewritten on read.
 5. **Selected and effective values stay visible.** The trigger and the popover show both the saved choice and the effective value whenever they differ.
 6. **Safe default.** The default remains `standard`. No tier becomes the default by this change.
@@ -37,7 +37,7 @@ Out of scope: a cost-confirmation step before sending, new provider tiers (inclu
 
 - AC1 — Every displayed tier has a description in `en-us` and in every locale catalog after `pnpm i18n:sync` and translation (verification: renderer)
 - AC2 — Tier descriptions state one of speed, cost, priority, or capacity as the primary tradeoff and do not reuse provider marketing terms as labels (verification: renderer)
-- AC3 — Only tiers declared in `requestControls.serviceTier.options` for the active endpoint are listed; undeclared tiers never render (verification: renderer)
+- AC3 — Only tiers declared in `requestControls.serviceTier.options` for the active endpoint are selectable; an unsupported saved tier remains visible only as the disabled radio required by AC4, and other undeclared tiers do not render (verification: renderer)
 - AC4 — A stored tier that the active model does not support renders disabled with an explanation and the effective tier; the stored value is not overwritten on read (verification: renderer)
 - AC5 — The trigger and popover show both the saved and effective tier when they differ, and show the same value after the popover is closed and reopened (verification: renderer)
 - AC6 — The default selection remains `standard` for models without a stored tier (verification: unit)
