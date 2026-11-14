@@ -9,11 +9,16 @@
  * - It's designed for LLM code mode, not direct user interaction
  * - It should be auto-enabled internally when needed, not manually installed
  */
+import { buildMcpWireWildcard } from '@shared/ai/tools/mcpSourcePolicy'
 import type { McpServer } from '@shared/data/types/mcpServer'
 import { type BuiltinMcpServerName, BuiltinMcpServerNames } from '@shared/utils/mcp'
 
+import { ZONEFOUNDRY_MCP_BASE_URL } from './zonefoundryMcp'
+
 /** A builtin server as declared in code; the `id` is assigned by the database on install. */
-export type McpServerPreset = Omit<McpServer, 'id' | 'name'> & { name: BuiltinMcpServerName }
+export type McpServerPreset = Omit<McpServer, 'id' | 'name'> & {
+  name: BuiltinMcpServerName
+}
 
 /** Frozen because both the renderer catalog and the seeder read these objects live. */
 const freezePresets = (presets: McpServerPreset[]): readonly Readonly<McpServerPreset>[] =>
@@ -54,6 +59,22 @@ export const PRESET_MCP_SERVERS = freezePresets([
     provider: 'QVeris',
     installSource: 'builtin',
     isTrusted: true
+  },
+  {
+    name: BuiltinMcpServerNames.zonefoundry,
+    type: 'streamableHttp',
+    baseUrl: ZONEFOUNDRY_MCP_BASE_URL,
+    headers: { APP: 'Cherry Studio' },
+    isActive: false,
+    env: {
+      ZONEFOUNDRY_API_KEY: ''
+    },
+    shouldConfig: true,
+    provider: 'ZoneFoundry',
+    installSource: 'builtin',
+    // Do not claim user trust before this third-party relay is configured.
+    isTrusted: false,
+    disabledAutoApproveTools: [buildMcpWireWildcard(BuiltinMcpServerNames.zonefoundry)]
   },
   {
     name: BuiltinMcpServerNames.mcpAutoInstall,

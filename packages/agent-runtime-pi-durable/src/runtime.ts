@@ -659,7 +659,7 @@ export async function createPiDurableRuntime(
           const task = await native.getTask(Number(call.key) as never, context)
           if (task?.kind !== ToolTask.definition.name || task.conversationId !== entry.conversation.id) return undefined
           const input = task.input as ToolTaskInput
-          return input.kind === 'model' ? input.callId : undefined
+          return input.kind === 'model' ? input.callId : input.call.id
         },
         async configure(change) {
           if (unavailable()) throw new Error('Durable access is closed')

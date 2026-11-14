@@ -7,6 +7,7 @@ import { McpLogo } from '@renderer/components/icons/SvgIcon'
 import type { useBuiltinMcpCatalog } from '@renderer/hooks/useBuiltinMcpCatalog'
 import { useExitPresence } from '@renderer/hooks/useExitPresence'
 import { getBuiltInMcpServerDescriptionLabelKey } from '@renderer/i18n/label'
+import { ZONEFOUNDRY_SETUP_GUIDE_URL } from '@renderer/pages/settings/McpSettings/zoneFoundrySetupGuide'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import { toast } from '@renderer/services/toast'
 import { openExternalWebsite } from '@renderer/services/website'
@@ -269,6 +270,15 @@ export function MarketplaceMcp({
                   {description(selected)}
                 </p>
                 {selected.shouldConfig ? <Badge variant="secondary">{t('settings.mcp.requiresConfig')}</Badge> : null}
+                {selected.name === BuiltinMcpServerNames.zonefoundry ? (
+                  <a
+                    href={ZONEFOUNDRY_SETUP_GUIDE_URL}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="break-words text-sm text-link hover:underline">
+                    {t('settings.mcp.zonefoundry.setup_guide')}
+                  </a>
+                ) : null}
                 {selected.name === BuiltinMcpServerNames.filesystem ? (
                   <section className="space-y-2">
                     <h3 className="text-sm font-medium">{t('marketplace.mcp.configuration.title')}</h3>

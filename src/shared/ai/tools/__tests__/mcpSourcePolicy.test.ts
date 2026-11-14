@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import type { McpServer } from '../../../data/types/mcpServer'
 import {
+  isMcpAutoApprovalEnforcedBySource,
   isMcpToolDisabledBySource,
   isMcpToolForcePromptBySource,
   matchesMcpSourceToolRule,
@@ -22,6 +23,14 @@ const tool = {
 }
 
 describe('mcpSourcePolicy', () => {
+  it('enforces a matching server-wide prompt rule for current and future tools', () => {
+    const configured = { ...server, disabledAutoApproveTools: ['mcp__docs__*'] }
+    expect(isMcpAutoApprovalEnforcedBySource(configured)).toBe(true)
+    expect(resolveMcpSourceToolAccess(configured, { name: 'new_tool' }).approval).toBe('prompt')
+    expect(isMcpAutoApprovalEnforcedBySource({ ...server, disabledAutoApproveTools: ['mcp__other__*'] })).toBe(false)
+    expect(isMcpAutoApprovalEnforcedBySource({ ...server, disabledAutoApproveTools: ['search_docs'] })).toBe(false)
+  })
+
   it('matches raw name, current id, legacy id, and server wildcard', () => {
     expect(matchesMcpSourceToolRule('search_docs', server, tool)).toBe(true)
     expect(matchesMcpSourceToolRule(tool.id, server, tool)).toBe(true)
