@@ -30,12 +30,19 @@
 import { and, asc, eq, inArray, or, type SQL } from 'drizzle-orm'
 
 import { application } from '@application'
+import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { entityTagTable, type TagRow, tagTable } from '@data/db/schemas/tagging'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbType } from '@data/db/types'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
-import type { CreateTagDto, SetTagEntitiesDto, SyncEntityTagsDto, UpdateTagDto } from '@shared/data/api/schemas/tags'
+import type {
+  CreateTagDto,
+  SetTagEntitiesDto,
+  SyncEntityTagsDto,
+  UpdateEntityTagsDeltaDto,
+  UpdateTagDto
+} from '@shared/data/api/schemas/tags'
 import type { EntityType } from '@shared/data/types/entityType'
 import type { Tag } from '@shared/data/types/tag'
 
@@ -149,6 +156,9 @@ export class TagService {
       }
     )
 
+    // Cross-window convergence: a committed create changes the `/tags` catalog
+    // read model; other windows only refetch it on this signal.
+    notifyDataApiDataChange([{ endpoint: '/tags', kind: 'membership' }])
     logger.info('Created tag', { id: row.id, name: row.name })
 
     return rowToTag(row)
@@ -184,6 +194,9 @@ export class TagService {
       throw DataApiErrorFactory.notFound('Tag', id)
     }
 
+    // Cross-window convergence: a committed rename/recolor changes the `/tags`
+    // catalog projection for this tag.
+    notifyDataApiDataChange([{ endpoint: '/tags', kind: 'projection', entityIds: [id] }])
     logger.info('Updated tag', { id, changes: Object.keys(dto) })
 
     return rowToTag(row)
@@ -199,6 +212,12 @@ export class TagService {
       throw DataApiErrorFactory.notFound('Tag', id)
     }
 
+    // Cross-window convergence: the hard delete removes the tag from the
+    // `/tags` catalog and cascades its bindings out of `/entity-tags`.
+    notifyDataApiDataChange([
+      { endpoint: '/tags', kind: 'membership' },
+      { endpoint: '/entity-tags', kind: 'membership' }
+    ])
     logger.info('Deleted tag', { id })
   }
 
@@ -264,6 +283,17 @@ export class TagService {
     return result
   }
 
+  /**
+   * List every `entity_tag` binding for an entity type (used by list views that group by tag).
+   */
+  listBindingsByEntityType(entityType: EntityType): Array<{ entityId: string; tagId: string }> {
+    return this.db
+      .select({ entityId: entityTagTable.entityId, tagId: entityTagTable.tagId })
+      .from(entityTagTable)
+      .where(eq(entityTagTable.entityType, entityType))
+      .all()
+  }
+
   getEntityIdsByTagsTx(tx: Pick<DbType, 'select'>, entityType: EntityType, tagIds: string[]): string[] {
     const uniqueTagIds = [...new Set(tagIds)]
     if (uniqueTagIds.length === 0) return []
@@ -318,6 +348,55 @@ export class TagService {
     })
 
     logger.info('Synced entity tags', { entityType, entityId, tagCount: desiredTagIds.length })
+  }
+
+  /**
+   * Apply a tag delta for an entity atomically: delete the `remove` bindings and insert
+   * the `add` bindings in one transaction. Unlike `syncEntityTags` (replace-all), each
+   * writer submits only its own change, so overlapping edits from separate windows or
+   * list instances commute instead of the last replacement silently dropping the other
+   * writer's additions. Adding an existing binding or removing an absent one is a no-op.
+   * A missing tag in `add` throws NOT_FOUND and rolls the whole delta back.
+   */
+  applyEntityTagDelta(entityType: EntityType, entityId: string, dto: UpdateEntityTagsDeltaDto): void {
+    const toRemove = [...new Set(dto.remove)]
+    const toAdd = [...new Set(dto.add)]
+
+    this.db.transaction((tx) => {
+      if (toRemove.length > 0) {
+        tx.delete(entityTagTable)
+          .where(
+            and(
+              eq(entityTagTable.entityType, entityType),
+              eq(entityTagTable.entityId, entityId),
+              inArray(entityTagTable.tagId, toRemove)
+            )
+          )
+          .run()
+      }
+
+      if (toAdd.length > 0) {
+        const existing = tx
+          .select({ tagId: entityTagTable.tagId })
+          .from(entityTagTable)
+          .where(and(eq(entityTagTable.entityType, entityType), eq(entityTagTable.entityId, entityId)))
+          .all()
+        const existingIds = new Set(existing.map((row) => row.tagId))
+        const newIds = toAdd.filter((tagId) => !existingIds.has(tagId))
+        if (newIds.length > 0) {
+          this.assertTagsExistTx(tx, newIds)
+          tx.insert(entityTagTable)
+            .values(newIds.map((tagId) => ({ entityType, entityId, tagId })))
+            .run()
+        }
+      }
+    })
+
+    // Cross-window convergence: the committed delta changes the `/entity-tags`
+    // read model, and the initiating window's SWR refresh does not reach other
+    // windows — they only refetch on this signal.
+    notifyDataApiDataChange([{ endpoint: '/entity-tags', kind: 'membership' }])
+    logger.info('Applied entity tag delta', { entityType, entityId, added: toAdd.length, removed: toRemove.length })
   }
 
   /**
