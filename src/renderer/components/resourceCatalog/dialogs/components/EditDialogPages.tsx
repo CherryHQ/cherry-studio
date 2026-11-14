@@ -231,7 +231,7 @@ export function SettingsLinkButton({
   onClick
 }: {
   label: string
-  summary: string
+  summary?: string
   onClick: () => void
 }) {
   return (
@@ -239,10 +239,10 @@ export function SettingsLinkButton({
       type="button"
       variant="ghost"
       size="sm"
-      aria-label={`${label}: ${summary}`}
+      aria-label={summary ? `${label}: ${summary}` : label}
       onClick={onClick}
       className={cn(settingsPillClassName, 'max-w-60')}>
-      <span className="truncate">{summary}</span>
+      {summary ? <span className="truncate">{summary}</span> : null}
       <ChevronRight className="size-3.5 shrink-0 text-muted-foreground" />
     </Button>
   )
