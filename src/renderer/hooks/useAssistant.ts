@@ -18,7 +18,7 @@
 
 import { useCallback, useRef } from 'react'
 
-import { useInvalidateCache, useMutation, useQuery } from '@data/hooks/useDataApi'
+import { useDataChange, useInvalidateCache, useMutation, useQuery } from '@data/hooks/useDataApi'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { useModelById } from '@renderer/hooks/useModel'
@@ -49,10 +49,13 @@ const ASSISTANTS_REFRESH_KEYS: ConcreteApiPaths[] = ['/assistants', '/assistants
  * consumer.
  */
 export function useAssistantsApi(options: { enabled?: boolean } = {}) {
+  const enabled = options.enabled ?? true
   const { data, isLoading, isRefreshing, error, refetch, mutate } = useQuery('/assistants', {
-    enabled: options.enabled ?? true,
+    enabled,
     query: { limit: ASSISTANTS_LIST_LIMIT }
   })
+  // Assistants created in main (e.g. by an Agent's create tool) announce themselves here.
+  useDataChange(enabled ? '/assistants' : [], () => void refetch())
 
   return {
     assistants: data?.items ?? EMPTY_ASSISTANTS,
