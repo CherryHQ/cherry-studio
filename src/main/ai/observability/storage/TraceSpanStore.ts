@@ -1,5 +1,7 @@
 import type { SpanEntity } from '@shared/data/types/trace'
 
+import { estimateTraceValueBytes } from './traceSize'
+
 export interface TraceSpanMeta {
   topicId?: string
   modelName?: string
@@ -17,31 +19,17 @@ export interface TraceSpanChanges {
   spans: SpanEntity[]
 }
 
-/**
- * Default cap on the total number of spans held in memory. When exceeded, the oldest
- * fully-ended trace is evicted (see {@link TraceSpanStore.enforceSpanLimit}). In-flight
- * traces are never evicted, so this bound prevents an abandoned trace that never reaches
- * a terminal flush from growing memory without bound, while preserving correctness for
- * traces that are still streaming.
- */
+// Diagnostic retention is bounded even while a root span remains active.
 const DEFAULT_MAX_SPANS = 50_000
-
-/**
- * Companion byte budget to {@link DEFAULT_MAX_SPANS}. A count cap does not bound memory: a single
- * span can carry megabytes of captured request/response bodies, so 50k spans is unbounded in bytes.
- * Evicted by the same oldest-fully-ended-trace rule, so an in-flight trace is still never dropped.
- */
 const DEFAULT_MAX_SPAN_BYTES = 64 * 1024 * 1024
 
-// Byte proxy for a stored span; `.length` counts UTF-16 units rather than exact bytes, which tracks
-// span size closely enough to bound the store. Only the cold path (a span export) measures a whole
-// span — the hot path adjusts the total incrementally through `touchSpan`.
 function estimateSpanBytes(span: SpanEntity): number {
-  try {
-    return JSON.stringify(span).length
-  } catch {
-    return 0
-  }
+  const { events, ...fields } = span
+  return (
+    estimateTraceValueBytes(fields) +
+    32 +
+    (events ?? []).reduce((sum, event) => sum + estimateTraceValueBytes(event), 0)
+  )
 }
 
 /**
@@ -52,9 +40,11 @@ function estimateSpanBytes(span: SpanEntity): number {
  * than anything dropped is forced to resync rather than silently missing a deletion.
  */
 const MAX_TRACKED_RESETS = 1_000
+const MAX_INACTIVE_TRACE_META = 1_000
 
 export class TraceSpanStore {
   private readonly traceMeta = new Map<string, TraceSpanMeta>()
+  private readonly inactiveTraceMeta = new Set<string>()
   private readonly spans = new Map<string, SpanEntity>()
   // Per-trace span-id index, used for O(span-count) eviction without scanning all spans.
   private readonly traceSpanIds = new Map<string, Set<string>>()
@@ -84,6 +74,7 @@ export class TraceSpanStore {
       topicId: meta.topicId ?? current.topicId,
       modelName: meta.modelName ?? current.modelName
     })
+    this.retainInactiveTraceMeta(traceId)
   }
 
   getTraceMeta(traceId: string): TraceSpanMeta | undefined {
@@ -116,6 +107,7 @@ export class TraceSpanStore {
         this.traceSpanIds.set(span.traceId, ids)
       }
       ids.add(span.id)
+      this.inactiveTraceMeta.delete(span.traceId)
       this.traceOrder.set(span.traceId, this.orderSeq++)
     }
     if (span.traceId && (span.topicId || span.modelName)) {
@@ -188,6 +180,7 @@ export class TraceSpanStore {
     }
     this.spans.clear()
     this.traceMeta.clear()
+    this.inactiveTraceMeta.clear()
     this.traceSpanIds.clear()
     this.traceOrder.clear()
     this.spanRevisions.clear()
@@ -208,6 +201,7 @@ export class TraceSpanStore {
     this.removeSpans(removedIds)
     if (!modelName) {
       this.traceMeta.delete(traceId)
+      this.inactiveTraceMeta.delete(traceId)
     }
   }
 
@@ -258,19 +252,26 @@ export class TraceSpanStore {
     }
   }
 
-  /**
-   * Evict the oldest fully-ended trace(s) until the store is within BOTH the span-count cap and the
-   * byte budget — a count alone cannot bound a store whose spans carry captured request/response
-   * bodies. A trace is "fully-ended" when every span it holds has `isEnd === true`; in-flight traces
-   * are skipped so streaming spans are never dropped mid-trace. If no fully-ended trace exists,
-   * eviction stops and the caps are allowed to be exceeded temporarily.
-   */
   private enforceSpanLimit(): void {
     while (this.spans.size > this.maxSpans || this.totalBytes > this.maxSpanBytes) {
       const victim = this.oldestEndedTraceId()
-      if (!victim) break
-      this.clearTrace(victim)
-      this.traceOrder.delete(victim)
+      if (victim) {
+        this.clearTrace(victim)
+        continue
+      }
+      const ended = [...this.spans.values()].find((span) => span.isEnd)
+      const oldest = ended ?? this.spans.values().next().value
+      if (!oldest) break
+      this.deleteSpan(oldest.id)
+      const root = [...this.spans.values()].find((span) => span.traceId === oldest.traceId && !span.isEnd)
+      if (root) {
+        root.attributes = {
+          ...root.attributes,
+          'cs.trace.dropped_spans': Number(root.attributes?.['cs.trace.dropped_spans'] ?? 0) + 1
+        }
+        this.spanRevisions.set(root.id, this.nextRevision())
+        this.trackBytes(root.id, estimateSpanBytes(root))
+      }
     }
   }
 
@@ -303,6 +304,18 @@ export class TraceSpanStore {
     if (ids.size === 0) {
       this.traceSpanIds.delete(traceId)
       this.traceOrder.delete(traceId)
+      this.retainInactiveTraceMeta(traceId)
+    }
+  }
+
+  private retainInactiveTraceMeta(traceId: string): void {
+    this.inactiveTraceMeta.delete(traceId)
+    if (this.traceSpanIds.has(traceId) || !this.traceMeta.has(traceId)) return
+    this.inactiveTraceMeta.add(traceId)
+    while (this.inactiveTraceMeta.size > MAX_INACTIVE_TRACE_META) {
+      const oldest = this.inactiveTraceMeta.values().next().value!
+      this.inactiveTraceMeta.delete(oldest)
+      this.traceMeta.delete(oldest)
     }
   }
 

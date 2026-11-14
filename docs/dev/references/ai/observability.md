@@ -83,7 +83,16 @@ by the global provider. On every `startSpan` / `startActiveSpan` it:
 - `buildTelemetry` (`runtime/aiSdk/params/buildTelemetry.ts`) — passed to AI
   SDK as `experimental_telemetry.tracer`. Captures every AI SDK auto-span.
   Returns `undefined` (no telemetry, no tracer) when there is no `topicId`
-  or developer mode is off — see below.
+  or developer mode is off — see below. Full SDK input/output recording is disabled before
+  serialization; bounded HTTP trace bodies and turn attributes supply diagnostic content.
+
+The in-memory projection enforces a 50,000-span and conservative 64 MiB serialized-size budget,
+including active traces. It first removes completed traces, then completed spans within active
+traces, then the oldest active diagnostic span if necessary. Viewer cursors reset after eviction;
+a later terminal export can restore an evicted span. Full-span and incremental event accounting use
+the same size estimator. Metadata for traces without retained spans is limited to the most recent
+1,000 traces, while metadata for retained spans stays available. These limits govern diagnostic retention,
+not runtime execution or conversation history.
 
 ## AiSdkSpanAdapter
 

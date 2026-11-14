@@ -2397,13 +2397,23 @@ export class AgentSessionRuntimeService extends BaseService {
           : undefined
         const owners = new Set(event.sourceToolCallIds?.map((call) => projection?.toolCallMessageId(call)))
         const sourceReply = source && getAgentSessionRuntimeReply(entry.runtimeState, source)
-        const assistantMessageId = background
-          ? sourceReply?.admission === 'pending' || !source
-            ? ((owners.size === 1 ? owners.values().next().value : undefined) ??
-              projection?.lastMessageId ??
-              source?.assistantMessageId)
-            : source.assistantMessageId
-          : undefined
+        const recoveredReply =
+          event.recoveredInputId && connection?.contextId
+            ? agentSessionMessageService.recoveredInputReply(
+                entry.sessionId,
+                connection.contextId,
+                event.recoveredInputId
+              )
+            : undefined
+        const assistantMessageId =
+          recoveredReply ??
+          (background
+            ? sourceReply?.admission === 'pending' || !source
+              ? ((owners.size === 1 ? owners.values().next().value : undefined) ??
+                projection?.lastMessageId ??
+                source?.assistantMessageId)
+              : source.assistantMessageId
+            : undefined)
         if (background) {
           if (!assistantMessageId) {
             logger.warn('Background generation has no existing reply', { sessionId: entry.sessionId })

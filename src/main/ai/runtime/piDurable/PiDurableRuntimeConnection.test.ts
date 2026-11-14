@@ -1950,6 +1950,33 @@ describe('desktop Pi Durable connection', () => {
     expect(script.calls).toHaveLength(0)
   })
 
+  it('identifies an active recovered input before publishing its first content', async () => {
+    const { connection, events, handle } = await connect()
+    const context = prepareDurableBranch(input.sessionId)
+    const user = message('interrupted before first output')
+    prepareNativeSubmission(input.sessionId, user.id, context.id, 'reject')
+    const pending: InputState = {
+      inputId: runtimeId(user.id),
+      nativeInput: { session: handle.thread, id: runtimeId<'native-input'>('interrupted-input') },
+      facts: ['accepted', 'placed']
+    }
+    const observer = connection as unknown as { onObservation(batch: DurableObservation): Promise<void> }
+    await observer.onObservation({
+      backgroundResults: { status: 'confirmed', value: { active: false, pending: [], notification: [] } },
+      events: [{ type: 'snapshot', messages: [], inputs: [pending], activity: { state: 'active' } }],
+      aliases: {},
+      live: []
+    })
+    await expect
+      .poll(() =>
+        events.some(
+          (event) =>
+            event.type === 'autonomous-turn-state' && event.state === 'started' && event.recoveredInputId === user.id
+        )
+      )
+      .toBe(true)
+  })
+
   it.each([true, false])('waits for native-only pending work with a retained message: %s', async (retained) => {
     const { connection, events, handle } = await connect()
     const context = prepareDurableBranch(input.sessionId)
