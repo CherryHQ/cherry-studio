@@ -25,7 +25,9 @@ import { prepareNativeSubmission } from '@main/ai/agentSession/nativeSubmission'
 import { preparePiBranch } from '@main/ai/runtime/pi/piContext'
 import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import type { ToolGuardInteractionState } from '@main/ai/toolApproval/toolGuards'
+import { serializeError } from '@main/ai/utils/serializeError'
 import type { AgentChildUpdate } from '@shared/ai/agentChildProjection'
+import { toExecutionFailure } from '@shared/ai/executionFailure'
 import { ModelSchema } from '@shared/data/types/model'
 import { ProviderSchema } from '@shared/data/types/provider'
 
@@ -44,6 +46,7 @@ import type { PiConnectionSnapshot } from './piConnectionSignature'
 import type * as PiMcpExtension from './piMcpExtension'
 import { buildPiMcpToolName } from './piMcpExtension'
 import { PiRuntimeConnection } from './PiRuntimeConnection'
+import { loadPiSdk } from './piSdk'
 import { buildPiLoginPathPrefix } from './piShell'
 
 const modelId = 'test::test-model'
@@ -1116,7 +1119,40 @@ describe('desktop Pi root connection', () => {
       application.getPath('feature.agents.pi.sessions', file),
       application.getPath('feature.agents.pi.sessions', `copy_${file}`)
     )
-    await expect(connect()).rejects.toThrow('ambiguous')
+    const nativeThreadId = preparePiBranch(input.sessionId).nativeThreadId
+    const history = nativeFiles().map((file) => ({
+      file,
+      content: readFileSync(application.getPath('feature.agents.pi.sessions', file), 'utf8')
+    }))
+    const pi = await loadPiSdk()
+    const openExisting = vi.spyOn(pi.SessionManager, 'openExisting')
+    const create = vi.spyOn(pi.SessionManager, 'create')
+    const reconnect = connect()
+    await expect(reconnect).rejects.toThrow('ambiguous')
+    const error = await reconnect.catch((error: unknown) => error)
+    const serialized = serializeError(error)
+    expect(serialized).toMatchObject({
+      name: 'PiSessionIdentityAmbiguousError',
+      i18nKey: 'pi_session_identity_ambiguous',
+      detailI18nKey: 'pi_session_identity_ambiguous_detail',
+      message: expect.stringContaining('ambiguous')
+    })
+    expect(serialized.message).toContain('Start a new task')
+    expect(openExisting).not.toHaveBeenCalled()
+    expect(create).not.toHaveBeenCalled()
+    expect(preparePiBranch(input.sessionId).nativeThreadId).toBe(nativeThreadId)
+    expect(
+      nativeFiles().map((file) => ({
+        file,
+        content: readFileSync(application.getPath('feature.agents.pi.sessions', file), 'utf8')
+      }))
+    ).toEqual(history)
+    const failure = toExecutionFailure({ ...serialized, streamStage: 'response-stream' }, modelId)
+    expect(failure).toMatchObject({
+      message: expect.stringContaining('Start a new task'),
+      retryable: false,
+      failure: { reasonCode: 'unknown', source: { layer: 'runtime' } }
+    })
     for (const file of nativeFiles()) rmSync(application.getPath('feature.agents.pi.sessions', file))
     await expect(connect()).rejects.toThrow('missing')
     expect(nativeFiles()).toEqual([])

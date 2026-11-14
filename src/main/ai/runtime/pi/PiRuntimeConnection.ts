@@ -91,6 +91,16 @@ type PiChildResource = {
   projection: ChildThreadProjection
 }
 
+class PiSessionIdentityAmbiguousError extends Error {
+  readonly i18nKey = 'pi_session_identity_ambiguous'
+  readonly detailI18nKey = 'pi_session_identity_ambiguous_detail'
+
+  constructor() {
+    super('Pi session identity is ambiguous. Start a new task to continue.')
+    this.name = 'PiSessionIdentityAmbiguousError'
+  }
+}
+
 export class PiRuntimeConnection implements AgentRuntimeConnection {
   get contextId(): string | undefined {
     return this.context?.id
@@ -255,7 +265,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
       files = []
     }
-    if (files.length > 1) throw new Error('Pi session identity is ambiguous')
+    if (files.length > 1) throw new PiSessionIdentityAmbiguousError()
     if (
       (this.context.bindingState === 'bound' || messages.hasContextInput(this.input.sessionId, this.context.id)) &&
       files.length !== 1

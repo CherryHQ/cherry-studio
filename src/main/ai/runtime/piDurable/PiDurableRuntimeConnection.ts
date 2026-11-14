@@ -45,6 +45,16 @@ import { saveDurableRequest } from './durableRequest'
 
 const logger = loggerService.withContext('PiDurableRuntimeConnection')
 
+class PiDurableTurnInProgressError extends Error {
+  readonly i18nKey = 'pi_durable_turn_in_progress'
+  readonly detailI18nKey = 'pi_durable_turn_in_progress_detail'
+
+  constructor() {
+    super('A Durable turn is already running. Wait for it to finish, then send again.')
+    this.name = 'PiDurableTurnInProgressError'
+  }
+}
+
 /** Root access and its observed child projections borrow the backend owner. */
 type DurableChildResource = {
   relation: Subagent
@@ -147,7 +157,7 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
 
   async send(input: AgentRuntimeCommand): Promise<void> {
     if (!this.handle || !this.context || this.closing) throw new Error('Durable runtime is unavailable')
-    if (this.sending) throw new Error('Durable already has an active submission')
+    if (this.sending) throw new PiDurableTurnInProgressError()
     this.sending = true
     this.failure = undefined
     this.turnUsage.reset()
