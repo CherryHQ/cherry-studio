@@ -19,6 +19,7 @@ import type { AgentEntity, ScheduledTaskEntity } from '@shared/data/types/agent'
 import type { AgentTaskPatch } from '@shared/ipc/schemas/ai'
 
 import { ProfilePaneSection, ProfilePaneSectionAction } from './ProfilePaneParts'
+import { ProfileStatTiles } from './ProfilePaneStats'
 
 const EMPTY_TASKS: ScheduledTaskEntity[] = []
 /** Copy of each suggestion; `prompt` is what goes into the composer. */
@@ -90,10 +91,30 @@ export function AgentProfileActivity({
 
   return (
     <>
+      <AgentUsage agentId={agent.id} />
       <ScheduledTasksSection agent={agent} tasks={tasks} onFillComposer={fillComposer} />
       <SuggestionsSection agent={agent} hasTasks={tasks.length > 0} onFillComposer={fillComposer} />
       {workspace ? <WorkspaceSection workspace={workspace} sessionId={sessionId} /> : null}
     </>
+  )
+}
+
+function AgentUsage({ agentId }: { agentId: string }) {
+  const { t } = useTranslation()
+  const { data: stats, refetch } = useQuery('/agents/:agentId/stats', { params: { agentId } })
+  useDataChange('/agent-sessions', () => void refetch())
+  useDataChange('/agent-tasks', () => void refetch())
+  useDataChange('/ai-usage-records', () => void refetch())
+  if (!stats) return null
+
+  return (
+    <ProfileStatTiles
+      stats={[
+        { label: t('chat.profile_pane.stats.sessions'), value: stats.sessionCount },
+        { label: t('chat.profile_pane.stats.task_runs'), value: stats.recentTaskRunCount },
+        { label: t('chat.profile_pane.stats.recent_tokens'), value: stats.recentTokens }
+      ]}
+    />
   )
 }
 

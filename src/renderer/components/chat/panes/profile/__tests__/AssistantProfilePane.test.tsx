@@ -98,4 +98,54 @@ describe('AssistantProfilePane', () => {
     )
     expect(within(settings).getByRole('switch', { name: 'Browser' })).toBeChecked()
   })
+
+  it("shows this Assistant's usage and recent topics and opens them", () => {
+    const now = Date.now()
+    serveQueries({
+      '/assistants/:id': () => assistant,
+      '/assistants/:id/stats': ({ params }) =>
+        params?.id === assistant.id
+          ? {
+              topicCount: 12,
+              messageCount: 248,
+              recentTokens: 36_000,
+              recentTopics: [
+                { id: 'topic-a', name: 'Weekly report', lastActivityAt: new Date(now).toISOString(), messageCount: 3 },
+                { id: 'topic-b', name: '', lastActivityAt: new Date(now - 86_400_000).toISOString(), messageCount: 1 }
+              ]
+            }
+          : undefined
+    })
+    const opened: string[] = []
+    let showAll = 0
+    renderInRightPane(
+      <AssistantProfilePane
+        assistantId={assistant.id}
+        activeTopicId="topic-a"
+        onOpenTopic={(id) => opened.push(id)}
+        onShowAllTopics={() => showAll++}
+      />
+    )
+
+    for (const [value, label] of [
+      ['12', 'Topics'],
+      ['248', 'Messages'],
+      ['36K', 'Tokens, 7 days']
+    ]) {
+      expect(screen.getByText(label).closest('div')).toHaveTextContent(`${label}${value}`)
+    }
+    const recent = screen.getByRole('region', { name: 'Recent topics' })
+    const [current, older] = within(recent).getAllByRole('button', { name: /message/ })
+    expect(current).toHaveTextContent('Weekly report')
+    expect(current).toHaveTextContent('3 messages')
+    expect(within(current).getByTitle('Current topic')).toBeInTheDocument()
+    expect(older).toHaveTextContent('Default Conversation')
+    expect(older).toHaveTextContent('1 message')
+    expect(within(older).queryByTitle('Current topic')).toBeNull()
+
+    fireEvent.click(older)
+    fireEvent.click(within(recent).getByRole('button', { name: 'All' }))
+    expect(opened).toEqual(['topic-b'])
+    expect(showAll).toBe(1)
+  })
 })

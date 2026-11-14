@@ -70,6 +70,10 @@ export const assistantHandlers: HandlersFor<AssistantSchemas> = {
     }
   },
 
+  '/assistants/:id/stats': {
+    GET: async ({ params }) => assistantDataService.getStats(params.id)
+  },
+
   '/assistants/:id/restore': {
     POST: async ({ params }) => assistantDataService.restore(params.id)
   },
