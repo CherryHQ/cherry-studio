@@ -55,6 +55,12 @@ function errorLogFileName(ms: number): string {
   return `app-error.${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}.log`
 }
 
+function appLogFileName(ms: number): string {
+  const date = new Date(ms)
+  const pad = (value: number) => String(value).padStart(2, '0')
+  return `app.${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}.log`
+}
+
 describe('DiagnosticBundleService scan report', () => {
   let workDir: string
   let logsDir: string
@@ -142,6 +148,38 @@ describe('DiagnosticBundleService scan report', () => {
     const manifest = JSON.parse(zip.contents['diagnostics.json'].toString())
     // completeness must be readable from the manifest alone, without opening the inner report
     expect(manifest.scan).toEqual({ status: 'included', findingCount: 1, truncated: false, skippedFileCount: 0 })
+  })
+
+  it('flags credential-shaped values in regular application logs without copying them into findings', async () => {
+    const now = Date.now()
+    const apiKey = `sk-${'A'.repeat(24)}`
+    await writeFile(
+      path.join(logsDir, appLogFileName(now)),
+      `${JSON.stringify({
+        timestamp: localTimestamp(now - 60_000),
+        level: 'debug',
+        message: 'Incoming request: POST /providers',
+        body: { apiKeys: [{ key: apiKey }] }
+      })}\n`
+    )
+    const service = new DiagnosticBundleService()
+
+    const result = await service.exportBundle(
+      { includeChatRecords: false, includeLogs: true, includeTraces: false, range: '24h' },
+      'main-window'
+    )
+
+    expect(result.status).toBe('saved')
+    const zip = await readZip(destination)
+    const report = JSON.parse(zip.contents['scan/findings.json'].toString())
+    expect(report.findings).toHaveLength(1)
+    expect(report.findings[0]).toMatchObject({
+      ruleId: 'provider-credential-exposed',
+      domain: 'provider',
+      attribution: 'app-bug',
+      count: 1
+    })
+    expect(JSON.stringify(report)).not.toContain(apiKey)
   })
 
   it('omits the report entirely when logs are excluded', async () => {

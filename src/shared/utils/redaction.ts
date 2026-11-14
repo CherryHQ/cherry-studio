@@ -169,7 +169,9 @@ export function redactSecretText(text: string, extraKeys: readonly string[] = []
 export const SECRET_TOKEN_PATTERNS: ReadonlyArray<{ name: string; re: RegExp }> = [
   {
     name: 'pem-private-key',
-    re: /-----BEGIN\s+(?:RSA\s+|EC\s+|OPENSSH\s+)?PRIVATE\s+KEY-----[\s\S]*?-----END\s+(?:RSA\s+|EC\s+|OPENSSH\s+)?PRIVATE\s+KEY-----/g
+    // The footer is optional: a truncated or footerless key still leaks its
+    // whole body — detection anchors on the header alone, so redaction must too.
+    re: /-----BEGIN\s+(?:RSA\s+|EC\s+|OPENSSH\s+)?PRIVATE\s+KEY-----[\s\S]*?(?:-----END\s+(?:RSA\s+|EC\s+|OPENSSH\s+)?PRIVATE\s+KEY-----|$)/g
   },
   { name: 'aws-access-key', re: /\bAKIA[0-9A-Z]{16}\b/g },
   { name: 'aws-secret-key', re: /(?<=aws_secret_access_key\s*[=:]\s*)[A-Za-z0-9/+=]{40}/gi },

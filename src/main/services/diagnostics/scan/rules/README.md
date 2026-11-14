@@ -2,6 +2,8 @@
 
 One file per domain, each exporting a `readonly ScanRule[]`. `registry.ts` concatenates them and validates every rule at import time. How a rule is *evaluated* is documented in `../types.ts`; this file is about **what makes a rule worth adding**.
 
+Most rules diagnose `warn` and `error` records from `app-error.*.log`. The credential-exposure rule also checks every level in staged `app.*.log` files, where debug request logging can expose secrets.
+
 ## The scan is a net for common errors, not a catalogue
 
 This module intercepts a batch of frequently-hit errors. Covering every line that could appear in a log is explicitly not the goal.

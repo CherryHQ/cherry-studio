@@ -1,5 +1,5 @@
 /**
- * Mechanical log-error scanning: closed domain set, declarative rules, aggregated findings.
+ * Mechanical log scanning: closed domain set, declarative rules, aggregated findings.
  *
  * Matching semantics (single source of truth, enforced by `engine.ts`):
  *  1. `levels` gate — record level must be listed (default: both `warn` and `error`).
@@ -21,9 +21,10 @@ export type DiagnosticDomain = (typeof DIAGNOSTIC_DOMAINS)[number]
  */
 export type ScanAttribution = 'user-fixable' | 'app-bug' | 'transient'
 
-export type ScanLevel = 'error' | 'warn'
+export const SCAN_LEVELS = ['error', 'warn', 'info', 'verbose', 'debug', 'silly'] as const
+export type ScanLevel = (typeof SCAN_LEVELS)[number]
 
-/** One parsed line from an `app-error.*.log` file (or any adapter-provided error record). */
+/** One parsed line from an application log (or any adapter-provided error record). */
 export interface LogRecord {
   readonly timestampMs: number
   readonly level: ScanLevel

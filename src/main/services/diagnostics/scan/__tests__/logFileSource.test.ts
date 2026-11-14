@@ -8,8 +8,8 @@ import { openReadableFileSnapshot } from '@main/utils/file'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 
 import { readRawLines } from '../../sourceCollector'
-import type { DiagnosticTimeRange } from '../../types'
-import { collectErrorLogRecords, MAX_SCAN_RECORDS } from '../logFileSource'
+import type { DiagnosticTimeRange, StagedSource } from '../../types'
+import { collectCredentialLogRecords, collectErrorLogRecords, MAX_SCAN_RECORDS } from '../logFileSource'
 
 function logLine(fields: Record<string, unknown>): string {
   return `${JSON.stringify(fields)}\n`
@@ -278,5 +278,72 @@ describe('collectErrorLogRecords', () => {
     expect(scan.records).toHaveLength(MAX_SCAN_RECORDS)
     expect(scan.records.at(-1)?.message).toBe('newest')
     expect(scan.records[0].message).toBe('old 1')
+  })
+})
+
+describe('collectCredentialLogRecords', () => {
+  let stageDir: string
+  const now = Date.parse('2026-08-20T12:00:00')
+
+  beforeEach(async () => {
+    stageDir = await mkdtemp(path.join(tmpdir(), 'scan-credential-source-'))
+  })
+
+  afterEach(async () => {
+    await rm(stageDir, { recursive: true, force: true })
+  })
+
+  async function stagedLog(lines: string[]): Promise<StagedSource> {
+    const filePath = path.join(stageDir, 'app.2026-08-20.log')
+    await writeFile(filePath, lines.join(''))
+    return {
+      archiveName: 'logs/app.2026-08-20.log',
+      bytes: Buffer.byteLength(lines.join('')),
+      kind: 'logs',
+      malformedLineCount: 0,
+      path: AbsoluteFilePathSchema.parse(filePath)
+    }
+  }
+
+  it('finds a quoted credential that JSON escaping hides from the raw line', async () => {
+    const source = await stagedLog([
+      logLine({
+        timestamp: localTimestamp(now),
+        level: 'info',
+        message: 'request failed with apiKey="abcdefghijklmnopqrstuvwx" in config'
+      })
+    ])
+
+    const result = await collectCredentialLogRecords([source])
+
+    expect(result.scannedRecordCount).toBe(1)
+    expect(result.records).toHaveLength(1)
+    expect(result.records[0].detail).toContain('apiKey')
+  })
+
+  it('still matches credentials carried by structured fields', async () => {
+    const source = await stagedLog([
+      logLine({
+        timestamp: localTimestamp(now),
+        level: 'info',
+        message: 'provider request failed',
+        context: { apiKey: 'abcdefghijklmnopqrstuvwx' }
+      })
+    ])
+
+    const result = await collectCredentialLogRecords([source])
+
+    expect(result.records).toHaveLength(1)
+  })
+
+  it('ignores records without credential-shaped values', async () => {
+    const source = await stagedLog([
+      logLine({ timestamp: localTimestamp(now), level: 'info', message: 'ordinary provider failure' })
+    ])
+
+    const result = await collectCredentialLogRecords([source])
+
+    expect(result.scannedRecordCount).toBe(1)
+    expect(result.records).toHaveLength(0)
   })
 })
