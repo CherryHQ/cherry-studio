@@ -11,6 +11,7 @@ import { eq } from 'drizzle-orm'
 import sharp from 'sharp'
 import { afterEach, expect, it, vi } from 'vitest'
 
+import { application } from '@application'
 import { runtimeId, type InputState } from '@cherrystudio/agent-runtime'
 import type { ClaudeThreadHandle } from '@cherrystudio/agent-runtime-claude-code'
 import { agentTable } from '@data/db/schemas/agent'
@@ -40,6 +41,7 @@ import type * as AgentSessionWarmup from '../agentSessionWarmup'
 import { ClaudeCodeRuntimeDriver } from '../ClaudeCodeRuntimeDriver'
 import type { ClaudeCodeProcessDiagnostics } from '../processExitDiagnostics'
 import { createClaudeCodeQueryOptions } from '../queryOptions'
+import { registerMcpSessionCatalogSync } from '../settingsBuilder'
 import type * as SettingsBuilder from '../settingsBuilder'
 
 vi.mock(
@@ -70,11 +72,27 @@ afterEach(async () => {
   for (const close of cleanups.splice(0).reverse()) await close()
   MockApplicationUtils.resetServices()
   vi.clearAllMocks()
+  vi.restoreAllMocks()
 })
 
 async function desktop(options: Parameters<typeof fixture>[0] = {}) {
   MockApplicationUtils.setService('ClaudeCodeWarmQueryManager', { consume: ports.consume })
-  MockApplicationUtils.setService('ClaudeCodeProcessManager', { spawn: ports.spawn })
+  const processManager = {
+    spawn: ports.spawn,
+    getActiveProcessCount: () => 0,
+    getCapSlotProcessCount: () => 0,
+    tryReserveLiveSpawnPreflight: vi.fn(() => true),
+    releaseLiveSpawnPreflight: vi.fn()
+  }
+  MockApplicationUtils.setService('ClaudeCodeProcessManager', processManager)
+  vi.spyOn(application, 'getExisting').mockImplementation(
+    (name) =>
+      (name === 'ClaudeCodeProcessManager'
+        ? processManager
+        : name === 'ClaudeCodeWarmQueryManager'
+          ? { evictOldestWarmQuery: () => false }
+          : undefined) as never
+  )
   MockApplicationUtils.setService('ClaudeCodeSessionStateService', { disposeToolPolicySnapshot: vi.fn() })
   const test = await fixture(options)
   cleanups.push(() => test.close())
@@ -169,6 +187,94 @@ async function desktop(options: Parameters<typeof fixture>[0] = {}) {
   }
   return { ...test, sessionId, input, connect, events, wait, nativeInputs }
 }
+
+it('hands one live admission to native spawn without releasing it a second time on close', async () => {
+  const test = await desktop()
+  const manager = application.get('ClaudeCodeProcessManager')
+  const connected = await test.connect()
+  expect(manager.tryReserveLiveSpawnPreflight).toHaveBeenCalledOnce()
+  expect(ports.spawn).toHaveBeenCalledOnce()
+  expect(ports.spawn.mock.calls[0][2]).toBe('live')
+  expect(ports.spawn.mock.calls[0][3]).toBe(true)
+  expect(manager.releaseLiveSpawnPreflight).not.toHaveBeenCalled()
+  await connected.close()
+  expect(manager.releaseLiveSpawnPreflight).not.toHaveBeenCalled()
+})
+
+it.each(['before-start', 'spawn'] as const)(
+  'releases live admission after native setup failure at %s',
+  async (stage) => {
+    const test = await desktop()
+    let reservations = 0
+    const manager = {
+      getActiveProcessCount: () => reservations,
+      getCapSlotProcessCount: () => reservations,
+      tryReserveLiveSpawnPreflight: vi.fn(() => {
+        reservations++
+        return true
+      }),
+      releaseLiveSpawnPreflight: vi.fn(() => {
+        reservations--
+      }),
+      spawn: vi.fn((_options, _diagnostics, _priority, ownsPreflight) => {
+        if (ownsPreflight) reservations--
+        throw new Error('fixture spawn failure')
+      })
+    }
+    MockApplicationUtils.setService('ClaudeCodeProcessManager', manager)
+    vi.spyOn(application, 'getExisting').mockImplementation(
+      (name) =>
+        (name === 'ClaudeCodeProcessManager'
+          ? manager
+          : name === 'ClaudeCodeWarmQueryManager'
+            ? { evictOldestWarmQuery: () => false }
+            : undefined) as never
+    )
+    if (stage === 'before-start')
+      vi.mocked(registerMcpSessionCatalogSync).mockImplementationOnce(() => {
+        throw new Error('fixture setup failure')
+      })
+    await expect(test.connect()).rejects.toThrow(
+      stage === 'before-start' ? 'fixture setup failure' : 'native-start-failed'
+    )
+    expect(manager.tryReserveLiveSpawnPreflight).toHaveBeenCalledOnce()
+    expect(reservations).toBe(0)
+    expect(manager.releaseLiveSpawnPreflight).toHaveBeenCalledTimes(stage === 'before-start' ? 1 : 0)
+  }
+)
+
+it('cancels a cold native connection blocked by the live process cap', async () => {
+  const test = await desktop()
+  const controller = new AbortController()
+  const manager = {
+    getActiveProcessCount: () => 6,
+    getCapSlotProcessCount: () => 6,
+    tryReserveLiveSpawnPreflight: vi.fn(() => false),
+    releaseLiveSpawnPreflight: vi.fn(),
+    waitForActiveProcessBelowCap: vi.fn(async () => {
+      controller.abort()
+    })
+  }
+  vi.spyOn(application, 'getExisting').mockImplementation(
+    (name) =>
+      (name === 'ClaudeCodeProcessManager'
+        ? manager
+        : name === 'ClaudeCodeWarmQueryManager'
+          ? { evictOldestWarmQuery: () => false }
+          : undefined) as never
+  )
+  await expect(
+    test.connect(undefined, undefined, true, {
+      sessionId: test.sessionId,
+      agentId: 'fixture',
+      modelId: 'native-test::claude-sonnet-4-6',
+      signal: controller.signal
+    })
+  ).rejects.toThrow('connection cancelled before spawn')
+  expect(manager.waitForActiveProcessBelowCap).toHaveBeenCalledOnce()
+  expect(manager.releaseLiveSpawnPreflight).not.toHaveBeenCalled()
+  expect(ports.spawn).not.toHaveBeenCalled()
+})
 
 it('keeps both real SDK background notifications in one persisted Main reply until the final summary', async () => {
   const test = await desktop()
@@ -295,7 +401,8 @@ it('keeps both real SDK background notifications in one persisted Main reply unt
       .data.parts?.filter((part) => part.type === 'text')
       .map((part) => part.text)
   ).toEqual(['Delegated reviews', 'First review received', 'Final combined summary'])
-  expect(service.isSessionBusy(test.sessionId)).toBe(false)
+  // A headless final turn now tears its native connection down instead of parking it.
+  await expect.poll(() => service.isSessionBusy(test.sessionId), { timeout: 10000 }).toBe(false)
   expect(unexpected).toEqual([])
 }, 30000)
 

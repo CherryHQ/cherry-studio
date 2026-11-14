@@ -499,7 +499,7 @@ export class AgentSessionRuntimeService extends BaseService {
   /** Async connection resources live outside the pure state; attempt ids reject stale completions. */
   private readonly connectionAttempts = new Map<
     string,
-    { id: string; promise: Promise<boolean>; interrupt?: boolean }
+    { id: string; promise: Promise<boolean>; interrupt?: boolean; abortController: AbortController }
   >()
   /** Promise resources for a rebuild-blocked connection; the state only owns the blocked phase. */
   private readonly backgroundWorkWaiters = new Map<
@@ -518,6 +518,8 @@ export class AgentSessionRuntimeService extends BaseService {
   private readonly warmLeaseSenders = new Map<Electron.WebContents, { sessionIds: Set<string>; dispose: () => void }>()
   /** Armed grace timers for sessions whose last holder released (see WARM_LEASE_RELEASE_DELAY_MS). */
   private readonly pendingWarmTeardowns = new Map<string, NodeJS.Timeout>()
+  /** Agent type last seen while a window held a warm lease; idle close can outlive the runtime entry. */
+  private readonly warmLeaseSessionAgentTypes = new Map<string, string>()
 
   protected async onInit(): Promise<void> {
     // Populate the AI runtime driver registry at a controlled lifecycle point (WhenReady, before
@@ -1336,6 +1338,7 @@ export class AgentSessionRuntimeService extends BaseService {
       clearTimeout(pendingTeardown)
       this.pendingWarmTeardowns.delete(sessionId)
     }
+    this.rememberWarmLeaseAgentType(sessionId)
     if (sender && !sender.isDestroyed()) {
       let holders = this.warmLeaseHolders.get(sessionId)
       if (!holders) {
@@ -1409,11 +1412,16 @@ export class AgentSessionRuntimeService extends BaseService {
   private scheduleWarmTeardown(sessionId: string): void {
     const existing = this.pendingWarmTeardowns.get(sessionId)
     if (existing) clearTimeout(existing)
+    const agentType =
+      this.entries.get(sessionId)?.agentType ??
+      this.closingSessions.get(sessionId)?.entry?.agentType ??
+      this.warmLeaseSessionAgentTypes.get(sessionId)
     const timer = setTimeout(() => {
       this.pendingWarmTeardowns.delete(sessionId)
-      // Prewarm opens a real runtime connection, so releasing the warm-query park alone would
+      this.warmLeaseSessionAgentTypes.delete(sessionId)
+      // Prewarm opens a real runtime connection, so releasing runtime-specific warm state alone would
       // leak the primed subprocess until the idle TTL.
-      application.get('ClaudeCodeWarmQueryManager').closeAgentSessionWarm(sessionId)
+      this.notifySessionIdleWithoutWarmLease(sessionId, agentType)
       this.releaseIdleConnection(sessionId)
     }, WARM_LEASE_RELEASE_DELAY_MS)
     timer.unref()
@@ -1428,6 +1436,7 @@ export class AgentSessionRuntimeService extends BaseService {
     for (const record of this.warmLeaseSenders.values()) record.dispose()
     this.warmLeaseSenders.clear()
     this.warmLeaseHolders.clear()
+    this.warmLeaseSessionAgentTypes.clear()
   }
 
   /**
@@ -2086,7 +2095,8 @@ export class AgentSessionRuntimeService extends BaseService {
       const attemptId = crypto.randomUUID()
       entry.connectionGeneration = attemptId
       this.applyRuntimeStateEvent(entry, { type: 'connection-started', attemptId })
-      const connecting = this.connect(entry, target, attemptId).finally(() => {
+      const attemptAbortController = new AbortController()
+      const connecting = this.connect(entry, target, attemptId, attemptAbortController.signal).finally(() => {
         if (this.connectionAttempts.get(entry.sessionId)?.id === attemptId) {
           this.connectionAttempts.delete(entry.sessionId)
         }
@@ -2098,7 +2108,11 @@ export class AgentSessionRuntimeService extends BaseService {
           this.applyRuntimeStateEvent(entry, { type: 'connection-disconnected' })
         }
       })
-      this.connectionAttempts.set(entry.sessionId, { id: attemptId, promise: connecting })
+      this.connectionAttempts.set(entry.sessionId, {
+        id: attemptId,
+        promise: connecting,
+        abortController: attemptAbortController
+      })
       const connected = await connecting
       if (connected) return true
     }
@@ -2109,7 +2123,8 @@ export class AgentSessionRuntimeService extends BaseService {
   private async connect(
     entry: AgentSessionRuntimeEntry,
     target: AgentSessionConnectionTarget,
-    attemptId: string
+    attemptId: string,
+    signal?: AbortSignal
   ): Promise<boolean> {
     const driver = runtimeDriverRegistry.getAgentSessionDriver(entry.agentType)
     if (!driver) throw new Error(`Unsupported agent runtime type: ${entry.agentType}`)
@@ -2134,6 +2149,7 @@ export class AgentSessionRuntimeService extends BaseService {
         if (this.isCurrentGeneration(entry, attemptId))
           this.reserveSteerContinuation(entry, this.pendingInputValues(entry, inputIds))
       },
+      signal,
       onInputPrepared: (inputId, contextId) => {
         if (!this.isCurrentGeneration(entry, attemptId)) return
         const pending = entry.pendingInputs?.get(inputId)
@@ -3388,9 +3404,58 @@ export class AgentSessionRuntimeService extends BaseService {
     })
   }
 
+  private rememberWarmLeaseAgentType(sessionId: string): void {
+    const agentType =
+      this.entries.get(sessionId)?.agentType ??
+      this.closingSessions.get(sessionId)?.entry?.agentType ??
+      this.warmLeaseSessionAgentTypes.get(sessionId) ??
+      this.resolveSessionAgentType(sessionId)
+    if (agentType) this.warmLeaseSessionAgentTypes.set(sessionId, agentType)
+  }
+
+  private resolveSessionAgentType(sessionId: string): string | undefined {
+    const fromEntry = this.entries.get(sessionId)?.agentType
+    if (fromEntry) return fromEntry
+    const fromClosing = this.closingSessions.get(sessionId)?.entry?.agentType
+    if (fromClosing) return fromClosing
+    const fromWarmLease = this.warmLeaseSessionAgentTypes.get(sessionId)
+    if (fromWarmLease) return fromWarmLease
+    let session: ReturnType<typeof agentSessionService.getById> | undefined
+    try {
+      session = agentSessionService.getById(sessionId)
+    } catch {
+      return undefined
+    }
+    if (!session?.agentId) return undefined
+    return agentService.getAgent(session.agentId)?.type
+  }
+
+  private notifySessionIdleWithoutWarmLease(sessionId: string, agentType?: string): void {
+    const resolvedAgentType = agentType ?? this.resolveSessionAgentType(sessionId)
+    if (!resolvedAgentType) return
+    runtimeDriverRegistry.getAgentSessionDriver(resolvedAgentType)?.onSessionIdleWithoutWarmLease?.(sessionId)
+  }
+
   private refreshIdleTimer(entry: AgentSessionRuntimeEntry): void {
     this.clearIdleTimer(entry)
     if (this.currentConnection(entry)?.retainWhileIdle) return
+    const execution = entry.runtimeState.execution
+    if (
+      !entry.closing &&
+      this.runtimeStatus(entry) === 'idle' &&
+      !entry.pendingInputs?.size &&
+      !this.connectionAttempts.has(entry.sessionId) &&
+      execution.kind === 'idle' &&
+      execution.lastTurn?.headless &&
+      !this.warmLeaseHolders.has(entry.sessionId) &&
+      !hasAgentSessionRuntimeBackgroundWork(entry.runtimeState) &&
+      entry.runtimeState.queue.length === 0
+    ) {
+      void this.closeSession(entry.sessionId).catch((error) => {
+        logger.warn('Failed to close idle headless session', { sessionId: entry.sessionId, error })
+      })
+      return
+    }
     if (hasAgentSessionRuntimeBackgroundWork(entry.runtimeState) || this.runtimeStatus(entry) !== 'idle') {
       return
     }
@@ -3404,8 +3469,10 @@ export class AgentSessionRuntimeService extends BaseService {
       }
       const { sessionId, agentType, lastResumeToken } = entry
       void this.closeSession(sessionId)
-      if (lastResumeToken) {
+      if (lastResumeToken && this.warmLeaseHolders.has(sessionId)) {
         runtimeDriverRegistry.getAgentSessionDriver(agentType)?.onSessionIdle?.(sessionId)
+      } else if (lastResumeToken) {
+        this.notifySessionIdleWithoutWarmLease(sessionId, agentType)
       }
     }, DEFAULT_IDLE_TTL_MS)
     entry.idleTimer.unref?.()
@@ -3432,7 +3499,9 @@ export class AgentSessionRuntimeService extends BaseService {
       turns.map((turn) => application.get('AiStreamManager').drainRuntimeReply(entry.topicId, turn.assistantMessageId))
     )
     for (const turn of turns) this.closeTurn(turn)
-    const connectionAttempt = this.connectionAttempts.get(entry.sessionId)?.promise
+    const pendingAttempt = this.connectionAttempts.get(entry.sessionId)
+    pendingAttempt?.abortController.abort('agent-session-closed')
+    const connectionAttempt = pendingAttempt?.promise
     const connection = this.currentConnection(entry)
     const connectionLoop = entry.connectionLoop
     await this.closeRuntimeConnection(connection, entry.sessionId, true, interrupt)

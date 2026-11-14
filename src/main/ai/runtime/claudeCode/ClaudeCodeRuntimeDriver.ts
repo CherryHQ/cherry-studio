@@ -1,6 +1,6 @@
 import { fileURLToPath } from 'node:url'
 
-import type { Options, SDKUserMessage } from '@anthropic-ai/claude-agent-sdk'
+import type { Options, SDKUserMessage, SpawnedProcess, SpawnOptions } from '@anthropic-ai/claude-agent-sdk'
 import type { ImageBlockParam } from '@anthropic-ai/sdk/resources/messages'
 
 import { application } from '@application'
@@ -61,6 +61,7 @@ import {
   toolPolicyFactsEqual
 } from './agentSessionWarmup'
 import { createClaudeCodeProcessDiagnostics, createSpawnClaudeCodeProcess } from './ClaudeCodeProcessManager'
+import { ensureClaudeCodeSpawnCapacity, isClaudeCodeSpawnMemoryPressured } from './claudeCodeSpawnCapacity'
 import type { ConsumedWarmQuery } from './ClaudeCodeWarmQueryManager'
 import { forkClaudeSession } from './claudeFork'
 import { ClaudeMessageMetadata } from './ClaudeMessageMetadata'
@@ -158,6 +159,8 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   /** Serializes reconciles per connection so push/pull can't interleave SDK and snapshot writes. */
   private reconcileChain: Promise<unknown> = Promise.resolve()
 
+  private liveSpawnPreflightReserved = false
+
   readonly events = this.eventQueue
   get usageCapture(): AgentSessionUsageCapture | undefined {
     return this._usageCapture
@@ -195,6 +198,13 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
 
     const traceEnv = await this.prepareTraceEnv()
     const coldProcessDiagnostics = createClaudeCodeProcessDiagnostics()
+    const spawnColdProcess = (spawnOptions: SpawnOptions): SpawnedProcess => {
+      const ownsPreflight = this.liveSpawnPreflightReserved
+      this.liveSpawnPreflightReserved = false
+      return application
+        .get('ClaudeCodeProcessManager')
+        .spawn(spawnOptions, coldProcessDiagnostics, 'live', ownsPreflight)
+    }
     const options: Options = {
       ...request.options,
       ...(request.options.resume || this.context.bindingState === 'bound'
@@ -209,7 +219,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
           }
         : {}),
       abortController: this.abortController,
-      spawnClaudeCodeProcess: createSpawnClaudeCodeProcess(coldProcessDiagnostics)
+      spawnClaudeCodeProcess: spawnColdProcess
     }
     // Env is part of the warm signature, so a traced turn asks with the OTEL vars merged in and can
     // never match a query parked without them: the mismatch cold-starts and disposes the stale park,
@@ -234,52 +244,68 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     this.spawnOptions = consumedWarmQuery
       ? { ...options, spawnClaudeCodeProcess: createSpawnClaudeCodeProcess(consumedWarmQuery.processDiagnostics) }
       : options
-    const { createClaudeCodeRuntime } = await import('@cherrystudio/agent-runtime-claude-code')
-    const { resume, cwd, ...nativeOptions } = options
-    if (!cwd) throw new Error('Claude Code workspace is unavailable')
-    const config = { ...nativeOptions, cwd }
-    this.runtime = createClaudeCodeRuntime({
-      backendId: runtimeId(this.context.backendId),
-      configDir: resolveClaudeConfigDirectory(options.env),
-      contextWindow: request.contextWindow,
-      load: async () => config,
-      onError: (error) => {
-        this.nativeError = error
-      }
-    })
-    const opened = resume
-      ? await this.runtime.open({ backendId: runtimeId(this.context.backendId), id: runtimeId(resume) })
-      : await this.runtime.create(config)
-    if (opened.status !== 'confirmed') throw new Error(opened.error.message)
-    this.handle = opened.value
-    this.sdkModelId = request.sdkModelId
-    this.mcpToolMetadata = request.settings.mcpToolMetadata
-    // Session-scoped: it must exist before the query loop starts so `system/init` — which can land
-    // before any turn opens — is dispatched independently of message projection.
-    this.approvalEmitter = request.settings.approvalEmitter
-    // Bind the approval emit once for the connection's lifetime — it only pushes into the connection
-    // event queue, so it never varies per turn. (The prior per-turn rebind was the mirror of the
-    // now-removed per-turn dispose; both gone, the emitter is plainly session-scoped.)
-    this.bindApprovalEmitter()
-    this.toolPolicySnapshot = request.settings.toolPolicySnapshot
-    registerMcpSessionCatalogSync(
-      this.input.sessionId,
-      this.input.agentId,
-      request.connectionConfig?.live.toolPolicy.mcps ?? [],
-      this.mcpToolMetadata
-    )
-    await this.observeRoot(this.handle)
-    if (consumedWarmQuery && !consumedWarmQuery.processDiagnostics.exited)
-      throw new Error('Prewarmed process has no exit barrier')
-    const started = this.handle.claude.start(
-      consumedWarmQuery && {
-        query: consumedWarmQuery.warmQuery,
-        exited: consumedWarmQuery.processDiagnostics.exited!
-      }
-    )
-    if (started.status !== 'confirmed') throw new Error(started.error.message)
-    this.parkedQuery = undefined
-    return this
+    if (!consumedWarmQuery && !(await ensureClaudeCodeSpawnCapacity('live', this.input.signal))) {
+      if (this.input.signal?.aborted) throw new Error('Claude Code connection cancelled before spawn')
+      throw new Error('Claude Code CLI process cap reached')
+    }
+    if (!consumedWarmQuery) this.liveSpawnPreflightReserved = true
+    try {
+      const { createClaudeCodeRuntime } = await import('@cherrystudio/agent-runtime-claude-code')
+      const { resume, cwd, ...nativeOptions } = options
+      if (!cwd) throw new Error('Claude Code workspace is unavailable')
+      const config = { ...nativeOptions, cwd }
+      this.runtime = createClaudeCodeRuntime({
+        backendId: runtimeId(this.context.backendId),
+        configDir: resolveClaudeConfigDirectory(options.env),
+        contextWindow: request.contextWindow,
+        load: async () => config,
+        onError: (error) => {
+          this.nativeError = error
+        }
+      })
+      const opened = resume
+        ? await this.runtime.open({ backendId: runtimeId(this.context.backendId), id: runtimeId(resume) })
+        : await this.runtime.create(config)
+      if (opened.status !== 'confirmed') throw new Error(opened.error.message)
+      this.handle = opened.value
+      this.sdkModelId = request.sdkModelId
+      this.mcpToolMetadata = request.settings.mcpToolMetadata
+      // Session-scoped: it must exist before the query loop starts so `system/init` — which can land
+      // before any turn opens — is dispatched independently of message projection.
+      this.approvalEmitter = request.settings.approvalEmitter
+      // Bind the approval emit once for the connection's lifetime — it only pushes into the connection
+      // event queue, so it never varies per turn. (The prior per-turn rebind was the mirror of the
+      // now-removed per-turn dispose; both gone, the emitter is plainly session-scoped.)
+      this.bindApprovalEmitter()
+      this.toolPolicySnapshot = request.settings.toolPolicySnapshot
+      registerMcpSessionCatalogSync(
+        this.input.sessionId,
+        this.input.agentId,
+        request.connectionConfig?.live.toolPolicy.mcps ?? [],
+        this.mcpToolMetadata
+      )
+      await this.observeRoot(this.handle)
+      if (consumedWarmQuery && !consumedWarmQuery.processDiagnostics.exited)
+        throw new Error('Prewarmed process has no exit barrier')
+      const started = this.handle.claude.start(
+        consumedWarmQuery && {
+          query: consumedWarmQuery.warmQuery,
+          exited: consumedWarmQuery.processDiagnostics.exited!
+        }
+      )
+      if (started.status !== 'confirmed') throw new Error(started.error.message)
+      this.parkedQuery = undefined
+      return this
+    } catch (error) {
+      this.releaseLiveSpawnPreflightIfHeld()
+      void this.close().catch((cleanupError) => {
+        logger.warn('Claude Code failed connection cleanup failed', {
+          sessionId: this.input.sessionId,
+          error: cleanupError
+        })
+      })
+      throw error
+    }
   }
 
   private async prepareTraceEnv(): Promise<Record<string, string> | undefined> {
@@ -495,7 +521,14 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     await this.close()
   }
 
+  private releaseLiveSpawnPreflightIfHeld(): void {
+    if (!this.liveSpawnPreflightReserved) return
+    this.liveSpawnPreflightReserved = false
+    application.get('ClaudeCodeProcessManager').releaseLiveSpawnPreflight()
+  }
+
   private async closeQuery(): Promise<void> {
+    this.releaseLiveSpawnPreflightIfHeld()
     this.closing = true
     this.closingAccess.abort()
     if (this.parkedQuery) {
@@ -1285,8 +1318,13 @@ export class ClaudeCodeRuntimeDriver implements AgentSessionRuntimeDriver {
   }
 
   onSessionIdle(sessionId: string): void {
+    if (isClaudeCodeSpawnMemoryPressured()) return
     // `prewarmAgentSession` bakes the session's trace env when trace mode is on, so the park it
     // leaves behind matches what the next turn asks for either way — no driver-side guard needed.
     void application.get('ClaudeCodeWarmQueryManager').prewarmAgentSession(sessionId)
+  }
+
+  onSessionIdleWithoutWarmLease(sessionId: string): void {
+    application.get('ClaudeCodeWarmQueryManager').closeAgentSessionWarm(sessionId)
   }
 }
