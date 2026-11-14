@@ -826,7 +826,8 @@ describe('HistoryRecordsView assistant mode', () => {
       refetch
     })
     hookMocks.useAssistants.mockReturnValue({ assistants: [createAssistant()] })
-    hookMocks.deleteTopics.mockRejectedValue(new Error('Delete failed'))
+    const failure = new Error('Delete failed')
+    hookMocks.deleteTopics.mockRejectedValue(failure)
     const onActiveRecordChange = vi.fn()
 
     render(
@@ -850,7 +851,19 @@ describe('HistoryRecordsView assistant mode', () => {
     expect(within(betaRow).getByRole('checkbox')).toHaveAttribute('aria-checked', 'true')
     expect(onActiveRecordChange).not.toHaveBeenCalled()
     expect(recycleBinFeedbackMocks.showRecycleBinBatchUndo).not.toHaveBeenCalled()
-    expect(toast.error).toHaveBeenCalledExactlyOnceWith('Could not move to Recycle Bin')
+    expect(toast.error).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({
+        title: 'Could not move to Recycle Bin',
+        cause: failure,
+        data: expect.objectContaining({
+          errorContext: expect.objectContaining({
+            message: 'Delete failed',
+            source: 'history',
+            operation: 'topic.delete'
+          })
+        })
+      })
+    )
   })
 
   it('reports all stale bulk topics once without changing selection or active state', async () => {
