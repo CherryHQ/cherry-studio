@@ -73,9 +73,11 @@ export function CherryCloudPlanActivationDialog({
     <Dialog open onOpenChange={(open) => !open && finish(null)}>
       <DialogContent size="sm" className="gap-0 overflow-hidden p-0 sm:max-w-[340px]" closeLabel={t('common.close')}>
         <ActivationIllustration />
-        <div className="flex flex-col gap-3.5 px-5 pt-4 pb-5">
-          <div className="flex flex-col gap-1">
-            <DialogTitle className="text-base leading-6">{t('settings.subscription.activation.title')}</DialogTitle>
+        <div className="flex flex-col gap-3 px-5 pt-3.5 pb-4">
+          <div className="flex flex-col gap-0.5">
+            <DialogTitle className="font-semibold text-sm leading-5">
+              {t('settings.subscription.activation.title')}
+            </DialogTitle>
             <DialogDescription className="text-xs leading-5">
               {expiresAt
                 ? t('settings.subscription.activation.description_until', { date: expiresAt })
@@ -107,7 +109,7 @@ export function CherryCloudPlanActivationDialog({
               )
             })}
             {hiddenCount > 0 ? (
-              <p className="px-2 py-1 text-muted-foreground text-xs">
+              <p className="px-2 pt-1 pb-0.5 text-muted-foreground text-xs">
                 {t('settings.subscription.activation.more_models', { count: hiddenCount })}
               </p>
             ) : null}
@@ -117,7 +119,7 @@ export function CherryCloudPlanActivationDialog({
               <Checkbox size="sm" checked={alsoDefault} onCheckedChange={(next) => setAlsoDefault(next === true)} />
               {t('settings.subscription.activation.set_default')}
             </label>
-            <Button variant="emphasis" onClick={() => void startChat()}>
+            <Button variant="emphasis" size="sm" onClick={() => void startChat()}>
               {t('settings.subscription.activation.start_chat')}
               <ArrowRight size={14} aria-hidden />
             </Button>
@@ -140,7 +142,8 @@ function ActivationIllustration() {
   return (
     <div
       aria-hidden
-      className="relative flex h-22 items-end justify-center overflow-hidden border-border border-b bg-muted">
+      className="relative flex h-20 items-end justify-center overflow-hidden border-border border-b bg-card">
+      <div className="absolute inset-0 bg-muted" />
       <div className="absolute inset-0" style={DOT_GRID_STYLE} />
       <div className="relative -mb-3 h-19 w-40 origin-bottom scale-90">
         <div className="absolute inset-x-5 top-0 bottom-0 -rotate-5 rounded-xl bg-popover opacity-60 shadow-lg ring-1 ring-border" />

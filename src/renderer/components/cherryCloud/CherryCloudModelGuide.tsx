@@ -92,13 +92,13 @@ export function CherryCloudModelGuide({ anchorRef, ready, currentModelId, onSele
           sideOffset={12}
           className="w-76 overflow-hidden rounded-xl p-0"
           aria-labelledby="cherry-cloud-model-guide-title">
-          <div className="border-border border-b bg-muted px-4 pt-3">
+          <div className="border-border border-b bg-muted px-3.5 pt-2.5">
             <div className="rounded-t-lg bg-popover p-1 shadow-md ring-1 ring-border">
               {previewModels.map((model) => (
                 <div
                   key={model.id}
                   className={cn(
-                    'relative flex h-6 items-center gap-2 rounded-md px-2 text-xs',
+                    'relative flex h-6 items-center gap-2 rounded-md px-1.5 text-xs',
                     model.id === switchedModel?.id && 'bg-accent'
                   )}>
                   {model.id === switchedModel?.id ? (
@@ -110,7 +110,7 @@ export function CherryCloudModelGuide({ anchorRef, ready, currentModelId, onSele
               ))}
             </div>
           </div>
-          <div className="flex flex-col gap-1 p-4 pt-3">
+          <div className="flex flex-col gap-0.5 px-3.5 pt-2.5 pb-3">
             <p id="cherry-cloud-model-guide-title" className="font-semibold text-sm leading-5">
               {switchedModel
                 ? t('settings.subscription.activation.guide_switched', { model: switchedModel.name })
@@ -119,7 +119,7 @@ export function CherryCloudModelGuide({ anchorRef, ready, currentModelId, onSele
             <p className="text-muted-foreground text-xs leading-5">
               {t('settings.subscription.activation.guide_description')}
             </p>
-            <div className="mt-2 flex items-center justify-between">
+            <div className="mt-1.5 flex items-center justify-between">
               <span className="text-muted-foreground text-xs">{t('settings.subscription.activation.guide_once')}</span>
               <Button variant="emphasis" size="sm" onClick={dismiss}>
                 {t('settings.subscription.activation.guide_dismiss')}
