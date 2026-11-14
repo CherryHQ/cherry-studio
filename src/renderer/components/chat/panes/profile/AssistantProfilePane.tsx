@@ -1,7 +1,9 @@
+import { MessageSquare } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import { Switch } from '@cherrystudio/ui'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
+import { requestComposerPrefill } from '@renderer/components/composer/variants/shared/useComposerPrefill'
 import { AssistantAvatarPicker } from '@renderer/components/resourceCatalog/dialogs/components/AssistantAvatarPicker'
 import { KnowledgeBaseAvatar } from '@renderer/components/resourceCatalog/dialogs/components/EditDialogShared'
 import { openResourceEditDialog } from '@renderer/components/resourceCatalog/dialogs/ResourceEditDialogEventHost'
@@ -16,9 +18,11 @@ import {
   ProfilePaneSection,
   ProfilePaneSectionAction,
   ProfileSettingButton,
-  ProfileSettingsRow
+  ProfileSettingsRow,
+  ProfileStartersSection
 } from './ProfilePaneParts'
 import { ProfileStatTiles, RecentTopicsSection } from './ProfilePaneStats'
+import { useProfileStarters } from './useProfileStarters'
 
 /** Profile of the conversation's Assistant: who it is, its activity, and a few settings. */
 export function AssistantProfilePane({
@@ -66,6 +70,7 @@ export function AssistantProfilePane({
         onShowAllTopics={onShowAllTopics}
       />
       <KnowledgeBasesSection assistant={assistant} onManage={() => openEdit('tools.knowledge')} />
+      <TryAskingSection assistant={assistant} topicId={activeTopicId} />
       <ProfilePaneSection
         title={t('common.settings')}
         action={
@@ -119,6 +124,34 @@ function KnowledgeBasesSection({ assistant, onManage }: { assistant: Assistant; 
         </div>
       ))}
     </ProfilePaneSection>
+  )
+}
+
+/** Opening questions generated from who the Assistant is; left out when they cannot be generated. */
+function TryAskingSection({ assistant, topicId }: { assistant: Assistant; topicId?: string }) {
+  const { t } = useTranslation()
+  const starters = useProfileStarters({
+    ownerId: assistant.id,
+    mode: 'assistant',
+    identity: { name: assistant.name, description: assistant.description, prompt: assistant.prompt },
+    enabled: !!topicId
+  })
+  if (!topicId || starters.hidden || starters.status === 'unavailable') return null
+
+  return (
+    <ProfileStartersSection
+      title={t('chat.profile_pane.try_asking.title')}
+      hideLabel={t('chat.profile_pane.try_asking.hide')}
+      loading={starters.status === 'loading'}
+      cards={starters.items.map((item, index) => ({
+        key: String(index),
+        icon: <MessageSquare className="size-4 text-muted-foreground" />,
+        title: item.title,
+        hint: item.hint,
+        onClick: () => requestComposerPrefill(topicId, item.prompt)
+      }))}
+      onHide={starters.hide}
+    />
   )
 }
 
