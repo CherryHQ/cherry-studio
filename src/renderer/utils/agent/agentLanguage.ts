@@ -30,5 +30,3 @@ export function normalizeAgentLanguageInput(raw: unknown): string | null {
   const result = validateAgentLanguageInput(raw)
   return result.ok ? result.value : null
 }
-
-export type AgentLanguageMode = 'inherit' | 'off' | 'custom'

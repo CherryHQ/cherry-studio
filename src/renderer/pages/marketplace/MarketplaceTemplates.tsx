@@ -8,7 +8,7 @@ import { useAgentMutations } from '@renderer/hooks/resourceCatalog'
 import { openRoute } from '@renderer/services/mainWindowNavigation'
 import { toast } from '@renderer/services/toast'
 import type { MarketplaceTemplate } from '@renderer/types/marketplace'
-import { buildCreateAgentCommand } from '@renderer/utils/resourceCatalog'
+import { buildCreateAgentCommand } from '@shared/ai/agentCreateCommand'
 
 import {
   MarketplaceCard,

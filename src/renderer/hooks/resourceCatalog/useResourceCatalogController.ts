@@ -19,7 +19,8 @@ import type {
   ResourceType
 } from '@renderer/types/resourceCatalog'
 import { serializeAssistantForExport, serializeAssistantsForExport } from '@renderer/utils/assistantTransfer'
-import { buildCreateAgentCommand, buildCreateAssistantDto } from '@renderer/utils/resourceCatalog'
+import { buildCreateAssistantDto } from '@renderer/utils/resourceCatalog'
+import { buildCreateAgentCommand } from '@shared/ai/agentCreateCommand'
 import { isProtectedBuiltinAgentRole } from '@shared/ai/builtinAgent'
 import type { ConcreteApiPaths } from '@shared/data/api/paths'
 import { ASSISTANTS_MAX_LIMIT } from '@shared/data/api/schemas/assistants'

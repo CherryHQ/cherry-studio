@@ -18,6 +18,7 @@ import { toast } from '@renderer/services/toast'
 import type { ResourceEditDialogTarget } from '@renderer/types/resourceCatalog'
 import { formatErrorMessageWithPrefix, getErrorMessage } from '@renderer/utils/error'
 import type { AutoConfigDraft } from '@renderer/utils/resourceCatalog'
+import { DEFAULT_AGENT_CREATE_AVATAR } from '@shared/ai/agentCreateCommand'
 import {
   DEFAULT_HEARTBEAT_INTERVAL_MINUTES,
   DEFAULT_HEARTBEAT_ENABLED,
@@ -73,7 +74,7 @@ const AUTO_CREATE_TIMEOUT_MS = 60_000
 
 /** The avatar a brand-new resource starts with — exported so callers can preview what they'd create. */
 export function getResourceCreateDefaultAvatar(kind: ResourceCreateWizardKind) {
-  return kind === 'assistant' ? '💬' : '✨'
+  return kind === 'assistant' ? '💬' : DEFAULT_AGENT_CREATE_AVATAR
 }
 
 function getDefaultValues(

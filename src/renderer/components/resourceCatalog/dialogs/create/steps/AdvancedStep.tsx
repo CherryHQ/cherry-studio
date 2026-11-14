@@ -5,7 +5,7 @@ import { FormControl, FormField, FormItem, FormLabel, Label, Textarea } from '@c
 import { HeartbeatCard } from '@renderer/components/resourceCatalog/dialogs/components/HeartbeatCard'
 import { PiPromptField } from '@renderer/components/resourceCatalog/dialogs/components/PiPromptField'
 import { ReplyLanguageSelect } from '@renderer/components/resourceCatalog/dialogs/components/ReplyLanguageSelect'
-import type { AgentCreateSettings } from '@renderer/types/resourceCatalog'
+import type { AgentCreateSettings } from '@shared/ai/agentForm'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 
 import type { ResourceCreateWizardFormValues } from '../types'

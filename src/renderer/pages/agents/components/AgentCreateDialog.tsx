@@ -6,7 +6,7 @@ import {
   type ResourceCreateWizardValues
 } from '@renderer/components/resourceCatalog/dialogs/create'
 import { useAgentMutations } from '@renderer/hooks/resourceCatalog'
-import { buildCreateAgentCommand } from '@renderer/utils/resourceCatalog'
+import { buildCreateAgentCommand } from '@shared/ai/agentCreateCommand'
 
 const logger = loggerService.withContext('AgentCreateDialog')
 

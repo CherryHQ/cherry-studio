@@ -56,4 +56,18 @@ describe('builtinToolPolicy', () => {
     expect(findBuiltinToolPolicy('mcp__cherry-tools__session_rename', WITHOUT_HOST_TOOLS)?.approval).toBe('auto')
     expect(findBuiltinToolPolicy('mcp__cherry-tools__session_rename', new Set())).toBeUndefined()
   })
+
+  it('asks before every Agent create or settings change, even under Full Access, while config stays approval-free', () => {
+    for (const runtimeName of [
+      'mcp__assistant__update_agent',
+      'mcp__cherry-tools__agent_create',
+      'mcp__cherry-tools__config_update'
+    ]) {
+      expect(findBuiltinToolPolicy(runtimeName, WITH_HOST_TOOLS)).toMatchObject({
+        approval: 'required',
+        bypassApproval: 'enforce'
+      })
+    }
+    expect(findBuiltinToolPolicy('mcp__cherry-tools__config', WITHOUT_HOST_TOOLS)?.approval).toBe('auto')
+  })
 })

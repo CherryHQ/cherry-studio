@@ -1,9 +1,8 @@
+import type { AgentCreateValues } from '@shared/ai/agentCreateCommand'
 import type { Tool } from '@shared/ai/tool'
-import type { AgentChannelDraft } from '@shared/data/api/schemas/agentChannels'
-import type { AgentEntity, AgentPermissionMode } from '@shared/data/api/schemas/agents'
-import type { AgentType, InstalledSkill } from '@shared/data/types/agent'
+import type { AgentEntity } from '@shared/data/api/schemas/agents'
+import type { InstalledSkill } from '@shared/data/types/agent'
 import type { Assistant } from '@shared/data/types/assistant'
-import type { UniqueModelId } from '@shared/data/types/model'
 import type { Prompt } from '@shared/data/types/prompt'
 import type { SkillCatalogEntry } from '@shared/types/skill'
 
@@ -15,36 +14,9 @@ export type ResourceEditDialogTarget = ({ kind: 'assistant'; id: string } | { ki
 }
 
 /** Validated values shared by every Assistant / Agent creation entry point. */
-export type ResourceCreateValues = {
-  agentType: AgentType
-  permissionMode: AgentPermissionMode
-  avatar: string
-  name: string
-  modelId: UniqueModelId
-  description: string
-  prompt: string
-  knowledgeBaseIds: string[]
-  skillIds: string[]
-  mcpServerIds?: string[]
+export type ResourceCreateValues = AgentCreateValues & {
   /** Assistant-only web search switch, set by auto create. */
   enableWebSearch?: boolean
-  /** Agent-only opt-out list of built-in tools (empty = all enabled). */
-  disabledTools?: string[]
-  /** Agent-only advanced settings. */
-  agentSettings?: AgentCreateSettings
-  /** Agent-only channels, created with the Agent. */
-  channels?: AgentChannelDraft[]
-}
-
-/** Reply language, heartbeat and env vars in the Agent edit form's shape, so create saves what edit would. */
-export type AgentCreateSettings = {
-  languageMode: 'inherit' | 'off' | 'custom'
-  languageCustom: string
-  heartbeatEnabled: boolean
-  heartbeatInterval: number
-  heartbeatTimeoutMinutes: number
-  /** One `KEY=VALUE` per line. */
-  envVarsText: string
 }
 
 export type SortKey = 'updatedAt' | 'createdAt' | 'name'
