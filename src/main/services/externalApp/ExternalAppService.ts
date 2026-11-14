@@ -128,12 +128,12 @@ export class ExternalAppService {
     if (!target) throw new Error(`Open target "${targetId}" is not available for this path`)
 
     if (target.id === SYSTEM_DEFAULT_TARGET_ID) {
-      await safeOpen(targetPath)
+      await safeOpen(targetPath, { channel: 'external_app.target.open' })
       return
     }
     if (target.id === FILE_MANAGER_TARGET_ID) {
       if (result.pathKind === 'file') await showInFolder(targetPath)
-      else await safeOpen(targetPath)
+      else await safeOpen(targetPath, { channel: 'external_app.target.open' })
       return
     }
     throw new Error(`Open target "${targetId}" cannot be launched on this platform`)

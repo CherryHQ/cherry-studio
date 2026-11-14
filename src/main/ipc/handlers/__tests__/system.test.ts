@@ -167,7 +167,9 @@ describe('systemHandlers', () => {
   it('shell.open_path delegates to the file entry point that validates the path', async () => {
     await systemHandlers['system.shell.open_path']('/tmp/foo', ctx('w1'))
 
-    expect(openRequestPathMock).toHaveBeenCalledWith('/tmp/foo')
+    expect(openRequestPathMock).toHaveBeenCalledExactlyOnceWith('/tmp/foo', undefined, {
+      channel: 'system.shell.open_path'
+    })
     expect(openPathMock).not.toHaveBeenCalled()
   })
 
