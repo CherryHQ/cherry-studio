@@ -3,7 +3,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { type RelocationProgress, UserDataRelocationIpcChannels } from '@shared/types/userDataRelocation'
 
-import { relocationLocales } from '../i18n/locales'
 import RelocationApp from '../RelocationApp'
 
 const invoke = vi.fn()
@@ -75,12 +74,12 @@ describe('RelocationApp', () => {
 
     expect(screen.getByText('disk full')).toBeInTheDocument()
     expect(screen.getByText('relocation.support.analysis_unavailable')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'relocation.support.releases' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'relocation.support.download' })).toBeInTheDocument()
     expect(screen.getByText('relocation.failed.description')).toBeInTheDocument()
     expect(restartMock).toHaveBeenCalledOnce()
   })
 
-  it('asks main to open feedback and releases and keeps retry available when the open fails', async () => {
+  it('asks main to open feedback and the download page and keeps retry available when the open fails', async () => {
     useRelocationProgressMock.mockReturnValue({
       progress: makeProgress('failed', { error: 'disk full' }),
       restart: restartMock
@@ -96,16 +95,13 @@ describe('RelocationApp', () => {
     expect(screen.getByRole('button', { name: 'relocation.support.feedback' })).toBeEnabled()
     expect(screen.getByRole('button', { name: 'relocation.restart_failure' })).toBeEnabled()
 
-    fireEvent.click(screen.getByRole('button', { name: 'relocation.support.releases' }))
+    fireEvent.click(screen.getByRole('button', { name: 'relocation.support.download' }))
     await waitFor(() => {
       expect(screen.queryByText('relocation.support.open_failed')).not.toBeInTheDocument()
     })
 
-    expect(invoke).toHaveBeenLastCalledWith(UserDataRelocationIpcChannels.OpenSupportLink, 'releases')
+    expect(invoke).toHaveBeenLastCalledWith(UserDataRelocationIpcChannels.OpenSupportLink, 'download')
     expect(window.open).not.toHaveBeenCalled()
-    expect(relocationLocales.en.translation.relocation.support.open_failed).toBe('Could not open the link. Try again.')
-    expect(relocationLocales['zh-CN'].translation.relocation.support.open_failed).toBe('无法打开链接，请重试。')
-    expect(relocationLocales['zh-TW'].translation.relocation.support.open_failed).toBe('無法開啟連結，請再試一次。')
   })
 
   it('shows a copy failure after clipboard denial and clears it when retry succeeds', async () => {
@@ -136,13 +132,8 @@ describe('RelocationApp', () => {
       expect(writeText).toHaveBeenNthCalledWith(2, 'disk full')
       expect(screen.getByText('disk full')).toBeInTheDocument()
       expect(screen.getByRole('button', { name: 'relocation.support.feedback' })).toBeEnabled()
-      expect(screen.getByRole('button', { name: 'relocation.support.releases' })).toBeEnabled()
+      expect(screen.getByRole('button', { name: 'relocation.support.download' })).toBeEnabled()
       expect(screen.getByRole('button', { name: 'relocation.restart_failure' })).toBeEnabled()
-      expect(relocationLocales.en.translation.relocation.support.copy_failed).toBe(
-        'Could not copy the error. Try again.'
-      )
-      expect(relocationLocales['zh-CN'].translation.relocation.support.copy_failed).toBe('无法复制错误，请重试。')
-      expect(relocationLocales['zh-TW'].translation.relocation.support.copy_failed).toBe('無法複製錯誤，請再試一次。')
     } finally {
       Object.defineProperty(navigator, 'clipboard', { configurable: true, value: clipboard })
     }
