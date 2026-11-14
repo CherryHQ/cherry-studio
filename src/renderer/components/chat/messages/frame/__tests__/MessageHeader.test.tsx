@@ -181,7 +181,7 @@ describe('MessageHeader', () => {
     expect(queryByText('agent.session_turn_origin.background_work')).toBeNull()
   })
 
-  it('shows the current channel name beside the model', async () => {
+  it('shows the current provider name beside the model', async () => {
     MockDataApiUtils.setCustomResponse('/providers/my-relay', 'GET', { id: 'my-relay', name: 'My Relay' })
     const { Wrapper } = createSWRTestWrapper()
     render(
@@ -204,7 +204,7 @@ describe('MessageHeader', () => {
     expect(screen.getByTitle('GPT-4 | My Relay')).toBeInTheDocument()
   })
 
-  it('uses the message channel and updates its name after a provider mutation', async () => {
+  it('uses the message provider and updates its name after a provider mutation', async () => {
     MockDataApiUtils.setCustomResponse('/providers/message-relay', 'GET', {
       id: 'message-relay',
       name: 'Original relay'
