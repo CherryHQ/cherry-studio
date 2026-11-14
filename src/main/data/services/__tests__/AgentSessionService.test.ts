@@ -1,3 +1,4 @@
+import { chmod, mkdir } from 'node:fs/promises'
 import path from 'path'
 
 import { setupTestDatabase } from '@test-helpers/db'
@@ -19,6 +20,7 @@ import { agentTaskService } from '@data/services/AgentTaskService'
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { jobScheduleService } from '@data/services/JobScheduleService'
 import { pinService } from '@data/services/PinService'
+import * as workspaceAccess from '@main/utils/isDirectoryAccessible'
 import { ErrorCode } from '@shared/data/api/errors'
 import type { AgentWorkspaceEntity } from '@shared/data/api/schemas/agentWorkspaces'
 
@@ -1090,6 +1092,7 @@ describe('AgentSessionService', () => {
 
   it('rejects workspace updates after messages are sent', async () => {
     const firstWorkspace = await createWorkspace('before-locked-switch')
+    await mkdir(firstWorkspace.path, { recursive: true })
     const secondWorkspace = await createWorkspace('after-locked-switch')
     const session = await createSession('Locked workspace switch', firstWorkspace.id)
     await insertSessionMessage(session.id, 'message-locks-workspace')
@@ -1158,6 +1161,77 @@ describe('AgentSessionService', () => {
       .from(agentWorkspaceTable)
       .where(eq(agentWorkspaceTable.type, 'system'))
     expect(systemWorkspaceRows).toHaveLength(0)
+  })
+
+  it('probes workspace access before opening the write transaction', async () => {
+    const missing = await createWorkspace('probe-before-transaction')
+    const replacement = await createWorkspace('probe-replacement')
+    const session = await createSession('Probe outside transaction', missing.id)
+    await insertSessionMessage(session.id, 'probe-message')
+    const probe = workspaceAccess.isDirectoryAccessible
+    const transactions: boolean[] = []
+    const spy = vi.spyOn(workspaceAccess, 'isDirectoryAccessible').mockImplementation((directory) => {
+      transactions.push(dbh.sqlite.inTransaction)
+      return probe(directory)
+    })
+    try {
+      expect(agentSessionService.setWorkspace(session.id, { type: 'user', workspaceId: replacement.id })).toMatchObject(
+        {
+          workspaceId: replacement.id
+        }
+      )
+      expect(transactions).toEqual([false])
+    } finally {
+      spy.mockRestore()
+    }
+  })
+
+  it('rebinds a messaged session whose user workspace folder is missing', async () => {
+    const missingWorkspace = await createWorkspace('missing-folder')
+    const replacement = await createWorkspace('replacement-folder')
+    await mkdir(replacement.path, { recursive: true })
+    const session = await createSession('Recoverable', missingWorkspace.id)
+    await insertSessionMessage(session.id, 'message-recoverable')
+
+    expect(agentSessionService.setWorkspace(session.id, { type: 'user', workspaceId: replacement.id })).toMatchObject({
+      workspaceId: replacement.id,
+      workspace: { type: 'user', path: replacement.path }
+    })
+  })
+
+  it.skipIf(process.platform === 'win32' || process.getuid?.() === 0)(
+    'rebinds a messaged session whose existing directory cannot be read',
+    async () => {
+      const unreadable = await createWorkspace('unreadable-folder')
+      const replacement = await createWorkspace('readable-folder')
+      await mkdir(unreadable.path, { recursive: true })
+      await mkdir(replacement.path, { recursive: true })
+      const session = await createSession('Unreadable', unreadable.id)
+      await insertSessionMessage(session.id, 'message-unreadable')
+      await chmod(unreadable.path, 0)
+      try {
+        expect(
+          agentSessionService.setWorkspace(session.id, { type: 'user', workspaceId: replacement.id })
+        ).toMatchObject({
+          workspaceId: replacement.id
+        })
+      } finally {
+        await chmod(unreadable.path, 0o700)
+      }
+    }
+  )
+
+  it('keeps a messaged session bound while its user workspace folder exists', async () => {
+    const userWorkspace = await createWorkspace('present-folder')
+    const replacement = await createWorkspace('other-folder')
+    await mkdir(userWorkspace.path, { recursive: true })
+    const session = await createSession('Present', userWorkspace.id)
+    await insertSessionMessage(session.id, 'message-present')
+
+    expect(
+      captureError(() => agentSessionService.setWorkspace(session.id, { type: 'user', workspaceId: replacement.id }))
+    ).toMatchObject({ code: ErrorCode.INVALID_OPERATION })
+    expect(agentSessionService.getById(session.id)).toMatchObject({ workspaceId: userWorkspace.id })
   })
 
   it('deletes a session', async () => {

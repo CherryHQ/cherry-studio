@@ -51,6 +51,7 @@ import AgentComposerSlot from './AgentComposerSlot'
 import { AgentChatNavbar } from './components/AgentChatNavbar'
 import AgentCitationsPanel from './components/AgentCitationsPanel'
 import { type AgentFileNavigationRequest, AgentRightPane, AgentTaskProgressCapsule } from './components/AgentRightPane'
+import { AgentWorkspaceUnavailableNotice } from './components/AgentWorkspaceUnavailableNotice'
 import { locateAgentMessageInList, scrollAgentMessageListToEnd } from './messages/agentMessageListAdapter'
 import type { CreateAgentSessionDefaults } from './types'
 import { type AgentChatRuntimeState, useAgentChatRuntimeState } from './useAgentChatRuntimeState'
@@ -217,7 +218,9 @@ const AgentChat = ({
   const { updateSession } = useUpdateSession()
   const agentModelFilter = useAgentModelFilter(activeAgent?.type)
   const workspacePath = visibleWorkspace?.type === 'user' ? visibleWorkspace.path : undefined
-  const workspaceWarning = useAgentWorkspaceWarning(workspacePath)
+  const [workspaceCheckRevision, setWorkspaceCheckRevision] = useState(0)
+  const workspaceWarning = useAgentWorkspaceWarning(workspacePath, true, workspaceCheckRevision)
+  const workspaceUnavailable = Boolean(workspaceWarning)
   const citationPanelCitations =
     citationPanelState && citationPanelState.sessionId === currentSessionId ? citationPanelState.citations : null
 
@@ -283,7 +286,7 @@ const AgentChat = ({
     !runtime.hasOlder &&
     runtime.uiMessages.length === 0
   )
-  const canChangeWorkspace = Boolean(onSessionWorkspaceChange && isEmptyConversation)
+  const canChangeWorkspace = Boolean(onSessionWorkspaceChange && (isEmptyConversation || workspaceUnavailable))
   const runAfterFileNavigation = useCallback(
     (transition: () => void) => {
       if (requestFileNavigation) {
@@ -322,7 +325,9 @@ const AgentChat = ({
   const handleSessionWorkspaceChange = useCallback(
     (workspaceId: string | null) => {
       runAfterFileNavigation(() => {
-        void onSessionWorkspaceChange?.(workspaceId)
+        void Promise.resolve(onSessionWorkspaceChange?.(workspaceId)).then(() => {
+          setWorkspaceCheckRevision((revision) => revision + 1)
+        })
       })
     },
     [onSessionWorkspaceChange, runAfterFileNavigation]
@@ -495,6 +500,8 @@ const AgentChat = ({
         activeAgent={activeAgent}
         activeModel={activeModel}
         workspaceWarning={workspaceWarning}
+        workspacePath={workspacePath}
+        onWorkspaceChange={canChangeWorkspace ? handleSessionWorkspaceChange : undefined}
         isEmptyConversation={isEmptyConversation}
         isMultiSelectMode={isMultiSelectMode}
         sessionMessagesEnabled={sessionMessagesEnabled}
@@ -596,6 +603,8 @@ interface AgentChatSessionCenterProps {
   activeAgent: GetAgentResponse | undefined
   activeModel?: Model
   workspaceWarning?: string
+  workspacePath?: string
+  onWorkspaceChange?: (workspaceId: string | null) => void | Promise<void>
   isEmptyConversation: boolean
   isMultiSelectMode: boolean
   sessionMessagesEnabled: boolean
@@ -616,6 +625,8 @@ const AgentChatSessionCenter = ({
   activeAgent,
   activeModel,
   workspaceWarning,
+  workspacePath,
+  onWorkspaceChange,
   isEmptyConversation,
   isMultiSelectMode,
   sessionMessagesEnabled,
@@ -629,6 +640,9 @@ const AgentChatSessionCenter = ({
   const composer = (
     <div className="flex w-full flex-col">
       {!isMultiSelectMode && <AgentTaskProgressCapsule />}
+      {workspaceWarning && workspacePath && onWorkspaceChange && (
+        <AgentWorkspaceUnavailableNotice workspacePath={workspacePath} onWorkspaceChange={onWorkspaceChange} />
+      )}
       <AgentComposerSlot
         editBusy={runtime.editBusy}
         agentId={agentId}

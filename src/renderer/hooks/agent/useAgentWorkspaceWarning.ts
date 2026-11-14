@@ -4,11 +4,10 @@ import { useTranslation } from 'react-i18next'
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
-import { createFilePathHandle } from '@shared/utils/file'
 
 const logger = loggerService.withContext('useAgentWorkspaceWarning')
 
-export function useAgentWorkspaceWarning(workspacePath: string | undefined, enabled = true) {
+export function useAgentWorkspaceWarning(workspacePath: string | undefined, enabled = true, refreshKey = 0) {
   const { t } = useTranslation()
   const [warning, setWarning] = useState<string | undefined>(undefined)
 
@@ -22,16 +21,11 @@ export function useAgentWorkspaceWarning(workspacePath: string | undefined, enab
     let cancelled = false
     void (async () => {
       try {
-        const meta = await ipcApi.request(
-          'file.get_metadata',
-          createFilePathHandle(AbsoluteFilePathSchema.parse(workspacePath))
-        )
+        const accessible = await ipcApi.request('ai.agent.workspace.is_accessible', {
+          path: AbsoluteFilePathSchema.parse(workspacePath)
+        })
         if (cancelled) return
-        setWarning(
-          meta?.kind === 'directory'
-            ? undefined
-            : t('agent.session.workspace_status.inaccessible', { path: workspacePath })
-        )
+        setWarning(accessible ? undefined : t('agent.session.workspace_status.inaccessible', { path: workspacePath }))
       } catch (error) {
         logger.warn('Failed to check agent workspace path status', error as Error)
         if (!cancelled) setWarning(undefined)
@@ -41,7 +35,7 @@ export function useAgentWorkspaceWarning(workspacePath: string | undefined, enab
     return () => {
       cancelled = true
     }
-  }, [enabled, t, workspacePath])
+  }, [enabled, refreshKey, t, workspacePath])
 
   return warning
 }

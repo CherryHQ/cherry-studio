@@ -24,6 +24,7 @@ import { pinService } from '@data/services/PinService'
 import { nullsToUndefined, timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
 import { Emitter, type Event } from '@main/core/lifecycle'
+import { isDirectoryAccessible } from '@main/utils/isDirectoryAccessible'
 import { buildSearchSnippet } from '@main/utils/searchSnippet'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
@@ -957,14 +958,24 @@ export class AgentSessionService {
   }
 
   /**
-   * Replace a session's workspace. Only an empty session (no messages) may
-   * change its workspace; once a conversation has started the binding is
-   * permanent. Lives on `PUT /agent-sessions/:id/workspace` rather than the
-   * generic PATCH because it creates/deletes the backing system workspace row.
+   * Replace a session's workspace. A session with messages may only change its
+   * workspace when the current user workspace folder is inaccessible, so a
+   * migrated or moved Agent can be re-pointed at a valid folder. Lives on
+   * `PUT /agent-sessions/:id/workspace` rather than the generic PATCH because it
+   * creates/deletes the backing system workspace row.
    */
   setWorkspace(id: string, source: AgentSessionWorkspaceSource): AgentSessionEntity {
     withSqliteErrors(
-      () => application.get('DbService').withWriteTx((tx) => this.setWorkspaceTx(tx, id, source)),
+      () => {
+        const current = this.getJoinedSessionRowTx(application.get('DbService').getDb(), id)
+        const inaccessibleWorkspaceId =
+          source.type === AGENT_WORKSPACE_TYPE.USER &&
+          current.workspace.type === AGENT_WORKSPACE_TYPE.USER &&
+          !isDirectoryAccessible(current.workspace.path)
+            ? current.workspace.id
+            : undefined
+        application.get('DbService').withWriteTx((tx) => this.setWorkspaceTx(tx, id, source, inaccessibleWorkspaceId))
+      },
       defaultHandlersFor('Session', id)
     )
     notifyDataApiDataChange([
@@ -975,10 +986,19 @@ export class AgentSessionService {
     return this.getById(id)
   }
 
-  setWorkspaceTx(tx: DbOrTx, id: string, source: AgentSessionWorkspaceSource): void {
+  private setWorkspaceTx(
+    tx: DbOrTx,
+    id: string,
+    source: AgentSessionWorkspaceSource,
+    inaccessibleWorkspaceId?: string
+  ): void {
     const current = this.getJoinedSessionRowTx(tx, id)
-    // The workspace binding is locked the moment a session has any message.
-    this.assertSessionHasNoMessagesTx(tx, id)
+    const recoveringMissingWorkspace =
+      source.type === AGENT_WORKSPACE_TYPE.USER &&
+      current.workspace.type === AGENT_WORKSPACE_TYPE.USER &&
+      current.workspace.id === inaccessibleWorkspaceId
+    // The workspace binding is locked once a session has messages, unless its folder is gone (migrated/renamed/unplugged).
+    if (!recoveringMissingWorkspace) this.assertSessionHasNoMessagesTx(tx, id)
 
     if (source.type === AGENT_WORKSPACE_TYPE.USER) {
       const workspace = agentWorkspaceService.getRowByIdTx(tx, source.workspaceId)

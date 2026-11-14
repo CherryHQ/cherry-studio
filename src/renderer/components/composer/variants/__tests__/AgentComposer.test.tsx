@@ -84,6 +84,7 @@ const mocks = vi.hoisted(() => ({
   availableSkillsLoading: false,
   availableSkillsError: null as string | null,
   availableSkillsRefresh: vi.fn(),
+  availableSkillsOptions: vi.fn(),
   openResourceEditDialog: vi.fn(),
   registeredLaunchers: new Map<string, ComposerToolLauncher[]>(),
   registeredFooterActions: new Map<string, ComposerToolFooterAction[]>(),
@@ -542,12 +543,15 @@ vi.mock('@renderer/hooks/useKnowledgeBase', () => ({
 }))
 
 vi.mock('@renderer/hooks/useSkills', () => ({
-  useAvailableSkills: () => ({
-    skills: mocks.availableSkills,
-    loading: mocks.availableSkillsLoading,
-    error: mocks.availableSkillsError,
-    refresh: mocks.availableSkillsRefresh
-  })
+  useAvailableSkills: (agentId: string, workdir: string, options: { enabled: boolean }) => {
+    mocks.availableSkillsOptions(agentId, workdir, options)
+    return {
+      skills: mocks.availableSkills,
+      loading: mocks.availableSkillsLoading,
+      error: mocks.availableSkillsError,
+      refresh: mocks.availableSkillsRefresh
+    }
+  }
 }))
 
 vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
@@ -3333,6 +3337,70 @@ describe('AgentComposer', () => {
         textOffset: 0
       }
     ])
+  })
+
+  it('pauses skill discovery while its workspace is unavailable and resumes after recovery', () => {
+    mocks.optionalQuickPanel = { isVisible: true, symbol: 'agent-skills', updateList: vi.fn() }
+    const view = render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+        resolvedWorkspaceWarning="Unavailable"
+      />
+    )
+    expect(mocks.availableSkillsOptions).toHaveBeenLastCalledWith('agent-1', expect.anything(), { enabled: false })
+    view.rerender(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+        resolvedWorkspaceWarning={null}
+      />
+    )
+    expect(mocks.availableSkillsOptions).toHaveBeenLastCalledWith('agent-1', expect.anything(), { enabled: true })
+  })
+
+  it('preserves cached skill text while recovery pauses discovery and loads the replacement catalog', async () => {
+    const cachedToken = { ...pdfSkillToken, index: 0, textOffset: 0 }
+    const cachedText = `${pdfSkillToken.promptText} continue`
+    vi.mocked(cacheService.get).mockReturnValue({
+      text: cachedText,
+      tokens: [cachedToken],
+      files: [],
+      knowledgeBaseIds: [],
+      workspaceKey: 'workspace-old\0/old-workspace',
+      agentId: 'agent-1'
+    })
+    mocks.availableSkills = []
+    mocks.availableSkillsLoading = false
+    const props = {
+      agentId: 'agent-1',
+      sessionId: 'session-1',
+      sendMessage: mocks.sendMessage,
+      stop: mocks.stop,
+      isStreaming: false
+    }
+    const view = render(<AgentComposer {...props} resolvedWorkspaceWarning="Unavailable" />)
+    expect(mocks.surfaceProps?.text).toBe(cachedText)
+    expect(mocks.surfaceProps?.draftTokens).toEqual([cachedToken])
+    expect(mocks.replaceDraft).not.toHaveBeenCalled()
+
+    mocks.availableSkillsLoading = true
+    view.rerender(<AgentComposer {...props} resolvedWorkspaceWarning={null} />)
+    expect(mocks.surfaceProps?.text).toBe(cachedText)
+    expect(mocks.surfaceProps?.draftTokens).toEqual([cachedToken])
+    mocks.availableSkills = [pdfSkill]
+    mocks.availableSkillsLoading = false
+    view.rerender(<AgentComposer {...props} resolvedWorkspaceWarning={null} />)
+    await waitFor(() => expect(mocks.surfaceProps?.tokens).toContainEqual(pdfSkillToken))
+    expect(mocks.surfaceProps?.text).toBe(cachedText)
+    expect(mocks.surfaceProps?.draftTokens).toEqual([cachedToken])
+    expect(mocks.replaceDraft).not.toHaveBeenCalled()
   })
 
   it('waits for the new workspace skill list before removing only unavailable cached skills', async () => {
