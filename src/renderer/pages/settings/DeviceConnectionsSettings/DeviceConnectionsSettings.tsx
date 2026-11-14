@@ -284,7 +284,7 @@ const DeviceConnectionsSettings: FC = () => {
       theme={theme}
       className="@container min-w-0"
       contentProps={{ className: 'pb-18' }}
-      innerClassName="flex min-h-full max-w-6xl flex-col">
+      innerClassName="flex min-h-full flex-col">
       <div className="min-w-0">
         <SettingTitle className="justify-start gap-2">
           <MonitorSmartphone size={16} />

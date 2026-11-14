@@ -396,7 +396,7 @@ export const ResourceGrid: FC<Props> = ({
       <div
         className={cn(
           'flex shrink-0 flex-col',
-          isSettings ? 'mx-auto w-[calc(100%-3rem)] max-w-3xl' : 'border-b border-border-subtle'
+          isSettings ? 'mx-auto w-[calc(100%-3rem)] max-w-5xl' : 'border-b border-border-subtle'
         )}>
         {isSettings ? (
           <div className="flex min-w-0 items-center justify-between gap-4">
@@ -574,7 +574,7 @@ export const ResourceGrid: FC<Props> = ({
         viewportProps={{ ref: scrollRef }}
         className="min-h-0 flex-1"
         contentProps={{ className: isSettings ? 'px-6 pt-4 pb-6' : 'px-5 py-4' }}>
-        <div ref={contentRef} className={cn(isSettings && 'mx-auto w-full max-w-3xl')}>
+        <div ref={contentRef} className={cn(isSettings && 'mx-auto w-full max-w-5xl')}>
           {isLoading ? (
             <ResourceGridLoadingState columnCount={columnCount} resourceType={activeResourceType} />
           ) : resources.length === 0 ? (

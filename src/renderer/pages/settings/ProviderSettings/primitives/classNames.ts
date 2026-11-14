@@ -31,10 +31,10 @@ export const authConnectionClasses = {
 export const providerDetailColumnClasses = {
   headerPad: 'shrink-0 px-6 py-2.5',
   scrollViewport: 'px-6 pt-1.5 pb-6',
-  contentMaxWidth: 'mx-auto w-full max-w-3xl',
+  contentMaxWidth: 'mx-auto w-full max-w-5xl',
   /** Header inner wrapper: same max-width as body content. */
-  headerContentMaxWidth: 'mx-auto w-full max-w-3xl',
-  sectionStack: 'mx-auto flex min-h-full w-full min-w-0 max-w-3xl flex-col gap-5'
+  headerContentMaxWidth: 'mx-auto w-full max-w-5xl',
+  sectionStack: 'mx-auto flex min-h-full w-full min-w-0 max-w-5xl flex-col gap-5'
 } as const
 
 /** Connection-field actions. */

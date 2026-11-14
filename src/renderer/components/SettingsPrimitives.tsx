@@ -18,10 +18,7 @@ export const SettingContainer = ({
   />
 )
 
-// Canonical settings page container — mirrors the model service (Provider Settings) detail column:
-// outer p-6 + inner mx-auto max-w-3xl. Use for "simple right-content" settings pages.
-// Pages with their own internal split layout (Data / Integration / MCP / Channels)
-// keep SettingContainer instead.
+// Shared settings content column; pages with internal split layouts own their containers.
 export const SettingsContentColumn = ({
   className,
   innerClassName,
@@ -36,12 +33,11 @@ export const SettingsContentColumn = ({
     viewportProps={{ ...viewportProps, 'data-theme-mode': theme }}
     contentProps={{ ...contentProps, className: cn('p-6', contentProps?.className) }}
     {...rest}>
-    <div className={cn('mx-auto w-full max-w-3xl shrink-0', innerClassName)}>{children}</div>
+    <div className={cn('mx-auto w-full max-w-5xl shrink-0', innerClassName)}>{children}</div>
   </ScrollArea>
 )
 
-// Body variant for pages that handle their own scrolling (e.g. ShortcutSettings).
-// Renders the same two-layer structure (outer p-6, inner mx-auto max-w-3xl) without owning the scroll.
+// Non-scrolling counterpart for pages that own their scroll boundary.
 export const SettingsContentBody = ({
   className,
   innerClassName,
@@ -49,7 +45,7 @@ export const SettingsContentBody = ({
   ...rest
 }: React.ComponentPropsWithoutRef<'div'> & { innerClassName?: string }) => (
   <div className={cn('flex min-h-full w-full flex-col p-6', className)} {...rest}>
-    <div className={cn('mx-auto w-full max-w-3xl', innerClassName)}>{children}</div>
+    <div className={cn('mx-auto w-full max-w-5xl', innerClassName)}>{children}</div>
   </div>
 )
 
