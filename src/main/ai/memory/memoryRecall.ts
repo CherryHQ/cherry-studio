@@ -11,7 +11,9 @@ import { agentMemoryAuthority, assistantMemoryAuthority, type MemoryTurn } from 
 import type { MemorySession } from './MemoryService'
 
 const logger = loggerService.withContext('MemoryRecall')
-type RecallOwner = { sessionId: string } | { topicId: string; assistantId: string }
+type RecallOwner = ({ sessionId: string } | { topicId: string; assistantId: string }) & {
+  assistantMessageId?: string
+}
 type RecallRow = {
   messageId: string
   conversationId: string
@@ -67,6 +69,13 @@ function search(owner: RecallOwner, query: string, target?: MemorySearchInput) {
         )
   const order = match && !target?.messageId ? sql`bm25(${fts}), m.created_at DESC` : sql`m.created_at DESC`
   const database = application.get('DbService').getDb()
+  const currentUserMessageId = owner.assistantMessageId
+    ? database.get<{ parentId: string | null }>(sql`
+        SELECT m.parent_id AS parentId FROM ${table} m
+        WHERE m.id = ${owner.assistantMessageId} AND m.role = 'assistant'
+          AND ${conversationId} = ${agent ? owner.sessionId : owner.topicId}
+      `)?.parentId
+    : undefined
   const rows = database.all<RecallRow>(sql`
     SELECT m.id AS messageId, ${conversationId} AS conversationId,
            m.created_at AS createdAt, m.searchable_text AS text, m.role, c.active_node_id AS activeNodeId
@@ -74,7 +83,7 @@ function search(owner: RecallOwner, query: string, target?: MemorySearchInput) {
     JOIN ${conversations} c ON c.id = ${conversationId}
     WHERE ${condition} AND ${ownerCondition} AND c.deleted_at IS NULL
       AND ${target?.messageId ? sql`m.role IN ('user', 'assistant')` : sql`m.role = 'user'`} AND m.status = 'success'
-      AND NOT (${conversationId} = ${agent ? owner.sessionId : owner.topicId} AND m.searchable_text = ${query})
+      AND m.id != ${currentUserMessageId ?? ''}
     ORDER BY ${order}, m.id DESC LIMIT 64
   `)
   const branches = new Map<string, string[]>()
@@ -95,7 +104,7 @@ function search(owner: RecallOwner, query: string, target?: MemorySearchInput) {
         SELECT b.id, b.parent_id AS parentId,
           (${ownerCondition} AND m.status = 'success' AND m.role IN ('user', 'assistant')
             AND length(trim(m.searchable_text)) > 0
-            AND NOT (${conversationId} = ${agent ? owner.sessionId : owner.topicId} AND m.searchable_text = ${query})
+            AND m.id != ${currentUserMessageId ?? ''}
           ) AS eligible
         FROM branch b JOIN ${table} m ON m.id = b.id
         JOIN ${conversations} c ON c.id = ${conversationId}

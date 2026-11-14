@@ -1184,7 +1184,7 @@ export function registerAutonomyTools(server: McpServer, ctx: AutonomyToolsConte
       searchCalls++
       const interaction = runtime.getInteractionState(ctx.sessionId).currentTurn
       const text = await conversationRecallReference(
-        { sessionId: ctx.sessionId },
+        { sessionId: ctx.sessionId, assistantMessageId: turnId },
         input.query ?? '',
         {
           assertActive: () => {

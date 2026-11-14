@@ -268,7 +268,12 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
         execute: (input) => {
           if (memorySearchCalls >= MEMORY_SEARCH_LIMIT) return MEMORY_SEARCH_EXHAUSTED
           memorySearchCalls++
-          return conversationRecallReference(memoryContext, input.query ?? '', turn, input)
+          return conversationRecallReference(
+            { ...memoryContext, assistantMessageId: request.messageId },
+            input.query ?? '',
+            turn,
+            input
+          )
         }
       })
     }
