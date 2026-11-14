@@ -4,7 +4,13 @@ import { afterEach, describe, expect, it } from 'vitest'
 import type { CherryMessagePart } from '@shared/data/types/message'
 
 import { COMPOSER_INPUT_MAX_LENGTH, createComposerDraftContent, serializeComposerDocument } from '../composerDraft'
-import { appendComposerText, createComposerInputAdapter, updateComposerToken } from '../composerInputAdapter'
+import {
+  appendComposerText,
+  createComposerInputAdapter,
+  insertKnowledgeBaseTokenAtStart,
+  refreshComposerTokenLabel,
+  updateComposerToken
+} from '../composerInputAdapter'
 import { createComposerEditorPreset } from '../composerPreset'
 import { tokenizePromptVariablesInEditor } from '../promptVariables'
 import { createEditableMessageDraft, replaceEditedMessageParts } from '../variants/chat/messageEditingDraft'
@@ -123,6 +129,106 @@ describe('createComposerInputAdapter', () => {
     editor.commands.clearContent()
     updateComposerToken(editor, token)
     expect(serializeComposerDocument(editor)).toEqual({ text: '', tokens: [] })
+  })
+
+  it('keeps retrieval tokens before typed text when a knowledge base is selected after the prompt', () => {
+    const currentEditor = createEditor()
+    const adapter = createComposerInputAdapter(currentEditor)
+    adapter.insertText('Where is the project plan?', { tokenizeVariables: false })
+    currentEditor.commands.setTextSelection(currentEditor.state.doc.content.size - 1)
+    const selectionBeforeInsert = currentEditor.state.selection.from
+
+    insertKnowledgeBaseTokenAtStart(currentEditor, {
+      id: 'knowledge:kb-1',
+      kind: 'knowledge',
+      label: 'Retrieval · Knowledge One',
+      promptText: 'Search Knowledge One.'
+    })
+    insertKnowledgeBaseTokenAtStart(currentEditor, {
+      id: 'knowledge:kb-2',
+      kind: 'knowledge',
+      label: 'Retrieval · Knowledge Two',
+      promptText: 'Search Knowledge Two.'
+    })
+
+    const draft = serializeComposerDocument(currentEditor)
+    expect(draft.tokens.map((token) => token.id)).toEqual(['knowledge:kb-1', 'knowledge:kb-2'])
+    expect(draft.text).toBe('Search Knowledge One. Search Knowledge Two. Where is the project plan?')
+    expect(currentEditor.state.selection.from).toBe(selectionBeforeInsert + 4)
+  })
+
+  it('syncs a knowledge token without stealing focus or moving the mapped cursor', async () => {
+    const currentEditor = createEditor()
+    document.body.append(currentEditor.view.dom)
+    // Seed the background draft without scheduling the explicit insertText focus/scroll RAF.
+    currentEditor.commands.setContent(createComposerDraftContent({ text: 'Continue this prompt', tokens: [] }))
+    currentEditor.commands.setTextSelection(9)
+    const before = currentEditor.state.selection.from
+    const pickerRow = document.createElement('button')
+    document.body.append(pickerRow)
+    pickerRow.focus()
+    try {
+      expect(document.activeElement).toBe(pickerRow)
+      expect(
+        insertKnowledgeBaseTokenAtStart(currentEditor, {
+          id: 'knowledge:kb-1',
+          kind: 'knowledge',
+          label: 'KB One',
+          promptText: 'Search KB One.'
+        })
+      ).toBe(true)
+      await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
+      expect(document.activeElement).toBe(pickerRow)
+      expect(currentEditor.state.selection.from).toBe(before + 2)
+      currentEditor.commands.insertContent('typed')
+      expect(serializeComposerDocument(currentEditor).text).toBe('Search KB One. Continuetyped this prompt')
+    } finally {
+      pickerRow.remove()
+      currentEditor.view.dom.remove()
+    }
+  })
+
+  it('refreshes only the label of an existing token, preserving its prompt text and position', () => {
+    const currentEditor = createEditor()
+    insertKnowledgeBaseTokenAtStart(currentEditor, {
+      id: 'knowledge:kb-1',
+      kind: 'knowledge',
+      label: 'KB One',
+      promptText: 'Search Knowledge One.'
+    })
+
+    refreshComposerTokenLabel(currentEditor, {
+      id: 'knowledge:kb-1',
+      kind: 'knowledge',
+      label: 'Retrieval · KB One',
+      promptText: 'REPLACED'
+    })
+
+    const draft = serializeComposerDocument(currentEditor)
+    expect(draft.tokens).toHaveLength(1)
+    expect(draft.tokens).toMatchObject([
+      { id: 'knowledge:kb-1', label: 'Retrieval · KB One', promptText: 'Search Knowledge One.' }
+    ])
+  })
+
+  it('keeps an over-limit draft unchanged when adding a retrieval token', () => {
+    const currentEditor = createEditor()
+    const adapter = createComposerInputAdapter(currentEditor)
+    adapter.insertText('x'.repeat(COMPOSER_INPUT_MAX_LENGTH - 10), { tokenizeVariables: false })
+    const draft = serializeComposerDocument(currentEditor)
+    const selection = currentEditor.state.selection.toJSON()
+
+    expect(
+      insertKnowledgeBaseTokenAtStart(currentEditor, {
+        id: 'knowledge:kb-1',
+        kind: 'knowledge',
+        label: 'Retrieval · Knowledge One',
+        promptText: 'Search Knowledge One.'
+      })
+    ).toBe(false)
+
+    expect(serializeComposerDocument(currentEditor)).toEqual(draft)
+    expect(currentEditor.state.selection.toJSON()).toEqual(selection)
   })
 
   it('turns ${name} into an editable field by default (quick phrases rely on it)', () => {

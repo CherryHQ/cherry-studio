@@ -28,11 +28,11 @@ export function fileToComposerToken(file: ComposerAttachment): ComposerDraftToke
 }
 
 /** Model-visible instruction: the scope part is dropped, while the attached base ID already identifies the search target. */
-export function knowledgeBaseToComposerToken(base: KnowledgeBase): ComposerDraftToken {
+export function knowledgeBaseToComposerToken(base: KnowledgeBase, retrievalLabel?: string): ComposerDraftToken {
   return {
     id: composerKnowledgeBaseTokenId(base),
     kind: 'knowledge',
-    label: base.name,
+    label: retrievalLabel ? `${retrievalLabel} · ${base.name}` : base.name,
     promptText: `The user attached knowledge base "${base.name}" (id: ${base.id}). Include "${base.id}" in kb_search baseIds before answering questions that may depend on this knowledge base, and cite relevant kb_search or kb_read results. Use kb_list only to browse its structure; kb_list output is not retrieved evidence.`,
     payload: base
   }

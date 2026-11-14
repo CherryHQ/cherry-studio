@@ -24,7 +24,7 @@ import {
 } from '@renderer/utils/message/composerClipboard'
 
 import { ComposerContextProvider, ComposerLayerActiveProvider } from '../ComposerContext'
-import { serializeComposerDocument } from '../composerDraft'
+import { COMPOSER_INPUT_MAX_LENGTH, serializeComposerDocument } from '../composerDraft'
 import type * as ComposerPreset from '../composerPreset'
 import DeferredComposerSurface from '../ComposerSurface'
 import ComposerSurface, { type ComposerSurfaceActions, type ComposerSurfaceProps } from '../ComposerSurfaceRuntime'
@@ -538,6 +538,7 @@ describe('ComposerSurface', () => {
       mapping: new Mapping(),
       steps: [],
       doc: {},
+      docChanged: false,
       delete: vi.fn(() => mocks.transaction),
       setNodeMarkup: vi.fn(() => mocks.transaction),
       setSelection: vi.fn(() => mocks.transaction)
@@ -2837,6 +2838,87 @@ describe('ComposerSurface', () => {
       expect(mocks.insertComposerToken).toHaveBeenCalledWith(skillToken)
     })
     expect(mocks.insertContent).toHaveBeenCalledWith(' ')
+  })
+
+  it('reports an over-limit knowledge token back through onTokensChange so the selection unapplies', async () => {
+    // Near the input limit the retrieval-token insertion refuses (length guard) without any document
+    // change: no update event fires, so the runtime must report the actual tokens itself. Otherwise
+    // the picker stays checked while the send paths silently drop the base's retrieval scope.
+    mocks.stabilizeEditor = true
+    mocks.getJSON.mockReturnValue({
+      type: 'doc',
+      content: [{ type: 'paragraph', content: [{ type: 'text', text: 'x'.repeat(COMPOSER_INPUT_MAX_LENGTH) }] }]
+    })
+    const onTokensChange = vi.fn()
+    const knowledgeToken = {
+      id: 'knowledge:kb-1',
+      kind: 'knowledge' as const,
+      label: 'Retrieval · KB One',
+      promptText: 'kb sentence'
+    }
+
+    render(
+      <ComposerSurface
+        {...baseProps}
+        tokens={[knowledgeToken]}
+        managedTokenKinds={['knowledge']}
+        onTokensChange={onTokensChange}
+      />
+    )
+
+    await waitFor(() => expect(onTokensChange).toHaveBeenCalledWith([]))
+  })
+
+  it('refreshes a restored knowledge token label in place, preserving its stored prompt', async () => {
+    // The sync skips tokens whose id already exists in the document; a draft serialized before a
+    // wording change would otherwise keep its old chip label forever.
+    mocks.stabilizeEditor = true
+    mocks.getJSON.mockReturnValue({
+      type: 'doc',
+      content: [
+        {
+          type: 'paragraph',
+          content: [
+            {
+              type: 'composerToken',
+              attrs: { id: 'knowledge:kb-1', kind: 'knowledge', label: 'KB One', promptText: 'kb sentence' }
+            },
+            { type: 'text', text: ' tail' }
+          ]
+        }
+      ]
+    })
+    mocks.docDescendants.mockImplementation((callback) => {
+      callback(
+        {
+          type: { name: 'composerToken' },
+          attrs: { id: 'knowledge:kb-1', kind: 'knowledge', label: 'KB One', promptText: 'kb sentence' },
+          nodeSize: 2
+        },
+        1
+      )
+    })
+    mocks.transaction.setNodeMarkup.mockImplementation(() => {
+      mocks.transaction.docChanged = true
+      return mocks.transaction
+    })
+    const knowledgeToken = {
+      id: 'knowledge:kb-1',
+      kind: 'knowledge' as const,
+      label: 'Retrieval · KB One',
+      promptText: 'kb sentence'
+    }
+
+    render(<ComposerSurface {...baseProps} tokens={[knowledgeToken]} managedTokenKinds={['knowledge']} />)
+
+    await waitFor(() =>
+      expect(mocks.transaction.setNodeMarkup).toHaveBeenCalledWith(
+        1,
+        undefined,
+        expect.objectContaining({ label: 'Retrieval · KB One', promptText: 'kb sentence' })
+      )
+    )
+    expect(mocks.dispatch).toHaveBeenCalledWith(mocks.transaction)
   })
 
   it('renders regular file tokens with a remove action', async () => {

@@ -54,6 +54,8 @@ vi.mock('react-i18next', () => ({
     t: (key: string, options?: Record<string, unknown>) => {
       const translations: Record<string, string> = {
         'chat.input.knowledge_base': 'Knowledge Base',
+        'chat.input.knowledge_base_retrieval_label': 'Retrieval',
+        'chat.input.knowledge_base_retrieve': 'Retrieve from Knowledge Base',
         'chat.save.knowledge.empty.no_knowledge_base': 'No knowledge base',
         'common.selectedItems': `${options?.count ?? 0} selected`,
         'library.config.knowledge.doc_count': `${options?.count ?? 0} docs${mocks.translationSuffix}`
@@ -128,7 +130,15 @@ describe('KnowledgeBaseToolRuntime', () => {
     expect(onSelect).not.toHaveBeenCalled()
     expect(inputAdapter.deleteTriggerRange).toHaveBeenCalledWith({ from: 0, to: 10 })
     expect(inputAdapter.focus).toHaveBeenCalled()
-
+    expect(quickPanel.open).toHaveBeenCalledWith(
+      expect.objectContaining({
+        multiple: true,
+        parentPanel: { list: [], symbol: '/' },
+        symbol: ComposerPanelSymbol.KnowledgeBase,
+        title: 'Retrieve from Knowledge Base',
+        triggerInfo: { type: 'button' }
+      })
+    )
     const openedOptions = vi.mocked(quickPanel.open).mock.calls[0][0]
     expect(openedOptions.footerActions).toBeUndefined()
     const registeredFooterActions = vi.mocked(launcher.registerLaunchers).mock.calls[0][1]
@@ -140,6 +150,21 @@ describe('KnowledgeBaseToolRuntime', () => {
     expect(mocks.openRoute).toHaveBeenCalledWith('/app/knowledge')
 
     const panelList = openedOptions.list
+    expect(panelList).toEqual([
+      expect.objectContaining({
+        id: 'knowledge-base:kb-1',
+        label: 'Knowledge One',
+        suffix: 'Retrieval',
+        description: '2 docs',
+        isSelected: false
+      }),
+      expect.objectContaining({
+        id: 'knowledge-base:kb-2',
+        label: 'Knowledge Two',
+        description: '5 docs',
+        isSelected: true
+      })
+    ])
 
     panelList[0].action?.({
       context: { symbol: ComposerPanelSymbol.KnowledgeBase },
@@ -160,6 +185,7 @@ describe('KnowledgeBaseToolRuntime', () => {
     const launcher = createLauncherApi()
     const onSelect = vi.fn()
     const subscribeInput = vi.fn(() => vi.fn())
+    const focus = vi.fn()
 
     render(
       <KnowledgeBaseToolRuntime
@@ -177,11 +203,12 @@ describe('KnowledgeBaseToolRuntime', () => {
 
     rootSearchItem.action?.({
       context: { symbol: ComposerPanelSymbol.Root, close: vi.fn() },
-      inputAdapter: { getText: () => '', subscribeInput },
+      inputAdapter: { getText: () => '', subscribeInput, focus },
       item: rootSearchItem
     } as never)
 
     expect(onSelect).toHaveBeenCalledWith([mocks.knowledgeBases[0]])
     expect(subscribeInput).not.toHaveBeenCalled()
+    expect(focus).toHaveBeenCalledOnce()
   })
 })
