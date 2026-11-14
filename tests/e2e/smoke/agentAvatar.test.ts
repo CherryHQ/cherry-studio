@@ -201,7 +201,7 @@ async function sendTurn(page: Page, server: MockChatServer, sessionId: string, p
   return snapshot!
 }
 
-test('persists an uploaded agent avatar and freezes past message avatars after reset', async ({
+test('persists an uploaded agent avatar and updates past message avatars after reset', async ({
   electronApp,
   mainWindow,
   avatarRuntime,
@@ -333,13 +333,14 @@ test('persists an uploaded agent avatar and freezes past message avatars after r
   await expect(card).toContainText(emoji)
   await screenshot(page, testInfo, 'agent-avatar-after-reset')
   view = await openSession(page, agent.name, 'Avatar session')
-  await expectDecodedImage(messageAvatar(page, 'agent avatar turn').locator('img'))
+  await expect(messageAvatar(page, 'agent avatar turn').locator('img')).toHaveCount(0)
+  await expect(messageAvatar(page, 'agent avatar turn')).toContainText(emoji)
   const newSnapshot = await sendTurn(page, server, session.id, 'Check reset agent avatar', 'agent reset turn')
   expect(newSnapshot).toMatchObject({ id: agent.id, emoji })
   expect(newSnapshot?.avatarFileId).toBeUndefined()
   await expect(messageAvatar(page, 'agent reset turn').locator('img')).toHaveCount(0)
   await expect(messageAvatar(page, 'agent reset turn')).toContainText(emoji)
-  await expectDecodedImage(messageAvatar(page, 'agent avatar turn').locator('img'))
+  await expect(messageAvatar(page, 'agent avatar turn')).toContainText(emoji)
   await screenshot(page, testInfo, 'agent-avatar-old-and-new-messages')
 })
 

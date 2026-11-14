@@ -3,6 +3,8 @@ import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { toast } from '@renderer/services/toast'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
+import type { AgentEntity } from '@shared/data/api/schemas/agents'
 
 import { useAgent, useAgents, useUpdateAgent } from '../useAgent'
 
@@ -26,6 +28,39 @@ describe('useAgent', () => {
   beforeEach(() => {
     MockUseDataApiUtils.resetMocks()
     vi.clearAllMocks()
+  })
+
+  it('hides cached agent data after a confirmed deletion but retains it on temporary errors', () => {
+    const cachedAgent: AgentEntity = {
+      id: 'agent-1',
+      name: 'Cached Agent',
+      type: 'pi',
+      model: 'provider::model',
+      configuration: { avatar: '🐶' },
+      createdAt: '',
+      updatedAt: '',
+      orderKey: 'a0',
+      modelName: 'Model'
+    }
+    const path = '/agents/:agentId'
+    MockUseDataApiUtils.mockQueryResult(path, { data: cachedAgent })
+    const { result, rerender } = renderHook(() => useAgent('agent-1'))
+    expect(result.current.agent?.configuration?.avatar).toBe('🐶')
+
+    MockUseDataApiUtils.mockQueryResult(path, { data: cachedAgent, error: new Error('Temporary connection failure') })
+    rerender()
+    expect(result.current.agent?.configuration?.avatar).toBe('🐶')
+
+    MockUseDataApiUtils.mockQueryResult(path, {
+      data: cachedAgent,
+      error: DataApiErrorFactory.notFound('agent', 'agent-1')
+    })
+    rerender()
+    expect(result.current.agent).toBeUndefined()
+
+    MockUseDataApiUtils.mockQueryResult(path, { data: cachedAgent, error: undefined })
+    rerender()
+    expect(result.current.agent?.configuration?.avatar).toBe('🐶')
   })
 
   it('fetches agent when id is provided', () => {
