@@ -15,11 +15,17 @@ import { isWin } from '@renderer/utils/platform'
 import type { ChatMarkdownProps } from './ChatMarkdown'
 import { ChatMarkdownRenderProvider } from './ChatMarkdownRenderContext'
 import { CHAT_MARKDOWN_COMPONENTS } from './ChatMarkdownRenderers'
+import { createChatMarkdownBlockParser, rehypeCodeBlockTabs, remarkCodeBlockTabs } from './plugins/codeBlockTabs'
 import { rehypeBareFilePaths } from './plugins/rehypeBareFilePaths'
 import { remarkHtmlArtifact, transformMarkdownOutsideHtmlArtifacts } from './plugins/remarkHtmlArtifact'
 
-const HTML_ARTIFACT_REMARK_PLUGINS: Pluggable[] = [remarkHtmlArtifact]
-const FILE_PATH_REHYPE_PLUGINS: Pluggable[] = [[rehypeBareFilePaths, { platform: isWin ? 'windows' : 'posix' }]]
+const CODE_REMARK_PLUGINS: Pluggable[] = [remarkCodeBlockTabs]
+const HTML_ARTIFACT_REMARK_PLUGINS: Pluggable[] = [remarkCodeBlockTabs, remarkHtmlArtifact]
+const CODE_REHYPE_PLUGINS: Pluggable[] = [rehypeCodeBlockTabs]
+const FILE_PATH_REHYPE_PLUGINS: Pluggable[] = [
+  [rehypeBareFilePaths, { platform: isWin ? 'windows' : 'posix' }],
+  rehypeCodeBlockTabs
+]
 const EMPTY_CITATION_REGISTRY = new Map()
 
 const ChatMarkdownRuntime: FC<ChatMarkdownProps> = ({
@@ -56,7 +62,7 @@ const ChatMarkdownRuntime: FC<ChatMarkdownProps> = ({
     () => (components ? { ...CHAT_MARKDOWN_COMPONENTS, ...components } : CHAT_MARKDOWN_COMPONENTS),
     [components]
   )
-  const remarkPlugins = inlineHtmlPreviewMode ? HTML_ARTIFACT_REMARK_PLUGINS : undefined
+  const remarkPlugins = inlineHtmlPreviewMode ? HTML_ARTIFACT_REMARK_PLUGINS : CODE_REMARK_PLUGINS
   // Host file openers own path resolution; relative paths without a workspace are rejected.
   // Surfaces without a file opener retain link hardening.
   const openFilePath = useMemo(
@@ -93,7 +99,8 @@ const ChatMarkdownRuntime: FC<ChatMarkdownProps> = ({
           singleDollarMath={mathEnableSingleDollar}
           components={mergedComponents}
           remarkPlugins={remarkPlugins}
-          rehypePlugins={linkifyFilePaths ? FILE_PATH_REHYPE_PLUGINS : undefined}
+          rehypePlugins={linkifyFilePaths ? FILE_PATH_REHYPE_PLUGINS : CODE_REHYPE_PLUGINS}
+          createBlockParser={createChatMarkdownBlockParser}
           className={className}
           transformSource={transformSource}>
           {content}

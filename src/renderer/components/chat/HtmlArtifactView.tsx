@@ -5,6 +5,7 @@ import {
   memo,
   type RefObject,
   Suspense,
+  use,
   useEffect,
   useId,
   useLayoutEffect,
@@ -12,6 +13,7 @@ import {
   useRef,
   useState
 } from 'react'
+import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 
 import { Button, Tooltip } from '@cherrystudio/ui'
@@ -28,6 +30,7 @@ import {
   useScrollRuntimeBoundary
 } from '@renderer/components/chat/messages/list/ScrollOwnershipContext'
 import type { HtmlArtifactKind } from '@renderer/components/chat/messages/markdown/plugins/remarkHtmlArtifact'
+import { CodeBlockTabContext } from '@renderer/components/codeBlockTabContext'
 import {
   getMaxPreviewHeight,
   htmlArtifactPreviewRequiresInteractive,
@@ -492,6 +495,7 @@ const HtmlArtifactViewContent = memo(function HtmlArtifactViewContent({
   kind = 'document',
   isStreaming = false
 }: HtmlArtifactViewProps & { artifactId: string }) {
+  const toolbarContainer = use(CodeBlockTabContext)
   const { t } = useTranslation()
   const popupContext = useHtmlArtifactPopupContext()
   const { syncPopup } = popupContext
@@ -588,6 +592,122 @@ const HtmlArtifactViewContent = memo(function HtmlArtifactViewContent({
     })
   }, [artifactId, editable, html, kind, onSave, syncPopup, title])
 
+  const controls = (
+    <div
+      data-testid="html-artifact-controls"
+      className={cn(
+        'flex items-center gap-0.5',
+        toolbarContainer === undefined &&
+          'pointer-events-none absolute top-1.5 right-1.5 z-10 rounded-md border border-border-subtle bg-popover p-0.5 opacity-0 shadow-sm transition-opacity duration-150 group-hover:pointer-events-auto group-hover:opacity-100 group-has-[:focus-visible]:pointer-events-auto group-has-[:focus-visible]:opacity-100 motion-reduce:transition-none',
+        isStreaming ? 'hidden' : undefined
+      )}>
+      {!showCode && (
+        <>
+          <Tooltip content={t('preview.zoom_out')} delay={500}>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              className="size-6 text-muted-foreground"
+              aria-label={t('preview.zoom_out')}
+              disabled={zoom <= MIN_ZOOM}
+              onClick={handleZoomOut}>
+              <ZoomOut className="size-3" />
+            </Button>
+          </Tooltip>
+          <Tooltip content={t('preview.reset')} delay={500}>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-6 min-h-6 min-w-9 px-1 text-xs text-muted-foreground tabular-nums"
+              aria-label={t('preview.reset')}
+              onClick={handleResetZoom}>
+              {zoom}%
+            </Button>
+          </Tooltip>
+          <Tooltip content={t('preview.zoom_in')} delay={500}>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              className="size-6 text-muted-foreground"
+              aria-label={t('preview.zoom_in')}
+              disabled={zoom >= MAX_ZOOM}
+              onClick={handleZoomIn}>
+              <ZoomIn className="size-3" />
+            </Button>
+          </Tooltip>
+          <span className="h-3.5 w-px bg-border-subtle" />
+        </>
+      )}
+      <Tooltip content={t('chat.artifacts.button.openExternal')} delay={500}>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          className="size-6 text-muted-foreground"
+          aria-label={t('chat.artifacts.button.openExternal')}
+          disabled={!hasContent}
+          onClick={handleOpenExternal}>
+          <Compass className="size-3" />
+        </Button>
+      </Tooltip>
+      <Tooltip content={t('code_block.download.label')} delay={500}>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          className="size-6 text-muted-foreground"
+          aria-label={t('code_block.download.label')}
+          disabled={!hasContent}
+          onClick={handleDownload}>
+          <DownloadIcon className="size-3" />
+        </Button>
+      </Tooltip>
+      {showCode && (
+        <Tooltip content={t('code_block.copy.source')} delay={500}>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            className="size-6 text-muted-foreground"
+            aria-label={t('code_block.copy.source')}
+            disabled={!hasContent}
+            onClick={handleCopySource}>
+            {copied ? <Check className="lucide-custom size-3 text-success" /> : <CopyIcon className="size-3" />}
+          </Button>
+        </Tooltip>
+      )}
+      {!showCode && (
+        <Tooltip content={t('common.maximize')} delay={500}>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            className="size-6 text-muted-foreground"
+            aria-label={t('common.maximize')}
+            onClick={handleOpenPopup}>
+            <Maximize2 className="size-3" />
+          </Button>
+        </Tooltip>
+      )}
+      <span className="h-3.5 w-px bg-border-subtle" />
+      <Tooltip content={toggleLabel} delay={500}>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          className="size-6 text-muted-foreground"
+          aria-label={toggleLabel}
+          aria-pressed={showCode}
+          onClick={handleToggle}>
+          {showCode ? <Eye className="size-3" /> : <Code2 className="size-3" />}
+        </Button>
+      </Tooltip>
+    </div>
+  )
+
   if (isPreviewBlocked && !isPopupOpen) {
     return (
       <div data-testid="html-artifact-view" className="w-full">
@@ -606,7 +726,10 @@ const HtmlArtifactViewContent = memo(function HtmlArtifactViewContent({
       {!isPopupOpen ? (
         <div
           data-testid="html-artifact-surface"
-          className="group relative w-full overflow-hidden rounded-lg"
+          className={cn(
+            'group relative w-full overflow-hidden rounded-lg',
+            toolbarContainer !== undefined && 'rounded-none'
+          )}
           style={{ height: surfaceHeight }}>
           <div className="relative h-full min-h-0 overflow-hidden bg-background">
             <div className={cn('h-full min-h-0', showCode && 'hidden')} aria-hidden={showCode || undefined}>
@@ -623,117 +746,7 @@ const HtmlArtifactViewContent = memo(function HtmlArtifactViewContent({
               </div>
             )}
 
-            <div
-              data-testid="html-artifact-controls"
-              className={cn(
-                'pointer-events-none absolute top-1.5 right-1.5 z-10 flex items-center gap-0.5 rounded-md border border-border-subtle bg-popover p-0.5 opacity-0 shadow-sm transition-opacity duration-150 group-hover:pointer-events-auto group-hover:opacity-100 group-has-[:focus-visible]:pointer-events-auto group-has-[:focus-visible]:opacity-100 motion-reduce:transition-none',
-                isStreaming ? 'hidden' : undefined
-              )}>
-              {!showCode && (
-                <>
-                  <Tooltip content={t('preview.zoom_out')} delay={500}>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon-sm"
-                      className="size-6 text-muted-foreground"
-                      aria-label={t('preview.zoom_out')}
-                      disabled={zoom <= MIN_ZOOM}
-                      onClick={handleZoomOut}>
-                      <ZoomOut className="size-3" />
-                    </Button>
-                  </Tooltip>
-                  <Tooltip content={t('preview.reset')} delay={500}>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="h-6 min-h-6 min-w-9 px-1 text-xs text-muted-foreground tabular-nums"
-                      aria-label={t('preview.reset')}
-                      onClick={handleResetZoom}>
-                      {zoom}%
-                    </Button>
-                  </Tooltip>
-                  <Tooltip content={t('preview.zoom_in')} delay={500}>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon-sm"
-                      className="size-6 text-muted-foreground"
-                      aria-label={t('preview.zoom_in')}
-                      disabled={zoom >= MAX_ZOOM}
-                      onClick={handleZoomIn}>
-                      <ZoomIn className="size-3" />
-                    </Button>
-                  </Tooltip>
-                  <span className="h-3.5 w-px bg-border-subtle" />
-                </>
-              )}
-              <Tooltip content={t('chat.artifacts.button.openExternal')} delay={500}>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-sm"
-                  className="size-6 text-muted-foreground"
-                  aria-label={t('chat.artifacts.button.openExternal')}
-                  disabled={!hasContent}
-                  onClick={handleOpenExternal}>
-                  <Compass className="size-3" />
-                </Button>
-              </Tooltip>
-              <Tooltip content={t('code_block.download.label')} delay={500}>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-sm"
-                  className="size-6 text-muted-foreground"
-                  aria-label={t('code_block.download.label')}
-                  disabled={!hasContent}
-                  onClick={handleDownload}>
-                  <DownloadIcon className="size-3" />
-                </Button>
-              </Tooltip>
-              {showCode && (
-                <Tooltip content={t('code_block.copy.source')} delay={500}>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-sm"
-                    className="size-6 text-muted-foreground"
-                    aria-label={t('code_block.copy.source')}
-                    disabled={!hasContent}
-                    onClick={handleCopySource}>
-                    {copied ? <Check className="lucide-custom size-3 text-success" /> : <CopyIcon className="size-3" />}
-                  </Button>
-                </Tooltip>
-              )}
-              {!showCode && (
-                <Tooltip content={t('common.maximize')} delay={500}>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-sm"
-                    className="size-6 text-muted-foreground"
-                    aria-label={t('common.maximize')}
-                    onClick={handleOpenPopup}>
-                    <Maximize2 className="size-3" />
-                  </Button>
-                </Tooltip>
-              )}
-              <span className="h-3.5 w-px bg-border-subtle" />
-              <Tooltip content={toggleLabel} delay={500}>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-sm"
-                  className="size-6 text-muted-foreground"
-                  aria-label={toggleLabel}
-                  aria-pressed={showCode}
-                  onClick={handleToggle}>
-                  {showCode ? <Eye className="size-3" /> : <Code2 className="size-3" />}
-                </Button>
-              </Tooltip>
-            </div>
+            {toolbarContainer === undefined ? controls : toolbarContainer && createPortal(controls, toolbarContainer)}
           </div>
         </div>
       ) : null}

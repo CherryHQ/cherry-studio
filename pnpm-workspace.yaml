@@ -5,6 +5,10 @@ packages:
 engineStrict: true
 
 packageExtensions:
+  # The Remend patch protects fenced source with its existing parser test dependency.
+  "remend@1.3.0":
+    dependencies:
+      mdast-util-from-markdown: "2.0.2"
   # Published declaration files import Shiki types, but upstream lists it only as a devDependency.
   "streamdown@2.5.0":
     dependencies:
@@ -130,6 +134,7 @@ patchedDependencies:
   rtf.js@3.0.9: patches/rtf.js@3.0.9.patch
   "@pierre/diffs@1.6.1": patches/@pierre__diffs@1.6.1.patch
   vfile-location@5.0.3: patches/vfile-location@5.0.3.patch
+  remend@1.3.0: patches/remend@1.3.0.patch
 
   "@earendil-works/pi-agent-core@1.5.2": patches/@earendil-works__pi-agent-core@1.5.2.patch
 

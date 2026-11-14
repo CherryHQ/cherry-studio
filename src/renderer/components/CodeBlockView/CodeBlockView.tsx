@@ -12,6 +12,7 @@ import React, {
   useRef,
   useState
 } from 'react'
+import { createPortal } from 'react-dom'
 import { ErrorBoundary } from 'react-error-boundary'
 import { useTranslation } from 'react-i18next'
 
@@ -60,6 +61,7 @@ interface Props {
   isStreaming?: boolean
   showToolbar?: boolean
   maxHeight?: string | number
+  toolbarContainer?: HTMLElement | null
 }
 
 /**
@@ -88,8 +90,10 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
     allowExecution = true,
     isStreaming = false,
     showToolbar = true,
-    maxHeight
+    maxHeight,
+    toolbarContainer
   } = props
+  const grouped = toolbarContainer !== undefined
   const { t } = useTranslation()
   const [document, setDocument] = useState(() => ({
     accepted: children,
@@ -471,12 +475,18 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
           : 'border-[0.5px] border-border bg-background-subtle',
         '[&_.code-toolbar]:transform-gpu [&_.code-toolbar]:opacity-0 [&_.code-toolbar]:transition-opacity [&_.code-toolbar]:duration-200 [&_.code-toolbar]:ease-in-out [&_.code-toolbar]:will-change-[opacity]',
         '[&_.code-toolbar.show]:opacity-100 [&:hover_.code-toolbar]:opacity-100',
+        grouped && 'overflow-visible rounded-none border-0',
         isInSpecialView
           ? '[&_.code-toolbar]:rounded-none [&_.code-toolbar]:bg-transparent'
           : '[&_.code-toolbar]:rounded-[4px] [&_.code-toolbar]:bg-muted'
       )}>
-      {renderHeader}
-      {showToolbar ? <CodeToolbar tools={tools} /> : null}
+      {!grouped && renderHeader}
+      {showToolbar &&
+        (grouped ? (
+          toolbarContainer && createPortal(<CodeToolbar tools={tools} inline />, toolbarContainer)
+        ) : (
+          <CodeToolbar tools={tools} />
+        ))}
       {renderContent}
       {isExecutable && executionResult && (
         <StatusBar>
