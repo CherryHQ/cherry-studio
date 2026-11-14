@@ -765,6 +765,7 @@
   "chat.artifacts.button.openExternal": "Haricî tarayıcıda aç",
   "chat.artifacts.button.preview": "Önizle",
   "chat.artifacts.preview.openExternal.error.content": "Haricî tarayıcı açılırken hata oluştu.",
+  "chat.artifacts.show_remaining": "Kalan dosyaları göster ({{count}})",
   "chat.assistant.search.placeholder": "Ara",
   "chat.compaction.compacted": "Bağlam sıkıştırıldı, ~{{count}} token tasarrufu sağlandı",
   "chat.compaction.compacted_plain": "Bağlam sıkıştırıldı",

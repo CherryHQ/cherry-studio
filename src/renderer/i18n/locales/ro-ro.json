@@ -765,6 +765,7 @@
   "chat.artifacts.button.openExternal": "Deschide în browser extern",
   "chat.artifacts.button.preview": "Previzualizare",
   "chat.artifacts.preview.openExternal.error.content": "Eroare la deschiderea browserului extern.",
+  "chat.artifacts.show_remaining": "Afișează fișierele rămase ({{count}})",
   "chat.assistant.search.placeholder": "Caută",
   "chat.compaction.compacted": "Context compactat, ~{{count}} tokeni economisiți",
   "chat.compaction.compacted_plain": "Context compactat",

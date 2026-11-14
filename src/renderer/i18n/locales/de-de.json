@@ -765,6 +765,7 @@
   "chat.artifacts.button.openExternal": "In externem Browser öffnen",
   "chat.artifacts.button.preview": "Vorschau",
   "chat.artifacts.preview.openExternal.error.content": "Fehler beim Öffnen im externen Browser",
+  "chat.artifacts.show_remaining": "Weitere Dateien anzeigen ({{count}})",
   "chat.assistant.search.placeholder": "Suchen",
   "chat.compaction.compacted": "Kontext komprimiert, ~{{count}} Token gespart",
   "chat.compaction.compacted_plain": "Kontext komprimiert",

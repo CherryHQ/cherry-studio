@@ -765,6 +765,7 @@
   "chat.artifacts.button.openExternal": "Mở trong trình duyệt ngoài",
   "chat.artifacts.button.preview": "Xem trước",
   "chat.artifacts.preview.openExternal.error.content": "Lỗi khi mở trình duyệt ngoài.",
+  "chat.artifacts.show_remaining": "Hiện các tệp còn lại ({{count}})",
   "chat.assistant.search.placeholder": "Tìm kiếm",
   "chat.compaction.compacted": "Ngữ cảnh được nén, ~{{count}} token đã được tiết kiệm",
   "chat.compaction.compacted_plain": "Ngữ cảnh được nén lại",

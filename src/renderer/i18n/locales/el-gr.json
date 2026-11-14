@@ -765,6 +765,7 @@
   "chat.artifacts.button.openExternal": "Άνοιγμα στο εξωτερικό περιηγητή",
   "chat.artifacts.button.preview": "Προεπισκόπηση",
   "chat.artifacts.preview.openExternal.error.content": "Σφάλμα κατά την άνοιγμα στο εξωτερικό περιηγητή",
+  "chat.artifacts.show_remaining": "Εμφάνιση υπόλοιπων αρχείων ({{count}})",
   "chat.assistant.search.placeholder": "Αναζήτηση",
   "chat.compaction.compacted": "Περιεχόμενο συμπυκνωμένο, ~{{count}} tokens εξοικονομήθηκαν",
   "chat.compaction.compacted_plain": "Συμπιεσμένο πλαίσιο",

@@ -765,6 +765,7 @@
   "chat.artifacts.button.openExternal": "外部ブラウザで開く",
   "chat.artifacts.button.preview": "プレビュー",
   "chat.artifacts.preview.openExternal.error.content": "外部ブラウザの起動に失敗しました。",
+  "chat.artifacts.show_remaining": "残りのファイルを表示（{{count}}）",
   "chat.assistant.search.placeholder": "検索",
   "chat.compaction.compacted": "コンテキストを圧縮しました、約{{count}}トークン節約",
   "chat.compaction.compacted_plain": "コンテキストが圧縮されました",

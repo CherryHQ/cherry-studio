@@ -765,6 +765,7 @@
   "chat.artifacts.button.openExternal": "外部浏览器打开",
   "chat.artifacts.button.preview": "预览",
   "chat.artifacts.preview.openExternal.error.content": "外部浏览器打开出错",
+  "chat.artifacts.show_remaining": "展开其余 {{count}} 个文件",
   "chat.assistant.search.placeholder": "搜索",
   "chat.compaction.compacted": "已压缩上下文，节省约 {{count}} tokens",
   "chat.compaction.compacted_plain": "已压缩上下文",
