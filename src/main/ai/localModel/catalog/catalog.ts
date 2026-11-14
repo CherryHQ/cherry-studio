@@ -1,7 +1,9 @@
 import { DEFAULT_LOCAL_MODEL_BUNDLE_BY_CAPABILITY, type LocalModelBundleId } from '@shared/data/presets/localModel'
 
+import kokoroV1Release from './kokoro-v1.0.json'
 import kokoroRelease from './kokoro-v1.1.json'
 import mlxNodeRelease from './mlxNodeRelease.json'
+import piperPtBrRelease from './piper-pt-br.json'
 import qwen3AsrRelease from './qwen3AsrRelease.json'
 import sherpaRuntimeRelease from './sherpaRuntimeRelease.json'
 import type { ModelBundle, SharedArtifact, SharedArtifactId } from './types'
@@ -196,6 +198,48 @@ export const SHARED_ARTIFACTS = {
   }
 } as const satisfies Record<SharedArtifactId, SharedArtifact>
 
+/** Piper pt-BR voices: one bundle per voice, so each downloads on its own. */
+function piperPtBrBundle(
+  id: LocalModelBundleId,
+  voice: keyof typeof piperPtBrRelease.voices,
+  installDirKey: 'feature.tts.piper_faber' | 'feature.tts.piper_cadu'
+): ModelBundle {
+  const release = piperPtBrRelease.voices[voice]
+  return {
+    id,
+    capability: 'tts',
+    installDirKey,
+    requires: ['sherpa-onnx'],
+    runtime: { architecture: 'piper' },
+    provenance: {
+      // Voice data licence; the weights are fine-tuned from Piper's English voices.
+      license: { spdx: 'CC0-1.0', url: 'https://github.com/OHF-Voice/voice-datasets' },
+      upstream: { url: 'https://huggingface.co/rhasspy/piper-voices', revision: piperPtBrRelease.upstreamRevision },
+      conversion: {
+        url: `https://huggingface.co/${release.repo}`,
+        revision: release.revision,
+        license: { spdx: 'Apache-2.0', url: 'https://github.com/k2-fsa/sherpa-onnx/blob/master/LICENSE' }
+      }
+    },
+    files: release.files.map((file) => {
+      // The runtime loads a fixed `model.onnx`; upstream names the weights after the voice.
+      const relPath = file.relPath.endsWith('.onnx') ? 'model.onnx' : file.relPath
+      return {
+        key: relPath,
+        relPath,
+        sha256: file.sha256,
+        sizeBytes: file.sizeBytes,
+        minBytes: file.sizeBytes,
+        weight: Math.max(0.01, file.sizeBytes / 1_000_000),
+        sources: [
+          { source: 'huggingface', repo: release.repo, revision: release.revision, remoteFile: file.relPath },
+          { source: 'hf-mirror', repo: release.repo, revision: release.revision, remoteFile: file.relPath }
+        ]
+      }
+    })
+  }
+}
+
 export const LOCAL_MODEL_BUNDLES = {
   'kokoro-multi-lang-v1.1': {
     id: 'kokoro-multi-lang-v1.1',
@@ -234,6 +278,57 @@ export const LOCAL_MODEL_BUNDLES = {
       ]
     }))
   },
+  // Kokoro v1.0 is the multilingual release; this bundle carries only the Brazilian
+  // Portuguese voices' eSpeak data. The int8 weights keep the download near 140 MB.
+  'kokoro-int8-multi-lang-v1.0': {
+    id: 'kokoro-int8-multi-lang-v1.0',
+    capability: 'tts',
+    installDirKey: 'feature.tts.kokoro_v1',
+    requires: ['sherpa-onnx'],
+    runtime: { architecture: 'kokoro-v1' },
+    provenance: {
+      license: {
+        spdx: 'Apache-2.0',
+        url: `https://huggingface.co/${kokoroV1Release.repo}/blob/${kokoroV1Release.revision}/LICENSE`
+      },
+      upstream: {
+        url: 'https://huggingface.co/hexgrad/Kokoro-82M',
+        revision: kokoroV1Release.upstreamRevision
+      },
+      conversion: {
+        url: `https://huggingface.co/${kokoroV1Release.repo}`,
+        revision: kokoroV1Release.revision,
+        license: {
+          spdx: 'Apache-2.0',
+          url: `https://huggingface.co/${kokoroV1Release.repo}/blob/${kokoroV1Release.revision}/LICENSE`
+        }
+      }
+    },
+    files: kokoroV1Release.files.map((file) => ({
+      key: file.relPath,
+      relPath: file.relPath,
+      sha256: file.sha256,
+      sizeBytes: file.sizeBytes,
+      minBytes: file.sizeBytes,
+      weight: Math.max(0.01, file.sizeBytes / 1_000_000),
+      sources: [
+        {
+          source: 'huggingface',
+          repo: kokoroV1Release.repo,
+          revision: kokoroV1Release.revision,
+          remoteFile: file.relPath
+        },
+        {
+          source: 'hf-mirror',
+          repo: kokoroV1Release.repo,
+          revision: kokoroV1Release.revision,
+          remoteFile: file.relPath
+        }
+      ]
+    }))
+  },
+  'piper-pt-br-faber-medium': piperPtBrBundle('piper-pt-br-faber-medium', 'faber', 'feature.tts.piper_faber'),
+  'piper-pt-br-cadu-medium': piperPtBrBundle('piper-pt-br-cadu-medium', 'cadu', 'feature.tts.piper_cadu'),
   'qwen3-asr-1.7b-8bit': {
     id: 'qwen3-asr-1.7b-8bit',
     capability: 'asr',

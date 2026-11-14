@@ -5,9 +5,16 @@ import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
-import { KOKORO_TTS_BUNDLE_ID, VoiceModelSupport } from '@shared/ai/localVoice'
+import { KOKORO_TTS_BUNDLE_ID, KOKORO_V1_TTS_BUNDLE_ID, VoiceModelSupport } from '@shared/ai/localVoice'
 
-import { createKokoroSpeechModel, getKokoroTtsStatus, kokoroSpeechDefinition, kokoroTtsSupport } from '../kokoroTts'
+import {
+  createKokoroSpeechModel,
+  createKokoroV1SpeechModel,
+  getKokoroTtsStatus,
+  kokoroSpeechDefinition,
+  kokoroTtsSupport,
+  kokoroV1SpeechDefinition
+} from '../kokoroTts'
 
 const synthesize = vi.fn()
 const refreshStatus = vi.fn()
@@ -108,5 +115,50 @@ describe('Kokoro Chinese-English speech', () => {
       expect(kokoroTtsSupport({ platform, arch })).toBe(VoiceModelSupport.Supported)
     }
     expect(kokoroTtsSupport({ platform: 'win32', arch: 'ia32' })).toBe(VoiceModelSupport.UnsupportedArchitecture)
+  })
+})
+
+describe('Kokoro v1.0 Brazilian Portuguese speech', () => {
+  it('lists the five pt-BR voices, native ones first, and defaults to pf_dora', async () => {
+    const voices = await kokoroV1SpeechDefinition.voices()
+    expect(voices.map((voice) => voice.id)).toEqual([
+      'pf_dora',
+      'pm_alex',
+      'pm_santa',
+      'ef_dora',
+      'if_sara',
+      'im_nicola'
+    ])
+    expect(voices.slice(3).map((voice) => voice.name)).toEqual(['ef_dora (es)', 'if_sara (it)', 'im_nicola (it)'])
+    expect(voices.every((voice) => voice.locale === 'pt-BR' && voice.languages?.join() === 'pt-BR')).toBe(true)
+    expect((await kokoroV1SpeechDefinition.getDefaultVoice('pt-BR'))?.id).toBe('pf_dora')
+    expect(await kokoroV1SpeechDefinition.getDefaultVoice('zh-CN')).toBeNull()
+  })
+
+  it.each([
+    ['pm_alex', '43'],
+    ['ef_dora', '28'],
+    ['if_sara', '35'],
+    ['im_nicola', '36']
+  ])('synthesizes %s through the v1.0 bundle with the published speaker ID %s', async (voice, sid) => {
+    synthesize.mockImplementation(async (modelId, input) => {
+      expect(modelId).toBe(KOKORO_V1_TTS_BUNDLE_ID)
+      expect(input).toMatchObject({ text: 'Olá', voice: sid, language: 'pt-BR', speed: 1 })
+      await writeFile(input.outputPath, wav)
+    })
+    const result = await createKokoroV1SpeechModel({ voice, language: 'pt-BR' }).doGenerate({ text: 'Olá' })
+    expect(result.audio).toEqual(new Uint8Array(wav))
+    expect(refreshStatus).toHaveBeenCalledWith(KOKORO_V1_TTS_BUNDLE_ID)
+    expect(await readdir(directory)).toEqual([])
+  })
+
+  it.each([
+    { voice: 'zf_001', language: 'pt-BR' },
+    { voice: 'pf_dora', language: 'zh-CN' }
+  ])('rejects unknown voice or unsupported language %j before inference', async (options) => {
+    await expect(createKokoroV1SpeechModel(options).doGenerate({ text: 'Olá' })).rejects.toMatchObject({
+      reason: 'invalid_request'
+    })
+    expect(synthesize).not.toHaveBeenCalled()
   })
 })
