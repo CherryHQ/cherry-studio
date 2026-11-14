@@ -4,4 +4,4 @@
  */
 
 /** Run timeout for an agent task turn (heartbeat and user tasks alike). */
-export const DEFAULT_AGENT_TASK_TIMEOUT_MINUTES = 2
+export const DEFAULT_AGENT_TASK_TIMEOUT_MINUTES = 30

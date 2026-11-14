@@ -34,6 +34,7 @@ import { RootMessageProjection } from '../RootMessageProjection'
 vi.mock('../recoverSessionDeliveries', () => ({ recoverSessionDeliveries: vi.fn(() => new Set()) }))
 
 const mocks = vi.hoisted(() => ({
+  preferenceGet: vi.fn(),
   saveMessage: vi.fn(),
   replaceMessageParts: vi.fn(),
   getSessionMessage: vi.fn(),
@@ -548,6 +549,7 @@ describe('AgentSessionRuntimeService', () => {
     runtimeDriverRegistry.clearForTest()
     toolApprovalRegistry.clear('test-reset')
     vi.clearAllMocks()
+    mocks.preferenceGet.mockImplementation((key: string) => (key === 'agent.session.idle_ttl_minutes' ? 5 : null))
     mocks.sharesBranch.mockReturnValue(true)
     mocks.saveMessage.mockImplementation(({ message }) => ({
       ...message,
@@ -610,6 +612,9 @@ describe('AgentSessionRuntimeService', () => {
         }
       if (name === 'AnalyticsService') return { trackTokenUsage: mocks.trackTokenUsage }
       if (name === 'WindowManager') return { getWindow: mocks.getWindow }
+      if (name === 'PreferenceService') {
+        return { get: mocks.preferenceGet }
+      }
       throw new Error(`Unexpected application.get(${name})`)
     })
   })
@@ -1762,6 +1767,32 @@ describe('AgentSessionRuntimeService', () => {
       pendingMessageCount: 0,
       lastTerminalStatus: 'success'
     })
+  })
+
+  it('reads the current idle TTL on each timer refresh without restarting the service', () => {
+    vi.useFakeTimers()
+    try {
+      let ttl = 12
+      mocks.preferenceGet.mockImplementation(() => ttl)
+      const service = new AgentSessionRuntimeService()
+      const handle = service.beginTurn(baseTurnInput)
+      void terminalListener(handle).onDone({ status: 'success', isTopicDone: true })
+      vi.advanceTimersByTime(5 * 60_000)
+      expect(service.inspect('session-1')).toBeDefined()
+      ttl = 2
+      const next = service.beginTurn({
+        ...baseTurnInput,
+        assistantMessageId: 'assistant-next',
+        userMessage: userMessage('next')
+      })
+      void terminalListener(next).onDone({ status: 'success', isTopicDone: true })
+      vi.advanceTimersByTime(2 * 60_000 - 1)
+      expect(service.inspect('session-1')).toBeDefined()
+      vi.advanceTimersByTime(1)
+      expect(service.inspect('session-1')).toBeUndefined()
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('hands an idle session with a resume token to the driver onSessionIdle hook', () => {

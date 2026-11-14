@@ -9,6 +9,7 @@ import { prepareClaudeBranch } from '@main/ai/runtime/claudeCode/claudeContext'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { deriveRootSpanId } from '@shared/data/types/trace'
 
+import { resolveAgentIdleTtlMs } from '../../agentSession/idleTtl'
 import { buildAgentSessionTopicId } from '../../agentSession/topic'
 import type { AgentNotificationContext } from '../agentMcpServers'
 import type { AgentSessionUsageCapture } from '../types'
@@ -21,7 +22,8 @@ import type { ClaudeCodeProcessDiagnostics } from './processExitDiagnostics'
 import { resolveClaudeConfigDirectory } from './queryOptions'
 
 const logger = loggerService.withContext('ClaudeCodeWarmQueryManager')
-const DEFAULT_IDLE_TTL_MS = 5 * 60 * 1000
+const idleTtlMs = (): number =>
+  resolveAgentIdleTtlMs(application.get('PreferenceService').get('agent.session.idle_ttl_minutes'))
 
 type WarmQueryEntry = {
   signature: string
@@ -343,7 +345,7 @@ export class ClaudeCodeWarmQueryManager extends BaseService {
       if (this.entries.get(key) !== entry) return
       this.entries.delete(key)
       this.closeDetached(key, entry)
-    }, DEFAULT_IDLE_TTL_MS)
+    }, idleTtlMs())
     entry.idleTimer.unref?.()
   }
 

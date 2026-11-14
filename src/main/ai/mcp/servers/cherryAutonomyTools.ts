@@ -18,6 +18,7 @@ import { AgentSessionDeliveryRoutingError, agentSessionMessageService } from '@d
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentTaskService as taskService } from '@data/services/AgentTaskService'
 import { loggerService } from '@logger'
+import { DEFAULT_AGENT_TASK_TIMEOUT_MINUTES } from '@main/ai/agents/agentTaskDefaults'
 import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
 import {
   createAgentChannel,
@@ -131,7 +132,7 @@ const CronInputSchema = z.object({
       .min(0)
       .optional()
       .describe(
-        'Timeout in minutes before the task is aborted. Default is 2 on add; omit on update to keep the current timeout. Use 0 for no timeout.'
+        `Timeout in minutes before the task is aborted. Default is ${DEFAULT_AGENT_TASK_TIMEOUT_MINUTES} on add; omit on update to keep the current timeout. Use 0 for no timeout.`
       )
   ),
   reuse_session: z
