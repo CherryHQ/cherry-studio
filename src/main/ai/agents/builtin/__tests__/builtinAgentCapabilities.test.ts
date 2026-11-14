@@ -13,7 +13,7 @@ describe('resolveAgentCapabilities', () => {
     expect(resolveAgentCapabilities({ configuration: {} })).toEqual({
       environment: 'open',
       allKnowledgeBases: false,
-      createAgents: true
+      createResources: true
     })
   })
 

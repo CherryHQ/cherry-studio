@@ -301,7 +301,7 @@ describe('create_agent', () => {
     const client = await connectAssistantClient()
 
     expect((await client.listTools()).tools.map((tool) => tool.name)).toEqual(
-      expect.arrayContaining(['create_agent', 'update_agent'])
+      expect.arrayContaining(['create_agent', 'create_assistant', 'update_agent'])
     )
   })
 

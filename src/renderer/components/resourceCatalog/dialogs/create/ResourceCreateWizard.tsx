@@ -25,6 +25,7 @@ import {
   DEFAULT_HEARTBEAT_TIMEOUT_MINUTES
 } from '@shared/ai/agentHeartbeat'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
+import { DEFAULT_ASSISTANT_CREATE_AVATAR } from '@shared/ai/assistantCreateDto'
 import type { UniqueModelId } from '@shared/data/types/model'
 
 import {
@@ -74,7 +75,7 @@ const AUTO_CREATE_TIMEOUT_MS = 60_000
 
 /** The avatar a brand-new resource starts with — exported so callers can preview what they'd create. */
 export function getResourceCreateDefaultAvatar(kind: ResourceCreateWizardKind) {
-  return kind === 'assistant' ? '💬' : DEFAULT_AGENT_CREATE_AVATAR
+  return kind === 'assistant' ? DEFAULT_ASSISTANT_CREATE_AVATAR : DEFAULT_AGENT_CREATE_AVATAR
 }
 
 function getDefaultValues(

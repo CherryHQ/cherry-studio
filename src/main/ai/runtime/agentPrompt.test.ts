@@ -12,8 +12,9 @@ import { userProviderTable } from '@data/db/schemas/userProvider'
 import { agentService } from '@data/services/AgentService'
 import { createAgentDataDirectory } from '@main/ai/agents/agentDataDirectory'
 import { PromptBuilder } from '@main/ai/agents/prompt'
+import { BUILTIN_AGENT_ROLE } from '@shared/ai/builtinAgent'
 
-import { buildAgentRuntimePrompt } from './agentPrompt'
+import { buildAgentRuntimePrompt, getConfigToolsPrompt } from './agentPrompt'
 
 describe('Agent prompt onboarding', () => {
   const dbh = setupTestDatabase()
@@ -103,4 +104,36 @@ describe('Agent prompt onboarding', () => {
     expect(identity).toContain('<facts>\nThe project is called Orchard.\n</facts>')
     expect(identity).not.toContain('Unrelated workspace identity')
   })
+
+  it('tells a user-created Agent it can create Agents and Assistants and change its own settings', async () => {
+    const id = randomUUID()
+    const agentDataPath = await createAgentDataDirectory(root, id)
+    agentService.createAgentWithId(id, { type: 'pi-durable', name: 'Helper', model, instructions: 'Help.' })
+
+    const { append } = await buildAgentRuntimePrompt({
+      workspacePath,
+      agentDataPath,
+      agent: agentService.getAgent(id)!
+    })
+
+    expect(append).toContain('`agent_create` or `assistant_create`')
+    expect(append).toContain('`config_update`')
+  })
+})
+
+describe('getConfigToolsPrompt', () => {
+  it('points Cherry Assistant at its host create and update tools', () => {
+    const prompt = getConfigToolsPrompt({ configuration: { builtin_role: BUILTIN_AGENT_ROLE.ASSISTANT } })
+
+    expect(prompt).toContain('`create_agent` or `create_assistant`')
+    expect(prompt).toContain('`update_agent`')
+    expect(prompt).not.toContain('config_update')
+  })
+
+  it.each([BUILTIN_AGENT_ROLE.SUPPORT, BUILTIN_AGENT_ROLE.DOCTOR])(
+    'adds no create guidance for the built-in %s Agent, which mounts no create tools',
+    (role) => {
+      expect(getConfigToolsPrompt({ configuration: { builtin_role: role } })).toBeUndefined()
+    }
+  )
 })

@@ -18,6 +18,7 @@ import { agentGlobalSkillService } from '@data/services/AgentGlobalSkillService'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
+import { assistantDataService } from '@data/services/AssistantService'
 import { previewAgentConfigUpdate } from '@main/ai/agents/agentConfigTool'
 import { resolveAgentCapabilities } from '@main/ai/agents/builtin/builtinAgentCapabilities'
 import { BUILTIN_AGENT_ROLE, CHERRY_SUPPORT_AGENT_ID } from '@shared/ai/builtinAgent'
@@ -48,7 +49,7 @@ describe('Agent create and configure tools', () => {
       workspacePath: agentsDataDir,
       trustedNotifyChannels: [],
       allowAnyOwnedNotifyChannel: false,
-      agentCreateEnabled: resolveAgentCapabilities(agentService.getAgent(agentId)).createAgents
+      resourceCreateEnabled: resolveAgentCapabilities(agentService.getAgent(agentId)).createResources
     }
     return () => {
       const server = new McpServer({ name: 'cherry-tools', version: '1.0.0' })
@@ -274,6 +275,69 @@ describe('Agent create and configure tools', () => {
     })
   })
 
+  describe('create_assistant', () => {
+    function liveAssistantIds(): string[] {
+      return assistantDataService.list({ page: 1, limit: 100 }).items.map((assistant) => assistant.id)
+    }
+
+    it('creates an Assistant that carries every supplied field and shows up in the Assistant list', async () => {
+      const result = await callBuiltinTool(assistantServer, 'create_assistant', {
+        name: 'Translator',
+        emoji: '🌐',
+        description: 'Translates documents',
+        prompt: 'Translate faithfully.',
+        model: OTHER_MODEL,
+        knowledgeBaseIds: [KNOWLEDGE_BASE],
+        mcpServerIds: ['mcp-1'],
+        webSearch: true,
+        language: '中文'
+      })
+
+      expect(result.isError, toolText(result)).not.toBe(true)
+      const output = result.structuredContent as { assistantId: string; kind: string; summary: string[] }
+      expect(output.kind).toBe('assistant')
+      const assistant = assistantDataService.getById(output.assistantId)
+      expect(assistant).toMatchObject({
+        name: 'Translator',
+        emoji: '🌐',
+        description: 'Translates documents',
+        prompt: 'Translate faithfully.',
+        modelId: OTHER_MODEL,
+        knowledgeBaseIds: [KNOWLEDGE_BASE],
+        mcpServerIds: ['mcp-1']
+      })
+      expect(assistant.settings).toMatchObject({
+        enableWebSearch: true,
+        replyLanguage: { mode: 'custom', language: '中文' }
+      })
+      expect(liveAssistantIds()).toContain(assistant.id)
+      expect(output.summary).toContain('Web search: Enabled')
+    })
+
+    it('uses the default model and leaves the reply language unconstrained when none is given', async () => {
+      const result = await callBuiltinTool(assistantServer, 'create_assistant', { name: 'Helper', prompt: 'Help.' })
+
+      const assistant = assistantDataService.getById((result.structuredContent as { assistantId: string }).assistantId)
+      expect(assistant.modelId).toBe(DEFAULT_MODEL)
+      expect(assistant.settings.replyLanguage).toBeUndefined()
+    })
+
+    it.each([
+      ['knowledge base', { knowledgeBaseIds: ['missing-kb'] }, 'Unknown knowledge base ID: missing-kb'],
+      ['MCP server', { mcpServerIds: ['missing-mcp'] }, 'Unknown MCP server ID: missing-mcp']
+    ])('rejects an uninstalled %s ID without creating an Assistant', async (_kind, fields, message) => {
+      const result = await callBuiltinTool(assistantServer, 'create_assistant', {
+        name: 'Helper',
+        prompt: 'Help.',
+        ...fields
+      })
+
+      expect(result.isError).toBe(true)
+      expect(toolText(result)).toContain(message)
+      expect(liveAssistantIds()).toEqual([])
+    })
+  })
+
   describe('update_agent', () => {
     it('changes only the given fields and reports each one as current → new', async () => {
       seedAgent('target')
@@ -361,7 +425,7 @@ describe('Agent create and configure tools', () => {
     })
   })
 
-  describe('agent_create (every user-created Agent)', () => {
+  describe('agent_create and assistant_create (every user-created Agent)', () => {
     it('lets a plain Agent create an Agent that appears in the list, defaulting to the caller model', async () => {
       MockMainPreferenceServiceUtils.setPreferenceValue('chat.default_model_id', null)
       seedAgent('plain', { model: OTHER_MODEL })
@@ -377,12 +441,26 @@ describe('Agent create and configure tools', () => {
       expect(liveAgents().map((agent) => agent.id)).toContain(created.id)
     })
 
+    it('lets a plain Agent create an Assistant', async () => {
+      seedAgent('plain')
+
+      const result = await callBuiltinTool(cherryToolsServer('plain'), 'assistant_create', {
+        name: 'Summarizer',
+        prompt: 'Summarize.'
+      })
+
+      expect(result.isError, toolText(result)).not.toBe(true)
+      const { assistantId } = result.structuredContent as { assistantId: string }
+      expect(assistantDataService.getById(assistantId)).toMatchObject({ name: 'Summarizer', modelId: DEFAULT_MODEL })
+    })
+
     it.each(Object.values(BUILTIN_AGENT_ROLE))(
       'is not offered to the built-in %s Agent, which has no cherry-tools create',
       async (role) => {
         const names = (await listBuiltinTools(cherryToolsServer(seedBuiltinAgent(role)))).map((tool) => tool.name)
 
         expect(names).not.toContain('agent_create')
+        expect(names).not.toContain('assistant_create')
         expect(names).toContain('config')
       }
     )

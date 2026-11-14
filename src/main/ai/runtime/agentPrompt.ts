@@ -1,9 +1,16 @@
 import { loggerService } from '@logger'
+import { resolveAgentCapabilities } from '@main/ai/agents/builtin/builtinAgentCapabilities'
 import { loadBuiltinAgentDefinition, provisionBuiltinAgent } from '@main/ai/agents/builtin/BuiltinAgentProvisioner'
 import { type AgentPromptBase, PromptBuilder } from '@main/ai/agents/prompt'
+import { DEFAULT_ASSISTANT_TOOL_NAMES } from '@main/ai/toolApproval/assistantToolNames'
 import { getEffectiveAgentLanguage } from '@main/ai/utils/agentLanguage'
 import { replacePromptVariables } from '@main/utils/prompt'
-import { REPORT_ARTIFACTS_TOOL_NAME } from '@shared/ai/builtinTools'
+import {
+  AGENT_CREATE_TOOL_NAME,
+  ASSISTANT_CREATE_TOOL_NAME,
+  CONFIG_UPDATE_TOOL_NAME,
+  REPORT_ARTIFACTS_TOOL_NAME
+} from '@shared/ai/builtinTools'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 
 const logger = loggerService.withContext('AgentPrompt')
@@ -26,6 +33,25 @@ const REPORT_ARTIFACTS_RUNTIME_NAME = `mcp__cherry-tools__${REPORT_ARTIFACTS_TOO
 export const REPORT_ARTIFACTS_PROMPT = `## Reporting deliverables
 
 When you finish producing the file(s) the user asked for, call the \`${REPORT_ARTIFACTS_RUNTIME_NAME}\` tool once with the final file path(s) and a one-line summary. List only the final deliverables — never intermediate, scratch, or temporary files. Skip the call entirely if the task produced no files.`
+
+const CREATE_REQUEST_EXAMPLES = '(for example "build me an Agent that reviews pull requests" or "建一个翻译助手")'
+
+/** Without this the model describes UI steps instead of calling the tools it has. */
+const HOST_CONFIG_TOOLS_PROMPT = `## Creating Agents and Assistants
+
+When the user asks you to create or set up an Agent or an Assistant ${CREATE_REQUEST_EXAMPLES}, propose a configuration, then call \`create_agent\` or \`create_assistant\` instead of describing UI steps. To change a user-created Agent, find it with \`agent_list\` and call \`update_agent\`. The user approves every call.`
+
+const SELF_CONFIG_TOOLS_PROMPT = `## Creating Agents and Assistants, and changing your own settings
+
+When the user asks you to create or set up an Agent or an Assistant ${CREATE_REQUEST_EXAMPLES}, propose a configuration, then call \`${AGENT_CREATE_TOOL_NAME}\` or \`${ASSISTANT_CREATE_TOOL_NAME}\`. When the user asks you to change your own avatar, description, instructions, model, permission mode, skills, knowledge bases, MCP servers, built-in tools, reply language or heartbeat, call \`${CONFIG_UPDATE_TOOL_NAME}\` with only the fields to change. The user approves every call.`
+
+/** The guidance for whichever create tools this Agent mounts; none for an Agent closed to creating. */
+export function getConfigToolsPrompt(agent: Pick<AgentEntity, 'configuration'>): string | undefined {
+  const capabilities = resolveAgentCapabilities(agent)
+  const hostTools = capabilities.hostTools && (capabilities.hostTools.tools ?? DEFAULT_ASSISTANT_TOOL_NAMES)
+  if (hostTools?.includes('create_agent')) return HOST_CONFIG_TOOLS_PROMPT
+  return capabilities.createResources ? SELF_CONFIG_TOOLS_PROMPT : undefined
+}
 
 export interface AgentRuntimePrompt {
   base: AgentPromptBase
@@ -87,6 +113,7 @@ export async function buildAgentRuntimePrompt({
   const append = [
     hasAgentInstructions ? AGENT_INSTRUCTION_PRECEDENCE_PROMPT : undefined,
     REPORT_ARTIFACTS_PROMPT,
+    getConfigToolsPrompt(agent),
     hasAgentInstructions ? buildAgentInstructionsSection(instructionsSlot ?? resolvedInstructions) : instructionsSlot,
     parts.context,
     parts.base.kind === 'custom' ? customBaseContext : undefined,

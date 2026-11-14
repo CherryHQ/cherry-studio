@@ -121,7 +121,7 @@ export function buildAgentMcpServers(
         workspacePath: session.workspace.path,
         trustedNotifyChannels: notificationContext.channels,
         allowAnyOwnedNotifyChannel: notificationContext.allowAnyOwnedChannel,
-        agentCreateEnabled: resolveAgentCapabilities(agent).createAgents,
+        resourceCreateEnabled: resolveAgentCapabilities(agent).createResources,
         getKnowledgeAccess: () => {
           const liveAgent = agentService.getAgent(agent.id)
           return {
