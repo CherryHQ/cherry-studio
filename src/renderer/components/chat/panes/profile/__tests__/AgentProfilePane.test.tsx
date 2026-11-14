@@ -98,8 +98,8 @@ describe('AgentProfilePane', () => {
       expect(dialog.requests).toEqual([
         { kind: 'agent', id: agent.id, initialTab: undefined },
         { kind: 'agent', id: agent.id, initialTab: 'basic' },
-        { kind: 'agent', id: agent.id, initialTab: 'basic' },
-        { kind: 'agent', id: agent.id, initialTab: 'basic' }
+        { kind: 'agent', id: agent.id, initialTab: 'advanced' },
+        { kind: 'agent', id: agent.id, initialTab: 'advanced' }
       ])
     )
   })
