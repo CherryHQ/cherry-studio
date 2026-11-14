@@ -2925,6 +2925,8 @@
   "miniApps.zhihu": "Zhihu",
   "models.action.configure_custom": "Διαμορφώστε προσαρμοσμένα μοντέλα",
   "models.action.pin": "Τοποθέτηση αυτού του μοντέλου στην κορυφή",
+  "models.action.switch_to_dialog": "Εναλλαγή σε παράθυρο διαλόγου",
+  "models.action.switch_to_dropdown": "Εναλλαγή σε αναπτυσσόμενη λίστα",
   "models.action.unpin": "Κατάργηση μοντέλου από την κορυφή",
   "models.all": "Όλα",
   "models.detail.context_window": "Παράθυρο συμφραζομένων",

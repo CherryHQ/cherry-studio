@@ -1,5 +1,6 @@
 import { ThreadFeed, type Observation, type ObservationPayload, type ThreadSnapshot } from '@cherrystudio/agent-runtime'
 
+import { cloneHistoryData } from './cloneHistoryData'
 import type { ClaudeControl, ClaudeControlState } from './control'
 import type { ClaudeInvocation, ClaudeNativeMessage, ClaudeObservation, ClaudeObservationSink } from './types'
 
@@ -26,7 +27,8 @@ export class ClaudeFeed {
         subagents: [],
         activity: { state: 'unknown' }
       },
-      report
+      report,
+      cloneHistoryData
     )
   }
 
@@ -106,8 +108,7 @@ export class ClaudeFeed {
             : `${message.subtype}:${'task_id' in message ? message.task_id : ''}`
           : message.uuid
       if (key && !(value.source === 'archive' && this.native.get(key)?.source === 'live'))
-        // oxlint-disable-next-line no-restricted-globals -- Own retained non-stream native facts before SDK objects can change.
-        this.native.set(key, structuredClone(value))
+        this.native.set(key, cloneHistoryData(value))
     }
     const batch: ClaudeObservation = {
       events,
@@ -142,8 +143,7 @@ export class ClaudeFeed {
     let delivered = 0
     const historical = new Set(this.snapshot.messages.map((message) => message.id))
     const capture = (batch: ClaudeObservation, baseline = false): ClaudeObservation => ({
-      // oxlint-disable-next-line no-restricted-globals -- Capture each observer batch once; baseline/recovery include history and live deltas stay narrow.
-      ...structuredClone(batch),
+      ...cloneHistoryData(batch),
       live: baseline ? [] : batch.live?.filter((id) => !historical.has(id))
     })
     type Delivery = { batch: ClaudeObservation; through: number; recovery?: ClaudeObservation }

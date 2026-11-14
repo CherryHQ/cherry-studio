@@ -2925,6 +2925,8 @@
   "miniApps.zhihu": "Zhihu",
   "models.action.configure_custom": "設定自訂模型",
   "models.action.pin": "置頂此模型",
+  "models.action.switch_to_dialog": "切換為彈窗",
+  "models.action.switch_to_dropdown": "切換為下拉",
   "models.action.unpin": "取消置頂",
   "models.all": "全部",
   "models.detail.context_window": "上下文視窗",

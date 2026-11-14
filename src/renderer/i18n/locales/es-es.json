@@ -2925,6 +2925,8 @@
   "miniApps.zhihu": "Zhihu",
   "models.action.configure_custom": "Configurar modelos personalizados",
   "models.action.pin": "Anclar este modelo",
+  "models.action.switch_to_dialog": "Cambiar a diálogo",
+  "models.action.switch_to_dropdown": "Cambiar a desplegable",
   "models.action.unpin": "Desanclar modelo",
   "models.all": "Todo",
   "models.detail.context_window": "Ventana de contexto",
