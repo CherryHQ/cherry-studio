@@ -14,6 +14,7 @@ export type ResourceCreateWizardKind = 'assistant' | 'agent'
  * `skillIds` is populated only by the Agent capability step.
  */
 export type ResourceCreateWizardFormValues = {
+  avatarImage?: Uint8Array<ArrayBuffer>
   avatar: string
   name: string
   description: string
