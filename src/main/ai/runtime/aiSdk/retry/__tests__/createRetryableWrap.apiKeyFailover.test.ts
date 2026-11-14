@@ -391,3 +391,53 @@ describe('createRetryableWrap API key failover', () => {
     expect(fallbackStream).not.toHaveBeenCalled()
   })
 })
+
+it.each([false, true])('keeps the working API key and resolver across streaming steps (retry=%s)', async (enabled) => {
+  const primary = vi.fn(async () => {
+    throw makeApiError(429)
+  })
+  const keyB = vi.fn(async () =>
+    streamResult([
+      { type: 'text-start', id: 'a' },
+      { type: 'text-delta', id: 'a', delta: 'ok' },
+      { type: 'text-end', id: 'a' }
+    ])
+  )
+  const resolve = vi.fn(async () => ({ model: makeFakeLanguageModel('same-model', vi.fn(), keyB) }))
+  const model = createRetryableWrap({ retryPolicy: policy(enabled), fallbacks: [], apiKeyFallbacks: [resolve] })!(
+    makeFakeLanguageModel('same-model', vi.fn(), primary)
+  )
+  for (let i = 0; i < 3; i++) await collectStream((await model.doStream({ prompt: [] })).stream)
+  expect(primary).toHaveBeenCalledOnce()
+  expect(resolve).toHaveBeenCalledOnce()
+  expect(keyB).toHaveBeenCalledTimes(3)
+})
+
+it('preserves exhausted-key stickiness and memoized model fallback across streaming steps', async () => {
+  const primary = vi.fn(async () => {
+    throw makeApiError(429)
+  })
+  const keyB = vi.fn(async () => {
+    throw makeApiError(429)
+  })
+  const fallback = vi.fn(async () =>
+    streamResult([
+      { type: 'text-start', id: 'a' },
+      { type: 'text-delta', id: 'a', delta: 'ok' },
+      { type: 'text-end', id: 'a' }
+    ])
+  )
+  const resolveKey = vi.fn(async () => ({ model: makeFakeLanguageModel('same-model', vi.fn(), keyB) }))
+  const resolveModel = vi.fn(async () => ({ model: makeFakeLanguageModel('fallback-model', vi.fn(), fallback) }))
+  const model = createRetryableWrap({
+    retryPolicy: policy(true),
+    fallbacks: [resolveModel],
+    apiKeyFallbacks: [resolveKey]
+  })!(makeFakeLanguageModel('same-model', vi.fn(), primary))
+  for (let i = 0; i < 3; i++) await collectStream((await model.doStream({ prompt: [] })).stream)
+  expect(primary).toHaveBeenCalledOnce()
+  expect(keyB).toHaveBeenCalledOnce()
+  expect(resolveKey).toHaveBeenCalledOnce()
+  expect(resolveModel).toHaveBeenCalledOnce()
+  expect(fallback).toHaveBeenCalledTimes(3)
+})
