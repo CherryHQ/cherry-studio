@@ -1,13 +1,19 @@
+import { readFileSync } from 'node:fs'
+
 import { jsonSchema, type StepResult, type ToolSet } from 'ai'
 import { describe, expect, it } from 'vitest'
 
 import { createToolInvokeTool, TOOL_INVOKE_TOOL_NAME } from '@main/ai/tools/adapters/aiSdk/meta/toolInvoke'
 import { ToolRegistry } from '@main/ai/tools/adapters/aiSdk/registry'
+import { serializeError } from '@main/ai/utils/serializeError'
+import { toExecutionFailure } from '@shared/ai/executionFailure'
+import { classifyErrorCategory } from '@shared/utils/errorCategory'
 
 import { markTrustedLocalToolTerminalFailure } from '../localToolTerminalOutcome'
 import {
   createToolCallLimitStopCondition,
   getLastTerminalToolFailure,
+  resolveContentFilterTerminalError,
   resolveToolLoopTerminalError,
   stopOnTerminalToolFailure,
   trackSteerYieldStopCondition
@@ -153,5 +159,43 @@ describe('tool-loop termination', () => {
     await Promise.all(stopWhen.map(async (condition) => condition({ steps })))
 
     expect(resolveToolLoopTerminalError({ steps, stopWhen })).toBeUndefined()
+  })
+})
+
+describe('resolveContentFilterTerminalError', () => {
+  const step = (overrides: Record<string, unknown>) =>
+    ({ finishReason: 'content-filter', text: '', toolCalls: [], toolResults: [], ...overrides }) as never
+
+  it('classifies an empty filtered turn as a content error once serialized for the renderer', () => {
+    const error = resolveContentFilterTerminalError([step({})])
+
+    expect(error).toBeDefined()
+    const serialized = serializeError(error) as { finishReason?: string; message?: string }
+    expect(classifyErrorCategory({ text: serialized.message, finishReason: serialized.finishReason })).toBe('content')
+  })
+
+  it('stores the empty filtered turn as a content-filter failure, not an unknown one', () => {
+    const serialized = serializeError(resolveContentFilterTerminalError([step({})]))
+
+    expect(toExecutionFailure(serialized as never).failure.reasonCode).toBe('content_filter')
+  })
+
+  it('carries an i18nKey the renderer catalog defines, so the card never falls back to the English message', () => {
+    const serialized = serializeError(resolveContentFilterTerminalError([step({})])) as { i18nKey?: string }
+
+    // Read as data: main must not import renderer modules, but the key is a cross-process contract.
+    const rendererCatalog = JSON.parse(
+      readFileSync(new URL('../../../../../../renderer/i18n/locales/en-us.json', import.meta.url), 'utf8')
+    ) as Record<string, string>
+    expect(serialized.i18nKey).toBeDefined()
+    expect(rendererCatalog).toHaveProperty([`error.${serialized.i18nKey}`])
+  })
+
+  it('leaves a filtered final step that still called a tool to the normal loop', () => {
+    expect(resolveContentFilterTerminalError([step({ toolCalls: [{ toolCallId: 't1' }] })])).toBeUndefined()
+  })
+
+  it('ignores an earlier filtered step when the final step ended normally', () => {
+    expect(resolveContentFilterTerminalError([step({}), step({ finishReason: 'stop' })])).toBeUndefined()
   })
 })
