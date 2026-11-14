@@ -3643,6 +3643,7 @@
   "scheduledTasks.missedTime": "Heure d’exécution prévue manquée",
   "scheduledTasks.moreHistory": "D’autres entrées sont disponibles. Poursuivez la recherche d’une conversation antérieure.",
   "scheduledTasks.noConversation": "Aucune conversation disponible pour cette sélection.",
+  "scheduledTasks.noStoredResult": "Aucun résultat ni erreur enregistré n’est disponible pour cette exécution.",
   "scheduledTasks.older": "Rechercher des conversations antérieures",
   "scheduledTasks.resume": "Continuer",
   "scheduledTasks.runNow": "Exécuter maintenant",

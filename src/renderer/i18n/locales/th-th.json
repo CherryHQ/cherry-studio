@@ -3643,6 +3643,7 @@
   "scheduledTasks.missedTime": "พลาดเวลาที่กำหนดให้ทำงาน",
   "scheduledTasks.moreHistory": "ยังมีประวัติเก่ากว่านี้ สามารถค้นหาบทสนทนาต่อได้",
   "scheduledTasks.noConversation": "ไม่มีบทสนทนาที่พร้อมใช้งานสำหรับรายการที่เลือก",
+  "scheduledTasks.noStoredResult": "ไม่มีผลลัพธ์หรือข้อผิดพลาดที่บันทึกไว้สำหรับการเรียกใช้นี้",
   "scheduledTasks.older": "ค้นหาบทสนทนาก่อนหน้า",
   "scheduledTasks.resume": "ดำเนินการต่อ",
   "scheduledTasks.runNow": "เรียกใช้ทันที",

@@ -3679,6 +3679,7 @@
   "scheduledTasks.missedTime": "Pominięty zaplanowany czas",
   "scheduledTasks.moreHistory": "Dostępna jest dalsza historia. Kontynuuj wyszukiwanie wcześniejszej rozmowy.",
   "scheduledTasks.noConversation": "Brak dostępnej rozmowy dla tego wyboru.",
+  "scheduledTasks.noStoredResult": "Brak zapisanego wyniku lub błędu dla tego uruchomienia.",
   "scheduledTasks.older": "Znajdź wcześniejsze rozmowy",
   "scheduledTasks.resume": "Kontynuuj",
   "scheduledTasks.runNow": "Uruchom teraz",

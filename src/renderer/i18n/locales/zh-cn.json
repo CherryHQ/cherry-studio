@@ -3643,6 +3643,7 @@
   "scheduledTasks.missedTime": "已错过执行时间",
   "scheduledTasks.moreHistory": "还有更早的记录，可以继续查找对话。",
   "scheduledTasks.noConversation": "当前选择没有可用对话。",
+  "scheduledTasks.noStoredResult": "此运行没有可用的已存储结果或错误。",
   "scheduledTasks.older": "查找更早的对话",
   "scheduledTasks.resume": "继续",
   "scheduledTasks.runNow": "立即执行",

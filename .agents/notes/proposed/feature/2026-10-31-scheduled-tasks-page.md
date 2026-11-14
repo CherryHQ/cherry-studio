@@ -138,7 +138,8 @@ Resolve the right pane in this order:
 
 Never use `agentId` alone to open the Agent's most recent session; it may belong to unrelated work.
 Use the existing session reads and type checks. Do not bypass deleted, inaccessible, or `background` session boundaries.
-If an explicitly selected historical session is unavailable, show that selection's error rather than silently substitute another run.
+If an explicitly selected run has no recorded conversation or its session was deleted, keep the selection and show
+that run's recorded time, status, and stored result/error text without substituting a conversation or requiring retry.
 
 `useTaskConversation` and the existing conversation resolver page through the log DataApi endpoint, with at most 50 records per page. The obsolete settings-only `useTaskLogs` wrapper is removed; the endpoint remains available.
 The confirmed search budget is at most two automatic pages, or 100 records, followed by an explicit action to search older conversations.
@@ -167,7 +168,7 @@ The same session in Agents, Scheduled tasks, and another window must retain the 
 | Missed task has no associated conversation | Show the existing unavailable-conversation feedback and retain the missed-time reason on its row |
 | Searching older records | Distinguish loading, more records available, and exhausted history |
 | Latest run is queued or failed without a session | Show the real execution state without fabricated messages |
-| Task, Agent, or session is unavailable | Explain the unavailable resource and keep other tasks selectable |
+| Task or Agent is unavailable, or transport, permission, or task-ownership checks fail | Explain the error and keep other tasks selectable |
 | One group fails to load | Offer retry within that group; leave the other groups and usable conversation working |
 | Conversation resolution fails | Offer retry in the right pane without falling back to another task or the Agent's latest session |
 

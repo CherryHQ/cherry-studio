@@ -3643,6 +3643,7 @@
   "scheduledTasks.missedTime": "Пропущено запланированное время запуска",
   "scheduledTasks.moreHistory": "Доступны более ранние записи. Продолжите поиск диалога.",
   "scheduledTasks.noConversation": "Для выбранной записи нет доступного диалога.",
+  "scheduledTasks.noStoredResult": "Для этого запуска нет сохранённого результата или ошибки.",
   "scheduledTasks.older": "Найти более ранние диалоги",
   "scheduledTasks.resume": "Продолжить",
   "scheduledTasks.runNow": "Выполнить сейчас",

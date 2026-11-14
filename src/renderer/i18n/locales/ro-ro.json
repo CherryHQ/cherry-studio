@@ -3643,6 +3643,7 @@
   "scheduledTasks.missedTime": "Ora programată de execuție a fost ratată",
   "scheduledTasks.moreHistory": "Există mai mult istoric. Continuă căutarea unei conversații anterioare.",
   "scheduledTasks.noConversation": "Nu există o conversație disponibilă pentru această selecție.",
+  "scheduledTasks.noStoredResult": "Nu există niciun rezultat sau eroare salvată pentru această execuție.",
   "scheduledTasks.older": "Caută conversații anterioare",
   "scheduledTasks.resume": "Continuă",
   "scheduledTasks.runNow": "Execută acum",
