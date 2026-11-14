@@ -1316,8 +1316,21 @@ describe('edit dialogs', () => {
     )
   })
 
+  it('marks the System Prompt row as the full prompt only for Pi Durable Agents', () => {
+    const { unmount } = render(
+      <AgentEditDialog open resource={{ ...AGENT, type: 'pi-durable' }} onOpenChange={vi.fn()} initialTab="advanced" />
+    )
+    expect(screen.getByText('library.config.agent.prompt.row_hint')).toBeInTheDocument()
+    unmount()
+
+    render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} initialTab="advanced" />)
+    expect(screen.queryByText('library.config.agent.prompt.row_hint')).not.toBeInTheDocument()
+  })
+
   it("keeps the plain editor with the Agent's own placeholder on other runtimes", () => {
-    render(<AgentEditDialog open resource={{ ...AGENT, instructions: '' }} onOpenChange={vi.fn()} initialTab="prompt" />)
+    render(
+      <AgentEditDialog open resource={{ ...AGENT, instructions: '' }} onOpenChange={vi.fn()} initialTab="prompt" />
+    )
 
     expect(screen.getByLabelText('Prompt editor')).toHaveAttribute(
       'placeholder',
