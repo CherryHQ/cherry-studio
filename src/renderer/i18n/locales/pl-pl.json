@@ -5396,6 +5396,8 @@
   "settings.models.retry.fallback_models_count_with_invalid": "Wybrano: {{valid}} (niedostępne: {{invalid}})",
   "settings.models.retry.fallback_models_description": "Modele wypróbowywane po kolei w przypadku awarii modelu głównego",
   "settings.models.retry.fallback_models_unavailable": "Brak prawidłowych modeli zapasowych (niedostępne: {{count}})",
+  "settings.models.retry.image_max_attempts": "Ponowienia generowania obrazu",
+  "settings.models.retry.image_max_attempts_description": "Ponawia bezpośrednie generowanie obrazów w przypadku przejściowych błędów. Każda próba może wiązać się z ponowną opłatą. Ustaw 0, aby wyłączyć.",
   "settings.models.retry.max_attempts": "Maksymalna liczba ponownych prób",
   "settings.models.retry.tooltip": "W przypadku błędów kwalifikujących się do ponowienia próba jest ponawiana na bieżącym modelu do skonfigurowanego limitu. Jeśli nadal występuje błąd lub błąd nie kwalifikuje się do ponowienia, po kolei wypróbowywany jest każdy model zapasowy. W przypadku wielu kluczy API dla tego samego modelu błędy 401/429 powodują najpierw przełączenie na kolejny klucz. Ponawianie prób i modele zapasowe działają tylko przed rozpoczęciem strumieniowania treści.",
   "settings.models.toolbar.pull_short": "Synchronizuj modele",

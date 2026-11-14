@@ -1,3 +1,4 @@
+import { GatewayError } from '@ai-sdk/gateway'
 import { AISDKError, APICallError, EmptyResponseBodyError, JSONParseError, RetryError, TypeValidationError } from 'ai'
 
 import type { SerializedError } from '../types/error'
@@ -255,6 +256,19 @@ function serializeNestedProviderErrorAtDepth(value: unknown, depth: number): Ser
       responseBody: null,
       isRetryable: value.isRetryable,
       data: null
+    }
+  }
+  if (GatewayError.isInstance(value)) {
+    return {
+      name: getSafeProviderErrorMessage({ message: value.name }),
+      message: getSafeProviderErrorMessage({ message: value.message }),
+      statusCode:
+        Number.isInteger(value.statusCode) && value.statusCode >= 100 && value.statusCode <= 599
+          ? value.statusCode
+          : null,
+      isRetryable: value.isRetryable,
+      stack: null,
+      cause: null
     }
   }
   if (AISDKError.isInstance(value)) return serializeNestedAiSdkError(value, depth)

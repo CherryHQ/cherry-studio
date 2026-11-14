@@ -1,4 +1,5 @@
 import { loggerService } from '@logger'
+import i18n from '@renderer/i18n/resolver'
 import type { FileMetadata } from '@renderer/types/file'
 import { createPaintingGenerateError, normalizePaintingGenerateError } from '@shared/ai/paintingGenerateError'
 import { aiErrorDetail } from '@shared/ipc/errors/ai'
@@ -11,12 +12,38 @@ const logger = loggerService.withContext('paintings/generation')
 
 /** Concise human message from the serialized provider/AI-SDK error the
  *  `ai.image.generate` route attaches to its IpcError `data`: prefer the
- *  provider message, else the HTTP status, else a response-body snippet. */
+ *  provider message, else the HTTP status, else a response-body snippet.
+ *  A 504 maps to the friendly timeout string — gateway bodies are proxy noise. */
+// Exhausted SDK retries arrive as RetryError with the terminal failure in lastError
+// (or the final errors[] entry). Classify that terminal shape only — not earlier retries.
+function terminalSerializedError(detail: SerializedError): SerializedError {
+  if (typeof detail.lastError === 'object' && detail.lastError !== null) {
+    return detail.lastError as SerializedError
+  }
+  const errors = detail.errors
+  if (Array.isArray(errors) && errors.length > 0) {
+    const final = errors[errors.length - 1]
+    if (typeof final === 'object' && final !== null) {
+      return final as SerializedError
+    }
+  }
+  return detail
+}
+
+function serializedErrorFallbackMessage(error: SerializedError): string {
+  const status = typeof error.statusCode === 'number' ? `HTTP ${error.statusCode}` : ''
+  const body = typeof error.responseBody === 'string' ? error.responseBody.slice(0, 300) : ''
+  return [status, body].filter(Boolean).join(' ') || error.name || ''
+}
+
 function aiDetailMessage(detail: SerializedError): string {
+  const terminal = terminalSerializedError(detail)
+  if (terminal.statusCode === 504) return i18n.t('error.http.504')
+  if (terminal.message) return terminal.message
+  const terminalFallback = serializedErrorFallbackMessage(terminal)
+  if (terminalFallback) return terminalFallback
   if (detail.message) return detail.message
-  const status = typeof detail.statusCode === 'number' ? `HTTP ${detail.statusCode}` : ''
-  const body = typeof detail.responseBody === 'string' ? detail.responseBody.slice(0, 300) : ''
-  return [status, body].filter(Boolean).join(' ') || detail.name || 'Image generation failed'
+  return serializedErrorFallbackMessage(detail) || 'Image generation failed'
 }
 
 export type GenerationResult =
