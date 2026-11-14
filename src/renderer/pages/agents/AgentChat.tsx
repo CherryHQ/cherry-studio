@@ -136,6 +136,8 @@ interface AgentChatLayoutProps {
   activeAgent?: GetAgentResponse
   /** Active model — the right pane needs it for the context-usage denominator. */
   model?: Model
+  /** The same confirmed model switch as the top bar, for the profile pane. */
+  onModelChange?: (model: Model) => void
   center?: ReactNode
   centerClassName?: string
   centerSurface?: ConversationCenterSlot | null
@@ -528,6 +530,7 @@ const AgentChat = ({
   const layoutProps: AgentChatLayoutProps = {
     activeAgent,
     model: activeModel,
+    onModelChange: handleAgentModelChange,
     center,
     centerClassName,
     centerSurface,
@@ -723,6 +726,7 @@ const AgentChatSessionCenter = ({
 function AgentChatLayout({
   activeAgent,
   model,
+  onModelChange,
   center,
   centerClassName,
   centerSurface,
@@ -752,6 +756,7 @@ function AgentChatLayout({
   return (
     <AgentRightPane.Scope
       model={model}
+      onModelChange={onModelChange}
       conversationState={conversationState}
       streamingLayers={streamingLayers}
       isMessageHistoryLoading={isMessageHistoryLoading}

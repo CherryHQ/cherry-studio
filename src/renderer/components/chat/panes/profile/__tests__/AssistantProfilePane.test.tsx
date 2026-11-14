@@ -2,18 +2,37 @@ import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { fireEvent, screen, waitFor, within } from '@testing-library/react'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { ReactNode } from 'react'
+import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 
 import i18n from '@renderer/i18n/resolver'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
+import { toast } from '@renderer/services/toast'
 import { KNOWLEDGE_BASES_MAX_LIMIT } from '@shared/data/api/schemas/knowledges'
 import type { Assistant } from '@shared/data/types/assistant'
+import type { Model } from '@shared/data/types/model'
 
 import { AssistantProfilePane } from '../AssistantProfilePane'
 import { recordEditDialogRequests, renderInRightPane, serveQueries } from './profilePaneTestUtils'
 
 const fetchGenerate = vi.hoisted(() => vi.fn<(input: { prompt: string; content: string }) => Promise<string>>())
 vi.mock('@renderer/utils/aiGeneration', () => ({ fetchGenerate }))
+
+const nextModel = vi.hoisted(
+  () => ({ id: 'openai::gpt-5.2', providerId: 'openai', name: 'GPT-5.2', capabilities: [] }) as unknown as Model
+)
+
+// The real selector loads providers and models; picking one is all the pane needs from it.
+vi.mock('@renderer/components/ModelSelector', () => ({
+  ModelSelector: ({ trigger, onSelect }: { trigger: ReactNode; onSelect: (model: Model) => void }) => (
+    <>
+      {trigger}
+      <button type="button" onClick={() => onSelect(nextModel)}>
+        Pick GPT-5.2
+      </button>
+    </>
+  )
+}))
 
 const knowledgeBase = (id: string, name: string, itemCount: number) => ({ id, name, itemCount })
 
@@ -92,20 +111,78 @@ describe('AssistantProfilePane', () => {
     expect(screen.queryByRole('region', { name: 'Knowledge bases' })).toBeNull()
   })
 
-  it('opens the edit dialog on the page of each settings entry', async () => {
-    renderInRightPane(<AssistantProfilePane assistantId={assistant.id} />)
-    const settings = screen.getByRole('region', { name: 'Settings' })
+  describe('settings', () => {
+    let patches: unknown[]
+    let save: Mock<(args: { body: unknown }) => Promise<Assistant>>
 
-    fireEvent.click(within(settings).getByRole('button', { name: 'All' }))
-    fireEvent.click(within(settings).getByRole('button', { name: 'Model: GPT-5.1' }))
+    beforeEach(() => {
+      patches = []
+      save = vi.fn(async ({ body }: { body: unknown }) => {
+        patches.push(body)
+        return assistant
+      })
+      MockUseDataApiUtils.mockMutationWithTrigger('PATCH', '/assistants/:id', save)
+    })
 
-    await waitFor(() =>
-      expect(dialog.requests).toEqual([
-        { kind: 'assistant', id: assistant.id, initialTab: undefined },
-        { kind: 'assistant', id: assistant.id, initialTab: 'basic' }
-      ])
-    )
-    expect(within(settings).getByRole('switch', { name: 'Browser' })).toBeChecked()
+    const settingsRegion = () => {
+      renderInRightPane(<AssistantProfilePane assistantId={assistant.id} />)
+      return screen.getByRole('region', { name: 'Settings' })
+    }
+
+    it('opens the edit dialog from All', async () => {
+      fireEvent.click(within(settingsRegion()).getByRole('button', { name: 'All' }))
+
+      await waitFor(() => expect(dialog.requests).toEqual([{ kind: 'assistant', id: assistant.id }]))
+    })
+
+    it('changes the model and the browser in place', async () => {
+      const settings = settingsRegion()
+
+      fireEvent.click(within(settings).getByRole('button', { name: 'Pick GPT-5.2' }))
+      fireEvent.click(within(settings).getByRole('switch', { name: 'Browser' }))
+
+      await waitFor(() => expect(patches).toHaveLength(2))
+      expect(patches[0]).toMatchObject({ modelId: 'openai::gpt-5.2' })
+      expect(patches[1]).toEqual({ settings: { enableBrowser: false } })
+      expect(dialog.requests).toEqual([])
+    })
+
+    it('saves the reply language chosen from the list, starting from no constraint', async () => {
+      const settings = settingsRegion()
+      expect(within(settings).getByRole('button', { name: 'Reply language' })).toBeInTheDocument()
+
+      fireEvent.click(within(settings).getByRole('button', { name: 'Deutsch' }))
+      fireEvent.click(within(settings).getByRole('button', { name: /^Follow global/ }))
+
+      await waitFor(() =>
+        expect(patches).toEqual([
+          { settings: { replyLanguage: { mode: 'custom', language: 'Deutsch' } } },
+          { settings: { replyLanguage: { mode: 'inherit' } } }
+        ])
+      )
+    })
+
+    it('saves another language once its input loses focus, not while typing', async () => {
+      const settings = settingsRegion()
+
+      fireEvent.click(within(settings).getByRole('button', { name: 'Other language…' }))
+      const input = within(settings).getByRole('textbox')
+      fireEvent.change(input, { target: { value: '  Svenska ' } })
+      expect(patches).toEqual([])
+
+      fireEvent.blur(input)
+      await waitFor(() =>
+        expect(patches).toEqual([{ settings: { replyLanguage: { mode: 'custom', language: 'Svenska' } } }])
+      )
+    })
+
+    it('tells the user when a change could not be saved', async () => {
+      save.mockRejectedValue(new Error('offline'))
+
+      fireEvent.click(within(settingsRegion()).getByRole('switch', { name: 'Browser' }))
+
+      await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Save failed'))
+    })
   })
 
   it("shows this Assistant's usage and recent topics and opens them", () => {

@@ -1,39 +1,31 @@
 import { useTranslation } from 'react-i18next'
 
-import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
-import { PermissionModeIcon } from '@renderer/components/PermissionModeOption'
 import { AgentAvatarPicker } from '@renderer/components/resourceCatalog/dialogs/components/AgentAvatarPicker'
-import { openResourceEditDialog } from '@renderer/components/resourceCatalog/dialogs/ResourceEditDialogEventHost'
-import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useAgent } from '@renderer/hooks/agent/useAgent'
-import { useModelById } from '@renderer/hooks/useModel'
-import { getAgentAvatar, getPermissionModeCards } from '@renderer/utils/agent'
-import type { AgentEntity } from '@shared/data/types/agent'
+import { getAgentAvatar } from '@renderer/utils/agent'
+import type { Model } from '@shared/data/types/model'
 
 import { AgentProfileActivity, type AgentProfileWorkspace } from './AgentProfileActivity'
 import { AgentOutputs } from './ProfileOutputs'
 import { ProfilePaneFrame } from './ProfilePaneFrame'
-import {
-  ProfilePaneHeader,
-  ProfilePaneSection,
-  ProfilePaneSectionAction,
-  ProfilePaneTabs,
-  ProfileSettingButton,
-  ProfileSettingsRow
-} from './ProfilePaneParts'
+import { ProfilePaneHeader, ProfilePaneTabs } from './ProfilePaneParts'
+import { AgentProfileSettings } from './ProfilePaneSettings'
 
 /** Profile of the conversation's Agent: who it is, its activity, and a few settings. */
 export function AgentProfilePane({
   agentId,
   sessionId,
   workspace,
-  onOpenOutput
+  onOpenOutput,
+  onModelChange
 }: {
   agentId: string
   sessionId?: string
   workspace?: AgentProfileWorkspace
   /** Opens a reported file in the Files pane; absent when that pane cannot show it. */
   onOpenOutput?: (path: string) => void
+  /** Switches the Agent's model, asking first when the conversation already has messages. */
+  onModelChange?: (model: Model) => void
 }) {
   const { t } = useTranslation()
   const { agent } = useAgent(agentId)
@@ -60,71 +52,11 @@ export function AgentProfilePane({
         activity={
           <>
             <AgentProfileActivity agent={agent} sessionId={sessionId} workspace={workspace} />
-            <AgentProfileSettings agent={agent} />
+            <AgentProfileSettings agent={agent} onModelChange={onModelChange} />
           </>
         }
         outputs={<AgentOutputs agentId={agent.id} onOpen={onOpenOutput} />}
       />
     </ProfilePaneFrame>
-  )
-}
-
-function AgentProfileSettings({ agent }: { agent: AgentEntity }) {
-  const { t } = useTranslation()
-  const { model } = useModelById(agent.model)
-  const [globalLanguage] = usePreference('agent.language')
-  const openEdit = (initialTab?: string) => openResourceEditDialog({ kind: 'agent', id: agent.id, initialTab })
-
-  const permissionMode = agent.configuration?.permission_mode ?? 'default'
-  const permissionCard = getPermissionModeCards(agent.type).find((card) => card.mode === permissionMode)
-  // undefined follows the global setting, null means no constraint, a string names the language.
-  const language = agent.configuration?.language
-  const languageValue =
-    language === undefined
-      ? t('library.config.agent.field.language.inherit', {
-          language: globalLanguage || t('settings.agent.language.follow_conversation')
-        })
-      : language === null
-        ? t('library.config.agent.field.language.mode.off')
-        : language
-
-  const modelLabel = t('common.model')
-  const permissionLabel = t('chat.profile_pane.permission')
-  const languageLabel = t('library.config.agent.field.language.label')
-
-  return (
-    <ProfilePaneSection
-      title={t('common.settings')}
-      action={
-        <ProfilePaneSectionAction withChevron onClick={() => openEdit()}>
-          {t('common.all')}
-        </ProfilePaneSectionAction>
-      }>
-      <ProfileSettingsRow label={modelLabel}>
-        <ProfileSettingButton
-          label={modelLabel}
-          value={model?.name ?? agent.modelName ?? t('button.select_model')}
-          icon={model ? <ModelAvatar model={model} size={18} /> : undefined}
-          onClick={() => openEdit('basic')}
-        />
-      </ProfileSettingsRow>
-      <ProfileSettingsRow label={permissionLabel}>
-        <ProfileSettingButton
-          label={permissionLabel}
-          value={permissionCard ? t(permissionCard.titleKey, permissionCard.titleFallback) : permissionMode}
-          icon={<PermissionModeIcon mode={permissionMode} size={16} />}
-          onClick={() => openEdit('advanced')}
-          className="w-40"
-        />
-      </ProfileSettingsRow>
-      <ProfileSettingsRow label={languageLabel}>
-        <ProfileSettingButton
-          label={languageLabel}
-          value={languageValue}
-          onClick={() => openEdit('advanced')}
-          className="w-40"
-        />
-      </ProfileSettingsRow>
-    </ProfilePaneSection>
   )
 }
