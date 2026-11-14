@@ -13,7 +13,7 @@ import winston from 'winston'
 import { application } from '@application'
 import { fileEntryService } from '@data/services/FileEntryService'
 import { PersistenceListener, TerminalPersistenceError } from '@main/ai/streamManager/listeners/PersistenceListener'
-import { BaseService } from '@main/core/lifecycle'
+import { BaseService, ErrorHandling, Injectable, LifecycleManager, Phase, ServiceContainer } from '@main/core/lifecycle'
 import { logFailure } from '@main/core/logger/logFailure'
 import { ApiServer } from '@main/data/api/core/ApiServer'
 import { messageTable } from '@main/data/db/schemas/message'
@@ -27,6 +27,7 @@ import { fileErrorCodes } from '@shared/ipc/errors/file'
 import { IpcChannel } from '@shared/IpcChannel'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { LATEST_PRIVACY_POLICY_VERSION } from '@shared/utils/constants'
+import { markReportingHandled } from '@shared/utils/errorReporting'
 
 const { captureExceptionMock, captureEventMock, preferences, tmpLogsDir } = vi.hoisted(() => {
   const { mkdtempSync } = require('node:fs')
@@ -100,6 +101,72 @@ afterEach(async () => {
 })
 
 describe('Sentry log reporting', () => {
+  it.each(['cancelled', 'already classified'])('keeps %s startup failures local', async (kind) => {
+    setConsent(true)
+    const error = new Error('startup failed')
+    if (kind === 'cancelled') error.name = 'AbortError'
+    else markReportingHandled(error)
+    @Injectable('StartupService')
+    @ErrorHandling('graceful')
+    class StartupService extends BaseService {
+      protected override onInit() {
+        throw error
+      }
+    }
+    ServiceContainer.getInstance().register(StartupService)
+    try {
+      await LifecycleManager.getInstance().startPhase(Phase.WhenReady)
+      await drainLogs()
+      expect(captureExceptionMock.mock.calls).toHaveLength(0)
+      expect(captureEventMock.mock.calls).toHaveLength(0)
+    } finally {
+      LifecycleManager.reset()
+      ServiceContainer.reset()
+    }
+  })
+
+  it.each(['onInit', 'onReady'] as const)(
+    'reports a caught startup failure in %s using critical capacity',
+    async (hook) => {
+      setConsent(true)
+      for (let i = 0; i < 10; i++) {
+        expect(service.filterEvent({ type: undefined, tags: { module: `ordinary-${i}` } })).not.toBeNull()
+      }
+      expect(service.filterEvent({ type: undefined, tags: { module: 'ordinary-overflow' } })).toBeNull()
+      const error = new Error('private startup details')
+      @Injectable('StartupService')
+      @ErrorHandling('graceful')
+      class StartupService extends BaseService {
+        protected override onInit() {
+          if (hook === 'onInit') throw error
+        }
+        protected override onReady() {
+          if (hook === 'onReady') throw error
+        }
+      }
+      const container = ServiceContainer.getInstance()
+      container.register(StartupService)
+      try {
+        await LifecycleManager.getInstance().startPhase(Phase.WhenReady)
+        await drainLogs()
+
+        expect(captureExceptionMock.mock.calls).toHaveLength(1)
+        const [reported, context] = captureExceptionMock.mock.calls[0]
+        expect(context.tags).toMatchObject({
+          operation: 'service.initialize',
+          'failure.kind': 'unknown',
+          'failure.reason': 'service_initialization_failed'
+        })
+        expect(reported.stack).not.toContain('private startup details')
+        expect(service.filterEvent({ ...context, exception: { values: [{ type: reported.name }] } })).not.toBeNull()
+        expect(service.filterEvent({ type: undefined }, { originalException: error })).toBeNull()
+      } finally {
+        LifecycleManager.reset()
+        ServiceContainer.reset()
+      }
+    }
+  )
+
   it('keeps unclassified errors local without suppressing a later unhandled exception', async () => {
     setConsent(true)
     const error = new Error('Unclassified failure')

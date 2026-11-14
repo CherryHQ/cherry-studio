@@ -235,7 +235,16 @@ describe('Sentry consent gate', () => {
         'failure.outcome': 'failed'
       }
     },
-    { tags: { operation: 'react.render' } },
+    {
+      tags: {
+        operation: 'react.render',
+        'capture.source': 'log',
+        'failure.source': 'application',
+        'failure.kind': 'defect',
+        'failure.reason': 'render_failed',
+        'failure.outcome': 'failed'
+      }
+    },
     { level: 'fatal' },
     { exception: { values: [{ type: 'Error', mechanism: { type: 'onuncaughtexception', handled: false } }] } }
   ])('reserves critical capacity after ordinary reports exhaust their budget: %j', (critical) => {

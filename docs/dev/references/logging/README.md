@@ -155,7 +155,8 @@ In the main process, each signature, including classified failures, retains only
 its first sample per ten minutes. Two independent hourly budgets each admit at
 most ten events: one for critical stability failures and one for other eligible
 unexpected failures. Critical events are fatal or unhandled exceptions, renderer
-process exits, React render failures, and failures at the database startup
+process exits, React render failures (including file previews), caught service
+initialization failures (`service.initialize`), and failures at the database startup
 boundaries (`database.open`, `database.migrate`). Consent, expected-failure
 filtering and capture ownership apply before either budget; ordinary errors
 cannot consume the critical reserve.
