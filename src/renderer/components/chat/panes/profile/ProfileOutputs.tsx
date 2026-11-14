@@ -1,8 +1,9 @@
 import { Film, Globe, ImageIcon, Music } from 'lucide-react'
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import useSWR from 'swr'
 
+import { Button, Skeleton } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { useDataChange, useQuery } from '@renderer/data/hooks/useDataApi'
 import { ipcApi } from '@renderer/ipc'
@@ -37,7 +38,7 @@ const GROUPS: readonly { value: OutputsGroup; label: string }[] = [
 /** Everything the Agent reported as a deliverable; a click opens it in the Files pane. */
 export function AgentOutputs({ agentId, onOpen }: { agentId: string; onOpen?: (path: string) => void }) {
   const [filter, setFilter] = useState<OutputsFilter>('all')
-  const { data, refetch } = useQuery('/agents/:agentId/artifacts', {
+  const { data, error, refetch } = useQuery('/agents/:agentId/artifacts', {
     params: { agentId },
     query: filter === 'all' ? {} : { kind: filter },
     // Keeps the list in place while another kind loads.
@@ -48,9 +49,12 @@ export function AgentOutputs({ agentId, onOpen }: { agentId: string; onOpen?: (p
   return (
     <OutputsList
       list={data}
+      failed={Boolean(error) && !data}
+      onRetry={() => void refetch()}
       filter={filter}
       onFilterChange={setFilter}
       emptyHint="chat.profile_pane.outputs.empty.agent"
+      delivers="page"
       onOpen={onOpen ? (item) => item.path && onOpen(item.path) : undefined}
     />
   )
@@ -59,7 +63,7 @@ export function AgentOutputs({ agentId, onOpen }: { agentId: string; onOpen?: (p
 /** Images the Assistant generated in its topics; a click previews the image. */
 export function AssistantOutputs({ assistantId }: { assistantId: string }) {
   const [filter, setFilter] = useState<OutputsFilter>('all')
-  const { data, refetch } = useQuery('/assistants/:id/artifacts', {
+  const { data, error, refetch } = useQuery('/assistants/:id/artifacts', {
     params: { id: assistantId },
     query: filter === 'all' ? {} : { kind: filter },
     // Keeps the list in place while another kind loads.
@@ -70,9 +74,12 @@ export function AssistantOutputs({ assistantId }: { assistantId: string }) {
   return (
     <OutputsList
       list={data}
+      failed={Boolean(error) && !data}
+      onRetry={() => void refetch()}
       filter={filter}
       onFilterChange={setFilter}
       emptyHint="chat.profile_pane.outputs.empty.assistant"
+      delivers="image"
       onOpen={previewImage}
     />
   )
@@ -92,29 +99,54 @@ async function previewImage(item: ArtifactEntity) {
 
 function OutputsList({
   list,
+  failed,
+  onRetry,
   filter,
   onFilterChange,
   emptyHint,
+  delivers,
   onOpen
 }: {
   list?: ArtifactList
+  failed: boolean
+  onRetry: () => void
   filter: OutputsFilter
   onFilterChange: (filter: OutputsFilter) => void
   emptyHint: string
+  delivers: 'page' | 'image'
   onOpen?: (item: ArtifactEntity) => void
 }) {
   const { t, i18n } = useTranslation()
   const missing = useMissingOutputs(list?.items ?? [])
-  if (!list) return null
-
-  if (!list.counts.all) {
+  if (failed) {
     return (
-      <div className="flex flex-col items-center gap-1 px-4 py-10 text-center">
-        <span className="text-foreground text-sm">{t('chat.profile_pane.outputs.empty.title')}</span>
-        <span className="text-muted-foreground text-xs">{t(emptyHint)}</span>
+      <div className="flex flex-col items-center gap-3 px-4 py-12 text-center">
+        <span className="text-muted-foreground text-xs">{t('chat.profile_pane.outputs.load_failed')}</span>
+        <Button size="sm" variant="outline" onClick={onRetry}>
+          {t('common.retry')}
+        </Button>
       </div>
     )
   }
+
+  if (!list) {
+    return (
+      <div className="flex flex-col gap-2" aria-busy>
+        <span className="sr-only">{t('common.loading')}</span>
+        {[0, 1, 2].map((row) => (
+          <div key={row} className="flex items-center gap-3 rounded-xl border border-border-subtle px-3 py-2.5">
+            <Skeleton className="size-9 shrink-0 rounded-lg" />
+            <span className="flex min-w-0 flex-1 flex-col gap-1.5">
+              <Skeleton className="h-3.5 w-2/3 rounded-sm" />
+              <Skeleton className="h-3 w-1/3 rounded-sm" />
+            </span>
+          </div>
+        ))}
+      </div>
+    )
+  }
+
+  if (!list.counts.all) return <OutputsEmpty hint={t(emptyHint)} delivers={delivers} />
 
   const now = new Date()
   const firstDayOfWeek = getLocaleFirstDayOfWeek(i18n.language)
@@ -259,4 +291,146 @@ function formatTime(date: Date, group: OutputsGroup, now: Date, language: string
         ? { weekday: 'short' }
         : { month: 'short', day: 'numeric', ...(date.getFullYear() !== now.getFullYear() && { year: 'numeric' }) }
   return new Intl.DateTimeFormat(language, options).format(date)
+}
+
+/** The three output kinds the Outputs filter uses, as empty slots. */
+const OUTPUT_SLOTS = [
+  { kind: 'page', x: 23 },
+  { kind: 'image', x: 49 },
+  { kind: 'file', x: 75 }
+] as const
+
+function SlotGlyph({ kind, x }: { kind: 'page' | 'image' | 'file'; x: number }) {
+  // Glyphs are drawn for the first slot (x = 23) and shifted to their own.
+  return (
+    <g transform={`translate(${x - 23} 0)`}>
+      {kind === 'page' ? (
+        <>
+          <circle cx="34" cy="37" r="5" />
+          <path d="M29 37h10M34 32a8 8 0 0 1 0 10M34 32a8 8 0 0 0 0 10" />
+        </>
+      ) : kind === 'image' ? (
+        <>
+          <rect x="29" y="32" width="10" height="10" rx="2" />
+          <circle cx="32" cy="35.5" r="1" />
+          <path d="m29 41 3.5-3.5 6.5 4.5" />
+        </>
+      ) : (
+        <>
+          <path d="M31 31.5h4l3 3v7a1 1 0 0 1-1 1h-6a1 1 0 0 1-1-1v-9a1 1 0 0 1 1-1Z" />
+          <path d="M35 31.5v3h3" />
+        </>
+      )}
+    </g>
+  )
+}
+
+/**
+ * The Outputs story: while the conversation types, a page (Agents) or an image (Assistants) rises
+ * into its empty slot, which then takes on the brand tint. Neutral tokens plus one accent; the CSS
+ * motion lives in the SVG so reduced motion stops it.
+ */
+function OutputsIllustration({ delivers }: { delivers: 'page' | 'image' }) {
+  const id = useId().replace(/:/g, '')
+  const slotX = OUTPUT_SLOTS.find((slot) => slot.kind === delivers)!.x - 23
+  const line = { strokeWidth: 1.3, strokeLinecap: 'round', strokeLinejoin: 'round' } as const
+  const accent = 'var(--color-primary)'
+  const muted = 'color-mix(in oklab, var(--color-muted-foreground) 70%, transparent)'
+
+  return (
+    <svg width="150" height="118" viewBox="12 14 96 76" fill="none" aria-hidden="true">
+      <style>{`
+        .${id}-card { animation: ${id}-rise 4s cubic-bezier(.25,.8,.25,1) infinite; filter: drop-shadow(0 4px 6px color-mix(in oklab, var(--color-foreground) 12%, transparent)) }
+        .${id}-fill { animation: ${id}-fill 4s ease-out infinite; opacity: 0 }
+        .${id}-dot { animation: ${id}-type 1.2s ease-in-out infinite; opacity: .35 }
+        @keyframes ${id}-rise {
+          0% { transform: translate(${26 - slotX}px, 38px) scale(.55); opacity: 0 }
+          10% { opacity: 1 }
+          40% { transform: translate(0, -1.5px); opacity: 1 }
+          48%, 82% { transform: none; opacity: 1 }
+          100% { transform: none; opacity: 0 }
+        }
+        @keyframes ${id}-fill { 0%, 40% { opacity: 0 } 52%, 84% { opacity: 1 } 100% { opacity: 0 } }
+        @keyframes ${id}-type { 0%, 60%, 100% { opacity: .35 } 30% { opacity: 1 } }
+        @media (prefers-reduced-motion: reduce) { .${id}-card, .${id}-fill, .${id}-dot { animation: none } }
+      `}</style>
+
+      {/* Empty slots, one per output kind */}
+      {OUTPUT_SLOTS.map(({ kind, x }) => (
+        <g key={kind}>
+          <rect
+            x={x}
+            y="26"
+            width="22"
+            height="22"
+            rx="6"
+            fill="color-mix(in oklab, var(--color-foreground) 3%, transparent)"
+            stroke="color-mix(in oklab, var(--color-foreground) 18%, transparent)"
+            strokeDasharray="2.4 2.4"
+            strokeWidth="1.1"
+          />
+          <g stroke={muted} {...line}>
+            <SlotGlyph kind={kind} x={x} />
+          </g>
+        </g>
+      ))}
+      <rect
+        className={`${id}-fill`}
+        x={23 + slotX - 2}
+        y="24"
+        width="26"
+        height="26"
+        rx="8"
+        fill={`color-mix(in oklab, ${accent} 12%, transparent)`}
+      />
+
+      {/* What the conversation delivers */}
+      <g transform={`translate(${slotX} 0)`}>
+        <g className={`${id}-card`}>
+          <rect
+            x="23.5"
+            y="26.5"
+            width="21"
+            height="21"
+            rx="5.5"
+            fill="var(--color-card)"
+            stroke="color-mix(in oklab, var(--color-foreground) 14%, transparent)"
+          />
+          <g stroke={accent} {...line}>
+            <SlotGlyph kind={delivers} x={23} />
+          </g>
+        </g>
+      </g>
+
+      {/* The conversation it comes from, still typing */}
+      <path
+        d="M40 64h40a7 7 0 0 1 7 7v6a7 7 0 0 1-7 7H63l-6 5v-5H40a7 7 0 0 1-7-7v-6a7 7 0 0 1 7-7Z"
+        fill="var(--color-card)"
+        stroke="color-mix(in oklab, var(--color-foreground) 14%, transparent)"
+      />
+      <g fill="var(--color-muted-foreground)">
+        {[51, 60, 69].map((cx, index) => (
+          <circle
+            key={cx}
+            className={`${id}-dot`}
+            cx={cx}
+            cy="74"
+            r="1.6"
+            style={{ animationDelay: `${index * 0.18}s` }}
+          />
+        ))}
+      </g>
+    </svg>
+  )
+}
+
+function OutputsEmpty({ hint, delivers }: { hint: string; delivers: 'page' | 'image' }) {
+  const { t } = useTranslation()
+  return (
+    <div className="flex flex-col items-center px-6 pt-8 pb-12 text-center">
+      <OutputsIllustration delivers={delivers} />
+      <span className="mt-4 text-foreground text-sm">{t('chat.profile_pane.outputs.empty.title')}</span>
+      <span className="mt-1.5 max-w-60 text-muted-foreground text-xs leading-relaxed">{hint}</span>
+    </div>
+  )
 }
