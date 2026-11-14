@@ -2,6 +2,7 @@ import { act, renderHook, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { cacheService } from '@data/CacheService'
+import { appErrorContextService } from '@renderer/services/AppErrorContextService'
 import type { Provider } from '@shared/data/types/provider'
 import { CLI_API_GATEWAY_PROVIDER_ID, CodeCli } from '@shared/types/codeCli'
 
@@ -128,16 +129,15 @@ describe('useDeepSeekHarnessController', () => {
     const { result } = renderController()
     await act(async () => result.current.onLaunch())
     expect(mocks.openSmartMiniApp).not.toHaveBeenCalled()
-    expect(mocks.toastError).toHaveBeenCalledWith(
-      expect.objectContaining({
-        cause: expect.objectContaining({ message: 'config collision' }),
-        data: expect.objectContaining({
-          errorContext: expect.objectContaining({ message: 'config collision', operation: 'deepseek_harness.start' }),
-          localizedErrorMessage: 'code.launch.error'
-        }),
-        title: 'code.launch.error'
-      })
-    )
+    const payload = mocks.toastError.mock.calls[0][0]
+    expect(payload).toMatchObject({ title: 'code.launch.error', description: 'config collision' })
+    const detail = appErrorContextService.contextForHostError('deepseek-start-rejected', payload)
+    expect(detail).toMatchObject({
+      message: 'config collision',
+      operation: 'deepseek_harness.start',
+      source: 'code.deepseek'
+    })
+    expect(detail.stack).toBeUndefined()
   })
 
   it('tracks managed status via pushed events, reopens the current URL, and stops only through the managed IPC', async () => {
@@ -181,16 +181,11 @@ describe('useDeepSeekHarnessController', () => {
 
     expect(stopped).toBe(false)
     expect(mocks.request).toHaveBeenCalledWith('deepseek_harness.stop')
-    expect(mocks.toastError).toHaveBeenCalledWith(
-      expect.objectContaining({
-        cause: expect.objectContaining({ message: 'port still held' }),
-        data: expect.objectContaining({
-          errorContext: expect.objectContaining({ message: 'port still held', operation: 'deepseek_harness.stop' }),
-          localizedErrorMessage: 'code.stop_failed'
-        }),
-        title: 'code.stop_failed'
-      })
-    )
+    const payload = mocks.toastError.mock.calls[0][0]
+    expect(payload).toMatchObject({ title: 'code.stop_failed', description: 'port still held' })
+    const detail = appErrorContextService.contextForHostError('deepseek-stop-rejected', payload)
+    expect(detail).toMatchObject({ message: 'port still held', operation: 'deepseek_harness.stop' })
+    expect(detail.stack).toBeUndefined()
   })
 
   it('keeps a thrown stop error, resets stopping, and reports that the service did not stop', async () => {
