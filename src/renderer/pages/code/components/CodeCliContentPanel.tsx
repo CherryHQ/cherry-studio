@@ -1,4 +1,4 @@
-import { ExternalLink } from 'lucide-react'
+import { Copy, ExternalLink, X } from 'lucide-react'
 import { type FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -17,6 +17,7 @@ interface CodeCliContentPanelProps {
   selectedCliTool: CodeCli
   activeMeta: CodeToolMeta
   versionStatus: VersionStatus
+  startupError?: { operation: string; message: string }
   versionCard: {
     visible: boolean
     canLaunch: boolean
@@ -45,6 +46,8 @@ interface CodeCliContentPanelProps {
   onLaunch: () => void
   onStop: () => void
   onOpenDashboard: () => void
+  onCopyStartupError: () => void
+  onDismissStartupError: () => void
   onConfigure: (provider: Provider) => void
   onToggleCurrent: (provider: Provider) => void
   onReorder: (nextProviders: Provider[]) => void | Promise<void>
@@ -68,6 +71,7 @@ export const CodeCliContentPanel: FC<CodeCliContentPanelProps> = ({
   selectedCliTool,
   activeMeta,
   versionStatus,
+  startupError,
   versionCard,
   installingTools,
   upgradingTools,
@@ -85,6 +89,8 @@ export const CodeCliContentPanel: FC<CodeCliContentPanelProps> = ({
   onLaunch,
   onStop,
   onOpenDashboard,
+  onCopyStartupError,
+  onDismissStartupError,
   onConfigure,
   onToggleCurrent,
   onReorder
@@ -104,6 +110,34 @@ export const CodeCliContentPanel: FC<CodeCliContentPanelProps> = ({
       <div className="mx-auto max-w-2xl space-y-5">
         {selectedCliTool === CodeCli.GEMINI_CLI && (
           <Alert type="warning" showIcon description={t('code.gemini_cli_discontinued')} className="shadow-none" />
+        )}
+
+        {selectedCliTool === CodeCli.OPENCLAW && startupError && (
+          <Alert
+            type="error"
+            showIcon
+            message={t('code.launch.error')}
+            description={
+              <pre className="selectable whitespace-pre-wrap break-words font-sans">{startupError.message}</pre>
+            }
+            action={
+              <div className="flex items-center gap-1">
+                <Button type="button" variant="outline" size="sm" onClick={onCopyStartupError}>
+                  <Copy size={12} />
+                  {t('common.copy')}
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  onClick={onDismissStartupError}
+                  aria-label={t('common.close')}
+                  title={t('common.close')}>
+                  <X size={14} />
+                </Button>
+              </div>
+            }
+          />
         )}
 
         {versionCard.visible && (

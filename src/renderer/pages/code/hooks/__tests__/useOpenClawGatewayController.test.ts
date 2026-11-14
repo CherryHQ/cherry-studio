@@ -9,7 +9,8 @@ const mocks = vi.hoisted(() => ({
   gatewayPort: undefined as number | undefined,
   requestMock: vi.fn(),
   openSmartMiniApp: vi.fn(),
-  toastError: vi.fn()
+  toastError: vi.fn(),
+  toastSuccess: vi.fn()
 }))
 
 vi.mock('@data/hooks/usePreference', () => ({
@@ -32,7 +33,7 @@ vi.mock('@renderer/services/LoggerService', () => ({
 }))
 
 vi.mock('@renderer/services/toast', () => ({
-  toast: { error: mocks.toastError }
+  toast: { error: mocks.toastError, success: mocks.toastSuccess }
 }))
 
 vi.mock('react-i18next', () => ({
@@ -54,12 +55,14 @@ describe('useOpenClawGatewayController', () => {
       if (route === 'openclaw.sync_config') return Promise.resolve({ success: true })
       if (route === 'openclaw.start_gateway') return Promise.resolve({ success: true })
       if (route === 'openclaw.get_dashboard_url') return Promise.resolve('https://dashboard.local')
+      if (route === 'app.get_info') return Promise.resolve({ version: '2.2.0' })
       return Promise.resolve({ success: true })
     })
   })
 
   afterEach(() => {
     vi.restoreAllMocks()
+    vi.unstubAllGlobals()
   })
 
   it('adds a fresh navigation revision while preserving the dashboard token fragment', async () => {
@@ -161,7 +164,7 @@ describe('useOpenClawGatewayController', () => {
     expect(mocks.requestMock).toHaveBeenCalledWith('openclaw.start_gateway', { port: undefined })
   })
 
-  it('stops launch and shows the original validation message when config sync fails', async () => {
+  it('retains the sanitized validation error when config sync fails', async () => {
     const validationMessage = 'tools.web.fetch.ssrfPolicy: Unrecognized key'
     mocks.requestMock.mockImplementation((route: string) => {
       if (route === 'openclaw.get_status') return Promise.resolve({ status: 'stopped' })
@@ -184,6 +187,150 @@ describe('useOpenClawGatewayController', () => {
     })
 
     expect(mocks.requestMock).not.toHaveBeenCalledWith('openclaw.start_gateway', expect.anything())
-    expect(mocks.toastError).toHaveBeenCalledWith(validationMessage)
+    expect(result.current.startupError).toEqual({
+      operation: 'Sync OpenClaw configuration',
+      message: validationMessage
+    })
+    expect(mocks.toastError).not.toHaveBeenCalled()
+  })
+
+  it('copies a sanitized startup report with the attempted operation and app and tool versions', async () => {
+    const secret = 'sk-ant-12345678901234567890'
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    vi.stubGlobal('navigator', Object.assign(Object.create(navigator), { clipboard: { writeText } }))
+    mocks.requestMock.mockImplementation((route: string) => {
+      if (route === 'openclaw.get_status') return Promise.resolve({ status: 'stopped' })
+      if (route === 'openclaw.sync_config') return Promise.resolve({ success: true })
+      if (route === 'openclaw.start_gateway')
+        return Promise.resolve({ success: false, message: `Gateway rejected api_key = "${secret}"` })
+      if (route === 'app.get_info') return Promise.resolve({ version: '2.2.0' })
+      return Promise.resolve({ success: true })
+    })
+
+    const { result } = renderHook(() =>
+      useOpenClawGatewayController({
+        selectedCliTool: CodeCli.OPENCLAW,
+        openClawVersion: '2026.1.1',
+        enabledProvider,
+        currentProviderConfig: { modelId: 'anthropic::claude-sonnet-4-5' },
+        upsertProviderConfig: vi.fn(),
+        setCurrentProvider: vi.fn()
+      })
+    )
+
+    await act(async () => {
+      await result.current.onLaunch()
+    })
+
+    expect(result.current.startupError).toEqual({
+      operation: 'Start OpenClaw gateway',
+      message: 'Gateway rejected api_key = "<redacted>"'
+    })
+
+    await act(async () => {
+      await result.current.onCopyStartupError()
+    })
+
+    expect(writeText).toHaveBeenCalledWith(
+      [
+        'Operation: Start OpenClaw gateway',
+        'Error: Gateway rejected api_key = "<redacted>"',
+        'Cherry Studio version: 2.2.0',
+        'OpenClaw version: 2026.1.1'
+      ].join('\n')
+    )
+    expect(writeText.mock.calls[0][0]).not.toContain(secret)
+    expect(mocks.toastSuccess).toHaveBeenCalledWith('common.copied')
+
+    act(() => result.current.onDismissStartupError())
+    expect(result.current.startupError).toBeNull()
+  })
+
+  it.each([
+    ['openclaw.sync_config', 'Sync OpenClaw configuration'],
+    ['openclaw.start_gateway', 'Start OpenClaw gateway'],
+    ['openclaw.get_dashboard_url', 'Open OpenClaw dashboard']
+  ])('retains a sanitized thrown error from %s and resets launch intent', async (failedRoute, operation) => {
+    const secret = 'sk-ant-12345678901234567890'
+    const previousRequest = mocks.requestMock.getMockImplementation()!
+    mocks.requestMock.mockImplementation((route: string) =>
+      route === failedRoute ? Promise.reject(new Error(`api_key = "${secret}"`)) : previousRequest(route)
+    )
+    const { result } = renderHook(() =>
+      useOpenClawGatewayController({
+        selectedCliTool: CodeCli.OPENCLAW,
+        enabledProvider,
+        currentProviderConfig: { modelId: 'anthropic::claude-sonnet-4-5' },
+        upsertProviderConfig: vi.fn(),
+        setCurrentProvider: vi.fn()
+      })
+    )
+    await act(async () => {
+      await result.current.onLaunch()
+    })
+    expect(result.current.launching).toBe(false)
+    expect(result.current.startupError).toEqual({ operation, message: 'api_key = "<redacted>"' })
+    expect(mocks.openSmartMiniApp).not.toHaveBeenCalled()
+    expect(mocks.toastError).not.toHaveBeenCalled()
+    if (failedRoute === 'openclaw.sync_config') {
+      expect(mocks.requestMock).not.toHaveBeenCalledWith('openclaw.start_gateway', expect.anything())
+    }
+    if (failedRoute !== 'openclaw.get_dashboard_url') {
+      expect(mocks.requestMock).not.toHaveBeenCalledWith('openclaw.get_dashboard_url')
+    }
+  })
+
+  it('keeps the retained error when copying fails and reports failure instead of success', async () => {
+    const writeText = vi.fn().mockRejectedValue(new Error('clipboard denied'))
+    vi.stubGlobal('navigator', Object.assign(Object.create(navigator), { clipboard: { writeText } }))
+    const previousRequest = mocks.requestMock.getMockImplementation()!
+    mocks.requestMock.mockImplementation((route: string) => {
+      if (route === 'openclaw.start_gateway')
+        return Promise.resolve({ success: false, message: 'Gateway startup timed out' })
+      if (route === 'app.get_info') return Promise.reject(new Error('version lookup unavailable'))
+      return previousRequest(route)
+    })
+    const { result } = renderHook(() =>
+      useOpenClawGatewayController({
+        selectedCliTool: CodeCli.OPENCLAW,
+        enabledProvider,
+        currentProviderConfig: { modelId: 'anthropic::claude-sonnet-4-5' },
+        upsertProviderConfig: vi.fn(),
+        setCurrentProvider: vi.fn()
+      })
+    )
+    await act(async () => {
+      await result.current.onLaunch()
+    })
+    const retainedError = result.current.startupError
+    await act(async () => {
+      await result.current.onCopyStartupError()
+    })
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining('Cherry Studio version: unknown'))
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining('OpenClaw version: unknown'))
+    expect(mocks.toastError).toHaveBeenCalledWith('common.copy_failed')
+    expect(mocks.toastSuccess).not.toHaveBeenCalled()
+    expect(result.current.startupError).toEqual(retainedError)
+  })
+
+  it('does not read app information or write the clipboard when there is no startup error', async () => {
+    const writeText = vi.fn()
+    vi.stubGlobal('navigator', Object.assign(Object.create(navigator), { clipboard: { writeText } }))
+    const { result } = renderHook(() =>
+      useOpenClawGatewayController({
+        selectedCliTool: CodeCli.OPENCLAW,
+        enabledProvider,
+        currentProviderConfig: { modelId: 'anthropic::claude-sonnet-4-5' },
+        upsertProviderConfig: vi.fn(),
+        setCurrentProvider: vi.fn()
+      })
+    )
+    await act(async () => {
+      await result.current.onCopyStartupError()
+    })
+    expect(mocks.requestMock).not.toHaveBeenCalledWith('app.get_info')
+    expect(writeText).not.toHaveBeenCalled()
+    expect(mocks.toastSuccess).not.toHaveBeenCalled()
+    expect(mocks.toastError).not.toHaveBeenCalled()
   })
 })
