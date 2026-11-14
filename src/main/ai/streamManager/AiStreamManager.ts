@@ -26,6 +26,7 @@ import { topicNamingService } from '@main/services/TopicNamingService'
 import { isAbortError } from '@main/utils/error'
 import { shouldDeferToolOutput } from '@main/utils/messageOutputProjection'
 import { withIdleTimeout } from '@main/utils/withIdleTimeout'
+import type { CompactionAnchorData } from '@shared/ai/compaction'
 import { toExecutionFailure } from '@shared/ai/executionFailure'
 import type { MessageProjectionUpdate, MessageProjectionView } from '@shared/ai/messageProjection'
 import { getSafeProviderErrorMessage } from '@shared/ai/providerError'
@@ -113,6 +114,7 @@ type ManagedAiStreamRequest = AiStreamRequest & {
   taskIds?: readonly string[]
   usageContext?: InProcessUsageContext
   tokenUsageSource?: TokenUsageSource
+  turnStartCompactionAnchors?: StreamExecution['compactionAnchors']
   resolvedModel?: AsInProcess<AiStreamRequest>['resolvedModel']
 }
 
@@ -330,8 +332,8 @@ function ensureTerminalFinalMessage(exec: StreamExecution): CherryUIMessage {
     role: 'assistant',
     parts: []
   } as CherryUIMessage
-  exec.finalMessage = finalMessage
-  return finalMessage
+  exec.finalMessage = withCompactionAnchors(finalMessage, exec)
+  return exec.finalMessage
 }
 
 function toolNameFromApprovalChunk(chunk: UIMessageChunk): string | undefined {
@@ -2213,31 +2215,32 @@ export class AiStreamManager extends BaseService {
       }
     }
 
+    const { turnStartCompactionAnchors, ...streamRequest } = request
+    const compactionSink = (anchorId: string, data: CompactionAnchorData) => {
+      const anchors = (exec.compactionAnchors ??= [])
+      const at = anchors.findIndex((anchor) => anchor.id === anchorId)
+      if (at >= 0) anchors[at] = { id: anchorId, data }
+      else anchors.push({ id: anchorId, data })
+      this.onChunk(topicId, modelId, { type: 'data-compaction-anchor', id: anchorId, data }, exec)
+      exec.finalMessage = withCompactionAnchors(exec.finalMessage ?? ensureTerminalFinalMessage(exec), exec)
+      this.projections.get(topicId)?.accumulate(modelId, exec.attemptId, exec.finalMessage)
+    }
+    if (turnStartCompactionAnchors?.length) {
+      // send() registers the execution and listeners synchronously after launch.
+      await Promise.resolve()
+      for (const { id, data } of turnStartCompactionAnchors) compactionSink(id, data)
+    }
+
     let source: AiStreamSource
     try {
       // Pre-stream rejection (model resolution, param build) routes through
       // the error path with no half-open stream to tear down.
       // `signal` is injected here because it's not IPC-serialisable.
       source = await aiService.streamText({
-        ...request,
+        ...streamRequest,
         requestOptions: { ...request.requestOptions, signal },
         runtimeTimingSink: exec.runtimeTiming.sink,
-        // Compaction runs deep inside param-build / the tool loop, where the
-        // turn's chunk sink isn't reachable; hand it down as a closure (same
-        // shape as runtimeTimingSink) so the UI can show "compacting".
-        compactionSink: (anchorId, data) => {
-          // Broadcast for the live indicator…
-          this.onChunk(topicId, modelId, { type: 'data-compaction-anchor', id: anchorId, data }, exec)
-          // …and record it, because the broadcast branch is NOT the accumulator
-          // branch (pipeStreamLoop tees the stream), so nothing here would
-          // otherwise reach the persisted message.
-          const anchors = (exec.compactionAnchors ??= [])
-          const at = anchors.findIndex((a) => a.id === anchorId)
-          if (at >= 0) anchors[at] = { id: anchorId, data }
-          else anchors.push({ id: anchorId, data })
-          exec.finalMessage = withCompactionAnchors(exec.finalMessage ?? ensureTerminalFinalMessage(exec), exec)
-          this.projections.get(topicId)?.accumulate(modelId, exec.attemptId, exec.finalMessage)
-        }
+        compactionSink
       })
     } catch (err) {
       if (signal.aborted && (err === signal.reason || isAbortError(err))) {
