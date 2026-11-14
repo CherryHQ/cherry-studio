@@ -1,6 +1,7 @@
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { appErrorContextService } from '@renderer/services/AppErrorContextService'
 import { toast } from '@renderer/services/toast'
 import { CodeCli } from '@shared/types/codeCli'
 
@@ -23,7 +24,9 @@ vi.mock('@logger', () => ({
 }))
 
 vi.mock('react-i18next', () => ({
-  useTranslation: () => ({ t: (key: string) => key })
+  useTranslation: () => ({
+    t: (key: string, options?: { dependents?: string }) => (options?.dependents ? `${key}:${options.dependents}` : key)
+  })
 }))
 
 describe('useBinaryActions', () => {
@@ -85,11 +88,12 @@ describe('useBinaryActions', () => {
     expect(toast.success).toHaveBeenCalledWith('settings.dependencies.uninstallSuccess')
   })
 
-  it('surfaces a fixed-tool cleanup_blocked as an error with no definition fallback', async () => {
+  it('names the dependent tools blocking a fixed-tool removal, with no definition fallback', async () => {
     ipcRequestMock.mockResolvedValue({
       status: 'cleanup_blocked',
       reason: 'dependency_blocked',
-      message: 'Cannot remove claude while installed tools depend on it: gemini'
+      dependents: ['gemini', 'qwen'],
+      message: 'Cannot remove claude while installed tools depend on it: gemini, qwen'
     })
     const { result } = renderHook(() => useBinaryActions())
 
@@ -101,7 +105,90 @@ describe('useBinaryActions', () => {
     expect(removed).toBe(false)
     // A Code CLI is fixed — never a definition-only follow-up request.
     expect(ipcRequestMock).toHaveBeenCalledTimes(1)
-    expect(toast.error).toHaveBeenCalledWith('Cannot remove claude while installed tools depend on it: gemini')
+    // Stopping a dependent is the user's fix, not a fault to report.
+    expect(toast.error).toHaveBeenCalledWith({
+      title: 'settings.dependencies.uninstallFailed',
+      description: 'settings.dependencies.removeDefinitionOnlyDependents:gemini, qwen',
+      data: { suppressDetail: true }
+    })
     expect(toast.success).not.toHaveBeenCalled()
+  })
+
+  it('shows why a fixed-tool cleanup could not run and keeps it reportable', async () => {
+    ipcRequestMock.mockResolvedValue({
+      status: 'cleanup_blocked',
+      reason: 'cleanup_failed',
+      message: 'Tool is still installed after removal: claude'
+    })
+    const { result } = renderHook(() => useBinaryActions())
+
+    await act(async () => {
+      await result.current.remove(CodeCli.CLAUDE_CODE)
+    })
+
+    const payload = vi.mocked(toast.error).mock.calls[0][0] as Parameters<
+      typeof appErrorContextService.contextForHostError
+    >[1]
+    expect(payload).toMatchObject({
+      title: 'settings.dependencies.uninstallFailed',
+      description: 'Tool is still installed after removal: claude'
+    })
+    const detail = appErrorContextService.contextForHostError('remove-cleanup-failed', payload)
+    expect(detail).toMatchObject({
+      message: 'Tool is still installed after removal: claude',
+      operation: 'binary.remove_tool',
+      source: 'code.dependencies'
+    })
+    expect(detail.stack).toBeUndefined()
+  })
+
+  it('keeps the blocked-cleanup reason for Details when main sent no message', async () => {
+    ipcRequestMock.mockResolvedValue({ status: 'cleanup_blocked', reason: 'backend_unavailable' })
+    const { result } = renderHook(() => useBinaryActions())
+
+    await act(async () => {
+      await result.current.remove(CodeCli.CLAUDE_CODE)
+    })
+
+    const payload = vi.mocked(toast.error).mock.calls[0][0] as Parameters<
+      typeof appErrorContextService.contextForHostError
+    >[1]
+    const detail = appErrorContextService.contextForHostError('remove-backend-unavailable', payload)
+    expect(detail.params).toEqual({ reason: 'backend_unavailable' })
+  })
+
+  it('keeps a thrown remove rejection and allows the same removal to be retried', async () => {
+    const failure = new Error('remove ipc rejected')
+    ipcRequestMock.mockRejectedValueOnce(failure).mockResolvedValueOnce({ status: 'removed' })
+    const { result } = renderHook(() => useBinaryActions())
+
+    let removed = true
+    await act(async () => {
+      removed = await result.current.remove(CodeCli.CLAUDE_CODE)
+    })
+
+    expect(removed).toBe(false)
+    expect(toast.error).toHaveBeenCalledWith(
+      expect.objectContaining({
+        cause: failure,
+        data: expect.objectContaining({
+          errorContext: expect.objectContaining({
+            message: 'remove ipc rejected',
+            operation: 'binary.remove_tool',
+            source: 'code.dependencies'
+          }),
+          localizedErrorMessage: 'settings.dependencies.uninstallFailed'
+        }),
+        title: 'settings.dependencies.uninstallFailed'
+      })
+    )
+    expect(toast.error).not.toHaveBeenCalledWith('settings.dependencies.uninstallFailed')
+
+    await act(async () => {
+      removed = await result.current.remove(CodeCli.CLAUDE_CODE)
+    })
+
+    expect(removed).toBe(true)
+    expect(toast.success).toHaveBeenCalledWith('settings.dependencies.uninstallSuccess')
   })
 })

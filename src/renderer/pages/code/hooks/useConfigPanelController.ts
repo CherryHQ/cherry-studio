@@ -1,6 +1,7 @@
 import { useCallback, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { toastAppError } from '@renderer/services/AppErrorDetailService'
 import { loggerService } from '@renderer/services/LoggerService'
 import { toast } from '@renderer/services/toast'
 import type { CliProviderConfig } from '@shared/data/preference/preferenceTypes'
@@ -269,7 +270,11 @@ export function useConfigPanelController({
             setCurrentCliConfigConnection(null)
           } catch (err) {
             logger.error('Failed to apply CLI config on own-login toggle:', err as Error)
-            toast.error(t('code.apply_failed'))
+            toastAppError(t('code.apply_failed'), err, {
+              source: 'code.config',
+              operation: 'code_cli.toggle_own_login',
+              recordId: provider.id
+            })
           }
           return
         }
@@ -284,7 +289,11 @@ export function useConfigPanelController({
             setCurrentCliConfigConnection(null)
           } catch (err) {
             logger.error('Failed to clear CLI config on disable:', err as Error)
-            toast.error(t('code.apply_failed'))
+            toastAppError(t('code.apply_failed'), err, {
+              source: 'code.config',
+              operation: 'code_cli.clear_config',
+              recordId: provider.id
+            })
           }
           return
         }
@@ -319,7 +328,11 @@ export function useConfigPanelController({
             setCurrentCliConfigConnection(null)
           } catch (err) {
             logger.error('Failed to select CLI provider:', err as Error)
-            toast.error(t('code.apply_failed'))
+            toastAppError(t('code.apply_failed'), err, {
+              source: 'code.config',
+              operation: 'code_cli.select_provider',
+              recordId: provider.id
+            })
           }
           return
         }
@@ -344,7 +357,11 @@ export function useConfigPanelController({
           if (gateway) toast.info(t('code.api_gateway.requires_running'))
         } catch (err) {
           logger.error('Failed to inject CLI config on enable:', err as Error)
-          toast.error(t('code.apply_failed'))
+          toastAppError(t('code.apply_failed'), err, {
+            source: 'code.config',
+            operation: 'code_cli.write_config',
+            recordId: provider.id
+          })
         }
       })().finally(() => {
         inFlightToolsRef.current.delete(selectedCliTool)

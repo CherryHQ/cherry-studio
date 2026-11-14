@@ -1,7 +1,8 @@
-import { act, fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type * as AppErrorDetailService from '@renderer/services/AppErrorDetailService'
 import { toast } from '@renderer/services/toast'
 
 import { BinaryInstallErrorDialog } from '../BinaryInstallErrorDialog'
@@ -12,6 +13,12 @@ vi.mock('react-i18next', () => ({
 }))
 
 const mockWriteText = vi.fn()
+const openErrorDetail = vi.hoisted(() => vi.fn())
+
+vi.mock('@renderer/services/AppErrorDetailService', async (importOriginal) => ({
+  ...(await importOriginal<typeof AppErrorDetailService>()),
+  appErrorDetailService: { openAppErrorDetail: openErrorDetail }
+}))
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -23,7 +30,13 @@ afterEach(() => {
 })
 
 const renderDialog = (action: 'install' | 'remove' = 'install') =>
-  render(<BinaryInstallErrorDialog error={{ name: 'fd', message: 'mise failed', action }} onOpenChange={vi.fn()} />)
+  render(
+    <BinaryInstallErrorDialog
+      error={{ name: 'fd', message: 'mise failed', action }}
+      onOpenChange={vi.fn()}
+      source="code.dependencies"
+    />
+  )
 
 describe('BinaryInstallErrorDialog copy', () => {
   it('uses removal copy for a failed remove', () => {
@@ -69,6 +82,7 @@ describe('BinaryInstallErrorDialog copy', () => {
       <BinaryInstallErrorDialog
         error={{ name: 'rg', message: 'another mise failure', action: 'remove' }}
         onOpenChange={vi.fn()}
+        source="code.dependencies"
       />
     )
     await act(async () => resolveWrite())
@@ -84,11 +98,12 @@ describe('BinaryInstallErrorDialog copy', () => {
     await userEvent.click(screen.getByRole('button', { name: 'common.copy' }))
     expect(screen.getByRole('button', { name: 'common.copied' })).toBeInTheDocument()
 
-    rerender(<BinaryInstallErrorDialog error={null} onOpenChange={vi.fn()} />)
+    rerender(<BinaryInstallErrorDialog error={null} onOpenChange={vi.fn()} source="code.dependencies" />)
     rerender(
       <BinaryInstallErrorDialog
         error={{ name: 'fd', message: 'mise failed again', action: 'install' }}
         onOpenChange={vi.fn()}
+        source="code.dependencies"
       />
     )
 
@@ -108,5 +123,24 @@ describe('BinaryInstallErrorDialog copy', () => {
 
     unmount()
     expect(vi.getTimerCount()).toBe(0)
+  })
+})
+
+describe('BinaryInstallErrorDialog details', () => {
+  it('opens Details for the caller surface with the translated summary and raw mise output', async () => {
+    renderDialog()
+
+    await userEvent.click(screen.getByRole('button', { name: 'common.detail' }))
+
+    await waitFor(() => expect(openErrorDetail).toHaveBeenCalled())
+    const request = openErrorDetail.mock.calls[0][0]
+    expect(request.localizedErrorMessage).toBe('settings.dependencies.installError: fd')
+    expect(request.context).toMatchObject({
+      source: 'code.dependencies',
+      operation: 'binary.install',
+      message: 'mise failed',
+      recordId: 'fd'
+    })
+    expect(request.context.name).toBeUndefined()
   })
 })

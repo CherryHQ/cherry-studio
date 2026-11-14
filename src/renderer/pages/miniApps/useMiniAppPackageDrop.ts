@@ -7,7 +7,7 @@ import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 
-type SettlePreview = (run: () => Promise<InstallPreview | null>, errorKey: string) => Promise<void>
+type SettlePreview = (run: () => Promise<InstallPreview | null>, errorKey: string, operation: string) => Promise<void>
 
 type MiniAppPackageDropOptions = Pick<
   DropzoneProps,
@@ -48,7 +48,8 @@ export function useMiniAppPackageDrop(settle: SettlePreview): MiniAppPackageDrop
 
       void settle(
         () => ipcApi.request('mini_app.install.preview_file', { filePath: filePath.data }),
-        'miniApp.install.preview_error'
+        'miniApp.install.preview_error',
+        'miniapp.install.preview_file'
       )
     },
     [settle, t]

@@ -5,6 +5,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 
 import { useMutation } from '@data/hooks/useDataApi'
 import i18n from '@renderer/i18n/resolver'
+import { appErrorContextService } from '@renderer/services/AppErrorContextService'
 import { toast } from '@renderer/services/toast'
 import type { Model } from '@shared/data/types/model'
 
@@ -272,7 +273,11 @@ describe('MiniAppDetailPanel', () => {
     // is a takeover primitive for whatever file the user happened to pick.
     request.mockResolvedValueOnce(previewFor('com.example.other'))
     await userEvent.click(replaceButton())
-    await waitFor(() => expect(toast.error).toHaveBeenCalledWith(expect.stringMatching(/com\.example\.other/)))
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith(
+        expect.objectContaining({ title: expect.stringMatching(/com\.example\.other/) })
+      )
+    )
     expect(screen.queryByTestId('install-preview')).toBeNull()
     expect(request).toHaveBeenCalledWith('mini_app.install.cancel_preview', { installToken: 'tok-file' })
 
@@ -287,6 +292,47 @@ describe('MiniAppDetailPanel', () => {
       reinstall: { clearData: false }
     })
     expect(request).not.toHaveBeenCalledWith('mini_app.update.pick_replacement', expect.anything())
+  })
+
+  it('opens Details for a failed replacement pick with its cause and step', async () => {
+    await open()
+    vi.mocked(toast.error).mockClear()
+    const failure = new Error('not a mini app package')
+    request.mockRejectedValueOnce(failure)
+
+    await userEvent.click(screen.getByRole('button', { name: /replace package|替换本地包/i }))
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalled())
+    const payload = vi.mocked(toast.error).mock.calls[0][0] as Parameters<
+      typeof appErrorContextService.contextForHostError
+    >[1]
+    expect(payload).toMatchObject({ title: expect.stringMatching(/not a mini app package/) })
+    expect(appErrorContextService.contextForHostError('replace-pick-failed', payload)).toMatchObject({
+      message: 'not a mini app package',
+      operation: 'miniapp.install.pick_and_preview',
+      recordId: detail.appId,
+      source: 'miniapp'
+    })
+  })
+
+  it('opens Details for a failed update check with its cause and step', async () => {
+    await open()
+    vi.mocked(toast.error).mockClear()
+    request.mockRejectedValueOnce(new Error('registry offline'))
+
+    await userEvent.click(screen.getByRole('button', { name: /check for update/i }))
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalled())
+    const payload = vi.mocked(toast.error).mock.calls[0][0] as Parameters<
+      typeof appErrorContextService.contextForHostError
+    >[1]
+    expect(payload).toMatchObject({ title: expect.stringMatching(/registry offline/) })
+    expect(appErrorContextService.contextForHostError('update-check-failed', payload)).toMatchObject({
+      message: 'registry offline',
+      operation: 'miniapp.update.check',
+      recordId: detail.appId,
+      source: 'miniapp'
+    })
   })
 
   it('offers replacing the package on a local app and never an update check', async () => {

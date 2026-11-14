@@ -63,6 +63,18 @@ function baseOptions() {
   }
 }
 
+/** The visible summary stays generic; Details carry the thrown cause and the step that failed. */
+function expectApplyFailure(message: string, operation: string) {
+  expect(toast.error).toHaveBeenCalledWith(
+    expect.objectContaining({
+      title: 'code.apply_failed',
+      data: expect.objectContaining({
+        errorContext: expect.objectContaining({ message, operation, source: 'code.config' })
+      })
+    })
+  )
+}
+
 describe('useConfigPanelController', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -451,7 +463,7 @@ describe('useConfigPanelController', () => {
       expect(mocks.clearCliConfig).toHaveBeenCalled()
       expect(options.setCurrentProvider).not.toHaveBeenCalled()
       expect(options.setCurrentCliConfigConnection).not.toHaveBeenCalled()
-      expect(toast.error).toHaveBeenCalledWith('code.apply_failed')
+      expectApplyFailure('scrub failed', 'code_cli.clear_config')
     })
 
     it('does not switch to own login when the scrub fails', async () => {
@@ -469,7 +481,7 @@ describe('useConfigPanelController', () => {
       expect(mocks.writeOwnLoginCliConfigDraft).not.toHaveBeenCalled()
       expect(options.setCurrentProvider).not.toHaveBeenCalled()
       expect(options.setCurrentCliConfigConnection).not.toHaveBeenCalled()
-      expect(toast.error).toHaveBeenCalledWith('code.apply_failed')
+      expectApplyFailure('scrub failed', 'code_cli.toggle_own_login')
     })
 
     // The multi-file case the reviewer called out (e.g. Gemini): scrub succeeds but the tool-params
@@ -490,7 +502,7 @@ describe('useConfigPanelController', () => {
       expect(mocks.writeOwnLoginCliConfigDraft).toHaveBeenCalled()
       expect(options.setCurrentProvider).not.toHaveBeenCalled()
       expect(options.setCurrentCliConfigConnection).not.toHaveBeenCalled()
-      expect(toast.error).toHaveBeenCalledWith('code.apply_failed')
+      expectApplyFailure('settings write failed', 'code_cli.toggle_own_login')
     })
 
     // Reviewer: a failed config injection on panel save must reject (not be swallowed) so the
@@ -783,7 +795,7 @@ describe('useConfigPanelController', () => {
       // Never wrote a config against a dead port, never flipped the active selection.
       expect(mocks.writeCliConfigDraft).not.toHaveBeenCalled()
       expect(options.setCurrentProvider).not.toHaveBeenCalled()
-      expect(toast.error).toHaveBeenCalledWith('code.apply_failed')
+      expectApplyFailure('API gateway failed to start', 'code_cli.write_config')
     })
   })
 })

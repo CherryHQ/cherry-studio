@@ -507,7 +507,11 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
       <AddToolDialog open={showAddDialog} onOpenChange={setShowAddDialog} onAdd={handleAddCustomTool} />
       <InstallSettingsDialog open={showInstallSettings} onOpenChange={setShowInstallSettings} />
 
-      <BinaryInstallErrorDialog error={installError} onOpenChange={(open) => !open && setInstallError(null)} />
+      <BinaryInstallErrorDialog
+        error={installError}
+        onOpenChange={(open) => !open && setInstallError(null)}
+        source="settings.dependencies"
+      />
 
       <ConfirmDialog
         open={!!deleteTarget}

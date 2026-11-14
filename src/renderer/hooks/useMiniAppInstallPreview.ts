@@ -14,6 +14,9 @@ export type InstallPreview = OutputFor<'mini_app.install.preview_url'>
 export interface PreviewError {
   key: string
   params?: Record<string, string>
+  cause?: unknown
+  /** The step that failed, for error details. */
+  operation: string
 }
 
 /** The card's answer. */
@@ -79,7 +82,7 @@ export function useMiniAppInstallPreview(onDone: () => void, options: { expectAp
    * silence — the newer state is the one the user is looking at.
    */
   const settle = useCallback(
-    async (run: () => Promise<InstallPreview | null>, errorKey: string) => {
+    async (run: () => Promise<InstallPreview | null>, errorKey: string, operation: string) => {
       const generation = ++generationRef.current
       setBusy(true)
       setError(null)
@@ -95,7 +98,11 @@ export function useMiniAppInstallPreview(onDone: () => void, options: { expectAp
         }
         if (expectAppId && result.manifest.id !== expectAppId) {
           release()
-          setError({ key: 'miniApp.install.wrong_app', params: { id: result.manifest.id, expected: expectAppId } })
+          setError({
+            key: 'miniApp.install.wrong_app',
+            params: { id: result.manifest.id, expected: expectAppId },
+            operation
+          })
           return
         }
         tokenRef.current = result.kind === 'install' ? result.installToken : null
@@ -103,7 +110,7 @@ export function useMiniAppInstallPreview(onDone: () => void, options: { expectAp
       } catch (e) {
         if (closedRef.current || generation !== generationRef.current || /superseded/i.test(errorMessage(e))) return
         logger.error('Failed to preview mini app', e as Error)
-        setError({ key: errorKey, params: { message: errorMessage(e) } })
+        setError({ key: errorKey, params: { message: errorMessage(e) }, cause: e, operation })
       } finally {
         if (!closedRef.current && generation === generationRef.current) setBusy(false)
       }
@@ -158,7 +165,12 @@ export function useMiniAppInstallPreview(onDone: () => void, options: { expectAp
       logger.error('Failed to install mini app package', e as Error)
       if (closedRef.current || generation !== generationRef.current) return
       setPreview(null)
-      setError({ key: 'miniApp.install.install_error', params: { message: errorMessage(e) } })
+      setError({
+        key: 'miniApp.install.install_error',
+        params: { message: errorMessage(e) },
+        cause: e,
+        operation: preview.kind === 'upgrade' ? 'miniapp.update.apply' : 'miniapp.install.confirm'
+      })
     } finally {
       if (!closedRef.current && generation === generationRef.current) setBusy(false)
     }

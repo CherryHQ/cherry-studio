@@ -266,6 +266,14 @@ export function checkEntityImageSize(file: File): string | null {
     : null
 }
 
+/** Localized retry message for an entity image the canvas could not decode or encode. */
+export class EntityImageProcessError extends Error {
+  constructor(cause: unknown) {
+    super(i18n.t('message.error.image_process_failed'), { cause })
+    this.name = 'EntityImageProcessError'
+  }
+}
+
 /**
  * Normalize an entity image (avatar / logo) to a 128×128 cover-cropped WebP in the
  * renderer via the native canvas — the same shape main-side sharp produces (short
@@ -296,7 +304,7 @@ export async function prepareEntityImageBytes(file: File): Promise<Uint8Array<Ar
     }
   } catch (error) {
     logger.error('Failed to process entity image', error as Error)
-    throw new Error(i18n.t('message.error.image_process_failed'))
+    throw new EntityImageProcessError(error)
   }
 }
 

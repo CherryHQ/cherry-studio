@@ -15,11 +15,12 @@ import {
   InputGroupButton,
   InputGroupInput
 } from '@cherrystudio/ui'
+import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
 import { InstallConsentDialog } from '@renderer/components/MiniApp/InstallConsentDialog'
 import { useExitPresence } from '@renderer/hooks/useExitPresence'
 import { useMiniAppInstallPreview } from '@renderer/hooks/useMiniAppInstallPreview'
 import { ipcApi } from '@renderer/ipc'
-import { toast } from '@renderer/services/toast'
+import { toastAppError } from '@renderer/services/AppErrorDetailService'
 
 import { useMiniAppPackageDrop } from './useMiniAppPackageDrop'
 
@@ -45,14 +46,19 @@ export const InstallMiniAppPicker: FC<{ open?: boolean; onClose: () => void }> =
   const packageDropzone = useMiniAppPackageDrop(settle)
 
   const handlePick = () =>
-    settle(() => ipcApi.request('mini_app.install.pick_and_preview'), 'miniApp.install.preview_error')
+    settle(
+      () => ipcApi.request('mini_app.install.pick_and_preview'),
+      'miniApp.install.preview_error',
+      'miniapp.install.pick_and_preview'
+    )
 
   // One address: the user types whichever mirror they can reach, and the manifest itself
   // names the pair every later fetch chooses between.
   const handlePreviewUrl = () =>
     settle(
       () => ipcApi.request('mini_app.install.preview_url', { manifestUrl: manifestUrl.trim() }),
-      'miniApp.install.url_preview_error'
+      'miniApp.install.url_preview_error',
+      'miniapp.install.preview_url'
     )
 
   return (
@@ -93,7 +99,20 @@ export const InstallMiniAppPicker: FC<{ open?: boolean; onClose: () => void }> =
           </InputGroup>
         </Field>
 
-        {error && <Alert type="error" message={t(error.key, error.params)} />}
+        {error && (
+          <Alert
+            type="error"
+            message={t(error.key, error.params)}
+            action={
+              <ErrorDetailAction
+                error={error.cause ?? error}
+                message={t(error.key, error.params)}
+                source="miniapp"
+                operation={error.operation}
+              />
+            }
+          />
+        )}
       </div>
 
       <DialogFooter>
@@ -141,13 +160,17 @@ const InstallMiniAppPanel: FC<{ builtinAppId: string; open?: boolean; onClose?: 
     }
     void settle(
       () => ipcApi.request('mini_app.install.preview_builtin', { appId: builtinAppId }),
-      'miniApp.install.preview_error'
+      'miniApp.install.preview_error',
+      'miniapp.install.preview_builtin'
     )
   }, [builtinAppId, cancelPreview, open, settle])
 
   useEffect(() => {
     if (!error) return
-    toast.error(t(error.key, error.params))
+    toastAppError(t(error.key, error.params), error.cause, {
+      source: 'miniapp',
+      operation: error.operation
+    })
     done()
   }, [done, error, t])
 

@@ -1,9 +1,10 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ComponentProps, ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+import { toast } from '@renderer/services/toast'
 import type { MiniApp as MiniAppType } from '@shared/data/types/miniApp'
 
 const calculatorApp: MiniAppType = {
@@ -163,6 +164,24 @@ describe('MiniApp launchpad pin menu', () => {
     fireEvent.click(screen.getByRole('button', { name: 'miniApp.add_to_launchpad' }))
 
     expect(mocks.updateAppStatus).toHaveBeenCalledWith('calculator', 'pinned')
+  })
+
+  it('keeps Details on a failed pin under the status-change step', async () => {
+    mocks.updateAppStatus.mockImplementationOnce(() => Promise.reject(new Error('database is locked')))
+
+    render(<TestMiniApp app={{ ...calculatorApp, status: 'enabled' }} variant="launchpad" />)
+    fireEvent.click(screen.getByRole('button', { name: 'miniApp.add_to_launchpad' }))
+
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: 'miniApp.pin_failed',
+          data: expect.objectContaining({
+            errorContext: expect.objectContaining({ operation: 'miniapp.update_status', source: 'miniapp' })
+          })
+        })
+      )
+    )
   })
 
   it('adds a mini app to sidebar favorites', () => {

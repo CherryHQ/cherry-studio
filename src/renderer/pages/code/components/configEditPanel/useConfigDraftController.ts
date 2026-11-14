@@ -15,8 +15,8 @@ import {
   updateCliConfigDraftConfig,
   validateCliConfigDraftForWrite
 } from '@renderer/pages/code/cliConfig'
+import { toastAppError } from '@renderer/services/AppErrorDetailService'
 import { loggerService } from '@renderer/services/LoggerService'
-import { toast } from '@renderer/services/toast'
 import { isUniqueModelId, type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { CodeCli } from '@shared/types/codeCli'
 
@@ -406,7 +406,7 @@ export function useConfigDraftController({
     } catch (err) {
       // Keep the dialog open so the user's edits survive a failed apply.
       logger.error('Failed to save CLI provider config', err as Error)
-      toast.error(t('code.apply_failed'))
+      toastAppError(t('code.apply_failed'), err, { source: 'code.config', operation: 'code_cli.save_provider_config' })
     } finally {
       setSubmitting(false)
     }

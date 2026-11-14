@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 
 import { loggerService } from '@logger'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
+import { toastAppError } from '@renderer/services/AppErrorDetailService'
 import { toast } from '@renderer/services/toast'
 import { isDataApiError, toDataApiError } from '@shared/data/api/errors'
 import type { MiniApp } from '@shared/data/types/miniApp'
@@ -17,16 +18,21 @@ const logger = loggerService.withContext('useMiniAppVisibility')
  * snaps back to the cache value with no toast, leaving the user wondering
  * what happened.
  */
-function reportFailure(t: (key: string) => string, fallbackKey: string) {
+function reportFailure(t: (key: string) => string, fallbackKey: string, operation: string) {
   return (err: unknown) => {
     const e = toDataApiError(err)
     if (isDataApiError(e)) {
       logger.error('mutation failed', { code: e.code, message: e.message })
-      toast.error(e.message || t(fallbackKey))
     } else {
       logger.error('mutation failed', err as Error)
-      toast.error(t(fallbackKey))
     }
+    // A bulk write is always a 400; the row failure it carries decides whether this is a fault.
+    const failure = isDataApiError(e.cause) ? e.cause : e
+    if (failure.isClientError) {
+      toast.error({ title: t(fallbackKey), description: e.message, data: { suppressDetail: true } })
+      return
+    }
+    toastAppError(t(fallbackKey), e, { source: 'miniapp', operation })
   }
 }
 
@@ -82,7 +88,7 @@ export function useMiniAppVisibility() {
     setAppStatusBulk([
       ...movingToHidden.map((a) => ({ appId: a.appId, status: 'disabled' as const })),
       ...hidden.map((a) => ({ appId: a.appId, status: 'enabled' as const }))
-    ]).catch(reportFailure(t, 'miniApps.update_partial_failure_generic'))
+    ]).catch(reportFailure(t, 'miniApps.update_partial_failure_generic', 'miniapp.update_status_bulk'))
   }, [hidden, visible, setAppStatusBulk, t])
 
   const reset = useCallback(() => {
@@ -92,7 +98,7 @@ export function useMiniAppVisibility() {
     // Promote everything currently hidden back to enabled — visible rows are
     // already enabled / pinned and are not touched.
     setAppStatusBulk(hidden.map((a) => ({ appId: a.appId, status: 'enabled' as const }))).catch(
-      reportFailure(t, 'miniApps.update_partial_failure_generic')
+      reportFailure(t, 'miniApps.update_partial_failure_generic', 'miniapp.update_status_bulk')
     )
   }, [visible, hidden, setAppStatusBulk, t])
 
@@ -100,7 +106,7 @@ export function useMiniAppVisibility() {
     (app: MiniApp) => {
       setVisible((v) => v.filter((a) => a.appId !== app.appId))
       setHidden((h) => [...h, app])
-      updateAppStatus(app.appId, 'disabled').catch(reportFailure(t, 'miniApp.hide_failed'))
+      updateAppStatus(app.appId, 'disabled').catch(reportFailure(t, 'miniApp.hide_failed', 'miniapp.update_status'))
     },
     [updateAppStatus, t]
   )
@@ -109,7 +115,7 @@ export function useMiniAppVisibility() {
     (app: MiniApp) => {
       setHidden((h) => h.filter((a) => a.appId !== app.appId))
       setVisible((v) => [...v, app])
-      updateAppStatus(app.appId, 'enabled').catch(reportFailure(t, 'miniApp.show_failed'))
+      updateAppStatus(app.appId, 'enabled').catch(reportFailure(t, 'miniApp.show_failed', 'miniapp.update_status'))
     },
     [updateAppStatus, t]
   )
@@ -121,7 +127,7 @@ export function useMiniAppVisibility() {
       const [moved] = next.splice(oldIndex, 1)
       next.splice(newIndex, 0, moved)
       setVisible(next)
-      reorderMiniAppsByStatus('visible', next).catch(reportFailure(t, 'miniApp.reorder_failed'))
+      reorderMiniAppsByStatus('visible', next).catch(reportFailure(t, 'miniApp.reorder_failed', 'miniapp.reorder'))
     },
     [visible, reorderMiniAppsByStatus, t]
   )
@@ -133,7 +139,7 @@ export function useMiniAppVisibility() {
       const [moved] = next.splice(oldIndex, 1)
       next.splice(newIndex, 0, moved)
       setHidden(next)
-      reorderMiniAppsByStatus('disabled', next).catch(reportFailure(t, 'miniApp.reorder_failed'))
+      reorderMiniAppsByStatus('disabled', next).catch(reportFailure(t, 'miniApp.reorder_failed', 'miniapp.reorder'))
     },
     [hidden, reorderMiniAppsByStatus, t]
   )
