@@ -109,7 +109,7 @@ export interface PreferenceSchemas {
     // target-key-definitions/complex/complex
     'app.onboarding.provider_setup.status': PreferenceTypes.OnboardingProviderSetupStatus
     // target-key-definitions/complex/complex
-    'app.power.prevent_sleep_when_busy': boolean
+    'app.power.prevent_sleep_mode': PreferenceTypes.PreventSleepMode
     // redux/settings/enableDataCollection
     'app.privacy.data_collection.enabled': boolean
     // target-key-definitions/complex/complex
@@ -760,7 +760,7 @@ export const DefaultPreferences: PreferenceSchemas = {
     'app.notification.update.enabled': false,
     'app.notification.usage.os.enabled': false,
     'app.onboarding.provider_setup.status': 'pending',
-    'app.power.prevent_sleep_when_busy': false,
+    'app.power.prevent_sleep_mode': 'off',
     'app.privacy.data_collection.enabled': true,
     'app.privacy.policy_version': '',
     'app.proxy.bypass_rules': '',
