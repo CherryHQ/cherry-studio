@@ -98,4 +98,35 @@ describe('buildApiKeyFallbackModels', () => {
     ).toEqual([])
     expect(getApiKeys).not.toHaveBeenCalled()
   })
+
+  describe('per-model key binding', () => {
+    const provider = makeProvider({ id: 'provider' })
+    const keys = [
+      { id: 'key-a', key: 'sk-a', isEnabled: true },
+      { id: 'key-b', key: 'sk-b', isEnabled: true }
+    ]
+    const build = (apiKeyId: string | null | undefined) =>
+      buildApiKeyFallbackModels({
+        request: { uniqueModelId: 'provider::model' } as never,
+        provider,
+        model: makeModel({ id: 'provider::model', providerId: 'provider', apiModelId: 'model', apiKeyId }),
+        assistant: undefined,
+        signal: undefined,
+        extraFeatures: [],
+        primaryCredentialReceipt: { attribution: 'explicit', id: 'key-b', masked: 'sk-b****' },
+        createUsagePlugin: vi.fn()
+      })
+
+    it('never fails a model bound to an enabled key over to another account', () => {
+      getApiKeys.mockReturnValue(keys)
+      expect(build('key-b')).toEqual([])
+    })
+
+    it('keeps automatic failover when the binding is missing or disabled', () => {
+      getApiKeys.mockReturnValue([...keys, { id: 'key-off', key: 'sk-off', isEnabled: false }])
+      expect(build('key-gone')).toHaveLength(1)
+      expect(build('key-off')).toHaveLength(1)
+      expect(build(null)).toHaveLength(1)
+    })
+  })
 })

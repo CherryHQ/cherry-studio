@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/proposed/feature/2026-11-14-model-api-key-binding.md
+2026-11-14-model-api-key-binding.md: 482d043da67ef17d9c04ee4fa31dea9bfac5a65b
+2026-11-14-model-api-key-binding.zh.md: 7714323be823a115048ee6dcc8581065be3da0ac

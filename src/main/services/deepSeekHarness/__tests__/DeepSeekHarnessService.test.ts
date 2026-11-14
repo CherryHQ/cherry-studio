@@ -374,6 +374,23 @@ describe('DeepSeekHarnessService', () => {
     await service.stop()
   })
 
+  it.each([
+    ['key-b', 'sk-bound'],
+    [null, 'sk-first'],
+    ['gone', 'sk-first']
+  ])('uses model binding %s without changing the first-key fallback', async (apiKeyId, credentialValue) => {
+    mocks.modelGet.mockReturnValue({ ...model, apiKeyId })
+    mocks.providerGetApiKeys.mockReturnValue([
+      { id: 'key-a', key: 'sk-first', isEnabled: true },
+      { id: 'key-b', key: 'sk-bound', isEnabled: true }
+    ])
+    spawnChild((child) => child.stdout.write('dsh web: http://127.0.0.1:43123\n'))
+    const service = new DeepSeekHarnessService()
+    await expect(service.start(startInput)).resolves.toMatchObject({ success: true })
+    expect(mocks.writeConfig).toHaveBeenCalledWith('/mock/home/.dsh', expect.objectContaining({ credentialValue }))
+    await service.stop()
+  })
+
   it('does not expose provider request headers through the DeepSeek Harness settings route', async () => {
     mocks.providerGet.mockReturnValue({
       ...provider,
