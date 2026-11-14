@@ -10,6 +10,7 @@ import { loggerService } from '@logger'
 import { installDevtoolsExtensions } from '@main/core/devtools'
 import { BaseService, Emitter, type Event, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isLinux, isLinuxWayland, isMac, isWin } from '@main/core/platform'
+import { setHandedOffErrorPresenter } from '@main/core/preboot/crashTelemetry'
 import { showSupportedMessageBox } from '@main/core/preboot/nativeErrorDialog'
 import { isAppRendererUrl } from '@main/core/security/validateSender'
 import { getTitleBarOverlay, syncTitleBarOverlayWithTheme } from '@main/core/window/titleBarOverlay'
@@ -19,6 +20,7 @@ import { getAppLanguage, t } from '@main/i18n'
 import { openRequestPath } from '@main/services/file'
 import { fitMainWindowBounds, resolveMainWindowOptions } from '@main/services/mainWindowBounds'
 import {
+  deliverToReadyMain,
   openTabInMainWindow,
   queueMainRendererFault,
   resetMainRendererTabAttachDelivery
@@ -101,6 +103,9 @@ export class MainWindowService extends BaseService {
     this.registerDisposable(() => {
       for (const cleanup of this.externalWebsiteCleanups) cleanup()
     })
+    // Background faults must not pull a hidden or minimized window to the front.
+    setHandedOffErrorPresenter((context) => deliverToReadyMain('app.error.open', context, { reveal: false }))
+    this.registerDisposable(() => setHandedOffErrorPresenter(null))
     this.registerDisposable(
       windowManager.onWindowCreated(({ type, window }) => {
         if (type !== WindowType.Main) this.setupExternalWebsiteHandlers(window)
