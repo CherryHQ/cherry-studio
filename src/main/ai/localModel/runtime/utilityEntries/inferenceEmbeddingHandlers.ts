@@ -1,7 +1,20 @@
 /**
- * Embedding request handlers (transformers.js / Qwen3-Embedding), split from the entry
+ * Embedding request handlers (transformers.js), split from the entry
  * module so they can be exercised in-process against a fake transformers package —
  * `inferenceEmbedding.ts` only wires them to the parent port.
+ *
+ * Two builtin embedding models share this runtime with different ONNX outputs:
+ * - Qwen3-Embedding returns per-token `last_hidden_state`, so the handler takes
+ *   the last token (matching Qwen's expected pooling).
+ * - Harrier 270M is a decoder-only model whose graph returns only `sentence_embedding`
+ *   (already last-token pooled + L2-normalized). Transformers.js 4.2.0's
+ *   feature-extraction pipeline only looks for `last_hidden_state`/`logits`/
+ *   `token_embeddings`, so it resolves to `undefined` for Harrier.
+ *
+ * Both paths run exactly one forward per text: tokenize once, invoke the cached
+ * model once, then consume either the token tensor or the pooled output. Calling
+ * the feature-extraction pipeline first and then the model again would double
+ * Harrier inference (the pipeline forward already runs the model internally).
  */
 
 import { l2normalize } from '@main/ai/localModel/capabilities/embedding/pooling'
@@ -40,11 +53,28 @@ export const embeddingHandlers: UtilityProcessHandlers<EmbeddingInferenceContrac
         const extractor = await getLocalPipeline(modelDir, dtype, logger)
         const vectors: number[][] = []
         for (const text of texts) {
-          // pooling:'none' -> tensor of shape [batch=1, sequence, hidden].
-          const output = await extractor(text, { pooling: 'none', normalize: false })
-          const sequenceLength = output.dims[1]
-          const tokens = output.tolist()[0]
-          vectors.push(l2normalize(tokens[sequenceLength - 1]))
+          // Single forward per text for both models: the pipeline call itself
+          // runs `extractor.model` internally, so calling the pipeline and then
+          // the model again would run Harrier inference twice per text.
+          const modelInputs = extractor.tokenizer(text, { padding: true, truncation: true })
+          const modelOutputs = await extractor.model(modelInputs)
+          // Qwen path: per-token tensor of shape [batch=1, sequence, hidden].
+          const tokenTensor = modelOutputs?.last_hidden_state ?? modelOutputs?.logits ?? modelOutputs?.token_embeddings
+          if (tokenTensor?.dims?.length === 3) {
+            const sequenceLength = tokenTensor.dims[1]
+            const tokens = tokenTensor.tolist()[0]
+            vectors.push(l2normalize(tokens[sequenceLength - 1]))
+            continue
+          }
+          // Harrier path: graph returns only the pooled `sentence_embedding`.
+          const pooled = modelOutputs?.sentence_embedding ?? modelOutputs?.pooler_output
+          if (pooled?.dims?.length === 2) {
+            vectors.push(l2normalize(pooled.tolist()[0]))
+            continue
+          }
+          throw new Error(
+            `embedding model returned unsupported output tokenDims=${JSON.stringify(tokenTensor?.dims)} pooledDims=${JSON.stringify(pooled?.dims)}`
+          )
         }
         return vectors
       },

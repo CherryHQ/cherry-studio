@@ -2,8 +2,9 @@ import { application } from '@application'
 import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
 import { loggerService } from '@logger'
 import type { UnifiedPreferenceType } from '@shared/data/preference/preferenceTypes'
-import { LOCAL_EMBEDDING_UNIQUE_MODEL_ID } from '@shared/data/presets/localEmbedding'
+import { LOCAL_EMBEDDING_PROVIDER_ID, localEmbeddingPresetForBundleId } from '@shared/data/presets/localEmbedding'
 import type { LocalModelBundleId, LocalModelCapability } from '@shared/data/presets/localModel'
+import { createUniqueModelId } from '@shared/data/types/model'
 
 import type { CapabilityHooks } from '../installation/BundleInstaller'
 
@@ -11,7 +12,13 @@ const logger = loggerService.withContext('localModelCapabilityHooks')
 
 const CAPABILITY_HOOKS: Record<LocalModelCapability, (modelId: LocalModelBundleId) => CapabilityHooks> = {
   embedding: (modelId) => ({
-    acquireRemovalGuard: () => knowledgeBaseService.acquireEmbeddingModelRemovalGuard(LOCAL_EMBEDDING_UNIQUE_MODEL_ID),
+    acquireRemovalGuard: () =>
+      knowledgeBaseService.acquireEmbeddingModelRemovalGuard(
+        // The preset's seeded `user_model` id, not the bundle id: the two match today
+        // but only the former is what knowledge bases reference.
+        localEmbeddingPresetForBundleId(modelId)?.uniqueModelId ??
+          createUniqueModelId(LOCAL_EMBEDDING_PROVIDER_ID, modelId)
+      ),
     terminateRuntimeThen: (after) => application.get('EmbeddingInferenceService').removeModelThen(modelId, after)
   }),
   ocr: (modelId) => ({

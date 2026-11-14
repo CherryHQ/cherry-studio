@@ -6,12 +6,10 @@ import type { InsertUserProviderRow } from '@data/db/schemas/userProvider'
 import { providerService } from '@data/services/ProviderService'
 import { insertManyWithOrderKey } from '@data/services/utils/orderKey'
 import {
-  LOCAL_EMBEDDING_MODEL_GROUP,
-  LOCAL_EMBEDDING_MODEL_ID,
-  LOCAL_EMBEDDING_MODEL_NAME,
+  LOCAL_EMBEDDING_MODELS,
   LOCAL_EMBEDDING_PROVIDER_ID,
   LOCAL_EMBEDDING_PROVIDER_NAME,
-  LOCAL_EMBEDDING_UNIQUE_MODEL_ID
+  type LocalEmbeddingModelPreset
 } from '@shared/data/presets/localEmbedding'
 import { MODEL_CAPABILITY, type ModelCapability } from '@shared/data/types/model'
 
@@ -34,15 +32,15 @@ function createLocalEmbeddingProviderRow(): LocalEmbeddingProviderRow {
   }
 }
 
-function createLocalEmbeddingModelRow(): LocalEmbeddingModelRow {
+function createLocalEmbeddingModelRow(preset: LocalEmbeddingModelPreset): LocalEmbeddingModelRow {
   return {
-    id: LOCAL_EMBEDDING_UNIQUE_MODEL_ID,
+    id: preset.uniqueModelId,
     providerId: LOCAL_EMBEDDING_PROVIDER_ID,
-    modelId: LOCAL_EMBEDDING_MODEL_ID,
+    modelId: preset.modelId,
     presetModelId: null,
-    name: LOCAL_EMBEDDING_MODEL_NAME,
+    name: preset.name,
     description: null,
-    group: LOCAL_EMBEDDING_MODEL_GROUP,
+    group: preset.group,
     capabilities: [MODEL_CAPABILITY.EMBEDDING] as ModelCapability[],
     inputModalities: null,
     outputModalities: null,
@@ -61,6 +59,10 @@ function createLocalEmbeddingModelRow(): LocalEmbeddingModelRow {
   }
 }
 
+function createLocalEmbeddingModelRows(): LocalEmbeddingModelRow[] {
+  return LOCAL_EMBEDDING_MODELS.map((preset) => createLocalEmbeddingModelRow(preset))
+}
+
 export class LocalModelSeeder implements ISeeder {
   readonly name = 'localModel'
   readonly description = 'Ensure built-in local model provider and catalog entries'
@@ -69,7 +71,7 @@ export class LocalModelSeeder implements ISeeder {
   constructor() {
     this.version = hashObject({
       provider: createLocalEmbeddingProviderRow(),
-      model: createLocalEmbeddingModelRow()
+      models: createLocalEmbeddingModelRows()
     })
   }
 
@@ -77,21 +79,26 @@ export class LocalModelSeeder implements ISeeder {
     db.transaction((tx) => {
       providerService.batchUpsertTx(tx, [createLocalEmbeddingProviderRow()])
 
-      const [existing] = tx
-        .select({ id: userModelTable.id })
-        .from(userModelTable)
-        .where(eq(userModelTable.id, LOCAL_EMBEDDING_UNIQUE_MODEL_ID))
-        .limit(1)
-        .all()
-      if (existing) {
-        tx.update(userModelTable)
-          .set({ name: LOCAL_EMBEDDING_MODEL_NAME })
-          .where(eq(userModelTable.id, LOCAL_EMBEDDING_UNIQUE_MODEL_ID))
-          .run()
-        return
+      const rows = createLocalEmbeddingModelRows()
+      const existingIds = new Set(
+        tx
+          .select({ id: userModelTable.id })
+          .from(userModelTable)
+          .where(eq(userModelTable.providerId, LOCAL_EMBEDDING_PROVIDER_ID))
+          .all()
+          .map((row) => row.id)
+      )
+      // Refresh builtin names so a renamed preset propagates to existing installs.
+      for (const row of rows) {
+        if (existingIds.has(row.id)) {
+          tx.update(userModelTable).set({ name: row.name }).where(eq(userModelTable.id, row.id)).run()
+        }
       }
 
-      insertManyWithOrderKey(tx, userModelTable, [createLocalEmbeddingModelRow()], {
+      const missing = rows.filter((row) => !existingIds.has(row.id))
+      if (missing.length === 0) return
+
+      insertManyWithOrderKey(tx, userModelTable, missing, {
         pkColumn: userModelTable.id,
         scope: eq(userModelTable.providerId, LOCAL_EMBEDDING_PROVIDER_ID)
       })

@@ -41,12 +41,16 @@ describe('InferenceService on a platform without onnxruntime-node', () => {
   })
 
   it('rejects embed without launching a process', async () => {
-    await expect(embeddingInferenceService.embed(['hi'])).rejects.toThrow(/not supported.*onnxruntime-node/i)
+    await expect(embeddingInferenceService.embed('qwen3-embedding-0.6b', ['hi'])).rejects.toThrow(
+      /not supported.*onnxruntime-node/i
+    )
     expect(reachedManager).not.toHaveBeenCalled()
   })
 
   it('rejects countTokens without launching a process', async () => {
-    await expect(embeddingInferenceService.countTokens(['hi'])).rejects.toThrow(/not supported.*onnxruntime-node/i)
+    await expect(embeddingInferenceService.countTokens('qwen3-embedding-0.6b', ['hi'])).rejects.toThrow(
+      /not supported.*onnxruntime-node/i
+    )
     expect(reachedManager).not.toHaveBeenCalled()
   })
 
