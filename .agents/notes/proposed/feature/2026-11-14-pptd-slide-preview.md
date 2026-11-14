@@ -13,7 +13,7 @@ The format is defined by the open-kimi-ppt-skill reference `skills/open-kimi-ppt
 ## Proposal
 
 - Register a `pptd` file preview plugin for the `pptd` extension, following the `powerpoint` plugin shape in `packages/file-preview/src/plugins/powerpoint/powerPointFilePreviewPlugin.ts`. The plugin lives beside the powerpoint plugin and is wired through the same registry.
-- The manifest is the entry point. The plugin reads `version`, `title`, `size`, `theme` and `pages` from the manifest, then resolves each `pages[]` path and every `media` reference relative to the manifest directory through the existing file access path. It does not scan the directory for unlisted `.page` files.
+- The manifest is the entry point. The plugin reads `version`, `title`, `size`, `theme` and `pages` from the manifest, then resolves each `pages[]` path and each relative media path relative to the manifest directory through the existing file access path. Media `Image.src` and background/fill `ImageFill.src` also accept HTTPS URLs under the upstream reference; these remain URL sources, are not resolved as local paths, and load as remote HTTPS media. Failed remote loads use the same visible placeholder fallback as missing local media. It does not scan the directory for unlisted `.page` files.
 - Render each page as a fixed-size canvas at `size`, scaled to the pane. Support the element types that the issue names (text with rich-text tags and theme styles, image, shape, line, icon) plus table and chart as their own cases. Each element type has one renderer, and styles resolve in the priority order defined by the upstream reference.
 - Math formulas use KaTeX, which is already a repository dependency (`package.json`). Formula text is extracted from the text element content; this Spec does not add a second math engine.
 - Provide page navigation (previous, next, page number), zoom, and a manual refresh button. Source/preview toggle keeps the existing text preview as the source view. Thumbnails are in scope for this Spec under the full-issue scope.
@@ -33,7 +33,7 @@ The format is defined by the open-kimi-ppt-skill reference `skills/open-kimi-ppt
 - AC2 — Text, image, shape, line and icon elements render at their `bounds` with theme and inline style precedence matching the upstream reference, including rich-text `<u>`, `<sup>`, `<strong>` tags (verification: renderer)
 - AC3 — Formula text in text elements renders through KaTeX, and invalid formula input shows the source text with an error marker instead of throwing (verification: renderer)
 - AC4 — Table and chart elements render, and any element type not yet supported renders a visible placeholder that names the element id and type (verification: renderer)
-- AC5 — Missing `pages` files or `media` assets render a visible placeholder that names the missing path, and the rest of the deck still renders (verification: renderer)
+- AC5 — Missing `pages` files, missing local media, or failed HTTPS media loads render a visible placeholder that names the missing path, and the rest of the deck still renders (verification: renderer)
 - AC6 — Page navigation, zoom, thumbnails, and the manual refresh button work, and refresh picks up changes the agent made to the manifest, `.page`, or media files (verification: Electron)
 - AC7 — Source/preview toggle returns the existing YAML text view, and the plugin never writes project files (verification: renderer)
 - AC8 — A registry test resolves `.pptd` to the new plugin, and `.pptx` still resolves to the powerpoint plugin (verification: unit)

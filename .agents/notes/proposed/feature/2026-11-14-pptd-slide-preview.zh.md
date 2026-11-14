@@ -13,7 +13,7 @@ Issue #20452 要求在文件预览面板中可视化预览 PPTD 项目。目前 
 ## Proposal
 
 - 为 `pptd` 扩展名注册 `pptd` 文件预览插件，形态与 `packages/file-preview/src/plugins/powerpoint/powerPointFilePreviewPlugin.ts` 中的 powerpoint 插件一致，并通过同一注册表接入。插件与 powerpoint 插件并列存放。
-- 清单是入口。插件从清单读取 `version`、`title`、`size`、`theme` 与 `pages`，并通过现有文件访问路径，将每个 `pages[]` 路径和 `media` 引用相对于清单目录解析。不扫描目录中未列出的 `.page` 文件。
+- 清单是入口。插件从清单读取 `version`、`title`、`size`、`theme` 与 `pages`，并通过现有文件访问路径，将每个 `pages[]` 路径和相对媒体路径相对于清单目录解析。上游参考还允许媒体 `Image.src` 和背景/填充的 `ImageFill.src` 使用 HTTPS URL；这些引用保留为 URL 来源，不作为本地路径解析，并作为远程 HTTPS 媒体加载。远程加载失败时，与本地媒体缺失一样显示可见占位符。不扫描目录中未列出的 `.page` 文件。
 - 每页按 `size` 渲染为固定尺寸画布并缩放到面板宽度。支持问题中列出的元素类型（含富文本标签与主题样式的文本、图片、形状、线条、图标），表格与图表作为独立分支。每种元素类型只有一个渲染器，样式按上游参考定义的优先级解析。
 - 数学公式使用 KaTeX，它已是仓库依赖（`package.json`）。公式文本从文本元素内容中提取，本 Spec 不引入第二套数学引擎。
 - 提供翻页（上一页、下一页、页码）、缩放和手动刷新按钮。源码/预览切换保留现有文本预览作为源码视图。缩略图在全量范围内纳入本 Spec。
@@ -33,7 +33,7 @@ Issue #20452 要求在文件预览面板中可视化预览 PPTD 项目。目前 
 - AC2 — 文本、图片、形状、线条与图标元素按 `bounds` 渲染，主题样式与行内样式的优先级与上游参考一致，包括富文本 `<u>`、`<sup>`、`<strong>` 标签（verification: renderer）
 - AC3 — 文本元素中的公式文本通过 KaTeX 渲染；无效公式显示源文本并带错误标记，而不是抛出异常（verification: renderer）
 - AC4 — 表格与图表元素可渲染；尚不支持的元素类型显示可见占位符，注明元素 id 与类型（verification: renderer）
-- AC5 — 缺失的 `pages` 文件或 `media` 资源显示注明缺失路径的可见占位符，其余页面照常渲染（verification: renderer）
+- AC5 — 缺失的 `pages` 文件、本地媒体缺失或 HTTPS 媒体加载失败时显示注明缺失路径的可见占位符，其余页面照常渲染（verification: renderer）
 - AC6 — 翻页、缩放、缩略图与手动刷新按钮可用，刷新能获取智能体对清单、`.page` 或媒体文件的修改（verification: Electron）
 - AC7 — 源码/预览切换返回现有 YAML 文本视图，且插件从不写入项目文件（verification: renderer）
 - AC8 — 注册表测试确认 `.pptd` 解析到新插件，且 `.pptx` 仍解析到 powerpoint 插件（verification: unit）
