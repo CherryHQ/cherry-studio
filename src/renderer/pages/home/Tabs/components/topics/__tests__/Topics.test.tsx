@@ -1593,7 +1593,7 @@ describe('Topics', () => {
     expect(toast.success).toHaveBeenCalledWith('Moved 1 conversation(s)')
   })
 
-  it('reports a failed move to another assistant with its caption and the original cause', async () => {
+  it('reports a failed move to another assistant with its caption, reason and the original cause', async () => {
     const failure = new Error('disk locked')
     topicDataMocks.updateTopic.mockRejectedValueOnce(failure)
     const { getByText } = renderTopicList()
@@ -1607,15 +1607,9 @@ describe('Topics', () => {
       expect(toast.error).toHaveBeenCalledWith(
         expect.objectContaining({
           title: 'chat.topics.manage.move.error',
+          description: 'disk locked',
           cause: failure,
-          data: expect.objectContaining({
-            errorContext: expect.objectContaining({
-              message: 'disk locked',
-              source: 'chat',
-              operation: 'topic.move',
-              recordId: 'topic-a'
-            })
-          })
+          data: expect.objectContaining({ source: 'chat', operation: 'topic.move', recordId: 'topic-a' })
         })
       )
     )
@@ -2161,15 +2155,9 @@ describe('Topics', () => {
     expect(toast.error).toHaveBeenCalledWith(
       expect.objectContaining({
         title: 'chat.topics.manage.rename.error',
+        description: 'rename failed',
         cause: expect.objectContaining({ message: 'rename failed' }),
-        data: expect.objectContaining({
-          errorContext: expect.objectContaining({
-            message: 'rename failed',
-            source: 'chat',
-            operation: 'topic.rename',
-            recordId: 'topic-a'
-          })
-        })
+        data: expect.objectContaining({ source: 'chat', operation: 'topic.rename', recordId: 'topic-a' })
       })
     )
     expect(toast.success).not.toHaveBeenCalled()

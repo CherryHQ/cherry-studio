@@ -85,7 +85,7 @@ import {
   TOPIC_UNLINKED_ASSISTANT_GROUP_ID,
   type TopicDisplayMode
 } from '@renderer/utils/chat/topicsHelpers'
-import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
+import { formatErrorMessage, formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { applyOptimisticOrder, findLatestActive, pickNeighbourAfterRemoval } from '@renderer/utils/resourceEntity'
 import {
   createSidebarShortcutTarget,
@@ -499,10 +499,11 @@ export function Topics({
         () => toast.success(t('common.saved')),
         (err) => {
           logger.error('Failed to rename topic', { err, topicId })
-          toastAppError(t('chat.topics.manage.rename.error'), err, {
-            source: 'chat',
-            operation: 'topic.rename',
-            recordId: topicId
+          toast.error({
+            title: t('chat.topics.manage.rename.error'),
+            description: formatErrorMessage(err),
+            cause: err,
+            data: { source: 'chat', operation: 'topic.rename', recordId: topicId }
           })
         }
       )
@@ -539,10 +540,11 @@ export function Topics({
         toast.success(t('chat.topics.manage.move.success', { count: 1 }))
       } catch (err) {
         logger.error('Failed to move topic to assistant', { assistantId, err, topicId: topic.id })
-        toastAppError(t('chat.topics.manage.move.error'), err, {
-          source: 'chat',
-          operation: 'topic.move',
-          recordId: topic.id
+        toast.error({
+          title: t('chat.topics.manage.move.error'),
+          description: formatErrorMessage(err),
+          cause: err,
+          data: { source: 'chat', operation: 'topic.move', recordId: topic.id }
         })
       }
     },
