@@ -28,11 +28,20 @@ export const ARTIFACT_RIGHT_PANE_CACHE_KEY = 'ui.chat.artifact_pane.width'
  */
 export const RESOURCE_LIST_RIGHT_PANE_CACHE_KEY = 'ui.chat.resource_pane.width'
 
-export type RightPaneResizeCacheKey = typeof ARTIFACT_RIGHT_PANE_CACHE_KEY | typeof RESOURCE_LIST_RIGHT_PANE_CACHE_KEY
+/** The Assistant / Agent profile: wider floor than the inspector, capped so the chat keeps the room. */
+export const PROFILE_RIGHT_PANE_MIN_WIDTH = 300
+export const PROFILE_RIGHT_PANE_MAX_WIDTH = 440
+export const PROFILE_RIGHT_PANE_CACHE_KEY = 'ui.chat.profile_pane.width'
+
+export type RightPaneResizeCacheKey =
+  | typeof ARTIFACT_RIGHT_PANE_CACHE_KEY
+  | typeof RESOURCE_LIST_RIGHT_PANE_CACHE_KEY
+  | typeof PROFILE_RIGHT_PANE_CACHE_KEY
 
 const RIGHT_PANE_WINDOW_CACHE_KEY = {
   [ARTIFACT_RIGHT_PANE_CACHE_KEY]: 'ui.window.chat.artifact_pane.width',
-  [RESOURCE_LIST_RIGHT_PANE_CACHE_KEY]: 'ui.window.chat.resource_pane.width'
+  [RESOURCE_LIST_RIGHT_PANE_CACHE_KEY]: 'ui.window.chat.resource_pane.width',
+  [PROFILE_RIGHT_PANE_CACHE_KEY]: 'ui.window.chat.profile_pane.width'
 } as const
 
 export function getRightPaneWindowCacheKey(cacheKey: RightPaneResizeCacheKey) {
@@ -47,8 +56,9 @@ export function getRightPaneWindowCacheKey(cacheKey: RightPaneResizeCacheKey) {
  * - `inspector` — artifacts, branches, traces: content sized for reading, its own wide envelope.
  * - `navigation-list` — the topic/session list: a list, so it mirrors the left list's envelope
  *   and keeps a separate persisted width; dragging one never resizes the other.
+ * - `profile` — the Assistant / Agent profile: a bounded card column with its own persisted width.
  */
-export type RightPaneWidthPreset = 'inspector' | 'navigation-list'
+export type RightPaneWidthPreset = 'inspector' | 'navigation-list' | 'profile'
 
 export type RightPaneWidthPolicy = {
   cacheKey: RightPaneResizeCacheKey
@@ -69,6 +79,12 @@ const RIGHT_PANE_WIDTH_PRESETS = {
     windowCacheKey: RIGHT_PANE_WINDOW_CACHE_KEY[RESOURCE_LIST_RIGHT_PANE_CACHE_KEY],
     minWidth: RESOURCE_LIST_PANE_MIN_WIDTH,
     maxWidth: RESOURCE_LIST_PANE_MAX_WIDTH
+  },
+  profile: {
+    cacheKey: PROFILE_RIGHT_PANE_CACHE_KEY,
+    windowCacheKey: RIGHT_PANE_WINDOW_CACHE_KEY[PROFILE_RIGHT_PANE_CACHE_KEY],
+    minWidth: PROFILE_RIGHT_PANE_MIN_WIDTH,
+    maxWidth: PROFILE_RIGHT_PANE_MAX_WIDTH
   }
 } as const satisfies Record<RightPaneWidthPreset, RightPaneWidthPolicy>
 

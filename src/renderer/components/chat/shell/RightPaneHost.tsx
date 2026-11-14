@@ -440,6 +440,12 @@ export function PersistentRightPaneHost({
     width: targetMode === 'maximized' ? RIGHT_PANE_WIDTH_FULL : dockedWidthExpression
   }))
   const onLayoutAnimationCompleteRef = useRef(onLayoutAnimationComplete)
+  // Switching to a pane of another width preset travels to its width instead of snapping.
+  const [settledCacheKey, setSettledCacheKey] = useState(cacheKey)
+  const presetTravelActive = settledCacheKey !== cacheKey && phase === 'docked' && !reduceMotion
+  if (settledCacheKey !== cacheKey && !presetTravelActive) setSettledCacheKey(cacheKey)
+  const settledDockedWidthRef = useRef<number | null>(null)
+  const presetTravelStartedRef = useRef(false)
 
   const setVisualState = useCallback((nextState: PersistentRightPaneVisualState) => {
     visualStateRef.current = nextState
@@ -548,8 +554,21 @@ export function PersistentRightPaneHost({
     const plan = planPersistentRightPaneReconnect(phase, targetMode, dockedWidthExpression)
     if (plan.completedMode) return
 
+    const from = settledDockedWidthRef.current
+    if (presetTravelActive && from !== null) {
+      // Motion cannot interpolate the docked width expression, so the box travels between the
+      // resolved pixel widths and takes the new preset's expression once it arrives.
+      if (!presetTravelStartedRef.current) animationControls.set({ width: from })
+      presetTravelStartedRef.current = true
+      void animationControls
+        .start({ width: effectiveWidth, transition: CHAT_SHELL_TRANSITION })
+        .then(() => setSettledCacheKey(cacheKey))
+      return
+    }
+    presetTravelStartedRef.current = false
+    settledDockedWidthRef.current = effectiveWidth
     animationControls.set(plan.motionState)
-  }, [animationControls, dockedWidthExpression, phase, targetMode])
+  }, [animationControls, cacheKey, dockedWidthExpression, effectiveWidth, phase, presetTravelActive, targetMode])
 
   const isDocked = phase === 'docked' && targetMode === 'docked'
   const fullWidthLayout = isFullWidthRightPanePhase(phase)
@@ -561,7 +580,7 @@ export function PersistentRightPaneHost({
   const spacerWidth = mainRegionWidth === null || typeof resolvedWidth !== 'number' ? resolvedWidth : effectiveWidth
   // Settled phases track the region through re-measurement, which must land instantly; only a
   // phase change travels, and then on the same transition as the box it reserves space for.
-  const spacerTravels = !isResizing && !reduceMotion && getSettledRightPaneMode(phase) === null
+  const spacerTravels = !isResizing && !reduceMotion && (getSettledRightPaneMode(phase) === null || presetTravelActive)
   const spacerTransition = spacerTravels ? getRightPanePhaseTransition(phase) : { duration: 0 }
 
   const onFullWidthPhaseChangeRef = useRef(onFullWidthPhaseChange)
@@ -585,7 +604,8 @@ export function PersistentRightPaneHost({
         animate={{ width: reservesDockedSpace ? spacerWidth : 0 }}
         transition={spacerTransition}
         className="h-full min-h-0 shrink-0"
-        style={{ maxWidth: dockedWidthExpression }}
+        // The new preset's cap would cut a shrinking spacer short of its travel.
+        style={{ maxWidth: presetTravelActive ? undefined : dockedWidthExpression }}
       />
       <motion.div
         ref={paneRef}
