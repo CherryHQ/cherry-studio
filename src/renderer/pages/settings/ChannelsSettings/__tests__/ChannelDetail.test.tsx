@@ -141,6 +141,7 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
       </div>
     ),
     DialogContent: passthrough('div'),
+    DialogDescription: passthrough('p'),
     DialogHeader: passthrough('div'),
     DialogTitle: passthrough('h2'),
     EmptyState: ({ description }: { description?: React.ReactNode }) => <div>{description}</div>,
