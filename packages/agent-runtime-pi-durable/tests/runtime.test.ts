@@ -22,7 +22,7 @@ import { openNodeSqliteStorage } from '@earendil-works/pi-durable/storage/sqlite
 import { obj, str } from '@earendil-works/pi-schema'
 import { describe, expect, it, onTestFinished } from 'vitest'
 
-import { createScriptedHost } from '@cherrystudio/agent-behavior'
+import { callKeyOf, createScriptedHost } from '@cherrystudio/agent-behavior'
 import { runtimeId, type ObservationPayload, type OperationResult } from '@cherrystudio/agent-runtime'
 
 import {
@@ -872,6 +872,54 @@ it.each([false, true])('retains nested results after task retirement and SQLite 
   const reopened = confirmed(await recovered.open(handle.thread))
   expect(confirmed(await reopened.archive()).messages).toEqual(archived.messages)
   expect(executions).toBe(2)
+})
+
+// Approvals are keyed by this ID; a nested call without one is blocked before the user can approve it.
+it('names model and nested tool calls by the IDs their projected parts carry', async () => {
+  const { runtime, faux, registry } = await setup()
+  const tasks: Record<string, string> = {}
+  registry.install(
+    defineExtension({
+      name: 'nested-identity',
+      tools: [
+        defineTool({
+          name: 'leaf',
+          description: 'Nested call',
+          parameters: obj({}),
+          callers: ['tools'],
+          execute: async (_args, api) => {
+            tasks.leaf = String(api.taskId)
+            return { output: [{ type: 'text' as const, text: 'leaf' }] }
+          }
+        }),
+        defineTool({
+          name: 'script',
+          description: 'Model call',
+          parameters: obj({}),
+          execute: async (_args, api, context) => {
+            tasks.script = String(api.taskId)
+            await api.executeTool('leaf', {}, context, { key: 'a' })
+            return { output: [{ type: 'text' as const, text: 'done' }] }
+          }
+        })
+      ]
+    })
+  )
+  faux.setResponses([
+    fauxAssistantMessage(fauxToolCall('script', {}, { id: 'script' }), { stopReason: 'toolUse' }),
+    fauxAssistantMessage('done')
+  ])
+  const handle = confirmed(await runtime.create(sessionOptions))
+  await handle.input.submit(draft('nested identity'))
+  await runtime.settled()
+
+  const parts = confirmed(await handle.archive()).messages.flatMap((message) => message.parts)
+  const shown = (name: string) => parts.find((part) => part.type === 'dynamic-tool' && part.toolName === name)
+  for (const name of ['script', 'leaf']) {
+    const id = await handle.durable.behaviorToolCallId({ thread: handle.thread.id, key: callKeyOf(tasks[name]) })
+    expect(id).toBeDefined()
+    expect(shown(name)).toMatchObject({ toolCallId: id })
+  }
 })
 
 it.each([false, true])('keeps recursive nested errors terminal (cancel=%s)', async (cancel) => {
