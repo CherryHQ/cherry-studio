@@ -561,6 +561,7 @@ describe('AgentSessionService', () => {
         {
           id: 'user-created-later',
           agentId: 'agent-session-test',
+          runtimeType: 'pi-durable',
           name: '',
           workspaceId: userWorkspace.id,
           orderKey: 'a0',
@@ -570,6 +571,7 @@ describe('AgentSessionService', () => {
         {
           id: 'user-updated-later',
           agentId: 'agent-session-test',
+          runtimeType: 'pi-durable',
           name: '  ',
           workspaceId: userWorkspace.id,
           orderKey: 'a1',
@@ -579,6 +581,7 @@ describe('AgentSessionService', () => {
         {
           id: 'user-with-message',
           agentId: 'agent-session-test',
+          runtimeType: 'pi-durable',
           name: '',
           workspaceId: userWorkspace.id,
           orderKey: 'a2',
@@ -587,6 +590,7 @@ describe('AgentSessionService', () => {
         {
           id: 'system-empty',
           agentId: 'agent-session-test',
+          runtimeType: 'pi-durable',
           name: '',
           workspaceId: 'reusable-system-workspace',
           orderKey: 'a3',
@@ -595,6 +599,7 @@ describe('AgentSessionService', () => {
         {
           id: 'system-empty-old',
           agentId: 'agent-session-test',
+          runtimeType: 'pi-durable',
           name: '',
           workspaceId: 'reusable-system-workspace-old',
           orderKey: 'a4',
@@ -603,6 +608,7 @@ describe('AgentSessionService', () => {
         {
           id: 'manually-named',
           agentId: 'agent-session-test',
+          runtimeType: 'pi-durable',
           name: '',
           isNameManuallyEdited: true,
           workspaceId: userWorkspace.id,
@@ -657,6 +663,7 @@ describe('AgentSessionService', () => {
       await dbh.db.insert(agentSessionTable).values({
         id: 'reuse-activity-session',
         agentId: 'agent-session-test',
+        runtimeType: 'pi-durable',
         name: '',
         workspaceId: userWorkspace.id,
         orderKey: 'a0',

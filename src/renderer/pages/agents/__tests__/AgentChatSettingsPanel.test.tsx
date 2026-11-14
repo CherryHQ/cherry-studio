@@ -459,6 +459,29 @@ describe('AgentChat settings panel', () => {
     expect(onSessionWorkspaceChange).toHaveBeenCalledWith('workspace-next')
   })
 
+  it('opens the selected Agent conversation without reassigning the empty session runtime', async () => {
+    const user = userEvent.setup()
+    let finishCreate: (() => void) | undefined
+    const onCreateEmptySession = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          finishCreate = resolve
+        })
+    )
+    activeAgentMock.value = undefined
+    const session = { ...defaultSession, agentId: 'original-agent', runtimeType: 'pi-durable' as const }
+
+    renderAgentChat({ conversationBootstrap: createConversationBootstrap(session), onCreateEmptySession })
+    const selectAgent = screen.getByRole('button', { name: 'select replacement agent' })
+    await user.click(selectAgent)
+
+    expect(onCreateEmptySession).toHaveBeenCalledWith({ agentId: 'agent-2', workspaceId: session.workspaceId })
+    expect(updateSessionMock.updateSession).not.toHaveBeenCalled()
+    expect(selectAgent).toBeDisabled()
+    finishCreate?.()
+    await waitFor(() => expect(selectAgent).toBeEnabled())
+  })
+
   it('reassigns an unlinked existing session without replacing it', async () => {
     const user = userEvent.setup()
     let finishUpdate: (() => void) | undefined

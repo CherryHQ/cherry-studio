@@ -17,6 +17,8 @@ import { agentSessionContextTable } from '@data/db/schemas/agentSessionContext'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { type AgentWorkspaceRow, agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { pinTable } from '@data/db/schemas/pin'
+import { userModelTable } from '@data/db/schemas/userModel'
+import { userProviderTable } from '@data/db/schemas/userProvider'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbOrTx } from '@data/db/types'
 import { agentChannelService } from '@data/services/AgentChannelService'
@@ -27,6 +29,7 @@ import { nullsToUndefined, timestampToISO } from '@data/services/utils/rowMapper
 import { loggerService } from '@logger'
 import { Emitter, type Event } from '@main/core/lifecycle'
 import { buildSearchSnippet } from '@main/utils/searchSnippet'
+import { getFreshAgentRuntimeType } from '@shared/ai/agentRuntimeCapabilities'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import { AgentTypeSchema, type AgentType } from '@shared/data/api/schemas/agents'
@@ -359,7 +362,7 @@ export class AgentSessionService {
     type: AgentSessionType = 'conversation',
     createdAt = Date.now(),
     taskId: string | null = null,
-    runtimeType: AgentType = 'pi-durable'
+    runtimeType?: AgentType
   ): void {
     this.assertAgentExistsTx(tx, dto.agentId)
 
@@ -396,7 +399,7 @@ export class AgentSessionService {
       name: dto.name,
       description: dto.description,
       taskId,
-      runtimeType,
+      runtimeType: runtimeType ?? this.getFreshRuntimeTypeTx(tx, dto.agentId),
       workspaceId,
       createdAt,
       updatedAt: createdAt
@@ -431,6 +434,24 @@ export class AgentSessionService {
       .limit(1)
       .all()
     if (!agent) throw DataApiErrorFactory.notFound('Agent', agentId)
+  }
+
+  private getFreshRuntimeTypeTx(tx: DbOrTx, agentId: string): AgentType {
+    const provider = tx
+      .select({ providerId: userProviderTable.providerId, presetProviderId: userProviderTable.presetProviderId })
+      .from(agentsTable)
+      .innerJoin(userModelTable, eq(agentsTable.model, userModelTable.id))
+      .innerJoin(userProviderTable, eq(userModelTable.providerId, userProviderTable.providerId))
+      .where(eq(agentsTable.id, agentId))
+      .get()
+    return getFreshAgentRuntimeType(
+      provider
+        ? getDataService('ProviderRegistryService').getProviderDisplayMetadata(
+            provider.providerId,
+            provider.presetProviderId
+          )
+        : undefined
+    )
   }
 
   getConversationById(id: string, query: GetAgentSessionQuery = {}): AgentSessionEntity {
@@ -669,6 +690,7 @@ export class AgentSessionService {
       () =>
         application.get('DbService').withWriteTx((tx) => {
           this.assertAgentExistsTx(tx, dto.agentId)
+          const runtimeType = this.getFreshRuntimeTypeTx(tx, dto.agentId)
 
           const workspaceFilter = (() => {
             if (dto.workspace.type === AGENT_WORKSPACE_TYPE.SYSTEM) {
@@ -696,6 +718,7 @@ export class AgentSessionService {
               and(
                 conversationFilter,
                 eq(sessionsTable.agentId, dto.agentId),
+                eq(sessionsTable.runtimeType, runtimeType),
                 isNull(sessionsTable.deletedAt),
                 workspaceFilter,
                 dto.excludeSessionId ? notInArray(sessionsTable.id, [dto.excludeSessionId]) : undefined,

@@ -6,7 +6,7 @@ English | [中文](2026-11-12-session-runtime-binding.zh.md)
 
 ## Problem
 
-Agent sessions currently select their execution driver from the mutable Agent `type`. Updating every Agent to `pi-durable` would therefore route old Pi and Claude Code histories into a different engine. The user requires native continuation of those histories, Pi Durable for all fresh conversations, and no runtime display in Agent creation or editing forms.
+Agent sessions currently select their execution driver from the mutable Agent `type`. Updating every Agent to `pi-durable` would therefore route old Pi and Claude Code histories into a different engine. The user requires native continuation of those histories, Pi Durable by default for fresh conversations, native Claude subscription compatibility, and no runtime display in Agent creation or editing forms.
 
 The inspected baseline is `bc215da7204393c838b92bd19a4cfad20ec7d78d`. `AgentChatContextProvider`, `AgentSessionRuntimeService` and `AgentSessionForkOperations` select drivers through the Agent. `agent_session` has no runtime field, although existing contexts refer to a backend whose locator records its kind. Contexts are not guaranteed to exist for every legacy or empty session. The creation wizard already defaults to Pi Durable and hides runtime; the editor still renders a runtime summary.
 
@@ -28,11 +28,11 @@ After bindings are captured, normalize existing Agents to `pi-durable` in the sa
 
 ### Route execution and presentation by session
 
-Fresh conversations use Pi Durable, including task/channel-created conversations. A reused legacy conversation retains its original runtime. Forks, edit-and-resend branches and child contexts inherit their source execution ownership; they are historical continuation, not fresh conversations. Binding must be committed with session allocation, including headless entry points.
+Fresh conversations use Pi Durable by default, including task/channel-created conversations. A primary model whose provider uses an external CLI login (Claude subscription) instead allocates a Claude Code session before prewarming. Resolve this from the provider registry authentication capability, including preset-backed provider instances; do not copy subscription credentials into the gateway. Agent types still normalize to Pi Durable. Configuration model pickers admit both routes; an existing session picker remains restricted by its persisted runtime. Empty placeholders may be reused only for the required runtime. Switching Agents in an empty conversation opens the target Agent’s conversation instead of reassigning a prewarmed native branch. A reused legacy conversation retains its original runtime. Forks, edit-and-resend branches and child contexts inherit their source execution ownership; they are historical continuation, not fresh conversations. Binding must be committed with session allocation, including headless entry points.
 
 Resolve the driver from session ownership in dispatch, warm connection, recovery, history actions, fork publication checks, diagnostic access and runtime cleanup. Session capability consumers in the renderer must use the same ownership for commands, permissions and history actions. Continue reading shared Agent settings without allowing the upgraded Agent type to override session execution. Backend/session disagreement fails explicitly rather than opening another store. Deleting an Agent does not invent replacement configuration for its orphan sessions.
 
-Keep Pi and Claude Code adapters available for old sessions and their native history operations. Product development for fresh main-Agent conversations can focus on Pi Durable, but compatibility fixes and dependencies for old engines remain necessary. This change does not claim that only one runtime remains in the application.
+Keep Pi and Claude Code adapters available for old sessions and their native history operations, and Claude Code for new subscription-backed sessions. Product development for fresh main-Agent conversations can focus on Pi Durable, but compatibility fixes and dependencies for old engines remain necessary. This change does not claim that only one runtime remains in the application.
 
 ### Remove form runtime display
 
@@ -44,16 +44,16 @@ Keep runtime absent from creation and remove the editor's runtime summary and hi
 - Infer ownership only from context/backend rows: insufficient for empty sessions and histories without a recorded context; retain native evidence and add explicit session ownership.
 - Convert all native histories into Durable: rejected because product message projections do not encode native checkpoints, task graphs or recovery state.
 - Make old histories read-only: rejected by the user, who explicitly chose native continuation.
-- Keep all runtime configuration visible: unnecessary for fresh conversations once the data owner enforces Pi Durable.
+- Keep all runtime configuration visible: unnecessary for fresh conversations once the data owner selects the compatible runtime automatically.
 
 ## Acceptance criteria
 
 - AC1 — A populated database upgrade preserves Pi, Claude Code and Durable session ownership before all existing Agents become Pi Durable, including soft-deleted rows; rerunning or interrupting the upgrade cannot overwrite ownership or partially normalize Agents. (verification: implementer, real SQLite migrate-forward and transaction/retry tests)
 - AC2 — Empty legacy sessions bind from their pre-upgrade Agent; existing backend evidence and pending retired-runtime conversion ownership survive; conflicting or unknown orphan histories stay readable but cannot execute under a guessed engine. (verification: implementer, real SQLite migration and session-routing tests)
-- AC3 — Fresh interactive, task and channel conversations execute through Pi Durable; legacy reuse, fork, edit-and-resend and child operations retain their original engine and native identity after Agent normalization and process reopen. (verification: implementer, affected Main contract tests and isolated Electron continuation for each engine)
+- AC3 — Fresh interactive, task and channel conversations execute through Pi Durable by default, or Claude Code for a subscription provider; legacy reuse, fork, edit-and-resend and child operations retain their original engine and native identity after Agent normalization and process reopen. (verification: implementer, affected Main contract tests and isolated Electron continuation for each engine)
 - AC4 — Dispatch, prewarming, recovery, diagnostics, cleanup and renderer capability controls agree with session ownership, and a conflicting native backend is rejected without creating or replacing storage. (verification: implementer, focused Main and renderer contract tests)
 - AC5 — Creating, editing, duplicating, importing and reseeding Agents cannot reintroduce another Agent type; both creation and editing forms show no runtime selector, summary or hint. (verification: implementer, data-owner tests and real-component form tests plus isolated Electron inspection)
-- AC6 — Backup export/restore and supported legacy imports preserve messages, attachments, native identities and runtime bindings; old sessions still continue and fresh sessions use Durable. (verification: implementer, populated database import tests and isolated Electron backup round trip)
+- AC6 — Backup export/restore and supported legacy imports preserve messages, attachments, native identities and runtime bindings; old sessions still continue and fresh sessions use the compatible default runtime. (verification: implementer, populated database import tests and isolated Electron backup round trip)
 
 ## Risks
 
@@ -61,8 +61,10 @@ Legacy adapters and their dependencies remain required. Shared Agent settings ca
 
 ## Implementation evidence
 
-The implementation adds migration `0038` and an ordered transactional seeder, routes session execution and historical operations through the persisted binding, normalizes Agent creation, and removes the editor runtime summary. Unresolved bindings remain non-executable. A CLI-only model choice is preserved; a fresh Durable conversation needs a model supported by Durable.
+The implementation adds migration `0038` and an ordered transactional seeder, routes session execution and historical operations through the persisted binding, normalizes Agent creation, and removes the editor runtime summary. Unresolved bindings remain non-executable. A CLI-only model choice is preserved; new subscription-backed sessions bind Claude Code, while API-backed sessions bind Durable. Existing sessions are never rebound when their Agent model changes.
 
 Focused SQLite tests cover populated migrate-forward, backend precedence, unknown/conflicting histories, soft-deleted rows, rollback/retry, child/fork inheritance and Agent creation. Main contract tests cover dispatch, prewarming, history operations, recovery, message writes and task reuse. Renderer component tests cover conversation consumers and both forms. Node/web typechecks, scoped lint and migration-chain checks pass.
+
+Subscription compatibility is covered by real SQLite allocation, child inheritance, model changes and placeholder reuse tests. In an isolated Electron profile, the real creation form selected a Claude subscription model and created a Durable-typed Agent with a Claude Code session and prewarmed backend. Creation/editing forms showed no runtime field; the same session binding survived a process reopen. No provider request was sent, so subscription authentication and native provider continuation remain unverified.
 
 An isolated Electron instance from this checkout started successfully; its real Data API returned `pi-durable` for seeded Agents and a newly created session. Creation and editing forms showed no runtime field. The test-owned instance was stopped afterward. Native Pi/Claude provider continuation across process reopen and an Electron backup export/restore round trip have not been verified; AC3 and AC6 remain partially unverified, so the note remains proposed.

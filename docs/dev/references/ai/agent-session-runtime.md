@@ -48,7 +48,10 @@ driver internals behind the same host contract.
 ## Session runtime ownership
 
 `agent_session.runtime_type` binds execution to the session independently of its
-Agent's current `type`. Fresh conversations use Pi Durable. Historical Pi and
+Agent's current `type`. Fresh conversations default to Pi Durable; a primary model
+whose provider uses an external CLI login (Claude subscription) binds Claude Code
+before prewarming. Provider registry authentication metadata selects this exception,
+including preset-backed provider instances. Historical Pi and
 Claude Code sessions, their native forks and child archives retain their original
 engine; updating or replacing Agent settings does not change that ownership.
 Creation and editing forms do not expose runtime selection or a runtime summary.
@@ -69,10 +72,14 @@ so changing Agents cannot cause another engine's resume token to become Pi evide
 Version 2 reruns the corrected backfill for existing installations without deleting
 contexts or automatically resolving previously ambiguous bindings.
 
-Model choices, instructions and configuration remain Agent-owned. Legacy CLI-only
-model selections are not converted into API models; a fresh Durable conversation
-requires a model supported by its existing model filter. Pi and Claude Code drivers
-remain installed for historical continuation.
+Model choices, instructions and configuration remain Agent-owned. CLI subscription
+credentials stay in the existing Claude Code login path. Agent configuration pickers
+allow subscription models, while session pickers enforce the bound runtime. Changing
+an Agent model affects runtime selection for new sessions only. Placeholder reuse
+requires matching runtime ownership; changing Agents in an empty conversation opens
+the target Agent’s conversation rather than reassigning a prewarmed branch. Pi and
+Claude Code drivers remain installed for historical continuation, and Claude Code
+also serves new subscription-backed sessions.
 Shared tool restrictions use the editor's Pi tool identifiers. The Claude adapter
 also recognizes these identifiers and maps them to native SDK names, so editing
 other tool settings does not remove restrictions from historical Claude sessions.

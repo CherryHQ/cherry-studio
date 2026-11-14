@@ -12,7 +12,7 @@
 
 import { useMemo } from 'react'
 
-import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
+import { AGENT_RUNTIME_CAPABILITIES, getFreshAgentRuntimeType } from '@shared/ai/agentRuntimeCapabilities'
 import type { AgentType } from '@shared/data/types/agent'
 import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
@@ -23,15 +23,19 @@ const baseAgentFilter = (model: Model): boolean => !isNonChatModel(model)
 type ModelPredicate = (model: Model, provider?: Provider) => boolean
 
 /**
- * Returns a memoized `(model) => boolean` predicate that matches the agent's
- * runtime constraints. Pair with `<ModelSelector filter={...}>`.
+ * Session pickers honor pinned ownership; configuration pickers use the runtime
+ * a candidate model would allocate. Pair with `<ModelSelector filter={...}>`.
  */
-export function useAgentModelFilter(agentType: AgentType | undefined): ModelPredicate {
+export function useAgentModelFilter(
+  agentType: AgentType | undefined,
+  scope: 'session' | 'configuration' = 'session'
+): ModelPredicate {
   return useMemo<ModelPredicate>(() => {
-    const caps = agentType ? AGENT_RUNTIME_CAPABILITIES[agentType] : undefined
     return (model, provider) => {
       if (!baseAgentFilter(model)) return false
+      const runtimeType = scope === 'configuration' ? getFreshAgentRuntimeType(provider) : agentType
+      const caps = runtimeType ? AGENT_RUNTIME_CAPABILITIES[runtimeType] : undefined
       return !caps?.isModelCompatible || caps.isModelCompatible(provider, model)
     }
-  }, [agentType])
+  }, [agentType, scope])
 }

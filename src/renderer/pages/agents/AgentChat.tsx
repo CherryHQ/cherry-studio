@@ -306,12 +306,19 @@ const AgentChat = ({
       if (sessionAgentChanging || !sessionSnapshot || !nextAgentId || nextAgentId === sessionSnapshot.agentId) return
       setSessionAgentChanging(true)
       try {
+        if (isEmptyConversation && sessionSnapshot.agentId && onCreateEmptySession) {
+          await onCreateEmptySession({
+            agentId: nextAgentId,
+            ...getNewSessionWorkspaceDefaults(sessionSnapshot)
+          })
+          return
+        }
         await updateSession({ id: sessionSnapshot.id, agentId: nextAgentId }, { showSuccessToast: false })
       } finally {
         setSessionAgentChanging(false)
       }
     },
-    [sessionAgentChanging, sessionSnapshot, updateSession]
+    [isEmptyConversation, onCreateEmptySession, sessionAgentChanging, sessionSnapshot, updateSession]
   )
   const handleAgentModelChange = useCallback(
     async (nextModel?: Model) => {
