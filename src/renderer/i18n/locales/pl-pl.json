@@ -888,6 +888,7 @@
   "chat.input.pasted_text_file_name": "Wklejony tekst.txt",
   "chat.input.pause": "Wstrzymaj",
   "chat.input.placeholder": "Napisz wiadomość. Wpisz /, aby użyć narzędzi i akcji, @ aby odwołać się do tematów.",
+  "chat.input.prefill.dont_ask_again": "Nie pytaj ponownie",
   "chat.input.prefill.replace": "Zastąp",
   "chat.input.prefill.replace_content": "Wpisany tekst zostanie zastąpiony.",
   "chat.input.prefill.replace_title": "Zastąpić wersję roboczą?",

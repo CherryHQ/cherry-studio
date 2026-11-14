@@ -874,6 +874,7 @@
   "chat.input.pasted_text_file_name": "Vložený text.txt",
   "chat.input.pause": "Pozastavit",
   "chat.input.placeholder": "Napište zprávu. Zadáním / zobrazíte nástroje a akce, zadáním @ odkážete na témata.",
+  "chat.input.prefill.dont_ask_again": "Už se neptat",
   "chat.input.prefill.replace": "Nahradit",
   "chat.input.prefill.replace_content": "Text, který jste napsali, bude nahrazen.",
   "chat.input.prefill.replace_title": "Nahradit váš koncept?",
