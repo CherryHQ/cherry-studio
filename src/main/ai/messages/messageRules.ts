@@ -319,6 +319,38 @@ export function renderEditedReasoningAsThinkText<T extends UIMessage>(messages: 
   return out ?? messages
 }
 
+const pad2 = (n: number) => String(n).padStart(2, '0')
+
+/** `2026-11-05 13:04:05 +08:00` — local wall time with its UTC offset. */
+function formatMessageTimestamp(date: Date): string {
+  const offsetMinutes = -date.getTimezoneOffset()
+  const sign = offsetMinutes >= 0 ? '+' : '-'
+  const abs = Math.abs(offsetMinutes)
+  return (
+    `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())} ` +
+    `${pad2(date.getHours())}:${pad2(date.getMinutes())}:${pad2(date.getSeconds())} ` +
+    `${sign}${pad2(Math.floor(abs / 60))}:${pad2(abs % 60)}`
+  )
+}
+
+/**
+ * Prepend each user message's creation time (`metadata.createdAt`) as a leading
+ * text part so the model can anchor the current date and elapsed time. Operates
+ * on the conversion input only; messages without a valid timestamp pass through.
+ */
+export function prefixUserMessageTimestamps<T extends UIMessage>(messages: T[]): T[] {
+  return messages.map((message) => {
+    if (message.role !== 'user') return message
+    const createdAt = (message.metadata as { createdAt?: unknown } | undefined)?.createdAt
+    const date = typeof createdAt === 'string' ? new Date(createdAt) : undefined
+    if (!date || Number.isNaN(date.getTime())) return message
+    return {
+      ...message,
+      parts: [{ type: 'text', text: `<message-time>${formatMessageTimestamp(date)}</message-time>` }, ...message.parts]
+    }
+  })
+}
+
 /**
  * The message-shaping pipeline `Agent.stream` runs on its conversion input
  * (`originalMessages` stays un-shaped upstream, so none of this leaks to the UI):

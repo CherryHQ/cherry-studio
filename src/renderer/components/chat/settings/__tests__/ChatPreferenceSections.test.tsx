@@ -22,6 +22,7 @@ const mocks = vi.hoisted(() => ({
     'chat.message.thought.auto_collapse': true,
     'chat.message.keep_intermediate_text': false,
     'chat.message.user_content.default_expanded': false,
+    'chat.message.timestamp_context.enabled': false,
     'chat.message.multi_model.style': 'horizontal',
     'chat.message.math.single_dollar': true,
     'chat.input.show_estimated_tokens': false,
@@ -122,6 +123,7 @@ vi.mock('react-i18next', () => ({
 
 describe('ChatPreferenceSections', () => {
   beforeEach(() => {
+    mocks.preferenceValues['chat.message.timestamp_context.enabled'] = false
     mocks.preferenceValues['chat.message.font_size'] = 14
     mocks.preferenceValues['chat.narrow_mode'] = true
     mocks.preferenceValues['chat.message.user_content.default_expanded'] = false
@@ -130,6 +132,19 @@ describe('ChatPreferenceSections', () => {
     mocks.preferenceValues['chat.message.keep_intermediate_text'] = false
     mocks.loadThemeNames.mockClear()
     mocks.setPreference.mockClear()
+  })
+
+  it('saves and restores the opt-in timestamp context preference', async () => {
+    const user = userEvent.setup()
+    const { rerender } = render(<ChatPreferenceSections />)
+    const name = 'settings.messages.timestamp_context.label'
+    expect(screen.getByRole('button', { name })).toHaveAttribute('data-checked', 'false')
+    await user.click(screen.getByRole('button', { name }))
+    expect(mocks.setPreference).toHaveBeenCalledWith('chat.message.timestamp_context.enabled', true)
+    rerender(<ChatPreferenceSections />)
+    expect(screen.getByRole('button', { name })).toHaveAttribute('data-checked', 'true')
+    await user.click(screen.getByRole('button', { name }))
+    expect(mocks.setPreference).toHaveBeenLastCalledWith('chat.message.timestamp_context.enabled', false)
   })
 
   it('labels the auto code themes as the Cherry default while keeping the stored value', () => {

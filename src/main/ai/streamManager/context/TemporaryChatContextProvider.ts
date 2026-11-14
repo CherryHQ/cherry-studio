@@ -109,12 +109,16 @@ export class TemporaryChatContextProvider implements ChatContextProvider {
       globals: resolveGlobalContextSettings(),
       assistant: assistant?.settings?.contextSettings
     })
+    // Keep each row's creation timestamp on the projection: the optional send-time
+    // prefix shaping reads `metadata.createdAt`, and dropping it here made that
+    // preference a no-op for temporary chats.
     const history: CherryUIMessage[] = temporaryChatService
       .listMessages(req.topicId, contextSettings.maxMessages)
       .map((m) => ({
         id: m.id,
         role: toContentRole(m.role),
-        parts: m.data.parts ?? []
+        parts: m.data.parts ?? [],
+        metadata: { createdAt: m.createdAt }
       }))
 
     const messageId = uuidv7()

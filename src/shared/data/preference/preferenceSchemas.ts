@@ -251,6 +251,8 @@ export interface PreferenceSchemas {
     // redux/settings/thoughtAutoCollapse
     'chat.message.thought.auto_collapse': boolean
     // target-key-definitions/complex/complex
+    'chat.message.timestamp_context.enabled': boolean
+    // target-key-definitions/complex/complex
     'chat.message.user_content.default_expanded': boolean
     // redux/settings/narrowMode
     'chat.narrow_mode': boolean
@@ -833,6 +835,7 @@ export const DefaultPreferences: PreferenceSchemas = {
     'chat.message.show_outline': false,
     'chat.message.style': 'bubble',
     'chat.message.thought.auto_collapse': true,
+    'chat.message.timestamp_context.enabled': false,
     'chat.message.user_content.default_expanded': false,
     'chat.narrow_mode': true,
     'chat.retry.backoff_enabled': true,

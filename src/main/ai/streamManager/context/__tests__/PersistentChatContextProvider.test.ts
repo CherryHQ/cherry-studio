@@ -17,6 +17,7 @@ import type { FileEntryId } from '@shared/data/types/file'
 import { createUniqueModelId } from '@shared/data/types/model'
 import { getKnowledgeBaseIdsFromParts } from '@shared/data/types/uiParts'
 
+import { prefixUserMessageTimestamps } from '../../../messages/messageRules'
 import { startAiChildTurnSpan } from '../../../observability'
 import { AiStreamAdmissionError } from '../../admission'
 import { PersistenceListener } from '../../listeners/PersistenceListener'
@@ -148,6 +149,41 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
     ])
   })
 
+  it('preserves stored creation timestamps through the compaction-row projection, keeping the send-time prefix effective', async () => {
+    const prepared = await provider.prepareDispatch(
+      makeSubscriber(),
+      {
+        trigger: 'submit-message',
+        topicId: 'topic-1',
+        parentAnchorId: 'a1',
+        userMessageParts: [{ type: 'text', text: 'actually, change direction' }]
+      },
+      { hasLiveStream: false }
+    )
+
+    const history = prepared.models[0].request.messages!
+    const metadataCreatedAt = (m: (typeof history)[number]) =>
+      (m.metadata as { createdAt?: string } | undefined)?.createdAt
+    // Served history is built through toRow/toServed — the projection that previously
+    // discarded createdAt. Assert against the producer's own stored values.
+    expect(metadataCreatedAt(history[0])).toBe(messageService.getById('u1')?.createdAt)
+    expect(metadataCreatedAt(history[1])).toBe(messageService.getById('a1')?.createdAt)
+
+    // End to end on the production shaping path: the optional send-time prefix now
+    // reaches the user turns in this served history, assistant turns untouched.
+    const prefixed = prefixUserMessageTimestamps(history)
+    expect(prefixed[0].parts[0]).toMatchObject({ type: 'text', text: expect.stringMatching(/^<message-time>/) })
+    expect(prefixed[1].parts).toEqual(history[1].parts)
+    // Every served user turn (history and the newly reserved row) carries a parseable timestamp.
+    const userTurns = history.filter((m) => m.role === 'user')
+    expect(userTurns.length).toBeGreaterThanOrEqual(2)
+    for (const m of userTurns) {
+      const createdAt = metadataCreatedAt(m)
+      expect(typeof createdAt).toBe('string')
+      expect(new Date(createdAt as string).getTime()).not.toBeNaN()
+    }
+  })
+
   it('rejects duplicate mentioned models before reserving any rows', async () => {
     const childrenBefore = messageService.getChildrenByParentId('a1')
 
@@ -194,6 +230,43 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
       { role: 'assistant', text: PARTIAL },
       { role: 'user', text: 'continue on reserved branch' }
     ])
+  })
+
+  it('uses the first submission time for a branch reserved the previous day and retains it for replay', async () => {
+    const reservedAt = Date.parse('2026-11-08T08:00:00Z')
+    const submittedAt = Date.parse('2026-11-09T10:30:00Z')
+    const clock = vi.spyOn(Date, 'now').mockReturnValue(reservedAt)
+    try {
+      const branch = messageService.reserveBranch('a1', false)
+      expect(Date.parse(branch.createdAt)).toBe(reservedAt)
+      clock.mockReturnValue(submittedAt)
+      const prepared = await provider.prepareDispatch(
+        makeSubscriber(),
+        {
+          trigger: 'submit-message',
+          topicId: 'topic-1',
+          parentAnchorId: branch.id,
+          userMessageParts: [{ type: 'text', text: 'first branch submission' }],
+          targetMode: 'reserved-branch'
+        },
+        { hasLiveStream: false }
+      )
+      const history = prepared.models[0].request.messages!
+      const served = history.find((message) => message.id === branch.id)!
+      expect(served.metadata).toMatchObject({ createdAt: new Date(submittedAt).toISOString() })
+      const prefixed = prefixUserMessageTimestamps([served])
+      expect(prefixed[0].parts[0]).toMatchObject({ type: 'text', text: expect.stringContaining('2026-11-09') })
+      clock.mockReturnValue(submittedAt + 86_400_000)
+      const replay = messageService.createUserMessageWithPlaceholders({
+        topicId: 'topic-1',
+        userMessage: { mode: 'existing', id: branch.id },
+        placeholders: [{ role: 'assistant', data: { parts: [] }, status: 'pending' }]
+      })
+      expect(Date.parse(replay.userMessage.createdAt)).toBe(submittedAt)
+      expect(Date.parse(messageService.getById(branch.id).createdAt)).toBe(submittedAt)
+    } finally {
+      clock.mockRestore()
+    }
   })
 
   it('rejects a reserved-branch submit during a live stream without changing the reservation', async () => {

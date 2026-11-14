@@ -5205,6 +5205,8 @@
   "settings.messages.navigation.label": "Pasek nawigacji",
   "settings.messages.navigation.none": "Brak",
   "settings.messages.show_message_outline": "Pokaż konspekt wiadomości",
+  "settings.messages.timestamp_context.hint": "Dodawaj czas wysłania na początku każdej wiadomości użytkownika przekazywanej do modelu, aby model znał bieżącą datę i wiedział, ile czasu upłynęło.",
+  "settings.messages.timestamp_context.label": "Dodawaj znaczniki czasu do wiadomości",
   "settings.messages.title": "Ustawienia wiadomości",
   "settings.messages.use_serif_font": "Używaj czcionki szeryfowej",
   "settings.messages.user_content.default_expanded.hint": "Domyślnie pokazuj długie wiadomości użytkownika w całości. Wiadomości rozwinięte lub zwinięte ręcznie zachowują Twój wybór w tej sesji.",
