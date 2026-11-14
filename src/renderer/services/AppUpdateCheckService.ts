@@ -17,7 +17,7 @@ export const UPDATE_CHECK_EVENT_WAIT_MS = 20_000
 /** How long an automatic availability query result is reused before asking the feed again. */
 export const UPDATE_AVAILABILITY_TTL_MS = 60 * 60 * 1000
 
-type UpdateSnapshot = Pick<CacheAppUpdateState, 'checking' | 'downloading' | 'downloaded' | 'info' | 'manualCheck'>
+type UpdateSnapshot = Pick<CacheAppUpdateState, 'checking' | 'downloading' | 'downloaded' | 'info'>
 type UpdatePatch = Partial<CacheAppUpdateState>
 
 type UpdatePhase = 'idle' | 'checking' | 'downloading' | 'downloaded'
@@ -191,7 +191,7 @@ class AppUpdateCheckService {
       this.manualCheckActive = false
       this.checkInFlight = false
       this.phase = 'idle'
-      update({ checking: false, downloading: false, downloadProgress: 0, manualCheck: false })
+      update({ checking: false, downloading: false, downloadProgress: 0 })
       this.setUpdateNotice('settings.about.updateError')
     }, UPDATE_CHECK_EVENT_WAIT_MS)
   }
@@ -331,7 +331,7 @@ class AppUpdateCheckService {
       this.manualCheckActive = true
       this.phase = 'checking'
       this.setUpdateNotice(null)
-      update({ checking: true, manualCheck: true })
+      update({ checking: true })
       try {
         await ipcApi.request('app.updater.check_for_update')
         // The check IPC can outlive the watchdog. Arm only after it settles with no updater event.
@@ -340,13 +340,13 @@ class AppUpdateCheckService {
       } catch {
         if (this.session !== epoch || !this.ownsCheck(owner)) return
         this.endManualUpdateCheck()
-        update({ checking: false, downloading: false, downloadProgress: 0, manualCheck: false })
+        update({ checking: false, downloading: false, downloadProgress: 0 })
         this.setUpdateNotice('settings.about.updateError')
       }
     } catch {
       if (this.session !== epoch || !this.ownsCheck(owner)) return
       this.endManualUpdateCheck()
-      update({ checking: false, downloading: false, downloadProgress: 0, manualCheck: false })
+      update({ checking: false, downloading: false, downloadProgress: 0 })
       this.setUpdateNotice('settings.about.updateError')
     } finally {
       if (this.ownsCheck(owner)) {

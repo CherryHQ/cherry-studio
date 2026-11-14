@@ -39,9 +39,8 @@ export function useAppUpdateHandler() {
   const { t } = useTranslation()
   const { appUpdateState, updateAppUpdateState } = useAppUpdateState()
 
-  // Read the flag the click set synchronously. A ref copied in an effect is still
-  // false when the updater event arrives before the next render.
-  const manual = () => appUpdateCheckService.isManualUpdateCheck() || appUpdateState.manualCheck
+  // The service owns manual intent; it is set synchronously on click and ends with the check.
+  const manual = () => appUpdateCheckService.isManualUpdateCheck()
 
   useIpcOn('app.updater.run_check', () => {
     void appUpdateCheckService.runAppUpdateCheck(appUpdateState, updateAppUpdateState).catch(() => {
@@ -57,8 +56,7 @@ export function useAppUpdateHandler() {
       downloaded: false,
       checking: false,
       downloading: false,
-      downloadProgress: 0,
-      manualCheck: false
+      downloadProgress: 0
     })
   })
 
@@ -66,7 +64,7 @@ export function useAppUpdateHandler() {
     if (!appUpdateCheckService.isActiveUpdateSession()) return
     const wasManual = manual()
     appUpdateCheckService.endManualUpdateCheck()
-    updateAppUpdateState({ checking: false, manualCheck: false, lastErrorKey: null })
+    updateAppUpdateState({ checking: false, lastErrorKey: null })
     if (!wasManual) return
     // A withheld feed is not "up to date"; the failure notice offers the official download.
     if (!(payload?.isCurrent ?? true)) {
@@ -124,7 +122,6 @@ export function useAppUpdateHandler() {
       checking: false,
       downloading: false,
       downloadProgress: 0,
-      manualCheck: false,
       lastErrorKey: getManualUpdateErrorMessageKey(error)
     })
     // AppUpdaterService broadcasts updater failures instead of rejecting the check IPC.

@@ -259,8 +259,7 @@ describe('AboutSettings channel change', () => {
       downloaded: false,
       checking: false,
       downloading: false,
-      downloadProgress: 0,
-      manualCheck: false
+      downloadProgress: 0
     })
     expect(appUpdateCheckService.isActiveUpdateSession()).toBe(false)
     expect(appUpdateCheckService.isManualUpdateCheck()).toBe(false)
@@ -302,8 +301,7 @@ describe('AboutSettings channel change', () => {
       downloaded: false,
       checking: false,
       downloading: false,
-      downloadProgress: 0,
-      manualCheck: false
+      downloadProgress: 0
     })
 
     releaseChannel()
@@ -370,8 +368,7 @@ describe('AboutSettings channel change', () => {
       downloaded: false,
       checking: false,
       downloading: false,
-      downloadProgress: 0,
-      manualCheck: false
+      downloadProgress: 0
     })
   })
 })

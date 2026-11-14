@@ -9,7 +9,7 @@ const currentPayload: AppEventSchemas['app.updater.not_available'] = { isCurrent
 const withheldPayload: AppEventSchemas['app.updater.not_available'] = { isCurrent: false }
 
 const mocks = vi.hoisted(() => ({
-  appUpdateState: { manualCheck: false },
+  appUpdateState: {},
   handlers: new Map<string, (payload: unknown) => void>(),
   loggerError: vi.fn(),
   notificationSend: vi.fn(),
@@ -107,6 +107,17 @@ function setWindowSource(source: string) {
   meta.setAttribute('content', source)
 }
 
+const idle = { checking: false, downloading: false, downloaded: false, info: null }
+
+/** Starts a manual check in the main window, so the service owns manual intent. */
+async function startManualCheck() {
+  setWindowSource('mainWindow')
+  mocks.ipcRequest.mockImplementation(async (route: string) =>
+    route === 'app.get_info' ? { isPortable: false } : undefined
+  )
+  await act(() => appUpdateCheckService.runAppUpdateCheck(idle, vi.fn()))
+}
+
 function emit<E extends keyof AppEventSchemas>(event: E, payload: AppEventSchemas[E]) {
   const handler = mocks.handlers.get(event)
   if (!handler) {
@@ -120,7 +131,6 @@ describe('useAppUpdateHandler', () => {
     vi.useRealTimers()
     vi.clearAllMocks()
     mocks.handlers.clear()
-    mocks.appUpdateState.manualCheck = false
     mocks.ipcRequest.mockResolvedValue(undefined)
   })
 
@@ -148,22 +158,19 @@ describe('useAppUpdateHandler', () => {
     })
   })
 
-  it('uses the latest manual-check state to surface no-update and downloaded results', async () => {
-    const { rerender } = renderHook(() => useAppUpdateHandler())
+  it('surfaces no-update and downloaded results only for a manual check', async () => {
+    renderHook(() => useAppUpdateHandler())
 
     emit('app.updater.not_available', currentPayload)
-    emit('app.updater.downloaded', releaseInfo)
-
     expect(mocks.toastSuccess).not.toHaveBeenCalled()
-    expect(mocks.updateDialogShow).not.toHaveBeenCalled()
 
-    mocks.appUpdateState.manualCheck = true
-    rerender()
-
+    await startManualCheck()
     emit('app.updater.not_available', currentPayload)
+    expect(mocks.toastSuccess).toHaveBeenCalledExactlyOnceWith('settings.about.updateNotAvailable')
+
+    await startManualCheck()
     emit('app.updater.downloaded', releaseInfo)
 
-    expect(mocks.toastSuccess).toHaveBeenCalledExactlyOnceWith('settings.about.updateNotAvailable')
     await waitFor(() => expect(mocks.updateDialogShow).toHaveBeenCalledExactlyOnceWith({ releaseInfo }))
     expect(mocks.updateAppUpdateState).toHaveBeenCalledWith({
       downloading: false,
@@ -179,10 +186,7 @@ describe('useAppUpdateHandler', () => {
       route === 'app.get_info' ? { isPortable: false } : undefined
     )
     renderHook(() => useAppUpdateHandler())
-    await appUpdateCheckService.runAppUpdateCheck(
-      { checking: false, downloading: false, downloaded: false, info: null, manualCheck: false },
-      vi.fn()
-    )
+    await appUpdateCheckService.runAppUpdateCheck(idle, vi.fn())
     emit('app.updater.available', releaseInfo)
     emit('app.updater.downloaded', releaseInfo)
     await waitFor(() => expect(mocks.updateDialogShow).toHaveBeenCalledTimes(1))
@@ -196,9 +200,9 @@ describe('useAppUpdateHandler', () => {
     expect(mocks.updateDialogShow).toHaveBeenCalledTimes(1)
   })
 
-  it('never reports a withheld feed as up to date and leaves the official-download notice', () => {
-    mocks.appUpdateState.manualCheck = true
+  it('never reports a withheld feed as up to date and leaves the official-download notice', async () => {
     renderHook(() => useAppUpdateHandler())
+    await startManualCheck()
 
     emit('app.updater.not_available', withheldPayload)
 
@@ -218,12 +222,12 @@ describe('useAppUpdateHandler', () => {
     expect(mocks.toastSuccess).not.toHaveBeenCalled()
     expect(mocks.toastError).not.toHaveBeenCalled()
     expect(appUpdateCheckService.readUpdateNotice()).toBeNull()
-    expect(mocks.updateAppUpdateState).toHaveBeenCalledWith({ checking: false, manualCheck: false, lastErrorKey: null })
+    expect(mocks.updateAppUpdateState).toHaveBeenCalledWith({ checking: false, lastErrorKey: null })
   })
 
-  it('falls back to the up-to-date result on a version-skewed void payload', () => {
-    mocks.appUpdateState.manualCheck = true
+  it('falls back to the up-to-date result on a version-skewed void payload', async () => {
     renderHook(() => useAppUpdateHandler())
+    await startManualCheck()
 
     emit('app.updater.not_available', undefined as unknown as AppEventSchemas['app.updater.not_available'])
 
@@ -232,8 +236,8 @@ describe('useAppUpdateHandler', () => {
   })
 
   it('does not open a downloaded release after the channel session is acknowledged while the dialog chunk loads', async () => {
-    mocks.appUpdateState.manualCheck = true
     renderHook(() => useAppUpdateHandler())
+    await startManualCheck()
     const downloaded = mocks.handlers.get('app.updater.downloaded')
     if (!downloaded) throw new Error('missing downloaded handler')
 
@@ -263,9 +267,9 @@ describe('useAppUpdateHandler', () => {
   })
 
   it('keeps the downloaded update retryable when the install dialog fails to open', async () => {
-    mocks.appUpdateState.manualCheck = true
     mocks.updateDialogShow.mockRejectedValueOnce(new Error('chunk failed'))
     renderHook(() => useAppUpdateHandler())
+    await startManualCheck()
 
     emit('app.updater.downloaded', releaseInfo)
 
@@ -275,9 +279,10 @@ describe('useAppUpdateHandler', () => {
     )
   })
 
-  it('drops the previous channel artifact until that write settles, then accepts a background check', () => {
-    mocks.appUpdateState.manualCheck = true
+  it('drops the previous channel artifact until that write settles, then accepts a background check', async () => {
     renderHook(() => useAppUpdateHandler())
+    await startManualCheck()
+    mocks.updateAppUpdateState.mockClear()
     const epoch = appUpdateCheckService.invalidateSharedUpdateCheck()
 
     emit('app.updater.downloaded', releaseInfo)
@@ -287,7 +292,6 @@ describe('useAppUpdateHandler', () => {
     expect(mocks.updateAppUpdateState).not.toHaveBeenCalled()
     expect(mocks.notificationSend).not.toHaveBeenCalled()
 
-    mocks.appUpdateState.manualCheck = false
     appUpdateCheckService.resumeSharedUpdateSession(epoch)
     emit('app.updater.downloaded', releaseInfo)
 
@@ -315,10 +319,7 @@ describe('useAppUpdateHandler', () => {
     )
     expect(appUpdateCheckService.isActiveUpdateSession()).toBe(true)
     await act(async () => {
-      await appUpdateCheckService.runAppUpdateCheck(
-        { checking: false, downloading: false, downloaded: false, info: null, manualCheck: false },
-        mocks.updateAppUpdateState
-      )
+      await appUpdateCheckService.runAppUpdateCheck(idle, mocks.updateAppUpdateState)
     })
     expect(mocks.ipcRequest).toHaveBeenCalledWith('app.updater.check_for_update')
   })
@@ -335,8 +336,8 @@ describe('useAppUpdateHandler', () => {
     expect(appUpdateCheckService.readUpdateNotice()).toBe('settings.about.updateError')
   })
 
-  it('always resets failures and keeps a manual failure beside the check control', () => {
-    const { rerender } = renderHook(() => useAppUpdateHandler())
+  it('always resets failures and keeps a manual failure beside the check control', async () => {
+    renderHook(() => useAppUpdateHandler())
 
     emit('app.updater.error', new Error('background failure'))
     expect(mocks.popupInfo).not.toHaveBeenCalled()
@@ -347,15 +348,13 @@ describe('useAppUpdateHandler', () => {
       })
     )
 
-    mocks.appUpdateState.manualCheck = true
-    rerender()
+    await startManualCheck()
     emit('app.updater.error', new Error('manual failure'))
 
     expect(mocks.updateAppUpdateState).toHaveBeenLastCalledWith({
       checking: false,
       downloading: false,
       downloadProgress: 0,
-      manualCheck: false,
       lastErrorKey: 'settings.about.updateError'
     })
     expect(mocks.popupInfo).not.toHaveBeenCalled()
@@ -365,9 +364,9 @@ describe('useAppUpdateHandler', () => {
     })
   })
 
-  it('maps unpublished 503 bodies to a friendly message instead of the raw HTTP response', () => {
-    mocks.appUpdateState.manualCheck = true
+  it('maps unpublished 503 bodies to a friendly message instead of the raw HTTP response', async () => {
     renderHook(() => useAppUpdateHandler())
+    await startManualCheck()
 
     emit(
       'app.updater.error',

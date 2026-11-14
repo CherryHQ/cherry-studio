@@ -52,12 +52,11 @@ const PopupContainer: React.FC<Props> = ({ releaseInfo, open, resolve }) => {
   }
 
   const onCancel = () => {
-    updateAppUpdateState({ manualCheck: false })
     resolve({})
   }
 
   const onIgnore = () => {
-    updateAppUpdateState({ ignore: true, manualCheck: false })
+    updateAppUpdateState({ ignore: true })
     resolve({})
   }
 

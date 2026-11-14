@@ -109,8 +109,7 @@ const AboutSettings: FC = () => {
       downloaded: false,
       checking: false,
       downloading: false,
-      downloadProgress: 0,
-      manualCheck: false
+      downloadProgress: 0
     })
     // Main retires the old generation before this promise resolves, so resume waits.
     // A rejected write still resumes this epoch and keeps a generic inline notice.
