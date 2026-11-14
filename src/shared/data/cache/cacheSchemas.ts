@@ -441,6 +441,8 @@ export const DefaultSharedCache: SharedCacheSchema = {
  */
 export type RendererPersistCacheSchema = {
   'ui.browser.import_prompt_hidden': boolean
+  // Set by the composer's "don't ask again" when another surface replaces a non-empty draft.
+  'ui.composer.prefill_confirm_hidden': boolean
   'ui.browser.last_urls': Record<string, string>
   'ui.tab.pinned_tabs': CacheValueTypes.Tab[]
   // Open (unpinned) tabs and the active tab id, persisted so the tab session is restored on
@@ -524,6 +526,7 @@ export type RendererPersistCacheSchema = {
 
 export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
   'ui.browser.import_prompt_hidden': false,
+  'ui.composer.prefill_confirm_hidden': false,
   'ui.browser.last_urls': {},
   'ui.tab.pinned_tabs': [],
   'ui.tab.normal_tabs': [],

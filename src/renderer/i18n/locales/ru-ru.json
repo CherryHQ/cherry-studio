@@ -834,6 +834,7 @@
   "chat.input.pasted_text_file_name": "Вставленный текст.txt",
   "chat.input.pause": "Остановить",
   "chat.input.placeholder": "Введите сообщение. Введите / для инструментов и действий или @ для ссылки на беседу.",
+  "chat.input.prefill.dont_ask_again": "Больше не спрашивать",
   "chat.input.prefill.replace": "Заменить",
   "chat.input.prefill.replace_content": "Введённый вами текст будет заменён.",
   "chat.input.prefill.replace_title": "Заменить черновик?",

@@ -834,6 +834,7 @@
   "chat.input.pasted_text_file_name": "ข้อความที่วาง.txt",
   "chat.input.pause": "หยุดชั่วคราว",
   "chat.input.placeholder": "พิมพ์ข้อความ พิมพ์ / สำหรับเครื่องมือและการกระทำ @ เพื่ออ้างอิงหัวข้อ",
+  "chat.input.prefill.dont_ask_again": "ไม่ต้องถามอีก",
   "chat.input.prefill.replace": "แทนที่",
   "chat.input.prefill.replace_content": "ข้อความที่คุณพิมพ์ไว้จะถูกแทนที่",
   "chat.input.prefill.replace_title": "แทนที่ข้อความร่างหรือไม่",

@@ -834,6 +834,7 @@
   "chat.input.pasted_text_file_name": "已粘贴的文本.txt",
   "chat.input.pause": "暂停",
   "chat.input.placeholder": "输入消息，输入 / 选择工具或操作，输入 @ 引用话题",
+  "chat.input.prefill.dont_ask_again": "不再提示",
   "chat.input.prefill.replace": "替换",
   "chat.input.prefill.replace_content": "输入框里已输入的内容将被替换。",
   "chat.input.prefill.replace_title": "替换输入框里的内容？",
