@@ -81,11 +81,9 @@ export function usePaintingGeneration({ painting, onPaintingChange }: UsePaintin
           : await updatePainting(targetPainting.id, paintingDataToUpdateDto(targetPainting))
         targetPainting.persistedAt = persisted.createdAt
       } catch (error) {
-        const doctorModel = paintingDoctorModel(models, targetPainting.model)
         presentPaintingGenerateError(error, {
           operation: 'painting.persist',
           providerId: targetPainting.providerId,
-          ...doctorModel,
           recordId: targetPainting.id
         })
         return
