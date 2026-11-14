@@ -2197,6 +2197,7 @@
   "library.config.agent.prompt.load_failed": "Nie udało się złożyć pełnego promptu systemowego",
   "library.config.agent.prompt.loading": "Składanie pełnego promptu systemowego…",
   "library.config.agent.prompt.placeholder": "Tutaj napisz prompt systemowy agenta: kim jest, co robi i jakie ma ograniczenia. Jeśli pozostanie pusty, ta część i powyższa uwaga o pierwszeństwie nie zostaną wysłane.",
+  "library.config.agent.prompt.row_hint": "Wszystko, co otrzymuje agent Pi",
   "library.config.agent.prompt.tokens": "Około {{tokens}} tokenów",
   "library.config.agent.section.permission.desc": "Zakres autoryzacji działań agenta",
   "library.config.agent.section.permission.title": "Tryb uprawnień",

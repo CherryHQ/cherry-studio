@@ -766,7 +766,9 @@ function AgentMoreSettings({
       ) : null}
 
       <SettingsSection title={t('library.config.dialogs.edit.advanced_tab')}>
-        <SettingsRow label={promptLabel}>
+        <SettingsRow
+          label={promptLabel}
+          hint={agent.type === 'pi-durable' ? t('library.config.agent.prompt.row_hint') : undefined}>
           <SettingsLinkButton
             label={promptLabel}
             summary={
