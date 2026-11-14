@@ -124,6 +124,14 @@ describe('DataApiService devtools instrumentation', () => {
     expect(request).toHaveBeenCalledTimes(1)
   })
 
+  it('preserves main-process reporting ownership through IPC reconstruction', async () => {
+    const service = await createService()
+    const error = DataApiErrorFactory.validation({ name: ['Required'] })
+    error.reportingHandled = true
+    request.mockImplementationOnce(async (req) => ({ id: req.id, status: error.status, error: error.toJSON() }))
+    await expect(service.get('/providers' as any)).rejects.toMatchObject({ reportingHandled: true, code: error.code })
+  })
+
   it('records failed requests with request and error details in one entry', async () => {
     const service = await createService({ capturePayloads: true })
     const error = DataApiErrorFactory.validation({ name: ['Required'] }, 'Invalid provider')

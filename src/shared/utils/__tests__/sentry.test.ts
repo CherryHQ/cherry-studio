@@ -3,6 +3,44 @@ import { describe, expect, it } from 'vitest'
 import { getSentryBuildContext, getSentryLogContext, sanitizeSentryEvent } from '../sentry'
 
 describe('Sentry context', () => {
+  it.each([undefined, { kind: 'defect' }])('keeps logs without valid failure facts local', (failure) => {
+    expect(
+      getSentryLogContext({ level: 'error', stack: 'Error: private details', operation: 'react.render', failure })
+    ).toBeUndefined()
+  })
+
+  it('does not promote expected SDK failures to product defects just because they have a stack', () => {
+    expect(
+      getSentryLogContext({
+        level: 'error',
+        stack: 'Error: output limit',
+        failure: { source: 'sdk', kind: 'expected', reason: 'output_limit', outcome: 'failed', runtime: 'pi' }
+      })
+    ).toBeUndefined()
+  })
+
+  it('captures a structured process crash without manufacturing a JavaScript stack', () => {
+    expect(
+      getSentryLogContext({
+        level: 'error',
+        module: 'MainWindowService',
+        operation: 'window.renderer.exit',
+        failure: { source: 'application', kind: 'reliability', reason: 'crashed', outcome: 'failed' }
+      })?.tags
+    ).toMatchObject({ 'failure.kind': 'reliability', 'failure.reason': 'crashed' })
+  })
+
+  it('does not report an IPC failure again in its receiving process', () => {
+    expect(
+      getSentryLogContext({
+        level: 'error',
+        stack: 'Error: remote error',
+        reportingHandled: true,
+        failure: { source: 'application', kind: 'defect', reason: 'execution_failed', outcome: 'failed' }
+      })
+    ).toBeUndefined()
+  })
+
   it.each([
     ['2.0.14', 'stable'],
     ['2.1.0-rc.2', 'rc'],
@@ -22,6 +60,7 @@ describe('Sentry context', () => {
       errorMessage: 'Failed',
       stack: 'Error: Failed\n at run (app:///job.js:2:3)',
       operation: 'job.schedule.fire',
+      failure: { source: 'application', kind: 'defect', reason: 'execution_failed', outcome: 'failed' },
       module: 'JobManager',
       code: 'SQLITE_BUSY',
       process: 'main',
@@ -29,7 +68,16 @@ describe('Sentry context', () => {
       context: { prompt: 'private conversation' }
     }
     expect(getSentryLogContext(info)).toEqual({
-      tags: { module: 'JobManager', code: 'SQLITE_BUSY', operation: 'job.schedule.fire', 'event.process': 'main' },
+      tags: {
+        module: 'JobManager',
+        code: 'SQLITE_BUSY',
+        operation: 'job.schedule.fire',
+        'event.process': 'main',
+        'failure.source': 'application',
+        'failure.kind': 'defect',
+        'failure.reason': 'execution_failed',
+        'failure.outcome': 'failed'
+      },
       extra: undefined
     })
     expect(getSentryLogContext({ ...info, operation: 'user typed this text' })?.tags).not.toHaveProperty('operation')

@@ -1,9 +1,12 @@
+import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type * as FileFailureModule from '@main/services/file/failureFacts'
 import type * as FileDispatchModule from '@main/services/file/internal/dispatch'
 import type * as FileUtilsModule from '@main/utils/file'
 import type { InputFor } from '@shared/ipc/types'
 import type { AbsoluteFilePath } from '@shared/types/file'
+import { getSentryLogContext } from '@shared/utils/sentry'
 
 const {
   appGetMock,
@@ -41,7 +44,9 @@ vi.mock('@main/utils/file', async (importOriginal) => ({
 vi.mock('@main/services/file', async () => {
   // dispatchHandle is exercised for real so these tests cover handle routing.
   const { dispatchHandle } = await vi.importActual<typeof FileDispatchModule>('@main/services/file/internal/dispatch')
+  const { classifyFileFailure } = await vi.importActual<typeof FileFailureModule>('@main/services/file/failureFacts')
   return {
+    classifyFileFailure,
     ContentCommittedMetadataPendingError: class ContentCommittedMetadataPendingError extends Error {
       constructor(
         readonly entryId: string,
@@ -63,6 +68,7 @@ vi.mock('@main/services/file', async () => {
         super('DirectoryTreeManager stopped during in-flight builder creation')
       }
     },
+    isInsideManagedStorage: vi.fn().mockResolvedValue(false),
     assertOutsideManagedStorageMutation: assertOutsideManagedStorageMutationMock,
     dispatchHandle,
     copyFileToClipboard: clipboardCopyMock,
@@ -111,6 +117,7 @@ const fileManager = {
   readChunk: vi.fn(),
   open: vi.fn(),
   showInFolder: vi.fn(),
+  copyToClipboard: vi.fn(),
   writeIfUnchanged: vi.fn(),
   batchCreateInternalEntries: vi.fn()
 }
@@ -143,20 +150,21 @@ const ctx = { senderId: null }
 const windowCtx = { senderId: 'win-1' }
 
 describe('fileHandlers', () => {
-  it('copies path handles and entry storage paths, and refuses unmanaged callers first', async () => {
+  it('dispatches clipboard copies to the path or entry owner, and refuses unmanaged callers first', async () => {
     const path = '/tmp/physical' as AbsoluteFilePath
     const pathHandle = { kind: 'path' as const, path }
     const entryHandle = { kind: 'entry' as const, entryId: ids[0] } as Parameters<
       (typeof fileHandlers)['file.copy_to_clipboard']
     >[0]
-    fileManager.getPhysicalPath.mockReturnValueOnce('/storage/actual')
     await fileHandlers['file.copy_to_clipboard'](pathHandle, windowCtx)
     await fileHandlers['file.copy_to_clipboard'](entryHandle, windowCtx)
-    expect(clipboardCopyMock.mock.calls.map(([target]) => target)).toEqual([path, '/storage/actual'])
+    expect(clipboardCopyMock.mock.calls.map(([target]) => target)).toEqual([path])
+    expect(fileManager.copyToClipboard.mock.calls.map(([id]) => id)).toEqual([ids[0]])
     vi.clearAllMocks()
     await expect(fileHandlers['file.copy_to_clipboard'](entryHandle, ctx)).rejects.toThrow('managed window sender')
     expect(appGetMock).not.toHaveBeenCalled()
     expect(clipboardCopyMock).not.toHaveBeenCalled()
+    expect(fileManager.copyToClipboard).not.toHaveBeenCalled()
   })
 
   it('maps only removed entry errors to missing', async () => {
@@ -424,11 +432,21 @@ describe('fileHandlers', () => {
   })
 
   it('get_metadata resolves null for a missing path instead of throwing', async () => {
-    getMetadataByPathMock.mockRejectedValueOnce(new Error('ENOENT'))
+    getMetadataByPathMock.mockRejectedValueOnce(Object.assign(new Error('missing'), { code: 'ENOENT' }))
 
     await expect(
       fileHandlers['file.get_metadata']({ kind: 'path', path: '/tmp/missing.txt' as AbsoluteFilePath }, ctx)
     ).resolves.toBeNull()
+    expect(getSentryLogContext(mockMainLoggerService.warn.mock.calls.at(-1)![1])).toBeUndefined()
+  })
+
+  it('reports a metadata implementation fault even though the route falls back to null', async () => {
+    getMetadataByPathMock.mockRejectedValueOnce(new TypeError('broken metadata reader'))
+    await expect(
+      fileHandlers['file.get_metadata']({ kind: 'path', path: '/tmp/a.txt' as AbsoluteFilePath }, ctx)
+    ).resolves.toBeNull()
+    const entry = mockMainLoggerService.warn.mock.calls.at(-1)![1]
+    expect(getSentryLogContext(entry)?.tags['failure.kind']).toBe('defect')
   })
 
   it('batch_get_physical_paths returns null for per-entry path failures', async () => {

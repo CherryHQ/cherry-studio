@@ -56,6 +56,7 @@ import { ConversationNavigationService } from '@main/services/ConversationNaviga
 import { ConversationNotificationService } from '@main/services/ConversationNotificationService'
 import { DeepSeekHarnessService } from '@main/services/deepSeekHarness'
 import { DoctorAgentService, DoctorService } from '@main/services/diagnostics'
+import { ErrorReportingService } from '@main/services/errorReporting'
 import { DirectoryTreeManager, FileManager, FileIntakeService, FileEditService } from '@main/services/file'
 import { HermesDashboardService } from '@main/services/HermesDashboardService'
 import { LogRetentionService } from '@main/services/LogRetentionService'
@@ -80,7 +81,6 @@ import { ScreenshotOverlayService } from '@main/services/screenshot'
 import { ScreenshotChatService } from '@main/services/ScreenshotChatService'
 import { SelectionAgentWindowService } from '@main/services/selection/SelectionAgentWindowService'
 import { SelectionService } from '@main/services/selection/SelectionService'
-import { SentryLogService } from '@main/services/SentryLogService'
 import { ShortcutService } from '@main/services/ShortcutService'
 import { StorageMonitorService } from '@main/services/StorageMonitorService'
 import { SubWindowService } from '@main/services/SubWindowService'
@@ -127,7 +127,7 @@ export const services = {
   IpcApiService,
   SubWindowService,
   PreferenceService,
-  SentryLogService,
+  ErrorReportingService,
   TesseractRuntimeService,
   AnalyticsService,
   AppMenuService,

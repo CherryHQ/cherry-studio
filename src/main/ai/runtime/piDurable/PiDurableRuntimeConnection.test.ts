@@ -922,6 +922,8 @@ describe('desktop Pi Durable connection', () => {
     try {
       const current = await connect()
       await current.connection.send({ message: message('run a tool') })
+      // Native shell execution and model streaming can exceed the event poll's timeout.
+      await current.connection.drainChildWrites()
       await done(current.events)
       await current.connection.close()
       expect(text(current.events)).toContain('finished')

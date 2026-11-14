@@ -4,6 +4,8 @@ import { application } from '@application'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { getRetiredAgentSessionMigration } from '@data/services/retiredAgentRuntimeMigration'
+import { loggerService } from '@logger'
+import { logAiFailure } from '@main/ai/errorReporting'
 import { prepareAgentSessionWorkspaceDirectory } from '@main/ai/runtime/agentSessionWorkspace'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 
@@ -14,11 +16,14 @@ import type {
   AgentSessionRuntimeDriver,
   OrphanSessionReclaimOptions
 } from '../types'
+import { classifyPiFailure } from './failureFacts'
 import { PiForkCheckpointSchema } from './forkCheckpoint'
 import { forkPiSession } from './piFork'
 import { PiRuntimeConnection } from './PiRuntimeConnection'
 import { ensureRetiredSessionHistory, migrateRetiredSessionHistories } from './retiredSessionHistory'
 import { piWorkspaceRelocation } from './workspaceRelocation'
+
+const logger = loggerService.withContext('PiRuntimeDriver')
 
 export class PiRuntimeDriver implements AgentSessionRuntimeDriver {
   readonly workspaceRelocation = piWorkspaceRelocation
@@ -58,7 +63,13 @@ export class PiRuntimeDriver implements AgentSessionRuntimeDriver {
           nativeSessionId: undefined
         }
       : input
-    return new PiRuntimeConnection(migratedInput).start()
+    const connection = new PiRuntimeConnection(migratedInput)
+    try {
+      return await connection.start()
+    } catch (error) {
+      logAiFailure(logger, 'Pi startup failed', error, 'agent.pi.start', classifyPiFailure(error))
+      throw error
+    }
   }
 
   /**

@@ -10,6 +10,8 @@ vi.mock('@sentry/electron/renderer', async (importOriginal) => ({
 }))
 vi.unmock('@logger')
 
+import { IpcError } from '@shared/ipc/errors/IpcError'
+
 import { loggerService } from '../LoggerService'
 import { initSentry } from '../sentry'
 
@@ -24,6 +26,30 @@ afterEach(() => {
 })
 
 describe('renderer Sentry initialization', () => {
+  it('keeps unclassified handled renderer errors in local diagnostics', () => {
+    initSentry()
+    loggerService.withContext('Caller').error('Failed', new Error('Private details'), { operation: 'react.render' })
+    expect(captureExceptionMock.mock.calls).toHaveLength(0)
+  })
+
+  it('keeps remote-owned failures local even when caught by a global exception handler', () => {
+    initSentry()
+    const error = IpcError.fromJSON({ code: 'INTERNAL', message: 'Main failure', reportingHandled: true })
+    loggerService.withContext('Caller').error('IPC failed', error, {
+      failure: { source: 'application', kind: 'defect', reason: 'execution_failed', outcome: 'failed' }
+    })
+    expect(captureExceptionMock).not.toHaveBeenCalled()
+    expect(initMock.mock.calls[0][0].beforeSend({}, { originalException: error })).toBeNull()
+    expect(
+      initMock.mock.calls[0][0].beforeSend(
+        {},
+        {
+          originalException: Object.assign(new Error('cancelled'), { code: 'ERR_CANCELED' })
+        }
+      )
+    ).toBeNull()
+  })
+
   it('opts into error capture and IPC bridging without enabling ambient data collection', () => {
     initSentry()
 
@@ -75,6 +101,7 @@ describe('renderer Sentry initialization', () => {
       .withContext('ErrorBoundary', { prompt: 'private conversation' })
       .error('Caught a render error', error, {
         operation: 'react.render',
+        failure: { source: 'application', kind: 'defect', reason: 'render_failed', outcome: 'failed' },
         componentStack: 'at MessageList',
         apiKey: 'private-key'
       })

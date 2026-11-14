@@ -6,6 +6,7 @@ import type { AssistantMessage } from '@earendil-works/pi-ai'
 import { createAssistantMessageEventStream } from '@earendil-works/pi-ai'
 import { obj } from '@earendil-works/pi-schema'
 import { setupTestDatabase } from '@test-helpers/db'
+import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { eq } from 'drizzle-orm'
 import { v7 as uuid } from 'uuid'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -28,6 +29,7 @@ import type { ToolGuardInteractionState } from '@main/ai/toolApproval/toolGuards
 import type { AgentChildUpdate } from '@shared/ai/agentChildProjection'
 import { ModelSchema } from '@shared/data/types/model'
 import { ProviderSchema } from '@shared/data/types/provider'
+import { getSentryLogContext } from '@shared/utils/sentry'
 
 import {
   assistantReply,
@@ -1154,6 +1156,31 @@ describe('desktop Pi root connection', () => {
     )
   })
 
+  it.each([
+    { stop: 'error', message: 'insufficient balance', eligible: false },
+    { stop: 'length', message: 'Output limit reached', eligible: false },
+    { stop: 'aborted', message: 'Cancelled', eligible: false },
+    { stop: 'error', message: 'Unexpected native runtime failure', eligible: true }
+  ] as const)(
+    'classifies the native $stop outcome before forwarding it',
+    async ({ stop, message: errorMessage, eligible }) => {
+      setScript([{ ...assistantReply([], stop), errorMessage }])
+      const { connection, events } = await connect()
+      mockMainLoggerService.error.mockClear()
+      await connection.send({ message: message('question') })
+      await done(events)
+      const failures = events.filter((event) => event.type === 'error')
+      expect(failures).toHaveLength(1)
+      expect(failures[0]).toMatchObject({ error: { reportingHandled: true } })
+      expect(events.filter((event) => event.type === 'turn-complete')).toEqual([])
+      const records = mockMainLoggerService.error.mock.calls
+        .map((call) => call[1])
+        .filter((entry) => entry?.operation === 'agent.pi.prompt' && !entry.reportingHandled)
+      expect(records).toHaveLength(1)
+      expect(getSentryLogContext({ ...records[0], level: 'error' }) !== undefined).toBe(eligible)
+    }
+  )
+
   it('seals admission during stop, saves the aborted input, and reopens for a new message', async () => {
     holdResponse('partial')
     const first = await connect()
@@ -1270,6 +1297,52 @@ describe('desktop Pi root connection', () => {
     expect(JSON.stringify(script.calls.at(-1)!.messages)).toContain('keep the important facts')
     expect(script.calls.at(-1)!.tools).toEqual([])
   })
+
+  it.each(['cancelled', 'provider', 'unknown'] as const)(
+    'reports one native manual compaction failure for $0',
+    async (failure) => {
+      const summary = gate()
+      script = respondingModel((_call, index) => {
+        if (index < 3) return assistantReply('A fact to retain')
+        if (failure === 'cancelled') return summary.wait(assistantReply('summary'))
+        return {
+          ...assistantReply([], 'error'),
+          errorMessage: failure === 'provider' ? 'insufficient balance' : 'Unexpected native summary failure'
+        }
+      })
+      mocks.binding.mockImplementation(async () => ({
+        ...(await createTestBinding({ model: MODEL, stream: script.model })),
+        compaction: { reserveTokens: 16_384, keepRecentTokens: 1 }
+      }))
+      const { connection, events } = await connect()
+      await connection.send({ message: message('history to summarize') })
+      await done(events)
+      await connection.send({ message: message('another fact') })
+      await expect.poll(() => events.filter((event) => event.type === 'turn-complete')).toHaveLength(2)
+      mockMainLoggerService.error.mockClear()
+      const before = events.length
+      const compacting = connection.send({ message: message('/compact') })
+      try {
+        if (failure === 'cancelled') {
+          await expect.poll(() => script.calls.length).toBe(3)
+          await connection.close()
+          expect(script.calls[2].signal?.aborted).toBe(true)
+        }
+        await compacting
+        await expect
+          .poll(() => events.slice(before).filter((event) => event.type === 'error'))
+          .toHaveLength(failure === 'cancelled' ? 0 : 1)
+        expect(events.slice(before).filter((event) => event.type === 'turn-complete')).toEqual([])
+        const reports = mockMainLoggerService.error.mock.calls
+          .map((call) => getSentryLogContext({ ...call[1], level: 'error' }))
+          .filter(Boolean)
+        expect(reports).toHaveLength(failure === 'unknown' ? 1 : 0)
+      } finally {
+        summary.open()
+        await compacting
+      }
+    }
+  )
 
   it('forwards attachment paths through the input boundary while keeping input identities private', async () => {
     const attachmentPath = join(directory, 'note.txt')

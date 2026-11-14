@@ -4341,17 +4341,23 @@ describe('AiStreamManager', () => {
         name: null,
         message: 'You have no credits remaining.',
         stack: null,
+        reportingHandled: true,
         streamStage: 'response-stream'
       })
       expect(JSON.stringify(listener.errorResults[0].error)).not.toMatch(/object-secret|private prompt/)
-      expect(mockMainLoggerService.error).toHaveBeenCalledWith('AI stream error', {
-        topicId: 'a',
-        modelId: 'provider-a::model-a',
-        attemptId: listener.errorResults[0].attemptId,
-        stage: 'response-stream',
-        origin: 'throw',
-        cause: { errorMessage: 'You have no credits remaining.' }
-      })
+      expect(mockMainLoggerService.error).toHaveBeenCalledWith(
+        'AI stream error',
+        expect.objectContaining({
+          topicId: 'a',
+          modelId: 'provider-a::model-a',
+          errorMessage: 'You have no credits remaining.',
+          operation: 'chat.stream.consume',
+          attemptId: listener.errorResults[0].attemptId,
+          stage: 'response-stream',
+          origin: 'throw',
+          cause: { errorMessage: 'You have no credits remaining.' }
+        })
+      )
       expect(JSON.stringify(mockMainLoggerService.error.mock.calls)).not.toMatch(/object-secret|private prompt/)
       expect(mgr.inspect('a')!.status).toBe('error')
     })
@@ -4397,6 +4403,7 @@ describe('AiStreamManager', () => {
 
       const apiError = new APICallError({
         message: 'Forbidden',
+        cause: new Error('Nested transport diagnostic'),
         url: 'https://llm.example.com/v1/chat/completions?api_key=fixture-secret',
         requestBodyValues: { messages: [{ role: 'user', content: 'private prompt' }] },
         statusCode: 403,
@@ -4431,6 +4438,7 @@ describe('AiStreamManager', () => {
         name: 'AI_APICallError',
         message: 'no access to this model',
         providerErrorCategory: 'permission',
+        reportingHandled: true,
         stack: null,
         cause: null,
         url: '',
@@ -4445,12 +4453,14 @@ describe('AiStreamManager', () => {
       expect(mockMainLoggerService.error.mock.calls).toHaveLength(1)
       expect(mockMainLoggerService.error.mock.calls[0]).toEqual([
         'AI stream error',
-        {
+        expect.objectContaining({
           topicId: 'a',
           modelId: 'provider-a::model-a',
           attemptId: listener.errorResults[0].attemptId,
           stage: 'response-stream',
           origin: 'throw',
+          operation: 'chat.stream.consume',
+          failure: expect.objectContaining({ source: 'provider', kind: 'expected', reason: 'permission' }),
           cause: {
             errorName: 'AI_APICallError',
             errorMessage: '<string:9>',
@@ -4459,10 +4469,11 @@ describe('AiStreamManager', () => {
             url: 'https://llm.example.com/v1/chat/completions?api_key=%3Credacted%3E',
             requestShape: { messages: [{ role: 'user', content: '<string:14>' }] },
             responseHeaders: {},
-            responseBody: { detail: '<string:23>' }
+            responseBody: { detail: '<string:23>' },
+            cause: expect.objectContaining({ errorName: 'Error', errorMessage: '<string:27>' })
           },
           chunk: { errorMessage: 'Forbidden' }
-        }
+        })
       ])
       expect(JSON.stringify([listener.errorResults[0].error, mockMainLoggerService.error.mock.calls])).not.toMatch(
         /fixture-secret|private prompt/

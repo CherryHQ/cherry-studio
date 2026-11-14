@@ -49,6 +49,14 @@ an explicit native Durable phase parent using the gateway's internal usage captu
 no model span and writes no billing record. Ordinary Pi 1.5.0 has no native tool-span API,
 so tool details remain in its transcript. The host does not reconstruct tool spans from message events.
 
+The desktop connection classifies native input outcomes before forwarding failures. Cancellation,
+output limits and known provider failures remain local; unexpected runtime and projection failures
+remain eligible for error reporting. Capture ownership follows the original error through the
+terminal event, so the outer session boundary cannot report it again.
+Manual compaction's original thrown error inherits capture ownership only when the runtime
+identifies the matching root's failed compaction event. Post-compaction callback failures and
+unrelated background errors remain separate reporting candidates.
+
 ## Host ports
 
 `piBehaviorHost.ts` connects shared behavior to the existing approval registry, question cards, model
