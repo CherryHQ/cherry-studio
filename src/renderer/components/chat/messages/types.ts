@@ -407,6 +407,8 @@ export interface MessageListActions {
   openExternalUrl?: (url: string) => void | Promise<void>
   navigateToRoute?: (target: { path: string; query?: Record<string, string> }) => void | Promise<void>
   openUserProfile?: () => void | Promise<void>
+  /** Opens or closes the profile of the conversation's current Assistant or Agent. */
+  toggleAuthorProfile?: () => void
   copyText?: (text: string, options?: { successMessage?: string; emptyMessage?: string }) => void | Promise<void>
   copyRichContent?: (
     content: { plainText: string; html: string; customFormats?: Record<string, string> },

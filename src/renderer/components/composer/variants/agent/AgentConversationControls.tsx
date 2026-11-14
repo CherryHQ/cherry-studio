@@ -2,7 +2,8 @@ import { Bot, ChevronDown, CircleSlash, Folder, Sparkles, TriangleAlert, X } fro
 import React, { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button, NormalTooltip, Tooltip } from '@cherrystudio/ui'
+import { Button, EmojiIcon, NormalTooltip, Tooltip } from '@cherrystudio/ui'
+import { AssistantAvatarImage } from '@renderer/components/Avatar/AssistantAvatarImage'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { CherryCloudModelSelector as ModelSelector } from '@renderer/components/cherryCloud/CherryCloudModelSelector'
 import { type ModelSelectorFilter } from '@renderer/components/ModelSelector'
@@ -10,6 +11,7 @@ import { OpenTargetButton } from '@renderer/components/OpenTarget'
 import { type ResourceEditDialogTarget } from '@renderer/components/resourceCatalog/dialogs/edit'
 import { AgentSelector, WorkspaceSelector } from '@renderer/components/resourceCatalog/selectors'
 import { useProviderDisplayName } from '@renderer/hooks/useProvider'
+import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
 import { getProviderDisplayNameById } from '@renderer/utils/naming'
 import { cn } from '@renderer/utils/style'
 import type { AgentWorkspaceEntity } from '@shared/data/api/schemas/agentWorkspaces'
@@ -20,6 +22,7 @@ import {
   COMPOSER_BELOW_SELECTOR_BUTTON_CLASS,
   COMPOSER_ICON_ONLY_LABEL_CLASS,
   COMPOSER_ICON_ONLY_SELECTOR_BUTTON_CLASS,
+  COMPOSER_PROFILE_AVATAR_BUTTON_CLASS,
   COMPOSER_SELECTOR_BUTTON_CLASS
 } from '../shared/ComposerControlScaffolding'
 import { AgentLabel } from './AgentLabel'
@@ -54,6 +57,9 @@ export interface AgentConversationControlsProps {
   onWorkspaceChange?: (workspaceId: string | null) => void | Promise<void>
   modelFilter?: ModelSelectorFilter
   onAgentDialogCloseAutoFocus?: () => void
+  /** When given, the avatar becomes its own button (the profile pane toggle); the name keeps its action. */
+  onAvatarClick?: () => void
+  avatarActive?: boolean
 }
 
 function AgentControl({
@@ -65,7 +71,9 @@ function AgentControl({
   iconOnly = false,
   agentTriggerMode,
   onAgentDialogCloseAutoFocus,
-  onAgentChange
+  onAgentChange,
+  onAvatarClick,
+  avatarActive = false
 }: Pick<
   AgentConversationControlsProps,
   | 'agent'
@@ -77,12 +85,33 @@ function AgentControl({
   | 'agentTriggerMode'
   | 'onAgentDialogCloseAutoFocus'
   | 'onAgentChange'
+  | 'onAvatarClick'
+  | 'avatarActive'
 >) {
+  const { t } = useTranslation()
   const baseTriggerClassName = side === 'bottom' ? COMPOSER_BELOW_SELECTOR_BUTTON_CLASS : COMPOSER_SELECTOR_BUTTON_CLASS
   const triggerClassName = cn(baseTriggerClassName, iconOnly && COMPOSER_ICON_ONLY_SELECTOR_BUTTON_CLASS)
   const labelClassName = cn('truncate', iconOnly && COMPOSER_ICON_ONLY_LABEL_CLASS)
   const chevronClassName = cn('text-muted-foreground', iconOnly && 'hidden')
   const [agentEditDialogTarget, setAgentEditDialogTarget] = useState<ResourceEditDialogTarget | null>(null)
+
+  const avatarButton =
+    onAvatarClick && agent ? (
+      <button
+        type="button"
+        aria-label={t('chat.profile_pane.open', { name: agent.name })}
+        aria-pressed={avatarActive}
+        onClick={onAvatarClick}
+        className={COMPOSER_PROFILE_AVATAR_BUTTON_CLASS}>
+        <AssistantAvatarImage
+          src={agent.avatarSrc}
+          alt=""
+          size={20}
+          className="rounded-full object-cover"
+          fallback={<EmojiIcon emoji={getAgentAvatarFromConfiguration(agent.configuration)} size={20} />}
+        />
+      </button>
+    ) : null
 
   const agentTrigger = (
     <Button
@@ -99,6 +128,7 @@ function AgentControl({
         <AgentLabel
           agent={agent}
           avatarSize={20}
+          hideIcon={!!avatarButton}
           classNames={{
             name: cn('max-w-40 text-xs', iconOnly && COMPOSER_ICON_ONLY_LABEL_CLASS),
             container: 'gap-1.5'
@@ -117,6 +147,7 @@ function AgentControl({
   if (agentTriggerMode === 'edit') {
     return (
       <>
+        {avatarButton}
         {agentTrigger}
         {agentEditDialogTarget ? (
           <React.Suspense fallback={null}>
@@ -136,16 +167,19 @@ function AgentControl({
   }
 
   return (
-    <AgentSelector
-      value={agent?.id ?? null}
-      onChange={onAgentChange}
-      autoSelectOnCreate={shouldAutoSelectCreatedAgent}
-      side={side}
-      align="start"
-      mountStrategy="lazy-keep"
-      onDialogCloseAutoFocus={onAgentDialogCloseAutoFocus}
-      trigger={agentTrigger}
-    />
+    <>
+      {avatarButton}
+      <AgentSelector
+        value={agent?.id ?? null}
+        onChange={onAgentChange}
+        autoSelectOnCreate={shouldAutoSelectCreatedAgent}
+        side={side}
+        align="start"
+        mountStrategy="lazy-keep"
+        onDialogCloseAutoFocus={onAgentDialogCloseAutoFocus}
+        trigger={agentTrigger}
+      />
+    </>
   )
 }
 

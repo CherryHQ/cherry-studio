@@ -4,6 +4,7 @@ import { createContext, lazy, Suspense, use, useCallback, useMemo, useRef, useSt
 import { useTranslation } from 'react-i18next'
 
 import type { TopicMessageFlowLiveState } from '@renderer/components/chat/flow'
+import { AssistantProfilePane, PROFILE_PANE_ID } from '@renderer/components/chat/panes/profile'
 import {
   createResourcePaneCapability,
   RESOURCE_PANE_TAB,
@@ -33,6 +34,12 @@ const TracePane = lazy(() =>
 )
 
 interface TopicRightPaneMeta {
+  /** The conversation's current Assistant, shown by the profile pane. */
+  assistantId?: string
+  /** Opens one of the Assistant's topics from its profile. */
+  onOpenTopic?: (topicId: string) => void
+  /** Shows the Assistant's topics in the topic list. */
+  onShowTopics?: () => void
   topicId?: string
   topicName?: string
   /** Container-level trace id. When developer mode is on, the Trace tab renders this trace tree. */
@@ -47,6 +54,7 @@ interface TopicRightPanelScope extends TopicRightPaneMeta {
   browserTitle: string
   branchTitle: string
   developerMode: boolean
+  profileTitle: string
   resourcePane: ResourcePaneConfig | null
   traceTitle: string
 }
@@ -178,6 +186,17 @@ function TopicTraceRightPanel({ active, scope }: RightPanelComponentProps<TopicR
   )
 }
 
+function TopicProfileRightPanel({ scope }: RightPanelComponentProps<TopicRightPanelScope>) {
+  return scope.assistantId ? (
+    <AssistantProfilePane
+      assistantId={scope.assistantId}
+      activeTopicId={scope.topicId}
+      onOpenTopic={scope.onOpenTopic}
+      onShowAllTopics={scope.onShowTopics}
+    />
+  ) : null
+}
+
 /** Stable capability declarations; catalog order is the fallback order. */
 const TRACE_PANE_ID = 'trace'
 const TOPIC_RESOURCE_PANE_CAPABILITY = createResourcePaneCapability<TopicRightPanelScope>()
@@ -212,11 +231,27 @@ const TOPIC_RIGHT_PANEL_CAPABILITIES = [
       canMaximize: true
     })
   },
-  TOPIC_TRACE_PANE_CAPABILITY
+  TOPIC_TRACE_PANE_CAPABILITY,
+  // Last, so it never becomes the fallback the sidebar shortcut opens; the avatars are its entry.
+  {
+    component: TopicProfileRightPanel,
+    widthPreset: 'profile',
+    resolve: (scope) => ({
+      id: PROFILE_PANE_ID,
+      instanceKey: `profile:assistant:${scope.assistantId ?? 'unavailable'}`,
+      title: scope.profileTitle,
+      readiness: scope.assistantId ? 'ready' : 'unavailable',
+      headerMode: 'content',
+      canMaximize: false
+    })
+  }
 ] satisfies readonly RightPanelCapability<TopicRightPanelScope>[]
 
 function TopicRightPaneProvider({
   children,
+  assistantId,
+  onOpenTopic,
+  onShowTopics,
   resourcePane,
   topicId,
   topicName,
@@ -242,6 +277,9 @@ function TopicRightPaneProvider({
   if (!storeRef.current) storeRef.current = createTopicBranchLiveStateStore()
   const scope = useMemo<TopicRightPanelScope>(
     () => ({
+      assistantId,
+      onOpenTopic,
+      onShowTopics,
       topicId,
       topicName,
       traceId,
@@ -249,9 +287,10 @@ function TopicRightPaneProvider({
       developerMode: enableDeveloperMode,
       browserTitle: t('settings.browser.title'),
       branchTitle: t('chat.message.flow.title'),
+      profileTitle: t('chat.profile_pane.title'),
       traceTitle: t('trace.label')
     }),
-    [enableDeveloperMode, resourcePane, t, topicId, topicName, traceId]
+    [assistantId, enableDeveloperMode, onOpenTopic, onShowTopics, resourcePane, t, topicId, topicName, traceId]
   )
 
   return (

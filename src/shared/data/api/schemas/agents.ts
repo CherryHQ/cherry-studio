@@ -293,6 +293,16 @@ export type ListAgentsQuery = z.output<typeof ListAgentsQuerySchema>
 // API Schema definitions
 // ============================================================================
 
+/** Activity of one Agent: its own sessions, task runs and recent token use only. */
+export interface AgentStats {
+  /** Ordinary conversations, excluding scheduled-task runs and deleted sessions. */
+  sessionCount: number
+  /** Runs of this Agent's scheduled tasks started in the last 7 days (rolling). */
+  recentTaskRunCount: number
+  /** Tokens attributed to this Agent over the last 7 days (rolling). */
+  recentTokens: number
+}
+
 export type AgentSchemas = {
   /** List all agents. Creation is a mixed filesystem + DB command on IpcApi (`ai.agent.create`). */
   '/agents': {
@@ -312,6 +322,14 @@ export type AgentSchemas = {
       params: { agentId: string }
       body: UpdateAgentDto
       response: AgentEntity
+    }
+  }
+
+  /** Usage overview of one Agent, for its profile. */
+  '/agents/:agentId/stats': {
+    GET: {
+      params: { agentId: string }
+      response: AgentStats
     }
   }
 
