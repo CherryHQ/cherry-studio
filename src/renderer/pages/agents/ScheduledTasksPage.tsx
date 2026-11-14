@@ -197,14 +197,23 @@ export default function ScheduledTasksPage() {
                   : t('scheduledTasks.noConversation')}
       </p>
       {!!error && (
-        <Button
-          variant="outline"
-          onClick={() => {
-            void refreshTask()
-            conversation.retry()
-          }}>
-          {t('common.retry')}
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            onClick={() => {
+              void refreshTask()
+              conversation.retry()
+            }}>
+            {t('common.retry')}
+          </Button>
+          <ErrorDetailAction
+            error={error}
+            message={t('scheduledTasks.unavailable')}
+            source="agent.tasks"
+            operation="task.load"
+            {...(taskId ? { recordId: taskId } : {})}
+          />
+        </div>
       )}
       {conversation.hasMore && (
         <Button variant="outline" disabled={conversation.loading} onClick={() => void conversation.loadMore()}>
