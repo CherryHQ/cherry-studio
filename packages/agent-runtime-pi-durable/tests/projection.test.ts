@@ -7,7 +7,7 @@ import type {
   LiveState,
   TaskId
 } from '@earendil-works/pi-durable'
-import { describe, expect, it, onTestFinished } from 'vitest'
+import { describe, expect, it, onTestFinished, vi } from 'vitest'
 
 import { runtimeId, type ObservationPayload } from '@cherrystudio/agent-runtime'
 
@@ -43,6 +43,30 @@ function setup(initial: ConversationView) {
 const live = (attempt = 1): LiveState => ({
   run: { taskId, inputs: [], turns: 0 },
   generation: { attempt, message: JSON.parse(JSON.stringify(fauxAssistantMessage('same text'))) }
+})
+
+it('copies only the newly published history when updating a view without observers', () => {
+  const projection = new DurableProjection({ backendId: runtimeId('backend'), id: runtimeId('1') }, (error) => {
+    throw error
+  })
+  const entries = Array.from({ length: 32 }, (_, index) => entry(index + 1, `saved-${index}`))
+  projection.update(view(entries))
+  // oxlint-disable-next-line no-restricted-properties -- Measure real clone work without replacing the copy or isolation behavior.
+  const clone = globalThis.structuredClone
+  let copiedMessages = 0
+  const measured = vi.spyOn(globalThis, 'structuredClone').mockImplementation((value, options) => {
+    if (value && typeof value === 'object' && 'messages' in value && Array.isArray(value.messages))
+      copiedMessages += value.messages.length
+    return clone(value, options)
+  })
+  try {
+    projection.update(view(entries))
+    expect(copiedMessages).toBe(entries.length)
+  } finally {
+    measured.mockRestore()
+  }
+  expect(projection.feed.snapshot.messages).toHaveLength(entries.length)
+  onTestFinished(() => projection.close())
 })
 
 describe('Durable preview identity', () => {

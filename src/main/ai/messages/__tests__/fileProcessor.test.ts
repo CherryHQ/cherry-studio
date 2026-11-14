@@ -158,6 +158,7 @@ describe('attachment image padding', () => {
   ])('pads %i×%i without changing its pixels', async (width, height, outWidth, outHeight, left, top) => {
     const bytes = await input(width, height)
     const part = partFor(bytes)
+    // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
     const snapshot = structuredClone(part)
     const result = await materializeNativeFilePart(part)
     const output = Buffer.from(result!.url.split(',')[1], 'base64')

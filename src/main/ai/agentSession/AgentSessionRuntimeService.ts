@@ -710,6 +710,7 @@ export class AgentSessionRuntimeService extends BaseService {
   beginTurn(input: BeginAgentSessionTurnInput): AgentSessionRuntimeHandle {
     this.assertSessionWritable(input.sessionId)
     const userMessage = input.userMessage ?? createSyntheticUserMessage(input.sessionId)
+    // oxlint-disable-next-line no-restricted-globals -- Capture per-turn model/settings metadata before asynchronous native dispatch.
     const messageSnapshot = input.messageSnapshot ? structuredClone(input.messageSnapshot) : undefined
     const existing = this.entries.get(input.sessionId)
     if (existing && this.runtimeStatus(existing) === 'active') throw new AgentSessionEditError('busy')
@@ -1143,6 +1144,7 @@ export class AgentSessionRuntimeService extends BaseService {
     // Capture before redirect: the native placement hook can run synchronously.
     const headless = opts.headless === true
     const trustedNotifyChannels = opts.trustedNotifyChannels
+    // oxlint-disable-next-line no-restricted-globals -- Capture queued-input model/settings metadata before synchronous redirect hooks.
     const messageSnapshot = opts.messageSnapshot ? structuredClone(opts.messageSnapshot) : undefined
     const reasoningEffort = opts.reasoningEffort ?? 'default'
     const serviceTier = opts.serviceTier ?? 'standard'
@@ -1179,6 +1181,7 @@ export class AgentSessionRuntimeService extends BaseService {
       canRedirectOnCurrentConfig
     ) {
       const input: AgentRuntimeUserInput = {
+        // oxlint-disable-next-line no-restricted-globals -- Isolate one submitted user message while native redirect and persistence can mutate it.
         message: structuredClone(message),
         systemReminder: true,
         headless,
@@ -3673,6 +3676,7 @@ function createSessionTurn(
     ...input,
     turnId: crypto.randomUUID(),
     assistantMessageId: input.assistantMessageId ?? uuidv7(),
+    // oxlint-disable-next-line no-restricted-globals -- Detach per-turn model/settings metadata from the caller-owned turn input.
     messageSnapshot: input.messageSnapshot ? structuredClone(input.messageSnapshot) : undefined,
     abortController: new AbortController(),
     activeToolIds: new Set()

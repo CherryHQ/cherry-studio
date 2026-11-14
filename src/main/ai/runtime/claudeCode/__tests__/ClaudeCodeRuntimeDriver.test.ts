@@ -157,6 +157,7 @@ describe('Claude native forks', () => {
       dir: directory,
       includeSystemMessages: true,
       sessionStore: {
+        // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
         load: async () => structuredClone(output),
         append: async () => {
           throw new Error('Read-only history')
@@ -366,6 +367,7 @@ describe('Claude native forks', () => {
         includeSystemMessages: true,
         sessionStore: {
           async load(key) {
+            // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
             return key.sessionId === result.resumeToken ? structuredClone(output) : null
           },
           async append() {
@@ -430,6 +432,7 @@ describe('Claude native forks', () => {
         includeSystemMessages: true,
         sessionStore: {
           async load(key) {
+            // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
             return key.sessionId === result.resumeToken ? structuredClone(output) : null
           },
           async append() {
@@ -473,6 +476,7 @@ describe('Claude native forks', () => {
       const messages = await getSessionMessages(result.resumeToken, {
         dir: directory,
         sessionStore: {
+          // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
           load: async () => structuredClone(output),
           append: async () => {
             throw new Error('Read-only history')
@@ -520,6 +524,7 @@ describe('Claude native forks', () => {
     const sourceContext = await getSessionMessages(sessionId, {
       dir: directory,
       sessionStore: {
+        // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
         load: async () => structuredClone(entries),
         append: async () => {
           throw new Error('Read-only history')

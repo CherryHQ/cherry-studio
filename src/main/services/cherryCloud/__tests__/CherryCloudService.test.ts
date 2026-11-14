@@ -56,6 +56,7 @@ vi.mock('../CherryAccountCredentialStore', () => ({
             version: 1,
             devicePublicKey: mocks.savedDevice.publicKey,
             devicePrivateKey: mocks.savedDevice.privateKey,
+            // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
             session: mocks.savedSession ? structuredClone(mocks.savedSession) : null
           }
         : null,
@@ -69,6 +70,7 @@ vi.mock('../CherryAccountCredentialStore', () => ({
         publicKey: credentials.devicePublicKey,
         privateKey: credentials.devicePrivateKey
       }
+      // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
       mocks.savedSession = credentials.session ? structuredClone(credentials.session) : null
     },
     clearSession: () => {
@@ -594,6 +596,7 @@ describe('CherryCloudService', () => {
     await original.authenticatedFetch('/v1/models')
     const originalCode = new Headers(requestCalls('/v1/models')[0][1].headers).get('Cherry-Machine-Code')
     expect(originalCode).toMatch(/^[A-Za-z0-9_-]{43}$/)
+    // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
     const originalDevice = structuredClone(mocks.savedDevice)
     mocks.netFetch.mockClear()
     vi.mocked(uuid).mockResolvedValueOnce({ os: '12345678123456789abc1234567890ab', hardware: '', macs: [] })
@@ -2592,6 +2595,7 @@ describe('CherryCloudService', () => {
     [401, 'UNKNOWN_ERROR']
   ])('keeps credentials and returns the refresh failure (%s %s) to every waiting request', async (status, code) => {
     const service = await createSignedInService()
+    // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
     const savedSession = structuredClone(mocks.savedSession)
     const pendingRefresh = deferred<Response>()
     mockCloudRoute('/v1/messages', cloudErrorResponse(401, 'AUTH_REQUIRED'), cloudErrorResponse(401, 'AUTH_REQUIRED'))
@@ -2620,6 +2624,7 @@ describe('CherryCloudService', () => {
     'keeps credentials and propagates a refresh transport failure: %s',
     async (error) => {
       const service = await createSignedInService()
+      // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
       const savedSession = structuredClone(mocks.savedSession)
       mockCloudRoute('/v1/messages', cloudErrorResponse(401, 'AUTH_REQUIRED'))
       mockCloudRoute('/api/v1/product-sessions/refresh', () => {
@@ -2911,6 +2916,7 @@ describe('CherryCloudService', () => {
       )
     )
     await service['syncEntitledModels']()
+    // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
     const newCredentials = structuredClone(mocks.savedSession)
     pendingRefresh.resolve(
       status === 200 ? jsonResponse(refreshedTokenSet()) : cloudErrorResponse(401, 'REAUTH_REQUIRED')

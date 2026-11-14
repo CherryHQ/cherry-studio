@@ -11,6 +11,36 @@ import { assistantMessage } from './wireFixture'
 
 type NativeBlock = SDKAssistantMessage['message']['content'][number]
 
+it('publishes legacy bindings only when changed and retains an isolated complete late-observer baseline', async () => {
+  const sessionId = randomUUID()
+  const projection = new ClaudeProjection(claudeThread(runtimeId('backend'), sessionId), (error) => {
+    throw error
+  })
+  const batches: ClaudeObservation[] = []
+  const observed = projection.feed.observe((batch) => {
+    batches.push(batch)
+  })
+  await observed.drain()
+  const committed = assistantMessage(sessionId, [{ type: 'text', text: 'saved', citations: [] }])
+  projection.publish(projection.message(committed))
+  await observed.drain()
+  const key = `${committed.uuid}:0`
+  expect(batches.at(-1)?.legacy?.[key]).toEqual({ messageId: committed.uuid, parts: [0] })
+  batches.at(-1)!.legacy![key].parts[0] = 99
+  projection.publish([{ type: 'activity.changed', activity: { state: 'active' } }])
+  await observed.drain()
+  expect(batches.at(-1)?.legacy).toBeUndefined()
+  const late: ClaudeObservation[] = []
+  const returning = projection.feed.observe((batch) => {
+    late.push(batch)
+  })
+  await returning.drain()
+  expect(late[0].legacy?.[key]).toEqual({ messageId: committed.uuid, parts: [0] })
+  await observed.stop()
+  await returning.stop()
+  await projection.close()
+})
+
 const providerErrors = [
   {
     type: 'web_search_tool_result',
