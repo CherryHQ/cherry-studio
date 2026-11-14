@@ -23,4 +23,3 @@ export {
   RESOURCE_TYPE_META,
   RESOURCE_TYPE_ORDER
 } from './constants'
-export { buildCreateAssistantDto } from './resourceCreate'

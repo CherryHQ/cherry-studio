@@ -1,7 +1,8 @@
 /**
- * Create and configure Agents from a conversation. The one validate-and-apply path behind Cherry
- * Assistant's `create_agent` / `update_agent` and every user-created Agent's `agent_create` /
- * `config_update`, so each entry point accepts the same fields and refuses the same values.
+ * Create Agents and Assistants and configure Agents from a conversation. The one validate-and-apply
+ * path behind Cherry Assistant's `create_agent` / `create_assistant` / `update_agent` and every
+ * user-created Agent's `agent_create` / `assistant_create` / `config_update`, so each entry point
+ * accepts the same fields and refuses the same values.
  */
 
 import * as z from 'zod'
@@ -10,6 +11,7 @@ import { application } from '@application'
 import { agentGlobalSkillService } from '@data/services/AgentGlobalSkillService'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionService } from '@data/services/AgentSessionService'
+import { assistantDataService } from '@data/services/AssistantService'
 import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
 import { mcpServerService } from '@data/services/McpServerService'
 import { modelService } from '@data/services/ModelService'
@@ -25,6 +27,7 @@ import {
 import { clampHeartbeatIntervalMinutes, normalizeHeartbeatTimeoutMinutes } from '@shared/ai/agentHeartbeat'
 import { normalizePermissionMode } from '@shared/ai/agentPermissionMode'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
+import { buildCreateAssistantDto, DEFAULT_ASSISTANT_CREATE_AVATAR } from '@shared/ai/assistantCreateDto'
 import { isProtectedBuiltinAgentRole } from '@shared/ai/builtinAgent'
 import { normalizePiDisabledToolId } from '@shared/ai/piBuiltinTools'
 import {
@@ -34,9 +37,12 @@ import {
   type AgentType
 } from '@shared/data/api/schemas/agents'
 import { AgentLanguageSchema } from '@shared/data/types/agentLanguage'
-import { parseUniqueModelId, type UniqueModelId, UniqueModelIdSchema } from '@shared/data/types/model'
+import type { AssistantReplyLanguage } from '@shared/data/types/assistant'
+import { type Model, parseUniqueModelId, type UniqueModelId, UniqueModelIdSchema } from '@shared/data/types/model'
+import type { Provider } from '@shared/data/types/provider'
 import { toAvatarEmoji } from '@shared/utils/emoji'
 import { isBrowserMcpServer } from '@shared/utils/mcp'
+import { isNonChatModel } from '@shared/utils/model'
 
 import { createAgent } from './createAgent'
 
@@ -100,8 +106,25 @@ export const UpdateAgentToolInputSchema = z.strictObject({
 /** The calling Agent's own fields; renaming stays on the approval-free `config` rename action. */
 export const SelfUpdateToolInputSchema = z.strictObject(settingsShape)
 
+export const CreateAssistantToolInputSchema = z.strictObject({
+  name: z.string().trim().min(1).describe('Short display name, e.g. "Translator" or "周报助手".'),
+  emoji: settingsShape.emoji,
+  description: z.string().optional().describe('One line shown in the Assistant list.'),
+  prompt: z
+    .string()
+    .trim()
+    .min(1)
+    .describe("The Assistant's system prompt: role, behavior, output format. Write it in the user's language."),
+  model: settingsShape.model,
+  knowledgeBaseIds: z.array(z.string()).optional().describe('Knowledge bases to bind.'),
+  mcpServerIds: z.array(z.string()).optional().describe('Installed MCP servers the Assistant may use.'),
+  webSearch: z.boolean().optional().describe('Let the Assistant search and read the web.'),
+  language: settingsShape.language
+})
+
 export const AgentConfigToolOutputSchema = z.object({
   ok: z.literal(true),
+  kind: z.literal('agent'),
   agentId: z.string(),
   name: z.string(),
   emoji: z.string(),
@@ -110,6 +133,12 @@ export const AgentConfigToolOutputSchema = z.object({
   summary: z.array(z.string())
 })
 export type AgentConfigToolOutput = z.infer<typeof AgentConfigToolOutputSchema>
+
+export const AssistantCreateToolOutputSchema = AgentConfigToolOutputSchema.omit({ kind: true, agentId: true }).extend({
+  kind: z.literal('assistant'),
+  assistantId: z.string()
+})
+export type AssistantCreateToolOutput = z.infer<typeof AssistantCreateToolOutputSchema>
 
 type SettingsInput = z.infer<typeof SelfUpdateToolInputSchema> & { name?: string }
 
@@ -128,7 +157,16 @@ function requireCapability(supported: boolean, field: string, agentType: AgentTy
   if (!supported) throw new Error(`'${field}' is not supported by ${agentType} Agents.`)
 }
 
-function resolveModel(raw: string, agentType: AgentType): UniqueModelId {
+/** What the model has to drive: an Agent runtime, or a chat Assistant. */
+type ModelTarget = AgentType | 'assistant'
+
+function isModelUsableFor(target: ModelTarget, provider: Provider, model: Model): boolean {
+  if (target === 'assistant') return !isNonChatModel(model)
+  const isCompatible = AGENT_RUNTIME_CAPABILITIES[target].isModelCompatible
+  return !isCompatible || isCompatible(provider, model)
+}
+
+function resolveModel(raw: string, target: ModelTarget): UniqueModelId {
   const parsed = UniqueModelIdSchema.safeParse(raw.trim())
   if (!parsed.success) throw new Error(`'model' must be in the form "providerId::modelId" (got "${raw}").`)
   const { providerId, modelId } = parseUniqueModelId(parsed.data)
@@ -141,17 +179,18 @@ function resolveModel(raw: string, agentType: AgentType): UniqueModelId {
     throw new Error(`Model is not configured in Cherry Studio: ${parsed.data}`)
   }
   if (!model.isEnabled || !provider.isEnabled) throw new Error(`Model is disabled in Cherry Studio: ${parsed.data}`)
-  const isCompatible = AGENT_RUNTIME_CAPABILITIES[agentType].isModelCompatible
-  if (isCompatible && !isCompatible(provider, model)) {
-    throw new Error(`Model ${parsed.data} cannot run a ${agentType} Agent. Choose another model.`)
+  if (!isModelUsableFor(target, provider, model)) {
+    throw new Error(
+      `Model ${parsed.data} cannot run ${target === 'assistant' ? 'an Assistant' : `a ${target} Agent`}. Choose another model.`
+    )
   }
   return parsed.data
 }
 
-function tryResolveModel(raw: string | null | undefined, agentType: AgentType): UniqueModelId | undefined {
+function tryResolveModel(raw: string | null | undefined, target: ModelTarget): UniqueModelId | undefined {
   if (!raw) return undefined
   try {
-    return resolveModel(raw, agentType)
+    return resolveModel(raw, target)
   } catch {
     return undefined
   }
@@ -196,6 +235,16 @@ function builtinToolIds(agentType: AgentType): Set<string> {
 
 function unique(ids: readonly string[]): string[] {
   return Array.from(new Set(ids))
+}
+
+function parseLanguage(raw: string): AssistantReplyLanguage {
+  const value = raw.trim()
+  if (value === 'inherit' || value === 'off') return { mode: value }
+  const parsed = AgentLanguageSchema.safeParse(value)
+  if (!parsed.success) {
+    throw new Error(`'language' must be "inherit", "off", or a single-line label of up to 50 characters.`)
+  }
+  return { mode: 'custom', language: parsed.data }
 }
 
 /** Validate tool input against the installed catalogs and fold it into the edit form's state. */
@@ -252,17 +301,9 @@ function applySettingsInput(
     patch.disabledTools = unique([...base.disabledTools.filter((id) => !catalog.has(id)), ...requested])
   }
   if (input.language !== undefined) {
-    const value = input.language.trim()
-    if (value === 'inherit' || value === 'off') {
-      patch.languageMode = value
-      patch.languageCustom = ''
-    } else {
-      const parsed = AgentLanguageSchema.safeParse(value)
-      if (!parsed.success)
-        throw new Error(`'language' must be "inherit", "off", or a single-line label of up to 50 characters.`)
-      patch.languageMode = 'custom'
-      patch.languageCustom = parsed.data
-    }
+    const language = parseLanguage(input.language)
+    patch.languageMode = language.mode
+    patch.languageCustom = language.mode === 'custom' ? language.language : ''
   }
   if (input.heartbeat !== undefined) {
     requireCapability(caps.heartbeat, 'heartbeat', agentType)
@@ -292,6 +333,7 @@ type SummaryField =
   | 'disabledTools'
   | 'language'
   | 'heartbeat'
+  | 'webSearch'
 
 const SUMMARY_FIELDS: readonly SummaryField[] = [
   'avatar',
@@ -320,7 +362,8 @@ const FIELD_LABEL: Record<SummaryField, () => string> = {
   mcpServers: () => t('agent.config_tool.field.mcp_servers'),
   disabledTools: () => t('agent.config_tool.field.disabled_tools'),
   language: () => t('agent.config_tool.field.language'),
-  heartbeat: () => t('agent.config_tool.field.heartbeat')
+  heartbeat: () => t('agent.config_tool.field.heartbeat'),
+  webSearch: () => t('agent.config_tool.field.web_search')
 }
 
 const PERMISSION_LABEL: Record<AgentPermissionMode, () => string> = {
@@ -358,6 +401,8 @@ function rawValue(field: SummaryField, form: AgentFormState): unknown {
       return form.languageMode === 'custom' ? form.languageCustom : form.languageMode
     case 'heartbeat':
       return form.heartbeatEnabled ? [form.heartbeatInterval, form.heartbeatTimeoutMinutes] : false
+    case 'webSearch':
+      return false
   }
 }
 
@@ -414,6 +459,8 @@ function displayValue(field: SummaryField, form: AgentFormState): string {
             timeout: form.heartbeatTimeoutMinutes
           })
         : t('agent.config_tool.value.heartbeat_off')
+    case 'webSearch':
+      return t('agent.config_tool.value.enabled')
   }
 }
 
@@ -438,14 +485,17 @@ function describeCreated(blank: AgentFormState, created: AgentFormState): string
       field === 'model' ||
       field === 'permissionMode' ||
       (field !== 'avatar' && field !== 'name' && field !== 'description' && isChanged(field, blank, created))
-  ).map((field) =>
-    t('agent.config_tool.summary.set', { field: FIELD_LABEL[field](), value: displayValue(field, created) })
-  )
+  ).map((field) => setLine(field, created))
+}
+
+function setLine(field: SummaryField, form: AgentFormState): string {
+  return t('agent.config_tool.summary.set', { field: FIELD_LABEL[field](), value: displayValue(field, form) })
 }
 
 function toOutput(agent: AgentEntity, summary: string[]): AgentConfigToolOutput {
   return {
     ok: true,
+    kind: 'agent',
     agentId: agent.id,
     name: agent.name,
     emoji: agent.configuration?.avatar || DEFAULT_AGENT_CREATE_AVATAR,
@@ -458,10 +508,10 @@ function toOutput(agent: AgentEntity, summary: string[]): AgentConfigToolOutput 
 // Entry points
 // ---------------------------------------------------------------------------
 
-function resolveDefaultModel(fallbackModel: string | undefined): UniqueModelId {
+function resolveDefaultModel(fallbackModel: string | undefined, target: ModelTarget): UniqueModelId {
   const preferred = application.get('PreferenceService').get('chat.default_model_id')
-  const model = tryResolveModel(preferred, NEW_AGENT_TYPE) ?? tryResolveModel(fallbackModel, NEW_AGENT_TYPE)
-  if (!model) throw new Error(`No default model can run a ${NEW_AGENT_TYPE} Agent. Pass 'model' explicitly.`)
+  const model = tryResolveModel(preferred, target) ?? tryResolveModel(fallbackModel, target)
+  if (!model) throw new Error("Neither the default model nor this Agent's model can be used. Pass 'model' explicitly.")
   return model
 }
 
@@ -476,7 +526,7 @@ export async function createAgentFromTool(
   const caps = AGENT_RUNTIME_CAPABILITIES[NEW_AGENT_TYPE]
   const blank = buildInitialAgentFormState()
   const form = applySettingsInput(blank, input, NEW_AGENT_TYPE, { creating: true })
-  const model = form.model || resolveDefaultModel(fallbackModel)
+  const model = form.model || resolveDefaultModel(fallbackModel, NEW_AGENT_TYPE)
   const created: AgentFormState = {
     ...form,
     model,
@@ -508,6 +558,66 @@ export async function createAgentFromTool(
     })
   )
   return toOutput(agent, describeCreated(blank, created))
+}
+
+/**
+ * Create an Assistant from tool input.
+ * @param fallbackModel the calling Agent's model, used when the default model cannot chat
+ */
+export function createAssistantFromTool(
+  input: z.infer<typeof CreateAssistantToolInputSchema>,
+  { fallbackModel }: { fallbackModel?: string } = {}
+): AssistantCreateToolOutput {
+  const knowledgeBaseIds = unique(input.knowledgeBaseIds ?? [])
+  const mcpServerIds = unique(input.mcpServerIds ?? [])
+  assertKnownIds('knowledge base', knowledgeBaseIds, listKnowledgeBaseCatalog())
+  assertKnownIds('MCP server', mcpServerIds, listMcpServerCatalog([]))
+  const replyLanguage = input.language === undefined ? undefined : parseLanguage(input.language)
+  const modelId = input.model ? resolveModel(input.model, 'assistant') : resolveDefaultModel(fallbackModel, 'assistant')
+
+  const assistant = assistantDataService.create(
+    buildCreateAssistantDto({
+      avatar: (input.emoji && toAvatarEmoji(input.emoji)) || DEFAULT_ASSISTANT_CREATE_AVATAR,
+      name: input.name.trim(),
+      modelId,
+      description: input.description?.trim() ?? '',
+      prompt: input.prompt.trim(),
+      knowledgeBaseIds,
+      mcpServerIds,
+      enableWebSearch: input.webSearch,
+      replyLanguage
+    })
+  )
+  // The renderer refreshes its own creates; one made in main must announce itself to the lists.
+  assistantDataService.notifyReadModelChange([assistant.id], 'membership')
+
+  // Assistant fields shown in the Agent form's shape, so both share one summary formatter.
+  const form: AgentFormState = {
+    ...buildInitialAgentFormState(),
+    model: modelId,
+    instructions: assistant.prompt,
+    knowledgeBaseIds,
+    mcps: mcpServerIds,
+    languageMode: replyLanguage?.mode ?? 'off',
+    languageCustom: replyLanguage?.mode === 'custom' ? replyLanguage.language : ''
+  }
+  const summary = [
+    setLine('model', form),
+    setLine('instructions', form),
+    ...(knowledgeBaseIds.length ? [setLine('knowledgeBases', form)] : []),
+    ...(mcpServerIds.length ? [setLine('mcpServers', form)] : []),
+    ...(input.webSearch ? [setLine('webSearch', form)] : []),
+    ...(replyLanguage ? [setLine('language', form)] : [])
+  ]
+  return {
+    ok: true,
+    kind: 'assistant',
+    assistantId: assistant.id,
+    name: assistant.name,
+    emoji: assistant.emoji || DEFAULT_ASSISTANT_CREATE_AVATAR,
+    description: assistant.description ?? '',
+    summary
+  }
 }
 
 function planAgentUpdate(agentId: string, input: SettingsInput, { self }: { self: boolean }) {
@@ -562,6 +672,6 @@ export function updateAgentFromTool(
 }
 
 /** Structured tool result: the text copy is what a model without structured output reads. */
-export function toolOutput(output: AgentConfigToolOutput) {
+export function toolOutput(output: AgentConfigToolOutput | AssistantCreateToolOutput) {
   return { content: [{ type: 'text' as const, text: JSON.stringify(output) }], structuredContent: output }
 }

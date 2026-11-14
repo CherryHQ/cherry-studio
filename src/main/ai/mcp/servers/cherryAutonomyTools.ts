@@ -20,8 +20,11 @@ import { agentTaskService as taskService } from '@data/services/AgentTaskService
 import { loggerService } from '@logger'
 import {
   AgentConfigToolOutputSchema,
+  AssistantCreateToolOutputSchema,
   createAgentFromTool,
   CreateAgentToolInputSchema,
+  createAssistantFromTool,
+  CreateAssistantToolInputSchema,
   SelfUpdateToolInputSchema,
   toolOutput,
   updateAgentFromTool
@@ -58,6 +61,7 @@ import {
 import { isProtectedBuiltinAgentRole } from '@shared/ai/builtinAgent'
 import {
   AGENT_CREATE_TOOL_NAME,
+  ASSISTANT_CREATE_TOOL_NAME,
   CONFIG_TOOL_NAME,
   CONFIG_UPDATE_TOOL_NAME,
   CRON_TOOL_NAME,
@@ -82,8 +86,8 @@ export interface AutonomyToolsContext {
   trustedNotifyChannels: readonly NotifyChannel[]
   /** Source-channel turns may explicitly select another live channel owned by this Agent. */
   allowAnyOwnedNotifyChannel: boolean
-  /** Offer `agent_create`; see the `createAgents` Agent capability. */
-  agentCreateEnabled?: boolean
+  /** Offer `agent_create` and `assistant_create`; see the `createResources` Agent capability. */
+  resourceCreateEnabled?: boolean
 }
 
 /**
@@ -1208,19 +1212,32 @@ export function registerAutonomyTools(server: McpServer, ctx: AutonomyToolsConte
       return toolOutput(updateAgentFromTool(ctx.agentId, args, { self: true }))
     }
   )
-  if (ctx.agentCreateEnabled) {
+  if (ctx.resourceCreateEnabled) {
+    const fallbackModel = () => agentService.getAgent(ctx.agentId)?.model ?? undefined
     server.registerTool(
       AGENT_CREATE_TOOL_NAME,
       {
         description:
-          'Create a new Pi Durable Agent after the user asks for one and confirms the proposed config. Omit model to use the default model.',
+          'Create a new Agent (an autonomous worker with its own tools, skills and workspace) when the user asks to create or set up an Agent, e.g. "建一个 Agent". Propose the configuration first; the user approves every call. Omit model to use the default model.',
         inputSchema: CreateAgentToolInputSchema,
         outputSchema: AgentConfigToolOutputSchema
       },
       async (args) => {
         assertConfigMutationAuthorized(ctx)
-        const fallbackModel = agentService.getAgent(ctx.agentId)?.model ?? undefined
-        return toolOutput(await createAgentFromTool(args, { fallbackModel }))
+        return toolOutput(await createAgentFromTool(args, { fallbackModel: fallbackModel() }))
+      }
+    )
+    server.registerTool(
+      ASSISTANT_CREATE_TOOL_NAME,
+      {
+        description:
+          'Create a new Assistant (a chat persona with a prompt, a model and optional knowledge bases, MCP servers and web search) when the user asks to create or set up an Assistant, e.g. "建一个助手". Propose the configuration first; the user approves every call. Omit model to use the default model.',
+        inputSchema: CreateAssistantToolInputSchema,
+        outputSchema: AssistantCreateToolOutputSchema
+      },
+      (args) => {
+        assertConfigMutationAuthorized(ctx)
+        return toolOutput(createAssistantFromTool(args, { fallbackModel: fallbackModel() }))
       }
     )
   }

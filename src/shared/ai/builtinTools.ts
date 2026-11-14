@@ -577,6 +577,7 @@ export const CONFIG_TOOL_NAME = 'config'
 /** The approval-gated sibling of `config` that changes the calling Agent's own settings. */
 export const CONFIG_UPDATE_TOOL_NAME = 'config_update'
 export const AGENT_CREATE_TOOL_NAME = 'agent_create'
+export const ASSISTANT_CREATE_TOOL_NAME = 'assistant_create'
 
 // ── read_file ────────────────────────────────────────────────────
 

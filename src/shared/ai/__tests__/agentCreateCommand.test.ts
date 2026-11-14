@@ -36,6 +36,14 @@ describe('buildCreateAgentCommand', () => {
     }
   )
 
+  it('carries image bytes in the Agent creation command, preserving its emoji fallback', () => {
+    const avatarImage = new Uint8Array([1, 2, 3])
+    expect(buildCreateAgentCommand({ ...values, avatarImage })).toMatchObject({
+      avatarImage,
+      configuration: { avatar: values.avatar }
+    })
+  })
+
   it('maps every agent-specific field', () => {
     expect(buildCreateAgentCommand(values)).toEqual({
       type: 'claude-code',
