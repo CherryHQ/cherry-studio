@@ -65,3 +65,5 @@ The sync/check scripts manage and verify:
 - `.agents/skills/.gitignore`
 - `.claude/skills/.gitignore`
 - `.claude/skills/<skill-name>` is a valid symlink to `.agents/skills/<skill-name>`
+- every public skill's `SKILL.md` exists, opens with a frontmatter block, and carries a `name` following the naming rules above plus a `description`
+- no tracked file under either skills directory falls outside the public white-list

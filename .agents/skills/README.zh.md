@@ -65,3 +65,5 @@ pnpm skills:check
 - `.agents/skills/.gitignore`
 - `.claude/skills/.gitignore`
 - `.claude/skills/<skill-name>` 是指向 `.agents/skills/<skill-name>` 的有效符号链接
+- 每个公开技能的 `SKILL.md` 存在,以 frontmatter 块开头,且带有符合上述命名规则的 `name` 与 `description`
+- 两个技能目录下没有被 git 跟踪的文件落在公开白名单之外
