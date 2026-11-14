@@ -663,6 +663,12 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
         if (opened.status !== 'confirmed') throw new Error(opened.error.message)
         let context: NonNullable<typeof this.context>
         try {
+          // `input.branchHead` is captured at connect time and goes stale once
+          // the product head advances (e.g. recovery followed by a follow-up
+          // turn). Anchoring a `/clear` rotation at that stale head would hit
+          // the occupied reset anchor and corrupt the healthy recovered context.
+          // Omit the anchor so `prepareClaudeBranch` uses the current head,
+          // forking a separate context instead of rewriting in place (#23519).
           context = prepareClaudeBranch(
             this.input.sessionId,
             resolveClaudeConfigDirectory(this.spawnOptions?.env),
