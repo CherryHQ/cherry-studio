@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/proposed/architecture/2026-11-13-scheduled-subscription-resume.md
+2026-11-13-scheduled-subscription-resume.md: 89417ccbf32c37c4c197521816d3773171b65729
+2026-11-13-scheduled-subscription-resume.zh.md: 650eb338a89f15e359ccfc5183de93da6a064b24
