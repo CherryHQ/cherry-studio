@@ -39,6 +39,23 @@ const AgentIdInputSchema = z.strictObject({ agentId: z.string().min(1).max(200) 
 /** The editor caps a single write well below the 1 MB viewer slice (UTF-8 bytes can exceed char count). */
 export const AGENT_MEMORY_MAX_WRITE_CHARS = 1_000_000
 
+/** An Agent's prompt-relevant settings as currently edited; `agentId` is absent while creating one. */
+export const AgentSystemPromptDraftSchema = z.strictObject({
+  agentId: z.string().min(1).max(200).optional(),
+  instructions: z.string(),
+  /** As `configuration.language`: a label, `null` for none, absent to follow the global setting. */
+  language: z.string().nullable().optional(),
+  skillIds: z.array(z.string()),
+  disabledTools: z.array(z.string()),
+  knowledgeBaseIds: z.array(z.string()),
+  mcpServerIds: z.array(z.string())
+})
+export type AgentSystemPromptDraft = z.infer<typeof AgentSystemPromptDraftSchema>
+
+/** The full system prompt split around the Agent's own instructions. */
+export const AgentSystemPromptPreviewSchema = z.object({ before: z.string(), after: z.string() })
+export type AgentSystemPromptPreview = z.infer<typeof AgentSystemPromptPreviewSchema>
+
 export const agentRequestSchemas = {
   'agent.set_avatar': defineRoute({
     input: z.strictObject({
@@ -67,5 +84,10 @@ export const agentRequestSchemas = {
   'agent.memory.open_folder': defineRoute({
     input: AgentIdInputSchema,
     output: z.void()
+  }),
+  /** The Pi Durable system prompt the runtime would send for this draft. */
+  'agent.system_prompt.preview': defineRoute({
+    input: AgentSystemPromptDraftSchema,
+    output: AgentSystemPromptPreviewSchema
   })
 }

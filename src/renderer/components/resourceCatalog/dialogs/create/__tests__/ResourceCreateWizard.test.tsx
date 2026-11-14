@@ -166,6 +166,7 @@ const AUTO = 'library.config.dialogs.create.auto.submit'
 const START = 'library.config.dialogs.create.result.start'
 const ADJUST = 'library.config.dialogs.create.result.adjust'
 const PROMPT_ROW = 'library.config.prompt.label'
+const AGENT_PROMPT = 'library.config.agent.prompt.instructions_label'
 const PERMISSION_ROW = 'library.config.agent.section.permission.title'
 const TOOLS_ROW = 'library.config.agent.section.tools.tab.tools'
 const SKILLS_ROW = 'library.config.agent.section.tools.tab.skills'
@@ -316,7 +317,7 @@ async function fillDraftToKnowledge(user: ReturnType<typeof userEvent.setup>, ki
   await user.click(screen.getByRole('button', { name: MANUAL }))
   await user.click(screen.getByRole('button', { name: NEXT }))
   if (kind === 'assistant') {
-    await replacePrompt(user)
+    await replacePrompt(user, 'draft prompt')
     await user.click(screen.getByRole('button', { name: NEXT }))
     await user.click(screen.getByRole('button', { name: 'select knowledge base' }))
     return
@@ -327,13 +328,14 @@ async function fillDraftToKnowledge(user: ReturnType<typeof userEvent.setup>, ki
   await user.click(screen.getByRole('button', { name: NEXT }))
   await user.click(screen.getByRole('button', { name: 'select knowledge base' }))
   await walkToLastStep(user)
-  await replacePrompt(user)
+  // Pi Durable shows the full prompt field; other runtimes keep the plain editor.
+  await replacePrompt(user, screen.queryByRole('textbox', { name: AGENT_PROMPT }) ? AGENT_PROMPT : 'draft prompt')
   await user.click(screen.getByRole('button', { name: KNOWLEDGE }))
 }
 
 /** Manual create prefills an Agent's empty prompt with the purpose; replace it with the draft. */
-async function replacePrompt(user: ReturnType<typeof userEvent.setup>) {
-  await user.clear(screen.getByRole('textbox', { name: 'draft prompt' }))
+async function replacePrompt(user: ReturnType<typeof userEvent.setup>, label: string) {
+  await user.clear(screen.getByRole('textbox', { name: label }))
   await user.paste(draft.prompt)
 }
 
@@ -889,8 +891,8 @@ describe('ResourceCreateWizard agent steps', () => {
     await user.click(screen.getByRole('button', { name: 'select MCP server' }))
     await user.click(screen.getByRole('button', { name: NEXT }))
     await user.click(screen.getByRole('button', { name: NEXT }))
-    await user.clear(screen.getByRole('textbox', { name: 'draft prompt' }))
-    await user.type(screen.getByRole('textbox', { name: 'draft prompt' }), 'Review carefully')
+    await user.clear(screen.getByRole('textbox', { name: AGENT_PROMPT }))
+    await user.type(screen.getByRole('textbox', { name: AGENT_PROMPT }), 'Review carefully')
     await user.click(screen.getByRole('button', { name: 'reply in Japanese' }))
     await user.click(screen.getByRole('switch', { name: HEARTBEAT_ROW }))
     const interval = screen.getByRole('spinbutton', { name: 'library.config.agent.field.heartbeat_interval.label' })

@@ -1565,6 +1565,42 @@ describe('edit dialogs', () => {
     )
   })
 
+  it("shows a Pi Durable Agent's full prompt for that Agent and saves edits to its instructions", async () => {
+    ipcRequestMock.mockImplementation(async (route: string) =>
+      route === 'agent.system_prompt.preview'
+        ? { before: '<agent_identity>Cedar</agent_identity>\n<agent_instructions>\n', after: '\n</agent_instructions>' }
+        : undefined
+    )
+    render(<AgentEditDialog open resource={{ ...AGENT, type: 'pi-durable' }} onOpenChange={vi.fn()} />)
+
+    selectTab('System Prompt')
+    expect(await screen.findByText(/<agent_identity>Cedar<\/agent_identity>/)).toBeInTheDocument()
+    expect(ipcRequestMock).toHaveBeenCalledWith(
+      'agent.system_prompt.preview',
+      expect.objectContaining({ agentId: AGENT.id, instructions: 'Original instructions' })
+    )
+
+    fireEvent.change(screen.getByRole('textbox', { name: 'library.config.agent.prompt.instructions_label' }), {
+      target: { value: 'Review pull requests.' }
+    })
+
+    await waitFor(() =>
+      expect(updateAgentMock).toHaveBeenCalledWith({
+        body: expect.objectContaining({ instructions: 'Review pull requests.' })
+      })
+    )
+  })
+
+  it("keeps the plain editor with the Agent's own placeholder on other runtimes", () => {
+    render(<AgentEditDialog open resource={{ ...AGENT, instructions: '' }} onOpenChange={vi.fn()} />)
+
+    selectTab('System Prompt')
+    expect(screen.getByLabelText('Prompt editor')).toHaveAttribute(
+      'placeholder',
+      'library.config.agent.prompt.editor_placeholder'
+    )
+  })
+
   // The three model tiers pin Claude Code's opus / sonnet / haiku aliases rather than
   // being three parallel work tiers, and the sonnet slot has nothing to do with Plan mode.
   // Each label therefore carries a help trigger naming the variable it becomes.

@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 
 import { FormControl, FormField, FormItem, FormLabel, Label, Textarea } from '@cherrystudio/ui'
 import { HeartbeatCard } from '@renderer/components/resourceCatalog/dialogs/components/HeartbeatCard'
+import { PiPromptField } from '@renderer/components/resourceCatalog/dialogs/components/PiPromptField'
 import { ReplyLanguageSelect } from '@renderer/components/resourceCatalog/dialogs/components/ReplyLanguageSelect'
 import type { AgentCreateSettings } from '@renderer/types/resourceCatalog'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
@@ -15,21 +16,37 @@ type AdvancedStepProps = {
   portalContainer: HTMLElement | null
 }
 
-/** Agent's last step: System Prompt, reply language, heartbeat (when the runtime has one), and env vars. */
+/** Agent's last step: System Prompt (the full assembled prompt on Pi Durable), reply language, heartbeat (when the runtime has one), and env vars. */
 export function AdvancedStep({ form, portalContainer }: AdvancedStepProps) {
   const { t } = useTranslation()
-  const [agentType, languageMode, languageCustom, heartbeatEnabled, heartbeatInterval, heartbeatTimeoutMinutes] =
-    useWatch({
-      control: form.control,
-      name: [
-        'agentType',
-        'languageMode',
-        'languageCustom',
-        'heartbeatEnabled',
-        'heartbeatInterval',
-        'heartbeatTimeoutMinutes'
-      ]
-    })
+  const [
+    agentType,
+    prompt,
+    skillIds,
+    disabledTools,
+    knowledgeBaseIds,
+    mcpServerIds,
+    languageMode,
+    languageCustom,
+    heartbeatEnabled,
+    heartbeatInterval,
+    heartbeatTimeoutMinutes
+  ] = useWatch({
+    control: form.control,
+    name: [
+      'agentType',
+      'prompt',
+      'skillIds',
+      'disabledTools',
+      'knowledgeBaseIds',
+      'mcpServerIds',
+      'languageMode',
+      'languageCustom',
+      'heartbeatEnabled',
+      'heartbeatInterval',
+      'heartbeatTimeoutMinutes'
+    ]
+  })
   const patch = (values: Partial<AgentCreateSettings>) => {
     for (const [key, value] of Object.entries(values)) {
       form.setValue(key as keyof AgentCreateSettings, value, { shouldDirty: true })
@@ -38,7 +55,20 @@ export function AdvancedStep({ form, portalContainer }: AdvancedStepProps) {
 
   return (
     <div className="flex flex-col gap-5">
-      <SystemPromptStep form={form} portalContainer={portalContainer} fill={false} />
+      {agentType === 'pi-durable' ? (
+        <PiPromptField
+          value={prompt}
+          onChange={(value) => form.setValue('prompt', value, { shouldDirty: true })}
+          draft={{ skillIds, disabledTools, knowledgeBaseIds, mcpServerIds, languageMode, languageCustom }}
+        />
+      ) : (
+        <SystemPromptStep
+          form={form}
+          portalContainer={portalContainer}
+          fill={false}
+          placeholder={t('library.config.agent.prompt.editor_placeholder')}
+        />
+      )}
       <div className="grid gap-2">
         <Label>{t('library.config.agent.field.language.label')}</Label>
         <ReplyLanguageSelect
