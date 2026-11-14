@@ -4,11 +4,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as CherryUi from '@cherrystudio/ui'
 import { PartsProvider } from '@renderer/components/chat/messages/blocks/MessagePartsContext'
+import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { McpToolResponse, NormalToolResponse } from '@renderer/types/mcpTool'
 import type { CherryMessagePart } from '@shared/data/types/message'
 
 import { ToolBlockGroup } from '../../blocks/ToolBlockGroup'
-import { AgentToolRenderer, isValidAgentToolsType } from '../agent'
+import { AgentToolRenderer, agentInlineResultPresentationRegistry, isValidAgentToolsType } from '../agent'
 import { AskUserQuestionOptimisticInputProvider } from '../agent/AskUserQuestionOptimisticContext'
 import MessageTool from '../MessageTool'
 import MessageTools from '../MessageTools'
@@ -177,8 +178,10 @@ describe('AgentToolRenderer', () => {
     'agent.builtin.cherry_support.diagnostics.prepared': 'Cherry Support prepared an editable description.',
     'agent.builtin.cherry_support.diagnostics.review': 'Review diagnostic report',
     'agent.sidebar_title': 'Agents',
-    'common.create_success': 'Created successfully',
-    'library.assistant_catalog.go_to_chat': 'Go to chat',
+    'message.tools.identity_card.created': 'Created',
+    'message.tools.identity_card.updated': 'Updated',
+    'message.tools.identity_card.open_conversation': 'Open conversation',
+    'library.config.dialogs.create.result.adjust': 'Adjust settings',
     'settings.tool.file_processing.features.document_to_markdown.title': 'Document Processing',
     'message.tools.subagent.requestedModel': 'Requested model: {{model}}',
     'message.tools.status.done': 'Done',
@@ -712,44 +715,118 @@ describe('AgentToolRenderer', () => {
     expect(screen.getByText('use a copy instead')).toBeInTheDocument()
   })
 
-  describe('assistant create_agent tool rendering', () => {
-    it('opens the newly created Agent conversation from the success action', async () => {
-      const user = userEvent.setup()
-      const navigateToRoute = vi.fn()
-      mockMessageListActions.mockReturnValue({ navigateToRoute })
-      const result = {
-        ok: true,
-        agentId: 'agent-created',
-        name: 'Reviewer',
-        model: 'anthropic::claude-sonnet'
-      }
-      const toolResponse: McpToolResponse = {
-        id: 'call-create-agent',
+  describe('Agent and Assistant identity card', () => {
+    function configToolResponse(
+      serverId: string,
+      name: string,
+      response: unknown,
+      status: McpToolResponse['status'] = 'done'
+    ): McpToolResponse {
+      return {
+        id: `call-${name}`,
         tool: {
-          id: 'assistant__mcp__assistant__create_agent',
-          name: 'create_agent',
-          description: 'Create Agent',
+          id: `${serverId}__${name}`,
+          name,
           type: 'mcp',
-          serverId: 'assistant',
-          serverName: 'assistant',
+          serverId,
+          serverName: serverId,
           inputSchema: { type: 'object', properties: {}, required: [] }
         },
         arguments: undefined,
-        status: 'done',
-        response: {
-          content: [{ type: 'text', text: JSON.stringify(result) }],
-          structuredContent: result
-        },
-        toolCallId: 'call-create-agent'
+        status,
+        response,
+        toolCallId: `call-${name}`
+      }
+    }
+    const structured = (output: Record<string, unknown>) => ({
+      content: [{ type: 'text', text: JSON.stringify(output) }],
+      structuredContent: output
+    })
+    const createdAgent = {
+      ok: true,
+      kind: 'agent',
+      agentId: 'agent-created',
+      name: 'Reviewer',
+      emoji: '🧐',
+      description: 'Reviews pull requests',
+      summary: ['Model: Other Model', 'Permission mode: Ask Before Acting']
+    }
+
+    it('shows the new Agent with its avatar, description and what was set', () => {
+      render(<MessageTools toolResponse={configToolResponse('assistant', 'create_agent', structured(createdAgent))} />)
+
+      const card = screen.getByTestId('resource-identity-card')
+      expect(within(card).getByText('🧐')).toBeInTheDocument()
+      expect(within(card).getByText('Reviewer')).toBeInTheDocument()
+      expect(within(card).getByText('Reviews pull requests')).toBeInTheDocument()
+      expect(within(card).getByText('Model: Other Model')).toBeInTheDocument()
+      expect(within(card).getByText('Created')).toBeInTheDocument()
+    })
+
+    it("opens the Agent's conversation from the card and from its button", async () => {
+      const user = userEvent.setup()
+      const navigateToRoute = vi.fn()
+      mockMessageListActions.mockReturnValue({ navigateToRoute })
+      render(<MessageTools toolResponse={configToolResponse('assistant', 'create_agent', structured(createdAgent))} />)
+
+      await user.click(screen.getByText('Reviews pull requests'))
+      await user.click(screen.getByRole('button', { name: 'Open conversation: Reviewer' }))
+
+      expect(navigateToRoute).toHaveBeenCalledTimes(2)
+      expect(navigateToRoute).toHaveBeenNthCalledWith(1, { path: '/app/agents', query: { agentId: 'agent-created' } })
+      expect(navigateToRoute).toHaveBeenNthCalledWith(2, { path: '/app/agents', query: { agentId: 'agent-created' } })
+    })
+
+    it('opens a new topic with a created Assistant', async () => {
+      const user = userEvent.setup()
+      const navigateToRoute = vi.fn()
+      mockMessageListActions.mockReturnValue({ navigateToRoute })
+      const output = { ...createdAgent, kind: 'assistant', agentId: undefined, assistantId: 'assistant-created' }
+      render(<MessageTools toolResponse={configToolResponse('cherry-tools', 'assistant_create', structured(output))} />)
+
+      await user.click(screen.getByRole('button', { name: 'Open conversation: Reviewer' }))
+
+      expect(navigateToRoute).toHaveBeenCalledWith({ path: '/app/chat', query: { assistantId: 'assistant-created' } })
+    })
+
+    it('opens the edit dialog for the changed resource without also navigating', async () => {
+      const user = userEvent.setup()
+      const navigateToRoute = vi.fn()
+      mockMessageListActions.mockReturnValue({ navigateToRoute })
+      const opened = vi.fn()
+      const unsubscribe = EventEmitter.on(EVENT_NAMES.OPEN_RESOURCE_EDIT_DIALOG, opened)
+      try {
+        render(
+          <MessageTools toolResponse={configToolResponse('assistant', 'update_agent', structured(createdAgent))} />
+        )
+
+        expect(screen.getByText('Updated')).toBeInTheDocument()
+        await user.click(screen.getByRole('button', { name: 'Adjust settings: Reviewer' }))
+      } finally {
+        unsubscribe()
       }
 
-      render(<MessageTools toolResponse={toolResponse} />)
+      expect(opened).toHaveBeenCalledWith({ kind: 'agent', id: 'agent-created' })
+      expect(navigateToRoute).not.toHaveBeenCalled()
+    })
 
-      await user.click(screen.getByRole('button', { name: 'Go to chat: Reviewer' }))
-      expect(navigateToRoute).toHaveBeenCalledWith({
-        path: '/app/agents',
-        query: { agentId: 'agent-created' }
-      })
+    it("offers no conversation to open after the Agent changed its own settings, since that's this one", () => {
+      mockMessageListActions.mockReturnValue({ navigateToRoute: vi.fn() })
+      render(
+        <MessageTools toolResponse={configToolResponse('cherry_tools', 'config_update', structured(createdAgent))} />
+      )
+
+      expect(screen.getByRole('button', { name: 'Adjust settings: Reviewer' })).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Open conversation: Reviewer' })).not.toBeInTheDocument()
+    })
+
+    it.each([
+      ['a failed call', 'error' as const, { isError: true, content: [{ type: 'text', text: 'Unknown skill ID: x' }] }],
+      ['a pending call', 'invoking' as const, undefined]
+    ])('leaves %s to the regular tool rendering', (_case, status, response) => {
+      const toolResponse = configToolResponse('assistant', 'create_agent', response, status)
+
+      expect(agentInlineResultPresentationRegistry.renderResult(toolResponse)).toBeUndefined()
     })
   })
 

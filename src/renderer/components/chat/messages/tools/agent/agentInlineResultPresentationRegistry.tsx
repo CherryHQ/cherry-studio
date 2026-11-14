@@ -3,12 +3,12 @@ import type { ReactElement } from 'react'
 import type { McpToolResponse, NormalToolResponse } from '@renderer/types/mcpTool'
 import type { CherryMessagePart } from '@shared/data/types/message'
 
-import { getCreateAgentResult, isCreateAgentResultPart } from './createAgentResult'
-import { CreateAgentToolInline } from './CreateAgentTool'
 import { getAgentNavigateResult, isAgentNavigateResultPart } from './navigateResult'
 import { NavigateToolInline } from './NavigateTool'
 import { getPrepareDiagnosticReportResult, isPrepareDiagnosticReportResultPart } from './prepareDiagnosticReportResult'
 import { PrepareDiagnosticReportTool } from './PrepareDiagnosticReportTool'
+import { ResourceIdentityCard } from './ResourceIdentityCard'
+import { getResourceIdentityResult, isResourceIdentityResultPart } from './resourceIdentityResult'
 import { getScheduledTaskResult, isScheduledTaskResultPart } from './scheduledTaskResult'
 import { ScheduledTaskToolInline } from './ScheduledTaskTool'
 
@@ -33,10 +33,10 @@ const AGENT_INLINE_RESULT_PRESENTATIONS = [
     }
   },
   {
-    isResultPart: isCreateAgentResultPart,
+    isResultPart: isResourceIdentityResultPart,
     renderResult: (toolResponse) => {
-      const result = getCreateAgentResult(toolResponse)
-      return result ? <CreateAgentToolInline result={result} /> : undefined
+      const result = getResourceIdentityResult(toolResponse)
+      return result ? <ResourceIdentityCard result={result} /> : undefined
     }
   },
   {
