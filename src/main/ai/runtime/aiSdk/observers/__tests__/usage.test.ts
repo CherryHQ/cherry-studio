@@ -45,6 +45,23 @@ function makeStep(usage: LanguageModelUsage) {
 // ──────────────────────────────────────────────────────────────────────────────
 
 describe('attachUsageObserver', () => {
+  it('keeps missing counts distinct from explicit zero and clears per-step provenance', () => {
+    const { agent, written } = makeFakeAgent()
+    attachUsageObserver(agent as any)
+    agent.fire('onStart')
+    for (const outputTokens of [undefined, 0, 25, undefined]) {
+      agent.fire('onStepFinish', { usage: { outputTokens, outputTokenDetails: {} } })
+    }
+    const snapshots = written.map((chunk) => (chunk.type === 'message-metadata' ? chunk.messageMetadata : undefined))
+    expect(snapshots.map((metadata) => metadata?.reportedOutputUsage)).toEqual([
+      { outputTokens: null, reasoningTokens: null },
+      { outputTokens: 0, reasoningTokens: null },
+      { outputTokens: 25, reasoningTokens: null },
+      { outputTokens: null, reasoningTokens: null }
+    ])
+    expect(snapshots.at(-1)?.stats?.outputTokens).toBe(25)
+  })
+
   it('keeps continuation billing totals separate from the persisted context anchor', () => {
     const { agent, written } = makeFakeAgent()
     attachUsageObserver(agent as any)
@@ -184,6 +201,7 @@ describe('attachUsageObserver', () => {
     // inputTokens is present → contextTokens anchors on the last-step totalTokens (14);
     // cache-token details accumulate alongside the base counters.
     expect(meta).toEqual({
+      reportedOutputUsage: { outputTokens: 4, reasoningTokens: 1 },
       stats: {
         inputTokens: 10,
         outputTokens: 4,

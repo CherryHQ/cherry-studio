@@ -606,3 +606,97 @@ it.each([false, true])('replays CherryIN thinking only when present (empty signa
     { type: 'tool_use', id: 'call_read', name: 'read', input: { path: 'facts.txt' } }
   ])
 })
+
+it.each([true, false])(
+  'decorates the native terminal message with measured output-limit diagnostics (usage: %s)',
+  async (withUsage) => {
+    const requests: unknown[] = []
+    const server = createServer(async (req, res) => {
+      let body = ''
+      for await (const chunk of req) body += chunk
+      requests.push(JSON.parse(body))
+      res.writeHead(200, { 'content-type': 'text/event-stream' })
+      for (const chunk of [
+        {
+          id: 'truncated-1',
+          object: 'chat.completion.chunk',
+          choices: [{ index: 0, delta: { role: 'assistant', content: 'partial' }, finish_reason: null }]
+        },
+        {
+          id: 'truncated-1',
+          object: 'chat.completion.chunk',
+          choices: [{ index: 0, delta: {}, finish_reason: 'length' }]
+        },
+        ...(withUsage
+          ? [
+              {
+                id: 'truncated-1',
+                object: 'chat.completion.chunk',
+                choices: [],
+                usage: {
+                  prompt_tokens: 10,
+                  completion_tokens: 9,
+                  total_tokens: 19,
+                  completion_tokens_details: { reasoning_tokens: 4 }
+                }
+              }
+            ]
+          : [])
+      ])
+        res.write(`data: ${JSON.stringify(chunk)}\n\n`)
+      res.end('data: [DONE]\n\n')
+    })
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+    onTestFinished(
+      () =>
+        new Promise<void>((resolve) => {
+          server.closeAllConnections()
+          server.close(() => resolve())
+        })
+    )
+    const address = server.address()
+    if (!address || typeof address === 'string') throw new Error('No listener')
+    gateway.baseUrl = `http://127.0.0.1:${address.port}`
+    const provider = ProviderSchema.parse({
+      id: 'limit-fixture',
+      name: 'Limit fixture',
+      isEnabled: true,
+      apiKeys: [],
+      authType: 'api-key',
+      settings: {},
+      reportsActualCost: false,
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+    })
+    const model = ModelSchema.parse({
+      id: `${provider.id}::m`,
+      providerId: provider.id,
+      name: 'Model',
+      isEnabled: true,
+      isHidden: false,
+      supportsStreaming: true,
+      capabilities: [],
+      maxOutputTokens: 8192
+    })
+    const binding = await createPiGatewayModelBinding({ sessionId: 'limit-session' }, provider, model)
+    const observed: unknown[] = []
+    const stream = binding.modelRuntime.streamSimple(
+      binding.model,
+      { messages: [{ role: 'user', content: 'hello', timestamp: Date.now() }] },
+      {
+        onProviderStreamEvent: (data) => {
+          observed.push(data)
+        }
+      }
+    )
+    let terminal: string | undefined
+    for await (const event of stream) if (event.type === 'done') terminal = event.message.errorMessage
+    expect(terminal).toContain('Configured maximum output: 8192 tokens')
+    expect(terminal).toContain(`provider-reported output tokens: ${withUsage ? 9 : 'unknown'}`)
+    if (withUsage) expect(terminal).toContain('provider-reported reasoning tokens: 4')
+    else expect(terminal).not.toContain('reasoning tokens:')
+    expect((await stream.result()).errorMessage).toBe(terminal)
+    expect(observed.length).toBeGreaterThan(0)
+    expect(requests).toHaveLength(1)
+    expect(binding.model.maxTokens).toBe(8192)
+  }
+)

@@ -18,7 +18,9 @@ import { resolveEffectiveEndpoint } from '../../provider/endpoint'
 import { resolveApiGatewayRuntime } from '../agentApiGateway'
 import { resolveAgentContextWindow } from '../agentContextWindow'
 import type { AgentRuntimeConnectInput } from '../types'
+import { formatPiOutputLimitDiagnostic } from './outputLimitDiagnostic'
 import { loadPiAi, loadPiApiStreamSimple, loadPiSdk } from './piSdk'
+import { reportedOutputUsageObserver, type ReportedOutputUsage } from './reportedOutputUsage'
 
 /** Native Pi protocols target Cherry's internal gateway; Cherry retains provider credentials and billing. */
 export async function createPiGatewayModelBinding(
@@ -95,15 +97,25 @@ export async function createPiGatewayModelBinding(
         : undefined
       try {
         // Native reasoning can enlarge per-call output caps before the gateway receives them.
+        const reported: ReportedOutputUsage = {}
         const stream = streamSimple(model, context, {
           ...options,
           ...(capture && { headers: { ...options?.headers, ...capture.headers } }),
           reasoning: undefined,
-          maxRetries: 0
+          maxRetries: 0,
+          onProviderStreamEvent: reportedOutputUsageObserver(reported, options?.onProviderStreamEvent)
         })
         void stream
           .result()
-          .then((message) => onUsage?.(message.usage, options?.sessionId, message.responseId))
+          .then((message) => {
+            if (message.stopReason === 'length') {
+              message.errorMessage = formatPiOutputLimitDiagnostic({
+                configuredMaxTokens: model.maxTokens,
+                ...reported
+              })
+            }
+            onUsage?.(message.usage, options?.sessionId, message.responseId)
+          })
           .catch((error) => {
             loggerService
               .withContext('PiGatewayModelBinding')
