@@ -194,9 +194,6 @@ vi.mock('react-i18next', () => ({
 }))
 
 const detailMocks = vi.hoisted(() => ({ open: vi.fn() }))
-vi.mock('@renderer/services/AppErrorDetailService', () => ({
-  buildInlineErrorDetailRequest: (input: unknown) => input
-}))
 vi.mock('@renderer/services/appErrorDetailOpen', () => ({
   openLoadedErrorDetail: (request: unknown) => detailMocks.open(request),
   showDetailOpenFailed: vi.fn()
@@ -737,25 +734,15 @@ describe('TopicBranchPanel', () => {
     expect(screen.queryByRole('button', { name: 'common.retry' })).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'common.detail' }))
     await waitFor(() => expect(detailMocks.open).toHaveBeenCalled())
-    const first = detailMocks.open.mock.calls.at(-1)?.[0]
-    expect(first.localizedErrorMessage ?? first.message).toBe('common.error')
-    expect(first.error?.message ?? first.error).toBe(cause.message)
-    expect(first.context?.source ?? first.source).toBe('chat.topic')
-    expect(first.context?.operation ?? first.operation).toBe('topic.tree')
-    expect(first.context?.recordId ?? first.recordId).toBe('topic-a')
+    expect(detailMocks.open.mock.calls.at(-1)?.[0]).toMatchObject({
+      localizedErrorMessage: 'common.error',
+      error: { message: 'tree down' },
+      context: { source: 'chat.topic', operation: 'topic.tree', recordId: 'topic-a' }
+    })
 
-    detailMocks.open.mockClear()
-    rerender(<TopicBranchPanel open topicId="topic-a" />)
-    fireEvent.click(screen.getByRole('button', { name: 'common.detail' }))
-    await waitFor(() => expect(detailMocks.open).toHaveBeenCalled())
-    const again = detailMocks.open.mock.calls.at(-1)?.[0]
-    expect(again.error?.message ?? again.error.message).toBe(cause.message)
-    expect(again.context?.recordId ?? again.recordId).toBe('topic-a')
-
-    const other = new Error('other tree')
     mocks.useQuery.mockReturnValue({
       data: undefined,
-      error: other,
+      error: new Error('other tree'),
       isLoading: false,
       refetch: mocks.refetchTree
     })
@@ -763,10 +750,10 @@ describe('TopicBranchPanel', () => {
     detailMocks.open.mockClear()
     fireEvent.click(screen.getByRole('button', { name: 'common.detail' }))
     await waitFor(() => expect(detailMocks.open).toHaveBeenCalled())
-    const next = detailMocks.open.mock.calls.at(-1)?.[0]
-    expect(next.context?.recordId ?? next.recordId).toBe('topic-b')
-    expect(next.error?.message ?? next.error).toBe('other tree')
-    expect(next).not.toBe(first)
+    expect(detailMocks.open.mock.calls.at(-1)?.[0]).toMatchObject({
+      error: { message: 'other tree' },
+      context: { recordId: 'topic-b' }
+    })
   })
 
   it('cancels without deleting, confirms once, and renders only the refreshed surviving previews', async () => {

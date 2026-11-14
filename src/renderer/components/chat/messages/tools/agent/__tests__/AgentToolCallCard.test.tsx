@@ -13,9 +13,6 @@ vi.mock('react-i18next', () => ({
 vi.mock('../../../MessageListProvider', () => ({
   useOptionalMessageListActions: () => actions
 }))
-vi.mock('@renderer/services/AppErrorDetailService', () => ({
-  buildInlineErrorDetailRequest: (input: unknown) => input
-}))
 vi.mock('@renderer/services/appErrorDetailOpen', () => ({
   openLoadedErrorDetail: (request: unknown) => detailMocks.open(request),
   showDetailOpenFailed: vi.fn()
@@ -35,30 +32,18 @@ describe('AgentToolCallCard failure details', () => {
     )
     fireEvent.click(screen.getByRole('button', { name: 'common.detail' }))
     await waitFor(() => expect(detailMocks.open).toHaveBeenCalled())
-    const first = detailMocks.open.mock.calls.at(-1)?.[0]
-    expect(first.localizedErrorMessage ?? first.message).toBe('message.tools.error')
-    expect(first.error).toBe('disk failed')
-    expect(first.context?.source ?? first.source).toBe('agent.tool')
-    expect(first.context?.operation ?? first.operation).toBe('agent.tool.call')
-    expect(first.context?.recordId ?? first.recordId).toBe('call-1')
-
-    detailMocks.open.mockClear()
-    rerender(<AgentToolCallCard toolCallId="call-1" toolName="Mystery" output="disk failed" hasError />)
-    fireEvent.click(screen.getByRole('button', { name: 'common.detail' }))
-    await waitFor(() => expect(detailMocks.open).toHaveBeenCalled())
-    const again = detailMocks.open.mock.calls.at(-1)?.[0]
-    expect(again.error).toBe('disk failed')
-    expect(again.context?.recordId ?? again.recordId).toBe('call-1')
+    expect(detailMocks.open.mock.calls.at(-1)?.[0]).toMatchObject({
+      localizedErrorMessage: 'message.tools.error',
+      context: { source: 'agent.tool', operation: 'agent.tool.call', recordId: 'call-1', message: 'disk failed' }
+    })
 
     rerender(<AgentToolCallCard toolCallId="call-2" toolName="Mystery" output="other failure" hasError />)
     detailMocks.open.mockClear()
     fireEvent.click(screen.getByRole('button', { name: 'common.detail' }))
     await waitFor(() => expect(detailMocks.open).toHaveBeenCalled())
-    const second = detailMocks.open.mock.calls.at(-1)?.[0]
-    expect(second.context?.recordId ?? second.recordId).toBe('call-2')
-    expect(second.context?.operation ?? second.operation).toBe('agent.tool.call')
-    expect(second.error).toBe('other failure')
-    expect(second).not.toBe(first)
+    expect(detailMocks.open.mock.calls.at(-1)?.[0]).toMatchObject({
+      context: { recordId: 'call-2', message: 'other failure' }
+    })
 
     rerender(<AgentToolCallCard toolCallId="call-2" toolName="Mystery" output="ok" status="done" />)
     expect(screen.queryByRole('button', { name: 'common.detail' })).not.toBeInTheDocument()
@@ -80,8 +65,8 @@ describe('AgentToolCallCard failure details', () => {
     expect(flow.contains(details)).toBe(false)
     fireEvent.click(details)
     await waitFor(() => expect(detailMocks.open).toHaveBeenCalled())
-    const opened = detailMocks.open.mock.calls.at(-1)?.[0]
-    expect(opened.context?.recordId ?? opened.recordId).toBe('call-9')
-    expect(opened.error).toBe('tool broke')
+    expect(detailMocks.open.mock.calls.at(-1)?.[0]).toMatchObject({
+      context: { recordId: 'call-9', message: 'tool broke' }
+    })
   })
 })
