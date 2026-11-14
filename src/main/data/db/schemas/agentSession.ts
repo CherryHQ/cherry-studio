@@ -5,6 +5,7 @@ import { createUpdateDeleteTimestamps, orderKeyColumns, orderKeyIndex, uuidPrima
 import { agentTable } from './agent'
 import { agentWorkspaceTable } from './agentWorkspace'
 import { jobScheduleTable } from './job'
+import { userModelTable } from './userModel'
 
 export const agentSessionTable = sqliteTable(
   'agent_session',
@@ -17,6 +18,8 @@ export const agentSessionTable = sqliteTable(
     agentId: text().references(() => agentTable.id, { onDelete: 'set null' }),
     // NULL awaits upgrade; 'unknown' records unresolved ownership without retrying against an upgraded Agent.
     runtimeType: text(),
+    /** Per-session model override; null follows the parent agent's model. */
+    model: text().references(() => userModelTable.id, { onDelete: 'set null' }),
     name: text().notNull(),
     // Whether the name was manually edited by user.
     isNameManuallyEdited: integer({ mode: 'boolean' }).notNull().default(false),

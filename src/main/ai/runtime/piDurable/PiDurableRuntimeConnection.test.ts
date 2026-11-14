@@ -8,6 +8,7 @@ import { AgentDoc, configure, createSession, type ConversationId } from '@earend
 import { trace } from '@opentelemetry/api'
 import { BasicTracerProvider } from '@opentelemetry/sdk-trace-base'
 import { setupTestDatabase } from '@test-helpers/db'
+import { connectMcpTestClient } from '@test-helpers/mcp/client'
 import { eq } from 'drizzle-orm'
 import { v7 as uuid } from 'uuid'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -35,6 +36,8 @@ import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry
 import type { ToolGuardInteractionState } from '@main/ai/toolApproval/toolGuards'
 import { serializeError } from '@main/ai/utils/serializeError'
 import { getShellEnv } from '@main/utils/shellEnv'
+import { BUILTIN_AGENT_ROLE } from '@shared/ai/builtinAgent'
+import { McpServerSchema } from '@shared/data/types/mcpServer'
 import { ModelSchema } from '@shared/data/types/model'
 import { ProviderSchema } from '@shared/data/types/provider'
 import type { SpanEntity } from '@shared/data/types/trace'
@@ -48,10 +51,13 @@ import {
   tempDir
 } from '../../../../../packages/agent-runtime-pi/tests/sessionSupport'
 import { gate, toolCallPart } from '../../../../../packages/agent-runtime-pi/tests/subagentSupport'
+import type * as AgentMcpServers from '../agentMcpServers'
+import type * as AgentPrompt from '../agentPrompt'
 import type { PiConnectionSnapshot } from '../pi/piConnectionSignature'
 import { runtimeDriverRegistry } from '../registry'
 import type { AgentRuntimeConnectInput, AgentRuntimeEvent } from '../types'
 import { allocateDurableBackendTx, prepareDurableBranch, reserveDurableBranchTx } from './durableContext'
+import { prepareDurableDesktop } from './durableDesktop'
 import type { PiDurableRuntimeConnection } from './PiDurableRuntimeConnection'
 import { PiDurableRuntimeDriver } from './PiDurableRuntimeDriver'
 
@@ -61,6 +67,8 @@ const mocks = vi.hoisted(() => ({
   capture: vi.fn(),
   binding: vi.fn(),
   prompt: vi.fn(),
+  mcpServers: vi.fn(),
+  catalog: vi.fn(),
   interaction: vi.fn<() => ToolGuardInteractionState>(),
   delegated: vi.fn(),
   prime: vi.fn()
@@ -74,8 +82,20 @@ vi.mock('@application', async () => {
       ensureInternalGateway: async () => ({ baseUrl: 'http://gateway.invalid', apiKey: 'fixture' }),
       getAgentSessionUsageHeaders: () => ({})
     },
-    McpCatalogService: { listTools: () => [] },
-    AgentSessionRuntimeService: { getInteractionState: mocks.interaction, primeConnection: mocks.prime }
+    McpCatalogService: { listTools: mocks.catalog, onToolsCacheUpdated: () => ({ dispose() {} }) },
+    McpRuntimeService: {
+      getConnectedServerInstructions: () => undefined,
+      onCatalogChanged: () => ({ dispose() {} }),
+      onResourceUpdated: () => ({ dispose() {} }),
+      callTool: async ({ interactionContext }: { interactionContext: { model?: string } }) => ({
+        content: [{ type: 'text', text: `Sampling model: ${interactionContext.model}` }]
+      })
+    },
+    AgentSessionRuntimeService: {
+      getInteractionState: mocks.interaction,
+      primeConnection: mocks.prime,
+      getTurnTrustedNotifyChannels: () => undefined
+    }
   }
   return mockApplicationFactory(overrides)
 })
@@ -87,7 +107,7 @@ vi.mock('../pi/gatewayModelBinding', () => ({ createPiGatewayModelBinding: mocks
 vi.mock('@main/ai/runtime/agentPrompt', () => ({ buildAgentRuntimePrompt: mocks.prompt }))
 vi.mock('@main/ai/runtime/agentMcpServers', () => ({
   warmAgentMcpToolCatalogs: async () => {},
-  buildAgentMcpServers: () => ({})
+  buildAgentMcpServers: mocks.mcpServers
 }))
 vi.mock('@main/utils/shellEnv', () => ({
   getShellEnv: vi.fn(async (): Promise<Record<string, string>> => ({})),
@@ -167,7 +187,9 @@ describe('desktop Pi Durable connection', () => {
       signature: 'frozen'
     }
     mocks.capture.mockImplementation(async () => snapshot)
-    mocks.prompt.mockResolvedValue({ base: { kind: 'custom', content: 'You are Cherry.' } })
+    mocks.mcpServers.mockReset().mockReturnValue({})
+    mocks.catalog.mockReset().mockReturnValue([])
+    mocks.prompt.mockReset().mockResolvedValue({ base: { kind: 'custom', content: 'You are Cherry.' } })
     setScript([assistantReply('Hello world')])
     mocks.binding.mockImplementation(async () => createTestBinding({ model: MODEL, stream: script.model }))
   })
@@ -176,6 +198,119 @@ describe('desktop Pi Durable connection', () => {
     for (const connection of connections.splice(0)) await connection.close()
     vi.restoreAllMocks()
   })
+  it.each([false, true])('materializes the captured model name for headless=%s', async (headless) => {
+    const { buildAgentRuntimePrompt } = await vi.importActual<typeof AgentPrompt>('../agentPrompt')
+    mocks.prompt.mockImplementation(buildAgentRuntimePrompt)
+    snapshot.agent.instructions = 'My model is {{model_name}}.'
+    snapshot.agent.modelName = 'Agent default'
+    snapshot.session.model = 'test::later-selection'
+    snapshot.model.name = 'Captured model'
+    input.headless = headless
+
+    const current = await connect()
+    await current.connection.send({ message: message('Identify your model') })
+    await done(current.events)
+
+    expect(script.calls[0].systemPrompt).toContain('My model is Captured model.')
+    expect(script.calls[0].systemPrompt).not.toContain('My model is Agent default.')
+  })
+
+  it.each([false, true])('creates an Agent with the captured model for headless=%s', async (headless) => {
+    sharedHosts()
+    dbh.db
+      .insert(userModelTable)
+      .values({
+        id: 'test::later-selection',
+        providerId: 'test',
+        modelId: 'later-selection',
+        name: 'Later model',
+        capabilities: ['function-call'],
+        supportsStreaming: true,
+        isEnabled: true,
+        orderKey: 'a1'
+      })
+      .run()
+    dbh.db
+      .update(agentSessionTable)
+      .set({ model: 'test::later-selection' })
+      .where(eq(agentSessionTable.id, input.sessionId))
+      .run()
+    snapshot.agent.configuration = { ...snapshot.agent.configuration, builtin_role: BUILTIN_AGENT_ROLE.ASSISTANT }
+    input.headless = headless
+    const { buildAgentMcpServers } = await vi.importActual<typeof AgentMcpServers>('../agentMcpServers')
+    mocks.mcpServers.mockImplementation((...args: Parameters<typeof buildAgentMcpServers>) => {
+      const servers = buildAgentMcpServers(...args)
+      return { assistant: servers.assistant }
+    })
+    const desktop = await prepareDurableDesktop(input, () => {})
+    try {
+      const tool = desktop.mcp.extension.tools!.find((tool) => tool.name === 'mcp__assistant__create_agent')!
+      const result = await tool.execute(
+        { name: 'Created Agent', instructions: 'Help with testing.' },
+        undefined as never,
+        BACKGROUND_CONTEXT
+      )
+      expect(result.isError).toBe(false)
+      expect(result.details).toMatchObject({ ok: true, model: modelId })
+      const created = dbh.db
+        .select()
+        .from(agentTable)
+        .all()
+        .find((agent) => agent.name === 'Created Agent')
+      expect(created?.model).toBe(modelId)
+    } finally {
+      await desktop.close()
+    }
+  })
+
+  it.each([
+    { captured: modelId, selected: 'test::selected', expected: modelId },
+    { captured: undefined, selected: 'test::selected', expected: 'test::selected' },
+    { captured: undefined, selected: null, expected: 'test::agent-default' }
+  ] as const)(
+    'routes MCP sampling with $expected (captured=$captured, selected=$selected)',
+    async ({ captured, selected, expected }) => {
+      const { buildAgentMcpServers } = await vi.importActual<typeof AgentMcpServers>('../agentMcpServers')
+      const server = McpServerSchema.parse({
+        id: '9c4cda7c-6bb8-4eb6-a0b5-e3e7d79ca337',
+        name: 'Sampling',
+        isActive: true
+      })
+      snapshot.agent.model = 'test::agent-default'
+      snapshot.agent.mcps = [server.id]
+      snapshot.session.model = selected
+      mocks.catalog.mockReturnValue([
+        {
+          name: 'sample',
+          inputSchema: { type: 'object', properties: {} },
+          id: 'sample',
+          serverId: server.id,
+          serverName: server.name,
+          type: 'mcp'
+        }
+      ])
+      const servers = buildAgentMcpServers(
+        snapshot.session,
+        snapshot.agent,
+        new Set(),
+        new Map([[server.id, server]]),
+        null,
+        directory,
+        [],
+        undefined,
+        captured
+      )
+      const client = await connectMcpTestClient(servers[server.id])
+      try {
+        const result = await client.callTool({ name: 'sample', arguments: {} })
+        expect(result.isError).not.toBe(true)
+        expect(result.content).toEqual([{ type: 'text', text: `Sampling model: ${expected}` }])
+      } finally {
+        await client.close()
+      }
+    }
+  )
+
   function setScript(parts: AssistantMessage[], delay?: number) {
     script = scriptedModel(parts, delay)
   }
@@ -656,55 +791,62 @@ describe('desktop Pi Durable connection', () => {
     expect(next.events.filter((event) => event.type === 'error')).toEqual([])
   })
 
-  it('attaches a pending peer before shared recovery and restores its frozen request settings', async () => {
-    sharedHosts()
-    input = { ...input, reasoningEffort: 'high', fastMode: true }
-    const sourceInput = { ...input }
-    const parent = await connect()
-    await parent.connection.send({ message: message('initial boundary') })
-    const answer = await savedAnswer(parent)
-    const forkId = await new AgentSessionForkOperations().fork(input.sessionId, answer.id)
-    const held = gate()
-    script = respondingModel(() => held.wait(assistantReply('unfinished source answer')))
-    parent.events.length = 0
-    await parent.connection.send({ message: message('pending source input') })
-    await held.reached
-    await parent.connection.close()
-    const recoveredEvents: AgentRuntimeEvent[] = []
-    let recovered: PiDurableRuntimeConnection | undefined
-    mocks.binding.mockImplementation(async (next: AgentRuntimeConnectInput, _provider, _model, _usage, shared) => {
-      const model = { ...MODEL, provider: next.sessionId }
-      const stream = respondingModel(() =>
-        assistantReply(`${next.sessionId}:${next.reasoningEffort}:${next.fastMode}`)
-      ).model
-      if (!shared) return createTestBinding({ model, stream })
-      shared.registerProvider(model.provider, {
-        api: model.api,
-        apiKey: 'fixture',
-        baseUrl: model.baseUrl,
-        models: [model],
-        streamSimple: stream
+  it.each([false, true])(
+    'restores a pending peer with cleared Agent default=%s and its frozen request settings',
+    async (clearDefault) => {
+      sharedHosts()
+      input = { ...input, reasoningEffort: 'high', fastMode: true }
+      const sourceInput = { ...input }
+      const parent = await connect()
+      await parent.connection.send({ message: message('initial boundary') })
+      const answer = await savedAnswer(parent)
+      const forkId = await new AgentSessionForkOperations().fork(input.sessionId, answer.id)
+      const held = gate()
+      script = respondingModel(() => held.wait(assistantReply('unfinished source answer')))
+      parent.events.length = 0
+      await parent.connection.send({ message: message('pending source input') })
+      await held.reached
+      await parent.connection.close()
+      if (clearDefault) {
+        dbh.db.update(agentSessionTable).set({ model: modelId }).where(eq(agentSessionTable.id, input.sessionId)).run()
+        dbh.db.update(agentTable).set({ model: null }).where(eq(agentTable.id, input.agentId)).run()
+      }
+      const recoveredEvents: AgentRuntimeEvent[] = []
+      let recovered: PiDurableRuntimeConnection | undefined
+      mocks.binding.mockImplementation(async (next: AgentRuntimeConnectInput, _provider, _model, _usage, shared) => {
+        const model = { ...MODEL, provider: next.sessionId }
+        const stream = respondingModel(() =>
+          assistantReply(`${next.sessionId}:${next.reasoningEffort}:${next.fastMode}`)
+        ).model
+        if (!shared) return createTestBinding({ model, stream })
+        shared.registerProvider(model.provider, {
+          api: model.api,
+          apiKey: 'fixture',
+          baseUrl: model.baseUrl,
+          models: [model],
+          streamSimple: stream
+        })
+        return { modelRuntime: shared, model: shared.getModel(model.provider, model.id)! }
       })
-      return { modelRuntime: shared, model: shared.getModel(model.provider, model.id)! }
-    })
-    mocks.prime.mockImplementation(async (sessionId: string) => {
-      recovered = await driver.connect({ sessionId, agentId: sourceInput.agentId, modelId })
-      connections.push(recovered)
-      void (async () => {
-        for await (const event of recovered.events) recoveredEvents.push(event)
-      })()
-    })
-    input = { ...input, sessionId: forkId, reasoningEffort: 'low', fastMode: false }
-    const fork = await connect()
-    await expect.poll(() => recoveredEvents.some((event) => event.type === 'turn-complete')).toBe(true)
-    expect(text(recoveredEvents)).toContain(`${sourceInput.sessionId}:high:true`)
-    expect(recovered!['runtime']).toBe(fork.connection['runtime'])
-    await fork.connection.send({ message: message('independent fork input') })
-    await done(fork.events)
-    expect(text(fork.events)).toContain(`${forkId}:low:false`)
-    expect([...recoveredEvents, ...fork.events].filter((event) => event.type === 'error')).toEqual([])
-    held.open()
-  })
+      mocks.prime.mockImplementation(async (sessionId: string) => {
+        recovered = await driver.connect({ sessionId, agentId: sourceInput.agentId, modelId })
+        connections.push(recovered)
+        void (async () => {
+          for await (const event of recovered.events) recoveredEvents.push(event)
+        })()
+      })
+      input = { ...input, sessionId: forkId, reasoningEffort: 'low', fastMode: false }
+      const fork = await connect()
+      await expect.poll(() => recoveredEvents.some((event) => event.type === 'turn-complete')).toBe(true)
+      expect(text(recoveredEvents)).toContain(`${sourceInput.sessionId}:high:true`)
+      expect(recovered!['runtime']).toBe(fork.connection['runtime'])
+      await fork.connection.send({ message: message('independent fork input') })
+      await done(fork.events)
+      expect(text(fork.events)).toContain(`${forkId}:low:false`)
+      expect([...recoveredEvents, ...fork.events].filter((event) => event.type === 'error')).toEqual([])
+      held.open()
+    }
+  )
 
   it('retains an identifiable inert native preparation when product publication fails', async () => {
     sharedHosts()

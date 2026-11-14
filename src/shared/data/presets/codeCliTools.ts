@@ -7,9 +7,17 @@ export interface CodeCliToolPreset {
   skillFolderName: string
   skillNamespace: `code-cli:${CodeCli}`
   packageName: string
-  install: 'registry' | 'npm' | 'pipx' | 'aqua'
+  install: 'registry' | 'npm' | 'pipx' | 'aqua' | 'github'
   miseTool: string
   misePrerelease?: boolean
+  /**
+   * Version prefix the latest-version query is scoped to, appended to the mise
+   * tool as `@<prefix>`. The github backend returns releases in creation order
+   * rather than semver order, so an unprefixed "latest" resolves to whichever
+   * release was created last — a patch of an older line can outrank a newer
+   * major's prerelease. A prefix keeps the query on the intended line.
+   */
+  latestVersionPrefix?: string
   /** Use npm CLI when mise's embedded installer cannot install this package. */
   miseNpmShellOut?: boolean
   /** Exact npm packages whose lifecycle scripts mise may run during installation. */
@@ -101,8 +109,14 @@ export const CODE_CLI_TOOL_PRESETS = Object.freeze([
     id: CodeCli.QWEN_CODE,
     executable: 'qwen',
     skillFolderName: 'code-mate-qwen-code',
-    packageName: '@qwen-code/qwen-code',
-    install: 'npm'
+    packageName: 'QwenLM/qwen-code',
+    install: 'github',
+    // Qwen Code 1.0 ships as a GitHub release artifact only — the npm package
+    // stops at 0.27.x, so the npm backend can never reach the 1.0 line.
+    latestVersionPrefix: '1',
+    // 1.0 is published as a prerelease (v1.0.0-preview.1), so the query has to
+    // opt into prereleases and ignore the release-age cutoff.
+    misePrerelease: true
   }),
   defineCodeCliTool({
     id: CodeCli.KIMI_CODE,

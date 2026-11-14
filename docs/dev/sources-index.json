@@ -19,7 +19,7 @@
     },
     {
       "path": "docs/dev/references/ai/adapter-family.md",
-      "sources": ["packages/provider-registry/data/providers.json","packages/provider-registry/src/providers/new-api.ts","packages/provider-registry/src/registry-utils.ts","src/main/ai/provider/custom/wire/wireProfile.ts","src/main/ai/provider/endpoint.ts","src/main/data/migration/v2/migrators/mappings/ProviderModelMappings.ts"]
+      "sources": ["packages/provider-registry/data/providers.json","packages/provider-registry/src/providers/new-api.ts","packages/provider-registry/src/registry-utils.ts","src/main/ai/provider/custom/wire/wireProfile.ts","src/main/ai/provider/endpoint.ts"]
     },
     {
       "path": "docs/dev/references/ai/adding-a-runtime.md",
@@ -227,7 +227,7 @@
     },
     {
       "path": "docs/dev/references/data/app-state-overview.md",
-      "sources": ["src/main/data/db/schemas/appState.ts","src/main/data/db/seeding/SeedRunner.ts","src/main/data/migration/v2/core/MigrationEngine.ts","src/main/services/file/tasks/contentMetadataGeneration.ts"]
+      "sources": ["src/main/data/db/schemas/appState.ts","src/main/data/db/seeding/SeedRunner.ts","src/main/data/migration/migrationStatus.ts","src/main/services/file/tasks/contentMetadataGeneration.ts"]
     },
     {
       "path": "docs/dev/references/data/best-practice-default-values-and-nullability.md",
@@ -307,7 +307,7 @@
     },
     {
       "path": "docs/dev/references/data/v2-migration-guide.md",
-      "sources": ["src/main/data/migration/v2","src/shared/data/migration/v2"]
+      "sources": ["src/main/core/preboot/legacyUpgradeGate.ts","src/main/data/migration"]
     },
     {
       "path": "docs/dev/references/diagnostics/README.md",
@@ -399,7 +399,7 @@
     },
     {
       "path": "docs/dev/references/knowledge/experiment/knowledge-technical-design.md",
-      "sources": ["src/main/data/db/schemas/knowledge.ts","src/main/data/migration/v2/migrators/KnowledgeVectorMigrator.ts","src/main/features/knowledge/pathStorage.ts","src/main/features/knowledge/pipeline/vectorstore/indexStore","src/main/features/knowledge/query"]
+      "sources": ["src/main/data/db/schemas/knowledge.ts","src/main/features/knowledge/pathStorage.ts","src/main/features/knowledge/pipeline/vectorstore/indexStore","src/main/features/knowledge/query"]
     },
     {
       "path": "docs/dev/references/knowledge/knowledge-service.md",

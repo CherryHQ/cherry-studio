@@ -98,4 +98,38 @@ describe('Claude subscription session allocation', () => {
     expect(reused.session.runtimeType).toBe('claude-code')
     expect(dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, api.session.id)).get()).toBeDefined()
   })
+
+  it.each([
+    ['api::sonnet', 'login::sonnet', 'pi-durable'],
+    ['login::sonnet', 'api::sonnet', 'claude-code']
+  ] as const)('allocates from session model %s instead of Agent default %s', (model, agentModel, runtimeType) => {
+    dbh.db.update(agentTable).set({ model: agentModel }).where(eq(agentTable.id, 'agent')).run()
+    const session = agentSessionService.create({ agentId: 'agent', name: 'Override', model, workspace })
+    expect(session.model).toBe(model)
+    expect(agentSessionService.getRuntimeType(session.id)).toBe(runtimeType)
+  })
+
+  it('keeps the subscription override and native runtime when an orphan adopts a Durable Agent', () => {
+    const session = agentSessionService.create({
+      agentId: 'agent',
+      name: 'Retained subscription',
+      model: 'login::sonnet',
+      workspace
+    })
+    dbh.db.delete(agentTable).where(eq(agentTable.id, 'agent')).run()
+    dbh.db
+      .insert(agentTable)
+      .values({
+        id: 'replacement',
+        type: 'pi-durable',
+        name: 'Replacement',
+        instructions: '',
+        model: 'api::sonnet',
+        orderKey: 'a0'
+      })
+      .run()
+    const recovered = agentSessionService.update(session.id, { agentId: 'replacement' })
+    expect(recovered.model).toBe('login::sonnet')
+    expect(agentSessionService.getRuntimeType(session.id)).toBe('claude-code')
+  })
 })

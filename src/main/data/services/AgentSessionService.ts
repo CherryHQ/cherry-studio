@@ -24,12 +24,15 @@ import type { DbOrTx } from '@data/db/types'
 import { agentChannelService } from '@data/services/AgentChannelService'
 import { agentWorkspaceService, rowToAgentWorkspace } from '@data/services/AgentWorkspaceService'
 import { getDataService } from '@data/services/dataServiceRegistry'
+import { modelService } from '@data/services/ModelService'
 import { pinService } from '@data/services/PinService'
+import { providerService } from '@data/services/ProviderService'
 import { nullsToUndefined, timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
 import { Emitter, type Event } from '@main/core/lifecycle'
 import { buildSearchSnippet } from '@main/utils/searchSnippet'
 import { getFreshAgentRuntimeType } from '@shared/ai/agentRuntimeCapabilities'
+import { isPiCompatibleModel } from '@shared/ai/piModelCompatibility'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import { AgentTypeSchema, type AgentType } from '@shared/data/api/schemas/agents'
@@ -48,6 +51,7 @@ import type {
 import { AGENT_WORKSPACE_TYPE, type AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 import type { EntitySearchItem } from '@shared/data/api/schemas/search'
 import type { CursorPaginationResponse, DataApiDataChangeEffect } from '@shared/data/api/types'
+import { isUniqueModelId, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 
 import { ensureAgentSessionRootTx } from './agentSessionMessageTree'
 import { applyMoves, insertWithOrderKey } from './utils/orderKey'
@@ -115,6 +119,7 @@ function rowToSession(row: JoinedSessionRow): AgentSessionEntity {
     // agentId is legitimately nullable (orphans only via cascade) — preserve T | null.
     agentId: row.session.agentId,
     runtimeType: AgentTypeSchema.safeParse(row.session.runtimeType).data,
+    model: (row.session.model ?? null) as UniqueModelId | null,
     name: clean.name,
     isNameManuallyEdited: clean.isNameManuallyEdited,
     description: clean.description,
@@ -165,6 +170,17 @@ export function agentSessionReadModelEffects(
     { endpoint: '/agent-sessions/:sessionId', entityIds },
     { endpoint: '/agent-sessions/latest' }
   ]
+}
+
+// Pi needs a resolvable, gateway-routable chat model; stale or subscription-only overrides cannot run.
+function isPiServableUniqueModel(uniqueModelId: string): boolean {
+  try {
+    if (!isUniqueModelId(uniqueModelId)) return false
+    const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
+    return isPiCompatibleModel(providerService.getByProviderId(providerId), modelService.getByKey(providerId, modelId))
+  } catch {
+    return false
+  }
 }
 
 export class AgentSessionService {
@@ -365,6 +381,9 @@ export class AgentSessionService {
     runtimeType?: AgentType
   ): void {
     this.assertAgentExistsTx(tx, dto.agentId)
+    if (dto.model !== undefined && dto.model !== null && !isUniqueModelId(dto.model)) {
+      throw DataApiErrorFactory.invalidOperation('create session', `unknown model: ${dto.model}`)
+    }
 
     let workspaceId: string
     switch (dto.workspace.type) {
@@ -398,8 +417,10 @@ export class AgentSessionService {
       agentId: dto.agentId,
       name: dto.name,
       description: dto.description,
+      model: dto.model,
       taskId,
-      runtimeType: runtimeType ?? this.getFreshRuntimeTypeTx(tx, dto.agentId),
+      runtimeType:
+        runtimeType ?? this.getFreshRuntimeTypeTx(tx, dto.agentId, type === 'conversation' ? dto.model : undefined),
       workspaceId,
       createdAt,
       updatedAt: createdAt
@@ -436,11 +457,11 @@ export class AgentSessionService {
     if (!agent) throw DataApiErrorFactory.notFound('Agent', agentId)
   }
 
-  private getFreshRuntimeTypeTx(tx: DbOrTx, agentId: string): AgentType {
+  private getFreshRuntimeTypeTx(tx: DbOrTx, agentId: string, modelId?: UniqueModelId | null): AgentType {
     const provider = tx
       .select({ providerId: userProviderTable.providerId, presetProviderId: userProviderTable.presetProviderId })
       .from(agentsTable)
-      .innerJoin(userModelTable, eq(agentsTable.model, userModelTable.id))
+      .innerJoin(userModelTable, eq(userModelTable.id, modelId ?? agentsTable.model))
       .innerJoin(userProviderTable, eq(userModelTable.providerId, userProviderTable.providerId))
       .where(eq(agentsTable.id, agentId))
       .get()
@@ -966,6 +987,7 @@ export class AgentSessionService {
     }
     if (dto.description !== undefined) patch.description = dto.description
     if (dto.agentId !== undefined) patch.agentId = dto.agentId
+    if (dto.model !== undefined) patch.model = dto.model
     if (Object.keys(patch).length === 0) return this.getById(id)
 
     const result = withSqliteErrors(
@@ -985,15 +1007,34 @@ export class AgentSessionService {
     patch: UpdateAgentSessionDto
   ): { row: SessionRow | undefined; clearedTaskScheduleIds: string[] } {
     const [current] = tx
-      .select({ agentId: sessionsTable.agentId, taskScheduleId: sessionsTable.taskId })
+      .select({
+        agentId: sessionsTable.agentId,
+        taskScheduleId: sessionsTable.taskId,
+        runtimeType: sessionsTable.runtimeType,
+        model: sessionsTable.model
+      })
       .from(sessionsTable)
       .where(and(eq(sessionsTable.id, id), isNull(sessionsTable.deletedAt)))
       .limit(1)
       .all()
     if (!current) return { row: undefined, clearedTaskScheduleIds: [] }
     if (patch.agentId !== undefined) this.assertAgentExistsTx(tx, patch.agentId)
+    if (patch.model !== undefined && patch.model !== null && !isUniqueModelId(patch.model)) {
+      throw DataApiErrorFactory.invalidOperation('update session', `unknown model: ${patch.model}`)
+    }
 
-    const reassigned = patch.agentId !== undefined && patch.agentId !== current.agentId
+    const previousAgentId = current.agentId
+    const reassigned = patch.agentId !== undefined && patch.agentId !== previousAgentId
+    if (
+      reassigned &&
+      patch.model === undefined &&
+      current.model != null &&
+      (current.runtimeType === 'pi' || current.runtimeType === 'pi-durable') &&
+      !isPiServableUniqueModel(current.model)
+    ) {
+      // Reassignment retains the session runtime, including Claude subscription ownership.
+      patch.model = null
+    }
     const clearedTaskScheduleIds = reassigned && current.taskScheduleId ? [current.taskScheduleId] : []
     if (reassigned && current.taskScheduleId) {
       this.clearTaskReuseTx(tx, eq(sessionsTable.id, id))
@@ -1092,6 +1133,7 @@ export class AgentSessionService {
       taskId?: string | null
       name: string
       description?: string
+      model?: UniqueModelId | null
       workspaceId: string
       createdAt: number
       updatedAt: number

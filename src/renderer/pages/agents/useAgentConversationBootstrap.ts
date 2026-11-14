@@ -32,7 +32,8 @@ interface UseAgentConversationBootstrapOptions {
  * Page-owned read model for the active agent conversation.
  *
  * The list agent is only a key hint: it lets the model request start while the canonical by-id
- * agent query is still resolving. Once that query returns, its model id wins.
+ * agent query is still resolving. A per-session override wins first; once the
+ * agent query returns, its model is the fallback.
  */
 export function useAgentConversationBootstrap({
   session,
@@ -43,7 +44,9 @@ export function useAgentConversationBootstrap({
   const agentId = session?.agentId ?? null
   const { agent, isLoading: agentLoading } = useAgent(agentId)
   const hintedModelId = agentHint?.id === agentId ? agentHint.model : undefined
-  const modelId = agent ? agent.model : hintedModelId
+  // The list hint only covers the agent query's loading window: once it resolves,
+  // its value wins even when null, so a model-less agent never revives the hint.
+  const modelId = session?.model ?? (agent ? agent.model : agentLoading ? hintedModelId : undefined)
   const { model, isLoading: modelLoading } = useModelById(modelId)
 
   const resources = useMemo<AgentConversationResources>(

@@ -133,9 +133,10 @@ coordinates runtime and filesystem operations in addition to SQLite writes.
 5. The coordinator clones visible messages with new IDs, remaps their anchors,
    strips execution state and statistics, and publishes the native artifacts.
 6. `DbService.withWriteTx` rechecks the source prefix, captured context bindings,
-   backend locators, Agent, and workspace, then creates the child, messages and
-   per-segment context bindings atomically. Later source appends are allowed;
-   changes to the selected prefix fail with `source_changed`. A read-model change
+   backend locators, Agent, workspace, and session model override, then creates the child,
+   messages and per-segment context bindings atomically. The child inherits the source
+   session model override, including `null` to follow the Agent default. Later source
+   appends are allowed; changes to the selected prefix fail with `source_changed`. A read-model change
    notification follows the commit, and IPC returns the child session ID.
 
 Copied contexts retain separate native histories. Only the context at the selected
@@ -184,6 +185,14 @@ Claude creates its own worker and pass them to `runForkWorker`. The
 shared helper returns an opaque result and waits for termination on success,
 failure, cancellation, or timeout before the coordinator can clean up files.
 Adapters validate the returned native result before publication.
+
+Claude uses the SDK history reader to select context across retry and compaction
+records. Compaction metadata is opaque to Cherry; the SDK owns its interpretation
+and UUID remapping. A missing parent reference alone does not reject a fork. Before staging
+the child, the worker reads both prefixes through the SDK and requires the same
+ordered messages, types and contents under the SDK's UUID mapping. The selected
+checkpoint must remain readable. A failed read or changed context is rejected;
+Cherry does not repair parent links or change the original transcript.
 
 ## Publication and failure cleanup
 

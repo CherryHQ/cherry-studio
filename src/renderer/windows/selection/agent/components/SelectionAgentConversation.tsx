@@ -25,7 +25,6 @@ import { handOffAgentDraft } from '@renderer/services/agentDraftHandoff'
 import { toast } from '@renderer/services/toast'
 import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
-import { getSelectionAgentIssue } from '@renderer/utils/selectionAction'
 import { classifyTurn } from '@shared/ai/transport'
 import type { CherryUIMessage } from '@shared/data/types/message'
 
@@ -68,7 +67,7 @@ export const SelectionAgentConversation: FC<SelectionAgentConversationProps> = (
     () => (configuredAgent && session?.runtimeType ? { ...configuredAgent, type: session.runtimeType } : undefined),
     [configuredAgent, session?.runtimeType]
   )
-  const { model } = useModelById(agent?.model)
+  const { model, isLoading: modelLoading } = useModelById(session?.model ?? agent?.model)
   const workspacePath = session?.workspace?.type === 'user' ? session.workspace.path : undefined
   const workspaceWarning = useAgentWorkspaceWarning(workspacePath)
   const runtime = useAgentChatRuntimeState({
@@ -81,7 +80,7 @@ export const SelectionAgentConversation: FC<SelectionAgentConversationProps> = (
   })
 
   // A recreated Cherry Assistant may still have no usable model; the first message waits until one is set.
-  const missingModel = Boolean(agent && !agentLoading && getSelectionAgentIssue(agent) === 'no_model')
+  const missingModel = Boolean(agent && !agentLoading && !modelLoading && !model)
   const firstMessageSentRef = useRef(false)
   const { sendMessage } = runtime
   useEffect(() => {

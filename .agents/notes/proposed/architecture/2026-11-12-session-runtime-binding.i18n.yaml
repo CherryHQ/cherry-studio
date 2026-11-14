@@ -1,5 +1,5 @@
 # Bilingual-pair consistency record (docs/dev/i18n/README.md).
 # After editing either side, update its counterpart and re-record with:
 #   pnpm docs:check-pairing --write .agents/notes/proposed/architecture/2026-11-12-session-runtime-binding.md
-2026-11-12-session-runtime-binding.md: 0e4029e89531d8855adde21c52b54a2a3c7b0e3d
-2026-11-12-session-runtime-binding.zh.md: 01c2978dfd24a91deaa5f125f17e3ca85952ea47
+2026-11-12-session-runtime-binding.md: d884903b4ff65449892daf8136f6983baf566a0e
+2026-11-12-session-runtime-binding.zh.md: b5a7a733ce5d1e15baff833c81b26ee6569546b4

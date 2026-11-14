@@ -10,8 +10,18 @@ import { AgentSessionRuntimeSeeder } from '../AgentSessionRuntimeSeeder'
 
 // Catch upgrading an installed database losing its original engine before the binding is saved.
 describe('session runtime migrate-forward', () => {
-  const dbh = setupTestDatabase({ beforeMigration: '0038_funny_calypso' })
+  const dbh = setupTestDatabase({ beforeMigration: '0039_tricky_prism' })
   it('adds ownership to a populated pre-upgrade database without rebuilding history', () => {
+    dbh.sqlite
+      .prepare(
+        "INSERT INTO user_provider (provider_id, name, order_key, created_at, updated_at) VALUES ('api', 'API', 'a0', 1, 1)"
+      )
+      .run()
+    dbh.sqlite
+      .prepare(
+        "INSERT INTO user_model (id, provider_id, model_id, name, capabilities, supports_streaming, order_key, created_at, updated_at) VALUES ('api::model', 'api', 'model', 'Model', '[]', 1, 'a0', 1, 1)"
+      )
+      .run()
     dbh.sqlite
       .prepare(
         "INSERT INTO agent (id, type, name, instructions, order_key, created_at, updated_at) VALUES ('agent', 'claude-code', 'Agent', 'Keep me', 'a0', 1, 1)"
@@ -24,7 +34,7 @@ describe('session runtime migrate-forward', () => {
       .run()
     dbh.sqlite
       .prepare(
-        "INSERT INTO agent_session (id, agent_id, name, workspace_id, order_key, last_activity_at, created_at, updated_at) VALUES ('session', 'agent', 'History', 'work', 'a0', 1, 1, 1)"
+        "INSERT INTO agent_session (id, agent_id, model, name, workspace_id, order_key, last_activity_at, created_at, updated_at) VALUES ('session', 'agent', 'api::model', 'History', 'work', 'a0', 1, 1, 1)"
       )
       .run()
     dbh.sqlite
@@ -35,6 +45,7 @@ describe('session runtime migrate-forward', () => {
     applyMigrations(dbh.db, resolveMigrationsPath())
     new AgentSessionRuntimeSeeder().run(dbh.db)
     expect(agentSessionService.getRuntimeType('session')).toBe('claude-code')
+    expect(agentSessionService.getById('session').model).toBe('api::model')
     expect(agentService.getAgent('agent')?.type).toBe('pi-durable')
     expect(dbh.sqlite.prepare('SELECT data FROM agent_session_message WHERE id = ?').get('message')).toEqual({
       data: JSON.stringify({ parts: [{ type: 'text', text: 'Saved content' }] })

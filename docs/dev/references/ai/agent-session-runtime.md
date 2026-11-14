@@ -48,9 +48,10 @@ driver internals behind the same host contract.
 ## Session runtime ownership
 
 `agent_session.runtime_type` binds execution to the session independently of its
-Agent's current `type`. Fresh conversations default to Pi Durable; a primary model
-whose provider uses an external CLI login (Claude subscription) binds Claude Code
-before prewarming. Provider registry authentication metadata selects this exception,
+Agent's current `type`. Fresh conversations default to Pi Durable. When the
+effective creation model's provider uses an external CLI login (Claude subscription),
+the session binds Claude Code before prewarming. The creation model is a supplied
+session override, otherwise the Agent default. Provider registry authentication metadata selects this exception,
 including preset-backed provider instances. Historical Pi and
 Claude Code sessions, their native forks and child archives retain their original
 engine; updating or replacing Agent settings does not change that ownership.
@@ -220,7 +221,9 @@ Do not add Cherry policy directly to one driver. Extend the common materializer,
    - system workspaces are materialized under Cherry's managed root, while user
      workspace paths must already resolve to a directory;
    - the session runtime binding must have a registered driver and agree with its native backends;
-   - the agent must have a model.
+   - an effective model must be configured: interactive turns use `session.model ?? agent.model`,
+     while headless turns use the Agent default and ignore the session override. See
+     [Agent Prompt Layers](./agent-prompt-layers.md#update-and-variable-lifecycle).
 3. The provider atomically saves:
    - a `user` message with the submitted parts;
    - a pending `assistant` message with the selected model id.
