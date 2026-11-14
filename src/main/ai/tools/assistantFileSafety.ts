@@ -81,7 +81,7 @@ export async function assertWorkspacePathUnchanged(
   workspacePath: string,
   errorMessage: string
 ): Promise<void> {
-  const currentPath = await validatePath(requestedPath, workspacePath)
+  const currentPath = await validatePath(requestedPath, [workspacePath])
   const resolvedCurrent = path.resolve(currentPath)
   const resolvedExpected = path.resolve(expectedPath)
   const equal =

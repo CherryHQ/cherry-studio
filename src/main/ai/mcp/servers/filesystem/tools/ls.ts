@@ -8,20 +8,26 @@ import { logger, MAX_FILES_LIMIT, validatePath } from '../types'
 
 // Schema definition
 export const LsToolSchema = z.object({
-  path: z.string().optional().describe('The directory to list (must be absolute path). Defaults to the base directory'),
+  path: z
+    .string()
+    .optional()
+    .describe('The directory to list (must be absolute path). Defaults to the first configured root'),
   recursive: z.boolean().optional().describe('Whether to list directories recursively (default: false)')
 })
 
 // Tool definition with detailed description
 export const lsToolDefinition = {
-  description: `List a directory alphabetically, directories first, max 100. Set recursive for up to 5 levels.`,
+  description: `List a directory alphabetically, directories first, max 100. Set recursive for up to 5 levels. Defaults to the first configured root.`,
   inputSchema: LsToolSchema
 }
 
 // Handler implementation
-export async function handleLsTool(args: z.infer<typeof LsToolSchema>, baseDir: string): Promise<CallToolResult> {
-  const targetPath = args.path || baseDir
-  const validPath = await validatePath(targetPath, baseDir)
+export async function handleLsTool(
+  args: z.infer<typeof LsToolSchema>,
+  baseDirs: readonly string[]
+): Promise<CallToolResult> {
+  const targetPath = args.path || baseDirs[0]
+  const validPath = await validatePath(targetPath, baseDirs)
 
   // Verify the target exists and is a directory before walking it: the recursive
   // walk below treats an unreadable directory as empty, so without this check a
@@ -91,7 +97,7 @@ export async function handleLsTool(args: z.infer<typeof LsToolSchema>, baseDir: 
           const childPath = path.join(dirPath, entry.name)
           // Validate symlinked directories to prevent escaping the workspace root
           try {
-            await validatePath(childPath, baseDir)
+            await validatePath(childPath, baseDirs)
             node.children = await buildTree(childPath, depth + 1)
           } catch {
             logger.debug('Skipping directory outside workspace root', { path: childPath })
