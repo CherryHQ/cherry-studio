@@ -7,7 +7,7 @@ import type { ReactNode } from 'react'
 
 import { loggerService } from '@logger'
 
-import { isMarkdownFencedCodePosition } from '../markdownLivePreview/livePreviewPlugin'
+import { isMarkdownFencedCodePosition } from '../../markdownLivePreview/livePreviewPlugin'
 
 const logger = loggerService.withContext('ComposerSuggestionExtension')
 const suggestionItemsGeneration = new WeakMap<readonly ComposerSuggestionItem[], number>()

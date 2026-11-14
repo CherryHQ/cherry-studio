@@ -91,7 +91,7 @@ Live preview follows the existing `chat.message.render_as_markdown` preference (
 The core exposes `isMarkdownFencedCodePosition(state, position)`. Chat and Agent keep tokens, QuickPanel, and steer in their own layers and consume only that query and the option.
 
 ```text
-src/renderer/components/composer/markdownLivePreview/
+src/renderer/components/markdownLivePreview/
 ├── markdownSession.ts      incremental parse and source/document position map
 ├── livePreviewPlugin.ts    decorations, reveal, composition and pointer freeze
 ├── codeBlockPlugin.ts      code regions and worker highlighting

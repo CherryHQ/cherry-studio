@@ -3,7 +3,7 @@ import { EditorContent, useEditor } from '@tiptap/react'
 import { useMemo } from 'react'
 import { describe, expect, it } from 'vitest'
 
-import { ComposerDocument, ComposerParagraph, ComposerText } from '../../../composer/composerSchema'
+import { ComposerDocument, ComposerParagraph, ComposerText } from '../../../markdownLivePreview/sourceSchema'
 import { Placeholder } from '../placeholder'
 
 function PlaceholderHarness({ placeholder }: { placeholder: string }) {

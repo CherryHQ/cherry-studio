@@ -1,4 +1,4 @@
-.tiptap {
+.tiptap:where(:not(.markdown-live-source)) {
   --rich-text-border-soft: color-mix(in srgb, var(--border) 60%, transparent);
   --rich-text-divider-color: var(--border);
   --rich-text-table-heading-background: var(--muted);
@@ -11,65 +11,65 @@
   line-height: var(--editor-line-height, inherit);
 }
 
-.tiptap:focus {
+.tiptap:where(:not(.markdown-live-source)):focus {
   outline: none;
 }
 
-.tiptap :first-child {
+.tiptap:where(:not(.markdown-live-source)) :first-child {
   margin-top: 0;
 }
 
-.tiptap h1:first-child,
-.tiptap h2:first-child,
-.tiptap h3:first-child,
-.tiptap h4:first-child,
-.tiptap h5:first-child,
-.tiptap h6:first-child {
+.tiptap:where(:not(.markdown-live-source)) h1:first-child,
+.tiptap:where(:not(.markdown-live-source)) h2:first-child,
+.tiptap:where(:not(.markdown-live-source)) h3:first-child,
+.tiptap:where(:not(.markdown-live-source)) h4:first-child,
+.tiptap:where(:not(.markdown-live-source)) h5:first-child,
+.tiptap:where(:not(.markdown-live-source)) h6:first-child {
   margin-top: 0;
 }
 
-.tiptap h1,
-.tiptap h2,
-.tiptap h3,
-.tiptap h4,
-.tiptap h5,
-.tiptap h6 {
+.tiptap:where(:not(.markdown-live-source)) h1,
+.tiptap:where(:not(.markdown-live-source)) h2,
+.tiptap:where(:not(.markdown-live-source)) h3,
+.tiptap:where(:not(.markdown-live-source)) h4,
+.tiptap:where(:not(.markdown-live-source)) h5,
+.tiptap:where(:not(.markdown-live-source)) h6 {
   margin: 1.5rem 0 1rem 0;
   line-height: 1.1;
   text-wrap: pretty;
   font-weight: 600;
 }
 
-.tiptap h1 code,
-.tiptap h2 code,
-.tiptap h3 code,
-.tiptap h4 code,
-.tiptap h5 code,
-.tiptap h6 code {
+.tiptap:where(:not(.markdown-live-source)) h1 code,
+.tiptap:where(:not(.markdown-live-source)) h2 code,
+.tiptap:where(:not(.markdown-live-source)) h3 code,
+.tiptap:where(:not(.markdown-live-source)) h4 code,
+.tiptap:where(:not(.markdown-live-source)) h5 code,
+.tiptap:where(:not(.markdown-live-source)) h6 code {
   font-size: inherit;
   font-weight: inherit;
 }
 
-.tiptap h1 {
+.tiptap:where(:not(.markdown-live-source)) h1 {
   margin-top: 0;
   font-size: 2rem;
 }
 
-.tiptap h2 {
+.tiptap:where(:not(.markdown-live-source)) h2 {
   font-size: 1.5rem;
 }
 
-.tiptap h3 {
+.tiptap:where(:not(.markdown-live-source)) h3 {
   font-size: 1.2rem;
 }
 
-.tiptap h4,
-.tiptap h5,
-.tiptap h6 {
+.tiptap:where(:not(.markdown-live-source)) h4,
+.tiptap:where(:not(.markdown-live-source)) h5,
+.tiptap:where(:not(.markdown-live-source)) h6 {
   font-size: 1rem;
 }
 
-.tiptap p {
+.tiptap:where(:not(.markdown-live-source)) p {
   margin: var(--editor-paragraph-margin, 0);
   white-space: var(--editor-paragraph-white-space, normal);
   overflow-wrap: var(--editor-paragraph-overflow-wrap, break-word);
@@ -79,27 +79,27 @@
   hyphens: auto;
 }
 
-.tiptap p:has(+ ul) {
+.tiptap:where(:not(.markdown-live-source)) p:has(+ ul) {
   margin-bottom: 0;
 }
 
-.tiptap a {
+.tiptap:where(:not(.markdown-live-source)) a {
   color: var(--link);
   text-decoration: none;
   cursor: pointer;
 }
 
-.tiptap a:hover {
+.tiptap:where(:not(.markdown-live-source)) a:hover {
   text-decoration: underline;
 }
 
-.tiptap blockquote {
+.tiptap:where(:not(.markdown-live-source)) blockquote {
   border-left: 4px solid var(--primary);
   margin: 1.5rem 0;
   padding-left: 1rem;
 }
 
-.tiptap code {
+.tiptap:where(:not(.markdown-live-source)) code {
   background-color: var(--inline-code);
   border-radius: 0.4rem;
   color: var(--inline-code-foreground);
@@ -108,7 +108,7 @@
   font-family: var(--code-font-family);
 }
 
-.tiptap pre {
+.tiptap:where(:not(.markdown-live-source)) pre {
   background: var(--code-block);
   border-radius: 0.5rem;
   color: var(--foreground);
@@ -118,7 +118,7 @@
   border: 1px solid var(--rich-text-border-soft);
 }
 
-.tiptap pre code {
+.tiptap:where(:not(.markdown-live-source)) pre code {
   background: none;
   color: inherit;
   font-size: 0.8rem;
@@ -126,30 +126,30 @@
   border: none;
 }
 
-.tiptap hr {
+.tiptap:where(:not(.markdown-live-source)) hr {
   border: none;
   border-top: 1px solid var(--rich-text-divider-color);
   margin: 2rem 0;
 }
 
-.tiptap em {
+.tiptap:where(:not(.markdown-live-source)) em {
   font-style: italic;
 }
 
-.tiptap u {
+.tiptap:where(:not(.markdown-live-source)) u {
   text-decoration: underline;
 }
 
-.tiptap strong,
-.tiptap strong * {
+.tiptap:where(:not(.markdown-live-source)) strong,
+.tiptap:where(:not(.markdown-live-source)) strong * {
   font-weight: 600;
 }
 
-.tiptap .placeholder {
+.tiptap:where(:not(.markdown-live-source)) .placeholder {
   position: relative;
 }
 
-.tiptap .placeholder:before {
+.tiptap:where(:not(.markdown-live-source)) .placeholder:before {
   content: attr(data-placeholder);
   position: absolute;
   color: var(--foreground-tertiary);
@@ -160,13 +160,13 @@
 }
 
 /* Ensure drag handles and plus buttons remain interactive */
-.tiptap .placeholder .drag-handle,
-.tiptap .placeholder .plus-button {
+.tiptap:where(:not(.markdown-live-source)) .placeholder .drag-handle,
+.tiptap:where(:not(.markdown-live-source)) .placeholder .plus-button {
   pointer-events: auto;
 }
 
 /* Show placeholder only when focused or when it's the only empty node */
-.tiptap .placeholder.has-focus:before {
+.tiptap:where(:not(.markdown-live-source)) .placeholder.has-focus:before {
   opacity: 0.8;
 }
 
@@ -308,13 +308,13 @@
   user-select: none;
 }
 
-.tiptap img:not([data-file-token-icon-thumbnail]) {
+.tiptap:where(:not(.markdown-live-source)) img:not([data-file-token-icon-thumbnail]) {
   max-width: 800px;
   width: 100%;
   height: auto;
 }
 
-.tiptap table {
+.tiptap:where(:not(.markdown-live-source)) table {
   border-collapse: collapse;
   margin: 0;
   /* Allow action endpoints (rendered as decorations) to slightly overflow table edges */
@@ -323,8 +323,8 @@
   width: 100%;
 }
 
-.tiptap td,
-.tiptap th {
+.tiptap:where(:not(.markdown-live-source)) td,
+.tiptap:where(:not(.markdown-live-source)) th {
   border: 1px solid var(--rich-text-border-soft);
   box-sizing: border-box;
   display: table-cell;
@@ -337,26 +337,26 @@
   text-overflow: ellipsis;
 }
 
-.tiptap td > *,
-.tiptap th > * {
+.tiptap:where(:not(.markdown-live-source)) td > *,
+.tiptap:where(:not(.markdown-live-source)) th > * {
   margin-bottom: 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.tiptap th,
-.tiptap th * {
+.tiptap:where(:not(.markdown-live-source)) th,
+.tiptap:where(:not(.markdown-live-source)) th * {
   background-color: var(--rich-text-table-heading-background);
   font-weight: bold;
   text-align: left;
 }
 
-.tiptap .selectedCell {
+.tiptap:where(:not(.markdown-live-source)) .selectedCell {
   position: relative; /* 确保伪元素定位 */
 }
 
-.tiptap .selectedCell::after {
+.tiptap:where(:not(.markdown-live-source)) .selectedCell::after {
   content: '';
   position: absolute;
   inset: 0;
@@ -365,23 +365,23 @@
   border-radius: 0;
 }
 
-.tiptap .selectedCell.selection-top::after {
+.tiptap:where(:not(.markdown-live-source)) .selectedCell.selection-top::after {
   border-top-width: 2px;
 }
 
-.tiptap .selectedCell.selection-bottom::after {
+.tiptap:where(:not(.markdown-live-source)) .selectedCell.selection-bottom::after {
   border-bottom-width: 2px;
 }
 
-.tiptap .selectedCell.selection-left::after {
+.tiptap:where(:not(.markdown-live-source)) .selectedCell.selection-left::after {
   border-left-width: 2px;
 }
 
-.tiptap .selectedCell.selection-right::after {
+.tiptap:where(:not(.markdown-live-source)) .selectedCell.selection-right::after {
   border-right-width: 2px;
 }
 
-.tiptap .column-resize-handle {
+.tiptap:where(:not(.markdown-live-source)) .column-resize-handle {
   background-color: var(--primary);
   bottom: -2px;
   pointer-events: none;
@@ -391,32 +391,32 @@
   width: 4px;
 }
 
-.tiptap table:has(.selectedCell) {
+.tiptap:where(:not(.markdown-live-source)) table:has(.selectedCell) {
   caret-color: transparent !important;
   user-select: none !important;
 }
 
-.tiptap table:has(.selectedCell) *::selection {
+.tiptap:where(:not(.markdown-live-source)) table:has(.selectedCell) *::selection {
   background: transparent !important;
 }
 
-.tiptap table:has(.selectedCell) .column-resize-handle {
+.tiptap:where(:not(.markdown-live-source)) table:has(.selectedCell) .column-resize-handle {
   display: none;
 }
 
 /* Position row action buttons relative to first column cells */
-.tiptap table tbody tr td:first-child,
-.tiptap table tbody tr th:first-child {
+.tiptap:where(:not(.markdown-live-source)) table tbody tr td:first-child,
+.tiptap:where(:not(.markdown-live-source)) table tbody tr th:first-child {
   position: relative;
 }
 
 /* Position column action buttons relative to first row cells */
-.tiptap table tbody tr:first-child td,
-.tiptap table tbody tr:first-child th {
+.tiptap:where(:not(.markdown-live-source)) table tbody tr:first-child td,
+.tiptap:where(:not(.markdown-live-source)) table tbody tr:first-child th {
   position: relative;
 }
 
-.tiptap .tableWrapper {
+.tiptap:where(:not(.markdown-live-source)) .tableWrapper {
   position: relative;
   margin: 1rem 0;
   display: grid;
@@ -428,35 +428,35 @@
   gap: 5px;
 }
 
-.tiptap .tableWrapper .table-container {
+.tiptap:where(:not(.markdown-live-source)) .tableWrapper .table-container {
   grid-area: table;
   overflow-x: auto;
   overflow-y: visible;
 }
 
-.tiptap .tableWrapper .table-container::-webkit-scrollbar {
+.tiptap:where(:not(.markdown-live-source)) .tableWrapper .table-container::-webkit-scrollbar {
   cursor: default;
 }
 
-.tiptap .tableWrapper .table-container::-webkit-scrollbar:horizontal {
+.tiptap:where(:not(.markdown-live-source)) .tableWrapper .table-container::-webkit-scrollbar:horizontal {
   cursor: default;
 }
 
-.tiptap .tableWrapper .table-container::-webkit-scrollbar-thumb {
+.tiptap:where(:not(.markdown-live-source)) .tableWrapper .table-container::-webkit-scrollbar-thumb {
   cursor: default;
 }
 
-.tiptap .tableWrapper .table-container::-webkit-scrollbar-track {
+.tiptap:where(:not(.markdown-live-source)) .tableWrapper .table-container::-webkit-scrollbar-track {
   cursor: default;
 }
 
-.tiptap .tableWrapper .table-container table {
+.tiptap:where(:not(.markdown-live-source)) .tableWrapper .table-container table {
   width: max-content;
   min-width: 100%;
 }
 
-.tiptap .tableWrapper .add-row-button,
-.tiptap .tableWrapper .add-column-button {
+.tiptap:where(:not(.markdown-live-source)) .tableWrapper .add-row-button,
+.tiptap:where(:not(.markdown-live-source)) .tableWrapper .add-column-button {
   border: 1px solid var(--border);
   background: var(--background);
   border-radius: 4px;
@@ -473,58 +473,58 @@
   pointer-events: auto;
 }
 
-.tiptap .tableWrapper .add-row-button:hover,
-.tiptap .tableWrapper .add-column-button:hover {
+.tiptap:where(:not(.markdown-live-source)) .tableWrapper .add-row-button:hover,
+.tiptap:where(:not(.markdown-live-source)) .tableWrapper .add-column-button:hover {
   background: var(--primary);
   color: var(--primary-foreground);
   border-color: var(--primary);
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
 }
 
-.tiptap .tableWrapper .add-row-button:active,
-.tiptap .tableWrapper .add-column-button:active {
+.tiptap:where(:not(.markdown-live-source)) .tableWrapper .add-row-button:active,
+.tiptap:where(:not(.markdown-live-source)) .tableWrapper .add-column-button:active {
   transform: scale(0.98);
 }
 
-.tiptap .tableWrapper .add-row-button::before,
-.tiptap .tableWrapper .add-column-button::before {
+.tiptap:where(:not(.markdown-live-source)) .tableWrapper .add-row-button::before,
+.tiptap:where(:not(.markdown-live-source)) .tableWrapper .add-column-button::before {
   content: '+';
   font-weight: bold;
 }
 
-.tiptap .tableWrapper .add-row-button {
+.tiptap:where(:not(.markdown-live-source)) .tableWrapper .add-row-button {
   grid-area: row-btn;
 }
 
-.tiptap .tableWrapper .add-column-button {
+.tiptap:where(:not(.markdown-live-source)) .tableWrapper .add-column-button {
   grid-area: column-btn;
 }
 
-.tiptap .tableWrapper:hover .add-row-button,
-.tiptap .tableWrapper:has(.add-row-button:hover) .add-row-button,
-.tiptap .tableWrapper:has(.add-column-button:hover) .add-row-button,
-.tiptap .tableWrapper:hover .add-column-button,
-.tiptap .tableWrapper:has(.add-row-button:hover) .add-column-button,
-.tiptap .tableWrapper:has(.add-column-button:hover) .add-column-button {
+.tiptap:where(:not(.markdown-live-source)) .tableWrapper:hover .add-row-button,
+.tiptap:where(:not(.markdown-live-source)) .tableWrapper:has(.add-row-button:hover) .add-row-button,
+.tiptap:where(:not(.markdown-live-source)) .tableWrapper:has(.add-column-button:hover) .add-row-button,
+.tiptap:where(:not(.markdown-live-source)) .tableWrapper:hover .add-column-button,
+.tiptap:where(:not(.markdown-live-source)) .tableWrapper:has(.add-row-button:hover) .add-column-button,
+.tiptap:where(:not(.markdown-live-source)) .tableWrapper:has(.add-column-button:hover) .add-column-button {
   display: flex;
 }
 
 /* Do not show in readonly even on hover */
-.tiptap .tableWrapper.is-readonly .add-row-button,
-.tiptap .tableWrapper.is-readonly:hover .add-row-button,
-.tiptap .tableWrapper.is-readonly .add-column-button,
-.tiptap .tableWrapper.is-readonly:hover .add-column-button {
+.tiptap:where(:not(.markdown-live-source)) .tableWrapper.is-readonly .add-row-button,
+.tiptap:where(:not(.markdown-live-source)) .tableWrapper.is-readonly:hover .add-row-button,
+.tiptap:where(:not(.markdown-live-source)) .tableWrapper.is-readonly .add-column-button,
+.tiptap:where(:not(.markdown-live-source)) .tableWrapper.is-readonly:hover .add-column-button {
   display: none !important;
 }
 
-.tiptap .tableWrapper .add-row-button:hover,
-.tiptap .tableWrapper .add-column-button:hover {
+.tiptap:where(:not(.markdown-live-source)) .tableWrapper .add-row-button:hover,
+.tiptap:where(:not(.markdown-live-source)) .tableWrapper .add-column-button:hover {
   display: flex !important;
 }
 
 /* Row/Column action triggers (visible on cell selection) */
-.tiptap .tableWrapper .row-action-trigger,
-.tiptap .tableWrapper .column-action-trigger {
+.tiptap:where(:not(.markdown-live-source)) .tableWrapper .row-action-trigger,
+.tiptap:where(:not(.markdown-live-source)) .tableWrapper .column-action-trigger {
   position: absolute;
   height: 20px;
   border-radius: 8px;
@@ -540,56 +540,56 @@
   pointer-events: auto;
 }
 
-.tiptap .tableWrapper .row-action-trigger::before,
-.tiptap .tableWrapper .column-action-trigger::before {
+.tiptap:where(:not(.markdown-live-source)) .tableWrapper .row-action-trigger::before,
+.tiptap:where(:not(.markdown-live-source)) .tableWrapper .column-action-trigger::before {
   content: '•••';
 }
 
-.tiptap.resize-cursor {
+.tiptap:where(:not(.markdown-live-source)).resize-cursor {
   cursor: ew-resize;
   cursor: col-resize;
 }
 
-.tiptap ul,
-.tiptap ol {
+.tiptap:where(:not(.markdown-live-source)) ul,
+.tiptap:where(:not(.markdown-live-source)) ol {
   padding: 0 1rem;
   margin: 1.25rem 1rem 1.25rem 0.4rem;
 }
 
-.tiptap ul li p,
-.tiptap ol li p {
+.tiptap:where(:not(.markdown-live-source)) ul li p,
+.tiptap:where(:not(.markdown-live-source)) ol li p {
   margin-top: 0.25em;
   margin-bottom: 0.25em;
 }
 
 /* Reduce spacing for nested lists */
-.tiptap ul ul,
-.tiptap ul ol,
-.tiptap ol ul,
-.tiptap ol ol {
+.tiptap:where(:not(.markdown-live-source)) ul ul,
+.tiptap:where(:not(.markdown-live-source)) ul ol,
+.tiptap:where(:not(.markdown-live-source)) ol ul,
+.tiptap:where(:not(.markdown-live-source)) ol ol {
   margin: 0.5rem 0.5rem 0.5rem 0.2rem;
 }
 
-.tiptap ul {
+.tiptap:where(:not(.markdown-live-source)) ul {
   list-style: disc;
 }
 
-.tiptap ol {
+.tiptap:where(:not(.markdown-live-source)) ol {
   list-style: decimal;
 }
 
-.tiptap ul[data-type='taskList'] {
+.tiptap:where(:not(.markdown-live-source)) ul[data-type='taskList'] {
   list-style: none;
   margin-left: 0;
   padding: 0;
 }
 
-.tiptap ul[data-type='taskList'] li {
+.tiptap:where(:not(.markdown-live-source)) ul[data-type='taskList'] li {
   align-items: center;
   display: flex;
 }
 
-.tiptap ul[data-type='taskList'] li > label {
+.tiptap:where(:not(.markdown-live-source)) ul[data-type='taskList'] li > label {
   flex: 0 0 auto;
   margin-right: 0.5rem;
   user-select: none;
@@ -597,37 +597,37 @@
   align-items: center;
 }
 
-.tiptap ul[data-type='taskList'] li > div {
+.tiptap:where(:not(.markdown-live-source)) ul[data-type='taskList'] li > div {
   flex: 1 1 auto;
 }
 
-.tiptap ul[data-type='taskList'] li > div p {
+.tiptap:where(:not(.markdown-live-source)) ul[data-type='taskList'] li > div p {
   margin: 0;
 }
 
 /* Checked task item appearance */
-.tiptap ul[data-type='taskList'] li[data-checked='true'] > div {
+.tiptap:where(:not(.markdown-live-source)) ul[data-type='taskList'] li[data-checked='true'] > div {
   color: var(--muted-foreground);
   text-decoration: line-through;
 }
 
-.tiptap ul[data-type='taskList'] input[type='checkbox'] {
+.tiptap:where(:not(.markdown-live-source)) ul[data-type='taskList'] input[type='checkbox'] {
   cursor: pointer;
 }
 
 /* Use primary color for checked checkbox */
-.tiptap ul[data-type='taskList'] input[type='checkbox']:checked {
+.tiptap:where(:not(.markdown-live-source)) ul[data-type='taskList'] input[type='checkbox']:checked {
   accent-color: var(--primary);
   background-color: var(--primary);
   border-color: var(--primary);
 }
 
-.tiptap ul[data-type='taskList'] ul[data-type='taskList'] {
+.tiptap:where(:not(.markdown-live-source)) ul[data-type='taskList'] ul[data-type='taskList'] {
   margin: 0;
 }
 
 /* Math block */
-.tiptap .block-math-inner {
+.tiptap:where(:not(.markdown-live-source)) .block-math-inner {
   display: flex;
   justify-content: center;
   align-items: center;

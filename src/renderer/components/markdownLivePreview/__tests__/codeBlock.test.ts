@@ -4,8 +4,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { codeHighlightService } from '@renderer/services/CodeHighlightService'
 
-import { createComposerDraftContent, serializeComposerDocument } from '../../composerDraft'
-import { createComposerEditorPreset } from '../../composerPreset'
+import { createComposerDraftContent, serializeComposerDocument } from '../../composer/composerDraft'
+import { createComposerEditorPreset } from '../../composer/composerPreset'
 import { handleMarkdownCodeKey } from '../codeBlockKeys'
 import { isMarkdownFencedCodePosition } from '../livePreviewPlugin'
 

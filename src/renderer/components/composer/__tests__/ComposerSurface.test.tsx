@@ -312,11 +312,11 @@ vi.mock('@tiptap/react', async (importOriginal) => ({
   )
 }))
 
-vi.mock('../markdownLivePreview/codeBlockKeys', () => ({
+vi.mock('../../markdownLivePreview/codeBlockKeys', () => ({
   handleMarkdownCodeKey: mocks.handleMarkdownCodeKey
 }))
 
-vi.mock('../markdownLivePreview/selectionFormatKeys', () => ({
+vi.mock('../../markdownLivePreview/selectionFormatKeys', () => ({
   handleMarkdownFormatKey: mocks.handleMarkdownFormatKey
 }))
 

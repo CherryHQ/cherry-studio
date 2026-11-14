@@ -1,21 +1,17 @@
 import FileText from 'lucide-react/dist/esm/icons/file-text'
 import FileWarning from 'lucide-react/dist/esm/icons/file-warning'
 import LoaderCircle from 'lucide-react/dist/esm/icons/loader-circle'
-import { lazy, type ReactNode, Suspense, useCallback, useId, useLayoutEffect, useState } from 'react'
+import { lazy, type ReactNode, Suspense, useId, useLayoutEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { FilePreviewLayout } from '@cherrystudio/file-preview/react'
 import { EmptyState } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import { MarkdownHostProvider, StaticMarkdown } from '@renderer/components/markdown'
-import { parseFileLinkHref } from '@renderer/utils/filePath'
-import { normalizeFilePreviewPath } from '@renderer/utils/filePreview'
-import { joinPath } from '@renderer/utils/path'
-import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
-import { toFileUrl } from '@shared/utils/file'
+import { StaticMarkdown } from '@renderer/components/markdown'
+import type { AbsoluteFilePath } from '@shared/types/file'
 
+import { MarkdownFileHostProvider } from '../../MarkdownFileHostProvider'
 import type { FilePreviewPluginProps } from '../../types'
-import { useOptionalFilePreviewNavigation } from '../../useFilePreviewNavigation'
 import { type MarkdownFilePreviewMode, MarkdownFilePreviewToolbar } from './MarkdownFilePreviewToolbar'
 
 const logger = loggerService.withContext('MarkdownFilePreview')
@@ -74,29 +70,6 @@ interface MarkdownPreviewContentProps {
   mode: MarkdownFilePreviewMode
 }
 
-function resolveMarkdownImageSrc(filePath: AbsoluteFilePath, src: string): string | null {
-  if (!src || src.trim() !== src || /^[/?#]|^[a-z][a-z0-9+.-]*:|[\\\p{Cc}]|%2f|%5c/iu.test(src)) return src
-
-  try {
-    return new URL(src, toFileUrl(filePath)).href
-  } catch {
-    return null
-  }
-}
-
-function resolveMarkdownFileLink(workspacePath: AbsoluteFilePath, href: string | undefined): AbsoluteFilePath | null {
-  const linkPath = parseFileLinkHref(href)
-  if (!linkPath) return null
-
-  const candidate = AbsoluteFilePathSchema.safeParse(linkPath).success ? linkPath : joinPath(workspacePath, linkPath)
-
-  try {
-    return normalizeFilePreviewPath(candidate)
-  } catch {
-    return null
-  }
-}
-
 function MarkdownPreviewContent({
   filePath,
   hideFrontmatter,
@@ -104,17 +77,6 @@ function MarkdownPreviewContent({
   markdownId,
   mode
 }: MarkdownPreviewContentProps): ReactNode {
-  const navigation = useOptionalFilePreviewNavigation()
-  const resolveImageSrc = useCallback((src: string) => resolveMarkdownImageSrc(filePath, src), [filePath])
-  const openFilePath = useCallback(
-    (path: string) => {
-      if (!navigation) return
-      const target = resolveMarkdownFileLink(navigation.workspacePath, path)
-      if (target) return navigation.openFile(target)
-    },
-    [navigation]
-  )
-
   if (loadState.status === 'loading') return <MarkdownPreviewLoading />
   if (loadState.status === 'error') return <MarkdownPreviewError />
 
@@ -144,11 +106,7 @@ function MarkdownPreviewContent({
     </div>
   )
 
-  return (
-    <MarkdownHostProvider resolveImageSrc={resolveImageSrc} openFilePath={navigation ? openFilePath : undefined}>
-      {markdown}
-    </MarkdownHostProvider>
-  )
+  return <MarkdownFileHostProvider filePath={filePath}>{markdown}</MarkdownFileHostProvider>
 }
 
 export default function MarkdownFilePreview({

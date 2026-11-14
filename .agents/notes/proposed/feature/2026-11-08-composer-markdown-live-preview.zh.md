@@ -91,7 +91,7 @@ Composer 不能直接换编辑器。它的 Tiptap 文档承载原子 token 节�
 核心暴露 `isMarkdownFencedCodePosition(state, position)`。Chat 和 Agent 把 token、QuickPanel、steer 留在各自的层，只使用这个查询和上述选项。
 
 ```text
-src/renderer/components/composer/markdownLivePreview/
+src/renderer/components/markdownLivePreview/
 ├── markdownSession.ts      incremental parse and source/document position map
 ├── livePreviewPlugin.ts    decorations, reveal, composition and pointer freeze
 ├── codeBlockPlugin.ts      code regions and worker highlighting

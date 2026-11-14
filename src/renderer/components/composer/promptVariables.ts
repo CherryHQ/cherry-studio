@@ -3,13 +3,13 @@ import { isHistoryTransaction } from '@tiptap/pm/history'
 import type { Node as ProseMirrorNode } from '@tiptap/pm/model'
 import { NodeSelection, type Selection, type Transaction } from '@tiptap/pm/state'
 
+import { isMarkdownFencedCodePosition } from '../markdownLivePreview/livePreviewPlugin'
 import {
   type ComposerTokenMarkerRule,
   createComposerLineParagraphs,
   createComposerTokenMarkerInlineContent
 } from './composerTokenMarkers'
 import { COMPOSER_TOKEN_NODE_NAME, requestComposerPromptVariableEdit } from './ComposerTokenNode'
-import { isMarkdownFencedCodePosition } from './markdownLivePreview/livePreviewPlugin'
 import type { ComposerDraftToken } from './tokens'
 import { normalizeComposerTokenAttrs } from './tokens'
 

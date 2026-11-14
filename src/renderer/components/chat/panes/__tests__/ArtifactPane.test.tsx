@@ -13,7 +13,8 @@ import { loggerService } from '@logger'
 import type * as ChatPrimitives from '@renderer/components/chat/primitives'
 import type { CommandContextMenuExtraItem, MaybePromise } from '@renderer/components/command'
 import type * as FileEditorModule from '@renderer/components/FileEditor'
-import { hasRenderedFilePreview } from '@renderer/components/FilePreview'
+import { hasRenderedFilePreview, isMarkdownFilePreview } from '@renderer/components/FilePreview'
+import type * as FilePreviewModule from '@renderer/components/FilePreview'
 import type * as OpenTargetModule from '@renderer/components/OpenTarget'
 import { FileEditSessionContext, useFileEditSession } from '@renderer/hooks/useFileEditSession'
 import { FileEditSessionManager } from '@renderer/services/fileEdit/FileEditSessionManager'
@@ -98,7 +99,7 @@ function EditablePaneInner({ workspacePath }: { workspacePath: string }) {
     onExpandedIdsChange: setExpandedIds
   })
   const editPath =
-    editMode === 'edit' && selectedFile
+    selectedFile && (editMode === 'edit' || isMarkdownFilePreview(selectedFile))
       ? getArtifactPaneSelectionPath({ workspacePath, filePath: selectedFile })
       : undefined
   const [autoSave] = usePreference('feature.agent.file_pane.auto_save')
@@ -297,6 +298,7 @@ vi.mock('@cherrystudio/ui', async (importActual) => {
   const actual = await importActual<typeof CherryStudioUi>()
 
   return {
+    ...actual,
     Breadcrumb: actual.Breadcrumb,
     BreadcrumbItem: actual.BreadcrumbItem,
     BreadcrumbList: actual.BreadcrumbList,
@@ -399,11 +401,6 @@ vi.mock('@cherrystudio/ui', async (importActual) => {
         {children}
       </div>
     ),
-    Markdown: ({ id, children }: { id: string; children: string }) => (
-      <div data-testid="markdown" data-md-id={id}>
-        {children}
-      </div>
-    ),
     ImagePreviewTrigger: ({
       item,
       alt,
@@ -435,16 +432,6 @@ vi.mock('@cherrystudio/ui', async (importActual) => {
 
 vi.mock('@cherrystudio/ui/lib/utils', () => ({
   cn: (...args: unknown[]) => args.filter(Boolean).join(' ')
-}))
-
-// ArtifactPane renders markdown files through the shared StaticMarkdown renderer;
-// stub it so this unit test doesn't pull in the full Streamdown component graph.
-vi.mock('@renderer/components/markdown', () => ({
-  StaticMarkdown: ({ id, children }: { id: string; children: string }) => (
-    <div data-testid="markdown" data-md-id={id}>
-      {children}
-    </div>
-  )
 }))
 
 vi.mock('motion/react', () => ({
@@ -490,7 +477,8 @@ vi.mock('@renderer/components/chat/primitives', async (importActual) => ({
   LoadingState: ({ rows }: { rows?: number }) => <div data-testid="loading-state" data-rows={rows} />
 }))
 
-vi.mock('@renderer/components/FilePreview', () => ({
+vi.mock('@renderer/components/FilePreview', async (importOriginal) => ({
+  ...(await importOriginal<typeof FilePreviewModule>()),
   FilePreview: (props: {
     filePath: string
     refreshKey: number
@@ -2021,31 +2009,28 @@ describe('ArtifactPane', () => {
     )
   })
 
-  it('switches a rendered text file between preview and the editor; plain text has no toggle', async () => {
-    mockWorkspaceTree('/tmp/workspace', ['notes.md', 'main.txt'])
+  it('keeps a Markdown draft across source and live preview and saves it through the file session', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('feature.agent.file_pane.auto_save', false)
+    const user = userEvent.setup()
+    mockWorkspaceTree('/tmp/workspace', ['notes.md'])
     mocks.fsReadText.mockResolvedValue('# notes')
-    mocks.ipcRequest.mockResolvedValueOnce(binaryReadResult(new TextEncoder().encode('# notes')))
-
+    mocks.ipcRequest
+      .mockResolvedValueOnce(binaryReadResult(new TextEncoder().encode('# notes')))
+      .mockResolvedValueOnce({ mtime: 2, size: 9 })
     render(<EditablePaneHarness workspacePath="/tmp/workspace" />)
-    await waitFor(() => expect(screen.getByTestId('tree-node-notes.md')).toBeInTheDocument())
-    fireEvent.click(screen.getByTestId('tree-node-notes.md'))
+    await user.click(await screen.findByTestId('tree-node-notes.md'))
     const overlay = await screen.findByTestId('artifact-file-preview-overlay')
-    expect(await within(overlay).findByTestId('file-preview')).toBeInTheDocument()
-
-    const editToggle = await within(overlay).findByRole('button', { name: 'common.edit' })
-    const openButton = within(overlay).getByRole('button', { name: 'Open in Finder' })
-    expect(editToggle.compareDocumentPosition(openButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
-
-    fireEvent.click(editToggle)
-    expect(await within(overlay).findByTestId('code-editor')).toHaveValue('# notes')
-    fireEvent.click(within(overlay).getByRole('button', { name: 'common.preview' }))
-    expect(await within(overlay).findByTestId('file-preview')).toBeInTheDocument()
-
-    fireEvent.click(screen.getByTestId('tree-node-main.txt'))
-    await waitFor(() => expect(screen.getByTestId('artifact-file-preview-overlay')).toHaveTextContent('main.txt'))
-    expect(
-      within(screen.getByTestId('artifact-file-preview-overlay')).queryByRole('button', { name: 'common.edit' })
-    ).toBeNull()
+    expect(await within(overlay).findByRole('heading', { name: 'notes' })).toBeVisible()
+    expect(mocks.ipcRequest).not.toHaveBeenCalledWith('file.edit.write', expect.anything())
+    await user.click(within(overlay).getByRole('button', { name: 'file_preview.markdown.mode.source' }))
+    fireEvent.change(await within(overlay).findByTestId('code-editor'), { target: { value: '# revised' } })
+    await user.click(within(overlay).getByRole('button', { name: 'file_preview.markdown.mode.preview' }))
+    expect(await within(overlay).findByRole('heading', { name: 'revised' })).toBeVisible()
+    expect(mocks.ipcRequest).not.toHaveBeenCalledWith('file.edit.write', expect.anything())
+    await user.click(within(overlay).getByRole('button', { name: 'common.save' }))
+    await waitFor(() => expect(mocks.ipcRequest).toHaveBeenCalledWith('file.edit.write', expect.anything()))
+    const write = mocks.ipcRequest.mock.calls.find(([route]) => route === 'file.edit.write')!
+    expect(new TextDecoder().decode(write[1].data)).toBe('# revised')
   })
 
   it('saves only through Save while autosave is off', async () => {

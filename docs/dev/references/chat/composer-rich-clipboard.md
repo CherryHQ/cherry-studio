@@ -103,7 +103,7 @@ markers.
   text.
 - A fragment is restored only from the paste event's clipboard data or from the
   session cache; paste never reads the system clipboard.
-- On a Markdown live-preview surface, plain-text marker restoration uses the
+- On a Composer Markdown live-preview surface, plain-text marker restoration uses the
   document after replacing the selection, including the surrounding text. Markers
   inside the resulting fenced code stay literal; markers outside it can restore
   tokens. A paste starting inside fenced code bypasses private-fragment restoration
