@@ -220,6 +220,18 @@ export const DASHSCOPE_HOSTED_WEB_SEARCH_MODELS = [
   { canonicalId: 'kimi-k3', wireIds: ['kimi-k3', 'kimi/kimi-k3'] }
 ] as const
 
+// Bailian Responses search covers Qwen3.x and the hosted SKUs in the shared hosted-model declaration.
+// Qwen aliases outside Qwen3.x keep Chat search; see DASHSCOPE_HOSTED_WEB_SEARCH_MODELS.
+export function supportsDashScopeResponsesWebSearch(model: Model): boolean {
+  // Use shared wire-id resolution: runtime Model.apiModelId is optional; reading it directly can
+  // return false while the route stays `server`, leaving the request with neither server nor client tools.
+  const rawId = getRawModelId(model)
+  return (
+    /^qwen3[.-]/.test(rawId) ||
+    DASHSCOPE_HOSTED_WEB_SEARCH_MODELS.some((row) => row.wireIds.some((wireId) => wireId === rawId))
+  )
+}
+
 /** Whether the host serves this tool for the model's vendor family (declaration `vendors` narrowing). */
 function serverToolServesModelVendor(tool: ServerToolConfig, model: Model): boolean {
   if (!tool.vendors?.length) return true
@@ -311,6 +323,7 @@ function isBuiltinServerToolAvailable(
   }
 
   if (toolId === SERVER_TOOL.WEB_SEARCH && matchesPreset(provider, 'dashscope')) {
+    if (endpoint === ENDPOINT_TYPE.OPENAI_RESPONSES && !supportsDashScopeResponsesWebSearch(model)) return false
     const rawId = getRawModelId(model)
     const hostedModel = DASHSCOPE_HOSTED_WEB_SEARCH_MODELS.find((row) => row.canonicalId === normalizeModelId(rawId))
     if (

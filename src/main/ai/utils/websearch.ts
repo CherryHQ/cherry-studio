@@ -4,10 +4,10 @@ import type { Provider } from '@shared/data/types/provider'
 import { mapRegexToPatterns } from '@shared/utils/blacklistMatchPattern'
 import { getRawModelId, isOpenAIDeepResearchModel, isOpenAIWebSearchChatCompletionOnlyModel } from '@shared/utils/model'
 import {
-  DASHSCOPE_HOSTED_WEB_SEARCH_MODELS,
   isBuiltinWebFetchAvailable,
   isBuiltinWebSearchAvailable,
-  matchesPreset
+  matchesPreset,
+  supportsDashScopeResponsesWebSearch
 } from '@shared/utils/provider'
 
 import type { KimiFormulaCredentials } from '../provider/custom/moonshotProvider'
@@ -113,18 +113,6 @@ export function getWebSearchParams(model: Model, provider: Provider | undefined)
   return {}
 }
 
-// Bailian Responses search covers Qwen3.x and the hosted SKUs in the shared hosted-model declaration.
-// Qwen aliases outside Qwen3.x keep Chat search; see DASHSCOPE_HOSTED_WEB_SEARCH_MODELS.
-function servesResponsesWebSearch(model: Model): boolean {
-  // Use shared wire-id resolution: runtime Model.apiModelId is optional; reading it directly can
-  // return false while the route stays `server`, leaving the request with neither server nor client tools.
-  const rawId = getRawModelId(model)
-  return (
-    /^qwen3[.-]/.test(rawId) ||
-    DASHSCOPE_HOSTED_WEB_SEARCH_MODELS.some((row) => row.wireIds.some((wireId) => wireId === rawId))
-  )
-}
-
 /**
  * range in [0, 100]
  * @param maxResults
@@ -172,7 +160,7 @@ export function buildProviderBuiltinWebSearchConfig(
       if (model && provider && matchesPreset(provider, 'dashscope')) {
         // `undefined` (not `{}`) is what suppresses the tool: `providerWebSearchFeature` applies on a
         // truthy config, so an empty object would still attach it.
-        return servesResponsesWebSearch(model) ? { openai: {} } : undefined
+        return supportsDashScopeResponsesWebSearch(model) ? { openai: {} } : undefined
       }
       if (model && provider && matchesPreset(provider, 'qwencloud')) {
         // Only the DeepSeek-V4/GLM-5.2/Kimi-K3 lines take the Responses web_search tool
