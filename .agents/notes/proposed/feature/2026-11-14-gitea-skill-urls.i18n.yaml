@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/proposed/feature/2026-11-14-gitea-skill-urls.md
+2026-11-14-gitea-skill-urls.md: d069c0e68219c5d2a9442f853e04eb89f2dd732c
+2026-11-14-gitea-skill-urls.zh.md: 0c6e9d206d050a88dde64ab1481be9119016a755
