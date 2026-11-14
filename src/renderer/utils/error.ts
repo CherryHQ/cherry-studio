@@ -15,6 +15,7 @@ import type {
 } from '@renderer/types/error'
 import { isSerializedAiSdkApiCallError, isSerializedAiSdkRetryError } from '@renderer/types/error'
 import { getSafeProviderErrorMessage, serializeNestedProviderError } from '@shared/ai/providerError'
+import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import { aiErrorDetail, aiStreamAdmissionReason, isAgentSessionArchiveBusyError } from '@shared/ipc/errors/ai'
 import { safeSerialize } from '@shared/utils/serialize'
 
@@ -70,8 +71,21 @@ function getActionableAiErrorMessage(error: unknown): string | undefined {
     case 'TOPIC_BUSY':
       return t('message.error.stream_admission.topic_busy')
     default:
-      return undefined
+      break
   }
+  if (isDataApiError(error) && error.code === ErrorCode.RESOURCE_LOCKED && error.status === 423) {
+    const details = error.details
+    if (
+      details &&
+      'resource' in details &&
+      details.resource === 'Message' &&
+      'lockedBy' in details &&
+      details.lockedBy === 'native input binding'
+    ) {
+      return t('message.error.agent_session_message_protected')
+    }
+  }
+  return undefined
 }
 
 export const isTimeoutError = (error: any): boolean => {
