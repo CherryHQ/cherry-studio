@@ -16,6 +16,7 @@ import {
 } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
+import { startNotesDirectoryMigration } from '@renderer/components/notes/notesDirectoryMigration'
 import {
   SettingDivider,
   SettingGroup,
@@ -24,8 +25,10 @@ import {
   SettingRowTitle,
   SettingTitle
 } from '@renderer/components/SettingsPrimitives'
+import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { ipcApi } from '@renderer/ipc'
+import { resolveNotesPath } from '@renderer/services/NotesService'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import type { AppInfo } from '@renderer/types/app'
@@ -57,6 +60,8 @@ const BasicDataSettings: React.FC = () => {
   const [skipBackupFile, setSkipBackupFile] = usePreference('data.backup.general.skip_backup_file')
   const [enableDataCollection, setEnableDataCollection] = usePreference('app.privacy.data_collection.enabled')
   const [logRetentionDays, setLogRetentionDays] = usePreference('app.logs.retention_days')
+  const { notesPath, updateNotesPath } = useNotesSettings()
+  const [resolvedNotesPath, setResolvedNotesPath] = useState<string>()
   const refreshCacheSize = useCallback(async () => {
     try {
       const response = await ipcApi.request('app.cache_cleanup.inspect', { groups: ['normal_cache'] })
@@ -71,6 +76,28 @@ const BasicDataSettings: React.FC = () => {
     void ipcApi.request('app.get_info').then(setAppInfo)
     void refreshCacheSize()
   }, [refreshCacheSize])
+
+  useEffect(() => {
+    let cancelled = false
+    void resolveNotesPath(notesPath || '')
+      .then((resolved) => {
+        if (cancelled) {
+          return
+        }
+        setResolvedNotesPath(resolved.path)
+      })
+      .catch((error) => {
+        if (cancelled) {
+          return
+        }
+        logger.warn('Failed to resolve notes path', error as Error)
+        setResolvedNotesPath(undefined)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [notesPath])
 
   const handleSelectAppDataPath = async () => {
     if (!appInfo || !appInfo.appDataPath) {
@@ -305,6 +332,50 @@ const BasicDataSettings: React.FC = () => {
       </SettingGroup>
       <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.data.data.title')}</SettingTitle>
+        <SettingDivider />
+        <SettingRow id="setting-data-data-notes-data" className="scroll-mt-6">
+          <SettingRowTitle>{t('settings.data.notes_data.label')}</SettingRowTitle>
+          <PathRow>
+            <PathText
+              style={{ color: DATA_SETTINGS_SUBTLE_TEXT_COLOR }}
+              onClick={() => handleOpenPath(resolvedNotesPath)}>
+              {resolvedNotesPath ?? notesPath}
+            </PathText>
+            <RowFlex className="ml-2 gap-1.25">
+              <Button onClick={() => handleOpenPath(resolvedNotesPath)} variant="outline">
+                {t('settings.data.notes_data.open')}
+              </Button>
+              <Button
+                onClick={() => {
+                  void (async () => {
+                    try {
+                      const resolved = await resolveNotesPath(notesPath || '')
+                      const migrationSourcePath = resolved.isFallback && notesPath ? notesPath : resolved.path
+                      if (!migrationSourcePath) {
+                        return
+                      }
+                      await startNotesDirectoryMigration({
+                        t,
+                        sourcePath: migrationSourcePath,
+                        onSuccess: async (path) => {
+                          await updateNotesPath(path)
+                        }
+                      })
+                    } catch (error) {
+                      logger.warn('Failed to resolve notes path for migration', error as Error)
+                      toast.error(t('settings.data.notes_relocation.error.generic'))
+                    }
+                  })()
+                }}
+                variant="outline">
+                {t('settings.data.notes_relocation.migrate')}
+              </Button>
+            </RowFlex>
+          </PathRow>
+        </SettingRow>
+        <SettingRow>
+          <SettingHelpText>{t('settings.data.notes_data.help')}</SettingHelpText>
+        </SettingRow>
         <SettingDivider />
         <SettingRow id="setting-data-data-app-data" className="scroll-mt-6">
           <SettingRowTitle>{t('settings.data.app_data.label')}</SettingRowTitle>

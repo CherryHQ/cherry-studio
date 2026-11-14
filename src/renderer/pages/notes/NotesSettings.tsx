@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 
 import { Button, Input, Slider, Switch } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
+import { migrateNotesDirectoryWithUi } from '@renderer/components/notes/notesDirectoryMigration'
 import Selector from '@renderer/components/Selector'
 import {
   SettingContainer,
@@ -15,11 +16,15 @@ import {
   SettingRowTitle,
   SettingTitle
 } from '@renderer/components/SettingsPrimitives'
+import { flushAllNotesEdits, waitForStructuralNotesWritesToSettle } from '@renderer/hooks/notesFileEditFlush'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { ipcApi } from '@renderer/ipc'
+import { resolveNotesPath } from '@renderer/services/NotesService'
 import { toast } from '@renderer/services/toast'
 import type { EditorView } from '@renderer/types/app'
+import { IpcError } from '@shared/ipc/errors/IpcError'
+import { notesRelocationErrorCodes } from '@shared/ipc/errors/notesRelocation'
 
 const logger = loggerService.withContext('NotesSettings')
 
@@ -62,16 +67,23 @@ const NotesSettings: FC = () => {
     }
 
     try {
-      // 验证目录是否可用
       const isValidDir = await window.api.file.validateNotesDirectory(tempPath)
-
       if (!isValidDir) {
         toast.error(t('notes.settings.data.invalid_directory'))
         return
       }
 
-      updateNotesPath(tempPath)
-      toast.success(t('notes.settings.data.path_updated'))
+      const resolvedSource = await resolveNotesPath(notesPath || '')
+      const migrationSourcePath = resolvedSource.isFallback && notesPath ? notesPath : resolvedSource.path
+      await migrateNotesDirectoryWithUi({
+        t,
+        sourcePath: migrationSourcePath,
+        targetPath: tempPath,
+        onSuccess: async (path) => {
+          await updateNotesPath(path)
+          setTempPath(path)
+        }
+      })
     } catch (error) {
       logger.error('Failed to apply notes path:', error as Error)
       toast.error(t('notes.settings.data.apply_path_failed'))
@@ -81,11 +93,22 @@ const NotesSettings: FC = () => {
   const handleResetToDefault = async () => {
     try {
       const info = await ipcApi.request('app.get_info')
-      setTempPath(info.notesPath)
-      updateNotesPath(info.notesPath)
-      toast.success(t('notes.settings.data.reset_to_default'))
+      const { sessionEpoch } = await ipcApi.request('app.notes_relocation.begin_barrier')
+      try {
+        await waitForStructuralNotesWritesToSettle()
+        await flushAllNotesEdits()
+        setTempPath(info.notesPath)
+        await updateNotesPath(info.notesPath)
+        toast.success(t('notes.settings.data.reset_to_default'))
+      } finally {
+        await ipcApi.request('app.notes_relocation.end_barrier', { sessionEpoch })
+      }
     } catch (error) {
       logger.error('Failed to reset to default:', error as Error)
+      if (error instanceof IpcError && error.code === notesRelocationErrorCodes.NOTES_RELOCATION_IN_PROGRESS) {
+        toast.error(t('settings.data.notes_relocation.error.in_progress'))
+        return
+      }
       toast.error(t('notes.settings.data.reset_failed'))
     }
   }
@@ -116,7 +139,7 @@ const NotesSettings: FC = () => {
           </div>
           <div className="flex items-center gap-2 self-start">
             <Button onClick={handleApplyPath} disabled={!isPathChanged}>
-              {t('notes.settings.data.apply')}
+              {t('settings.data.notes_relocation.migrate')}
             </Button>
             <Button onClick={handleResetToDefault}>{t('notes.settings.data.reset_to_default')}</Button>
           </div>

@@ -19,7 +19,8 @@ import { getProviderLabelKey } from '@renderer/i18n/label'
 import i18n from '@renderer/i18n/resolver'
 import { ipcApi } from '@renderer/ipc'
 import { openRoute } from '@renderer/services/mainWindowNavigation'
-import { addNote } from '@renderer/services/NotesService'
+import { runStructuralNotesFilesystemWrite } from '@renderer/services/notesEditCoordination'
+import { addNote, resolveNotesPath } from '@renderer/services/NotesService'
 import { toast } from '@renderer/services/toast'
 import type {
   ExportableMessage,
@@ -1511,9 +1512,32 @@ async function createSiyuanDoc(
   return data.data
 }
 
-const saveContentToNotes = async (title: string, content: string, folderPath: string): Promise<void> => {
-  const { path } = await addNote(title, content, folderPath)
+async function resolveActiveNotesExportFolder(): Promise<string> {
+  const configured = (await preferenceService.get('feature.notes.path')) || ''
+  const resolved = await resolveNotesPath(configured)
+  return resolved.isFallback && configured ? configured : resolved.path
+}
 
+const saveContentToNotes = async (title: string, content: string): Promise<void> => {
+  let blocked = false
+  let notePath: string | undefined
+  await runStructuralNotesFilesystemWrite(
+    () => {
+      blocked = true
+    },
+    async () => {
+      const folderPath = await resolveActiveNotesExportFolder()
+      const note = await addNote(title, content, folderPath)
+      notePath = note.path
+    }
+  )
+
+  if (blocked) {
+    throw new Error('notes relocation in progress')
+  }
+
+  if (!notePath) throw new Error('Notes export did not create a note')
+  const path = notePath
   toast.success({
     title: i18n.t('message.success.notes.export'),
     timeout: 5000,
@@ -1536,8 +1560,9 @@ const handleNotesExportError = (error: unknown): void => {
  * @param folderPath 目标笔记文件夹
  */
 export const exportContentToNotes = async (title: string, content: string, folderPath: string): Promise<void> => {
+  void folderPath
   try {
-    await saveContentToNotes(title, content, folderPath)
+    await saveContentToNotes(title, content)
   } catch (error) {
     handleNotesExportError(error)
     throw error
@@ -1561,9 +1586,10 @@ export const exportMessageToNotes = async (title: string, content: string, folde
  * @param folderPath
  */
 export const exportTopicToNotes = async (topic: Topic, folderPath: string): Promise<void> => {
+  void folderPath
   try {
     const content = await topicToMarkdown(topic)
-    await saveContentToNotes(topic.name, content, folderPath)
+    await saveContentToNotes(topic.name, content)
   } catch (error) {
     handleNotesExportError(error)
     throw error
