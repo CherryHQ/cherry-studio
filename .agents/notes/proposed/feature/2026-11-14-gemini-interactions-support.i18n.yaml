@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/proposed/feature/2026-11-14-gemini-interactions-support.md
+2026-11-14-gemini-interactions-support.md: 660a28c6bbbff36bacf92b8d7be1d98ce7cb2930
+2026-11-14-gemini-interactions-support.zh.md: 5a21ccca250e8d993ffc18082a02525e5ea6e18d
