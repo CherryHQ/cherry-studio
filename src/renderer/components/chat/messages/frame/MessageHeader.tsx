@@ -7,6 +7,7 @@ import { useTranslation } from 'react-i18next'
 import { Checkbox, Tooltip } from '@cherrystudio/ui'
 import { useIcon } from '@cherrystudio/ui/icons'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
+import { useProviderDisplayName } from '@renderer/hooks/useProvider'
 import { useTheme } from '@renderer/hooks/useTheme'
 import type { Model } from '@renderer/types/model'
 import { getModelLogoRef } from '@renderer/utils/model'
@@ -114,6 +115,12 @@ const MessageHeader: FC<Props> = memo(
     const displayModelName = displayModel?.name || displayModel?.id
     const ModelIcon = useIcon(useMemo(() => getModelLogoRef(displayModel), [displayModel]))
 
+    const isAssistantMessage = message.role === 'assistant'
+    const displayProviderName = useProviderDisplayName(
+      isAssistantMessage && showModelIdentity ? displayModel?.provider : undefined
+    )
+    const modelIdentityLabel = [displayModelName, displayProviderName].filter(Boolean).join(' | ')
+
     // Producing author (assistant/agent) snapshotted at creation — shown first; the model is secondary.
     // Once a snapshot exists the header is frozen: consult the live profile only when it's entirely absent,
     // so editing/deleting the live entity never changes a past message's name or avatar.
@@ -134,7 +141,6 @@ const MessageHeader: FC<Props> = memo(
       return userName || t('common.you')
     }, [authorName, displayModel, message.role, t, userName])
 
-    const isAssistantMessage = message.role === 'assistant'
     const delivery = message.delivery
     const hiddenContentHoverClass = isAssistantMessage
       ? 'group-hover/header:opacity-100'
@@ -194,11 +200,21 @@ const MessageHeader: FC<Props> = memo(
               <GoalRoundBadge round={message.turnOrigin.round} />
             )}
             {isAssistantMessage && showModelIdentity && displayModelName && (
-              <span className="flex min-w-0 shrink items-center gap-1 text-foreground-tertiary text-xs leading-5">
+              <span
+                className="flex min-w-0 shrink items-center gap-1 text-foreground-tertiary text-xs leading-5"
+                title={modelIdentityLabel}>
                 <span aria-hidden="true" className="shrink-0">
                   <ModelAvatar className="rounded-full" model={displayModel} size={16} />
                 </span>
-                <span className="truncate">{displayModelName}</span>
+                <span className="min-w-0 truncate">{displayModelName}</span>
+                {displayProviderName && (
+                  <>
+                    <span aria-hidden="true" className="shrink-0">
+                      |
+                    </span>
+                    <span className="min-w-0 max-w-36 truncate">{displayProviderName}</span>
+                  </>
+                )}
               </span>
             )}
             {isGroupContextMessage && (
