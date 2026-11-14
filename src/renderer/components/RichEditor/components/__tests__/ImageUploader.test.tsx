@@ -34,4 +34,14 @@ describe('ImageUploader rejections', () => {
       expect.objectContaining({ title: 'richEditor.imageUploader.invalidType' })
     )
   })
+
+  // A wrong file type is user input, not a fault; it must not offer an error-details entry.
+  it('rejects a non-image with a plain toast and no details', async () => {
+    render(<ImageUploader visible onImageSelect={vi.fn()} onClose={vi.fn()} />)
+    dropFiles([new File(['a'], 'a.txt', { type: 'text/plain' })])
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalled())
+    expect(toast.error).toHaveBeenCalledWith('richEditor.imageUploader.invalidType')
+    expect(toast.error).not.toHaveBeenCalledWith(expect.objectContaining({ cause: expect.anything() }))
+  })
 })

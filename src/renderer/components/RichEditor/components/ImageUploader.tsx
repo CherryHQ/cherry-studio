@@ -90,6 +90,23 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({ onImageSelect, vis
     }
   }
 
+  /** Dropzone rejections are user input; only an unknown code is treated as a fault. */
+  const rejectionMessage = (err: Error) => {
+    const code = 'code' in err ? err.code : undefined
+    switch (code) {
+      case 'image-validation-error':
+        return err.message
+      case 'file-invalid-type':
+        return t('richEditor.imageUploader.invalidType')
+      case 'file-too-large':
+        return t('richEditor.imageUploader.tooLarge')
+      case 'too-many-files':
+        return t('richEditor.imageUploader.tooManyFiles')
+      default:
+        return undefined
+    }
+  }
+
   const handleUrlSubmit = () => {
     if (!urlInput.trim()) {
       toast.error(t('richEditor.imageUploader.urlRequired'))
@@ -149,24 +166,12 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({ onImageSelect, vis
               }}
               onError={(err) => {
                 logger.error('Dropzone validation failed:', err)
-                const message = err instanceof Error ? err.message : ''
-                const custom =
-                  message === t('richEditor.imageUploader.invalidType') ||
-                  message === t('richEditor.imageUploader.tooLarge')
-                if (custom) {
-                  toast.error(message)
+                const rejection = rejectionMessage(err)
+                if (rejection) {
+                  toast.error(rejection)
                   return
                 }
-                const code = (err as { code?: unknown }).code
-                if (code === 'too-many-files') {
-                  toast.error(t('richEditor.imageUploader.tooManyFiles'))
-                  return
-                }
-                const summary =
-                  code === 'file-invalid-type'
-                    ? t('richEditor.imageUploader.invalidType')
-                    : t('richEditor.imageUploader.uploadError')
-                toastAppError(summary, err, {
+                toastAppError(t('richEditor.imageUploader.uploadError'), err, {
                   source: 'richEditor.image',
                   operation: 'richEditor.image.validate'
                 })
