@@ -82,7 +82,8 @@ Prediction uses the current model through a cancellable one-shot text request,
 with tools disabled and reasoning turned off when supported, or set to the lowest
 supported effort otherwise. It uses no retries or fallback models and a
 10-second transport timeout. Only text from the last four messages is sent,
-at most 2,000 characters per message. Failures or unusable predictions leave
+at most 1,000 characters per message. Prediction starts on the next event-loop
+turn without a fixed debounce delay. Failures or unusable predictions leave
 the input unchanged; each eligible reply adds at most one request.
 
 ## Ordinary persisted chat context

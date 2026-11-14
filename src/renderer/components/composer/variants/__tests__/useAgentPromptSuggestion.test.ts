@@ -39,7 +39,7 @@ afterEach(() => vi.useRealTimers())
 
 async function complete(rerender: (props: typeof initial) => void, props = initial) {
   rerender({ ...props, busy: false })
-  await act(() => vi.advanceTimersByTimeAsync(300))
+  await act(() => vi.advanceTimersByTimeAsync(0))
 }
 
 it('predicts after completion without adding tools, attachments, or reasoning to context', async () => {
@@ -83,6 +83,19 @@ it.each([
   const { rerender } = renderHook(useAgentPromptSuggestion, { initialProps: props })
   await complete(rerender, props)
   expect(request).toHaveBeenCalledWith('ai.text.generate', expect.objectContaining({ reasoningEffort: expected }))
+})
+
+it('bounds prediction context while retaining the latest text from each message', async () => {
+  const props: typeof initial = {
+    ...initial,
+    messages: [{ ...reply('long'), parts: [{ type: 'text' as const, text: 'old'.repeat(1000) + 'LATEST' }] }]
+  }
+  const { rerender } = renderHook(useAgentPromptSuggestion, { initialProps: props })
+  await complete(rerender, props)
+  const call = request.mock.calls.find(([route]) => route === 'ai.text.generate')![1] as { prompt: string }
+  const context = JSON.parse(call.prompt)
+  expect(context[0].text).toHaveLength(1000)
+  expect(context[0].text.endsWith('LATEST')).toBe(true)
 })
 
 it('does not spend a request when opening history or when disabled or unsuccessful', async () => {

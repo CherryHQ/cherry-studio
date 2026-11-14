@@ -46,7 +46,7 @@ export function useAgentPromptSuggestion({
           .filter((part) => part.type === 'text')
           .map((part) => part.text)
           .join('\n')
-          .slice(-2000)
+          .slice(-1000)
       }))
     )
   }, [busy, messages])
@@ -95,7 +95,7 @@ export function useAgentPromptSuggestion({
           }
         })
         .catch(() => undefined)
-    }, 300)
+    }, 0)
     return () => {
       cancelled = true
       clearTimeout(timer)
