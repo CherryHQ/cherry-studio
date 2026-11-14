@@ -11,6 +11,7 @@ import {
 import { getModelDisplayTags, MODEL_DISPLAY_CAPABILITY_TAGS } from '@renderer/components/tags/Model'
 import { useCherryCloudModelAvailability } from '@renderer/hooks/useCherryCloudModelAvailability'
 import { useCherryCloudPlans } from '@renderer/hooks/useCherryCloudPlans'
+import { useProviders } from '@renderer/hooks/useProvider'
 import { ipcApi } from '@renderer/ipc'
 import { CHERRY_CLOUD_PROVIDER_ID, CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import { createUniqueModelId, MODEL_CAPABILITY, type Model } from '@shared/data/types/model'
@@ -35,9 +36,27 @@ export const isCherryCloudChatOffer: CherryCloudOfferFilter = (offer) =>
 export function useCherryCloudModelSelectorPolicy({
   enabled = true,
   includeAgentOnlyModels = false,
-  filter
-}: Pick<UseModelSelectorDataOptions, 'enabled' | 'includeAgentOnlyModels' | 'filter'>) {
+  filter,
+  prioritizedProviderIds = []
+}: Pick<UseModelSelectorDataOptions, 'enabled' | 'includeAgentOnlyModels' | 'filter' | 'prioritizedProviderIds'>) {
   const availability = useCherryCloudModelAvailability(enabled)
+  const { activePaid, upcomingPaid } = useCherryCloudPlans(enabled)
+  const { providers } = useProviders({ enabled: true }, { enabled })
+  const hasPaidPlan = Boolean(activePaid || upcomingPaid)
+  const orderedProviderIds = useMemo(() => {
+    const otherProviderIds = prioritizedProviderIds.filter(
+      (id) => !CHERRY_CLOUD_SELECTOR_PROVIDER_IDS.some((cloudId) => cloudId === id)
+    )
+    return hasPaidPlan
+      ? [...CHERRY_CLOUD_SELECTOR_PROVIDER_IDS, ...otherProviderIds]
+      : [
+          ...otherProviderIds,
+          ...providers
+            .filter((provider) => !CHERRY_CLOUD_SELECTOR_PROVIDER_IDS.some((id) => id === provider.id))
+            .map((provider) => provider.id),
+          ...CHERRY_CLOUD_SELECTOR_PROVIDER_IDS
+        ]
+  }, [hasPaidPlan, prioritizedProviderIds, providers])
   const { isModelHidden, isModelFree, getModelDescription, isModelUnavailable } = availability
   const modelFilter = useCallback<ModelSelectorFilter>(
     (model, provider) => !isModelHidden(model, includeAgentOnlyModels) && (filter?.(model, provider) ?? true),
@@ -56,12 +75,13 @@ export function useCherryCloudModelSelectorPolicy({
     },
     [getModelDescription, isModelFree, isModelUnavailable]
   )
-  return { availability, modelFilter, getModelPresentation }
+  return { availability, modelFilter, getModelPresentation, prioritizedProviderIds: orderedProviderIds }
 }
 
 /** Cloud-aware resolution for consumers that classify saved selections without rendering a picker. */
 export function useCherryCloudModelSelectorData(options: UseModelSelectorDataOptions) {
-  const { availability, modelFilter, getModelPresentation } = useCherryCloudModelSelectorPolicy(options)
+  const { availability, modelFilter, getModelPresentation, prioritizedProviderIds } =
+    useCherryCloudModelSelectorPolicy(options)
   const composition = useMemo(
     () => ({
       getModelPresentation,
@@ -72,7 +92,7 @@ export function useCherryCloudModelSelectorData(options: UseModelSelectorDataOpt
   const data = useModelSelectorData({
     ...options,
     filter: modelFilter,
-    prioritizedProviderIds: [...CHERRY_CLOUD_SELECTOR_PROVIDER_IDS, ...(options.prioritizedProviderIds ?? [])],
+    prioritizedProviderIds,
     composition
   })
   return {
