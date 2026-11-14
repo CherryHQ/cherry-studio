@@ -18,6 +18,9 @@ export function useMessageListRenderConfig() {
   const [showMessageOutline] = usePreference('chat.message.show_outline')
   const [showEstimatedTokens] = usePreference('chat.input.show_estimated_tokens')
   const [multiModelMessageStyle] = usePreference('chat.message.multi_model.style')
+  const [multiModelFoldDisplayMode, setMultiModelFoldDisplayMode] = usePreference(
+    'chat.message.multi_model.fold_display_mode'
+  )
   const [multiModelGridColumns, setMultiModelGridColumns] = usePreference('chat.message.multi_model.grid_columns')
   const [multiModelGridPopoverTrigger, setMultiModelGridPopoverTrigger] = usePreference(
     'chat.message.multi_model.grid_popover_trigger'
@@ -41,6 +44,7 @@ export function useMessageListRenderConfig() {
       showMessageOutline,
       showEstimatedTokens,
       multiModelMessageStyle,
+      multiModelFoldDisplayMode,
       multiModelGridColumns,
       multiModelGridPopoverTrigger
     }),
@@ -51,6 +55,7 @@ export function useMessageListRenderConfig() {
       mathEnableSingleDollar,
       messageFont,
       messageStyle,
+      multiModelFoldDisplayMode,
       multiModelGridColumns,
       multiModelGridPopoverTrigger,
       multiModelMessageStyle,
@@ -73,8 +78,12 @@ export function useMessageListRenderConfig() {
       if (updates.multiModelGridPopoverTrigger) {
         void setMultiModelGridPopoverTrigger(updates.multiModelGridPopoverTrigger)
       }
+
+      if (updates.multiModelFoldDisplayMode) {
+        void setMultiModelFoldDisplayMode(updates.multiModelFoldDisplayMode)
+      }
     },
-    [setMultiModelGridColumns, setMultiModelGridPopoverTrigger]
+    [setMultiModelFoldDisplayMode, setMultiModelGridColumns, setMultiModelGridPopoverTrigger]
   )
 
   return { renderConfig, updateRenderConfig }

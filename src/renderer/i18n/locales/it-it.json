@@ -2495,6 +2495,8 @@
   "message.message.code_style": "Stile del codice",
   "message.message.compact.title": "Conversazione compressa",
   "message.message.delete.content": "Vuoi eliminare questo messaggio?",
+  "message.message.multi_model_style.fold.compress": "Passa alle schede compatte",
+  "message.message.multi_model_style.fold.expand": "Passa alle schede espanse",
   "message.message.multi_model_style.fold.label": "Vista a schede",
   "message.message.multi_model_style.grid": "Disposizione a griglia",
   "message.message.multi_model_style.horizontal": "Affiancate",

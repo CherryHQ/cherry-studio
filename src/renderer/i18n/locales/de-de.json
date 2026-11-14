@@ -2495,6 +2495,8 @@
   "message.message.code_style": "Code-Stil",
   "message.message.compact.title": "Gespräch komprimiert",
   "message.message.delete.content": "Möchten Sie diese Nachricht wirklich löschen?",
+  "message.message.multi_model_style.fold.compress": "Zu kompakten Tabs wechseln",
+  "message.message.multi_model_style.fold.expand": "Zu erweiterten Tabs wechseln",
   "message.message.multi_model_style.fold.label": "Tab-Modus",
   "message.message.multi_model_style.grid": "Kartenlayout",
   "message.message.multi_model_style.horizontal": "Horizontale Anordnung",

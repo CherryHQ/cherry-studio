@@ -2495,6 +2495,8 @@
   "message.message.code_style": "Phong cách mã",
   "message.message.compact.title": "Cuộc trò chuyện được nén gọn",
   "message.message.delete.content": "Bạn có chắc chắn muốn xóa tin nhắn này không?",
+  "message.message.multi_model_style.fold.compress": "Chuyển sang thẻ thu gọn",
+  "message.message.multi_model_style.fold.expand": "Chuyển sang thẻ mở rộng",
   "message.message.multi_model_style.fold.label": "Chế độ xem gập",
   "message.message.multi_model_style.grid": "Bố cục lưới",
   "message.message.multi_model_style.horizontal": "Cạnh nhau",

@@ -2495,6 +2495,8 @@
   "message.message.code_style": "Stil cod",
   "message.message.compact.title": "Conversație compactată",
   "message.message.delete.content": "Ești sigur că vrei să ștergi acest mesaj?",
+  "message.message.multi_model_style.fold.compress": "Comută la file compacte",
+  "message.message.multi_model_style.fold.expand": "Comută la file extinse",
   "message.message.multi_model_style.fold.label": "Vizualizare pliată",
   "message.message.multi_model_style.grid": "Aspect grilă",
   "message.message.multi_model_style.horizontal": "Alăturat",

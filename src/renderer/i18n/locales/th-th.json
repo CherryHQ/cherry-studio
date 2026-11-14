@@ -2495,6 +2495,8 @@
   "message.message.code_style": "สไตล์โค้ด",
   "message.message.compact.title": "บีบอัดการสนทนาแล้ว",
   "message.message.delete.content": "แน่ใจหรือไม่ว่าต้องการลบข้อความนี้?",
+  "message.message.multi_model_style.fold.compress": "สลับไปที่แท็บแบบกะทัดรัด",
+  "message.message.multi_model_style.fold.expand": "สลับไปที่แท็บแบบขยาย",
   "message.message.multi_model_style.fold.label": "Fold view",
   "message.message.multi_model_style.grid": "Grid layout",
   "message.message.multi_model_style.horizontal": "Side by side",

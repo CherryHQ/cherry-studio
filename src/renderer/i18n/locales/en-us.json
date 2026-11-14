@@ -2495,6 +2495,8 @@
   "message.message.code_style": "Code style",
   "message.message.compact.title": "Conversation Compacted",
   "message.message.delete.content": "Are you sure you want to delete this message?",
+  "message.message.multi_model_style.fold.compress": "Switch to compact tabs",
+  "message.message.multi_model_style.fold.expand": "Switch to expanded tabs",
   "message.message.multi_model_style.fold.label": "Fold view",
   "message.message.multi_model_style.grid": "Grid layout",
   "message.message.multi_model_style.horizontal": "Side by side",

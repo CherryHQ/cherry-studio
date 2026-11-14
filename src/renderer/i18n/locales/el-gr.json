@@ -2495,6 +2495,8 @@
   "message.message.code_style": "Στυλ κώδικα",
   "message.message.compact.title": "Συνομιλία Συμπυκνωμένη",
   "message.message.delete.content": "Θέλετε να διαγράψετε αυτό το μήνυμα;",
+  "message.message.multi_model_style.fold.compress": "Μετάβαση σε συμπαγείς καρτέλες",
+  "message.message.multi_model_style.fold.expand": "Μετάβαση σε εκτεταμένες καρτέλες",
   "message.message.multi_model_style.fold.label": "Κατάσταση ενσωμάτωσης",
   "message.message.multi_model_style.grid": "Διάταξη κάρτας",
   "message.message.multi_model_style.horizontal": "Διάταξη επίπεδης",

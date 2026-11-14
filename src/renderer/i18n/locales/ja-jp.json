@@ -2495,6 +2495,8 @@
   "message.message.code_style": "コードスタイル",
   "message.message.compact.title": "会話圧縮",
   "message.message.delete.content": "このメッセージを削除してもよろしいですか？",
+  "message.message.multi_model_style.fold.compress": "コンパクトタブに切り替え",
+  "message.message.multi_model_style.fold.expand": "展開タブに切り替え",
   "message.message.multi_model_style.fold.label": "折りたたみ表示",
   "message.message.multi_model_style.grid": "グリッドレイアウト",
   "message.message.multi_model_style.horizontal": "横並び",
