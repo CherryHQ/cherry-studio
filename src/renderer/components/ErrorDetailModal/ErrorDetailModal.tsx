@@ -571,13 +571,15 @@ const ErrorDetailContent: React.FC<ErrorDetailContentInternalProps> = ({
     appUpdateCheckService.setUpdateNotice(null)
   }, [])
   const [availableVersion, setAvailableVersion] = useState<string | null>(null)
+  const [autoUpdateEnabled] = usePreference('app.dist.auto_update.enabled')
   const [testPlan] = usePreference('app.dist.test_plan.enabled')
   const [testChannel] = usePreference('app.dist.test_plan.channel')
   const updateChannel = testPlan ? testChannel : UpgradeChannel.LATEST
   const initialUpdateState = useRef(appUpdateState)
   useEffect(() => {
     const { checking, downloading, downloaded } = initialUpdateState.current
-    if (checking || downloading || downloaded) return
+    // With Auto Update off, only the user's own click may ask the feed.
+    if (!autoUpdateEnabled || checking || downloading || downloaded) return
     let active = true
     void appUpdateCheckService.queryAvailableVersion(updateChannel).then((version) => {
       if (active) setAvailableVersion(version)
@@ -585,7 +587,7 @@ const ErrorDetailContent: React.FC<ErrorDetailContentInternalProps> = ({
     return () => {
       active = false
     }
-  }, [updateChannel])
+  }, [autoUpdateEnabled, updateChannel])
   const copyErrorDetails = useCallback(() => {
     if (!shownError) {
       return

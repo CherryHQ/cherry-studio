@@ -9,6 +9,7 @@ import QuickAssistantApp from './QuickAssistantApp'
 await prepareWindow({
   preference: [
     'app.language',
+    'app.dist.auto_update.enabled',
     'app.dist.test_plan.channel',
     'app.dist.test_plan.enabled',
     'ui.custom_css',
