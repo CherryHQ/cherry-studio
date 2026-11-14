@@ -546,6 +546,10 @@ describe('DashScope hosted search endpoint contract', () => {
       id,
       presetProviderId: 'dashscope',
       defaultChatEndpoint: chat,
+      endpointConfigs: {
+        [chat]: { baseUrl: 'https://dashscope.example.com/v1' },
+        [responses]: { baseUrl: 'https://dashscope.example.com/v1' }
+      },
       serverTools: [{ id: SERVER_TOOL.WEB_SEARCH, modelScope: 'model-dependent' }]
     }) as Provider
   const route = (m: Model, p: Provider, endpointType: typeof chat | typeof responses, overrides = {}) =>
@@ -576,8 +580,10 @@ describe('DashScope hosted search endpoint contract', () => {
       expect(isBuiltinWebSearchAvailable(m, p, ENDPOINT_TYPE.ANTHROPIC_MESSAGES)).toBe(true)
       expect(isBuiltinWebSearchAvailable(m, p)).toBe(false)
       const responseFirst = { ...m, endpointTypes: [responses, chat] }
-      expect(isBuiltinWebSearchAvailable(responseFirst, p)).toBe(true)
+      expect(isBuiltinWebSearchAvailable(responseFirst, p)).toBe(false)
       expect(isBuiltinWebSearchAvailable(responseFirst, p, chat)).toBe(false)
+      expect(isBuiltinWebSearchAvailable(responseFirst, p, responses)).toBe(true)
+      expect(isBuiltinWebSearchAvailable({ ...m, endpointTypes: [responses] }, p)).toBe(true)
       expect(isBuiltinWebSearchAvailable({ ...m, endpointTypes: [chat, responses] }, p, responses)).toBe(true)
       expect(isBuiltinWebSearchAvailable(m, { ...p, defaultChatEndpoint: responses })).toBe(true)
       expect(route(m, p, chat)).toMatchObject({ webSearch: 'client' })

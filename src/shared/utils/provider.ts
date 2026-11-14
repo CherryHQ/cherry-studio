@@ -236,12 +236,29 @@ function serverToolServesEndpoint(tool: ServerToolConfig, endpointType: Endpoint
   return endpointType !== undefined && tool.endpointTypes.includes(endpointType)
 }
 
+export function resolveSupportedDefaultEndpointType(
+  model: Pick<Model, 'endpointTypes'>,
+  provider: Pick<Provider, 'defaultChatEndpoint' | 'endpointConfigs'>
+): EndpointType | undefined {
+  const endpointType = provider.defaultChatEndpoint
+  return endpointType &&
+    model.endpointTypes?.includes(endpointType) &&
+    provider.endpointConfigs?.[endpointType]?.baseUrl
+    ? endpointType
+    : undefined
+}
+
 function resolveServerToolEndpoint(
   model: Model,
-  provider: Pick<Provider, 'defaultChatEndpoint'>,
+  provider: Pick<Provider, 'defaultChatEndpoint' | 'endpointConfigs'>,
   endpointType: EndpointType | undefined
 ): EndpointType | undefined {
-  return endpointType ?? model.endpointTypes?.[0] ?? provider.defaultChatEndpoint
+  return (
+    endpointType ??
+    resolveSupportedDefaultEndpointType(model, provider) ??
+    model.endpointTypes?.[0] ??
+    provider.defaultChatEndpoint
+  )
 }
 
 /** Model-side eligibility for a provider-native tool, compiled from the serving provider declaration. */
@@ -269,7 +286,7 @@ export function isServerToolModelEligible(
  */
 export function isBuiltinWebSearchAvailable(
   model: Model,
-  provider: Pick<Provider, 'id' | 'presetProviderId' | 'defaultChatEndpoint' | 'serverTools'>,
+  provider: Pick<Provider, 'id' | 'presetProviderId' | 'defaultChatEndpoint' | 'endpointConfigs' | 'serverTools'>,
   endpointType?: EndpointType
 ): boolean {
   return isBuiltinServerToolAvailable(model, provider, SERVER_TOOL.WEB_SEARCH, endpointType)
@@ -278,7 +295,7 @@ export function isBuiltinWebSearchAvailable(
 /** Effective provider-native URL-fetch availability for one provider-model pair. */
 export function isBuiltinWebFetchAvailable(
   model: Model,
-  provider: Pick<Provider, 'id' | 'presetProviderId' | 'defaultChatEndpoint' | 'serverTools'>,
+  provider: Pick<Provider, 'id' | 'presetProviderId' | 'defaultChatEndpoint' | 'endpointConfigs' | 'serverTools'>,
   endpointType?: EndpointType
 ): boolean {
   return isBuiltinServerToolAvailable(model, provider, SERVER_TOOL.URL_CONTEXT, endpointType)
@@ -286,7 +303,7 @@ export function isBuiltinWebFetchAvailable(
 
 function isBuiltinServerToolAvailable(
   model: Model,
-  provider: Pick<Provider, 'id' | 'presetProviderId' | 'defaultChatEndpoint' | 'serverTools'>,
+  provider: Pick<Provider, 'id' | 'presetProviderId' | 'defaultChatEndpoint' | 'endpointConfigs' | 'serverTools'>,
   toolId: ServerTool,
   endpointType?: EndpointType
 ): boolean {
