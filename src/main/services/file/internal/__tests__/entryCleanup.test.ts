@@ -16,8 +16,11 @@ import { paintingTable } from '@data/db/schemas/painting'
 import { topicTable } from '@data/db/schemas/topic'
 import { fileEntryService } from '@data/services/FileEntryService'
 import { fileRefService } from '@data/services/FileRefService'
+import { messageService } from '@data/services/MessageService'
+import '@data/services/TopicService'
 import { loggerService } from '@logger'
 import type { CleanupPolicy, FileEntryId } from '@shared/data/types/file'
+import type { MessageData } from '@shared/data/types/message'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { KeyedMutex } from '@shared/utils/async'
 import { canonicalizeFilePath } from '@shared/utils/file'
@@ -34,6 +37,11 @@ vi.mock('@application', async () => {
 const hasPendingRestoreMock = vi.fn((): boolean => false)
 vi.mock('@data/db/restore/restoreJournal', () => ({
   hasPendingRestore: () => hasPendingRestoreMock()
+}))
+
+// messageService publishes a read-model change after writes; no window manager exists here.
+vi.mock('@data/dataApiDataChange', () => ({
+  notifyDataApiDataChange: vi.fn()
 }))
 
 const { ENTRY_CLEANUP_BATCH_LIMIT, ENTRY_CLEANUP_GRACE_MS, runEntryCleanup, summariseEntryCleanup } =
@@ -199,6 +207,45 @@ describe('entryCleanup', () => {
     const report = await runEntryCleanup(makeDeps())
     expect(report.deleted).toBe(0)
     expect(fileEntryService.findById(id)).not.toBeNull()
+  })
+
+  it('keeps an imported video entry while its message exists, and reclaims a path-only one', async () => {
+    const keptId = nthId(50)
+    const droppedId = nthId(51)
+    await seedInternal(keptId, 'delete_when_unreferenced')
+    await seedInternal(droppedId, 'delete_when_unreferenced')
+
+    // Persist a message the way native topic import does after restoring
+    // embedded media: a restored video addresses the destination entry by
+    // physical path and carries the entry id in cherry meta; a path-only
+    // part (the reviewed defect) owns nothing.
+    const topicId = 'topic-imported-video'
+    await dbh.db.insert(topicTable).values({ id: topicId, activeNodeId: null, orderKey: 'a0' })
+    const rootId = messageService.createRootMessageTx(dbh.db, topicId)
+    messageService.create(topicId, {
+      parentId: rootId,
+      role: 'user',
+      data: {
+        parts: [
+          {
+            type: 'data-video',
+            data: { filePath: '/files/restored.mp4' },
+            providerMetadata: { cherry: { fileEntryId: keptId } }
+          },
+          { type: 'data-video', data: { filePath: '/files/path-only.mp4' } }
+        ]
+      } as MessageData,
+      status: 'success',
+      setAsActive: false
+    })
+
+    const report = await runEntryCleanup(makeDeps())
+
+    expect(report.deleted).toBe(1)
+    expect(fileEntryService.findById(keptId)).not.toBeNull()
+    await stat(path.join(filesDir, `${keptId}.txt`))
+    expect(fileEntryService.findById(droppedId)).toBeNull()
+    await expect(stat(path.join(filesDir, `${droppedId}.txt`))).rejects.toThrow(/ENOENT/)
   })
 
   it('skips entries younger than grace', async () => {

@@ -248,6 +248,26 @@ describe('readCherryMeta', () => {
     })
   })
 
+  it('reads CherryVideoMeta from a data-video part', () => {
+    const part = {
+      type: 'data-video',
+      data: { filePath: '/files/entry-9.mp4' },
+      providerMetadata: { cherry: { fileEntryId: 'entry-9' } }
+    } as unknown as Extract<CherryMessagePart, { type: 'data-video' }>
+
+    expect(readCherryMeta(part)).toEqual({ fileEntryId: 'entry-9' })
+  })
+
+  it('returns undefined for a data-video part with a malformed fileEntryId', () => {
+    const part = {
+      type: 'data-video',
+      data: { filePath: '/files/entry-9.mp4' },
+      providerMetadata: { cherry: { fileEntryId: 42 } }
+    } as unknown as CherryMessagePart
+
+    expect(readCherryMeta(part)).toBeUndefined()
+  })
+
   it('reads CherryErrorMeta diagnosis from a data-error part', () => {
     expect(readCherryMeta(dataErrorPart({ diagnosis }))?.diagnosis).toEqual(diagnosis)
   })
