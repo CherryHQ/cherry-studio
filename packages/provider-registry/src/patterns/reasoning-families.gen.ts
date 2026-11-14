@@ -165,6 +165,7 @@ export const REASONING_FAMILY_RULES: readonly ReasoningFamilyRule[] = [
   { pattern: '^gemini-4(?:[.-]|$)', wireDialect: 'effort', template: true },
   { pattern: '^gemini-4-argon(?:$|[ @:-])', effort: ['low', 'medium', 'high'], toggle: false },
   { pattern: '^gemini-4-carbon(?:$|[ @:-])', effort: ['low', 'medium', 'high'], toggle: false },
+  { pattern: '^gemini-4-hydrogen(?:$|[ @:-])', effort: ['low', 'medium', 'high', 'xhigh'], toggle: false },
   { pattern: '^gemini-2', wireDialect: 'budget', template: true },
   { pattern: '^gemini-omni', wireDialect: 'budget', template: true },
   { pattern: '^gemini-robotics', wireDialect: 'budget', template: true },

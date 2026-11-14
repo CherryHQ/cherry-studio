@@ -10,6 +10,7 @@ export default defineCreator({
     { pattern: '^gemini-4(?:[.-]|$)', wireDialect: 'effort', template: true },
     { pattern: '^gemini-4-argon(?:$|[ @:-])', effort: ['low', 'medium', 'high'], toggle: false },
     { pattern: '^gemini-4-carbon(?:$|[ @:-])', effort: ['low', 'medium', 'high'], toggle: false },
+    { pattern: '^gemini-4-hydrogen(?:$|[ @:-])', effort: ['low', 'medium', 'high', 'xhigh'], toggle: false },
     // Native-protocol dialect (google-generate-content). Gemini 2.x takes
     // `thinkingConfig.thinkingBudget` and hard-rejects the Gemini 3
     // `thinkingLevel` field, so the split is declared here rather than inferred
@@ -70,7 +71,13 @@ export default defineCreator({
     'text-multilingual-embedding'
   ],
   // Gemini 3+ can combine native tools with function declarations.
-  serverToolFunctionMixing: ['gemini-3', 'gemini-4-argon', 'gemini-flash-latest', 'gemini-pro-latest'],
+  serverToolFunctionMixing: [
+    'gemini-3',
+    'gemini-4-argon',
+    'gemini-4-hydrogen',
+    'gemini-flash-latest',
+    'gemini-pro-latest'
+  ],
   models: [
     {
       id: 'gemini-4-argon',
@@ -125,6 +132,39 @@ export default defineCreator({
       reasoning: {
         controls: [{ kind: 'effort', values: ['low', 'medium', 'high'], default: 'medium' }],
         defaultEffort: 'medium',
+        wireDialect: 'effort'
+      },
+      parameterSupport: {
+        temperature: { supported: false },
+        topP: { supported: false },
+        topK: { supported: false },
+        frequencyPenalty: false,
+        presencePenalty: false,
+        maxTokens: true,
+        stopSequences: true,
+        systemMessage: true
+      }
+    },
+    {
+      id: 'gemini-4-hydrogen',
+      name: 'Gemini 4 Hydrogen',
+      family: 'gemini-4',
+      capabilities: [
+        'reasoning',
+        'function-call',
+        'image-recognition',
+        'audio-recognition',
+        'video-recognition',
+        'structured-output',
+        'file-input'
+      ],
+      inputModalities: ['text', 'image', 'audio', 'video'],
+      outputModalities: ['text'],
+      contextWindow: 1048576,
+      maxOutputTokens: 1048576,
+      reasoning: {
+        controls: [{ kind: 'effort', values: ['low', 'medium', 'high', 'xhigh'], default: 'high' }],
+        defaultEffort: 'high',
         wireDialect: 'effort'
       },
       parameterSupport: {
