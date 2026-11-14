@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process'
 import * as crypto from 'node:crypto'
 import * as fs from 'node:fs'
 import * as http from 'node:http'
@@ -166,6 +167,54 @@ describe('packaging tool assets', () => {
     await prepareTools('test', 'x64', { ...options('second'), tools: [archived] })
     expect(fs.readFileSync(binary('second', 'git/cmd/git.txt'), 'utf8')).toBe('fake git launcher\n')
     expect(fs.existsSync(binary('second', 'git/mingw64/bin/tool.txt'))).toBe(true)
+  })
+
+  describe('a tree package with its own marker version', () => {
+    function treeTool(): BundledTool {
+      const source = fs.mkdtempSync(path.join(directory, 'tree-source-'))
+      for (const file of ['root/bin/run', 'root/lib/libone.so.1', 'root/NOTICE']) {
+        fs.mkdirSync(path.dirname(path.join(source, file)), { recursive: true })
+        fs.writeFileSync(path.join(source, file), file)
+      }
+      const archive = path.join(directory, 'tree.tar.gz')
+      execFileSync('tar', ['czf', archive, '-C', source, 'root'])
+      const payload = fs.readFileSync(archive)
+      respond = (_request, response) => response.end(payload)
+      return {
+        ...tool('tree'),
+        packages: {
+          'test-x64': {
+            url: `${baseUrl}/tree`,
+            archive: 'tar.gz',
+            dir: 'tree',
+            stripComponents: 1,
+            version: 'tree-r1',
+            binaries: ['tree/bin/run', 'tree/NOTICE'],
+            tree: { executables: ['bin/run'], sharedLibraries: ['lib/libone.so*'], notices: ['NOTICE'] },
+            sha256: crypto.createHash('sha256').update(payload).digest('hex')
+          }
+        }
+      }
+    }
+
+    it('keeps a current prepared tree without fetching the asset again', async () => {
+      const prepared = treeTool()
+      await prepareTools('test', 'x64', { ...options('bundle'), tools: [prepared] })
+      fs.rmSync(path.join(directory, 'cache'), { recursive: true, force: true })
+      await new Promise<void>((resolve) => server.close(() => resolve()))
+
+      await prepareTools('test', 'x64', { ...options('bundle'), tools: [prepared] })
+      expect(requests).toEqual(['/tree'])
+    })
+
+    it('prepares the tree again when a shared library is missing', async () => {
+      const prepared = treeTool()
+      await prepareTools('test', 'x64', { ...options('bundle'), tools: [prepared] })
+      fs.rmSync(binary('bundle', 'tree/lib/libone.so.1'))
+
+      await prepareTools('test', 'x64', { ...options('bundle'), tools: [prepared] })
+      expect(fs.existsSync(binary('bundle', 'tree/lib/libone.so.1'))).toBe(true)
+    })
   })
 
   it('falls back to verified downloads when the configured cache is unusable', async () => {
