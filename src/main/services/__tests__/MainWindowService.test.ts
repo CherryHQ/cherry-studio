@@ -5,7 +5,7 @@ import path from 'node:path'
 import { setImmediate as nextImmediate } from 'node:timers/promises'
 import { pathToFileURL } from 'node:url'
 
-import { createMockApplication } from '@test-mocks/main/application'
+import { createMockApplication, defaultServiceInstances } from '@test-mocks/main/application'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 // Hoisted state lets individual tests mutate platform flags / preferences without
@@ -745,6 +745,27 @@ describe('MainWindowService', () => {
       listener(event, {}, { partition: 'persist:undeclared', src: 'https://example.com' })
 
       expect(event.preventDefault).toHaveBeenCalledTimes(1)
+    })
+
+    it('allows a regional guest only after its partition has been prepared in main', () => {
+      ;(svc as any).setupWebviewSecurityProfiles(win)
+      const listener = win.webContents.on.mock.calls.find(([event]) => event === 'will-attach-webview')?.[1]
+      if (!listener) throw new Error('will-attach-webview listener was not registered')
+      const attach = () => {
+        const event = {
+          defaultPrevented: false,
+          preventDefault() {
+            this.defaultPrevented = true
+          }
+        }
+        listener(event, {}, { partition: 'persist:webview-us:example', src: 'about:blank' })
+        return !event.defaultPrevented
+      }
+
+      expect(attach()).toBe(false)
+      defaultServiceInstances.WebviewService.isPreparedRegionalPartition.mockReturnValueOnce(true)
+      expect(attach()).toBe(true)
+      expect(attach()).toBe(false)
     })
 
     it.each([WebviewSecurityProfile.AgentDevPreview, WebviewSecurityProfile.AgentHtmlArtifact])(

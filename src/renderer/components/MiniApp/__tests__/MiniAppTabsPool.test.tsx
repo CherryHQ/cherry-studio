@@ -21,7 +21,10 @@ import MiniAppTabsPool from '../MiniAppTabsPool'
 
 vi.unmock('@renderer/data/hooks/useCache')
 
-const ipc = vi.hoisted(() => ({ request: vi.fn(async () => true), events: new Map<string, (payload: any) => void>() }))
+const ipc = vi.hoisted(() => ({
+  request: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => true),
+  events: new Map<string, (payload: any) => void>()
+}))
 vi.mock('@renderer/ipc', () => ({
   ipcApi: { request: ipc.request },
   useIpcOn: (name: string, fn: (payload: any) => void) => {
@@ -142,7 +145,11 @@ beforeEach(() => {
   MockUseDataApiUtils.mockQueryData('/mini-apps', [createMiniApp('a'), createMiniApp('b')])
   webviewRuntimeService.dispose()
   ipc.events.clear()
-  ipc.request.mockReset().mockResolvedValue(true)
+  ipc.request
+    .mockReset()
+    .mockImplementation(async (route) =>
+      route === 'webview.region.prepare' ? { partition: 'persist:webview', fake: false } : true
+    )
 })
 afterEach(cleanup)
 const mount = () =>
@@ -153,6 +160,90 @@ const mount = () =>
   )
 
 describe('MiniApp guest ownership', () => {
+  it('moves a site edited to a file URL into the default runtime partition', async () => {
+    const user = userEvent.setup()
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'app.developer_mode.enabled': true,
+      'feature.mini_app.fake_environment.enabled': true,
+      'feature.mini_app.region_profiles': { a: 'JP' }
+    })
+    let fileSite = false
+    ipc.request.mockImplementation(async (route, input) => {
+      if (route !== 'webview.region.prepare') return true
+      const regional = (input as { appId: string }).appId === 'a' && !fileSite
+      return { partition: regional ? 'persist:webview-fake:JP:a' : 'persist:webview', fake: regional }
+    })
+    const view = mount()
+    await user.click(screen.getByText('Open B'))
+    const b = getGuest('b')
+    await user.click(screen.getByText('Open A'))
+    const original = getGuest('a')
+    expect(original).toHaveAttribute('partition', 'persist:webview-fake:JP:a')
+
+    fileSite = true
+    await act(async () => {
+      MockUseDataApiUtils.mockQueryData('/mini-apps', [
+        { ...createMiniApp('a'), url: 'file:///C:/mini-app/index.html' },
+        createMiniApp('b')
+      ])
+      view.rerender(
+        <TabsProvider>
+          <Controls />
+        </TabsProvider>
+      )
+    })
+    expect(webviewRuntimeService.get('miniapp:a')!.source).toEqual({
+      src: 'file:///C:/mini-app/index.html',
+      partition: 'persist:webview'
+    })
+    expect(getGuest('a')).not.toBe(original)
+    expect(getGuest('a')).toHaveAttribute('partition', 'persist:webview')
+    expect(getGuest('a')).toHaveAttribute('src', 'file:///C:/mini-app/index.html')
+    expect(getGuest('b')).toBe(b)
+  })
+
+  it('replaces only the regional guest when its country changes and retains the partition on restart', async () => {
+    const user = userEvent.setup()
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'app.developer_mode.enabled': true,
+      'feature.mini_app.fake_environment.enabled': true,
+      'feature.mini_app.fake_environment.country': 'US',
+      'feature.mini_app.us_environment_app_ids': ['a']
+    })
+    let country = 'US'
+    ipc.request.mockImplementation(async (route, input) => {
+      if (route !== 'webview.region.prepare') return true
+      if ((input as { appId: string }).appId !== 'a') return { partition: 'persist:webview', fake: false }
+      return { partition: country === 'US' ? 'persist:webview-us:a' : 'persist:webview-fake:JP:a', fake: true }
+    })
+    const view = mount()
+    await user.click(screen.getByText('Open B'))
+    const b = getGuest('b')
+    await user.click(screen.getByText('Open A'))
+    const original = getGuest('a')
+    expect(original).toHaveAttribute('partition', 'persist:webview-us:a')
+    const originalInstance = webviewRuntimeService.get('miniapp:a')!.instance
+
+    country = 'JP'
+    MockUsePreferenceUtils.setPreferenceValue('feature.mini_app.fake_environment.country', 'JP')
+    view.rerender(
+      <TabsProvider>
+        <Controls />
+      </TabsProvider>
+    )
+    await act(async () => {})
+    const regional = getGuest('a')
+    expect(regional).not.toBe(original)
+    expect(regional).toHaveAttribute('partition', 'persist:webview-fake:JP:a')
+    expect(webviewRuntimeService.get('miniapp:a')!.instance).not.toBe(originalInstance)
+    expect(getGuest('b')).toBe(b)
+
+    await user.click(screen.getByRole('button', { name: 'Restart guest' }))
+    expect(getGuest('a')).not.toBe(regional)
+    expect(getGuest('a')).toHaveAttribute('partition', 'persist:webview-fake:JP:a')
+    expect(getGuest('b')).toBe(b)
+  })
+
   it.each([false, true])('restarts only the requested guest from its configured URL (ready: %s)', async (ready) => {
     const user = userEvent.setup()
     mount()

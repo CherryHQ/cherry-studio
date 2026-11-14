@@ -1188,7 +1188,7 @@ The Agent browser group opt-out remains independent. Disabling Agent control lea
 message links open the current session's right browser pane through the message action provider;
 other website links open `/app/browser` tabs through main-window navigation, sharing the browser profile and history. Shell link
 IPC, host-window link interception, app menu links and non-popup mini-app links use that policy. HTTP(S)
-`new-window` popups from website MiniApps remain in the originating `persist:webview` session so authentication
+`new-window` popups from website MiniApps remain in the originating website session, including a selected regional partition, so authentication
 cookies and opener callbacks are preserved. Explicit external-browser buttons use a separate IPC command;
 non-HTTP schemes retain their existing handling.
 
@@ -1239,7 +1239,8 @@ Storage remains isolated:
 | Surface | Electron partition |
 |---|---|
 | Ordinary Browser tabs and Agent browser panes | `persist:agent-browser` |
-| Website MiniApps (`kind: site`) | `persist:webview` |
+| Default website MiniApps (`kind: site`) | `persist:webview` |
+| Regional HTTP(S) website MiniApps | Persistent partition per MiniApp ID and country |
 | Local MiniApps (`kind: app`) | `persist:miniapp:${appid}` |
 
 Browser imports write website data to the ordinary Browser partition. Browser history tracking and
@@ -1254,7 +1255,7 @@ ordinary website popup handler.
 
 Host event subscriptions follow the concrete guest, while React Effect Events read current
 callbacks without replaying readiness on preference or callback changes. The MiniApp adapter waits
-for runtime preparation and remounts that preparation state when app identity changes. Its loaded
+for main-owned preparation and remounts it when app identity or the effective regional environment changes. Its loaded
 callback timer is cancelled on a new full navigation or eviction. MiniApp resource callbacks carry
 an instance token so a retired guest cannot overwrite a reopened app's readiness or element.
 A loaded guest remains usable during normal navigation, including aborted requests; only a new

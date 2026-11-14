@@ -11,6 +11,7 @@ import { WEBVIEW_SECURITY_PARTITIONS } from '@shared/utils/webviewSecurity'
 
 import { NodeProxyController } from './NodeProxyController'
 import { normalizeProxyEndpoint } from './proxyRouting'
+import { RegionalProxyGate } from './RegionalProxyGate'
 
 const logger = loggerService.withContext('ProxyService')
 
@@ -150,6 +151,9 @@ export class ProxyService extends BaseService {
   private systemProxyReadFailed = false
   private nodeProxyController: NodeProxyController | null = null
   private proxyTestQueue: Promise<void> = Promise.resolve()
+  private readonly additionalSessions = new Map<Electron.Session, RegionalProxyGate>()
+  private readonly pendingSessions = new Set<Electron.Session>()
+  private readonly sessionCleanup = new Map<Electron.Session, Promise<void>>()
 
   // Latest-wins reconciler: rapid proxy-preference toggles (or system-proxy changes) collapse
   // into a single re-read + re-apply — single-flight and level-triggered, so a change landing
@@ -157,7 +161,7 @@ export class ProxyService extends BaseService {
   private readonly proxyReconciler = createLatestReconciler<ProxyConfig>({
     name: 'proxy',
     getSnapshot: () => this.snapshotProxyConfig(),
-    isSettled: (config) => proxyConfigKey(config) === this.appliedKey,
+    isSettled: (config) => proxyConfigKey(config) === this.appliedKey && this.pendingSessions.size === 0,
     apply: (config) => this.applyProxyConfig(config)
   })
 
@@ -168,6 +172,51 @@ export class ProxyService extends BaseService {
    */
   get appliedProxyKey(): string | null {
     return this.appliedKey
+  }
+
+  async registerSession(guestSession: Electron.Session): Promise<void> {
+    const cleanup = this.sessionCleanup.get(guestSession)
+    if (cleanup) await cleanup
+    if (!this.additionalSessions.has(guestSession)) {
+      this.additionalSessions.set(guestSession, new RegionalProxyGate(guestSession))
+      this.pendingSessions.add(guestSession)
+    }
+    const gate = this.additionalSessions.get(guestSession)!
+    await this.reconcileProxy()
+    if (this.additionalSessions.get(guestSession) !== gate) throw new Error('Regional proxy session was revoked')
+  }
+
+  async unregisterSession(guestSession: Electron.Session): Promise<void> {
+    const gate = this.additionalSessions.get(guestSession)
+    if (!gate) return this.sessionCleanup.get(guestSession)
+    gate.dispose()
+    this.additionalSessions.delete(guestSession)
+    this.pendingSessions.delete(guestSession)
+    const cleanup = this.proxyReconciler.flush().then(() => guestSession.closeAllConnections())
+    this.sessionCleanup.set(guestSession, cleanup)
+    try {
+      await cleanup
+    } finally {
+      if (this.sessionCleanup.get(guestSession) === cleanup) this.sessionCleanup.delete(guestSession)
+    }
+  }
+
+  private async reconcileProxy(changed = false): Promise<void> {
+    if (changed) {
+      this.appliedKey = null
+      for (const gate of this.additionalSessions.values()) {
+        gate.appliedKey = null
+        gate.wait()
+      }
+    }
+    this.proxyReconciler.request()
+    await this.proxyReconciler.flush()
+    const error = this.proxyReconciler.getLastError()
+    const ready = !error && this.appliedKey === this.desiredKey && this.pendingSessions.size === 0
+    if (ready || error) {
+      for (const gate of this.additionalSessions.values()) gate.settle(ready)
+    }
+    if (error) throw error
   }
 
   /** Read-only view of intent vs. what is in effect, for diagnostics. */
@@ -261,20 +310,14 @@ export class ProxyService extends BaseService {
    */
   protected async onReady(): Promise<void> {
     this.registerDisposable(
-      application
-        .get('PreferenceService')
-        .subscribeMultipleChanges([...PROXY_PREFERENCE_KEYS], () => this.proxyReconciler.request())
+      application.get('PreferenceService').subscribeMultipleChanges([...PROXY_PREFERENCE_KEYS], () => {
+        void this.reconcileProxy(true).catch((error) => logger.warn('Proxy transition failed', error))
+      })
     )
     // Don't gate startup on the initial apply. The OS-proxy read (a `scutil` spawn in system
     // mode) only feeds the Node-side controller, which no startup request hits; Electron sessions
     // already follow the system proxy by Chromium default. Converge in the background instead.
-    this.proxyReconciler.request()
-    void this.proxyReconciler.flush().then(() => {
-      const error = this.proxyReconciler.getLastError()
-      if (error) {
-        logger.error('Initial proxy apply failed; traffic uses the default route until the next change', error)
-      }
-    })
+    void this.reconcileProxy().catch((error) => logger.error('Initial proxy apply failed', error))
   }
 
   /** Latest intent from preferences, resolving the concrete OS proxy for `system` mode. */
@@ -305,6 +348,7 @@ export class ProxyService extends BaseService {
   }
 
   private async applyProxyConfig(config: ProxyConfig): Promise<void> {
+    for (const gate of this.additionalSessions.values()) gate.wait()
     logger.info(`apply proxy: ${config.mode} ${config.proxyRules ?? ''} ${config.proxyBypassRules ?? ''}`)
     // In system mode, poll the OS proxy so external changes re-converge through the reconciler.
     if (config.mode === 'system') this.ensureSystemProxyMonitor()
@@ -317,7 +361,9 @@ export class ProxyService extends BaseService {
 
   private ensureSystemProxyMonitor(): void {
     if (this.systemProxyInterval) return
-    this.systemProxyInterval = this.registerInterval(() => this.proxyReconciler.request(), 1000 * 60)
+    this.systemProxyInterval = this.registerInterval(() => {
+      void this.reconcileProxy().catch((error) => logger.warn('System proxy refresh failed', error))
+    }, 1000 * 60)
   }
 
   private clearSystemProxyMonitor(): void {
@@ -346,13 +392,31 @@ export class ProxyService extends BaseService {
   private async setSessionsProxy(config: ProxyConfig): Promise<void> {
     // `persist:miniapp:*` is deliberately absent: those partitions run a constant deny-all PAC
     // (features/miniApp/runtime/network.ts) that a user proxy change must never overwrite.
+    const regional = [...this.additionalSessions]
     const sessions = [
       session.defaultSession,
       ...Object.values(WEBVIEW_SECURITY_PARTITIONS).map((partition) => session.fromPartition(partition))
     ]
     // Drain every write even on failure so the next apply cannot race stale session writes.
-    const outcomes = await Promise.allSettled([...sessions.map((s) => s.setProxy(config)), app.setProxy(config)])
+    const outcomes = await Promise.allSettled([
+      ...sessions.map((s) => s.setProxy(config)),
+      app.setProxy(config),
+      ...regional.map(async ([guestSession, gate]) => {
+        if (config.mode === 'fixed_servers') normalizeProxyEndpoint(config.proxyRules)
+        if (config.mode === 'direct' && application.get('PreferenceService').get('app.proxy.mode') === 'custom')
+          throw new Error('A custom proxy URL is required for regional sessions')
+        if (gate.appliedKey !== proxyConfigKey(config)) {
+          gate.appliedKey = null
+          await guestSession.setProxy(config)
+          await guestSession.closeAllConnections()
+          gate.appliedKey = proxyConfigKey(config)
+        }
+      })
+    ])
     const failed = outcomes.find((outcome) => outcome.status === 'rejected')
     if (failed) throw failed.reason
+    for (const [guestSession, gate] of regional) {
+      if (this.additionalSessions.get(guestSession) === gate) this.pendingSessions.delete(guestSession)
+    }
   }
 }

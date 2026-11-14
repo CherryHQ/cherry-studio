@@ -25,6 +25,7 @@ import { miniAppHandlers } from '../miniApps'
 describe('miniAppHandlers', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    getByAppIdMock.mockReturnValue({ kind: 'app' })
   })
 
   describe('GET /mini-apps', () => {

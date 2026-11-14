@@ -278,6 +278,8 @@ describe('Browser data cleanup', () => {
   })
 
   it.each(['cache', 'history'] as const)('clears %s and cancels pending favicon writes', async (kind) => {
+    // Image decoding performs real I/O, so its completion needs the real clock.
+    vi.useRealTimers()
     const png = Buffer.from(
       'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aetkAAAAASUVORK5CYII=',
       'base64'
@@ -312,8 +314,9 @@ describe('Browser data cleanup', () => {
 
     vi.mocked(profile.fetch).mockResolvedValueOnce(new Response(png))
     mock.emit('page-favicon-updated', {}, ['https://example.com/new-icon.png'])
-    await vi.waitFor(() =>
-      expect(cache.getPersist('browser.favicons')['https://example.com']).toMatch(/^data:image\/png;base64,/)
+    await vi.waitFor(
+      () => expect(cache.getPersist('browser.favicons')['https://example.com']).toMatch(/^data:image\/png;base64,/),
+      { timeout: 5000 }
     )
   })
 })
