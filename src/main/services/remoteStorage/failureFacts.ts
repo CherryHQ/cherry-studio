@@ -13,7 +13,7 @@ export function classifyStorageFailure(error: unknown): FailureFacts {
     const status = value.$metadata?.httpStatusCode ?? value.status
     if (
       typeof status === 'number' &&
-      ([401, 403, 404, 408, 409, 412, 423, 429].includes(status) || (status >= 500 && status <= 599))
+      ([401, 403, 404, 408, 409, 412, 413, 423, 429].includes(status) || (status >= 500 && status <= 599))
     ) {
       return { source: 'environment', kind: 'expected', reason: 'storage_remote_unavailable', outcome: 'failed' }
     }

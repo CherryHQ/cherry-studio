@@ -153,5 +153,8 @@ describe('WebDAV upload error classification', () => {
     } else {
       await expect(webdav.putFileContents('backup.zip', data)).rejects.toBe(error)
     }
+    const entry = mockMainLoggerService.error.mock.calls.at(-1)![1]
+    expect(entry.failure).toMatchObject({ kind: 'expected', reason: 'storage_remote_unavailable' })
+    expect(getSentryLogContext(entry)).toBeUndefined()
   })
 })
