@@ -7,6 +7,7 @@ import { type FileStat } from 'webdav'
 
 import { Button, Input, RowFlex, Switch, WarnTooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
+import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
 import Selector from '@renderer/components/Selector'
 import {
   SettingDivider,
@@ -189,10 +190,18 @@ const NutstoreSettings: FC = () => {
       <RowFlex className="items-center gap-1.25">
         {nutstoreSyncState.syncing && <RefreshCw className="animate-spin" size={14} />}
         {!nutstoreSyncState.syncing && nutstoreSyncState.lastSyncError && (
-          <WarnTooltip
-            content={`${t('settings.data.webdav.syncError')}: ${nutstoreSyncState.lastSyncError}`}
-            iconProps={{ style: { color: 'var(--error)' } }}
-          />
+          <>
+            <WarnTooltip
+              content={`${t('settings.data.webdav.syncError')}: ${nutstoreSyncState.lastSyncError}`}
+              iconProps={{ style: { color: 'var(--error)' } }}
+            />
+            <ErrorDetailAction
+              error={nutstoreSyncState.lastSyncError}
+              message={t('settings.data.webdav.syncError')}
+              source="settings.data.nutstore"
+              operation="backup.sync"
+            />
+          </>
         )}
         {nutstoreSyncState.lastSyncTime && (
           <span style={{ color: SYNC_STATUS_COLOR }}>

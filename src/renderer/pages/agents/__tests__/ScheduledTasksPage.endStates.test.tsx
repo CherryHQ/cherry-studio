@@ -10,6 +10,7 @@ import { afterEach, beforeAll, expect, it, vi } from 'vitest'
 import { dataApiService } from '@renderer/data/DataApiService'
 import { createSWRTestWrapper } from '@renderer/data/hooks/__tests__/testUtils'
 import en from '@renderer/i18n/locales/en-us.json'
+import { appErrorDetailService } from '@renderer/services/AppErrorDetailService'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { ScheduledTaskListItem } from '@shared/data/api/schemas/agents'
 
@@ -82,7 +83,11 @@ async function openPage(
       const page = query?.page ?? 1
       return { items: items.slice((page - 1) * 50, page * 50), total: items.length, page, limit: 50 } as never
     }
-    if (path.startsWith('/agent-tasks/')) return tasks.find((item) => path.endsWith('/' + item.id)) as never
+    if (path.startsWith('/agent-tasks/')) {
+      const found = tasks.find((item) => path.endsWith('/' + item.id))
+      if (!found) throw new Error('task store unavailable')
+      return found as never
+    }
     if (path === '/agents')
       return { items: query?.ids?.slice(0, query.limit).map((id) => ({ id, name: `Owner ${id}` })) ?? [] } as never
     if (path.includes('/tasks/') && path.endsWith('/logs')) {
@@ -322,4 +327,45 @@ it('renders mixed legacy and executed history rows and opens the legacy result w
   expect(await screen.findByText('old sentinel', { exact: false })).toHaveTextContent('old sentinel')
   expect(router.state.location.search).toMatchObject({ runId: 'older' })
   expect(screen.getByRole('status', { name: 'Conversation' })).toBeEmptyDOMElement()
+})
+
+it('offers failure details beside Retry when the selected task cannot be loaded', async () => {
+  const user = userEvent.setup()
+  const open = vi.spyOn(appErrorDetailService, 'openAppErrorDetail').mockResolvedValue('opened')
+  const { router } = await openPage()
+  await act(async () => {
+    await router.navigate({ to: '/app/scheduled-tasks', search: { taskId: 'deleted-task' } })
+  })
+
+  const alert = await screen.findByRole('alert')
+  expect(within(alert).getByRole('button', { name: 'Retry' })).toBeVisible()
+  await user.click(within(alert).getByRole('button', { name: 'Details' }))
+
+  await waitFor(() => expect(open).toHaveBeenCalledTimes(1))
+  const [request] = open.mock.calls[0]
+  expect(request.context).toMatchObject({ operation: 'task.load', recordId: 'deleted-task' })
+  expect(request.error?.message).toBe('task store unavailable')
+})
+
+it('files a run-history failure under its own operation rather than the task load', async () => {
+  const user = userEvent.setup()
+  const open = vi.spyOn(appErrorDetailService, 'openAppErrorDetail').mockResolvedValue('opened')
+  const { router } = await openPage()
+  const read = vi.mocked(dataApiService.get)
+  const readAll = read.getMockImplementation()!
+  read.mockImplementation(async (path, options) => {
+    if (path.endsWith('/logs')) throw new Error('history store unavailable')
+    return readAll(path, options)
+  })
+  await act(async () => {
+    await router.navigate({ to: '/app/scheduled-tasks', search: { taskId: 'completed-0' } })
+  })
+
+  const alert = await screen.findByRole('alert')
+  await user.click(within(alert).getByRole('button', { name: 'Details' }))
+
+  await waitFor(() => expect(open).toHaveBeenCalledTimes(1))
+  const [request] = open.mock.calls[0]
+  expect(request.context).toMatchObject({ operation: 'task.logs.load', recordId: 'completed-0' })
+  expect(request.error?.message).toBe('history store unavailable')
 })

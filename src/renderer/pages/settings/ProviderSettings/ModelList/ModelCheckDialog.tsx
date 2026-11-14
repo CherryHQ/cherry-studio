@@ -1,6 +1,6 @@
 import { sortBy } from 'es-toolkit/compat'
 import { AlertTriangle, ChevronRight } from 'lucide-react'
-import { useEffect, useId, useMemo, useState } from 'react'
+import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
@@ -21,17 +21,24 @@ import {
   Switch
 } from '@cherrystudio/ui'
 import { useIcon } from '@cherrystudio/ui/icons'
+import { loggerService } from '@logger'
 import { showErrorDetailPopup } from '@renderer/components/ErrorDetailModal'
 import type { ModelCheckKeySelection } from '@renderer/pages/settings/ProviderSettings/types/healthCheck'
 import { getModelHealthCheckSkipReason } from '@renderer/pages/settings/ProviderSettings/utils/healthCheck'
+import { contextFromUnknown } from '@renderer/services/AppErrorContextService'
 import { healthCheckErrorToDisplayString } from '@renderer/services/modelHealthCheck'
 import { maskApiKey } from '@renderer/utils/api'
 import { getModelLogoRef } from '@renderer/utils/model'
-import type { Model } from '@shared/data/types/model'
+import { parseUniqueModelId, type Model } from '@shared/data/types/model'
 import type { ApiKeyEntry } from '@shared/data/types/provider'
+import type { AppErrorContext } from '@shared/types/appError'
+import { isNonChatModel } from '@shared/utils/model'
+import { redactSecretLiterals } from '@shared/utils/redaction'
 
 import { drawerClasses } from '../primitives/ProviderSettingsPrimitives'
 import { useModelListHealthRun } from './modelListHealthContext'
+
+const logger = loggerService.withContext('ModelCheckDialog')
 
 type DialogView = 'single' | 'all'
 type ModelOption = ComboboxOption<{ model: Model }>
@@ -235,6 +242,8 @@ export default function ModelCheckDialog() {
   const [isConcurrent, setIsConcurrent] = useState(true)
   const [timeoutSeconds, setTimeoutSeconds] = useState(15)
   const [isStarting, setIsStarting] = useState(false)
+  // Each check run, wherever it was started, yields a new result error object.
+  const checkFaults = useRef(new WeakMap<object, AppErrorContext>())
   const effectiveAllKeySelection = getEffectiveKeySelection(allKeySelection, health.apiKeyEntries)
   const sortedModels = useMemo(() => sortBy(health.models, 'name'), [health.models])
   const checkableModels = useMemo(
@@ -301,10 +310,10 @@ export default function ModelCheckDialog() {
   }, [enabledApiKeyEntries, health.modelCheckOpen])
 
   const handleStart = async () => {
+    if (view === 'single' && !selectedModel) return
     setIsStarting(true)
     try {
-      if (view === 'single') {
-        if (!selectedModel) return
+      if (view === 'single' && selectedModel) {
         await health.startSingleModelCheck({ model: selectedModel, keySelection: singleKeySelection })
         return
       }
@@ -322,7 +331,40 @@ export default function ModelCheckDialog() {
   }
 
   const handleShowConnectionErrorDetail = () => {
-    if (singleError) void showErrorDetailPopup({ error: singleError })
+    if (!singleError) return
+    let providerId = selectedModel?.providerId
+    let modelId: string | undefined = selectedModel?.id
+    if (selectedModel) {
+      try {
+        const parsed = parseUniqueModelId(selectedModel.id)
+        providerId = parsed.providerId || selectedModel.providerId
+        modelId = parsed.modelId
+      } catch {
+        modelId = selectedModel.id
+      }
+    }
+    const imageOnly = selectedModel ? isNonChatModel(selectedModel) : false
+    // Providers may echo a key that has no recognizable prefix, so mask every configured key literally.
+    const keys = health.apiKeyEntries.map((entry) => entry.key.trim()).filter(Boolean)
+    const redactedError = redactSecretLiterals(singleError, keys)
+    let errorContext = checkFaults.current.get(singleError)
+    if (!errorContext) {
+      errorContext = contextFromUnknown(redactedError, {
+        source: 'settings.provider',
+        operation: 'model.check',
+        message: redactedError.message || redactSecretLiterals(singleErrorText, keys),
+        ...(providerId ? { providerId } : {}),
+        ...(modelId ? { modelId } : {}),
+        ...(imageOnly ? { imageOnly: true } : {})
+      })
+      checkFaults.current.set(singleError, errorContext)
+    }
+    const pending = showErrorDetailPopup({ error: redactedError, errorContext })
+    if (pending) {
+      void pending.catch((error: unknown) => {
+        logger.error('Failed to open the model check detail', error as Error)
+      })
+    }
   }
 
   const startDisabled =

@@ -5,6 +5,7 @@ import { SWRConfig } from 'swr'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { FileEditSessionContext } from '@renderer/hooks/useFileEditSession'
+import type * as AppErrorDetailService from '@renderer/services/AppErrorDetailService'
 import { FileEditSessionManager } from '@renderer/services/fileEdit/FileEditSessionManager'
 import { fileErrorCodes } from '@shared/ipc/errors/file'
 import { IpcError } from '@shared/ipc/errors/IpcError'
@@ -26,6 +27,7 @@ const mocks = vi.hoisted(() => ({
     | { shouldBlockFn: () => Promise<boolean>; disabled: boolean; enableBeforeUnload: () => boolean }
     | undefined,
   ipcRequest: vi.fn(),
+  openErrorDetail: vi.fn().mockResolvedValue('opened'),
   onTreeMutation: undefined as ((event: unknown) => void) | undefined,
   tree: {
     error: null as Error | null,
@@ -74,6 +76,10 @@ vi.mock('@renderer/ipc', async () => {
     }
   }
 })
+vi.mock('@renderer/services/AppErrorDetailService', async (importOriginal) => ({
+  ...(await importOriginal<typeof AppErrorDetailService>()),
+  appErrorDetailService: { openAppErrorDetail: mocks.openErrorDetail }
+}))
 vi.mock('@logger', () => ({ loggerService: { withContext: () => ({ error: vi.fn() }) } }))
 vi.mock('@renderer/services/toast', () => ({ toast: { error: vi.fn() } }))
 vi.mock('react-i18next', () => ({
@@ -94,7 +100,12 @@ vi.mock('@cherrystudio/ui', () => ({
   },
   ConfirmDialog: ({ open, title }: { open: boolean; title: ReactNode }) =>
     open ? <div role="dialog">{title}</div> : null,
-  EmptyState: ({ title }: { title: ReactNode }) => <div>{title}</div>,
+  EmptyState: ({ description, title }: { description?: ReactNode; title: ReactNode }) => (
+    <div>
+      {title}
+      {description}
+    </div>
+  ),
   SegmentedControl: ({
     'aria-label': ariaLabel,
     disabled,
@@ -215,6 +226,45 @@ describe('SkillFileBrowser', () => {
     })
   })
 
+  it('shows file-load details when the directory tree fails', () => {
+    mocks.tree = { error: new Error('tree exploded'), isLoading: false, root: null, version: 0 }
+    renderBrowser()
+
+    expect(screen.getByText('library.skill_detail.file_load_failed')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'common.detail' })).toBeInTheDocument()
+    expect(screen.queryByText('tree exploded')).not.toBeInTheDocument()
+    expect(screen.queryByText('library.skill_detail.no_files')).not.toBeInTheDocument()
+  })
+
+  it('keeps the local Skill directory path out of the reported directory-load failure', async () => {
+    mocks.tree = { error: new Error('tree exploded'), isLoading: false, root: null, version: 0 }
+    renderBrowser()
+
+    await userEvent.click(screen.getByRole('button', { name: 'common.detail' }))
+
+    await waitFor(() => expect(mocks.openErrorDetail).toHaveBeenCalledTimes(1))
+    const [request] = mocks.openErrorDetail.mock.calls[0]
+    expect(request.context.recordId).toBe('skill-1')
+    expect(JSON.stringify(request.context)).not.toContain('/managed/writer')
+  })
+
+  it('shows load details when the selected file cannot be read', async () => {
+    mocks.ipcRequest.mockImplementation(async (route: string) => {
+      if (route === 'file.edit.read') throw new Error('unreadable')
+      return undefined
+    })
+    renderBrowser('read_write')
+
+    await waitFor(() => expect(screen.getByText('settings.skills.editor.loadFailed')).toBeInTheDocument())
+    expect(screen.queryByText('unreadable')).not.toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: 'common.detail' }))
+    await waitFor(() => expect(mocks.openErrorDetail).toHaveBeenCalledTimes(1))
+    const [request] = mocks.openErrorDetail.mock.calls[0]
+    expect(request.context.recordId).toBe('skill-1:SKILL.md')
+    expect(JSON.stringify(request.context)).not.toContain('/managed/writer')
+  })
+
   it('selects SKILL.md from the generic directory tree and previews its absolute path', async () => {
     renderBrowser()
 
@@ -260,6 +310,45 @@ describe('SkillFileBrowser', () => {
     expect(await screen.findByRole('textbox', { name: 'code-editor' })).toHaveValue('# Writer')
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     expect(mocks.ipcRequest.mock.calls.filter(([route]) => route === 'file.edit.write')).toEqual([])
+  })
+
+  it('keeps the draft and shows save details when the write fails', async () => {
+    vi.useFakeTimers()
+    try {
+      mocks.ipcRequest.mockImplementation(async (route: string) => {
+        if (route === 'file.edit.read') {
+          const content = new TextEncoder().encode('# Writer')
+          return { content, mime: 'text/markdown', version: { mtime: 1, size: content.byteLength } }
+        }
+        if (route === 'file.edit.write') throw new Error('disk full')
+        return undefined
+      })
+      renderBrowser('read_write')
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0)
+      })
+      fireEvent.click(screen.getByRole('radio', { name: 'settings.skills.editor.edit' }))
+      fireEvent.change(screen.getByRole('textbox', { name: 'code-editor' }), { target: { value: '# Draft stays' } })
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(800)
+        await Promise.resolve()
+      })
+
+      expect(screen.getByRole('textbox', { name: 'code-editor' })).toHaveValue('# Draft stays')
+      expect(screen.getByText('settings.skills.editor.saveFailed')).toBeInTheDocument()
+      expect(screen.queryByText('disk full')).not.toBeInTheDocument()
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: 'common.detail' }))
+        await vi.advanceTimersByTimeAsync(0)
+      })
+      expect(mocks.openErrorDetail).toHaveBeenCalledTimes(1)
+      const [request] = mocks.openErrorDetail.mock.calls[0]
+      expect(request.context.recordId).toBe('skill-1:SKILL.md')
+      expect(JSON.stringify(request.context)).not.toContain('/managed/writer')
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('autosaves editable text through generic file IPC and scopes the following reconcile', async () => {
@@ -333,6 +422,9 @@ describe('SkillFileBrowser', () => {
       })
 
       expect(screen.getByText('settings.skills.editor.syncFailed')).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'common.detail' })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'common.retry' })).toBeInTheDocument()
+      expect(screen.queryByText('mirror unavailable')).not.toBeInTheDocument()
       let shouldBlock = false
       await act(async () => {
         shouldBlock = (await mocks.blockerOptions?.shouldBlockFn()) ?? false
@@ -377,6 +469,8 @@ describe('SkillFileBrowser', () => {
       await vi.advanceTimersByTimeAsync(800)
     })
     expect(screen.getByText('settings.skills.editor.conflict')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'settings.skills.editor.keepDraft' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'common.detail' })).not.toBeInTheDocument()
 
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: 'settings.skills.editor.keepDraft' }))

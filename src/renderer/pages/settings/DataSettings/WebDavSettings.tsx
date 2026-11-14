@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next'
 
 import { Button, Input, RowFlex, Switch, WarnTooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
+import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
 import Selector from '@renderer/components/Selector'
 import {
   SettingDivider,
@@ -72,10 +73,18 @@ const WebDavSettings: FC = () => {
       <RowFlex className="items-center gap-1.25">
         {webdavSync.syncing && <RefreshCw className="animate-spin" size={14} />}
         {!webdavSync.syncing && webdavSync.lastSyncError && (
-          <WarnTooltip
-            content={`${t('settings.data.webdav.syncError')}: ${webdavSync.lastSyncError}`}
-            iconProps={{ color: 'var(--error)' }}
-          />
+          <>
+            <WarnTooltip
+              content={`${t('settings.data.webdav.syncError')}: ${webdavSync.lastSyncError}`}
+              iconProps={{ color: 'var(--error)' }}
+            />
+            <ErrorDetailAction
+              error={webdavSync.lastSyncError}
+              message={t('settings.data.webdav.syncError')}
+              source="settings.data.webdav"
+              operation="backup.sync"
+            />
+          </>
         )}
         {webdavSync.lastSyncTime && (
           <span style={{ color: SYNC_STATUS_COLOR }}>

@@ -17,6 +17,7 @@ import {
 import { enableProviderWhenModelsAvailable } from '@renderer/pages/settings/ProviderSettings/utils/providerEnablement'
 import { toast } from '@renderer/services/toast'
 import type { Model } from '@shared/data/types/model'
+import { redactSecretLiterals } from '@shared/utils/redaction'
 
 import { PROVIDER_SETTINGS_MODEL_SWR_OPTIONS } from './constants'
 import { ModelCheckCredentialsSaveError, type ModelCheckCredentialsState } from './useModelCheckCredentials'
@@ -95,8 +96,17 @@ export function useProviderConnectionCheck(providerId: string, credentialsState:
         const credentials = await prepareCredentials(keySelection, controller.signal)
         if (runId !== runIdRef.current || controller.signal.aborted) return 'failed' as const
 
-        const keyResults = await checkModelWithMultipleKeys(model, credentials, 15000, controller.signal)
+        const rawKeyResults = await checkModelWithMultipleKeys(model, credentials, 15000, controller.signal)
         if (runId !== runIdRef.current || controller.signal.aborted) return 'failed' as const
+        // Providers may echo a key with no recognizable prefix; mask the sent keys before any result leaves here.
+        const sentKeys = credentials.map((credential) =>
+          credential.kind === 'api-key' ? credential.entry.key.trim() : ''
+        )
+        const keyResults = rawKeyResults.map((keyResult) =>
+          keyResult.kind === 'failed'
+            ? { ...keyResult, error: redactSecretLiterals(keyResult.error, sentKeys) }
+            : keyResult
+        )
 
         const analysis = aggregateApiKeyResults(keyResults)
         const result: ModelWithStatus =

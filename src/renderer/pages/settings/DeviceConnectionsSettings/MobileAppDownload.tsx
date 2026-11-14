@@ -7,6 +7,7 @@ import { Button, Spinner, Tabs, TabsContent, TabsList, TabsTrigger, Tooltip } fr
 import androidLogo from '@renderer/assets/images/deviceConnections/android.svg'
 import googlePlayLogo from '@renderer/assets/images/deviceConnections/google-play.png'
 import iosLogo from '@renderer/assets/images/deviceConnections/ios.svg'
+import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
 import { ipcApi } from '@renderer/ipc'
 import { getAppEdition } from '@renderer/utils/appEdition'
 
@@ -63,6 +64,12 @@ export function MobileAppDownload() {
                 {error && !isValidating ? (
                   <>
                     <p role="alert">{t('deviceConnections.download.loadFailed')}</p>
+                    <ErrorDetailAction
+                      error={error}
+                      message={t('deviceConnections.download.loadFailed')}
+                      operation="app.mobile.download_url"
+                      source="deviceConnections"
+                    />
                     <Button variant="outline" size="sm" onClick={() => void mutate()}>
                       {t('common.retry')}
                     </Button>

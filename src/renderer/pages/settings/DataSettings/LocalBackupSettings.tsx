@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next'
 import { Button, Input, RowFlex, Switch, WarnTooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
+import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
 import { LocalBackupManager } from '@renderer/components/LocalBackupManager'
 import { LocalBackupModal, useLocalBackupModal } from '@renderer/components/LocalBackupModals'
 import Selector from '@renderer/components/Selector'
@@ -161,10 +162,18 @@ const LocalBackupSettings: React.FC = () => {
       <RowFlex className="items-center gap-1.25">
         {localBackupSync.syncing && <RefreshCw className="animate-spin" size={14} />}
         {!localBackupSync.syncing && localBackupSync.lastSyncError && (
-          <WarnTooltip
-            content={`${t('settings.data.local.syncError')}: ${localBackupSync.lastSyncError}`}
-            iconProps={{ style: { color: 'var(--error)' } }}
-          />
+          <>
+            <WarnTooltip
+              content={`${t('settings.data.local.syncError')}: ${localBackupSync.lastSyncError}`}
+              iconProps={{ style: { color: 'var(--error)' } }}
+            />
+            <ErrorDetailAction
+              error={localBackupSync.lastSyncError}
+              message={t('settings.data.local.syncError')}
+              source="settings.data.local"
+              operation="backup.sync"
+            />
+          </>
         )}
         {localBackupSync.lastSyncTime && (
           <span style={{ color: SYNC_STATUS_COLOR }}>

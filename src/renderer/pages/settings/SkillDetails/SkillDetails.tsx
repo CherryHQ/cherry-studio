@@ -22,13 +22,16 @@ import {
 } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
+import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
 import { SkillSourceBadge } from '@renderer/components/resourceCatalog/catalog'
 import { SettingDescription, SettingsContentBody } from '@renderer/components/SettingsPrimitives'
 import { useDataChange, useQuery } from '@renderer/data/hooks/useDataApi'
 import { useSkillMutationsById } from '@renderer/hooks/resourceCatalog'
 import { useSkillLauncher } from '@renderer/hooks/useSkillLauncher'
 import { ipcApi } from '@renderer/ipc'
+import { toastAppError } from '@renderer/services/AppErrorDetailService'
 import { toast } from '@renderer/services/toast'
+import { isDataApiNotFoundError } from '@shared/data/api/errors'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import { skillErrorCodes } from '@shared/ipc/errors/skill'
 import type { SkillRemoteUpdateCheck } from '@shared/types/skill'
@@ -67,7 +70,11 @@ export function SkillDetails({ skillId }: { skillId: string }) {
       await ipcApi.request('skill.folder.open', { skillId })
     } catch (error) {
       logger.error('Failed to open Skill folder', error as Error, { skillId })
-      toast.error(t('library.skill_detail.open_folder_failed'))
+      toastAppError(t('library.skill_detail.open_folder_failed'), error, {
+        source: 'skills',
+        operation: 'skill.folder.open',
+        recordId: skillId
+      })
     }
   }
 
@@ -77,7 +84,11 @@ export function SkillDetails({ skillId }: { skillId: string }) {
       await updateGlobalEnabled(checked)
     } catch (error) {
       logger.error('Failed to update Skill global state', error as Error, { skillId })
-      toast.error(t('settings.skills.toggleFailed', { name: skill.name }))
+      toastAppError(t('settings.skills.toggleFailed', { name: skill.name }), error, {
+        source: 'skills',
+        operation: 'skill.toggle',
+        recordId: skillId
+      })
     }
   }
 
@@ -102,7 +113,11 @@ export function SkillDetails({ skillId }: { skillId: string }) {
       setDeleteOpen(false)
       goBack()
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : t('common.delete_failed'))
+      toastAppError(t('common.delete_failed'), error, {
+        source: 'skills',
+        operation: 'skill.delete',
+        recordId: skillId
+      })
     } finally {
       setDeleting(false)
     }
@@ -134,7 +149,11 @@ export function SkillDetails({ skillId }: { skillId: string }) {
       setRemoteCheck(result)
     } catch (error) {
       logger.error('Failed to check Skill update', error as Error, { skillId })
-      toast.error(t('settings.skills.remote.checkFailed'))
+      toastAppError(t('settings.skills.remote.checkFailed'), error, {
+        source: 'skills',
+        operation: 'skill.remote.check',
+        recordId: skillId
+      })
     } finally {
       setCheckingRemote(false)
     }
@@ -164,7 +183,11 @@ export function SkillDetails({ skillId }: { skillId: string }) {
         setTimeout(() => void checkRemoteUpdate(), 0)
       } else {
         logger.error('Failed to apply Skill update', error as Error, { skillId })
-        toast.error(t('settings.skills.remote.applyFailed'))
+        toastAppError(t('settings.skills.remote.applyFailed'), error, {
+          source: 'skills',
+          operation: 'skill.remote.apply',
+          recordId: skillId
+        })
       }
     } finally {
       setApplyingRemote(false)
@@ -182,13 +205,36 @@ export function SkillDetails({ skillId }: { skillId: string }) {
     )
   }
 
-  if (!skill || error) {
+  if (error && !isDataApiNotFoundError(error)) {
+    const summary = t('error.unexpected')
+    return (
+      <SettingsContentBody className="min-h-0 flex-1">
+        <EmptyState
+          preset="no-resource"
+          title={summary}
+          actionLabel={t('common.back')}
+          onAction={goBack}
+          className="min-h-80"
+        />
+        <div className="flex justify-center pb-6">
+          <ErrorDetailAction
+            error={error}
+            message={summary}
+            source="skills"
+            operation="skill.load"
+            recordId={skillId}
+          />
+        </div>
+      </SettingsContentBody>
+    )
+  }
+
+  if (!skill || isDataApiNotFoundError(error)) {
     return (
       <SettingsContentBody className="min-h-0 flex-1">
         <EmptyState
           preset="no-resource"
           title={t('settings.skills.notFound')}
-          description={error?.message}
           actionLabel={t('common.back')}
           onAction={goBack}
           className="min-h-80"
@@ -302,13 +348,25 @@ export function SkillDetails({ skillId }: { skillId: string }) {
             access={folder.data.access}
             disabled={applyingRemote}
           />
+        ) : folder.error ? (
+          <div className="flex h-full min-h-80 flex-1 flex-col">
+            <EmptyState
+              preset="no-resource"
+              title={t('library.skill_detail.file_load_failed')}
+              className="h-full min-h-80"
+            />
+            <div className="flex justify-center pb-6">
+              <ErrorDetailAction
+                error={folder.error}
+                message={t('library.skill_detail.file_load_failed')}
+                source="skills"
+                operation="skill.folder.resolve"
+                recordId={skillId}
+              />
+            </div>
+          </div>
         ) : (
-          <EmptyState
-            preset="no-resource"
-            title={t('library.skill_detail.no_files')}
-            description={folder.error?.message}
-            className="h-full min-h-80"
-          />
+          <EmptyState preset="no-resource" title={t('library.skill_detail.no_files')} className="h-full min-h-80" />
         )}
       </div>
 
