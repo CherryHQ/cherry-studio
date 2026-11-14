@@ -7,6 +7,11 @@ import type { ApiKeyWithStatus, ModelCheckCredential } from '../../types/healthC
 import { HealthStatus } from '../../types/healthCheck'
 import { checkModelsHealth } from '../checkModelsHealth'
 
+const { runLogMock } = vi.hoisted(() => ({ runLogMock: vi.fn() }))
+vi.mock('@logger', () => ({
+  loggerService: { withContext: () => ({ info: runLogMock, error: vi.fn() }) }
+}))
+
 const checkModelWithMultipleKeysMock = vi.fn()
 
 vi.mock('../../utils/healthCheck', async () => {
@@ -46,6 +51,59 @@ describe('checkModelsHealth', () => {
     vi.clearAllMocks()
     checkModelWithMultipleKeysMock.mockResolvedValue([okKeyResult(credentials[0])])
   })
+
+  it.each([false, true])(
+    'logs one cancelled terminal summary for concurrency=%s without publishing a late result',
+    async (isConcurrent) => {
+      const pending = deferred<ApiKeyWithStatus[]>()
+      checkModelWithMultipleKeysMock.mockReturnValue(pending.promise)
+      const controller = new AbortController()
+      const onModelChecked = vi.fn()
+      const run = checkModelsHealth(
+        {
+          models: [{ id: 'model-a' }, { id: 'model-b' }] as never,
+          credentials: credentials.slice(0, 1),
+          isConcurrent,
+          timeout: 1000,
+          signal: controller.signal
+        },
+        onModelChecked
+      )
+      controller.abort()
+      pending.resolve([okKeyResult(credentials[0])])
+      await expect(run).rejects.toBe(controller.signal.reason)
+      expect(onModelChecked).not.toHaveBeenCalled()
+      const summaries = runLogMock.mock.calls.filter(([message]) => message === 'Model check run finished')
+      expect(summaries).toHaveLength(1)
+      expect(summaries[0][1]).toEqual({
+        modelCount: 2,
+        isConcurrent,
+        outcome: 'cancelled',
+        durationMs: expect.any(Number)
+      })
+      expect(summaries[0][1].durationMs).toBeGreaterThanOrEqual(0)
+      expect(checkModelWithMultipleKeysMock).toHaveBeenCalledTimes(isConcurrent ? 2 : 1)
+    }
+  )
+
+  it.each(['completed', 'failed'] as const)(
+    'logs one %s terminal summary and preserves the result or error',
+    async (outcome) => {
+      const failure = new Error('probe failed')
+      if (outcome === 'failed') checkModelWithMultipleKeysMock.mockRejectedValue(failure)
+      const run = checkModelsHealth({
+        models: [{ id: 'model-a' }] as never,
+        credentials,
+        isConcurrent: false,
+        timeout: 1000
+      })
+      if (outcome === 'failed') await expect(run).rejects.toBe(failure)
+      else await expect(run).resolves.toMatchObject([{ model: { id: 'model-a' }, status: HealthStatus.SUCCESS }])
+      const summaries = runLogMock.mock.calls.filter(([message]) => message === 'Model check run finished')
+      expect(summaries).toHaveLength(1)
+      expect(summaries[0][1]).toEqual({ modelCount: 1, isConcurrent: false, outcome, durationMs: expect.any(Number) })
+    }
+  )
 
   it('does not start the next model check until the current one finishes when concurrency is disabled', async () => {
     const first = deferred<ApiKeyWithStatus[]>()
