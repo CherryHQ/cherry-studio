@@ -287,7 +287,7 @@ describe('ResourceCreateWizard', () => {
     await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1))
     expect(onOpenChange).not.toHaveBeenCalled()
     await act(async () => fail(new Error('upload failed')))
-    expect(screen.getByText('upload failed')).toBeInTheDocument()
+    expect(screen.getByText('library.config.dialogs.create.submit_failed')).toBeInTheDocument()
     await user.click(create)
     expect(onSubmit).toHaveBeenCalledTimes(2)
     expect(onSubmit.mock.calls[1][0]).toMatchObject({ name: 'My Resource', avatarImage: new Uint8Array([7, 8, 9]) })
