@@ -110,7 +110,8 @@ export function buildContextOptions(scope: RequestScope): ContextMiddlewareOptio
           undefined,
           scope.assistant,
           scope.model,
-          scope.endpointType
+          scope.endpointType,
+          scope.provider
         )
       ),
       headChars: HEAD_CHARS,
