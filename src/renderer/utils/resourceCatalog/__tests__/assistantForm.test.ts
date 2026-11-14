@@ -27,6 +27,20 @@ function createAssistant(overrides: Partial<Assistant> = {}): Assistant {
 }
 
 describe('initialAssistantFormState', () => {
+  it('defaults shared memory off and preserves an explicit opt-in in the save payload', () => {
+    const assistant = createAssistant()
+    const baseline = initialAssistantFormState(assistant)
+    expect(baseline.enableSharedMemory).toBe(false)
+    expect(diffAssistantUpdate({ ...baseline, enableSharedMemory: true }, baseline, assistant)).toMatchObject({
+      dto: { settings: { enableSharedMemory: true } }
+    })
+    expect(
+      initialAssistantFormState(
+        createAssistant({ settings: { ...DEFAULT_ASSISTANT_SETTINGS, enableSharedMemory: true } })
+      ).enableSharedMemory
+    ).toBe(true)
+  })
+
   it('copies columns + flattens settings into the form state', () => {
     const assistant = createAssistant({
       name: 'Demo',

@@ -44,6 +44,7 @@ export interface AssistantFormState {
   enableMaxToolCalls: boolean
   customParameters: CustomParameter[]
   enableBrowser: boolean
+  enableSharedMemory: boolean
   mcpMode: AssistantSettings['mcpMode']
   // context management (P2-D assistant override). `contextOverrideEnabled` is
   // the master switch for the OFFLOAD + COMPRESSION fields only.
@@ -93,6 +94,7 @@ export function initialAssistantFormState(assistant: Assistant): AssistantFormSt
     enableMaxToolCalls: settings.enableMaxToolCalls ?? true,
     customParameters: settings.customParameters ?? [],
     enableBrowser: settings.enableBrowser ?? true,
+    enableSharedMemory: settings.enableSharedMemory === true,
     mcpMode: mcpMode.success ? mcpMode.data : DEFAULT_ASSISTANT_SETTINGS.mcpMode,
     // Only an offload/compression field means "override": a lone maxMessages is
     // the scope control saved on its own.
@@ -171,6 +173,7 @@ export function diffAssistantUpdate(
     ...(baseline.maxToolCalls !== form.maxToolCalls ? { maxToolCalls: form.maxToolCalls } : {}),
     ...(baseline.enableMaxToolCalls !== form.enableMaxToolCalls ? { enableMaxToolCalls: form.enableMaxToolCalls } : {}),
     ...(baseline.enableBrowser !== form.enableBrowser ? { enableBrowser: form.enableBrowser } : {}),
+    ...(baseline.enableSharedMemory !== form.enableSharedMemory ? { enableSharedMemory: form.enableSharedMemory } : {}),
     ...(baseline.mcpMode !== form.mcpMode ? { mcpMode: form.mcpMode } : {}),
     ...(customParametersChanged ? { customParameters: form.customParameters } : {}),
     ...(contextSettingsChanged

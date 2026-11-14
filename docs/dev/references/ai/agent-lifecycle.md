@@ -233,9 +233,9 @@ owns the Agent-specific participants, using two stages:
 
 1. `pauseIngress()` holds Channel intake and rejects new lifecycle commands.
 2. `drainIngress()` waits for already accepted Channel admissions and lifecycle work.
-3. BackupManager pauses global AiStreamManager and JobManager; `pauseExecution()`
+3. BackupManager pauses global AiStreamManager, JobManager, AgentJobsService, and MemoryService; `pauseExecution()`
    holds Delivery and Runtime autonomous launches and rejects new child-panel input.
-4. All writers drain before snapshotting. Runtime owners first join native production, then
+4. All writers, including independent memory editor writes, drain before snapshotting. Runtime owners first join native production, then
    await observation queues and in-flight callbacks, and finally flush committed archives.
    No projection writes may follow that flush while the pause is held. Stopping an observation
    alone is not this barrier. Root replies also retain failed preparation/persistence under
@@ -252,6 +252,7 @@ acknowledged incoming message. Keep that ordering explicit.
 Holds are independent and released only by their owner. Releasing a backup hold
 does not restore archived entities or enable user-paused tasks. Successful restore
 staging retains its holds until relaunch; failed attempts release their holds.
+Committing a restore journal invalidates existing memory sessions before relaunch.
 Backup staging, the restore journal, and preboot promotion remain BackupManager's
 responsibility.
 

@@ -27,6 +27,7 @@ import { hermesDashboardHandlers } from './hermesDashboard'
 import { knowledgeHandlers } from './knowledge'
 import { localModelHandlers } from './localModel'
 import { mcpHandlers } from './mcp'
+import { memoryHandlers } from './memory'
 import { miniAppHandlers } from './miniApp'
 import { navigationHandlers } from './navigation'
 import { notificationHandlers } from './notification'
@@ -89,6 +90,7 @@ export const ipcHandlers: IpcHandlersFor<IpcRequestSchemas> = {
   ...knowledgeHandlers,
   ...localModelHandlers,
   ...mcpHandlers,
+  ...memoryHandlers,
   ...miniAppHandlers,
   ...navigationHandlers,
   ...notificationHandlers,

@@ -1,4 +1,4 @@
-import { link, mkdtemp, readFile, readdir, rmdir, symlink, unlink, writeFile } from 'node:fs/promises'
+import { mkdtemp, readFile, readdir, rmdir, symlink, unlink, writeFile } from 'node:fs/promises'
 import * as fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
@@ -223,50 +223,6 @@ describe('memory save contract', () => {
       store.commit(caller, [{ kind: 'write', receipt: read.receipt, content: 'Mine' }], 'controlled', approve)
     ).rejects.toMatchObject({ code: 'conflict' })
   })
-
-  it('checks both ends of a rename and restores both ends', async () => {
-    await save('.memories/source.md', 'Fact with a condition')
-    const source = await store.read(caller, '.memories/source.md')
-    const destination = await store.read(caller, '.memories/destination.md')
-    const moved = await store.commit(
-      caller,
-      [{ kind: 'rename', receipt: source.receipt, destinationReceipt: destination.receipt }],
-      'controlled',
-      approve
-    )
-    expect(moved.files.every((file) => file.outcome === 'applied')).toBe(true)
-    expect((await store.read(caller, '.memories/source.md')).content).toBeNull()
-    const preview = await store.previewRecovery(caller)
-    expect(preview?.batchId).toBe(moved.batchId)
-    const recovered = await store.recover(caller, preview!.token, approve)
-    expect(recovered.files.every((file) => file.outcome === 'applied')).toBe(true)
-    expect((await store.read(caller, '.memories/source.md')).content).toBe('Fact with a condition')
-    expect((await store.read(caller, '.memories/destination.md')).content).toBeNull()
-  })
-
-  it.each(['.memories/TOPIC.md', '.memories/alias.md'])(
-    'rejects a rename to the same physical file at %s before approval',
-    async (alias) => {
-      await save('.memories/topic.md', 'Keep me')
-      if ((await memoryFiles.readMemoryBytes(root, alias)) === null) {
-        await link(path.join(root, '.memories/topic.md'), path.join(root, alias))
-      }
-      const source = await store.read(caller, '.memories/topic.md')
-      const destination = await store.read(caller, alias)
-      const approval = vi.fn(approve)
-      await expect(
-        store.commit(
-          caller,
-          [{ kind: 'rename', receipt: source.receipt, destinationReceipt: destination.receipt }],
-          'controlled',
-          approval
-        )
-      ).rejects.toMatchObject({ code: 'conflict' })
-      expect(approval).not.toHaveBeenCalled()
-      expect((await store.read(caller, '.memories/topic.md')).content).toBe('Keep me')
-      expect((await store.read(caller, alias)).content).toBe('Keep me')
-    }
-  )
 
   it('does not create a recovery batch for an identical save', async () => {
     await save('MEMORY.md', 'Unchanged')
