@@ -2210,6 +2210,7 @@
   "library.config.dialogs.create.auto.submit": "自動作成",
   "library.config.dialogs.create.avatar_aria": "アバターを選択",
   "library.config.dialogs.create.avatar_name_label": "アバターと名前",
+  "library.config.dialogs.create.avatar_random": "ランダムなアバター",
   "library.config.dialogs.create.back": "戻る",
   "library.config.dialogs.create.capability.builtin_badge": "デフォルトで有効",
   "library.config.dialogs.create.capability.no_skills": "インストールされているスキルがありません",

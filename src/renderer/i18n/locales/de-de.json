@@ -2210,6 +2210,7 @@
   "library.config.dialogs.create.auto.submit": "Automatisch erstellen",
   "library.config.dialogs.create.avatar_aria": "Avatar auswählen",
   "library.config.dialogs.create.avatar_name_label": "Avatar und Name",
+  "library.config.dialogs.create.avatar_random": "Zufälliger Avatar",
   "library.config.dialogs.create.back": "Zurück",
   "library.config.dialogs.create.capability.builtin_badge": "Standardmäßig aktiviert",
   "library.config.dialogs.create.capability.no_skills": "Keine Fähigkeiten installiert",

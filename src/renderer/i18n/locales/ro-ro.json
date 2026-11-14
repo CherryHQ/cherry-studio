@@ -2210,6 +2210,7 @@
   "library.config.dialogs.create.auto.submit": "Creare automată",
   "library.config.dialogs.create.avatar_aria": "Alege avatar",
   "library.config.dialogs.create.avatar_name_label": "Avatar și nume",
+  "library.config.dialogs.create.avatar_random": "Avatar aleatoriu",
   "library.config.dialogs.create.back": "Înapoi",
   "library.config.dialogs.create.capability.builtin_badge": "Activat implicit",
   "library.config.dialogs.create.capability.no_skills": "Nicio abilitate instalată",

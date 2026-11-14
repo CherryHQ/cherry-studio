@@ -2210,6 +2210,7 @@
   "library.config.dialogs.create.auto.submit": "Создать автоматически",
   "library.config.dialogs.create.avatar_aria": "Выберите аватар",
   "library.config.dialogs.create.avatar_name_label": "Аватар и имя",
+  "library.config.dialogs.create.avatar_random": "Случайный аватар",
   "library.config.dialogs.create.back": "Назад",
   "library.config.dialogs.create.capability.builtin_badge": "Включено по умолчанию",
   "library.config.dialogs.create.capability.no_skills": "Навыки не установлены",

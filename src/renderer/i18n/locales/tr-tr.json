@@ -2210,6 +2210,7 @@
   "library.config.dialogs.create.auto.submit": "Otomatik oluştur",
   "library.config.dialogs.create.avatar_aria": "Avatar seç",
   "library.config.dialogs.create.avatar_name_label": "Avatar ve ad",
+  "library.config.dialogs.create.avatar_random": "Rastgele avatar",
   "library.config.dialogs.create.back": "Geri",
   "library.config.dialogs.create.capability.builtin_badge": "Varsayılan olarak etkin",
   "library.config.dialogs.create.capability.no_skills": "Yüklü beceri yok",
