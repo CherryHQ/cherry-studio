@@ -17,6 +17,7 @@ import { loggerService } from '@logger'
 import { AgentSessionForkOperations, getEditFailure, resolveForkBoundary } from '@main/ai/agentSession/fork'
 import { ProjectionSubscriptions } from '@main/ai/messages/ProjectionSubscriptions'
 import type { NotifyChannel } from '@main/ai/runtime/agentMcpServers'
+import { buildAgentUserContent, isManualCompactCommand } from '@main/ai/runtime/agentUserContent'
 import type { RuntimeForkAnchor } from '@main/ai/runtime/fork'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import { serializeError } from '@main/ai/utils/serializeError'
@@ -646,7 +647,8 @@ export class AgentSessionRuntimeService extends BaseService {
           try {
             agentSessionMessageService.markAssistantMessageTerminalError(
               entry.sessionId,
-              effect.turn.assistantMessageId
+              effect.turn.assistantMessageId,
+              'turn.interrupted'
             )
           } catch (persistenceError) {
             logger.warn('Failed to mark unsubmitted reply as error', {
@@ -3338,7 +3340,11 @@ export class AgentSessionRuntimeService extends BaseService {
         afterPersist
       }),
       onPersistFailed: (error) =>
-        this.applyRuntimeStateEvent(entry, { type: 'reply-delivery-failed', turn: currentTurn, error })
+        this.applyRuntimeStateEvent(entry, { type: 'reply-delivery-failed', turn: currentTurn, error }),
+      // `/compact` is answered by the fold without an anchor, so the intent is declared here —
+      // but only for a dispatched command line: wrapped/reminder prompts run as ordinary turns.
+      explicitCompaction:
+        currentTurn.systemReminder !== true && isManualCompactCommand(buildAgentUserContent(currentTurn.userMessage))
     })
   }
 
