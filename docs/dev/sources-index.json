@@ -327,7 +327,7 @@
     },
     {
       "path": "docs/dev/references/file/file-entry-cleanup.md",
-      "sources": ["src/main/data/db/schemas/file.ts","src/main/data/db/schemas/fileRelations.ts","src/main/data/services/FileEntryService.ts","src/main/data/services/FileRefService.ts","src/main/services/file/internal/entryCleanup.ts"]
+      "sources": ["src/main/ai/mcp/servers/cherryBuiltinTools.ts","src/main/ai/runtime/claudeCode/ClaudeMessageMetadata.ts","src/main/ai/tools/painting.ts","src/main/data/db/schemas/file.ts","src/main/data/db/schemas/fileRelations.ts","src/main/data/services/AgentSessionMessageService.ts","src/main/data/services/FileEntryService.ts","src/main/data/services/FileRefService.ts","src/main/data/services/MessageService.ts","src/main/services/file/internal/entryCleanup.ts"]
     },
     {
       "path": "docs/dev/references/file/file-manager-architecture.md",
