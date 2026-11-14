@@ -1117,7 +1117,16 @@ describe('CodeCliPage', () => {
     fireEvent.click(screen.getByText('remove tool'))
     fireEvent.click(await screen.findByText('confirm remove'))
 
-    await waitFor(() => expect(toastErrorMock).toHaveBeenCalledWith('code.clear_config_failed'))
+    await waitFor(() =>
+      expect(toastErrorMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: 'code.clear_config_failed',
+          data: expect.objectContaining({
+            errorContext: expect.objectContaining({ message: 'EACCES', operation: 'code_cli.clear_config' })
+          })
+        })
+      )
+    )
     // The in-app cleanup still proceeds so the tool state does not point at a removed provider.
     expect(setCurrentProviderMock).toHaveBeenCalledWith(null)
   })

@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { useSharedCacheValue } from '@data/hooks/useCache'
 import { useMiniAppPopup } from '@renderer/hooks/useMiniAppPopup'
 import { ipcApi } from '@renderer/ipc'
+import { toastAppError } from '@renderer/services/AppErrorDetailService'
 import { loggerService } from '@renderer/services/LoggerService'
 import { toast } from '@renderer/services/toast'
 import type { HermesDashboardStartFailureReason } from '@shared/ipc/schemas/hermesDashboard'
@@ -85,13 +86,21 @@ export function useHermesDashboardController(
         previousStatus.current = 'error'
         onConfigMayHaveChanged?.()
         logger.error('Failed to launch Hermes Dashboard', new Error(result.message), { reason: result.reason })
-        toast.error(withDetail(t(START_ERROR_KEYS[result.reason]), result.message))
+        const detail = result.message.trim()
+        toast.error({
+          title: withDetail(t(START_ERROR_KEYS[result.reason]), detail),
+          cause: detail ? { message: detail } : undefined,
+          data: { source: 'code.hermes', operation: 'hermes_dashboard.start', params: { reason: result.reason } }
+        })
         return
       }
       openDashboard(result.url)
     } catch (error) {
       logger.error('Failed to launch Hermes Dashboard', error as Error)
-      toast.error(t(START_ERROR_KEYS.startup_failed))
+      toastAppError(t(START_ERROR_KEYS.startup_failed), error, {
+        source: 'code.hermes',
+        operation: 'hermes_dashboard.start'
+      })
     } finally {
       if (epoch === operationEpoch.current) setPendingOperation(null)
     }
@@ -105,7 +114,12 @@ export function useHermesDashboardController(
       if (epoch !== operationEpoch.current) return false
       if (!result.success) {
         logger.error('Failed to stop Hermes Dashboard', new Error(result.message))
-        toast.error(withDetail(t('code.hermes_dashboard.error.stop_failed'), result.message))
+        const detail = result.message.trim()
+        toast.error({
+          title: withDetail(t('code.hermes_dashboard.error.stop_failed'), detail),
+          cause: detail ? { message: detail } : undefined,
+          data: { source: 'code.hermes', operation: 'hermes_dashboard.stop' }
+        })
         return false
       }
       previousStatus.current = 'stopped'
@@ -113,7 +127,10 @@ export function useHermesDashboardController(
       return true
     } catch (error) {
       logger.error('Failed to stop Hermes Dashboard', error as Error)
-      toast.error(t('code.hermes_dashboard.error.stop_failed'))
+      toastAppError(t('code.hermes_dashboard.error.stop_failed'), error, {
+        source: 'code.hermes',
+        operation: 'hermes_dashboard.stop'
+      })
       return false
     } finally {
       if (epoch === operationEpoch.current) setPendingOperation(null)
@@ -126,7 +143,11 @@ export function useHermesDashboardController(
       return
     }
     logger.error('Failed to open Hermes Dashboard', new Error('Hermes Dashboard is not running'))
-    toast.error(t('code.hermes_dashboard.error.open_failed'))
+    toastAppError(t('code.hermes_dashboard.error.open_failed'), 'Hermes Dashboard is not running', {
+      source: 'code.hermes',
+      operation: 'hermes_dashboard.open_dashboard',
+      params: { status: snapshot.status }
+    })
   }, [openDashboard, snapshot.status, snapshot.url, t])
 
   return {

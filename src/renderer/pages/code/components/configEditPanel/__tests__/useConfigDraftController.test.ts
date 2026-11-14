@@ -482,7 +482,14 @@ describe('useConfigDraftController (submit failure)', () => {
 
     expect(onSubmit).toHaveBeenCalledTimes(1)
     expect(onClose).not.toHaveBeenCalled()
-    expect(mocks.toastError).toHaveBeenCalledWith('code.apply_failed')
+    expect(mocks.toastError).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: 'code.apply_failed',
+        data: expect.objectContaining({
+          errorContext: expect.objectContaining({ message: 'write failed', operation: 'code_cli.save_provider_config' })
+        })
+      })
+    )
     expect(result.current.submitting).toBe(false)
   })
 
