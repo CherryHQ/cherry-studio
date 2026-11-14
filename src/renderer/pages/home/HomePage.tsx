@@ -36,7 +36,7 @@ import { useConversationShellPaneState } from '@renderer/hooks/useConversationSh
 import { useModelById } from '@renderer/hooks/useModel'
 import { mapApiTopicToRendererTopic, useActiveTopic, useTopicMutations } from '@renderer/hooks/useTopic'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import type { ResourceListRevealPayload } from '@renderer/services/resourceListRevealEvents'
+import { emitResourceListReveal, type ResourceListRevealPayload } from '@renderer/services/resourceListRevealEvents'
 import { toast } from '@renderer/services/toast'
 import type { AppRouter } from '@renderer/types/router'
 import type { Topic } from '@renderer/types/topic'
@@ -354,6 +354,16 @@ const HomePage: FC = () => {
     },
     [clearLocate, closeSurface, setActiveTopic]
   )
+  const openProfileTopic = useCallback(
+    (topicId: string) => {
+      const topic = rendererTopics.find((item) => item.id === topicId)
+      if (topic) setActiveTopicAndCloseResourceView(topic)
+    },
+    [rendererTopics, setActiveTopicAndCloseResourceView]
+  )
+  const showAssistantTopics = useCallback(() => {
+    if (currentTabId) emitResourceListReveal({ source: 'assistants', tabId: currentTabId })
+  }, [currentTabId])
   const clearActiveTopicAndCloseResourceView = useCallback(() => {
     closeSurface()
     reenterChatRoute()
@@ -764,6 +774,8 @@ const HomePage: FC = () => {
   return (
     <TopicRightPane.Scope
       assistantId={visibleAssistantId}
+      onOpenTopic={openProfileTopic}
+      onShowTopics={showAssistantTopics}
       resourcePane={resourcePane}
       topicId={visibleTopic?.id}
       topicName={visibleTopic?.name}

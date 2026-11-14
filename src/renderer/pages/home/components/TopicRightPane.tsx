@@ -36,6 +36,10 @@ const TracePane = lazy(() =>
 interface TopicRightPaneMeta {
   /** The conversation's current Assistant, shown by the profile pane. */
   assistantId?: string
+  /** Opens one of the Assistant's topics from its profile. */
+  onOpenTopic?: (topicId: string) => void
+  /** Shows the Assistant's topics in the topic list. */
+  onShowTopics?: () => void
   topicId?: string
   topicName?: string
   /** Container-level trace id. When developer mode is on, the Trace tab renders this trace tree. */
@@ -183,7 +187,14 @@ function TopicTraceRightPanel({ active, scope }: RightPanelComponentProps<TopicR
 }
 
 function TopicProfileRightPanel({ scope }: RightPanelComponentProps<TopicRightPanelScope>) {
-  return scope.assistantId ? <AssistantProfilePane assistantId={scope.assistantId} /> : null
+  return scope.assistantId ? (
+    <AssistantProfilePane
+      assistantId={scope.assistantId}
+      activeTopicId={scope.topicId}
+      onOpenTopic={scope.onOpenTopic}
+      onShowAllTopics={scope.onShowTopics}
+    />
+  ) : null
 }
 
 /** Stable capability declarations; catalog order is the fallback order. */
@@ -239,6 +250,8 @@ const TOPIC_RIGHT_PANEL_CAPABILITIES = [
 function TopicRightPaneProvider({
   children,
   assistantId,
+  onOpenTopic,
+  onShowTopics,
   resourcePane,
   topicId,
   topicName,
@@ -265,6 +278,8 @@ function TopicRightPaneProvider({
   const scope = useMemo<TopicRightPanelScope>(
     () => ({
       assistantId,
+      onOpenTopic,
+      onShowTopics,
       topicId,
       topicName,
       traceId,
@@ -275,7 +290,7 @@ function TopicRightPaneProvider({
       profileTitle: t('chat.profile_pane.title'),
       traceTitle: t('trace.label')
     }),
-    [assistantId, enableDeveloperMode, resourcePane, t, topicId, topicName, traceId]
+    [assistantId, enableDeveloperMode, onOpenTopic, onShowTopics, resourcePane, t, topicId, topicName, traceId]
   )
 
   return (
