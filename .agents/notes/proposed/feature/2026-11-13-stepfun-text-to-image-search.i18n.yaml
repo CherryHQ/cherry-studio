@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/proposed/feature/2026-11-13-stepfun-text-to-image-search.md
+2026-11-13-stepfun-text-to-image-search.md: 30b367582c28bf6099ab48b73dc2626aa12518c5
+2026-11-13-stepfun-text-to-image-search.zh.md: a566d90a81e209a85c96c0b0c78cf4a206966e3e
