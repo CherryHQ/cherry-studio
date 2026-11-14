@@ -293,11 +293,13 @@ const PopupContainer: React.FC<PopupContainerProps> = ({
       if (rawContent) {
         markdown = rawContent
       } else if (topic) {
-        markdown = await topicToMarkdown(topic, exportReasoning)
+        markdown = await topicToMarkdown(topic, exportReasoning, undefined, undefined, undefined, true)
       } else if (messages && messages.length > 0) {
-        markdown = await messagesToMarkdown(messages, exportReasoning)
+        markdown = await messagesToMarkdown(messages, exportReasoning, undefined, undefined, true)
       } else if (message) {
-        markdown = exportReasoning ? await messageToMarkdownWithReasoning(message) : await messageToMarkdown(message)
+        markdown = exportReasoning
+          ? await messageToMarkdownWithReasoning(message, undefined, undefined, true)
+          : await messageToMarkdown(message, undefined, undefined, true)
       } else {
         markdown = ''
       }
