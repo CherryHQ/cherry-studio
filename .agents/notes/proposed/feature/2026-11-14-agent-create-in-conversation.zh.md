@@ -58,8 +58,8 @@ Status: proposed
 
 不只是内置的 Cherry Assistant，每个智能体都能修改自己的配置，也能创建新的智能体，新智能体出现在对话列表中：
 
-- 每个智能体都获得 `create_agent` 和 `list_agents`。`create_agent` 每次调用都要审批，校验规则与上文相同。`list_agents` 只读。
-- 每个智能体都能通过已有的 `mcp__cherry-tools__config` 工具修改自己的字段。新的自我修改覆盖 emoji 头像、描述、指令、模型、权限模式、技能、知识库、MCP 服务、禁用的内置工具、回复语言和心跳。它每次调用都要审批，并显示每个改动字段从当前值 → 新值。它永远不会设置 `bypassPermissions` 或环境变量，并拒绝修改内置智能体被锁定的字段。
+- 每个用户创建的智能体和 Cherry Assistant 都获得 `create_agent` 和 `list_agents`。Cherry Support 和 Doctor 不获得：支持类能力有意不允许创建智能体，Doctor 在后台无界面运行。`create_agent` 每次调用都要审批，校验规则与上文相同。`list_agents` 只读。
+- 每个用户创建的智能体都能通过已有的 `mcp__cherry-tools__config` 工具修改自己的字段。新的自我修改覆盖 emoji 头像、描述、指令、模型、权限模式、技能、知识库、MCP 服务、禁用的内置工具、回复语言和心跳。它每次调用都要审批，并显示每个改动字段从当前值 → 新值。它永远不会设置 `bypassPermissions` 或环境变量。内置智能体只保留原有的 `config` 操作，所有自我修改字段都会被拒绝。
 - `rename` 和 `complete_bootstrap` 操作保持不变。
 - Cherry Assistant 还保留 `update_agent`，用于修改其他非内置智能体。
 - 自我修改的身份卡片隐藏 **打开对话**，因为用户已经在这个对话里。它保留 **调整设置**。
@@ -81,7 +81,7 @@ Status: proposed
 - AC5 — 在对话中创建的智能体无需重新加载就出现在智能体列表中 (verification: renderer; owner: implementer)
 - AC6 — 所有新增界面文案在全部渲染进程语言包中都有翻译，没有占位符 (verification: docs gate; owner: implementer)
 - AC7 — 在运行中的应用里，让 Cherry Assistant 创建一个智能体后显示卡片，新智能体出现在智能体列表中，并能从卡片打开 (verification: Electron; owner: implementer)
-- AC8 — 普通智能体通过 `mcp__cherry-tools__config` 的自我修改每次调用都请求审批，显示每个改动字段从当前值 → 新值，拒绝 `bypassPermissions`、环境变量和内置智能体被锁定的字段，改动会出现在编辑弹框中 (verification: main service test and renderer; owner: implementer)
+- AC8 — 普通智能体通过 `mcp__cherry-tools__config` 的自我修改每次调用都请求审批，显示每个改动字段从当前值 → 新值，拒绝 `bypassPermissions`、环境变量以及内置智能体的任何自我修改，改动会出现在编辑弹框中 (verification: main service test and renderer; owner: implementer)
 
 ## 风险
 
