@@ -25,10 +25,6 @@ async function run(input: ClaudeForkWorkerInput): Promise<unknown> {
       if (sourceIds.has(entry.uuid)) throw new Error('history_corrupt')
       sourceIds.add(entry.uuid)
     }
-    for (const key of ['parentUuid', 'logicalParentUuid']) {
-      const reference = entry[key]
-      if (typeof reference === 'string' && !sourceIds.has(reference)) throw new Error('history_corrupt')
-    }
   }
   // env is a worker-private copy, set before importing the SDK. Never use SHARE_ENV.
   process.env.CLAUDE_CONFIG_DIR = checkpoint.configDir
@@ -67,6 +63,39 @@ async function run(input: ClaudeForkWorkerInput): Promise<unknown> {
       mapping.set(from.messageUuid, entry.uuid)
     }
   }
+  const readContext = (sessionId: string, entries: SessionStoreEntry[]) =>
+    sdk.getSessionMessages(sessionId, {
+      dir: input.targetCwd,
+      includeSystemMessages: true,
+      sessionStore: {
+        async load(key) {
+          return key.sessionId === sessionId ? structuredClone(entries) : null
+        },
+        async append() {
+          throw new Error('unsupported_checkpoint')
+        }
+      }
+    })
+  // Native loaders own retry and compaction ancestry; the fork must preserve their selected context.
+  const [sourceContext, forkContext] = await Promise.all([
+    readContext(checkpoint.runtimeSessionId, input.entries),
+    readContext(result.sessionId, output)
+  ]).catch(() => {
+    throw new Error('unsupported_checkpoint')
+  })
+  if (
+    !sourceContext.some((message) => message.uuid === checkpoint.messageUuid) ||
+    sourceContext.length !== forkContext.length ||
+    sourceContext.some((message, index) => {
+      const forked = forkContext[index]
+      return (
+        mapping.get(message.uuid) !== forked.uuid ||
+        message.type !== forked.type ||
+        !isDeepStrictEqual(message.message, forked.message)
+      )
+    })
+  )
+    throw new Error('unsupported_checkpoint')
   // Verify the opaque compaction records survive SDK processing. Fail closed rather than
   // silently resume with a different context if an SDK version drops required metadata.
   for (const source of input.entries) {

@@ -117,6 +117,89 @@ describe('Claude native forks', () => {
     await expect(forkClaudeSession(input)).rejects.toMatchObject({ reason: 'unsupported_checkpoint' })
   })
 
+  it('preserves the SDK-selected context when a parent appears later in the file', async () => {
+    const userUuid = '20249b48-e174-4610-84c2-af6224228290'
+    const replyUuid = '8ac51a42-1adb-4fe0-a139-64af7af18232'
+    const user = {
+      type: 'user',
+      uuid: userUuid,
+      parentUuid: null,
+      sessionId,
+      message: { role: 'user', content: 'EARLIER_INPUT' }
+    }
+    const reply = {
+      type: 'assistant',
+      uuid: replyUuid,
+      parentUuid: userUuid,
+      sessionId,
+      message: { role: 'assistant', content: [{ type: 'text', text: 'EARLIER_REPLY' }] }
+    }
+    const entries = [
+      reply,
+      user,
+      {
+        type: 'assistant',
+        uuid: messageUuid,
+        parentUuid: replyUuid,
+        sessionId,
+        message: { role: 'assistant', content: [{ type: 'text', text: 'SELECTED_REPLY' }] }
+      }
+    ]
+    await mkdir(path.dirname(file), { recursive: true })
+    const source = entries.map((value) => JSON.stringify(value)).join('\n') + '\n'
+    await writeFile(file, source)
+    const result = await forkClaudeSession(forkInput())
+    const output = (await readFile(result.publish[0].source, 'utf8'))
+      .trim()
+      .split('\n')
+      .map((line) => JSON.parse(line))
+    const messages = await getSessionMessages(result.resumeToken, {
+      dir: directory,
+      includeSystemMessages: true,
+      sessionStore: {
+        load: async () => structuredClone(output),
+        append: async () => {
+          throw new Error('Read-only history')
+        }
+      }
+    })
+    expect(messages.map((message) => (message.message as { content: unknown }).content)).toEqual([
+      'EARLIER_INPUT',
+      [{ type: 'text', text: 'EARLIER_REPLY' }],
+      [{ type: 'text', text: 'SELECTED_REPLY' }]
+    ])
+    expect(messages.at(-1)?.uuid).toBe(result.checkpoints[0].messageUuid)
+    expect(await readFile(file, 'utf8')).toBe(source)
+  })
+
+  it('refuses a checkpoint hidden from otherwise readable native history', async () => {
+    const entries = [
+      {
+        type: 'user',
+        uuid: '20249b48-e174-4610-84c2-af6224228290',
+        parentUuid: null,
+        sessionId,
+        message: { role: 'user', content: 'Earlier input' }
+      },
+      {
+        type: 'assistant',
+        uuid: messageUuid,
+        parentUuid: '20249b48-e174-4610-84c2-af6224228290',
+        sessionId,
+        isMeta: true,
+        message: { role: 'assistant', content: [{ type: 'text', text: 'Hidden checkpoint' }] }
+      }
+    ]
+    await mkdir(path.dirname(file), { recursive: true })
+    const source = entries.map((value) => JSON.stringify(value)).join('\n') + '\n'
+    await writeFile(file, source)
+    const input = forkInput()
+    await mkdir(input.artifactDirectory)
+    await expect(forkClaudeSession(input)).rejects.toMatchObject({ reason: 'unsupported_checkpoint' })
+    expect(await readFile(file, 'utf8')).toBe(source)
+    expect(await readdir(input.artifactDirectory)).toEqual([])
+  })
+
   describe('compacted context', () => {
     const userUuid = '20249b48-e174-4610-84c2-af6224228290'
     const replyUuid = '8ac51a42-1adb-4fe0-a139-64af7af18232'
@@ -125,7 +208,7 @@ describe('Claude native forks', () => {
     const promptUuid = '781c8715-59da-426a-8688-481660b69d16'
     const preservedSegment = { headUuid: userUuid, tailUuid: replyUuid, anchorUuid: summaryUuid }
 
-    async function writeCompactedHistory(compactMetadata: unknown) {
+    async function writeCompactedHistory(compactMetadata: unknown, missingLogicalParent = false) {
       const entries = [
         {
           type: 'user',
@@ -146,7 +229,7 @@ describe('Claude native forks', () => {
           subtype: 'compact_boundary',
           uuid: boundaryUuid,
           parentUuid: null,
-          logicalParentUuid: replyUuid,
+          logicalParentUuid: missingLogicalParent ? '706dc088-43ba-425e-ae5e-64d436fbdccb' : replyUuid,
           sessionId,
           compactMetadata
         },
@@ -204,9 +287,14 @@ describe('Claude native forks', () => {
           runningTurnSends: [{ uuid: userUuid }]
         }
       },
-      { name: 'verbatim metadata', compactMetadata: { trigger: 'manual', preTokens: 1000 } }
-    ])('preserves loaded compacted context for $name', async ({ compactMetadata }) => {
-      const source = await writeCompactedHistory(compactMetadata)
+      { name: 'verbatim metadata', compactMetadata: { trigger: 'manual', preTokens: 1000 } },
+      {
+        name: 'missing logical parent with preserved context',
+        compactMetadata: { trigger: 'auto', preTokens: 1000, preservedSegment },
+        missingLogicalParent: true
+      }
+    ])('preserves loaded compacted context for $name', async ({ compactMetadata, missingLogicalParent }) => {
+      const source = await writeCompactedHistory(compactMetadata, missingLogicalParent)
       const result = await forkClaudeSession(forkInput())
       const staged = await readFile(result.publish[0].source, 'utf8')
       const output = staged
@@ -222,7 +310,7 @@ describe('Claude native forks', () => {
         isCompactSummary: true,
         message: { content: 'COMPACT_SUMMARY secret=24250' }
       })
-      expect(boundary.compactMetadata).toMatchObject({ trigger: 'manual', preTokens: 1000 })
+      expect(boundary.compactMetadata).toMatchObject({ trigger: compactMetadata.trigger, preTokens: 1000 })
       expect(boundary.compactMetadata).not.toHaveProperty('runningTurnSends')
       expect(result.resumeToken).not.toBe(sessionId)
       expect(result.checkpoints).toEqual([
@@ -290,37 +378,15 @@ describe('Claude native forks', () => {
       ).toEqual(expectedContents)
     })
 
-    it.each([
-      {
-        name: 'a dropped progress record',
-        progressUuid: 'a17ef839-8a1d-4f13-99e8-e9636f123456',
-        compactMetadata: { trigger: 'manual', preTokens: 1000, preservedSegment }
-      },
-      // This fixture deliberately duplicates a UUID, which the SDK loader cannot rebuild into a chain.
-      // Loaded context is asserted by the positive cases with distinct UUIDs.
-      {
-        name: 'duplicate preserved-message UUIDs in order',
-        progressUuid: undefined,
-        compactMetadata: {
-          trigger: 'manual',
-          preTokens: 1000,
-          preservedMessages: {
-            anchorUuid: summaryUuid,
-            uuids: [userUuid, userUuid, replyUuid],
-            allUuids: [userUuid, userUuid, replyUuid]
-          }
-        }
-      }
-    ])('preserves loaded compacted context with $name', async ({ compactMetadata, progressUuid }) => {
-      const history = await writeCompactedHistory(compactMetadata)
+    it('preserves loaded compacted context with a dropped progress record', async () => {
+      const progressUuid = 'a17ef839-8a1d-4f13-99e8-e9636f123456'
+      const history = await writeCompactedHistory({ trigger: 'manual', preTokens: 1000, preservedSegment })
       const entries = history
         .toString('utf8')
         .trim()
         .split('\n')
         .map((line) => JSON.parse(line))
-      if (progressUuid) {
-        entries.splice(2, 0, { type: 'progress', uuid: progressUuid, parentUuid: replyUuid, sessionId })
-      }
+      entries.splice(2, 0, { type: 'progress', uuid: progressUuid, parentUuid: replyUuid, sessionId })
       const source = Buffer.from(entries.map((entry) => JSON.stringify(entry)).join('\n') + '\n')
       await writeFile(file, source)
       const input = forkInput()
@@ -334,23 +400,14 @@ describe('Claude native forks', () => {
       const boundary = child(boundaryUuid)
       expect(boundary).toMatchObject({ type: 'system', subtype: 'compact_boundary' })
       expect(child(summaryUuid)).toMatchObject({ parentUuid: boundary.uuid, isCompactSummary: true })
-      if (progressUuid) {
-        expect(output.filter((entry) => entry.forkedFrom?.messageUuid === progressUuid)).toEqual([])
-        expect(boundary.compactMetadata.preservedSegment).toEqual({
-          headUuid: child(userUuid).uuid,
-          tailUuid: child(replyUuid).uuid,
-          anchorUuid: child(summaryUuid).uuid
-        })
-      } else {
-        expect(boundary.compactMetadata.preservedMessages).toEqual({
-          anchorUuid: child(summaryUuid).uuid,
-          uuids: [child(userUuid).uuid, child(userUuid).uuid, child(replyUuid).uuid],
-          allUuids: [child(userUuid).uuid, child(userUuid).uuid, child(replyUuid).uuid]
-        })
-      }
+      expect(output.filter((entry) => entry.forkedFrom?.messageUuid === progressUuid)).toEqual([])
+      expect(boundary.compactMetadata.preservedSegment).toEqual({
+        headUuid: child(userUuid).uuid,
+        tailUuid: child(replyUuid).uuid,
+        anchorUuid: child(summaryUuid).uuid
+      })
       expect(staged).not.toContain('FUTURE_ONLY')
       expect(await readFile(file)).toEqual(source)
-      if (!progressUuid) return
       const messages = await getSessionMessages(result.resumeToken, {
         dir: directory,
         includeSystemMessages: true,
@@ -379,16 +436,14 @@ describe('Claude native forks', () => {
         'POST_COMPACT_REPLY'
       ])
 
-      if (progressUuid) {
-        await rm(input.artifactDirectory, { recursive: true })
-        await mkdir(input.artifactDirectory)
-        entries.find((entry) => entry.uuid === boundaryUuid).compactMetadata.unknownReference = progressUuid
-        const unresolvedSource = Buffer.from(entries.map((entry) => JSON.stringify(entry)).join('\n') + '\n')
-        await writeFile(file, unresolvedSource)
-        await expect(forkClaudeSession(input)).rejects.toMatchObject({ reason: 'unsupported_checkpoint' })
-        expect(await readFile(file)).toEqual(unresolvedSource)
-        expect(await readdir(input.artifactDirectory)).toEqual([])
-      }
+      await rm(input.artifactDirectory, { recursive: true })
+      await mkdir(input.artifactDirectory)
+      entries.find((entry) => entry.uuid === boundaryUuid).compactMetadata.unknownReference = progressUuid
+      const unresolvedSource = Buffer.from(entries.map((entry) => JSON.stringify(entry)).join('\n') + '\n')
+      await writeFile(file, unresolvedSource)
+      await expect(forkClaudeSession(input)).rejects.toMatchObject({ reason: 'unsupported_checkpoint' })
+      expect(await readFile(file)).toEqual(unresolvedSource)
+      expect(await readdir(input.artifactDirectory)).toEqual([])
     })
 
     it('refuses unresolved source references in non-system compaction metadata before staging', async () => {
@@ -433,6 +488,56 @@ describe('Claude native forks', () => {
       expect(await readFile(file)).toEqual(source)
       expect(await readdir(input.artifactDirectory)).toEqual([])
     })
+  })
+
+  it('refuses a native fork that loses context through an excluded sidechain', async () => {
+    const userUuid = '20249b48-e174-4610-84c2-af6224228290'
+    const sidechainUuid = '8ac51a42-1adb-4fe0-a139-64af7af18232'
+    const entries = [
+      {
+        type: 'user',
+        uuid: userUuid,
+        parentUuid: null,
+        sessionId,
+        message: { role: 'user', content: 'REQUIRED_CONTEXT' }
+      },
+      {
+        type: 'assistant',
+        uuid: sidechainUuid,
+        parentUuid: userUuid,
+        sessionId,
+        isSidechain: true,
+        message: { role: 'assistant', content: [{ type: 'text', text: 'Sidechain only' }] }
+      },
+      {
+        type: 'assistant',
+        uuid: messageUuid,
+        parentUuid: sidechainUuid,
+        sessionId,
+        message: { role: 'assistant', content: [{ type: 'text', text: 'Selected reply' }] }
+      }
+    ]
+    const sourceContext = await getSessionMessages(sessionId, {
+      dir: directory,
+      sessionStore: {
+        load: async () => structuredClone(entries),
+        append: async () => {
+          throw new Error('Read-only history')
+        }
+      }
+    })
+    expect(sourceContext.map((message) => (message.message as { content: unknown }).content)).toEqual([
+      'REQUIRED_CONTEXT',
+      [{ type: 'text', text: 'Selected reply' }]
+    ])
+    await mkdir(path.dirname(file), { recursive: true })
+    const source = entries.map((value) => JSON.stringify(value)).join('\n') + '\n'
+    await writeFile(file, source)
+    const input = forkInput()
+    await mkdir(input.artifactDirectory)
+    await expect(forkClaudeSession(input)).rejects.toMatchObject({ reason: 'unsupported_checkpoint' })
+    expect(await readFile(file, 'utf8')).toBe(source)
+    expect(await readdir(input.artifactDirectory)).toEqual([])
   })
 
   it('refuses a fork retaining source UUIDs in replacement metadata', async () => {
