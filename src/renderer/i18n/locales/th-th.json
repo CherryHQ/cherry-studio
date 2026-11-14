@@ -2228,7 +2228,6 @@
   "library.config.basic.max_tokens": "โทเค็นสูงสุด",
   "library.config.basic.max_tool_calls": "รอบการเรียกใช้เครื่องมือสูงสุด",
   "library.config.basic.max_tool_calls_default": "ค่าเริ่มต้น ({{count}} รอบ)",
-  "library.config.basic.mcp_mode": "โหมด MCP",
   "library.config.basic.model_clear": "ล้าง",
   "library.config.basic.model_not_found": "ไม่พบโมเดล (อาจถูกลบ): {{id}}",
   "library.config.basic.model_pick": "เลือกโมเดล",

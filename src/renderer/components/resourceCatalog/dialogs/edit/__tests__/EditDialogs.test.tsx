@@ -424,7 +424,6 @@ vi.mock('react-i18next', async (importOriginal) => {
           'library.config.basic.tag_empty': 'No tags',
           'library.config.basic.tag_placeholder': 'Select tag',
           'library.config.basic.tag_search': 'Search tags',
-          'library.config.basic.mcp_mode': 'MCP Mode',
           'library.config.basic.temperature': 'Temperature',
           'library.config.basic.top_p': 'Top-P',
           'library.config.dialogs.edit.advanced_tab': 'Advanced',
@@ -1621,7 +1620,7 @@ describe('edit dialogs', () => {
 
     // The server list only exists for manual mode.
     expect(screen.queryByRole('button', { name: /^MCP servers:/ })).not.toBeInTheDocument()
-    const mcpModeGroup = screen.getByRole('radiogroup', { name: 'MCP Mode' })
+    const mcpModeGroup = screen.getByRole('radiogroup', { name: 'MCP' })
     expect(within(mcpModeGroup).getByRole('radio', { name: 'Auto' })).toHaveAttribute('aria-checked', 'true')
     await user.click(within(mcpModeGroup).getByRole('radio', { name: 'Manual' }))
     await openSubPage(user, 'MCP servers')
@@ -2386,7 +2385,7 @@ describe('edit dialogs', () => {
   it('binds an MCP server from the shared list in assistant and agent editing', async () => {
     render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} />)
     fireEvent.click(screen.getByRole('button', { name: 'More settings' }))
-    fireEvent.click(within(screen.getByRole('radiogroup', { name: 'MCP Mode' })).getByRole('radio', { name: 'Manual' }))
+    fireEvent.click(within(screen.getByRole('radiogroup', { name: 'MCP' })).getByRole('radio', { name: 'Manual' }))
     fireEvent.click(screen.getByRole('button', { name: /^MCP servers:/ }))
     expect(screen.getByRole('switch', { name: 'MCP One' })).not.toBeChecked()
 

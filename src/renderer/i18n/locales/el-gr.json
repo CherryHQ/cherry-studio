@@ -2228,7 +2228,6 @@
   "library.config.basic.max_tokens": "Μέγιστα διακριτά σύμβολα",
   "library.config.basic.max_tool_calls": "Μέγιστες κλήσεις εργαλείων",
   "library.config.basic.max_tool_calls_default": "Προεπιλογή ({{count}} γύροι)",
-  "library.config.basic.mcp_mode": "Λειτουργία MCP",
   "library.config.basic.model_clear": "Καθαρό",
   "library.config.basic.model_not_found": "Το μοντέλο δεν βρέθηκε (μπορεί να έχει αφαιρεθεί): {{id}}",
   "library.config.basic.model_pick": "+ Επιλέξτε μοντέλο",

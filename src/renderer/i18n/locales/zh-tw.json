@@ -2228,7 +2228,6 @@
   "library.config.basic.max_tokens": "最大 Token",
   "library.config.basic.max_tool_calls": "最大工具呼叫輪數",
   "library.config.basic.max_tool_calls_default": "預設（{{count}} 輪）",
-  "library.config.basic.mcp_mode": "MCP 模式",
   "library.config.basic.model_clear": "清除",
   "library.config.basic.model_not_found": "找不到模型（可能已被移除）：{{id}}",
   "library.config.basic.model_pick": "選擇模型",

@@ -122,6 +122,9 @@ const logger = loggerService.withContext('AssistantEditDialog')
 const UI_DEFAULT_MAX_TOKENS = 4096
 const ASSISTANT_SUB_PAGES = new Set<EditSubPage>(['prompt', 'knowledge', 'mcp', 'context', 'parameters'])
 
+// The prototype lists the default (auto) first and disabled last.
+const MCP_MODE_ORDER: AssistantFormState['mcpMode'][] = ['auto', 'manual', 'disabled']
+
 function defaultValuesForAssistant(resource: AssistantEditDialogResource): AssistantEditFormValues {
   const form = initialAssistantFormState(resource)
   return {
@@ -606,7 +609,7 @@ function AssistantMoreSettings({
   const modelDefault = t('library.config.basic.default_value')
   const labels = {
     knowledge: t('library.config.dialogs.edit.knowledge_tab'),
-    mcp: t('library.config.basic.mcp_mode'),
+    mcp: t('library.config.agent.section.tools.tab.mcp'),
     mcpServers: t('library.config.dialogs.edit.page.mcp'),
     browser: t('settings.browser.title'),
     temperature: t('library.config.basic.temperature'),
@@ -642,7 +645,10 @@ function AssistantMoreSettings({
             aria-label={labels.mcp}
             value={values.mcpMode}
             onValueChange={(value) => set('mcpMode', value)}
-            options={MCP_MODE_OPTIONS.map((mode) => ({ value: mode.id, label: t(mode.labelKey) }))}
+            options={MCP_MODE_ORDER.map((id) => ({
+              value: id,
+              label: t(MCP_MODE_OPTIONS.find((mode) => mode.id === id)!.labelKey)
+            }))}
           />
         </SettingsRow>
         {values.mcpMode === 'manual' ? (

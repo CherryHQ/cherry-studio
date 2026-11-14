@@ -2228,7 +2228,6 @@
   "library.config.basic.max_tokens": "Tokeni maximi",
   "library.config.basic.max_tool_calls": "Apeluri maxime de instrumente",
   "library.config.basic.max_tool_calls_default": "Implicit ({{count}} runde)",
-  "library.config.basic.mcp_mode": "Modul MCP",
   "library.config.basic.model_clear": "Clar",
   "library.config.basic.model_not_found": "Modelul nu a fost găsit (poate a fost eliminat): {{id}}",
   "library.config.basic.model_pick": "+ Alege modelul",
