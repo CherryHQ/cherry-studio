@@ -366,6 +366,16 @@ describe('processing settings pages', () => {
     ).not.toBeInTheDocument()
   })
 
+  it('does not offer the video vision model on the OCR page', async () => {
+    render(<OcrSettings />)
+
+    expect(await screen.findByText('settings.tool.file_processing.features.image_to_text.title')).toBeInTheDocument()
+    expect(screen.queryByText('settings.tool.file_processing.video_vision.title')).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'settings.tool.file_processing.video_vision.title' })
+    ).not.toBeInTheDocument()
+  })
+
   // This page is the only place the local OCR model's download is reachable from,
   // so hiding the processor while the model is missing left users with no way to
   // get it. It must stay listed, with the download right there.

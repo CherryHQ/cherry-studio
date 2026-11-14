@@ -6041,6 +6041,8 @@
   "settings.tool.file_processing.processors.system.status.no_configuration": "Systémové OCR přímo volá nativní systémový engine. Je nejrychlejší, ale přesnost závisí na verzi operačního systému.",
   "settings.tool.file_processing.processors.tesseract.description": "Open source engine OCR od Google, který běží zcela lokálně.",
   "settings.tool.file_processing.processors.tesseract.name": "Tesseract OCR",
+  "settings.tool.file_processing.video_vision.description": "Popisuje vybrané snímky videa pomocí chatovacího modelu s podporou vidění. Snímky se odesílají vybranému poskytovateli; text na obrazovce dál rozpoznává OCR procesor nastavený v nastavení OCR.",
+  "settings.tool.file_processing.video_vision.title": "Model Vision pro video",
   "settings.tool.websearch.blacklist": "Černá listina",
   "settings.tool.websearch.blacklist_invalid_entries": "Následující položky černé listiny jsou neplatné: {{entries}}",
   "settings.tool.websearch.blacklist_tooltip": "Použijte prosím následující formát (oddělený novým řádkem)\nVzor shody: *://*.example.com/*\nRegulární výraz: /example\\.(net|org)/",
