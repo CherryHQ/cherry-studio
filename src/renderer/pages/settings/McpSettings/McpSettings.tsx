@@ -528,7 +528,7 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
               action={
                 <ErrorDetailAction
                   error={runtimeError}
-                  message={runtimeError}
+                  message={t('settings.mcp.runtimeStatus.unavailable', 'Server unavailable')}
                   source="mcp"
                   operation="mcp.runtime"
                   recordId={server.id}

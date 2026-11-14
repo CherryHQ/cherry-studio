@@ -203,7 +203,7 @@ export function PromptBindingTab({ enabled, target, portalContainer, onManageGlo
                 </Button>
                 <ErrorDetailAction
                   error={error}
-                  message={error.message}
+                  message={t('settings.prompts.errors.loadFailed')}
                   source="settings.prompts"
                   operation="prompt.bindings"
                 />

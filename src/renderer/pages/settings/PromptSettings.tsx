@@ -279,7 +279,7 @@ export function PromptSettings() {
                   </Button>
                   <ErrorDetailAction
                     error={error}
-                    message={error.message}
+                    message={t('settings.prompts.errors.loadFailed')}
                     source="settings.prompts"
                     operation="prompt.list"
                   />
