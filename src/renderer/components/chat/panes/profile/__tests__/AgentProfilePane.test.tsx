@@ -2,12 +2,14 @@ import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
+import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import i18n from '@renderer/i18n/resolver'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import type { AgentEntity, ScheduledTaskEntity } from '@shared/data/types/agent'
+import type { Model } from '@shared/data/types/model'
 
 import { AgentProfilePane } from '../AgentProfilePane'
 import { recordEditDialogRequests, renderInRightPane, serveQueries } from './profilePaneTestUtils'
@@ -18,6 +20,28 @@ const fetchGenerate = vi.hoisted(() =>
 vi.mock('@renderer/utils/aiGeneration', () => ({ fetchGenerate }))
 
 const DEFAULT_MODEL_ID = 'openai::gpt-5'
+
+const nextModel = vi.hoisted(
+  () =>
+    ({
+      id: 'anthropic::claude-opus-4-5',
+      providerId: 'anthropic',
+      name: 'Claude Opus 4.5',
+      capabilities: []
+    }) as unknown as Model
+)
+
+// The real selector loads providers and models; picking one is all the pane needs from it.
+vi.mock('@renderer/components/ModelSelector', () => ({
+  ModelSelector: ({ trigger, onSelect }: { trigger: ReactNode; onSelect: (model: Model) => void }) => (
+    <>
+      {trigger}
+      <button type="button" onClick={() => onSelect(nextModel)}>
+        Pick Claude Opus 4.5
+      </button>
+    </>
+  )
+}))
 
 let agent: AgentEntity
 
@@ -96,33 +120,70 @@ describe('AgentProfilePane', () => {
     expect(screen.getByText('Reviews changes and points out risks')).toBeInTheDocument()
   })
 
-  it('shows the current settings and opens the edit dialog on the page that changes them', async () => {
-    renderInRightPane(<AgentProfilePane agentId={agent.id} />)
-    const settings = screen.getByRole('region', { name: 'Settings' })
+  describe('settings', () => {
+    let patches: unknown[]
 
-    fireEvent.click(within(settings).getByRole('button', { name: 'All' }))
-    fireEvent.click(within(settings).getByRole('button', { name: 'Model: Claude Sonnet 4.5' }))
-    fireEvent.click(within(settings).getByRole('button', { name: 'Permissions: Auto-accept Edits' }))
-    fireEvent.click(within(settings).getByRole('button', { name: /^Reply language: Follow global/ }))
+    beforeEach(() => {
+      patches = []
+      MockUseDataApiUtils.mockMutationWithTrigger(
+        'PATCH',
+        `/agents/${agent.id}` as '/agents/:agentId',
+        vi.fn(async ({ body }: { body: unknown }) => {
+          patches.push(body)
+          return agent
+        })
+      )
+    })
 
-    await waitFor(() =>
-      expect(dialog.requests).toEqual([
-        { kind: 'agent', id: agent.id, initialTab: undefined },
-        { kind: 'agent', id: agent.id, initialTab: 'basic' },
-        { kind: 'agent', id: agent.id, initialTab: 'advanced' },
-        { kind: 'agent', id: agent.id, initialTab: 'advanced' }
-      ])
-    )
-  })
+    const settingsRegion = (onModelChange?: (model: Model) => void) => {
+      renderInRightPane(<AgentProfilePane agentId={agent.id} onModelChange={onModelChange} />)
+      return screen.getByRole('region', { name: 'Settings' })
+    }
 
-  it.each([
-    { language: null, label: 'Reply language: No constraint' },
-    { language: 'Svenska', label: 'Reply language: Svenska' }
-  ])('names the reply language $label', ({ language, label }) => {
-    agent = createAgent({ language })
-    renderInRightPane(<AgentProfilePane agentId={agent.id} />)
+    it('opens the edit dialog from All', async () => {
+      fireEvent.click(within(settingsRegion()).getByRole('button', { name: 'All' }))
 
-    expect(screen.getByRole('button', { name: label })).toBeInTheDocument()
+      await waitFor(() => expect(dialog.requests).toEqual([{ kind: 'agent', id: agent.id }]))
+    })
+
+    it("hands a model choice to the conversation's confirmed switch instead of saving it directly", () => {
+      const chosen: Model[] = []
+      const settings = settingsRegion((model) => chosen.push(model))
+      expect(within(settings).getByRole('button', { name: 'Model' })).toHaveTextContent('Claude Sonnet 4.5')
+
+      fireEvent.click(within(settings).getByRole('button', { name: 'Pick Claude Opus 4.5' }))
+
+      expect(chosen).toEqual([nextModel])
+      expect(patches).toEqual([])
+    })
+
+    it('cannot change the model outside a conversation that confirms the switch', () => {
+      expect(within(settingsRegion()).getByRole('button', { name: 'Model' })).toBeDisabled()
+    })
+
+    it('changes the permission mode in place, and asks before Full Access', async () => {
+      const settings = settingsRegion()
+      expect(within(settings).getByRole('button', { name: 'Permissions' })).toHaveTextContent('Auto-accept Edits')
+
+      fireEvent.click(within(settings).getByRole('button', { name: /^Ask Before Acting/ }))
+      await waitFor(() => expect(patches).toEqual([{ configuration: { permission_mode: 'default' } }]))
+
+      fireEvent.click(within(settings).getByRole('button', { name: /^Full Access/ }))
+      expect(patches).toHaveLength(1)
+      fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Enable Full Access' }))
+      await waitFor(() => expect(patches[1]).toEqual({ configuration: { permission_mode: 'bypassPermissions' } }))
+    })
+
+    it('changes the reply language in place', async () => {
+      const settings = settingsRegion()
+
+      fireEvent.click(within(settings).getByRole('button', { name: 'No constraint' }))
+      fireEvent.click(within(settings).getByRole('button', { name: '日本語' }))
+
+      await waitFor(() =>
+        expect(patches).toEqual([{ configuration: { language: null } }, { configuration: { language: '日本語' } }])
+      )
+    })
   })
 
   describe('activity', () => {

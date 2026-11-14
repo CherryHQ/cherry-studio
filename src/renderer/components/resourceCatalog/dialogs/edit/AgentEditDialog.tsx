@@ -3,6 +3,7 @@ import { useForm, type UseFormReturn, useWatch } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 
 import { Button, FormField, FormItem, Textarea } from '@cherrystudio/ui'
+import { cn } from '@cherrystudio/ui/lib/utils'
 import { loggerService } from '@logger'
 import type { ModelSelectorFilter } from '@renderer/components/ModelSelector'
 import { PermissionModeSelect } from '@renderer/components/PermissionModeOption'
@@ -46,6 +47,7 @@ import {
   EditDialogPageShell,
   EditMainPage,
   SettingsLinkButton,
+  settingsPillClassName,
   SettingsRow,
   SettingsSection
 } from '../components/EditDialogPages'
@@ -819,6 +821,7 @@ function PermissionModeRow({
               portalContainer={portalContainer}
               ariaLabel={label}
               scopeName={agentName.trim() || undefined}
+              triggerClassName={settingsPillClassName}
               t={t}
             />
           </FormItem>
@@ -842,12 +845,13 @@ function ReplyLanguageRow({
 
   return (
     // The "Other language…" input spans the next grid row, under the name and the select.
-    <div className="grid grid-cols-[minmax(0,1fr)_10rem] items-center gap-x-4 py-1.5 [&>input]:col-span-2 [&>input]:mt-2">
+    <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 py-1.5 [&>input]:col-span-2 [&>input]:mt-2">
       <span className="text-foreground text-sm">{t('library.config.agent.field.language.label')}</span>
       <ReplyLanguageSelect
         value={{ languageMode, languageCustom }}
         onChange={patchAgentForm}
         portalContainer={portalContainer}
+        triggerClassName={cn(settingsPillClassName, 'w-auto')}
       />
     </div>
   )
