@@ -35,13 +35,15 @@ export interface AgentRuntimePrompt {
 export interface BuildAgentRuntimePromptOptions {
   workspacePath: string
   agentDataPath: string
-  agent: AgentEntity
+  agent: Pick<AgentEntity, 'instructions' | 'configuration' | 'modelName'>
   citationsGuidance?: string
   /** Context required only when a custom system.md replaces the runtime's native base. */
   customBaseContext?: string
   /** Materialized effective language; when omitted the preference is read live. */
   effectiveLanguage?: string | null
   mcpInstructions?: string
+  /** Preview only: stands in for the instructions, or marks where they would go when there are none. */
+  instructionsSlot?: string
 }
 
 const promptBuilder = new PromptBuilder()
@@ -54,7 +56,8 @@ export async function buildAgentRuntimePrompt({
   citationsGuidance,
   customBaseContext,
   effectiveLanguage,
-  mcpInstructions
+  mcpInstructions,
+  instructionsSlot
 }: BuildAgentRuntimePromptOptions): Promise<AgentRuntimePrompt> {
   const builtinRole = agent.configuration?.builtin_role as string | undefined
   const isAssistant = builtinRole === 'assistant'
@@ -84,7 +87,7 @@ export async function buildAgentRuntimePrompt({
   const append = [
     hasAgentInstructions ? AGENT_INSTRUCTION_PRECEDENCE_PROMPT : undefined,
     REPORT_ARTIFACTS_PROMPT,
-    hasAgentInstructions ? buildAgentInstructionsSection(resolvedInstructions) : undefined,
+    hasAgentInstructions ? buildAgentInstructionsSection(instructionsSlot ?? resolvedInstructions) : instructionsSlot,
     parts.context,
     parts.base.kind === 'custom' ? customBaseContext : undefined,
     citationsGuidance,
@@ -107,7 +110,7 @@ ${instructions}
 </agent_instructions>`
 }
 
-function getLanguageInstruction(agent: AgentEntity, effectiveLanguage?: string | null): string {
+function getLanguageInstruction(agent: Pick<AgentEntity, 'configuration'>, effectiveLanguage?: string | null): string {
   const language = effectiveLanguage !== undefined ? effectiveLanguage : getEffectiveAgentLanguage(agent)
   if (!language) return ''
   return `By default, respond in ${language}. If the Agent System Prompt, Workspace Instructions, or Agent Persona (SOUL.md) specifies a different language, follow that instruction instead.`

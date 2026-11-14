@@ -28,7 +28,7 @@ describe('getEffectiveAgentLanguage', () => {
   it('returns null when neither per-agent nor global language provides a value', () => {
     preferenceGet.mockReturnValue(null)
     expect(getEffectiveAgentLanguage(agentWithLanguage(undefined))).toBeNull()
-    expect(getEffectiveAgentLanguage({} as AgentEntity)).toBeNull()
+    expect(getEffectiveAgentLanguage({})).toBeNull()
   })
 
   it('inherits the global language when per-agent is unset', () => {

@@ -2,30 +2,22 @@ import type { AgentChange } from '@earendil-works/pi-durable'
 
 import { application } from '@application'
 import { ensureAgentDataDirectory } from '@main/ai/agents/agentDataDirectory'
-import { resolveAgentCapabilities, resolveMountedMcpServers } from '@main/ai/agents/builtin/builtinAgentCapabilities'
-import { PromptBuilder } from '@main/ai/agents/prompt'
+import { resolveMountedMcpServers } from '@main/ai/agents/builtin/builtinAgentCapabilities'
 import { listBuiltinToolPolicies } from '@main/ai/toolApproval/builtinToolPolicy'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import { getPathFromEnvironment, getShellEnv } from '@main/utils/shellEnv'
-import {
-  KB_READ_TOOL_NAME,
-  KB_SEARCH_TOOL_NAME,
-  WEB_FETCH_TOOL_NAME,
-  WEB_SEARCH_TOOL_NAME
-} from '@shared/ai/builtinTools'
 import { normalizePiDisabledToolId } from '@shared/ai/piBuiltinTools'
 import { buildFunctionCallToolName } from '@shared/ai/tools/mcpToolName'
 
 import { buildAgentMcpServers, warmAgentMcpToolCatalogs } from '../agentMcpServers'
-import { buildAgentRuntimePrompt } from '../agentPrompt'
 import { prepareAgentSessionWorkspaceDirectory } from '../agentSessionWorkspace'
-import { buildCitationsGuidance } from '../citationsGuidance'
 import { capturePiConnectionSnapshot } from '../pi/piConnectionSignature'
 import { buildPiMcpToolName } from '../pi/piMcpExtension'
 import { loadPiSdk } from '../pi/piSdk'
 import { buildPiLoginPathPrefix, mergePiShellExecutionEnv, resolvePiShellPath } from '../pi/piShell'
 import type { AgentRuntimeConnectInput, AgentRuntimeEvent } from '../types'
 import { createDurableMcp } from './durableMcp'
+import { buildDurablePrompt } from './durablePrompt'
 import { withDurableShellTimeout } from './durableShellTimeout'
 
 export async function prepareDurableDesktop(
@@ -64,20 +56,6 @@ export async function prepareDurableDesktop(
         .filter((policy) => policy.approval === approval && (!enforce || policy.bypassApproval === 'enforce'))
         .map((policy) => buildPiMcpToolName(policy.serverName, policy.toolName))
     )
-  const scope = resolveKnowledgeBaseScope(agent.knowledgeBaseIds, input.knowledgeBaseIds)
-  const enabled = (name: string) => !disabled.has(buildPiMcpToolName('cherry-tools', name))
-  const prompt = await buildAgentRuntimePrompt({
-    agent,
-    workspacePath: cwd,
-    agentDataPath,
-    effectiveLanguage: snapshot.effectiveLanguage,
-    citationsGuidance: buildCitationsGuidance({
-      web: enabled(WEB_SEARCH_TOOL_NAME) || enabled(WEB_FETCH_TOOL_NAME),
-      kb:
-        (resolveAgentCapabilities(agent).allKnowledgeBases || scope.length > 0) &&
-        (enabled(KB_SEARCH_TOOL_NAME) || enabled(KB_READ_TOOL_NAME))
-    })
-  })
   const [
     native,
     tools,
@@ -99,6 +77,16 @@ export async function prepareDurableDesktop(
     loadPiSdk(),
     getShellEnv()
   ])
+  const prompt = await buildDurablePrompt(pi, {
+    agent,
+    cwd,
+    agentDataPath,
+    effectiveLanguage: snapshot.effectiveLanguage,
+    disabledTools: disabled,
+    knowledgeBaseScope: resolveKnowledgeBaseScope(agent.knowledgeBaseIds, input.knowledgeBaseIds),
+    skillPaths: snapshot.additionalSkillPaths,
+    mcpInstructions: snapshot.mcpInstructions
+  })
   const mcp = await createDurableMcp(
     buildAgentMcpServers(
       session,
@@ -122,12 +110,6 @@ export async function prepareDurableDesktop(
         )
       )
     }
-    const skills = pi.loadSkills({
-      cwd,
-      agentDir: application.getPath('feature.agents.pi.root'),
-      skillPaths: [...snapshot.additionalSkillPaths],
-      includeDefaults: false
-    })
     const registry = native.createRegistry()
     const coding = tools.createCodingTools({ images: await images.createNodePhotonImages() })
     const bash = tools.createBashTool({
@@ -146,60 +128,7 @@ export async function prepareDurableDesktop(
     registry.install(createCodemodeExtension({ sandbox: new CodemodeSandbox(), models: false }))
     registry.install(createToolSearchExtension())
     registry.install(mcp.extension)
-    const builder = new PromptBuilder()
-    registry.install(
-      native.defineExtension({
-        name: 'cherry.desktop',
-        sections: [
-          {
-            key: 'agent_identity',
-            async render() {
-              const { text, resources } = await builder.buildMemoriesContext(agentDataPath)
-              return { text, source: { kind: 'memory-files', resources } }
-            }
-          },
-          {
-            key: 'project_context',
-            render() {
-              const files = pi.loadProjectContextFiles({ cwd, agentDir: application.getPath('feature.agents.pi.root') })
-              if (!files.length) return undefined
-              const entries = files.map((file) => ({
-                ...file,
-                text: `<project_instructions path="${file.path}">\n${file.content}\n</project_instructions>`
-              }))
-              return {
-                text: ['Project-specific instructions and guidelines:', ...entries.map((entry) => entry.text)].join(
-                  '\n\n'
-                ),
-                source: {
-                  kind: 'memory-files',
-                  resources: entries.map((entry) => ({
-                    id: entry.path,
-                    name: entry.path,
-                    source: entry.path,
-                    characters: entry.text.length
-                  }))
-                }
-              }
-            }
-          },
-          {
-            key: 'skills',
-            render: () => ({
-              text: pi.formatSkillsForPrompt(skills.skills),
-              source: { kind: 'skills', resources: pi.skillPromptResources(skills.skills) }
-            })
-          },
-          {
-            key: 'mcp_instructions',
-            render: () =>
-              snapshot.mcpInstructions
-                ? { text: snapshot.mcpInstructions, source: { kind: 'mcp-instructions' } }
-                : undefined
-          }
-        ]
-      })
-    )
+    registry.install(native.defineExtension({ name: 'cherry.desktop', sections: prompt.sections }))
     if (namespace) {
       for (const extension of registry.snapshot().installed()) {
         registry.uninstall(extension)
@@ -222,9 +151,7 @@ export async function prepareDurableDesktop(
           .filter((tool) => isDisabled(tool.name))
       },
       cwd,
-      instructions: [prompt.base.kind === 'custom' ? prompt.base.content : undefined, prompt.append]
-        .filter(Boolean)
-        .join('\n\n')
+      instructions: prompt.instructions
     }
     return {
       snapshot,
