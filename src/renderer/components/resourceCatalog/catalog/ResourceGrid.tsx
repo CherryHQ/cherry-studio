@@ -674,7 +674,7 @@ function VirtualizedResourceGrid({
 
   return (
     <div
-      className={cn(isSkillList && 'overflow-hidden rounded-lg border border-border bg-card')}
+      className={cn(isSkillList && 'overflow-hidden rounded-lg border border-border')}
       style={{ height: rowVirtualizer.getTotalSize(), position: 'relative' }}>
       {rowVirtualizer.getVirtualItems().map((virtualRow) => {
         const row = rows[virtualRow.index] ?? []

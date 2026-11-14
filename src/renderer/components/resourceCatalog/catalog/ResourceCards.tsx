@@ -97,7 +97,7 @@ export function ResourceCard({
           : 'rounded-lg border-border-subtle hover:border-border-subtle',
         isSkillSettings &&
           'shadow-none transition-colors hover:bg-background-subtle hover:shadow-none focus-visible:bg-accent focus-visible:ring-0 focus-visible:shadow-[inset_0_0_0_1px_var(--ring)]',
-        isSkillSettings && 'rounded-none border-0'
+        isSkillSettings && 'rounded-none border-0 bg-transparent'
       )}
       style={
         r.type === 'skill' && !isSkillSettings
@@ -133,13 +133,7 @@ export function ResourceCard({
           </div>
           <div className="min-w-0 flex-1">
             <div className="flex min-w-0 items-center gap-1.5">
-              <Tooltip title={r.name} isDisabled={!isSkillSettings} asChild>
-                <h4
-                  className="min-w-0 truncate text-sm leading-5 font-medium text-foreground"
-                  tabIndex={isSkillSettings ? 0 : undefined}>
-                  {r.name}
-                </h4>
-              </Tooltip>
+              <h4 className="min-w-0 truncate text-sm leading-5 font-medium text-foreground">{r.name}</h4>
               {skillVersion && (
                 <Badge
                   variant="secondary"
@@ -158,7 +152,7 @@ export function ResourceCard({
                 />
               ) : null}
             </div>
-            <Tooltip title={r.description} isDisabled={!isSkillSettings} asChild>
+            <Tooltip title={r.description} delay={1000} isDisabled={!isSkillSettings} asChild>
               <p
                 className={cn(
                   'text-muted-foreground mt-0.5 text-xs leading-4',
