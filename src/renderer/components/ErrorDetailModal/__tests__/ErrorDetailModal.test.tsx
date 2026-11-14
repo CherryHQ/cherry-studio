@@ -1472,6 +1472,8 @@ describe('ErrorDetailContent automatic update check', () => {
   })
 
   it('offers to install an update that already downloaded in the background', async () => {
+    const showInstallDialog = vi.fn().mockResolvedValue(undefined)
+    appUpdateCheckService.registerUpdateDialog(async () => ({ show: showInstallDialog }))
     mocks.appUpdateState = { downloaded: true, available: true, info: { version: '2.1.0' } }
     const user = userEvent.setup()
     renderErrorDetailContent({ error: providerError })
@@ -1479,6 +1481,9 @@ describe('ErrorDetailContent automatic update check', () => {
     expect(screen.getByText(UPDATE_AVAILABLE)).toBeVisible()
     expect(updateRouteCalls('app.updater.query_availability')).toHaveLength(0)
     await user.click(screen.getByRole('button', { name: 'Update now' }))
+    await waitFor(() =>
+      expect(showInstallDialog).toHaveBeenCalledWith({ releaseInfo: expect.objectContaining({ version: '2.1.0' }) })
+    )
     expect(updateRouteCalls('app.updater.check_for_update')).toHaveLength(0)
   })
 })
