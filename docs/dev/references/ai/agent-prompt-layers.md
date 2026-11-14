@@ -47,7 +47,9 @@ deliberately selects an empty custom base. Each driver maps the common
 Pi uses system/append overrides. Runtime-
 native workspace context can still load according to that driver's trust
 boundary. Cherry-owned persona, memory, workspace-path, security, citation,
-artifact, and language guidance is appended independently of the base.
+artifact, create-tool, and language guidance is appended independently of the
+base. The create-tool guidance names only the Agent and Assistant create and
+settings tools the Agent's capabilities mount.
 
 ## Persona and onboarding
 
