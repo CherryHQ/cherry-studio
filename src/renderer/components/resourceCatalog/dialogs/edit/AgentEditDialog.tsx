@@ -54,7 +54,7 @@ import {
 } from '@shared/ai/agentHeartbeat'
 import { AGENT_RUNTIME_CAPABILITIES, type AgentRuntimeCapabilities } from '@shared/ai/agentRuntimeCapabilities'
 import { BROWSER_TOOL_GROUP } from '@shared/ai/browserTools'
-import { isSealedBuiltinAgentRole } from '@shared/ai/builtinAgent'
+import { BUILTIN_AGENT_ROLE, isSealedBuiltinAgentRole } from '@shared/ai/builtinAgent'
 import {
   CLAUDE_KNOWLEDGE_TOOL_NAMES,
   CLAUDE_TOOL_CATEGORIES,
@@ -595,6 +595,7 @@ function AgentEditDialogContent({
             caps={caps}
             agentType={resource.type}
             agentId={resource.id}
+            isSupportAgent={resource.configuration?.builtin_role === BUILTIN_AGENT_ROLE.SUPPORT}
             permissionAuthorityKey={`${resource.id}:${resource.configuration?.permission_mode ?? 'default'}`}
             beforeHeartbeatOpen={async () => {
               await flush()
@@ -659,6 +660,7 @@ function AgentBasicFields({
   caps,
   agentType,
   agentId,
+  isSupportAgent,
   permissionAuthorityKey,
   beforeHeartbeatOpen
 }: {
@@ -676,6 +678,7 @@ function AgentBasicFields({
   caps: AgentRuntimeCapabilities
   agentType: AgentType
   agentId: string
+  isSupportAgent: boolean
   permissionAuthorityKey: string
   beforeHeartbeatOpen: () => Promise<boolean>
 }) {
@@ -773,6 +776,7 @@ function AgentBasicFields({
         portalContainer={portalContainer}
         patchAgentForm={patchAgentForm}
         permissionModeCards={getPermissionModeCards(agentType)}
+        isSupportAgent={isSupportAgent}
       />
       <AgentLanguageOverrideField form={form} />
       {caps.heartbeat ? (
@@ -888,12 +892,14 @@ function PermissionModeField({
   form,
   portalContainer,
   patchAgentForm,
-  permissionModeCards
+  permissionModeCards,
+  isSupportAgent
 }: {
   form: UseFormReturn<AgentEditFormValues>
   portalContainer: HTMLElement | null
   patchAgentForm: (patch: Partial<AgentFormState>) => void
   permissionModeCards: ReturnType<typeof getPermissionModeCards>
+  isSupportAgent: boolean
 }) {
   const { t } = useTranslation()
   const permissionMode = useWatch({ control: form.control, name: 'permissionMode' }) || 'default'
@@ -918,6 +924,14 @@ function PermissionModeField({
             scopeName={agentName.trim() || undefined}
             t={t}
           />
+          {isSupportAgent ? (
+            <p className="col-start-2 text-muted-foreground text-xs">
+              {t(
+                'library.config.agent.field.permission_mode.support_headless_hint',
+                'Shell commands are unavailable to Cherry Support in scheduled tasks and headless channels, regardless of permission mode. Use another agent for headless shell execution.'
+              )}
+            </p>
+          ) : null}
           <FormMessage className="col-start-2" />
         </FormItem>
       )}
