@@ -21,6 +21,7 @@
  * - data-clear (context boundary marker)
  * - data-code (code blocks)
  * - data-retry (transient model-retry/fallback status; shown live, never persisted)
+ * - data-attachment-notice (user-facing note about how attachments were sent to the model)
  */
 
 import * as z from 'zod'
@@ -104,6 +105,16 @@ export type ClearPartData = Record<string, never>
 /** The runtime could not resume the prior CLI conversation and continued on a fresh one. */
 export type ConversationResetPartData = Record<string, never>
 
+/**
+ * How attachments of the current turn reached the model, when that differs from what the user
+ * sent. `image-ocr`: images were inlined as OCR text because the model lacks native image input.
+ */
+export interface AttachmentNoticePartData {
+  kind: 'image-ocr'
+  /** User-facing names of the affected attachments. */
+  fileNames: string[]
+}
+
 /** Code data — replaces CodeBlock */
 export interface CodePartData {
   content: string
@@ -150,6 +161,7 @@ export type CherryDataPartTypes = {
   clear: ClearPartData
   code: CodePartData
   retry: RetryPartData
+  'attachment-notice': AttachmentNoticePartData
 }
 
 // ============================================================================

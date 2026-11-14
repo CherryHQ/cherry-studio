@@ -2451,6 +2451,7 @@
   "message.api.check.model.title": "Wybierz model do wykrywania",
   "message.api.connection.failed": "Połączenie nie powiodło się",
   "message.api.connection.success": "Połączenie powiodło się",
+  "message.attachment_notice.image_ocr": "Plik {{names}} został wysłany jako wyodrębniony tekst (OCR), ponieważ ten model nie obsługuje obrazów na wejściu. Aby wysyłać obrazy bezpośrednio, wybierz model obsługujący obrazy lub włącz funkcję Vision dla tego modelu w ustawieniach dostawcy.",
   "message.attachments.pasted_image": "Wklejony obraz",
   "message.attachments.pasted_text": "Wklejony tekst",
   "message.backup.cleanup_failed": "Tworzenie kopii zapasowej zakończone, ale nie udało się wyczyścić starych kopii zapasowych.",
