@@ -10,6 +10,10 @@ export type ChannelMessageEvent = {
   chatId: string
   /** Stable external conversation identity. Defaults to chatId for platforms without threads. */
   conversationId?: string
+  /** Platform thread (e.g. Telegram forum topic) the message came from; replies are posted back into it. */
+  threadId?: string
+  /** Agent to dispatch to instead of the channel's agent, when the platform binds this thread to one. */
+  dispatchAgentId?: string
   userId: string
   userName: string
   text: string
@@ -31,6 +35,10 @@ export type ChannelCommandEvent = {
   chatId: string
   /** Stable external conversation identity. Defaults to chatId for platforms without threads. */
   conversationId?: string
+  /** See `ChannelMessageEvent.threadId`. */
+  threadId?: string
+  /** See `ChannelMessageEvent.dispatchAgentId`. */
+  dispatchAgentId?: string
   userId: string
   userName: string
   command: 'new' | 'compact' | 'help' | 'whoami'
@@ -47,6 +55,8 @@ export type SendMessageOptions = {
   replyToMessageId?: string | number
   /** Keep the reply inside the inbound message's thread when the platform supports it. */
   replyInThread?: boolean
+  /** Post the reply into this platform thread (Telegram forum topic). */
+  threadId?: string
 }
 
 export type ChannelStreamOutcome = { status: 'success' | 'paused' }

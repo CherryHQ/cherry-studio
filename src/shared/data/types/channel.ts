@@ -2,10 +2,14 @@ import * as z from 'zod'
 
 // ---- Per-channel-type config schemas ----
 
+/** Telegram forum topic key: `<chatId>:<message_thread_id>`. Thread ids are only unique within a chat. */
+export const TelegramTopicKeySchema = z.string().regex(/^-?\d+:\d+$/)
+
 export const TelegramChannelConfigSchema = z.object({
   type: z.literal('telegram'),
   bot_token: z.string(),
-  allowed_chat_ids: z.array(z.string()).default([])
+  allowed_chat_ids: z.array(z.string()).default([]),
+  topic_agents: z.record(TelegramTopicKeySchema, z.string().min(1)).default({})
 })
 
 export type TelegramChannelConfig = z.infer<typeof TelegramChannelConfigSchema>

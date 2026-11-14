@@ -57,6 +57,7 @@ type BatchResolver = {
 
 type PendingBatch = {
   adapter: ChannelAdapter
+  agentId: string
   messages: ChannelMessageEvent[]
   timer: ReturnType<typeof setTimeout>
   deadline: number
@@ -76,18 +77,19 @@ function conversationKey(agentId: string, channelId: string, conversationId: str
 }
 
 function responseOptionsFor(
-  event: Pick<ChannelMessageEvent | ChannelCommandEvent, 'messageId' | 'replyInThread'>
+  event: Pick<ChannelMessageEvent | ChannelCommandEvent, 'messageId' | 'replyInThread' | 'threadId'>
 ): SendMessageOptions {
   return {
     replyToMessageId: event.messageId,
-    ...(event.replyInThread && { replyInThread: true })
+    ...(event.replyInThread && { replyInThread: true }),
+    ...(event.threadId && { threadId: event.threadId })
   }
 }
 
 function streamResponseOptionsFor(
-  event: Pick<ChannelMessageEvent | ChannelCommandEvent, 'messageId' | 'replyInThread'>
+  event: Pick<ChannelMessageEvent | ChannelCommandEvent, 'messageId' | 'replyInThread' | 'threadId'>
 ): SendMessageOptions | undefined {
-  return event.messageId !== undefined || event.replyInThread ? responseOptionsFor(event) : undefined
+  return event.messageId !== undefined || event.replyInThread || event.threadId ? responseOptionsFor(event) : undefined
 }
 
 export class ChannelMessageHandler {
@@ -227,7 +229,8 @@ export class ChannelMessageHandler {
       })
       return Promise.resolve()
     }
-    const batchKey = `${conversationKey(adapter.agentId, adapter.channelId, conversationIdOf(message))}:${message.userId}`
+    const agentId = this.resolveDispatchAgentId(adapter, message)
+    const batchKey = `${conversationKey(agentId, adapter.channelId, conversationIdOf(message))}:${message.userId}`
 
     return new Promise<void>((resolve, reject) => {
       const existing = this.pendingBatches.get(batchKey)
@@ -264,6 +267,7 @@ export class ChannelMessageHandler {
 
       const batch: PendingBatch = {
         adapter,
+        agentId,
         messages: [message],
         timer: setTimeout(() => this.flushBatch(batchKey), MESSAGE_BATCH_DELAY_MS),
         deadline: Date.now() + MESSAGE_BATCH_MAX_DELAY_MS,
@@ -286,11 +290,7 @@ export class ChannelMessageHandler {
   }
 
   private enqueueBatch(batchKey: string, batch: PendingBatch, ready: Promise<void>): void {
-    const queueKey = conversationKey(
-      batch.adapter.agentId,
-      batch.adapter.channelId,
-      conversationIdOf(batch.messages[0])
-    )
+    const queueKey = conversationKey(batch.agentId, batch.adapter.channelId, conversationIdOf(batch.messages[0]))
     const prev = this.chatQueues.get(queueKey) ?? Promise.resolve()
     const current = prev
       .then(async () => {
@@ -301,7 +301,7 @@ export class ChannelMessageHandler {
         if (batch.messages.length > 1) {
           logger.info('Flushing merged message batch', { batchKey, messageCount: batch.messages.length })
         }
-        await this.processIncoming(batch.adapter, merged, batch.admit)
+        await this.processIncoming(batch.adapter, batch.agentId, merged, batch.admit)
       })
       .then(
         () => batch.resolvers.forEach((r) => r.resolve()),
@@ -359,6 +359,7 @@ export class ChannelMessageHandler {
     return {
       chatId: first.chatId,
       ...(first.conversationId ? { conversationId: first.conversationId } : {}),
+      ...(first.threadId ? { threadId: first.threadId } : {}),
       userId: first.userId,
       userName: first.userName,
       text: mergedText,
@@ -369,12 +370,30 @@ export class ChannelMessageHandler {
     }
   }
 
+  /**
+   * The channel's agent unless the platform bound this thread to another one. A binding to an
+   * inactive agent falls back to the channel's agent instead of dropping the message.
+   */
+  private resolveDispatchAgentId(
+    adapter: ChannelAdapter,
+    event: Pick<ChannelMessageEvent | ChannelCommandEvent, 'dispatchAgentId'>
+  ): string {
+    const target = event.dispatchAgentId
+    if (!target || target === adapter.agentId) return adapter.agentId
+    if (agentService.getLifecycleState(target) === 'active') return target
+    logger.warn('Thread agent is not active; using the channel agent', {
+      channelId: adapter.channelId,
+      agentId: target
+    })
+    return adapter.agentId
+  }
+
   private async processIncoming(
     adapter: ChannelAdapter,
+    agentId: string,
     message: ChannelMessageEvent,
     onAdmitted?: () => void
   ): Promise<void> {
-    const { agentId } = adapter
     let streamStarted = false
 
     try {
@@ -489,15 +508,16 @@ export class ChannelMessageHandler {
       return
     }
 
+    const agentId = this.resolveDispatchAgentId(adapter, command)
     if (command.command === 'help' || command.command === 'whoami') {
-      return this.processCommand(adapter, command, () => {})
+      return this.processCommand(adapter, agentId, command, () => {})
     }
 
     // Preserve transport arrival order: messages received before a command must finish before
     // `/new` rotates the session or `/compact` starts another turn for the same conversation.
     for (const [batchKey, batch] of this.pendingBatches) {
       if (
-        batch.adapter.agentId === adapter.agentId &&
+        batch.agentId === agentId &&
         batch.adapter.channelId === adapter.channelId &&
         conversationIdOf(batch.messages[0]) === conversationIdOf(command)
       ) {
@@ -506,7 +526,7 @@ export class ChannelMessageHandler {
       }
     }
 
-    const queueKey = conversationKey(adapter.agentId, adapter.channelId, conversationIdOf(command))
+    const queueKey = conversationKey(agentId, adapter.channelId, conversationIdOf(command))
     const admissionId = `command:${queueKey}#${++this.admissionSeq}`
     let admit!: () => void
     const admission = new Promise<void>((resolve) => {
@@ -516,7 +536,7 @@ export class ChannelMessageHandler {
     void admission.then(() => this.pendingAdmissions.delete(admissionId))
 
     const previous = this.chatQueues.get(queueKey) ?? Promise.resolve()
-    const current = previous.then(() => this.processCommand(adapter, command, admit))
+    const current = previous.then(() => this.processCommand(adapter, agentId, command, admit))
     const settled = current.finally(() => {
       if (this.chatQueues.get(queueKey) === settled) {
         this.chatQueues.delete(queueKey)
@@ -528,10 +548,10 @@ export class ChannelMessageHandler {
 
   private async processCommand(
     adapter: ChannelAdapter,
+    agentId: string,
     command: ChannelCommandEvent,
     onAdmitted: () => void
   ): Promise<void> {
-    const { agentId } = adapter
     const replyOpts = responseOptionsFor(command)
     try {
       switch (command.command) {

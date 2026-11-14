@@ -1,9 +1,11 @@
+import { Plus, Trash2 } from 'lucide-react'
 import { QRCodeSVG } from 'qrcode.react'
 import type { ReactNode } from 'react'
 import { type FC, useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
+  Button,
   Dialog,
   DialogContent,
   DialogHeader,
@@ -18,9 +20,11 @@ import {
   Switch
 } from '@cherrystudio/ui'
 import { FullAccessConfirmDialog, PermissionModeSelectItem } from '@renderer/components/PermissionModeOption'
+import { useAgents } from '@renderer/hooks/agent/useAgent'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import type { FeishuChannelConfig, FeishuDomain } from '@renderer/types/agent'
 import { permissionModeCards } from '@renderer/utils/agent'
+import { TelegramTopicKeySchema } from '@shared/data/types/channel'
 
 import type { ChannelData, ChannelUpdates } from './channelTypes'
 import { DingTalkForm } from './DingTalkForm'
@@ -215,6 +219,91 @@ const ChannelFieldsForm: FC<ChannelFieldsFormProps> = ({
 
 // --------------- Type-specific forms ---------------
 
+// --------------- Telegram forum topics ---------------
+
+type TopicAgentRow = { topic: string; agentId: string }
+
+function topicRowsOf(topicAgents: Record<string, string>): TopicAgentRow[] {
+  return Object.entries(topicAgents).map(([topic, agentId]) => ({ topic, agentId }))
+}
+
+/** Binds Telegram forum topics (`<chatId>:<threadId>`) to agents. Incomplete rows stay local until valid. */
+const TelegramTopicAgents: FC<ChannelFormProps> = ({ channel, onConfigChange }) => {
+  const { t } = useTranslation()
+  const { agents } = useAgents()
+  const cfg = channel.config
+  const savedKey = JSON.stringify((cfg.topic_agents as Record<string, string> | undefined) ?? {})
+  const [rows, setRows] = useState<TopicAgentRow[]>(() => topicRowsOf(JSON.parse(savedKey)))
+
+  useEffect(() => {
+    setRows(topicRowsOf(JSON.parse(savedKey)))
+  }, [savedKey])
+
+  const persist = (next: TopicAgentRow[]) => {
+    setRows(next)
+    const topicAgents: Record<string, string> = {}
+    for (const { topic, agentId } of next) {
+      if (agentId && TelegramTopicKeySchema.safeParse(topic).success && !(topic in topicAgents)) {
+        topicAgents[topic] = agentId
+      }
+    }
+    if (JSON.stringify(topicAgents) !== savedKey) {
+      onConfigChange({ config: { ...cfg, topic_agents: topicAgents } })
+    }
+  }
+
+  const updateRow = (index: number, patch: Partial<TopicAgentRow>) =>
+    setRows(rows.map((row, i) => (i === index ? { ...row, ...patch } : row)))
+
+  return (
+    <div className="col-span-2 flex flex-col gap-2">
+      <Label className="block text-xs">{t('agent.channels.telegram.topicAgents.label')}</Label>
+      {rows.map((row, index) => (
+        <div key={index} className="flex items-center gap-2">
+          <Input
+            aria-label={t('agent.channels.telegram.topicAgents.topic')}
+            value={row.topic}
+            placeholder={t('agent.channels.telegram.topicAgents.topicPlaceholder')}
+            onChange={(e) => updateRow(index, { topic: e.target.value })}
+            onBlur={() => persist(rows)}
+            className="h-8 text-sm"
+          />
+          <Select
+            value={row.agentId || undefined}
+            onValueChange={(agentId) => persist(rows.map((r, i) => (i === index ? { ...r, agentId } : r)))}>
+            <SelectTrigger aria-label={t('agent.channels.telegram.topicAgents.agent')} className="h-8 text-sm">
+              <SelectValue placeholder={t('agent.channels.telegram.topicAgents.agentPlaceholder')} />
+            </SelectTrigger>
+            <SelectContent>
+              {agents.map((agent) => (
+                <SelectItem key={agent.id} value={agent.id}>
+                  {agent.name ?? agent.id}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label={t('agent.channels.telegram.topicAgents.remove')}
+            onClick={() => persist(rows.filter((_, i) => i !== index))}>
+            <Trash2 className="size-3.5" />
+          </Button>
+        </div>
+      ))}
+      <Button
+        variant="outline"
+        size="sm"
+        className="self-start"
+        onClick={() => setRows([...rows, { topic: '', agentId: '' }])}>
+        <Plus className="size-3.5" />
+        {t('agent.channels.telegram.topicAgents.add')}
+      </Button>
+      <span className="text-xs text-muted-foreground">{t('agent.channels.telegram.topicAgents.hint')}</span>
+    </div>
+  )
+}
+
 export const TelegramForm: FC<ChannelFormProps> = ({ channel, onConfigChange }) => {
   const { t } = useTranslation()
   return (
@@ -229,6 +318,7 @@ export const TelegramForm: FC<ChannelFormProps> = ({ channel, onConfigChange }) 
           secret: true
         }
       ]}
+      extraContent={<TelegramTopicAgents channel={channel} onConfigChange={onConfigChange} />}
       chatIds={{
         label: t('agent.channels.telegram.chatIds'),
         placeholder: t('agent.channels.telegram.chatIdsPlaceholder'),
