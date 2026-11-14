@@ -11,6 +11,7 @@ describe('Agent group archive actions', () => {
       assistantIconType: 'emoji',
       deleteSessionsOnly,
       onArchiveSessions: vi.fn(),
+      onConnectIm: vi.fn(),
       onDeleteAgent: vi.fn(),
       onEdit: vi.fn(),
       onSetAgentIconType: vi.fn(),

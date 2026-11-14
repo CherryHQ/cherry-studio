@@ -1,5 +1,5 @@
 import type { TFunction } from 'i18next'
-import { Archive, Pin, PinOff, Smile, SquarePen, Trash2 } from 'lucide-react'
+import { Archive, Pin, PinOff, Plug, Smile, SquarePen, Trash2 } from 'lucide-react'
 
 import { createActionRegistry } from '@renderer/components/chat/actions/actionRegistry'
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
@@ -18,6 +18,7 @@ export interface AgentGroupActionContext {
   deleteSessionsOnly?: boolean
   deleteAgentDisabled?: boolean
   onEdit: (agentId: string) => void
+  onConnectIm: (agentId: string) => void
   onArchiveSessions: (agentId: string) => void | Promise<void>
   onDeleteAgent: (agentId: string) => void | Promise<void>
   onPermanentDeleteAgent?: (agentId: string) => void | Promise<void>
@@ -39,6 +40,13 @@ agentGroupActionRegistry.registerCommand({
   id: 'agent-group.edit',
   run: ({ agentId, onEdit }) => {
     onEdit(agentId)
+  }
+})
+
+agentGroupActionRegistry.registerCommand({
+  id: 'agent-group.connect-im',
+  run: ({ agentId, onConnectIm }) => {
+    onConnectIm(agentId)
   }
 })
 
@@ -91,6 +99,16 @@ agentGroupActionRegistry.registerAction(
     label: ({ t }) => t('agent.edit.title'),
     icon: () => <SquarePen size={14} />,
     order: 10
+  })
+)
+
+agentGroupActionRegistry.registerAction(
+  buildResourceEntityMenuActionDescriptor({
+    id: 'agent-group.connect-im',
+    commandId: 'agent-group.connect-im',
+    label: ({ t }) => t('agent.channels.connectIm'),
+    icon: () => <Plug size={14} />,
+    order: 15
   })
 )
 

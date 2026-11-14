@@ -1,6 +1,6 @@
 import { QRCodeSVG } from 'qrcode.react'
 import type { ReactNode } from 'react'
-import { type FC, useCallback, useEffect, useState } from 'react'
+import { type FC, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
@@ -269,14 +269,16 @@ export const FeishuForm: FC<ChannelFormProps> = ({ channel, onConfigChange }) =>
   const [qrUrl, setQrUrl] = useState<string | null>(null)
   const [status, setStatus] = useState<FeishuStatus>(hasCredentials ? 'confirmed' : 'idle')
 
+  const qrEventRevision = useRef(0)
   useIpcOn('channel.feishu.qr_login', (data) => {
     if (data.channelId !== channel.id) return
+    qrEventRevision.current += 1
     if (data.status === 'confirmed') {
       setQrUrl(null)
       setStatus('confirmed')
-    } else if (data.status === 'expired') {
+    } else if (data.status === 'expired' || data.status === 'disconnected') {
       setQrUrl(null)
-      setStatus('expired')
+      setStatus(data.status)
     } else if (data.status === 'error') {
       setQrUrl(null)
       setStatus('error')
@@ -285,6 +287,22 @@ export const FeishuForm: FC<ChannelFormProps> = ({ channel, onConfigChange }) =>
       setStatus('pending')
     }
   })
+
+  useEffect(() => {
+    let cancelled = false
+    const revision = qrEventRevision.current
+    void ipcApi
+      .request('channel.feishu.pending_qr', channel.id)
+      .then((pending) => {
+        if (cancelled || qrEventRevision.current !== revision || !pending || Date.now() >= pending.expiresAt) return
+        setQrUrl(pending.url)
+        setStatus('pending')
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [channel.id])
 
   return (
     <div className="flex flex-col gap-3">
