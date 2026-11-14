@@ -19,7 +19,7 @@ export function ComposerPromptSuggestion({
       style={{ padding: compact ? '3px 0' : '6px 15px 0', fontSize, lineHeight: 1.4 }}>
       <span className="min-w-0 truncate">{text}</span>
       <span className="flex shrink-0 items-center gap-1 text-xs">
-        <Kbd>Tab</Kbd>
+        <Kbd className="bg-muted text-muted-foreground">Tab</Kbd>
         {t('agent.input.suggestions.accept')}
       </span>
     </div>
