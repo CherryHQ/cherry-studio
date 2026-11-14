@@ -330,7 +330,9 @@ function dtoToNewUserModel(dto: CreateModelDto): NewUserModelInput {
     maxInputTokens: dto.maxInputTokens ?? null,
     maxOutputTokens: dto.maxOutputTokens ?? null,
     supportsStreaming: dto.supportsStreaming ?? true,
-    reasoning: null,
+    // Registry-sourced DTOs and provider-discovered DTOs both carry an intrinsic
+    // descriptor here; the custom path infers one below only when it is absent.
+    reasoning: dto.reasoning ?? null,
     parameters: dto.parameterSupport ?? null,
     pricing: dto.pricing ?? null,
     isEnabled: true,
@@ -508,7 +510,14 @@ class ModelService {
 
   private buildCreateValues(dto: CreateModelDto, registryData?: CreateModelRegistryData): NewUserModelInput {
     if (registryData?.providerModel) {
-      return dtoToNewUserModel({ ...registryData.providerModel, ...dto, presetModelId: undefined })
+      return dtoToNewUserModel({
+        ...registryData.providerModel,
+        ...dto,
+        // Provider-declared metadata is only a fallback: a registry-authored
+        // model keeps its own descriptor when it has one.
+        reasoning: registryData.providerModel.reasoning ?? dto.reasoning,
+        presetModelId: undefined
+      })
     }
     const presetModel = registryData?.presetModel ?? null
     const dtoValues = dtoToNewUserModel(dto)

@@ -3,7 +3,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ENDPOINT_TYPE, MODEL_CAPABILITY } from '@shared/data/types/model'
 
-import { fetchResolvedProviderModels, resolveCreateModelEndpointTypes, toCreateModelDto } from '../modelSync'
+import {
+  fetchResolvedProviderModels,
+  PROVIDER_REASONING_LOOKUP_TIMEOUT_MS,
+  resolveCreateModelEndpointTypes,
+  resolveProviderReasoningForManualAdd,
+  toCreateModelDto
+} from '../modelSync'
 
 const { dataApiGetMock } = vi.hoisted(() => ({ dataApiGetMock: vi.fn() }))
 
@@ -47,6 +53,42 @@ describe('fetchResolvedProviderModels', () => {
     } finally {
       loggerErrorSpy.mockRestore()
     }
+  })
+
+  it('prefers provider reasoning over an id-heuristic guess for an unregistered model', async () => {
+    const providerReasoning = {
+      controls: [{ kind: 'effort' as const, values: ['max', 'high'] }],
+      selectableEfforts: ['max', 'high'] as const
+    }
+    listModelsMock.mockResolvedValueOnce({
+      models: [
+        {
+          id: 'openrouter::stealth/crouton-alpha',
+          providerId: 'openrouter',
+          apiModelId: 'stealth/crouton-alpha',
+          name: 'stealth/crouton-alpha',
+          reasoning: providerReasoning
+        }
+      ]
+    })
+    dataApiGetMock.mockResolvedValueOnce([
+      {
+        id: 'openrouter::stealth/crouton-alpha',
+        providerId: 'openrouter',
+        apiModelId: 'stealth/crouton-alpha',
+        name: 'stealth/crouton-alpha',
+        reasoning: {
+          controls: [{ kind: 'effort', values: ['low', 'medium', 'high'] }],
+          selectableEfforts: ['low', 'medium', 'high']
+        }
+      }
+    ])
+
+    const {
+      models: [model]
+    } = await fetchResolvedProviderModels('openrouter')
+
+    expect(model.reasoning).toEqual(providerReasoning)
   })
 
   it('keeps endpoint types returned by the provider when registry metadata also has endpoint types', async () => {
@@ -335,6 +377,49 @@ describe('toCreateModelDto', () => {
 
     expect(dto.capabilities).toBeUndefined()
   })
+
+  it('carries the provider-declared reasoning descriptor into the create payload', () => {
+    const reasoning = {
+      controls: [
+        {
+          kind: 'effort' as const,
+          values: ['max', 'xhigh', 'high', 'medium', 'low', 'minimal'] as const,
+          default: 'max' as const
+        }
+      ],
+      selectableEfforts: ['max', 'xhigh', 'high', 'medium', 'low', 'minimal'] as const,
+      defaultEffort: 'max' as const
+    }
+    const dto = toCreateModelDto('openrouter', {
+      id: 'openrouter::stealth/crouton-alpha',
+      providerId: 'openrouter',
+      apiModelId: 'stealth/crouton-alpha',
+      name: 'stealth/crouton-alpha',
+      capabilities: [MODEL_CAPABILITY.REASONING],
+      reasoning,
+      supportsStreaming: true,
+      isEnabled: true,
+      isHidden: false
+    } as any)
+
+    expect(dto.reasoning).toEqual(reasoning)
+  })
+
+  it('omits a reasoning descriptor with no controls or efforts', () => {
+    const dto = toCreateModelDto('openrouter', {
+      id: 'openrouter::acme/plain',
+      providerId: 'openrouter',
+      apiModelId: 'acme/plain',
+      name: 'acme/plain',
+      capabilities: [],
+      reasoning: { selectableEfforts: [] },
+      supportsStreaming: true,
+      isEnabled: true,
+      isHidden: false
+    } as any)
+
+    expect(dto).not.toHaveProperty('reasoning')
+  })
 })
 
 it('preserves fetched Poe routing through registry enrichment and the create DTO', async () => {
@@ -356,5 +441,138 @@ it('preserves fetched Poe routing through registry enrichment and the create DTO
     providerId: 'poe',
     modelId: row.apiModelId,
     endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
+  })
+})
+
+describe('resolveProviderReasoningForManualAdd', () => {
+  const providerReasoning = {
+    controls: [{ kind: 'effort' as const, values: ['max', 'xhigh', 'high'] }],
+    selectableEfforts: ['max', 'xhigh', 'high'] as const,
+    defaultEffort: 'max' as const
+  }
+
+  it('takes the provider-declared descriptor for an id the registry cannot resolve to a preset', async () => {
+    // The registry still answers for a custom id — with an id-heuristic guess, which
+    // the provider's own declaration replaces (same precedence as the sync path).
+    dataApiGetMock.mockResolvedValue([
+      {
+        id: 'openrouter::stealth/crouton-alpha',
+        providerId: 'openrouter',
+        apiModelId: 'stealth/crouton-alpha',
+        name: 'stealth/crouton-alpha',
+        reasoning: {
+          controls: [{ kind: 'effort', values: ['low', 'medium', 'high'] }],
+          selectableEfforts: ['low', 'medium', 'high']
+        }
+      }
+    ])
+    listModelsMock.mockResolvedValue({
+      models: [
+        {
+          id: 'openrouter::stealth/crouton-alpha',
+          providerId: 'openrouter',
+          apiModelId: 'stealth/crouton-alpha',
+          name: 'stealth/crouton-alpha',
+          reasoning: providerReasoning
+        }
+      ]
+    })
+
+    const reasonings = await resolveProviderReasoningForManualAdd('openrouter', ['stealth/crouton-alpha'])
+
+    expect(reasonings.get('stealth/crouton-alpha')).toEqual(providerReasoning)
+  })
+
+  it('never reaches the provider catalog for an id the registry resolves to a preset', async () => {
+    dataApiGetMock.mockResolvedValue([
+      {
+        id: 'openrouter::anthropic/claude-sonnet-4.5',
+        providerId: 'openrouter',
+        apiModelId: 'anthropic/claude-sonnet-4.5',
+        name: 'Claude Sonnet 4.5',
+        presetModelId: 'claude-sonnet-4.5',
+        reasoning: {
+          controls: [{ kind: 'effort', values: ['none', 'low', 'high'] }, { kind: 'toggle' }],
+          selectableEfforts: ['none', 'low', 'high']
+        }
+      }
+    ])
+
+    const reasonings = await resolveProviderReasoningForManualAdd('openrouter', ['anthropic/claude-sonnet-4.5'])
+
+    expect(reasonings.size).toBe(0)
+    expect(listModelsMock).not.toHaveBeenCalled()
+  })
+
+  it('still resolves through the provider catalog when the registry resolve call fails', async () => {
+    const warnSpy = vi.spyOn(mockRendererLoggerService, 'warn').mockImplementation(() => {})
+    dataApiGetMock.mockRejectedValue(new Error('data api unavailable'))
+    listModelsMock.mockResolvedValue({
+      models: [
+        {
+          id: 'custom::acme/thinker',
+          providerId: 'custom',
+          apiModelId: 'acme/thinker',
+          name: 'acme/thinker',
+          reasoning: providerReasoning
+        }
+      ]
+    })
+
+    const reasonings = await resolveProviderReasoningForManualAdd('custom', ['acme/thinker'])
+
+    expect(reasonings.get('acme/thinker')).toEqual(providerReasoning)
+    expect(warnSpy).toHaveBeenCalledWith(
+      'Registry resolve failed for a manual model add; falling back to provider metadata',
+      expect.objectContaining({ providerId: 'custom' })
+    )
+    warnSpy.mockRestore()
+  })
+
+  it('stores nothing rather than blocking the add when the provider catalog is unavailable', async () => {
+    const warnSpy = vi.spyOn(mockRendererLoggerService, 'warn').mockImplementation(() => {})
+    dataApiGetMock.mockResolvedValue([])
+    listModelsMock.mockRejectedValue(new Error('no API key'))
+
+    const reasonings = await resolveProviderReasoningForManualAdd('custom', ['acme/thinker'])
+
+    expect(reasonings.size).toBe(0)
+    expect(warnSpy).toHaveBeenCalledWith(
+      'Provider model lookup failed for a manual model add; storing without provider reasoning',
+      expect.objectContaining({ providerId: 'custom' })
+    )
+    warnSpy.mockRestore()
+  })
+
+  it('does not ask the provider for ids it was not given', async () => {
+    dataApiGetMock.mockResolvedValue([])
+
+    const reasonings = await resolveProviderReasoningForManualAdd('custom', [])
+
+    expect(reasonings.size).toBe(0)
+    expect(dataApiGetMock).not.toHaveBeenCalled()
+    expect(listModelsMock).not.toHaveBeenCalled()
+  })
+
+  it('releases a manual add when the provider catalog never answers', async () => {
+    const warnSpy = vi.spyOn(mockRendererLoggerService, 'warn').mockImplementation(() => {})
+    dataApiGetMock.mockResolvedValue([])
+    // A stalled catalog leaves the request pending forever; the deadline has to release the add.
+    listModelsMock.mockReturnValue(new Promise(() => {}))
+
+    vi.useFakeTimers()
+    try {
+      const pending = resolveProviderReasoningForManualAdd('custom', ['acme/thinker'])
+      await vi.advanceTimersByTimeAsync(PROVIDER_REASONING_LOOKUP_TIMEOUT_MS + 1)
+
+      await expect(pending).resolves.toEqual(new Map())
+      expect(warnSpy).toHaveBeenCalledWith(
+        'Provider model lookup failed for a manual model add; storing without provider reasoning',
+        expect.objectContaining({ providerId: 'custom' })
+      )
+    } finally {
+      vi.useRealTimers()
+      warnSpy.mockRestore()
+    }
   })
 })

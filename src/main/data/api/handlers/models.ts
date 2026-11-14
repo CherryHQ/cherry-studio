@@ -46,6 +46,10 @@ const parseOrValidationError = (uniqueModelId: string) => {
   return parseUniqueModelId(uniqueModelId)
 }
 
+/**
+ * Attach registry data to each create DTO. Provider-declared reasoning is not
+ * resolved here — that lookup is remote and belongs to the caller (DataApi only writes).
+ */
 async function enrichCreateItems(dtos: CreateModelDto[]) {
   return await Promise.all(
     dtos.map(async (dto) => {

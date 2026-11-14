@@ -9,7 +9,8 @@ import {
   type EndpointType as RuntimeEndpointType,
   type ListedModels,
   type Model,
-  parseUniqueModelId
+  parseUniqueModelId,
+  type RuntimeReasoning
 } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { isNewApiProvider } from '@shared/utils/provider'
@@ -31,6 +32,8 @@ export class ModelSyncError extends Error {
 
 type ProviderResolveModelsPath = Extract<ConcreteApiPaths, `/providers/${string}/models:resolve`>
 type ModelSyncProviderEndpointSource = Pick<Provider, 'id' | 'presetProviderId' | 'defaultChatEndpoint'>
+
+const resolveModelsPath = (providerId: string): ProviderResolveModelsPath => `/providers/${providerId}/models:resolve`
 
 export function resolveCreateModelEndpointTypes(
   provider: ModelSyncProviderEndpointSource | null | undefined,
@@ -59,6 +62,14 @@ export function toCreateModelDto(
   const modelId = getRawModelId(model)
   const resolvedEndpointTypes = endpointTypes?.length ? endpointTypes : model.endpointTypes
   const capabilities = !model.presetModelId && model.capabilities?.length ? model.capabilities : undefined
+  // Provider-declared reasoning (OpenRouter's per-model effort vocabulary) is the
+  // only descriptor an unregistered model has. It has to travel with the DTO:
+  // the main-process create path otherwise stores `reasoning = NULL`, and every
+  // effort the user picks is then dropped by the request pipeline.
+  const reasoning =
+    model.reasoning && (model.reasoning.controls?.length || model.reasoning.selectableEfforts?.length)
+      ? { ...model.reasoning }
+      : undefined
 
   return {
     providerId,
@@ -69,8 +80,88 @@ export function toCreateModelDto(
     ...(resolvedEndpointTypes?.length ? { endpointTypes: [...resolvedEndpointTypes] } : {}),
     // Discovered rather than registry-supplied for local providers — Ollama's window comes from
     // `/api/show`, and dropping it here leaves the row without one, so no `num_ctx` is ever sent.
-    ...(model.contextWindow ? { contextWindow: model.contextWindow } : {})
+    ...(model.contextWindow ? { contextWindow: model.contextWindow } : {}),
+    ...(reasoning ? { reasoning } : {})
   }
+}
+
+/** How long the optional provider catalog may hold up a manual add before it is abandoned. */
+export const PROVIDER_REASONING_LOOKUP_TIMEOUT_MS = 2000
+
+/**
+ * Provider-declared reasoning for manually added models, keyed by raw model id.
+ *
+ * The registry authors the descriptor for the models it knows, and `models:resolve` answers that
+ * without leaving SQLite. Everything else has only the provider's catalog, which is remote and
+ * therefore runs behind the AI IPC route — never on the DataApi create request, whose network-free
+ * path is what keeps the write inside its 3s renderer deadline.
+ *
+ * The catalog is enrichment, so it is bounded: a provider that never answers must not hold the
+ * form in its submitting state. IPC invoke cannot be cancelled, so the deadline abandons the
+ * response rather than the request.
+ */
+export async function resolveProviderReasoningForManualAdd(
+  providerId: string,
+  modelIds: readonly string[]
+): Promise<Map<string, RuntimeReasoning>> {
+  const reasonings = new Map<string, RuntimeReasoning>()
+  const ids = [...new Set(modelIds.filter(Boolean))]
+  if (ids.length === 0) {
+    return reasonings
+  }
+
+  const unresolved: string[] = []
+  try {
+    const resolved = (await dataApiService.get(resolveModelsPath(providerId), { query: { ids } })) as Model[]
+    const resolvedById = new Map(resolved.map((model) => [model.apiModelId ?? '', model]))
+    for (const id of ids) {
+      // A registry identity outranks the provider's declaration; an unmatched id carries
+      // only an id-heuristic guess, which the provider's own declaration replaces.
+      if (resolvedById.get(id)?.presetModelId) {
+        continue
+      }
+      unresolved.push(id)
+    }
+  } catch (error) {
+    logger.warn('Registry resolve failed for a manual model add; falling back to provider metadata', {
+      providerId,
+      error
+    })
+    unresolved.push(...ids)
+  }
+
+  if (unresolved.length === 0) {
+    return reasonings
+  }
+
+  try {
+    let timeoutId: ReturnType<typeof setTimeout> | undefined
+    const { models } = await Promise.race([
+      ipcApi.request('ai.provider.model.list', { providerId }),
+      new Promise<never>((_, reject) => {
+        timeoutId = setTimeout(
+          () => reject(new Error('provider catalog lookup timed out')),
+          PROVIDER_REASONING_LOOKUP_TIMEOUT_MS
+        )
+      })
+    ]).finally(() => clearTimeout(timeoutId))
+
+    const modelsById = new Map(models.map((model) => [model.apiModelId ?? '', model]))
+    for (const id of unresolved) {
+      const reasoning = modelsById.get(id)?.reasoning
+      if (reasoning?.controls?.length || reasoning?.selectableEfforts?.length) {
+        reasonings.set(id, reasoning)
+      }
+    }
+  } catch (error) {
+    // A provider with no key, an offline host, or a stalled catalog must not block a manual add.
+    logger.warn('Provider model lookup failed for a manual model add; storing without provider reasoning', {
+      providerId,
+      error
+    })
+  }
+
+  return reasonings
 }
 
 /**
@@ -86,8 +177,7 @@ async function enrichFetchedModels(providerId: string, fetchedModels: Partial<Mo
     return []
   }
 
-  const resolveModelsPath: ProviderResolveModelsPath = `/providers/${providerId}/models:resolve`
-  const resolved = (await dataApiService.get(resolveModelsPath, {
+  const resolved = (await dataApiService.get(resolveModelsPath(providerId), {
     query: {
       ids: filteredModels.map((model) => model.apiModelId ?? '').filter(Boolean)
     }
@@ -140,6 +230,11 @@ async function enrichFetchedModels(providerId: string, fetchedModels: Partial<Mo
         continue
       }
       if (field === 'name' && keepFetchedName) {
+        continue
+      }
+      // A synthesized custom model (no preset identity) only carries an
+      // id-heuristic reasoning guess; the provider's own declaration wins there.
+      if (field === 'reasoning' && !registry.presetModelId && base.reasoning) {
         continue
       }
       const value = registry[field]

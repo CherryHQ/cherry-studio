@@ -134,6 +134,21 @@ describe('ModelSpeedControl UI', () => {
     expect(resolveSupportedReasoningEffort(codexModel, 'default')).toBe('default')
   })
 
+  it('renders no effort control when the model declares no selectable efforts', () => {
+    const { container } = render(
+      <ModelSpeedControl
+        model={{
+          ...codexModel,
+          reasoning: { controls: [{ kind: 'effort', values: ['high'] }], selectableEfforts: [] }
+        }}
+        reasoningEffort="high"
+        onReasoningEffortChange={vi.fn()}
+      />
+    )
+
+    expect(container).toBeEmptyDOMElement()
+  })
+
   it('preserves Default for a menu-only reasoning model', () => {
     expect(
       resolveSupportedReasoningEffort(
