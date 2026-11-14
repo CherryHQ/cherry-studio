@@ -19,6 +19,7 @@ import {
   COMPOSER_BELOW_SELECTOR_BUTTON_CLASS,
   COMPOSER_ICON_ONLY_LABEL_CLASS,
   COMPOSER_ICON_ONLY_SELECTOR_BUTTON_CLASS,
+  COMPOSER_PROFILE_AVATAR_BUTTON_CLASS,
   COMPOSER_SELECTOR_BUTTON_CLASS
 } from '../shared/ComposerControlScaffolding'
 
@@ -40,6 +41,9 @@ export interface ChatConversationControlsProps {
   side: 'top' | 'bottom'
   iconOnly?: boolean
   onDialogCloseAutoFocus?: () => void
+  /** When given, the avatar becomes its own button (the profile pane toggle); the name keeps its action. */
+  onAvatarClick?: () => void
+  avatarActive?: boolean
   onAssistantChange: (assistantId: string | null) => void | Promise<void>
   onModelSelect: (model: Model | undefined) => void
   onMentionedModelsSelect: (models: Model[]) => void
@@ -65,6 +69,8 @@ export function ChatConversationControls({
   side,
   iconOnly = false,
   onDialogCloseAutoFocus,
+  onAvatarClick,
+  avatarActive = false,
   onAssistantChange,
   onModelSelect,
   onMentionedModelsSelect,
@@ -114,6 +120,18 @@ export function ChatConversationControls({
     openResourceEditDialog({ kind: 'assistant', id: assistantId })
   }, [assistantId])
 
+  const avatarButton =
+    onAvatarClick && assistantId && assistantIcon ? (
+      <button
+        type="button"
+        aria-label={t('chat.profile_pane.open', { name: assistantName })}
+        aria-pressed={avatarActive}
+        onClick={onAvatarClick}
+        className={COMPOSER_PROFILE_AVATAR_BUTTON_CLASS}>
+        <EmojiIcon emoji={assistantIcon} size={20} />
+      </button>
+    ) : null
+
   const assistantTrigger = (
     <Button
       variant="ghost"
@@ -122,7 +140,11 @@ export function ChatConversationControls({
       disabled={assistantTriggerAction === 'edit' && !assistantId}
       aria-label={assistantTriggerAction === 'edit' ? `${t('assistants.edit.title')}: ${assistantName}` : undefined}
       onClick={assistantTriggerAction === 'edit' ? handleAssistantEdit : undefined}>
-      {assistantIcon ? <EmojiIcon emoji={assistantIcon} size={20} /> : iconOnly ? <Bot size={16} aria-hidden /> : null}
+      {avatarButton ? null : assistantIcon ? (
+        <EmojiIcon emoji={assistantIcon} size={20} />
+      ) : iconOnly ? (
+        <Bot size={16} aria-hidden />
+      ) : null}
       <span className={cn('max-w-40', labelClassName)}>{assistantName}</span>
       {assistantTriggerAction === 'edit' ? null : (
         <ChevronDown size={14} aria-hidden className={cn('text-muted-foreground', iconOnly && 'hidden')} />
@@ -132,6 +154,7 @@ export function ChatConversationControls({
 
   return (
     <>
+      {avatarButton}
       {assistantTriggerAction === 'edit' ? (
         assistantTrigger
       ) : (

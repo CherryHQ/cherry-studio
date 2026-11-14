@@ -964,6 +964,8 @@
   "chat.navigation.anchor.label": "對話輪次",
   "chat.navigation.bottom": "回到底端",
   "chat.navigation.close": "關閉",
+  "chat.profile_pane.open": "檢視 {{name}} 的資料",
+  "chat.profile_pane.permission": "權限",
   "chat.profile_pane.title": "資料",
   "chat.save.file.title": "儲存到本機檔案",
   "chat.save.knowledge.content.citation.description": "包括網路搜尋和知識庫引用資訊",

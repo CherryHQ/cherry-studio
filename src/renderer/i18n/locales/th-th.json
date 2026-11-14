@@ -964,6 +964,8 @@
   "chat.navigation.anchor.label": "รอบการสนทนา",
   "chat.navigation.bottom": "กลับล่างสุด",
   "chat.navigation.close": "ปิด",
+  "chat.profile_pane.open": "ดูโปรไฟล์ของ {{name}}",
+  "chat.profile_pane.permission": "สิทธิ์",
   "chat.profile_pane.title": "โปรไฟล์",
   "chat.save.file.title": "บันทึกเป็นไฟล์ในเครื่อง",
   "chat.save.knowledge.content.citation.description": "รวมข้อมูลอ้างอิงจากการค้นหาเว็บและฐานความรู้",

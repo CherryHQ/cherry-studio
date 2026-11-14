@@ -4,7 +4,7 @@ import { createContext, lazy, Suspense, use, useCallback, useMemo, useRef, useSt
 import { useTranslation } from 'react-i18next'
 
 import type { TopicMessageFlowLiveState } from '@renderer/components/chat/flow'
-import { PROFILE_PANE_ID, ProfilePaneFrame } from '@renderer/components/chat/panes/profile'
+import { AssistantProfilePane, PROFILE_PANE_ID } from '@renderer/components/chat/panes/profile'
 import {
   createResourcePaneCapability,
   RESOURCE_PANE_TAB,
@@ -182,8 +182,8 @@ function TopicTraceRightPanel({ active, scope }: RightPanelComponentProps<TopicR
   )
 }
 
-function TopicProfileRightPanel() {
-  return <ProfilePaneFrame />
+function TopicProfileRightPanel({ scope }: RightPanelComponentProps<TopicRightPanelScope>) {
+  return scope.assistantId ? <AssistantProfilePane assistantId={scope.assistantId} /> : null
 }
 
 /** Stable capability declarations; catalog order is the fallback order. */

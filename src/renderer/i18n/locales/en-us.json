@@ -964,6 +964,8 @@
   "chat.navigation.anchor.label": "Conversation turns",
   "chat.navigation.bottom": "Back to bottom",
   "chat.navigation.close": "Close",
+  "chat.profile_pane.open": "View {{name}}'s profile",
+  "chat.profile_pane.permission": "Permissions",
   "chat.profile_pane.title": "Profile",
   "chat.save.file.title": "Save to Local File",
   "chat.save.knowledge.content.citation.description": "Includes web search and knowledge base reference information",

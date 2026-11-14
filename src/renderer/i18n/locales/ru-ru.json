@@ -964,6 +964,8 @@
   "chat.navigation.anchor.label": "Реплики диалога",
   "chat.navigation.bottom": "Вернуться вниз",
   "chat.navigation.close": "Закрыть",
+  "chat.profile_pane.open": "Открыть профиль {{name}}",
+  "chat.profile_pane.permission": "Разрешения",
   "chat.profile_pane.title": "Профиль",
   "chat.save.file.title": "Сохранить в локальный файл",
   "chat.save.knowledge.content.citation.description": "Включает информацию веб-поиска и ссылки на базу знаний",

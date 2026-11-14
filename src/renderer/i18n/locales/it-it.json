@@ -964,6 +964,8 @@
   "chat.navigation.anchor.label": "Turni della conversazione",
   "chat.navigation.bottom": "Torna in fondo",
   "chat.navigation.close": "Chiudi",
+  "chat.profile_pane.open": "Visualizza il profilo di {{name}}",
+  "chat.profile_pane.permission": "Autorizzazioni",
   "chat.profile_pane.title": "Profilo",
   "chat.save.file.title": "Salva in un file locale",
   "chat.save.knowledge.content.citation.description": "Include i riferimenti della ricerca web e della base di conoscenza",

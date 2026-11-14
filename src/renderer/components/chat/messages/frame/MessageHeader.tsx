@@ -152,30 +152,41 @@ const MessageHeader: FC<Props> = memo(
 
     const canOpenUserProfile = !!actions.openUserProfile
     const hasBodySlot = !!contentSlot || !!footerSlot
+    const toggleAuthorProfile = isAssistantMessage ? actions.toggleAuthorProfile : undefined
+
+    const assistantAvatar = authorAvatar ? (
+      <MessageAvatar
+        avatar={authorAvatar}
+        fallback={authorSnapshot?.emoji || avatarName}
+        onErrorCapture={() => setFailedAvatarKey(avatarKey)}
+      />
+    ) : ModelIcon ? (
+      <MessageAvatarFrame className="bg-background">
+        <ModelIcon className={MESSAGE_MODEL_AVATAR_ICON_CLASS} aria-hidden="true" />
+      </MessageAvatarFrame>
+    ) : (
+      <MessageAvatar
+        fallback={avatarName}
+        fallbackAvatarStyle={{
+          border: 'none',
+          filter: theme === 'dark' ? 'invert(0.05)' : undefined
+        }}
+      />
+    )
 
     return (
       <div
         className={`message-header group/header relative flex gap-2.5 ${hasBodySlot ? 'mb-0 items-start' : 'mb-2 items-center'}`}>
-        {isAssistantMessage ? (
-          authorAvatar ? (
-            <MessageAvatar
-              avatar={authorAvatar}
-              fallback={authorSnapshot?.emoji || avatarName}
-              onErrorCapture={() => setFailedAvatarKey(avatarKey)}
-            />
-          ) : ModelIcon ? (
-            <MessageAvatarFrame className="bg-background">
-              <ModelIcon className={MESSAGE_MODEL_AVATAR_ICON_CLASS} aria-hidden="true" />
-            </MessageAvatarFrame>
-          ) : (
-            <MessageAvatar
-              fallback={avatarName}
-              fallbackAvatarStyle={{
-                border: 'none',
-                filter: theme === 'dark' ? 'invert(0.05)' : undefined
-              }}
-            />
-          )
+        {toggleAuthorProfile ? (
+          <button
+            type="button"
+            aria-label={t('chat.profile_pane.open', { name: authorName || username })}
+            onClick={toggleAuthorProfile}
+            className="shrink-0 cursor-pointer rounded-full outline-none transition-opacity hover:opacity-80 focus-visible:ring-2 focus-visible:ring-ring">
+            {assistantAvatar}
+          </button>
+        ) : isAssistantMessage ? (
+          assistantAvatar
         ) : (
           <MessageAvatar avatar={userAvatar} onClick={canOpenUserProfile ? openUserProfile : undefined} />
         )}
