@@ -2168,6 +2168,7 @@
   "library.config.agent.prompt.load_failed": "Không thể tạo lời nhắc hệ thống đầy đủ",
   "library.config.agent.prompt.loading": "Đang tạo lời nhắc hệ thống đầy đủ…",
   "library.config.agent.prompt.placeholder": "Viết lời nhắc hệ thống của tác tử tại đây: nó là ai, làm gì và có những giới hạn nào. Nếu để trống, phần này và ghi chú về thứ tự ưu tiên ở trên sẽ không được gửi.",
+  "library.config.agent.prompt.row_hint": "Toàn bộ nội dung tác tử Pi nhận được",
   "library.config.agent.prompt.tokens": "Khoảng {{tokens}} token",
   "library.config.agent.section.permission.desc": "Phạm vi quyền hạn cho hành động của Agent",
   "library.config.agent.section.permission.title": "Chế độ quyền",

@@ -2168,6 +2168,7 @@
   "library.config.agent.prompt.load_failed": "Tam sistem istemi oluşturulamadı",
   "library.config.agent.prompt.loading": "Tam sistem istemi oluşturuluyor…",
   "library.config.agent.prompt.placeholder": "Ajanın sistem istemini buraya yazın: kim olduğu, ne yaptığı ve sınırları. Boş bırakılırsa bu bölüm ve yukarıdaki öncelik notu gönderilmez.",
+  "library.config.agent.prompt.row_hint": "Pi ajanının aldığı her şey",
   "library.config.agent.prompt.tokens": "Yaklaşık {{tokens}} token",
   "library.config.agent.section.permission.desc": "Ajan eylemleri için yetkilendirme kapsamı",
   "library.config.agent.section.permission.title": "İzin modu",

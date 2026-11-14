@@ -2168,6 +2168,7 @@
   "library.config.agent.prompt.load_failed": "完全なシステムプロンプトを生成できませんでした",
   "library.config.agent.prompt.loading": "完全なシステムプロンプトを生成しています…",
   "library.config.agent.prompt.placeholder": "ここにエージェントのシステムプロンプトを書きます：誰なのか、何をするのか、どんな制限があるのか。空欄の場合、この部分と上の優先順位の説明は送信されません。",
+  "library.config.agent.prompt.row_hint": "Pi エージェントが実際に受け取る内容",
   "library.config.agent.prompt.tokens": "約 {{tokens}} トークン",
   "library.config.agent.section.permission.desc": "エージェントアクションの認可範囲",
   "library.config.agent.section.permission.title": "パーミッションモード",

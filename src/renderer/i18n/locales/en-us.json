@@ -2168,6 +2168,7 @@
   "library.config.agent.prompt.load_failed": "Couldn't assemble the full System Prompt",
   "library.config.agent.prompt.loading": "Assembling the full System Prompt…",
   "library.config.agent.prompt.placeholder": "Write the Agent's System Prompt here: who it is, what it does, and its limits. When left empty, this part and the precedence note above are not sent.",
+  "library.config.agent.prompt.row_hint": "Everything the Pi Agent receives",
   "library.config.agent.prompt.tokens": "About {{tokens}} tokens",
   "library.config.agent.section.permission.desc": "Authorization scope for agent actions",
   "library.config.agent.section.permission.title": "Permission mode",

@@ -2168,6 +2168,7 @@
   "library.config.agent.prompt.load_failed": "ไม่สามารถสร้างพรอมต์ระบบฉบับเต็มได้",
   "library.config.agent.prompt.loading": "กำลังสร้างพรอมต์ระบบฉบับเต็ม…",
   "library.config.agent.prompt.placeholder": "เขียนพรอมต์ระบบของเอเจนต์ที่นี่: เป็นใคร ทำอะไร และมีข้อจำกัดอะไรบ้าง หากเว้นว่างไว้ ส่วนนี้และคำอธิบายลำดับความสำคัญด้านบนจะไม่ถูกส่ง",
+  "library.config.agent.prompt.row_hint": "ทุกอย่างที่เอเจนต์ Pi ได้รับ",
   "library.config.agent.prompt.tokens": "ประมาณ {{tokens}} โทเค็น",
   "library.config.agent.section.permission.desc": "ขอบเขตการอนุญาตสำหรับการกระทำของเอเจนต์",
   "library.config.agent.section.permission.title": "โหมดสิทธิ์",
