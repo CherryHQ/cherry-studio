@@ -4,8 +4,8 @@ import { useTranslation } from 'react-i18next'
 import { useCodeCli } from '@renderer/hooks/useCodeCli'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { useSidebarShortcuts } from '@renderer/hooks/useSidebarShortcuts'
+import { toastAppError } from '@renderer/services/AppErrorDetailService'
 import { loggerService } from '@renderer/services/LoggerService'
-import { toast } from '@renderer/services/toast'
 import { createSidebarShortcutTarget, SIDEBAR_SHORTCUT_PROVIDER_IDS } from '@renderer/utils/sidebar'
 import type { CodeCliId } from '@shared/data/preference/preferenceTypes'
 import {
@@ -124,7 +124,7 @@ export function useCodeCliPageViewProps(
   const handleReorderError = useCallback(
     (error: unknown) => {
       logger.error('Failed to reorder CLI providers:', error as Error)
-      toast.error(t('code.apply_failed'))
+      toastAppError(t('code.apply_failed'), error, { source: 'code.config', operation: 'code_cli.reorder_providers' })
     },
     [t]
   )
@@ -319,7 +319,11 @@ export function useCodeCliPageViewProps(
             await clearCliConfig({ cliTool: toolId })
           } catch (err) {
             logger.error('Failed to clear CLI config on tool removal:', err as Error)
-            toast.error(t('code.clear_config_failed'))
+            toastAppError(t('code.clear_config_failed'), err, {
+              source: 'code.dependencies',
+              operation: 'code_cli.clear_config',
+              recordId: toolId
+            })
           }
         }
         await setCurrentProvider(null)

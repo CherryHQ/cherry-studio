@@ -2,9 +2,10 @@ import { act, renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { cacheService } from '@data/CacheService'
+import { appErrorContextService } from '@renderer/services/AppErrorContextService'
 import { CodeCli } from '@shared/types/codeCli'
 
-const mocks = vi.hoisted(() => ({ openSmartMiniApp: vi.fn(), request: vi.fn() }))
+const mocks = vi.hoisted(() => ({ openSmartMiniApp: vi.fn(), request: vi.fn(), toastError: vi.fn() }))
 
 vi.mock('@data/hooks/useCache', async (importOriginal) => importOriginal())
 vi.mock('@renderer/hooks/useMiniAppPopup', () => ({
@@ -14,7 +15,7 @@ vi.mock('@renderer/ipc', () => ({ ipcApi: { request: mocks.request } }))
 vi.mock('@renderer/services/LoggerService', () => ({
   loggerService: { withContext: () => ({ error: vi.fn() }) }
 }))
-vi.mock('@renderer/services/toast', () => ({ toast: { error: vi.fn() } }))
+vi.mock('@renderer/services/toast', () => ({ toast: { error: mocks.toastError } }))
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }))
 
 const { useHermesDashboardController } = await import('../useHermesDashboardController')
@@ -122,5 +123,43 @@ describe('useHermesDashboardController', () => {
     await act(async () => result.current.onStop())
 
     expect(reload).toHaveBeenCalledOnce()
+  })
+
+  it('keeps the in-band start reason and text for Details', async () => {
+    mocks.request.mockResolvedValue({
+      success: false,
+      reason: 'dashboard_dependencies_missing',
+      message: 'Hermes Dashboard dependencies are missing'
+    })
+    const { result } = renderHook(() => useHermesDashboardController(CodeCli.HERMES))
+
+    await act(async () => result.current.onLaunch())
+
+    const payload = mocks.toastError.mock.calls[0][0]
+    expect(payload).toMatchObject({
+      title: 'code.hermes_dashboard.error.dependencies_missing: Hermes Dashboard dependencies are missing'
+    })
+    const detail = appErrorContextService.contextForHostError('hermes-start-in-band', payload)
+    expect(detail).toMatchObject({
+      message: 'Hermes Dashboard dependencies are missing',
+      operation: 'hermes_dashboard.start',
+      params: { reason: 'dashboard_dependencies_missing' }
+    })
+    expect(detail.stack).toBeUndefined()
+  })
+
+  it('keeps a thrown stop rejection as the Details cause', async () => {
+    mocks.request.mockRejectedValue(new Error('hermes ipc closed'))
+    const { result } = renderHook(() => useHermesDashboardController(CodeCli.HERMES))
+
+    await act(async () => result.current.onStop())
+
+    const payload = mocks.toastError.mock.calls[0][0]
+    expect(payload).toMatchObject({ title: 'code.hermes_dashboard.error.stop_failed' })
+    expect(appErrorContextService.contextForHostError('hermes-stop-thrown', payload)).toMatchObject({
+      message: 'hermes ipc closed',
+      operation: 'hermes_dashboard.stop',
+      source: 'code.hermes'
+    })
   })
 })

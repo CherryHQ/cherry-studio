@@ -12,8 +12,8 @@ import {
   sanitizeCliConfigBlob,
   validateCliConfigDraftForWrite
 } from '@renderer/pages/code/cliConfig'
+import { toastAppError } from '@renderer/services/AppErrorDetailService'
 import { loggerService } from '@renderer/services/LoggerService'
-import { toast } from '@renderer/services/toast'
 import type { CliProviderConfig } from '@shared/data/preference/preferenceTypes'
 import { CLI_OWN_LOGIN_PROVIDER_ID, type CodeCli } from '@shared/types/codeCli'
 
@@ -117,7 +117,10 @@ export const OwnLoginConfigPanel: FC<OwnLoginConfigPanelProps> = ({
     } catch (err) {
       // Keep the dialog open so the user's edits survive a failed apply.
       logger.error('Failed to save own-login config', err as Error)
-      toast.error(t('code.apply_failed'))
+      toastAppError(t('code.apply_failed'), err, {
+        source: 'code.config',
+        operation: 'code_cli.save_own_login_config'
+      })
     } finally {
       setSubmitting(false)
     }
