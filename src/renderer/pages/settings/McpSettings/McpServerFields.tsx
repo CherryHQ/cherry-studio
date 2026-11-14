@@ -23,7 +23,7 @@ import {
   Switch,
   Textarea
 } from '@cherrystudio/ui'
-import { parseKeyValueString } from '@renderer/utils/env'
+import { parseKeyValueString, serializeKeyValueString } from '@renderer/utils/env'
 import { cn } from '@renderer/utils/style'
 import { type McpServer, type McpServerType, McpServerTypeSchema } from '@shared/data/types/mcpServer'
 import { BuiltinMcpServerNames } from '@shared/utils/mcp'
@@ -225,16 +225,8 @@ export function toMcpFormDefaultValues(server: McpServer): DefaultValues<McpForm
     longRunning: server.longRunning,
     timeout: server.timeout,
     args: server.args ? server.args.join('\n') : '',
-    env: server.env
-      ? Object.entries(server.env)
-          .map(([key, value]) => `${key}=${value}`)
-          .join('\n')
-      : '',
-    headers: server.headers
-      ? Object.entries(server.headers)
-          .map(([key, value]) => `${key}=${value}`)
-          .join('\n')
-      : '',
+    env: server.env ? serializeKeyValueString(server.env) : '',
+    headers: server.headers ? serializeKeyValueString(server.headers) : '',
     provider: server.provider || '',
     providerUrl: server.providerUrl || '',
     logoUrl: server.logoUrl || '',
