@@ -1,6 +1,7 @@
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { appErrorContextService } from '@renderer/services/AppErrorContextService'
 import { toast } from '@renderer/services/toast'
 import { CodeCli } from '@shared/types/codeCli'
 
@@ -125,14 +126,35 @@ describe('useBinaryActions', () => {
       await result.current.remove(CodeCli.CLAUDE_CODE)
     })
 
-    expect(toast.error).toHaveBeenCalledWith(
-      expect.objectContaining({
-        title: 'settings.dependencies.uninstallFailed',
-        description: 'Tool is still installed after removal: claude',
-        cause: expect.objectContaining({ message: 'Tool is still installed after removal: claude' }),
-        data: { source: 'code.dependencies', operation: 'binary.remove_tool' }
-      })
-    )
+    const payload = vi.mocked(toast.error).mock.calls[0][0] as Parameters<
+      typeof appErrorContextService.contextForHostError
+    >[1]
+    expect(payload).toMatchObject({
+      title: 'settings.dependencies.uninstallFailed',
+      description: 'Tool is still installed after removal: claude'
+    })
+    const detail = appErrorContextService.contextForHostError('remove-cleanup-failed', payload)
+    expect(detail).toMatchObject({
+      message: 'Tool is still installed after removal: claude',
+      operation: 'binary.remove_tool',
+      source: 'code.dependencies'
+    })
+    expect(detail.stack).toBeUndefined()
+  })
+
+  it('keeps the blocked-cleanup reason for Details when main sent no message', async () => {
+    ipcRequestMock.mockResolvedValue({ status: 'cleanup_blocked', reason: 'backend_unavailable' })
+    const { result } = renderHook(() => useBinaryActions())
+
+    await act(async () => {
+      await result.current.remove(CodeCli.CLAUDE_CODE)
+    })
+
+    const payload = vi.mocked(toast.error).mock.calls[0][0] as Parameters<
+      typeof appErrorContextService.contextForHostError
+    >[1]
+    const detail = appErrorContextService.contextForHostError('remove-backend-unavailable', payload)
+    expect(detail.params).toEqual({ reason: 'backend_unavailable' })
   })
 
   it('keeps a thrown remove rejection and allows the same removal to be retried', async () => {
