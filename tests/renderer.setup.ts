@@ -807,6 +807,8 @@ vi.mock('@cherrystudio/ui', async () => {
       React.createElement('div', { ...props, 'data-testid': 'select-content' }, children),
     SelectGroup: ({ children, ...props }) =>
       React.createElement('div', { ...props, 'data-testid': 'select-group' }, children),
+    SelectLabel: ({ children, ...props }) => React.createElement('div', props, children),
+    SelectSeparator: (props) => React.createElement('hr', props),
     SelectItem: ({ children, value, ...props }) => {
       const context = React.useContext(SelectContext)
       return React.createElement(

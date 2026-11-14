@@ -1,8 +1,6 @@
 import { MessageSquare } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
-import { Switch } from '@cherrystudio/ui'
-import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { requestComposerPrefill } from '@renderer/components/composer/variants/shared/useComposerPrefill'
 import { AssistantAvatarPicker } from '@renderer/components/resourceCatalog/dialogs/components/AssistantAvatarPicker'
 import { KnowledgeBaseAvatar } from '@renderer/components/resourceCatalog/dialogs/components/EditDialogShared'
@@ -19,10 +17,9 @@ import {
   ProfilePaneSection,
   ProfilePaneSectionAction,
   ProfilePaneTabs,
-  ProfileSettingButton,
-  ProfileSettingsRow,
   ProfileStartersSection
 } from './ProfilePaneParts'
+import { AssistantProfileSettings } from './ProfilePaneSettings'
 import { ProfileStatTiles, RecentTopicsSection } from './ProfilePaneStats'
 import { useProfileStarters } from './useProfileStarters'
 
@@ -41,13 +38,11 @@ export function AssistantProfilePane({
   onShowAllTopics?: () => void
 }) {
   const { t } = useTranslation()
-  const { assistant, model, updateAssistantSettings } = useAssistant(assistantId)
+  const { assistant } = useAssistant(assistantId)
 
   if (!assistant) return <ProfilePaneFrame />
 
   const openEdit = (initialTab?: string) => openResourceEditDialog({ kind: 'assistant', id: assistant.id, initialTab })
-  const modelLabel = t('common.model')
-  const browserLabel = t('settings.browser.title')
 
   return (
     <ProfilePaneFrame>
@@ -76,30 +71,7 @@ export function AssistantProfilePane({
             />
             <KnowledgeBasesSection assistant={assistant} onManage={() => openEdit('tools.knowledge')} />
             <TryAskingSection assistant={assistant} topicId={activeTopicId} />
-            <ProfilePaneSection
-              title={t('common.settings')}
-              action={
-                <ProfilePaneSectionAction withChevron onClick={() => openEdit()}>
-                  {t('common.all')}
-                </ProfilePaneSectionAction>
-              }>
-              <ProfileSettingsRow label={modelLabel}>
-                <ProfileSettingButton
-                  label={modelLabel}
-                  value={model?.name ?? assistant.modelName ?? t('button.select_model')}
-                  icon={model ? <ModelAvatar model={model} size={18} /> : undefined}
-                  onClick={() => openEdit('basic')}
-                />
-              </ProfileSettingsRow>
-              <ProfileSettingsRow label={browserLabel}>
-                <Switch
-                  size="sm"
-                  aria-label={browserLabel}
-                  checked={assistant.settings.enableBrowser !== false}
-                  onCheckedChange={(enableBrowser) => void updateAssistantSettings({ enableBrowser })}
-                />
-              </ProfileSettingsRow>
-            </ProfilePaneSection>
+            <AssistantProfileSettings assistant={assistant} />
           </>
         }
         outputs={<AssistantOutputs assistantId={assistant.id} />}

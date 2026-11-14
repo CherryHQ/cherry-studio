@@ -25,7 +25,7 @@ import {
 
 /** The pill look shared by More settings' drill-in links and compact selects. */
 export const settingsPillClassName =
-  'h-8 max-w-56 justify-between gap-1.5 rounded-lg border-0 bg-muted/50 px-2.5 font-normal text-[13px] text-foreground shadow-none hover:bg-muted aria-expanded:bg-muted'
+  'h-8 max-w-56 justify-between gap-1.5 rounded-lg border-0 bg-muted/50 px-2.5 font-normal text-[13px] text-foreground shadow-none hover:bg-muted aria-expanded:bg-muted dark:bg-muted/50'
 
 const inlineInputClassName =
   'h-auto rounded-lg border-transparent bg-transparent px-2 text-center shadow-none hover:bg-muted/50 focus-visible:border-transparent focus-visible:bg-muted/50 focus-visible:ring-0 dark:bg-transparent dark:hover:bg-muted/50 dark:focus-visible:bg-muted/50'

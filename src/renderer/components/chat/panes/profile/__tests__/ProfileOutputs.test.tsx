@@ -1,6 +1,7 @@
 import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { fireEvent, screen, waitFor, within } from '@testing-library/react'
+import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import i18n from '@renderer/i18n/resolver'
@@ -12,6 +13,11 @@ import type { Assistant } from '@shared/data/types/assistant'
 import { AgentProfilePane } from '../AgentProfilePane'
 import { AssistantProfilePane } from '../AssistantProfilePane'
 import { renderInRightPane, serveQueries } from './profilePaneTestUtils'
+
+// The settings' model pill wraps the real selector, which loads providers and models this test does not serve.
+vi.mock('@renderer/components/ModelSelector', () => ({
+  ModelSelector: ({ trigger }: { trigger: ReactNode }) => trigger
+}))
 
 // Wednesday, 11 November 2026, 12:00 local time; en-US weeks start on Sunday the 8th.
 const NOW = new Date(2026, 10, 11, 12, 0)
