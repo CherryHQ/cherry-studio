@@ -152,6 +152,16 @@ export const PRESET_MCP_SERVERS = freezePresets([
     isTrusted: true
   },
   {
+    name: BuiltinMcpServerNames.cloudbase,
+    reference: 'https://docs.cloudbase.net/ai/cloudbase-ai-toolkit/mcp-tools',
+    type: 'streamableHttp',
+    baseUrl: 'https://tcb-api.cloud.tencent.com/mcp/v1',
+    isActive: false,
+    provider: 'CherryAI',
+    installSource: 'builtin',
+    isTrusted: true
+  },
+  {
     name: BuiltinMcpServerNames.nowledgeMem,
     reference: 'https://mem.nowledge.co/',
     type: 'streamableHttp',
