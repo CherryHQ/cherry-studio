@@ -765,6 +765,7 @@
   "chat.artifacts.button.openExternal": "Ouvrir dans un navigateur externe",
   "chat.artifacts.button.preview": "Aperçu",
   "chat.artifacts.preview.openExternal.error.content": "Erreur lors de l’ouverture du navigateur externe.",
+  "chat.artifacts.show_remaining": "Afficher les fichiers restants ({{count}})",
   "chat.assistant.search.placeholder": "Rechercher",
   "chat.compaction.compacted": "Contexte compacté, ~{{count}} jetons économisés",
   "chat.compaction.compacted_plain": "Contexte compacté",
