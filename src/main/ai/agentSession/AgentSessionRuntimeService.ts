@@ -309,6 +309,8 @@ type AgentSessionRuntimeEntry = {
   lastContextUsageRefreshAt?: number
   /** Single-flight marker for context-usage reads on the current connection. */
   contextUsageRefresh?: { connection: AgentRuntimeConnection; pending: boolean }
+  /** Retry that arrived during a steer handoff, before the continuation turn existed to own it. */
+  pendingSteerApiRetry?: AgentSessionApiRetryInfo & { startedAt: string }
   /** Synchronous terminal commits; later native changes update these rows directly. */
   persistedMessageIds?: Set<string>
   contextUsageEpoch?: number
@@ -336,13 +338,25 @@ class AgentSessionRuntimeTerminalListener implements StreamListener {
   }
 
   onPaused(result: StreamPausedResult): void {
-    if (result.isTopicDone === false) return
+    if (this.skipsTurnRelease(result)) return
     this.service.markTurnTerminal(this.sessionId, 'paused', this.turnId)
   }
 
   onError(result: StreamErrorResult): void {
-    if (result.isTopicDone === false) return
+    if (this.skipsTurnRelease(result)) return
     this.service.markTurnTerminal(this.sessionId, 'error', this.turnId)
+  }
+
+  /**
+   * `isTopicDone=false` normally means the stream manager is chaining this topic's next turn itself,
+   * so releasing ours here would settle a turn that is still being continued. A persistence
+   * downgrade inverts that: the stream manager chose chaining on the SDK's clean finish, and only
+   * then learned storage classifies the turn as an error. That terminal still ends OUR turn — the
+   * row is written, the queued follow-up has nothing left to answer for it — so the turn must be
+   * released exactly as a non-chained error would be, otherwise the queue is stranded.
+   */
+  private skipsTurnRelease(result: StreamPausedResult | StreamErrorResult): boolean {
+    return result.isTopicDone === false && !result.downgradedTo
   }
 
   isAlive(): boolean {
@@ -1189,6 +1203,8 @@ export class AgentSessionRuntimeService extends BaseService {
     if (!completedTurn || entry.closing) return
     const reply = getAgentSessionRuntimeReply(entry.runtimeState, completedTurn)
     if (!reply || ['suspending', 'settled', 'failed'].includes(reply.delivery.kind)) return
+    // A steer roll is judged by the transition, not the stored status: the continuation carries the
+    // work onward even when persistence reclassified the source row as `error`.
     const isRowRoll =
       entry.runtimeState.execution.kind === 'steer-transition' &&
       entry.runtimeState.execution.source.turn === completedTurn
@@ -2259,7 +2275,10 @@ export class AgentSessionRuntimeService extends BaseService {
       case 'chunk': {
         // Any content chunk means the retried request succeeded and the stream resumed — clear the
         // ephemeral retry status (backoff windows produce no chunks, so this never fires mid-retry).
-        this.clearApiRetry(entry)
+        // A retry HELD for a continuation is not this turn's status: the pre-steer content can
+        // resume inside the handoff, and its chunk must not drop the durable record the
+        // continuation still has to attach.
+        this.clearApiRetryStatus(entry)
         this.deliverRuntimeChunk(entry, event.chunk)
         break
       }
@@ -2427,9 +2446,13 @@ export class AgentSessionRuntimeService extends BaseService {
             : undefined
           this.applyRuntimeStateEvent(entry, { type: 'runtime-terminal', turn, outcome: { status: 'success' } })
         }
-        if (entry.runtimeState.execution.kind === 'turn')
+        // A completion can land before the continuation opens; the retry held for A2 is its record.
+        // Every abandon path (runtime error, the next admitted turn, connection teardown) clears it.
+        if (entry.runtimeState.execution.kind === 'steer-transition') this.clearApiRetryStatus(entry)
+        else this.clearApiRetry(entry)
+        if (entry.runtimeState.execution.kind === 'turn') {
           this.applyRuntimeStateEvent(entry, { type: 'clear-steer-reservation' })
-        this.clearApiRetry(entry)
+        }
         this.refreshContextUsage(entry)
         break
       }
@@ -2541,18 +2564,61 @@ export class AgentSessionRuntimeService extends BaseService {
 
   private handleApiRetry(entry: AgentSessionRuntimeEntry, retry: AgentSessionApiRetryInfo): void {
     if (!this.isCurrentEntry(entry)) return
+    const startedAt = new Date().toISOString()
     application.get('CacheService').setShared(AGENT_SESSION_API_RETRY_CACHE_KEY(entry.sessionId), {
       status: 'retrying',
-      startedAt: new Date().toISOString(),
+      startedAt,
       ...retry
     })
+    const turn = this.liveTurn(entry)
+    if (turn) {
+      // A stable id updates one durable history row instead of creating dozens of rows in a
+      // provider outage. It remains in the assistant message after the ephemeral cache clears.
+      entry.pendingSteerApiRetry = undefined
+      this.deliverRuntimeChunk(entry, {
+        type: 'data-agent-api-retry',
+        id: `agent-api-retry-${turn.assistantMessageId}`,
+        data: { ...retry, startedAt }
+      })
+    } else {
+      // A steer handoff has no live turn yet: the retry would leave no durable trace, and the
+      // continuation content that follows clears the transient cache. Hold it for the continuation.
+      entry.pendingSteerApiRetry = { ...retry, startedAt }
+    }
   }
 
   /** The ephemeral retry status IS the shared-cache entry — read it back instead of shadowing it. */
   private clearApiRetry(entry: AgentSessionRuntimeEntry): void {
+    // A retry held for a continuation that never arrives must not resurface on the next turn.
+    entry.pendingSteerApiRetry = undefined
+    this.clearApiRetryStatus(entry)
+  }
+
+  /** Only the transient status. A retry held across a steer boundary keeps its durable record. */
+  private clearApiRetryStatus(entry: AgentSessionRuntimeEntry): void {
     const cache = application.get('CacheService')
     if (cache.getShared(AGENT_SESSION_API_RETRY_CACHE_KEY(entry.sessionId))?.status !== 'retrying') return
     cache.setShared(AGENT_SESSION_API_RETRY_CACHE_KEY(entry.sessionId), { status: 'idle' })
+  }
+
+  /**
+   * Move a retry held across a steer handoff onto the reply that now owns it, as a buffered chunk:
+   * the row is already committed by then, so delivering it directly would race the persistence
+   * listener the way any pre-open chunk does.
+   */
+  private attachHeldApiRetry(entry: AgentSessionRuntimeEntry, turn: AgentSessionTurn): void {
+    const heldRetry = entry.pendingSteerApiRetry
+    if (!heldRetry) return
+    entry.pendingSteerApiRetry = undefined
+    this.applyRuntimeStateEvent(entry, {
+      type: 'buffer-chunk',
+      turn,
+      chunk: {
+        type: 'data-agent-api-retry',
+        id: `agent-api-retry-${turn.assistantMessageId}`,
+        data: heldRetry
+      }
+    })
   }
 
   private settleCompactionError(entry: AgentSessionRuntimeEntry, error?: string): void {
@@ -2981,10 +3047,11 @@ export class AgentSessionRuntimeService extends BaseService {
   private publishTurnMessage(
     entry: AgentSessionRuntimeEntry,
     turn: AgentSessionTurn,
-    parts: CherryUIMessage['parts']
+    parts: CherryUIMessage['parts'],
+    options?: { preserveRetryStatus?: boolean }
   ): void {
     if (!turn.controller?.message || !this.isTurnLive(entry, turn)) return
-    this.clearApiRetry(entry)
+    if (!options?.preserveRetryStatus) this.clearApiRetry(entry)
     turn.activeToolIds.clear()
     for (const part of parts) {
       if (!isToolUIPart(part)) continue
@@ -3018,7 +3085,12 @@ export class AgentSessionRuntimeService extends BaseService {
     if (!turn.projection && contextId) turn.projection = this.rootProjection(entry, contextId)
     turn.projection?.control(turn.assistantMessageId, chunk)
     const parts = turn.projection?.parts(turn.assistantMessageId)
-    if (parts) this.publishTurnMessage(entry, turn, parts)
+    if (parts)
+      this.publishTurnMessage(entry, turn, parts, {
+        // The durable retry marker is history, not resumption: publishing it must not retire the
+        // live countdown/announcement while the provider retry is still running.
+        preserveRetryStatus: chunk.type === 'data-agent-api-retry'
+      })
     if (!hasAgentSessionRuntimeOpenStream(entry.runtimeState, turn)) {
       this.applyRuntimeStateEvent(entry, { type: 'buffer-chunk', turn, chunk })
       return true
@@ -3183,6 +3255,7 @@ export class AgentSessionRuntimeService extends BaseService {
       const reply = getAgentSessionRuntimeReply(entry.runtimeState, turn)
       if (reply?.delivery.kind === 'reserved') this.saveReply(entry, turn)
       if (getAgentSessionRuntimeReply(entry.runtimeState, turn)?.delivery.kind !== 'unopened') return
+      this.attachHeldApiRetry(entry, turn)
       rootSpan = this.startRuntimeRootSpan(entry, turn.modelId)
       await this.refreshTurnTraceContext(entry, turn)
       if (
