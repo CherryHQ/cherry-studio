@@ -28,6 +28,7 @@ interface ModelSelectorCommonProps {
   sideOffset?: number
   contentClassName?: string
   portalContainer?: HTMLElement | null
+  allowPresentationSwitch?: boolean
   mountStrategy?: ModelSelectorMountStrategy
   multiSelectMode?: boolean
   defaultMultiSelectMode?: boolean
