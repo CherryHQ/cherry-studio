@@ -19,7 +19,7 @@ import {
   HoverCardTrigger as RealHoverCardTrigger
 } from '@cherrystudio/ui/components'
 import type * as ArtifactPanePath from '@renderer/components/chat/panes/artifactPanePath'
-import { useRightPanelState } from '@renderer/components/chat/panes/Shell'
+import { useRightPanelActions, useRightPanelState } from '@renderer/components/chat/panes/Shell'
 import type * as ChatPrimitives from '@renderer/components/chat/primitives'
 import type * as CommandComponents from '@renderer/components/command'
 import { useOptionalFilePreviewNavigation } from '@renderer/components/FilePreview/useFilePreviewNavigation'
@@ -1046,6 +1046,43 @@ describe('AgentRightPane', () => {
     fireEvent.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.files' }))
     expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'true')
     expect(screen.getByTestId('artifact-pane')).toBeInTheDocument()
+  })
+
+  it('keeps the profile pane and the session details card mutually exclusive', () => {
+    function OpenProfileButton() {
+      const actions = useRightPanelActions()
+      return (
+        <button type="button" onClick={() => actions.tryOpen('profile')}>
+          open profile
+        </button>
+      )
+    }
+    render(
+      <TestAgentRightPane
+        agentId="agent-a"
+        sessionId="session-a"
+        workspacePath="/workspace"
+        messages={[]}
+        partsByMessageId={{}}>
+        <AgentRightPane.Shortcuts />
+        <AgentRightPane.Viewport />
+        <OpenProfileButton />
+        <ActivePanelProbe />
+      </TestAgentRightPane>
+    )
+    const detailsToggle = screen.getByRole('button', { name: 'agent.right_pane.tabs.details' })
+
+    fireEvent.click(detailsToggle)
+    expect(screen.getByRole('dialog', { name: 'agent.right_pane.tabs.details' })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'open profile' }))
+    expect(screen.getByTestId('active-panel')).toHaveTextContent('profile')
+    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'true')
+    expect(screen.queryByRole('dialog', { name: 'agent.right_pane.tabs.details' })).toBeNull()
+
+    fireEvent.click(detailsToggle)
+    expect(screen.getByRole('dialog', { name: 'agent.right_pane.tabs.details' })).toBeInTheDocument()
+    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'false')
   })
 
   it('opens a blank browser when no preview URL has been reported', () => {
