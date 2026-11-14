@@ -140,6 +140,7 @@ const TOPIC_ASSISTANT_GROUP_SECTION_PREFIX = 'topic:section:assistant-group:'
 const TOPIC_ASSISTANT_UNGROUPED_SECTION_ID = `${TOPIC_ASSISTANT_GROUP_SECTION_PREFIX}ungrouped`
 
 interface Props {
+  activeTopicId?: string | null
   activeTopic?: Topic
   assistantTopicsSource: AssistantTopicsSource
   assistantIdFilter?: string | null
@@ -151,6 +152,12 @@ interface Props {
   clearActiveTopic: () => void
   onNewTopic?: (payload?: AddNewTopicPayload) => void | Promise<void>
   onOpenHistoryRecords?: () => void
+  getArchiveSelectionVersion?: () => number
+  isAssistantListComplete?: boolean
+  onSelectedTopicOwnerChanged?: (topic: Topic) => void
+  onLocalArchiveRecordSelected?: (archived: Topic, replacement: Topic, token?: symbol) => void
+  onActiveTopicArchived?: (topic: Topic, token?: symbol) => void
+  onLocalArchivePendingChange?: (topicId: string, pending: boolean, token?: symbol) => void
   onLocalPermanentDeletePendingChange?: (id: string | null) => void
   onManageAssistants?: () => void | Promise<void>
   onSetPanePosition?: (position: TopicTabPosition) => void | Promise<void>
@@ -187,6 +194,7 @@ function getAssistantGroupIdFromTopicSectionId(sectionId: string) {
 
 export function Topics({
   activeTopic,
+  activeTopicId = activeTopic?.id,
   assistantTopicsSource,
   assistantIdFilter,
   dataEnabled = true,
@@ -197,6 +205,12 @@ export function Topics({
   clearActiveTopic,
   onNewTopic,
   onOpenHistoryRecords,
+  getArchiveSelectionVersion,
+  isAssistantListComplete = false,
+  onSelectedTopicOwnerChanged,
+  onLocalArchiveRecordSelected,
+  onActiveTopicArchived,
+  onLocalArchivePendingChange,
   onLocalPermanentDeletePendingChange,
   onManageAssistants,
   onSetPanePosition,
@@ -365,7 +379,7 @@ export function Topics({
   )
   const topicsRef = useRef(topics)
   const activeTopicRef = useRef(activeTopic)
-  const activeTopicIdRef = useRef(activeTopic?.id ?? '')
+  const activeTopicIdRef = useRef(activeTopicId ?? '')
   const permanentDeleteLockRef = useRef(false)
   const assistantPermanentDeleteLockRef = useRef(false)
 
@@ -374,8 +388,8 @@ export function Topics({
   }, [topics])
 
   useEffect(() => {
-    activeTopicIdRef.current = activeTopic?.id ?? ''
-  }, [activeTopic?.id])
+    activeTopicIdRef.current = activeTopicId ?? ''
+  }, [activeTopicId])
 
   useEffect(() => {
     activeTopicRef.current = activeTopic
@@ -542,47 +556,81 @@ export function Topics({
 
   const handleDeleteTopicFromMenu = useCallback(
     async (topic: Topic) => {
+      const ownerStatus = !topic.assistantId
+        ? 'unlinked'
+        : assistants.some((assistant) => assistant.id === topic.assistantId)
+          ? 'owned'
+          : isAssistantListComplete
+            ? 'orphan'
+            : 'unknown'
+      const keepAssistantScope = ownerStatus === 'owned' || ownerStatus === 'unknown'
       const wasActiveAtStart = topic.id === activeTopicIdRef.current
       const assistantTopicsBeforeDelete = topicsRef.current.filter(
         (candidate) => candidate.assistantId === topic.assistantId
       )
       const replacement =
         pickNeighbourAfterRemoval(assistantTopicsBeforeDelete, topic.id) ??
-        findLatestActive(topicsRef.current.filter((candidate) => candidate.id !== topic.id))
+        (keepAssistantScope
+          ? undefined
+          : findLatestActive(topicsRef.current.filter((candidate) => candidate.id !== topic.id)))
 
+      const selectionVersion = getArchiveSelectionVersion?.()
+      const token = Symbol()
+      onLocalArchivePendingChange?.(topic.id, true, token)
       try {
-        await deleteTopicById(topic.id)
-      } catch (err) {
-        logger.error('Failed to delete topic', { topicId: topic.id, err })
-        if (isTrashTargetNotFoundError(err)) toast.info(t('recycle_bin.already_moved'))
-        else if (isTrashTopicBusyError(err)) toast.info(t('recycle_bin.move.blocked_generation'))
-        else toast.error(err instanceof Error ? err.message : t('chat.topics.manage.delete.error'))
-        return
-      }
+        try {
+          const result = await deleteTopicById(topic.id)
+          if (result && !result.deletedIds.includes(topic.id)) return
+        } catch (err) {
+          logger.error('Failed to delete topic', { topicId: topic.id, err })
+          if (isTrashTargetNotFoundError(err)) toast.info(t('recycle_bin.already_moved'))
+          else if (isTrashTopicBusyError(err)) toast.info(t('recycle_bin.move.blocked_generation'))
+          else toast.error(err instanceof Error ? err.message : t('chat.topics.manage.delete.error'))
+          return
+        }
 
-      // A mid-delete switch to another topic must win. An empty ('') mirror only reselects
-      // when the deleted topic was active at delete start (#19583 race collapse); deleting
-      // with no selection at all stays a no-op.
-      const currentActiveTopicId = activeTopicIdRef.current
-      const shouldReplaceSelection = (!currentActiveTopicId && wasActiveAtStart) || currentActiveTopicId === topic.id
-      if (shouldReplaceSelection) {
-        if (replacement) setActiveTopic(replacement)
-        else clearActiveTopic()
-      }
+        // A mid-delete switch to another topic must win. An empty ('') mirror only reselects
+        // when the deleted topic was active at delete start (#19583 race collapse); deleting
+        // with no selection at all stays a no-op.
+        const currentActiveTopicId = activeTopicIdRef.current
+        const shouldReplaceSelection = (!currentActiveTopicId && wasActiveAtStart) || currentActiveTopicId === topic.id
+        if (shouldReplaceSelection && selectionVersion === getArchiveSelectionVersion?.()) {
+          if (replacement) {
+            if (onLocalArchiveRecordSelected) onLocalArchiveRecordSelected(topic, replacement, token)
+            else setActiveTopic(replacement)
+          } else if (keepAssistantScope) onActiveTopicArchived?.(topic, token)
+          else clearActiveTopic()
+        }
 
-      showRecycleBinUndo({
-        itemName: topic.name.trim() || t('chat.conversation.new'),
-        title: t('common.archived', { name: topic.name.trim() || t('chat.conversation.new') }),
-        onUndo: () =>
-          restoreRecycleBinItem({
-            id: topic.id,
-            restore: restoreTopic,
-            getActive: (id) => dataApiService.get(`/topics/${id}`),
-            refresh: refreshTopics
-          })
-      })
+        showRecycleBinUndo({
+          itemName: topic.name.trim() || t('chat.conversation.new'),
+          title: t('common.archived', { name: topic.name.trim() || t('chat.conversation.new') }),
+          onUndo: () =>
+            restoreRecycleBinItem({
+              id: topic.id,
+              restore: restoreTopic,
+              getActive: (id) => dataApiService.get(`/topics/${id}`),
+              refresh: refreshTopics
+            })
+        })
+      } finally {
+        onLocalArchivePendingChange?.(topic.id, false, token)
+      }
     },
-    [clearActiveTopic, deleteTopicById, refreshTopics, restoreTopic, setActiveTopic, t]
+    [
+      assistants,
+      isAssistantListComplete,
+      getArchiveSelectionVersion,
+      onLocalArchiveRecordSelected,
+      onActiveTopicArchived,
+      onLocalArchivePendingChange,
+      clearActiveTopic,
+      deleteTopicById,
+      refreshTopics,
+      restoreTopic,
+      setActiveTopic,
+      t
+    ]
   )
 
   const handlePermanentDeleteTopic = useCallback(
@@ -1513,6 +1561,9 @@ export function Topics({
           assistantId: assistantChanged ? targetAssistantId : undefined,
           anchor
         })
+        if (assistantChanged && activeTopicRef.current?.id === topic.id) {
+          onSelectedTopicOwnerChanged?.({ ...activeTopicRef.current, assistantId: targetAssistantId ?? undefined })
+        }
       } catch (err) {
         setOptimisticMove(null)
         logger.error('Failed to reorder topic by assistant group', { err, topicId: payload.activeId })
@@ -1526,6 +1577,7 @@ export function Topics({
       isRightPanel,
       moveTopic,
       orderedAssistants,
+      onSelectedTopicOwnerChanged,
       refreshAssistants,
       reorderAssistantGroup,
       t,

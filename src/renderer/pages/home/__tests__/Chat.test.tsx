@@ -2,12 +2,14 @@ import { act, render } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type * as CherrystudioUIModule from '@cherrystudio/ui'
 import type * as ChatLayoutModeContextModule from '@renderer/components/chat/layout/ChatLayoutModeContext'
 import type * as PaneShellModule from '@renderer/components/chat/panes/Shell'
 import { popup } from '@renderer/services/popup'
 import type { Topic } from '@renderer/types/topic'
 
 import Chat from '../Chat'
+import type * as TopicRightPaneModule from '../components/TopicRightPane'
 
 const conversationShellProps = vi.hoisted(() => ({
   current: null as any
@@ -77,9 +79,7 @@ vi.mock('@renderer/components/chat/citations/CitationsPanel', () => ({
   default: () => <div data-testid="citations-panel" />
 }))
 
-vi.mock('@renderer/components/chat/shell/ConversationCenterState', () => ({
-  default: ({ state }: { state: string }) => <div data-testid="conversation-center-state">{state}</div>
-}))
+vi.unmock('@renderer/components/chat/shell/ConversationCenterState')
 
 vi.mock('@renderer/components/FindBar', () => ({
   FindBar: () => <div data-testid="content-search" />
@@ -142,6 +142,11 @@ vi.mock('@renderer/hooks/command', () => ({
 vi.mock('@renderer/hooks/tab', () => ({
   useIsActiveTab: () => activeTabMock.current
 }))
+
+vi.mock('@cherrystudio/ui', async (importOriginal) => {
+  const { MockCherrystudioUI } = await import('@test-mocks/renderer/CherrystudioUI')
+  return { ...(await importOriginal<typeof CherrystudioUIModule>()), ...MockCherrystudioUI }
+})
 
 vi.mock('@renderer/hooks/chat/useClearTopicMessages', () => ({
   useClearTopicMessages: () => clearTopicMessagesMock
@@ -210,9 +215,10 @@ vi.mock('../components/ChatNavbar', () => ({
   )
 }))
 
-vi.mock('../components/TopicRightPane', () => {
+vi.mock('../components/TopicRightPane', async (importOriginal) => {
+  const original = await importOriginal<typeof TopicRightPaneModule>()
   const TopicRightPane = {
-    Scope: ({ children }: { children: ReactNode }) => <>{children}</>,
+    Scope: original.TopicRightPane.Scope,
     Shortcuts: () => <div data-testid="topic-right-shortcuts" />,
     Viewport: () => <div data-testid="topic-right-pane-viewport" />
   }

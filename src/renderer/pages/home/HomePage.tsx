@@ -26,7 +26,7 @@ import { usePersistCache } from '@renderer/data/hooks/useCache'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { useAssistantTopicsSource } from '@renderer/hooks/resourceViewSources'
 import { useCurrentTabId, useIsActiveTab } from '@renderer/hooks/tab'
-import { useAssistants } from '@renderer/hooks/useAssistant'
+import { useAssistantApiById, useAssistants } from '@renderer/hooks/useAssistant'
 import { toCreateAssistantDtoFromCatalogPreset } from '@renderer/hooks/useAssistantCatalogPresets'
 import { useClassicLayoutRightPaneOpen } from '@renderer/hooks/useClassicLayoutRightPaneOpen'
 import { useComposerFocusRequest } from '@renderer/hooks/useComposerFocusRequest'
@@ -117,15 +117,27 @@ const HomePage: FC = () => {
   const { createTopic, refreshTopics } = useTopicMutations()
   const {
     assistants,
+    total: assistantsTotal,
     hasLoaded: hasAssistantsLoaded,
     isLoading: isAssistantsLoading,
     isRefreshing: isAssistantsRefreshing,
+    error: assistantsError,
     addAssistant
   } = useAssistants()
   const assistantIdSet = useMemo(() => new Set(assistants.map((assistant) => assistant.id)), [assistants])
+  const { assistant: routeAssistant, error: routeAssistantError } = useAssistantApiById(
+    !routeTopicId && routeAssistantId && !assistantIdSet.has(routeAssistantId) ? routeAssistantId : undefined
+  )
+  const availableRouteAssistantId =
+    !routeTopicId && routeAssistantId && !isDataApiNotFoundError(routeAssistantError) ? routeAssistantId : undefined
+  const assistantIdSetRef = useRef(assistantIdSet)
+  assistantIdSetRef.current = assistantIdSet
   const validLastUsedAssistantId =
     lastUsedAssistantId && assistantIdSet.has(lastUsedAssistantId) ? lastUsedAssistantId : undefined
   const isAssistantListResolved = hasAssistantsLoaded && !isAssistantsLoading && !isAssistantsRefreshing
+  const isAssistantListComplete = isAssistantListResolved && !assistantsError && assistants.length >= assistantsTotal
+  const isAssistantListCompleteRef = useRef(isAssistantListComplete)
+  isAssistantListCompleteRef.current = isAssistantListComplete
   const resolveNewTopicAssistantTarget = useCallback(
     (
       explicitAssistantId?: string | null,
@@ -133,7 +145,9 @@ const HomePage: FC = () => {
     ): ResolvedNewTopicAssistantSelection => {
       const excludedAssistantIds = new Set(options.excludedAssistantIds ?? [])
       const isAvailableAssistantId = (assistantId: string | null | undefined): assistantId is string =>
-        !!assistantId && assistantIdSet.has(assistantId) && !excludedAssistantIds.has(assistantId)
+        !!assistantId &&
+        (assistantIdSet.has(assistantId) || assistantId === availableRouteAssistantId) &&
+        !excludedAssistantIds.has(assistantId)
 
       if (explicitAssistantId === null) {
         return { source: 'explicit' }
@@ -155,11 +169,13 @@ const HomePage: FC = () => {
       }
       return { source: 'runtime-fallback' }
     },
-    [assistantIdSet, assistants, routeAssistantId, validLastUsedAssistantId]
+    [assistantIdSet, assistants, availableRouteAssistantId, routeAssistantId, validLastUsedAssistantId]
   )
 
   const routeActiveTopicId = routeTopicId ?? null
   const [activeTopicId, setActiveTopicIdState] = useState<string | null>(() => routeActiveTopicId)
+  const activeTopicIdRef = useRef(activeTopicId)
+  activeTopicIdRef.current = activeTopicId
   // Page-initiated selection writes the tab URL — the conversation's sole identity channel —
   // and mirrors into state immediately so the UI doesn't wait a router round trip. Route-driven
   // changes (entry interceptor, recovery) flow back through the sync effect below. Clearing
@@ -167,8 +183,13 @@ const HomePage: FC = () => {
   const setActiveTopicId = useCallback(
     (id: string | null) => {
       ownerFallbackRequestIdRef.current += 1
+      activeTopicIdRef.current = id
       setActiveTopicIdState(id)
       if (id) {
+        if (archiveSelectionRef.current.topicId !== id) archiveSelectionVersionRef.current += 1
+        if (archiveSelectionRef.current.topicId !== id) {
+          archiveSelectionRef.current = { topicId: id, assistantId: undefined }
+        }
         void navigate({ to: '/app/chat', search: { topicId: id }, replace: true })
       }
     },
@@ -185,7 +206,7 @@ const HomePage: FC = () => {
 
   const {
     activeTopic,
-    setActiveTopic,
+    setActiveTopic: setActiveTopicValue,
     clearActiveTopic,
     isLoading: isActiveTopicLoading,
     error: activeTopicError,
@@ -194,6 +215,33 @@ const HomePage: FC = () => {
     activeTopicId,
     setActiveTopicId
   })
+  const setActiveTopic = useCallback(
+    (topic: Topic) => {
+      const identity = { topicId: topic.id, assistantId: topic.assistantId ?? null }
+      if (
+        archiveSelectionRef.current.topicId !== identity.topicId ||
+        (archiveSelectionRef.current.assistantId !== undefined &&
+          archiveSelectionRef.current.assistantId !== identity.assistantId)
+      ) {
+        archiveSelectionVersionRef.current += 1
+      }
+      archiveSelectionRef.current = identity
+      setActiveTopicValue(topic)
+    },
+    [setActiveTopicValue]
+  )
+  const onSelectedTopicOwnerChanged = useCallback((topic: Topic) => {
+    if (activeTopicIdRef.current !== topic.id) return
+    const identity = archiveSelectionRef.current
+    if (
+      identity.topicId === topic.id &&
+      identity.assistantId !== undefined &&
+      identity.assistantId !== (topic.assistantId ?? null)
+    ) {
+      archiveSelectionVersionRef.current += 1
+    }
+    archiveSelectionRef.current = { topicId: topic.id, assistantId: topic.assistantId ?? null }
+  }, [])
   const reenterChatRoute = useCallback(() => {
     const staleTopicId = activeTopicId ?? routeTopicId
     if (staleTopicId) {
@@ -202,6 +250,50 @@ const HomePage: FC = () => {
     clearActiveTopic()
     void navigate({ to: '/app/chat', search: {}, replace: true })
   }, [activeTopicId, routeTopicId, clearActiveTopic, navigate])
+  const archiveSelectionVersionRef = useRef(0)
+  const getArchiveSelectionVersion = useCallback(() => archiveSelectionVersionRef.current, [])
+  const archiveRouteRef = useRef({ topicId: routeTopicId, assistantId: routeAssistantId })
+  // Undefined means unresolved ownership; null means a confirmed unlinked topic.
+  const archiveSelectionRef = useRef<{ topicId: string | undefined; assistantId: string | null | undefined }>({
+    topicId: routeTopicId,
+    assistantId: routeTopicId ? undefined : routeAssistantId
+  })
+  if (archiveRouteRef.current.topicId !== routeTopicId || archiveRouteRef.current.assistantId !== routeAssistantId) {
+    const assistantId = routeTopicId
+      ? archiveSelectionRef.current.topicId === routeTopicId
+        ? archiveSelectionRef.current.assistantId
+        : undefined
+      : routeAssistantId
+    if (
+      archiveSelectionRef.current.topicId !== routeTopicId ||
+      archiveSelectionRef.current.assistantId !== assistantId
+    ) {
+      archiveSelectionVersionRef.current += 1
+      archiveSelectionRef.current = { topicId: routeTopicId, assistantId }
+    }
+    archiveRouteRef.current = { topicId: routeTopicId, assistantId: routeAssistantId }
+  }
+  if (
+    activeTopic &&
+    archiveSelectionRef.current.topicId === activeTopic.id &&
+    archiveSelectionRef.current.assistantId === undefined
+  ) {
+    archiveSelectionRef.current.assistantId = activeTopic.assistantId ?? null
+  }
+  const pendingLocalArchivesRef = useRef(new Map<string, Map<symbol | undefined, number>>())
+  const [pendingLocalArchiveIds, setPendingLocalArchiveIds] = useState<ReadonlySet<string>>(new Set())
+  const onLocalArchivePendingChange = useCallback((topicId: string, pending: boolean, token?: symbol) => {
+    if (pending) {
+      const attempts = pendingLocalArchivesRef.current.get(topicId) ?? new Map<symbol | undefined, number>()
+      attempts.set(token, archiveSelectionVersionRef.current)
+      pendingLocalArchivesRef.current.set(topicId, attempts)
+    } else {
+      const attempts = pendingLocalArchivesRef.current.get(topicId)
+      attempts?.delete(token)
+      if (!attempts?.size) pendingLocalArchivesRef.current.delete(topicId)
+    }
+    setPendingLocalArchiveIds(new Set(pendingLocalArchivesRef.current.keys()))
+  }, [])
   const pendingLocalPermanentDeleteIdRef = useRef<string | null>(null)
   const [pendingLocalPermanentDeleteId, setPendingLocalPermanentDeleteId] = useState<string | null>(null)
   const onLocalPermanentDeletePendingChange = useCallback((id: string | null) => {
@@ -212,10 +304,16 @@ const HomePage: FC = () => {
   // this tab was dormant, or a rotted deep link). Recovery is a plain replace-navigation back
   // through the entry interceptor, which resolves the next target — no in-page state surgery.
   useEffect(() => {
-    if (!routeTopicId || activeTopicId !== routeTopicId) return
+    if (!routeTopicId || activeTopicId !== routeTopicId || activeTopicIdRef.current !== routeTopicId) return
     if (activeTopic || isActiveTopicLoading) return
     if (!isDataApiNotFoundError(activeTopicError)) return
     if (pendingLocalPermanentDeleteIdRef.current === routeTopicId) return
+    if (
+      [...(pendingLocalArchivesRef.current.get(routeTopicId)?.values() ?? [])].includes(
+        archiveSelectionVersionRef.current
+      )
+    )
+      return
     reenterChatRoute()
   }, [
     activeTopic,
@@ -223,6 +321,7 @@ const HomePage: FC = () => {
     activeTopicId,
     isActiveTopicLoading,
     pendingLocalPermanentDeleteId,
+    pendingLocalArchiveIds,
     reenterChatRoute,
     routeTopicId
   ])
@@ -303,8 +402,14 @@ const HomePage: FC = () => {
     return unsubscribe
   }, [currentTabId])
 
-  const visibleAssistantId = visibleTopic?.assistantId
-  const visibleAssistant = assistants.find((assistant) => assistant.id === visibleAssistantId)
+  const visibleAssistantId = visibleTopic
+    ? visibleTopic.assistantId
+    : availableRouteAssistantId
+      ? availableRouteAssistantId
+      : undefined
+  const visibleAssistant =
+    assistants.find((assistant) => assistant.id === visibleAssistantId) ??
+    (routeAssistant?.id === visibleAssistantId ? routeAssistant : undefined)
   // Start the managed model query before assistant details resolve; Chat shares the same SWR request.
   useModelById(visibleAssistant?.modelId)
   const topicResourcePaneCount = useMemo<ResourcePaneCountButtonProps | undefined>(() => {
@@ -358,6 +463,37 @@ const HomePage: FC = () => {
     closeSurface()
     reenterChatRoute()
   }, [closeSurface, reenterChatRoute])
+
+  const onActiveTopicArchived = useCallback(
+    (topic: Topic, token?: symbol) => {
+      if (!topic.assistantId) return
+      if (isAssistantListCompleteRef.current && !assistantIdSetRef.current.has(topic.assistantId)) return
+      if (pendingLocalArchivesRef.current.get(topic.id)?.get(token) !== archiveSelectionVersionRef.current) return
+      cacheService.setPersist('ui.chat.last_used_topic_id', (current) => (current === topic.id ? null : current))
+      closeSurface()
+      clearLocate()
+      clearActiveTopic()
+      void navigate({ to: '/app/chat', search: { assistantId: topic.assistantId }, replace: true })
+    },
+    [clearActiveTopic, clearLocate, closeSurface, navigate]
+  )
+
+  const onLocalArchiveRecordSelected = useCallback(
+    (archived: Topic, replacement: Topic, token?: symbol) => {
+      if (pendingLocalArchivesRef.current.get(archived.id)?.get(token) !== archiveSelectionVersionRef.current)
+        return false
+      clearLocate()
+      setActiveTopic(replacement)
+      return true
+    },
+    [clearLocate, setActiveTopic]
+  )
+  const onLocalArchiveTopicSelected = useCallback(
+    (archived: Topic, replacement: Topic, token?: symbol) => {
+      if (onLocalArchiveRecordSelected(archived, replacement, token)) closeSurface()
+    },
+    [closeSurface, onLocalArchiveRecordSelected]
+  )
 
   const activateCreatedTopic = useCallback(
     (topic: Topic) => {
@@ -638,6 +774,11 @@ const HomePage: FC = () => {
             onClose={closeHistoryRecords}
             onRecordSelect={handleHistoryRecordsTopicSelect}
             onActiveRecordChange={handleHistoryActiveTopicChange}
+            getArchiveSelectionVersion={getArchiveSelectionVersion}
+            isAssistantListComplete={isAssistantListComplete}
+            onActiveTopicArchived={onActiveTopicArchived}
+            onLocalArchiveRecordSelected={onLocalArchiveRecordSelected}
+            onLocalArchivePendingChange={onLocalArchivePendingChange}
             onLocalPermanentDeletePendingChange={onLocalPermanentDeletePendingChange}
             toolbarLeading={
               !isWindowFrame ? (
@@ -678,6 +819,7 @@ const HomePage: FC = () => {
   const pane =
     isClassicTopicLayout && topicListPosition === 'right' ? (
       <AssistantResourceList
+        activeAssistant={visibleAssistant}
         activeAssistantId={visibleAssistantId ?? null}
         activeTopicId={visibleTopic?.id ?? null}
         dataEnabled={shellPaneOpen}
@@ -702,6 +844,7 @@ const HomePage: FC = () => {
     ) : (
       <HomeTabs
         activeTopic={visibleTopic}
+        activeTopicId={activeTopicId}
         dataEnabled={shellPaneOpen}
         assistantTopicsSource={assistantTopicsSource}
         onActiveAssistantDeleted={handleActiveAssistantDeleted}
@@ -713,6 +856,12 @@ const HomePage: FC = () => {
         onNewTopic={handleCreateEmptyTopic}
         historyRecordsActive={historyRecordsActive}
         onOpenHistoryRecords={isWindowFrame ? undefined : openHistoryRecords}
+        getArchiveSelectionVersion={getArchiveSelectionVersion}
+        isAssistantListComplete={isAssistantListComplete}
+        onActiveTopicArchived={onActiveTopicArchived}
+        onLocalArchiveRecordSelected={onLocalArchiveTopicSelected}
+        onSelectedTopicOwnerChanged={onSelectedTopicOwnerChanged}
+        onLocalArchivePendingChange={onLocalArchivePendingChange}
         onLocalPermanentDeletePendingChange={onLocalPermanentDeletePendingChange}
         revealRequest={topicRevealRequest}
         manageAssistantsActive={manageAssistantsActive}
@@ -734,10 +883,17 @@ const HomePage: FC = () => {
               dataEnabled={topicPaneOpen}
               presentation="right-panel"
               activeTopic={visibleTopic}
+              activeTopicId={activeTopicId}
               assistantIdFilter={visibleAssistantId ?? null}
               clearActiveTopic={clearActiveTopicAndCloseResourceView}
               setActiveTopic={setActiveTopicAndCloseResourceView}
               onNewTopic={handleCreateEmptyTopic}
+              getArchiveSelectionVersion={getArchiveSelectionVersion}
+              isAssistantListComplete={isAssistantListComplete}
+              onActiveTopicArchived={onActiveTopicArchived}
+              onLocalArchiveRecordSelected={onLocalArchiveTopicSelected}
+              onSelectedTopicOwnerChanged={onSelectedTopicOwnerChanged}
+              onLocalArchivePendingChange={onLocalArchivePendingChange}
               onLocalPermanentDeletePendingChange={onLocalPermanentDeletePendingChange}
               onSetPanePosition={setTopicListPosition}
               panePosition="right"
