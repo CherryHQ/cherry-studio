@@ -2168,6 +2168,7 @@
   "library.config.agent.prompt.load_failed": "Nu s-a putut genera promptul de sistem complet",
   "library.config.agent.prompt.loading": "Se generează promptul de sistem complet…",
   "library.config.agent.prompt.placeholder": "Scrieți aici promptul de sistem al agentului: cine este, ce face și care îi sunt limitele. Dacă rămâne gol, această parte și nota despre prioritate de mai sus nu sunt trimise.",
+  "library.config.agent.prompt.row_hint": "Tot ce primește agentul Pi",
   "library.config.agent.prompt.tokens": "Aproximativ {{tokens}} tokenuri",
   "library.config.agent.section.permission.desc": "Domeniu de autorizare pentru acțiunile agentului",
   "library.config.agent.section.permission.title": "Mod de permisiune",
