@@ -1025,6 +1025,7 @@
   "chat.settings.code_image_tools.tip": "Włącz narzędzia podglądu dla obrazów renderowanych z bloków kodu, takich jak mermaid",
   "chat.settings.code_theme.cherry_default": "Cherry (domyślny)",
   "chat.settings.code_wrappable": "Zawijanie wierszy w blokach kodu",
+  "chat.settings.mermaid_auto_render": "Automatycznie renderuj diagramy Mermaid",
   "chat.settings.show_line_numbers": "Pokaż numery linii w kodzie",
   "chat.settings.thought_auto_collapse.label": "Zwiń treść przemyśleń",
   "chat.settings.thought_auto_collapse.tip": "Automatycznie zwiń treść przemyśleń po zakończeniu rozumowania",

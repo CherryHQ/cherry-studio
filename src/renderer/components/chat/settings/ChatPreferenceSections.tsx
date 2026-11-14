@@ -98,6 +98,7 @@ const ChatPreferenceSections: FC<ChatPreferenceSectionsProps> = ({ sectionClassN
   const [codeShowLineNumbers, setCodeShowLineNumbers] = usePreference('chat.code.show_line_numbers')
   const [codeCollapsible, setCodeCollapsible] = usePreference('chat.code.collapsible')
   const [codeWrappable, setCodeWrappable] = usePreference('chat.code.wrappable')
+  const [mermaidAutoRender, setMermaidAutoRender] = usePreference('chat.code.mermaid.auto_render')
   const [codeEditor, setCodeEditor] = useMultiplePreferences({
     enabled: 'chat.code.editor.enabled',
     themeLight: 'chat.code.editor.theme_light',
@@ -577,6 +578,14 @@ const ChatPreferenceSections: FC<ChatPreferenceSectionsProps> = ({ sectionClassN
               checked={codeWrappable}
               onCheckedChange={setCodeWrappable}
               label={t('chat.settings.code_wrappable')}
+            />
+          </SettingRow>
+          <SettingDivider />
+          <SettingRow id="setting-appearance-mermaid-auto-render" className="scroll-mt-6">
+            <SettingSwitch
+              checked={mermaidAutoRender}
+              onCheckedChange={setMermaidAutoRender}
+              label={t('chat.settings.mermaid_auto_render')}
             />
           </SettingRow>
         </>

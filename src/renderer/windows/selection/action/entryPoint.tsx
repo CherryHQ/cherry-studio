@@ -9,6 +9,7 @@ import SelectionActionApp from './SelectionActionApp'
 await prepareWindow({
   preference: [
     'app.language',
+    'chat.code.mermaid.auto_render',
     'ui.custom_css',
     'ui.theme_mode',
     'ui.theme_user.color_primary',

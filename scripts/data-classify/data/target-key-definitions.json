@@ -13,6 +13,13 @@
       "description": "Remember whether archiving an assistant also archives its related topics"
     },
     {
+      "targetKey": "chat.code.mermaid.auto_render",
+      "type": "boolean",
+      "defaultValue": true,
+      "status": "classified",
+      "description": "Automatically render Mermaid diagrams in code blocks; when disabled, show source with a button to render on demand (v2 new feature, no v1 source)"
+    },
+    {
       "targetKey": "chat.message.user_content.default_expanded",
       "type": "boolean",
       "defaultValue": false,
