@@ -58,8 +58,8 @@ The new Agent appears in the Agent list immediately, through the existing DataAp
 
 Every Agent, not only the built-in Cherry Assistant, can change its own configuration and create new Agents that land in the conversation list:
 
-- Every Agent gets `create_agent` and `list_agents`. `create_agent` asks for approval on every call and applies the same validation as above. `list_agents` is read-only.
-- Every Agent can change its own fields through its existing `mcp__cherry-tools__config` tool. The new self-update covers the avatar emoji, description, instructions, model, permission mode, skills, knowledge bases, MCP servers, disabled built-in tools, reply language, and heartbeat. It asks for approval on every call and shows the current → new value of each changed field. It never sets `bypassPermissions` or environment variables, and it refuses a built-in Agent's sealed fields.
+- Every user-created Agent and Cherry Assistant get `create_agent` and `list_agents`. Cherry Support and Doctor do not: support capabilities intentionally exclude creating Agents, and Doctor runs headless. `create_agent` asks for approval on every call and applies the same validation as above. `list_agents` is read-only.
+- Every user-created Agent can change its own fields through its existing `mcp__cherry-tools__config` tool. The new self-update covers the avatar emoji, description, instructions, model, permission mode, skills, knowledge bases, MCP servers, disabled built-in tools, reply language, and heartbeat. It asks for approval on every call and shows the current → new value of each changed field. It never sets `bypassPermissions` or environment variables. Built-in Agents keep only their existing `config` actions and are refused every self-update field.
 - The `rename` and `complete_bootstrap` actions stay as they are.
 - Cherry Assistant also keeps `update_agent` for other non-built-in Agents.
 - A self-update's identity card hides **Open conversation**, because the user is already in that conversation. It keeps **Adjust settings**.
@@ -81,7 +81,7 @@ Every Agent, not only the built-in Cherry Assistant, can change its own configur
 - AC5 — An Agent created from a conversation appears in the Agent list without a reload (verification: renderer; owner: implementer)
 - AC6 — Every new UI string exists in all renderer locales without placeholders (verification: docs gate; owner: implementer)
 - AC7 — In the running app, asking Cherry Assistant to create an Agent shows the card, and the new Agent appears in the Agent list and opens from the card (verification: Electron; owner: implementer)
-- AC8 — An ordinary Agent's self-update through `mcp__cherry-tools__config` asks for approval on every call, shows each changed field's current → new value, refuses `bypassPermissions`, environment variables, and a built-in Agent's sealed fields, and the change appears in the edit dialog (verification: main service test and renderer; owner: implementer)
+- AC8 — An ordinary Agent's self-update through `mcp__cherry-tools__config` asks for approval on every call, shows each changed field's current → new value, refuses `bypassPermissions`, environment variables, and any self-update from a built-in Agent, and the change appears in the edit dialog (verification: main service test and renderer; owner: implementer)
 
 ## Risks
 
