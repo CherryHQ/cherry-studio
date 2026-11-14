@@ -6244,6 +6244,7 @@
   "settings.voice.playback.title": "ปุ่มควบคุมการเล่นเสียง",
   "settings.voice.recognition.language": "ภาษาของการจดจำเสียง",
   "settings.voice.recognition.model": "โมเดลจดจำเสียง",
+  "settings.voice.recognition.off": "ปิด",
   "settings.voice.recognition.title": "การจดจำเสียงพูด",
   "settings.voice.resources.open_settings": "เปิดการตั้งค่าเสียงของระบบ",
   "settings.voice.resources.remove_description": "การจดจำเสียงด้วยโมเดลนี้จะใช้ไม่ได้จนกว่าคุณจะดาวน์โหลดใหม่ การเลือกโมเดลของคุณจะยังถูกเก็บไว้",

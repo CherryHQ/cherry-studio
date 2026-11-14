@@ -1,6 +1,7 @@
 import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
 import { MockDataApiUtils } from '@test-mocks/renderer/DataApiService'
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
+import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { Children, isValidElement, type ComponentType, type ReactElement, type ReactNode, useEffect } from 'react'
@@ -902,6 +903,20 @@ describe('ChatComposer', () => {
     render(<ChatComposer topic={topic} onSend={vi.fn()} />)
 
     expect(mocks.surfaceProps?.markdownLivePreview).toBe(enabled)
+  })
+
+  it('keeps draft submission available while recognition is Off', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('feature.voice.recognition.model_id', 'off')
+    const onSend = vi.fn()
+    render(<ChatComposer topic={topic} onSend={onSend} />)
+    act(() => mocks.surfaceProps?.onTextChange('Off still sends'))
+    expect(mocks.surfaceProps?.text).toBe('Off still sends')
+    expect(mocks.surfaceProps?.sendDisabled).toBe(false)
+    await act(async () => {
+      await mocks.surfaceProps?.onSendDraft({ text: 'Off still sends', tokens: [] })
+    })
+    expect(onSend).toHaveBeenCalledWith('Off still sends', expect.anything())
+    MockUsePreferenceUtils.setPreferenceValue('feature.voice.recognition.model_id', '')
   })
 
   it('blocks sending and shows the quota notice while the current model is out of quota', () => {

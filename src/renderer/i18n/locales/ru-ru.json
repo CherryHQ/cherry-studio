@@ -6244,6 +6244,7 @@
   "settings.voice.playback.title": "Управление голосовым воспроизведением",
   "settings.voice.recognition.language": "Язык распознавания",
   "settings.voice.recognition.model": "Модель распознавания",
+  "settings.voice.recognition.off": "Выключено",
   "settings.voice.recognition.title": "Распознавание речи",
   "settings.voice.resources.open_settings": "Открыть системные настройки голоса",
   "settings.voice.resources.remove_description": "Распознавание с этой моделью будет недоступно до повторной загрузки. Ваш выбор модели сохранится.",
