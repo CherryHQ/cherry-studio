@@ -108,6 +108,32 @@ describe('SkillCatalogPicker', () => {
     expect(onSelectedIdsChange).toHaveBeenCalledWith(['enabled-skill'])
   })
 
+  // Builtin skills are always enabled by the server; editing must not offer a switch that does nothing.
+  it('shows builtin skills locked on when editing an Agent', () => {
+    const builtinSkill = {
+      id: 'builtin',
+      name: 'Builtin Skill',
+      source: 'builtin',
+      isGlobalEnabled: true
+    } as InstalledSkill
+
+    render(
+      <SkillCatalogPicker
+        mode="edit"
+        skills={[builtinSkill]}
+        loading={false}
+        selectedIds={[]}
+        onSelectedIdsChange={vi.fn()}
+        emptyLabel="No skills"
+        portalContainer={null}
+      />
+    )
+
+    const toggle = screen.getByRole('switch', { name: 'Builtin Skill' })
+    expect(toggle).toBeChecked()
+    expect(toggle).toBeDisabled()
+  })
+
   it('preserves selected globally disabled skills when toggling all visible skills', async () => {
     const user = userEvent.setup()
     const onSelectedIdsChange = vi.fn()

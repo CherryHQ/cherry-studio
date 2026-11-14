@@ -195,7 +195,6 @@ vi.mock('react-i18next', async (importOriginal) => {
           'library.config.dialogs.create.step.knowledge': 'Knowledge',
           'library.config.dialogs.edit.assistant_description': 'Edit the essentials for this assistant.',
           'library.config.dialogs.edit.assistant_title': 'Edit Assistant',
-          'library.config.dialogs.edit.basic_tab': 'Basic',
           'library.config.dialogs.edit.prompt_tab': 'System Prompt',
           'library.config.dialogs.edit.save_failed': 'Save failed',
           'selector.create_dialog.refresh_failed': 'Created, but refresh failed',
