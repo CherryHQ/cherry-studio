@@ -10,18 +10,19 @@ export class ThreadFeed {
 
   constructor(
     private value: ThreadSnapshot,
-    private readonly report: (error: unknown) => void
+    private readonly report: (error: unknown) => void,
+    private readonly copy: <T extends ObservationPayload>(value: T) => T = structuredClone
   ) {
-    this.value = structuredClone(value)
+    this.value = this.copy(value)
   }
 
   get snapshot(): ThreadSnapshot {
-    return structuredClone(this.value)
+    return this.copy(this.value)
   }
 
   publish(event: ObservationPayload): void {
     if (this.ended) return
-    const next = structuredClone(event)
+    const next = this.copy(event)
     switch (next.type) {
       case 'snapshot':
         this.value = next

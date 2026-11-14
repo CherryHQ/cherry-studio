@@ -5,8 +5,7 @@ import type {
   SDKPartialAssistantMessage,
   SDKResultMessage,
   SDKUserMessage,
-  SessionMessage,
-  SessionStoreEntry
+  SessionMessage
 } from '@anthropic-ai/claude-agent-sdk'
 
 import {
@@ -19,6 +18,7 @@ import {
   type Thread
 } from '@cherrystudio/agent-runtime'
 
+import type { NativeArchiveEntry } from './archive'
 import {
   decodeArchiveContent,
   json,
@@ -428,7 +428,7 @@ export class ClaudeProjection {
     return this.preview()
   }
 
-  restore(messages: readonly SessionMessage[], entries: readonly SessionStoreEntry[]): ClaudeArchive {
+  restore(messages: readonly SessionMessage[], entries: readonly NativeArchiveEntry[]): ClaudeArchive {
     const before = this.feed.snapshot
     const metadata = new Map(entries.filter((entry) => entry.uuid).map((entry) => [entry.uuid!, entry]))
     const removals = entries.flatMap((entry) => {
