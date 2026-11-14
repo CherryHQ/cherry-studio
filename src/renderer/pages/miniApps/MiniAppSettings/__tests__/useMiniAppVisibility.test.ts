@@ -69,13 +69,12 @@ describe('useMiniAppVisibility', () => {
     await waitFor(() => {
       expect(toast.error).toHaveBeenCalledWith(
         expect.objectContaining({
-          cause: expect.objectContaining({ message: 'Internal error: hide failed' }),
           data: expect.objectContaining({
             errorContext: expect.objectContaining({
               message: 'Internal error: hide failed',
-              operation: 'miniApp.hide_failed'
-            }),
-            localizedErrorMessage: i18n.t('miniApp.hide_failed')
+              operation: 'miniapp.update_status',
+              source: 'miniapp'
+            })
           }),
           title: i18n.t('miniApp.hide_failed')
         })
@@ -96,6 +95,49 @@ describe('useMiniAppVisibility', () => {
         description: "MiniApp with id 'a' not found",
         data: { suppressDetail: true }
       })
+    )
+  })
+
+  it('keeps Details when a bulk change fails because a row hit a server fault', async () => {
+    const bulk = Object.assign(DataApiErrorFactory.invalidOperation('setAppStatusBulk: 1 of 2 updates failed'), {
+      cause: DataApiErrorFactory.internal(new Error('database is locked'))
+    })
+    mocks.setAppStatusBulk.mockRejectedValueOnce(bulk)
+    const { result } = renderHook(() => useMiniAppVisibility())
+
+    act(() => result.current.swap())
+
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: i18n.t('miniApps.update_partial_failure_generic'),
+          data: expect.objectContaining({
+            errorContext: expect.objectContaining({
+              message: expect.stringMatching(/database is locked/),
+              operation: 'miniapp.update_status_bulk'
+            })
+          })
+        })
+      )
+    )
+  })
+
+  it('shows a bulk change refused for every row without a fault report', async () => {
+    const bulk = Object.assign(DataApiErrorFactory.invalidOperation('setAppStatusBulk: 1 of 1 updates failed'), {
+      cause: DataApiErrorFactory.notFound('MiniApp', 'c')
+    })
+    mocks.setAppStatusBulk.mockRejectedValueOnce(bulk)
+    const { result } = renderHook(() => useMiniAppVisibility())
+
+    act(() => result.current.reset())
+
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: i18n.t('miniApps.update_partial_failure_generic'),
+          data: { suppressDetail: true }
+        })
+      )
     )
   })
 

@@ -133,10 +133,13 @@ async function settleAndInvalidate(
     logger.error(`${label}: ${rejected.length} of ${results.length} updates failed`, { failures })
     // Resync UI with DB — partial failures leave local state drifting
     await invalidate('/mini-apps')
-    throw DataApiErrorFactory.invalidOperation(
+    const bulkError = DataApiErrorFactory.invalidOperation(
       `${label}: ${rejected.length} of ${results.length} updates failed`,
       i18n.t('miniApp.update_partial_failure', { failed: rejected.length, total: results.length })
     )
+    // The bulk 400 hides why rows failed; a row's server fault stays the cause so it keeps Details.
+    const rowErrors = rejected.map((r) => toDataApiError(r.reason))
+    throw Object.assign(bulkError, { cause: rowErrors.find((e) => !e.isClientError) ?? rowErrors[0] })
   }
 
   return fulfilled.map((r) => r.value)
