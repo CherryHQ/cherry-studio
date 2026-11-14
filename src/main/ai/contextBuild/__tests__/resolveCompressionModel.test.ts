@@ -1,16 +1,29 @@
-import { generateText } from 'ai'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import os from 'node:os'
 
+import { generateText } from 'ai'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { summarizeModelMessages } from '@cherrystudio/ai-core'
+import type * as AiCoreModule from '@cherrystudio/ai-core'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
 
 import { makeModel, makeProvider } from '../../__tests__/fixtures'
+import { resolveCompressionBudget } from '../resolveCompressionBudget'
 import { resolveCompressionModel } from '../resolveCompressionModel'
 
-const { providerLookup, modelLookup, providerConfig } = vi.hoisted(() => ({
+const { providerLookup, modelLookup, providerConfig, compressionExecutor, defaultExecutor } = vi.hoisted(() => ({
   providerLookup: vi.fn(),
   modelLookup: vi.fn(),
-  providerConfig: vi.fn()
+  providerConfig: vi.fn(),
+  compressionExecutor: vi.fn(),
+  defaultExecutor: vi.fn()
 }))
+vi.mock('@cherrystudio/ai-core', async (importOriginal) => {
+  const actual = await importOriginal<typeof AiCoreModule>()
+  defaultExecutor.mockImplementation(actual.createExecutor)
+  compressionExecutor.mockImplementation(defaultExecutor)
+  return { ...actual, createExecutor: compressionExecutor }
+})
 vi.mock('@main/data/services/ProviderService', () => ({ providerService: { getByProviderId: providerLookup } }))
 vi.mock('@main/data/services/ModelService', () => ({ modelService: { getByKey: modelLookup } }))
 vi.mock('@main/ai/provider/config', () => ({
@@ -134,4 +147,112 @@ describe('resolveCompressionModel', () => {
       expect(outgoing[0].get('x-opencode-session')).toBe(explicitSession ?? CONVERSATION.id)
     }
   )
+})
+
+describe('Ollama compressor request window', () => {
+  function setupCompressor() {
+    const calls: unknown[] = []
+    const doGenerate = vi.fn(async (params: unknown) => {
+      calls.push(params)
+      return {
+        content: [{ type: 'text', text: 'SUMMARY' }],
+        finishReason: { unified: 'stop', raw: 'stop' },
+        usage: { inputTokens: { total: 1 }, outputTokens: { total: 1 } },
+        warnings: []
+      }
+    })
+    compressionExecutor.mockReturnValue({
+      languageModel: async () => ({
+        specificationVersion: 'v3',
+        provider: 'ollama.responses',
+        modelId: 'qwen3',
+        supportedUrls: {},
+        doGenerate,
+        doStream: vi.fn()
+      })
+    })
+    providerLookup.mockReturnValue(
+      makeProvider({
+        id: 'ollama',
+        endpointConfigs: { [ENDPOINT_TYPE.OLLAMA_CHAT]: { baseUrl: 'http://localhost:11434' } },
+        defaultChatEndpoint: ENDPOINT_TYPE.OLLAMA_CHAT
+      })
+    )
+    modelLookup.mockReturnValue(
+      makeModel({ id: 'ollama::qwen3', providerId: 'ollama', apiModelId: 'qwen3', contextWindow: 32768 })
+    )
+    providerConfig.mockResolvedValue({
+      providerId: 'ollama',
+      providerSettings: {},
+      conversationHeader: 'x-test-session'
+    })
+    vi.spyOn(os, 'freemem').mockReturnValue(125 * 1024 * 1024)
+    vi.spyOn(os, 'totalmem').mockReturnValue(16 * 1024 * 1024 * 1024)
+    return { calls, doGenerate }
+  }
+
+  afterEach(() => {
+    compressionExecutor.mockReset()
+    vi.restoreAllMocks()
+  })
+
+  it('freezes the compressor own effective window and sends matching num_ctx plus owning session header', async () => {
+    const { calls } = setupCompressor()
+    const descriptor = await resolveCompressionModel('ollama::qwen3', CONVERSATION)
+    expect(descriptor?.contextWindow).toBe(4096)
+    vi.mocked(os.freemem).mockReturnValue(16 * 1024 * 1024 * 1024)
+    await generateText({ model: descriptor!.languageModel, prompt: 'short summary request', maxOutputTokens: 512 })
+    expect(calls).toHaveLength(1)
+    expect(calls[0]).toMatchObject({
+      providerOptions: { ollama: { options: { num_ctx: 4096 } } },
+      headers: { 'x-test-session': CONVERSATION.id }
+    })
+  })
+
+  it('dispatches a realistic 4k summary with aligned input/output budgets', async () => {
+    const { calls } = setupCompressor()
+    const descriptor = await resolveCompressionModel('ollama::qwen3', CONVERSATION)
+    const summary = await summarizeModelMessages(
+      [
+        { role: 'user', content: 'Remember the deadline is Friday and the budget is $500. '.repeat(20) },
+        { role: 'assistant', content: 'I will preserve the deadline and budget in the plan.' }
+      ],
+      descriptor!.languageModel,
+      resolveCompressionBudget(descriptor!.contextWindow!)
+    )
+    expect(summary).toBe('SUMMARY')
+    expect(calls).toHaveLength(1)
+    expect(calls[0]).toMatchObject({
+      maxOutputTokens: 1024,
+      providerOptions: { ollama: { options: { num_ctx: 4096 } } }
+    })
+  })
+
+  it('rejects an oversized summary before dispatch rather than returning a nonempty incomplete summary', async () => {
+    const { doGenerate } = setupCompressor()
+    const descriptor = await resolveCompressionModel('ollama::qwen3', CONVERSATION)
+    await expect(
+      generateText({
+        model: descriptor!.languageModel,
+        prompt: ' long history token'.repeat(10000),
+        maxOutputTokens: 512,
+        maxRetries: 0
+      })
+    ).rejects.toThrow(/summary prompt.*output reservation.*exceed/)
+    expect(doGenerate).not.toHaveBeenCalled()
+  })
+
+  it('includes the summary output reservation in the final call capacity', async () => {
+    const { doGenerate } = setupCompressor()
+    const descriptor = await resolveCompressionModel('ollama::qwen3', CONVERSATION)
+    await expect(
+      generateText({
+        model: descriptor!.languageModel,
+        prompt: ' word'.repeat(1500),
+        maxOutputTokens: 3800,
+        maxRetries: 0
+      })
+    ).rejects.toThrow(/summary prompt.*output reservation.*exceed/)
+    expect(doGenerate).not.toHaveBeenCalled()
+  })
 })

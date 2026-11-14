@@ -3938,7 +3938,7 @@ describe('AiStreamManager', () => {
   // A provider can emit a terminal `{ type: 'error', errorText }` chunk
   // instead of throwing. `pipeStreamLoop` captures it as `streamErrorText`,
   // and `runExecutionLoop` routes it through `onExecutionError` with the
-  // chunk text translated via `errorFromStreamChunk` (name: 'StreamError').
+  // chunk text serialized via `serializeStreamError` (name: 'StreamError').
 
   describe('stream errors', () => {
     it.each(['reason', 'abort-error', 'real-error'] as const)(
@@ -4354,6 +4354,40 @@ describe('AiStreamManager', () => {
       })
       expect(JSON.stringify(mockMainLoggerService.error.mock.calls)).not.toMatch(/object-secret|private prompt/)
       expect(mgr.inspect('a')!.status).toBe('error')
+    })
+
+    it('preserves Ollama retry metadata and main stream classification for an allocation error chunk', async () => {
+      vi.useRealTimers()
+      const controlled = controlledStream()
+      mockStreamText.mockResolvedValueOnce(controlled.stream)
+      const listener = new FakeListener('l:a')
+      startSingle(mgr, {
+        topicId: 'a',
+        modelId: 'ollama::qwen',
+        request: {
+          ...req('a'),
+          streamErrorSerialization: {
+            ollamaNumCtx: {
+              uniqueModelId: 'ollama::qwen',
+              trainedContextWindow: 32768,
+              numCtx: 4096
+            }
+          }
+        },
+        listeners: [listener]
+      })
+      controlled.enqueue({ type: 'error', errorText: 'failed to allocate memory for kv cache' })
+      controlled.close()
+      await vi.waitFor(() => expect(listener.errorResults).toHaveLength(1))
+      expect(listener.errorResults[0].error).toMatchObject({
+        name: 'StreamError',
+        streamStage: 'response-stream',
+        stack: null,
+        i18nKey: 'ollama_context_memory',
+        ollamaNumCtxModelId: 'ollama::qwen',
+        ollamaTrainedNumCtx: 32768,
+        ollamaEffectiveNumCtx: 4096
+      })
     })
 
     it('routes a terminal error chunk through onExecutionError with the translated stream error', async () => {

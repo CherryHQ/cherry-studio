@@ -152,6 +152,169 @@ describe('serializeError', () => {
       expect(serializeError(error).claudeCodeExitCategory).toBeUndefined()
     })
 
+    it('does not tag a RetryError as Ollama OOM when the terminal failure is unrelated', () => {
+      const kvError = new APICallError({
+        message: 'Internal Server Error',
+        url: 'http://localhost:11434/api/chat',
+        requestBodyValues: {},
+        statusCode: 500,
+        responseHeaders: {},
+        responseBody: 'failed to allocate memory for kv cache',
+        isRetryable: true
+      })
+      const authError = new APICallError({
+        message: 'Unauthorized',
+        url: 'http://localhost:11434/api/chat',
+        requestBodyValues: {},
+        statusCode: 401,
+        responseHeaders: {},
+        responseBody: 'invalid api key',
+        isRetryable: false
+      })
+      const retryError = new RetryError({
+        message: 'Failed after 3 attempts',
+        reason: 'maxRetriesExceeded',
+        errors: [kvError, authError]
+      })
+
+      const result = serializeError(retryError, {
+        ollamaNumCtx: { uniqueModelId: 'ollama::qwen3:32b', trainedContextWindow: 131_072, numCtx: 65_536 }
+      })
+
+      expect(result.i18nKey).toBeUndefined()
+      expect(result.ollamaNumCtxModelId).toBeUndefined()
+    })
+
+    it('tags Ollama KV-cache allocation failures inside a RetryError with context metadata', () => {
+      const providerError = new APICallError({
+        message: 'Internal Server Error',
+        url: 'http://localhost:11434/api/chat',
+        requestBodyValues: {},
+        statusCode: 500,
+        responseHeaders: {},
+        responseBody: 'failed to allocate memory for kv cache',
+        isRetryable: true
+      })
+      const retryError = new RetryError({
+        message: 'Failed after 3 attempts',
+        reason: 'maxRetriesExceeded',
+        errors: [providerError]
+      })
+
+      const result = serializeError(retryError, {
+        ollamaNumCtx: { uniqueModelId: 'ollama::qwen3:32b', trainedContextWindow: 131_072, numCtx: 65_536 }
+      })
+
+      expect(result.i18nKey).toBe('ollama_context_memory')
+      expect(result.ollamaNumCtxModelId).toBe('ollama::qwen3:32b')
+      expect(result.ollamaTrainedNumCtx).toBe(131_072)
+      expect(result.ollamaEffectiveNumCtx).toBe(65_536)
+    })
+
+    it('uses the final errors edge when a nested retry wrapper has no lastError', () => {
+      const providerError = new APICallError({
+        message: 'Internal Server Error',
+        url: 'http://localhost:11434/api/chat',
+        requestBodyValues: {},
+        statusCode: 500,
+        responseBody: 'failed to allocate memory for kv cache'
+      })
+      const inner = new RetryError({ message: 'retry failed', reason: 'maxRetriesExceeded', errors: [providerError] })
+      Object.assign(inner, { lastError: undefined })
+      const outer = new RetryError({ message: 'retry failed', reason: 'maxRetriesExceeded', errors: [inner] })
+      expect(
+        serializeError(outer, {
+          ollamaNumCtx: { uniqueModelId: 'ollama::qwen3:32b', trainedContextWindow: 131_072, numCtx: 65_536 }
+        }).i18nKey
+      ).toBe('ollama_context_memory')
+    })
+
+    it('ignores allocation text on retry wrappers when the terminal failure is unrelated', () => {
+      const inner = new RetryError({
+        message: 'failed to allocate memory for kv cache',
+        reason: 'maxRetriesExceeded',
+        errors: [new Error('connection closed')]
+      })
+      const outer = new RetryError({
+        message: 'failed to allocate memory for kv cache',
+        reason: 'maxRetriesExceeded',
+        errors: [inner]
+      })
+      expect(
+        serializeError(outer, {
+          ollamaNumCtx: { uniqueModelId: 'ollama::qwen3:32b', trainedContextWindow: 131_072, numCtx: 65_536 }
+        }).i18nKey
+      ).toBeUndefined()
+    })
+
+    it('terminates a cyclic retry chain without inventing recovery metadata', () => {
+      const error = new RetryError({ message: 'retry failed', reason: 'maxRetriesExceeded', errors: [] })
+      Object.assign(error, { lastError: error, errors: [error] })
+      expect(
+        serializeError(error, {
+          ollamaNumCtx: { uniqueModelId: 'ollama::qwen3:32b', trainedContextWindow: 131_072, numCtx: 65_536 }
+        }).i18nKey
+      ).toBeUndefined()
+    })
+
+    it('tags Ollama KV-cache allocation failures with context metadata', () => {
+      const providerError = new APICallError({
+        message: 'Internal Server Error',
+        url: 'http://localhost:11434/api/chat',
+        requestBodyValues: {},
+        statusCode: 500,
+        responseHeaders: {},
+        responseBody: 'failed to allocate memory for kv cache',
+        isRetryable: false
+      })
+
+      const result = serializeError(providerError, {
+        ollamaNumCtx: { uniqueModelId: 'ollama::qwen3:32b', trainedContextWindow: 131_072, numCtx: 65_536 }
+      })
+
+      expect(result.i18nKey).toBe('ollama_context_memory')
+      expect(result.ollamaNumCtxModelId).toBe('ollama::qwen3:32b')
+      expect(result.ollamaTrainedNumCtx).toBe(131_072)
+      expect(result.ollamaEffectiveNumCtx).toBe(65_536)
+    })
+
+    it('does not tag generic GPU OOM text even with Ollama request context', () => {
+      const providerError = new APICallError({
+        message: 'cuda out of memory',
+        url: 'http://localhost:11434/api/chat',
+        requestBodyValues: {},
+        statusCode: 500,
+        responseHeaders: {},
+        responseBody: 'cuda out of memory',
+        isRetryable: false
+      })
+
+      const result = serializeError(providerError, {
+        ollamaNumCtx: { uniqueModelId: 'ollama::qwen3:32b', trainedContextWindow: 131_072, numCtx: 65_536 }
+      })
+
+      expect(result.i18nKey).toBeUndefined()
+      expect(result.ollamaNumCtxModelId).toBeUndefined()
+    })
+
+    it('does not tag allocation-like failures without Ollama request context', () => {
+      const providerError = new APICallError({
+        message: 'cuda out of memory',
+        url: 'https://api.example.com/v1/chat/completions',
+        requestBodyValues: {},
+        statusCode: 500,
+        responseHeaders: {},
+        responseBody: 'failed to allocate kv cache',
+        isRetryable: false
+      })
+
+      const result = serializeError(providerError)
+
+      expect(result.i18nKey).toBeUndefined()
+      expect(result.ollamaTrainedNumCtx).toBeUndefined()
+      expect(result.ollamaEffectiveNumCtx).toBeUndefined()
+    })
+
     it('preserves only safe details from a direct APICallError', () => {
       const providerError = new APICallError({
         message: 'Forbidden',

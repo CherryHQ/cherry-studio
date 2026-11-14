@@ -332,6 +332,8 @@ export type SharedCacheSchema = {
   'feature.api_gateway.lan_running': boolean
   // Main-owned, session-only local model status and download progress.
   'local_model.statuses': LocalModelStatusSnapshots
+  // Session-only caps after an Ollama KV-cache OOM; keyed by UniqueModelId.
+  'ollama.num_ctx_caps': Record<string, number>
   // Main-owned capsule stack of collapsed selection agent windows on one display, nearest the corner first.
   'selection.agent_capsules.${displayId}': SelectionAgentCapsule[]
   'feature.binary.latest_versions': Record<string, string>
@@ -414,6 +416,7 @@ export const DefaultSharedCache: SharedCacheSchema = {
   'feature.remote_access.discovery_status': 'inactive',
   'feature.api_gateway.lan_running': false,
   'local_model.statuses': {},
+  'ollama.num_ctx_caps': {},
   'selection.agent_capsules.${displayId}': [],
   'feature.binary.latest_versions': {},
   'web_search.provider.last_used_key.${providerId}': '',

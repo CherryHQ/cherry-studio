@@ -1,6 +1,8 @@
 import type { LanguageModelV3 } from '@ai-sdk/provider'
-import { APICallError } from 'ai'
+import { APICallError, RetryError } from 'ai'
 import { describe, expect, it, vi } from 'vitest'
+
+import { serializeError } from '@main/ai/utils/serializeError'
 
 import type { FallbackResolver } from '../createRetryableWrap'
 import { createRetryableWrap } from '../createRetryableWrap'
@@ -390,4 +392,64 @@ describe('createRetryableWrap API key failover', () => {
     ])
     expect(fallbackStream).not.toHaveBeenCalled()
   })
+})
+
+describe('terminal Ollama recovery after credential failover and transient retries', () => {
+  for (const method of ['doGenerate', 'doStream'] as const) {
+    for (const terminalOom of [true, false]) {
+      it(`${method} classifies only the terminal leaf (OOM=${terminalOom})`, async () => {
+        vi.useFakeTimers()
+        try {
+          const failure = (oom: boolean) =>
+            new APICallError({
+              message: 'Internal Server Error',
+              url: 'http://localhost:11434/api/chat',
+              requestBodyValues: { prompt: 'private prompt', apiKey: 'private-key' },
+              statusCode: 500,
+              responseBody: oom ? 'failed to allocate memory for kv cache' : 'upstream connection closed',
+              isRetryable: true
+            })
+          const terminal = failure(terminalOom)
+          const secondCall = vi.fn().mockRejectedValueOnce(failure(true)).mockRejectedValue(terminal)
+          const secondModel = makeFakeLanguageModel('ollama-model', secondCall, secondCall)
+          const primaryCall = vi.fn().mockRejectedValue(makeApiError(401))
+          const wrap = createRetryableWrap({
+            apiKeyFallbacks: [fallbackOf(secondModel)],
+            fallbacks: [],
+            retryPolicy: { enabled: true, maxAttempts: 1, backoffEnabled: false, fallbackModelIds: [] }
+          })!
+          const result = wrap(makeFakeLanguageModel('ollama-model', primaryCall, primaryCall))
+            [method]({ prompt: [] })
+            .then(
+              () => undefined,
+              (error: unknown) => error
+            )
+          await vi.runAllTimersAsync()
+          const caught = await result
+          expect(RetryError.isInstance(caught)).toBe(true)
+          expect(RetryError.isInstance((caught as RetryError).lastError)).toBe(true)
+          expect(((caught as RetryError).lastError as RetryError).lastError).toBe(terminal)
+          expect(primaryCall).toHaveBeenCalledTimes(1)
+          expect(secondCall).toHaveBeenCalledTimes(2)
+          const serialized = serializeError(caught, {
+            ollamaNumCtx: { uniqueModelId: 'ollama::qwen3:32b', trainedContextWindow: 131_072, numCtx: 65_536 }
+          })
+          if (terminalOom) {
+            expect(serialized).toMatchObject({
+              i18nKey: 'ollama_context_memory',
+              ollamaNumCtxModelId: 'ollama::qwen3:32b',
+              ollamaTrainedNumCtx: 131_072,
+              ollamaEffectiveNumCtx: 65_536
+            })
+          } else {
+            expect(serialized.i18nKey).toBeUndefined()
+            expect(serialized.ollamaNumCtxModelId).toBeUndefined()
+          }
+          expect(JSON.stringify(serialized)).not.toMatch(/private prompt|private-key/)
+        } finally {
+          vi.useRealTimers()
+        }
+      })
+    }
+  }
 })

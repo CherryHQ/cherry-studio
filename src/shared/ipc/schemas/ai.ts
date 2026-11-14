@@ -535,7 +535,14 @@ export const aiRequestSchemas = {
   }),
   'ai.temporary_topic.create': defineRoute({ input: CreateTopicSchema, output: TopicSchema }),
   'ai.temporary_topic.delete': defineRoute({ input: z.strictObject({ id: z.string().min(1) }), output: z.void() }),
-  'ai.temporary_topic.persist': defineRoute({ input: z.strictObject({ id: z.string().min(1) }), output: z.void() })
+  'ai.temporary_topic.persist': defineRoute({ input: z.strictObject({ id: z.string().min(1) }), output: z.void() }),
+
+  // ── Ollama session caps (main-owned shared-cache write) ──
+  'ai.ollama.set_num_ctx_cap': defineRoute({
+    // Lower-only in the handler: a stale retry must not raise an already-lowered cap.
+    input: z.strictObject({ uniqueModelId: UniqueModelIdSchema, numCtxCap: z.number().int().positive() }),
+    output: z.void()
+  })
 }
 
 /**
