@@ -11,6 +11,7 @@ import { exa } from '../providers/exa'
 import { exaMcp } from '../providers/exaMcp'
 import { firecrawl } from '../providers/firecrawl'
 import { getJinaHostCandidates, jina } from '../providers/jina'
+import { olostep } from '../providers/olostep'
 import { parallel } from '../providers/parallel'
 import { querit } from '../providers/querit'
 import { searchapi } from '../providers/searchapi'
@@ -144,6 +145,46 @@ describe('portable provider contracts', () => {
         sourceInput: 'a&b/c'
       }
     ])
+  })
+
+  it('posts Olostep searches with a Bearer key and keeps results without a snippet', async () => {
+    const { client, requests } = setup(olostep, fixture('olostep-search-response.json'))
+    const result = await client.execute(search('olostep'))
+    expect(requests[0].url).toBe('https://service.example/proxy/v1/searches')
+    expect(requests[0].method).toBe('POST')
+    expect(JSON.parse(requests[0].body!)).toEqual({ query: 'hello', limit: 4 })
+    expect(new Headers(requests[0].headers).get('authorization')).toBe('Bearer test-key')
+    expect(result.results).toEqual([
+      {
+        title: 'Olostep Title',
+        content: 'Olostep Description',
+        url: 'https://olostep.example/result',
+        sourceInput: 'hello'
+      },
+      { title: '', content: '', url: 'https://olostep.example/second', sourceInput: 'hello' }
+    ])
+  })
+
+  it('caps the Olostep search limit at 25 and the results at maxResults', async () => {
+    const { client, requests } = setup(olostep, fixture('olostep-search-response.json'))
+    await client.execute({
+      providerId: 'olostep',
+      capability: 'searchKeywords',
+      input: 'hello',
+      config: { apiHost: 'https://service.example/proxy', maxResults: 50 },
+      credentials: { apiKey: 'test-key' }
+    })
+    expect(JSON.parse(requests[0].body!)).toEqual({ query: 'hello', limit: 25 })
+
+    const single = setup(olostep, fixture('olostep-search-response.json'))
+    const result = await single.client.execute({
+      providerId: 'olostep',
+      capability: 'searchKeywords',
+      input: 'hello',
+      config: { apiHost: 'https://service.example/proxy', maxResults: 1 },
+      credentials: { apiKey: 'test-key' }
+    })
+    expect(result.results.map((item) => item.url)).toEqual(['https://olostep.example/result'])
   })
 
   it('posts DeepSeek search calls and prefers the model-facing summary', async () => {
@@ -330,6 +371,13 @@ describe('portable provider contracts', () => {
       { url: 'https://example.com', formats: ['markdown'] },
       'Example Domain'
     ],
+    [
+      olostep,
+      'olostep-scrape-response.json',
+      '/v1/scrapes',
+      { url_to_scrape: 'https://example.com', formats: ['markdown'] },
+      'https://example.com'
+    ],
     [crawl4ai, undefined, '/md', { url: 'https://example.com', f: 'fit' }, 'https://example.com']
   ] as const)('fetches readable content through %s', async (provider, name, path, body, title) => {
     const { client, requests } = setup(
@@ -388,6 +436,28 @@ describe('portable provider contracts', () => {
       code: 'empty_content',
       message: 'Exa Contents returned empty content',
       providerId: 'exa',
+      capability: 'fetchUrls'
+    })
+  })
+
+  it.each([
+    ['blank markdown', { result: { markdown_content: '  \n ' } }],
+    ['missing markdown', { result: { markdown_content: null } }]
+  ])('requires usable Olostep scrape content: %s', async (_reason, payload) => {
+    const { client } = setup(olostep, JSON.stringify(payload))
+    await expect(
+      client.execute({
+        providerId: 'olostep',
+        capability: 'fetchUrls',
+        input: 'https://example.com',
+        config: { apiHost: 'https://service.example/proxy' },
+        credentials: { apiKey: 'test-key' }
+      })
+    ).rejects.toMatchObject({
+      kind: 'invalid_response',
+      code: 'empty_content',
+      message: 'Olostep scrape returned empty content',
+      providerId: 'olostep',
       capability: 'fetchUrls'
     })
   })

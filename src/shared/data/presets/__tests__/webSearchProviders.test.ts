@@ -100,6 +100,26 @@ describe('web search provider schemas', () => {
     ])
   })
 
+  it('models Olostep as one provider with keyword search and URL fetch capabilities', () => {
+    const olostep = PRESETS_WEB_SEARCH_PROVIDERS.find((preset) => preset.id === 'olostep')
+
+    expect(olostep).toBeDefined()
+    expect(olostep!.capabilities).toEqual([
+      {
+        feature: 'searchKeywords',
+        requiresApiHost: true,
+        requiresApiKey: true,
+        apiHost: 'https://api.olostep.com'
+      },
+      {
+        feature: 'fetchUrls',
+        requiresApiHost: true,
+        requiresApiKey: true,
+        apiHost: 'https://api.olostep.com'
+      }
+    ])
+  })
+
   it('models Duckduckgo as a hostless keyless keyword search provider', () => {
     const duckduckgo = PRESETS_WEB_SEARCH_PROVIDERS.find((preset) => preset.id === 'duckduckgo')
 

@@ -10,6 +10,7 @@ import { ExaProvider } from './api/ExaProvider'
 import { FetchProvider } from './api/FetchProvider'
 import { FirecrawlProvider } from './api/FirecrawlProvider'
 import { JinaProvider } from './api/JinaProvider'
+import { OlostepProvider } from './api/OlostepProvider'
 import { ParallelProvider } from './api/ParallelProvider'
 import { QueritProvider } from './api/QueritProvider'
 import { SearchApiProvider } from './api/SearchApiProvider'
@@ -48,5 +49,6 @@ export const WEB_SEARCH_PROVIDER_REGISTRY = {
   desearch: DesearchProvider,
   searchapi: SearchApiProvider,
   serpkite: SerpKiteProvider,
+  olostep: OlostepProvider,
   duckduckgo: DuckduckgoProvider
 } as const satisfies Record<WebSearchProvider['id'], WebSearchProviderConstructor>
