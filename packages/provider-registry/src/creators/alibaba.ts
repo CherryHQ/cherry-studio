@@ -25,6 +25,14 @@ export default defineCreator({
     // instruct SKUs. This template grants no membership and blocks the broad
     // Qwen toggle rule below, so generation can discard the mislabeled block.
     { pattern: '^qwen3-(?=.*(?:coder|instruct))', toggle: false, template: true },
+    // OCR SKUs (e.g. `qwen3.5-ocr`, incl. dated snapshots like
+    // `qwen3.5-ocr-2026-01-01`) reject any `thinking_budget` (Bailian reports
+    // "not greater than 0", #21906). Template blocker grants no membership and
+    // stops the broad Qwen toggle rule; `-ocr(?:-|$)` matches the suffix and
+    // dated forms without catching unrelated ids merely containing those
+    // letters. The membership profiles below exclude the same shape so ingest
+    // never marks these SKUs as reasoning models.
+    { pattern: '-ocr(?:-|$)', toggle: false, template: true },
     // Always-think SKUs: thinking cannot be disabled — the explicit
     // `toggle: false` stops the generic qwen rule below; budget still applies.
     { pattern: '^qwen3(?:-vl)?-.*thinking', toggle: false },
@@ -56,21 +64,45 @@ export default defineCreator({
     // `qwen-max-latest` is a distinct alias — the versioned SKU predates
     // thinking-token support.
     { pattern: 'qwen-max-latest$', budget: { min: 0, max: 81920 }, template: true },
-    { pattern: '^qwen3[.-][5-7](?!\\d)', budget: { min: 0, max: 81920 }, template: true },
-    { pattern: 'qwen3-(?!max)(?!\\d+[.-]max).*$', budget: { min: 1024, max: 38912 }, template: true },
+    // Qwen3.6 plus/flash lines (incl. dated snapshots) accept up to 128K
+    // thinking tokens on the Qianwen platform (#21906); must precede the
+    // generic 3.5–3.7 rule since the first budget match wins. All three carry
+    // the `-ocr(?:-|$)` guard so OCR SKUs (which take no budget at all) match
+    // no budget rule even on paths that skip the membership gate.
+    // The `(?:-|$)` closers keep future `plusfoo`-style siblings from
+    // mis-bucketing into the 128K tier.
+    {
+      pattern: '^(?!.*-ocr(?:-|$))qwen3[.-]6-(?:plus|flash|max-preview)(?:-|$)',
+      budget: { min: 0, max: 131072 },
+      template: true
+    },
+    {
+      pattern: '^(?!.*-ocr(?:-|$))qwen3[.-][5-7](?!\\d)',
+      budget: { min: 0, max: 81920 },
+      template: true
+    },
+    // Unanchored by design: token-limit callers may pass namespaced ids, so
+    // budget-only rules must stay matchable beyond position 0. The leading
+    // guard still excludes OCR at every position the `qwen3` literal can
+    // match, since the literal occurs only once in these ids.
+    {
+      pattern: '(?!.*-ocr(?:-|$))qwen3-(?!max)(?!\\d+[.-]max).*$',
+      budget: { min: 1024, max: 38912 },
+      template: true
+    },
     // Membership profiles (no knobs): reasoning SKUs beyond the knob rules above.
     { pattern: '^qwen3.*thinking' },
     { pattern: 'qwq|qvq' },
-    { pattern: '^(?!.*(?:coder|asr|tts|reranker|embedding|instruct|thinking))qwen-?3[.-][5-9](?!\\d)' },
+    { pattern: '^(?!.*(?:coder|asr|tts|reranker|embedding|instruct|thinking|-ocr(?:-|$)))qwen-?3[.-][5-9](?!\\d)' },
     {
       pattern:
-        '^(?!.*(?:coder|asr|tts|reranker|embedding|instruct|thinking))(?:qwen3-max(?!-2025-09-23)|qwen-max-latest)(?:-|$)'
+        '^(?!.*(?:coder|asr|tts|reranker|embedding|instruct|thinking|-ocr(?:-|$)))(?:qwen3-max(?!-2025-09-23)|qwen-max-latest)(?:-|$)'
     },
     {
       pattern:
-        '^(?!.*(?:coder|asr|tts|reranker|embedding|instruct|thinking))qwen(?:3[.-][5-9])?-(?:plus|flash|turbo)(?:-|$)'
+        '^(?!.*(?:coder|asr|tts|reranker|embedding|instruct|thinking|-ocr(?:-|$)))qwen(?:3[.-][5-9])?-(?:plus|flash|turbo)(?:-|$)'
     },
-    { pattern: '^(?!.*(?:coder|asr|tts|reranker|embedding|instruct|thinking))qwen-?3-\\d' },
+    { pattern: '^(?!.*(?:coder|asr|tts|reranker|embedding|instruct|thinking|-ocr(?:-|$)))qwen-?3-\\d' },
     // Hybrid-thinking multimodal / next lines (coder & instruct SKUs stay out — they don't think).
     { pattern: '^(?!.*(?:coder|instruct))qwen-?3-(?:vl|omni|next)' }
   ],

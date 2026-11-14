@@ -10,6 +10,7 @@ import type { ReasoningFamilyRule } from '../schemas/model'
 export const REASONING_FAMILY_RULES: readonly ReasoningFamilyRule[] = [
   // alibaba
   { pattern: '^qwen3-(?=.*(?:coder|instruct))', toggle: false, template: true },
+  { pattern: '-ocr(?:-|$)', toggle: false, template: true },
   { pattern: '^qwen3(?:-vl)?-.*thinking', toggle: false },
   { pattern: '^qwen3[.-]8-max-preview', toggle: false },
   { pattern: '^qwen3[.-]8-flash$', effort: ['low', 'medium', 'xhigh'], budget: { min: 0, max: 262144 }, toggle: true },
@@ -29,20 +30,25 @@ export const REASONING_FAMILY_RULES: readonly ReasoningFamilyRule[] = [
   { pattern: 'qwen-flash.*$', budget: { min: 0, max: 81920 }, template: true },
   { pattern: 'qwen3-max(-.*)?$', budget: { min: 0, max: 81920 }, template: true },
   { pattern: 'qwen-max-latest$', budget: { min: 0, max: 81920 }, template: true },
-  { pattern: '^qwen3[.-][5-7](?!\\d)', budget: { min: 0, max: 81920 }, template: true },
-  { pattern: 'qwen3-(?!max)(?!\\d+[.-]max).*$', budget: { min: 1024, max: 38912 }, template: true },
+  {
+    pattern: '^(?!.*-ocr(?:-|$))qwen3[.-]6-(?:plus|flash|max-preview)(?:-|$)',
+    budget: { min: 0, max: 131072 },
+    template: true
+  },
+  { pattern: '^(?!.*-ocr(?:-|$))qwen3[.-][5-7](?!\\d)', budget: { min: 0, max: 81920 }, template: true },
+  { pattern: '(?!.*-ocr(?:-|$))qwen3-(?!max)(?!\\d+[.-]max).*$', budget: { min: 1024, max: 38912 }, template: true },
   { pattern: '^qwen3.*thinking' },
   { pattern: 'qwq|qvq' },
-  { pattern: '^(?!.*(?:coder|asr|tts|reranker|embedding|instruct|thinking))qwen-?3[.-][5-9](?!\\d)' },
+  { pattern: '^(?!.*(?:coder|asr|tts|reranker|embedding|instruct|thinking|-ocr(?:-|$)))qwen-?3[.-][5-9](?!\\d)' },
   {
     pattern:
-      '^(?!.*(?:coder|asr|tts|reranker|embedding|instruct|thinking))(?:qwen3-max(?!-2025-09-23)|qwen-max-latest)(?:-|$)'
+      '^(?!.*(?:coder|asr|tts|reranker|embedding|instruct|thinking|-ocr(?:-|$)))(?:qwen3-max(?!-2025-09-23)|qwen-max-latest)(?:-|$)'
   },
   {
     pattern:
-      '^(?!.*(?:coder|asr|tts|reranker|embedding|instruct|thinking))qwen(?:3[.-][5-9])?-(?:plus|flash|turbo)(?:-|$)'
+      '^(?!.*(?:coder|asr|tts|reranker|embedding|instruct|thinking|-ocr(?:-|$)))qwen(?:3[.-][5-9])?-(?:plus|flash|turbo)(?:-|$)'
   },
-  { pattern: '^(?!.*(?:coder|asr|tts|reranker|embedding|instruct|thinking))qwen-?3-\\d' },
+  { pattern: '^(?!.*(?:coder|asr|tts|reranker|embedding|instruct|thinking|-ocr(?:-|$)))qwen-?3-\\d' },
   { pattern: '^(?!.*(?:coder|instruct))qwen-?3-(?:vl|omni|next)' },
   // amazon
   { pattern: '^nova-2' },

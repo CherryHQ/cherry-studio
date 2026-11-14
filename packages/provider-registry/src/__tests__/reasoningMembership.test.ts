@@ -77,6 +77,11 @@ describe('inferReasoningMembership', () => {
     'bge-reranker-v2',
     'qwen2.5-72b-instruct',
     'qwen3-coder',
+    // OCR SKUs reject any `thinking_budget` (Bailian reports "not greater
+    // than 0") — they must never resolve a reasoning descriptor (#21906).
+    'qwen3.5-ocr',
+    'qwen3-5-ocr',
+    'qwen3.5-ocr-2026-01-01',
     'grok-4-fast-non-reasoning',
     'claude-3-5-sonnet',
     'hunyuan-lite',

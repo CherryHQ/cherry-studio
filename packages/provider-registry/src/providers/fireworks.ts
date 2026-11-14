@@ -53,10 +53,15 @@ const override = (modelId: string, support: ReasoningSupport): ProviderModelTemp
   reasoningContracts: reasoningContracts(support)
 })
 
-const toggleModels = ['kimi-k2-6', 'kimi-k2-7-code']
+const toggleModels: string[] = []
 
 // `/v1/models` does not reliably list router-backed variants; keep the exact IDs
 // advertised by Fireworks' serving-path and integration docs.
+// The seven presets below are pinned with their qualified account-scoped wire
+// IDs (#23688): upstream `models.dev` renames drop the dated/model suffixes
+// (e.g. `deepseek-v4-flash-0731` → `deepseek-flash-latest`), which would leave
+// template-only rows sending canonical slugs. Explicit overrides survive the
+// rename; pricing mirrors the last served values.
 const fastToggleModels: Array<{
   apiModelId: string
   name: string
@@ -96,13 +101,88 @@ const effortModels: Array<{ modelId: string; values: ReasoningEffort[] }> = [
   { modelId: 'minimax-m3', values: ['low', 'medium', 'high'] }
 ]
 
-const adjustableModels: Array<{ modelId: string; values: ReasoningEffort[] }> = [
-  { modelId: 'deepseek-v4-flash', values: ['high', 'max'] },
-  { modelId: 'deepseek-v4-pro', values: ['high', 'max'] },
-  { modelId: 'glm-5-2', values: ['high', 'max'] },
-  { modelId: 'glm-5-2-fast', values: ['high', 'max'] },
-  { modelId: 'qwen3-7-plus', values: ['low', 'medium', 'high'] }
+// Account-scoped wire IDs preserved through upstream renames (#23688). Each
+// entry mirrors the last served pricing so the catalog stays deterministic
+// when `models.dev` no longer lists the dated/model-suffixed ID.
+const preservedWireOverrides: Array<{
+  modelId: string
+  apiModelId: string
+  support: ReasoningSupport
+  pricing: NonNullable<ProviderModelOverride['pricing']>
+}> = [
+  {
+    modelId: 'deepseek-v4-flash',
+    apiModelId: 'accounts/fireworks/models/deepseek-v4-flash-0731',
+    support: adjustableSupport(['high', 'max']),
+    pricing: {
+      cacheRead: { currency: 'USD', perMillionTokens: 0.007 },
+      input: { currency: 'USD', perMillionTokens: 0.22 },
+      output: { currency: 'USD', perMillionTokens: 0.66 }
+    }
+  },
+  {
+    modelId: 'deepseek-v4-pro',
+    apiModelId: 'accounts/fireworks/models/deepseek-v4-pro-0813',
+    support: adjustableSupport(['high', 'max']),
+    pricing: {
+      cacheRead: { currency: 'USD', perMillionTokens: 0.044 },
+      input: { currency: 'USD', perMillionTokens: 1.32 },
+      output: { currency: 'USD', perMillionTokens: 3.96 }
+    }
+  },
+  {
+    modelId: 'glm-5-2',
+    apiModelId: 'accounts/fireworks/models/glm-5p2',
+    support: adjustableSupport(['high', 'max']),
+    pricing: {
+      cacheRead: { currency: 'USD', perMillionTokens: 0.14 },
+      input: { currency: 'USD', perMillionTokens: 1.4 },
+      output: { currency: 'USD', perMillionTokens: 4.4 }
+    }
+  },
+  {
+    modelId: 'glm-5-2-fast',
+    apiModelId: 'accounts/fireworks/routers/glm-5p2-fast',
+    support: adjustableSupport(['high', 'max']),
+    pricing: {
+      cacheRead: { currency: 'USD', perMillionTokens: 0.21 },
+      input: { currency: 'USD', perMillionTokens: 2.1 },
+      output: { currency: 'USD', perMillionTokens: 6.6 }
+    }
+  },
+  {
+    modelId: 'kimi-k2-6',
+    apiModelId: 'accounts/fireworks/models/kimi-k2p6',
+    support: toggleSupport,
+    pricing: {
+      cacheRead: { currency: 'USD', perMillionTokens: 0.16 },
+      input: { currency: 'USD', perMillionTokens: 0.95 },
+      output: { currency: 'USD', perMillionTokens: 4 }
+    }
+  },
+  {
+    modelId: 'kimi-k2-7-code',
+    apiModelId: 'accounts/fireworks/models/kimi-k2p7-code',
+    support: toggleSupport,
+    pricing: {
+      cacheRead: { currency: 'USD', perMillionTokens: 0.19 },
+      input: { currency: 'USD', perMillionTokens: 0.95 },
+      output: { currency: 'USD', perMillionTokens: 4 }
+    }
+  },
+  {
+    modelId: 'qwen3-7-plus',
+    apiModelId: 'accounts/fireworks/models/qwen3p7-plus',
+    support: adjustableSupport(['low', 'medium', 'high']),
+    pricing: {
+      cacheRead: { currency: 'USD', perMillionTokens: 0.08 },
+      input: { currency: 'USD', perMillionTokens: 0.4 },
+      output: { currency: 'USD', perMillionTokens: 1.6 }
+    }
+  }
 ]
+
+const adjustableModels: Array<{ modelId: string; values: ReasoningEffort[] }> = []
 
 export default defineProvider({
   id: 'fireworks',
@@ -170,7 +250,12 @@ export default defineProvider({
         input: { currency: 'USD', perMillionTokens: 0.3 },
         output: { currency: 'USD', perMillionTokens: 1.2 }
       }
-    }
+    },
+    ...preservedWireOverrides.map(({ modelId, apiModelId, support, pricing }) => ({
+      ...override(modelId, support),
+      apiModelId,
+      pricing
+    }))
   ],
   modelTemplates: [
     ...toggleModels.map((modelId) => override(modelId, toggleSupport)),

@@ -31,6 +31,7 @@ import { loggerService } from '@logger'
 import type { RetryPartData } from '@shared/data/types/uiParts'
 
 import type { RetryPolicy } from './retryPolicy'
+import { thinkingBudgetDegradeRetryable } from './thinkingBudgetDegrade'
 
 const logger = loggerService.withContext('ModelRetry')
 
@@ -169,6 +170,13 @@ export function createRetryableWrap(options: CreateRetryableWrapOptions): WrapLa
     ...(backoffEnabled && { backoffFactor: 2 })
   })
   const retries: Retries<LanguageModel> = [
+    // Parameter degrade (#21906): a Bailian/QwenCloud `thinking_budget`
+    // rejection is not transient — retry the same model once with the budget
+    // clamped to the reported ceiling (or omitted when unsupported) before
+    // transient retries or cross-model fallback run. Deliberately part of the
+    // retry-gated retries: with retries disabled (e.g. cost control) no extra
+    // billed call is made and the failure surfaces with the actionable hint.
+    thinkingBudgetDegradeRetryable(),
     // Same-model transient retry on retryable errors: honors Retry-After headers,
     // otherwise delay + backoff. (`.retry()` requires maxAttempts >= 2, which
     // holds since retryCount >= 1.)

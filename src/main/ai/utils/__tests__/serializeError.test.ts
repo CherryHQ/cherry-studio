@@ -33,6 +33,92 @@ describe('serializeError', () => {
     })
   })
 
+  // A Bailian/QwenCloud `thinking_budget` rejection must name the reasoning
+  // setting and suggest an action instead of relaying only the raw provider
+  // parameter text (#21906).
+  it('names the reasoning setting behind a thinking_budget rejection', () => {
+    const error = new APICallError({
+      message:
+        'API Error: 400 <400> InternalError.Algo.InvalidParameter: The thinking_budget parameter must be a positive integer and not greater than 81920',
+      url: 'https://maas.qianwenaiapi.com/compatible-mode/v1/',
+      requestBodyValues: {},
+      statusCode: 400
+    })
+    const serialized = serializeError(error)
+
+    expect(serialized.message).toContain('thinking_budget')
+    expect(serialized.message).toContain('reasoning')
+  })
+
+  // RetryError's surfaced message is the generic "Failed after retries" — the
+  // hint must still be appended via the nested provider text (#21906).
+  it('names the reasoning setting behind a RetryError-wrapped thinking_budget rejection', () => {
+    const error = new RetryError({
+      message: 'Failed after retries',
+      reason: 'maxRetriesExceeded',
+      errors: [
+        new APICallError({
+          message:
+            'API Error: 400 <400> InternalError.Algo.InvalidParameter: The thinking_budget parameter must be a positive integer and not greater than 81920',
+          url: 'https://maas.qianwenaiapi.com/compatible-mode/v1/',
+          requestBodyValues: {},
+          statusCode: 400
+        })
+      ]
+    })
+    const serialized = serializeError(error)
+
+    expect(serialized.message).toContain('Failed after retries')
+    expect(serialized.message).toContain('reasoning')
+  })
+
+  // Chat renders providerErrorText(), which prefers the sanitized terminal
+  // error (lastError/errors) over the outer RetryError message — the hint
+  // must survive that selection (#21906).
+  it('carries the reasoning hint on the terminal error chat actually displays', () => {
+    const error = new RetryError({
+      message: 'Failed after retries',
+      reason: 'maxRetriesExceeded',
+      errors: [
+        new APICallError({
+          message:
+            'API Error: 400 <400> InternalError.Algo.InvalidParameter: The thinking_budget parameter must be a positive integer and not greater than 81920',
+          url: 'https://maas.qianwenaiapi.com/compatible-mode/v1/',
+          requestBodyValues: {},
+          statusCode: 400
+        })
+      ]
+    })
+    const serialized = serializeError(error)
+
+    const lastError = serialized.lastError as unknown as { message: string }
+    expect(lastError.message).toContain('thinking_budget')
+    expect(lastError.message).toContain('reasoning')
+
+    const errors = serialized.errors as unknown as { message: string }[]
+    expect(errors[0].message).toContain('reasoning')
+  })
+
+  // Configured retries plus key failover can nest the rejection at
+  // `lastError.lastError`, which the renderer follows recursively — the hint
+  // must survive that depth as well (#21906).
+  it('carries the reasoning hint through deeper retry nesting chat follows', () => {
+    const terminal = new APICallError({
+      message:
+        'API Error: 400 <400> InternalError.Algo.InvalidParameter: The thinking_budget parameter must be a positive integer and not greater than 81920',
+      url: 'https://maas.qianwenaiapi.com/compatible-mode/v1/',
+      requestBodyValues: {},
+      statusCode: 400
+    })
+    const inner = new RetryError({ message: 'Failed after retries', reason: 'maxRetriesExceeded', errors: [terminal] })
+    const outer = new RetryError({ message: 'Failed after retries', reason: 'maxRetriesExceeded', errors: [inner] })
+    const serialized = serializeError(outer)
+
+    const lastError = serialized.lastError as unknown as { message: string; lastError: { message: string } }
+    expect(lastError.lastError.message).toContain('thinking_budget')
+    expect(lastError.lastError.message).toContain('reasoning')
+  })
+
   it('retains quota diagnosis in serialized retry errors without retaining the payload', () => {
     const error = new APICallError({
       message: 'Rate limit exceeded',

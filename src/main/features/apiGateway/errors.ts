@@ -4,6 +4,11 @@ import { ElysiaCustomStatusResponse, type ErrorHandler, ValidationError } from '
 
 import { loggerService } from '@logger'
 import { isDev } from '@main/core/platform'
+import {
+  appendThinkingBudgetHint,
+  isThinkingBudgetRejection,
+  thinkingBudgetRejectionText
+} from '@shared/ai/thinkingBudget'
 import { DataApiError } from '@shared/data/api/errors'
 import type { SerializedError } from '@shared/types/error'
 
@@ -188,16 +193,23 @@ function normalizeProviderError(error: unknown): {
   const { status, name, code, category } = extracted
   const message = typeof details?.error.message === 'string' ? details.error.message : extracted.message
   const type = typeof details?.error.type === 'string' ? details.error.type : extracted.type
-  if (status !== undefined)
+  if (status !== undefined) {
+    const text =
+      !details && status === 400 && category === 'context_length'
+        ? `context_length_exceeded: ${safeMessage(status, message)}`
+        : safeMessage(status, message)
+    // Name the reasoning setting behind a Bailian/QwenCloud `thinking_budget`
+    // rejection (#21906). Matched on the error rather than the surfaced text
+    // so RetryError-wrapped rejections (generic top-level message, parameter
+    // text nested in `lastError`) are still named; other provider errors pass
+    // through unchanged.
     return {
       statusCode: status >= 200 && status < 300 ? 502 : status,
-      message:
-        !details && status === 400 && category === 'context_length'
-          ? `context_length_exceeded: ${safeMessage(status, message)}`
-          : safeMessage(status, message),
+      message: isThinkingBudgetRejection(error) ? appendThinkingBudgetHint(text) : text,
       type,
       category
     }
+  }
   if (
     name === 'TimeoutError' ||
     message === 'Upstream idle timeout exceeded' ||
@@ -208,6 +220,15 @@ function normalizeProviderError(error: unknown): {
   }
   if (name === 'AbortError' || name === 'ResponseAborted' || code === 'ABORT_ERR') {
     return { statusCode: 504, message: 'Upstream stream aborted', type }
+  }
+  // RetryError-wrapped provider rejection (e.g. a `thinking_budget` 400 that
+  // survived the in-place degrade, #21906): the top level carries no status
+  // and a generic message, with the provider text nested in `lastError`.
+  // Surface the provider's 400 wording for this narrow class instead of
+  // flattening it to a 500.
+  if (isThinkingBudgetRejection(error)) {
+    const nested = thinkingBudgetRejectionText(error)
+    if (nested) return { statusCode: 400, message: appendThinkingBudgetHint(nested), type }
   }
   return { statusCode: 500, message: details && message ? message : safeMessage(undefined, message), type }
 }

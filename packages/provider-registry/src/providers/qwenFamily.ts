@@ -6,6 +6,13 @@ import type { ReasoningSupport } from '../schemas/model'
 import type { ReasoningWireProfile } from '../schemas/reasoningWire'
 import { EFFORT, modeWire } from './wires'
 
+/**
+ * Bailian/QwenCloud Chat `thinking_budget` ceilings differ per SKU family
+ * (#21906): qwen3.5 lines cap at 81920, qwen3.6 plus/flash lines at 131072.
+ * The wire `max` is the provider-side backstop for descriptors that are
+ * missing or wider than Bailian accepts; `resolveModeBudget` clamps to
+ * `min(policy.max, thinkingTokenLimits.max)`.
+ */
 const qwenChatWire: ReasoningWireProfile = {
   off: { operations: [{ target: 'enable_thinking', value: { source: 'literal', value: false } }] },
   auto: {
@@ -13,14 +20,75 @@ const qwenChatWire: ReasoningWireProfile = {
       { target: 'enable_thinking', value: { source: 'literal', value: true } },
       { target: 'thinking_budget', value: { source: 'budget' } }
     ],
-    budget: { missing: { type: 'omit-value' } }
+    budget: { max: 81920, missing: { type: 'omit-value' } }
   },
   effort: {
     operations: [
       { target: 'enable_thinking', value: { source: 'literal', value: true } },
       { target: 'thinking_budget', value: { source: 'budget' } }
     ],
-    budget: { missing: { type: 'omit-value' } }
+    budget: { max: 81920, missing: { type: 'omit-value' } }
+  }
+}
+
+/**
+ * Vendor ids served on the 128K thinking-budget wire (#21906). Suffix-closed
+ * (`(?:-|$)`) so dated snapshots (`qwen3.6-plus-2026-04-02`, …) resolve to
+ * the same wire as their base SKU while hypothetical `plusfoo`-style
+ * siblings cannot mis-bucket into the 128K tier — mirroring the creator
+ * budget rule, which carries the same closer.
+ */
+const QWEN_128K_CHAT_MODEL_PATTERN = /^qwen3[.-]6-(?:plus|flash|max-preview)(?:-|$)/
+function isQwen128kChatModel(apiModelId: string): boolean {
+  return QWEN_128K_CHAT_MODEL_PATTERN.test(apiModelId)
+}
+
+/** Qwen3.6 plus/flash SKUs accept up to 131072 (128K) thinking tokens. */
+const qwenChatWire128k: ReasoningWireProfile = {
+  off: { operations: [{ target: 'enable_thinking', value: { source: 'literal', value: false } }] },
+  auto: {
+    operations: [
+      { target: 'enable_thinking', value: { source: 'literal', value: true } },
+      { target: 'thinking_budget', value: { source: 'budget' } }
+    ],
+    budget: { max: 131072, missing: { type: 'omit-value' } }
+  },
+  effort: {
+    operations: [
+      { target: 'enable_thinking', value: { source: 'literal', value: true } },
+      { target: 'thinking_budget', value: { source: 'budget' } }
+    ],
+    budget: { max: 131072, missing: { type: 'omit-value' } }
+  }
+}
+
+/**
+ * Qwen3.7 plus/max/flash SKUs declare a 262144 thinking limit (docs + descriptor;
+ * #23688 review). The verified 81920 backstop below is scoped to qwen3.5-era
+ * SKUs only — applying it to 3.7 collapses high selections (209715 at base vs
+ * 81920 at head). Dated snapshots ride the same wire via the suffix-closed
+ * closer, mirroring the 128K rule.
+ */
+const QWEN_262K_CHAT_MODEL_PATTERN = /^qwen3[.-]7-(?:plus|max|flash)(?:-|$)/
+function isQwen262kChatModel(apiModelId: string): boolean {
+  return QWEN_262K_CHAT_MODEL_PATTERN.test(apiModelId)
+}
+
+const qwenChatWire262k: ReasoningWireProfile = {
+  off: { operations: [{ target: 'enable_thinking', value: { source: 'literal', value: false } }] },
+  auto: {
+    operations: [
+      { target: 'enable_thinking', value: { source: 'literal', value: true } },
+      { target: 'thinking_budget', value: { source: 'budget' } }
+    ],
+    budget: { max: 262144, missing: { type: 'omit-value' } }
+  },
+  effort: {
+    operations: [
+      { target: 'enable_thinking', value: { source: 'literal', value: true } },
+      { target: 'thinking_budget', value: { source: 'budget' } }
+    ],
+    budget: { max: 262144, missing: { type: 'omit-value' } }
   }
 }
 
@@ -73,10 +141,14 @@ const qwen38PreviewChatWire: ReasoningWireProfile = modeWire('reasoning_effort',
 export {
   effortChatWire,
   highMaxSupport,
+  isQwen128kChatModel,
+  isQwen262kChatModel,
   kimiK3Support,
   qwen38ChatWire,
   qwen38PreviewChatWire,
   qwen38PreviewSupport,
   qwen38Support,
-  qwenChatWire
+  qwenChatWire,
+  qwenChatWire128k,
+  qwenChatWire262k
 }

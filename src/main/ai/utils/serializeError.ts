@@ -1,6 +1,7 @@
 import { APICallError, JSONParseError, RetryError, TypeValidationError } from 'ai'
 
 import { getSafeProviderErrorMessage, serializeNestedProviderError } from '@shared/ai/providerError'
+import { appendThinkingBudgetHint, isThinkingBudgetRejection } from '@shared/ai/thinkingBudget'
 import type { SerializedError } from '@shared/types/error'
 import type { Serializable } from '@shared/types/serializable'
 import { isErrorCategory } from '@shared/utils/errorCategory'
@@ -35,6 +36,51 @@ function toSerializable(value: unknown): Serializable {
  *  so every `SerializedAiSdkErrorUnion` shape carries its discriminant
  *  fields and the renderer's type guards match. */
 export function serializeError(error: unknown): SerializedError {
+  const serialized = serializeErrorInner(error)
+  // Name the reasoning setting behind a Bailian/QwenCloud `thinking_budget`
+  // rejection instead of relaying only the provider's raw parameter text
+  // (#21906). Matched on the error (which follows RetryError nesting to the
+  // provider's text), not on the surfaced message — a RetryError's message is
+  // the generic "Failed after retries". Appended after truncation so the
+  // provider text stays intact.
+  if (typeof serialized.message === 'string' && isThinkingBudgetRejection(error)) {
+    // Chat renders `providerErrorText(error)`, which prefers the sanitized
+    // terminal error (`lastError` / `errors`) over the outer RetryError
+    // message — so the hint must also annotate the nested terminal text.
+    // Configured retries plus key failover can nest the rejection deeper
+    // (`lastError.lastError`), which the renderer follows recursively, so
+    // annotate recursively rather than only the immediate children.
+    const annotateNested = (nested: Serializable): Serializable => {
+      if (Array.isArray(nested)) {
+        return nested.map((entry) => annotateNested(entry))
+      }
+      if (nested && typeof nested === 'object') {
+        const record = nested as Record<string, Serializable>
+        const annotated: Record<string, Serializable> = { ...record }
+        if (typeof record.message === 'string' && /thinking_budget/i.test(record.message)) {
+          annotated.message = appendThinkingBudgetHint(record.message)
+        }
+        if (annotated.lastError !== undefined) {
+          annotated.lastError = annotateNested(annotated.lastError)
+        }
+        if (Array.isArray(annotated.errors)) {
+          annotated.errors = annotateNested(annotated.errors)
+        }
+        return annotated
+      }
+      return nested
+    }
+    return {
+      ...serialized,
+      message: appendThinkingBudgetHint(serialized.message),
+      ...(serialized.lastError !== undefined ? { lastError: annotateNested(serialized.lastError) } : {}),
+      ...(Array.isArray(serialized.errors) ? { errors: annotateNested(serialized.errors) } : {})
+    }
+  }
+  return serialized
+}
+
+function serializeErrorInner(error: unknown): SerializedError {
   if (APICallError.isInstance(error) || JSONParseError.isInstance(error) || TypeValidationError.isInstance(error)) {
     return serializeNestedProviderError(error) as SerializedError
   }
