@@ -98,6 +98,7 @@ it.each([
     capabilities: []
   })
   const binding = await createPiGatewayModelBinding({ sessionId: 'session-1' }, provider, model)
+  expect(binding.compaction).toEqual({ reserveTokens: 33_792, keepRecentTokens: 20_000 })
   await binding.modelRuntime.completeSimple(
     binding.model,
     normalizeContext({ messages: [{ role: 'user', content: 'fixture', timestamp: 1 }] })
@@ -605,4 +606,36 @@ it.each([false, true])('replays CherryIN thinking only when present (empty signa
     ...(hasThinking ? [{ type: 'thinking', thinking: 'Read the file', signature: '' }] : []),
     { type: 'tool_use', id: 'call_read', name: 'read', input: { path: 'facts.txt' } }
   ])
+})
+
+// The binding is shared by root and selected child configurations.
+it.each([
+  [49_152, 16_384, 12_288],
+  [1_000_000, 108_192, 20_000]
+])('returns native compaction budgets for a %s-token model', async (contextWindow, reserveTokens, keepRecentTokens) => {
+  gateway.baseUrl = 'http://127.0.0.1:23333'
+  const provider = ProviderSchema.parse({
+    id: 'budget-fixture',
+    name: 'Budget fixture',
+    isEnabled: true,
+    apiKeys: [],
+    authType: 'api-key',
+    settings: {},
+    reportsActualCost: false,
+    defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+  })
+  const model = ModelSchema.parse({
+    id: 'budget-fixture::budget-model',
+    name: 'Budget model',
+    providerId: provider.id,
+    isEnabled: true,
+    isHidden: false,
+    supportsStreaming: true,
+    capabilities: [],
+    contextWindow,
+    maxOutputTokens: 8_192
+  })
+  const binding = await createPiGatewayModelBinding({ sessionId: 'session-1' }, provider, model)
+  expect(binding.compaction).toEqual({ reserveTokens, keepRecentTokens })
+  expect(binding.model.contextWindow).toBe(contextWindow)
 })

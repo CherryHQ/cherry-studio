@@ -18,6 +18,7 @@ import { resolveEffectiveEndpoint } from '../../provider/endpoint'
 import { resolveApiGatewayRuntime } from '../agentApiGateway'
 import { resolveAgentContextWindow } from '../agentContextWindow'
 import type { AgentRuntimeConnectInput } from '../types'
+import { resolvePiCompactionSettings } from './piCompactionSettings'
 import { loadPiAi, loadPiApiStreamSimple, loadPiSdk } from './piSdk'
 
 /** Native Pi protocols target Cherry's internal gateway; Cherry retains provider credentials and billing. */
@@ -120,7 +121,7 @@ export async function createPiGatewayModelBinding(
   await modelRuntime.setRuntimeApiKey(providerName, gateway.apiKey)
   const registered = modelRuntime.getModel(providerName, modelId)
   if (!registered) throw new Error(`Pi gateway model ${modelId} was not registered`)
-  return { modelRuntime, model: registered }
+  return { modelRuntime, model: registered, compaction: resolvePiCompactionSettings(model) }
 }
 
 function formatPiBaseUrl(baseUrl: string, api: PiApi): string {

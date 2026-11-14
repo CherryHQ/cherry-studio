@@ -38,8 +38,8 @@ export interface PiRuntimeBehavior {
     readonly thread: Thread
     readonly modelKey: string
   }):
-    | Partial<Pick<AgentRuntimeSessionOptions, 'model' | 'modelRuntime'>>
-    | Promise<Partial<Pick<AgentRuntimeSessionOptions, 'model' | 'modelRuntime'>>>
+    | Partial<Pick<AgentRuntimeSessionOptions, 'model' | 'modelRuntime' | 'compaction'>>
+    | Promise<Partial<Pick<AgentRuntimeSessionOptions, 'model' | 'modelRuntime' | 'compaction'>>>
 }
 
 export interface PiRuntimeOptions {
@@ -191,7 +191,7 @@ export async function createPiRuntime(options: PiRuntimeOptions): Promise<Operat
             model,
             sessionManager,
             settings: { ...config.settings, retry: { enabled: false }, cacheWarming: 'off' },
-            compaction: { ...settings, ...config.compaction },
+            compaction: { ...settings, ...config.compaction, ...configured?.compaction },
             extensionFactories: [...(config.extensionFactories ?? []), extension],
             onEvent: (event) => {
               try {
