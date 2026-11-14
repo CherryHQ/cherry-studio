@@ -2168,6 +2168,7 @@
   "library.config.agent.prompt.load_failed": "Δεν ήταν δυνατή η σύνθεση του πλήρους System Prompt",
   "library.config.agent.prompt.loading": "Σύνθεση του πλήρους System Prompt…",
   "library.config.agent.prompt.placeholder": "Γράψτε εδώ το System Prompt του πράκτορα: ποιος είναι, τι κάνει και ποια είναι τα όριά του. Αν μείνει κενό, αυτό το τμήμα και η σημείωση προτεραιότητας παραπάνω δεν αποστέλλονται.",
+  "library.config.agent.prompt.row_hint": "Όλα όσα λαμβάνει ο πράκτορας Pi",
   "library.config.agent.prompt.tokens": "Περίπου {{tokens}} tokens",
   "library.config.agent.section.permission.desc": "Εύρος εξουσιοδότησης για ενέργειες πληρεξουσίου",
   "library.config.agent.section.permission.title": "Λειτουργία δικαιωμάτων",

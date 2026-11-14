@@ -2168,6 +2168,7 @@
   "library.config.agent.prompt.load_failed": "Não foi possível gerar o prompt de sistema completo",
   "library.config.agent.prompt.loading": "A gerar o prompt de sistema completo…",
   "library.config.agent.prompt.placeholder": "Escreva aqui o prompt de sistema do agente: quem é, o que faz e quais são os seus limites. Se ficar vazio, esta parte e a nota de prioridade acima não são enviadas.",
+  "library.config.agent.prompt.row_hint": "Tudo o que o agente Pi recebe",
   "library.config.agent.prompt.tokens": "Cerca de {{tokens}} tokens",
   "library.config.agent.section.permission.desc": "Âmbito de autorização para ações do agente",
   "library.config.agent.section.permission.title": "Modo de permissão",

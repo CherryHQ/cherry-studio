@@ -2168,6 +2168,7 @@
   "library.config.agent.prompt.load_failed": "無法產生完整的系統提示詞",
   "library.config.agent.prompt.loading": "正在產生完整的系統提示詞…",
   "library.config.agent.prompt.placeholder": "在這裡撰寫智慧體的系統提示詞：它是誰、要做什麼、有哪些限制。留空時這一段和上面的優先順序說明都不會傳送。",
+  "library.config.agent.prompt.row_hint": "Pi Agent 實際收到的完整內容",
   "library.config.agent.prompt.tokens": "約 {{tokens}} tokens",
   "library.config.agent.section.permission.desc": "控制智能體可執行操作的授權範圍",
   "library.config.agent.section.permission.title": "權限模式",

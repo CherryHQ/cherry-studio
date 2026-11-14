@@ -2168,6 +2168,7 @@
   "library.config.agent.prompt.load_failed": "Не удалось собрать полный системный промпт",
   "library.config.agent.prompt.loading": "Сборка полного системного промпта…",
   "library.config.agent.prompt.placeholder": "Напишите здесь системный промпт агента: кто он, что делает и какие у него ограничения. Если оставить поле пустым, эта часть и примечание о приоритете выше не отправляются.",
+  "library.config.agent.prompt.row_hint": "Всё, что получает агент Pi",
   "library.config.agent.prompt.tokens": "Около {{tokens}} токенов",
   "library.config.agent.section.permission.desc": "Область авторизации для действий агента",
   "library.config.agent.section.permission.title": "Режим разрешений",
