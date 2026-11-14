@@ -8,8 +8,6 @@ import wechatIcon from '@renderer/assets/images/channel/wechat.png'
 import wecomIcon from '@renderer/assets/images/channel/wecom.png'
 const SESSION_TOPIC_PREFIX = 'agent-session:'
 
-export const isAgentSessionTopic = (topicId: string): boolean => topicId.startsWith(SESSION_TOPIC_PREFIX)
-
 export const buildAgentFileWorkspaceKey = (workspaceId?: string | null, workspacePath?: string): string => {
   return `${workspaceId ?? ''}\0${workspacePath ?? ''}`
 }
