@@ -18,6 +18,7 @@ import {
   SettingRowTitle,
   SettingTitle
 } from '@renderer/components/SettingsPrimitives'
+import { TimeOfDayInput } from '@renderer/components/TimeOfDayInput'
 import { useBackupSyncState } from '@renderer/hooks/useBackupSyncState'
 import { useMiniAppPopup } from '@renderer/hooks/useMiniAppPopup'
 import { useTheme } from '@renderer/hooks/useTheme'
@@ -34,6 +35,7 @@ const S3Settings: FC = () => {
   const [s3Root, setS3Root] = usePreference('data.backup.s3.root')
   const [s3SkipBackupFile, setS3SkipBackupFile] = usePreference('data.backup.s3.skip_backup_file')
   const [s3SyncInterval, setS3SyncInterval] = usePreference('data.backup.s3.sync_interval')
+  const [s3SyncStart, setS3SyncStart] = usePreference('data.backup.s3.sync_start')
   const [s3MaxBackups, setS3MaxBackups] = usePreference('data.backup.s3.max_backups')
 
   const [backupManagerVisible, setBackupManagerVisible] = useState(false)
@@ -224,6 +226,19 @@ const S3Settings: FC = () => {
             { label: t('settings.data.s3.autoSync.hour', { count: 24 }), value: 1440 }
           ]}
         />
+      </SettingRow>
+      <SettingDivider />
+      <SettingRow>
+        <SettingRowTitle>{t('settings.data.backup.syncStart.label')}</SettingRowTitle>
+        <TimeOfDayInput
+          value={s3SyncStart}
+          onChange={(minutes) => void setS3SyncStart(minutes)}
+          disabled={!s3Endpoint || !s3AccessKeyId || !s3SecretAccessKey || s3SyncInterval === 0}
+          aria-label={t('settings.data.backup.syncStart.label')}
+        />
+      </SettingRow>
+      <SettingRow>
+        <SettingHelpText>{t('settings.data.backup.syncStart.help')}</SettingHelpText>
       </SettingRow>
       <SettingDivider />
       <SettingRow id="setting-data-s3-max-backups" className="scroll-mt-6">
