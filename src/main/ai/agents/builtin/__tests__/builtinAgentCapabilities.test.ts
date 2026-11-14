@@ -12,7 +12,8 @@ describe('resolveAgentCapabilities', () => {
   it('gives an Agent with no built-in role the unprivileged defaults', () => {
     expect(resolveAgentCapabilities({ configuration: {} })).toEqual({
       environment: 'open',
-      allKnowledgeBases: false
+      allKnowledgeBases: false,
+      createResources: true
     })
   })
 

@@ -8,15 +8,23 @@ import * as z from 'zod'
 
 import { application } from '@application'
 import { mcpServerService } from '@data/services/McpServerService'
-import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
-import { createAgent as createAgentCommand } from '@main/ai/agents/createAgent'
+import {
+  AgentConfigToolOutputSchema,
+  AssistantCreateToolOutputSchema,
+  createAgentFromTool,
+  CreateAgentToolInputSchema,
+  createAssistantFromTool,
+  CreateAssistantToolInputSchema,
+  toolOutput,
+  UpdateAgentToolInputSchema,
+  updateAgentFromTool
+} from '@main/ai/agents/agentConfigTool'
 import { type AssistantToolName, DEFAULT_ASSISTANT_TOOL_NAMES } from '@main/ai/toolApproval/assistantToolNames'
 import { providerChatBaseUrl } from '@main/utils/providerEndpoint'
-import { ErrorCode as DataApiErrorCode, isDataApiError } from '@shared/data/api/errors'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
-import { parseUniqueModelId, type UniqueModelId, UniqueModelIdSchema } from '@shared/data/types/model'
+import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { DoctorRunTier } from '@shared/types/doctor'
 import {
   DIAGNOSTIC_DESCRIPTION_MAX_BYTES,
@@ -239,84 +247,6 @@ async function applySetting({ setting, value }: z.infer<typeof ApplySettingInput
   const message = await entry.apply(value)
   logger.info('apply_setting succeeded', { setting, value })
   return textResult(message)
-}
-
-const CreateAgentInputSchema = z.object({
-  name: z.string().trim().min(1).describe('Short human-readable name (e.g. "Python Reviewer", "周报助手"). Required.'),
-  description: z
-    .string()
-    .optional()
-    .describe('One-line description shown in the agent list. Optional but recommended.'),
-  instructions: z
-    .string()
-    .trim()
-    .min(1)
-    .describe(
-      "The agent's system prompt — role, behavior, output format. Required. Write it in the user's preferred language. Keep concise (under ~300 lines)."
-    ),
-  model: z
-    .string()
-    .optional()
-    .describe(
-      'Optional model id in the form "providerId::modelId" (e.g. "cherryin::agent/glm-5.1", "anthropic::claude-sonnet"). When omitted, the new agent uses Cherry Assistant\'s current model.'
-    )
-})
-
-const CreateAgentOutputSchema = z.object({
-  ok: z.literal(true),
-  agentId: z.string(),
-  name: z.string(),
-  model: z.string()
-})
-
-async function createAgent(
-  args: z.infer<typeof CreateAgentInputSchema>,
-  defaultModel: UniqueModelId | undefined
-): Promise<CallToolResult> {
-  const { name, instructions } = args
-  const model = args.model?.trim() || defaultModel
-  const description = args.description?.trim() || undefined
-
-  if (!model) throw new Error("'model' is required when no default model is configured")
-
-  const parsedModel = UniqueModelIdSchema.safeParse(model)
-  if (!parsedModel.success) {
-    throw new Error(`'model' must be in the form "providerId::modelId" (got "${model}")`)
-  }
-
-  const { providerId, modelId } = parseUniqueModelId(parsedModel.data)
-  try {
-    modelService.getByKey(providerId, modelId)
-  } catch (error) {
-    if (isDataApiError(error) && error.code === DataApiErrorCode.NOT_FOUND) {
-      throw new Error(`Model is not configured in Cherry Studio: ${parsedModel.data}`)
-    }
-    throw error
-  }
-
-  try {
-    const result = await createAgentCommand({
-      type: 'claude-code',
-      name,
-      description,
-      instructions,
-      model: parsedModel.data,
-      configuration: {
-        permission_mode: 'default',
-        env_vars: {}
-      }
-    })
-    logger.info('create_agent succeeded', { agentId: result.id, name })
-    const output = { ok: true as const, agentId: result.id, name: result.name, model: result.model }
-    return {
-      content: [{ type: 'text', text: JSON.stringify(output) }],
-      structuredContent: output
-    }
-  } catch (error) {
-    const msg = errorMessage(error)
-    logger.error('create_agent failed', { error: msg, name })
-    throw new Error(`Failed to create agent: ${msg}`)
-  }
 }
 
 const PrepareDiagnosticReportInputSchema = z.strictObject({
@@ -741,11 +671,34 @@ ${Object.values(APPLY_SETTING_REGISTRY)
     server.registerTool(
       'create_agent',
       {
-        description: `Create an Agent only after the user asks for one and confirms the proposed config. type is fixed to claude-code.`,
-        inputSchema: CreateAgentInputSchema,
-        outputSchema: CreateAgentOutputSchema
+        description:
+          'Create a new Agent (an autonomous worker with its own tools, skills and workspace) when the user asks to create or set up an Agent, e.g. "建一个 Agent". Propose the configuration first; the user approves every call. Omit model to use the default model.',
+        inputSchema: CreateAgentToolInputSchema,
+        outputSchema: AgentConfigToolOutputSchema
       },
-      async (args) => createAgent(args, defaultModel)
+      async (args) => toolOutput(await createAgentFromTool(args, { fallbackModel: defaultModel }))
+    ),
+  create_assistant: (server, defaultModel) =>
+    server.registerTool(
+      'create_assistant',
+      {
+        description:
+          'Create a new Assistant (a chat persona with a prompt, a model and optional knowledge bases, MCP servers and web search) when the user asks to create or set up an Assistant, e.g. "建一个助手". Propose the configuration first; the user approves every call. Omit model to use the default model.',
+        inputSchema: CreateAssistantToolInputSchema,
+        outputSchema: AssistantCreateToolOutputSchema
+      },
+      async (args) => toolOutput(createAssistantFromTool(args, { fallbackModel: defaultModel }))
+    ),
+  update_agent: (server) =>
+    server.registerTool(
+      'update_agent',
+      {
+        description:
+          'Change the settings of a user-created Agent when the user asks to edit one. Find its ID with agent_list and pass only the fields to change; the user approves every call. Built-in Agents are refused.',
+        inputSchema: UpdateAgentToolInputSchema,
+        outputSchema: AgentConfigToolOutputSchema
+      },
+      async ({ agentId, ...settings }) => toolOutput(updateAgentFromTool(agentId, settings, { self: false }))
     ),
   prepare_diagnostic_report: (server) =>
     server.registerTool(

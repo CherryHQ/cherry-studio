@@ -14,8 +14,8 @@ import {
 } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { AGENT_LANGUAGE_MAX_LENGTH, AGENT_LANGUAGE_PRESETS } from '@renderer/utils/agent/agentLanguage'
-import type { AgentFormState } from '@renderer/utils/resourceCatalog'
 import { cn } from '@renderer/utils/style'
+import type { AgentFormState } from '@shared/ai/agentForm'
 
 type ReplyLanguageValue = Pick<AgentFormState, 'languageMode' | 'languageCustom'>
 

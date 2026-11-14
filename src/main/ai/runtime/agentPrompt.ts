@@ -1,10 +1,19 @@
 import { loggerService } from '@logger'
+import { resolveAgentCapabilities } from '@main/ai/agents/builtin/builtinAgentCapabilities'
 import { loadBuiltinAgentDefinition, provisionBuiltinAgent } from '@main/ai/agents/builtin/BuiltinAgentProvisioner'
 import { type AgentPromptBase, PromptBuilder } from '@main/ai/agents/prompt'
+import { DEFAULT_ASSISTANT_TOOL_NAMES } from '@main/ai/toolApproval/assistantToolNames'
 import { getEffectiveAgentLanguage } from '@main/ai/utils/agentLanguage'
 import { replacePromptVariables } from '@main/utils/prompt'
-import { REPORT_ARTIFACTS_TOOL_NAME } from '@shared/ai/builtinTools'
-import type { AgentEntity } from '@shared/data/api/schemas/agents'
+import {
+  AGENT_CREATE_TOOL_NAME,
+  ASSISTANT_CREATE_TOOL_NAME,
+  CONFIG_UPDATE_TOOL_NAME,
+  REPORT_ARTIFACTS_TOOL_NAME
+} from '@shared/ai/builtinTools'
+import type { AgentEntity, AgentType } from '@shared/data/api/schemas/agents'
+
+import { buildPiMcpToolName } from './pi/piMcpExtension'
 
 const logger = loggerService.withContext('AgentPrompt')
 const MINIMAL_CHERRY_ASSISTANT_INSTRUCTIONS =
@@ -27,6 +36,51 @@ export const REPORT_ARTIFACTS_PROMPT = `## Reporting deliverables
 
 When you finish producing the file(s) the user asked for, call the \`${REPORT_ARTIFACTS_RUNTIME_NAME}\` tool once with the final file path(s) and a one-line summary. List only the final deliverables — never intermediate, scratch, or temporary files. Skip the call entirely if the task produced no files.`
 
+interface ToolAccess {
+  ref: (server: string, name: string) => string
+  /** Leads with a space so a runtime without one adds nothing. */
+  hint: string
+}
+
+/** How the model reaches a Cherry MCP tool on each runtime. */
+const TOOL_ACCESS: Record<AgentType, ToolAccess> = {
+  'claude-code': { ref: (server, name) => `\`mcp__${server}__${name}\``, hint: '' },
+  pi: {
+    ref: (server, name) => `\`${buildPiMcpToolName(server, name)}\``,
+    hint: ' If these tools are not in your tool list yet, load them with `tool_search` first.'
+  },
+  // Durable registers MCP tools for scripts only, so `tool_search` (which loads model tools) never finds them.
+  'pi-durable': {
+    ref: (server, name) => `\`await tools.${buildPiMcpToolName(server, name)}({ ... })\``,
+    hint: " These are not separate tools and `tool_search` cannot find them: run them inside a `codemode` script. If the `codemode` section does not list one, read its parameters first with `return await describeTool('<tool name>')`, a script global rather than a member of `tools`."
+  }
+}
+
+const CREATE_REQUEST_EXAMPLES = '(for example "build me an Agent that reviews pull requests" or "建一个翻译助手")'
+// Without it, models read 助手 ("assistant") as an Agent.
+const RESOURCE_KINDS =
+  'An Assistant (助手) is a chat persona with a prompt and a model; an Agent (智能体) works on its own with tools, skills and a workspace.'
+
+/** Without this the model describes UI steps or writes files instead of calling the tools it has. */
+const hostConfigToolsPrompt = ({ ref, hint }: ToolAccess) => `## Creating Agents and Assistants
+
+When the user asks you to create or set up an Agent or an Assistant ${CREATE_REQUEST_EXAMPLES}, propose a configuration, then call ${ref('assistant', 'create_agent')} or ${ref('assistant', 'create_assistant')} instead of describing UI steps or writing files. ${RESOURCE_KINDS} To change a user-created Agent, find it with ${ref('cherry-tools', 'agent_list')} and call ${ref('assistant', 'update_agent')}.${hint} The user approves every call.`
+
+const selfConfigToolsPrompt = ({
+  ref,
+  hint
+}: ToolAccess) => `## Creating Agents and Assistants, and changing your own settings
+
+When the user asks you to create or set up an Agent or an Assistant ${CREATE_REQUEST_EXAMPLES}, propose a configuration, then call ${ref('cherry-tools', AGENT_CREATE_TOOL_NAME)} or ${ref('cherry-tools', ASSISTANT_CREATE_TOOL_NAME)} instead of describing UI steps or writing files. ${RESOURCE_KINDS} When the user asks you to change your own avatar, description, instructions, model, permission mode, skills, knowledge bases, MCP servers, built-in tools, reply language or heartbeat, call ${ref('cherry-tools', CONFIG_UPDATE_TOOL_NAME)} with only the fields to change.${hint} The user approves every call.`
+
+/** The create-tool guidance in the Agent's runtime call form; none for an Agent closed to creating. */
+export function getConfigToolsPrompt(agent: Pick<AgentEntity, 'configuration' | 'type'>): string | undefined {
+  const capabilities = resolveAgentCapabilities(agent)
+  const hostTools = capabilities.hostTools && (capabilities.hostTools.tools ?? DEFAULT_ASSISTANT_TOOL_NAMES)
+  if (hostTools?.includes('create_agent')) return hostConfigToolsPrompt(TOOL_ACCESS[agent.type])
+  return capabilities.createResources ? selfConfigToolsPrompt(TOOL_ACCESS[agent.type]) : undefined
+}
+
 export interface AgentRuntimePrompt {
   base: AgentPromptBase
   append: string
@@ -35,7 +89,7 @@ export interface AgentRuntimePrompt {
 export interface BuildAgentRuntimePromptOptions {
   workspacePath: string
   agentDataPath: string
-  agent: Pick<AgentEntity, 'instructions' | 'configuration' | 'modelName'>
+  agent: Pick<AgentEntity, 'instructions' | 'configuration' | 'modelName' | 'type'>
   citationsGuidance?: string
   /** Context required only when a custom system.md replaces the runtime's native base. */
   customBaseContext?: string
@@ -87,6 +141,7 @@ export async function buildAgentRuntimePrompt({
   const append = [
     hasAgentInstructions ? AGENT_INSTRUCTION_PRECEDENCE_PROMPT : undefined,
     REPORT_ARTIFACTS_PROMPT,
+    getConfigToolsPrompt(agent),
     hasAgentInstructions ? buildAgentInstructionsSection(instructionsSlot ?? resolvedInstructions) : instructionsSlot,
     parts.context,
     parts.base.kind === 'custom' ? customBaseContext : undefined,

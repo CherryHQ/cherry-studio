@@ -1,12 +1,10 @@
 import { describe, expect, it } from 'vitest'
 
-import type { AgentCreateSettings, ResourceCreateValues } from '@renderer/types/resourceCatalog'
-import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
-import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
+import { type AgentCreateValues, buildCreateAgentCommand } from '../agentCreateCommand'
+import type { AgentCreateSettings } from '../agentForm'
+import { AGENT_RUNTIME_CAPABILITIES } from '../agentRuntimeCapabilities'
 
-import { buildCreateAgentCommand, buildCreateAssistantDto } from '../resourceCreate'
-
-const values: ResourceCreateValues = {
+const values: AgentCreateValues = {
   agentType: 'claude-code',
   permissionMode: 'auto',
   avatar: '🤖',
@@ -27,29 +25,7 @@ const defaultSettings: AgentCreateSettings = {
   envVarsText: ''
 }
 
-describe('resource create DTO mapping', () => {
-  it('maps every assistant-specific field', () => {
-    expect(buildCreateAssistantDto(values)).toEqual({
-      name: 'Researcher',
-      emoji: '🤖',
-      modelId: 'provider::model',
-      description: 'Investigates a topic',
-      prompt: 'Use cited sources',
-      knowledgeBaseIds: ['kb-1']
-    })
-  })
-
-  it('links auto-selected MCP servers and enables web search on a new assistant', () => {
-    const dto = buildCreateAssistantDto({ ...values, mcpServerIds: ['mcp-1'], enableWebSearch: true })
-
-    expect(dto.mcpServerIds).toEqual(['mcp-1'])
-    expect(dto.settings).toEqual({ ...DEFAULT_ASSISTANT_SETTINGS, enableWebSearch: true })
-  })
-
-  it('keeps assistant settings at their defaults when web search is not selected', () => {
-    expect(buildCreateAssistantDto({ ...values, enableWebSearch: false })).not.toHaveProperty('settings')
-  })
-
+describe('buildCreateAgentCommand', () => {
   it.each(['claude-code', 'pi', 'pi-durable'] as const)(
     'sends auto-selected MCP servers to a %s agent only when its runtime supports MCP',
     (agentType) => {

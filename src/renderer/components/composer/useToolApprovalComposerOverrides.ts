@@ -18,13 +18,16 @@ type ToolApprovalComposerOverridesOptions = {
   persistedPartsByMessageId: Record<string, CherryMessagePart[]>
   streamingLayers?: MessageStreamingLayers
   onRespond: (input: MessageToolApprovalInput) => void | Promise<void>
+  /** Set in an Agent conversation so approvals can resolve the Session's Agent. */
+  agentSessionId?: string
 }
 
 export function useToolApprovalComposerOverrides({
   partsByMessageId,
   persistedPartsByMessageId,
   streamingLayers,
-  onRespond
+  onRespond,
+  agentSessionId
 }: ToolApprovalComposerOverridesOptions): readonly ComposerOverride[] {
   useEffect(() => {
     for (const parts of Object.values(persistedPartsByMessageId)) {
@@ -94,11 +97,12 @@ export function useToolApprovalComposerOverrides({
       overrides.push(
         createPermissionRequestComposerOverride({
           request: permissionRequest,
-          onRespond
+          onRespond,
+          agentSessionId
         })
       )
     }
 
     return overrides
-  }, [askUserQuestionRequest, onRespond, permissionRequest])
+  }, [agentSessionId, askUserQuestionRequest, onRespond, permissionRequest])
 }

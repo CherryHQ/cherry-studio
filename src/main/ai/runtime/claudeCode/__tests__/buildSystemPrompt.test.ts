@@ -108,7 +108,7 @@ beforeEach(() => {
 })
 
 function makeAgent(overrides: Partial<AgentEntity> = {}): AgentEntity {
-  return { id: 'agent-1', mcps: [], configuration: {}, ...overrides } as unknown as AgentEntity
+  return { id: 'agent-1', type: 'claude-code', mcps: [], configuration: {}, ...overrides } as unknown as AgentEntity
 }
 
 function promptText(prompt: Awaited<ReturnType<typeof buildSystemPrompt>>): string {

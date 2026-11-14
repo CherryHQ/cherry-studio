@@ -5,7 +5,8 @@ import { estimateTokenCount } from 'tokenx'
 import { Button, Textarea } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
-import { type AgentLanguageMode, normalizeAgentLanguageInput } from '@renderer/utils/agent/agentLanguage'
+import { normalizeAgentLanguageInput } from '@renderer/utils/agent/agentLanguage'
+import type { AgentLanguageMode } from '@shared/ai/agentForm'
 import type { AgentSystemPromptDraft, AgentSystemPromptPreview } from '@shared/ipc/schemas/agent'
 
 const logger = loggerService.withContext('PiPromptField')

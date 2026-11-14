@@ -23,14 +23,14 @@ import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import type { AgentDetail } from '@renderer/types/resourceCatalog'
 import { getPermissionModeCards } from '@renderer/utils/agent'
-import type { AgentLanguageMode } from '@renderer/utils/agent/agentLanguage'
+import { RESOURCE_PROMPT_POLISH_SYSTEM_PROMPT } from '@renderer/utils/resourceCatalog'
 import {
   type AgentFormState,
+  type AgentLanguageMode,
   applyAgentFormPatch,
   buildInitialAgentFormState,
-  diffAgentSaveIntent,
-  RESOURCE_PROMPT_POLISH_SYSTEM_PROMPT
-} from '@renderer/utils/resourceCatalog'
+  diffAgentSaveIntent
+} from '@shared/ai/agentForm'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import { isSealedBuiltinAgentRole } from '@shared/ai/builtinAgent'
 import { AGENT_PROMPT } from '@shared/ai/prompts'

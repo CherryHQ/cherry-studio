@@ -24,7 +24,7 @@ export type DurablePromptSection = Pick<PromptSection, 'key'> & {
 }
 
 export interface DurablePromptOptions {
-  agent: Pick<AgentEntity, 'instructions' | 'configuration' | 'modelName'>
+  agent: Pick<AgentEntity, 'instructions' | 'configuration' | 'modelName' | 'type'>
   cwd: string
   agentDataPath: string
   effectiveLanguage: string | null

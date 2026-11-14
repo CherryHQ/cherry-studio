@@ -6,6 +6,7 @@ import { AgentSessionForkSourceError } from '@data/services/AgentSessionForkServ
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { temporaryChatService } from '@data/services/TemporaryChatService'
 import { loggerService } from '@logger'
+import { previewAgentConfigUpdate } from '@main/ai/agents/agentConfigTool'
 import { AgentSessionArchiveBusyError } from '@main/ai/agents/AgentLifecycleService'
 import { agentWorkspaceStorageService } from '@main/ai/agents/AgentWorkspaceStorageService'
 import { createAgent } from '@main/ai/agents/createAgent'
@@ -195,6 +196,7 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
 
   // ── Agent creation + session warm-connection lifecycle. ──
   'ai.agent.create': createAgent,
+  'ai.agent.preview_config_update': async (request) => previewAgentConfigUpdate(request),
   'ai.agent.restore': async ({ agentId }) => {
     try {
       return await application.get('AgentLifecycleService').restoreAgent(agentId)

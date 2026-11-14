@@ -3,6 +3,7 @@ import * as z from 'zod'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
 import type { AgentType } from '@shared/data/types/agent'
+import { toAvatarEmoji } from '@shared/utils/emoji'
 
 export type AutoConfigKind = 'assistant' | 'agent'
 
@@ -118,17 +119,6 @@ const DraftSchema = z.object({
   permissionMode: z.string().optional().catch(undefined),
   enableWebSearch: z.boolean().catch(false)
 })
-
-const SINGLE_EMOJI = /^\p{RGI_Emoji}$/v
-// Country/subdivision flags, 🏳/🏴-based flags (🏳️‍🌈, 🏴‍☠️), and a bare skin-tone swatch.
-const EXCLUDED_EMOJI =
-  /^(?:\p{RGI_Emoji_Flag_Sequence}|\p{RGI_Emoji_Tag_Sequence}|[\u{1F3F3}\u{1F3F4}]|\p{Emoji_Modifier}$)/v
-
-function toAvatarEmoji(value: string | undefined): string | undefined {
-  const emoji = value?.trim()
-  if (!emoji || !SINGLE_EMOJI.test(emoji) || EXCLUDED_EMOJI.test(emoji)) return undefined
-  return emoji
-}
 
 function extractJsonObject(text: string): unknown {
   const start = text.indexOf('{')
