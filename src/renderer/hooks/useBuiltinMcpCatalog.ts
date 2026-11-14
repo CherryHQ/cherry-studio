@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 
 import { toCreateMcpServerDto } from '@renderer/utils/mcpServerDraft'
 import { PRESET_MCP_SERVERS, type McpServerPreset } from '@shared/data/presets/mcpServers'
@@ -32,5 +32,23 @@ export function useBuiltinMcpCatalog() {
     setAdding(new Set(pending.current.keys()))
     return task
   }
-  return { presets, mcpServers, findInstalled, add, adding, isLoading, error, retry: refetch }
+  // Featured: ready to use without configuration and not installed yet.
+  const featured = useMemo(
+    () => presets.filter((preset) => !preset.shouldConfig && !findInstalled(preset)),
+    [findInstalled]
+  )
+  // Picked for a resource, so install it running; an inactive server would be bound but never used.
+  const installFeatured = (preset: McpServerPreset) => add({ ...preset, isActive: true })
+  return {
+    presets,
+    featured,
+    mcpServers,
+    findInstalled,
+    add,
+    installFeatured,
+    adding,
+    isLoading,
+    error,
+    retry: refetch
+  }
 }
