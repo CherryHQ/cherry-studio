@@ -244,7 +244,7 @@ export async function resolveProviderAiSdkConfig(
       match: (p) => matchesPreset(p, SystemProviderIds.opencode),
       build: withSelectedApiKey(buildOpenCodeGoConfig)
     },
-    { match: (p) => p.id === OPENAI_CODEX_PROVIDER_ID, build: withProviderAuth('oauth', buildCodexConfig) },
+    { match: (p) => matchesPreset(p, OPENAI_CODEX_PROVIDER_ID), build: withProviderAuth('oauth', buildCodexConfig) },
     { match: (p) => p.id === GROK_CLI_PROVIDER_ID, build: withProviderAuth('oauth', buildGrokCliConfig) },
     {
       match: (p) => isManagedCherryCloudModel(p.id),
@@ -484,18 +484,18 @@ function buildCodexConfig(ctx: BuilderContext): ProviderConfig<'openai'> {
       // request in the custom fetch below, overriding this placeholder.
       apiKey: 'codex-oauth',
       headers: { ...getProviderAppHeaders(ctx.actualProvider), ...getExtraHeaders(ctx.actualProvider) },
-      fetch: buildCodexFetch()
+      fetch: buildCodexFetch(ctx.actualProvider.id)
     }
   }
 }
 
-function buildCodexFetch() {
+function buildCodexFetch(providerId: string) {
   // Token fetch + not-signed-in guard + 401 force-refresh retry live in
   // OAuthRuntimeService.authenticatedFetch; this wrapper only shapes the codex
   // request (headers + body coercion), re-applied with the fresh token on retry.
   return (input: RequestInfo | URL, init?: RequestInit): Promise<Response> =>
     application.get('OAuthRuntimeService').authenticatedFetch(
-      OPENAI_CODEX_PROVIDER_ID,
+      providerId,
       (creds) => ({
         input,
         init: {

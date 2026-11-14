@@ -3,8 +3,10 @@ import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceServi
 import { net } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { application } from '@application'
 import { readProviderRegistry, RegistryLoader } from '@cherrystudio/provider-registry/node'
 import { mergePresetModel } from '@data/services/ProviderRegistryService'
+import { OAuthRuntimeService } from '@main/services/oauth/runtime/OAuthRuntimeService'
 import {
   CHERRY_CLOUD_MODEL_GROUP,
   CHERRY_CLOUD_PROVIDER_ID,
@@ -35,10 +37,11 @@ import { resolveWireModelId } from '../endpoint'
 // Key-backed builders resolve their serving API key lazily; Vertex/Bedrock read
 // provider auth config from the direct-import ProviderService singleton. Mock
 // both at the module boundary so dispatch runs without touching the DB.
-const { resolveApiKeyMock, getAuthConfigMock, getByProviderIdMock } = vi.hoisted(() => ({
+const { resolveApiKeyMock, getAuthConfigMock, getByProviderIdMock, updateMock } = vi.hoisted(() => ({
   resolveApiKeyMock: vi.fn(),
   getAuthConfigMock: vi.fn<(providerId: string) => AuthConfig | null>(),
-  getByProviderIdMock: vi.fn()
+  getByProviderIdMock: vi.fn(),
+  updateMock: vi.fn()
 }))
 const { buildCherryCloudProviderConfigMock, generateSignatureMock, getCopilotTokenMock } = vi.hoisted(() => ({
   buildCherryCloudProviderConfigMock: vi.fn(),
@@ -50,7 +53,8 @@ vi.mock('@main/data/services/ProviderService', () => ({
   providerService: {
     resolveApiKey: resolveApiKeyMock,
     getAuthConfig: getAuthConfigMock,
-    getByProviderId: getByProviderIdMock
+    getByProviderId: getByProviderIdMock,
+    update: updateMock
   }
 }))
 
@@ -89,6 +93,116 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.unstubAllGlobals()
+})
+
+describe('Codex instance fetch', () => {
+  it('uses the requested row for requests, refresh, and signed-out failure', async () => {
+    const sessions = new Map<string, AuthConfig>([
+      [
+        'instance-a',
+        {
+          type: 'oauth',
+          clientId: 'c',
+          accessToken: 'token-a',
+          refreshToken: 'refresh-a',
+          accountId: 'account-a',
+          expiresAt: Date.now() + 3600000
+        }
+      ],
+      [
+        'instance-b',
+        {
+          type: 'oauth',
+          clientId: 'c',
+          accessToken: 'token-b',
+          refreshToken: 'refresh-b',
+          accountId: 'account-b',
+          expiresAt: Date.now() + 3600000
+        }
+      ]
+    ])
+    getAuthConfigMock.mockImplementation((id) => sessions.get(id) ?? null)
+    getByProviderIdMock.mockReturnValue({ presetProviderId: 'openai-codex' })
+    updateMock.mockImplementation((id, patch) => {
+      if (patch.authConfig) sessions.set(id, patch.authConfig)
+    })
+    const runtime = new OAuthRuntimeService()
+    const originalGet = application.get.bind(application)
+    const getSpy = vi
+      .spyOn(application, 'get')
+      .mockImplementation((name: string) => (name === 'OAuthRuntimeService' ? runtime : originalGet(name as never)))
+    try {
+      const configs = await Promise.all(
+        ['instance-a', 'instance-b'].map(async (id) =>
+          providerToAiSdkConfig(
+            makeProvider({ id, presetProviderId: 'openai-codex' }),
+            makeModel({ providerId: id, endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES] })
+          )
+        )
+      )
+      const settings = configs.map((config) => config.providerSettings as { baseURL: string; fetch: typeof fetch })
+      expect(settings.map((s) => s.baseURL)).toEqual([
+        'https://chatgpt.com/backend-api/codex',
+        'https://chatgpt.com/backend-api/codex'
+      ])
+      const requests: Array<{ url: string; auth: string | null; account: string | null; body: unknown }> = []
+      vi.mocked(net.fetch).mockImplementation(async (input, init) => {
+        const url = String(input)
+        if (url === 'https://auth.openai.com/oauth/token')
+          return Response.json({ access_token: 'fresh-b', refresh_token: 'fresh-refresh-b', expires_in: 3600 })
+        const headers = new Headers(init?.headers)
+        requests.push({
+          url,
+          auth: headers.get('authorization'),
+          account: headers.get('chatgpt-account-id'),
+          body: JSON.parse(String(init?.body))
+        })
+        return new Response('', { status: requests.length === 2 ? 401 : 200 })
+      })
+      const send = (index: number) =>
+        settings[index].fetch(`${settings[index].baseURL}/responses`, {
+          method: 'POST',
+          body: JSON.stringify({ model: 'm', store: true })
+        })
+      await send(0)
+      await send(1)
+      expect(requests).toEqual([
+        {
+          url: 'https://chatgpt.com/backend-api/codex/responses',
+          auth: 'Bearer token-a',
+          account: 'account-a',
+          body: { model: 'm', store: false, include: ['reasoning.encrypted_content'] }
+        },
+        {
+          url: 'https://chatgpt.com/backend-api/codex/responses',
+          auth: 'Bearer token-b',
+          account: 'account-b',
+          body: { model: 'm', store: false, include: ['reasoning.encrypted_content'] }
+        },
+        {
+          url: 'https://chatgpt.com/backend-api/codex/responses',
+          auth: 'Bearer fresh-b',
+          account: 'account-b',
+          body: { model: 'm', store: false, include: ['reasoning.encrypted_content'] }
+        }
+      ])
+      expect(sessions.get('instance-a')).toMatchObject({
+        accessToken: 'token-a',
+        refreshToken: 'refresh-a',
+        accountId: 'account-a'
+      })
+      expect(sessions.get('instance-b')).toMatchObject({
+        accessToken: 'fresh-b',
+        refreshToken: 'fresh-refresh-b',
+        accountId: 'account-b'
+      })
+      sessions.set('instance-b', { type: 'api-key' })
+      await expect(send(1)).rejects.toThrow(/Not signed in/)
+      expect(requests).toHaveLength(3)
+    } finally {
+      getSpy.mockRestore()
+    }
+  })
 })
 
 describe('providerToAiSdkConfig — builder dispatch matrix', () => {

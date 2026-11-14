@@ -36,7 +36,7 @@ re-read the table.
 
 ## Architecture
 
-Three pieces, all keyed by `providerId`:
+Three pieces separate protocol identity from session identity. Definitions, transport, client, and account extraction are preset-scoped. The provider row is the session subject and owns tokens, enablement, and refresh deduplication. A Codex instance resolves its definition through `presetProviderId`; its transport remains preset-scoped with a fixed callback port, so overlapping sign-ins are rejected:
 
 - **`OAuthRuntimeService`** — lifecycle service; the public surface
   (`signIn` / `joinActiveSignIn` / `cancelSignIn` /

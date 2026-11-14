@@ -1,6 +1,7 @@
 import type { Server } from 'node:http'
 
 import { setupTestDatabase } from '@test-helpers/db'
+import { eq } from 'drizzle-orm'
 import { net, shell } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, type MockInstance, vi } from 'vitest'
 
@@ -16,11 +17,13 @@ import type * as ProviderDefinitions from '../providerDefinitions'
 vi.mock('../providerDefinitions', async (importOriginal) => {
   const actual = await importOriginal<typeof ProviderDefinitions>()
   const cherryin = actual.oauthProviderDefinitions.cherryin
+  const codex = actual.oauthProviderDefinitions['openai-codex']
   return {
     ...actual,
     oauthProviderDefinitions: {
       ...actual.oauthProviderDefinitions,
-      cherryin: { ...cherryin, transport: { ...cherryin.transport, port: 0 } }
+      cherryin: { ...cherryin, transport: { ...cherryin.transport, port: 0 } },
+      'openai-codex': { ...codex, transport: { ...codex.transport, port: 0 } }
     }
   }
 })
@@ -58,19 +61,122 @@ describe('OAuth login with a real callback server and token store', () => {
     vi.restoreAllMocks()
   })
 
-  async function authorize(browserCall = 0) {
+  async function authorize(browserCall = 0, path = '/oauth/callback') {
     await vi.waitFor(() => expect(vi.mocked(shell.openExternal).mock.calls.length).toBeGreaterThan(browserCall))
     const authUrl = new URL(vi.mocked(shell.openExternal).mock.calls[browserCall][0])
     const transport = callbackWait.mock.contexts[browserCall] as { activeServers: Server[] }
     const address = transport.activeServers[0].address()
     if (!address || typeof address === 'string') throw new Error('Callback server is not listening')
-    const callback = new URL(`http://127.0.0.1:${address.port}/oauth/callback`)
+    const callback = new URL(`http://127.0.0.1:${address.port}${path}`)
     callback.searchParams.set('state', authUrl.searchParams.get('state')!)
     callback.searchParams.set('code', 'test-code')
     const response = await fetch(callback)
     await response.text()
     expect(response.status).toBe(200)
   }
+
+  it('isolates Codex sign-ins, shared transport, and logout by row', async () => {
+    const a = 'openai-codex'
+    const b = 'c9e63f6e-49e2-4a6a-8446-dc85f1b66c50'
+    dbh.db
+      .insert(userProviderTable)
+      .values([
+        { providerId: a, presetProviderId: a, name: 'A', orderKey: 'a1' },
+        { providerId: b, presetProviderId: a, name: 'B', orderKey: 'a2' }
+      ])
+      .run()
+    const jwt = (account: string) =>
+      `x.${Buffer.from(JSON.stringify({ 'https://api.openai.com/auth': { chatgpt_account_id: account } })).toString('base64url')}.x`
+    vi.mocked(net.fetch)
+      .mockResolvedValueOnce(
+        Response.json({ access_token: jwt('account-a'), refresh_token: 'refresh-a', expires_in: 3600 })
+      )
+      .mockResolvedValueOnce(
+        Response.json({ access_token: jwt('account-b'), refresh_token: 'refresh-b', expires_in: 3600 })
+      )
+    const loginA = service.signIn('window-a', a, 'a')
+    void loginA.catch(() => {})
+    await vi.waitFor(() => expect(shell.openExternal).toHaveBeenCalledOnce())
+    await expect(service.signIn('window-b', b, 'b')).rejects.toThrow()
+    await expect(service.joinActiveSignIn('window-b', b, 'b')).resolves.toEqual({ status: 'not-found' })
+    await service.cancelSignIn('window-b', b, 'b')
+    await authorize(0, '/auth/callback')
+    await expect(loginA).resolves.toMatchObject({ accountId: 'account-a' })
+    const loginB = service.signIn('window-b', b, 'b2')
+    void loginB.catch(() => {})
+    await authorize(1, '/auth/callback')
+    await expect(loginB).resolves.toMatchObject({ accountId: 'account-b' })
+    const row = (id: string) =>
+      dbh.db.select().from(userProviderTable).where(eq(userProviderTable.providerId, id)).get()
+    expect(row(a)).toMatchObject({
+      isEnabled: true,
+      authConfig: { accessToken: jwt('account-a'), refreshToken: 'refresh-a', accountId: 'account-a' }
+    })
+    expect(row(b)).toMatchObject({
+      isEnabled: true,
+      authConfig: { accessToken: jwt('account-b'), refreshToken: 'refresh-b', accountId: 'account-b' }
+    })
+    await service.logout(b)
+    expect(row(b)).toMatchObject({ isEnabled: false, authConfig: { type: 'api-key' } })
+    expect(row(a)).toMatchObject({
+      isEnabled: true,
+      authConfig: { accessToken: jwt('account-a'), accountId: 'account-a' }
+    })
+  })
+
+  it.each(['hasToken', 'getValidAccessToken', 'terminal refresh'])(
+    'cleans only the affected Codex row on %s',
+    async (branch) => {
+      const a = 'openai-codex'
+      const b = 'codex-instance'
+      const authA = {
+        type: 'oauth' as const,
+        clientId: 'client',
+        accessToken: 'token-a',
+        refreshToken: 'refresh-a',
+        accountId: 'account-a',
+        expiresAt: Date.now() + 3600000
+      }
+      const authB = {
+        type: 'oauth' as const,
+        clientId: 'client',
+        accessToken: 'token-b',
+        accountId: 'account-b',
+        expiresAt: Date.now() - 10000,
+        ...(branch === 'terminal refresh' ? { refreshToken: 'refresh-b' } : {})
+      }
+      dbh.db
+        .insert(userProviderTable)
+        .values([
+          { providerId: a, presetProviderId: a, name: 'A', orderKey: 'a1', isEnabled: true, authConfig: authA },
+          { providerId: b, presetProviderId: a, name: 'B', orderKey: 'a2', isEnabled: true, authConfig: authB }
+        ])
+        .run()
+      if (branch === 'terminal refresh')
+        vi.mocked(net.fetch).mockResolvedValueOnce(new Response('invalid_grant', { status: 400 }))
+      if (branch === 'hasToken') expect(await service.hasToken(b)).toBe(false)
+      else expect(await service.getValidAccessToken(b)).toBeNull()
+      const row = (id: string) =>
+        dbh.db.select().from(userProviderTable).where(eq(userProviderTable.providerId, id)).get()
+      expect(row(b)).toMatchObject({ isEnabled: false, authConfig: { type: 'api-key' } })
+      expect(row(a)).toMatchObject({ isEnabled: true, authConfig: authA })
+    }
+  )
+
+  it('rejects unknown and non-Codex instance definitions with the OAuth error', async () => {
+    dbh.db
+      .insert(userProviderTable)
+      .values([
+        { providerId: 'openai-codex', name: 'Canonical', orderKey: 'a0' },
+        { providerId: 'custom-row', name: 'Custom', orderKey: 'a1' },
+        { providerId: 'grok-instance', presetProviderId: 'grok-cli', name: 'Grok', orderKey: 'a2' }
+      ])
+      .run()
+    for (const id of ['unknown-row', 'custom-row', 'grok-instance']) {
+      await expect(service.getAccount(id)).rejects.toThrow(`No OAuth provider registered for provider: ${id}`)
+    }
+    await expect(service.getAccount('openai-codex')).resolves.toEqual({ accountId: null })
+  })
 
   it('delivers API keys only to the initiating window and account information to observers', async () => {
     const login = service.signIn('window-a', 'cherryin', 'owner')
