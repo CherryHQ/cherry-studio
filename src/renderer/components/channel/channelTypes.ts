@@ -91,6 +91,11 @@ export const AVAILABLE_CHANNELS: AvailableChannel[] = [
   }
 ]
 
+/** The add-channel menus lead with the platforms most users connect first. */
+export const CHANNEL_MENU_PLATFORMS: AvailableChannel[] = (
+  ['wechat', 'feishu', 'wecom', 'dingtalk', 'qq', 'telegram', 'discord', 'slack'] as const
+).flatMap((type) => AVAILABLE_CHANNELS.filter((platform) => platform.type === type))
+
 export type ChannelData = {
   id: string
   type: string

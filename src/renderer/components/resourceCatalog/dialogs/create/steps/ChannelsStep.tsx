@@ -18,26 +18,13 @@ import {
   createChannelDraft,
   toAgentChannelDraft
 } from '@renderer/components/channel/channelDraft'
-import { AVAILABLE_CHANNELS, type ChannelUpdates } from '@renderer/components/channel/channelTypes'
-import { permissionModeCards } from '@renderer/utils/agent'
+import { channelSummary } from '@renderer/components/channel/channelSummary'
+import { CHANNEL_MENU_PLATFORMS, type ChannelUpdates } from '@renderer/components/channel/channelTypes'
 import { getChannelTypeIcon } from '@renderer/utils/agentSession'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
-import { type AgentChannelType, isQrLoginChannel } from '@shared/data/api/schemas/agentChannels'
+import { isQrLoginChannel } from '@shared/data/api/schemas/agentChannels'
 
 import type { ResourceCreateWizardFormValues } from '../types'
-
-// The create menu leads with the platforms most users connect first.
-const PLATFORM_ORDER: AgentChannelType[] = [
-  'wechat',
-  'feishu',
-  'wecom',
-  'dingtalk',
-  'qq',
-  'telegram',
-  'discord',
-  'slack'
-]
-const PLATFORMS = PLATFORM_ORDER.flatMap((type) => AVAILABLE_CHANNELS.filter((platform) => platform.type === type))
 
 function applyUpdates(channel: ChannelDraftItem, updates: ChannelUpdates): ChannelDraftItem {
   const { configPatch, config, ...fields } = updates
@@ -76,29 +63,6 @@ export function ChannelsStep({ form, portalContainer }: ChannelsStepProps) {
     if (id === editingId) setEditingId(null)
   }
 
-  const modeTitle = (mode: string | null | undefined) => {
-    const card = permissionModeCards.find((item) => item.mode === mode)
-    return card ? t(card.titleKey, card.titleFallback) : ''
-  }
-  const summary = (channel: ChannelDraftItem) => {
-    const ids = (channel.config.allowed_chat_ids ?? channel.config.allowed_channel_ids ?? []) as string[]
-    return [
-      channel.type === 'feishu'
-        ? t(
-            channel.config.domain === 'lark' ? 'agent.channels.feishu.domainLark' : 'agent.channels.feishu.domainFeishu'
-          )
-        : null,
-      ids.length
-        ? t('library.config.dialogs.create.channels.chats_count', { count: ids.length })
-        : t('library.config.dialogs.create.channels.chats_all'),
-      channel.permissionMode
-        ? t('library.config.dialogs.create.channels.permission', { mode: modeTitle(channel.permissionMode) })
-        : t('library.config.dialogs.create.channels.permission_inherit', { mode: modeTitle(permissionMode) })
-    ]
-      .filter(Boolean)
-      .join(' · ')
-  }
-
   return (
     <div className="flex min-w-0 flex-col gap-3">
       <div className="flex items-center justify-between gap-3">
@@ -112,7 +76,7 @@ export function ChannelsStep({ form, portalContainer }: ChannelsStepProps) {
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="min-w-44" portalContainer={portalContainer}>
-            {PLATFORMS.map((platform) => (
+            {CHANNEL_MENU_PLATFORMS.map((platform) => (
               <DropdownMenuItem
                 key={platform.type}
                 onSelect={() => {
@@ -131,7 +95,7 @@ export function ChannelsStep({ form, portalContainer }: ChannelsStepProps) {
       {channels.length === 0 ? (
         <div className="flex flex-col items-center gap-3 rounded-md border border-border-subtle border-dashed px-4 py-6">
           <div className="flex items-center gap-2">
-            {PLATFORMS.slice(0, 6).map((platform) => (
+            {CHANNEL_MENU_PLATFORMS.slice(0, 6).map((platform) => (
               <img
                 key={platform.type}
                 src={getChannelTypeIcon(platform.type)}
@@ -142,7 +106,7 @@ export function ChannelsStep({ form, portalContainer }: ChannelsStepProps) {
           </div>
           <p className="text-center text-foreground-tertiary text-xs">
             {t('library.config.dialogs.create.channels.empty', {
-              platforms: PLATFORMS.map((platform) => t(platform.titleKey)).join(separator)
+              platforms: CHANNEL_MENU_PLATFORMS.map((platform) => t(platform.titleKey)).join(separator)
             })}
           </p>
         </div>
@@ -168,7 +132,9 @@ export function ChannelsStep({ form, portalContainer }: ChannelsStepProps) {
                     ) : null}
                   </div>
                   {valid ? (
-                    <div className="truncate text-muted-foreground text-xs">{summary(channel)}</div>
+                    <div className="truncate text-muted-foreground text-xs">
+                      {channelSummary(t, channel, permissionMode)}
+                    </div>
                   ) : (
                     <div role="alert" className="truncate text-warning text-xs">
                       {t('library.config.dialogs.create.channels.invalid')}

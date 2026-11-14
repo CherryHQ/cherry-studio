@@ -561,6 +561,7 @@ vi.mock('react-i18next', async (importOriginal) => {
           'settings.prompts.titlePlaceholder': 'Enter a title',
           'settings.prompts.variablePlaceholder': '${variable}',
           'settings.prompts.visibility.global.label': 'Use globally',
+          'settings.scheduledTasks.title': 'Scheduled Tasks',
           'settings.title': 'Settings'
         })[key] ??
         (key.startsWith('agent.memory.') || key.startsWith('library.config.dialogs.edit.')
@@ -719,6 +720,9 @@ beforeEach(() => {
         },
         isLoading: false
       }
+    }
+    if (path === '/agent-channels') {
+      return { data: [], isLoading: false, refetch: vi.fn(), mutate: vi.fn() }
     }
     if (path === '/prompts') {
       return {
@@ -2269,19 +2273,33 @@ describe('edit dialogs', () => {
       refreshing: false
     } as unknown as typeof installedSkillsState.current
     const baseQuery = useQueryMock.getMockImplementation()!
+    const listed = (data: unknown) => ({ data, isLoading: false, refetch: vi.fn(), mutate: vi.fn() })
     useQueryMock.mockImplementation((path: string, ...rest: unknown[]) =>
-      path === '/mcp-servers'
-        ? {
-            data: {
+      path === '/agent-channels'
+        ? listed([
+            { id: 'c1', name: 'On', isActive: true },
+            { id: 'c2', name: 'Off', isActive: false }
+          ])
+        : path === '/agents/:agentId/tasks'
+          ? listed({
               items: [
-                { id: 'mcp-1', name: 'MCP One', isActive: true },
-                { id: 'mcp-2', name: 'MCP Two', isActive: true },
-                { id: 'browser', name: BuiltinMcpServerNames.browser, type: 'inMemory', isActive: true }
+                { id: 't1', status: 'active' },
+                { id: 't2', status: 'paused' },
+                { id: 't3', status: 'completed' }
               ]
-            },
-            isLoading: false
-          }
-        : baseQuery(path, ...rest)
+            })
+          : path === '/mcp-servers'
+            ? {
+                data: {
+                  items: [
+                    { id: 'mcp-1', name: 'MCP One', isActive: true },
+                    { id: 'mcp-2', name: 'MCP Two', isActive: true },
+                    { id: 'browser', name: BuiltinMcpServerNames.browser, type: 'inMemory', isActive: true }
+                  ]
+                },
+                isLoading: false
+              }
+            : baseQuery(path, ...rest)
     )
     const agent = {
       ...AGENT,
@@ -2302,6 +2320,9 @@ describe('edit dialogs', () => {
     expect(screen.getByRole('button', { name: '技能: Enabled 2 / 3' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Knowledge: Linked 1 / 2' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'MCP servers: Enabled 1 / 2' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Channels: Enabled 1 / 2' })).toBeInTheDocument()
+    // Only active tasks run, so paused and completed ones are not counted as enabled.
+    expect(screen.getByRole('button', { name: 'Scheduled Tasks: Enabled 1 / 3' })).toBeInTheDocument()
 
     // Unlinking every knowledge base hides the knowledge tools from the count.
     await openSubPage(user, 'Knowledge')
@@ -2333,6 +2354,8 @@ describe('edit dialogs', () => {
     ['tools.mcp', 'MCP servers'],
     ['advanced', 'More settings'],
     ['memory', 'Memory'],
+    ['channels', 'Channels'],
+    ['tasks', 'Scheduled Tasks'],
     ['prompts', 'Edit Agent']
   ])('opens the agent deep link %s on the %s page', (initialTab, title) => {
     render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} initialTab={initialTab} />)

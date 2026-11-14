@@ -8,6 +8,8 @@ import type { ModelSelectorFilter } from '@renderer/components/ModelSelector'
 import { PermissionModeSelect } from '@renderer/components/PermissionModeOption'
 import PromptEditorField from '@renderer/components/PromptEditorField'
 import { SkillCatalogPicker } from '@renderer/components/resourceCatalog/dialogs/skill'
+import { useChannels } from '@renderer/hooks/agent/useChannels'
+import { useAgentTasks } from '@renderer/hooks/agent/useTasks'
 import { useAgentMutationsById } from '@renderer/hooks/resourceCatalog'
 import { useCloseBeforeAction } from '@renderer/hooks/useCloseBeforeAction'
 import { useExitPresence } from '@renderer/hooks/useExitPresence'
@@ -32,7 +34,7 @@ import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import { isSealedBuiltinAgentRole } from '@shared/ai/builtinAgent'
 import { AGENT_PROMPT } from '@shared/ai/prompts'
 import { LEGACY_DSH_TOOL_PREFIX } from '@shared/ai/retiredAgentRuntime'
-import type { UpdateAgentDto } from '@shared/data/api/schemas/agents'
+import type { AgentPermissionMode, UpdateAgentDto } from '@shared/data/api/schemas/agents'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { InstalledSkill } from '@shared/types/skill'
 import { isBrowserMcpServer } from '@shared/utils/mcp'
@@ -63,7 +65,9 @@ import { McpCapabilityList } from '../components/McpCapabilityList'
 import { PiPromptField } from '../components/PiPromptField'
 import { PromptPolishActions } from '../components/PromptPolishActions'
 import { ReplyLanguageSelect } from '../components/ReplyLanguageSelect'
+import { AgentChannelsPage } from './AgentChannelsPage'
 import { AgentMemoryPanel, type AgentMemoryPanelHandle } from './AgentMemoryPanel'
+import { AgentTasksPage } from './AgentTasksPage'
 import { countSummary, type EditPage, type EditSubPage, parentEditPage, resolveInitialEditPage } from './editPages'
 import { HeartbeatEditorDialog } from './HeartbeatEditorDialog'
 
@@ -103,6 +107,8 @@ function agentSubPages(resource: AgentDetail): Set<EditSubPage> {
     'prompt',
     'tools',
     'memory',
+    'channels',
+    'tasks',
     ...(caps.skills && !sealedSkills ? (['skills'] as const) : []),
     ...(caps.knowledgeBases ? (['knowledge'] as const) : []),
     ...(caps.mcp ? (['mcp'] as const) : [])
@@ -491,8 +497,8 @@ function AgentEditDialogContent({
     skills: t('library.config.agent.section.tools.tab.skills'),
     knowledge: t('library.config.dialogs.edit.knowledge_tab'),
     mcp: t('library.config.dialogs.edit.page.mcp'),
-    channels: '',
-    tasks: '',
+    channels: t('library.config.dialogs.edit.page.channels'),
+    tasks: t('settings.scheduledTasks.title'),
     memory: t('agent.memory.button'),
     context: '',
     parameters: ''
@@ -627,6 +633,17 @@ function AgentEditDialogContent({
         />
       ) : null}
       {page === 'mcp' ? <AgentMcpPage form={form} portalContainer={dialogContentElement} /> : null}
+      {page === 'channels' ? (
+        <AgentChannelsPage
+          agentId={resource.id}
+          agentType={resource.type}
+          permissionMode={values.permissionMode as AgentPermissionMode}
+          portalContainer={dialogContentElement}
+        />
+      ) : null}
+      {page === 'tasks' ? (
+        <AgentTasksPage agentId={resource.id} agentName={values.name.trim() || resource.name} />
+      ) : null}
       {open && page === 'memory' ? <AgentMemoryPanel key={resource.id} ref={memoryPanelRef} agent={resource} /> : null}
     </EditDialogPageShell>
   )
@@ -661,6 +678,8 @@ function AgentMoreSettings({
   })
   const { bases } = useKnowledgeBases()
   const { mcpServers } = useMcpServers()
+  const { channels } = useChannels({ agentId: agent.id })
+  const { tasks } = useAgentTasks(agent.id)
 
   const tools = getAgentBuiltinTools(agent.type, knowledgeBaseIds.length > 0)
   const availableSkills = skills.filter((skill) => skill.isGlobalEnabled)
@@ -696,6 +715,18 @@ function AgentMoreSettings({
       page: 'mcp',
       label: t('library.config.dialogs.edit.page.mcp'),
       summary: countSummary(t, 'enabled', servers.filter((server) => mcps.includes(server.id)).length, servers.length)
+    },
+    {
+      page: 'channels',
+      label: t('library.config.dialogs.edit.page.channels'),
+      hint: t('library.config.dialogs.edit.channels_hint'),
+      summary: countSummary(t, 'enabled', channels.filter((channel) => channel.isActive).length, channels.length)
+    },
+    {
+      page: 'tasks',
+      label: t('settings.scheduledTasks.title'),
+      // Paused, completed, and missed tasks are not running, so only active ones count.
+      summary: countSummary(t, 'enabled', tasks.filter((task) => task.status === 'active').length, tasks.length)
     }
   ]
   const promptLabel = t('library.config.prompt.label')
