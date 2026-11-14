@@ -4,8 +4,8 @@ import { useTranslation } from 'react-i18next'
 
 import { Button } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import { officialDownloadUrl } from '@renderer/components/appUpdate/AppUpdateCheckService'
-import { updateNoticeIsFailure } from '@renderer/components/appUpdate/useAppUpdateCheck'
+import { updateNoticeIsFailure } from '@renderer/hooks/useAppUpdateCheck'
+import { officialDownloadUrl } from '@renderer/services/AppUpdateCheckService'
 import { openExternalWebsite } from '@renderer/services/website'
 import type { CacheAppUpdateState } from '@shared/data/cache/cacheValueTypes'
 

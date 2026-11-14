@@ -7,6 +7,7 @@ import { SWRConfig } from 'swr'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { TabsContext, type TabsContextValue } from '@renderer/hooks/tab'
+import { appUpdateCheckService } from '@renderer/services/AppUpdateCheckService'
 import { DefaultSharedCache } from '@shared/data/cache/cacheSchemas'
 import type { NotificationRecord } from '@shared/data/types/notification'
 
@@ -15,9 +16,6 @@ import { UserAccountPanel } from '../UserAccountPanel'
 
 vi.unmock('@cherrystudio/ui')
 vi.unmock('@data/hooks/useDataApi')
-vi.mock('@renderer/components/UpdateDialogPopup', () => {
-  throw new Error('chunk failed to load')
-})
 
 describe('NotificationCenter reading', () => {
   beforeEach(async () => {
@@ -97,6 +95,7 @@ describe('NotificationCenter reading', () => {
     meta.setAttribute('name', 'logger-window-source')
     meta.setAttribute('content', 'mainWindow')
     document.head.appendChild(meta)
+    appUpdateCheckService.registerUpdateDialog(() => Promise.reject(new Error('chunk failed to load')))
     MockUseCacheUtils.setSharedCacheValue('app.dist.update_status', {
       ...DefaultSharedCache['app.dist.update_status'],
       available: true,

@@ -6,7 +6,7 @@ import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { cacheService } from '@data/CacheService'
-import type * as UpdateCheckModule from '@renderer/components/appUpdate/AppUpdateCheckService'
+import type * as UpdateCheckModule from '@renderer/services/AppUpdateCheckService'
 let appUpdateCheckService: typeof UpdateCheckModule.appUpdateCheckService
 
 import type * as ShellModule from '../ShellTabBarActions'
@@ -15,7 +15,8 @@ let ShellTabBarActions: typeof ShellModule.ShellTabBarActions
 
 beforeEach(async () => {
   vi.resetModules()
-  ;({ appUpdateCheckService } = await import('@renderer/components/appUpdate/AppUpdateCheckService'))
+  ;({ appUpdateCheckService } = await import('@renderer/services/AppUpdateCheckService'))
+  appUpdateCheckService.registerUpdateDialog(async () => ({ show: mocks.showUpdatePopup }))
   ;({ AppUpdateButton, ShellTabBarActions } = await import('../ShellTabBarActions'))
 })
 
@@ -54,12 +55,6 @@ vi.mock('@renderer/services/mainWindowNavigation', () => ({
 vi.mock('@renderer/components/GlobalSearch/GlobalSearchPopup', () => ({
   default: {
     show: mocks.showSearchPopup
-  }
-}))
-
-vi.mock('@renderer/components/UpdateDialogPopup', () => ({
-  default: {
-    show: mocks.showUpdatePopup
   }
 }))
 

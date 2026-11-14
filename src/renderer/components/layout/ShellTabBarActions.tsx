@@ -3,11 +3,11 @@ import { useTranslation } from 'react-i18next'
 
 import { Button, Tooltip } from '@cherrystudio/ui'
 import { usePersistCache } from '@data/hooks/useCache'
-import { appUpdateCheckService } from '@renderer/components/appUpdate/AppUpdateCheckService'
 import { CommandTooltip } from '@renderer/components/command'
 import GlobalSearchPopup from '@renderer/components/GlobalSearch/GlobalSearchPopup'
 import { getSidebarLayout } from '@renderer/components/Sidebar'
 import { useAppUpdateState } from '@renderer/hooks/useAppUpdateState'
+import { appUpdateCheckService } from '@renderer/services/AppUpdateCheckService'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 
 import { WindowControls } from '../WindowControls'

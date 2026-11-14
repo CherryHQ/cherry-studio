@@ -31,6 +31,11 @@ type UpdatePatch = Partial<CacheAppUpdateState>
 type UpdatePhase = 'idle' | 'checking' | 'downloading' | 'downloaded'
 type ChannelAck = 'ready' | 'failed'
 
+/** The install confirmation dialog; the window hosting it registers a lazy loader. */
+export interface UpdateDialog {
+  show(params: { releaseInfo: UpdateInfo | null }): Promise<unknown>
+}
+
 class AppUpdateCheckService {
   private manualCheckActive = false
   private checkInFlight = false
@@ -48,6 +53,12 @@ class AppUpdateCheckService {
   private checkOwner = 0
   private nextCheckOwner = 0
   private availabilityQuery: { session: number; at: number; result: Promise<string | null> } | null = null
+  private loadUpdateDialog: (() => Promise<UpdateDialog>) | undefined
+
+  /** Composition-layer registration, so this service never imports the dialog component. */
+  registerUpdateDialog(loader: () => Promise<UpdateDialog>): void {
+    this.loadUpdateDialog = loader
+  }
 
   isManualUpdateCheck(): boolean {
     return this.manualCheckActive
@@ -191,15 +202,16 @@ class AppUpdateCheckService {
     if (!this.isActiveUpdateSession()) return
     const epoch = this.session
     try {
-      const { default: UpdateDialogPopup } = await import('@renderer/components/UpdateDialogPopup')
+      if (!this.loadUpdateDialog) throw new Error('No update dialog is registered in this window')
+      const dialog = await this.loadUpdateDialog()
       // An acknowledged channel switch is a new active session, so activity alone is not enough.
       if (this.session !== epoch) return
       // The dialog opens now, so an earlier failure to open it is no longer current.
       this.setUpdateNotice(null)
-      await UpdateDialogPopup.show({ releaseInfo: info })
+      await dialog.show({ releaseInfo: info })
     } catch (error) {
       if (this.session !== epoch) return
-      logger.error('Failed to load UpdateDialogPopup chunk:', error as Error)
+      logger.error('Failed to open the update dialog:', error as Error)
       this.setUpdateNotice('settings.about.updateError')
     }
   }
