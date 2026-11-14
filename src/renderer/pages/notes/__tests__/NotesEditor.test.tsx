@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -14,6 +14,13 @@ const mocks = vi.hoisted(() => ({
     fontFamily: 'default',
     fontSize: 16
   }
+}))
+
+const detailMocks = vi.hoisted(() => ({ open: vi.fn() }))
+
+vi.mock('@renderer/services/appErrorDetailOpen', () => ({
+  openLoadedErrorDetail: (request: unknown) => detailMocks.open(request),
+  showDetailOpenFailed: vi.fn()
 }))
 
 vi.mock('@renderer/components/RichEditor/RichEditor', () => {
@@ -167,10 +174,10 @@ describe('NotesEditor empty state', () => {
     expect(onCreateNote).toHaveBeenCalledTimes(1)
   })
 
-  it('does not expose a create-note action on a load error', () => {
+  it('does not expose a create-note action on a load error', async () => {
     render(
       <NotesEditor
-        activeNodeId="/notes/example.md"
+        activeNodeId="/Users/alice/notes/example.md"
         currentContent=""
         contentLoadError={new Error('read failed')}
         tokenCount={0}
@@ -182,7 +189,12 @@ describe('NotesEditor empty state', () => {
     )
 
     expect(screen.getByText('Failed to load note')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Details' })).toBeInTheDocument()
     expect(screen.queryByText('read failed')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Details' }))
+    await waitFor(() => expect(detailMocks.open).toHaveBeenCalled())
+    // The note id is an absolute home-directory path; it must stay out of the uploadable snapshot.
+    const request = detailMocks.open.mock.calls[0][0]
+    expect(request.context.recordId).toBeUndefined()
+    expect(JSON.stringify(request)).not.toContain('/Users/alice')
   })
 })
