@@ -11,11 +11,13 @@ import { getAgentAvatar, getPermissionModeCards } from '@renderer/utils/agent'
 import type { AgentEntity } from '@shared/data/types/agent'
 
 import { AgentProfileActivity, type AgentProfileWorkspace } from './AgentProfileActivity'
+import { AgentOutputs } from './ProfileOutputs'
 import { ProfilePaneFrame } from './ProfilePaneFrame'
 import {
   ProfilePaneHeader,
   ProfilePaneSection,
   ProfilePaneSectionAction,
+  ProfilePaneTabs,
   ProfileSettingButton,
   ProfileSettingsRow
 } from './ProfilePaneParts'
@@ -24,11 +26,14 @@ import {
 export function AgentProfilePane({
   agentId,
   sessionId,
-  workspace
+  workspace,
+  onOpenOutput
 }: {
   agentId: string
   sessionId?: string
   workspace?: AgentProfileWorkspace
+  /** Opens a reported file in the Files pane; absent when that pane cannot show it. */
+  onOpenOutput?: (path: string) => void
 }) {
   const { t } = useTranslation()
   const { agent } = useAgent(agentId)
@@ -51,8 +56,15 @@ export function AgentProfilePane({
         name={agent.name}
         description={agent.description}
       />
-      <AgentProfileActivity agent={agent} sessionId={sessionId} workspace={workspace} />
-      <AgentProfileSettings agent={agent} />
+      <ProfilePaneTabs
+        activity={
+          <>
+            <AgentProfileActivity agent={agent} sessionId={sessionId} workspace={workspace} />
+            <AgentProfileSettings agent={agent} />
+          </>
+        }
+        outputs={<AgentOutputs agentId={agent.id} onOpen={onOpenOutput} />}
+      />
     </ProfilePaneFrame>
   )
 }
