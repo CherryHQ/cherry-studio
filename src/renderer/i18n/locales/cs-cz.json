@@ -5284,7 +5284,7 @@
   "settings.models.default_assistant_model_description": "Použije se, pokud asistent nemá model.",
   "settings.models.docs": "Dokumentace modelu",
   "settings.models.edit.classification_save_hint": "Nastavení mohou pocházet z katalogu modelů. Změny se uloží okamžitě. Předvolené vstupní modality, které odpovídají katalogu, se nadále řídí jeho aktualizacemi; odlišné hodnoty se uloží jako přepsání. Vlastní modely ukládají zobrazené vstupní modality explicitně. Povolujte pouze vstupy podporované poskytovatelem.",
-  "settings.models.edit.default_reasoning_effort": "Výchozí úroveň uvažování",
+  "settings.models.edit.default_reasoning_effort": "Výchozí úsilí o uvažování",
   "settings.models.empty": "Vyberte model",
   "settings.models.empty_hint": "Pro přidání modelů klikněte nahoře na „Synchronizovat modely“.",
   "settings.models.expand_all": "Rozbalit vše",
