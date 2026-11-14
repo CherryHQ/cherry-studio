@@ -1005,6 +1005,8 @@
   "chat.profile_pane.tasks.new_prompt": "Benim için zamanlanmış bir görev oluştur: ",
   "chat.profile_pane.tasks.title": "Zamanlanmış görevler",
   "chat.profile_pane.title": "Profil",
+  "chat.profile_pane.try_asking.hide": "Gizle",
+  "chat.profile_pane.try_asking.title": "Şunu sormayı deneyin",
   "chat.profile_pane.workspace.idle": "Boşta",
   "chat.profile_pane.workspace.running": "Çalışıyor",
   "chat.profile_pane.workspace.title": "Çalışma alanı",
