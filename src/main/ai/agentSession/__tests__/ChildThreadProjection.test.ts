@@ -709,7 +709,7 @@ it('keeps a child observation newer than its pending context read without writin
   reading.resolve({ status: 'unknown', error: { operation: 'contextUsage', code: 'stale', message: 'Old context' } })
   await attaching
   const key = `agent.session.context_usage.${f.context.sessionId}` as const
-  expect(application.get('CacheService').getShared(key)).toEqual({ result: current })
+  expect(application.get('CacheService').getShared(key)).toEqual({ result: current, sessionId: f.context.sessionId })
   expect(readAgentSessionPath(dbh.db, f.context.sessionId)).toEqual([])
   const revision = f.projection.snapshot().revision
   await f.send({ type: 'context.changed', result: current })

@@ -14,7 +14,10 @@ export function useAgentSessionContextUsage(
   model?: Model
 ): AgentSessionContextUsageState {
   const cached = useSharedCacheValue(AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY(sessionId ?? '__none__'))
-  const result = sessionId && (!model || !cached?.modelId || cached.modelId === model.id) ? cached?.result : undefined
+  const result =
+    sessionId && cached?.sessionId === sessionId && (!model || !cached?.modelId || cached.modelId === model.id)
+      ? cached?.result
+      : undefined
   const usage = result?.status === 'confirmed' ? result.value : null
   const maxTokens = usage?.contextWindow ?? null
   const percentage =

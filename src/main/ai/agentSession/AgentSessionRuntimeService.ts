@@ -2601,9 +2601,11 @@ export class AgentSessionRuntimeService extends BaseService {
   private persistContextUsage(entry: AgentSessionRuntimeEntry, result: AgentSessionContextUsage['result']): void {
     if (!this.isCurrentEntry(entry)) return
     if (entry.contextUsageModel !== entry.modelId) return
-    application
-      .get('CacheService')
-      .setShared(AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY(entry.sessionId), { modelId: entry.modelId, result })
+    application.get('CacheService').setShared(AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY(entry.sessionId), {
+      modelId: entry.modelId,
+      sessionId: entry.sessionId,
+      result
+    })
   }
 
   /**
