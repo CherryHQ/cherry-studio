@@ -112,7 +112,9 @@ preboot/
 ├── crashTelemetry.ts    crashReporter + process-level error hooks +
 │                        webContents hardening (Document-Policy response
 │                        header and unresponsive renderer call-stack
-│                        collection)
+│                        collection). Unhandled rejections are logged and
+│                        deduped here; MainWindowService registers the
+│                        presenter via setHandedOffErrorPresenter()
 ├── backupRestoreGate.ts
 │                        backup-restore gate; promotes a staged restored DB
 │                        (if any) at the top of startApp(), after the
