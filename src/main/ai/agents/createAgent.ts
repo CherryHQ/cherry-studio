@@ -22,6 +22,14 @@ export async function createAgent(request: CreateAgentCommand) {
           agentService.createAgentWithId(agentId, data, fileId)
         )
       : agentService.createAgentWithId(agentId, data)
+    // Adapters start only once the Agent and its channels are committed.
+    if (data.channels?.length) {
+      try {
+        application.get('ChannelManager').reconcileAgent(agent.id)
+      } catch (error) {
+        logger.warn('Failed to start channels for new agent', { agentId, error })
+      }
+    }
     // Wait for the creation event’s provisioning; failure remains non-fatal and per-agent.
     try {
       await application.get('AgentJobsService').waitForHeartbeat(agent.id)
