@@ -5,6 +5,7 @@ import { useMiniAppPopup } from '@renderer/hooks/useMiniAppPopup'
 import { ipcApi } from '@renderer/ipc'
 import { toastAppError } from '@renderer/services/AppErrorDetailService'
 import { loggerService } from '@renderer/services/LoggerService'
+import { toast } from '@renderer/services/toast'
 import type { CliProviderConfig } from '@shared/data/preference/preferenceTypes'
 import type { Provider } from '@shared/data/types/provider'
 import { CodeCli, isApiGatewayProviderId, normalizeDeepSeekHarnessSettings } from '@shared/types/codeCli'
@@ -89,9 +90,11 @@ export function useDeepSeekHarnessController({
       })
       if (!result.success) {
         const detail = result.message?.trim()
-        toastAppError(t('code.launch.error'), detail ? new Error(detail) : result, {
-          source: 'code.deepseek',
-          operation: 'deepseek_harness.start'
+        toast.error({
+          title: t('code.launch.error'),
+          description: detail,
+          cause: detail ? { message: detail } : undefined,
+          data: { source: 'code.deepseek', operation: 'deepseek_harness.start' }
         })
         return
       }
@@ -113,9 +116,11 @@ export function useDeepSeekHarnessController({
       const result = await ipcApi.request('deepseek_harness.stop')
       if (!result.success) {
         const detail = result.message?.trim()
-        toastAppError(t('code.stop_failed'), detail ? new Error(detail) : result, {
-          source: 'code.deepseek',
-          operation: 'deepseek_harness.stop'
+        toast.error({
+          title: t('code.stop_failed'),
+          description: detail,
+          cause: detail ? { message: detail } : undefined,
+          data: { source: 'code.deepseek', operation: 'deepseek_harness.stop' }
         })
         return false
       }
