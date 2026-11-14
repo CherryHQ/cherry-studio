@@ -295,7 +295,7 @@ describe('Application startup errors', () => {
           message: prose.message,
           defaultId: 0,
           cancelId: 2,
-          buttons: [prose.continueLabel, prose.recoveryLabel, text.exit, text.copyAndFeedback],
+          buttons: [prose.continueLabel, prose.recoveryLabel, text.exit, text.copyAndFeedback, text.releases],
           detail: [prose.continueHint, prose.fileHint].join('\n\n')
         })
         expect(JSON.stringify(box)).not.toContain(RAW)

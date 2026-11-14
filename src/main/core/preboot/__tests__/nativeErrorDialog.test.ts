@@ -21,7 +21,7 @@ vi.mock('electron', () => ({
   shell: { openExternal }
 }))
 
-import { showSupportedMessageBox } from '../nativeErrorDialog'
+import { showSupportedMessageBox, SupportActionFailure } from '../nativeErrorDialog'
 
 const box = {
   type: 'error' as const,
@@ -122,56 +122,119 @@ describe('showSupportedMessageBox', () => {
     expect(openExternal).toHaveBeenCalledWith('https://cherryai.com/download')
   })
 
-  it('places the caller action right after the primary buttons and stays within four buttons', async () => {
+  it('keeps a lone caller action on the first row when everything fits in four buttons', async () => {
     const run = vi.fn(async () => undefined)
-    showMessageBox.mockResolvedValueOnce({ response: 2 }).mockResolvedValueOnce({ response: 0 })
+    showMessageBox.mockResolvedValueOnce({ response: 1 }).mockResolvedValueOnce({ response: 0 })
 
     const response = await showSupportedMessageBox({
-      box,
+      box: { ...box, buttons: ['Exit'], cancelId: 0 },
       action: { label: 'Export diagnostics', run }
     })
 
     expect(response).toBe(0)
     expect(run).toHaveBeenCalledOnce()
     expect(showMessageBox.mock.calls[0][0].buttons).toEqual([
-      'Retry',
-      'Quit',
+      'Exit',
       'Export diagnostics',
-      'Copy error and send feedback…'
+      'Copy error and send feedback…',
+      'Open download page'
     ])
-    expect(showMessageBox.mock.calls[1][0].detail).not.toContain('That action failed')
   })
 
-  it('keeps every primary index when three primary buttons leave room for one extra button', async () => {
+  it('moves secondary entries behind More… and keeps primary and support on the first row', async () => {
     const run = vi.fn(async () => undefined)
-    showMessageBox.mockResolvedValue({ response: 2 })
-
-    const response = await showSupportedMessageBox({
-      box: { ...box, buttons: ['Retry', 'Use Default', 'Quit'], cancelId: 2 },
-      action: { label: 'Export diagnostics', run }
-    })
-
-    expect(response).toBe(2)
-    expect(run).not.toHaveBeenCalled()
-    expect(showMessageBox.mock.calls[0][0].buttons).toEqual(['Retry', 'Use Default', 'Quit', 'Export diagnostics'])
-  })
-
-  it('keeps a failed caller action on the same dialog and still honors quit', async () => {
-    const run = vi.fn(async () => {
-      throw new Error('Could not write the diagnostic archive')
-    })
-    showMessageBox.mockResolvedValueOnce({ response: 2 }).mockResolvedValueOnce({ response: 1 })
+    // More… → Export diagnostics, back on the first dialog → Quit.
+    showMessageBox
+      .mockResolvedValueOnce({ response: 4 })
+      .mockResolvedValueOnce({ response: 1 })
+      .mockResolvedValueOnce({ response: 1 })
 
     const response = await showSupportedMessageBox({
       box,
+      secondaryButtons: ['Use Default'],
       action: { label: 'Export diagnostics', run }
     })
 
     expect(response).toBe(1)
     expect(run).toHaveBeenCalledOnce()
+    expect(showMessageBox.mock.calls[0][0].buttons).toEqual([
+      'Retry',
+      'Quit',
+      'Copy error and send feedback…',
+      'Open download page',
+      'More…'
+    ])
+    expect(showMessageBox.mock.calls[1][0]).toMatchObject({
+      buttons: ['Use Default', 'Export diagnostics', 'Cancel'],
+      cancelId: 2
+    })
+  })
+
+  it('returns a secondary choice after the primary indices, and Cancel goes back to the first dialog', async () => {
+    showMessageBox
+      .mockResolvedValueOnce({ response: 4 })
+      .mockResolvedValueOnce({ response: 1 }) // Cancel
+      .mockResolvedValueOnce({ response: 4 })
+      .mockResolvedValueOnce({ response: 0 }) // Use Default
+
+    const response = await showSupportedMessageBox({ box, secondaryButtons: ['Use Default'] })
+
+    expect(response).toBe(2)
+    expect(showMessageBox).toHaveBeenCalledTimes(4)
+  })
+
+  it('reaches both support actions while a caller action sits behind More…', async () => {
+    showMessageBox
+      .mockResolvedValueOnce({ response: 2 })
+      .mockResolvedValueOnce({ response: 3 })
+      .mockResolvedValueOnce({ response: 0 })
+
+    await showSupportedMessageBox({
+      box,
+      technicalDetail: 'SQLITE_READONLY',
+      action: { label: 'Export diagnostics', run: async () => undefined }
+    })
+
+    expect(writeText).toHaveBeenCalledWith('SQLITE_READONLY')
+    expect(openExternal).toHaveBeenCalledWith(expect.stringMatching(/^mailto:/))
+    expect(openExternal).toHaveBeenCalledWith('https://cherryai.com/download')
+  })
+
+  it('hides a raw action error behind the generic failure line and still honors quit', async () => {
+    const run = vi.fn(async () => {
+      throw new Error('EACCES /Users/private/diagnostics.zip')
+    })
+    showMessageBox.mockResolvedValueOnce({ response: 1 }).mockResolvedValueOnce({ response: 0 })
+
+    const response = await showSupportedMessageBox({
+      box: { ...box, buttons: ['Exit'], cancelId: 0 },
+      action: { label: 'Export diagnostics', run }
+    })
+
+    expect(response).toBe(0)
     expect(showMessageBox.mock.calls[1][0].detail).toContain('That action failed.')
-    expect(showMessageBox.mock.calls[1][0].detail).not.toContain('Could not write the diagnostic archive')
-    expect(showMessageBox).toHaveBeenCalledTimes(2)
+    expect(showMessageBox.mock.calls[1][0].detail).not.toContain('/Users/private')
+  })
+
+  it.each([
+    [
+      'a localized failure',
+      async () => {
+        throw new SupportActionFailure('Could not write the diagnostic archive')
+      },
+      'Could not write the diagnostic archive'
+    ],
+    ['a returned notice', async () => 'Saved without app logs.', 'Saved without app logs.']
+  ])('shows %s on the reopened dialog', async (_label, run, line) => {
+    showMessageBox.mockResolvedValueOnce({ response: 1 }).mockResolvedValueOnce({ response: 0 })
+
+    await showSupportedMessageBox({
+      box: { ...box, buttons: ['Exit'], cancelId: 0 },
+      action: { label: 'Export diagnostics', run }
+    })
+
+    expect(showMessageBox.mock.calls[1][0].detail).toContain(line)
+    expect(showMessageBox.mock.calls[1][0].detail).not.toContain('That action failed')
   })
 
   it('uses the supplied app language for support chrome when the OS locale is en-US', async () => {

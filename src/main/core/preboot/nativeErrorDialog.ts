@@ -7,7 +7,7 @@ import { FEEDBACK_MAILTO, officialDownloadUrl, SUPPORT_EMAIL } from '@shared/uti
 const logger = loggerService.withContext('nativeErrorDialog')
 
 /** A support failure whose message is already the localized line to show. */
-class SupportActionFailure extends Error {}
+export class SupportActionFailure extends Error {}
 
 /** Loaded lazily: preboot dialogs can open before the app root that names the edition is readable. */
 async function editionDownloadUrl(): Promise<string> {
@@ -23,7 +23,8 @@ type DialogLanguage = ReturnType<typeof resolveSystemLanguage>
 
 interface SupportedDialogAction {
   readonly label: string
-  readonly run: () => Promise<void>
+  /** A returned line is shown on the dialog when it reopens. */
+  readonly run: () => Promise<string | void>
 }
 
 interface SupportedDialogInput {
@@ -32,19 +33,16 @@ interface SupportedDialogInput {
   readonly technicalDetail?: string
   /** Support-chrome catalog. Omitted callers keep the system language, which preboot already used. */
   readonly language?: DialogLanguage
-  /** One extra button. The dialog does not interpret it. */
+  /** Non-primary caller choices. Choosing one returns `box.buttons.length + index`. */
+  readonly secondaryButtons?: readonly string[]
+  /** One extra non-closing action, e.g. diagnostics export. The dialog does not interpret it. */
   readonly action?: SupportedDialogAction
 }
 
 /** Native dialogs stack every button; past four they stop reading as a choice. */
 const MAX_BUTTONS = 4
 
-/** Caller action first, then support, trimmed so the whole row stays within MAX_BUTTONS. */
-function supportActions(
-  input: SupportedDialogInput,
-  language: DialogLanguage,
-  primaryLength: number
-): SupportedDialogAction[] {
+function supportActions(input: SupportedDialogInput, language: DialogLanguage): SupportedDialogAction[] {
   const copyAndFeedback: SupportedDialogAction = {
     label: t('dialog.support.copy_and_feedback', undefined, language),
     run: async () => {
@@ -70,50 +68,82 @@ function supportActions(
       await shell.openExternal(await editionDownloadUrl())
     }
   }
-  const actions = input.action ? [input.action, copyAndFeedback, releases] : [copyAndFeedback, releases]
-  return actions.slice(0, Math.max(0, MAX_BUTTONS - primaryLength))
+  return [copyAndFeedback, releases]
 }
 
-function failureLine(language: DialogLanguage): string {
-  return t('dialog.support.failed', undefined, language)
-}
+/** A secondary entry either closes the dialog with a caller index or runs and returns to it. */
+type SecondaryEntry = { readonly label: string; readonly response: number } | SupportedDialogAction
 
 function cancelIndex(cancelId: number | undefined, primaryLength: number): number {
   if (typeof cancelId === 'number' && cancelId >= 0 && cancelId < primaryLength) return cancelId
   return 0
 }
 
+async function runAction(action: SupportedDialogAction, language: DialogLanguage): Promise<string> {
+  try {
+    return (await action.run()) ?? ''
+  } catch (error) {
+    logger.warn('Support action failed', error as Error)
+    return error instanceof SupportActionFailure ? error.message : t('dialog.support.failed', undefined, language)
+  }
+}
+
 /**
- * Show the original dialog, then the caller action (if any), "Copy error and send
- * feedback", and "Open download page", capped at four buttons in total. Support
- * choices loop back to the same dialog. The returned index is always one of the
- * original buttons. A response outside that set returns the original cancel
- * button and does not ask again. Technical text is copied on request and is not
- * placed on the dialog options.
+ * Show the original dialog with "Copy error and send feedback" and "Open download
+ * page" always on the first row next to the caller buttons. Secondary entries
+ * (`secondaryButtons`, then `action`) join that row when it stays within four
+ * buttons, else they move behind "More…", a second box with Cancel. Actions loop
+ * back to the same dialog. The returned index is a caller button or secondary
+ * choice; any other response returns the original cancel button. Technical text
+ * is copied on request and is not placed on the dialog options.
  */
 export async function showSupportedMessageBox(input: SupportedDialogInput): Promise<number> {
   if (typeof app.isReady === 'function' && !app.isReady()) await app.whenReady()
   const language = input.language ?? resolveSystemLanguage(app.getLocale())
   const primary = input.box.buttons ?? [t('dialog.support.ok', undefined, language)]
-  const support = supportActions(input, language, primary.length)
+  const support = supportActions(input, language)
+  const secondary: SecondaryEntry[] = [
+    ...(input.secondaryButtons ?? []).map((label, index) => ({ label, response: primary.length + index })),
+    ...(input.action ? [input.action] : [])
+  ]
+  const inline = secondary.length === 0 || primary.length + support.length + secondary.length <= MAX_BUTTONS
+  const more = t('dialog.support.more', undefined, language)
+  const row: SecondaryEntry[] = inline ? [...secondary, ...support] : support
   const cancelId = cancelIndex(input.box.cancelId, primary.length)
-  let failure = ''
+  let notice = ''
   for (;;) {
     const result = await dialog.showMessageBox({
       ...input.box,
-      buttons: [...primary, ...support.map((item) => item.label)],
-      detail: failure ? [input.box.detail, failure].filter(Boolean).join('\n\n') : input.box.detail
+      buttons: [...primary, ...row.map((item) => item.label), ...(inline ? [] : [more])],
+      detail: notice ? [input.box.detail, notice].filter(Boolean).join('\n\n') : input.box.detail
     })
     const response = result?.response
-    const supportIndex = typeof response === 'number' ? response - primary.length : -1
-    const action = supportIndex >= 0 ? support[supportIndex] : undefined
-    if (!action) return typeof response === 'number' && response >= 0 && response < primary.length ? response : cancelId
-    try {
-      await action.run()
-      failure = ''
-    } catch (error) {
-      logger.warn('Support action failed', error as Error)
-      failure = error instanceof SupportActionFailure ? error.message : failureLine(language)
+    if (typeof response !== 'number' || response < 0) return cancelId
+    if (response < primary.length) return response
+    let entry: SecondaryEntry | undefined = row[response - primary.length]
+    if (!entry && !inline && response === primary.length + row.length) {
+      entry = await chooseSecondary(input.box, secondary, language)
+      if (!entry) continue
     }
+    if (!entry) return cancelId
+    if ('response' in entry) return entry.response
+    notice = await runAction(entry, language)
   }
+}
+
+async function chooseSecondary(
+  box: Electron.MessageBoxOptions,
+  secondary: readonly SecondaryEntry[],
+  language: DialogLanguage
+): Promise<SecondaryEntry | undefined> {
+  const cancel = secondary.length
+  const result = await dialog.showMessageBox({
+    type: box.type,
+    title: box.title,
+    message: box.message,
+    buttons: [...secondary.map((item) => item.label), t('dialog.support.cancel', undefined, language)],
+    defaultId: cancel,
+    cancelId: cancel
+  })
+  return secondary[result?.response ?? cancel]
 }
