@@ -359,7 +359,7 @@ export async function buildClaudeCodeSessionSettings(
       // and an explicit `attribution` in the user's own Claude Code settings file still wins.
       ...(hideCommitAttribution ? { attribution: { commit: '', pr: '' } } : {})
     },
-    includePartialMessages: true,
+    includePartialMessages: agentConfig?.stream_output !== false,
     agentProgressSummaries: true,
     forwardSubagentText: true,
     permissionMode: agentConfig?.permission_mode ?? 'default',

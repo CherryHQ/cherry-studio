@@ -196,3 +196,69 @@ it('does not finalize an unfinished task response or an unrelated completed resp
   ])
   expect(invocations.close().map((item) => item.responseId)).toEqual(['other-response'])
 })
+
+it('does not promote provisional non-stream snapshots to final per-invocation counts', () => {
+  const invocations = new ClaudeInvocations()
+  const first = assistantMessage('session', [])
+  first.message.stop_reason = null
+  first.message.usage.output_tokens = 99
+  const second = assistantMessage('session', [])
+  second.message.id = 'second'
+  second.message.stop_reason = null
+  second.message.usage.output_tokens = 101
+  expect(invocations.accept(first)).toEqual([])
+  expect(invocations.accept(second)).toEqual([{ responseId: first.message.id, model: first.message.model }])
+  expect(invocations.close()).toEqual([])
+})
+
+it('does not finalize an interrupted streaming invocation merely because another response starts', () => {
+  const invocations = new ClaudeInvocations()
+  const first = assistantMessage('session', [])
+  first.message.stop_reason = null
+  invocations.accept(stream({ type: 'message_start', message: first.message }))
+  invocations.accept(first)
+  const second = assistantMessage('session', [])
+  second.message.id = 'second'
+  expect(invocations.accept(stream({ type: 'message_start', message: second.message }))).toEqual([])
+  expect(invocations.close()).toEqual([])
+})
+
+function result(usage: object, subtype = 'success'): SDKMessage {
+  return {
+    type: 'result',
+    subtype,
+    is_error: subtype !== 'success',
+    usage,
+    session_id: 'session',
+    uuid: randomUUID()
+  } as SDKMessage
+}
+
+it('keeps both non-streamed multi-invocation counts unavailable instead of guessing turn attribution', () => {
+  const invocations = new ClaudeInvocations()
+  const first = assistantMessage('session', [])
+  first.message.stop_reason = null
+  const second = assistantMessage('session', [])
+  second.message.id = 'second'
+  second.message.stop_reason = null
+  invocations.accept(first)
+  const emitted = [
+    ...invocations.accept(second),
+    ...invocations.accept(result({ input_tokens: 20, output_tokens: 30 }))
+  ]
+  expect(emitted).toHaveLength(2)
+  expect(emitted.every((call) => call.usage === undefined)).toBe(true)
+})
+
+it('does not repair failed non-streamed result usage or include child invocations in a root total', () => {
+  const invocations = new ClaudeInvocations()
+  const root = assistantMessage('session', [])
+  root.message.stop_reason = null
+  const child = assistantMessage('session', [], { parent_tool_use_id: 'child' })
+  child.message.id = 'child'
+  child.message.usage.output_tokens = 7
+  invocations.accept(root)
+  invocations.accept(child)
+  expect(invocations.accept(result({ input_tokens: 20, output_tokens: 30 }, 'error_during_execution'))).toEqual([])
+  expect(invocations.close()).toMatchObject([{ responseId: 'child', usage: { output_tokens: 7 } }])
+})

@@ -296,3 +296,36 @@ it.each([true, false, 'true', 1, undefined, 'other-uuid'])(
     await observation.stop()
   }
 )
+
+it.each(['before-stop', 'after-stop'] as const)('does not duplicate a complete thinking echo %s', async (order) => {
+  const sessionId = randomUUID()
+  const projection = new ClaudeProjection(claudeThread(runtimeId('backend'), sessionId), (error) => {
+    throw error
+  })
+  const message = assistantMessage(sessionId, [{ type: 'thinking', thinking: 'Plan', signature: 'signed' }])
+  const partial = async (event: SDKPartialAssistantMessage['event']) =>
+    projection.publish(
+      await projection.partial({
+        type: 'stream_event',
+        event,
+        uuid: randomUUID(),
+        session_id: sessionId,
+        parent_tool_use_id: null
+      })
+    )
+  await partial({ type: 'message_start', message: { ...message.message, content: [] } })
+  await partial({
+    type: 'content_block_start',
+    index: 0,
+    content_block: { type: 'thinking', thinking: '', signature: '' }
+  })
+  await partial({ type: 'content_block_delta', index: 0, delta: { type: 'thinking_delta', thinking: 'Plan' } })
+  if (order === 'before-stop') projection.publish(projection.message(message, { live: true }))
+  await partial({ type: 'content_block_stop', index: 0 })
+  if (order === 'after-stop') projection.publish(projection.message(message, { live: true }))
+  const parts = projection.feed.snapshot.messages
+    .flatMap((message) => message.parts)
+    .filter((part) => part.type === 'reasoning')
+  expect(parts).toHaveLength(1)
+  expect(parts[0]).toMatchObject({ type: 'reasoning', text: 'Plan' })
+})
