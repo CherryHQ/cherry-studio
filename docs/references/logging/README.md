@@ -116,11 +116,11 @@ unexpected faults are recorded. Entry reads and conditional writes classify with
 the resolved entry origin; rename collisions retain `EEXIST`. Copy distinguishes
 a missing or unreadable managed source from an external destination failure;
 source probes that cannot establish readability retain managed-file reporting.
-File editing classifies normalized `FILE_EDIT_*`
-codes in `FileEditService`, where each lease retains whether its target is an
+File editing classifies original filesystem errors and domain `FILE_EDIT_*`
+codes in `FileEditService` before normalizing IPC errors. Each lease retains whether its target is an
 external file or managed storage. This includes external library entries and
 read/write requests carrying only an `editId`; IPC propagates reporting ownership.
-Missing, permission-denied and full-disk external targets stay local, while the
+Missing, permission-denied, read-only and full-disk external targets stay local, while the
 same managed-storage failures and generic editing I/O failures remain eligible.
 Word export uses the external-path policy.
 Backup/restore retain snapshot and integrity failures; busy writers and
@@ -134,7 +134,11 @@ retain the error, while reporting receives only stable facts and stack frames.
 SQL text, parameters, remote responses and file contents are not reporting fields.
 These helpers do not resolve lifecycle services or depend on Sentry.
 
-Unmigrated error logs with stacks retain compatibility capture. In the main
+Logged failures require valid domain classification; error severity, a stack,
+or an operation name alone does not make them eligible. Unclassified logs stay
+in local diagnostics. React error boundaries explicitly classify render failures;
+automatic unhandled exception capture remains independent of handled logging.
+In the main
 process, each signature, including classified failures, retains only its first
 sample per ten minutes. Two independent hourly budgets each admit at
 most ten events: one for critical stability failures and one for other eligible

@@ -8,6 +8,7 @@ import { loggerService } from '@logger'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isDataCollectionConsented } from '@main/utils/privacyConsent'
 import { hasReportingOwner, isCancellation, parseFailureFacts, shouldReportFailure } from '@shared/utils/errorReporting'
+import { getSentryLogContext } from '@shared/utils/sentry'
 
 import { captureLoggedError } from './sentry'
 
@@ -52,7 +53,7 @@ export class ErrorReportingService extends BaseService {
     if (import.meta.env.DEV) return
     this.registerDisposable(
       loggerService.setErrorReporter(({ error, entry }) => {
-        if (!this.enabled) return
+        if (!this.enabled || !getSentryLogContext(entry)) return
         if (error && this.observed.has(error)) return
         if (error) this.observed.add(error)
         try {
@@ -91,7 +92,7 @@ export class ErrorReportingService extends BaseService {
       outcome: tags['failure.outcome'],
       runtime: tags['failure.runtime']
     })
-    if (facts && !shouldReportFailure(facts)) return null
+    if ((!facts && tags['capture.source'] === 'log') || (facts && !shouldReportFailure(facts))) return null
     const critical =
       event.level === 'fatal' ||
       CRITICAL_OPERATIONS.has(String(tags.operation)) ||

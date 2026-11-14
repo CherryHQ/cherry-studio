@@ -38,6 +38,7 @@ export function classifyFileFailure(error: unknown, externalPath = false): Failu
       'ENOTDIR',
       'EISDIR',
       'ENOSPC',
+      'EDQUOT',
       'EROFS',
       'EIO',
       fileErrorCodes.EDIT_MISSING,

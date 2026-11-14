@@ -18,7 +18,7 @@ export function getSentryBuildContext(name: string, version: string, edition: Ap
 export function getSentryLogContext(info: Record<string, unknown>) {
   const data = Array.isArray(info.data) ? info.data : []
   const failure = parseFailureFacts(info.failure ?? data.find((item) => item?.failure)?.failure)
-  if (!failure && (info.level !== 'error' || typeof info.stack !== 'string')) return
+  if (!failure) return
   if (['Sentry', 'CrashTelemetry', 'ErrorReportingService'].includes(String(info.module))) return
   if (isCancellation(info) || hasReportingOwner(info) || (failure && !shouldReportFailure(failure))) return
 

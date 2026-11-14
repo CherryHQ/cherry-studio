@@ -26,6 +26,12 @@ afterEach(() => {
 })
 
 describe('renderer Sentry initialization', () => {
+  it('keeps unclassified handled renderer errors in local diagnostics', () => {
+    initSentry()
+    loggerService.withContext('Caller').error('Failed', new Error('Private details'), { operation: 'react.render' })
+    expect(captureExceptionMock.mock.calls).toHaveLength(0)
+  })
+
   it('keeps remote-owned failures local even when caught by a global exception handler', () => {
     initSentry()
     const error = IpcError.fromJSON({ code: 'INTERNAL', message: 'Main failure', reportingHandled: true })
@@ -93,6 +99,7 @@ describe('renderer Sentry initialization', () => {
       .withContext('ErrorBoundary', { prompt: 'private conversation' })
       .error('Caught a render error', error, {
         operation: 'react.render',
+        failure: { source: 'application', kind: 'defect', reason: 'render_failed', outcome: 'failed' },
         componentStack: 'at MessageList',
         apiKey: 'private-key'
       })

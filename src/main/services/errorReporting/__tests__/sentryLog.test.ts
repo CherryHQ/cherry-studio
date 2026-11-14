@@ -19,6 +19,7 @@ import { messageTable } from '@main/data/db/schemas/message'
 import { classifyDatabaseFailure } from '@main/data/failureFacts'
 import { fileHandlers } from '@main/ipc/handlers/file'
 import { FileEditService, FileManager } from '@main/services/file'
+import * as fileUtils from '@main/utils/file'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { FileHandle } from '@shared/data/types/file'
 import { fileErrorCodes } from '@shared/ipc/errors/file'
@@ -66,6 +67,9 @@ const logToMainHandler = vi
   .mock.calls.find(([channel]) => channel === IpcChannel.App_LogToMain)![1]
 
 let service: ErrorReportingService
+const reportableFailure = {
+  failure: { source: 'application', kind: 'defect', reason: 'execution_failed', outcome: 'failed' }
+} as const
 const drainLogs = () => new Promise((resolve) => setImmediate(resolve))
 
 function setConsent(granted: boolean) {
@@ -91,6 +95,22 @@ afterEach(async () => {
 })
 
 describe('Sentry log reporting', () => {
+  it('keeps unclassified errors local without suppressing a later unhandled exception', async () => {
+    setConsent(true)
+    const error = new Error('Unclassified failure')
+    loggerService.withContext('Translation').error('Failed', error)
+    await drainLogs()
+
+    expect(captureExceptionMock.mock.calls).toHaveLength(0)
+    expect(captureEventMock.mock.calls).toHaveLength(0)
+    expect(
+      service.filterEvent(
+        { exception: { values: [{ type: 'Error', mechanism: { type: 'onunhandledrejection', handled: false } }] } },
+        { originalException: error }
+      )
+    ).not.toBeNull()
+  })
+
   it.each([
     {
       label: 'database full',
@@ -264,23 +284,32 @@ describe('Sentry log reporting', () => {
     const logger = loggerService.withContext('JobManager', { prompt: 'private conversation' })
     const error = Object.assign(new TypeError('Cannot enqueue job'), { code: 'JOB_PAYLOAD_TOO_LARGE' })
 
-    logger.error('Failed to enqueue schedule', error, { scheduleId: 'private-id' })
+    logger.error('Failed to enqueue schedule', error, { ...reportableFailure, scheduleId: 'private-id' })
     await drainLogs()
     expect(captureExceptionMock).not.toHaveBeenCalled()
 
     setConsent(true)
-    logger.error('Failed to enqueue schedule', error, { scheduleId: 'private-id' })
+    logger.error('Failed to enqueue schedule', error, { ...reportableFailure, scheduleId: 'private-id' })
     await drainLogs()
     expect(captureExceptionMock.mock.calls).toHaveLength(1)
     const [reported, context] = captureExceptionMock.mock.calls[0]
     expect(reported).toMatchObject({ name: 'TypeError', message: error.message, stack: error.stack })
     expect(context).toEqual({
-      tags: { module: 'JobManager', code: 'JOB_PAYLOAD_TOO_LARGE', 'event.process': 'main', 'capture.source': 'log' },
+      tags: {
+        module: 'JobManager',
+        code: 'JOB_PAYLOAD_TOO_LARGE',
+        'event.process': 'main',
+        'capture.source': 'log',
+        'failure.source': 'application',
+        'failure.kind': 'defect',
+        'failure.reason': 'execution_failed',
+        'failure.outcome': 'failed'
+      },
       extra: undefined
     })
 
     setConsent(false)
-    logger.error('Failed to enqueue schedule', error)
+    logger.error('Failed to enqueue schedule', error, reportableFailure)
     await drainLogs()
     expect(captureExceptionMock.mock.calls).toHaveLength(1)
   })
@@ -288,7 +317,7 @@ describe('Sentry log reporting', () => {
   it('reports the bounded, redacted message produced by the main logger', async () => {
     setConsent(true)
     const error = new Error(`details apiKey = sk-secret123\n${'diagnostic '.repeat(1000)}`)
-    loggerService.withContext('Translation').error('Failed', error)
+    loggerService.withContext('Translation').error('Failed', error, reportableFailure)
     await drainLogs()
 
     const [reported] = captureExceptionMock.mock.calls[0]
@@ -336,7 +365,7 @@ describe('Sentry log reporting', () => {
     vi.stubEnv('DEV', true)
     await service._doInit()
     setConsent(true)
-    loggerService.withContext('Translation').error('Failed', new Error('development error'))
+    loggerService.withContext('Translation').error('Failed', new Error('development error'), reportableFailure)
     await drainLogs()
     expect(captureExceptionMock).not.toHaveBeenCalled()
   })
@@ -344,13 +373,13 @@ describe('Sentry log reporting', () => {
   it('stops reporting on stop and reports once per error after restart', async () => {
     setConsent(true)
     const logger = loggerService.withContext('Translation')
-    logger.error('Failed', new Error('before stop'))
+    logger.error('Failed', new Error('before stop'), reportableFailure)
     await drainLogs()
     await service._doStop()
-    logger.error('Failed', new Error('while stopped'))
+    logger.error('Failed', new Error('while stopped'), reportableFailure)
     await drainLogs()
     await service._doInit()
-    logger.error('Failed', new Error('after restart'))
+    logger.error('Failed', new Error('after restart'), reportableFailure)
     await drainLogs()
     expect(captureExceptionMock.mock.calls.map(([error]) => error.message)).toEqual(['before stop', 'after restart'])
   })
@@ -358,7 +387,7 @@ describe('Sentry log reporting', () => {
   it('removes the bridge when destroyed without a preceding stop', async () => {
     setConsent(true)
     await service._doDestroy()
-    loggerService.withContext('Translation').error('Failed', new Error('after destroy'))
+    loggerService.withContext('Translation').error('Failed', new Error('after destroy'), reportableFailure)
     await drainLogs()
     expect(captureExceptionMock).not.toHaveBeenCalled()
   })
@@ -369,10 +398,10 @@ describe('Sentry log reporting', () => {
     try {
       setConsent(true)
       const logger = loggerService.withContext('Translation')
-      logger.error('Failed', new Error('before analytics stop'))
+      logger.error('Failed', new Error('before analytics stop'), reportableFailure)
       await drainLogs()
       await analytics._doStop()
-      logger.error('Failed', new Error('after analytics stop'))
+      logger.error('Failed', new Error('after analytics stop'), reportableFailure)
       await drainLogs()
       expect(captureExceptionMock.mock.calls.map(([error]) => error.message)).toEqual([
         'before analytics stop',
@@ -389,8 +418,8 @@ describe('Sentry log reporting', () => {
       throw new Error('SDK unavailable')
     })
     const logger = loggerService.withContext('Translation')
-    logger.error('Failed', new Error('first'))
-    logger.error('Failed', new Error('second'))
+    logger.error('Failed', new Error('first'), reportableFailure)
+    logger.error('Failed', new Error('second'), reportableFailure)
     await drainLogs()
     expect(captureExceptionMock.mock.calls.map(([error]) => error.message)).toEqual(['first', 'second'])
   })
@@ -612,6 +641,48 @@ describe('file reporting through IPC', () => {
       expect(sentryContext.tags['failure.kind']).toBe('reliability')
       expect(JSON.stringify(sentryContext)).not.toContain(target)
     }
+  })
+
+  it.each(
+    ['path', 'external', 'internal'].flatMap((origin) => ['EROFS', 'EIO', 'EDQUOT'].map((code) => ({ origin, code })))
+  )('preserves $origin file classification when writing fails with $code', async ({ origin, code }) => {
+    let target = AbsoluteFilePathSchema.parse(path.join(root, 'readonly.md'))
+    await writeFile(target, 'base')
+    let handle: FileHandle = { kind: 'path', path: target }
+    if (origin !== 'path') {
+      const entry =
+        origin === 'external'
+          ? await files.ensureExternalEntry({ externalPath: target, cleanupPolicy: 'manual' })
+          : await files.createInternalEntry({
+              source: 'bytes',
+              data: new TextEncoder().encode('base'),
+              name: 'readonly',
+              ext: 'md',
+              cleanupPolicy: 'manual'
+            })
+      handle = { kind: 'entry', entryId: entry.id }
+      target = files.getPhysicalPath(entry.id)
+    }
+    const resource = await fileHandlers['file.edit.open']({ handle }, context)
+    const snapshot = await fileHandlers['file.edit.read'](resource, context)
+    const error = Object.assign(new Error('Write failed'), { code })
+    vi.spyOn(fileUtils, origin === 'path' ? 'atomicWriteIfUnchanged' : 'prepareAtomicWrite').mockRejectedValueOnce(
+      error
+    )
+
+    await expect(
+      fileHandlers['file.edit.write'](
+        { editId: resource.editId, expected: snapshot.baseline, data: new TextEncoder().encode('new') },
+        context
+      )
+    ).rejects.toMatchObject({
+      code: code === 'EDQUOT' ? fileErrorCodes.EDIT_NO_SPACE : fileErrorCodes.EDIT_IO,
+      reportingHandled: true
+    })
+    await drainLogs()
+    expect(await readFile(target, 'utf8')).toBe('base')
+    expect(captureExceptionMock.mock.calls).toHaveLength(origin === 'internal' || code === 'EIO' ? 1 : 0)
+    expect(captureEventMock.mock.calls).toHaveLength(0)
   })
 
   it.each([

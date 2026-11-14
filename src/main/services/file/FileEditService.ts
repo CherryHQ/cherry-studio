@@ -194,7 +194,9 @@ export class FileEditService extends BaseService {
 
   private reportFailure(error: unknown, operation: string, externalPath: boolean): IpcError {
     const failure = this.normalize(error)
-    logFailure(logger, 'File editing failed', error, operation, classifyFileFailure(failure, externalPath))
+    const classifiedError =
+      error instanceof PathStaleVersionError || error instanceof StaleVersionError ? failure : error
+    logFailure(logger, 'File editing failed', error, operation, classifyFileFailure(classifiedError, externalPath))
     markReportingHandled(failure)
     return failure
   }

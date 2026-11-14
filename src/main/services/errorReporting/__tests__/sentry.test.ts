@@ -100,7 +100,14 @@ describe('Sentry consent gate', () => {
     grantConsent()
     const event = options.beforeSend({
       message: 'private provider response',
-      tags: { 'capture.source': 'log', module: 'agentLoop' }
+      tags: {
+        'capture.source': 'log',
+        module: 'agentLoop',
+        'failure.source': 'application',
+        'failure.kind': 'defect',
+        'failure.reason': 'execution_failed',
+        'failure.outcome': 'failed'
+      }
     })
     expect(event.event_id).toMatch(/^[a-f0-9]{32}$/)
     const references = mockMainLoggerService.info.mock.calls.filter(
@@ -109,7 +116,7 @@ describe('Sentry consent gate', () => {
     expect(references).toHaveLength(1)
     expect(references[0][1]).toMatchObject({ reportId: event.event_id })
     expect(JSON.stringify(references)).not.toContain('private provider response')
-    expect(options.beforeSend({ tags: { 'capture.source': 'log', module: 'agentLoop' } })).toBeNull()
+    expect(options.beforeSend({ tags: event.tags })).toBeNull()
     expect(
       mockMainLoggerService.info.mock.calls.filter(([message]) => message === 'Error report accepted for delivery')
     ).toHaveLength(1)
@@ -152,7 +159,6 @@ describe('Sentry consent gate', () => {
 
   it.each([
     { label: 'automatic', tags: {} },
-    { label: 'legacy log', tags: { 'capture.source': 'log' } },
     { label: 'invalid classification', tags: { 'failure.kind': 'reliability' } }
   ])('limits unclassified $label errors to one per ten minutes', ({ tags }) => {
     grantConsent()
@@ -178,6 +184,15 @@ describe('Sentry consent gate', () => {
     } finally {
       now.mockRestore()
     }
+  })
+
+  it.each([{}, { 'failure.kind': 'reliability' }])('rejects unclassified log events at the final boundary', (tags) => {
+    grantConsent()
+    const options = initOptions()
+    expect(options.beforeSend({ tags: { ...tags, 'capture.source': 'log', operation: 'react.render' } })).toBeNull()
+    expect(
+      options.beforeSend({ exception: { values: [{ type: 'Error', mechanism: { type: 'onerror', handled: false } }] } })
+    ).not.toBeNull()
   })
 
   it.each(['storage.write', 'window.renderer.exit'])(
