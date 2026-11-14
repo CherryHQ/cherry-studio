@@ -118,6 +118,7 @@ Where to go for detail. The three process docs own per-process directory layout 
 | Main-process directory charters & dependency rules | [Main Process Architecture](./main-process.md) |
 | Renderer directory layering & dependency rules | [Renderer Architecture](./renderer.md) |
 | Cross-process primitives (`@shared`) | [Shared Layer Architecture](./shared-layer.md) |
+| Proposed standalone App Server and whole-database ownership | [App Server Agent Note](../../../../.agents/notes/proposed/architecture/2026-11-11-app-server.md) |
 | Naming (files, directories, identifiers) | [Naming Conventions](./naming-conventions.md) |
 | Data systems (BootConfig / Cache / Preference / DataApi) | [Data System Reference](../data/README.md) |
 | IPC (IpcApi) | [IPC Reference](../ipc/README.md) |
