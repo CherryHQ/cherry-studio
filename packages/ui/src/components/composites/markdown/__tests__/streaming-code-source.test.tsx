@@ -53,6 +53,18 @@ describe('streaming code source', () => {
     }
   )
 
+  it('keeps a list fence parseable after preceding incomplete inline code', () => {
+    const source = '- `literal\n\n  ```js\n  const x = 1\n  ````'
+    render(
+      <StreamingMarkdown id="preceding-prose" components={{ code: Code }}>
+        {source}
+      </StreamingMarkdown>
+    )
+    expect(screen.getAllByRole('region', { name: 'Source' })).toHaveLength(1)
+    expect(screen.getByRole('region', { name: 'Source' }).textContent).toBe('const x = 1\n')
+    expect(screen.getByRole('listitem').contains(screen.getByRole('region', { name: 'Source' }))).toBe(true)
+  })
+
   it('preserves fences in containers while still completing surrounding prose', () => {
     const source = '> ~~~text\n> ~~literal\n> ~~~\n\n**bold'
     render(

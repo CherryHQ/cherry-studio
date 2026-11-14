@@ -75,8 +75,9 @@ Streaming partitions keep a consecutive run together. Appending a fence or compl
 selected tab; a new content identity resets selection. Markdown persistence and export retain all original blocks in
 source order. Image captures render the active panel; an independently mounted topic capture starts with the first tab.
 
-The Remend dependency patch preserves parser-identified code ranges before completing surrounding Markdown. In
-particular, unfinished tilde fences retain their literal source instead of receiving strikethrough completion markers.
+The Remend dependency patch runs completion on the complete Markdown, skipping any step that changes the literal
+source or order of parser-identified code blocks. Unfinished tilde fences retain their source, and surrounding list
+syntax stays in context throughout completion.
 
 ## View State
 

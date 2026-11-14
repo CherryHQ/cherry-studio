@@ -105,16 +105,22 @@ function ChatCodeTabsRenderer({
     sources.some((source, index) => source !== identity.sources[index])
   ) {
     const available = new Set(identity.ids)
-    const ids = sources.map((source) => {
+    const ids = sources.map((source, index) => {
+      if (sources.length !== identity.sources.length && source !== identity.sources[index]) return undefined
+      available.delete(identity.ids[index])
+      return identity.ids[index]
+    })
+    const matchedIds = ids.map((id, index) => {
+      if (id !== undefined) return id
       const match = identity.sources.findIndex(
-        (previous, index) => previous === source && available.has(identity.ids[index])
+        (previous, previousIndex) => previous === sources[index] && available.has(identity.ids[previousIndex])
       )
       if (match === -1) return undefined
       available.delete(identity.ids[match])
       return identity.ids[match]
     })
     let nextId = identity.nextId
-    const nextIds = ids.map((id, index) => {
+    const nextIds = matchedIds.map((id, index) => {
       if (id !== undefined) return id
       const previous = identity.ids[index]
       if (

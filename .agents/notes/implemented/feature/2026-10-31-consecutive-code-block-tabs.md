@@ -27,13 +27,13 @@ This is a new composition decision alongside [code-block viewing and editing](..
 - A compact horizontal tab strip replaces the code-block header inside one shared frame, using language icons alongside labels and the shared neutral selected-tab surface. The active block's toolbar appears on the right of the header on hover or keyboard focus; the shared `ScrollArea` handles overflow. Labels use the fence language; repeated languages receive an ordinal, and missing languages use a localized code-block label with an ordinal. Do not introduce filename metadata syntax in this change.
 - The first tab is initially selected. Clicking or using the existing Tabs keyboard interaction switches the visible panel. The strip scrolls horizontally in narrow containers, keeps the focused tab reachable, and uses the existing light/dark semantic tokens and visible focus styles.
 - Each visited block retains its unsaved draft, editor history, view mode, and local controls when switching away and back. Panels mount on first visit and stay mounted while the group exists; hidden panels are excluded from keyboard focus. Existing copy/save/run actions continue to target their own block's displayed source.
-- Streamed content updates its corresponding panel. Adding another fence never steals the selected tab or resets existing panels; completing the stream also preserves selection. A changed message content identity resets the group, and a removed selected item falls back to the first remaining item.
+- Streamed content updates its corresponding panel. Adding another fence never steals the selected tab or resets existing panels; completing the stream also preserves selection. A changed message content identity resets the group, and a removed selected item falls back to the first remaining item. In-place edits retain positional identities even when sources become identical; source matching is used only when the block count changes, after reserving unchanged positions.
 
 ### Integration
 
 Keep Markdown structure recognition in the unified pipeline. Preserve source positions and original fence bodies, and extend the existing streaming partition seam so a consecutive run reaches the grouping pass together. Chat owns eligibility and rendering overrides; shared Markdown accepts only the smallest hook required for chat to compose its block parser. Do not add a global preference, persist tab selection, duplicate code-block state, or replace the Markdown engine.
 
-The Remend patch preserves parser-identified code ranges verbatim while completing surrounding prose, including unfinished tilde fences. This source-correctness fix also applies to standalone blocks. The dependency receives `mdast-util-from-markdown` through a package extension; it reuses the unified parser already present in the application.
+The Remend patch runs every completion step on the complete Markdown and accepts its result only if parser-identified code blocks retain their exact source and order, including unfinished tilde fences. It never repairs and rejoins separate source slices. This source-correctness fix also applies to standalone blocks. The dependency receives `mdast-util-from-markdown` through a package extension; it reuses the unified parser already present in the application.
 
 ## Alternatives considered
 
@@ -46,7 +46,7 @@ The Remend patch preserves parser-identified code ranges verbatim while completi
 
 Grouping increases the size of one streamed render fragment. Unrelated Markdown remains independently renderable, and the partitioner caches classification of unchanged fragments. Visited panels retain their editors and previews, using more resources than unmounting them; unvisited panels defer mounting. The active block portals its existing controls into the shared header, so action closures retain their own source and permissions.
 
-Markdown and text exports retain all source blocks. Image capture displays the selected panel; a separately mounted topic capture starts at the first tab. This change does not add an export-specific expansion mode. Remend now parses fenced fragments to protect code, adding parsing work while preserving literal streaming source.
+Markdown and text exports retain all source blocks. Image capture displays the selected panel; a separately mounted topic capture starts at the first tab. This change does not add an export-specific expansion mode. Remend parses the original Markdown and changed completion candidates to protect code, adding parsing work while preserving literal streaming source. Unsafe completion steps are skipped; other completion steps can still run.
 
 ## Verification
 

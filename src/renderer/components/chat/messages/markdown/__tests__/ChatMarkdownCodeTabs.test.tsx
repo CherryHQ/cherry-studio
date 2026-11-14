@@ -63,6 +63,25 @@ describe('chat code tabs integration', () => {
     expect(screen.getByRole('tab', { name: 'ts' })).toHaveAttribute('aria-selected', 'true')
   })
 
+  it('keeps sibling drafts and selection when an edit makes two sources identical', async () => {
+    const user = userEvent.setup()
+    const first = '```ts\nfirst\n```'
+    const second = '```ts\nsecond\n```'
+    const view = (content: string) => (
+      <ChatMarkdown block={{ id: 'part', content, status: 'success' }} components={components} />
+    )
+    const { rerender } = render(view(`${first}\n\n${second}`))
+    await user.click(screen.getAllByRole('tab')[1])
+    await user.clear(screen.getByRole('textbox'))
+    await user.type(screen.getByRole('textbox'), 'sibling draft')
+    await user.click(screen.getAllByRole('tab')[0])
+    rerender(view(`${second}\n\n${second}`))
+    expect(screen.getAllByRole('tab')[0]).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('textbox')).toHaveValue('second\n')
+    await user.click(screen.getAllByRole('tab')[1])
+    expect(screen.getByRole('textbox')).toHaveValue('sibling draft')
+  })
+
   it.each(['py', 'ts'])(
     'falls back after removing a selected %s fence and retains the surviving draft',
     async (language) => {
