@@ -10,6 +10,7 @@ import { useModelById } from '@renderer/hooks/useModel'
 import { getAgentAvatar, getPermissionModeCards } from '@renderer/utils/agent'
 import type { AgentEntity } from '@shared/data/types/agent'
 
+import { AgentProfileActivity, type AgentProfileWorkspace } from './AgentProfileActivity'
 import { ProfilePaneFrame } from './ProfilePaneFrame'
 import {
   ProfilePaneHeader,
@@ -20,7 +21,15 @@ import {
 } from './ProfilePaneParts'
 
 /** Profile of the conversation's Agent: who it is, its activity, and a few settings. */
-export function AgentProfilePane({ agentId }: { agentId: string }) {
+export function AgentProfilePane({
+  agentId,
+  sessionId,
+  workspace
+}: {
+  agentId: string
+  sessionId?: string
+  workspace?: AgentProfileWorkspace
+}) {
   const { t } = useTranslation()
   const { agent } = useAgent(agentId)
 
@@ -42,6 +51,7 @@ export function AgentProfilePane({ agentId }: { agentId: string }) {
         name={agent.name}
         description={agent.description}
       />
+      <AgentProfileActivity agent={agent} sessionId={sessionId} workspace={workspace} />
       <AgentProfileSettings agent={agent} />
     </ProfilePaneFrame>
   )
