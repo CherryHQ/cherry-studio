@@ -28,6 +28,7 @@ import {
   type ToolResult
 } from './content'
 import { ClaudeControlState, type ClaudeControl } from './control'
+import { nativeIdentity } from './identity'
 import { ClaudeInvocations } from './invocations'
 import { ClaudeFeed } from './observation'
 import { isSyntheticTurnCloser } from './synthetic'
@@ -44,6 +45,7 @@ export class ClaudeProjection {
   private readonly sources = new Set<string>()
   private readonly legacy: Record<string, { messageId: string; parts: number[] }> = {}
   private readonly messages = new Map<string, RuntimeMessage>()
+  private readonly reasoningByApiId = new Map<string, Set<string>>()
   private readonly calls = new Map<string, { id: string; part: ToolPart }>()
   private readonly results = new Map<string, Set<string>>()
   private readonly aborted = new Set<string>()
@@ -157,7 +159,7 @@ export class ClaudeProjection {
         ? [projectBlock({ type: 'text', text: content }, partial)]
         : content.map((block) => projectBlock(block, partial)),
       message.type === 'assistant' ? message.message.id : undefined,
-      options
+      { ...options, parentless: message.parent_tool_use_id == null }
     )
   }
 
@@ -166,7 +168,7 @@ export class ClaudeProjection {
     role: RuntimeMessage['role'],
     content: (ProjectedBlock | undefined)[],
     apiId?: string,
-    options: { inputId?: InputId; live?: boolean } = {}
+    options: { inputId?: InputId; live?: boolean; parentless?: boolean } = {}
   ): ObservationPayload[] {
     if (this.retracted.has(uuid)) return []
     const events: ObservationPayload[] = []
@@ -177,6 +179,16 @@ export class ClaudeProjection {
       metadata: { completeness: this.aborted.has(uuid) ? 'partial' : 'complete', inputId: options.inputId }
     }
     const bound: number[] = []
+    const parentless = options.parentless && nativeIdentity(this.thread).agentId === undefined
+    const reasoning = new Set(parentless && apiId ? this.reasoningByApiId.get(apiId) : undefined)
+    if (parentless && role === 'assistant') {
+      for (const block of content) {
+        if (block && !('result' in block) && block.part.type === 'reasoning') {
+          const text = block.part.text.trim()
+          if (text) reasoning.add(text)
+        }
+      }
+    }
     for (const [index, block] of content.entries()) {
       if (!block) continue
       if ('result' in block) {
@@ -206,6 +218,7 @@ export class ClaudeProjection {
             state: 'input-streaming'
           }
       }
+      if (parentless && role === 'assistant' && part.type === 'text' && reasoning.has(part.text.trim())) continue
       if (part.type === 'dynamic-tool') {
         const callId = part.toolCallId
         const previous = this.messages
@@ -217,7 +230,16 @@ export class ClaudeProjection {
       this.legacy[`${uuid}:${index}`] = { messageId: uuid, parts: [value.parts.length] }
       value.parts.push(part)
     }
+    if (parentless && apiId && role === 'assistant') this.reasoningByApiId.set(apiId, reasoning)
     this.sources.add(uuid)
+    // An entirely suppressed snapshot must retract its provisional copy without
+    // committing an empty assistant message, which the UI treats as no response.
+    if (value.parts.length === 0 && content.length > 0 && bound.length > 0 && this.stream) {
+      this.messages.delete(this.stream.id)
+      events.push({ type: 'message.remove', ref: this.ref(this.stream.id) })
+      this.stream.id = `live:${randomUUID()}`
+      events.push(...this.preview())
+    }
     if (value.parts.length || content.length === 0) {
       const replaces = bound.length && this.stream ? [this.ref(this.stream.id)] : undefined
       events.push(this.upsert(value, replaces))
@@ -445,7 +467,8 @@ export class ClaudeProjection {
       if (decoded)
         events.push(
           ...this.upsertContent(message.uuid, message.type, decoded.blocks, decoded.id, {
-            inputId: inputs.get(runtimeId<'native-input'>(message.uuid))
+            inputId: inputs.get(runtimeId<'native-input'>(message.uuid)),
+            parentless: message.parent_tool_use_id == null && message.parent_agent_id == null
           })
         )
     }
