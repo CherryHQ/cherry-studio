@@ -1,6 +1,6 @@
 import { Check, Copy, TriangleAlert } from 'lucide-react'
 import type { FC } from 'react'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
@@ -59,7 +59,9 @@ export interface BinaryOperationError {
 export const BinaryInstallErrorDialog: FC<{
   error: BinaryOperationError | null
   onOpenChange: (open: boolean) => void
-}> = ({ error, onOpenChange }) => {
+  /** Surface that hosts the dialog, recorded on the Details snapshot. */
+  source: string
+}> = ({ error, onOpenChange, source }) => {
   const { t } = useTranslation()
   const [copied, setCopied] = useState(false)
   const copyRequestId = useRef(0)
@@ -67,6 +69,11 @@ export const BinaryInstallErrorDialog: FC<{
   // Retain the last error so the dialog keeps its content during the close animation.
   const lastError = useRef<BinaryOperationError>({ name: '', message: '', action: 'install' })
   if (error) lastError.current = error
+  const failure = lastError.current
+  const summary = `${t(
+    failure.action === 'remove' ? 'settings.dependencies.removeError' : 'settings.dependencies.installError'
+  )}: ${failure.name}`
+  const detailError = useMemo(() => ({ message: failure.message }), [failure.message])
 
   useEffect(() => {
     copyRequestId.current++
@@ -100,11 +107,7 @@ export const BinaryInstallErrorDialog: FC<{
     <Dialog open={!!error} onOpenChange={onOpenChange}>
       <DialogContent size="lg">
         <DialogHeader>
-          <DialogTitle>{`${t(
-            lastError.current.action === 'remove'
-              ? 'settings.dependencies.removeError'
-              : 'settings.dependencies.installError'
-          )}: ${lastError.current.name}`}</DialogTitle>
+          <DialogTitle>{summary}</DialogTitle>
           <DialogDescription>
             {t(
               lastError.current.action === 'remove'
@@ -118,11 +121,11 @@ export const BinaryInstallErrorDialog: FC<{
         </pre>
         <DialogFooter>
           <ErrorDetailAction
-            error={lastError.current}
-            message={lastError.current.message}
-            operation={lastError.current.action === 'remove' ? 'binary.remove' : 'binary.install'}
-            recordId={lastError.current.name}
-            source="settings.dependencies"
+            error={detailError}
+            message={summary}
+            operation={failure.action === 'remove' ? 'binary.remove' : 'binary.install'}
+            recordId={failure.name}
+            source={source}
           />
           <Button variant="outline" onClick={copyError}>
             {copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
