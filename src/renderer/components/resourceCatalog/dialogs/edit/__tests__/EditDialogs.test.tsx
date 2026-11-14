@@ -222,7 +222,6 @@ vi.mock('@renderer/components/resourceCatalog/dialogs/skill', () => ({
     selectedIds: readonly string[]
     disabled?: boolean
     onSelectedIdsChange: (ids: string[]) => void
-    trailingItem?: ReactNode
   }) => {
     skillCatalogPickerMock(props)
 
@@ -250,7 +249,6 @@ vi.mock('@renderer/components/resourceCatalog/dialogs/skill', () => ({
                 </button>
               )
             })}
-        {props.trailingItem}
       </div>
     )
   }
@@ -353,7 +351,6 @@ vi.mock('react-i18next', async (importOriginal) => {
           'agent.settings.tooling.preapproved.autoDisabledTooltip': 'Added by {{mode}}',
           // Permission-mode titles intentionally absent: they fall through to the card
           // definitions' own fallbacks, so copy changes need no edit here.
-          'agent.settings.skills.addMore': 'Manage Skills',
           'common.avatar': 'Avatar',
           'settings.general.image_upload': 'Image Upload',
           'settings.general.emoji_picker': 'Emoji Picker',
@@ -408,7 +405,6 @@ vi.mock('react-i18next', async (importOriginal) => {
           'library.config.agent.section.permission.desc': 'Permission options.',
           'library.config.agent.section.permission.title': 'Permission',
           'library.config.agent.section.tools.add': 'Add',
-          'library.config.agent.section.tools.no_builtin_enabled': 'No built-in tools enabled',
           'library.config.agent.section.tools.no_mcp_bound': 'No MCP servers bound',
           'library.config.agent.section.tools.no_skills_enabled': 'No skills enabled',
           'library.config.agent.section.tools.search_placeholder': 'Search tools',
@@ -522,16 +518,8 @@ vi.mock('react-i18next', async (importOriginal) => {
           'library.config.dialogs.edit.tools_tab': 'Tools',
           'library.config.knowledge.add': 'Add knowledge base',
           'library.config.knowledge.doc_count': '{{count}} docs',
-          'library.config.knowledge.empty_desc': 'No knowledge description',
-          'library.config.knowledge.empty_title': 'No knowledge bases linked',
-          'library.config.knowledge.invalid_suffix': ' unavailable',
-          'library.config.knowledge.linked': 'Linked knowledge',
-          'library.config.knowledge.linked_hint': 'Choose knowledge bases.',
-          'library.config.knowledge.no_more': 'No more knowledge bases',
-          'library.config.knowledge.remove_aria': 'Remove knowledge base',
           'library.config.knowledge.search': 'Search knowledge',
           'library.config.tools.add_mcp': 'Add MCP server',
-          'library.config.tools.added': 'MCP services',
           'library.config.tools.added_hint': 'Manual mode only uses these.',
           'library.config.tools.empty_desc': 'No MCP description',
           'library.config.tools.empty_title': 'No MCP servers added',
@@ -1803,12 +1791,7 @@ describe('edit dialogs', () => {
     expect(screen.getByRole('tab', { name: 'Knowledge' })).toBeInTheDocument()
 
     selectTab('Knowledge')
-    await waitFor(() => expect(screen.getByText('Linked knowledge')).toBeVisible())
-
-    const addKnowledgeButton = screen.getByRole('button', { name: 'Add knowledge base' })
-    fireEvent.click(addKnowledgeButton)
-    expect(screen.getByText('Knowledge One')).toBeInTheDocument()
-    fireEvent.click(screen.getByText('Knowledge One'))
+    fireEvent.click(await screen.findByRole('switch', { name: 'Knowledge One' }))
 
     selectTab('MCP')
     await waitFor(() => expect(screen.getByRole('radiogroup', { name: 'MCP Mode' })).toBeVisible())
@@ -2192,11 +2175,10 @@ describe('edit dialogs', () => {
     const props = { open: true, onOpenChange: vi.fn(), initialTab: 'tools.knowledge' }
     const { rerender } = render(<AgentEditDialog {...props} resource={boundAgent} />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'Remove knowledge base' }))
+    fireEvent.click(screen.getByRole('switch', { name: 'Knowledge One' }))
     await waitFor(() => expect(updateAgentMock).toHaveBeenCalledTimes(1))
 
-    fireEvent.click(screen.getByRole('button', { name: 'Add knowledge base' }))
-    fireEvent.click(screen.getByText('Knowledge One'))
+    fireEvent.click(screen.getByRole('switch', { name: 'Knowledge One' }))
     rerender(<AgentEditDialog {...props} resource={{ ...boundAgent, knowledgeBaseIds: [] }} />)
 
     selectTab('Built-in tools')
@@ -2215,21 +2197,6 @@ describe('edit dialogs', () => {
 
     expect(screen.getByRole('tab', { name: '技能' })).toHaveAttribute('aria-selected', 'true')
     expect(screen.getByText('Skill One')).toBeInTheDocument()
-  })
-
-  it('opens Skill settings in an app tab without closing the agent edit dialog', () => {
-    const onOpenChange = vi.fn()
-    render(<AgentEditDialog open resource={AGENT} onOpenChange={onOpenChange} />)
-
-    selectTab('技能')
-
-    const manageSkillsButton = screen.getByRole('button', { name: 'Manage Skills' })
-
-    fireEvent.click(manageSkillsButton)
-
-    expect(openSettingsTabMock).toHaveBeenCalledWith('/settings/skills')
-    expect(ipcRequestMock).not.toHaveBeenCalledWith('tab.detach', expect.anything())
-    expect(onOpenChange).not.toHaveBeenCalled()
   })
 
   it('waits for background skill refresh before initializing the editable baseline', async () => {
@@ -2357,34 +2324,20 @@ describe('edit dialogs', () => {
     )
   })
 
-  it('uses the same MCP server list presentation in assistant and agent editing', async () => {
-    const onAssistantOpenChange = vi.fn()
-    render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={onAssistantOpenChange} />)
-
+  it('binds an MCP server from the shared list in assistant and agent editing', async () => {
+    render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} />)
     selectTab('MCP')
     fireEvent.click(within(screen.getByRole('radiogroup', { name: 'MCP Mode' })).getByRole('radio', { name: 'Manual' }))
-
-    expect(screen.getByText('MCP services')).toBeInTheDocument()
-    expect(screen.getByText('MCP One')).toBeInTheDocument()
-    expect(screen.getByText('Connected')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'MCP services Settings' }))
-    expect(openSettingsTabMock).toHaveBeenCalledWith('/settings/mcp/servers')
-    expect(onAssistantOpenChange).not.toHaveBeenCalled()
+    expect(screen.getByRole('switch', { name: 'MCP One' })).not.toBeChecked()
 
     cleanup()
-    openSettingsTabMock.mockClear()
-    const onAgentOpenChange = vi.fn()
-
-    render(<AgentEditDialog open resource={AGENT} onOpenChange={onAgentOpenChange} />)
-
+    render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} />)
     selectTab('MCP')
+    fireEvent.click(screen.getByRole('switch', { name: 'MCP One' }))
 
-    expect(screen.getByText('MCP services')).toBeInTheDocument()
-    expect(screen.getByText('MCP One')).toBeInTheDocument()
-    expect(screen.getByText('Connected')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'MCP services Settings' }))
-    expect(openSettingsTabMock).toHaveBeenCalledWith('/settings/mcp/servers')
-    expect(onAgentOpenChange).not.toHaveBeenCalled()
+    await waitFor(() =>
+      expect(updateAgentMock).toHaveBeenCalledWith({ body: expect.objectContaining({ mcps: ['mcp-1'] }) })
+    )
   })
 
   it('closes the assistant edit dialog before running model settings navigation on the next frame', async () => {
