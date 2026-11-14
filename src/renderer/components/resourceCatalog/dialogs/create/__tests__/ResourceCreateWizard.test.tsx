@@ -6,6 +6,7 @@ import type * as ReactHookForm from 'react-hook-form'
 import { useWatch } from 'react-hook-form'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { toast } from '@renderer/services/toast'
 import type { AgentType } from '@shared/data/types/agent'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
@@ -197,6 +198,7 @@ const DEFAULT_AGENT_SETTINGS_PAYLOAD = {
   }
 }
 const onSubmitSpy = vi.fn()
+const UPLOADED_AVATAR = { data: new Uint8Array([1, 2, 3]), previewUrl: 'data:image/webp;base64,AQID' }
 const draft = {
   name: '  Activity draft  ',
   description: '  Description preserved across tabs  ',
@@ -231,6 +233,9 @@ function StepHarness({ form }: { form: ReactHookForm.UseFormReturn<ResourceCreat
       </button>
       <button type="button" onClick={() => form.setValue('avatar', '🦊')}>
         pick avatar
+      </button>
+      <button type="button" onClick={() => form.setValue('avatarImage', UPLOADED_AVATAR, { shouldDirty: true })}>
+        upload avatar
       </button>
       {(['pi', 'claude-code'] as const).map((runtime) => (
         <button
@@ -1604,6 +1609,91 @@ describe('ResourceCreateWizard result page', () => {
     expect(await screen.findByTestId('edit-host')).toHaveTextContent('agent:agent-1')
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
     expect(onStartConversation).not.toHaveBeenCalled()
+  })
+})
+
+describe('ResourceCreateWizard uploaded avatar', () => {
+  const request = () => vi.mocked(window.api.ipcApi.request)
+  const avatarImage = () => screen.queryByRole('img', { name: 'common.avatar' })
+
+  beforeEach(() => {
+    request().mockReset().mockResolvedValue({ ok: true, data: undefined })
+  })
+
+  it('saves the uploaded image onto the new Agent after create and shows it on the result page', async () => {
+    const user = userEvent.setup()
+    const onSubmit = vi.fn().mockResolvedValue('agent-1')
+    render(<ResultHost kind="agent" onSubmit={onSubmit} />)
+
+    await user.click(screen.getByRole('button', { name: 'upload avatar' }))
+    await user.click(screen.getByRole('button', { name: 'fill basic' }))
+    await user.click(screen.getByRole('button', { name: MANUAL }))
+    await walkToLastStep(user)
+    await user.click(screen.getByRole('button', { name: CREATE }))
+
+    await screen.findByRole('heading', { name: 'library.config.dialogs.create.result.agent_title' })
+    expect(request()).toHaveBeenCalledWith('agent.set_avatar', {
+      agentId: 'agent-1',
+      avatar: { kind: 'image', data: UPLOADED_AVATAR.data }
+    })
+    // The image only lands on a resource that exists.
+    expect(onSubmit.mock.invocationCallOrder[0]).toBeLessThan(request().mock.invocationCallOrder[0])
+    expect(avatarImage()).toHaveAttribute('src', UPLOADED_AVATAR.previewUrl)
+  })
+
+  it('keeps the result page with the emoji and says so when the image cannot be saved', async () => {
+    request().mockRejectedValue(new Error('disk full'))
+    const user = userEvent.setup()
+    render(<ResultHost kind="assistant" onSubmit={vi.fn().mockResolvedValue('assistant-1')} />)
+
+    await user.click(screen.getByRole('button', { name: 'upload avatar' }))
+    await user.click(screen.getByRole('button', { name: 'fill basic' }))
+    await user.click(screen.getByRole('button', { name: MANUAL }))
+    await walkToLastStep(user)
+    await user.click(screen.getByRole('button', { name: CREATE }))
+
+    await screen.findByRole('heading', { name: 'library.config.dialogs.create.result.assistant_title' })
+    expect(request()).toHaveBeenCalledWith(
+      'assistant.set_avatar',
+      expect.objectContaining({ assistantId: 'assistant-1' })
+    )
+    expect(toast.error).toHaveBeenCalledWith(
+      expect.stringContaining('library.config.dialogs.create.avatar_save_failed')
+    )
+    expect(avatarImage()).not.toBeInTheDocument()
+    expect(screen.getByText('💬')).toBeVisible()
+  })
+
+  it('keeps an uploaded image over the emoji auto create generates', async () => {
+    modelHook.defaultModel = makeModel()
+    autoConfigure.installFeaturedMcpServers.mockImplementation(async (ids) => ids)
+    autoConfigure.generate.mockResolvedValue({
+      name: 'PR Reviewer',
+      emoji: '🔍',
+      description: 'Reviews pull requests',
+      prompt: 'You review pull requests.',
+      knowledgeBaseIds: [],
+      mcpServerIds: [],
+      skillIds: [],
+      enableWebSearch: false
+    })
+    const user = userEvent.setup()
+    const onSubmit = vi.fn().mockResolvedValue('agent-1')
+    render(<ResultHost kind="agent" onSubmit={onSubmit} />)
+
+    await user.click(screen.getByRole('button', { name: 'upload avatar' }))
+    await user.type(screen.getByRole('textbox', { name: 'draft description' }), 'Review my GitHub PRs')
+    await user.click(screen.getByRole('button', { name: 'fill model' }))
+    await user.click(screen.getByRole('button', { name: AUTO }))
+
+    await screen.findByRole('heading', { name: 'library.config.dialogs.create.result.agent_title' })
+    // The generated emoji is still stored as the fallback behind the image.
+    expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ avatar: '🔍' }))
+    expect(request()).toHaveBeenCalledWith('agent.set_avatar', {
+      agentId: 'agent-1',
+      avatar: { kind: 'image', data: UPLOADED_AVATAR.data }
+    })
+    expect(avatarImage()).toHaveAttribute('src', UPLOADED_AVATAR.previewUrl)
   })
 })
 

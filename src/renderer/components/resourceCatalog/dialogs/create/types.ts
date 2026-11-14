@@ -6,6 +6,13 @@ import type { UniqueModelId } from '@shared/data/types/model'
 
 export type ResourceCreateWizardKind = 'assistant' | 'agent'
 
+/** An uploaded avatar held until the resource exists; the wizard saves it right after create. */
+export type AvatarImageDraft = {
+  /** Prepared by `prepareAvatarImage`, ready for `*.set_avatar`. */
+  data: Uint8Array<ArrayBuffer>
+  previewUrl: string
+}
+
 /**
  * Internal react-hook-form state for the stepped create wizard.
  *
@@ -16,6 +23,8 @@ export type ResourceCreateWizardKind = 'assistant' | 'agent'
  */
 export type ResourceCreateWizardFormValues = {
   avatar: string
+  /** Shown instead of `avatar` while set; the emoji stays the fallback. */
+  avatarImage: AvatarImageDraft | null
   name: string
   description: string
   /** Agent runtime driver. Ignored for the assistant kind. */

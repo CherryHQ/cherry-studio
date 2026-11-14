@@ -4,6 +4,7 @@ import { type UseFormReturn, useWatch } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 
 import { Button, EmojiAvatar } from '@cherrystudio/ui'
+import { AssistantAvatarImage } from '@renderer/components/Avatar/AssistantAvatarImage'
 import { ChannelQrLoginDialog } from '@renderer/components/channel/ChannelQrLoginDialog'
 import { useChannels } from '@renderer/hooks/agent/useChannels'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBase'
@@ -23,17 +24,38 @@ export type CreatedResource = {
   values: ResourceCreateWizardValues
   /** The configuration came from auto create rather than the manual steps. */
   generated: boolean
+  /** The uploaded avatar, once it was saved onto the resource. */
+  avatarSrc?: string
 }
 
-function ResultAvatar({ avatar, name, description }: { avatar: string; name: string; description?: string }) {
+function ResultAvatar({
+  avatar,
+  imageSrc,
+  name,
+  description
+}: {
+  avatar: string
+  imageSrc?: string
+  name: string
+  description?: string
+}) {
+  const { t } = useTranslation()
   return (
     <div className="flex flex-col items-center gap-2 text-center">
-      <EmojiAvatar
+      <AssistantAvatarImage
+        src={imageSrc}
+        alt={t('common.avatar')}
         size={84}
-        fontSize={42}
-        className="shrink-0 cursor-default rounded-[28%] border border-border hover:opacity-100">
-        {avatar}
-      </EmojiAvatar>
+        className="shrink-0 rounded-[28%] border border-border object-cover"
+        fallback={
+          <EmojiAvatar
+            size={84}
+            fontSize={42}
+            className="shrink-0 cursor-default rounded-[28%] border border-border hover:opacity-100">
+            {avatar}
+          </EmojiAvatar>
+        }
+      />
       <div className="mt-1 max-w-full truncate font-semibold text-foreground text-lg leading-tight">{name}</div>
       {description ? <div className="max-w-full text-[13px] text-muted-foreground">{description}</div> : null}
     </div>
@@ -101,7 +123,10 @@ export function ResourceCreateWorkingView({
   form: UseFormReturn<ResourceCreateWizardFormValues>
 }) {
   const { t } = useTranslation()
-  const [avatar, name, purpose] = useWatch({ control: form.control, name: ['avatar', 'name', 'description'] })
+  const [avatar, avatarImage, name, purpose] = useWatch({
+    control: form.control,
+    name: ['avatar', 'avatarImage', 'name', 'description']
+  })
   const isAgent = kind === 'agent'
   const items = [
     t('library.config.dialogs.create.result.working.prompt'),
@@ -114,7 +139,12 @@ export function ResourceCreateWorkingView({
 
   return (
     <div className="flex flex-col gap-5 px-6 pt-6 pb-5">
-      <ResultAvatar avatar={avatar} name={name.trim() || fallbackName} description={purpose.trim()} />
+      <ResultAvatar
+        avatar={avatar}
+        imageSrc={avatarImage?.previewUrl}
+        name={name.trim() || fallbackName}
+        description={purpose.trim()}
+      />
       <div className="rounded-xl border border-border-subtle px-3.5 py-2">
         {items.map((item) => (
           <div key={item} className="flex min-h-8 items-center gap-2.5 text-[13px] text-foreground">
@@ -180,7 +210,12 @@ export function ResourceCreateResultView({
   return (
     <>
       <div className="flex flex-col gap-5 px-6 pt-6 pb-5">
-        <ResultAvatar avatar={values.avatar} name={values.name} description={values.description} />
+        <ResultAvatar
+          avatar={values.avatar}
+          imageSrc={created.avatarSrc}
+          name={values.name}
+          description={values.description}
+        />
         <div className="rounded-xl border border-border-subtle px-3.5 py-1.5">
           <SummaryRow label={t('library.config.prompt.label')}>{promptState}</SummaryRow>
           <SummaryRow label={t('common.model')}>{model?.name ?? values.modelId}</SummaryRow>
