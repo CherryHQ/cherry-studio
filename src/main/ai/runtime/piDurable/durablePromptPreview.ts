@@ -36,6 +36,7 @@ export async function previewDurableSystemPrompt(draft: AgentSystemPromptDraft):
   if (draft.agentId && !stored) throw new Error(`Agent not found: ${draft.agentId}`)
 
   const agent = {
+    type: 'pi-durable' as const,
     instructions: draft.instructions,
     modelName: stored?.modelName ?? null,
     configuration: { ...stored?.configuration, language: draft.language }
