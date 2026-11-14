@@ -1,0 +1,1 @@
+ALTER TABLE `agent_session` ADD `runtime_type` text;

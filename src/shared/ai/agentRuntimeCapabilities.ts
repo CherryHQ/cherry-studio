@@ -8,8 +8,14 @@ import type { Model } from '@shared/data/types/model'
 import { parseUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { isGatewayRoutableModel } from '@shared/utils/model'
+import { isExternalCliProvider } from '@shared/utils/provider'
 
 import type { SlashCommand } from './slashCommands'
+
+/** New conversations use Durable unless the provider requires Claude Code's CLI login. */
+export function getFreshAgentRuntimeType(provider?: Pick<Provider, 'authMethods'>): AgentType {
+  return provider && isExternalCliProvider(provider) ? 'claude-code' : 'pi-durable'
+}
 
 export interface AgentRuntimeCapabilities {
   /** i18n key for runtime selector option. */

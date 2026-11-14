@@ -13,11 +13,11 @@ host/driver architecture itself (turn lifecycle, resume tokens, follow-up
 queue) read [Agent Session Runtime](./agent-session-runtime.md) first — this
 document is the operational checklist.
 
-The host (`AgentSessionRuntimeService`) is type-agnostic: it dispatches on
-`agent.type` through `runtimeDriverRegistry` and never branches on a concrete
-runtime. Renderer UI is descriptor-driven: it reads
-`AGENT_RUNTIME_CAPABILITIES[agent.type]` and never branches on a concrete
-runtime either. Adding a runtime therefore means **one shared descriptor
+The host (`AgentSessionRuntimeService`) resolves the session's persisted runtime
+through `AgentSessionService.getRuntimeType` and selects its registered driver
+through `runtimeDriverRegistry`. Session UI reads the corresponding
+`AGENT_RUNTIME_CAPABILITIES` descriptor; the mutable Agent type does not change
+a session's execution ownership. Adding a runtime therefore means **one shared descriptor
 entry plus one main-process driver package** — no host or renderer rewrites.
 
 ## What the compiler and tests enforce

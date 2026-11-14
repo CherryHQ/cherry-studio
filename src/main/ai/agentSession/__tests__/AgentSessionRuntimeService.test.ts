@@ -68,6 +68,7 @@ const mocks = vi.hoisted(() => ({
   closeAgentSessionWarm: vi.fn(),
   closeWarmSession: vi.fn().mockResolvedValue(undefined),
   getSessionById: vi.fn(),
+  getRuntimeType: vi.fn(),
   getAgent: vi.fn(),
   ensureTraceId: vi.fn(),
   recordUsage: vi.fn(),
@@ -112,6 +113,7 @@ vi.mock('@data/services/AgentSessionService', async (importOriginal) => {
   return {
     agentSessionService: Object.assign(Object.create(actual.agentSessionService), {
       getById: mocks.getSessionById,
+      getRuntimeType: mocks.getRuntimeType,
       ensureTraceId: mocks.ensureTraceId
     })
   }
@@ -515,6 +517,7 @@ describe('AgentSessionForkOperations recovery', () => {
   })
 
   it('rejects a missing checkpoint before creating fork artifacts or rebuilding history', async () => {
+    mocks.getRuntimeType.mockReturnValue('pi')
     mocks.getAgent.mockReturnValueOnce({ id: 'fork-agent', type: 'pi' })
     runtimeDriverRegistry.register({
       type: 'pi',
@@ -583,6 +586,7 @@ describe('AgentSessionRuntimeService', () => {
     mocks.closeWarmQueries.mockResolvedValue(undefined)
     // A live agent with a model — the drain re-reads this to bail on a deleted model. Tests exercising
     // the deleted-model path override it with `{ model: null }`.
+    mocks.getRuntimeType.mockReturnValue('test-runtime')
     mocks.getAgent.mockReturnValue({ id: 'agent-1', type: 'test-runtime', model: baseTurnInput.modelId })
     mocks.applicationGet.mockImplementation((name: string) => {
       if (name === 'AiStreamManager') {
@@ -620,6 +624,7 @@ describe('AgentSessionRuntimeService', () => {
 
   it('blocks edits only on the source session until its fork settles', async () => {
     const service = new AgentSessionRuntimeService()
+    mocks.getRuntimeType.mockReturnValue('pi')
     mocks.getAgent.mockReturnValueOnce({ id: 'fork-agent', type: 'pi' })
     runtimeDriverRegistry.register({
       type: 'pi',
@@ -4818,7 +4823,7 @@ describe('AgentSessionRuntimeService', () => {
   })
 
   describe('primeConnection — eager command load on session open', () => {
-    it('opens the connection without a turn and caches the slash-command catalog', async () => {
+    it('prewarms the bound runtime with the session model when the Agent default is cleared', async () => {
       const commands = [{ name: 'clear', description: 'Clear conversation' }]
       const events = createAsyncQueue<any>()
       const getContextUsage = vi.fn()
@@ -4840,8 +4845,9 @@ describe('AgentSessionRuntimeService', () => {
         connect,
         validateSession: vi.fn()
       })
-      mocks.getSessionById.mockReturnValue({ id: 'session-1', agentId: 'agent-1' })
-      mocks.getAgent.mockReturnValue({ id: 'agent-1', type: 'test-runtime', model: baseTurnInput.modelId })
+      mocks.getSessionById.mockReturnValue({ id: 'session-1', agentId: 'agent-1', model: baseTurnInput.modelId })
+      mocks.getRuntimeType.mockReturnValue('test-runtime')
+      mocks.getAgent.mockReturnValue({ id: 'agent-1', type: 'pi-durable', model: null })
 
       const service = new AgentSessionRuntimeService()
       await service.primeConnection('session-1')
@@ -4850,7 +4856,10 @@ describe('AgentSessionRuntimeService', () => {
       // The primed connection carries the session's trace context (resolved via ensureTraceId) so its
       // subprocess spans join the session trace tree — not a trace-less connection reused by turn 1.
       expect(connect).toHaveBeenCalledWith(
-        expect.objectContaining({ trace: expect.objectContaining({ traceId: 'b'.repeat(32) }) })
+        expect.objectContaining({
+          modelId: baseTurnInput.modelId,
+          trace: expect.objectContaining({ traceId: 'b'.repeat(32) })
+        })
       )
       await vi.waitFor(() =>
         expect(mocks.cacheSetShared).toHaveBeenCalledWith('agent.session.slash_commands.session-1', commands)
@@ -4908,6 +4917,7 @@ describe('AgentSessionRuntimeService', () => {
         validateSession: vi.fn()
       })
       mocks.getSessionById.mockReturnValue({ id: 'session-1', agentId: 'agent-1' })
+      mocks.getRuntimeType.mockReturnValue('test-runtime')
       mocks.getAgent.mockReturnValue({ id: 'agent-1', type: 'test-runtime', model: baseTurnInput.modelId })
 
       const service = new AgentSessionRuntimeService()
@@ -5269,7 +5279,8 @@ describe('AgentSessionRuntimeService', () => {
   })
 
   it.each(['pi', 'claude-code'])('resumes a native %s fork and sends only the new user messages', async (agentType) => {
-    mocks.getAgent.mockReturnValue({ id: 'agent-1', type: agentType, model: baseTurnInput.modelId })
+    mocks.getRuntimeType.mockReturnValue(agentType)
+    mocks.getAgent.mockReturnValue({ id: 'agent-1', type: 'pi-durable', model: baseTurnInput.modelId })
     mocks.getLastRuntimeResumeToken.mockReturnValue('native-child-token')
     const events = createAsyncQueue<any>()
     const connection = {

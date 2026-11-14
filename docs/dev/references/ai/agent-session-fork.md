@@ -21,6 +21,8 @@ sources:
 Pi, Claude Code and Pi Durable support **Fork** on successful assistant messages with valid native checkpoints. Legacy replies without a native checkpoint remain ineligible; the operation never rebuilds native history from product messages.
 The operation creates an independent Agent session containing the visible
 history through the selected turn and a native runtime resume reference.
+It inherits the source session's runtime binding even when the owning Agent now
+uses Pi Durable for fresh conversations.
 It does not start or interrupt the source connection. The source can continue
 appending later turns, and deleting it does not invalidate a published child.
 

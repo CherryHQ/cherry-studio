@@ -1,5 +1,6 @@
 import { application } from '@application'
 import { agentService } from '@main/data/services/AgentService'
+import { agentSessionService } from '@main/data/services/AgentSessionService'
 import { providerService } from '@main/data/services/ProviderService'
 import { parseUniqueModelId } from '@shared/data/types/model'
 import { isExternalCliProvider } from '@shared/utils/provider'
@@ -36,9 +37,14 @@ export const claudeLogin = defineDoctorCheck({
   timeoutMs: 20_000,
   async run({ signal }) {
     const needsClaudeLogin = agentService.listAgents().agents.some((agent) => {
-      if (agent.type !== 'claude-code' || !agent.model) return false
+      if (!agent.model) return false
       const { providerId } = parseUniqueModelId(agent.model)
-      return isExternalCliProvider(providerService.getByProviderId(providerId))
+      return (
+        isExternalCliProvider(providerService.getByProviderId(providerId)) &&
+        agentSessionService
+          .listActiveIdsByAgent(agent.id)
+          .some((id) => agentSessionService.getById(id).runtimeType === 'claude-code')
+      )
     })
     if (!needsClaudeLogin) return { status: 'pass' }
     const cli = application.get('CodeCliService')

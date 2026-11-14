@@ -32,6 +32,30 @@ const providers = {
 } as const satisfies Record<string, Partial<Provider>>
 
 describe('useAgentModelFilter', () => {
+  it('offers CLI subscriptions in Agent configuration without allowing them in a Durable session', () => {
+    const provider: Provider = {
+      id: 'my-claude-login',
+      name: 'Claude login',
+      authMethods: ['external-cli'],
+      authType: 'api-key',
+      apiKeys: [],
+      settings: {},
+      isEnabled: true,
+      reportsActualCost: false
+    }
+    const subscriptionModel: Model = { ...model(), providerId: provider.id, id: 'my-claude-login::sonnet' }
+    const configuration = renderHook(() => useAgentModelFilter('pi-durable', 'configuration'))
+    const session = renderHook(() => useAgentModelFilter('pi-durable'))
+    const claudeSession = renderHook(() => useAgentModelFilter('claude-code'))
+
+    expect(configuration.result.current(subscriptionModel, provider)).toBe(true)
+    expect(session.result.current(subscriptionModel, provider)).toBe(false)
+    expect(claudeSession.result.current(subscriptionModel, provider)).toBe(true)
+    expect(
+      configuration.result.current({ ...subscriptionModel, capabilities: [MODEL_CAPABILITY.EMBEDDING] }, provider)
+    ).toBe(false)
+  })
+
   it('allows Gemini provider models for Claude Code agents', () => {
     const { result } = renderHook(() => useAgentModelFilter('claude-code'))
 

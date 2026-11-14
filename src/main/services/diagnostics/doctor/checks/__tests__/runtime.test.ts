@@ -8,6 +8,7 @@ const services = vi.hoisted(() => ({
   getToolInventory: vi.fn(),
   checkClaudeLogin: vi.fn(),
   listAgents: vi.fn(),
+  sessionRuntime: 'claude-code',
   getProviderByProviderId: vi.fn()
 }))
 vi.mock('@application', async () => {
@@ -33,6 +34,12 @@ vi.mock('@main/data/services/AgentService', () => ({
 vi.mock('@main/data/services/ProviderService', () => ({
   providerService: { getByProviderId: services.getProviderByProviderId }
 }))
+vi.mock('@main/data/services/AgentSessionService', () => ({
+  agentSessionService: {
+    listActiveIdsByAgent: () => ['session-1'],
+    getById: () => ({ runtimeType: services.sessionRuntime })
+  }
+}))
 
 const { claudeLogin, managedTools } = await import('../runtime')
 const signal = new AbortController().signal
@@ -40,7 +47,7 @@ const ctx = { signal, share: <T>(_key: string, factory: (signal: AbortSignal) =>
 
 const agent = (model: AgentEntity['model'] = 'claude-code::sonnet'): AgentEntity => ({
   id: 'agent-1',
-  type: 'claude-code',
+  type: 'pi-durable',
   name: 'Agent',
   model,
   modelName: 'Claude',
@@ -63,6 +70,7 @@ const provider = (id: string, authMethods: Provider['authMethods']): Provider =>
 beforeEach(() => {
   vi.clearAllMocks()
   services.ready = true
+  services.sessionRuntime = 'claude-code'
   services.getToolInventory.mockResolvedValue([])
   services.checkClaudeLogin.mockResolvedValue(true)
   services.listAgents.mockReturnValue({ agents: [], total: 0 })
@@ -70,6 +78,12 @@ beforeEach(() => {
 })
 
 describe('runtime-managed-tools', () => {
+  it('does not require Claude login for Durable sessions using a former Claude Agent', async () => {
+    services.listAgents.mockReturnValue({ agents: [agent()] })
+    services.sessionRuntime = 'pi-durable'
+    services.ready = false
+    await expect(claudeLogin.run(ctx)).resolves.toEqual({ status: 'pass' })
+  })
   it('does not declare failed initialization healthy', async () => {
     services.ready = false
     await expect(managedTools.run(ctx)).rejects.toThrow('not ready')

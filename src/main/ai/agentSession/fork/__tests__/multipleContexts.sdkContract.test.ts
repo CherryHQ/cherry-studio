@@ -56,7 +56,7 @@ beforeEach(async () => {
     .run()
   dbh.db
     .insert(agentSessionTable)
-    .values({ id: sessionId, agentId, workspaceId, name: 'Contexts', orderKey: 'a0' })
+    .values({ runtimeType: 'pi', id: sessionId, agentId, workspaceId, name: 'Contexts', orderKey: 'a0' })
     .run()
   runtimeDriverRegistry.register({
     type: 'pi',

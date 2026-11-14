@@ -60,6 +60,7 @@ import {
 import { AGENT_SESSION_TURN_ORIGIN_CACHE_KEY, type AutonomousTurnOrigin } from '@shared/ai/agentSessionTurnOrigin'
 import type { MessageProjectionUpdate, MessageProjectionView } from '@shared/ai/messageProjection'
 import type { AiToolApprovalRespondResponse } from '@shared/ai/transport'
+import { DataApiError, ErrorCode } from '@shared/data/api/errors'
 import type { AgentEntity, UpdateAgentDto } from '@shared/data/api/schemas/agents'
 import type { AgentSessionMessageEntity } from '@shared/data/types/agent'
 import type { CherryMessagePart, CherryUIMessage, MessageSnapshot } from '@shared/data/types/message'
@@ -84,6 +85,7 @@ import type {
   AgentRuntimeToolApprovalRequest,
   AgentRuntimeTraceContext,
   AgentRuntimeUserInput,
+  AgentSessionRuntimeDriver,
   AgentSessionUsageCapture
 } from '../runtime/types'
 import type { AiStreamSource, MessageStreamEvent } from '../streamManager'
@@ -415,7 +417,14 @@ export class AgentSessionRuntimeService extends BaseService {
   getHistoryActions(sessionId: string, messageIds: readonly string[]) {
     const session = agentSessionService.getById(sessionId)
     const agent = session.agentId ? agentService.getAgent(session.agentId) : undefined
-    const driver = agent ? runtimeDriverRegistry.getAgentSessionDriver(agent.type) : undefined
+    let driver: AgentSessionRuntimeDriver | undefined
+    if (agent) {
+      try {
+        driver = runtimeDriverRegistry.getAgentSessionDriver(agentSessionService.getRuntimeType(sessionId))
+      } catch (error) {
+        if (!(error instanceof DataApiError) || error.code !== ErrorCode.INVALID_OPERATION) throw error
+      }
+    }
     return new Map(
       agentSessionForkService
         .readHistoryBoundaries(sessionId, messageIds)
@@ -910,12 +919,12 @@ export class AgentSessionRuntimeService extends BaseService {
       if (!session?.agentId) return
       const agent = agentService.getAgent(session.agentId)
       if (!agent) return
-      // Prime on the effective model so a session override doesn't force a rebuild on first turn.
       const effectiveModel = session.model ?? agent.model
       if (!effectiveModel) return
-      if (agent.type === 'claude-code' && application.get('ClaudeCodeBinaryService').getStatus().phase !== 'ready')
+      const runtimeType = agentSessionService.getRuntimeType(sessionId)
+      if (runtimeType === 'claude-code' && application.get('ClaudeCodeBinaryService').getStatus().phase !== 'ready')
         return
-      if (!runtimeDriverRegistry.getAgentSessionDriver(agent.type)) return
+      if (!runtimeDriverRegistry.getAgentSessionDriver(runtimeType)) return
 
       // Resolve the session's container trace id up front so the primed connection carries the same
       // trace context the first turn will. The connection is reused across turns, so without this its
@@ -936,7 +945,7 @@ export class AgentSessionRuntimeService extends BaseService {
         topicId: buildAgentSessionTopicId(sessionId),
         sessionTraceId,
         agentId: session.agentId,
-        agentType: agent.type,
+        agentType: runtimeType,
         modelId: effectiveModel,
         runtimeState: createAgentSessionRuntimeState()
       }

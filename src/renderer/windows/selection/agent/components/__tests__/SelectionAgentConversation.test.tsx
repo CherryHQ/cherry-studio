@@ -29,7 +29,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }))
 vi.mock('@renderer/hooks/agent/useSession', () => ({
   useSession: (sessionId: string) => ({
-    session: { id: sessionId, agentId: 'agent-1', name: '', model: mocks.sessionModel }
+    session: { id: sessionId, agentId: 'agent-1', runtimeType: 'claude-code', name: '', model: mocks.sessionModel }
   })
 }))
 vi.mock('@renderer/hooks/agent/useAgent', () => ({ useAgent: () => ({ agent: mocks.agent, isLoading: false }) }))

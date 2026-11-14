@@ -63,7 +63,7 @@ describe('AgentSessionMessageService', () => {
     })
     await dbh.db
       .insert(agentSessionTable)
-      .values({ createdAt: 0, lastActivityAt: 0, updatedAt: 0, ...values, workspaceId })
+      .values({ createdAt: 0, lastActivityAt: 0, updatedAt: 0, runtimeType: 'claude-code', ...values, workspaceId })
   }
 
   async function seedSessions(rows: Array<Omit<AgentSessionInsert, 'workspaceId'> & { workspaceId?: string }>) {
@@ -158,7 +158,13 @@ describe('AgentSessionMessageService', () => {
       async (storedType) => {
         await seedAgent('fork-agent', 'Fork Agent')
         dbh.db.update(agentTable).set({ type: storedType }).where(eq(agentTable.id, 'fork-agent')).run()
-        await seedSession({ id: 'fork-source', agentId: 'fork-agent', name: 'Source', orderKey: 'fork-order' })
+        await seedSession({
+          id: 'fork-source',
+          agentId: 'fork-agent',
+          runtimeType: storedType === 'pi' ? 'pi' : 'claude-code',
+          name: 'Source',
+          orderKey: 'fork-order'
+        })
         const directory = await mkdtemp(path.join(tmpdir(), 'agent-fork-runtime-'))
         const getPath = vi
           .spyOn(application, 'getPath')
@@ -353,7 +359,13 @@ describe('AgentSessionMessageService', () => {
             throw new Error('Invalid checkpoints must not reach native preparation')
           }
         })
-        await seedSession({ id: 'fork-source', agentId: 'fork-agent', name: 'Source', orderKey: 'fork-order' })
+        await seedSession({
+          id: 'fork-source',
+          agentId: 'fork-agent',
+          runtimeType: 'pi',
+          name: 'Source',
+          orderKey: 'fork-order'
+        })
         agentSessionMessageService.saveMessage({
           sessionId: 'fork-source',
           message: { id: ASSISTANT_MESSAGE_ID, role: 'assistant', status: 'success', data: { parts: [] } }
@@ -1472,6 +1484,46 @@ describe('AgentSessionMessageService', () => {
     expect(
       await dbh.db.select().from(agentSessionMessageTable).where(eq(agentSessionMessageTable.sessionId, SESSION_ID))
     ).toEqual([])
+  })
+
+  it('continues a legacy session after its Agent switches to Durable and rejects a mismatched runtime', async () => {
+    dbh.db.insert(userProviderTable).values({ providerId: 'provider', name: 'Provider', orderKey: 'p0' }).run()
+    dbh.db
+      .insert(userModelTable)
+      .values({
+        id: 'provider::model',
+        providerId: 'provider',
+        modelId: 'model',
+        presetModelId: 'model',
+        name: 'Model',
+        isEnabled: true,
+        isHidden: false,
+        orderKey: 'm0'
+      })
+      .run()
+    await seedAgent('agent-a', 'Agent A')
+    await dbh.db
+      .update(agentTable)
+      .set({ type: 'pi-durable', model: 'provider::model' })
+      .where(eq(agentTable.id, 'agent-a'))
+    await dbh.db.update(agentSessionTable).set({ agentId: 'agent-a' }).where(eq(agentSessionTable.id, SESSION_ID))
+    const agent = agentService.getAgent('agent-a')
+    if (!agent) throw new Error('Missing test Agent')
+    const params = {
+      sessionId: SESSION_ID,
+      messages: [{ id: USER_MESSAGE_ID, role: 'user' as const, status: 'success' as const, data: { parts: [] } }]
+    }
+    const expected = { id: agent.id, updatedAt: agent.updatedAt, model: 'provider::model', type: 'claude-code' }
+
+    expect(() => agentSessionMessageService.saveMessages(params, { ...expected, type: 'pi-durable' })).toThrow(
+      "Agent 'agent-a' was modified by another user"
+    )
+    expect(agentSessionMessageService.saveMessages(params, expected).map((message) => message.id)).toEqual([
+      USER_MESSAGE_ID
+    ])
+    expect(agentSessionMessageService.readWorkspaceRelocationHistory(`workspace-${SESSION_ID}`)).toEqual([
+      expect.objectContaining({ messageId: USER_MESSAGE_ID, runtime: 'claude-code' })
+    ])
   })
 
   it('writes neither message when the owning Agent changed after validation', async () => {

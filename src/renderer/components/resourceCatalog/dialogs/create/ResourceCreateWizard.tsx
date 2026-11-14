@@ -147,7 +147,7 @@ export function ResourceCreateWizard({
     defaultValues: getDefaultValues(kind, initialName, initialValues)
   })
   const agentType = form.watch('agentType')
-  const agentModelFilter = useAgentModelFilter(kind === 'agent' ? agentType : undefined)
+  const agentModelFilter = useAgentModelFilter(kind === 'agent' ? agentType : undefined, 'configuration')
   const activeModelFilter = kind === 'agent' ? agentModelFilter : modelFilter
   const isModelSelectable = useIsCherryCloudModelSelectable({ includeAgentOnlyModels: kind === 'agent', enabled: open })
   const { models: availableModels } = useModels({ enabled: true }, { fetchEnabled: open })

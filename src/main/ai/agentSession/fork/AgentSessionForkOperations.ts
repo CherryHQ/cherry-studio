@@ -105,7 +105,9 @@ export class AgentSessionForkOperations {
     )
     if (source.version !== target.version) throw new AgentSessionEditError('history_changed')
     const agent = source.session.agentId ? agentService.getAgent(source.session.agentId) : undefined
-    const driver = agent ? runtimeDriverRegistry.getAgentSessionDriver(agent.type) : undefined
+    const driver = agent
+      ? runtimeDriverRegistry.getAgentSessionDriver(agentSessionService.getRuntimeType(sessionId))
+      : undefined
     const facts = agentSessionForkService.readHistoryBoundaries(sessionId, [target.messageId])[0]
     const editFailure = facts ? getEditFailure(driver, facts, facts.parent) : 'invalid_target'
     if (editFailure) throw new AgentSessionEditError(editFailure)
@@ -240,7 +242,7 @@ export class AgentSessionForkOperations {
     const selected = preliminary.messages.at(-1)!
     const agent = agentService.getAgent(preliminary.agent.id)
     if (!agent) throw new AgentSessionForkSourceError('source_missing')
-    const driver = runtimeDriverRegistry.getAgentSessionDriver(agent.type)
+    const driver = runtimeDriverRegistry.getAgentSessionDriver(agentSessionService.getRuntimeType(sourceSessionId))
     const boundary = resolveForkBoundary(driver, { ...selected, anchor: selected.data.runtimeAnchor })
     if (boundary.reason) throw new AgentSessionForkError(boundary.reason)
     const { anchor } = boundary

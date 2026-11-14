@@ -356,7 +356,7 @@ vi.mock('@renderer/components/chat/citations/CitationsPanel', () => {
 })
 
 describe('AgentChat settings panel', () => {
-  const defaultSession = { id: 'session-1', agentId: 'agent-1', accessiblePaths: [] } as any
+  const defaultSession = { id: 'session-1', agentId: 'agent-1', runtimeType: 'pi-durable', accessiblePaths: [] } as any
   const createConversationBootstrap = (
     session: ComponentProps<typeof AgentChat>['conversationBootstrap']['session'] = defaultSession
   ): ComponentProps<typeof AgentChat>['conversationBootstrap'] => ({
@@ -445,6 +445,7 @@ describe('AgentChat settings panel', () => {
     const session = {
       id: 'session-1',
       agentId: 'agent-1',
+      runtimeType: 'pi-durable',
       workspaceId: 'workspace-1',
       workspace: { id: 'workspace-1', type: 'user', name: 'Workspace 1', path: '/workspace' }
     } as any
@@ -457,6 +458,29 @@ describe('AgentChat settings panel', () => {
     fireEvent.click(screen.getByRole('button', { name: 'change topbar workspace' }))
 
     expect(onSessionWorkspaceChange).toHaveBeenCalledWith('workspace-next')
+  })
+
+  it('opens the selected Agent conversation without reassigning the empty session runtime', async () => {
+    const user = userEvent.setup()
+    let finishCreate: (() => void) | undefined
+    const onCreateEmptySession = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          finishCreate = resolve
+        })
+    )
+    activeAgentMock.value = undefined
+    const session = { ...defaultSession, agentId: 'original-agent', runtimeType: 'pi-durable' as const }
+
+    renderAgentChat({ conversationBootstrap: createConversationBootstrap(session), onCreateEmptySession })
+    const selectAgent = screen.getByRole('button', { name: 'select replacement agent' })
+    await user.click(selectAgent)
+
+    expect(onCreateEmptySession).toHaveBeenCalledWith({ agentId: 'agent-2', workspaceId: session.workspaceId })
+    expect(updateSessionMock.updateSession).not.toHaveBeenCalled()
+    expect(selectAgent).toBeDisabled()
+    finishCreate?.()
+    await waitFor(() => expect(selectAgent).toBeEnabled())
   })
 
   it('reassigns an unlinked existing session without replacing it', async () => {
@@ -511,6 +535,7 @@ describe('AgentChat settings panel', () => {
     const session = {
       id: 'session-1',
       agentId: 'agent-1',
+      runtimeType: 'pi-durable',
       workspaceId: 'workspace-1',
       workspace: { id: 'workspace-1', type: 'user', name: 'Workspace 1', path: '/workspace' }
     } as any
@@ -530,6 +555,7 @@ describe('AgentChat settings panel', () => {
     const session = {
       id: 'session-1',
       agentId: 'agent-1',
+      runtimeType: 'pi-durable',
       workspaceId: 'workspace-1',
       workspace: { id: 'workspace-1', type: 'user', name: 'Workspace 1', path: '/workspace' }
     } as any

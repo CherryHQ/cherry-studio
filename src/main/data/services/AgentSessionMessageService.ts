@@ -353,7 +353,7 @@ export class AgentSessionMessageService {
       .select({
         messageId: sessionMessagesTable.id,
         sessionId: sessionTable.id,
-        runtime: agentTable.type,
+        runtime: sessionTable.runtimeType,
         role: sessionMessagesTable.role,
         status: sessionMessagesTable.status,
         userText: sql<
@@ -368,7 +368,6 @@ export class AgentSessionMessageService {
         sessionMessagesTable,
         and(eq(sessionTable.id, sessionMessagesTable.sessionId), ne(sessionMessagesTable.role, 'root'))
       )
-      .leftJoin(agentTable, eq(agentTable.id, sessionTable.agentId))
       .where(eq(sessionTable.workspaceId, workspaceId))
       .all()
   }
@@ -1211,9 +1210,8 @@ export class AgentSessionMessageService {
             includeNativeAgentTypes.length > 0
               ? sql`EXISTS (
                   SELECT 1 FROM agent_session AS owner_session
-                  JOIN agent AS owner_agent ON owner_agent.id = owner_session.agent_id
                   WHERE owner_session.id = ${sessionMessagesTable.sessionId}
-                    AND owner_agent.type IN (${sql.join(
+                    AND owner_session.runtime_type IN (${sql.join(
                       includeNativeAgentTypes.map((type) => sql`${type}`),
                       sql`, `
                     )})
@@ -2488,7 +2486,7 @@ export class AgentSessionMessageService {
         agentId: sessionTable.agentId,
         agentUpdatedAt: agentTable.updatedAt,
         agentModel: agentTable.model,
-        agentType: agentTable.type
+        runtimeType: sessionTable.runtimeType
       })
       .from(sessionTable)
       .leftJoin(agentTable, eq(sessionTable.agentId, agentTable.id))
@@ -2503,7 +2501,7 @@ export class AgentSessionMessageService {
       (!session.agentUpdatedAt ||
         new Date(session.agentUpdatedAt).toISOString() !== expectedAgent.updatedAt ||
         session.agentModel !== expectedAgent.model ||
-        (session.agentType === 'cherry-claw' ? 'claude-code' : session.agentType) !== expectedAgent.type)
+        session.runtimeType !== expectedAgent.type)
     ) {
       throw DataApiErrorFactory.concurrentModification('Agent', expectedAgent.id)
     }

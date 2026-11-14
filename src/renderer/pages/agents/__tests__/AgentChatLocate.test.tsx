@@ -230,12 +230,14 @@ vi.mock('@renderer/hooks/agent/useAgentWorkspaceWarning', () => ({
 const activeSessionMocks = vi.hoisted(() => ({
   result: {
     activeSessionId: 'session-1',
-    session: { id: 'session-1', agentId: 'agent-1', workspace: { path: '/tmp/workspace' } },
+    session: { id: 'session-1', agentId: 'agent-1', runtimeType: 'pi-durable', workspace: { path: '/tmp/workspace' } },
     isLoading: false,
     setActiveSessionId: vi.fn()
   } as {
     activeSessionId: string | null
-    session: { id: string; agentId: string | null; workspace: { path: string } | null } | undefined
+    session:
+      | { id: string; agentId: string | null; runtimeType?: 'pi-durable'; workspace: { path: string } | null }
+      | undefined
     isLoading: boolean
     setActiveSessionId: ReturnType<typeof vi.fn<(...args: any[]) => any>>
   }
@@ -345,7 +347,12 @@ describe('AgentChat locate pending message', () => {
   beforeEach(() => {
     activeSessionMocks.result = {
       activeSessionId: 'session-1',
-      session: { id: 'session-1', agentId: 'agent-1', workspace: { path: '/tmp/workspace' } },
+      session: {
+        id: 'session-1',
+        agentId: 'agent-1',
+        runtimeType: 'pi-durable',
+        workspace: { path: '/tmp/workspace' }
+      },
       isLoading: false,
       setActiveSessionId: vi.fn()
     }

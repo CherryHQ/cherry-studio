@@ -7,12 +7,10 @@ vi.mock('@renderer/components/cherryCloud/CherryCloudModelSelector', async () =>
 
 import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import { useForm } from 'react-hook-form'
-import { useTranslation } from 'react-i18next'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as CherryStudioUi from '@cherrystudio/ui'
 import { Form } from '@cherrystudio/ui'
-import { AgentRuntimeSummary } from '@renderer/components/AgentRuntimeOption'
 import type * as EditDialogSharedModule from '@renderer/components/resourceCatalog/dialogs/components/EditDialogShared'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 
@@ -101,20 +99,6 @@ describe('BasicInfoStep', () => {
     await waitFor(() =>
       expect(screen.getByPlaceholderText('library.config.dialogs.create.name_placeholder')).toHaveFocus()
     )
-  })
-
-  it.each(['pi', 'claude-code'] as const)('still displays the runtime summary for an existing %s agent', (runtime) => {
-    function ExistingAgentRuntime() {
-      const { t } = useTranslation()
-      return <AgentRuntimeSummary value={runtime} t={t} />
-    }
-
-    render(<ExistingAgentRuntime />)
-
-    const key = runtime === 'pi' ? 'pi' : 'claude_code'
-    expect(screen.getByText(`library.config.agent.field.runtime.option.${key}`)).toBeVisible()
-    expect(screen.getByText(`library.config.agent.field.runtime.option_description.${key}`)).toBeVisible()
-    expect(screen.queryByRole('radio')).not.toBeInTheDocument()
   })
 
   it('clears the missing-model warning when a prefilled model resolves asynchronously', async () => {
