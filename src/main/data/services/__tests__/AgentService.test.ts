@@ -392,6 +392,95 @@ describe('AgentService', () => {
       const agents = await dbh.db.select().from(agentTable).where(eq(agentTable.name, 'Missing Model'))
       expect(agents).toHaveLength(0)
     })
+
+    describe('with channels', () => {
+      const telegram = {
+        type: 'telegram' as const,
+        name: 'Telegram',
+        isActive: true,
+        config: { bot_token: 'token-1', allowed_chat_ids: ['42'] }
+      }
+
+      it('creates the channels bound to the new Agent in the system workspace', async () => {
+        const agent = createAgentForTest({
+          type: 'claude-code',
+          name: 'With Channels',
+          model: TEST_MODEL_ID,
+          channels: [telegram, { ...telegram, name: 'Second', isActive: false, permissionMode: 'plan' }]
+        })
+
+        const channels = await dbh.db.select().from(agentChannelTable).where(eq(agentChannelTable.agentId, agent.id))
+        expect(
+          channels.map(({ name, type, isActive, permissionMode, workspace, config }) => ({
+            name,
+            type,
+            isActive,
+            permissionMode,
+            workspace,
+            config
+          }))
+        ).toEqual([
+          {
+            name: 'Telegram',
+            type: 'telegram',
+            isActive: true,
+            permissionMode: null,
+            workspace: { type: 'system' },
+            config: telegram.config
+          },
+          {
+            name: 'Second',
+            type: 'telegram',
+            isActive: false,
+            permissionMode: 'plan',
+            workspace: { type: 'system' },
+            config: telegram.config
+          }
+        ])
+      })
+
+      it('leaves neither the Agent nor any channel when one channel is rejected', async () => {
+        const error = captureError(() =>
+          createAgentForTest({
+            type: 'claude-code',
+            name: 'Rolled Back',
+            model: TEST_MODEL_ID,
+            // The first channel is valid; the second is active without a token.
+            channels: [telegram, { ...telegram, name: 'No token', config: { bot_token: '' } }]
+          })
+        )
+
+        expect(error).toMatchObject({ code: ErrorCode.VALIDATION_ERROR })
+        expect(await dbh.db.select().from(agentTable).where(eq(agentTable.name, 'Rolled Back'))).toHaveLength(0)
+        expect(await dbh.db.select().from(agentChannelTable)).toHaveLength(0)
+      })
+
+      it('creates QR-login channels inactive, and Feishu with credentials as requested', async () => {
+        const feishuConfig = { app_id: '', app_secret: '', encrypt_key: '', verification_token: '', domain: 'feishu' }
+        const agent = createAgentForTest({
+          type: 'claude-code',
+          name: 'QR Channels',
+          model: TEST_MODEL_ID,
+          channels: [
+            { type: 'wechat', name: 'WeChat', isActive: true, config: { token_path: '' } },
+            { type: 'feishu', name: 'Feishu QR', isActive: true, config: { ...feishuConfig, domain: 'feishu' } },
+            {
+              type: 'feishu',
+              name: 'Feishu App',
+              isActive: true,
+              config: { ...feishuConfig, domain: 'lark', app_id: 'cli_1', app_secret: 'secret' }
+            }
+          ]
+        })
+
+        const channels = await dbh.db.select().from(agentChannelTable).where(eq(agentChannelTable.agentId, agent.id))
+        expect(Object.fromEntries(channels.map((channel) => [channel.name, channel.isActive]))).toEqual({
+          WeChat: false,
+          'Feishu QR': false,
+          'Feishu App': true
+        })
+      })
+    })
   })
 
   describe('ensureBuiltinAgent', () => {

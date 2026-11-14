@@ -3,16 +3,12 @@ import { useTranslation } from 'react-i18next'
 
 import { Input, Label } from '@cherrystudio/ui'
 
+import { ChannelPermissionMode } from './ChannelPermissionMode'
 import { ChannelQrRegistration } from './ChannelQrRegistration'
-import type { ChannelData, ChannelUpdates } from './channelTypes'
+import type { ChannelFormProps } from './channelTypes'
 
-export function DingTalkForm({
-  channel,
-  onConfigChange
-}: {
-  channel: ChannelData
-  onConfigChange: (updates: ChannelUpdates) => void
-}) {
+export function DingTalkForm(props: ChannelFormProps) {
+  const { channel, onConfigChange, draft } = props
   const { t } = useTranslation()
   const id = useId()
   const fields = [
@@ -25,7 +21,7 @@ export function DingTalkForm({
   ]
   return (
     <div className="flex flex-col gap-3">
-      <ChannelQrRegistration channel={channel} />
+      {!draft && <ChannelQrRegistration channel={channel} />}
       <p className="text-xs text-muted-foreground">{t('agent.channels.dingtalk.setupHint')}</p>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         {fields.map((field) => {
@@ -34,7 +30,7 @@ export function DingTalkForm({
             : ((channel.config[field.key] as string) ?? '')
           return (
             <div key={field.key}>
-              <Label htmlFor={`${id}-${field.key}`} className="mb-1 block text-xs">
+              <Label htmlFor={`${id}-${field.key}`} className="mb-1 block font-normal text-xs">
                 {field.label}
               </Label>
               <Input
@@ -68,6 +64,7 @@ export function DingTalkForm({
       <p className="text-xs text-muted-foreground">{t('agent.channels.dingtalk.allowlistHint')}</p>
       <p className="text-xs text-muted-foreground">{t('agent.channels.dingtalk.cardHint')}</p>
       <p className="text-xs text-muted-foreground">{t('agent.channels.dingtalk.privacyHint')}</p>
+      <ChannelPermissionMode {...props} />
     </div>
   )
 }
