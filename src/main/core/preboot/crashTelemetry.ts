@@ -54,34 +54,20 @@ function startCrashReporter(): void {
  * same kind of boundary: the process leaves, so no fault is queued.
  * `unhandledRejection` leaves the process alive. Identical reasons are suppressed
  * for a short interval; a different fault, or the same fault after the interval,
- * can still be presented. Ordinary logger calls are not events. Presentation
- * never throws back into this handler, and it does not touch lifecycle services
- * that are not already constructed (`application.getExisting`).
+ * can still be presented. Ordinary logger calls are not events. Preboot only logs
+ * and dedupes; the services tier that owns the main window registers the presenter.
  */
 export const UNHANDLED_REJECTION_DEDUP_MS = 60_000
 const UNHANDLED_REJECTION_RECENT_LIMIT = 50
 const recentUnhandledRejections = new Map<string, number>()
-const inFlightUnhandledRejections = new Set<string>()
-let handoffModules:
-  | Promise<{
-      application: { getExisting(name: string): unknown }
-      deliverToReadyMain: (channel: 'app.error.open', context: AppErrorContext, options: { reveal: false }) => boolean
-    }>
-  | undefined
 
-function loadHandoffModules() {
-  // Concurrent faults share one import. A second import of the same modules
-  // must not fail closed while the first is still loading.
-  handoffModules ??= Promise.all([import('@application'), import('@main/services/mainWindowNavigation')])
-    .then(([appModule, navigation]) => ({
-      application: appModule.application,
-      deliverToReadyMain: navigation.deliverToReadyMain
-    }))
-    .catch((error: unknown) => {
-      handoffModules = undefined
-      throw error
-    })
-  return handoffModules
+/** Returns whether the fault reached a visible surface. */
+export type HandedOffErrorPresenter = (context: AppErrorContext) => boolean
+let handedOffErrorPresenter: HandedOffErrorPresenter | null = null
+
+/** Register (or clear with `null`) the surface for production unhandled rejections. */
+export function setHandedOffErrorPresenter(presenter: HandedOffErrorPresenter | null): void {
+  handedOffErrorPresenter = presenter
 }
 
 function rejectionMessage(reason: unknown): string {
@@ -108,17 +94,14 @@ function rememberPresentedRejection(signature: string, now: number): void {
   }
 }
 
-/** Returns whether a visible, ready main window accepted the fault. Deduped reasons return false. */
-export async function presentProductionUnhandledRejection(reason: unknown, now = Date.now()): Promise<boolean> {
+/** Returns whether the registered presenter accepted the fault. Deduped reasons return false. */
+export function presentProductionUnhandledRejection(reason: unknown, now = Date.now()): boolean {
+  const presenter = handedOffErrorPresenter
+  if (!presenter) return false
   const signature = rejectionSignature(reason)
   const last = recentUnhandledRejections.get(signature)
   if (last !== undefined && now - last < UNHANDLED_REJECTION_DEDUP_MS) return false
-  if (inFlightUnhandledRejections.has(signature)) return false
-  inFlightUnhandledRejections.add(signature)
   try {
-    const { application, deliverToReadyMain } = await loadHandoffModules()
-    if (!app.isReady()) return false
-    if (!application.getExisting('WindowManager') || !application.getExisting('IpcApiService')) return false
     const message = rejectionMessage(reason).slice(0, 4000)
     const context: AppErrorContext = {
       id: crypto.randomUUID(),
@@ -128,15 +111,12 @@ export async function presentProductionUnhandledRejection(reason: unknown, now =
       message,
       ...(reason instanceof Error ? { name: reason.name, ...(reason.stack ? { stack: reason.stack } : {}) } : {})
     }
-    // Background faults must not pull a hidden or minimized window to the front.
-    if (!deliverToReadyMain('app.error.open', context, { reveal: false })) return false
+    if (!presenter(context)) return false
     rememberPresentedRejection(signature, now)
     return true
   } catch (error) {
     logger.error('Unhandled rejection could not be presented', error as Error)
     return false
-  } finally {
-    inFlightUnhandledRejections.delete(signature)
   }
 }
 
@@ -149,7 +129,7 @@ function installProcessErrorHandlers(): void {
 
   process.on('unhandledRejection', (reason, promise) => {
     logger.error(`Unhandled Rejection at: ${promise} reason: ${reason}`)
-    void presentProductionUnhandledRejection(reason)
+    presentProductionUnhandledRejection(reason)
   })
 }
 

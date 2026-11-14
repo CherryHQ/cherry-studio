@@ -214,7 +214,8 @@ export function presentHandedOffError(context: AppErrorContext): void {
   toast.error({
     title: summary,
     data: { errorContext: context, localizedErrorMessage: summary },
-    key: context.id,
+    // Main rejections share the uncaught slot so a burst cannot stack sticky toasts.
+    key: context.operation === 'process.unhandledRejection' ? UNCAUGHT_TOAST_KEY : context.id,
     timeout: 0
   })
 }

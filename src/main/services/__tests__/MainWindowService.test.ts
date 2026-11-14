@@ -202,6 +202,7 @@ vi.mock('@main/core/lifecycle', async () => {
 import { app, dialog, session } from 'electron'
 import { shell } from 'electron'
 
+import { presentProductionUnhandledRejection } from '@main/core/preboot/crashTelemetry'
 import { WindowType } from '@main/core/window/types'
 import { getAppEdition } from '@main/utils/appEdition'
 import type * as ExternalUrlSafety from '@main/utils/externalUrlSafety'
@@ -211,7 +212,11 @@ import { HTML_ARTIFACT_PREVIEW_DATA_URL_PREFIX, HTML_ARTIFACT_PREVIEW_PARTITION 
 import { getWebviewPartition, WebviewSecurityProfile } from '@shared/utils/webviewSecurity'
 
 import { contextMenu } from '../ContextMenu'
-import { markMainRendererReadyForTabAttach, resetMainRendererTabAttachDelivery } from '../mainWindowNavigation'
+import {
+  markMainRendererReadyForTabAttach,
+  resetMainRendererTabAttachDelivery,
+  setMainSurfaceReceiver
+} from '../mainWindowNavigation'
 import { MainWindowService } from '../MainWindowService'
 
 interface MockBrowserWindow extends EventEmitter {
@@ -420,6 +425,36 @@ describe('MainWindowService', () => {
       expect(dialog.showMessageBox).not.toHaveBeenCalled()
       expect(shell.openExternal).not.toHaveBeenCalled()
     })
+  })
+
+  it('shows main-process rejections in a visible main window without raising a hidden one', async () => {
+    await (svc as any).onInit()
+    Object.assign(win.webContents, { isLoadingMainFrame: () => false, isCrashed: () => false })
+    windowManagerMock.getWindowsByType.mockReturnValue([win])
+    windowManagerMock.getWindowId.mockReturnValue('main-ready-test')
+    windowManagerMock.getWindowType.mockReturnValue(WindowType.Main)
+    windowManagerMock.getWindow.mockReturnValue(win)
+    const ipc = createMockApplication().get('IpcApiService') as { send: ReturnType<typeof vi.fn> }
+    try {
+      markMainRendererReadyForTabAttach('main-ready-test')
+      setMainSurfaceReceiver('error', true)
+      ipc.send.mockClear()
+
+      win.isVisible.mockReturnValue(false)
+      expect(presentProductionUnhandledRejection(new Error('hidden fault'), 1)).toBe(false)
+      expect(win.show).not.toHaveBeenCalled()
+
+      win.isVisible.mockReturnValue(true)
+      expect(presentProductionUnhandledRejection(new Error('database locked'), 2)).toBe(true)
+      expect(ipc.send).toHaveBeenCalledExactlyOnceWith(
+        'main-ready-test',
+        'app.error.open',
+        expect.objectContaining({ operation: 'process.unhandledRejection', message: 'database locked' })
+      )
+    } finally {
+      resetMainRendererTabAttachDelivery()
+      windowManagerMock.getWindowsByType.mockReturnValue([])
+    }
   })
 
   it('keeps tab delivery ready during child loading and in-page navigation, but queues during a main-document reload', async () => {
