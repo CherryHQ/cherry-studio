@@ -1,6 +1,6 @@
-# Data schema and migration generators
+# Data schema generators
 
-This tool owns the source definitions for Preference and BootConfig schemas and the supported v1-to-v2 migration mappings. It uses Node.js built-ins and needs no separate dependency install.
+This tool owns the source definitions for Preference and BootConfig schemas. It uses Node.js built-ins and needs no separate dependency install.
 
 ## Sources
 
@@ -16,15 +16,13 @@ From the repository root:
 pnpm data:generate
 ```
 
-To run an individual generator, use `npm run generate:preferences`, `generate:boot-config`, or `generate:migration` in this directory.
+To run an individual generator, use `npm run generate:preferences` or `generate:boot-config` in this directory.
 
-The pipeline writes these four files; edit the sources above rather than these outputs:
+The pipeline writes these two files; edit the sources above rather than these outputs:
 
 - `src/shared/data/preference/preferenceSchemas.ts`
 - `src/shared/data/bootConfig/bootConfigSchemas.ts`
-- `src/main/data/migration/v2/migrators/mappings/PreferencesMappings.ts`
-- `src/main/data/migration/v2/migrators/mappings/BootConfigMappings.ts`
 
-After generation, inspect the diff. A relocation must preserve keys, types, defaults, and migration mappings. Run `pnpm lint` and the tests covering any intended schema or migration behavior change.
+After generation, inspect the diff. A relocation must preserve keys, types, defaults. Run `pnpm lint` and the tests covering any intended schema behavior change.
 
 The retired inventory extraction and validation scripts are no longer part of this tool. Separating permanent product definitions from migration inputs remains tracked in [#19192](https://github.com/CherryHQ/cherry-studio/issues/19192).

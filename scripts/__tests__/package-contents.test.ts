@@ -73,22 +73,45 @@ describe('packaged dependency contents', () => {
       for (const file of [
         'deps/sqlite3/sqlite3.c',
         'build/Release/obj/gen/sqlite3/sqlite3.c',
+        'build/Release/better_sqlite3.node',
         'bin/darwin-x64-149/better-sqlite3.node',
         'src/better_sqlite3.cpp'
       ]) {
         expect(includesFile(`${root}/${file}`), file).toBe(false)
       }
-      for (const file of [
-        'package.json',
-        'lib/database.js',
-        'build/Release/better_sqlite3.node',
-        'prebuilds/linux-x64.node',
-        'prebuilds/linux-arm64.node'
-      ]) {
+      for (const file of ['package.json', 'lib/database.js']) {
         expect(includesFile(`${root}/${file}`), file).toBe(true)
       }
     }
   )
+
+  it.each([
+    ['darwin', 'arm64'],
+    ['darwin', 'x64'],
+    ['linux', 'arm64'],
+    ['linux', 'x64'],
+    ['win32', 'arm64'],
+    ['win32', 'x64']
+  ])('ships only the %s %s SQLite prebuild', (platform, arch) => {
+    const patterns = [...config.files, ...getNativeModuleFilters(platform, arch)]
+    for (const modules of ['node_modules', 'node_modules/consumer/node_modules']) {
+      for (const targetPlatform of ['darwin', 'linux', 'linuxmusl', 'win32']) {
+        for (const targetArch of ['arm64', 'x64']) {
+          const file = `${modules}/better-sqlite3/prebuilds/${targetPlatform}-${targetArch}.node`
+          expect(includesFile(file, patterns), file).toBe(targetPlatform === platform && targetArch === arch)
+        }
+      }
+    }
+  })
+
+  it('excludes the inline Tesseract WASM copy while preserving the Node core and external WASM', () => {
+    for (const modules of ['node_modules', 'node_modules/consumer/node_modules']) {
+      const root = `${modules}/tesseract.js-core/tesseract-core-simd-lstm`
+      expect(includesFile(`${root}.wasm.js`)).toBe(false)
+      expect(includesFile(`${root}.js`)).toBe(true)
+      expect(includesFile(`${root}.wasm`)).toBe(true)
+    }
+  })
 
   it('excludes dependency documentation images without removing runtime assets or source JS', () => {
     for (const file of [
