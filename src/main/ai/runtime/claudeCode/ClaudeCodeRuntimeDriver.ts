@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import { fileURLToPath } from 'node:url'
 
 import type { Options, SDKUserMessage } from '@anthropic-ai/claude-agent-sdk'
@@ -32,6 +33,7 @@ import { prepareClaudeBranch } from '@main/ai/runtime/claudeCode/claudeContext'
 import { wrapSteerReminder } from '@main/ai/steerReminder'
 import type { ClaudeAgentToolPolicySnapshot } from '@main/ai/tools/adapters/claudeCode/agentTools'
 import { probeReadable } from '@main/utils/file'
+import type { PromptVariableInputs } from '@main/utils/prompt'
 import type { AgentSessionSlashCommand } from '@shared/ai/agentSessionSlashCommands'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
@@ -44,18 +46,20 @@ import { parseDataUrl } from '@shared/utils/dataUrl'
 import { imageExts } from '@shared/utils/file'
 import { isVisionModel } from '@shared/utils/model'
 
+import { resolveAgentFallbackPolicy } from '../modelFallback'
 import type {
+  AgentRuntimeCommand,
   AgentRuntimeConnectInput,
   AgentRuntimeConnection,
   AgentRuntimeEvent,
   AgentRuntimeReconcileResult,
   AgentRuntimeTraceContext,
-  AgentRuntimeCommand,
   AgentSessionRuntimeDriver,
   AgentSessionUsageCapture
 } from '../types'
 import {
   buildClaudeCodeQueryRequestForAgentSession,
+  type ClaudeCodeAgentSessionQueryRequest,
   type ConnectionConfig,
   deriveConnectionConfig,
   toolPolicyFactsEqual
@@ -66,6 +70,7 @@ import { forkClaudeSession } from './claudeFork'
 import { ClaudeMessageMetadata } from './ClaudeMessageMetadata'
 import { claudeControlEvents, ClaudeCodeResultError } from './ClaudeRuntimeState'
 import { ClaudeForkCheckpointSchema } from './forkCheckpoint'
+import { type AgentSessionFallbackDecision, resolveAgentSessionFallback } from './modelFallback'
 import { canSalvageClaudeOutput } from './processExitDiagnostics'
 import {
   createClaudeCodeProcessExitError,
@@ -75,6 +80,7 @@ import {
 import { resolveClaudeConfigDirectory } from './queryOptions'
 import {
   AgentSessionWorkspaceError,
+  disposeSessionHolders,
   disposeToolPolicySnapshot,
   prepareClaudeCodeWorkspaceDirectory,
   registerMcpSessionCatalogSync
@@ -116,6 +122,25 @@ type ClaudeChildResource = {
   projection: ChildThreadProjection
 }
 
+/** A turn's terminal failure held back while its fallback model is decided and installed. */
+type PendingFallback = {
+  error: unknown
+  decision: AgentSessionFallbackDecision
+  command: AgentRuntimeCommand
+}
+
+/**
+ * Whether a projected assistant message shows anything the user has read. Part boundaries frame
+ * content without being any, and a rendered provider diagnostic is a failure notice rather than an
+ * answer — neither may close the turn's no-replay gate.
+ */
+function hasContent(message: CherryUIMessage): boolean {
+  return message.parts.some((part) => {
+    if (part.type === 'text' || part.type === 'reasoning') return part.text.trim().length > 0
+    return true
+  })
+}
+
 class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   get contextId(): string | undefined {
     return this.context?.id
@@ -149,6 +174,10 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   private mcpToolMetadata?: Record<string, McpToolDisplayMetadata>
   private resumeToken?: string
   private readonly currentSources = new Set<string>()
+  /** Native ids of rendered provider diagnostics: they are no answer, so they are no activity. */
+  private readonly diagnosticSources = new Set<string>()
+  /** Whether this turn's live output already showed the user something a replay would duplicate. */
+  private turnProducedContent = false
   private toolPolicySnapshot?: ClaudeAgentToolPolicySnapshot
   private assistantFileToolsEnabled = false
   private sessionTornDown = false
@@ -157,6 +186,37 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   private _usageCapture?: AgentSessionUsageCapture
   /** Serializes reconciles per connection so push/pull can't interleave SDK and snapshot writes. */
   private reconcileChain: Promise<unknown> = Promise.resolve()
+  /** Settles when an in-flight fallback build/install does; closeQuery() joins it so close cannot
+   *  resolve while the builder can still register fresh session-keyed state. */
+  private pendingFallbackSetup?: Promise<void>
+  /** The terminal error a deferred fallback holds back; set by the error path, taken by the loop. */
+  private pendingFallback?: PendingFallback
+  /**
+   * One model-fallback restart per turn: reset by every `send()`, consumed by the first attempt.
+   */
+  private fallbackAttempted = false
+  /**
+   * The model the installed runtime actually serves — the constructor's primary until a fallback
+   * replaces it. Everything that asks "which model is this connection on" (fallback selection,
+   * capability checks, notices) must read this, not `input.modelId`: after a fallback the host can
+   * save the fallback as the agent's primary, and a later turn would otherwise reason about a model
+   * this connection no longer routes to.
+   */
+  private installedModelId: UniqueModelId
+  /** Source command of the retained replay: a fallback re-opens this same host turn with it. */
+  private lastCommand?: AgentRuntimeCommand
+  /** The `agent.instructions` the installed request materialized (rebuild fact of its own). */
+  private capturedInstructions?: string | null
+  /** The effective reply language the installed request materialized (replay pin). */
+  private capturedLanguage?: string | null
+  /** Variable values the installed prompt resolved to; a rebuild in the same turn reuses them. */
+  private capturedPromptVariables?: PromptVariableInputs
+  /**
+   * Tools this turn has disabled, monotonic: what it was admitted with plus every restriction a
+   * reconcile applied. A fallback rebuild re-derives the row, so the union is what keeps the
+   * replay from executing a tool the turn had already disabled.
+   */
+  private turnDisabledTools = new Set<string>()
 
   readonly events = this.eventQueue
   get usageCapture(): AgentSessionUsageCapture | undefined {
@@ -165,6 +225,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
 
   constructor(private readonly input: AgentRuntimeConnectInput) {
     this.resumeToken = input.resumeToken
+    this.installedModelId = input.modelId
   }
 
   async start(): Promise<this> {
@@ -182,23 +243,40 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     if (!request) {
       throw new Error(`Unable to build Claude Code query options for agent session ${this.input.sessionId}`)
     }
-    this.connectionConfig = request.connectionConfig
-    this.approvalEmitter = request.settings.approvalEmitter
-    this.assistantFileToolsEnabled = Boolean(request.settings.mcpServers?.['assistant-files'])
     this.context = prepareClaudeBranch(
       this.input.sessionId,
       resolveClaudeConfigDirectory(request.options.env),
       request.options.resume ?? this.input.nativeSessionId,
       this.input.branchHead
     )
+    await this.installQuery(request, this.input.modelId)
+    return this
+  }
+
+  /**
+   * Installs a freshly materialized request onto this connection: runtime handle, session-scoped
+   * state registration, root observation, and the native start. `start()` uses it for the primary
+   * model; the model-fallback restart reuses it with a request rebuilt for the fallback.
+   *
+   * Session-scoped state is re-registered, never disposed here: `teardownSession` stays the only
+   * teardown, and the replaced request's holders are the ones the builder's registry already
+   * replaced by session id.
+   */
+  private async installQuery(request: ClaudeCodeAgentSessionQueryRequest, modelId: UniqueModelId): Promise<void> {
+    this.connectionConfig = request.connectionConfig
+    this.capturedInstructions = request.capturedInstructions ?? null
+    this.capturedLanguage = request.capturedLanguage ?? null
+    this.capturedPromptVariables = request.capturedPromptVariables
+    this.assistantFileToolsEnabled = Boolean(request.settings.mcpServers?.['assistant-files'])
 
     const traceEnv = await this.prepareTraceEnv()
     const coldProcessDiagnostics = createClaudeCodeProcessDiagnostics()
+    const context = this.context!
     const options: Options = {
       ...request.options,
-      ...(request.options.resume || this.context.bindingState === 'bound'
-        ? { resume: request.options.resume ?? this.context.nativeThreadId! }
-        : { sessionId: this.context.nativeThreadId! }),
+      ...(request.options.resume || context.bindingState === 'bound'
+        ? { resume: request.options.resume ?? context.nativeThreadId! }
+        : { sessionId: context.nativeThreadId! }),
       ...(traceEnv
         ? {
             env: {
@@ -224,6 +302,18 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       notificationContext: request.notificationContext
     })
     this.parkedQuery = consumedWarmQuery
+    if (this.sessionTornDown) {
+      // A close tore the session down while this install awaited setup; registering now would
+      // leave session-keyed state nobody disposes — teardown already latched and never reruns.
+      // Drop the consumed warm process (consume evicted its manager entry, so nothing else will).
+      await Promise.resolve(consumedWarmQuery?.warmQuery[Symbol.asyncDispose]()).catch((error) => {
+        logger.warn('Failed to dispose a warm query abandoned by cancellation', {
+          sessionId: this.input.sessionId,
+          error
+        })
+      })
+      return
+    }
 
     // A matching warm process may have selected a different rotated key when
     // it was started. Its receipt, not the freshly materialized request's,
@@ -238,7 +328,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     if (!cwd) throw new Error('Claude Code workspace is unavailable')
     const config = { ...nativeOptions, cwd }
     this.runtime = createClaudeCodeRuntime({
-      backendId: runtimeId(this.context.backendId),
+      backendId: runtimeId(context.backendId),
       configDir: resolveClaudeConfigDirectory(options.env),
       contextWindow: request.contextWindow,
       load: async () => config,
@@ -247,7 +337,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       }
     })
     const opened = resume
-      ? await this.runtime.open({ backendId: runtimeId(this.context.backendId), id: runtimeId(resume) })
+      ? await this.runtime.open({ backendId: runtimeId(context.backendId), id: runtimeId(resume) })
       : await this.runtime.create(config)
     if (opened.status !== 'confirmed') throw new Error(opened.error.message)
     this.handle = opened.value
@@ -278,7 +368,9 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     )
     if (started.status !== 'confirmed') throw new Error(started.error.message)
     this.parkedQuery = undefined
-    return this
+    // The installed runtime routes to `modelId` from here on: fallback selection, image capability
+    // and the transcript notice must all describe it, not the constructor's primary.
+    this.installedModelId = modelId
   }
 
   private async prepareTraceEnv(): Promise<Record<string, string> | undefined> {
@@ -287,18 +379,29 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   }
 
   refreshTraceContext(context: AgentRuntimeTraceContext): void {
+    // Retained: the turn-level fallback rebinds tracing from input.trace, and must not overwrite
+    // the bridge's refreshed turnId with the constructor's frozen one.
+    this.input.trace = context
     application.get('ClaudeCodeTraceBridgeService').refreshTraceContext(context)
   }
 
   async send(input: AgentRuntimeCommand): Promise<void> {
     this.currentSources.clear()
+    // A fresh host turn admits its own replay: one fallback restart per turn, and only while the
+    // turn has shown the user nothing a replay would duplicate.
+    this.fallbackAttempted = false
+    this.turnProducedContent = false
     if (isFastSlashCommand(input)) {
       throw new Error('The /fast command is unavailable; use the host Fast control instead')
     }
 
+    // The installed model, not the constructor's primary: a fallback swapped the runtime the
+    // previous turn ran on, so its capabilities — not P's — decide how this turn's attachments
+    // materialize.
+    const supportsImages = resolveModelImageSupport(this.installedModelId)
     const sdkMessage = await toSdkUserMessage(input.message, this.resumeToken, input.systemReminder, {
       supportsAttachmentReads: this.assistantFileToolsEnabled,
-      supportsImages: resolveModelImageSupport(this.input.modelId)
+      supportsImages
     })
     const contextId = this.context!.id
     const draft = prepareNativeSubmission(this.input.sessionId, input.message.id, contextId, 'follow-up', {
@@ -310,6 +413,11 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     this.eventQueue.push({ type: 'input-submission', contextId, result })
     applyNativeSubmissionResult(this.input.sessionId, contextId, result)
     if (result.status !== 'acknowledged') throw new Error(result.error?.message ?? result.status)
+    // Retained once the input was admitted: the command a fallback re-opens this turn with, the
+    // image capability it was materialized for, and the disables already in force — later ones
+    // union onto them while the turn runs.
+    this.lastCommand = input
+    this.turnDisabledTools = new Set(this.connectionConfig?.live.toolPolicy.disabledTools ?? [])
   }
 
   lookupInput(contextId: string, inputId: string) {
@@ -325,7 +433,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   private async submitSteer(input: AgentRuntimeCommand): Promise<void> {
     const sdkMessage = await toSdkUserMessage(input.message, this.resumeToken, input.systemReminder, {
       supportsAttachmentReads: this.assistantFileToolsEnabled,
-      supportsImages: resolveModelImageSupport(this.input.modelId)
+      supportsImages: resolveModelImageSupport(this.installedModelId)
     })
     const contextId = this.context!.id
     const draft = prepareNativeSubmission(this.input.sessionId, input.message.id, contextId, 'steer', {
@@ -398,6 +506,9 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
         logger.warn('Live tool-policy apply failed during reconcile', { sessionId: this.input.sessionId, error })
         return 'failed'
       }
+      // A turn's disables only ever accumulate: this is the set a fallback replay must preserve
+      // regardless of what the builder later publishes onto the shared snapshot.
+      for (const tool of fresh.live.toolPolicy.disabledTools) this.turnDisabledTools.add(tool)
       this.connectionConfig = { ...baseline, live: fresh.live }
       patched = true
     }
@@ -412,6 +523,282 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       return 'rebuild'
     }
     return patched ? 'patched' : 'current'
+  }
+
+  /**
+   * Turn-level model fallback. When the turn terminally failed on a retryable provider error
+   * (429 / 5x) before producing any content, restart the SAME host turn once on the first
+   * configured fallback model. The host turn stays live — like the resume recovery, the replayed
+   * user message re-enters a freshly built runtime — and the transcript carries a persisted
+   * `data-model-fallback` part so the swap is visible. The fallback is turn-scoped: the next fresh
+   * turn reconciles against the agent's model as usual.
+   *
+   * The attempt itself is deferred out of the observation callback (see {@link runFallbackModel}:
+   * the rebuild retires the owner that is delivering this batch), so an eligible error is held here
+   * and surfaced only if the fallback declines.
+   */
+  private holdTerminalErrorForFallback(error: unknown): AgentRuntimeEvent | undefined {
+    const decision = this.resolveFallbackDecision(error)
+    if (!decision || !this.lastCommand) return { type: 'error', error }
+    // Consume the turn's sole attempt when the restart is scheduled, not when it installs.
+    this.fallbackAttempted = true
+    this.pendingFallback = { error, decision, command: this.lastCommand }
+    return undefined
+  }
+
+  /** The decided swap for a terminally failed turn, or undefined when this turn may not fall back. */
+  private resolveFallbackDecision(error: unknown): AgentSessionFallbackDecision | undefined {
+    if (this.fallbackAttempted || this.closing || this.sessionTornDown) return undefined
+    // Only an in-flight host turn has a replay to re-open. A completed turn drops its command, so a
+    // failure arriving later — an autonomous generation, or one between turns — must not re-send a
+    // prompt the host already finished with.
+    if (!this.lastCommand) return undefined
+    return resolveAgentSessionFallback({
+      error,
+      // The model that just failed — the installed one. Reading the constructor's primary picks the
+      // same fallback again after P was saved as F, burning the turn's sole attempt.
+      currentModelId: this.installedModelId,
+      hasTurnActivity: this.turnProducedContent,
+      policy: resolveAgentFallbackPolicy(this.input.agentId)
+    })
+  }
+
+  /** Retains the turn's replay facts and, once the turn is over, drops them. */
+  private clearReplayInput(): void {
+    this.lastCommand = undefined
+    this.pendingFallback = undefined
+    this.turnDisabledTools = new Set()
+  }
+
+  /**
+   * Records what this batch showed the user. Recorded before the terminal error of the same batch
+   * is decided: the batch that carries the provider failure also carries whatever of this turn the
+   * user has already seen.
+   *
+   * Local port of the retired stream adapter's activity gate: part boundaries frame content
+   * without being any (an empty block that opens and closes before a provider failure must still
+   * leave the turn eligible), and the CLI's synthetic API-error diagnostic renders a failure notice
+   * rather than an answer.
+   */
+  private noteTurnOutput(batch: ClaudeObservation, live: readonly string[], projection: ThreadMessageProjection): void {
+    for (const native of batch.native) {
+      const message = native.message
+      if (message.type === 'assistant' && native.isApiErrorMessage) this.diagnosticSources.add(message.uuid)
+    }
+    if (this.turnProducedContent || live.length === 0) return
+    const owned = new Set(live)
+    this.turnProducedContent = projection
+      .snapshot()
+      .messages.some(
+        (message) =>
+          message.role === 'assistant' &&
+          owned.has(message.id) &&
+          !this.diagnosticSources.has(message.id) &&
+          hasContent(message)
+      )
+  }
+
+  /**
+   * Runs the held fallback: rebuild the runtime on the fallback model and re-open the same host
+   * turn. Exactly one outcome reaches the stream — either the swap's own events (the turn stayed
+   * live) or the original terminal error.
+   */
+  private async runFallbackModel(pending: PendingFallback): Promise<void> {
+    try {
+      if (await this.restartOnFallbackModel(pending)) return
+    } catch (cause) {
+      // A fallback decision must never break error surfacing — degrade to the ordinary error path.
+      logger.warn('Model fallback attempt failed; surfacing the original turn error', {
+        sessionId: this.input.sessionId,
+        fallbackModelId: pending.decision.fallbackModelId,
+        cause
+      })
+    }
+    this.eventQueue.push({ type: 'error', error: pending.error })
+  }
+
+  private async restartOnFallbackModel(pending: PendingFallback): Promise<boolean> {
+    const { decision, command } = pending
+    const fallFrom = this.installedModelId
+    // The replay re-opens the same host turn, so it inherits the prompt the turn materialized and
+    // its accumulated disables; a System Prompt saved while the failed request backed off applies
+    // on the next fresh turn instead.
+    const request = await buildClaudeCodeQueryRequestForAgentSession(
+      this.input.sessionId,
+      this.resumeToken,
+      decision.fallbackModelId,
+      this.input.reasoningEffort ?? 'default',
+      this.input.fastMode === true,
+      this.input.knowledgeBaseIds,
+      this.input.serviceTier,
+      {
+        instructions: this.capturedInstructions,
+        language: this.capturedLanguage,
+        promptVariables: this.capturedPromptVariables,
+        disabledTools: [...this.turnDisabledTools]
+      }
+    ).catch((cause) => {
+      logger.warn('Failed to build the fallback-model query request; surfacing the original turn error', {
+        sessionId: this.input.sessionId,
+        fallbackModelId: decision.fallbackModelId,
+        cause
+      })
+      return undefined
+    })
+    if (!request) {
+      // The build rejected partway but may already have re-registered the session's holders and
+      // snapshot (they are created lazily inside the builder). A latched teardown will not run
+      // again, so this path owns their disposal — by id, since a rejected build hands back no
+      // references.
+      if (this.sessionTornDown) {
+        disposeSessionHolders(this.input.sessionId)
+        disposeToolPolicySnapshot(this.input.sessionId)
+      }
+      return false
+    }
+    if (this.closing || this.sessionTornDown) {
+      this.disposeAbandonedRequestSettings(request)
+      return false
+    }
+    // Retire the runtime the failed turn ran on, then install the replacement onto this same
+    // connection: the host keeps its connection, its turn, and its renderer stream.
+    await this.retireRuntime()
+    if (this.closing || this.sessionTornDown) {
+      this.disposeAbandonedRequestSettings(request)
+      return false
+    }
+    // Join the reconcile chain: a save that landed while the build ran was applied to the shared
+    // snapshot the builder then re-published over, so the turn's disables are re-applied to the
+    // replacement before its replay is admitted.
+    await this.reconcileChain
+    if (this.sessionTornDown) return false
+    await this.reapplyTurnDisabledTools(request)
+    // The rebuilt runtime runs on the fallback model: its trace env and every later span must name
+    // it, while traceId/rootSpanId/turnId stay put so the turn remains one trace.
+    if (this.input.trace) {
+      this.input.trace = {
+        ...this.input.trace,
+        modelName: parseUniqueModelId(decision.fallbackModelId).modelId
+      }
+      this.refreshTraceContext(this.input.trace)
+    }
+    await this.installQuery(request, decision.fallbackModelId)
+    // installQuery skips registration when the connection closed mid-install; with no installed
+    // runtime there is nothing to restart the turn on and nothing to announce.
+    if (this.closing || this.sessionTornDown) return false
+    // A rebuilt CLI starts with no background tasks and no work in flight, and the pinned SDK does
+    // not emit an empty snapshot on startup: publish that reset, or the host keeps watching work
+    // the retired process owned and waits on it forever.
+    this.eventQueue.push({ type: 'background-tasks', tasks: [] })
+    this.eventQueue.push({ type: 'background-work-state', active: false })
+    // Tell the user in the transcript itself — persisted with the turn like any other data part.
+    // Announced only now: a swap that never installed must leave no notice claiming it did.
+    this.eventQueue.push({
+      type: 'chunk',
+      chunk: {
+        type: 'data-model-fallback',
+        id: randomUUID(),
+        data: { from: fallFrom, to: decision.fallbackModelId, reason: decision.reason }
+      }
+    })
+    await this.replayCommand(command, decision.fallbackModelId)
+    logger.warn('Agent session turn fell back to the next configured model', {
+      sessionId: this.input.sessionId,
+      from: fallFrom,
+      to: decision.fallbackModelId,
+      reason: decision.reason
+    })
+    return true
+  }
+
+  /**
+   * Retires the runtime the failed turn ran on so a replacement can own the branch: shuts the
+   * native owner down and releases its root observations and projections. Session-scoped state and
+   * this connection's event stream stay — the host turn continues on the replacement. Ordered like
+   * closeQuery: the shutdown closes the feed, which is what lets the observation callbacks end.
+   */
+  private async retireRuntime(): Promise<void> {
+    const closed = await this.runtime?.shutdown()
+    if (closed && closed.status !== 'confirmed') {
+      logger.warn('Retired fallback runtime did not confirm shutdown', {
+        sessionId: this.input.sessionId,
+        error: closed.error
+      })
+    }
+    await Promise.allSettled(this.observationEnds)
+    await Promise.allSettled(this.observations.map((observation) => observation.drain()))
+    for (const child of await this.childResources()) {
+      await child.projection.stop()
+      await child.handle.release()
+    }
+    await Promise.allSettled(this.observations.map((observation) => observation.stop()))
+    await Promise.allSettled(this.rootProjections.map((projection) => projection.close()))
+    this.observations.length = 0
+    this.rootProjections.length = 0
+    this.observationEnds.length = 0
+    this.rootContexts.clear()
+    this.children.clear()
+    this.handle = undefined
+    this.runtime = undefined
+    this.nativeError = undefined
+    this.currentSources.clear()
+  }
+
+  /**
+   * Re-apply this turn's accumulated tool disables onto the rebuilt request. The builder published
+   * its own captured agent onto the shared snapshot, which can undo a disable that reconciled while
+   * the build ran — without this, the replay executes that tool again. The baseline carries them so
+   * the next reconcile diffs against the right set.
+   */
+  private async reapplyTurnDisabledTools(request: ClaudeCodeAgentSessionQueryRequest): Promise<void> {
+    const turnDisabledTools = [...this.turnDisabledTools]
+    if (!request.settings.toolPolicySnapshot || turnDisabledTools.length === 0) return
+    const agent = agentService.getAgent(this.input.agentId)
+    if (!agent) return
+    // Union, never replace: the row may have disabled others the turn never saw.
+    const disabledTools = [...new Set([...(agent.disabledTools ?? []), ...turnDisabledTools])]
+    await request.settings.toolPolicySnapshot.update({ ...agent, disabledTools })
+    request.connectionConfig = {
+      ...request.connectionConfig,
+      live: {
+        ...request.connectionConfig.live,
+        toolPolicy: { ...request.connectionConfig.live.toolPolicy, disabledTools: [...disabledTools].sort() }
+      }
+    }
+  }
+
+  /**
+   * Dispose the fresh session-keyed registrations a built-but-abandoned request carries. Safe
+   * alongside close's own teardown in either order: holder disposal is identity-guarded and the
+   * by-id snapshot dispose drops the builder's fresh entry — a successor connection registers only
+   * after close() resolves, and the closing barrier holds until the setup settles.
+   */
+  private disposeAbandonedRequestSettings(request: ClaudeCodeAgentSessionQueryRequest): void {
+    request.settings.approvalEmitter?.dispose?.()
+    disposeToolPolicySnapshot(this.input.sessionId)
+  }
+
+  /**
+   * The message the fallback re-opens the turn with. Image parts were routed for the primary
+   * model's capability, so the replayed content is re-materialized for the fallback model.
+   */
+  private async replayCommand(command: AgentRuntimeCommand, fallbackModelId: UniqueModelId): Promise<void> {
+    const sdkMessage = await toSdkUserMessage(command.message, this.resumeToken, command.systemReminder, {
+      supportsAttachmentReads: this.assistantFileToolsEnabled,
+      supportsImages: resolveModelImageSupport(fallbackModelId)
+    })
+    const contextId = this.context!.id
+    // The input is already bound to this turn: the replay re-admits the SAME product input on the
+    // rebuilt native session rather than preparing a second binding for it.
+    const result = await this.handle!.claude.submit(
+      runtimeId<'input'>(command.message.id),
+      sdkMessage.message.content,
+      'follow-up'
+    )
+    this.eventQueue.push({ type: 'input-submission', contextId, result })
+    applyNativeSubmissionResult(this.input.sessionId, contextId, result)
+    if (result.status !== 'acknowledged') throw new Error(result.error?.message ?? result.status)
+    this.turnProducedContent = false
   }
 
   async getContextUsage() {
@@ -519,6 +906,11 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     await Promise.all(this.rootProjections.map((projection) => projection.close()))
     this.teardownSession()
     this.eventQueue.close()
+    // Join an in-flight fallback setup before the close settles: its builder registers fresh
+    // session-keyed state across awaits, and the barrier must hold until the setup settles — it
+    // refuses to install once the teardown above latched and disposes its abandoned registrations
+    // before this join releases.
+    await this.pendingFallbackSetup
   }
 
   private async observeRoot(handle: ClaudeThreadHandle): Promise<void> {
@@ -545,6 +937,9 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
         }
         const snapshot = batch.events.some((event) => event.type === 'snapshot')
         const live = changed.filter((message) => batch.live?.includes(message.id)).map((message) => message.id)
+        // Recorded before the terminal handling below: the batch that carries the provider failure
+        // also carries whatever of this turn the user has already seen.
+        this.noteTurnOutput(batch, live, projection)
         const replaces = {
           ...batch.replaces,
           ...Object.fromEntries(
@@ -581,7 +976,20 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
         const terminal = await this.acceptRoot(batch, projection, contextId)
         publish()
         for (const event of terminal) this.eventQueue.push(event)
-        if (batch.events.some((event) => event.type === 'closed' && event.reason !== 'shutdown') && !this.closing)
+        // A held terminal error means this turn restarts on its fallback model: the stream stays
+        // open for the replacement, and only a fallback that declines surfaces the error.
+        const fallback = this.pendingFallback
+        this.pendingFallback = undefined
+        if (fallback) {
+          const setup = this.runFallbackModel(fallback)
+          this.pendingFallbackSetup = setup
+          void setup
+        }
+        if (
+          !fallback &&
+          batch.events.some((event) => event.type === 'closed' && event.reason !== 'shutdown') &&
+          !this.closing
+        )
           this.eventQueue.close()
       } catch (error) {
         publish()
@@ -622,11 +1030,10 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
           .messages.filter((message) => message.role === 'assistant' && this.currentSources.has(message.id))
           .flatMap((message) => message.parts)
           .reduce((length, part) => length + (part.type === 'text' ? part.text.length : 0), 0)
-        terminal.push(
-          canSalvageClaudeOutput(surfaced, bufferedChars, batch.state?.aborted === true)
-            ? { type: 'turn-complete' }
-            : { type: 'error', error: surfaced }
-        )
+        const salvaged = canSalvageClaudeOutput(surfaced, bufferedChars, batch.state?.aborted === true)
+        if (salvaged) this.clearReplayInput()
+        const failure = salvaged ? ({ type: 'turn-complete' } as const) : this.holdTerminalErrorForFallback(surfaced)
+        if (failure) terminal.push(failure)
       }
     }
     for (const control of batch.controls ?? []) {
@@ -653,6 +1060,9 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       this.currentSources.clear()
     } else if (control.type === 'autonomous-turn-state' && control.state === 'started') {
       this.currentSources.clear()
+      // An autonomous generation owns its own turn; the retained replay belonged to the host turn
+      // that just ended and must not be re-sent if this one fails (same rule as the Pi wrapper).
+      this.clearReplayInput()
     } else if (control.type === 'session') {
       if (contextId !== this.context?.id) return
       if (control.sessionId !== this.handle!.claude.sessionId) {
@@ -684,8 +1094,9 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       logger.warn(control.message, { detail: control.detail })
     } else if (control.type === 'result') {
       if (control.sessionId !== this.handle?.claude.sessionId) return
-      if (control.failure) return { type: 'error', error: new ClaudeCodeResultError(control.failure) }
+      if (control.failure) return this.holdTerminalErrorForFallback(new ClaudeCodeResultError(control.failure))
       if (!control.terminal) return
+      this.clearReplayInput()
       this.updateResumeToken(control.sessionId)
       const checkpoint = ClaudeForkCheckpointSchema.safeParse({
         runtime: 'claude-code',

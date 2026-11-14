@@ -1182,7 +1182,7 @@ it.each(['current-answer', 'history-only', 'user-only'])(
           cache_creation: { ephemeral_1h_input_tokens: 0, ephemeral_5m_input_tokens: 0 },
           iterations: [],
           server_tool_use: { web_search_requests: 0, web_fetch_requests: 0 },
-          service_tier: 'standard',
+          service_tier: 'standard' as const,
           inference_geo: 'us',
           speed: 'standard'
         },
@@ -1325,7 +1325,7 @@ it('publishes the native resume identity before a failed first result', async ()
       cache_creation: { ephemeral_1h_input_tokens: 0, ephemeral_5m_input_tokens: 0 },
       iterations: [],
       server_tool_use: { web_search_requests: 0, web_fetch_requests: 0 },
-      service_tier: 'standard',
+      service_tier: 'standard' as const,
       inference_geo: 'us',
       speed: 'standard'
     }
@@ -1403,6 +1403,241 @@ it.each([
   30000
 )
 
+const resultUsage = {
+  input_tokens: 1,
+  output_tokens: 1,
+  cache_creation_input_tokens: 0,
+  cache_read_input_tokens: 0,
+  cache_creation: { ephemeral_1h_input_tokens: 0, ephemeral_5m_input_tokens: 0 },
+  iterations: [],
+  server_tool_use: { web_search_requests: 0, web_fetch_requests: 0 },
+  service_tier: 'standard' as const,
+  inference_geo: 'us',
+  speed: 'standard' as const
+}
+
+function successResult(sessionId: string, userMessageUuid: string) {
+  return {
+    type: 'result' as const,
+    subtype: 'success' as const,
+    uuid: randomUUID(),
+    session_id: sessionId,
+    user_message_uuid: userMessageUuid,
+    duration_ms: 1,
+    duration_api_ms: 1,
+    is_error: false,
+    num_turns: 1,
+    result: '',
+    stop_reason: 'end_turn',
+    total_cost_usd: 0,
+    usage: resultUsage,
+    modelUsage: {},
+    permission_denials: []
+  }
+}
+
+function failureResult(sessionId: string, userMessageUuid: string, errors: string[]) {
+  return {
+    type: 'result' as const,
+    subtype: 'error_during_execution' as const,
+    uuid: randomUUID(),
+    session_id: sessionId,
+    user_message_uuid: userMessageUuid,
+    duration_ms: 1,
+    duration_api_ms: 1,
+    is_error: true,
+    num_turns: 1,
+    result: '',
+    stop_reason: 'end_turn',
+    total_cost_usd: 0,
+    terminal_reason: 'api_error' as const,
+    errors,
+    usage: resultUsage,
+    modelUsage: {},
+    permission_denials: []
+  }
+}
+
+/** A session whose agent configures a fallback model, with one wire process per native spawn. */
+async function fallbackSession() {
+  const wires: ReturnType<typeof wireProcess>[] = []
+  const test = await desktop({
+    spawnClaudeCodeProcess: () => {
+      const wire = wireProcess()
+      wires.push(wire)
+      return wire.process
+    }
+  })
+  const agentId = randomUUID()
+  const modelId = 'native-test::claude-sonnet-4-6'
+  const fallbackModelId = 'native-test::claude-haiku-4-5'
+  dbh.db
+    .insert(userProviderTable)
+    .values({ providerId: 'native-test', name: 'Test', isEnabled: true, orderKey: 'a0' })
+    .run()
+  dbh.db
+    .insert(userModelTable)
+    .values([
+      {
+        id: modelId,
+        providerId: 'native-test',
+        modelId: 'claude-sonnet-4-6',
+        name: 'Sonnet',
+        capabilities: [],
+        supportsStreaming: true,
+        orderKey: 'a0'
+      },
+      {
+        id: fallbackModelId,
+        providerId: 'native-test',
+        modelId: 'claude-haiku-4-5',
+        name: 'Haiku',
+        capabilities: [],
+        supportsStreaming: true,
+        orderKey: 'a1'
+      }
+    ])
+    .run()
+  dbh.db
+    .insert(agentTable)
+    .values({
+      id: agentId,
+      type: 'claude-code',
+      name: 'Agent',
+      instructions: '',
+      model: modelId,
+      configuration: { fallback_model_ids: [fallbackModelId] },
+      orderKey: 'a0'
+    })
+    .run()
+  dbh.db.update(agentSessionTable).set({ agentId }).where(eq(agentSessionTable.id, test.sessionId)).run()
+  // The request builder is mocked at the materialization boundary; the fallback rebuild must ask it
+  // for the fallback model and receive an installable request of its own.
+  const request = (sdkModelId: string) => ({
+    key: test.sessionId,
+    options: {
+      ...test.options,
+      env: {
+        ...test.options.env,
+        CLAUDE_CONFIG_DIR: test.configDir,
+        CLAUDE_CODE_EMIT_SESSION_STATE_EVENTS: '1'
+      }
+    },
+    settings: {},
+    sdkModelId,
+    connectionConfig: {
+      rebuildSignature: `native-test:${sdkModelId}`,
+      live: { toolPolicy: { permissionMode: null, disabledTools: [], mcps: [] } }
+    },
+    usageCapture: {
+      owner: 'agent-sdk',
+      providerId: 'native-test',
+      credentialReceipt: { attribution: 'unknown' },
+      source: null,
+      frozenModels: []
+    }
+  })
+  ports.build.mockImplementation(async (_sessionId: string, _resume: unknown, requested: string) =>
+    request(requested === fallbackModelId ? 'claude-haiku-4-5' : 'claude-sonnet-4-6')
+  )
+  const connection = await test.connect(undefined, undefined, true, { sessionId: test.sessionId, agentId, modelId })
+  const nativeSessionId = () =>
+    sessionContexts(test.sessionId).find((context) => context.nativeThreadId)!.nativeThreadId!
+  return { ...test, wires, connection, modelId, fallbackModelId, nativeSessionId }
+}
+
+it.each([
+  ['a bare provider failure', false],
+  ['the CLI’s API-error diagnostic as its only output', true]
+])(
+  'restarts a content-free failed turn once on the configured fallback model (%s)',
+  async (_name, withDiagnostic) => {
+    const test = await fallbackSession()
+    await test.connection.send(test.input('Ask the provider'))
+    await expect.poll(() => test.wires[0]?.inputs.length ?? 0).toBe(1)
+    const sessionId = test.nativeSessionId()
+    const input = test.wires[0].inputs[0]
+    // The fallback rebuild resumes the same native session, which the runtime opens from its
+    // transcript: the wire fixture has to commit one, exactly like the real CLI does.
+    const archiveDir = path.join(
+      test.configDir,
+      'projects',
+      (await realpath(test.options.cwd)).replace(/[^a-zA-Z0-9]/g, '-')
+    )
+    await mkdir(archiveDir, { recursive: true })
+    await writeFile(
+      path.join(archiveDir, `${sessionId}.jsonl`),
+      test.wires[0].inputs
+        .map((entry, index, entries) =>
+          JSON.stringify({
+            ...entry,
+            isSidechain: false,
+            sessionId,
+            cwd: test.options.cwd,
+            parentUuid: entries[index - 1]?.uuid ?? null,
+            timestamp: new Date().toISOString()
+          })
+        )
+        .join('\n') + '\n'
+    )
+    if (withDiagnostic) {
+      // The CLI's synthetic diagnostic renders a failure notice; it is no answer, so the turn stays
+      // eligible even though the transcript shows something.
+      test.wires[0].send(
+        assistantMessage(
+          sessionId,
+          [{ type: 'text', text: 'API Error: 429 {"type":"rate_limit_error"}', citations: null }],
+          {
+            error: 'rate_limit',
+            user_message_uuid: input.uuid
+          } as never
+        )
+      )
+    }
+    test.wires[0].send(failureResult(sessionId, input.uuid!, ['API Error: 429 {"type":"rate_limit_error"}']))
+
+    await test.wait('chunk', (event) => event.chunk.type === 'data-model-fallback')
+    const fallbackCall = ports.build.mock.calls.find((call) => call[2] === test.fallbackModelId)
+    expect(fallbackCall?.[7]).toMatchObject({ disabledTools: [] })
+    // The replay re-enters the SAME host turn on a freshly built runtime.
+    await expect.poll(() => test.wires[1]?.inputs.length ?? 0).toBe(1)
+    expect(JSON.stringify(test.wires[1].inputs[0].message.content)).toContain('Ask the provider')
+    test.wires[1].send(
+      assistantMessage(sessionId, [{ type: 'text', text: 'Fallback answer', citations: null }], {
+        user_message_uuid: test.wires[1].inputs[0].uuid
+      })
+    )
+    test.wires[1].send(successResult(sessionId, test.wires[1].inputs[0].uuid!))
+    await test.wait('turn-complete')
+    // A turn gets ONE fallback attempt: a second failure surfaces as the turn's error.
+    test.wires[1].send(failureResult(sessionId, input.uuid!, ['API Error: 503']))
+    await expect.poll(() => test.events.filter((event) => event.type === 'error').length).toBe(0)
+    expect(test.wires).toHaveLength(2)
+  },
+  30000
+)
+
+it('keeps the turn on its model when the primary produced content before failing', async () => {
+  const test = await fallbackSession()
+  await test.connection.send(test.input('Ask the provider'))
+  await expect.poll(() => test.wires[0]?.inputs.length ?? 0).toBe(1)
+  const sessionId = test.nativeSessionId()
+  const input = test.wires[0].inputs[0]
+  test.wires[0].send(
+    assistantMessage(sessionId, [{ type: 'text', text: 'Partial answer', citations: null }], {
+      user_message_uuid: input.uuid
+    })
+  )
+  test.wires[0].send(failureResult(sessionId, input.uuid!, ['API Error: 429 {"type":"rate_limit_error"}']))
+
+  await expect
+    .poll(() => test.events.some((event) => event.type === 'error' || event.type === 'turn-complete'))
+    .toBe(true)
+  expect(test.events.filter((event) => event.type === 'chunk' && event.chunk.type === 'data-model-fallback')).toEqual(
+    []
+  )
+  expect(test.wires).toHaveLength(1)
+}, 30000)
 it('interrupts an active native request before retiring its owner and permits a new connection', async () => {
   const test = await desktop()
   const connection = await test.connect()

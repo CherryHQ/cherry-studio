@@ -83,7 +83,7 @@
     },
     {
       "path": "docs/dev/references/ai/model-retry.md",
-      "sources": ["src/main/ai/runtime/aiSdk/retry","src/renderer/pages/settings/ModelSettings/ModelSettings.tsx"]
+      "sources": ["src/main/ai/runtime/aiSdk/retry","src/main/ai/runtime/claudeCode/modelFallback.ts","src/renderer/pages/settings/ModelSettings/ModelSettings.tsx"]
     },
     {
       "path": "docs/dev/references/ai/observability.md",
