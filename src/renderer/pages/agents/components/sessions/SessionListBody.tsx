@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 
 import { Button } from '@cherrystudio/ui'
 import { ResourceList } from '@renderer/components/chat/resourceList/base'
+import { ConversationListSelectionToolbar } from '@renderer/components/chat/resourceList/ConversationListSelection'
 import { useConversationListShortcuts } from '@renderer/components/chat/resourceList/useConversationListShortcuts'
 import {
   type AgentSessionDisplayMode,
@@ -17,13 +18,20 @@ import SessionItem, { type SessionItemMenuActions } from './SessionItem'
 
 interface SessionListBodyProps {
   activeSessionId: string | null
+  canSelectAll: boolean
   channelTypeMap: Record<string, string>
   displayMode: AgentSessionDisplayMode
   error?: unknown
+  isBulkArchiving: boolean
   isDraggable: boolean
   isValidating: boolean
+  isSelectionMode: boolean
   listRef: RefObject<HTMLDivElement | null>
   onDeleteSession: (id: string) => Promise<void>
+  onArchiveSelected: () => void
+  onCancelSelection: () => void
+  onSelectAllFiltered: (sessions: readonly SessionListItem[]) => void
+  onToggleSelection: (sessionId: string, selected: boolean) => void
   onDeletePermanently: (id: string) => Promise<void>
   permanentDeleteShortcut: string
   deletingSessionId: string | null
@@ -36,19 +44,27 @@ interface SessionListBodyProps {
   onToggleSidebar: (session: AgentSessionEntity) => void
   panePosition?: TopicTabPosition
   sidebarSessionFavoriteIdSet: ReadonlySet<string>
+  selectedIds: ReadonlySet<string>
   sessionMenuActions: SessionItemMenuActions
   setActiveSessionId: (id: string | null) => void
 }
 
 export function SessionListBody({
   activeSessionId,
+  canSelectAll,
   channelTypeMap,
   displayMode,
   error,
+  isBulkArchiving,
   isDraggable,
   isValidating,
+  isSelectionMode,
   listRef,
   onDeleteSession,
+  onArchiveSelected,
+  onCancelSelection,
+  onSelectAllFiltered,
+  onToggleSelection,
   onDeletePermanently,
   permanentDeleteShortcut,
   deletingSessionId,
@@ -61,6 +77,7 @@ export function SessionListBody({
   onToggleSidebar,
   panePosition,
   sidebarSessionFavoriteIdSet,
+  selectedIds,
   sessionMenuActions,
   setActiveSessionId
 }: SessionListBodyProps) {
@@ -76,6 +93,8 @@ export function SessionListBody({
         session={session}
         shortcutHint={shortcutHints.get(session.id)}
         active={session.id === activeSessionId}
+        isSelectionMode={isSelectionMode}
+        isSelected={selectedIds.has(session.id)}
         channelType={channelTypeMap[session.id]}
         pinned={session.pinned}
         reserveLeadingIconSlot={
@@ -85,6 +104,7 @@ export function SessionListBody({
         onTogglePin={onTogglePin}
         onToggleSidebar={onToggleSidebar}
         onDelete={onDeleteSession}
+        onToggleSelection={onToggleSelection}
         onDeletePermanently={onDeletePermanently}
         permanentDeleteShortcut={permanentDeleteShortcut}
         isDeleting={deletingSessionId === session.id}
@@ -103,8 +123,10 @@ export function SessionListBody({
       channelTypeMap,
       deletingSessionId,
       displayMode,
-      onDeletePermanently,
+      isSelectionMode,
       onDeleteSession,
+      onToggleSelection,
+      onDeletePermanently,
       permanentDeleteShortcut,
       onOpenInNewTab,
       onOpenInNewWindow,
@@ -116,36 +138,50 @@ export function SessionListBody({
       sidebarSessionFavoriteIdSet,
       sessionMenuActions,
       setActiveSessionId,
-      shortcutHints
+      shortcutHints,
+      selectedIds
     ]
   )
 
   return (
-    <ResourceList.Body<SessionListItem>
-      listRef={listRef}
-      draggable={isDraggable}
-      errorFallback={
-        <ResourceList.ErrorState>
-          <div className="flex flex-col gap-2">
-            <div className="font-medium text-destructive">{t('agent.session.get.error.failed')}</div>
-            <div className="text-muted-foreground">{formatErrorMessage(error)}</div>
-            <Button
-              size="sm"
-              variant="outline"
-              className="w-fit"
-              onClick={() => void onRetry()}
-              disabled={isValidating}>
-              {t('common.retry')}
-            </Button>
+    <>
+      {isSelectionMode && (
+        <ConversationListSelectionToolbar<SessionListItem>
+          archiveDisabled={isBulkArchiving}
+          canSelectAll={canSelectAll}
+          canSelectItem={(session) => !session.pinned}
+          onArchive={onArchiveSelected}
+          onCancel={onCancelSelection}
+          onSelectAll={onSelectAllFiltered}
+          selectedCount={selectedIds.size}
+        />
+      )}
+      <ResourceList.Body<SessionListItem>
+        listRef={listRef}
+        draggable={isDraggable}
+        errorFallback={
+          <ResourceList.ErrorState>
+            <div className="flex flex-col gap-2">
+              <div className="font-medium text-destructive">{t('agent.session.get.error.failed')}</div>
+              <div className="text-muted-foreground">{formatErrorMessage(error)}</div>
+              <Button
+                size="sm"
+                variant="outline"
+                className="w-fit"
+                onClick={() => void onRetry()}
+                disabled={isValidating}>
+                {t('common.retry')}
+              </Button>
+            </div>
+          </ResourceList.ErrorState>
+        }
+        emptyFallback={
+          <div className="text-muted-foreground mx-auto flex h-full w-full max-w-sm items-center justify-center px-5 py-10 text-center text-xs break-words">
+            {t('agent.session.empty.title')}
           </div>
-        </ResourceList.ErrorState>
-      }
-      emptyFallback={
-        <div className="text-muted-foreground mx-auto flex h-full w-full max-w-sm items-center justify-center px-5 py-10 text-center text-xs break-words">
-          {t('agent.session.empty.title')}
-        </div>
-      }
-      renderItem={renderItem}
-    />
+        }
+        renderItem={renderItem}
+      />
+    </>
   )
 }
