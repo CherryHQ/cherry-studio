@@ -11,7 +11,7 @@ export type ResourceCreateWizardKind = 'assistant' | 'agent'
  * Field names are deliberately aligned with the shared edit-dialog field
  * components (`avatar`, `name`, `description`, `modelId`) so those components
  * can be reused as-is. `knowledgeBaseIds` is shared by both kinds, while
- * `skillIds` is populated only by the Agent capability step.
+ * `skillIds` is set by the Agent capability step or by auto create.
  */
 export type ResourceCreateWizardFormValues = {
   avatar: string
@@ -27,11 +27,14 @@ export type ResourceCreateWizardFormValues = {
   knowledgeBaseIds: string[]
   // agent step 3
   skillIds: string[]
+  // set only by auto create
+  mcpServerIds: string[]
+  enableWebSearch: boolean
 }
 
 /**
  * Validated submit payload handed to the caller's `onSubmit`. `modelId` is
- * guaranteed non-null (basic-step validation gates submission).
+ * guaranteed non-null (both the basic step and the entry view require a model).
  */
 export type ResourceCreateWizardValues = ResourceCreateValues & {
   /** Agent runtime driver. Assistant callers ignore it. */

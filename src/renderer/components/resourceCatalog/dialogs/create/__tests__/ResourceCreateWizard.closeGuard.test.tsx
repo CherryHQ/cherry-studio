@@ -96,6 +96,10 @@ vi.mock('../steps/SystemPromptStep', () => ({
   )
 }))
 vi.mock('../steps/CapabilityStep', () => ({ CapabilityStep: () => <div /> }))
+vi.mock('../steps/AutoCreateEntry', () => ({ AutoCreateEntry: () => <div /> }))
+vi.mock('@renderer/hooks/resourceCatalog', () => ({
+  useResourceAutoConfigure: () => ({ ready: true, generate: vi.fn() })
+}))
 
 vi.mock('@cherrystudio/ui/lib/utils', () => ({
   cn: (...args: unknown[]) => args.filter(Boolean).join(' ')
@@ -192,6 +196,7 @@ import { ResourceCreateWizard } from '../ResourceCreateWizard'
 const NEXT = 'library.config.dialogs.create.next'
 const CREATE = 'library.config.dialogs.create.submit'
 const OPEN_KNOWLEDGE = 'open knowledge'
+const MANUAL = 'library.config.dialogs.create.auto.manual'
 
 afterEach(() => {
   cleanup()
@@ -241,6 +246,7 @@ describe('ResourceCreateWizard close protection', () => {
     render(<ResourceCreateWizard kind="assistant" open onOpenChange={onOpenChange} onSubmit={onSubmit} />)
 
     // Walk to the final step and start the (still pending) submit.
+    await user.click(screen.getByRole('button', { name: MANUAL }))
     await user.click(screen.getByRole('button', { name: 'fill basic' }))
     await user.click(screen.getByRole('button', { name: NEXT }))
     await user.click(screen.getByRole('button', { name: NEXT }))
@@ -281,6 +287,7 @@ describe('ResourceCreateWizard close protection', () => {
       <ResourceCreateWizard kind="assistant" open onOpenChange={onOpenChange} onSubmit={onSubmit} />
     )
 
+    await user.click(screen.getByRole('button', { name: MANUAL }))
     await user.click(screen.getByRole('button', { name: 'fill basic' }))
     await user.click(screen.getByRole('button', { name: NEXT }))
     await user.click(screen.getByRole('button', { name: NEXT }))
@@ -305,6 +312,7 @@ describe('ResourceCreateWizard close protection', () => {
 
     render(<ResourceCreateWizard kind="assistant" open onOpenChange={onOpenChange} onSubmit={vi.fn()} />)
 
+    await user.click(screen.getByRole('button', { name: MANUAL }))
     await user.click(screen.getByRole('button', { name: 'fill basic' }))
     await user.click(screen.getByRole('button', { name: NEXT }))
     await user.click(screen.getByRole('button', { name: NEXT }))
@@ -328,6 +336,7 @@ describe('ResourceCreateWizard close protection', () => {
     }
 
     render(<Host />)
+    await userEvent.click(screen.getByRole('button', { name: MANUAL }))
     const frames = mockDeferredAnimationFrames()
 
     await userEvent.click(screen.getByRole('button', { name: 'open model settings' }))

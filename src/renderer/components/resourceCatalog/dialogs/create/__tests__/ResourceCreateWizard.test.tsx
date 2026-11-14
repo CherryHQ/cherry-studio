@@ -3,13 +3,18 @@ import userEvent from '@testing-library/user-event'
 import { Activity, useState } from 'react'
 import type * as ReactHookForm from 'react-hook-form'
 import { useWatch } from 'react-hook-form'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { AgentType } from '@shared/data/types/agent'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 
 import type { ResourceCreateWizardFormValues, ResourceCreateWizardKind } from '../types'
+
+const autoConfigure = vi.hoisted(() => ({
+  ready: true,
+  generate: vi.fn<(input: { purpose: string; name: string; signal: AbortSignal }) => Promise<unknown>>()
+}))
 
 const modelHook = vi.hoisted(() => ({
   defaultModel: undefined as Model | undefined,
@@ -36,7 +41,7 @@ vi.mock('react-i18next', () => ({
 }))
 
 vi.mock('@renderer/hooks/useModel', () => ({
-  useDefaultModel: () => ({ defaultModel: modelHook.defaultModel }),
+  useDefaultModel: () => ({ defaultModel: modelHook.defaultModel, isDefaultModelLoading: false }),
   useModels: () => ({ models: modelHook.defaultModel?.isEnabled ? [modelHook.defaultModel] : [] })
 }))
 
@@ -60,51 +65,12 @@ vi.mock('@renderer/hooks/agent/useAgentModelFilter', () => ({
 // Mock the step bodies so the wizard shell (navigation, validation gate, submit
 // mapping) is exercised in isolation. BasicInfoStep fills the fields that gate
 // the Next button; SystemPromptStep fills the prompt.
-vi.mock('../steps/BasicInfoStep', async () => {
-  const { useWatch } = await vi.importActual<typeof ReactHookForm>('react-hook-form')
-
-  return {
-    BasicInfoStep: ({ form }: { form: ReactHookForm.UseFormReturn<ResourceCreateWizardFormValues> }) => {
-      const modelId = useWatch({ control: form.control, name: 'modelId' })
-      const name = useWatch({ control: form.control, name: 'name' })
-
-      return (
-        <>
-          <div data-testid="model-id">{modelId ?? 'empty'}</div>
-          <div data-testid="name">{name || 'empty'}</div>
-          <DraftValues form={form} />
-          <input aria-label="draft name" {...form.register('name')} />
-          <input aria-label="draft description" {...form.register('description')} />
-          <button type="button" onClick={() => form.setValue('name', 'My Resource')}>
-            fill name
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              form.setValue('name', 'My Resource')
-              form.setValue('modelId', 'provider::model')
-            }}>
-            fill basic
-          </button>
-          {(['pi', 'claude-code'] as const).map((runtime) => (
-            <button
-              key={runtime}
-              type="button"
-              onClick={() => {
-                form.setValue('agentType', runtime)
-                form.setValue('modelId', null)
-              }}>
-              switch to {runtime}
-            </button>
-          ))}
-          <button type="button" onClick={() => form.setValue('permissionMode', 'plan')}>
-            use plan mode
-          </button>
-        </>
-      )
-    }
-  }
-})
+vi.mock('../steps/BasicInfoStep', () => ({ BasicInfoStep: StepHarness }))
+// The entry shares the basic step's fields (one form), so it gets the same harness.
+vi.mock('../steps/AutoCreateEntry', () => ({ AutoCreateEntry: StepHarness }))
+vi.mock('@renderer/hooks/resourceCatalog', () => ({
+  useResourceAutoConfigure: () => ({ ready: autoConfigure.ready, generate: autoConfigure.generate })
+}))
 vi.mock('../steps/SystemPromptStep', () => ({
   SystemPromptStep: ({ form }: { form: ReactHookForm.UseFormReturn<ResourceCreateWizardFormValues> }) => (
     <>
@@ -134,6 +100,8 @@ import { ResourceCreateWizard } from '../ResourceCreateWizard'
 const NEXT = 'library.config.dialogs.create.next'
 const CREATE = 'library.config.dialogs.create.submit'
 const CANCEL = 'common.cancel'
+const MANUAL = 'library.config.dialogs.create.auto.manual'
+const AUTO = 'library.config.dialogs.create.auto.submit'
 
 const BASIC = /library\.config\.dialogs\.create\.step\.basic$/
 const KNOWLEDGE = /library\.config\.dialogs\.create\.step\.knowledge$/
@@ -145,13 +113,60 @@ const draft = {
 ${'Keep every instruction across tab switches.\n'.repeat(40)}DRAFT_END  `
 }
 
+function StepHarness({ form }: { form: ReactHookForm.UseFormReturn<ResourceCreateWizardFormValues> }) {
+  const modelId = useWatch({ control: form.control, name: 'modelId' })
+  const name = useWatch({ control: form.control, name: 'name' })
+
+  return (
+    <>
+      <div data-testid="model-id">{modelId ?? 'empty'}</div>
+      <div data-testid="name">{name || 'empty'}</div>
+      <DraftValues form={form} />
+      <input aria-label="draft name" {...form.register('name')} />
+      <input aria-label="draft description" {...form.register('description')} />
+      <button type="button" onClick={() => form.setValue('name', 'My Resource')}>
+        fill name
+      </button>
+      <button
+        type="button"
+        onClick={() => {
+          form.setValue('name', 'My Resource')
+          form.setValue('modelId', 'provider::model')
+        }}>
+        fill basic
+      </button>
+      <button type="button" onClick={() => form.setValue('modelId', 'provider::model')}>
+        fill model
+      </button>
+      <button type="button" onClick={() => form.setValue('avatar', '🦊')}>
+        pick avatar
+      </button>
+      {(['pi', 'claude-code'] as const).map((runtime) => (
+        <button
+          key={runtime}
+          type="button"
+          onClick={() => {
+            form.setValue('agentType', runtime)
+            form.setValue('modelId', null)
+          }}>
+          switch to {runtime}
+        </button>
+      ))}
+      <button type="button" onClick={() => form.setValue('permissionMode', 'plan')}>
+        use plan mode
+      </button>
+    </>
+  )
+}
+
 function DraftValues({ form }: { form: ReactHookForm.UseFormReturn<ResourceCreateWizardFormValues> }) {
-  const [name, description, prompt, knowledgeBaseIds, agentType, permissionMode] = useWatch({
+  const [name, description, prompt, knowledgeBaseIds, agentType, permissionMode, avatar] = useWatch({
     control: form.control,
-    name: ['name', 'description', 'prompt', 'knowledgeBaseIds', 'agentType', 'permissionMode']
+    name: ['name', 'description', 'prompt', 'knowledgeBaseIds', 'agentType', 'permissionMode', 'avatar']
   })
   return (
     <>
+      <div data-testid="draft-avatar">{avatar}</div>
       <div data-testid="draft-name">{name}</div>
       <div data-testid="draft-description">{description}</div>
       <div data-testid="draft-prompt">{prompt}</div>
@@ -207,6 +222,7 @@ async function fillDraftToKnowledge(user: ReturnType<typeof userEvent.setup>, ki
   await user.clear(screen.getByRole('textbox', { name: 'draft name' }))
   await user.type(screen.getByRole('textbox', { name: 'draft name' }), draft.name)
   await user.type(screen.getByRole('textbox', { name: 'draft description' }), draft.description)
+  await user.click(screen.getByRole('button', { name: MANUAL }))
   await user.click(screen.getByRole('button', { name: NEXT }))
   await user.click(screen.getByRole('textbox', { name: 'draft prompt' }))
   await user.paste(draft.prompt)
@@ -228,7 +244,8 @@ function expectDraft() {
 }
 
 function expectDefaults(kind: ResourceCreateWizardKind, name = '') {
-  expect(screen.getByRole('button', { name: BASIC })).toHaveAttribute('aria-current', 'step')
+  expect(screen.getByRole('button', { name: MANUAL })).toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: BASIC })).not.toBeInTheDocument()
   expect(screen.getByRole('textbox', { name: 'draft name' })).toHaveValue(name)
   expect(screen.getByRole('textbox', { name: 'draft description' })).toHaveValue('')
   expect(screen.getByTestId('draft-prompt')).toBeEmptyDOMElement()
@@ -246,6 +263,8 @@ afterEach(() => {
   modelHook.agentModelFilter.mockReset()
   modelHook.agentModelFilter.mockReturnValue(true)
   modelHook.unavailableModelIds.clear()
+  autoConfigure.ready = true
+  autoConfigure.generate.mockReset()
 })
 
 describe('ResourceCreateWizard', () => {
@@ -279,7 +298,9 @@ describe('ResourceCreateWizard', () => {
       permissionMode: 'auto',
       modelId: 'provider::default',
       skillIds: [],
-      knowledgeBaseIds: []
+      knowledgeBaseIds: [],
+      mcpServerIds: [],
+      enableWebSearch: false
     })
   })
 
@@ -387,6 +408,7 @@ describe('ResourceCreateWizard', () => {
 
     expect(await screen.findByTestId('model-id')).toHaveTextContent('provider::default')
     await user.click(screen.getByRole('button', { name: 'fill name' }))
+    await user.click(screen.getByRole('button', { name: MANUAL }))
     expect(screen.getByRole('button', { name: NEXT })).toBeEnabled()
 
     await user.click(screen.getByRole('button', { name: NEXT }))
@@ -409,6 +431,7 @@ describe('ResourceCreateWizard', () => {
 
     expect(await screen.findByTestId('name')).toHaveTextContent('测试助手')
     // Name + default model are both set, so the first step is already cleared.
+    await user.click(screen.getByRole('button', { name: MANUAL }))
     expect(screen.getByRole('button', { name: NEXT })).toBeEnabled()
 
     await user.click(screen.getByRole('button', { name: NEXT }))
@@ -443,6 +466,7 @@ describe('ResourceCreateWizard', () => {
 
     expect(await screen.findByTestId('model-id')).toHaveTextContent('provider::default')
     await user.click(screen.getByRole('button', { name: 'fill name' }))
+    await user.click(screen.getByRole('button', { name: MANUAL }))
     expect(screen.getByRole('button', { name: NEXT })).toBeEnabled()
 
     defaultModelAllowed = false
@@ -475,6 +499,7 @@ describe('ResourceCreateWizard', () => {
     render(<ResourceCreateWizard kind="assistant" open onOpenChange={vi.fn()} onSubmit={onSubmit} />)
 
     // Step 1: Next is blocked until name + model are set.
+    await user.click(screen.getByRole('button', { name: MANUAL }))
     expect(screen.getByRole('button', { name: NEXT })).toBeDisabled()
     await user.click(screen.getByRole('button', { name: 'fill basic' }))
     expect(screen.getByRole('button', { name: NEXT })).toBeEnabled()
@@ -502,6 +527,7 @@ describe('ResourceCreateWizard', () => {
     render(<ResourceCreateWizard kind="assistant" open onOpenChange={onOpenChange} onSubmit={onSubmit} />)
 
     await user.click(screen.getByRole('button', { name: 'fill basic' }))
+    await user.click(screen.getByRole('button', { name: MANUAL }))
     await user.click(screen.getByRole('button', { name: NEXT }))
     await user.click(screen.getByRole('button', { name: NEXT }))
     await user.click(screen.getByRole('button', { name: CREATE }))
@@ -523,6 +549,7 @@ describe('ResourceCreateWizard', () => {
       await user.click(screen.getByRole('button', { name: `switch to ${runtime}` }))
     }
     await user.click(screen.getByRole('button', { name: 'fill basic' }))
+    await user.click(screen.getByRole('button', { name: MANUAL }))
     await user.click(screen.getByRole('button', { name: NEXT }))
     await user.click(screen.getByRole('button', { name: NEXT }))
     await user.click(screen.getByRole('button', { name: NEXT }))
@@ -546,6 +573,7 @@ describe('ResourceCreateWizard', () => {
     view.rerender(<ResourceCreateWizard {...props} open />)
 
     await user.click(screen.getByRole('button', { name: 'fill basic' }))
+    await user.click(screen.getByRole('button', { name: MANUAL }))
     await user.click(screen.getByRole('button', { name: NEXT }))
     await user.click(screen.getByRole('button', { name: NEXT }))
     await user.click(screen.getByRole('button', { name: NEXT }))
@@ -560,6 +588,7 @@ describe('ResourceCreateWizard', () => {
     const { rerender } = render(<ResourceCreateWizard {...props} kind="agent" />)
 
     await user.click(screen.getByRole('button', { name: 'fill basic' }))
+    await user.click(screen.getByRole('button', { name: MANUAL }))
     await user.click(screen.getByRole('button', { name: NEXT }))
     await user.click(screen.getByRole('button', { name: NEXT }))
     await user.click(screen.getByRole('button', { name: NEXT }))
@@ -616,3 +645,234 @@ describe('ResourceCreateWizard', () => {
     }
   )
 })
+
+describe('ResourceCreateWizard auto create', () => {
+  const generated = {
+    name: 'PR Reviewer',
+    emoji: '🔍',
+    description: 'Reviews pull requests',
+    prompt: 'You review pull requests.',
+    knowledgeBaseIds: ['kb-docs'],
+    mcpServerIds: ['mcp-github'],
+    skillIds: ['skill-review'],
+    permissionMode: 'default',
+    enableWebSearch: false
+  }
+
+  async function describePurpose(user: ReturnType<typeof userEvent.setup>, purpose = 'Review my GitHub PRs') {
+    await user.type(screen.getByRole('textbox', { name: 'draft description' }), purpose)
+  }
+
+  beforeEach(() => {
+    // Generation needs a default model; keeping it out of the selector leaves the model field to each test.
+    modelHook.defaultModel = makeModel()
+    modelHook.unavailableModelIds.add('provider::default')
+  })
+
+  it.each(['assistant', 'agent'] as const)(
+    'opens on the entry and enables Auto create only once purpose and model are set (%s kind)',
+    async (kind) => {
+      const user = userEvent.setup()
+      render(<ResourceCreateWizard kind={kind} open onOpenChange={vi.fn()} onSubmit={vi.fn()} />)
+
+      expect(screen.getByRole('button', { name: MANUAL })).toBeEnabled()
+      expect(screen.queryByRole('button', { name: BASIC })).not.toBeInTheDocument()
+      expect(screen.getByRole('button', { name: AUTO })).toBeDisabled()
+
+      await describePurpose(user)
+      expect(screen.getByRole('button', { name: AUTO })).toBeDisabled()
+
+      await user.click(screen.getByRole('button', { name: 'fill model' }))
+      expect(screen.getByRole('button', { name: AUTO })).toBeEnabled()
+    }
+  )
+
+  it('keeps Auto create disabled until the installed catalogs have loaded', async () => {
+    const user = userEvent.setup()
+    autoConfigure.ready = false
+    render(<ResourceCreateWizard kind="agent" open onOpenChange={vi.fn()} onSubmit={vi.fn()} />)
+
+    await describePurpose(user)
+    await user.click(screen.getByRole('button', { name: 'fill model' }))
+
+    expect(screen.getByRole('button', { name: AUTO })).toBeDisabled()
+  })
+
+  it('carries avatar, name, model and purpose into the first manual step', async () => {
+    const user = userEvent.setup()
+    render(<ResourceCreateWizard kind="agent" open onOpenChange={vi.fn()} onSubmit={vi.fn()} />)
+
+    await user.click(screen.getByRole('button', { name: 'pick avatar' }))
+    await user.type(screen.getByRole('textbox', { name: 'draft name' }), 'Reviewer')
+    await describePurpose(user)
+    await user.click(screen.getByRole('button', { name: 'fill model' }))
+    await user.click(screen.getByRole('button', { name: MANUAL }))
+
+    expect(screen.getByRole('button', { name: BASIC })).toHaveAttribute('aria-current', 'step')
+    expect(screen.getByTestId('draft-avatar')).toHaveTextContent('🦊')
+    expect(screen.getByRole('textbox', { name: 'draft name' })).toHaveValue('Reviewer')
+    expect(screen.getByRole('textbox', { name: 'draft description' })).toHaveValue('Review my GitHub PRs')
+    expect(screen.getByTestId('model-id')).toHaveTextContent('provider::model')
+  })
+
+  it('creates an agent once with the generated configuration', async () => {
+    const user = userEvent.setup()
+    const onSubmit = vi.fn()
+    autoConfigure.generate.mockResolvedValue(generated)
+    render(<ResourceCreateWizard kind="agent" open onOpenChange={vi.fn()} onSubmit={onSubmit} />)
+
+    await describePurpose(user)
+    await user.click(screen.getByRole('button', { name: 'fill model' }))
+    await user.click(screen.getByRole('button', { name: AUTO }))
+
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1))
+    expect(autoConfigure.generate.mock.calls[0][0]).toMatchObject({ purpose: 'Review my GitHub PRs', name: '' })
+    expect(onSubmit).toHaveBeenCalledWith({
+      avatar: '🔍',
+      agentType: 'pi-durable',
+      permissionMode: 'default',
+      name: 'PR Reviewer',
+      modelId: 'provider::model',
+      description: 'Reviews pull requests',
+      prompt: 'You review pull requests.',
+      knowledgeBaseIds: ['kb-docs'],
+      skillIds: ['skill-review'],
+      mcpServerIds: ['mcp-github'],
+      enableWebSearch: false
+    })
+  })
+
+  it('keeps a name the user typed and an avatar they picked over the generated ones', async () => {
+    const user = userEvent.setup()
+    const onSubmit = vi.fn()
+    autoConfigure.generate.mockResolvedValue(generated)
+    render(<ResourceCreateWizard kind="assistant" open onOpenChange={vi.fn()} onSubmit={onSubmit} />)
+
+    await user.type(screen.getByRole('textbox', { name: 'draft name' }), 'My Reviewer')
+    await user.click(screen.getByRole('button', { name: 'pick avatar' }))
+    await describePurpose(user)
+    await user.click(screen.getByRole('button', { name: 'fill model' }))
+    await user.click(screen.getByRole('button', { name: AUTO }))
+
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1))
+    expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ name: 'My Reviewer', avatar: '🦊' }))
+  })
+
+  it.each([
+    [
+      'an unusable reply',
+      () => autoConfigure.generate.mockResolvedValue(null),
+      'library.config.dialogs.create.auto.failed'
+    ],
+    [
+      'a generation error',
+      () => autoConfigure.generate.mockRejectedValue(new Error('Provider is down')),
+      'Provider is down'
+    ]
+  ])('shows an error, creates nothing and keeps Manual create after %s', async (_case, arrange, message) => {
+    const user = userEvent.setup()
+    const onSubmit = vi.fn()
+    arrange()
+    render(<ResourceCreateWizard kind="agent" open onOpenChange={vi.fn()} onSubmit={onSubmit} />)
+
+    await describePurpose(user)
+    await user.click(screen.getByRole('button', { name: 'fill model' }))
+    await user.click(screen.getByRole('button', { name: AUTO }))
+
+    expect(await screen.findByText(message)).toBeInTheDocument()
+    expect(onSubmit).not.toHaveBeenCalled()
+    await user.click(screen.getByRole('button', { name: MANUAL }))
+    expect(screen.getByRole('button', { name: BASIC })).toHaveAttribute('aria-current', 'step')
+  })
+
+  it('asks for a default model instead of generating when none is set', async () => {
+    const user = userEvent.setup()
+    modelHook.defaultModel = undefined
+    render(<ResourceCreateWizard kind="assistant" open onOpenChange={vi.fn()} onSubmit={vi.fn()} />)
+
+    await describePurpose(user)
+    await user.click(screen.getByRole('button', { name: 'fill model' }))
+    await user.click(screen.getByRole('button', { name: AUTO }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('library.config.prompt.no_default_model')
+    expect(autoConfigure.generate).not.toHaveBeenCalled()
+  })
+
+  it('keeps what the user entered when the generated create fails, so Manual create adds no hidden tools', async () => {
+    const user = userEvent.setup()
+    const onSubmit = vi.fn().mockRejectedValueOnce(new Error('Network down')).mockResolvedValue(undefined)
+    autoConfigure.generate.mockResolvedValue({ ...generated, enableWebSearch: true })
+    render(<ResourceCreateWizard kind="assistant" open onOpenChange={vi.fn()} onSubmit={onSubmit} />)
+
+    await describePurpose(user)
+    await user.click(screen.getByRole('button', { name: 'fill model' }))
+    await user.click(screen.getByRole('button', { name: AUTO }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Network down')
+    expect(screen.getByRole('textbox', { name: 'draft name' })).toHaveValue('')
+    expect(screen.getByRole('textbox', { name: 'draft description' })).toHaveValue('Review my GitHub PRs')
+
+    await user.click(screen.getByRole('button', { name: MANUAL }))
+    await user.click(screen.getByRole('button', { name: 'fill name' }))
+    await user.click(screen.getByRole('button', { name: NEXT }))
+    await user.click(screen.getByRole('button', { name: NEXT }))
+    await user.click(screen.getByRole('button', { name: CREATE }))
+
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(2))
+    expect(onSubmit).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        name: 'My Resource',
+        description: 'Review my GitHub PRs',
+        prompt: '',
+        knowledgeBaseIds: [],
+        mcpServerIds: [],
+        enableWebSearch: false
+      })
+    )
+  })
+
+  it('cannot be cancelled once the generated resource is being created', async () => {
+    const user = userEvent.setup()
+    let finishCreate: () => void = () => {}
+    const onSubmit = vi.fn(() => new Promise<void>((resolve) => (finishCreate = resolve)))
+    autoConfigure.generate.mockResolvedValue(generated)
+    render(<ResourceCreateWizard kind="agent" open onOpenChange={vi.fn()} onSubmit={onSubmit} />)
+
+    await describePurpose(user)
+    await user.click(screen.getByRole('button', { name: 'fill model' }))
+    await user.click(screen.getByRole('button', { name: AUTO }))
+
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1))
+    expect(screen.getByRole('button', { name: CANCEL })).toBeDisabled()
+    await act(async () => finishCreate())
+    expect(screen.getByRole('button', { name: CANCEL })).toBeEnabled()
+  })
+
+  it('lets the user cancel while generating and abandons the request', async () => {
+    const user = userEvent.setup()
+    const onSubmit = vi.fn()
+    let signal: AbortSignal | undefined
+    let finishGenerate: (value: unknown) => void = () => {}
+    autoConfigure.generate.mockImplementation((input) => {
+      signal = input.signal
+      return new Promise((resolve) => (finishGenerate = resolve))
+    })
+    render(<ActivityHostWithSubmit onSubmit={onSubmit} />)
+
+    await describePurpose(user)
+    await user.click(screen.getByRole('button', { name: 'fill model' }))
+    await user.click(screen.getByRole('button', { name: AUTO }))
+    await user.click(screen.getByRole('button', { name: CANCEL }))
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(signal?.aborted).toBe(true)
+    // A reply that still arrives after the cancel must not create anything.
+    await act(async () => finishGenerate(generated))
+    expect(onSubmit).not.toHaveBeenCalled()
+  })
+})
+
+function ActivityHostWithSubmit({ onSubmit }: { onSubmit: () => void }) {
+  const [open, setOpen] = useState(true)
+  return <ResourceCreateWizard kind="agent" open={open} onOpenChange={setOpen} onSubmit={onSubmit} />
+}

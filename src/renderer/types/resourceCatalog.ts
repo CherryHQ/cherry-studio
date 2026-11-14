@@ -24,6 +24,10 @@ export type ResourceCreateValues = {
   prompt: string
   knowledgeBaseIds: string[]
   skillIds: string[]
+  /** Set by auto create; the manual wizard has no MCP step. */
+  mcpServerIds?: string[]
+  /** Assistant-only web search switch, set by auto create. */
+  enableWebSearch?: boolean
 }
 
 export type SortKey = 'updatedAt' | 'createdAt' | 'name'
