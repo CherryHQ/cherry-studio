@@ -7,9 +7,19 @@ import type * as ReactI18nextModule from 'react-i18next'
 import { SWRConfig } from 'swr'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type * as CherrystudioUIModule from '@cherrystudio/ui'
 import { dataApiService } from '@data/DataApiService'
+import type * as HistoryRecordsViewModule from '@renderer/components/history/HistoryRecordsView'
+import type * as VirtualListModule from '@renderer/components/VirtualList'
+import type * as UseCacheModule from '@renderer/data/hooks/useCache'
+import type * as CommandModule from '@renderer/hooks/command'
+import type * as TabModule from '@renderer/hooks/tab'
+import type * as UseAssistantModule from '@renderer/hooks/useAssistant'
+import type * as RecycleBinFeedbackModule from '@renderer/services/recycleBinFeedback'
 import type { Topic } from '@renderer/types/topic'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
+
+import type * as TopicsModule from '../Tabs/components/topics'
 
 const virtualMocks = vi.hoisted(() => ({
   useVirtualizer: vi.fn((options: { count: number; estimateSize: (index: number) => number }) => ({
@@ -135,15 +145,15 @@ const homeMocks = vi.hoisted(() => ({
 }))
 
 vi.mock('@renderer/services/recycleBinFeedback', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@renderer/services/recycleBinFeedback')>()),
+  ...(await importOriginal<typeof RecycleBinFeedbackModule>()),
   showRecycleBinUndo: homeMocks.archiveUndo
 }))
 vi.mock('@cherrystudio/ui', async (importOriginal) => {
   const { MockCherrystudioUI } = await import('@test-mocks/renderer/CherrystudioUI')
-  return { ...(await importOriginal<typeof import('@cherrystudio/ui')>()), ...MockCherrystudioUI }
+  return { ...(await importOriginal<typeof CherrystudioUIModule>()), ...MockCherrystudioUI }
 })
 vi.mock('@renderer/hooks/command', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@renderer/hooks/command')>()),
+  ...(await importOriginal<typeof CommandModule>()),
   useCommandHandler: vi.fn(),
   useResolvedCommand: () => ({
     enabled: true,
@@ -176,7 +186,7 @@ vi.mock('@renderer/data/hooks/useCache', async (importOriginal) => {
   const React = await import('react')
 
   return {
-    ...(await importOriginal<typeof import('@renderer/data/hooks/useCache')>()),
+    ...(await importOriginal<typeof UseCacheModule>()),
     useSharedCacheValue: () => undefined,
     useCache: () => [undefined, vi.fn()],
     usePersistCache: (key: string) => {
@@ -219,7 +229,7 @@ vi.mock('@renderer/components/resourceCatalog/catalog', () => ({
   )
 }))
 vi.mock('@renderer/hooks/tab', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@renderer/hooks/tab')>()),
+  ...(await importOriginal<typeof TabModule>()),
   useCloseConversationTabs: () => vi.fn(),
   useOptionalTabsContext: () => null,
   useCurrentTabId: () => 'chat-tab',
@@ -227,7 +237,7 @@ vi.mock('@renderer/hooks/tab', async (importOriginal) => ({
   useTabSelfVisuals: vi.fn()
 }))
 vi.mock('@renderer/hooks/useAssistant', async (importOriginal) => {
-  const original = await importOriginal<typeof import('@renderer/hooks/useAssistant')>()
+  const original = await importOriginal<typeof UseAssistantModule>()
   return {
     ...original,
     useAssistants: () => ({
@@ -353,7 +363,7 @@ vi.unmock('@tanstack/react-router')
 vi.mock('@data/hooks/useDataApi', (importOriginal) => importOriginal())
 vi.mock('@renderer/data/hooks/useDataApi', (importOriginal) => importOriginal())
 vi.mock('@renderer/components/VirtualList', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@renderer/components/VirtualList')>()),
+  ...(await importOriginal<typeof VirtualListModule>()),
   DynamicVirtualList: ({ list, children, header }: any) => (
     <div>
       {header}
@@ -400,7 +410,7 @@ vi.mock('../Tabs/HomeTabs', async () => {
   }
 })
 vi.mock('../Tabs/components/topics', async (importOriginal) => {
-  const original = await importOriginal<typeof import('../Tabs/components/topics')>()
+  const original = await importOriginal<typeof TopicsModule>()
   return {
     Topics: (props: any) => {
       homeMocks.ownerChanged = props.onSelectedTopicOwnerChanged
@@ -423,7 +433,7 @@ vi.mock('../Tabs/components/topics', async (importOriginal) => {
 })
 vi.mock('../components/AssistantConversationPickerDialog', () => ({ AssistantConversationPickerDialog: () => null }))
 vi.mock('@renderer/components/history/HistoryRecordsView', async (importOriginal) => {
-  const original = await importOriginal<typeof import('@renderer/components/history/HistoryRecordsView')>()
+  const original = await importOriginal<typeof HistoryRecordsViewModule>()
   return {
     ...original,
     default: (props: any) => (

@@ -2,12 +2,14 @@ import { act, render } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type * as CherrystudioUIModule from '@cherrystudio/ui'
 import type * as ChatLayoutModeContextModule from '@renderer/components/chat/layout/ChatLayoutModeContext'
 import type * as PaneShellModule from '@renderer/components/chat/panes/Shell'
 import { popup } from '@renderer/services/popup'
 import type { Topic } from '@renderer/types/topic'
 
 import Chat from '../Chat'
+import type * as TopicRightPaneModule from '../components/TopicRightPane'
 
 const conversationShellProps = vi.hoisted(() => ({
   current: null as any
@@ -143,7 +145,7 @@ vi.mock('@renderer/hooks/tab', () => ({
 
 vi.mock('@cherrystudio/ui', async (importOriginal) => {
   const { MockCherrystudioUI } = await import('@test-mocks/renderer/CherrystudioUI')
-  return { ...(await importOriginal<typeof import('@cherrystudio/ui')>()), ...MockCherrystudioUI }
+  return { ...(await importOriginal<typeof CherrystudioUIModule>()), ...MockCherrystudioUI }
 })
 
 vi.mock('@renderer/hooks/chat/useClearTopicMessages', () => ({
@@ -214,7 +216,7 @@ vi.mock('../components/ChatNavbar', () => ({
 }))
 
 vi.mock('../components/TopicRightPane', async (importOriginal) => {
-  const original = await importOriginal<typeof import('../components/TopicRightPane')>()
+  const original = await importOriginal<typeof TopicRightPaneModule>()
   const TopicRightPane = {
     Scope: original.TopicRightPane.Scope,
     Shortcuts: () => <div data-testid="topic-right-shortcuts" />,
