@@ -1,0 +1,1 @@
+ALTER TABLE `agent_workspace` ADD `additional_directories` text DEFAULT '[]' NOT NULL;

@@ -270,6 +270,7 @@ interface ArtifactPaneViewProps {
   paneTitle: ReactNode
   paneActions: ReactNode
   workspacePath?: string
+  directorySelector?: ReactNode
   previewFileSelection?: ArtifactPaneFileSelection | null
   onPreviewClose: () => void
   /** Directory-tree model owned by the surrounding artifact capability. */
@@ -1109,6 +1110,7 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
     return (
       <div ref={artifactPaneRef} className="flex h-full min-h-0 flex-col overflow-hidden bg-card text-card-foreground">
         {paneHeader}
+        {props.directorySelector}
         <EmptyState
           icon={Sparkles}
           title={t('agent.preview_pane.empty.title')}
@@ -1122,6 +1124,7 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
     return (
       <div ref={artifactPaneRef} className="flex h-full min-h-0 flex-col overflow-hidden bg-card text-card-foreground">
         {paneHeader}
+        {props.directorySelector}
         <EmptyState icon={AlertCircle} title={t(treeErrorKeys.title)} description={t(treeErrorKeys.description)} />
       </div>
     )
@@ -1152,6 +1155,7 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
   return (
     <div ref={artifactPaneRef} className="flex h-full min-h-0 flex-col overflow-hidden text-card-foreground">
       {paneHeader}
+      {props.directorySelector}
       <div className="relative flex min-h-0 flex-1 overflow-hidden">
         {isSplit ? (
           // Swapping panel order inside a live group loops the layout, so a position change remounts it.

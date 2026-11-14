@@ -62,6 +62,7 @@ vi.mock('@renderer/hooks/agent/useAgentWorkspaceWarning', () => ({
 
 const timestamp = '2026-11-11T00:00:00.000Z'
 const workspace = {
+  additionalDirectories: [],
   id: 'workspace-1',
   type: 'user' as const,
   name: 'My workspace',

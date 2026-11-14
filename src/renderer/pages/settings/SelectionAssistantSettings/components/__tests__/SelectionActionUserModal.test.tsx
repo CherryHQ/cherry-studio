@@ -62,6 +62,7 @@ vi.mock('react-i18next', () => ({
 }))
 
 const WORKSPACE: AgentWorkspaceEntity = {
+  additionalDirectories: [],
   id: 'workspace-1',
   name: 'Docs',
   path: '/work/docs',

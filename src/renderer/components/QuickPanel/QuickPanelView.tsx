@@ -131,6 +131,7 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
   const listRef = useRef<DynamicVirtualListRef>(null)
   const footerRef = useRef<HTMLDivElement>(null)
   const readOnlyHeaderRef = useRef<HTMLDivElement>(null)
+  const controlsHeaderRef = useRef<HTMLDivElement>(null)
   const emptyStateRef = useRef<HTMLDivElement>(null)
   // Home placement only: the available height cap between the input and frame top.
   const [availableHeight, setAvailableHeight] = useState<number | null>(null)
@@ -361,6 +362,7 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
   const getCurrentPanelOptions = useCallback(
     (defaultIndex?: number): QuickPanelOpenOptions => ({
       title: ctx.title,
+      header: ctx.header,
       list: ctx.list,
       footerActions: ctx.footerActions,
       symbol: ctx.symbol,
@@ -720,6 +722,11 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
 
   const handlePanelKeyDown = useCallback(
     (e: QuickPanelKeyDownEvent) => {
+      if (
+        e.target instanceof Element &&
+        (controlsHeaderRef.current?.contains(e.target) || e.target.closest('[data-slot="select-content"]'))
+      )
+        return false
       const isReadOnlyHeaderButton =
         ctx.readOnly && e.target instanceof HTMLButtonElement && readOnlyHeaderRef.current?.contains(e.target)
       if (isReadOnlyHeaderButton && ['Enter', 'NumpadEnter', 'Tab'].includes(e.key)) return false
@@ -942,6 +949,7 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
     if (!ctx.isVisible) return
     const handleClickOutside = (e: MouseEvent) => {
       const target = e.target as HTMLElement
+      if (target.closest('[data-slot="select-content"]') && controlsHeaderRef.current) return
       if (target.closest('#inputbar')) return
       if (bodyRef.current && !bodyRef.current.contains(target)) {
         handleClose('outsideclick')
@@ -978,6 +986,7 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
       const nextChromeHeight =
         footerElement.clientHeight > 0
           ? footerElement.clientHeight +
+            (controlsHeaderRef.current?.clientHeight ?? 0) +
             (readOnlyHeaderRef.current?.clientHeight ?? 0) +
             getQuickPanelBodyVerticalSpace(getComputedStyle(bodyElement))
           : null
@@ -991,9 +1000,10 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
     resizeObserver.observe(footerElement)
     resizeObserver.observe(bodyElement)
     if (readOnlyHeaderRef.current) resizeObserver.observe(readOnlyHeaderRef.current)
+    if (controlsHeaderRef.current) resizeObserver.observe(controlsHeaderRef.current)
 
     return () => resizeObserver.disconnect()
-  }, [ctx.readOnly, footerActions.length, isPanelPresent])
+  }, [ctx.header, ctx.readOnly, footerActions.length, isPanelPresent])
 
   // Fill (home placement) measures the available height above the input against the dock layer.
   // Docked composers keep the original fixed height and skip this cap.
@@ -1142,6 +1152,11 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
         onKeyDown={handlePanelKeyDown}
         onKeyUp={handlePanelKeyUp}
         onMouseMove={handlePanelMouseMove}>
+        {ctx.header ? (
+          <div ref={controlsHeaderRef} className="shrink-0 px-3 py-2">
+            {ctx.header}
+          </div>
+        ) : null}
         {ctx.readOnly ? (
           <QuickPanelReadOnlyHeader
             containerRef={readOnlyHeaderRef}

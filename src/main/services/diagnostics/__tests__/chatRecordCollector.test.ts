@@ -74,7 +74,7 @@ const agentSession = {
   name: 'Agent session',
   isNameManuallyEdited: false,
   workspaceId: 'workspace-1',
-  workspace: { id: 'workspace-1', type: 'managed', path: '/workspace' },
+  workspace: { additionalDirectories: [], id: 'workspace-1', type: 'managed', path: '/workspace' },
   orderKey: 'a0',
   lastActivityAt: '2026-08-25T00:01:00.000Z',
   createdAt: '2026-08-24T00:00:00.000Z',

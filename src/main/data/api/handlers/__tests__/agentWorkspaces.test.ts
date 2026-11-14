@@ -26,6 +26,7 @@ const workspace = {
   id: 'workspace-1',
   name: 'Workspace',
   path: '/tmp/workspace',
+  additionalDirectories: [],
   type: 'user' as const,
   orderKey: 'a0',
   createdAt: '2026-01-01T00:00:00.000Z',
@@ -74,6 +75,15 @@ describe('agentWorkspaceHandlers', () => {
     ).rejects.toMatchObject({ code: 'VALIDATION_ERROR' })
 
     expect(updateMock).not.toHaveBeenCalled()
+  })
+
+  it('rejects directory mutations that bypass the workspace storage IPC command', async () => {
+    await expect(
+      agentWorkspaceHandlers['/agent-workspaces/:workspaceId'].PATCH({
+        params: { workspaceId: workspace.id },
+        body: { name: 'Renamed', additionalDirectories: ['/tmp/shared'] }
+      } as never)
+    ).rejects.toMatchObject({ code: 'VALIDATION_ERROR' })
   })
 
   it('delegates workspace reference lookup to AgentWorkspaceService', async () => {

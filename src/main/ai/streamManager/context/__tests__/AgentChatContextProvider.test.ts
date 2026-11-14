@@ -97,7 +97,11 @@ describe('AgentChatContextProvider', () => {
       connect: vi.fn(),
       validateSession: mocks.runtimeValidateSession
     })
-    mocks.getSession.mockReturnValue({ id: 'session-1', agentId: 'agent-1', workspace: { path: '/tmp' } })
+    mocks.getSession.mockReturnValue({
+      id: 'session-1',
+      agentId: 'agent-1',
+      workspace: { additionalDirectories: [], path: '/tmp' }
+    })
     mocks.ensureTraceIdTx.mockReturnValue('a'.repeat(32))
     mocks.getAgent.mockReturnValue({
       id: 'agent-1',
@@ -220,7 +224,7 @@ describe('AgentChatContextProvider', () => {
     const prepared = await provider.prepareDispatch(subscriber, openReq())
 
     expect(mocks.runtimeValidateSession).toHaveBeenCalledWith(
-      expect.objectContaining({ id: 'session-1', workspace: { path: '/tmp' } })
+      expect.objectContaining({ id: 'session-1', workspace: { additionalDirectories: [], path: '/tmp' } })
     )
     expect(mocks.saveMessagesTx).toHaveBeenCalledOnce()
     expect(mocks.saveMessage).not.toHaveBeenCalled()

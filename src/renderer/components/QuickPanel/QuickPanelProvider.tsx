@@ -27,6 +27,7 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
   const [list, setList] = useState<QuickPanelListItem[]>([])
   const [footerActions, setFooterActions] = useState<QuickPanelFooterAction[]>([])
   const [title, setTitle] = useState<string | undefined>()
+  const [header, setHeader] = useState<React.ReactNode>()
   const [defaultIndex, setDefaultIndex] = useState<number>(-1)
   const [pageSize, setPageSize] = useState<number>(7)
   const [multiple, setMultiple] = useState<boolean>(false)
@@ -114,6 +115,7 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
     setFilterFn(undefined)
     setSortFn(undefined)
     setTitle(undefined)
+    setHeader(undefined)
     setSymbol('')
     setDefaultIndex(-1)
     setTriggerInfo(undefined)
@@ -136,6 +138,7 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
       panelGenerationRef.current += 1
       setLastCloseAction(undefined)
       setTitle(options.title)
+      setHeader(options.header)
       setList(ensureListItemIds(options.list))
       setFooterActions(options.footerActions ?? [])
       const nextDefaultIndex = typeof options.defaultIndex === 'number' ? Math.max(-1, options.defaultIndex) : -1
@@ -233,6 +236,7 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
       list,
       footerActions,
       title,
+      header,
       defaultIndex,
       pageSize,
       multiple,
@@ -270,6 +274,7 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
       list,
       footerActions,
       title,
+      header,
       defaultIndex,
       pageSize,
       multiple,

@@ -120,6 +120,7 @@ const session = {
   agentId: 'agent-1',
   workspaceId: 'ws-1',
   workspace: {
+    additionalDirectories: [],
     id: 'ws-1',
     name: 'Workspace',
     path: resolvePath('/tmp/workspace'),
@@ -139,11 +140,12 @@ function makeSession(path: string, type: 'user' | 'system' = 'user'): AgentSessi
       id: 'ws-1',
       name: 'Workspace',
       path,
+      additionalDirectories: [],
       type,
       orderKey: 'a0',
       createdAt: '2026-05-20T00:00:00.000Z',
       updatedAt: '2026-05-20T00:00:00.000Z'
-    }
+    } satisfies AgentSessionEntity['workspace']
   } as unknown as AgentSessionEntity
 }
 

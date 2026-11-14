@@ -186,8 +186,11 @@ function makeSession(workspacePath: string | null = '/ws/a'): AgentSessionEntity
     id: 'sess-new',
     agentId: 'a1',
     name: 'Scheduled task',
+    isNameManuallyEdited: false,
+    lastActivityAt: '2026-05-20T00:00:00.000Z',
     workspaceId: 'ws-1',
     workspace: {
+      additionalDirectories: [],
       id: 'ws-1',
       name: 'ws',
       path: workspacePath ?? '/ws/a',
@@ -199,7 +202,7 @@ function makeSession(workspacePath: string | null = '/ws/a'): AgentSessionEntity
     orderKey: 'k',
     createdAt: '2026-05-20T00:00:00.000Z',
     updatedAt: '2026-05-20T00:00:00.000Z'
-  } as AgentSessionEntity
+  }
 }
 
 function makeSchedule(

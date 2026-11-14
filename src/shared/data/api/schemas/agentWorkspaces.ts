@@ -26,7 +26,10 @@ export type AgentSessionWorkspaceSource = z.infer<typeof AgentSessionWorkspaceSo
 export const AgentWorkspaceEntitySchema = z.strictObject({
   id: z.string(),
   name: AgentWorkspaceNameSchema,
+  /** Main directory, used as the default working directory. */
   path: AgentWorkspacePathSchema,
+  /** Other workspace directories, excluding the main directory. */
+  additionalDirectories: z.array(AgentWorkspacePathSchema),
   type: AgentWorkspaceTypeSchema,
   orderKey: z.string(),
   createdAt: z.string(),
@@ -34,7 +37,24 @@ export const AgentWorkspaceEntitySchema = z.strictObject({
 })
 export type AgentWorkspaceEntity = z.infer<typeof AgentWorkspaceEntitySchema>
 
-export const UpdateAgentWorkspaceSchema = AgentWorkspaceEntitySchema.pick({ name: true })
+// `name` is optional — the service derives it from the path basename when omitted.
+export const CreateAgentWorkspaceSchema = AgentWorkspaceEntitySchema.pick({
+  path: true,
+  name: true,
+  additionalDirectories: true
+}).partial({
+  name: true,
+  additionalDirectories: true
+})
+export type CreateAgentWorkspaceDto = z.infer<typeof CreateAgentWorkspaceSchema>
+
+export const UpdateAgentWorkspaceSchema = AgentWorkspaceEntitySchema.pick({
+  name: true,
+  path: true,
+  additionalDirectories: true
+})
+  .partial()
+  .refine((dto) => Object.values(dto).some((value) => value !== undefined), 'At least one workspace field is required')
 export type UpdateAgentWorkspaceDto = z.infer<typeof UpdateAgentWorkspaceSchema>
 
 export interface AgentWorkspaceReferenceItem {
@@ -67,7 +87,7 @@ export type AgentWorkspaceSchemas = {
     }
     PATCH: {
       params: { workspaceId: string }
-      body: UpdateAgentWorkspaceDto
+      body: Pick<AgentWorkspaceEntity, 'name'>
       response: AgentWorkspaceEntity
     }
   }

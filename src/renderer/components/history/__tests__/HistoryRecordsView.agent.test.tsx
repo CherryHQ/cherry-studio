@@ -363,6 +363,7 @@ async function clickBulkDelete() {
 
 function makeWorkspace(path: string): NonNullable<AgentSessionEntity['workspace']> {
   return {
+    additionalDirectories: [],
     id: `ws-${path}`,
     name: path,
     path,

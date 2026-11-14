@@ -445,7 +445,7 @@ describe('AgentChat settings panel', () => {
       id: 'session-1',
       agentId: 'agent-1',
       workspaceId: 'workspace-1',
-      workspace: { id: 'workspace-1', type: 'user', name: 'Workspace 1', path: '/workspace' }
+      workspace: { additionalDirectories: [], id: 'workspace-1', type: 'user', name: 'Workspace 1', path: '/workspace' }
     } as any
 
     renderAgentChat({
@@ -511,7 +511,7 @@ describe('AgentChat settings panel', () => {
       id: 'session-1',
       agentId: 'agent-1',
       workspaceId: 'workspace-1',
-      workspace: { id: 'workspace-1', type: 'user', name: 'Workspace 1', path: '/workspace' }
+      workspace: { additionalDirectories: [], id: 'workspace-1', type: 'user', name: 'Workspace 1', path: '/workspace' }
     } as any
 
     renderAgentChat({
@@ -530,7 +530,7 @@ describe('AgentChat settings panel', () => {
       id: 'session-1',
       agentId: 'agent-1',
       workspaceId: 'workspace-1',
-      workspace: { id: 'workspace-1', type: 'user', name: 'Workspace 1', path: '/workspace' }
+      workspace: { additionalDirectories: [], id: 'workspace-1', type: 'user', name: 'Workspace 1', path: '/workspace' }
     } as any
 
     renderAgentChat({

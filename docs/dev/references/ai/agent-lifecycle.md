@@ -176,17 +176,19 @@ Archive shutdown drains pending Claude idle-prewarm preparation and subprocess d
 before filesystem work starts, including idle or replaced entries already detached
 from the warm-query map. Failed disposal remains tracked and blocks conversion until retried.
 
-Workspace registration and storage reclamation share `AgentWorkspaceStorageService`
-in the AI domain. Registration enters through `ai.agent.workspace.register` IPC;
-DataApi retains workspace queries, metadata updates, and ordering. The domain service
+Workspace registration, directory edits, and storage reclamation share `AgentWorkspaceStorageService`
+in the AI domain. Registration uses `ai.agent.workspace.register`; main-directory and
+additional-directory edits use `ai.agent.workspace.update`. DataApi retains workspace
+queries, renaming, and ordering. The workspace `path` is its main directory;
+`additionalDirectories` contains the other registered roots. The domain service
 owns the process-local reservations, resolves filesystem identities, and combines
 persisted claims with those reservations before its synchronous database write;
 AgentWorkspaceService only reads and writes database records and publishes workspace
-membership changes after registration commits. Existing DataApi queries refresh
+membership changes after registration commits and workspace/session projections after edits. Existing DataApi queries refresh
 across windows without performing file work. Registered overlapping workspaces protect
-the whole system tree, including user directories nested below it; logical Session
+the whole system tree, including main or additional roots nested below it; logical Session
 archival still succeeds. Archive, restore, purge, and orphan sweep hold the reservation
-through their filesystem work, so new overlapping registrations fail with a
+through their filesystem work, so overlapping registrations and directory edits fail with a
 retryable conflict until it completes. Checks resolve existing path aliases, probe
 the managed containing directory's case and Unicode behavior, and include temporary
 archive and restore paths. Missing components and stale claims beneath a file remain

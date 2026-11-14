@@ -69,6 +69,7 @@ export async function prepareDurableDesktop(
   const prompt = await buildAgentRuntimePrompt({
     agent,
     workspacePath: cwd,
+    additionalDirectories: snapshot.session.workspace.additionalDirectories,
     agentDataPath,
     effectiveLanguage: snapshot.effectiveLanguage,
     citationsGuidance: buildCitationsGuidance({
@@ -235,6 +236,7 @@ export async function prepareDurableDesktop(
       approval: {
         sessionId: input.sessionId,
         workspacePath: cwd,
+        additionalDirectories: snapshot.session.workspace.additionalDirectories,
         agentDataPath,
         emit,
         getInteractionState: () => application.get('AgentSessionRuntimeService').getInteractionState(input.sessionId),

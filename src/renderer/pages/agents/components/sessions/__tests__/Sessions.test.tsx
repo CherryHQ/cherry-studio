@@ -833,6 +833,7 @@ function getSessionGroupExpansionCache() {
 
 function makeWorkspace(path: string, overrides: Partial<AgentWorkspaceEntity> = {}): AgentWorkspaceEntity {
   return {
+    additionalDirectories: [],
     id: `ws-${path}`,
     name: path.split('/').at(-1) ?? path,
     path,

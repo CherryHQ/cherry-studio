@@ -17,6 +17,7 @@ import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
 export interface PiApprovalContext {
   sessionId: string
   workspacePath: string
+  additionalDirectories?: readonly string[]
   agentDataPath: string
   additionalReadOnlyRoots: readonly string[]
   getInteractionState(): ToolGuardInteractionState
@@ -84,7 +85,7 @@ export async function readPiApprovalFacts(
         ctx.workspacePath,
         ctx.agentDataPath,
         mode === 'auto' || category === 'edit',
-        category === 'read' ? ctx.additionalReadOnlyRoots : []
+        [...(ctx.additionalDirectories ?? []), ...(category === 'read' ? ctx.additionalReadOnlyRoots : [])]
       )),
     sqliteGuard: sqlite?.reason,
     globalInstall,

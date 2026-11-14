@@ -356,7 +356,7 @@ describe('buildClaudeCodeSessionSettings', () => {
       {
         id: 'session-1',
         agentId: 'agent-1',
-        workspace: { type: 'user', path: '/workspace/project' }
+        workspace: { additionalDirectories: [], type: 'user', path: '/workspace/project' }
       } as never,
       {} as never
     )
@@ -380,7 +380,7 @@ describe('buildClaudeCodeSessionSettings', () => {
       {
         id: 'session-1',
         agentId: 'agent-1',
-        workspace: { type: 'user', path: '/workspace/project' }
+        workspace: { additionalDirectories: [], type: 'user', path: '/workspace/project' }
       } as never,
       {} as never
     )
@@ -400,7 +400,7 @@ describe('buildClaudeCodeSessionSettings', () => {
       {
         id: 'session-1',
         agentId: 'agent-1',
-        workspace: { type: 'user', path: '/workspace/project' }
+        workspace: { additionalDirectories: [], type: 'user', path: '/workspace/project' }
       } as never,
       {} as never
     )
@@ -420,7 +420,7 @@ describe('buildClaudeCodeSessionSettings', () => {
           {
             id: 'session-1',
             agentId: 'agent-1',
-            workspace: { type: 'user', path: '/workspace/project' }
+            workspace: { additionalDirectories: [], type: 'user', path: '/workspace/project' }
           } as never,
           {} as never
         )
@@ -439,7 +439,7 @@ describe('buildClaudeCodeSessionSettings', () => {
         {
           id: 'session-1',
           agentId: 'agent-1',
-          workspace: { type: 'user', path: '/workspace/project' }
+          workspace: { additionalDirectories: [], type: 'user', path: '/workspace/project' }
         } as never,
         {} as never
       )
@@ -473,7 +473,11 @@ describe('buildClaudeCodeSessionSettings', () => {
     async ({ configuration, expected }) => {
       mocks.getAgent.mockReturnValue({ ...mocks.getAgent(), configuration })
       const settings = await buildClaudeCodeSessionSettings(
-        { id: 'session-1', agentId: 'agent-1', workspace: { type: 'user', path: '/workspace/project' } } as never,
+        {
+          id: 'session-1',
+          agentId: 'agent-1',
+          workspace: { additionalDirectories: [], type: 'user', path: '/workspace/project' }
+        } as never,
         {} as never
       )
 
@@ -486,7 +490,7 @@ describe('buildClaudeCodeSessionSettings', () => {
       {
         id: 'session-1',
         agentId: 'agent-1',
-        workspace: { type: 'user', path: '/workspace/project' }
+        workspace: { additionalDirectories: [], type: 'user', path: '/workspace/project' }
       } as never,
       {} as never
     )
@@ -498,7 +502,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     const session = {
       id: 'session-1',
       agentId: 'agent-1',
-      workspace: { type: 'user', path: '/workspace/project' }
+      workspace: { additionalDirectories: [], type: 'user', path: '/workspace/project' }
     }
     const priorGet = mocks.applicationGet.getMockImplementation()!
     // Route the shared preference mock in so the shipping default decides the first assertion.
@@ -526,7 +530,7 @@ describe('buildClaudeCodeSessionSettings', () => {
       {
         id: 'session-1',
         agentId: 'agent-1',
-        workspace: { type: 'user', path: '/workspace/project' }
+        workspace: { additionalDirectories: [], type: 'user', path: '/workspace/project' }
       } as never,
       {} as never
     )
@@ -581,7 +585,7 @@ describe('buildClaudeCodeSessionSettings', () => {
       {
         id: 'session-1',
         agentId: 'agent-1',
-        workspace: { type: 'user', path: '/workspace/project' }
+        workspace: { additionalDirectories: [], type: 'user', path: '/workspace/project' }
       } as never,
       {} as never
     )
@@ -608,7 +612,7 @@ describe('buildClaudeCodeSessionSettings', () => {
       {
         id: 'session-1',
         agentId: 'agent-1',
-        workspace: { type: 'user', path: '/workspace/project' }
+        workspace: { additionalDirectories: [], type: 'user', path: '/workspace/project' }
       } as never,
       {} as never,
       { contextWindow, maxOutputTokens }
@@ -630,7 +634,7 @@ describe('buildClaudeCodeSessionSettings', () => {
       {
         id: 'session-1',
         agentId: 'agent-1',
-        workspace: { type: 'user', path: '/workspace/project' }
+        workspace: { additionalDirectories: [], type: 'user', path: '/workspace/project' }
       } as never,
       {} as never,
       { contextWindow: 1_048_600, maxOutputTokens: 1_048_600 }
@@ -646,7 +650,7 @@ describe('buildClaudeCodeSessionSettings', () => {
       {
         id: 'session-1',
         agentId: 'agent-1',
-        workspace: { type: 'user', path: '/workspace/project' }
+        workspace: { additionalDirectories: [], type: 'user', path: '/workspace/project' }
       } as never,
       {} as never,
       { contextWindow: 1_048_576, maxOutputTokens: 65_536 }
@@ -660,7 +664,7 @@ describe('buildClaudeCodeSessionSettings', () => {
       {
         id: 'session-1',
         agentId: 'agent-1',
-        workspace: { type: 'user', path: '/workspace/project' }
+        workspace: { additionalDirectories: [], type: 'user', path: '/workspace/project' }
       } as never,
       {} as never,
       { contextWindow: 1_048_576, maxOutputTokens: 393_216 }
@@ -675,7 +679,7 @@ describe('buildClaudeCodeSessionSettings', () => {
       {
         id: 'session-1',
         agentId: 'agent-1',
-        workspace: { type: 'user', path: '/workspace/project' }
+        workspace: { additionalDirectories: [], type: 'user', path: '/workspace/project' }
       } as never,
       {} as never,
       {}
@@ -696,7 +700,7 @@ describe('buildClaudeCodeSessionSettings', () => {
       {
         id: 'session-1',
         agentId: 'agent-1',
-        workspace: { type: 'user', path: '/workspace/project' }
+        workspace: { additionalDirectories: [], type: 'user', path: '/workspace/project' }
       } as never,
       {} as never,
       {}
@@ -709,7 +713,7 @@ describe('buildClaudeCodeSessionSettings', () => {
       {
         id: 'session-1',
         agentId: 'agent-1',
-        workspace: { type: 'user', path: '/workspace/project' }
+        workspace: { additionalDirectories: [], type: 'user', path: '/workspace/project' }
       } as never,
       {} as never,
       { contextWindow: 128_000 }
@@ -728,7 +732,7 @@ describe('buildClaudeCodeSessionSettings', () => {
       {
         id: 'session-1',
         agentId: 'agent-1',
-        workspace: { type: 'user', path: '/workspace/project' }
+        workspace: { additionalDirectories: [], type: 'user', path: '/workspace/project' }
       } as never,
       {} as never,
       // Wide enough that the budget would exceed the SDK's accepted maximum.
@@ -746,7 +750,7 @@ describe('buildClaudeCodeSessionSettings', () => {
         {
           id: 'session-1',
           agentId: 'agent-1',
-          workspace: { type: 'user', path: '/workspace/project' }
+          workspace: { additionalDirectories: [], type: 'user', path: '/workspace/project' }
         } as never,
         {} as never,
         { contextWindow }
@@ -766,7 +770,7 @@ describe('buildClaudeCodeSessionSettings', () => {
       {
         id: 'session-1',
         agentId: 'agent-1',
-        workspace: { type: 'user', path: '/workspace/project' }
+        workspace: { additionalDirectories: [], type: 'user', path: '/workspace/project' }
       } as never,
       {} as never,
       { contextWindow }
@@ -799,7 +803,7 @@ describe('buildClaudeCodeSessionSettings', () => {
       {
         id: 'session-1',
         agentId: 'agent-1',
-        workspace: { type: 'user', path: '/workspace/project' }
+        workspace: { additionalDirectories: [], type: 'user', path: '/workspace/project' }
       } as never,
       {} as never,
       { contextWindow: 256_000 }
@@ -832,7 +836,11 @@ describe('buildClaudeCodeSessionSettings', () => {
     mocks.findByIdOrName.mockReturnValue({ id: 'legacy-browser', name: 'edited', type: 'stdio' })
     try {
       const settings = await buildClaudeCodeSessionSettings(
-        { id: 'session-1', agentId: 'agent-1', workspace: { type: 'user', path: '/workspace/project' } } as never,
+        {
+          id: 'session-1',
+          agentId: 'agent-1',
+          workspace: { additionalDirectories: [], type: 'user', path: '/workspace/project' }
+        } as never,
         {} as never,
         { mcpServerSnapshots: snapshot as never },
         agent
@@ -861,7 +869,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     const session = {
       id: 'session-1',
       agentId: 'agent-1',
-      workspace: { type: 'user', path: '/workspace/project' }
+      workspace: { additionalDirectories: [], type: 'user', path: '/workspace/project' }
     }
 
     const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
@@ -874,7 +882,11 @@ describe('buildClaudeCodeSessionSettings', () => {
 
   it('keeps Task management available on newer models while leaving TodoWrite disabled', async () => {
     const settings = await buildClaudeCodeSessionSettings(
-      { id: 'session-1', agentId: 'agent-1', workspace: { type: 'user', path: '/workspace/project' } } as never,
+      {
+        id: 'session-1',
+        agentId: 'agent-1',
+        workspace: { additionalDirectories: [], type: 'user', path: '/workspace/project' }
+      } as never,
       {} as never
     )
 
@@ -908,7 +920,11 @@ describe('buildClaudeCodeSessionSettings', () => {
     ])
     mocks.listLocalSkillFolderNames.mockResolvedValue([...invalidNames, ...validNames, 'managed-good'])
     const settings = await buildClaudeCodeSessionSettings(
-      { id: 'session-1', agentId: 'agent-1', workspace: { type: 'user', path: '/workspace/project' } } as never,
+      {
+        id: 'session-1',
+        agentId: 'agent-1',
+        workspace: { additionalDirectories: [], type: 'user', path: '/workspace/project' }
+      } as never,
       {} as never
     )
 
@@ -922,7 +938,11 @@ describe('buildClaudeCodeSessionSettings', () => {
   it('keeps an empty skill whitelist when every discovered name is incompatible', async () => {
     mocks.listLocalSkillFolderNames.mockResolvedValue(['bad(name)', '*'])
     const settings = await buildClaudeCodeSessionSettings(
-      { id: 'session-1', agentId: 'agent-1', workspace: { type: 'user', path: '/workspace/project' } } as never,
+      {
+        id: 'session-1',
+        agentId: 'agent-1',
+        workspace: { additionalDirectories: [], type: 'user', path: '/workspace/project' }
+      } as never,
       {} as never
     )
 
@@ -951,7 +971,7 @@ describe('buildClaudeCodeSessionSettings', () => {
       {
         id: 'session-1',
         agentId: 'agent-1',
-        workspace: { type: 'user', path: '/workspace/project' }
+        workspace: { additionalDirectories: [], type: 'user', path: '/workspace/project' }
       } as never,
       {} as never
     )
@@ -985,7 +1005,7 @@ describe('buildClaudeCodeSessionSettings', () => {
       {
         id: 'session-1',
         agentId: 'agent-1',
-        workspace: { type: 'user', path: '/workspace/project' }
+        workspace: { additionalDirectories: [], type: 'user', path: '/workspace/project' }
       } as never,
       {} as never
     )
@@ -1018,7 +1038,7 @@ describe('buildClaudeCodeSessionSettings', () => {
       {
         id: 'session-1',
         agentId: 'agent-1',
-        workspace: { type: 'user', path: '/workspace/project' }
+        workspace: { additionalDirectories: [], type: 'user', path: '/workspace/project' }
       } as never,
       {} as never
     )
@@ -1045,7 +1065,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     const disabledSession = {
       id: 'session-1',
       agentId: 'agent-1',
-      workspace: { type: 'user', path: '/workspace/project' }
+      workspace: { additionalDirectories: [], type: 'user', path: '/workspace/project' }
     }
 
     const disabledSettings = await buildClaudeCodeSessionSettings(disabledSession as never, {} as never)
@@ -1082,7 +1102,7 @@ describe('buildClaudeCodeSessionSettings', () => {
       {
         id: 'session-1',
         agentId: 'agent-1',
-        workspace: { type: 'user', path: '/workspace/project' }
+        workspace: { additionalDirectories: [], type: 'user', path: '/workspace/project' }
       } as never,
       {} as never,
       { supportsImages: false }
@@ -1132,7 +1152,7 @@ describe('buildClaudeCodeSessionSettings', () => {
       {
         id: 'session-1',
         agentId: 'agent-1',
-        workspace: { type: 'user', path: '/workspace/project' }
+        workspace: { additionalDirectories: [], type: 'user', path: '/workspace/project' }
       } as never,
       {} as never
     )
@@ -1176,7 +1196,7 @@ describe('buildClaudeCodeSessionSettings', () => {
       {
         id: 'session-support',
         agentId: 'support-1',
-        workspace: { type: 'user', path: '/workspace/project' }
+        workspace: { additionalDirectories: [], type: 'user', path: '/workspace/project' }
       } as never,
       {} as never
     )
@@ -1196,7 +1216,7 @@ describe('buildClaudeCodeSessionSettings', () => {
       {
         id: 'session-normal',
         agentId: 'agent-2',
-        workspace: { type: 'user', path: '/workspace/project' }
+        workspace: { additionalDirectories: [], type: 'user', path: '/workspace/project' }
       } as never,
       {} as never
     )
@@ -1244,7 +1264,7 @@ describe('buildClaudeCodeSessionSettings', () => {
       {
         id: 'session-1',
         agentId: 'agent-1',
-        workspace: { type: 'user', path: '/workspace/project' }
+        workspace: { additionalDirectories: [], type: 'user', path: '/workspace/project' }
       } as never,
       {} as never
     )
@@ -1308,7 +1328,7 @@ describe('buildClaudeCodeSessionSettings', () => {
       {
         id: 'session-assistant',
         agentId: 'assistant-1',
-        workspace: { type: 'user', path: '/workspace/project' }
+        workspace: { additionalDirectories: [], type: 'user', path: '/workspace/project' }
       } as never,
       {} as never
     )
@@ -1339,7 +1359,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     const session = {
       id: 'session-1',
       agentId: 'agent-1',
-      workspace: { type: 'user', path: '/workspace/project' }
+      workspace: { additionalDirectories: [], type: 'user', path: '/workspace/project' }
     }
     const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
     const hooks = settings.hooks?.PreToolUse?.[0]?.hooks ?? []
@@ -1391,7 +1411,11 @@ describe('buildClaudeCodeSessionSettings', () => {
       setPermissionMode: vi.fn()
     })
     const settings = await buildClaudeCodeSessionSettings(
-      { id: 'session-1', agentId: 'agent-1', workspace: { type: 'user', path: '/workspace/project' } } as never,
+      {
+        id: 'session-1',
+        agentId: 'agent-1',
+        workspace: { additionalDirectories: [], type: 'user', path: '/workspace/project' }
+      } as never,
       {} as never
     )
     const decisions = await Promise.all(
@@ -1428,7 +1452,7 @@ describe('buildClaudeCodeSessionSettings', () => {
         const session = {
           id: 'session-1',
           agentId: 'agent-1',
-          workspace: { type: 'user', path: workspacePath }
+          workspace: { additionalDirectories: [], type: 'user', path: workspacePath }
         }
         const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
         const hooks = settings.hooks?.PreToolUse?.[0]?.hooks ?? []
@@ -1479,7 +1503,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     const session = {
       id: 'session-1',
       agentId: 'agent-1',
-      workspace: { type: 'user', path: '/workspace/project' }
+      workspace: { additionalDirectories: [], type: 'user', path: '/workspace/project' }
     }
 
     const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
@@ -1545,7 +1569,7 @@ describe('buildClaudeCodeSessionSettings', () => {
         {
           id: 'session-1',
           agentId: 'agent-1',
-          workspace: { type: 'user', path: '/workspace/project' }
+          workspace: { additionalDirectories: [], type: 'user', path: '/workspace/project' }
         } as never,
         {} as never
       )
@@ -1653,7 +1677,7 @@ describe('buildClaudeCodeSessionSettings', () => {
         {
           id: 'session-1',
           agentId: 'agent-1',
-          workspace: { type: 'user', path: '/workspace/project' }
+          workspace: { additionalDirectories: [], type: 'user', path: '/workspace/project' }
         } as never,
         {} as never
       )
@@ -1704,7 +1728,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     const session = {
       id: 'session-1',
       agentId: 'agent-1',
-      workspace: { type: 'user', path: '/workspace/project' }
+      workspace: { additionalDirectories: [], type: 'user', path: '/workspace/project' }
     }
 
     const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
@@ -1727,7 +1751,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     const session = {
       id: 'session-1',
       agentId: 'agent-1',
-      workspace: { type: 'user', path: '/workspace/project' }
+      workspace: { additionalDirectories: [], type: 'user', path: '/workspace/project' }
     }
 
     const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
@@ -1754,7 +1778,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     const session = {
       id: 'session-1',
       agentId: 'agent-1',
-      workspace: { type: 'user', path: '/workspace/project' }
+      workspace: { additionalDirectories: [], type: 'user', path: '/workspace/project' }
     }
 
     const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
@@ -1773,7 +1797,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     const session = {
       id: 'session-1',
       agentId: 'agent-1',
-      workspace: { type: 'user', path: '/workspace/project' }
+      workspace: { additionalDirectories: [], type: 'user', path: '/workspace/project' }
     }
 
     const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
@@ -1815,7 +1839,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     const session = {
       id: 'session-1',
       agentId: 'agent-1',
-      workspace: { type: 'user', path: '/workspace/project' }
+      workspace: { additionalDirectories: [], type: 'user', path: '/workspace/project' }
     }
 
     const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
@@ -1849,7 +1873,7 @@ describe('buildClaudeCodeSessionSettings', () => {
       {
         id: 'session-1',
         agentId: 'agent-1',
-        workspace: { type: 'user', path: '/workspace/project' }
+        workspace: { additionalDirectories: [], type: 'user', path: '/workspace/project' }
       } as never,
       {} as never
     )
@@ -1877,7 +1901,7 @@ describe('buildClaudeCodeSessionSettings', () => {
       {
         id: 'session-1',
         agentId: 'agent-1',
-        workspace: { type: 'user', path: '/workspace/project' }
+        workspace: { additionalDirectories: [], type: 'user', path: '/workspace/project' }
       } as never,
       {} as never
     )
@@ -1915,7 +1939,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     const session = {
       id: 'session-1',
       agentId: 'agent-1',
-      workspace: { type: 'user', path: '/workspace/project' }
+      workspace: { additionalDirectories: [], type: 'user', path: '/workspace/project' }
     }
 
     const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
@@ -1966,7 +1990,7 @@ describe('buildClaudeCodeSessionSettings', () => {
       {
         id: 'session-1',
         agentId: 'agent-1',
-        workspace: { type: 'user', path: '/workspace/project' }
+        workspace: { additionalDirectories: [], type: 'user', path: '/workspace/project' }
       } as never,
       {} as never
     )
@@ -2009,7 +2033,7 @@ describe('buildClaudeCodeSessionSettings', () => {
         {
           id: 'session-1',
           agentId: 'agent-1',
-          workspace: { type: 'user', path: '/workspace/project' }
+          workspace: { additionalDirectories: [], type: 'user', path: '/workspace/project' }
         } as never,
         {} as never
       )
@@ -2053,7 +2077,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     const session = {
       id: 'session-1',
       agentId: 'agent-1',
-      workspace: { type: 'user', path: '/workspace/project' }
+      workspace: { additionalDirectories: [], type: 'user', path: '/workspace/project' }
     }
 
     const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
@@ -2116,7 +2140,7 @@ describe('buildClaudeCodeSessionSettings', () => {
       const session = {
         id: 'session-1',
         agentId: 'agent-1',
-        workspace: { type: 'user', path: '/workspace/project' }
+        workspace: { additionalDirectories: [], type: 'user', path: '/workspace/project' }
       }
 
       const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
@@ -2164,7 +2188,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     const session = {
       id: 'session-1',
       agentId: 'agent-1',
-      workspace: { type: 'user', path: '/workspace/project' }
+      workspace: { additionalDirectories: [], type: 'user', path: '/workspace/project' }
     }
     const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
 
@@ -2215,7 +2239,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     const session = {
       id: 'session-1',
       agentId: 'agent-1',
-      workspace: { type: 'user', path: '/workspace/project' }
+      workspace: { additionalDirectories: [], type: 'user', path: '/workspace/project' }
     }
 
     const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
@@ -2264,7 +2288,7 @@ describe('buildClaudeCodeSessionSettings', () => {
       {
         id: 'session-1',
         agentId: 'agent-1',
-        workspace: { type: 'user', path: '/workspace/project' }
+        workspace: { additionalDirectories: [], type: 'user', path: '/workspace/project' }
       } as never,
       {} as never
     )
@@ -2310,7 +2334,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     const session = {
       id: 'session-1',
       agentId: 'support-1',
-      workspace: { type: 'user', path: workspacePath }
+      workspace: { additionalDirectories: [], type: 'user', path: workspacePath }
     }
 
     const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
@@ -2336,7 +2360,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     const session = {
       id: 'session-1',
       agentId: 'agent-1',
-      workspace: { type: 'user', path: '/workspace/project' }
+      workspace: { additionalDirectories: [], type: 'user', path: '/workspace/project' }
     }
 
     const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
@@ -2375,7 +2399,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     const session = {
       id: 'session-1',
       agentId: 'agent-1',
-      workspace: { type: 'user', path: '/workspace/project' }
+      workspace: { additionalDirectories: [], type: 'user', path: '/workspace/project' }
     }
 
     const settings = await buildClaudeCodeSessionSettings(session as never, {} as never, {
@@ -2393,7 +2417,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     const session = {
       id: 'session-1',
       agentId: 'agent-1',
-      workspace: { type: 'user', path: '/workspace/project' }
+      workspace: { additionalDirectories: [], type: 'user', path: '/workspace/project' }
     }
     const notificationContext = {
       sourceChannel: null,
@@ -2425,7 +2449,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     const session = {
       id: 'session-1',
       agentId: 'agent-1',
-      workspace: { type: 'user', path: '/workspace/project' }
+      workspace: { additionalDirectories: [], type: 'user', path: '/workspace/project' }
     }
 
     const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
@@ -2473,7 +2497,7 @@ describe('buildClaudeCodeSessionSettings', () => {
       {
         id: 'session-1',
         agentId: 'support-1',
-        workspace: { type: 'user', path: '/workspace/project' }
+        workspace: { additionalDirectories: [], type: 'user', path: '/workspace/project' }
       } as never,
       {} as never
     )
@@ -2515,7 +2539,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     const session = {
       id: 'session-1',
       agentId: 'agent-1',
-      workspace: { type: 'user', path: '/workspace/project' }
+      workspace: { additionalDirectories: [], type: 'user', path: '/workspace/project' }
     }
 
     const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
@@ -2540,7 +2564,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     const session = {
       id: 'session-1',
       agentId: 'agent-1',
-      workspace: { type: 'user', path: '/workspace/project' }
+      workspace: { additionalDirectories: [], type: 'user', path: '/workspace/project' }
     }
     const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
     const rtkRewriteHook = settings.hooks?.PreToolUse?.[0]?.hooks?.find((hook) => hook.name === 'rtkRewriteHook')
@@ -2581,7 +2605,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     const session = {
       id: 'session-1',
       agentId: 'agent-1',
-      workspace: { type: 'user', path: '/workspace/project' }
+      workspace: { additionalDirectories: [], type: 'user', path: '/workspace/project' }
     }
 
     const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
@@ -2594,7 +2618,11 @@ describe('buildClaudeCodeSessionSettings', () => {
   // reach the running subprocess instead of a stale per-build instance.
   describe('warm-pool session-state resolution', () => {
     const sessionWith = (id: string) =>
-      ({ id, agentId: 'agent-1', workspace: { type: 'user', path: '/workspace/project' } }) as never
+      ({
+        id,
+        agentId: 'agent-1',
+        workspace: { additionalDirectories: [], type: 'user', path: '/workspace/project' }
+      }) as never
 
     const preToolUseHooks = (settings: Awaited<ReturnType<typeof buildClaudeCodeSessionSettings>>) =>
       settings.hooks?.PreToolUse?.[0]?.hooks ?? []
@@ -2951,7 +2979,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     const session = {
       id: 'session-1',
       agentId: 'agent-1',
-      workspace: { type: 'user', path: '/workspace/project' }
+      workspace: { additionalDirectories: [], type: 'user', path: '/workspace/project' }
     }
 
     it('keeps the user setting source isolated when using the real CLI config', async () => {
@@ -3080,7 +3108,7 @@ describe('buildClaudeCodeSessionSettings', () => {
       return {
         id: 'session-1',
         agentId: 'agent-1',
-        workspace: { type: 'user', path: '/workspace/project' }
+        workspace: { additionalDirectories: [], type: 'user', path: '/workspace/project' }
       }
     }
 
@@ -3124,7 +3152,11 @@ describe('buildClaudeCodeSessionSettings', () => {
       await expect(
         prepareClaudeCodeWorkspaceDirectory({
           id: 'session-1',
-          workspace: { type: 'system', path: '/app/feature.agents.system_workspaces/session-1' }
+          workspace: {
+            additionalDirectories: [],
+            type: 'system',
+            path: '/app/feature.agents.system_workspaces/session-1'
+          }
         } as never)
       ).rejects.toMatchObject({ retryable })
     })
@@ -3293,5 +3325,20 @@ describe('buildClaudeCodeSessionSettings', () => {
 
       expect(mocks.mcpSubscriptionDispose).toHaveBeenCalledOnce()
     })
+  })
+  it('passes the main and additional directories to the SDK without dropping agent data access', async () => {
+    const settings = await buildClaudeCodeSessionSettings(
+      {
+        id: 'session-1',
+        agentId: 'agent-1',
+        workspace: { type: 'user', path: '/workspace/project', additionalDirectories: ['/workspace/shared'] }
+      } as never,
+      {} as never
+    )
+    expect(settings.cwd).toBe('/workspace/project')
+    expect(settings.additionalDirectories).toEqual([
+      path.join('/app/feature.agents.data', 'agent-1'),
+      '/workspace/shared'
+    ])
   })
 })

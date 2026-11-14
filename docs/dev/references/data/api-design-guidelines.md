@@ -500,7 +500,7 @@ Fences (all hard):
 | `POST/PATCH/DELETE /agents/:agentId/tasks…` (schedule mutation) | Mixed-effect command (schedule row + business rows + timer), not CRUD | IpcApi `ai.agent.task.*` → `AgentJobsService`. Task DataApi is GET-only. |
 | `POST /agents/:agentId/restore` | Agent state plus schedule timers and Channel connections | IpcApi `ai.agent.restore` → `AgentLifecycleService`; DB-only primitives stay in data services. |
 | `POST/DELETE /temporary/topics…` (temporary chat lease / persist) | In-memory runtime state in `TemporaryChatService`, not a SQLite table | IpcApi `ai.temporary_topic.{create,delete,persist}`; persisted topics are then read and updated through `/topics`. |
-  | Workspace registration | Physical path identity and active storage-operation admission plus a workspace row | IpcApi `ai.agent.workspace.register` → `AgentWorkspaceStorageService`; workspace DataApi is query/update/order only. |
+  | Workspace registration and directory edits | Physical path identity and active storage-operation admission plus a workspace row | IpcApi `ai.agent.workspace.register` / `ai.agent.workspace.update` → `AgentWorkspaceStorageService`; workspace DataApi is query/rename/order only. |
 
 ### Why Misuse is Harmful
 

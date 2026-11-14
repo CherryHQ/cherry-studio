@@ -21,6 +21,7 @@ const restoredSession: AgentSessionEntity = {
   name: 'Restored task',
   workspaceId: 'workspace-1',
   workspace: {
+    additionalDirectories: [],
     id: 'workspace-1',
     name: 'Workspace',
     path: '/tmp/workspace',

@@ -55,6 +55,7 @@ const CHERRY = {
   configuration: { builtin_role: 'assistant' }
 }
 const DOCS: AgentWorkspaceEntity = {
+  additionalDirectories: [],
   id: 'ws-1',
   name: 'Docs',
   path: '/work/docs',

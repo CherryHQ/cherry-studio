@@ -15,6 +15,7 @@ const agentPageMocks = vi.hoisted(() => ({
   historyOnActiveRecordChange: undefined as ((sessionId: string | null) => void) | undefined,
   historyOnPending: undefined as ((id: string | null) => void) | undefined,
   workspace: {
+    additionalDirectories: [],
     id: 'workspace-a',
     name: 'Workspace A',
     path: '/workspace/a',
@@ -24,6 +25,7 @@ const agentPageMocks = vi.hoisted(() => ({
     updatedAt: '2026-01-01T00:00:00.000Z'
   },
   workspaceNext: {
+    additionalDirectories: [],
     id: 'workspace-next',
     name: 'Workspace Next',
     path: '/workspace/next',
@@ -39,6 +41,7 @@ const agentPageMocks = vi.hoisted(() => ({
     description: '',
     workspaceId: 'workspace-a',
     workspace: {
+      additionalDirectories: [],
       id: 'workspace-a',
       name: 'Workspace A',
       path: '/workspace/a',
@@ -1158,11 +1161,7 @@ describe('AgentPage', () => {
         id: 'session-picker',
         agentId: 'agent-b',
         workspaceId: undefined,
-        workspace: {
-          type: 'system',
-          name: 'No project',
-          path: ''
-        }
+        workspace: { additionalDirectories: [], type: 'system', name: 'No project', path: '' }
       })
       await Promise.resolve()
     })
@@ -1204,11 +1203,7 @@ describe('AgentPage', () => {
         id: 'session-picker',
         agentId: 'agent-b',
         workspaceId: undefined,
-        workspace: {
-          type: 'system',
-          name: 'No project',
-          path: ''
-        }
+        workspace: { additionalDirectories: [], type: 'system', name: 'No project', path: '' }
       })
       await Promise.resolve()
     })
@@ -1574,11 +1569,7 @@ describe('AgentPage', () => {
       id: 'session-picker',
       agentId: 'agent-b',
       workspaceId: undefined,
-      workspace: {
-        type: 'system',
-        name: 'No project',
-        path: ''
-      }
+      workspace: { additionalDirectories: [], type: 'system', name: 'No project', path: '' }
     })
 
     render(<AgentPage />)
@@ -1624,11 +1615,7 @@ describe('AgentPage', () => {
       id: 'session-picker-system-workspace',
       agentId: 'agent-b',
       workspaceId: undefined,
-      workspace: {
-        type: 'system',
-        name: 'No project',
-        path: ''
-      }
+      workspace: { additionalDirectories: [], type: 'system', name: 'No project', path: '' }
     })
 
     render(<AgentPage />)
@@ -1819,7 +1806,7 @@ describe('AgentPage', () => {
       createdAt: '2026-01-03T00:00:00.000Z',
       updatedAt: '2026-01-03T03:00:00.000Z',
       workspaceId: undefined,
-      workspace: { type: 'system', name: 'No project', path: '' }
+      workspace: { additionalDirectories: [], type: 'system', name: 'No project', path: '' }
     }
     activeSessionMocks.sessionSource = 'query'
     agentPageMocks.classicLayoutSessions = [
@@ -2114,7 +2101,7 @@ describe('AgentPage', () => {
       id: 'session-active',
       agentId: 'agent-a',
       workspaceId: undefined,
-      workspace: { type: 'system', name: 'No project', path: '' }
+      workspace: { additionalDirectories: [], type: 'system', name: 'No project', path: '' }
     }
     activeSessionMocks.sessionSource = 'query'
     agentPageMocks.setSessionWorkspace.mockResolvedValue({
@@ -2158,7 +2145,7 @@ describe('AgentPage', () => {
       id: 'session-created',
       agentId: 'agent-b',
       workspaceId: undefined,
-      workspace: { type: 'system', name: 'No project', path: '' }
+      workspace: { additionalDirectories: [], type: 'system', name: 'No project', path: '' }
     })
 
     render(<AgentPage />)
@@ -2464,7 +2451,7 @@ describe('AgentPage', () => {
       agentId: 'agent-b',
       name: '',
       workspaceId: undefined,
-      workspace: { type: 'system', name: 'No project', path: '' }
+      workspace: { additionalDirectories: [], type: 'system', name: 'No project', path: '' }
     })
 
     const { rerender } = render(<AgentPage />)
