@@ -6,6 +6,7 @@ import { useMutation, useQuery } from '@data/hooks/useDataApi'
 import { useDataChange } from '@data/hooks/useDataChange'
 import { loggerService } from '@logger'
 import { getProviderDisplayName } from '@renderer/utils/naming'
+import { isDataApiNotFoundError } from '@shared/data/api/errors'
 import type {
   CreateProviderDto,
   ListProvidersQuery,
@@ -287,12 +288,12 @@ export { getProviderDisplayName }
  * use `useProviders()` + `getProviderDisplayName` to avoid hook-in-loop.
  */
 export function useProviderDisplayName(providerId: string | undefined): string {
-  const { data } = useQuery('/providers/:providerId', {
+  const { data, error } = useQuery('/providers/:providerId', {
     params: { providerId: providerId ?? '' },
     enabled: !!providerId,
     swrOptions: { keepPreviousData: false }
   })
-  return getProviderDisplayName(data)
+  return isDataApiNotFoundError(error) ? '' : getProviderDisplayName(data)
 }
 
 // ─── Dynamic ID operations (for context menus, URL schema handlers) ──
