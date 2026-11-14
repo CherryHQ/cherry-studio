@@ -106,6 +106,16 @@ describe('projectDiagnosticAiDiagnosis', () => {
     ).toEqual({ source: 'doctor-agent', status: 'canceled', text: 'Stopped after the first check.' })
   })
 
+  it('replaces local home directories the same way as the error context', () => {
+    const projected = projectDiagnosticAiDiagnosis({
+      source: 'doctor-agent',
+      status: 'completed',
+      text: 'Config at /Users/alice/.cherry/config.json and C:\\Users\\bob\\AppData is unreadable.'
+    })
+
+    expect(projected?.text).toBe('Config at ~/.cherry/config.json and ~\\AppData is unreadable.')
+  })
+
   it('drops a diagnosis whose text is empty after redaction', () => {
     expect(projectDiagnosticAiDiagnosis({ source: 'error-summary', status: 'completed', text: '   ' })).toBeUndefined()
   })

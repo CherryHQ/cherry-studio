@@ -5,6 +5,7 @@ import {
   isSensitiveKey,
   redactDeep,
   REDACTED,
+  redactDiagnosticText,
   redactLiteral,
   redactRecord,
   redactSecretText,
@@ -319,6 +320,35 @@ describe('redactSecretText', () => {
     const message = realTomlParseErrorMessage(`api_key = "sk-ant-don't-SECRET"\nbroken=====`)
     expect(message).toContain('SECRET') // sanity: the real message does leak it pre-redaction
     expect(redactSecretText(message)).not.toContain('SECRET')
+  })
+})
+
+describe('redactDiagnosticText', () => {
+  it.each([
+    ['open /Users/alice/Documents/a.pdf', 'open ~/Documents/a.pdf'],
+    ['open /home/carol/c.pdf', 'open ~/c.pdf'],
+    ['open C:\\Users\\bob\\Desktop\\b.pdf', 'open ~\\Desktop\\b.pdf'],
+    ['open c:\\users\\bob\\Desktop', 'open ~\\Desktop'],
+    ['{"path":"C:\\\\Users\\\\bob\\\\Desktop"}', '{"path":"~\\\\Desktop"}'],
+    ['open C:\\Users\\John Smith\\AppData\\x.log', 'open ~\\AppData\\x.log'],
+    ['open C:/Users/John Smith/AppData', 'open ~/AppData']
+  ])('replaces the home directory in %s', (text, expected) => {
+    expect(redactDiagnosticText(text)).toBe(expected)
+  })
+
+  it('stops a username at the first word when no separator follows it', () => {
+    expect(redactDiagnosticText('missing C:\\Users\\bob is gone; retry')).toBe('missing ~ is gone; retry')
+  })
+
+  it('leaves URL paths that merely contain a home-like segment intact', () => {
+    const text = 'GET https://example.com/home/docs and https://example.com/Users/list failed'
+    expect(redactDiagnosticText(text)).toBe(text)
+  })
+
+  it('redacts secrets together with the home directory', () => {
+    const result = redactDiagnosticText('Bearer sk-proj-abcdefghijklmnopqrstuvwxyz123456 at /Users/alice/app.js')
+    expect(result).not.toContain('sk-proj-abcdefghijklmnopqrstuvwxyz123456')
+    expect(result).not.toContain('alice')
   })
 })
 
