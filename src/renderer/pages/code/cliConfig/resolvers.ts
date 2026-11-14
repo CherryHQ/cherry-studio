@@ -26,6 +26,14 @@ export interface PiProviderInfo {
   endpointType: EndpointType
 }
 
+export type OmpApi = PiApi
+
+export interface OmpProviderInfo {
+  api: OmpApi
+  baseUrl: string
+  endpointType: EndpointType
+}
+
 export const HERMES_API_MODES = ['anthropic_messages', 'chat_completions', 'codex_responses'] as const
 export type HermesApiMode = (typeof HERMES_API_MODES)[number]
 
@@ -130,6 +138,12 @@ export function resolvePiProviderInfo(provider: Provider, modelEndpointTypes?: E
         : withoutTrailingSlash(rawBaseUrl ?? '')
 
   return { api: apiByEndpoint[endpointType]!, baseUrl, endpointType }
+}
+
+export function resolveOmpProviderInfo(provider: Provider, modelEndpointTypes?: EndpointType[]): OmpProviderInfo {
+  // OMP inherits Pi's provider schema; delegate so endpoint mapping stays in sync.
+  // OmpApi is an alias of PiApi and OmpProviderInfo is structurally identical to PiProviderInfo.
+  return resolvePiProviderInfo(provider, modelEndpointTypes)
 }
 
 export function resolveHermesProviderInfo(provider: Provider, modelEndpointTypes?: EndpointType[]): HermesProviderInfo {
