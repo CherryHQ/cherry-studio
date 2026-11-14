@@ -173,20 +173,36 @@ describe('showSupportedMessageBox', () => {
   it('returns a secondary choice after the primary indices, and Cancel goes back to the first dialog', async () => {
     showMessageBox
       .mockResolvedValueOnce({ response: 4 })
-      .mockResolvedValueOnce({ response: 1 }) // Cancel
+      .mockResolvedValueOnce({ response: 2 }) // Cancel
       .mockResolvedValueOnce({ response: 4 })
-      .mockResolvedValueOnce({ response: 0 }) // Use Default
+      .mockResolvedValueOnce({ response: 1 }) // Reset
+
+    const response = await showSupportedMessageBox({ box, secondaryButtons: ['Use Default', 'Reset'] })
+
+    expect(response).toBe(3)
+    expect(showMessageBox).toHaveBeenCalledTimes(4)
+  })
+
+  it('keeps a single secondary entry on the first row instead of a More… that would take its slot', async () => {
+    showMessageBox.mockResolvedValueOnce({ response: 2 })
 
     const response = await showSupportedMessageBox({ box, secondaryButtons: ['Use Default'] })
 
     expect(response).toBe(2)
-    expect(showMessageBox).toHaveBeenCalledTimes(4)
+    expect(showMessageBox).toHaveBeenCalledOnce()
+    expect(showMessageBox.mock.calls[0][0].buttons).toEqual([
+      'Retry',
+      'Quit',
+      'Use Default',
+      'Copy error and send feedback…',
+      'Open download page'
+    ])
   })
 
-  it('reaches both support actions while a caller action sits behind More…', async () => {
+  it('reaches both support actions next to a single inline caller action', async () => {
     showMessageBox
-      .mockResolvedValueOnce({ response: 2 })
       .mockResolvedValueOnce({ response: 3 })
+      .mockResolvedValueOnce({ response: 4 })
       .mockResolvedValueOnce({ response: 0 })
 
     await showSupportedMessageBox({
