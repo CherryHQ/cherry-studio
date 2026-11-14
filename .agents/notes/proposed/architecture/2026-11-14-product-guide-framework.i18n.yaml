@@ -1,5 +1,5 @@
 # Bilingual-pair consistency record (docs/dev/i18n/README.md).
 # After editing either side, update its counterpart and re-record with:
 #   pnpm docs:check-pairing --write .agents/notes/proposed/architecture/2026-11-14-product-guide-framework.md
-2026-11-14-product-guide-framework.md: e39094f152cdea4430a21f8f09c10e2f782dfe45
-2026-11-14-product-guide-framework.zh.md: ae005593cd5d78692c9fbf78c0b70b4a95007d4f
+2026-11-14-product-guide-framework.md: 46f8e3360dd73a57c9466cee30f155b403cd0a4d
+2026-11-14-product-guide-framework.zh.md: 9daa958488da33b0d5aa00b8e99201b7e0287127
