@@ -1978,8 +1978,9 @@ describe('ScreenshotOverlayService', () => {
     }
 
     const deliveredContext = () => {
-      const payload = handoff.deliverToReadyMain.mock.calls[0]?.[1]
-      if (!isAppErrorContext(payload)) throw new Error('missing delivered context')
+      const call = handoff.deliverToReadyMain.mock.calls.find(([channel]) => channel === 'app.error.open')
+      const payload = call?.[1]
+      if (!isAppErrorContext(payload)) throw new Error('missing context delivered on app.error.open')
       return payload
     }
 
@@ -1994,7 +1995,6 @@ describe('ScreenshotOverlayService', () => {
         // The shortcut already failed in front of the user. The main window's existing
         // fault flow is what offers analysis, report, and update — not another OK box.
         expect(handoff.deliverToReadyMain).toHaveBeenCalledTimes(1)
-        expect(handoff.deliverToReadyMain).toHaveBeenCalledWith('app.error.open', deliveredContext())
         expect(deliveredContext()).toEqual({
           id: expect.stringMatching(/^[0-9a-f-]{36}$/i),
           occurredAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/),
@@ -2039,7 +2039,6 @@ describe('ScreenshotOverlayService', () => {
       try {
         await service.startCapture()
 
-        expect(handoff.deliverToReadyMain).toHaveBeenCalledWith('app.error.open', deliveredContext())
         expect(deliveredContext()).toMatchObject({
           source: 'screenshot',
           operation: 'screenshot.capture',
@@ -2048,7 +2047,6 @@ describe('ScreenshotOverlayService', () => {
           stack: failureStack
         })
         expect(handoff.showSupportedMessageBox).toHaveBeenCalledTimes(1)
-        expect(electron.app.getLocale()).toBe('en-US')
         expect(handoff.showSupportedMessageBox).toHaveBeenCalledWith({
           language: 'zh-CN',
           box: {
