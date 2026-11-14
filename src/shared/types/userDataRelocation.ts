@@ -27,6 +27,8 @@ export type UserDataRelocationInspection =
 export const UserDataRelocationIpcChannels = {
   GetProgress: 'user-data-relocation:get-progress',
   Restart: 'user-data-relocation:restart',
+  // Feedback mailto or the edition's download page. The renderer names a purpose; main resolves the URL.
+  OpenSupportLink: 'user-data-relocation:open-support-link',
   // Main -> Renderer progress event
   Progress: 'user-data-relocation:progress'
 } as const

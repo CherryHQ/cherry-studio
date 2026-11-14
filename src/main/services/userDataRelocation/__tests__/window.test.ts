@@ -2,19 +2,30 @@ import { EventEmitter } from 'node:events'
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { browserWindowMock, ipcHandleMock, ipcRemoveHandlerMock, validateSenderMock } = vi.hoisted(() => ({
+const {
+  browserWindowMock,
+  getAppEditionMock,
+  ipcHandleMock,
+  ipcRemoveHandlerMock,
+  shellOpenExternalMock,
+  validateSenderMock
+} = vi.hoisted(() => ({
   browserWindowMock: vi.fn(),
+  getAppEditionMock: vi.fn(() => 'global'),
   ipcHandleMock: vi.fn(),
   ipcRemoveHandlerMock: vi.fn(),
+  shellOpenExternalMock: vi.fn(),
   validateSenderMock: vi.fn(() => true)
 }))
 
 vi.mock('@main/core/platform', () => ({ isDev: false, isMac: false }))
 vi.mock('@application', () => ({ application: { getPath: vi.fn(() => '/app') } }))
 vi.mock('@main/core/security/validateSender', () => ({ validateSender: validateSenderMock }))
+vi.mock('@main/utils/appEdition', () => ({ getAppEdition: getAppEditionMock }))
 vi.mock('electron', () => ({
   BrowserWindow: browserWindowMock,
-  ipcMain: { handle: ipcHandleMock, removeHandler: ipcRemoveHandlerMock }
+  ipcMain: { handle: ipcHandleMock, removeHandler: ipcRemoveHandlerMock },
+  shell: { openExternal: shellOpenExternalMock }
 }))
 
 import { UserDataRelocationIpcChannels } from '@shared/types/userDataRelocation'
@@ -31,10 +42,10 @@ interface MockWindow extends EventEmitter {
 }
 
 let window: MockWindow
-let handlers: Map<string, (event: unknown) => unknown>
+let handlers: Map<string, (event: unknown, payload?: unknown) => unknown>
 
-function invoke(channel: string): unknown {
-  return handlers.get(channel)?.({})
+function invoke(channel: string, payload?: unknown): unknown {
+  return handlers.get(channel)?.({}, payload)
 }
 
 function makeWindow(): MockWindow {
@@ -126,6 +137,7 @@ describe('userDataRelocation window', () => {
     expect(onRestart).toHaveBeenCalledTimes(1)
     expect(ipcRemoveHandlerMock).toHaveBeenCalledWith(UserDataRelocationIpcChannels.GetProgress)
     expect(ipcRemoveHandlerMock).toHaveBeenCalledWith(UserDataRelocationIpcChannels.Restart)
+    expect(ipcRemoveHandlerMock).toHaveBeenCalledWith(UserDataRelocationIpcChannels.OpenSupportLink)
   })
 
   it('keeps the window and restart channel available when the restart callback throws', async () => {
@@ -178,6 +190,45 @@ describe('userDataRelocation window', () => {
     openUserDataRelocationWindow({ getProgress: () => progress, onRestart: vi.fn(() => true) })
 
     expect(invoke(UserDataRelocationIpcChannels.GetProgress)).toEqual(progress)
+  })
+
+  it('opens support feedback and the download page of the running edition', async () => {
+    shellOpenExternalMock.mockResolvedValue(undefined)
+    getAppEditionMock.mockReturnValue('cn')
+    openUserDataRelocationWindow({ getProgress: () => null, onRestart: vi.fn() })
+
+    await expect(invoke(UserDataRelocationIpcChannels.OpenSupportLink, 'feedback')).resolves.toBe(true)
+    await expect(invoke(UserDataRelocationIpcChannels.OpenSupportLink, 'download')).resolves.toBe(true)
+
+    expect(shellOpenExternalMock.mock.calls).toEqual([
+      [expect.stringMatching(/^mailto:support@cherry-ai\.com/)],
+      ['https://cherryai.com.cn/download']
+    ])
+  })
+
+  it('rejects an untrusted sender and an unapproved destination without opening either', async () => {
+    const onRestart = vi.fn()
+    validateSenderMock.mockReturnValue(false)
+    openUserDataRelocationWindow({ getProgress: () => null, onRestart })
+
+    expect(() => invoke(UserDataRelocationIpcChannels.OpenSupportLink, 'download')).toThrow('untrusted sender')
+    expect(shellOpenExternalMock).not.toHaveBeenCalled()
+    expect(onRestart).not.toHaveBeenCalled()
+
+    validateSenderMock.mockReturnValue(true)
+    await expect(invoke(UserDataRelocationIpcChannels.OpenSupportLink, 'https://cherryai.com/download')).resolves.toBe(
+      false
+    )
+    await expect(invoke(UserDataRelocationIpcChannels.OpenSupportLink, 'https://evil.example')).resolves.toBe(false)
+    expect(shellOpenExternalMock).not.toHaveBeenCalled()
+  })
+
+  it('returns false when an approved support link cannot be opened', async () => {
+    shellOpenExternalMock.mockRejectedValueOnce(new Error('no mail client'))
+    openUserDataRelocationWindow({ getProgress: () => null, onRestart: vi.fn() })
+
+    await expect(invoke(UserDataRelocationIpcChannels.OpenSupportLink, 'feedback')).resolves.toBe(false)
+    expect(shellOpenExternalMock).toHaveBeenCalledWith(expect.stringMatching(/^mailto:/))
   })
 
   it('rejects relocation IPC requests from an untrusted sender', () => {

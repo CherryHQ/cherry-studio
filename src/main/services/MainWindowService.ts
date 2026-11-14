@@ -10,13 +10,20 @@ import { loggerService } from '@logger'
 import { installDevtoolsExtensions } from '@main/core/devtools'
 import { BaseService, Emitter, type Event, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isLinux, isLinuxWayland, isMac, isWin } from '@main/core/platform'
+import { setHandedOffErrorPresenter } from '@main/core/preboot/crashTelemetry'
+import { showSupportedMessageBox } from '@main/core/preboot/nativeErrorDialog'
 import { isAppRendererUrl } from '@main/core/security/validateSender'
 import { getTitleBarOverlay, syncTitleBarOverlayWithTheme } from '@main/core/window/titleBarOverlay'
 import { WindowType } from '@main/core/window/types'
 import { isMiniAppPartition } from '@main/features/miniApp/runtime/partition'
-import { t } from '@main/i18n'
+import { getAppLanguage, t } from '@main/i18n'
 import { openRequestPath } from '@main/services/file'
-import { openTabInMainWindow, resetMainRendererTabAttachDelivery } from '@main/services/mainWindowNavigation'
+import {
+  deliverToReadyMain,
+  openTabInMainWindow,
+  queueMainRendererFault,
+  resetMainRendererTabAttachDelivery
+} from '@main/services/mainWindowNavigation'
 import {
   AgentDevPreviewRequestPolicy,
   AgentHtmlArtifactRequestPolicy,
@@ -95,6 +102,9 @@ export class MainWindowService extends BaseService {
     this.registerDisposable(() => {
       for (const cleanup of this.externalWebsiteCleanups) cleanup()
     })
+    // Background faults must not pull a hidden or minimized window to the front.
+    setHandedOffErrorPresenter((context) => deliverToReadyMain('app.error.open', context, { reveal: false }))
+    this.registerDisposable(() => setHandedOffErrorPresenter(null))
     this.registerDisposable(
       windowManager.onWindowCreated(({ type, window }) => {
         if (type !== WindowType.Main) this.setupExternalWebsiteHandlers(window)
@@ -339,13 +349,38 @@ export class MainWindowService extends BaseService {
       const lastCrashTime = this.lastRendererProcessCrashTime
       this.lastRendererProcessCrashTime = currentTime
       if (currentTime - lastCrashTime > 60 * 1000) {
-        // 如果大于1分钟，则重启渲染进程
+        // Reload the renderer and present the fault once it can receive IPC again.
+        // A second crash inside this window exits after a native dialog.
+        queueMainRendererFault(`Renderer process crashed: ${JSON.stringify(details)}`.slice(0, 4000))
         mainWindow.webContents.reload()
       } else {
         // 如果小于1分钟，则退出应用, 可能是连续crash，需要退出应用
-        application.forceExit(1)
+        void this.exitAfterRepeatedRendererCrash(details)
       }
     })
+  }
+
+  private async exitAfterRepeatedRendererCrash(details: Electron.RenderProcessGoneDetails): Promise<void> {
+    try {
+      const language = getAppLanguage()
+      await showSupportedMessageBox({
+        language,
+        box: {
+          type: 'error',
+          title: t('dialog.renderer_crash.title', undefined, language),
+          message: t('dialog.renderer_crash.message', undefined, language),
+          detail: t('dialog.renderer_crash.detail', undefined, language),
+          buttons: [t('dialog.support.exit', undefined, language)],
+          defaultId: 0,
+          cancelId: 0
+        },
+        technicalDetail: `Renderer process crashed: ${JSON.stringify(details)}`
+      })
+    } catch (error) {
+      logger.error('Repeated renderer crash dialog could not be shown', error as Error)
+    } finally {
+      application.forceExit(1)
+    }
   }
 
   private setupMaximize(mainWindow: BrowserWindow, isMaximized: boolean) {

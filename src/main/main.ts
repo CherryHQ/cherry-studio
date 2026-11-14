@@ -19,6 +19,7 @@ import { prepareBackupRestoreSession, runBackupRestoreGate } from '@main/core/pr
 import { configureChromiumFlags } from '@main/core/preboot/chromiumFlags'
 import { initCrashTelemetry } from '@main/core/preboot/crashTelemetry'
 import { runLegacyUpgradeGate } from '@main/core/preboot/legacyUpgradeGate'
+import { showSupportedMessageBox } from '@main/core/preboot/nativeErrorDialog'
 import { requireSingleInstance } from '@main/core/preboot/singleInstance'
 import { resolveUserDataLocation } from '@main/core/preboot/userDataLocation'
 import { MINI_APP_SCHEME_DECLARATION } from '@main/features/miniApp/runtime/protocol'
@@ -46,6 +47,7 @@ protocol.registerSchemesAsPrivileged([CHERRY_MEDIA_SCHEME_DECLARATION, MINI_APP_
 import { app, protocol } from 'electron'
 
 import { loggerService } from '@logger'
+import { resolveSystemLanguage, t } from '@main/i18n'
 
 import { registerIpc } from './ipc'
 import { versionService } from './services/VersionService'
@@ -54,7 +56,7 @@ const logger = loggerService.withContext('MainEntry')
 
 const startApp = async () => {
   // Reset before backup, migration, or services open user data.
-  runDataReset()
+  await runDataReset()
 
   // userData relocation: a pending/failed relocation makes this a dedicated
   // relocation launch (execute or explain, then relaunch) before any service
@@ -99,5 +101,30 @@ const startApp = async () => {
 // for unexpected errors that escape the normal handling path.
 startApp().catch((error) => {
   logger.error('Fatal startup error:', error)
-  application.forceExit(1)
+  const technicalDetail = error instanceof Error ? `${error.name}: ${error.message}` : String(error)
+  // Labels are built only after ready. t() without a language reads PreferenceService,
+  // and app.getLocale requires ready on Windows. Both are unavailable in this catch.
+  const present = async () => {
+    if (typeof app.isReady === 'function' && !app.isReady()) await app.whenReady()
+    const language = resolveSystemLanguage(app.getLocale())
+    await showSupportedMessageBox({
+      box: {
+        type: 'error',
+        title: t('dialog.startup.title', undefined, language),
+        message: t('dialog.startup.message', undefined, language),
+        detail: t('dialog.startup.detail', undefined, language),
+        buttons: [t('dialog.support.exit', undefined, language)],
+        defaultId: 0,
+        cancelId: 0
+      },
+      technicalDetail
+    })
+  }
+  void present()
+    .catch((dialogError) => {
+      logger.error('Failed to present the startup error', dialogError as Error)
+    })
+    .finally(() => {
+      application.forceExit(1)
+    })
 })

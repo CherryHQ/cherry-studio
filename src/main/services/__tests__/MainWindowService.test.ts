@@ -202,6 +202,7 @@ vi.mock('@main/core/lifecycle', async () => {
 import { app, dialog, session } from 'electron'
 import { shell } from 'electron'
 
+import { presentProductionUnhandledRejection } from '@main/core/preboot/crashTelemetry'
 import { WindowType } from '@main/core/window/types'
 import { getAppEdition } from '@main/utils/appEdition'
 import type * as ExternalUrlSafety from '@main/utils/externalUrlSafety'
@@ -211,7 +212,11 @@ import { HTML_ARTIFACT_PREVIEW_DATA_URL_PREFIX, HTML_ARTIFACT_PREVIEW_PARTITION 
 import { getWebviewPartition, WebviewSecurityProfile } from '@shared/utils/webviewSecurity'
 
 import { contextMenu } from '../ContextMenu'
-import { markMainRendererReadyForTabAttach, resetMainRendererTabAttachDelivery } from '../mainWindowNavigation'
+import {
+  markMainRendererReadyForTabAttach,
+  resetMainRendererTabAttachDelivery,
+  setMainSurfaceReceiver
+} from '../mainWindowNavigation'
 import { MainWindowService } from '../MainWindowService'
 
 interface MockBrowserWindow extends EventEmitter {
@@ -420,6 +425,36 @@ describe('MainWindowService', () => {
       expect(dialog.showMessageBox).not.toHaveBeenCalled()
       expect(shell.openExternal).not.toHaveBeenCalled()
     })
+  })
+
+  it('shows main-process rejections in a visible main window without raising a hidden one', async () => {
+    await (svc as any).onInit()
+    Object.assign(win.webContents, { isLoadingMainFrame: () => false, isCrashed: () => false })
+    windowManagerMock.getWindowsByType.mockReturnValue([win])
+    windowManagerMock.getWindowId.mockReturnValue('main-ready-test')
+    windowManagerMock.getWindowType.mockReturnValue(WindowType.Main)
+    windowManagerMock.getWindow.mockReturnValue(win)
+    const ipc = createMockApplication().get('IpcApiService') as { send: ReturnType<typeof vi.fn> }
+    try {
+      markMainRendererReadyForTabAttach('main-ready-test')
+      setMainSurfaceReceiver('error', true)
+      ipc.send.mockClear()
+
+      win.isVisible.mockReturnValue(false)
+      expect(presentProductionUnhandledRejection(new Error('hidden fault'), 1)).toBe(false)
+      expect(win.show).not.toHaveBeenCalled()
+
+      win.isVisible.mockReturnValue(true)
+      expect(presentProductionUnhandledRejection(new Error('database locked'), 2)).toBe(true)
+      expect(ipc.send).toHaveBeenCalledExactlyOnceWith(
+        'main-ready-test',
+        'app.error.open',
+        expect.objectContaining({ operation: 'process.unhandledRejection', message: 'database locked' })
+      )
+    } finally {
+      resetMainRendererTabAttachDelivery()
+      windowManagerMock.getWindowsByType.mockReturnValue([])
+    }
   })
 
   it('keeps tab delivery ready during child loading and in-page navigation, but queues during a main-document reload', async () => {
@@ -1574,19 +1609,42 @@ describe('MainWindowService', () => {
       expect(applicationMock.forceExit).not.toHaveBeenCalled()
     })
 
-    it('forceExits on second crash within 60 seconds', () => {
+    function crashTwiceWithinOneMinute() {
       attachCrashMonitor(svc, win)
       const listener = getCrashListener(win)
       const realNow = Date.now
       try {
-        Date.now = vi.fn().mockReturnValueOnce(1000).mockReturnValueOnce(1500)
+        Date.now = vi.fn().mockReturnValueOnce(100_000).mockReturnValueOnce(100_500)
         listener(null, { reason: 'crashed' })
         listener(null, { reason: 'crashed' })
       } finally {
         Date.now = realNow
       }
+    }
 
-      expect(applicationMock.forceExit).toHaveBeenCalledWith(1)
+    it('explains a second crash within 60 seconds before force-exiting', async () => {
+      let closeDialog!: (value: { response: number; checkboxChecked: boolean }) => void
+      vi.mocked(dialog.showMessageBox).mockReturnValueOnce(new Promise((resolve) => (closeDialog = resolve)))
+
+      crashTwiceWithinOneMinute()
+      await nextImmediate()
+
+      expect(vi.mocked(dialog.showMessageBox).mock.lastCall?.[0]).toMatchObject({
+        type: 'error',
+        message: 'The Cherry Studio window crashed again shortly after recovering.'
+      })
+      expect(applicationMock.forceExit).not.toHaveBeenCalled()
+
+      closeDialog({ response: 0, checkboxChecked: false })
+      await vi.waitFor(() => expect(applicationMock.forceExit).toHaveBeenCalledWith(1))
+    })
+
+    it('still force-exits when the repeated-crash dialog fails', async () => {
+      vi.mocked(dialog.showMessageBox).mockRejectedValueOnce(new Error('dialog unavailable'))
+
+      crashTwiceWithinOneMinute()
+
+      await vi.waitFor(() => expect(applicationMock.forceExit).toHaveBeenCalledWith(1))
     })
 
     // Regression guard for the "A JavaScript error occurred in the main process" dialog:

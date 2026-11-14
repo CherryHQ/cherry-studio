@@ -112,7 +112,9 @@ preboot/
 ├── crashTelemetry.ts    crashReporter + process-level error hooks +
 │                        webContents hardening (Document-Policy response
 │                        header and unresponsive renderer call-stack
-│                        collection)
+│                        collection). Unhandled rejections are logged and
+│                        deduped here; MainWindowService registers the
+│                        presenter via setHandedOffErrorPresenter()
 ├── backupRestoreGate.ts
 │                        backup-restore gate; promotes a staged restored DB
 │                        (if any) at the top of startApp(), after the
@@ -128,6 +130,12 @@ preboot/
 ├── legacyUpgradeGate.ts blocks unmigrated profiles before bootstrap and
 │                        offers a platform-specific intermediate-version download.
 │                        Detection lives in data/migration/legacyUpgrade.ts.
+├── nativeErrorDialog.ts showSupportedMessageBox(): native error dialog with
+│                        caller buttons plus Copy-and-feedback / Download page
+│                        support actions, always on the first row; two or more
+│                        secondary entries move behind "More…" past four
+│                        buttons, a single one stays on the row; usable
+│                        before any window or lifecycle service exists
 └── __tests__/           unit tests for each sibling module
 ```
 

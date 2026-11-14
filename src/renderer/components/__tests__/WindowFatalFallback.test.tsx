@@ -43,8 +43,10 @@ describe('WindowFatalFallback', () => {
     const details = screen.getByText((_, element) => element?.textContent === errorMessage)
     // The global body rule disables selection; this class is the user-visible bug contract.
     expect(details).toHaveClass('selectable')
+    expect(screen.getAllByRole('button', { name: i18n.t('error.boundary.copy') })).toHaveLength(1)
+    expect(screen.queryByRole('button', { name: i18n.t('common.copy') })).not.toBeInTheDocument()
 
-    await user.click(screen.getByRole('button', { name: i18n.t('common.copy') }))
+    await user.click(screen.getByRole('button', { name: i18n.t('error.boundary.copy') }))
 
     expect(writeText).toHaveBeenCalledWith(errorMessage)
   })
@@ -56,6 +58,75 @@ describe('WindowFatalFallback', () => {
     await user.click(screen.getByRole('button', { name: i18n.t('error.boundary.default.reload') }))
 
     expect(request).toHaveBeenCalledWith('window.main.reload', undefined)
+  })
+
+  it('copies the technical error and exports that same snapshot', async () => {
+    const user = userEvent.setup()
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    vi.stubGlobal('navigator', { clipboard: { writeText } })
+    request.mockResolvedValue({ ok: true, data: { status: 'busy' } })
+    render(<WindowFatalFallback error={new Error('boom from provider')} resetErrorBoundary={vi.fn()} />)
+
+    await user.click(screen.getByRole('button', { name: i18n.t('error.boundary.copy') }))
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining('boom from provider'))
+
+    await user.click(screen.getByRole('button', { name: i18n.t('error.boundary.export') }))
+    expect(request).toHaveBeenCalledWith(
+      'diagnostics.bundle.export',
+      expect.objectContaining({
+        includeChatRecords: false,
+        includeLogs: true,
+        errorContext: expect.objectContaining({
+          source: 'renderer',
+          operation: 'react.render',
+          message: 'boom from provider'
+        })
+      })
+    )
+    expect(await screen.findByText(i18n.t('error.boundary.export_busy'))).toBeInTheDocument()
+    expect(screen.getByText(i18n.t('error.boundary.analysis_unavailable'))).toBeInTheDocument()
+  })
+
+  it('shows the inline action error when clipboard write fails', async () => {
+    const user = userEvent.setup()
+    const writeText = vi.fn().mockRejectedValue(new Error('clipboard denied'))
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText }
+    })
+    render(<WindowFatalFallback error={new Error('boom from provider')} resetErrorBoundary={vi.fn()} />)
+
+    await user.click(screen.getByRole('button', { name: i18n.t('error.boundary.copy') }))
+
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining('boom from provider'))
+    const actionFailed = i18n.t('error.boundary.action_failed')
+    const inlineError = await screen.findByText(actionFailed)
+    expect(inlineError).toHaveAttribute('role', 'alert')
+  })
+
+  it('clears a stale action error once a retry starts, and confirms a successful copy inline', async () => {
+    const user = userEvent.setup()
+    const writeText = vi.fn().mockRejectedValueOnce(new Error('clipboard denied')).mockResolvedValueOnce(undefined)
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } })
+    render(<WindowFatalFallback error={new Error('boom from provider')} resetErrorBoundary={vi.fn()} />)
+    const copy = screen.getByRole('button', { name: i18n.t('error.boundary.copy') })
+
+    await user.click(copy)
+    expect(await screen.findByText(i18n.t('error.boundary.action_failed'))).toBeInTheDocument()
+
+    await user.click(copy)
+    expect(await screen.findByText(i18n.t('common.copied'))).toBeInTheDocument()
+    expect(screen.queryByText(i18n.t('error.boundary.action_failed'))).not.toBeInTheDocument()
+  })
+
+  it('opens the download page of the running edition', async () => {
+    const user = userEvent.setup()
+    vi.stubGlobal('__APP_EDITION__', 'cn')
+    render(<WindowFatalFallback error={new Error('boom')} resetErrorBoundary={vi.fn()} />)
+
+    await user.click(screen.getByRole('button', { name: i18n.t('error.update_banner.open_releases') }))
+
+    expect(request).toHaveBeenCalledWith('system.shell.open_external_website', 'https://cherryai.com.cn/download')
   })
 
   it('opens devtools when the devtools button is clicked', async () => {
