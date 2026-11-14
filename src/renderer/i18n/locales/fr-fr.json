@@ -2228,7 +2228,6 @@
   "library.config.basic.max_tokens": "Jetons max",
   "library.config.basic.max_tool_calls": "Appels d'outil max",
   "library.config.basic.max_tool_calls_default": "Par défaut ({{count}} tours)",
-  "library.config.basic.mcp_mode": "Mode MCP",
   "library.config.basic.model_clear": "Clair",
   "library.config.basic.model_not_found": "Modèle introuvable (peut avoir été supprimé) : {{id}}",
   "library.config.basic.model_pick": "+ Choisir le modèle",

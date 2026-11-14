@@ -2228,7 +2228,6 @@
   "library.config.basic.max_tokens": "Token massimi",
   "library.config.basic.max_tool_calls": "Cicli massimi di chiamata degli strumenti",
   "library.config.basic.max_tool_calls_default": "Predefinito ({{count}} cicli)",
-  "library.config.basic.mcp_mode": "Modalità MCP",
   "library.config.basic.model_clear": "Svuota",
   "library.config.basic.model_not_found": "Modello non trovato (potrebbe essere stato rimosso): {{id}}",
   "library.config.basic.model_pick": "Scegli modello",

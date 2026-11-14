@@ -2228,7 +2228,6 @@
   "library.config.basic.max_tokens": "Maksimum token sayısı",
   "library.config.basic.max_tool_calls": "Maksimum araç çağrısı turu",
   "library.config.basic.max_tool_calls_default": "Varsayılan ({{count}} tur)",
-  "library.config.basic.mcp_mode": "MCP Modu",
   "library.config.basic.model_clear": "Temizle",
   "library.config.basic.model_not_found": "Model bulunamadı (kaldırılmış olabilir): {{id}}",
   "library.config.basic.model_pick": "Model seç",

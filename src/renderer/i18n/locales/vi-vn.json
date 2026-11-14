@@ -2228,7 +2228,6 @@
   "library.config.basic.max_tokens": "Số token tối đa",
   "library.config.basic.max_tool_calls": "Số lần gọi công cụ tối đa",
   "library.config.basic.max_tool_calls_default": "Mặc định ({{count}} vòng)",
-  "library.config.basic.mcp_mode": "Chế độ MCP",
   "library.config.basic.model_clear": "Rõ ràng",
   "library.config.basic.model_not_found": "Không tìm thấy mô hình (có thể đã bị xóa): {{id}}",
   "library.config.basic.model_pick": "+ Chọn mô hình",

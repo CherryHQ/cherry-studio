@@ -2228,7 +2228,6 @@
   "library.config.basic.max_tokens": "Максимальное количество токенов",
   "library.config.basic.max_tool_calls": "Максимальное количество вызовов инструментов",
   "library.config.basic.max_tool_calls_default": "По умолчанию ({{count}} раундов)",
-  "library.config.basic.mcp_mode": "Режим MCP",
   "library.config.basic.model_clear": "Очистить",
   "library.config.basic.model_not_found": "Модель не найдена (возможно, была удалена): {{id}}",
   "library.config.basic.model_pick": "+ Выбрать модель",
