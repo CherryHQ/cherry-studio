@@ -99,6 +99,17 @@ describe('usePaintingGenerationGuard', () => {
     })
   })
 
+  it('hands a non-Error catalog rejection on unchanged instead of an English stand-in', async () => {
+    const rejection = { code: 'CATALOG_UNAVAILABLE', message: 'catalog down' }
+    const { result } = renderGuard({ ensureCurrentCatalog: vi.fn(() => Promise.reject(rejection)) })
+
+    await expect(result.current.validateBeforeGenerate()).resolves.toEqual({
+      ok: false,
+      reason: 'catalog_error',
+      error: rejection
+    })
+  })
+
   it('allows a selected model that resolves through the current catalog load', async () => {
     const { result } = renderGuard({
       painting: {

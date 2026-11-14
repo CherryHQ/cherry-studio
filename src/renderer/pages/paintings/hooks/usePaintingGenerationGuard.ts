@@ -12,7 +12,7 @@ export type PaintingGenerationGuardReason =
 
 export type PaintingGenerationGuardResult =
   | { ok: true }
-  | { ok: false; reason: PaintingGenerationGuardReason; error?: Error }
+  | { ok: false; reason: PaintingGenerationGuardReason; error?: unknown }
 
 interface UsePaintingGenerationGuardInput {
   painting: Pick<PaintingData, 'providerId' | 'mode' | 'model'>
@@ -40,11 +40,7 @@ export function usePaintingGenerationGuard({ painting, ensureCurrentCatalog }: U
     try {
       ensuredOptions = await ensureCurrentCatalog()
     } catch (error) {
-      return {
-        ok: false,
-        reason: 'catalog_error',
-        error: error instanceof Error ? error : new Error('Failed to load painting models')
-      }
+      return { ok: false, reason: 'catalog_error', error }
     }
 
     const ensuredOption = ensuredOptions.find((option) => option.value === modelId)

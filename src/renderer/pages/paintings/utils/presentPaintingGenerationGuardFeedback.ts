@@ -13,7 +13,7 @@ function openProviderSettings(providerId: string) {
 
 export async function presentPaintingGenerationGuardFeedback(
   reason: PaintingGenerationGuardReason,
-  error?: Error,
+  error?: unknown,
   providerId?: string
 ) {
   if (reason === 'provider_disabled') {

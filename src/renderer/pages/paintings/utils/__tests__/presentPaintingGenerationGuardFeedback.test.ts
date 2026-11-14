@@ -42,6 +42,18 @@ describe('presentPaintingGenerationGuardFeedback', () => {
     expect(openSettingsTab).not.toHaveBeenCalled()
   })
 
+  it('falls back to the translated caption when the rejection carries no message', () => {
+    void presentPaintingGenerationGuardFeedback('catalog_error', { code: 'CATALOG_UNAVAILABLE' }, 'provider-1')
+
+    expect(toast.error).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          errorContext: expect.objectContaining({ message: 'paintings.req_error_model' })
+        })
+      })
+    )
+  })
+
   it('keeps model-unavailable and missing-model captions without a raw cause', () => {
     void presentPaintingGenerationGuardFeedback('model_unavailable')
     void presentPaintingGenerationGuardFeedback('model_missing')
