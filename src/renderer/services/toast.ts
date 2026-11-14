@@ -96,7 +96,7 @@ function errorFromException(error: unknown, context: ErrorToastContext = {}): st
           .join(' · ') || undefined,
     cause: error,
     data: {
-      source: context.mcpServer ? 'mcp' : provider ? 'provider' : 'toast',
+      ...(context.mcpServer ? { source: 'mcp' } : provider ? { source: 'provider' } : {}),
       operation: `toast.${category}`,
       localizedErrorMessage: title,
       ...(provider ? { providerId: provider.id } : {}),
