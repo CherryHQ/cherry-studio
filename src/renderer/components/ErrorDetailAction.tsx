@@ -17,10 +17,7 @@ function sameDetailInput(left: InlineErrorDetailInput, right: InlineErrorDetailI
     left.message === right.message &&
     left.providerId === right.providerId &&
     left.modelId === right.modelId &&
-    left.recordId === right.recordId &&
-    left.imageOnly === right.imageOnly &&
-    left.params === right.params &&
-    left.allowParams === right.allowParams
+    left.recordId === right.recordId
   )
 }
 
@@ -74,18 +71,7 @@ export function ErrorDetailAction(props: InlineErrorDetailInput) {
     return () => {
       cancelled = true
     }
-  }, [
-    props.allowParams,
-    props.error,
-    props.imageOnly,
-    props.message,
-    props.modelId,
-    props.operation,
-    props.params,
-    props.providerId,
-    props.recordId,
-    props.source
-  ])
+  }, [props.error, props.message, props.modelId, props.operation, props.providerId, props.recordId, props.source])
 
   const openCurrent = () => {
     const ready = requestRef.current

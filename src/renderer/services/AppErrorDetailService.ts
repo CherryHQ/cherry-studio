@@ -32,9 +32,6 @@ export interface InlineErrorDetailInput {
   readonly providerId?: string
   readonly modelId?: string
   readonly recordId?: string
-  readonly imageOnly?: boolean
-  readonly params?: Readonly<Record<string, unknown>>
-  readonly allowParams?: readonly string[]
 }
 
 function explicitDetailMessage(error: unknown, explicit?: string): string | undefined {
@@ -45,7 +42,6 @@ function explicitDetailMessage(error: unknown, explicit?: string): string | unde
 
 /** Build one detail request without pulling schema code into a fallback's static graph. */
 export function buildInlineErrorDetailRequest(input: InlineErrorDetailInput): AppErrorDetailRequest {
-  const summary = summarizeErrorParams(input.params, input.allowParams)
   const shown = explicitDetailMessage(input.error, input.message)
   const context = contextFromUnknown(input.error, {
     source: input.source,
@@ -53,9 +49,7 @@ export function buildInlineErrorDetailRequest(input: InlineErrorDetailInput): Ap
     ...(shown ? { message: shown } : {}),
     ...(input.providerId ? { providerId: input.providerId } : {}),
     ...(input.modelId ? { modelId: input.modelId } : {}),
-    ...(input.recordId ? { recordId: input.recordId } : {}),
-    ...(input.imageOnly ? { imageOnly: true } : {}),
-    ...(summary ? { params: summary } : {})
+    ...(input.recordId ? { recordId: input.recordId } : {})
   })
   const serializedError = diagnosticErrorFromUnknown(input.error)
   const explicit = input.message?.trim()
