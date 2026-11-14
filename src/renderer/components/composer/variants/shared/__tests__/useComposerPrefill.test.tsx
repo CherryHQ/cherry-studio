@@ -1,8 +1,10 @@
-import { act, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
+import type { ReactNode } from 'react'
 import { useRef, useState } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { ComposerSerializedDraft } from '@renderer/components/composer/tokens'
+import { cacheService } from '@renderer/data/CacheService'
 import { popup } from '@renderer/services/popup'
 
 import { requestComposerPrefill, useComposerPrefill } from '../useComposerPrefill'
@@ -36,7 +38,29 @@ describe('useComposerPrefill', () => {
   beforeEach(() => {
     vi.mocked(popup.confirm).mockClear()
     vi.mocked(popup.confirm).mockResolvedValue(true)
+    cacheService.setPersist('ui.composer.prefill_confirm_hidden', false)
   })
+
+  // Holds the dialog open so the test can render its content, tick the box, then answer.
+  const holdDialog = () => {
+    let answer: (confirmed: boolean) => void = () => {}
+    let content: ReactNode = null
+    vi.mocked(popup.confirm).mockImplementation(
+      (props) =>
+        new Promise<boolean>((resolve) => {
+          content = props.content
+          answer = resolve
+        })
+    )
+    return {
+      tickAndAnswer: async (confirmed: boolean) => {
+        const view = render(<>{content}</>)
+        fireEvent.click(screen.getByRole('checkbox'))
+        view.unmount()
+        await act(async () => answer(confirmed))
+      }
+    }
+  }
 
   it('fills an empty draft and focuses the composer without asking', async () => {
     render(<Composer />)
@@ -55,6 +79,7 @@ describe('useComposerPrefill', () => {
 
     expect(popup.confirm).toHaveBeenCalledTimes(1)
     expect(screen.getByRole('textbox', { name: 'Draft' })).toHaveValue('Remember my habits:')
+    expect(cacheService.getPersist('ui.composer.prefill_confirm_hidden')).toBe(false)
   })
 
   it('keeps a non-empty draft when the user declines', async () => {
@@ -81,5 +106,31 @@ describe('useComposerPrefill', () => {
     await prefill('topic-b', 'Not for this composer')
 
     expect(screen.getByRole('textbox', { name: 'Draft' })).toHaveValue('')
+  })
+
+  it('stops asking after the user confirms with "don\'t ask again" ticked', async () => {
+    const dialog = holdDialog()
+    render(<Composer initialText="draft" />)
+
+    await prefill(TOPIC_ID, 'First suggestion')
+    await dialog.tickAndAnswer(true)
+    expect(screen.getByRole('textbox', { name: 'Draft' })).toHaveValue('First suggestion')
+
+    await prefill(TOPIC_ID, 'Second suggestion')
+
+    expect(popup.confirm).toHaveBeenCalledTimes(1)
+    expect(screen.getByRole('textbox', { name: 'Draft' })).toHaveValue('Second suggestion')
+  })
+
+  it('keeps asking when the user cancels with "don\'t ask again" ticked', async () => {
+    const dialog = holdDialog()
+    render(<Composer initialText="draft" />)
+
+    await prefill(TOPIC_ID, 'A suggestion')
+    await dialog.tickAndAnswer(false)
+    await prefill(TOPIC_ID, 'Another suggestion')
+
+    expect(popup.confirm).toHaveBeenCalledTimes(2)
+    expect(screen.getByRole('textbox', { name: 'Draft' })).toHaveValue('draft')
   })
 })
