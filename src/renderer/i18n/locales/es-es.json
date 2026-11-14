@@ -1005,6 +1005,8 @@
   "chat.profile_pane.tasks.new_prompt": "Crea una tarea programada para mí: ",
   "chat.profile_pane.tasks.title": "Tareas programadas",
   "chat.profile_pane.title": "Perfil",
+  "chat.profile_pane.try_asking.hide": "Ocultar",
+  "chat.profile_pane.try_asking.title": "Prueba a preguntar",
   "chat.profile_pane.workspace.idle": "Inactivo",
   "chat.profile_pane.workspace.running": "En ejecución",
   "chat.profile_pane.workspace.title": "Espacio de trabajo",

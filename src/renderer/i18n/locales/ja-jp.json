@@ -1005,6 +1005,8 @@
   "chat.profile_pane.tasks.new_prompt": "スケジュールタスクを作成してください：",
   "chat.profile_pane.tasks.title": "スケジュールタスク",
   "chat.profile_pane.title": "プロフィール",
+  "chat.profile_pane.try_asking.hide": "非表示",
+  "chat.profile_pane.try_asking.title": "こんな質問はいかが",
   "chat.profile_pane.workspace.idle": "待機中",
   "chat.profile_pane.workspace.running": "実行中",
   "chat.profile_pane.workspace.title": "ワークスペース",

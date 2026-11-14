@@ -1005,6 +1005,8 @@
   "chat.profile_pane.tasks.new_prompt": "Erstellen Sie für mich eine geplante Aufgabe: ",
   "chat.profile_pane.tasks.title": "Geplante Aufgaben",
   "chat.profile_pane.title": "Profil",
+  "chat.profile_pane.try_asking.hide": "Ausblenden",
+  "chat.profile_pane.try_asking.title": "Fragen Sie zum Beispiel",
   "chat.profile_pane.workspace.idle": "Inaktiv",
   "chat.profile_pane.workspace.running": "Läuft",
   "chat.profile_pane.workspace.title": "Arbeitsbereich",

@@ -459,6 +459,10 @@ export type RendererPersistCacheSchema = {
   'ui.chat.resource_pane.width': number
   // Right-pane width for the Assistant / Agent profile; its own key so the other panes keep theirs.
   'ui.chat.profile_pane.width': number
+  // Generated Agent suggestions / Assistant opening questions, regenerated when the identity hash changes.
+  'ui.chat.profile_pane.starters': CacheValueTypes.ProfileStartersCache
+  // Assistant / Agent IDs whose suggestions or opening questions the user hid.
+  'ui.chat.profile_pane.hidden_starters': string[]
   // Recent composer inputs shared by chat and agent surfaces (MRU order, capped by the consumer)
   'ui.composer.input_history': string[]
   'ui.chat.last_used_assistant_id': string | null
@@ -538,6 +542,8 @@ export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
   'ui.chat.artifact_pane.width': 280,
   'ui.chat.resource_pane.width': 275, // keep in sync with 'ui.chat.sidebar.width'
   'ui.chat.profile_pane.width': 360,
+  'ui.chat.profile_pane.starters': {},
+  'ui.chat.profile_pane.hidden_starters': [],
   'ui.composer.input_history': [],
   'ui.chat.last_used_assistant_id': null,
   'ui.chat.last_used_topic_id': null,

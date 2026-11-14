@@ -1,5 +1,4 @@
-import { ChevronRight, Clock, Database, FolderOpen, GitBranch, Sparkles, Zap } from 'lucide-react'
-import type { ReactNode } from 'react'
+import { Clock, Database, FolderOpen, GitBranch, MessageSquare, Sparkles, Zap } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -11,15 +10,24 @@ import { TaskFormDialog } from '@renderer/components/ScheduledTask/TaskFormDialo
 import { useDataChange, useQuery } from '@renderer/data/hooks/useDataApi'
 import { useAgentSessionStreamStatuses } from '@renderer/hooks/agent/useAgentSessionStreamStatuses'
 import { useSetTaskEnabled, useUpdateTask } from '@renderer/hooks/agent/useTasks'
+import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBase'
 import { useMcpServers } from '@renderer/hooks/useMcpServer'
+import { useInstalledSkills } from '@renderer/hooks/useSkills'
 import { buildAgentSessionTopicId, getChannelTypeIcon } from '@renderer/utils/agentSession'
 import { cn } from '@renderer/utils/style'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
+import type { ProfileStarter, ProfileStarterKind } from '@shared/data/cache/cacheValueTypes'
 import type { AgentEntity, ScheduledTaskEntity } from '@shared/data/types/agent'
 import type { AgentTaskPatch } from '@shared/ipc/schemas/ai'
 
-import { ProfilePaneSection, ProfilePaneSectionAction } from './ProfilePaneParts'
+import {
+  ProfilePaneSection,
+  ProfilePaneSectionAction,
+  type ProfileStarterCard,
+  ProfileStartersSection
+} from './ProfilePaneParts'
 import { ProfileStatTiles } from './ProfilePaneStats'
+import { useProfileStarters } from './useProfileStarters'
 
 const EMPTY_TASKS: ScheduledTaskEntity[] = []
 /** Copy of each suggestion; `prompt` is what goes into the composer. */
@@ -79,7 +87,11 @@ export function AgentProfileActivity({
   sessionId?: string
   workspace?: AgentProfileWorkspace
 }) {
-  const { data: taskPage, refetch: refetchTasks } = useQuery('/agents/:agentId/tasks', {
+  const {
+    data: taskPage,
+    isLoading: tasksLoading,
+    refetch: refetchTasks
+  } = useQuery('/agents/:agentId/tasks', {
     params: { agentId: agent.id },
     query: { limit: 100 }
   })
@@ -93,7 +105,7 @@ export function AgentProfileActivity({
     <>
       <AgentUsage agentId={agent.id} />
       <ScheduledTasksSection agent={agent} tasks={tasks} onFillComposer={fillComposer} />
-      <SuggestionsSection agent={agent} hasTasks={tasks.length > 0} onFillComposer={fillComposer} />
+      <SuggestionsSection agent={agent} tasks={tasks} tasksLoading={tasksLoading} onFillComposer={fillComposer} />
       {workspace ? <WorkspaceSection workspace={workspace} sessionId={sessionId} /> : null}
     </>
   )
@@ -185,81 +197,133 @@ function ScheduledTasksSection({
 }
 
 type SuggestionId = keyof typeof SUGGESTION_COPY
-type Suggestion = { id: SuggestionId; icon: ReactNode; run: () => void }
+
+/** Today's rule-based list, shown when nothing could be generated. */
+const FALLBACK_SUGGESTIONS: { id: SuggestionId; kind: ProfileStarterKind }[] = [
+  { id: 'feishu', kind: 'channel-feishu' },
+  { id: 'wechat', kind: 'channel-wechat' },
+  { id: 'daily', kind: 'schedule' },
+  { id: 'github', kind: 'github' },
+  { id: 'skills', kind: 'skills' },
+  { id: 'memory', kind: 'memory' },
+  { id: 'knowledge', kind: 'knowledge' }
+]
+
+const KIND_ICONS: Record<Exclude<ProfileStarterKind, 'channel-feishu' | 'channel-wechat'>, typeof Clock> = {
+  schedule: Clock,
+  github: GitBranch,
+  skills: Zap,
+  memory: Sparkles,
+  knowledge: Database,
+  generic: MessageSquare
+}
+
+function SuggestionIcon({ kind }: { kind: ProfileStarterKind }) {
+  if (kind === 'channel-feishu' || kind === 'channel-wechat') {
+    return (
+      <img
+        src={getChannelTypeIcon(kind.slice('channel-'.length))}
+        alt=""
+        className="size-4 rounded-sm object-contain"
+      />
+    )
+  }
+  const Icon = KIND_ICONS[kind]
+  return <Icon className="size-4 text-muted-foreground" />
+}
+
+const listOrNone = (items: string[]) => (items.length ? items.join(', ') : 'none')
 
 function SuggestionsSection({
   agent,
-  hasTasks,
+  tasks,
+  tasksLoading,
   onFillComposer
 }: {
   agent: AgentEntity
-  hasTasks: boolean
+  tasks: ScheduledTaskEntity[]
+  tasksLoading: boolean
   onFillComposer?: (text: string) => void
 }) {
   const { t } = useTranslation()
-  const [hidden, setHidden] = useState(false)
   const caps = AGENT_RUNTIME_CAPABILITIES[agent.type]
-  const { data: channels } = useQuery('/agent-channels', { query: { agentId: agent.id } })
-  const { mcpServers } = useMcpServers(undefined, { enabled: caps.mcp })
+  const knowledgeBaseIds = agent.knowledgeBaseIds ?? []
+  const { data: channels, isLoading: channelsLoading } = useQuery('/agent-channels', { query: { agentId: agent.id } })
+  const { mcpServers, isLoading: mcpLoading } = useMcpServers(undefined, { enabled: caps.mcp })
+  const { skills, loading: skillsLoading } = useInstalledSkills(agent.id, { enabled: caps.skills })
+  const { bases, isLoading: basesLoading } = useKnowledgeBases({ enabled: knowledgeBaseIds.length > 0 })
   const linkedServerIds = new Set(agent.mcps ?? [])
-  const githubLinked = mcpServers.some((server) => linkedServerIds.has(server.id) && GITHUB_PATTERN.test(server.name))
+  const linkedServers = mcpServers.filter((server) => linkedServerIds.has(server.id))
+  const githubLinked = linkedServers.some((server) => GITHUB_PATTERN.test(server.name))
+  const setup = [
+    `Connected channels: ${listOrNone((channels ?? []).map((channel) => channel.type))}`,
+    `Scheduled tasks: ${listOrNone(tasks.map((task) => task.name))}`,
+    caps.mcp ? `Linked MCP servers: ${listOrNone(linkedServers.map((server) => server.name))}` : 'MCP: not supported',
+    caps.knowledgeBases
+      ? `Linked knowledge bases: ${listOrNone(bases.filter((base) => knowledgeBaseIds.includes(base.id)).map((base) => base.name))}`
+      : 'Knowledge bases: not supported',
+    caps.skills
+      ? `Enabled skills: ${listOrNone(skills.filter((skill) => skill.isEnabled).map((skill) => skill.name))}`
+      : 'Skills: not supported'
+  ].join('\n')
+  const starters = useProfileStarters({
+    ownerId: agent.id,
+    mode: 'agent',
+    identity: { name: agent.name, description: agent.description, prompt: agent.instructions },
+    context: setup,
+    ready: !tasksLoading && !channelsLoading && !mcpLoading && !skillsLoading && !basesLoading,
+    enabled: !!onFillComposer
+  })
 
-  if (hidden) return null
+  if (starters.hidden) return null
 
-  const icon = (Icon: typeof Clock) => <Icon className="size-4 text-muted-foreground" />
-  const channelIcon = (type: string) => (
-    <img src={getChannelTypeIcon(type)} alt="" className="size-4 rounded-sm object-contain" />
-  )
-  const prompt = (id: Exclude<SuggestionId, 'knowledge'>) => () => onFillComposer?.(t(SUGGESTION_COPY[id].prompt))
-  // Only what is not done yet; each entry asks the Agent to do it in this conversation.
-  const candidates: (Suggestion | false)[] = [
-    !!onFillComposer && !channels?.length && { id: 'feishu', icon: channelIcon('feishu'), run: prompt('feishu') },
-    !!onFillComposer &&
-      !channels?.some((channel) => channel.type === 'wechat') && {
-        id: 'wechat',
-        icon: channelIcon('wechat'),
-        run: prompt('wechat')
-      },
-    !!onFillComposer && !hasTasks && { id: 'daily', icon: icon(Clock), run: prompt('daily') },
-    !!onFillComposer && caps.mcp && !githubLinked && { id: 'github', icon: icon(GitBranch), run: prompt('github') },
-    !!onFillComposer && caps.skills && { id: 'skills', icon: icon(Zap), run: prompt('skills') },
-    !!onFillComposer && { id: 'memory', icon: icon(Sparkles), run: prompt('memory') },
-    caps.knowledgeBases &&
-      !agent.knowledgeBaseIds?.length && {
-        id: 'knowledge',
-        icon: icon(Database),
-        run: () => openResourceEditDialog({ kind: 'agent', id: agent.id, initialTab: 'tools.knowledge' })
+  // Only what is not done yet; the same rules apply to generated and fallback suggestions.
+  const isOpen: Record<ProfileStarterKind, boolean> = {
+    'channel-feishu': !channels?.length,
+    'channel-wechat': !channels?.some((channel) => channel.type === 'wechat'),
+    schedule: !tasks.length,
+    github: caps.mcp && !githubLinked,
+    skills: caps.skills,
+    memory: true,
+    knowledge: caps.knowledgeBases && !knowledgeBaseIds.length,
+    generic: true
+  }
+  const items: ProfileStarter[] =
+    starters.status === 'unavailable'
+      ? FALLBACK_SUGGESTIONS.map(({ id, kind }) => {
+          const copy: { label: string; hint: string; prompt?: string } = SUGGESTION_COPY[id]
+          return { kind, title: t(copy.label), hint: t(copy.hint), prompt: copy.prompt ? t(copy.prompt) : '' }
+        })
+      : starters.items
+  const cards: ProfileStarterCard[] = items.flatMap((item, index) => {
+    if (!isOpen[item.kind]) return []
+    // Linking a knowledge base happens in the edit dialog; everything else is asked in this conversation.
+    const run =
+      item.kind === 'knowledge'
+        ? () => openResourceEditDialog({ kind: 'agent', id: agent.id, initialTab: 'tools.knowledge' })
+        : onFillComposer && (() => onFillComposer(item.prompt))
+    if (!run) return []
+    return [
+      {
+        key: `${item.kind}-${index}`,
+        icon: <SuggestionIcon kind={item.kind} />,
+        title: item.title,
+        hint: item.hint,
+        onClick: run
       }
-  ]
-  const suggestions = candidates.filter((item): item is Suggestion => Boolean(item))
-  if (!suggestions.length) return null
+    ]
+  })
+  const loading = starters.status === 'loading'
+  if (!loading && !cards.length) return null
 
   return (
-    <ProfilePaneSection
+    <ProfileStartersSection
       title={t('chat.profile_pane.suggestions.title')}
-      framed={false}
-      action={
-        <ProfilePaneSectionAction onClick={() => setHidden(true)}>
-          {t('chat.profile_pane.suggestions.hide')}
-        </ProfilePaneSectionAction>
-      }>
-      <div className="flex flex-col gap-1.5">
-        {suggestions.map((item) => (
-          <button
-            key={item.id}
-            type="button"
-            onClick={item.run}
-            className="flex items-center gap-2.5 rounded-xl border border-border-subtle px-3 py-2 text-left outline-none transition-colors hover:bg-accent/40 focus-visible:ring-2 focus-visible:ring-ring">
-            <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-muted">{item.icon}</span>
-            <span className="flex min-w-0 flex-1 flex-col">
-              <span className="truncate text-foreground text-sm">{t(SUGGESTION_COPY[item.id].label)}</span>
-              <span className="truncate text-muted-foreground text-xs">{t(SUGGESTION_COPY[item.id].hint)}</span>
-            </span>
-            <ChevronRight className="size-3.5 shrink-0 text-foreground-tertiary" />
-          </button>
-        ))}
-      </div>
-    </ProfilePaneSection>
+      hideLabel={t('chat.profile_pane.suggestions.hide')}
+      loading={loading}
+      cards={cards}
+      onHide={starters.hide}
+    />
   )
 }
 

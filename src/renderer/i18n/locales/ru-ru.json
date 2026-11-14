@@ -1005,6 +1005,8 @@
   "chat.profile_pane.tasks.new_prompt": "Создай для меня запланированную задачу: ",
   "chat.profile_pane.tasks.title": "Запланированные задачи",
   "chat.profile_pane.title": "Профиль",
+  "chat.profile_pane.try_asking.hide": "Скрыть",
+  "chat.profile_pane.try_asking.title": "Попробуйте спросить",
   "chat.profile_pane.workspace.idle": "Простаивает",
   "chat.profile_pane.workspace.running": "Выполняется",
   "chat.profile_pane.workspace.title": "Рабочая область",
