@@ -3,7 +3,7 @@ import path from 'path'
 
 import { optimizer } from '@electron-toolkit/utils'
 import type { BrowserWindow } from 'electron'
-import { app, dialog, nativeImage, nativeTheme, session, shell } from 'electron'
+import { app, dialog, nativeImage, nativeTheme, screen, session, shell } from 'electron'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
@@ -11,6 +11,7 @@ import { installDevtoolsExtensions } from '@main/core/devtools'
 import { BaseService, Emitter, type Event, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isLinux, isLinuxWayland, isMac, isWin } from '@main/core/platform'
 import { isAppRendererUrl } from '@main/core/security/validateSender'
+import { fitMainWindowBounds } from '@main/core/window/mainWindowBounds'
 import { getTitleBarOverlay, syncTitleBarOverlayWithTheme } from '@main/core/window/titleBarOverlay'
 import { WindowType } from '@main/core/window/types'
 import { isMiniAppPartition } from '@main/features/miniApp/runtime/partition'
@@ -58,6 +59,8 @@ export class MainWindowService extends BaseService {
   // should NOT touch this field — use WindowManager.broadcastToType() / showMainWindow()
   // / getWindowsByType().
   private mainWindow: BrowserWindow | null = null
+  private mainWindowMinimumSize: [number, number] = [MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT]
+  private updatingMainWindowBounds = false
   private lastRendererProcessCrashTime: number = 0
   private readonly agentDevPreviewRequestPolicy = new AgentDevPreviewRequestPolicy()
   private readonly agentHtmlArtifactRequestPolicy = new AgentHtmlArtifactRequestPolicy()
@@ -133,6 +136,17 @@ export class MainWindowService extends BaseService {
     this.registerIpcHandlers()
     this.registerActivateHandler()
     this.registerSecondInstanceHandler()
+    const fitBounds = () => {
+      if (this.mainWindow) this.updateMainWindowBounds(this.mainWindow)
+    }
+    screen.on('display-added', fitBounds)
+    screen.on('display-removed', fitBounds)
+    screen.on('display-metrics-changed', fitBounds)
+    this.registerDisposable(() => {
+      screen.removeListener('display-added', fitBounds)
+      screen.removeListener('display-removed', fitBounds)
+      screen.removeListener('display-metrics-changed', fitBounds)
+    })
   }
 
   private registerWindowShortcuts() {
@@ -214,16 +228,56 @@ export class MainWindowService extends BaseService {
 
   /** Set the main window's minimum size (window.main.set_minimum_size). */
   public setMainWindowMinimumSize(width: number, height: number): void {
-    this.requireMainWindow().setMinimumSize(width, height)
+    const mainWindow = this.requireMainWindow()
+    this.mainWindowMinimumSize = [width, height]
+    this.updateMainWindowBounds(mainWindow)
   }
 
   /** Reset the main window's minimum size, growing it back if it shrank below the floor. */
   public resetMainWindowMinimumSize(): void {
-    const mainWindow = this.requireMainWindow()
-    mainWindow.setMinimumSize(MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT)
-    const [width, height] = mainWindow.getSize() ?? [MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT]
-    if (width < MIN_WINDOW_WIDTH) {
-      mainWindow.setSize(MIN_WINDOW_WIDTH, height)
+    this.setMainWindowMinimumSize(MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT)
+  }
+
+  private updateMainWindowBounds(window: BrowserWindow): void {
+    if (
+      this.updatingMainWindowBounds ||
+      window.isDestroyed() ||
+      window.isMaximized() ||
+      window.isFullScreen() ||
+      window.isMinimized()
+    )
+      return
+    this.updatingMainWindowBounds = true
+    try {
+      const bounds = window.getBounds()
+      const { workArea } = screen.getDisplayMatching(bounds)
+      const [requestedWidth, requestedHeight] = this.mainWindowMinimumSize
+      const minWidth = Math.min(requestedWidth, workArea.width)
+      const minHeight = Math.min(requestedHeight, workArea.height)
+      const [oldMinWidth, oldMinHeight] = window.getMinimumSize()
+      const [oldMaxWidth, oldMaxHeight] = window.getMaximumSize()
+      if (
+        oldMinWidth !== minWidth ||
+        oldMinHeight !== minHeight ||
+        oldMaxWidth !== workArea.width ||
+        oldMaxHeight !== workArea.height
+      ) {
+        // Release the old floor before a smaller display lowers the ceiling.
+        window.setMinimumSize(0, 0)
+        window.setMaximumSize(workArea.width, workArea.height)
+        window.setMinimumSize(minWidth, minHeight)
+      }
+      const placed = fitMainWindowBounds(bounds, workArea, requestedWidth, requestedHeight)
+      if (
+        bounds.x !== placed.x ||
+        bounds.y !== placed.y ||
+        bounds.width !== placed.width ||
+        bounds.height !== placed.height
+      ) {
+        window.setBounds(placed)
+      }
+    } finally {
+      this.updatingMainWindowBounds = false
     }
   }
 
@@ -287,6 +341,13 @@ export class MainWindowService extends BaseService {
   }
 
   private setupMainWindow(mainWindow: BrowserWindow) {
+    this.mainWindowMinimumSize = [MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT]
+    const fitBounds = () => this.updateMainWindowBounds(mainWindow)
+    mainWindow.on('show', fitBounds)
+    mainWindow.on('restore', fitBounds)
+    mainWindow.on('unmaximize', fitBounds)
+    mainWindow.on('leave-full-screen', fitBounds)
+    mainWindow.on('moved', fitBounds)
     // Position/size are restored declaratively by WindowManager (rememberBounds);
     // re-apply the saved maximized state here, on our own show schedule (tray
     // launch defers it to first show — see setupMaximize).
