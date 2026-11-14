@@ -1,6 +1,8 @@
 import { memo, useImperativeHandle } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import { useImageTools } from '@renderer/components/ActionTools'
+import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
 import LoadingIcon from '@renderer/components/icons/LoadingIcon'
 
 import ImageToolbar from './ImageToolbar'
@@ -14,6 +16,7 @@ interface ImagePreviewLayoutProps {
   source: string
   loading?: boolean
   error?: string | null
+  cause?: unknown | null
   enableToolbar?: boolean
   enableDrag?: boolean
   enableWheelZoom?: boolean
@@ -29,11 +32,13 @@ const ImagePreviewLayout = ({
   source,
   loading,
   error,
+  cause,
   enableToolbar,
   enableDrag = true,
   enableWheelZoom = true,
   className
 }: ImagePreviewLayoutProps) => {
+  const { t } = useTranslation()
   // 使用通用图像工具
   const { pan, zoom, copy, download, dialog } = useImageTools(imageRef, {
     imgSelector: 'svg',
@@ -62,6 +67,16 @@ const ImagePreviewLayout = ({
         </div>
       )}
       {error && <PreviewError>{error}</PreviewError>}
+      {error && cause != null && (
+        <div className="flex justify-center p-2">
+          <ErrorDetailAction
+            error={cause}
+            message={t('preview.render.failed')}
+            source="preview"
+            operation="preview.render"
+          />
+        </div>
+      )}
       {children}
       {!error && enableToolbar && <ImageToolbar pan={pan} zoom={zoom} dialog={dialog} enablePanZoom={enablePanZoom} />}
     </PreviewContainer>

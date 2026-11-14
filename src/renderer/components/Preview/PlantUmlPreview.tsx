@@ -2,6 +2,7 @@ import pako from 'pako'
 import React, { memo, useCallback, useEffect } from 'react'
 
 import { loggerService } from '@logger'
+import i18n from '@renderer/i18n/resolver'
 
 import { useDebouncedRender } from './hooks/useDebouncedRender'
 import ImagePreviewLayout from './ImagePreviewLayout'
@@ -92,16 +93,12 @@ const PlantUmlPreview = ({
     const response = await fetch(url)
     if (!response.ok) {
       if (response.status === 400) {
-        throw new Error(
-          'Diagram rendering failed (400): This is likely due to a syntax error in the diagram. Please check your code.'
-        )
+        throw new Error(i18n.t('preview.plantuml.bad_request', { status: response.status }))
       }
       if (response.status >= 500) {
-        throw new Error(
-          `Diagram rendering failed (${response.status}): The PlantUML server is temporarily unavailable. Please try again later.`
-        )
+        throw new Error(i18n.t('preview.plantuml.server', { status: response.status }))
       }
-      throw new Error(`Diagram rendering failed, server returned: ${response.status} ${response.statusText}`)
+      throw new Error(i18n.t('preview.plantuml.other', { status: response.status, statusText: response.statusText }))
     }
 
     const text = await response.text()
@@ -109,7 +106,7 @@ const PlantUmlPreview = ({
   }, [])
 
   // 使用预览渲染器 hook
-  const { containerRef, error, isLoading } = useDebouncedRender(children, renderPlantUml, {
+  const { containerRef, error, cause, isLoading } = useDebouncedRender(children, renderPlantUml, {
     debounceDelay: 300
   })
 
@@ -126,6 +123,7 @@ const PlantUmlPreview = ({
     <ImagePreviewLayout
       loading={isLoading}
       error={error}
+      cause={cause}
       enableToolbar={enableToolbar}
       ref={ref}
       imageRef={containerRef}

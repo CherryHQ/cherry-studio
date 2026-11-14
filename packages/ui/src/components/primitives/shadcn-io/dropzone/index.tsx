@@ -69,9 +69,9 @@ export const Dropzone = ({
     disabled,
     onDrop: (acceptedFiles, fileRejections, event) => {
       if (fileRejections.length > 0) {
-        const firstRejection = fileRejections[0]
-        const message = firstRejection?.errors[0]?.message ?? 'File upload rejected'
-        onError?.(new Error(message))
+        const firstError = fileRejections[0]?.errors[0]
+        // Keep the react-dropzone code so consumers can word each rejection.
+        onError?.(Object.assign(new Error(firstError?.message ?? 'File upload rejected'), { code: firstError?.code }))
         return
       }
 

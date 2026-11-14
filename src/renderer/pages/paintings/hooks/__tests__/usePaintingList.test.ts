@@ -3,6 +3,7 @@ import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { useMutation } from '@data/hooks/useDataApi'
+import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 
@@ -153,12 +154,24 @@ describe('usePaintingList', () => {
   })
 
   it('keeps edits on save failure and allows retry', async () => {
-    updatePainting.mockRejectedValueOnce(new Error('Save failed'))
+    updatePainting.mockRejectedValueOnce(new Error('SQLITE_BUSY'))
     const { result, setCurrentPainting } = renderList({})
     await act(async () => {
       await result.current.add()
     })
     expect(setCurrentPainting).not.toHaveBeenCalled()
+    // A save failure must be filed as a save, not as an image generation fault.
+    expect(popup.error).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          errorContext: expect.objectContaining({
+            operation: 'painting.save',
+            recordId: 'current',
+            providerId: 'silicon'
+          })
+        })
+      })
+    )
     expect(result.current.saving).toBe(false)
     await act(async () => {
       await result.current.add()

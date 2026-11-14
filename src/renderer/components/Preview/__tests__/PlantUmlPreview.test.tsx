@@ -2,6 +2,8 @@ import { render } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import i18n from '@renderer/i18n/resolver'
+
 import PlantUmlPreview from '../PlantUmlPreview'
 
 const mocks = vi.hoisted(() => ({
@@ -66,26 +68,21 @@ describe('PlantUmlPreview', () => {
   })
 
   it.each([
-    {
-      status: 400,
-      statusText: 'Bad Request',
-      message:
-        'Diagram rendering failed (400): This is likely due to a syntax error in the diagram. Please check your code.'
-    },
+    { status: 400, statusText: 'Bad Request', message: () => i18n.t('preview.plantuml.bad_request', { status: 400 }) },
     {
       status: 503,
       statusText: 'Service Unavailable',
-      message: 'Diagram rendering failed (503): The PlantUML server is temporarily unavailable. Please try again later.'
+      message: () => i18n.t('preview.plantuml.server', { status: 503 })
     },
     {
       status: 418,
       statusText: "I'm a teapot",
-      message: "Diagram rendering failed, server returned: 418 I'm a teapot"
+      message: () => i18n.t('preview.plantuml.other', { status: 418, statusText: "I'm a teapot" })
     }
   ])('reports the user-facing error for a $status response', async ({ status, statusText, message }) => {
     fetchMock.mockResolvedValue({ ok: false, status, statusText })
     render(<PlantUmlPreview>{content}</PlantUmlPreview>)
 
-    await expect(mocks.renderFunction?.(content, document.createElement('div'))).rejects.toThrow(message)
+    await expect(mocks.renderFunction?.(content, document.createElement('div'))).rejects.toThrow(message())
   })
 })

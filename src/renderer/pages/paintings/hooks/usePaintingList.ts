@@ -63,7 +63,11 @@ export function usePaintingList({
       await updatePainting(current.id, omit(paintingDataToUpdateDto(current), ['files']))
       return true
     } catch (error) {
-      presentPaintingGenerateError(error)
+      presentPaintingGenerateError(error, {
+        operation: 'painting.save',
+        providerId: current.providerId,
+        recordId: current.id
+      })
       return false
     }
   }, [updatePainting])
@@ -134,7 +138,11 @@ export function usePaintingList({
         // sibling write paths — otherwise the row silently reappears on the
         // next refresh with no toast or log.
         logger.error('Failed to delete painting', error as Error)
-        presentPaintingGenerateError(error)
+        presentPaintingGenerateError(error, {
+          operation: 'painting.delete',
+          providerId: target.providerId,
+          recordId: target.id
+        })
         return
       }
       if (target.id === paintingRef.current.id) {

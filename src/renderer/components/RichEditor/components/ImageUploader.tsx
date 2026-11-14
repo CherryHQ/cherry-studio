@@ -16,6 +16,7 @@ import {
   TabsTrigger
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
+import { toastAppError } from '@renderer/services/AppErrorDetailService'
 import { toast } from '@renderer/services/toast'
 
 const logger = loggerService.withContext('RichEditorImageUploader')
@@ -89,6 +90,23 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({ onImageSelect, vis
     }
   }
 
+  /** Dropzone rejections are user input; only an unknown code is treated as a fault. */
+  const rejectionMessage = (err: Error) => {
+    const code = 'code' in err ? err.code : undefined
+    switch (code) {
+      case 'image-validation-error':
+        return err.message
+      case 'file-invalid-type':
+        return t('richEditor.imageUploader.invalidType')
+      case 'file-too-large':
+        return t('richEditor.imageUploader.tooLarge')
+      case 'too-many-files':
+        return t('richEditor.imageUploader.tooManyFiles')
+      default:
+        return undefined
+    }
+  }
+
   const handleUrlSubmit = () => {
     if (!urlInput.trim()) {
       toast.error(t('richEditor.imageUploader.urlRequired'))
@@ -148,7 +166,15 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({ onImageSelect, vis
               }}
               onError={(err) => {
                 logger.error('Dropzone validation failed:', err)
-                toast.error(err.message || t('richEditor.imageUploader.invalidType'))
+                const rejection = rejectionMessage(err)
+                if (rejection) {
+                  toast.error(rejection)
+                  return
+                }
+                toastAppError(t('richEditor.imageUploader.uploadError'), err, {
+                  source: 'richEditor.image',
+                  operation: 'richEditor.image.validate'
+                })
               }}
               className="min-h-44 border-dashed bg-muted/20 hover:bg-accent/40">
               <div className="flex flex-col items-center justify-center gap-2 text-center">
