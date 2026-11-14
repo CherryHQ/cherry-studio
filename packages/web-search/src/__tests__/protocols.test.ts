@@ -15,6 +15,7 @@ import { parallel } from '../providers/parallel'
 import { querit } from '../providers/querit'
 import { searchapi } from '../providers/searchapi'
 import { discoverSearxngEngines, searxng } from '../providers/searxng'
+import { serpkite } from '../providers/serpkite'
 import { serply } from '../providers/serply'
 import { specstream } from '../providers/specstream'
 import { tavily } from '../providers/tavily'
@@ -125,6 +126,23 @@ describe('portable provider contracts', () => {
         content: 'SearchApi Snippet',
         url: 'https://searchapi.example/result',
         sourceInput: 'a&b'
+      }
+    ])
+  })
+
+  it('sends SerpKite searches as a Bearer GET and trims results', async () => {
+    const { client, requests } = setup(serpkite, fixture('serpkite-response.json'))
+    const result = await client.execute({ ...search('serpkite'), input: 'a&b/c' })
+    expect(requests[0].url).toBe('https://service.example/proxy/v1/search?q=a%26b%2Fc&num=4')
+    expect(requests[0].method).toBe('GET')
+    expect(requests[0].body).toBeUndefined()
+    expect(new Headers(requests[0].headers).get('authorization')).toBe('Bearer test-key')
+    expect(result.results).toEqual([
+      {
+        title: 'SerpKite Title',
+        content: 'SerpKite Snippet',
+        url: 'https://serpkite.example/result',
+        sourceInput: 'a&b/c'
       }
     ])
   })

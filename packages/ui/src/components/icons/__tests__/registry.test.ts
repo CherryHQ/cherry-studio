@@ -3,6 +3,12 @@ import { describe, expect, it } from 'vitest'
 import { resolveIconRef, resolveModelIconRef, resolveModelToProviderIconRef, resolveProviderIconRef } from '../registry'
 
 describe('resolveProviderIconRef', () => {
+  it('resolves the Rapid-MLX provider icon', () => {
+    expect(resolveProviderIconRef('rapid-mlx')).toEqual(
+      expect.objectContaining({ kind: 'provider', key: 'rapid-mlx' })
+    )
+  })
+
   it('falls back to the model catalog for provider IDs that only exist there', () => {
     // `claude` is a model-catalog key with no provider-catalog entry
     expect(resolveProviderIconRef('claude')).toEqual(expect.objectContaining({ kind: 'model', key: 'claude' }))

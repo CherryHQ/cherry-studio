@@ -4,6 +4,8 @@ Status: proposed
 
 English | [中文](2026-10-18-agent-behavior-package.zh.md)
 
+The [native compaction proposal](../simplification/2026-11-12-native-agent-compaction.md) would partially supersede this note's summary-generation and mandatory acceptance decisions if approved.
+
 ## Problem
 
 Cherry's product rules for agents are written as Pi coding-agent extensions. Subagents (foreground and background runs, continuation, delivery, slots, model selection), goals (state, rounds, stops, budget, progress, verifier, `/goal`), `AskUserQuestion`, `todo_write`, offload, recall and summary acceptance live in [agent-runtime-pi](../../../../packages/agent-runtime-pi/README.md); the approval rule layer lives in the [host Pi integration](../../../../src/main/ai/runtime/pi/README.md); plan mode exists only as a design.

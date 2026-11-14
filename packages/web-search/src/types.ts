@@ -16,6 +16,7 @@ export const REMOTE_PROVIDER_IDS = Object.freeze([
   'deepseek',
   'desearch',
   'searchapi',
+  'serpkite',
   'specstream'
 ] as const)
 

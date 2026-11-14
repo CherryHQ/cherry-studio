@@ -1,6 +1,7 @@
 /**
- * Detects shell commands that install dependencies into a GLOBAL / shared
- * location and would therefore leak across agent sessions.
+ * Detects user-environment global/shared package installs separately from direct
+ * mutations of Cherry-managed tool state. Installs require approval outside Full
+ * Access; direct mise mutations remain blocked in every mode.
  *
  * The agent runtime keeps the user's real HOME (so the launched CLIs read their
  * config/creds — see binaryEnv.ts `getBinaryExecutionEnv`), which means a global
@@ -47,14 +48,6 @@ const RULES: Array<{ test: (seg: string) => boolean; reason: string }> = [
     reason: 'uv pip install --system'
   },
   {
-    // BinaryManager is the sole owner of Cherry's isolated mise state.
-    test: (s) =>
-      /\bmise\s+(?:(?:use|install|uninstall|remove|rm|prune|upgrade|update|reshim|trust|untrust)\b|plugins?\s+(?:install|uninstall|update)\b|settings?\s+(?:set|unset)\b)/.test(
-        s
-      ),
-    reason: 'direct mise mutation (use cli_search / cli_install)'
-  },
-  {
     test: (s) => /\bcargo\s+install\b/.test(s),
     reason: 'cargo install (persistent user tool)'
   },
@@ -78,7 +71,7 @@ const RULES: Array<{ test: (seg: string) => boolean; reason: string }> = [
 
 /**
  * Returns a short human reason when `command` performs a global/shared install,
- * or `null` when it is safe (project-local, ephemeral, or unrelated).
+ * or `null` when it contains no detected ordinary install.
  */
 export function detectGlobalInstall(command: string): string | null {
   // Test each chained segment independently so a flag in one command can't be
@@ -89,6 +82,20 @@ export function detectGlobalInstall(command: string): string | null {
     if (!seg) continue
     for (const rule of RULES) {
       if (rule.test(seg)) return rule.reason
+    }
+  }
+  return null
+}
+
+/** Detect direct mutations of Cherry's isolated mise state, which BinaryManager owns. */
+export function detectMiseMutation(command: string): string | null {
+  for (const segment of command.split(/&&|\|\||[;\n|]/)) {
+    if (
+      /\bmise\s+(?:(?:use|install|uninstall|remove|rm|prune|upgrade|update|reshim|trust|untrust)\b|plugins?\s+(?:install|uninstall|update)\b|settings?\s+(?:set|unset)\b)/.test(
+        segment
+      )
+    ) {
+      return 'direct mise mutation (use cli_search / cli_install)'
     }
   }
   return null
