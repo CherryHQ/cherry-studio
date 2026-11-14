@@ -8,6 +8,7 @@ import { agentChannelTable } from '@data/db/schemas/agentChannel'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentKnowledgeBaseTable, agentMcpServerTable } from '@data/db/schemas/assistantRelations'
 import { agentAvatarFileRefTable } from '@data/db/schemas/fileRelations'
+import { jobTable } from '@data/db/schemas/job'
 import { knowledgeBaseTable } from '@data/db/schemas/knowledge'
 import { pinTable } from '@data/db/schemas/pin'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
@@ -15,6 +16,7 @@ import type { DbOrTx } from '@data/db/types'
 import { agentChannelService } from '@data/services/AgentChannelService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentTaskService } from '@data/services/AgentTaskService'
+import { aiUsageRecordService } from '@data/services/AiUsageRecordService'
 import { getDataService } from '@data/services/dataServiceRegistry'
 import { modelService } from '@data/services/ModelService'
 import { pinService } from '@data/services/PinService'
@@ -35,6 +37,7 @@ import {
   type AgentBase,
   type AgentConfiguration,
   type AgentEntity,
+  type AgentStats,
   sanitizeAgentConfiguration,
   type UpdateAgentDto
 } from '@shared/data/api/schemas/agents'
@@ -276,6 +279,8 @@ function fetchKnowledgeBasesForAgents(tx: DbOrTx, agentIds: string[]): Map<strin
   }
   return map
 }
+
+const STATS_WINDOW_MS = 7 * 24 * 60 * 60 * 1000
 
 export class AgentService {
   private readonly _onAgentCreated = new Emitter<AgentCreatedEvent>()
@@ -644,6 +649,39 @@ export class AgentService {
     const result = database.select().from(agentsTable).where(whereClause).limit(1).all()
 
     return result[0]
+  }
+
+  /** Usage overview of one live Agent; null when it does not exist. */
+  getStats(id: string, now = Date.now()): AgentStats | null {
+    const database = application.get('DbService').getDb()
+    if (!this.getAgent(id)) return null
+    const since = now - STATS_WINDOW_MS
+    const [sessions] = database
+      .select({ count: count() })
+      .from(agentSessionTable)
+      .where(
+        and(
+          eq(agentSessionTable.agentId, id),
+          eq(agentSessionTable.type, 'conversation'),
+          isNull(agentSessionTable.taskId),
+          isNull(agentSessionTable.deletedAt)
+        )
+      )
+      .all()
+    const taskIds = agentTaskService.listTasks(id).tasks.map((task) => task.id)
+    const [taskRuns] = taskIds.length
+      ? database
+          .select({ count: count() })
+          .from(jobTable)
+          .where(and(inArray(jobTable.scheduleId, taskIds), gte(jobTable.startedAt, since)))
+          .all()
+      : [{ count: 0 }]
+
+    return {
+      sessionCount: sessions.count,
+      recentTaskRunCount: taskRuns.count,
+      recentTokens: aiUsageRecordService.totalTokens({ from: since, to: now }, { type: 'agent', id })
+    }
   }
 
   getAgent(id: string): AgentEntity | null {

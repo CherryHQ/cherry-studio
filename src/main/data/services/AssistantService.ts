@@ -6,19 +6,22 @@
  * - Listing with optional filters
  */
 
-import { and, asc, desc, eq, gte, inArray, isNotNull, isNull, lt, or, type SQL, sql } from 'drizzle-orm'
+import { and, asc, count, desc, eq, gte, inArray, isNotNull, isNull, lt, ne, or, type SQL, sql } from 'drizzle-orm'
 
 import { application } from '@application'
 import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { assistantTable } from '@data/db/schemas/assistant'
 import { assistantKnowledgeBaseTable, assistantMcpServerTable } from '@data/db/schemas/assistantRelations'
 import { assistantAvatarFileRefTable } from '@data/db/schemas/fileRelations'
+import { messageTable } from '@data/db/schemas/message'
 import { pinTable } from '@data/db/schemas/pin'
+import { topicTable } from '@data/db/schemas/topic'
 import type { DbOrTx, DbType } from '@data/db/types'
 import { loggerService } from '@logger'
 import { DataApiError, DataApiErrorFactory, ErrorCode } from '@shared/data/api/errors'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type {
+  AssistantStats,
   CreateAssistantDto,
   DuplicateAssistantDto,
   ImportAssistantDto,
@@ -30,6 +33,7 @@ import { type Assistant, DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/a
 import type { FileEntryId } from '@shared/data/types/file'
 import type { UniqueModelId } from '@shared/data/types/model'
 
+import { aiUsageRecordService } from './AiUsageRecordService'
 import { groupService } from './GroupService'
 import { modelService } from './ModelService'
 import { pinService } from './PinService'
@@ -97,6 +101,9 @@ function rethrowAssistantOrderError(error: unknown): never {
 
   throw error
 }
+
+const RECENT_TOPIC_LIMIT = 5
+const STATS_WINDOW_MS = 7 * 24 * 60 * 60 * 1000
 
 export class AssistantDataService {
   notifyReadModelChange(assistantIds: readonly string[], kind: 'membership' | 'projection'): void {
@@ -282,6 +289,62 @@ export class AssistantDataService {
       this.getModelNameById(this.db, row.modelId),
       this.getAvatarIds([id]).get(id)
     )
+  }
+
+  /** Usage overview of one live Assistant, counting only its own live topics and their messages. */
+  getStats(id: string, now = Date.now()): AssistantStats {
+    this.getById(id)
+    const ownTopics = and(eq(topicTable.assistantId, id), isNull(topicTable.deletedAt))
+    // Every topic holds one structural `root` row; only real messages count.
+    const liveMessages = and(isNull(messageTable.deletedAt), ne(messageTable.role, 'root'))
+    const [topics] = this.db.select({ count: count() }).from(topicTable).where(ownTopics).all()
+    const [messages] = this.db
+      .select({ count: count() })
+      .from(messageTable)
+      .innerJoin(topicTable, eq(messageTable.topicId, topicTable.id))
+      .where(and(ownTopics, liveMessages))
+      .all()
+    const recentRows = this.db
+      .select({ id: topicTable.id, name: topicTable.name, lastActivityAt: topicTable.lastActivityAt })
+      .from(topicTable)
+      .where(ownTopics)
+      .orderBy(desc(topicTable.lastActivityAt), asc(topicTable.id))
+      .limit(RECENT_TOPIC_LIMIT)
+      .all()
+    const messageCounts = new Map(
+      recentRows.length
+        ? this.db
+            .select({ topicId: messageTable.topicId, count: count() })
+            .from(messageTable)
+            .where(
+              and(
+                inArray(
+                  messageTable.topicId,
+                  recentRows.map((row) => row.id)
+                ),
+                liveMessages
+              )
+            )
+            .groupBy(messageTable.topicId)
+            .all()
+            .map((row) => [row.topicId, row.count])
+        : []
+    )
+
+    return {
+      topicCount: topics.count,
+      messageCount: messages.count,
+      recentTokens: aiUsageRecordService.totalTokens(
+        { from: now - STATS_WINDOW_MS, to: now },
+        { type: 'assistant', id }
+      ),
+      recentTopics: recentRows.map((row) => ({
+        id: row.id,
+        name: row.name,
+        lastActivityAt: timestampToISO(row.lastActivityAt),
+        messageCount: messageCounts.get(row.id) ?? 0
+      }))
+    }
   }
 
   search(query: { q: string; limit: number; updatedAtFrom?: number }): AssistantEntitySearchItem[] {
