@@ -30,6 +30,7 @@ export const errorToastPresentations: Record<ErrorCategory, ErrorToastPresentati
   knowledge: { type: 'warning' },
   ocr: { type: 'warning' },
   mcp: { type: 'warning', action: 'mcp' },
+  dsh: { type: 'info', action: 'retry' },
   parse: { type: 'warning' },
   unknown: { type: 'error' }
 }
