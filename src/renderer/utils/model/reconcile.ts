@@ -15,10 +15,15 @@
  */
 import type { AssistantSettings } from '@renderer/types/assistant'
 import { resolveReasoningEffortForModel } from '@shared/ai/reasoning'
+import type { ChatModelSetting } from '@shared/data/preference/preferenceTypes'
 import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
-import { isBuiltinWebSearchAvailable } from '@shared/utils/provider'
+import {
+  isBuiltinWebSearchAvailable,
+  isBuiltinWebSearchEffortUnsupported,
+  isBuiltinWebSearchFunctionToolConflicted
+} from '@shared/utils/provider'
 
 import { isFunctionCallingModel } from './tooluse'
 
@@ -47,10 +52,116 @@ export function reconcileReasoningEffortForModel(
 
 export function reconcileWebSearchForModel(
   nextModel: Model,
-  current: Pick<AssistantSettings, 'enableWebSearch'>,
-  provider: Provider | undefined
+  current: {
+    enableWebSearch?: boolean | undefined
+    reasoning_effort?: ReasoningEffortOption | undefined
+  },
+  provider: Provider | undefined,
+  options?: {
+    /** A ready client (function-tool) search provider is configured. */
+    clientSearchAvailable?: boolean
+    /** Non-web function tools expected on the request (MCP/KB/attachments/…); predictive. */
+    hasFunctionToolSignals?: boolean
+  }
 ): { enableWebSearch: false } | null {
   if (!current.enableWebSearch) return null
-  if (canModelUseAssistantWebSearch(nextModel, provider)) return null
-  return { enableWebSearch: false }
+  if (!canModelUseAssistantWebSearch(nextModel, provider)) return { enableWebSearch: false }
+  // `resolveWebToolRoutes` withdraws the builtin search route when the request
+  // will also carry function tools on pre-3 Gemini (reason
+  // 'gemini-function-tool-conflict'). Reconciliation must not restore that
+  // pair either: keep the flag from staying active without a route. The
+  // withdrawal only covers the builtin route — a ready client search
+  // provider still serves it, so the flag survives then.
+  if (
+    isBuiltinWebSearchFunctionToolConflicted(nextModel, provider, options?.hasFunctionToolSignals === true) &&
+    !(options?.clientSearchAvailable && isFunctionCallingModel(nextModel))
+  ) {
+    return { enableWebSearch: false }
+  }
+  // `resolveWebToolRoutes` withdraws the builtin search route for efforts the
+  // provider's search rejects (reason 'openai-minimal-reasoning'), and the
+  // composer refuses to create that pair in either direction. Reconciliation
+  // must not restore it either: keep the effort, drop the search flag so the
+  // control never stays active without a route. The withdrawal only covers
+  // the builtin route, though — when a ready client search provider can serve
+  // the request, the pair stays usable and the flag must survive.
+  if (
+    isBuiltinWebSearchEffortUnsupported(nextModel, provider, current.reasoning_effort) &&
+    !(options?.clientSearchAvailable && isFunctionCallingModel(nextModel))
+  ) {
+    return { enableWebSearch: false }
+  }
+  return null
+}
+
+/**
+ * The single model-switch settings operation shared by every model-change
+ * entry point (composer `useAssistant.setModel`, assistant edit dialog).
+ *
+ * Restores the target model's remembered web search / reasoning effort,
+ * reconciles the restored pair against the target model, and returns the
+ * settings patch to merge into ONE atomic write that also carries the new
+ * `modelId`. Returns `undefined` when nothing needs writing (same model and
+ * nothing restored or reconciled).
+ *
+ * Remembered choices are only read here, never overwritten: when the
+ * restored pair is incompatible (e.g. builtin search + 'minimal' on OpenAI
+ * GPT-5), the applied patch drops the search flag while the saved per-model
+ * preferences stay untouched.
+ */
+export function resolveModelSwitchSettings(args: {
+  next: Model
+  nextProvider: Provider | undefined
+  currentModelId: string | null | undefined
+  currentSettings: Partial<AssistantSettings> | undefined
+  remembered: ChatModelSetting | undefined
+  extraSettings?: Partial<AssistantSettings>
+  /** A ready client (function-tool) search provider is configured. */
+  clientSearchAvailable?: boolean
+  /** Non-web function tools expected on the request (MCP/KB/attachments/…); predictive. */
+  hasFunctionToolSignals?: boolean
+}): Partial<AssistantSettings> | undefined {
+  const {
+    next,
+    nextProvider,
+    currentModelId,
+    currentSettings,
+    remembered,
+    extraSettings,
+    clientSearchAvailable,
+    hasFunctionToolSignals
+  } = args
+  const switching = next.id !== currentModelId
+  // Restore the target model's remembered choices; fall back to web search
+  // off and the model default effort.
+  const restored: Partial<AssistantSettings> = switching
+    ? { enableWebSearch: remembered?.enableWebSearch ?? false, reasoning_effort: remembered?.reasoning_effort }
+    : {}
+  const baseSettings = { ...currentSettings, ...restored }
+  const reasoning = reconcileReasoningEffortForModel(next, baseSettings.reasoning_effort)
+  // The composer bridges a pending effort mutation through extraSettings. A
+  // pending edit belongs to the model it was made on — the composer's own
+  // mutation already persists it under that model — so on a real switch the
+  // target's restored effort wins and the bridged value is ignored; the
+  // bridge still wins on a same-model call, where it is the edit's carrier.
+  const appliedExtraSettings = switching && extraSettings ? { ...extraSettings } : extraSettings
+  if (switching && appliedExtraSettings) delete appliedExtraSettings.reasoning_effort
+  // Evaluate the search pair against the effort that will actually apply —
+  // the one that wins the final spread below (an explicit `undefined`
+  // included).
+  const effectiveEffort =
+    appliedExtraSettings && 'reasoning_effort' in appliedExtraSettings
+      ? appliedExtraSettings.reasoning_effort
+      : reasoning
+        ? reasoning.reasoning_effort
+        : baseSettings.reasoning_effort
+  const webSearch = reconcileWebSearchForModel(
+    next,
+    { enableWebSearch: baseSettings.enableWebSearch, reasoning_effort: effectiveEffort },
+    nextProvider,
+    { clientSearchAvailable, hasFunctionToolSignals }
+  )
+  return appliedExtraSettings || reasoning || webSearch || switching
+    ? { ...baseSettings, ...reasoning, ...webSearch, ...appliedExtraSettings }
+    : undefined
 }

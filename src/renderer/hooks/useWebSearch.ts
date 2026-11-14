@@ -93,13 +93,16 @@ export const useWebSearchProviders = () => {
       return []
     }
 
+    // `usePreference` exposes the schema default, but a stored `null` (or a
+    // bare test double) can still surface here.
+    const overrides = providerOverrides ?? {}
     return PRESETS_WEB_SEARCH_PROVIDERS.map((preset) => {
-      const override = providerOverrides[preset.id]
+      const override = overrides[preset.id]
       const apiKeys = trimStringList(override?.apiKeys ?? [])
 
       return {
         ...preset,
-        apiKeys: preset.id === 'zhipu' ? trimStringList(zhipuModelApiKeys?.keys.map(({ key }) => key) ?? []) : apiKeys,
+        apiKeys: preset.id === 'zhipu' ? trimStringList(zhipuModelApiKeys?.keys?.map(({ key }) => key) ?? []) : apiKeys,
         capabilities: preset.capabilities.map((capability) => {
           const capabilityOverride = override?.capabilities?.[capability.feature]
 

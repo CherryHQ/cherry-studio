@@ -20,6 +20,7 @@ export {
   hasModelBuiltinWebSearch,
   reconcileReasoningEffortForModel,
   reconcileWebSearchForModel,
+  resolveModelSwitchSettings,
   resolveReasoningEffortForModel
 } from './reconcile'
 export { readDefaultModel, readQuickModel, readTranslateModel } from './resolve'
