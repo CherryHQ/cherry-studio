@@ -1,10 +1,10 @@
 import { MockDataApiUtils, mockDataApiService } from '@test-mocks/renderer/DataApiService'
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { getI18n } from 'react-i18next'
 import { SWRConfig } from 'swr'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { TabsContext, type TabsContextValue } from '@renderer/hooks/tab'
 import { appUpdateCheckService } from '@renderer/services/AppUpdateCheckService'
@@ -23,6 +23,12 @@ describe('NotificationCenter reading', () => {
     vi.clearAllMocks()
     vi.mocked(window.api.ipcApi.request).mockResolvedValue({ ok: true, data: undefined })
     await getI18n().changeLanguage('en-us')
+  })
+
+  afterEach(async () => {
+    // Radix focus scopes restore focus on a timer after unmount; let it run before jsdom tears down.
+    cleanup()
+    await new Promise((resolve) => setTimeout(resolve, 0))
   })
 
   it('shows only an unread dot and closes on toggle, Escape and outside pointer interaction without marking read', async () => {
