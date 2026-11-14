@@ -1,3 +1,4 @@
+import { MockDataApiUtils } from '@test-mocks/renderer/DataApiService'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -777,16 +778,25 @@ describe('AgentToolRenderer', () => {
       expect(navigateToRoute).toHaveBeenNthCalledWith(2, { path: '/app/agents', query: { agentId: 'agent-created' } })
     })
 
-    it('opens a new topic with a created Assistant', async () => {
+    // The chat page renders nothing for a bare `?assistantId=` entry, so the card must land on a topic.
+    it.each([
+      ['an empty topic for a created Assistant without one', null, 'topic-placeholder'],
+      ["a created Assistant's latest topic", { id: 'topic-latest' }, 'topic-latest']
+    ])('opens %s', async (_name, latest, topicId) => {
       const user = userEvent.setup()
       const navigateToRoute = vi.fn()
       mockMessageListActions.mockReturnValue({ navigateToRoute })
+      MockDataApiUtils.setCustomResponse('/topics/latest', 'GET', { topic: latest })
+      MockDataApiUtils.setCustomResponse('/topics/reusable-placeholder', 'POST', {
+        topic: { id: 'topic-placeholder' },
+        created: true
+      })
       const output = { ...createdAgent, kind: 'assistant', agentId: undefined, assistantId: 'assistant-created' }
       render(<MessageTools toolResponse={configToolResponse('cherry-tools', 'assistant_create', structured(output))} />)
 
       await user.click(screen.getByRole('button', { name: 'Open conversation: Reviewer' }))
 
-      expect(navigateToRoute).toHaveBeenCalledWith({ path: '/app/chat', query: { assistantId: 'assistant-created' } })
+      await waitFor(() => expect(navigateToRoute).toHaveBeenCalledWith({ path: '/app/chat', query: { topicId } }))
     })
 
     it('opens the edit dialog for the changed resource without also navigating', async () => {
