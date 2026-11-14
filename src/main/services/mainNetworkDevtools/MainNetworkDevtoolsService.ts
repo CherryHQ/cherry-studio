@@ -1,6 +1,8 @@
 import { randomUUID } from 'node:crypto'
 import http, { type ClientRequest, type IncomingMessage, type RequestOptions } from 'node:http'
 import https from 'node:https'
+import { Stream } from 'node:stream'
+import { urlToHttpOptions } from 'node:url'
 
 import { net } from 'electron'
 import type WebSocket from 'ws'
@@ -9,8 +11,9 @@ import type { WebSocketServer } from 'ws'
 import { loggerService } from '@logger'
 import { installBundledDevtools } from '@main/core/devtools'
 import { BaseService, Conditional, Injectable, Phase, Priority, ServicePhase, when } from '@main/core/lifecycle'
-import { isDev } from '@main/core/platform'
 import { isSensitiveKey, REDACTED, redactUrlParams } from '@shared/utils/redaction'
+
+import { isMainNetworkDevtoolsEnabled } from './isMainNetworkDevtoolsEnabled'
 
 const logger = loggerService.withContext('MainNetworkDevtoolsService')
 
@@ -37,6 +40,8 @@ export interface MainNetworkDevtoolsBody {
   truncated?: boolean
   size?: number
   note?: string
+  /** False when `text` is a display summary (e.g. FormData) rather than a replayable payload. */
+  replayable?: boolean
 }
 
 export interface MainNetworkDevtoolsEvent {
@@ -46,6 +51,12 @@ export interface MainNetworkDevtoolsEvent {
   method: string
   url: string
   requestHeaders?: Record<string, string>
+  /** Redacted wire-order entries preserve repeated Node request headers for export. */
+  requestHeaderEntries?: [string, string][]
+  /** Connection or target shapes that cannot be exported safely. */
+  requestReplayError?: string
+  /** Export remains available, but the display URL may normalize the original path. */
+  requestReplayWarning?: string
   requestBody?: MainNetworkDevtoolsBody
   responseHeaders?: Record<string, string>
   responseBody?: MainNetworkDevtoolsBody
@@ -65,6 +76,7 @@ interface RequestDescription {
   requestHeaders?: Record<string, string>
   requestBody?: MainNetworkDevtoolsBody
   requestContentType?: string
+  requestReplayError?: string
 }
 
 // OAuth `code` is redacted across this request view (query/body/form) but stays out of the
@@ -76,14 +88,19 @@ export function redactUrl(rawUrl: string): string {
 }
 
 export function redactHeaders(
-  headers: Headers | Record<string, unknown> | undefined
+  headers: Headers | Record<string, unknown> | string[] | undefined
 ): Record<string, string> | undefined {
   if (!headers) return undefined
 
   const result: Record<string, string> = {}
   const entries: [string, unknown][] = []
 
-  if (typeof (headers as Headers).forEach === 'function') {
+  if (Array.isArray(headers)) {
+    // Node accepts a flat raw-header array; array.forEach's numeric index is not a name.
+    for (let index = 0; index + 1 < headers.length; index += 2) {
+      entries.push([headers[index], headers[index + 1]])
+    }
+  } else if (typeof (headers as Headers).forEach === 'function') {
     ;(headers as Headers).forEach((value, key) => entries.push([key, value]))
   } else {
     entries.push(...Object.entries(headers))
@@ -116,9 +133,13 @@ export function describeHttpRequest(source: 'http' | 'https', args: unknown[]): 
 
   const parsedUrl = parseUrlArg(urlArg)
   const protocol = normalizeOptionValue(options.protocol) ?? parsedUrl?.protocol ?? defaultProtocol
-  const host = normalizeOptionValue(options.hostname ?? options.host) ?? parsedUrl?.host ?? 'unknown'
-  const port = normalizeOptionValue(options.port)
-  const authority = port && !host.includes(':') ? `${host}:${port}` : host
+  // Node converts URL fields first, then overlays options (including undefined).
+  // Keep hostname and port separate so an override cannot retain the URL's old port.
+  const effectiveOptions = { ...(parsedUrl ? urlToHttpOptions(parsedUrl) : {}), ...options }
+  const host = normalizeOptionValue(effectiveOptions.hostname ?? effectiveOptions.host) || 'localhost'
+  const port = effectiveOptions.port ? normalizeOptionValue(effectiveOptions.port) : undefined
+  const hostname = host.includes(':') && !host.startsWith('[') ? `[${host}]` : host
+  const authority = port ? `${hostname}:${port}` : hostname
   const path = normalizeOptionValue(options.path) ?? getUrlPath(parsedUrl) ?? getFallbackPath(urlArg)
   const normalizedPath =
     path.startsWith('/') || path.startsWith('http://') || path.startsWith('https://') ? path : `/${path}`
@@ -126,6 +147,11 @@ export function describeHttpRequest(source: 'http' | 'https', args: unknown[]): 
   const requestHeaders = redactHeaders(options.headers as Record<string, unknown> | undefined)
 
   return {
+    ...(effectiveOptions.socketPath
+      ? { requestReplayError: 'Unix socket request cannot faithfully replay through a URL.' }
+      : effectiveOptions.auth
+        ? { requestReplayError: 'Authenticated Node request cannot faithfully replay from redacted capture.' }
+        : {}),
     method: String(options.method ?? 'GET').toUpperCase(),
     url: redactUrl(`${protocol}//${authority}${normalizedPath}`),
     requestHeaders,
@@ -134,8 +160,9 @@ export function describeHttpRequest(source: 'http' | 'https', args: unknown[]): 
 }
 
 /**
- * Development-only monitor for network requests initiated by this main-process
- * JavaScript runtime (`fetch`, Electron `net.fetch`, and Node `http`/`https`).
+ * Monitor for network requests initiated by this main-process JavaScript runtime
+ * (`fetch`, Electron `net.fetch`, and Node `http`/`https`). Active in development
+ * builds and in packaged builds when Developer Mode is enabled at startup.
  *
  * Known limitations: traffic emitted by native binaries or child processes is
  * not visible to these in-process monkey patches. In particular, Claude agent SDK
@@ -146,7 +173,7 @@ export function describeHttpRequest(source: 'http' | 'https', args: unknown[]): 
 @Injectable('MainNetworkDevtoolsService')
 @ServicePhase(Phase.Background)
 @Priority(0)
-@Conditional(when(() => isDev, 'development mode'))
+@Conditional(when(() => isMainNetworkDevtoolsEnabled(), 'development or developer mode'))
 export class MainNetworkDevtoolsService extends BaseService {
   private readonly events: MainNetworkDevtoolsEvent[] = []
   private readonly clients = new Set<WebSocket>()
@@ -344,7 +371,7 @@ export class MainNetworkDevtoolsService extends BaseService {
         throw error
       }
 
-      this.trackClientRequest(request, id, startedAt, description.requestContentType)
+      this.trackClientRequest(request, id, startedAt, description.requestContentType, description.requestHeaders)
       return request
     }
   }
@@ -353,7 +380,8 @@ export class MainNetworkDevtoolsService extends BaseService {
     request: ClientRequest,
     id: string,
     startedAt: number,
-    requestContentType: string | undefined
+    requestContentType: string | undefined,
+    requestHeaders?: Record<string, string>
   ): void {
     let completed = false
     const complete = (patch: Partial<MainNetworkDevtoolsEvent>) => {
@@ -366,7 +394,30 @@ export class MainNetworkDevtoolsService extends BaseService {
       })
     }
 
-    this.captureClientRequestBody(request, id, requestContentType)
+    // Node accepts literal targets that URL/cURL normalize (including dot segments).
+    // Keep display redaction unchanged. Ordinary path normalization is a warning;
+    // non-origin targets and fragments still cannot be represented by this export.
+    if (typeof request.path === 'string') {
+      const target = request.path
+      const displayUrl = this.events.find((event) => event.id === id)?.url
+      try {
+        const parsed = new URL(displayUrl ?? '')
+        if (!target.startsWith('/') || target.includes('#')) {
+          this.updateEvent(id, {
+            requestReplayError: 'Literal Node request target cannot faithfully replay through a URL.'
+          })
+        } else if (target.split('?')[0] !== parsed.pathname) {
+          this.updateEvent(id, {
+            requestReplayWarning: 'URL path may be normalized; replay can differ from the original Node request target.'
+          })
+        }
+      } catch {
+        this.updateEvent(id, {
+          requestReplayError: 'Invalid URL cannot faithfully replay the literal Node request target.'
+        })
+      }
+    }
+    this.captureClientRequestBody(request, id, requestContentType, requestHeaders)
 
     request.once('response', (response: IncomingMessage) => {
       const responseHeaders = redactHeaders(response.headers)
@@ -399,9 +450,19 @@ export class MainNetworkDevtoolsService extends BaseService {
     if (description.requestBody || typeof Request === 'undefined' || !(input instanceof Request) || !input.body) return
 
     const contentType = description.requestContentType
+    // Replacing Request headers changes wire metadata, not the retained body bytes.
+    // Keep a known form body's redaction shape without restoring its old header.
+    const originalType = input.headers.get('content-type') ?? undefined
+    if (originalType?.toLowerCase().startsWith('multipart/')) {
+      this.updateEvent(id, {
+        requestBody: { contentType, replayable: false, note: 'Multipart Request body is not captured.' }
+      })
+      return
+    }
+    const redactionContentType = isUrlEncodedContentType(originalType) ? originalType : contentType
     // Do not clone non-text bodies: Request.clone() tees the stream, and the unread
     // clone branch would buffer the whole binary payload without backpressure.
-    if (!isTextLikeContentType(contentType)) {
+    if (!isTextLikeContentType(redactionContentType)) {
       this.updateEvent(id, { requestBody: { contentType, note: 'Binary request body is not captured.' } })
       return
     }
@@ -414,7 +475,13 @@ export class MainNetworkDevtoolsService extends BaseService {
       return
     }
 
-    void readWebBody(clonedRequest.body, contentType, 'No request body.')
+    void readWebBody(
+      clonedRequest.body,
+      contentType,
+      'No request body.',
+      description.requestHeaders,
+      redactionContentType
+    )
       .then((requestBody) => this.updateEvent(id, { requestBody }))
       .catch((error) => this.updateEvent(id, { requestBody: { contentType, note: getErrorMessage(error) } }))
   }
@@ -441,26 +508,73 @@ export class MainNetworkDevtoolsService extends BaseService {
       .catch((error) => this.updateEvent(id, { responseBodyError: getErrorMessage(error) }))
   }
 
-  private captureClientRequestBody(request: ClientRequest, id: string, contentType: string | undefined): void {
-    const requestBodyAccumulator = createBodyAccumulator(contentType)
+  private captureClientRequestBody(
+    request: ClientRequest,
+    id: string,
+    contentType: string | undefined,
+    requestHeaders?: Record<string, string>
+  ): void {
+    let requestBodyAccumulator: ReturnType<typeof createBodyAccumulator> | undefined
+    const effectiveHeaders = () =>
+      typeof request.getHeaders === 'function' ? redactHeaders(request.getHeaders()) : requestHeaders
+    const accumulator = () => {
+      if (!requestBodyAccumulator) {
+        const headers = effectiveHeaders()
+        requestBodyAccumulator = createBodyAccumulator(getHeaderValue(headers, 'content-type') ?? contentType, headers)
+      }
+      return requestBodyAccumulator
+    }
     const target = request as unknown as MutableClientRequestMethods
     const originalWrite = target.write
     const originalEnd = target.end
-    const updateRequestBody = (requestBody: MainNetworkDevtoolsBody) => this.updateEvent(id, { requestBody })
+    const updateFinalCapture = (requestBody: MainNetworkDevtoolsBody | undefined) => {
+      // Node has serialized the actual header list by end(). Keep its repeated entries,
+      // but never publish the unredacted wire header string.
+      const wire = (request as ClientRequest & { _header?: string })._header
+      const entries: [string, string][] = []
+      if (typeof wire === 'string') {
+        for (const line of wire.split('\r\n').slice(1)) {
+          const colon = line.indexOf(':')
+          if (colon <= 0) continue
+          const name = line.slice(0, colon)
+          entries.push([name, isSensitiveHeaderName(name) ? REDACTED : line.slice(colon + 1).trim()])
+        }
+      }
+      const headers = entries.length > 0 ? Object.fromEntries(entries) : effectiveHeaders()
+      const finalType = getHeaderValue(headers, 'content-type')
+      this.updateEvent(id, {
+        requestHeaders: headers,
+        requestHeaderEntries: entries.length > 0 ? entries : undefined,
+        requestBody: requestBody
+          ? applyContentEncodingReplayConstraint(
+              {
+                ...requestBody,
+                contentType:
+                  typeof wire === 'string' || typeof request.getHeaders === 'function'
+                    ? finalType
+                    : requestBody.contentType
+              },
+              headers
+            )
+          : undefined
+      })
+    }
+
+    // http.get()/https.get() end the request before the wrapper can attach.
+    if (request.writableEnded) queueMicrotask(() => updateFinalCapture(undefined))
 
     target.write = function monitoredWrite(this: ClientRequest, ...args: unknown[]) {
-      requestBodyAccumulator.append(args[0], args[1])
+      accumulator().append(args[0], args[1])
       return originalWrite.apply(this, args)
     }
 
     target.end = function monitoredEnd(this: ClientRequest, ...args: unknown[]) {
-      requestBodyAccumulator.append(args[0], args[1])
-      const requestBody = requestBodyAccumulator.toBody()
-      if (requestBody) {
-        // Queue the update after Node has accepted `end()` so diagnostics cannot affect request dispatch.
-        queueMicrotask(() => updateRequestBody(requestBody))
-      }
-      return originalEnd.apply(this, args)
+      accumulator().append(args[0], args[1])
+      const requestBody = accumulator().toBody()
+      const result = originalEnd.apply(this, args)
+      // Header mutations are finalized at dispatch; update even for bodyless requests.
+      queueMicrotask(() => updateFinalCapture(requestBody))
+      return result
     }
   }
 
@@ -473,6 +587,7 @@ export class MainNetworkDevtoolsService extends BaseService {
       url: description.url,
       requestHeaders: description.requestHeaders,
       requestBody: description.requestBody,
+      requestReplayError: description.requestReplayError,
       startedAt: Date.now()
     }
 
@@ -572,22 +687,32 @@ function describeFetchRequest(
   init?: Parameters<typeof globalThis.fetch>[1]
 ) {
   const request = typeof Request !== 'undefined' && input instanceof Request ? input : undefined
-  const headers = request ? new Headers(request.headers) : new Headers()
-
-  if (init?.headers) {
-    new Headers(init.headers).forEach((value, key) => headers.set(key, value))
-  }
+  // Fetch init.headers replaces the Request header list, including an empty list.
+  const headers = new Headers(init?.headers !== undefined ? init.headers : request?.headers)
 
   const requestHeaders = redactHeaders(headers)
-  const requestContentType = getHeaderValue(requestHeaders, 'content-type')
+  const requestContentType = getEffectiveFetchRequestContentType(requestHeaders, init?.body)
 
   return {
     method: String(init?.method ?? request?.method ?? 'GET').toUpperCase(),
     url: redactUrl(getFetchUrl(input)),
     requestHeaders,
-    requestBody: captureRequestBody(init?.body, requestContentType),
+    requestBody: captureRequestBody(init?.body, requestContentType, requestHeaders),
     requestContentType
   }
+}
+
+/** Content-Type Fetch would send when the caller did not set the header explicitly. */
+export function getEffectiveFetchRequestContentType(
+  requestHeaders: Record<string, string> | undefined,
+  body: unknown
+): string | undefined {
+  const fromHeader = getHeaderValue(requestHeaders ?? {}, 'content-type')
+  if (fromHeader !== undefined) return fromHeader
+  if (typeof body === 'string') return 'text/plain;charset=UTF-8'
+  if (body instanceof URLSearchParams) return 'application/x-www-form-urlencoded;charset=UTF-8'
+  if (typeof Blob !== 'undefined' && body instanceof Blob && body.type) return body.type
+  return undefined
 }
 
 function getFetchUrl(input: Parameters<typeof globalThis.fetch>[0]): string {
@@ -639,14 +764,38 @@ function getHeaderValue(headers: Record<string, string> | undefined, name: strin
   return undefined
 }
 
-export function captureRequestBody(body: unknown, contentType?: string): MainNetworkDevtoolsBody | undefined {
+export function captureRequestBody(
+  body: unknown,
+  contentType?: string,
+  requestHeaders?: Record<string, string>
+): MainNetworkDevtoolsBody | undefined {
   if (body === undefined || body === null) return undefined
 
-  if (typeof body === 'string') return createCapturedTextBody(body, contentType)
-  if (body instanceof URLSearchParams)
-    return createCapturedTextBody(body.toString(), 'application/x-www-form-urlencoded')
+  if (typeof body === 'string') {
+    return applyContentEncodingReplayConstraint(createCapturedTextBody(body, contentType), requestHeaders)
+  }
+  if (body instanceof URLSearchParams) {
+    return applyContentEncodingReplayConstraint(
+      {
+        ...createCapturedTextBody(body.toString(), 'application/x-www-form-urlencoded;charset=UTF-8'),
+        contentType: contentType ?? 'application/x-www-form-urlencoded;charset=UTF-8'
+      },
+      requestHeaders
+    )
+  }
   if (typeof FormData !== 'undefined' && body instanceof FormData) {
-    return createCapturedTextBody(JSON.stringify(formDataToRecord(body)), contentType ?? 'multipart/form-data')
+    const captured = createCapturedTextBody(
+      JSON.stringify(formDataToRecord(body)),
+      contentType ?? 'multipart/form-data'
+    )
+    return applyContentEncodingReplayConstraint(
+      {
+        ...captured,
+        replayable: false,
+        note: 'Multipart FormData cannot be exported as cURL.'
+      },
+      requestHeaders
+    )
   }
   if (typeof Blob !== 'undefined' && body instanceof Blob) {
     return {
@@ -655,62 +804,115 @@ export function captureRequestBody(body: unknown, contentType?: string): MainNet
       note: 'Blob request body is not captured.'
     }
   }
-  if (body instanceof ArrayBuffer) return createCapturedBinaryBody(new Uint8Array(body), contentType)
-  if (ArrayBuffer.isView(body)) {
-    return createCapturedBinaryBody(new Uint8Array(body.buffer, body.byteOffset, body.byteLength), contentType)
+  if (body instanceof ArrayBuffer) {
+    return applyContentEncodingReplayConstraint(
+      createCapturedBinaryBody(new Uint8Array(body), contentType),
+      requestHeaders
+    )
   }
-  if (typeof ReadableStream !== 'undefined' && body instanceof ReadableStream) {
-    return { contentType, note: 'Streaming request body is not captured.' }
+  if (ArrayBuffer.isView(body)) {
+    return applyContentEncodingReplayConstraint(
+      createCapturedBinaryBody(new Uint8Array(body.buffer, body.byteOffset, body.byteLength), contentType),
+      requestHeaders
+    )
+  }
+  // Never coerce streaming uploads to an invented body or consume them for diagnostics.
+  if (
+    (typeof ReadableStream !== 'undefined' && body instanceof ReadableStream) ||
+    body instanceof Stream ||
+    (typeof body === 'object' && Symbol.asyncIterator in body && typeof body[Symbol.asyncIterator] === 'function')
+  ) {
+    return { contentType, replayable: false, note: 'Streaming request body is not captured.' }
   }
 
-  return createCapturedTextBody(String(body), contentType)
+  return applyContentEncodingReplayConstraint(createCapturedTextBody(String(body), contentType), requestHeaders)
 }
 
 async function readWebBody(
   body: ReadableStream<Uint8Array> | null,
   contentType: string | undefined,
-  emptyNote: string
+  emptyNote: string,
+  requestHeaders?: Record<string, string>,
+  redactionContentType = contentType
 ): Promise<MainNetworkDevtoolsBody> {
   if (!body) return { contentType, note: emptyNote }
 
   const reader = body.getReader()
-  const decoder = new TextDecoder()
+  const decoder = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true })
   let text = ''
   let truncated = false
+  let decodingFailed = false
+  const decode = (chunk?: Uint8Array, stream = false) => {
+    try {
+      return decoder.decode(chunk, { stream })
+    } catch (error) {
+      decodingFailed = true
+      throw error
+    }
+  }
 
   try {
     let done = false
-    while (text.length < MAX_BODY_CHARS) {
+    // At the exact limit, one more read distinguishes EOF from actual overflow.
+    // Do not discard a complete body merely because its final chunk fills the budget.
+    while (text.length <= MAX_BODY_CHARS) {
       const result = await reader.read()
       done = result.done
       if (done) break
-      text += decoder.decode(result.value, { stream: true })
+      text += decode(result.value, true)
     }
-    text += decoder.decode()
+    text += decode()
 
     if (text.length > MAX_BODY_CHARS) {
       text = text.slice(0, MAX_BODY_CHARS)
       truncated = true
     }
-    if (!done && text.length >= MAX_BODY_CHARS) truncated = true
+    if (!done && text.length > MAX_BODY_CHARS) truncated = true
 
     if (truncated) {
-      await reader.cancel().catch(() => {})
+      // A cloned Request is a tee branch: cancellation can wait for its original reader.
+      // Do not block publishing the bounded capture on that unrelated consumer.
+      void reader.cancel().catch(() => {})
     }
+  } catch (error) {
+    // Stream failures retain their transport diagnostic; only decoder failures
+    // should be reported as malformed UTF-8.
+    void reader.cancel().catch(() => {})
+    if (!decodingFailed) throw error
+    // Never advertise a replacement-decoded byte stream as executable replay data.
+    return { contentType, replayable: false, note: 'Body is not valid UTF-8 and cannot be replayed from capture.' }
   } finally {
     reader.releaseLock()
   }
 
-  return createCapturedTextBody(text, contentType, truncated)
+  return applyContentEncodingReplayConstraint(
+    { ...createCapturedTextBody(text, redactionContentType, truncated), contentType },
+    requestHeaders
+  )
 }
 
-function createBodyAccumulator(contentType?: string) {
+function createBodyAccumulator(contentType?: string, requestHeaders?: Record<string, string>) {
   let text = ''
   let size = 0
   let truncated = false
   let note: string | undefined
+  const decoder = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true })
+  let byteSize = 0
+  let decodingFailed = false
+  const appendBytes = (bytes: Uint8Array) => {
+    byteSize += bytes.byteLength
+    if (decodingFailed) return
+    try {
+      appendText(decoder.decode(bytes, { stream: true }))
+    } catch {
+      decodingFailed = true
+      text = ''
+      note = 'Request body is not valid UTF-8 and cannot be replayed from capture.'
+    }
+  }
 
   const appendText = (value: string) => {
+    if (value.length === 0) return
     size += value.length
     if (text.length >= MAX_BODY_CHARS) {
       truncated = true
@@ -732,28 +934,41 @@ function createBodyAccumulator(contentType?: string) {
       }
 
       if (typeof chunk === 'string') {
-        appendText(chunk)
+        appendBytes(Buffer.from(chunk, typeof encoding === 'string' ? (encoding as BufferEncoding) : 'utf8'))
         return
       }
       if (Buffer.isBuffer(chunk)) {
-        appendText(chunk.toString(typeof encoding === 'string' ? (encoding as BufferEncoding) : 'utf8'))
+        appendBytes(chunk)
         return
       }
       if (chunk instanceof ArrayBuffer) {
-        appendText(new TextDecoder().decode(chunk))
+        appendBytes(new Uint8Array(chunk))
         return
       }
       if (ArrayBuffer.isView(chunk)) {
-        appendText(new TextDecoder().decode(new Uint8Array(chunk.buffer, chunk.byteOffset, chunk.byteLength)))
+        appendBytes(new Uint8Array(chunk.buffer, chunk.byteOffset, chunk.byteLength))
         return
       }
 
       appendText(String(chunk))
     },
     toBody(): MainNetworkDevtoolsBody | undefined {
+      if (!decodingFailed) {
+        try {
+          appendText(decoder.decode())
+        } catch {
+          decodingFailed = true
+          text = ''
+          note = 'Request body is not valid UTF-8 and cannot be replayed from capture.'
+        }
+      }
+      if (decodingFailed) return { contentType, size: byteSize, replayable: false, note }
       if (!text && size === 0 && !note) return undefined
       if (note && !text) return { contentType, size, note }
-      return createCapturedTextBody(text, contentType, truncated, size)
+      return applyContentEncodingReplayConstraint(
+        createCapturedTextBody(text, contentType, truncated, size),
+        requestHeaders
+      )
     }
   }
 }
@@ -762,7 +977,17 @@ function createCapturedBinaryBody(bytes: Uint8Array, contentType?: string): Main
   if (!isTextLikeContentType(contentType)) {
     return { contentType, size: bytes.byteLength, note: 'Binary request body is not captured.' }
   }
-  return createCapturedTextBody(new TextDecoder().decode(bytes), contentType, false, bytes.byteLength)
+  try {
+    const text = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes)
+    return createCapturedTextBody(text, contentType, false, bytes.byteLength)
+  } catch {
+    return {
+      contentType,
+      size: bytes.byteLength,
+      replayable: false,
+      note: 'Request body is not valid UTF-8 and cannot be replayed from capture.'
+    }
+  }
 }
 
 function createCapturedTextBody(
@@ -773,20 +998,48 @@ function createCapturedTextBody(
 ): MainNetworkDevtoolsBody {
   const truncated = alreadyTruncated || text.length > MAX_BODY_CHARS
   const visibleText = text.slice(0, MAX_BODY_CHARS)
+  // Truncation can remove JSON's closing delimiters. Do not expose a raw prefix when
+  // structured redaction cannot parse the complete body, including display-only summaries.
+  if (truncated && (isJsonContentType(contentType) || looksJson(visibleText))) {
+    return {
+      contentType,
+      size,
+      truncated: true,
+      replayable: false,
+      note: 'Truncated JSON body is omitted because safe redaction cannot be established.'
+    }
+  }
+  const precisionRisk = hasJsonIntegerPrecisionRisk(visibleText, contentType)
+  const redactedText = redactBodyText(visibleText, contentType, precisionRisk)
+  const containsNul = redactedText.includes('\0')
   return {
-    text: redactBodyText(visibleText, contentType),
+    text: redactedText,
     contentType,
     size,
-    truncated: truncated || undefined
+    truncated: truncated || undefined,
+    replayable: !precisionRisk && !truncated && !containsNul,
+    note: containsNul
+      ? 'NUL bytes cannot be represented in a shell argument for cURL replay.'
+      : precisionRisk
+        ? 'JSON integer precision cannot be preserved for cURL replay.'
+        : truncated
+          ? 'Truncated body cannot be replayed from capture.'
+          : undefined
   }
 }
 
-function redactBodyText(text: string, contentType?: string): string {
+function redactBodyText(text: string, contentType?: string, preserveIntegerLiterals = false): string {
   if (isJsonContentType(contentType) || looksJson(text)) {
+    if (preserveIntegerLiterals) {
+      return redactJsonSensitiveValuesInText(text)
+    }
     try {
-      return JSON.stringify(redactJsonValue(JSON.parse(text)))
+      // JSON.parse does not accept a leading BOM. Preserve it for byte-faithful replay,
+      // but strip it while parsing so BOM-prefixed credentials cannot bypass redaction.
+      const bom = text.startsWith('\uFEFF') ? '\uFEFF' : ''
+      return bom + JSON.stringify(redactJsonValue(JSON.parse(bom ? text.slice(1) : text)))
     } catch {
-      return text
+      return redactJsonSensitiveValuesInText(text)
     }
   }
 
@@ -801,11 +1054,207 @@ function redactBodyText(text: string, contentType?: string): string {
   return text
 }
 
+function hasJsonIntegerPrecisionRisk(text: string, contentType?: string): boolean {
+  if (!isJsonContentType(contentType) && !looksJson(text)) return false
+
+  // Single linear pass that skips JSON strings, so digits inside string values are never scanned and a large
+  // string cannot trigger regex backtracking on the main process.
+  let index = 0
+  while (index < text.length) {
+    const char = text.charAt(index)
+    if (char === '"') {
+      index++
+      while (index < text.length) {
+        const current = text.charAt(index)
+        if (current === '\\') {
+          index += 2
+          continue
+        }
+        index++
+        if (current === '"') break
+      }
+      continue
+    }
+    if (char === '-' || char === '.' || (char >= '0' && char <= '9')) {
+      let end = index + 1
+      while (end < text.length && /[-+0-9.eE]/.test(text.charAt(end))) end++
+      if (jsonNumberTokenHasPrecisionRisk(text.slice(index, end))) return true
+      index = end
+      continue
+    }
+    index++
+  }
+
+  return false
+}
+
+/** Exact decimal identity of a JSON number token: sign, significant digits and power-of-ten exponent. */
+function normalizeJsonNumberToken(token: string): string | undefined {
+  const match = token.trim().match(/^(-?)(\d*)(?:\.(\d*))?(?:[eE]([+-]?\d+))?$/)
+  if (!match) return undefined
+  const [, sign, intPart = '', fracPart = '', expPart] = match
+  let digits = `${intPart}${fracPart}`.replace(/^0+/, '')
+  let exponent = Number(expPart ?? 0) - fracPart.length
+  if (!digits) return sign ? '-0' : '0'
+  while (digits.endsWith('0')) {
+    digits = digits.slice(0, -1)
+    exponent++
+  }
+  return `${sign}${digits}e${exponent}`
+}
+
+/**
+ * True when parsing the token into a double and re-serializing it would change the number (lost integer
+ * digits, dropped fractions such as `9007199254740992.5`, or overflow to Infinity). The full token is compared, not just its integer part.
+ */
+function jsonNumberTokenHasPrecisionRisk(token: string): boolean {
+  let value: number
+  try {
+    value = JSON.parse(`[${token}]`)[0] as number
+  } catch {
+    return false
+  }
+  if (typeof value !== 'number') return false
+  // Overflow (e.g. 1e309 parses to Infinity) cannot be replayed: JSON.stringify would emit null.
+  if (!Number.isFinite(value)) return true
+  const original = normalizeJsonNumberToken(token)
+  const reserialized = normalizeJsonNumberToken(JSON.stringify(value))
+  return original === undefined || original !== reserialized
+}
+
+function skipJsonValue(text: string, start: number): number {
+  let index = start
+  while (index < text.length && /\s/.test(text.charAt(index))) index++
+  if (index >= text.length) return index
+
+  const char = text.charAt(index)
+  if (char === '"') {
+    index++
+    while (index < text.length) {
+      if (text[index] === '\\') {
+        index += 2
+        continue
+      }
+      if (text[index] === '"') return index + 1
+      index++
+    }
+    return index
+  }
+
+  if (char === '{' || char === '[') {
+    const close = char === '{' ? '}' : ']'
+    let depth = 0
+    for (; index < text.length; index++) {
+      const current = text.charAt(index)
+      if (current === '"') {
+        index++
+        while (index < text.length) {
+          if (text[index] === '\\') {
+            index += 2
+            continue
+          }
+          if (text[index] === '"') break
+          index++
+        }
+        continue
+      }
+      if (current === char) depth++
+      if (current === close) {
+        depth--
+        if (depth === 0) return index + 1
+      }
+    }
+    return index
+  }
+
+  if (text.startsWith('true', index)) return index + 4
+  if (text.startsWith('false', index)) return index + 5
+  if (text.startsWith('null', index)) return index + 4
+
+  while (index < text.length && /[-+0-9.eE]/.test(text.charAt(index))) index++
+  return index
+}
+
+function redactJsonSensitiveValuesInText(text: string): string {
+  const replacements: { start: number; end: number; replacement: string }[] = []
+  let index = 0
+  while (index < text.length) {
+    if (text[index] !== '"') {
+      index++
+      continue
+    }
+    const keyStart = index
+    index = skipJsonValue(text, index)
+    const keyEnd = index
+    while (index < text.length && /\s/.test(text[index])) index++
+    if (text[index] !== ':') continue
+    index++
+
+    let key: string
+    try {
+      key = JSON.parse(text.slice(keyStart, keyEnd)) as string
+    } catch {
+      // Preserve redaction for malformed escaped keys as the previous scanner did.
+      key = text.slice(keyStart + 1, keyEnd - 1)
+    }
+    if (!isSensitiveName(key, OAUTH_QUERY_EXTRAS)) continue
+
+    const valueStart = index
+    let valueEnd = skipJsonValue(text, valueStart)
+    // Malformed unquoted credentials are not JSON number/keyword tokens. Consume the
+    // complete primitive fragment, not only a valid-looking prefix such as true or 123.
+    let tokenStart = valueStart
+    while (tokenStart < text.length && /\s/.test(text[tokenStart])) tokenStart++
+    const firstValueCharacter = text.charAt(tokenStart)
+    if (firstValueCharacter !== '"' && firstValueCharacter !== '{' && firstValueCharacter !== '[') {
+      while (valueEnd < text.length && !',}]'.includes(text[valueEnd])) valueEnd++
+    }
+    replacements.push({ start: valueStart, end: valueEnd, replacement: JSON.stringify(REDACTED) })
+    // A sensitive parent covers its descendants. Skip it whole, keeping this scan linear.
+    index = valueEnd
+  }
+
+  if (replacements.length === 0) return text
+
+  const parts: string[] = []
+  let cursor = 0
+  for (const { start, end, replacement } of replacements) {
+    parts.push(text.slice(cursor, start), replacement)
+    cursor = end
+  }
+  parts.push(text.slice(cursor))
+  return parts.join('')
+}
+
+function applyContentEncodingReplayConstraint(
+  body: MainNetworkDevtoolsBody,
+  requestHeaders?: Record<string, string>
+): MainNetworkDevtoolsBody
+function applyContentEncodingReplayConstraint(
+  body: MainNetworkDevtoolsBody | undefined,
+  requestHeaders?: Record<string, string>
+): MainNetworkDevtoolsBody | undefined
+function applyContentEncodingReplayConstraint(
+  body: MainNetworkDevtoolsBody | undefined,
+  requestHeaders?: Record<string, string>
+): MainNetworkDevtoolsBody | undefined {
+  if (!body) return body
+
+  const encoding = getHeaderValue(requestHeaders, 'content-encoding')
+  if (!encoding || encoding.toLowerCase() === 'identity') return body
+
+  return {
+    ...body,
+    replayable: false,
+    note: body.note ?? 'Content-encoded request bodies cannot be replayed from capture.'
+  }
+}
+
 function redactJsonValue(value: unknown): unknown {
   if (Array.isArray(value)) return value.map((item) => redactJsonValue(item))
   if (!isRecord(value)) return value
 
-  const result: Record<string, unknown> = {}
+  const result: Record<string, unknown> = Object.create(null)
   for (const [key, item] of Object.entries(value)) {
     result[key] = isSensitiveName(key, OAUTH_QUERY_EXTRAS) ? REDACTED : redactJsonValue(item)
   }
