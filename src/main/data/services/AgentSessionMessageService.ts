@@ -22,6 +22,7 @@ import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbOrTx } from '@data/db/types'
 import { agentSessionReadModelEffects, agentSessionService } from '@data/services/AgentSessionService'
 import { registerDataService } from '@data/services/dataServiceRegistry'
+import { withoutDetachedFileParts } from '@data/services/utils/detachedFileParts'
 import { timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
 import { buildSearchSnippet } from '@main/utils/searchSnippet'
@@ -57,6 +58,7 @@ import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 import type { SessionMessageContentSearchItem } from '@shared/data/api/schemas/search'
 import type { CursorPaginationResponse } from '@shared/data/api/types'
+import type { FileEntryId } from '@shared/data/types/file'
 import {
   AGENT_SESSION_MESSAGE_SEARCH_ROLES,
   type CherryMessagePart,
@@ -254,11 +256,7 @@ type SavedAgentSessionMessage = {
   activityTimestamp: number | null
 }
 
-function replaceAgentSessionMessageFileRefsTx(
-  tx: DbOrTx,
-  messageId: string,
-  data: AgentSessionMessageEntity['data']
-): void {
+function replaceAgentSessionMessageFileRefsTx(tx: DbOrTx, messageId: string, data: SessionMessageRow['data']): void {
   tx.delete(agentSessionMessageFileRefTable).where(eq(agentSessionMessageFileRefTable.sourceId, messageId)).run()
 
   const snapshot = tx
@@ -268,7 +266,7 @@ function replaceAgentSessionMessageFileRefsTx(
     .get()?.snapshot
   const ids = [
     ...new Set(
-      (data.parts ?? [])
+      withoutDetachedFileParts(data.parts, data.detachedFileEntryIds ?? [])
         .filter((part) => part.type === 'file')
         .flatMap((part) => [readCherryMeta(part)?.fileEntryId, readCherryMeta(part)?.workingFileEntryId])
         .filter((id): id is string => Boolean(id))
@@ -341,11 +339,17 @@ function publicMessageData(data: SessionMessageRow['data']): AgentSessionMessage
   const result = { ...data }
   delete result.runtimeAnchor
   delete result.nativeSessionId
+  delete result.detachedFileEntryIds
   delete result.deliveryReplyAnchor
   return result
 }
 
 export class AgentSessionMessageService {
+  /** Display/edit projection only; never use this to replace native stored input. */
+  projectFileParts(data: SessionMessageRow['data']): CherryMessagePart[] {
+    return withoutDetachedFileParts(data.parts, data.detachedFileEntryIds ?? [])
+  }
+
   readWorkspaceRelocationHistory(workspaceId: string) {
     return application
       .get('DbService')
@@ -1152,6 +1156,46 @@ export class AgentSessionMessageService {
     return message
   }
 
+  /**
+   * Drop the serialized file parts that reference a permanently deleted file
+   * entry, keeping the rest of the message intact, and rebuild the message's
+   * file-ref rows from the reconciled parts. Without this, a delete-and-detach
+   * leaves `data.parts` pointing at the deleted entry: attachment actions fail
+   * and the edit flow rejects the message with `attachment_unavailable`.
+   *
+   * Native-bound input retains its raw parts and checkpoints. A main-owned list
+   * hides detached files only in display/edit projections, including completed input.
+   */
+  detachFileEntryParts(sessionId: string, messageId: string, fileEntryId: FileEntryId): void {
+    const changed = application.get('DbService').withWriteTx((tx) => {
+      const existing = this.findExistingMessageRow(tx, sessionId, messageId)
+      if (!existing) return false
+      if (existing.role === 'root') return false
+      const parts = existing.data.parts ?? []
+      const kept = withoutDetachedFileParts(parts, [fileEntryId])
+      if (kept.length === parts.length) return false
+      const nativeBound = Boolean(existing.inputContextId || existing.data.nativeSessionId)
+      if (nativeBound && existing.data.detachedFileEntryIds?.includes(fileEntryId)) return false
+      const mergedData: SessionMessageRow['data'] = nativeBound
+        ? { ...existing.data, detachedFileEntryIds: [...(existing.data.detachedFileEntryIds ?? []), fileEntryId] }
+        : { ...existing.data, parts: kept }
+      const updatedAt = Date.now()
+      if (!nativeBound) this.invalidateForkPrefixTx(tx, sessionId, messageId)
+      tx.update(sessionMessagesTable)
+        .set({ data: mergedData, updatedAt })
+        .where(and(eq(sessionMessagesTable.id, messageId), eq(sessionMessagesTable.sessionId, sessionId)))
+        .run()
+      replaceAgentSessionMessageFileRefsTx(tx, messageId, mergedData)
+      agentSessionService.touchUpdatedAtTx(tx, sessionId, updatedAt)
+      return true
+    })
+    if (changed) {
+      notifyDataApiDataChange([
+        { endpoint: '/agent-sessions/:sessionId/messages', kind: 'projection', routeParams: { sessionId } }
+      ])
+    }
+  }
+
   deleteSessionMessageTx(tx: DbOrTx, sessionId: string, messageId: string): { rowsAffected: number } {
     const existing = this.findExistingMessageRow(tx, sessionId, messageId)
     if (existing?.role === 'root')
@@ -1290,7 +1334,9 @@ export class AgentSessionMessageService {
       id: row.id,
       sessionId: row.sessionId,
       role: row.role as AgentSessionMessageEntity['role'],
-      data: publicMessageData(row.data),
+      data: row.data.detachedFileEntryIds?.length
+        ? { ...publicMessageData(row.data), parts: this.projectFileParts(row.data) }
+        : publicMessageData(row.data),
       searchableText: row.searchableText,
       status: row.status as AgentSessionMessageEntity['status'],
       modelId: row.modelId,
@@ -1465,6 +1511,7 @@ export class AgentSessionMessageService {
       }
       if (existingRow.data.deliveryReplyAnchor) data.deliveryReplyAnchor = existingRow.data.deliveryReplyAnchor
       if (existingRow.data.nativeSessionId) data.nativeSessionId = existingRow.data.nativeSessionId
+      if (existingRow.data.detachedFileEntryIds) data.detachedFileEntryIds = existingRow.data.detachedFileEntryIds
       const runtimeResumeTokenToPersist = runtimeResumeToken ?? existingRow.runtimeResumeToken ?? null
       const updatedAtMs = timestampMs
       const modelId = message.modelId === undefined ? existingRow.modelId : message.modelId
@@ -1512,7 +1559,7 @@ export class AgentSessionMessageService {
             .run(),
         defaultHandlersFor('Message', String(existingRow.id))
       )
-      replaceAgentSessionMessageFileRefsTx(db, existingRow.id, message.data)
+      replaceAgentSessionMessageFileRefsTx(db, existingRow.id, data)
 
       return {
         entity: this.rowToEntity({

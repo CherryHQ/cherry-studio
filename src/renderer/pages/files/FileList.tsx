@@ -154,7 +154,8 @@ export const FileList = memo(function FileList({
         const canOpen = canUseFileActions
         const canRename = canUseFileActions
         const canShowInFolder = canUseFileActions
-        const deleteLabel = file.origin === 'external' ? t('files.remove_from_library') : t('files.delete.label')
+        const deleteLabel =
+          file.origin === 'external' ? t('files.remove_from_library') : t('recycle_bin.move.confirm_action')
         const renderActionPlaceholder = (key: string) => <div key={key} className="size-6" aria-hidden="true" />
 
         return (

@@ -14,11 +14,15 @@ import ArchiveItemRow from './ArchiveItemRow'
 
 const logger = loggerService.withContext('ArchiveSection')
 
+export interface PermanentDeleteOptions {
+  detachReferences?: boolean
+}
+
 export interface PendingPermanentDelete {
   items: ArchiveItem[]
   /** Domains present in `items`; the confirmation states what deleting each one removes. */
   domains: ArchiveDomain[]
-  run: (items: ArchiveItem[]) => Promise<ArchiveBatchOutcome>
+  run: (items: ArchiveItem[], options?: PermanentDeleteOptions) => Promise<ArchiveBatchOutcome>
   fileEntryIds?: string[]
 }
 
@@ -52,8 +56,8 @@ interface ArchiveSectionProps {
   isPermanentDeleting: boolean
   onRestore: (item: ArchiveItem) => void
   onRestoreMany: (items: ArchiveItem[]) => Promise<ArchiveBatchOutcome>
-  onPermanentDelete: (item: ArchiveItem) => Promise<ArchiveBatchOutcome>
-  onPermanentDeleteMany: (items: ArchiveItem[]) => Promise<ArchiveBatchOutcome>
+  onPermanentDelete: (item: ArchiveItem, options?: PermanentDeleteOptions) => Promise<ArchiveBatchOutcome>
+  onPermanentDeleteMany: (items: ArchiveItem[], options?: PermanentDeleteOptions) => Promise<ArchiveBatchOutcome>
   onRequestDelete: (request: PendingPermanentDelete) => void
   includeFileReferencePreview?: boolean
 }
@@ -160,12 +164,17 @@ const ArchiveSection: FC<ArchiveSectionProps> = ({
       items: targets,
       domains: domain ? [domain] : [],
       fileEntryIds: includeFileReferencePreview ? targets.map((item) => item.id) : undefined,
-      run: async (confirmedItems) => {
+      run: async (confirmedItems, options) => {
         setIsBatchActionPending(true)
         try {
-          const outcome = isBatch
-            ? await onPermanentDeleteMany(confirmedItems)
-            : await onPermanentDelete(confirmedItems[0])
+          const outcome =
+            isBatch && options
+              ? await onPermanentDeleteMany(confirmedItems, options)
+              : isBatch
+                ? await onPermanentDeleteMany(confirmedItems)
+                : options
+                  ? await onPermanentDelete(confirmedItems[0], options)
+                  : await onPermanentDelete(confirmedItems[0])
           applyOutcome(outcome)
           if (isBatch) showBatchOutcome('permanent_delete', outcome)
           return outcome

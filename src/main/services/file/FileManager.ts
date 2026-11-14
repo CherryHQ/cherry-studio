@@ -128,13 +128,15 @@ import * as z from 'zod'
 
 import { application } from '@application'
 import { notifyDataApiDataChange } from '@data/dataApiDataChange'
+import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { fileEntryService } from '@data/services/FileEntryService'
 import { fileRefService } from '@data/services/FileRefService'
+import { messageService } from '@data/services/MessageService'
 import { loggerService } from '@logger'
 import { BaseService, DependsOn, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { stat as fsStat } from '@main/utils/file'
 import type { ContentHash, DanglingState, FileEntry, FileEntryId } from '@shared/data/types/file'
-import { CleanupPolicySchema, FileEntryIdSchema } from '@shared/data/types/file'
+import { chatMessageSourceType, CleanupPolicySchema, FileEntryIdSchema } from '@shared/data/types/file'
 import { fileErrorCodes } from '@shared/ipc/errors/file'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import { type CreateInternalEntryInput, createInternalEntryInputSchema } from '@shared/ipc/schemas/file'
@@ -624,8 +626,11 @@ export interface IFileManager {
   batchTrash(ids: FileEntryId[]): Promise<BatchMutationResult>
   /** Batch internal-only — external ids fail like `restore`. */
   batchRestore(ids: FileEntryId[]): Promise<BatchMutationResult>
-  /** Permanently delete unreferenced internal entries that are currently in Trash. */
-  batchPermanentDeleteFromTrash(ids: FileEntryId[]): Promise<BatchMutationResult>
+  /** Permanently delete internal entries in Trash; detach refs only after explicit user confirmation. */
+  batchPermanentDeleteFromTrash(
+    ids: FileEntryId[],
+    options?: { detachReferences?: boolean }
+  ): Promise<BatchMutationResult>
   /** Remove unreferenced external entries from the library without modifying user files. */
   batchRemoveFromLibrary(ids: FileEntryId[]): Promise<BatchMutationResult>
 
@@ -1293,8 +1298,58 @@ export class FileManager extends BaseService implements IFileManager {
     return result
   }
 
-  async batchPermanentDeleteFromTrash(ids: FileEntryId[]): Promise<BatchMutationResult> {
-    const result = await internalBatchPermanentDeleteFromTrash(this.deps, ids)
+  async batchPermanentDeleteFromTrash(
+    ids: FileEntryId[],
+    options?: { detachReferences?: boolean }
+  ): Promise<BatchMutationResult> {
+    // Collect owning agent-session messages before deletion: the entry delete
+    // cascades the ref rows, after which the owners are no longer findable.
+    const detachTargets = options?.detachReferences
+      ? ids.flatMap((id) =>
+          this.deps.fileRefService
+            .findAgentSessionMessageDetailsByEntryId(id)
+            .map((detail) => ({ id, sessionId: detail.sessionId, messageId: detail.messageId }))
+        )
+      : []
+    const chatTargets = options?.detachReferences
+      ? ids.flatMap((id) =>
+          this.deps.fileRefService
+            .findByEntryId(id)
+            .filter((ref) => ref.sourceType === chatMessageSourceType)
+            .map((ref) => ({ id, messageId: ref.sourceId }))
+        )
+      : []
+    const result = await internalBatchPermanentDeleteFromTrash(this.deps, ids, options)
+    // Reconcile the owning messages' serialized parts through the message
+    // layer so detached entries no longer dangle from `data.parts` (which
+    // broke attachment actions and message editing). A reconciliation failure
+    // must not fail the completed deletion.
+    const succeeded = new Set(result.succeeded)
+    for (const target of detachTargets) {
+      if (!succeeded.has(target.id)) continue
+      try {
+        agentSessionMessageService.detachFileEntryParts(target.sessionId, target.messageId, target.id)
+      } catch (error) {
+        fileManagerLogger.warn('failed to reconcile detached file part', {
+          fileEntryId: target.id,
+          sessionId: target.sessionId,
+          messageId: target.messageId,
+          error: (error as Error).message
+        })
+      }
+    }
+    for (const target of chatTargets) {
+      if (!succeeded.has(target.id)) continue
+      try {
+        messageService.detachFileEntryParts(target.messageId, target.id)
+      } catch (error) {
+        fileManagerLogger.warn('failed to reconcile detached chat file part', {
+          fileEntryId: target.id,
+          messageId: target.messageId,
+          error: (error as Error).message
+        })
+      }
+    }
     this.notifyReadModelChange(result.succeeded)
     return result
   }

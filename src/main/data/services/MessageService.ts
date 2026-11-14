@@ -53,6 +53,7 @@ import { hasClearContextPart, isBlankUserTurn, readCherryMeta } from '@shared/da
 import { aiUsageRecordService, mergeMessageRuntimeStats } from './AiUsageRecordService'
 import { getDataService, registerDataService } from './dataServiceRegistry'
 import { isAssistantActivityTransition, isConversationActivityRole } from './utils/activityTime'
+import { withoutDetachedFileParts } from './utils/detachedFileParts'
 import { type SearchFetchContext, searchWithCursor } from './utils/ftsSearch'
 import { asNumericKey, decodeListCursor, encodeCursor, keysetOrdering } from './utils/keysetCursor'
 import { timestampToISO } from './utils/rowMappers'
@@ -1327,6 +1328,25 @@ export class MessageService {
     const db = application.get('DbService').getDb()
     const row = this.findAddressableMessageRowTx(db, id)
     return row?.topicId === topicId ? this.isAwaitingInputLeafTx(db, rowToMessage(row)) : false
+  }
+
+  /** Reconcile an explicitly detached managed attachment through its owning message. */
+  detachFileEntryParts(messageId: string, fileEntryId: string): void {
+    const topicId = application.get('DbService').withWriteTx((tx) => {
+      const existing = tx.select().from(messageTable).where(eq(messageTable.id, messageId)).get()
+      if (!existing || existing.role === 'root') return undefined
+      const parts = existing.data.parts ?? []
+      const kept = withoutDetachedFileParts(parts, [fileEntryId])
+      if (kept.length === parts.length) return undefined
+      const data = { ...existing.data, parts: kept }
+      tx.update(messageTable).set({ data }).where(eq(messageTable.id, messageId)).run()
+      replaceChatMessageFileRefsTx(tx, messageId, data, existing.messageSnapshot)
+      return existing.topicId
+    })
+    if (topicId)
+      notifyDataApiDataChange([
+        { endpoint: '/topics/:topicId/messages', kind: 'projection', routeParams: { topicId }, entityIds: [messageId] }
+      ])
   }
 
   /**

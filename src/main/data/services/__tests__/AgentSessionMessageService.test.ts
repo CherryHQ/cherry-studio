@@ -8,7 +8,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
 import { agentTable } from '@data/db/schemas/agent'
+import { agentRuntimeBackendTable } from '@data/db/schemas/agentRuntimeBackend'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
+import { agentSessionContextTable } from '@data/db/schemas/agentSessionContext'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { aiUsageRecordTable } from '@data/db/schemas/aiUsageRecord'
@@ -136,6 +138,217 @@ describe('AgentSessionMessageService', () => {
         .where(eq(agentSessionMessageFileRefTable.sourceId, ASSISTANT_MESSAGE_ID))
         .all()
     ).toEqual([])
+  })
+
+  it('detaches serialized file parts of a permanently deleted entry and rebuilds refs', () => {
+    dbh.db
+      .insert(fileEntryTable)
+      .values({
+        id: FILE_ENTRY_ID,
+        name: 'note',
+        ext: 'txt',
+        size: 3,
+        origin: 'internal',
+        cleanupPolicy: 'delete_when_unreferenced',
+        createdAt: 1
+      })
+      .run()
+    const message = {
+      id: USER_MESSAGE_ID,
+      role: 'user' as const,
+      status: 'success' as const,
+      data: {
+        parts: [
+          { type: 'text' as const, text: 'see attachment' },
+          {
+            type: 'file' as const,
+            mediaType: 'text/plain',
+            url: 'file:///files/note.txt',
+            providerMetadata: { cherry: { fileEntryId: FILE_ENTRY_ID } }
+          }
+        ]
+      }
+    }
+    agentSessionMessageService.saveMessage({ sessionId: SESSION_ID, message })
+    expect(
+      dbh.db
+        .select()
+        .from(agentSessionMessageFileRefTable)
+        .where(eq(agentSessionMessageFileRefTable.sourceId, USER_MESSAGE_ID))
+        .all()
+    ).toEqual([expect.objectContaining({ fileEntryId: FILE_ENTRY_ID, role: 'attachment' })])
+
+    // The entry delete cascades the ref rows; the message layer reconciles parts.
+    dbh.db.delete(fileEntryTable).where(eq(fileEntryTable.id, FILE_ENTRY_ID)).run()
+    agentSessionMessageService.detachFileEntryParts(SESSION_ID, USER_MESSAGE_ID, FILE_ENTRY_ID)
+
+    expect(agentSessionMessageService.getSessionMessage(SESSION_ID, USER_MESSAGE_ID).data.parts).toEqual([
+      { type: 'text', text: 'see attachment' }
+    ])
+    expect(
+      dbh.db
+        .select()
+        .from(agentSessionMessageFileRefTable)
+        .where(eq(agentSessionMessageFileRefTable.sourceId, USER_MESSAGE_ID))
+        .all()
+    ).toEqual([])
+  })
+
+  it('keeps native-bound input immutable while projecting detached attachments out', () => {
+    dbh.db
+      .insert(fileEntryTable)
+      .values({
+        id: FILE_ENTRY_ID,
+        name: 'note',
+        ext: 'txt',
+        size: 3,
+        origin: 'internal',
+        cleanupPolicy: 'delete_when_unreferenced',
+        createdAt: 1
+      })
+      .run()
+    const message = {
+      id: USER_MESSAGE_ID,
+      role: 'user' as const,
+      status: 'success' as const,
+      data: {
+        parts: [
+          { type: 'text' as const, text: 'see attachment' },
+          {
+            type: 'file' as const,
+            mediaType: 'text/plain',
+            url: 'file:///files/note.txt',
+            providerMetadata: { cherry: { fileEntryId: FILE_ENTRY_ID } }
+          }
+        ]
+      }
+    }
+    agentSessionMessageService.saveMessage({ sessionId: SESSION_ID, message })
+    dbh.db
+      .insert(agentRuntimeBackendTable)
+      .values({ id: 'backend-1', locator: { version: 1, kind: 'pi' }, state: 'bound' })
+      .run()
+    dbh.db
+      .insert(agentSessionContextTable)
+      .values({
+        id: 'ctx-1',
+        sessionId: SESSION_ID,
+        backendId: 'backend-1',
+        nativeThreadId: 'thread-1',
+        bindingState: 'bound'
+      })
+      .run()
+    dbh.db
+      .update(agentSessionMessageTable)
+      .set({
+        inputContextId: 'ctx-1',
+        nativeInputId: 'input-1',
+        runtimeResumeToken: 'thread-1',
+        data: {
+          ...message.data,
+          runtimeAnchor: { checkpoint: { runtime: 'pi', runtimeSessionId: 'thread-1', leafId: 'leaf' } }
+        }
+      })
+      .where(eq(agentSessionMessageTable.id, USER_MESSAGE_ID))
+      .run()
+
+    dbh.db.delete(fileEntryTable).where(eq(fileEntryTable.id, FILE_ENTRY_ID)).run()
+    agentSessionMessageService.detachFileEntryParts(SESSION_ID, USER_MESSAGE_ID, FILE_ENTRY_ID)
+
+    const raw = dbh.db
+      .select()
+      .from(agentSessionMessageTable)
+      .where(eq(agentSessionMessageTable.id, USER_MESSAGE_ID))
+      .get()!
+    expect(raw.data.parts).toEqual(message.data.parts)
+    expect(raw).toMatchObject({ inputContextId: 'ctx-1', nativeInputId: 'input-1', runtimeResumeToken: 'thread-1' })
+    expect(raw.data.runtimeAnchor).toEqual({
+      checkpoint: { runtime: 'pi', runtimeSessionId: 'thread-1', leafId: 'leaf' }
+    })
+    expect(agentSessionMessageService.getSessionMessage(SESSION_ID, USER_MESSAGE_ID).data.parts).toEqual([
+      { type: 'text', text: 'see attachment' }
+    ])
+    expect(agentSessionMessageService.projectFileParts(raw.data)).toEqual([{ type: 'text', text: 'see attachment' }])
+    expect(agentSessionMessageService.getSessionMessage(SESSION_ID, USER_MESSAGE_ID).data).not.toHaveProperty(
+      'detachedFileEntryIds'
+    )
+    agentSessionMessageService.saveMessage({ sessionId: SESSION_ID, message })
+    expect(agentSessionMessageService.getSessionMessage(SESSION_ID, USER_MESSAGE_ID).data.parts).toHaveLength(1)
+    expect(
+      dbh.db.select().from(agentSessionMessageTable).where(eq(agentSessionMessageTable.id, USER_MESSAGE_ID)).get()?.data
+        .parts
+    ).toEqual(message.data.parts)
+  })
+
+  it('detaches parts whose cherryMeta only references the entry as a working file', () => {
+    dbh.db
+      .insert(fileEntryTable)
+      .values({
+        id: FILE_ENTRY_ID,
+        name: 'note',
+        ext: 'txt',
+        size: 3,
+        origin: 'internal',
+        cleanupPolicy: 'delete_when_unreferenced',
+        createdAt: 1
+      })
+      .run()
+    const message = {
+      id: USER_MESSAGE_ID,
+      role: 'user' as const,
+      status: 'success' as const,
+      data: {
+        parts: [
+          { type: 'text' as const, text: 'see attachment' },
+          {
+            type: 'file' as const,
+            mediaType: 'text/plain',
+            url: 'file:///files/note.txt',
+            providerMetadata: { cherry: { workingFileEntryId: FILE_ENTRY_ID } }
+          }
+        ]
+      }
+    }
+    agentSessionMessageService.saveMessage({ sessionId: SESSION_ID, message })
+
+    dbh.db.delete(fileEntryTable).where(eq(fileEntryTable.id, FILE_ENTRY_ID)).run()
+    agentSessionMessageService.detachFileEntryParts(SESSION_ID, USER_MESSAGE_ID, FILE_ENTRY_ID)
+
+    expect(agentSessionMessageService.getSessionMessage(SESSION_ID, USER_MESSAGE_ID).data.parts).toEqual([
+      { type: 'text', text: 'see attachment' }
+    ])
+  })
+
+  it('leaves root messages untouched when detaching file parts', () => {
+    dbh.db
+      .insert(agentSessionMessageTable)
+      .values({
+        id: USER_MESSAGE_ID,
+        sessionId: SESSION_ID,
+        role: 'root',
+        status: 'success',
+        data: {
+          parts: [
+            { type: 'text', text: 'root' },
+            {
+              type: 'file',
+              mediaType: 'text/plain',
+              url: 'file:///files/note.txt',
+              providerMetadata: { cherry: { fileEntryId: FILE_ENTRY_ID } }
+            }
+          ]
+        }
+      })
+      .run()
+
+    agentSessionMessageService.detachFileEntryParts(SESSION_ID, USER_MESSAGE_ID, FILE_ENTRY_ID)
+
+    const row = dbh.db
+      .select({ data: agentSessionMessageTable.data })
+      .from(agentSessionMessageTable)
+      .where(eq(agentSessionMessageTable.id, USER_MESSAGE_ID))
+      .get()
+    expect(row?.data.parts).toHaveLength(2)
   })
 
   it('reports message existence per session', async () => {

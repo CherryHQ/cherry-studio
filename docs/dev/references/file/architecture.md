@@ -141,7 +141,9 @@ call.
 - paginated entries and individual entries;
 - exact content-hash candidates and entry statistics;
 - batched reference counts;
-- references by entry or business source.
+- references by entry or business source;
+- `GET /files/entries/:id/agent-session-message-details` returns session names, message timestamps, and
+  bounded message summaries for agent-session references.
 
 These handlers do not touch the filesystem, resolve physical paths, or query `DanglingCache`.
 Renderer views compose those SQL results with File IPC only when they need live state.
@@ -152,6 +154,10 @@ Renderer views compose those SQL results with File IPC only when they need live 
 currently cover binary reads, optimistic writes, metadata, path and dangling-state batches,
 internal-entry batch creation, trash operations, rename, open/reveal, and the directory-tree
 protocol.
+
+`file.batch_permanent_delete_from_trash` keeps its reference guard by default. The Archive UI's
+explicit detach action opts in to deleting the entry and cascading its association rows; internal
+blob cleanup remains best-effort, including when the blob is already missing.
 
 `file.validate_notes_directory` is a transport adapter for the existing Notes-directory selection
 policy in `src/main/services/notesDirectory.ts`, shared with legacy `FileStorage`. This stateless
@@ -261,3 +267,17 @@ test seam.
 | FileManager facade and internals | `src/main/services/file/` |
 | General main-process filesystem helpers | `src/main/utils/file/` |
 | Directory tree renderer mirror | `src/renderer/hooks/useDirectoryTree.ts` |
+
+### Detached message attachment projections
+
+Permanent deletion with `detachReferences` collects both ordinary-chat and agent-session
+message owners before FK associations disappear. Each owning message service reconciles
+its attachment projection after a successful deletion. Non-native messages remove matching
+file parts. Native-bound input keeps its original parts, binding IDs and fork checkpoint;
+a main-owned `detachedFileEntryIds` list hides the detached parts in public message reads
+and edit preparation. The list is not accepted from or exposed to renderer clients.
+Native replay continues to read the original stored input. A repeated runtime save keeps
+the detachment projection. Root messages are not rewritten.
+
+Reconciliation remains best-effort after deletion: a reconciliation failure is logged,
+not returned as a failed deletion after the file has already been removed.

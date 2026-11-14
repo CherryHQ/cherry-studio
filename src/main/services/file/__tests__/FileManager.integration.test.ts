@@ -1,15 +1,22 @@
+import '@data/services/TopicService'
 import { mkdir, mkdtemp, readFile, rm, stat, utimes, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
-import { setupTestDatabase } from '@test-helpers/db'
+import { setupTestDatabase, rootRow } from '@test-helpers/db'
 import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
 import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
+import { eq } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
+import { agentSessionTable } from '@data/db/schemas/agentSession'
+import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
+import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { fileEntryTable } from '@data/db/schemas/file'
+import { messageTable } from '@data/db/schemas/message'
+import { topicTable } from '@data/db/schemas/topic'
 import { BaseService } from '@main/core/lifecycle'
 import { type FileEntryId } from '@shared/data/types/file'
 import { fileErrorCodes } from '@shared/ipc/errors/file'
@@ -46,6 +53,8 @@ vi.mock('@data/db/restore/restoreJournal', () => ({
 const { FileManager } = await import('../FileManager')
 const { danglingCache } = await import('../danglingCache')
 const { fileEntryService } = await import('@data/services/FileEntryService')
+const { messageService } = await import('@data/services/MessageService')
+const { agentSessionMessageService } = await import('@data/services/AgentSessionMessageService')
 
 describe('FileManager (integration)', () => {
   const dbh = setupTestDatabase()
@@ -456,6 +465,187 @@ describe('FileManager (integration)', () => {
       { endpoint: '/files/entries', kind: 'membership', entityIds: [first.id, second.id] },
       { endpoint: '/files/entries/:id', entityIds: [first.id, second.id] }
     ])
+  })
+
+  it.each([false, true])(
+    'reconciles agent-session display parts without mutating native input: %s',
+    async (nativeBound) => {
+      const entry = await fm.createInternalEntry({
+        source: 'bytes',
+        data: new Uint8Array([0x01]),
+        name: 'note',
+        ext: 'txt',
+        cleanupPolicy: 'manual'
+      })
+      dbh.db
+        .insert(agentWorkspaceTable)
+        .values({ id: 'workspace-detach', name: 'W', path: '/tmp/workspace-detach', type: 'user', orderKey: 'a0' })
+        .run()
+      dbh.db
+        .insert(agentSessionTable)
+        .values({
+          id: 'session-detach',
+          workspaceId: 'workspace-detach',
+          name: 'S',
+          orderKey: 'a0',
+          createdAt: 0,
+          lastActivityAt: 0,
+          updatedAt: 0
+        })
+        .run()
+      agentSessionMessageService.saveMessage({
+        sessionId: 'session-detach',
+        message: {
+          id: '019606a0-0000-7000-8000-00000000dd01',
+          role: 'user',
+          status: 'success',
+          data: {
+            parts: [
+              { type: 'text', text: 'see attachment' },
+              {
+                type: 'file',
+                mediaType: 'text/plain',
+                url: 'file:///files/note.txt',
+                providerMetadata: { cherry: { fileEntryId: entry.id } }
+              }
+            ]
+          }
+        }
+      })
+
+      if (nativeBound) {
+        dbh.db
+          .update(agentSessionMessageTable)
+          .set({
+            data: {
+              ...agentSessionMessageService.getSessionMessage('session-detach', '019606a0-0000-7000-8000-00000000dd01')
+                .data,
+              nativeSessionId: 'native-thread'
+            }
+          })
+          .where(eq(agentSessionMessageTable.id, '019606a0-0000-7000-8000-00000000dd01'))
+          .run()
+      }
+      await fm.batchTrash([entry.id])
+      expect(await fm.batchPermanentDeleteFromTrash([entry.id], { detachReferences: true })).toMatchObject({
+        succeeded: [entry.id]
+      })
+
+      const row = dbh.db
+        .select({ data: agentSessionMessageTable.data })
+        .from(agentSessionMessageTable)
+        .where(eq(agentSessionMessageTable.id, '019606a0-0000-7000-8000-00000000dd01'))
+        .get()
+      expect(
+        agentSessionMessageService.getSessionMessage('session-detach', '019606a0-0000-7000-8000-00000000dd01').data
+          .parts
+      ).toEqual([{ type: 'text', text: 'see attachment' }])
+      if (nativeBound) {
+        expect(row?.data.parts).toHaveLength(2)
+        expect(row?.data.nativeSessionId).toBe('native-thread')
+      } else expect(row?.data.parts).toHaveLength(1)
+    }
+  )
+
+  it('reconciles ordinary chat attachments and leaves unrelated files intact', async () => {
+    const removed = await fm.createInternalEntry({
+      source: 'bytes',
+      data: new Uint8Array([1]),
+      name: 'removed',
+      ext: 'txt',
+      cleanupPolicy: 'manual'
+    })
+    const retained = await fm.createInternalEntry({
+      source: 'bytes',
+      data: new Uint8Array([2]),
+      name: 'retained',
+      ext: 'txt',
+      cleanupPolicy: 'manual'
+    })
+    dbh.db.insert(topicTable).values({ id: 'chat-detach', name: 'Chat', orderKey: 'a0' }).run()
+    dbh.db.insert(messageTable).values(rootRow('chat-detach')).run()
+    const message = messageService.create('chat-detach', {
+      role: 'user',
+      status: 'success',
+      data: {
+        parts: [
+          { type: 'text', text: 'keep text' },
+          ...[removed, retained].map((entry) => ({
+            type: 'file' as const,
+            mediaType: 'text/plain',
+            url: 'file:///files/' + entry.name,
+            providerMetadata: { cherry: { fileEntryId: entry.id } }
+          }))
+        ]
+      }
+    })
+    await fm.batchTrash([removed.id])
+    expect(await fm.batchPermanentDeleteFromTrash([removed.id], { detachReferences: true })).toMatchObject({
+      succeeded: [removed.id]
+    })
+    expect(messageService.getById(message.id).data.parts).toEqual([message.data.parts![0], message.data.parts![2]])
+    expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([
+      {
+        endpoint: '/topics/:topicId/messages',
+        kind: 'projection',
+        routeParams: { topicId: 'chat-detach' },
+        entityIds: [message.id]
+      }
+    ])
+    expect(await fm.getById(retained.id)).toBeDefined()
+  })
+
+  it('does not fail a permanent delete when message reconciliation throws', async () => {
+    const entry = await fm.createInternalEntry({
+      source: 'bytes',
+      data: new Uint8Array([0x02]),
+      name: 'note',
+      ext: 'txt',
+      cleanupPolicy: 'manual'
+    })
+    dbh.db
+      .insert(agentWorkspaceTable)
+      .values({ id: 'workspace-detach', name: 'W', path: '/tmp/workspace-detach', type: 'user', orderKey: 'a0' })
+      .run()
+    dbh.db
+      .insert(agentSessionTable)
+      .values({
+        id: 'session-detach',
+        workspaceId: 'workspace-detach',
+        name: 'S',
+        orderKey: 'a0',
+        createdAt: 0,
+        lastActivityAt: 0,
+        updatedAt: 0
+      })
+      .run()
+    agentSessionMessageService.saveMessage({
+      sessionId: 'session-detach',
+      message: {
+        id: '019606a0-0000-7000-8000-00000000dd01',
+        role: 'user',
+        status: 'success',
+        data: {
+          parts: [
+            {
+              type: 'file',
+              mediaType: 'text/plain',
+              url: 'file:///files/note.txt',
+              providerMetadata: { cherry: { fileEntryId: entry.id } }
+            }
+          ]
+        }
+      }
+    })
+    vi.spyOn(agentSessionMessageService, 'detachFileEntryParts').mockImplementationOnce(() => {
+      throw new Error('reconcile failed')
+    })
+
+    await fm.batchTrash([entry.id])
+    expect(await fm.batchPermanentDeleteFromTrash([entry.id], { detachReferences: true })).toMatchObject({
+      succeeded: [entry.id]
+    })
+    await expect(fm.getById(entry.id)).rejects.toThrow(/not found/i)
   })
 
   it('INT-5: trash on external entry is rejected without mutating the row', async () => {
