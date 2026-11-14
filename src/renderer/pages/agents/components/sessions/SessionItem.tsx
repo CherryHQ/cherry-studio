@@ -295,6 +295,8 @@ const SessionItem = ({
         <ResourceList.ItemLeadingSlot className={cn('relative', !rowState.renaming && channelIcon && 'rounded-sm')}>
           {!rowState.renaming && session.worktree && (
             <Tooltip
+              asChild
+              delay={500}
               title={t(
                 session.worktree.available ? 'agent.session.worktree.available' : 'agent.session.worktree.unavailable',
                 {
@@ -313,11 +315,11 @@ const SessionItem = ({
                     branch: session.worktree.branch ?? t('agent.session.worktree.detached')
                   }
                 )}
-                className="inline-flex shrink-0">
+                className="flex size-6 shrink-0 items-center justify-center">
                 {session.worktree.available ? (
-                  <Split size={14} className="rotate-90" />
+                  <Split size={16} className="pointer-events-none rotate-90 text-current" />
                 ) : (
-                  <GitPullRequestClosed size={14} className="text-muted-foreground" />
+                  <GitPullRequestClosed size={16} className="pointer-events-none text-foreground-disabled" />
                 )}
               </span>
             </Tooltip>
