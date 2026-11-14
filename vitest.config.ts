@@ -129,6 +129,7 @@ export default defineConfig({
         resolve: {
           alias: {
             '@shared': resolve('src/shared'),
+            '@cherrystudio/ai-core/contextOverflow': resolve('packages/aiCore/src/contextOverflow.ts'),
             '@cherrystudio/provider-registry/node': resolve('packages/provider-registry/src/registry-loader'),
             '@cherrystudio/provider-registry': resolve('packages/provider-registry/src'),
             '@cherrystudio/web-search/catalog': resolve('packages/web-search/src/catalog.ts'),
@@ -150,6 +151,7 @@ export default defineConfig({
         resolve: {
           alias: {
             '@shared': resolve('src/shared'),
+            '@cherrystudio/ai-core/contextOverflow': resolve('packages/aiCore/src/contextOverflow.ts'),
             '@cherrystudio/web-search/catalog': resolve('packages/web-search/src/catalog.ts'),
             '@cherrystudio/web-search': resolve('packages/web-search/src/index.ts')
           }

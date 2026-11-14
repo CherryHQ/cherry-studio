@@ -12,6 +12,7 @@
  *   lives in the durable/in-loop compaction paths instead
  *   (`summarizeModelMessages` / `compactModelMessages`).
  */
+import { isContextOverflowError } from './contextOverflow'
 import { ContextPrompts } from './prompts'
 import { estimateObject } from './tokenUtils'
 import type { Attachment, ContextLogger, ContextMessage } from './types'
@@ -172,38 +173,6 @@ export interface SummarizeHistoryOptions {
 const STUB_ESCALATION = [4000, 1000, 200, 0]
 
 /**
- * Last-resort clamp when stubbing every tool result still leaves the summarize
- * request over budget (a long prose conversation has no tool bulk to stub).
- * Keeps the first message — for callers that lead with a prior summary, that is
- * the entire accumulated history and must never be dropped — plus as many of
- * the most recent messages as fit, and the trailing instruction. Whatever is
- * dropped is announced in-band so the summary can't silently claim to cover it.
- */
-function clampToInputBudget(messages: ContextMessage[], maxInputTokens: number): ContextMessage[] {
-  if (messages.length <= 2) return messages
-  const first = messages[0]
-  const instruction = messages[messages.length - 1]
-  const middle = messages.slice(1, -1)
-
-  let used = estimateObject([first, instruction])
-  const kept: ContextMessage[] = []
-  for (let i = middle.length - 1; i >= 0; i--) {
-    const cost = estimateObject(middle[i])
-    if (used + cost > maxInputTokens) break
-    kept.unshift(middle[i])
-    used += cost
-  }
-
-  const omitted = middle.length - kept.length
-  if (omitted === 0) return messages
-  const marker: ContextMessage = {
-    role: 'user',
-    content: `[${omitted} earlier message(s) omitted — they did not fit the summarizer's context budget. Say so in the summary rather than implying full coverage.]`
-  }
-  return [first, marker, ...kept, instruction]
-}
-
-/**
  * Produce a compression summary for a slice of conversation `messages`:
  * tool-result stubbing → attachment stripping → trailing instruction →
  * `<summary>` extraction. Returns the extracted summary text (after
@@ -244,25 +213,92 @@ export async function summarizeHistory(
 
   let compressionMessages = assemble(opts.toolResultStubThreshold)
 
-  // Keep the summarize call itself inside the compression model's window:
-  // stub tool results harder until the estimated input fits. Tool results are
-  // the bulk of an agentic history, and their full text is the least useful
-  // part to a summarizer (the surrounding assistant turns already describe what
-  // each call did). If stubbing everything still isn't enough, clamp by dropping
-  // the oldest middle messages — so the request is bounded either way.
+  // Reduce tool output before splitting the remaining input into ordered chunks.
   if (opts.maxInputTokens !== undefined) {
     for (const threshold of STUB_ESCALATION) {
       if (estimateObject(compressionMessages) <= opts.maxInputTokens) break
       if (opts.toolResultStubThreshold !== undefined && threshold >= opts.toolResultStubThreshold) continue
       compressionMessages = assemble(threshold)
     }
-    if (estimateObject(compressionMessages) > opts.maxInputTokens) {
-      compressionMessages = clampToInputBudget(compressionMessages, opts.maxInputTokens)
-    }
+    return summarizeInChunks(
+      compressionMessages.slice(0, -1),
+      { role: 'user', content: instruction },
+      compress,
+      opts.maxInputTokens
+    )
   }
 
   const raw = await compress(compressionMessages)
   return ContextPrompts.formatCompactSummary(raw)
+}
+
+async function summarizeInChunks(
+  messages: ContextMessage[],
+  instruction: ContextMessage,
+  compress: (messages: ContextMessage[]) => Promise<string>,
+  maxInputTokens: number
+): Promise<string> {
+  const remaining = messages.map(({ role, content, tool_calls, tool_call_id }) => ({
+    role,
+    content,
+    ...(tool_calls && { tool_calls }),
+    ...(tool_call_id && { tool_call_id })
+  }))
+  let summary = ''
+  let budget = maxInputTokens
+  let overflowRetries = 0
+
+  while (remaining.length) {
+    const prefix: ContextMessage[] = summary
+      ? [{ role: 'user', content: ContextPrompts.getCompactSummaryWrapper(summary) }]
+      : []
+    const chunk: ContextMessage[] = []
+    let consumed = 0
+    let splitAt = 0
+    let used = estimateObject([...prefix, instruction])
+    for (const message of remaining) {
+      const cost = estimateObject(message) + 1
+      if (used + cost <= budget) {
+        chunk.push(message)
+        used += cost
+        consumed++
+        continue
+      }
+      if (chunk.length || message.tool_calls?.length || message.role === 'tool') break
+      let low = 0
+      let high = message.content.length
+      while (low < high) {
+        const mid = Math.ceil((low + high) / 2)
+        if (
+          estimateObject([...prefix, { ...message, content: message.content.slice(0, mid) }, instruction]) <= budget
+        ) {
+          low = mid
+        } else {
+          high = mid - 1
+        }
+      }
+      if (low > 0 && /[\uD800-\uDBFF]/.test(message.content[low - 1])) low--
+      if (low > 0) {
+        chunk.push({ ...message, content: message.content.slice(0, low) })
+        splitAt = low
+      }
+      break
+    }
+    if (!chunk.length) throw new Error('Compaction input cannot fit the summarizer context budget')
+
+    try {
+      const next = ContextPrompts.formatCompactSummary(await compress([...prefix, ...chunk, instruction]))
+      if (!next.trim()) return ''
+      summary = next
+      remaining.splice(0, consumed)
+      if (splitAt) remaining[0] = { ...remaining[0], content: remaining[0].content.slice(splitAt) }
+      overflowRetries = 0
+    } catch (error) {
+      if (!isContextOverflowError(error) || overflowRetries++ >= 4) throw error
+      budget = Math.floor(Math.min(budget, estimateObject([...prefix, ...chunk, instruction])) * 0.75)
+    }
+  }
+  return summary
 }
 
 /** Boundary metadata for onCompress — maps the summary back to exact messages. */

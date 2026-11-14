@@ -117,6 +117,7 @@ export type LanguageVarious =
   | 'fr-FR'
   | 'it-IT'
   | 'ja-JP'
+  | 'pl-PL'
   | 'pt-PT'
   | 'ro-RO'
   | 'ru-RU'
@@ -323,6 +324,7 @@ export const WEB_SEARCH_PROVIDER_IDS = [
   'deepseek',
   'desearch',
   'searchapi',
+  'serpkite',
   'duckduckgo'
 ] as const satisfies readonly (RemoteProviderId | 'fetch' | 'duckduckgo')[]
 

@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-14-claude-fork-opaque-metadata.md
+2026-11-14-claude-fork-opaque-metadata.md: 02d6db30aa8f7d4ce19ce99ca36a922f92044b67
+2026-11-14-claude-fork-opaque-metadata.zh.md: 1ba8e6e7563d28af7a71626f81797aa7351eef2a

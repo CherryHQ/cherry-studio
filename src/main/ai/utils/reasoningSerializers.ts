@@ -98,7 +98,10 @@ export function resolveSelection(
   selection: ResolveReasoningInvocationInput['selection'],
   model: Model
 ): CanonicalReasoningSelection | undefined {
-  if (!selection || selection === 'default') return 'default'
+  if (!selection || selection === 'default') {
+    if (model.userDefaultReasoningEffort === undefined) return 'default'
+    selection = model.userDefaultReasoningEffort
+  }
   const selectable = model.reasoning?.selectableEfforts ?? []
   if (selection === 'none') {
     return selectable.includes(selection) ? selection : undefined
