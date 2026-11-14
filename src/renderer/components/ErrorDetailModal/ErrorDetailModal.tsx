@@ -1,16 +1,20 @@
-import { ArrowLeft, Copy, FileUp, Sparkles } from 'lucide-react'
-import React, { memo, useCallback, useRef, useState } from 'react'
+import { ArrowLeft, Copy, FileUp, RefreshCw, Sparkles } from 'lucide-react'
+import React, { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { ScrollArea } from '@cherrystudio/ui'
-import { Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@cherrystudio/ui'
+import { Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, Tooltip } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
+import { usePreference } from '@data/hooks/usePreference'
+import { preferenceService } from '@data/PreferenceService'
 import CodeViewer from '@renderer/components/CodeViewer'
 import { DoctorPopup } from '@renderer/components/doctor'
 import { DoctorAgentDialog } from '@renderer/components/doctor'
+import { updateCheckLabelKey, useAppUpdateCheck } from '@renderer/hooks/useAppUpdateCheck'
 import { useExitPresence } from '@renderer/hooks/useExitPresence'
 import i18n from '@renderer/i18n/resolver'
 import { operationIncident, operationSubject } from '@renderer/services/AppErrorContextService'
+import { appUpdateCheckService } from '@renderer/services/AppUpdateCheckService'
 import { captureDiagnosticAiDiagnosis } from '@renderer/services/diagnosticAiSnapshot'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import { createPopup, POPUP_EXIT_MS, type PopupInjectedProps, popupService } from '@renderer/services/popup'
@@ -42,6 +46,7 @@ import {
 } from '@renderer/types/error'
 import { formatAiSdkError, formatError, safeToString } from '@renderer/utils/error'
 import type { DiagnosisContext } from '@renderer/utils/errorDiagnosis'
+import { UpgradeChannel } from '@shared/data/preference/preferenceTypes'
 import type { AppErrorContext } from '@shared/types/appError'
 import type { DiagnosticAiDiagnosis } from '@shared/types/diagnosticAi'
 import type { DoctorNavigateTarget, DoctorSubjectRef } from '@shared/types/doctor'
@@ -58,6 +63,7 @@ import {
 } from './diagnosticReportDescription'
 import { ErrorBasicInformation } from './ErrorBasicInformation'
 import { ErrorDoctorDiagnostics } from './ErrorDoctorDiagnostics'
+import { ErrorUpdateBanner } from './ErrorUpdateBanner'
 import { isDiagnosticReportEligible } from './isDiagnosticReportEligible'
 
 interface ErrorDetailContentProps {
@@ -555,11 +561,36 @@ const ErrorDetailContent: React.FC<ErrorDetailContentInternalProps> = ({
   onDoctorCloseBlockedChange
 }) => {
   const { t } = useTranslation()
+  const { appUpdateState, noticeKey, checkForUpdate } = useAppUpdateCheck()
   const [detailsOpen, setDetailsOpen] = useState(false)
   const [agentOpen, setAgentOpen] = useState(false)
   const { isPresent: agentPresent } = useExitPresence(agentOpen ? true : null)
   const viewDetailsButtonRef = useRef<HTMLButtonElement>(null)
   const shownError = technicalError(error, errorContext)
+  // The shared notice can be hours old; this dialog shows only results of checks made after it opened.
+  useLayoutEffect(() => {
+    appUpdateCheckService.setUpdateNotice(null)
+  }, [])
+  const [availableVersion, setAvailableVersion] = useState<string | null>(null)
+  const [autoUpdatePreference] = usePreference('app.dist.auto_update.enabled')
+  // The hook reports the default (on) until the stored value loads; never query on that guess.
+  const autoUpdateEnabled = autoUpdatePreference && preferenceService.isCached('app.dist.auto_update.enabled')
+  const [testPlan] = usePreference('app.dist.test_plan.enabled')
+  const [testChannel] = usePreference('app.dist.test_plan.channel')
+  const updateChannel = testPlan ? testChannel : UpgradeChannel.LATEST
+  const initialUpdateState = useRef(appUpdateState)
+  useEffect(() => {
+    const { checking, downloading, downloaded } = initialUpdateState.current
+    // With Auto Update off, only the user's own click may ask the feed.
+    if (!autoUpdateEnabled || checking || downloading || downloaded) return
+    let active = true
+    void appUpdateCheckService.queryAvailableVersion(updateChannel).then((version) => {
+      if (active) setAvailableVersion(version)
+    })
+    return () => {
+      active = false
+    }
+  }, [autoUpdateEnabled, updateChannel])
   const copyErrorDetails = useCallback(() => {
     if (!shownError) {
       return
@@ -659,6 +690,13 @@ const ErrorDetailContent: React.FC<ErrorDetailContentInternalProps> = ({
       <DialogHeader className="pr-8">
         <DialogTitle>{t('error.detail')}</DialogTitle>
       </DialogHeader>
+      <ErrorUpdateBanner
+        appUpdateState={appUpdateState}
+        noticeKey={noticeKey}
+        onRetry={checkForUpdate}
+        availableVersion={availableVersion}
+        onUpdate={checkForUpdate}
+      />
       <ErrorDetailContainer>
         <div className="space-y-4">
           {subject ? (
@@ -689,22 +727,36 @@ const ErrorDetailContent: React.FC<ErrorDetailContentInternalProps> = ({
         </div>
       </ErrorDetailContainer>
 
-      {subject || showDiagnosticReportAction ? (
-        <div className="flex justify-end gap-2">
-          {showDiagnosticReportAction ? (
-            <Button variant="outline" disabled={doctorCloseBlocked} onClick={openDiagnosticReport}>
-              <FileUp size={14} />
-              {t('error.diagnostic_report.action')}
-            </Button>
-          ) : null}
-          {subject ? (
-            <Button variant="emphasis" disabled={doctorCloseBlocked} onClick={() => setAgentOpen(true)}>
-              <Sparkles size={14} />
-              {t('settings.doctor.agent.title')}
-            </Button>
-          ) : null}
-        </div>
-      ) : null}
+      <div className="flex items-center justify-end gap-2">
+        <Tooltip asChild content={t('error.update_check.hint')}>
+          <Button
+            variant="ghost"
+            className="me-auto text-muted-foreground hover:text-foreground"
+            disabled={appUpdateState.downloading}
+            loading={appUpdateState.checking}
+            loadingIcon={<RefreshCw size={13} className="animate-spin" />}
+            onClick={checkForUpdate}>
+            {appUpdateState.checking ? null : <RefreshCw size={13} />}
+            {t(updateCheckLabelKey(appUpdateState))}
+          </Button>
+        </Tooltip>
+        {subject || showDiagnosticReportAction ? (
+          <>
+            {showDiagnosticReportAction ? (
+              <Button variant="outline" disabled={doctorCloseBlocked} onClick={openDiagnosticReport}>
+                <FileUp size={14} />
+                {t('error.diagnostic_report.action')}
+              </Button>
+            ) : null}
+            {subject ? (
+              <Button variant="emphasis" disabled={doctorCloseBlocked} onClick={() => setAgentOpen(true)}>
+                <Sparkles size={14} />
+                {t('settings.doctor.agent.title')}
+              </Button>
+            ) : null}
+          </>
+        ) : null}
+      </div>
       {subject && agentPresent ? (
         <DoctorAgentDialog
           subject={subject}

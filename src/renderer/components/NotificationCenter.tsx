@@ -6,7 +6,7 @@ import { Button, Drawer, DrawerContent, DrawerTitle, ScrollArea } from '@cherrys
 import { useDataChange, useInfiniteFlatItems, useInfiniteQuery, useMutation, useQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import { useOptionalTabsContext } from '@renderer/hooks/tab'
-import { useAppUpdateState } from '@renderer/hooks/useAppUpdateState'
+import { updateNoticeIsFailure, useAppUpdateCheck } from '@renderer/hooks/useAppUpdateCheck'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import type { NotificationRecord } from '@shared/data/types/notification'
@@ -45,10 +45,7 @@ function NotificationItem({
   const unreadDescriptionId = useId()
   const [expanded, setExpanded] = useState(initiallyExpanded)
   const [activating, setActivating] = useState(false)
-  const { appUpdateState, checkForUpdate } = useAppUpdateState(async (releaseInfo) => {
-    const { default: UpdateDialogPopup } = await import('./UpdateDialogPopup')
-    return UpdateDialogPopup.show({ releaseInfo })
-  })
+  const { appUpdateState, noticeKey, checkForUpdate } = useAppUpdateCheck()
   const { trigger: markRead } = useMutation('PATCH', '/notifications/:id', {
     refresh: ['/notifications', '/notifications/unread-count']
   })
@@ -84,6 +81,8 @@ function NotificationItem({
     timeStyle: 'short'
   })
   const canUpdate = release && appUpdateState.available && appUpdateState.info?.version === release.version
+  // A failed install dialog only reaches the shared notice, not the updater's lastErrorKey.
+  const updateErrorKey = appUpdateState.lastErrorKey ?? (updateNoticeIsFailure(noticeKey) ? noticeKey : null)
 
   const activate = async () => {
     setActivating(true)
@@ -194,15 +193,13 @@ function NotificationItem({
               {t('common.open')}
             </Button>
           )}
-          {canUpdate && appUpdateState.lastErrorKey && (
+          {canUpdate && updateErrorKey && (
             <p role="alert" className="text-sm text-destructive">
-              {t(appUpdateState.lastErrorKey)}
+              {t(updateErrorKey)}
             </p>
           )}
           {canUpdate && (
-            <Button
-              onClick={() => void checkForUpdate()}
-              disabled={appUpdateState.checking || appUpdateState.downloading}>
+            <Button onClick={checkForUpdate} disabled={appUpdateState.checking || appUpdateState.downloading}>
               {appUpdateState.downloading
                 ? `${t('settings.about.downloading')} ${Math.round(appUpdateState.downloadProgress)}%`
                 : appUpdateState.downloaded

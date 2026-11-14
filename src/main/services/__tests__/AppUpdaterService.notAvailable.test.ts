@@ -64,7 +64,12 @@ vi.mock('electron-updater', () => ({
 
 vi.mock('@application', async () => {
   const mod = await import('@test-mocks/main/application')
-  return mod.mockApplicationFactory()
+  const result = mod.mockApplicationFactory()
+  const originalGet = result.application.get.getMockImplementation()!
+  result.application.get.mockImplementation((name: string) =>
+    name === 'AnalyticsService' ? { trackAppUpdate: vi.fn() } : originalGet(name)
+  )
+  return result
 })
 
 function feedInfo(version: string): UpdateInfo {
@@ -79,13 +84,14 @@ function feedInfo(version: string): UpdateInfo {
 
 describe('AppUpdaterService — update-not-available feed target', () => {
   let onUpdateNotAvailable: ((info: UpdateInfo) => void) | undefined
+  let appUpdater: AppUpdaterService
 
   beforeEach(async () => {
     vi.clearAllMocks()
     BaseService.resetInstances()
     vi.mocked(app.getVersion).mockReturnValue('2.0.13')
 
-    const appUpdater = new AppUpdaterService()
+    appUpdater = new AppUpdaterService()
     await appUpdater._doInit()
 
     const calls = vi.mocked(autoUpdater.on).mock.calls
@@ -95,80 +101,85 @@ describe('AppUpdaterService — update-not-available feed target', () => {
     expect(onUpdateNotAvailable).toBeDefined()
   })
 
-  function emitNotAvailable(info: UpdateInfo) {
-    onUpdateNotAvailable?.(info)
+  // Updater events only count inside a check, so emit from within one.
+  async function emitNotAvailable(info: UpdateInfo) {
+    vi.mocked(autoUpdater.checkForUpdates).mockImplementationOnce(async () => {
+      onUpdateNotAvailable?.(info)
+      return { isUpdateAvailable: false, updateInfo: info } as never
+    })
+    await appUpdater.checkForUpdates()
     return vi.mocked(application.get('IpcApiService').broadcastToType)
   }
 
-  it('marks the install current when the feed target matches it', () => {
-    const broadcast = emitNotAvailable(feedInfo('2.0.13'))
+  it('marks the install current when the feed target matches it', async () => {
+    const broadcast = await emitNotAvailable(feedInfo('2.0.13'))
 
     expect(broadcast).toHaveBeenCalledExactlyOnceWith(expect.anything(), 'app.updater.not_available', {
       isCurrent: true
     })
   })
 
-  it('marks a feed behind the install as withheld instead of current', () => {
-    const broadcast = emitNotAvailable(feedInfo('2.0.9'))
+  it('marks a feed behind the install as withheld instead of current', async () => {
+    const broadcast = await emitNotAvailable(feedInfo('2.0.9'))
 
     expect(broadcast).toHaveBeenCalledExactlyOnceWith(expect.anything(), 'app.updater.not_available', {
       isCurrent: false
     })
   })
 
-  it('marks a newer unoffered feed target as withheld instead of current', () => {
+  it('marks a newer unoffered feed target as withheld instead of current', async () => {
     vi.mocked(app.getVersion).mockReturnValue('2.0.9')
 
-    const broadcast = emitNotAvailable(feedInfo('2.0.14'))
+    const broadcast = await emitNotAvailable(feedInfo('2.0.14'))
 
     expect(broadcast).toHaveBeenCalledExactlyOnceWith(expect.anything(), 'app.updater.not_available', {
       isCurrent: false
     })
   })
 
-  it('treats a prerelease install ahead of its stable feed as current', () => {
+  it('treats a prerelease install ahead of its stable feed as current', async () => {
     vi.mocked(app.getVersion).mockReturnValue('2.0.14-beta.1')
 
-    const broadcast = emitNotAvailable(feedInfo('2.0.9'))
+    const broadcast = await emitNotAvailable(feedInfo('2.0.9'))
 
     expect(broadcast).toHaveBeenCalledExactlyOnceWith(expect.anything(), 'app.updater.not_available', {
       isCurrent: true
     })
   })
 
-  it('marks a prerelease install withheld when the feed advertises a newer prerelease', () => {
+  it('marks a prerelease install withheld when the feed advertises a newer prerelease', async () => {
     vi.mocked(app.getVersion).mockReturnValue('2.0.14-beta.1')
 
-    const broadcast = emitNotAvailable(feedInfo('2.0.14-beta.2'))
+    const broadcast = await emitNotAvailable(feedInfo('2.0.14-beta.2'))
 
     expect(broadcast).toHaveBeenCalledExactlyOnceWith(expect.anything(), 'app.updater.not_available', {
       isCurrent: false
     })
   })
 
-  it('keeps diagnostic versions in main-process logs rather than the broadcast payload', () => {
-    const broadcast = emitNotAvailable(feedInfo('2.0.9'))
+  it('keeps diagnostic versions in main-process logs rather than the broadcast payload', async () => {
+    const broadcast = await emitNotAvailable(feedInfo('2.0.9'))
 
     expect(Object.keys(broadcast.mock.calls[0][2] as object)).toEqual(['isCurrent'])
   })
 
-  it('fails closed to current when the feed version is missing, empty, or unparseable', () => {
-    const broadcastMissing = emitNotAvailable({ ...feedInfo('2.0.13'), version: undefined as unknown as string })
+  it('fails closed to current when the feed version is missing, empty, or unparseable', async () => {
+    const broadcastMissing = await emitNotAvailable({ ...feedInfo('2.0.13'), version: undefined as unknown as string })
     expect(broadcastMissing).toHaveBeenLastCalledWith(expect.anything(), 'app.updater.not_available', {
       isCurrent: true
     })
 
-    const broadcastEmpty = emitNotAvailable(feedInfo(''))
+    const broadcastEmpty = await emitNotAvailable(feedInfo(''))
     expect(broadcastEmpty).toHaveBeenLastCalledWith(expect.anything(), 'app.updater.not_available', { isCurrent: true })
 
-    const broadcastGarbage = emitNotAvailable(feedInfo('not-a-version'))
+    const broadcastGarbage = await emitNotAvailable(feedInfo('not-a-version'))
     expect(broadcastGarbage).toHaveBeenLastCalledWith(expect.anything(), 'app.updater.not_available', {
       isCurrent: true
     })
   })
 
-  it('scopes the broadcast to the main window', () => {
-    const broadcast = emitNotAvailable(feedInfo('2.0.13'))
+  it('scopes the broadcast to the main window', async () => {
+    const broadcast = await emitNotAvailable(feedInfo('2.0.13'))
 
     expect(broadcast.mock.calls[0][0]).toBe(WindowType.Main)
   })

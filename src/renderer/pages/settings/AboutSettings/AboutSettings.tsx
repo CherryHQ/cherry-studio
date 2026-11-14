@@ -1,5 +1,4 @@
 import { useLocation, useNavigate, useSearch } from '@tanstack/react-router'
-import { debounce } from 'es-toolkit/compat'
 import { BadgeQuestionMark, Bug, Building2, Github, Globe, MessageSquareText, Rss, Star } from 'lucide-react'
 import type { FC, ReactNode } from 'react'
 import { useEffect, useRef, useState } from 'react'
@@ -28,11 +27,13 @@ import {
   SettingsContentColumn
 } from '@renderer/components/SettingsPrimitives'
 import { UpgradeReleaseNotes } from '@renderer/components/UpgradeReleaseNotes'
-import { useAppUpdateState } from '@renderer/hooks/useAppUpdateState'
+import { updateCheckLabelKey, updateNoticeIsFailure, useAppUpdateCheck } from '@renderer/hooks/useAppUpdateCheck'
 import { useOpenReleaseNotes } from '@renderer/hooks/useOpenReleaseNotes'
 import { useTheme } from '@renderer/hooks/useTheme'
 import i18n from '@renderer/i18n/resolver'
 import { ipcApi } from '@renderer/ipc'
+import { appUpdateCheckService } from '@renderer/services/AppUpdateCheckService'
+import { captureDiagnosticAiDiagnosis } from '@renderer/services/diagnosticAiSnapshot'
 import { toast } from '@renderer/services/toast'
 import { openExternalWebsite } from '@renderer/services/website'
 import { cn } from '@renderer/utils/style'
@@ -55,10 +56,7 @@ const AboutSettings: FC = () => {
   const search = useSearch({ strict: false }) as Partial<Record<typeof DOCTOR_OPEN_QUERY_PARAM, DoctorPanel>>
   const consumedDoctorPanelRef = useRef<DoctorPanel | undefined>(undefined)
 
-  const { appUpdateState, updateAppUpdateState, checkForUpdate } = useAppUpdateState(async (releaseInfo) => {
-    const { default: UpdateDialogPopup } = await import('@renderer/components/UpdateDialogPopup')
-    return UpdateDialogPopup.show({ releaseInfo })
-  })
+  const { appUpdateState, updateAppUpdateState, noticeKey, checkForUpdate } = useAppUpdateCheck()
 
   useEffect(() => {
     const initialPanel = search[DOCTOR_OPEN_QUERY_PARAM]
@@ -78,10 +76,12 @@ const AboutSettings: FC = () => {
       },
       replace: true
     })
-    void DoctorPopup.show({ initialPanel })
+    const aiDiagnosis = initialPanel === 'checks' ? undefined : captureDiagnosticAiDiagnosis({ scope: 'global' })
+    void DoctorPopup.show({
+      initialPanel,
+      ...(aiDiagnosis ? { aiDiagnosis } : {})
+    })
   }, [location.pathname, navigate, search])
-
-  const onCheckUpdate = debounce(checkForUpdate, 2000, { leading: true, trailing: false })
 
   const onOpenWebsite = (url: string) => {
     void openExternalWebsite(url)
@@ -101,11 +101,8 @@ const AboutSettings: FC = () => {
       { pattern: `-${UpgradeChannel.RC}.`, channel: UpgradeChannel.RC }
     ].find(({ pattern }) => version.includes(pattern))?.channel || UpgradeChannel.LATEST
 
-  const handleTestChannelChange = async (value: UpgradeChannel) => {
-    if (testPlan && currentChannelByVersion !== UpgradeChannel.LATEST && value !== currentChannelByVersion) {
-      toast.warning(t('settings.general.test_plan.version_channel_not_match'))
-    }
-    void setTestChannel(value)
+  const retireChannelSnapshot = (writes: Promise<unknown>[]) => {
+    const epoch = appUpdateCheckService.invalidateSharedUpdateCheck()
     updateAppUpdateState({
       available: false,
       info: null,
@@ -114,6 +111,22 @@ const AboutSettings: FC = () => {
       downloading: false,
       downloadProgress: 0
     })
+    // Main retires the old generation before this promise resolves, so resume waits.
+    // A rejected write still resumes this epoch and keeps a generic inline notice.
+    void Promise.allSettled(writes).then((results) => {
+      if (results.some((result) => result.status === 'rejected')) {
+        appUpdateCheckService.noteSharedUpdatePreferenceFailure(epoch)
+        return
+      }
+      appUpdateCheckService.resumeSharedUpdateSession(epoch)
+    })
+  }
+
+  const handleTestChannelChange = (value: UpgradeChannel) => {
+    if (testPlan && currentChannelByVersion !== UpgradeChannel.LATEST && value !== currentChannelByVersion) {
+      toast.warning(t('settings.general.test_plan.version_channel_not_match'))
+    }
+    retireChannelSnapshot([setTestChannel(value)])
   }
 
   const getAvailableTestChannels = () => {
@@ -132,19 +145,9 @@ const AboutSettings: FC = () => {
   }
 
   const handleSetTestPlan = (value: boolean) => {
-    void setTestPlan(value)
-    updateAppUpdateState({
-      available: false,
-      info: null,
-      downloaded: false,
-      checking: false,
-      downloading: false,
-      downloadProgress: 0
-    })
-
-    if (value === true) {
-      void setTestChannel(getTestChannel())
-    }
+    const writes: Promise<unknown>[] = [setTestPlan(value)]
+    if (value === true) writes.push(setTestChannel(getTestChannel()))
+    retireChannelSnapshot(writes)
   }
 
   const getTestChannel = () => {
@@ -211,27 +214,34 @@ const AboutSettings: FC = () => {
             </div>
           </div>
 
-          {!isPortable && (
-            <div className="flex shrink-0 items-center justify-end">
-              <Button
-                size="sm"
-                variant={isUpdateReady ? 'default' : 'outline'}
-                loading={appUpdateState.checking}
-                onClick={onCheckUpdate}
-                disabled={appUpdateState.downloading}
+          <div className="flex shrink-0 flex-col items-end justify-center gap-1">
+            <Button
+              size="sm"
+              variant={isUpdateReady ? 'default' : 'outline'}
+              loading={appUpdateState.checking}
+              onClick={checkForUpdate}
+              disabled={appUpdateState.downloading}
+              className={cn(
+                'w-fit! min-w-0! shrink-0',
+                isUpdateReady &&
+                  'bg-success text-primary-foreground hover:bg-success/90 dark:bg-success dark:text-primary-foreground dark:hover:bg-success/90'
+              )}>
+              {t(updateCheckLabelKey(appUpdateState))}
+              {appUpdateState.downloading && appUpdateState.downloadProgress > 0
+                ? ` ${Math.floor(appUpdateState.downloadProgress)}%`
+                : ''}
+            </Button>
+            {noticeKey ? (
+              <p
+                role={updateNoticeIsFailure(noticeKey) ? 'alert' : 'status'}
                 className={cn(
-                  'w-fit! min-w-0! shrink-0',
-                  isUpdateReady &&
-                    'bg-success text-primary-foreground hover:bg-success/90 dark:bg-success dark:text-primary-foreground dark:hover:bg-success/90'
+                  'max-w-48 text-right text-xs',
+                  updateNoticeIsFailure(noticeKey) ? 'text-destructive' : 'text-muted-foreground'
                 )}>
-                {appUpdateState.downloading
-                  ? t('settings.about.downloading')
-                  : appUpdateState.available
-                    ? t('settings.about.checkUpdate.available')
-                    : t('settings.about.checkUpdate.label')}
-              </Button>
-            </div>
-          )}
+                {t(noticeKey)}
+              </p>
+            ) : null}
+          </div>
         </div>
 
         {!isPortable && (
