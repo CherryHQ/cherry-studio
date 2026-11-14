@@ -1907,76 +1907,89 @@ describe('buildAgentParams native-dialect resolution for catalog-backed custom r
 })
 
 describe('buildAgentParams Gemini 4 requests', () => {
-  it.each(['low', 'medium', 'high', undefined] as const)(
-    'serializes thinking=%s without sampling, budget, or explicit cache fields',
-    async (effort) => {
-      let body: Record<string, any> | undefined
-      resolveProviderAiSdkConfigMock.mockResolvedValue({
-        config: {
-          providerId: 'google',
-          providerSettings: {
-            fetch: async (_input: RequestInfo | URL, init?: RequestInit) => {
-              body = JSON.parse(String(init?.body))
-              throw new Error('request captured')
+  it.each([
+    ['gemini-4-argon', 'low'],
+    ['gemini-4-argon', 'medium'],
+    ['gemini-4-argon', 'high'],
+    ['gemini-4-argon', undefined],
+    ['gemini-4-hydrogen', 'low'],
+    ['gemini-4-hydrogen', 'medium'],
+    ['gemini-4-hydrogen', 'high'],
+    ['gemini-4-hydrogen', 'xhigh'],
+    ['gemini-4-hydrogen', undefined]
+  ] as const)('serializes %s thinking=%s without sampling, budget, or explicit cache fields', async (id, effort) => {
+    let body: Record<string, any> | undefined
+    resolveProviderAiSdkConfigMock.mockResolvedValue({
+      config: {
+        providerId: 'google',
+        providerSettings: {
+          fetch: async (_input: RequestInfo | URL, init?: RequestInit) => {
+            body = JSON.parse(String(init?.body))
+            throw new Error('request captured')
+          }
+        }
+      },
+      credentialReceipt: { attribution: 'unknown' }
+    })
+    const provider = makeProvider({
+      id: 'gemini',
+      defaultChatEndpoint: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
+      endpointConfigs: { [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: { adapterFamily: 'google' } }
+    })
+    const result = await buildAgentParams({
+      request: {
+        conversation: CONVERSATION,
+        callOverrides: {
+          temperature: 0.7,
+          topP: 0.9,
+          topK: 40,
+          maxOutputTokens: 131_072,
+          providerOptions: { google: { cachedContent: 'cachedContents/old' } }
+        }
+      },
+      signal: undefined,
+      provider,
+      model: makeModel({
+        id: `gemini::${id}`,
+        providerId: 'gemini',
+        apiModelId: id,
+        capabilities: [MODEL_CAPABILITY.REASONING],
+        reasoning: {
+          controls: [
+            {
+              kind: 'effort',
+              values: id === 'gemini-4-hydrogen' ? ['low', 'medium', 'high', 'xhigh'] : ['low', 'medium', 'high'],
+              default: id === 'gemini-4-hydrogen' ? 'high' : 'medium'
             }
-          }
-        },
-        credentialReceipt: { attribution: 'unknown' }
+          ],
+          defaultEffort: id === 'gemini-4-hydrogen' ? 'high' : 'medium',
+          selectableEfforts: id === 'gemini-4-hydrogen' ? ['low', 'medium', 'high', 'xhigh'] : ['low', 'medium', 'high']
+        }
+      }),
+      assistant: makeAssistant({ settings: { reasoning_effort: effort } })
+    })
+    const sdkModel = createGoogleGenerativeAI({
+      apiKey: 'test-key',
+      baseURL: 'https://gemini.test/v1beta',
+      fetch: result.sdkConfig.providerSettings.fetch
+    })(id)
+    await expect(
+      sdkModel.doGenerate({
+        prompt: [{ role: 'user', content: [{ type: 'text', text: 'Hello' }] }],
+        temperature: result.options.temperature,
+        topP: result.options.topP,
+        topK: result.options.topK,
+        maxOutputTokens: result.options.maxOutputTokens,
+        providerOptions: result.options.providerOptions
       })
-      const provider = makeProvider({
-        id: 'gemini',
-        defaultChatEndpoint: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
-        endpointConfigs: { [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: { adapterFamily: 'google' } }
-      })
-      const result = await buildAgentParams({
-        request: {
-          conversation: CONVERSATION,
-          callOverrides: {
-            temperature: 0.7,
-            topP: 0.9,
-            topK: 40,
-            maxOutputTokens: 131_072,
-            providerOptions: { google: { cachedContent: 'cachedContents/old' } }
-          }
-        },
-        signal: undefined,
-        provider,
-        model: makeModel({
-          id: 'gemini::gemini-4-argon',
-          providerId: 'gemini',
-          apiModelId: 'gemini-4-argon',
-          capabilities: [MODEL_CAPABILITY.REASONING],
-          reasoning: {
-            controls: [{ kind: 'effort', values: ['low', 'medium', 'high'], default: 'medium' }],
-            defaultEffort: 'medium',
-            selectableEfforts: ['low', 'medium', 'high']
-          }
-        }),
-        assistant: makeAssistant({ settings: { reasoning_effort: effort } })
-      })
-      const sdkModel = createGoogleGenerativeAI({
-        apiKey: 'test-key',
-        baseURL: 'https://gemini.test/v1beta',
-        fetch: result.sdkConfig.providerSettings.fetch
-      })('gemini-4-argon')
-      await expect(
-        sdkModel.doGenerate({
-          prompt: [{ role: 'user', content: [{ type: 'text', text: 'Hello' }] }],
-          temperature: result.options.temperature,
-          topP: result.options.topP,
-          topK: result.options.topK,
-          maxOutputTokens: result.options.maxOutputTokens,
-          providerOptions: result.options.providerOptions
-        })
-      ).rejects.toThrow('request captured')
-      expect(body?.generationConfig).toMatchObject({ maxOutputTokens: 131_072 })
-      if (effort) expect(body?.generationConfig.thinkingConfig).toMatchObject({ thinkingLevel: effort })
-      else expect(body?.generationConfig).not.toHaveProperty('thinkingConfig')
-      for (const name of ['temperature', 'topP', 'topK']) expect(body?.generationConfig).not.toHaveProperty(name)
-      expect(body?.generationConfig.thinkingConfig ?? {}).not.toHaveProperty('thinkingBudget')
-      expect(body).not.toHaveProperty('cachedContent')
-    }
-  )
+    ).rejects.toThrow('request captured')
+    expect(body?.generationConfig).toMatchObject({ maxOutputTokens: 131_072 })
+    if (effort) expect(body?.generationConfig.thinkingConfig).toMatchObject({ thinkingLevel: effort })
+    else expect(body?.generationConfig).not.toHaveProperty('thinkingConfig')
+    for (const name of ['temperature', 'topP', 'topK']) expect(body?.generationConfig).not.toHaveProperty(name)
+    expect(body?.generationConfig.thinkingConfig ?? {}).not.toHaveProperty('thinkingBudget')
+    expect(body).not.toHaveProperty('cachedContent')
+  })
 })
 
 describe('buildAgentParams retained context', () => {
