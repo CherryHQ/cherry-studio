@@ -32,6 +32,7 @@ import { useHermesDashboardController } from './useHermesDashboardController'
 import { useLaunchDialogController } from './useLaunchDialogController'
 import { useOpenClawGatewayController } from './useOpenClawGatewayController'
 import { useRemoveCliToolDialog } from './useRemoveCliToolDialog'
+import { useRuntimeProvenance } from './useRuntimeProvenance'
 import { useSortedSupportedProviders } from './useSortedSupportedProviders'
 
 const logger = loggerService.withContext('CodeCliPage')
@@ -232,6 +233,10 @@ export function useCodeCliPageViewProps(
     source: 'none',
     canUpgrade: false
   }
+  const runtimeProvenance = useRuntimeProvenance(
+    selectedCliTool,
+    [versionStatus.installed, versionStatus.source, versionStatus.current, versionStatus.applicationStatus].join('|')
+  )
   const canLaunch = isHermesDashboardTool
     ? versionStatus.installed
     : (isProviderlessTool || isOwnLoginSelected || !!enabledProvider) &&
@@ -366,6 +371,7 @@ export function useCodeCliPageViewProps(
           installingTools: mergedInstallingTools,
           upgradingTools,
           installError,
+          runtimeProvenance,
           providerState: {
             providerless: isProviderlessTool,
             showSelectionHint: showProviderSelectionHint

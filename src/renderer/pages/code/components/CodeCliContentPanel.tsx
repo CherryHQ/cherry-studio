@@ -8,6 +8,7 @@ import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import type { CliProviderConfig } from '@shared/data/preference/preferenceTypes'
 import type { Provider } from '@shared/data/types/provider'
 import { CodeCli } from '@shared/types/codeCli'
+import type { RuntimeProvenance } from '@shared/types/runtimeProvenance'
 
 import type { CodeToolMeta, VersionStatus } from '../types'
 import { ConfigList } from './ConfigList'
@@ -29,6 +30,7 @@ interface CodeCliContentPanelProps {
   upgradingTools: Set<string>
   /** Failure message of the last install attempt for the selected tool (from the main-process install-state map). */
   installError?: string
+  runtimeProvenance?: RuntimeProvenance
   providerState: {
     providerless: boolean
     showSelectionHint: boolean
@@ -72,6 +74,7 @@ export const CodeCliContentPanel: FC<CodeCliContentPanelProps> = ({
   installingTools,
   upgradingTools,
   installError,
+  runtimeProvenance,
   providerState,
   supportedProviders,
   providerConfigs,
@@ -126,6 +129,7 @@ export const CodeCliContentPanel: FC<CodeCliContentPanelProps> = ({
             upgradeDisabled={versionCard.upgradeDisabled}
             installError={installError}
             onShowError={() => setShowInstallError(true)}
+            provenance={runtimeProvenance}
             launchDisabledHint={
               providerState.showSelectionHint
                 ? t('code.select_provider_before_launch', { toolName: activeMeta.label })
