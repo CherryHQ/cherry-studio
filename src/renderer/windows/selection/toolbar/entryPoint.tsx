@@ -12,7 +12,8 @@ await prepareWindow({
     'ui.theme_mode',
     'ui.theme_user.color_primary',
     'feature.selection.compact',
-    'feature.selection.action_items'
+    'feature.selection.action_items',
+    'feature.selection.translate_only'
   ]
 })
 
