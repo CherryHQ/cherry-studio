@@ -218,7 +218,9 @@ export const EndpointConfigSchema = z.object({
   /** AI SDK adapter family that handles this endpoint. Carried over from the catalog */
   adapterFamily: z.string().optional(),
   /** Dialect deviations of this host's implementation of the endpoint */
-  dialect: EndpointDialectSchema.optional()
+  dialect: EndpointDialectSchema.optional(),
+  /** Send requests to `baseUrl` verbatim, without appending the endpoint's default path */
+  completePath: z.boolean().optional()
 })
 
 export type EndpointConfig = z.infer<typeof EndpointConfigSchema>
@@ -234,7 +236,9 @@ export const EndpointConfigOverrideSchema = z.object({
   /** User-owned base URL override for this endpoint type's API */
   baseUrl: z.string().optional(),
   /** User-owned dialect overrides — the only way a custom provider states its deviations */
-  dialect: EndpointDialectSchema.optional()
+  dialect: EndpointDialectSchema.optional(),
+  /** User-owned: send requests to `baseUrl` verbatim, without the default endpoint path */
+  completePath: z.boolean().optional()
 })
 
 export type EndpointConfigOverride = z.infer<typeof EndpointConfigOverrideSchema>

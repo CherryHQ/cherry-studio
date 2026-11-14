@@ -1,6 +1,6 @@
 import { trim } from 'es-toolkit/compat'
 
-import { formatApiHost, validateApiHost } from '@renderer/utils/api'
+import { formatApiHost, validateApiHost, withoutTrailingSharp } from '@renderer/utils/api'
 import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
 import type { EndpointConfig } from '@shared/data/types/provider'
 
@@ -25,9 +25,12 @@ export type CustomProviderTextEndpoint = (typeof CUSTOM_PROVIDER_TEXT_ENDPOINTS)
 export type CustomProviderEndpoint = (typeof CUSTOM_PROVIDER_ENDPOINTS)[number]
 export type CustomProviderEndpointUrls = Partial<Record<CustomProviderEndpoint, string>>
 
+export type CustomProviderCompletePathFlags = Partial<Record<CustomProviderEndpoint, boolean>>
+
 export interface CustomProviderCreationInput {
   endpointUrls: CustomProviderEndpointUrls
   preferredChatEndpoint?: CustomProviderTextEndpoint
+  completePathEndpoints?: CustomProviderCompletePathFlags
 }
 
 export interface CustomProviderCreationPayload {
@@ -67,7 +70,9 @@ export function buildCustomProviderCreationPayload(input: CustomProviderCreation
   for (const endpointType of CUSTOM_PROVIDER_ENDPOINTS) {
     const baseUrl = trim(input.endpointUrls[endpointType])
     if (baseUrl) {
-      endpointConfigs[endpointType] = { baseUrl }
+      endpointConfigs[endpointType] = input.completePathEndpoints?.[endpointType]
+        ? { baseUrl, completePath: true }
+        : { baseUrl }
     }
   }
 
@@ -77,10 +82,18 @@ export function buildCustomProviderCreationPayload(input: CustomProviderCreation
   }
 }
 
-export function buildCustomProviderEndpointPreview(baseUrl: string, endpointType: CustomProviderEndpoint): string {
+export function buildCustomProviderEndpointPreview(
+  baseUrl: string,
+  endpointType: CustomProviderEndpoint,
+  completePath = false
+): string {
   const value = trim(baseUrl)
   if (!value || !validateApiHost(value)) {
     return ''
+  }
+
+  if (completePath) {
+    return withoutTrailingSharp(value)
   }
 
   const formattedHost =
