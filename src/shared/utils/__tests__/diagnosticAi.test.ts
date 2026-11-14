@@ -17,7 +17,7 @@ describe('diagnosticAiDiagnosisSchema', () => {
   it('accepts a diagnosis without model or run metadata and rejects extra payloads', () => {
     expect(
       diagnosticAiDiagnosisSchema.safeParse({
-        source: 'error-summary',
+        source: 'doctor-agent',
         status: 'completed',
         text: 'The request was refused.'
       }).success
@@ -49,7 +49,7 @@ describe('diagnosticAiDiagnosisSchema', () => {
   })
 
   it('is optional on diagnostic bundle export and upload', () => {
-    const diagnosis = { source: 'error-summary', status: 'failed', text: 'summary only' }
+    const diagnosis = { source: 'doctor-agent', status: 'failed', text: 'summary only' }
     expect(diagnosticsRequestSchemas['diagnostics.bundle.export'].input.safeParse(bundleInput).success).toBe(true)
     expect(
       diagnosticsRequestSchemas['diagnostics.bundle.export'].input.safeParse({ ...bundleInput, aiDiagnosis: diagnosis })
@@ -93,10 +93,10 @@ describe('projectDiagnosticAiDiagnosis', () => {
     expect(projected).not.toHaveProperty('toolCalls')
   })
 
-  it('keeps a short error summary as supplied, including failed and canceled status', () => {
+  it('keeps a short diagnosis as supplied, including failed and canceled status', () => {
     expect(
-      projectDiagnosticAiDiagnosis({ source: 'error-summary', status: 'failed', text: '  Quota exceeded.  ' })
-    ).toEqual({ source: 'error-summary', status: 'failed', text: 'Quota exceeded.' })
+      projectDiagnosticAiDiagnosis({ source: 'doctor-agent', status: 'failed', text: '  Quota exceeded.  ' })
+    ).toEqual({ source: 'doctor-agent', status: 'failed', text: 'Quota exceeded.' })
     expect(
       projectDiagnosticAiDiagnosis({
         source: 'doctor-agent',
@@ -117,7 +117,7 @@ describe('projectDiagnosticAiDiagnosis', () => {
   })
 
   it('drops a diagnosis whose text is empty after redaction', () => {
-    expect(projectDiagnosticAiDiagnosis({ source: 'error-summary', status: 'completed', text: '   ' })).toBeUndefined()
+    expect(projectDiagnosticAiDiagnosis({ source: 'doctor-agent', status: 'completed', text: '   ' })).toBeUndefined()
   })
 
   it('keeps a final conclusion that is longer than 8000 characters and shorter than the archive cap', () => {
@@ -181,13 +181,13 @@ describe('selectDiagnosticAiAttachment', () => {
   it('keeps a diagnosis whose error id matches, and one that names no fault', () => {
     expect(
       selectDiagnosticAiAttachment(
-        { source: 'error-summary', status: 'completed', text: 'This fault.', errorId: 'err-1' },
+        { source: 'doctor-agent', status: 'completed', text: 'This fault.', errorId: 'err-1' },
         errorContext
       )
-    ).toEqual({ source: 'error-summary', status: 'completed', text: 'This fault.', errorId: 'err-1' })
-    expect(
-      selectDiagnosticAiAttachment({ source: 'error-summary', status: 'completed', text: 'No fault id.' })
-    ).toEqual({ source: 'error-summary', status: 'completed', text: 'No fault id.' })
+    ).toEqual({ source: 'doctor-agent', status: 'completed', text: 'This fault.', errorId: 'err-1' })
+    expect(selectDiagnosticAiAttachment({ source: 'doctor-agent', status: 'completed', text: 'No fault id.' })).toEqual(
+      { source: 'doctor-agent', status: 'completed', text: 'No fault id.' }
+    )
   })
 
   it('omits a contextual diagnosis that does not name the fault', () => {
