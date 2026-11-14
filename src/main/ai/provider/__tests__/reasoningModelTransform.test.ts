@@ -93,6 +93,19 @@ describe('isOpenAIReasoningModelId', () => {
     expect(isOpenAIReasoningModelId('GPT-5')).toBe(true)
     expect(isOpenAIReasoningModelId('O4-MINI')).toBe(true)
   })
+
+  it('identifies reasoning models behind relay namespaces', () => {
+    expect(isOpenAIReasoningModelId('external/gpt-5.6-luna')).toBe(true)
+    expect(isOpenAIReasoningModelId('openai/gpt-6-astra')).toBe(true)
+    expect(isOpenAIReasoningModelId('relay/o3-mini')).toBe(true)
+  })
+
+  it('excludes non-reasoning models behind relay namespaces', () => {
+    expect(isOpenAIReasoningModelId('openai/gpt-4o')).toBe(false)
+    expect(isOpenAIReasoningModelId('anthropic/claude-sonnet-4-6')).toBe(false)
+    expect(isOpenAIReasoningModelId('relay/gpt-5-chat')).toBe(false)
+    expect(isOpenAIReasoningModelId('gpt-5/')).toBe(false)
+  })
 })
 
 describe('applyReasoningModelMaxTokensConversion', () => {
@@ -122,6 +135,14 @@ describe('applyReasoningModelMaxTokensConversion', () => {
     const result = applyReasoningModelMaxTokensConversion(body) as Record<string, unknown>
     expect(result.max_tokens).toBe(4096)
     expect(result.max_completion_tokens).toBeUndefined()
+  })
+
+  it('converts for a relay-namespaced GPT-5.x id (Agent mode via an OpenAI-compatible gateway)', () => {
+    const body = { model: 'external/gpt-5.6-luna', max_tokens: 32000, stream: true }
+    const result = applyReasoningModelMaxTokensConversion(body) as Record<string, unknown>
+    expect(result.max_completion_tokens).toBe(32000)
+    expect(result.max_tokens).toBeUndefined()
+    expect(result.model).toBe('external/gpt-5.6-luna')
   })
 
   it('passes through when max_tokens is absent', () => {
