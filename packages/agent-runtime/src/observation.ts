@@ -19,7 +19,7 @@ export class ThreadFeed {
     private value: ThreadSnapshot,
     private readonly report: (error: unknown) => void,
     // oxlint-disable-next-line no-restricted-globals -- Isolate caller-owned snapshots by default.
-    private readonly copy: <T extends ObservationPayload>(value: T) => T = structuredClone
+    private readonly copy: <T extends ObservationPayload>(value: T) => T = (value) => structuredClone(value)
   ) {
     this.value = this.copy(value)
   }
