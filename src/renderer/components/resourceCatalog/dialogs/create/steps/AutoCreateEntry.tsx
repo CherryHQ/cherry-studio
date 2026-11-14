@@ -1,13 +1,12 @@
-import { useState } from 'react'
-import { type UseFormReturn, useWatch } from 'react-hook-form'
+import type { UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 
 import type { ModelSelectorFilter } from '@renderer/components/ModelSelector'
-import { EmojiAvatarPicker } from '@renderer/components/resourceCatalog/dialogs/components/DialogFormFields'
 import { TextInputField } from '@renderer/components/resourceCatalog/dialogs/components/EditDialogShared'
 
 import type { ResourceCreateWizardFormValues, ResourceCreateWizardKind } from '../types'
 import { CreateModelField } from './BasicInfoStep'
+import { CreateAvatarPicker } from './CreateAvatarPicker'
 
 const ENTRY_LABEL_CLASS = 'text-muted-foreground text-xs'
 
@@ -38,20 +37,14 @@ export function AutoCreateEntry({
   onSettingsNavigate
 }: AutoCreateEntryProps) {
   const { t } = useTranslation()
-  const [avatarPickerOpen, setAvatarPickerOpen] = useState(false)
-  const avatar = useWatch({ control: form.control, name: 'avatar' })
 
   return (
     <fieldset disabled={disabled} className="m-0 flex min-w-0 flex-col gap-4 border-0 p-0">
       <div className="flex justify-center pb-1">
-        <EmojiAvatarPicker
+        <CreateAvatarPicker
+          form={form}
           size="lg"
-          value={avatar}
-          fallback={fallbackAvatar}
-          open={avatarPickerOpen}
-          onOpenChange={setAvatarPickerOpen}
-          onChange={(value) => form.setValue('avatar', value, { shouldDirty: true })}
-          ariaLabel={t('library.config.dialogs.create.avatar_aria')}
+          fallbackAvatar={fallbackAvatar}
           portalContainer={portalContainer}
           avatarClassName="rounded-[28%]"
           disabled={disabled}

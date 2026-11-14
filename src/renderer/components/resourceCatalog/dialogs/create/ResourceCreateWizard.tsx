@@ -7,11 +7,14 @@ import { Button, Dialog, DialogContent, DialogTitle, Form, MenuItem, ScrollArea 
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { toAgentChannelDraft } from '@renderer/components/channel/channelDraft'
 import { type ModelSelectorFilter } from '@renderer/components/ModelSelector'
+import { useInvalidateCache } from '@renderer/data/hooks/useDataApi'
 import { useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
 import { useIsCherryCloudModelSelectable } from '@renderer/hooks/cherryCloud/useIsCherryCloudModelSelectable'
 import { useResourceAutoConfigure } from '@renderer/hooks/resourceCatalog'
 import { useDefaultModel, useModels } from '@renderer/hooks/useModel'
 import { useProviderById } from '@renderer/hooks/useProvider'
+import { ipcApi } from '@renderer/ipc'
+import { toast } from '@renderer/services/toast'
 import type { ResourceEditDialogTarget } from '@renderer/types/resourceCatalog'
 import { formatErrorMessageWithPrefix, getErrorMessage } from '@renderer/utils/error'
 import type { AutoConfigDraft } from '@renderer/utils/resourceCatalog'
@@ -81,6 +84,7 @@ function getDefaultValues(
   const agentType = kind === 'agent' ? 'pi-durable' : 'claude-code'
   return {
     avatar: getResourceCreateDefaultAvatar(kind),
+    avatarImage: null,
     name: initialName,
     description: '',
     agentType,
@@ -265,6 +269,7 @@ export function ResourceCreateWizard({
   initialValues
 }: ResourceCreateWizardProps) {
   const { t } = useTranslation()
+  const invalidate = useInvalidateCache()
   const form = useForm<ResourceCreateWizardFormValues>({
     defaultValues: getDefaultValues(kind, initialName, initialValues)
   })
@@ -431,6 +436,25 @@ export function ResourceCreateWizard({
     return () => window.cancelAnimationFrame(frameId)
   }, [open, runPendingCloseAction])
 
+  /** Saves the uploaded avatar onto the new resource; resolves whether it was saved. */
+  const saveAvatarImage = async (id: string, data: Uint8Array<ArrayBuffer>): Promise<boolean> => {
+    const avatar = { kind: 'image' as const, data }
+    try {
+      if (kind === 'agent') {
+        await ipcApi.request('agent.set_avatar', { agentId: id, avatar })
+        await invalidate([`/agents/${id}`, '/agents'])
+      } else {
+        await ipcApi.request('assistant.set_avatar', { assistantId: id, avatar })
+        await invalidate([`/assistants/${id}`, '/assistants'])
+      }
+      return true
+    } catch (error) {
+      // The resource already exists with its emoji, so this is reported without failing the create.
+      toast.error(formatErrorMessageWithPrefix(error, t('library.config.dialogs.create.avatar_save_failed')))
+      return false
+    }
+  }
+
   /** Resolves whether the resource was created; on success the dialog moves to the result page. */
   const submitValues = async (values: ResourceCreateWizardFormValues, generated = false): Promise<boolean> => {
     if (!values.modelId) return false
@@ -465,7 +489,9 @@ export function ResourceCreateWizard({
     }
     try {
       const id = await onSubmit(payload)
-      setCreated({ id, values: payload, generated })
+      const image = values.avatarImage
+      const avatarSrc = image && (await saveAvatarImage(id, image.data)) ? image.previewUrl : undefined
+      setCreated({ id, values: payload, generated, avatarSrc })
       setView('result')
       return true
     } catch (error) {
