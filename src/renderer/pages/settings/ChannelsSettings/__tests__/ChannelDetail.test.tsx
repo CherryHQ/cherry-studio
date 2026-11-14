@@ -4,9 +4,9 @@ import React from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as CherryUiModule from '@cherrystudio/ui'
+import type { AvailableChannel } from '@renderer/components/channel/channelTypes'
 
 import ChannelDetail from '../ChannelDetail'
-import type { AvailableChannel } from '../channelTypes'
 
 const channelMocks = vi.hoisted(() => ({
   channels: [] as Array<Record<string, unknown>>,

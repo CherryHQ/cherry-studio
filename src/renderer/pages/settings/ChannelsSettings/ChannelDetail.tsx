@@ -25,6 +25,8 @@ import {
   Tooltip
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
+import { getFormForType } from '@renderer/components/channel/ChannelForms'
+import type { AvailableChannel, ChannelData, ChannelUpdates } from '@renderer/components/channel/channelTypes'
 import CopyButton from '@renderer/components/CopyButton'
 import { WorkspaceSelector } from '@renderer/components/resourceCatalog/selectors'
 import {
@@ -41,9 +43,6 @@ import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { getChannelTypeIcon } from '@renderer/utils/agentSession'
 import { AGENT_WORKSPACE_TYPE } from '@shared/data/api/schemas/agentWorkspaces'
 import type { ChannelStatus } from '@shared/data/types/channel'
-
-import { getFormForType } from './ChannelForms'
-import type { AvailableChannel, ChannelData, ChannelUpdates } from './channelTypes'
 
 const logger = loggerService.withContext('ChannelDetail')
 
