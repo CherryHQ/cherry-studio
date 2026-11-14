@@ -28,9 +28,9 @@ const skillIcon = (
 )
 
 /**
- * Skill list for Agent forms. In create mode builtin skills are shown locked on and never
- * written to the selection (the server always enables them), and the selection only keeps
- * skills that are still available.
+ * Skill list for Agent forms. Builtin skills are shown locked on (the server always enables
+ * them); in create mode they are never written to the selection, which only keeps skills that
+ * are still available.
  */
 export function SkillCatalogPicker({
   mode,
@@ -51,7 +51,7 @@ export function SkillCatalogPicker({
   const items = useMemo<CapabilityItem[]>(
     () =>
       availableSkills.map((skill) => {
-        const locked = mode === 'create' && skill.source === 'builtin'
+        const locked = skill.source === 'builtin'
         return {
           id: skill.id,
           name: skill.name,
@@ -61,7 +61,7 @@ export function SkillCatalogPicker({
           badge: locked ? t('library.config.dialogs.create.capability.builtin_badge') : undefined
         }
       }),
-    [availableSkills, mode, t]
+    [availableSkills, t]
   )
   const changeSelection = (ids: string[]) => {
     if (mode === 'edit') return onSelectedIdsChange(ids)

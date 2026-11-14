@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { InputNumber, Switch } from '@cherrystudio/ui'
@@ -15,10 +16,12 @@ type HeartbeatCardProps = {
   onChange: (patch: Partial<HeartbeatValue>) => void
   /** Replaces the default description, e.g. where the heartbeat tasks cannot be edited yet. */
   description?: string
+  /** Extra rows at the bottom of the card, such as the heartbeat tasks. */
+  children?: ReactNode
 }
 
 /** Heartbeat switch card; when on, it reveals the interval and maximum run time in minutes. */
-export function HeartbeatCard({ value, onChange, description }: HeartbeatCardProps) {
+export function HeartbeatCard({ value, onChange, description, children }: HeartbeatCardProps) {
   const { t } = useTranslation()
   const title = t('library.config.agent.field.heartbeat_enabled.label')
   const rows = [
@@ -74,6 +77,7 @@ export function HeartbeatCard({ value, onChange, description }: HeartbeatCardPro
             </div>
           ))
         : null}
+      {children}
     </div>
   )
 }
