@@ -1,6 +1,7 @@
 import type { DiagnosticReportConfig, SerializedError } from '@renderer/types/error'
 import type { DiagnosisContext } from '@renderer/utils/errorDiagnosis'
 import type { AppErrorContext } from '@shared/types/appError'
+import { projectAppErrorContext } from '@shared/utils/appError'
 import { normalizeDiagnosticDescription } from '@shared/utils/diagnostics'
 
 export const DIAGNOSTIC_REPORT_PREFILL_MAX_BYTES = 2_048
@@ -155,7 +156,7 @@ export function diagnosticReportFields({
 }
 
 export function buildErrorContextReportDescription(
-  context: AppErrorContext,
+  rawContext: AppErrorContext,
   labels: {
     readonly errorMessage: string
     readonly model: string
@@ -163,6 +164,7 @@ export function buildErrorContextReportDescription(
     readonly source: string
   }
 ): string {
+  const context = projectAppErrorContext(rawContext, 'upload')
   const model = [context.providerId, context.modelId].filter((part) => part && part.trim().length > 0).join(':')
   const lines = [
     `${labels.source}: ${context.source}`,

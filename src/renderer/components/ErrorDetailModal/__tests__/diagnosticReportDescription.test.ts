@@ -5,6 +5,7 @@ import { diagnosticDescriptionByteLength } from '@shared/utils/diagnostics'
 
 import {
   buildDiagnosticReportDescription,
+  buildErrorContextReportDescription,
   DIAGNOSTIC_REPORT_PREFILL_MAX_BYTES,
   type DiagnosticReportDescriptionLabels,
   diagnosticMachineLocationId,
@@ -136,6 +137,25 @@ describe('buildDiagnosticReportDescription', () => {
     expect(diagnosticDescriptionByteLength(description)).toBeLessThanOrEqual(DIAGNOSTIC_REPORT_PREFILL_MAX_BYTES)
     expect(description).not.toContain('\uFFFD')
     expect(description).not.toMatch(/\r$/)
+  })
+})
+
+describe('buildErrorContextReportDescription', () => {
+  it('prefills the upload description from the redacted error, not the raw message', () => {
+    const description = buildErrorContextReportDescription(
+      {
+        id: 'err-1',
+        occurredAt: '2026-10-14T00:00:00.000Z',
+        source: 'file.preview',
+        operation: 'file.preview.load_error',
+        message: 'cannot open /Users/alice/a.pdf with Bearer sk-proj-abcdefghijklmnopqrstuvwxyz123456'
+      },
+      { errorMessage: 'Error message', model: 'Model', operation: 'Operation', source: 'Source' }
+    )
+
+    expect(description).toContain('Error message: cannot open ~/a.pdf')
+    expect(description).not.toContain('alice')
+    expect(description).not.toContain('sk-proj-abcdefghijklmnopqrstuvwxyz123456')
   })
 })
 
