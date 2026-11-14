@@ -81,6 +81,7 @@ import {
 import {
   approvalRequiredRuntimeNames,
   ASK_USER_QUESTION_TOOL_NAME,
+  CROSS_SESSION_DELEGATION_HEADLESS_DENIAL,
   GLOBAL_INSTALL_PLAN_DENIAL,
   GLOBAL_INSTALL_UNATTENDED_DENIAL,
   HEADLESS_INTERACTIVE_TOOL_DENIAL
@@ -547,7 +548,9 @@ async function buildToolPermissions(
         ? resolveDelegationApproval(snapshot.getPermissionMode(), interactionState)
         : undefined
     if (delegationApproval === 'deny') {
-      return { behavior: 'deny', message: HEADLESS_INTERACTIVE_TOOL_DENIAL }
+      // Delegation never runs unattended, and the delivered Agent has to hear where its reply
+      // goes — the "ask the user anyway" wording is impossible advice for a call that did not run.
+      return { behavior: 'deny', message: CROSS_SESSION_DELEGATION_HEADLESS_DENIAL }
     }
     // Ordinary delegation is approved by PreToolUse. Reaching this callback means the SDK still
     // requires a user decision, even when matchedAskRule is absent.
@@ -560,7 +563,13 @@ async function buildToolPermissions(
     if (requiresInteractiveResponder && interactionState.userResponse === 'unavailable') {
       return {
         behavior: 'deny',
-        message: installApprovalHolds ? GLOBAL_INSTALL_UNATTENDED_DENIAL : HEADLESS_INTERACTIVE_TOOL_DENIAL
+        // Mirror the guard table's per-rule wording so both denial layers tell delegation tools
+        // why there is no responder and where the reply actually goes.
+        message: installApprovalHolds
+          ? GLOBAL_INSTALL_UNATTENDED_DENIAL
+          : policy?.approval === 'required' && policy.bypassApproval === 'enforce'
+            ? CROSS_SESSION_DELEGATION_HEADLESS_DENIAL
+            : HEADLESS_INTERACTIVE_TOOL_DENIAL
       }
     }
 
