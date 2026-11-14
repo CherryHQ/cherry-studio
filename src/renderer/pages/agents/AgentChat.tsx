@@ -641,6 +641,7 @@ const AgentChatSessionCenter = ({
         sendMessage={runtime.sendMessage}
         stop={runtime.stop}
         isStreaming={runtime.isPending}
+        messages={runtime.uiMessages}
         sendDisabled={composerPending}
         onAgentChange={onAgentChange}
         agentChanging={agentChanging}
