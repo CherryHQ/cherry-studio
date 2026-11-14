@@ -13,7 +13,7 @@ import {
   isProxyErrorMessage,
   isQuotaErrorMessage
 } from '@shared/utils/errorCategory'
-import { redactDiagnosticText } from '@shared/utils/redaction'
+import { redactCredentialSchemes, redactHomeDirectories, redactSecretTokens } from '@shared/utils/redaction'
 
 const logger = loggerService.withContext('errorDiagnosis')
 
@@ -322,7 +322,9 @@ export async function translateErrorByAI(text: string, language: string): Promis
 
   try {
     const model = await getCherryAiDefaultFreeModel()
-    const response = await fetchGenerate({ prompt, content: redactDiagnosticText(text), model, throwOnError: true })
+    // Key-name redaction would blank provider explanations such as `max_tokens: 100000 > 64000`.
+    const content = redactHomeDirectories(redactSecretTokens(redactCredentialSchemes(text)))
+    const response = await fetchGenerate({ prompt, content, model, throwOnError: true })
     return response?.trim() || ''
   } catch (error) {
     logger.warn('Free model unavailable for error translation', error as Error)

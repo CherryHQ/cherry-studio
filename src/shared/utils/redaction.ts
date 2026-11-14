@@ -147,6 +147,11 @@ const BEARER_SCHEME_PATTERN = /\b(Bearer|Basic)\s+("(?:\\.|[^"\\])*"|'(?:\\.|[^'
 
 const URL_USERINFO_PATTERN = /((?:\b[a-z][a-z\d+.-]*:)?\/\/)[^\s/\\?#]+@/gi
 
+/** URL userinfo and `Bearer`/`Basic` credentials — the part of redactSecretText that needs no key name. */
+export function redactCredentialSchemes(text: string): string {
+  return text.replace(URL_USERINFO_PATTERN, `$1${REDACTED}@`).replace(BEARER_SCHEME_PATTERN, `$1 ${REDACTED}`)
+}
+
 /**
  * Redact likely-secret fragments embedded in free text: `key = value`,
  * `"key": value`, URL userinfo, and `Bearer <token>` schemes. `extraKeys` extends the key
@@ -159,10 +164,7 @@ export function redactSecretText(text: string, extraKeys: readonly string[] = []
     escaped.length === 0
       ? SECRET_KEY_VALUE_PATTERN
       : new RegExp(SECRET_KEY_VALUE_PATTERN.source.replace('|apikey', `|apikey|${escaped.join('|')}`), 'gi')
-  return text
-    .replace(URL_USERINFO_PATTERN, `$1${REDACTED}@`)
-    .replace(BEARER_SCHEME_PATTERN, `$1 ${REDACTED}`)
-    .replace(withExtras, `$1"${REDACTED}"`)
+  return redactCredentialSchemes(text).replace(withExtras, `$1"${REDACTED}"`)
 }
 
 /** Well-known credential shapes that carry no key name, e.g. a bare `sk-…` inside an error body. */
@@ -197,12 +199,17 @@ export function redactSecretTokens(text: string, replacement: string = REDACTED)
 const HOME_DIRECTORY_PATTERN =
   /(?<![\w.-])(?:\/(?:users|home)\/[^/\\\s'"`]+|[a-z]:[\\/]+users[\\/]+[^\\/:;|=,+*?<>"'`[\]\s]+(?:(?: [^\\/:;|=,+*?<>"'`[\]\s]+)+(?=[\\/]))?)/gi
 
+/** Local home directories (`/Users/x`, `/home/x`, `C:\Users\x`) replaced by `~`. */
+export function redactHomeDirectories(text: string): string {
+  return text.replace(HOME_DIRECTORY_PATTERN, '~')
+}
+
 /**
  * Secrets and local home directories (replaced by `~`) removed from free text.
  * The projection used for error context, AI diagnosis, and error text sent to a model.
  */
 export function redactDiagnosticText(text: string): string {
-  return redactSecretTokens(redactSecretText(text)).replace(HOME_DIRECTORY_PATTERN, '~')
+  return redactHomeDirectories(redactSecretTokens(redactSecretText(text)))
 }
 
 /** Redact an exact runtime-known secret literal wherever it occurs. */
