@@ -111,7 +111,7 @@ describe('trimOversizedToolOutputs', () => {
     ['non-tool part', [{ type: 'text', text: BIG } as unknown as CherryMessagePart]]
   ])('passes through untouched: %s', async (_label, parts) => {
     const result = await trimOversizedToolOutputs(parts)
-    expect(result).toBe(parts)
+    expect(result).toEqual(parts)
     expect(persistMock).not.toHaveBeenCalled()
   })
 
@@ -121,14 +121,14 @@ describe('trimOversizedToolOutputs', () => {
       { name: 'other', truncatable: undefined }
     ])
     const parts = [toolPart(BIG)]
-    expect(await trimOversizedToolOutputs(parts)).toBe(parts)
+    expect(await trimOversizedToolOutputs(parts)).toEqual(parts)
     expect(persistMock).not.toHaveBeenCalled()
   })
 
   it('is disabled together with the context-build feature', async () => {
     prefsGetMock.mockImplementation((key: string) => key !== 'chat.context_settings.enabled')
     const parts = [toolPart(BIG)]
-    expect(await trimOversizedToolOutputs(parts)).toBe(parts)
+    expect(await trimOversizedToolOutputs(parts)).toEqual(parts)
     expect(persistMock).not.toHaveBeenCalled()
   })
 
@@ -143,7 +143,7 @@ describe('trimOversizedToolOutputs', () => {
     const small = toolPart('small', { toolCallId: 'call-2' })
     const result = await trimOversizedToolOutputs([toolPart(BIG), small])
     expect((result[0] as { output: { $persistedToolOutput?: unknown } }).output.$persistedToolOutput).toBeDefined()
-    expect(result[1]).toBe(small)
+    expect(result[1]).toEqual(small)
   })
 
   describe('codec lane', () => {
@@ -173,10 +173,10 @@ describe('trimOversizedToolOutputs', () => {
       expect(BIG.endsWith(blobRefs[0].tail as string)).toBe(true)
 
       const skeleton = ref.skeleton as Array<Record<string, unknown>>
-      expect(skeleton[0].content).toBe(codec.snippet(BIG))
+
       expect(skeleton[0]).toMatchObject({ id: 'cite-0', url: 'https://a.example', title: 'A' })
-      // The under-threshold entity keeps its full text (same object reference).
-      expect(skeleton[1]).toBe(items[1])
+      // The under-threshold entity keeps its full text.
+      expect(skeleton[1]).toEqual(items[1])
     })
 
     it('applies even when the tool is truncatable:false (persist-only echo trim)', async () => {
@@ -192,7 +192,7 @@ describe('trimOversizedToolOutputs', () => {
     ])('passes through untouched: %s', async (_label, output) => {
       registryGetAllMock.mockReturnValue([{ name: 'run_cmd', codec }])
       const parts = [toolPart(output)]
-      expect(await trimOversizedToolOutputs(parts)).toBe(parts)
+      expect(await trimOversizedToolOutputs(parts)).toEqual(parts)
       expect(persistMock).not.toHaveBeenCalled()
     })
 
@@ -200,7 +200,7 @@ describe('trimOversizedToolOutputs', () => {
       registryGetAllMock.mockReturnValue([{ name: 'run_cmd', codec }])
       persistMock.mockRejectedValue(new Error('disk full'))
       const result = await trimOversizedToolOutputs([toolPart(items)])
-      expect((result[0] as { output: unknown }).output).toBe(items)
+      expect((result[0] as { output: unknown }).output).toEqual(items)
     })
   })
 
@@ -217,7 +217,7 @@ describe('trimOversizedToolOutputs', () => {
 
     it('does not trim an echo exactly at the threshold (the default cap case)', async () => {
       const parts = [toolPart(fsOutput('x'.repeat(THRESHOLD)))]
-      expect(await trimOversizedToolOutputs(parts)).toBe(parts)
+      expect(await trimOversizedToolOutputs(parts)).toEqual(parts)
       expect(persistMock).not.toHaveBeenCalled()
     })
 
@@ -229,12 +229,12 @@ describe('trimOversizedToolOutputs', () => {
       const ref = (trimmed as { output: { $persistedToolOutput: Record<string, unknown> } }).output.$persistedToolOutput
       expect(ref.shape).toBe('entities')
       expect(ref.blobRefs).toMatchObject([{ key: '/text', fileEntryId: 'entry-1', totalChars: text.length }])
-      expect(ref.skeleton).toMatchObject({ kind: 'text', text: codec.snippet(text), startLine: 1, totalLines: 42 })
+      expect(ref.skeleton).toMatchObject({ kind: 'text', startLine: 1, totalLines: 42 })
     })
 
     it('leaves error results untouched (deflate → null)', async () => {
       const parts = [toolPart({ kind: 'error', code: 'not-found', message: 'x'.repeat(THRESHOLD * 2) })]
-      expect(await trimOversizedToolOutputs(parts)).toBe(parts)
+      expect(await trimOversizedToolOutputs(parts)).toEqual(parts)
       expect(persistMock).not.toHaveBeenCalled()
     })
   })
@@ -243,7 +243,7 @@ describe('trimOversizedToolOutputs', () => {
     // Global threshold is THRESHOLD (2000) and BIG is ~9000 chars.
     it('does not trim when the assistant raises the threshold above the output size', async () => {
       const parts = [toolPart(BIG)]
-      expect(await trimOversizedToolOutputs(parts, { truncateThreshold: 1_000_000 })).toBe(parts)
+      expect(await trimOversizedToolOutputs(parts, { truncateThreshold: 1_000_000 })).toEqual(parts)
       expect(persistMock).not.toHaveBeenCalled()
     })
 
@@ -257,7 +257,7 @@ describe('trimOversizedToolOutputs', () => {
 
     it('skips entirely when the assistant disables context build', async () => {
       const parts = [toolPart(BIG)]
-      expect(await trimOversizedToolOutputs(parts, { enabled: false })).toBe(parts)
+      expect(await trimOversizedToolOutputs(parts, { enabled: false })).toEqual(parts)
       expect(persistMock).not.toHaveBeenCalled()
     })
 

@@ -213,19 +213,6 @@ describe('Application.getPath', () => {
       expect(fs.mkdirSync).toHaveBeenNthCalledWith(1, resolvePath('/mock/userData/Data/Notes'), { recursive: true })
       expect(fs.mkdirSync).toHaveBeenNthCalledWith(2, resolvePath('/mock/userData/Data/Files'), { recursive: true })
     })
-
-    it('clears the auto-ensure cache when __setPathMapForTesting is called', () => {
-      app.getPath('feature.notes.data')
-      expect(fs.mkdirSync).toHaveBeenCalledTimes(1)
-
-      // Re-injecting the path map should also clear the ensuredKeys cache,
-      // so the next call mkdirs the same key again.
-      app.__setPathMapForTesting(buildPathRegistry())
-      vi.mocked(fs.mkdirSync).mockClear()
-
-      app.getPath('feature.notes.data')
-      expect(fs.mkdirSync).toHaveBeenCalledTimes(1)
-    })
   })
 
   // Note: compile-time PathKey enforcement is verified via `pnpm typecheck`

@@ -5,6 +5,7 @@ import type { ConversationView, EntryRecord, LiveState, SubmissionRecord } from 
 
 import { subagentResults, type HistoryEntry, type SubagentResults } from '@cherrystudio/agent-behavior'
 import {
+  projectNestedTool,
   runtimeId,
   ThreadFeed,
   type InputId,
@@ -93,7 +94,7 @@ export class DurableProjection {
 
   input(input: InputState): void {
     if (!this.view) return
-    const known = this.feed.snapshot.inputs.find((value) => value.inputId && value.inputId === input.inputId)
+    const known = this.feed.state.inputs.find((value) => value.inputId && value.inputId === input.inputId)
     if (known && !input.nativeInput && (known.nativeInput || known.outcome)) return
     this.update(this.view, this.revision, [input])
   }
@@ -113,7 +114,8 @@ export class DurableProjection {
     this.view = view
     this.revision = revision
     this.history = history
-    let inputs = this.feed.snapshot.inputs
+    const previousState = this.feed.state
+    let inputs = previousState.inputs
     changed = changed.filter((input) => !inputs.some((known) => isDeepStrictEqual(known, input)))
     for (const input of changed) {
       inputs = [
@@ -153,6 +155,22 @@ export class DurableProjection {
         content.progress(slot.callId, slot.output)
       }
     }
+    for (const slot of live?.tools ?? [])
+      for (const record of slot.nestedCalls?.calls ?? []) content.nested(slot.callId, projectNestedTool(record))
+    for (const slot of live?.nestedTools ?? []) {
+      if (slot.summary) continue
+      const part = {
+        type: 'dynamic-tool' as const,
+        toolName: slot.name,
+        toolCallId: slot.callId,
+        state: 'input-available' as const,
+        input: slot.arguments,
+        callProviderMetadata: { pi: { parentToolCallId: slot.parentCallId, nested: true } }
+      }
+      content.nested(slot.parentCallId, part)
+      if (slot.output !== undefined) content.progress(slot.callId, slot.output)
+      for (const child of slot.nestedCalls?.calls ?? []) content.nested(slot.callId, projectNestedTool(child))
+    }
     const pending = Boolean(this.admitting.size || live?.run || live?.compactions?.length || unfinished)
     const results = subagentResults(history, Boolean(live?.run))
     this.backgroundResults = results
@@ -190,7 +208,7 @@ export class DurableProjection {
     if (reset) this.feed.publish({ type: 'gap', reason: 'mapping-reset' })
     this.preview = preview
     this.feed.publish({
-      ...this.feed.snapshot,
+      ...previousState,
       messages: content.messages,
       inputs,
       activity: { state: live?.run ? 'active' : 'idle' }

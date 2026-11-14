@@ -74,48 +74,6 @@ describe('FileManager entry-cleanup wiring', () => {
     await rm(tmp, { recursive: true, force: true })
   })
 
-  it('onInit runs an ungated backlog pass and registers the 30-minute interval', async () => {
-    // The init pass is deliberately NOT idle-gated: it drains the previous
-    // session's backlog (crashed sends, pre-upgrade leaks), which the first
-    // interval tick would otherwise defer behind the idle threshold.
-    powerState.idleSeconds = 0
-    const cleanup = vi.spyOn(fm, 'runEntryCleanup').mockResolvedValue(completedReport())
-    const internals = fm as unknown as {
-      registerInterval(fn: () => void, ms: number): unknown
-      registerIpcHandlers(): void
-      deps: { danglingCache: { initFromDb(): Promise<void> } }
-      onInit(): Promise<void>
-    }
-    const registerInterval = vi.spyOn(internals, 'registerInterval').mockReturnValue(undefined)
-    vi.spyOn(internals, 'registerIpcHandlers').mockImplementation(() => undefined)
-    vi.spyOn(internals.deps.danglingCache, 'initFromDb').mockResolvedValue(undefined)
-
-    await internals.onInit()
-
-    expect(cleanup).toHaveBeenCalledTimes(1)
-    expect(registerInterval).toHaveBeenCalledWith(expect.any(Function), 30 * 60 * 1000)
-  })
-
-  it('sweeps orphan blobs on the first idle tick, then holds off for a week', async () => {
-    // `runSweep()` (the File_RunSweep IPC) has no renderer caller, so this tick
-    // is what actually reclaims blobs the cleanup pass strands via unlinkFailures
-    // or a crash between row delete and unlink.
-    powerState.idleSeconds = 120
-    vi.spyOn(fm, 'runEntryCleanup').mockResolvedValue(completedReport())
-    const tick = (fm as unknown as { entryCleanupTick(): Promise<void> }).entryCleanupTick.bind(fm)
-
-    await tick()
-    expect(fileSweepMock).toHaveBeenCalledTimes(1)
-
-    await tick()
-    expect(fileSweepMock).toHaveBeenCalledTimes(1)
-
-    // Move the last sweep back past the weekly floor — the next tick sweeps again.
-    ;(fm as unknown as { lastFileSweepAt: number }).lastFileSweepAt = Date.now() - 8 * 24 * 60 * 60 * 1000
-    await tick()
-    expect(fileSweepMock).toHaveBeenCalledTimes(2)
-  })
-
   it('does not sweep orphan blobs when the tick itself is gated out', async () => {
     powerState.idleSeconds = 5
     vi.spyOn(fm, 'runEntryCleanup').mockResolvedValue(completedReport())
@@ -256,13 +214,39 @@ describe('FileManager entry-cleanup wiring', () => {
     expect(spy).toHaveBeenCalledTimes(1)
   })
 
-  it('interval tick runs despite activity when 2h overdue', async () => {
-    powerState.idleSeconds = 5
-    const spy = vi.spyOn(fm, 'runEntryCleanup').mockResolvedValue(completedReport())
-    ;(fm as unknown as { lastCleanupCompletedAt: number }).lastCleanupCompletedAt = Date.now() - 3 * 60 * 60 * 1000
+  it('onInit drains the backlog even while the user is active', async () => {
+    // The init pass is deliberately NOT idle-gated: it drains the previous
+    // session's backlog (crashed sends, pre-upgrade leaks), which the first
+    // interval tick would otherwise defer behind the idle threshold.
+    powerState.idleSeconds = 0
+    const cleanup = vi.spyOn(fm, 'runEntryCleanup').mockResolvedValue(completedReport())
+    const internals = fm as unknown as {
+      registerInterval(fn: () => void, ms: number): unknown
+      registerIpcHandlers(): void
+      deps: { danglingCache: { initFromDb(): Promise<void> } }
+      onInit(): Promise<void>
+    }
+    vi.spyOn(internals, 'registerInterval').mockReturnValue(undefined)
+    vi.spyOn(internals, 'registerIpcHandlers').mockImplementation(() => undefined)
+    vi.spyOn(internals.deps.danglingCache, 'initFromDb').mockResolvedValue(undefined)
 
-    await (fm as unknown as { entryCleanupTick(): Promise<void> }).entryCleanupTick()
+    await internals.onInit()
 
-    expect(spy).toHaveBeenCalledTimes(1)
+    expect(cleanup).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not repeat an orphan sweep on consecutive idle ticks', async () => {
+    // `runSweep()` (the File_RunSweep IPC) has no renderer caller, so this tick
+    // is what actually reclaims blobs the cleanup pass strands via unlinkFailures
+    // or a crash between row delete and unlink.
+    powerState.idleSeconds = 120
+    vi.spyOn(fm, 'runEntryCleanup').mockResolvedValue(completedReport())
+    const tick = (fm as unknown as { entryCleanupTick(): Promise<void> }).entryCleanupTick.bind(fm)
+
+    await tick()
+    expect(fileSweepMock).toHaveBeenCalledTimes(1)
+
+    await tick()
+    expect(fileSweepMock).toHaveBeenCalledTimes(1)
   })
 })

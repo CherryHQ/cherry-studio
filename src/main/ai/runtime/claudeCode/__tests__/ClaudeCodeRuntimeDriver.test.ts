@@ -1,8 +1,9 @@
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { Worker } from 'node:worker_threads'
 
+import { getSessionMessages } from '@anthropic-ai/claude-agent-sdk'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { RuntimeForkResult } from '../../fork'
@@ -116,42 +117,453 @@ describe('Claude native forks', () => {
     await expect(forkClaudeSession(input)).rejects.toMatchObject({ reason: 'unsupported_checkpoint' })
   })
 
-  it.each(['compaction', 'replacement'] as const)(
-    'refuses a fork retaining source UUIDs in %s metadata',
-    async (kind) => {
-      const userUuid = '20249b48-e174-4610-84c2-af6224228290'
-      const boundaryUuid = '590bf21c-a5c3-413d-821e-cd33a4016d33'
+  it('preserves the SDK-selected context when a parent appears later in the file', async () => {
+    const userUuid = '20249b48-e174-4610-84c2-af6224228290'
+    const replyUuid = '8ac51a42-1adb-4fe0-a139-64af7af18232'
+    const user = {
+      type: 'user',
+      uuid: userUuid,
+      parentUuid: null,
+      sessionId,
+      message: { role: 'user', content: 'EARLIER_INPUT' }
+    }
+    const reply = {
+      type: 'assistant',
+      uuid: replyUuid,
+      parentUuid: userUuid,
+      sessionId,
+      message: { role: 'assistant', content: [{ type: 'text', text: 'EARLIER_REPLY' }] }
+    }
+    const entries = [
+      reply,
+      user,
+      {
+        type: 'assistant',
+        uuid: messageUuid,
+        parentUuid: replyUuid,
+        sessionId,
+        message: { role: 'assistant', content: [{ type: 'text', text: 'SELECTED_REPLY' }] }
+      }
+    ]
+    await mkdir(path.dirname(file), { recursive: true })
+    const source = entries.map((value) => JSON.stringify(value)).join('\n') + '\n'
+    await writeFile(file, source)
+    const result = await forkClaudeSession(forkInput())
+    const output = (await readFile(result.publish[0].source, 'utf8'))
+      .trim()
+      .split('\n')
+      .map((line) => JSON.parse(line))
+    const messages = await getSessionMessages(result.resumeToken, {
+      dir: directory,
+      includeSystemMessages: true,
+      sessionStore: {
+        // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
+        load: async () => structuredClone(output),
+        append: async () => {
+          throw new Error('Read-only history')
+        }
+      }
+    })
+    expect(messages.map((message) => (message.message as { content: unknown }).content)).toEqual([
+      'EARLIER_INPUT',
+      [{ type: 'text', text: 'EARLIER_REPLY' }],
+      [{ type: 'text', text: 'SELECTED_REPLY' }]
+    ])
+    expect(messages.at(-1)?.uuid).toBe(result.checkpoints[0].messageUuid)
+    expect(await readFile(file, 'utf8')).toBe(source)
+  })
+
+  it('refuses a checkpoint hidden from otherwise readable native history', async () => {
+    const entries = [
+      {
+        type: 'user',
+        uuid: '20249b48-e174-4610-84c2-af6224228290',
+        parentUuid: null,
+        sessionId,
+        message: { role: 'user', content: 'Earlier input' }
+      },
+      {
+        type: 'assistant',
+        uuid: messageUuid,
+        parentUuid: '20249b48-e174-4610-84c2-af6224228290',
+        sessionId,
+        isMeta: true,
+        message: { role: 'assistant', content: [{ type: 'text', text: 'Hidden checkpoint' }] }
+      }
+    ]
+    await mkdir(path.dirname(file), { recursive: true })
+    const source = entries.map((value) => JSON.stringify(value)).join('\n') + '\n'
+    await writeFile(file, source)
+    const input = forkInput()
+    await mkdir(input.artifactDirectory)
+    await expect(forkClaudeSession(input)).rejects.toMatchObject({ reason: 'unsupported_checkpoint' })
+    expect(await readFile(file, 'utf8')).toBe(source)
+    expect(await readdir(input.artifactDirectory)).toEqual([])
+  })
+
+  describe('compacted context', () => {
+    const userUuid = '20249b48-e174-4610-84c2-af6224228290'
+    const replyUuid = '8ac51a42-1adb-4fe0-a139-64af7af18232'
+    const boundaryUuid = '590bf21c-a5c3-413d-821e-cd33a4016d33'
+    const summaryUuid = '2fcdb52e-39d4-4cc9-aee0-53db2df99c33'
+    const promptUuid = '781c8715-59da-426a-8688-481660b69d16'
+    const preservedSegment = { headUuid: userUuid, tailUuid: replyUuid, anchorUuid: summaryUuid }
+
+    async function writeCompactedHistory(compactMetadata: unknown, missingLogicalParent = false) {
       const entries = [
-        { type: 'user', uuid: userUuid, parentUuid: null, sessionId, message: { role: 'user', content: 'Before' } },
-        kind === 'compaction'
-          ? {
-              type: 'system',
-              subtype: 'compact_boundary',
-              uuid: boundaryUuid,
-              parentUuid: userUuid,
-              sessionId,
-              compactMetadata: {
-                trigger: 'auto',
-                preTokens: 1000,
-                preservedSegment: { headUuid: userUuid, tailUuid: userUuid, anchorUuid: boundaryUuid }
-              }
-            }
-          : { type: 'content-replacement', sessionId, replacements: [{ messageUuid: userUuid, content: 'Replaced' }] },
+        {
+          type: 'user',
+          uuid: userUuid,
+          parentUuid: null,
+          sessionId,
+          message: { role: 'user', content: 'PRESERVED_USER' }
+        },
+        {
+          type: 'assistant',
+          uuid: replyUuid,
+          parentUuid: userUuid,
+          sessionId,
+          message: { role: 'assistant', content: [{ type: 'text', text: 'PRESERVED_REPLY' }] }
+        },
+        {
+          type: 'system',
+          subtype: 'compact_boundary',
+          uuid: boundaryUuid,
+          parentUuid: null,
+          logicalParentUuid: missingLogicalParent ? '706dc088-43ba-425e-ae5e-64d436fbdccb' : replyUuid,
+          sessionId,
+          compactMetadata
+        },
+        {
+          type: 'user',
+          uuid: summaryUuid,
+          parentUuid: boundaryUuid,
+          sessionId,
+          isCompactSummary: true,
+          message: { role: 'user', content: 'COMPACT_SUMMARY secret=24250' }
+        },
+        {
+          type: 'user',
+          uuid: promptUuid,
+          parentUuid: summaryUuid,
+          sessionId,
+          message: { role: 'user', content: 'POST_COMPACT_PROMPT' }
+        },
         {
           type: 'assistant',
           uuid: messageUuid,
-          parentUuid: kind === 'compaction' ? boundaryUuid : userUuid,
+          parentUuid: promptUuid,
           sessionId,
-          message: { role: 'assistant', content: [{ type: 'text', text: 'After' }] }
+          message: { role: 'assistant', content: [{ type: 'text', text: 'POST_COMPACT_REPLY' }] }
+        },
+        {
+          type: 'user',
+          uuid: '706dc088-43ba-425e-ae5e-64d436fbdccb',
+          parentUuid: messageUuid,
+          sessionId,
+          message: { role: 'user', content: 'FUTURE_ONLY' }
         }
       ]
       await mkdir(path.dirname(file), { recursive: true })
-      const source = entries.map((entry) => JSON.stringify(entry)).join('\n') + '\n'
+      const source = Buffer.from(entries.map((entry) => JSON.stringify(entry)).join('\n') + '\n')
       await writeFile(file, source)
-      await expect(forkClaudeSession(forkInput())).rejects.toMatchObject({ reason: 'unsupported_checkpoint' })
-      expect(await readFile(file, 'utf8')).toBe(source)
+      return source
     }
-  )
+
+    it.each([
+      {
+        name: 'preservedSegment with reordered object keys',
+        compactMetadata: { preservedSegment, trigger: 'manual', preTokens: 1000 }
+      },
+      {
+        name: 'preservedMessages and root runningTurnSends',
+        compactMetadata: {
+          trigger: 'manual',
+          preTokens: 1000,
+          preservedMessages: {
+            anchorUuid: summaryUuid,
+            uuids: [userUuid, replyUuid],
+            allUuids: [userUuid, replyUuid]
+          },
+          runningTurnSends: [{ uuid: userUuid }]
+        }
+      },
+      { name: 'verbatim metadata', compactMetadata: { trigger: 'manual', preTokens: 1000 } },
+      {
+        name: 'opaque UUID annotation',
+        compactMetadata: { trigger: 'manual', preTokens: 1000, annotation: userUuid }
+      },
+      {
+        name: 'opaque annotation alongside preservedSegment',
+        compactMetadata: { trigger: 'manual', preTokens: 1000, preservedSegment, annotation: userUuid }
+      },
+      {
+        name: 'nested UUID annotation key',
+        compactMetadata: { trigger: 'manual', preTokens: 1000, annotation: { nested: { [userUuid]: 'retained' } } }
+      },
+      {
+        name: 'missing logical parent with preserved context',
+        compactMetadata: { trigger: 'auto', preTokens: 1000, preservedSegment },
+        missingLogicalParent: true
+      }
+    ])('preserves loaded compacted context for $name', async ({ compactMetadata, missingLogicalParent }) => {
+      const source = await writeCompactedHistory(compactMetadata, missingLogicalParent)
+      const result = await forkClaudeSession(forkInput())
+      const staged = await readFile(result.publish[0].source, 'utf8')
+      const output = staged
+        .trim()
+        .split('\n')
+        .map((line) => JSON.parse(line))
+      const child = (uuid: string) => output.find((entry) => entry.forkedFrom?.messageUuid === uuid)
+      const boundary = child(boundaryUuid)
+      const summary = child(summaryUuid)
+      expect(boundary).toMatchObject({ type: 'system', subtype: 'compact_boundary' })
+      expect(summary).toMatchObject({
+        parentUuid: boundary.uuid,
+        isCompactSummary: true,
+        message: { content: 'COMPACT_SUMMARY secret=24250' }
+      })
+      expect(boundary.compactMetadata).toMatchObject({ trigger: compactMetadata.trigger, preTokens: 1000 })
+      expect(boundary.compactMetadata).not.toHaveProperty('runningTurnSends')
+      expect(result.resumeToken).not.toBe(sessionId)
+      expect(result.checkpoints).toEqual([
+        { ...forkInput().checkpoint, runtimeSessionId: result.resumeToken, messageUuid: child(messageUuid).uuid }
+      ])
+      expect(staged).not.toContain('FUTURE_ONLY')
+      expect(await readFile(file)).toEqual(source)
+
+      const hasPreservedMessages = 'preservedSegment' in compactMetadata || 'preservedMessages' in compactMetadata
+      if ('preservedSegment' in compactMetadata) {
+        expect(boundary.compactMetadata.preservedSegment).toEqual({
+          headUuid: child(userUuid).uuid,
+          tailUuid: child(replyUuid).uuid,
+          anchorUuid: summary.uuid
+        })
+      }
+      if ('preservedMessages' in compactMetadata) {
+        expect(boundary.compactMetadata.preservedMessages).toEqual({
+          anchorUuid: summary.uuid,
+          uuids: [child(userUuid).uuid, child(replyUuid).uuid],
+          allUuids: [child(userUuid).uuid, child(replyUuid).uuid]
+        })
+      }
+      const expectedContents = [
+        'COMPACT_SUMMARY secret=24250',
+        ...(hasPreservedMessages ? ['PRESERVED_USER', 'PRESERVED_REPLY'] : []),
+        'POST_COMPACT_PROMPT',
+        'POST_COMPACT_REPLY'
+      ]
+      if (hasPreservedMessages) {
+        expect(output.filter((entry) => entry.message).map((entry) => entry.message.content)).toEqual([
+          'PRESERVED_USER',
+          [{ type: 'text', text: 'PRESERVED_REPLY' }],
+          'COMPACT_SUMMARY secret=24250',
+          'POST_COMPACT_PROMPT',
+          [{ type: 'text', text: 'POST_COMPACT_REPLY' }]
+        ])
+      }
+      const messages = await getSessionMessages(result.resumeToken, {
+        dir: directory,
+        includeSystemMessages: true,
+        sessionStore: {
+          async load(key) {
+            // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
+            return key.sessionId === result.resumeToken ? structuredClone(output) : null
+          },
+          async append() {
+            throw new Error('Loading context must not write to the transcript')
+          }
+        }
+      })
+      expect(messages.map((entry) => entry.type)).toEqual([
+        'system',
+        'user',
+        ...(hasPreservedMessages ? ['user', 'assistant'] : []),
+        'user',
+        'assistant'
+      ])
+      expect(
+        messages
+          .filter((entry) => entry.type !== 'system')
+          .map((entry) => {
+            const { content } = entry.message as { content: string | { type: string; text: string }[] }
+            return typeof content === 'string' ? content : content.map((block) => block.text).join('')
+          })
+      ).toEqual(expectedContents)
+    })
+
+    it('preserves loaded compacted context with a dropped progress record', async () => {
+      const progressUuid = 'a17ef839-8a1d-4f13-99e8-e9636f123456'
+      const history = await writeCompactedHistory({
+        trigger: 'manual',
+        preTokens: 1000,
+        preservedSegment,
+        annotation: progressUuid
+      })
+      const entries = history
+        .toString('utf8')
+        .trim()
+        .split('\n')
+        .map((line) => JSON.parse(line))
+      entries.splice(2, 0, { type: 'progress', uuid: progressUuid, parentUuid: replyUuid, sessionId })
+      const source = Buffer.from(entries.map((entry) => JSON.stringify(entry)).join('\n') + '\n')
+      await writeFile(file, source)
+      const input = forkInput()
+      const result = await forkClaudeSession(input)
+      const staged = await readFile(result.publish[0].source, 'utf8')
+      const output = staged
+        .trim()
+        .split('\n')
+        .map((line) => JSON.parse(line))
+      const child = (uuid: string) => output.find((entry) => entry.forkedFrom?.messageUuid === uuid)
+      const boundary = child(boundaryUuid)
+      expect(boundary).toMatchObject({ type: 'system', subtype: 'compact_boundary' })
+      expect(child(summaryUuid)).toMatchObject({ parentUuid: boundary.uuid, isCompactSummary: true })
+      expect(output.filter((entry) => entry.forkedFrom?.messageUuid === progressUuid)).toEqual([])
+      expect(boundary.compactMetadata.preservedSegment).toEqual({
+        headUuid: child(userUuid).uuid,
+        tailUuid: child(replyUuid).uuid,
+        anchorUuid: child(summaryUuid).uuid
+      })
+      expect(staged).not.toContain('FUTURE_ONLY')
+      expect(await readFile(file)).toEqual(source)
+      const messages = await getSessionMessages(result.resumeToken, {
+        dir: directory,
+        includeSystemMessages: true,
+        sessionStore: {
+          async load(key) {
+            // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
+            return key.sessionId === result.resumeToken ? structuredClone(output) : null
+          },
+          async append() {
+            throw new Error('Loading context must not write to the transcript')
+          }
+        }
+      })
+      expect(messages.map((entry) => entry.type)).toEqual(['system', 'user', 'user', 'assistant', 'user', 'assistant'])
+      expect(
+        messages
+          .filter((entry) => entry.type !== 'system')
+          .map((entry) => {
+            const { content } = entry.message as { content: string | { type: string; text: string }[] }
+            return typeof content === 'string' ? content : content.map((block) => block.text).join('')
+          })
+      ).toEqual([
+        'COMPACT_SUMMARY secret=24250',
+        'PRESERVED_USER',
+        'PRESERVED_REPLY',
+        'POST_COMPACT_PROMPT',
+        'POST_COMPACT_REPLY'
+      ])
+    })
+
+    it('preserves context with opaque metadata on a non-system record', async () => {
+      const history = await writeCompactedHistory({ trigger: 'manual', preTokens: 1000, preservedSegment })
+      const entries = history
+        .toString('utf8')
+        .trim()
+        .split('\n')
+        .map((line) => JSON.parse(line))
+      entries[0].compactMetadata = { annotation: userUuid }
+      const source = Buffer.from(entries.map((entry) => JSON.stringify(entry)).join('\n') + '\n')
+      await writeFile(file, source)
+      const input = forkInput()
+      const result = await forkClaudeSession(input)
+      const output = (await readFile(result.publish[0].source, 'utf8'))
+        .trim()
+        .split('\n')
+        .map((line) => JSON.parse(line))
+      const messages = await getSessionMessages(result.resumeToken, {
+        dir: directory,
+        sessionStore: {
+          // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
+          load: async () => structuredClone(output),
+          append: async () => {
+            throw new Error('Read-only history')
+          }
+        }
+      })
+      expect(messages.map((message) => message.message)).toEqual([
+        { role: 'user', content: 'COMPACT_SUMMARY secret=24250' },
+        { role: 'user', content: 'PRESERVED_USER' },
+        { role: 'assistant', content: [{ type: 'text', text: 'PRESERVED_REPLY' }] },
+        { role: 'user', content: 'POST_COMPACT_PROMPT' },
+        { role: 'assistant', content: [{ type: 'text', text: 'POST_COMPACT_REPLY' }] }
+      ])
+      expect(await readFile(file)).toEqual(source)
+    })
+  })
+
+  it('refuses a native fork that loses context through an excluded sidechain', async () => {
+    const userUuid = '20249b48-e174-4610-84c2-af6224228290'
+    const sidechainUuid = '8ac51a42-1adb-4fe0-a139-64af7af18232'
+    const entries = [
+      {
+        type: 'user',
+        uuid: userUuid,
+        parentUuid: null,
+        sessionId,
+        message: { role: 'user', content: 'REQUIRED_CONTEXT' }
+      },
+      {
+        type: 'assistant',
+        uuid: sidechainUuid,
+        parentUuid: userUuid,
+        sessionId,
+        isSidechain: true,
+        message: { role: 'assistant', content: [{ type: 'text', text: 'Sidechain only' }] }
+      },
+      {
+        type: 'assistant',
+        uuid: messageUuid,
+        parentUuid: sidechainUuid,
+        sessionId,
+        message: { role: 'assistant', content: [{ type: 'text', text: 'Selected reply' }] }
+      }
+    ]
+    const sourceContext = await getSessionMessages(sessionId, {
+      dir: directory,
+      sessionStore: {
+        // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
+        load: async () => structuredClone(entries),
+        append: async () => {
+          throw new Error('Read-only history')
+        }
+      }
+    })
+    expect(sourceContext.map((message) => (message.message as { content: unknown }).content)).toEqual([
+      'REQUIRED_CONTEXT',
+      [{ type: 'text', text: 'Selected reply' }]
+    ])
+    await mkdir(path.dirname(file), { recursive: true })
+    const source = entries.map((value) => JSON.stringify(value)).join('\n') + '\n'
+    await writeFile(file, source)
+    const input = forkInput()
+    await mkdir(input.artifactDirectory)
+    await expect(forkClaudeSession(input)).rejects.toMatchObject({ reason: 'unsupported_checkpoint' })
+    expect(await readFile(file, 'utf8')).toBe(source)
+    expect(await readdir(input.artifactDirectory)).toEqual([])
+  })
+
+  it('refuses a fork retaining source UUIDs in replacement metadata', async () => {
+    const userUuid = '20249b48-e174-4610-84c2-af6224228290'
+    const entries = [
+      { type: 'user', uuid: userUuid, parentUuid: null, sessionId, message: { role: 'user', content: 'Before' } },
+      { type: 'content-replacement', sessionId, replacements: [{ messageUuid: userUuid, content: 'Replaced' }] },
+      {
+        type: 'assistant',
+        uuid: messageUuid,
+        parentUuid: userUuid,
+        sessionId,
+        message: { role: 'assistant', content: [{ type: 'text', text: 'After' }] }
+      }
+    ]
+    await mkdir(path.dirname(file), { recursive: true })
+    const source = entries.map((entry) => JSON.stringify(entry)).join('\n') + '\n'
+    await writeFile(file, source)
+    await expect(forkClaudeSession(forkInput())).rejects.toMatchObject({ reason: 'unsupported_checkpoint' })
+    expect(await readFile(file, 'utf8')).toBe(source)
+  })
 
   it.each(['\n', '\r\n'])('forks the exact UUID on demand and excludes later history (%j)', async (newline) => {
     await mkdir(path.dirname(file), { recursive: true })

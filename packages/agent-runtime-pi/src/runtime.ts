@@ -165,7 +165,7 @@ export async function createPiRuntime(options: PiRuntimeOptions): Promise<Operat
       },
       onError: report,
       onResults: (thread, result) => owned.find((entry) => entry.ref.id === thread)?.projection.results(result),
-      openSession: async ({ sessionManager, extension, summarize, child }) => {
+      openSession: async ({ sessionManager, extension, child }) => {
         const parent = child && owned.find((entry) => entry.ref.id === child.parent)
         const nativeCallId =
           parent &&
@@ -191,7 +191,7 @@ export async function createPiRuntime(options: PiRuntimeOptions): Promise<Operat
             model,
             sessionManager,
             settings: { ...config.settings, retry: { enabled: false }, cacheWarming: 'off' },
-            compaction: { ...settings, ...config.compaction, summarize },
+            compaction: { ...settings, ...config.compaction },
             extensionFactories: [...(config.extensionFactories ?? []), extension],
             onEvent: (event) => {
               try {
@@ -330,9 +330,11 @@ export async function createPiRuntime(options: PiRuntimeOptions): Promise<Operat
           }
           return { status: 'confirmed', value: { relation: found.value, handle: opened.value } }
         },
+        // oxlint-disable-next-line no-restricted-globals -- Explicit history reads return isolated native branch entries to the host.
         history: () => (unavailable() ? [] : structuredClone(entry.session.sessionManager.getBranch())),
         archive: () => {
           if (released) throw new Error('Pi history access is closed')
+          // oxlint-disable-next-line no-restricted-globals -- Explicit archive reads detach committed content from the live projection.
           return structuredClone(entry.projection.archive())
         },
         async settled() {

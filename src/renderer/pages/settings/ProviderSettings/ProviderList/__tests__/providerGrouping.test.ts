@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import type { Provider } from '@shared/data/types/provider'
 
-import { groupProvidersByPreset } from '../providerGrouping'
+import { groupProvidersByPreset, restoreProviderStatusSlots } from '../providerGrouping'
 
 function provider(id: string, presetProviderId?: string): Provider {
   return {
@@ -93,5 +93,23 @@ describe('groupProvidersByPreset', () => {
 
   it('returns [] for empty input', () => {
     expect(groupProvidersByPreset([])).toEqual([])
+  })
+})
+
+describe('restoreProviderStatusSlots', () => {
+  it('preserves interleaved storage slots while reordering both partitions', () => {
+    const a = provider('a'),
+      b = provider('b'),
+      d = { ...provider('d'), isEnabled: false },
+      e = { ...provider('e'), isEnabled: false }
+    const all = [d, a, e, b]
+    expect(restoreProviderStatusSlots(all, [b, a, e, d]).map((p) => p.id)).toEqual(['e', 'b', 'd', 'a'])
+  })
+  it('returns the stored baseline for a display-only cross-status move', () => {
+    const a = provider('a'),
+      b = provider('b'),
+      d = { ...provider('d'), isEnabled: false }
+    const all = [d, a, b]
+    expect(restoreProviderStatusSlots(all, [a, d, b])).toBe(all)
   })
 })

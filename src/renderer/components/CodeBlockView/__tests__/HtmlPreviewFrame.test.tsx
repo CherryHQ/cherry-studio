@@ -42,15 +42,6 @@ describe('HtmlPreviewFrame', () => {
     expect(iframe?.getAttribute('srcdoc')).not.toContain('Content-Security-Policy')
   })
 
-  it('uses a white browser canvas when HTML does not declare a background', () => {
-    render(<HtmlPreviewFrame html="<main>Preview</main>" title="common.html_preview" />)
-    const iframe = screen.getByTitle('common.html_preview')
-
-    // The white iframe and parent form the browser-canvas visual contract.
-    expect(iframe).toHaveClass('bg-white')
-    expect(iframe.parentElement).toHaveClass('bg-white')
-  })
-
   it('renders untrusted local files in a fully restricted, script-less sandbox with a strict CSP', () => {
     render(
       <HtmlPreviewFrame

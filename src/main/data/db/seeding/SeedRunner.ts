@@ -6,7 +6,7 @@ import { loggerService } from '@logger'
 
 const logger = loggerService.withContext('SeedRunner')
 
-const SEED_KEY_PREFIX = 'seed:'
+export const SEED_KEY_PREFIX = 'seed:'
 /** Set after the first fully-successful seeding pass; while absent, the database is in its bootstrap window. */
 const BOOTSTRAP_MARKER_KEY = 'seedRunner:bootstrapCompleted'
 

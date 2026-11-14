@@ -28,6 +28,7 @@ import {
 
 import { ComposerFocusShortcut } from './ComposerFocusShortcut'
 import { COMPOSER_INPUT_MAX_LENGTH } from './composerLimits'
+import { ComposerPromptSuggestion } from './ComposerPromptSuggestion'
 import { getComposerEditorMinHeight } from './composerSizing'
 import type { ComposerDeferredIntent, ComposerSurfaceActions, ComposerSurfaceProps } from './ComposerSurfaceRuntime'
 import type { ComposerSerializedDraft, ComposerSerializedToken } from './tokens'
@@ -249,7 +250,9 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
 
   if (Runtime && runtimeReady && !isComposing) {
     return (
+      // Tiptap fixes extensions when the editor is created, so a preview toggle needs a new editor.
       <Runtime
+        key={props.markdownLivePreview ? 'markdown' : 'plain'}
         {...props}
         showAiDisclaimer={showAiDisclaimer}
         initialTextSelection={selectionRef.current}
@@ -354,7 +357,7 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
               data-voice-target-id={voiceTargetId}
               aria-label={props.placeholder}
               value={props.text}
-              placeholder={props.placeholder}
+              placeholder={props.promptSuggestion && !isComposing ? '' : props.placeholder}
               rows={1}
               readOnly={props.editable === false}
               spellCheck={props.enableSpellCheck}
@@ -387,7 +390,10 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
                 event.preventDefault()
                 captureTransfer('paste', event.clipboardData)
               }}
-              onCompositionStart={() => setIsComposing(true)}
+              onCompositionStart={() => {
+                props.onDismissPromptSuggestion?.()
+                setIsComposing(true)
+              }}
               onCompositionEnd={(event) => {
                 // Some IMEs only write the committed characters on compositionend, and the textarea is
                 // about to unmount, so read the final value here rather than waiting for `change`.
@@ -399,6 +405,21 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
               onKeyDown={(event) => {
                 if (props.editable === false) return
                 requestRuntime()
+                if (props.promptSuggestion && !props.text && !event.nativeEvent.isComposing && !isComposing) {
+                  if (event.key === 'Escape') {
+                    props.onDismissPromptSuggestion?.()
+                    event.preventDefault()
+                    event.stopPropagation()
+                    return
+                  }
+                  if (event.key === 'Tab' && !event.shiftKey && !event.ctrlKey && !event.metaKey && !event.altKey) {
+                    event.preventDefault()
+                    event.stopPropagation()
+                    if (!event.repeat) props.onTextChange(props.promptSuggestion)
+                    props.onDismissPromptSuggestion?.()
+                    return
+                  }
+                }
                 if (navigateInputHistory(event)) {
                   event.preventDefault()
                   return
@@ -443,6 +464,9 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
               }}
             />
           </ScrollArea>
+          {!props.text && !isComposing && props.editable !== false && (
+            <ComposerPromptSuggestion text={props.promptSuggestion ?? ''} fontSize={props.fontSize} />
+          )}
           <ComposerFocusShortcut focus={() => textareaRef.current?.focus()} editable={props.editable} />
         </div>
       </div>

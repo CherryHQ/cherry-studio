@@ -10,6 +10,7 @@ import * as z from 'zod'
 import { ReasoningEffortOptionSchema } from '@shared/types/aiSdk'
 
 import { ContextSettingsOverrideSchema } from './contextSettings'
+import { FileEntryIdSchema } from './file'
 import { GroupIdSchema } from './group'
 import { ReasoningSummarySchema, ServiceTierSelectionSchema, UniqueModelIdSchema } from './model'
 
@@ -141,6 +142,8 @@ export const AssistantSchema = z.strictObject({
   prompt: z.string(),
   /** Emoji icon for UI display */
   emoji: z.emoji(),
+  avatarFileId: FileEntryIdSchema.optional(),
+  avatarSrc: z.string().optional(),
   /** Long-form description */
   description: z.string(),
   /** Inference settings — model params + context toggles */

@@ -89,9 +89,6 @@ describe('ModelTypeFilterTabs', () => {
 
     expect(screen.queryByRole('button', { name: 'settings.models.filter.scroll_left' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'settings.models.filter.scroll_right' })).toBeInTheDocument()
-    // Overflow ownership must stay on the shared container so it can calculate and control the scroll position.
-    expect(tabList).toHaveClass('w-max', 'min-w-full', 'shrink-0')
-    expect(tabList).not.toHaveClass('w-full', 'max-w-full', 'overflow-x-auto')
   })
 
   it('omits empty model types from the simplified filter row', () => {

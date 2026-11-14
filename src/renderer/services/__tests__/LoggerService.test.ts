@@ -95,6 +95,7 @@ describe('LoggerService window source resolution', () => {
     })
     logger.error('Translation stopped', error)
     const call = vi.mocked(window.electron.ipcRenderer.invoke).mock.calls.at(-1)!
+    // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
     const [serialized] = structuredClone(call[4])
     expect(serialized).toMatchObject({
       name: 'AbortError',

@@ -12,6 +12,7 @@ import type { AgentSessionDelivery } from '@shared/ai/agentSessionDelivery'
 import type { AutonomousTurnOrigin } from '@shared/ai/agentSessionTurnOrigin'
 import type {
   ChatMessageStyle,
+  MultiModelFoldDisplayMode,
   MultiModelGridPopoverTrigger,
   MultiModelMessageStyle,
   TranslateLangCode
@@ -272,11 +273,14 @@ export interface MessageRenderConfig {
   codeFancyBlock: boolean
   thoughtAutoCollapse: boolean
   collapseCompletedToolHistory: boolean
+  /** Open tool groups and the finished process by default, so each step reads without a click. */
+  expandToolSteps: boolean
   keepIntermediateAssistantText: boolean
   mathEnableSingleDollar: boolean
   showMessageOutline: boolean
   showEstimatedTokens: boolean
   multiModelMessageStyle: MultiModelMessageStyle
+  multiModelFoldDisplayMode: MultiModelFoldDisplayMode
   multiModelGridColumns: number
   multiModelGridPopoverTrigger: MultiModelGridPopoverTrigger
 }
@@ -292,17 +296,19 @@ export const defaultMessageRenderConfig: MessageRenderConfig = {
   codeFancyBlock: true,
   thoughtAutoCollapse: true,
   collapseCompletedToolHistory: true,
+  expandToolSteps: false,
   keepIntermediateAssistantText: false,
   mathEnableSingleDollar: false,
   showMessageOutline: false,
   showEstimatedTokens: false,
   multiModelMessageStyle: 'horizontal',
+  multiModelFoldDisplayMode: 'expanded',
   multiModelGridColumns: 2,
   multiModelGridPopoverTrigger: 'click'
 }
 
 export type MessageRenderConfigUpdate = Partial<
-  Pick<MessageRenderConfig, 'multiModelGridColumns' | 'multiModelGridPopoverTrigger'>
+  Pick<MessageRenderConfig, 'multiModelGridColumns' | 'multiModelGridPopoverTrigger' | 'multiModelFoldDisplayMode'>
 >
 
 /**
@@ -476,6 +482,7 @@ export interface MessageListMeta {
   selectionLayer: boolean
   userProfile?: MessageUserProfile
   assistantProfile?: MessageUserProfile
+  assistantAvatarSources?: ReadonlyMap<string, string>
   imageExportFileName?: string
   /** Usage-record partition this surface's messages belong to. Defaults to 'chat'. */
   aiUsageMessageKind?: AiUsageRecordMessageKind

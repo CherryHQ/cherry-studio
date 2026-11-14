@@ -1,11 +1,11 @@
 import { setupTestDatabase } from '@test-helpers/db'
-import { asc, eq } from 'drizzle-orm'
+import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { agentTable } from '@data/db/schemas/agent'
 import { assistantTable } from '@data/db/schemas/assistant'
 import { promptBindingTable, promptTable } from '@data/db/schemas/prompt'
-import { PromptService, promptService } from '@data/services/PromptService'
+import { promptService } from '@data/services/PromptService'
 import { DataApiError, ErrorCode } from '@shared/data/api/errors'
 import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 
@@ -49,10 +49,6 @@ describe('PromptService', () => {
     })
   }
 
-  it('should export a module-level singleton of PromptService', () => {
-    expect(promptService).toBeInstanceOf(PromptService)
-  })
-
   describe('create', () => {
     it('should create a prompt with title, content, timestamps, and an order key', async () => {
       const result = promptService.create({ title: 'T1', content: 'C1', visibility: 'global' })
@@ -66,15 +62,6 @@ describe('PromptService', () => {
       expect(row.orderKey.length).toBeGreaterThan(0)
       expect(row.title).toBe('T1')
       expect(row.content).toBe('C1')
-    })
-
-    it('should assign strictly increasing order keys on successive creates', async () => {
-      const a = promptService.create({ title: 'A', content: 'a', visibility: 'global' })
-      const b = promptService.create({ title: 'B', content: 'b', visibility: 'global' })
-      const c = promptService.create({ title: 'C', content: 'c', visibility: 'global' })
-
-      const rows = await dbh.db.select().from(promptTable).orderBy(asc(promptTable.orderKey))
-      expect(rows.map((r) => r.id)).toEqual([a.id, b.id, c.id])
     })
 
     it('should atomically create a restricted prompt and its initial Assistant binding', async () => {

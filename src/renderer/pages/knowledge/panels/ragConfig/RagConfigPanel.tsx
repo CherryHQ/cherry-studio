@@ -167,7 +167,10 @@ const ActiveRagConfigPanel = ({ base, itemCount, onRestoreBase }: RagConfigPanel
 
   return (
     <KnowledgePanelShell>
-      <ScrollArea viewportProps={{ className: 'px-6 py-5' }} className="min-h-0 flex-1">
+      <ScrollArea
+        contentProps={{ className: 'px-6 py-5' }}
+
+        className="min-h-0 flex-1">
         <div className="flex flex-col gap-4">
           <FileProcessingSection
             fileProcessorId={values.fileProcessorId}

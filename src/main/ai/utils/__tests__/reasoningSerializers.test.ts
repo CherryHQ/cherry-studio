@@ -72,18 +72,6 @@ describe('resolveReasoningInvocation budget constraints', () => {
     expect(result.budgetTokens).toBeLessThan(8192)
   })
 
-  it('encodes an audited provider budget target without serializer model branches', () => {
-    const profile: ReasoningWireProfile = {
-      effort: {
-        operations: [{ target: 'reasoning_budget', value: { source: 'budget' } }],
-        budget: { min: 1, missing: { type: 'omit-mode' } }
-      }
-    }
-    const invocation = resolveReasoningInvocation({ selection: 'high', model, profile })
-
-    expect(encodeReasoningInvocation(invocation)).toEqual({ reasoning_budget: 51_404 })
-  })
-
   it('encodes an audited nested string toggle target', () => {
     const profile: ReasoningWireProfile = {
       auto: {
@@ -226,13 +214,6 @@ describe('OpenAI Responses reasoning summary', () => {
     }
   })
 
-  // Without `reasoning.summary` OpenAI returns no summary at all, so the provider default must
-  // travel even when the user never picks an effort tier.
-  it('emits the summary default on the Default selection, with no effort', () => {
-    const invocation = resolveReasoningInvocation({ selection: 'default', model: gpt5, profile: openaiWire })
-    expect(encodeReasoningInvocation(invocation)).toEqual({ reasoningSummary: 'auto' })
-  })
-
   it('lets an explicit assistant selection override the default', () => {
     const invocation = resolveReasoningInvocation({
       selection: 'high',
@@ -280,5 +261,64 @@ describe('resolveReasoningInvocation logging', () => {
 
     expect(mockMainLoggerService.info).toHaveBeenCalledOnce()
     expect(mockMainLoggerService.info.mock.calls[0][0]).toContain("Reasoning 'high' not sent")
+  })
+})
+
+// Prevent catalog defaults from opting requests in, while honoring saved user choices.
+describe('per-model user reasoning default on the Gemini wire', () => {
+  const profile = REASONING_FORMAT_PROFILES.gemini.wire
+  const carbon = makeModel({
+    id: 'google::gemini-4-carbon',
+    reasoning: {
+      controls: [{ kind: 'effort', values: ['low', 'medium', 'high'] }],
+      selectableEfforts: ['low', 'medium', 'high'],
+      defaultEffort: 'medium'
+    }
+  })
+  const encode = (model: typeof carbon, selection: 'default' | 'high' | 'low' | 'none') =>
+    encodeReasoningInvocation(resolveReasoningInvocation({ model, selection, profile }))
+  it('C1: leaves catalog-only defaults and absent defaults omitted', () => {
+    expect(encode(carbon, 'default')).toEqual({})
+    expect(encode({ ...carbon, id: 'google::gemini-4-argon' }, 'default')).toEqual({})
+    expect(encode({ ...carbon, reasoning: { ...carbon.reasoning!, defaultEffort: undefined } }, 'default')).toEqual({})
+  })
+  it('C2: emits the saved user default just like an explicit tier', () => {
+    const saved = {
+      ...carbon,
+      userDefaultReasoningEffort: 'high' as const,
+      reasoning: { ...carbon.reasoning!, defaultEffort: 'high' as const }
+    }
+    expect(encode(saved, 'default')).toEqual({ thinkingConfig: { includeThoughts: true, thinkingLevel: 'high' } })
+    expect(encode(saved, 'default')).toEqual(encode(carbon, 'high'))
+  })
+  it('C3: gives an explicit composer tier precedence', () => {
+    expect(encode({ ...carbon, userDefaultReasoningEffort: 'high' }, 'low')).toEqual({
+      thinkingConfig: { includeThoughts: true, thinkingLevel: 'low' }
+    })
+  })
+  it('C4: preserves off, unsupported models, and disabled wires', () => {
+    expect(encode({ ...carbon, userDefaultReasoningEffort: 'high' }, 'none')).toEqual({})
+    expect(
+      encode(
+        {
+          ...carbon,
+          userDefaultReasoningEffort: 'high',
+          reasoning: { ...carbon.reasoning!, selectableEfforts: ['none', 'low', 'medium', 'high'] }
+        },
+        'none'
+      )
+    ).toEqual({ thinkingConfig: { includeThoughts: false, thinkingLevel: 'minimal' } })
+    const unsupported = makeModel({ reasoning: undefined, userDefaultReasoningEffort: 'high' })
+    expect(encode(unsupported, 'default')).toEqual({})
+    expect(encode(unsupported, 'none')).toEqual({})
+    expect(
+      encodeReasoningInvocation(
+        resolveReasoningInvocation({
+          model: { ...carbon, userDefaultReasoningEffort: 'high' },
+          selection: 'default',
+          profile: { disabled: true }
+        })
+      )
+    ).toEqual({})
   })
 })

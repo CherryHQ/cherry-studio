@@ -25,11 +25,7 @@ const mocks = vi.hoisted(() => ({
     'settings.about.diagnostics.errors.busy': 'Another diagnostic bundle operation is already in progress',
     'settings.about.diagnostics.inspecting': 'Inspecting diagnostic data…',
     'settings.about.diagnostics.report.acknowledgement':
-      'I understand that the selected diagnostic sources may contain sensitive data and will be uploaded without redaction.',
-    'settings.about.diagnostics.report.attachments_description':
-      'Diagnostics help us investigate runtime problems; for feature suggestions or UI feedback, you can turn off any optional source you do not want to share.',
-    'settings.about.diagnostics.report.system_always_included':
-      'App and device information and recent crash-file timestamps and sizes are always included in the uploaded diagnostic ZIP; crash-file contents are not collected.',
+      'Upload logs for troubleshooting only. They may contain chat history, device information, and other data.',
     'settings.about.diagnostics.report.copy_id': 'Copy feedback ID',
     'settings.about.diagnostics.report.copy_url': 'Copy status link',
     'settings.about.diagnostics.report.description_label': 'Problem description',
@@ -56,7 +52,6 @@ const mocks = vi.hoisted(() => ({
     'settings.about.diagnostics.ranges.7d': 'Last 7 days',
     'settings.about.diagnostics.sources.chat_records.title': 'Chat history',
     'settings.about.diagnostics.sources.logs.title': 'App logs',
-    'settings.about.diagnostics.sources.system.title': 'App and device information',
     'settings.about.diagnostics.sources.traces.title': 'Detailed activity records',
     'settings.about.diagnostics.upload.actions.consent_upload': 'Submit diagnostic report',
     'settings.about.diagnostics.upload.errors.discard_failed': 'Could not close the problem report. Try again.',
@@ -201,7 +196,7 @@ describe('DiagnosticUploadPanel', () => {
     const submit = screen.getByRole('button', { name: 'Submit diagnostic report' })
     const description = screen.getByRole('textbox', { name: 'Problem description' })
     const acknowledgement = screen.getByRole('checkbox', {
-      name: 'I understand that the selected diagnostic sources may contain sensitive data and will be uploaded without redaction.'
+      name: 'Upload logs for troubleshooting only. They may contain chat history, device information, and other data.'
     })
 
     expect(acknowledgement).toBeChecked()
@@ -220,12 +215,6 @@ describe('DiagnosticUploadPanel', () => {
 
     await user.clear(description)
     expect(screen.getByText('A problem description is required')).toBeInTheDocument()
-
-    await user.type(description, '   ')
-    await user.click(submit)
-    expect(description).toHaveAttribute('aria-invalid', 'true')
-    expect(screen.getByText('A problem description is required')).toBeInTheDocument()
-    expect(mocks.request.mock.calls.filter(([route]) => route === 'diagnostics.bundle.upload')).toHaveLength(0)
   })
 
   it('validates an overlong description only after submit', async () => {
@@ -245,111 +234,40 @@ describe('DiagnosticUploadPanel', () => {
     expect(mocks.request.mock.calls.filter(([route]) => route === 'diagnostics.bundle.upload')).toHaveLength(0)
   })
 
-  it('defaults to uploading all sources for the last 24 hours with a trimmed description', async () => {
+  it('defaults to uploading all sources for the last 24 hours and blocks submission when unchecked', async () => {
     const user = userEvent.setup()
     render(<DiagnosticUploadDialog open onOpenChange={vi.fn()} />)
 
-    for (const title of ['App logs', 'Detailed activity records', 'Chat history']) {
-      expect(screen.getByRole('switch', { name: title })).toBeChecked()
-    }
-    const system = screen.getByRole('switch', { name: /^App and device information/ })
-    expect(system).toBeChecked()
-    expect(system).toBeDisabled()
-    expect(
-      screen.getByText(mocks.translations['settings.about.diagnostics.report.attachments_description'])
-    ).toBeVisible()
-    expect(
-      screen.getByText(mocks.translations['settings.about.diagnostics.report.system_always_included'])
-    ).toBeVisible()
-    expect(screen.getByRole('checkbox')).toBeChecked()
+    const description = screen.getByRole('textbox', { name: 'Problem description' })
+    const acknowledgement = screen.getByRole('checkbox', {
+      name: 'Upload logs for troubleshooting only. They may contain chat history, device information, and other data.'
+    })
+    const submit = screen.getByRole('button', { name: 'Submit diagnostic report' })
+    expect(acknowledgement).toBeChecked()
+    expect(submit).toBeEnabled()
+    expect(screen.queryByRole('switch')).not.toBeInTheDocument()
     expect(screen.queryByRole('radio')).not.toBeInTheDocument()
     expect(screen.queryByText('Time range')).not.toBeInTheDocument()
-    await completeReview(user)
-    await user.click(screen.getByRole('button', { name: 'Submit diagnostic report' }))
+    await user.type(description, '  App freezes on launch.  ')
+    await user.click(acknowledgement)
+    expect(acknowledgement).not.toBeChecked()
+    expect(submit).toBeDisabled()
+    await user.click(acknowledgement)
+    await waitFor(() => expect(submit).toBeEnabled())
+
+    await user.type(description, ' Please investigate. ')
+    expect(acknowledgement).toBeChecked()
+    await user.click(submit)
 
     await waitFor(() =>
       expect(mocks.request).toHaveBeenCalledWith('diagnostics.bundle.upload', {
-        description: 'App freezes on launch.',
+        description: 'App freezes on launch.   Please investigate.',
         includeChatRecords: true,
         includeLogs: true,
         includeTraces: true,
         range: '24h'
       })
     )
-  })
-
-  it('allows submission with all optional sources off and no acknowledgement row', async () => {
-    const user = userEvent.setup()
-    render(<DiagnosticUploadDialog open onOpenChange={vi.fn()} />)
-    await completeReview(user)
-    await user.click(screen.getByRole('checkbox'))
-    for (const title of ['App logs', 'Detailed activity records', 'Chat history']) {
-      await user.click(screen.getByRole('switch', { name: title }))
-    }
-
-    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument()
-    const submit = screen.getByRole('button', { name: 'Submit diagnostic report' })
-    expect(submit).toBeEnabled()
-    await user.click(submit)
-
-    await waitFor(() =>
-      expect(mocks.request).toHaveBeenCalledWith('diagnostics.bundle.upload', {
-        description: 'App freezes on launch.',
-        includeChatRecords: false,
-        includeLogs: false,
-        includeTraces: false,
-        range: '24h'
-      })
-    )
-  })
-
-  it('uploads exactly the partial selection when app logs are turned off', async () => {
-    const user = userEvent.setup()
-    render(<DiagnosticUploadDialog open onOpenChange={vi.fn()} />)
-    await completeReview(user)
-    await user.click(screen.getByRole('switch', { name: 'App logs' }))
-    await user.click(screen.getByRole('button', { name: 'Submit diagnostic report' }))
-
-    await waitFor(() =>
-      expect(mocks.request).toHaveBeenCalledWith('diagnostics.bundle.upload', {
-        description: 'App freezes on launch.',
-        includeChatRecords: true,
-        includeLogs: false,
-        includeTraces: true,
-        range: '24h'
-      })
-    )
-  })
-
-  it('restores a declined acknowledgement when an optional source is re-enabled', async () => {
-    const user = userEvent.setup()
-    render(<DiagnosticUploadDialog open onOpenChange={vi.fn()} />)
-    await completeReview(user)
-    await user.click(screen.getByRole('checkbox'))
-    for (const title of ['App logs', 'Detailed activity records', 'Chat history']) {
-      await user.click(screen.getByRole('switch', { name: title }))
-    }
-    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Submit diagnostic report' })).toBeEnabled()
-
-    await user.click(screen.getByRole('switch', { name: 'Detailed activity records' }))
-
-    expect(screen.getByRole('checkbox')).not.toBeChecked()
-    expect(screen.getByRole('button', { name: 'Submit diagnostic report' })).toBeDisabled()
-  })
-
-  it('blocks sensitive-source submission without acknowledgement and keeps the editable form', async () => {
-    const user = userEvent.setup()
-    render(<DiagnosticUploadDialog open onOpenChange={vi.fn()} />)
-    await completeReview(user)
-    await user.click(screen.getByRole('checkbox'))
-    const submit = screen.getByRole('button', { name: 'Submit diagnostic report' })
-    expect(submit).toBeDisabled()
-    await user.click(submit)
-
-    expect(mocks.request.mock.calls.filter(([route]) => route === 'diagnostics.bundle.upload')).toHaveLength(0)
-    expect(screen.getByRole('textbox', { name: 'Problem description' })).toHaveValue('  App freezes on launch.  ')
-    expect(screen.getByRole('checkbox')).not.toBeChecked()
   })
 
   it('exposes no dismiss action while submitting and shows the report status details on success', async () => {
@@ -370,9 +288,6 @@ describe('DiagnosticUploadPanel', () => {
 
     await user.click(screen.getByRole('button', { name: 'Submit diagnostic report' }))
 
-    for (const title of ['App logs', 'Detailed activity records', 'Chat history']) {
-      expect(screen.getByRole('switch', { name: title })).toBeDisabled()
-    }
     expect(screen.getByRole('button', { name: 'Submitting diagnostic report…' })).toBeDisabled()
     expect(screen.queryByRole('button', { name: 'Cancel' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Close' })).not.toBeInTheDocument()
@@ -415,7 +330,6 @@ describe('DiagnosticUploadPanel', () => {
     expect(screen.getByRole('button', { name: 'Save locally' })).toBeInTheDocument()
     const manualFeedback = screen.getByRole('button', { name: 'Manual feedback' })
     const retry = screen.getByRole('button', { name: 'Retry' })
-    expect(manualFeedback.compareDocumentPosition(retry)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
 
     await user.click(manualFeedback)
     expect(mocks.request).toHaveBeenCalledWith('system.shell.open_external_website', DIAGNOSTIC_FEEDBACK_FORM_URL)

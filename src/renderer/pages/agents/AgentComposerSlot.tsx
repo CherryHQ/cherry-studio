@@ -12,6 +12,7 @@ import AgentComposer, {
 import { ipcApi } from '@renderer/ipc'
 import type { GetAgentResponse } from '@renderer/types/agent'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
+import type { CherryUIMessage } from '@shared/data/types/message'
 import type { Model } from '@shared/data/types/model'
 
 import { ClaudeCodeDownloadStatus } from './ClaudeCodeDownloadStatus'
@@ -32,6 +33,7 @@ interface AgentComposerSlotProps {
   sendMessage: AgentChatRuntimeState['sendMessage']
   stop: AgentChatRuntimeState['stop']
   isStreaming: boolean
+  messages?: readonly CherryUIMessage[]
   sendDisabled: boolean
   onAgentChange?: (agentId: string | null) => void | Promise<void>
   agentChanging?: boolean
@@ -56,6 +58,7 @@ function AgentComposerSlot({
   sendMessage,
   stop,
   isStreaming,
+  messages,
   sendDisabled,
   onAgentChange,
   agentChanging,
@@ -107,6 +110,7 @@ function AgentComposerSlot({
         sendMessage={isEditing ? resendEditedMessage : sendMessage}
         stop={stop}
         isStreaming={!isEditing && isStreaming}
+        messages={isEditing ? undefined : messages}
         sendDisabled={binary.blocked || sendDisabled || (isEditing && (isStreaming || editBusy))}
         onCreateEmptySession={isEditing ? undefined : onCreateEmptySession}
         compactWhenSingleLine={compactWhenSingleLine}

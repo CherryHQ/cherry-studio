@@ -7516,7 +7516,7 @@
     },
     {
       "capabilities": ["function-call", "image-recognition", "reasoning", "structured-output"],
-      "contextWindow": 1000000,
+      "contextWindow": 1048576,
       "family": "deepseek-flash",
       "id": "deepseek-flash",
       "inputModalities": ["text", "image"],
@@ -7932,15 +7932,22 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output"],
+      "capabilities": ["function-call", "image-recognition", "reasoning", "structured-output"],
       "contextWindow": 1048576,
+      "family": "deepseek-flash",
       "id": "deepseek-v4-1-flash",
       "inputModalities": ["text", "image"],
+      "maxOutputTokens": 393216,
       "metadata": {},
-      "name": "DeepSeek: DeepSeek V4.1 Flash",
+      "name": "DeepSeek V4.1 Flash",
+      "openWeights": true,
       "outputModalities": ["text"],
       "ownedBy": "deepseek",
       "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.006
+        },
         "input": {
           "currency": "USD",
           "perMillionTokens": 0.3
@@ -9756,6 +9763,130 @@
         ],
         "defaultEffort": "medium",
         "supportedEfforts": ["low", "medium", "high"],
+        "wireDialect": "effort"
+      }
+    },
+    {
+      "capabilities": [
+        "reasoning",
+        "function-call",
+        "image-recognition",
+        "audio-recognition",
+        "video-recognition",
+        "structured-output",
+        "file-input"
+      ],
+      "contextWindow": 1048576,
+      "family": "gemini-4",
+      "id": "gemini-4-carbon",
+      "inputModalities": ["text", "image", "audio", "video"],
+      "maxOutputTokens": 1048576,
+      "metadata": {},
+      "name": "Gemini 4 Carbon",
+      "outputModalities": ["text"],
+      "ownedBy": "google",
+      "parameterSupport": {
+        "frequencyPenalty": false,
+        "maxTokens": true,
+        "presencePenalty": false,
+        "stopSequences": true,
+        "systemMessage": true,
+        "temperature": {
+          "supported": false
+        },
+        "topK": {
+          "supported": false
+        },
+        "topP": {
+          "supported": false
+        }
+      },
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.1
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 2
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 10
+        }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "default": "medium",
+            "kind": "effort",
+            "values": ["low", "medium", "high"]
+          }
+        ],
+        "defaultEffort": "medium",
+        "supportedEfforts": ["low", "medium", "high"],
+        "wireDialect": "effort"
+      }
+    },
+    {
+      "capabilities": [
+        "reasoning",
+        "function-call",
+        "image-recognition",
+        "audio-recognition",
+        "video-recognition",
+        "structured-output",
+        "file-input"
+      ],
+      "contextWindow": 1048576,
+      "family": "gemini-4",
+      "id": "gemini-4-hydrogen",
+      "inputModalities": ["text", "image", "audio", "video"],
+      "maxOutputTokens": 1048576,
+      "metadata": {},
+      "name": "Gemini 4 Hydrogen",
+      "outputModalities": ["text"],
+      "ownedBy": "google",
+      "parameterSupport": {
+        "frequencyPenalty": false,
+        "maxTokens": true,
+        "presencePenalty": false,
+        "stopSequences": true,
+        "systemMessage": true,
+        "temperature": {
+          "supported": false
+        },
+        "topK": {
+          "supported": false
+        },
+        "topP": {
+          "supported": false
+        }
+      },
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.075
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 1.5
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 7.5
+        }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "default": "high",
+            "kind": "effort",
+            "values": ["low", "medium", "high", "xhigh"]
+          }
+        ],
+        "defaultEffort": "high",
+        "supportedEfforts": ["low", "medium", "high", "xhigh"],
         "wireDialect": "effort"
       }
     },
@@ -23570,5 +23701,5 @@
       "ownedBy": "zhipu"
     }
   ],
-  "version": "0ab42e6a18903eb4"
+  "version": "8f8001631ad1aa0b"
 }

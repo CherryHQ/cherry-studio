@@ -20,6 +20,46 @@ async function streamEvents(events: unknown[]): Promise<LanguageModelV3StreamPar
 
 /** Guards the lifecycle-event hunks in patches/@ai-sdk__openai@3.0.109.patch. */
 describe('patched @ai-sdk/openai Responses lifecycle parser', () => {
+  it('continues after text-less Responses lifecycle events and preserves streamed text', async () => {
+    const chunks = await streamEvents([
+      { type: 'response.created', response: { id: 'resp_1', created_at: 1, model: 'compatible-model' } },
+      { type: 'response.queued', response: { id: 'resp_1' } },
+      { type: 'response.in_progress', response: { id: 'resp_1' } },
+      { type: 'response.output_item.added', output_index: 0, item: { type: 'message', id: 'message-1' } },
+      {
+        type: 'response.content_part.added',
+        item_id: 'message-1',
+        output_index: 0,
+        content_index: 0,
+        part: { type: 'output_text', text: '', annotations: [] }
+      },
+      { type: 'response.output_text.delta', item_id: 'message-1', delta: 'Partial answer' },
+      { type: 'response.output_text.done', item_id: 'message-1', text: 'Partial answer' },
+      {
+        type: 'response.content_part.done',
+        item_id: 'message-1',
+        output_index: 0,
+        content_index: 0,
+        part: { type: 'output_text', text: 'Partial answer', annotations: [] }
+      },
+      {
+        type: 'response.output_item.done',
+        output_index: 0,
+        item: { type: 'message', id: 'message-1' }
+      },
+      {
+        type: 'response.completed',
+        response: { id: 'resp_1', incomplete_details: null, usage: { input_tokens: 1, output_tokens: 2 } }
+      }
+    ])
+
+    expect(chunks).toContainEqual(
+      expect.objectContaining({ type: 'text-delta', id: 'message-1', delta: 'Partial answer' })
+    )
+    expect(chunks.some((chunk) => chunk.type === 'error')).toBe(false)
+    expect(chunks.at(-1)?.type).toBe('finish')
+  })
+
   it('accepts a sparse response.created event when the following stream is valid', async () => {
     const chunks = await streamEvents([
       { type: 'response.created', response: { service_tier: null } },

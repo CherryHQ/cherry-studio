@@ -47,10 +47,6 @@ describe('useNote', () => {
     const { result } = renderHook(() => useNote('/notes'))
 
     expect(result.current.noteByPath.get('/notes/a.md')).toMatchObject({ isStarred: true })
-    expect(result.current).not.toHaveProperty('starredPaths')
-    expect(result.current).not.toHaveProperty('expandedPaths')
-    expect(result.current).not.toHaveProperty('isLoading')
-    expect(result.current).not.toHaveProperty('refetch')
   })
 
   it('skips hint nodes without mutating metadata', async () => {

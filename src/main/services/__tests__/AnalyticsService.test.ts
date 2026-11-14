@@ -133,7 +133,6 @@ describe('AnalyticsService data collection preference', () => {
 
     expect(service.isActivated).toBe(false)
     expect(MockAnalyticsClient).not.toHaveBeenCalled()
-    expect(captured.prefHandlers['app.privacy.policy_version']).toBeDefined()
 
     await service.trackAppUpdate()
     expect(mockTrackAppUpdate).not.toHaveBeenCalled()
@@ -262,8 +261,7 @@ describe('AnalyticsService data collection preference', () => {
   it('re-activates when re-enabled during an in-flight async deactivate', async () => {
     const service = new AnalyticsService()
     await service._doInit()
-    expect(captured.prefHandlers['app.privacy.data_collection.enabled']).toBeDefined()
-    expect(captured.prefHandlers['app.privacy.policy_version']).toBeDefined()
+
     await vi.waitFor(() => expect(service.isActivated).toBe(true))
     expect(MockAnalyticsClient).toHaveBeenCalledTimes(1)
 

@@ -63,8 +63,10 @@ export class PiDurableRuntimeDriver implements AgentSessionRuntimeDriver {
     })
   }
 
-  async validateSession(session: AgentSessionEntity): Promise<void> {
-    if (!session.agentId || !session.workspace.path || !agentService.getAgent(session.agentId)?.model)
+  async validateSession(session: AgentSessionEntity, opts?: { headless?: boolean }): Promise<void> {
+    const agent = session.agentId ? agentService.getAgent(session.agentId) : undefined
+    const effectiveModel = opts?.headless ? agent?.model : (session.model ?? agent?.model)
+    if (!agent || !session.workspace?.path || !effectiveModel)
       throw new Error('Pi Durable requires an agent, workspace and model')
     await prepareAgentSessionWorkspaceDirectory(session)
   }

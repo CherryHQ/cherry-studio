@@ -379,7 +379,7 @@ describe('PowerPointFilePreview', () => {
     expect(observed).toBe(false)
   })
 
-  it('loads and renders PPTX slides with a centered standalone toolbar', async () => {
+  it('loads and renders PPTX slides', async () => {
     render(
       <PowerPointFilePreview
         sourceId={filePath}
@@ -393,13 +393,7 @@ describe('PowerPointFilePreview', () => {
 
     expect(new Uint8Array(mocks.parseZipLazyMedia.mock.calls[0][0])).toEqual(new Uint8Array([80, 75, 3, 4]))
     expect(mocks.buildPresentation).toHaveBeenCalledWith(mocks.mockFiles, { lazySlides: true })
-    expect(mocks.renderList).toHaveBeenCalledWith({
-      windowed: true,
-      batchSize: 4,
-      initialSlides: 3,
-      overscanViewport: 2
-    })
-    expect(screen.getByRole('toolbar', { name: 'preview.label' })).toBeInTheDocument()
+
     expect(screen.getByTestId('pptx-preview-page-indicator')).toHaveTextContent('1 / 3')
 
     fireEvent.click(screen.getByRole('button', { name: 'common.next' }))

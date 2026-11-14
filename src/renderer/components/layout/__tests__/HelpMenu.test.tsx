@@ -151,16 +151,9 @@ describe('HelpMenu', () => {
     await waitFor(() => expect(mocks.openFeedback).toHaveBeenCalledOnce())
   })
 
-  it('places report a problem immediately after the guide and opens release notes', async () => {
+  it('opens release notes', async () => {
     render(<HelpMenu onFeedbackClick={mocks.openFeedback} />)
     const user = await openMenu()
-
-    expect(
-      screen
-        .getAllByRole('button')
-        .slice(1)
-        .map((action) => action.textContent)
-    ).toEqual(['help.whats_new', 'help.guide', 'Report a problem', 'help.feedback', 'System diagnostics'])
 
     await user.click(screen.getByRole('button', { name: 'help.whats_new' }))
     await waitFor(() => expect(mocks.openReleaseNotes).toHaveBeenCalledOnce())

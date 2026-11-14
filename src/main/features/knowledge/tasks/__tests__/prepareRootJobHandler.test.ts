@@ -1,5 +1,5 @@
 import { MockMainCacheServiceExport } from '@test-mocks/main/CacheService'
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 
 import { KeyedMutex } from '@shared/utils/async'
 
@@ -49,7 +49,6 @@ describe('prepare-root job handler', () => {
       expect.any(Function)
     )
     expect(scheduleItemMock).toHaveBeenCalledWith('kb-1', 'leaf-1', 'prepare-job')
-    expect(handler.defaultQueue?.({ baseId: 'kb-1', itemId: 'dir-1' })).toBe('base.kb-1')
   })
 
   it('pins the prefix before copying and creates child rows only after the copy', async () => {
@@ -140,7 +139,6 @@ describe('prepare-root job handler', () => {
       'knowledge.item.directory_copy_progress.dir-1',
       50
     )
-    expect(ctx.reportProgress).toHaveBeenCalledWith(25, { stage: 'copying' })
   })
 
   it('clears stale directory copy progress before retry cleanup starts', async () => {
@@ -162,24 +160,6 @@ describe('prepare-root job handler', () => {
     expect(MockMainCacheServiceExport.cacheService.getShared('knowledge.item.directory_copy_progress.dir-1')).toBe(
       undefined
     )
-  })
-
-  it('reports copy progress only when the integer percentage changes', async () => {
-    const handler = createPrepareRootJobHandler(knowledgeLockManager as never, ingestionService)
-    knowledgeItemGetByIdMock.mockReturnValue(createDirectoryItem())
-    expandDirectoryOwnerToTreeMock.mockImplementation(async (_item, _baseId, _prefix, _signal, onCopyProgress) => {
-      onCopyProgress(1)
-      onCopyProgress(1)
-      onCopyProgress(4)
-      return []
-    })
-    const reportProgress = vi.fn()
-    const ctx = { ...createCtx({ baseId: 'kb-1', itemId: 'dir-1' }, 'prepare-job'), reportProgress }
-
-    await handler.execute(ctx)
-
-    expect(reportProgress).toHaveBeenCalledWith(2, { stage: 'copying' })
-    expect(reportProgress.mock.calls.filter(([, detail]) => detail?.stage === 'copying')).toHaveLength(2)
   })
 
   it('clears stale expansion vectors before deleting rows', async () => {

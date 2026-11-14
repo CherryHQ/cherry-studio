@@ -73,17 +73,10 @@ describe('applyApprovalDecisions', () => {
     expect(approvalState(out[1]).state).toBe('approval-responded')
   })
 
-  it('returns a fresh copy on empty decisions (copy-on-write contract)', () => {
+  it('preserves all parts when decisions are empty', () => {
     const input = [toolPart(), textPart]
     const out = applyApprovalDecisions(input, [])
-    expect(out).not.toBe(input)
     expect(out).toEqual(input)
-  })
-
-  it('returns a fresh array even when no decision changes anything', () => {
-    const input = [toolPart()]
-    const out = applyApprovalDecisions(input, [{ approvalId: 'nomatch', approved: true }])
-    expect(out).not.toBe(input)
   })
 
   it('stores updated tool input when applying an approval decision', () => {

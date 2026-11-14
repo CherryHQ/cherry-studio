@@ -61,6 +61,7 @@ it('distinguishes a missing tab from a dispatched close without acting on the re
   const snapshot = externalAppRequest('windows', { action: 'inspect', target, root })
   const window = snapshot.windows.find(({ matches }) => matches)!
   desktop.windows = [{ id: '123:replacement:private-tab', pid: process.pid, matches: false }]
+  // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
   const replacement = structuredClone(desktop)
 
   const result = externalAppRequest('windows', { action: 'close', target, root, process, window })
@@ -109,6 +110,7 @@ it.each(['close', 'quit', 'force'] as const)(
     const snapshot = externalAppRequest('macos', { action: 'inspect', target, root })
     const window = snapshot.windows[0]
     desktop.windows[0].matches = false
+    // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
     const unrelatedContent = structuredClone(desktop)
 
     expect(() => externalAppRequest('macos', { action, target, root, process, window, owned: [window.id] })).toThrow(

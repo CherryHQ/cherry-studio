@@ -39,6 +39,11 @@ const WEB_SEARCH_PROVIDER_DISPLAY_META: Record<WebSearchProviderId, WebSearchPro
     officialWebsite: 'https://desearch.ai',
     apiKeyWebsite: 'https://console.desearch.ai/api-keys'
   },
+  stepfun: {
+    descriptionKey: 'settings.tool.websearch.provider_description.stepfun',
+    iconRef: providerIconRef('step'),
+    officialWebsite: 'https://platform.stepfun.com/docs/zh/api-reference/search/search'
+  },
   bocha: {
     descriptionKey: 'settings.tool.websearch.provider_description.bocha',
     iconRef: providerIconRef('bocha'),
@@ -93,6 +98,12 @@ const WEB_SEARCH_PROVIDER_DISPLAY_META: Record<WebSearchProviderId, WebSearchPro
     descriptionKey: 'settings.tool.websearch.provider_description.searxng',
     iconRef: providerIconRef('searxng'),
     officialWebsite: 'https://docs.searxng.org'
+  },
+  serpkite: {
+    descriptionKey: 'settings.tool.websearch.provider_description.serpkite',
+    iconRef: providerIconRef('serpkite'),
+    officialWebsite: 'https://serpkite.com',
+    apiKeyWebsite: 'https://app.serpkite.com/keys'
   },
   serply: {
     descriptionKey: 'settings.tool.websearch.provider_description.serply',

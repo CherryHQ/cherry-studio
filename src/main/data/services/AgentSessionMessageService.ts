@@ -261,6 +261,11 @@ function replaceAgentSessionMessageFileRefsTx(
 ): void {
   tx.delete(agentSessionMessageFileRefTable).where(eq(agentSessionMessageFileRefTable.sourceId, messageId)).run()
 
+  const snapshot = tx
+    .select({ snapshot: sessionMessagesTable.messageSnapshot })
+    .from(sessionMessagesTable)
+    .where(eq(sessionMessagesTable.id, messageId))
+    .get()?.snapshot
   const ids = [
     ...new Set(
       (data.parts ?? [])
@@ -269,6 +274,8 @@ function replaceAgentSessionMessageFileRefsTx(
         .filter((id): id is string => Boolean(id))
     )
   ]
+  const attachmentIds = new Set(ids)
+  if (snapshot?.avatarFileId && !ids.includes(snapshot.avatarFileId)) ids.push(snapshot.avatarFileId)
   if (ids.length === 0) return
 
   const existingIds = new Set<string>()
@@ -284,18 +291,19 @@ function replaceAgentSessionMessageFileRefsTx(
   const now = Date.now()
   const rows = ids
     .filter((fileEntryId) => existingIds.has(fileEntryId))
-    .map((fileEntryId) => ({
-      fileEntryId,
-      sourceId: messageId,
-      role: 'attachment' as const,
-      createdAt: now,
-      updatedAt: now
-    }))
+    .flatMap((fileEntryId) => [
+      ...(attachmentIds.has(fileEntryId)
+        ? [{ fileEntryId, sourceId: messageId, role: 'attachment' as const, createdAt: now, updatedAt: now }]
+        : []),
+      ...(fileEntryId === snapshot?.avatarFileId
+        ? [{ fileEntryId, sourceId: messageId, role: 'author_avatar' as const, createdAt: now, updatedAt: now }]
+        : [])
+    ])
 
-  if (rows.length !== ids.length) {
+  if (existingIds.size !== ids.length) {
     logger.warn('Dropped agent-session message file refs without matching file_entry', {
       messageId,
-      dropped: ids.length - rows.length,
+      dropped: ids.length - existingIds.size,
       total: ids.length
     })
   }
@@ -314,6 +322,7 @@ function terminalResultData(
 ): AgentSessionMessageEntity['data'] {
   const parts = (message?.data.parts ?? []).flatMap((part): CherryMessagePart[] => {
     if (part.type === 'text') return [{ type: 'text', text: part.text }]
+    // oxlint-disable-next-line no-restricted-globals -- Fork once: detach this file part and nested metadata before the destination owns it.
     if (part.type === 'file' && readCherryMeta(part)?.fileEntryId) return [structuredClone(part)]
     return []
   })
@@ -1618,7 +1627,7 @@ export class AgentSessionMessageService {
 
   saveMessages(
     params: CreateAgentSessionMessagesDto & { parentId?: string },
-    expectedAgent?: string | { id: string; updatedAt: string; model: string; type: string }
+    expectedAgent?: string | { id: string; updatedAt: string; model: string | null; type: string }
   ): AgentSessionMessageEntity[] {
     const { entities: saved, activityTimestamp } = application
       .get('DbService')
@@ -1637,7 +1646,7 @@ export class AgentSessionMessageService {
   saveMessagesTx(
     tx: DbOrTx,
     params: CreateAgentSessionMessagesDto & { parentId?: string },
-    expectedAgent?: string | { id: string; updatedAt: string; model: string; type: string }
+    expectedAgent?: string | { id: string; updatedAt: string; model: string | null; type: string }
   ): AgentSessionMessageEntity[] {
     return this.saveMessagesWithActivityTx(tx, params, expectedAgent).entities
   }
@@ -1677,7 +1686,7 @@ export class AgentSessionMessageService {
   private saveMessagesWithActivityTx(
     tx: DbOrTx,
     params: CreateAgentSessionMessagesDto & { parentId?: string },
-    expectedAgent?: string | { id: string; updatedAt: string; model: string; type: string }
+    expectedAgent?: string | { id: string; updatedAt: string; model: string | null; type: string }
   ): { entities: AgentSessionMessageEntity[]; activityTimestamp: number | null } {
     const { sessionId, runtimeResumeToken, messages } = params
     this.assertExpectedAgentTx(tx, sessionId, expectedAgent)
@@ -2471,7 +2480,7 @@ export class AgentSessionMessageService {
   private assertExpectedAgentTx(
     db: DbOrTx,
     sessionId: string,
-    expectedAgent: string | { id: string; updatedAt: string; model: string; type: string } | undefined
+    expectedAgent: string | { id: string; updatedAt: string; model: string | null; type: string } | undefined
   ): void {
     if (!expectedAgent) return
     const expectedAgentId = typeof expectedAgent === 'string' ? expectedAgent : expectedAgent.id

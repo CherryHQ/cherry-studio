@@ -119,6 +119,22 @@ const MESSAGE_SEARCH_CURSOR_CONFIG = {
   errorMessage: 'Invalid message search cursor'
 }
 
+// Invalid stored limits preserve unlimited history rather than dropping context or indexing past its end.
+export function normalizeMaxMessages(value: unknown): number | null {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return null
+  const floored = Math.floor(value)
+  return floored >= 1 ? floored : null
+}
+
+// Extend backward so a resumed assistant turn keeps its prompt; short histories remain untouched.
+export function applyMaxMessagesWindow<T extends { role: string }>(messages: T[], maxMessages: number | null): T[] {
+  const limit = normalizeMaxMessages(maxMessages)
+  if (limit === null || messages.length <= limit) return messages
+  let start = messages.length - limit
+  while (start > 0 && messages[start].role !== 'user') start--
+  return messages.slice(start)
+}
+
 /**
  * Convert database row to Message entity.
  *
@@ -247,7 +263,10 @@ function extractPreview(message: Message): string {
 
 type ChatMessageFileRefEntry = { fileEntryId: string; role: (typeof chatMessageRoles)[number] }
 
-function extractChatMessageFileRefs(data: MessageData | null | undefined): ChatMessageFileRefEntry[] {
+function extractChatMessageFileRefs(
+  data: MessageData | null | undefined,
+  snapshot: Message['messageSnapshot']
+): ChatMessageFileRefEntry[] {
   const refs: ChatMessageFileRefEntry[] = []
   const seen = new Set<string>()
   const add = (fileEntryId: string | undefined, role: ChatMessageFileRefEntry['role']) => {
@@ -264,6 +283,7 @@ function extractChatMessageFileRefs(data: MessageData | null | undefined): ChatM
       for (const blob of blobRefsOf(part.output.$persistedToolOutput)) add(blob.fileEntryId, 'tool_output')
     }
   }
+  add(snapshot?.avatarFileId, 'author_avatar')
   return refs
 }
 
@@ -281,10 +301,15 @@ function selectExistingFileEntryIdsTx(tx: DbOrTx, ids: readonly string[]): Set<s
   return existing
 }
 
-function replaceChatMessageFileRefsTx(tx: DbOrTx, messageId: string, data: MessageData): void {
+function replaceChatMessageFileRefsTx(
+  tx: DbOrTx,
+  messageId: string,
+  data: MessageData,
+  snapshot: Message['messageSnapshot']
+): void {
   tx.delete(chatMessageFileRefTable).where(eq(chatMessageFileRefTable.sourceId, messageId)).run()
 
-  const refs = extractChatMessageFileRefs(data)
+  const refs = extractChatMessageFileRefs(data, snapshot)
   if (refs.length === 0) return
 
   const existingIds = selectExistingFileEntryIdsTx(
@@ -861,6 +886,11 @@ export class MessageService {
     })
   }
 
+  insertPromotedMessageTx(tx: DbOrTx, row: typeof messageTable.$inferInsert & { id: string }): void {
+    tx.insert(messageTable).values(row).run()
+    replaceChatMessageFileRefsTx(tx, row.id, row.data, row.messageSnapshot ?? null)
+  }
+
   /**
    * Create a new sibling of an existing message.
    *
@@ -914,7 +944,7 @@ export class MessageService {
         })
         .returning()
         .all()
-      replaceChatMessageFileRefsTx(tx, row.id, data)
+      replaceChatMessageFileRefsTx(tx, row.id, data, row.messageSnapshot)
 
       const topicService = getDataService('TopicService')
       topicService.setActiveNodeTx(tx, source.topicId, row.id, { assumeValid: true })
@@ -1034,7 +1064,7 @@ export class MessageService {
         })
         .returning()
         .all()
-      replaceChatMessageFileRefsTx(tx, row.id, dto.data)
+      replaceChatMessageFileRefsTx(tx, row.id, dto.data, row.messageSnapshot)
 
       const topicService = getDataService('TopicService')
 
@@ -1177,7 +1207,7 @@ export class MessageService {
           })
           .returning()
           .all()
-        replaceChatMessageFileRefsTx(tx, row.id, dto.data)
+        replaceChatMessageFileRefsTx(tx, row.id, dto.data, row.messageSnapshot)
         userMessage = rowToMessage(row)
         if (isConversationActivityRole(dto.role)) latestActivityAt = createdAt
       } else if (input.userMessage.mode === 'existing') {
@@ -1213,7 +1243,7 @@ export class MessageService {
           .where(eq(messageTable.id, row.id))
           .returning()
           .all()
-        replaceChatMessageFileRefsTx(tx, row.id, input.userMessage.data)
+        replaceChatMessageFileRefsTx(tx, row.id, input.userMessage.data, row.messageSnapshot)
         userMessage = rowToMessage(updatedRow)
         latestActivityAt = activityTimestamp
       }
@@ -1248,7 +1278,7 @@ export class MessageService {
           })
           .returning()
           .all()
-        replaceChatMessageFileRefsTx(tx, row.id, p.data)
+        replaceChatMessageFileRefsTx(tx, row.id, p.data, row.messageSnapshot)
         placeholders.push(rowToMessage(row))
         if (isConversationActivityRole(p.role)) {
           latestActivityAt = latestActivityAt === null ? createdAt : Math.max(latestActivityAt, createdAt)
@@ -1383,7 +1413,7 @@ export class MessageService {
 
       const [row] = tx.update(messageTable).set(updates).where(eq(messageTable.id, id)).returning().all()
       if (updates.data !== undefined) {
-        replaceChatMessageFileRefsTx(tx, id, updates.data)
+        replaceChatMessageFileRefsTx(tx, id, updates.data, row.messageSnapshot)
       }
       if (activityTransitionAt !== null) {
         getDataService('TopicService').advanceLastActivityAtTx(tx, existingRow.topicId, activityTransitionAt)
@@ -1435,7 +1465,7 @@ export class MessageService {
         })
         .where(eq(messageTable.id, id))
         .run()
-      replaceChatMessageFileRefsTx(tx, id, input.data)
+      replaceChatMessageFileRefsTx(tx, id, input.data, row.messageSnapshot)
       if (activityTimestamp !== null) {
         getDataService('TopicService').advanceLastActivityAtTx(tx, row.topicId, activityTimestamp)
         activityTopicId = row.topicId
@@ -1489,7 +1519,7 @@ export class MessageService {
         .where(eq(messageTable.id, id))
         .returning()
         .all()
-      replaceChatMessageFileRefsTx(tx, id, data)
+      replaceChatMessageFileRefsTx(tx, id, data, row.messageSnapshot)
 
       logger.info('Reset assistant message for retry', { id, topicId: row.topicId })
       return {

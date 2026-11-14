@@ -14,6 +14,7 @@ class FakeXlsxWorker {
   terminate = vi.fn()
   postMessage = vi.fn((request: XlsxParseRequest, transfer: Transferable[]) => {
     if (mocks.postMessageError) throw mocks.postMessageError
+    // oxlint-disable-next-line no-restricted-globals -- Exercise real buffer transfer and detachment in the worker test.
     mocks.requests.push(structuredClone(request, { transfer }))
   })
 

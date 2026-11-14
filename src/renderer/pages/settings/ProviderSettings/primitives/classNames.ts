@@ -397,7 +397,7 @@ export const modelSyncClasses = {
   manageTabsTriggerDestructive:
     'text-error-subtle-foreground hover:text-error-subtle-foreground data-[state=active]:border-error-border data-[state=active]:bg-error-subtle data-[state=active]:text-error-subtle-foreground dark:text-error-subtle-foreground dark:data-[state=active]:border-error-border dark:data-[state=active]:bg-error-subtle dark:data-[state=active]:text-error-subtle-foreground',
   manageTabCount: 'text-[11px] text-foreground-tertiary tabular-nums',
-  manageScrollArea: 'min-h-0 flex-1 pr-1 [scrollbar-gutter:stable]',
+  manageScrollArea: 'min-h-0 flex-1',
   manageLoading: 'flex min-h-52 items-center justify-center text-muted-foreground',
   manageList: 'pb-1',
   manageGroup: 'contents',

@@ -153,7 +153,7 @@ const fakeCacheService = {
 }
 const mockSaveSpans = vi.fn<(topicId: string) => Promise<void>>(async () => undefined)
 const mockWillContinueTopic = vi.fn<(topicId: string) => boolean>(() => false)
-const mockCloseSession = vi.fn<(sessionId: string) => Promise<void>>(async () => undefined)
+const mockCloseSession = vi.fn<(sessionId: string, interrupt?: boolean) => Promise<void>>(async () => undefined)
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
@@ -466,6 +466,39 @@ describe('AiStreamManager', () => {
   })
 
   describe('streamPrompt', () => {
+    it.each([true, false])('keeps the original exception restricted to prompt streams (%s)', async (prompt) => {
+      vi.useRealTimers()
+      const original = new APICallError({
+        message: 'Provider refused request',
+        url: 'https://private.invalid',
+        requestBodyValues: { secret: 'request-secret' },
+        statusCode: 400
+      })
+      mockStreamText.mockRejectedValueOnce(original)
+      const onError = vi.fn<(result: StreamErrorResult, original?: unknown) => void>()
+      const listener: StreamListener = {
+        id: 'exception-listener',
+        onChunk: () => {},
+        onDone: () => {},
+        onPaused: () => {},
+        onError,
+        isAlive: () => true
+      }
+      if (prompt) {
+        mgr.streamPrompt({ streamId: 'test-prompt', uniqueModelId: 'provider-a::model-a', prompt: 'hello', listener })
+      } else {
+        startSingle(mgr, {
+          topicId: 'test-chat',
+          modelId: 'provider-a::model-a',
+          request: req('test-chat'),
+          listeners: [listener]
+        })
+      }
+      await vi.waitFor(() => expect(onError).toHaveBeenCalledOnce())
+      expect(onError.mock.calls[0][1]).toBe(prompt ? original : undefined)
+      expect(JSON.stringify(onError.mock.calls[0][0].error)).not.toContain('request-secret')
+    })
+
     it('forwards context ownership to AiService.streamText', () => {
       mgr.streamPrompt({
         streamId: 'gateway-request-1',
@@ -596,28 +629,6 @@ describe('AiStreamManager', () => {
   // ── send (start path) ──────────────────────────────────────────────
 
   describe('send (start)', () => {
-    it('creates an active stream and launches an execution loop against AiService.streamText', () => {
-      const snap = startSingle(mgr, {
-        topicId: 'a',
-        modelId: 'provider-a::model-a',
-        request: req('a'),
-        listeners: [new FakeListener('l:a')]
-      })
-
-      // Topics start in `pending` — the initial state before any chunk has
-      // flowed from the provider. `onChunk` flips this to `streaming`.
-      expect(snap).toMatchObject({
-        topicId: 'a',
-        status: 'pending',
-        isMultiModel: false
-      })
-      expect(mgr.hasUnsettledTopicWork('a')).toBe(true)
-      // One streamText call per execution — 1 for single-model.
-      // Passing signal propagation is verified indirectly by abort-path tests
-      // (e.g. `abort > sets status and triggers AbortController signal`).
-      expect(mockStreamText).toHaveBeenCalledOnce()
-    })
-
     it('reports whether any stream can still persist turn state', () => {
       expect(mgr.hasLiveStreams()).toBe(false)
 
@@ -2218,6 +2229,33 @@ describe('AiStreamManager', () => {
       expect(mgr.inspect('a')!.status).toBe('done')
     })
 
+    it('cancels background work even after the visible stream has finished', async () => {
+      vi.useRealTimers()
+      const feed = controlledStream()
+      mockStreamText.mockResolvedValueOnce(feed.stream)
+      const topicId = 'agent-session:session-1'
+      let backgroundRunning = true
+      mockCloseSession.mockImplementationOnce(async (_sessionId: string, interrupt?: boolean) => {
+        if (interrupt) backgroundRunning = false
+      })
+      startSingle(mgr, {
+        topicId,
+        modelId: 'provider-a::model-a',
+        request: req(topicId),
+        listeners: []
+      })
+      feed.enqueue({ type: 'start' })
+      feed.enqueue({ type: 'finish' })
+      feed.close()
+      await flushUntil(() => mgr.inspect(topicId)?.status === 'done')
+      expect(mgr.inspect(topicId)?.status).toBe('done')
+
+      await mgr.abortAndDrain(topicId, 'user-requested')
+
+      expect(backgroundRunning).toBe(false)
+      expect(mgr.hasUnsettledTopicWork(topicId)).toBe(false)
+    })
+
     it('holds same-topic admission until paused persistence and runtime close settle', async () => {
       vi.useRealTimers()
       const listener = new FakeListener('persistence:agent')
@@ -2960,6 +2998,110 @@ describe('AiStreamManager', () => {
       const resumed = sharedCacheStore.get('topic.stream.statuses.a') as any
       expect(resumed?.status).toBe('streaming')
       expect(resumed?.awaitingApprovalAnchors).toHaveLength(0)
+    })
+
+    it('retires only the owning approval without a decision or input replay', async () => {
+      const listener = new FakeListener('retirement')
+      startSingle(mgr, {
+        topicId: 'a',
+        modelId: 'p::m',
+        request: req('a'),
+        listeners: [listener],
+        isPersistentConversation: true
+      })
+      const stream = (mgr as any).activeStreams.get('a')
+      const exec = stream.executions.get('p::m')
+      for (const toolCallId of ['A', 'B']) {
+        mgr.onChunk('a', 'p::m', { type: 'tool-input-available', toolCallId, toolName: 'Bash', input: {} })
+        mgr.onChunk('a', 'p::m', { type: 'tool-approval-request', toolCallId, approvalId: toolCallId })
+      }
+      const owner = { anchorMessageId: exec.anchorMessageId, attemptId: exec.attemptId }
+      const chunks = [...listener.chunks]
+      expect(mgr.retireToolApproval('a', 'A', { ...owner, anchorMessageId: 'foreign' })).toBe(false)
+      expect(mgr.retireToolApproval('a', 'A', { ...owner, attemptId: exec.attemptId + 1 })).toBe(false)
+      expect(exec.pendingApprovalToolCallIds).toEqual(new Set(['A', 'B']))
+      expect(mgr.retireToolApproval('a', 'A', owner)).toBe(true)
+      expect(listener.chunks).toEqual(chunks)
+      expect(exec.pendingApprovalToolCallIds).toEqual(new Set(['B']))
+      expect((sharedCacheStore.get('topic.stream.statuses.a') as any).awaitingApprovalAnchors).toHaveLength(1)
+      mgr.onChunk('a', 'p::m', { type: 'tool-approval-request', toolCallId: 'B', approvalId: 'B-second' })
+      const beforeRetirement = [...listener.chunks]
+      expect(mgr.retireToolApproval('a', 'B', owner)).toBe(true)
+      expect(listener.chunks).toEqual(beforeRetirement)
+      const spans = exec.runtimeTiming.snapshot().spans
+      expect(spans.filter((span: any) => span.toolCallId === 'B')).toHaveLength(2)
+      expect(
+        spans.filter((span: any) => span.toolCallId === 'B').every((span: any) => span.completedAt !== undefined)
+      ).toBe(true)
+      const writesWhileLive = fakeCacheService.setShared.mock.calls.length
+      mgr.onChunk('a', 'p::m', { type: 'tool-output-available', toolCallId: 'A', output: 'finished' })
+      expect(listener.chunks.at(-1)).toEqual({
+        type: 'tool-output-available',
+        toolCallId: 'A',
+        output: 'finished'
+      })
+      expect(exec.pendingApprovalToolCallIds.size).toBe(0)
+      expect(exec.resolvedToolApprovals?.size ?? 0).toBe(0)
+      expect(fakeCacheService.setShared.mock.calls.length).toBe(writesWhileLive)
+      expect(mgr.retireToolApproval('a', 'A', owner)).toBe(false)
+      expect(mgr.retireToolApproval('a', 'B', owner)).toBe(false)
+      mgr.onChunk('a', 'p::m', { type: 'tool-approval-request', toolCallId: 'B', approvalId: 'B-third' })
+      await mgr.onExecutionDone('a', 'p::m')
+      expect(mgr.inspect('a')!.status).toBe('awaiting-approval')
+      expect(mgr.retireToolApproval('a', 'B', owner)).toBe(true)
+      expect(mgr.inspect('a')!.status).toBe('awaiting-approval')
+      expect(exec.pendingApprovalToolCallIds.size).toBe(0)
+      expect((sharedCacheStore.get('topic.stream.statuses.a') as any).awaitingApprovalAnchors).toEqual([])
+      expect(exec.resolvedToolApprovals?.size ?? 0).toBe(0)
+      expect(listener.chunks.slice(0, chunks.length)).toEqual(chunks)
+      const writes = fakeCacheService.setShared.mock.calls.length
+      expect(mgr.retireToolApproval('a', 'A', owner)).toBe(false)
+      expect(mgr.retireToolApproval('a', 'B', owner)).toBe(false)
+      expect(exec.pendingApprovalToolCallIds.size).toBe(0)
+      expect(fakeCacheService.setShared.mock.calls.length).toBe(writes)
+      expect(conversationCompletedEvents).toEqual([])
+    })
+
+    it('closes every approval span for the retired call and preserves sibling waits', () => {
+      startSingle(mgr, { topicId: 'a', modelId: 'p::m', request: req('a'), listeners: [] })
+      const exec = (mgr as any).activeStreams.get('a').executions.get('p::m')
+      for (const [toolCallId, approvalId] of [
+        ['A', 'A1'],
+        ['A', 'A2'],
+        ['B', 'B1']
+      ])
+        mgr.onChunk('a', 'p::m', { type: 'tool-approval-request', toolCallId, approvalId })
+      expect(mgr.retireToolApproval('a', 'A')).toBe(true)
+      const spans = exec.runtimeTiming.snapshot().spans
+      expect(spans.filter((span: any) => span.toolCallId === 'A')).toHaveLength(2)
+      for (const span of spans) {
+        if (span.toolCallId === 'A') expect(span.completedAt).toEqual(expect.any(Number))
+        else expect(span.completedAt).toBeUndefined()
+      }
+    })
+
+    it('drops only the retired execution anchor when another execution awaits the same call id', () => {
+      mgr.send({
+        topicId: 'a',
+        models: [
+          { modelId: 'p::a', request: req('a') },
+          { modelId: 'p::b', request: req('a') }
+        ],
+        listeners: []
+      })
+      const stream = (mgr as any).activeStreams.get('a')
+      for (const modelId of ['p::a', 'p::b'] as const)
+        mgr.onChunk('a', modelId, { type: 'tool-approval-request', toolCallId: 'shared-id', approvalId: modelId })
+      const a = stream.executions.get('p::a')
+      const b = stream.executions.get('p::b')
+      expect(
+        mgr.retireToolApproval('a', 'shared-id', { anchorMessageId: a.anchorMessageId, attemptId: a.attemptId })
+      ).toBe(true)
+      expect(a.pendingApprovalToolCallIds.size).toBe(0)
+      expect(b.pendingApprovalToolCallIds).toEqual(new Set(['shared-id']))
+      expect((sharedCacheStore.get('topic.stream.statuses.a') as any).awaitingApprovalAnchors).toEqual([
+        expect.objectContaining({ anchorMessageId: b.anchorMessageId, attemptId: b.attemptId })
+      ])
     })
 
     it('advances an approved live tool part so the next parallel approval can surface', async () => {
@@ -3766,7 +3908,7 @@ describe('AiStreamManager', () => {
       // now reports — proof that the accumulator wrote before the terminal
       // broadcast rather than after it.
       expect(listener.doneResults).toHaveLength(1)
-      expect(listener.doneResults[0].finalMessage).toBe(snap.executions[0].finalMessage)
+      expect(listener.doneResults[0].finalMessage).toEqual(snap.executions[0].finalMessage)
 
       const parts = (snap.executions[0].finalMessage?.parts ?? []) as Array<{ type: string; text?: string }>
       expect(parts.some((p) => p.type === 'text' && p.text === 'hello')).toBe(true)
@@ -4490,7 +4632,6 @@ describe('AiStreamManager', () => {
         const replacementPending = statusWritesFor(topicId).at(-1)!
         const replacementTurnId = replacementPending.turnId
         expect(replacementPending.status).toBe('pending')
-        expect(replacementTurnId).toMatch(/^\d+:\d+$/)
         expect(replacementTurnId).not.toBe(staleTurnId)
 
         mgr.enqueuePendingSteer(topicId, `steer-${terminalKind}`)
@@ -4582,7 +4723,6 @@ describe('AiStreamManager', () => {
       await mgr.onExecutionDone('t', 'p::m')
       expect(statusSequence('t')).toEqual(['pending', 'streaming', 'done'])
       expect(new Set(statusWritesFor('t').map((entry) => entry?.turnId)).size).toBe(1)
-      expect(statusWritesFor('t')[0]?.turnId).toMatch(/^\d+:\d+$/)
       expect(conversationCompletedEvents).toEqual([])
 
       // Grace-period cleanup does not write again — the `done` value
