@@ -37,6 +37,7 @@ export const mockPreferenceDefaults: Record<string, any> = {
   'user.name': 'MockUser',
 
   // App preferences
+  'app.computer_use.global_input.enabled': getDefaultValue('app.computer_use.global_input.enabled'),
   'app.user.name': 'MockUser',
   'app.language': 'zh-CN',
   'app.browser.start_page.mode': getDefaultValue('app.browser.start_page.mode'),

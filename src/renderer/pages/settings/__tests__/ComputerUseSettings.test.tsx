@@ -1,4 +1,4 @@
-import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
+import { mockUsePreference, MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { SWRConfig } from 'swr'
@@ -124,5 +124,70 @@ describe('Computer Use permission settings', () => {
       vi.mocked(ipcApi.request).mock.calls.filter(([route]) => route === 'computer_use.request_permissions')
     ).toHaveLength(1)
     expect(screen.getByText('Not confirmed')).toBeInTheDocument()
+  })
+})
+
+describe('global input settings', () => {
+  it('defaults off and saves an explicit opt-in', async () => {
+    const user = userEvent.setup()
+    vi.mocked(ipcApi.request).mockResolvedValue({ permissions: [] })
+    showSettings()
+    const toggle = screen.getByRole('switch', { name: 'Allow global pointer and keyboard input' })
+    expect(toggle).not.toBeChecked()
+    await user.click(toggle)
+    await waitFor(() =>
+      expect(MockUsePreferenceUtils.getPreferenceValue('app.computer_use.global_input.enabled')).toBe(true)
+    )
+    await waitFor(() => expect(toggle).toBeEnabled())
+    expect(toggle).toBeChecked()
+  })
+
+  it('keeps a stored opt-in checked while desktop control is off', () => {
+    MockUsePreferenceUtils.setPreferenceValue('app.computer_use.agent_control.enabled', false)
+    MockUsePreferenceUtils.setPreferenceValue('app.computer_use.global_input.enabled', true)
+    vi.mocked(ipcApi.request).mockResolvedValue({ permissions: [] })
+    showSettings()
+    const toggle = screen.getByRole('switch', { name: 'Allow global pointer and keyboard input' })
+    expect(toggle).toBeDisabled()
+    expect(toggle).toBeChecked()
+    expect(MockUsePreferenceUtils.getPreferenceValue('app.computer_use.global_input.enabled')).toBe(true)
+  })
+
+  it('reports a global input save failure separately and preserves the stored value', async () => {
+    vi.mocked(ipcApi.request).mockResolvedValue({ permissions: [] })
+    const original = mockUsePreference.getMockImplementation()!
+    MockUsePreferenceUtils.mockPreferenceError('app.computer_use.global_input.enabled', new Error('save failed'))
+    try {
+      showSettings()
+      const toggle = screen.getByRole('switch', { name: 'Allow global pointer and keyboard input' })
+      await userEvent.click(toggle)
+      expect(await screen.findByRole('alert')).toHaveTextContent('Could not save the global input setting.')
+      expect(screen.queryByText('Could not save the desktop control setting.')).not.toBeInTheDocument()
+      expect(toggle).not.toBeChecked()
+      expect(MockUsePreferenceUtils.getPreferenceValue('app.computer_use.global_input.enabled')).toBe(false)
+    } finally {
+      mockUsePreference.mockImplementation(original)
+    }
+  })
+
+  it('requests the translated portal permission and keeps unknown ids non-requestable', async () => {
+    await i18n.changeLanguage('zh-cn')
+    vi.mocked(ipcApi.request).mockResolvedValue({
+      permissions: [
+        { id: 'remoteDesktop', label: 'Remote Desktop portal', status: 'unknown', interaction: 'systemSettings' },
+        { id: 'futurePermission', label: 'Future permission', status: 'unknown', interaction: 'systemSettings' }
+      ]
+    })
+    showSettings()
+    const label = i18n.t('settings.computerUse.remoteDesktop')
+    const button = await screen.findByRole('button', {
+      name: i18n.t('settings.computerUse.requestLabel', { permission: label })
+    })
+    expect(screen.getByText(label)).toBeVisible()
+    expect(screen.getByTestId('computer-use-permission-futurePermission').querySelector('button')).toBeNull()
+    await userEvent.click(button)
+    await waitFor(() =>
+      expect(ipcApi.request).toHaveBeenCalledWith('computer_use.request_permissions', { ids: ['remoteDesktop'] })
+    )
   })
 })

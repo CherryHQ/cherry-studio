@@ -41,6 +41,13 @@
       "description": "Stable native application identities explicitly allowed for Computer Use on this installation"
     },
     {
+      "targetKey": "app.computer_use.global_input.enabled",
+      "type": "boolean",
+      "defaultValue": false,
+      "status": "classified",
+      "description": "Let Computer Use actions on Linux move the shared pointer and keyboard through global input"
+    },
+    {
       "targetKey": "agent.commit_attribution.enabled",
       "type": "boolean",
       "defaultValue": true,

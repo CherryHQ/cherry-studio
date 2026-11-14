@@ -280,7 +280,8 @@ export class ComputerUseService extends BaseService {
     await this.approveApp(task, control.app, signal)
     const client = await this.getClient(task)
     this.assertAvailable(task, control.app.id)
-    return client.act({ ...action, allowGlobalInput: false }, { signal: this.signal(task, signal) })
+    const allowGlobalInput = this.allowGlobalInput()
+    return client.act({ ...action, allowGlobalInput }, { signal: this.signal(task, signal) })
   }
 
   async perform(context: ComputerUseTask, action: Action, signal?: AbortSignal) {
@@ -296,15 +297,20 @@ export class ComputerUseService extends BaseService {
       ) => Promise<{ status: 'completed'; appSessionId: string }>
     }
     const options = { signal: this.signal(task, signal) }
+    const allowGlobalInput = this.allowGlobalInput()
     if (executor.perform) {
-      await executor.perform({ ...action, allowGlobalInput: false }, options)
+      await executor.perform({ ...action, allowGlobalInput }, options)
       return { targetRetained: true as const }
     }
-    const result = await client.act({ ...action, allowGlobalInput: false }, options)
+    const result = await client.act({ ...action, allowGlobalInput }, options)
     return {
       targetRetained: false as const,
       snapshot: result.observation.status === 'available' ? result.observation.snapshot : undefined
     }
+  }
+
+  private allowGlobalInput(): boolean {
+    return application.get('PreferenceService').get('app.computer_use.global_input.enabled')
   }
 
   getControls(): ComputerUseControl[] {

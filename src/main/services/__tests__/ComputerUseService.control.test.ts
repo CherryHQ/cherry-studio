@@ -2,11 +2,18 @@ import { defaultServiceInstances } from '@test-mocks/main/application'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { ComputerUse, type ComputerUseClient, type ClosedEvent, type Snapshot } from '@cherrystudio/computer-use'
+import {
+  type Action,
+  ComputerUse,
+  ComputerUseError,
+  type ComputerUseClient,
+  type ClosedEvent,
+  type Snapshot
+} from '@cherrystudio/computer-use'
 import type * as ComputerUseModule from '@cherrystudio/computer-use'
 import { BaseService } from '@main/core/lifecycle'
 
-import { ComputerUseService } from '../ComputerUseService'
+import { ComputerUseControlError, ComputerUseService } from '../ComputerUseService'
 
 vi.mock('@cherrystudio/computer-use', async (original) => ({
   ...(await original<typeof ComputerUseModule>()),
@@ -30,6 +37,11 @@ class TestService extends ComputerUseService {
 
 function backend(overrides: Partial<ComputerUseClient> = {}) {
   const events: string[] = []
+  const actions: Action[] = []
+  const perform = vi.fn(async (input: Action) => {
+    actions.push(input)
+    return { status: 'completed' as const, appSessionId: input.appSessionId }
+  })
   let sequence = 0
   let closed: ((event: ClosedEvent) => void) | undefined
   const snapshot: Snapshot = {
@@ -42,7 +54,7 @@ function backend(overrides: Partial<ComputerUseClient> = {}) {
     screenshot: { status: 'unavailable', reason: { code: 'CAPTURE_FAILED', message: 'No capture' } }
   }
   const client: ComputerUseClient = {
-    ...{ resolveApp: vi.fn(), resolveAppIdentity: vi.fn(), perform: vi.fn() },
+    ...{ resolveApp: vi.fn(), resolveAppIdentity: vi.fn(), perform },
     getAppIcon: async () => ({ status: 'unavailable' }),
     getCapabilities: async () => ({ platform: 'darwin', capabilities: [] }),
     getPermissionStatus: async () => ({ permissions: [] }),
@@ -59,6 +71,7 @@ function backend(overrides: Partial<ComputerUseClient> = {}) {
     },
     getAppState: async () => snapshot,
     act: async (input) => {
+      actions.push(input)
       events.push(`click:${input.appSessionId}`)
       return { status: 'completed', observation: { status: 'available', snapshot } }
     },
@@ -74,7 +87,7 @@ function backend(overrides: Partial<ComputerUseClient> = {}) {
     },
     ...overrides
   }
-  return { client, events, disconnect: (event: ClosedEvent) => closed?.(event) }
+  return { client, events, actions, perform, disconnect: (event: ClosedEvent) => closed?.(event) }
 }
 
 beforeEach(() => {
@@ -581,4 +594,103 @@ it('exposes stable app identity for control-list presentation before and after s
   } finally {
     await service.stop()
   }
+})
+
+describe('global input preference authority', () => {
+  it.each([false, true])('dispatches act with preference %s despite the opposite caller flag', async (enabled) => {
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.computer_use.global_input.enabled', enabled)
+    const native = backend()
+    vi.mocked(ComputerUse.start).mockResolvedValue(native.client)
+    const service = new TestService()
+    const task = service.createTask('owner', 'Agent')
+    const app = await service.openApp(task, 'app')
+    await service.act(task, {
+      type: 'click',
+      snapshotId: 'snapshot',
+      elementId: 'button',
+      appSessionId: app.id,
+      allowGlobalInput: !enabled
+    })
+    expect(native.actions[0].allowGlobalInput).toBe(enabled)
+    await service.stop()
+  })
+
+  it.each([false, true])('dispatches native perform with preference %s', async (enabled) => {
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.computer_use.global_input.enabled', enabled)
+    const native = backend()
+    vi.mocked(ComputerUse.start).mockResolvedValue(native.client)
+    const service = new TestService()
+    const task = service.createTask('owner', 'Agent')
+    const app = await service.openApp(task, 'app')
+    await expect(
+      service.perform(task, {
+        type: 'click',
+        snapshotId: 'snapshot',
+        elementId: 'button',
+        appSessionId: app.id,
+        allowGlobalInput: !enabled
+      })
+    ).resolves.toEqual({ targetRetained: true })
+    expect(native.perform.mock.calls[0][0].allowGlobalInput).toBe(enabled)
+    await service.stop()
+  })
+
+  it.each([false, true])('dispatches fallback act with preference %s', async (enabled) => {
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.computer_use.global_input.enabled', enabled)
+    const native = backend()
+    Reflect.deleteProperty(native.client, 'perform')
+    vi.mocked(ComputerUse.start).mockResolvedValue(native.client)
+    const service = new TestService()
+    const task = service.createTask('owner', 'Agent')
+    const app = await service.openApp(task, 'app')
+    await expect(
+      service.perform(task, {
+        type: 'click',
+        snapshotId: 'snapshot',
+        elementId: 'button',
+        appSessionId: app.id,
+        allowGlobalInput: !enabled
+      })
+    ).resolves.toMatchObject({ targetRetained: false })
+    expect(native.actions[0].allowGlobalInput).toBe(enabled)
+    await service.stop()
+  })
+
+  it('dispatches semantic actions by default and reads changes on the same open session', async () => {
+    const native = backend()
+    vi.mocked(ComputerUse.start).mockResolvedValue(native.client)
+    const service = new TestService()
+    const task = service.createTask('owner', 'Agent')
+    const app = await service.openApp(task, 'app')
+    const action: Action = { type: 'click', snapshotId: 'snapshot', elementId: 'button', appSessionId: app.id }
+    await expect(service.act(task, action)).resolves.toMatchObject({ status: 'completed' })
+    expect(native.actions[0]).toEqual({ ...action, allowGlobalInput: false })
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.computer_use.global_input.enabled', true)
+    await service.act(task, action)
+    expect(native.actions[1]).toEqual({ ...action, allowGlobalInput: true })
+    await service.stop()
+  })
+
+  it('preserves runtime PERMISSION_REQUIRED identity and effect with global input off', async () => {
+    const error = new ComputerUseError('PERMISSION_REQUIRED', 'OS grant missing', { effect: 'possible' })
+    const native = backend({
+      act: async () => {
+        throw error
+      }
+    })
+    vi.mocked(ComputerUse.start).mockResolvedValue(native.client)
+    const service = new TestService()
+    const task = service.createTask('owner', 'Agent')
+    const app = await service.openApp(task, 'app')
+    const result = service.act(task, {
+      type: 'click',
+      snapshotId: 'snapshot',
+      elementId: 'button',
+      appSessionId: app.id
+    })
+    await expect(result).rejects.toBe(error)
+    await expect(result).rejects.toMatchObject({ code: 'PERMISSION_REQUIRED', effect: 'possible' })
+    await expect(result).rejects.not.toBeInstanceOf(ComputerUseControlError)
+    await service.stop()
+  })
 })

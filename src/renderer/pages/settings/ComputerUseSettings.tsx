@@ -23,6 +23,9 @@ export function ComputerUseSettings() {
   const { t } = useTranslation()
   const [approvedApps] = usePreference('app.computer_use.approved_apps')
   const [enabled, setEnabled] = usePreference('app.computer_use.agent_control.enabled')
+  const [globalInput, setGlobalInput] = usePreference('app.computer_use.global_input.enabled')
+  const [savingGlobalInput, setSavingGlobalInput] = useState(false)
+  const [globalInputError, setGlobalInputError] = useState(false)
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState(false)
   const { data, error, isLoading, isValidating, mutate } = useSWR(
@@ -44,7 +47,7 @@ export function ComputerUseSettings() {
     reset
   } = useSWRMutation(
     PERMISSION_KEY,
-    (_, { arg }: { arg: 'accessibility' | 'screenRecording' }) =>
+    (_, { arg }: { arg: 'accessibility' | 'screenRecording' | 'remoteDesktop' | 'gnomeShell' | 'kdeIntegration' }) =>
       ipcApi.request('computer_use.request_permissions', { ids: [arg] }),
     {
       populateCache: true,
@@ -92,6 +95,40 @@ export function ComputerUseSettings() {
             {t('settings.computerUse.controlError')}
           </p>
         )}
+        <SettingRow className="flex-nowrap items-start">
+          <div className="min-w-0 flex-1">
+            <SettingRowTitle id="computer-use-global-input-title">
+              {t('settings.computerUse.globalInput')}
+            </SettingRowTitle>
+            <SettingDescription id="computer-use-global-input-help">
+              {t('settings.computerUse.globalInputHelp')}
+            </SettingDescription>
+          </div>
+          <Switch
+            className="mt-0.5"
+            checked={globalInput}
+            disabled={savingGlobalInput || !enabled}
+            aria-labelledby="computer-use-global-input-title"
+            aria-describedby="computer-use-global-input-help"
+            onCheckedChange={async (value) => {
+              setSavingGlobalInput(true)
+              setGlobalInputError(false)
+              try {
+                await setGlobalInput(value)
+              } catch (cause) {
+                setGlobalInputError(true)
+                logger.warn('Failed to change global input permission', cause as Error)
+              } finally {
+                setSavingGlobalInput(false)
+              }
+            }}
+          />
+        </SettingRow>
+        {globalInputError && (
+          <p role="alert" className="mt-2 text-error text-sm">
+            {t('settings.computerUse.globalInputError')}
+          </p>
+        )}
         <SettingDivider />
         {busy && <SettingDescription role="status">{t('common.loading')}</SettingDescription>}
         {!error && data && (
@@ -101,7 +138,12 @@ export function ComputerUseSettings() {
             )}
             {data.permissions.map((permission, index) => {
               const id = permission.id
-              const known = id === 'accessibility' || id === 'screenRecording'
+              const known =
+                id === 'accessibility' ||
+                id === 'screenRecording' ||
+                id === 'remoteDesktop' ||
+                id === 'gnomeShell' ||
+                id === 'kdeIntegration'
               const label = known ? t(`settings.computerUse.${id}`) : permission.label
               return (
                 <Fragment key={id}>
