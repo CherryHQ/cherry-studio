@@ -117,6 +117,8 @@ function useStableReference<T>(value: T | undefined, isEqual: (a: T | undefined,
 export interface MarkdownCoreProps {
   id: string
   children: string
+  /** Heading slugs assigned at the document level, keyed by normalized heading text. */
+  headingSlugs?: ReadonlyMap<string, readonly string[]>
   /** Component overrides merged into Streamdown defaults at the call site. */
   components?: Partial<Components>
   /** Streamdown plugin presets (code / cjk / math / mermaid). */
@@ -144,6 +146,7 @@ export interface MarkdownCoreProps {
 export function MarkdownCore({
   id,
   children,
+  headingSlugs,
   components,
   plugins,
   extraRehypePlugins,
@@ -212,7 +215,9 @@ export function MarkdownCore({
       [hardenFn, { ...hardenOptions, linkBlockPolicy: 'text-only', imageBlockPolicy: 'text-only' }] as Pluggable,
       ...(preserveRelativeImageSrcs ? ([relativeImages.restore] as Pluggable[]) : []),
       ...(preserveFileLinkHrefs ? ([rehypeRestoreFileLinks] as Pluggable[]) : []),
-      [rehypeHeadingIds, { prefix: `heading-${id}` }] as Pluggable,
+      // Entries, not the map: Streamdown serializes these options for its processor cache, and a
+      // `Map` serializes to `{}`, which reuses the previous assignment's cached processor.
+      [rehypeHeadingIds, { prefix: `heading-${id}`, slugs: headingSlugs && [...headingSlugs] }] as Pluggable,
       [
         rehypeFootnotes,
         { prefix: footnotePrefix, clobberPrefix: effectiveSchema.clobberPrefix ?? 'user-content-' }
@@ -223,6 +228,7 @@ export function MarkdownCore({
   }, [
     hasSvgElement,
     id,
+    headingSlugs,
     footnotePrefix,
     stableExtraRehypePlugins,
     preserveFileLinkHrefs,
