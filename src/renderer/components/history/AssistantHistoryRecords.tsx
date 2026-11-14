@@ -401,7 +401,7 @@ const AssistantHistoryRecords = ({
         })
         if (isTrashTargetNotFoundError(error)) toast.info(t('recycle_bin.already_moved'))
         else if (isTrashTopicBusyError(error)) toast.info(t('recycle_bin.move.blocked_generation'))
-        else toast.error(t('recycle_bin.move_failed'))
+        else toastAppError(t('recycle_bin.move_failed'), error, { source: 'history', operation: 'topic.delete' })
         return { succeeded: [], failed: ids.map((id) => ({ id, error: getErrorMessage(error) })) }
       }
     },

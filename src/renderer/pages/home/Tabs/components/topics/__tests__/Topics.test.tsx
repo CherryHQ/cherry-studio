@@ -1593,6 +1593,35 @@ describe('Topics', () => {
     expect(toast.success).toHaveBeenCalledWith('Moved 1 conversation(s)')
   })
 
+  it('reports a failed move to another assistant with its caption and the original cause', async () => {
+    const failure = new Error('disk locked')
+    topicDataMocks.updateTopic.mockRejectedValueOnce(failure)
+    const { getByText } = renderTopicList()
+
+    fireEvent.contextMenu(getByText('Alpha topic'))
+    const alphaMenu = getByText('Alpha topic').closest('[data-testid="context-menu"]')
+    const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
+    fireEvent.click(within(menuContent as HTMLElement).getByRole('button', { name: /Beta Assistant/ }))
+
+    await vi.waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: 'chat.topics.manage.move.error',
+          cause: failure,
+          data: expect.objectContaining({
+            errorContext: expect.objectContaining({
+              message: 'disk locked',
+              source: 'chat',
+              operation: 'topic.move',
+              recordId: 'topic-a'
+            })
+          })
+        })
+      )
+    )
+    expect(toast.success).not.toHaveBeenCalled()
+  })
+
   it('changes the right-panel topic list to the left side from the context menu', async () => {
     const onSetPanePosition = vi.fn()
     const { getByText } = renderTopicList({
@@ -2129,7 +2158,20 @@ describe('Topics', () => {
     })
 
     expect(await findByRowText('Alpha topic')).toBeInTheDocument()
-    expect(toast.error).toHaveBeenCalledWith('Error: rename failed')
+    expect(toast.error).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: 'chat.topics.manage.rename.error',
+        cause: expect.objectContaining({ message: 'rename failed' }),
+        data: expect.objectContaining({
+          errorContext: expect.objectContaining({
+            message: 'rename failed',
+            source: 'chat',
+            operation: 'topic.rename',
+            recordId: 'topic-a'
+          })
+        })
+      })
+    )
     expect(toast.success).not.toHaveBeenCalled()
   })
 
@@ -3940,6 +3982,35 @@ describe('Topics', () => {
     expect(recycleBinFeedbackMocks.showRecycleBinUndo).not.toHaveBeenCalled()
     expect(toast.error).not.toHaveBeenCalled()
     expect(toast.success).not.toHaveBeenCalled()
+  })
+
+  it('reports a failed assistant conversation delete with its caption and the original cause', async () => {
+    const failure = new Error('disk locked')
+    topicDataMocks.deleteTopicsByAssistantId.mockRejectedValueOnce(failure)
+    MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
+    renderTopicList()
+
+    const alphaHeader = screen.getByRole('button', { name: 'Alpha Assistant' }).closest('div')
+    fireEvent.click(within(alphaHeader as HTMLElement).getByRole('button', { name: 'More' }))
+    fireEvent.click(
+      within(alphaHeader as HTMLElement).getByRole('button', { name: 'Delete all assistant conversations' })
+    )
+
+    await vi.waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: 'chat.topics.manage.delete.error',
+          cause: failure,
+          data: expect.objectContaining({
+            errorContext: expect.objectContaining({
+              message: 'disk locked',
+              source: 'chat',
+              operation: 'topic.delete'
+            })
+          })
+        })
+      )
+    )
   })
 
   it('blocks concurrent assistant group deletes while one is pending', async () => {
