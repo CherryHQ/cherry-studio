@@ -24,13 +24,11 @@ export interface ScriptedHost extends HostPorts {
   answerApproval(answer: ApprovalAnswer): void
   answerQuestion(answer: QuestionAnswer): void
   giveVerdict(verdict: VerifierVerdict): void
-  giveSummary(summary: Awaited<ReturnType<HostPorts['summarizer']['summarize']>>): void
   setSettings(patch: Partial<HostSettingsSnapshot>): void
   readonly asked: {
     readonly approvals: number
     readonly questions: number
     readonly verdicts: number
-    readonly summaries: number
   }
   readonly emitted: readonly BehaviorEvent[]
   readonly saved: readonly OutputFile[]
@@ -57,8 +55,6 @@ function createAnswers<T>() {
       if (wake) wake(answer)
       else ready.push(answer)
     },
-    /** The oldest queued answer, if any, without waiting. */
-    shift: (): T | undefined => ready.shift(),
     take(signal: AbortSignal): Promise<T> {
       if (signal.aborted) return Promise.reject(signal.reason)
       const answer = ready.shift()
@@ -89,11 +85,10 @@ const outcomeOf = (call: CallRef, answer: ApprovalAnswer): ApprovalOutcome => {
 
 export function createScriptedHost(options: ScriptedHostOptions): ScriptedHost {
   let settings = options.settings
-  const counts = { approvals: 0, questions: 0, verdicts: 0, summaries: 0 }
+  const counts = { approvals: 0, questions: 0, verdicts: 0 }
   const approvalAnswers = createAnswers<ApprovalAnswer>()
   const questionAnswers = createAnswers<QuestionAnswer>()
   const verdicts = createAnswers<VerifierVerdict>()
-  const summaries = createAnswers<Awaited<ReturnType<HostPorts['summarizer']['summarize']>>>()
   const outcomes = new Map<string, ApprovalOutcome>()
   const emitted: BehaviorEvent[] = []
   const saved: OutputFile[] = []
@@ -148,14 +143,6 @@ export function createScriptedHost(options: ScriptedHostOptions): ScriptedHost {
         return `outputs/${file.name}`
       }
     },
-    summarizer: {
-      summarize: async () => {
-        counts.summaries += 1
-        const summary = summaries.shift()
-        if (summary === undefined) throw new Error('no summary scripted')
-        return summary
-      }
-    },
     observation: { emit: (event) => void emitted.push(event) },
     settings: {
       goalDefaults: () => settings.goalDefaults,
@@ -168,7 +155,6 @@ export function createScriptedHost(options: ScriptedHostOptions): ScriptedHost {
     answerApproval: (answer) => approvalAnswers.give(answer),
     answerQuestion: (answer) => questionAnswers.give(answer),
     giveVerdict: (verdict) => verdicts.give(verdict),
-    giveSummary: (summary) => summaries.give(summary),
     setSettings: (patch) => {
       settings = { ...settings, ...patch }
     },

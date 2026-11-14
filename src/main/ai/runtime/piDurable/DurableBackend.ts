@@ -338,7 +338,6 @@ export class DurableBackend {
         current: (thread) => host(thread).models.current(thread)
       },
       verifier: { verify: (request, signal) => host(request.thread).verifier.verify(request, signal) },
-      summarizer: { summarize: (request, signal) => host(request.thread).summarizer.summarize(request, signal) },
       outputStore: { save: (file) => global().outputStore.save(file) },
       observation: { emit: (event) => host(event.thread).observation.emit(event) },
       settings: {

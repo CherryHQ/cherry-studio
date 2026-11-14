@@ -6,13 +6,6 @@
   },
   "globals": {},
   "jsPlugins": ["@shadcn/lint", "./scripts/lint/scroll-area.mjs"],
-  "settings": {
-    "shadcn": {
-      "ui": "@cherrystudio/ui",
-      "themeImports": ["^@cherrystudio/ui/styles/"],
-      "note": "See DESIGN.md and packages/ui/docs/design-token-system.md."
-    }
-  },
   "ignorePatterns": [
     "node_modules/**",
     "build/**",
@@ -190,6 +183,11 @@
     "unicorn/prefer-string-starts-ends-with": "error"
   },
   "settings": {
+    "shadcn": {
+      "ui": "@cherrystudio/ui",
+      "themeImports": ["^@cherrystudio/ui/styles/"],
+      "note": "See DESIGN.md and packages/ui/docs/design-token-system.md."
+    },
     "jsdoc": {
       "augmentsExtendsReplacesDocs": false,
       "exemptDestructuredRootsFromChecks": false,
