@@ -682,7 +682,7 @@ describe('desktop Pi root connection', () => {
         expect(existsSync(proof)).toBe(false)
         toolApprovalRegistry.dispatch(approvals()[0].request.approvalId, { approved: answer === 'approved' })
       }
-      await done(events)
+      await done(events, APPROVAL_WAIT.timeout)
       await connection.drainChildWrites()
       expect(childCalled).toBe(true)
       expect(events.filter((event) => event.type === 'tool-approval-request')).toHaveLength(
