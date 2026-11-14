@@ -8,6 +8,7 @@ import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { ThemeProvider } from '@renderer/components/ThemeProvider'
 import { useLanguageSync } from '@renderer/hooks/useLanguageSync'
 import { ipcApi } from '@renderer/ipc'
+import { createAppErrorContext } from '@shared/utils/appError'
 
 import CaptureOverlay from './CaptureOverlay'
 
@@ -18,26 +19,15 @@ function ScreenshotRuntime(): null {
   return null
 }
 
-/**
- * End the session instead of rendering an error card.
- *
- * The shared `WindowFatalFallback` is wrong here: this window covers every display and
- * swallows every click, and its "reload" reloads the main window. Anything it could show
- * would be an opaque full-screen panel with no way out, so the only useful thing a fatal
- * render error can do is get the overlay off the user's screen.
- */
 /** Hand the fault to main and release the overlay before any native support dialog. */
 export async function dismissScreenshotFault(error: unknown): Promise<void> {
   const logger = loggerService.withContext('ScreenshotApp')
-  const message = error instanceof Error ? error.message : String(error)
-  const context = {
-    id: crypto.randomUUID(),
-    occurredAt: new Date().toISOString(),
+  const context = createAppErrorContext({
     source: 'screenshotWindow',
     operation: 'react.render',
-    message,
+    message: error instanceof Error ? error.message : String(error),
     ...(error instanceof Error ? { name: error.name, ...(error.stack ? { stack: error.stack } : {}) } : {})
-  }
+  })
   let handoffFailed = false
   try {
     await ipcApi.request('app.error.handoff', context)
@@ -58,6 +48,14 @@ export async function dismissScreenshotFault(error: unknown): Promise<void> {
   }
 }
 
+/**
+ * End the session instead of rendering an error card.
+ *
+ * The shared `WindowFatalFallback` is wrong here: this window covers every display and
+ * swallows every click, and its "reload" reloads the main window. Anything it could show
+ * would be an opaque full-screen panel with no way out, so the only useful thing a fatal
+ * render error can do is get the overlay off the user's screen.
+ */
 function DismissOnFatalError({ error }: FallbackProps): null {
   useEffect(() => {
     void dismissScreenshotFault(error)
