@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { UpgradeChannel } from '@shared/data/preference/preferenceTypes'
+
 const request = vi.fn()
 const openExternal = vi.fn()
 const updateDialogShow = vi.fn()
@@ -497,8 +499,8 @@ describe('queryAvailableVersion', () => {
     request.mockResolvedValue({ status: 'available', currentVersion: '2.0.0', version: '2.1.0' })
 
     const results = await Promise.all([
-      appUpdateCheckService.queryAvailableVersion(),
-      appUpdateCheckService.queryAvailableVersion()
+      appUpdateCheckService.queryAvailableVersion(UpgradeChannel.LATEST),
+      appUpdateCheckService.queryAvailableVersion(UpgradeChannel.LATEST)
     ])
 
     expect(results).toEqual(['2.1.0', '2.1.0'])
@@ -511,8 +513,8 @@ describe('queryAvailableVersion', () => {
       .mockRejectedValueOnce(new Error('offline'))
       .mockResolvedValueOnce({ status: 'available', currentVersion: '2.0.0', version: '2.1.0' })
 
-    await expect(appUpdateCheckService.queryAvailableVersion()).resolves.toBeNull()
-    await expect(appUpdateCheckService.queryAvailableVersion()).resolves.toBe('2.1.0')
+    await expect(appUpdateCheckService.queryAvailableVersion(UpgradeChannel.LATEST)).resolves.toBeNull()
+    await expect(appUpdateCheckService.queryAvailableVersion(UpgradeChannel.LATEST)).resolves.toBe('2.1.0')
     expect(callsTo('app.updater.query_availability')).toHaveLength(2)
   })
 
@@ -521,9 +523,43 @@ describe('queryAvailableVersion', () => {
       .mockResolvedValueOnce({ status: 'available', currentVersion: '2.0.0', version: '2.1.0-beta.1' })
       .mockResolvedValueOnce({ status: 'current', currentVersion: '2.0.0' })
 
-    await expect(appUpdateCheckService.queryAvailableVersion()).resolves.toBe('2.1.0-beta.1')
+    await expect(appUpdateCheckService.queryAvailableVersion(UpgradeChannel.LATEST)).resolves.toBe('2.1.0-beta.1')
     appUpdateCheckService.resumeSharedUpdateSession(appUpdateCheckService.invalidateSharedUpdateCheck())
 
-    await expect(appUpdateCheckService.queryAvailableVersion()).resolves.toBeNull()
+    await expect(appUpdateCheckService.queryAvailableVersion(UpgradeChannel.LATEST)).resolves.toBeNull()
+  })
+
+  it('asks the new channel when another window switched it', async () => {
+    request
+      .mockResolvedValueOnce({ status: 'available', currentVersion: '2.0.0', version: '2.1.0' })
+      .mockResolvedValueOnce({ status: 'current', currentVersion: '2.0.0' })
+
+    await expect(appUpdateCheckService.queryAvailableVersion(UpgradeChannel.LATEST)).resolves.toBe('2.1.0')
+
+    await expect(appUpdateCheckService.queryAvailableVersion(UpgradeChannel.BETA)).resolves.toBeNull()
+  })
+
+  it.each([
+    ['the updater reports no update', () => appUpdateCheckService.endManualUpdateCheck()],
+    [
+      'the update finished downloading',
+      () =>
+        appUpdateCheckService.markUpdateDownloaded({
+          version: '2.1.0',
+          files: [],
+          path: 'app.zip',
+          sha512: 'x',
+          releaseDate: '2026-01-01'
+        })
+    ]
+  ])('asks the feed again after %s', async (_, terminalResult) => {
+    request
+      .mockResolvedValueOnce({ status: 'available', currentVersion: '2.0.0', version: '2.1.0' })
+      .mockResolvedValueOnce({ status: 'current', currentVersion: '2.1.0' })
+
+    await expect(appUpdateCheckService.queryAvailableVersion(UpgradeChannel.LATEST)).resolves.toBe('2.1.0')
+    terminalResult()
+
+    await expect(appUpdateCheckService.queryAvailableVersion(UpgradeChannel.LATEST)).resolves.toBeNull()
   })
 })

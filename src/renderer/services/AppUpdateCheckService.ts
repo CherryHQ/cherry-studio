@@ -6,6 +6,7 @@ import { presentedRouteService } from '@renderer/services/PresentedRouteService'
 import { openExternalWebsite } from '@renderer/services/website'
 import { getAppEdition } from '@renderer/utils/appEdition'
 import type { CacheAppUpdateState } from '@shared/data/cache/cacheValueTypes'
+import type { UpgradeChannel } from '@shared/data/preference/preferenceTypes'
 import { officialDownloadUrl } from '@shared/utils/officialLinks'
 
 const logger = loggerService.withContext('AppUpdateCheckService')
@@ -43,7 +44,12 @@ class AppUpdateCheckService {
   /** Manual click that currently owns the check slot. A later click replaces it. */
   private checkOwner = 0
   private nextCheckOwner = 0
-  private availabilityQuery: { session: number; at: number; result: Promise<string | null> } | null = null
+  private availabilityQuery: {
+    session: number
+    channel: UpgradeChannel
+    at: number
+    result: Promise<string | null>
+  } | null = null
   private loadUpdateDialog: (() => Promise<UpdateDialog>) | undefined
 
   /** Composition-layer registration, so this service never imports the dialog component. */
@@ -105,6 +111,7 @@ class AppUpdateCheckService {
   markUpdateDownloaded(info: UpdateInfo): void {
     // The manual check ends here; a click on the downloaded release reopens it explicitly.
     this.manualCheckActive = false
+    this.availabilityQuery = null
     this.phase = 'downloaded'
     this.latestInfo = info
     this.noteSuccessfulUpdateEvent()
@@ -112,6 +119,8 @@ class AppUpdateCheckService {
 
   endManualUpdateCheck(): void {
     this.manualCheckActive = false
+    // A terminal updater result is newer than any cached feed answer.
+    this.availabilityQuery = null
     this.phase = 'idle'
     this.noteUpdateCheckEvent()
   }
@@ -209,16 +218,23 @@ class AppUpdateCheckService {
 
   /**
    * Check-only feed query for the error detail modal; it never downloads.
-   * Concurrent callers share one request, a result is reused for an hour, and failures are not cached.
+   * Concurrent callers share one request, a result is reused for an hour per channel, and failures are not cached.
+   * @param channel the update channel the preferences select now
    * @returns the newer version, or null when current, unsupported, or the query failed
    */
-  queryAvailableVersion(): Promise<string | null> {
+  queryAvailableVersion(channel: UpgradeChannel): Promise<string | null> {
     const cached = this.availabilityQuery
-    if (cached && cached.session === this.session && Date.now() - cached.at < UPDATE_AVAILABILITY_TTL_MS) {
+    if (
+      cached &&
+      cached.session === this.session &&
+      cached.channel === channel &&
+      Date.now() - cached.at < UPDATE_AVAILABILITY_TTL_MS
+    ) {
       return cached.result
     }
     const entry = {
       session: this.session,
+      channel,
       at: Date.now(),
       result: ipcApi.request('app.updater.query_availability').then(
         (availability) => (availability.status === 'available' ? availability.version : null),
