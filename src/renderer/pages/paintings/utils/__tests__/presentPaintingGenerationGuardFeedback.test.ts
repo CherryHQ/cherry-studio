@@ -31,8 +31,8 @@ describe('presentPaintingGenerationGuardFeedback', () => {
           localizedErrorMessage: 'paintings.req_error_model',
           errorContext: expect.objectContaining({
             message: 'catalog down',
-            source: 'paintings',
-            operation: 'painting.catalog',
+            source: 'painting',
+            operation: 'painting.model.load',
             providerId: 'provider-1'
           })
         })

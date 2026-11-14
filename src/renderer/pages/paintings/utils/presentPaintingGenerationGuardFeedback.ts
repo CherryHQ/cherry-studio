@@ -36,8 +36,8 @@ export async function presentPaintingGenerationGuardFeedback(
   if (reason === 'catalog_error') {
     const summary = i18n.t('paintings.req_error_model')
     toastAppError(summary, error, {
-      source: 'paintings',
-      operation: 'painting.catalog',
+      source: 'painting',
+      operation: 'painting.model.load',
       ...(providerId ? { providerId } : {})
     })
     return
