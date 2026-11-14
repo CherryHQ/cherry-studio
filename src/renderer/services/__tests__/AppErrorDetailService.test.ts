@@ -10,16 +10,9 @@ let toastAppError: typeof DetailModule.toastAppError
 let appErrorDetailService: typeof DetailModule.appErrorDetailService
 
 const mocks = vi.hoisted(() => ({
-  degraded: vi.fn<(error: unknown) => boolean>(() => false),
   hostMounted: vi.fn(() => true),
   show: vi.fn(),
   toastError: vi.fn()
-}))
-
-vi.mock('../DegradedFaultHostService', () => ({
-  degradedFaultHostService: {
-    presentDegradedFault: (error: unknown) => mocks.degraded(error)
-  }
 }))
 
 vi.mock('@renderer/services/toast', () => ({
@@ -50,8 +43,6 @@ describe('openAppErrorDetail', () => {
 
     mocks.show.mockReset()
     mocks.toastError.mockReset()
-    mocks.degraded.mockReset()
-    mocks.degraded.mockReturnValue(false)
     mocks.hostMounted.mockReset()
     mocks.hostMounted.mockReturnValue(true)
   })
@@ -85,42 +76,7 @@ describe('openAppErrorDetail', () => {
   it('keeps an open detail without a fallback toast', async () => {
     mocks.show.mockReturnValue(null)
     await expect(appErrorDetailService.openAppErrorDetail({ context })).resolves.toBe('busy')
-    expect(mocks.degraded).not.toHaveBeenCalled()
     expect(mocks.toastError).not.toHaveBeenCalled()
-  })
-
-  it('opens the degraded diagnostics host when no popup host is mounted', async () => {
-    mocks.hostMounted.mockReturnValue(false)
-    mocks.degraded.mockReturnValue(true)
-
-    await expect(appErrorDetailService.openAppErrorDetail({ context })).resolves.toBe('opened')
-    expect(mocks.show).not.toHaveBeenCalled()
-    expect(mocks.degraded).toHaveBeenCalledWith(expect.stringContaining('error.unexpected'))
-    expect(mocks.degraded).toHaveBeenCalledWith(expect.stringContaining('Render failed'))
-    expect(mocks.toastError).not.toHaveBeenCalled()
-  })
-
-  it('keeps the raw stack when no detail host is mounted', async () => {
-    mocks.hostMounted.mockReturnValue(false)
-    mocks.degraded.mockReturnValue(true)
-    const stack = 'Error: disk full\n    at save (files.ts:1:1)'
-
-    await appErrorDetailService.openAppErrorDetail({
-      context: createAppErrorContext({
-        id: 'op-raw-degraded',
-        message: 'disk full',
-        operation: 'file.save',
-        source: 'files',
-        stack
-      }),
-      error: { message: 'disk full', name: 'Error', stack },
-      localizedErrorMessage: 'Could not save the file'
-    })
-
-    const payload = mocks.degraded.mock.calls[0]?.[0]
-    expect(payload).toEqual(expect.stringContaining('Could not save the file'))
-    expect(payload).toEqual(expect.stringContaining('disk full'))
-    expect(payload).toEqual(expect.stringContaining('at save (files.ts:1:1)'))
   })
 
   it('does not promote a raw context message to the visible summary', async () => {
@@ -134,7 +90,7 @@ describe('openAppErrorDetail', () => {
     )
   })
 
-  it('shows a local retry when no popup host and no degraded handler exist', async () => {
+  it('shows a local retry when no popup host is mounted', async () => {
     mocks.hostMounted.mockReturnValue(false)
 
     await expect(appErrorDetailService.openAppErrorDetail({ context })).resolves.toBe('failed')

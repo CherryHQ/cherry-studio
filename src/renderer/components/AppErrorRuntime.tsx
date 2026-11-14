@@ -2,7 +2,6 @@ import { useEffect } from 'react'
 
 import { loggerService } from '@logger'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
-import { degradedFaultHostService } from '@renderer/services/DegradedFaultHostService'
 import { errorDetailPopupService } from '@renderer/services/ErrorDetailPopupService'
 
 const logger = loggerService.withContext('AppErrorRuntime')
@@ -20,7 +19,7 @@ function isBenignFault(error: unknown): boolean {
  * Logger calls are not an input. The detail module loads on the first real fault so
  * this listener does not pull schema or model code into window startup.
  */
-export function AppErrorRuntime({ mode }: { readonly mode: 'main' | 'local' | 'handoff' | 'degraded' }) {
+export function AppErrorRuntime({ mode }: { readonly mode: 'main' | 'local' | 'handoff' }) {
   // Detail service opens this window's popup through the seam; the module stays lazy.
   useEffect(() => {
     errorDetailPopupService.register(() => import('@renderer/components/ErrorDetailModal'))
@@ -30,10 +29,6 @@ export function AppErrorRuntime({ mode }: { readonly mode: 'main' | 'local' | 'h
     const onError = (event: ErrorEvent) => {
       const error = event.error ?? event.message
       if (error === undefined || error === '' || isBenignFault(error)) return
-      if (mode === 'degraded') {
-        if (!degradedFaultHostService.presentDegradedFault(error)) logger.error('Degraded fault host is not registered')
-        return
-      }
       const delivery = mode === 'handoff' ? 'handoff' : 'local'
       void import('@renderer/services/AppErrorDetailService')
         .then(({ presentUncaught }) => presentUncaught(error, 'window.error', delivery))
@@ -41,11 +36,6 @@ export function AppErrorRuntime({ mode }: { readonly mode: 'main' | 'local' | 'h
     }
     const onRejection = (event: PromiseRejectionEvent) => {
       if (isBenignFault(event.reason)) return
-      if (mode === 'degraded') {
-        if (!degradedFaultHostService.presentDegradedFault(event.reason))
-          logger.error('Degraded fault host is not registered')
-        return
-      }
       const delivery = mode === 'handoff' ? 'handoff' : 'local'
       void import('@renderer/services/AppErrorDetailService')
         .then(({ presentUncaught }) => presentUncaught(event.reason, 'window.unhandledrejection', delivery))
@@ -59,8 +49,7 @@ export function AppErrorRuntime({ mode }: { readonly mode: 'main' | 'local' | 'h
     }
   }, [mode])
 
-  // Migration's simplest preload exposes `window.electron` only. `useIpcOn` reads
-  // `window.api.ipcApi` with no guard, so this receiver stays unmounted off main.
+  // Only the main window receives errors handed off from other windows.
   return mode === 'main' ? <MainErrorReceiver /> : null
 }
 

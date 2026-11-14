@@ -1,7 +1,6 @@
 import { act, render, waitFor } from '@testing-library/react'
-import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { degradedFaultHostService } from '@renderer/services/DegradedFaultHostService'
 import { toast } from '@renderer/services/toast'
 import { createAppErrorContext } from '@shared/utils/appError'
 
@@ -9,14 +8,7 @@ import { AppErrorRuntime } from '../AppErrorRuntime'
 
 type IpcListener = (payload: unknown) => void
 
-const originalApi = { current: undefined as PropertyDescriptor | undefined }
-
-beforeAll(() => {
-  originalApi.current = Object.getOwnPropertyDescriptor(globalThis, 'api')
-})
-
 beforeEach(() => {
-  degradedFaultHostService.setDegradedFaultHandler(null)
   vi.mocked(toast.error).mockClear()
   vi.mocked(window.api.ipcApi.request).mockReset().mockResolvedValue(undefined)
   vi.mocked(window.api.ipcApi.on)
@@ -24,33 +16,22 @@ beforeEach(() => {
     .mockImplementation(() => () => undefined)
 })
 
-afterEach(() => {
-  restoreApi(originalApi.current)
-  degradedFaultHostService.setDegradedFaultHandler(null)
-})
-
 describe('AppErrorRuntime', () => {
-  it('delivers window faults to the degraded host when window.api is missing', () => {
-    Reflect.deleteProperty(globalThis, 'api')
-    expect(window.electron.ipcRenderer).toBeTypeOf('object')
-    const seen: unknown[] = []
-    degradedFaultHostService.setDegradedFaultHandler((error) => {
-      seen.push(error)
-    })
-
+  it('reports real window faults until unmount and ignores layout-observer noise', async () => {
     const error = new Error('disk full')
     const reason = new Error('database locked')
-    const { unmount } = render(<AppErrorRuntime mode="degraded" />)
+    const resizeNoise = new Error('ResizeObserver loop completed with undelivered notifications')
+    const { unmount } = render(<AppErrorRuntime mode="local" />)
 
     act(() => {
+      dispatchWindowError(resizeNoise)
       dispatchWindowError(error)
       dispatchRejection(reason)
-      dispatchWindowError(new Error('ResizeObserver loop completed with undelivered notifications'))
     })
-
-    expect(seen[0]).toBe(error)
-    expect(seen[1]).toBe(reason)
-    expect(seen).toHaveLength(2)
+    await waitFor(() => {
+      expect(toastCauses()).toEqual(expect.arrayContaining([error, reason]))
+    })
+    expect(toastCauses()).not.toContain(resizeNoise)
 
     unmount()
     const lateError = new Error('after unmount')
@@ -73,26 +54,40 @@ describe('AppErrorRuntime', () => {
       window.removeEventListener('error', witness)
       window.removeEventListener('unhandledrejection', rejectionWitness)
     }
-    expect(seen).toEqual([error, reason])
     expect(witnessed).toEqual([lateError, lateReason])
+
+    // A fresh runtime's fault lands after any stray late delivery would have.
+    const sentinel = new Error('sentinel')
+    const next = render(<AppErrorRuntime mode="local" />)
+    act(() => {
+      dispatchWindowError(sentinel)
+    })
+    await waitFor(() => {
+      expect(toastCauses()).toContain(sentinel)
+    })
+    expect(toastCauses()).not.toContain(lateError)
+    expect(toastCauses()).not.toContain(lateReason)
+    next.unmount()
   })
 
-  it('ignores aborted and permission-denied rejections but still reports real faults', () => {
-    const seen: unknown[] = []
-    degradedFaultHostService.setDegradedFaultHandler((error) => {
-      seen.push(error)
-    })
+  it('ignores aborted and permission-denied rejections but still reports real faults', async () => {
+    const notAllowed = new DOMException('Document is not focused.', 'NotAllowedError')
+    const domAbort = new DOMException('The operation was aborted.', 'AbortError')
+    const errorAbort = Object.assign(new Error('aborted'), { name: 'AbortError' })
     const real = new Error('database locked')
-    const { unmount } = render(<AppErrorRuntime mode="degraded" />)
+    const { unmount } = render(<AppErrorRuntime mode="local" />)
 
     act(() => {
-      dispatchRejection(new DOMException('Document is not focused.', 'NotAllowedError'))
-      dispatchRejection(new DOMException('The operation was aborted.', 'AbortError'))
-      dispatchRejection(Object.assign(new Error('aborted'), { name: 'AbortError' }))
+      dispatchRejection(notAllowed)
+      dispatchRejection(domAbort)
+      dispatchRejection(errorAbort)
       dispatchRejection(real)
     })
 
-    expect(seen).toEqual([real])
+    await waitFor(() => {
+      expect(toastCauses()).toContain(real)
+    })
+    expect(toastCauses()).toEqual([real])
     unmount()
   })
 
@@ -199,16 +194,12 @@ function attachIpcBridge() {
   }
 }
 
-function restoreApi(descriptor: PropertyDescriptor | undefined) {
-  if (descriptor) {
-    Object.defineProperty(globalThis, 'api', descriptor)
-    return
-  }
-  Reflect.deleteProperty(globalThis, 'api')
-}
-
 function toastNotices() {
   return vi.mocked(toast.error).mock.calls.flatMap(([notice]) => (typeof notice === 'string' ? [] : [notice]))
+}
+
+function toastCauses(): unknown[] {
+  return toastNotices().map((notice) => notice.cause)
 }
 
 function errorContextOf(data: unknown): unknown {
