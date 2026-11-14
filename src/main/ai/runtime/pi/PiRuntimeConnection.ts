@@ -80,6 +80,7 @@ import { buildPiMcpToolName, createPiMcpExtension } from './piMcpExtension'
 import { PiMessageMetadata, resolvePiMcpToolMetadata } from './PiMessageMetadata'
 import { loadPiSdk } from './piSdk'
 import { buildPiLoginPathPrefix, mergePiShellExecutionEnv, resolvePiShellPath } from './piShell'
+import { withPiShellTimeout } from './piShellTimeout'
 import { PiTurnUsage } from './PiTurnUsage'
 
 const logger = loggerService.withContext('PiRuntimeConnection')
@@ -181,7 +182,8 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       agentDataPath,
       agent,
       citationsGuidance,
-      effectiveLanguage: initialSnapshot.effectiveLanguage
+      effectiveLanguage: initialSnapshot.effectiveLanguage,
+      modelName: initialSnapshot.model.name ?? initialSnapshot.model.id
     })
     const mountedServers = resolveMountedMcpServers(agent, {
       browserEnabled: application.get('PreferenceService').get('app.browser.agent_control.enabled'),
@@ -228,7 +230,9 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       initialSnapshot.mcpServerSnapshots,
       linkedChannel,
       agentDataPath,
-      this.input.knowledgeBaseIds
+      this.input.knowledgeBaseIds,
+      undefined,
+      this.input.modelId
     )
 
     const finalSnapshot = await capturePiConnectionSnapshot(
@@ -284,17 +288,17 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       commandPrefix: loginPathPrefix,
       shellPath,
       spawnHook: (context) => ({ ...context, env: mergePiShellExecutionEnv(context.env) })
-    }) as ToolDefinition
+    })
     const managedShellTools = [
       managedBashTool,
       ...(process.platform === 'win32'
         ? [
             pi.createPowerShellToolDefinition(workspacePath, {
               spawnHook: (context) => ({ ...context, env: mergePiShellExecutionEnv(context.env) })
-            }) as ToolDefinition
+            })
           ]
         : [])
-    ]
+    ].map(withPiShellTimeout) as ToolDefinition[]
     const toolCallId = async (call: CallRef) => {
       const opened = await this.runtime!.open({ backendId: runtimeId(this.context!.backendId), id: call.thread })
       if (opened.status !== 'confirmed') throw new Error(opened.error.message)

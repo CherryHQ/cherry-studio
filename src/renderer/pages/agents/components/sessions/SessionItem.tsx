@@ -10,6 +10,7 @@ import type {
   SessionActionContext,
   SessionExportMenuOptions
 } from '@renderer/components/chat/actions/sessionItemActions'
+import { useSessionMenuActions } from '@renderer/components/chat/actions/useSessionMenuActions'
 import { useOptionalRightPanelActions, useOptionalRightPanelState } from '@renderer/components/chat/panes/Shell'
 import {
   CONVERSATION_ROW_STATUS_TITLE_CLASS,
@@ -19,7 +20,6 @@ import {
   useResourceListRowState
 } from '@renderer/components/chat/resourceList/base'
 import { SessionHoverPreview } from '@renderer/components/chat/resourceList/SessionHoverPreview'
-import { useSessionMenuActions } from '@renderer/hooks/chat/useSessionMenuActions'
 import { useTopicRenameState } from '@renderer/hooks/chat/useTopicRenameState'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { buildAgentSessionTopicId, getChannelTypeIcon } from '@renderer/utils/agentSession'

@@ -287,17 +287,14 @@ describe('McpServerService', () => {
       expect(() => mcpServerService.create({ name: '   ' })).toThrow(DataApiError)
     })
 
-    it('rejects an enabled QVeris server without an API key', () => {
-      expect(() =>
-        mcpServerService.create({
-          name: '@cherry/qveris',
-          type: 'inMemory',
-          env: { QVERIS_API_KEY: '' },
-          isActive: true
-        })
-      ).toThrow(DataApiError)
-
-      expect(dbh.db.select().from(mcpServerTable).all()).toEqual([])
+    it('accepts an enabled QVeris server without an API key (OAuth sign-in by default)', () => {
+      const created = mcpServerService.create({
+        name: '@cherry/qveris',
+        type: 'inMemory',
+        env: { QVERIS_API_KEY: '' },
+        isActive: true
+      })
+      expect(created.isActive).toBe(true)
     })
 
     it('persists the actual Marketplace ZoneFoundry preset before credentials or activation', () => {
@@ -406,13 +403,9 @@ describe('McpServerService', () => {
       expect(err).toMatchObject({ code: ErrorCode.VALIDATION_ERROR })
     })
 
-    it('requires an API key before enabling QVeris', async () => {
+    it('enables QVeris without an API key since OAuth sign-in is a valid configuration', async () => {
       await seedServer({ name: '@cherry/qveris', type: 'inMemory', env: { QVERIS_API_KEY: '' }, isActive: false })
 
-      expect(() => mcpServerService.update('srv-1', { isActive: true })).toThrow(DataApiError)
-      expect(mcpServerService.getById('srv-1').isActive).toBe(false)
-
-      mcpServerService.update('srv-1', { env: { QVERIS_API_KEY: 'qveris-test-key' } })
       expect(mcpServerService.update('srv-1', { isActive: true }).isActive).toBe(true)
     })
   })

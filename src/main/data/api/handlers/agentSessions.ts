@@ -1,7 +1,8 @@
 /**
  * Agent session domain API handlers.
  *
- * Sessions are pure agent instances. Cognitive config (model / instructions /
+ * Sessions are agent instances with a per-session model override (`model`,
+ * null follows the parent agent). Remaining cognitive config (instructions /
  * mcps / disabledTools / configuration) lives on the parent agent and is
  * fetched separately; the selected workspace is exposed as a normalized
  * session relation.
@@ -26,7 +27,7 @@ export const agentSessionHandlers: HandlersFor<AgentSessionSchemas> = {
     GET: async ({ query }) => {
       const parsed = ListAgentSessionsQuerySchema.safeParse(query ?? {})
       if (!parsed.success) throw toDataApiError(parsed.error)
-      return agentSessionService.listByCursor(parsed.data)
+      return agentSessionService.listByCursor({ ...parsed.data, scope: 'ordinary' })
     },
 
     POST: async ({ body }) => {

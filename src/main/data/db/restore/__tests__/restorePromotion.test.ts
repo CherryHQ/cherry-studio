@@ -36,7 +36,7 @@ import { appStateTable } from '@data/db/schemas/appState'
  * Crash matrix for the restore promotion gate.
  *
  * Strategy: fake userData via a shadowed `@application.getPath` (mirrors
- * v2MigrationGate.test.ts), everything else REAL — real SQLite files built by
+ * legacyUpgradeGate.test.ts), everything else REAL — real SQLite files built by
  * the production applyMigrations, real renames on a real temp FS. Each case
  * ends in one of exactly two states: the old database is intact and live, or
  * the new database is complete and live. No third state may exist.

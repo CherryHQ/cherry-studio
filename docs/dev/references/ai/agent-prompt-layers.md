@@ -92,11 +92,13 @@ next turn boundary; workspace prompt files retain their existing lifecycle.
 
 ## Update and variable lifecycle
 
-Saving `agent.instructions` invalidates the connection rebuild signature. Changes to `app.user.name` and the Agent's resolved primary model name also invalidate it because they affect `{{username}}` and `{{model_name}}`. An idle stale connection closes eagerly; a live response finishes with its captured prompt; the next fresh model turn rebuilds and sees the saved value.
+Saving `agent.instructions` invalidates the connection rebuild signature. Changes to `app.user.name` and the effective connection model name also invalidate it because they affect `{{username}}` and `{{model_name}}`. An idle stale connection closes eagerly; a live response finishes with its captured prompt; the next fresh model turn rebuilds and sees the saved value.
 
 System Prompt variables are resolved by `buildAgentRuntimePrompt` when an Agent
-runtime connection is created or rebuilt. `{{model_name}}` uses the Agent's
-resolved primary model name. Volatile values such as `{{date}}`, `{{time}}`,
+runtime connection is created or rebuilt. `{{model_name}}` uses the effective connection model name: the session override
+when configured for an interactive turn, otherwise the Agent default. Headless
+(scheduled or responder-less) runs use the Agent default and ignore session
+overrides. Volatile values such as `{{date}}`, `{{time}}`,
 and `{{datetime}}` remain connection snapshots until another rebuild; they do
 not force a rebuild every turn.
 

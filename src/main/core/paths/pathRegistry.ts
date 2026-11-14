@@ -85,6 +85,7 @@ export function buildPathRegistry() {
     'app.root.resources.binaries': path.join(appRootResources, 'binaries'),
     'app.utility_process': path.join(app.getAppPath(), 'out', 'utility-process'), // utility-process entry bundles
     'app.exe_file': app.getPath('exe'),
+    'app.portable_executable': process.env.PORTABLE_EXECUTABLE_FILE || '',
     'app.install': path.dirname(app.getPath('exe')), // directory containing the executable
     'app.logs': LOGS_DIR,
     'app.crash_dumps': app.getPath('crashDumps'),
@@ -296,6 +297,7 @@ export function buildPathRegistry() {
     'feature.ocr.paddleocr': path.join(appUserDataRuntime, 'models', 'pp-ocrv6'),
 
     // Version log
+    'feature.legacy_upgrade.cache': path.join(CHERRY_HOME, 'cache', 'legacy-upgrade'),
     'feature.version_log.file': path.join(appUserData, 'version.log'),
 
     // Backup restore promotion — the journal sidecar is owned by
@@ -351,6 +353,7 @@ export function buildPathRegistry() {
     'v1.trace': path.join(CHERRY_HOME, 'trace'),
     'v1.cli.install': path.join(CHERRY_HOME, 'install'),
     'v1.database.file': path.join(appUserData, 'cherrystudio.sqlite'),
+    'v1.home_config_file': path.join(CHERRY_HOME, 'config', 'config.json'),
     'v1.agents.claude': path.join(appUserData, '.claude'),
 
     // -- F. external.* — third-party tool paths (Cherry reads/writes, does NOT own) --

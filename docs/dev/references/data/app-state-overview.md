@@ -3,7 +3,7 @@ description: app_state SQLite table for durable owner-private completion and rec
 sources:
   - src/main/data/db/schemas/appState.ts
   - src/main/data/db/seeding/SeedRunner.ts
-  - src/main/data/migration/v2/core/MigrationEngine.ts
+  - src/main/data/migration/migrationStatus.ts
   - src/main/services/file/tasks/contentMetadataGeneration.ts
 ---
 
@@ -79,7 +79,7 @@ Every key currently in `app_state`. Add a row when introducing a key.
 | `seed:<name>`         | `SeedRunner`     | `{ version: string }`   | Seeding journal, one row per seeder. See [Database Seeding Guide](./database-seeding-guide.md).                                                                                                              |
 | `seedRunner:bootstrapCompleted` | `SeedRunner` | `{ completedAt: number }` | Bootstrap-window marker — set after the first fully-successful seeding pass; `bootstrap-only` seeders never run once present. Done-event key (see Disposability exception): never rename once shipped. |
 | `fileManager:contentMetadataGeneration` | `FileManager` | `{ version: number }` | Trust generation for internal-file `size` / `contentHash`; a version change atomically invalidates old hashes before background reconciliation. |
-| `migration_v2_status` | `MigrationEngine` | `MigrationStatusValue`  | **Grandfathered exception.** Bare key predating the `<scope>:` convention. Do not rename and do not model new keys on it. |
+| `migration_v2_status` | `migrationStatus.ts` (read-only) | historical conversion status  | **Grandfathered exception.** Bare key predating the `<scope>:` convention. Do not rename and do not model new keys on it. |
 | `agent-runtime-migration:<sessionId>` | `retiredAgentRuntimeMigration` | `{ sessionId: string, resumeToken: string }` | Pending DSH-to-Pi session-history migration. Retained for retry on failure; removed atomically after the imported Pi history and checkpoints are committed. |
 
 ## Related Source Code
@@ -88,7 +88,7 @@ Every key currently in `app_state`. Add a row when introducing a key.
 | ----------------------------------------------------- | ----------------------------- |
 | `src/main/data/db/schemas/appState.ts`                | Table schema                  |
 | `src/main/data/db/seeding/SeedRunner.ts`              | `seed:*` owner                |
-| `src/main/data/migration/v2/core/MigrationEngine.ts`  | `migration_v2_status` owner   |
+| `src/main/data/migration/migrationStatus.ts`  | `migration_v2_status` owner   |
 
 ## Related Documentation
 
