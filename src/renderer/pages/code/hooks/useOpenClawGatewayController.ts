@@ -79,6 +79,7 @@ export function useOpenClawGatewayController({
     })
     if (!parsedModelId) return
 
+    let step = 'openclaw.sync_config'
     try {
       setLaunching(true)
       const syncResult = await ipcApi.request('openclaw.sync_config', {
@@ -96,6 +97,7 @@ export function useOpenClawGatewayController({
         return
       }
 
+      step = 'openclaw.start_gateway'
       const startResult = await ipcApi.request('openclaw.start_gateway', { port: gatewayPort })
       if (!startResult.success) {
         const detail = startResult.message?.trim()
@@ -108,13 +110,11 @@ export function useOpenClawGatewayController({
         return
       }
 
+      step = 'openclaw.open_dashboard'
       await openDashboard()
     } catch (err) {
       logger.error('Failed to launch OpenClaw dashboard:', err as Error)
-      toastAppError(t('code.launch.error'), err, {
-        source: 'code.openclaw',
-        operation: 'openclaw.start_gateway'
-      })
+      toastAppError(t('code.launch.error'), err, { source: 'code.openclaw', operation: step })
     } finally {
       setLaunching(false)
     }
@@ -152,7 +152,7 @@ export function useOpenClawGatewayController({
       logger.error('Failed to open OpenClaw dashboard:', err as Error)
       toastAppError(t('code.launch.error'), err, {
         source: 'code.openclaw',
-        operation: 'openclaw.get_dashboard_url'
+        operation: 'openclaw.open_dashboard'
       })
     }
   }, [openDashboard, t])
