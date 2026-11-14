@@ -20,6 +20,8 @@ import { useWebdavBackupModal, WebdavBackupModal } from '@renderer/components/We
 import { useBackupSyncState } from '@renderer/hooks/useBackupSyncState'
 import { useTheme } from '@renderer/hooks/useTheme'
 
+import BackupScheduleSettings, { isBackupScheduleActive } from './BackupScheduleSettings'
+
 const SYNC_STATUS_COLOR = 'var(--muted-foreground)'
 
 const WebDavSettings: FC = () => {
@@ -34,6 +36,7 @@ const WebDavSettings: FC = () => {
   const [webdavPath, setWebdavPath] = usePreference('data.backup.webdav.path')
   const [webdavSkipBackupFile, setWebdavSkipBackupFile] = usePreference('data.backup.webdav.skip_backup_file')
   const [webdavSyncInterval, setWebdavSyncInterval] = usePreference('data.backup.webdav.sync_interval')
+  const [backupSchedule] = usePreference('data.backup.webdav.schedule')
   const [webdavUser, setWebdavUser] = usePreference('data.backup.webdav.user')
 
   const [backupManagerVisible, setBackupManagerVisible] = useState(false)
@@ -161,27 +164,29 @@ const WebDavSettings: FC = () => {
         </RowFlex>
       </SettingRow>
       <SettingDivider />
-      <SettingRow>
-        <SettingRowTitle>{t('settings.data.webdav.autoSync.label')}</SettingRowTitle>
-        <Selector
-          size={14}
-          value={webdavSyncInterval}
-          onChange={onSyncIntervalChange}
-          disabled={!webdavHost}
-          options={[
-            { label: t('settings.data.webdav.autoSync.off'), value: 0 },
-            { label: t('settings.data.webdav.minute_interval', { count: 1 }), value: 1 },
-            { label: t('settings.data.webdav.minute_interval', { count: 5 }), value: 5 },
-            { label: t('settings.data.webdav.minute_interval', { count: 15 }), value: 15 },
-            { label: t('settings.data.webdav.minute_interval', { count: 30 }), value: 30 },
-            { label: t('settings.data.webdav.hour_interval', { count: 1 }), value: 60 },
-            { label: t('settings.data.webdav.hour_interval', { count: 2 }), value: 120 },
-            { label: t('settings.data.webdav.hour_interval', { count: 6 }), value: 360 },
-            { label: t('settings.data.webdav.hour_interval', { count: 12 }), value: 720 },
-            { label: t('settings.data.webdav.hour_interval', { count: 24 }), value: 1440 }
-          ]}
-        />
-      </SettingRow>
+      <BackupScheduleSettings scheduleKey="data.backup.webdav.schedule" disabled={!webdavHost}>
+        <SettingRow>
+          <SettingRowTitle>{t('settings.data.webdav.autoSync.label')}</SettingRowTitle>
+          <Selector
+            size={14}
+            value={webdavSyncInterval}
+            onChange={onSyncIntervalChange}
+            disabled={!webdavHost}
+            options={[
+              { label: t('settings.data.webdav.autoSync.off'), value: 0 },
+              { label: t('settings.data.webdav.minute_interval', { count: 1 }), value: 1 },
+              { label: t('settings.data.webdav.minute_interval', { count: 5 }), value: 5 },
+              { label: t('settings.data.webdav.minute_interval', { count: 15 }), value: 15 },
+              { label: t('settings.data.webdav.minute_interval', { count: 30 }), value: 30 },
+              { label: t('settings.data.webdav.hour_interval', { count: 1 }), value: 60 },
+              { label: t('settings.data.webdav.hour_interval', { count: 2 }), value: 120 },
+              { label: t('settings.data.webdav.hour_interval', { count: 6 }), value: 360 },
+              { label: t('settings.data.webdav.hour_interval', { count: 12 }), value: 720 },
+              { label: t('settings.data.webdav.hour_interval', { count: 24 }), value: 1440 }
+            ]}
+          />
+        </SettingRow>
+      </BackupScheduleSettings>
       <SettingDivider />
       <SettingRow>
         <SettingRowTitle>{t('settings.data.webdav.maxBackups')}</SettingRowTitle>
@@ -229,7 +234,7 @@ const WebDavSettings: FC = () => {
       <SettingRow>
         <SettingHelpText>{t('settings.data.webdav.allowSelfSignedTls.help')}</SettingHelpText>
       </SettingRow>
-      {webdavSync && webdavSyncInterval > 0 && (
+      {isBackupScheduleActive(backupSchedule, webdavSync && webdavSyncInterval > 0) && (
         <>
           <SettingDivider />
           <SettingRow>

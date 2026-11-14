@@ -33,6 +33,7 @@ import { toast } from '@renderer/services/toast'
 import { openExternalWebsite } from '@renderer/services/website'
 import { NUTSTORE_HOST } from '@shared/utils/nutstore'
 
+import BackupScheduleSettings, { isBackupScheduleActive } from './BackupScheduleSettings'
 import NutstorePathPopup from './NutstorePathPopup'
 
 const SYNC_STATUS_COLOR = 'var(--muted-foreground)'
@@ -47,6 +48,7 @@ const NutstoreSettings: FC = () => {
   const [nutstorePath, setNutstorePath] = usePreference('data.backup.nutstore.path')
   const [nutstoreSkipBackupFile, setNutstoreSkipBackupFile] = usePreference('data.backup.nutstore.skip_backup_file')
   const [nutstoreSyncInterval, setNutstoreSyncInterval] = usePreference('data.backup.nutstore.sync_interval')
+  const [backupSchedule] = usePreference('data.backup.nutstore.schedule')
   const [nutstoreToken, setNutstoreToken] = usePreference('data.backup.nutstore.token')
 
   const [nutstoreUsername, setNutstoreUsername] = useState<string | undefined>(undefined)
@@ -284,27 +286,29 @@ const NutstoreSettings: FC = () => {
             </RowFlex>
           </SettingRow>
           <SettingDivider />
-          <SettingRow>
-            <SettingRowTitle>{t('settings.data.webdav.autoSync.label')}</SettingRowTitle>
-            <Selector
-              size={14}
-              value={nutstoreSyncInterval}
-              onChange={onSyncIntervalChange}
-              options={[
-                { label: t('settings.data.webdav.autoSync.off'), value: 0 },
-                { label: t('settings.data.webdav.minute_interval', { count: 1 }), value: 1 },
-                { label: t('settings.data.webdav.minute_interval', { count: 5 }), value: 5 },
-                { label: t('settings.data.webdav.minute_interval', { count: 15 }), value: 15 },
-                { label: t('settings.data.webdav.minute_interval', { count: 30 }), value: 30 },
-                { label: t('settings.data.webdav.hour_interval', { count: 1 }), value: 60 },
-                { label: t('settings.data.webdav.hour_interval', { count: 2 }), value: 120 },
-                { label: t('settings.data.webdav.hour_interval', { count: 6 }), value: 360 },
-                { label: t('settings.data.webdav.hour_interval', { count: 12 }), value: 720 },
-                { label: t('settings.data.webdav.hour_interval', { count: 24 }), value: 1440 }
-              ]}
-            />
-          </SettingRow>
-          {nutstoreAutoSync && nutstoreSyncInterval > 0 && (
+          <BackupScheduleSettings scheduleKey="data.backup.nutstore.schedule">
+            <SettingRow>
+              <SettingRowTitle>{t('settings.data.webdav.autoSync.label')}</SettingRowTitle>
+              <Selector
+                size={14}
+                value={nutstoreSyncInterval}
+                onChange={onSyncIntervalChange}
+                options={[
+                  { label: t('settings.data.webdav.autoSync.off'), value: 0 },
+                  { label: t('settings.data.webdav.minute_interval', { count: 1 }), value: 1 },
+                  { label: t('settings.data.webdav.minute_interval', { count: 5 }), value: 5 },
+                  { label: t('settings.data.webdav.minute_interval', { count: 15 }), value: 15 },
+                  { label: t('settings.data.webdav.minute_interval', { count: 30 }), value: 30 },
+                  { label: t('settings.data.webdav.hour_interval', { count: 1 }), value: 60 },
+                  { label: t('settings.data.webdav.hour_interval', { count: 2 }), value: 120 },
+                  { label: t('settings.data.webdav.hour_interval', { count: 6 }), value: 360 },
+                  { label: t('settings.data.webdav.hour_interval', { count: 12 }), value: 720 },
+                  { label: t('settings.data.webdav.hour_interval', { count: 24 }), value: 1440 }
+                ]}
+              />
+            </SettingRow>
+          </BackupScheduleSettings>
+          {isBackupScheduleActive(backupSchedule, nutstoreAutoSync && nutstoreSyncInterval > 0) && (
             <>
               <SettingDivider />
               <SettingRow>

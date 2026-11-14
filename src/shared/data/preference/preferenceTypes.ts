@@ -34,6 +34,19 @@ export type PreferenceShortcutType = {
   enabled: boolean
 }
 
+export type BackupScheduleMode = 'interval' | 'daily' | 'off'
+
+/** One clock time (`HH:mm`, local) with a weekday filter (0 = Sunday); empty `days` means every day. */
+export type BackupScheduleEntry = {
+  time: string
+  days: number[]
+}
+
+export type BackupSchedule = {
+  mode: BackupScheduleMode
+  entries: BackupScheduleEntry[]
+}
+
 /** Global menu presentation mode: native system menus or Cherry custom menus. */
 export type MenuPresentationMode = 'native' | 'cherry'
 
