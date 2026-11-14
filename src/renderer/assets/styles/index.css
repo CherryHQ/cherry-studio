@@ -239,3 +239,31 @@
     display: none;
   }
 }
+
+/* Let the user-defined background image (useBackgroundImage) show through the main surfaces.
+   Lives in @layer app so unlayered user custom CSS keeps winning over it
+   (docs/dev/references/components/ui-semantic-contract.md); the token contract sits in
+   @layer theme via packages/ui theme.css, so these rules still override the defaults.
+   `--chat-message-well-solid` stays untouched: image exports have no window behind them.
+   ThemeProvider puts `.dark` on both <html> and <body>, so the root rule resolves
+   `var(--cs-*)` against the dark providers in dark mode. The token contract additionally
+   redeclares `--composer-surface` / `--chat-message-well` at body scope, where an
+   inherited :root treatment loses (opaque composer) — those two tokens get a body-scoped
+   rule. `--background` / `--sidebar` / `--card` stay at :root only: they have no
+   body-scoped declaration to beat, and redeclaring them on body would shadow unlayered
+   user custom CSS (e.g. `:root { --background: green }`) that body would otherwise
+   inherit. */
+@layer app {
+  :root[data-custom-background] {
+    --background: color-mix(in srgb, var(--cs-background) 60%, transparent);
+    --sidebar: color-mix(in srgb, var(--cs-sidebar) 60%, transparent);
+    --card: color-mix(in srgb, var(--cs-card) 60%, transparent);
+    --chat-message-well: color-mix(in srgb, var(--chat-message-well-solid) 60%, transparent);
+    --composer-surface: color-mix(in srgb, var(--cs-card) 60%, transparent);
+  }
+
+  :root[data-custom-background] body.dark {
+    --chat-message-well: color-mix(in srgb, var(--chat-message-well-solid) 60%, transparent);
+    --composer-surface: color-mix(in srgb, var(--cs-card) 60%, transparent);
+  }
+}

@@ -40,7 +40,9 @@ describe('buildThemeContractCss', () => {
     const stylesDir = path.resolve(import.meta.dirname, '../../src/styles')
     const css = buildThemeContractCss(await loadThemeContractInputs(stylesDir))
 
-    expect(css).toContain("@import './contract.css';")
+    // The contract loads in the `theme` cascade layer so layered app rules can
+    // override token definitions while unlayered user custom CSS keeps winning.
+    expect(css).toContain("@import './contract.css' layer(theme);")
     expect(css).not.toContain("@import './tokens.css';")
     expect(css).not.toContain("@import './shadcn.css';")
     expect(css).toContain('@theme inline {')

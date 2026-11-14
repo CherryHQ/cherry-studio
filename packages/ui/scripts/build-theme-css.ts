@@ -156,7 +156,13 @@ export function buildThemeContractCss(inputs: ThemeContractInputs): string {
  * contract to change the source.
  */
 
-@import './contract.css';
+/*
+ * The token contract loads in the \`theme\` cascade layer, before \`app\`: layered
+ * application rules (such as the custom-background-image surface treatment) can
+ * intentionally override token definitions, while unlayered user custom CSS keeps
+ * winning over both (docs/dev/references/components/ui-semantic-contract.md).
+ */
+@import './contract.css' layer(theme);
 
 @theme inline {
 ${sections.filter(Boolean).join('\n\n')}

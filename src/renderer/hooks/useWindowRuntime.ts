@@ -8,6 +8,7 @@ import { useAgentTabIconChangeSync } from '@renderer/hooks/agent/useAgentTabIcon
 import { useAgentSessionAutoRenameSync } from '@renderer/hooks/agent/useSession'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { useConversationTabTitleChangeSync } from '@renderer/hooks/tab'
+import { useBackgroundImage } from '@renderer/hooks/useBackgroundImage'
 import { useCustomCss } from '@renderer/hooks/useCustomCss'
 import { useLanguageSync } from '@renderer/hooks/useLanguageSync'
 import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
@@ -77,6 +78,7 @@ export function useWindowRuntime(): void {
   useLanguageSync()
   useWebSearchFallbackNotice()
   useCustomCss()
+  useBackgroundImage()
   useDayjsLocaleSync()
   useAppPathSnapshot()
 
