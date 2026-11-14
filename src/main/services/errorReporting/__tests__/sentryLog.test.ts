@@ -52,10 +52,18 @@ vi.unmock('@logger')
 vi.unmock('winston')
 vi.unmock('winston-daily-rotate-file')
 vi.mock('@main/core/paths/constants', () => ({ LOGS_DIR: tmpLogsDir }))
-vi.mock('@main/ipc/handlers/ipcHandlers', () => ({ ipcHandlers: {} }))
+vi.mock('@main/ipc/handlers/ipcHandlers', async () => {
+  const { agentHandlers } = await import('@main/ipc/handlers/agent')
+  return {
+    ipcHandlers: {
+      'agent.memory.read': agentHandlers['agent.memory.read'],
+      'agent.memory.write': agentHandlers['agent.memory.write']
+    }
+  }
+})
 vi.mock('node:fs/promises', async (importOriginal) => {
   const actual = await importOriginal<typeof FsPromises>()
-  return { ...actual, access: vi.fn(actual.access) }
+  return { ...actual, access: vi.fn(actual.access), writeFile: vi.fn(actual.writeFile) }
 })
 vi.mock('@sentry/electron/main', () => ({ captureException: captureExceptionMock, captureEvent: captureEventMock }))
 vi.mock('@application', async () => {
@@ -108,6 +116,70 @@ afterEach(async () => {
 })
 
 describe('Sentry log reporting', () => {
+  it.each([
+    { kind: 'conflict', message: 'AGENT_MEMORY_CONFLICT', reports: 0 },
+    { kind: 'read-only', message: 'AGENT_MEMORY_READ_ONLY', reports: 0 },
+    { kind: 'draft-too-large', message: 'AGENT_MEMORY_TOO_LARGE', reports: 0 },
+    { kind: 'stored-too-large', message: 'AGENT_MEMORY_TOO_LARGE', reports: 0 },
+    { kind: 'io-fault', message: 'Agent memory fixture write failed', reports: 1 },
+    { kind: 'application-fault', message: 'Agent memory fixture write failed', reports: 1 }
+  ])('preserves memory contents and reporting policy for $kind writes', async ({ kind, message, reports }) => {
+    setConsent(true)
+    const root = await mkdtemp(path.join(tmpdir(), 'agent-memory-reporting-'))
+    const agentId = 'reporting-agent'
+    const directory = path.join(root, agentId)
+    const memoryDirectory = path.join(directory, 'memory')
+    await mkdir(memoryDirectory, { recursive: true })
+    await writeFile(path.join(directory, 'SOUL.md'), '# Soul\n')
+    await writeFile(path.join(directory, 'USER.md'), '# User\n')
+    const key = kind === 'read-only' ? 'journal' : 'fact'
+    const target = path.join(memoryDirectory, key === 'journal' ? 'JOURNAL.jsonl' : 'FACT.md')
+    let expectedContent = kind === 'stored-too-large' ? 'x'.repeat(1024 * 1024 + 1) : '# Stored memory\n'
+    await writeFile(target, expectedContent)
+    const appRoot = vi.spyOn(application, 'getPath').mockReturnValue(root)
+    const ipc = new IpcApiService()
+    try {
+      await ipc._doInit()
+      const request = vi
+        .mocked(ipcMain.handle)
+        .mock.calls.find(([channel]) => channel === IpcChannel.IpcApi_Request)![1]
+      const event = {
+        sender: { getType: () => 'window' },
+        senderFrame: { url: pathToFileURL(path.join(root, 'index.html')).href, parent: null }
+      } as Electron.IpcMainInvokeEvent
+      const snapshot = await request(event, 'agent.memory.read', { agentId })
+      expect(snapshot.ok).toBe(true)
+      const version = snapshot.data.files.find((file: { key: string }) => file.key === key).version
+      if (kind === 'conflict') {
+        expectedContent = '# Changed by another editor\n'
+        await writeFile(target, expectedContent)
+      } else if (kind === 'io-fault' || kind === 'application-fault') {
+        const error = kind === 'io-fault' ? Object.assign(new Error(message), { code: 'EIO' }) : new TypeError(message)
+        vi.mocked(writeFile).mockRejectedValueOnce(error)
+      }
+
+      const result = await request(event, 'agent.memory.write', {
+        agentId,
+        key,
+        content: kind === 'draft-too-large' ? '中'.repeat(400_000) : '# My edit\n',
+        expectedVersion: version
+      })
+      await drainLogs()
+      expect(result).toEqual({ ok: false, error: { code: 'INTERNAL', message, reportingHandled: true } })
+      expect(await readFile(target, 'utf8')).toBe(expectedContent)
+      expect(captureExceptionMock.mock.calls).toHaveLength(reports)
+      expect(captureEventMock.mock.calls).toHaveLength(0)
+      if (reports) {
+        const [, context] = captureExceptionMock.mock.calls[0]
+        expect(context.tags).toMatchObject({ operation: 'agent.memory.write', 'failure.kind': 'unknown' })
+      }
+    } finally {
+      await ipc._doDestroy()
+      appRoot.mockRestore()
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
   it.each(['AbortError', 'ERR_CANCELED'])('keeps %s IPC cancellations local', async (kind) => {
     setConsent(true)
     const error = Object.assign(new Error('cancelled'), kind === 'AbortError' ? { name: kind } : { code: kind })

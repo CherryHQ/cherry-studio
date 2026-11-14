@@ -150,6 +150,8 @@ retain the error, while reporting receives only stable facts and stack frames.
 SQL text, parameters, remote responses and file contents are not reporting fields.
 The IpcApi fallback uses the same projection for unowned handler failures, including
 JSON parse errors. Its structured IPC response retains the original error message.
+Agent memory writes classify version conflicts, read-only journals and size limits
+as expected at their rejection sites; unknown I/O and application failures remain eligible.
 These helpers do not resolve lifecycle services or depend on Sentry.
 
 Logged failures require valid domain classification; error severity, a stack,
