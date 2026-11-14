@@ -25,6 +25,7 @@ import {
   resolveNewlineShortcut,
   resolveSendShortcut
 } from '@renderer/utils/input'
+import { textDirection } from '@renderer/utils/textDirection'
 
 import { ComposerFocusShortcut } from './ComposerFocusShortcut'
 import { COMPOSER_INPUT_MAX_LENGTH } from './composerLimits'
@@ -351,7 +352,7 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
             className="min-w-0 flex-1 [-webkit-app-region:no-drag]"
             style={{ height: editorMinHeight }}>
             <textarea
-              dir="auto"
+              dir={textDirection(props.text)}
               ref={textareaRef}
               data-voice-target-id={voiceTargetId}
               aria-label={props.placeholder}

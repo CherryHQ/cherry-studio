@@ -886,3 +886,41 @@
   position: absolute;
   display: none;
 }
+
+/*
+ * Majority-vote bidi (rehypeTextDirection): blocks carry an explicit `dir`.
+ * Keep `unicode-bidi: normal` so that dir is honored per block and nested
+ * blocks inherit the ancestor's direction instead of recomputing from their
+ * own first strong character. Code blocks keep LTR (excluded from the vote).
+ */
+.markdown p[dir],
+.markdown li[dir],
+.markdown blockquote[dir],
+.markdown td[dir],
+.markdown th[dir],
+.markdown h1[dir],
+.markdown h2[dir],
+.markdown h3[dir],
+.markdown h4[dir],
+.markdown h5[dir],
+.markdown h6[dir] {
+  unicode-bidi: normal;
+}
+
+.markdown blockquote[dir='rtl'] {
+  border-left: none;
+  border-right: 2px solid var(--primary);
+  border-radius: var(--radius-md) 0 0 var(--radius-md);
+}
+
+/*
+ * Code surfaces stay LTR even inside RTL prose: the prose `dir` is excluded
+ * from the vote, so code must also keep an explicit LTR boundary instead of
+ * inheriting it (which would flip punctuation placement).
+ */
+.markdown pre:not([dir]),
+.markdown :not(pre) > code,
+.markdown [data-streamdown='inline-code'] {
+  direction: ltr;
+  unicode-bidi: isolate;
+}

@@ -12,6 +12,7 @@ import { loggerService } from '@logger'
 import { FindBar, type FindBarRef, type FindBarState, INITIAL_FIND_BAR_STATE } from '@renderer/components/FindBar'
 import { findRangesInScope, supportsCustomHighlights } from '@renderer/utils/contentSearch'
 import { scrollElementIntoView } from '@renderer/utils/dom'
+import { textDirection } from '@renderer/utils/textDirection'
 
 import {
   getAllCommands,
@@ -645,6 +646,21 @@ const RichEditor = ({
     }),
     [editor, markdown, setMarkdown, clear]
   )
+
+  useEffect(() => {
+    if (!editor || editor.isDestroyed) return
+
+    const updateDirection = () => {
+      editor.view.dom.setAttribute('dir', textDirection(editor.getMarkdown()))
+    }
+
+    updateDirection()
+    editor.on('update', updateDirection)
+
+    return () => {
+      editor.off('update', updateDirection)
+    }
+  }, [editor])
 
   if (!editor) return null
 
