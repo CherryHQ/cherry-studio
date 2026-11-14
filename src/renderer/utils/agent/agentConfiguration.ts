@@ -1,6 +1,5 @@
+import { DEFAULT_PERMISSION_MODE } from '@shared/ai/agentPermissionMode'
 import type { AgentConfiguration } from '@shared/data/api/schemas/agents'
-
-import { DEFAULT_PERMISSION_MODE } from './permissionMode'
 
 export type AgentConfigurationState = AgentConfiguration & Record<string, unknown>
 

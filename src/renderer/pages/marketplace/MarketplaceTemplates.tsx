@@ -7,7 +7,7 @@ import { ResourceCreateWizard } from '@renderer/components/resourceCatalog/dialo
 import { useAgentMutations } from '@renderer/hooks/resourceCatalog'
 import { openRoute } from '@renderer/services/mainWindowNavigation'
 import type { MarketplaceTemplate } from '@renderer/types/marketplace'
-import { buildCreateAgentCommand } from '@renderer/utils/resourceCatalog'
+import { buildCreateAgentCommand } from '@shared/ai/agentCreateCommand'
 
 import {
   MarketplaceCard,

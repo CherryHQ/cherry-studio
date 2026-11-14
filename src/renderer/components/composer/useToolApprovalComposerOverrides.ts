@@ -25,6 +25,8 @@ type ToolApprovalComposerOverridesOptions = {
   onRespond: (input: MessageToolApprovalInput) => void | Promise<void>
   permissionRequestComponent?: ComponentType<PermissionRequestComposerProps>
   agentName?: string
+  /** Set in an Agent conversation so approvals can resolve the Session's Agent. */
+  agentSessionId?: string
 }
 
 export function useToolApprovalComposerOverrides({
@@ -34,7 +36,8 @@ export function useToolApprovalComposerOverrides({
   streamingLayers,
   onRespond,
   permissionRequestComponent,
-  agentName
+  agentName,
+  agentSessionId
 }: ToolApprovalComposerOverridesOptions): readonly ComposerOverride[] {
   const computerUseApproval = useComputerUseApproval(topicId)
   useEffect(() => {
@@ -110,11 +113,20 @@ export function useToolApprovalComposerOverrides({
           request: permissionRequest,
           onRespond,
           component: permissionRequestComponent,
-          agentName
+          agentName,
+          agentSessionId
         })
       )
     }
 
     return overrides
-  }, [askUserQuestionRequest, onRespond, permissionRequest, permissionRequestComponent, agentName, computerUseApproval])
+  }, [
+    agentSessionId,
+    askUserQuestionRequest,
+    onRespond,
+    permissionRequest,
+    permissionRequestComponent,
+    agentName,
+    computerUseApproval
+  ])
 }

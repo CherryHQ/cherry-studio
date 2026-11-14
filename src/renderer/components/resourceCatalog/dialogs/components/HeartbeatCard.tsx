@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { InputNumber, Switch } from '@cherrystudio/ui'
-import type { AgentFormState } from '@renderer/utils/resourceCatalog'
+import type { AgentFormState } from '@shared/ai/agentForm'
 import {
   MAX_HEARTBEAT_INTERVAL_MINUTES,
   MAX_HEARTBEAT_TIMEOUT_MINUTES,

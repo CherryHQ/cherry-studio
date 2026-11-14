@@ -155,7 +155,7 @@ vi.mock('@renderer/components/resourceCatalog/dialogs/components/ReplyLanguageSe
   )
 }))
 
-import { buildCreateAgentCommand } from '@renderer/utils/resourceCatalog'
+import { buildCreateAgentCommand } from '@shared/ai/agentCreateCommand'
 
 import { ResourceCreateWizard } from '../ResourceCreateWizard'
 
