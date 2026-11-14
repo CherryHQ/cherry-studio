@@ -36,35 +36,9 @@ function searchFailureMessage(cause: unknown): string {
   return SKILL_SEARCH_FAILED_ERROR
 }
 
-/** Visible skill-mutation summary. The raw cause stays on the detail payload. */
-function skillMutationSummary(action: string, name?: string): string {
-  if (action === 'import system skill') {
-    const skillName = name?.trim()
-    return i18n.t('settings.skills.installFailed', {
-      name: skillName && skillName.length > 0 ? skillName : i18n.t('settings.skills.source.system')
-    })
-  }
-  return i18n.t('error.unexpected')
-}
-
 function unwrapSkillResult<T>(result: SkillResult<T>): T {
   if (result.success) return result.data
   throw new Error(skillErrorMessage(result.error))
-}
-
-function reportSkillMutationError(
-  action: string,
-  error: unknown,
-  context?: { readonly name?: string; readonly recordId?: string }
-): string {
-  const summary = skillMutationSummary(action, context?.name)
-  logger.error(`Failed to ${action}`, { error: skillErrorMessage(error) })
-  toastAppError(summary, error, {
-    source: 'skills',
-    operation: action === 'import system skill' ? 'skill.import_system' : action,
-    ...(context?.recordId ? { recordId: context.recordId } : {})
-  })
-  return summary
 }
 
 function logAndRethrowSkillMutationError(action: string, error: unknown): never {
@@ -336,7 +310,13 @@ export function useSystemSkills(enabled = true) {
         return installed
       } catch (cause) {
         await discover()
-        reportSkillMutationError('import system skill', cause, { name: skill.name, recordId: skill.id })
+        logger.error('Failed to import system skill', { error: skillErrorMessage(cause) })
+        const name = skill.name.trim() || i18n.t('settings.skills.source.system')
+        toastAppError(i18n.t('settings.skills.installFailed', { name }), cause, {
+          source: 'skills',
+          operation: 'skill.import_system',
+          recordId: skill.id
+        })
         return null
       } finally {
         importingRef.current.delete(skill.id)
