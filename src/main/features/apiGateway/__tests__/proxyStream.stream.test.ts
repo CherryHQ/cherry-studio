@@ -339,12 +339,15 @@ describe('processMessage (internal Agent continuation normalization)', () => {
     const params = createAnthropicParams(
       'gpt-5',
       [
+        // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
         { role: 'assistant', content: [call, structuredClone(call)] },
+        // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
         { role: 'user', content: [output, structuredClone(output)] }
       ],
       true,
       'openai'
     )
+    // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
     const snapshot = structuredClone(params)
 
     await processAndCaptureStreamMessages(params)
@@ -372,6 +375,7 @@ describe('processMessage (internal Agent continuation normalization)', () => {
     mockIsInternalAgentRequest.mockReturnValue(false)
     const call = { type: 'tool_use' as const, id: 'c1', name: 'read_file', input: {} }
     const params = createAnthropicParams('claude-opus-5', [
+      // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
       { role: 'assistant', content: [call, structuredClone(call)] }
     ])
 
@@ -390,6 +394,7 @@ describe('processMessage (internal Agent continuation normalization)', () => {
     const call = { type: 'tool_use' as const, id: 'c1', name: 'read_file', input: {} }
     const params = createAnthropicParams(
       'gpt-5',
+      // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
       [{ role: 'assistant', content: [call, structuredClone(call)] }],
       true,
       'openai'
@@ -441,6 +446,7 @@ describe('processMessage (internal Agent continuation normalization)', () => {
       { role: 'user', content: 'Build the requested feature' },
       { role: 'assistant', content: 'Deferred tools, agents, and skills context' }
     ])
+    // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
     const snapshot = structuredClone(params)
 
     const messages = await processAndCaptureStreamMessages(params)
@@ -481,6 +487,7 @@ describe('processMessage (internal Agent continuation normalization)', () => {
         content: [{ type: 'tool_result', tool_use_id: 'call_1', content: 'Tool failed', is_error: true }]
       }
     ])
+    // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
     const snapshot = structuredClone(params)
 
     const messages = await processAndCaptureStreamMessages(params)
@@ -514,6 +521,7 @@ describe('processMessage (internal Agent continuation normalization)', () => {
       { role: 'assistant', content: 'Deferred tools, agents, and skills context' },
       { role: 'user', content: '' }
     ])
+    // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
     const snapshot = structuredClone(params)
 
     const messages = await processAndCaptureStreamMessages(params)

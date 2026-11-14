@@ -163,6 +163,7 @@ describe('pinned persistence with the real store and hook', () => {
     ]
     await mount(raw, [{ ...home }, pin('normal', { isPinned: false })])
     const { repairPinnedTabs } = await import('../TabsProvider')
+    // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
     const original = structuredClone(raw)
     const repaired = repairPinnedTabs(raw, [pin('normal')])
     expect(repaired.tabs.map((tab) => tab.id)).toEqual(['a', 'b', 'c', 'd', 'e', 'web'])
@@ -182,6 +183,7 @@ describe('pinned persistence with the real store and hook', () => {
     disposables.push(service.subscribe(key, notified))
     const snapshot = service.getPersist(key)
     await act(async () => {
+      // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
       receive({ type: 'persist', key, value: structuredClone(snapshot) })
     })
     expect(service.getPersist(key)).toBe(snapshot)
@@ -242,6 +244,7 @@ describe('pinned persistence with the real store and hook', () => {
     const { loggerService } = await import('@logger')
     const warning = vi.spyOn(loggerService.withContext('TabsProvider'), 'warn')
     const seen: Tab[][] = []
+    // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
     disposables.push(service.subscribe(key, () => seen.push(structuredClone(service.getPersist(key)))))
 
     for (let turn = 0; turn < 12; turn += 1) {
@@ -293,6 +296,7 @@ describe('pinned persistence with the real store and hook', () => {
     const seen: Tab[][] = []
     disposables.push(
       service.subscribe(key, () => {
+        // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
         seen.push(structuredClone(service.getPersist(key)))
       })
     )

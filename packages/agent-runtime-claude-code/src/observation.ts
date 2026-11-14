@@ -47,8 +47,8 @@ export class ClaudeFeed {
         : [],
       live: [...this.live],
       replaces: Object.fromEntries(this.replaces),
-      legacy: structuredClone(this.legacy),
-      native: structuredClone([...this.native.values()]),
+      legacy: this.legacy,
+      native: [...this.native.values()],
       retracted: [...this.retracted]
     }
   }
@@ -63,6 +63,7 @@ export class ClaudeFeed {
   ): void {
     if (this.ended) return
     if (state) this.controlState = state
+    // oxlint-disable-next-line no-restricted-globals -- Own the legacy map only when bindings change; ordinary deltas omit it.
     if (legacy) this.legacy = structuredClone(legacy)
     const replaces: Record<string, string> = {}
     native = native
@@ -105,6 +106,7 @@ export class ClaudeFeed {
             : `${message.subtype}:${'task_id' in message ? message.task_id : ''}`
           : message.uuid
       if (key && !(value.source === 'archive' && this.native.get(key)?.source === 'live'))
+        // oxlint-disable-next-line no-restricted-globals -- Own retained non-stream native facts before SDK objects can change.
         this.native.set(key, structuredClone(value))
     }
     const batch: ClaudeObservation = {
@@ -117,7 +119,7 @@ export class ClaudeFeed {
         event.type === 'message.upsert' && this.live.has(event.message.id) ? [event.message.id] : []
       ),
       replaces,
-      legacy: structuredClone(this.legacy),
+      legacy: legacy ? this.legacy : undefined,
       retracted: [...this.pendingRetractions]
     }
     this.pendingRetractions.clear()
@@ -140,6 +142,7 @@ export class ClaudeFeed {
     let delivered = 0
     const historical = new Set(this.snapshot.messages.map((message) => message.id))
     const capture = (batch: ClaudeObservation, baseline = false): ClaudeObservation => ({
+      // oxlint-disable-next-line no-restricted-globals -- Capture each observer batch once; baseline/recovery include history and live deltas stay narrow.
       ...structuredClone(batch),
       live: baseline ? [] : batch.live?.filter((id) => !historical.has(id))
     })

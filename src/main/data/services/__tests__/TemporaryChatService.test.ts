@@ -37,6 +37,29 @@ describe('TemporaryChatService', () => {
     notifyDataApiDataChangeMock.mockClear()
   })
 
+  it('selects a user-aligned context window before copying message payloads and keeps it detached', () => {
+    const topic = service.createTopic({ name: 'windowed' })
+    const old = mainText('discarded')
+    service.appendMessage(topic.id, { role: 'user', data: old })
+    service.appendMessage(topic.id, { role: 'assistant', data: mainText('old reply') })
+    service.appendMessage(topic.id, { role: 'user', data: mainText('current') })
+    service.appendMessage(topic.id, { role: 'assistant', data: mainText('current reply') })
+    let oldPayloadReads = 0
+    Object.defineProperty(old, 'parts', {
+      enumerable: true,
+      get() {
+        oldPayloadReads++
+        return []
+      }
+    })
+    const selected = service.listMessages(topic.id, 1)
+    expect(selected.map((message) => message.role)).toEqual(['user', 'assistant'])
+    expect(oldPayloadReads).toBe(0)
+    selected[0].data.parts = []
+    expect(service.listMessages(topic.id, 1)[0].data.parts).toEqual(mainText('current').parts)
+    expect(service.listMessages(topic.id)).toHaveLength(4)
+  })
+
   describe('appendMessage — input validation', () => {
     let topicId: string
     beforeEach(async () => {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { applyMaxMessagesWindow, normalizeMaxMessages } from '../maxMessagesWindow'
+import { applyMaxMessagesWindow, normalizeMaxMessages } from '@data/services/maxMessagesWindow'
 
 const u = (id: string) => ({ id, role: 'user' })
 const a = (id: string) => ({ id, role: 'assistant' })

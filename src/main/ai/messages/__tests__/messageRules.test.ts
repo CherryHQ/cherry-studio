@@ -288,6 +288,7 @@ describe('toModelMessages', () => {
       ]),
       ui('user', [{ type: 'text', text: 'continue' }], 'u1')
     ]
+    // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
     const originalMessages = structuredClone(messages)
     const tools = {
       screenshot: tool({
@@ -775,6 +776,7 @@ describe('non-object historical tool inputs', () => {
     const rawInput = { query: 'fallback' }
     const poison = { ...bad, rawInput, callProviderMetadata: metadata }
     const messages = [ui('assistant', [poison, good])]
+    // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
     const original = structuredClone(messages)
     freeze(messages)
     const first = await toModelMessages(messages)
