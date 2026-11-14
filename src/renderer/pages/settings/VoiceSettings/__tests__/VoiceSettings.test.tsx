@@ -1096,6 +1096,24 @@ describe('VoiceSettings', () => {
     }
   )
 
+  it('keeps the failure detail when opening a speech model download card is rejected', async () => {
+    voice.listModels.mockResolvedValue({
+      models: [
+        ...models,
+        { id: KOKORO_TTS_MODEL_ID, localeSelection: null, resourceOperations: [VoiceResourceOperation.Download] }
+      ]
+    })
+    voice.getModelStatus.mockResolvedValue({ status: 'not_installed', reason: 'model_required' })
+    navigate.mockRejectedValueOnce(new Error('route unavailable'))
+    render(<VoiceSettings />)
+    const user = userEvent.setup()
+    await user.click(await screen.findByRole('combobox', { name: 'Speech model' }))
+    await user.click(await screen.findByRole('option', { name: /Kokoro.*Download/ }))
+
+    const detail = await openedVoiceDetail(await screen.findByRole('button', { name: i18n.t('common.detail') }))
+    expect(detail?.error).toEqual(expect.objectContaining({ message: 'route unavailable' }))
+  })
+
   it('refreshes Kokoro availability when its download completes', async () => {
     voice.listModels.mockResolvedValue({
       models: [

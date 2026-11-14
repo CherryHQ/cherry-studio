@@ -1233,7 +1233,7 @@ function VoiceSettings() {
                     void navigate({
                       to: '/settings/local-models',
                       hash: DOWNLOADABLE_SPEECH_BUNDLES[modelId as keyof typeof DOWNLOADABLE_SPEECH_BUNDLES]
-                    }).catch(() => setActionFailed(true))
+                    }).catch((error: unknown) => reportActionFailure(error))
                   }
                   return
                 }
