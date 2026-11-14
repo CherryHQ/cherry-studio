@@ -781,18 +781,10 @@ function AgentBasicFields({
             form={form}
             enabled={heartbeatEnabled}
             onEnabledChange={(checked) => patchAgentForm({ heartbeatEnabled: checked })}
+            onEditTasks={async () => {
+              if (await beforeHeartbeatOpen()) setHeartbeatOpen(true)
+            }}
           />
-          <div className="flex justify-end pb-4">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={async () => {
-                if (await beforeHeartbeatOpen()) setHeartbeatOpen(true)
-              }}>
-              {t('agent.heartbeat.edit')}
-            </Button>
-          </div>
           {heartbeatPresent ? (
             <HeartbeatEditorDialog
               agentId={agentId}
@@ -982,11 +974,13 @@ function AgentLanguageOverrideField({ form }: { form: UseFormReturn<AgentEditFor
 function HeartbeatSettingsField({
   form,
   enabled,
-  onEnabledChange
+  onEnabledChange,
+  onEditTasks
 }: {
   form: UseFormReturn<AgentEditFormValues>
   enabled: boolean
   onEnabledChange: (checked: boolean) => void
+  onEditTasks: () => Promise<void>
 }) {
   const { t } = useTranslation()
   const label = t('library.config.agent.field.heartbeat_enabled.label')
@@ -1000,8 +994,11 @@ function HeartbeatSettingsField({
           <FormItem className={editDialogFormRowClassName}>
             <FormLabel className={editDialogFormRowLabelClassName}>{label}</FormLabel>
             <FormControl>
-              <div className="flex h-9 items-center">
+              <div className="flex min-h-9 items-center justify-between gap-3">
                 <Switch size="sm" checked={field.value} onCheckedChange={onEnabledChange} aria-label={label} />
+                <Button type="button" variant="outline" size="sm" onClick={onEditTasks}>
+                  {t('agent.heartbeat.edit')}
+                </Button>
               </div>
             </FormControl>
             <FormMessage className="col-start-2" />
