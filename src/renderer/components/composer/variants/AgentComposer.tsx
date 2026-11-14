@@ -1083,13 +1083,8 @@ const AgentComposerInner = ({
         })
         return
       }
-      // Never replay the captured pending edit after the session update: the
-      // agents API has no revision evidence or conditional write, and value
-      // equality on a freshness read cannot distinguish "nothing landed yet"
-      // from an intervening same-value save through another surface - either
-      // way a replay can overwrite a newer Agent-wide setting and affect
-      // sibling sessions (cherry-pr-review inv_58f93a93e82c4393#f1). The
-      // selection-time updateAgent lands the edit on its own.
+      // Replaying the selection-time Agent update could overwrite a newer setting from another surface;
+      // the agents API provides no conditional write to make that replay safe.
       if (
         pendingReasoningEdit &&
         pendingReasoningEditRef.current?.agentId === pendingReasoningEdit.agentId &&
@@ -1107,7 +1102,6 @@ const AgentComposerInner = ({
       model?.id,
       reasoningEffort,
       sessionId,
-      updateAgent,
       updateSession
     ]
   )

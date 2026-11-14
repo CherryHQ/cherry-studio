@@ -18,6 +18,7 @@ import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { defaultHandlersFor, type SqliteErrorHandlers, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbType } from '@data/db/types'
+import { notifyModelsDeleted, selectSessionsUsingModelsTx } from '@data/services/modelDeletionEffects'
 import { pinService } from '@data/services/PinService'
 import {
   createCustomModel,
@@ -31,7 +32,6 @@ import {
   type ResolvedServiceTierControl
 } from '@data/services/ProviderRegistryService'
 import { isProviderIdentityAvailable, providerService } from '@data/services/ProviderService'
-import { notifyModelsDeleted, selectSessionsUsingModelsTx } from '@data/services/utils/modelDeletionEffects'
 import { insertManyWithOrderKey } from '@data/services/utils/orderKey'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api/errors'

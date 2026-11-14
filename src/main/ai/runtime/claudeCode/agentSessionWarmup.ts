@@ -381,15 +381,8 @@ async function deriveConnectionConfigFromSnapshot(
     contextWindow = model.contextWindow ?? null
     maxOutputTokens = model.maxOutputTokens ?? null
     const { baseUrl } = resolveEffectiveEndpoint(provider, model)
-    // Same pinning semantics as the query-request builder (see its comment):
-    // pin only a genuinely stale capture, never an ordinary session override
-    // (cherry-pr-review inv_f7cde0553102c364) or a headless capture matching
-    // the agent default — those runs resolve against the default while
-    // ignoring session overrides, so treating the default as stale would
-    // discard the configured sonnet/haiku aliases on every scheduled run
-    // behind an interactive override (cherry-pr-review inv_2a46bb6139db6292#f1). The
-    // dispatch mode, not model equality, decides which resolution the capture is compared
-    // against (cherry-pr-review inv_d81d8d063f588b6a#f1).
+    // A stale primary capture must not inherit newer sub-model settings.
+    // Compare against the dispatch mode's effective model so ordinary overrides keep their aliases.
     const pinSubModelsToPrimary =
       connectionModelId !== undefined && connectionModelId !== (headless ? agent.model : (session.model ?? agent.model))
     routeFacts = deriveRouteFacts(
@@ -541,22 +534,8 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
     isSupportFastMode(provider, model) &&
     provider.fastMode.transport === 'claude-code'
   const { baseUrl } = resolveEffectiveEndpoint(provider, model)
-  // A live turn's connection is pinned to the model captured at turn creation, which can already be an
-  // edit behind the session's CURRENT resolution. The turn captured only its primary, so when the primary
-  // is a pre-edit capture (the captured model differs from what `session.model ?? agent.model` resolves
-  // to NOW), pin plan/small to it too rather than read the possibly-edited-ahead latest sub-models —
-  // otherwise the captured turn would launch with the old ANTHROPIC_MODEL but new sonnet/haiku defaults,
-  // or be forced onto the gateway by a sub-model that now points at another provider. An ordinary session
-  // override (`session.model` differing from `agent.model`) is current session state, not a stale
-  // capture: the configured sub-model aliases still apply (cherry-pr-review inv_f7cde0553102c364).
-  // Headless runs resolve against the agent default while ignoring session overrides, so a capture
-  // matching the agent default is current for them too — treating it as stale would discard the
-  // configured sonnet/haiku aliases on every scheduled run behind an interactive override
-  // (cherry-pr-review inv_2a46bb6139db6292#f1). An interactive capture matching the agent
-  // default while the session has since switched models is NOT current — model equality cannot
-  // stand in for the dispatch mode, or the old turn launches with the captured primary but the
-  // newer edited aliases (cherry-pr-review inv_d81d8d063f588b6a#f1). With
-  // no capture (or a turn-less connection) the latest sub-models apply as well.
+  // A stale primary capture must not inherit newer sub-model settings.
+  // Compare against the dispatch mode's effective model so ordinary overrides keep their aliases.
   const pinSubModelsToPrimary =
     connectionModelId !== undefined && connectionModelId !== (headless ? agent.model : (session.model ?? agent.model))
   const planModel = pinSubModelsToPrimary ? undefined : agent.planModel

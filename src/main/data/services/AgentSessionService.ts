@@ -165,9 +165,7 @@ export function agentSessionReadModelEffects(
   ]
 }
 
-// A Pi runtime only serves gateway-routable models: subscription/CLI-login
-// providers and non-chat models are out, and an override whose provider or
-// model no longer resolves is not servable either.
+// Pi needs a resolvable, gateway-routable chat model; stale or subscription-only overrides cannot run.
 function isPiServableUniqueModel(uniqueModelId: string): boolean {
   try {
     if (!isUniqueModelId(uniqueModelId)) return false
@@ -972,13 +970,8 @@ export class AgentSessionService {
     const previousAgentId = current.agentId
     const reassigned = patch.agentId !== undefined && patch.agentId !== previousAgentId
     if (reassigned && patch.model === undefined && current.model != null) {
-      // A session-level model override is scoped to the runtime that selected
-      // it: retaining it across a cross-runtime reassignment (e.g. Claude Code
-      // -> Pi) makes the new runtime pick a model it cannot serve — Pi rejects
-      // the first message with PiUnsupportedProviderError (cherry-pr-review
-      // inv_f15449b3ea653a29#f1). Clear it atomically with the reassignment so
-      // the session falls back to the new agent's default; a same-runtime
-      // reassignment keeps the override.
+      // A cross-runtime reassignment may make the override unservable, so clear it atomically;
+      // same-runtime reassignment keeps the override.
       const agentTypes = tx
         .select({ id: agentsTable.id, type: agentsTable.type })
         .from(agentsTable)
@@ -998,14 +991,8 @@ export class AgentSessionService {
         ['pi', 'pi-durable'].includes(typeOf.get(patch.agentId as string) ?? '') &&
         !isPiServableUniqueModel(current.model)
       ) {
-        // Orphan recovery: the previous agent was permanently deleted and
-        // SQLite nulled the reference, so the old runtime's type is
-        // unrecoverable and the comparison above cannot run. Validate the
-        // inherited override against the new Pi agent instead — a leftover
-        // subscription-model override is not gateway-routable and makes Pi
-        // reject every dispatch with PiUnsupportedProviderError despite the
-        // agent having a usable default (cherry-pr-review
-        // inv_d8d804d915e34926#f1). An override Pi can serve survives.
+        // A deleted parent leaves no runtime type to compare; discard an override the new Pi agent
+        // cannot serve so the session can use its default.
         patch.model = null
       }
     }

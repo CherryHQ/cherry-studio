@@ -69,10 +69,11 @@ export function buildAgentMcpServers(
   notificationContext = resolveAgentNotificationContext(session.id, agent.id, linkedChannelSnapshot),
   effectiveModelId?: UniqueModelId | null
 ): Record<string, AgentMcpServer> {
+  const modelId = effectiveModelId ?? session.model ?? agent.model ?? undefined
   const interactionContext = {
     sessionId: session.id,
     topicId: `agent-session:${session.id}`,
-    model: agent.model ?? undefined,
+    model: modelId,
     roots: [{ uri: pathToFileURL(session.workspace.path).toString(), name: session.workspace.name }]
   }
   const servers: Record<string, AgentMcpServer> = {}
@@ -155,13 +156,7 @@ export function buildAgentMcpServers(
   if (mountedServers.has(CHERRY_MCP_SERVER.ASSISTANT)) {
     servers.assistant = {
       name: CHERRY_MCP_SERVER.ASSISTANT,
-      // The assistant server's default model follows the session's effective
-      // model (connection override, then session override), not just the agent
-      // default, so assistant tools match the model actually driving the
-      // session (ported from #20819).
-      connect: serveAgentMcpServer(() =>
-        createAssistantServer(effectiveModelId ?? session.model ?? agent.model ?? undefined, hostTools?.tools)
-      )
+      connect: serveAgentMcpServer(() => createAssistantServer(modelId, hostTools?.tools))
     }
   }
   if (mountedServers.has(CHERRY_MCP_SERVER.ASSISTANT_FILES)) {
