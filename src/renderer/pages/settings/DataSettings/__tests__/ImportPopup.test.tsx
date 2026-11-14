@@ -163,7 +163,6 @@ describe('ImportPopup', () => {
     await waitFor(() => {
       expect(toast.error).toHaveBeenCalledWith(
         expect.objectContaining({
-          cause: expect.objectContaining({ message: 'database unavailable' }),
           data: expect.objectContaining({
             errorContext: expect.objectContaining({ message: 'database unavailable', operation: 'import.chatgpt' }),
             localizedErrorMessage: 'import.chatgpt.error.unknown'
@@ -172,6 +171,12 @@ describe('ImportPopup', () => {
         })
       )
     })
+    // The service only returned text, so no renderer-side stack may be fabricated for it.
+    expect(toast.error).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ errorContext: expect.not.objectContaining({ stack: expect.anything() }) })
+      })
+    )
     expect(screen.getByRole('dialog')).toBeInTheDocument()
   })
 
