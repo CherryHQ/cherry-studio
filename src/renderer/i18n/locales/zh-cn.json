@@ -1005,6 +1005,8 @@
   "chat.profile_pane.tasks.new_prompt": "帮我新建一个定时任务：",
   "chat.profile_pane.tasks.title": "定时任务",
   "chat.profile_pane.title": "资料",
+  "chat.profile_pane.try_asking.hide": "隐藏",
+  "chat.profile_pane.try_asking.title": "试试这样问",
   "chat.profile_pane.workspace.idle": "空闲",
   "chat.profile_pane.workspace.running": "运行中",
   "chat.profile_pane.workspace.title": "工作区",

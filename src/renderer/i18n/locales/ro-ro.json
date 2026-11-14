@@ -1005,6 +1005,8 @@
   "chat.profile_pane.tasks.new_prompt": "Creează o sarcină programată pentru mine: ",
   "chat.profile_pane.tasks.title": "Sarcini programate",
   "chat.profile_pane.title": "Profil",
+  "chat.profile_pane.try_asking.hide": "Ascundeți",
+  "chat.profile_pane.try_asking.title": "Încercați să întrebați",
   "chat.profile_pane.workspace.idle": "Inactiv",
   "chat.profile_pane.workspace.running": "Rulează",
   "chat.profile_pane.workspace.title": "Spațiu de lucru",

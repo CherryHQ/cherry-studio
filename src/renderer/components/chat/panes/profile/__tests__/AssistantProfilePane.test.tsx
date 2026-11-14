@@ -1,13 +1,19 @@
+import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
+import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { fireEvent, screen, waitFor, within } from '@testing-library/react'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import i18n from '@renderer/i18n/resolver'
+import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { KNOWLEDGE_BASES_MAX_LIMIT } from '@shared/data/api/schemas/knowledges'
 import type { Assistant } from '@shared/data/types/assistant'
 
 import { AssistantProfilePane } from '../AssistantProfilePane'
 import { recordEditDialogRequests, renderInRightPane, serveQueries } from './profilePaneTestUtils'
+
+const fetchGenerate = vi.hoisted(() => vi.fn<(input: { prompt: string; content: string }) => Promise<string>>())
+vi.mock('@renderer/utils/aiGeneration', () => ({ fetchGenerate }))
 
 const knowledgeBase = (id: string, name: string, itemCount: number) => ({ id, name, itemCount })
 
@@ -29,6 +35,9 @@ describe('AssistantProfilePane', () => {
 
   beforeEach(async () => {
     MockUseDataApiUtils.resetMocks()
+    MockUsePreferenceUtils.resetMocks()
+    MockUseCacheUtils.resetMocks()
+    fetchGenerate.mockReset()
     await i18n.changeLanguage('en-US')
     serveQueries({ '/assistants/:id': ({ params }) => (params?.id === assistant.id ? assistant : undefined) })
     dialog = recordEditDialogRequests()
@@ -147,5 +156,94 @@ describe('AssistantProfilePane', () => {
     fireEvent.click(within(recent).getByRole('button', { name: 'All' }))
     expect(opened).toEqual(['topic-b'])
     expect(showAll).toBe(1)
+  })
+
+  describe('try asking', () => {
+    const DEFAULT_MODEL_ID = 'openai::gpt-5'
+    const question = (title: string) => ({ title, hint: `${title} hint`, prompt: `${title}:` })
+    const reply = (titles: string[]) => JSON.stringify({ items: titles.map(question) })
+    const QUESTIONS = ['Outline a blog post', 'Tighten this paragraph', 'Suggest five titles', 'Fix grammar only']
+    let current: Assistant
+    let prefills: { topicId: string; text: string }[]
+    let stopPrefills: () => void
+
+    beforeEach(() => {
+      current = assistant
+      serveQueries({
+        '/assistants/:id': () => current,
+        [`/models/${DEFAULT_MODEL_ID}`]: () => ({ id: DEFAULT_MODEL_ID, name: 'GPT-5' })
+      })
+      MockUsePreferenceUtils.setPreferenceValue('chat.default_model_id', DEFAULT_MODEL_ID)
+      prefills = []
+      stopPrefills = EventEmitter.on(EVENT_NAMES.PREFILL_COMPOSER, (payload) => {
+        prefills.push(payload as { topicId: string; text: string })
+      })
+    })
+
+    afterEach(() => stopPrefills())
+
+    const renderPane = () =>
+      renderInRightPane(<AssistantProfilePane assistantId={assistant.id} activeTopicId="topic-1" />)
+    const section = () => screen.queryByRole('region', { name: 'Try asking' })
+
+    it('shows 4 generated questions and puts a clicked one into the composer', async () => {
+      fetchGenerate.mockResolvedValue(reply([...QUESTIONS, 'A fifth question']))
+      renderPane()
+
+      expect(
+        await within(screen.getByRole('region', { name: 'Try asking' })).findByText('Outline a blog post')
+      ).toBeInTheDocument()
+      expect(within(section()!).getAllByRole('button', { name: / hint$/ })).toHaveLength(4)
+      expect(within(section()!).queryByText('A fifth question')).toBeNull()
+
+      fireEvent.click(within(section()!).getByText('Tighten this paragraph'))
+      await waitFor(() => expect(prefills).toEqual([{ topicId: 'topic-1', text: 'Tighten this paragraph:' }]))
+    })
+
+    it.each([
+      ['there is no default model', () => MockUsePreferenceUtils.setPreferenceValue('chat.default_model_id', null)],
+      ['generation fails', () => fetchGenerate.mockRejectedValue(new Error('Provider is disabled'))],
+      ['the reply has fewer than 4 questions', () => fetchGenerate.mockResolvedValue(reply(QUESTIONS.slice(0, 3)))]
+    ])('leaves the section out when %s', async (_case, arrange) => {
+      arrange()
+      renderPane()
+
+      await waitFor(() => expect(section()).toBeNull())
+      expect(screen.getByRole('region', { name: 'Settings' })).toBeInTheDocument()
+    })
+
+    it('reuses the questions until the prompt changes', async () => {
+      fetchGenerate
+        .mockResolvedValueOnce(reply(QUESTIONS))
+        .mockResolvedValueOnce(reply(['Draft a launch email', ...QUESTIONS.slice(1)]))
+      const first = renderPane()
+      expect(
+        await within(screen.getByRole('region', { name: 'Try asking' })).findByText('Outline a blog post')
+      ).toBeInTheDocument()
+      first.unmount()
+
+      const second = renderPane()
+      expect(within(section()!).getByText('Outline a blog post')).toBeInTheDocument()
+      second.unmount()
+      expect(fetchGenerate).toHaveBeenCalledTimes(1)
+
+      current = { ...assistant, prompt: 'You are a copywriter for product launches.' }
+      renderPane()
+      expect(
+        await within(screen.getByRole('region', { name: 'Try asking' })).findByText('Draft a launch email')
+      ).toBeInTheDocument()
+      expect(fetchGenerate).toHaveBeenCalledTimes(2)
+    })
+
+    it('stays hidden for this Assistant after Hide, across remounts', async () => {
+      fetchGenerate.mockResolvedValue(reply(QUESTIONS))
+      const first = renderPane()
+      const region = await screen.findByRole('region', { name: 'Try asking' })
+      fireEvent.click(within(region).getByRole('button', { name: 'Hide' }))
+      first.unmount()
+
+      renderPane()
+      expect(section()).toBeNull()
+    })
   })
 })

@@ -1005,6 +1005,8 @@
   "chat.profile_pane.tasks.new_prompt": "幫我新增一個排程任務：",
   "chat.profile_pane.tasks.title": "排程任務",
   "chat.profile_pane.title": "資料",
+  "chat.profile_pane.try_asking.hide": "隱藏",
+  "chat.profile_pane.try_asking.title": "試試這樣問",
   "chat.profile_pane.workspace.idle": "閒置",
   "chat.profile_pane.workspace.running": "執行中",
   "chat.profile_pane.workspace.title": "工作區",
