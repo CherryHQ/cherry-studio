@@ -18,5 +18,3 @@ export {
 } from './useTabsContext'
 export { type TabSelfVisuals, useTabSelfVisuals } from './useTabSelfVisuals'
 export type { Tab, TabsState, TabType } from '@shared/data/cache/cacheValueTypes'
-
-export { TabCommandRuntimeContext, useTabCommandRuntime } from './useTabCommandRuntime'

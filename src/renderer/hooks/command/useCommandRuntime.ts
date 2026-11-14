@@ -3,13 +3,13 @@ import { createContext, type RefObject, use, useCallback, useLayoutEffect, useRe
 import { loggerService } from '@logger'
 import type { PreferenceShortcutType } from '@shared/data/preference/preferenceTypes'
 import type { MenuPresentationMode } from '@shared/types/command'
-import type { CommandId } from '@shared/utils/command'
+import { type CommandId, COMMAND_DEFINITIONS } from '@shared/utils/command'
 
 import {
   CommandFocusHostContext,
   CommandFocusScopeContext,
   CommandFocusScopeState,
-  findScopeHandler,
+  isCommandInvocationActive,
   readRegisteredHandler
 } from './commandFocusScope'
 
@@ -119,14 +119,10 @@ export function useCommandOrigin() {
       const isActive = () => (!element || element.isConnected) && (origin?.isActive() ?? true)
       if (!origin) return { isActive, execute: runtime.execute }
       const originScope = origin
-      const commands = new Set<CommandId>()
-      for (let current: CommandFocusScopeState | null = originScope; current; current = current.parent) {
-        for (const command of current.handlers.keys()) commands.add(command)
-      }
       const captured = new Map(
-        [...commands].flatMap((command) => {
-          const entry = findScopeHandler(originScope, command)
-          return entry ? [[command, { entry, handler: readRegisteredHandler(entry) }] as const] : []
+        COMMAND_DEFINITIONS.flatMap(({ id }) => {
+          const invocation = host?.registry.resolveInvocation(originScope, host.rootScope, id)
+          return invocation ? [[id, invocation] as const] : []
         })
       )
       return {
@@ -134,8 +130,7 @@ export function useCommandOrigin() {
         execute: (command: CommandId, args?: unknown) => {
           const selected = captured.get(command)
           if (!isActive() || !selected) return
-          const current = findScopeHandler(originScope, command)
-          if (current !== selected.entry || readRegisteredHandler(current) !== selected.handler) return
+          if (!isCommandInvocationActive(selected) || readRegisteredHandler(selected.entry) !== selected.handler) return
           runCommandHandler(command, selected.handler, args)
         }
       }
