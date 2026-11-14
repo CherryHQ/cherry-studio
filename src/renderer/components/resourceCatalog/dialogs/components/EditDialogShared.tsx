@@ -1,6 +1,6 @@
-import { ArrowUpRight, ChevronDown, Database, HelpCircle, Trash2, X } from 'lucide-react'
-import { type ComponentProps, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { type FieldValues, type Path, type UseFormReturn, useWatch } from 'react-hook-form'
+import { ChevronDown, Database, HelpCircle, X } from 'lucide-react'
+import { type ComponentProps, type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
+import { type FieldValues, type UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 
 import {
@@ -32,13 +32,11 @@ import { cn } from '@cherrystudio/ui/lib/utils'
 import { loggerService } from '@logger'
 import { CherryCloudModelSelector as ModelSelector } from '@renderer/components/cherryCloud/CherryCloudModelSelector'
 import { type ModelSelectorFilter } from '@renderer/components/ModelSelector'
-import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBase'
 import { useModelById } from '@renderer/hooks/useModel'
 import { toast } from '@renderer/services/toast'
 import { isUniqueModelId, type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { CoalescingTask } from '@shared/utils/async'
 
-import { AddCatalogPopover, type CatalogItem } from './CatalogPicker'
 import { DialogModelFrame, DialogModelTrigger, EmojiAvatarPicker } from './DialogFormFields'
 
 // Vertical submenu / nav item preset — kept in sync with the settings sidebar's
@@ -252,135 +250,6 @@ export function KnowledgeBaseAvatar({
     <span className={className} style={{ background: 'rgba(139, 92, 246, 0.125)', color: 'rgb(124, 58, 237)' }}>
       <Database size={14} strokeWidth={1.4} />
     </span>
-  )
-}
-
-type KnowledgeBaseFieldValues = FieldValues & {
-  knowledgeBaseIds: string[]
-}
-
-export function KnowledgeBaseField<TValues extends KnowledgeBaseFieldValues>({
-  form,
-  portalContainer,
-  formLabel = true,
-  labelClassName,
-  disabled = false,
-  onOpenKnowledgePage
-}: {
-  form: UseFormReturn<TValues>
-  portalContainer: HTMLElement | null
-  formLabel?: boolean
-  labelClassName?: string
-  disabled?: boolean
-  onOpenKnowledgePage?: () => void
-}) {
-  const { t } = useTranslation()
-  const { bases, isLoading } = useKnowledgeBases({ revalidateOnFocus: true })
-  const fieldName = 'knowledgeBaseIds' as Path<TValues>
-  const watchedValue = useWatch({ control: form.control, name: fieldName })
-  const value = useMemo(() => (watchedValue ?? []) as string[], [watchedValue])
-
-  const { catalog, linkedItems } = useMemo(() => {
-    const byId = new Map(bases.map((base) => [base.id, base]))
-    const linked = value.map(
-      (id) =>
-        byId.get(id) ?? {
-          id,
-          name: `${id.slice(0, 8)}${t('library.config.knowledge.invalid_suffix')}`,
-          itemCount: 0
-        }
-    )
-    const items: CatalogItem[] = bases.map((base) => ({
-      id: base.id,
-      name: base.name,
-      description: t('library.config.knowledge.doc_count', { count: base.itemCount ?? 0 }),
-      icon: <KnowledgeBaseAvatar />
-    }))
-    return { catalog: items, linkedItems: linked }
-  }, [bases, t, value])
-
-  const setKnowledgeBaseIds = (nextValue: string[]) =>
-    form.setValue(fieldName, nextValue as never, { shouldDirty: true })
-  const remove = (id: string) => setKnowledgeBaseIds(value.filter((itemId) => itemId !== id))
-  const add = (id: string) => setKnowledgeBaseIds([...value, id])
-
-  return (
-    <FormField
-      control={form.control}
-      name={fieldName}
-      render={() => (
-        <FormItem>
-          <div className="flex items-center justify-between gap-3">
-            <FieldLabelWithHelp
-              label={t('library.config.knowledge.linked')}
-              help={t('library.config.knowledge.linked_hint')}
-              formLabel={formLabel}
-              labelClassName={labelClassName}
-            />
-            <AddCatalogPopover
-              items={catalog}
-              enabledIds={new Set(value)}
-              onAdd={add}
-              triggerLabel={t('library.config.knowledge.add')}
-              searchPlaceholder={t('library.config.knowledge.search')}
-              emptyLabel={t('library.config.knowledge.no_more')}
-              disabled={isLoading || disabled}
-              align="end"
-              triggerPosition="end"
-              triggerClassName="border border-border bg-transparent"
-              portalContainer={portalContainer}
-              footer={
-                onOpenKnowledgePage ? (
-                  <button
-                    type="button"
-                    disabled={disabled}
-                    className="relative flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-muted-foreground text-xs transition-colors hover:bg-accent/60 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-muted-foreground"
-                    onClick={onOpenKnowledgePage}>
-                    <ArrowUpRight size={14} className="shrink-0" />
-                    <span className="min-w-0 flex-1 truncate">{t('library.config.knowledge.create_first')}</span>
-                  </button>
-                ) : null
-              }
-            />
-          </div>
-          {linkedItems.length === 0 ? (
-            <div className="mt-2 flex flex-col items-center rounded-md border border-border-subtle border-dashed p-6">
-              <Database size={20} strokeWidth={1.2} className="mb-2 text-foreground-tertiary" />
-              <p className="mb-1 text-foreground-tertiary text-xs">{t('library.config.knowledge.empty_title')}</p>
-              <p className="text-foreground-tertiary text-xs">{t('library.config.knowledge.empty_desc')}</p>
-            </div>
-          ) : (
-            <div className="mt-2 space-y-1.5">
-              {linkedItems.map((kb) => (
-                <div
-                  key={kb.id}
-                  className="group flex items-center gap-3 rounded-md border border-border-subtle bg-accent/15 px-3 py-2.5 transition-colors hover:border-border-subtle hover:bg-accent/20">
-                  <KnowledgeBaseAvatar className="flex size-8 shrink-0 items-center justify-center rounded-md text-base leading-none" />
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate text-foreground text-sm">{kb.name}</div>
-                    <div className="text-muted-foreground text-xs">
-                      {t('library.config.knowledge.doc_count', { count: kb.itemCount ?? 0 })}
-                    </div>
-                  </div>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-sm"
-                    disabled={disabled}
-                    onClick={() => remove(kb.id)}
-                    aria-label={t('library.config.knowledge.remove_aria')}
-                    className="flex h-6 min-h-0 w-6 items-center justify-center rounded-md font-normal text-muted-foreground opacity-0 shadow-none transition-all hover:bg-destructive hover:text-destructive-foreground focus-visible:ring-0 group-hover:opacity-100">
-                    <Trash2 size={10} />
-                  </Button>
-                </div>
-              ))}
-            </div>
-          )}
-
-          <FormMessage />
-        </FormItem>
-      )}
-    />
   )
 }
 

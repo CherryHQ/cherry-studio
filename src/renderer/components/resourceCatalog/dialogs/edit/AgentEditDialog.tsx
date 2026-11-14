@@ -1,4 +1,3 @@
-import { ToolCase, Wrench } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useForm, type UseFormReturn, useWatch } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -39,7 +38,6 @@ import { toast } from '@renderer/services/toast'
 import type { AgentDetail } from '@renderer/types/resourceCatalog'
 import { getPermissionModeCards } from '@renderer/utils/agent'
 import { type AgentLanguageMode, resolveAgentLanguagePreview } from '@renderer/utils/agent/agentLanguage'
-import { platform } from '@renderer/utils/platform'
 import {
   type AgentFormState,
   applyAgentFormPatch,
@@ -53,14 +51,7 @@ import {
   MIN_HEARTBEAT_INTERVAL_MINUTES
 } from '@shared/ai/agentHeartbeat'
 import { AGENT_RUNTIME_CAPABILITIES, type AgentRuntimeCapabilities } from '@shared/ai/agentRuntimeCapabilities'
-import { BROWSER_TOOL_GROUP } from '@shared/ai/browserTools'
 import { isSealedBuiltinAgentRole } from '@shared/ai/builtinAgent'
-import {
-  CLAUDE_KNOWLEDGE_TOOL_NAMES,
-  CLAUDE_TOOL_CATEGORIES,
-  type ClaudeToolCategory
-} from '@shared/ai/claudecode/toolRegistry'
-import { COMPUTER_USE_TOOL_GROUP } from '@shared/ai/computerUseTools'
 import { AGENT_PROMPT } from '@shared/ai/prompts'
 import { LEGACY_DSH_TOOL_PREFIX } from '@shared/ai/retiredAgentRuntime'
 import type { UpdateAgentDto } from '@shared/data/api/schemas/agents'
@@ -69,7 +60,7 @@ import type { UniqueModelId } from '@shared/data/types/model'
 import type { InstalledSkill } from '@shared/types/skill'
 
 import { AgentAvatarPicker } from '../components/AgentAvatarPicker'
-import { type CatalogItem, CatalogToggleGrid } from '../components/CatalogPicker'
+import { BuiltinToolsField } from '../components/BuiltinToolsField'
 import {
   CompactModelField,
   EDIT_DIALOG_PROMPT_MAX_HEIGHT,
@@ -80,13 +71,13 @@ import {
   EditDialogShell,
   type EditDialogTab,
   FieldLabelWithHelp,
-  KnowledgeBaseField,
   type ModelLabels,
   PromptVariablesPopover,
   TextInputField,
   useDebouncedAutoSave
 } from '../components/EditDialogShared'
-import { McpServerCatalogGrid } from '../components/McpServerCatalogGrid'
+import { KnowledgeCapabilityList } from '../components/KnowledgeCapabilityList'
+import { McpCapabilityList } from '../components/McpCapabilityList'
 import { PromptBindingTab } from '../components/PromptBindingTab'
 import { PromptPolishActions } from '../components/PromptPolishActions'
 import { AgentMemoryPanel, type AgentMemoryPanelHandle } from './AgentMemoryPanel'
@@ -122,29 +113,6 @@ type ToolTab = 'tools.builtin' | 'tools.knowledge' | 'tools.mcp' | 'tools.skills
 
 const logger = loggerService.withContext('AgentEditDialog')
 const DEFAULT_TOOL_TAB: ToolTab = 'tools.builtin'
-const SKILLS_SETTINGS_PATH = '/settings/skills'
-
-function openSkillsSettingsTab() {
-  openSettingsTab(SKILLS_SETTINGS_PATH)
-}
-
-const CATEGORY_LABEL_KEYS: Record<ClaudeToolCategory, string> = {
-  file: 'library.config.agent.section.tools.category.file',
-  shell: 'library.config.agent.section.tools.category.shell',
-  search: 'library.config.agent.section.tools.category.search',
-  context: 'library.config.agent.section.tools.category.context',
-  orchestration: 'library.config.agent.section.tools.category.orchestration',
-  media: 'library.config.agent.section.tools.category.media'
-}
-const CATEGORY_LABEL_FALLBACKS: Record<ClaudeToolCategory, string> = {
-  file: 'File',
-  shell: 'Shell',
-  search: 'Search',
-  context: 'Context',
-  orchestration: 'Orchestration',
-  media: 'Media'
-}
-
 function isToolTab(value: string): value is ToolTab {
   return value === 'tools.builtin' || value === 'tools.knowledge' || value === 'tools.mcp' || value === 'tools.skills'
 }
@@ -627,7 +595,6 @@ function AgentEditDialogContent({
               skills={skills}
               skillsLoading={skillsLoading}
               skillsReady={baselineSkillAgentId === resource.id}
-              caps={caps}
             />
           </TabsContent>
         ) : null}
@@ -1139,8 +1106,7 @@ function AgentToolsFields({
   portalContainer,
   skills,
   skillsLoading,
-  skillsReady,
-  caps
+  skillsReady
 }: {
   agent: AgentDetail
   form: UseFormReturn<AgentEditFormValues>
@@ -1149,7 +1115,6 @@ function AgentToolsFields({
   skills: InstalledSkill[]
   skillsLoading: boolean
   skillsReady: boolean
-  caps: AgentRuntimeCapabilities
 }) {
   const { t } = useTranslation()
   const disabledTools = form.watch('disabledTools')
@@ -1157,125 +1122,24 @@ function AgentToolsFields({
   const knowledgeBaseIds = form.watch('knowledgeBaseIds')
   const skillIds = form.watch('skillIds')
   const canManageSkills = Boolean(agent.id)
-  const [browserEnabled] = usePreference('app.browser.agent_control.enabled')
-  const [computerUseEnabled] = usePreference('app.computer_use.agent_control.enabled')
-
-  // Built-in catalog: registry user-facing tools grouped into category sections.
-  // The toggle is a real enable/disable that writes the opt-out `disabledTools` set
-  // (empty = all enabled); approval is governed solely by the permission-mode cards.
-  // The kb_* tools are only injected once a knowledge base is bound (runtime gating),
-  // so hide their toggles here when the agent has none — they would otherwise read as
-  // "on" while doing nothing.
-  const hasKnowledgeScope = knowledgeBaseIds.length > 0
   const legacyRestrictions = disabledTools.filter((name) => name.startsWith(LEGACY_DSH_TOOL_PREFIX))
-  const disabledSet = useMemo(() => new Set(disabledTools), [disabledTools])
-  const builtinSections = useMemo(() => {
-    const tools = caps
-      .builtinTools(platform)
-      .filter((tool) => !caps.knowledgeBases || hasKnowledgeScope || !CLAUDE_KNOWLEDGE_TOOL_NAMES.has(tool.id))
-    return CLAUDE_TOOL_CATEGORIES.map((category) => ({
-      category,
-      label: t(CATEGORY_LABEL_KEYS[category], CATEGORY_LABEL_FALLBACKS[category]),
-      items: tools
-        .filter((tool) => tool.category === category)
-        .map<CatalogItem>((tool) => ({
-          id: tool.id,
-          name: t(tool.labelKey, tool.labelFallback ?? tool.id),
-          description: t(tool.descriptionKey, tool.descriptionFallback ?? ''),
-          icon: <Wrench size={13} strokeWidth={1.5} className="text-muted-foreground" />
-        }))
-    })).filter((section) => section.items.length > 0)
-  }, [caps, t, hasKnowledgeScope])
-  const enabledToolIds = useMemo<ReadonlySet<string>>(
-    () => new Set(builtinSections.flatMap((s) => s.items.map((i) => i.id)).filter((id) => !disabledSet.has(id))),
-    [builtinSections, disabledSet]
-  )
-  const setToolEnabled = (name: string, enabled: boolean) =>
-    form.setValue('disabledTools', enabled ? disabledTools.filter((n) => n !== name) : [...disabledTools, name], {
-      shouldDirty: true
-    })
-
-  const mcpIds = useMemo(() => new Set(mcps), [mcps])
-  const enableMCP = (id: string) => form.setValue('mcps', [...mcps, id], { shouldDirty: true })
-  const disableMCP = (id: string) =>
-    form.setValue(
-      'mcps',
-      mcps.filter((mcpId) => mcpId !== id),
-      { shouldDirty: true }
-    )
 
   return (
     <div className="grid gap-4">
       {activeToolTab === 'tools.builtin' ? (
-        <div className="grid gap-5">
-          <div className="grid gap-2">
-            <div className="flex items-center justify-between">
-              <span className="font-medium text-muted-foreground text-xs">{t('settings.browser.title')}</span>
-              <Button variant="ghost" size="sm" onClick={() => openSettingsTab('/settings/browser')}>
-                {t('settings.title')}
-              </Button>
-            </div>
-            <CatalogToggleGrid
-              items={[
-                {
-                  id: BROWSER_TOOL_GROUP,
-                  name: t('settings.browser.control'),
-                  description: t('settings.browser.controlHelp'),
-                  pickable: browserEnabled,
-                  inactiveBadge: browserEnabled ? undefined : t('library.config.tools.inactive_badge')
-                }
-              ]}
-              enabledIds={
-                browserEnabled && !disabledSet.has(BROWSER_TOOL_GROUP) ? new Set([BROWSER_TOOL_GROUP]) : new Set()
-              }
-              onToggle={setToolEnabled}
-              emptyLabel={t('library.config.agent.section.tools.no_builtin_enabled')}
-              portalContainer={portalContainer}
-            />
-          </div>
-          <div className="grid gap-2">
-            <div className="flex items-center justify-between">
-              <span className="font-medium text-muted-foreground text-xs">{t('settings.computerUse.title')}</span>
-              <Button variant="ghost" size="sm" onClick={() => openSettingsTab('/settings/computer-use')}>
-                {t('settings.title')}
-              </Button>
-            </div>
-            <CatalogToggleGrid
-              items={[
-                {
-                  id: COMPUTER_USE_TOOL_GROUP,
-                  name: t('settings.computerUse.control'),
-                  description: t('settings.computerUse.controlHelp'),
-                  pickable: computerUseEnabled,
-                  inactiveBadge: computerUseEnabled ? undefined : t('library.config.tools.inactive_badge')
-                }
-              ]}
-              enabledIds={
-                computerUseEnabled && !disabledSet.has(COMPUTER_USE_TOOL_GROUP)
-                  ? new Set([COMPUTER_USE_TOOL_GROUP])
-                  : new Set()
-              }
-              onToggle={setToolEnabled}
-              emptyLabel={t('library.config.agent.section.tools.no_builtin_enabled')}
-              portalContainer={portalContainer}
-            />
-          </div>
-          {builtinSections.map((section) => (
-            <div key={section.category} className="grid gap-2">
-              <div className="font-medium text-muted-foreground text-xs">{section.label}</div>
-              <CatalogToggleGrid
-                items={section.items}
-                enabledIds={enabledToolIds}
-                onToggle={setToolEnabled}
-                emptyLabel={t('library.config.agent.section.tools.no_builtin_enabled')}
-                portalContainer={portalContainer}
-              />
-            </div>
-          ))}
-        </div>
+        <BuiltinToolsField
+          agentType={agent.type}
+          disabledTools={disabledTools}
+          onDisabledToolsChange={(next) => form.setValue('disabledTools', next, { shouldDirty: true })}
+          hasKnowledgeScope={knowledgeBaseIds.length > 0}
+        />
       ) : null}
       {activeToolTab === 'tools.knowledge' ? (
-        <KnowledgeBaseField form={form} portalContainer={portalContainer} />
+        <KnowledgeCapabilityList
+          selectedIds={knowledgeBaseIds}
+          onSelectedIdsChange={(ids) => form.setValue('knowledgeBaseIds', ids, { shouldDirty: true })}
+          portalContainer={portalContainer}
+        />
       ) : null}
       {activeToolTab === 'tools.mcp' && legacyRestrictions.length > 0 ? (
         <div className="grid gap-2">
@@ -1302,10 +1166,9 @@ function AgentToolsFields({
         </div>
       ) : null}
       {activeToolTab === 'tools.mcp' ? (
-        <McpServerCatalogGrid
-          title={t('library.config.tools.added')}
-          enabledIds={mcpIds}
-          onToggle={(id, enabled) => (enabled ? enableMCP(id) : disableMCP(id))}
+        <McpCapabilityList
+          selectedIds={mcps}
+          onSelectedIdsChange={(ids) => form.setValue('mcps', ids, { shouldDirty: true })}
           emptyLabel={t('library.config.agent.section.tools.no_mcp_bound')}
           portalContainer={portalContainer}
         />
@@ -1324,16 +1187,6 @@ function AgentToolsFields({
               : t('library.config.agent.section.tools.skills_require_save')
           }
           portalContainer={portalContainer}
-          trailingItem={
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={openSkillsSettingsTab}
-              className="h-full min-h-11 w-full rounded-lg border border-border-subtle border-dashed px-2.5 py-1.5 font-normal text-muted-foreground text-sm shadow-none transition-colors hover:border-border-strong hover:bg-accent/50 hover:text-foreground">
-              <ToolCase size={14} strokeWidth={1.7} />
-              {t('agent.settings.skills.addMore')}
-            </Button>
-          }
         />
       ) : null}
     </div>

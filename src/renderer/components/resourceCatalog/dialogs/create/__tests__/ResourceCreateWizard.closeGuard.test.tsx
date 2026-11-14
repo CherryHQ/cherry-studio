@@ -29,7 +29,6 @@ const dialog = vi.hoisted(() => ({
   unmountCount: 0,
   settingsNavigate: vi.fn()
 }))
-const ipc = vi.hoisted(() => ({ request: vi.fn() }))
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key })
@@ -49,18 +48,17 @@ vi.mock('@renderer/hooks/agent/useAgentModelFilter', () => ({
   useAgentModelFilter: () => () => true
 }))
 
-vi.mock('@renderer/ipc', () => ({
-  ipcApi: { request: ipc.request }
-}))
-
 vi.mock('@renderer/components/resourceCatalog/dialogs/components/EditDialogShared', () => ({
   resourceDialogCloseButtonClassName: '',
   resourceDialogHeaderClassName: '',
   resourceDialogRailItemClassName: '',
-  resourceDialogTitleClassName: '',
-  KnowledgeBaseField: ({ disabled, onOpenKnowledgePage }: { disabled?: boolean; onOpenKnowledgePage?: () => void }) => (
-    <button type="button" disabled={disabled} onClick={onOpenKnowledgePage}>
-      open knowledge
+  resourceDialogTitleClassName: ''
+}))
+
+vi.mock('../steps/KnowledgeStep', () => ({
+  KnowledgeStep: ({ isSubmitting }: { isSubmitting?: boolean }) => (
+    <button type="button" disabled={isSubmitting}>
+      add knowledge
     </button>
   )
 }))
@@ -196,7 +194,7 @@ import { ResourceCreateWizard } from '../ResourceCreateWizard'
 
 const NEXT = 'library.config.dialogs.create.next'
 const CREATE = 'library.config.dialogs.create.submit'
-const OPEN_KNOWLEDGE = 'open knowledge'
+const ADD_KNOWLEDGE = 'add knowledge'
 const MANUAL = 'library.config.dialogs.create.auto.manual'
 
 afterEach(() => {
@@ -205,7 +203,6 @@ afterEach(() => {
   dialog.closeOnOverlayClick = undefined
   dialog.onPointerDownOutside = undefined
   dialog.renderCount = 0
-  ipc.request.mockReset()
   dialog.mountCount = 0
   dialog.unmountCount = 0
   dialog.settingsNavigate.mockReset()
@@ -259,17 +256,15 @@ describe('ResourceCreateWizard close protection', () => {
     await user.click(screen.getByRole('button', { name: 'fill basic' }))
     await user.click(screen.getByRole('button', { name: NEXT }))
     await user.click(screen.getByRole('button', { name: NEXT }))
-    expect(screen.getByRole('button', { name: OPEN_KNOWLEDGE })).toBeEnabled()
+    expect(screen.getByRole('button', { name: ADD_KNOWLEDGE })).toBeEnabled()
     await user.click(screen.getByRole('button', { name: CREATE }))
     expect(onSubmit).toHaveBeenCalledTimes(1)
 
     // In flight: overlay click is disabled, pointer-down-outside is prevented, and the
-    // dialog and knowledge-page entry refuse to close it — even though the parent's
+    // dialog refuses to close and the knowledge step is locked — even though the parent's
     // isSubmitting is still false.
     expect(dialog.closeOnOverlayClick).toBe(false)
-    expect(screen.getByRole('button', { name: OPEN_KNOWLEDGE })).toBeDisabled()
-    await user.click(screen.getByRole('button', { name: OPEN_KNOWLEDGE }))
-    expect(ipc.request).not.toHaveBeenCalled()
+    expect(screen.getByRole('button', { name: ADD_KNOWLEDGE })).toBeDisabled()
     expect(onOpenChange).not.toHaveBeenCalled()
     let prevented = false
     dialog.onPointerDownOutside?.({ defaultPrevented: false, preventDefault: () => (prevented = true) })
@@ -288,7 +283,7 @@ describe('ResourceCreateWizard close protection', () => {
     expect(onOpenChange).toHaveBeenCalledWith(false)
   })
 
-  it('blocks knowledge-page navigation while the parent reports a submit in flight', async () => {
+  it('locks the knowledge step while the parent reports a submit in flight', async () => {
     const user = userEvent.setup()
     const onOpenChange = vi.fn()
     const onSubmit = vi.fn()
@@ -306,7 +301,7 @@ describe('ResourceCreateWizard close protection', () => {
     await user.click(screen.getByRole('button', { name: 'fill basic' }))
     await user.click(screen.getByRole('button', { name: NEXT }))
     await user.click(screen.getByRole('button', { name: NEXT }))
-    expect(screen.getByRole('button', { name: OPEN_KNOWLEDGE })).toBeEnabled()
+    expect(screen.getByRole('button', { name: ADD_KNOWLEDGE })).toBeEnabled()
 
     rerender(
       <ResourceCreateWizard
@@ -319,10 +314,7 @@ describe('ResourceCreateWizard close protection', () => {
       />
     )
 
-    expect(screen.getByRole('button', { name: OPEN_KNOWLEDGE })).toBeDisabled()
-    await user.click(screen.getByRole('button', { name: OPEN_KNOWLEDGE }))
-    expect(onOpenChange).not.toHaveBeenCalled()
-    expect(ipc.request).not.toHaveBeenCalled()
+    expect(screen.getByRole('button', { name: ADD_KNOWLEDGE })).toBeDisabled()
 
     rerender(
       <ResourceCreateWizard
@@ -333,37 +325,7 @@ describe('ResourceCreateWizard close protection', () => {
         onSubmit={onSubmit}
       />
     )
-    expect(screen.getByRole('button', { name: OPEN_KNOWLEDGE })).toBeEnabled()
-  })
-
-  it('opens a standalone knowledge window and keeps the wizard open', async () => {
-    const user = userEvent.setup()
-    const onOpenChange = vi.fn()
-
-    render(
-      <ResourceCreateWizard
-        kind="assistant"
-        open
-        onOpenChange={onOpenChange}
-        onStartConversation={vi.fn()}
-        onSubmit={vi.fn()}
-      />
-    )
-
-    await user.click(screen.getByRole('button', { name: MANUAL }))
-    await user.click(screen.getByRole('button', { name: 'fill basic' }))
-    await user.click(screen.getByRole('button', { name: NEXT }))
-    await user.click(screen.getByRole('button', { name: NEXT }))
-    await user.click(screen.getByRole('button', { name: OPEN_KNOWLEDGE }))
-
-    expect(ipc.request).toHaveBeenCalledTimes(1)
-    const [channel, payload] = ipc.request.mock.calls[0] as [string, Record<string, unknown>]
-    expect(channel).toBe('tab.detach')
-    expect(payload).toMatchObject({ url: '/app/knowledge', type: 'route' })
-    expect(typeof payload.id).toBe('string')
-    expect(onOpenChange).not.toHaveBeenCalled()
-    expect(screen.getByRole('dialog')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: OPEN_KNOWLEDGE })).toBeEnabled()
+    expect(screen.getByRole('button', { name: ADD_KNOWLEDGE })).toBeEnabled()
   })
 
   it('closes and recreates the dialog before running model settings navigation', async () => {

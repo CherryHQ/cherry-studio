@@ -1,9 +1,10 @@
 import { renderHook } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useResourceAutoConfigure } from '../useResourceAutoConfigure'
 
 const fetchGenerate = vi.hoisted(() => vi.fn<(input: { content: string }) => Promise<string>>())
+const addMcpServer = vi.hoisted(() => vi.fn())
 
 vi.mock('@renderer/utils/aiGeneration', () => ({ fetchGenerate }))
 vi.mock('@renderer/hooks/useSkills', () => ({
@@ -25,12 +26,18 @@ vi.mock('@renderer/hooks/useMcpServer', () => ({
     mcpServers: [
       { id: 'mcp-github', name: 'GitHub', type: 'stdio', isActive: true },
       { id: 'mcp-inactive', name: 'Inactive', type: 'stdio', isActive: false },
-      { id: 'mcp-browser', name: '@cherry/browser', type: 'inMemory', isActive: true }
-    ]
+      { id: 'mcp-browser', name: '@cherry/browser', type: 'inMemory', isActive: true },
+      { id: 'mcp-sequential', name: '@cherry/sequentialthinking', type: 'inMemory', isActive: true }
+    ],
+    addMcpServer
   })
 }))
 
 describe('useResourceAutoConfigure', () => {
+  beforeEach(() => {
+    addMcpServer.mockReset()
+  })
+
   it('never links builtin or disabled skills, or inactive or browser MCP servers', async () => {
     fetchGenerate.mockResolvedValue(
       JSON.stringify({
@@ -60,5 +67,48 @@ describe('useResourceAutoConfigure', () => {
     for (const hidden of ['skill-builtin', 'skill-off', 'mcp-inactive', 'mcp-browser']) {
       expect(offered).not.toContain(hidden)
     }
+  })
+
+  it('offers uninstalled configuration-free featured MCP servers by preset ID, never ones that need configuration', async () => {
+    fetchGenerate.mockResolvedValue(
+      JSON.stringify({
+        name: 'Researcher',
+        prompt: 'You research.',
+        mcpServerIds: ['preset:@cherry/fetch', 'preset:@cherry/brave-search', 'preset:@cherry/sequentialthinking']
+      })
+    )
+    const { result } = renderHook(() => useResourceAutoConfigure('assistant'))
+
+    const draft = await result.current.generate({
+      agentType: 'claude-code',
+      purpose: 'Research the web',
+      name: '',
+      signal: new AbortController().signal
+    })
+
+    const offered = fetchGenerate.mock.calls.at(-1)![0].content
+    expect(offered).toContain('preset:@cherry/fetch')
+    // Brave Search needs an API key; sequential thinking is already installed and listed by its own ID.
+    expect(offered).not.toContain('preset:@cherry/brave-search')
+    expect(offered).not.toContain('preset:@cherry/sequentialthinking')
+    expect(draft?.mcpServerIds).toEqual(['preset:@cherry/fetch'])
+  })
+
+  it('installs picked featured servers once, active, and swaps in their new IDs', async () => {
+    addMcpServer.mockResolvedValue({ id: 'mcp-fetch-new', name: '@cherry/fetch' })
+    const { result } = renderHook(() => useResourceAutoConfigure('agent'))
+
+    const ids = await result.current.installFeaturedMcpServers(['mcp-github', 'preset:@cherry/fetch'])
+
+    expect(ids).toEqual(['mcp-github', 'mcp-fetch-new'])
+    expect(addMcpServer).toHaveBeenCalledTimes(1)
+    expect(addMcpServer.mock.calls[0][0]).toMatchObject({ name: '@cherry/fetch', isActive: true })
+  })
+
+  it('fails when a featured server cannot be installed', async () => {
+    addMcpServer.mockRejectedValue(new Error('npm offline'))
+    const { result } = renderHook(() => useResourceAutoConfigure('agent'))
+
+    await expect(result.current.installFeaturedMcpServers(['preset:@cherry/fetch'])).rejects.toThrow('npm offline')
   })
 })

@@ -115,17 +115,17 @@ describe('CapabilityStep', () => {
     systemSkillDialogState.current = null
   })
 
-  it('writes selected skills through the checkbox catalog variant', async () => {
+  it('writes selected skills from their switches', async () => {
     const user = userEvent.setup()
     render(<CapabilityStepHarness />)
 
-    await user.click(screen.getByRole('checkbox', { name: 'Alpha Skill' }))
+    await user.click(screen.getByRole('switch', { name: 'Alpha Skill' }))
     expect(screen.getByTestId('skill-ids')).toHaveTextContent('skill-a')
 
-    await user.click(screen.getByRole('checkbox', { name: 'Beta Skill' }))
+    await user.click(screen.getByRole('switch', { name: 'Beta Skill' }))
     expect(screen.getByTestId('skill-ids')).toHaveTextContent('skill-a,skill-b')
 
-    await user.click(screen.getByRole('checkbox', { name: 'Alpha Skill' }))
+    await user.click(screen.getByRole('switch', { name: 'Alpha Skill' }))
     expect(screen.getByTestId('skill-ids')).toHaveTextContent('skill-b')
   })
 
@@ -133,7 +133,7 @@ describe('CapabilityStep', () => {
     const user = userEvent.setup()
     render(<CapabilityStepHarness />)
 
-    const builtinCheckbox = screen.getByRole('checkbox', { name: 'Builtin Skill' })
+    const builtinCheckbox = screen.getByRole('switch', { name: 'Builtin Skill' })
     expect(builtinCheckbox).toBeChecked()
     expect(builtinCheckbox).toBeDisabled()
 
@@ -141,7 +141,7 @@ describe('CapabilityStep', () => {
     expect(builtinCheckbox).toBeChecked()
     expect(screen.getByTestId('skill-ids').textContent).toBe('')
 
-    await user.click(screen.getByRole('checkbox', { name: 'Alpha Skill' }))
+    await user.click(screen.getByRole('switch', { name: 'Alpha Skill' }))
     expect(screen.getByTestId('skill-ids').textContent).toBe('skill-a')
   })
 
@@ -152,9 +152,9 @@ describe('CapabilityStep', () => {
     const selectAllSwitch = screen.getByRole('switch', {
       name: 'library.config.agent.section.tools.skills_enable_all'
     })
-    const alphaSkill = screen.getByRole('checkbox', { name: 'Alpha Skill' })
-    const betaSkill = screen.getByRole('checkbox', { name: 'Beta Skill' })
-    const builtinSkill = screen.getByRole('checkbox', { name: 'Builtin Skill' })
+    const alphaSkill = screen.getByRole('switch', { name: 'Alpha Skill' })
+    const betaSkill = screen.getByRole('switch', { name: 'Beta Skill' })
+    const builtinSkill = screen.getByRole('switch', { name: 'Builtin Skill' })
 
     await user.click(selectAllSwitch)
     expect(screen.getByTestId('skill-ids')).toHaveTextContent('skill-a,skill-b')
