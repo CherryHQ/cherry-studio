@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useLayoutEffect, useRef } from 'react'
 
 import { ErrorDetailLink } from '@renderer/components/ErrorDetailLink'
 import { openLoadedErrorDetail, showDetailOpenFailed } from '@renderer/services/appErrorDetailOpen'
@@ -53,18 +53,20 @@ function loadFaultRequest(
 export function ErrorDetailAction(props: InlineErrorDetailInput) {
   const requestRef = useRef<AppErrorDetailRequest | undefined>(undefined)
   const loadRef = useRef<DetailLoad | undefined>(undefined)
-  const propsRef = useRef(props)
   const inputRef = useRef(props)
-  propsRef.current = props
-  if (!sameDetailInput(inputRef.current, props)) {
+
+  useLayoutEffect(() => {
     inputRef.current = props
-    requestRef.current = undefined
-    loadRef.current = undefined
-  }
+  })
 
   useEffect(() => {
     let cancelled = false
-    const snapshot = propsRef.current
+    const snapshot = inputRef.current
+    // A new fault is a new occurrence; the same fault keeps its loaded request.
+    if (loadRef.current && !sameDetailInput(loadRef.current.input, snapshot)) {
+      loadRef.current = undefined
+      requestRef.current = undefined
+    }
     void loadFaultRequest(snapshot, inputRef, requestRef, loadRef).catch(() => {
       if (!cancelled && sameDetailInput(snapshot, inputRef.current)) requestRef.current = undefined
     })
@@ -79,7 +81,7 @@ export function ErrorDetailAction(props: InlineErrorDetailInput) {
       openLoadedErrorDetail(ready)
       return
     }
-    const snapshot = propsRef.current
+    const snapshot = inputRef.current
     const openSnapshot = () => {
       void loadFaultRequest(snapshot, inputRef, requestRef, loadRef)
         .then((request) => openLoadedErrorDetail(request))
