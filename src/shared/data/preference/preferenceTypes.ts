@@ -306,6 +306,7 @@ export const WEB_SEARCH_PROVIDER_IDS = [
   'desearch',
   'searchapi',
   'serpkite',
+  'specstream',
   'duckduckgo'
 ] as const satisfies readonly (RemoteProviderId | 'fetch' | 'duckduckgo')[]
 

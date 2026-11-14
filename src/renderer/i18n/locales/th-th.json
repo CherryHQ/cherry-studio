@@ -6066,6 +6066,7 @@
   "settings.tool.websearch.provider_description.searxng": "เมตาเสิร์ชเอนจินอินเทอร์เน็ตฟรีที่ติดตั้งเองได้จากหลายแหล่ง",
   "settings.tool.websearch.provider_description.serpkite": "SerpKite search API ส่งผลลัพธ์ Google เป็น JSON แบบมีโครงสร้างสำหรับเอเจนต์ AI",
   "settings.tool.websearch.provider_description.serply": "Serply search API ส่งผลลัพธ์ Google เป็น JSON แบบมีโครงสร้างสำหรับแอป AI",
+  "settings.tool.websearch.provider_description.specstream": "API ค้นหาเว็บแบบเรียลไทม์และดึงเนื้อหาหน้าเว็บของ SpecStream คืนข้อความตัดตอนพร้อมแหล่งที่มาและข้อความหน้าเว็บที่สะอาด",
   "settings.tool.websearch.provider_description.stepfun": "StepFun",
   "settings.tool.websearch.provider_description.tavily": "เสิร์ชเอนจินที่ปรับให้เหมาะกับ LLM",
   "settings.tool.websearch.provider_description.yuanbao": "API ค้นหา Tencent Yuanbao ต้องใช้คีย์ API ของบริการ จำนวนผลลัพธ์เป็นขีดจำกัดสูงสุด โดยบริการอาจส่งคืนผลลัพธ์น้อยกว่านี้",

@@ -6138,6 +6138,7 @@
   "settings.tool.websearch.provider_description.searxng": "Bezpłatna, możliwa do samodzielnego hostowania metametawyszukiwarka internetowa korzystająca z wielu źródeł.",
   "settings.tool.websearch.provider_description.serpkite": "Interfejs API wyszukiwania SerpKite zwracający wyniki Google jako ustrukturyzowany JSON dla agentów AI.",
   "settings.tool.websearch.provider_description.serply": "Interfejs API wyszukiwania Serply zwracający wyniki Google jako ustrukturyzowany JSON dla aplikacji AI.",
+  "settings.tool.websearch.provider_description.specstream": "Interfejsy API SpecStream do wyszukiwania w sieci na żywo i ekstrakcji stron, zwracające cytowane fragmenty i czysty tekst strony.",
   "settings.tool.websearch.provider_description.stepfun": "StepFun",
   "settings.tool.websearch.provider_description.tavily": "Wyszukiwarka zoptymalizowana pod kątem modeli LLM.",
   "settings.tool.websearch.provider_description.yuanbao": "Tencent Yuanbao Search API. Wymaga klucza API usługi. Liczba wyników jest limitem górnym; usługa może zwrócić mniej wyników.",

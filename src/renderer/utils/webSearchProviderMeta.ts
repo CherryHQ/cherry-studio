@@ -105,6 +105,11 @@ const WEB_SEARCH_PROVIDER_DISPLAY_META: Record<WebSearchProviderId, WebSearchPro
     officialWebsite: 'https://serpkite.com',
     apiKeyWebsite: 'https://app.serpkite.com/keys'
   },
+  specstream: {
+    descriptionKey: 'settings.tool.websearch.provider_description.specstream',
+    officialWebsite: 'https://specstream.ai',
+    apiKeyWebsite: 'https://specstream.ai/workspace'
+  },
   serply: {
     descriptionKey: 'settings.tool.websearch.provider_description.serply',
     iconRef: providerIconRef('serply'),
