@@ -28,6 +28,7 @@ const EMPTY_MODEL_LABELS: ModelLabels = {
   modelId: null,
   planModelId: null,
   smallModelId: null,
+  expertModelId: null,
   contextCompressModelId: null
 }
 

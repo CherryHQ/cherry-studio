@@ -25,6 +25,7 @@ import {
   SESSION_SEND_TOOL_NAME
 } from '@shared/ai/agentSessionDelivery'
 import {
+  ASK_EXPERT_TOOL_NAME,
   CONFIG_TOOL_NAME,
   CRON_TOOL_NAME,
   GENERATE_IMAGE_TOOL_NAME,
@@ -108,6 +109,9 @@ const BUILTIN_TOOL_POLICIES = {
   cherryCliInstall: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, CLI_INSTALL_TOOL_NAME, 'required'),
   cherryToMarkdown: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, TO_MARKDOWN_TOOL_NAME, 'auto'),
   cherryGenerateImage: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, GENERATE_IMAGE_TOOL_NAME, 'required'),
+  // Read-only consultation that spends the configured expert model's tokens, like the advisor tool it
+  // mirrors: no side effects, so it does not interrupt the turn with an approval prompt.
+  cherryAskExpert: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, ASK_EXPERT_TOOL_NAME, 'auto'),
 
   agentMemory: tool(CHERRY_MCP_SERVER.AGENT_MEMORY, 'memory', 'auto'),
   searchSkills: tool(CHERRY_MCP_SERVER.SKILLS, 'search_skills', 'auto'),
