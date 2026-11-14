@@ -462,7 +462,7 @@ export function useAgentMessageListProviderValue({
       hasOlder,
       messageNavigation,
       ...DEFAULT_MESSAGE_LIST_CONFIG,
-      listKey: resolvedAgentId,
+      listKey: topic.id,
       // An agent turn is a sequence of steps; show each one rather than only the latest title.
       renderConfig: { ...renderConfig, expandToolSteps: true },
       menuConfig,
