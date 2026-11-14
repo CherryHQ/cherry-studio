@@ -15,6 +15,7 @@ import {
   operationIncident,
   operationSubject
 } from './AppErrorContextService'
+import { showDetailOpenFailed } from './appErrorDetailOpen'
 import { degradedFaultHostService } from './DegradedFaultHostService'
 import { errorDetailPopupService } from './ErrorDetailPopupService'
 import { toast } from './toast'
@@ -122,20 +123,6 @@ type AppErrorDetailOpenResult = 'opened' | 'busy' | 'failed'
 class AppErrorDetailService {
   private detailReserved = false
 
-  private showDetailOpenRetry(request: AppErrorDetailRequest): void {
-    toast.error({
-      title: i18n.t('error.detail_open_failed'),
-      data: { suppressDetail: true },
-      timeout: 0,
-      action: {
-        label: i18n.t('common.retry'),
-        onClick: () => {
-          void this.openAppErrorDetail(request)
-        }
-      }
-    })
-  }
-
   /**
    * Open the one error-detail dialog. A dialog the user is already reading stays put.
    * The heavy detail module loads only when a detail is actually opened.
@@ -149,7 +136,7 @@ class AppErrorDetailService {
       if (!popup?.isErrorDetailHostMounted()) {
         this.detailReserved = false
         if (degradedFaultHostService.presentDegradedFault(degradedFaultText(request))) return 'opened'
-        this.showDetailOpenRetry(request)
+        showDetailOpenFailed(() => void this.openAppErrorDetail(request))
         return 'failed'
       }
       const pending = popup.showErrorDetailPopup({
@@ -176,7 +163,7 @@ class AppErrorDetailService {
     } catch (error) {
       this.detailReserved = false
       logger.error('Failed to open error details', error as Error)
-      this.showDetailOpenRetry(request)
+      showDetailOpenFailed(() => void this.openAppErrorDetail(request))
       return 'failed'
     }
   }
