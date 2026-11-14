@@ -260,7 +260,7 @@ jobs:
         env:
           npm_config_cache: ${{ runner.temp }}/cherry-code-tools-npm
         run: |
-          npm install --global @anthropic-ai/claude-code@2.1.239 @openai/codex@0.149.0 openclaw@2026.6.11
+          npm install --global @anthropic-ai/claude-code@2.1.325 @openai/codex@0.169.0 openclaw@2026.11.3
           claude --version
           codex --version
           openclaw --version

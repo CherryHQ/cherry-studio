@@ -242,8 +242,11 @@ type FixedToolDefinition = {
   tool: string
   npmAllowBuilds?: readonly string[]
   pipDependencies?: readonly string[]
+  /** Version prefix the latest-version query is scoped to (`<tool>@<prefix>`). */
+  latestVersionPrefix?: string
 }
-type InstallableToolDefinition = CustomToolDefinition & Pick<FixedToolDefinition, 'npmAllowBuilds' | 'pipDependencies'>
+type InstallableToolDefinition = CustomToolDefinition &
+  Pick<FixedToolDefinition, 'npmAllowBuilds' | 'pipDependencies' | 'latestVersionPrefix'>
 type MiseInstallEntry = { version?: string; active?: boolean; install_path?: string }
 
 // One build's env and the facts derived from it, so no caller can pair them
@@ -297,7 +300,8 @@ const FIXED_CATALOG: ReadonlyMap<string, FixedToolDefinition> = new Map<string, 
     {
       name: preset.executable,
       tool: preset.miseTool,
-      ...(preset.npmAllowBuilds?.length ? { npmAllowBuilds: preset.npmAllowBuilds } : {})
+      ...(preset.npmAllowBuilds?.length ? { npmAllowBuilds: preset.npmAllowBuilds } : {}),
+      ...(preset.latestVersionPrefix ? { latestVersionPrefix: preset.latestVersionPrefix } : {})
     }
   ])
 ])
@@ -1574,7 +1578,13 @@ export class BinaryManager extends BaseService {
         }
       }
     }
-    const toolSpec = `${addNpmAllowBuildsOption(definition.tool, definition.npmAllowBuilds)}@${requested}`
+    // A tool pinned to a version line resolves "latest" inside that line. The
+    // github backend orders releases by creation date, so an unprefixed
+    // "latest" would resolve to whichever release was published last — a patch
+    // of an older line can outrank the newer line's prerelease.
+    const resolvedRequest =
+      requested === 'latest' && definition.latestVersionPrefix ? definition.latestVersionPrefix : requested
+    const toolSpec = `${addNpmAllowBuildsOption(definition.tool, definition.npmAllowBuilds)}@${resolvedRequest}`
     const includePrerelease = MISE_PRERELEASE_TOOLS.has(definition.tool)
     const shellOutNpm = MISE_NPM_SHELL_OUT_TOOLS.has(definition.tool)
     const releaseAgeArgs = includePrerelease ? ['--minimum-release-age', '0s'] : []
@@ -2204,7 +2214,7 @@ export class BinaryManager extends BaseService {
     const workers = Array.from({ length: Math.min(LATEST_VERSIONS_CONCURRENCY, applied.length) }, async () => {
       while (cursor < applied.length) {
         const name = applied[cursor++]
-        const { tool } = candidates.get(name)!
+        const { tool, latestVersionPrefix } = candidates.get(name)!
         try {
           if (tool === 'claude' && isWin && process.arch === 'arm64') {
             const registries = claudeNpmRegistries((await this.getIsolatedEnv()).env.NPM_CONFIG_REGISTRY)
@@ -2220,7 +2230,10 @@ export class BinaryManager extends BaseService {
           }
           const includePrerelease = MISE_PRERELEASE_TOOLS.has(tool)
           const releaseAgeArgs = includePrerelease ? ['--minimum-release-age', '0s'] : []
-          const { stdout } = await this.runMise(['latest', ...releaseAgeArgs, tool], { includePrerelease })
+          const { stdout } = await this.runMise(
+            ['latest', ...releaseAgeArgs, latestVersionPrefix ? `${tool}@${latestVersionPrefix}` : tool],
+            { includePrerelease }
+          )
           const version = stdout.trim().split(/\r?\n/)[0]?.trim()
           if (version) result[name] = version
         } catch (err) {
