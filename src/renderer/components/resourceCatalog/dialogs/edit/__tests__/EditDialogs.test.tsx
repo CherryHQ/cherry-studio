@@ -1436,10 +1436,9 @@ describe('edit dialogs', () => {
     )
   })
 
-  it('saves the Assistant reply language from More settings, starting from no constraint', async () => {
+  it('saves the Assistant reply language from the Answers card, starting from no constraint', async () => {
     render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'More settings' }))
     const answers = await screen.findByRole('region', { name: 'Answers' })
     const select = within(answers).getByRole('combobox', { name: 'Reply language' })
     expect(select).toHaveTextContent('No constraint')
