@@ -3,12 +3,28 @@ import type { MouseEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button, EmojiAvatar } from '@cherrystudio/ui'
+import { dataApiService } from '@data/DataApiService'
+import { loggerService } from '@logger'
 import { openResourceEditDialog } from '@renderer/components/resourceCatalog/dialogs/ResourceEditDialogEventHost'
+import { resolveChatEntryTopicIdForAssistant } from '@renderer/utils/conversationEntry'
 import { DEFAULT_AGENT_CREATE_AVATAR } from '@shared/ai/agentCreateCommand'
 import { DEFAULT_ASSISTANT_CREATE_AVATAR } from '@shared/ai/assistantCreateDto'
 
 import { useOptionalMessageListActions } from '../../MessageListProvider'
 import type { ResourceIdentityResult } from './resourceIdentityResult'
+
+const logger = loggerService.withContext('ResourceIdentityCard')
+
+async function conversationRoute(
+  result: ResourceIdentityResult
+): Promise<{ path: string; query: Record<string, string> }> {
+  if (result.kind === 'agent') return { path: '/app/agents', query: { agentId: result.id } }
+  // The chat page shows nothing for an Assistant without topics, so open its latest topic or an empty one.
+  const topicId =
+    (await resolveChatEntryTopicIdForAssistant(result.id)) ??
+    (await dataApiService.post('/topics/reusable-placeholder', { body: { assistantId: result.id } })).topic.id
+  return { path: '/app/chat', query: { topicId } }
+}
 
 /** The Agent or Assistant a create / configure tool just made or changed, with a way into it. */
 export function ResourceIdentityCard({ result }: { result: ResourceIdentityResult }) {
@@ -18,12 +34,9 @@ export function ResourceIdentityCard({ result }: { result: ResourceIdentityResul
   const openConversation =
     navigateToRoute && !result.self
       ? () =>
-          void navigateToRoute(
-            result.kind === 'agent'
-              ? { path: '/app/agents', query: { agentId: result.id } }
-              : // An Assistant with no topic yet opens a new one.
-                { path: '/app/chat', query: { assistantId: result.id } }
-          )
+          void conversationRoute(result)
+            .then(navigateToRoute)
+            .catch((error) => logger.error('Failed to open the conversation', error as Error))
       : undefined
   const fallbackEmoji = result.kind === 'agent' ? DEFAULT_AGENT_CREATE_AVATAR : DEFAULT_ASSISTANT_CREATE_AVATAR
   const openLabel = t('message.tools.identity_card.open_conversation')
