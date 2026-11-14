@@ -91,6 +91,7 @@ export const skillHandlers: IpcHandlersFor<typeof skillRequestSchemas> = {
   'skill.marketplace.install': ({ id }) => skillService.installMarketplace(id),
   'skill.install': ({ installSource }) =>
     toSkillResult(() => skillService.install({ installSource }), 'Failed to install skill'),
+  'skill.install_cancel': async ({ installSource }) => skillService.cancelInstall(installSource),
   'skill.uninstall': ({ skillId }) => toSkillResult(() => skillService.uninstall(skillId), 'Failed to uninstall skill'),
   'skill.set_mirror_enabled': async ({ skillId, mirrorEnabled }) => {
     const updated = await skillService.setMirrorEnabled(skillId, mirrorEnabled)

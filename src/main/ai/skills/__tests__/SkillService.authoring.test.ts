@@ -250,7 +250,14 @@ describe('SkillService authoring and remote updates', () => {
     const row = dbh.db.select().from(agentGlobalSkillTable).where(eq(agentGlobalSkillTable.id, installed.id)).get()
     expect(row).toMatchObject({ sourceUrl: SOURCE_URL, contentHash })
     expect(hasSkillRemoteUpdateProvenance(installed)).toBe(true)
-    expect(fetchRemoteSkillMock).toHaveBeenCalledExactlyOnceWith('skills.sh', 'owner/repo/writer')
+    expect(fetchRemoteSkillMock).toHaveBeenCalledExactlyOnceWith(
+      'skills.sh',
+      'owner/repo/writer',
+      expect.any(AbortSignal)
+    )
+    // The fetch must receive the install's live cancel signal, not a dead one.
+    const installSignal = fetchRemoteSkillMock.mock.calls[0][2] as AbortSignal
+    expect(installSignal.aborted).toBe(false)
     expect(onInstalled).toHaveBeenCalledOnce()
     await expect(fs.promises.access(fetched.tempDir)).rejects.toThrow()
   })
