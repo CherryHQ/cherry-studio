@@ -149,6 +149,19 @@ describe('resolveCommandKeybinding', () => {
 })
 
 describe('resolveCommandByKeybinding', () => {
+  it('routes Ctrl+K to previous-turn navigation only while the message list has focus', () => {
+    const resolve = (focused: boolean) =>
+      resolveCommandByKeybinding({
+        binding: ['CommandOrControl', 'K'],
+        context: { 'chat.messages.focused': focused },
+        platform: 'darwin',
+        scope: 'renderer'
+      })
+
+    expect(resolve(true)).toBe('chat.message.focus_prev')
+    expect(resolve(false)).toBe('chat.context.toggle_new')
+  })
+
   it('does not resolve disabled, cleared, unsupported, or unavailable commands', () => {
     expect(
       resolveCommandByKeybinding({
@@ -360,6 +373,21 @@ describe('findKeybindingConflicts', () => {
         trigger: 'additional',
         conflictingTrigger: 'primary'
       })
+    ])
+  })
+
+  it('keeps combined conversation cycling user-assignable without replacing topic arrow defaults', () => {
+    expect(getCommandDefaultShortcutPreference('chat.conversation.next', 'darwin')?.binding).toEqual([])
+    expect(getCommandDefaultShortcutPreference('chat.conversation.prev', 'darwin')?.binding).toEqual([])
+    expect(getCommandDefaultShortcutPreference('topic.next', 'darwin')?.binding).toEqual([
+      'CommandOrControl',
+      'Alt',
+      'Down'
+    ])
+    expect(getCommandDefaultShortcutPreference('topic.prev', 'darwin')?.binding).toEqual([
+      'CommandOrControl',
+      'Alt',
+      'Up'
     ])
   })
 
