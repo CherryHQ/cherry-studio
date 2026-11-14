@@ -32,13 +32,3 @@ export function normalizeAgentLanguageInput(raw: unknown): string | null {
 }
 
 export type AgentLanguageMode = 'inherit' | 'off' | 'custom'
-
-export function resolveAgentLanguagePreview(
-  mode: AgentLanguageMode,
-  customDraft: string,
-  globalLanguage: string | null
-): string | null {
-  if (mode === 'off') return null
-  if (mode === 'custom') return normalizeAgentLanguageInput(customDraft) ?? globalLanguage
-  return globalLanguage
-}

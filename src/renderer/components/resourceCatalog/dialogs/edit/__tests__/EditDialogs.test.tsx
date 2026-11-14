@@ -386,6 +386,11 @@ vi.mock('react-i18next', async (importOriginal) => {
           'agent.tasks.intervalUnit': 'minutes',
           'library.config.agent.field.heartbeat_enabled.label': 'Heartbeat',
           'library.config.agent.field.heartbeat_interval.label': 'Heartbeat interval',
+          'library.config.agent.field.language.label': 'Reply language',
+          'library.config.agent.field.language.inherit': 'Follow global',
+          'library.config.agent.field.language.mode.off': 'No constraint',
+          'library.config.agent.field.language.other': 'Other language…',
+          'settings.agent.language.custom_label': 'Custom reply language',
           'library.config.agent.field.model.hint': 'Primary agent model.',
           'library.config.agent.field.model.hint.claude_code': 'Pins the opus alias (ANTHROPIC_MODEL).',
           'library.config.agent.field.model.label': 'Model',
@@ -1587,7 +1592,7 @@ describe('edit dialogs', () => {
   it('persists a heartbeat timeout edit independently of the interval', async () => {
     const user = userEvent.setup()
     render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} />)
-    const field = screen.getByLabelText('Maximum Execution Time (minutes)')
+    const field = screen.getByLabelText('Maximum Execution Time')
     expect(field).toHaveValue('2')
 
     await user.clear(field)
@@ -1613,6 +1618,78 @@ describe('edit dialogs', () => {
 
     expect(field).toHaveValue('30')
     expect(updateAgentMock).not.toHaveBeenCalled()
+  })
+
+  it('reveals the heartbeat interval and timeout only once the switch is on, and saves them clamped', async () => {
+    const user = userEvent.setup()
+    const agent = { ...AGENT, configuration: { avatar: '🤖', heartbeat_enabled: false } }
+    render(<AgentEditDialog open resource={agent} onOpenChange={vi.fn()} />)
+    expect(screen.queryByLabelText('Heartbeat interval')).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('switch', { name: 'Heartbeat' }))
+    const interval = screen.getByLabelText('Heartbeat interval')
+    await user.clear(interval)
+    await user.type(interval, '5000')
+    const timeout = screen.getByLabelText('Maximum Execution Time')
+    await user.clear(timeout)
+    await user.type(timeout, '0')
+    await user.tab()
+
+    expect(interval).toHaveValue('1440')
+    expect(timeout).toHaveValue('1')
+    await waitFor(() =>
+      expect(updateAgentMock).toHaveBeenLastCalledWith({
+        body: {
+          configuration: { heartbeat_enabled: true, heartbeat_interval: 1440, heartbeat_timeout_minutes: 1 }
+        }
+      })
+    )
+  })
+
+  it.each([
+    ['No constraint', null],
+    ['English', 'English']
+  ] as const)('saves the reply language option %s', async (option, language) => {
+    render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} />)
+
+    fireEvent.click(screen.getByRole('combobox', { name: 'Reply language' }))
+    fireEvent.click(await screen.findByRole('option', { name: option }))
+
+    await waitFor(() => expect(updateAgentMock).toHaveBeenCalledWith({ body: { configuration: { language } } }))
+  })
+
+  it('clears a custom reply language when following the global setting again', async () => {
+    const agent = { ...AGENT, configuration: { ...AGENT.configuration, language: 'Svenska' } }
+    render(<AgentEditDialog open resource={agent} onOpenChange={vi.fn()} />)
+
+    fireEvent.click(screen.getByRole('combobox', { name: 'Reply language' }))
+    fireEvent.click(await screen.findByRole('option', { name: 'Follow global' }))
+
+    await waitFor(() => expect(updateAgentMock).toHaveBeenCalled())
+    const { configuration } = vi.mocked(updateAgentMock).mock.calls[0][0].body
+    expect(configuration).toHaveProperty('language', undefined)
+  })
+
+  it('saves an "Other language" only once the user has typed one', async () => {
+    const user = userEvent.setup()
+    render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} />)
+
+    expect(screen.queryByLabelText('Custom reply language')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('combobox', { name: 'Reply language' }))
+    fireEvent.click(await screen.findByRole('option', { name: 'Other language…' }))
+    const input = screen.getByLabelText('Custom reply language')
+    await act(() => new Promise((resolve) => setTimeout(resolve, 600)))
+    expect(updateAgentMock).not.toHaveBeenCalled()
+
+    // Typing a preset's name must not swap the input away mid-word.
+    await user.type(input, 'Deutsch')
+    expect(screen.getByLabelText('Custom reply language')).toHaveValue('Deutsch')
+    await user.clear(input)
+    await user.type(input, 'Svenska')
+
+    await waitFor(() =>
+      expect(updateAgentMock).toHaveBeenLastCalledWith({ body: { configuration: { language: 'Svenska' } } })
+    )
   })
 
   it('cancels Full Access on authoritative editor refresh without losing other edits (inv_787184d14a5afca7)', async () => {
