@@ -304,6 +304,7 @@ describe('overflow cleanup', () => {
       tools,
       prompt: [textMessage('system', 'system'), textMessage('user', 'first'), textMessage('assistant', 'second')]
     }
+    // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
     const before = structuredClone(input)
     const out = await transform(input, provider)
     expect(countCacheMarkers(out)).toBe(4)
@@ -352,6 +353,7 @@ describe('overflow cleanup', () => {
         providerOptions: i === 2 ? dual : mark
       }))
     }
+    // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
     const before = structuredClone(input)
     const out = await transform(input, makeProvider({ enabled: true, tokenThreshold: 999999 }))
     expect(countCacheMarkers(out)).toBe(4)
@@ -420,6 +422,7 @@ describe('overflow cleanup', () => {
         textMessage('user', 'two')
       ]
     } as LanguageModelV3CallOptions
+    // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
     const before = structuredClone(input)
     const out = await transform(input, provider)
     expect(countCacheMarkers(out)).toBe(4)
@@ -462,6 +465,7 @@ describe('serialized adapter cache markers', () => {
         textMessage('user', 'last request '.repeat(1600))
       ]
     }
+    // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
     const before = structuredClone(input)
     const out = await transform(input, provider)
     const markers = extractBodyMarkers(JSON.parse(await captureBody(out)))
@@ -511,6 +515,7 @@ describe('serialized adapter cache markers', () => {
         textMessage('user', 'last request '.repeat(1600))
       ]
     }
+    // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
     const before = structuredClone(input)
     const out = await transform(input, provider)
     const body: SerializedBody = JSON.parse(await captureBody(out))
@@ -585,6 +590,7 @@ describe('serialized adapter cache markers', () => {
         textMessage('assistant', 'final answer')
       ]
     }
+    // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
     const before = structuredClone(input)
     const markers = extractBodyMarkers(JSON.parse(await captureBody(await transform(input, provider))))
     expect(markers.length).toBeLessThanOrEqual(4)
@@ -615,6 +621,7 @@ describe('serialized adapter cache markers', () => {
         }
       ]
     }
+    // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
     const before = structuredClone(input)
     const out = await transform(
       input,
@@ -683,6 +690,7 @@ describe('serialized adapter cache markers', () => {
         }
       ]
     }
+    // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
     const before = structuredClone(input)
     const out = await transformAnthropicCacheParams(
       input,
@@ -734,6 +742,7 @@ describe('serialized adapter cache markers', () => {
         }
       ]
     }
+    // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
     const before = structuredClone(input)
     const out = await transform(
       input,
@@ -763,6 +772,7 @@ describe('caller-owned cache policy', () => {
       if (location === 'system') params.prompt[0].providerOptions = cache
       if (location === 'part')
         params.prompt[1] = { role: 'user', content: [{ type: 'text', text: 'hello', providerOptions: cache }] }
+      // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
       const original = structuredClone(params)
       const result = await transformAnthropicCacheParams(
         params,

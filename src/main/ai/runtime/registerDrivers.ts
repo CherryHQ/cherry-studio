@@ -35,8 +35,8 @@ class LazyClaudeCodeRuntimeDriver implements AgentSessionRuntimeDriver {
 
   private implementationPromise: Promise<AgentSessionRuntimeDriver> | undefined
 
-  validateSession(session: AgentSessionEntity): Promise<void> {
-    return this.loadImplementation().then((driver) => driver.validateSession(session))
+  validateSession(session: AgentSessionEntity, opts?: { headless?: boolean }): Promise<void> {
+    return this.loadImplementation().then((driver) => driver.validateSession(session, opts))
   }
 
   connect(input: AgentRuntimeConnectInput): Promise<AgentRuntimeConnection> {

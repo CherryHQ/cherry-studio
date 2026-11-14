@@ -52,11 +52,15 @@ vi.mock('@renderer/components/OpenTarget', () => ({
 vi.mock('react-i18next', async (importOriginal) => ({
   ...(await importOriginal<typeof ReactI18next>()),
   useTranslation: () => ({
-    t: (key: string, options?: { format?: string }) => {
+    t: (key: string, options?: { format?: string; count?: number }) => {
       const messages: Record<string, string> = enUs
       if (key.startsWith('chat.input.tools.file_type.') || key.startsWith('files.')) {
         return messages[key]?.replace('{{format}}', options?.format ?? '') ?? key
       }
+      if (key === 'chat.artifacts.show_remaining') {
+        return messages[key].replace('{{count}}', String(options?.count))
+      }
+      if (key === 'common.collapse') return 'Collapse'
       if (key === 'common.preview') return 'Preview'
       if (key === 'common.copied') return 'Copied'
       if (key === 'common.copy') return 'Copy'
@@ -105,6 +109,65 @@ describe('MessageReportArtifacts', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     setInlineFilePathHomePath(undefined)
+  })
+
+  it.each([1, 3])('keeps all %i deliverables accessible without a disclosure control', (count) => {
+    renderWithProvider(
+      <MessageReportArtifacts
+        toolResponses={[
+          {
+            id: 'small-list',
+            toolCallId: 'small-list',
+            tool: { id: 'report-artifacts', name: 'report_artifacts', type: 'builtin' },
+            status: 'done',
+            arguments: { artifacts: Array.from({ length: count }, (_, index) => ({ path: `dist/file-${index}.md` })) }
+          }
+        ]}
+      />
+    )
+
+    expect(screen.getAllByRole('button', { name: /^Preview / })).toHaveLength(count)
+    expect(screen.queryByRole('button', { name: /Show remaining files/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Collapse' })).not.toBeInTheDocument()
+  })
+
+  it.each([4, 12])('makes all %i deliverables reachable by keyboard and allows collapsing again', async (count) => {
+    const user = userEvent.setup()
+    renderWithProvider(
+      <MessageReportArtifacts
+        toolResponses={[
+          {
+            id: 'large-list',
+            toolCallId: 'large-list',
+            tool: { id: 'report-artifacts', name: 'report_artifacts', type: 'builtin' },
+            status: 'done',
+            arguments: { artifacts: Array.from({ length: count }, (_, index) => ({ path: `dist/file-${index}.md` })) }
+          }
+        ]}
+      />
+    )
+
+    expect(screen.getAllByRole('button', { name: /^Preview / })).toHaveLength(3)
+    expect(screen.queryByRole('button', { name: 'Preview file-3.md' })).not.toBeInTheDocument()
+    const toggle = screen.getByRole('button', { name: `Show remaining files (${count - 3})` })
+    expect(toggle).toHaveAttribute('aria-expanded', 'false')
+
+    await user.tab({ shift: true })
+    expect(toggle).toHaveFocus()
+    await user.keyboard('{Enter}')
+
+    expect(screen.getAllByRole('button', { name: /^Preview / })).toHaveLength(count)
+    expect(screen.getByRole('button', { name: `Preview file-${count - 1}.md` })).toBeInTheDocument()
+    expect(toggle).toHaveAttribute('aria-expanded', 'true')
+    expect(toggle).toHaveAccessibleName('Collapse')
+    expect(toggle).toHaveFocus()
+
+    await user.keyboard(' ')
+
+    expect(screen.getAllByRole('button', { name: /^Preview / })).toHaveLength(3)
+    expect(toggle).toHaveAttribute('aria-expanded', 'false')
+    expect(toggle).toHaveAccessibleName(`Show remaining files (${count - 3})`)
+    expect(toggle).toHaveFocus()
   })
 
   it('renders declared deliverables from tool arguments', () => {

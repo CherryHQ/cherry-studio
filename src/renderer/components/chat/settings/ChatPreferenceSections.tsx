@@ -73,6 +73,7 @@ const ChatPreferenceSections: FC<ChatPreferenceSectionsProps> = ({ sectionClassN
   const resolvedSendShortcut = resolveSendShortcut(storedSendShortcut)
   const resolvedNewlineShortcut = resolveNewlineShortcut(newlineShortcut, resolvedSendShortcut)
   const resolvedSteerShortcut = resolveSteerShortcut(steerShortcut, resolvedSendShortcut, resolvedNewlineShortcut)
+  const [promptSuggestions, setPromptSuggestions] = usePreference('agent.input.suggestions.enabled')
   const [enableSpellCheck, setEnableSpellCheck] = usePreference('app.spell_check.enabled')
   const [spellCheckLanguages, setSpellCheckLanguages] = usePreference('app.spell_check.languages')
   const [messageFont, setMessageFont] = usePreference('chat.message.font')
@@ -247,6 +248,17 @@ const ChatPreferenceSections: FC<ChatPreferenceSectionsProps> = ({ sectionClassN
                 ))}
               </SelectContent>
             </Select>
+          </SettingRow>
+          <SettingDivider />
+          <SettingRow id="setting-agent-prompt-suggestions" className="scroll-mt-6">
+            <SettingRowTitleSmall hint={t('agent.input.suggestions.hint')}>
+              {t('agent.input.suggestions.label')}
+            </SettingRowTitleSmall>
+            <Switch
+              aria-label={t('agent.input.suggestions.label')}
+              checked={promptSuggestions}
+              onCheckedChange={(checked) => void setPromptSuggestions(checked)}
+            />
           </SettingRow>
           <SettingDivider />
           <SettingRow id="setting-appearance-spell-check" className="scroll-mt-6">

@@ -11,7 +11,6 @@ import { loggerService } from '@logger'
 import { isAgentSessionTopic } from '@main/ai/agentSession/topic'
 import { resolveContextSettings } from '@main/ai/contextBuild/resolveContextSettings'
 import { resolveGlobalContextSettings } from '@main/ai/contextBuild/resolveRequestContextSettings'
-import { applyMaxMessagesWindow } from '@main/ai/messages/maxMessagesWindow'
 import { temporaryChatService } from '@main/data/services/TemporaryChatService'
 import { toContentRole } from '@shared/data/types/message'
 import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
@@ -104,23 +103,23 @@ export class TemporaryChatContextProvider implements ChatContextProvider {
       modelId: model.id
     })
 
-    const prior = temporaryChatService.listMessages(req.topicId)
-    // Keep each row's creation timestamp on the projection: the optional send-time
-    // prefix shaping reads `metadata.createdAt`, and dropping it here made that
-    // preference a no-op for temporary chats.
-    const fullHistory: CherryUIMessage[] = prior.map((m) => ({
-      id: m.id,
-      role: toContentRole(m.role),
-      parts: m.data.parts ?? [],
-      metadata: { createdAt: m.createdAt }
-    }))
     // Same scope rule as the persistent provider, and likewise independent of
     // the `enabled` kill-switch, which owns the overflow policy instead.
     const contextSettings = resolveContextSettings({
       globals: resolveGlobalContextSettings(),
       assistant: assistant?.settings?.contextSettings
     })
-    const history = applyMaxMessagesWindow(fullHistory, contextSettings.maxMessages)
+    // Keep each row's creation timestamp on the projection: the optional send-time
+    // prefix shaping reads `metadata.createdAt`, and dropping it here made that
+    // preference a no-op for temporary chats.
+    const history: CherryUIMessage[] = temporaryChatService
+      .listMessages(req.topicId, contextSettings.maxMessages)
+      .map((m) => ({
+        id: m.id,
+        role: toContentRole(m.role),
+        parts: m.data.parts ?? [],
+        metadata: { createdAt: m.createdAt }
+      }))
 
     const messageId = uuidv7()
     const listeners: StreamListener[] = [

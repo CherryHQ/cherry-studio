@@ -3,10 +3,10 @@
  *
  * Policy lives in the declarative guard table (guardRules.ts) and is enforced by ONE hook that
  * evaluates it — new policy is a table row, never a new hook. The remaining hooks are mechanical
- * (context injection, command rewrite, steer delivery, timing), kept separate so the SDK's
+ * (context injection, command rewrite, timing), kept separate so the SDK's
  * parallel fold still runs them when the guard denies.
  *
- * All hooks resolve live session state (policy snapshot, steer holder, interaction state) by
+ * All hooks resolve live session state (policy snapshot, interaction state) by
  * session id at fire-time through ClaudeCodeSessionStateService — never by closure capture — so a
  * warm-pooled query's prewarm-baked hooks observe mid-session updates.
  */
