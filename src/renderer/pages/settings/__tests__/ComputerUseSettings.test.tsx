@@ -1,13 +1,31 @@
-import { mockUsePreference, MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
+import { MockUsePreference, mockUsePreference, MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { SWRConfig } from 'swr'
+import type { SWRConfig as SWRConfigComponent } from 'swr'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import i18n from '@renderer/i18n/resolver'
 import { ipcApi } from '@renderer/ipc'
 
-import { ComputerUseSettings } from '../ComputerUseSettings'
+import type { ComputerUseSettings as ComputerUseSettingsComponent } from '../ComputerUseSettings'
+
+let ComputerUseSettings: typeof ComputerUseSettingsComponent
+let SWRConfig: typeof SWRConfigComponent
+
+async function loadWithPlatform(isLinux: boolean) {
+  vi.resetModules()
+  vi.doMock('@data/hooks/usePreference', () => MockUsePreference)
+  vi.doMock('@renderer/utils/platform', () => ({
+    platform: isLinux ? 'linux' : 'darwin',
+    isLinux,
+    isMac: !isLinux,
+    isWin: false,
+    isDev: false,
+    isProd: false
+  }))
+  ComputerUseSettings = (await import('../ComputerUseSettings')).ComputerUseSettings
+  SWRConfig = (await import('swr')).SWRConfig
+}
 
 vi.unmock('@cherrystudio/ui')
 vi.mock('@renderer/ipc', () => ({ ipcApi: { request: vi.fn() } }))
@@ -25,9 +43,13 @@ beforeEach(async () => {
   MockUsePreferenceUtils.resetMocks()
   MockUsePreferenceUtils.setPreferenceValue('app.computer_use.approved_apps', [])
   MockUsePreferenceUtils.setPreferenceValue('app.computer_use.agent_control.enabled', true)
+  await loadWithPlatform(true)
   await i18n.changeLanguage('en-us')
 })
-afterEach(cleanup)
+afterEach(() => {
+  cleanup()
+  vi.doUnmock('@renderer/utils/platform')
+})
 
 describe('Computer Use permission settings', () => {
   it('defaults to enabled and lets the user explicitly disable desktop control', async () => {
@@ -127,7 +149,7 @@ describe('Computer Use permission settings', () => {
   })
 })
 
-describe('global input settings', () => {
+describe('global input settings on Linux', () => {
   it('defaults off and saves an explicit opt-in', async () => {
     const user = userEvent.setup()
     vi.mocked(ipcApi.request).mockResolvedValue({ permissions: [] })
@@ -189,5 +211,22 @@ describe('global input settings', () => {
     await waitFor(() =>
       expect(ipcApi.request).toHaveBeenCalledWith('computer_use.request_permissions', { ids: ['remoteDesktop'] })
     )
+  })
+})
+
+describe('global input settings outside Linux', () => {
+  it('hides global input while keeping desktop control usable and the stored opt-in intact', async () => {
+    await loadWithPlatform(false)
+    MockUsePreferenceUtils.setPreferenceValue('app.computer_use.global_input.enabled', true)
+    vi.mocked(ipcApi.request).mockResolvedValue({ permissions: [] })
+    showSettings()
+    expect(screen.queryByRole('switch', { name: 'Allow global pointer and keyboard input' })).not.toBeInTheDocument()
+    const toggle = screen.getByRole('switch', { name: 'Allow agents to control desktop applications' })
+    expect(toggle).toBeChecked()
+    await userEvent.click(toggle)
+    await waitFor(() => expect(toggle).toBeEnabled())
+    expect(toggle).not.toBeChecked()
+    expect(MockUsePreferenceUtils.getPreferenceValue('app.computer_use.agent_control.enabled')).toBe(false)
+    expect(MockUsePreferenceUtils.getPreferenceValue('app.computer_use.global_input.enabled')).toBe(true)
   })
 })
