@@ -108,6 +108,36 @@ const { PROXY_TEST_TARGET, ProxyService, resolveProxyConfig } = await import('..
 const reconcilerOf = (manager: unknown) =>
   (manager as { proxyReconciler: { flush: () => Promise<void> } }).proxyReconciler
 
+function regionalSessionFixture() {
+  let listener: Parameters<Electron.WebRequest['onBeforeRequest']>[0] = null
+  let route = 'DIRECT'
+  const delivered: string[] = []
+  const guestSession = {
+    webRequest: {
+      onBeforeRequest: (next: typeof listener) => {
+        listener = next
+      }
+    },
+    setProxy: vi.fn(async (config: { proxyRules?: string }) => {
+      route = config.proxyRules ?? 'DIRECT'
+    }),
+    closeAllConnections: vi.fn(async () => {})
+  } as unknown as Electron.Session
+  return {
+    guestSession,
+    delivered,
+    request: () =>
+      new Promise<boolean>((resolve) => {
+        const callback = ({ cancel = false }: { cancel?: boolean }) => {
+          if (!cancel) delivered.push(route)
+          resolve(!cancel)
+        }
+        if (listener) listener({} as Electron.OnBeforeRequestListenerDetails, callback)
+        else callback({})
+      })
+  }
+}
+
 describe('resolveProxyConfig', () => {
   it('maps none → direct', () => {
     expect(resolveProxyConfig({ mode: 'none', url: 'http://ignored:1', bypassRules: 'ignored' })).toEqual({
@@ -227,6 +257,208 @@ describe('ProxyService — preference wiring', () => {
     proxyTestResolveProxyMock.mockResolvedValue('PROXY proxy.example:8080')
     proxyTestFetchMock.mockResolvedValue({ ok: true, status: 204 })
     getSystemProxyMock.mockResolvedValue({ proxyUrl: 'http://system:1080', noProxy: ['localhost'] })
+  })
+
+  it('holds regional traffic until a proxy change has closed old connections', async () => {
+    MockMainPreferenceServiceUtils.setMultiplePreferenceValues({
+      'app.proxy.mode': 'custom',
+      'app.proxy.url': 'http://first:1'
+    })
+    const manager = new ProxyService()
+    await (manager as any).onReady()
+    const fixture = regionalSessionFixture()
+    await manager.registerSession(fixture.guestSession)
+    await fixture.request()
+    let finishClose!: () => void
+    vi.mocked(fixture.guestSession.closeAllConnections).mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          finishClose = resolve
+        })
+    )
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.proxy.url', 'http://second:2')
+    const request = fixture.request()
+    await vi.waitFor(() => expect(finishClose).toBeTypeOf('function'))
+    expect(fixture.delivered).toEqual(['http://first:1'])
+    finishClose()
+    await expect(request).resolves.toBe(true)
+    expect(fixture.delivered).toEqual(['http://first:1', 'http://second:2'])
+  })
+
+  it('reapplies the old proxy after connection closure failed on a partially applied change', async () => {
+    MockMainPreferenceServiceUtils.setMultiplePreferenceValues({
+      'app.proxy.mode': 'custom',
+      'app.proxy.url': 'http://first:1'
+    })
+    const manager = new ProxyService()
+    await (manager as any).onReady()
+    const fixture = regionalSessionFixture()
+    await manager.registerSession(fixture.guestSession)
+    vi.mocked(fixture.guestSession.closeAllConnections).mockRejectedValueOnce(new Error('close failed'))
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.proxy.url', 'http://second:2')
+    await reconcilerOf(manager).flush()
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.proxy.url', 'http://first:1')
+    await reconcilerOf(manager).flush()
+    await expect(fixture.request()).resolves.toBe(true)
+    expect(fixture.delivered).toEqual(['http://first:1'])
+  })
+
+  it('keeps requests waiting when an older flush resumes during a newer registration', async () => {
+    MockMainPreferenceServiceUtils.setMultiplePreferenceValues({
+      'app.proxy.mode': 'custom',
+      'app.proxy.url': 'http://first:1'
+    })
+    const manager = new ProxyService()
+    await (manager as any).onReady()
+    const fixture = regionalSessionFixture()
+    await manager.registerSession(fixture.guestSession)
+    const reconciler = reconcilerOf(manager)
+    const flush = reconciler.flush.bind(reconciler)
+    let releaseOld!: () => void
+    let reachedBoundary = false
+    let first = true
+    reconciler.flush = async () => {
+      await flush()
+      if (first) {
+        first = false
+        reachedBoundary = true
+        await new Promise<void>((resolve) => {
+          releaseOld = resolve
+        })
+      }
+    }
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.proxy.url', 'http://second:2')
+    await vi.waitFor(() => expect(reachedBoundary).toBe(true))
+    const additional = regionalSessionFixture()
+    let finishNew!: () => void
+    vi.mocked(additional.guestSession.setProxy).mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          finishNew = resolve
+        })
+    )
+    const registering = manager.registerSession(additional.guestSession)
+    await vi.waitFor(() => expect(finishNew).toBeTypeOf('function'))
+    let settled = false
+    const pending = fixture.request().then((allowed) => {
+      settled = true
+      return allowed
+    })
+    releaseOld()
+    await new Promise<void>((resolve) => setImmediate(resolve))
+    expect(settled).toBe(false)
+    finishNew()
+    await registering
+    await expect(pending).resolves.toBe(true)
+    expect(fixture.delivered).toEqual(['http://second:2'])
+  })
+
+  it('blocks regional requests after a failed proxy apply and recovers on a later change', async () => {
+    MockMainPreferenceServiceUtils.setMultiplePreferenceValues({
+      'app.proxy.mode': 'custom',
+      'app.proxy.url': 'http://first:1'
+    })
+    const manager = new ProxyService()
+    await (manager as any).onReady()
+    const fixture = regionalSessionFixture()
+    await manager.registerSession(fixture.guestSession)
+    vi.mocked(fixture.guestSession.setProxy).mockRejectedValueOnce(new Error('apply failed'))
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.proxy.url', 'http://broken:2')
+    const request = fixture.request()
+    await reconcilerOf(manager).flush()
+    await expect(request).resolves.toBe(false)
+    expect(fixture.delivered).toEqual([])
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.proxy.url', 'http://recovered:3')
+    await reconcilerOf(manager).flush()
+    await expect(fixture.request()).resolves.toBe(true)
+    expect(fixture.delivered).toEqual(['http://recovered:3'])
+  })
+
+  it('does not reopen a regional session revoked during a proxy transition', async () => {
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.proxy.mode', 'none')
+    const manager = new ProxyService()
+    await (manager as any).onReady()
+    const fixture = regionalSessionFixture()
+    await manager.registerSession(fixture.guestSession)
+    let finishApply!: () => void
+    vi.mocked(fixture.guestSession.setProxy).mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          finishApply = resolve
+        })
+    )
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.proxy.mode', 'system')
+    await vi.waitFor(() => expect(finishApply).toBeTypeOf('function'))
+    const request = fixture.request()
+    const unregister = manager.unregisterSession(fixture.guestSession)
+    finishApply()
+    await unregister
+    await expect(request).resolves.toBe(false)
+    await expect(fixture.request()).resolves.toBe(false)
+    expect(fixture.delivered).toEqual([])
+  })
+
+  it('rejects an incomplete custom proxy for regional sessions while allowing explicit direct mode', async () => {
+    MockMainPreferenceServiceUtils.setMultiplePreferenceValues({
+      'app.proxy.mode': 'custom',
+      'app.proxy.url': ''
+    })
+    const manager = new ProxyService()
+    await (manager as any).onReady()
+    const fixture = regionalSessionFixture()
+    await expect(manager.registerSession(fixture.guestSession)).rejects.toThrow()
+    await expect(fixture.request()).resolves.toBe(false)
+    expect(fixture.delivered).toEqual([])
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.proxy.mode', 'none')
+    await reconcilerOf(manager).flush()
+    await expect(fixture.request()).resolves.toBe(true)
+    expect(fixture.delivered).toEqual(['DIRECT'])
+  })
+
+  it('keeps a newly registered mini app on the configured proxy, including later proxy changes', async () => {
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.proxy.mode', 'custom')
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.proxy.url', 'http://first:1')
+    const manager = new ProxyService()
+    await (manager as any).onReady()
+    await reconcilerOf(manager).flush()
+    let route = 'direct'
+    const guestSession = {
+      webRequest: { onBeforeRequest: vi.fn() },
+      closeAllConnections: async () => {},
+      setProxy: async (config: { proxyRules?: string }) => {
+        route = config.proxyRules ?? 'direct'
+      }
+    } as unknown as Electron.Session
+    await manager.registerSession(guestSession)
+    expect(route).toBe('http://first:1')
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.proxy.url', 'http://second:2')
+    await reconcilerOf(manager).flush()
+    expect(route).toBe('http://second:2')
+  })
+
+  it('does not lose a session registered while an earlier proxy write is still in flight', async () => {
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.proxy.mode', 'custom')
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.proxy.url', 'http://configured:1')
+    let release: () => void = () => {}
+    appSetProxyMock.mockReturnValueOnce(
+      new Promise<void>((resolve) => {
+        release = resolve
+      })
+    )
+    const manager = new ProxyService()
+    await (manager as any).onReady()
+    await new Promise<void>((resolve) => setImmediate(resolve))
+    let route = 'direct'
+    const registered = manager.registerSession({
+      webRequest: { onBeforeRequest: vi.fn() },
+      closeAllConnections: async () => {},
+      setProxy: async (config: { proxyRules?: string }) => {
+        route = config.proxyRules ?? 'direct'
+      }
+    } as unknown as Electron.Session)
+    release()
+    await registered
+    expect(route).toBe('http://configured:1')
   })
 
   it('applies the custom proxy from preferences on ready (Node stack + Electron sessions)', async () => {

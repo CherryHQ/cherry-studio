@@ -73,16 +73,19 @@ vi.mock('@renderer/components/Selector', () => ({
   default: ({
     value,
     onChange,
-    options
+    options,
+    disabled
   }: {
     value: string | null
-    onChange: (value: 'system' | 'custom' | 'none') => void
-    options: Array<{ value: 'system' | 'custom' | 'none'; label: string }>
+    onChange: (value: string) => void
+    options: { value: string; label: string }[]
+    disabled?: boolean
   }) => (
     <select
-      aria-label="settings.proxy.mode.title"
+      aria-label={options.some((option) => option.value === 'system') ? 'settings.proxy.mode.title' : undefined}
       value={value ?? ''}
-      onChange={(event) => onChange(event.target.value as 'system' | 'custom' | 'none')}>
+      disabled={disabled}
+      onChange={(event) => onChange(event.target.value)}>
       {options.map((option) => (
         <option key={option.value} value={option.value}>
           {option.label}
@@ -238,6 +241,28 @@ describe('GeneralSettings', () => {
     expect(
       await screen.findByText('settings.proxy.test.success: settings.proxy.test.route.fallback')
     ).toBeInTheDocument()
+  })
+
+  it('gates regional settings behind developer mode and preserves per-app selections when disabled', async () => {
+    const user = userEvent.setup()
+    const { container, rerender } = render(<GeneralSettings />)
+    expect(screen.queryByRole('switch', { name: 'settings.developer.fake.title' })).not.toBeInTheDocument()
+    MockUsePreferenceUtils.setPreferenceValue('app.developer_mode.enabled', true)
+    rerender(<GeneralSettings />)
+    expect(container.querySelector('#setting-general-fake-country')).toBeNull()
+    MockUsePreferenceUtils.setPreferenceValue('feature.mini_app.region_profiles', { google: 'JP', claude: 'US' })
+    await user.click(screen.getByRole('switch', { name: 'settings.developer.fake.title' }))
+    await waitFor(() =>
+      expect(MockUsePreferenceUtils.getPreferenceValue('feature.mini_app.fake_environment.enabled')).toBe(true)
+    )
+    await user.click(screen.getByRole('switch', { name: 'settings.developer.fake.title' }))
+    await waitFor(() =>
+      expect(MockUsePreferenceUtils.getPreferenceValue('feature.mini_app.fake_environment.enabled')).toBe(false)
+    )
+    expect(MockUsePreferenceUtils.getPreferenceValue('feature.mini_app.region_profiles')).toEqual({
+      google: 'JP',
+      claude: 'US'
+    })
   })
 
   it('only exposes local automation after developer mode is enabled', async () => {

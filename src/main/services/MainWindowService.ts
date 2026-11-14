@@ -450,7 +450,14 @@ export class MainWindowService extends BaseService {
       // Mini app partitions carry their own gate (installMiniAppWebviewHost) and the
       // shared `persist:webview` lockdown lives in WebviewService.attachWebviewPreload.
       if (!securityProfile) {
-        if (!isMiniAppPartition(params.partition)) event.preventDefault()
+        if (
+          !isMiniAppPartition(params.partition) &&
+          !application
+            .get('WebviewService')
+            .isPreparedRegionalPartition(params.partition, mainWindow.webContents.id, params.src)
+        ) {
+          event.preventDefault()
+        }
         return
       }
       if (securityProfile === WebviewSecurityProfile.MiniApp) return

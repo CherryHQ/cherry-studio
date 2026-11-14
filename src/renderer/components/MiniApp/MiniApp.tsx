@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 
 import { ConfirmDialog, IndicatorLight, Tooltip } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
+import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
 import MiniAppIcon from '@renderer/components/icons/MiniAppIcon'
@@ -17,6 +18,8 @@ import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import { ErrorCode, isDataApiError, toDataApiError } from '@shared/data/api/errors'
 import type { MiniApp, MiniAppStatus } from '@shared/data/types/miniApp'
+import { MINI_APP_REGIONS, type MiniAppCountry } from '@shared/types/miniAppRegion'
+import { isMiniAppRegionEligible, selectedMiniAppCountry } from '@shared/utils/miniAppRegion'
 
 import MiniAppDetailPanel from './MiniAppDetailPanel'
 
@@ -61,6 +64,17 @@ const MiniApp: FC<Props> = ({
   disabled = false
 }) => {
   const { t } = useTranslation()
+  const [fakeAppIds] = usePreference('feature.mini_app.us_environment_app_ids')
+  const [profiles] = usePreference('feature.mini_app.region_profiles')
+  const [developerMode] = usePreference('app.developer_mode.enabled')
+  const [fakeEnabled] = usePreference('feature.mini_app.fake_environment.enabled')
+  const [fakeCountry] = usePreference('feature.mini_app.fake_environment.country')
+  const [regionBusy, setRegionBusy] = useState(false)
+  const country = selectedMiniAppCountry(app.appId, profiles, fakeAppIds, fakeCountry)
+  const regionalEligible = isMiniAppRegionEligible(app)
+  const regionalHistory = Object.hasOwn(profiles, app.appId) || fakeAppIds.includes(app.appId)
+  const fake = regionalEligible && developerMode && fakeEnabled && country !== null
+  const [clearRegionConfirmOpen, setClearRegionConfirmOpen] = useState(false)
   // The dot WITH its reasons: hover says why, the menu offers the action.
   const attention = useMiniAppAttentionFor(app.appId)
   const updating = attention?.updating ?? null
@@ -189,7 +203,71 @@ const MiniApp: FC<Props> = ({
     <MiniAppIcon size={size} app={app} appearance="avatar" />
   )
 
+  const selectEnvironment = (next: MiniAppCountry | null) => {
+    if (next === country) return
+    setRegionBusy(true)
+    void ipcApi
+      .request('webview.region.set_country', { appId: app.appId, country: next })
+      .then(() => {
+        if (next) toast.info(t('miniApp.region.selected'))
+      })
+      .catch(reportFailure('settings.miniApps.custom.save_error'))
+      .finally(() => setRegionBusy(false))
+  }
+
+  const clearRegionalData = async () => {
+    setRegionBusy(true)
+    try {
+      await ipcApi.request('webview.region.clear_data', { appId: app.appId })
+      toast.success(t('miniApp.region.cleared'))
+      return true
+    } catch (error) {
+      reportFailure('settings.miniApps.custom.save_error')(error)
+      return false
+    } finally {
+      setRegionBusy(false)
+    }
+  }
+
   const contextMenuItems: CommandContextMenuExtraItem[] = [
+    ...(app.kind === 'site' && ((developerMode && regionalEligible) || regionalHistory)
+      ? ([
+          {
+            type: 'submenu',
+            id: 'mini-app.environment',
+            label: t('miniApp.region.menu', {
+              mode: fake && country ? t(MINI_APP_REGIONS[country].labelKey) : t('miniApp.region.disable')
+            }),
+            children: [
+              {
+                type: 'item',
+                id: 'mini-app.environment-default',
+                label: t('miniApp.region.disable'),
+                checked: !fake,
+                enabled: !regionBusy,
+                onSelect: () => selectEnvironment(null)
+              },
+              ...(regionalEligible && developerMode
+                ? (Object.entries(MINI_APP_REGIONS).map(([value, profile]) => ({
+                    type: 'item',
+                    id: `mini-app.environment-${value}`,
+                    label: t('miniApp.region.enable', { country: t(profile.labelKey) }),
+                    checked: fake && country === value,
+                    enabled: fakeEnabled && !regionBusy,
+                    onSelect: () => selectEnvironment(value as MiniAppCountry)
+                  })) satisfies CommandContextMenuExtraItem[])
+                : []),
+              {
+                type: 'item',
+                id: 'mini-app.environment-clear',
+                label: t('miniApp.region.clear_data'),
+                enabled: !regionBusy,
+                onSelect: () => setClearRegionConfirmOpen(true)
+              }
+            ]
+          }
+        ] satisfies CommandContextMenuExtraItem[])
+      : []),
     { type: 'item', id: 'mini-app.toggle-pin', label: togglePinLabel, onSelect: handleTogglePin },
     {
       type: 'item',
@@ -377,6 +455,18 @@ const MiniApp: FC<Props> = ({
           onApply={update.apply}
         />
       )}
+      <ConfirmDialog
+        open={clearRegionConfirmOpen}
+        onOpenChange={setClearRegionConfirmOpen}
+        title={t('miniApp.region.clear_data_title')}
+        description={t('miniApp.region.clear_data_description')}
+        confirmText={t('common.confirm')}
+        cancelText={t('common.cancel')}
+        destructive
+        confirmLoading={regionBusy}
+        cancelDisabled={regionBusy}
+        onConfirm={clearRegionalData}
+      />
       {pendingLeaves && (
         <PendingPermissionsDialog
           name={app.name}
@@ -394,6 +484,7 @@ const MiniApp: FC<Props> = ({
 
 const arePropsEqual = (previous: Props, next: Props) =>
   previous.app.appId === next.app.appId &&
+  previous.app.url === next.app.url &&
   previous.app.name === next.app.name &&
   previous.app.nameKey === next.app.nameKey &&
   previous.app.logo === next.app.logo &&

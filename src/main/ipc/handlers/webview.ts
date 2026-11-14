@@ -8,6 +8,16 @@ import type { IpcHandlersFor } from '@shared/ipc/types'
  * touching the WebContents.
  */
 export const webviewHandlers: IpcHandlersFor<typeof webviewRequestSchemas> = {
+  'webview.region.set_country': async ({ appId, country }, { senderId }) =>
+    application.get('WebviewService').setRegionCountry(appId, country, senderId),
+  'webview.region.prepare': async ({ appId }, { senderId }) =>
+    application.get('WebviewService').prepareRegionSession(appId, senderId),
+  'webview.region.release': async ({ leaseId }, { senderId }) =>
+    application.get('WebviewService').releaseRegionSession(leaseId, senderId),
+  'webview.region.clear_data': async ({ appId }, { senderId }) =>
+    application.get('WebviewService').clearRegionData(appId, senderId),
+  'webview.region.wait_until_ready': async ({ webviewId }, { senderId }) =>
+    application.get('WebviewService').waitForRegion(webviewId, senderId),
   'webview.debugging.get_state': async ({ webviewId }, { senderId }) =>
     application.get('WebviewService').getDebuggingState(webviewId, senderId),
   'webview.set_open_link_external': async ({ webviewId, isExternal }, { senderId }) =>

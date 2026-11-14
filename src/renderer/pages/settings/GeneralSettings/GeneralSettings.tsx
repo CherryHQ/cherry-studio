@@ -108,6 +108,12 @@ const GeneralSettings: FC = () => {
   const [storeProxyBypassRules, _setProxyBypassRules] = usePreference('app.proxy.bypass_rules')
   const [storeProxyUrl, _setProxyUrl] = usePreference('app.proxy.url')
   const [enableDeveloperMode, setEnableDeveloperMode] = usePreference('app.developer_mode.enabled')
+  const [fakeEnvironmentEnabled, setFakeEnvironmentEnabled] = usePreference(
+    'feature.mini_app.fake_environment.enabled',
+    {
+      optimistic: false
+    }
+  )
   const [remoteDebuggingEnabled, setRemoteDebuggingEnabled] = usePreference('BootConfig.app.remote_debugging.enabled', {
     optimistic: false
   })
@@ -670,6 +676,21 @@ const GeneralSettings: FC = () => {
         </SettingRow>
         {enableDeveloperMode && (
           <>
+            <SettingDivider />
+            <SettingRow id="setting-general-fake-environment" className="scroll-mt-6 items-start gap-6">
+              <div className="min-w-0 flex-1">
+                <SettingRowTitle>{t('settings.developer.fake.title')}</SettingRowTitle>
+                <SettingDescription className="mt-1.5 leading-5">
+                  {t('settings.developer.fake.description')}
+                </SettingDescription>
+              </div>
+              <Switch
+                checked={fakeEnvironmentEnabled}
+                disabled={isSavingDeveloperSettings}
+                onCheckedChange={(checked) => void saveDeveloperSettings(() => setFakeEnvironmentEnabled(checked))}
+                aria-label={t('settings.developer.fake.title')}
+              />
+            </SettingRow>
             <SettingDivider />
             <SettingRow id="setting-general-remote-debugging" className="scroll-mt-6 items-start gap-6">
               <div className="min-w-0 flex-1">
