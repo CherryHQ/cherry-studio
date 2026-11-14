@@ -178,6 +178,8 @@ from the warm-query map. Failed disposal remains tracked and blocks conversion u
 
 Workspace registration and storage reclamation share `AgentWorkspaceStorageService`
 in the AI domain. Registration enters through `ai.agent.workspace.register` IPC;
+before reservations or database writes, packaged non-portable builds reject paths
+equal to or inside `app.install` because in-app upgrades replace that directory.
 DataApi retains workspace queries, metadata updates, and ordering. The domain service
 owns the process-local reservations, resolves filesystem identities, and combines
 persisted claims with those reservations before its synchronous database write;

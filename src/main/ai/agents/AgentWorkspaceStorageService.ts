@@ -2,15 +2,22 @@ import { randomUUID } from 'node:crypto'
 import { closeSync, existsSync, lstatSync, openSync, realpathSync, unlinkSync } from 'node:fs'
 import path from 'node:path'
 
+import { app } from 'electron'
+
 import { application } from '@application'
-import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
+import { agentWorkspaceService, normalizeWorkspacePathInput } from '@data/services/AgentWorkspaceService'
 import { loggerService } from '@logger'
 import { newestMtimeMs } from '@main/ai/runtime/orphanSessionReclaim'
 import type { OrphanSessionReclaimOptions } from '@main/ai/runtime/types'
+import { isPortable } from '@main/core/platform'
 import { createPathOverlapCheck, nearestExistingRealPathSync, type PathNameBehavior } from '@main/utils/file'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import { AGENT_WORKSPACE_TYPE } from '@shared/data/api/schemas/agentWorkspaces'
 
+import {
+  evaluateWorkspaceInstallDirectoryPolicy,
+  WorkspaceInstallDirectoryError
+} from './agentWorkspaceInstallDirectory'
 import * as storage from './agentWorkspaceStorage'
 
 const logger = loggerService.withContext('AgentWorkspaceStorageService')
@@ -59,10 +66,28 @@ class AgentWorkspaceStorageService {
   private readonly reservations = new Set<{ paths: readonly string[]; overlaps: (candidate: string) => boolean }>()
 
   registerWorkspace(workspacePath: string, options: { name?: string } = {}) {
-    if ([...this.reservations].some((reservation) => reservation.overlaps(workspacePath.trim()))) {
+    let normalizedWorkspacePath = workspacePath
+    let previousWorkspacePath: string
+    // Removing trailing separators can expose another path segment to normalization.
+    do {
+      previousWorkspacePath = normalizedWorkspacePath
+      normalizedWorkspacePath = normalizeWorkspacePathInput(previousWorkspacePath)
+    } while (normalizedWorkspacePath !== previousWorkspacePath)
+    // Reject before reservations or writes: in-app upgrades replace the installation directory (NSIS $INSTDIR).
+    // Portable builds keep data beside the app without in-app upgrades; unpackaged development is also exempt.
+    const policy = evaluateWorkspaceInstallDirectoryPolicy({
+      workspacePath: normalizedWorkspacePath,
+      installDirectory: application.getPath('app.install'),
+      packaged: app.isPackaged,
+      portableBuild: isPortable
+    })
+    if (!policy.allowed) {
+      throw new WorkspaceInstallDirectoryError(normalizedWorkspacePath, policy.installDirectory)
+    }
+    if ([...this.reservations].some((reservation) => reservation.overlaps(normalizedWorkspacePath))) {
       throw new Error('Workspace storage is in use; retry after the operation completes')
     }
-    return agentWorkspaceService.findOrCreateByPathResult(workspacePath, options).workspace
+    return agentWorkspaceService.findOrCreateByPathResult(normalizedWorkspacePath, options).workspace
   }
 
   reserveWorkspaceStorage(
