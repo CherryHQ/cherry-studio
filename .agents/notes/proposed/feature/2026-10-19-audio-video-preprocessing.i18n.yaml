@@ -1,5 +1,5 @@
 # Bilingual-pair consistency record (docs/i18n/README.md).
 # After editing either side, update its counterpart and re-record with:
 #   pnpm docs:check-pairing --write .agents/notes/proposed/feature/2026-10-19-audio-video-preprocessing.md
-2026-10-19-audio-video-preprocessing.md: 79d84d319f754dd75c4561efe64d22d2cdbbca61
-2026-10-19-audio-video-preprocessing.zh.md: e893d53348ac2f457d037635f4c09f678ba1de04
+2026-10-19-audio-video-preprocessing.md: 61ea7b400876cb88ae0a6178f248a295fa5197de
+2026-10-19-audio-video-preprocessing.zh.md: 31b2b4451434b416c50eb3a1b4a3fc657019f436
