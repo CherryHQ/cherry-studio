@@ -1,0 +1,290 @@
+[
+  {
+    "raw": "> -\n>   <thinking>MARK</thinking>\n",
+    "code": false
+  },
+  {
+    "raw": "> -\n>     <thinking>MARK</thinking>\n",
+    "code": false
+  },
+  {
+    "raw": "> -\n>       <thinking>MARK</thinking>\n",
+    "code": true
+  },
+  {
+    "raw": "> -\n>         <thinking>MARK</thinking>\n",
+    "code": true
+  },
+  {
+    "raw": "> -\n>\n>   <thinking>MARK</thinking>\n",
+    "code": false
+  },
+  {
+    "raw": "> -\n>\n>     <thinking>MARK</thinking>\n",
+    "code": true
+  },
+  {
+    "raw": "> -\n>\n>       <thinking>MARK</thinking>\n",
+    "code": true
+  },
+  {
+    "raw": "> -\n>\n>         <thinking>MARK</thinking>\n",
+    "code": true
+  },
+  {
+    "raw": "> -\n\n>   <thinking>MARK</thinking>\n",
+    "code": false
+  },
+  {
+    "raw": "> -\n\n>     <thinking>MARK</thinking>\n",
+    "code": true
+  },
+  {
+    "raw": "> -\n\n>       <thinking>MARK</thinking>\n",
+    "code": true
+  },
+  {
+    "raw": "> -\n\n>         <thinking>MARK</thinking>\n",
+    "code": true
+  },
+  {
+    "raw": "> -\n>   -\n>   <thinking>MARK</thinking>\n",
+    "code": false
+  },
+  {
+    "raw": "> -\n>   -\n>     <thinking>MARK</thinking>\n",
+    "code": false
+  },
+  {
+    "raw": "> -\n>   -\n>       <thinking>MARK</thinking>\n",
+    "code": false
+  },
+  {
+    "raw": "> -\n>   -\n>         <thinking>MARK</thinking>\n",
+    "code": true
+  },
+  {
+    "raw": "> -\n>   -\n>\n>   <thinking>MARK</thinking>\n",
+    "code": false
+  },
+  {
+    "raw": "> -\n>   -\n>\n>     <thinking>MARK</thinking>\n",
+    "code": false
+  },
+  {
+    "raw": "> -\n>   -\n>\n>       <thinking>MARK</thinking>\n",
+    "code": true
+  },
+  {
+    "raw": "> -\n>   -\n>\n>         <thinking>MARK</thinking>\n",
+    "code": true
+  },
+  {
+    "raw": "> -\n>   -\n\n>   <thinking>MARK</thinking>\n",
+    "code": false
+  },
+  {
+    "raw": "> -\n>   -\n\n>     <thinking>MARK</thinking>\n",
+    "code": true
+  },
+  {
+    "raw": "> -\n>   -\n\n>       <thinking>MARK</thinking>\n",
+    "code": true
+  },
+  {
+    "raw": "> -\n>   -\n\n>         <thinking>MARK</thinking>\n",
+    "code": true
+  },
+  {
+    "raw": "> 1.\n>   <thinking>MARK</thinking>\n",
+    "code": false
+  },
+  {
+    "raw": "> 1.\n>     <thinking>MARK</thinking>\n",
+    "code": false
+  },
+  {
+    "raw": "> 1.\n>       <thinking>MARK</thinking>\n",
+    "code": false
+  },
+  {
+    "raw": "> 1.\n>         <thinking>MARK</thinking>\n",
+    "code": true
+  },
+  {
+    "raw": "> 1.\n>\n>   <thinking>MARK</thinking>\n",
+    "code": false
+  },
+  {
+    "raw": "> 1.\n>\n>     <thinking>MARK</thinking>\n",
+    "code": true
+  },
+  {
+    "raw": "> 1.\n>\n>       <thinking>MARK</thinking>\n",
+    "code": true
+  },
+  {
+    "raw": "> 1.\n>\n>         <thinking>MARK</thinking>\n",
+    "code": true
+  },
+  {
+    "raw": "> 1.\n\n>   <thinking>MARK</thinking>\n",
+    "code": false
+  },
+  {
+    "raw": "> 1.\n\n>     <thinking>MARK</thinking>\n",
+    "code": true
+  },
+  {
+    "raw": "> 1.\n\n>       <thinking>MARK</thinking>\n",
+    "code": true
+  },
+  {
+    "raw": "> 1.\n\n>         <thinking>MARK</thinking>\n",
+    "code": true
+  },
+  {
+    "raw": "> 1.\n>   -\n>   <thinking>MARK</thinking>\n",
+    "code": false
+  },
+  {
+    "raw": "> 1.\n>   -\n>     <thinking>MARK</thinking>\n",
+    "code": false
+  },
+  {
+    "raw": "> 1.\n>   -\n>       <thinking>MARK</thinking>\n",
+    "code": false
+  },
+  {
+    "raw": "> 1.\n>   -\n>         <thinking>MARK</thinking>\n",
+    "code": true
+  },
+  {
+    "raw": "> 1.\n>   -\n>\n>   <thinking>MARK</thinking>\n",
+    "code": false
+  },
+  {
+    "raw": "> 1.\n>   -\n>\n>     <thinking>MARK</thinking>\n",
+    "code": true
+  },
+  {
+    "raw": "> 1.\n>   -\n>\n>       <thinking>MARK</thinking>\n",
+    "code": true
+  },
+  {
+    "raw": "> 1.\n>   -\n>\n>         <thinking>MARK</thinking>\n",
+    "code": true
+  },
+  {
+    "raw": "> 1.\n>   -\n\n>   <thinking>MARK</thinking>\n",
+    "code": false
+  },
+  {
+    "raw": "> 1.\n>   -\n\n>     <thinking>MARK</thinking>\n",
+    "code": true
+  },
+  {
+    "raw": "> 1.\n>   -\n\n>       <thinking>MARK</thinking>\n",
+    "code": true
+  },
+  {
+    "raw": "> 1.\n>   -\n\n>         <thinking>MARK</thinking>\n",
+    "code": true
+  },
+  {
+    "raw": "> +\n>   <thinking>MARK</thinking>\n",
+    "code": false
+  },
+  {
+    "raw": "> +\n>     <thinking>MARK</thinking>\n",
+    "code": false
+  },
+  {
+    "raw": "> +\n>       <thinking>MARK</thinking>\n",
+    "code": true
+  },
+  {
+    "raw": "> +\n>         <thinking>MARK</thinking>\n",
+    "code": true
+  },
+  {
+    "raw": "> +\n>\n>   <thinking>MARK</thinking>\n",
+    "code": false
+  },
+  {
+    "raw": "> +\n>\n>     <thinking>MARK</thinking>\n",
+    "code": true
+  },
+  {
+    "raw": "> +\n>\n>       <thinking>MARK</thinking>\n",
+    "code": true
+  },
+  {
+    "raw": "> +\n>\n>         <thinking>MARK</thinking>\n",
+    "code": true
+  },
+  {
+    "raw": "> +\n\n>   <thinking>MARK</thinking>\n",
+    "code": false
+  },
+  {
+    "raw": "> +\n\n>     <thinking>MARK</thinking>\n",
+    "code": true
+  },
+  {
+    "raw": "> +\n\n>       <thinking>MARK</thinking>\n",
+    "code": true
+  },
+  {
+    "raw": "> +\n\n>         <thinking>MARK</thinking>\n",
+    "code": true
+  },
+  {
+    "raw": "> +\n>   -\n>   <thinking>MARK</thinking>\n",
+    "code": false
+  },
+  {
+    "raw": "> +\n>   -\n>     <thinking>MARK</thinking>\n",
+    "code": false
+  },
+  {
+    "raw": "> +\n>   -\n>       <thinking>MARK</thinking>\n",
+    "code": false
+  },
+  {
+    "raw": "> +\n>   -\n>         <thinking>MARK</thinking>\n",
+    "code": true
+  },
+  {
+    "raw": "> +\n>   -\n>\n>   <thinking>MARK</thinking>\n",
+    "code": false
+  },
+  {
+    "raw": "> +\n>   -\n>\n>     <thinking>MARK</thinking>\n",
+    "code": false
+  },
+  {
+    "raw": "> +\n>   -\n>\n>       <thinking>MARK</thinking>\n",
+    "code": true
+  },
+  {
+    "raw": "> +\n>   -\n>\n>         <thinking>MARK</thinking>\n",
+    "code": true
+  },
+  {
+    "raw": "> +\n>   -\n\n>   <thinking>MARK</thinking>\n",
+    "code": false
+  },
+  {
+    "raw": "> +\n>   -\n\n>     <thinking>MARK</thinking>\n",
+    "code": true
+  },
+  {
+    "raw": "> +\n>   -\n\n>       <thinking>MARK</thinking>\n",
+    "code": true
+  },
+  {
+    "raw": "> +\n>   -\n\n>         <thinking>MARK</thinking>\n",
+    "code": true
+  }
+]
