@@ -8,10 +8,11 @@ import { afterEach, assert, beforeEach, describe, expect, it, vi } from 'vitest'
 import { application } from '@application'
 import type { AsrInferenceService } from '@main/ai/localModel'
 import { UtilityProcessError } from '@main/core/utilityProcess/UtilityProcessError'
-import { FUNASR_MODEL_ID } from '@shared/ai/localVoice'
+import { FUNASR_MODEL_ID, PARAKEET_BUNDLE_ID, PARAKEET_MODEL_ID } from '@shared/ai/localVoice'
+import { TranscriptionInputKind } from '@shared/ai/voice'
 
 import { downloadVoiceModel, getLocalVoiceStatus } from '../../localAdapters'
-import { createFunAsrTranscriptionModel } from '../funasr'
+import { createFunAsrTranscriptionModel, parakeetTranscriptionDefinition } from '../funasr'
 
 const mocks = vi.hoisted(() => ({
   decode: vi.fn(),
@@ -138,6 +139,31 @@ describe('FunASR local adapter', () => {
     expect(mocks.decode).not.toHaveBeenCalled()
     expect(mocks.transcribe).not.toHaveBeenCalled()
   })
+
+  it.each([[parakeetTranscriptionDefinition, PARAKEET_MODEL_ID, PARAKEET_BUNDLE_ID]] as const)(
+    '%#: transcribes with its own bundle and rejects an explicit language',
+    async (definition, modelId, bundleId) => {
+      expect(definition.id).toBe(modelId)
+      const audio = new Uint8Array([0x1a, 0x45, 0xdf, 0xa3])
+      const operation = definition.transcriptionOperations[0]
+      assert(operation.input === TranscriptionInputKind.Audio)
+
+      await expect(
+        operation.start({ kind: TranscriptionInputKind.Audio, audio }, { language: 'en-US' }).completed
+      ).rejects.toMatchObject({
+        reason: 'invalid_request'
+      })
+      expect(mocks.transcribe).not.toHaveBeenCalled()
+
+      await operation.start({ kind: TranscriptionInputKind.Audio, audio }, {}).completed
+      expect(mocks.refreshStatus).toHaveBeenCalledWith(bundleId)
+      expect(mocks.transcribe).toHaveBeenCalledWith(
+        bundleId,
+        expect.objectContaining({ kind: 'wav' }),
+        expect.anything()
+      )
+    }
+  )
 
   it('normalizes worker failures without exposing audio or private paths', async () => {
     const canary = 'PRIVATE_AUDIO_CANARY'

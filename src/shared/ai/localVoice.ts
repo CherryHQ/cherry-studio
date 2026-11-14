@@ -27,8 +27,11 @@ export const QWEN3_ASR_BUNDLE_ID = 'qwen3-asr-1.7b-8bit' as const
 
 export const FUNASR_BUNDLE_ID = 'funasr-nano-int8' as const
 export const FUNASR_MODEL_ID = 'local-voice::funasr-nano' as const
+export const PARAKEET_BUNDLE_ID = 'parakeet-tdt-0.6b-v3-int8' as const
+export const PARAKEET_MODEL_ID = 'local-voice::parakeet-tdt-0.6b-v3' as const
 export const DOWNLOADABLE_TRANSCRIPTION_BUNDLES = {
   [FUNASR_MODEL_ID]: FUNASR_BUNDLE_ID,
+  [PARAKEET_MODEL_ID]: PARAKEET_BUNDLE_ID,
   [QWEN3_ASR_MODEL_ID]: QWEN3_ASR_BUNDLE_ID
 } as const
 export const SHERPA_VOICE_SUPPORTED_PLATFORM_KEYS = [
@@ -60,6 +63,7 @@ export const LOCAL_VOICE_MODEL_IDS = [
   WINDOWS_ASR_MODEL_ID,
   WINDOWS_TTS_MODEL_ID,
   FUNASR_MODEL_ID,
+  PARAKEET_MODEL_ID,
   QWEN3_ASR_MODEL_ID,
   QWEN3_TTS_MODEL_ID,
   KOKORO_TTS_MODEL_ID
@@ -74,6 +78,7 @@ export type LocalTranscriptionModelId =
   | typeof APPLE_ASR_MODEL_ID
   | typeof WINDOWS_ASR_MODEL_ID
   | typeof FUNASR_MODEL_ID
+  | typeof PARAKEET_MODEL_ID
   | typeof QWEN3_ASR_MODEL_ID
 
 export interface LocalVoiceModelFacts {
@@ -154,6 +159,15 @@ export const LOCAL_VOICE_MODELS: readonly LocalVoiceModelFacts[] = Object.freeze
     id: FUNASR_MODEL_ID,
     providerId: 'local-voice',
     name: 'FunASR Nano',
+    capabilities: Object.freeze([MODEL_CAPABILITY.AUDIO_TRANSCRIPT]),
+    inputModalities: Object.freeze([MODALITY.AUDIO]),
+    outputModalities: Object.freeze([MODALITY.TEXT]),
+    supportsStreaming: false
+  }),
+  Object.freeze({
+    id: PARAKEET_MODEL_ID,
+    providerId: 'local-voice',
+    name: 'Parakeet TDT 0.6B v3 (multilingual)',
     capabilities: Object.freeze([MODEL_CAPABILITY.AUDIO_TRANSCRIPT]),
     inputModalities: Object.freeze([MODALITY.AUDIO]),
     outputModalities: Object.freeze([MODALITY.TEXT]),

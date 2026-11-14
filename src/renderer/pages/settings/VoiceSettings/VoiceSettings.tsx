@@ -43,6 +43,7 @@ import {
   APPLE_ASR_MODEL_ID,
   APPLE_TTS_MODEL_ID,
   FUNASR_MODEL_ID,
+  PARAKEET_MODEL_ID,
   QWEN3_ASR_MODEL_ID,
   DOWNLOADABLE_TRANSCRIPTION_BUNDLES,
   QWEN3_TTS_MODEL_ID,
@@ -113,6 +114,7 @@ const MODEL_LABEL_KEYS: Record<LocalVoiceModelId, string> = {
   [QWEN3_TTS_MODEL_ID]: 'settings.voice.model.qwen3_tts',
   [KOKORO_TTS_MODEL_ID]: 'settings.voice.model.kokoro_tts',
   [FUNASR_MODEL_ID]: 'settings.voice.model.funasr',
+  [PARAKEET_MODEL_ID]: 'settings.voice.model.parakeet',
   [QWEN3_ASR_MODEL_ID]: 'settings.voice.model.qwen3_asr',
   [WINDOWS_ASR_MODEL_ID]: 'settings.voice.model.windows_asr',
   [WINDOWS_TTS_MODEL_ID]: 'settings.voice.model.windows_tts'
