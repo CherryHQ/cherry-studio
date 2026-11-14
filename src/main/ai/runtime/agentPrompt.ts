@@ -52,23 +52,26 @@ const TOOL_ACCESS: Record<AgentType, ToolAccess> = {
   // Durable registers MCP tools for scripts only, so `tool_search` (which loads model tools) never finds them.
   'pi-durable': {
     ref: (server, name) => `\`await tools.${buildPiMcpToolName(server, name)}({ ... })\``,
-    hint: ' These are not separate tools and `tool_search` cannot find them: run them inside a `codemode` script. If the `codemode` section does not list one, read its parameters first with `await describeTool(name)` in the script.'
+    hint: " These are not separate tools and `tool_search` cannot find them: run them inside a `codemode` script. If the `codemode` section does not list one, read its parameters first with `return await describeTool('<tool name>')`, a script global rather than a member of `tools`."
   }
 }
 
 const CREATE_REQUEST_EXAMPLES = '(for example "build me an Agent that reviews pull requests" or "建一个翻译助手")'
+// Without it, models read 助手 ("assistant") as an Agent.
+const RESOURCE_KINDS =
+  'An Assistant (助手) is a chat persona with a prompt and a model; an Agent (智能体) works on its own with tools, skills and a workspace.'
 
 /** Without this the model describes UI steps or writes files instead of calling the tools it has. */
 const hostConfigToolsPrompt = ({ ref, hint }: ToolAccess) => `## Creating Agents and Assistants
 
-When the user asks you to create or set up an Agent or an Assistant ${CREATE_REQUEST_EXAMPLES}, propose a configuration, then call ${ref('assistant', 'create_agent')} or ${ref('assistant', 'create_assistant')} instead of describing UI steps or writing files. To change a user-created Agent, find it with ${ref('cherry-tools', 'agent_list')} and call ${ref('assistant', 'update_agent')}.${hint} The user approves every call.`
+When the user asks you to create or set up an Agent or an Assistant ${CREATE_REQUEST_EXAMPLES}, propose a configuration, then call ${ref('assistant', 'create_agent')} or ${ref('assistant', 'create_assistant')} instead of describing UI steps or writing files. ${RESOURCE_KINDS} To change a user-created Agent, find it with ${ref('cherry-tools', 'agent_list')} and call ${ref('assistant', 'update_agent')}.${hint} The user approves every call.`
 
 const selfConfigToolsPrompt = ({
   ref,
   hint
 }: ToolAccess) => `## Creating Agents and Assistants, and changing your own settings
 
-When the user asks you to create or set up an Agent or an Assistant ${CREATE_REQUEST_EXAMPLES}, propose a configuration, then call ${ref('cherry-tools', AGENT_CREATE_TOOL_NAME)} or ${ref('cherry-tools', ASSISTANT_CREATE_TOOL_NAME)} instead of describing UI steps or writing files. When the user asks you to change your own avatar, description, instructions, model, permission mode, skills, knowledge bases, MCP servers, built-in tools, reply language or heartbeat, call ${ref('cherry-tools', CONFIG_UPDATE_TOOL_NAME)} with only the fields to change.${hint} The user approves every call.`
+When the user asks you to create or set up an Agent or an Assistant ${CREATE_REQUEST_EXAMPLES}, propose a configuration, then call ${ref('cherry-tools', AGENT_CREATE_TOOL_NAME)} or ${ref('cherry-tools', ASSISTANT_CREATE_TOOL_NAME)} instead of describing UI steps or writing files. ${RESOURCE_KINDS} When the user asks you to change your own avatar, description, instructions, model, permission mode, skills, knowledge bases, MCP servers, built-in tools, reply language or heartbeat, call ${ref('cherry-tools', CONFIG_UPDATE_TOOL_NAME)} with only the fields to change.${hint} The user approves every call.`
 
 /** The create-tool guidance in the Agent's runtime call form; none for an Agent closed to creating. */
 export function getConfigToolsPrompt(agent: Pick<AgentEntity, 'configuration' | 'type'>): string | undefined {
