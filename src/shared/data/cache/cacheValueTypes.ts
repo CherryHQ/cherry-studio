@@ -24,8 +24,6 @@ export type CacheAppUpdateState = {
   downloadProgress: number
   available: boolean
   ignore: boolean
-  //   /** Whether the update check was manually triggered by user clicking the button */
-  manualCheck: boolean
   lastErrorKey: 'settings.about.updateError' | 'settings.about.updateNotPublished' | null
 }
 

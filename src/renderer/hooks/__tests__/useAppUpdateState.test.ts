@@ -49,7 +49,7 @@ describe('useAppUpdateState', () => {
   })
 
   it('reads shared updater facts while retaining this window intent', () => {
-    cacheService.set('app.dist.update_state', { manualCheck: false, ignore: true })
+    cacheService.set('app.dist.update_state', { ignore: true })
     const { result } = renderHook(() => useAppUpdateState())
     act(() =>
       cacheService.setShared('app.dist.update_status', {
@@ -62,7 +62,6 @@ describe('useAppUpdateState', () => {
     expect(result.current.appUpdateState).toMatchObject({
       available: true,
       downloadProgress: 65,
-      manualCheck: false,
       ignore: true
     })
   })
@@ -77,9 +76,9 @@ describe('useAppUpdateState', () => {
     expect(result.current.appUpdateState.lastErrorKey).toBeNull()
   })
 
-  it('shares update progress without sharing the window request to show an install dialog', () => {
+  it('shares update progress without sharing this window ignore choice', () => {
     const { result } = renderHook(() => useAppUpdateState())
-    act(() => result.current.updateAppUpdateState({ downloading: true, downloadProgress: 42, manualCheck: true }))
+    act(() => result.current.updateAppUpdateState({ downloading: true, downloadProgress: 42, ignore: true }))
     expect(window.api.cache.broadcastSync).toHaveBeenCalledWith(
       expect.objectContaining({
         key: 'app.dist.update_status',
@@ -87,9 +86,7 @@ describe('useAppUpdateState', () => {
       })
     )
     const broadcasts = vi.mocked(window.api.cache.broadcastSync).mock.calls
-    expect(
-      broadcasts.every(([message]) => !('manualCheck' in (message.value ?? {})) && !('ignore' in (message.value ?? {})))
-    ).toBe(true)
-    expect(result.current.appUpdateState.manualCheck).toBe(true)
+    expect(broadcasts.every(([message]) => !('ignore' in (message.value ?? {})))).toBe(true)
+    expect(result.current.appUpdateState.ignore).toBe(true)
   })
 })

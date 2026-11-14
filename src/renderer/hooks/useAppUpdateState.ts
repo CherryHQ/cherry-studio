@@ -12,14 +12,9 @@ export const useAppUpdateState = () => {
 
   const updateAppUpdateState = useCallback(
     (state: Partial<CacheAppUpdateState>) => {
-      const { manualCheck, ignore, ...statusPatch } = state
+      const { ignore, ...statusPatch } = state
       if (statusPatch.checking) statusPatch.lastErrorKey = null
-      if (manualCheck !== undefined || ignore !== undefined) {
-        setIntent((previous) => ({
-          manualCheck: manualCheck ?? previous.manualCheck,
-          ignore: ignore ?? previous.ignore
-        }))
-      }
+      if (ignore !== undefined) setIntent({ ignore })
       if (Object.keys(statusPatch).length > 0) {
         const previous =
           cacheService.getShared('app.dist.update_status') ?? DefaultSharedCache['app.dist.update_status']
