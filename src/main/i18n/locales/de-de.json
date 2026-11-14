@@ -83,6 +83,8 @@
   "common.channel_session_compacted": "Sitzung komprimiert.",
   "common.channel_session_resolution_error": "⚠️ Eine Sitzung für diesen Agenten konnte nicht aufgelöst werden. Bitte versuchen Sie es später erneut.",
   "common.channel_stopped": "Gestoppt",
+  "common.channel_topics_none": "Für keine Themen sind Agenten konfiguriert. Jedes Thema verwendet den Agenten dieses Kanals.",
+  "common.channel_topics_title": "Themen-Agenten:",
   "common.channel_voice_transcription_missing": "Es wurde keine Sprachtranskription empfangen. Bitte senden Sie Ihre Nachricht erneut als Text.",
   "common.copy": "Kopieren",
   "common.cut": "Ausschneiden",

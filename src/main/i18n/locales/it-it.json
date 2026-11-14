@@ -83,6 +83,8 @@
   "common.channel_session_compacted": "Sessione compattata.",
   "common.channel_session_resolution_error": "⚠️ Impossibile individuare una sessione per questo agente. Riprova più tardi.",
   "common.channel_stopped": "Interrotto",
+  "common.channel_topics_none": "Nessun agente per argomento configurato. Ogni argomento usa l'agente di questo canale.",
+  "common.channel_topics_title": "Agenti per argomento:",
   "common.channel_voice_transcription_missing": "Non è stata ricevuta alcuna trascrizione vocale. Invia nuovamente il messaggio come testo.",
   "common.copy": "Copia",
   "common.cut": "Taglia",

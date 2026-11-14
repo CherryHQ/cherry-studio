@@ -76,18 +76,19 @@ function conversationKey(agentId: string, channelId: string, conversationId: str
 }
 
 function responseOptionsFor(
-  event: Pick<ChannelMessageEvent | ChannelCommandEvent, 'messageId' | 'replyInThread'>
+  event: Pick<ChannelMessageEvent | ChannelCommandEvent, 'messageId' | 'replyInThread' | 'threadId'>
 ): SendMessageOptions {
   return {
     replyToMessageId: event.messageId,
-    ...(event.replyInThread && { replyInThread: true })
+    ...(event.replyInThread && { replyInThread: true }),
+    ...(event.threadId ? { threadId: event.threadId } : {})
   }
 }
 
 function streamResponseOptionsFor(
-  event: Pick<ChannelMessageEvent | ChannelCommandEvent, 'messageId' | 'replyInThread'>
+  event: Pick<ChannelMessageEvent | ChannelCommandEvent, 'messageId' | 'replyInThread' | 'threadId'>
 ): SendMessageOptions | undefined {
-  return event.messageId !== undefined || event.replyInThread ? responseOptionsFor(event) : undefined
+  return event.messageId !== undefined || event.replyInThread || event.threadId ? responseOptionsFor(event) : undefined
 }
 
 export class ChannelMessageHandler {
@@ -364,9 +365,25 @@ export class ChannelMessageHandler {
       text: mergedText,
       ...(messageId ? { messageId } : {}),
       ...(first.replyInThread ? { replyInThread: true } : {}),
+      ...(first.threadId ? { threadId: first.threadId } : {}),
       ...(mergedImages.length > 0 ? { images: mergedImages } : {}),
       ...(mergedFiles.length > 0 ? { files: mergedFiles } : {})
     }
+  }
+
+  /** A forum topic mapped to another agent is answered by it; unmapped or unavailable topics use the channel agent. */
+  private resolveAgentId(adapter: ChannelAdapter, event: Pick<ChannelMessageEvent, 'threadId'>): string {
+    if (!event.threadId) return adapter.agentId
+    const channel = channelService.getChannel(adapter.channelId)
+    const topicAgentId = channel?.type === 'telegram' ? channel.config.topic_agents?.[event.threadId] : undefined
+    if (!topicAgentId || topicAgentId === adapter.agentId) return adapter.agentId
+    if (agentService.getLifecycleState(topicAgentId) === 'active') return topicAgentId
+    logger.warn('Topic agent is unavailable; answering with the channel agent', {
+      channelId: adapter.channelId,
+      threadId: event.threadId,
+      topicAgentId
+    })
+    return adapter.agentId
   }
 
   private async processIncoming(
@@ -374,7 +391,7 @@ export class ChannelMessageHandler {
     message: ChannelMessageEvent,
     onAdmitted?: () => void
   ): Promise<void> {
-    const { agentId } = adapter
+    const agentId = this.resolveAgentId(adapter, message)
     let streamStarted = false
 
     try {
@@ -531,7 +548,7 @@ export class ChannelMessageHandler {
     command: ChannelCommandEvent,
     onAdmitted: () => void
   ): Promise<void> {
-    const { agentId } = adapter
+    const agentId = this.resolveAgentId(adapter, command)
     const replyOpts = responseOptionsFor(command)
     try {
       switch (command.command) {
@@ -596,6 +613,18 @@ export class ChannelMessageHandler {
             .filter(Boolean)
             .join('\n')
           await adapter.sendMessage(command.chatId, helpText, replyOpts)
+          break
+        }
+        case 'topics': {
+          onAdmitted()
+          const channel = channelService.getChannel(adapter.channelId)
+          const topicAgents = channel?.type === 'telegram' ? (channel.config.topic_agents ?? {}) : {}
+          const lines = Object.entries(topicAgents).map(
+            ([threadId, topicAgentId]) => `#${threadId} → ${agentService.getAgent(topicAgentId)?.name ?? topicAgentId}`
+          )
+          const text =
+            lines.length > 0 ? [t('common.channel_topics_title'), ...lines].join('\n') : t('common.channel_topics_none')
+          await adapter.sendMessage(command.chatId, text, replyOpts)
           break
         }
         case 'whoami': {

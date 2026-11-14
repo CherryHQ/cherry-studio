@@ -83,6 +83,8 @@
   "common.channel_session_compacted": "工作階段已壓縮。",
   "common.channel_session_resolution_error": "⚠️ 無法解析此代理程式的工作階段，請稍後再試。",
   "common.channel_stopped": "已停止",
+  "common.channel_topics_none": "尚未設定主題代理。所有主題都使用此頻道的代理。",
+  "common.channel_topics_title": "主題代理：",
   "common.channel_voice_transcription_missing": "未收到語音轉寫結果，請改用文字重新傳送。",
   "common.copy": "複製",
   "common.cut": "剪下",

@@ -83,6 +83,8 @@
   "common.channel_session_compacted": "Η συνεδρία συμπτύχθηκε.",
   "common.channel_session_resolution_error": "⚠️ Αποτυχία επίλυσης συνεδρίας για αυτόν τον πράκτορα. Δοκιμάστε ξανά αργότερα.",
   "common.channel_stopped": "Διακόπηκε",
+  "common.channel_topics_none": "Δεν έχουν οριστεί πράκτορες θεμάτων. Κάθε θέμα χρησιμοποιεί τον πράκτορα αυτού του καναλιού.",
+  "common.channel_topics_title": "Πράκτορες θεμάτων:",
   "common.channel_voice_transcription_missing": "Δεν ελήφθη απομαγνητοφώνηση. Στείλτε ξανά το μήνυμά σας ως κείμενο.",
   "common.copy": "Αντιγραφή",
   "common.cut": "Κοπή",

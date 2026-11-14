@@ -83,6 +83,8 @@
   "common.channel_session_compacted": "Sesiune compactată.",
   "common.channel_session_resolution_error": "⚠️ Nu s-a putut rezolva o sesiune pentru acest agent. Încercați din nou mai târziu.",
   "common.channel_stopped": "Oprit",
+  "common.channel_topics_none": "Nu este configurat niciun agent pe subiect. Fiecare subiect folosește agentul acestui canal.",
+  "common.channel_topics_title": "Agenți pe subiect:",
   "common.channel_voice_transcription_missing": "Nu s-a primit transcrierea vocală. Retrimiteți mesajul ca text.",
   "common.copy": "Copiază",
   "common.cut": "Decupează",

@@ -4,6 +4,7 @@ import { type FC, useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
+  Button,
   Dialog,
   DialogContent,
   DialogHeader,
@@ -18,6 +19,7 @@ import {
   Switch
 } from '@cherrystudio/ui'
 import { FullAccessConfirmDialog, PermissionModeSelectItem } from '@renderer/components/PermissionModeOption'
+import { useAgents } from '@renderer/hooks/agent/useAgent'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import type { FeishuChannelConfig, FeishuDomain } from '@renderer/types/agent'
 import { permissionModeCards } from '@renderer/utils/agent'
@@ -215,6 +217,95 @@ const ChannelFieldsForm: FC<ChannelFieldsFormProps> = ({
 
 // --------------- Type-specific forms ---------------
 
+const TelegramTopicAgents: FC<ChannelFormProps> = ({ channel, onConfigChange }) => {
+  const { t } = useTranslation()
+  const { agents } = useAgents()
+  const agentName = (id: string) => agents.find((agent) => agent.id === id)?.name ?? id
+  const topicAgents = (channel.config.topic_agents ?? {}) as Record<string, string>
+  const [threadId, setThreadId] = useState('')
+  const [agentId, setAgentId] = useState('')
+  const [error, setError] = useState<string | null>(null)
+
+  const save = (next: Record<string, string>) => onConfigChange({ configPatch: { topic_agents: next } })
+
+  const addTopic = () => {
+    const id = threadId.trim()
+    if (!/^\d+$/.test(id)) {
+      setError(t('agent.channels.telegram.topicAgents.invalidThreadId'))
+      return
+    }
+    if (id in topicAgents) {
+      setError(t('agent.channels.telegram.topicAgents.duplicate'))
+      return
+    }
+    save({ ...topicAgents, [id]: agentId })
+    setThreadId('')
+    setAgentId('')
+    setError(null)
+  }
+
+  return (
+    <div className="col-span-2 flex flex-col gap-2">
+      <Label className="text-xs">{t('agent.channels.telegram.topicAgents.title')}</Label>
+      <span className="text-xs text-muted-foreground">{t('agent.channels.telegram.topicAgents.hint')}</span>
+      {Object.entries(topicAgents).map(([id, topicAgentId]) => (
+        <div key={id} className="flex items-center gap-2">
+          <span className="w-24 shrink-0 font-mono text-xs">#{id}</span>
+          <Select
+            value={topicAgentId}
+            onValueChange={(value) => {
+              if (value) save({ ...topicAgents, [id]: value })
+            }}>
+            <SelectTrigger size="sm" className="flex-1">
+              <SelectValue>{agentName(topicAgentId)}</SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              {agents.map((agent) => (
+                <SelectItem key={agent.id} value={agent.id}>
+                  {agent.name ?? agent.id}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button size="sm" variant="ghost" onClick={() => save(omitKey(topicAgents, id))}>
+            {t('agent.channels.telegram.topicAgents.remove')}
+          </Button>
+        </div>
+      ))}
+      <div className="flex items-center gap-2">
+        <Input
+          value={threadId}
+          onChange={(e) => {
+            setThreadId(e.target.value)
+            setError(null)
+          }}
+          placeholder={t('agent.channels.telegram.topicAgents.threadIdPlaceholder')}
+          className="h-8 w-24 text-sm"
+        />
+        <Select value={agentId} onValueChange={setAgentId}>
+          <SelectTrigger size="sm" className="flex-1">
+            <SelectValue placeholder={t('agent.channels.telegram.topicAgents.agentPlaceholder')} />
+          </SelectTrigger>
+          <SelectContent>
+            {agents.map((agent) => (
+              <SelectItem key={agent.id} value={agent.id}>
+                {agent.name ?? agent.id}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Button size="sm" variant="outline" disabled={!threadId.trim() || !agentId} onClick={addTopic}>
+          {t('agent.channels.telegram.topicAgents.add')}
+        </Button>
+      </div>
+      {error && <span className="text-xs text-destructive">{error}</span>}
+    </div>
+  )
+}
+
+const omitKey = (record: Record<string, string>, key: string): Record<string, string> =>
+  Object.fromEntries(Object.entries(record).filter(([k]) => k !== key))
+
 export const TelegramForm: FC<ChannelFormProps> = ({ channel, onConfigChange }) => {
   const { t } = useTranslation()
   return (
@@ -234,6 +325,7 @@ export const TelegramForm: FC<ChannelFormProps> = ({ channel, onConfigChange }) 
         placeholder: t('agent.channels.telegram.chatIdsPlaceholder'),
         hint: t('agent.channels.telegram.chatIdsHint')
       }}
+      extraContent={<TelegramTopicAgents channel={channel} onConfigChange={onConfigChange} />}
     />
   )
 }

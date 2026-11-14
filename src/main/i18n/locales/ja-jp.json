@@ -83,6 +83,8 @@
   "common.channel_session_compacted": "セッションを圧縮しました。",
   "common.channel_session_resolution_error": "⚠️ このエージェントのセッションを解決できませんでした。しばらくしてからもう一度お試しください。",
   "common.channel_stopped": "停止しました",
+  "common.channel_topics_none": "トピックごとのエージェントは設定されていません。すべてのトピックがこのチャンネルのエージェントを使用します。",
+  "common.channel_topics_title": "トピックごとのエージェント：",
   "common.channel_voice_transcription_missing": "音声の文字起こしを取得できませんでした。テキストで再送してください。",
   "common.copy": "コピー",
   "common.cut": "切り取り",

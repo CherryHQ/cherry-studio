@@ -31,7 +31,7 @@ export const AVAILABLE_CHANNELS: AvailableChannel[] = [
     titleKey: 'agent.channels.telegram.title',
     description: 'agent.channels.telegram.description',
     available: true,
-    defaultConfig: { bot_token: '', allowed_chat_ids: [] }
+    defaultConfig: { bot_token: '', allowed_chat_ids: [], topic_agents: {} }
   },
   {
     type: 'qq',

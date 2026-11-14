@@ -19,7 +19,9 @@ export type AgentChannelType = z.infer<typeof AgentChannelTypeSchema>
 
 export const TelegramAgentChannelConfigSchema = z.strictObject({
   bot_token: z.string(),
-  allowed_chat_ids: z.array(z.string()).optional()
+  allowed_chat_ids: z.array(z.string()).optional(),
+  /** Forum topic `message_thread_id` → agentId. Unlisted topics are answered by the channel's agent. */
+  topic_agents: z.record(z.string().regex(/^\d+$/), z.string().min(1)).optional()
 })
 
 export const FeishuDomainSchema = z.enum(['feishu', 'lark'])
