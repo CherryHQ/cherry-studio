@@ -6,6 +6,7 @@ import { MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { ApiKeyEntry } from '@shared/data/types/provider'
 
 import {
+  canRunApiModelCheck,
   checkModelWithMultipleKeys,
   getModelCheckCredentialPolicy,
   getModelHealthCheckSkipReason,
@@ -87,6 +88,21 @@ describe('getModelCheckCredentialPolicy', () => {
       canSelectApiKey: true,
       requiresApiKey: true
     })
+  })
+})
+
+describe('canRunApiModelCheck', () => {
+  it('rejects external-CLI providers whose login the API probe cannot use', () => {
+    expect(canRunApiModelCheck({ authMethods: ['external-cli'] })).toBe(false)
+  })
+
+  it('allows other providers', () => {
+    expect(canRunApiModelCheck({ authMethods: ['oauth'] })).toBe(true)
+    expect(canRunApiModelCheck({ authMethods: ['api-key'] })).toBe(true)
+  })
+
+  it('does not offer the probe before the provider loads', () => {
+    expect(canRunApiModelCheck(undefined)).toBe(false)
   })
 })
 

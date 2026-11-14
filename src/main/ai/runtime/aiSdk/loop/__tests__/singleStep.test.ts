@@ -117,7 +117,7 @@ async function stream(agent: Agent, signal = new AbortController().signal): Prom
 }
 
 describe('caller-owned single model invocation', () => {
-  it.each(['stream', 'generate'] as const)(
+  it.each(['stream', 'generate', 'generate-stream'] as const)(
     '%s returns tool calls without local execution or continuation',
     async (mode) => {
       const { agent, requests, effects } = fixture('caller')
@@ -128,7 +128,13 @@ describe('caller-owned single model invocation', () => {
         )
         expect(requests[0].input.map((message) => message.role)).toEqual(['system', 'user'])
       } else {
-        expect((await agent.generate({ prompt: 'Which skills?' })).finishReason).toBe('tool-calls')
+        expect(
+          (
+            await agent.generate({ prompt: 'Which skills?' }, undefined, {
+              streamingTransport: mode === 'generate-stream'
+            })
+          ).finishReason
+        ).toBe('tool-calls')
       }
       expect(requests).toHaveLength(1)
       expect(requests[0].temperature).toBe(0.125)
@@ -136,16 +142,25 @@ describe('caller-owned single model invocation', () => {
     }
   )
 
-  it.each(['stream', 'generate'] as const)('%s keeps the Cherry tool loop for ordinary chat', async (mode) => {
-    const { agent, requests, effects } = fixture(undefined)
-    if (mode === 'stream') {
-      expect(await stream(agent)).toContainEqual(expect.objectContaining({ type: 'text-delta', delta: 'Done' }))
-    } else {
-      expect((await agent.generate({ prompt: 'Which skills?' })).text).toBe('Done')
+  it.each(['stream', 'generate', 'generate-stream'] as const)(
+    '%s keeps the Cherry tool loop for ordinary chat',
+    async (mode) => {
+      const { agent, requests, effects } = fixture(undefined)
+      if (mode === 'stream') {
+        expect(await stream(agent)).toContainEqual(expect.objectContaining({ type: 'text-delta', delta: 'Done' }))
+      } else {
+        expect(
+          (
+            await agent.generate({ prompt: 'Which skills?' }, undefined, {
+              streamingTransport: mode === 'generate-stream'
+            })
+          ).text
+        ).toBe('Done')
+      }
+      expect(requests).toHaveLength(2)
+      expect(effects.filter((effect) => effect === 'execute')).toEqual(['execute'])
     }
-    expect(requests).toHaveLength(2)
-    expect(effects.filter((effect) => effect === 'execute')).toEqual(['execute'])
-  })
+  )
 
   it('returns invalid tool input without invoking AI repair', async () => {
     const { agent, requests, effects } = fixture('caller', true)
