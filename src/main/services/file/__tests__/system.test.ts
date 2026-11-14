@@ -186,7 +186,7 @@ describe('clipboard target availability', () => {
     })
     expect(writer).not.toHaveBeenCalled()
   })
-  it('checks readable files, directories, and unreadable files', async () => {
+  it('checks readable files and directories', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'clipboard-test-'))
     const path = join(dir, 'file.cmd') as AbsoluteFilePath
     try {
@@ -196,6 +196,17 @@ describe('clipboard target availability', () => {
         await copyFileToClipboard(target)
         expect(writer).toHaveBeenCalledWith(target)
       }
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  // chmod cannot strip read permission on Windows.
+  it.skipIf(process.platform === 'win32')('checks unreadable files (POSIX)', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'clipboard-test-'))
+    const path = join(dir, 'file.cmd') as AbsoluteFilePath
+    try {
+      await writeFile(path, 'data')
       await chmod(path, 0)
       expect(await getClipboardCopyStatus(path)).toEqual({ ok: false, reason: 'inaccessible' })
     } finally {
