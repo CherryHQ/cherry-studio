@@ -108,6 +108,22 @@ describe('projectAppErrorContext', () => {
     }
   })
 
+  it('replaces the local user directory inside a JSON provider response and a spaced Windows username', () => {
+    const context = createAppErrorContext({
+      source: 'file.preview',
+      operation: 'file.preview.load_error',
+      message: 'cannot open C:\\Users\\John Smith\\AppData\\x.log',
+      responseBody: JSON.stringify({ error: 'open c:\\users\\bob\\Desktop\\b.pdf failed' })
+    })
+
+    for (const view of ['export', 'upload'] as const) {
+      const projected = projectAppErrorContext(context, view)
+      expect(projected.message).toBe('cannot open ~\\AppData\\x.log')
+      expect(projected.responseBody).toBe('{"error":"open ~\\\\Desktop\\\\b.pdf failed"}')
+      expect(JSON.stringify(projected)).not.toMatch(/bob|John|Smith/)
+    }
+  })
+
   it('leaves URL paths that merely contain a home-like segment intact', () => {
     const context = createAppErrorContext({
       source: 'mcp',

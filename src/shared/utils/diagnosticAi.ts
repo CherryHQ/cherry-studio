@@ -4,7 +4,7 @@ import {
   type DiagnosticAiDiagnosis,
   diagnosticAiDiagnosisSchema
 } from '../types/diagnosticAi'
-import { redactSecretText, redactSecretTokens } from './redaction'
+import { redactDiagnosticText } from './redaction'
 
 function boundedIdentifier(value: string | undefined): string | undefined {
   if (value === undefined) return undefined
@@ -15,7 +15,7 @@ function boundedIdentifier(value: string | undefined): string | undefined {
 
 /** Allowlisted, redacted copy. Keeps an existing truncation mark and adds one when this copy is clipped. */
 export function projectDiagnosticAiDiagnosis(diagnosis: DiagnosticAiDiagnosis): DiagnosticAiDiagnosis | undefined {
-  const redacted = redactSecretTokens(redactSecretText(diagnosis.text)).trim()
+  const redacted = redactDiagnosticText(diagnosis.text).trim()
   if (redacted.length === 0) return undefined
   const clipped = redacted.length > DIAGNOSTIC_AI_TEXT_MAX
   const text = clipped ? redacted.slice(0, DIAGNOSTIC_AI_TEXT_MAX) : redacted

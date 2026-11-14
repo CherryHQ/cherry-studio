@@ -1,5 +1,5 @@
 import { APP_ERROR_CONTENT_PARAM_KEYS, type AppErrorContext } from '../types/appError'
-import { isSensitiveKey, REDACTED, redactSecretText, redactSecretTokens } from './redaction'
+import { isSensitiveKey, REDACTED, redactDiagnosticText } from './redaction'
 
 const MESSAGE_LIMIT = 4_000
 const PARAM_LIMIT = 200
@@ -60,11 +60,8 @@ function isContentParamKey(key: string): boolean {
   )
 }
 
-// A home directory names the local account. The look-behind skips URL paths such as example.com/home/x.
-const HOME_DIRECTORY = /(?<![\w.-])(?:\/(?:Users|home)\/[^/\\\s'"`]+|[A-Za-z]:[\\/]Users[\\/][^/\\\s'"`]+)/g
-
 function redactText(value: string, limit: number): string {
-  const redacted = redactSecretTokens(redactSecretText(value)).replace(HOME_DIRECTORY, '~')
+  const redacted = redactDiagnosticText(value)
   return redacted.length > limit ? `${redacted.slice(0, limit)}…` : redacted
 }
 

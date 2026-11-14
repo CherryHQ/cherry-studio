@@ -192,6 +192,19 @@ export function redactSecretTokens(text: string, replacement: string = REDACTED)
   return SECRET_TOKEN_PATTERNS.reduce((result, { re }) => result.replace(re, replacement), text)
 }
 
+// The look-behind skips URL paths such as example.com/home/x. Separators may be JSON-escaped (`\\`);
+// a Windows username may contain spaces, so later words count only when a separator follows them.
+const HOME_DIRECTORY_PATTERN =
+  /(?<![\w.-])(?:\/(?:users|home)\/[^/\\\s'"`]+|[a-z]:[\\/]+users[\\/]+[^\\/:;|=,+*?<>"'`[\]\s]+(?:(?: [^\\/:;|=,+*?<>"'`[\]\s]+)+(?=[\\/]))?)/gi
+
+/**
+ * Secrets and local home directories (replaced by `~`) removed from free text.
+ * The projection used for error context, AI diagnosis, and error text sent to a model.
+ */
+export function redactDiagnosticText(text: string): string {
+  return redactSecretTokens(redactSecretText(text)).replace(HOME_DIRECTORY_PATTERN, '~')
+}
+
 /** Redact an exact runtime-known secret literal wherever it occurs. */
 export function redactLiteral(text: string, secret: string | undefined): string {
   if (!secret) return text
