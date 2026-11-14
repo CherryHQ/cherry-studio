@@ -60,18 +60,7 @@ export const MAX_COMMAND_NESTING = 8
 let languages: Record<CommandDialect, Language> | undefined
 let initialization: Promise<void> | undefined
 
-export function getShellDialect(shellPath?: string): string {
-  const name = shellPath
-    ?.replace(/\\/g, '/')
-    .split('/')
-    .at(-1)
-    ?.toLowerCase()
-    .replace(/\.exe$/, '')
-  if (!name || ['bash', 'sh', 'dash'].includes(name)) return 'bash'
-  return ['pwsh', 'powershell'].includes(name) ? 'powershell' : name
-}
-
-/** Grammar tables are immutable; each invocation disposes its own parser and syntax tree. */
+/** Grammar tables are immutable; each invocation disposes its own parser and syntax tree. A failed load retries. */
 export function initializeCommandParser(): Promise<void> {
   initialization ??= (async () => {
     const assets = application.getPath('feature.agents.command_parser_assets')
@@ -81,7 +70,10 @@ export function initializeCommandParser(): Promise<void> {
       Language.load(path.join(assets, 'tree-sitter-powershell.wasm'))
     ])
     languages = { bash, powershell }
-  })()
+  })().catch((error: unknown) => {
+    initialization = undefined
+    throw error
+  })
   return initialization
 }
 
@@ -287,10 +279,8 @@ export function parseCommandSyntax(text: string, dialect: CommandDialect, source
           })
         }
       }
-      if (
-        dialect === 'powershell' &&
-        /(?:invokation_expression|assignment_expression|script_block_expression)/.test(node.type)
-      )
+      // Script blocks and assignments are walked as ordinary commands; .NET calls stay opaque.
+      if (dialect === 'powershell' && node.type === 'invokation_expression')
         diagnostic('dynamic-executable-input', range(node))
       for (const child of children(node)) walk(child, pipeline, controls, depth + 1, functionSource, heredocPipeline)
     }

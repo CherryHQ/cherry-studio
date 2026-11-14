@@ -23,7 +23,7 @@ import { agentSessionService } from '@data/services/AgentSessionService'
 import { savedChildView } from '@main/ai/agentSession/ChildThreadProjection'
 import { prepareNativeSubmission } from '@main/ai/agentSession/nativeSubmission'
 import { preparePiBranch } from '@main/ai/runtime/pi/piContext'
-import { initializeCommandParser } from '@main/ai/toolApproval/commandParser'
+import { checkCommand } from '@main/ai/toolApproval/commandPolicy'
 import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import type { ToolGuardInteractionState } from '@main/ai/toolApproval/toolGuards'
 import type { AgentChildUpdate } from '@shared/ai/agentChildProjection'
@@ -100,7 +100,8 @@ vi.mock('./piMcpExtension', async (original) => ({
 }))
 vi.mock('@main/utils/shellEnv', () => ({ getShellEnv: async () => ({}), getPathFromEnvironment: () => undefined }))
 
-beforeAll(initializeCommandParser)
+// Load the grammars before tests redirect application paths.
+beforeAll(() => checkCommand({ command: 'true', dialect: 'bash', permissionMode: 'default' }))
 
 // Real Runtime, native Pi and SQLite; only provider/environment configuration is substituted.
 describe('desktop Pi root connection', () => {

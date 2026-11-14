@@ -357,10 +357,12 @@ export default function PermissionRequestComposer({
               <TriangleAlert aria-hidden="true" className="mt-0.5 size-3 shrink-0" />
               {request.commandPolicy.reason}
             </p>
-            <p className="break-all text-muted-foreground">
-              {t('agent.toolPermission.workingDirectory')}:{' '}
-              <span className="font-mono text-foreground">{request.commandPolicy.cwd}</span>
-            </p>
+            {request.commandPolicy.cwd ? (
+              <p className="break-all text-muted-foreground">
+                {t('agent.toolPermission.workingDirectory')}:{' '}
+                <span className="font-mono text-foreground">{request.commandPolicy.cwd}</span>
+              </p>
+            ) : null}
             {request.commandPolicy.rules.length > 0 ? (
               <>
                 <Button

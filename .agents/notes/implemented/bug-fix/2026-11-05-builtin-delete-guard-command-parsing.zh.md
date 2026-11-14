@@ -12,7 +12,7 @@ Status: implemented
 
 ## 决定
 
-`assistantCommandSafety` 现在先解析命令再做判断。[结构化命令策略](../architecture/2026-11-13-command-approval-policy.md) 现在通过兼容桥接提供共享语法树解析器，保留引号、转义、注释、重定向、命令替换与 heredoc 归属。它取代原有本地分词器，同时保留本记录审计过的用例和破坏性操作检测器。守卫只匹配可执行的命令词及其参数，不再扫描原始文本。
+内置破坏性命令检测器（现为命令策略模块内的 `builtinDestructiveDetector`）先解析命令再做判断。[结构化命令策略](../architecture/2026-11-13-command-approval-policy.md) 通过兼容桥接提供共享语法树解析器，保留引号、转义、注释、重定向、命令替换与 heredoc 归属。它取代原有本地分词器，同时保留本记录审计过的用例和破坏性操作检测器。守卫只匹配可执行的命令词及其参数，不再扫描原始文本。
 
 heredoc 正文与开启它的那一行分离。只有当该行把标准输入交给解释器时（`bash <<'EOF'`、`python3 - <<'PY'`、`cat <<'EOF' | bash`）才分析正文；由 `cat`、`tee`、`printf` 写入文件的 heredoc 一律忽略。`-c`、`-e`、`--eval` 传入的解释器代码同样会被分析，并且先剥离脚本字符串与注释，因此 `print("os.remove(x)")` 不会被当成调用。嵌套的 `$(…)` 与反引号命令替换会递归分析；经 `ssh`、`su`、`chroot`、`kubectl exec` 与 `docker`/`podman` 的 `exec`/`run` 执行的命令会解析出内层命令，避免被包装器掩盖。
 
@@ -36,6 +36,6 @@ heredoc 正文与开启它的那一行分离。只有当该行把标准输入交
 
 ## 验证
 
-- 回归 — `pnpm test:main src/main/ai/agents/builtin/__tests__/assistantCommandSafety.test.ts`：97 个测试；原有真实删除仍被拦截，审计中的误杀（heredoc 写文件、`-halt-on-error`、`.rmvb`、`del lines[0]`、引号内正则）被放行。
+- 回归 — `pnpm test:main src/main/ai/toolApproval/commandPolicy/__tests__/builtinDestructiveDetector.test.ts` 与 `src/main/ai/agents/builtin/__tests__/assistantCommandSafety.test.ts`（合计 97 个测试）；原有真实删除仍被拦截，审计中的误杀（heredoc 写文件、`-halt-on-error`、`.rmvb`、`del lines[0]`、引号内正则）被放行。
 - 回归 — `pnpm test:main src/main/ai/runtime/claudeCode/__tests__/guardRules.test.ts`：86 个测试；命令策略拒绝规则在所有权限模式下仍阻止真实 `rm`，且不影响普通 Agent。
 - 回归 — [结构化策略验证](../architecture/2026-11-13-command-approval-policy.md#verification)：当前运行时、解析器和打包依据。

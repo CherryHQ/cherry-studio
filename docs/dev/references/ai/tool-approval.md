@@ -12,11 +12,14 @@ sources:
   - src/main/ai/runtime/claudeCode/ToolApprovalRegistry.ts
   - src/main/ai/runtime/claudeCode/hooks.ts
   - src/main/ai/toolApproval/ToolApprovalRegistry.ts
-  - src/main/ai/toolApproval/commandPolicy.ts
-  - src/main/ai/toolApproval/commandParser.ts
-  - src/main/ai/toolApproval/commandSemantics.ts
-  - src/main/ai/toolApproval/commandPolicySchema.ts
-  - src/main/ai/toolApproval/command-policy.json
+  - src/main/ai/toolApproval/commandPolicy/index.ts
+  - src/main/ai/toolApproval/commandPolicy/checkCommand.ts
+  - src/main/ai/toolApproval/commandPolicy/policyEvaluator.ts
+  - src/main/ai/toolApproval/commandPolicy/commandParser.ts
+  - src/main/ai/toolApproval/commandPolicy/commandSemantics.ts
+  - src/main/ai/toolApproval/commandPolicy/policySchema.ts
+  - src/main/ai/toolApproval/commandPolicy/command-policy.json
+  - src/main/ai/toolApproval/commandPolicy/builtinDestructiveDetector.ts
   - src/main/ai/runtime/pi/piApprovalFacts.ts
   - packages/agent-behavior/src/orchestration/gate.ts
   - src/main/ai/toolApproval/builtinToolPolicy.ts
@@ -118,7 +121,16 @@ An applicable `deny` blocks every mode, including Full Access, and exposes no ap
 The built-in Assistant, Support and Doctor retain their destructive-operation denial; role
 scope is independent of a rule's effect. Children use their root's mode and protected role.
 
-The bundled [`command-policy.json`](../../../../src/main/ai/toolApproval/command-policy.json)
+Runtimes reach the policy only through the `commandPolicy` barrel's `checkCommand`. It takes
+the command, its dialect (from the tool name), cwd, built-in role and the root's permission
+mode, and returns `deny`, `ask` (only in `auto`) or `allow`, the localized policy reason, card
+evidence and a `context` fingerprint. A runtime compares the fingerprint after a grant instead
+of re-deriving the policy inputs. The parser, semantic adapters, JSON document and the
+built-in role's destructive-operation detector are private to the directory; lint rejects
+deep imports. Decisions are cached per command, dialect and role, because one call is
+checked by a hook, a permission callback and again after approval.
+
+The bundled [`command-policy.json`](../../../../src/main/ai/toolApproval/commandPolicy/command-policy.json)
 is validated atomically. Unknown versions, fields, roles, detectors, invalid selectors,
 duplicate IDs and missing mandatory denial block shell execution. There is no cloud fetch,
 user override or live reload. Command selectors match one executable node: executable choices
@@ -132,7 +144,13 @@ Each invocation disposes its syntax tree and parser. Syntax becomes executable n
 and dynamic arguments, control context, pipeline identities, redirections, heredoc data and
 source ranges. Literal shell code is parsed in its nested dialect; Node/Python code triggers
 an inline-code rule. Git adapters consume option values before matching destructive forms.
-Ambiguous path/branch checkout, unsupported forms and parser limits require approval.
+Ambiguous path/branch checkout, unsupported forms and parser limits require approval. An
+option of unknown arity before a package manager's subcommand requires approval only when a
+later word is a subcommand some rule selects. PowerShell script blocks and assignments are
+analyzed as the commands they contain; `Invoke-Expression` text is parsed like `eval`, and
+.NET method calls stay opaque. `find -exec` and `fd --exec` argv are analyzed as commands, and
+an interpreter reading a process substitution (`bash <(curl …)`) requires approval. A parser
+asset failure blocks shell execution; an analysis failure on one input requires approval.
 
 Analysis is bounded to 65,536 characters per source, 10,000 nodes, 128 structural levels,
 8 nested interpreter levels and 64 nested sources, with a 200 ms parse budget. Valid complete

@@ -23,7 +23,7 @@ import {
   resolveDelegationApproval,
   toMcpRuntimeName
 } from '@main/ai/toolApproval/builtinToolPolicy'
-import { evaluateCommandPolicy, type CommandPolicyDecision } from '@main/ai/toolApproval/commandPolicy'
+import { type CommandCheck, checkCommand } from '@main/ai/toolApproval/commandPolicy'
 import { detectGlobalInstall, detectMiseMutation } from '@main/ai/toolApproval/dependencyGuard'
 import type { GuardHit, ToolGuardContext, ToolGuardRule } from '@main/ai/toolApproval/toolGuards'
 import { evaluateUserDataSqliteGuard, USER_DATA_SQLITE_GUARD_REASON } from '@main/ai/toolApproval/userDataSqliteGuard'
@@ -131,22 +131,16 @@ const matchesRequiredApproval = (ctx: ToolGuardContext, bypassApproval: 'lift' |
   return policy?.approval === 'required' && policy.bypassApproval === bypassApproval ? {} : null
 }
 
-const commandDecisions = new WeakMap<ToolGuardContext, Promise<CommandPolicyDecision>>()
-
-function commandDecision(ctx: ToolGuardContext): Promise<CommandPolicyDecision> | undefined {
+function commandDecision(ctx: ToolGuardContext): Promise<CommandCheck> | undefined {
   const command = bashCommand(ctx)
   if (ctx.toolName !== 'Bash' || !command) return undefined
-  let pending = commandDecisions.get(ctx)
-  if (!pending) {
-    pending = evaluateCommandPolicy({
-      command,
-      dialect: 'bash',
-      cwd: ctx.cwd,
-      builtinRoles: ctx.builtinRole ? [ctx.builtinRole] : []
-    })
-    commandDecisions.set(ctx, pending)
-  }
-  return pending
+  return checkCommand({
+    command,
+    dialect: 'bash',
+    cwd: ctx.cwd,
+    builtinRole: ctx.builtinRole,
+    permissionMode: ctx.permissionMode
+  })
 }
 
 const CROSS_CUTTING_TOOL_GUARD_RULES: readonly ToolGuardRule[] = [
@@ -167,7 +161,6 @@ const CROSS_CUTTING_TOOL_GUARD_RULES: readonly ToolGuardRule[] = [
     bypassBehavior: 'skipInteractiveEffect',
     match: {
       when: async (ctx) => {
-        if (ctx.permissionMode !== 'auto') return null
         const decision = await commandDecision(ctx)
         return decision?.effect === 'ask' ? { evidence: decision.reason } : null
       }

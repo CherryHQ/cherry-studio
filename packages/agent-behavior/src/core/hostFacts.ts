@@ -29,13 +29,14 @@ export type ApprovalHostFacts = {
   readonly globalInstallPermissionMode?: PermissionMode
   /** The host's destructive-command detector flagged the call. */
   readonly destructive: boolean
-  /** A mandatory command-policy denial, enforced before every permission-mode shortcut. */
-  readonly commandPolicyDenial?: string
-  /** Host-owned presentation evidence for this exact approval request. */
-  readonly approvalDetails?: JsonValue
-  /** Identifies the policy and execution context used before waiting for consent. */
-  readonly policyContext?: string
-  readonly policyChangedReason?: string
+  /** A host block enforced before every permission-mode shortcut, such as a mandatory command denial. */
+  readonly mandatoryBlock?: string
+  /** The host's command-policy check for a shell call; a grant is rejected if `context` changed meanwhile. */
+  readonly commandPolicy?: {
+    readonly details: JsonValue
+    readonly context: string
+    readonly changedReason: string
+  }
   /** Cross-session delegation must originate in an interactive turn, even under full access. */
   readonly delegation?: 'interactive' | 'unattended'
 }

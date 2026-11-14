@@ -52,7 +52,7 @@ import {
   toCherryBuiltinRuntimeName,
   toMcpRuntimeName
 } from '@main/ai/toolApproval/builtinToolPolicy'
-import { evaluateCommandPolicy } from '@main/ai/toolApproval/commandPolicy'
+import { checkCommand, commandContextChangedReason } from '@main/ai/toolApproval/commandPolicy'
 import { detectGlobalInstall } from '@main/ai/toolApproval/dependencyGuard'
 import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import { evaluateToolGuards } from '@main/ai/toolApproval/toolGuards'
@@ -533,17 +533,12 @@ async function buildToolPermissions(
     }
 
     const permissionMode = snapshot.getPermissionMode()
+    const checkBash = (command: string, mode: typeof permissionMode) =>
+      checkCommand({ command, dialect: 'bash', cwd, builtinRole, permissionMode: mode })
     const commandPolicy =
       toolName === 'Bash' && typeof input.command === 'string'
-        ? await evaluateCommandPolicy({
-            command: input.command,
-            dialect: 'bash',
-            cwd,
-            builtinRoles: builtinRole ? [builtinRole] : []
-          })
+        ? await checkBash(input.command, permissionMode)
         : undefined
-    if (commandPolicy?.effect === 'deny')
-      return { behavior: 'deny', message: commandPolicy.reason ?? t('command_approval.configuration_error') }
     const globalInstall =
       toolName === 'Bash' && typeof input.command === 'string' && detectGlobalInstall(input.command) !== null
     if (globalInstall && permissionMode === 'plan') {
@@ -597,13 +592,6 @@ async function buildToolPermissions(
     }
 
     const access = snapshot.resolve(toolName, input)
-    if (
-      commandPolicy?.effect === 'allow' &&
-      permissionMode === 'auto' &&
-      !approvalHoldsInThisMode &&
-      !opts.matchedAskRule
-    )
-      return { behavior: 'allow', updatedInput: input }
     // AskUserQuestion produces user-authored tool input; it is not an operation that a permission
     // mode can meaningfully approve on the user's behalf. Keep it on the response path even when
     // bypassPermissions marks every ordinary tool as auto-approved.
@@ -670,22 +658,20 @@ async function buildToolPermissions(
             return
           }
           const updated = decision.updatedInput ?? input
-          void evaluateCommandPolicy({
-            command: typeof updated.command === 'string' ? updated.command : '',
-            dialect: 'bash',
-            cwd,
-            builtinRoles: builtinRole ? [builtinRole] : []
-          })
+          void checkBash(
+            typeof updated.command === 'string' ? updated.command : '',
+            sessionState().getToolPolicySnapshot(session.id)?.getPermissionMode()
+          )
             .then((checked) => {
               if (checked.effect === 'deny')
                 resolve({ behavior: 'deny', message: checked.reason ?? t('command_approval.configuration_error') })
               else if (
                 opts.signal.aborted ||
-                sessionState().getToolPolicySnapshot(session.id)?.getPermissionMode() !== permissionMode ||
+                checked.context !== commandPolicy.context ||
                 snapshot.isDisabled(toolName) ||
                 JSON.stringify(input) !== originalInput
               )
-                resolve({ behavior: 'deny', message: t('command_approval.context_changed') })
+                resolve({ behavior: 'deny', message: commandContextChangedReason() })
               else resolve(decisionToPermissionResult(decision, input))
             })
             .catch(() => resolve({ behavior: 'deny', message: t('command_approval.configuration_error') }))
@@ -705,18 +691,12 @@ async function buildToolPermissions(
             ...(commandPolicy
               ? {
                   commandPolicy: {
-                    cwd,
-                    revision: commandPolicy.revision,
+                    ...commandPolicy.evidence,
                     reason:
                       shellGuard?.reason ??
                       commandPolicy.reason ??
                       opts.decisionReason ??
-                      t('command_approval.permission_required'),
-                    rules: commandPolicy.hits.map(({ ruleId, reasonCode, evidence }) => ({
-                      ruleId,
-                      reasonCode,
-                      evidence
-                    }))
+                      t('command_approval.permission_required')
                   }
                 }
               : {})

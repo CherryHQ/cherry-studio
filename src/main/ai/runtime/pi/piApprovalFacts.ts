@@ -6,7 +6,7 @@ import type { ApprovalHostFacts } from '@cherrystudio/agent-behavior'
 import type { JsonValue } from '@cherrystudio/agent-runtime'
 import { BUILTIN_AGENT_TOOL_GUARD_RULES } from '@main/ai/agents/builtin/builtinAgentGuardRules'
 import { resolveBrowserToolPermission } from '@main/ai/toolApproval/browserToolPolicy'
-import { evaluateCommandPolicy } from '@main/ai/toolApproval/commandPolicy'
+import { type CommandCheck, checkCommand, commandContextChangedReason } from '@main/ai/toolApproval/commandPolicy'
 import { detectGlobalInstall, detectMiseMutation } from '@main/ai/toolApproval/dependencyGuard'
 import type { ToolGuardInteractionState } from '@main/ai/toolApproval/toolGuards'
 import { evaluateToolGuards } from '@main/ai/toolApproval/toolGuards'
@@ -30,7 +30,6 @@ export interface PiApprovalContext {
   nonBypassableApprovalTools: ReadonlySet<string>
   delegationTools: ReadonlySet<string>
   builtinRole?: string
-  shellDialect?: string
 }
 
 const BEHAVIOR_META_TOOLS = new Set([
@@ -76,22 +75,7 @@ export async function readPiApprovalFacts(
     name === 'bash' && !disabled && !sqlite && !globalInstall && !miseMutation && command
       ? await rtkRewrite(command)
       : undefined
-  const dialect = name === 'powershell' ? 'powershell' : (ctx.shellDialect ?? 'bash')
-  const roles = ctx.builtinRole ? [ctx.builtinRole] : []
-  let commandPolicy =
-    command && !disabled
-      ? await evaluateCommandPolicy({ command, dialect, cwd: ctx.workspacePath, builtinRoles: roles })
-      : undefined
-  if (commandPolicy && rewritten && rewritten !== command) {
-    const effective = await evaluateCommandPolicy({
-      command: rewritten,
-      dialect,
-      cwd: ctx.workspacePath,
-      builtinRoles: roles
-    })
-    if (effective.effect === 'deny' || (effective.effect === 'ask' && commandPolicy.effect === 'allow'))
-      commandPolicy = effective
-  }
+  const commandPolicy = command && !disabled ? await checkPiCommand(ctx, name, mode, command, rewritten) : undefined
   const guard = ctx.builtinRole
     ? await evaluateToolGuards(BUILTIN_AGENT_TOOL_GUARD_RULES, {
         toolName: name === 'bash' || name === 'powershell' ? 'Bash' : name,
@@ -106,25 +90,14 @@ export async function readPiApprovalFacts(
         isDisabled: ctx.isDisabled
       })
     : undefined
-  const denial =
+  const mandatoryBlock =
     commandPolicy?.effect === 'deny' ? commandPolicy.reason : guard?.effect === 'deny' ? guard.reason : undefined
   const policyAsk = commandPolicy?.effect === 'ask'
-  const policyDetails = commandPolicy
-    ? {
-        cwd: ctx.workspacePath,
-        revision: commandPolicy.revision,
-        reason:
-          guard?.reason ??
-          commandPolicy.reason ??
-          (globalInstall ? t('command_approval.dependency_install') : t('command_approval.permission_required')),
-        rules: commandPolicy.hits.map(({ ruleId, reasonCode, evidence }) => ({ ruleId, reasonCode, evidence }))
-      }
-    : undefined
   return {
     category,
     disabled,
     autoApproved: browser === 'allow' || ctx.autoApprovedTools.has(name),
-    approvalRequired: ctx.approvalRequiredTools.has(name) || (policyAsk && mode === 'auto') || guard?.effect === 'ask',
+    approvalRequired: ctx.approvalRequiredTools.has(name) || policyAsk || guard?.effect === 'ask',
     nonBypassable: ctx.nonBypassableApprovalTools.has(name),
     withinAllowedRoots:
       (category === 'read' || category === 'edit') &&
@@ -140,12 +113,20 @@ export async function readPiApprovalFacts(
     miseMutation,
     ...(globalInstall ? { globalInstallPermissionMode: ctx.getPermissionMode() ?? 'default' } : {}),
     destructive: policyAsk,
-    ...(denial ? { commandPolicyDenial: denial } : {}),
-    ...(policyDetails
+    ...(mandatoryBlock ? { mandatoryBlock } : {}),
+    ...(commandPolicy
       ? {
-          approvalDetails: policyDetails,
-          policyContext: JSON.stringify([ctx.workspacePath, dialect, roles, mode, commandPolicy?.revision]),
-          policyChangedReason: t('command_approval.context_changed')
+          commandPolicy: {
+            details: {
+              ...commandPolicy.evidence,
+              reason:
+                guard?.reason ??
+                commandPolicy.reason ??
+                (globalInstall ? t('command_approval.dependency_install') : t('command_approval.permission_required'))
+            },
+            context: commandPolicy.context,
+            changedReason: commandContextChangedReason()
+          }
         }
       : {}),
     ...(rewritten ? { rewrittenArgs: { ...input, command: rewritten } } : {}),
@@ -158,6 +139,29 @@ export async function readPiApprovalFacts(
         }
       : {})
   }
+}
+
+/** Check the command as written and after the rtk rewrite; the stricter result governs. */
+async function checkPiCommand(
+  ctx: PiApprovalContext,
+  name: string,
+  permissionMode: AgentPermissionMode,
+  command: string,
+  rewritten: string | null | undefined
+): Promise<CommandCheck> {
+  const input = {
+    dialect: name === 'powershell' ? ('powershell' as const) : ('bash' as const),
+    cwd: ctx.workspacePath,
+    builtinRole: ctx.builtinRole,
+    permissionMode
+  }
+  const checks = await Promise.all(
+    [command, ...(rewritten && rewritten !== command ? [rewritten] : [])].map((text) =>
+      checkCommand({ ...input, command: text })
+    )
+  )
+  const severity = { allow: 0, ask: 1, deny: 2 }
+  return checks.reduce((strictest, check) => (severity[check.effect] > severity[strictest.effect] ? check : strictest))
 }
 
 async function isToolPathInsideAllowedRoots(

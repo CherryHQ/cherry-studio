@@ -44,6 +44,13 @@ describe('findNextPendingPermissionRequest', () => {
     }
   )
 
+  // Catch a session without a workspace losing all policy evidence on its card.
+  it('keeps command evidence when no working directory is known', () => {
+    const commandPolicy = { revision: '1', reason: 'Risky command', rules: [] }
+    const part = makePart({ callProviderMetadata: { cherry: { commandPolicy } } })
+    expect(findNextPendingPermissionRequest({ live: [part] })?.commandPolicy).toEqual(commandPolicy)
+  })
+
   it('ignores malformed display metadata without dropping the pending approval', () => {
     const result = findNextPendingPermissionRequest({
       live: [

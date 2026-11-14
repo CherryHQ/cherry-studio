@@ -31,7 +31,7 @@ import { readForkResources } from '@main/ai/agentSession/fork/resources'
 import { bindNativeInput, prepareNativeSubmission } from '@main/ai/agentSession/nativeSubmission'
 import { ThreadMessageProjection } from '@main/ai/agentSession/ThreadMessageProjection'
 import { getPiTraceContext, observabilitySinks } from '@main/ai/observability'
-import { initializeCommandParser } from '@main/ai/toolApproval/commandParser'
+import { checkCommand } from '@main/ai/toolApproval/commandPolicy'
 import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import type { ToolGuardInteractionState } from '@main/ai/toolApproval/toolGuards'
 import { serializeError } from '@main/ai/utils/serializeError'
@@ -95,7 +95,8 @@ vi.mock('@main/utils/shellEnv', () => ({
   getPathFromEnvironment: () => undefined
 }))
 
-beforeAll(initializeCommandParser)
+// Load the grammars before tests redirect application paths.
+beforeAll(() => checkCommand({ command: 'true', dialect: 'bash', permissionMode: 'default' }))
 
 // Real Runtime, native Pi and SQLite; only provider/environment configuration is substituted.
 /** An approval crosses the runtime boundary and starts a native tool, so the one-second default is a race on CI. */

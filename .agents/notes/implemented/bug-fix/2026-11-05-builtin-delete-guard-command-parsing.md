@@ -12,7 +12,7 @@ A four-week audit of Agent sessions found roughly a quarter of the guard's block
 
 ## Decision
 
-`assistantCommandSafety` now parses the command before deciding. The [structured command policy](../architecture/2026-11-13-command-approval-policy.md) now supplies the shared syntax-tree parser through a compatibility bridge, preserving quotes, escapes, comments, redirections, substitutions and heredoc ownership. It supersedes the original local tokenizer while retaining this note’s audited cases and destructive-operation detectors. The guard matches the executable command word and its arguments, never the raw text.
+The built-in destructive-command detector (now `builtinDestructiveDetector` inside the command policy module) parses the command before deciding. The [structured command policy](../architecture/2026-11-13-command-approval-policy.md) supplies the shared syntax-tree parser through a compatibility bridge, preserving quotes, escapes, comments, redirections, substitutions and heredoc ownership. It supersedes the original local tokenizer while retaining this note’s audited cases and destructive-operation detectors. The guard matches the executable command word and its arguments, never the raw text.
 
 Heredoc bodies are separated from the line that opened them. A body is analyzed only when that line feeds an interpreter that reads standard input (`bash <<'EOF'`, `python3 - <<'PY'`, `cat <<'EOF' | bash`); a heredoc written to a file by `cat`, `tee`, or `printf` is ignored. Interpreter code passed with `-c`/`-e`/`--eval` is analyzed too, and script literals and comments are stripped first so `print("os.remove(x)")` does not count as a call. Nested `$(…)` and backtick substitutions are analyzed recursively, and commands run through `ssh`, `su`, `chroot`, `kubectl exec`, and `docker`/`podman` `exec`/`run` are resolved to their inner command so the wrapper does not hide a deletion.
 
@@ -36,6 +36,6 @@ The main-owned JSON policy enforces the command denial in every permission mode.
 
 ## Verification
 
-- Regression — `pnpm test:main src/main/ai/agents/builtin/__tests__/assistantCommandSafety.test.ts`: 97 tests; existing true positives stay blocked and the audited false positives (heredoc writers, `-halt-on-error`, `.rmvb`, `del lines[0]`, quoted regexes) are allowed.
+- Regression — `pnpm test:main src/main/ai/toolApproval/commandPolicy/__tests__/builtinDestructiveDetector.test.ts` with `src/main/ai/agents/builtin/__tests__/assistantCommandSafety.test.ts` (97 tests in total); existing true positives stay blocked and the audited false positives (heredoc writers, `-halt-on-error`, `.rmvb`, `del lines[0]`, quoted regexes) are allowed.
 - Regression — `pnpm test:main src/main/ai/runtime/claudeCode/__tests__/guardRules.test.ts`: 86 tests; the command-policy denial still blocks real `rm` in every permission mode and leaves ordinary agents untouched.
 - Regression — [structured policy verification](../architecture/2026-11-13-command-approval-policy.md#verification): current runtime, parser and packaging evidence.

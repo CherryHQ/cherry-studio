@@ -191,7 +191,7 @@ export interface CherryToolMeta {
 }
 
 export interface CommandApprovalDetails {
-  cwd: string
+  cwd?: string
   revision: string
   reason: string
   rules: { ruleId: string; reasonCode: string; evidence: string }[]

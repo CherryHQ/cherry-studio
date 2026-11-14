@@ -44,7 +44,7 @@ describe('approval decisions (D34)', () => {
       expect(
         decideApproval(
           gateCall('bash'),
-          host({ commandPolicyDenial: 'protected role', autoApproved: true }),
+          host({ mandatoryBlock: 'protected role', autoApproved: true }),
           mode,
           'stream',
           undefined

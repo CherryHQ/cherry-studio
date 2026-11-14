@@ -1,5 +1,5 @@
-import { parseCommandSyntax } from '@main/ai/toolApproval/commandParser'
-import { findHeredocConsumer, resolveCommandWords } from '@main/ai/toolApproval/commandSemantics'
+import { parseCommandSyntax } from './commandParser'
+import { findHeredocConsumer, resolveCommandWords } from './commandSemantics'
 
 export interface ShellCommand {
   /** Basename without `.exe`, lowercased (`C:\Tools\sc.exe` → `sc`). */

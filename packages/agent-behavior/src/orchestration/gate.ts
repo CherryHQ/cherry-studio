@@ -16,6 +16,7 @@ export function gateHandlers(host: HostPorts): GateHandlers {
       const ref: CallRef = { thread: call.thread, key: call.key }
       // A gate call carries no provider call id; the host identifies the call by its `CallRef`.
       const tool: ToolCallFact = { callId: call.key, callKey: call.key, name: call.tool, args: call.args }
+      // Hosts may hand over a mutable input object; a change after the card was shown voids the grant.
       const originalArguments = JSON.stringify(call.args)
       const hostFacts = await host.approvals.facts(ref, tool)
       const decision = decideApproval(
@@ -42,7 +43,8 @@ export function gateHandlers(host: HostPorts): GateHandlers {
         })
       if (answer === undefined) return { block: ASK_WITHDRAWN }
       const verdict = answerVerdict(answer, decision.args)
-      if (answer.kind === 'granted' && hostFacts.policyContext !== undefined) {
+      const policy = hostFacts.commandPolicy
+      if (answer.kind === 'granted' && policy !== undefined) {
         const args = answer.args ?? decision.args ?? call.args
         const latest = await host.approvals.facts(ref, { ...tool, args })
         const checked = decideApproval(
@@ -54,11 +56,11 @@ export function gateHandlers(host: HostPorts): GateHandlers {
         )
         if (checked.kind === 'block') return { block: checked.reason }
         if (
-          latest.policyContext !== hostFacts.policyContext ||
+          latest.commandPolicy?.context !== policy.context ||
           JSON.stringify(call.args) !== originalArguments ||
           (latest.rewrittenArgs !== undefined && JSON.stringify(latest.rewrittenArgs) !== JSON.stringify(args))
         )
-          return { block: latest.policyChangedReason ?? ASK_WITHDRAWN }
+          return { block: policy.changedReason }
       }
       return verdict
     },

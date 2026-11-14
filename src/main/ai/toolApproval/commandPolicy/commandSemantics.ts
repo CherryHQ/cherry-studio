@@ -9,12 +9,11 @@ export interface CommandSemantics {
   operands: string[]
   elevated: boolean
   incomplete: boolean
-  repositoryDirectory?: string
+  /** An option of unknown arity precedes the subcommand, so a later word may be the real one. */
+  uncertainSubcommand: boolean
   gitConfigurations: string[]
   gitGlobalOptions: Map<string, string | true>
-  wrappers: { executable: string; args: string[]; directory?: string; incomplete?: boolean }[]
-  executionBoundary?: string
-  workingDirectory?: string
+  wrappers: { executable: string; args: string[]; incomplete?: boolean }[]
   inline?: { language: string; code?: string; word: CommandWord }
 }
 
@@ -263,6 +262,15 @@ const ALIASES: Readonly<Record<string, Readonly<Record<string, string>>>> = {
   switch: { '-f': '--discard-changes' }
 }
 
+const SCRIPT_RUNNERS = new Set([
+  ...['sh', 'bash', 'zsh', 'dash', 'ksh', 'ash', 'fish', 'source', '.'],
+  ...['node', 'nodejs', 'python', 'python3', 'py', 'ruby', 'perl', 'deno', 'bun', 'powershell', 'pwsh']
+])
+const EXEC_OPTIONS: Readonly<Record<string, readonly string[]>> = {
+  find: ['-exec', '-execdir', '-ok', '-okdir'],
+  fd: ['-x', '--exec', '-X', '--exec-batch']
+}
+
 export function executableName(value: string, insensitive = false): string {
   const name = value.replace(/\\/g, '/').split('/').at(-1) ?? value
   return (insensitive ? name.toLowerCase() : name).replace(/\.exe$/, '')
@@ -299,12 +307,7 @@ export function resolveCommandWords(
       index += WRAPPERS[name].includes(option) && !words[index].includes('=') ? 2 : 1
     }
     if (name === 'timeout') index++
-    const args = words.slice(start + 1, index)
-    const directoryIndex = args.findIndex((arg) => ['-C', '-D', '--chdir'].includes(arg))
-    const attachedDirectory =
-      args.find((arg) => arg.startsWith('--chdir='))?.slice(8) ?? args.find((arg) => /^-[CD].+/.test(arg))?.slice(2)
-    const directory = directoryIndex >= 0 ? args[directoryIndex + 1] : attachedDirectory
-    wrappers.push({ executable: name, args, incomplete, ...(directory !== undefined ? { directory } : {}) })
+    wrappers.push({ executable: name, args: words.slice(start + 1, index), incomplete })
   }
   return undefined
 }
@@ -328,6 +331,7 @@ export function interpretCommand(node: ExecutableCommand): CommandSemantics | un
     gitConfigurations: [],
     gitGlobalOptions: new Map(),
     wrappers: resolved.wrappers,
+    uncertainSubcommand: false,
     incomplete:
       node.words[resolved.offset]?.value === undefined || resolved.wrappers.some((wrapper) => wrapper.incomplete)
   }
@@ -359,7 +363,6 @@ export function interpretCommand(node: ExecutableCommand): CommandSemantics | un
         const argument = attached ?? shortAttached ?? result.args[++index]?.value
         if (argument === undefined || argument === '') result.incomplete = true
         result.gitGlobalOptions.set(name, argument ?? true)
-        if (name === '-C') result.repositoryDirectory = argument
         if (name === '-c' && argument !== undefined) result.gitConfigurations.push(argument)
       } else if (GIT_GLOBAL_FLAGS.has(name) || name === '--exec-path')
         result.gitGlobalOptions.set(name, attached ?? true)
@@ -390,8 +393,9 @@ export function interpretCommand(node: ExecutableCommand): CommandSemantics | un
         '--loglevel'
       ].includes(option)
       const argument = attached ?? (takesValue ? result.args[++index]?.value : true)
-      if (argument === undefined || (packageManager && !takesValue && !PACKAGE_GLOBAL_FLAGS.has(option)))
-        result.incomplete = true
+      if (argument === undefined) result.incomplete = true
+      else if (packageManager && attached === undefined && !takesValue && !PACKAGE_GLOBAL_FLAGS.has(option))
+        result.uncertainSubcommand = true
       setOption(option, argument ?? true)
       index++
     }
@@ -462,7 +466,6 @@ export function interpretCommand(node: ExecutableCommand): CommandSemantics | un
     ['ssh', 'docker', 'podman', 'kubectl'].includes(result.executable) &&
     (result.executable === 'ssh' || result.subcommands.includes('exec') || result.subcommands.includes('run'))
   ) {
-    result.executionBoundary = result.executable === 'ssh' ? 'remote' : 'container'
     result.incomplete = true
   }
   if (
@@ -478,12 +481,13 @@ export function interpretCommand(node: ExecutableCommand): CommandSemantics | un
   const executable = result.executable
   const args = result.args
   const shells = ['sh', 'bash', 'zsh', 'dash', 'ksh', 'ash']
-  if (executable === 'eval') {
-    const word = args[0]
+  if (executable === 'eval' || (node.dialect === 'powershell' && ['invoke-expression', 'iex'].includes(executable))) {
+    const code = args.filter(({ value }) => value?.toLowerCase() !== '-command')
+    const word = code[0]
     if (word)
       result.inline = {
-        language: 'bash',
-        code: args.every(({ value }) => value !== undefined) ? args.map(({ value }) => value).join(' ') : undefined,
+        language: node.dialect,
+        code: code.every(({ value }) => value !== undefined) ? code.map(({ value }) => value).join(' ') : undefined,
         word
       }
     result.incomplete ||= !result.inline?.code
@@ -527,6 +531,24 @@ export function interpretCommand(node: ExecutableCommand): CommandSemantics | un
       result.inline = { language, code, word }
       if (code === undefined || language === 'cmd') result.incomplete = true
     }
+  }
+  // `bash <(curl …)` runs code that another command produces.
+  if (!result.inline && SCRIPT_RUNNERS.has(executable) && args.some(({ raw }) => raw.startsWith('<(')))
+    result.incomplete = true
+  return result
+}
+
+/** Argv that `find` or `fd` executes for each match, up to its terminator. */
+export function executedCommandWords(command: CommandSemantics): CommandWord[][] {
+  const starts = EXEC_OPTIONS[command.executable] ?? []
+  const result: CommandWord[][] = []
+  for (let index = 0; index < command.args.length; index++) {
+    if (!starts.includes(command.args[index].value ?? '')) continue
+    const end = command.args.findIndex(({ value }, position) => position > index && (value === ';' || value === '+'))
+    const words = command.args.slice(index + 1, end < 0 ? undefined : end)
+    if (words.length) result.push(words)
+    if (end < 0) break
+    index = end
   }
   return result
 }

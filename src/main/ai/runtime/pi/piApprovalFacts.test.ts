@@ -13,7 +13,7 @@ import {
   type GateHandlers
 } from '@cherrystudio/agent-behavior'
 import type { JsonValue } from '@cherrystudio/agent-runtime'
-import { initializeCommandParser } from '@main/ai/toolApproval/commandParser'
+import { checkCommand } from '@main/ai/toolApproval/commandPolicy'
 import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
 
 import type { AgentRuntimeEvent } from '../types'
@@ -43,7 +43,8 @@ let userData: string
 let databaseFile: string
 
 beforeAll(async () => {
-  await initializeCommandParser()
+  // Load the grammars before tests redirect application paths.
+  await checkCommand({ command: 'true', dialect: 'bash', permissionMode: 'default' })
   testRoot = mkdtempSync(join(tmpdir(), 'pi-approval-paths-'))
   workspace = join(testRoot, 'workspace')
   agentData = join(testRoot, 'agent-data')
@@ -81,7 +82,6 @@ function buildGate(
     nonBypassableApprovalTools: ReadonlySet<string>
     delegationTools: ReadonlySet<string>
     builtinRole: string
-    shellDialect: string
   }> = {}
 ) {
   const emitted: Extract<AgentRuntimeEvent, { type: 'tool-approval-request' }>[] = []

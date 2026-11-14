@@ -5,7 +5,6 @@ import { ensureAgentDataDirectory } from '@main/ai/agents/agentDataDirectory'
 import { resolveAgentCapabilities, resolveMountedMcpServers } from '@main/ai/agents/builtin/builtinAgentCapabilities'
 import { PromptBuilder } from '@main/ai/agents/prompt'
 import { listBuiltinToolPolicies } from '@main/ai/toolApproval/builtinToolPolicy'
-import { getShellDialect } from '@main/ai/toolApproval/commandParser'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import { getPathFromEnvironment, getShellEnv } from '@main/utils/shellEnv'
 import {
@@ -241,7 +240,6 @@ export async function prepareDurableDesktop(
         getInteractionState: () => application.get('AgentSessionRuntimeService').getInteractionState(input.sessionId),
         getPermissionMode: () => permissionMode,
         builtinRole: agent.configuration?.builtin_role,
-        shellDialect: getShellDialect(resolvePiShellPath()),
         isDisabled,
         additionalReadOnlyRoots: [...snapshot.additionalSkillPaths, application.getPath('feature.agents.outputs')],
         autoApprovedTools: policies('auto'),

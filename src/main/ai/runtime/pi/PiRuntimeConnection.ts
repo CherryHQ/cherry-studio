@@ -35,7 +35,6 @@ import { buildCitationsGuidance } from '@main/ai/runtime/citationsGuidance'
 import { preparePiBranch } from '@main/ai/runtime/pi/piContext'
 import { wrapSteerReminder } from '@main/ai/steerReminder'
 import { CHERRY_MCP_SERVER, listBuiltinToolPolicies } from '@main/ai/toolApproval/builtinToolPolicy'
-import { getShellDialect } from '@main/ai/toolApproval/commandParser'
 import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import { getPathFromEnvironment, getShellEnv } from '@main/utils/shellEnv'
@@ -200,7 +199,6 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
         application.get('AgentSessionRuntimeService').getInteractionState(this.input.sessionId),
       getPermissionMode: () => this.permissionMode,
       builtinRole: agent.configuration?.builtin_role,
-      shellDialect: getShellDialect(shellPath),
       isDisabled: (toolName: string) => this.isToolDisabled(toolName),
       additionalReadOnlyRoots: [...additionalSkillPaths, application.getPath('feature.agents.outputs')],
       // Approval follows the mounted server set; disabledTools still blocks at fire-time.

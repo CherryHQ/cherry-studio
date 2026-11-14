@@ -76,14 +76,14 @@ function getCommandPolicy(part: PermissionToolPart): CommandApprovalDetails | un
     const policy = cherry.commandPolicy
     if (!policy || typeof policy !== 'object' || Array.isArray(policy)) continue
     if (
-      typeof policy.cwd !== 'string' ||
+      (policy.cwd !== undefined && typeof policy.cwd !== 'string') ||
       typeof policy.reason !== 'string' ||
       typeof policy.revision !== 'string' ||
       !Array.isArray(policy.rules)
     )
       continue
     return {
-      cwd: policy.cwd,
+      ...(typeof policy.cwd === 'string' ? { cwd: policy.cwd } : {}),
       reason: policy.reason,
       revision: policy.revision,
       rules: policy.rules.flatMap((rule) =>

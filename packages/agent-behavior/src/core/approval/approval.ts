@@ -87,7 +87,7 @@ export function decideApproval(
   plan: PlanState | undefined
 ): ApprovalDecision {
   let mode = permissionMode
-  if (host.commandPolicyDenial) return { kind: 'block', reason: host.commandPolicyDenial }
+  if (host.mandatoryBlock) return { kind: 'block', reason: host.mandatoryBlock }
   if (host.disabled) return { kind: 'block', reason: `Tool "${call.tool}" is disabled for this agent.` }
   if (host.sqliteGuard) return { kind: 'block', reason: host.sqliteGuard }
   if (host.delegation === 'unattended')
@@ -124,7 +124,7 @@ export function decideApproval(
     kind: 'ask',
     presentation: attendance === 'stream' ? 'stream' : 'message',
     ...rewritten,
-    ...(host.approvalDetails === undefined ? {} : { details: host.approvalDetails })
+    ...(host.commandPolicy === undefined ? {} : { details: host.commandPolicy.details })
   }
 }
 

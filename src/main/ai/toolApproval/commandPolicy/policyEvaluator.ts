@@ -1,32 +1,31 @@
-import path from 'node:path'
-
 import { loggerService } from '@logger'
-import { detectDestructiveAssistantCommand } from '@main/ai/agents/builtin/assistantCommandSafety'
 import { t } from '@main/i18n'
 
+import { detectBuiltinDestructiveCommand } from './builtinDestructiveDetector'
 import bundledPolicy from './command-policy.json'
 import {
-  initializeCommandParser,
-  MAX_COMMAND_NESTING,
-  parseCommandSyntax,
   type CommandAnalysis,
   type CommandDialect,
-  type CommandRange
+  type CommandRange,
+  type ExecutableCommand,
+  initializeCommandParser,
+  MAX_COMMAND_NESTING,
+  parseCommandSyntax
 } from './commandParser'
-import { commandPolicySchema, type CommandPolicyRule, type CommandSelector } from './commandPolicySchema'
 import {
   canonicalOption,
+  type CommandSemantics,
   discardsGitWorktree,
+  executedCommandWords,
   findHeredocConsumer,
-  interpretCommand,
-  type CommandSemantics
+  interpretCommand
 } from './commandSemantics'
+import { commandPolicySchema, type CommandPolicyRule, type CommandSelector } from './policySchema'
 
 export interface CommandPolicyInput {
   command: string
-  dialect: string
-  cwd?: string
-  builtinRoles?: readonly string[]
+  dialect: CommandDialect
+  builtinRole?: string
 }
 export interface CommandPolicyHit {
   ruleId: string
@@ -95,8 +94,7 @@ function appendSource(
   text: string,
   dialect: CommandDialect,
   depth: number,
-  origin?: CommandRange,
-  cwd?: string
+  origin?: CommandRange
 ): CommandSemantics[] {
   const source = analysis.sources.length
   analysis.sources.push({ text, dialect, ...(origin ? { origin } : {}) })
@@ -109,9 +107,7 @@ function appendSource(
   analysis.heredocs.push(...parsed.heredocs)
   analysis.diagnostics.push(...parsed.diagnostics)
   const commands: CommandSemantics[] = []
-  for (const node of parsed.commands) {
-    node.id = analysis.commands.length
-    analysis.commands.push(node)
+  const visit = (node: ExecutableCommand) => {
     const command = interpretCommand(node)
     if (!command) {
       const [name, ...args] = node.words.map(({ value }) => value)
@@ -125,15 +121,7 @@ function appendSource(
           )) ||
         (args.length === 0 && ['command', 'builtin'].includes(name ?? ''))
       if (!inspection) analysis.diagnostics.push({ reason: 'unresolved-wrapper', range: node.range })
-      continue
-    }
-    command.workingDirectory = cwd
-    for (const wrapper of command.wrappers)
-      if (wrapper.directory !== undefined && cwd) command.workingDirectory = path.resolve(cwd, wrapper.directory)
-    if (command.executable === 'cd' && node.controls.length === 0) {
-      const target = command.args[0]?.value
-      if (target !== undefined && cwd) cwd = path.resolve(cwd, target)
-      else analysis.diagnostics.push({ reason: 'dynamic-directory', range: node.range })
+      return
     }
     commands.push(command)
     if (command.incomplete) analysis.diagnostics.push({ reason: 'incomplete-command', range: node.range })
@@ -144,10 +132,17 @@ function appendSource(
           command.inline.code,
           command.inline.language as CommandDialect,
           depth + 1,
-          command.inline.word.range,
-          command.workingDirectory
+          command.inline.word.range
         )
       )
+    // `find -exec` runs an argv of its own; give it a separate pipeline so it is not read as stdin.
+    for (const [index, words] of executedCommandWords(command).entries())
+      visit({ ...node, pipeline: `${node.pipeline}:exec:${index}`, words })
+  }
+  for (const node of parsed.commands) {
+    node.id = analysis.commands.length
+    analysis.commands.push(node)
+    visit(node)
   }
   for (const heredoc of parsed.heredocs) {
     const resolved = findHeredocConsumer(parsed, heredoc)
@@ -164,25 +159,14 @@ function appendSource(
       word: { raw: heredoc.body, value: heredoc.body, quoted: heredoc.quoted, range: heredoc.range }
     }
     if (consumer.inline.language === 'bash' || consumer.inline.language === 'powershell')
-      commands.push(
-        ...appendSource(
-          analysis,
-          heredoc.body,
-          consumer.inline.language,
-          depth + 1,
-          heredoc.range,
-          consumer.workingDirectory
-        )
-      )
+      commands.push(...appendSource(analysis, heredoc.body, consumer.inline.language, depth + 1, heredoc.range))
   }
   for (const command of commands.filter(({ executable }) => SHELLS.has(executable))) {
     if (command.inline) continue
     const redirect = parsed.redirections.find(({ pipeline }) => pipeline === command.node.pipeline)
     if (redirect?.operator === '<<<' && redirect.target?.value !== undefined) {
       command.inline = { language: 'bash', code: redirect.target.value, word: redirect.target }
-      commands.push(
-        ...appendSource(analysis, redirect.target.value, 'bash', depth + 1, redirect.range, command.workingDirectory)
-      )
+      commands.push(...appendSource(analysis, redirect.target.value, 'bash', depth + 1, redirect.range))
     } else if (
       redirect ||
       commands.some((other) => other !== command && other.node.pipeline === command.node.pipeline)
@@ -313,8 +297,21 @@ function matchesDetector(
   }
 }
 
-function applies(rule: CommandPolicyRule, roles: readonly string[]): boolean {
-  return !rule.appliesTo || rule.appliesTo.builtinRoles.some((role) => roles.includes(role))
+function applies(rule: CommandPolicyRule, role: string | undefined): boolean {
+  return !rule.appliesTo || (role !== undefined && (rule.appliesTo.builtinRoles as readonly string[]).includes(role))
+}
+
+/** An unknown option before the subcommand matters only when a rule could select a word after it. */
+function hidesSelectedSubcommand(command: CommandSemantics, rules: readonly CommandPolicyRule[]): boolean {
+  if (!command.uncertainSubcommand) return false
+  const selected = new Set(
+    rules.flatMap(({ selector }) =>
+      selector.kind === 'command' && selector.subcommands && selector.executables.includes(command.executable)
+        ? [selector.subcommands[0]]
+        : []
+    )
+  )
+  return command.args.some(({ value }) => value !== undefined && selected.has(value))
 }
 
 /** Folds the whole invocation before callers may execute any constituent command. */
@@ -327,39 +324,28 @@ export async function evaluateCommandPolicy(
     logger.error('Invalid command policy snapshot', { issues: snapshot.error.issues })
     return { effect: 'deny', revision: 'invalid', hits: [], reason: t('command_approval.configuration_error') }
   }
-  const { revision, rules } = snapshot.data
-  if (input.dialect !== 'bash' && input.dialect !== 'powershell')
-    return { effect: 'ask', revision, hits: [], reason: t('command_approval.incomplete') }
+  const { revision, rules, auto } = snapshot.data
   try {
     await initializeCommandParser()
+  } catch (error) {
+    logger.error('Command parser assets could not be loaded', error as Error)
+    return { effect: 'deny', revision, hits: [], reason: t('command_approval.configuration_error') }
+  }
+  try {
     const analysis: CommandAnalysis = { sources: [], commands: [], redirections: [], heredocs: [], diagnostics: [] }
-    const commands = appendSource(analysis, input.command, input.dialect, 0, undefined, input.cwd)
+    const commands = appendSource(analysis, input.command, input.dialect, 0)
+    for (const command of commands)
+      if (hidesSelectedSubcommand(command, rules))
+        analysis.diagnostics.push({ reason: 'incomplete-command', range: command.node.range })
     const hits: (CommandPolicyHit & { effect: 'ask' | 'deny' })[] = []
     for (const rule of rules) {
-      if (!applies(rule, input.builtinRoles ?? [])) continue
+      if (!applies(rule, input.builtinRole)) continue
       if (rule.selector.kind === 'detector' && rule.selector.name === 'builtin-destructive-command') {
-        const dangerous = commands.find((command) =>
-          detectDestructiveAssistantCommand(
-            [command.executable, ...command.args.map(({ value, raw }) => value ?? raw)]
-              .map((value) => `'${value.replace(/'/g, "'\\''")}'`)
-              .join(' ')
-          )
-        )
-        if (dangerous) {
-          hits.push({
-            effect: rule.effect,
-            ruleId: rule.id,
-            reasonCode: rule.reasonCode,
-            evidence: dangerous.node.raw.slice(0, 2048),
-            range: dangerous.node.range
-          })
-          continue
-        }
-
+        // Every nested source is analyzed as written; the legacy detector resolves its own nesting.
         for (const [source, entry] of analysis.sources.entries()) {
           const script =
             entry.dialect === 'powershell' ? `powershell -Command '${entry.text.replace(/'/g, "'\\''")}'` : entry.text
-          if (detectDestructiveAssistantCommand(script)) {
+          if (detectBuiltinDestructiveCommand(script)) {
             hits.push({
               effect: rule.effect,
               ruleId: rule.id,
@@ -404,9 +390,11 @@ export async function evaluateCommandPolicy(
     }
     const effect = hits.some((hit) => hit.effect === 'deny')
       ? 'deny'
-      : hits.length || analysis.diagnostics.length
+      : hits.length
         ? 'ask'
-        : 'allow'
+        : analysis.diagnostics.length
+          ? auto.incompleteAnalysisDecision
+          : auto.defaultDecision
     const relevant = hits.filter((hit) => hit.effect === effect)
     return {
       effect,
@@ -421,7 +409,8 @@ export async function evaluateCommandPolicy(
         : {})
     }
   } catch (error) {
+    // A failure on one input is unsupported analysis, not a broken policy.
     logger.error('Command policy could not analyze an invocation', error as Error)
-    return { effect: 'deny', revision, hits: [], reason: t('command_approval.configuration_error') }
+    return { effect: 'ask', revision, hits: [], reason: t('command_approval.incomplete') }
   }
 }
