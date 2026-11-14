@@ -3,8 +3,11 @@ import { useTranslation } from 'react-i18next'
 import { Switch } from '@cherrystudio/ui'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { AssistantAvatarPicker } from '@renderer/components/resourceCatalog/dialogs/components/AssistantAvatarPicker'
+import { KnowledgeBaseAvatar } from '@renderer/components/resourceCatalog/dialogs/components/EditDialogShared'
 import { openResourceEditDialog } from '@renderer/components/resourceCatalog/dialogs/ResourceEditDialogEventHost'
 import { useAssistant } from '@renderer/hooks/useAssistant'
+import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBase'
+import type { Assistant } from '@shared/data/types/assistant'
 
 import { ProfilePaneFrame } from './ProfilePaneFrame'
 import {
@@ -42,6 +45,7 @@ export function AssistantProfilePane({ assistantId }: { assistantId: string }) {
         name={assistant.name}
         description={assistant.description}
       />
+      <KnowledgeBasesSection assistant={assistant} onManage={() => openEdit('tools.knowledge')} />
       <ProfilePaneSection
         title={t('common.settings')}
         action={
@@ -67,5 +71,33 @@ export function AssistantProfilePane({ assistantId }: { assistantId: string }) {
         </ProfileSettingsRow>
       </ProfilePaneSection>
     </ProfilePaneFrame>
+  )
+}
+
+/** The knowledge bases this Assistant answers from; hidden when none is linked. */
+function KnowledgeBasesSection({ assistant, onManage }: { assistant: Assistant; onManage: () => void }) {
+  const { t } = useTranslation()
+  const { bases } = useKnowledgeBases({ enabled: assistant.knowledgeBaseIds.length > 0 })
+  const linked = assistant.knowledgeBaseIds.flatMap((id) => bases.filter((base) => base.id === id))
+  if (!linked.length) return null
+
+  return (
+    <ProfilePaneSection
+      title={t('chat.profile_pane.knowledge.title')}
+      action={
+        <ProfilePaneSectionAction onClick={onManage}>
+          {t('chat.profile_pane.knowledge.manage')}
+        </ProfilePaneSectionAction>
+      }>
+      {linked.map((base) => (
+        <div key={base.id} className="flex min-h-11 items-center gap-2.5 py-1">
+          <KnowledgeBaseAvatar />
+          <span className="min-w-0 flex-1 truncate text-foreground text-sm">{base.name}</span>
+          <span className="shrink-0 text-muted-foreground text-xs">
+            {t('library.config.knowledge.doc_count', { count: base.itemCount })}
+          </span>
+        </div>
+      ))}
+    </ProfilePaneSection>
   )
 }
