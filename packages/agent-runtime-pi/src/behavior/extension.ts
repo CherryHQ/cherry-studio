@@ -36,8 +36,11 @@ import {
   withoutMarkers
 } from './history'
 import { readFacts } from './ledger'
-import { endingOf, finishRun, noteMessage, offerSteer } from './runs'
+import { PI_RUN_LIMIT, PI_RUN_LIMIT_MESSAGE, recordRunRefusal } from './runBudget'
+import { endingOf, finishRun, noteMessage, offerSteer, resetRunBudget } from './runs'
 import type { Adapter, Conversation } from './state'
+
+type AgentTurnDecision = Exclude<Awaited<ReturnType<NonNullable<AgentSession['agent']['finishTurn']>>>, void>
 
 /** The adapter's side of one conversation's session: the package's tools, run boundaries and inbound handlers. */
 export function conversationExtension(adapter: Adapter, conv: Conversation): ExtensionFactory {
@@ -95,8 +98,21 @@ export function conversationExtension(adapter: Adapter, conv: Conversation): Ext
         const args = structuredClone(event.input) as JsonValue
         const call: ToolCallFact = { callId: event.toolCallId, callKey: key, name: event.toolName, args }
         if (run && !nested) run.window.push(call)
+        const budgetedRun = !nested && conv.lineage.kind === 'root' ? run : undefined
+        const refuseAtLimit = () => {
+          if (!budgetedRun || budgetedRun.admissions < PI_RUN_LIMIT) return undefined
+          budgetedRun.refused = PI_RUN_LIMIT_MESSAGE
+          return { block: true, terminate: true, reason: PI_RUN_LIMIT_MESSAGE } as const
+        }
+        // Do not prompt once exhausted. Recheck after async policy approval, since a
+        // concurrent batch can finish several approvals before any call executes.
+        const refusal = refuseAtLimit()
+        if (refusal) return refusal
         const gate = adapter.installation.gate
-        if (!gate) return undefined
+        if (!gate) {
+          if (budgetedRun) budgetedRun.admissions += 1
+          return undefined
+        }
         const goalRound = run?.startedBy === ENTRY_KINDS.goalRound
         const facts: GateFacts = {
           plan: latestPlan(historyOf(conv.manager.getBranch(), conv.thread)),
@@ -109,6 +125,9 @@ export function conversationExtension(adapter: Adapter, conv: Conversation): Ext
         const verdict = await gate.before(gated, facts, adapter.gatePorts)
         if (verdict.block !== undefined) return { block: true, reason: `${BLOCKED_PREFIX}${verdict.block}` }
         if (verdict.args !== undefined) replaceArgs(event.input, verdict.args)
+        const postApprovalRefusal = refuseAtLimit()
+        if (postApprovalRefusal) return postApprovalRefusal
+        if (budgetedRun) budgetedRun.admissions += 1
         return undefined
       })
     )
@@ -214,17 +233,53 @@ function replaceArgs(input: Record<string, unknown>, args: JsonValue): void {
 /** H11: the meter's answer for the next request of `conv`'s run, with the conversation's lineage. */
 function allow(adapter: Adapter, conv: Conversation, requestsInRun: number): RequestAllowance {
   const lineage = conv.lineage.kind === 'subagent' ? 'child' : 'root'
+  if (lineage === 'root' && requestsInRun >= PI_RUN_LIMIT) return { ok: false, text: PI_RUN_LIMIT_MESSAGE }
   return adapter.installation.meter?.allow(conv.thread, requestsInRun, lineage) ?? { ok: true }
 }
 
 /** H11: the meter decides before each model request of a run; a refusal fails the request before it goes out. */
 export function meterRequests(adapter: Adapter, conv: Conversation, session: AgentSession): void {
+  const prepare = session.agent.prepareNextTurnWithContext
+  if (prepare)
+    session.agent.prepareNextTurnWithContext = async (turn, signal) => {
+      const run = conv.active
+      // Pi prepares (and may compact) before it places the queued follow-up. Reset
+      // first so that compaction is charged to the new input, not the completed one.
+      if (
+        run &&
+        conv.lineage.kind === 'root' &&
+        run.refused === undefined &&
+        turn.message.stopReason === 'stop' &&
+        !turn.message.content.some((part) => part.type === 'toolCall') &&
+        session.getFollowUpMessages().length > 0
+      )
+        resetRunBudget(run)
+      return prepare(turn, signal)
+    }
+  const finishTurn = session.agent.finishTurn
+  session.agent.finishTurn = async (turn, signal): Promise<AgentTurnDecision | undefined> => {
+    const decision = (await finishTurn?.(turn, signal)) ?? undefined
+    const run = conv.active
+    if (run) run.settlementReply = turn.message
+    const refused = run?.refused
+    if (refused === undefined) return decision
+    recordRunRefusal(turn.message, refused)
+    // Pi's per-call terminate flag stops only an entirely refused batch. Enforce the
+    // run boundary here, after every admitted call has finished, including mixed batches.
+    return { action: 'end' }
+  }
   const stream = session.agent.streamFunction
   session.agent.streamFunction = (model, context, options) => {
     const run = conv.active
-    const allowance = allow(adapter, conv, run?.requests ?? 0)
+    const allowance =
+      run?.refused === undefined ? allow(adapter, conv, run?.requests ?? 0) : { ok: false as const, text: run.refused }
     if (!allowance.ok) {
-      if (run) run.refused = allowance.text
+      if (run) {
+        run.refused = allowance.text
+        // Native overflow recovery may ask for a summary after finishTurn. Keep
+        // the refusal on the exact response that will settle this input.
+        if (run.settlementReply) recordRunRefusal(run.settlementReply, allowance.text)
+      }
       return lazyStream(model, async () => {
         throw new Error(allowance.text)
       })

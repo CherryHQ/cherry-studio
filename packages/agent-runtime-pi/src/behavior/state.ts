@@ -58,13 +58,17 @@ export type RunState = {
   /** Pi has not entered the run yet. */
   pending: boolean
   stopRequested: boolean
-  /** Model requests the run made, for the request meter. */
+  /** Requests in the current input budget; a native follow-up after a final answer resets it. */
   requests: number
-  /** The request meter's refusal that ended the run. */
+  /** Approved top-level calls in the current root input budget. */
+  admissions: number
+  /** The request meter or root budget refusal that ended the run. */
   refused?: string
   /** The run's calls in call order, for the gate's goal-round window. */
   readonly window: ToolCallFact[]
   lastReply?: AssistantMessage
+  /** Exact native response object retained until public input settlement (extension events may be cloned). */
+  settlementReply?: AssistantMessage
   readonly done: Promise<void>
   readonly end: () => void
 }

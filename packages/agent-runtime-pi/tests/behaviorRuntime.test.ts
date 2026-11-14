@@ -13,6 +13,7 @@ import {
 } from '@cherrystudio/agent-runtime'
 
 import { createPiRuntime, type PiSessionOptions, type PiObservation } from '../src'
+import { PI_RUN_LIMIT_MESSAGE } from '../src/behavior/runBudget'
 import { assistantReply, createTestBinding, MODEL, respondingModel, tempDir, type TestStream } from './sessionSupport'
 import { gate, subagentCall, toolCallPart } from './subagentSupport'
 
@@ -881,3 +882,197 @@ it('isolates child restore failures and recovers the same child after its model 
   expect(await sameChild.input.submit(draft('continue child', 'steer'))).toMatchObject({ status: 'acknowledged' })
   await expect.poll(() => inputs(continued, 'continue child').at(-1)?.outcome).toBe('completed')
 })
+
+// A mixed admitted/refused batch must not solicit another answer or report public success.
+for (const batches of [[21], [20, 1]]) {
+  it(`settles a tool-budget refusal as public failure after batches ${batches.join('+')}`, async () => {
+    let executed = 0
+    const provider = respondingModel((_call, index) => {
+      const count = batches[index - 1]
+      return count === undefined
+        ? assistantReply('must not be requested')
+        : assistantReply(
+            Array.from({ length: count }, (_, call) => ({
+              type: 'toolCall' as const,
+              id: `budget-${index}-${call}`,
+              name: 'budget_echo',
+              arguments: {}
+            })),
+            'toolUse'
+          )
+    })
+    const { runtime, config } = await setup(provider.model, {
+      tools: [
+        defineTool({
+          name: 'budget_echo',
+          label: 'Echo',
+          description: 'Echo',
+          parameters: obj({}),
+          async execute() {
+            executed++
+            return { content: [{ type: 'text', text: 'echo' }], details: undefined }
+          }
+        })
+      ]
+    })
+    const root = confirmed(await runtime.create(config))
+    const events = await observe(root)
+    await root.input.submit(draft('budget'))
+    await expect.poll(() => inputs(events, 'budget').at(-1)?.outcome).toBe('failed')
+    expect(inputs(events, 'budget').at(-1)).toMatchObject({
+      error: { code: 'run-limit', message: PI_RUN_LIMIT_MESSAGE }
+    })
+    expect(provider.calls).toHaveLength(batches.length)
+    expect(executed).toBe(20)
+  })
+}
+
+for (const budget of ['admissions', 'requests']) {
+  it(`gives a native follow-up a fresh ${budget} budget after a final answer`, async () => {
+    const held = gate()
+    onTestFinished(() => held.open())
+    let executed = 0
+    const firstRounds = budget === 'admissions' ? 1 : 19
+    const provider = respondingModel((_call, index) => {
+      const count = index <= firstRounds ? (budget === 'admissions' ? 20 : 1) : index === firstRounds + 2 ? 1 : 0
+      return count
+        ? assistantReply(
+            Array.from({ length: count }, (_, call) => ({
+              type: 'toolCall' as const,
+              id: `follow-${index}-${call}`,
+              name: 'budget_echo',
+              arguments: {}
+            })),
+            'toolUse'
+          )
+        : assistantReply('done')
+    })
+    const { runtime, config } = await setup(provider.model, {
+      tools: [
+        defineTool({
+          name: 'budget_echo',
+          label: 'Echo',
+          description: 'Echo',
+          parameters: obj({}),
+          async execute() {
+            if (++executed === 1) await held.wait(undefined)
+            return { content: [{ type: 'text', text: 'echo' }], details: undefined }
+          }
+        })
+      ]
+    })
+    const root = confirmed(await runtime.create(config))
+    const events = await observe(root)
+    await root.input.submit(draft('first-budget'))
+    await held.reached
+    expect(await root.input.submit(draft('follow-budget', 'follow-up'))).toMatchObject({
+      status: 'acknowledged',
+      facts: ['queued']
+    })
+    held.open()
+    await expect.poll(() => inputs(events, 'follow-budget').at(-1)?.outcome).toBe('completed')
+    expect(executed).toBe(budget === 'admissions' ? 21 : 20)
+    expect(provider.calls).toHaveLength(firstRounds + 3)
+    expect(inputs(events, 'first-budget').at(-1)?.outcome).toBe('completed')
+  })
+}
+
+it('reports automatic compaction exhausted at request 20 as a public run limit', async () => {
+  const provider = respondingModel((_call, index) =>
+    assistantReply(
+      [{ type: 'toolCall', id: `compact-${index}`, name: 'budget_echo', arguments: {} }],
+      'toolUse',
+      index === 20 ? 32000 : 1,
+      0
+    )
+  )
+  const { runtime, config } = await setup(provider.model, {
+    compaction: { enabled: true, reserveTokens: 16384, keepRecentTokens: 1 },
+    tools: [
+      defineTool({
+        name: 'budget_echo',
+        label: 'Echo',
+        description: 'Echo',
+        parameters: obj({}),
+        async execute() {
+          return { content: [{ type: 'text', text: 'echo' }], details: undefined }
+        }
+      })
+    ]
+  })
+  const root = confirmed(await runtime.create(config))
+  const events = await observe(root)
+  await root.input.submit(draft('compact-budget'))
+  await expect.poll(() => inputs(events, 'compact-budget').at(-1)?.outcome).toBe('failed')
+  expect(inputs(events, 'compact-budget').at(-1)).toMatchObject({
+    error: { code: 'run-limit', message: PI_RUN_LIMIT_MESSAGE }
+  })
+  expect(provider.calls).toHaveLength(20)
+})
+
+it.each([
+  { request: 20, error: 'maximum context length exceeded', outcome: 'failed', code: 'run-limit' },
+  { request: 18, error: 'maximum context length exceeded', outcome: 'completed', code: undefined },
+  { request: 20, error: 'ordinary provider failure', outcome: 'failed', code: 'model-error' }
+] as const)(
+  'settles recovery after request $request with $error as $code',
+  async ({ request, error, outcome, code }) => {
+    const provider = respondingModel((_call, index) =>
+      index < request
+        ? assistantReply(
+            [{ type: 'toolCall', id: `overflow-${index}`, name: 'budget_echo', arguments: {} }],
+            'toolUse',
+            1,
+            0
+          )
+        : index === request
+          ? { ...assistantReply([], 'error', 0, 0), errorMessage: error }
+          : assistantReply('next input completed')
+    )
+    const { runtime, config } = await setup(provider.model, {
+      settings: { retry: { enabled: false } },
+      // Pi's default compaction policy. Large permitted reads make a real summary boundary available.
+      compaction: { enabled: true, reserveTokens: 16384, keepRecentTokens: 20000 },
+      tools: [
+        defineTool({
+          name: 'budget_echo',
+          label: 'Read',
+          description: 'Read',
+          parameters: obj({}),
+          async execute() {
+            return { content: [{ type: 'text', text: 'read '.repeat(2000) }], details: undefined }
+          }
+        })
+      ]
+    })
+    let summaries = 0
+    const root = confirmed(
+      await runtime.create({
+        ...config,
+        extensionFactories: [
+          (pi) => {
+            pi.on('session_before_compact', () => {
+              summaries++
+            })
+          }
+        ]
+      })
+    )
+    const events = await observe(root)
+    await root.input.submit(draft('overflow-budget'))
+    await expect.poll(() => inputs(events, 'overflow-budget').at(-1)?.outcome).toBe(outcome)
+    const settled = inputs(events, 'overflow-budget').at(-1)
+    if (code)
+      expect(settled).toMatchObject({ error: { code, message: code === 'run-limit' ? PI_RUN_LIMIT_MESSAGE : error } })
+    else expect(settled?.error).toBeUndefined()
+    // Native compaction starts before the metered provider request can refuse it.
+    expect(summaries).toBe(error === 'maximum context length exceeded' ? 1 : 0)
+    const calls = request + (request === 18 ? 2 : 0)
+    expect(provider.calls).toHaveLength(calls)
+    await root.input.submit(draft('fresh-after-overflow'))
+    await expect.poll(() => inputs(events, 'fresh-after-overflow').at(-1)?.outcome).toBe('completed')
+    // A request-20 refused summary is retried as native compaction on the fresh input.
+    const freshSummary = request === 20 && error === 'maximum context length exceeded' ? 1 : 0
+    expect(provider.calls).toHaveLength(calls + 1 + freshSummary)
+  }
+)

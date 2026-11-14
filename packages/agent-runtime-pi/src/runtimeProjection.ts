@@ -22,6 +22,7 @@ import {
   type Thread
 } from '@cherrystudio/agent-runtime'
 
+import { runRefusal } from './behavior/runBudget'
 import { readContextUsage } from './contextUsage'
 
 type PiMessage = AgentSession['messages'][number]
@@ -511,7 +512,8 @@ export class PiProjection {
     )
       this.feed.publish({ type: 'context.changed', result: readContextUsage(this.session) })
     if (event.type === 'input_settled') {
-      const reason = event.aborted ? 'aborted' : event.message.stopReason
+      const refused = runRefusal(this.originals.get(event.message) ?? event.message)
+      const reason = refused === undefined ? (event.aborted ? 'aborted' : event.message.stopReason) : 'error'
       const completed = reason === 'stop' && !event.message.content.some((part) => part.type === 'toolCall')
       for (const inputId of event.inputIds) {
         this.recordInput({
@@ -528,14 +530,16 @@ export class PiProjection {
             error: {
               operation: 'input',
               code:
-                reason === 'length'
-                  ? 'output-truncated'
-                  : reason === 'error'
-                    ? 'model-error'
-                    : reason === 'aborted'
-                      ? 'aborted'
-                      : 'no-final-answer',
-              message: event.message.errorMessage ?? `Pi response ended: ${reason}`
+                refused !== undefined
+                  ? 'run-limit'
+                  : reason === 'length'
+                    ? 'output-truncated'
+                    : reason === 'error'
+                      ? 'model-error'
+                      : reason === 'aborted'
+                        ? 'aborted'
+                        : 'no-final-answer',
+              message: refused ?? event.message.errorMessage ?? `Pi response ended: ${reason}`
             }
           })
         })
