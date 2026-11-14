@@ -77,9 +77,7 @@ vi.mock('@renderer/components/chat/citations/CitationsPanel', () => ({
   default: () => <div data-testid="citations-panel" />
 }))
 
-vi.mock('@renderer/components/chat/shell/ConversationCenterState', () => ({
-  default: ({ state }: { state: string }) => <div data-testid="conversation-center-state">{state}</div>
-}))
+vi.unmock('@renderer/components/chat/shell/ConversationCenterState')
 
 vi.mock('@renderer/components/FindBar', () => ({
   FindBar: () => <div data-testid="content-search" />
@@ -142,6 +140,11 @@ vi.mock('@renderer/hooks/command', () => ({
 vi.mock('@renderer/hooks/tab', () => ({
   useIsActiveTab: () => activeTabMock.current
 }))
+
+vi.mock('@cherrystudio/ui', async (importOriginal) => {
+  const { MockCherrystudioUI } = await import('@test-mocks/renderer/CherrystudioUI')
+  return { ...(await importOriginal<typeof import('@cherrystudio/ui')>()), ...MockCherrystudioUI }
+})
 
 vi.mock('@renderer/hooks/chat/useClearTopicMessages', () => ({
   useClearTopicMessages: () => clearTopicMessagesMock
@@ -210,9 +213,10 @@ vi.mock('../components/ChatNavbar', () => ({
   )
 }))
 
-vi.mock('../components/TopicRightPane', () => {
+vi.mock('../components/TopicRightPane', async (importOriginal) => {
+  const original = await importOriginal<typeof import('../components/TopicRightPane')>()
   const TopicRightPane = {
-    Scope: ({ children }: { children: ReactNode }) => <>{children}</>,
+    Scope: original.TopicRightPane.Scope,
     Shortcuts: () => <div data-testid="topic-right-shortcuts" />,
     Viewport: () => <div data-testid="topic-right-pane-viewport" />
   }

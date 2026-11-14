@@ -179,11 +179,12 @@ export function useAssistantMutations() {
 // ─── Tier 2: composed hooks ───────────────────────────────────────────────
 
 export function useAssistants() {
-  const { assistants, hasLoaded, isLoading, isRefreshing, error, refetch } = useAssistantsApi()
+  const { assistants, total, hasLoaded, isLoading, isRefreshing, error, refetch } = useAssistantsApi()
   const { createAssistant, deleteAssistant, updateAssistant } = useAssistantMutations()
 
   return {
     assistants,
+    total,
     hasLoaded,
     isLoading,
     isRefreshing,

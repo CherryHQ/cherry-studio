@@ -726,6 +726,11 @@ function renderTopicList({
   onNewTopic = vi.fn(),
   onManageAssistants,
   onOpenHistoryRecords = vi.fn(),
+  isAssistantListComplete = true,
+  onSelectedTopicOwnerChanged,
+  onLocalArchiveRecordSelected,
+  onActiveTopicArchived = vi.fn(),
+  onLocalArchivePendingChange = vi.fn(),
   onLocalPermanentDeletePendingChange,
   onSetPanePosition,
   panePosition,
@@ -744,6 +749,11 @@ function renderTopicList({
   onNewTopic?: OnNewTopicMock
   onManageAssistants?: ComponentProps<typeof Topics>['onManageAssistants']
   onOpenHistoryRecords?: Mock<() => void>
+  isAssistantListComplete?: boolean
+  onSelectedTopicOwnerChanged?: ComponentProps<typeof Topics>['onSelectedTopicOwnerChanged']
+  onLocalArchiveRecordSelected?: ComponentProps<typeof Topics>['onLocalArchiveRecordSelected']
+  onActiveTopicArchived?: (topic: Topic) => void
+  onLocalArchivePendingChange?: (id: string, pending: boolean) => void
   onLocalPermanentDeletePendingChange?: (id: string | null) => void
   onSetPanePosition?: ComponentProps<typeof Topics>['onSetPanePosition']
   panePosition?: ComponentProps<typeof Topics>['panePosition']
@@ -751,31 +761,43 @@ function renderTopicList({
   revealRequest?: ResourceListRevealRequest
 } = {}) {
   const setActiveTopic = vi.fn()
+  let currentArchiveSelectionVersion = 0
+  const getArchiveSelectionVersion = () => currentArchiveSelectionVersion
   const renderNode = (
     nextRevealRequest = revealRequest,
     nextActiveTopic = activeTopic,
-    collapseActiveTopic = false
-  ) => (
-    <Topics
-      activeTopic={collapseActiveTopic ? undefined : nextActiveTopic}
-      assistantTopicsSource={assistantTopicsSource ?? createAssistantTopicsSource()}
-      assistantIdFilter={assistantIdFilter}
-      clearActiveTopic={clearActiveTopic}
-      historyRecordsActive={historyRecordsActive}
-      manageAssistantsActive={manageAssistantsActive}
-      onActiveAssistantDeleted={onActiveAssistantDeleted}
-      onAddAssistant={onAddAssistant}
-      setActiveTopic={setActiveTopic}
-      onNewTopic={onNewTopic}
-      onManageAssistants={onManageAssistants}
-      onOpenHistoryRecords={onOpenHistoryRecords}
-      onLocalPermanentDeletePendingChange={onLocalPermanentDeletePendingChange}
-      onSetPanePosition={onSetPanePosition}
-      panePosition={panePosition}
-      presentation={presentation}
-      revealRequest={nextRevealRequest}
-    />
-  )
+    collapseActiveTopic = false,
+    archiveSelectionVersion = 0
+  ) => {
+    currentArchiveSelectionVersion = archiveSelectionVersion
+    return (
+      <Topics
+        getArchiveSelectionVersion={getArchiveSelectionVersion}
+        activeTopic={collapseActiveTopic ? undefined : nextActiveTopic}
+        assistantTopicsSource={assistantTopicsSource ?? createAssistantTopicsSource()}
+        assistantIdFilter={assistantIdFilter}
+        clearActiveTopic={clearActiveTopic}
+        historyRecordsActive={historyRecordsActive}
+        manageAssistantsActive={manageAssistantsActive}
+        onActiveAssistantDeleted={onActiveAssistantDeleted}
+        onAddAssistant={onAddAssistant}
+        setActiveTopic={setActiveTopic}
+        onNewTopic={onNewTopic}
+        onManageAssistants={onManageAssistants}
+        onOpenHistoryRecords={onOpenHistoryRecords}
+        isAssistantListComplete={isAssistantListComplete}
+        onLocalArchiveRecordSelected={onLocalArchiveRecordSelected}
+        onSelectedTopicOwnerChanged={onSelectedTopicOwnerChanged}
+        onActiveTopicArchived={onActiveTopicArchived}
+        onLocalArchivePendingChange={onLocalArchivePendingChange}
+        onLocalPermanentDeletePendingChange={onLocalPermanentDeletePendingChange}
+        onSetPanePosition={onSetPanePosition}
+        panePosition={panePosition}
+        presentation={presentation}
+        revealRequest={nextRevealRequest}
+      />
+    )
+  }
   const view = render(renderNode(revealRequest, activeTopic, initiallyCollapsed))
   return {
     ...view,
@@ -783,14 +805,19 @@ function renderTopicList({
     // query is ambiguous. `getByRowText` resolves to the row and errors on a second match.
     getByText: getByRowText,
     clearActiveTopic,
+    onActiveTopicArchived,
+    onLocalArchivePendingChange,
     onAddAssistant,
     onNewTopic,
     onOpenHistoryRecords,
     rerenderTopicList: (
       nextRevealRequest = revealRequest,
       nextActiveTopic = activeTopic,
-      options?: { collapseActiveTopic?: boolean }
-    ) => view.rerender(renderNode(nextRevealRequest, nextActiveTopic, options?.collapseActiveTopic)),
+      options?: { collapseActiveTopic?: boolean; archiveSelectionVersion?: number }
+    ) =>
+      view.rerender(
+        renderNode(nextRevealRequest, nextActiveTopic, options?.collapseActiveTopic, options?.archiveSelectionVersion)
+      ),
     setActiveTopic
   }
 }
@@ -1267,7 +1294,7 @@ describe('Topics', () => {
       mutate: vi.fn()
     })
 
-    const { clearActiveTopic, onNewTopic } = renderTopicList({
+    const { onActiveTopicArchived, onNewTopic } = renderTopicList({
       activeTopic: createRendererTopic({ id: 'topic-a', assistantId: 'assistant-1', name: 'Alpha topic' })
     })
 
@@ -1275,7 +1302,9 @@ describe('Topics', () => {
     deleteTopicRow(topicRow)
 
     await vi.waitFor(() => expect(topicDataMocks.deleteTopic).toHaveBeenCalledWith('topic-a'))
-    await vi.waitFor(() => expect(clearActiveTopic).toHaveBeenCalledOnce())
+    await vi.waitFor(() =>
+      expect(onActiveTopicArchived).toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-a' }), expect.any(Symbol))
+    )
     expect(onNewTopic).not.toHaveBeenCalled()
   })
 
@@ -2466,7 +2495,220 @@ describe('Topics', () => {
     expect(clearActiveTopic).not.toHaveBeenCalled()
   })
 
-  it('switches to the latest topic from another assistant after deleting an assistant last topic', async () => {
+  it('delegates #19583 settlement after the active topic collapses during archive', async () => {
+    const onLocalArchiveRecordSelected = vi.fn()
+    let finish!: () => void
+    topicDataMocks.deleteTopic.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          finish = resolve
+        })
+    )
+    const view = renderTopicList({
+      onLocalArchiveRecordSelected,
+      assistantTopicsSource: createAssistantTopicsSource([
+        createApiTopic({ id: 'topic-a', name: 'Alpha', assistantId: 'assistant-1', orderKey: 'a' }),
+        createApiTopic({ id: 'next', name: 'Next', assistantId: 'assistant-1', orderKey: 'b' })
+      ])
+    })
+    deleteTopicRow(getTopicRow('Alpha'))
+    await vi.waitFor(() => expect(topicDataMocks.deleteTopic).toHaveBeenCalledWith('topic-a'))
+    view.rerenderTopicList(undefined, undefined, { collapseActiveTopic: true })
+    await act(async () => finish())
+    expect(onLocalArchiveRecordSelected).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'topic-a' }),
+      expect.objectContaining({ id: 'next' }),
+      expect.any(Symbol)
+    )
+    expect(view.setActiveTopic).not.toHaveBeenCalled()
+    expect(view.clearActiveTopic).not.toHaveBeenCalled()
+  })
+
+  it('reports a successful selected-topic cross-group move after the write completes', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
+    const onSelectedTopicOwnerChanged = vi.fn()
+    let finish!: () => void
+    topicDataMocks.moveTopic.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          finish = resolve
+        })
+    )
+    renderTopicList({ onSelectedTopicOwnerChanged })
+    act(() =>
+      dndMocks.onDragEnd?.({
+        active: {
+          data: sortableData('item:topic-a'),
+          id: 'item:topic-a',
+          rect: { current: { initial: null, translated: { top: 100, height: 20 } } }
+        },
+        over: { data: sortableData('item:topic-d'), id: 'item:topic-d', rect: { top: 10, height: 20 } }
+      })
+    )
+    await vi.waitFor(() => expect(topicDataMocks.moveTopic).toHaveBeenCalled())
+    expect(onSelectedTopicOwnerChanged).not.toHaveBeenCalled()
+    await act(async () => finish())
+    expect(onSelectedTopicOwnerChanged).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'topic-a', assistantId: 'assistant-2' })
+    )
+  })
+
+  it('renders the empty assistant right pane without showing another assistant topic', () => {
+    renderTopicList({
+      initiallyCollapsed: true,
+      assistantIdFilter: 'assistant-2',
+      presentation: 'right-panel',
+      assistantTopicsSource: createAssistantTopicsSource([
+        createApiTopic({ id: 'A1', assistantId: 'assistant-1', name: 'A1' })
+      ])
+    })
+    expect(screen.getByText('No conversations')).toBeInTheDocument()
+    expect(screen.queryByTestId('topic-list-row')).not.toBeInTheDocument()
+  })
+
+  it('delegates neighbour settlement to the page with the pending attempt token', async () => {
+    const topic = createRendererTopic({ id: 'B1', assistantId: 'assistant-1', name: 'B1' })
+    const onLocalArchiveRecordSelected = vi.fn()
+    const pending = vi.fn()
+    const view = renderTopicList({
+      activeTopic: topic,
+      onLocalArchiveRecordSelected,
+      onLocalArchivePendingChange: pending,
+      assistantTopicsSource: createAssistantTopicsSource([
+        createApiTopic({ ...topic, orderKey: 'a' }),
+        createApiTopic({ id: 'B2', assistantId: 'assistant-1', name: 'B2', orderKey: 'b' })
+      ])
+    })
+    deleteTopicRow(getTopicRow('B1'))
+    await vi.waitFor(() =>
+      expect(onLocalArchiveRecordSelected).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'B1' }),
+        expect.objectContaining({ id: 'B2' }),
+        expect.any(Symbol)
+      )
+    )
+    const token = pending.mock.calls[0][2]
+    expect(onLocalArchiveRecordSelected.mock.calls[0][2]).toBe(token)
+    expect(pending).toHaveBeenCalledWith('B1', false, token)
+    expect(view.setActiveTopic).not.toHaveBeenCalled()
+  })
+
+  it('keeps unknown ownership scoped instead of selecting another assistant', async () => {
+    const topic = createRendererTopic({ id: 'B1', assistantId: 'not-in-loaded-page', name: 'B1' })
+    const view = renderTopicList({
+      activeTopic: topic,
+      isAssistantListComplete: false,
+      assistantTopicsSource: createAssistantTopicsSource([
+        createApiTopic({ ...topic, orderKey: 'a' }),
+        createApiTopic({ id: 'A1', assistantId: 'assistant-1', name: 'A1', orderKey: 'b' })
+      ])
+    })
+    deleteTopicRow(getTopicRow('B1'))
+    await vi.waitFor(() =>
+      expect(view.onActiveTopicArchived).toHaveBeenCalledWith(expect.objectContaining({ id: 'B1' }), expect.any(Symbol))
+    )
+    expect(view.setActiveTopic).not.toHaveBeenCalled()
+    expect(view.clearActiveTopic).not.toHaveBeenCalled()
+  })
+
+  it('uses the global latest replacement for a topic whose assistant no longer exists', async () => {
+    const orphan = createRendererTopic({ id: 'orphan', assistantId: 'deleted-assistant', name: 'Orphan' })
+    const view = renderTopicList({
+      activeTopic: orphan,
+      assistantTopicsSource: createAssistantTopicsSource([
+        createApiTopic({ ...orphan, orderKey: 'a' }),
+        createApiTopic({ id: 'live-topic', assistantId: 'assistant-1', name: 'Live', orderKey: 'b' })
+      ])
+    })
+    deleteTopicRow(getTopicRow('Orphan'))
+    await vi.waitFor(() =>
+      expect(view.setActiveTopic).toHaveBeenCalledWith(expect.objectContaining({ id: 'live-topic' }))
+    )
+    expect(view.onActiveTopicArchived).not.toHaveBeenCalled()
+  })
+
+  it('does not select a captured neighbour after explicit navigation to an empty assistant', async () => {
+    const topic = createRendererTopic({ id: 'topic-a', assistantId: 'assistant-1', name: 'Alpha' })
+    const source = createAssistantTopicsSource([
+      createApiTopic({ ...topic, orderKey: 'a' }),
+      createApiTopic({ id: 'neighbour', assistantId: 'assistant-1', name: 'Neighbour', orderKey: 'b' })
+    ])
+    let finish!: () => void
+    topicDataMocks.deleteTopic.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          finish = resolve
+        })
+    )
+    const view = renderTopicList({ activeTopic: topic, assistantTopicsSource: source })
+    deleteTopicRow(getTopicRow('Alpha'))
+    await vi.waitFor(() => expect(topicDataMocks.deleteTopic).toHaveBeenCalledWith(topic.id))
+    view.rerenderTopicList(undefined, undefined, { collapseActiveTopic: true, archiveSelectionVersion: 1 })
+    await act(async () => finish())
+    expect(view.setActiveTopic).not.toHaveBeenCalled()
+    expect(view.onActiveTopicArchived).not.toHaveBeenCalled()
+  })
+
+  it.each(['inline', 'menu'] as const)('preserves an explicit switch during delayed %s archive', async (entry) => {
+    const topic = createRendererTopic({ id: 'topic-a', assistantId: 'assistant-1', name: 'Alpha' })
+    const source = createAssistantTopicsSource([createApiTopic({ ...topic, orderKey: 'a' })])
+    let finish!: () => void
+    topicDataMocks.deleteTopic.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          finish = resolve
+        })
+    )
+    const view = renderTopicList({ activeTopic: topic, assistantTopicsSource: source })
+    const row = getTopicRow('Alpha')
+    if (entry === 'inline') deleteTopicRow(row)
+    else {
+      fireEvent.contextMenu(getRowText(row, 'Alpha'))
+      const menu = row.closest('[data-testid="context-menu"]')?.querySelector('[data-testid="context-menu-content"]')
+      fireEvent.click(within(menu as HTMLElement).getByRole('button', { name: 'Archive' }))
+    }
+    await vi.waitFor(() => expect(topicDataMocks.deleteTopic).toHaveBeenCalledWith(topic.id))
+    view.rerenderTopicList(undefined, createRendererTopic({ id: 'topic-b', assistantId: 'assistant-2' }))
+    await act(async () => finish())
+    expect(view.onActiveTopicArchived).not.toHaveBeenCalled()
+    expect(view.setActiveTopic).not.toHaveBeenCalled()
+    expect(view.onLocalArchivePendingChange).toHaveBeenLastCalledWith(topic.id, false, expect.any(Symbol))
+  })
+
+  it.each([
+    ['inline', 'busy'],
+    ['menu', 'busy'],
+    ['inline', 'stale'],
+    ['menu', 'stale'],
+    ['inline', 'error'],
+    ['menu', 'error']
+  ] as const)('releases pending ownership after %s %s archive', async (entry, failure) => {
+    const topic = createRendererTopic({ id: 'topic-a', assistantId: 'assistant-1', name: 'Alpha' })
+    const source = createAssistantTopicsSource([createApiTopic({ ...topic, orderKey: 'a' })])
+    topicDataMocks.deleteTopic.mockRejectedValueOnce(
+      failure === 'busy'
+        ? new IpcError(trashErrorCodes.TRASH_TOPIC_BUSY, 'busy')
+        : failure === 'stale'
+          ? new IpcError(trashErrorCodes.TRASH_TARGET_NOT_FOUND, 'stale')
+          : new Error('archive failed')
+    )
+    const view = renderTopicList({ activeTopic: topic, assistantTopicsSource: source })
+    const row = getTopicRow('Alpha')
+    if (entry === 'inline') deleteTopicRow(row)
+    else {
+      fireEvent.contextMenu(getRowText(row, 'Alpha'))
+      const menu = row.closest('[data-testid="context-menu"]')?.querySelector('[data-testid="context-menu-content"]')
+      fireEvent.click(within(menu as HTMLElement).getByRole('button', { name: 'Archive' }))
+    }
+    await vi.waitFor(() =>
+      expect(view.onLocalArchivePendingChange).toHaveBeenLastCalledWith(topic.id, false, expect.any(Symbol))
+    )
+    expect(view.onActiveTopicArchived).not.toHaveBeenCalled()
+    expect(view.setActiveTopic).not.toHaveBeenCalled()
+    expect(view.onNewTopic).not.toHaveBeenCalled()
+  })
+
+  it('retains an empty assistant after archive topic-a1', async () => {
     mockUseInfiniteQuery.mockReturnValue({
       pages: [
         {
@@ -2508,7 +2750,7 @@ describe('Topics', () => {
       mutate: vi.fn()
     })
 
-    const { onNewTopic, setActiveTopic } = renderTopicList({
+    const { onNewTopic, setActiveTopic, onActiveTopicArchived, onLocalArchivePendingChange } = renderTopicList({
       activeTopic: createRendererTopic({ id: 'topic-a1', assistantId: 'assistant-1', name: 'A1 Only' })
     })
 
@@ -2517,8 +2759,14 @@ describe('Topics', () => {
 
     await vi.waitFor(() => expect(topicDataMocks.deleteTopic).toHaveBeenCalledWith('topic-a1'))
     await vi.waitFor(() =>
-      expect(setActiveTopic).toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-b-latest' }))
+      expect(onActiveTopicArchived).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'topic-a1' }),
+        expect.any(Symbol)
+      )
     )
+    expect(setActiveTopic).not.toHaveBeenCalled()
+    expect(onLocalArchivePendingChange).toHaveBeenNthCalledWith(1, 'topic-a1', true, expect.any(Symbol))
+    expect(onLocalArchivePendingChange).toHaveBeenLastCalledWith('topic-a1', false, expect.any(Symbol))
     expect(onNewTopic).not.toHaveBeenCalled()
   })
 
@@ -2595,7 +2843,7 @@ describe('Topics', () => {
     await vi.waitFor(() => expect(setActiveTopic).toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-b-live' })))
   })
 
-  it('switches to another assistant latest topic after deleting the active assistant last topic in the right panel', async () => {
+  it('retains an empty assistant after archive topic-a1-only', async () => {
     mockUseInfiniteQuery.mockReturnValue({
       pages: [
         {
@@ -2629,7 +2877,7 @@ describe('Topics', () => {
       mutate: vi.fn()
     })
 
-    const { onNewTopic, setActiveTopic } = renderTopicList({
+    const { onNewTopic, setActiveTopic, onActiveTopicArchived, onLocalArchivePendingChange } = renderTopicList({
       assistantIdFilter: 'assistant-1',
       presentation: 'right-panel',
       activeTopic: createRendererTopic({ id: 'topic-a1-only', assistantId: 'assistant-1', name: 'A1 Only' })
@@ -2640,8 +2888,14 @@ describe('Topics', () => {
 
     await vi.waitFor(() => expect(topicDataMocks.deleteTopic).toHaveBeenCalledWith('topic-a1-only'))
     await vi.waitFor(() =>
-      expect(setActiveTopic).toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-a2-first' }))
+      expect(onActiveTopicArchived).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'topic-a1-only' }),
+        expect.any(Symbol)
+      )
     )
+    expect(setActiveTopic).not.toHaveBeenCalled()
+    expect(onLocalArchivePendingChange).toHaveBeenNthCalledWith(1, 'topic-a1-only', true, expect.any(Symbol))
+    expect(onLocalArchivePendingChange).toHaveBeenLastCalledWith('topic-a1-only', false, expect.any(Symbol))
     expect(onNewTopic).not.toHaveBeenCalled()
   })
 

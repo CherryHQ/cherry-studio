@@ -1,11 +1,12 @@
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import type { ComponentProps, ReactNode } from 'react'
+import { useEffect, useState, type ComponentProps, type ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
 import type { ResourceEntityRailItem } from '@renderer/components/chat/resourceList/ResourceEntityRail'
+import { dataApiService } from '@renderer/data/DataApiService'
 import type { AgentSessionsSource, AssistantTopicsSource } from '@renderer/hooks/resourceViewSources'
 import { popup } from '@renderer/services/popup'
 import type * as RecycleBinFeedback from '@renderer/services/recycleBinFeedback'
@@ -285,7 +286,7 @@ vi.mock('@renderer/components/chat/resourceList/ResourceEntityRail', () => ({
         {headerActions}
         {items.map((item) => {
           const actions = getContextMenuActions?.(item) ?? []
-          const renderedActions = flattenActions(actions)
+          const renderedActions = flattenActions(actions).filter((action) => action.availability.visible)
 
           return (
             <section key={item.id} aria-label={item.name} title={item.tooltip}>
@@ -1403,6 +1404,63 @@ describe('classic layout entity resource list actions', () => {
     expect(toast.error).not.toHaveBeenCalled()
   })
 
+  it('computes B as selected with no active topic and no topics owned by B', () => {
+    assistantDataMocks.topics = [{ id: 'A1', assistantId: 'assistant-1', name: 'A1' }]
+    const onSelectTopic = vi.fn()
+    const onCreateTopic = vi.fn()
+    render(
+      <TestAssistantResourceList
+        activeAssistantId="assistant-2"
+        activeTopicId={null}
+        onSelectTopic={onSelectTopic}
+        onCreateTopic={onCreateTopic}
+      />
+    )
+    expect(screen.getByTestId('resource-entity-rail')).toHaveAttribute('data-selected-id', 'assistant-2')
+    expect(screen.getByRole('region', { name: 'Assistant 2' })).toBeInTheDocument()
+    expect(onSelectTopic).not.toHaveBeenCalled()
+    expect(onCreateTopic).not.toHaveBeenCalled()
+  })
+
+  it('includes the resolved route assistant outside the loaded page and selects it', () => {
+    const outsideAssistant = { ...assistantDataMocks.assistants[1], id: 'B', name: 'Outside B' }
+    render(
+      <TestAssistantResourceList
+        activeAssistant={outsideAssistant as never}
+        activeAssistantId="B"
+        onSelectTopic={vi.fn()}
+        onCreateTopic={vi.fn()}
+      />
+    )
+    expect(screen.getByTestId('resource-entity-rail')).toHaveAttribute('data-selected-id', 'B')
+    expect(screen.getByRole('region', { name: 'Outside B' })).toBeInTheDocument()
+  })
+
+  it('leaves a resolving routed owner unselected instead of selecting unlinked', async () => {
+    assistantDataMocks.topics = [{ id: 'unlinked', name: 'Unlinked' }]
+    let resolveOwner!: (owner: (typeof assistantDataMocks.assistants)[number]) => void
+    const lookup = new Promise<(typeof assistantDataMocks.assistants)[number]>((resolve) => {
+      resolveOwner = resolve
+    })
+    agentDataMocks.getActiveResource.mockReturnValueOnce(lookup)
+    const props = { activeAssistantId: 'B', activeTopicId: null, onSelectTopic: vi.fn(), onCreateTopic: vi.fn() }
+    function RoutedOwner() {
+      const [owner, setOwner] = useState<(typeof assistantDataMocks.assistants)[number]>()
+      useEffect(() => {
+        void dataApiService.get('/assistants/B').then((owner) => setOwner(owner as never))
+      }, [])
+      return <TestAssistantResourceList {...props} activeAssistant={owner as never} />
+    }
+    render(<RoutedOwner />)
+    expect(screen.getByRole('region', { name: 'chat.topics.group.unknown_assistant' })).toBeInTheDocument()
+    expect(screen.getByTestId('resource-entity-rail')).toHaveAttribute('data-selected-id', '')
+    await act(async () => {
+      resolveOwner({ ...assistantDataMocks.assistants[1], id: 'B', name: 'Outside B' })
+      await lookup
+    })
+    expect(screen.getByTestId('resource-entity-rail')).toHaveAttribute('data-selected-id', 'B')
+  })
+
   it('does not offer the clear action when an assistant has no topics', () => {
     assistantDataMocks.topics = [{ id: 'topic-2', assistantId: 'assistant-2', name: 'Topic 2' }]
 
@@ -1411,8 +1469,16 @@ describe('classic layout entity resource list actions', () => {
       onSelectTopic: vi.fn(),
       onCreateTopic: vi.fn()
     }
-    render(<TestAssistantResourceList {...props} />)
+    const { rerender } = render(<TestAssistantResourceList {...props} />)
 
+    expect(screen.getByTestId('assistant-1-context-menu')).toBeInTheDocument()
+    expect(screen.getByTestId('resource-entity-rail')).toHaveAttribute('data-selected-id', 'assistant-1')
+    expect(
+      within(screen.getByTestId('assistant-1-context-menu')).queryByRole('button', {
+        name: 'assistants.clear.menu_title'
+      })
+    ).not.toBeInTheDocument()
+    rerender(<TestAssistantResourceList {...props} activeAssistantId="assistant-2" />)
     expect(screen.queryByTestId('assistant-1-context-menu')).not.toBeInTheDocument()
     expect(assistantDataMocks.deleteTopicsByAssistantId).not.toHaveBeenCalled()
   })

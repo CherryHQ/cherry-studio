@@ -76,6 +76,8 @@ const homeMocks = vi.hoisted(() => ({
   latestTopicOptions: [] as Array<{ enabled?: boolean }>,
   assistants: [{ id: 'assistant-default' }] as Array<{ id: string; modelId?: string | null; name?: string }>,
   assistantsError: undefined as Error | undefined,
+  assistantsTotal: undefined as number | undefined,
+  missingAssistant: false,
   assistantsLoaded: true,
   assistantsLoading: false,
   assistantsRefreshing: false,
@@ -96,6 +98,8 @@ const homeMocks = vi.hoisted(() => ({
   reuseOrCreateTopic: vi.fn(),
   navigate: vi.fn(),
   historyOnActiveRecordChange: undefined as ((topic: Topic | null) => void) | undefined,
+  archiveOnPending: undefined as ((id: string, pending: boolean) => void) | undefined,
+  archiveOnSettled: undefined as ((topic: Topic) => void) | undefined,
   historyOnPending: undefined as ((id: string | null) => void) | undefined,
   sidebarOnPending: undefined as ((id: string | null) => void) | undefined,
   routeSearch: {} as Record<string, unknown>,
@@ -190,6 +194,7 @@ vi.mock('@renderer/hooks/tab', () => ({
 vi.mock('@renderer/hooks/useAssistant', () => ({
   useAssistants: () => ({
     assistants: homeMocks.assistants,
+    total: homeMocks.assistantsTotal ?? homeMocks.assistants.length,
     hasLoaded: homeMocks.assistantsLoaded,
     isLoading: homeMocks.assistantsLoading,
     isRefreshing: homeMocks.assistantsRefreshing,
@@ -200,9 +205,9 @@ vi.mock('@renderer/hooks/useAssistant', () => ({
     updateAssistant: vi.fn()
   }),
   useAssistantApiById: (id?: string) => ({
-    assistant: id ? { id } : undefined,
+    assistant: id && !homeMocks.missingAssistant ? { id } : undefined,
     isLoading: false,
-    error: undefined,
+    error: homeMocks.missingAssistant ? DataApiErrorFactory.notFound('Assistant', id ?? '') : undefined,
     refetch: vi.fn(),
     mutate: vi.fn()
   })
@@ -358,6 +363,16 @@ vi.mock('../Chat', () => ({
         <output data-testid="pane-manual-toggle">
           {paneManualToggle ? `${paneManualToggle.seq}:${paneManualToggle.open}` : 'none'}
         </output>
+        {showConversation && activeTopic && resourcePaneCount && (
+          <output data-testid="resource-pane-count">
+            {resourcePaneCount.label}:{resourcePaneCount.count}
+          </output>
+        )}
+        {!activeTopic && (
+          <button type="button" onClick={() => onNewTopic?.()}>
+            New empty conversation
+          </button>
+        )}
         {centerSurface?.content}
         {showConversation && activeTopic && (
           <>
@@ -369,11 +384,6 @@ vi.mock('../Chat', () => ({
               <button type="button" onClick={onSidebarToggle}>
                 Toggle sidebar
               </button>
-            )}
-            {resourcePaneCount && (
-              <output data-testid="resource-pane-count">
-                {resourcePaneCount.label}:{resourcePaneCount.count}
-              </output>
             )}
             {onNewTopic && (
               <button type="button" onClick={() => onNewTopic()}>
@@ -495,21 +505,30 @@ vi.mock('../Tabs/HomeTabs', () => ({
 vi.mock('../Tabs/components/topics', () => ({
   Topics: ({
     assistantIdFilter,
+    isAssistantListComplete,
     assistantTopicsSource,
     presentation,
+    onActiveTopicArchived,
+    onLocalArchivePendingChange,
     onLocalPermanentDeletePendingChange
   }: {
+    isAssistantListComplete?: boolean
     assistantIdFilter?: string | null
     assistantTopicsSource?: unknown
     presentation?: string
+    onActiveTopicArchived?: (topic: Topic) => void
+    onLocalArchivePendingChange?: (id: string, pending: boolean) => void
     onLocalPermanentDeletePendingChange?: (id: string | null) => void
   }) => {
     homeMocks.topicPanelTopicsSource = assistantTopicsSource
+    homeMocks.archiveOnPending = onLocalArchivePendingChange
+    homeMocks.archiveOnSettled = onActiveTopicArchived
     homeMocks.sidebarOnPending = onLocalPermanentDeletePendingChange
 
     return (
       <div
         data-assistant-id={assistantIdFilter ?? ''}
+        data-complete={String(isAssistantListComplete)}
         data-presentation={presentation ?? ''}
         data-testid="topic-resource-panel"
       />
@@ -657,13 +676,19 @@ vi.mock('@renderer/components/history/HistoryRecordsView', () => ({
     open,
     onRecordSelect,
     onActiveRecordChange,
+    onActiveTopicArchived,
+    onLocalArchivePendingChange,
     onLocalPermanentDeletePendingChange
   }: {
     open?: boolean
     onRecordSelect?: (topic: Topic) => void
     onActiveRecordChange?: (topic: Topic | null) => void
+    onActiveTopicArchived?: (topic: Topic) => void
+    onLocalArchivePendingChange?: (id: string, pending: boolean) => void
     onLocalPermanentDeletePendingChange?: (id: string | null) => void
   }) => {
+    homeMocks.archiveOnPending = onLocalArchivePendingChange
+    homeMocks.archiveOnSettled = onActiveTopicArchived
     homeMocks.historyOnActiveRecordChange = onActiveRecordChange
     homeMocks.historyOnPending = onLocalPermanentDeletePendingChange
     return open ? (
@@ -704,6 +729,8 @@ import HomePage from '../HomePage'
 describe('HomePage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    homeMocks.assistantsTotal = undefined
+    homeMocks.missingAssistant = false
     homeMocks.entryTopic = initialTopic
     homeMocks.assistants = [{ id: 'assistant-default' }]
     homeMocks.classicLayoutTopics = []
@@ -776,6 +803,79 @@ describe('HomePage', () => {
     homeMocks.preferenceValues.set('chat.message.style', 'message-style')
 
     ipcMocks.request.mockClear()
+  })
+
+  it('displays the valid empty route assistant instead of the remembered assistant', () => {
+    homeMocks.entryTopic = undefined
+    homeMocks.routeSearch = { assistantId: 'assistant-2' }
+    homeMocks.assistants = [{ id: 'assistant-1' }, { id: 'assistant-2' }]
+    homeMocks.persistCacheValues.set('ui.chat.last_used_assistant_id', 'assistant-1')
+    homeMocks.preferenceValues.set('topic.tab.display_mode', 'assistant')
+    render(<HomePage />)
+    expect(screen.getByTestId('assistant-resource-list')).toHaveAttribute('data-active-assistant-id', 'assistant-2')
+    expect(screen.getByTestId('topic-resource-panel')).toHaveAttribute('data-assistant-id', 'assistant-2')
+    expect(screen.queryByTestId('active-topic')).not.toBeInTheDocument()
+    expect(homeMocks.createTopic).not.toHaveBeenCalled()
+  })
+
+  it.each(['unresolved', 'loading', 'refreshing', 'error', 'capped'] as const)(
+    'retains unknown assistant ownership for a %s list',
+    (state) => {
+      homeMocks.entryTopic = { ...initialTopic, assistantId: 'B' }
+      homeMocks.routeSearch = { topicId: initialTopic.id }
+      homeMocks.assistants = state === 'capped' ? Array.from({ length: 500 }, (_, id) => ({ id: String(id) })) : []
+      homeMocks.assistantsTotal = state === 'capped' ? 501 : undefined
+      homeMocks.assistantsLoaded = state !== 'unresolved'
+      homeMocks.assistantsLoading = state === 'loading'
+      homeMocks.assistantsRefreshing = state === 'refreshing'
+      if (state === 'error') homeMocks.assistantsError = new Error('offline')
+      homeMocks.preferenceValues.set('topic.tab.display_mode', 'assistant')
+      render(<HomePage />)
+      act(() => homeMocks.archiveOnPending?.(initialTopic.id, true))
+      act(() => homeMocks.archiveOnSettled?.({ ...initialTopic, assistantId: 'B' }))
+      expect(homeMocks.navigate).toHaveBeenCalledWith({ to: '/app/chat', search: { assistantId: 'B' }, replace: true })
+    }
+  )
+
+  it('rejects captured empty settlement after its assistant is removed', () => {
+    homeMocks.entryTopic = { ...initialTopic, assistantId: 'assistant-2' }
+    homeMocks.routeSearch = { topicId: initialTopic.id }
+    homeMocks.assistants = [{ id: 'assistant-1' }, { id: 'assistant-2' }]
+    homeMocks.preferenceValues.set('topic.tab.display_mode', 'assistant')
+    const view = render(<HomePage />)
+    act(() => homeMocks.archiveOnPending?.(initialTopic.id, true))
+    const capturedSettlement = homeMocks.archiveOnSettled
+    homeMocks.assistants = [{ id: 'assistant-1' }]
+    view.rerender(<HomePage />)
+    homeMocks.navigate.mockClear()
+    act(() => capturedSettlement?.({ ...initialTopic, assistantId: 'assistant-2' }))
+    expect(homeMocks.navigate).not.toHaveBeenCalled()
+  })
+
+  it.each(['success', 'failure'] as const)('holds matching archive NOT_FOUND until %s', async (outcome) => {
+    homeMocks.entryTopic = { ...initialTopic, assistantId: 'assistant-2' }
+    homeMocks.routeSearch = { topicId: initialTopic.id }
+    homeMocks.assistants = [{ id: 'assistant-1' }, { id: 'assistant-2' }]
+    homeMocks.preferenceValues.set('topic.tab.display_mode', 'assistant')
+    const view = render(<HomePage />)
+    act(() => homeMocks.archiveOnPending?.(initialTopic.id, true))
+    homeMocks.forceActiveTopicUndefined = true
+    homeMocks.activeTopicError = DataApiErrorFactory.notFound('Topic', initialTopic.id)
+    view.rerender(<HomePage />)
+    expect(homeMocks.navigate).not.toHaveBeenCalled()
+    act(() => {
+      if (outcome === 'success') homeMocks.archiveOnSettled?.({ ...initialTopic, assistantId: 'assistant-2' })
+      homeMocks.archiveOnPending?.(initialTopic.id, false)
+    })
+    await waitFor(() =>
+      expect(homeMocks.navigate).toHaveBeenCalledWith({
+        to: '/app/chat',
+        search: outcome === 'success' ? { assistantId: 'assistant-2' } : {},
+        replace: true
+      })
+    )
+    if (outcome === 'success')
+      expect(homeMocks.navigate).not.toHaveBeenCalledWith({ to: '/app/chat', search: {}, replace: true })
   })
 
   it('records a user open intent when the rail header opens the classic topic pane', () => {
@@ -1795,14 +1895,46 @@ describe('HomePage', () => {
     expect(screen.getByTestId('active-topic-assistant')).toHaveTextContent('assistant-2')
   })
 
+  it.each(['assistant', 'time'])(
+    'keeps an assistant outside a 500-row page as the creation target in %s mode',
+    async (mode) => {
+      homeMocks.entryTopic = undefined
+      homeMocks.routeSearch = { assistantId: 'B' }
+      homeMocks.assistants = Array.from({ length: 500 }, (_, id) => ({ id: String(id) }))
+      homeMocks.assistantsTotal = 501
+      homeMocks.preferenceValues.set('topic.tab.display_mode', mode)
+      render(<HomePage />)
+      if (mode === 'assistant') {
+        expect(screen.getByTestId('assistant-resource-list')).toHaveAttribute('data-active-assistant-id', 'B')
+        expect(screen.getByTestId('topic-resource-panel')).toHaveAttribute('data-assistant-id', 'B')
+      }
+      fireEvent.click(screen.getByRole('button', { name: 'New empty conversation' }))
+      await waitFor(() => expect(homeMocks.createTopic).toHaveBeenCalledWith({ assistantId: 'B' }))
+    }
+  )
+
+  it('classifies exactly 500 of 500 assistants as complete for an orphan', () => {
+    homeMocks.entryTopic = { ...initialTopic, assistantId: 'orphan-owner' }
+    homeMocks.assistants = Array.from({ length: 500 }, (_, id) => ({ id: String(id) }))
+    homeMocks.assistantsTotal = 500
+    homeMocks.preferenceValues.set('topic.tab.display_mode', 'assistant')
+    render(<HomePage />)
+    expect(screen.getByTestId('topic-resource-panel')).toHaveAttribute('data-complete', 'true')
+  })
+
   it('ignores a route assistant that no longer exists', async () => {
     homeMocks.routeSearch = { assistantId: 'assistant-deleted' }
+    homeMocks.missingAssistant = true
+    homeMocks.entryTopic = undefined
+    homeMocks.preferenceValues.set('topic.tab.display_mode', 'assistant')
     homeMocks.assistants = [{ id: 'assistant-1' }, { id: 'assistant-2' }]
     homeMocks.persistCacheValues.set('ui.chat.last_used_assistant_id', 'assistant-1')
 
     render(<HomePage />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'New topic' }))
+    expect(screen.getByTestId('assistant-resource-list')).toHaveAttribute('data-active-assistant-id', '')
+    expect(screen.getByTestId('topic-resource-panel')).toHaveAttribute('data-assistant-id', '')
+    fireEvent.click(screen.getByRole('button', { name: 'New empty conversation' }))
 
     await waitFor(() => expect(homeMocks.createTopic).toHaveBeenCalledWith({ assistantId: 'assistant-1' }))
   })
