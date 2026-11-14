@@ -537,7 +537,8 @@ export function CompactModelField({
   setModelLabels: (labels: ModelLabels) => void
   onModelChange?: (modelId: UniqueModelId | null, model?: Model) => void
   onSettingsNavigate?: (navigate: () => void) => void
-  layout?: 'stacked' | 'row'
+  /** `chip`: the trigger alone, with the label kept for screen readers. */
+  layout?: 'stacked' | 'row' | 'chip'
   triggerClassName?: string
 }) {
   const { t } = useTranslation()
@@ -578,7 +579,11 @@ export function CompactModelField({
             />
           ) : (
             <FormLabel
-              className={cn(layout === 'row' ? editDialogFormRowLabelClassName : 'font-normal', labelClassName)}>
+              className={cn(
+                layout === 'row' ? editDialogFormRowLabelClassName : 'font-normal',
+                layout === 'chip' && 'sr-only',
+                labelClassName
+              )}>
               {label}
             </FormLabel>
           )}

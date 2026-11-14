@@ -18,6 +18,7 @@ import { toast } from '@renderer/services/toast'
 import type { AgentDetail } from '@renderer/types/resourceCatalog'
 import { checkEntityImageSize, prepareEntityImageBytes } from '@renderer/utils/image'
 import type { Assistant } from '@shared/data/types/assistant'
+import { BuiltinMcpServerNames } from '@shared/utils/mcp'
 
 vi.mock('@renderer/utils/image', () => ({ checkEntityImageSize: vi.fn(() => null), prepareEntityImageBytes: vi.fn() }))
 // The real picker's `:has()` styles break jsdom's selector engine for later pointer checks.
@@ -356,6 +357,7 @@ vi.mock('react-i18next', async (importOriginal) => {
           // Permission-mode titles intentionally absent: they fall through to the card
           // definitions' own fallbacks, so copy changes need no edit here.
           'common.avatar': 'Avatar',
+          'common.back': 'Back',
           'library.config.dialogs.create.avatar_upload': 'Image Upload',
           'library.config.dialogs.create.avatar_remove_image': 'Remove image',
           'common.add': 'Add',
@@ -425,7 +427,6 @@ vi.mock('react-i18next', async (importOriginal) => {
           'agent.tools.builtin.codemode.label': 'Code Mode',
           'agent.tools.builtin.read.description': 'Read files',
           'agent.tools.builtin.read.label': 'Read files',
-          'library.config.agent.model_config': 'Model',
           'library.config.basic.field.description.hint': 'Short assistant summary.',
           'library.config.basic.field.description.placeholder': 'Describe this assistant',
           'library.config.basic.context_management': 'Customize context management',
@@ -445,9 +446,6 @@ vi.mock('react-i18next', async (importOriginal) => {
           'library.config.basic.field.name.placeholder': 'Name this assistant',
           'library.config.basic.field.tags.hint': 'Group related assistants.',
           'library.config.basic.field.custom_params.hint': 'Extra provider parameters.',
-          'library.config.basic.field.max_tokens.hint': 'Caps response length.',
-          'library.config.basic.field.max_tool_calls.hint': 'Caps tool-call rounds at 1000.',
-          'library.config.basic.field.stream_output.hint': 'Stream responses.',
           'library.config.basic.field.temperature.hint': 'Controls randomness.',
           'library.config.basic.field.top_p.hint': 'Controls nucleus sampling.',
           'library.config.basic.creative': 'Creative',
@@ -575,7 +573,7 @@ vi.mock('react-i18next', async (importOriginal) => {
           'settings.prompts.visibility.global.label': 'Use globally',
           'settings.title': 'Settings'
         })[key] ??
-        (key.startsWith('agent.memory.')
+        (key.startsWith('agent.memory.') || key.startsWith('library.config.dialogs.edit.')
           ? memoryI18n.t(key, typeof fallbackOrOptions === 'object' ? fallbackOrOptions : {})
           : undefined) ??
         (typeof fallbackOrOptions === 'string' ? fallbackOrOptions : undefined) ??
@@ -803,6 +801,24 @@ function selectTab(name: string) {
   fireEvent.keyDown(tab, { key: 'Enter', code: 'Enter' })
 }
 
+/** The model selector's settings link: an action that closes the dialog before navigating. */
+function settingsLink() {
+  return screen.getAllByRole('button', { name: 'Open model settings' })[0]
+}
+
+function nameLabel(type: 'agent' | 'assistant') {
+  return type === 'agent' ? 'Avatar and name' : 'Name'
+}
+
+/** Opens a More settings row's sub-page by the row's label. */
+async function openSubPage(user: ReturnType<typeof userEvent.setup>, label: string) {
+  await user.click(screen.getByRole('button', { name: new RegExp(`^${label}:`) }))
+}
+
+async function back(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(screen.getByRole('button', { name: 'Back' }))
+}
+
 function expectHelpTrigger(label: string, description: string) {
   expect(screen.getByRole('button', { name: `${label} Help` })).toBeInTheDocument()
   expect(screen.queryByText(description)).not.toBeInTheDocument()
@@ -823,6 +839,7 @@ async function expectVariablesHelpOnOpen() {
 }
 
 function openGroupSelect() {
+  fireEvent.click(screen.getByRole('button', { name: 'More settings' }))
   const select = screen.getByRole('combobox', { name: 'Group' })
   fireEvent.pointerDown(select)
   fireEvent.click(select)
@@ -867,33 +884,23 @@ function createDeferred<T>() {
 }
 
 describe('edit dialogs', () => {
-  it.each(['agent', 'assistant'] as const)(
-    'opens global prompt settings from an empty %s prompt panel',
-    async (type) => {
-      const user = userEvent.setup()
-      function Host() {
-        const [open, setOpen] = useState(true)
-        return type === 'agent' ? (
-          <AgentEditDialog open={open} resource={AGENT} onOpenChange={setOpen} initialTab="prompts" />
-        ) : (
-          <AssistantEditDialog open={open} resource={ASSISTANT} onOpenChange={setOpen} initialTab="prompts" />
-        )
-      }
-      render(<Host />)
-      const panel = screen.getByRole('tabpanel', { name: 'Prompts' })
-      expect(within(panel).getByText(type === 'agent' ? 'Current Agent' : 'Current Assistant')).toBeVisible()
-      expect(within(panel).getByText('No prompts linked')).toBeVisible()
-      expect(
-        within(panel).getByText('Global prompts are available in every conversation and managed in Settings.')
-      ).toBeVisible()
-      await user.click(within(panel).getByRole('button', { name: 'Manage Global Prompts' }))
-      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
-      await waitFor(() => expect(openSettingsTabMock).toHaveBeenCalledWith('/settings/prompts'))
+  it('opens global prompt settings from an empty agent prompt panel', async () => {
+    const user = userEvent.setup()
+    function Host() {
+      const [open, setOpen] = useState(true)
+      return <AgentEditDialog open={open} resource={AGENT} onOpenChange={setOpen} initialTab="prompts" />
     }
-  )
+    render(<Host />)
+    const panel = screen.getByRole('tabpanel', { name: 'Prompts' })
+    expect(within(panel).getByText('Current Agent')).toBeVisible()
+    expect(within(panel).getByText('No prompts linked')).toBeVisible()
+    await user.click(within(panel).getByRole('button', { name: 'Manage Global Prompts' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    await waitFor(() => expect(openSettingsTabMock).toHaveBeenCalledWith('/settings/prompts'))
+  })
 
   it.each(['agent', 'assistant'] as const)(
-    'waits for a pending %s save before navigating to global prompts',
+    'waits for a pending %s save before navigating to settings',
     async (type) => {
       const user = userEvent.setup()
       const save = createDeferred<AgentDetail | Assistant>()
@@ -908,20 +915,19 @@ describe('edit dialogs', () => {
         )
       }
       render(<Host />)
-      await user.type(screen.getByLabelText(type === 'agent' ? 'Avatar and name' : 'Name'), ' edited')
-      await user.click(screen.getByRole('tab', { name: 'Prompts' }))
+      await user.type(screen.getByLabelText(nameLabel(type)), ' edited')
       const frames = mockDeferredAnimationFrames()
       try {
-        await user.click(screen.getByRole('button', { name: 'Manage Global Prompts' }))
+        await user.click(settingsLink())
         await waitFor(() => expect(update).toHaveBeenCalled())
         frames.flushAllFrames()
-        expect(openSettingsTabMock).not.toHaveBeenCalled()
+        expect(settingsNavigateMock).not.toHaveBeenCalled()
         expect(screen.getByRole('dialog')).toBeVisible()
 
         await act(async () => save.resolve(type === 'agent' ? AGENT : ASSISTANT))
         await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
         frames.flushAllFrames()
-        expect(openSettingsTabMock).toHaveBeenCalledWith('/settings/prompts')
+        expect(settingsNavigateMock).toHaveBeenCalled()
       } finally {
         frames.restore()
       }
@@ -929,12 +935,12 @@ describe('edit dialogs', () => {
   )
 
   it.each([
-    ['agent', 'management', 'success'],
-    ['assistant', 'management', 'success'],
+    ['agent', 'navigation', 'success'],
+    ['assistant', 'navigation', 'success'],
     ['agent', 'autosave', 'success'],
     ['assistant', 'autosave', 'success'],
-    ['agent', 'management', 'failure'],
-    ['assistant', 'management', 'failure']
+    ['agent', 'navigation', 'failure'],
+    ['assistant', 'navigation', 'failure']
   ] as const)(
     'guards reverted %s edits while %s is pending and the reversion ends in %s',
     async (type, source, outcome) => {
@@ -955,19 +961,16 @@ describe('edit dialogs', () => {
       render(<Host />)
       await user.clear(screen.getByLabelText('Description'))
       await user.type(screen.getByLabelText('Description'), 'Temporary description')
-      await user.click(screen.getByRole('tab', { name: 'Prompts' }))
-      if (source === 'management') await user.click(screen.getByRole('button', { name: 'Manage Global Prompts' }))
+      if (source === 'navigation') await user.click(settingsLink())
       await waitFor(() => expect(update).toHaveBeenCalled())
-      await user.click(screen.getByRole('tab', { name: 'Basic' }))
       await user.clear(screen.getByLabelText('Description'))
       if (resource.description) await user.type(screen.getByLabelText('Description'), resource.description)
-      await user.click(screen.getByRole('tab', { name: 'Prompts' }))
       const frames = mockDeferredAnimationFrames()
       try {
-        await user.click(screen.getByRole('button', { name: 'Manage Global Prompts' }))
+        await user.click(settingsLink())
         frames.flushAllFrames()
         expect(screen.getByRole('dialog')).toBeVisible()
-        expect(openSettingsTabMock).not.toHaveBeenCalled()
+        expect(settingsNavigateMock).not.toHaveBeenCalled()
 
         await act(async () => firstSave.resolve({ ...resource, description: 'Temporary description' }))
         await waitFor(() =>
@@ -977,24 +980,22 @@ describe('edit dialogs', () => {
         )
         frames.flushAllFrames()
         expect(screen.getByRole('dialog')).toBeVisible()
-        expect(openSettingsTabMock).not.toHaveBeenCalled()
+        expect(settingsNavigateMock).not.toHaveBeenCalled()
 
         if (outcome === 'failure') {
           await act(async () => revertSave.reject(new Error('Reversion failed')))
           frames.flushAllFrames()
           expect(screen.getByRole('dialog')).toBeVisible()
           expect(screen.getByText('Save failed')).toBeVisible()
-          expect(openSettingsTabMock).not.toHaveBeenCalled()
-          await user.click(screen.getByRole('button', { name: 'Manage Global Prompts' }))
+          expect(settingsNavigateMock).not.toHaveBeenCalled()
+          await user.click(settingsLink())
           frames.flushAllFrames()
           expect(screen.getByRole('dialog')).toBeVisible()
-          expect(openSettingsTabMock).not.toHaveBeenCalled()
-          await user.click(screen.getByRole('tab', { name: 'Basic' }))
+          expect(settingsNavigateMock).not.toHaveBeenCalled()
           expect(screen.getByLabelText('Description')).toHaveValue(resource.description)
           await user.clear(screen.getByLabelText('Description'))
           await user.type(screen.getByLabelText('Description'), 'Recovered description')
-          await user.click(screen.getByRole('tab', { name: 'Prompts' }))
-          await user.click(screen.getByRole('button', { name: 'Manage Global Prompts' }))
+          await user.click(settingsLink())
           expect(update).toHaveBeenLastCalledWith({
             body: expect.objectContaining({ description: 'Recovered description' })
           })
@@ -1003,7 +1004,7 @@ describe('edit dialogs', () => {
         }
         await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
         frames.flushAllFrames()
-        expect(openSettingsTabMock).toHaveBeenCalledWith('/settings/prompts')
+        expect(settingsNavigateMock).toHaveBeenCalled()
       } finally {
         frames.restore()
       }
@@ -1024,22 +1025,24 @@ describe('edit dialogs', () => {
       return <AssistantEditDialog open={open} resource={resource} onOpenChange={setOpen} />
     }
     render(<Host />)
-    await user.click(screen.getByRole('tab', { name: 'Model' }))
-    await user.clear(screen.getByRole('textbox', { name: 'Parameter value: stop' }))
-    await user.type(screen.getByRole('textbox', { name: 'Parameter value: stop' }), 'TEMP')
-    await user.click(screen.getByRole('tab', { name: 'Prompts' }))
-    await user.click(screen.getByRole('button', { name: 'Manage Global Prompts' }))
+    const editParameter = async (value: string) => {
+      await user.click(screen.getByRole('button', { name: 'More settings' }))
+      await openSubPage(user, 'Custom parameters')
+      await user.clear(screen.getByRole('textbox', { name: 'Parameter value: stop' }))
+      await user.type(screen.getByRole('textbox', { name: 'Parameter value: stop' }), value)
+      await back(user)
+      await back(user)
+    }
+    await editParameter('TEMP')
+    await user.click(settingsLink())
     await waitFor(() => expect(updateAssistantMock).toHaveBeenCalled())
-    await user.click(screen.getByRole('tab', { name: 'Model' }))
-    await user.clear(screen.getByRole('textbox', { name: 'Parameter value: stop' }))
-    await user.type(screen.getByRole('textbox', { name: 'Parameter value: stop' }), 'END')
-    await user.click(screen.getByRole('tab', { name: 'Prompts' }))
+    await editParameter('END')
     const frames = mockDeferredAnimationFrames()
     try {
-      await user.click(screen.getByRole('button', { name: 'Manage Global Prompts' }))
+      await user.click(settingsLink())
       frames.flushAllFrames()
       expect(screen.getByRole('dialog')).toBeVisible()
-      expect(openSettingsTabMock).not.toHaveBeenCalled()
+      expect(settingsNavigateMock).not.toHaveBeenCalled()
       await act(async () => firstSave.resolve(resource))
       await waitFor(() =>
         expect(updateAssistantMock).toHaveBeenLastCalledWith({
@@ -1048,11 +1051,11 @@ describe('edit dialogs', () => {
       )
       frames.flushAllFrames()
       expect(screen.getByRole('dialog')).toBeVisible()
-      expect(openSettingsTabMock).not.toHaveBeenCalled()
+      expect(settingsNavigateMock).not.toHaveBeenCalled()
       await act(async () => revertSave.resolve(resource))
       await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
       frames.flushAllFrames()
-      expect(openSettingsTabMock).toHaveBeenCalledWith('/settings/prompts')
+      expect(settingsNavigateMock).toHaveBeenCalled()
     } finally {
       frames.restore()
     }
@@ -1064,7 +1067,7 @@ describe('edit dialogs', () => {
     ['agent', 'New name'],
     ['assistant', 'New name']
   ] as const)(
-    'preserves newer %s edits with name "%s" made while management navigation awaits a save',
+    'preserves newer %s edits with name "%s" made while settings navigation awaits a save',
     async (type, nextName) => {
       const user = userEvent.setup()
       const save = createDeferred<AgentDetail | Assistant>()
@@ -1081,13 +1084,11 @@ describe('edit dialogs', () => {
       render(<Host />)
       await user.clear(screen.getByLabelText('Description'))
       await user.type(screen.getByLabelText('Description'), 'First description')
-      await user.click(screen.getByRole('tab', { name: 'Prompts' }))
       const frames = mockDeferredAnimationFrames()
       try {
-        await user.click(screen.getByRole('button', { name: 'Manage Global Prompts' }))
+        await user.click(settingsLink())
         await waitFor(() => expect(update).toHaveBeenCalled())
-        await user.click(screen.getByRole('tab', { name: 'Basic' }))
-        const nameInput = screen.getByLabelText(type === 'agent' ? 'Avatar and name' : 'Name')
+        const nameInput = screen.getByLabelText(nameLabel(type))
         await user.clear(nameInput)
         if (nextName) await user.type(nameInput, nextName)
         await user.clear(screen.getByLabelText('Description'))
@@ -1098,17 +1099,16 @@ describe('edit dialogs', () => {
         expect(screen.getByRole('dialog')).toBeVisible()
         expect(nameInput).toHaveValue(nextName)
         expect(screen.getByLabelText('Description')).toHaveValue('Newer description')
-        expect(openSettingsTabMock).not.toHaveBeenCalled()
+        expect(settingsNavigateMock).not.toHaveBeenCalled()
 
         if (!nextName) await user.type(nameInput, 'Corrected name')
-        await user.click(screen.getByRole('tab', { name: 'Prompts' }))
-        await user.click(screen.getByRole('button', { name: 'Manage Global Prompts' }))
+        await user.click(settingsLink())
         await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
         frames.flushAllFrames()
         expect(update).toHaveBeenLastCalledWith({
           body: expect.objectContaining({ name: nextName || 'Corrected name', description: 'Newer description' })
         })
-        expect(openSettingsTabMock).toHaveBeenCalledWith('/settings/prompts')
+        expect(settingsNavigateMock).toHaveBeenCalled()
       } finally {
         frames.restore()
       }
@@ -1116,7 +1116,7 @@ describe('edit dialogs', () => {
   )
 
   it.each(['agent', 'assistant'] as const)(
-    'preserves failed %s edits across repeated management clicks until a corrected edit saves',
+    'preserves failed %s edits across repeated navigation clicks until a corrected edit saves',
     async (type) => {
       const user = userEvent.setup()
       const save = createDeferred<AgentDetail | Assistant>()
@@ -1131,37 +1131,34 @@ describe('edit dialogs', () => {
         )
       }
       render(<Host />)
-      await user.type(screen.getByLabelText(type === 'agent' ? 'Avatar and name' : 'Name'), ' edited')
-      await user.click(screen.getByRole('tab', { name: 'Prompts' }))
+      await user.type(screen.getByLabelText(nameLabel(type)), ' edited')
       const frames = mockDeferredAnimationFrames()
       try {
-        await user.click(screen.getByRole('button', { name: 'Manage Global Prompts' }))
+        await user.click(settingsLink())
         await waitFor(() => expect(update).toHaveBeenCalled())
         await act(async () => save.reject(new Error('Network down')))
         expect(await screen.findByText('Save failed')).toBeVisible()
         frames.flushAllFrames()
         expect(screen.getByRole('dialog')).toBeVisible()
-        expect(openSettingsTabMock).not.toHaveBeenCalled()
+        expect(settingsNavigateMock).not.toHaveBeenCalled()
 
         for (let attempt = 0; attempt < 2; attempt++) {
-          await user.click(screen.getByRole('button', { name: 'Manage Global Prompts' }))
+          await user.click(settingsLink())
           frames.flushAllFrames()
           expect(screen.getByRole('dialog')).toBeVisible()
           expect(screen.getByText('Save failed')).toBeVisible()
-          expect(openSettingsTabMock).not.toHaveBeenCalled()
+          expect(settingsNavigateMock).not.toHaveBeenCalled()
         }
 
-        await user.click(screen.getByRole('tab', { name: 'Basic' }))
-        const nameInput = screen.getByLabelText(type === 'agent' ? 'Avatar and name' : 'Name')
+        const nameInput = screen.getByLabelText(nameLabel(type))
         expect(nameInput).toHaveValue(`${type === 'agent' ? AGENT.name : ASSISTANT.name} edited`)
         await user.clear(nameInput)
         await user.type(nameInput, 'Corrected edit')
-        await user.click(screen.getByRole('tab', { name: 'Prompts' }))
-        await user.click(screen.getByRole('button', { name: 'Manage Global Prompts' }))
+        await user.click(settingsLink())
         await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
         frames.flushAllFrames()
         expect(update).toHaveBeenLastCalledWith({ body: expect.objectContaining({ name: 'Corrected edit' }) })
-        expect(openSettingsTabMock).toHaveBeenCalledWith('/settings/prompts')
+        expect(settingsNavigateMock).toHaveBeenCalled()
       } finally {
         frames.restore()
       }
@@ -1169,7 +1166,7 @@ describe('edit dialogs', () => {
   )
 
   it.each(['agent', 'assistant'] as const)(
-    'preserves failed %s edits when the required name is cleared before management navigation',
+    'preserves failed %s edits when the required name is cleared before settings navigation',
     async (type) => {
       const user = userEvent.setup()
       const update = type === 'agent' ? updateAgentMock : updateAssistantMock
@@ -1186,29 +1183,25 @@ describe('edit dialogs', () => {
       const descriptionInput = screen.getByLabelText('Description')
       await user.clear(descriptionInput)
       await user.type(descriptionInput, 'Unsaved description')
-      await user.click(screen.getByRole('tab', { name: 'Prompts' }))
-      await user.click(screen.getByRole('button', { name: 'Manage Global Prompts' }))
+      await user.click(settingsLink())
       expect(await screen.findByText('Save failed')).toBeVisible()
 
-      await user.click(screen.getByRole('tab', { name: 'Basic' }))
-      await user.clear(screen.getByLabelText(type === 'agent' ? 'Avatar and name' : 'Name'))
-      await user.click(screen.getByRole('tab', { name: 'Prompts' }))
+      await user.clear(screen.getByLabelText(nameLabel(type)))
       const frames = mockDeferredAnimationFrames()
       try {
         for (let attempt = 0; attempt < 2; attempt++) {
-          await user.click(screen.getByRole('button', { name: 'Manage Global Prompts' }))
+          await user.click(settingsLink())
           frames.flushAllFrames()
           expect(screen.getByRole('dialog')).toBeVisible()
           expect(screen.getByText('Save failed')).toBeVisible()
-          expect(openSettingsTabMock).not.toHaveBeenCalled()
+          expect(settingsNavigateMock).not.toHaveBeenCalled()
         }
 
-        await user.click(screen.getByRole('tab', { name: 'Basic' }))
         expect(screen.getByLabelText('Description')).toHaveValue('Unsaved description')
-        expect(screen.getByLabelText(type === 'agent' ? 'Avatar and name' : 'Name')).toHaveValue('')
+        expect(screen.getByLabelText(nameLabel(type))).toHaveValue('')
         await user.click(screen.getByRole('button', { name: 'Close' }))
         await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
-        expect(openSettingsTabMock).not.toHaveBeenCalled()
+        expect(settingsNavigateMock).not.toHaveBeenCalled()
       } finally {
         frames.restore()
       }
@@ -1224,10 +1217,7 @@ describe('edit dialogs', () => {
   })
 
   it('binds a prompt to the assistant being edited', async () => {
-    render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} />)
-
-    selectTab('Prompts')
-    expect(within(screen.getByRole('tabpanel', { name: 'Prompts' })).getByText('Prompts')).toBeInTheDocument()
+    render(<PromptBindingTab onManageGlobal={vi.fn()} enabled target={{ type: 'assistant', id: ASSISTANT.id }} />)
 
     fireEvent.click(screen.getByRole('button', { name: 'Bind prompt' }))
     fireEvent.click(await screen.findByText('Reusable prompt'))
@@ -1302,9 +1292,7 @@ describe('edit dialogs', () => {
 
   it('creates a selected prompt and binds it to the assistant being edited', async () => {
     const user = userEvent.setup()
-    render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} />)
-
-    selectTab('Prompts')
+    render(<PromptBindingTab onManageGlobal={vi.fn()} enabled target={{ type: 'assistant', id: ASSISTANT.id }} />)
     await user.click(screen.getByRole('button', { name: 'Add prompt' }))
     const createDialog = screen.getByRole('dialog', { name: 'Add prompt' })
     await user.type(within(createDialog).getByLabelText('Title'), 'Created prompt')
@@ -1325,9 +1313,7 @@ describe('edit dialogs', () => {
 
   it('creates a global prompt without binding it to the assistant being edited', async () => {
     const user = userEvent.setup()
-    render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} />)
-
-    selectTab('Prompts')
+    render(<PromptBindingTab onManageGlobal={vi.fn()} enabled target={{ type: 'assistant', id: ASSISTANT.id }} />)
     await user.click(screen.getByRole('button', { name: 'Add prompt' }))
     const createDialog = screen.getByRole('dialog', { name: 'Add prompt' })
     await user.type(within(createDialog).getByLabelText('Title'), 'Global prompt')
@@ -1352,9 +1338,7 @@ describe('edit dialogs', () => {
     const user = userEvent.setup()
     const pendingCreate = createDeferred<void>()
     createPromptMock.mockReturnValueOnce(pendingCreate.promise)
-    render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} />)
-
-    selectTab('Prompts')
+    render(<PromptBindingTab onManageGlobal={vi.fn()} enabled target={{ type: 'assistant', id: ASSISTANT.id }} />)
     await user.click(screen.getByRole('button', { name: 'Add prompt' }))
     const createDialog = screen.getByRole('dialog', { name: 'Add prompt' })
     await user.type(within(createDialog).getByLabelText('Title'), 'Pending prompt')
@@ -1501,6 +1485,7 @@ describe('edit dialogs', () => {
   it('clears the assistant group from the single-select group field', async () => {
     render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} />)
 
+    fireEvent.click(screen.getByRole('button', { name: 'More settings' }))
     const clearButton = screen.getByRole('button', { name: 'Group Clear' })
     fireEvent.click(clearButton)
     await waitFor(() =>
@@ -1518,8 +1503,8 @@ describe('edit dialogs', () => {
 
     openGroupSelect()
     await screen.findByRole('option', { name: 'personal' })
-    fireEvent.pointerDown(screen.getByLabelText('Name'))
-    fireEvent.click(screen.getByLabelText('Name'))
+    fireEvent.pointerDown(screen.getByText('Answers'))
+    fireEvent.click(screen.getByText('Answers'))
 
     await waitFor(() => expect(screen.queryByRole('option', { name: 'personal' })).not.toBeInTheDocument())
     expect(onOpenChange).not.toHaveBeenCalledWith(false)
@@ -1901,28 +1886,24 @@ describe('edit dialogs', () => {
   })
 
   it('submits assistant knowledge, MCP, and model parameter changes', async () => {
+    const user = userEvent.setup()
     render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} />)
 
-    expect(screen.queryByRole('button', { name: 'Tools' })).not.toBeInTheDocument()
-    expect(screen.getByRole('tab', { name: 'MCP' })).toBeInTheDocument()
-    expect(screen.getByRole('tab', { name: 'Knowledge' })).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'More settings' }))
+    await openSubPage(user, 'Knowledge')
+    await user.click(await screen.findByRole('switch', { name: 'Knowledge One' }))
+    await back(user)
 
-    selectTab('Knowledge')
-    fireEvent.click(await screen.findByRole('switch', { name: 'Knowledge One' }))
-
-    selectTab('MCP')
-    await waitFor(() => expect(screen.getByRole('radiogroup', { name: 'MCP Mode' })).toBeVisible())
-    expect(screen.queryByRole('button', { name: 'Add MCP server' })).not.toBeInTheDocument()
+    // The server list only exists for manual mode.
+    expect(screen.queryByRole('button', { name: /^MCP servers:/ })).not.toBeInTheDocument()
     const mcpModeGroup = screen.getByRole('radiogroup', { name: 'MCP Mode' })
-    expect(within(mcpModeGroup).getByRole('radio', { name: 'Disabled' })).toHaveAttribute('aria-checked', 'false')
     expect(within(mcpModeGroup).getByRole('radio', { name: 'Auto' })).toHaveAttribute('aria-checked', 'true')
-    fireEvent.click(within(mcpModeGroup).getByRole('radio', { name: 'Manual' }))
-    fireEvent.click(screen.getByRole('switch', { name: 'MCP One' }))
+    await user.click(within(mcpModeGroup).getByRole('radio', { name: 'Manual' }))
+    await openSubPage(user, 'MCP servers')
+    await user.click(screen.getByRole('switch', { name: 'MCP One' }))
+    await back(user)
 
-    selectTab('Model')
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Temperature Help' })).toBeVisible())
-
-    fireEvent.click(screen.getByRole('switch', { name: 'Temperature' }))
+    await user.click(screen.getByRole('switch', { name: 'Temperature' }))
     await waitFor(() =>
       expect(updateAssistantMock).toHaveBeenCalledWith({
         body: expect.objectContaining({
@@ -1955,7 +1936,8 @@ describe('edit dialogs', () => {
       />
     )
 
-    selectTab('Model')
+    fireEvent.click(screen.getByRole('button', { name: 'More settings' }))
+    fireEvent.click(screen.getByRole('button', { name: /^Custom parameters:/ }))
 
     expect(await screen.findByRole('textbox', { name: 'Parameter value: stop' })).toHaveValue('END')
     expect(screen.getByRole('spinbutton', { name: 'Parameter value' })).toHaveValue('0')
@@ -1980,7 +1962,8 @@ describe('edit dialogs', () => {
       />
     )
 
-    selectTab('Model')
+    fireEvent.click(screen.getByRole('button', { name: 'More settings' }))
+    fireEvent.click(screen.getByRole('button', { name: /^Custom parameters:/ }))
 
     const input = await screen.findByRole('spinbutton', { name: 'Parameter value: temperature' })
     await user.clear(input)
@@ -1993,7 +1976,8 @@ describe('edit dialogs', () => {
   it('names the context override for what it does and states what is inherited while off', async () => {
     render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} />)
 
-    selectTab('Model')
+    fireEvent.click(screen.getByRole('button', { name: 'More settings' }))
+    fireEvent.click(screen.getByRole('button', { name: /^Custom context:/ }))
 
     // The switch overrides the globals — it does not turn context management
     // off, so it must not be named after the feature.
@@ -2013,7 +1997,8 @@ describe('edit dialogs', () => {
   it('offers the compression trigger as an inheritable field carrying its unit', async () => {
     render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} />)
 
-    selectTab('Model')
+    fireEvent.click(screen.getByRole('button', { name: 'More settings' }))
+    fireEvent.click(screen.getByRole('button', { name: /^Custom context:/ }))
 
     fireEvent.click(await screen.findByRole('switch', { name: 'Customize context management' }))
     const compress = await screen.findByRole('switch', { name: 'Compress the context when it fills up' })
@@ -2029,7 +2014,8 @@ describe('edit dialogs', () => {
   it('expresses "no message limit" as an empty named field rather than a second switch', async () => {
     render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} />)
 
-    selectTab('Model')
+    fireEvent.click(screen.getByRole('button', { name: 'More settings' }))
+    fireEvent.click(screen.getByRole('button', { name: /^Custom context:/ }))
 
     const input = await screen.findByLabelText('Recent messages kept')
     // No stored override → unlimited, shown as an empty field with a placeholder.
@@ -2054,7 +2040,7 @@ describe('edit dialogs', () => {
       />
     )
 
-    selectTab('Model')
+    fireEvent.click(screen.getByRole('button', { name: 'More settings' }))
     fireEvent.click(await screen.findByRole('switch', { name: 'Max tokens' }))
 
     await waitFor(() =>
@@ -2081,8 +2067,8 @@ describe('edit dialogs', () => {
       />
     )
 
-    selectTab('Model')
-    const maxTokensInput = await screen.findByRole('spinbutton', { name: 'Max tokens' })
+    fireEvent.click(screen.getByRole('button', { name: 'More settings' }))
+    const maxTokensInput = await screen.findByRole('spinbutton', { name: 'Max tokens value' })
 
     fireEvent.focus(maxTokensInput)
     fireEvent.change(maxTokensInput, { target: { value: String(Number.MAX_SAFE_INTEGER + 1) } })
@@ -2111,7 +2097,7 @@ describe('edit dialogs', () => {
       />
     )
 
-    selectTab('Model')
+    fireEvent.click(screen.getByRole('button', { name: 'More settings' }))
     const maxToolCallsSwitch = await screen.findByRole('switch', { name: 'Max tool call rounds' })
 
     expect(maxToolCallsSwitch).not.toBeChecked()
@@ -2143,9 +2129,8 @@ describe('edit dialogs', () => {
 
   it('polishes and restores assistant prompts through the shared action', async () => {
     fetchGenerateMock.mockResolvedValueOnce('Polished assistant prompt')
-    render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} />)
+    render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} initialTab="prompt" />)
 
-    selectTab('System Prompt')
     await expectVariablesHelpOnOpen()
     const polishButton = screen.getByRole('button', { name: POLISH_PROMPT_BUTTON })
 
@@ -2167,9 +2152,10 @@ describe('edit dialogs', () => {
   })
 
   it('generates an assistant prompt from its name when the prompt is blank', async () => {
-    render(<AssistantEditDialog open resource={{ ...ASSISTANT, prompt: '' }} onOpenChange={vi.fn()} />)
+    render(
+      <AssistantEditDialog open resource={{ ...ASSISTANT, prompt: '' }} onOpenChange={vi.fn()} initialTab="prompt" />
+    )
 
-    selectTab('System Prompt')
     const generateButton = screen.getByRole('button', { name: GENERATE_PROMPT_BUTTON })
     fireEvent.click(generateButton)
 
@@ -2185,18 +2171,17 @@ describe('edit dialogs', () => {
     expect(screen.getByRole('button', { name: POLISH_PROMPT_BUTTON })).toBeInTheDocument()
   })
 
-  it('allows closing and tab navigation while an assistant prompt action is in flight', async () => {
+  it('allows closing and page navigation while an assistant prompt action is in flight', async () => {
     fetchGenerateMock.mockReturnValueOnce(new Promise<string>(() => undefined))
     const onOpenChange = vi.fn()
-    render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={onOpenChange} />)
+    render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={onOpenChange} initialTab="prompt" />)
 
-    selectTab('System Prompt')
     fireEvent.click(screen.getByRole('button', { name: POLISH_PROMPT_BUTTON }))
     fireEvent.click(screen.getByRole('button', { name: 'Close' }))
-    selectTab('Basic')
+    fireEvent.click(screen.getByRole('button', { name: 'Back' }))
 
     await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false))
-    expect(screen.getByRole('tab', { name: 'Basic' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('heading', { name: 'More settings' })).toBeInTheDocument()
   })
 
   it('submits agent permission defaults and advanced changes', async () => {
@@ -2417,10 +2402,103 @@ describe('edit dialogs', () => {
     )
   })
 
-  it('opens the assistant edit dialog directly on the requested initial tab', () => {
-    render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} initialTab="tools.mcp" />)
+  // AC1: the main page carries identity and the model only; everything else is a level down.
+  it('opens the assistant on a main page with avatar, name, description, model, and More settings', () => {
+    render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} />)
 
-    expect(screen.getByRole('tab', { name: 'MCP' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('button', { name: 'Pick avatar' })).toBeInTheDocument()
+    expect(screen.getByLabelText('Name')).toHaveValue(ASSISTANT.name)
+    expect(screen.getByLabelText('Description')).toHaveValue(ASSISTANT.description)
+    expect(screen.getByRole('button', { name: 'Model' })).toHaveTextContent('Old Model')
+    expect(screen.getByRole('button', { name: 'More settings' })).toBeInTheDocument()
+    expect(screen.queryByRole('combobox', { name: 'Group' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('switch', { name: 'Temperature' })).not.toBeInTheDocument()
+  })
+
+  // AC2: pages stack inside one dialog; back steps up a level and keeps unsaved edits.
+  it('steps through More settings and a sub-page and back without closing or losing edits', async () => {
+    const user = userEvent.setup()
+    const onOpenChange = vi.fn()
+    render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={onOpenChange} />)
+
+    await user.clear(screen.getByLabelText('Name'))
+    await user.type(screen.getByLabelText('Name'), 'Draft name')
+    await user.click(screen.getByRole('button', { name: 'More settings' }))
+    for (const section of ['Capabilities', 'Answers', 'Advanced']) {
+      expect(screen.getByRole('region', { name: section })).toBeInTheDocument()
+    }
+    await openSubPage(user, 'System Prompt')
+    expect(screen.getByRole('heading', { name: 'System Prompt' })).toBeInTheDocument()
+    await back(user)
+    expect(screen.getByRole('heading', { name: 'More settings' })).toBeInTheDocument()
+    await back(user)
+
+    expect(screen.getByRole('heading', { name: 'Edit Assistant' })).toBeInTheDocument()
+    expect(screen.getByLabelText('Name')).toHaveValue('Draft name')
+    expect(onOpenChange).not.toHaveBeenCalledWith(false)
+  })
+
+  // AC3: knowledge counts only bases that still exist; MCP leaves out the browser server.
+  it('summarizes linked knowledge bases and enabled MCP servers on the assistant rows', async () => {
+    const user = userEvent.setup()
+    knowledgeBasesState.current = [
+      { id: 'kb-1', name: 'Knowledge One', itemCount: 3 },
+      { id: 'kb-2', name: 'Knowledge Two', itemCount: 1 }
+    ]
+    const baseQuery = useQueryMock.getMockImplementation()!
+    useQueryMock.mockImplementation((path: string, ...rest: unknown[]) =>
+      path === '/mcp-servers'
+        ? {
+            data: {
+              items: [
+                { id: 'mcp-1', name: 'MCP One', description: 'MCP description', isActive: true },
+                { id: 'browser', name: BuiltinMcpServerNames.browser, type: 'inMemory', isActive: true }
+              ]
+            },
+            isLoading: false
+          }
+        : baseQuery(path, ...rest)
+    )
+    const resource = {
+      ...ASSISTANT,
+      knowledgeBaseIds: ['kb-1', 'kb-deleted'],
+      mcpServerIds: ['mcp-1', 'browser'],
+      settings: { ...ASSISTANT.settings, mcpMode: 'manual' as const }
+    }
+    render(<AssistantEditDialog open resource={resource} onOpenChange={vi.fn()} />)
+
+    await user.click(screen.getByRole('button', { name: 'More settings' }))
+
+    expect(screen.getByRole('button', { name: 'Knowledge: Linked 1 / 2' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'MCP servers: Enabled 1 / 1' })).toBeInTheDocument()
+  })
+
+  // AC4: an emptied name says it is required and is never sent.
+  it('never saves an empty assistant name and marks it required', async () => {
+    const user = userEvent.setup()
+    render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} />)
+
+    await user.clear(screen.getByLabelText('Name'))
+
+    expect(await screen.findByText('Required')).toBeVisible()
+    await act(() => new Promise((resolve) => setTimeout(resolve, 700)))
+    expect(updateAssistantMock).not.toHaveBeenCalled()
+  })
+
+  // AC10: each existing deep-link ID still opens the page the Spec maps it to.
+  it.each([
+    [undefined, 'Edit Assistant'],
+    ['basic', 'Edit Assistant'],
+    ['prompt', 'System Prompt'],
+    ['tools.builtin', 'More settings'],
+    ['tools.knowledge', 'Knowledge'],
+    ['tools.mcp', 'More settings'],
+    ['advanced', 'More settings'],
+    ['memory', 'Edit Assistant']
+  ])('opens the assistant deep link %s on the %s page', (initialTab, title) => {
+    render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} initialTab={initialTab} />)
+
+    expect(screen.getByRole('heading', { name: title })).toBeInTheDocument()
   })
 
   it('auto-saves agent skill toggles after a debounce', async () => {
@@ -2443,8 +2521,9 @@ describe('edit dialogs', () => {
 
   it('binds an MCP server from the shared list in assistant and agent editing', async () => {
     render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} />)
-    selectTab('MCP')
+    fireEvent.click(screen.getByRole('button', { name: 'More settings' }))
     fireEvent.click(within(screen.getByRole('radiogroup', { name: 'MCP Mode' })).getByRole('radio', { name: 'Manual' }))
+    fireEvent.click(screen.getByRole('button', { name: /^MCP servers:/ }))
     expect(screen.getByRole('switch', { name: 'MCP One' })).not.toBeChecked()
 
     cleanup()
