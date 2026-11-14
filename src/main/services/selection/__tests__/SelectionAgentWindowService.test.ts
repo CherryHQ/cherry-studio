@@ -532,6 +532,38 @@ describe('SelectionAgentWindowService', () => {
         expect(stack(1)).toEqual([expect.objectContaining({ windowId: 'w1', steps: 3 })])
       })
 
+      it('leaves no capsule for a window closed back into the pool while it shrinks, and reopens it visible', async () => {
+        let finish = () => undefined as void
+        native.animateWindow.mockImplementationOnce(
+          (handle: Buffer, target: Rectangle, opacity: number) =>
+            new Promise<void>((resolve) => {
+              finish = () => {
+                land(handle, target, opacity)
+                resolve()
+              }
+            })
+        )
+        await svc._doInit()
+        const onReleased = vi
+          .mocked(application.get('WindowManager').onWindowReleasedToPoolByType)
+          .mock.calls.find(([type]) => type === WindowType.SelectionAgent)?.[1]
+        openStarted('w1')
+
+        svc.collapse('w1')
+        // Cmd+W mid-animation: the pool hides the window and keeps it for the next open.
+        windows.w1.visible = false
+        onReleased?.({ id: 'w1' } as never)
+        finish()
+        await settle()
+
+        expect(hostFor(1)).toBe(-1)
+        expect(stack(1) ?? []).toEqual([])
+        expect(wm.hide).not.toHaveBeenCalled()
+        expect(windows.w1.opacity).toBe(1)
+        svc.restore('host-1', 'w1')
+        expect(windows.w1.visible).toBe(false)
+      })
+
       it('restores over a full-screen app on its capsule display with the Dock hidden again, growing back to its bounds', async () => {
         openStarted('w1')
         openStarted('w2', RUNNING, 2)

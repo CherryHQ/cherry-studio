@@ -130,7 +130,7 @@ See [Warmup Mechanics](./window-manager-warmup-mechanics.md) for the full pool c
 | Feature | Description |
 |---------|-------------|
 | Lifecycle modes | `default`, `singleton`, `pooled` — covers all window patterns |
-| Window lifecycle hooks (`onWindowCreated` / `onWindowDestroyed`, plus type-filtered `onWindowCreatedByType` / `onWindowDestroyedByType`) | Domain services inject behavior at creation and clean up on destruction via typed `Emitter<ManagedWindow>` events |
+| Window lifecycle hooks (`onWindowCreated` / `onWindowDestroyed` / `onWindowReleasedToPool`, plus their type-filtered `*ByType` variants) | Domain services inject behavior at creation and clean up on destruction or pool release via typed `Emitter<ManagedWindow>` events |
 | `broadcast()` / `broadcastToType()` | IPC fan-out to all or type-filtered windows |
 | `open({ initData })` / `create({ initData })` / `setInitData()` / `getInitData()` | Init payload passed atomically on open/create; automatically pushed to renderer via `window.reused` on reuse paths |
 | `suspendPool()` / `resumePool()` | Pause pool tracking without destroying in-use windows |

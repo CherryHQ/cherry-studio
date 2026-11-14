@@ -1302,6 +1302,52 @@ describe('WindowManager', () => {
       expect(listener).not.toHaveBeenCalled()
     })
 
+    it('fires onWindowReleasedToPool when a pooled window goes back to the idle pool', () => {
+      const released = vi.fn()
+      wm.onWindowReleasedToPool(released)
+
+      const id = wm.open('pooled' as never)
+      wm.close(id)
+
+      expect(released).toHaveBeenCalledTimes(1)
+      expect(released).toHaveBeenCalledWith(expect.objectContaining({ id, type: 'pooled' }))
+    })
+
+    it('fires onWindowReleasedToPool when a native close is intercepted into the pool', () => {
+      const released = vi.fn()
+      wm.onWindowReleasedToPoolByType('pooled' as never, released)
+
+      const id = wm.open('pooled' as never)
+      createdWindows[0].emit('close', { preventDefault: vi.fn() })
+
+      expect(released).toHaveBeenCalledWith(expect.objectContaining({ id }))
+    })
+
+    it('fires only onWindowDestroyed when a release destroys the window over capacity', () => {
+      const released = vi.fn()
+      const destroyed = vi.fn()
+      wm.onWindowReleasedToPool(released)
+      wm.onWindowDestroyed(destroyed)
+
+      const ids = Array.from({ length: 5 }, () => wm.open('pooled' as never))
+      wm.close(ids[0])
+      simulateWindowClosed(wm, ids[0])
+
+      expect(released).not.toHaveBeenCalled()
+      expect(destroyed).toHaveBeenCalledWith(expect.objectContaining({ id: ids[0] }))
+    })
+
+    it('fires onWindowReleasedToPool once for a repeated close', () => {
+      const released = vi.fn()
+      wm.onWindowReleasedToPool(released)
+
+      const id = wm.open('pooled' as never)
+      wm.close(id)
+      wm.close(id)
+
+      expect(released).toHaveBeenCalledTimes(1)
+    })
+
     it('fires onWindowCreated for pooled windows only on initial creation (not recycle)', () => {
       const listener = vi.fn()
       wm.onWindowCreated(listener)
