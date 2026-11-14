@@ -1,16 +1,25 @@
-import { setupTestDatabase } from '@test-helpers/db'
+import { setupTestDatabase, withRoot } from '@test-helpers/db'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
+import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
+import { artifactTable } from '@data/db/schemas/artifact'
 import { assistantTable } from '@data/db/schemas/assistant'
 import { fileEntryTable } from '@data/db/schemas/file'
+import { messageTable } from '@data/db/schemas/message'
 import { topicTable } from '@data/db/schemas/topic'
 import { artifactService } from '@data/services/ArtifactService'
 import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 
 const NOW = Date.UTC(2026, 10, 13, 12)
+const DAY = 24 * 60 * 60 * 1000
+
+function backfill() {
+  const reports = artifactService.findPastAgentReports()
+  if (reports) artifactService.backfillPastOutputs(reports.map((report) => ({ ...report, size: null })))
+}
 
 describe('ArtifactService', () => {
   const dbh = setupTestDatabase()
@@ -127,6 +136,132 @@ describe('ArtifactService', () => {
       expect(() => recordAt(NOW, 'reviewer', 'missing', ['/ws/a.pdf'])).toThrow()
       expect(artifactService.list({ agentId: 'reviewer' }).counts.all).toBe(0)
     })
+
+    describe('past reports', () => {
+      let messageSeq = 0
+      const report = (toolName: string, artifacts: unknown, extra: Record<string, unknown> = {}) => ({
+        type: 'dynamic-tool',
+        toolName,
+        toolCallId: `call-${messageSeq}`,
+        state: 'output-available',
+        input: { artifacts, summary: 'Done' },
+        output: { content: 'Recorded 1 artifact(s).' },
+        ...extra
+      })
+      function message(sessionId: string, createdAt: number, parts: unknown[]) {
+        dbh.db
+          .insert(agentSessionMessageTable)
+          .values({
+            id: `m-${++messageSeq}`,
+            sessionId,
+            role: 'assistant',
+            data: { parts: parts as never },
+            status: 'success',
+            createdAt,
+            updatedAt: createdAt
+          })
+          .run()
+      }
+
+      it("lists the deliverables reported in every past session, in each transport's tool shape", () => {
+        seed()
+        message('s-1', NOW - 10 * DAY, [
+          { type: 'text', text: 'Here is the report' },
+          report('mcp__cherry-tools__report_artifacts', [{ path: '/ws/report.md', description: 'Weekly report' }])
+        ])
+        message('s-2', NOW - 3 * DAY, [report('mcp__cherry_tools__report_artifacts', [{ path: 'out/chart.png' }])])
+        message('s-2', NOW, [
+          {
+            type: 'tool-report_artifacts',
+            toolCallId: 'static',
+            state: 'output-available',
+            input: { artifacts: [{ path: '/ws/data.csv' }] }
+          }
+        ])
+        message('s-other', NOW, [report('mcp__cherry-tools__report_artifacts', [{ path: '/ws/foreign.pdf' }])])
+
+        backfill()
+
+        const list = artifactService.list({ agentId: 'reviewer' })
+        expect(
+          list.items.map(({ sourceId, path, title, kind, reportedAt }) => ({ sourceId, path, title, kind, reportedAt }))
+        ).toEqual([
+          {
+            sourceId: 's-2',
+            path: '/ws/data.csv',
+            title: 'data.csv',
+            kind: 'file',
+            reportedAt: new Date(NOW).toISOString()
+          },
+          {
+            sourceId: 's-2',
+            path: '/ws/out/chart.png',
+            title: 'chart.png',
+            kind: 'media',
+            reportedAt: new Date(NOW - 3 * DAY).toISOString()
+          },
+          {
+            sourceId: 's-1',
+            path: '/ws/report.md',
+            title: 'Weekly report',
+            kind: 'page',
+            reportedAt: new Date(NOW - 10 * DAY).toISOString()
+          }
+        ])
+        expect(artifactService.list({ agentId: 'writer' }).items.map((item) => item.path)).toEqual(['/ws/foreign.pdf'])
+      })
+
+      it('keeps one row per session and path, with its newest report', () => {
+        seed()
+        message('s-1', NOW - 2 * DAY, [report('report_artifacts', [{ path: '/ws/a.md', description: 'Draft' }])])
+        message('s-1', NOW - DAY, [report('report_artifacts', [{ path: '/ws/a.md', description: 'Final' }])])
+        message('s-1', NOW - 3 * DAY, [report('report_artifacts', [{ path: '/ws/live.md', description: 'Old' }])])
+        recordAt(NOW, 'reviewer', 's-1', ['/ws/live.md'])
+
+        backfill()
+
+        const items = artifactService.list({ agentId: 'reviewer' }).items
+        expect(items.map(({ path, title, reportedAt }) => ({ path, title, reportedAt }))).toEqual([
+          { path: '/ws/live.md', title: 'live.md', reportedAt: new Date(NOW).toISOString() },
+          { path: '/ws/a.md', title: 'Final', reportedAt: new Date(NOW - DAY).toISOString() }
+        ])
+      })
+
+      it('runs once, and indexing the same reports again adds nothing', () => {
+        seed()
+        message('s-1', NOW, [report('report_artifacts', [{ path: '/ws/a.md' }, { path: '/ws/b.png' }])])
+        const reports = artifactService.findPastAgentReports()!
+
+        backfill()
+        artifactService.backfillPastOutputs(reports.map((item) => ({ ...item, size: null })))
+
+        expect(artifactService.findPastAgentReports()).toBeNull()
+        expect(dbh.db.select().from(artifactTable).all()).toHaveLength(2)
+      })
+
+      it('skips deleted sessions and malformed or unfinished calls', () => {
+        seed()
+        message('s-deleted', NOW, [report('report_artifacts', [{ path: '/ws/trashed.md' }])])
+        message('s-1', NOW, [
+          null,
+          { state: 'output-available' },
+          {
+            type: 'dynamic-tool',
+            toolName: 42,
+            state: 'output-available',
+            input: { artifacts: [{ path: '/ws/x.md' }] }
+          },
+          report('report_artifacts', [{ path: '/ws/failed.md' }], { state: 'output-error' }),
+          report('report_artifacts', [{ path: '   ' }]),
+          report('report_artifacts', 'not a list'),
+          report('report_artifacts', [{ path: '/ws/kept.md' }])
+        ])
+
+        backfill()
+
+        expect(dbh.db.select({ path: artifactTable.path }).from(artifactTable).all()).toEqual([{ path: '/ws/kept.md' }])
+      })
+    })
   })
 
   describe('Assistant outputs', () => {
@@ -199,6 +334,67 @@ describe('ArtifactService', () => {
       dbh.sqlite.prepare('DELETE FROM file_entry WHERE id = ?').run(IMAGE_1)
 
       expect(artifactService.list({ assistantId: 'writer' }).items.map((item) => item.fileEntryId)).toEqual([IMAGE_2])
+    })
+
+    it('lists the images generated in past topics, once, at the time of their message', () => {
+      seed()
+      const generated = (output: unknown, state = 'output-available') => ({
+        type: 'dynamic-tool',
+        toolName: 'generate_image',
+        toolCallId: 'image',
+        state,
+        input: { prompt: 'a cover' },
+        output
+      })
+      const message = (id: string, topicId: string, createdAt: number, parts: unknown[]) => ({
+        id,
+        parentId: null,
+        topicId,
+        role: 'assistant',
+        data: { parts: parts as never },
+        status: 'success',
+        createdAt,
+        updatedAt: createdAt
+      })
+      dbh.db
+        .insert(messageTable)
+        .values(
+          withRoot('t-1', [
+            message('m-1', 't-1', NOW - DAY, [
+              generated([
+                { id: IMAGE_1, name: 'cover.png' },
+                { id: '019606a0-0000-7000-8000-0000000000ff', name: 'gone.png' }
+              ])
+            ]),
+            message('m-2', 't-1', NOW, [
+              generated({ content: [{ id: IMAGE_2, name: 'banner.png' }] }),
+              generated([{ id: 'x' }], 'output-error')
+            ])
+          ])
+        )
+        .run()
+      dbh.db
+        .insert(messageTable)
+        .values(
+          withRoot('t-deleted', [message('m-3', 't-deleted', NOW, [generated([{ id: IMAGE_1, name: 'cover.png' }])])])
+        )
+        .run()
+      vi.spyOn(Date, 'now').mockReturnValue(NOW + DAY)
+      artifactService.recordTopicFiles('t-1', [IMAGE_2])
+      vi.restoreAllMocks()
+
+      backfill()
+      artifactService.backfillPastOutputs([])
+
+      expect(
+        artifactService
+          .list({ assistantId: 'writer' })
+          .items.map(({ fileEntryId, reportedAt }) => ({ fileEntryId, reportedAt }))
+      ).toEqual([
+        { fileEntryId: IMAGE_2, reportedAt: new Date(NOW + DAY).toISOString() },
+        { fileEntryId: IMAGE_1, reportedAt: new Date(NOW - DAY).toISOString() }
+      ])
+      expect(dbh.db.select().from(artifactTable).all()).toHaveLength(2)
     })
   })
 })

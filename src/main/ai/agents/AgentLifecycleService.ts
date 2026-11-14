@@ -15,6 +15,7 @@ import type {
 import { KeyedMutex } from '@shared/utils/async'
 
 import { buildAgentSessionTopicId } from '../agentSession/topic'
+import { backfillPastOutputs } from '../mcp/servers/cherryReportArtifacts'
 import { reclaimPurgedRuntimeSessions, sweepAgentOrphans } from './agentOrphanSweep'
 import { agentWorkspaceStorageService } from './AgentWorkspaceStorageService'
 import { reclaimHeartbeatWorkspacesTx } from './heartbeatSchedule'
@@ -58,6 +59,10 @@ export class AgentLifecycleService extends BaseService {
 
   protected override onReady(): void {
     application.get('DbService').withWriteTx((tx) => this.reconcileSchedulesTx(tx))
+  }
+
+  protected override onAllReady(): void {
+    void backfillPastOutputs()
   }
 
   protected override async onStop(): Promise<void> {

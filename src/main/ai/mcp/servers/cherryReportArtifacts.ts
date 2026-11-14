@@ -46,3 +46,19 @@ export async function recordReportedArtifacts(
     logger.warn('Failed to index reported artifacts', { sessionId: context.sessionId, error })
   }
 }
+
+/**
+ * Index the outputs created before the index existed, once. Runs in the background after start; a
+ * failure is logged and retried on the next start, and never affects the Outputs list.
+ */
+export async function backfillPastOutputs(): Promise<void> {
+  try {
+    const reports = artifactService.findPastAgentReports()
+    if (!reports) return
+    const sized = await Promise.all(reports.map(async (report) => ({ ...report, size: await fileSize(report.path) })))
+    artifactService.backfillPastOutputs(sized)
+    logger.info('Backfilled past outputs', { agentReports: sized.length })
+  } catch (error) {
+    logger.warn('Failed to backfill past outputs', { error })
+  }
+}
