@@ -134,6 +134,22 @@ const CronInputSchema = z.object({
         'Timeout in minutes before the task is aborted. Default is 2 on add; omit on update to keep the current timeout. Use 0 for no timeout.'
       )
   ),
+  retry_max: z
+    .number()
+    .int()
+    .min(0)
+    .max(10)
+    .optional()
+    .describe(
+      'Retry a failed run up to this many extra times (so at most retry_max + 1 attempts). 0 disables retry. Omit on update to keep the current setting; omit on add for no retry.'
+    ),
+  retry_backoff_seconds: z
+    .number()
+    .int()
+    .min(0)
+    .max(3600)
+    .optional()
+    .describe('Seconds to wait between retry attempts. Default is 30 when retry_max is set.'),
   reuse_session: z
     .boolean()
     .optional()
@@ -617,6 +633,8 @@ function saveJob(ctx: AutonomyToolsContext, args: CronInput, action: 'add' | 'up
     at,
     timeout_minutes: timeoutMinutes,
     reuse_session: reuseSession,
+    retry_max: retryMax,
+    retry_backoff_seconds: retryBackoffSeconds,
     id
   } = args
   if (action === 'update' && !id) throw new Error("'id' is required for update")
@@ -662,6 +680,9 @@ function saveJob(ctx: AutonomyToolsContext, args: CronInput, action: 'add' | 'up
     trigger,
     timeoutMinutes,
     channelIds,
+    ...(retryMax !== undefined
+      ? { retry: retryMax === 0 ? null : { max: retryMax, backoffSeconds: retryBackoffSeconds ?? 30 } }
+      : {}),
     ...(reuseSession !== undefined ? { reuseSession } : {})
   }
   const task =

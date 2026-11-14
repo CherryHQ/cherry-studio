@@ -926,7 +926,11 @@ export class JobManager extends BaseService {
     const now = Date.now()
     const scheduledAt = opts.scheduledAt ?? now
     const status = scheduledAt > now ? 'delayed' : 'pending'
-    const maxAttempts = opts.maxAttempts ?? handler.defaultRetryPolicy?.maxAttempts ?? DEFAULT_RETRY_POLICY.maxAttempts
+    const maxAttempts =
+      opts.maxAttempts ??
+      handler.resolveRetryPolicy?.(input)?.maxAttempts ??
+      handler.defaultRetryPolicy?.maxAttempts ??
+      DEFAULT_RETRY_POLICY.maxAttempts
 
     const insertRow: InsertJobRow = {
       type,
@@ -1850,7 +1854,8 @@ export class JobManager extends BaseService {
                 retryable: true
               }
 
-        const retryPolicy = handler.defaultRetryPolicy ?? DEFAULT_RETRY_POLICY
+        const retryPolicy =
+          handler.resolveRetryPolicy?.(row.input) ?? handler.defaultRetryPolicy ?? DEFAULT_RETRY_POLICY
         const userCancel = isAbort && !isTimeout
         const canRetry = !userCancel && error.retryable && row.attempt + 1 < row.maxAttempts
 
@@ -1995,7 +2000,11 @@ export class JobManager extends BaseService {
       resolver.resolve(snapshot)
       this.finishedResolvers.delete(jobId)
     }
-    // A completed job frees a global slot. If a dispatch was previously blocked
+    this.dispatchFreedSlot(snapshot.queue)
+  }
+
+  private dispatchFreedSlot(queue: string): void {
+    // A completed or delayed job frees a global slot. If a dispatch was previously blocked
     // solely by the global cap, re-kick every queue so a queue starved by the
     // cap (with its own slots free) wakes now instead of waiting for the next
     // promotion tick. The flag self-corrects: if the cap is still binding, the
@@ -2004,7 +2013,7 @@ export class JobManager extends BaseService {
       this.globalCapReached = false
       this.dispatchAll()
     } else {
-      void this.dispatch(snapshot.queue)
+      void this.dispatch(queue)
     }
   }
 
@@ -2090,6 +2099,7 @@ export class JobManager extends BaseService {
       this.promoteDueAtFire(retryId, jobId, queue)
     })
     logger.info('Retry scheduled', { jobId, nextAttempt, scheduledAt, queue })
+    this.dispatchFreedSlot(queue)
   }
 
   // ---------------- Schedule arming + catch-up ----------------

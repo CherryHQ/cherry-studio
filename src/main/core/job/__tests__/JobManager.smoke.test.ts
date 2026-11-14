@@ -204,6 +204,54 @@ describe('JobManager smoke (dummy.echo)', () => {
     activityDispose.mockClear()
   })
 
+  it.each([
+    { scope: 'same queue', slots: 3, waitingQueue: undefined },
+    { scope: 'global cap', slots: 50, waitingQueue: 'retry-waiting-other' }
+  ])(
+    'dispatches pending work blocked by $scope while failed attempts wait for retry',
+    async ({ slots, waitingQueue }) => {
+      const type = `dummy.retry-backoff-${slots}`
+      let release!: () => void
+      const gate = new Promise<void>((resolve) => {
+        release = resolve
+      })
+      let entered = 0
+      jobManager.registerHandler(type as never, {
+        recovery: 'abandon',
+        defaultConcurrency: slots,
+        defaultRetryPolicy: { maxAttempts: 2, backoff: 'fixed', baseDelayMs: 3_600_000, maxDelayMs: 3_600_000 },
+        async execute(ctx) {
+          entered += 1
+          if ((ctx.input as { fail: boolean }).fail) {
+            await gate
+            throw new Error('retryable probe failure')
+          }
+          return { done: true }
+        }
+      })
+      const first = Array.from({ length: slots }, () => jobManager.enqueue(type as never, { fail: true } as never))
+      let settled = 0
+      for (const handle of first)
+        void handle.finished.then(() => {
+          settled += 1
+        })
+      await vi.waitFor(() => expect(entered).toBe(slots))
+      const fourth = jobManager.enqueue(type as never, { fail: false } as never, { queue: waitingQueue })
+      await drainTrailingDispatch()
+      expect(jobService.getById(fourth.id)?.status).toBe('pending')
+      release()
+      await vi.waitFor(() =>
+        expect(first.map((h) => jobService.getById(h.id)?.status)).toEqual(
+          Array.from({ length: slots }, () => 'delayed')
+        )
+      )
+      await drainTrailingDispatch()
+      expect(jobService.getById(fourth.id)?.status).toBe('completed')
+      expect(settled).toBe(0)
+      expect(first.map((h) => jobService.getById(h.id)?.status)).toEqual(Array.from({ length: slots }, () => 'delayed'))
+    }
+  )
+
   it('runs a job end-to-end (pending → running → completed)', async () => {
     const handle = jobManager.enqueue('dummy.echo' as never, { message: 'hello' } as never)
     expect(handle.snapshot.status).toBe('pending')
