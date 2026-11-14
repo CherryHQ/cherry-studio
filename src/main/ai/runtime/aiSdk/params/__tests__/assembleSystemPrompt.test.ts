@@ -1,7 +1,8 @@
+import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import type { ToolSet } from 'ai'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import type { Assistant } from '@shared/data/types/assistant'
+import type { Assistant, AssistantReplyLanguage } from '@shared/data/types/assistant'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 
 vi.mock('@main/utils/prompt', () => ({
@@ -65,5 +66,41 @@ describe('assembleSystemPrompt', () => {
     expect(out).toContain('base')
 
     // tool_exec is intentionally NOT advertised to the model (privilege-escalation surface).
+  })
+
+  describe('reply language', () => {
+    const withLanguage = (replyLanguage?: AssistantReplyLanguage) =>
+      makeAssistant({ prompt: 'base', settings: { ...makeAssistant().settings, replyLanguage } })
+
+    afterEach(() => MockMainPreferenceServiceUtils.resetMocks())
+
+    it('asks for the language the Assistant names', async () => {
+      const out = await assembleSystemPrompt({
+        assistant: withLanguage({ mode: 'custom', language: 'Deutsch' }),
+        model
+      })
+
+      expect(out).toMatch(/^base\n\n.*respond in Deutsch\./)
+    })
+
+    it('follows the global reply language when the Assistant inherits it', async () => {
+      MockMainPreferenceServiceUtils.setPreferenceValue('agent.language', '日本語')
+
+      const out = await assembleSystemPrompt({ assistant: withLanguage({ mode: 'inherit' }), model })
+
+      expect(out).toContain('respond in 日本語.')
+    })
+
+    it.each([
+      { name: 'an Assistant saved before the setting existed', replyLanguage: undefined },
+      { name: 'no constraint', replyLanguage: { mode: 'off' } as const },
+      { name: 'inheriting while no global language is set', replyLanguage: { mode: 'inherit' } as const, global: null }
+    ])('adds nothing for $name', async ({ replyLanguage, global = 'English' }) => {
+      MockMainPreferenceServiceUtils.setPreferenceValue('agent.language', global)
+
+      const out = await assembleSystemPrompt({ assistant: withLanguage(replyLanguage), model })
+
+      expect(out).toBe('base')
+    })
   })
 })
