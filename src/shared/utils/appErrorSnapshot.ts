@@ -5,7 +5,7 @@ const MESSAGE_LIMIT = 4_000
 const PARAM_LIMIT = 200
 const RESPONSE_LIMIT = 1_000
 
-export function createAppErrorId(): string {
+function createAppErrorId(): string {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return crypto.randomUUID()
   return `err-${Date.now()}-${Math.random().toString(16).slice(2)}`
 }
@@ -13,7 +13,7 @@ export function createAppErrorId(): string {
 export function createAppErrorContext(
   input: Omit<AppErrorContext, 'id' | 'occurredAt'> & { readonly id?: string; readonly occurredAt?: string }
 ): AppErrorContext {
-  const params = copyParams(input.params)
+  const params = summarizeErrorParams(input.params)
   const statusCode = httpStatus(input.statusCode)
   const responseBody = summarizeProviderResponse(input.responseBody)
   return {
@@ -65,28 +65,8 @@ function redactText(value: string, limit: number): string {
   return redacted.length > limit ? `${redacted.slice(0, limit)}…` : redacted
 }
 
-function copyParams(
-  params: AppErrorContext['params'],
-  allow?: readonly string[]
-): AppErrorContext['params'] | undefined {
-  if (!params) return undefined
-  const allowed = allow ? new Set(allow.map((key) => normalizedKey(key))) : undefined
-  const projected: Record<string, string | number | boolean | null> = {}
-  for (const [key, value] of Object.entries(params)) {
-    if (isContentParamKey(key)) continue
-    if (allowed && !allowed.has(normalizedKey(key))) continue
-    if (isSensitiveKey(key)) {
-      projected[key] = REDACTED
-      continue
-    }
-    if (typeof value === 'string') projected[key] = value.slice(0, PARAM_LIMIT)
-    else if (typeof value === 'number' || typeof value === 'boolean' || value === null) projected[key] = value
-  }
-  return Object.keys(projected).length > 0 ? projected : undefined
-}
-
 function projectParams(params: AppErrorContext['params']): AppErrorContext['params'] | undefined {
-  const copied = copyParams(params)
+  const copied = summarizeErrorParams(params)
   if (!copied) return undefined
   const projected: Record<string, string | number | boolean | null> = {}
   for (const [key, value] of Object.entries(copied)) {
@@ -122,11 +102,6 @@ export function projectAppErrorContext(context: AppErrorContext, view: 'export' 
   }
 }
 
-/**
- * Scalar summary of a parameter bag. Drops prompts, attachments, and nested values.
- * `allow` keeps only those keys (painting uses `PAINTING_ERROR_PARAM_KEYS`).
- * Sensitive key names are replaced even when they carry no recognizable token.
- */
 function httpStatus(status: number | undefined): number | undefined {
   if (typeof status !== 'number' || !Number.isInteger(status) || status < 0 || status > 999) return undefined
   return status
@@ -185,6 +160,10 @@ export function summarizeProviderResponse(body: string | undefined): string | un
   return redacted.length > 0 ? redacted : undefined
 }
 
+/**
+ * Scalar summary of a parameter bag. Drops prompts, attachments, and nested values.
+ * `allow` keeps only those keys. Sensitive key names are replaced even when they carry no recognizable token.
+ */
 export function summarizeErrorParams(
   params: Readonly<Record<string, unknown>> | undefined,
   allow?: readonly string[]

@@ -2,7 +2,7 @@ import type { SerializedError } from '@renderer/types/error'
 import type { AppErrorContext } from '@shared/types/appError'
 import type { DoctorSubjectRef } from '@shared/types/doctor'
 import type { DoctorAgentIncident } from '@shared/types/doctorAgent'
-import { createAppErrorContext, summarizeErrorParams, summarizeProviderResponse } from '@shared/utils/appErrorSnapshot'
+import { createAppErrorContext, summarizeErrorParams, summarizeProviderResponse } from '@shared/utils/appError'
 
 import { presentedRouteService } from './PresentedRouteService'
 

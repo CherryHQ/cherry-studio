@@ -27,24 +27,6 @@ export interface AppErrorContext {
   readonly imageOnly?: boolean
 }
 
-/**
- * Painting parameter names safe to keep on an error snapshot.
- * Anything else — prompts, images, and unknown vendor fields — stays out.
- */
-export const PAINTING_ERROR_PARAM_KEYS = [
-  'aspect_ratio',
-  'guidance',
-  'height',
-  'mode',
-  'n',
-  'quality',
-  'seed',
-  'size',
-  'steps',
-  'style',
-  'width'
-] as const
-
 /** Keys that carry prompt or attachment content and must not enter an error snapshot. */
 export const APP_ERROR_CONTENT_PARAM_KEYS = [
   'attachment',
