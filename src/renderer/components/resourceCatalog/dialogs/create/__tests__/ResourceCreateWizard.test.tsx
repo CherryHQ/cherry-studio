@@ -1,3 +1,4 @@
+import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
 import { act, cleanup, fireEvent, render, type RenderResult, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { Activity, type ComponentProps, useState } from 'react'
@@ -184,6 +185,7 @@ const BASIC = /library\.config\.dialogs\.create\.step\.basic$/
 const KNOWLEDGE = /library\.config\.dialogs\.create\.step\.knowledge$/
 const DEFAULT_AGENT_SETTINGS_PAYLOAD = {
   disabledTools: [],
+  channels: [],
   agentSettings: {
     languageMode: 'inherit',
     languageCustom: '',
@@ -864,7 +866,7 @@ describe('ResourceCreateWizard agent steps', () => {
     ])
   })
 
-  it('walks an Agent through six steps and sends what each one set', async () => {
+  it('walks an Agent through seven steps and sends what each one set', async () => {
     const user = userEvent.setup()
     const onSubmit = await startManual(user)
 
@@ -874,6 +876,7 @@ describe('ResourceCreateWizard agent steps', () => {
       'library.config.dialogs.create.step.capability',
       'library.config.dialogs.create.step.knowledge',
       MCP_ROW,
+      'settings.channels.title',
       'library.config.dialogs.edit.advanced_tab'
     ])
     await user.click(screen.getByRole('button', { name: NEXT }))
@@ -884,6 +887,7 @@ describe('ResourceCreateWizard agent steps', () => {
     await user.click(screen.getByRole('button', { name: 'select knowledge base' }))
     await user.click(screen.getByRole('button', { name: NEXT }))
     await user.click(screen.getByRole('button', { name: 'select MCP server' }))
+    await user.click(screen.getByRole('button', { name: NEXT }))
     await user.click(screen.getByRole('button', { name: NEXT }))
     await user.clear(screen.getByRole('textbox', { name: 'draft prompt' }))
     await user.type(screen.getByRole('textbox', { name: 'draft prompt' }), 'Review carefully')
@@ -940,6 +944,93 @@ describe('ResourceCreateWizard agent steps', () => {
     expect(command.configuration).toEqual({ avatar: '✨', permission_mode: 'auto' })
     expect(command).not.toHaveProperty('disabledTools')
     expect(command).not.toHaveProperty('mcps')
+    expect(command).not.toHaveProperty('channels')
+  })
+
+  describe('channels', () => {
+    const ADD_CHANNEL = 'library.config.dialogs.create.channels.add'
+    const TELEGRAM = 'agent.channels.telegram.title'
+    const WECHAT = 'agent.channels.wechat.title'
+    const DONE = 'library.config.dialogs.create.channels.done'
+
+    async function openChannelsStep(user: ReturnType<typeof userEvent.setup>) {
+      const onSubmit = await startManual(user)
+      while (!screen.queryByRole('button', { name: ADD_CHANNEL })) {
+        await user.click(screen.getByRole('button', { name: NEXT }))
+      }
+      return onSubmit
+    }
+    async function addChannel(user: ReturnType<typeof userEvent.setup>, platform: string) {
+      // The shared UI mock renders menu items as always-visible buttons.
+      await user.click(screen.getByRole('button', { name: platform }))
+    }
+
+    it('adds, edits and removes channel drafts, and creates the Agent with the ones left', async () => {
+      const user = userEvent.setup()
+      const onSubmit = await openChannelsStep(user)
+
+      await addChannel(user, TELEGRAM)
+      await user.type(screen.getByPlaceholderText('agent.channels.telegram.botTokenPlaceholder'), ' 123:abc ')
+      const name = screen.getByDisplayValue(TELEGRAM)
+      await user.clear(name)
+      await user.type(name, 'Ops bot')
+      await user.click(screen.getByRole('button', { name: DONE }))
+      await user.click(screen.getByRole('switch', { name: 'common.enabled Ops bot' }))
+
+      await addChannel(user, WECHAT)
+      await user.click(screen.getByRole('button', { name: DONE }))
+      await user.click(screen.getByRole('button', { name: `common.delete ${WECHAT}` }))
+      expect(screen.queryByRole('button', { name: `common.edit ${WECHAT}` })).not.toBeInTheDocument()
+
+      await user.click(screen.getByRole('button', { name: 'common.edit Ops bot' }))
+      await user.type(screen.getByPlaceholderText('agent.channels.telegram.chatIdsPlaceholder'), '42, 43')
+      await user.click(screen.getByRole('button', { name: DONE }))
+
+      await walkToLastStep(user)
+      await user.click(screen.getByRole('button', { name: CREATE }))
+
+      await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1))
+      expect(submittedCommand(onSubmit).channels).toEqual([
+        {
+          type: 'telegram',
+          name: 'Ops bot',
+          isActive: true,
+          permissionMode: null,
+          config: { bot_token: '123:abc', allowed_chat_ids: ['42', '43'] }
+        }
+      ])
+    })
+
+    it('blocks Next until a channel switched on has its credentials', async () => {
+      const user = userEvent.setup()
+      await openChannelsStep(user)
+
+      await addChannel(user, TELEGRAM)
+      await user.click(screen.getByRole('button', { name: DONE }))
+      await user.click(screen.getByRole('switch', { name: `common.enabled ${TELEGRAM}` }))
+
+      expect(screen.getByRole('alert')).toHaveTextContent('library.config.dialogs.create.channels.invalid')
+      expect(screen.getByRole('button', { name: NEXT })).toBeDisabled()
+
+      await user.click(screen.getByRole('button', { name: `common.edit ${TELEGRAM}` }))
+      await user.type(screen.getByPlaceholderText('agent.channels.telegram.botTokenPlaceholder'), '123:abc')
+      await user.click(screen.getByRole('button', { name: DONE }))
+
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+      expect(screen.getByRole('button', { name: NEXT })).toBeEnabled()
+    })
+
+    it('keeps a WeChat draft off and pending its QR login, which needs the Agent to exist', async () => {
+      const user = userEvent.setup()
+      await openChannelsStep(user)
+
+      await addChannel(user, WECHAT)
+      expect(screen.getByText('agent.channels.qrAfterCreate')).toBeInTheDocument()
+      await user.click(screen.getByRole('button', { name: DONE }))
+
+      expect(screen.getByRole('switch', { name: `common.enabled ${WECHAT}` })).toBeDisabled()
+      expect(screen.getByText('library.config.dialogs.create.channels.qr_pending')).toBeInTheDocument()
+    })
   })
 })
 
@@ -1411,6 +1502,34 @@ describe('ResourceCreateWizard result page', () => {
     expect(summaryValue(MCP_ROW)).toHaveTextContent(`${RESULT}.empty.not_bound`)
     expect(summaryValue(KNOWLEDGE_ROW)).toHaveTextContent(`${RESULT}.empty.not_linked`)
     expect(summaryValue(HEARTBEAT_ROW)).toHaveTextContent(`${RESULT}.heartbeat_off`)
+    expect(summaryValue('settings.channels.title')).toHaveTextContent(`${RESULT}.empty.not_connected`)
+  })
+
+  it("lists the Agent's channels and starts a pending QR login from the result page", async () => {
+    MockUseDataApiUtils.mockQueryResult('/agent-channels', {
+      data: [
+        { id: 'ch-wechat', type: 'wechat', name: 'WeChat bot', isActive: false, config: { token_path: '' } },
+        { id: 'ch-telegram', type: 'telegram', name: 'Ops bot', isActive: true, config: { bot_token: 't' } }
+      ] as never
+    })
+    const request = vi.mocked(window.api.ipcApi.request)
+    request.mockResolvedValue({ ok: true, data: undefined })
+    const user = userEvent.setup()
+    render(<ResultHost kind="agent" onSubmit={vi.fn().mockResolvedValue('agent-1')} />)
+
+    await createManually(user)
+
+    const channels = await waitFor(() => summaryValue('settings.channels.title')!)
+    expect(channels).toHaveTextContent(`WeChat bot${RESULT}.qr_pending${RESULT}.qr_login${LIST_SEPARATOR}Ops bot`)
+    await user.click(screen.getByRole('button', { name: `${RESULT}.qr_login` }))
+    expect(request).toHaveBeenCalledWith('channel.update', { channelId: 'ch-wechat', updates: { isActive: true } })
+
+    // Abandoning the login switches the channel off again, so it stays pending instead of polling.
+    const qrDialog = screen.getByRole('heading', { name: 'agent.channels.wechat.qrTitle' }).closest('[role="dialog"]')!
+    await user.click(qrDialog.querySelector<HTMLElement>('[data-slot="dialog-close"]')!)
+    await waitFor(() =>
+      expect(request).toHaveBeenCalledWith('channel.update', { channelId: 'ch-wechat', updates: { isActive: false } })
+    )
   })
 
   it('counts a tool switched off and shows the heartbeat interval', async () => {

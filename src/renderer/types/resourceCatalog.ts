@@ -1,4 +1,5 @@
 import type { Tool } from '@shared/ai/tool'
+import type { AgentChannelDraft } from '@shared/data/api/schemas/agentChannels'
 import type { AgentEntity, AgentPermissionMode } from '@shared/data/api/schemas/agents'
 import type { AgentType, InstalledSkill } from '@shared/data/types/agent'
 import type { Assistant } from '@shared/data/types/assistant'
@@ -31,6 +32,8 @@ export type ResourceCreateValues = {
   disabledTools?: string[]
   /** Agent-only advanced settings. */
   agentSettings?: AgentCreateSettings
+  /** Agent-only channels, created with the Agent. */
+  channels?: AgentChannelDraft[]
 }
 
 /** Reply language, heartbeat and env vars in the Agent edit form's shape, so create saves what edit would. */

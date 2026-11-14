@@ -37,6 +37,7 @@ export function buildCreateAgentCommand(values: ResourceCreateValues): CreateAge
     ...(caps.skills ? { skillIds: values.skillIds } : {}),
     ...(caps.mcp && values.mcpServerIds?.length ? { mcps: values.mcpServerIds } : {}),
     ...(values.disabledTools?.length ? { disabledTools: values.disabledTools } : {}),
+    ...(values.channels?.length ? { channels: values.channels } : {}),
     configuration: {
       ...(values.agentSettings ? buildAgentSettingsConfiguration(values.agentSettings) : {}),
       avatar: values.avatar,

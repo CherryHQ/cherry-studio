@@ -214,6 +214,30 @@ export const CreateAgentChannelSchema = z.discriminatedUnion('type', [
 ])
 export type CreateAgentChannelDto = z.infer<typeof CreateAgentChannelSchema>
 
+const draftOmit = { agentId: true, workspace: true, activeChatIds: true } as const
+
+/**
+ * A channel created together with its Agent (`ai.agent.create`): bound to the new Agent
+ * in the system workspace, so the draft carries neither.
+ */
+export const AgentChannelDraftSchema = z.discriminatedUnion('type', [
+  TelegramCreateAgentChannelSchema.omit(draftOmit),
+  FeishuCreateAgentChannelSchema.omit(draftOmit),
+  QQCreateAgentChannelSchema.omit(draftOmit),
+  WeChatCreateAgentChannelSchema.omit(draftOmit),
+  WeComCreateAgentChannelSchema.omit(draftOmit),
+  DingTalkCreateAgentChannelSchema.omit(draftOmit),
+  DiscordCreateAgentChannelSchema.omit(draftOmit),
+  SlackCreateAgentChannelSchema.omit(draftOmit)
+])
+export type AgentChannelDraft = z.infer<typeof AgentChannelDraftSchema>
+
+/** WeChat always logs in by QR code; Feishu registers by QR code until it has app credentials. */
+export function isQrLoginChannel(channel: { type: AgentChannelType; config: Record<string, unknown> }): boolean {
+  if (channel.type === 'wechat') return true
+  return channel.type === 'feishu' && !(channel.config.app_id && channel.config.app_secret)
+}
+
 export const UpdateAgentChannelSchema = z
   .strictObject({
     configPatch: z.record(z.string(), z.unknown()).optional(),
