@@ -2494,6 +2494,8 @@
   "message.message.code_style": "代码风格",
   "message.message.compact.title": "对话已压缩",
   "message.message.delete.content": "确定要删除此消息吗？",
+  "message.message.multi_model_style.fold.compress": "切换为紧凑标签",
+  "message.message.multi_model_style.fold.expand": "切换为展开标签",
   "message.message.multi_model_style.fold.label": "标签模式",
   "message.message.multi_model_style.grid": "卡片布局",
   "message.message.multi_model_style.horizontal": "横向排列",

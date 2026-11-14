@@ -2494,6 +2494,8 @@
   "message.message.code_style": "Estilo de código",
   "message.message.compact.title": "Conversación Compactada",
   "message.message.delete.content": "¿Está seguro de querer eliminar este mensaje?",
+  "message.message.multi_model_style.fold.compress": "Cambiar a pestañas compactas",
+  "message.message.multi_model_style.fold.expand": "Cambiar a pestañas expandidas",
   "message.message.multi_model_style.fold.label": "Modo de etiquetas",
   "message.message.multi_model_style.grid": "Diseño de tarjetas",
   "message.message.multi_model_style.horizontal": "Disposición horizontal",

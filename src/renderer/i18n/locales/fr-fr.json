@@ -2494,6 +2494,8 @@
   "message.message.code_style": "Style de code",
   "message.message.compact.title": "Conversation Compactée",
   "message.message.delete.content": "Êtes-vous sûr de vouloir supprimer ce message?",
+  "message.message.multi_model_style.fold.compress": "Passer aux onglets compacts",
+  "message.message.multi_model_style.fold.expand": "Passer aux onglets développés",
   "message.message.multi_model_style.fold.label": "Mode étiquette",
   "message.message.multi_model_style.grid": "Disposition en carte",
   "message.message.multi_model_style.horizontal": "Disposition horizontale",

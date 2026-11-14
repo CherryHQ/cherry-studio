@@ -2494,6 +2494,8 @@
   "message.message.code_style": "程式碼風格",
   "message.message.compact.title": "對話已壓縮",
   "message.message.delete.content": "確定要刪除此訊息嗎？",
+  "message.message.multi_model_style.fold.compress": "切換為精簡標籤",
+  "message.message.multi_model_style.fold.expand": "切換為展開標籤",
   "message.message.multi_model_style.fold.label": "標籤模式",
   "message.message.multi_model_style.grid": "網格版面",
   "message.message.multi_model_style.horizontal": "橫向排列",

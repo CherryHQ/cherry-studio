@@ -2494,6 +2494,8 @@
   "message.message.code_style": "Kod stili",
   "message.message.compact.title": "Konuşma Sıkıştırıldı",
   "message.message.delete.content": "Bu mesaj silinsin mi?",
+  "message.message.multi_model_style.fold.compress": "Kompakt sekmelere geç",
+  "message.message.multi_model_style.fold.expand": "Genişletilmiş sekmelere geç",
   "message.message.multi_model_style.fold.label": "Katlanmış görünüm",
   "message.message.multi_model_style.grid": "Izgara düzeni",
   "message.message.multi_model_style.horizontal": "Yan yana",

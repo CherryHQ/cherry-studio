@@ -2516,6 +2516,8 @@
   "message.message.code_style": "Styl kodu",
   "message.message.compact.title": "Rozmowa skompresowana",
   "message.message.delete.content": "Czy na pewno chcesz usunąć tę wiadomość?",
+  "message.message.multi_model_style.fold.compress": "Przełącz na kompaktowe karty",
+  "message.message.multi_model_style.fold.expand": "Przełącz na rozwinięte karty",
   "message.message.multi_model_style.fold.label": "Widok zwinięty",
   "message.message.multi_model_style.grid": "Układ siatki",
   "message.message.multi_model_style.horizontal": "Obok siebie",

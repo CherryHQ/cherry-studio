@@ -2494,6 +2494,8 @@
   "message.message.code_style": "Стиль кода",
   "message.message.compact.title": "Сжатый разговор",
   "message.message.delete.content": "Вы уверены, что хотите удалить это сообщение?",
+  "message.message.multi_model_style.fold.compress": "Переключить на компактные вкладки",
+  "message.message.multi_model_style.fold.expand": "Переключить на развёрнутые вкладки",
   "message.message.multi_model_style.fold.label": "Вкладки",
   "message.message.multi_model_style.grid": "Карточки",
   "message.message.multi_model_style.horizontal": "Горизонтальное расположение",
