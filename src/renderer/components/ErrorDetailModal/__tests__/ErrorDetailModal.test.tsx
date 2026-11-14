@@ -271,6 +271,7 @@ vi.mock('@renderer/components/CodeViewer', () => ({
 }))
 
 import { cacheService } from '@data/CacheService'
+import { preferenceService } from '@data/PreferenceService'
 import { PopupHost } from '@renderer/components/PopupHost'
 import { appUpdateCheckService } from '@renderer/services/AppUpdateCheckService'
 import { POPUP_EXIT_MS, popupService } from '@renderer/services/popup'
@@ -1419,9 +1420,21 @@ describe('ErrorDetailContent automatic update check', () => {
   })
 
   afterEach(() => {
+    vi.mocked(preferenceService.isCached).mockRestore()
     appUpdateCheckService.endManualUpdateCheck()
     appUpdateCheckService.setUpdateNotice(null)
     cleanup()
+  })
+
+  it('does not ask the feed before the stored Auto Update setting has loaded', async () => {
+    // Until then the hook reports the shipped default (on), which may not be the user's choice.
+    vi.mocked(preferenceService.isCached).mockImplementation((key) => key !== 'app.dist.auto_update.enabled')
+    answerQuery(() => Promise.resolve({ status: 'available', currentVersion: '2.0.0', version: '2.1.0' }))
+    renderErrorDetailContent({ error: providerError })
+    await act(async () => {})
+
+    expect(updateRouteCalls('app.updater.query_availability')).toHaveLength(0)
+    expect(screen.queryByText(UPDATE_AVAILABLE)).not.toBeInTheDocument()
   })
 
   it('offers a newer version when the dialog opens but downloads only after the user agrees', async () => {
