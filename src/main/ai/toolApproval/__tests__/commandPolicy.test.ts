@@ -69,6 +69,50 @@ describe('structured command policy', () => {
     expect((await evaluate(command)).effect).toBe('ask')
   })
 
+  it.each([
+    'npm --dry-run=false publish',
+    'npm publish --dry-run --dry-run=false',
+    'npm publish --dry-run --no-dry-run',
+    'npm --dry-run publish --no-dry-run',
+    'npm --dry-run=false --loglevel silent publish',
+    'pnpm publish --dry-run --no-dry-run',
+    'yarn publish --dry-run --dry-run=false',
+    'npm --loglevel silent publish',
+    'npm --loglevel=silent publish',
+    'npm --unknown-option value publish'
+  ])('requires approval for publishing with global or overriding options: %s', async (command) => {
+    expect((await evaluate(command)).effect).toBe('ask')
+  })
+
+  it.each([
+    'npm --dry-run publish',
+    'npm --dry-run=true publish',
+    'npm publish --dry-run=false --dry-run',
+    'npm publish --no-dry-run --dry-run',
+    'npm --loglevel silent publish --dry-run',
+    'npm --no-dry-run publish --dry-run',
+    'pnpm --dry-run publish',
+    'yarn --dry-run publish'
+  ])('allows publishing only when the effective dry-run option is enabled: %s', async (command) => {
+    expect((await evaluate(command)).effect).toBe('allow')
+  })
+
+  it.each(['git -C repo switch feature', 'git -Crepo switch feature', 'git -C repo -C nested switch feature'])(
+    'does not confuse repository selection with force-creating a branch: %s',
+    async (command) => {
+      expect((await evaluate(command)).effect).toBe('allow')
+      expect((await evaluate(command, ['assistant'])).effect).toBe('allow')
+    }
+  )
+
+  it.each(['git switch -C feature', 'git -C repo switch -C feature', 'git -C repo switch --force-create feature'])(
+    'still detects force-creating a branch after repository selection: %s',
+    async (command) => {
+      expect((await evaluate(command)).effect).toBe('ask')
+      expect((await evaluate(command, ['assistant'])).effect).toBe('deny')
+    }
+  )
+
   it.each(['assistant', 'support', 'doctor'])('enforces protected role %s across the whole call', async (role) => {
     const result = await evaluate('echo ok > marker; rm -rf build; git status && (', [role])
     expect(result.effect).toBe('deny')
@@ -139,6 +183,8 @@ describe('structured command policy', () => {
     '> "$HOME/file"',
     'sudo true',
     'git -c core.sshCommand=custom -c user.name=Name status',
+    'git --config-env=core.sshCommand=SSH_COMMAND status',
+    'git --exec-path=/custom/path status',
     'env -S "git status"',
     'git reset --ha HEAD',
     'git checkout file.txt',

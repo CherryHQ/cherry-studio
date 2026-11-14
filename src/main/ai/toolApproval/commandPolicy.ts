@@ -295,7 +295,7 @@ function matchesDetector(
       return command.inline !== undefined
     case 'git-executable-configuration': {
       if (executable !== 'git') return false
-      if (command.options.has('--exec-path') || command.options.has('--config-env')) return true
+      if (command.gitGlobalOptions.has('--exec-path') || command.gitGlobalOptions.has('--config-env')) return true
       if (
         [...command.node.words, ...(command.node.assignments ?? [])].some(({ raw }) =>
           /^(?:GIT_SSH_COMMAND|GIT_CONFIG(?:_[A-Z_]+)?)=/.test(raw)

@@ -11,6 +11,7 @@ export interface CommandSemantics {
   incomplete: boolean
   repositoryDirectory?: string
   gitConfigurations: string[]
+  gitGlobalOptions: Map<string, string | true>
   wrappers: { executable: string; args: string[]; directory?: string; incomplete?: boolean }[]
   executionBoundary?: string
   workingDirectory?: string
@@ -88,6 +89,21 @@ const WRAPPER_FLAGS: Readonly<Record<string, readonly string[]>> = {
   toybox: [],
   rtk: []
 }
+const PACKAGE_GLOBAL_FLAGS = new Set([
+  '--dry-run',
+  '--no-dry-run',
+  '--global',
+  '-g',
+  '--silent',
+  '-s',
+  '--quiet',
+  '-q',
+  '--verbose',
+  '--version',
+  '-v',
+  '--help',
+  '-h'
+])
 const GIT_GLOBAL_VALUES = new Set([
   '-C',
   '-c',
@@ -310,6 +326,7 @@ export function interpretCommand(node: ExecutableCommand): CommandSemantics | un
     operands: [],
     elevated: resolved.elevated,
     gitConfigurations: [],
+    gitGlobalOptions: new Map(),
     wrappers: resolved.wrappers,
     incomplete:
       node.words[resolved.offset]?.value === undefined || resolved.wrappers.some((wrapper) => wrapper.incomplete)
@@ -323,6 +340,13 @@ export function interpretCommand(node: ExecutableCommand): CommandSemantics | un
           wrapper.args.find((arg) => arg.startsWith('--replace='))?.slice(10))
     if (replacement && result.executable.includes(replacement)) result.incomplete = true
   }
+  const packageManager = ['npm', 'pnpm', 'yarn'].includes(result.executable)
+  const setOption = (option: string, argument: string | true) => {
+    if (packageManager && (option === '--dry-run' || option === '--no-dry-run')) {
+      if (option === '--no-dry-run' || ['false', '0'].includes(String(argument))) result.options.delete('--dry-run')
+      else result.options.set('--dry-run', argument)
+    } else result.options.set(option, argument)
+  }
   let index = 0
   if (result.executable === 'git') {
     while (index < result.args.length && result.args[index].value?.startsWith('-')) {
@@ -334,10 +358,11 @@ export function interpretCommand(node: ExecutableCommand): CommandSemantics | un
       if (GIT_GLOBAL_VALUES.has(name)) {
         const argument = attached ?? shortAttached ?? result.args[++index]?.value
         if (argument === undefined || argument === '') result.incomplete = true
-        result.options.set(name, argument ?? true)
+        result.gitGlobalOptions.set(name, argument ?? true)
         if (name === '-C') result.repositoryDirectory = argument
         if (name === '-c' && argument !== undefined) result.gitConfigurations.push(argument)
-      } else if (GIT_GLOBAL_FLAGS.has(name) || name === '--exec-path') result.options.set(name, attached ?? true)
+      } else if (GIT_GLOBAL_FLAGS.has(name) || name === '--exec-path')
+        result.gitGlobalOptions.set(name, attached ?? true)
       else {
         result.incomplete = true
         break
@@ -348,26 +373,26 @@ export function interpretCommand(node: ExecutableCommand): CommandSemantics | un
     while (index < result.args.length && result.args[index].value?.startsWith('-')) {
       const value = result.args[index].value!
       const [option, attached] = value.split(/=(.*)/s)
-      result.options.set(option, attached ?? true)
-      if (
-        [
-          '--prefix',
-          '--dir',
-          '-C',
-          '--cwd',
-          '--filter',
-          '--workspace',
-          '-w',
-          '--registry',
-          '-H',
-          '--host',
-          '--context',
-          '--config',
-          '--log-level'
-        ].includes(option) &&
-        attached === undefined
-      )
-        index++
+      const takesValue = [
+        '--prefix',
+        '--dir',
+        '-C',
+        '--cwd',
+        '--filter',
+        '--workspace',
+        '-w',
+        '--registry',
+        '-H',
+        '--host',
+        '--context',
+        '--config',
+        '--log-level',
+        '--loglevel'
+      ].includes(option)
+      const argument = attached ?? (takesValue ? result.args[++index]?.value : true)
+      if (argument === undefined || (packageManager && !takesValue && !PACKAGE_GLOBAL_FLAGS.has(option)))
+        result.incomplete = true
+      setOption(option, argument ?? true)
       index++
     }
   }
@@ -406,8 +431,7 @@ export function interpretCommand(node: ExecutableCommand): CommandSemantics | un
       if (option.startsWith('--')) {
         const argument = attached ?? (valueOptions.has(option) ? result.args[++index]?.value : true)
         if (argument === undefined) result.incomplete = true
-        if (!(option === '--dry-run' && ['false', '0'].includes(String(argument))))
-          result.options.set(option, argument ?? true)
+        setOption(option, argument ?? true)
       } else {
         for (let offset = 1; offset < option.length; offset++) {
           const short = `-${option[offset]}`
@@ -449,16 +473,7 @@ export function interpretCommand(node: ExecutableCommand): CommandSemantics | un
   )
     result.incomplete = true
   const known = result.executable === 'git' ? GIT_OPERATION_OPTIONS[result.subcommands[0]] : undefined
-  if (
-    known &&
-    [...result.options.keys()].some(
-      (option) =>
-        !known.includes(option) &&
-        !valueOptions.has(option) &&
-        !GIT_GLOBAL_VALUES.has(option) &&
-        !GIT_GLOBAL_FLAGS.has(option)
-    )
-  )
+  if (known && [...result.options.keys()].some((option) => !known.includes(option) && !valueOptions.has(option)))
     result.incomplete = true
   const executable = result.executable
   const args = result.args
