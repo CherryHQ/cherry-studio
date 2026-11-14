@@ -55,6 +55,7 @@ export const AgentConfigurationSchema = z
     reasoning_effort: ReasoningEffortOptionSchema.optional(),
     service_tier: ServiceTierSelectionSchema.optional(),
     env_vars: z.record(z.string(), z.string()).optional(),
+    auto_compact_pct: z.number().int().min(10).max(80).optional(),
     bootstrap_completed: z.boolean().optional(),
     scheduler_enabled: z.boolean().optional(),
     scheduler_type: AgentSchedulerTypeSchema.optional(),
