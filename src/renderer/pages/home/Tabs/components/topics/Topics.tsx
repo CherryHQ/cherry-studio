@@ -1655,6 +1655,7 @@ export function Topics({
             assistantMoveTargets={assistantMoveTargets}
             displayMode={displayMode}
             exportMenuOptions={exportMenuOptions}
+            listError={listError}
             listRef={listRef}
             notesPath={notesPath}
             onAutoRename={handleAutoRename}

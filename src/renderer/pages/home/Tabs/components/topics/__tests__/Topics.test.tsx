@@ -4769,6 +4769,16 @@ describe('Topics', () => {
     expect(topicDataMocks.moveTopic).not.toHaveBeenCalled()
   })
 
+  it('offers error details when the topic list fails to load', () => {
+    const assistantTopicsSource = createAssistantTopicsSource([])
+    Object.assign(assistantTopicsSource, { error: new Error('topics unavailable') })
+
+    renderTopicList({ assistantTopicsSource })
+
+    expect(screen.getByText('error.boundary.default.message')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'common.detail' })).toBeInTheDocument()
+  })
+
   it('offers a retry entry point when a background refresh fails behind a served list', () => {
     const assistantTopicsSource = createAssistantTopicsSource(createTopicPageItems(3))
     Object.assign(assistantTopicsSource, { refreshError: new Error('refresh failed') })
