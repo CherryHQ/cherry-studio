@@ -68,7 +68,7 @@ type ModelSelectorScrollAlign = NonNullable<Parameters<DynamicVirtualListRef['sc
 
 function resolveProviderLabel(provider: Provider, fallback: string) {
   const displayName = getProviderDisplayName(provider)
-  return displayName.trim() ? displayName : provider.id.trim() || fallback
+  return typeof displayName === 'string' && displayName.trim() ? displayName : provider.id.trim() || fallback
 }
 
 function ProviderQuickJumpAvatar({ provider, name }: { provider: Provider; name: string }) {

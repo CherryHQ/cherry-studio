@@ -210,6 +210,34 @@ afterEach(() => {
 })
 
 describe('provider quick jump with the real shell and virtual list', () => {
+  it('names the provider button and heading when display-name resolution returns undefined', () => {
+    const unnamedProvider = { ...provider, id: 'custom-unnamed' }
+    Reflect.deleteProperty(unnamedProvider, 'name')
+    const data = makeData()
+    mocks.useModelSelectorData.mockReturnValue(
+      makeData({
+        listItems: [
+          { key: 'provider-unnamed', type: 'group', groupKind: 'provider', provider: unnamedProvider },
+          ...data.listItems
+        ]
+      })
+    )
+
+    render(
+      <ModelSelector
+        multiple={false}
+        open
+        showTagFilter={false}
+        onSelect={() => {}}
+        trigger={<button type="button">Open</button>}
+      />
+    )
+
+    const strip = screen.getByRole('group', { name: 'models.detail.provider' })
+    expect(within(strip).getByRole('button', { name: 'custom-unnamed' })).toBeInTheDocument()
+    expect(within(screen.getByRole('listbox')).getByText('custom-unnamed')).toBeInTheDocument()
+  })
+
   it.each([
     [2304, 1512],
     [1500, 1300]
