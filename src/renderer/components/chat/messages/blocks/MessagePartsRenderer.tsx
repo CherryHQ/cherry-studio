@@ -117,6 +117,65 @@ const referenceCitationsCache = new WeakMap<
 
 const MessageVideo = React.lazy(() => import('../frame/MessageVideo'))
 
+// A completed process group mounts its whole tool history when it defaults to
+// expanded. Agent sessions set `expandToolSteps`, so an hour-long turn that
+// accumulated hundreds of tool calls used to paint tens of thousands of DOM
+// nodes before the user touched anything. Keep the default for ordinary turns
+// and start oversized histories collapsed; an explicit user toggle still wins
+// through the disclosure cache.
+const COMPLETED_HISTORY_AUTO_EXPAND_MAX_ENTRIES = 80
+const COMPLETED_HISTORY_AUTO_EXPAND_MAX_TEXT_CHARS = 100 * 1024
+const EMPTY_PART_ENTRIES: readonly PartEntry[] = []
+
+/**
+ * Bounded string-length estimate for a tool part payload. Walks objects without
+ * materialising a JSON string so a multi-megabyte output cannot allocate here.
+ */
+function estimatePayloadLength(value: unknown, budget: number, depth = 0): number {
+  if (budget <= 0 || value === null || value === undefined) return 0
+  if (typeof value === 'string') return Math.min(value.length, budget)
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value).length
+  if (depth >= 8) return 0
+
+  if (Array.isArray(value)) {
+    let total = 0
+    for (const item of value) {
+      total += 2 + estimatePayloadLength(item, budget - total, depth + 1)
+      if (total >= budget) break
+    }
+    return total
+  }
+
+  if (typeof value === 'object') {
+    let total = 0
+    for (const [key, nested] of Object.entries(value as Record<string, unknown>)) {
+      total += key.length + 4
+      total += estimatePayloadLength(nested, budget - total, depth + 1)
+      if (total >= budget) break
+    }
+    return total
+  }
+
+  return 0
+}
+
+function isCompletedHistoryOversized(entries: readonly PartEntry[]): boolean {
+  if (entries.length > COMPLETED_HISTORY_AUTO_EXPAND_MAX_ENTRIES) return true
+
+  let total = 0
+  for (const entry of entries) {
+    const part = entry.part as CherryMessagePart & { text?: unknown; input?: unknown; output?: unknown }
+    total += estimatePayloadLength(part.text, COMPLETED_HISTORY_AUTO_EXPAND_MAX_TEXT_CHARS - total)
+    if (isToolUIPart(entry.part)) {
+      total += estimatePayloadLength(part.input, COMPLETED_HISTORY_AUTO_EXPAND_MAX_TEXT_CHARS - total)
+      total += estimatePayloadLength(part.output, COMPLETED_HISTORY_AUTO_EXPAND_MAX_TEXT_CHARS - total)
+    }
+    if (total >= COMPLETED_HISTORY_AUTO_EXPAND_MAX_TEXT_CHARS) return true
+  }
+
+  return false
+}
+
 // ============================================================================
 // Animation shared by message block renderers.
 // ============================================================================
@@ -1446,6 +1505,10 @@ const MessageProcessLayout = React.memo(function MessageProcessLayout({
     () => ({ ...renderOptions, inlineHtmlPreviewMode: 'generating' }),
     [renderOptions]
   )
+  const completedHistoryIsOversized = useMemo(
+    () => isCompletedHistoryOversized(completedLayout?.historyEntries ?? EMPTY_PART_ENTRIES),
+    [completedLayout]
+  )
 
   if (isActive) {
     const resultContent = liveResultItems.map((item) => {
@@ -1563,8 +1626,9 @@ const MessageProcessLayout = React.memo(function MessageProcessLayout({
         phase="completed"
         outcome={completedHasError ? 'error' : 'success'}
         defaultExpanded={
-          expandToolSteps ||
-          (!thoughtAutoCollapse && completedHistoryEntries.some((entry) => isReasoningMessagePart(entry.part)))
+          !completedHistoryIsOversized &&
+          (expandToolSteps ||
+            (!thoughtAutoCollapse && completedHistoryEntries.some((entry) => isReasoningMessagePart(entry.part))))
         }
         message={message}
         toolItems={completedToolItems}>
