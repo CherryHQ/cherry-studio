@@ -1,7 +1,6 @@
 import { useMemo } from 'react'
 
 import { anyFileExt } from '@renderer/utils/file'
-import { isAudioModel, isAudioModels, isVideoModel, isVideoModels } from '@renderer/utils/model'
 import type { Model } from '@shared/data/types/model'
 import { archiveExts, audioExts, documentExts, imageExts, textExts, videoExts } from '@shared/utils/file'
 
@@ -12,23 +11,13 @@ export interface ComposerFileCapabilities {
 }
 
 interface ComposerFileCapabilitiesArgs {
-  /** Mentioned models — audio/video support requires ALL of them to qualify. */
   models: Model[]
   /** Model used when no models are mentioned (the assistant/agent model). */
   fallbackModel: Model | undefined
 }
 
-const EMPTY_MODELS: Model[] = []
-
-const ALL_FILE_EXTS = [...imageExts, ...audioExts, ...videoExts, ...documentExts, ...textExts, ...archiveExts]
-
-// audio/video are the only modalities the chat surface still gates on (images always work
-// via the OCR fallback, documents/text always extract). Each maps to the predicate pair
-// that probes whether the active model set supports it (single model vs. every mentioned).
-const MEDIA_INPUT_PREDICATES = {
-  audio: [isAudioModel, isAudioModels],
-  video: [isVideoModel, isVideoModels]
-} as const satisfies Record<string, readonly [(model: Model) => boolean, (models: Model[]) => boolean]>
+const CHAT_FILE_EXTS = [...imageExts, ...audioExts, ...videoExts, ...documentExts, ...textExts]
+const ALL_FILE_EXTS = [...CHAT_FILE_EXTS, ...archiveExts]
 
 function isMultiModelArgs(
   input: Model | undefined | ComposerFileCapabilitiesArgs
@@ -44,10 +33,9 @@ function isMultiModelArgs(
  * - **Agent**: attachments are forwarded to the agent runtime as absolute file paths and read
  *   by the agent's own tools, so the model's modality is irrelevant — every file type is
  *   attachable on any active model.
- * - **Chat**: the model consumes files directly. Images always work (sent natively to a vision
- *   model, OCR text otherwise) and documents/text always extract, regardless of the model.
- *   Audio/video have no text fallback, so they gate on the model's audio/video input
- *   capability — every mentioned model must qualify, or (with none mentioned) the fallback.
+ * - **Chat**: images, documents, text, and known audio/video can be attached.
+ *   Native delivery versus analysis fallback is chosen later, per model.
+ *   WebM is in the shared video extensions and is probed before that choice.
  */
 export function useComposerFileCapabilities(model: Model | undefined): ComposerFileCapabilities
 export function useComposerFileCapabilities(args: ComposerFileCapabilitiesArgs): ComposerFileCapabilities
@@ -55,7 +43,7 @@ export function useComposerFileCapabilities(
   input: Model | undefined | ComposerFileCapabilitiesArgs
 ): ComposerFileCapabilities {
   const isChatSurface = isMultiModelArgs(input)
-  const { models, fallbackModel } = isChatSurface ? input : { models: EMPTY_MODELS, fallbackModel: input }
+  const fallbackModel = isChatSurface ? undefined : input
 
   return useMemo(() => {
     // Agent reads attachments from disk by path → all file types, any active model.
@@ -69,21 +57,10 @@ export function useComposerFileCapabilities(
         supportedExts: enabled ? [...ALL_FILE_EXTS, anyFileExt] : []
       }
     }
-
-    const supports = ([single, plural]: (typeof MEDIA_INPUT_PREDICATES)[keyof typeof MEDIA_INPUT_PREDICATES]) =>
-      models.length > 0 ? plural(models) : fallbackModel ? single(fallbackModel) : false
-    const audio = supports(MEDIA_INPUT_PREDICATES.audio)
-    const video = supports(MEDIA_INPUT_PREDICATES.video)
     return {
       canAddImageFile: true,
       canAddTextFile: true,
-      supportedExts: [
-        ...imageExts,
-        ...(audio ? audioExts : []),
-        ...(video ? videoExts : []),
-        ...documentExts,
-        ...textExts
-      ]
+      supportedExts: [...CHAT_FILE_EXTS]
     }
-  }, [isChatSurface, models, fallbackModel])
+  }, [isChatSurface, fallbackModel])
 }
