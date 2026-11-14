@@ -13,6 +13,7 @@ import { useTranslation } from 'react-i18next'
 import { FilePreviewLayout, FilePreviewToolbar, FilePreviewToolbarButton } from '@cherrystudio/file-preview/react'
 import { EmptyState } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
+import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
 import MermaidPreview from '@renderer/components/Preview/MermaidPreview'
 import type { BasicPreviewHandles } from '@renderer/components/Preview/types'
 
@@ -20,7 +21,7 @@ import type { FilePreviewPluginProps } from '../../types'
 
 const logger = loggerService.withContext('MermaidFilePreview')
 
-type LoadState = { status: 'loading' } | { status: 'error' } | { status: 'ready'; source: string }
+type LoadState = { status: 'loading' } | { status: 'error'; error: Error } | { status: 'ready'; source: string }
 
 const ZOOM_STEP = 0.1
 
@@ -37,8 +38,9 @@ export default function MermaidFilePreview({ filePath, refreshKey }: FilePreview
       (source) => !cancelled && setLoadState({ status: 'ready', source }),
       (error: unknown) => {
         if (cancelled) return
-        logger.error(`Failed to read Mermaid file: ${filePath}`, error as Error)
-        setLoadState({ status: 'error' })
+        const normalized = error instanceof Error ? error : new Error(String(error))
+        logger.error(`Failed to read Mermaid file: ${filePath}`, normalized)
+        setLoadState({ status: 'error', error: normalized })
       }
     )
     return () => {
@@ -55,13 +57,24 @@ export default function MermaidFilePreview({ filePath, refreshKey }: FilePreview
       </div>
     )
   } else if (loadState.status === 'error') {
+    const description = t('file_preview.load_error.description')
     content = (
-      <EmptyState
-        icon={FileWarning}
-        title={t('file_preview.load_error.title')}
-        description={t('file_preview.load_error.description')}
-        className="h-full"
-      />
+      <div role="alert" className="flex h-full flex-col">
+        <EmptyState
+          icon={FileWarning}
+          title={t('file_preview.load_error.title')}
+          description={description}
+          className="min-h-0 flex-1"
+        />
+        <div className="flex justify-center pb-4">
+          <ErrorDetailAction
+            error={loadState.error}
+            message={description}
+            source="file.preview"
+            operation="file.preview.read"
+          />
+        </div>
+      </div>
     )
   } else if (!loadState.source.trim()) {
     content = (

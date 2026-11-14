@@ -1,5 +1,5 @@
 import { MockCherrystudioUI } from '@test-mocks/renderer/CherrystudioUI'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ComponentPropsWithoutRef, ReactNode, RefObject } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -9,6 +9,7 @@ import MermaidFilePreview from '../MermaidFilePreview'
 
 const mocks = vi.hoisted(() => ({
   readText: vi.fn(),
+  openDetail: vi.fn(),
   preview: { pan: vi.fn(), zoom: vi.fn(), copy: vi.fn(), download: vi.fn() }
 }))
 
@@ -28,6 +29,11 @@ vi.mock('@cherrystudio/ui', () => ({
   ScrollArea: MockCherrystudioUI.ScrollArea,
   Tooltip: ({ children }: { children: ReactNode }) => children,
   Button: (props: ComponentPropsWithoutRef<'button'>) => <button type="button" {...props} />
+}))
+
+vi.mock('@renderer/services/appErrorDetailOpen', () => ({
+  openLoadedErrorDetail: (request: unknown) => mocks.openDetail(request),
+  showDetailOpenFailed: vi.fn()
 }))
 
 vi.mock('react-i18next', () => ({
@@ -90,5 +96,11 @@ describe('MermaidFilePreview', () => {
     renderPreview()
 
     expect(await screen.findByText('file_preview.load_error.title')).toBeInTheDocument()
+    // The read failure is the evidence Doctor needs; it must reach the detail dialog intact.
+    fireEvent.click(screen.getByRole('button', { name: 'common.detail' }))
+    await waitFor(() => expect(mocks.openDetail).toHaveBeenCalled())
+    const request = mocks.openDetail.mock.calls[0][0]
+    expect(request.error.message).toBe('EACCES')
+    expect(request.context.operation).toBe('file.preview.read')
   })
 })
