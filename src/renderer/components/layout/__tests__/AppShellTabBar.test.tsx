@@ -39,6 +39,9 @@ vi.mock('@renderer/services/resourceListRevealEvents', () => ({
 
 vi.mock('@cherrystudio/ui', async (importOriginal) => ({
   Kbd: (await importOriginal<typeof UI>()).Kbd,
+  HoverCard: (await importOriginal<typeof UI>()).HoverCard,
+  HoverCardContent: (await importOriginal<typeof UI>()).HoverCardContent,
+  HoverCardTrigger: (await importOriginal<typeof UI>()).HoverCardTrigger,
   Button: ({ children, variant, ...props }: React.ComponentProps<'button'> & { variant?: string }) => {
     void variant
     return (

@@ -32,6 +32,7 @@ import MessageContent from './MessageContent'
 import MessageErrorBoundary from './MessageErrorBoundary'
 import MessageHeader, { AgentSessionDeliveryBadge } from './MessageHeader'
 import MessageMenuBar from './MessageMenuBar'
+import { MessageUserBubble } from './MessageUserBubble'
 import { MessageUserLayout } from './MessageUserLayout'
 
 const USER_MESSAGE_FOOTER_ACTIONS_CLASS =
@@ -394,19 +395,11 @@ const UserBubbleMessage = ({
             ))}
           </div>
         )}
-        <div
-          data-ui="part:message-content"
-
-          className="message-content-container mt-0 max-w-full rounded-[10px] bg-muted px-4 py-2.5 empty:hidden has-[.code-block]:w-full [&_.block-wrapper:last-child>*:last-child]:mb-0! [&_.markdown>p:last-child]:mb-0!"
-          style={{
-            fontFamily: messageFont === 'serif' ? 'var(--font-family-serif)' : 'var(--font-family)',
-            fontSize,
-            overflowY: 'visible'
-          }}>
+        <MessageUserBubble messageFont={messageFont} fontSize={fontSize}>
           <MessageErrorBoundary>
             <MessageContent message={message} hoistAttachments />
           </MessageErrorBoundary>
-        </div>
+        </MessageUserBubble>
       </MessageUserLayout>
       {!isEditing && (
         <div className="MessageFooter relative mt-1 mr-[30px] flex min-h-6.5 w-[calc(100%-30px)] max-w-full items-center justify-end text-xs leading-none text-foreground-tertiary">
