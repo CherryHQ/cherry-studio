@@ -1,9 +1,8 @@
 import { useCallback, useRef, useSyncExternalStore } from 'react'
 
 import { useAppUpdateState } from '@renderer/hooks/useAppUpdateState'
+import { appUpdateCheckService } from '@renderer/services/AppUpdateCheckService'
 import type { CacheAppUpdateState } from '@shared/data/cache/cacheValueTypes'
-
-import { appUpdateCheckService } from './AppUpdateCheckService'
 
 /** A manual "already current" result is not a failure. */
 export function updateNoticeIsFailure(key: string | null): boolean {

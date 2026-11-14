@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const request = vi.fn()
 const openExternal = vi.fn()
-const updateDialogShow = vi.hoisted(() => vi.fn())
+const updateDialogShow = vi.fn()
 
 vi.mock('@renderer/ipc', () => ({
   ipcApi: { request: (...args: unknown[]) => request(...args) }
@@ -10,10 +10,6 @@ vi.mock('@renderer/ipc', () => ({
 
 vi.mock('@renderer/services/website', () => ({
   openExternalWebsite: (...args: unknown[]) => openExternal(...args)
-}))
-
-vi.mock('@renderer/components/UpdateDialogPopup', () => ({
-  default: { show: (...args: unknown[]) => updateDialogShow(...args) }
 }))
 
 import { UPDATE_CHECK_EVENT_WAIT_MS } from '../AppUpdateCheckService'
@@ -41,6 +37,7 @@ describe('runAppUpdateCheck', () => {
     vi.stubGlobal('__APP_EDITION__', 'global')
     vi.resetModules()
     ;({ appUpdateCheckService } = await import('../AppUpdateCheckService'))
+    appUpdateCheckService.registerUpdateDialog(async () => ({ show: updateDialogShow }))
 
     vi.useRealTimers()
     request.mockReset()
@@ -125,6 +122,16 @@ describe('runAppUpdateCheck', () => {
     expect(updateDialogShow).toHaveBeenCalledWith({ releaseInfo: info })
     expect(callsTo('app.updater.quit_and_install')).toHaveLength(0)
     expect(callsTo('app.updater.check_for_update')).toHaveLength(0)
+  })
+
+  it('reports an error instead of ignoring the click in a window that hosts no install dialog', async () => {
+    vi.resetModules()
+    const { appUpdateCheckService: unregistered } = await import('../AppUpdateCheckService')
+    const info = { version: '9.9.9', files: [], path: 'app.zip', sha512: 'x', releaseDate: '2026-01-01' }
+
+    await unregistered.runAppUpdateCheck({ ...idle, downloaded: true, info }, vi.fn())
+
+    expect(unregistered.readUpdateNotice()).toBe('settings.about.updateError')
   })
 
   it('does not confirm a release whose dialog chunk resolves after the channel session is invalidated and acknowledged', async () => {

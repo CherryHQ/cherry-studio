@@ -2,7 +2,7 @@
 description: How clients check for updates through the managed release service, with channels and the release history feed
 sources:
   - src/main/services/AppUpdaterService.ts
-  - src/renderer/components/appUpdate/AppUpdateCheckService.ts
+  - src/renderer/services/AppUpdateCheckService.ts
   - resources/cherry-studio/release-history.json
   - electron-builder.yml
   - electron-builder.cn.config.cjs

@@ -67,8 +67,8 @@ vi.mock('@renderer/components/UpdateDialogPopup', () => ({
   default: { show: mocks.updateDialogShow }
 }))
 
-import { UPDATE_CHECK_EVENT_WAIT_MS } from '@renderer/components/appUpdate/AppUpdateCheckService'
-import type * as UpdateCheckModule from '@renderer/components/appUpdate/AppUpdateCheckService'
+import { UPDATE_CHECK_EVENT_WAIT_MS } from '@renderer/services/AppUpdateCheckService'
+import type * as UpdateCheckModule from '@renderer/services/AppUpdateCheckService'
 let appUpdateCheckService: typeof UpdateCheckModule.appUpdateCheckService
 
 import type * as HandlerModule from '../useAppUpdateHandler'
@@ -77,7 +77,7 @@ let useAppUpdateHandler: typeof HandlerModule.useAppUpdateHandler
 
 beforeEach(async () => {
   vi.resetModules()
-  ;({ appUpdateCheckService } = await import('@renderer/components/appUpdate/AppUpdateCheckService'))
+  ;({ appUpdateCheckService } = await import('@renderer/services/AppUpdateCheckService'))
   ;({ getManualUpdateErrorMessageKey, useAppUpdateHandler } = await import('../useAppUpdateHandler'))
 })
 
