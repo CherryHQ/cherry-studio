@@ -83,7 +83,9 @@ export const computerUseRequestSchemas = {
   'computer_use.request_permissions': defineRoute({
     input: z
       .object({
-        ids: z.tuple([z.enum(['accessibility', 'screenRecording'])]).rest(z.enum(['accessibility', 'screenRecording']))
+        ids: z
+          .tuple([z.enum(['accessibility', 'screenRecording', 'remoteDesktop', 'gnomeShell', 'kdeIntegration'])])
+          .rest(z.enum(['accessibility', 'screenRecording', 'remoteDesktop', 'gnomeShell', 'kdeIntegration']))
       })
       .strict(),
     output: permissionStatusSchema

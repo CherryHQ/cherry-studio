@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ComputerUse, type ComputerUseClient, type PermissionStatus } from '@cherrystudio/computer-use'
 import { BaseService } from '@main/core/lifecycle'
+import { computerUseRequestSchemas } from '@shared/ipc/schemas/computerUse'
 
 import { ComputerUseService } from '../ComputerUseService'
 
@@ -167,4 +168,22 @@ it('rejects invalid icon payloads', async () => {
   )
   const service = new TestService()
   await expect(service.getAppIcon('com.apple.finder')).rejects.toThrow()
+})
+
+describe('permission request IPC input', () => {
+  const schema = computerUseRequestSchemas['computer_use.request_permissions'].input
+  it.each(['accessibility', 'screenRecording', 'remoteDesktop', 'gnomeShell', 'kdeIntegration'])(
+    'accepts reported permission %s',
+    (id) => {
+      expect(schema.parse({ ids: [id] })).toEqual({ ids: [id] })
+    }
+  )
+  it('accepts mixed known ids and rejects unknown or empty requests', () => {
+    expect(schema.parse({ ids: ['accessibility', 'remoteDesktop'] })).toEqual({
+      ids: ['accessibility', 'remoteDesktop']
+    })
+    expect(schema.safeParse({ ids: ['unknown'] }).success).toBe(false)
+    expect(schema.safeParse({ ids: ['accessibility', 'unknown'] }).success).toBe(false)
+    expect(schema.safeParse({ ids: [] }).success).toBe(false)
+  })
 })
