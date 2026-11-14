@@ -42,20 +42,26 @@ export function expandHome(filepath: string): string {
 }
 
 // Security validation
-export async function validatePath(requestedPath: string, baseDir?: string): Promise<string> {
+export async function validatePath(requestedPath: string, baseDir?: string | string[]): Promise<string> {
   const expandedPath = expandHome(requestedPath)
-  const root = expandHome(baseDir ?? process.cwd())
-  const absolute = path.isAbsolute(expandedPath) ? path.resolve(expandedPath) : path.resolve(root, expandedPath)
+  const roots = (Array.isArray(baseDir) ? baseDir : [baseDir ?? process.cwd()]).map((r) => expandHome(r))
+  const absolute = path.isAbsolute(expandedPath) ? path.resolve(expandedPath) : path.resolve(roots[0], expandedPath)
 
-  const resolvedRoot = await canonicalizePathForContainment(path.resolve(root), { allowMissing: true })
   const resolvedPath = await canonicalizePathForContainment(absolute, { allowMissing: true })
-
-  // Exact comparison on purpose: isSameOrInside case-folds on macOS even on case-sensitive volumes.
-  if (!resolvedRoot || !resolvedPath || isOutsidePath(path.relative(resolvedRoot, resolvedPath))) {
-    throw new Error(`Access denied: Path is outside the configured workspace root: ${requestedPath}`)
+  for (const root of roots) {
+    const resolvedRoot = await canonicalizePathForContainment(path.resolve(root), { allowMissing: true })
+    // Exact comparison on purpose: isSameOrInside case-folds on macOS even on case-sensitive volumes.
+    if (resolvedRoot && resolvedPath && !isOutsidePath(path.relative(resolvedRoot, resolvedPath))) {
+      return resolvedPath
+    }
   }
+  throw new Error(`Access denied: Path is outside the configured workspace root: ${requestedPath}`)
+}
 
-  return resolvedPath
+/** Path relative to the first root that contains it (falls back to the first root). */
+export function relativeToRoots(roots: string[], target: string): string {
+  const containing = roots.find((r) => !isOutsidePath(path.relative(r, target))) ?? roots[0]
+  return path.relative(containing, target)
 }
 
 // ============================================================================
