@@ -2200,7 +2200,10 @@ export class BinaryManager extends BaseService {
     // registry, with a fixed name winning over a stale same-name custom entry.
     // A recipe is never treated as installed from Preference alone — only the live
     // application fact decides which recipes are eligible below.
-    const candidates = new Map<string, CustomToolDefinition>()
+    // The fixed catalog carries the code-owned acquisition facts a custom
+    // definition cannot express (the version line its latest-version query is
+    // scoped to), so both shapes live in the map.
+    const candidates = new Map<string, CustomToolDefinition | FixedToolDefinition>()
     for (const [name, definition] of FIXED_CATALOG) candidates.set(name, definition)
     for (const entry of this.getCustomDefinitions()) if (!candidates.has(entry.name)) candidates.set(entry.name, entry)
 
@@ -2214,7 +2217,11 @@ export class BinaryManager extends BaseService {
     const workers = Array.from({ length: Math.min(LATEST_VERSIONS_CONCURRENCY, applied.length) }, async () => {
       while (cursor < applied.length) {
         const name = applied[cursor++]
-        const { tool, latestVersionPrefix } = candidates.get(name)!
+        const candidate = candidates.get(name)!
+        const { tool } = candidate
+        // Only the code-owned fixed catalog pins a version line; a custom
+        // definition carries no such fact.
+        const latestVersionPrefix = 'latestVersionPrefix' in candidate ? candidate.latestVersionPrefix : undefined
         try {
           if (tool === 'claude' && isWin && process.arch === 'arm64') {
             const registries = claudeNpmRegistries((await this.getIsolatedEnv()).env.NPM_CONFIG_REGISTRY)
