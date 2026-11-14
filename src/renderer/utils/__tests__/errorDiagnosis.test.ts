@@ -354,5 +354,22 @@ required service tier.`,
       expect(request.content).not.toContain('alice')
       expect(request.content).not.toContain('sk-proj-abcdefghijklmnopqrstuvwxyz123456')
     })
+
+    it.each([
+      'max_tokens: 100000 > 64000, which is the maximum allowed number of output tokens',
+      'Invalid authentication: please check your key'
+    ])('keeps the provider explanation in %s', async (text) => {
+      mockFetchGenerate.mockResolvedValue('翻译')
+
+      await translateErrorByAI(text, 'zh-CN')
+      expect(mockFetchGenerate.mock.calls[0][0].content).toBe(text)
+    })
+
+    it('still removes bearer tokens from the text sent', async () => {
+      mockFetchGenerate.mockResolvedValue('翻译')
+
+      await translateErrorByAI('Rejected header Authorization: Bearer abc.def-ghi', 'zh-CN')
+      expect(mockFetchGenerate.mock.calls[0][0].content).not.toContain('abc.def-ghi')
+    })
   })
 })
