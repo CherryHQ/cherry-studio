@@ -7,12 +7,13 @@
  */
 import type { Citation } from '@renderer/types/message'
 import type { ExportableMessage } from '@renderer/types/messageExport'
+import { stripKnownNumberedCitationMarkers } from '@renderer/utils/citation'
 import { convertReferencesToCitations } from '@renderer/utils/partsToBlocks'
 import type { CherryMessagePart, ContentReference } from '@shared/data/types/message'
 import type { CodePartData, ErrorPartData, TranslationPartData } from '@shared/data/types/uiParts'
 import { readCherryMeta } from '@shared/data/types/uiParts'
 
-import { toExportableCitations } from './citations'
+import { resolveMessageCitations, stripCitationMarkers, toExportableCitations } from './citations'
 
 function getParts(message: ExportableMessage): CherryMessagePart[] {
   return message.parts ?? []
@@ -141,7 +142,8 @@ const formatCitationLines = (citations: Citation[]): string =>
  */
 export const getToolCitationExport = (
   message: ExportableMessage,
-  content: string
+  content: string,
+  hideMarkers = false
 ): { content: string; citation: string } => {
   // Legacy reference metadata wins, mirroring MainTextBlock: those messages number
   // their `[N]` markers from the stored references, so resolving them here would
@@ -151,12 +153,30 @@ export const getToolCitationExport = (
   // AND they yield citations). `getCitationContent` cannot stand in for it — it reads
   // a flat `ref.url` that the real nested `WebCitationReference` shape never has, so
   // it returns '' for migrated messages that do render legacy citations.
-  const rendersLegacyCitations = getParts(message).some((part) => {
-    if (part.type !== 'text') return false
+  const legacyCitations = getParts(message).flatMap((part) => {
+    if (part.type !== 'text') return []
     const references = readCherryMeta(part)?.references as ContentReference[] | undefined
-    return !!references?.length && convertReferencesToCitations(references).length > 0
+    return references?.length ? convertReferencesToCitations(references) : []
   })
-  if (rendersLegacyCitations) return { content, citation: '' }
+  if (legacyCitations.length > 0) {
+    return {
+      content: hideMarkers
+        ? stripKnownNumberedCitationMarkers(
+            stripCitationMarkers(content),
+            new Map(legacyCitations.map((c) => [c.number, c]))
+          )
+        : content,
+      citation: ''
+    }
+  }
+  if (hideMarkers)
+    return {
+      content: stripKnownNumberedCitationMarkers(
+        stripCitationMarkers(content),
+        resolveMessageCitations(getParts(message)).byMarkerNumber
+      ),
+      citation: ''
+    }
   const priorParts = 'priorCitationParts' in message ? (message.priorCitationParts ?? []) : []
   const { content: exported, cited } = toExportableCitations(content, getParts(message), priorParts)
   return { content: exported, citation: formatCitationLines(cited) }

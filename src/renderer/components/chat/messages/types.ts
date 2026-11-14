@@ -275,6 +275,7 @@ export interface MessageRenderConfig {
   /** Open tool groups and the finished process by default, so each step reads without a click. */
   expandToolSteps: boolean
   keepIntermediateAssistantText: boolean
+  showCitationMarkers: boolean
   mathEnableSingleDollar: boolean
   showMessageOutline: boolean
   showEstimatedTokens: boolean
@@ -296,6 +297,7 @@ export const defaultMessageRenderConfig: MessageRenderConfig = {
   collapseCompletedToolHistory: true,
   expandToolSteps: false,
   keepIntermediateAssistantText: false,
+  showCitationMarkers: true,
   mathEnableSingleDollar: false,
   showMessageOutline: false,
   showEstimatedTokens: false,

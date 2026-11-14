@@ -83,6 +83,7 @@ const ChatPreferenceSections: FC<ChatPreferenceSectionsProps> = ({ sectionClassN
   const [keepIntermediateAssistantText, setKeepIntermediateAssistantText] = usePreference(
     'chat.message.keep_intermediate_text'
   )
+  const [showCitationMarkers, setShowCitationMarkers] = usePreference('chat.message.show_citation_markers')
   const [userMessageDefaultExpanded, setUserMessageDefaultExpanded] = usePreference(
     'chat.message.user_content.default_expanded'
   )
@@ -356,6 +357,15 @@ const ChatPreferenceSections: FC<ChatPreferenceSectionsProps> = ({ sectionClassN
               onCheckedChange={setKeepIntermediateAssistantText}
               label={t('settings.messages.keep_intermediate_text.label')}
               hint={t('settings.messages.keep_intermediate_text.hint')}
+            />
+          </SettingRow>
+          <SettingDivider />
+          <SettingRow id="setting-appearance-show-citation-markers" className="scroll-mt-6">
+            <SettingSwitch
+              checked={showCitationMarkers}
+              onCheckedChange={setShowCitationMarkers}
+              label={t('settings.messages.show_citation_markers.label')}
+              hint={t('settings.messages.show_citation_markers.hint')}
             />
           </SettingRow>
           <SettingDivider />

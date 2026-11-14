@@ -168,6 +168,81 @@ describe('getToolCitationExport', () => {
   })
 })
 
+describe('hidden citation export', () => {
+  it('strips legacy prose markers but preserves code and markdown links', () => {
+    const message = createExportView([
+      {
+        type: 'text',
+        text: '',
+        providerMetadata: {
+          cherry: {
+            references: [
+              {
+                category: 'citation',
+                citationType: 'web',
+                content: { results: [{ url: 'https://first.com', title: 'First' }] }
+              }
+            ]
+          }
+        }
+      }
+    ] as MessageExportView['parts'])
+    const content = 'Claim [1]. `array[1]` and [1](https://example.com)\n```js\narray[1]\n```'
+    expect(getToolCitationExport(message, content, true)).toEqual({
+      content: 'Claim. `array[1]` and [1](https://example.com)\n```js\narray[1]\n```',
+      citation: ''
+    })
+  })
+
+  it('hides source-backed native numbers but preserves links, code and ambiguous runs', () => {
+    const message = createExportView([
+      { type: 'source-url', sourceId: 'citation-0', url: 'https://example.com', title: 'One' },
+      { type: 'text', text: '' }
+    ] as MessageExportView['parts'])
+    expect(getToolCitationExport(message, 'Claim [1]. [1](https://example.com) `array[1]` [1], [2]', true)).toEqual({
+      content: 'Claim. [1](https://example.com) `array[1]` [1], [2]',
+      citation: ''
+    })
+  })
+
+  it('hides migrated source-backed superscript links before plain text conversion', () => {
+    const message = createExportView([
+      {
+        type: 'text',
+        text: '',
+        providerMetadata: {
+          cherry: {
+            references: [
+              {
+                category: 'citation',
+                citationType: 'web',
+                content: { results: [{ url: 'https://example.com', title: 'One' }] }
+              }
+            ]
+          }
+        }
+      }
+    ] as MessageExportView['parts'])
+    expect(
+      getToolCitationExport(message, 'Claim [<sup>1</sup>](https://example.com). [1](https://other.com)', true)
+    ).toEqual({
+      content: 'Claim. [1](https://other.com)',
+      citation: ''
+    })
+  })
+
+  it('strips tool markers outside code without modifying stored parts', () => {
+    const parts = [{ type: 'text', text: 'Claim.[cite:abc-1] `literal [cite:abc-1]`' }]
+    const message = createExportView(parts as MessageExportView['parts'])
+    const before = structuredClone(parts)
+    expect(getToolCitationExport(message, parts[0].text, true)).toEqual({
+      content: 'Claim. `literal [cite:abc-1]`',
+      citation: ''
+    })
+    expect(parts).toEqual(before)
+  })
+})
+
 describe('getToolCitationExport across turns', () => {
   it('resolves a marker against priorCitationParts and lists that source', () => {
     const message: MessageExportView = {

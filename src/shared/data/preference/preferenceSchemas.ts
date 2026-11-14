@@ -240,6 +240,8 @@ export interface PreferenceSchemas {
     'chat.message.navigation_mode': PreferenceTypes.ChatMessageNavigationMode
     // redux/settings/renderInputMessageAsMarkdown
     'chat.message.render_as_markdown': boolean
+    // target-key-definitions/complex/complex
+    'chat.message.show_citation_markers': boolean
     // redux/settings/showMessageDivider
     'chat.message.show_divider': boolean
     // redux/settings/showMessageOutline
@@ -826,6 +828,7 @@ export const DefaultPreferences: PreferenceSchemas = {
     'chat.message.multi_model.style': 'horizontal',
     'chat.message.navigation_mode': 'anchor',
     'chat.message.render_as_markdown': false,
+    'chat.message.show_citation_markers': true,
     'chat.message.show_divider': true,
     'chat.message.show_outline': false,
     'chat.message.style': 'bubble',
@@ -1073,7 +1076,7 @@ export const DefaultPreferences: PreferenceSchemas = {
 
 /**
  * 生成统计:
- * - 总配置项: 341
+ * - 总配置项: 342
  * - electronStore项: 2
  * - redux项: 173
  * - localStorage项: 0
