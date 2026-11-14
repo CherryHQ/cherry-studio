@@ -280,6 +280,41 @@ describe('ModelCheckDialog', () => {
     expect(second.errorContext.id).toBe(first.errorContext.id)
   })
 
+  it('masks a prefix-less API key echoed by the provider before showing the failure detail', async () => {
+    const user = userEvent.setup()
+    const secret = 'gw7Qx9LmZ2vR4nT8'
+    health.apiKeyEntries = [{ id: 'key-1', key: secret, label: 'Primary', isEnabled: true }]
+    const error = {
+      name: 'Error',
+      message: `Incorrect API key provided: ${secret}`,
+      stack: null,
+      statusCode: 401,
+      responseBody: `{"error":{"message":"Unauthorized key ${secret}"}}`
+    }
+    const entry = health.apiKeyEntries[0]
+    health.singleModelResult = {
+      kind: 'failed',
+      model: chatModel,
+      status: HealthStatus.FAILED,
+      keyResults: [
+        { kind: 'failed', status: HealthStatus.FAILED, checking: false, credential: { kind: 'api-key', entry }, error }
+      ],
+      checking: false,
+      error
+    }
+
+    render(<ModelCheckDialog />)
+    await user.click(screen.getByRole('button', { name: /message.api.connection.failed/ }))
+
+    const shown = showErrorDetailPopup.mock.calls[0]?.[0] as {
+      error: { responseBody: string }
+      errorContext: { responseBody?: string }
+    }
+    expect(JSON.stringify(shown)).not.toContain(secret)
+    expect(shown.errorContext.responseBody).toContain('Unauthorized key')
+    expect(shown.error.responseBody).toContain('Unauthorized key')
+  })
+
   it('gives an identical failure from a retry started outside the dialog its own occurrence', async () => {
     const user = userEvent.setup()
     const entry = health.apiKeyEntries[0]

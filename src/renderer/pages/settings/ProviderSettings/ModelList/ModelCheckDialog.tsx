@@ -33,6 +33,7 @@ import { parseUniqueModelId, type Model } from '@shared/data/types/model'
 import type { ApiKeyEntry } from '@shared/data/types/provider'
 import type { AppErrorContext } from '@shared/types/appError'
 import { isNonChatModel } from '@shared/utils/model'
+import { redactSecretLiterals } from '@shared/utils/redaction'
 
 import { drawerClasses } from '../primitives/ProviderSettingsPrimitives'
 import { useModelListHealthRun } from './modelListHealthContext'
@@ -343,19 +344,22 @@ export default function ModelCheckDialog() {
       }
     }
     const imageOnly = selectedModel ? isNonChatModel(selectedModel) : false
+    // Providers may echo a key that has no recognizable prefix, so mask every configured key literally.
+    const keys = health.apiKeyEntries.map((entry) => entry.key.trim()).filter(Boolean)
+    const redactedError = redactSecretLiterals(singleError, keys)
     let errorContext = checkFaults.current.get(singleError)
     if (!errorContext) {
-      errorContext = contextFromUnknown(singleError, {
+      errorContext = contextFromUnknown(redactedError, {
         source: 'settings.provider',
         operation: 'model.check',
-        message: singleError.message || singleErrorText,
+        message: redactedError.message || redactSecretLiterals(singleErrorText, keys),
         ...(providerId ? { providerId } : {}),
         ...(modelId ? { modelId } : {}),
         ...(imageOnly ? { imageOnly: true } : {})
       })
       checkFaults.current.set(singleError, errorContext)
     }
-    const pending = showErrorDetailPopup({ error: singleError, errorContext })
+    const pending = showErrorDetailPopup({ error: redactedError, errorContext })
     if (pending) {
       void pending.catch((error: unknown) => {
         logger.error('Failed to open the model check detail', error as Error)

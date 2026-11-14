@@ -217,3 +217,18 @@ export function redactLiteral(text: string, secret: string | undefined): string 
   if (!secret) return text
   return text.split(secret).join(REDACTED)
 }
+
+/** Redact exact runtime-known secret literals from every string nested in a JSON-like value. */
+export function redactSecretLiterals<T>(value: T, secrets: readonly string[], replacement: string = REDACTED): T {
+  const redact = (val: unknown): unknown => {
+    if (typeof val === 'string') {
+      return secrets.reduce((text, secret) => (secret ? text.split(secret).join(replacement) : text), val)
+    }
+    if (Array.isArray(val)) return val.map(redact)
+    if (val && typeof val === 'object') {
+      return Object.fromEntries(Object.entries(val).map(([key, item]) => [key, redact(item)]))
+    }
+    return val
+  }
+  return redact(value) as T
+}
