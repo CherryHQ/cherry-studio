@@ -125,7 +125,7 @@ const MinimalToolbar: FC<Props> = ({
         toast.error({ title: t(fallbackKey), description: e.message, data: { suppressDetail: true } })
         return
       }
-      toastAppError(t(fallbackKey), e, { source: 'miniApp', operation: fallbackKey })
+      toastAppError(t(fallbackKey), e, { source: 'miniapp', operation: 'miniapp.update_status', recordId: app.appId })
     })
   }, [app.appId, isPinned, updateAppStatus, t])
 
