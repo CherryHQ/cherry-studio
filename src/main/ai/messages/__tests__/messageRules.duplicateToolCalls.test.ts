@@ -274,24 +274,72 @@ describe('local tool identity', () => {
     }
   )
 
+  it('#23980 keeps the first self-contained provider pair and serializes one call', async () => {
+    const first = { ...completed('first'), providerExecuted: true } as UIMessage['parts'][number]
+    const last = { ...completed('last'), providerExecuted: true } as UIMessage['parts'][number]
+    const input = [assistant([first, last])]
+    const converted = await toModelMessages(input)
+    expect(converted.map((message) => message.role)).toEqual(['assistant'])
+    await expectPair(input[0].parts, { query: 'first' }, { type: 'json', value: { answer: 'first' } })
+    const wire = await serialize(input)
+    expect(wire.flatMap((message) => message.tool_calls ?? [])).toEqual([
+      { id: 'call_dup', type: 'function', function: { name: 'lookup', arguments: '{"query":"first"}' } }
+    ])
+    expect(wire.filter((message) => message.role === 'tool')).toEqual([])
+  })
+
   it.each([false, true])(
-    '#22441 preserves whole provider-containing group, provider last (mixed=%s)',
-    async (mixed) => {
-      const first = { ...completed('first'), providerExecuted: !mixed } as UIMessage['parts'][number]
-      const last = { ...completed('last'), providerExecuted: true } as UIMessage['parts'][number]
-      const input = [assistant([first, last])]
-      expect(deduplicateLocalToolParts(input)).toBe(input)
-      const parts = modelParts(await toModelMessages(input))
-      expect(parts.filter((part) => part.type === 'tool-call').map((part) => part.input)).toEqual([
-        { query: 'first' },
-        { query: 'last' }
+    '#23980 applies equal terminal priority to local/provider pairs (providerFirst=%s)',
+    async (providerFirst) => {
+      const local = completed('local')
+      const provider = { ...completed('provider'), providerExecuted: true } as UIMessage['parts'][number]
+      const parts = providerFirst ? [provider, local] : [local, provider]
+      const label = providerFirst ? 'provider' : 'local'
+      expect(deduplicateLocalToolParts([assistant(parts)])[0].parts[0]).toBe(parts[0])
+      await expectPair(parts, { query: label }, { type: 'json', value: { answer: label } })
+      const wire = await serialize([assistant(parts)])
+      expect(wire.flatMap((message) => message.tool_calls ?? [])).toEqual([
+        { id: 'call_dup', type: 'function', function: { name: 'lookup', arguments: JSON.stringify({ query: label }) } }
       ])
-      expect(parts.filter((part) => part.type === 'tool-result').map((part) => part.output)).toEqual([
-        { type: 'json', value: { answer: mixed ? 'last' : 'first' } },
-        { type: 'json', value: { answer: mixed ? 'first' : 'last' } }
-      ])
+      expect(wire.filter((message) => message.role === 'tool')).toEqual(
+        providerFirst ? [] : [{ role: 'tool', tool_call_id: 'call_dup', content: '{"answer":"local"}' }]
+      )
     }
   )
+
+  it.each([
+    ['input-available', false],
+    ['input-available', true],
+    ['preliminary', false],
+    ['preliminary', true]
+  ] as const)('#23980 provider %s loses to its final pair (reverse=%s)', async (state, reverse) => {
+    const incomplete = {
+      ...(state === 'input-available' ? pending : { ...completed('preview'), preliminary: true }),
+      providerExecuted: true
+    } as UIMessage['parts'][number]
+    const final = { ...completed('final'), providerExecuted: true } as UIMessage['parts'][number]
+    const parts = reverse ? [final, incomplete] : [incomplete, final]
+    expect(deduplicateLocalToolParts([assistant(parts)])[0].parts).toEqual([final])
+    await expectPair(parts, { query: 'final' }, { type: 'json', value: { answer: 'final' } })
+  })
+
+  it('#23980 leaves provider pairs with distinct ids unchanged', async () => {
+    const parts = [
+      { ...completed('first'), providerExecuted: true },
+      { ...completed('last', 'dynamic', 'call_other'), providerExecuted: true }
+    ] as UIMessage['parts']
+    const input = [assistant(parts)]
+    expect(deduplicateLocalToolParts(input)).toBe(input)
+    const converted = modelParts(await toModelMessages(input))
+    expect(converted.filter((part) => part.type === 'tool-call')).toEqual([
+      expect.objectContaining({ toolCallId: 'call_dup', input: { query: 'first' } }),
+      expect.objectContaining({ toolCallId: 'call_other', input: { query: 'last' } })
+    ])
+    expect(converted.filter((part) => part.type === 'tool-result')).toEqual([
+      expect.objectContaining({ toolCallId: 'call_dup', output: { type: 'json', value: { answer: 'first' } } }),
+      expect.objectContaining({ toolCallId: 'call_other', output: { type: 'json', value: { answer: 'last' } } })
+    ])
+  })
 
   it('#22441 preserves frozen fields and references, is idempotent, and leaves non-assistant parts alone', async () => {
     const winner = {
