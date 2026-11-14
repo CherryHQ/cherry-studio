@@ -257,8 +257,8 @@ function ffmpegUrl(asset) {
  * @property {string} version
  * @property {string} versionFile
  * @property {boolean} [required]
- * @property {boolean} [isWindowsOnly]
- * @property {Record<string, {url: string, archive: 'none' | 'zip' | 'zip-tree' | 'tar.gz', binaries: string[], sha256: string, dir?: string, strip?: string}>} packages
+ * @property {string[]} [supportedPlatforms]
+ * @property {Record<string, {url: string, archive: 'none' | 'zip' | 'zip-tree' | 'tar.gz', binaries: string[], sha256: string, dir?: string, strip?: string, stripComponents?: number, archiveFiles?: string[], localFiles?: {source: string, name: string}[], executableFiles?: string[]}>} packages
  */
 
 /** @type {BundledTool[]} */
