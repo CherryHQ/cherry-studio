@@ -4,7 +4,7 @@ import type { LocalModelStatusSnapshots } from '@shared/data/presets/localModel'
 import type { ChannelStatus } from '@shared/data/types/channel'
 import type { FileProcessingTask } from '@shared/data/types/fileProcessing'
 import type { MiniAppRegion, TransientMiniApp } from '@shared/data/types/miniApp'
-import type { Currency } from '@shared/data/types/model'
+import type { Currency, UniqueModelId } from '@shared/data/types/model'
 import type { CherryCloudPlanModel } from '@shared/ipc/schemas/cherryCloud'
 import type { AutoBackupEvent, AutoBackupType } from '@shared/types/backup'
 import type { AbsoluteFilePath } from '@shared/types/file'
@@ -516,6 +516,12 @@ export type RendererPersistCacheSchema = {
   // Paid plan models last seen while signed in; the plans API needs a session, and the model picker
   // keeps offering them as locked rows after sign-out.
   'ui.cherry_cloud.plan_models': CherryCloudPlanModel[]
+  // One-shot chat-header guide after a plan activates; the chat tab applies `selectedModelId`, then shows the guide.
+  'ui.cherry_cloud.model_guide': {
+    modelIds: UniqueModelId[]
+    selectedModelId: UniqueModelId | null
+    switchedModelId: UniqueModelId | null
+  } | null
 }
 
 export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
@@ -571,7 +577,8 @@ export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
   'ui.screenshot.annotation_stroke_width': 4,
   'ui.screenshot.annotation_font_size': 20,
   'ui.cherry_cloud.subscribe_prompt_seen': false,
-  'ui.cherry_cloud.plan_models': []
+  'ui.cherry_cloud.plan_models': [],
+  'ui.cherry_cloud.model_guide': null
 }
 
 /**

@@ -7,6 +7,7 @@ import { toast } from '@renderer/services/toast'
 import type {
   CherryCloudAccountPlans,
   CherryCloudAccountReceipt,
+  CherryCloudModelSyncResult,
   CherryCloudStatus
 } from '@shared/ipc/schemas/cherryCloud'
 
@@ -15,6 +16,7 @@ import { useCherryCloudSubscriptionReminder } from '../useCherryCloudSubscriptio
 const request = vi.mocked(window.api.ipcApi.request)
 let status: CherryCloudStatus
 let plans: CherryCloudAccountPlans
+let syncedModels: CherryCloudModelSyncResult | null
 
 const signedIn = (accountId: string): CherryCloudStatus => ({
   phase: 'signed-in',
@@ -28,7 +30,16 @@ const unpaid = (): CherryCloudAccountPlans => ({
   entitlements: [],
   available_plans: []
 })
-const paid = (planName: string): CherryCloudAccountPlans => ({
+const planModel = (id: string, features: Array<'agent' | 'chat' | 'translate'> = ['chat', 'translate']) => ({
+  id,
+  display_name: id,
+  available_features: features
+})
+const paid = (
+  planName: string,
+  models?: ReturnType<typeof planModel>[],
+  quotaPools: CherryCloudAccountPlans['entitlements'][number]['quota_pools'] = []
+): CherryCloudAccountPlans => ({
   ...unpaid(),
   entitlements: [
     {
@@ -41,11 +52,12 @@ const paid = (planName: string): CherryCloudAccountPlans => ({
         default_for_new_accounts: false,
         quota_pool_count: 1,
         model_count: 3,
-        purchase_available: true
+        purchase_available: true,
+        ...(models && { models })
       },
       state: 'active',
       starts_at: '2026-10-27T00:00:00Z',
-      quota_pools: []
+      quota_pools: quotaPools
     }
   ]
 })
@@ -58,7 +70,9 @@ function receipt(reason: 'initial' | 'focus_refresh' | 'notification', fresh = t
     status: { ...status, revision: next },
     reason,
     account: { freshness: 'fresh' as const },
-    models: { freshness: 'unknown' as const, error: null },
+    models: syncedModels
+      ? { freshness: 'fresh' as const, value: syncedModels, observedRevision: next }
+      : { freshness: 'unknown' as const, error: null },
     plans: fresh
       ? { freshness: 'fresh' as const, value: plans, observedRevision: next }
       : { freshness: 'unknown' as const, error: null }
@@ -78,6 +92,7 @@ beforeEach(() => {
   revision = 0
   status = signedIn('account-1')
   plans = unpaid()
+  syncedModels = null
   vi.mocked(window.api.ipcApi.on).mockImplementation((event, listener) => {
     if (event === 'cherry_cloud.account_changed') listeners.add(listener)
     return () => {
@@ -111,6 +126,97 @@ describe('useCherryCloudSubscriptionReminder', () => {
     await returnFromBrowser()
     expect(toast.success).toHaveBeenCalledOnce()
   })
+  it('opens the activation guide for the plan chat models already synced, instead of the toast', async () => {
+    syncedModels = {
+      entitledModelIds: [],
+      freeModelIds: [],
+      availableModelIds: {
+        agent: [],
+        general: ['cherryai-subscription::chat-a', 'cherryai-subscription::agent-only', 'cherryai-subscription::chat-b']
+      },
+      quotaExhaustedModelIds: []
+    }
+    const { result } = renderHook(() => useCherryCloudSubscriptionReminder(), { wrapper })
+    await waitFor(() =>
+      expect(request.mock.calls.some(([route]) => route === 'cherry_cloud.account.refresh')).toBe(true)
+    )
+    await act(async () => Promise.resolve())
+    plans = paid('Plus', [
+      planModel('chat-b'),
+      planModel('agent-only', ['agent']),
+      planModel('not-synced'),
+      planModel('chat-a')
+    ])
+    await returnFromBrowser()
+
+    await waitFor(() =>
+      expect(result.current.activation).toEqual({
+        modelIds: ['cherryai-subscription::chat-b', 'cherryai-subscription::chat-a'],
+        expiresAt: null
+      })
+    )
+    expect(toast.success).not.toHaveBeenCalled()
+    act(() => result.current.dismiss())
+    expect(result.current.activation).toBeNull()
+  })
+  it('dates a monthly subscription without expires_at by the end of its current billing period', async () => {
+    syncedModels = {
+      entitledModelIds: [],
+      freeModelIds: [],
+      availableModelIds: { agent: [], general: ['cherryai-subscription::chat-a'] },
+      quotaExhaustedModelIds: []
+    }
+    const { result } = renderHook(() => useCherryCloudSubscriptionReminder(), { wrapper })
+    await waitFor(() =>
+      expect(request.mock.calls.some(([route]) => route === 'cherry_cloud.account.refresh')).toBe(true)
+    )
+    await act(async () => Promise.resolve())
+    plans = paid(
+      'Plus',
+      [planModel('chat-a')],
+      [
+        {
+          allocation_id: '33333333-3333-4333-8333-333333333333',
+          display_name: 'Plus',
+          measurement_kind: 'requests',
+          model_ids: ['chat-a'],
+          windows: [
+            {
+              window_type: 'subscription_month',
+              duration_seconds: 2_678_400,
+              limit_units: 100,
+              used_units: 0,
+              active_reserved_units: 0,
+              remaining_units: 100,
+              period_start: '2026-11-13T08:00:00Z',
+              period_end: '2026-12-13T08:00:00Z'
+            }
+          ]
+        }
+      ]
+    )
+    await returnFromBrowser()
+
+    await waitFor(() => expect(result.current.activation?.expiresAt).toBe('2026-12-13T08:00:00Z'))
+  })
+  it('keeps the toast when none of the plan models are synced locally', async () => {
+    syncedModels = {
+      entitledModelIds: [],
+      freeModelIds: [],
+      availableModelIds: { agent: [], general: ['cherryai-subscription::other'] },
+      quotaExhaustedModelIds: []
+    }
+    const { result } = renderHook(() => useCherryCloudSubscriptionReminder(), { wrapper })
+    await waitFor(() =>
+      expect(request.mock.calls.some(([route]) => route === 'cherry_cloud.account.refresh')).toBe(true)
+    )
+    await act(async () => Promise.resolve())
+    plans = paid('Plus', [planModel('chat-a')])
+    await returnFromBrowser()
+
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith('Plus 已生效'))
+    expect(result.current.activation).toBeNull()
+  })
   it('uses the receipt source for notification detection', async () => {
     renderHook(() => useCherryCloudSubscriptionReminder(), { wrapper })
     await waitFor(() =>
@@ -138,6 +244,12 @@ describe('useCherryCloudSubscriptionReminder', () => {
     ])
   })
   it('leaves a China-edition activation to the notification center while its stream is live', async () => {
+    syncedModels = {
+      entitledModelIds: [],
+      freeModelIds: [],
+      availableModelIds: { agent: [], general: ['cherryai-subscription::chat-a'] },
+      quotaExhaustedModelIds: []
+    }
     const edition = (globalThis as { __APP_EDITION__?: string }).__APP_EDITION__
     vi.stubGlobal('__APP_EDITION__', 'cn')
     const fallback = request.getMockImplementation()!
@@ -145,12 +257,12 @@ describe('useCherryCloudSubscriptionReminder', () => {
       route === 'cherry_cloud.notifications.active.get' ? { ok: true, data: true } : fallback(route, input)
     )
     try {
-      renderHook(() => useCherryCloudSubscriptionReminder(), { wrapper })
+      const { result } = renderHook(() => useCherryCloudSubscriptionReminder(), { wrapper })
       await waitFor(() =>
         expect(request.mock.calls.some(([route]) => route === 'cherry_cloud.account.refresh')).toBe(true)
       )
       await act(async () => Promise.resolve())
-      plans = paid('Plus')
+      plans = paid('Plus', [planModel('chat-a')])
       act(() => {
         const next = receipt('notification')
         listeners.forEach((listener) => listener(next))
@@ -160,6 +272,7 @@ describe('useCherryCloudSubscriptionReminder', () => {
       )
       await act(async () => Promise.resolve())
       expect(toast.success).not.toHaveBeenCalled()
+      expect(result.current.activation).toBeNull()
       expect(request.mock.calls.some(([route]) => route === 'cherry_cloud.analytics.track')).toBe(true)
     } finally {
       vi.stubGlobal('__APP_EDITION__', edition)
