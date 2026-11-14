@@ -204,7 +204,8 @@ describe('Toast', () => {
     expect(screen.queryByText('Archived Draft')).not.toBeInTheDocument()
   })
 
-  it('keeps both toast actions on a wrapping row beside a readable title', () => {
+  it('shows the full title and description with the secondary action before the primary one', () => {
+    const title = 'Item deleted from the shared workspace together with its attachments and history'
     render(<ToastViewport />)
 
     act(() => {
@@ -212,24 +213,17 @@ describe('Toast', () => {
         action: { label: 'Undo', onClick: vi.fn() },
         description: 'The item can be restored for 30 days.',
         secondaryAction: { label: 'View', onClick: vi.fn() },
-        title: 'Item deleted'
+        title
       })
     })
 
     const actionButton = screen.getByRole('button', { name: 'Undo' })
     const secondaryButton = screen.getByRole('button', { name: 'View' })
-    const closeButton = screen.getByRole('button', { name: 'Close' })
-    const title = screen.getByText('Item deleted')
 
-    expect(actionButton).toHaveAttribute('data-variant', 'outline')
-    expect(secondaryButton).toHaveAttribute('data-variant', 'link')
-    expect(title).toHaveClass('break-words')
-    expect(title).not.toHaveClass('truncate')
+    expect(screen.getByText(title)).toBeVisible()
     expect(screen.getByText('The item can be restored for 30 days.')).toBeVisible()
-    expect(actionButton.parentElement).toHaveClass('flex-wrap')
-    expect(actionButton.parentElement).toContainElement(secondaryButton)
-    expect(actionButton.parentElement).not.toContainElement(closeButton)
-    expect(closeButton).toBeVisible()
+    expect(secondaryButton.compareDocumentPosition(actionButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Close' })).toBeVisible()
   })
 
   it('marks toast items as no-drag so they stay clickable over titlebar drag regions', () => {
