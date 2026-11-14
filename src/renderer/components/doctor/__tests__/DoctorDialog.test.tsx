@@ -122,7 +122,6 @@ function createController(overrides: ControllerOverrides = {}) {
       downloadProgress: 0,
       available: false,
       ignore: false,
-      manualCheck: false,
       lastErrorKey: null
     },
     actionError: null,
