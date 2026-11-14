@@ -26,6 +26,14 @@ describe('classifyErrorCategory unusable API responses', () => {
 })
 
 describe('classifyErrorCategory HTTP 400', () => {
+  it.each([
+    ['Input exceeds the context limit (1048568 tokens)', 'context_length'],
+    ['Input is too long for this model context', 'context_length'],
+    ['Invalid request field', 'bad_request']
+  ] as const)('evaluates adjacent context checks without throwing: %s', (text, category) => {
+    expect(classifyErrorCategory({ status: 400, text })).toBe(category)
+  })
+
   it('identifies a provider request failure without guessing its cause', () => {
     expect(classifyErrorCategory({ status: 400, text: 'API Error: 400 Provider returned error' })).toBe('bad_request')
   })

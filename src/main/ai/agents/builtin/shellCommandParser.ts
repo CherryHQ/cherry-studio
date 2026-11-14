@@ -15,6 +15,8 @@ export interface ShellCommand {
   command: string
   /** Arguments after the command word; redirection targets are excluded. */
   args: string[]
+  /** Source words preserve empty quoted CMD equality operands. */
+  rawArgs?: string[]
   /** Command substitutions found inside the command's words. */
   substitutions: string[]
 }
@@ -112,6 +114,7 @@ const WRAPPER_VALUE_FLAGS: Readonly<Record<string, ReadonlySet<string>>> = {
 
 interface WordToken {
   kind: 'word'
+  raw: string
   value: string
   substitutions: string[]
 }
@@ -148,7 +151,11 @@ function readOperator(text: string, start: number): { value: string; end: number
 }
 
 /** Read a `$(` substitution starting at `start`; returns its body and the index after `)`. */
-function readParenthesized(text: string, start: number): { value: string; raw: string; end: number } {
+function readParenthesized(
+  text: string,
+  start: number,
+  powershell = false
+): { value: string; raw: string; end: number } {
   let index = start + 2
   let depth = 1
   let quote: string | undefined
@@ -167,6 +174,16 @@ function readParenthesized(text: string, start: number): { value: string; raw: s
     if (char === "'" || char === '"' || char === '`') {
       quote = char
       index++
+      continue
+    }
+    if (
+      powershell &&
+      char === '<' &&
+      text[index + 1] === '#' &&
+      (index === contentStart || /[\s;(){}[\]'"]/.test(text[index - 1]))
+    ) {
+      const end = text.indexOf('#>', index + 2)
+      index = end === -1 ? text.length : end + 2
       continue
     }
     if (char === '(') depth++
@@ -196,7 +213,11 @@ function readBacktick(text: string, start: number): { value: string; raw: string
   return { value: text.slice(start + 1), raw: text.slice(start), end: text.length }
 }
 
-function readDoubleQuoted(text: string, start: number): { value: string; substitutions: string[]; end: number } {
+function readDoubleQuoted(
+  text: string,
+  start: number,
+  powershell = false
+): { value: string; substitutions: string[]; end: number } {
   let value = ''
   const substitutions: string[] = []
   let index = start + 1
@@ -210,7 +231,7 @@ function readDoubleQuoted(text: string, start: number): { value: string; substit
       continue
     }
     if (char === '$' && text[index + 1] === '(') {
-      const substitution = readParenthesized(text, index)
+      const substitution = readParenthesized(text, index, powershell)
       substitutions.push(substitution.value)
       value += substitution.raw
       index = substitution.end
@@ -229,13 +250,25 @@ function readDoubleQuoted(text: string, start: number): { value: string; substit
   return { value, substitutions, end: index }
 }
 
-function readWord(text: string, start: number): { value: string; substitutions: string[]; end: number } {
+function readWord(
+  text: string,
+  start: number,
+  powershell = false
+): { value: string; substitutions: string[]; end: number } {
   let value = ''
   const substitutions: string[] = []
   let index = start
   while (index < text.length) {
     const char = text[index]
-    if (WHITESPACE.has(char) || char === '\n' || isOperatorChar(char)) break
+    if (powershell && index > start && char === '<' && text[index + 1] === '#' && /[)'"\]}]/.test(text[index - 1]))
+      break
+    if (
+      WHITESPACE.has(char) ||
+      char === '\n' ||
+      (isOperatorChar(char) && !(powershell && char === '<')) ||
+      (powershell && (char === '{' || char === '}'))
+    )
+      break
     if (char === '\\') {
       if (index + 1 < text.length) value += text[index + 1]
       index += 2
@@ -253,14 +286,14 @@ function readWord(text: string, start: number): { value: string; substitutions: 
       continue
     }
     if (char === '"') {
-      const quoted = readDoubleQuoted(text, index)
+      const quoted = readDoubleQuoted(text, index, powershell)
       value += quoted.value
       substitutions.push(...quoted.substitutions)
       index = quoted.end
       continue
     }
     if (char === '$' && text[index + 1] === '(') {
-      const substitution = readParenthesized(text, index)
+      const substitution = readParenthesized(text, index, powershell)
       substitutions.push(substitution.value)
       value += substitution.raw
       index = substitution.end
@@ -280,7 +313,7 @@ function readWord(text: string, start: number): { value: string; substitutions: 
 }
 
 /** `#` starts a comment only at a word boundary; `foo#bar` stays one word. */
-function tokenize(text: string): Token[] {
+function tokenize(text: string, powershell: boolean): Token[] {
   const tokens: Token[] = []
   let index = 0
   let atWordStart = true
@@ -288,6 +321,17 @@ function tokenize(text: string): Token[] {
     const char = text[index]
     if (WHITESPACE.has(char)) {
       index++
+      atWordStart = true
+      continue
+    }
+    if (
+      powershell &&
+      (atWordStart || /[)'"\]}]/.test(text[index - 1] ?? '')) &&
+      char === '<' &&
+      text[index + 1] === '#'
+    ) {
+      const end = text.indexOf('#>', index + 2)
+      index = end === -1 ? text.length : end + 2
       atWordStart = true
       continue
     }
@@ -301,35 +345,124 @@ function tokenize(text: string): Token[] {
       while (index < text.length && text[index] !== '\n') index++
       continue
     }
-    if (isOperatorChar(char)) {
+    if ((isOperatorChar(char) && !(powershell && char === '<')) || (powershell && (char === '{' || char === '}'))) {
       const operator = readOperator(text, index)
       tokens.push({ kind: 'operator', value: operator.value, glued: !atWordStart })
       index = operator.end
       atWordStart = true
       continue
     }
-    const word = readWord(text, index)
-    tokens.push({ kind: 'word', value: word.value, substitutions: word.substitutions })
+    const word = readWord(text, index, powershell)
+    tokens.push({
+      kind: 'word',
+      raw: text.slice(index, word.end),
+      value: word.value,
+      substitutions: word.substitutions
+    })
     index = word.end
     atWordStart = false
   }
   return tokens
 }
 
+const CMD_START_FLAGS = new Set([
+  '/i',
+  '/min',
+  '/max',
+  '/separate',
+  '/shared',
+  '/low',
+  '/normal',
+  '/high',
+  '/realtime',
+  '/abovenormal',
+  '/belownormal',
+  '/wait',
+  '/b'
+])
+const CMD_START_VALUE_FLAGS = new Set(['/d', '/node', '/affinity', '/machine'])
+
+const CMD_COMPARISONS = new Set(['equ', 'neq', 'lss', 'leq', 'gtr', 'geq'])
+
+/** Consume one CMD IF condition without scanning for a deletion word inside its operands. */
+function cmdConditionEnd(words: readonly string[], start: number, rawWords?: readonly string[]): number | undefined {
+  let index = start
+  if (words[index]?.toLowerCase() === '/i') index++
+  if (words[index]?.toLowerCase() === 'not') index++
+  const condition = words[index]?.toLowerCase()
+  if (condition === undefined) return undefined
+  if (['exist', 'defined', 'errorlevel', 'cmdextversion'].includes(condition))
+    return words[index + 1] === undefined ? undefined : index + 2
+  const equalityWord = rawWords?.[index] ?? words[index]
+  let quoted = false
+  for (let cursor = 0; cursor < equalityWord.length - 1; cursor++) {
+    if (equalityWord[cursor] === '"') quoted = !quoted
+    if (!quoted && equalityWord[cursor] === '=' && equalityWord[cursor + 1] === '=')
+      return index + (cursor + 2 < equalityWord.length ? 1 : 2)
+  }
+  const nextWord = rawWords?.[index + 1] ?? words[index + 1]
+  if (nextWord?.startsWith('==')) return index + (nextWord.length > 2 ? 2 : 3)
+  if (CMD_COMPARISONS.has(words[index + 1]?.toLowerCase()) && words[index + 2] !== undefined) return index + 3
+  return undefined
+}
+
 /**
  * Resolve the command word through assignments, sudo, and wrappers like `xargs`. Also resolves
  * argument vectors that are exec'd as argv rather than re-parsed as shell text (`docker exec …`).
  */
-export function resolveCommand(words: readonly string[]): { command: string; args: string[] } | undefined {
+export function resolveCommand(
+  words: readonly string[],
+  rawWords?: readonly string[],
+  powershell = false
+): { command: string; args: string[]; rawArgs?: string[] } | undefined {
   let index = 0
   while (index < words.length) {
     const word = words[index]
+    if (powershell && /^\$[A-Za-z_][\w:]*$/.test(rawWords?.[index] ?? word) && words[index + 1] === '=') {
+      index += 2
+      const rhs = rawWords?.[index] ?? words[index]
+      if (rhs?.startsWith("'") || rhs?.startsWith('"')) return undefined
+      continue
+    }
     if (ASSIGNMENT.test(word)) {
       index++
       continue
     }
-    const name = normalizeCommandName(word)
-    if (!WRAPPERS.has(name)) return { command: name, args: words.slice(index + 1) }
+    const unprefixed = word.replace(/^@+/, '')
+    if (unprefixed.length === 0) {
+      index++
+      continue
+    }
+    const name = normalizeCommandName(unprefixed)
+    if (name === 'start') {
+      index++
+      let titleConsumed = false
+      while (index < words.length) {
+        if (!titleConsumed && rawWords?.[index].startsWith('"')) {
+          titleConsumed = true
+          index++
+          continue
+        }
+        const flag = words[index].toLowerCase()
+        if (CMD_START_VALUE_FLAGS.has(flag)) {
+          if (words[index + 1] === undefined) return undefined
+          index += 2
+        } else if (CMD_START_FLAGS.has(flag)) {
+          index++
+        } else {
+          if (flag.startsWith('/')) return undefined
+          break
+        }
+      }
+      continue
+    }
+    if (name === 'if') {
+      const end = cmdConditionEnd(words, index + 1, rawWords)
+      index = end ?? index + 1
+      continue
+    }
+    if (!WRAPPERS.has(name))
+      return { command: name, args: words.slice(index + 1), ...(rawWords && { rawArgs: rawWords.slice(index + 1) }) }
     index++
     // `command -v rm` reports a path; it does not execute.
     if ((name === 'command' || name === 'builtin') && words.slice(index).some((arg) => arg === '-v' || arg === '-V')) {
@@ -344,20 +477,22 @@ export function resolveCommand(words: readonly string[]): { command: string; arg
   return undefined
 }
 
-function parseCommands(text: string): ShellPipeline[] {
+function parseCommands(text: string, powershell: boolean): ShellPipeline[] {
   const pipelines: ShellPipeline[] = []
   let commands: ShellCommand[] = []
   let words: string[] = []
+  let rawWords: string[] = []
   let substitutions: string[] = []
   let redirection: string | undefined
 
   const flushCommand = () => {
-    const resolved = words.length > 0 ? resolveCommand(words) : undefined
+    const resolved = words.length > 0 ? resolveCommand(words, rawWords, powershell) : undefined
     // `x=$(rm -f a)` and a bare `> "$(rm -f a)"` run their substitution without ever resolving a
     // command word, so retained substitutions outlive the words they were collected with.
     if (resolved) commands.push({ ...resolved, substitutions })
     else if (substitutions.length > 0) commands.push({ command: '', args: [], substitutions })
     words = []
+    rawWords = []
     substitutions = []
   }
   const flushPipeline = () => {
@@ -368,7 +503,7 @@ function parseCommands(text: string): ShellPipeline[] {
     }
   }
 
-  const tokens = tokenize(text)
+  const tokens = tokenize(text, powershell)
   for (let index = 0; index < tokens.length; index++) {
     const token = tokens[index]
     if (token.kind === 'operator') {
@@ -387,12 +522,17 @@ function parseCommands(text: string): ShellPipeline[] {
       redirection = undefined
       substitutions.push(...token.substitutions)
       // `<<<` feeds the word to stdin (`sqlite3 db <<< "DROP TABLE t"`); other targets are filenames.
-      if (operator === '<<<') words.push(token.value)
+      if (operator === '<<<') {
+        words.push(token.value)
+        rawWords.push(token.raw)
+      }
       continue
     }
     // A reserved word opens or continues a compound body; the command after it is what executes.
-    if (words.length === 0 && RESERVED_WORDS.has(token.value.toLowerCase())) continue
+    if (words.length === 0 && token.value.toLowerCase() !== 'if' && RESERVED_WORDS.has(token.value.toLowerCase()))
+      continue
     words.push(token.value)
+    rawWords.push(token.raw)
     substitutions.push(...token.substitutions)
   }
   flushPipeline()
@@ -500,7 +640,7 @@ function extractHeredocs(command: string): { commandText: string; heredocs: Shel
   return { commandText: kept.join('\n'), heredocs }
 }
 
-export function parseShellCommand(command: string): ParsedShellCommand {
+export function parseShellCommand(command: string, powershell = false): ParsedShellCommand {
   const { commandText, heredocs } = extractHeredocs(command)
-  return { pipelines: parseCommands(commandText), heredocs }
+  return { pipelines: parseCommands(commandText, powershell), heredocs }
 }

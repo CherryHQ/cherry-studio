@@ -392,7 +392,7 @@ function powershellCommand(args: readonly string[]): string | undefined {
     if (flag === '-encodedcommand' || flag === '-enc' || flag === '-ec') {
       return decodePowerShellBase64(args[index + 1])
     }
-    if (flag === '-command' || flag === '-c') return args[index + 1]
+    if (flag === '-command' || flag === '-c') return args.slice(index + 1).join(' ')
   }
   let index = 0
   while (index < args.length && args[index].startsWith('-')) {
@@ -403,9 +403,19 @@ function powershellCommand(args: readonly string[]): string | undefined {
   return index < args.length ? args.slice(index).join(' ') : undefined
 }
 
-function cmdCommand(args: readonly string[]): string | undefined {
+function cmdCommand(args: readonly string[], rawArgs?: readonly string[]): string | undefined {
   const flagIndex = args.findIndex((arg) => /^\/[ck]$/i.test(arg))
-  return flagIndex >= 0 && args[flagIndex + 1] !== undefined ? args.slice(flagIndex + 1).join(' ') : undefined
+  if (flagIndex < 0 || args[flagIndex + 1] === undefined) return undefined
+  const values = args.slice(flagIndex + 1)
+  const source = rawArgs?.slice(flagIndex + 1)
+  const program = (source ?? values).join(' ')
+  // CMD strips the first and last quote of its whole /c or /k program, even
+  // when nested quotes caused the shell tokenizer to split it into words.
+  if (source?.[0].startsWith('"')) {
+    const lastQuote = program.lastIndexOf('"')
+    if (lastQuote > 0) return program.slice(1, lastQuote) + program.slice(lastQuote + 1)
+  }
+  return program
 }
 
 function skipOptions(args: readonly string[], start: number, valueFlags: ReadonlySet<string>): number {
@@ -561,7 +571,12 @@ function analyzeArgv(argv: readonly string[] | undefined, depth: number): string
   return resolved === undefined ? undefined : reasonForCommand({ ...resolved, substitutions: [] }, depth + 1)
 }
 
-function reasonForNestedCommand(name: string, args: readonly string[], depth: number): string | undefined {
+function reasonForNestedCommand(
+  name: string,
+  args: readonly string[],
+  depth: number,
+  rawArgs?: readonly string[]
+): string | undefined {
   if (depth >= MAX_ANALYSIS_DEPTH) return undefined
   if (SHELLS.has(name)) return analyzeNested(shellCodeArgument(args), depth)
   if (PYTHON.has(name)) {
@@ -572,8 +587,11 @@ function reasonForNestedCommand(name: string, args: readonly string[], depth: nu
     const code = optionValue(args, ['-e', '--eval', '-p', '--print'])
     return code === undefined ? undefined : detectNodeDeletion(code)
   }
-  if (POWERSHELL.has(name)) return analyzeNested(powershellCommand(args), depth)
-  if (CMD.has(name)) return analyzeNested(cmdCommand(args), depth)
+  if (POWERSHELL.has(name)) {
+    const code = powershellCommand(args)
+    return code === undefined ? undefined : analyze(code, depth + 1, true)
+  }
+  if (CMD.has(name)) return analyzeNested(cmdCommand(args, rawArgs), depth)
   if (name === 'ssh') return analyzeNested(sshCommand(args), depth)
   if (name === 'su' || name === 'runuser') return analyzeNested(suCommand(args), depth)
   if (name === 'chroot') return analyzeArgv(chrootArgv(args), depth)
@@ -587,7 +605,7 @@ function reasonForCommand(command: ShellCommand, depth: number): string | undefi
   if (UNIX_DELETION.has(name)) return 'permanent file deletion'
   if (WINDOWS_DELETION.has(name)) return 'permanent Windows file deletion'
 
-  const scripted = reasonForNestedCommand(name, args, depth)
+  const scripted = reasonForNestedCommand(name, args, depth, command.rawArgs)
   if (scripted) return scripted
 
   if (name === 'find' && findDeletes(args)) return 'recursive find deletion'
@@ -709,15 +727,15 @@ function reasonForHeredoc(heredoc: ShellHeredoc, depth: number): string | undefi
   return undefined
 }
 
-function analyze(command: string, depth: number): string | undefined {
+function analyze(command: string, depth: number, powershell = false): string | undefined {
   if (depth > MAX_ANALYSIS_DEPTH) return undefined
-  const parsed = parseShellCommand(command)
+  const parsed = parseShellCommand(command, powershell)
   for (const pipeline of parsed.pipelines) {
     for (const simple of pipeline.commands) {
       const reason = reasonForCommand(simple, depth)
       if (reason) return reason
       for (const substitution of simple.substitutions) {
-        const nested = analyze(substitution, depth + 1)
+        const nested = analyze(substitution, depth + 1, powershell)
         if (nested) return nested
       }
     }

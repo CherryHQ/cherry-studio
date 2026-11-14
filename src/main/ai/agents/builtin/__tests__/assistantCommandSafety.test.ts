@@ -441,3 +441,278 @@ describe('isGitHubIssueCreationCommand', () => {
     expect(isGitHubIssueCreationCommand(command)).toBe(false)
   })
 })
+
+describe('CMD conditional command positions', () => {
+  it.each([
+    'if exist victim.txt del /q victim.txt',
+    'if defined SHOULD_DELETE del victim.txt',
+    'if ERRORLEVEL 1 del victim.txt',
+    'if CMDEXTVERSION 2 rd /s /q victim',
+    'if /i not exist "a b.txt" erase "a b.txt"',
+    'if 1==1 del victim.txt',
+    'if 1 == 1 del victim.txt',
+    'if 1 ==1 del victim.txt',
+    'if 1== 1 del victim.txt',
+    'if "a"=="b" del victim.txt',
+    'if 1 EQU 1 del victim.txt',
+    'if /i not "a" NEQ "b" erase victim.txt',
+    'cmd /c if exist victim.txt del victim.txt',
+    'cmd /c if 1==1 del victim.txt',
+    'cmd /c if 1 EQU 1 del victim.txt',
+    'cmd /c if /i not "a" NEQ "b" erase victim.txt',
+    'cmd /c @ del victim.txt',
+    'cmd /c @@del victim.txt',
+    'cmd /c @ @ del victim.txt',
+    'if exist victim.txt @rd /s /q victim',
+    'if exist victim.txt @ rd /s /q victim',
+    'echo hi && @ del victim.txt',
+    'if exist outer if defined INNER del victim.txt'
+  ])('denies the executable conditional body: %s', (command) => {
+    expect(detectDestructiveAssistantCommand(command)).toBe('permanent Windows file deletion')
+  })
+
+  it.each([
+    'echo "if exist a del b"',
+    'echo "if 1==1 del b"',
+    'echo "prueba de tanteo del Bibliotecario"',
+    'ls "T:/folder del something"',
+    'if exist del echo safe',
+    'if defined del echo safe',
+    'if "del"=="erase" echo safe',
+    'if 1 EQU 1 echo del',
+    'cmd /c if exist del echo safe',
+    'echo @del'
+  ])('does not treat condition operands or prose as commands: %s', (command) => {
+    expect(detectDestructiveAssistantCommand(command)).toBeUndefined()
+  })
+
+  it('consumes long nested conditional prefixes without rescanning the suffix', () => {
+    const command = 'if exist a '.repeat(20000) + 'del victim.txt'
+    expect(detectDestructiveAssistantCommand(command)).toBe('permanent Windows file deletion')
+  })
+})
+
+describe('CMD empty quoted equality operands', () => {
+  for (const prefix of ['', 'cmd /c ', 'cmd.exe /k ']) {
+    for (const condition of [
+      '"%x%"==""',
+      '"a"==""',
+      '""==""',
+      '""=="a"',
+      '"a" == ""',
+      '"" == ""',
+      '"a"== ""',
+      '"" =="a"'
+    ]) {
+      it(`denies ${prefix}if ${condition} del`, () => {
+        expect(detectDestructiveAssistantCommand(`${prefix}if ${condition} del b`)).toBe(
+          'permanent Windows file deletion'
+        )
+        expect(detectDestructiveAssistantCommand(`${prefix}if ${condition} rd /s x`)).toBe(
+          'permanent Windows file deletion'
+        )
+      })
+      it(`allows ${prefix}if ${condition} echo del`, () => {
+        expect(detectDestructiveAssistantCommand(`${prefix}if ${condition} echo del x`)).toBeUndefined()
+      })
+    }
+  }
+})
+
+describe('CMD quote stripping for nested command programs', () => {
+  it.each([
+    'cmd /c "cmd /c "del b""',
+    'cmd /c "cmd /c "if exist a del b""',
+    'cmd /k "cmd /c "del b""',
+    // Keep main's conservative deny for a quoted executable plus another quoted word.
+    'cmd /c "del b" "c"'
+  ])('retains deletion detection after whole-program quote stripping: %s', (command) => {
+    expect(detectDestructiveAssistantCommand(command)).toBe('permanent Windows file deletion')
+  })
+  it.each(['cmd /c "cmd /c "echo del""', 'cmd /c "cmd /c "if exist a echo del""'])(
+    'does not mistake nested prose for execution: %s',
+    (command) => {
+      expect(detectDestructiveAssistantCommand(command)).toBeUndefined()
+    }
+  )
+})
+
+describe('CMD START command dispatch', () => {
+  it.each([
+    'cmd /c start /b del victim.txt',
+    'cmd /c "@start /b del victim.txt"',
+    'cmd /c "@@start /min /b del victim.txt"',
+    'cmd /c start "t" /min del victim.txt',
+    'cmd /c start /d C:\\work del victim.txt',
+    'cmd /c start /node 0 /affinity ff /machine amd64 del victim.txt',
+    'cmd /c start /b start /wait del victim.txt',
+    'cmd /c start "my start /b menu" /min del victim.txt',
+    'cmd /c start /b "" del victim.txt',
+    'start "restart job" del victim.txt',
+    'cmd /c "2> "log file.txt" del victim.txt"',
+    'cmd /c "1> out.txt 2>&1 del victim.txt"'
+  ])('denies the dispatched deletion: %s', (command) => {
+    expect(detectDestructiveAssistantCommand(command)).toBe('permanent Windows file deletion')
+  })
+
+  it.each([
+    'cmd /c start "del" echo hello',
+    'cmd /c start "my start menu" echo del victim.txt',
+    'cmd /c start /d del echo hello',
+    'cmd /c start /node del echo hello',
+    'cmd /c start /affinity del echo hello',
+    'cmd /c start /machine del echo hello',
+    'cmd /c start /?',
+    'cmd /c start /unknown del victim.txt',
+    'cmd /c start the job and del the files',
+    'cmd /c start "del victim.txt"',
+    'cmd /c start "" echo del victim.txt',
+    'cmd /c "2> "del victim.txt" echo hello"'
+  ])('does not treat a title, option value or argument as the command: %s', (command) => {
+    expect(detectDestructiveAssistantCommand(command)).toBeUndefined()
+  })
+
+  it('walks nested START wrappers without recursion or suffix rescans', () => {
+    expect(detectDestructiveAssistantCommand('cmd /c ' + 'start /b '.repeat(20000) + 'del victim.txt')).toBe(
+      'permanent Windows file deletion'
+    )
+  })
+})
+
+describe('PowerShell Command tail', () => {
+  it.each([
+    `pwsh -NoProfile -Command Write-Output ok '|' del victim.txt`,
+    `powershell -NoProfile -Command Write-Output ok '|' erase victim.txt`,
+    `pwsh -c '&' del victim.txt`,
+    `pwsh -Command 'Write-Output ok;' del victim.txt`,
+    `pwsh -Command 'Write-Output ok' ';' rd victimdir`
+  ])('denies deletion in the full command parameter: %s', (command) => {
+    expect(detectDestructiveAssistantCommand(command)).toBe('permanent Windows file deletion')
+  })
+
+  it.each([
+    'pwsh -Command Write-Output del victim.txt',
+    'pwsh -Command Write-Output erase victim.txt',
+    `pwsh -Command 'Write-Output "del victim.txt"'`,
+    `pwsh -Command Write-Output ok '|' Write-Output del`,
+    'pwsh -Command'
+  ])('does not treat ordinary command arguments as execution: %s', (command) => {
+    expect(detectDestructiveAssistantCommand(command)).toBeUndefined()
+  })
+})
+
+describe('PowerShell block comments in explicit Command programs', () => {
+  it.each([
+    `pwsh -NoProfile -Command '<# explanation #> del victim.txt'`,
+    `pwsh -Command 'echo ok; <# c #> erase victim.txt'`,
+    `powershell -Command '<##> rd victimdir'`,
+    `pwsh -Command '<# a #> <# b #> del victim.txt'`,
+    `pwsh -Command '<# outer <# inner #> del victim.txt'`,
+    `pwsh -Command 'Write-Output ok | <# comment #> del victim.txt'`,
+    `pwsh -Command '<#
+ multiline
+#> del victim.txt'`
+  ])('denies execution after a real block comment: %s', (command) => {
+    expect(detectDestructiveAssistantCommand(command)).toBe('permanent Windows file deletion')
+  })
+
+  it.each([
+    `pwsh -Command '<# del victim.txt #> Write-Output ok'`,
+    `pwsh -Command '<# outer <# inner #> Write-Output del victim.txt'`,
+    `pwsh -Command 'Write-Output "<# #> del victim.txt"'`,
+    `pwsh -Command '<# unclosed del victim.txt'`,
+    `pwsh -Command 'Write-Output ok <# comment #> del victim.txt'`,
+    `echo '<# comment #> del victim.txt'`
+  ])('does not execute comment or quoted argument text: %s', (command) => {
+    expect(detectDestructiveAssistantCommand(command)).toBeUndefined()
+  })
+
+  it('consumes a long comment at its first closing marker', () => {
+    const code = '<#'.repeat(20000) + '#> del victim.txt'
+    expect(detectDestructiveAssistantCommand(`pwsh -Command '${code}'`)).toBe('permanent Windows file deletion')
+  })
+})
+
+describe('PowerShell block comments inside substitutions', () => {
+  it.each([
+    `pwsh -Command '$(<# x #> del victim.txt)'`,
+    `pwsh -Command '$(<# x #>del victim.txt)'`,
+    `pwsh -Command 'echo $(<# x #> del victim.txt)'`,
+    `pwsh -Command 'echo "$(<# x #> del victim.txt)"'`,
+    `pwsh -Command 'echo "a<# x #>b"; del victim.txt'`
+  ])('denies the nested executed command: %s', (command) => {
+    expect(detectDestructiveAssistantCommand(command)).toBe('permanent Windows file deletion')
+  })
+
+  it.each([
+    `pwsh -Command 'echo a<# x #>b; del victim.txt'`,
+    `pwsh -Command 'echo "$(<# del victim.txt #> Write-Output ok)"'`,
+    `echo '$(<# x #> del victim.txt)'`
+  ])('does not execute a comment or quoted POSIX text: %s', (command) => {
+    expect(detectDestructiveAssistantCommand(command)).toBeUndefined()
+  })
+})
+
+describe('PowerShell comment delimiters in nested and mid-token programs', () => {
+  it.each([
+    `powershell -Command '$(<# ) #> Remove-Item victim.txt)'`,
+    `pwsh -Command '"$(<# ) #> del victim.txt)"'`,
+    `pwsh -Command '& {<# x #>Remove-Item victim.txt}'`,
+    `pwsh -Command 'if ($true) {<# x #> Remove-Item victim.txt}'`,
+    `pwsh -Command '$(& {<# x #>Remove-Item victim.txt})'`,
+    `pwsh -Command 'echo x<# ; Remove-Item victim.txt #>'`,
+    `pwsh -Command 'echo x<#; Remove-Item victim.txt'`,
+    `pwsh -Command '$("a"<# x #>; Remove-Item victim.txt)'`
+  ])('denies actual execution despite comment-shaped text: %s', (command) => {
+    expect(detectDestructiveAssistantCommand(command)).toBe('permanent Windows file deletion')
+  })
+
+  it.each([
+    `pwsh -Command 'echo x<# del victim.txt #>'`,
+    `pwsh -Command '$(<# ) del victim.txt #> Write-Output ok)'`,
+    `pwsh -Command '& {<# del victim.txt #>Write-Output ok}'`
+  ])('does not execute text in comments or ordinary arguments: %s', (command) => {
+    expect(detectDestructiveAssistantCommand(command)).toBeUndefined()
+  })
+})
+
+describe('PowerShell simple variable assignment command RHS', () => {
+  it.each([
+    `pwsh -Command '$x = del victim.txt'`,
+    `powershell -Command '$result = erase victim.txt'`,
+    `pwsh -Command '$global:result = rd victimdir'`,
+    `pwsh -Command '$script:result = del victim.txt'`,
+    `pwsh -Command '$a = $b = del victim.txt'`,
+    `pwsh -Command '$x = <# note #> del victim.txt'`,
+    `pwsh -Command '$x = Write-Output ok | del victim.txt'`
+  ])('denies an executed RHS command: %s', (command) => {
+    expect(detectDestructiveAssistantCommand(command)).toBe('permanent Windows file deletion')
+  })
+
+  it.each([
+    `pwsh -Command '$x = "del"'`,
+    `pwsh -Command "$x = 'del victim.txt'"`,
+    `pwsh -Command '$x = Write-Output del victim.txt'`,
+    `pwsh -Command '$a = $b = "del"'`,
+    `pwsh -Command '$x = <# del victim.txt #> Write-Output ok'`,
+    `pwsh -Command '$x = 1'`,
+    `pwsh -Command 'Write-Output $x = del victim.txt'`,
+    `echo '$x = del victim.txt'`
+  ])('does not execute a literal or output argument: %s', (command) => {
+    expect(detectDestructiveAssistantCommand(command)).toBeUndefined()
+  })
+})
+
+describe('PowerShell legacy deletion coverage on the shared guard', () => {
+  // These executable forms were covered by #23231. Keep them without reviving
+  // its separate tokenizer or changing the shared parser's comment boundaries.
+  it.each([
+    `pwsh -NoProfile -Command '$script:output = del victim.txt'`,
+    `pwsh -NoProfile -Command '$null = del victim.txt'`,
+    `pwsh -NoProfile -Command 'Get-Item victim.txt | del; Write-Output done'`,
+    `pwsh -NoProfile -Command '(Get-Item victim.txt | del)'`,
+    `pwsh -NoProfile -Command 'del("victim.txt")'`
+  ])('retains an executable deletion position: %s', (command) => {
+    expect(detectDestructiveAssistantCommand(command)).toBe('permanent Windows file deletion')
+  })
+})
