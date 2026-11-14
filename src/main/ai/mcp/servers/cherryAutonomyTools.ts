@@ -31,6 +31,13 @@ import {
   updateAgentChannel,
   updateAgentChannelAndWaitForQr
 } from '@main/ai/channels'
+import {
+  conversationRecallReference,
+  MEMORY_SEARCH_DESCRIPTION,
+  MEMORY_SEARCH_EXHAUSTED,
+  MEMORY_SEARCH_LIMIT,
+  memorySearchInputSchema
+} from '@main/ai/memory/memoryRecall'
 import { conversationEvidence } from '@main/ai/messages/conversationEvidence'
 import { findPersistedToolOutput } from '@main/ai/messages/persistedToolOutput'
 import { readConversation, type ReadConversationInput } from '@main/ai/messages/readConversation'
@@ -1159,6 +1166,46 @@ async function runConfig(ctx: AutonomyToolsContext, args: ConfigInput): Promise<
 }
 
 export function registerAutonomyTools(server: McpServer, ctx: AutonomyToolsContext): void {
+  let searchTurnId: string | undefined
+  let searchCalls = 0
+  server.registerTool(
+    'memory_search',
+    { description: MEMORY_SEARCH_DESCRIPTION, inputSchema: memorySearchInputSchema },
+    async (input, request) => {
+      assertCurrentSessionIdentity(ctx)
+      const runtime = application.get('AgentSessionRuntimeService')
+      const turnId = runtime.getLiveAssistantMessageId(ctx.sessionId)
+      if (!turnId) throw new Error('Memory turn has ended')
+      if (turnId !== searchTurnId) {
+        searchTurnId = turnId
+        searchCalls = 0
+      }
+      if (searchCalls >= MEMORY_SEARCH_LIMIT) return { content: [{ type: 'text', text: MEMORY_SEARCH_EXHAUSTED }] }
+      searchCalls++
+      const interaction = runtime.getInteractionState(ctx.sessionId).currentTurn
+      const text = await conversationRecallReference(
+        { sessionId: ctx.sessionId },
+        input.query ?? '',
+        {
+          assertActive: () => {
+            request.mcpReq.signal.throwIfAborted()
+            assertCurrentSessionIdentity(ctx)
+            if (
+              interaction === 'none' ||
+              runtime.getLiveAssistantMessageId(ctx.sessionId) !== turnId ||
+              application.get('AgentSessionRuntimeService').getInteractionState(ctx.sessionId).currentTurn !==
+                interaction
+            )
+              throw new Error('Memory turn has ended')
+            return undefined
+          },
+          isHeadless: () => interaction !== 'interactive'
+        },
+        input
+      )
+      return { content: [{ type: 'text', text }] }
+    }
+  )
   server.registerTool(CRON_TOOL_NAME, { description: CRON_DESCRIPTION, inputSchema: CronInputSchema }, (args) =>
     runCron(ctx, args)
   )

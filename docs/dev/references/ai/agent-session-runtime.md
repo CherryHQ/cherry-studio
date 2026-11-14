@@ -129,7 +129,7 @@ also require their own lifecycle and product decisions.
 
 ## System prompt ownership
 
-Live scoped-memory entries are delivered by the runtime hooks described in
+Conversation-scoped memory entry snapshots are delivered by the runtime hooks described in
 [Agent Prompt Layers](./agent-prompt-layers.md). They are separate from the
 connection's stable prompt and legacy identity files. Entry loading does not
 grant controlled file-write capability. Pi's `memoryTools.ts` separately replaces

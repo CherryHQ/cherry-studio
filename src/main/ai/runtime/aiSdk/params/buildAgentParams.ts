@@ -1,5 +1,5 @@
 import type { ProviderOptions } from '@ai-sdk/provider-utils'
-import { stepCountIs, type StopCondition, type ToolSet, type UIMessage } from 'ai'
+import { tool, stepCountIs, type StopCondition, type ToolSet, type UIMessage } from 'ai'
 
 import { application } from '@application'
 import type { AiPlugin } from '@cherrystudio/ai-core'
@@ -10,6 +10,13 @@ import { loggerService } from '@logger'
 import { resolveRequestedMaxOutputTokens } from '@main/ai/contextBuild/resolveOutputReservation'
 import { buildMcpInstructionsContext } from '@main/ai/mcp/serverInstructions'
 import { assistantMemoryReference } from '@main/ai/memory/memoryPrompt'
+import {
+  conversationRecallReference,
+  MEMORY_SEARCH_DESCRIPTION,
+  MEMORY_SEARCH_EXHAUSTED,
+  MEMORY_SEARCH_LIMIT,
+  memorySearchInputSchema
+} from '@main/ai/memory/memoryRecall'
 import { memoryRuntimeFetch, runtimeMemoryAuthorities } from '@main/ai/memory/memoryRuntime'
 import { collectMcpToolResources } from '@main/ai/messages/mcpToolResources'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
@@ -197,11 +204,19 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
               (toolSignals.hasAnyKnowledgeBase && knowledgeBaseIds.length > 0) ||
               hasFileAttachments ||
               Object.keys(request.callOverrides?.tools ?? {}).length > 0 ||
-              assistant?.settings.enableGenerateImage === true
+              assistant?.settings.enableGenerateImage === true ||
+              (request.memoryContext !== undefined && assistant?.settings.enableSharedMemory === true)
             : false,
           reasoningEffort: request.reasoningEffort ?? assistant?.settings.reasoning_effort
         })
-  const { tools, deferredEntries, hasCitableTools, mcpToolIds, mcpResourceServerIds, mcpServerIds } = toolSignals
+  const {
+    tools: resolvedTools,
+    deferredEntries,
+    hasCitableTools,
+    mcpToolIds,
+    mcpResourceServerIds,
+    mcpServerIds
+  } = toolSignals
     ? await resolveTools(
         request,
         assistant,
@@ -221,6 +236,44 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
         mcpResourceServerIds: new Set<string>(),
         mcpServerIds: new Set<string>()
       }
+  let tools = resolvedTools
+  const memoryContext = request.memoryContext
+  const memoryEnabled =
+    memoryContext &&
+    assistant?.settings.enableSharedMemory === true &&
+    memoryContext.assistantId === assistant.id &&
+    memoryContext.topicId === request.conversation.topicId
+  let finished = false
+  let memorySearchCalls = 0
+  const turn = {
+    assertActive: (): undefined => {
+      signal?.throwIfAborted()
+      if (finished) throw new Error('Memory turn has ended')
+      return undefined
+    },
+    isHeadless: () => false
+  }
+  if (
+    memoryEnabled &&
+    memoryContext &&
+    !request.disableTools &&
+    request.contextOwner !== 'caller' &&
+    canModelConsumeTools(model)
+  ) {
+    tools = {
+      ...tools,
+      memory_search: tool({
+        description: MEMORY_SEARCH_DESCRIPTION,
+        inputSchema: memorySearchInputSchema,
+        execute: (input) => {
+          if (memorySearchCalls >= MEMORY_SEARCH_LIMIT) return MEMORY_SEARCH_EXHAUSTED
+          memorySearchCalls++
+          return conversationRecallReference(memoryContext, input.query ?? '', turn, input)
+        }
+      })
+    }
+  }
+
   const hasFunctionTools = tools !== undefined && Object.keys(tools).length > 0
   const finalWebToolRoutes = finalizeWebToolRoutes(webToolRoutes, model, provider, hasFunctionTools)
   const capabilities = assistant
@@ -379,32 +432,24 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
   }
 
   const hookParts = [...contributions.hookParts]
-  const memoryContext = request.memoryContext
-  if (
-    memoryContext &&
-    assistant?.settings.enableSharedMemory === true &&
-    memoryContext.assistantId === assistant.id &&
-    memoryContext.topicId === request.conversation.topicId
-  ) {
-    let finished = false
+  if (memoryEnabled && memoryContext) {
     const namespace = options.providerOptions?.[sdkConfig.providerOptionsKey]
     const mirrorInstructions =
       endpointType === ENDPOINT_TYPE.OPENAI_RESPONSES &&
       namespace?.instructions === system &&
       namespace?.systemMessageMode === 'remove'
     hookParts.push({
-      prepareStep: async () => {
-        const memory = await assistantMemoryReference(memoryContext, {
-          assertActive: () => {
-            signal?.throwIfAborted()
-            if (finished) throw new Error('Memory turn has ended')
-            return undefined
-          },
-          isHeadless: () => false
-        })
-        const currentSystem = [system, memory].filter(Boolean).join('\n\n')
+      prepareStep: async ({ steps }) => {
+        const searchCalls = steps.flatMap((step) => step.toolCalls).filter((call) => call.toolName === 'memory_search')
+        const exhausted = memorySearchCalls >= MEMORY_SEARCH_LIMIT || searchCalls.length >= MEMORY_SEARCH_LIMIT
+        const memory = await assistantMemoryReference(memoryContext, turn)
+        const currentSystem = [system, memory, exhausted ? MEMORY_SEARCH_EXHAUSTED : ''].filter(Boolean).join('\n\n')
         return {
           system: currentSystem,
+          ...(exhausted && {
+            activeTools: Object.keys(tools ?? {}).filter((name) => name !== 'memory_search'),
+            toolChoice: 'auto' as const
+          }),
           ...(mirrorInstructions && {
             providerOptions: {
               ...options.providerOptions,

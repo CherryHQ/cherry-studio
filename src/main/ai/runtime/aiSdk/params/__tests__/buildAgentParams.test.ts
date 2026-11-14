@@ -6,7 +6,8 @@ import { createOpenAI } from '@ai-sdk/openai'
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible'
 import type { LanguageModelV3CallOptions } from '@ai-sdk/provider'
 import type { ProviderOptions } from '@ai-sdk/provider-utils'
-import { InvalidToolInputError, type StopCondition, type Tool, type ToolSet } from 'ai'
+import { generateText, InvalidToolInputError, stepCountIs, type StopCondition, type Tool, type ToolSet } from 'ai'
+import { MockLanguageModelV3 } from 'ai/test'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import * as z from 'zod'
 
@@ -26,6 +27,7 @@ import type { ToolEntry } from '../../../../tools/adapters/aiSdk/types'
 import type { AppProviderSettingsMap } from '../../../../types'
 import type { CallOverrides } from '../../../../types/requests'
 import type { AgentOptions } from '../../loop/types'
+import { composeHooks } from '../composeHooks'
 
 const { preferenceGetMock, resolveProviderAiSdkConfigMock, listMcpServers, listMcpTools, getMcpInstructions } =
   vi.hoisted(() => ({
@@ -77,6 +79,87 @@ beforeEach(() => {
 })
 
 describe('buildAgentParams provider resolution', () => {
+  it.each(['sequential', 'parallel', 'invalid'] as const)(
+    'finishes an answer after bounded %s history searches and resets for the next answer',
+    async (mode) => {
+      resolveProviderAiSdkConfigMock.mockResolvedValue({
+        config: { providerId: 'openai-compatible', providerSettings: {} },
+        credentialReceipt: { attribution: 'unknown' }
+      })
+      const assistant = makeAssistant({ settings: { enableSharedMemory: true } })
+      for (let turn = 0; turn < 2; turn++) {
+        const params = await buildAgentParams({
+          request: {
+            conversation: CONVERSATION,
+            memoryContext: { topicId: CONVERSATION.topicId, assistantId: assistant.id }
+          },
+          assistant,
+          signal: undefined,
+          provider: makeProvider(),
+          model: makeModel({ capabilities: [MODEL_CAPABILITY.FUNCTION_CALL] })
+        })
+        let request = 0
+        const model = new MockLanguageModelV3({
+          doGenerate: async ({ tools }) => {
+            const searching = tools?.some((item) => item.name === 'memory_search')
+            request++
+            return {
+              content: searching
+                ? Array.from({ length: mode === 'parallel' ? 6 : 1 }, (_, index) => ({
+                    type: 'tool-call' as const,
+                    toolCallId: `${request}-${index}`,
+                    toolName: 'memory_search',
+                    input: JSON.stringify(
+                      mode === 'invalid' ? { query: 'pets', conversationId: 'c', messageId: 'm' } : { query: 'pets' }
+                    )
+                  }))
+                : [{ type: 'text' as const, text: 'There is insufficient evidence.' }],
+              finishReason: { unified: searching ? ('tool-calls' as const) : ('stop' as const), raw: undefined },
+              usage: {
+                inputTokens: { total: 1, noCache: 1, cacheRead: 0, cacheWrite: 0 },
+                outputTokens: { total: 1, text: 1, reasoning: 0 }
+              },
+              warnings: []
+            }
+          }
+        })
+        const result = await generateText({
+          model,
+          prompt: 'What pets did I have?',
+          tools: params.tools,
+          prepareStep: composeHooks(params.hookParts).prepareStep,
+          stopWhen: stepCountIs(8)
+        })
+        expect(result.text).toBe('There is insufficient evidence.')
+        const outputs = result.steps.flatMap((step) => step.toolResults)
+        if (mode === 'invalid') expect(outputs).toHaveLength(0)
+        else expect(outputs.filter((item) => String(item.output).includes('<cherry_recall>'))).toHaveLength(4)
+        expect(result.steps).toHaveLength(mode === 'parallel' ? 2 : 5)
+      }
+    }
+  )
+
+  it.each([false, true])('offers on-demand recall only when tools are enabled (disabled=%s)', async (disableTools) => {
+    resolveProviderAiSdkConfigMock.mockResolvedValue({
+      config: { providerId: 'openai-compatible', providerSettings: {} },
+      credentialReceipt: { attribution: 'unknown' }
+    })
+    const assistant = makeAssistant({ settings: { enableSharedMemory: true } })
+    const params = await buildAgentParams({
+      request: {
+        conversation: CONVERSATION,
+        memoryContext: { topicId: CONVERSATION.topicId, assistantId: assistant.id },
+        disableTools
+      },
+      assistant,
+      signal: undefined,
+      provider: makeProvider(),
+      model: makeModel({ capabilities: [MODEL_CAPABILITY.FUNCTION_CALL] })
+    })
+    expect(!!params.tools?.memory_search).toBe(!disableTools)
+    expect(params.system ?? '').not.toContain('<cherry_recall>')
+  })
+
   it('sends only selected MCP guidance to the provider and suppresses it for tool-disabled requests', async () => {
     const server = { id: 'docs', name: 'Documents', isActive: true, disabledTools: [], disabledAutoApproveTools: [] }
     const toolId = 'mcp__docs__read'

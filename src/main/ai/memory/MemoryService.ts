@@ -41,6 +41,7 @@ export interface MemorySession extends Disposable {
 @Injectable('MemoryService')
 @ServicePhase(Phase.WhenReady)
 export class MemoryService extends BaseService {
+  private readonly entrySnapshots = new Map<string, ReturnType<MemorySession['entry']>>()
   private readonly stores = new Map<string, Promise<MemoryStore>>()
   private readonly work = createInFlightWorkTracker()
   private readonly pauses = new Set<symbol>()
@@ -58,6 +59,27 @@ export class MemoryService extends BaseService {
 
   protected override onReady(): void {
     this.stopped = false
+  }
+
+  /** One entry snapshot per product conversation and scope, until application restart. */
+  async entrySnapshot(contextId: string, session: MemorySession) {
+    const scope = session.scope
+    const key = JSON.stringify([contextId, scope.kind, scope.kind === 'private' ? scope.agentId : ''])
+    let pending = this.entrySnapshots.get(key)
+    const cached = !!pending
+    if (!pending) {
+      pending = session.entry().then(async (snapshot) => {
+        await session.validateModelReads()
+        return snapshot
+      })
+      this.entrySnapshots.set(key, pending)
+      void pending.catch(() => {
+        if (this.entrySnapshots.get(key) === pending) this.entrySnapshots.delete(key)
+      })
+    }
+    const snapshot = await pending
+    if (cached) await session.assertRuntimeSafe()
+    return snapshot
   }
 
   /** Authority objects are created only by main-process runtime/editor owners. */
@@ -188,6 +210,7 @@ export class MemoryService extends BaseService {
   /** A restored filesystem/database must never reuse receipts from the previous state. */
   invalidateAll(): void {
     this.generation++
+    this.entrySnapshots.clear()
     this.invalidated.fire(undefined)
     for (const session of this.sessions) session.dispose()
   }
