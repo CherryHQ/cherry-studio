@@ -4,6 +4,8 @@ import type { CreateAssistantDto } from '@shared/data/api/schemas/assistants'
 import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import type { CreateAgentCommand } from '@shared/ipc/schemas/ai'
 
+import { buildAgentSettingsConfiguration } from './agentForm'
+
 /** Map the shared create-wizard values to the Assistant DataApi contract. */
 export function buildCreateAssistantDto(values: ResourceCreateValues): CreateAssistantDto {
   return {
@@ -34,7 +36,9 @@ export function buildCreateAgentCommand(values: ResourceCreateValues): CreateAge
     ...(caps.knowledgeBases ? { knowledgeBaseIds: values.knowledgeBaseIds } : {}),
     ...(caps.skills ? { skillIds: values.skillIds } : {}),
     ...(caps.mcp && values.mcpServerIds?.length ? { mcps: values.mcpServerIds } : {}),
+    ...(values.disabledTools?.length ? { disabledTools: values.disabledTools } : {}),
     configuration: {
+      ...(values.agentSettings ? buildAgentSettingsConfiguration(values.agentSettings) : {}),
       avatar: values.avatar,
       permission_mode: permissionMode
     }

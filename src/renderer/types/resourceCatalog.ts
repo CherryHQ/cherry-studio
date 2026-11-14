@@ -24,10 +24,24 @@ export type ResourceCreateValues = {
   prompt: string
   knowledgeBaseIds: string[]
   skillIds: string[]
-  /** Set by auto create; the manual wizard has no MCP step. */
   mcpServerIds?: string[]
   /** Assistant-only web search switch, set by auto create. */
   enableWebSearch?: boolean
+  /** Agent-only opt-out list of built-in tools (empty = all enabled). */
+  disabledTools?: string[]
+  /** Agent-only advanced settings. */
+  agentSettings?: AgentCreateSettings
+}
+
+/** Reply language, heartbeat and env vars in the Agent edit form's shape, so create saves what edit would. */
+export type AgentCreateSettings = {
+  languageMode: 'inherit' | 'off' | 'custom'
+  languageCustom: string
+  heartbeatEnabled: boolean
+  heartbeatInterval: number
+  heartbeatTimeoutMinutes: number
+  /** One `KEY=VALUE` per line. */
+  envVarsText: string
 }
 
 export type SortKey = 'updatedAt' | 'createdAt' | 'name'

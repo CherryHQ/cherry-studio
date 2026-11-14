@@ -14,6 +14,11 @@ import { useProviderById } from '@renderer/hooks/useProvider'
 import type { ResourceEditDialogTarget } from '@renderer/types/resourceCatalog'
 import { formatErrorMessageWithPrefix, getErrorMessage } from '@renderer/utils/error'
 import type { AutoConfigDraft } from '@renderer/utils/resourceCatalog'
+import {
+  DEFAULT_HEARTBEAT_INTERVAL_MINUTES,
+  DEFAULT_HEARTBEAT_ENABLED,
+  DEFAULT_HEARTBEAT_TIMEOUT_MINUTES
+} from '@shared/ai/agentHeartbeat'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import type { UniqueModelId } from '@shared/data/types/model'
 
@@ -24,11 +29,14 @@ import {
   resourceDialogTitleClassName
 } from '../components/EditDialogShared'
 import { type CreatedResource, ResourceCreateResultView, ResourceCreateWorkingView } from './ResourceCreateResult'
+import { AdvancedStep } from './steps/AdvancedStep'
 import { AutoCreateEntry } from './steps/AutoCreateEntry'
 import { BasicInfoStep } from './steps/BasicInfoStep'
 import { CapabilityStep } from './steps/CapabilityStep'
 import { KnowledgeStep } from './steps/KnowledgeStep'
+import { McpStep } from './steps/McpStep'
 import { SystemPromptStep } from './steps/SystemPromptStep'
+import { ToolsStep } from './steps/ToolsStep'
 import type { ResourceCreateWizardFormValues, ResourceCreateWizardKind, ResourceCreateWizardValues } from './types'
 
 export type { ResourceCreateWizardKind, ResourceCreateWizardValues } from './types'
@@ -53,7 +61,7 @@ type ResourceCreateWizardProps = {
   initialValues?: Partial<Pick<ResourceCreateWizardFormValues, 'name' | 'description' | 'avatar' | 'prompt'>>
 }
 
-type StepId = 'basic' | 'system-prompt' | 'knowledge' | 'capability'
+type StepId = 'basic' | 'system-prompt' | 'tools' | 'capability' | 'knowledge' | 'mcp' | 'advanced'
 type WizardView = 'entry' | 'steps' | 'working' | 'result'
 
 const AUTO_CREATE_TIMEOUT_MS = 60_000
@@ -81,6 +89,13 @@ function getDefaultValues(
     skillIds: [],
     mcpServerIds: [],
     enableWebSearch: false,
+    disabledTools: [],
+    languageMode: 'inherit',
+    languageCustom: '',
+    heartbeatEnabled: DEFAULT_HEARTBEAT_ENABLED,
+    heartbeatInterval: DEFAULT_HEARTBEAT_INTERVAL_MINUTES,
+    heartbeatTimeoutMinutes: DEFAULT_HEARTBEAT_TIMEOUT_MINUTES,
+    envVarsText: '',
     ...initialValues
   }
 }
@@ -219,8 +234,9 @@ function WizardFooter({
  * Every successful create ends on a result page whose actions open the edit dialog or run the
  * caller's `onStartConversation`.
  *
- * In the steps, basic info and System Prompt are identical across kinds; agents then
- * configure skills before both kinds configure knowledge bases. A left rail tracks step progress
+ * In the steps, Assistants go basic → System Prompt → knowledge; Agents go basic → tools → skills →
+ * knowledge → MCP → advanced (System Prompt, language, heartbeat, env vars), each shown only when
+ * the runtime supports it. A left rail tracks step progress
  * (completed and current steps keep their numbers); the right pane swaps the active
  * step's form as the footer drives navigation. One form collects every field
  * and hands the validated payload to `onSubmit`. Replaces the former
@@ -285,9 +301,19 @@ export function ResourceCreateWizard({
     const knowledge = { id: 'knowledge' as const, label: t('library.config.dialogs.create.step.knowledge') }
     if (kind === 'assistant') return [basic, systemPrompt, knowledge]
 
+    const tools = { id: 'tools' as const, label: t('library.config.dialogs.edit.tools_tab') }
     const capability = { id: 'capability' as const, label: t('library.config.dialogs.create.step.capability') }
+    const mcp = { id: 'mcp' as const, label: t('library.config.agent.section.tools.tab.mcp') }
+    const advanced = { id: 'advanced' as const, label: t('library.config.dialogs.edit.advanced_tab') }
     const caps = AGENT_RUNTIME_CAPABILITIES[agentType]
-    return [basic, systemPrompt, ...(caps.skills ? [capability] : []), ...(caps.knowledgeBases ? [knowledge] : [])]
+    return [
+      basic,
+      tools,
+      ...(caps.skills ? [capability] : []),
+      ...(caps.knowledgeBases ? [knowledge] : []),
+      ...(caps.mcp ? [mcp] : []),
+      advanced
+    ]
   }, [agentType, kind, t])
 
   useEffect(() => {
@@ -411,7 +437,16 @@ export function ResourceCreateWizard({
       knowledgeBaseIds: values.knowledgeBaseIds,
       skillIds: values.skillIds,
       mcpServerIds: values.mcpServerIds,
-      enableWebSearch: values.enableWebSearch
+      enableWebSearch: values.enableWebSearch,
+      disabledTools: values.disabledTools,
+      agentSettings: {
+        languageMode: values.languageMode,
+        languageCustom: values.languageCustom,
+        heartbeatEnabled: values.heartbeatEnabled,
+        heartbeatInterval: values.heartbeatInterval,
+        heartbeatTimeoutMinutes: values.heartbeatTimeoutMinutes,
+        envVarsText: values.envVarsText
+      }
     }
     try {
       const id = await onSubmit(payload)
@@ -626,8 +661,15 @@ export function ResourceCreateWizard({
                       {currentStep.id === 'knowledge' ? (
                         <KnowledgeStep form={form} isSubmitting={submitting} portalContainer={dialogContentElement} />
                       ) : null}
+                      {currentStep.id === 'tools' ? <ToolsStep form={form} /> : null}
                       {currentStep.id === 'capability' ? (
                         <CapabilityStep form={form} portalContainer={dialogContentElement} />
+                      ) : null}
+                      {currentStep.id === 'mcp' ? (
+                        <McpStep form={form} isSubmitting={submitting} portalContainer={dialogContentElement} />
+                      ) : null}
+                      {currentStep.id === 'advanced' ? (
+                        <AdvancedStep form={form} portalContainer={dialogContentElement} />
                       ) : null}
                     </ScrollArea>
                   </div>
