@@ -146,7 +146,7 @@ export function AgentProfileSettings({
           ariaLabel={permissionLabel}
           scopeName={agent.name}
           standalone
-          triggerClassName={cn(pillClassName, 'w-40 justify-between font-normal')}
+          triggerClassName={cn(pillClassName, 'w-auto justify-between font-normal')}
           t={t}
         />
       </ProfileSettingsRow>
