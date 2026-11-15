@@ -5142,6 +5142,8 @@
   "settings.messages.navigation.anchor": "Ancre συζητήσεων",
   "settings.messages.navigation.label": "Κουμπιά πλοήγησης συζητήσεων",
   "settings.messages.navigation.none": "Χωρίς εμφάνιση",
+  "settings.messages.scroll_to_bottom_on_send.hint": "Αυτόματη κύλιση στο πιο πρόσφατο μήνυμα μετά την επιτυχή αποστολή ενός μηνύματος.",
+  "settings.messages.scroll_to_bottom_on_send.label": "Κύλιση στο πιο πρόσφατο μήνυμα κατά την αποστολή",
   "settings.messages.show_message_outline": "Εμφάνιση πλαισίου μηνύματος",
   "settings.messages.title": "Ρυθμίσεις μηνυμάτων",
   "settings.messages.use_serif_font": "Χρήση μορφής Serif",

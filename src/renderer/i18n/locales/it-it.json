@@ -5142,6 +5142,8 @@
   "settings.messages.navigation.anchor": "Ancoraggio ai messaggi",
   "settings.messages.navigation.label": "Barra di navigazione",
   "settings.messages.navigation.none": "Nessuna",
+  "settings.messages.scroll_to_bottom_on_send.hint": "Scorri automaticamente all’ultimo messaggio dopo aver inviato un messaggio correttamente.",
+  "settings.messages.scroll_to_bottom_on_send.label": "Scorri all’ultimo messaggio all’invio",
   "settings.messages.show_message_outline": "Mostra struttura del messaggio",
   "settings.messages.title": "Impostazioni dei messaggi",
   "settings.messages.use_serif_font": "Usa caratteri con grazie",
