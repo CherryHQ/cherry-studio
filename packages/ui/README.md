@@ -240,6 +240,14 @@ preset uses the same renderer for Streamdown.
 
 ### Icon Generation
 
+Provider and Model logos are full-canvas tiles. Source SVGs own each brand's artwork scale and negative space;
+callers size the complete tile without adding another inset or enlarging its canvas. Neutral light backgrounds
+use `var(--icon-neutral-background, #FFFFFF)` so a host can provide a presentation surface without recoloring the
+mark. Fixed brand backgrounds remain part of the artwork. Mini-app launchpad tiles set this component-local
+variable to `--muted` in light mode and reset it in dark mode, preserving the icon's existing dark treatment.
+Monochrome marks use theme-specific foregrounds and backgrounds; fixed brand-color artwork retains its original
+palette. Generic action glyphs remain separate.
+
 Use the package command for all icon generation so ESLint fixes and the repository formatter run after the generated files are updated.
 
 In this command, `--type=icons` means general UI icons that are not Provider or Model logos.

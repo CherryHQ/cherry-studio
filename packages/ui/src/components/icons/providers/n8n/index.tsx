@@ -9,7 +9,7 @@ const N8n = ({ variant, className, ...props }: CompoundIconProps) => {
 
 export const N8nIcon: CompoundIcon = /*#__PURE__*/ Object.assign(N8n, {
   Avatar: N8nAvatar,
-  colorPrimary: '#EA4B71'
+  colorPrimary: '#fdeff2'
 })
 
 export default N8nIcon

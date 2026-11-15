@@ -9,7 +9,7 @@ const Hyperbolic = ({ variant, className, ...props }: CompoundIconProps) => {
 
 export const HyperbolicIcon: CompoundIcon = /*#__PURE__*/ Object.assign(Hyperbolic, {
   Avatar: HyperbolicAvatar,
-  colorPrimary: '#594CE9'
+  colorPrimary: '#f0effd'
 })
 
 export default HyperbolicIcon
