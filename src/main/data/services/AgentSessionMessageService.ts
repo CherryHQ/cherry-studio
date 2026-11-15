@@ -322,6 +322,7 @@ function terminalResultData(
 ): AgentSessionMessageEntity['data'] {
   const parts = (message?.data.parts ?? []).flatMap((part): CherryMessagePart[] => {
     if (part.type === 'text') return [{ type: 'text', text: part.text }]
+    // oxlint-disable-next-line no-restricted-globals -- Fork once: detach this file part and nested metadata before the destination owns it.
     if (part.type === 'file' && readCherryMeta(part)?.fileEntryId) return [structuredClone(part)]
     return []
   })
