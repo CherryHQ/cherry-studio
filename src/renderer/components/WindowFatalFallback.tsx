@@ -1,12 +1,13 @@
+import { AlertCircle, RefreshCw } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import type { FallbackProps } from 'react-error-boundary'
 
-import { Alert, Button } from '@cherrystudio/ui'
-import { ErrorFallbackDetails } from '@renderer/components/ErrorFallbackDetails'
+import { Button } from '@cherrystudio/ui'
 import i18n from '@renderer/i18n/resolver'
 import { ipcApi } from '@renderer/ipc'
 import { getAppEdition } from '@renderer/utils/appEdition'
 import { formatErrorDetails } from '@renderer/utils/errorDetails'
+import { isDev } from '@renderer/utils/platform'
 import { createAppErrorContext } from '@shared/utils/appErrorSnapshot'
 import { FEEDBACK_MAILTO, officialDownloadUrl } from '@shared/utils/officialLinks'
 
@@ -54,72 +55,92 @@ export const WindowFatalFallback = ({ error }: FallbackProps) => {
       () => setCopied(true)
     )
 
+  const exportLogs = () => {
+    setExporting(true)
+    setActionError(null)
+    setCopied(false)
+    void ipcApi
+      .request('diagnostics.bundle.export', {
+        includeChatRecords: false,
+        includeLogs: true,
+        includeTraces: false,
+        range: '24h',
+        errorContext: fault
+      })
+      .then((result) => {
+        if (result.status === 'busy') setActionError(i18n.t('error.boundary.export_busy'))
+      })
+      .catch(() => setActionError(i18n.t('error.boundary.action_failed')))
+      .finally(() => setExporting(false))
+  }
+
+  const links = [
+    { label: i18n.t('error.boundary.copy'), onClick: copyError },
+    {
+      label: i18n.t('error.boundary.feedback'),
+      onClick: () => run(() => ipcApi.request('system.shell.open_external_website', FEEDBACK_MAILTO))
+    },
+    { label: i18n.t('error.boundary.export'), onClick: exportLogs, disabled: exporting },
+    {
+      label: i18n.t('error.update_banner.open_releases'),
+      onClick: () =>
+        run(() => ipcApi.request('system.shell.open_external_website', officialDownloadUrl(getAppEdition())))
+    },
+    ...(isDev
+      ? [
+          {
+            label: i18n.t('error.boundary.default.devtools'),
+            onClick: () => run(() => ipcApi.request('system.toggle_dev_tools'))
+          }
+        ]
+      : [])
+  ]
+
   return (
-    <div className="flex h-screen w-screen flex-col items-center justify-center gap-4 p-4">
-      <Alert
-        type="error"
-        message={i18n.t('error.boundary.default.message')}
-        description={<ErrorFallbackDetails error={error} />}
-        className="max-w-xl"
-      />
-      <p className="max-w-xl text-center text-sm text-muted-foreground">
-        {i18n.t('error.boundary.analysis_unavailable')}
-      </p>
-      {actionError ? (
-        <p role="alert" className="max-w-xl text-center text-sm text-destructive">
-          {actionError}
-        </p>
-      ) : null}
-      {copied ? (
-        <p role="status" className="max-w-xl text-center text-sm text-muted-foreground">
-          {i18n.t('common.copied')}
-        </p>
-      ) : null}
-      <div className="flex max-w-xl flex-wrap items-center justify-center gap-2">
-        <Button size="sm" onClick={copyError}>
-          {i18n.t('error.boundary.copy')}
-        </Button>
-        <Button
-          size="sm"
-          disabled={exporting}
-          onClick={() => {
-            setExporting(true)
-            setActionError(null)
-            setCopied(false)
-            void ipcApi
-              .request('diagnostics.bundle.export', {
-                includeChatRecords: false,
-                includeLogs: true,
-                includeTraces: false,
-                range: '24h',
-                errorContext: fault
-              })
-              .then((result) => {
-                if (result.status === 'busy') setActionError(i18n.t('error.boundary.export_busy'))
-              })
-              .catch(() => setActionError(i18n.t('error.boundary.action_failed')))
-              .finally(() => setExporting(false))
-          }}>
-          {i18n.t('error.boundary.export')}
-        </Button>
-        <Button
-          size="sm"
-          onClick={() => run(() => ipcApi.request('system.shell.open_external_website', FEEDBACK_MAILTO))}>
-          {i18n.t('error.boundary.feedback')}
-        </Button>
-        <Button
-          size="sm"
-          onClick={() =>
-            run(() => ipcApi.request('system.shell.open_external_website', officialDownloadUrl(getAppEdition())))
-          }>
-          {i18n.t('error.update_banner.open_releases')}
-        </Button>
-        <Button size="sm" onClick={() => run(() => ipcApi.request('system.toggle_dev_tools'))}>
-          {i18n.t('error.boundary.default.devtools')}
-        </Button>
-        <Button size="sm" onClick={() => run(() => ipcApi.request('window.main.reload'))}>
-          {i18n.t('error.boundary.default.reload')}
-        </Button>
+    <div className="flex h-screen w-screen items-center justify-center overflow-auto bg-card p-3">
+      <div
+        role="alert"
+        className="grid w-full max-w-xl grid-cols-[auto_minmax(0,1fr)] gap-x-2 gap-y-0.5 rounded-lg border border-border-subtle bg-background-subtle px-3 py-2.5 text-foreground">
+        <AlertCircle size={14} className="mt-[3px] text-error" />
+        <div className="font-medium text-[13px] leading-5">{i18n.t('error.boundary.default.title')}</div>
+        <div className="col-start-2 text-muted-foreground text-xs leading-[18px]">
+          {i18n.t('error.boundary.fatal.info')}
+        </div>
+        <div className="col-start-2 mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="rounded-[5px] text-muted-foreground hover:border-border-strong hover:bg-accent hover:text-foreground"
+            onClick={() => run(() => ipcApi.request('window.main.reload'))}>
+            <RefreshCw size={13} />
+            {i18n.t('error.boundary.default.reload')}
+          </Button>
+          <div className="ml-auto flex flex-wrap items-center text-foreground-tertiary text-xs">
+            {links.map((link, index) => (
+              <span key={link.label} className="flex items-center">
+                {index > 0 ? <span className="px-1">·</span> : null}
+                <button
+                  type="button"
+                  disabled={link.disabled}
+                  className="cursor-pointer hover:text-foreground disabled:cursor-default disabled:opacity-50"
+                  onClick={link.onClick}>
+                  {link.label}
+                </button>
+              </span>
+            ))}
+          </div>
+        </div>
+        {actionError ? (
+          <p role="alert" className="col-start-2 mt-1 text-error text-xs">
+            {actionError}
+          </p>
+        ) : null}
+        {copied ? (
+          <p role="status" className="col-start-2 mt-1 text-muted-foreground text-xs">
+            {i18n.t('common.copied')}
+          </p>
+        ) : null}
       </div>
     </div>
   )
