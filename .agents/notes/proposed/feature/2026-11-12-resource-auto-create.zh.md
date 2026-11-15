@@ -57,7 +57,6 @@ Status: proposed
 - 默认头像：助手是 💬，智能体是 ✨。creator 提示词仍然禁止使用 🤖。
 - 新建流程和编辑弹框共用一个头像选择器。弹层顶部是「选择头像」标题栏，右侧有上传按钮、随机换一个 emoji 的 🎲 按钮，已设置图片时还有移除图片按钮；下面是 emoji 选择器。没有分页，也没有图库。
 - 共用的 emoji 选择器（`src/renderer/components/EmojiPicker`）调整样式：搜索框改为无边框浅灰底；当前分类和高亮用前景色而不是主题色；分类图标 16 px、灰色，悬停和选中时加浅底；emoji 24 px，一行 8 个；分类标题 12 px 灰色。键盘焦点仍然可见。
-- 该选择器中隐藏 🇹🇼 旗帜（`1f1f9-1f1fc`），浏览和搜索都看不到。
 - 判断用户是否选过头像改为读表单的 dirty 状态，不再和默认值比较。
 
 新建流程里上传的图片按编辑弹框的上传方式预处理，先作为草稿保存。创建成功后，向导通过编辑弹框所用的同一个头像命令保存它。保存失败时，资源仍然创建成功并使用 emoji 头像，结果页会提示图片没有保存。自动创建仍然生成 emoji，上传的图片优先。编辑弹框里每次选择仍然立即保存。
@@ -116,7 +115,7 @@ Status: proposed
 - AC7 — 运行时支持 MCP 时，选中的 MCP 服务以 `mcps` 写入新建的智能体；对新建的助手，以 `mcpServerIds` 写入并带上使用这些服务的设置；选中的网络搜索写入助手设置 (verification: unit; owner: implementer)
 - AC8 — 在运行中的应用里，根据用途自动创建一个智能体和一个助手后，它们的编辑弹框显示生成的 emoji、名称、提示词和选中的能力 (verification: Electron; owner: implementer)
 - AC9 — 所有新增界面文案在全部渲染进程语言包中都有翻译，没有占位符 (verification: docs gate; owner: implementer)
-- AC10 — 新建智能体的默认头像是 ✨，头像选择器的 🎲 按钮会把头像换成另一个 emoji，在 emoji 选择器里浏览或搜索都找不到 🇹🇼 旗帜 (verification: renderer; owner: implementer)
+- AC10 — 新建智能体的默认头像是 ✨，头像选择器的 🎲 按钮会把头像换成另一个 emoji (verification: renderer; owner: implementer)
 - AC11 — 系统提示词为空的智能体走手动创建时，系统提示词预填为用途，基础信息步骤不再显示描述字段 (verification: renderer; owner: implementer)
 - AC12 — 自动或手动创建完成后，弹框显示列出已配置内容的结果页，它的两个操作分别打开新资源的编辑弹框、执行调用方的开始操作 (verification: renderer; owner: implementer)
 - AC13 — 智能体向导显示基础信息、工具、技能、知识库、MCP、频道和高级七个步骤，每一步选的值都进入创建命令 (verification: renderer; owner: implementer)
