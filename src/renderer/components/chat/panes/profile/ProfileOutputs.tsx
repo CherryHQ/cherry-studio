@@ -56,6 +56,7 @@ export function AgentOutputs({ agentId, onOpen }: { agentId: string; onOpen?: (p
       filter={filter}
       onFilterChange={setFilter}
       emptyHint="chat.profile_pane.outputs.empty.agent"
+      untitledSource="agent.session.new"
       onOpen={onOpen ? (item) => item.path && onOpen(item.path) : undefined}
     />
   )
@@ -78,6 +79,7 @@ export function AssistantOutputs({ assistantId }: { assistantId: string }) {
       filter={filter}
       onFilterChange={setFilter}
       emptyHint="chat.profile_pane.outputs.empty.assistant"
+      untitledSource="chat.default.topic.name"
       onOpen={previewImage}
     />
   )
@@ -100,12 +102,15 @@ function OutputsList({
   filter,
   onFilterChange,
   emptyHint,
+  untitledSource,
   onOpen
 }: {
   list?: ArtifactList
   filter: OutputsFilter
   onFilterChange: (filter: OutputsFilter) => void
   emptyHint: string
+  /** What the source conversation is called before it has a name. */
+  untitledSource: string
   onOpen?: (item: ArtifactEntity) => void
 }) {
   const { t, i18n } = useTranslation()
@@ -159,6 +164,7 @@ function OutputsList({
                 item={item}
                 time={formatTime(new Date(item.reportedAt), group.value, now, i18n.language)}
                 unavailable={missing.has(item.id)}
+                untitledSource={untitledSource}
                 onOpen={onOpen}
               />
             ))}
@@ -173,19 +179,23 @@ function OutputRow({
   item,
   time,
   unavailable,
+  untitledSource,
   onOpen
 }: {
   item: ArtifactEntity
   time: string
   unavailable: boolean
+  untitledSource: string
   onOpen?: (item: ArtifactEntity) => void
 }) {
   const { t } = useTranslation()
   const extension = getExtension(item.path ?? item.title)
+  // A page reads by its title; a file or media item is known by its file name.
+  const name = item.kind !== 'page' && item.path ? getBaseName(item.path) : item.title
   const meta = unavailable
     ? t('chat.profile_pane.outputs.unavailable')
     : item.kind === 'page'
-      ? t('chat.profile_pane.outputs.page_meta', { source: item.sourceName || t('chat.default.topic.name') })
+      ? t('chat.profile_pane.outputs.page_meta', { source: item.sourceName || t(untitledSource) })
       : [extension.toUpperCase() || t('chat.input.tools.file_type.file'), item.size && formatFileSize(item.size)]
           .filter(Boolean)
           .join(' · ')
@@ -195,12 +205,12 @@ function OutputRow({
       type="button"
       disabled={unavailable || !onOpen}
       onClick={() => onOpen?.(item)}
-      title={item.path}
+      title={[item.title, item.path].filter(Boolean).join('\n')}
       className="-mx-2 flex w-[calc(100%+1rem)] items-center gap-2.5 rounded-lg px-2 py-2 text-left outline-none transition-colors hover:bg-accent/60 focus-visible:ring-2 focus-visible:ring-ring disabled:hover:bg-transparent">
       <OutputThumb kind={item.kind} extension={extension} />
       <span className={cn('flex min-w-0 flex-1 flex-col gap-0.5', unavailable && 'opacity-50')}>
         <span className="flex items-baseline justify-between gap-2">
-          <span className="truncate text-foreground text-sm">{item.title}</span>
+          <span className="truncate text-foreground text-sm">{name}</span>
           <span className="shrink-0 text-foreground-tertiary text-xs">{time}</span>
         </span>
         <span className="truncate text-muted-foreground text-xs">{meta}</span>
@@ -242,8 +252,12 @@ function useMissingOutputs(items: readonly ArtifactEntity[]): ReadonlySet<string
   return new Set(data ? Object.keys(data).filter((key) => data[key] === null) : [])
 }
 
+function getBaseName(filePath: string): string {
+  return filePath.split(/[\\/]/).at(-1) ?? filePath
+}
+
 function getExtension(name: string): string {
-  const base = name.split(/[\\/]/).at(-1) ?? ''
+  const base = getBaseName(name)
   const dot = base.lastIndexOf('.')
   return dot > 0 ? base.slice(dot + 1).toLowerCase() : ''
 }
