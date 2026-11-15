@@ -55,5 +55,6 @@ Status: implemented
 - Regression — [原生 Markdown](../../../../src/renderer/components/RichEditor/__tests__/nativeMarkdown.test.ts)、[增强数学](../../../../src/renderer/components/RichEditor/extensions/__tests__/enhancedMath.test.ts)、[Notes 事务](../../../../src/renderer/pages/notes/__tests__/NotesEditor.transactions.test.tsx)和[解析性能](../../../../src/renderer/components/RichEditor/__tests__/markdownParsePerformance.test.ts)四个文件在最终改动集上一次性通过 307 条测试，包含解析性能组的绝对上限与美元相对门禁。
 - Regression — 复核发现的问题各有专门用例：复用上一段 token 数组的引用懒续行仍生成块公式，保存时保留闭符反斜杠；token 数组被复用于新调用、且新源恰为前一源后缀时仍能识别（含嵌套引用）；行中 `\[` 与紧跟行内美元之后的 `\[` 保持文本；多行普通方括号保持文本；链接文字经两轮往返保留闭方括号；普通方括号文本不会与藏在行内代码、参考 ID 或链接目标里的闭符配对；未闭合的链接目标不妨碍公式闭合；编辑后的公式只在文档根或引用下独占段落时升为块形式，在列表项或表格单元格内保留原定界符；普通嵌套 `<span>` 内容保留链接与标记，数学 span 保留元数据；编辑后 latex 保留原定界符并记录随之而来的重载损失；块公式后跟一个空行时连存两次输出相同。
 - Regression — 已记录的任务 2 验证中，限定范围的 ESLint、Oxlint、格式检查及 `git diff --check` 均通过。
+- Regression — 绝对上限只用于防挂死：短公式密集组的 132 KiB 在 CI 机器上实测 15.6 s，故该组上限取 30 s；真正约束本次改动的仍是 `backslash <= 3 × max(dollar, 150 ms)` 相对门禁，其余三组分别保持 1 s / 2 s / 1 s。
 - Regression — 既有补丁反向应用退出 0；替换补丁的 dry-run 退出 0，且无 fuzz。
 - Regression — 离线 `pnpm install --frozen-lockfile --prefer-offline` 针对最终补丁（SHA-256 `040402bf…`）退出 0，并报告锁文件已是最新；`shasum -a 256` 与 `pnpm-lock.yaml` 三处引用的哈希一致。
