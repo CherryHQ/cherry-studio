@@ -17,15 +17,15 @@ export class ThreadFeed {
 
   constructor(
     private value: ThreadSnapshot,
-    private readonly report: (error: unknown) => void
+    private readonly report: (error: unknown) => void,
+    // oxlint-disable-next-line no-restricted-globals -- Isolate caller-owned snapshots by default.
+    private readonly copy: <T extends ObservationPayload>(value: T) => T = (value) => structuredClone(value)
   ) {
-    // oxlint-disable-next-line no-restricted-globals -- Own the initial snapshot independently of the adapter that constructed it.
-    this.value = structuredClone(value)
+    this.value = this.copy(value)
   }
 
   get snapshot(): ThreadSnapshot {
-    // oxlint-disable-next-line no-restricted-globals -- Explicit full-snapshot reads must not expose feed-owned mutable message payloads.
-    return structuredClone(this.value)
+    return this.copy(this.value)
   }
 
   get state(): Omit<ThreadSnapshot, 'messages'> {
@@ -50,8 +50,7 @@ export class ThreadFeed {
 
   publish(event: ObservationPayload): void {
     if (this.ended) return
-    // oxlint-disable-next-line no-restricted-globals -- Own each published fact before the native producer mutates it; adapters must select narrow facts.
-    const next = structuredClone(event)
+    const next = this.copy(event)
     switch (next.type) {
       case 'snapshot':
         this.value = next
