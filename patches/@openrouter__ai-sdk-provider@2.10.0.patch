@@ -95,7 +95,7 @@ index 0055af0c73ad638a59df92fa5d46edc7995da151..e2923dfdd124505790ecc628c5579a2b
  }
  interface OpenRouterProviderSettings {
 diff --git a/dist/index.js b/dist/index.js
-index 3c6c1b100611983d32172288e9e40a1e6736320d..4f53a6074e3f54b7bf862712d8064b8738b1834c 100644
+index 3c6c1b100611983d32172288e9e40a1e6736320d..419c5736e31f1997c52c68de39d749e71483c858 100644
 --- a/dist/index.js
 +++ b/dist/index.js
 @@ -2585,7 +2585,8 @@ var OpenRouterProviderOptionsSchema = import_v43.z.object({
@@ -108,7 +108,82 @@ index 3c6c1b100611983d32172288e9e40a1e6736320d..4f53a6074e3f54b7bf862712d8064b87
    }).optional()
  }).optional();
  
-@@ -3548,7 +3549,8 @@ var OpenRouterChatLanguageModel = class {
+@@ -2893,8 +2894,14 @@ function getCacheControl(providerMetadata) {
+ function convertToOpenRouterChatMessages(prompt) {
+   var _a16, _b16, _c, _d, _e, _f, _g, _h;
+   const messages = [];
++  let pendingImages = [];
+   const reasoningDetailsTracker = new ReasoningDetailsDuplicateTracker();
+   for (const { role, content, providerOptions } of prompt) {
++    // Tool results must remain adjacent to their assistant call.
++    if (role !== "tool" && pendingImages.length > 0) {
++      messages.push({ role: "user", content: pendingImages });
++      pendingImages = [];
++    }
+     switch (role) {
+       case "system": {
+         const cacheControl = getCacheControl(providerOptions);
+@@ -3022,6 +3029,7 @@ function convertToOpenRouterChatMessages(prompt) {
+         let text = "";
+         let reasoning = "";
+         const toolCalls = [];
++        const images = [];
+         for (const part of content) {
+           switch (part.type) {
+             case "text": {
+@@ -3043,8 +3051,12 @@ function convertToOpenRouterChatMessages(prompt) {
+               reasoning += part.text;
+               break;
+             }
+-            case "file":
++            case "file": {
++              if (part.mediaType.startsWith("image/")) {
++                images.push({ type: "image_url", image_url: { url: getFileUrl({ part, defaultMediaType: "image/png" }) } });
++              }
+               break;
++            }
+             default: {
+               break;
+             }
+@@ -3084,15 +3096,20 @@ function convertToOpenRouterChatMessages(prompt) {
+           finalReasoningDetails = uniqueDetails;
+         }
+         const effectiveReasoning = reasoning && finalReasoningDetails && finalReasoningDetails.length > 0 ? reasoning : void 0;
+-        messages.push({
+-          role: "assistant",
+-          content: text || null,
+-          tool_calls: toolCalls.length > 0 ? toolCalls : void 0,
+-          reasoning: effectiveReasoning,
+-          reasoning_details: finalReasoningDetails,
+-          annotations: messageAnnotations,
+-          cache_control: getCacheControl(providerOptions)
+-        });
++        if (text || reasoning || toolCalls.length > 0 || images.length === 0) {
++          messages.push({
++            role: "assistant",
++            content: text || null,
++            tool_calls: toolCalls.length > 0 ? toolCalls : void 0,
++            reasoning: effectiveReasoning,
++            reasoning_details: finalReasoningDetails,
++            annotations: messageAnnotations,
++            cache_control: getCacheControl(providerOptions)
++          });
++        }
++        // Chat-completions image inputs belong to user messages. Replay generated images
++        // before the next instruction without discarding the assistant's text or reasoning.
++        pendingImages = images;
+         break;
+       }
+       case "tool": {
+@@ -3116,6 +3133,7 @@ function convertToOpenRouterChatMessages(prompt) {
+       }
+     }
+   }
++  if (pendingImages.length > 0) messages.push({ role: "user", content: pendingImages });
+   return messages;
+ }
+ function getToolResultContent(input) {
+@@ -3548,7 +3566,8 @@ var OpenRouterChatLanguageModel = class {
      responseFormat,
      topK,
      tools,
@@ -118,7 +193,7 @@ index 3c6c1b100611983d32172288e9e40a1e6736320d..4f53a6074e3f54b7bf862712d8064b87
    }) {
      var _a16, _b16, _c, _d;
      const baseArgs = __spreadValues(__spreadValues({
-@@ -3607,7 +3609,8 @@ var OpenRouterChatLanguageModel = class {
+@@ -3607,7 +3626,8 @@ var OpenRouterChatLanguageModel = class {
              function: {
                name: tool2.name,
                description: tool2.description,
@@ -128,7 +203,7 @@ index 3c6c1b100611983d32172288e9e40a1e6736320d..4f53a6074e3f54b7bf862712d8064b87
              }
            }, eagerInputStreaming != null && {
              eager_input_streaming: eagerInputStreaming
-@@ -3627,7 +3630,7 @@ var OpenRouterChatLanguageModel = class {
+@@ -3627,7 +3647,7 @@ var OpenRouterChatLanguageModel = class {
      var _b16, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s, _t, _u, _v;
      const providerOptions = options.providerOptions || {};
      const openrouterOptions = providerOptions.openrouter || {};
@@ -137,7 +212,7 @@ index 3c6c1b100611983d32172288e9e40a1e6736320d..4f53a6074e3f54b7bf862712d8064b87
      const args = __spreadValues(__spreadValues(__spreadValues({}, this.getArgs(options)), restOpenrouterOptions), cacheControl != null && !("cache_control" in restOpenrouterOptions) ? { cache_control: cacheControl } : {});
      const { value: responseValue, responseHeaders } = await postJsonToApi({
        url: this.config.url({
-@@ -3822,7 +3825,7 @@ var OpenRouterChatLanguageModel = class {
+@@ -3822,7 +3842,7 @@ var OpenRouterChatLanguageModel = class {
      var _b16;
      const providerOptions = options.providerOptions || {};
      const openrouterOptions = providerOptions.openrouter || {};
@@ -146,7 +221,7 @@ index 3c6c1b100611983d32172288e9e40a1e6736320d..4f53a6074e3f54b7bf862712d8064b87
      const args = __spreadValues(__spreadValues(__spreadValues({}, this.getArgs(options)), restOpenrouterOptions), cacheControl != null && !("cache_control" in restOpenrouterOptions) ? { cache_control: cacheControl } : {});
      const { value: response, responseHeaders } = await postJsonToApi({
        url: this.config.url({
-@@ -4542,7 +4545,7 @@ var OpenRouterCompletionLanguageModel = class {
+@@ -4542,7 +4562,7 @@ var OpenRouterCompletionLanguageModel = class {
    async doGenerate(options) {
      var _a16, _b16, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q;
      const providerOptions = options.providerOptions || {};
@@ -155,7 +230,7 @@ index 3c6c1b100611983d32172288e9e40a1e6736320d..4f53a6074e3f54b7bf862712d8064b87
      const args = __spreadValues(__spreadValues({}, this.getArgs(options)), openrouterOptions);
      const { value: response, responseHeaders } = await postJsonToApi({
        url: this.config.url({
-@@ -4617,7 +4620,7 @@ var OpenRouterCompletionLanguageModel = class {
+@@ -4617,7 +4637,7 @@ var OpenRouterCompletionLanguageModel = class {
    }
    async doStream(options) {
      const providerOptions = options.providerOptions || {};
@@ -164,7 +239,7 @@ index 3c6c1b100611983d32172288e9e40a1e6736320d..4f53a6074e3f54b7bf862712d8064b87
      const args = __spreadValues(__spreadValues({}, this.getArgs(options)), openrouterOptions);
      const { value: response, responseHeaders } = await postJsonToApi({
        url: this.config.url({
-@@ -4895,7 +4898,8 @@ var OpenRouterImageResponseSchema = import_v49.z.object({
+@@ -4895,7 +4915,8 @@ var OpenRouterImageResponseSchema = import_v49.z.object({
    created: import_v49.z.number().optional(),
    data: import_v49.z.array(
      import_v49.z.object({
@@ -174,7 +249,7 @@ index 3c6c1b100611983d32172288e9e40a1e6736320d..4f53a6074e3f54b7bf862712d8064b87
      }).passthrough()
    ),
    usage: import_v49.z.object({
-@@ -4964,7 +4968,9 @@ var OpenRouterImageModel = class {
+@@ -4964,7 +4985,9 @@ var OpenRouterImageModel = class {
          message: "No images in response"
        });
      }
@@ -185,7 +260,7 @@ index 3c6c1b100611983d32172288e9e40a1e6736320d..4f53a6074e3f54b7bf862712d8064b87
      const usage = responseValue.usage ? {
        inputTokens: responseValue.usage.prompt_tokens,
        outputTokens: responseValue.usage.completion_tokens,
-@@ -5011,6 +5017,18 @@ var webSearch = createProviderToolFactory({
+@@ -5011,6 +5034,18 @@ var webSearch = createProviderToolFactory({
    id: "openrouter.web_search",
    inputSchema: webSearchInputSchema
  });
@@ -204,7 +279,7 @@ index 3c6c1b100611983d32172288e9e40a1e6736320d..4f53a6074e3f54b7bf862712d8064b87
  
  // src/utils/remove-undefined.ts
  function removeUndefinedEntries(record) {
-@@ -5324,7 +5342,8 @@ function createOpenRouter(options = {}) {
+@@ -5324,7 +5359,8 @@ function createOpenRouter(options = {}) {
    provider.imageModel = createImageModel;
    provider.videoModel = createVideoModel;
    provider.tools = {
@@ -215,7 +290,7 @@ index 3c6c1b100611983d32172288e9e40a1e6736320d..4f53a6074e3f54b7bf862712d8064b87
    return provider;
  }
 diff --git a/dist/index.mjs b/dist/index.mjs
-index 6320306870c5f3ce5439f068b32b2848f6cb0c7e..6dd871944a3ccaaa36a7bd68c652cbd3f5fcc3e4 100644
+index 6320306870c5f3ce5439f068b32b2848f6cb0c7e..ecbb8735062a46d6967f9ce20fa6a88664b2e16e 100644
 --- a/dist/index.mjs
 +++ b/dist/index.mjs
 @@ -2552,7 +2552,8 @@ var OpenRouterProviderOptionsSchema = z3.object({
@@ -228,7 +303,82 @@ index 6320306870c5f3ce5439f068b32b2848f6cb0c7e..6dd871944a3ccaaa36a7bd68c652cbd3
    }).optional()
  }).optional();
  
-@@ -3515,7 +3516,8 @@ var OpenRouterChatLanguageModel = class {
+@@ -2860,8 +2861,14 @@ function getCacheControl(providerMetadata) {
+ function convertToOpenRouterChatMessages(prompt) {
+   var _a16, _b16, _c, _d, _e, _f, _g, _h;
+   const messages = [];
++  let pendingImages = [];
+   const reasoningDetailsTracker = new ReasoningDetailsDuplicateTracker();
+   for (const { role, content, providerOptions } of prompt) {
++    // Tool results must remain adjacent to their assistant call.
++    if (role !== "tool" && pendingImages.length > 0) {
++      messages.push({ role: "user", content: pendingImages });
++      pendingImages = [];
++    }
+     switch (role) {
+       case "system": {
+         const cacheControl = getCacheControl(providerOptions);
+@@ -2989,6 +2996,7 @@ function convertToOpenRouterChatMessages(prompt) {
+         let text = "";
+         let reasoning = "";
+         const toolCalls = [];
++        const images = [];
+         for (const part of content) {
+           switch (part.type) {
+             case "text": {
+@@ -3010,8 +3018,12 @@ function convertToOpenRouterChatMessages(prompt) {
+               reasoning += part.text;
+               break;
+             }
+-            case "file":
++            case "file": {
++              if (part.mediaType.startsWith("image/")) {
++                images.push({ type: "image_url", image_url: { url: getFileUrl({ part, defaultMediaType: "image/png" }) } });
++              }
+               break;
++            }
+             default: {
+               break;
+             }
+@@ -3051,15 +3063,20 @@ function convertToOpenRouterChatMessages(prompt) {
+           finalReasoningDetails = uniqueDetails;
+         }
+         const effectiveReasoning = reasoning && finalReasoningDetails && finalReasoningDetails.length > 0 ? reasoning : void 0;
+-        messages.push({
+-          role: "assistant",
+-          content: text || null,
+-          tool_calls: toolCalls.length > 0 ? toolCalls : void 0,
+-          reasoning: effectiveReasoning,
+-          reasoning_details: finalReasoningDetails,
+-          annotations: messageAnnotations,
+-          cache_control: getCacheControl(providerOptions)
+-        });
++        if (text || reasoning || toolCalls.length > 0 || images.length === 0) {
++          messages.push({
++            role: "assistant",
++            content: text || null,
++            tool_calls: toolCalls.length > 0 ? toolCalls : void 0,
++            reasoning: effectiveReasoning,
++            reasoning_details: finalReasoningDetails,
++            annotations: messageAnnotations,
++            cache_control: getCacheControl(providerOptions)
++          });
++        }
++        // Chat-completions image inputs belong to user messages. Replay generated images
++        // before the next instruction without discarding the assistant's text or reasoning.
++        pendingImages = images;
+         break;
+       }
+       case "tool": {
+@@ -3083,6 +3100,7 @@ function convertToOpenRouterChatMessages(prompt) {
+       }
+     }
+   }
++  if (pendingImages.length > 0) messages.push({ role: "user", content: pendingImages });
+   return messages;
+ }
+ function getToolResultContent(input) {
+@@ -3515,7 +3533,8 @@ var OpenRouterChatLanguageModel = class {
      responseFormat,
      topK,
      tools,
@@ -238,7 +388,7 @@ index 6320306870c5f3ce5439f068b32b2848f6cb0c7e..6dd871944a3ccaaa36a7bd68c652cbd3
    }) {
      var _a16, _b16, _c, _d;
      const baseArgs = __spreadValues(__spreadValues({
-@@ -3574,7 +3576,8 @@ var OpenRouterChatLanguageModel = class {
+@@ -3574,7 +3593,8 @@ var OpenRouterChatLanguageModel = class {
              function: {
                name: tool2.name,
                description: tool2.description,
@@ -248,7 +398,7 @@ index 6320306870c5f3ce5439f068b32b2848f6cb0c7e..6dd871944a3ccaaa36a7bd68c652cbd3
              }
            }, eagerInputStreaming != null && {
              eager_input_streaming: eagerInputStreaming
-@@ -3594,7 +3597,7 @@ var OpenRouterChatLanguageModel = class {
+@@ -3594,7 +3614,7 @@ var OpenRouterChatLanguageModel = class {
      var _b16, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s, _t, _u, _v;
      const providerOptions = options.providerOptions || {};
      const openrouterOptions = providerOptions.openrouter || {};
@@ -257,7 +407,7 @@ index 6320306870c5f3ce5439f068b32b2848f6cb0c7e..6dd871944a3ccaaa36a7bd68c652cbd3
      const args = __spreadValues(__spreadValues(__spreadValues({}, this.getArgs(options)), restOpenrouterOptions), cacheControl != null && !("cache_control" in restOpenrouterOptions) ? { cache_control: cacheControl } : {});
      const { value: responseValue, responseHeaders } = await postJsonToApi({
        url: this.config.url({
-@@ -3789,7 +3792,7 @@ var OpenRouterChatLanguageModel = class {
+@@ -3789,7 +3809,7 @@ var OpenRouterChatLanguageModel = class {
      var _b16;
      const providerOptions = options.providerOptions || {};
      const openrouterOptions = providerOptions.openrouter || {};
@@ -266,7 +416,7 @@ index 6320306870c5f3ce5439f068b32b2848f6cb0c7e..6dd871944a3ccaaa36a7bd68c652cbd3
      const args = __spreadValues(__spreadValues(__spreadValues({}, this.getArgs(options)), restOpenrouterOptions), cacheControl != null && !("cache_control" in restOpenrouterOptions) ? { cache_control: cacheControl } : {});
      const { value: response, responseHeaders } = await postJsonToApi({
        url: this.config.url({
-@@ -4509,7 +4512,7 @@ var OpenRouterCompletionLanguageModel = class {
+@@ -4509,7 +4529,7 @@ var OpenRouterCompletionLanguageModel = class {
    async doGenerate(options) {
      var _a16, _b16, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q;
      const providerOptions = options.providerOptions || {};
@@ -275,7 +425,7 @@ index 6320306870c5f3ce5439f068b32b2848f6cb0c7e..6dd871944a3ccaaa36a7bd68c652cbd3
      const args = __spreadValues(__spreadValues({}, this.getArgs(options)), openrouterOptions);
      const { value: response, responseHeaders } = await postJsonToApi({
        url: this.config.url({
-@@ -4584,7 +4587,7 @@ var OpenRouterCompletionLanguageModel = class {
+@@ -4584,7 +4604,7 @@ var OpenRouterCompletionLanguageModel = class {
    }
    async doStream(options) {
      const providerOptions = options.providerOptions || {};
@@ -284,7 +434,7 @@ index 6320306870c5f3ce5439f068b32b2848f6cb0c7e..6dd871944a3ccaaa36a7bd68c652cbd3
      const args = __spreadValues(__spreadValues({}, this.getArgs(options)), openrouterOptions);
      const { value: response, responseHeaders } = await postJsonToApi({
        url: this.config.url({
-@@ -4862,7 +4865,8 @@ var OpenRouterImageResponseSchema = z10.object({
+@@ -4862,7 +4882,8 @@ var OpenRouterImageResponseSchema = z10.object({
    created: z10.number().optional(),
    data: z10.array(
      z10.object({
@@ -294,7 +444,7 @@ index 6320306870c5f3ce5439f068b32b2848f6cb0c7e..6dd871944a3ccaaa36a7bd68c652cbd3
      }).passthrough()
    ),
    usage: z10.object({
-@@ -4931,7 +4935,9 @@ var OpenRouterImageModel = class {
+@@ -4931,7 +4952,9 @@ var OpenRouterImageModel = class {
          message: "No images in response"
        });
      }
@@ -305,7 +455,7 @@ index 6320306870c5f3ce5439f068b32b2848f6cb0c7e..6dd871944a3ccaaa36a7bd68c652cbd3
      const usage = responseValue.usage ? {
        inputTokens: responseValue.usage.prompt_tokens,
        outputTokens: responseValue.usage.completion_tokens,
-@@ -4978,6 +4984,18 @@ var webSearch = createProviderToolFactory({
+@@ -4978,6 +5001,18 @@ var webSearch = createProviderToolFactory({
    id: "openrouter.web_search",
    inputSchema: webSearchInputSchema
  });
@@ -324,7 +474,7 @@ index 6320306870c5f3ce5439f068b32b2848f6cb0c7e..6dd871944a3ccaaa36a7bd68c652cbd3
  
  // src/utils/remove-undefined.ts
  function removeUndefinedEntries(record) {
-@@ -5291,7 +5309,8 @@ function createOpenRouter(options = {}) {
+@@ -5291,7 +5326,8 @@ function createOpenRouter(options = {}) {
    provider.imageModel = createImageModel;
    provider.videoModel = createVideoModel;
    provider.tools = {
