@@ -334,7 +334,7 @@ it('delivers the initial non-steer input OCR notice to its answering reply', asy
   await vi.waitFor(() => expect(f.views.at(-1)?.parts).toContainEqual(notice))
   await f.emit({ type: 'turn-complete' })
   const result = await f.done
-  expect(result.finalMessage.parts).toEqual([...text('', 'Answering the initial image').parts, notice])
+  expect(result.finalMessage?.parts).toEqual([...text('', 'Answering the initial image').parts, notice])
   await f.handle.listeners[0].onDone({ status: 'success', finalMessage: result.finalMessage, isTopicDone: false })
   expect(messages.getSessionMessage('root', f.reply.id).data.parts).toContainEqual(notice)
 })
@@ -349,7 +349,7 @@ it('drops a notice for an unknown input rather than attaching it to the current 
   })
   expect(f.views.at(-1)?.parts).toEqual(text('', 'Original answer').parts)
   await f.emit({ type: 'turn-complete' })
-  expect((await f.done).finalMessage.parts).toEqual(text('', 'Original answer').parts)
+  expect((await f.done).finalMessage?.parts).toEqual(text('', 'Original answer').parts)
 })
 
 // A closed stream's snapshot must not overwrite updates arriving before the synchronous DB commit.

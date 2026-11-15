@@ -181,7 +181,8 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       this.input.reasoningEffort ?? 'default',
       this.input.fastMode === true,
       this.input.knowledgeBaseIds,
-      this.input.serviceTier
+      this.input.serviceTier,
+      this.input.headless === true
     )
     if (!request) {
       throw new Error(`Unable to build Claude Code query options for agent session ${this.input.sessionId}`)
@@ -368,6 +369,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     serviceTier?: AgentRuntimeConnectInput['serviceTier']
     knowledgeBaseIds?: readonly string[]
     fastMode?: boolean
+    headless?: boolean
   }): Promise<AgentRuntimeReconcileResult> {
     // Serialize per connection: a push (agent-updated) and a pull (fresh-turn check) reconciling
     // concurrently could interleave the SDK setPermissionMode and snapshot writes, leaving the local
@@ -386,6 +388,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     serviceTier?: AgentRuntimeConnectInput['serviceTier']
     knowledgeBaseIds?: readonly string[]
     fastMode?: boolean
+    headless?: boolean
   }): Promise<AgentRuntimeReconcileResult> {
     if (!this.handle) return 'rebuild'
     const derived = await deriveConnectionConfig(
@@ -394,7 +397,8 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       input.reasoningEffort ?? 'default',
       input.fastMode === true,
       input.knowledgeBaseIds,
-      input.serviceTier
+      input.serviceTier,
+      input.headless === true
     )
     if (!derived.ok) return 'invalid'
     const baseline = this.connectionConfig
@@ -550,6 +554,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     const contextId = this.context!.id
     this.rootContexts.set(handle.thread.id, this.context!)
     this.rootProjections.push(projection)
+    let legacy: ClaudeObservation['legacy']
     let end!: () => void
     this.observationEnds.push(
       new Promise<void>((resolve) => {
@@ -557,6 +562,8 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       })
     )
     const observation = await handle.claude.observe(async (batch) => {
+      legacy = batch.legacy ?? legacy
+      const currentLegacy = legacy
       this.publishInvocations(batch, 'current-turn')
       let publish = () => {}
       try {
@@ -585,7 +592,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
             type: 'message-projection',
             projection: {
               contextId,
-              legacy: batch.legacy,
+              legacy: currentLegacy,
               messages,
               live: owned,
               refresh: [...new Set([...refresh, ...changed.map((message) => message.id)])],

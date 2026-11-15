@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/proposed/feature/2026-11-14-agent-prompt-suggestions.md
+2026-11-14-agent-prompt-suggestions.md: f5588d2937d0f141d73167513a1da2b2b07aae56
+2026-11-14-agent-prompt-suggestions.zh.md: a7d6a5b393532d1a1faf7593679e2b8ba833eab9

@@ -75,7 +75,15 @@ function Harness({
 
   return (
     <Form {...form}>
-      <BasicInfoStep form={form} portalContainer={null} fallbackAvatar="💬" showAgentFields={showAgentFields} />
+      <BasicInfoStep
+        active
+        disabled={false}
+        onImagePendingChange={vi.fn()}
+        form={form}
+        portalContainer={null}
+        fallbackAvatar="💬"
+        showAgentFields={showAgentFields}
+      />
       <output data-testid="permission-mode">{form.watch('permissionMode')}</output>
     </Form>
   )

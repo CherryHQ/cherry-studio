@@ -63,12 +63,17 @@ describe('deepseek endpoint matrix', () => {
     expect(endpointsOf('deepseek', modelId)).toEqual(['openai-responses', 'openai-chat-completions'])
   })
 
-  it('lists only the current official DeepSeek model IDs', () => {
-    expect(providerModelEntries(provider('deepseek')).map(({ modelId }) => modelId)).toEqual([
-      'deepseek-flash',
-      'deepseek-v4-flash',
-      'deepseek-v4-pro'
-    ])
+  it('limits endpoint overrides to the supported DeepSeek model IDs', () => {
+    expect(
+      providerModelEntries(provider('deepseek'))
+        .filter(({ endpointTypes }) => endpointTypes !== undefined)
+        .map(({ modelId }) => modelId)
+    ).toEqual(['deepseek-flash', 'deepseek-v4-flash', 'deepseek-v4-pro'])
+  })
+
+  it('keeps the retired vision alias on the inherited Chat Completions endpoint', () => {
+    expect(endpointsOf('deepseek', 'deepseek-v4-flash-vision-exp')).toBeUndefined()
+    expect(provider('deepseek').defaultChatEndpoint).toBe('openai-chat-completions')
   })
 })
 

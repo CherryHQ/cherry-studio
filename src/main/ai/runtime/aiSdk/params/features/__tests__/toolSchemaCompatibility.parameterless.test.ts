@@ -41,6 +41,7 @@ describe('parameterless function-tool schemas', () => {
     { type: 'object', additionalProperties: true },
     { type: 'object', additionalProperties: { type: 'string' } }
   ] satisfies JSONSchema7[])('adds only root properties to $type schema %j without mutation', async (inputSchema) => {
+    // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
     const original = structuredClone(inputSchema)
     const descriptor = { type: 'function' as const, name: 'parameterless', inputSchema }
     const params: LanguageModelV3CallOptions = { prompt: [], tools: [descriptor] }
@@ -104,6 +105,7 @@ describe('parameterless function-tool schemas', () => {
       $ref: '#/$defs/Input',
       $defs: { Input: { type: 'object', properties: { query: { type: 'string' } }, required: ['query'] } }
     }
+    // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
     const original = structuredClone(inputSchema)
     const params: LanguageModelV3CallOptions = {
       prompt: [],
