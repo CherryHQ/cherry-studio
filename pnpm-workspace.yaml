@@ -74,7 +74,7 @@ overrides:
   "@ai-sdk/provider": "3.0.19"
   "@ai-sdk/provider-utils": "4.0.64"
   # Keep Vertex and workspace consumers on the same patched Google adapter.
-  "@ai-sdk/google": "3.0.132"
+  "@ai-sdk/google": "3.0.146"
   # Keep every OpenAI consumer on the single patched build, including Azure's transitive copy.
   "@ai-sdk/openai": "3.0.137"
   # Share one patched Anthropic build across direct, Bedrock, and Vertex consumers.
@@ -100,7 +100,7 @@ patchedDependencies:
   "@opeoginni/github-copilot-openai-compatible@1.0.0": patches/@opeoginni__github-copilot-openai-compatible@1.0.0.patch
   "@ai-sdk/amazon-bedrock@4.0.96": patches/@ai-sdk__amazon-bedrock@4.0.96.patch
   "@ai-sdk/openai@3.0.137": patches/@ai-sdk__openai@3.0.137.patch
-  "@ai-sdk/google@3.0.132": patches/@ai-sdk__google@3.0.132.patch
+  "@ai-sdk/google@3.0.146": patches/@ai-sdk__google@3.0.146.patch
   "@ai-sdk/anthropic": patches/@ai-sdk__anthropic.patch
   "@tiptap/extension-drag-handle@3.26.1": patches/@tiptap__extension-drag-handle@3.26.1.patch
   "@tiptap/markdown@3.26.1": patches/@tiptap__markdown@3.26.1.patch
@@ -175,7 +175,7 @@ supportedArchitectures:
 minimumReleaseAgeExclude:
   - "@ai-sdk/open-responses@1.0.34"
   - "@ai-sdk/google-vertex@4.0.188"
-  - "@ai-sdk/google@3.0.132"
+  - "@ai-sdk/google@3.0.146"
   - "@ai-sdk/openai-compatible@2.0.72"
   - "@ai-sdk/cerebras@2.0.78"
   - "@ai-sdk/huggingface@1.0.74"

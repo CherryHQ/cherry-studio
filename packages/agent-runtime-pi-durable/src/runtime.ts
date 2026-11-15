@@ -695,6 +695,7 @@ export async function createPiDurableRuntime(
       },
       archive() {
         const cached = archives.get(entry.conversation.id)
+        // oxlint-disable-next-line no-restricted-globals -- Explicit context reads detach cached usage metadata, not conversation messages.
         if (!released && cached) return Promise.resolve({ status: 'confirmed', value: structuredClone(cached) })
         if (unavailable()) return Promise.resolve(rejected('archive', 'closed'))
         return track(

@@ -109,6 +109,7 @@ export class AgentSessionForkOperations {
     const facts = agentSessionForkService.readHistoryBoundaries(sessionId, [target.messageId])[0]
     const editFailure = facts ? getEditFailure(driver, facts, facts.parent) : 'invalid_target'
     if (editFailure) throw new AgentSessionEditError(editFailure)
+    // oxlint-disable-next-line no-restricted-globals -- Fork once: detach the selected prefix before rewriting IDs and metadata.
     const prefix = structuredClone(source.prefix)
     const bindings = database.withWriteTx((tx) =>
       agentSessionForkService.readBindingsTx(tx, sessionId, target.messageId)
@@ -539,6 +540,7 @@ function cloneMessages(
   // Preserve the existing (createdAt, id) order even when several source rows share a timestamp.
   const newIds = rows.map(() => randomUUID()).sort()
   const ids = new Map(rows.map((row, index) => [row.id, newIds[index]]))
+  // oxlint-disable-next-line no-restricted-globals -- Fork once: isolate the selected branch rows before assigning destination IDs.
   const messages = rows.map((row) => structuredClone(row))
   remapNativeHistory(messages, prepared)
   const nativeIds = new Map(prepared.map(({ group, result }) => [group.context.nativeThreadId, result.resumeToken]))

@@ -1,3 +1,5 @@
-<svg width="120" height="120" viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
-<path fill-rule="evenodd" clip-rule="evenodd" d="M59.5 32L92 88H27L59.5 32Z" fill="black"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="120" height="120" viewBox="0 0 120 120" fill="none">
+<!-- Official black symbol: https://vercel.com/geist/brands/assets/vercel-symbol-black.svg -->
+<rect width="120" height="120" fill="var(--icon-neutral-background, #FFFFFF)"/>
+<g transform="translate(29.53125 27.1875) scale(0.5298913)"><path fill="black" fill-rule="evenodd" d="M57.5 0 115 100H0z" clip-rule="evenodd" style="fill:black;fill-opacity:1;"/></g>
 </svg>
