@@ -28,6 +28,9 @@ const CREATE_ONLY_WHEN_ASKED = (ref: ToolCallForm['ref']) =>
 const CONFIG_UPDATE_IS_SELF =
   'That tool only changes you: a request for a new Agent or Assistant always makes a new one with the create tool, never by changing your own settings.'
 
+/** The host prompt names all three, so it is only given to a session that mounts all three. */
+const HOST_CONFIG_TOOLS = ['create_agent', 'create_assistant', 'update_agent'] as const
+
 /** Without this the model describes UI steps or writes files instead of calling the tools it has. */
 const hostConfigToolsPrompt = ({ ref, hint }: ToolCallForm) => `## Creating Agents and Assistants
 
@@ -48,7 +51,8 @@ export function buildConfigToolsGuidance(
   const hostTools = resolveHostTools(agent, { channelLinked })
   if (hostTools) {
     const tools = hostTools.tools ?? DEFAULT_ASSISTANT_TOOL_NAMES
-    return tools.includes('create_agent') ? hostConfigToolsPrompt(callForm) : undefined
+    const mountsAll = HOST_CONFIG_TOOLS.every((tool) => tools.includes(tool))
+    return mountsAll ? hostConfigToolsPrompt(callForm) : undefined
   }
   return resolveAgentCapabilities(agent).createResources ? selfConfigToolsPrompt(callForm) : undefined
 }

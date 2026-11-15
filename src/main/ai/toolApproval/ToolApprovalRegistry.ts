@@ -89,7 +89,6 @@ class ToolApprovalRegistry {
     return true
   }
 
-  /** Returns `undefined` for unknown ids (already dispatched / session expired). */
   /** The pending call itself, so main can preview what approving it would do. */
   peekCall(approvalId: string): Pick<PendingApproval, 'sessionId' | 'toolName' | 'originalInput'> | undefined {
     const entry = this.pending.get(approvalId)
@@ -97,6 +96,7 @@ class ToolApprovalRegistry {
     return { sessionId: entry.sessionId, toolName: entry.toolName, originalInput: entry.originalInput }
   }
 
+  /** Returns `undefined` for unknown ids (already dispatched / session expired). */
   peek(approvalId: string): ApprovalRegistration | undefined {
     const entry = this.pending.get(approvalId)
     if (!entry) return undefined
