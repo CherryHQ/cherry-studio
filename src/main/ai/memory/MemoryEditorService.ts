@@ -24,7 +24,7 @@ export class MemoryEditorService extends BaseService {
     )
   }
 
-  open(senderId: string | null, scope: MemoryScope): string {
+  open(senderId: string | null, scope: Extract<MemoryScope, { kind: 'shared' }>): string {
     const authority = editorMemoryAuthority(senderId, scope)
     const session = application.get('MemoryService').open(authority)
     const editorId = randomUUID()
