@@ -813,7 +813,7 @@ function PermissionModeRow({
         control={form.control}
         name="permissionMode"
         render={() => (
-          <FormItem className="w-44">
+          <FormItem>
             <PermissionModeSelect
               cards={permissionModeCards}
               value={selectedPermissionModeCard?.mode ?? 'default'}
@@ -821,7 +821,8 @@ function PermissionModeRow({
               portalContainer={portalContainer}
               ariaLabel={label}
               scopeName={agentName.trim() || undefined}
-              triggerClassName={settingsPillClassName}
+              compact
+              triggerClassName={cn(settingsPillClassName, 'w-auto')}
               t={t}
             />
           </FormItem>
