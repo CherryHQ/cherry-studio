@@ -1201,7 +1201,7 @@ const AgentPage = () => {
         <AgentCreateDialog
           open={agentCreateOpen}
           onOpenChange={setAgentCreateOpen}
-          onCreated={handleAgentConversationSelect}
+          onStartConversation={handleAgentConversationSelect}
         />
       </Container>
     </>

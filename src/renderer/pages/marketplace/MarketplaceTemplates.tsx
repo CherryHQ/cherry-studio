@@ -6,7 +6,6 @@ import { Button, Dialog, EmojiIcon } from '@cherrystudio/ui'
 import { ResourceCreateWizard } from '@renderer/components/resourceCatalog/dialogs/create'
 import { useAgentMutations } from '@renderer/hooks/resourceCatalog'
 import { openRoute } from '@renderer/services/mainWindowNavigation'
-import { toast } from '@renderer/services/toast'
 import type { MarketplaceTemplate } from '@renderer/types/marketplace'
 import { buildCreateAgentCommand } from '@renderer/utils/resourceCatalog'
 
@@ -214,7 +213,6 @@ export function MarketplaceTemplates({
           }}
           onSubmit={async (values) => {
             const created = await createAgent(buildCreateAgentCommand(values))
-            toast.success(t('common.add_success'))
             return created.id
           }}
           onStartConversation={(agentId) => openRoute('/app/agents', { agentId })}

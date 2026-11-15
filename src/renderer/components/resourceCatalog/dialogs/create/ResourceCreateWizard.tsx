@@ -44,8 +44,11 @@ type ResourceCreateWizardProps = {
   onOpenChange: (open: boolean) => void
   /** Creates the resource and resolves to its ID, which the result page acts on. */
   onSubmit: (values: ResourceCreateWizardValues) => Promise<string> | string
-  /** The caller's "Start conversation" action; the wizard has already closed when it runs. */
-  onStartConversation: (id: string) => void
+  /**
+   * The caller's "Start conversation" action; the wizard has already closed when it runs. A picker
+   * leaves it out because it picks the new resource itself, so the result page offers Close instead.
+   */
+  onStartConversation?: (id: string) => void
   modelFilter?: ModelSelectorFilter
   isSubmitting?: boolean
   /** Seeds the name field when the caller already knows it (e.g. the picker's search query). */
@@ -574,7 +577,8 @@ export function ResourceCreateWizard({
                   kind={kind}
                   created={created}
                   onAdjust={() => closeThen(() => setEditTarget({ kind, id: created.id }))}
-                  onStart={() => closeThen(() => onStartConversation(created.id))}
+                  onStart={onStartConversation ? () => closeThen(() => onStartConversation(created.id)) : undefined}
+                  onClose={() => onOpenChange(false)}
                 />
               ) : (
                 <>

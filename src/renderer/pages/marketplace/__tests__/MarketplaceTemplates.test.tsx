@@ -63,7 +63,8 @@ describe('MarketplaceTemplates create', () => {
     await expect(
       mocks.wizardProps.onSubmit({ name: 'Product manager', modelId: 'p::m', agentType: 'pi-durable' })
     ).resolves.toBe('agent-new')
-    expect(toast.success).toHaveBeenCalledWith('common.add_success')
+    // The wizard's result page confirms the create, so no toast repeats it.
+    expect(toast.success).not.toHaveBeenCalled()
   })
 
   it("opens the new agent's conversation from the start action", () => {

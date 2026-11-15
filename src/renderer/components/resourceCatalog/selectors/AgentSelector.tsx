@@ -144,14 +144,17 @@ export function AgentSelector(props: AgentSelectorProps) {
     [onDialogCloseAutoFocus]
   )
 
+  // Closing the wizard after a create closes the picker when it already picked the new Agent.
   const handleCreateDialogOpenChange = useCallback(
     (nextOpen: boolean) => {
       setCreateDialogOpen(nextOpen)
-      if (!nextOpen) {
-        onDialogCloseAutoFocus?.()
-      }
+      if (nextOpen) return
+      onDialogCloseAutoFocus?.()
+      if (!createdAgentRef.current) return
+      createdAgentRef.current = null
+      handleSelectorOpenChange(!autoSelectOnCreate)
     },
-    [onDialogCloseAutoFocus]
+    [autoSelectOnCreate, handleSelectorOpenChange, onDialogCloseAutoFocus]
   )
 
   const handleSubmitCreate = useCallback(
@@ -171,31 +174,23 @@ export function AgentSelector(props: AgentSelectorProps) {
         logger.warn('Failed to refresh agents after selector create', { error })
         toast.error(t('selector.create_dialog.refresh_failed'))
       }
+      if (autoSelectOnCreate) {
+        if (props.selectionType === 'item') {
+          props.onChange({
+            id: created.id,
+            name: created.name,
+            description: getAgentDescriptionForDisplay(created, t),
+            emoji: getAgentAvatarFromConfiguration(created.configuration),
+            avatarSrc: created.avatarSrc
+          })
+        } else {
+          props.onChange(created.id)
+        }
+      }
       return created.id
     },
-    [createAgent, refetch, t]
+    [autoSelectOnCreate, createAgent, props, refetch, t]
   )
-
-  // Runs only from the result page's "Start conversation"; the ref holds the entity just created.
-  const handleStartConversation = useCallback(() => {
-    const created = createdAgentRef.current
-    if (autoSelectOnCreate && created) {
-      if (props.selectionType === 'item') {
-        props.onChange({
-          id: created.id,
-          name: created.name,
-          description: getAgentDescriptionForDisplay(created, t),
-          emoji: getAgentAvatarFromConfiguration(created.configuration),
-          avatarSrc: created.avatarSrc
-        })
-      } else {
-        props.onChange(created.id)
-      }
-      handleSelectorOpenChange(false)
-      return
-    }
-    handleSelectorOpenChange(true)
-  }, [autoSelectOnCreate, handleSelectorOpenChange, props, t])
 
   const createDialog = (
     <ResourceCreateWizard
@@ -204,7 +199,6 @@ export function AgentSelector(props: AgentSelectorProps) {
       isSubmitting={isCreatingAgent}
       onOpenChange={handleCreateDialogOpenChange}
       onSubmit={handleSubmitCreate}
-      onStartConversation={handleStartConversation}
     />
   )
 

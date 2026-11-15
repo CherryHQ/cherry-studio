@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 
 import type * as CherryStudioUi from '@cherrystudio/ui'
@@ -180,6 +180,21 @@ describe('AssistantConversationPickerDialog', () => {
     )
     expect(onSelect).not.toHaveBeenCalled()
 
+    mocks.createDialogProps.onStartConversation('assistant-new')
+
+    expect(onSelect).toHaveBeenCalledExactlyOnceWith({ type: 'assistant', assistantId: 'assistant-new' })
+  })
+
+  // A new Assistant has no topic, so dismissing the result page must still surface it in the rail.
+  it('starts the conversation once when the result page is closed, even after Start conversation', async () => {
+    mocks.createAssistant.mockResolvedValue({ id: 'assistant-new' })
+    const onSelect = vi.fn()
+    render(<AssistantConversationPickerDialog open onOpenChange={vi.fn()} assistants={[]} onSelect={onSelect} />)
+    await mocks.createDialogProps.onSubmit({ avatar: '🤖', name: 'New', modelId: 'p::m', description: '', prompt: '' })
+
+    await act(async () => {
+      mocks.createDialogProps.onOpenChange(false)
+    })
     mocks.createDialogProps.onStartConversation('assistant-new')
 
     expect(onSelect).toHaveBeenCalledExactlyOnceWith({ type: 'assistant', assistantId: 'assistant-new' })
