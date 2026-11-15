@@ -72,6 +72,7 @@ export async function previewDurableSystemPrompt(draft: AgentSystemPromptDraft):
       cwd,
       agentDataPath: agentDataDirectoryPath(application.getPath('feature.agents.data'), stored?.id ?? NEW_AGENT_ID),
       effectiveLanguage: getEffectiveAgentLanguage(agent),
+      channelLinked: false,
       disabledTools: new Set(draft.disabledTools.map(normalizePiDisabledToolId)),
       knowledgeBaseScope: resolveKnowledgeBaseScope(draft.knowledgeBaseIds, undefined),
       skillPaths: [

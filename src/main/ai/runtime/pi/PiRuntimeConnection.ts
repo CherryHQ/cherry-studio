@@ -33,6 +33,7 @@ import { buildAgentRuntimePrompt } from '@main/ai/runtime/agentPrompt'
 import { prepareAgentSessionWorkspaceDirectory } from '@main/ai/runtime/agentSessionWorkspace'
 import { buildAgentUserContent } from '@main/ai/runtime/agentUserContent'
 import { buildCitationsGuidance } from '@main/ai/runtime/citationsGuidance'
+import { buildConfigToolsGuidance, type ToolCallForm } from '@main/ai/runtime/configToolsGuidance'
 import { preparePiBranch } from '@main/ai/runtime/pi/piContext'
 import { wrapSteerReminder } from '@main/ai/steerReminder'
 import { CHERRY_MCP_SERVER, listBuiltinToolPolicies } from '@main/ai/toolApproval/builtinToolPolicy'
@@ -85,6 +86,11 @@ import { loadPiSdk } from './piSdk'
 import { buildPiLoginPathPrefix, mergePiShellExecutionEnv, resolvePiShellPath } from './piShell'
 import { withPiShellTimeout } from './piShellTimeout'
 import { PiTurnUsage } from './PiTurnUsage'
+
+const PI_TOOL_CALL_FORM: ToolCallForm = {
+  ref: (server, name) => `\`${buildPiMcpToolName(server, name)}\``,
+  hint: ' If these tools are not in your tool list yet, load them with `tool_search` first.'
+}
 
 const logger = loggerService.withContext('PiRuntimeConnection')
 
@@ -184,6 +190,10 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       agentDataPath,
       agent,
       citationsGuidance,
+      configToolsGuidance: buildConfigToolsGuidance(agent, {
+        channelLinked: linkedChannel !== null,
+        callForm: PI_TOOL_CALL_FORM
+      }),
       effectiveLanguage: initialSnapshot.effectiveLanguage,
       modelName: initialSnapshot.model.name ?? initialSnapshot.model.id
     })

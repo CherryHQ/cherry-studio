@@ -1,0 +1,45 @@
+import { resolveAgentCapabilities, resolveHostTools } from '@main/ai/agents/builtin/builtinAgentCapabilities'
+import { DEFAULT_ASSISTANT_TOOL_NAMES } from '@main/ai/toolApproval/assistantToolNames'
+import { AGENT_CREATE_TOOL_NAME, ASSISTANT_CREATE_TOOL_NAME, CONFIG_UPDATE_TOOL_NAME } from '@shared/ai/builtinTools'
+import type { AgentEntity } from '@shared/data/api/schemas/agents'
+
+/** How the model reaches a Cherry MCP tool; each runtime adapter supplies its own. */
+export interface ToolCallForm {
+  ref: (server: string, name: string) => string
+  /** Leads with a space so a runtime without one adds nothing. */
+  hint: string
+}
+
+const CREATE_REQUEST_EXAMPLES = '(for example "build me an Agent that reviews pull requests" or "建一个翻译助手")'
+// Without it, models read 助手 ("assistant") as an Agent.
+const RESOURCE_KINDS =
+  'An Assistant (助手) is a chat persona with a prompt and a model; an Agent (智能体) works on its own with tools, skills and a workspace.'
+
+// Kimi K2.6 rewrote its own settings via config_update when asked for a new Agent.
+const CONFIG_UPDATE_IS_SELF =
+  'That tool only changes you: a request for a new Agent or Assistant always makes a new one with the create tool, never by changing your own settings.'
+
+/** Without this the model describes UI steps or writes files instead of calling the tools it has. */
+const hostConfigToolsPrompt = ({ ref, hint }: ToolCallForm) => `## Creating Agents and Assistants
+
+When the user asks you to create or set up an Agent or an Assistant ${CREATE_REQUEST_EXAMPLES}, propose a configuration, then call ${ref('assistant', 'create_agent')} or ${ref('assistant', 'create_assistant')} instead of describing UI steps or writing files. ${RESOURCE_KINDS} To change a user-created Agent, find it with ${ref('cherry-tools', 'agent_list')} and call ${ref('assistant', 'update_agent')}.${hint} The user approves every call.`
+
+const selfConfigToolsPrompt = ({
+  ref,
+  hint
+}: ToolCallForm) => `## Creating Agents and Assistants, and changing your own settings
+
+When the user asks you to create or set up an Agent or an Assistant ${CREATE_REQUEST_EXAMPLES}, propose a configuration, then call ${ref('cherry-tools', AGENT_CREATE_TOOL_NAME)} or ${ref('cherry-tools', ASSISTANT_CREATE_TOOL_NAME)} instead of describing UI steps or writing files. ${RESOURCE_KINDS} When the user asks you to change your own avatar, description, instructions, model, permission mode, skills, knowledge bases, MCP servers, built-in tools, reply language or heartbeat, call ${ref('cherry-tools', CONFIG_UPDATE_TOOL_NAME)} with only the fields to change. ${CONFIG_UPDATE_IS_SELF}${hint} The user approves every call.`
+
+/** Create-tool guidance for the tools this session actually mounts; none when it mounts none. */
+export function buildConfigToolsGuidance(
+  agent: Pick<AgentEntity, 'configuration' | 'type'>,
+  { channelLinked, callForm }: { channelLinked: boolean; callForm: ToolCallForm }
+): string | undefined {
+  const hostTools = resolveHostTools(agent, { channelLinked })
+  if (hostTools) {
+    const tools = hostTools.tools ?? DEFAULT_ASSISTANT_TOOL_NAMES
+    return tools.includes('create_agent') ? hostConfigToolsPrompt(callForm) : undefined
+  }
+  return resolveAgentCapabilities(agent).createResources ? selfConfigToolsPrompt(callForm) : undefined
+}

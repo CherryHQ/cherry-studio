@@ -13,10 +13,17 @@ import type { AgentEntity } from '@shared/data/api/schemas/agents'
 
 import { buildAgentRuntimePrompt } from '../agentPrompt'
 import { buildCitationsGuidance } from '../citationsGuidance'
+import { buildConfigToolsGuidance, type ToolCallForm } from '../configToolsGuidance'
 import { buildPiMcpToolName } from '../pi/piMcpExtension'
 import type { loadPiSdk } from '../pi/piSdk'
 
 type PiSdk = Awaited<ReturnType<typeof loadPiSdk>>
+
+// Durable registers MCP tools for scripts only, so `tool_search` (which loads model tools) never finds them.
+const DURABLE_TOOL_CALL_FORM: ToolCallForm = {
+  ref: (server, name) => `\`await tools.${buildPiMcpToolName(server, name)}({ ... })\``,
+  hint: " These are not separate tools and `tool_search` cannot find them: run them inside a `codemode` script. If the `codemode` section does not list one, read its parameters first with `return await describeTool('<tool name>')`, a script global rather than a member of `tools`."
+}
 
 /** A Cherry-owned section; it needs no harness input, so a preview can render it directly. */
 export type DurablePromptSection = Pick<PromptSection, 'key'> & {
@@ -30,6 +37,7 @@ export interface DurablePromptOptions {
   effectiveLanguage: string | null
   /** Effective turn model display name for `{{model_name}}`; defaults to `agent.modelName`. */
   modelName?: string | null
+  channelLinked: boolean
   /** Normalized disabled tool IDs. */
   disabledTools: ReadonlySet<string>
   knowledgeBaseScope: readonly string[]
@@ -56,6 +64,10 @@ export async function buildDurablePrompt(pi: PiSdk, options: DurablePromptOption
     effectiveLanguage: options.effectiveLanguage,
     modelName: options.modelName,
     instructionsSlot: options.instructionsSlot,
+    configToolsGuidance: buildConfigToolsGuidance(agent, {
+      channelLinked: options.channelLinked,
+      callForm: DURABLE_TOOL_CALL_FORM
+    }),
     citationsGuidance: buildCitationsGuidance({
       web: enabled(WEB_SEARCH_TOOL_NAME) || enabled(WEB_FETCH_TOOL_NAME),
       kb:

@@ -43,6 +43,7 @@ import {
   prepareAgentSessionWorkspaceDirectory
 } from '@main/ai/runtime/agentSessionWorkspace'
 import { buildCitationsGuidance } from '@main/ai/runtime/citationsGuidance'
+import { buildConfigToolsGuidance, type ToolCallForm } from '@main/ai/runtime/configToolsGuidance'
 import { isAutomationSkillAvailable } from '@main/ai/skills/automationSkills'
 import { skillService } from '@main/ai/skills/SkillService'
 import {
@@ -253,7 +254,8 @@ export async function buildClaudeCodeSessionSettings(
     knowledgeBaseScope,
     disallowedTools,
     options?.effectiveLanguage,
-    options?.promptModelName
+    options?.promptModelName,
+    linkedChannelSnapshot !== null
   )
 
   // 6. MCP servers (session + built-in)
@@ -732,6 +734,8 @@ async function buildToolPermissions(
   }
 }
 
+const CLAUDE_CODE_TOOL_CALL_FORM: ToolCallForm = { ref: (server, name) => `\`mcp__${server}__${name}\``, hint: '' }
+
 export async function buildSystemPrompt(
   agent: AgentEntity,
   cwd: string,
@@ -743,7 +747,8 @@ export async function buildSystemPrompt(
   /** Materialized effective language; when omitted the preference is read live. */
   effectiveLanguage?: string | null,
   /** Effective turn model display name for `{{model_name}}`; defaults to `agent.modelName`. */
-  promptModelName?: string | null
+  promptModelName?: string | null,
+  channelLinked = false
 ): Promise<ClaudeCodeSettings['systemPrompt']> {
   const canReadAllKnowledgeBases = resolveAgentCapabilities(agent).allKnowledgeBases
   const unavailableTools = new Set(disallowedTools)
@@ -764,6 +769,7 @@ export async function buildSystemPrompt(
     agentDataPath,
     agent,
     citationsGuidance,
+    configToolsGuidance: buildConfigToolsGuidance(agent, { channelLinked, callForm: CLAUDE_CODE_TOOL_CALL_FORM }),
     customBaseContext,
     effectiveLanguage,
     modelName: promptModelName

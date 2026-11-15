@@ -95,6 +95,7 @@ describe('previewDurableSystemPrompt', () => {
         cwd: application.getPath('feature.agents.system_workspaces'),
         agentDataPath,
         effectiveLanguage: 'English',
+        channelLinked: false,
         disabledTools: new Set(),
         knowledgeBaseScope: [],
         skillPaths: [application.getPath('feature.agents.skills', 'release-notes')]
@@ -121,6 +122,7 @@ describe('previewDurableSystemPrompt', () => {
         cwd: application.getPath('feature.agents.system_workspaces'),
         agentDataPath: path.join(application.getPath('feature.agents.data'), '{agent-id}'),
         effectiveLanguage: 'English',
+        channelLinked: false,
         disabledTools: new Set(),
         knowledgeBaseScope: [],
         skillPaths: []

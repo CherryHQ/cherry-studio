@@ -48,8 +48,9 @@ describe('Pi Durable desktop tools of a user Agent', () => {
       getTurnTrustedNotifyChannels: () => undefined
     })
     MockMainPreferenceServiceUtils.setPreferenceValue('chat.default_model_id', MODEL)
-    // Browser automation needs a live Electron session.
+    // Browser and computer automation need a live Electron session.
     MockMainPreferenceServiceUtils.setPreferenceValue('app.browser.agent_control.enabled', false)
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.computer_use.agent_control.enabled', false)
     dbh.db
       .insert(userProviderTable)
       .values({
