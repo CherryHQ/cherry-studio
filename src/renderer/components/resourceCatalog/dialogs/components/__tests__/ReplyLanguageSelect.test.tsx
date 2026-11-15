@@ -28,4 +28,16 @@ describe('ReplyLanguageSelect', () => {
 
     expect(screen.getByRole('textbox')).toHaveValue('Svenska')
   })
+
+  // The stored value can change in another window while this one is open.
+  it('shows a preset language set elsewhere instead of staying on Other', () => {
+    const { rerender } = render(
+      <ReplyLanguageSelect value={{ languageMode: 'custom', languageCustom: 'Svenska' }} onChange={() => {}} />
+    )
+
+    rerender(<ReplyLanguageSelect value={{ languageMode: 'custom', languageCustom: 'English' }} onChange={() => {}} />)
+
+    expect(screen.getByRole('combobox')).toHaveTextContent('English')
+    expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
+  })
 })
