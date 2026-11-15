@@ -61,7 +61,7 @@ export function ResourceIdentityCard({ result }: { result: ResourceIdentityResul
     // The card is a mouse shortcut for the Start conversation button, which stays the keyboard path.
     <div
       data-testid="resource-identity-card"
-      className="my-1 w-fit max-w-md rounded-lg border border-border-subtle bg-card px-2.5 py-2 transition-colors data-[clickable=true]:cursor-pointer data-[clickable=true]:hover:bg-accent/40"
+      className="my-1 w-full max-w-md rounded-lg border border-border-subtle bg-card px-2.5 py-2 transition-colors data-[clickable=true]:cursor-pointer data-[clickable=true]:hover:bg-accent/40"
       data-clickable={openConversation ? 'true' : undefined}
       onClick={handleCardClick}>
       <ResourceIdentityRow
@@ -102,9 +102,9 @@ export function ResourceIdentityCard({ result }: { result: ResourceIdentityResul
         </div>
       </ResourceIdentityRow>
       {!created && result.summary.length > 0 ? (
-        <ul className="mt-1.5 ml-10.5 space-y-0.5">
+        <ul className="mt-2 space-y-1 rounded-md bg-muted/50 px-2.5 py-2">
           {result.summary.map((line) => (
-            <li key={line} className="truncate text-muted-foreground text-xs leading-4" title={line}>
+            <li key={line} className="truncate text-foreground text-xs leading-4" title={line}>
               {line}
             </li>
           ))}
