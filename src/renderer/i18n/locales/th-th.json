@@ -2813,6 +2813,8 @@
   "message.tools.completed": "เสร็จเรียบร้อย",
   "message.tools.error": "เกิดข้อผิดพลาด",
   "message.tools.groupHeader": "เรียกใช้เครื่องมือ {{count}} ครั้ง",
+  "message.tools.identity_card.changes_one": "เปลี่ยนการตั้งค่า {{count}} รายการ",
+  "message.tools.identity_card.changes_other": "เปลี่ยนการตั้งค่า {{count}} รายการ",
   "message.tools.identity_card.updated": "อัปเดตแล้ว",
   "message.tools.invoking": "กำลังเริ่ม",
   "message.tools.labels.bash": "รันงาน",

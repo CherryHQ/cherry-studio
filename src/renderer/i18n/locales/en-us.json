@@ -2813,6 +2813,8 @@
   "message.tools.completed": "All wrapped up",
   "message.tools.error": "Error occurred",
   "message.tools.groupHeader": "{{count}} tool calls",
+  "message.tools.identity_card.changes_one": "Changed {{count}} setting",
+  "message.tools.identity_card.changes_other": "Changed {{count}} settings",
   "message.tools.identity_card.updated": "Updated",
   "message.tools.invoking": "Getting started",
   "message.tools.labels.bash": "Run task",

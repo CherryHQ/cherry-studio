@@ -2813,6 +2813,8 @@
   "message.tools.completed": "Abgeschlossen",
   "message.tools.error": "Fehler aufgetreten",
   "message.tools.groupHeader": "{{count}} Toolaufrufe",
+  "message.tools.identity_card.changes_one": "{{count}} Einstellung geändert",
+  "message.tools.identity_card.changes_other": "{{count}} Einstellungen geändert",
   "message.tools.identity_card.updated": "Aktualisiert",
   "message.tools.invoking": "Wird aufgerufen",
   "message.tools.labels.bash": "Bash",

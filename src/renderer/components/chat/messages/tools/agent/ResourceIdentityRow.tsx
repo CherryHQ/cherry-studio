@@ -18,7 +18,7 @@ export function ResourceIdentityRow({
   name: string
   /** Empty falls back to the kind's default avatar. */
   emoji: string
-  meta: string
+  meta: ReactNode
   badge?: ReactNode
   /** Trailing actions. */
   children?: ReactNode
@@ -45,7 +45,9 @@ export function ResourceIdentityRow({
           {badge}
         </div>
         {meta ? (
-          <div className="truncate text-muted-foreground text-xs leading-4" title={meta}>
+          <div
+            className="truncate text-muted-foreground text-xs leading-4"
+            title={typeof meta === 'string' ? meta : undefined}>
             {meta}
           </div>
         ) : null}

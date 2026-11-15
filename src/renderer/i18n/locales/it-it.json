@@ -2813,6 +2813,8 @@
   "message.tools.completed": "Tutto completato",
   "message.tools.error": "Si è verificato un errore",
   "message.tools.groupHeader": "{{count}} chiamate agli strumenti",
+  "message.tools.identity_card.changes_one": "{{count}} impostazione modificata",
+  "message.tools.identity_card.changes_other": "{{count}} impostazioni modificate",
   "message.tools.identity_card.updated": "Aggiornato",
   "message.tools.invoking": "Avvio dell'elaborazione",
   "message.tools.labels.bash": "Esegui attività",

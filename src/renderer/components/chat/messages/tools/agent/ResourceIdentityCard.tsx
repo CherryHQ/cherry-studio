@@ -1,5 +1,5 @@
-import { ArrowRight, Check } from 'lucide-react'
-import type { MouseEvent } from 'react'
+import { ArrowRight, Check, ChevronDown } from 'lucide-react'
+import { type MouseEvent, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@cherrystudio/ui'
@@ -7,6 +7,7 @@ import { dataApiService } from '@data/DataApiService'
 import { loggerService } from '@logger'
 import { openResourceEditDialog } from '@renderer/components/resourceCatalog/dialogs/ResourceEditDialogEventHost'
 import { resolveChatEntryTopicIdForAssistant } from '@renderer/utils/conversationEntry'
+import { cn } from '@renderer/utils/style'
 
 import { useOptionalMessageListActions } from '../../MessageListProvider'
 import type { ResourceIdentityResult } from './resourceIdentityResult'
@@ -28,6 +29,7 @@ async function conversationRoute(
 /** The Agent or Assistant a create / configure tool just made or changed, with a way into it. */
 export function ResourceIdentityCard({ result }: { result: ResourceIdentityResult }) {
   const { t } = useTranslation()
+  const [showChanges, setShowChanges] = useState(false)
   const actions = useOptionalMessageListActions()
   const navigateToRoute = actions?.navigateToRoute
   const openConversation =
@@ -48,7 +50,11 @@ export function ResourceIdentityCard({ result }: { result: ResourceIdentityResul
     action()
   }
 
-  const meta = [result.description, ...chips].filter(Boolean).join(' · ')
+  const changeCount = created ? 0 : result.summary.length
+  // An update reads as a change count, so the card keeps one size however many fields changed.
+  const meta = changeCount
+    ? t('message.tools.identity_card.changes', { count: changeCount })
+    : [result.description, ...chips].filter(Boolean).join(' · ')
   // A drag that selects text ends in a click too; copying the description must not leave the conversation.
   const handleCardClick = openConversation
     ? () => {
@@ -68,7 +74,23 @@ export function ResourceIdentityCard({ result }: { result: ResourceIdentityResul
         kind={result.kind}
         name={result.name}
         emoji={result.emoji}
-        meta={meta}
+        meta={
+          changeCount ? (
+            <button
+              type="button"
+              aria-expanded={showChanges}
+              className="flex items-center gap-0.5 hover:text-foreground"
+              onClick={handleButton(() => setShowChanges((shown) => !shown))}>
+              {meta}
+              <ChevronDown
+                aria-hidden="true"
+                className={cn('size-3 transition-transform', showChanges && 'rotate-180')}
+              />
+            </button>
+          ) : (
+            meta
+          )
+        }
         badge={
           created ? null : (
             <span className="flex shrink-0 items-center gap-0.5 text-[11px] text-success-subtle-foreground leading-5">
@@ -101,7 +123,7 @@ export function ResourceIdentityCard({ result }: { result: ResourceIdentityResul
           ) : null}
         </div>
       </ResourceIdentityRow>
-      {!created && result.summary.length > 0 ? (
+      {showChanges ? (
         <ul className="mt-2 space-y-1 rounded-md bg-muted/50 px-2.5 py-2">
           {result.summary.map((line) => (
             <li key={line} className="truncate text-foreground text-xs leading-4" title={line}>

@@ -2815,6 +2815,8 @@
   "message.tools.completed": "Завершено",
   "message.tools.error": "Произошла ошибка",
   "message.tools.groupHeader": "{{count}} вызовов инструментов",
+  "message.tools.identity_card.changes_one": "Изменено настроек: {{count}}",
+  "message.tools.identity_card.changes_other": "Изменено настроек: {{count}}",
   "message.tools.identity_card.updated": "Обновлено",
   "message.tools.invoking": "Вызов",
   "message.tools.labels.bash": "Баш",

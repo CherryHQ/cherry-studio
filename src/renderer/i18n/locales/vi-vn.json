@@ -2813,6 +2813,8 @@
   "message.tools.completed": "Hoàn thành",
   "message.tools.error": "Đã xảy ra lỗi",
   "message.tools.groupHeader": "{{count}} lệnh gọi công cụ",
+  "message.tools.identity_card.changes_one": "Đã thay đổi {{count}} cài đặt",
+  "message.tools.identity_card.changes_other": "Đã thay đổi {{count}} cài đặt",
   "message.tools.identity_card.updated": "Đã cập nhật",
   "message.tools.invoking": "Đang gọi",
   "message.tools.labels.bash": "Bash",
