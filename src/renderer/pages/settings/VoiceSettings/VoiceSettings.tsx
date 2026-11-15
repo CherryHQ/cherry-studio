@@ -28,6 +28,7 @@ import {
 } from '@renderer/components/SettingsPrimitives'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { appLanguageOptions, isAppLanguage } from '@renderer/i18n/languages'
+import { settingsControlClasses } from '@renderer/pages/settings/settingsStyles'
 import { popup } from '@renderer/services/popup'
 import {
   enumerateMicrophones,
@@ -834,19 +835,18 @@ function VoiceSettings() {
     }
   }
 
+  const recognitionStatusText = t(
+    installingLocale ? 'settings.voice.status.installing' : recognitionStatusKey(recognitionStatus)
+  )
+
   return (
     <SettingsContentColumn theme={theme} className="[&_[data-slot=select-trigger]]:max-w-full">
-      <h1 className="flex items-center gap-1 text-xl font-semibold text-foreground">
-        <span>{t('settings.voice.title')}</span>
-        <HelpTooltip content={t('settings.voice.description')} placement="right" />
-      </h1>
-
       <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.voice.recognition.title')}</SettingTitle>
         <SettingDivider />
         <SettingRow id="setting-voice-microphone" className="scroll-mt-6 flex-wrap gap-3">
           <SettingRowTitle>{t('settings.voice.microphone.label')}</SettingRowTitle>
-          <div className="flex max-w-full flex-wrap items-center justify-end gap-3">
+          <div className="flex max-w-full flex-wrap items-center justify-end gap-2">
             <Button variant="outline" size="lg" onClick={() => void toggleMicrophoneTest()}>
               {testingMicrophone ? <Square className="size-4" /> : <Mic className="size-4" />}
               {t(testingMicrophone ? 'settings.voice.microphone.stop_test' : 'settings.voice.microphone.test')}
@@ -857,7 +857,7 @@ function VoiceSettings() {
               onValueChange={(value) =>
                 savePreference(() => setMicrophoneDeviceId(value === EMPTY_VALUE ? null : value))
               }>
-              <SelectTrigger className="w-full sm:w-64" aria-label={t('settings.voice.microphone.label')}>
+              <SelectTrigger className={settingsControlClasses.model} aria-label={t('settings.voice.microphone.label')}>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -905,14 +905,13 @@ function VoiceSettings() {
         ) : null}
         <SettingDivider />
         <SettingRow id="setting-voice-recognition-model" className="scroll-mt-6 flex-wrap gap-3">
-          <div>
-            <SettingRowTitle>{t('settings.voice.recognition.model')}</SettingRowTitle>
-            <div id="setting-voice-recognition-status" className="mt-2 text-sm">
-              <span role="status" className="text-muted-foreground">
-                {t(installingLocale ? 'settings.voice.status.installing' : recognitionStatusKey(recognitionStatus))}
-              </span>
-            </div>
-          </div>
+          <SettingRowTitle>
+            {t('settings.voice.recognition.model')}
+            <HelpTooltip content={recognitionStatusText} />
+            <span id="setting-voice-recognition-status" role="status" className="sr-only">
+              {recognitionStatusText}
+            </span>
+          </SettingRowTitle>
           <Select
             value={recognitionModel || EMPTY_VALUE}
             disabled={installingLocale}
@@ -935,7 +934,7 @@ function VoiceSettings() {
                 })
               })
             }}>
-            <SelectTrigger className="w-full sm:w-64" aria-label={t('settings.voice.recognition.model')}>
+            <SelectTrigger className={settingsControlClasses.model} aria-label={t('settings.voice.recognition.model')}>
               <SelectValue>
                 {recognitionModel && recognitionDescriptor?.resourceOperations.includes(VoiceResourceOperation.Download)
                   ? t(MODEL_LABEL_KEYS[recognitionDescriptor.id])
@@ -996,7 +995,9 @@ function VoiceSettings() {
               (automaticLanguage ? !incompatibleLanguage : !recognitionDescriptor?.localeSelection || !asrLocales)
             }
             onValueChange={(value) => void selectRecognitionLanguage(value)}>
-            <SelectTrigger className="w-full sm:w-64" aria-label={t('settings.voice.recognition.language')}>
+            <SelectTrigger
+              className={settingsControlClasses.model}
+              aria-label={t('settings.voice.recognition.language')}>
               <SelectValue placeholder={t('common.select')}>
                 {automaticLanguage
                   ? undefined
@@ -1091,7 +1092,7 @@ function VoiceSettings() {
                 }
                 savePreference(() => setSpeechPreferences({ modelId: value === EMPTY_VALUE ? '' : value, voiceId: '' }))
               }}>
-              <SelectTrigger className="w-full sm:w-64" aria-label={t('settings.voice.speech.model')}>
+              <SelectTrigger className={settingsControlClasses.model} aria-label={t('settings.voice.speech.model')}>
                 <SelectValue>
                   {speechModel && isSpeechModelId(speechModel) ? t(MODEL_LABEL_KEYS[speechModel]) : undefined}
                 </SelectValue>
@@ -1147,7 +1148,7 @@ function VoiceSettings() {
               const language = value === EMPTY_VALUE ? '' : value
               savePreference(() => setSpeechPreferences({ language }))
             }}>
-            <SelectTrigger className="w-full sm:w-64" aria-label={t('settings.voice.speech.language')}>
+            <SelectTrigger className={settingsControlClasses.model} aria-label={t('settings.voice.speech.language')}>
               <SelectValue placeholder={t('common.select')} />
             </SelectTrigger>
             <SelectContent>
@@ -1179,7 +1180,7 @@ function VoiceSettings() {
                     })
                   )
                 }}>
-                <SelectTrigger className="w-full sm:w-64" aria-label={t('settings.voice.speech.voice')}>
+                <SelectTrigger className={settingsControlClasses.model} aria-label={t('settings.voice.speech.voice')}>
                   <SelectValue placeholder={t('common.select')} />
                 </SelectTrigger>
                 <SelectContent>

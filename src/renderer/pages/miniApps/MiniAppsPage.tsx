@@ -255,7 +255,7 @@ const MiniAppsPage: FC = () => {
                       <span className="mini-app-icon-frame flex size-[58px] items-center justify-center rounded-[14px] border border-border-subtle border-dashed bg-background-subtle transition-[border-color,background-color] duration-[160ms] ease-in-out group-hover:bg-accent group-focus-visible:border-ring group-focus-visible:bg-accent motion-reduce:transition-none">
                         <Plus className="size-6" strokeWidth={1.5} />
                       </span>
-                      <span className="mt-2 min-h-9 max-w-[92px] whitespace-normal text-center text-[13px] text-muted-foreground leading-[18px]">
+                      <span className="mt-2 min-h-9 w-full max-w-[92px] truncate text-center text-[13px] text-muted-foreground leading-[18px]">
                         {t('miniApp.add.title')}
                       </span>
                     </Button>
@@ -277,7 +277,7 @@ const MiniAppsPage: FC = () => {
                           <span className="mini-app-icon-frame flex size-[58px] items-center justify-center overflow-hidden rounded-[14px] border border-border-subtle transition-[border-color,background-color] duration-[160ms] ease-in-out motion-reduce:transition-none">
                             <img src={entry.iconUrl} alt="" className="size-14 rounded-[inherit]" />
                           </span>
-                          <span className="mt-2 min-h-9 max-w-[92px] select-none overflow-hidden whitespace-normal text-center text-[13px] text-muted-foreground leading-[18px] [-webkit-box-orient:vertical] [-webkit-line-clamp:2] [display:-webkit-box] [overflow-wrap:anywhere]">
+                          <span className="mt-2 min-h-9 w-full max-w-[92px] select-none truncate text-center text-[13px] text-muted-foreground leading-[18px]">
                             {entry.name}
                           </span>
                         </button>

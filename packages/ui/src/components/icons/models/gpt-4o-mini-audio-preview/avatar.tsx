@@ -9,7 +9,7 @@ export function Gpt4oMiniAudioPreviewAvatar({ size = 32, shape = 'circle', class
     <Avatar
       className={cn('overflow-hidden', shape === 'circle' ? 'rounded-full' : 'rounded-[20%]', className)}
       style={{ width: size, height: size }}>
-      <AvatarFallback className="text-foreground bg-background">
+      <AvatarFallback className="text-foreground">
         <Gpt4oMiniAudioPreviewLight style={{ width: size, height: size }} />
       </AvatarFallback>
     </Avatar>

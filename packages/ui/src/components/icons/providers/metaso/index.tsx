@@ -9,7 +9,7 @@ const Metaso = ({ variant, className, ...props }: CompoundIconProps) => {
 
 export const MetasoIcon: CompoundIcon = /*#__PURE__*/ Object.assign(Metaso, {
   Avatar: MetasoAvatar,
-  colorPrimary: '#175CD3'
+  colorPrimary: '#eaf0fb'
 })
 
 export default MetasoIcon
