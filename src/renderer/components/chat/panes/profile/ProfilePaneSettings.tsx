@@ -102,14 +102,18 @@ export function AssistantProfileSettings({ assistant }: { assistant: Assistant }
 /** The Agent's model, permission mode and reply language, changed in place. */
 export function AgentProfileSettings({
   agent,
+  model: conversationModel,
   onModelChange
 }: {
   agent: AgentEntity
-  /** Switches the model, asking first when the conversation already has messages. */
+  /** The conversation's model, which a session may set apart from the Agent's. */
+  model?: Model
+  /** Switches the conversation's model, asking first when it already has messages. */
   onModelChange?: (model: Model) => void
 }) {
   const { t } = useTranslation()
-  const { model } = useModelById(agent.model)
+  const { model: agentModel } = useModelById(agent.model)
+  const model = conversationModel ?? agentModel
   const modelFilter = useAgentModelFilter(agent.type)
   const { updateAgent } = useAgentMutationsById(agent.id)
   const saveWithToast = useSaveWithToast()

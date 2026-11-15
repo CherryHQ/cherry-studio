@@ -17,6 +17,7 @@ export function AgentProfilePane({
   sessionId,
   workspace,
   onOpenOutput,
+  model,
   onModelChange
 }: {
   agentId: string
@@ -24,7 +25,9 @@ export function AgentProfilePane({
   workspace?: AgentProfileWorkspace
   /** Opens a reported file in the Files pane; absent when that pane cannot show it. */
   onOpenOutput?: (path: string) => void
-  /** Switches the Agent's model, asking first when the conversation already has messages. */
+  /** The conversation's model; defaults to the Agent's own. */
+  model?: Model
+  /** Switches the conversation's model, asking first when it already has messages. */
   onModelChange?: (model: Model) => void
 }) {
   const { t } = useTranslation()
@@ -52,7 +55,7 @@ export function AgentProfilePane({
         activity={
           <>
             <AgentProfileActivity agent={agent} sessionId={sessionId} workspace={workspace} />
-            <AgentProfileSettings agent={agent} onModelChange={onModelChange} />
+            <AgentProfileSettings agent={agent} model={model} onModelChange={onModelChange} />
           </>
         }
         outputs={<AgentOutputs agentId={agent.id} onOpen={onOpenOutput} />}

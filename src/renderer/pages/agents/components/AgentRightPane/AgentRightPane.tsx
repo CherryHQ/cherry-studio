@@ -211,7 +211,7 @@ interface AgentRightPaneMeta {
   workspaceType?: AgentWorkspaceType
   /** Active model — supplies the context-usage denominator and guards against stale readings. */
   model?: Model
-  /** Switches the Agent's model, asking first when the session already has messages. */
+  /** Switches the session's model, asking first when the session already has messages. */
   onModelChange?: (model: Model) => void
 }
 
@@ -1686,7 +1686,7 @@ function ProfileDetailsExclusivity() {
 function AgentProfileRightPanel({ scope }: RightPanelComponentProps<AgentRightPanelScope>) {
   const actions = useRightPanelActions()
   const paneActions = useAgentRightPaneActions()
-  const { agentId, sessionId, workspacePath, onModelChange } = scope.meta
+  const { agentId, sessionId, workspacePath, model, onModelChange } = scope.meta
   const filesReady = actions.canOpen(FILES_PANE_ID)
   const workspace = useMemo(
     () =>
@@ -1704,6 +1704,7 @@ function AgentProfileRightPanel({ scope }: RightPanelComponentProps<AgentRightPa
       sessionId={sessionId}
       workspace={workspace}
       onOpenOutput={paneActions.canOpenArtifactFile ? paneActions.openArtifactFile : undefined}
+      model={model}
       onModelChange={onModelChange}
     />
   ) : null
