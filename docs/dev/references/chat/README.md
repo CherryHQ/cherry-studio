@@ -64,6 +64,28 @@ Goal is selected separately in the Quick Panel through the existing native
 user. Pi and Durable provide a static command entry; Claude uses its live SDK
 catalog. Draft keywords and the input placeholder do not suggest modes.
 
+## Agent next-prompt suggestions
+
+Agent session input can show one muted next-prompt suggestion after an observed
+turn completes successfully. `agent.input.suggestions.enabled` defaults to
+`true` and can be disabled in the input settings. Ordinary chat, message
+editing and reopening history do not generate suggestions.
+
+Tab fills the suggestion as literal editable text without sending; Escape
+cancels it for that reply. Existing drafts, attachments and queued follow-ups
+suppress it. Quick-panel handling, prompt-variable navigation, Shift+Tab and
+IME composition keep their existing behavior. Unaccepted suggestions are not
+saved in drafts or session history, and stale results are ignored after a
+session/model change or new turn.
+
+Prediction uses the current model through a cancellable one-shot text request,
+with tools disabled and reasoning turned off when supported, or set to the lowest
+supported effort otherwise. It uses no retries or fallback models and a
+10-second transport timeout. Only text from the last four messages is sent,
+at most 1,000 characters per message. Prediction starts on the next event-loop
+turn without a fixed debounce delay. Failures or unusable predictions leave
+the input unchanged; each eligible reply adds at most one request.
+
 ## Ordinary persisted chat context
 
 These settings, budgets, and recovery paths apply to ordinary persisted chat

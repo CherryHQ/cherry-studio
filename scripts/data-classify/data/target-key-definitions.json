@@ -6,6 +6,13 @@
   },
   "definitions": [
     {
+      "targetKey": "agent.input.suggestions.enabled",
+      "type": "boolean",
+      "defaultValue": true,
+      "status": "classified",
+      "description": "Predict a next prompt after Agent replies and let Tab fill it into the draft"
+    },
+    {
       "targetKey": "assistant.archive.related_topics",
       "type": "boolean",
       "defaultValue": false,

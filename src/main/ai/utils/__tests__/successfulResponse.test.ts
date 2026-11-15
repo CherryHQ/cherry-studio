@@ -151,6 +151,7 @@ async function persistAndProject(result: Awaited<ReturnType<typeof runAgent>>, e
     backend: {
       kind: 'fixture',
       persistAssistant(input) {
+        // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
         saved = structuredClone(input)
       }
     },

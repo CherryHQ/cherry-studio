@@ -438,6 +438,7 @@ export const DefaultSharedCache: SharedCacheSchema = {
  * This ensures type safety and prevents key conflicts
  */
 export type RendererPersistCacheSchema = {
+  'ui.model_selector.presentation': 'popover' | 'dialog'
   'ui.browser.import_prompt_hidden': boolean
   'ui.browser.last_urls': Record<string, string>
   'ui.tab.pinned_tabs': CacheValueTypes.Tab[]
@@ -519,6 +520,7 @@ export type RendererPersistCacheSchema = {
 }
 
 export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
+  'ui.model_selector.presentation': 'popover',
   'ui.browser.import_prompt_hidden': false,
   'ui.browser.last_urls': {},
   'ui.tab.pinned_tabs': [],
