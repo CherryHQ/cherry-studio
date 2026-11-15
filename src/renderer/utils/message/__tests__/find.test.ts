@@ -175,6 +175,65 @@ describe('getToolCitationExport', () => {
 })
 
 describe('getWebSourcesMarkdown', () => {
+  function legacyMessage(text: string, source?: string): MessageExportView {
+    return createExportView([
+      {
+        type: 'text',
+        text,
+        providerMetadata: {
+          cherry: {
+            references: [
+              {
+                category: 'citation',
+                citationType: 'web',
+                content: {
+                  source,
+                  results: [
+                    { url: 'https://first.com', title: 'First' },
+                    { url: 'https://second.com', title: 'Second' },
+                    { url: 'https://third.com', title: 'Third' }
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      }
+    ] as MessageExportView['parts'])
+  }
+
+  it('copies only cited migrated sources without closing gaps in their display numbers', () => {
+    const message = legacyMessage('Legacy answer [3] and [1], then [3] again.')
+
+    expect(getWebSourcesMarkdown(message)).toBe('[1] [First](https://first.com)\n\n[3] [Third](https://third.com)')
+  })
+
+  it.each(['No citations here.', 'Code only: `[1]`\n```text\n[2]\n```'])(
+    'hides the legacy source action when prose cites nothing: %s',
+    (text) => {
+      const message = legacyMessage(text)
+
+      expect(getCitedWebSources(message)).toEqual([])
+      expect(getWebSourcesMarkdown(message)).toBe('')
+    }
+  )
+
+  it.each([
+    ['openai', 'Answer [<sup>3</sup>](https://third.com)'],
+    ['grok', 'Answer [[3]](https://third.com)'],
+    [undefined, 'Answer [cite:3]']
+  ])('resolves migrated %s provider markers using their stored display numbers', (source, text) => {
+    expect(getWebSourcesMarkdown(legacyMessage(text!, source))).toBe('[3] [Third](https://third.com)')
+  })
+
+  it('keeps each migrated text part bound to its own references and deduplicates repeated citations', () => {
+    const first = legacyMessage('First [3]')
+    const second = legacyMessage('Second [1]')
+    const message = createExportView([...first.parts, ...second.parts, ...first.parts])
+
+    expect(getWebSourcesMarkdown(message)).toBe('[3] [Third](https://third.com)\n\n[1] [First](https://first.com)')
+  })
+
   it('lists only webpages the answer cites, once each, in citation order', () => {
     const message = createExportView([
       {
