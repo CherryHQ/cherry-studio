@@ -14,14 +14,14 @@ const SENTRY_DSN = 'https://194ceab3bd44e686bd3ebda9de3c20fd@o4509184559218688.i
  * Deliberately absent — SentryMinidump (native process memory), LocalVariables
  * (stack-frame values), ElectronNet / NodeFetch (tracing-only, and they record
  * provider URLs), ChildProcess, Console, ElectronBreadcrumbs, Screenshots,
- * MainProcessSession, RendererEventLoopBlock.
+ * MainProcessSession, RendererEventLoopBlock. Dedupe is also excluded: the
+ * reporting service owns classification-aware, time-bounded deduplication.
  */
 function allowedIntegrations() {
   return [
     Sentry.onUncaughtExceptionIntegration(),
     Sentry.onUnhandledRejectionIntegration(),
     Sentry.eventFiltersIntegration(),
-    Sentry.dedupeIntegration(),
     Sentry.functionToStringIntegration(),
     Sentry.linkedErrorsIntegration(),
     Sentry.contextLinesIntegration(),

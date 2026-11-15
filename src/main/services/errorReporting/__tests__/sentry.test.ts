@@ -1,3 +1,6 @@
+import { createRequire } from 'node:module'
+
+import type * as SentryMain from '@sentry/electron/main'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { validate as isUuid } from 'uuid'
@@ -5,23 +8,43 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { LATEST_PRIVACY_POLICY_VERSION } from '@shared/utils/constants'
 
-const { initMock, makeElectronTransportMock, sendMock, flushMock, preferenceState } = vi.hoisted(() => ({
+type SentryEnvelope = Parameters<ReturnType<typeof SentryMain.makeElectronTransport>['send']>[0]
+const sentryRequire = createRequire(createRequire(import.meta.url).resolve('@sentry/electron/main'))
+const sentrySdk = sentryRequire('@sentry/node') as Pick<
+  typeof SentryMain,
+  'NodeClient' | 'Scope' | 'defaultStackParser' | 'dedupeIntegration'
+>
+
+const {
+  initMock,
+  makeElectronTransportMock,
+  sendMock,
+  flushMock,
+  captureEventMock,
+  captureExceptionMock,
+  preferenceState
+} = vi.hoisted(() => ({
   initMock: vi.fn(),
   makeElectronTransportMock: vi.fn(),
-  sendMock: vi.fn(async () => ({ statusCode: 200 })),
+  sendMock: vi
+    .fn<(envelope: SentryEnvelope) => Promise<{ statusCode: number }>>()
+    .mockResolvedValue({ statusCode: 200 }),
   flushMock: vi.fn(async () => true),
+  captureEventMock: vi.fn(),
+  captureExceptionMock: vi.fn(),
   preferenceState: { ready: true }
 }))
 
-// `@sentry/electron/main` is externalized, so the real module cannot load under
-// Vitest (it imports Electron natively). Each integration factory is stubbed with
-// the SDK's own name — a rename upstream breaks the import in sentry.ts.
+// Native instrumentation is stubbed; Dedupe stays real so regressions still
+// exercise SDK event processors before beforeSend.
 vi.mock('@sentry/electron/main', () => {
   const stub = (name: string) => () => ({ name })
   return {
     init: initMock,
     makeElectronTransport: makeElectronTransportMock,
-    dedupeIntegration: stub('Dedupe'),
+    dedupeIntegration: () => sentrySdk.dedupeIntegration(),
+    captureEvent: captureEventMock,
+    captureException: captureExceptionMock,
     onUncaughtExceptionIntegration: stub('OnUncaughtException'),
     onUnhandledRejectionIntegration: stub('OnUnhandledRejection'),
     eventFiltersIntegration: stub('EventFilters'),
@@ -54,7 +77,7 @@ import { application } from '@application'
 import { BaseService } from '@main/core/lifecycle'
 
 import { ErrorReportingService } from '../ErrorReportingService'
-import { initSentry } from '../sentry'
+import { captureLoggedError, initSentry } from '../sentry'
 
 let reporting: ErrorReportingService
 
@@ -68,8 +91,32 @@ function initOptions() {
   return initMock.mock.calls[0][0]
 }
 
+function sdkClient() {
+  const client = new sentrySdk.NodeClient({
+    ...initOptions(),
+    dsn: 'https://public@example.invalid/1',
+    stackParser: sentrySdk.defaultStackParser
+  })
+  client.init()
+  captureEventMock.mockImplementation((event) => client.captureEvent(event))
+  captureExceptionMock.mockImplementation((error, context) =>
+    client.captureException(error, undefined, new sentrySdk.Scope().update(context))
+  )
+  return client
+}
+
+function deliveredReasons() {
+  return sendMock.mock.calls.flatMap(([envelope]) =>
+    envelope[1]
+      .filter(([header]) => header.type === 'event')
+      .map(([, event]) => (event as SentryMain.ErrorEvent).tags?.['failure.reason'])
+  )
+}
+
 beforeEach(async () => {
   vi.clearAllMocks()
+  captureEventMock.mockReset()
+  captureExceptionMock.mockReset()
   MockMainPreferenceServiceUtils.resetMocks()
   vi.stubEnv('DEV', false)
   vi.stubGlobal('__APP_EDITION__', 'global')
@@ -93,6 +140,70 @@ afterEach(async () => {
 })
 
 describe('Sentry consent gate', () => {
+  it.each(
+    [undefined, 'OperationError: renderer_exit\n    at rendererExit (app/window.js:10:20)'].flatMap((stack) =>
+      [
+        { nextReason: 'oom', minute: 2 },
+        { nextReason: 'crashed', minute: 11 }
+      ].map((scenario) => ({ ...scenario, stack, format: stack ? 'exception' : 'stackless event' }))
+    )
+  )('delivers $nextReason at minute $minute through the SDK ($format)', async ({ stack, nextReason, minute }) => {
+    grantConsent()
+    const client = sdkClient()
+    const start = Date.now()
+    const now = vi.spyOn(Date, 'now').mockReturnValue(start)
+    const emit = async (reason: string) => {
+      captureLoggedError({
+        module: 'WindowManager',
+        operation: 'window.renderer.exit',
+        failure: { source: 'application', kind: 'reliability', reason, outcome: 'failed' },
+        ...(stack ? { stack, errorName: 'OperationError', errorMessage: 'renderer_exit' } : {})
+      })
+      await client.flush(2000)
+    }
+    try {
+      await emit('crashed')
+      expect(deliveredReasons()).toEqual(['crashed'])
+      now.mockReturnValue(start + 60_000)
+      for (let i = 0; i < 12; i++) await emit('crashed')
+      expect(deliveredReasons()).toEqual(['crashed'])
+      now.mockReturnValue(start + minute * 60_000)
+      await emit(nextReason)
+      expect(deliveredReasons()).toEqual(['crashed', nextReason])
+    } finally {
+      now.mockRestore()
+      await client.close(2000)
+    }
+  })
+
+  it('does not let a renderer SDK event before consent suppress its first consented report', async () => {
+    const client = sdkClient()
+    const emit = async () => {
+      client.captureEvent({
+        message: 'react.render',
+        tags: {
+          'event.process': 'renderer',
+          'capture.source': 'log',
+          operation: 'react.render',
+          'failure.source': 'application',
+          'failure.kind': 'defect',
+          'failure.reason': 'render_failed',
+          'failure.outcome': 'failed'
+        }
+      })
+      await client.flush(2000)
+    }
+    try {
+      await emit()
+      expect(deliveredReasons()).toEqual([])
+      grantConsent()
+      await emit()
+      expect(deliveredReasons()).toEqual(['render_failed'])
+    } finally {
+      await client.close(2000)
+    }
+  })
+
   it('links accepted reports to diagnostic logs without copying event content', () => {
     const options = initOptions()
     expect(options.beforeSend({ message: 'private provider response' })).toBeNull()
@@ -381,13 +492,12 @@ describe('Sentry instrumentation surface', () => {
     expect(options.tracePropagationTargets).toEqual([])
   })
 
-  it('keeps the renderer bridge, dedupe and path scrubbing the rest of the design relies on', () => {
+  it('keeps the renderer bridge and path scrubbing the rest of the design relies on', () => {
     const configured = initOptions().integrations.map((integration: { name: string }) => integration.name)
 
     expect(configured).toContain('PreloadInjection')
     expect(configured).toContain('NormalizePaths')
     expect(configured).toContain('OnUncaughtException')
-    expect(configured).toContain('Dedupe')
   })
 
   it('preserves the default uncaught-exception handler without a custom fatal-error callback', () => {

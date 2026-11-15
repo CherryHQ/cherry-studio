@@ -2,7 +2,6 @@ import {
   browserApiErrorsIntegration,
   captureException,
   captureEvent,
-  dedupeIntegration,
   eventFiltersIntegration,
   functionToStringIntegration,
   globalHandlersIntegration,
@@ -36,7 +35,6 @@ export function initSentry(): void {
       browserApiErrorsIntegration(),
       globalHandlersIntegration(),
       linkedErrorsIntegration(),
-      dedupeIntegration(),
       scopeToMainIntegration()
     ],
     beforeSend: (event, hint) => {

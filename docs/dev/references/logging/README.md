@@ -173,6 +173,10 @@ cannot consume the critical reserve.
 The conservative ten-plus-ten limits bound a running application's volume while
 preserving capacity to diagnose a crash after an unrelated error burst. All
 windows share the budgets at the main-process boundary.
+Both SDKs omit their `Dedupe` integration. Its message/stack comparison runs
+before `beforeSend`, ignores failure classification and has no expiry. The
+main-process reporting service alone applies the ten-minute signature window,
+so distinct failures and later recurrences can reach the shared policy.
 
 A bounded 256-entry LRU tracks signatures using budget class, module, operation,
 failure classification and stack frames, never session IDs or error messages.
