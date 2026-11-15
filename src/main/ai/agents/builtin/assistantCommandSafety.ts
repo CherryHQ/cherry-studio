@@ -1,4 +1,10 @@
-import { parseShellCommand, resolveCommand, type ShellCommand, type ShellHeredoc } from './shellCommandParser'
+import {
+  parseShellCommand,
+  resolveCommand,
+  type ShellCommand,
+  type ShellDialect,
+  type ShellHeredoc
+} from './shellCommandParser'
 
 const MAX_ANALYSIS_DEPTH = 4
 
@@ -403,11 +409,15 @@ function powershellCommand(args: readonly string[]): string | undefined {
   return index < args.length ? args.slice(index).join(' ') : undefined
 }
 
-function cmdCommand(args: readonly string[], rawArgs?: readonly string[]): string | undefined {
+function cmdCommand(args: readonly string[], rawArgs?: readonly string[], dialect?: ShellDialect): string | undefined {
   const flagIndex = args.findIndex((arg) => /^\/[ck]$/i.test(arg))
   if (flagIndex < 0 || args[flagIndex + 1] === undefined) return undefined
   const values = args.slice(flagIndex + 1)
-  const source = rawArgs?.slice(flagIndex + 1)
+  // Bash removes its outer single quotes before CMD receives argv. CMD itself does not.
+  // Keep raw double-quoted CMD programs so their internal empty equality operands survive.
+  const source = rawArgs
+    ?.slice(flagIndex + 1)
+    .map((raw, index) => (dialect !== 'cmd' && raw.startsWith("'") ? values[index] : raw))
   const program = (source ?? values).join(' ')
   // CMD strips the first and last quote of its whole /c or /k program, even
   // when nested quotes caused the shell tokenizer to split it into words.
@@ -560,8 +570,12 @@ function isHistoryErasure(name: string, args: readonly string[]): boolean {
   return false
 }
 
-function analyzeNested(command: string | undefined, depth: number): string | undefined {
-  return command === undefined ? undefined : analyze(command, depth + 1)
+function analyzeNested(
+  command: string | undefined,
+  depth: number,
+  dialect: ShellDialect = 'shell'
+): string | undefined {
+  return command === undefined ? undefined : analyze(command, depth + 1, dialect)
 }
 
 /** These exec a vector, not shell text, so a `-c` program stays one argument. */
@@ -575,7 +589,8 @@ function reasonForNestedCommand(
   name: string,
   args: readonly string[],
   depth: number,
-  rawArgs?: readonly string[]
+  rawArgs?: readonly string[],
+  dialect?: ShellDialect
 ): string | undefined {
   if (depth >= MAX_ANALYSIS_DEPTH) return undefined
   if (SHELLS.has(name)) return analyzeNested(shellCodeArgument(args), depth)
@@ -589,9 +604,9 @@ function reasonForNestedCommand(
   }
   if (POWERSHELL.has(name)) {
     const code = powershellCommand(args)
-    return code === undefined ? undefined : analyze(code, depth + 1, true)
+    return code === undefined ? undefined : analyze(code, depth + 1, 'powershell')
   }
-  if (CMD.has(name)) return analyzeNested(cmdCommand(args, rawArgs), depth)
+  if (CMD.has(name)) return analyzeNested(cmdCommand(args, rawArgs, dialect), depth, 'cmd')
   if (name === 'ssh') return analyzeNested(sshCommand(args), depth)
   if (name === 'su' || name === 'runuser') return analyzeNested(suCommand(args), depth)
   if (name === 'chroot') return analyzeArgv(chrootArgv(args), depth)
@@ -605,7 +620,7 @@ function reasonForCommand(command: ShellCommand, depth: number): string | undefi
   if (UNIX_DELETION.has(name)) return 'permanent file deletion'
   if (WINDOWS_DELETION.has(name)) return 'permanent Windows file deletion'
 
-  const scripted = reasonForNestedCommand(name, args, depth, command.rawArgs)
+  const scripted = reasonForNestedCommand(name, args, depth, command.rawArgs, command.dialect)
   if (scripted) return scripted
 
   if (name === 'find' && findDeletes(args)) return 'recursive find deletion'
@@ -727,15 +742,15 @@ function reasonForHeredoc(heredoc: ShellHeredoc, depth: number): string | undefi
   return undefined
 }
 
-function analyze(command: string, depth: number, powershell = false): string | undefined {
+function analyze(command: string, depth: number, dialect: ShellDialect = 'auto'): string | undefined {
   if (depth > MAX_ANALYSIS_DEPTH) return undefined
-  const parsed = parseShellCommand(command, powershell)
+  const parsed = parseShellCommand(command, dialect)
   for (const pipeline of parsed.pipelines) {
     for (const simple of pipeline.commands) {
       const reason = reasonForCommand(simple, depth)
       if (reason) return reason
       for (const substitution of simple.substitutions) {
-        const nested = analyze(substitution, depth + 1, powershell)
+        const nested = analyze(substitution, depth + 1, simple.dialect ?? dialect)
         if (nested) return nested
       }
     }

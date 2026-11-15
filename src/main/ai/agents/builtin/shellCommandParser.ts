@@ -10,7 +10,11 @@
  * a usability guard rather than a security boundary, so the conventional forms below are the scope.
  */
 
+export type ShellDialect = 'auto' | 'shell' | 'cmd' | 'powershell'
+
 export interface ShellCommand {
+  /** Syntax owned by the caller, retained when entering a nested interpreter. */
+  dialect?: ShellDialect
   /** Basename without `.exe`, lowercased (`C:\Tools\sc.exe` → `sc`). */
   command: string
   /** Arguments after the command word; redirection targets are excluded. */
@@ -413,8 +417,9 @@ function cmdConditionEnd(words: readonly string[], start: number, rawWords?: rea
 export function resolveCommand(
   words: readonly string[],
   rawWords?: readonly string[],
-  powershell = false
+  dialect: ShellDialect = 'auto'
 ): { command: string; args: string[]; rawArgs?: string[] } | undefined {
+  const powershell = dialect === 'powershell'
   let index = 0
   while (index < words.length) {
     const word = words[index]
@@ -457,7 +462,7 @@ export function resolveCommand(
       continue
     }
     if (name === 'if') {
-      const end = cmdConditionEnd(words, index + 1, rawWords)
+      const end = dialect === 'cmd' || dialect === 'auto' ? cmdConditionEnd(words, index + 1, rawWords) : undefined
       index = end ?? index + 1
       continue
     }
@@ -477,7 +482,24 @@ export function resolveCommand(
   return undefined
 }
 
-function parseCommands(text: string, powershell: boolean): ShellPipeline[] {
+function parseCommands(text: string, dialect: ShellDialect): ShellPipeline[] {
+  const powershell = dialect === 'powershell'
+  const tokens = tokenize(text, powershell)
+  // The top-level tool supplies no shell identity. Preserve bare CMD forms, but an unquoted
+  // `then` at a command boundary identifies shell IF syntax. Explicit interpreters never infer.
+  if (
+    dialect === 'auto' &&
+    tokens.some((token, index) => {
+      const previous = tokens[index - 1]
+      return (
+        token.kind === 'word' &&
+        token.raw === 'then' &&
+        previous?.kind === 'operator' &&
+        (previous.value === ';' || previous.value === '\n')
+      )
+    })
+  )
+    dialect = 'shell'
   const pipelines: ShellPipeline[] = []
   let commands: ShellCommand[] = []
   let words: string[] = []
@@ -486,10 +508,10 @@ function parseCommands(text: string, powershell: boolean): ShellPipeline[] {
   let redirection: string | undefined
 
   const flushCommand = () => {
-    const resolved = words.length > 0 ? resolveCommand(words, rawWords, powershell) : undefined
+    const resolved = words.length > 0 ? resolveCommand(words, rawWords, dialect) : undefined
     // `x=$(rm -f a)` and a bare `> "$(rm -f a)"` run their substitution without ever resolving a
     // command word, so retained substitutions outlive the words they were collected with.
-    if (resolved) commands.push({ ...resolved, substitutions })
+    if (resolved) commands.push({ ...resolved, substitutions, dialect })
     else if (substitutions.length > 0) commands.push({ command: '', args: [], substitutions })
     words = []
     rawWords = []
@@ -503,7 +525,6 @@ function parseCommands(text: string, powershell: boolean): ShellPipeline[] {
     }
   }
 
-  const tokens = tokenize(text, powershell)
   for (let index = 0; index < tokens.length; index++) {
     const token = tokens[index]
     if (token.kind === 'operator') {
@@ -640,7 +661,7 @@ function extractHeredocs(command: string): { commandText: string; heredocs: Shel
   return { commandText: kept.join('\n'), heredocs }
 }
 
-export function parseShellCommand(command: string, powershell = false): ParsedShellCommand {
+export function parseShellCommand(command: string, dialect: ShellDialect = 'auto'): ParsedShellCommand {
   const { commandText, heredocs } = extractHeredocs(command)
-  return { pipelines: parseCommands(commandText, powershell), heredocs }
+  return { pipelines: parseCommands(commandText, dialect), heredocs }
 }

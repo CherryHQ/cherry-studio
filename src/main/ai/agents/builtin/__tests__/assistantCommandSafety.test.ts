@@ -716,3 +716,53 @@ describe('PowerShell legacy deletion coverage on the shared guard', () => {
     expect(detectDestructiveAssistantCommand(command)).toBe('permanent Windows file deletion')
   })
 })
+
+describe('shell dialect ownership for CMD condition parsing', () => {
+  it.each([
+    'if rm == victim.txt; then :; fi',
+    'if rm == victim.txt echo safe; then :; fi',
+    'if rm EQU victim.txt; then :; fi',
+    'if rm == victim.txt\nthen :\nfi',
+    'bash -c "if rm == victim.txt; then :; fi"',
+    'sh -c "if rm == victim.txt; then :; fi"',
+    'bash -c "if rm == victim.txt echo safe; then :; fi"',
+    'cmd /c bash -c "if rm == victim.txt; then :; fi"'
+  ])('keeps executable Bash conditions: %s', (command) => {
+    expect(detectDestructiveAssistantCommand(command)).toBe('permanent file deletion')
+  })
+
+  it.each([
+    'if echo rm == victim.txt; then :; fi',
+    'bash -c "if echo rm == victim.txt; then :; fi"',
+    'cmd /c if rm == victim.txt echo safe',
+    'cmd /c if rm EQU victim.txt echo safe',
+    'cmd /c if exist then echo safe'
+  ])('does not promote operands or prose: %s', (command) => {
+    expect(detectDestructiveAssistantCommand(command)).toBeUndefined()
+  })
+
+  it.each([
+    "MSYS_NO_PATHCONV=1 cmd.exe /c 'del /q victim.txt'",
+    "cmd.exe /c 'if exist victim.txt del /q victim.txt'",
+    `cmd.exe /c 'if "a"=="a" del /q victim.txt'`
+  ])('removes Bash caller single quotes once: %s', (command) => {
+    expect(detectDestructiveAssistantCommand(command)).toBe('permanent Windows file deletion')
+  })
+
+  it.each([
+    "cmd.exe /c 'echo del /q victim.txt'",
+    `cmd.exe /c 'if "del"=="erase" echo safe'`,
+    `cmd /c "cmd /c 'del /q victim.txt'"`
+  ])('retains CMD-internal quotes and output-only programs: %s', (command) => {
+    expect(detectDestructiveAssistantCommand(command)).toBeUndefined()
+  })
+})
+
+describe('dialect selection scaling', () => {
+  it('checks multiple Bash condition anchors in one forward token pass', () => {
+    const condition = 'if echo safe; then :; fi; '
+    expect(detectDestructiveAssistantCommand(condition.repeat(20000) + 'if rm == victim.txt; then :; fi')).toBe(
+      'permanent file deletion'
+    )
+  })
+})
