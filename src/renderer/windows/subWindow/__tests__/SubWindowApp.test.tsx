@@ -1,5 +1,5 @@
 import { mockPopupService } from '@test-mocks/renderer/popup'
-import { act, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import i18n from 'i18next'
 import type { PropsWithChildren } from 'react'
@@ -51,7 +51,9 @@ describe('SubWindowApp', () => {
     vi.spyOn(console, 'error').mockImplementation(() => {})
     render(<SubWindowApp />)
 
-    expect(screen.getByRole('alert')).toHaveTextContent('theme provider boom')
+    const alert = screen.getByRole('alert')
+    fireEvent.click(within(alert).getByRole('button', { expanded: false }))
+    expect(alert).toHaveTextContent('theme provider boom')
   })
 
   it('lets the detached window answer its MCP form and dismisses ended requests', async () => {
