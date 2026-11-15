@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 
 import { setupTestDatabase } from '@test-helpers/db'
+import { MockApplicationUtils } from '@test-mocks/main/application'
 import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { eq } from 'drizzle-orm'
@@ -12,6 +13,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { application } from '@application'
 import { fileEntryTable } from '@data/db/schemas/file'
 import { fileEntryService } from '@data/services/FileEntryService'
+import { TemporaryChatService } from '@data/services/TemporaryChatService'
 import { BaseService } from '@main/core/lifecycle'
 
 vi.mock('@application', async () => {
@@ -37,8 +39,60 @@ describe('FileManager temporary retention', () => {
   })
 
   afterEach(async () => {
+    MockApplicationUtils.resetServices()
     await rm(root, { recursive: true, force: true })
   })
+
+  it.each(['delete', 'persist'] as const)(
+    'preserves temporary chat images until %s transfers or releases ownership',
+    async (action) => {
+      MockApplicationUtils.setService('FileManager', files)
+      const chats = new TemporaryChatService()
+      const topic = chats.createTopic({})
+      const entry = await files.createInternalEntry({
+        source: 'bytes',
+        data: new Uint8Array([1, 2, 3]),
+        name: 'generated',
+        ext: 'png',
+        cleanupPolicy: 'delete_when_unreferenced'
+      })
+      db.db
+        .update(fileEntryTable)
+        .set({ createdAt: Date.now() - 7_200_000 })
+        .where(eq(fileEntryTable.id, entry.id))
+        .run()
+      const physicalPath = files.getPhysicalPath(entry.id)
+      chats.appendMessage(topic.id, {
+        role: 'assistant',
+        data: {
+          parts: [
+            {
+              type: 'file',
+              mediaType: 'image/png',
+              url: `file:///files/${entry.id}.png`,
+              providerMetadata: { cherry: { fileEntryId: entry.id } }
+            }
+          ]
+        }
+      })
+      await files.runEntryCleanup()
+      expect((await files.read(entry.id, { encoding: 'binary' })).content).toEqual(new Uint8Array([1, 2, 3]))
+      if (action === 'persist') chats.persist(topic.id)
+      else {
+        chats.deleteTopic(topic.id)
+        expect(chats.hasTopic(topic.id)).toBe(false)
+        expect(() => chats.persist(topic.id)).toThrow(/not found/i)
+        await expect(access(physicalPath)).resolves.toBeUndefined()
+      }
+      await files.runEntryCleanup()
+      if (action === 'persist') {
+        expect((await files.read(entry.id, { encoding: 'binary' })).content).toEqual(new Uint8Array([1, 2, 3]))
+      } else {
+        expect(fileEntryService.findById(entry.id)).toBeNull()
+        await expect(access(physicalPath)).rejects.toMatchObject({ code: 'ENOENT' })
+      }
+    }
+  )
 
   it('reclaims later orphans when more than a batch of older entries are retained', async () => {
     const createdAt = Date.now() - 7_200_000
