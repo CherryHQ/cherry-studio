@@ -54,6 +54,7 @@ jobs:
     concurrency:
       group: release-state
       cancel-in-progress: false
+      queue: max
     if: github.repository == 'CherryHQ/cherry-studio' && github.ref == 'refs/heads/main' && inputs.mode != 'sync-only'
     runs-on: ubuntu-latest
     permissions:
@@ -65,6 +66,7 @@ jobs:
       remote-tag-sha: ${{ steps.release-state.outputs.remote-tag-sha }}
       tag: ${{ steps.release-ref.outputs.tag }}
       targets: ${{ steps.release-ref.outputs.targets }}
+      draft-id: ${{ steps.draft.outputs.id }}
     steps:
       - name: Validate release selection
         shell: bash
@@ -111,6 +113,7 @@ jobs:
           fi
           node -e 'const { scripts } = require("./release-source/package.json"); for (const name of ["build:release", "build:release:cn"]) { if (!scripts[name]) throw new Error(`Release source does not support ${name}`) }'
           node -e 'require("node:fs").accessSync("release-source/scripts/release/js-bundle.js")'
+          node -e 'const tools = require("./release-source/scripts/download-binaries.js"); if (tools.PACKAGING_DOWNLOAD_VERSION !== 1) throw new Error("Release source does not support packaging tool assets v1"); require("node:fs").accessSync("release-source/scripts/release/prepare-tools.js")'
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           echo "targets=$(node scripts/release/targets.js "$PLATFORM")" >> "$GITHUB_OUTPUT"
 
@@ -168,15 +171,47 @@ jobs:
           WORKFLOW_SHA="$RELEASE_SHA" \
             node scripts/release/validate-release-state.js build-start
 
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - run: python -m pip install cos-python-sdk-v5==1.9.44
+      - name: Initialize draft upload session
+        id: draft
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.release-ref.outputs.tag }}
+          COS_SECRET_ID: ${{ secrets.COS_SECRET_ID }}
+          COS_SECRET_KEY: ${{ secrets.COS_SECRET_KEY }}
+        run: |
+          RELEASE="$(gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/releases?per_page=100" |
+            jq -c --arg tag "$TAG" '[.[][] | select(.tag_name == $tag)][0] // empty')"
+          jq -n --arg tag "$TAG" --arg sha "$RELEASE_SHA" \
+            '{tag_name: $tag, target_commitish: $sha, draft: true, prerelease: ($tag | contains("-"))}' > "$RUNNER_TEMP/draft.json"
+          if [ -n "$RELEASE" ]; then
+            if [ "$(jq -r '.draft' <<< "$RELEASE")" != "true" ]; then
+              echo "Release $TAG is already published" >&2
+              exit 1
+            fi
+            URL="repos/$GITHUB_REPOSITORY/releases/$(jq -r '.id' <<< "$RELEASE")"
+            METHOD=PATCH
+          else
+            URL="repos/$GITHUB_REPOSITORY/releases"
+            METHOD=POST
+          fi
+          RELEASE="$(gh api --method "$METHOD" "$URL" --input "$RUNNER_TEMP/draft.json")"
+          echo "id=$(jq -r '.id' <<< "$RELEASE")" >> "$GITHUB_OUTPUT"
+          python scripts/release/release-cos.py begin-draft
+
   bundle:
     name: Build JS ${{ matrix.edition }}
     needs: prepare
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        edition: [global, cn]
+        edition: [global]
       fail-fast: false
-    steps:
+    steps: &bundle-steps
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
@@ -231,171 +266,54 @@ jobs:
           path: ${{ steps.store.outputs.path }}
           key: ${{ steps.dependencies.outputs.cache-primary-key }}
 
+  bundle-cn:
+    name: Build JS ${{ matrix.edition }}
+    needs: prepare
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        edition: [cn]
+      fail-fast: false
+    steps: *bundle-steps
+
   release:
     name: Build ${{ matrix.edition }} (${{ matrix.target.platform }}-${{ matrix.target.arch }})
     needs: [prepare, bundle]
-    runs-on: ${{ matrix.target.platform == 'windows' && fromJSON('["self-hosted", "windows-signing"]') || matrix.target.os }}
     permissions:
-      contents: read
-
+      contents: write
     strategy:
       matrix:
-        edition: [global, cn]
+        edition: [global]
         target: ${{ fromJSON(needs.prepare.outputs.targets) }}
       fail-fast: false
+    uses: ./.github/workflows/release-target.yml
+    with: &target-inputs
+      target: ${{ toJSON(matrix.target) }}
+      edition: ${{ matrix.edition }}
+      source-sha: ${{ inputs.expected_sha }}
+      control-sha: ${{ github.workflow_sha }}
+      tag: ${{ needs.prepare.outputs.tag }}
+      draft-id: ${{ needs.prepare.outputs.draft-id }}
+      clean: ${{ inputs.clean }}
+    secrets: inherit
 
-    steps:
-      - name: Check out Git repository
-        uses: actions/checkout@v7
-        with:
-          fetch-depth: 1
-          ref: ${{ inputs.expected_sha }}
-
-      - name: Install Node.js
-        uses: actions/setup-node@v7
-        with:
-          node-version-file: ".node-version"
-
-      - name: macos-latest dependencies fix
-        if: matrix.target.platform == 'mac'
-        run: |
-          brew install python-setuptools
-
-      - name: Install pnpm
-        uses: pnpm/action-setup@v5
-
-      - name: Get pnpm store directory
-        id: pnpm-cache
-        if: matrix.target.platform != 'windows'
-        shell: bash
-        run: echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_OUTPUT
-
-      - name: Cache pnpm dependencies
-        id: dependencies
-        if: matrix.target.platform != 'windows'
-        uses: actions/cache/restore@v6
-        with:
-          path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
-          key: ${{ runner.os }}-${{ runner.arch }}-pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-${{ runner.arch }}-pnpm-
-
-      - name: "Dependency cache: ${{ matrix.target.platform == 'windows' && 'persistent-local' || steps.dependencies.outputs.cache-hit == 'true' && 'exact-hit' || 'unknown' }}"
-        shell: bash
-        run: ":"
-
-      - name: Clean signing runner dependencies
-        if: matrix.target.platform == 'windows' && inputs.clean
-        shell: bash
-        run: rm -rf node_modules
-
-      - name: Clean build output
-        shell: bash
-        run: |
-          node -e 'for (const directory of ["dist", "out"]) require("node:fs").rmSync(directory, { recursive: true, force: true })'
-
-      - name: Install Dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Cache verified Linux SQLite artifacts
-        if: matrix.target.platform == 'linux'
-        uses: actions/cache@v6
-        with:
-          path: scripts/linux-native/prebuilt
-          key: linux-sqlite-${{ matrix.target.arch }}-${{ hashFiles('pnpm-lock.yaml', 'scripts/linux-native/compat.js', 'scripts/linux-native/download.js', 'scripts/linux-native/release.json', 'patches/**') }}
-
-      - name: Download JS bundle
-        uses: actions/download-artifact@v8
-        with:
-          name: release-js-${{ matrix.edition }}
-      - name: Verify JS bundle
-        run: node scripts/release/js-bundle.js verify ${{ matrix.edition }}
-
-      - name: Enable Linux ARM64 addon builds
-        if: matrix.target.platform == 'linux' && matrix.target.arch == 'arm64'
-        uses: docker/setup-qemu-action@v3
-        with:
-          platforms: arm64
-
-      - name: Build Linux
-        if: matrix.target.platform == 'linux'
-        run: |
-          sudo apt-get install -y rpm libglib2.0-dev libgdk-pixbuf-2.0-dev libevdev-dev libxtst-dev libx11-dev libxfixes-dev libwayland-dev
-          pnpm exec electron-builder --linux --${{ matrix.target.arch }} --publish never ${{ matrix.edition == 'cn' && '--config electron-builder.cn.config.cjs' || '' }}
-
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          NODE_OPTIONS: --max-old-space-size=8192
-
-      - name: Build Mac
-        if: matrix.target.platform == 'mac'
-        run: |
-          sudo -H pip install setuptools
-          pnpm exec electron-builder --mac --${{ matrix.target.arch }} --publish never ${{ matrix.edition == 'cn' && '--config electron-builder.cn.config.cjs' || '' }}
-        env:
-          CSC_FOR_PULL_REQUEST: true
-          CSC_LINK: ${{ secrets.CSC_LINK }}
-          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          NODE_OPTIONS: --max-old-space-size=8192
-
-      - name: Build Windows
-        if: matrix.target.platform == 'windows'
-        run: |
-          pnpm exec electron-builder --win --x64 --arm64 --publish never ${{ matrix.edition == 'cn' && '--config electron-builder.cn.config.cjs' || '' }}
-        env:
-          ELECTRON_BUILDER_7Z_FILTER: BCJ
-          WIN_SIGN: true
-          CHERRY_CERT_PATH: ${{ secrets.CHERRY_CERT_PATH }}
-          CHERRY_CERT_KEY: ${{ secrets.CHERRY_CERT_KEY }}
-          CHERRY_CERT_CSP: ${{ secrets.CHERRY_CERT_CSP }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          NODE_OPTIONS: --max-old-space-size=8192
-
-      - name: Check out trusted release upload scripts
-        uses: actions/checkout@v7
-        with:
-          persist-credentials: false
-          ref: ${{ github.workflow_sha }}
-          path: release-tools
-          sparse-checkout: scripts/release
-
-      - name: Set up Python
-        uses: actions/setup-python@v6
-        with:
-          python-version: "3.12"
-
-      - name: Install Tencent COS SDK
-        run: python -m pip install cos-python-sdk-v5==1.9.44
-
-      - name: Select and validate release files
-        shell: bash
-        env:
-          TAG: ${{ needs.prepare.outputs.tag }}
-        run: |
-          export NODE_PATH="$(node -p "require('node:path').resolve('node_modules')")"
-          node release-tools/scripts/release/select-release-upload.js "${{ matrix.edition }}" "${{ matrix.target.platform }}" "${{ matrix.target.arch }}"
-
-      - name: Upload release files directly to COS
-        env:
-          TAG: ${{ needs.prepare.outputs.tag }}
-          COS_SECRET_ID: ${{ secrets.COS_SECRET_ID }}
-          COS_SECRET_KEY: ${{ secrets.COS_SECRET_KEY }}
-        run: python release-tools/scripts/release/release-cos.py upload "${{ matrix.edition }}" "${{ matrix.target.platform }}" "${{ matrix.target.arch }}"
-
-      - name: Save pnpm dependencies
-        if: matrix.edition == 'global' && matrix.target.platform == 'mac' && matrix.target.arch == 'x64' && steps.dependencies.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v6
-        with:
-          path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
-          key: ${{ steps.dependencies.outputs.cache-primary-key }}
+  release-cn:
+    name: Build ${{ matrix.edition }} (${{ matrix.target.platform }}-${{ matrix.target.arch }})
+    needs: [prepare, bundle-cn]
+    permissions:
+      contents: write
+    strategy:
+      matrix:
+        edition: [cn]
+        target: ${{ fromJSON(needs.prepare.outputs.targets) }}
+      fail-fast: false
+    uses: ./.github/workflows/release-target.yml
+    with: *target-inputs
+    secrets: inherit
 
   downloads:
     name: CN installer downloads
-    needs: [prepare, release]
+    needs: [prepare, release, release-cn]
     if: always() && needs.prepare.result == 'success'
     runs-on: ubuntu-latest
     steps:
@@ -424,7 +342,8 @@ jobs:
     concurrency:
       group: release-state
       cancel-in-progress: false
-    needs: [prepare, release]
+      queue: max
+    needs: [prepare, release, release-cn]
     runs-on: ubuntu-latest
     permissions:
       actions: read
@@ -474,7 +393,7 @@ jobs:
           PLATFORM: ${{ inputs.platform }}
         run: |
           node -e 'process.stdout.write(require("yaml").parse(require("node:fs").readFileSync("release-source/electron-builder.yml", "utf8")).releaseInfo.releaseNotes)' > release_body.txt
-          python scripts/release/release-cos.py assemble "$PLATFORM"
+          python scripts/release/release-cos.py assemble "$PLATFORM" manifests
           node <<'NODE'
           const fs = require('node:fs')
           const { files } = JSON.parse(fs.readFileSync('cos-release.json', 'utf8'))
@@ -499,7 +418,7 @@ jobs:
           BRANCH_SHA="$BRANCH_SHA" RELEASE_JSON="$RELEASE" PLATFORM="${{ inputs.platform }}" \
           REMOTE_TAG_SHA="$REMOTE_TAG_SHA" TAG="$TAG" WORKFLOW_SHA="$RELEASE_SHA" \
             node scripts/release/validate-release-state.js build-start
-          python scripts/release/release-cos.py begin-draft
+          python scripts/release/release-cos.py check-build
           if [ -n "$RELEASE" ]; then
             while IFS= read -r asset_id; do
               gh api --method DELETE "repos/$REPO/releases/assets/$asset_id"
@@ -537,7 +456,7 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           updateOnlyUnreleased: true
 
-      - name: Validate uploaded draft
+      - name: Validate complete draft inventory
         id: uploaded-draft
         shell: bash
         env:
@@ -549,6 +468,7 @@ jobs:
         run: |
           RELEASE="$(gh api "repos/$REPO/releases/$RELEASE_ID")"
           BRANCH_SHA="$(gh api "repos/$REPO/git/ref/heads/$BRANCH" --jq '.object.sha')"
+          RELEASE_JSON="$RELEASE" node scripts/release/validate-release-state.js draft-artifacts
           BRANCH_SHA="$BRANCH_SHA" RELEASE_JSON="$RELEASE" TAG="$TAG" WORKFLOW_SHA="$RELEASE_SHA" \
             node scripts/release/validate-release-state.js build-completion
 
@@ -678,7 +598,7 @@ jobs:
 
   performance:
     name: Release build performance
-    needs: [prepare, release, finalize-build]
+    needs: [prepare, release, release-cn, finalize-build]
     if: always() && needs.prepare.result == 'success'
     runs-on: ubuntu-latest
     steps:
@@ -710,7 +630,7 @@ jobs:
 
   approve:
     name: Approve production release
-    needs: [prepare, release, finalize-build]
+    needs: [prepare, release, release-cn, finalize-build]
     if: inputs.platform == 'all'
     runs-on: ubuntu-latest
     environment: release
@@ -720,11 +640,12 @@ jobs:
 
   publish:
     name: Publish approved release
-    needs: [prepare, release, finalize-build, approve]
+    needs: [prepare, release, release-cn, finalize-build, approve]
     runs-on: ubuntu-latest
     concurrency:
       group: release-state
       cancel-in-progress: false
+      queue: max
     steps:
       - name: Check out trusted publication code without credentials
         uses: actions/checkout@v7
@@ -928,7 +849,7 @@ jobs:
 
   notify:
     runs-on: ubuntu-latest
-    needs: [prepare, bundle, release, finalize-build, approve, publish, sync-to-gitcode]
+    needs: [prepare, bundle, bundle-cn, release, release-cn, finalize-build, approve, publish, sync-to-gitcode]
     if: >-
       always() && !(inputs.mode == 'sync-only' && inputs.dry_run) &&
       (contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled'))

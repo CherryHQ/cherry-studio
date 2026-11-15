@@ -41,7 +41,10 @@ The reader is not seeded from a partial snapshot: SDK parser state must come fro
 
 `ThreadFeed` is a protocol utility: one normalized snapshot, ordered per-observer delivery,
 bounded pending frames, explicit overflow gaps, and observer error isolation. It owns no native
-queue or execution lifecycle. Adapters maintain source identity before publishing events. `observeCaptured`
+queue or execution lifecycle. `state` copies non-message state, `message(id)` copies one
+selected message, and `messageIds` / `messageInputId(id)` read scalar identities. Adapters
+use these selectors instead of copying the entire history for a narrow read; public snapshots
+and observer deliveries remain isolated copies. Adapters maintain source identity before publishing events. `observeCaptured`
 captures concrete metadata with each native revision and retains critical frames through overflow recovery.
 Pending delivery uses a conservative 16 MiB size budget as well as event-count limits. Overflow
 replaces superseded ordinary delivery with a gap and a current recovery snapshot while retaining
@@ -49,8 +52,6 @@ critical frames. One oversized complete frame is allowed so history is never tru
 multiple oversized critical frames fail closed with `source-lost` rather than growing without bound.
 The first baseline remains first even when overflow closes an observation before its callback starts.
 An unrecoverable control backlog closes the observation with a gap instead of inventing completion.
-The isolated `state` getter omits messages so adapters can read inputs and other state without
-copying historical image bodies; the full `snapshot` getter still returns an isolated complete view.
 `Observation.drain()` joins delivery and callbacks through the facts already published when it is called.
 Seal native production before the final drain and archive flush. `stop()` discards queued delivery; it is not
 a write barrier. Detach and release only after the final flush, and keep backup pauses write-free until resume.

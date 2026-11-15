@@ -114,8 +114,8 @@ export class DurableProjection {
     this.view = view
     this.revision = revision
     this.history = history
-    const state = this.feed.state
-    let inputs = state.inputs
+    const previousState = this.feed.state
+    let inputs = previousState.inputs
     changed = changed.filter((input) => !inputs.some((known) => isDeepStrictEqual(known, input)))
     for (const input of changed) {
       inputs = [
@@ -208,7 +208,7 @@ export class DurableProjection {
     if (reset) this.feed.publish({ type: 'gap', reason: 'mapping-reset' })
     this.preview = preview
     this.feed.publish({
-      ...state,
+      ...previousState,
       messages: content.messages,
       inputs,
       activity: { state: live?.run ? 'active' : 'idle' }

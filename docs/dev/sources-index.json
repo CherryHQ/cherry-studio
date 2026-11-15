@@ -15,11 +15,11 @@
     },
     {
       "path": "docs/dev/contrib/release-workflow.md",
-      "sources": [".agents/skills/prepare-release/SKILL.md",".github/workflows/auto-release-build.yml",".github/workflows/backport-release-fixes.yml",".github/workflows/ci.yml",".github/workflows/nightly-build.yml",".github/workflows/post-release.yml",".github/workflows/prepare-release.yml",".github/workflows/preview-release.yml",".github/workflows/release.yml","electron-builder.cn.config.cjs"]
+      "sources": [".agents/skills/prepare-release/SKILL.md",".github/workflows/auto-release-build.yml",".github/workflows/backport-release-fixes.yml",".github/workflows/ci.yml",".github/workflows/nightly-build.yml",".github/workflows/post-release.yml",".github/workflows/prepare-release.yml",".github/workflows/preview-release.yml",".github/workflows/release-target.yml",".github/workflows/release.yml","electron-builder.cn.config.cjs","scripts/release/release-cos.py","scripts/release/sync-gitcode.sh","scripts/release/validate-release-state.js"]
     },
     {
       "path": "docs/dev/references/ai/adapter-family.md",
-      "sources": ["packages/provider-registry/data/providers.json","packages/provider-registry/src/providers/new-api.ts","packages/provider-registry/src/registry-utils.ts","src/main/ai/provider/custom/wire/wireProfile.ts","src/main/ai/provider/endpoint.ts","src/main/data/migration/v2/migrators/mappings/ProviderModelMappings.ts"]
+      "sources": ["packages/provider-registry/data/providers.json","packages/provider-registry/src/providers/new-api.ts","packages/provider-registry/src/registry-utils.ts","src/main/ai/provider/custom/wire/wireProfile.ts","src/main/ai/provider/endpoint.ts"]
     },
     {
       "path": "docs/dev/references/ai/adding-a-runtime.md",
@@ -187,7 +187,7 @@
     },
     {
       "path": "docs/dev/references/chat/README.md",
-      "sources": ["scripts/data-classify/data/target-key-definitions.json","src/main/ai/constants.ts","src/main/ai/contextBuild","src/main/ai/messages/attachmentBudget.ts","src/main/ai/messages/attachmentRouting.ts","src/main/ai/runtime/aiSdk/params/features/contextBuild.ts","src/main/ai/runtime/aiSdk/params/features/inLoopCompaction.ts","src/main/ai/streamManager/context/PersistentChatContextProvider.ts","src/main/ai/streamManager/persistence/trimToolOutputs.ts","src/main/data/services/MessageService.ts","src/main/data/services/ModelService.ts","src/renderer/components/chat","src/renderer/components/composer","src/renderer/pages/agents/messages","src/renderer/pages/home/hooks/useChatWriteActions.ts","src/renderer/pages/home/messages","src/renderer/pages/home/useChatRuntimeState.ts","src/renderer/utils/errorToast.ts","src/shared/data/preference/preferenceSchemas.ts","src/shared/data/types/assistant.ts","src/shared/data/types/contextSettings.ts","src/shared/data/types/model.ts","src/shared/utils/errorCategory.ts"]
+      "sources": ["packages/aiCore/src/contextOverflow.ts","packages/aiCore/src/core/context","scripts/data-classify/data/target-key-definitions.json","src/main/ai/constants.ts","src/main/ai/contextBuild","src/main/ai/messages/attachmentBudget.ts","src/main/ai/messages/attachmentRouting.ts","src/main/ai/runtime/aiSdk/params/features/contextBuild.ts","src/main/ai/runtime/aiSdk/params/features/contextOverflowRecovery.ts","src/main/ai/runtime/aiSdk/params/features/inLoopCompaction.ts","src/main/ai/streamManager/context/PersistentChatContextProvider.ts","src/main/ai/streamManager/persistence/trimToolOutputs.ts","src/main/data/services/MessageService.ts","src/main/data/services/ModelService.ts","src/renderer/components/chat","src/renderer/components/composer","src/renderer/pages/agents/messages","src/renderer/pages/home/hooks/useChatWriteActions.ts","src/renderer/pages/home/messages","src/renderer/pages/home/useChatRuntimeState.ts","src/renderer/utils/errorToast.ts","src/shared/data/preference/preferenceSchemas.ts","src/shared/data/types/assistant.ts","src/shared/data/types/contextSettings.ts","src/shared/data/types/model.ts","src/shared/utils/errorCategory.ts"]
     },
     {
       "path": "docs/dev/references/command/command-usage.md",
@@ -227,7 +227,7 @@
     },
     {
       "path": "docs/dev/references/data/app-state-overview.md",
-      "sources": ["src/main/data/db/schemas/appState.ts","src/main/data/db/seeding/SeedRunner.ts","src/main/data/migration/v2/core/MigrationEngine.ts","src/main/services/file/tasks/contentMetadataGeneration.ts"]
+      "sources": ["src/main/data/db/schemas/appState.ts","src/main/data/db/seeding/SeedRunner.ts","src/main/data/migration/migrationStatus.ts","src/main/services/file/tasks/contentMetadataGeneration.ts"]
     },
     {
       "path": "docs/dev/references/data/best-practice-default-values-and-nullability.md",
@@ -307,7 +307,7 @@
     },
     {
       "path": "docs/dev/references/data/v2-migration-guide.md",
-      "sources": ["src/main/data/migration/v2","src/shared/data/migration/v2"]
+      "sources": ["src/main/core/preboot/legacyUpgradeGate.ts","src/main/data/migration"]
     },
     {
       "path": "docs/dev/references/diagnostics/README.md",
@@ -399,7 +399,7 @@
     },
     {
       "path": "docs/dev/references/knowledge/experiment/knowledge-technical-design.md",
-      "sources": ["src/main/data/db/schemas/knowledge.ts","src/main/data/migration/v2/migrators/KnowledgeVectorMigrator.ts","src/main/features/knowledge/pathStorage.ts","src/main/features/knowledge/pipeline/vectorstore/indexStore","src/main/features/knowledge/query"]
+      "sources": ["src/main/data/db/schemas/knowledge.ts","src/main/features/knowledge/pathStorage.ts","src/main/features/knowledge/pipeline/vectorstore/indexStore","src/main/features/knowledge/query"]
     },
     {
       "path": "docs/dev/references/knowledge/knowledge-service.md",
