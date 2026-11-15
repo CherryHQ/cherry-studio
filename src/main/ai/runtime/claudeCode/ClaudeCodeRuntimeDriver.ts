@@ -353,6 +353,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     if (fileNames.size === 0) return
     this.eventQueue.push({
       type: 'chunk',
+      inputId: messageId,
       chunk: {
         type: 'data-attachment-notice',
         id: `attachment-notice:${messageId}`,

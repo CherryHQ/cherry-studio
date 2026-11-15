@@ -298,6 +298,7 @@ type AgentSessionRuntimeEntry = {
       input: AgentRuntimeUserInput
       generation?: string
       contextId?: string
+      chunks?: UIMessageChunk[]
     }
   >
   lastResumeToken?: string
@@ -2264,7 +2265,18 @@ export class AgentSessionRuntimeService extends BaseService {
         // Any content chunk means the retried request succeeded and the stream resumed — clear the
         // ephemeral retry status (backoff windows produce no chunks, so this never fires mid-retry).
         this.clearApiRetry(entry)
-        this.deliverRuntimeChunk(entry, event.chunk)
+        if (event.inputId) {
+          const pending = entry.pendingInputs?.get(event.inputId)
+          if (pending && pending.generation === entry.connectionGeneration) {
+            // Dispatch acknowledgement can precede the native ownership boundary.
+            // Keep this input's notice off the currently answering assistant row.
+            ;(pending.chunks ??= []).push(event.chunk)
+          } else {
+            const inputId = event.inputId
+            const turn = getAgentSessionRuntimeTurns(entry.runtimeState).find((turn) => turn.taskIds.includes(inputId))
+            if (turn) this.deliverRuntimeChunk(entry, event.chunk, turn)
+          }
+        } else this.deliverRuntimeChunk(entry, event.chunk)
         break
       }
       case 'tool-approval-request':
@@ -2287,10 +2299,17 @@ export class AgentSessionRuntimeService extends BaseService {
         this.resolvePendingInput(entry, event.contextId, event.input)
         break
       case 'steer-boundary': {
+        const chunks = event.inputIds.flatMap((id) => {
+          const pending = entry.pendingInputs?.get(id)
+          return pending?.generation === entry.connectionGeneration ? (pending?.chunks ?? []) : []
+        })
         const inputs = this.pendingInputValues(entry, event.inputIds, true)
         if (!inputs.length) break
         const turn = this.reserveSteerContinuation(entry, inputs)
-        if (turn) this.applyRuntimeStateEvent(entry, { type: 'steer-boundary', turn })
+        if (turn) {
+          this.applyRuntimeStateEvent(entry, { type: 'steer-boundary', turn })
+          for (const chunk of chunks) this.deliverRuntimeChunk(entry, chunk, turn)
+        }
         break
       }
       case 'steer-undelivered':
@@ -2989,8 +3008,11 @@ export class AgentSessionRuntimeService extends BaseService {
     return projection
   }
 
-  private deliverRuntimeChunk(entry: AgentSessionRuntimeEntry, chunk: UIMessageChunk): boolean {
-    const turn = getAgentSessionRuntimeNativeTurn(entry.runtimeState)
+  private deliverRuntimeChunk(
+    entry: AgentSessionRuntimeEntry,
+    chunk: UIMessageChunk,
+    turn = getAgentSessionRuntimeNativeTurn(entry.runtimeState)
+  ): boolean {
     if (!turn) return false
     const contextId = this.currentConnection(entry)?.contextId
     if (!turn.projection && contextId) turn.projection = this.rootProjection(entry, contextId)

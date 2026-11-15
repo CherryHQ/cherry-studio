@@ -156,6 +156,7 @@ describe('Claude agent attachment notices', () => {
     expect(notices).toEqual([
       {
         type: 'chunk',
+        inputId: 'user-image',
         chunk: {
           type: 'data-attachment-notice',
           id: 'attachment-notice:user-image',
