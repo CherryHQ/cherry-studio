@@ -6,6 +6,7 @@ import type { Message } from '@earendil-works/pi-ai'
 import { afterEach, beforeEach, expect, it, onTestFinished, vi } from 'vitest'
 
 import { application } from '@application'
+import { parseDotHooshListings } from '@cherrystudio/provider-registry'
 import { providerRegistryService } from '@data/services/ProviderRegistryService'
 import { ENDPOINT_TYPE, ModelSchema } from '@shared/data/types/model'
 import { ProviderSchema } from '@shared/data/types/provider'
@@ -171,6 +172,57 @@ it('prefers a model protocol over the provider default', async () => {
       endpointTypes[0] === ENDPOINT_TYPE.OPENAI_RESPONSES ? 'openai-responses' : 'anthropic-messages'
     )
   }
+})
+
+// Bug caught: a DotHoosh model whose Anthropic listing lacks the tools it advertises was bound to the Anthropic route,
+// which rejects those tools.
+it('keeps a DotHoosh model on chat completions when its Anthropic listing lacks the tools', async () => {
+  gateway.baseUrl = 'http://127.0.0.1:23333'
+  const [listed] = parseDotHooshListings({
+    openai: {
+      data: [
+        {
+          id: 'deepseek-flash',
+          protocols: [{ protocol: 'anthropic-messages' }, { protocol: 'openai-chat-completions' }],
+          supported_parameters: [
+            'max_tokens',
+            'reasoning',
+            'response_format',
+            'structured_outputs',
+            'tool_choice',
+            'tools'
+          ]
+        }
+      ]
+    },
+    anthropic: { data: [{ id: 'deepseek-flash', supported_parameters: ['max_tokens'] }] }
+  })
+  const provider = ProviderSchema.parse({
+    isEnabled: true,
+    apiKeys: [],
+    authType: 'api-key',
+    settings: {},
+    id: 'dothoosh',
+    name: 'DotHoosh',
+    reportsActualCost: false,
+    defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+    endpointConfigs: {
+      'openai-chat-completions': { adapterFamily: 'openai-compatible', baseUrl: 'https://gateway.dothoosh.com' },
+      'anthropic-messages': { adapterFamily: 'anthropic', baseUrl: 'https://gateway.dothoosh.com/anthropic' }
+    }
+  })
+  const model = ModelSchema.parse({
+    isEnabled: true,
+    isHidden: false,
+    supportsStreaming: true,
+    id: 'dothoosh::deepseek-flash',
+    providerId: provider.id,
+    name: 'DeepSeek Flash',
+    capabilities: [],
+    endpointTypes: listed.endpointTypes
+  })
+  const binding = await createPiGatewayModelBinding({ sessionId: 'session-1' }, provider, model)
+  expect(binding.model.api).toBe('openai-completions')
 })
 
 it.each([{ capabilities: ['image-recognition'] }, { capabilities: [], inputModalities: ['image'] }])(
