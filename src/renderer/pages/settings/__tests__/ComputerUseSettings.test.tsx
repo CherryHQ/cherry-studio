@@ -44,6 +44,20 @@ describe('Computer Use permission settings', () => {
     expect(toggle).not.toBeChecked()
     expect(MockUsePreferenceUtils.getPreferenceValue('app.computer_use.agent_control.enabled')).toBe(false)
   })
+  it('shows global input only while desktop control is on and persists the user choice', async () => {
+    const user = userEvent.setup()
+    vi.mocked(ipcApi.request).mockResolvedValue({ permissions: [] })
+    MockUsePreferenceUtils.setPreferenceValue('app.computer_use.agent_control.enabled', false)
+    showSettings()
+    expect(screen.queryByRole('switch', { name: 'Global input' })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('switch', { name: 'Allow agents to control desktop applications' }))
+    const globalInput = await screen.findByRole('switch', { name: 'Global input' })
+    expect(globalInput).not.toBeChecked()
+    await user.click(globalInput)
+    await waitFor(() =>
+      expect(MockUsePreferenceUtils.getPreferenceValue('app.computer_use.agent_control.global_input')).toBe(true)
+    )
+  })
   it('revokes only the selected saved app through the main-process authority', async () => {
     MockUsePreferenceUtils.setPreferenceValue('app.computer_use.approved_apps', [
       'com.example.editor',

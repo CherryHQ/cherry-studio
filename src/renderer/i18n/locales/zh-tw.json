@@ -4082,6 +4082,8 @@
   "settings.computerUse.controlHelp": "允許本機對話和智能體觀察、點擊桌面應用程式。你可以從系統匣停止控制。關閉此開關會停止目前所有桌面控制。",
   "settings.computerUse.description": "讓 AI 查看螢幕、操作應用程式，幫你完成電腦上的工作。",
   "settings.computerUse.error": "無法查詢或申請輔助程式權限，請重試。",
+  "settings.computerUse.globalInput": "全域輸入",
+  "settings.computerUse.globalInputHelp": "允許智能體控制共享的滑鼠指標和系統鍵盤，例如點擊、拖曳、捲動和輸入。Linux 上的指標和鍵盤操作需要此功能；關閉此開關後，智能體仍可觀察應用程式並使用其無障礙控件。",
   "settings.computerUse.noPermissions": "此執行環境沒有系統權限申請流程。桌面功能是否可用仍取決於執行環境。",
   "settings.computerUse.recheck": "重新檢查權限",
   "settings.computerUse.request": "開啟授權引導",

@@ -4082,6 +4082,8 @@
   "settings.computerUse.controlHelp": "Permite que las conversaciones locales y los agentes observen y hagan clic en aplicaciones. Puedes detener el control desde la bandeja del sistema. Al desactivar esta opción se detiene todo el control actual.",
   "settings.computerUse.description": "Deja que la IA vea tu pantalla y use aplicaciones para ayudarte con las tareas de tu ordenador.",
   "settings.computerUse.error": "No se pudieron consultar ni solicitar los permisos del asistente. Inténtalo de nuevo.",
+  "settings.computerUse.globalInput": "Entrada global",
+  "settings.computerUse.globalInputHelp": "Permite a los agentes controlar el puntero compartido del ratón y el teclado del sistema, por ejemplo, para hacer clic, arrastrar, desplazarse y escribir. Necesario para las acciones con puntero y teclado en Linux; al desactivarlo, los agentes aún pueden observar las aplicaciones y usar sus controles de accesibilidad.",
   "settings.computerUse.noPermissions": "Este entorno de ejecución no incluye solicitudes de permisos del sistema. Las funciones de escritorio dependen de tu entorno.",
   "settings.computerUse.recheck": "Volver a comprobar permisos",
   "settings.computerUse.request": "Abrir guía de permisos",

@@ -4082,6 +4082,8 @@
   "settings.computerUse.controlHelp": "Cho phép cuộc trò chuyện cục bộ và tác nhân quan sát, nhấp vào ứng dụng. Bạn có thể dừng điều khiển từ khay hệ thống. Tắt tùy chọn này sẽ dừng mọi điều khiển hiện tại.",
   "settings.computerUse.description": "Để AI xem màn hình và sử dụng ứng dụng, giúp bạn hoàn thành công việc trên máy tính.",
   "settings.computerUse.error": "Không thể kiểm tra hoặc yêu cầu quyền cho trợ lý. Vui lòng thử lại.",
+  "settings.computerUse.globalInput": "Đầu vào toàn cục",
+  "settings.computerUse.globalInputHelp": "Cho phép các Agent điều khiển con trỏ chuột và bàn phím hệ thống dùng chung, ví dụ như nhấp, kéo, cuộn và nhập. Cần thiết cho các thao tác con trỏ và bàn phím trên Linux; khi tắt, các Agent vẫn có thể quan sát các ứng dụng và sử dụng bộ điều khiển trợ năng của chúng.",
   "settings.computerUse.noPermissions": "Môi trường chạy này không có quy trình yêu cầu quyền hệ thống. Các tính năng máy tính vẫn phụ thuộc vào môi trường của bạn.",
   "settings.computerUse.recheck": "Kiểm tra lại quyền",
   "settings.computerUse.request": "Mở hướng dẫn cấp quyền",

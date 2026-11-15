@@ -4082,6 +4082,8 @@
   "settings.computerUse.controlHelp": "Yerel sohbetler ve ajanlar uygulamaları gözlemleyip tıklayabilir. Kontrolü sistem tepsisinden durdurabilirsiniz. Bu seçeneği kapatmak devam eden tüm kontrolü durdurur.",
   "settings.computerUse.description": "Yapay zekânın ekranınızı görmesine ve uygulamaları kullanarak bilgisayardaki işlerinize yardımcı olmasına izin verin.",
   "settings.computerUse.error": "Yardımcı izinleri kontrol edilemedi veya istenemedi. Lütfen tekrar deneyin.",
+  "settings.computerUse.globalInput": "Genel giriş",
+  "settings.computerUse.globalInputHelp": "Ajanların paylaşılan fare imlecini ve sistem klavyesini kontrol etmesini sağlar; örneğin tıklama, sürükleme, kaydırma ve yazma. Linux’ta imleç ve klavye eylemleri için gereklidir; kapalıyken ajanlar yine de uygulamaları gözlemleyebilir ve erişilebilirlik denetimlerini kullanabilir.",
   "settings.computerUse.noPermissions": "Bu çalışma ortamında sistem izni isteme akışı yoktur. Masaüstü işlevlerinin kullanılabilirliği ortamınıza bağlıdır.",
   "settings.computerUse.recheck": "İzinleri yeniden kontrol et",
   "settings.computerUse.request": "İzin kılavuzunu aç",
