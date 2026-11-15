@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/proposed/feature/2026-11-09-vertex-google-sign-in.md
+2026-11-09-vertex-google-sign-in.md: a0469ded8dce3eebc806d71afdfbbd9a41bb228a
+2026-11-09-vertex-google-sign-in.zh.md: 653e270db567d4323ff44ea43978ade52552b925

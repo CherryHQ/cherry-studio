@@ -1,4 +1,4 @@
-import type { PkceOAuthClient } from './PkceOAuthClient'
+import type { OAuthTokenResponse, PkceOAuthClient } from './PkceOAuthClient'
 
 export interface OAuthAccount {
   /** Provider account id associated with the OAuth session, when available. */
@@ -25,6 +25,8 @@ export interface OAuthTokenStore {
    * exact refresh token — the refresh path uses it so a network round-trip that
    * resolves after a logout (session → api-key) or a re-login (a different
    * session) cannot clobber the current credential with its now-stale token.
+   * `clientId` is the OAuth client that minted `data`; a store may refuse tokens
+   * from a client other than the one it holds (Vertex).
    */
   set(
     providerId: string,
@@ -73,7 +75,11 @@ export interface OAuthRuntimeProviderDefinition<
   TSideEffect extends object = object
 > {
   providerId: string
-  clientId: string
+  /**
+   * Where this provider's session lives. Omit to keep it in the provider's
+   * `oauth` authConfig; Vertex keeps it inside its `iam-gcp` authConfig.
+   */
+  tokenStore?: OAuthTokenStore
   /**
    * Whether clearing the OAuth session (logout / unrecoverable token loss) also
    * disables the provider. `true` for OAuth-only providers (Codex, Grok) where
@@ -83,7 +89,9 @@ export interface OAuthRuntimeProviderDefinition<
   clearDisablesProvider?: boolean
   transport: LoopbackCallbackConfig
   createClient(context?: TContext): PkceOAuthClient | Promise<PkceOAuthClient>
-  extractAccountId?(accessToken: string): string | null
+  extractAccountId?(accessToken: string, tokenData: OAuthTokenResponse): string | null
+  /** Revoke the refresh token at the provider on logout. Best effort: a failure never blocks the local logout. */
+  revokeToken?(refreshToken: string): Promise<void>
   matchesSignInContext?(current: TContext, requested: TContext): boolean
   /**
    * Post-exchange side effect, run *after* the tokens are persisted so a failure

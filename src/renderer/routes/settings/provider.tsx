@@ -11,6 +11,11 @@ export const providerSettingsSearchSchema = z.object({
     .union([z.string(), z.record(z.string(), z.unknown())])
     .transform((value) => (typeof value === 'string' ? value : JSON.stringify(value)))
     .optional(),
+  // From `cherrystudio://providers/vertex-google`. Any parsed JSON value is re-stringified so a
+  // malformed payload reaches the setup hook's invalid-link toast instead of failing route validation.
+  vertexGoogleSetup: z
+    .preprocess((value) => (typeof value === 'string' ? value : JSON.stringify(value)), z.string())
+    .optional(),
   filter: z.string().optional(),
   id: z.string().optional()
 })

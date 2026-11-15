@@ -55,7 +55,6 @@ async function discoverGrok(signal?: AbortSignal): Promise<Discovery> {
 
 export const grokOAuthProvider = {
   providerId: GROK_CLI_PROVIDER_ID,
-  clientId: GROK_CONFIG.CLIENT_ID,
   // OAuth is the only credential; logout/token loss disables the provider.
   clearDisablesProvider: true,
   transport: {

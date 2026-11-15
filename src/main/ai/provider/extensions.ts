@@ -4,9 +4,16 @@ import type { AmazonBedrockProvider, AmazonBedrockProviderSettings } from '@ai-s
 import type { ByteDanceProviderSettings } from '@ai-sdk/bytedance'
 import type { CerebrasProviderSettings } from '@ai-sdk/cerebras'
 import type { GatewayProviderSettings } from '@ai-sdk/gateway'
+import type { GoogleVertexProviderSettings as GoogleVertexNodeProviderSettings } from '@ai-sdk/google-vertex'
 import type { GoogleVertexAnthropicProvider } from '@ai-sdk/google-vertex/anthropic/edge'
-import type { GoogleVertexProvider, GoogleVertexProviderSettings } from '@ai-sdk/google-vertex/edge'
-import type { GoogleVertexMaasProvider, GoogleVertexMaasProviderSettings } from '@ai-sdk/google-vertex/maas/edge'
+import type {
+  GoogleVertexProvider,
+  GoogleVertexProviderSettings as GoogleVertexEdgeProviderSettings
+} from '@ai-sdk/google-vertex/edge'
+import type {
+  GoogleVertexMaasProvider,
+  GoogleVertexMaasProviderSettings as GoogleVertexMaasEdgeProviderSettings
+} from '@ai-sdk/google-vertex/maas/edge'
 import type { GroqProviderSettings } from '@ai-sdk/groq'
 import type { HuggingFaceProviderSettings } from '@ai-sdk/huggingface'
 import type { MistralProviderSettings } from '@ai-sdk/mistral'
@@ -45,11 +52,24 @@ import type { ZhipuProviderSettings } from './custom/zhipuProvider'
 let moonshotWebSearchToolFactory: typeof createKimiWebSearchToolFor | undefined
 let moonshotWebSearchToolName: typeof KIMI_WEB_SEARCH_TOOL_NAME | undefined
 
+// Service-account keys use the edge build (`googleCredentials`); a Google sign-in needs the
+// Node build, whose google-auth-library takes `googleAuthOptions`.
+type GoogleAuthOptionsSetting = Pick<GoogleVertexNodeProviderSettings, 'googleAuthOptions'>
+type GoogleVertexProviderSettings = GoogleVertexEdgeProviderSettings & GoogleAuthOptionsSetting
+type GoogleVertexMaasProviderSettings = GoogleVertexMaasEdgeProviderSettings & GoogleAuthOptionsSetting
+
+function usesGoogleAuthOptions(settings: GoogleAuthOptionsSetting | undefined): boolean {
+  return settings?.googleAuthOptions !== undefined
+}
+
 export const GoogleVertexExtension = ProviderExtension.create({
   name: 'google-vertex',
   aliases: ['vertexai'] as const,
   supportsImageGeneration: true,
-  create: async (settings) => (await import('@ai-sdk/google-vertex/edge')).createVertex(settings),
+  create: async (settings) =>
+    usesGoogleAuthOptions(settings)
+      ? (await import('@ai-sdk/google-vertex')).createVertex(settings)
+      : (await import('@ai-sdk/google-vertex/edge')).createVertex(settings),
   toolFactories: {
     webSearch:
       (provider: GoogleVertexProvider) =>
@@ -68,7 +88,10 @@ export const GoogleVertexAnthropicExtension = ProviderExtension.create({
   name: 'google-vertex-anthropic',
   aliases: ['vertexai-anthropic'] as const,
   supportsImageGeneration: true,
-  create: async (settings) => (await import('@ai-sdk/google-vertex/anthropic/edge')).createVertexAnthropic(settings),
+  create: async (settings) =>
+    usesGoogleAuthOptions(settings)
+      ? (await import('@ai-sdk/google-vertex/anthropic')).createVertexAnthropic(settings)
+      : (await import('@ai-sdk/google-vertex/anthropic/edge')).createVertexAnthropic(settings),
   toolFactories: {
     webSearch:
       (provider: GoogleVertexAnthropicProvider) =>
@@ -93,7 +116,10 @@ export const GoogleVertexMaaSExtension = ProviderExtension.create({
   name: 'google-vertex-maas',
   aliases: ['vertexai-maas'] as const,
   supportsImageGeneration: false,
-  create: async (settings) => (await import('@ai-sdk/google-vertex/maas/edge')).createVertexMaas(settings)
+  create: async (settings) =>
+    usesGoogleAuthOptions(settings)
+      ? (await import('@ai-sdk/google-vertex/maas')).createVertexMaas(settings)
+      : (await import('@ai-sdk/google-vertex/maas/edge')).createVertexMaas(settings)
 } as const satisfies ProviderExtensionConfig<
   GoogleVertexMaasProviderSettings,
   GoogleVertexMaasProvider,

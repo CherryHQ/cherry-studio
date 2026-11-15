@@ -6,6 +6,7 @@ const h = vi.hoisted(() => {
   const refreshMock = vi.fn()
   const afterPersistMock = vi.fn()
   const clientMock = {
+    clientId: 'mock-client',
     refresh: refreshMock,
     createAuthorizationRequest: vi.fn(() => ({ authUrl: 'https://auth/x', state: 'st', codeVerifier: 'cv' })),
     exchangeCode: vi.fn()
@@ -13,7 +14,25 @@ const h = vi.hoisted(() => {
   const createClientMock = vi.fn<
     (context?: { signal?: AbortSignal }) => typeof clientMock | Promise<typeof clientMock>
   >(() => clientMock)
+  // A definition-owned token store honouring the OAuthTokenStore contract (Vertex keeps its own).
+  type Session = { accessToken?: string; refreshToken?: string; expiresAt?: number; accountId?: string }
+  const ownSessions = new Map<string, Session>()
+  const isStale = (id: string, expected?: string) =>
+    expected !== undefined && ownSessions.get(id)?.refreshToken !== expected
+  const ownTokenStore = {
+    get: vi.fn(async (id: string) => ownSessions.get(id) ?? null),
+    set: vi.fn(async (id: string, data: Session, _clientId: string, options?: { expectedRefreshToken?: string }) => {
+      if (!isStale(id, options?.expectedRefreshToken)) ownSessions.set(id, data)
+    }),
+    clear: vi.fn(async (id: string, options?: { expectedRefreshToken?: string }) => {
+      if (!isStale(id, options?.expectedRefreshToken)) ownSessions.delete(id)
+    })
+  }
   return {
+    ownSessions,
+    ownTokenStore,
+    revokeTokenMock: vi.fn<(refreshToken: string) => Promise<void>>(),
+    extractAccountIdMock: vi.fn<(accessToken: string, tokenData: { id_token?: string }) => string | null>(),
     providerStore,
     refreshMock,
     afterPersistMock,
@@ -55,11 +74,10 @@ vi.mock('../LoopbackCallbackTransport', () => ({
     return h.transportMock
   })
 }))
-vi.mock('../providerDefinitions', () => ({
-  oauthProviderDefinitions: {
+vi.mock('../providerDefinitions', () => {
+  const definitions: Record<string, unknown> = {
     codex: {
       providerId: 'codex',
-      clientId: 'codex-client',
       clearDisablesProvider: true,
       transport: { hosts: ['127.0.0.1'], port: 0, path: '/cb', redirectUri: 'http://127.0.0.1/cb' },
       createClient: (context?: { signal?: AbortSignal }) => h.createClientMock(context),
@@ -67,13 +85,22 @@ vi.mock('../providerDefinitions', () => ({
     },
     cherryin: {
       providerId: 'cherryin',
-      clientId: 'cherryin-client',
       transport: { hosts: ['127.0.0.1'], port: 0, path: '/cb', redirectUri: 'http://127.0.0.1/cb' },
       createClient: () => h.clientMock,
       afterPersistTokens: (tokenData: unknown, context: unknown) => h.afterPersistMock(tokenData, context)
+    },
+    own: {
+      providerId: 'own',
+      transport: { hosts: ['127.0.0.1'], port: 0, path: '/cb', redirectUri: 'http://127.0.0.1/cb' },
+      tokenStore: h.ownTokenStore,
+      createClient: () => h.clientMock,
+      extractAccountId: (accessToken: string, tokenData: { id_token?: string }) =>
+        h.extractAccountIdMock(accessToken, tokenData),
+      revokeToken: (refreshToken: string) => h.revokeTokenMock(refreshToken)
     }
   }
-}))
+  return { resolveOAuthProviderDefinition: (providerId: string) => definitions[providerId] }
+})
 
 import { OAuthServiceError, OAuthSignInCancelledError, OAuthTransientError } from '../../errors'
 import { OAuthRuntimeService } from '../OAuthRuntimeService'
@@ -561,5 +588,57 @@ describe('OAuthRuntimeService', () => {
     service.initializeForTest()
     h.clientMock.exchangeCode.mockResolvedValue({ access_token: 'at', refresh_token: 'rt' })
     await expect(service.signIn('win-1', 'codex', 'restart-request')).resolves.toEqual({ accountId: null })
+  })
+
+  describe('a definition with its own token store and revocation', () => {
+    beforeEach(() => {
+      h.ownSessions.clear()
+      h.revokeTokenMock.mockReset().mockResolvedValue(undefined)
+      h.extractAccountIdMock.mockReset().mockImplementation((_accessToken, tokenData) => tokenData.id_token ?? null)
+    })
+
+    it('persists, reads and clears the session through its own store', async () => {
+      h.clientMock.exchangeCode.mockResolvedValue({ access_token: 'at', refresh_token: 'rt', id_token: 'person@x' })
+
+      await expect(service.signIn('win-1', 'own', 'own-sign-in')).resolves.toEqual({ accountId: 'person@x' })
+      expect(h.ownSessions.get('own')).toMatchObject({ accessToken: 'at', refreshToken: 'rt', accountId: 'person@x' })
+      expect(h.providerStore.get('own')?.authConfig).toBeUndefined()
+      expect(await service.hasToken('own')).toBe(true)
+
+      await service.logout('own')
+      expect(h.ownSessions.has('own')).toBe(false)
+      expect(await service.getAccount('own')).toEqual({ accountId: null })
+    })
+
+    it('revokes the refresh token at the provider before clearing it on logout', async () => {
+      h.ownSessions.set('own', { accessToken: 'at', refreshToken: 'rt' })
+      h.revokeTokenMock.mockImplementation(async () => {
+        expect(h.ownSessions.has('own')).toBe(true)
+      })
+
+      await service.logout('own')
+
+      expect(h.revokeTokenMock).toHaveBeenCalledWith('rt')
+      expect(h.ownSessions.has('own')).toBe(false)
+    })
+
+    it('keeps a re-login that landed while the revocation was in flight', async () => {
+      h.ownSessions.set('own', { accessToken: 'at', refreshToken: 'rt-old' })
+      h.revokeTokenMock.mockImplementation(async () => {
+        h.ownSessions.set('own', { accessToken: 'at-new', refreshToken: 'rt-new' })
+      })
+
+      await service.logout('own')
+
+      expect(h.ownSessions.get('own')).toMatchObject({ refreshToken: 'rt-new' })
+    })
+
+    it('still logs out when the revocation fails', async () => {
+      h.ownSessions.set('own', { accessToken: 'at', refreshToken: 'rt' })
+      h.revokeTokenMock.mockRejectedValue(new Error('offline'))
+
+      await expect(service.logout('own')).resolves.toBeUndefined()
+      expect(h.ownSessions.has('own')).toBe(false)
+    })
   })
 })

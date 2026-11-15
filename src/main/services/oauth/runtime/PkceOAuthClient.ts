@@ -24,6 +24,12 @@ export type OAuthTokenResponse = z.infer<typeof OAuthTokenResponseSchema>
 
 export interface PkceOAuthClientConfig {
   clientId: string
+  /**
+   * Client secret for providers whose "installed app" clients still require one
+   * on the token endpoint (Google Desktop OAuth clients). Not confidential for
+   * desktop apps, but sent only to `tokenUrl`, never in the authorize URL.
+   */
+  clientSecret?: string
   /** Full authorization endpoint URL (e.g. https://auth.openai.com/oauth/authorize). */
   authorizeUrl: string
   /** Full token endpoint URL (used for both code exchange and refresh). */
@@ -72,6 +78,11 @@ function base64UrlEncode(buffer: Buffer): string {
 export class PkceOAuthClient {
   constructor(private readonly config: PkceOAuthClientConfig) {}
 
+  /** The OAuth client id this client exchanges and refreshes tokens with. */
+  get clientId(): string {
+    return this.config.clientId
+  }
+
   /**
    * Build a fresh authorization request: PKCE verifier/challenge, a CSRF `state`,
    * and the full authorize URL to open in the browser. The caller must retain
@@ -104,6 +115,7 @@ export class PkceOAuthClient {
       {
         grant_type: 'authorization_code',
         client_id: this.config.clientId,
+        ...(this.config.clientSecret ? { client_secret: this.config.clientSecret } : {}),
         code,
         code_verifier: codeVerifier,
         redirect_uri: this.config.redirectUri
@@ -118,6 +130,7 @@ export class PkceOAuthClient {
       {
         grant_type: 'refresh_token',
         client_id: this.config.clientId,
+        ...(this.config.clientSecret ? { client_secret: this.config.clientSecret } : {}),
         refresh_token: refreshToken
       },
       'Failed to refresh access token'

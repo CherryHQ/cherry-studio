@@ -1,8 +1,10 @@
+import { application } from '@application'
 import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
 import { vertexAiService } from '@main/services/VertexAiService'
 import type { Provider } from '@shared/data/types/provider'
 import { isBareVertexApiHost, withoutTrailingSlash } from '@shared/utils/api'
+import { isVertexAuthorizedUserCredentials } from '@shared/utils/vertexGoogleCredentials'
 
 import { getBaseUrl, getProviderAppHeaders } from '../../utils/provider'
 import { normalizeVertexCredentials } from '../vertex'
@@ -41,6 +43,11 @@ function getVertexServiceEndpoint(provider: Provider, location: string): string 
   return apiHost.replace(/\/v1(?:beta1)?$/, '')
 }
 
+async function getGoogleSignInHeaders(providerId: string): Promise<Record<string, string> | undefined> {
+  const credentials = await application.get('OAuthRuntimeService').getValidAccessToken(providerId)
+  return credentials ? { Authorization: `Bearer ${credentials.accessToken}` } : undefined
+}
+
 const EXCLUDED_VERTEX_PUBLISHER_MODEL_KEYWORDS = ['tts', 'audio'] as const
 
 const SUPPORTED_VERTEX_PUBLISHER_MODEL_PATTERNS = [
@@ -77,27 +84,30 @@ export async function createVertexModelListRequest(
   }
 
   const { project, location, credentials } = authConfig
-  const { privateKey, clientEmail } = normalizeVertexCredentials(credentials)
+  const usesGoogleSignIn = isVertexAuthorizedUserCredentials(credentials)
+  const { privateKey, clientEmail } = usesGoogleSignIn ? {} : normalizeVertexCredentials(credentials)
 
   const missing: string[] = []
   if (!project) missing.push('project')
   if (!location) missing.push('location')
-  if (!privateKey) missing.push('privateKey')
-  if (!clientEmail) missing.push('clientEmail')
+  if (!usesGoogleSignIn && !privateKey) missing.push('privateKey')
+  if (!usesGoogleSignIn && !clientEmail) missing.push('clientEmail')
 
   if (missing.length > 0) {
-    return failOrSkip('missing required service-account fields', {
+    return failOrSkip(usesGoogleSignIn ? 'missing required fields' : 'missing required service-account fields', {
       providerId: provider.id,
       missing
     })
   }
 
-  let authHeaders: Record<string, string>
+  let authHeaders: Record<string, string> | undefined
   try {
-    authHeaders = await vertexAiService.getAuthHeaders({
-      projectId: project,
-      serviceAccount: { privateKey: privateKey!, clientEmail: clientEmail! }
-    })
+    authHeaders = usesGoogleSignIn
+      ? await getGoogleSignInHeaders(provider.id)
+      : await vertexAiService.getAuthHeaders({
+          projectId: project,
+          serviceAccount: { privateKey: privateKey!, clientEmail: clientEmail! }
+        })
   } catch (error) {
     if (options?.throwOnError) {
       throw error
@@ -107,6 +117,9 @@ export async function createVertexModelListRequest(
       error: error instanceof Error ? error.message : String(error)
     })
     return undefined
+  }
+  if (!authHeaders) {
+    return failOrSkip('sign in with Google again in the Vertex AI provider settings', { providerId: provider.id })
   }
 
   return {

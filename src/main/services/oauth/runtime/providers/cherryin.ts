@@ -48,7 +48,6 @@ async function fetchCherryInApiKeys(accessToken: string, apiHost: string): Promi
 
 export const cherryInOAuthProvider = {
   providerId: SystemProviderIds.cherryin,
-  clientId: CHERRYIN_CONFIG.CLIENT_ID,
   transport: {
     hosts: ['127.0.0.1'],
     port: CHERRYIN_CONFIG.CALLBACK_PORT,
