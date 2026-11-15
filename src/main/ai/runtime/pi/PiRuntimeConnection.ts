@@ -33,7 +33,11 @@ import { buildAgentRuntimePrompt } from '@main/ai/runtime/agentPrompt'
 import { prepareAgentSessionWorkspaceDirectory } from '@main/ai/runtime/agentSessionWorkspace'
 import { buildAgentUserContent } from '@main/ai/runtime/agentUserContent'
 import { buildCitationsGuidance } from '@main/ai/runtime/citationsGuidance'
-import { buildConfigToolsGuidance, type ToolCallForm } from '@main/ai/runtime/configToolsGuidance'
+import {
+  buildConfigToolsGuidance,
+  buildReportArtifactsGuidance,
+  type ToolCallForm
+} from '@main/ai/runtime/configToolsGuidance'
 import { preparePiBranch } from '@main/ai/runtime/pi/piContext'
 import { wrapSteerReminder } from '@main/ai/steerReminder'
 import { CHERRY_MCP_SERVER, listBuiltinToolPolicies } from '@main/ai/toolApproval/builtinToolPolicy'
@@ -190,6 +194,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       agentDataPath,
       agent,
       citationsGuidance,
+      reportArtifactsGuidance: buildReportArtifactsGuidance(PI_TOOL_CALL_FORM),
       configToolsGuidance: buildConfigToolsGuidance(agent, {
         channelLinked: linkedChannel !== null,
         callForm: PI_TOOL_CALL_FORM

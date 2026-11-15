@@ -1,7 +1,7 @@
 /**
  * The `cherry-tools` MCP server (injected into every Claude Code session by buildMcpServers)
- * exposes `report_artifacts`. buildSystemPrompt MUST append REPORT_ARTIFACTS_PROMPT so the model
- * is told to call that tool at task completion — otherwise it is a dangling, never-invoked tool.
+ * exposes `report_artifacts`. buildSystemPrompt MUST tell the model to call it, by its Claude Code
+ * name, at task completion — otherwise it is a dangling, never-invoked tool.
  */
 
 import type * as NodeFs from 'node:fs'
@@ -231,6 +231,7 @@ describe('buildSystemPrompt — report_artifacts prompt', () => {
   it('appends the report_artifacts prompt to the Claude Code preset with user instructions', async () => {
     const result = await buildSystemPrompt(makeAgent({ instructions: 'Do the task.' }), '/tmp/cwd')
     const text = expectClaudeCodePreset(result)
+    expect(text).toContain('`mcp__cherry-tools__report_artifacts`')
     expect(text).toContain('SOUL_PROMPT')
     expect(text).toContain('Do the task.')
   })

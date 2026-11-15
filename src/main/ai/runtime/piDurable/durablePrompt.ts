@@ -13,7 +13,7 @@ import type { AgentEntity } from '@shared/data/api/schemas/agents'
 
 import { buildAgentRuntimePrompt } from '../agentPrompt'
 import { buildCitationsGuidance } from '../citationsGuidance'
-import { buildConfigToolsGuidance, type ToolCallForm } from '../configToolsGuidance'
+import { buildConfigToolsGuidance, buildReportArtifactsGuidance, type ToolCallForm } from '../configToolsGuidance'
 import { buildPiMcpToolName } from '../pi/piMcpExtension'
 import type { loadPiSdk } from '../pi/piSdk'
 
@@ -64,6 +64,7 @@ export async function buildDurablePrompt(pi: PiSdk, options: DurablePromptOption
     effectiveLanguage: options.effectiveLanguage,
     modelName: options.modelName,
     instructionsSlot: options.instructionsSlot,
+    reportArtifactsGuidance: buildReportArtifactsGuidance(DURABLE_TOOL_CALL_FORM),
     configToolsGuidance: buildConfigToolsGuidance(agent, {
       channelLinked: options.channelLinked,
       callForm: DURABLE_TOOL_CALL_FORM

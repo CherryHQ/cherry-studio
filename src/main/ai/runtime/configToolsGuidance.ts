@@ -4,7 +4,8 @@ import {
   AGENT_CREATE_TOOL_NAME,
   ASSISTANT_CREATE_TOOL_NAME,
   CONFIG_UPDATE_TOOL_NAME,
-  CRON_TOOL_NAME
+  CRON_TOOL_NAME,
+  REPORT_ARTIFACTS_TOOL_NAME
 } from '@shared/ai/builtinTools'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 
@@ -55,4 +56,11 @@ export function buildConfigToolsGuidance(
     return mountsAll ? hostConfigToolsPrompt(callForm) : undefined
   }
   return resolveAgentCapabilities(agent).createResources ? selfConfigToolsPrompt(callForm) : undefined
+}
+
+/** Without the runtime's real call form the model never finds the tool, and the Agent's Outputs stay empty. */
+export function buildReportArtifactsGuidance({ ref, hint }: ToolCallForm): string {
+  return `## Reporting deliverables
+
+When you finish producing the file(s) the user asked for, call ${ref('cherry-tools', REPORT_ARTIFACTS_TOOL_NAME)} once with the final file path(s) and a one-line summary. List only the final deliverables — never intermediate, scratch, or temporary files. Skip the call entirely if the task produced no files.${hint}`
 }
