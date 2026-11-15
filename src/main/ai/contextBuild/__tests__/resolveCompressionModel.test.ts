@@ -1,7 +1,7 @@
 import { generateText } from 'ai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { ENDPOINT_TYPE } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, MODEL_CAPABILITY } from '@shared/data/types/model'
 
 import { makeModel, makeProvider } from '../../__tests__/fixtures'
 import { resolveCompressionModel } from '../resolveCompressionModel'
@@ -48,6 +48,14 @@ describe('resolveCompressionModel', () => {
   it('budgets the summary against the compressor own window', async () => {
     expect((await resolveCompressionModel('opencode::small', CONVERSATION))?.contextWindow).toBe(8_000)
   })
+
+  it.each([MODEL_CAPABILITY.EMBEDDING, MODEL_CAPABILITY.RERANK])(
+    'rejects a saved %s model even when its provider can construct a language model',
+    async (capability) => {
+      modelLookup.mockReturnValue(makeModel({ capabilities: [capability] }))
+      expect(await resolveCompressionModel('opencode::small', CONVERSATION)).toBeNull()
+    }
+  )
 
   it('reports a null window when the compressor row declares none', async () => {
     modelLookup.mockReturnValue(makeModel({ contextWindow: undefined }))
