@@ -795,6 +795,7 @@ describe('desktop Pi root connection', () => {
         .poll(() => updates.some((update) => update.active && update.patches.some((patch) => patch.type === 'append')))
         .toBe(true)
       const partial = access!.snapshot()
+      // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
       const frozen = structuredClone(partial)
       await expect.poll(() => events.some((event) => event.type === 'turn-complete'), { timeout: 5000 }).toBe(true)
       await expect.poll(() => access!.snapshot().active).toBe(false)
@@ -1266,7 +1267,7 @@ describe('desktop Pi root connection', () => {
     expect(text(events.slice(before))).toBe('')
     expect(messages.inputBinding(input.sessionId, compact.id)).toBeUndefined()
     expect(events.slice(before).some((event) => event.type === 'compaction-complete')).toBe(true)
-    expect(script.calls.at(-1)!.systemPrompt).toContain('Summarize the conversation')
+    expect(JSON.stringify(script.calls.at(-1)!.messages)).toContain('keep the important facts')
     expect(script.calls.at(-1)!.tools).toEqual([])
   })
 

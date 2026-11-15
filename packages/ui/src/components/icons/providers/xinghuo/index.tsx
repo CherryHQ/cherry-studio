@@ -9,7 +9,7 @@ const Xinghuo = ({ variant, className, ...props }: CompoundIconProps) => {
 
 export const XinghuoIcon: CompoundIcon = /*#__PURE__*/ Object.assign(Xinghuo, {
   Avatar: XinghuoAvatar,
-  colorPrimary: '#3DC8F9'
+  colorPrimary: '#eefafe'
 })
 
 export default XinghuoIcon

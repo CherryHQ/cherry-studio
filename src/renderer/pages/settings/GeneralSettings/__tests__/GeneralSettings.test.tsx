@@ -143,6 +143,8 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
   const { InputNumber, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } =
     await importOriginal<typeof CherryStudioUi>()
   return {
+    HelpTooltip: () => null,
+
     Button: ({ children, loading, ...props }: ButtonHTMLAttributes<HTMLButtonElement> & { loading?: boolean }) => (
       <button type="button" data-loading={loading || undefined} {...props}>
         {children}

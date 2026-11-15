@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import useSWR from 'swr'
 import useSWRMutation from 'swr/mutation'
 
-import { Button, Switch } from '@cherrystudio/ui'
+import { Button, Switch, HelpTooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import {
@@ -12,7 +12,8 @@ import {
   SettingGroup,
   SettingRow,
   SettingRowTitle,
-  SettingsContentColumn
+  SettingsContentColumn,
+  SettingsPageHeader
 } from '@renderer/components/SettingsPrimitives'
 import { ipcApi } from '@renderer/ipc'
 
@@ -21,6 +22,7 @@ const PERMISSION_KEY = 'computer_use.get_permission_status'
 
 export function ComputerUseSettings() {
   const { t } = useTranslation()
+  const [approvedApps] = usePreference('app.computer_use.approved_apps')
   const [enabled, setEnabled] = usePreference('app.computer_use.agent_control.enabled')
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState(false)
@@ -55,19 +57,19 @@ export function ComputerUseSettings() {
 
   return (
     <SettingsContentColumn>
-      <h1 className="text-xl font-semibold text-foreground">{t('settings.computerUse.title')}</h1>
-      <SettingDescription>{t('settings.computerUse.description')}</SettingDescription>
-
+      <SettingsPageHeader title={t('settings.computerUse.title')} help={t('settings.computerUse.description')} />
       <SettingGroup>
-        <SettingRow className="flex-nowrap items-start">
+        <SettingRow className="flex-nowrap">
           <div className="min-w-0 flex-1">
-            <SettingRowTitle id="computer-use-control-title">{t('settings.computerUse.control')}</SettingRowTitle>
-            <SettingDescription id="computer-use-control-help">
-              {t('settings.computerUse.controlHelp')}
-            </SettingDescription>
+            <SettingRowTitle className="flex items-center gap-1.5">
+              <span id="computer-use-control-title">{t('settings.computerUse.control')}</span>{' '}
+              <span id="computer-use-control-help" className="sr-only">
+                {t('settings.computerUse.controlHelp')}
+              </span>
+              <HelpTooltip content={t('settings.computerUse.controlHelp')} />
+            </SettingRowTitle>
           </div>
           <Switch
-            className="mt-0.5"
             checked={enabled}
             disabled={saving}
             aria-labelledby="computer-use-control-title"
@@ -150,6 +152,35 @@ export function ComputerUseSettings() {
             {t('settings.computerUse.recheck')}
           </Button>
         </div>
+      </SettingGroup>
+      <SettingGroup>
+        <SettingRowTitle>{t('settings.computerUse.approval.saved')}</SettingRowTitle>
+        {approvedApps.length === 0 && (
+          <SettingDescription>{t('settings.computerUse.approval.empty')}</SettingDescription>
+        )}
+        {approvedApps.map((identity) => (
+          <SettingRow key={identity}>
+            <span className="min-w-0 flex-1 break-all text-sm">{identity}</span>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={saving}
+              onClick={async () => {
+                setSaving(true)
+                setSaveError(false)
+                try {
+                  await ipcApi.request('computer_use.revoke_approval', { identity })
+                } catch (error) {
+                  logger.warn('Failed to revoke application approval', error as Error)
+                  setSaveError(true)
+                } finally {
+                  setSaving(false)
+                }
+              }}>
+              {t('common.delete')}
+            </Button>
+          </SettingRow>
+        ))}
       </SettingGroup>
     </SettingsContentColumn>
   )

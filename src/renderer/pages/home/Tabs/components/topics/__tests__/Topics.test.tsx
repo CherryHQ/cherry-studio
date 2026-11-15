@@ -4,9 +4,9 @@ import userEvent from '@testing-library/user-event'
 import type { ComponentProps, ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 
+import type * as TopicMenuActionsHook from '@renderer/components/chat/actions/useTopicMenuActions'
 import type * as SessionHoverPreviewModule from '@renderer/components/chat/resourceList/SessionHoverPreview'
 import type * as UseCacheModule from '@renderer/data/hooks/useCache'
-import type * as TopicMenuActionsHook from '@renderer/hooks/chat/useTopicMenuActions'
 import { type AssistantTopicsSource, deriveAssistantTopicsView } from '@renderer/hooks/resourceViewSources'
 import type * as TabHooks from '@renderer/hooks/tab'
 import type * as UseGroupsHook from '@renderer/hooks/useGroups'
@@ -258,8 +258,10 @@ const topicRowRenderMocks = vi.hoisted(() => ({
   counts: new Map<string, number>()
 }))
 
-vi.mock('@renderer/hooks/chat/useTopicMenuActions', async () => {
-  const actual = await vi.importActual<typeof TopicMenuActionsHook>('@renderer/hooks/chat/useTopicMenuActions')
+vi.mock('@renderer/components/chat/actions/useTopicMenuActions', async () => {
+  const actual = await vi.importActual<typeof TopicMenuActionsHook>(
+    '@renderer/components/chat/actions/useTopicMenuActions'
+  )
 
   return {
     ...actual,

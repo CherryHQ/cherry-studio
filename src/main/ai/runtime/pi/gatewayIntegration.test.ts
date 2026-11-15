@@ -33,6 +33,7 @@ import { AiStreamManager } from '@main/ai/streamManager/AiStreamManager'
 import type * as CustomFetch from '@main/ai/utils/customFetch'
 import { BaseService } from '@main/core/lifecycle'
 import type { InputFormat } from '@main/features/apiGateway/adapters/interfaces'
+import { gatewayErrorHandler } from '@main/features/apiGateway/errors'
 import { processMessage } from '@main/features/apiGateway/proxyStream'
 import { ENDPOINT_TYPE, MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { SpanEntity } from '@shared/data/types/trace'
@@ -127,6 +128,11 @@ describe('native Pi through the production gateway', () => {
   let protocol: InputFormat = 'openai'
   const requests: Array<Record<string, unknown>> = []
   let call: (body: Record<string, unknown>) => { content?: string; tool_calls?: unknown[] }
+  let rejectUpstream:
+    | (() =>
+        | { message: string; code: string; status?: number; type?: string; param?: string; retryAfter?: string }
+        | undefined)
+    | undefined
   beforeEach(async () => {
     BaseService.resetInstances()
     mocks.manager = new AiStreamManager()
@@ -154,8 +160,16 @@ describe('native Pi through the production gateway', () => {
         if (result.body) for await (const chunk of result.body) response.write(chunk)
         response.end()
       } catch (error) {
-        response.writeHead(500, { 'content-type': 'application/json' })
-        response.end(JSON.stringify({ error: { message: String(error) } }))
+        const headers: Record<string, string> = {}
+        const mapped = gatewayErrorHandler({
+          code: 'UNKNOWN',
+          error,
+          request: new Request(`${mocks.gatewayUrl}${request.url}`),
+          set: { headers },
+          status: (statusCode: number, body: unknown) => ({ statusCode, body })
+        } as unknown as Parameters<typeof gatewayErrorHandler>[0]) as unknown as { statusCode: number; body: unknown }
+        response.writeHead(mapped.statusCode, { 'content-type': 'application/json', ...headers })
+        response.end(JSON.stringify(mapped.body))
       }
     })
     await new Promise<void>((done) => gateway.listen(0, '127.0.0.1', done))
@@ -167,11 +181,24 @@ describe('native Pi through the production gateway', () => {
     mocks.messageId = 'original-answer'
     mocks.attribution = undefined
     call = () => ({ content: 'Model answer' })
+    rejectUpstream = undefined
     server = createServer(async (req, res) => {
       let raw = ''
       for await (const chunk of req) raw += chunk
       const body = JSON.parse(raw)
       requests.push(body)
+      const rejection = rejectUpstream?.()
+      if (rejection) {
+        const { status = 400, retryAfter, ...error } = rejection
+        res.writeHead(status, { 'content-type': 'application/json', ...(retryAfter && { 'retry-after': retryAfter }) })
+        res.end(
+          JSON.stringify({
+            error: { ...error, type: error.type ?? 'invalid_request_error' },
+            request_id: 'upstream-id'
+          })
+        )
+        return
+      }
       if (protocol === 'anthropic') {
         const events = [
           {
@@ -562,32 +589,182 @@ describe('native Pi through the production gateway', () => {
     })
     dbh.db.update(userProviderTable).set({ isEnabled: false }).where(eq(userProviderTable.providerId, 'port')).run()
     expect(await host.models.find('wire-model', runtimeId('root'))).toEqual([])
-    await expect(
-      host.summarizer.summarize(
-        { thread: runtimeId('root'), reason: 'manual', messages: ['conversation'] },
-        new AbortController().signal
-      )
-    ).rejects.toThrow()
     expect(requests).toEqual([])
     expect(dbh.db.select().from(aiUsageRecordTable).all()).toEqual([])
   })
 
-  it('returns actual summary usage while the gateway records exactly one provider charge', async () => {
-    const { host } = await behaviorHost()
-    call = () => ({ content: 'Preserved objective and pending work' })
-    const result = await host.summarizer.summarize(
-      { thread: runtimeId('root'), reason: 'manual', messages: ['conversation'] },
-      new AbortController().signal
-    )
-    expect(result).toMatchObject({
-      summary: 'Preserved objective and pending work',
-      usage: { input: 100, output: 25, totalTokens: 125 }
+  it.each([
+    [400, 'invalid_parameter', 'invalid_request_error'],
+    [401, 'invalid_api_key', 'authentication_error'],
+    [403, 'permission_denied', 'permission_error'],
+    [429, 'rate_limit_exceeded', 'rate_limit_error'],
+    [503, 'server_busy', 'server_error']
+  ] as const)('preserves upstream %i error details for internal runtime calls', async (status, code, type) => {
+    const message = `provider ${code}: ${'detail '.repeat(110)}`
+    rejectUpstream = () => ({ status, code, type, message, param: 'temperature', retryAfter: '19' })
+    const response = await fetch(`${mocks.gatewayUrl}/v1/chat/completions`, {
+      method: 'POST',
+      headers: { authorization: 'Bearer internal-fixture-key', 'content-type': 'application/json' },
+      body: JSON.stringify({ model: 'port:wire-model', messages: [{ role: 'user', content: 'hello' }], stream: true })
     })
+    expect(response.status).toBe(status)
+    expect(response.headers.get('retry-after')).toBe('19')
+    expect(await response.json()).toEqual({
+      error: { code, type, message, param: 'temperature' },
+      request_id: 'upstream-id'
+    })
+  })
+
+  it('preserves non-context provider errors in the native Pi response', async () => {
+    const message = `Provider rejected configuration: ${'detail '.repeat(110)}`
+    rejectUpstream = () => ({ status: 400, code: 'vendor_config_error', type: 'vendor_error', message, param: 'mode' })
+    const binding = await createPiGatewayModelBinding(
+      { sessionId: 'session' },
+      providerService.getByProviderId('port'),
+      modelService.getByKey('port', 'wire-model')
+    )
+    const answer = await binding.modelRuntime.completeSimple(
+      binding.model,
+      normalizeContext({ messages: [{ role: 'user', content: 'hello', timestamp: 1 }] }),
+      { maxRetries: 0 }
+    )
+    expect(answer.stopReason).toBe('error')
+    expect(answer.errorMessage).toContain('vendor_config_error')
+    expect(answer.errorMessage).toContain('vendor_error')
+    expect(answer.errorMessage).toContain(message)
+    expect(answer.errorMessage).toContain('mode')
+  })
+
+  const overflowCases = [
+    {
+      name: 'structured overflow',
+      code: 'context_length_exceeded',
+      message: 'The request cannot be processed.',
+      overflow: true
+    },
+    {
+      name: 'DeepSeek overflow',
+      code: 'invalid_request_error',
+      message: "This model's maximum context length is 1048576 tokens. However, you requested 1065651 tokens.",
+      overflow: true
+    },
+    {
+      name: 'ordinary 400',
+      code: 'invalid_request_error',
+      message: 'Invalid context window parameter',
+      overflow: false
+    }
+  ] as const
+
+  it.each(overflowCases)('handles $name through the gateway', async ({ code, message, overflow }) => {
+    const binding = await createPiGatewayModelBinding(
+      { sessionId: 'session' },
+      providerService.getByProviderId('port'),
+      modelService.getByKey('port', 'wire-model')
+    )
+    const directory = tempDir('gateway-overflow')
+    session = await openSession({
+      ...binding,
+      cwd: directory,
+      agentDir: directory,
+      compaction: { enabled: true, reserveTokens: 16_384, keepRecentTokens: 1 }
+    })
+    await sendUser('Earlier conversation')
+    rejectUpstream = () => (requests.length === 2 ? { message, code } : undefined)
+    await sendUser('Continue the task')
+    expect(session.pi.history().some((entry) => entry.type === 'compaction')).toBe(overflow)
+    if (overflow) expect(requests.length).toBeGreaterThanOrEqual(4)
+    else expect(requests).toHaveLength(2)
+    expect(outcome()).toBe(overflow ? 'completed' : 'failed')
+  })
+
+  it.each(overflowCases)('handles $name in Durable through the gateway', async ({ code, message, overflow }) => {
+    const { createModels, createProvider } = await import('@earendil-works/pi-ai')
+    const { stream, streamSimple } = await import('@earendil-works/pi-ai/api/openai-completions')
+    const { MemoryStorage, createRegistry } = await import('@earendil-works/pi-durable')
+    const { createPiDurableRuntime } = await import('@cherrystudio/agent-runtime-pi-durable')
+    const binding = await createPiGatewayModelBinding(
+      { sessionId: 'session' },
+      providerService.getByProviderId('port'),
+      modelService.getByKey('port', 'wire-model')
+    )
+    const model = { ...binding.model, provider: 'durable-gateway-test', api: 'openai-completions' as const }
+    const models = createModels()
+    models.setProvider(
+      createProvider({
+        id: model.provider,
+        models: [model],
+        auth: { apiKey: { name: 'gateway', resolve: async () => ({ auth: { apiKey: 'internal-fixture-key' } }) } },
+        api: { stream, streamSimple }
+      })
+    )
+    const durable = confirmed(
+      await createPiDurableRuntime({
+        backendId: runtimeId('durable-gateway-test'),
+        openStorage: async () => new MemoryStorage(),
+        harness: {
+          models,
+          registry: createRegistry(),
+          settings: {
+            retry: { enabled: false },
+            compaction: { reserveTokens: 16_384, keepRecentTokens: 1, backgroundTokens: 0 }
+          }
+        },
+        behavior: createTestBehavior(model)
+      })
+    )
+    try {
+      const handle = confirmed(
+        await durable.create({
+          ownership: { kind: 'ownerless' },
+          agent: { model: { provider: model.provider, modelId: model.id } }
+        })
+      )
+      confirmed(await durable.resume())
+      await handle.input.submit({ inputId: runtimeId('first'), text: 'Earlier conversation', whenBusy: 'reject' })
+      await durable.settled()
+      rejectUpstream = () => (requests.length === 2 ? { message, code } : undefined)
+      await handle.input.submit({ inputId: runtimeId('second'), text: 'Continue the task', whenBusy: 'reject' })
+      await durable.settled()
+      const facts = await handle.durable.facts()
+      const compaction = facts.history.findIndex((entry) => entry.kind === 'compaction')
+      expect(compaction !== -1).toBe(overflow)
+      if (overflow) {
+        expect(requests.length).toBeGreaterThanOrEqual(4)
+        expect(
+          facts.history
+            .slice(compaction + 1)
+            .some((entry) => entry.kind === 'assistant' && entry.text === 'Model answer')
+        ).toBe(true)
+      } else expect(requests).toHaveLength(2)
+      expect(facts.live.runEnd?.outcome).toBe(overflow ? 'completed' : 'error')
+    } finally {
+      confirmed(await durable.shutdown())
+    }
+  })
+
+  it('records each native summary through the gateway once', async () => {
+    call = () => ({ content: 'Preserved objective and pending work' })
+    const binding = await createPiGatewayModelBinding(
+      { sessionId: 'session' },
+      providerService.getByProviderId('port'),
+      modelService.getByKey('port', 'wire-model')
+    )
+    const directory = tempDir('gateway-native-summary')
+    session = await openSession({
+      ...binding,
+      cwd: directory,
+      agentDir: directory,
+      compaction: { enabled: false, reserveTokens: 16_384, keepRecentTokens: 1 }
+    })
+    await sendUser('Conversation to summarize')
+    confirmed(await session.pi.compact())
+    expect(session.pi.history().some((entry) => entry.type === 'compaction')).toBe(true)
     const charges = dbh.db.select().from(aiUsageRecordTable).all()
-    expect(charges).toHaveLength(1)
-    expect(charges[0]).toMatchObject({ inputTokens: 100, outputTokens: 25, messageId: 'original-answer' })
-    expect(charges[0].cost).toBeCloseTo(0.0003)
-    expect(requests).toHaveLength(1)
+    expect(charges).toHaveLength(2)
+    expect(charges[1]).toMatchObject({ inputTokens: 100, outputTokens: 25, messageId: 'original-answer' })
+    expect(charges[1].cost).toBeCloseTo(0.0003)
+    expect(requests).toHaveLength(2)
   })
 
   it('uses Cherry provider configuration for each native step, with one tool executor and one billing owner', async () => {
