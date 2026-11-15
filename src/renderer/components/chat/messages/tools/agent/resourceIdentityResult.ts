@@ -73,7 +73,8 @@ export function getResourceIdentityResult(
   if (!parsed.success) return undefined
 
   const output = parsed.data
-  const action = { action: toolKind === 'create' ? 'created' : 'updated', self: toolKind === 'self_update' } as const
+  const updated = toolKind === 'update' || toolKind === 'self_update'
+  const action = { action: updated ? 'updated' : 'created', self: toolKind === 'self_update' } as const
   if (!('kind' in output)) {
     return { kind: 'agent', id: output.agentId, name: output.name, emoji: '', description: '', summary: [], ...action }
   }

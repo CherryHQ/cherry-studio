@@ -20,7 +20,11 @@ import { loggerService } from '@logger'
 import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import { t } from '@main/i18n'
 import { getAgentConfigToolKind } from '@shared/ai/agentConfigToolKind'
-import type { AgentConfigToolOutput, AssistantCreateToolOutput } from '@shared/ai/agentConfigToolOutput'
+import type {
+  AgentConfigChangePreview,
+  AgentConfigToolOutput,
+  AssistantCreateToolOutput
+} from '@shared/ai/agentConfigToolOutput'
 import { buildCreateAgentCommand, DEFAULT_AGENT_CREATE_AVATAR } from '@shared/ai/agentCreateCommand'
 import {
   type AgentFormState,
@@ -532,14 +536,7 @@ function resolveDefaultModel(fallbackModel: string | undefined, target: ModelTar
   return model
 }
 
-/**
- * Create a Pi Durable Agent from tool input.
- * @param fallbackModel the calling Agent's model, used when the default model cannot run the new Agent
- */
-export async function createAgentFromTool(
-  input: z.infer<typeof CreateAgentToolInputSchema>,
-  { fallbackModel }: { fallbackModel?: string } = {}
-): Promise<AgentConfigToolOutput> {
+function planAgentCreate(input: z.infer<typeof CreateAgentToolInputSchema>, fallbackModel: string | undefined) {
   const caps = AGENT_RUNTIME_CAPABILITIES[NEW_AGENT_TYPE]
   const blank = buildInitialAgentFormState()
   const form = applySettingsInput(blank, input, NEW_AGENT_TYPE, { creating: true })
@@ -550,6 +547,18 @@ export async function createAgentFromTool(
     permissionMode: form.permissionMode || caps.createDefaults.permissionMode,
     avatar: form.avatar || DEFAULT_AGENT_CREATE_AVATAR
   }
+  return { blank, created, model }
+}
+
+/**
+ * Create a Pi Durable Agent from tool input.
+ * @param fallbackModel the calling Agent's model, used when the default model cannot run the new Agent
+ */
+export async function createAgentFromTool(
+  input: z.infer<typeof CreateAgentToolInputSchema>,
+  { fallbackModel }: { fallbackModel?: string } = {}
+): Promise<AgentConfigToolOutput> {
+  const { blank, created, model } = planAgentCreate(input, fallbackModel)
 
   const agent = await createAgent(
     buildCreateAgentCommand({
@@ -581,20 +590,38 @@ export async function createAgentFromTool(
  * Create an Assistant from tool input.
  * @param fallbackModel the calling Agent's model, used when the default model cannot chat
  */
-export function createAssistantFromTool(
-  input: z.infer<typeof CreateAssistantToolInputSchema>,
-  { fallbackModel }: { fallbackModel?: string } = {}
-): AssistantCreateToolOutput {
+function planAssistantCreate(input: z.infer<typeof CreateAssistantToolInputSchema>, fallbackModel: string | undefined) {
   const knowledgeBaseIds = unique(input.knowledgeBaseIds ?? [])
   const mcpServerIds = unique(input.mcpServerIds ?? [])
   assertKnownIds('knowledge base', knowledgeBaseIds, listKnowledgeBaseCatalog())
   assertKnownIds('MCP server', mcpServerIds, listMcpServerCatalog([]))
   const replyLanguage = input.language === undefined ? undefined : parseLanguage(input.language)
   const modelId = input.model ? resolveModel(input.model, 'assistant') : resolveDefaultModel(fallbackModel, 'assistant')
+  const emoji = (input.emoji && toAvatarEmoji(input.emoji)) || DEFAULT_ASSISTANT_CREATE_AVATAR
+  // Assistant fields shown in the Agent form's shape, so both share one summary formatter.
+  const form: AgentFormState = {
+    ...buildInitialAgentFormState(),
+    model: modelId,
+    instructions: input.prompt.trim(),
+    knowledgeBaseIds,
+    mcps: mcpServerIds,
+    languageMode: replyLanguage?.mode ?? 'off',
+    languageCustom: replyLanguage?.mode === 'custom' ? replyLanguage.language : ''
+  }
+  return { knowledgeBaseIds, mcpServerIds, replyLanguage, modelId, emoji, form }
+}
 
+export function createAssistantFromTool(
+  input: z.infer<typeof CreateAssistantToolInputSchema>,
+  { fallbackModel }: { fallbackModel?: string } = {}
+): AssistantCreateToolOutput {
+  const { knowledgeBaseIds, mcpServerIds, replyLanguage, modelId, emoji, form } = planAssistantCreate(
+    input,
+    fallbackModel
+  )
   const assistant = assistantDataService.create(
     buildCreateAssistantDto({
-      avatar: (input.emoji && toAvatarEmoji(input.emoji)) || DEFAULT_ASSISTANT_CREATE_AVATAR,
+      avatar: emoji,
       name: input.name.trim(),
       modelId,
       description: input.description?.trim() ?? '',
@@ -610,16 +637,6 @@ export function createAssistantFromTool(
   // The renderer refreshes its own creates; one made in main must announce itself to the lists.
   assistantDataService.notifyReadModelChange([assistant.id], 'membership')
 
-  // Assistant fields shown in the Agent form's shape, so both share one summary formatter.
-  const form: AgentFormState = {
-    ...buildInitialAgentFormState(),
-    model: modelId,
-    instructions: assistant.prompt,
-    knowledgeBaseIds,
-    mcps: mcpServerIds,
-    languageMode: replyLanguage?.mode ?? 'off',
-    languageCustom: replyLanguage?.mode === 'custom' ? replyLanguage.language : ''
-  }
   const summary = [
     setLine('model', form),
     setLine('instructions', form),
@@ -638,6 +655,12 @@ export function createAssistantFromTool(
     summary,
     highlights: assistantHighlights(form, input.webSearch)
   }
+}
+
+/** The model of the Agent that owns the Session, which a create falls back to like the tool does. */
+function callerModel(sessionId: string): string | undefined {
+  const { agentId } = agentSessionService.getById(sessionId)
+  return (agentId && agentService.getAgent(agentId)?.model) || undefined
 }
 
 function planAgentUpdate(agentId: string, input: SettingsInput, { self }: { self: boolean }) {
@@ -662,15 +685,39 @@ function planAgentUpdate(agentId: string, input: SettingsInput, { self }: { self
 }
 
 /**
- * The `field: current → new` lines a pending update would apply, for its approval card. Writes nothing.
- * Reads the call from the approval itself, so the preview always matches what approving runs.
+ * What a pending create or update would do, for its approval card: the new resource's identity, or
+ * `field: current → new` lines. Writes nothing, and reads the call from the approval itself so the
+ * preview always matches what approving runs.
  */
-export function previewAgentConfigUpdate(approvalId: string): { ok: true; summary: string[] } | { ok: false } {
+export function previewAgentConfigChange(approvalId: string): AgentConfigChangePreview {
   const call = toolApprovalRegistry.peekCall(approvalId)
   const name = call && parseFunctionCallToolName(call.toolName)
   const kind = name ? getAgentConfigToolKind(name.serverPart, name.toolPart) : undefined
-  if (!call || (kind !== 'update' && kind !== 'self_update')) return { ok: false }
+  if (!call || !kind) return { ok: false }
   try {
+    if (kind === 'create_agent' || kind === 'create_assistant') {
+      const fallbackModel = callerModel(call.sessionId)
+      if (kind === 'create_agent') {
+        const { created } = planAgentCreate(CreateAgentToolInputSchema.parse(call.originalInput), fallbackModel)
+        const resource = { kind: 'agent' as const, name: created.name, emoji: created.avatar }
+        return {
+          ok: true,
+          resource: { ...resource, description: created.description, highlights: agentHighlights(created) }
+        }
+      }
+      const input = CreateAssistantToolInputSchema.parse(call.originalInput)
+      const { emoji, form } = planAssistantCreate(input, fallbackModel)
+      return {
+        ok: true,
+        resource: {
+          kind: 'assistant',
+          name: input.name.trim(),
+          emoji,
+          description: input.description?.trim() ?? '',
+          highlights: assistantHighlights(form, input.webSearch)
+        }
+      }
+    }
     if (kind === 'update') {
       const { agentId, ...settings } = UpdateAgentToolInputSchema.parse(call.originalInput)
       return { ok: true, summary: planAgentUpdate(agentId, settings, { self: false }).summary }
@@ -681,7 +728,7 @@ export function previewAgentConfigUpdate(approvalId: string): { ok: true; summar
     return { ok: true, summary: planAgentUpdate(agentId, settings, { self: true }).summary }
   } catch (error) {
     // The tool reports the same refusal to the model when it runs; the user sees the raw arguments.
-    logger.warn('Agent settings preview failed', { approvalId, error })
+    logger.warn('Agent config preview failed', { approvalId, error })
     return { ok: false }
   }
 }

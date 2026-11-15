@@ -507,10 +507,46 @@ describe('PermissionRequestComposer', () => {
         )
 
         expect(await screen.findByText('Model: Default Model → Other Model')).toBeInTheDocument()
-        expect(screen.queryByText('wire::other')).not.toBeInTheDocument()
-        expect(window.api.ipcApi.request).toHaveBeenCalledWith('ai.agent.preview_config_update', { approvalId })
+        expect(window.api.ipcApi.request).toHaveBeenCalledWith('ai.agent.preview_config_change', { approvalId })
       }
     )
+
+    // A create's arguments carry the whole system prompt; the card shows the new resource instead.
+    it('shows a create as the new resource with its raw arguments folded away', async () => {
+      const user = userEvent.setup()
+      vi.mocked(window.api.ipcApi.request).mockResolvedValueOnce({
+        ok: true,
+        data: {
+          ok: true,
+          resource: {
+            kind: 'agent',
+            name: 'Reviewer',
+            emoji: '🧐',
+            description: 'Reviews pull requests',
+            highlights: ['Other Model']
+          }
+        }
+      })
+      render(
+        <PermissionRequestComposer
+          request={agentConfigRequest('approval-create', 'cherry_tools', 'agent_create', {
+            name: 'Reviewer',
+            instructions: 'LONG_SYSTEM_PROMPT'
+          })}
+          onRespond={vi.fn()}
+        />
+      )
+
+      // Wait for the preview: the raw arguments also name the Agent while it loads.
+      expect(await screen.findByText('Reviews pull requests · Other Model')).toBeInTheDocument()
+      expect(screen.getByText('Reviewer')).toBeInTheDocument()
+      expect(screen.getByText('agent.toolPermission.agent_config.title.create_agent')).toBeInTheDocument()
+      expect(screen.queryByText('LONG_SYSTEM_PROMPT')).not.toBeInTheDocument()
+
+      await user.click(screen.getByRole('button', { name: 'Input' }))
+
+      expect(screen.getByText('LONG_SYSTEM_PROMPT')).toBeInTheDocument()
+    })
 
     it('keeps the raw arguments on screen while the preview loads', () => {
       vi.mocked(window.api.ipcApi.request).mockReturnValueOnce(new Promise(() => {}))
