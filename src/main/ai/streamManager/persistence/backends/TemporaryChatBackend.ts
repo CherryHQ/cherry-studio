@@ -11,6 +11,7 @@ import { temporaryChatService } from '@main/data/services/TemporaryChatService'
 import type { MessageSnapshot } from '@shared/data/types/message'
 
 import type { PersistAssistantInput, PersistenceBackend } from '../PersistenceBackend'
+import { relocateInlineImages } from '../relocateInlineImages'
 
 export interface TemporaryChatBackendOptions {
   topicId: string
@@ -26,11 +27,12 @@ export class TemporaryChatBackend implements PersistenceBackend {
 
   async persistAssistant(input: PersistAssistantInput): Promise<void> {
     const { finalMessage, status, runtimeStats } = input
+    const parts = await relocateInlineImages(finalMessage?.parts ?? [])
     temporaryChatService.appendAssistantMessage(
       this.opts.topicId,
       {
         role: 'assistant',
-        data: { parts: finalMessage?.parts ?? [] },
+        data: { parts },
         status,
         modelId: this.opts.modelId,
         messageSnapshot: this.opts.messageSnapshot
