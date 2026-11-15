@@ -18,7 +18,6 @@ import { selectSidebarApp } from '../regression/helpers/navigation'
 import { openSettingsSection } from '../regression/helpers/settings'
 import { closeElectronApp, expect, test as base } from './fixtures/electron.fixture'
 
-const TASK_ROOT = process.env.TASKS ?? join(process.cwd(), '../.tasks/issue-24594')
 const view = (page: Page) => page.locator('[data-ui~="chat.view"]:visible')
 const scroller = (page: Page) => view(page).locator('[data-message-virtual-list-scroller]')
 const composer = (page: Page) => view(page).locator('[data-ui~="chat.composer"]:visible')
@@ -375,10 +374,12 @@ async function capture(page: Page, testInfo: TestInfo, scenario: string) {
   const filename = `${scenario}.png`
   const output = testInfo.outputPath(filename)
   await page.screenshot({ path: output })
-  const evidence = join(TASK_ROOT, 'evidence')
+  await testInfo.attach(filename, { path: output, contentType: 'image/png' })
+  const taskRoot = process.env.TASKS
+  if (!taskRoot) return
+  const evidence = join(taskRoot, 'evidence')
   await mkdir(evidence, { recursive: true })
   await copyFile(output, join(evidence, `${scenario}-retry-${testInfo.retry}.png`))
-  await testInfo.attach(filename, { path: output, contentType: 'image/png' })
 }
 
 test.setTimeout(180_000)
