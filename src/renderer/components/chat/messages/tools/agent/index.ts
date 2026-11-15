@@ -7,6 +7,7 @@ export { AskUserQuestionOptimisticInputProvider } from './AskUserQuestionOptimis
 export { MessageChannelConfigTool } from './MessageChannelConfigTool'
 export { isKnownNavigationPath, NavigateToolInline } from './NavigateTool'
 export { isReportArtifactsToolResponse, MessageReportArtifacts } from './ReportArtifacts'
+export { ResourceIdentityRow } from './ResourceIdentityRow'
 export { SessionResultCards } from './SessionResultCards'
 export { isCherrySessionToolResponse, parseSessionCreateResult, parseSessionSendResult } from './sessionToolResult'
 export {

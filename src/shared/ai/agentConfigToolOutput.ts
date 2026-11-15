@@ -21,3 +21,24 @@ export const AssistantCreateToolOutputSchema = z.object({
   assistantId: z.string()
 })
 export type AssistantCreateToolOutput = z.infer<typeof AssistantCreateToolOutputSchema>
+
+/** What a pending create or update would do, shown on its approval card before anything is written. */
+export const AgentConfigChangePreviewSchema = z.discriminatedUnion('ok', [
+  z.strictObject({
+    ok: z.literal(true),
+    /** Update: `field: current → new` lines. */
+    summary: z.array(z.string()).optional(),
+    /** Create: the resource the call would make. */
+    resource: z
+      .strictObject({
+        kind: z.enum(['agent', 'assistant']),
+        name: z.string(),
+        emoji: z.string(),
+        description: z.string(),
+        highlights: z.array(z.string())
+      })
+      .optional()
+  }),
+  z.strictObject({ ok: z.literal(false) })
+])
+export type AgentConfigChangePreview = z.infer<typeof AgentConfigChangePreviewSchema>

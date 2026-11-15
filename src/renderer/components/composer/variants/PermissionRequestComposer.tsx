@@ -21,6 +21,7 @@ import type { MessageToolApprovalInput } from '@renderer/components/chat/message
 import { toast } from '@renderer/services/toast'
 import type { McpToolResponse, NormalToolResponse } from '@renderer/types/mcpTool'
 import { cn } from '@renderer/utils/style'
+import type { AgentConfigToolKind } from '@shared/ai/agentConfigToolKind'
 
 import type { ComposerOverride } from '../ComposerContext'
 import { AgentConfigChangePreview } from './AgentConfigChangePreview'
@@ -31,6 +32,13 @@ export type { PermissionRequestComposerRequest } from './permissionRequestCompos
 export { findNextPendingPermissionRequest } from './permissionRequestComposerRequest'
 
 const logger = loggerService.withContext('PermissionRequestComposer')
+
+const AGENT_CONFIG_TITLE_KEYS: Record<AgentConfigToolKind, string> = {
+  create_agent: 'agent.toolPermission.agent_config.title.create_agent',
+  create_assistant: 'agent.toolPermission.agent_config.title.create_assistant',
+  update: 'agent.toolPermission.agent_config.title.update',
+  self_update: 'agent.toolPermission.agent_config.title.self_update'
+}
 
 function isHandledElsewhere(event: KeyboardEvent) {
   return event.defaultPrevented || event.isComposing
@@ -138,11 +146,14 @@ function McpPermissionPreview({ toolResponse, approvalId }: { toolResponse: McpT
 
   return (
     <div className="px-3 py-2">
-      <PermissionPreviewHeader toolName={toolResponse.tool.name} description={toolResponse.tool.description} />
-      {configKind === 'update' || configKind === 'self_update' ? (
-        <AgentConfigChangePreview approvalId={approvalId} fallback={argsPreview} />
+      {/* The card title already names an Agent config call, so its preview skips the raw tool name. */}
+      {configKind ? (
+        <AgentConfigChangePreview approvalId={approvalId} args={argsPreview} />
       ) : (
-        argsPreview
+        <>
+          <PermissionPreviewHeader toolName={toolResponse.tool.name} description={toolResponse.tool.description} />
+          {argsPreview}
+        </>
       )}
     </div>
   )
@@ -216,9 +227,13 @@ export default function PermissionRequestComposer({ request, onRespond, classNam
   const rejectionReason = rejectionDraft.approvalId === request.approvalId ? rejectionDraft.value : ''
   // A typed reason means the user is denying — Enter must not approve behind their back.
   const hasRejectionReason = rejectionReason.trim().length > 0
-  const subtitle = getPermissionRequestSubtitle(request)
+  const configKind = getAgentConfigToolKind(request.toolResponse)
+  // The preview already shows the description, so an Agent config call needs no subtitle.
+  const subtitle = configKind ? null : getPermissionRequestSubtitle(request)
   const ToolIcon = getToolGroupIcon(request.toolResponse.tool, request.toolResponse.arguments)
-  const toolTitle = getToolGroupSemanticTitle(request.toolResponse, 'waiting', t)
+  const toolTitle = configKind
+    ? t(AGENT_CONFIG_TITLE_KEYS[configKind])
+    : getToolGroupSemanticTitle(request.toolResponse, 'waiting', t)
 
   const respond = useCallback(
     async (input: MessageToolApprovalInput, action: 'approve' | 'deny') => {
