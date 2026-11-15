@@ -61,6 +61,10 @@ const CREATE_REQUEST_EXAMPLES = '(for example "build me an Agent that reviews pu
 const RESOURCE_KINDS =
   'An Assistant (助手) is a chat persona with a prompt and a model; an Agent (智能体) works on its own with tools, skills and a workspace.'
 
+// Kimi K2.6 rewrote its own settings via config_update when asked for a new Agent.
+const CONFIG_UPDATE_IS_SELF =
+  'That tool only changes you: a request for a new Agent or Assistant always makes a new one with the create tool, never by changing your own settings.'
+
 /** Without this the model describes UI steps or writes files instead of calling the tools it has. */
 const hostConfigToolsPrompt = ({ ref, hint }: ToolAccess) => `## Creating Agents and Assistants
 
@@ -71,7 +75,7 @@ const selfConfigToolsPrompt = ({
   hint
 }: ToolAccess) => `## Creating Agents and Assistants, and changing your own settings
 
-When the user asks you to create or set up an Agent or an Assistant ${CREATE_REQUEST_EXAMPLES}, propose a configuration, then call ${ref('cherry-tools', AGENT_CREATE_TOOL_NAME)} or ${ref('cherry-tools', ASSISTANT_CREATE_TOOL_NAME)} instead of describing UI steps or writing files. ${RESOURCE_KINDS} When the user asks you to change your own avatar, description, instructions, model, permission mode, skills, knowledge bases, MCP servers, built-in tools, reply language or heartbeat, call ${ref('cherry-tools', CONFIG_UPDATE_TOOL_NAME)} with only the fields to change.${hint} The user approves every call.`
+When the user asks you to create or set up an Agent or an Assistant ${CREATE_REQUEST_EXAMPLES}, propose a configuration, then call ${ref('cherry-tools', AGENT_CREATE_TOOL_NAME)} or ${ref('cherry-tools', ASSISTANT_CREATE_TOOL_NAME)} instead of describing UI steps or writing files. ${RESOURCE_KINDS} When the user asks you to change your own avatar, description, instructions, model, permission mode, skills, knowledge bases, MCP servers, built-in tools, reply language or heartbeat, call ${ref('cherry-tools', CONFIG_UPDATE_TOOL_NAME)} with only the fields to change. ${CONFIG_UPDATE_IS_SELF}${hint} The user approves every call.`
 
 /** The create-tool guidance in the Agent's runtime call form; none for an Agent closed to creating. */
 export function getConfigToolsPrompt(agent: Pick<AgentEntity, 'configuration' | 'type'>): string | undefined {
