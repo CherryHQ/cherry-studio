@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import { BUILTIN_AGENT_ROLE } from '@shared/ai/builtinAgent'
 
-import { buildConfigToolsGuidance } from './configToolsGuidance'
+import { buildConfigToolsGuidance, buildReportArtifactsGuidance } from './configToolsGuidance'
 
 const callForm = { ref: (server: string, name: string) => `<${server}/${name}>`, hint: ' RUNTIME_HINT.' }
 
@@ -59,4 +59,14 @@ describe('buildConfigToolsGuidance', () => {
       ).toBeUndefined()
     }
   )
+})
+
+describe('buildReportArtifactsGuidance', () => {
+  // Pi Durable reaches report_artifacts only from codemode; a Claude Code name left its Outputs empty.
+  it('names report_artifacts in the runtime call form, with its hint', () => {
+    const prompt = buildReportArtifactsGuidance(callForm)
+
+    expect(prompt).toContain('<cherry-tools/report_artifacts>')
+    expect(prompt).toContain('RUNTIME_HINT.')
+  })
 })

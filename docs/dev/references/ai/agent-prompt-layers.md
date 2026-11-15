@@ -50,8 +50,8 @@ boundary. Cherry-owned persona, memory, workspace-path, security, citation,
 artifact, create-tool, and language guidance is appended independently of the
 base. The create-tool guidance (`configToolsGuidance.ts`) names only the Agent
 and Assistant create and settings tools the session mounts, so a channel-linked
-Cherry Assistant session gets none. Each runtime adapter passes its own call
-form: Claude Code calls `mcp__cherry-tools__…` directly, Pi loads
+Cherry Assistant session gets none. The artifact guidance and the create-tool
+guidance both name tools in the call form each runtime adapter passes: Claude Code calls `mcp__cherry-tools__…` directly, Pi loads
 `mcp__cherry_tools__…` with `tool_search`, and Pi Durable calls
 `tools.mcp__cherry_tools__…()` inside `codemode`, because it registers MCP tools
 for scripts only and its `tool_search` loads model tools.

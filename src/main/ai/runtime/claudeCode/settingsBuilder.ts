@@ -43,7 +43,11 @@ import {
   prepareAgentSessionWorkspaceDirectory
 } from '@main/ai/runtime/agentSessionWorkspace'
 import { buildCitationsGuidance } from '@main/ai/runtime/citationsGuidance'
-import { buildConfigToolsGuidance, type ToolCallForm } from '@main/ai/runtime/configToolsGuidance'
+import {
+  buildConfigToolsGuidance,
+  buildReportArtifactsGuidance,
+  type ToolCallForm
+} from '@main/ai/runtime/configToolsGuidance'
 import { isAutomationSkillAvailable } from '@main/ai/skills/automationSkills'
 import { skillService } from '@main/ai/skills/SkillService'
 import {
@@ -703,6 +707,7 @@ export async function buildSystemPrompt(
     agentDataPath,
     agent,
     citationsGuidance,
+    reportArtifactsGuidance: buildReportArtifactsGuidance(CLAUDE_CODE_TOOL_CALL_FORM),
     configToolsGuidance: buildConfigToolsGuidance(agent, { channelLinked, callForm: CLAUDE_CODE_TOOL_CALL_FORM }),
     customBaseContext,
     effectiveLanguage,
