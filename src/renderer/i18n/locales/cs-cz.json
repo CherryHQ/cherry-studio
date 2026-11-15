@@ -5878,6 +5878,7 @@
   "settings.shortcuts.selection_assistant_toggle": "Přepnout asistenta výběru",
   "settings.shortcuts.show_app": "Zobrazit / skrýt aplikaci",
   "settings.shortcuts.show_settings": "Otevřít nastavení",
+  "settings.shortcuts.stop_generation": "Zastavit generování",
   "settings.shortcuts.title": "Klávesové zkratky",
   "settings.shortcuts.toggle_left_sidebar": "Přepnout levý postranní panel",
   "settings.shortcuts.toggle_new_context": "Vymazat kontext",

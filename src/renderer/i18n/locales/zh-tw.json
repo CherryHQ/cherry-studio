@@ -5878,6 +5878,7 @@
   "settings.shortcuts.selection_assistant_toggle": "開關選取文字助理",
   "settings.shortcuts.show_app": "顯示 / 隱藏應用程式",
   "settings.shortcuts.show_settings": "開啟設定",
+  "settings.shortcuts.stop_generation": "停止生成",
   "settings.shortcuts.title": "快捷鍵",
   "settings.shortcuts.toggle_left_sidebar": "切換左側邊欄",
   "settings.shortcuts.toggle_new_context": "清除上下文",

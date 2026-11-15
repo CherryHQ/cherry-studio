@@ -5878,6 +5878,7 @@
   "settings.shortcuts.selection_assistant_toggle": "Seçim Asistanını Aç/Kapat",
   "settings.shortcuts.show_app": "Uygulamayı Göster/Gizle",
   "settings.shortcuts.show_settings": "Ayarları Aç",
+  "settings.shortcuts.stop_generation": "Üretimi Durdur",
   "settings.shortcuts.title": "Klavye Kısayolları",
   "settings.shortcuts.toggle_left_sidebar": "Sol Kenar Çubuğunu Aç/Kapat",
   "settings.shortcuts.toggle_new_context": "Bağlamı Temizle",
