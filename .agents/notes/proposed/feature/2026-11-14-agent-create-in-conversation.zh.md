@@ -75,7 +75,7 @@ Cherry Support 和 Doctor 不获得这些工具：支持类能力有意不允许
 
 所有创建和修改工具都请求审批，即使在完全访问模式下也是如此。
 
-对 `update_agent` 和 `config_update`，主进程在不写入任何内容的情况下计算改动，审批卡片为每个改动字段显示一行当前值 → 新值。被拒绝的改动（例如 `bypassPermissions`）会在审批前显示错误，而不是预览。
+对 `update_agent` 和 `config_update`，主进程在不写入任何内容的情况下计算改动，审批卡片为每个改动字段显示一行当前值 → 新值。主进程直接从待审批的调用里读取参数，所以预览与批准后实际执行的内容一致。无法生成预览时（例如被拒绝的 `bypassPermissions`），卡片改为显示原始参数，工具在执行时报告拒绝原因。
 
 ### 默认模型
 
@@ -94,9 +94,9 @@ Cherry Support 和 Doctor 不获得这些工具：支持类能力有意不允许
 创建、修改或自我修改成功后，工具结果在对话中显示为一张卡片。它在现有的内联结果注册表中替换 `CreateAgentToolInline`。
 
 - 卡片显示头像、名称和描述，以及设置或修改了什么的简短摘要。
-- 对智能体，点击卡片或其中的 **打开对话** 按钮，会打开该智能体的对话。**调整设置** 会在设置页打开[分页式编辑弹框](2026-11-12-resource-edit-pages.md)。
-- 对助手，**打开对话** 会用它新建一个话题，**调整设置** 会打开助手编辑弹框。
-- 自我修改的卡片隐藏 **打开对话**，因为用户已经在这个对话里。它保留 **调整设置**。
+- 对智能体，点击卡片或其中的 **开始对话** 按钮，会打开该智能体的对话。**调整设置** 会在设置页打开[分页式编辑弹框](2026-11-12-resource-edit-pages.md)。
+- 对助手，**开始对话** 会打开它最近的话题，没有话题时新建一个，**调整设置** 会打开助手编辑弹框。
+- 自我修改的卡片隐藏 **开始对话**，因为用户已经在这个对话里。它保留 **调整设置**。
 
 ### 列表刷新
 
@@ -120,7 +120,7 @@ Cherry Support 和 Doctor 不获得这些工具：支持类能力有意不允许
 - AC5 — 在对话中创建的智能体无需重新加载就出现在智能体列表中 (verification: renderer; owner: implementer)
 - AC6 — 所有新增界面文案在全部渲染进程语言包中都有翻译，没有占位符 (verification: docs gate; owner: implementer)
 - AC7 — 在运行中的应用里，让 Cherry Assistant 创建一个智能体后显示卡片，新智能体出现在智能体列表中，并能从卡片打开 (verification: Electron; owner: implementer)
-- AC8 — 用户创建的智能体调用 `config_update` 时每次都请求审批，而 `config` 仍然不需要审批；审批显示每个改动字段从当前值 → 新值，拒绝 `bypassPermissions`、环境变量以及内置智能体的任何调用，改动会出现在编辑弹框中 (verification: main service test and renderer; owner: implementer)
+- AC8 — 用户创建的智能体调用 `config_update` 时每次都请求审批，而 `config` 仍然不需要审批；审批显示每个改动字段从当前值 → 新值，拒绝 `bypassPermissions` 和环境变量，不向内置智能体提供，改动会出现在编辑弹框中 (verification: main service test and renderer; owner: implementer)
 - AC9 — `create_assistant` 和 `assistant_create` 创建一个带有全部所给字段的助手，拒绝未知 ID，请求审批，新助手出现在助手列表中，并能从身份卡片打开 (verification: main service test and renderer; owner: implementer)
 
 ## 风险

@@ -75,7 +75,7 @@ No new list tool is added. The existing read-only `agent_list` also returns each
 
 Every create and update tool asks for approval, even under Full Access.
 
-For `update_agent` and `config_update`, main computes the change without writing anything, and the approval card shows one current → new line per changed field. A refused change, such as `bypassPermissions`, shows its error before approval instead of a preview.
+For `update_agent` and `config_update`, main computes the change without writing anything, and the approval card shows one current → new line per changed field. Main reads the call from the pending approval itself, so the preview matches what approving runs. When it cannot build a preview, for example for a refused `bypassPermissions`, the card shows the raw arguments instead, and the tool reports the refusal when it runs.
 
 ### Default model
 
@@ -94,9 +94,9 @@ Agents that have the create or settings tools get one short line in their prompt
 After a create, an update, or a self-update succeeds, the tool result renders in the conversation as a card. It replaces `CreateAgentToolInline` in the existing inline result registry.
 
 - The card shows the avatar, name, and description, and a short summary of what was set or changed.
-- For an Agent, clicking the card, or its **Open conversation** button, opens that Agent's conversation. **Adjust settings** opens [the paged edit dialog](2026-11-12-resource-edit-pages.md) on its settings page.
-- For an Assistant, **Open conversation** starts a new topic with it, and **Adjust settings** opens the Assistant edit dialog.
-- A self-update's card hides **Open conversation**, because the user is already in that conversation. It keeps **Adjust settings**.
+- For an Agent, clicking the card, or its **Start conversation** button, opens that Agent's conversation. **Adjust settings** opens [the paged edit dialog](2026-11-12-resource-edit-pages.md) on its settings page.
+- For an Assistant, **Start conversation** opens its latest topic, or a new one when it has none, and **Adjust settings** opens the Assistant edit dialog.
+- A self-update's card hides **Start conversation**, because the user is already in that conversation. It keeps **Adjust settings**.
 
 ### List refresh
 
@@ -120,7 +120,7 @@ A new Agent appears in the Agent list immediately, through the existing DataApi 
 - AC5 — An Agent created from a conversation appears in the Agent list without a reload (verification: renderer; owner: implementer)
 - AC6 — Every new UI string exists in all renderer locales without placeholders (verification: docs gate; owner: implementer)
 - AC7 — In the running app, asking Cherry Assistant to create an Agent shows the card, and the new Agent appears in the Agent list and opens from the card (verification: Electron; owner: implementer)
-- AC8 — A user-created Agent's `config_update` asks for approval on every call while `config` stays approval-free, shows each changed field's current → new value, refuses `bypassPermissions`, environment variables, and any call from a built-in Agent, and the change appears in the edit dialog (verification: main service test and renderer; owner: implementer)
+- AC8 — A user-created Agent's `config_update` asks for approval on every call while `config` stays approval-free, shows each changed field's current → new value, refuses `bypassPermissions` and environment variables, is not offered to built-in Agents, and the change appears in the edit dialog (verification: main service test and renderer; owner: implementer)
 - AC9 — `create_assistant` and `assistant_create` create an Assistant with every supplied field, reject unknown IDs, ask for approval, and the Assistant appears in the Assistant list and opens from the identity card (verification: main service test and renderer; owner: implementer)
 
 ## Risks
