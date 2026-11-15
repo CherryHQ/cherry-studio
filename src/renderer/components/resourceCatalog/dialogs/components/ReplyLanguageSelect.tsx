@@ -36,6 +36,13 @@ export function ReplyLanguageSelect({ value, onChange, portalContainer }: ReplyL
   const isPreset = AGENT_LANGUAGE_PRESETS.includes(value.languageCustom)
   // Stays on "Other" while typing, even when the text happens to match a preset.
   const [otherChosen, setOtherChosen] = useState(value.languageMode === 'custom' && !isPreset)
+  const [typing, setTyping] = useState(false)
+  // A change from elsewhere (another window, the profile pane) shows the stored value as it is.
+  const [seen, setSeen] = useState(value)
+  if (seen.languageMode !== value.languageMode || seen.languageCustom !== value.languageCustom) {
+    setSeen(value)
+    if (!typing) setOtherChosen(value.languageMode === 'custom' && !isPreset)
+  }
   const selected =
     value.languageMode !== 'custom'
       ? value.languageMode
@@ -87,6 +94,8 @@ export function ReplyLanguageSelect({ value, onChange, portalContainer }: ReplyL
           spellCheck={false}
           placeholder={t('library.config.agent.field.language.other_placeholder')}
           aria-label={t('settings.agent.language.custom_label')}
+          onFocus={() => setTyping(true)}
+          onBlur={() => setTyping(false)}
           onChange={(event) => onChange({ languageCustom: event.target.value })}
         />
       ) : null}
