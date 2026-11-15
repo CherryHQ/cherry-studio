@@ -9029,6 +9029,20 @@
     {
       "endpointTypes": ["openai-responses", "openai-chat-completions"],
       "modelId": "deepseek-v4-flash",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.006
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.3
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 1.2
+        }
+      },
       "providerId": "deepseek",
       "reasoningContracts": {
         "openai-chat-completions": {
@@ -9142,6 +9156,24 @@
           }
         }
       }
+    },
+    {
+      "modelId": "deepseek-v4-flash-vision-exp",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.006
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.3
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 1.2
+        }
+      },
+      "providerId": "deepseek"
     },
     {
       "endpointTypes": ["openai-responses", "openai-chat-completions", "anthropic-messages"],
@@ -44925,5 +44957,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "50ae4de76dbbf70c"
+  "version": "792665b6efdb5cd2"
 }
