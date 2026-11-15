@@ -12,7 +12,7 @@
 import { application } from '@application'
 import { extensionRegistry } from '@cherrystudio/ai-core/provider'
 import type { Assistant } from '@shared/data/types/assistant'
-import type { Model } from '@shared/data/types/model'
+import { MODALITY, type Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import {
   isAnthropicModel,
@@ -29,12 +29,18 @@ import { isAIGatewayProvider, type WebToolRoutes } from '@shared/utils/provider'
 import { SystemProviderIds } from '@shared/utils/systemProviderId'
 
 import type { KimiFormulaCredentials } from '../../../provider/custom/moonshotProvider'
+import { resolveEffectiveEndpoint, resolveProviderOptionsKey } from '../../../provider/endpoint'
 import { getAiSdkProviderId } from '../../../provider/factory'
 import type { AppProviderId } from '../../../types'
 import { type AppWebSearchPluginConfig, buildProviderBuiltinWebSearchConfig } from '../../../utils/websearch'
 
 export interface ResolvedCapabilities {
   enableReasoning: boolean
+  /**
+   * Whether the model's native chat response should include generated images
+   * (Gemini `responseModalities`). Independent of the assistant's `generate_image`
+   * tool toggle, which gates a separate tool.
+   */
   enableGenerateImage: boolean
   isSupportedToolUse: boolean
   streamOutput: boolean
@@ -80,10 +86,17 @@ export function resolveCapabilities(
   const enableReasoning =
     isSupportedThinkingTokenModel(model) || isSupportedReasoningEffortModel(model) || isFixedReasoningModel(model)
 
-  // Native chat-model image output (Gemini `responseModalities`) stays disabled intentionally:
-  // image generation is delivered via the `generate_image` tool (gated on `settings.enableGenerateImage`),
-  // not this capability. Kept `&& false` so the provider-option plumbing below never fires.
-  const enableGenerateImage = isGenerateImageModel(model) && false
+  const aiSdkProviderId = options.runtimeProviderId ?? getAiSdkProviderId(provider, model)
+  // Native image output is read from the Google/Vision namespace only; the assistant's
+  // `generate_image` tool toggle is unrelated.
+  const providerOptionsKey = resolveProviderOptionsKey(aiSdkProviderId, {
+    actualProviderId: provider.id,
+    endpointType: resolveEffectiveEndpoint(provider, model).endpointType
+  })
+  const enableGenerateImage =
+    isGenerateImageModel(model) &&
+    model.outputModalities?.includes(MODALITY.IMAGE) === true &&
+    (providerOptionsKey === 'google' || providerOptionsKey === 'vertex')
 
   const isSupportedToolUse = isFunctionCallingModel(model)
 
@@ -97,7 +110,6 @@ export function resolveCapabilities(
       maxResults: preferenceService.get('chat.web_search.max_results'),
       excludeDomains: preferenceService.get('chat.web_search.exclude_domains')
     }
-    const aiSdkProviderId = options.runtimeProviderId ?? getAiSdkProviderId(provider, model)
     if (extensionRegistry.has(aiSdkProviderId)) {
       webSearchPluginConfig = buildProviderBuiltinWebSearchConfig(
         aiSdkProviderId,
