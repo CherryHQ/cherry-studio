@@ -57,7 +57,6 @@ Generation calls `fetchGenerate` with the default model, the same one `PromptPol
 - The default avatar is 💬 for Assistants and ✨ for Agents. The creator prompt still forbids 🤖.
 - One avatar picker serves the create flow and the edit dialogs. Its popover has a header titled "Choose avatar" with an upload button, a 🎲 button that picks a random emoji, and, while an image is set, a button that removes it; the emoji picker sits below. There are no tabs and no image gallery.
 - The shared emoji picker (`src/renderer/components/EmojiPicker`) is restyled: a borderless muted search field, foreground instead of primary for the active category and highlight, 16 px muted category icons with an accent background on hover and selection, 24 px emoji eight per row, and 12 px muted category labels. Keyboard focus stays visible.
-- The 🇹🇼 flag (`1f1f9-1f1fc`) is hidden from browsing and search in that picker.
 - Whether the user picked an avatar is read from the form's dirty state, not by comparing against the default.
 
 In the create flow an uploaded image is prepared like the edit dialog's upload and kept as a draft. After the create succeeds, the wizard saves it through the same avatar command the edit dialog uses. If that save fails, the resource stays created with its emoji and the result page says the image was not saved. Auto create still generates an emoji, and an uploaded image wins over it. In the edit dialogs every pick still saves immediately.
@@ -116,7 +115,7 @@ The create values gain `mcpServerIds`, and `enableWebSearch` for Assistants. Age
 - AC7 — Selected MCP servers reach the created Agent as `mcps` when its runtime supports MCP, and reach the created Assistant as `mcpServerIds` with settings that use them; selected web search reaches the Assistant's settings (verification: unit; owner: implementer)
 - AC8 — In the running app, auto-creating one Agent and one Assistant from a purpose produces resources whose edit dialogs show the generated emoji, name, prompt, and selected capabilities (verification: Electron; owner: implementer)
 - AC9 — Every new UI string exists in all renderer locales without placeholders (verification: docs gate; owner: implementer)
-- AC10 — A new Agent defaults to the ✨ avatar, the avatar picker's 🎲 button replaces the avatar with a different emoji, and the 🇹🇼 flag cannot be found by browsing or searching the emoji picker (verification: renderer; owner: implementer)
+- AC10 — A new Agent defaults to the ✨ avatar, the avatar picker's 🎲 button replaces the avatar with a different emoji (verification: renderer; owner: implementer)
 - AC11 — Manual create for an Agent with an empty System Prompt prefills it with the purpose, and the basic step no longer shows a description field (verification: renderer; owner: implementer)
 - AC12 — After an auto or manual create, the dialog shows the result page with the configured items, and its two actions open the new resource's edit dialog and run the caller's start action (verification: renderer; owner: implementer)
 - AC13 — The Agent wizard shows basic, tools, skills, knowledge, MCP, channels, and advanced steps, and values chosen on each step reach the create command (verification: renderer; owner: implementer)
