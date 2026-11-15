@@ -57,10 +57,13 @@ export function McpCapabilityList({
   )
   const statuses = useMcpRuntimeStatusMap(servers)
 
+  // A server added from this list is meant for this resource, so it is bound as soon as it exists.
+  const bind = (ids: string[]) => onSelectedIdsChange(Array.from(new Set([...selectedIdsRef.current, ...ids])))
+
   const install = async (preset: McpServerPreset) => {
     try {
       const server = await catalog.installFeatured(preset)
-      onSelectedIdsChange(Array.from(new Set([...selectedIdsRef.current, server.id])))
+      bind([server.id])
     } catch (error) {
       toast.error(formatErrorMessageWithPrefix(error, t('settings.mcp.addError')))
     }
@@ -97,6 +100,7 @@ export function McpCapabilityList({
     for (const dto of dtos) created.push(await addMcpServer(dto))
     setImportOpen(false)
     toast.success(t('settings.mcp.addSuccess'))
+    bind(created.map((server) => server.id))
     return created
   }
 
@@ -130,8 +134,10 @@ export function McpCapabilityList({
         onOpenChange={setManualOpen}
         existingServers={catalog.mcpServers}
         onCreate={async (dto) => {
-          await addMcpServer(dto)
+          // Settings adds it inactive for testing first; here it is bound right away, so it must be on.
+          const server = await addMcpServer({ ...dto, isActive: true })
           toast.success(t('settings.mcp.addSuccess'))
+          bind([server.id])
         }}
       />
       <AddMcpServerModal

@@ -493,7 +493,8 @@ export function ResourceCreateWizard({
         ...current,
         ...applyAutoConfigDraft(current, generated, current.avatar !== form.formState.defaultValues?.avatar)
       }
-      // Featured MCP servers are installed before anything is created, so a failed install creates nothing.
+      // Featured MCP servers install before the resource is created, so a failed install creates no resource;
+      // servers installed before the failure stay installed for reuse.
       let mcpServerIds: string[]
       try {
         mcpServerIds = await installFeaturedMcpServers(merged.mcpServerIds)
