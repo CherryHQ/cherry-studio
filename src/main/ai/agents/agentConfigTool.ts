@@ -100,10 +100,10 @@ const settingsShape = {
 }
 
 export const CREATE_AGENT_TOOL_DESCRIPTION =
-  'Create a new Agent (an autonomous worker with its own tools, skills and workspace) when the user asks to create or set up an Agent, e.g. "建一个 Agent". Propose the configuration first; the user approves every call. Omit model to use the default model.'
+  'Create a new Agent (an autonomous worker with its own tools, skills and workspace) only when the user explicitly asks for a new Agent, e.g. "建一个 Agent". Never use it to carry out or schedule a task yourself; scheduled or recurring work goes to cron. Propose the configuration first; the user approves every call. Omit model to use the default model.'
 
 export const CREATE_ASSISTANT_TOOL_DESCRIPTION =
-  'Create a new Assistant (a chat persona with a prompt, a model and optional knowledge bases, MCP servers and web search) when the user asks to create or set up an Assistant, e.g. "建一个助手". Propose the configuration first; the user approves every call. Omit model to use the default model.'
+  'Create a new Assistant (a chat persona with a prompt, a model and optional knowledge bases, MCP servers and web search) only when the user explicitly asks for a new Assistant, e.g. "建一个助手". Never use it to carry out or schedule a task yourself. Propose the configuration first; the user approves every call. Omit model to use the default model.'
 
 export const CreateAgentToolInputSchema = z.strictObject({
   ...settingsShape,

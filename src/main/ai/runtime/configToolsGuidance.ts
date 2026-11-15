@@ -1,6 +1,11 @@
 import { resolveAgentCapabilities, resolveHostTools } from '@main/ai/agents/builtin/builtinAgentCapabilities'
 import { DEFAULT_ASSISTANT_TOOL_NAMES } from '@main/ai/toolApproval/assistantToolNames'
-import { AGENT_CREATE_TOOL_NAME, ASSISTANT_CREATE_TOOL_NAME, CONFIG_UPDATE_TOOL_NAME } from '@shared/ai/builtinTools'
+import {
+  AGENT_CREATE_TOOL_NAME,
+  ASSISTANT_CREATE_TOOL_NAME,
+  CONFIG_UPDATE_TOOL_NAME,
+  CRON_TOOL_NAME
+} from '@shared/ai/builtinTools'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 
 /** How the model reaches a Cherry MCP tool; each runtime adapter supplies its own. */
@@ -15,6 +20,10 @@ const CREATE_REQUEST_EXAMPLES = '(for example "build me an Agent that reviews pu
 const RESOURCE_KINDS =
   'An Assistant (助手) is a chat persona with a prompt and a model; an Agent (智能体) works on its own with tools, skills and a workspace.'
 
+// Kimi K2.6 answered "创建一个定时任务" with agent_create: the word "create" alone pulled it to the create tools.
+const CREATE_ONLY_WHEN_ASKED = (ref: ToolCallForm['ref']) =>
+  `Create one only when the user explicitly asks for a new Agent or Assistant. Any other request, including a scheduled or recurring task such as "每周五下午 5 点整理周报", is your own work: do it yourself, and schedule it with ${ref('cherry-tools', CRON_TOOL_NAME)}.`
+
 // Kimi K2.6 rewrote its own settings via config_update when asked for a new Agent.
 const CONFIG_UPDATE_IS_SELF =
   'That tool only changes you: a request for a new Agent or Assistant always makes a new one with the create tool, never by changing your own settings.'
@@ -22,14 +31,14 @@ const CONFIG_UPDATE_IS_SELF =
 /** Without this the model describes UI steps or writes files instead of calling the tools it has. */
 const hostConfigToolsPrompt = ({ ref, hint }: ToolCallForm) => `## Creating Agents and Assistants
 
-When the user asks you to create or set up an Agent or an Assistant ${CREATE_REQUEST_EXAMPLES}, propose a configuration, then call ${ref('assistant', 'create_agent')} or ${ref('assistant', 'create_assistant')} instead of describing UI steps or writing files. ${RESOURCE_KINDS} To change a user-created Agent, find it with ${ref('cherry-tools', 'agent_list')} and call ${ref('assistant', 'update_agent')}.${hint} The user approves every call.`
+When the user asks you to create or set up an Agent or an Assistant ${CREATE_REQUEST_EXAMPLES}, propose a configuration, then call ${ref('assistant', 'create_agent')} or ${ref('assistant', 'create_assistant')} instead of describing UI steps or writing files. ${CREATE_ONLY_WHEN_ASKED(ref)} ${RESOURCE_KINDS} To change a user-created Agent, find it with ${ref('cherry-tools', 'agent_list')} and call ${ref('assistant', 'update_agent')}.${hint} The user approves every call.`
 
 const selfConfigToolsPrompt = ({
   ref,
   hint
 }: ToolCallForm) => `## Creating Agents and Assistants, and changing your own settings
 
-When the user asks you to create or set up an Agent or an Assistant ${CREATE_REQUEST_EXAMPLES}, propose a configuration, then call ${ref('cherry-tools', AGENT_CREATE_TOOL_NAME)} or ${ref('cherry-tools', ASSISTANT_CREATE_TOOL_NAME)} instead of describing UI steps or writing files. ${RESOURCE_KINDS} When the user asks you to change your own avatar, description, instructions, model, permission mode, skills, knowledge bases, MCP servers, built-in tools, reply language or heartbeat, call ${ref('cherry-tools', CONFIG_UPDATE_TOOL_NAME)} with only the fields to change. ${CONFIG_UPDATE_IS_SELF}${hint} The user approves every call.`
+When the user asks you to create or set up an Agent or an Assistant ${CREATE_REQUEST_EXAMPLES}, propose a configuration, then call ${ref('cherry-tools', AGENT_CREATE_TOOL_NAME)} or ${ref('cherry-tools', ASSISTANT_CREATE_TOOL_NAME)} instead of describing UI steps or writing files. ${CREATE_ONLY_WHEN_ASKED(ref)} ${RESOURCE_KINDS} When the user asks you to change your own avatar, description, instructions, model, permission mode, skills, knowledge bases, MCP servers, built-in tools, reply language or heartbeat, call ${ref('cherry-tools', CONFIG_UPDATE_TOOL_NAME)} with only the fields to change. ${CONFIG_UPDATE_IS_SELF}${hint} The user approves every call.`
 
 /** Create-tool guidance for the tools this session actually mounts; none when it mounts none. */
 export function buildConfigToolsGuidance(
