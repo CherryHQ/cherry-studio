@@ -230,6 +230,19 @@ describe('Agent create and configure tools', () => {
       expect(liveAgents().map((entry) => entry.id)).toContain(agent.id)
       expect(result.structuredContent).toMatchObject({ ok: true, name: 'Reviewer', emoji: '🧐' })
       expect(output.summary).toContain('Model: Other Model')
+      expect(result.structuredContent).toMatchObject({
+        highlights: ['Other Model', 'Auto-accept Edits', 'Heartbeat check']
+      })
+    })
+
+    it('puts the new Agent at the top of the Agent list, above existing ones', async () => {
+      seedAgent('older')
+
+      const result = await callBuiltinTool(assistantServer, 'create_agent', { name: 'Newest', instructions: 'Help.' })
+
+      expect(result.isError, toolText(result)).not.toBe(true)
+      const { agentId } = result.structuredContent as { agentId: string }
+      expect(liveAgents().map((agent) => agent.id)).toEqual([agentId, 'older'])
     })
 
     it('uses the default model when none is given and falls back to ✨ for an invalid emoji', async () => {
@@ -312,6 +325,20 @@ describe('Agent create and configure tools', () => {
       })
       expect(liveAssistantIds()).toContain(assistant.id)
       expect(output.summary).toContain('Web search: Enabled')
+      expect(result.structuredContent).toMatchObject({
+        highlights: ['Other Model', 'Web search', 'Knowledge: Handbook']
+      })
+    })
+
+    it('puts the new Assistant at the top of the Assistant list, while the create wizard path still appends', async () => {
+      const older = assistantDataService.create({ name: 'Older', prompt: 'Old.' })
+
+      const result = await callBuiltinTool(assistantServer, 'create_assistant', { name: 'Newest', prompt: 'Help.' })
+      const later = assistantDataService.create({ name: 'Later', prompt: 'Later.' })
+
+      expect(result.isError, toolText(result)).not.toBe(true)
+      const { assistantId } = result.structuredContent as { assistantId: string }
+      expect(liveAssistantIds()).toEqual([assistantId, older.id, later.id])
     })
 
     it('uses the default model and leaves the reply language unconstrained when none is given', async () => {
@@ -452,6 +479,7 @@ describe('Agent create and configure tools', () => {
       expect(result.isError, toolText(result)).not.toBe(true)
       const { assistantId } = result.structuredContent as { assistantId: string }
       expect(assistantDataService.getById(assistantId)).toMatchObject({ name: 'Summarizer', modelId: DEFAULT_MODEL })
+      expect(assistantDataService.list({ page: 1, limit: 100 }).items[0]?.id).toBe(assistantId)
     })
 
     it.each(Object.values(BUILTIN_AGENT_ROLE))(
