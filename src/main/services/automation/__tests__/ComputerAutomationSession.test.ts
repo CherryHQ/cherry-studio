@@ -72,7 +72,14 @@ beforeEach(() => {
     close: async () => {}
   } as unknown as ComputerUseClient
   vi.mocked(ComputerUse.start).mockResolvedValue(client)
-  service = new ComputerUseService()
+  service = new (class extends ComputerUseService {
+    override createTask(ownerId: string, label: string, signal?: AbortSignal) {
+      return super.createTask(ownerId, label, signal, {
+        current: () => ({ sessionId: ownerId, topicId: ownerId, bypass: true }),
+        waiting: () => {}
+      })
+    }
+  })()
   session = new ComputerAutomationSession(service, service.createTask('owner', 'Conversation'))
 })
 

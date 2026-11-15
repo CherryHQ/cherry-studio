@@ -1148,7 +1148,7 @@ describe('EnvironmentDependencies', () => {
       setSnapshots({ uv: miseSnapshot('uv', 'uv', '1.0.0', false) })
       ipcMocks.installedSizes.mockResolvedValueOnce({ uv: 0 })
       render(<EnvironmentDependencies />)
-      expect(await screen.findByText('0.00 KB')).toBeInTheDocument()
+      expect(await screen.findByText('0 B')).toBeInTheDocument()
     })
 
     it('U3 invalidates immediately on events, while snapshots wait, and ignores an old rejection after new success', async () => {

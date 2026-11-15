@@ -10,6 +10,7 @@ export const AGENT_LANGUAGE_PRESETS: readonly string[] = [
   'Deutsch',
   'Español',
   'Português',
+  'Čeština',
   'Русский'
 ]
 

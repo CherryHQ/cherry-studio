@@ -223,7 +223,7 @@ describe('getWebSourcesMarkdown', () => {
     ['grok', 'Answer [[3]](https://third.com)'],
     [undefined, 'Answer [cite:3]']
   ])('resolves migrated %s provider markers using their stored display numbers', (source, text) => {
-    expect(getWebSourcesMarkdown(legacyMessage(text!, source))).toBe('[3] [Third](https://third.com)')
+    expect(getWebSourcesMarkdown(legacyMessage(text, source))).toBe('[3] [Third](https://third.com)')
   })
 
   it('keeps each migrated text part bound to its own references and deduplicates repeated citations', () => {

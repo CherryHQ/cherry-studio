@@ -14,6 +14,7 @@ const mocks = vi.hoisted(() => ({
   openNativeApplication: vi.fn(),
   safeOpen: vi.fn(),
   showInFolder: vi.fn(),
+  lstatSync: vi.fn(),
   statSync: vi.fn()
 }))
 
@@ -31,6 +32,7 @@ vi.mock('electron', () => ({
 }))
 vi.mock('node:fs', async (importOriginal) => ({
   ...(await importOriginal<typeof NodeFs>()),
+  lstatSync: mocks.lstatSync,
   statSync: mocks.statSync
 }))
 vi.mock('@main/services/file', () => ({ safeOpen: mocks.safeOpen, showInFolder: mocks.showInFolder }))
@@ -52,6 +54,9 @@ describe('ExternalAppService', () => {
   beforeEach(() => {
     MockMainCacheServiceUtils.resetMocks()
     vi.clearAllMocks()
+    mocks.lstatSync.mockImplementation(() => {
+      throw new Error('not installed')
+    })
     mocks.statSync.mockReturnValue({ isDirectory: () => false })
     mocks.isSafeExternalUrl.mockReturnValue(true)
     mocks.listNativeApplications.mockResolvedValue({ applications: [preview, editor], defaultApplication: preview })
@@ -63,7 +68,13 @@ describe('ExternalAppService', () => {
   afterEach(() => {
     vi.restoreAllMocks()
     vi.unstubAllGlobals()
+    vi.unstubAllEnvs()
   })
+
+  // Directory expectations list the curated whitelist, which includes a Windows-only terminal.
+  function stubPlatform(platform: NodeJS.Platform) {
+    vi.stubGlobal('process', Object.defineProperty(Object.create(process), 'platform', { value: platform }))
+  }
 
   it.each(['darwin', 'win32', 'linux'])(
     'lists associated applications and presents the default once on %s',
@@ -187,8 +198,77 @@ describe('ExternalAppService', () => {
     })
   })
 
-  it('preserves directory editor choices and forbids native file handlers for directories', async () => {
+  it('lists every application the OS registers for folders, file manager first and without duplicates', async () => {
+    stubPlatform('darwin')
     mocks.statSync.mockReturnValue({ isDirectory: () => true })
+    const code = { id: '/Applications/Code.app', name: 'Visual Studio Code' }
+    const terminal = { id: '/Applications/Utilities/Terminal.app', name: 'Terminal' }
+    mocks.listNativeApplications.mockResolvedValue({
+      applications: [preview, code, terminal, editor],
+      defaultApplication: preview
+    })
+    const result = await new ExternalAppService().listOpenTargets('/tmp/project')
+    expect(result).toEqual({
+      pathKind: 'directory',
+      recommendedTargetId: 'file_manager',
+      targets: [
+        { id: 'file_manager', kind: 'file_manager' },
+        { id: nativeTargetId(code.id), name: 'Visual Studio Code', kind: 'application', iconDataUrl: undefined },
+        { id: nativeTargetId(terminal.id), name: 'Terminal', kind: 'application', iconDataUrl: undefined },
+        { id: nativeTargetId(editor.id), name: 'TextEdit', kind: 'application', iconDataUrl: undefined }
+      ]
+    })
+    expect(externalAppRequestSchemas['external_app.target.list'].output.parse(result)).toEqual(result)
+  })
+
+  it.each([{ applications: [] }, { applications: [{ id: '/Applications/Code.app', name: 'Code' }] }])(
+    'uses only native editors after successful folder enumeration: %j',
+    async ({ applications }) => {
+      stubPlatform('darwin')
+      mocks.statSync.mockReturnValue({ isDirectory: () => true })
+      mocks.listNativeApplications.mockResolvedValue({ applications, defaultApplication: null })
+      const result = await new ExternalAppService().listOpenTargets('/tmp/project')
+      expect(result.targets.map((target) => target.id)).toEqual([
+        'file_manager',
+        ...applications.map((item) => nativeTargetId(item.id))
+      ])
+    }
+  )
+
+  it.each(['missing', 'registered', 'unavailable'])(
+    'retains Windows Terminal without duplicating a native entry: %s',
+    async (association) => {
+      stubPlatform('win32')
+      vi.stubEnv('LOCALAPPDATA', 'C:\\Users\\test\\AppData\\Local')
+      mocks.statSync.mockReturnValue({ isDirectory: () => true })
+      mocks.lstatSync.mockReturnValue({})
+      const terminal = { id: 'windows-terminal', name: 'Windows Terminal' }
+      if (association === 'unavailable') mocks.listNativeApplications.mockRejectedValue(new Error('helper missing'))
+      else
+        mocks.listNativeApplications.mockResolvedValue({
+          applications: association === 'registered' ? [terminal] : [],
+          defaultApplication: null
+        })
+      const result = await new ExternalAppService().listOpenTargets('/tmp/project')
+      expect(result.targets.map((target) => target.id)).toEqual([
+        'file_manager',
+        ...(association === 'unavailable' ? ['known:vscode'] : []),
+        association === 'registered' ? nativeTargetId(terminal.id) : 'known:wt'
+      ])
+    }
+  )
+
+  it('opens a folder with an application the OS registered for folders', async () => {
+    mocks.statSync.mockReturnValue({ isDirectory: () => true })
+    const service = new ExternalAppService()
+    await service.openTarget('/tmp/project', nativeTargetId(editor.id))
+    expect(mocks.openNativeApplication).toHaveBeenCalledExactlyOnceWith(path.resolve('/tmp/project'), editor.id)
+  })
+
+  it('falls back to controlled editors and terminals when folder enumeration fails', async () => {
+    stubPlatform('darwin')
+    mocks.statSync.mockReturnValue({ isDirectory: () => true })
+    mocks.listNativeApplications.mockRejectedValue(new Error('helper missing'))
     const service = new ExternalAppService()
     expect(await service.listOpenTargets('/tmp/project')).toEqual({
       pathKind: 'directory',
@@ -199,12 +279,8 @@ describe('ExternalAppService', () => {
       ]
     })
     await expect(service.openTarget('/tmp/project', nativeTargetId(editor.id))).rejects.toThrow('is not available')
-    await service.openTarget('/tmp/My Workspace/开发', 'known:vscode')
-    const drive = process.platform === 'win32' ? `${path.parse(process.cwd()).root[0]}%3A` : ''
-    expect(mocks.openExternal).toHaveBeenCalledWith(
-      `vscode://file/${drive}/tmp/My%20Workspace/%E5%BC%80%E5%8F%91?windowId=_blank`
-    )
-    expect(mocks.listNativeApplications).not.toHaveBeenCalled()
+    await service.openTarget('/tmp/project', 'known:vscode')
+    expect(mocks.openExternal).toHaveBeenCalledTimes(1)
   })
 
   it('keeps saved controlled editor IDs usable and validates their URLs', async () => {

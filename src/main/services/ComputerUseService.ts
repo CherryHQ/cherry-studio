@@ -15,6 +15,8 @@ import { loggerService } from '@logger'
 import { BaseService, Emitter, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { computerUseAppIconSchema, type ComputerUseControl, type ControlStatus } from '@shared/ipc/schemas/computerUse'
 
+import { ComputerUseApproval, type ComputerUseAuthorization } from './ComputerUseApproval'
+
 const logger = loggerService.withContext('ComputerUseService')
 
 export interface ComputerUseTask {
@@ -22,6 +24,7 @@ export interface ComputerUseTask {
   readonly ownerId: string
   readonly label: string
   readonly signal?: AbortSignal
+  readonly authorization?: ComputerUseAuthorization
   closed: boolean
 }
 
@@ -79,6 +82,9 @@ export class ComputerUseControlError extends Error {
 @Injectable('ComputerUseService')
 @ServicePhase(Phase.WhenReady)
 export class ComputerUseService extends BaseService {
+  readonly approvals = new ComputerUseApproval(() => {
+    application.get('IpcApiService').broadcast('computer_use.approvals_changed', undefined)
+  })
   private readonly permissionMutex = new Mutex()
   private shutdown = new AbortController()
   private readonly tasks = new Map<string, ControlTask>()
@@ -101,8 +107,13 @@ export class ComputerUseService extends BaseService {
     )
   }
 
-  createTask(ownerId: string, label: string, signal?: AbortSignal): ComputerUseTask {
-    return { id: crypto.randomUUID(), ownerId, label, signal, closed: false }
+  createTask(
+    ownerId: string,
+    label: string,
+    signal?: AbortSignal,
+    authorization?: ComputerUseAuthorization
+  ): ComputerUseTask {
+    return { id: crypto.randomUUID(), ownerId, label, signal, authorization, closed: false }
   }
 
   async listApps(context: ComputerUseTask, signal?: AbortSignal) {
@@ -122,12 +133,24 @@ export class ComputerUseService extends BaseService {
   ): Promise<AppSession> {
     const task = this.getTask(context)
     this.assertAvailable(task, appId)
+    const owner = this.appOwners.get(appId)
+    if (owner && owner !== task) throw new ComputerUseControlError('APP_BUSY')
+    const app =
+      resolvedApp ??
+      (context.authorization?.current().bypass
+        ? { id: appId, name: appId }
+        : (await (await this.getClient(task)).listApps({ signal: this.signal(task, signal) })).find(
+            (app) => app.id === appId
+          ))
+    if (!app) throw new ComputerUseError('TARGET_UNAVAILABLE', 'Application is no longer available')
+    await this.approveApp(task, app, signal)
+    this.assertAppAvailable(task, app)
     const current = this.appOwners.get(appId)
     if (current && current !== task) throw new ComputerUseControlError('APP_BUSY')
     let control = task.apps.get(appId)
     if (!control) {
       const pending = Promise.withResolvers<AppSession>()
-      control = { app: resolvedApp ?? { id: appId, name: appId }, status: 'opening', session: pending.promise }
+      control = { app, status: 'opening', session: pending.promise }
       task.apps.set(appId, control)
       this.appOwners.set(appId, task)
       this.changed.fire()
@@ -137,6 +160,10 @@ export class ComputerUseService extends BaseService {
           const client = await this.getClient(task)
           this.assertAvailable(task, appId)
           const session = await client.openAppSession({ appId }, { signal: this.signal(task, signal) })
+          if (!context.authorization?.current().bypass && app.identity && session.app.identity !== app.identity) {
+            await client.stopAppSession({ appSessionId: session.id })
+            throw new ComputerUseError('TARGET_UNAVAILABLE', 'Application identity changed before control was opened')
+          }
           opening.app = session.app
           opening.sessionId = session.id
           if (opening.status === 'opening') opening.status = 'active'
@@ -180,6 +207,8 @@ export class ComputerUseService extends BaseService {
           this.assertAppAvailable(task, { id: identity.id, name: identity.name, identity: identity.id })
           if ([...(blocked?.values() ?? [])].some((app) => !app.identity))
             throw new ComputerUseControlError('USER_STOPPED')
+          await this.approveApp(task, { id: identity.id, name: identity.name, identity: identity.id }, signal)
+          this.assertAppAvailable(task, { id: identity.id, name: identity.name, identity: identity.id })
           options.signal.throwIfAborted()
           const input = { query: identity.query, launch: true, expectedIdentity: identity.id }
           app = await client.resolveApp(input, options)
@@ -212,8 +241,16 @@ export class ComputerUseService extends BaseService {
     }
   }
 
-  validateAppSession(context: ComputerUseTask, appSessionId: string): void {
-    this.getApp(this.getTask(context), appSessionId)
+  async validateAppSession(context: ComputerUseTask, appSessionId: string, signal?: AbortSignal): Promise<void> {
+    const task = this.getTask(context)
+    await this.approveApp(task, this.getApp(task, appSessionId).app, signal)
+  }
+
+  private async approveApp(task: ControlTask, app: AppInfo, signal?: AbortSignal): Promise<void> {
+    this.assertAppAvailable(task, app)
+    await this.approvals.authorize(task.context.ownerId, app, task.context.authorization, this.signal(task, signal))
+    this.signal(task, signal).throwIfAborted()
+    this.assertAppAvailable(task, app)
   }
 
   async getAppState(
@@ -223,6 +260,7 @@ export class ComputerUseService extends BaseService {
   ) {
     const task = this.getTask(context)
     const control = this.getApp(task, input.appSessionId)
+    await this.approveApp(task, control.app, signal)
     const client = await this.getClient(task)
     this.assertAvailable(task, control.app.id)
     const { includeScreenshot, ...observation } = input
@@ -239,6 +277,7 @@ export class ComputerUseService extends BaseService {
   async act(context: ComputerUseTask, action: Action, signal?: AbortSignal) {
     const task = this.getTask(context)
     const control = this.getApp(task, action.appSessionId)
+    await this.approveApp(task, control.app, signal)
     const client = await this.getClient(task)
     this.assertAvailable(task, control.app.id)
     return client.act({ ...action, allowGlobalInput: false }, { signal: this.signal(task, signal) })
@@ -247,6 +286,7 @@ export class ComputerUseService extends BaseService {
   async perform(context: ComputerUseTask, action: Action, signal?: AbortSignal) {
     const task = this.getTask(context)
     const control = this.getApp(task, action.appSessionId)
+    await this.approveApp(task, control.app, signal)
     const client = await this.getClient(task)
     this.assertAvailable(task, control.app.id)
     const executor = client as ComputerUseClient & {
@@ -310,6 +350,7 @@ export class ComputerUseService extends BaseService {
   }
 
   async stopApp(ownerId: string, appId: string): Promise<void> {
+    this.approvals.cancel(ownerId, appId)
     const owner = this.owners.get(ownerId)
     if (!owner) return
     const task = this.appOwners.get(appId)
@@ -512,6 +553,7 @@ export class ComputerUseService extends BaseService {
 
   protected async onStop(): Promise<void> {
     this.shutdown.abort()
+    this.approvals.clear()
     await Promise.all([this.permissionMutex.waitForUnlock(), this.stopAll()])
   }
 
