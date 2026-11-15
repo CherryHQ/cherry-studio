@@ -1,3 +1,4 @@
+import { statSync } from 'node:fs'
 import path from 'node:path'
 
 import { and, count, desc, eq, inArray, isNotNull, isNull, type SQL, sql } from 'drizzle-orm'
@@ -7,11 +8,11 @@ import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
-import { appStateTable } from '@data/db/schemas/appState'
 import { artifactTable } from '@data/db/schemas/artifact'
 import { fileEntryTable } from '@data/db/schemas/file'
 import { messageTable } from '@data/db/schemas/message'
 import { topicTable } from '@data/db/schemas/topic'
+import type { DbOrTx } from '@data/db/types'
 import {
   GENERATE_IMAGE_TOOL_NAME,
   generateImageOutputItemSchema,
@@ -24,7 +25,6 @@ import {
   type ArtifactList,
   type ListArtifactsQuery
 } from '@shared/data/api/schemas/artifacts'
-import type { DataApiDataChangeEffect } from '@shared/data/api/types'
 import { FILE_TYPE } from '@shared/types/file'
 import { getFileTypeByExt } from '@shared/utils/file'
 
@@ -41,15 +41,21 @@ export interface ReportedAgentArtifact {
 export type ArtifactOwner = { agentId: string } | { assistantId: string }
 
 /** A deliverable an Agent session reported before outputs were indexed. */
-export interface PastAgentReport extends ReportedAgentArtifact {
+type PastAgentReport = Omit<ReportedAgentArtifact, 'size'> & {
   agentId: string
   sessionId: string
   /** When the reporting message was created. */
   reportedAt: number
 }
 
-// Done-event app_state key: never rename once shipped, or every install backfills again.
-const BACKFILL_KEY = 'artifact:pastOutputsBackfill'
+function fileSizeSync(filePath: string): number | null {
+  try {
+    const stats = statSync(filePath)
+    return stats.isFile() ? stats.size : null
+  } catch {
+    return null
+  }
+}
 
 const PAGE_EXTENSIONS = new Set(['html', 'htm', 'md', 'markdown'])
 const MEDIA_TYPES = new Set<string>([FILE_TYPE.IMAGE, FILE_TYPE.AUDIO, FILE_TYPE.VIDEO])
@@ -144,12 +150,29 @@ export class ArtifactService {
   }
 
   /**
-   * Deliverables reported in live Agent sessions, one per session and path with its newest report,
-   * or null once the past outputs are backfilled. Paths resolve against the session workspace.
+   * Index outputs made before this index existed: deliverables reported in live Agent sessions (the
+   * newest report per session and path, sized from the file still on disk) and the images
+   * `generate_image` made in live Assistant topics. Idempotent; `PastOutputsBackfillSeeder` runs it.
    */
-  findPastAgentReports(): Omit<PastAgentReport, 'size'>[] | null {
-    if (this.db.select().from(appStateTable).where(eq(appStateTable.key, BACKFILL_KEY)).get()) return null
-    const messages = this.db
+  backfillPastOutputsTx(tx: DbOrTx): void {
+    for (const report of this.findPastAgentReportsTx(tx)) {
+      const { agentId, sessionId, path: filePath, title, reportedAt } = report
+      const values = { title, kind: getArtifactKind(filePath), size: fileSizeSync(filePath), reportedAt }
+      tx.insert(artifactTable)
+        .values({ agentId, sessionId, path: filePath, ...values })
+        .onConflictDoUpdate({
+          target: [artifactTable.sessionId, artifactTable.path],
+          set: values,
+          setWhere: sql`excluded.reported_at > ${artifactTable.reportedAt}`
+        })
+        .run()
+    }
+    this.backfillAssistantImagesTx(tx)
+  }
+
+  /** Deliverables reported in live Agent sessions; paths resolve against the session workspace. */
+  private findPastAgentReportsTx(tx: DbOrTx): PastAgentReport[] {
+    const messages = tx
       .select({
         agentId: agentSessionTable.agentId,
         sessionId: agentSessionTable.id,
@@ -169,7 +192,7 @@ export class ArtifactService {
       )
       .all()
 
-    const reports = new Map<string, Omit<PastAgentReport, 'size'>>()
+    const reports = new Map<string, PastAgentReport>()
     for (const message of messages) {
       for (const call of successfulToolCalls(message.data, isReportArtifactsTool)) {
         const input = reportArtifactsInputSchema.safeParse(call.input)
@@ -191,113 +214,69 @@ export class ArtifactService {
     return [...reports.values()]
   }
 
-  /**
-   * Index outputs created before this index existed: the given past Agent reports, and the images
-   * `generate_image` made in live Assistant topics. A row already indexed keeps its newer report.
-   */
-  backfillPastOutputs(agentReports: readonly PastAgentReport[]): void {
-    const owners = application.get('DbService').withWriteTx((tx) => {
-      const agentIds = new Set<string>()
-      for (const { agentId, sessionId, path: filePath, title, size, reportedAt } of agentReports) {
-        const values = { title, kind: getArtifactKind(filePath), size, reportedAt }
-        const { changes } = tx
-          .insert(artifactTable)
-          .values({ agentId, sessionId, path: filePath, ...values })
-          .onConflictDoUpdate({
-            target: [artifactTable.sessionId, artifactTable.path],
-            set: values,
-            setWhere: sql`excluded.reported_at > ${artifactTable.reportedAt}`
-          })
-          .run()
-        if (changes) agentIds.add(agentId)
-      }
-
-      const messages = tx
-        .select({
-          topicId: topicTable.id,
-          assistantId: topicTable.assistantId,
-          data: messageTable.data,
-          createdAt: messageTable.createdAt
-        })
-        .from(messageTable)
-        .innerJoin(topicTable, eq(topicTable.id, messageTable.topicId))
-        .where(
-          and(
-            isNotNull(topicTable.assistantId),
-            isNull(topicTable.deletedAt),
-            isNull(messageTable.deletedAt),
-            sql`${messageTable.data} LIKE ${`%${GENERATE_IMAGE_TOOL_NAME}%`}`
-          )
+  /** Images `generate_image` made in live Assistant topics that are not indexed yet. */
+  private backfillAssistantImagesTx(tx: DbOrTx): void {
+    const messages = tx
+      .select({
+        topicId: topicTable.id,
+        assistantId: topicTable.assistantId,
+        data: messageTable.data,
+        createdAt: messageTable.createdAt
+      })
+      .from(messageTable)
+      .innerJoin(topicTable, eq(topicTable.id, messageTable.topicId))
+      .where(
+        and(
+          isNotNull(topicTable.assistantId),
+          isNull(topicTable.deletedAt),
+          isNull(messageTable.deletedAt),
+          sql`${messageTable.data} LIKE ${`%${GENERATE_IMAGE_TOOL_NAME}%`}`
         )
+      )
+      .all()
+    const indexed = new Set(
+      tx
+        .select({ topicId: artifactTable.topicId, fileEntryId: artifactTable.fileEntryId })
+        .from(artifactTable)
+        .where(isNotNull(artifactTable.topicId))
         .all()
-      const indexed = new Set(
-        tx
-          .select({ topicId: artifactTable.topicId, fileEntryId: artifactTable.fileEntryId })
-          .from(artifactTable)
-          .where(isNotNull(artifactTable.topicId))
-          .all()
-          .map((row) => `${row.topicId}\n${row.fileEntryId}`)
-      )
-      const images = new Map<string, { topicId: string; assistantId: string; reportedAt: number }>()
-      for (const message of messages) {
-        for (const call of successfulToolCalls(message.data, (name) => name === GENERATE_IMAGE_TOOL_NAME)) {
-          const output = Array.isArray(call.output) ? call.output : (call.output as { content?: unknown })?.content
-          if (!Array.isArray(output)) continue
-          for (const item of output) {
-            const image = generateImageOutputItemSchema.safeParse(item)
-            if (!image.success || indexed.has(`${message.topicId}\n${image.data.id}`)) continue
-            images.set(image.data.id, {
-              topicId: message.topicId,
-              assistantId: message.assistantId!,
-              reportedAt: message.createdAt
-            })
-          }
-        }
-      }
-      const assistantIds = new Set<string>()
-      if (images.size) {
-        const files = tx
-          .select({
-            id: fileEntryTable.id,
-            name: fileEntryTable.name,
-            ext: fileEntryTable.ext,
-            size: fileEntryTable.size
+        .map((row) => `${row.topicId}\n${row.fileEntryId}`)
+    )
+    const images = new Map<string, { topicId: string; assistantId: string; reportedAt: number }>()
+    for (const message of messages) {
+      for (const call of successfulToolCalls(message.data, (name) => name === GENERATE_IMAGE_TOOL_NAME)) {
+        const output = Array.isArray(call.output) ? call.output : (call.output as { content?: unknown })?.content
+        if (!Array.isArray(output)) continue
+        for (const item of output) {
+          const image = generateImageOutputItemSchema.safeParse(item)
+          if (!image.success || indexed.has(`${message.topicId}\n${image.data.id}`)) continue
+          images.set(image.data.id, {
+            topicId: message.topicId,
+            assistantId: message.assistantId!,
+            reportedAt: message.createdAt
           })
-          .from(fileEntryTable)
-          .where(inArray(fileEntryTable.id, [...images.keys()]))
-          .all()
-        for (const file of files) {
-          const owner = images.get(file.id)!
-          const title = file.ext ? `${file.name}.${file.ext}` : file.name
-          tx.insert(artifactTable)
-            .values({ ...owner, fileEntryId: file.id, title, kind: getArtifactKind(title), size: file.size })
-            .run()
-          assistantIds.add(owner.assistantId)
         }
       }
-
-      tx.insert(appStateTable)
-        .values({ key: BACKFILL_KEY, value: { completedAt: Date.now() }, description: 'Past outputs are indexed' })
-        .onConflictDoNothing()
-        .run()
-      return { agentIds, assistantIds }
-    })
-    notifyDataApiDataChange([
-      ...[...owners.agentIds].map(
-        (agentId): DataApiDataChangeEffect => ({
-          endpoint: '/agents/:agentId/artifacts',
-          kind: 'membership',
-          routeParams: { agentId }
+    }
+    if (images.size) {
+      const files = tx
+        .select({
+          id: fileEntryTable.id,
+          name: fileEntryTable.name,
+          ext: fileEntryTable.ext,
+          size: fileEntryTable.size
         })
-      ),
-      ...[...owners.assistantIds].map(
-        (id): DataApiDataChangeEffect => ({
-          endpoint: '/assistants/:id/artifacts',
-          kind: 'membership',
-          routeParams: { id }
-        })
-      )
-    ])
+        .from(fileEntryTable)
+        .where(inArray(fileEntryTable.id, [...images.keys()]))
+        .all()
+      for (const file of files) {
+        const owner = images.get(file.id)!
+        const title = file.ext ? `${file.name}.${file.ext}` : file.name
+        tx.insert(artifactTable)
+          .values({ ...owner, fileEntryId: file.id, title, kind: getArtifactKind(title), size: file.size })
+          .run()
+      }
+    }
   }
 
   /** Outputs from the owner's live sessions or topics, newest first, with the totals of every kind. */

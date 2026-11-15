@@ -16,13 +16,9 @@ import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 const NOW = Date.UTC(2026, 10, 13, 12)
 const DAY = 24 * 60 * 60 * 1000
 
-function backfill() {
-  const reports = artifactService.findPastAgentReports()
-  if (reports) artifactService.backfillPastOutputs(reports.map((report) => ({ ...report, size: null })))
-}
-
 describe('ArtifactService', () => {
   const dbh = setupTestDatabase()
+  const backfill = () => artifactService.backfillPastOutputsTx(dbh.db)
 
   afterEach(() => {
     vi.restoreAllMocks()
@@ -227,15 +223,13 @@ describe('ArtifactService', () => {
         ])
       })
 
-      it('runs once, and indexing the same reports again adds nothing', () => {
+      it('adds nothing when the same reports are indexed again', () => {
         seed()
         message('s-1', NOW, [report('report_artifacts', [{ path: '/ws/a.md' }, { path: '/ws/b.png' }])])
-        const reports = artifactService.findPastAgentReports()!
 
         backfill()
-        artifactService.backfillPastOutputs(reports.map((item) => ({ ...item, size: null })))
+        backfill()
 
-        expect(artifactService.findPastAgentReports()).toBeNull()
         expect(dbh.db.select().from(artifactTable).all()).toHaveLength(2)
       })
 
@@ -384,7 +378,7 @@ describe('ArtifactService', () => {
       vi.restoreAllMocks()
 
       backfill()
-      artifactService.backfillPastOutputs([])
+      backfill()
 
       expect(
         artifactService
