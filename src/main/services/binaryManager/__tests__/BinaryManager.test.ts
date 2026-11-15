@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type * as LifecycleModule from '@main/core/lifecycle'
 
 const mockCreateRequire = vi.hoisted(() => vi.fn())
+const mockBitness = vi.hoisted(() => vi.fn(async (): Promise<32 | 64 | null> => null))
 const { manifestRef, mockExecFileAsync, mockFs, mockFsp, mockPreferenceService, platformMock } = vi.hoisted(() => ({
   manifestRef: { value: [] as Array<{ name: string; tool: string; requestedVersion?: string }> },
   platformMock: { isWin: false, isMac: false },
@@ -80,6 +81,10 @@ vi.mock('@main/core/lifecycle', async (importOriginal) => {
 vi.mock('node:fs', () => ({ default: mockFs }))
 
 vi.mock('node:fs/promises', () => ({ default: mockFsp }))
+
+vi.mock('@main/services/binaryManager/windowsExecutable', () => ({
+  readWindowsExecutableBitness: mockBitness
+}))
 
 vi.mock('node:os', () => ({
   default: { tmpdir: () => '/tmp' }
@@ -2840,6 +2845,127 @@ describe('BinaryManager', () => {
 
       expect(reinstalled).toBe(true)
       expect(miseArgs()).toContainEqual(['use', '-g', '--minimum-release-age', '0s', 'npm:@deepseek-ai/dsh@latest'])
+    })
+  })
+
+  describe('prefer64BitWindowsAsset (64-bit asset on 64-bit Windows, #24608)', () => {
+    const makeService = () => {
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = { env: {}, usesDefaultChinaPipIndex: false }
+      return service
+    }
+    const miseArgs = () => mockExecFileAsync.mock.calls.map((call: any[]) => call[1])
+    const useArgs = () => miseArgs().filter((args: string[]) => args[0] === 'use')
+    const anyNarrowedSpec = () =>
+      miseArgs().some((args) => args.some((arg) => typeof arg === 'string' && arg.includes('matching_regex')))
+    const DWG_TOOL = 'github:LibreDWG/libredwg'
+    const stubGithubToolchain = (failNarrowedUse?: boolean) => {
+      mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
+        if (args[0] === 'ls' && args.length === 2) return { stdout: JSON.stringify({}), stderr: '' }
+        if (args[0] === 'ls')
+          return { stdout: JSON.stringify({ [DWG_TOOL]: [{ version: '0.14', active: true }] }), stderr: '' }
+        if (failNarrowedUse && args.some((arg) => String(arg).includes('matching_regex'))) {
+          throw new Error('no matching asset')
+        }
+        return { stdout: '', stderr: '' }
+      })
+    }
+    const installGithubTool = (service: InstanceType<typeof BinaryManager>) => {
+      manifestRef.value = [{ name: 'dwg2dxf', tool: DWG_TOOL, requestedVersion: '0.14' }]
+      vi.spyOn(service as any, 'resolveRunnableShim').mockResolvedValue({
+        path: 'C:\\shims\\dwg2dxf.exe',
+        canonical: 'C:\\mise\\installs\\dwg2dxf\\dwg2dxf.exe'
+      })
+      return service.installByName({ name: 'dwg2dxf' })
+    }
+
+    const originalArch = Object.getOwnPropertyDescriptor(process, 'arch')!
+    beforeEach(() => {
+      mockBitness.mockReset().mockResolvedValue(null)
+      Object.defineProperty(process, 'arch', { value: 'x64', configurable: true })
+    })
+    afterEach(() => {
+      Object.defineProperty(process, 'arch', originalArch)
+    })
+
+    it('reinstalls from the 64-bit asset when the installed exe is 32-bit', async () => {
+      platformMock.isWin = true
+      const service = makeService()
+      stubGithubToolchain()
+      mockBitness.mockResolvedValueOnce(32).mockResolvedValueOnce(64)
+
+      await expect(installGithubTool(service)).resolves.toBeUndefined()
+
+      const uses = useArgs()
+      expect(uses[0]).toEqual(['use', '-g', `${DWG_TOOL}@0.14`])
+      expect(uses).toHaveLength(2)
+      const narrowedSpec = uses[1].at(-1) as string
+      expect(uses[1].slice(0, 3)).toEqual(['use', '-g', '--force'])
+      expect(narrowedSpec.startsWith(`${DWG_TOOL}[matching_regex=`)).toBe(true)
+      expect(narrowedSpec).toContain('win64')
+      expect(narrowedSpec.endsWith(']@0.14')).toBe(true)
+      const narrowedIndex = miseArgs().indexOf(uses[1])
+      expect(miseArgs().slice(narrowedIndex + 1)).toContainEqual(['reshim'])
+    })
+
+    it('keeps the installed build when the release ships no 64-bit asset', async () => {
+      platformMock.isWin = true
+      const service = makeService()
+      stubGithubToolchain(true)
+      mockBitness.mockResolvedValueOnce(32)
+
+      await expect(installGithubTool(service)).resolves.toBeUndefined()
+
+      const uses = useArgs()
+      expect(uses).toHaveLength(3)
+      expect(uses[1].some((arg) => String(arg).includes('matching_regex'))).toBe(true)
+      expect(uses[2]).toEqual(['use', '-g', '--force', `${DWG_TOOL}@0.14`])
+      const restoreIndex = miseArgs().indexOf(uses[2])
+      expect(miseArgs().slice(restoreIndex + 1)).toContainEqual(['reshim'])
+    })
+
+    it('leaves an already-64-bit install untouched', async () => {
+      platformMock.isWin = true
+      const service = makeService()
+      stubGithubToolchain()
+      mockBitness.mockResolvedValueOnce(64)
+
+      await expect(installGithubTool(service)).resolves.toBeUndefined()
+
+      expect(useArgs()).toEqual([['use', '-g', `${DWG_TOOL}@0.14`]])
+      expect(anyNarrowedSpec()).toBe(false)
+    })
+
+    it('leaves non-github recipes untouched', async () => {
+      platformMock.isWin = true
+      const service = makeService()
+      manifestRef.value = [{ name: 'foo', tool: 'npm:foo' }]
+      mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
+        if (args[0] === 'ls' && args.length === 2) return { stdout: JSON.stringify({}), stderr: '' }
+        if (args[0] === 'ls')
+          return { stdout: JSON.stringify({ 'npm:foo': [{ version: '1.0.0', active: true }] }), stderr: '' }
+        if (args[0] === 'which') return { stdout: '/mock/mise/shims/foo\n', stderr: '' }
+        return { stdout: '', stderr: '' }
+      })
+
+      await expect(service.installByName({ name: 'foo' })).resolves.toBeUndefined()
+
+      expect(useArgs()).toHaveLength(1)
+      expect(anyNarrowedSpec()).toBe(false)
+    })
+
+    it('skips the fix on a 32-bit process', async () => {
+      platformMock.isWin = true
+      Object.defineProperty(process, 'arch', { value: 'ia32', configurable: true })
+      const service = makeService()
+      stubGithubToolchain()
+      mockBitness.mockResolvedValueOnce(32)
+
+      await expect(installGithubTool(service)).resolves.toBeUndefined()
+
+      expect(useArgs()).toEqual([['use', '-g', `${DWG_TOOL}@0.14`]])
+      expect(anyNarrowedSpec()).toBe(false)
     })
   })
 

@@ -52,6 +52,7 @@ import { sanitizedCommandError } from './commandError'
 import { installToolDependencies } from './pipDependencies'
 import { provideManagedPython } from './pythonRuntime'
 import { measureToolInstalledSize } from './toolInstalledSize'
+import { readWindowsExecutableBitness } from './windowsExecutable'
 
 const logger = loggerService.withContext('BinaryManager')
 
@@ -123,6 +124,15 @@ const MISE_REQUIRED_PEERS = new Map(
     preset.requiredPeer ? [[preset.miseTool, preset.requiredPeer] as const] : []
   )
 )
+
+// Asset-name tokens for a 64-bit Windows build. `(?i)` is a Rust inline flag —
+// the pattern is compiled by mise, never by JS.
+const WINDOWS_64BIT_ASSET_TOKENS: Record<'x64' | 'arm64', readonly string[]> = {
+  x64: ['win64', 'x64', 'amd64', 'x86_64', 'x86-64', '64bit', '64-bit'],
+  arm64: ['win-arm64', 'arm64', 'aarch64']
+}
+const windows64BitAssetPattern = (arch: 'x64' | 'arm64') =>
+  `(?i)(?:^|[^a-z0-9])(?:${WINDOWS_64BIT_ASSET_TOKENS[arch].join('|')})(?:[^a-z0-9]|$)`
 
 // Main-owned session state. Renderer windows receive operations only through
 // snapshots, so this belongs to CacheService's internal tier rather than its
@@ -1619,7 +1629,93 @@ export class BinaryManager extends BaseService {
       })
     }
     await this.runMise(['reshim'])
+    await this.prefer64BitWindowsAsset(definition, requested, includePrerelease, releaseAgeArgs)
     return this.getInstalledVersion(definition.tool, requested)
+  }
+
+  /**
+   * mise reads win32/win64 as OS tokens only, so a release shipping both scores
+   * them equally and the tie-break installs the 32-bit build (#24608).
+   */
+  private async prefer64BitWindowsAsset(
+    definition: InstallableToolDefinition,
+    requested: string,
+    includePrerelease: boolean,
+    releaseAgeArgs: string[]
+  ): Promise<void> {
+    const arch = process.arch
+    if (!isWin || (arch !== 'x64' && arch !== 'arm64')) return
+    if (!definition.tool.startsWith('github:') || definition.tool.includes('[')) return
+
+    let runnable: { path: string; canonical: string } | null
+    try {
+      runnable = await this.resolveRunnableShim(definition.name, definition.tool)
+    } catch {
+      return
+    }
+    if (!runnable) return
+
+    let bitness: 32 | 64 | null
+    try {
+      bitness = await readWindowsExecutableBitness(runnable.canonical)
+    } catch {
+      return
+    }
+    if (bitness !== 32) return
+
+    const narrowedSpec = `${definition.tool}[matching_regex=${windows64BitAssetPattern(arch)}]@${requested}`
+    try {
+      await this.runMise(['use', '-g', '--force', ...releaseAgeArgs, narrowedSpec], {
+        timeoutMs: MISE_INSTALL_TIMEOUT_MS,
+        includePrerelease
+      })
+      await this.runMise(['reshim'])
+    } catch {
+      // The narrowed spec matched no asset (or its download failed) — put the
+      // plain spec back so the just-installed build stays the active selection.
+      try {
+        await this.runMise(['use', '-g', '--force', ...releaseAgeArgs, `${definition.tool}@${requested}`], {
+          timeoutMs: MISE_INSTALL_TIMEOUT_MS,
+          includePrerelease
+        })
+        await this.runMise(['reshim'])
+      } catch (restoreError) {
+        logger.warn('Failed to restore the original tool spec after the 64-bit reinstall failed', {
+          name: definition.name,
+          tool: definition.tool,
+          version: requested,
+          error: this.errorMessage(restoreError)
+        })
+        return
+      }
+      logger.warn('Release ships no matching 64-bit Windows asset; keeping the installed build', {
+        name: definition.name,
+        tool: definition.tool,
+        version: requested
+      })
+      return
+    }
+
+    let verified = false
+    try {
+      const rechecked = await this.resolveRunnableShim(definition.name, definition.tool)
+      verified = rechecked !== null && (await readWindowsExecutableBitness(rechecked.canonical)) === 64
+    } catch {
+      verified = false
+    }
+    if (verified) {
+      logger.info('Reinstalled the managed tool from the 64-bit Windows asset', {
+        name: definition.name,
+        tool: definition.tool,
+        version: requested
+      })
+    } else {
+      logger.warn('Tool still does not run a 64-bit executable after the reinstall', {
+        name: definition.name,
+        tool: definition.tool,
+        version: requested
+      })
+    }
   }
 
   private async getInstalledVersion(tool: string, requested?: string): Promise<string> {
