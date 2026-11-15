@@ -345,17 +345,15 @@ export const WebSearchProviderSetting: FC<Props> = ({
     <SettingGroup theme={theme} className="flex w-full flex-col gap-2">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
-          <SettingTitle className="justify-start flex items-center gap-1.5">
+          <SettingTitle className="justify-start flex items-center gap-1.5 whitespace-nowrap">
             <span id={sectionTitleId}>{sectionTitle}</span>
             <HelpTooltip content={t(descriptionKey)} />
-          </SettingTitle>
-          <div className="mt-1 flex min-w-0 items-center gap-1.5">
             {officialWebsite && (
-              <SettingTitleExternalLink href={officialWebsite}>
+              <SettingTitleExternalLink href={officialWebsite} className="shrink-0">
                 <ExternalLink size={13} />
               </SettingTitleExternalLink>
             )}
-          </div>
+          </SettingTitle>
         </div>
         <Select value={provider.id} onValueChange={selectProvider}>
           <SelectTrigger size="sm" className={providerSelectClassName} aria-label={sectionTitle}>

@@ -362,8 +362,6 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
     }
   }, [extraTools, mini, sizeSnapshotGeneration])
 
-  const totalCount = PRESETS_BINARY_TOOLS.length + extraTools.length
-
   if (mini) {
     if (!resolutionsReady) {
       return null
@@ -391,12 +389,7 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
     <div className="flex flex-col gap-5">
       <SettingsPageHeader
         className="mb-0"
-        title={
-          <>
-            {t('settings.dependencies.title')}
-            <span className="text-xs font-normal text-foreground-tertiary">{totalCount}</span>
-          </>
-        }
+        title={t('settings.dependencies.title')}
         help={t('settings.dependencies.description')}
         action={
           <>

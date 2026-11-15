@@ -835,6 +835,10 @@ function VoiceSettings() {
     }
   }
 
+  const recognitionStatusText = t(
+    installingLocale ? 'settings.voice.status.installing' : recognitionStatusKey(recognitionStatus)
+  )
+
   return (
     <SettingsContentColumn theme={theme} className="[&_[data-slot=select-trigger]]:max-w-full">
       <SettingGroup theme={theme}>
@@ -901,14 +905,13 @@ function VoiceSettings() {
         ) : null}
         <SettingDivider />
         <SettingRow id="setting-voice-recognition-model" className="scroll-mt-6 flex-wrap gap-3">
-          <div>
-            <SettingRowTitle>{t('settings.voice.recognition.model')}</SettingRowTitle>
-            <div id="setting-voice-recognition-status" className="mt-2 text-sm">
-              <span role="status" className="text-muted-foreground">
-                {t(installingLocale ? 'settings.voice.status.installing' : recognitionStatusKey(recognitionStatus))}
-              </span>
-            </div>
-          </div>
+          <SettingRowTitle>
+            {t('settings.voice.recognition.model')}
+            <HelpTooltip content={recognitionStatusText} />
+            <span id="setting-voice-recognition-status" role="status" className="sr-only">
+              {recognitionStatusText}
+            </span>
+          </SettingRowTitle>
           <Select
             value={recognitionModel || EMPTY_VALUE}
             disabled={installingLocale}
