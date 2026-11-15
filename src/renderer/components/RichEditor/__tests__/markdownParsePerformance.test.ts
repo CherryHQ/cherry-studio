@@ -1,5 +1,6 @@
 import type { JSONContent } from '@tiptap/core'
 import { Editor } from '@tiptap/core'
+import { Mathematics } from '@tiptap/extension-mathematics'
 import { afterEach, describe, expect, it } from 'vitest'
 
 import { codeHighlightService } from '@renderer/services/CodeHighlightService'
@@ -86,5 +87,91 @@ describe('markdown parse performance (#20358)', () => {
     process.stdout.write(`plain 33KB: ${ms.toFixed(0)}ms\n`)
     expect((e.getJSON().content ?? []).length).toBeGreaterThan(0)
     expect(ms).toBeLessThan(1000)
+  })
+})
+
+describe('backslash math parse performance (#24550)', () => {
+  const measure = (source: string, inlineCount: number, extensions = createRichEditorExtensions()): number => {
+    editor?.destroy()
+    editor = new Editor({ extensions })
+    editor.markdown!.parse(source)
+    const samples: number[] = []
+    let json: JSONContent = {}
+    for (let run = 0; run < 3; run++) {
+      const start = performance.now()
+      json = editor.markdown!.parse(source)
+      samples.push(performance.now() - start)
+    }
+    editor.schema.nodeFromJSON(json).check()
+    expect(JSON.stringify(json)).toContain('SENTINEL')
+    expect(countNodes(json, 'inlineMath')).toBe(inlineCount)
+    expect(countNodes(json, 'blockMath')).toBe(0)
+    return samples.sort((a, b) => a - b)[1]
+  }
+
+  // At 4× input, growth was 6.0×/12.6×/19.1×; dollars alone grew 17.8× (193→3441 ms).
+  // Growth reflects engine/process load, not our contract; it flakes and cannot distinguish our tokenizer from marked.
+
+  // Observed 33/132 KiB: block 10/60, paren 24/302, late 0.6/2.3, short 270/5207 ms.
+  // Ceilings leave ≥1.9× headroom at the largest input while guarding against hangs.
+  it.each(['unclosed-block', 'unclosed-paren', 'short-formulas', 'late-opener'] as const)(
+    '%s scales from 33 to 132 KiB',
+    { timeout: 120_000 },
+    (group) => {
+      const ceiling = {
+        'unclosed-block': 1000,
+        'unclosed-paren': 2000,
+        'late-opener': 1000,
+        'short-formulas': 10000
+      }[group]
+      for (const size of [33, 132]) {
+        const unit =
+          group === 'unclosed-block'
+            ? '\\[\n' + 'x'.repeat(64) + '\n\n'
+            : group === 'unclosed-paren'
+              ? '\\(' + 'x'.repeat(64) + '\n\n'
+              : group === 'short-formulas'
+                ? '\\(a\\) '
+                : 'plain text '
+        const count = Math.floor((size * KB) / unit.length)
+        const source = unit.repeat(count) + (group === 'late-opener' ? '\\(z\\) ' : '') + 'SENTINEL'
+        const medians: number[] = []
+        const dollarMedians: number[] = []
+        // Load spikes inflate timings; alternating rounds and taking minima reduces that noise.
+        for (let round = 0; round < 2; round++) {
+          medians.push(measure(source, group === 'short-formulas' ? count : group === 'late-opener' ? 1 : 0))
+          if (group === 'short-formulas') dollarMedians.push(measure('$a$ '.repeat(count) + 'SENTINEL', count))
+        }
+        const ms = Math.min(...medians)
+        process.stdout.write(
+          `${group} ${size}KiB parse median: ${ms.toFixed(1)} ms (r1: ${medians[0].toFixed(1)}, r2: ${medians[1].toFixed(1)})\n`
+        )
+        if (group === 'short-formulas') {
+          const dollarMs = Math.min(...dollarMedians)
+          process.stdout.write(
+            `${group} ${size}KiB dollar parse median: ${dollarMs.toFixed(1)} ms (r1: ${dollarMedians[0].toFixed(1)}, r2: ${dollarMedians[1].toFixed(1)})\n`
+          )
+          // Backslash/dollar observed cost is 1.2–1.5× for the same node count; allow load and GC headroom.
+          expect(ms).toBeLessThanOrEqual(3 * Math.max(dollarMs, 150))
+        }
+        expect(ms).toBeLessThan(ceiling)
+      }
+    }
+  )
+
+  it('parses non-math backslashes without producing math or excessive delay', { timeout: 60_000 }, () => {
+    // Observed 543 ms vs upstream 606 ms: indexOf-based start does not regress non-math backslashes.
+    const unit = String.raw`C:\Users\x \n \* `
+    const count = Math.floor((33 * KB) / unit.length)
+    const source = unit.repeat(count) + 'SENTINEL'
+    const ms = measure(source, 0)
+    const upstreamMs = measure(source, 0, [
+      ...createRichEditorExtensions().filter((extension) => extension.name !== 'enhancedMath'),
+      Mathematics
+    ])
+    process.stdout.write(
+      `non-math-backslashes 33KiB parse median: ${ms.toFixed(1)}ms; upstream: ${upstreamMs.toFixed(1)}ms\n`
+    )
+    expect(ms).toBeLessThanOrEqual(3 * Math.max(upstreamMs, 20))
   })
 })
