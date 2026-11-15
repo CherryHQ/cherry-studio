@@ -47,7 +47,7 @@ describe('AgentCreateDialog', () => {
     const onCreated = vi.fn()
     const onOpenChange = vi.fn()
 
-    render(<AgentCreateDialog open onOpenChange={onOpenChange} onCreated={onCreated} />)
+    render(<AgentCreateDialog open onOpenChange={onOpenChange} onStartConversation={onCreated} />)
 
     await expect(mocks.createDialogProps.onSubmit(wizardValues)).resolves.toBe('agent-new')
 
@@ -72,7 +72,7 @@ describe('AgentCreateDialog', () => {
 
   it("opens the new agent's conversation from the result page's start action", () => {
     const onCreated = vi.fn()
-    render(<AgentCreateDialog open onOpenChange={vi.fn()} onCreated={onCreated} />)
+    render(<AgentCreateDialog open onOpenChange={vi.fn()} onStartConversation={onCreated} />)
 
     mocks.createDialogProps.onStartConversation('agent-new')
 
@@ -84,7 +84,7 @@ describe('AgentCreateDialog', () => {
     const onCreated = vi.fn()
     const onOpenChange = vi.fn()
 
-    render(<AgentCreateDialog open onOpenChange={onOpenChange} onCreated={onCreated} />)
+    render(<AgentCreateDialog open onOpenChange={onOpenChange} onStartConversation={onCreated} />)
 
     await expect(mocks.createDialogProps.onSubmit(wizardValues)).rejects.toThrow('create failed')
 

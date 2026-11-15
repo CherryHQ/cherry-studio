@@ -1,5 +1,5 @@
 import { Bot, Check, Filter, Plus } from 'lucide-react'
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { EmojiIcon, MenuItem, MenuList, Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
@@ -122,12 +122,14 @@ export function AssistantConversationPickerDialog({
     [onOpenChange]
   )
 
+  const createdIdRef = useRef<string | null>(null)
   const handleSubmitCreate = useCallback(
     async (values: ResourceCreateWizardValues) => {
       try {
         const created = await createAssistant({
           body: buildCreateAssistantDto(values)
         })
+        createdIdRef.current = created.id
         return created.id
       } catch (error) {
         logger.error('Failed to create assistant from conversation picker', error as Error)
@@ -138,10 +140,21 @@ export function AssistantConversationPickerDialog({
   )
 
   // Start a conversation with the new assistant so it surfaces in the rail (a fresh assistant
-  // has no topic yet), mirroring picking an existing one.
+  // has no topic yet), mirroring picking an existing one. Closing the result page does it too.
   const handleStartConversation = useCallback(
-    (assistantId: string) => void onSelect({ type: 'assistant', assistantId }),
+    (assistantId: string) => {
+      if (createdIdRef.current !== assistantId) return
+      createdIdRef.current = null
+      void onSelect({ type: 'assistant', assistantId })
+    },
     [onSelect]
+  )
+  const handleCreateDialogOpenChange = useCallback(
+    (nextOpen: boolean) => {
+      setCreateDialogOpen(nextOpen)
+      if (!nextOpen && createdIdRef.current) handleStartConversation(createdIdRef.current)
+    },
+    [handleStartConversation]
   )
 
   // null = combined 资源库 + 助手库 (the default "全部" view).
@@ -233,7 +246,7 @@ export function AssistantConversationPickerDialog({
         open={createDialogOpen}
         initialName={createInitialName}
         isSubmitting={isCreatingAssistant}
-        onOpenChange={setCreateDialogOpen}
+        onOpenChange={handleCreateDialogOpenChange}
         onSubmit={handleSubmitCreate}
         onStartConversation={handleStartConversation}
         modelFilter={(candidate) => !isNonChatModel(candidate)}

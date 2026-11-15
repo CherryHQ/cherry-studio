@@ -523,7 +523,7 @@ describe('AgentSelector', () => {
     )
     await waitFor(() => expect(refetchAgentsMock).toHaveBeenCalledTimes(1))
     expect(onChange).not.toHaveBeenCalled()
-    await user.click(await screen.findByRole('button', { name: 'library.config.dialogs.create.result.start' }))
+    await user.click(await screen.findByRole('button', { name: 'common.close' }))
     await waitFor(() => expect(screen.getByPlaceholderText('Search agents')).toBeInTheDocument())
   })
 
@@ -548,10 +548,10 @@ describe('AgentSelector', () => {
     await user.click(screen.getByRole('button', { name: 'Create' }))
 
     await waitFor(() => expect(refetchAgentsMock).toHaveBeenCalledTimes(1))
-    // Selecting the new item is the result page's start action, not a side effect of creating.
-    expect(onChange).not.toHaveBeenCalled()
-    await user.click(await screen.findByRole('button', { name: 'library.config.dialogs.create.result.start' }))
+    // The picker picks what it just created; the result page only closes.
     expect(onChange).toHaveBeenCalledWith('created-agent')
+    await user.click(await screen.findByRole('button', { name: 'common.close' }))
+    expect(onChange).toHaveBeenCalledTimes(1)
   })
 
   it('notifies when created agent cannot be refreshed into the selector', async () => {
@@ -570,7 +570,7 @@ describe('AgentSelector', () => {
     await waitFor(() => expect(refetchAgentsMock).toHaveBeenCalledTimes(1))
 
     expect(toast.error).toHaveBeenCalledWith('Created, but refresh failed')
-    await user.click(await screen.findByRole('button', { name: 'library.config.dialogs.create.result.start' }))
+    await user.click(await screen.findByRole('button', { name: 'common.close' }))
     await waitFor(() => expect(screen.getByPlaceholderText('Search agents')).toBeInTheDocument())
   })
 
