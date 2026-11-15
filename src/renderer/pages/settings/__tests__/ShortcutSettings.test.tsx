@@ -287,6 +287,37 @@ describe('ShortcutSettings shortcut recorder', () => {
     })
   })
 
+  it('records its own default binding after rebinding while rejecting other bare keys', async () => {
+    shortcutsMock.shortcuts = [
+      {
+        ...makeShortcut({
+          command: 'topic.delete',
+          binding: ['CommandOrControl', 'Shift', 'D'],
+          enabled: true,
+          defaultPreference: { binding: ['Delete'], enabled: true },
+          label: 'Delete conversation'
+        }),
+        keybinding: REGISTERED_KEYBINDINGS.find((item) => item.command === 'topic.delete')!
+      }
+    ]
+    renderShortcutSettings()
+
+    fireEvent.click(screen.getByText('D'))
+    const recorder = screen.getByRole('button', { name: 'settings.shortcuts.press_shortcut' })
+
+    fireEvent.keyDown(recorder, { key: 'Home', code: 'Home', bubbles: true })
+    expect(shortcutsMock.updatePreference).not.toHaveBeenCalled()
+
+    fireEvent.keyDown(recorder, { key: 'Delete', code: 'Delete', bubbles: true })
+
+    await waitFor(() => {
+      expect(shortcutsMock.updatePreference).toHaveBeenCalledWith('shortcut.topic.delete', {
+        binding: ['Delete'],
+        enabled: true
+      })
+    })
+  })
+
   it('records the produced character when the layout changes its physical key', async () => {
     renderShortcutSettings()
 

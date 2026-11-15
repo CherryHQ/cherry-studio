@@ -5831,6 +5831,7 @@
   "settings.shortcuts.conflict_with": "Již používá „{{name}}”",
   "settings.shortcuts.copy_last_message": "Kopírovat poslední zprávu",
   "settings.shortcuts.delete_current_list_item": "Trvale smazat aktuální položku seznamu",
+  "settings.shortcuts.delete_topic": "Smazat konverzaci",
   "settings.shortcuts.edit_last_user_message": "Upravit poslední zprávu uživatele",
   "settings.shortcuts.empty": "V této skupině nejsou k dispozici žádné klávesové zkratky",
   "settings.shortcuts.exit_fullscreen": "Ukončit celou obrazovku",

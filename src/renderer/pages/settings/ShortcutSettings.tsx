@@ -61,6 +61,7 @@ import {
   formatShortcutDisplay,
   isShortcutCharacterToken,
   isValidShortcut,
+  normalizeShortcutBinding,
   normalizeShortcutToken,
   type ShortcutBinding,
   type ShortcutToken
@@ -351,7 +352,12 @@ const ShortcutSettings: FC = () => {
     const binding: ShortcutBinding = keys
     setPendingKeys(binding)
 
-    if (!isValidShortcut(binding)) {
+    const normalizedBinding = normalizeShortcutBinding(binding)
+    const isDefaultBinding =
+      normalizedBinding.length > 0 &&
+      isBindingEqual(normalizedBinding, normalizeShortcutBinding(record.defaultPreference.binding))
+
+    if (!isValidShortcut(binding) && !isDefaultBinding) {
       setConflictLabel(null)
       return
     }

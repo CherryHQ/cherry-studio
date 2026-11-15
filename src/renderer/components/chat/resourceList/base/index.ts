@@ -42,9 +42,10 @@ export type {
   ResourceListViewGroup,
   ResourceListViewSection
 } from './ResourceList'
-export type { ResourceListPermanentDeleteProps } from './ResourceList'
+export type { ResourceListArchiveProps, ResourceListPermanentDeleteProps } from './ResourceList'
 export {
   ResourceList,
+  ResourceListArchive,
   useResourceList,
   useResourceListActions,
   useResourceListControlsState,

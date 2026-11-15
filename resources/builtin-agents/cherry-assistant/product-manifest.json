@@ -566,6 +566,18 @@
       }
     },
     {
+      "id": "topic.delete",
+      "titleKey": "settings.shortcuts.delete_topic",
+      "categoryKey": "settings.shortcuts.topic",
+      "scope": "renderer",
+      "keybinding": {
+        "defaultBinding": [
+          "Delete"
+        ],
+        "when": "resource.focused && !input.focused"
+      }
+    },
+    {
       "id": "topic.rename",
       "titleKey": "settings.shortcuts.rename_topic",
       "categoryKey": "settings.shortcuts.topic",

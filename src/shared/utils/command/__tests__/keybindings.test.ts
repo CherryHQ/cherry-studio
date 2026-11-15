@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
-import type { RegisteredKeybindingRule } from '@shared/types/command'
+import type { RegisteredKeybindingRule, SupportedPlatform } from '@shared/types/command'
 
 import { parseContextExpr } from '../contextExpr'
 import {
@@ -38,6 +38,16 @@ describe('command definitions', () => {
     for (const command of REGISTERED_COMMANDS) {
       expect(keybindingCommands.has(command.id), `missing keybinding for ${command.id}`).toBe(true)
     }
+  })
+
+  it('binds archive-to-trash to bare Delete', () => {
+    expect(findCommandDefinition('topic.delete')).toMatchObject({
+      id: 'topic.delete',
+      scope: 'renderer',
+      titleKey: 'settings.shortcuts.delete_topic'
+    })
+    expect(REGISTERED_KEYBINDINGS.find((rule) => rule.command === 'topic.delete')?.defaultBinding).toEqual(['Delete'])
+    expect(getCommandDefaultShortcutPreference('topic.delete')).toEqual({ binding: ['Delete'], enabled: true })
   })
 
   it('binds permanent delete to CommandOrControl+Backspace', () => {
@@ -363,19 +373,22 @@ describe('findKeybindingConflicts', () => {
     ])
   })
 
-  it('keeps default registered keybindings free of hard conflicts', () => {
-    for (const rule of REGISTERED_KEYBINDINGS) {
-      const preference = getCommandDefaultShortcutPreference(rule.command, 'darwin')
-      if (!preference) continue
+  it.each<SupportedPlatform>(['darwin', 'win32', 'linux'])(
+    'keeps default registered keybindings free of hard conflicts on %s',
+    (platform) => {
+      for (const rule of REGISTERED_KEYBINDINGS) {
+        const preference = getCommandDefaultShortcutPreference(rule.command, platform)
+        if (!preference) continue
 
-      expect(
-        findKeybindingConflicts({
-          command: rule.command,
-          preference,
-          platform: 'darwin'
-        }),
-        `unexpected default conflict for ${rule.command}`
-      ).toEqual([])
+        expect(
+          findKeybindingConflicts({
+            command: rule.command,
+            preference,
+            platform
+          }),
+          `unexpected default conflict for ${rule.command}`
+        ).toEqual([])
+      }
     }
-  })
+  )
 })
