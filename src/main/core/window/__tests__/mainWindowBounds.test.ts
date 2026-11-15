@@ -38,9 +38,7 @@ describe('main window initial bounds', () => {
       width: expectedWidth,
       height: expectedHeight,
       minWidth: Math.min(960, width),
-      minHeight: Math.min(600, height),
-      maxWidth: width,
-      maxHeight: height
+      minHeight: Math.min(600, height)
     })
   })
 
@@ -84,9 +82,7 @@ describe('main window initial bounds', () => {
       width: 800,
       height: 540,
       minWidth: 800,
-      minHeight: 540,
-      maxWidth: 800,
-      maxHeight: 540
+      minHeight: 540
     })
   })
 

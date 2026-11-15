@@ -12,7 +12,7 @@ Main uses its 960 × 600 minimum as its initial size. Remembered bounds can shri
 
 The main window starts at 90% of the primary work area, capped at 1440 × 900 DIPs and floored at 960 × 600 where the work area permits. Valid remembered geometry takes precedence. Both the initial rectangle and native size limits fit the work area, including displays with negative coordinates.
 
-MainWindowService retains the requested minimum separately from its screen-limited native value. Display changes and ordinary-window restoration reapply that minimum and the current work-area ceiling. This preserves compact mode across display changes. Screen listeners belong to the service lifecycle; window listeners attach on creation. Maximized, fullscreen, minimized, and destroyed windows are excluded from ordinary-geometry correction.
+Screen fitting runs when constructing the window and on explicit minimum-size changes from compact mode. MainWindowService limits the requested minimum to the current work area and fits ordinary geometry when applying it. It updates the minimum without explicitly resizing maximized, fullscreen, or minimized windows. There is no screen-based maximum size or ongoing display/move correction, so users retain control of window size and placement after creation.
 
 ## Alternatives considered
 
@@ -22,10 +22,10 @@ MainWindowService retains the requested minimum separately from its screen-limit
 
 ## Consequences
 
-Existing valid saved sizes are not automatically enlarged. Screens smaller than the normal minimum take priority over the layout floor. The default cap does not prevent manually enlarging the window to the work area. Completed-move checks use Electron's macOS/Windows `moved` event; Linux placement is controlled by its window manager.
+Existing valid saved sizes are not automatically enlarged. Screens smaller than the normal minimum take priority over the layout floor. The 1440 × 900 cap applies only to the initial default, leaving manual resizing unrestricted. Display changes after creation are handled by the operating system rather than application-driven resizing.
 
 ## Verification
 
 - Regression — `mainWindowBounds.test.ts`: initial sizes, work-area offsets, ultrawide and portrait screens, negative coordinates, removed displays, invalid records, and minimum expansion keep the resulting rectangle within the work area.
-- Regression — `MainWindowService.test.ts`: minimum reset fits both dimensions, requested compact minimum survives display changes, screen events correct the live window, and fullscreen restoration fits ordinary geometry without changing special window states.
-- Regression — macOS Electron 45.2.2 runtime: initial bounds are 1440 × 900 within a 1728 × 1024 work area; restart restores 1200 × 760; compact mode, minimum reset, off-screen correction, and fullscreen exit preserve usable ordinary bounds. Windows/Linux and physical display hotplug remain unverified.
+- Regression — `MainWindowService.test.ts`: explicit minimum changes fit both dimensions to small screens, minimum reset grows compact geometry within the work area, lowering the minimum preserves user geometry, and special window states receive minimum updates without explicit resizing.
+- Prior macOS Electron 45.2.2 runtime verification covered initial 1440 × 900 bounds within a 1728 × 1024 work area and restart restoration to 1200 × 760. The removal of ongoing size limits and correction is covered by focused source and unit checks; interactive verification of this revision remains pending.

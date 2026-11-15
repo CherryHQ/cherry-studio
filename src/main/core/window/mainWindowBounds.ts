@@ -40,8 +40,6 @@ export function resolveMainWindowOptions(config: WindowOptions): void {
   }
   Object.assign(config, placed, {
     minWidth: Math.min(MIN_WINDOW_WIDTH, workArea.width),
-    minHeight: Math.min(MIN_WINDOW_HEIGHT, workArea.height),
-    maxWidth: workArea.width,
-    maxHeight: workArea.height
+    minHeight: Math.min(MIN_WINDOW_HEIGHT, workArea.height)
   })
 }

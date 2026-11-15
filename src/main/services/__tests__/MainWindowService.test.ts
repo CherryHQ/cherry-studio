@@ -172,7 +172,7 @@ vi.mock('electron', () => ({
   nativeTheme: { shouldUseDarkColors: false },
   session: { fromPartition: sessionFromPartitionMock, defaultSession: defaultSessionMock },
   shell: { openExternal: vi.fn(), openPath: vi.fn() },
-  screen: { on: vi.fn(), removeListener: vi.fn(), getDisplayMatching: vi.fn() }
+  screen: { getDisplayMatching: vi.fn() }
 }))
 
 vi.mock('@electron-toolkit/utils', () => ({ optimizer: { watchWindowShortcuts: vi.fn() } }))
@@ -357,26 +357,19 @@ describe('MainWindowService', () => {
     vi.clearAllMocks()
   })
 
-  describe('main window display limits', () => {
+  describe('main window minimum size', () => {
     let bounds: { x: number; y: number; width: number; height: number }
     let minimum: [number, number]
-    let maximum: [number, number]
     let nativeWindow: MockBrowserWindow & Record<string, any>
 
     beforeEach(() => {
       bounds = { x: 100, y: 100, width: 1440, height: 900 }
       minimum = [960, 600]
-      maximum = [1920, 1040]
       nativeWindow = Object.assign(win, {
         isMaximized: vi.fn(() => false),
         getBounds: () => ({ ...bounds }),
-        getMinimumSize: () => minimum,
-        getMaximumSize: () => maximum,
         setMinimumSize: (width: number, height: number) => {
           minimum = [width, height]
-        },
-        setMaximumSize: (width: number, height: number) => {
-          maximum = [width, height]
         },
         setBounds: (next: typeof bounds) => {
           bounds = next
@@ -388,67 +381,38 @@ describe('MainWindowService', () => {
       } as any)
     })
 
-    it('keeps both dimensions inside a small work area when resetting the minimum', () => {
+    it('fits both dimensions to a small work area when resetting the minimum', () => {
       svc.resetMainWindowMinimumSize()
       expect(bounds).toEqual({ x: 0, y: 25, width: 800, height: 540 })
       expect(minimum).toEqual([800, 540])
-      expect(maximum).toEqual([800, 540])
     })
 
-    it('restores the normal floor after returning to a larger display', () => {
-      svc.resetMainWindowMinimumSize()
+    it('grows compact geometry to the normal floor without placing it off-screen', () => {
+      bounds = { x: 1700, y: 900, width: 520, height: 300 }
       vi.mocked(screen.getDisplayMatching).mockReturnValue({
-        workArea: { x: -1920, y: 0, width: 1920, height: 1040 }
+        workArea: { x: 0, y: 0, width: 1920, height: 1040 }
       } as any)
-      ;(svc as any).updateMainWindowBounds(nativeWindow)
-      expect(bounds).toEqual({ x: -960, y: 25, width: 960, height: 600 })
+      svc.resetMainWindowMinimumSize()
+      expect(bounds).toEqual({ x: 960, y: 440, width: 960, height: 600 })
       expect(minimum).toEqual([960, 600])
-      expect(maximum).toEqual([1920, 1040])
     })
 
-    it('preserves the compact mode minimum across screen changes', () => {
-      svc.setMainWindowMinimumSize(520, 300)
+    it('preserves user geometry when lowering the minimum for a compact page', () => {
       bounds = { x: 0, y: 25, width: 600, height: 400 }
-      ;(svc as any).updateMainWindowBounds(nativeWindow)
+      svc.setMainWindowMinimumSize(520, 300)
       expect(bounds).toEqual({ x: 0, y: 25, width: 600, height: 400 })
       expect(minimum).toEqual([520, 300])
     })
 
-    it.each(['isMaximized', 'isFullScreen', 'isMinimized', 'isDestroyed'])(
-      'does not change geometry while %s',
+    it.each(['isMaximized', 'isFullScreen', 'isMinimized'])(
+      'updates the minimum without resizing while %s',
       (state) => {
         nativeWindow[state].mockReturnValue(true)
-        ;(svc as any).updateMainWindowBounds(nativeWindow)
+        svc.setMainWindowMinimumSize(520, 300)
         expect(bounds).toEqual({ x: 100, y: 100, width: 1440, height: 900 })
-        expect(minimum).toEqual([960, 600])
+        expect(minimum).toEqual([520, 300])
       }
     )
-
-    it.each(['display-added', 'display-removed', 'display-metrics-changed'])(
-      'fits the active window on %s',
-      async (event) => {
-        await (svc as any).onInit()
-        const listener = vi.mocked(screen.on).mock.calls.find(([name]) => name === event)?.[1]
-        expect(listener).toBeDefined()
-        ;(listener as (() => void) | undefined)?.()
-        expect(bounds).toEqual({ x: 0, y: 25, width: 800, height: 540 })
-      }
-    )
-
-    it('corrects the restored bounds after leaving fullscreen', () => {
-      for (const method of [
-        'setupWebviewSecurityProfiles',
-        'setupWindowEvents',
-        'setupWebContentsHandlers',
-        'setupWindowLifecycleEvents',
-        'setupMainWindowMonitor'
-      ]) {
-        vi.spyOn(svc as any, method).mockImplementation(() => {})
-      }
-      ;(svc as any).setupMainWindow(nativeWindow)
-      nativeWindow.emit('leave-full-screen')
-      expect(bounds).toEqual({ x: 0, y: 25, width: 800, height: 540 })
-    })
   })
 
   describe('Apple Silicon architecture warning', () => {

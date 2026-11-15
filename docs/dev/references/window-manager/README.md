@@ -57,7 +57,7 @@ Per-type metadata in `windowRegistry.ts` is split into three layers. Each field 
 
 Without valid remembered bounds, Main opens centered on the primary display's work area at 90% of its width and height, capped at 1440 × 900 DIPs. The normal minimum is 960 × 600; each dimension yields to a smaller work area. Remembered geometry takes precedence over the default, with size and position fitted together before construction. Other window types retain their registry defaults.
 
-MainWindowService keeps the main window's size limits within its current display's work area, including minimum-size changes from compact mode. Display changes, completed moves, showing, and restoration recheck ordinary window bounds. Maximized, fullscreen, minimized, and destroyed windows are not resized by this check; ordinary geometry is checked again on restoration. Electron's `moved` notification is available on macOS and Windows; Linux placement remains subject to the window manager.
+MainWindowService fits explicit minimum-size changes from compact mode to the current display's work area. Initial sizing does not set a maximum size, and moving between displays or changing the display configuration does not trigger application-driven bounds correction. Users can resize the window freely after creation.
 
 ## WM Does Not Know "Pin"
 
