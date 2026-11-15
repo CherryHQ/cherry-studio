@@ -206,24 +206,24 @@ function OutputRow({
       disabled={unavailable || !onOpen}
       onClick={() => onOpen?.(item)}
       title={[item.title, item.path].filter(Boolean).join('\n')}
-      className="-mx-2 flex w-[calc(100%+1rem)] items-center gap-2.5 rounded-lg px-2 py-2 text-left outline-none transition-colors hover:bg-accent/60 focus-visible:ring-2 focus-visible:ring-ring disabled:hover:bg-transparent">
+      className="-mx-2 flex w-[calc(100%+1rem)] items-center gap-2 rounded-lg px-2 py-1.5 text-left outline-none transition-colors hover:bg-accent/60 focus-visible:ring-2 focus-visible:ring-ring disabled:hover:bg-transparent">
       <OutputThumb kind={item.kind} extension={extension} />
-      <span className={cn('flex min-w-0 flex-1 flex-col gap-0.5', unavailable && 'opacity-50')}>
+      <span className={cn('flex min-w-0 flex-1 flex-col', unavailable && 'opacity-50')}>
         <span className="flex items-baseline justify-between gap-2">
-          <span className="truncate text-foreground text-sm">{name}</span>
-          <span className="shrink-0 text-foreground-tertiary text-xs">{time}</span>
+          <span className="truncate text-[13px] text-foreground leading-[18px]">{name}</span>
+          <span className="shrink-0 text-[11px] text-foreground-tertiary">{time}</span>
         </span>
-        <span className="truncate text-muted-foreground text-xs">{meta}</span>
+        <span className="truncate text-[11px] text-muted-foreground leading-4">{meta}</span>
       </span>
     </button>
   )
 }
 
 function OutputThumb({ kind, extension }: { kind: ArtifactKind; extension: string }) {
-  const box = 'flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted'
+  const box = 'flex size-7 shrink-0 items-center justify-center rounded-md bg-muted'
   if (kind === 'file') {
     return (
-      <span className={cn(box, 'font-semibold text-[10px] text-muted-foreground tracking-wide')}>
+      <span className={cn(box, 'font-semibold text-[8px] text-muted-foreground')}>
         {extension.slice(0, 4).toUpperCase()}
       </span>
     )
@@ -232,7 +232,7 @@ function OutputThumb({ kind, extension }: { kind: ArtifactKind; extension: strin
   const Icon = kind === 'page' ? Globe : type === 'audio' ? Music : type === 'video' ? Film : ImageIcon
   return (
     <span className={cn(box, kind === 'media' && 'bg-linear-to-br from-muted to-accent')}>
-      <Icon className="size-4 text-muted-foreground" />
+      <Icon className="size-3.5 text-muted-foreground" />
     </span>
   )
 }
