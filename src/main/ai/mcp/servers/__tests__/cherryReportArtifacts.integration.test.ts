@@ -7,12 +7,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
+import { PastOutputsBackfillSeeder } from '@data/db/seeding/seeders/PastOutputsBackfillSeeder'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { artifactService } from '@data/services/ArtifactService'
 
 import { createCherryToolsServer } from '../cherryBuiltinTools'
-import { backfillPastOutputs } from '../cherryReportArtifacts'
 import { callBuiltinTool, toolText } from './builtinMcpClient'
 
 describe('report_artifacts indexes the Agent outputs', () => {
@@ -118,32 +118,13 @@ describe('report_artifacts indexes the Agent outputs', () => {
       await writeFile(path.join(workspacePath, 'summary.md'), '# Summary')
       pastReport([{ path: 'summary.md', description: 'Summary' }, { path: 'deleted.pdf' }])
 
-      await backfillPastOutputs()
+      new PastOutputsBackfillSeeder().run(dbh.db)
 
       const byTitle = Object.fromEntries(
         artifactService.list({ agentId: 'reporter' }).items.map((item) => [item.title, item])
       )
       expect(byTitle.Summary).toMatchObject({ path: path.join(workspacePath, 'summary.md'), kind: 'page', size: 9 })
       expect(byTitle['deleted.pdf']).toMatchObject({ kind: 'file', size: undefined })
-    })
-
-    it('leaves the Outputs list working when the backfill fails, and retries on the next start', async () => {
-      pastReport([{ path: 'old.md' }])
-      await callBuiltinTool(createServer, 'report_artifacts', { artifacts: [{ path: 'new.md' }] })
-      vi.spyOn(artifactService, 'findPastAgentReports').mockImplementationOnce(() => {
-        throw new Error('corrupt history')
-      })
-
-      await expect(backfillPastOutputs()).resolves.toBeUndefined()
-      expect(artifactService.list({ agentId: 'reporter' }).items.map((item) => item.title)).toEqual(['new.md'])
-
-      await backfillPastOutputs()
-      expect(
-        artifactService
-          .list({ agentId: 'reporter' })
-          .items.map((item) => item.title)
-          .sort()
-      ).toEqual(['new.md', 'old.md'])
     })
   })
 })

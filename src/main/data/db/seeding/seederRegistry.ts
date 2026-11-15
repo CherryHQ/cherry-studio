@@ -16,6 +16,7 @@ import { LocalModelSeeder } from './seeders/LocalModelSeeder'
 import { LongTextPastePreferenceUpgradeSeeder } from './seeders/longTextPastePreferenceUpgradeSeeder'
 import { MessageNavigationUpgradeSeeder } from './seeders/MessageNavigationUpgradeSeeder'
 import { MiniAppSeeder } from './seeders/miniAppSeeder'
+import { PastOutputsBackfillSeeder } from './seeders/PastOutputsBackfillSeeder'
 import { PoeChatEndpointUpgradeSeeder } from './seeders/PoeChatEndpointUpgradeSeeder'
 import { PreferenceSeeder } from './seeders/preferenceSeeder'
 import { PresetProviderSeeder } from './seeders/presetProviderSeeder'
@@ -61,5 +62,6 @@ export const seeders: ISeeder[] = [
   new TranslateLanguageSeeder(),
   new LocalModelSeeder(),
   new MiniAppSeeder(),
-  new BuiltinMcpServerSeeder()
+  new BuiltinMcpServerSeeder(),
+  new PastOutputsBackfillSeeder()
 ]
