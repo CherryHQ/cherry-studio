@@ -116,6 +116,7 @@ describe('Sentry log reporting', () => {
       { process: 'renderer', window: 'main', module: 'ErrorBoundary', context: { apiKey: 'secret' } },
       'error',
       'Caught a render error',
+      // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
       structuredClone([
         { name: error.name, errorMessage: error.message, stack: error.stack },
         { componentStack, prompt: 'private conversation' }

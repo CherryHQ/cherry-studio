@@ -489,6 +489,7 @@ function customRowToRuntimeModel(row: UserModelRow): Model {
     ...(reported ? { reportedReasoning: reported } : {}),
     parameterSupport: (row.parameters ?? undefined) as RuntimeParameterSupport | undefined,
     pricing: row.pricing ?? undefined,
+    hasCustomPricing: row.pricing != null,
     isEnabled: row.isEnabled,
     isHidden: row.isHidden,
     isDeprecated: row.isDeprecated,
@@ -499,6 +500,7 @@ function customRowToRuntimeModel(row: UserModelRow): Model {
 function applyStoredModelState(model: Model, row: UserModelRow): Model {
   return {
     ...model,
+    hasCustomPricing: row.pricing != null,
     ...(model.reasoning && row.reasoning?.defaultEffort !== undefined
       ? { reasoning: { ...model.reasoning, defaultEffort: row.reasoning.defaultEffort } }
       : {}),
