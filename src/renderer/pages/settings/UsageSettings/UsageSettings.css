@@ -1,0 +1,35 @@
+[data-usage-export-root] [data-usage-export-only] {
+  display: none;
+}
+
+[data-usage-export-root][data-image-capturing] [data-usage-export-action] {
+  display: none !important;
+}
+
+[data-usage-export-root][data-image-capturing] [data-usage-export-only] {
+  display: block !important;
+}
+
+[data-usage-export-root][data-image-capturing] [data-usage-export-panel] {
+  overflow: visible !important;
+}
+
+[data-usage-export-root][data-image-capturing] [data-usage-export-scroll] {
+  overflow: visible !important;
+}
+
+[data-usage-export-root][data-image-capturing] [data-slot='table-container'] {
+  overflow: visible !important;
+}
+
+[data-usage-export-root][data-image-capturing] [data-slot='table-container'] th,
+[data-usage-export-root][data-image-capturing] [data-slot='table-container'] td {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+[data-usage-export-root][data-image-capturing] .animation-usage-heatmap-cell-enter {
+  animation: none !important;
+  opacity: 1 !important;
+  transform: none !important;
+}

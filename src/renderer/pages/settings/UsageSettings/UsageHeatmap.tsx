@@ -246,7 +246,7 @@ export default function UsageHeatmap({ buckets, costCurrency, isLoading, range }
         </div>
       </div>
 
-      <div ref={heatmapRef} className="mt-2 min-w-0 max-w-full overflow-x-auto">
+      <div ref={heatmapRef} data-usage-export-scroll className="mt-2 min-w-0 max-w-full overflow-x-auto">
         <div ref={animationRef} className="flex w-max min-w-full justify-end" style={{ gap: CELL_GAP }}>
           {weeks.map((week, weekIndex) => (
             <div

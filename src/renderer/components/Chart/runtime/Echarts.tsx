@@ -1,9 +1,10 @@
-import { AriaComponent } from 'echarts/components'
+import { AriaComponent, type TimelineComponentOption } from 'echarts/components'
 import type { EChartsCoreOption, EChartsType, SetOptionOpts } from 'echarts/core'
 import * as echarts from 'echarts/core'
 import { CanvasRenderer } from 'echarts/renderers'
-import { useEffect, useRef } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 
+import { ImageCaptureEvent } from '@renderer/utils/image'
 import { cn } from '@renderer/utils/style'
 
 echarts.use([AriaComponent, CanvasRenderer])
@@ -18,6 +19,11 @@ interface EchartsProps {
   option: EChartsCoreOption
 }
 
+function areTimelineLabelsEqual(current: TimelineComponentOption['data'], next: TimelineComponentOption['data']) {
+  if (!current || !next || current.length !== next.length) return false
+  return current.every((label, index) => typeof label === 'string' && label === next[index])
+}
+
 export function Echarts({
   ariaLabel,
   className,
@@ -30,6 +36,13 @@ export function Echarts({
   const containerRef = useRef<HTMLDivElement>(null)
   const instanceRef = useRef<EChartsType | null>(null)
   const appliedOptionRef = useRef<{ option: EChartsCoreOption; settings: SetOptionOpts } | null>(null)
+  const captureRef = useRef({ version: 0, readyVersion: -1, loading: false })
+  const pendingCapturesRef = useRef(new Set<(error: Error) => void>())
+  const invalidateCapture = useCallback(() => {
+    captureRef.current.version++
+    captureRef.current.readyVersion = -1
+    for (const reject of pendingCapturesRef.current) reject(new Error('Chart changed during image capture'))
+  }, [])
 
   useEffect(() => {
     const container = containerRef.current
@@ -37,9 +50,55 @@ export function Echarts({
 
     const instance = echarts.init(container, undefined, { renderer: 'canvas' })
     instanceRef.current = instance
+    const onFinished = () => {
+      if (!captureRef.current.loading && container.clientWidth > 0 && container.clientHeight > 0) {
+        captureRef.current.readyVersion = captureRef.current.version
+      }
+    }
+    instance.on('finished', onFinished)
+    instance.on('timelinechanged', invalidateCapture)
+    instance.on('datazoom', invalidateCapture)
+    const prepareCapture = (event: Event) => {
+      if (!(event instanceof ImageCaptureEvent)) return
+      event.preparations.push(
+        new Promise<() => void>((resolve, reject) => {
+          const state = captureRef.current
+          const version = state.version
+          const cleanup = () => {
+            clearTimeout(timer)
+            instance.off('finished', checkReady)
+            pendingCapturesRef.current.delete(fail)
+          }
+          const fail = (error: Error) => {
+            cleanup()
+            reject(error)
+          }
+          const checkReady = () => {
+            if (instance.isDisposed() || instanceRef.current !== instance) {
+              fail(new Error('Chart is unavailable for image capture'))
+            } else if (
+              !state.loading &&
+              state.version === version &&
+              state.readyVersion === version &&
+              container.clientWidth > 0 &&
+              container.clientHeight > 0
+            ) {
+              cleanup()
+              resolve(cleanup)
+            }
+          }
+          const timer = setTimeout(() => fail(new Error('Timed out waiting for chart image capture')), 3000)
+          pendingCapturesRef.current.add(fail)
+          instance.on('finished', checkReady)
+          checkReady()
+        })
+      )
+    }
+    container.addEventListener(ImageCaptureEvent.type, prepareCapture)
     let hasSized = container.clientWidth > 0 && container.clientHeight > 0
     const resizeObserver = new ResizeObserver(() => {
       if (container.clientWidth === 0 || container.clientHeight === 0) return
+      invalidateCapture()
       if (!hasSized && appliedOptionRef.current) {
         instance.setOption(appliedOptionRef.current.option, appliedOptionRef.current.settings)
       }
@@ -50,18 +109,42 @@ export function Echarts({
 
     return () => {
       resizeObserver.disconnect()
+      container.removeEventListener(ImageCaptureEvent.type, prepareCapture)
+      invalidateCapture()
+      instance.off('finished', onFinished)
+      instance.off('timelinechanged', invalidateCapture)
+      instance.off('datazoom', invalidateCapture)
       instance.dispose()
       instanceRef.current = null
     }
-  }, [])
+  }, [invalidateCapture])
 
   useEffect(() => {
+    captureRef.current.loading = loading
+    invalidateCapture()
     if (loading) return
+
+    const instance = instanceRef.current
+    if (!instance) return
 
     const aria = { enabled: true, label: { description: ariaLabel } }
     const nextOption: EChartsCoreOption = option.baseOption
       ? { ...option, baseOption: { ...option.baseOption, aria } }
       : { ...option, aria }
+    const liveTimeline = (instance.getOption()?.timeline as TimelineComponentOption[] | undefined)?.[0]
+    const liveIndex = liveTimeline?.currentIndex
+    const nextBaseOption = nextOption.baseOption ?? nextOption
+    const nextTimeline = nextBaseOption.timeline as TimelineComponentOption | TimelineComponentOption[] | undefined
+    if (
+      typeof liveIndex === 'number' &&
+      Number.isInteger(liveIndex) &&
+      nextTimeline &&
+      !Array.isArray(nextTimeline) &&
+      areTimelineLabelsEqual(liveTimeline?.data, nextTimeline.data)
+    ) {
+      const timeline: TimelineComponentOption = { ...nextTimeline, currentIndex: liveIndex }
+      nextBaseOption.timeline = timeline
+    }
     const hasTimeline = option.baseOption !== undefined
     const settings: SetOptionOpts = {
       lazyUpdate: true,
@@ -70,8 +153,8 @@ export function Echarts({
         : ['series', 'dataZoom', 'timeline', 'grid', 'xAxis', 'yAxis', 'legend']
     }
     appliedOptionRef.current = { option: nextOption, settings }
-    instanceRef.current?.setOption(nextOption, settings)
-  }, [ariaLabel, loading, option])
+    instance.setOption(nextOption, settings)
+  }, [ariaLabel, invalidateCapture, loading, option])
 
   useEffect(() => {
     if (loading) {
@@ -89,6 +172,7 @@ export function Echarts({
   return (
     <div
       ref={containerRef}
+      data-image-capture-content
       role="img"
       aria-busy={loading}
       aria-label={ariaLabel}

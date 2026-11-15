@@ -1,4 +1,4 @@
-import type { ComponentPropsWithoutRef, ReactNode } from 'react'
+import type { ComponentPropsWithoutRef, ReactNode, Ref } from 'react'
 import { useMemo } from 'react'
 
 import { Avatar, AvatarFallback, EmojiIcon, Skeleton } from '@cherrystudio/ui'
@@ -219,7 +219,13 @@ export function InsightCell({ label, value, helper }: { label: string; value: Re
   )
 }
 
-export function UsageResponsiveShell({ children }: { children: ReactNode }) {
+export function UsageResponsiveShell({
+  children,
+  captureRef
+}: {
+  children: ReactNode
+  captureRef?: Ref<HTMLDivElement>
+}) {
   const { theme } = useTheme()
 
   return (
@@ -228,7 +234,9 @@ export function UsageResponsiveShell({ children }: { children: ReactNode }) {
       className="min-w-0 overflow-x-hidden"
       // Wider than form settings so 4-col metrics and the year heatmap fit, but still capped on ultrawide windows.
       innerClassName="min-w-0 w-full max-w-6xl">
-      <div className="@container/usage flex min-w-0 flex-col gap-6">{children}</div>
+      <div ref={captureRef} data-usage-export-root className="@container/usage flex min-w-0 flex-col gap-6">
+        {children}
+      </div>
     </SettingsContentColumn>
   )
 }
@@ -240,6 +248,7 @@ export function UsageSection({ children, className }: { children: ReactNode; cla
 export function UsagePanel({ className, ...props }: ComponentPropsWithoutRef<'div'>) {
   return (
     <div
+      data-usage-export-panel
       className={cn('flex min-w-0 flex-col overflow-hidden rounded-lg border border-border bg-background', className)}
       {...props}
     />
@@ -270,7 +279,9 @@ export function UsageControlRow({
   return (
     <div className={cn('min-w-0', className)}>
       <div className="mb-1 text-muted-foreground text-xs">{label}</div>
-      <div className="-mx-1 max-w-[calc(100%+0.5rem)] overflow-x-auto px-1">{children}</div>
+      <div data-usage-export-scroll className="-mx-1 max-w-[calc(100%+0.5rem)] overflow-x-auto px-1">
+        {children}
+      </div>
     </div>
   )
 }
