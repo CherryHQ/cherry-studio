@@ -2760,6 +2760,8 @@
   "message.tools.completed": "Completo",
   "message.tools.error": "Ocorreu um erro",
   "message.tools.groupHeader": "{{count}} chamadas de ferramenta",
+  "message.tools.identity_card.changes_one": "{{count}} definição alterada",
+  "message.tools.identity_card.changes_other": "{{count}} definições alteradas",
   "message.tools.identity_card.updated": "Atualizado",
   "message.tools.invoking": "Em execução",
   "message.tools.labels.bash": "Bash",

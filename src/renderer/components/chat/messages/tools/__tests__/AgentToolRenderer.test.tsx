@@ -181,6 +181,8 @@ describe('AgentToolRenderer', () => {
     'agent.builtin.cherry_support.diagnostics.review': 'Review diagnostic report',
     'agent.sidebar_title': 'Agents',
     'message.tools.identity_card.updated': 'Updated',
+    'message.tools.identity_card.changes_one': 'Changed {{count}} setting',
+    'message.tools.identity_card.changes_other': 'Changed {{count}} settings',
     'library.config.dialogs.create.result.adjust': 'Adjust settings',
     'library.config.dialogs.create.result.start': 'Start conversation',
     'library.type.agent': 'Agent',
@@ -827,14 +829,27 @@ describe('AgentToolRenderer', () => {
       expect(within(card).getByText('Agent')).toBeInTheDocument()
     })
 
-    it('shows an update as Updated with each change as current → new', () => {
-      const updated = { ...createdAgent, summary: ['Model: Default Model → Other Model'], highlights: undefined }
-      mockMessageListActions.mockReturnValue({ navigateToRoute: vi.fn() })
+    // The card keeps one size however many fields changed; the current → new lines open on demand.
+    it('shows an update as a change count that opens each change as current → new', async () => {
+      const user = userEvent.setup()
+      const navigateToRoute = vi.fn()
+      const updated = {
+        ...createdAgent,
+        summary: ['Model: Default Model → Other Model', 'Reply language: Chinese → English'],
+        highlights: undefined
+      }
+      mockMessageListActions.mockReturnValue({ navigateToRoute })
       render(<MessageTools toolResponse={configToolResponse('assistant', 'update_agent', structured(updated))} />)
 
       const card = screen.getByTestId('resource-identity-card')
       expect(within(card).getByText('Updated')).toBeInTheDocument()
+      expect(within(card).queryByText('Model: Default Model → Other Model')).not.toBeInTheDocument()
+
+      await user.click(within(card).getByRole('button', { name: 'Changed 2 settings' }))
+
       expect(within(card).getByText('Model: Default Model → Other Model')).toBeInTheDocument()
+      expect(within(card).getByText('Reply language: Chinese → English')).toBeInTheDocument()
+      expect(navigateToRoute).not.toHaveBeenCalled()
       expect(within(card).getByRole('button', { name: 'Start conversation: Reviewer' })).toBeInTheDocument()
     })
 

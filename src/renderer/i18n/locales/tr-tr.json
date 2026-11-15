@@ -2760,6 +2760,8 @@
   "message.tools.completed": "Tamamlandı",
   "message.tools.error": "Hata oluştu",
   "message.tools.groupHeader": "{{count}} araç çağrısı",
+  "message.tools.identity_card.changes_one": "{{count}} ayar değiştirildi",
+  "message.tools.identity_card.changes_other": "{{count}} ayar değiştirildi",
   "message.tools.identity_card.updated": "Güncellendi",
   "message.tools.invoking": "Başlatılıyor",
   "message.tools.labels.bash": "Görevi çalıştır",

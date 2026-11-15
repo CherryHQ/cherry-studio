@@ -2760,6 +2760,8 @@
   "message.tools.completed": "Ολοκληρώθηκε",
   "message.tools.error": "Προέκυψε σφάλμα",
   "message.tools.groupHeader": "{{count}} κλήσεις εργαλείων",
+  "message.tools.identity_card.changes_one": "Άλλαξε {{count}} ρύθμιση",
+  "message.tools.identity_card.changes_other": "Άλλαξαν {{count}} ρυθμίσεις",
   "message.tools.identity_card.updated": "Ενημερώθηκε",
   "message.tools.invoking": "κλήση σε εξέλιξη",
   "message.tools.labels.bash": "Μπας",
