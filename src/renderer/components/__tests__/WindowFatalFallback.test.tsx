@@ -3,8 +3,16 @@ import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import i18n from '@renderer/i18n/resolver'
+import { FEEDBACK_MAILTO } from '@shared/utils/officialLinks'
 
 import { WindowFatalFallback } from '../WindowFatalFallback'
+
+const platform = vi.hoisted(() => ({ isDev: false }))
+vi.mock('@renderer/utils/platform', () => ({
+  get isDev() {
+    return platform.isDev
+  }
+}))
 
 // WindowFatalFallback renders as an error-boundary fallback OUTSIDE every provider
 // (ThemeProvider, CommandProvider, ...), so all tests mount it with zero wrappers —
@@ -16,39 +24,20 @@ describe('WindowFatalFallback', () => {
   const writeText = vi.fn()
 
   beforeEach(() => {
+    platform.isDev = false
     request.mockReset().mockResolvedValue({ ok: true, data: undefined })
     writeText.mockReset().mockResolvedValue(undefined)
     vi.stubGlobal('api', { ipcApi: { request } })
   })
 
-  it('renders the translated fatal message and the error details without any provider', () => {
+  it('explains the fault and how to recover without any provider, keeping raw text off the surface', () => {
     render(<WindowFatalFallback error={new Error('boom from provider')} resetErrorBoundary={vi.fn()} />)
 
-    const alert = screen.getByRole('alert')
-    expect(alert).toHaveTextContent(i18n.t('error.boundary.default.message'))
-    expect(alert).toHaveTextContent('boom from provider')
-  })
-
-  it('keeps error details selectable and copies them from the provider-free fallback', async () => {
-    const user = userEvent.setup()
-    const errorMessage = 'boom from provider\nRetry after reopening the window'
-    Object.defineProperty(navigator, 'clipboard', {
-      configurable: true,
-      value: { writeText }
-    })
-    const error = new Error(errorMessage)
-    error.cause = error
-    render(<WindowFatalFallback error={error} resetErrorBoundary={vi.fn()} />)
-
-    const details = screen.getByText((_, element) => element?.textContent === errorMessage)
-    // The global body rule disables selection; this class is the user-visible bug contract.
-    expect(details).toHaveClass('selectable')
-    expect(screen.getAllByRole('button', { name: i18n.t('error.boundary.copy') })).toHaveLength(1)
-    expect(screen.queryByRole('button', { name: i18n.t('common.copy') })).not.toBeInTheDocument()
-
-    await user.click(screen.getByRole('button', { name: i18n.t('error.boundary.copy') }))
-
-    expect(writeText).toHaveBeenCalledWith(errorMessage)
+    const card = screen.getByRole('alert')
+    expect(card).toHaveTextContent(i18n.t('error.boundary.default.title'))
+    expect(card).toHaveTextContent(i18n.t('error.boundary.fatal.info'))
+    expect(card).not.toHaveTextContent('boom from provider')
+    expect(screen.queryByText(i18n.t('error.boundary.details'))).not.toBeInTheDocument()
   })
 
   it('reloads the window when the reload button is clicked', async () => {
@@ -84,7 +73,6 @@ describe('WindowFatalFallback', () => {
       })
     )
     expect(await screen.findByText(i18n.t('error.boundary.export_busy'))).toBeInTheDocument()
-    expect(screen.getByText(i18n.t('error.boundary.analysis_unavailable'))).toBeInTheDocument()
   })
 
   it('shows the inline action error when clipboard write fails', async () => {
@@ -129,7 +117,23 @@ describe('WindowFatalFallback', () => {
     expect(request).toHaveBeenCalledWith('system.shell.open_external_website', 'https://cherryai.com.cn/download')
   })
 
-  it('opens devtools when the devtools button is clicked', async () => {
+  it('opens the feedback mail draft', async () => {
+    const user = userEvent.setup()
+    render(<WindowFatalFallback error={new Error('boom')} resetErrorBoundary={vi.fn()} />)
+
+    await user.click(screen.getByRole('button', { name: i18n.t('error.boundary.feedback') }))
+
+    expect(request).toHaveBeenCalledWith('system.shell.open_external_website', FEEDBACK_MAILTO)
+  })
+
+  it('hides the debug panel entry outside development builds', () => {
+    render(<WindowFatalFallback error={new Error('boom')} resetErrorBoundary={vi.fn()} />)
+
+    expect(screen.queryByRole('button', { name: i18n.t('error.boundary.default.devtools') })).not.toBeInTheDocument()
+  })
+
+  it('opens devtools from a development build', async () => {
+    platform.isDev = true
     const user = userEvent.setup()
     render(<WindowFatalFallback error={new Error('boom')} resetErrorBoundary={vi.fn()} />)
 
