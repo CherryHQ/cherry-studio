@@ -918,7 +918,13 @@ describe('backslash math markdown contract', () => {
     'uses stable Marked reference boundaries over three rounds: %s',
     (input, latex, text, links, saved, bytes) => {
       let source: string = input
-      const observations: Array<{ round: number; nodes: JSONContent[] | undefined; saved: string; bytes: string; check: string }> = []
+      const observations: Array<{
+        round: number
+        nodes: JSONContent[] | undefined
+        saved: string
+        bytes: string
+        check: string
+      }> = []
       for (let round = 0; round < 3; round++) {
         const e = make(source)
         expect(math(e).map((node) => [node.type, node.attrs?.latex])).toEqual(
@@ -1295,7 +1301,14 @@ describe('backslash math markdown contract', () => {
     }
   ])('keeps paren intervals out of bracket pairing: $name', ({ name, input, saved, expected, delimiters }) => {
     let source = input
-    const observations: Array<{ round: number; nodes: unknown[]; math: JSONContent['attrs'][]; saved: string; bytes: string; check: string }> = []
+    const observations: Array<{
+      round: number
+      nodes: unknown[]
+      math: JSONContent['attrs'][]
+      saved: string
+      bytes: string
+      check: string
+    }> = []
     for (let round = 0; round < 3; round++) {
       const e = make(source)
       e.state.doc.check()
@@ -1377,7 +1390,13 @@ describe('backslash math markdown contract', () => {
     'protects multiline exclusions within their boundaries: $input',
     ({ input, formulas, text, code, links, saved }) => {
       let source = input
-      const observations: Array<{ round: number; nodes: JSONContent[] | undefined; saved: string; bytes: string; check: string }> = []
+      const observations: Array<{
+        round: number
+        nodes: JSONContent[] | undefined
+        saved: string
+        bytes: string
+        check: string
+      }> = []
       for (let round = 0; round < 3; round++) {
         const e = make(source)
         e.state.doc.check()
@@ -1499,7 +1518,15 @@ describe('backslash math markdown contract', () => {
     }
   ])('preserves earlier openers and whole backtick runs: $input', ({ input, formulas, text, saved, href, code }) => {
     let source = input
-    const observations: Array<{ round: number; nodes: JSONContent[] | undefined; math: unknown[]; text: string; saved: string; bytes: string; check: string }> = []
+    const observations: Array<{
+      round: number
+      nodes: JSONContent[] | undefined
+      math: unknown[]
+      text: string
+      saved: string
+      bytes: string
+      check: string
+    }> = []
     for (let round = 0; round < 3; round++) {
       const e = make(source)
       e.state.doc.check()
@@ -1626,7 +1653,13 @@ describe('backslash math markdown contract', () => {
     }
   ])('preserves interleaved exclusions over two reloads: $name', ({ name, input, saved, expected }) => {
     let source = input
-    const observations: Array<{ round: number; nodes: unknown[] | undefined; saved: string; bytes: string; check: string }> = []
+    const observations: Array<{
+      round: number
+      nodes: unknown[] | undefined
+      saved: string
+      bytes: string
+      check: string
+    }> = []
     for (let round = 0; round < 3; round++) {
       const e = make(source)
       e.state.doc.check()
@@ -1635,7 +1668,8 @@ describe('backslash math markdown contract', () => {
         round,
         nodes: e
           .getJSON()
-          .content?.[0]?.content?.map(asNode).map((node) =>
+          .content?.[0]?.content?.map(asNode)
+          .map((node) =>
             node.type === 'inlineMath'
               ? { type: node.type, latex: node.attrs?.latex }
               : { type: node.type, text: node.text, ...(node.marks ? { marks: node.marks } : {}) }
@@ -1834,7 +1868,14 @@ describe('backslash math markdown contract', () => {
     }
   ])('excludes dollar math from delimiter pairing: $name', ({ name, input, saved, expected }) => {
     let source = input
-    const observations: Array<{ round: number; nodes: unknown[]; math: JSONContent['attrs'][]; saved: string; bytes: string; check: string }> = []
+    const observations: Array<{
+      round: number
+      nodes: unknown[]
+      math: JSONContent['attrs'][]
+      saved: string
+      bytes: string
+      check: string
+    }> = []
     for (let round = 0; round < 3; round++) {
       const e = make(source)
       e.state.doc.check()
@@ -1891,7 +1932,9 @@ describe('backslash math markdown contract', () => {
       ['inlineMath', 'b'],
       ['inlineMath', 'c']
     ])
-    expect(asNode(asNode(asNode(e.getJSON().content?.[1]?.content?.[1]).content?.[0]).content?.[0]).type).toBe('paragraph')
+    expect(asNode(asNode(asNode(e.getJSON().content?.[1]?.content?.[1]).content?.[0]).content?.[0]).type).toBe(
+      'paragraph'
+    )
   })
 
   it.each([String.raw`\[ a^2+b^2=c^2 \]`, String.raw`\( a \)`, '\\[\na\n\nb\n\\]'])(
@@ -2299,7 +2342,13 @@ describe('Marked protected math boundaries', () => {
     ['adjacent autolink', String.raw`\[x] <https://example.com/\]>\[c\]`, 'https://example.com/\\]', String.raw`\[c\]`]
   ])('preserves %s through two reloads', (name, input, label, tail) => {
     let source = input
-    const observations: Array<{ round: number; nodes: JSONContent[] | undefined; saved: string; bytes: string; check: string }> = []
+    const observations: Array<{
+      round: number
+      nodes: JSONContent[] | undefined
+      saved: string
+      bytes: string
+      check: string
+    }> = []
     for (let round = 0; round < 3; round++) {
       const e = make(source)
       const href = round === 0 ? 'https://example.com/\\]' : 'https://example.com/]'
@@ -2348,10 +2397,12 @@ describe('Marked protected math boundaries', () => {
     let source = input
     for (let round = 0; round < 3; round++) {
       const e = make(source)
-      expect(e.getJSON().content?.[0]?.content?.map(asNode).map((node) => node.attrs?.latex ?? node.text)).toEqual([
-        'a] [b](a b',
-        ' end)'
-      ])
+      expect(
+        e
+          .getJSON()
+          .content?.[0]?.content?.map(asNode)
+          .map((node) => node.attrs?.latex ?? node.text)
+      ).toEqual(['a] [b](a b', ' end)'])
       expect(e.state.doc.textContent).toBe(' end)')
       e.state.doc.check()
       source = e.getMarkdown()
