@@ -150,6 +150,29 @@ describe('OpenCode read-only source snapshots', () => {
     message('msg_a', 0, 'assistant', { content: [{ type: 'text', text: 'inline' }] })
     expect((await read()).messages[0].data.parts).toEqual([{ type: 'text', text: 'inline' }])
   })
+  it('reads migrated v2 messages while preserving the original v1 version', async () => {
+    schema(true, false)
+    db.prepare('UPDATE session_v2 SET version = ?').run('1.2.0')
+    message('user', 0, 'user', { text: 'migrated question' })
+    message('assistant', 1, 'assistant', {
+      content: [{ type: 'text', text: 'migrated answer' }],
+      time: { completed: 1767225600000 }
+    })
+    const result = await read()
+    expect(result.sourceVersion).toBe('1.2.0')
+    expect(result.diagnostics).toEqual([])
+    expect(result.messages.map((m) => ({ role: m.role, parts: m.data.parts }))).toEqual([
+      { role: 'user', parts: [{ type: 'text', text: 'migrated question' }] },
+      { role: 'assistant', parts: [{ type: 'text', text: 'migrated answer' }] }
+    ])
+  })
+  it.each([true, false])('still rejects unknown versions in v2=%s layouts', async (v2) => {
+    schema(v2)
+    db.prepare('UPDATE ' + (v2 ? 'session_v2' : 'session') + ' SET version = ?').run('3.0.0')
+    expect((await read()).diagnostics).toContainEqual(
+      expect.objectContaining({ code: 'unsupported_version', severity: 'error' })
+    )
+  })
   it('discovers independent source sessions', async () => {
     schema()
     db.prepare('INSERT INTO session_v2 VALUES (?, ?, ?, ?, NULL, NULL, NULL)').run('ses_b', 'Second', '', '2.2.5')

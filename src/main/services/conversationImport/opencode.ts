@@ -138,7 +138,8 @@ export const opencodeAdapter: HistorySourceAdapter = {
         consume(layout)
         consume(session)
         const v2 = layout.session === 'session_v2'
-        if (!(v2 ? /^2\.\d+\.\d+/ : /^1\.\d+\.\d+/).test(session.version))
+        // OpenCode's v1 migration preserves the original version in session_v2.
+        if (!(v2 ? /^[12]\.\d+\.\d+/ : /^1\.\d+\.\d+/).test(session.version))
           diagnose('unsupported_version', undefined, 'error')
         if (session.revert != null || session.fork_session_id != null || session.fork_boundary != null)
           diagnose('unsupported_history_layout', undefined, 'error')
