@@ -279,7 +279,7 @@ function SuggestionsSection({
 
   // Only what is not done yet; the same rules apply to generated and fallback suggestions.
   const isOpen: Record<ProfileStarterKind, boolean> = {
-    'channel-feishu': !channels?.length,
+    'channel-feishu': !channels?.some((channel) => channel.type === 'feishu'),
     'channel-wechat': !channels?.some((channel) => channel.type === 'wechat'),
     schedule: !tasks.length,
     github: caps.mcp && !githubLinked,

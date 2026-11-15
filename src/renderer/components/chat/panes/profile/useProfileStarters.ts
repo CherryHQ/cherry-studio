@@ -13,6 +13,8 @@ const logger = loggerService.withContext('useProfileStarters')
 
 const GENERATE_TIMEOUT_MS = 30_000
 const MAX_PROMPT_CHARS = 6000
+// Entries are keyed by Agent or Assistant ID and never pruned on delete, so only the newest are kept.
+const MAX_CACHED_OWNERS = 50
 
 const STARTER_KINDS = [
   'channel-feishu',
@@ -154,7 +156,13 @@ export function useProfileStarters({
   )
 
   const settle = useEffectEvent((forHash: string, items: ProfileStarter[] | null) => {
-    if (items) setCache((previous) => ({ ...previous, [ownerId]: { hash: forHash, items } }))
+    if (items)
+      setCache((previous) => {
+        const kept = Object.entries(previous)
+          .filter(([id]) => id !== ownerId)
+          .slice(-(MAX_CACHED_OWNERS - 1))
+        return { ...Object.fromEntries(kept), [ownerId]: { hash: forHash, items } }
+      })
     setResult({ key: `${ownerId}:${forHash}`, items })
   })
 
@@ -205,6 +213,7 @@ export function useProfileStarters({
     status: items ? 'ready' : unavailable ? 'unavailable' : 'loading',
     items: items ?? [],
     hidden,
-    hide: () => setHiddenIds((previous) => [...previous.filter((id) => id !== ownerId), ownerId])
+    hide: () =>
+      setHiddenIds((previous) => [...previous.filter((id) => id !== ownerId).slice(-(MAX_CACHED_OWNERS - 1)), ownerId])
   }
 }
