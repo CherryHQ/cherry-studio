@@ -2,6 +2,7 @@ import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import enUS from '@renderer/i18n/locales/en-us.json'
+import { LocalizedToastError } from '@renderer/utils/errorToast'
 
 const { i18nMock } = vi.hoisted(() => ({
   i18nMock: { language: 'en-US', t: (key: string) => key }
@@ -77,6 +78,46 @@ required service tier.`
     expect(shown.description).toBe(`Acme · ${enUS['toast.error.interrupted']}`)
     expect(shown.cause).toBe(failure)
     expect(shown.details).toBeUndefined()
+  })
+
+  it('titles an unclassified error with the caller summary but keeps classified diagnoses', () => {
+    const failure = new Error('ipc handler threw')
+    const summarized = toast.errorFromException(failure, { title: 'Failed to send message' })
+    const classified = toast.errorFromException(
+      { name: 'Error', message: 'fetch failed' },
+      { key: 'classified', title: 'Failed to send message' }
+    )
+
+    const { toasts } = toast.getToastQueue()
+    expect(toasts.find((item) => item.key === summarized)).toMatchObject({
+      title: 'Failed to send message',
+      cause: failure
+    })
+    expect(toasts.find((item) => item.key === classified)?.title).toBe(enUS['error.diagnosis.network'])
+  })
+
+  it('titles a recovery failure with its own localized summary and keeps the raw cause', async () => {
+    const raw = new Error('Enablement unavailable')
+    const key = toast.errorFromException(
+      { name: 'Error', message: 'fetch failed' },
+      {
+        title: 'Original summary',
+        actions: {
+          retry: () => Promise.reject(new LocalizedToastError('Connected, but enabling failed', { cause: raw }))
+        }
+      }
+    )
+
+    await toast
+      .getToastQueue()
+      .toasts.find((item) => item.key === key)!
+      .action!.onClick()
+
+    expect(toast.getToastQueue().toasts.find((item) => item.key === key)).toMatchObject({
+      type: 'error',
+      title: 'Connected, but enabling failed',
+      cause: raw
+    })
   })
 })
 

@@ -2,6 +2,6 @@
 // this barrel; the directory's other files are internal. See
 // docs/dev/references/architecture/renderer.md §5.
 export { type ExecutionFinishEvent, executionStreamOverlayService } from './ExecutionStreamOverlayService'
-export { getStreamBlockedMessage } from './getStreamBlockedMessage'
+export { getStreamBlockedError, getStreamBlockedMessage } from './getStreamBlockedMessage'
 export { messageProjectionService } from './MessageProjectionService'
 export { streamDispatchService } from './StreamDispatchService'

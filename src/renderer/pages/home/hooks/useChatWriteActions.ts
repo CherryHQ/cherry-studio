@@ -21,7 +21,7 @@ import { loggerService } from '@logger'
 import type { ChatWriteActions } from '@renderer/hooks/chat/ChatWriteContext'
 import type { ReservedMessageSeedOptions } from '@renderer/hooks/useConversationTurnController'
 import { ipcApi } from '@renderer/ipc'
-import { getStreamBlockedMessage } from '@renderer/services/aiTransport'
+import { getStreamBlockedError } from '@renderer/services/aiTransport'
 import { invalidateCachedMessageUiStates } from '@renderer/services/messageUiStateCache'
 import { toast } from '@renderer/services/toast'
 import type { Assistant } from '@renderer/types/assistant'
@@ -336,7 +336,7 @@ export function useChatWriteActions(params: Params): Result {
           mentionedModelIds: [retryModelId],
           ...turnOptionsRequestFields(turnOptions)
         })
-        if (ack.mode === 'blocked') throw new Error(getStreamBlockedMessage(ack))
+        if (ack.mode === 'blocked') throw getStreamBlockedError(ack)
         await seedReservedMessages(ack.reservedMessages ?? [], {
           activeExecutions: ack.activeExecutions,
           preserveActiveNode: ack.preserveActiveNode
@@ -354,7 +354,7 @@ export function useChatWriteActions(params: Params): Result {
           mentionedModelIds: [effectiveRegenerateModelId],
           ...turnOptionsRequestFields(turnOptions)
         })
-        if (ack.mode === 'blocked') throw new Error(getStreamBlockedMessage(ack))
+        if (ack.mode === 'blocked') throw getStreamBlockedError(ack)
         await seedReservedMessages(ack.reservedMessages ?? [], {
           activeExecutions: ack.activeExecutions,
           preserveActiveNode: ack.preserveActiveNode
@@ -428,7 +428,7 @@ export function useChatWriteActions(params: Params): Result {
       })
 
       if (ack.mode === 'blocked') {
-        throw new Error(getStreamBlockedMessage(ack))
+        throw getStreamBlockedError(ack)
       }
 
       await seedReservedMessages(ack.reservedMessages ?? [], {
@@ -474,7 +474,7 @@ export function useChatWriteActions(params: Params): Result {
       })
 
       if (ack.mode === 'blocked') {
-        throw new Error(getStreamBlockedMessage(ack))
+        throw getStreamBlockedError(ack)
       }
 
       await seedReservedMessages(ack.reservedMessages ?? [], {

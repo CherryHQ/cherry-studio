@@ -2,7 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
 
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
-import { getStreamBlockedMessage } from '@renderer/services/aiTransport'
+import { getStreamBlockedError, getStreamBlockedMessage } from '@renderer/services/aiTransport'
 import { toast } from '@renderer/services/toast'
 import type { ActiveExecution, AiStreamOpenRequest, AiStreamOpenResponse } from '@shared/ai/transport'
 import type { CherryUIMessage } from '@shared/data/types/message'
@@ -84,7 +84,7 @@ export function useConversationTurnController<TInput, TConversation>({
         if (ack.mode === 'blocked') {
           setPhase('ready')
           const message = getStreamBlockedMessage(ack)
-          if (options.throwOnError) return Promise.reject(new Error(message))
+          if (options.throwOnError) return Promise.reject(getStreamBlockedError(ack))
           toast.error(message)
           return false
         }

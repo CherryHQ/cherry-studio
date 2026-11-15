@@ -7,6 +7,7 @@ import {
   type ErrorToastAction,
   type ErrorToastPresentation,
   errorToastPresentations,
+  LocalizedToastError,
   serializeToastError
 } from '@renderer/utils/errorToast'
 import type { Provider } from '@shared/data/types/provider'
@@ -37,6 +38,8 @@ const notifications = getToastUtilities(resolveToastLabels)
 
 export interface ErrorToastContext {
   key?: string
+  /** Localized conclusion used when the error is unclassified; raw text stays in details. */
+  title?: string
   category?: ErrorCategory
   provider?: Pick<Provider, 'id' | 'name' | 'websites'>
   modelName?: string
@@ -47,6 +50,7 @@ export interface ErrorToastContext {
 }
 
 function errorFromException(error: unknown, context: ErrorToastContext = {}): string {
+  if (error instanceof LocalizedToastError) return errorFromException(error.cause, { ...context, title: error.message })
   const serialized = serializeToastError(error)
   const classification = classifyError(serialized, context.provider?.id)
   const category = context.category ?? classification.category
@@ -74,7 +78,7 @@ function errorFromException(error: unknown, context: ErrorToastContext = {}): st
   const title = planQuota
     ? i18n.t('models.detail.quota_insufficient_for_request')
     : category === 'unknown'
-      ? i18n.t('toast.error.unexpected')
+      ? (context.title ?? i18n.t('toast.error.unexpected'))
       : i18n.t(diagnosisKey)
   let running = false
   const config = {
@@ -89,7 +93,7 @@ function errorFromException(error: unknown, context: ErrorToastContext = {}): st
           category === 'rate_limit' && context.retryAfterSeconds !== undefined
             ? i18n.t('toast.error.retry_after', { seconds: context.retryAfterSeconds })
             : undefined,
-          category === 'unknown' ? i18n.t('toast.error.interrupted') : undefined
+          category === 'unknown' && !context.title ? i18n.t('toast.error.interrupted') : undefined
         ]
           .filter(Boolean)
           .join(' · ') || undefined,
@@ -132,6 +136,7 @@ function errorFromException(error: unknown, context: ErrorToastContext = {}): st
                     ...context,
                     key,
                     category: undefined,
+                    title: undefined,
                     actions: tracksCompletion ? context.actions : {}
                   })
               } finally {
