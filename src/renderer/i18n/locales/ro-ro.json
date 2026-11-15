@@ -5879,6 +5879,7 @@
   "settings.shortcuts.selection_assistant_toggle": "Comută Asistentul de selecție",
   "settings.shortcuts.show_app": "Afișează/Ascunde aplicația",
   "settings.shortcuts.show_settings": "Deschide setările",
+  "settings.shortcuts.stop_generation": "Oprește generarea",
   "settings.shortcuts.title": "Comenzi rapide de la tastatură",
   "settings.shortcuts.toggle_left_sidebar": "Comută bara laterală stângă",
   "settings.shortcuts.toggle_new_context": "Șterge contextul",

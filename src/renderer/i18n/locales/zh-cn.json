@@ -5879,6 +5879,7 @@
   "settings.shortcuts.selection_assistant_toggle": "开关划词助手",
   "settings.shortcuts.show_app": "显示 / 隐藏应用",
   "settings.shortcuts.show_settings": "打开设置",
+  "settings.shortcuts.stop_generation": "停止生成",
   "settings.shortcuts.title": "快捷键",
   "settings.shortcuts.toggle_left_sidebar": "切换左侧边栏",
   "settings.shortcuts.toggle_new_context": "清除上下文",

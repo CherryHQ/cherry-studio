@@ -5879,6 +5879,7 @@
   "settings.shortcuts.selection_assistant_toggle": "สลับผู้ช่วยเลือก",
   "settings.shortcuts.show_app": "แสดง/ซ่อนแอป",
   "settings.shortcuts.show_settings": "เปิดการตั้งค่า",
+  "settings.shortcuts.stop_generation": "หยุดการสร้าง",
   "settings.shortcuts.title": "แป้นพิมพ์ลัด",
   "settings.shortcuts.toggle_left_sidebar": "สลับแถบด้านข้างซ้าย",
   "settings.shortcuts.toggle_new_context": "ล้างคอนเท็กซ์",

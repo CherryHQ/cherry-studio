@@ -5879,6 +5879,7 @@
   "settings.shortcuts.selection_assistant_toggle": "Переключить помощник выделения",
   "settings.shortcuts.show_app": "Показать/скрыть приложение",
   "settings.shortcuts.show_settings": "Открыть настройки",
+  "settings.shortcuts.stop_generation": "Остановить генерацию",
   "settings.shortcuts.title": "Горячие клавиши",
   "settings.shortcuts.toggle_left_sidebar": "Переключить левую боковую панель",
   "settings.shortcuts.toggle_new_context": "Очистить контекст",

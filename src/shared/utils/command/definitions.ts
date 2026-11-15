@@ -276,6 +276,16 @@ export const COMMAND_DEFINITIONS = [
     }
   }),
   defineCommand({
+    id: 'chat.generation.stop',
+    titleKey: 'settings.shortcuts.stop_generation',
+    categoryKey: 'settings.shortcuts.chat',
+    scope: 'renderer',
+    keybinding: {
+      defaultBinding: ['CommandOrControl', 'Shift', 'S'],
+      when: '!webview.focused'
+    }
+  }),
+  defineCommand({
     id: 'quick_assistant.toggle',
     titleKey: 'settings.shortcuts.quick_assistant',
     categoryKey: 'settings.shortcuts.feature.quick_assistant',
