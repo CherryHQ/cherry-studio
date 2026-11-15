@@ -3801,6 +3801,7 @@
   "selection.settings.user_modal.agent.notice": "Ajan yeni bir oturum başlatır ve araçları çağırabilir. Oturum, o ajanın oturum listesine kaydedilir.",
   "selection.settings.user_modal.assistant.default": "Varsayılan",
   "selection.settings.user_modal.assistant.label": "Asistan Seç",
+  "selection.settings.user_modal.icon.default": "Varsayılan simgeyi kullan",
   "selection.settings.user_modal.icon.label": "Simge",
   "selection.settings.user_modal.icon.placeholder": "Simge adı",
   "selection.settings.user_modal.icon.random": "Rastgele Simge",

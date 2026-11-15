@@ -3801,6 +3801,7 @@
   "selection.settings.user_modal.agent.notice": "L'agente avvia una nuova sessione e può chiamare strumenti. La sessione viene salvata nell'elenco delle sessioni di quell'agente.",
   "selection.settings.user_modal.assistant.default": "Predefinito",
   "selection.settings.user_modal.assistant.label": "Seleziona assistente",
+  "selection.settings.user_modal.icon.default": "Usa l’icona predefinita",
   "selection.settings.user_modal.icon.label": "Icona",
   "selection.settings.user_modal.icon.placeholder": "Nome dell'icona",
   "selection.settings.user_modal.icon.random": "Icona casuale",

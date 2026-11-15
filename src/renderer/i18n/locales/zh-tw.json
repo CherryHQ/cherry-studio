@@ -3801,6 +3801,7 @@
   "selection.settings.user_modal.agent.notice": "智能體會新建工作階段並可能呼叫工具，工作階段會保存在該智能體的工作階段列表中。",
   "selection.settings.user_modal.assistant.default": "預設",
   "selection.settings.user_modal.assistant.label": "選擇助理",
+  "selection.settings.user_modal.icon.default": "使用預設圖示",
   "selection.settings.user_modal.icon.label": "圖示",
   "selection.settings.user_modal.icon.placeholder": "圖示名稱",
   "selection.settings.user_modal.icon.random": "隨機圖示",

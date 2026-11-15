@@ -3801,6 +3801,7 @@
   "selection.settings.user_modal.agent.notice": "Der Agent startet eine neue Sitzung und kann Tools aufrufen. Die Sitzung wird in der Sitzungsliste dieses Agenten gespeichert.",
   "selection.settings.user_modal.assistant.default": "Standard",
   "selection.settings.user_modal.assistant.label": "Assistent auswählen",
+  "selection.settings.user_modal.icon.default": "Standardsymbol verwenden",
   "selection.settings.user_modal.icon.label": "Symbol",
   "selection.settings.user_modal.icon.placeholder": "Symbolname",
   "selection.settings.user_modal.icon.random": "Zufälliges Symbol",

@@ -3801,6 +3801,7 @@
   "selection.settings.user_modal.agent.notice": "Agent sẽ tạo phiên mới và có thể gọi công cụ. Phiên được lưu trong danh sách phiên của Agent đó.",
   "selection.settings.user_modal.assistant.default": "Mặc định",
   "selection.settings.user_modal.assistant.label": "Chọn Trợ lý",
+  "selection.settings.user_modal.icon.default": "Dùng biểu tượng mặc định",
   "selection.settings.user_modal.icon.label": "Biểu tượng",
   "selection.settings.user_modal.icon.placeholder": "Tên biểu tượng",
   "selection.settings.user_modal.icon.random": "Biểu tượng Ngẫu nhiên",

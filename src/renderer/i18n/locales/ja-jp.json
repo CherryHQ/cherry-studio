@@ -3801,6 +3801,7 @@
   "selection.settings.user_modal.agent.notice": "エージェントは新しいセッションを作成し、ツールを呼び出すことがあります。セッションはそのエージェントのセッション一覧に保存されます。",
   "selection.settings.user_modal.assistant.default": "デフォルト",
   "selection.settings.user_modal.assistant.label": "アシスタント選択",
+  "selection.settings.user_modal.icon.default": "デフォルトのアイコンを使用",
   "selection.settings.user_modal.icon.label": "アイコン",
   "selection.settings.user_modal.icon.placeholder": "アイコン名",
   "selection.settings.user_modal.icon.random": "ランダム選択",

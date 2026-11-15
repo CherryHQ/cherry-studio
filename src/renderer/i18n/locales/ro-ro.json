@@ -3801,6 +3801,7 @@
   "selection.settings.user_modal.agent.notice": "Agentul pornește o sesiune nouă și poate apela instrumente. Sesiunea este salvată în lista de sesiuni a acelui agent.",
   "selection.settings.user_modal.assistant.default": "Implicit",
   "selection.settings.user_modal.assistant.label": "Selectează asistentul",
+  "selection.settings.user_modal.icon.default": "Folosește pictograma implicită",
   "selection.settings.user_modal.icon.label": "Pictogramă",
   "selection.settings.user_modal.icon.placeholder": "Numele pictogramei",
   "selection.settings.user_modal.icon.random": "Pictogramă aleatorie",

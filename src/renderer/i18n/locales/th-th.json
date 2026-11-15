@@ -3801,6 +3801,7 @@
   "selection.settings.user_modal.agent.notice": "เอเจนต์จะเริ่มเซสชันใหม่และอาจเรียกใช้เครื่องมือ เซสชันจะถูกบันทึกไว้ในรายการเซสชันของเอเจนต์นั้น",
   "selection.settings.user_modal.assistant.default": "ค่าเริ่มต้น",
   "selection.settings.user_modal.assistant.label": "เลือกผู้ช่วย",
+  "selection.settings.user_modal.icon.default": "ใช้ไอคอนเริ่มต้น",
   "selection.settings.user_modal.icon.label": "ไอคอน",
   "selection.settings.user_modal.icon.placeholder": "ชื่อไอคอน",
   "selection.settings.user_modal.icon.random": "สุ่มไอคอน",

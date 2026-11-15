@@ -16,7 +16,7 @@ vi.mock('lucide-react/dynamic', () => ({
 import SelectionActionIcon from '../SelectionActionIcon'
 
 describe('SelectionActionIcon', () => {
-  it.each(['languages', 'file-question', 'scan-text', 'search', 'clipboard-copy', 'wand-sparkles', 'quote'])(
+  it.each(['bot', 'languages', 'file-question', 'scan-text', 'search', 'clipboard-copy', 'wand-sparkles', 'quote'])(
     'renders built-in %s without the dynamic icon fallback',
     (name) => {
       dynamicIconState.render.mockClear()

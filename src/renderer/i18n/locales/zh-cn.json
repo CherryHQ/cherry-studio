@@ -3801,6 +3801,7 @@
   "selection.settings.user_modal.agent.notice": "智能体会新建会话并可能调用工具，会话保存在该智能体的会话列表中。",
   "selection.settings.user_modal.assistant.default": "默认",
   "selection.settings.user_modal.assistant.label": "选择助手",
+  "selection.settings.user_modal.icon.default": "使用默认图标",
   "selection.settings.user_modal.icon.label": "图标",
   "selection.settings.user_modal.icon.placeholder": "图标名称",
   "selection.settings.user_modal.icon.random": "随机图标",

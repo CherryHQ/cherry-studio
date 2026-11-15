@@ -8,6 +8,17 @@ import type { CustomSelectionAction } from '@shared/types/selection'
 
 import SelectionActionUserModal from '../SelectionActionUserModal'
 
+// Persistence is owned by the modal; picker interactions are covered with real UI in its own suite.
+vi.mock('../SelectionActionIconPicker', () => ({
+  default: ({ value, onChange }: { value: string; onChange: (icon: string) => void }) => (
+    <div>
+      <output data-testid="saved-icon">{value}</output>
+      <button onClick={() => onChange('heart-pulse')}>pick heart-pulse</button>
+      <button onClick={() => onChange('')}>use default icon</button>
+    </div>
+  )
+}))
+
 vi.mock('@renderer/components/Avatar/ModelAvatar', () => ({
   default: () => null
 }))
@@ -74,6 +85,29 @@ const WORKSPACE: AgentWorkspaceEntity = {
 describe('SelectionActionUserModal', () => {
   beforeEach(() => {
     MockUseDataApiUtils.mockQueryData('/agent-workspaces', [WORKSPACE])
+  })
+
+  it('saves a selected then cleared icon and reopens with the default still unset', async () => {
+    const action: CustomSelectionAction = {
+      id: 'user-icon',
+      name: 'Translate',
+      enabled: true,
+      isBuiltIn: false,
+      runner: 'default'
+    }
+    const onOk = vi.fn()
+    const { rerender } = render(
+      <SelectionActionUserModal isModalOpen editingAction={action} onOk={onOk} onCancel={vi.fn()} />
+    )
+    fireEvent.click(await screen.findByRole('button', { name: 'pick heart-pulse' }))
+    expect(screen.getByTestId('saved-icon')).toHaveTextContent('heart-pulse')
+    fireEvent.click(screen.getByRole('button', { name: 'use default icon' }))
+    fireEvent.click(screen.getByRole('button', { name: 'common.confirm' }))
+    expect(onOk).toHaveBeenCalledWith(expect.objectContaining({ icon: '' }))
+    const saved: CustomSelectionAction = onOk.mock.calls[0][0]
+    rerender(<SelectionActionUserModal isModalOpen={false} editingAction={saved} onOk={onOk} onCancel={vi.fn()} />)
+    rerender(<SelectionActionUserModal isModalOpen editingAction={saved} onOk={onOk} onCancel={vi.fn()} />)
+    expect(await screen.findByTestId('saved-icon')).toBeEmptyDOMElement()
   })
 
   it('keeps the footer accessible when editing a long prompt', () => {
