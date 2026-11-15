@@ -983,6 +983,7 @@
   "chat.profile_pane.outputs.group.earlier": "Mai devreme",
   "chat.profile_pane.outputs.group.today": "Astăzi",
   "chat.profile_pane.outputs.group.week": "Săptămâna aceasta",
+  "chat.profile_pane.outputs.latest_shown": "se afișează cele mai recente {{count}}",
   "chat.profile_pane.outputs.page_meta": "Pagină · din „{{source}}”",
   "chat.profile_pane.outputs.unavailable": "Indisponibil",
   "chat.profile_pane.permission": "Permisiuni",

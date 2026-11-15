@@ -117,6 +117,16 @@ describe('Profile Outputs tab', () => {
     expect(screen.getByText('3 items')).toBeInTheDocument()
   })
 
+  // The list stops at the limit, so a larger total must not read as if every output were shown.
+  it('says only the latest outputs are listed when there are more than the list holds', () => {
+    const many = Array.from({ length: 201 }, (_, index) => ({ ...NOTES, id: `notes-${index}` }))
+    serveOutputs('/agents/:agentId/artifacts', many)
+    renderInRightPane(<AgentProfilePane agentId={agent.id} />)
+    openOutputsTab()
+
+    expect(screen.getByText(/showing the latest 200/)).toBeInTheDocument()
+  })
+
   it('opens an Agent output by its path', () => {
     serveOutputs('/agents/:agentId/artifacts', [REPORT])
     const onOpenOutput = vi.fn()

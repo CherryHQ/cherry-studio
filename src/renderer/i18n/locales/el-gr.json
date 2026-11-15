@@ -983,6 +983,7 @@
   "chat.profile_pane.outputs.group.earlier": "Παλαιότερα",
   "chat.profile_pane.outputs.group.today": "Σήμερα",
   "chat.profile_pane.outputs.group.week": "Αυτή την εβδομάδα",
+  "chat.profile_pane.outputs.latest_shown": "εμφανίζονται τα {{count}} πιο πρόσφατα",
   "chat.profile_pane.outputs.page_meta": "Σελίδα · από «{{source}}»",
   "chat.profile_pane.outputs.unavailable": "Μη διαθέσιμο",
   "chat.profile_pane.permission": "Δικαιώματα",
