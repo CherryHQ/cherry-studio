@@ -62,5 +62,5 @@ export function buildConfigToolsGuidance(
 export function buildReportArtifactsGuidance({ ref, hint }: ToolCallForm): string {
   return `## Reporting deliverables
 
-When you finish producing the file(s) the user asked for, call ${ref('cherry-tools', REPORT_ARTIFACTS_TOOL_NAME)} once with the final file path(s) and a one-line summary. List only the final deliverables — never intermediate, scratch, or temporary files. Skip the call entirely if the task produced no files.${hint}`
+When you finish producing the file(s) the user asked for, call ${ref('cherry-tools', REPORT_ARTIFACTS_TOOL_NAME)} once as \`{ artifacts: [{ path, description }], summary }\`: each final file's path with a short name for it, and a one-line summary. List only the final deliverables — never intermediate, scratch, or temporary files. Skip the call entirely if the task produced no files.${hint}`
 }
