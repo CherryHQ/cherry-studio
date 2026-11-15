@@ -1029,6 +1029,7 @@
   "chat.profile_pane.outputs.group.earlier": "更早",
   "chat.profile_pane.outputs.group.today": "今天",
   "chat.profile_pane.outputs.group.week": "本週",
+  "chat.profile_pane.outputs.latest_shown": "顯示最近 {{count}} 個",
   "chat.profile_pane.outputs.page_meta": "頁面 · 來自「{{source}}」",
   "chat.profile_pane.outputs.unavailable": "無法使用",
   "chat.profile_pane.permission": "權限",

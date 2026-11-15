@@ -1029,6 +1029,7 @@
   "chat.profile_pane.outputs.group.earlier": "Trước đó",
   "chat.profile_pane.outputs.group.today": "Hôm nay",
   "chat.profile_pane.outputs.group.week": "Tuần này",
+  "chat.profile_pane.outputs.latest_shown": "hiển thị {{count}} mục gần nhất",
   "chat.profile_pane.outputs.page_meta": "Trang · từ “{{source}}”",
   "chat.profile_pane.outputs.unavailable": "Không khả dụng",
   "chat.profile_pane.permission": "Quyền",

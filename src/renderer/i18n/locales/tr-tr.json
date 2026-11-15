@@ -1029,6 +1029,7 @@
   "chat.profile_pane.outputs.group.earlier": "Daha önce",
   "chat.profile_pane.outputs.group.today": "Bugün",
   "chat.profile_pane.outputs.group.week": "Bu hafta",
+  "chat.profile_pane.outputs.latest_shown": "son {{count}} gösteriliyor",
   "chat.profile_pane.outputs.page_meta": "Sayfa · “{{source}}” kaynağından",
   "chat.profile_pane.outputs.unavailable": "Kullanılamıyor",
   "chat.profile_pane.permission": "İzinler",

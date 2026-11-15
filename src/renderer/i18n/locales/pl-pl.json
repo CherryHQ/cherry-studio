@@ -1045,6 +1045,7 @@
   "chat.profile_pane.outputs.group.earlier": "Wcześniej",
   "chat.profile_pane.outputs.group.today": "Dzisiaj",
   "chat.profile_pane.outputs.group.week": "W tym tygodniu",
+  "chat.profile_pane.outputs.latest_shown": "wyświetlono ostatnie {{count}}",
   "chat.profile_pane.outputs.page_meta": "Strona · z „{{source}}”",
   "chat.profile_pane.outputs.unavailable": "Niedostępne",
   "chat.profile_pane.permission": "Uprawnienia",

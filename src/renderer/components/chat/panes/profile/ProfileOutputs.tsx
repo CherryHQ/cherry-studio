@@ -10,7 +10,12 @@ import { ImagePreviewService } from '@renderer/services/ImagePreviewService'
 import { formatFileSize } from '@renderer/utils/file'
 import { cn } from '@renderer/utils/style'
 import { getLocaleFirstDayOfWeek } from '@renderer/utils/time'
-import type { ArtifactEntity, ArtifactKind, ArtifactList } from '@shared/data/api/schemas/artifacts'
+import {
+  ARTIFACT_LIST_LIMIT,
+  type ArtifactEntity,
+  type ArtifactKind,
+  type ArtifactList
+} from '@shared/data/api/schemas/artifacts'
 import { type FileHandle, FileEntryIdSchema } from '@shared/data/types/file'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { createFileEntryHandle, createFilePathHandle, getFileTypeByExt, toSafeFileUrl } from '@shared/utils/file'
@@ -138,6 +143,9 @@ function OutputsList({
         ))}
         <span className="ml-auto pr-1 text-foreground-tertiary text-xs">
           {t('chat.profile_pane.outputs.count', { count: list.counts[filter] })}
+          {list.counts[filter] > ARTIFACT_LIST_LIMIT
+            ? ` · ${t('chat.profile_pane.outputs.latest_shown', { count: ARTIFACT_LIST_LIMIT })}`
+            : null}
         </span>
       </div>
       {GROUPS.map((group) => {

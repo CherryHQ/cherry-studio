@@ -1029,6 +1029,7 @@
   "chat.profile_pane.outputs.group.earlier": "Precedenti",
   "chat.profile_pane.outputs.group.today": "Oggi",
   "chat.profile_pane.outputs.group.week": "Questa settimana",
+  "chat.profile_pane.outputs.latest_shown": "mostrati i {{count}} più recenti",
   "chat.profile_pane.outputs.page_meta": "Pagina · da «{{source}}»",
   "chat.profile_pane.outputs.unavailable": "Non disponibile",
   "chat.profile_pane.permission": "Autorizzazioni",
