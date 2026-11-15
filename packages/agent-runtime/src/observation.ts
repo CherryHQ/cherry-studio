@@ -1,5 +1,19 @@
 import type { Observation, ObservationPayload, ObservationSink, ThreadSnapshot } from './contracts'
 
+const MAX_PENDING_BYTES = 16 * 1024 * 1024
+
+function retainedBytes(value: unknown, seen = new Set<object>()): number {
+  if (typeof value === 'string') return value.length * 2 + 16
+  if (value === null || typeof value !== 'object') return 8
+  if (seen.has(value)) return 0
+  seen.add(value)
+  if (ArrayBuffer.isView(value)) return value.byteLength + 32
+  if (value instanceof ArrayBuffer) return value.byteLength + 32
+  let bytes = 32
+  for (const [key, child] of Object.entries(value)) bytes += key.length * 2 + 16 + retainedBytes(child, seen)
+  return bytes
+}
+
 /** Bounded delivery for normalized facts; never schedules native execution. */
 export class ThreadFeed {
   private observers = new Set<{
@@ -17,6 +31,11 @@ export class ThreadFeed {
 
   get snapshot(): ThreadSnapshot {
     return structuredClone(this.value)
+  }
+
+  get state(): Omit<ThreadSnapshot, 'messages'> {
+    const { type, inputs, subagents, activity, contextUsage } = this.value
+    return structuredClone({ type, inputs, subagents, activity, contextUsage })
   }
 
   publish(event: ObservationPayload): void {
@@ -87,6 +106,22 @@ export class ThreadFeed {
     let delivered = 0
     let lost = false
     type Delivery = { value: T; through: number; shouldClose: boolean; recovery?: T }
+    const sizes = new WeakMap<Delivery, number>()
+    const exceedsBytes = (items: Delivery[]) => {
+      let total = 0
+      let largest = 0
+      for (const item of items) {
+        let size = sizes.get(item)
+        if (size === undefined) {
+          size = retainedBytes(item)
+          sizes.set(item, size)
+        }
+        total += size
+        largest = Math.max(largest, size)
+      }
+      // A single complete baseline may exceed the budget; multiple large copies may not.
+      return total > Math.max(MAX_PENDING_BYTES, largest)
+    }
     const captureFrame = (event: ObservationPayload, delivery: Parameters<typeof capture>[1]) =>
       structuredClone(capture(event, delivery))
     let pending: Delivery[] = [{ value: captureFrame(this.value, 'baseline').value, through: sent, shouldClose: false }]
@@ -144,16 +179,17 @@ export class ThreadFeed {
           ...(captured.retain && { recovery: captureFrame(this.value, 'recovery').value })
         }
         pending.push(next)
-        if (pending.length > 100) {
+        if (pending.length > 100 || exceedsBytes(pending)) {
           const retained = pending
             .filter((item) => item.recovery !== undefined)
             .map((item) => ({ ...item, value: item.recovery! }))
           const gap: ObservationPayload = { type: 'gap', reason: 'overflow' }
           const snapshot = this.value
-          if (retained.length > 1000) {
+          if (retained.length > 1000 || exceedsBytes(retained)) {
             lost = true
             const closed: ObservationPayload = { type: 'closed', reason: 'source-lost' }
             pending = [
+              ...(started ? [] : [pending[0]]),
               { value: captureFrame(gap, 'update').value, through: delivered, shouldClose: false },
               { value: captureFrame(closed, 'update').value, through: sent, shouldClose: true }
             ]

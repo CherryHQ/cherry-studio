@@ -321,3 +321,147 @@ it('deduplicates unchanged context readings and includes the latest value for a 
   feed.publish({ type: 'context.changed', result: invalid })
   expect(feed.snapshot.contextUsage).toEqual(invalid)
 })
+
+it('recovers a large snapshot backlog before the event-count limit', async () => {
+  const feed = new ThreadFeed(snapshot(), () => {})
+  let release!: () => void
+  const held = new Promise<void>((resolve) => {
+    release = resolve
+  })
+  const received: ObservationPayload[] = []
+  const observation = feed.observe(async (event) => {
+    received.push(event)
+    if (received.length === 1) await held
+  })
+  await tick()
+  const fast: string[] = []
+  const fastObservation = feed.observe((event) => {
+    if (event.type === 'snapshot' && event.messages.length) {
+      const part = event.messages[0].parts[0]
+      if (part.type === 'text') fast.push(part.text.slice(0, 3))
+    }
+  })
+  const body = 'A'.repeat(1024 * 1024)
+  for (let i = 0; i < 40; i++) {
+    feed.publish({ ...snapshot(), messages: [item('answer', `${i}:${body}`)] })
+    await tick()
+  }
+  expect(fast).toHaveLength(40)
+  await fastObservation.stop()
+  release()
+  await observation.drain()
+  expect(received.some((event) => event.type === 'gap' && event.reason === 'overflow')).toBe(true)
+  expect(received.at(-1)).toMatchObject({ type: 'snapshot', messages: [{ parts: [{ text: `39:${body}` }] }] })
+  await observation.stop()
+})
+
+it('retains ordered terminal metadata through byte-pressure recovery', async () => {
+  const feed = new ThreadFeed(snapshot(), () => {})
+  let release!: () => void
+  const held = new Promise<void>((resolve) => {
+    release = resolve
+  })
+  let terminal = false
+  let revision = 0
+  const received: { event: ObservationPayload; terminal: boolean; revision: number }[] = []
+  const observation = feed.observeCaptured<(typeof received)[number]>(
+    async (frame) => {
+      received.push(frame)
+      if (received.length === 1) await held
+    },
+    (event, delivery) => ({
+      value: { event, terminal: delivery !== 'baseline' && terminal, revision },
+      retain: terminal
+    })
+  )
+  await tick()
+  const body = 'A'.repeat(1024 * 1024)
+  for (revision = 1; revision <= 30; revision++) {
+    terminal = revision === 10 || revision === 20
+    feed.publish({ ...snapshot(), messages: [item('answer', `${revision}:${body}`)] })
+  }
+  terminal = false
+  release()
+  await observation.drain()
+  expect(received.some((frame) => frame.event.type === 'gap')).toBe(true)
+  expect(received.filter((frame) => frame.terminal).map((frame) => frame.revision)).toEqual([10, 20])
+  expect(received.at(-1)?.event).toMatchObject({ messages: [{ parts: [{ text: `30:${body}` }] }] })
+  await observation.stop()
+})
+
+it('fails closed when critical frames exceed the retained byte budget', async () => {
+  const failures: unknown[] = []
+  const feed = new ThreadFeed(snapshot(), (error) => failures.push(error))
+  let release!: () => void
+  const held = new Promise<void>((resolve) => {
+    release = resolve
+  })
+  const received: ObservationPayload[] = []
+  const observation = feed.observeCaptured<ObservationPayload>(
+    async (event) => {
+      received.push(event)
+      if (received.length === 1) await held
+    },
+    (event) => ({ value: event, retain: event.type === 'snapshot' && event.messages.length > 0 })
+  )
+  await tick()
+  const body = 'A'.repeat(9 * 1024 * 1024)
+  for (let i = 0; i < 2; i++) feed.publish({ ...snapshot(), messages: [item('answer', body)] })
+  release()
+  await observation.drain()
+  expect(received.slice(1)).toEqual([
+    { type: 'gap', reason: 'overflow' },
+    { type: 'closed', reason: 'source-lost' }
+  ])
+  expect(failures).toHaveLength(1)
+})
+
+it('keeps the initial baseline first when byte pressure closes an unstarted observer', async () => {
+  const feed = new ThreadFeed(snapshot(), () => {})
+  const received: ObservationPayload[] = []
+  const observation = feed.observeCaptured<ObservationPayload>(
+    (event) => {
+      received.push(event)
+    },
+    (event) => ({ value: event, retain: event.type === 'snapshot' && event.messages.length > 0 })
+  )
+  const body = 'A'.repeat(9 * 1024 * 1024)
+  for (let i = 0; i < 2; i++) feed.publish({ ...snapshot(), messages: [item('answer', body)] })
+  await observation.drain()
+  expect(received.map((event) => event.type)).toEqual(['snapshot', 'gap', 'closed'])
+  expect(received.at(-1)).toEqual({ type: 'closed', reason: 'source-lost' })
+})
+it('exposes isolated state without carrying historical message bodies', () => {
+  const inputId = runtimeId<'input'>('input')
+  const feed = new ThreadFeed(
+    { ...snapshot(), messages: [item('large', 'A'.repeat(1024 * 1024))], inputs: [{ inputId, facts: ['accepted'] }] },
+    () => {}
+  )
+  const state = feed.state
+  expect(state).not.toHaveProperty('messages')
+  ;(state.inputs[0].facts as string[]).push('placed')
+  expect(feed.state.inputs[0].facts).toEqual(['accepted'])
+  expect(feed.snapshot.messages[0].parts).toEqual([{ type: 'text', text: 'A'.repeat(1024 * 1024) }])
+})
+
+it('delivers an oversized latest snapshot without truncating its body', async () => {
+  const failures: unknown[] = []
+  const feed = new ThreadFeed(snapshot(), (error) => failures.push(error))
+  let release!: () => void
+  const held = new Promise<void>((resolve) => {
+    release = resolve
+  })
+  const received: ObservationPayload[] = []
+  const observation = feed.observe(async (event) => {
+    received.push(event)
+    if (received.length === 1) await held
+  })
+  await tick()
+  const body = 'A'.repeat(9 * 1024 * 1024)
+  for (let i = 0; i < 2; i++) feed.publish({ ...snapshot(), messages: [item('answer', `${i}:${body}`)] })
+  release()
+  await observation.drain()
+  expect(received.at(-1)).toMatchObject({ type: 'snapshot', messages: [{ parts: [{ text: `1:${body}` }] }] })
+  expect(failures).toEqual([])
+  await observation.stop()
+})
