@@ -23,8 +23,8 @@ type AutoCreateEntryProps = {
 }
 
 /**
- * First page of the create flow. The purpose is the `description` field, so "Manual create"
- * carries it into the basic step unchanged; "Auto create" turns it into a full configuration.
+ * First page of the create flow. The purpose is the `description` field, which only this page edits:
+ * "Manual create" keeps it as typed, and "Auto create" turns it into a full configuration.
  */
 export function AutoCreateEntry({
   form,
