@@ -138,6 +138,32 @@ describe('Profile Outputs tab', () => {
     expect(onOpenOutput).toHaveBeenCalledWith('/ws/review.html')
   })
 
+  // Reported descriptions run long and two drafts of one report read alike; the file name tells them apart.
+  it('names a file by its file name and keeps the description in its tooltip', () => {
+    const draft = output({
+      id: 'a-4',
+      title: 'Review report, second draft in monochrome',
+      kind: 'file',
+      path: '/ws/report-v2.docx'
+    })
+    serveOutputs('/agents/:agentId/artifacts', [REPORT, draft])
+    renderInRightPane(<AgentProfilePane agentId={agent.id} />)
+    openOutputsTab()
+
+    const row = screen.getByRole('button', { name: /report-v2\.docx/ })
+    expect(row).toHaveAttribute('title', expect.stringContaining('Review report, second draft in monochrome'))
+    expect(within(row).queryByText('Review report, second draft in monochrome')).not.toBeInTheDocument()
+    expect(screen.getByText('PR review report')).toBeInTheDocument()
+  })
+
+  it('names an untitled source conversation the way the sidebar does', () => {
+    serveOutputs('/agents/:agentId/artifacts', [{ ...REPORT, sourceName: '' }])
+    renderInRightPane(<AgentProfilePane agentId={agent.id} />)
+    openOutputsTab()
+
+    expect(screen.getByText('Page · from “New task”')).toBeInTheDocument()
+  })
+
   it('filters by kind and counts the outputs of that kind', () => {
     serveOutputs('/agents/:agentId/artifacts', [REPORT, SHOT, NOTES])
     renderInRightPane(<AgentProfilePane agentId={agent.id} />)
