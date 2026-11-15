@@ -1,6 +1,6 @@
 import '@testing-library/jest-dom/vitest'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -117,7 +117,9 @@ describe('MainApp top-level error boundary', () => {
 
     render(<MainApp />)
 
-    expect(screen.getByRole('alert')).toHaveTextContent('theme provider boom')
+    const alert = screen.getByRole('alert')
+    fireEvent.click(within(alert).getByRole('button', { expanded: false }))
+    expect(alert).toHaveTextContent('theme provider boom')
     expect(document.getElementById('spinner')).toBeNull()
     consoleError.mockRestore()
   })
