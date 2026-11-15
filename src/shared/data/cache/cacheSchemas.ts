@@ -501,6 +501,7 @@ export type RendererPersistCacheSchema = {
   'settings.usage.currency': Currency | null
   // MCP marketplace "available servers" fetched per provider; re-fetchable, so cached not stored
   'feature.mcp.provider_available_servers': CacheValueTypes.McpAvailableServers
+  'feature.marketplace.skill_catalog': CacheValueTypes.CacheMarketplaceSkillCatalog
   // Last successful external-open target per directory or file-extension scope.
   'external_app.target.preferences': CacheValueTypes.ExternalOpenTargetPreferences
   // Recently picked emojis (MRU order, capped to 32) shown at the top of the shared emoji picker
@@ -562,6 +563,7 @@ export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
   'settings.usage.entry_sort_order': 'desc',
   'settings.usage.currency': null,
   'feature.mcp.provider_available_servers': {},
+  'feature.marketplace.skill_catalog': null,
   'external_app.target.preferences': {},
   'ui.emoji.recently_used': [],
   'ui.screenshot.color_mode': 'hex',
