@@ -3,6 +3,7 @@ description: End-to-end chat turn flow from renderer IPC transport through AiStr
 sources:
   - src/main/ai/streamManager
   - src/main/ai/AiService.ts
+  - src/main/ai/imageTurn
   - src/main/ipc/handlers/ai.ts
   - src/renderer/services/aiTransport
 ---
@@ -64,11 +65,17 @@ Model requests: existing provider registry / gateway / AI SDK paths remain uncha
    use `contextOwner: 'caller'` and a single AI SDK invocation. The runtime
    owns tool execution and continuation; SDK message rules, provider adapters,
    middleware, tracing, and usage capture remain shared.
+   Dedicated image APIs take a separate branch before parameter building:
+   `openImageTurnStream` calls `generateImage` for the latest user prompt, then
+   returns a `messages` source containing the resulting file parts. The turn
+   still enters the same persistence and projection pipeline described below.
+   Native image-chat protocols continue through the normal chat Agent.
 8. The returned `AiStreamSource` selects one consumer. `chunks` uses `pipeStreamLoop`
    and `readUIMessageStream`; `messages` uses `pipeMessageStream` to forward authoritative
    bodies already composed with host display state. Listeners receive `onMessage` snapshots, and
    persistence uses that same final view. Pi, Pi Durable, and Claude select
-   `messages`; Chat retains its chunk source.
+   `messages`; Chat keeps its chunk source except for dedicated-image turns, which return
+   `messages`.
 9. On terminal (`done` / `error` / `aborted` / `awaiting-approval`):
    - `PersistenceListener` writes the final assistant message.
    - `TopicMessageProjection` publishes the final message and terminal state to subscribed windows.

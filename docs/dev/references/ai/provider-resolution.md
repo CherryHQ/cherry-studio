@@ -16,7 +16,7 @@ settings, hitting which URL. Three pieces of state determine that:
 | Field | Lives on | Example |
 |---|---|---|
 | `provider.id` | `Provider` row | `minimax`, `silicon`, `my-relay` |
-| `endpointType` | `model.endpointTypes[0]` or `provider.defaultChatEndpoint` | `openai-chat-completions`, `anthropic-messages` |
+| `endpointType` | the declared endpoint matching the request `intent`, else `provider.defaultChatEndpoint` | `openai-chat-completions`, `anthropic-messages` |
 | `adapterFamily` | `provider.endpointConfigs[endpointType].adapterFamily` | `openai-compatible`, `anthropic`, `azure-responses` |
 
 `adapterFamily` is the actual SDK selector. `provider.id` is the user-facing
@@ -30,7 +30,7 @@ See [Adapter Family](./adapter-family.md) for the full design.
 `src/main/ai/provider/endpoint.ts` exposes four pure helpers:
 
 ```ts
-resolveEffectiveEndpoint(provider, model): { endpointType, baseUrl, providerOptionsKey? }
+resolveEffectiveEndpoint(provider, model, preferredEndpointType?, intent?): { endpointType, baseUrl, providerOptionsKey? }
 resolveProviderVariant(baseProviderId, endpointType): AppProviderId
 resolveAiSdkProviderId(provider, endpointType): AppProviderId
 resolveProviderOptionsKey(aiSdkProviderId, context): string
@@ -46,6 +46,16 @@ variant suffix if the endpoint type has one, falls back to
 `providerOptions` namespace used by that gateway's concrete model. The result is
 carried through `SdkConfig`; reasoning encoders consume the resolved namespace
 and never inspect provider or model ids themselves.
+
+The optional `intent` is `chat` (the default) or `image`. Chat intent selects the
+first declared chat protocol, preserving its order without inferring a dialect
+from the model name. Image intent selects a declared image-generation endpoint.
+When no endpoint matches the intent, the first declaration remains authoritative;
+text output alone does not make an image API a chat API. A model a provider
+publishes in both its chat and image catalogs declares both endpoints, so chat
+uses the chat protocol and the image workflow uses the image endpoint.
+`preferredEndpointType` still wins when the model declares it and the provider
+configures its base URL.
 
 ```ts
 // Full resolver — 6 lines
@@ -95,14 +105,15 @@ idempotent when the base id is already a variant.
 
 ## Provider config
 
-`providerToAiSdkConfig(provider, model, { apiKeyOverride?, resolvedEndpoint? })`
+`providerToAiSdkConfig(provider, model, { apiKeyOverride?, resolvedEndpoint?, intent? })`
 (`src/main/ai/provider/config.ts`) returns
 `{ providerId: AppProviderId, providerSettings: AppProviderSettingsMap[id] }`.
 The standard request path passes its already-resolved endpoint into this
 function, which then calls `resolveAiSdkProviderId` and dispatches through an
 ordered `{ match, build }` table to build the provider-specific settings
 object (apiKey, baseURL, organization, headers, ...). Direct callers may omit
-the option and let the function resolve the endpoint itself.
+the option and let the function resolve the endpoint itself, optionally with an
+`intent` (`chat` | `image`) that `resolveEffectiveEndpoint` applies.
 
 `resolveSdkConfig` (`src/main/ai/provider/sdkConfig.ts`) wraps it with the wire
 model id and the `providerOptions` namespace. It is the modality-agnostic
@@ -136,6 +147,7 @@ The builder table (`config.ts`, first match wins):
 | `id === 'newapi'` | `buildNewApiConfig` | |
 | `id === 'aihubmix'` | `buildAiHubMixConfig` | passes the Chat, Responses, Anthropic, and Gemini URLs independently |
 | `id === 'dmxapi'` | `buildDmxapiConfig` | passes the Chat, Anthropic, and Gemini URLs independently |
+| `id === 'openrouter'` | `buildGenericProviderConfig` + `modalities` | on a chat endpoint for an image model with `image` output, adds `extraBody.modalities: ['text', 'image']` — OpenRouter only emits images when both are requested |
 | _(no match)_ | `buildGenericProviderConfig` / `buildOpenAICompatibleConfig` | generic fallback |
 
 Several builders are `async` (Copilot token, CherryIN relay URLs), which is
