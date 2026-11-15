@@ -59,10 +59,6 @@ export class MemoryMigrationService extends BaseService {
     )
   }
 
-  retryFromEditor(agentId: string): void {
-    this.failed.delete(agentId)
-  }
-
   isMigrated(agentId: string): boolean {
     return this.readState(agentId)?.status === 'complete'
   }
