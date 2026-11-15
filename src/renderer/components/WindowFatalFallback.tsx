@@ -1,8 +1,9 @@
-import { AlertCircle, RefreshCw } from 'lucide-react'
+import { AlertCircle, ChevronRight, RefreshCw } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import type { FallbackProps } from 'react-error-boundary'
 
 import { Button } from '@cherrystudio/ui'
+import { cn } from '@cherrystudio/ui/lib/utils'
 import i18n from '@renderer/i18n/resolver'
 import { ipcApi } from '@renderer/ipc'
 import { getAppEdition } from '@renderer/utils/appEdition'
@@ -24,6 +25,7 @@ export const WindowFatalFallback = ({ error }: FallbackProps) => {
   const [actionError, setActionError] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
   const [exporting, setExporting] = useState(false)
+  const [expanded, setExpanded] = useState(false)
   // Imported from the snapshot module: `@shared/utils/appError` would pull zod into every window.
   const [fault] = useState(() =>
     createAppErrorContext({
@@ -100,13 +102,13 @@ export const WindowFatalFallback = ({ error }: FallbackProps) => {
     <div className="flex h-screen w-screen items-center justify-center overflow-auto bg-card p-3">
       <div
         role="alert"
-        className="grid w-full max-w-xl grid-cols-[auto_minmax(0,1fr)] gap-x-2 gap-y-0.5 rounded-lg border border-border-subtle bg-background-subtle px-3 py-2.5 text-foreground">
+        className="group grid w-full max-w-xl grid-cols-[auto_minmax(0,1fr)] gap-x-2 gap-y-0.5 rounded-lg border border-border-subtle bg-background-subtle px-3 py-2.5 text-foreground">
         <AlertCircle size={14} className="mt-[3px] text-error" />
         <div className="font-medium text-[13px] leading-5">{i18n.t('error.boundary.default.title')}</div>
         <div className="col-start-2 text-muted-foreground text-xs leading-[18px]">
-          {i18n.t('error.boundary.fatal.info')}
+          {i18n.t('error.boundary.default.info')}
         </div>
-        <div className="col-start-2 mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
+        <div className="col-start-2 mt-2 flex items-center gap-2">
           <Button
             type="button"
             size="sm"
@@ -116,21 +118,34 @@ export const WindowFatalFallback = ({ error }: FallbackProps) => {
             <RefreshCw size={13} />
             {i18n.t('error.boundary.default.reload')}
           </Button>
-          <div className="ml-auto flex flex-wrap items-center text-foreground-tertiary text-xs">
-            {links.map((link, index) => (
-              <span key={link.label} className="flex items-center">
-                {index > 0 ? <span className="px-1">·</span> : null}
+          <button
+            type="button"
+            aria-expanded={expanded}
+            className="ml-auto inline-flex cursor-pointer items-center gap-0.5 text-foreground-tertiary text-xs hover:text-foreground group-hover:text-foreground"
+            onClick={() => setExpanded((open) => !open)}>
+            {i18n.t('common.detail')}
+            <ChevronRight className={cn('size-3.5 transition-transform', expanded && 'rotate-90')} aria-hidden />
+          </button>
+        </div>
+        {expanded ? (
+          <div className="col-start-2 mt-2 flex flex-col gap-1.5 border-border-subtle border-t pt-2">
+            <p className="line-clamp-3 select-text break-all font-mono text-[11px] text-muted-foreground leading-4">
+              {error instanceof Error ? `${error.name}: ${error.message}` : String(error)}
+            </p>
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-foreground-tertiary text-xs">
+              {links.map((link) => (
                 <button
+                  key={link.label}
                   type="button"
                   disabled={link.disabled}
                   className="cursor-pointer hover:text-foreground disabled:cursor-default disabled:opacity-50"
                   onClick={link.onClick}>
                   {link.label}
                 </button>
-              </span>
-            ))}
+              ))}
+            </div>
           </div>
-        </div>
+        ) : null}
         {actionError ? (
           <p role="alert" className="col-start-2 mt-1 text-error text-xs">
             {actionError}

@@ -1551,7 +1551,6 @@
   "error.boundary.details": "Detalii",
   "error.boundary.export": "Exportă jurnalele",
   "error.boundary.export_busy": "O exportare este deja în curs. Încearcă din nou când se termină.",
-  "error.boundary.fatal.info": "Poate fi o problemă temporară — de obicei, reîncărcarea o rezolvă. Dacă se repetă, poți copia eroarea sau ne poți trimite feedback.",
   "error.boundary.feedback": "Trimite feedback",
   "error.boundary.mcp.invalid": "Server MCP invalid",
   "error.cause": "Cauză eroare",

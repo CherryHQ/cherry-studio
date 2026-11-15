@@ -1551,7 +1551,6 @@
   "error.boundary.details": "詳細情報",
   "error.boundary.export": "ログを書き出す",
   "error.boundary.export_busy": "書き出しが進行中です。完了してから再度試してください。",
-  "error.boundary.fatal.info": "一時的な問題の可能性があります。再読み込みすると通常は解決します。繰り返し発生する場合は、エラーをコピーするか、フィードバックを送ってください。",
   "error.boundary.feedback": "フィードバックを送る",
   "error.boundary.mcp.invalid": "無効なMCPサーバー",
   "error.cause": "エラーの原因",

@@ -1551,7 +1551,6 @@
   "error.boundary.details": "Details",
   "error.boundary.export": "Protokolle exportieren",
   "error.boundary.export_busy": "Ein Export läuft bereits. Versuchen Sie es erneut, wenn er abgeschlossen ist.",
-  "error.boundary.fatal.info": "Das ist möglicherweise nur vorübergehend – ein Neuladen hilft meistens. Wenn es wieder passiert, kannst du den Fehler kopieren oder uns Feedback senden.",
   "error.boundary.feedback": "Feedback senden",
   "error.boundary.mcp.invalid": "Ungültiger MCP-Server",
   "error.cause": "Fehlerursache",

@@ -1551,7 +1551,6 @@
   "error.boundary.details": "Dettagli",
   "error.boundary.export": "Esporta log",
   "error.boundary.export_busy": "È già in corso un'esportazione. Riprova al termine.",
-  "error.boundary.fatal.info": "Potrebbe essere un problema temporaneo: di solito basta ricaricare. Se si ripete, puoi copiare l'errore o inviarci un feedback.",
   "error.boundary.feedback": "Invia un commento",
   "error.boundary.mcp.invalid": "Server MCP non valido",
   "error.cause": "Causa dell'errore",

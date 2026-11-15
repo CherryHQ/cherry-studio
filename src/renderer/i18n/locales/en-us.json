@@ -1551,7 +1551,6 @@
   "error.boundary.details": "Details",
   "error.boundary.export": "Export logs",
   "error.boundary.export_busy": "An export is already in progress. Try again when it finishes.",
-  "error.boundary.fatal.info": "This may be temporary — reloading usually fixes it. If it keeps happening, copy the error or send us feedback.",
   "error.boundary.feedback": "Send feedback",
   "error.boundary.mcp.invalid": "Invalid MCP server",
   "error.cause": "Error cause",

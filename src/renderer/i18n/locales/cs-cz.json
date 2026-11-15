@@ -1551,7 +1551,6 @@
   "error.boundary.details": "Podrobnosti",
   "error.boundary.export": "Exportovat logy",
   "error.boundary.export_busy": "Export již probíhá. Zkuste to znovu po jeho dokončení.",
-  "error.boundary.fatal.info": "Může jít o dočasný problém – opětovné načtení jej obvykle vyřeší. Pokud se to opakuje, zkopírujte chybu nebo nám pošlete zpětnou vazbu.",
   "error.boundary.feedback": "Odeslat zpětnou vazbu",
   "error.boundary.mcp.invalid": "Neplatný server MCP",
   "error.cause": "Příčina chyby",
