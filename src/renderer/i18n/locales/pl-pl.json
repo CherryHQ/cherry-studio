@@ -2961,6 +2961,8 @@
   "miniApps.zhihu": "Zhihu",
   "models.action.configure_custom": "Skonfiguruj modele niestandardowe",
   "models.action.pin": "Przypnij ten model",
+  "models.action.switch_to_dialog": "Przełącz na okno dialogowe",
+  "models.action.switch_to_dropdown": "Przełącz na listę rozwijaną",
   "models.action.unpin": "Odepnij model",
   "models.all": "Wszystkie",
   "models.detail.context_window": "Okno kontekstu",
