@@ -3,6 +3,7 @@
  * `docs/dev/references/ai/adapter-family.md` for design rationale.
  */
 
+import { endpointImpliedCapability, MODEL_CAPABILITY } from '@cherrystudio/provider-registry'
 import type { Model } from '@shared/data/types/model'
 import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
@@ -12,6 +13,9 @@ import { SystemProviderIds } from '@shared/utils/systemProviderId'
 import { type AppProviderId, appProviderIds } from '../types'
 import { getBaseUrl } from '../utils/provider'
 import { resolveGatewayRoute } from './gatewayRouting'
+
+/** Whether endpoint resolution serves in-app chat or an image-generation transport. */
+export type ResolveEndpointIntent = 'chat' | 'image'
 
 export interface ResolvedEndpoint {
   /** `undefined` when neither model nor provider declares an endpoint. */
@@ -38,10 +42,14 @@ export function resolveWireModelId(model: Model, endpointType: EndpointType | un
 }
 
 /**
- * Priority: `preferredEndpointType` → `model.endpointTypes[0]` → gateway per-model route →
- * `provider.defaultChatEndpoint` → `undefined`. The gateway step resolves the wire endpoint from the
+ * Priority: `preferredEndpointType` → the declared endpoint matching `intent` → gateway per-model route
+ * → `provider.defaultChatEndpoint` → `undefined`. The gateway step resolves the wire endpoint from the
  * model id for multi-backend gateways (AiHubMix, …) whose models carry no explicit `endpointTypes`
  * (see `gatewayRouting`). `getBaseUrl` applies its own fallback among `endpointConfigs`.
+ *
+ * `intent` only reorders the model's own declarations — chat takes the first chat protocol, image the
+ * first image-generation protocol — and falls back to the first declaration, so a model whose protocol
+ * list has no chat entry cannot route to a chat URL.
  *
  * `preferredEndpointType` serves callers that speak exactly one dialect — the Claude Agent SDK speaks
  * Anthropic Messages and nothing else, so it asks for that rather than the in-app-chat default
@@ -54,7 +62,8 @@ export function resolveWireModelId(model: Model, endpointType: EndpointType | un
 export function resolveEffectiveEndpoint(
   provider: Provider,
   model: Model,
-  preferredEndpointType?: EndpointType
+  preferredEndpointType?: EndpointType,
+  intent: ResolveEndpointIntent = 'chat'
 ): ResolvedEndpoint {
   const gatewayRoute = resolveGatewayRoute(provider, model)
   const preferred =
@@ -63,8 +72,14 @@ export function resolveEffectiveEndpoint(
     provider.endpointConfigs?.[preferredEndpointType]?.baseUrl
       ? preferredEndpointType
       : undefined
-  const endpointType =
-    preferred ?? model.endpointTypes?.[0] ?? gatewayRoute?.endpointType ?? provider.defaultChatEndpoint
+  const declaredEndpoint =
+    intent === 'image'
+      ? (model.endpointTypes?.find(
+          (endpointType) => endpointImpliedCapability(endpointType) === MODEL_CAPABILITY.IMAGE_GENERATION
+        ) ?? model.endpointTypes?.[0])
+      : (model.endpointTypes?.find((endpointType) => endpointImpliedCapability(endpointType) == null) ??
+        model.endpointTypes?.[0])
+  const endpointType = preferred ?? declaredEndpoint ?? gatewayRoute?.endpointType ?? provider.defaultChatEndpoint
   const providerOptionsKey =
     gatewayRoute && endpointType === gatewayRoute.endpointType ? gatewayRoute.providerOptionsKey : undefined
   return { endpointType, baseUrl: getBaseUrl(provider, endpointType), providerOptionsKey }
