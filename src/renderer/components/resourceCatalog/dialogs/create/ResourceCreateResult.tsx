@@ -89,12 +89,15 @@ export function ResourceCreateResultView({
   kind,
   created,
   onAdjust,
-  onStart
+  onStart,
+  onClose
 }: {
   kind: ResourceCreateWizardKind
   created: CreatedResource
   onAdjust: () => void
-  onStart: () => void
+  /** Absent when the caller has no conversation to open; the page then offers Close. */
+  onStart?: () => void
+  onClose: () => void
 }) {
   const { t } = useTranslation()
   const { values, generated } = created
@@ -171,8 +174,8 @@ export function ResourceCreateResultView({
         <Button type="button" variant="outline" onClick={onAdjust}>
           {t('library.config.dialogs.create.result.adjust')}
         </Button>
-        <Button type="button" variant="emphasis" onClick={onStart}>
-          {t('library.config.dialogs.create.result.start')}
+        <Button type="button" variant="emphasis" onClick={onStart ?? onClose}>
+          {onStart ? t('library.config.dialogs.create.result.start') : t('common.close')}
         </Button>
       </div>
     </>
