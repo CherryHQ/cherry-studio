@@ -2966,7 +2966,28 @@
       },
       "name": "minimax-global",
       "presetProviderId": "minimax"
+    },
+    {
+      "availableInEditions": ["global"],
+      "defaultChatEndpoint": "openai-chat-completions",
+      "description": "Ace Data Cloud - AI model provider",
+      "endpointConfigs": {
+        "openai-chat-completions": {
+          "adapterFamily": "openai-compatible",
+          "baseUrl": "https://api.acedata.cloud/openai#"
+        }
+      },
+      "id": "acedatacloud",
+      "metadata": {
+        "website": {
+          "apiKey": "https://platform.acedata.cloud/console/applications?utm_source=opensource&utm_medium=referral&utm_campaign=evergreen&utm_content=cherrystudio_provider_api_key",
+          "docs": "https://platform.acedata.cloud/documents/openai-chat-completions?utm_source=opensource&utm_medium=referral&utm_campaign=evergreen&utm_content=cherrystudio_provider_docs",
+          "models": "https://platform.acedata.cloud/models?utm_source=opensource&utm_medium=referral&utm_campaign=evergreen&utm_content=cherrystudio_provider_models",
+          "official": "https://platform.acedata.cloud?utm_source=opensource&utm_medium=referral&utm_campaign=evergreen&utm_content=cherrystudio_provider_website"
+        }
+      },
+      "name": "Ace Data Cloud"
     }
   ],
-  "version": "a6291a3a00ded246"
+  "version": "6d6576dd9dd41d5c"
 }
