@@ -202,6 +202,7 @@ export function PermissionModeSelect({
   scopeName,
   scopeKind = 'agent',
   standalone = false,
+  compact = false,
   triggerClassName,
   t
 }: {
@@ -214,6 +215,8 @@ export function PermissionModeSelect({
   scopeKind?: FullAccessScopeKind
   /** Rendered outside a react-hook-form field, so the trigger skips the `FormControl` wiring. */
   standalone?: boolean
+  /** Single-line options without descriptions, for a pill in a settings list. */
+  compact?: boolean
   triggerClassName?: string
   t: TFunction
 }) {
@@ -252,9 +255,15 @@ export function PermissionModeSelect({
           onValueChange(next as PermissionMode)
         }}>
         {standalone ? trigger : <FormControl>{trigger}</FormControl>}
-        <SelectContent portalContainer={portalContainer} className="min-w-[360px]">
+        <SelectContent portalContainer={portalContainer} className={compact ? undefined : 'min-w-[360px]'}>
           {cards.map((card) => (
-            <PermissionModeSelectItem key={card.mode} card={card} portalContainer={portalContainer} t={t} />
+            <PermissionModeSelectItem
+              key={card.mode}
+              card={card}
+              compact={compact}
+              portalContainer={portalContainer}
+              t={t}
+            />
           ))}
         </SelectContent>
       </Select>
