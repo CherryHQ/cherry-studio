@@ -16501,7 +16501,7 @@
       "id": "chatgpt-image-latest",
       "inputModalities": ["text", "image"],
       "metadata": {},
-      "name": "chatgpt-image-latest",
+      "name": "ChatGPT Image Latest",
       "outputModalities": ["text", "image"],
       "ownedBy": "openai"
     },
@@ -24019,5 +24019,5 @@
       "ownedBy": "zhipu"
     }
   ],
-  "version": "92d2386de7dd37d4"
+  "version": "8c8f30a4754fa756"
 }

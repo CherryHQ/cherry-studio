@@ -141,6 +141,19 @@ describe('catalog invariants (data/*.json)', () => {
     })
   })
 
+  it('keeps the image endpoint on every OpenRouter image-generation override', () => {
+    // A model open to the image catalog must stay reachable from the paintings page even when chat
+    // also serves it; dropping or reordering the image endpoint would break image generation.
+    const imageOverrides = providerModelOverrides.filter(
+      (override) => override.providerId === 'openrouter' && override.imageGeneration
+    )
+
+    expect(imageOverrides.length).toBeGreaterThan(0)
+    for (const override of imageOverrides) {
+      expect(override.endpointTypes, override.apiModelId).toContain('openai-image-generation')
+    }
+  })
+
   it('drops Vercel OpenAI fast routing aliases without dropping real fast models', () => {
     expect(isModelsDevRoutingAlias('vercel', 'openai/gpt-5-fast')).toBe(true)
     expect(isModelsDevRoutingAlias('vercel', 'bytedance/seedance-2.0-fast')).toBe(false)
