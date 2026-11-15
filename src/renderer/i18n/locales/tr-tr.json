@@ -1551,7 +1551,6 @@
   "error.boundary.details": "Ayrıntılar",
   "error.boundary.export": "Günlükleri dışa aktar",
   "error.boundary.export_busy": "Bir dışa aktarma zaten sürüyor. Bitince yeniden deneyin.",
-  "error.boundary.fatal.info": "Geçici bir sorun olabilir; yeniden yüklemek genellikle düzeltir. Tekrar ederse hatayı kopyalayabilir veya bize geri bildirim gönderebilirsiniz.",
   "error.boundary.feedback": "Geri bildirim gönder",
   "error.boundary.mcp.invalid": "Geçersiz MCP sunucusu",
   "error.cause": "Hatanın nedeni",

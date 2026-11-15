@@ -1571,7 +1571,6 @@
   "error.boundary.details": "Szczegóły",
   "error.boundary.export": "Eksportuj dzienniki",
   "error.boundary.export_busy": "Eksport jest już w toku. Spróbuj ponownie po jego zakończeniu.",
-  "error.boundary.fatal.info": "Może to być problem tymczasowy — ponowne załadowanie zwykle go rozwiązuje. Jeśli będzie się powtarzał, skopiuj błąd lub wyślij nam opinię.",
   "error.boundary.feedback": "Wyślij opinię",
   "error.boundary.mcp.invalid": "Nieprawidłowy serwer MCP",
   "error.cause": "Przyczyna błędu",

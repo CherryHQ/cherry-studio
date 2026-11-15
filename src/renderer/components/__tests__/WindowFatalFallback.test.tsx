@@ -30,14 +30,20 @@ describe('WindowFatalFallback', () => {
     vi.stubGlobal('api', { ipcApi: { request } })
   })
 
-  it('explains the fault and how to recover without any provider, keeping raw text off the surface', () => {
+  it('shows only the fault, reload and the details toggle until details are opened', async () => {
+    const user = userEvent.setup()
     render(<WindowFatalFallback error={new Error('boom from provider')} resetErrorBoundary={vi.fn()} />)
 
     const card = screen.getByRole('alert')
     expect(card).toHaveTextContent(i18n.t('error.boundary.default.title'))
-    expect(card).toHaveTextContent(i18n.t('error.boundary.fatal.info'))
+    expect(card).toHaveTextContent(i18n.t('error.boundary.default.info'))
     expect(card).not.toHaveTextContent('boom from provider')
-    expect(screen.queryByText(i18n.t('error.boundary.details'))).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: i18n.t('error.boundary.copy') })).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: i18n.t('common.detail') }))
+
+    expect(card).toHaveTextContent('Error: boom from provider')
+    expect(screen.getByRole('button', { name: i18n.t('error.boundary.copy') })).toBeVisible()
   })
 
   it('reloads the window when the reload button is clicked', async () => {
@@ -55,6 +61,7 @@ describe('WindowFatalFallback', () => {
     vi.stubGlobal('navigator', { clipboard: { writeText } })
     request.mockResolvedValue({ ok: true, data: { status: 'busy' } })
     render(<WindowFatalFallback error={new Error('boom from provider')} resetErrorBoundary={vi.fn()} />)
+    await user.click(screen.getByRole('button', { name: i18n.t('common.detail') }))
 
     await user.click(screen.getByRole('button', { name: i18n.t('error.boundary.copy') }))
     expect(writeText).toHaveBeenCalledWith(expect.stringContaining('boom from provider'))
@@ -83,6 +90,7 @@ describe('WindowFatalFallback', () => {
       value: { writeText }
     })
     render(<WindowFatalFallback error={new Error('boom from provider')} resetErrorBoundary={vi.fn()} />)
+    await user.click(screen.getByRole('button', { name: i18n.t('common.detail') }))
 
     await user.click(screen.getByRole('button', { name: i18n.t('error.boundary.copy') }))
 
@@ -97,6 +105,7 @@ describe('WindowFatalFallback', () => {
     const writeText = vi.fn().mockRejectedValueOnce(new Error('clipboard denied')).mockResolvedValueOnce(undefined)
     Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } })
     render(<WindowFatalFallback error={new Error('boom from provider')} resetErrorBoundary={vi.fn()} />)
+    await user.click(screen.getByRole('button', { name: i18n.t('common.detail') }))
     const copy = screen.getByRole('button', { name: i18n.t('error.boundary.copy') })
 
     await user.click(copy)
@@ -111,6 +120,7 @@ describe('WindowFatalFallback', () => {
     const user = userEvent.setup()
     vi.stubGlobal('__APP_EDITION__', 'cn')
     render(<WindowFatalFallback error={new Error('boom')} resetErrorBoundary={vi.fn()} />)
+    await user.click(screen.getByRole('button', { name: i18n.t('common.detail') }))
 
     await user.click(screen.getByRole('button', { name: i18n.t('error.update_banner.open_releases') }))
 
@@ -120,14 +130,17 @@ describe('WindowFatalFallback', () => {
   it('opens the feedback mail draft', async () => {
     const user = userEvent.setup()
     render(<WindowFatalFallback error={new Error('boom')} resetErrorBoundary={vi.fn()} />)
+    await user.click(screen.getByRole('button', { name: i18n.t('common.detail') }))
 
     await user.click(screen.getByRole('button', { name: i18n.t('error.boundary.feedback') }))
 
     expect(request).toHaveBeenCalledWith('system.shell.open_external_website', FEEDBACK_MAILTO)
   })
 
-  it('hides the debug panel entry outside development builds', () => {
+  it('hides the debug panel entry outside development builds', async () => {
+    const user = userEvent.setup()
     render(<WindowFatalFallback error={new Error('boom')} resetErrorBoundary={vi.fn()} />)
+    await user.click(screen.getByRole('button', { name: i18n.t('common.detail') }))
 
     expect(screen.queryByRole('button', { name: i18n.t('error.boundary.default.devtools') })).not.toBeInTheDocument()
   })
@@ -136,6 +149,7 @@ describe('WindowFatalFallback', () => {
     platform.isDev = true
     const user = userEvent.setup()
     render(<WindowFatalFallback error={new Error('boom')} resetErrorBoundary={vi.fn()} />)
+    await user.click(screen.getByRole('button', { name: i18n.t('common.detail') }))
 
     await user.click(screen.getByRole('button', { name: i18n.t('error.boundary.default.devtools') }))
 

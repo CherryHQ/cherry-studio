@@ -1551,7 +1551,6 @@
   "error.boundary.details": "Detalles",
   "error.boundary.export": "Exportar registros",
   "error.boundary.export_busy": "Ya hay una exportación en curso. Inténtalo de nuevo cuando termine.",
-  "error.boundary.fatal.info": "Puede ser algo temporal: recargar suele solucionarlo. Si vuelve a ocurrir, copia el error o envíanos tus comentarios.",
   "error.boundary.feedback": "Enviar comentarios",
   "error.boundary.mcp.invalid": "Servidor MCP no válido",
   "error.cause": "Causa del error",

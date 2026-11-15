@@ -1551,7 +1551,6 @@
   "error.boundary.details": "Chi tiết",
   "error.boundary.export": "Xuất nhật ký",
   "error.boundary.export_busy": "Một lần xuất đang chạy. Hãy thử lại khi nó hoàn tất.",
-  "error.boundary.fatal.info": "Có thể chỉ là lỗi tạm thời — tải lại thường sẽ khắc phục. Nếu vẫn lặp lại, bạn có thể sao chép lỗi hoặc gửi phản hồi cho chúng tôi.",
   "error.boundary.feedback": "Gửi phản hồi",
   "error.boundary.mcp.invalid": "Máy chủ MCP không hợp lệ",
   "error.cause": "Nguyên nhân lỗi",

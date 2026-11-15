@@ -1551,7 +1551,6 @@
   "error.boundary.details": "Détails",
   "error.boundary.export": "Exporter les journaux",
   "error.boundary.export_busy": "Une exportation est déjà en cours. Réessayez lorsqu’elle sera terminée.",
-  "error.boundary.fatal.info": "C'est peut-être temporaire : un rechargement règle généralement le problème. Si cela se reproduit, copiez l'erreur ou envoyez-nous un retour.",
   "error.boundary.feedback": "Envoyer un retour",
   "error.boundary.mcp.invalid": "Serveur MCP invalide",
   "error.cause": "Erreur causée par",
