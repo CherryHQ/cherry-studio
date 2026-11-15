@@ -109,7 +109,7 @@ describe('Profile Outputs tab', () => {
     expect(within(today).getByText('09:41 AM')).toBeInTheDocument()
     const week = screen.getByRole('region', { name: 'This week' })
     expect(within(week).getByText('diff.png')).toBeInTheDocument()
-    expect(within(week).getByText('PNG · 2 KB')).toBeInTheDocument()
+    expect(within(week).getByText('PNG · 2.0 KB')).toBeInTheDocument()
     expect(within(week).getByText('Mon')).toBeInTheDocument()
     const earlier = screen.getByRole('region', { name: 'Earlier' })
     expect(within(earlier).getByText('notes.txt')).toBeInTheDocument()
