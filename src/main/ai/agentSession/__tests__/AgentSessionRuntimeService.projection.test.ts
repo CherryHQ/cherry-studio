@@ -148,7 +148,7 @@ async function fixture() {
     queue = new AsyncEventQueue()
     await service.primeConnection('root')
   }
-  return { service, handle, context, reply, emit, project, views, done, reconnect }
+  return { service, handle, context, user, reply, emit, project, views, done, reconnect }
 }
 const text = (id: string, value: string): CherryUIMessage => ({
   id,
@@ -321,6 +321,23 @@ it.each(['before', 'after'] as const)(
     ])
   }
 )
+
+it('delivers the initial non-steer input OCR notice to its answering reply', async () => {
+  const f = await fixture()
+  const notice = {
+    type: 'data-attachment-notice' as const,
+    id: `attachment-notice:${f.user.id}`,
+    data: { kind: 'image-ocr' as const, fileNames: ['first-image.png'] }
+  }
+  await f.emit({ type: 'chunk', inputId: f.user.id, chunk: notice })
+  await f.project([text('first', 'Answering the initial image')])
+  await vi.waitFor(() => expect(f.views.at(-1)?.parts).toContainEqual(notice))
+  await f.emit({ type: 'turn-complete' })
+  const result = await f.done
+  expect(result.finalMessage.parts).toEqual([...text('', 'Answering the initial image').parts, notice])
+  await f.handle.listeners[0].onDone({ status: 'success', finalMessage: result.finalMessage, isTopicDone: false })
+  expect(messages.getSessionMessage('root', f.reply.id).data.parts).toContainEqual(notice)
+})
 
 it('drops a notice for an unknown input rather than attaching it to the current reply', async () => {
   const f = await fixture()
