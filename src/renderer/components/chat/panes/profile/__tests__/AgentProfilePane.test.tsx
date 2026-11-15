@@ -157,6 +157,14 @@ describe('AgentProfilePane', () => {
       expect(patches).toEqual([])
     })
 
+    // A session can run on another model than its Agent's; the pane shows the one in use.
+    it("shows the conversation's model when the session uses its own", () => {
+      renderInRightPane(<AgentProfilePane agentId={agent.id} model={nextModel} onModelChange={vi.fn()} />)
+
+      const settings = screen.getByRole('region', { name: 'Settings' })
+      expect(within(settings).getByRole('button', { name: 'Model' })).toHaveTextContent(nextModel.name)
+    })
+
     it('cannot change the model outside a conversation that confirms the switch', () => {
       expect(within(settingsRegion()).getByRole('button', { name: 'Model' })).toBeDisabled()
     })

@@ -603,12 +603,12 @@ describe('AgentChat settings panel', () => {
     await act(() => onModelChange({ id: 'provider::model-2', name: 'Model 2' }))
 
     expect(screen.getByRole('dialog')).toHaveTextContent('agent.session.model_switch_confirm.description')
-    expect(updateAgentMock.updateModel).not.toHaveBeenCalled()
+    expect(updateSessionMock.updateSession).not.toHaveBeenCalled()
     fireEvent.click(screen.getByRole('button', { name: 'agent.session.model_switch_confirm.confirm' }))
 
     await waitFor(() =>
-      expect(updateAgentMock.updateModel).toHaveBeenCalledWith(
-        { agentId: 'agent-1', modelId: 'provider::model-2' },
+      expect(updateSessionMock.updateSession).toHaveBeenCalledWith(
+        { id: 'session-1', model: 'provider::model-2' },
         { showSuccessToast: false }
       )
     )
