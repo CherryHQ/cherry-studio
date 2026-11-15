@@ -9893,6 +9893,584 @@
       "providerId": "dmxapi"
     },
     {
+      "capabilities": {
+        "add": ["function-call", "reasoning"],
+        "remove": ["structured-output", "image-recognition", "audio-recognition", "video-recognition", "file-input"]
+      },
+      "endpointTypes": ["anthropic-messages"],
+      "inputModalities": ["text"],
+      "limits": {
+        "contextWindow": 1000000,
+        "maxOutputTokens": 128000
+      },
+      "modelId": "claude-fable-5-1",
+      "outputModalities": ["text"],
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.320836
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 16.04167
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 12.833335
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 64.166669
+        }
+      },
+      "providerId": "dothoosh"
+    },
+    {
+      "capabilities": {
+        "add": ["function-call", "reasoning"],
+        "remove": ["structured-output", "image-recognition", "audio-recognition", "video-recognition", "file-input"]
+      },
+      "endpointTypes": ["anthropic-messages"],
+      "inputModalities": ["text"],
+      "limits": {
+        "contextWindow": 1000000,
+        "maxOutputTokens": 128000
+      },
+      "modelId": "claude-haiku-5-5",
+      "outputModalities": ["text"],
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.012837
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 0.160418
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.128336
+        },
+        "inputTokenTiers": [
+          {
+            "cacheRead": {
+              "currency": "USD",
+              "perMillionTokens": 0.064168
+            },
+            "cacheWrite": {
+              "currency": "USD",
+              "perMillionTokens": 0.802086
+            },
+            "input": {
+              "currency": "USD",
+              "perMillionTokens": 0.641668
+            },
+            "minInputTokens": 100001,
+            "output": {
+              "currency": "USD",
+              "perMillionTokens": 3.208335
+            }
+          }
+        ],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0.641668
+        }
+      },
+      "providerId": "dothoosh"
+    },
+    {
+      "capabilities": {
+        "add": ["function-call", "reasoning"],
+        "remove": ["structured-output", "image-recognition", "audio-recognition", "video-recognition", "file-input"]
+      },
+      "endpointTypes": ["anthropic-messages"],
+      "inputModalities": ["text"],
+      "limits": {
+        "contextWindow": 1000000,
+        "maxOutputTokens": 128000
+      },
+      "modelId": "claude-opus-5-5",
+      "outputModalities": ["text"],
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.256668
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 6.416667
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 5.133335
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 25.666669
+        }
+      },
+      "providerId": "dothoosh"
+    },
+    {
+      "capabilities": {
+        "add": ["function-call", "reasoning"],
+        "remove": ["structured-output", "image-recognition", "audio-recognition", "video-recognition", "file-input"]
+      },
+      "endpointTypes": ["anthropic-messages"],
+      "inputModalities": ["text"],
+      "limits": {
+        "contextWindow": 1000000,
+        "maxOutputTokens": 128000
+      },
+      "modelId": "claude-sonnet-5-5",
+      "outputModalities": ["text"],
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.128336
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 3.208335
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 2.566668
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 12.833335
+        }
+      },
+      "providerId": "dothoosh"
+    },
+    {
+      "capabilities": {
+        "add": ["function-call", "reasoning", "structured-output"],
+        "remove": ["image-recognition", "audio-recognition", "video-recognition", "file-input"]
+      },
+      "endpointTypes": ["openai-chat-completions"],
+      "inputModalities": ["text"],
+      "limits": {
+        "contextWindow": 1048576,
+        "maxOutputTokens": 393216
+      },
+      "modelId": "deepseek-flash",
+      "outputModalities": ["text"],
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.007703
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.385003
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 1.540001
+        }
+      },
+      "providerId": "dothoosh"
+    },
+    {
+      "capabilities": {
+        "add": ["function-call", "reasoning", "structured-output"],
+        "remove": ["image-recognition", "audio-recognition", "video-recognition", "file-input"]
+      },
+      "endpointTypes": ["openai-chat-completions"],
+      "inputModalities": ["text"],
+      "limits": {
+        "contextWindow": 1048576,
+        "maxOutputTokens": 393216
+      },
+      "modelId": "deepseek-v4-pro",
+      "outputModalities": ["text"],
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.056467
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 1.694
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 5.082001
+        }
+      },
+      "providerId": "dothoosh"
+    },
+    {
+      "apiModelId": "gemini-3.5-flash-lite",
+      "capabilities": {
+        "add": ["function-call", "reasoning", "structured-output"],
+        "remove": ["image-recognition", "audio-recognition", "video-recognition", "file-input"]
+      },
+      "endpointTypes": ["openai-chat-completions"],
+      "inputModalities": ["text"],
+      "limits": {
+        "contextWindow": 1048576,
+        "maxOutputTokens": 65536
+      },
+      "modelId": "gemini-3-5-flash-lite",
+      "outputModalities": ["text"],
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.038502
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.385003
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 3.208333
+        }
+      },
+      "providerId": "dothoosh"
+    },
+    {
+      "apiModelId": "gemini-3.8-flash",
+      "capabilities": {
+        "add": ["function-call", "reasoning", "structured-output"],
+        "remove": ["image-recognition", "audio-recognition", "video-recognition", "file-input"]
+      },
+      "endpointTypes": ["openai-chat-completions"],
+      "inputModalities": ["text"],
+      "limits": {
+        "contextWindow": 1048576,
+        "maxOutputTokens": 65536
+      },
+      "modelId": "gemini-3-8-flash",
+      "outputModalities": ["text"],
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.096253
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.9625
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 4.8125
+        }
+      },
+      "providerId": "dothoosh"
+    },
+    {
+      "capabilities": {
+        "add": ["function-call", "reasoning", "structured-output"],
+        "remove": ["image-recognition", "audio-recognition", "video-recognition", "file-input"]
+      },
+      "endpointTypes": ["openai-chat-completions"],
+      "inputModalities": ["text"],
+      "limits": {
+        "contextWindow": 1048576,
+        "maxOutputTokens": 65536
+      },
+      "modelId": "gemini-4-argon",
+      "outputModalities": ["text"],
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.128336
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 2.566667
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 12.833333
+        }
+      },
+      "providerId": "dothoosh"
+    },
+    {
+      "apiModelId": "gpt-6.1-sol",
+      "capabilities": {
+        "add": ["function-call", "reasoning", "structured-output"],
+        "remove": ["image-recognition", "audio-recognition", "video-recognition", "file-input"]
+      },
+      "endpointTypes": ["openai-responses", "openai-chat-completions"],
+      "inputModalities": ["text"],
+      "limits": {
+        "contextWindow": 1050000,
+        "maxOutputTokens": 128000
+      },
+      "modelId": "gpt-6-1-sol",
+      "outputModalities": ["text"],
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.128336
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 3.208333
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 2.566667
+        },
+        "inputTokenTiers": [
+          {
+            "cacheRead": {
+              "currency": "USD",
+              "perMillionTokens": 0.256667
+            },
+            "cacheWrite": {
+              "currency": "USD",
+              "perMillionTokens": 6.416667
+            },
+            "input": {
+              "currency": "USD",
+              "perMillionTokens": 5.133333
+            },
+            "minInputTokens": 272001,
+            "output": {
+              "currency": "USD",
+              "perMillionTokens": 19.25
+            }
+          }
+        ],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 12.833333
+        }
+      },
+      "providerId": "dothoosh"
+    },
+    {
+      "capabilities": {
+        "add": ["function-call", "reasoning", "structured-output"],
+        "remove": ["image-recognition", "audio-recognition", "video-recognition", "file-input"]
+      },
+      "endpointTypes": ["openai-responses", "openai-chat-completions"],
+      "inputModalities": ["text"],
+      "limits": {
+        "contextWindow": 1050000,
+        "maxOutputTokens": 128000
+      },
+      "modelId": "gpt-6-astra",
+      "outputModalities": ["text"],
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 1.283333
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 16.041667
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 12.833333
+        },
+        "inputTokenTiers": [
+          {
+            "cacheRead": {
+              "currency": "USD",
+              "perMillionTokens": 2.566667
+            },
+            "cacheWrite": {
+              "currency": "USD",
+              "perMillionTokens": 32.083333
+            },
+            "input": {
+              "currency": "USD",
+              "perMillionTokens": 25.666667
+            },
+            "minInputTokens": 272001,
+            "output": {
+              "currency": "USD",
+              "perMillionTokens": 96.25
+            }
+          }
+        ],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 64.166667
+        }
+      },
+      "providerId": "dothoosh"
+    },
+    {
+      "capabilities": {
+        "add": ["function-call", "reasoning", "structured-output"],
+        "remove": ["image-recognition", "audio-recognition", "video-recognition", "file-input"]
+      },
+      "endpointTypes": ["openai-responses", "openai-chat-completions"],
+      "inputModalities": ["text"],
+      "limits": {
+        "contextWindow": 1050000,
+        "maxOutputTokens": 128000
+      },
+      "modelId": "gpt-6-luna",
+      "outputModalities": ["text"],
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.012834
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 0.160419
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.128336
+        },
+        "inputTokenTiers": [
+          {
+            "cacheRead": {
+              "currency": "USD",
+              "perMillionTokens": 0.025668
+            },
+            "cacheWrite": {
+              "currency": "USD",
+              "perMillionTokens": 0.320833
+            },
+            "input": {
+              "currency": "USD",
+              "perMillionTokens": 0.256667
+            },
+            "minInputTokens": 272001,
+            "output": {
+              "currency": "USD",
+              "perMillionTokens": 0.9625
+            }
+          }
+        ],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0.641667
+        }
+      },
+      "providerId": "dothoosh"
+    },
+    {
+      "apiModelId": "kimi-k2.6",
+      "capabilities": {
+        "add": ["function-call", "reasoning", "structured-output"],
+        "remove": ["image-recognition", "audio-recognition", "video-recognition", "file-input"]
+      },
+      "endpointTypes": ["openai-chat-completions"],
+      "inputModalities": ["text"],
+      "limits": {
+        "contextWindow": 262144
+      },
+      "modelId": "kimi-k2-6",
+      "outputModalities": ["text"],
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.205335
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 1.219167
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 5.133333
+        }
+      },
+      "providerId": "dothoosh"
+    },
+    {
+      "apiModelId": "kimi-k2.7-code",
+      "capabilities": {
+        "add": ["function-call", "reasoning", "structured-output"],
+        "remove": ["image-recognition", "audio-recognition", "video-recognition", "file-input"]
+      },
+      "endpointTypes": ["openai-chat-completions"],
+      "inputModalities": ["text"],
+      "limits": {
+        "contextWindow": 262144
+      },
+      "modelId": "kimi-k2-7-code",
+      "outputModalities": ["text"],
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.243833
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 1.219167
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 5.133333
+        }
+      },
+      "providerId": "dothoosh"
+    },
+    {
+      "capabilities": {
+        "add": ["function-call", "reasoning", "structured-output"],
+        "remove": ["image-recognition", "audio-recognition", "video-recognition", "file-input"]
+      },
+      "endpointTypes": ["openai-chat-completions"],
+      "inputModalities": ["text"],
+      "limits": {
+        "contextWindow": 1048576
+      },
+      "modelId": "kimi-k3",
+      "outputModalities": ["text"],
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.385003
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 3.85
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 19.25
+        }
+      },
+      "providerId": "dothoosh"
+    },
+    {
+      "apiModelId": "kimi-k3.1-pro",
+      "capabilities": {
+        "add": ["function-call", "reasoning", "structured-output"],
+        "remove": ["image-recognition", "audio-recognition", "video-recognition", "file-input"]
+      },
+      "endpointTypes": ["openai-chat-completions"],
+      "inputModalities": ["text"],
+      "limits": {
+        "contextWindow": 1048576
+      },
+      "modelId": "kimi-k3-1-pro",
+      "outputModalities": ["text"],
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.256667
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 2.566667
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 12.833333
+        }
+      },
+      "providerId": "dothoosh"
+    },
+    {
       "endpointTypes": ["openai-chat-completions"],
       "modelId": "deepseek-r1",
       "providerId": "doubao"
@@ -44919,5 +45497,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "76dbdc1ad62c4913"
+  "version": "b27b0a5b222f3ba8"
 }
