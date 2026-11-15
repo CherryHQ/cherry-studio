@@ -2,7 +2,7 @@ import { ArrowRight, Check } from 'lucide-react'
 import type { MouseEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Badge, Button, EmojiAvatar } from '@cherrystudio/ui'
+import { Button, EmojiAvatar } from '@cherrystudio/ui'
 import { dataApiService } from '@data/DataApiService'
 import { loggerService } from '@logger'
 import { openResourceEditDialog } from '@renderer/components/resourceCatalog/dialogs/ResourceEditDialogEventHost'
@@ -50,81 +50,76 @@ export function ResourceIdentityCard({ result }: { result: ResourceIdentityResul
     action()
   }
 
+  const meta = [result.description, ...chips].filter(Boolean).join(' · ')
+
   return (
     // The card is a mouse shortcut for the Start conversation button, which stays the keyboard path.
     <div
       data-testid="resource-identity-card"
-      className="my-1 w-full max-w-md rounded-xl border border-border bg-card p-3 transition-colors data-[clickable=true]:cursor-pointer data-[clickable=true]:hover:border-border-strong data-[clickable=true]:hover:bg-accent/40"
+      className="my-1 w-fit max-w-md rounded-lg border border-border-subtle bg-card px-2.5 py-2 transition-colors data-[clickable=true]:cursor-pointer data-[clickable=true]:hover:bg-accent/40"
       data-clickable={openConversation ? 'true' : undefined}
       onClick={openConversation}>
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2.5">
         <EmojiAvatar
-          size={44}
-          fontSize={24}
-          className="shrink-0 cursor-default rounded-xl border border-border bg-background hover:opacity-100">
+          size={32}
+          fontSize={17}
+          className="shrink-0 cursor-default rounded-lg border border-border-subtle bg-background hover:opacity-100">
           {result.emoji || fallbackEmoji}
         </EmojiAvatar>
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 items-center gap-1.5">
-            <span className="truncate font-medium text-foreground text-sm" title={result.name}>
+            <span className="truncate font-medium text-[13px] text-foreground leading-5" title={result.name}>
               {result.name}
             </span>
-            <Badge variant="secondary" className="px-1.5 font-normal text-[11px] leading-4">
+            <span className="shrink-0 text-[11px] text-foreground-tertiary leading-5">
               {result.kind === 'agent' ? t('library.type.agent') : t('library.type.assistant')}
-            </Badge>
+            </span>
             {created ? null : (
-              <span className="flex shrink-0 items-center gap-0.5 text-success-subtle-foreground text-xs">
-                <Check aria-hidden="true" size={12} strokeWidth={2} />
+              <span className="flex shrink-0 items-center gap-0.5 text-[11px] text-success-subtle-foreground leading-5">
+                <Check aria-hidden="true" size={11} strokeWidth={2} />
                 {t('message.tools.identity_card.updated')}
               </span>
             )}
           </div>
-          {result.description ? (
-            <div className="mt-0.5 truncate text-muted-foreground text-xs" title={result.description}>
-              {result.description}
+          {meta ? (
+            <div className="truncate text-[11.5px] text-muted-foreground leading-4" title={meta}>
+              {meta}
             </div>
           ) : null}
         </div>
-      </div>
-      {chips.length > 0 ? (
-        <div className="mt-2.5 flex min-w-0 flex-wrap gap-1.5">
-          {chips.map((chip) => (
-            <Badge key={chip} variant="outline" className="max-w-full font-normal text-muted-foreground" title={chip}>
-              <span className="truncate">{chip}</span>
-            </Badge>
-          ))}
+        <div className="ml-2 flex shrink-0 items-center gap-1">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="min-h-6 h-6 px-1.5 text-[11.5px] text-muted-foreground"
+            aria-label={`${adjustLabel}: ${result.name}`}
+            onClick={handleButton(() => openResourceEditDialog({ kind: result.kind, id: result.id }))}>
+            {adjustLabel}
+          </Button>
+          {openConversation ? (
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              className="min-h-6 h-6 gap-0.5 rounded-md px-2 font-medium text-[11.5px] text-foreground"
+              aria-label={`${startLabel}: ${result.name}`}
+              onClick={handleButton(openConversation)}>
+              {startLabel}
+              <ArrowRight aria-hidden="true" className="size-2.5" />
+            </Button>
+          ) : null}
         </div>
-      ) : null}
+      </div>
       {!created && result.summary.length > 0 ? (
-        <ul className="mt-2.5 space-y-0.5 border-border-subtle border-t pt-2">
+        <ul className="mt-1.5 ml-[42px] space-y-0.5">
           {result.summary.map((line) => (
-            <li key={line} className="truncate text-[12px] text-muted-foreground leading-5" title={line}>
+            <li key={line} className="truncate text-[11.5px] text-muted-foreground leading-4" title={line}>
               {line}
             </li>
           ))}
         </ul>
       ) : null}
-      <div className="mt-3 flex justify-end gap-2">
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          aria-label={`${adjustLabel}: ${result.name}`}
-          onClick={handleButton(() => openResourceEditDialog({ kind: result.kind, id: result.id }))}>
-          {adjustLabel}
-        </Button>
-        {openConversation ? (
-          <Button
-            type="button"
-            variant="emphasis"
-            size="sm"
-            aria-label={`${startLabel}: ${result.name}`}
-            onClick={handleButton(openConversation)}>
-            {startLabel}
-            <ArrowRight aria-hidden="true" className="size-3.5" />
-          </Button>
-        ) : null}
-      </div>
     </div>
   )
 }

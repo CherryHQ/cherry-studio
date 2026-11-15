@@ -792,9 +792,7 @@ describe('AgentToolRenderer', () => {
       expect(within(card).getByText('🧐')).toBeInTheDocument()
       expect(within(card).getByText('Reviewer')).toBeInTheDocument()
       expect(within(card).getByText('Agent')).toBeInTheDocument()
-      expect(within(card).getByText('Reviews pull requests')).toBeInTheDocument()
-      expect(within(card).getByText('Other Model')).toBeInTheDocument()
-      expect(within(card).getByText('Ask Before Acting')).toBeInTheDocument()
+      expect(card).toHaveTextContent('Reviews pull requests · Other Model · Ask Before Acting')
       expect(within(card).queryByText('System Prompt: Review the diff.')).not.toBeInTheDocument()
       expect(within(card).queryByText('Updated')).not.toBeInTheDocument()
     })
@@ -816,7 +814,7 @@ describe('AgentToolRenderer', () => {
       const legacy = { ...createdAgent, highlights: undefined }
       render(<MessageTools toolResponse={configToolResponse('assistant', 'create_agent', structured(legacy))} />)
 
-      expect(screen.getByText('Model: Other Model')).toBeInTheDocument()
+      expect(screen.getByTestId('resource-identity-card')).toHaveTextContent('Model: Other Model')
     })
 
     it('shows an update as Updated with each change as current → new', () => {
@@ -836,7 +834,7 @@ describe('AgentToolRenderer', () => {
       mockMessageListActions.mockReturnValue({ navigateToRoute })
       render(<MessageTools toolResponse={configToolResponse('assistant', 'create_agent', structured(createdAgent))} />)
 
-      await user.click(screen.getByText('Reviews pull requests'))
+      await user.click(screen.getByText('Reviewer'))
       await user.click(screen.getByRole('button', { name: 'Start conversation: Reviewer' }))
 
       expect(navigateToRoute).toHaveBeenCalledTimes(2)
