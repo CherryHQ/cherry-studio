@@ -3,9 +3,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import enUS from '@renderer/i18n/locales/en-us.json'
 
-const { i18nMock, translateErrorByAI } = vi.hoisted(() => ({
-  i18nMock: { language: 'en-US', t: (key: string) => key },
-  translateErrorByAI: vi.fn()
+const { i18nMock } = vi.hoisted(() => ({
+  i18nMock: { language: 'en-US', t: (key: string) => key }
 }))
 
 vi.mock('@renderer/services/toast', (importOriginal) => importOriginal())
@@ -13,15 +12,12 @@ vi.mock('@cherrystudio/ui', async () => import('@cherrystudio/ui/components/prim
 
 i18nMock.t = (key: string) => enUS[key as keyof typeof enUS] ?? key
 vi.mock('@renderer/i18n/resolver', () => ({ default: i18nMock }))
-vi.mock('@renderer/utils/errorDiagnosis', () => ({ translateErrorByAI }))
 
 import { appErrorContextService } from '../AppErrorContextService'
 import { presentedRouteService } from '../PresentedRouteService'
 import { toast } from '../toast'
 
 beforeEach(() => {
-  i18nMock.language = 'en-US'
-  translateErrorByAI.mockReset()
   MockCacheUtils.resetMocks()
 })
 afterEach(() => toast.closeAll())
@@ -71,12 +67,15 @@ required service tier.`
     expect(shown?.details).toBeUndefined()
   })
 
-  it('titles an unclassified error with its own text so app-localized recovery copy stays visible', () => {
-    const text = '连接成功，但启用服务商失败，请稍后重试。'
-    const key = toast.errorFromException(new Error(text), { provider: { id: 'acme', name: 'Acme' } })
+  it('titles an unclassified error generically and keeps its raw text only in the detail', () => {
+    const raw = "ENOENT: no such file or directory, open '/Users/alice/notes.md'"
+    const failure = new Error(raw)
+    const key = toast.errorFromException(failure, { provider: { id: 'acme', name: 'Acme' } })
 
     const shown = toast.getToastQueue().toasts.find((item) => item.key === key)!
-    expect(shown.title).toBe(text)
+    expect(shown.title).toBe(enUS['toast.error.unexpected'])
+    expect(shown.description).toBe(`Acme · ${enUS['toast.error.interrupted']}`)
+    expect(shown.cause).toBe(failure)
     expect(shown.details).toBeUndefined()
   })
 })
@@ -107,47 +106,5 @@ describe('error toast origin', () => {
     expect(
       contextOf(toast.errorFromException(new Error('upstream down'), { provider: { id: 'acme', name: 'Acme' } })).source
     ).toBe('provider')
-  })
-})
-
-describe('unclassified error toast translation', () => {
-  const findToast = (key: string) => toast.getToastQueue().toasts.find((item) => item.key === key)
-
-  it('retitles the toast with the translation once it arrives', async () => {
-    i18nMock.language = 'zh-CN'
-    let resolve!: (text: string) => void
-    translateErrorByAI.mockReturnValue(new Promise<string>((done) => (resolve = done)))
-    const raw = 'upstream exploded: weird_vendor_code_42'
-
-    const key = toast.errorFromException(new Error(raw), { provider: { id: 'acme', name: 'Acme' } })
-    expect(findToast(key)?.title).toBe(raw)
-
-    resolve('上游服务出错：weird_vendor_code_42')
-    await vi.waitFor(() => expect(findToast(key)?.title).toBe('上游服务出错：weird_vendor_code_42'))
-    expect(findToast(key)?.description).toBe('Acme')
-  })
-
-  it('leaves a toast that replaced the original under the same key untouched', async () => {
-    i18nMock.language = 'zh-CN'
-    let resolve!: (text: string) => void
-    translateErrorByAI.mockReturnValue(new Promise<string>((done) => (resolve = done)))
-
-    const key = toast.errorFromException(new Error('first failure'), { key: 'shared' })
-    toast.success({ key, title: '已恢复' })
-    await vi.waitFor(() => expect(translateErrorByAI).toHaveBeenCalled())
-    resolve('第一次失败')
-    await new Promise((settled) => setTimeout(settled, 0))
-
-    expect(findToast(key)).toMatchObject({ type: 'success', title: '已恢复' })
-  })
-
-  it('keeps text that already reads in the UI language and asks for no translation', () => {
-    i18nMock.language = 'zh-CN'
-    const text = '连接成功，但启用服务商失败，请稍后重试。'
-
-    const key = toast.errorFromException(new Error(text))
-
-    expect(findToast(key)?.title).toBe(text)
-    expect(translateErrorByAI).not.toHaveBeenCalled()
   })
 })

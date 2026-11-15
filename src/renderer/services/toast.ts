@@ -1,9 +1,8 @@
 import { getToastUtilities, type ToastLabels } from '@cherrystudio/ui'
 import i18n from '@renderer/i18n/resolver'
 import { getCherryCloudErrorPresentation } from '@renderer/utils/cherryCloudErrorPresentation'
-import { isAbortError, providerErrorText } from '@renderer/utils/error'
+import { isAbortError } from '@renderer/utils/error'
 import { classifyError, type ErrorCategory } from '@renderer/utils/errorClassifier'
-import { isLikelyInLanguage, translateErrorMessage } from '@renderer/utils/errorLanguage'
 import {
   type ErrorToastAction,
   type ErrorToastPresentation,
@@ -71,12 +70,11 @@ function errorFromException(error: unknown, context: ErrorToastContext = {}): st
   const diagnosisKey = `error.diagnosis.${category}`
   const actionLabelKey = `toast.error.${actionKind}`
   const run = actionKind ? actions[actionKind] : undefined
-  // An unclassified error's own text is often app-localized recovery copy, so it stays the title.
-  const original = !planQuota && category === 'unknown' ? providerErrorText(serialized) : ''
+  // Raw error text never titles a toast; it stays reachable through the detail (cause).
   const title = planQuota
     ? i18n.t('models.detail.quota_insufficient_for_request')
     : category === 'unknown'
-      ? original || i18n.t('error.unknown')
+      ? i18n.t('toast.error.unexpected')
       : i18n.t(diagnosisKey)
   let running = false
   const config = {
@@ -90,7 +88,8 @@ function errorFromException(error: unknown, context: ErrorToastContext = {}): st
           context.modelName,
           category === 'rate_limit' && context.retryAfterSeconds !== undefined
             ? i18n.t('toast.error.retry_after', { seconds: context.retryAfterSeconds })
-            : undefined
+            : undefined,
+          category === 'unknown' ? i18n.t('toast.error.interrupted') : undefined
         ]
           .filter(Boolean)
           .join(' · ') || undefined,
@@ -143,21 +142,6 @@ function errorFromException(error: unknown, context: ErrorToastContext = {}): st
         : undefined
   }
   const key = notifications[presentation.type](config)
-  // Early toasts can fire before i18n has resolved a language; those keep the original text.
-  if (original && i18n.language && !isLikelyInLanguage(original, i18n.language)) {
-    const shown = notifications.getToastQueue().toasts.find((item) => item.key === key)?.occurrence
-    void translateErrorMessage(original, i18n.language).then((translated) => {
-      const current = notifications.getToastQueue().toasts.find((item) => item.key === key)
-      // Retitle only the toast this call showed, never one that has since replaced it.
-      if (!translated || current?.occurrence !== shown) return
-      notifications[presentation.type]({
-        ...config,
-        key,
-        title: translated,
-        data: { ...config.data, localizedErrorMessage: translated }
-      })
-    })
-  }
   return key
 }
 
