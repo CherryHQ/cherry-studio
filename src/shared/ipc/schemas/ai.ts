@@ -381,15 +381,12 @@ export const aiRequestSchemas = {
     input: CreateAgentCommandSchema,
     output: AgentEntitySchema
   }),
-  /** The `field: current → new` lines an Agent settings tool call would apply, for its approval card. */
+  /** The `field: current → new` lines a pending Agent settings tool call would apply, for its approval card. */
   'ai.agent.preview_config_update': defineRoute({
-    input: z.discriminatedUnion('tool', [
-      z.strictObject({ tool: z.literal('update_agent'), input: z.unknown() }),
-      z.strictObject({ tool: z.literal('config_update'), sessionId: z.string().min(1), input: z.unknown() })
-    ]),
+    input: z.strictObject({ approvalId: z.string().min(1) }),
     output: z.discriminatedUnion('ok', [
       z.strictObject({ ok: z.literal(true), summary: z.array(z.string()) }),
-      z.strictObject({ ok: z.literal(false), error: z.string() })
+      z.strictObject({ ok: z.literal(false) })
     ])
   }),
   'ai.agent.restore': defineRoute({

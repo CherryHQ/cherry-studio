@@ -497,8 +497,7 @@ export function useAgentChatRuntimeState({
     partsByMessageId,
     persistedPartsByMessageId,
     streamingLayers,
-    onRespond: respondToolApproval,
-    agentSessionId: sessionId
+    onRespond: respondToolApproval
   })
   const { isPending } = useTopicStreamStatus(sessionTopicId)
   const sessionClosing = useSharedCacheValue(AGENT_SESSION_CLOSING_CACHE_KEY(sessionId)) === true

@@ -20,6 +20,7 @@ import { createMcpManagerServer } from '@main/ai/mcp/servers/mcpManager'
 import { createSkillsServer } from '@main/ai/mcp/servers/skills'
 import { CHERRY_MCP_SERVER } from '@main/ai/toolApproval/builtinToolPolicy'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
+import { isProtectedBuiltinAgentRole } from '@shared/ai/builtinAgent'
 import type { AgentChannelEntity } from '@shared/data/api/schemas/agentChannels'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
@@ -125,6 +126,7 @@ export function buildAgentMcpServers(
         trustedNotifyChannels: notificationContext.channels,
         allowAnyOwnedNotifyChannel: notificationContext.allowAnyOwnedChannel,
         resourceCreateEnabled: resolveAgentCapabilities(agent).createResources,
+        selfConfigEnabled: !isProtectedBuiltinAgentRole(agent.configuration?.builtin_role),
         getKnowledgeAccess: () => {
           const liveAgent = agentService.getAgent(agent.id)
           return {

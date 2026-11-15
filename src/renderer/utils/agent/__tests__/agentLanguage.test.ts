@@ -2,12 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import { AgentLanguageSchema } from '@shared/data/types/agentLanguage'
 
-import {
-  AGENT_LANGUAGE_MAX_LENGTH,
-  AGENT_LANGUAGE_PRESETS,
-  normalizeAgentLanguageInput,
-  validateAgentLanguageInput
-} from '../agentLanguage'
+import { AGENT_LANGUAGE_MAX_LENGTH, AGENT_LANGUAGE_PRESETS, validateAgentLanguageInput } from '../agentLanguage'
 
 describe('validateAgentLanguageInput', () => {
   it('accepts a plain label', () => {
@@ -45,14 +40,6 @@ describe('validateAgentLanguageInput', () => {
       ok: false,
       errorKey: 'settings.agent.language.error.multiline'
     })
-  })
-})
-
-describe('normalizeAgentLanguageInput', () => {
-  it('returns the trimmed label for valid input and null otherwise', () => {
-    expect(normalizeAgentLanguageInput('  English  ')).toBe('English')
-    expect(normalizeAgentLanguageInput('  ')).toBeNull()
-    expect(normalizeAgentLanguageInput('a\nb')).toBeNull()
   })
 })
 

@@ -273,7 +273,7 @@ export function buildAgentSettingsConfiguration(settings: AgentCreateSettings): 
   return diffAgentUpdate(blank, { ...blank, ...settings })?.dto.configuration ?? {}
 }
 
-function normalizeAgentLanguageInput(raw: unknown): string | null {
+export function normalizeAgentLanguageInput(raw: unknown): string | null {
   const result = AgentLanguageSchema.safeParse(raw)
   return result.success ? result.data : null
 }

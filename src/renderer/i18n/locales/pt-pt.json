@@ -557,7 +557,7 @@
   "agent.tasks.timeout.label": "Tempo máximo de execução",
   "agent.tasks.timeout.placeholder": "Sem limite",
   "agent.toolPermission.agent_config.changes": "Alterações",
-  "agent.toolPermission.agent_config.error": "Não é possível aplicar estas alterações: {{error}}",
+  "agent.toolPermission.agent_config.error": "Não é possível pré-visualizar estas alterações. Valores pedidos:",
   "agent.toolPermission.agent_config.loading": "A ler as definições atuais…",
   "agent.toolPermission.button.allow": "Permitir",
   "agent.toolPermission.button.deny": "Negar",

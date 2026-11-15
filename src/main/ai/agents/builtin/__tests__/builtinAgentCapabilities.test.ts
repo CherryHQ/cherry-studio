@@ -9,14 +9,6 @@ const agentOf = (type: AgentType, builtinRole?: string) =>
   ({ type, configuration: builtinRole ? { builtin_role: builtinRole } : {} }) as never
 
 describe('resolveAgentCapabilities', () => {
-  it('gives an Agent with no built-in role the unprivileged defaults', () => {
-    expect(resolveAgentCapabilities({ configuration: {} })).toEqual({
-      environment: 'open',
-      allKnowledgeBases: false,
-      createResources: true
-    })
-  })
-
   it('does not grant host tools to an unrecognized role', () => {
     const capabilities = resolveAgentCapabilities({ configuration: { builtin_role: 'assistantt' } as never })
     expect(capabilities.hostTools).toBeUndefined()

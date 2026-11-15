@@ -20,8 +20,6 @@ type ToolApprovalComposerOverridesOptions = {
   persistedPartsByMessageId: Record<string, CherryMessagePart[]>
   streamingLayers?: MessageStreamingLayers
   onRespond: (input: MessageToolApprovalInput) => void | Promise<void>
-  /** Set in an Agent conversation so approvals can resolve the Session's Agent. */
-  agentSessionId?: string
 }
 
 export function useToolApprovalComposerOverrides({
@@ -29,8 +27,7 @@ export function useToolApprovalComposerOverrides({
   partsByMessageId,
   persistedPartsByMessageId,
   streamingLayers,
-  onRespond,
-  agentSessionId
+  onRespond
 }: ToolApprovalComposerOverridesOptions): readonly ComposerOverride[] {
   const computerUseApproval = useComputerUseApproval(topicId)
   useEffect(() => {
@@ -101,12 +98,11 @@ export function useToolApprovalComposerOverrides({
       overrides.push(
         createPermissionRequestComposerOverride({
           request: permissionRequest,
-          onRespond,
-          agentSessionId
+          onRespond
         })
       )
     }
 
     return overrides
-  }, [agentSessionId, askUserQuestionRequest, onRespond, permissionRequest, computerUseApproval])
+  }, [askUserQuestionRequest, onRespond, permissionRequest, computerUseApproval])
 }
