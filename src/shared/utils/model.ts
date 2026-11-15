@@ -45,6 +45,21 @@ export const isFunctionCallingModel = (model: Model): boolean =>
 export const isGenerateImageModel = (model: Model): boolean =>
   model.capabilities.includes(MODEL_CAPABILITY.IMAGE_GENERATION)
 
+/** Dedicated image APIs cannot run the language-model chat loop. */
+export const isImageGenerationOnlyModel = (model: Model): boolean => {
+  if (!isGenerateImageModel(model)) return false
+  const endpoints = model.endpointTypes
+  const modalities = model.outputModalities
+  if (!endpoints?.length) return modalities?.includes(MODALITY.TEXT) !== true
+  const hasChatEndpoint = endpoints.some((endpointType) => endpointImpliedCapability(endpointType) == null)
+  if (!hasChatEndpoint) return true
+  const hasImageEndpoint = endpoints.some(
+    (endpointType) => endpointImpliedCapability(endpointType) === MODEL_CAPABILITY.IMAGE_GENERATION
+  )
+  // Declared image-only output is authoritative; a source that omits modalities keeps chat.
+  return hasImageEndpoint && modalities !== undefined && !modalities.includes(MODALITY.TEXT)
+}
+
 export const isFreeModel = (model: Pick<Model, 'id' | 'name' | 'providerId'>): boolean => {
   if (model.providerId === CHERRYAI_PROVIDER_ID) {
     return true
@@ -85,15 +100,31 @@ export const isTextToImageModel = (model: Model): boolean =>
   model.capabilities.includes(MODEL_CAPABILITY.IMAGE_GENERATION) &&
   !model.capabilities.includes(MODEL_CAPABILITY.REASONING)
 
-export const isNonChatModel = (model: Model): boolean =>
-  endpointImpliedCapability(model.endpointTypes?.[0]) != null ||
-  isEmbeddingModel(model) ||
-  isRerankModel(model) ||
-  isGenerateImageModel(model) ||
-  isGenerateVideoModel(model) ||
-  isGenerateAudioModel(model) ||
-  isTextToSpeechModel(model) ||
-  isSpeechToTextModel(model)
+export const isNonChatModel = (model: Model): boolean => {
+  const impliedCapability = endpointImpliedCapability(model.endpointTypes?.[0])
+  // Only an image endpoint may declare text output and still chat; speech/embedding/rerank
+  // endpoints stay non-chat whatever the modality metadata says.
+  const chatOnImageEndpoint =
+    impliedCapability === MODEL_CAPABILITY.IMAGE_GENERATION && model.outputModalities?.includes(MODALITY.TEXT) === true
+  return (
+    (impliedCapability != null && !chatOnImageEndpoint) ||
+    isEmbeddingModel(model) ||
+    isRerankModel(model) ||
+    isImageGenerationOnlyModel(model) ||
+    isGenerateVideoModel(model) ||
+    isGenerateAudioModel(model) ||
+    isTextToSpeechModel(model) ||
+    isSpeechToTextModel(model)
+  )
+}
+
+/**
+ * Models a conversation can select: ordinary chat models plus dedicated image APIs,
+ * which chat runs as an image turn. Everything else (embedding, rerank, speech, video)
+ * is excluded — those can never answer a conversation turn.
+ */
+export const isChatSelectableModel = (model: Model): boolean =>
+  isImageGenerationOnlyModel(model) || !isNonChatModel(model)
 
 /**
  * Models the API gateway can route — the single predicate shared by the gateway's

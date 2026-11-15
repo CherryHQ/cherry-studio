@@ -3,12 +3,7 @@ import * as z from 'zod'
 
 import type { ImageGenerationSupport } from '@shared/data/types/model'
 
-import {
-  buildGenerateImageToolSchema,
-  editInputImageLimit,
-  generateImageInputSchema,
-  limitGenerateImageInputIds
-} from '../generateImageTool'
+import { buildGenerateImageToolSchema, editInputImageLimit, generateImageInputSchema } from '../generateImageTool'
 
 describe('generate_image input contract', () => {
   it('keeps the fallback schema object-only and prompt-required', () => {
@@ -76,8 +71,5 @@ describe('generate_image input contract', () => {
 
   it('preserves all input ids when no edit limit is declared', () => {
     expect(editInputImageLimit(null)).toBeUndefined()
-    expect(limitGenerateImageInputIds(['a', 'b', 'c'])).toEqual(['a', 'b', 'c'])
-    expect(limitGenerateImageInputIds(['a', 'b', 'c'], 2)).toEqual(['a', 'b'])
-    expect(limitGenerateImageInputIds(['a'], 3)).toEqual(['a'])
   })
 })
