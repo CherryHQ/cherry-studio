@@ -114,7 +114,7 @@ function parseDurationToMinutes(duration: string): number {
 }
 
 const CRON_DESCRIPTION =
-  "Manage scheduled jobs: add, update, list, remove. Prefer update over recreating; one-time jobs use an RFC3339 'at'."
+  "Manage your scheduled jobs: add, update, list, remove. Use it whenever the user asks for a scheduled, recurring or timed task (定时任务); it runs as you, so it needs no new Agent. Prefer update over recreating; one-time jobs use an RFC3339 'at'."
 
 const CronInputSchema = z.object({
   action: z.enum(['add', 'update', 'list', 'remove']).describe('The action to perform'),

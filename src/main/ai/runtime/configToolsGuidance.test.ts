@@ -16,6 +16,16 @@ describe('buildConfigToolsGuidance', () => {
     expect(prompt).toContain('RUNTIME_HINT.')
   })
 
+  // "创建一个定时任务" is the Agent's own scheduled work, not a request for a new Agent.
+  it.each([
+    ['a user-created Agent', {}],
+    ['Cherry Assistant', { builtin_role: BUILTIN_AGENT_ROLE.ASSISTANT }]
+  ])('sends %s to cron for scheduled work instead of the create tools', (_name, configuration) => {
+    const prompt = buildConfigToolsGuidance({ type: 'claude-code', configuration }, { channelLinked: false, callForm })
+
+    expect(prompt).toContain('<cherry-tools/cron>')
+  })
+
   it('points Cherry Assistant at its host create and update tools', () => {
     const prompt = buildConfigToolsGuidance(
       { type: 'claude-code', configuration: { builtin_role: BUILTIN_AGENT_ROLE.ASSISTANT } },
