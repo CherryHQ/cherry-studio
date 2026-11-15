@@ -17,6 +17,8 @@ export interface ResourceIdentityResult {
   description: string
   /** What was set, or `field: current → new`, already in the app language. */
   summary: string[]
+  /** Create only: the model and a key setting or two; absent on results saved before the tools reported it. */
+  highlights?: string[]
   action: 'created' | 'updated'
   /** The conversation's own Agent changed, so there is no other conversation to open. */
   self: boolean
@@ -55,6 +57,10 @@ function stringOr(value: unknown, fallback: string): string {
   return typeof value === 'string' ? value : fallback
 }
 
+function stringList(value: unknown): string[] | undefined {
+  return Array.isArray(value) ? value.filter((item) => typeof item === 'string') : undefined
+}
+
 export function getResourceIdentityResult(
   toolResponse: McpToolResponse | NormalToolResponse
 ): ResourceIdentityResult | undefined {
@@ -72,7 +78,8 @@ export function getResourceIdentityResult(
     name: output.name,
     emoji: stringOr(output.emoji, ''),
     description: stringOr(output.description, ''),
-    summary: Array.isArray(output.summary) ? output.summary.filter((line) => typeof line === 'string') : [],
+    summary: stringList(output.summary) ?? [],
+    highlights: stringList(output.highlights),
     action: toolKind === 'create' ? 'created' : 'updated',
     self: toolKind === 'self_update'
   }

@@ -2837,8 +2837,6 @@
   "message.tools.completed": "Wszystko ukończone",
   "message.tools.error": "Wystąpił błąd",
   "message.tools.groupHeader": "Wywołania narzędzi: {{count}}",
-  "message.tools.identity_card.created": "Utworzono",
-  "message.tools.identity_card.open_conversation": "Otwórz rozmowę",
   "message.tools.identity_card.updated": "Zaktualizowano",
   "message.tools.invoking": "Rozpoczynanie",
   "message.tools.labels.bash": "Uruchom zadanie",
