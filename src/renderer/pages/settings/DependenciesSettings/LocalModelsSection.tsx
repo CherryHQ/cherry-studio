@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next'
 import { Badge, Button, HelpTooltip, Label, Switch } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
+import { SettingsPageHeader } from '@renderer/components/SettingsPrimitives'
 import { useLocalModel } from '@renderer/hooks/useLocalModel'
 import { ipcApi } from '@renderer/ipc'
 import { popup } from '@renderer/services/popup'
@@ -145,21 +146,21 @@ const ModelCard: FC<ModelCardProps> = ({ id, capability, onStatusChange }) => {
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
-            <span className="truncate text-foreground text-sm">{t(nameKey)}</span>
+            <span className="truncate text-foreground text-sm font-medium">{t(nameKey)}</span>
             {ready && (
               <Badge variant="secondary" className="px-1.5 py-0 text-[11px] leading-4">
                 {t('settings.dependencies.localModels.status.ready')}
               </Badge>
             )}
           </div>
-          <div className="mt-0.5 flex flex-col text-xs leading-5">
+          <div className="mt-1 flex flex-col text-[11px] leading-4">
             {sources.map((source) => (
               <a
                 key={source}
                 href={`https://huggingface.co/${source}`}
                 target="_blank"
                 rel="noreferrer"
-                className="truncate text-link hover:underline focus-visible:rounded-sm focus-visible:outline-2 focus-visible:outline-ring"
+                className="truncate text-muted-foreground hover:text-link hover:underline focus-visible:rounded-sm focus-visible:outline-2 focus-visible:outline-ring"
                 title={source}>
                 {source}
               </a>
@@ -271,28 +272,28 @@ const LocalModelsSection: FC = () => {
 
   return (
     <div className="min-w-0">
-      <div className="mb-4 flex min-h-8 flex-wrap items-center justify-between gap-x-6 gap-y-3">
-        <h2 className="flex items-center gap-1.5 text-[15px] leading-6 font-semibold text-foreground">
-          {t('settings.dependencies.localModels.title')}
-          <HelpTooltip content={t('settings.dependencies.localModels.description')} delay={1000} />
-        </h2>
-        {accelerationSupported && !unsupported ? (
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-1.5">
-              <Label htmlFor={accelerationId} className="text-xs font-normal text-muted-foreground">
-                {t('settings.dependencies.localModels.acceleration.label')}
-              </Label>
-              <HelpTooltip content={t('settings.dependencies.localModels.acceleration.description')} delay={1000} />
+      <SettingsPageHeader
+        title={t('settings.dependencies.localModels.title')}
+        help={t('settings.dependencies.localModels.description')}
+        action={
+          accelerationSupported && !unsupported ? (
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-1.5">
+                <Label htmlFor={accelerationId} className="text-xs font-normal text-muted-foreground">
+                  {t('settings.dependencies.localModels.acceleration.label')}
+                </Label>
+                <HelpTooltip content={t('settings.dependencies.localModels.acceleration.description')} />
+              </div>
+              <Switch
+                id={accelerationId}
+                size="sm"
+                checked={hardwareAccelerationEnabled}
+                onCheckedChange={(enabled) => void setHardwareAccelerationEnabled(enabled)}
+              />
             </div>
-            <Switch
-              id={accelerationId}
-              size="sm"
-              checked={hardwareAccelerationEnabled}
-              onCheckedChange={(enabled) => void setHardwareAccelerationEnabled(enabled)}
-            />
-          </div>
-        ) : null}
-      </div>
+          ) : null
+        }
+      />
       {unsupported ? (
         <div
           role="status"

@@ -116,6 +116,16 @@ export const MockCherrystudioUI = {
       />
     </label>
   ),
+  Switch: ({ checked, disabled, onCheckedChange, 'aria-label': ariaLabel }: any) => (
+    <input
+      type="checkbox"
+      role="switch"
+      aria-label={ariaLabel}
+      checked={checked}
+      disabled={disabled}
+      onChange={(event) => onCheckedChange?.(event.target.checked)}
+    />
+  ),
   Dialog: ({ children, open }: { children?: ReactNode; open?: boolean }) => (open ? <>{children}</> : null),
   DialogContent: ({ children, closeOnOverlayClick, showCloseButton, ...props }: any) => {
     void closeOnOverlayClick

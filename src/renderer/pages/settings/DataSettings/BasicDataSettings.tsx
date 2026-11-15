@@ -26,6 +26,7 @@ import {
 } from '@renderer/components/SettingsPrimitives'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { ipcApi } from '@renderer/ipc'
+import { settingsControlClasses } from '@renderer/pages/settings/settingsStyles'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import type { AppInfo } from '@renderer/types/app'
@@ -298,7 +299,7 @@ const BasicDataSettings: React.FC = () => {
         <SettingRow id="setting-data-data-skip-file-data" className="scroll-mt-6">
           <SettingRowTitle className="flex items-center gap-1.5">
             {t('settings.data.backup.skip_file_data_title')}{' '}
-            <HelpTooltip content={t('settings.data.backup.skip_file_data_help')} delay={1000} />
+            <HelpTooltip content={t('settings.data.backup.skip_file_data_help')} />
           </SettingRowTitle>
           <Switch checked={skipBackupFile} onCheckedChange={(value) => void setSkipBackupFile(value)} />
         </SettingRow>
@@ -349,11 +350,10 @@ const BasicDataSettings: React.FC = () => {
         <SettingDivider />
         <SettingRow id="setting-data-data-log-retention" className="scroll-mt-6">
           <SettingRowTitle className="flex items-center gap-1.5">
-            {t('settings.data.log_retention.label')}{' '}
-            <HelpTooltip content={t('settings.data.log_retention.help')} delay={1000} />
+            {t('settings.data.log_retention.label')} <HelpTooltip content={t('settings.data.log_retention.help')} />
           </SettingRowTitle>
           <Select value={String(logRetentionDays)} onValueChange={(value) => void setLogRetentionDays(Number(value))}>
-            <SelectTrigger className="w-40" aria-label={t('settings.data.log_retention.label')}>
+            <SelectTrigger className={settingsControlClasses.field} aria-label={t('settings.data.log_retention.label')}>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>

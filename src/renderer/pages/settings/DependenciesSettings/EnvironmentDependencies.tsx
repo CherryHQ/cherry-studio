@@ -24,7 +24,6 @@ import {
   Button,
   ConfirmDialog,
   DescriptionSwitch,
-  HelpTooltip,
   Dialog,
   DialogContent,
   DialogDescription,
@@ -50,6 +49,7 @@ import {
   BinaryInstallingHint,
   type BinaryOperationError
 } from '@renderer/components/BinaryInstallErrorDialog'
+import { SettingsPageHeader } from '@renderer/components/SettingsPrimitives'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import { openExternalWebsite } from '@renderer/services/website'
@@ -389,40 +389,47 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
 
   return (
     <div className="flex flex-col gap-5">
-      <div className="min-w-0">
-        <div className="flex min-w-0 items-center gap-2">
-          <h1 className="text-[15px] leading-6 font-semibold text-foreground">{t('settings.dependencies.title')}</h1>
-          <HelpTooltip content={t('settings.dependencies.description')} delay={1000} />
-          <span className="text-xs text-foreground-tertiary">{totalCount}</span>
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            className="text-muted-foreground hover:text-foreground"
-            onClick={() => void fetchLatestVersions(true)}
-            disabled={checkingUpdates}
-            aria-label={t('settings.dependencies.checkUpdates')}
-            title={t('settings.dependencies.checkUpdates')}>
-            {checkingUpdates ? (
-              <Loader2 className="size-3 motion-safe:animate-spin" />
-            ) : (
-              <RefreshCw className="size-3" />
-            )}
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            className="text-muted-foreground hover:text-foreground"
-            onClick={() => setShowInstallSettings(true)}
-            aria-label={t('settings.dependencies.installSettings.title')}
-            title={t('settings.dependencies.installSettings.title')}>
-            <Settings2 className="size-3" />
-          </Button>
-          <Button className="ml-auto" onClick={() => setShowAddDialog(true)}>
-            <Plus size={16} />
-            {t('settings.dependencies.addTool')}
-          </Button>
-        </div>
-      </div>
+      <SettingsPageHeader
+        className="mb-0"
+        title={
+          <>
+            {t('settings.dependencies.title')}
+            <span className="text-xs font-normal text-foreground-tertiary">{totalCount}</span>
+          </>
+        }
+        help={t('settings.dependencies.description')}
+        action={
+          <>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              className="text-muted-foreground hover:text-foreground"
+              onClick={() => void fetchLatestVersions(true)}
+              disabled={checkingUpdates}
+              aria-label={t('settings.dependencies.checkUpdates')}
+              title={t('settings.dependencies.checkUpdates')}>
+              {checkingUpdates ? (
+                <Loader2 className="size-3 motion-safe:animate-spin" />
+              ) : (
+                <RefreshCw className="size-3" />
+              )}
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              className="text-muted-foreground hover:text-foreground"
+              onClick={() => setShowInstallSettings(true)}
+              aria-label={t('settings.dependencies.installSettings.title')}
+              title={t('settings.dependencies.installSettings.title')}>
+              <Settings2 className="size-3" />
+            </Button>
+            <Button onClick={() => setShowAddDialog(true)}>
+              <Plus size={16} />
+              {t('settings.dependencies.addTool')}
+            </Button>
+          </>
+        }
+      />
       <div role="list" className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         {PRESETS_BINARY_TOOLS.map((tool) => {
           const snapshot = snapshots[tool.name]

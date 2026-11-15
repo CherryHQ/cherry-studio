@@ -12,7 +12,8 @@ import {
   SettingGroup,
   SettingRow,
   SettingRowTitle,
-  SettingsContentColumn
+  SettingsContentColumn,
+  SettingsPageHeader
 } from '@renderer/components/SettingsPrimitives'
 import { ipcApi } from '@renderer/ipc'
 
@@ -56,10 +57,7 @@ export function ComputerUseSettings() {
 
   return (
     <SettingsContentColumn>
-      <h1 className="flex items-center gap-1.5 text-xl font-semibold text-foreground">
-        {t('settings.computerUse.title')}
-        <HelpTooltip content={t('settings.computerUse.description')} delay={1000} />
-      </h1>
+      <SettingsPageHeader title={t('settings.computerUse.title')} help={t('settings.computerUse.description')} />
       <SettingGroup>
         <SettingRow className="flex-nowrap">
           <div className="min-w-0 flex-1">
@@ -68,7 +66,7 @@ export function ComputerUseSettings() {
               <span id="computer-use-control-help" className="sr-only">
                 {t('settings.computerUse.controlHelp')}
               </span>
-              <HelpTooltip content={t('settings.computerUse.controlHelp')} delay={1000} />
+              <HelpTooltip content={t('settings.computerUse.controlHelp')} />
             </SettingRowTitle>
           </div>
           <Switch

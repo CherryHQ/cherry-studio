@@ -196,7 +196,7 @@ const ChannelFieldsForm: FC<ChannelFieldsFormProps> = ({
         <div className={chatIdsConfig.fullWidth ? 'col-span-2' : ''}>
           <div className="mb-1 flex items-center gap-1.5">
             <Label className="text-xs">{chatIdsConfig.label}</Label>
-            <HelpTooltip content={chatIdsConfig.hint} delay={1000} />
+            <HelpTooltip content={chatIdsConfig.hint} />
           </div>
           <Input
             value={chatIds}

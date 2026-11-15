@@ -85,8 +85,7 @@ const MarkdownExportSettings: FC = () => {
       <SettingDivider />
       <SettingRow id="setting-data-markdown-export-path" className="scroll-mt-6">
         <SettingRowTitle className="flex items-center gap-1.5">
-          {t('settings.data.markdown_export.path')}{' '}
-          <HelpTooltip content={t('settings.data.markdown_export.help')} delay={1000} />
+          {t('settings.data.markdown_export.path')} <HelpTooltip content={t('settings.data.markdown_export.help')} />
         </SettingRowTitle>
         <RowFlex className="w-78.75 items-center gap-1.25">
           <InputGroup className="h-8 w-62.5">
@@ -117,7 +116,7 @@ const MarkdownExportSettings: FC = () => {
       <SettingRow>
         <SettingRowTitle className="flex items-center gap-1.5">
           {t('settings.data.markdown_export.force_dollar_math.title')}{' '}
-          <HelpTooltip content={t('settings.data.markdown_export.force_dollar_math.help')} delay={1000} />
+          <HelpTooltip content={t('settings.data.markdown_export.force_dollar_math.help')} />
         </SettingRowTitle>
         <Switch checked={forceDollarMathInMarkdown} onCheckedChange={handleToggleForceDollarMath} />
       </SettingRow>
@@ -125,7 +124,7 @@ const MarkdownExportSettings: FC = () => {
       <SettingRow id="setting-data-markdown-export-topic-naming" className="scroll-mt-6">
         <SettingRowTitle className="flex items-center gap-1.5">
           {t('settings.data.message_title.use_topic_naming.title')}{' '}
-          <HelpTooltip content={t('settings.data.message_title.use_topic_naming.help')} delay={1000} />
+          <HelpTooltip content={t('settings.data.message_title.use_topic_naming.help')} />
         </SettingRowTitle>
         <Switch checked={useTopicNamingForMessageTitle} onCheckedChange={handleToggleTopicNaming} />
       </SettingRow>
@@ -133,7 +132,7 @@ const MarkdownExportSettings: FC = () => {
       <SettingRow id="setting-data-markdown-export-model-name" className="scroll-mt-6">
         <SettingRowTitle className="flex items-center gap-1.5">
           {t('settings.data.markdown_export.show_model_name.title')}{' '}
-          <HelpTooltip content={t('settings.data.markdown_export.show_model_name.help')} delay={1000} />
+          <HelpTooltip content={t('settings.data.markdown_export.show_model_name.help')} />
         </SettingRowTitle>
         <Switch checked={showModelNameInExport} onCheckedChange={handleToggleShowModelName} />
       </SettingRow>
@@ -141,7 +140,7 @@ const MarkdownExportSettings: FC = () => {
       <SettingRow id="setting-data-markdown-export-model-provider" className="scroll-mt-6">
         <SettingRowTitle className="flex items-center gap-1.5">
           {t('settings.data.markdown_export.show_model_provider.title')}{' '}
-          <HelpTooltip content={t('settings.data.markdown_export.show_model_provider.help')} delay={1000} />
+          <HelpTooltip content={t('settings.data.markdown_export.show_model_provider.help')} />
         </SettingRowTitle>
         <Switch checked={showModelProviderInMarkdown} onCheckedChange={handleToggleShowModelProvider} />
       </SettingRow>
@@ -149,7 +148,7 @@ const MarkdownExportSettings: FC = () => {
       <SettingRow>
         <SettingRowTitle className="flex items-center gap-1.5">
           {t('settings.data.markdown_export.exclude_citations.title')}{' '}
-          <HelpTooltip content={t('settings.data.markdown_export.exclude_citations.help')} delay={1000} />
+          <HelpTooltip content={t('settings.data.markdown_export.exclude_citations.help')} />
         </SettingRowTitle>
         <Switch checked={excludeCitationsInExport} onCheckedChange={handleToggleExcludeCitations} />
       </SettingRow>
@@ -157,7 +156,7 @@ const MarkdownExportSettings: FC = () => {
       <SettingRow id="setting-data-markdown-export-citations" className="scroll-mt-6">
         <SettingRowTitle className="flex items-center gap-1.5">
           {t('settings.data.markdown_export.standardize_citations.title')}{' '}
-          <HelpTooltip content={t('settings.data.markdown_export.standardize_citations.help')} delay={1000} />
+          <HelpTooltip content={t('settings.data.markdown_export.standardize_citations.help')} />
         </SettingRowTitle>
         <Switch checked={standardizeCitationsInExport} onCheckedChange={handleToggleStandardizeCitations} />
       </SettingRow>

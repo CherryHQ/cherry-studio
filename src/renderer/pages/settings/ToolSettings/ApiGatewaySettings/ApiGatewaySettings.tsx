@@ -13,8 +13,7 @@ import {
   InputGroupButton,
   InputGroupInput,
   InputNumber,
-  Tooltip,
-  HelpTooltip
+  Tooltip
 } from '@cherrystudio/ui'
 import CopyButton from '@renderer/components/CopyButton'
 import { GatewayIcon } from '@renderer/components/icons/GatewayIcon'
@@ -22,7 +21,7 @@ import {
   SettingGroup,
   SettingRowTitle,
   SettingsContentColumn,
-  SettingTitle
+  SettingsPageHeader
 } from '@renderer/components/SettingsPrimitives'
 import { useApiGateway } from '@renderer/hooks/useApiGateway'
 import { useTheme } from '@renderer/hooks/useTheme'
@@ -111,15 +110,15 @@ const ApiGatewaySettings: FC = () => {
 
   return (
     <Container theme={theme}>
-      <HeaderRow>
-        <div className="min-w-0">
-          <SettingTitle className="justify-start gap-2">
+      <SettingsPageHeader
+        title={
+          <>
             <GatewayIcon width={16} height={16} />
             {t('apiGateway.title')}
-            <HelpTooltip content={t('apiGateway.description')} delay={1000} />
-          </SettingTitle>
-        </div>
-      </HeaderRow>
+          </>
+        }
+        help={t('apiGateway.description')}
+      />
       <StatusCard $running={apiGatewayRunning}>
         <StatusSection>
           <StatusIcon $running={apiGatewayRunning}>
@@ -299,10 +298,6 @@ const Container = ({ className, ...props }: React.ComponentPropsWithoutRef<typeo
   />
 )
 
-const HeaderRow = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('flex items-center justify-between gap-4', className)} {...props} />
-)
-
 const StatusCard = ({
   $running,
   className,
@@ -310,7 +305,7 @@ const StatusCard = ({
 }: React.ComponentPropsWithoutRef<'div'> & { $running: boolean }) => (
   <div
     className={cn(
-      'mt-5 flex flex-wrap items-center justify-between gap-4 rounded-xl border p-4',
+      'flex flex-wrap items-center justify-between gap-4 rounded-xl border p-4',
       $running
         ? 'border-success-border bg-success-subtle text-success-subtle-foreground'
         : 'border-border bg-card text-card-foreground',

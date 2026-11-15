@@ -31,7 +31,7 @@ export function ProviderImageEndpointFields({ value, invalidField, onChange }: P
               {t('settings.provider.image_endpoints.image_generation_base_url.help')}
             </span>
           </FieldLabel>
-          <HelpTooltip content={t('settings.provider.image_endpoints.image_generation_base_url.help')} delay={1000} />
+          <HelpTooltip content={t('settings.provider.image_endpoints.image_generation_base_url.help')} />
         </div>
         <Input
           id={generationInputId}
@@ -59,7 +59,7 @@ export function ProviderImageEndpointFields({ value, invalidField, onChange }: P
               {t('settings.provider.image_endpoints.image_edit_base_url.help')}
             </span>
           </FieldLabel>
-          <HelpTooltip content={t('settings.provider.image_endpoints.image_edit_base_url.help')} delay={1000} />
+          <HelpTooltip content={t('settings.provider.image_endpoints.image_edit_base_url.help')} />
         </div>
         <Input
           id={editInputId}

@@ -1,7 +1,7 @@
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button, InfoTooltip, Input, RowFlex, Switch, HelpTooltip } from '@cherrystudio/ui'
+import { Button, Input, RowFlex, Switch, HelpTooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import {
@@ -12,6 +12,7 @@ import {
   SettingTitle
 } from '@renderer/components/SettingsPrimitives'
 import { useTheme } from '@renderer/hooks/useTheme'
+import { settingsControlClasses } from '@renderer/pages/settings/settingsStyles'
 import { toast } from '@renderer/services/toast'
 import { openExternalWebsite } from '@renderer/services/website'
 import { formatErrorMessage } from '@renderer/utils/error'
@@ -83,30 +84,30 @@ const JoplinSettings: FC = () => {
       <SettingDivider />
       <SettingRow id="setting-data-joplin-url" className="scroll-mt-6">
         <SettingRowTitle>{t('settings.data.joplin.url')}</SettingRowTitle>
-        <RowFlex className="w-78.75 max-w-full min-w-0 items-center gap-1.25">
+        <RowFlex className={`${settingsControlClasses.text} items-center gap-2`}>
           <Input
             type="text"
             value={joplinUrl || ''}
             onChange={handleJoplinUrlChange}
             onBlur={handleJoplinUrlBlur}
-            className="w-78.75 max-w-full"
+            className={settingsControlClasses.text}
             placeholder={t('settings.data.joplin.url_placeholder')}
           />
         </RowFlex>
       </SettingRow>
       <SettingDivider />
       <SettingRow id="setting-data-joplin-token" className="scroll-mt-6">
-        <SettingRowTitle style={{ display: 'flex', alignItems: 'center' }}>
+        <SettingRowTitle className="flex items-center gap-1.5">
           <span>{t('settings.data.joplin.token')}</span>
-          <InfoTooltip
+          <HelpTooltip
             content={t('settings.data.joplin.help')}
             placement="left"
-            iconProps={{ className: 'text-text-2 cursor-pointer ml-1' }}
+            iconProps={{ className: 'text-text-2 cursor-pointer' }}
             onClick={handleJoplinHelpClick}
           />
         </SettingRowTitle>
-        <RowFlex className="w-78.75 max-w-full min-w-0 items-center gap-1.25">
-          <RowFlex className="w-full min-w-0 items-center gap-1.25">
+        <RowFlex className={`${settingsControlClasses.text} items-center gap-2`}>
+          <RowFlex className="w-full min-w-0 items-center gap-2">
             <Input
               type="password"
               value={joplinToken || ''}
@@ -125,7 +126,7 @@ const JoplinSettings: FC = () => {
       <SettingRow>
         <SettingRowTitle className="flex items-center gap-1.5">
           {t('settings.data.joplin.export_reasoning.title')}{' '}
-          <HelpTooltip content={t('settings.data.joplin.export_reasoning.help')} delay={1000} />
+          <HelpTooltip content={t('settings.data.joplin.export_reasoning.help')} />
         </SettingRowTitle>
         <Switch checked={joplinExportReasoning} onCheckedChange={handleToggleJoplinExportReasoning} />
       </SettingRow>

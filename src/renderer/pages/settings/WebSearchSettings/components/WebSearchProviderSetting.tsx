@@ -347,7 +347,7 @@ export const WebSearchProviderSetting: FC<Props> = ({
         <div className="min-w-0 flex-1">
           <SettingTitle className="justify-start flex items-center gap-1.5">
             <span id={sectionTitleId}>{sectionTitle}</span>
-            <HelpTooltip content={t(descriptionKey)} delay={1000} />
+            <HelpTooltip content={t(descriptionKey)} />
           </SettingTitle>
           <div className="mt-1 flex min-w-0 items-center gap-1.5">
             {officialWebsite && (

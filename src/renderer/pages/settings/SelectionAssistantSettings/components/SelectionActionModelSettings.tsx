@@ -23,7 +23,7 @@ const ModelNavigationRow: FC<ModelNavigationRowProps> = ({ description, model, o
     <SettingRow role="group" aria-labelledby={titleId} className="gap-4 py-1.5">
       <div className="min-w-0 flex-1">
         <SettingRowTitle className="flex items-center gap-1.5">
-          <span id={titleId}>{title}</span> <HelpTooltip content={description} delay={1000} />
+          <span id={titleId}>{title}</span> <HelpTooltip content={description} />
         </SettingRowTitle>
       </div>
       <ModelSettingsNavigation model={model} onNavigate={onNavigate} />

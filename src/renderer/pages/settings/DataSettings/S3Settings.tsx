@@ -20,6 +20,7 @@ import {
 import { useBackupSyncState } from '@renderer/hooks/useBackupSyncState'
 import { useMiniAppPopup } from '@renderer/hooks/useMiniAppPopup'
 import { useTheme } from '@renderer/hooks/useTheme'
+import { settingsControlClasses } from '@renderer/pages/settings/settingsStyles'
 
 const SYNC_STATUS_COLOR = 'var(--muted-foreground)'
 
@@ -104,7 +105,7 @@ const S3Settings: FC = () => {
 
   return (
     <SettingGroup theme={theme}>
-      <SettingTitle style={{ justifyContent: 'flex-start', gap: 10 }} className="justify-start gap-1.5">
+      <SettingTitle className="justify-start gap-1.5">
         {t('settings.data.s3.title.label')}
         <HelpTooltip
           content={
@@ -114,7 +115,6 @@ const S3Settings: FC = () => {
             </div>
           }
           ariaLabel={t('settings.data.s3.title.tooltip')}
-          delay={1000}
           onClick={handleTitleClick}
         />
       </SettingTitle>
@@ -125,7 +125,7 @@ const S3Settings: FC = () => {
           placeholder={t('settings.data.s3.endpoint.placeholder')}
           value={s3Endpoint}
           onChange={(e) => setS3Endpoint(e.target.value)}
-          style={{ width: 250 }}
+          className={settingsControlClasses.text}
           type="url"
           onBlur={(e) => setS3Endpoint(e.target.value)}
         />
@@ -137,7 +137,7 @@ const S3Settings: FC = () => {
           placeholder={t('settings.data.s3.region.placeholder')}
           value={s3Region}
           onChange={(e) => setS3Region(e.target.value)}
-          style={{ width: 250 }}
+          className={settingsControlClasses.text}
           onBlur={(e) => setS3Region(e.target.value)}
         />
       </SettingRow>
@@ -148,7 +148,7 @@ const S3Settings: FC = () => {
           placeholder={t('settings.data.s3.bucket.placeholder')}
           value={s3Bucket}
           onChange={(e) => setS3Bucket(e.target.value)}
-          style={{ width: 250 }}
+          className={settingsControlClasses.text}
           onBlur={(e) => setS3Bucket(e.target.value)}
         />
       </SettingRow>
@@ -159,7 +159,7 @@ const S3Settings: FC = () => {
           placeholder={t('settings.data.s3.accessKeyId.placeholder')}
           value={s3AccessKeyId}
           onChange={(e) => setS3AccessKeyId(e.target.value)}
-          style={{ width: 250 }}
+          className={settingsControlClasses.text}
           onBlur={(e) => setS3AccessKeyId(e.target.value)}
         />
       </SettingRow>
@@ -171,7 +171,7 @@ const S3Settings: FC = () => {
           placeholder={t('settings.data.s3.secretAccessKey.placeholder')}
           value={s3SecretAccessKey}
           onChange={(e) => setS3SecretAccessKey(e.target.value)}
-          style={{ width: 250 }}
+          className={settingsControlClasses.text}
           onBlur={(e) => setS3SecretAccessKey(e.target.value)}
         />
       </SettingRow>
@@ -182,14 +182,14 @@ const S3Settings: FC = () => {
           placeholder={t('settings.data.s3.root.placeholder')}
           value={s3Root}
           onChange={(e) => setS3Root(e.target.value)}
-          style={{ width: 250 }}
+          className={settingsControlClasses.text}
           onBlur={(e) => setS3Root(e.target.value)}
         />
       </SettingRow>
       <SettingDivider />
       <SettingRow>
         <SettingRowTitle>{t('settings.data.s3.backup.operation')}</SettingRowTitle>
-        <RowFlex className="justify-between gap-1.25">
+        <RowFlex className="flex-wrap items-center justify-end gap-2">
           <Button
             onClick={showBackupModal}
             variant="outline"
@@ -251,7 +251,7 @@ const S3Settings: FC = () => {
       <SettingRow>
         <SettingRowTitle className="flex items-center gap-1.5">
           {t('settings.data.s3.skipBackupFile.label')}{' '}
-          <HelpTooltip content={t('settings.data.s3.skipBackupFile.help')} delay={1000} />
+          <HelpTooltip content={t('settings.data.s3.skipBackupFile.help')} />
         </SettingRowTitle>
         <Switch checked={s3SkipBackupFile} onCheckedChange={(value) => void setS3SkipBackupFile(value)} />
       </SettingRow>

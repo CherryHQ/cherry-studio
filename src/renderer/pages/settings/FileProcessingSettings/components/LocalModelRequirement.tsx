@@ -74,7 +74,7 @@ export function LocalModelRequirement({ capability, description, onReady }: Loca
             </SettingRowTitle>
           ) : (
             <SettingRowTitle className="text-xs flex items-center gap-1.5">
-              {t(SUBTITLE_KEY[capability])} <HelpTooltip content={description} delay={1000} />
+              {t(SUBTITLE_KEY[capability])} <HelpTooltip content={description} />
             </SettingRowTitle>
           )}
         </div>

@@ -43,7 +43,7 @@ export default function ProviderSettingsDrawer({
         <div className="flex min-w-0 flex-1 flex-col gap-1">
           <span className="flex items-center gap-1.5 text-base font-semibold text-foreground">
             {title}
-            {description && <HelpTooltip content={description} delay={1000} />}
+            {description && <HelpTooltip content={description} />}
           </span>
         </div>
         {titleActions ? <div className="flex shrink-0 items-center">{titleActions}</div> : null}

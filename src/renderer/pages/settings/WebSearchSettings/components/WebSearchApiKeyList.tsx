@@ -202,7 +202,7 @@ export const WebSearchApiKeyList: FC<WebSearchApiKeyListProps> = ({ providerId }
       </div>
 
       <div className="mt-3.5 flex items-center justify-between gap-3">
-        <HelpTooltip content={t('settings.provider.api_key.tip')} delay={1000} />
+        <HelpTooltip content={t('settings.provider.api_key.tip')} />
         <Button
           type="button"
           size="sm"

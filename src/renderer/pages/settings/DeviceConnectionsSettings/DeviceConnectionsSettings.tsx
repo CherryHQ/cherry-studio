@@ -26,8 +26,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-  Tooltip,
-  HelpTooltip
+  Tooltip
 } from '@cherrystudio/ui'
 import { usePersistCache, useSharedCacheValue } from '@data/hooks/useCache'
 import { useDataChange, useMutation, useQuery } from '@data/hooks/useDataApi'
@@ -36,7 +35,7 @@ import {
   SettingGroup,
   SettingRowTitle,
   SettingsContentColumn,
-  SettingTitle
+  SettingsPageHeader
 } from '@renderer/components/SettingsPrimitives'
 import { useApiGateway } from '@renderer/hooks/useApiGateway'
 import { useTheme } from '@renderer/hooks/useTheme'
@@ -286,13 +285,15 @@ const DeviceConnectionsSettings: FC = () => {
       className="@container min-w-0"
       contentProps={{ className: 'pb-18' }}
       innerClassName="flex min-h-full flex-col">
-      <div className="min-w-0">
-        <SettingTitle className="justify-start gap-2">
-          <MonitorSmartphone size={16} />
-          {t('deviceConnections.title')}
-          <HelpTooltip content={t('deviceConnections.description')} delay={1000} />
-        </SettingTitle>
-      </div>
+      <SettingsPageHeader
+        title={
+          <>
+            <MonitorSmartphone size={16} />
+            {t('deviceConnections.title')}
+          </>
+        }
+        help={t('deviceConnections.description')}
+      />
       <Dialog open={endpointDialogOpen} onOpenChange={setEndpointDialogOpen}>
         <DialogContent closeLabel={t('common.close')}>
           <RemoteEndpointSettings

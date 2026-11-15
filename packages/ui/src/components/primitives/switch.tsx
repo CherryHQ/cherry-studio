@@ -164,7 +164,7 @@ const DescriptionSwitch = ({
           )}>
           {label}
           {description && descriptionDisplay === 'tooltip' && (
-            <Tooltip content={description} delay={1000} asChild>
+            <Tooltip content={description} asChild>
               <span
                 role="img"
                 aria-label={description}

@@ -36,8 +36,7 @@ const LmStudioSettings: FC<Props> = ({ providerId }) => {
   return (
     <div>
       <ProviderSettingsSubtitle className="mb-1 flex items-center gap-1.5">
-        {t('lmstudio.keep_alive_time.title')}{' '}
-        <HelpTooltip content={t('lmstudio.keep_alive_time.description')} delay={1000} />
+        {t('lmstudio.keep_alive_time.title')} <HelpTooltip content={t('lmstudio.keep_alive_time.description')} />
       </ProviderSettingsSubtitle>
       <InputGroup>
         <InputGroupInputNumber

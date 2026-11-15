@@ -263,7 +263,6 @@ const VertexAiSettings: FC<Props> = ({ providerId }) => {
                 ? t('settings.provider.vertex_ai.service_account.json_parse_error')
                 : t('settings.provider.vertex_ai.service_account.json_input_help')
             }
-            delay={1000}
           />
         </ProviderSettingsSubtitle>
         {apiKeyWebsite && (
@@ -283,7 +282,7 @@ const VertexAiSettings: FC<Props> = ({ providerId }) => {
       />
       <ProviderSettingsSubtitle className="mt-1.5 flex items-center gap-1.5">
         {t('settings.provider.vertex_ai.service_account.client_email')}
-        <HelpTooltip content={t('settings.provider.vertex_ai.service_account.client_email_help')} delay={1000} />
+        <HelpTooltip content={t('settings.provider.vertex_ai.service_account.client_email_help')} />
       </ProviderSettingsSubtitle>
       <div className="relative mt-1.5 w-full">
         <Input
@@ -307,7 +306,7 @@ const VertexAiSettings: FC<Props> = ({ providerId }) => {
       </div>
       <ProviderSettingsSubtitle className="mt-1.5 flex items-center gap-1.5">
         {t('settings.provider.vertex_ai.service_account.private_key')}
-        <HelpTooltip content={t('settings.provider.vertex_ai.service_account.private_key_help')} delay={1000} />
+        <HelpTooltip content={t('settings.provider.vertex_ai.service_account.private_key_help')} />
       </ProviderSettingsSubtitle>
       <div className="relative mt-1.5 w-full">
         <Textarea.Input
@@ -339,7 +338,7 @@ const VertexAiSettings: FC<Props> = ({ providerId }) => {
       <>
         <ProviderSettingsSubtitle className="mt-1.5 flex items-center gap-1.5">
           {t('settings.provider.vertex_ai.project_id')}
-          <HelpTooltip content={t('settings.provider.vertex_ai.project_id_help')} delay={1000} />
+          <HelpTooltip content={t('settings.provider.vertex_ai.project_id_help')} />
         </ProviderSettingsSubtitle>
         <div className="relative mt-1.5 w-full">
           <Input
@@ -363,7 +362,7 @@ const VertexAiSettings: FC<Props> = ({ providerId }) => {
         </div>
         <ProviderSettingsSubtitle className="mt-1.5 flex items-center gap-1.5">
           {t('settings.provider.vertex_ai.location')}
-          <HelpTooltip content={t('settings.provider.vertex_ai.location_help')} delay={1000} />
+          <HelpTooltip content={t('settings.provider.vertex_ai.location_help')} />
         </ProviderSettingsSubtitle>
         <Popover open={dropdownOpen} onOpenChange={setDropdownOpen}>
           <PopoverAnchor asChild>

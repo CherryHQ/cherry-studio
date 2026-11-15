@@ -26,6 +26,7 @@ import {
   SettingTitle
 } from '@renderer/components/SettingsPrimitives'
 import { cacheService } from '@renderer/data/CacheService'
+import { settingsControlClasses } from '@renderer/pages/settings/settingsStyles'
 import type { BrowserStartPageMode } from '@shared/data/preference/preferenceTypes'
 
 import { BrowserClearDialog } from './BrowserSettings/BrowserClearDialog'
@@ -92,7 +93,7 @@ export function BrowserSettings() {
               <span id="browser-control-help" className="sr-only">
                 {t('settings.browser.controlHelp')}
               </span>
-              <HelpTooltip content={t('settings.browser.controlHelp')} delay={1000} />
+              <HelpTooltip content={t('settings.browser.controlHelp')} />
             </SettingRowTitle>
           </div>
           <Switch
@@ -122,7 +123,7 @@ export function BrowserSettings() {
               <span id="browser-auto-open-panel-help" className="sr-only">
                 {t('settings.browser.autoOpenPanelHelp')}
               </span>
-              <HelpTooltip content={t('settings.browser.autoOpenPanelHelp')} delay={1000} />
+              <HelpTooltip content={t('settings.browser.autoOpenPanelHelp')} />
             </SettingRowTitle>
           </div>
           <Switch
@@ -152,7 +153,7 @@ export function BrowserSettings() {
               <span id="browser-open-links-help" className="sr-only">
                 {t('settings.browser.openLinksHelp')}
               </span>
-              <HelpTooltip content={t('settings.browser.openLinksHelp')} delay={1000} />
+              <HelpTooltip content={t('settings.browser.openLinksHelp')} />
             </SettingRowTitle>
           </div>
           <Switch
@@ -178,8 +179,7 @@ export function BrowserSettings() {
         <SettingRow id="setting-browser-start-page" className="scroll-mt-6 flex-wrap gap-3">
           <div className="min-w-0 flex-1">
             <SettingRowTitle className="flex items-center gap-1.5">
-              {t('settings.browser.startPage')}{' '}
-              <HelpTooltip content={t('settings.browser.startPageHelp')} delay={1000} />
+              {t('settings.browser.startPage')} <HelpTooltip content={t('settings.browser.startPageHelp')} />
             </SettingRowTitle>
           </div>
           <Select
@@ -199,7 +199,7 @@ export function BrowserSettings() {
                 setSaving(false)
               }
             }}>
-            <SelectTrigger aria-label={t('settings.browser.startPage')} className="w-60 max-w-full">
+            <SelectTrigger aria-label={t('settings.browser.startPage')} className={settingsControlClasses.field}>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -243,7 +243,7 @@ export function BrowserSettings() {
             <SettingRow id={`setting-browser-${kind}`} className="scroll-mt-6 flex-nowrap">
               <div className="min-w-0 flex-1">
                 <SettingRowTitle className="flex items-center gap-1.5">
-                  <span id={`browser-${kind}-title`}>{t(title)}</span> <HelpTooltip content={t(help)} delay={1000} />
+                  <span id={`browser-${kind}-title`}>{t(title)}</span> <HelpTooltip content={t(help)} />
                 </SettingRowTitle>
               </div>
               <DialogTrigger asChild>

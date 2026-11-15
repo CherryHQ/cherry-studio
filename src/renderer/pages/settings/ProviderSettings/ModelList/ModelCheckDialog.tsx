@@ -442,7 +442,7 @@ export default function ModelCheckDialog() {
               <div className="flex items-center justify-between gap-4">
                 <div>
                   <Label htmlFor="model-check-concurrent">{t('settings.models.check.enable_concurrent')}</Label>
-                  <HelpTooltip content={t('settings.models.check.concurrent_hint')} delay={1000} />
+                  <HelpTooltip content={t('settings.models.check.concurrent_hint')} />
                 </div>
                 <Switch id="model-check-concurrent" checked={isConcurrent} onCheckedChange={setIsConcurrent} />
               </div>

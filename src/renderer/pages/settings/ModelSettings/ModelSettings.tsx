@@ -20,6 +20,7 @@ import { useDefaultModel } from '@renderer/hooks/useModel'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { useTimer } from '@renderer/hooks/useTimer'
+import { settingsControlClasses } from '@renderer/pages/settings/settingsStyles'
 import { toast } from '@renderer/services/toast'
 import { scrollIntoView } from '@renderer/utils/dom'
 import { cn } from '@renderer/utils/style'
@@ -90,13 +91,13 @@ const ModelSettingRow: FC<ModelSettingRowProps> = ({
         <SettingRowTitle className="gap-2">
           {icon}
           {title}
-          {description && <HelpTooltip content={description} delay={1000} />}
+          {description && <HelpTooltip content={description} />}
         </SettingRowTitle>
       </div>
       <div
         className={cn(
           'relative flex items-center gap-2',
-          compact ? (inlineWhenCompact ? 'shrink-0' : 'w-full') : 'w-[340px] shrink-0'
+          compact ? (inlineWhenCompact ? 'shrink-0' : 'w-full') : settingsControlClasses.model
         )}>
         {showFocusGuide && (
           <span

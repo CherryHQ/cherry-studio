@@ -43,6 +43,7 @@ import { useTimer } from '@renderer/hooks/useTimer'
 import { appLanguageOptions, isAppLanguage } from '@renderer/i18n/languages'
 import i18n from '@renderer/i18n/resolver'
 import { ipcApi } from '@renderer/ipc'
+import { settingsControlClasses } from '@renderer/pages/settings/settingsStyles'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessage } from '@renderer/utils/error'
@@ -382,7 +383,7 @@ const GeneralSettings: FC = () => {
         <SettingDivider />
         <SettingRow id="setting-general-display-language" className="scroll-mt-6">
           <SettingRowTitle>{t('settings.general.interface_language')}</SettingRowTitle>
-          <div className="w-full max-w-55 min-w-0">
+          <div className="w-full max-w-60 min-w-0">
             <Select value={displayLanguage} onValueChange={onSelectLanguage}>
               <SelectTrigger
                 size="sm"
@@ -538,8 +539,7 @@ const GeneralSettings: FC = () => {
       <ContextManagementSettings />
       <SettingGroup theme={theme}>
         <SettingTitle className="justify-start gap-1.5">
-          {t('settings.general.sections.retry')}{' '}
-          <HelpTooltip content={t('settings.models.retry.description')} delay={1000} />
+          {t('settings.general.sections.retry')} <HelpTooltip content={t('settings.models.retry.description')} />
         </SettingTitle>
         <SettingDivider />
         <SettingRow id="setting-general-retry-enabled" className="scroll-mt-6">
@@ -558,7 +558,7 @@ const GeneralSettings: FC = () => {
             <SettingDivider />
             <SettingRow>
               <SettingRowTitle>{t('settings.models.retry.max_attempts')}</SettingRowTitle>
-              <div className="w-[220px] shrink-0">
+              <div className={settingsControlClasses.field}>
                 <InputNumber
                   min={1}
                   max={10}
@@ -584,10 +584,10 @@ const GeneralSettings: FC = () => {
               <div className="min-w-0 flex-1">
                 <SettingRowTitle className="flex items-center gap-1.5">
                   {t('settings.models.retry.fallback_models')}{' '}
-                  <HelpTooltip content={t('settings.models.retry.fallback_models_description')} delay={1000} />
+                  <HelpTooltip content={t('settings.models.retry.fallback_models_description')} />
                 </SettingRowTitle>
               </div>
-              <div className="flex w-[220px] min-w-0 shrink-0 items-center">
+              <div className={`flex min-w-0 items-center ${settingsControlClasses.model}`}>
                 <ModelSelector
                   multiple={true}
                   selectionType="id"
@@ -639,7 +639,7 @@ const GeneralSettings: FC = () => {
           <div className="min-w-0 flex-1">
             <SettingRowTitle className="flex items-center gap-1.5">
               <span id="commit-attribution-title">{t('settings.general.commit_attribution.title')}</span>
-              <HelpTooltip content={t('settings.general.commit_attribution.description')} delay={1000} />
+              <HelpTooltip content={t('settings.general.commit_attribution.description')} />
             </SettingRowTitle>
           </div>
           <Switch

@@ -6,6 +6,7 @@ import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type * as CherryStudioUi from '@cherrystudio/ui'
 import { cacheService } from '@data/CacheService'
 import {
   LOCAL_MODEL_STATUS_CACHE_KEY,
@@ -32,7 +33,8 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key })
 }))
 
-vi.mock('@cherrystudio/ui', () => ({
+vi.mock('@cherrystudio/ui', async (importOriginal) => ({
+  PageHeader: (await importOriginal<typeof CherryStudioUi>()).PageHeader,
   HelpTooltip: () => null,
   Badge: ({ children }: { children?: ReactNode }) => <span>{children}</span>,
   Button: ({

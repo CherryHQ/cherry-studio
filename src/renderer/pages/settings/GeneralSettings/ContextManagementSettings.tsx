@@ -24,6 +24,7 @@ import {
 import { useModelById } from '@renderer/hooks/useModel'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { useTheme } from '@renderer/hooks/useTheme'
+import { settingsControlClasses } from '@renderer/pages/settings/settingsStyles'
 import {
   MAX_COMPRESS_THRESHOLD_PERCENT,
   MIN_COMPRESS_THRESHOLD_PERCENT,
@@ -76,7 +77,7 @@ export const ContextManagementSettings = () => {
     <SettingGroup theme={theme}>
       <SettingTitle className="justify-start gap-1.5">
         {t('settings.models.context_management.title')}{' '}
-        <HelpTooltip content={t('settings.models.context_management.scope_description')} delay={1000} />
+        <HelpTooltip content={t('settings.models.context_management.scope_description')} />
       </SettingTitle>
       <SettingDivider />
       {/* Outside the master switch: scope is not an overflow policy. */}
@@ -87,7 +88,7 @@ export const ContextManagementSettings = () => {
             description={t('settings.models.context_management.max_messages_description')}
           />
         </div>
-        <div className="w-[220px] shrink-0">
+        <div className={settingsControlClasses.field}>
           <InputNumber
             min={1}
             step={1}
@@ -125,7 +126,7 @@ export const ContextManagementSettings = () => {
                 description={t('settings.models.context_management.truncate_threshold_description')}
               />
             </div>
-            <div className="w-[220px] shrink-0">
+            <div className={settingsControlClasses.field}>
               <InputNumber
                 // Floor: this doubles as fs_read's per-call cap, and below it a
                 // single gutter-prefixed line already overflows.
@@ -166,7 +167,7 @@ export const ContextManagementSettings = () => {
                     description={t('settings.models.context_management.compress_threshold_description')}
                   />
                 </div>
-                <div className="w-[220px] shrink-0">
+                <div className={settingsControlClasses.field}>
                   <InputGroup className="h-8 rounded-lg">
                     <InputGroupInputNumber
                       min={MIN_COMPRESS_THRESHOLD_PERCENT}
@@ -186,7 +187,7 @@ export const ContextManagementSettings = () => {
               <SettingDivider />
               <SettingRow>
                 <SettingRowTitle>{t('settings.models.context_management.compress_model')}</SettingRowTitle>
-                <div className="flex w-[220px] min-w-0 items-center">
+                <div className={`flex min-w-0 items-center ${settingsControlClasses.model}`}>
                   <DefaultModelSelector
                     model={compressModel}
                     providers={providers}

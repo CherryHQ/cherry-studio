@@ -270,7 +270,7 @@ const LocalBackupSettings: React.FC = () => {
       <SettingRow>
         <SettingRowTitle className="flex items-center gap-1.5">
           {t('settings.data.backup.skip_file_data_title')}{' '}
-          <HelpTooltip content={t('settings.data.backup.skip_file_data_help')} delay={1000} />
+          <HelpTooltip content={t('settings.data.backup.skip_file_data_help')} />
         </SettingRowTitle>
         <Switch
           checked={localBackupSkipBackupFile}

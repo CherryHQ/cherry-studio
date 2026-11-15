@@ -23,10 +23,10 @@ export default function ProviderSection({ id, title, description, action, childr
             {title && (
               <div className={cn(sectionHeadingClasses, 'flex items-center gap-1.5')}>
                 {title}
-                {description && <HelpTooltip content={description} delay={1000} />}
+                {description && <HelpTooltip content={description} />}
               </div>
             )}
-            {!title && description && <HelpTooltip content={description} delay={1000} />}
+            {!title && description && <HelpTooltip content={description} />}
           </div>
           {action}
         </div>

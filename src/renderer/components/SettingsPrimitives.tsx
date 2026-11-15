@@ -1,10 +1,34 @@
 import React from 'react'
 
-import { Divider as SettingDivider, ScrollArea } from '@cherrystudio/ui'
+import { Divider as SettingDivider, HelpTooltip, PageHeader, ScrollArea } from '@cherrystudio/ui'
 import { cn } from '@renderer/utils/style'
 import type { ThemeMode } from '@shared/data/preference/preferenceTypes'
 
 export { SettingDivider }
+
+export const SettingsPageHeader = ({
+  title,
+  help,
+  action,
+  className
+}: {
+  title: React.ReactNode
+  help?: React.ReactNode
+  action?: React.ReactNode
+  className?: string
+}) => (
+  <div className={cn('mb-4 flex min-h-8 flex-wrap items-center justify-between gap-x-6 gap-y-3', className)}>
+    <div className="flex min-w-0 items-center gap-1.5">
+      <PageHeader
+        title={title}
+        className="m-0 min-w-0 shrink p-0"
+        titleClassName="flex items-center gap-2 text-[15px] leading-6 font-semibold"
+      />
+      {help && <HelpTooltip content={help} />}
+    </div>
+    {action && <div className="flex shrink-0 items-center gap-2">{action}</div>}
+  </div>
+)
 
 export const SettingContainer = ({
   className,
@@ -74,7 +98,7 @@ export const SettingRow = ({ className, ...props }: React.ComponentPropsWithoutR
 
 export const SettingRowTitle = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
   <div
-    className={cn('flex min-w-0 flex-wrap items-center text-sm leading-4.5 text-foreground', className)}
+    className={cn('flex min-w-0 flex-wrap items-center gap-1.5 text-sm leading-4.5 text-foreground', className)}
     {...props}
   />
 )
