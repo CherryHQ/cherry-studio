@@ -61,10 +61,20 @@ bottom of this document — read them.
      route tool parts to the right card renderer.
    - `builtinTools(platform?)` — the edit-dialog catalog, filtered for the supplied
      platform. Omit the platform when resolving tool identities in historical messages.
-     If the runtime ships its own
-     tool set, define the descriptors in one shared module (pattern:
-     `src/shared/ai/piBuiltinTools.ts`) carrying name, category, **and**
-     approval default, and derive everything else from it.
+     Claude Code uses the user-facing canonical definitions; Pi and Pi Durable
+     combine their supported native descriptors with canonical MCP definitions whose
+     `exposure` is `user` and whose `mcpServer` is defined. A new public MCP
+     definition therefore becomes a catalog row in these runtimes; policy registration
+     alone does not make a tool visible. Native Pi descriptors, including their approval
+     defaults, remain in `src/shared/ai/piBuiltinTools.ts`.
+
+     Canonical knowledge and painting prerequisites drive row availability. Without a
+     bound knowledge base or a resolved painting model, the row remains visible,
+     unchecked and inactive without changing `disabledTools`. Browser and computer
+     group controls retain their own availability settings. Pi and Pi Durable expand
+     declared MCP dependencies in the runtime-effective disabled set: disabling
+     Knowledge Search also blocks `kb_list` and `kb_read`, without saving those
+     dependent IDs. Manage Knowledge remains independent.
 
 3. **Add i18n keys** for the runtime option label (`labelKey`) and
    `agent.tools.builtin.<id>.*` entries for each builtin tool. Add the canonical English
@@ -199,7 +209,9 @@ These are the choices nothing enforces:
   Add common policy in the materializer and test that each driver carries it.
 - **Runtime-native tool identity.** Keep the runtime's own tool names and
   casing everywhere (catalog ids, `disabledTools` write-back, approval
-  lookups). Renaming to another runtime's convention corrupts policy lookups.
+  lookups). For example, Claude Code stores `mcp__cherry-tools__*`, while Pi and
+  Pi Durable store `mcp__cherry_tools__*`. Renaming to another runtime's convention
+  corrupts policy lookups.
 - **Approval defaults live with the tool descriptor.** One table carrying
   name + category + approval; a side lookup with a `?? 'auto'` fallback means
   a newly added tool silently becomes auto-approved (fail-open).

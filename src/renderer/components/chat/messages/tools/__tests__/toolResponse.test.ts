@@ -138,6 +138,27 @@ describe('toolResponse adapter', () => {
     expect(response?.response).toEqual(results)
   })
 
+  it('keeps a cataloged Pi image result as MCP with its image content', () => {
+    const content = [{ type: 'image', data: 'iVBORw0KGgo=', mimeType: 'image/png' }]
+    const output = {
+      content,
+      metadata: { name: 'generate_image', serverName: 'cherry-tools', serverId: 'cherry-tools', type: 'mcp' }
+    }
+    const part = {
+      type: 'dynamic-tool',
+      toolCallId: 'image',
+      toolName: 'mcp__cherry_tools__generate_image',
+      state: 'output-available',
+      input: { prompt: 'a tree' },
+      output,
+      callProviderMetadata: { cherry: { transport: 'pi-agent' } }
+    } as unknown as CherryMessagePart
+    expect(buildToolResponseFromPart(part)).toMatchObject({
+      tool: { type: 'mcp', name: 'generate_image' },
+      response: output
+    })
+  })
+
   it('preserves MCP content arrays as CallToolResult-shaped responses', () => {
     const content = [
       { type: 'text', text: 'QR code generated' },
