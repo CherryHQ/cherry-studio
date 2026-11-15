@@ -152,6 +152,7 @@ describe('imageGenerationJobHandler.execute', () => {
 
     const ctx = createCtx()
     ctx.input.source = source
+    ctx.input.messageRef = { kind: 'chat', id: 'assistant-message-1' }
     const result = (await imageGenerationJobHandler.execute(ctx)) as { files: Array<{ id: string }> }
 
     expect(result.files).toEqual([{ id: 'file-1' }])
@@ -172,7 +173,8 @@ describe('imageGenerationJobHandler.execute', () => {
         providerId: 'ppio',
         modelId: 'qwen-image',
         credentialReceipt,
-        source
+        source,
+        messageRef: { kind: 'chat', id: 'assistant-message-1' }
       }),
       modality: 'image',
       imageCount: 1,

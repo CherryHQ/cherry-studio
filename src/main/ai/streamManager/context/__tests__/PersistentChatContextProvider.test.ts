@@ -44,7 +44,9 @@ vi.mock('@application', async () => {
 
 vi.mock('../modelResolution', () => ({
   resolveAssistantModelId: vi.fn(() => ({ assistantId: undefined, defaultModelId: MODEL_ID })),
-  resolveModels: vi.fn(() => [{ id: MODEL_ID, name: 'GPT-4o', providerId: 'openai', apiModelId: 'gpt-4o' }]),
+  resolveModels: vi.fn(() => [
+    { id: MODEL_ID, name: 'GPT-4o', providerId: 'openai', apiModelId: 'gpt-4o', capabilities: [] }
+  ]),
   resolvePersistentSiblingsGroupId: vi.fn(() => 1)
 }))
 

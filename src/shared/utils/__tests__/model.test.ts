@@ -5,10 +5,12 @@ import { ENDPOINT_TYPE, type Model, MODEL_CAPABILITY } from '@shared/data/types/
 import {
   getRawModelId,
   isAudioModel,
+  isChatSelectableModel,
   isEmbeddingModel,
   isFunctionCallingModel,
   isGatewayRoutableModel,
   isGenerateImageModel,
+  isImageGenerationOnlyModel,
   isNonChatModel,
   isReasoningModel,
   isRerankModel,
@@ -32,6 +34,66 @@ const createModel = (capabilities: Model['capabilities'] = []): Model => ({
 
 describe('shared model capability helpers', () => {
   it.each([
+    { endpoints: [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT], output: ['image'], dedicated: false },
+    { endpoints: [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION], output: ['text', 'image'], dedicated: true },
+    {
+      endpoints: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION],
+      output: ['image'],
+      dedicated: true
+    }
+  ] as const)(
+    'classifies image transport from the declared protocol: $endpoints / $output',
+    ({ endpoints, output, dedicated }) => {
+      const model: Model = {
+        ...createModel([MODEL_CAPABILITY.IMAGE_GENERATION]),
+        endpointTypes: [...endpoints],
+        outputModalities: [...output]
+      }
+      expect(isImageGenerationOnlyModel(model)).toBe(dedicated)
+      expect(isNonChatModel(model)).toBe(dedicated)
+    }
+  )
+  it.each([
+    // Declared image endpoint, text output: chats (Gemini).
+    { output: ['text', 'image'], endpoints: undefined, dedicated: false },
+    // No declared endpoint, text output: chats (gpt-image-1.5 ships this shape).
+    { output: ['image', 'text'], endpoints: undefined, dedicated: false },
+    // No declared endpoint, image-only output: dedicated image API.
+    { output: ['image'], endpoints: undefined, dedicated: true }
+  ] as const)(
+    'classifies an undeclared-endpoint image model from its output modalities: $output',
+    ({ output, endpoints, dedicated }) => {
+      const model: Model = {
+        ...createModel([MODEL_CAPABILITY.IMAGE_GENERATION]),
+        endpointTypes: endpoints,
+        outputModalities: [...output]
+      }
+      expect(isImageGenerationOnlyModel(model)).toBe(dedicated)
+    }
+  )
+  it('keeps a dual-catalog model on chat when the listing omits output modalities', () => {
+    const model: Model = {
+      ...createModel([MODEL_CAPABILITY.IMAGE_GENERATION]),
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION]
+    }
+    expect(isImageGenerationOnlyModel(model)).toBe(false)
+    expect(isNonChatModel(model)).toBe(false)
+  })
+  it('keeps a non-image exclusive endpoint non-chat whatever its output modalities say', () => {
+    for (const endpointType of [
+      ENDPOINT_TYPE.OPENAI_TEXT_TO_SPEECH,
+      ENDPOINT_TYPE.OPENAI_AUDIO_TRANSCRIPTION,
+      ENDPOINT_TYPE.OPENAI_EMBEDDINGS
+    ]) {
+      const model: Model = {
+        ...createModel(),
+        endpointTypes: [endpointType],
+        outputModalities: ['text']
+      }
+      expect(isNonChatModel(model)).toBe(true)
+    }
+  })
+  it.each([
     [undefined, 'gpt-4o'],
     ['', 'gpt-4o'],
     ['custom-wire-id', 'custom-wire-id']
@@ -39,6 +101,33 @@ describe('shared model capability helpers', () => {
     expect(getRawModelId({ ...createModel(), apiModelId })).toBe(expected)
   })
 
+  describe('isChatSelectableModel', () => {
+    it('accepts a dedicated image API that a chat turn can run', () => {
+      const model: Model = {
+        ...createModel([MODEL_CAPABILITY.IMAGE_GENERATION]),
+        endpointTypes: [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION],
+        outputModalities: ['image']
+      }
+
+      expect(isNonChatModel(model)).toBe(true)
+      expect(isChatSelectableModel(model)).toBe(true)
+    })
+
+    it('still rejects models that can never answer a conversation turn', () => {
+      for (const capabilities of [
+        [MODEL_CAPABILITY.EMBEDDING],
+        [MODEL_CAPABILITY.RERANK],
+        [MODEL_CAPABILITY.VIDEO_GENERATION],
+        [MODEL_CAPABILITY.AUDIO_GENERATION]
+      ] as Model['capabilities'][]) {
+        expect(isChatSelectableModel(createModel(capabilities))).toBe(false)
+      }
+    })
+
+    it('accepts an ordinary chat model', () => {
+      expect(isChatSelectableModel(createModel())).toBe(true)
+    })
+  })
   it('reads capability state from v2 Model.capabilities', () => {
     const model = createModel([
       MODEL_CAPABILITY.REASONING,
@@ -62,6 +151,26 @@ describe('shared model capability helpers', () => {
     expect(isReasoningModel(model)).toBe(false)
     expect(isFunctionCallingModel(model)).toBe(false)
     expect(isVisionModel(model)).toBe(false)
+  })
+
+  it('keeps image models with text output selectable in chat', () => {
+    const model: Model = {
+      ...createModel([MODEL_CAPABILITY.IMAGE_GENERATION]),
+      inputModalities: ['text', 'image'],
+      outputModalities: ['text', 'image']
+    }
+
+    expect(isNonChatModel(model)).toBe(false)
+  })
+
+  it('keeps image-only models in the dedicated image workflow', () => {
+    const model: Model = {
+      ...createModel([MODEL_CAPABILITY.IMAGE_GENERATION]),
+      inputModalities: ['text'],
+      outputModalities: ['image']
+    }
+
+    expect(isNonChatModel(model)).toBe(true)
   })
 
   it('keeps embedding, rerank, and image generation as explicit capability checks', () => {
