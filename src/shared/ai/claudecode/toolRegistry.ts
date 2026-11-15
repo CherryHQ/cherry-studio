@@ -39,6 +39,7 @@ export interface ClaudeToolDescriptorDef {
   mcpServer?: 'cherry-tools' | 'agent-memory' | 'skills'
   /** Tool is unavailable unless the agent has at least one bound knowledge base. */
   requiresKnowledgeScope?: true
+  requiresPaintingModel?: true
   /** The tool cannot complete meaningfully without a live user's response. */
   requiresUserInteraction?: true
 }
@@ -365,7 +366,8 @@ const CLAUDE_TOOL_REGISTRY = {
     category: 'media',
     exposure: 'user',
     description: 'Generates an image from a text prompt using your configured painting model',
-    mcpServer: 'cherry-tools'
+    mcpServer: 'cherry-tools',
+    requiresPaintingModel: true
   },
   // agent-memory (cross-session memory)
   AgentMemory: {
@@ -446,6 +448,9 @@ export interface ClaudeUserFacingTool {
   label: string
   category: ClaudeToolCategory
   description: string
+  mcpServer?: ClaudeToolDescriptorDef['mcpServer']
+  requiresKnowledgeScope?: true
+  requiresPaintingModel?: true
 }
 
 /** Friendly labels for MCP wire tools whose `name` is an opaque `mcp__server__wire` id. */
@@ -474,6 +479,9 @@ export function claudeUserFacingTools(): ClaudeUserFacingTool[] {
       name: def.name,
       label: isMcpTool(def) ? (MCP_TOOL_LABELS[def.name] ?? def.name) : def.name,
       category: def.category,
-      description: def.description
+      description: def.description,
+      mcpServer: def.mcpServer,
+      requiresKnowledgeScope: def.requiresKnowledgeScope,
+      requiresPaintingModel: def.requiresPaintingModel
     }))
 }

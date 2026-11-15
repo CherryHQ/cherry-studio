@@ -5,6 +5,8 @@ import { join } from 'node:path'
 import { BACKGROUND_CONTEXT } from '@earendil-works/chord/context'
 import { createAssistantMessageEventStream, type AssistantMessage, type Usage } from '@earendil-works/pi-ai'
 import { AgentDoc, configure, createSession, type ConversationId } from '@earendil-works/pi-durable'
+import { McpServer } from '@modelcontextprotocol/server'
+import { serveStdio } from '@modelcontextprotocol/server/stdio'
 import { trace } from '@opentelemetry/api'
 import { BasicTracerProvider } from '@opentelemetry/sdk-trace-base'
 import { setupTestDatabase } from '@test-helpers/db'
@@ -12,6 +14,7 @@ import { connectMcpTestClient } from '@test-helpers/mcp/client'
 import { eq } from 'drizzle-orm'
 import { v7 as uuid } from 'uuid'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import * as z from 'zod'
 
 import { application } from '@application'
 import { runtimeId, type InputState } from '@cherrystudio/agent-runtime'
@@ -1051,6 +1054,77 @@ describe('desktop Pi Durable connection', () => {
     expect(script.calls[2].systemPrompt).toContain('Fallback workspace instruction')
     expect(script.calls[2].systemPrompt).not.toContain('Updated workspace instruction')
   })
+  it('blocks knowledge dependencies while allowing another linked MCP tool', async () => {
+    const calls: string[] = []
+    const saved = ['mcp__cherry_tools__kb_search']
+    agentService.updateAgent(input.agentId, { disabledTools: saved })
+    snapshot.agent.disabledTools = [...saved]
+    mocks.mcpServers.mockReturnValue({
+      'cherry-tools': {
+        name: 'cherry-tools',
+        async connect(transport) {
+          const server = new McpServer({ name: 'fixture', version: '1' })
+          for (const name of ['kb_search', 'kb_list', 'kb_read', 'kb_manage']) {
+            server.registerTool(name, { description: name, inputSchema: z.object({}) }, async () => {
+              calls.push(name)
+              return { content: [{ type: 'text', text: name }] }
+            })
+          }
+          return serveStdio(() => server, { transport })
+        }
+      }
+    })
+    const desktop = await prepareDurableDesktop(input, () => {})
+    try {
+      const registered = desktop.mcp.extension.tools?.map((tool) => tool.name) ?? []
+      const removed =
+        desktop.agentConfig.tools && 'remove' in desktop.agentConfig.tools
+          ? desktop.agentConfig.tools.remove.map((tool) => tool.name)
+          : []
+      for (const name of ['kb_search', 'kb_list', 'kb_read']) {
+        expect(registered).toContain(`mcp__cherry_tools__${name}`)
+        expect(removed).toContain(`mcp__cherry_tools__${name}`)
+      }
+      expect(registered).toContain('mcp__cherry_tools__kb_manage')
+      expect(removed).not.toContain('mcp__cherry_tools__kb_manage')
+      for (const name of ['kb_search', 'kb_list', 'kb_read']) {
+        expect(desktop.approval.isDisabled(`mcp__cherry_tools__${name}`)).toBe(true)
+      }
+      expect(desktop.approval.isDisabled('mcp__cherry_tools__kb_manage')).toBe(false)
+      snapshot.agent.disabledTools = []
+      await desktop.reconcile(input, true)
+      expect(desktop.approval.isDisabled('mcp__cherry_tools__kb_read')).toBe(true)
+      await desktop.reconcile(input, false)
+      expect(desktop.approval.isDisabled('mcp__cherry_tools__kb_read')).toBe(false)
+      snapshot.agent.disabledTools = [...saved]
+      await desktop.reconcile(input, true)
+      expect(desktop.approval.isDisabled('mcp__cherry_tools__kb_list')).toBe(true)
+    } finally {
+      await desktop.close()
+    }
+    setScript([
+      assistantReply(
+        [
+          {
+            type: 'toolCall',
+            id: 'script',
+            name: 'codemode',
+            arguments: {
+              code: `for (const name of ["kb_search", "kb_list", "kb_read", "kb_manage"]) { try { await tools["mcp__cherry_tools__" + name]({}) } catch (e) { text(String(e)) } }`
+            }
+          }
+        ],
+        'toolUse'
+      ),
+      assistantReply('done')
+    ])
+    const { connection, events } = await connect()
+    await connection.send({ message: message('test knowledge') })
+    await done(events)
+    expect(calls, JSON.stringify(projected(events))).toEqual(['kb_manage'])
+    expect(agentService.getAgent(input.agentId)?.disabledTools).toEqual(saved)
+  })
+
   it.each([false, true])('limits PowerShell exposure to Windows and honors disabledTools (%s)', async (disabled) => {
     snapshot.agent.disabledTools = disabled ? ['PowerShell'] : []
     const { connection, events } = await connect()

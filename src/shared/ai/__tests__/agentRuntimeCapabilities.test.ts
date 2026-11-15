@@ -37,6 +37,43 @@ function makeModel(overrides: Partial<Model>): Model {
 }
 
 describe('AGENT_RUNTIME_CAPABILITIES', () => {
+  it.each(['claude-code', 'pi', 'pi-durable'] as const)(
+    'projects public MCP tools with native identities for %s',
+    (runtime) => {
+      const ids = AGENT_RUNTIME_CAPABILITIES[runtime].builtinTools('darwin').map((tool) => tool.id)
+      const server = runtime === 'claude-code' ? 'cherry-tools' : 'cherry_tools'
+      const memory = runtime === 'claude-code' ? 'mcp__agent-memory__memory' : 'mcp__agent_memory__memory'
+      expect(ids.filter((id) => id.startsWith('mcp__'))).toHaveLength(10)
+      for (const name of [
+        'web_search',
+        'web_fetch',
+        'kb_search',
+        'kb_manage',
+        'to_markdown',
+        'cron',
+        'notify',
+        'config',
+        'generate_image'
+      ]) {
+        expect(ids).toContain(`mcp__${server}__${name}`)
+      }
+      expect(ids).toContain(memory)
+      expect(ids).not.toContain(`mcp__${server}__kb_read`)
+      expect(ids).toContain(runtime === 'claude-code' ? 'Bash' : 'bash')
+      expect(ids.includes('vcc_recall')).toBe(runtime === 'pi')
+    }
+  )
+
+  it.each([
+    ['claude-code', 'mcp__cherry-tools__generate_image', 'mcp__agent-memory__memory'],
+    ['pi', 'mcp__cherry_tools__generate_image', 'mcp__agent_memory__memory'],
+    ['pi-durable', 'mcp__cherry_tools__generate_image', 'mcp__agent_memory__memory']
+  ] as const)('persists literal MCP identities for %s', (runtime, image, memory) => {
+    const ids = AGENT_RUNTIME_CAPABILITIES[runtime].builtinTools().map((tool) => tool.id)
+    expect(ids).toContain(image)
+    expect(ids).toContain(memory)
+  })
+
   it.each(['pi', 'pi-durable'] as const)('offers PowerShell only on Windows for %s', (runtime) => {
     const tools = AGENT_RUNTIME_CAPABILITIES[runtime].builtinTools
     expect(tools('win32').map((tool) => tool.id)).toContain('powershell')
