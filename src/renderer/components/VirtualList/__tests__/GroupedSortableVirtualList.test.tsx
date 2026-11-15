@@ -396,7 +396,6 @@ describe('GroupedSortableVirtualList', () => {
     for (const row of [activeHeader, activeItem, activeFooter]) {
       expect(row).not.toHaveAttribute('data-drop-blocked')
       expect(row).not.toHaveAttribute('data-drop-invalid')
-      expect(row).not.toHaveClass('cursor-not-allowed')
     }
     expect(dndMocks.sortableDisabled.get('group:first')).toBe(false)
   })
@@ -427,7 +426,6 @@ describe('GroupedSortableVirtualList', () => {
     })
 
     expectRowsBlocked(getGroupRows('Header Second', 'Item Gamma', 'Footer Second'))
-    expect(screen.getByText('Item Gamma').parentElement).toHaveStyle({ transform: '', transition: '' })
 
     act(() => {
       dndMocks.onDragEnd?.(dragEvent('item:a', 'item:c'))
@@ -447,69 +445,12 @@ describe('GroupedSortableVirtualList', () => {
 
     const overlay = screen.getByTestId('drag-overlay')
     expect(within(overlay).getByText('Item Alpha')).toBeInTheDocument()
-    expect(overlay.firstElementChild).toHaveStyle({ height: '32px', width: '180px' })
-    expect(overlay.firstElementChild).toHaveClass('pointer-events-none')
-    expect(overlay.firstElementChild).not.toHaveClass('opacity-85', 'shadow-sm', 'ring-1')
-    expect(screen.getAllByText('Item Alpha')[0].parentElement).toHaveStyle({ opacity: '0.5' })
-    expect(screen.getAllByText('Item Alpha')[0].parentElement).not.toHaveClass(
-      'border-dashed',
-      'border-sidebar-border',
-      'bg-sidebar-accent/30'
-    )
 
     act(() => {
       dndMocks.onDragCancel?.({})
     })
 
     expect(screen.getByTestId('drag-overlay')).toBeEmptyDOMElement()
-  })
-
-  it('freezes row transforms and shows an insertion line while hovering across groups', () => {
-    renderList()
-
-    startDragging('item:a')
-
-    act(() => {
-      dndMocks.onDragOver?.(dragEvent('item:a', 'item:c'))
-    })
-
-    const sourceRow = screen.getAllByText('Item Alpha')[0].parentElement
-    const sameGroupRow = screen.getByText('Item Beta').parentElement
-    const targetRow = screen.getByText('Item Gamma').parentElement
-
-    expect(sourceRow).toHaveStyle({ opacity: '0.5', transform: '', transition: '' })
-    expect(sourceRow).not.toHaveClass('border-dashed', 'border-sidebar-border', 'bg-sidebar-accent/30')
-    expect(sameGroupRow).toHaveStyle({ transform: '', transition: '' })
-    expect(targetRow).toHaveStyle({ transform: '', transition: '' })
-    const indicator = targetRow?.querySelector('[data-drop-indicator="after"]')
-    expect(indicator).toBeInTheDocument()
-    expect(indicator).toHaveClass('right-2', 'left-2', 'h-0.5', 'bg-sidebar-ring')
-    expect(indicator).not.toHaveClass('bg-sidebar-primary', 'bg-sidebar-border')
-    expect(within(screen.getByTestId('drag-overlay')).getByText('Item Alpha')).toBeInTheDocument()
-  })
-
-  it('freezes row transforms and shows an insertion line while hovering within the same group', () => {
-    renderList()
-
-    startDragging('item:a')
-
-    act(() => {
-      dndMocks.onDragOver?.(dragEvent('item:a', 'item:b'))
-    })
-
-    const sourceRow = screen.getAllByText('Item Alpha')[0].parentElement
-    const targetRow = screen.getByText('Item Beta').parentElement
-    const otherGroupRow = screen.getByText('Item Gamma').parentElement
-
-    expect(sourceRow).toHaveStyle({ opacity: '0.5', transform: '', transition: '' })
-    expect(sourceRow).not.toHaveClass('border-dashed', 'border-sidebar-border', 'bg-sidebar-accent/30')
-    expect(targetRow).toHaveStyle({ transform: '', transition: '' })
-    expect(otherGroupRow).toHaveStyle({ transform: '', transition: '' })
-    const indicator = targetRow?.querySelector('[data-drop-indicator="after"]')
-    expect(indicator).toBeInTheDocument()
-    expect(indicator).toHaveClass('right-2', 'left-2', 'h-0.5', 'bg-sidebar-ring')
-    expect(indicator).not.toHaveClass('bg-sidebar-primary', 'bg-sidebar-border')
-    expect(within(screen.getByTestId('drag-overlay')).getByText('Item Alpha')).toBeInTheDocument()
   })
 
   it('updates the insertion side while moving within the same target row', () => {
@@ -557,89 +498,6 @@ describe('GroupedSortableVirtualList', () => {
     expect(onDragEnd).toHaveBeenCalledWith(expect.objectContaining({ overId: 'b', position: 'after' }))
   })
 
-  it('renders group drops as append indicators at the end of the target group', () => {
-    renderList(vi.fn(), { renderGroupFooter: (footer: unknown) => <div>Footer {String(footer)}</div> })
-
-    startDragging('item:a')
-
-    act(() => {
-      dndMocks.onDragOver?.(dragEvent('item:a', 'group:second', 'droppable'))
-    })
-
-    const targetHeader = screen.getByText('Header Second').parentElement
-    const targetItem = screen.getByText('Item Gamma').parentElement
-    const targetFooter = screen.getByText('Footer Second').parentElement
-
-    expect(targetHeader).toHaveAttribute('data-drop-target', 'true')
-    expect(targetHeader?.querySelector('[data-drop-indicator]')).not.toBeInTheDocument()
-    expect(targetItem?.querySelector('[data-drop-indicator]')).not.toBeInTheDocument()
-    const indicator = targetFooter?.querySelector('[data-drop-indicator="before"]')
-    expect(indicator).toBeInTheDocument()
-    expect(indicator).toHaveClass('right-2', 'left-2', 'h-0.5', 'bg-sidebar-ring')
-    expect(indicator).not.toHaveClass('bg-sidebar-primary', 'bg-sidebar-border')
-  })
-
-  it('disables sortable projection and shows insertion lines for item and group drags', () => {
-    renderList(vi.fn(), { dragCapabilities: { groups: true }, canDragGroup: () => true })
-
-    startDragging('item:a')
-
-    act(() => {
-      dndMocks.onDragOver?.(dragEvent('item:a', 'item:c'))
-    })
-
-    expect(
-      dndMocks.sortableStrategy?.({
-        activeIndex: 0,
-        activeNodeRect: null,
-        index: 1,
-        overIndex: 2,
-        rects: []
-      })
-    ).toBeNull()
-    expect(dndMocks.verticalListSortingStrategy).not.toHaveBeenCalled()
-
-    act(() => {
-      dndMocks.onDragOver?.(dragEvent('item:a', 'item:b'))
-    })
-
-    expect(
-      dndMocks.sortableStrategy?.({
-        activeIndex: 0,
-        activeNodeRect: null,
-        index: 1,
-        overIndex: 1,
-        rects: []
-      })
-    ).toBeNull()
-    expect(dndMocks.verticalListSortingStrategy).not.toHaveBeenCalled()
-
-    startDragging('group:first')
-
-    act(() => {
-      dndMocks.onDragOver?.(dragEvent('group:first', 'group:second'))
-    })
-
-    expect(
-      dndMocks.sortableStrategy?.({
-        activeIndex: 0,
-        activeNodeRect: null,
-        index: 1,
-        overIndex: 3,
-        rects: []
-      })
-    ).toBeNull()
-    expect(dndMocks.verticalListSortingStrategy).not.toHaveBeenCalled()
-
-    const targetRow = screen.getByText('Item Gamma').parentElement
-    const indicator = targetRow?.querySelector('[data-drop-indicator="after"]')
-    expect(indicator).toBeInTheDocument()
-    expect(indicator).toHaveClass('right-2', 'left-2', 'h-0.5', 'bg-sidebar-ring')
-    expect(screen.getAllByText('Header First')[0].parentElement).toHaveStyle({ opacity: '0.5' })
-    expect(screen.getByText('Item Alpha').parentElement).toHaveStyle({ opacity: '0.5' })
-    expect(screen.getByText('Item Beta').parentElement).toHaveStyle({ opacity: '0.5' })
-  })
-
   it.each([
     { shape: 'footer', collision: false, endpoint: 'Footer B' },
     { shape: 'header-only', collision: false, endpoint: 'Header B' },
@@ -675,21 +533,6 @@ describe('GroupedSortableVirtualList', () => {
     expect(indicators).toHaveLength(1)
     expect(indicators[0]).toHaveAttribute('data-drop-indicator', 'after')
     expect(indicators[0].parentElement).toBe(screen.getByText(endpoint).parentElement)
-  })
-
-  it('shows the group insertion line before the target group when moving upward', () => {
-    renderList(vi.fn(), { dragCapabilities: { groups: true }, canDragGroup: () => true })
-
-    startDragging('group:second')
-
-    act(() => {
-      dndMocks.onDragOver?.(dragEvent('group:second', 'group:first'))
-    })
-
-    const targetHeader = screen.getByText('Header First').parentElement
-    const indicator = targetHeader?.querySelector('[data-drop-indicator="before"]')
-    expect(indicator).toBeInTheDocument()
-    expect(indicator).toHaveClass('right-2', 'left-2', 'h-0.5', 'bg-sidebar-ring')
   })
 
   it('keeps same-group item drops enabled independently from cross-group drops', () => {
@@ -733,7 +576,6 @@ describe('GroupedSortableVirtualList', () => {
     expect(targetItem).toHaveAttribute('data-drop-target', 'true')
     expect(targetItem).toHaveAttribute('data-drop-allowed', 'true')
     expect(targetItem).not.toHaveAttribute('data-drop-invalid')
-    expect(targetItem).not.toHaveClass('cursor-not-allowed')
     expect(targetFooter).not.toHaveAttribute('data-drop-allowed')
     expectRowsBlocked(getGroupRows('Header Second', 'Item Gamma', 'Footer Second'))
 

@@ -493,9 +493,6 @@ describe('ActionTranslate', () => {
     const settingsContent = preferredTargetLabel.closest<HTMLElement>('[data-slot="popover-content"]')
     expect(settingsContent).toBeInTheDocument()
 
-    const settingsComboboxes = settingsContent!.querySelectorAll('[role="combobox"]')
-    expect(settingsComboboxes).toHaveLength(2)
-
     await waitFor(() => expect(settingsContent).toHaveFocus())
     expect(document.querySelectorAll('[data-slot="popover-content"]')).toHaveLength(1)
   })

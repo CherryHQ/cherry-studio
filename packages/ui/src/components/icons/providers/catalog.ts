@@ -4,8 +4,8 @@
  *
  * Bulk component lookup — ordinary icon rendering uses loaders.ts instead
  *
- * Generated at: 2026-11-04T07:38:09.129Z
- * Total icons: 173
+ * Generated at: 2026-11-12T05:01:57.069Z
+ * Total icons: 175
  */
 import { type CompoundIcon } from '../types'
 import { MinTop3Icon } from './3min-top'
@@ -141,12 +141,14 @@ import { QueritIcon } from './querit'
 import { QwenIcon } from './qwen'
 import { QwencloudIcon } from './qwencloud/qwencloud'
 import { RadeonCloudIcon } from './radeon-cloud'
+import { RapidMlxIcon } from './rapid-mlx/rapid-mlx'
 import { RecraftIcon } from './recraft'
 import { RelaceIcon } from './relace'
 import { RiverflowIcon } from './riverflow'
 import { RunwayIcon } from './runway'
 import { SearxngIcon } from './searxng'
 import { SensetimeIcon } from './sensetime'
+import { SerpKiteIcon } from './serpkite/serpkite'
 import { SerplyIcon } from './serply'
 import { SiliconIcon } from './silicon'
 import { SkyworkIcon } from './skywork'
@@ -316,12 +318,14 @@ export const PROVIDER_ICON_CATALOG = {
   qwen: QwenIcon,
   qwencloud: QwencloudIcon,
   'radeon-cloud': RadeonCloudIcon,
+  'rapid-mlx': RapidMlxIcon,
   recraft: RecraftIcon,
   relace: RelaceIcon,
   riverflow: RiverflowIcon,
   runway: RunwayIcon,
   searxng: SearxngIcon,
   sensetime: SensetimeIcon,
+  serpkite: SerpKiteIcon,
   serply: SerplyIcon,
   silicon: SiliconIcon,
   skywork: SkyworkIcon,

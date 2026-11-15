@@ -423,7 +423,8 @@ async function terminateMacProcessGroupWithDrain(
       throw error
     }
     logLifecycleStage(record, 'unverified-group-drain-start')
-    if (!(await waitForMacProcessGroupExit(record.runnerPid))) {
+    // Shutdown helpers can outlive Electron; observe them without signaling unverified processes.
+    if (!(await waitForMacProcessGroupExit(record.runnerPid, 30_000))) {
       if (signal === 'SIGKILL') {
         try {
           const members = execFileSync('ps', ['-axo', 'pid=,ppid=,pgid=,lstart='], {

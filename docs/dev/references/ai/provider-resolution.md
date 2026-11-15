@@ -173,6 +173,6 @@ extension declares:
 
 - Code: `src/main/ai/provider/`
 - Tests: `provider/__tests__/endpoint.test.ts` (54 cases)
-- Migration of legacy provider rows: `src/main/data/migration/v2/migrators/mappings/ProviderModelMappings.ts`
+- Legacy provider imports: [intermediate upgrade release](../data/v2-migration-guide.md)
 - Catalog (new installs): `packages/provider-registry/data/providers.json`
 - Design: [Adapter Family](./adapter-family.md)

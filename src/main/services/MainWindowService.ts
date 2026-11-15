@@ -672,7 +672,6 @@ export class MainWindowService extends BaseService {
       const { url } = details
 
       const oauthProviderUrls = [
-        'https://account.siliconflow.cn/oauth',
         'https://console.inferera.com/token',
         'https://dash.302.ai/sso/login',
         'https://maas.aiionly.com/login'

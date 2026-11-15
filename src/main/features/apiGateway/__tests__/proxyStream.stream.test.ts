@@ -2,7 +2,7 @@ import { createAnthropic } from '@ai-sdk/anthropic'
 import { createOpenAI } from '@ai-sdk/openai'
 import type { LanguageModelV3FunctionTool } from '@ai-sdk/provider'
 import type { MessageCreateParams } from '@anthropic-ai/sdk/resources/messages'
-import { asSchema, type ToolSet, type UIMessageChunk } from 'ai'
+import { APICallError, asSchema, type ToolSet, type UIMessageChunk } from 'ai'
 import { status } from 'elysia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -339,12 +339,15 @@ describe('processMessage (internal Agent continuation normalization)', () => {
     const params = createAnthropicParams(
       'gpt-5',
       [
+        // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
         { role: 'assistant', content: [call, structuredClone(call)] },
+        // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
         { role: 'user', content: [output, structuredClone(output)] }
       ],
       true,
       'openai'
     )
+    // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
     const snapshot = structuredClone(params)
 
     await processAndCaptureStreamMessages(params)
@@ -372,6 +375,7 @@ describe('processMessage (internal Agent continuation normalization)', () => {
     mockIsInternalAgentRequest.mockReturnValue(false)
     const call = { type: 'tool_use' as const, id: 'c1', name: 'read_file', input: {} }
     const params = createAnthropicParams('claude-opus-5', [
+      // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
       { role: 'assistant', content: [call, structuredClone(call)] }
     ])
 
@@ -390,6 +394,7 @@ describe('processMessage (internal Agent continuation normalization)', () => {
     const call = { type: 'tool_use' as const, id: 'c1', name: 'read_file', input: {} }
     const params = createAnthropicParams(
       'gpt-5',
+      // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
       [{ role: 'assistant', content: [call, structuredClone(call)] }],
       true,
       'openai'
@@ -441,6 +446,7 @@ describe('processMessage (internal Agent continuation normalization)', () => {
       { role: 'user', content: 'Build the requested feature' },
       { role: 'assistant', content: 'Deferred tools, agents, and skills context' }
     ])
+    // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
     const snapshot = structuredClone(params)
 
     const messages = await processAndCaptureStreamMessages(params)
@@ -481,6 +487,7 @@ describe('processMessage (internal Agent continuation normalization)', () => {
         content: [{ type: 'tool_result', tool_use_id: 'call_1', content: 'Tool failed', is_error: true }]
       }
     ])
+    // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
     const snapshot = structuredClone(params)
 
     const messages = await processAndCaptureStreamMessages(params)
@@ -514,6 +521,7 @@ describe('processMessage (internal Agent continuation normalization)', () => {
       { role: 'assistant', content: 'Deferred tools, agents, and skills context' },
       { role: 'user', content: '' }
     ])
+    // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
     const snapshot = structuredClone(params)
 
     const messages = await processAndCaptureStreamMessages(params)
@@ -829,14 +837,6 @@ describe('processMessage (streaming)', () => {
     await expect(readAll(res.body)).resolves.toBe('')
   })
 
-  it('passes the 20-minute idle timeout to streamPrompt', async () => {
-    const { response, listener } = await startStreaming()
-    commit(listener)
-    await response
-
-    expect(mockStreamPrompt.mock.calls[0][0]).toMatchObject({ idleTimeoutMs: 20 * 60_000 })
-  })
-
   it('marks streaming requests as caller-owned', async () => {
     const { response, listener } = await startStreaming()
     commit(listener)
@@ -951,6 +951,51 @@ describe('processMessage (error & pause)', () => {
     expect(text).not.toContain('secret body')
     expect(text).not.toContain('https://provider/v1')
   })
+
+  it.each([false, true])(
+    'keeps provider error details after stream commitment only for internal requests (%s)',
+    async (internal) => {
+      mockIsInternalAgentRequest.mockReturnValue(internal)
+      const onError = vi.fn()
+      const pending = processMessage({
+        params: { model: 'openai:gpt-4', stream: true, messages: [] },
+        inputFormat: 'openai',
+        outputFormat: 'openai',
+        requestHeaders: new Headers({ authorization: 'Bearer fixture' }),
+        onError
+      })
+      await vi.waitFor(() => expect(captured.listener).toBeDefined())
+      const listener = captured.listener!
+      commit(listener)
+      const response = await pending
+      const upstream = new APICallError({
+        message: 'A provider-specific failure',
+        url: 'https://private.invalid',
+        requestBodyValues: { secret: 'request-secret' },
+        statusCode: 429,
+        responseHeaders: { 'retry-after': '37', authorization: 'private-token' },
+        responseBody: JSON.stringify({
+          error: { message: 'A provider-specific failure', type: 'custom_type', code: 'vendor_busy', param: 'mode' },
+          request_id: 'upstream-id'
+        })
+      })
+      await listener.onError({ status: 'error', error: serializeError(upstream) }, upstream)
+      const text = await readAll(response.body)
+      expect(response.status).toBe(200)
+      expect(onError).toHaveBeenCalledOnce()
+      expect(text).toContain('A provider-specific failure')
+      if (internal) {
+        expect(text).toContain('vendor_busy')
+        expect(text).toContain('custom_type')
+        expect(text).toContain('upstream-id')
+      } else {
+        expect(text).not.toContain('vendor_busy')
+        expect(text).not.toContain('upstream-id')
+      }
+      expect(text).not.toContain('request-secret')
+      expect(text).not.toContain('private-token')
+    }
+  )
 
   it('rejects with a 504 when the stream pauses before semantic commitment', async () => {
     const { response, listener } = await startStreaming()

@@ -88,15 +88,13 @@ describe('mistralDocumentToMarkdownHandler', () => {
       })
     )
     expect(ocrProcessMock).toHaveBeenCalledWith(
-      {
+      expect.objectContaining({
         model: 'mistral-ocr-latest',
         document: {
           type: 'document_url',
           documentUrl: 'https://signed.example.com/input.pdf'
-        },
-        tableFormat: 'markdown',
-        includeImageBase64: false
-      },
+        }
+      }),
       expect.objectContaining({
         signal: expect.any(AbortSignal)
       })

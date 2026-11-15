@@ -104,7 +104,8 @@ export function AgentSelector(props: AgentSelectorProps) {
         id: agent.id,
         name: agent.name,
         description: getAgentDescriptionForDisplay(agent, t),
-        emoji: getAgentAvatarFromConfiguration(agent.configuration)
+        emoji: getAgentAvatarFromConfiguration(agent.configuration),
+        avatarSrc: agent.avatarSrc
       })),
       ...(additionalItems ?? [])
     ],
@@ -176,7 +177,8 @@ export function AgentSelector(props: AgentSelectorProps) {
             id: created.id,
             name: created.name,
             description: getAgentDescriptionForDisplay(created, t),
-            emoji: getAgentAvatarFromConfiguration(created.configuration)
+            emoji: getAgentAvatarFromConfiguration(created.configuration),
+            avatarSrc: created.avatarSrc
           })
         } else {
           props.onChange(created.id)

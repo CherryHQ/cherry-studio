@@ -1,5 +1,5 @@
 import { first } from 'es-toolkit/compat'
-import { CircleSlash, Pin, Settings2 } from 'lucide-react'
+import { CircleSlash, Maximize2, Minimize2, Pin, Settings2 } from 'lucide-react'
 import {
   type KeyboardEvent,
   type ReactNode,
@@ -18,6 +18,7 @@ import { useTranslation } from 'react-i18next'
 import { Avatar, AvatarFallback, Button, Checkbox, Tooltip } from '@cherrystudio/ui'
 import { useIcon } from '@cherrystudio/ui/icons'
 import { cn } from '@cherrystudio/ui/lib/utils'
+import { usePersistCache } from '@data/hooks/useCache'
 import { loggerService } from '@logger'
 import { ModelTag } from '@renderer/components/tags/Model'
 import { DynamicVirtualList, type DynamicVirtualListRef } from '@renderer/components/VirtualList'
@@ -57,6 +58,8 @@ const FILTER_TAG_SIZE = 10
 const FILTER_TAG_FADE_WIDTH_PX = 24
 const MODEL_SELECTOR_CONTENT_HEIGHT = 440
 const MODEL_SELECTOR_WIDTH = 400
+const MODEL_SELECTOR_DIALOG_WIDTH = 560
+const MODEL_SELECTOR_DIALOG_HEIGHT = 560
 const DEFAULT_PRIORITIZED_PROVIDER_IDS: readonly string[] = []
 const MODEL_SELECTOR_NAVIGATION_KEYS = new Set(['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Enter'])
 const DEFAULT_MODEL_SELECTOR_KEYBOARD_PAGE_SIZE = Math.max(1, Math.floor(MODEL_SELECTOR_CONTENT_HEIGHT / ITEM_HEIGHT))
@@ -168,6 +171,26 @@ function modelsFromSelectedIds(
   })
 }
 
+/** Rows clip long model names, so a tooltip is only worth showing when the text actually overflows. */
+function useTextOverflow<T extends HTMLElement>() {
+  const [element, setElement] = useState<T | null>(null)
+  const [overflowing, setOverflowing] = useState(false)
+
+  useLayoutEffect(() => {
+    if (!element) return undefined
+
+    const update = () => setOverflowing(element.scrollWidth > element.clientWidth + 1)
+    update()
+
+    if (typeof ResizeObserver === 'undefined') return undefined
+    const observer = new ResizeObserver(update)
+    observer.observe(element)
+    return () => observer.disconnect()
+  }, [element])
+
+  return [setElement, overflowing] as const
+}
+
 function ModelRow({
   item,
   disabled,
@@ -200,6 +223,7 @@ function ModelRow({
   t: (key: string) => string
 }) {
   const icon = useIcon(getModelLogoRef(item.model, item.provider.id))
+  const [nameRef, isNameOverflowing] = useTextOverflow<HTMLSpanElement>()
   const providerName = getProviderDisplayName(item.provider)
   const disambiguationLabel = item.showIdentifier
     ? item.groupKind === 'pinned'
@@ -292,9 +316,11 @@ function ModelRow({
           'aria-describedby': descriptionId,
           'data-testid': `model-selector-item-${item.modelId}`
         }}>
-        <span className="min-w-0 max-w-full shrink-0 truncate" title={item.model.name}>
-          {item.model.name}
-        </span>
+        <Tooltip content={item.model.name} delay={300} isDisabled={!isNameOverflowing} asChild>
+          <span ref={nameRef} className="min-w-0 max-w-full shrink-0 truncate">
+            {item.model.name}
+          </span>
+        </Tooltip>
         {disambiguationLabel && (
           <span className="min-w-0 flex-[1_999_0%] truncate text-muted-foreground text-xs" title={disambiguationLabel}>
             | {disambiguationLabel}
@@ -391,6 +417,7 @@ export function ModelSelector(props: ModelSelectorProps) {
     contentClassName,
     portalContainer,
     mountStrategy = 'destroy',
+    allowPresentationSwitch = false,
     multiSelectMode: multiSelectModeProp,
     defaultMultiSelectMode = false,
     onMultiSelectModeChange,
@@ -399,6 +426,9 @@ export function ModelSelector(props: ModelSelectorProps) {
     composition
   } = props
   const { t } = useTranslation()
+  const [savedPresentation, setPresentation] = usePersistCache('ui.model_selector.presentation')
+  const presentation = allowPresentationSwitch ? savedPresentation : 'popover'
+  const isDialog = presentation === 'dialog'
   const listboxId = useId()
   // `multiple` is required-literal on the union, so reading it directly gives
   // a proper boolean for conditional UI branches. Narrowing to the specific
@@ -1078,14 +1108,31 @@ export function ModelSelector(props: ModelSelectorProps) {
         search={searchConfig}
         filterContent={filterContent}
         multiSelect={multiSelectConfig}
-        width={MODEL_SELECTOR_WIDTH}
+        presentation={presentation}
+        dialogLabel={t('button.select_model')}
+        width={isDialog ? MODEL_SELECTOR_DIALOG_WIDTH : MODEL_SELECTOR_WIDTH}
+        footerEnd={
+          allowPresentationSwitch ? (
+            <Tooltip content={t(isDialog ? 'models.action.switch_to_dropdown' : 'models.action.switch_to_dialog')}>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                className="text-muted-foreground"
+                aria-label={t(isDialog ? 'models.action.switch_to_dropdown' : 'models.action.switch_to_dialog')}
+                onClick={() => setPresentation(isDialog ? 'popover' : 'dialog')}>
+                {isDialog ? <Minimize2 className="size-3.5" /> : <Maximize2 className="size-3.5" />}
+              </Button>
+            </Tooltip>
+          ) : undefined
+        }
         side={side}
         align={align}
         sideOffset={sideOffset}
         portalContainer={portalContainer}
         contentClassName={contentClassName}
         mountStrategy={mountStrategy}
-        contentHeight={MODEL_SELECTOR_CONTENT_HEIGHT}
+        contentHeight={isDialog ? MODEL_SELECTOR_DIALOG_HEIGHT : MODEL_SELECTOR_CONTENT_HEIGHT}
         bottomAction={bottomActions}
         data-testid="model-selector-content">
         {({ availableListHeight, portalContainer: detailPortalContainer }) => {

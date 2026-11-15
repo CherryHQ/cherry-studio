@@ -10,6 +10,7 @@ import MiniAppIcon from '@renderer/components/icons/MiniAppIcon'
 import MarqueeText from '@renderer/components/MarqueeText'
 import { PendingPermissionsDialog } from '@renderer/components/MiniApp/PendingPermissionsDialog'
 import { UpdateReviewDialog } from '@renderer/components/MiniApp/UpdateReviewDialog'
+import { useExitPresence } from '@renderer/hooks/useExitPresence'
 import { useMiniAppAttentionFor } from '@renderer/hooks/useMiniAppAttention'
 import { useMiniAppUpdate } from '@renderer/hooks/useMiniAppUpdate'
 import { ipcApi } from '@renderer/ipc'
@@ -91,6 +92,11 @@ const MiniApp: FC<Props> = ({
   const [removeConfirmOpen, setRemoveConfirmOpen] = useState(false)
   const [detailOpen, setDetailOpen] = useState(false)
   const [removingCustom, setRemovingCustom] = useState(false)
+  const { isPresent: detailPresent } = useExitPresence(detailOpen ? true : null)
+  const { value: updateOffer } = useExitPresence(update.offer)
+  const currentPendingLeaves =
+    pendingOpen && attention && attention.pendingPermissions.length > 0 ? attention.pendingPermissions : null
+  const { value: pendingLeaves } = useExitPresence(currentPendingLeaves)
   // Calculate display name
   const displayName = isLast ? t('settings.miniApps.custom.title') : app.nameKey ? t(app.nameKey) : app.name
 
@@ -359,21 +365,23 @@ const MiniApp: FC<Props> = ({
         confirmLoading={removingCustom}
         onConfirm={handleRemoveCustom}
       />
-      {/* Mounted only while open: the panel fetches on mount and owns its own dialogs. */}
-      {detailOpen && <MiniAppDetailPanel appId={app.appId} onClose={() => setDetailOpen(false)} />}
-      {update.offer && (
+      {detailPresent && <MiniAppDetailPanel appId={app.appId} open={detailOpen} onClose={() => setDetailOpen(false)} />}
+      {updateOffer && (
         <UpdateReviewDialog
+          key={updateOffer.updateToken}
           name={app.name}
-          update={update.offer}
+          update={updateOffer}
+          open={update.offer !== null}
           busy={update.busy}
           onCancel={update.dismiss}
           onApply={update.apply}
         />
       )}
-      {pendingOpen && attention && attention.pendingPermissions.length > 0 && (
+      {pendingLeaves && (
         <PendingPermissionsDialog
           name={app.name}
-          leaves={attention.pendingPermissions}
+          leaves={pendingLeaves}
+          open={currentPendingLeaves !== null}
           busy={pendingBusy}
           onCancel={() => setPendingOpen(false)}
           onGrant={() => void answerPending('mini_app.grant.approve_pending')}

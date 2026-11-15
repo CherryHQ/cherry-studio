@@ -1,12 +1,21 @@
 import { useNavigate, useSearch } from '@tanstack/react-router'
-import { useCallback } from 'react'
+import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Switch, Tabs, TabsContent, TabsList, TabsTrigger } from '@cherrystudio/ui'
 import { usePersistCache } from '@data/hooks/useCache'
+import { usePreference } from '@data/hooks/usePreference'
 import { ResourceCatalogView } from '@renderer/components/resourceCatalog/catalog'
-import { SettingsContentBody } from '@renderer/components/SettingsPrimitives'
+import {
+  SettingDescription,
+  SettingGroup,
+  SettingRow,
+  SettingRowTitle,
+  SettingsContentBody
+} from '@renderer/components/SettingsPrimitives'
 import { useSkillLauncher } from '@renderer/hooks/useSkillLauncher'
+import { ipcApi } from '@renderer/ipc'
+import { toast } from '@renderer/services/toast'
 import type { ResourceItem } from '@renderer/types/resourceCatalog'
 
 type SkillScopeTab = 'all' | 'system' | 'builtin'
@@ -15,6 +24,33 @@ export function SkillsSettings() {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const launchSkill = useSkillLauncher()
+  const [exportEnabled, setExportEnabled] = usePreference('agent.skills.external_export.enabled', { optimistic: false })
+  const [saving, setSaving] = useState(false)
+  const syncExports = async () => {
+    setSaving(true)
+    try {
+      await ipcApi.request('skill.reconcile', { externalExportsOnly: true })
+    } catch {
+      toast.error({
+        title: t('settings.skills.externalExportSyncFailed'),
+        timeout: 0,
+        action: { label: t('settings.skills.externalExportRetry'), onClick: syncExports }
+      })
+    } finally {
+      setSaving(false)
+    }
+  }
+  const changeExport = async (next: boolean) => {
+    setSaving(true)
+    try {
+      await setExportEnabled(next)
+    } catch {
+      toast.error(t('settings.skills.toggleFailed', { name: t('settings.skills.externalExportLabel') }))
+      setSaving(false)
+      return
+    }
+    await syncExports()
+  }
   const [enabledOnly, setEnabledOnly] = usePersistCache('settings.skills.enabled_only')
   // The tab lives in the route search so it survives the round-trip through the detail route.
   const search = useSearch({ strict: false }) as { scope?: SkillScopeTab }
@@ -33,6 +69,23 @@ export function SkillsSettings() {
     <SettingsContentBody
       className="min-h-0 flex-1 overflow-hidden p-0 pt-4"
       innerClassName="flex min-h-0 max-w-none flex-1 flex-col">
+      <SettingGroup>
+        <SettingRow>
+          <div className="min-w-0 flex-1">
+            <SettingRowTitle id="external-export-label">{t('settings.skills.externalExportLabel')}</SettingRowTitle>
+            <SettingDescription id="external-export-description">
+              {t('settings.skills.externalExportDescription')}
+            </SettingDescription>
+          </div>
+          <Switch
+            checked={exportEnabled}
+            disabled={saving}
+            aria-labelledby="external-export-label"
+            aria-describedby="external-export-description"
+            onCheckedChange={(next) => void changeExport(next)}
+          />
+        </SettingRow>
+      </SettingGroup>
       <Tabs value={scope} onValueChange={setScope} variant="underline" className="min-h-0 flex-1">
         <TabsContent value={scope} className="mt-0 flex min-h-0 flex-1 flex-col">
           <ResourceCatalogView

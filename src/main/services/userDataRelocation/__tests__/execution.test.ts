@@ -595,7 +595,7 @@ describe('userDataRelocation execution', () => {
     expect(updateProgressMock).toHaveBeenCalledWith(expect.objectContaining({ stage: 'completed' }))
   })
 
-  it('requires a 20 percent free-space margin before moving or creating the target', async () => {
+  it('rejects insufficient free space before moving or creating the target', async () => {
     const root = makeRoot()
     const source = path.join(root, 'source')
     const target = path.join(root, 'target')
@@ -604,7 +604,7 @@ describe('userDataRelocation execution', () => {
     relocationState['app.userdata'] = source
     relocationState['temp.user_data_relocation'] = pending(source, target)
 
-    await usePromises({ statfs: vi.fn().mockResolvedValue({ bsize: 1, bavail: 4, blocks: 10 }) })
+    await usePromises({ statfs: vi.fn().mockResolvedValue({ bsize: 1, bavail: 3, blocks: 10 }) })
     const { runUserDataRelocation } = await loadDomain()
     await expect(runUserDataRelocation()).resolves.toBe('handled')
 

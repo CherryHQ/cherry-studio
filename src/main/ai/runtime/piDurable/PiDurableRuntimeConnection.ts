@@ -269,7 +269,15 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
       })
       if (batch.completion && !this.compacting && !this.closing && this.sending) {
         const failed = batch.completion.inputs.find((input) => input.outcome && input.outcome !== 'completed')
-        if (failed) this.failure ??= new Error(failed.error?.message ?? failed.outcome)
+        if (failed) {
+          this.failure ??= Object.assign(new Error(failed.error?.message ?? failed.outcome), {
+            reason: failed.error?.code,
+            ...(failed.error?.code === 'output-truncated' && {
+              finishReason: 'length',
+              i18nKey: 'output_token_limit_reached'
+            })
+          })
+        }
         this.finishTurn(batch.completion.entryId)
       }
     } catch (error) {
@@ -486,6 +494,7 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
     const projection = child?.projection
     const handle = child?.handle
     if (!handle || !projection || this.closing) throw new Error('Child native owner is unavailable')
+    await projection.flush()
     const { sessionId } = projection.context
     const id = randomUUID()
     messages.saveMessage({ sessionId, message: { id, role: 'user', data: { parts: [{ type: 'text', text }] } } })

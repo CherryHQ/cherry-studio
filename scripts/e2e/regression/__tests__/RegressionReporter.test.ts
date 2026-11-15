@@ -44,6 +44,23 @@ const config = {} as FullConfig
 const suite = { allTests: () => [startup] } as Suite
 
 describe('Playwright reporter contract', () => {
+  it('accepts the deduplicated cases of a combined task without reporting missing registrations', () => {
+    const paths = getRunPaths(directory)
+    const run = readRun(paths.runState)
+    writeRun(paths.runState, createRun({ ...run.metadata, task: 'startup-smoke,notes-smoke,notes-smoke' }))
+    const note = { title: 'Note', annotations: [{ type: 'regression-case', description: 'N-01' }] } as TestCase
+    const reporter = new RegressionReporter()
+    reporter.onBegin(config, { allTests: () => [startup, note] } as Suite)
+    for (const test of [startup, note]) {
+      reporter.onTestBegin(test)
+      reporter.onTestEnd(test, passed)
+    }
+    reporter.onEnd({ status: 'passed', startTime: new Date(), duration: 10 })
+    expect(getRunVerdict(readRun(paths.runState))).toBe('development_pass')
+    expect(readRun(paths.runState).metadata.task).toBe('startup-smoke,notes-smoke')
+    expect(readRun(paths.runState).cases['APP-01'].status).toBe('not_applicable')
+  })
+
   it('retains the case fixture provenance and redacts sensitive values before reporting it', () => {
     vi.stubEnv('CHERRY_TEST_CUSTOM_PROVIDER_API_KEY', 'test-secret')
     const reporter = new RegressionReporter()

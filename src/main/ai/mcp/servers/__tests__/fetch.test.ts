@@ -9,9 +9,6 @@ vi.mock('@main/utils/remoteFetch', () => ({
 import { createFetchServer } from '../fetch'
 import { callBuiltinTool, toolText } from './builtinMcpClient'
 
-const DEFAULT_USER_AGENT =
-  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-
 const callFetchTool = (name: string, args: Record<string, unknown>) => callBuiltinTool(createFetchServer, name, args)
 
 describe('fetch MCP server', () => {
@@ -19,7 +16,7 @@ describe('fetch MCP server', () => {
     fetchRemoteTextMock.mockReset()
   })
 
-  it('fetches HTML through the strict remote target helper with a default User-Agent', async () => {
+  it('fetches HTML through the strict remote target helper with caller headers', async () => {
     fetchRemoteTextMock.mockResolvedValue('<html><body><h1>Hello</h1></body></html>')
 
     const result = await callFetchTool('fetch_html', {
@@ -31,7 +28,6 @@ describe('fetch MCP server', () => {
     expect(toolText(result)).toBe('<html><body><h1>Hello</h1></body></html>')
     const [url, options] = fetchRemoteTextMock.mock.calls[0] as [string, { headers: Headers }]
     expect(url).toBe('https://example.com/page')
-    expect(options.headers.get('User-Agent')).toBe(DEFAULT_USER_AGENT)
     expect(options.headers.get('X-Test')).toBe('yes')
   })
 
