@@ -68,8 +68,8 @@ describe('New API data-image compatibility', () => {
     expect(await result.files).toMatchObject([{ mediaType: 'image/png', base64: 'iVBORw0KGgo=' }])
   })
 
-  it('reassembles a text-prefixed data image across content deltas', async () => {
-    const body = `${event('Here: ![result](data:image/png;base64,iVBO')}${event('Rw0KGgo=)')}${finishEvent()}data: [DONE]\n\n`
+  it.each(['result', 'a!b', 'a![b'])('reassembles a text-prefixed data image with alt %s', async (alt) => {
+    const body = `${event(`Here: ![${alt}](data:image/png;base64,iVBO`)}${event('Rw0KGgo=)')}${finishEvent()}data: [DONE]\n\n`
     const fetch = vi
       .fn<typeof globalThis.fetch>()
       .mockResolvedValue(new Response(body, { headers: { 'content-type': 'text/event-stream' } }))
@@ -92,6 +92,45 @@ describe('New API data-image compatibility', () => {
     await result.consumeStream()
     expect(await result.text).toBe(' done')
     expect(await result.files).toMatchObject([{ mediaType: 'image/png', base64: 'iVBORw0KGgo=' }])
+  })
+
+  it.each(['result', 'a!b', 'a![b', '![long'.repeat(1000)])(
+    'handles long and punctuated labels across single-character deltas: %.20s',
+    async (alt) => {
+      const markdown = `Here: ![${alt}](${INLINE_PNG}) done`
+      const body = `${[...markdown].map(event).join('')}${finishEvent()}data: [DONE]\n\n`
+      const response = await normalizeNewApiDataImages(
+        new Response(body, { headers: { 'content-type': 'text/event-stream' } })
+      )
+      const choices = (await response.text())
+        .split('\n\n')
+        .filter((line) => line.startsWith('data: {'))
+        .flatMap((line) => JSON.parse(line.slice(6)).choices)
+
+      expect(choices.map((choice) => choice.delta.content ?? '').join('')).toBe('Here:  done')
+      expect(choices.flatMap((choice) => choice.delta.images ?? [])).toEqual([
+        { type: 'image_url', image_url: { url: INLINE_PNG } }
+      ])
+    }
+  )
+
+  it.each([
+    '![unfinished',
+    '![result](data:image/png;base64,AAAA',
+    `${'!['.repeat(10000)}]x`,
+    '![result](data:image/png;base64,invalid?)'
+  ])('preserves incomplete or invalid candidates at EOF: %.30s', async (content) => {
+    const body = `${event(content.slice(0, 7))}${event(content.slice(7))}`
+    const response = await normalizeNewApiDataImages(
+      new Response(body, { headers: { 'content-type': 'text/event-stream' } })
+    )
+    const choices = (await response.text())
+      .split('\n\n')
+      .filter(Boolean)
+      .flatMap((line) => JSON.parse(line.slice(6)).choices)
+
+    expect(choices.map((choice) => choice.delta.content ?? '').join('')).toBe(content)
+    expect(choices.flatMap((choice) => choice.delta.images ?? [])).toEqual([])
   })
 
   it('leaves ordinary image links as Markdown text', async () => {
@@ -120,7 +159,7 @@ describe('New API data-image compatibility', () => {
   })
 
   it('releases buffered ordinary text when the terminal event has no content', async () => {
-    const body = `${event('Great! Have a nice day.')}${finishEvent()}data: [DONE]\n\n`
+    const body = `${event('Great!')}${finishEvent()}data: [DONE]\n\n`
     const fetch = vi
       .fn<typeof globalThis.fetch>()
       .mockResolvedValue(new Response(body, { headers: { 'content-type': 'text/event-stream' } }))
@@ -128,9 +167,38 @@ describe('New API data-image compatibility', () => {
     const result = streamText({ model, prompt: 'hello', maxRetries: 0 })
     await result.consumeStream()
 
-    expect(await result.text).toBe('Great! Have a nice day.')
+    expect(await result.text).toBe('Great!')
     expect(await result.files).toMatchObject([])
   })
+
+  it.each([['Great! Have a nice day.'], ['Great!', ' Have a nice day.']])(
+    'releases ordinary exclamations before the stream finishes: %j',
+    async (...deltas) => {
+      const encoder = new TextEncoder()
+      const response = await normalizeNewApiDataImages(
+        new Response(
+          new ReadableStream({
+            start(controller) {
+              for (const delta of deltas) controller.enqueue(encoder.encode(event(delta)))
+            }
+          }),
+          { headers: { 'content-type': 'text/event-stream' } }
+        )
+      )
+      const reader = response.body!.getReader()
+      let text = ''
+      try {
+        for (let index = 0; index < deltas.length; index++) {
+          const { value } = await reader.read()
+          const data = new TextDecoder().decode(value).slice('data: '.length).trim()
+          text += JSON.parse(data).choices[0].delta.content
+        }
+        expect(text).toBe('Great! Have a nice day.')
+      } finally {
+        await reader.cancel()
+      }
+    }
+  )
 
   it('extracts two data images delivered in one delta', async () => {
     const content = `![a](${INLINE_PNG}) and ![b](${INLINE_PNG})`
@@ -147,8 +215,6 @@ describe('New API data-image compatibility', () => {
   })
 
   it('extracts back-to-back data images that share one set of SSE deltas', async () => {
-    // The second image starts while the first is still held, so the payload scan must not
-    // resume from the previous hold boundary.
     const markdown = `![a](${INLINE_PNG})![b](${INLINE_PNG})`
     const body = `${[...markdown].map(event).join('')}${event(' done')}${finishEvent()}data: [DONE]\n\n`
     const fetch = vi
@@ -165,6 +231,28 @@ describe('New API data-image compatibility', () => {
     ])
   })
 
+  it.each(['!!', '![bad](', '![bad](data:image/png;base64,?'])(
+    'recovers from a rejected candidate before another image: %s',
+    async (prefix) => {
+      const markdown = `${prefix}![good](${INLINE_PNG}) done`
+      for (let split = 0; split <= markdown.length; split++) {
+        const body = `${event(markdown.slice(0, split))}${event(markdown.slice(split))}${finishEvent()}data: [DONE]\n\n`
+        const response = await normalizeNewApiDataImages(
+          new Response(body, { headers: { 'content-type': 'text/event-stream' } })
+        )
+        const choices = (await response.text())
+          .split('\n\n')
+          .filter((line) => line.startsWith('data: {'))
+          .flatMap((line) => JSON.parse(line.slice(6)).choices)
+
+        expect(choices.map((choice) => choice.delta.content ?? '').join('')).toBe(`${prefix} done`)
+        expect(choices.flatMap((choice) => choice.delta.images ?? [])).toEqual([
+          { type: 'image_url', image_url: { url: INLINE_PNG } }
+        ])
+      }
+    }
+  )
+
   it('extracts a line-wrapped base64 payload without whitespace', async () => {
     const wrapped = `${INLINE_PNG.slice(0, 22)}
       ${INLINE_PNG.slice(22)}`
@@ -174,6 +262,52 @@ describe('New API data-image compatibility', () => {
     const result = await model.doGenerate({ prompt: [{ role: 'user', content: [{ type: 'text', text: 'draw' }] }] })
 
     expect(result.content).toMatchObject([{ type: 'file', mediaType: 'image/png', data: 'iVBORw0KGgo=' }])
+  })
+
+  it('reassembles a large payload from many small deltas without exposing base64 text', async () => {
+    const payload = 'AAAA'.repeat(65536)
+    const deltas = ['Here: ![result](data:image/png;base64,']
+    for (let index = 0; index < payload.length; index += 64) deltas.push(payload.slice(index, index + 64))
+    deltas.push(') done')
+    const body = `${deltas.map(event).join('')}${finishEvent()}data: [DONE]\n\n`
+    const fetch = vi
+      .fn<typeof globalThis.fetch>()
+      .mockResolvedValue(new Response(body, { headers: { 'content-type': 'text/event-stream' } }))
+    const model = createNewApi({ apiKey: 'sk-test', baseURL: 'https://newapi.test/v1', fetch }).languageModel('image')
+    const result = streamText({ model, prompt: 'draw', maxRetries: 0 })
+    await result.consumeStream()
+
+    expect(await result.text).toBe('Here:  done')
+    expect(await result.files).toMatchObject([{ mediaType: 'image/png', base64: payload }])
+  })
+
+  it('keeps pending images isolated by choice and preserves existing images', async () => {
+    const image = { type: 'image_url', image_url: { url: 'https://x.test/existing.png' } }
+    const chunks = [
+      { choices: [{ index: 0, delta: { content: '![a](data:image/png;base64,iVBO' } }] },
+      { choices: [{ index: 1, delta: { content: 'Other choice!' } }] },
+      { choices: [{ index: 0, delta: { content: 'Rw0KGgo=)', images: [image] }, finish_reason: 'stop' }] },
+      { choices: [{ index: 1, delta: {}, finish_reason: 'stop' }] }
+    ]
+    const body = `${chunks.map((chunk) => `data: ${JSON.stringify(chunk)}\n\n`).join('')}data: [DONE]\n\n`
+    const response = await normalizeNewApiDataImages(
+      new Response(body, { headers: { 'content-type': 'text/event-stream' } })
+    )
+    const choices = (await response.text())
+      .split('\n\n')
+      .filter((line) => line.startsWith('data: {'))
+      .flatMap((line) => JSON.parse(line.slice(6)).choices)
+
+    expect(
+      choices
+        .filter((choice) => choice.index === 1)
+        .map((choice) => choice.delta.content)
+        .join('')
+    ).toBe('Other choice!')
+    expect(choices.filter((choice) => choice.index === 0).flatMap((choice) => choice.delta.images ?? [])).toEqual([
+      image,
+      { type: 'image_url', image_url: { url: INLINE_PNG } }
+    ])
   })
 
   it('drops the upstream transfer headers from the rewritten response', async () => {
