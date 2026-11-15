@@ -485,21 +485,6 @@ export function resolveCommand(
 function parseCommands(text: string, dialect: ShellDialect): ShellPipeline[] {
   const powershell = dialect === 'powershell'
   const tokens = tokenize(text, powershell)
-  // The top-level tool supplies no shell identity. Preserve bare CMD forms, but an unquoted
-  // `then` at a command boundary identifies shell IF syntax. Explicit interpreters never infer.
-  if (
-    dialect === 'auto' &&
-    tokens.some((token, index) => {
-      const previous = tokens[index - 1]
-      return (
-        token.kind === 'word' &&
-        token.raw === 'then' &&
-        previous?.kind === 'operator' &&
-        (previous.value === ';' || previous.value === '\n')
-      )
-    })
-  )
-    dialect = 'shell'
   const pipelines: ShellPipeline[] = []
   let commands: ShellCommand[] = []
   let words: string[] = []
@@ -663,5 +648,11 @@ function extractHeredocs(command: string): { commandText: string; heredocs: Shel
 
 export function parseShellCommand(command: string, dialect: ShellDialect = 'auto'): ParsedShellCommand {
   const { commandText, heredocs } = extractHeredocs(command)
-  return { pipelines: parseCommands(commandText, dialect), heredocs }
+  // The tool does not identify its top-level shell. Keep both interpretations: evidence
+  // of shell syntax must never suppress a deletion found by the existing CMD interpretation.
+  const pipelines =
+    dialect === 'auto'
+      ? [...parseCommands(commandText, 'cmd'), ...parseCommands(commandText, 'shell')]
+      : parseCommands(commandText, dialect)
+  return { pipelines, heredocs }
 }

@@ -570,11 +570,7 @@ function isHistoryErasure(name: string, args: readonly string[]): boolean {
   return false
 }
 
-function analyzeNested(
-  command: string | undefined,
-  depth: number,
-  dialect: ShellDialect = 'shell'
-): string | undefined {
+function analyzeNested(command: string | undefined, depth: number, dialect: ShellDialect = 'auto'): string | undefined {
   return command === undefined ? undefined : analyze(command, depth + 1, dialect)
 }
 
@@ -593,7 +589,7 @@ function reasonForNestedCommand(
   dialect?: ShellDialect
 ): string | undefined {
   if (depth >= MAX_ANALYSIS_DEPTH) return undefined
-  if (SHELLS.has(name)) return analyzeNested(shellCodeArgument(args), depth)
+  if (SHELLS.has(name)) return analyzeNested(shellCodeArgument(args), depth, 'shell')
   if (PYTHON.has(name)) {
     const code = optionValue(args, ['-c'])
     return code === undefined ? undefined : detectPythonDeletion(code)

@@ -759,10 +759,36 @@ describe('shell dialect ownership for CMD condition parsing', () => {
 })
 
 describe('dialect selection scaling', () => {
-  it('checks multiple Bash condition anchors in one forward token pass', () => {
+  it('checks multiple Bash condition anchors in two linear dialect passes', () => {
     const condition = 'if echo safe; then :; fi; '
     expect(detectDestructiveAssistantCommand(condition.repeat(20000) + 'if rm == victim.txt; then :; fi')).toBe(
       'permanent file deletion'
     )
+  })
+})
+
+describe('ambiguous top-level syntax retains both deletion interpretations', () => {
+  for (const prefix of [
+    'if exist x',
+    'if defined X',
+    'if not exist x',
+    'if errorlevel 1',
+    'if /i a==a',
+    'if 1 EQU 1'
+  ]) {
+    it.each([' ; then', '\nthen', ' & echo ; then'])(`${prefix} keeps its CMD body with suffix %s`, (suffix) => {
+      expect(detectDestructiveAssistantCommand(`${prefix} del victim.txt${suffix}`)).toBe(
+        'permanent Windows file deletion'
+      )
+    })
+  }
+
+  it.each([
+    'ssh host "if exist x del victim.txt ; then"',
+    'su -c "if exist x del victim.txt ; then"',
+    'chroot root cmd /c if exist x del victim.txt',
+    'docker exec container cmd /c if exist x del victim.txt'
+  ])('retains unknown remote/argv dialect coverage: %s', (command) => {
+    expect(detectDestructiveAssistantCommand(command)).toBe('permanent Windows file deletion')
   })
 })
