@@ -330,9 +330,11 @@ export async function createPiRuntime(options: PiRuntimeOptions): Promise<Operat
           }
           return { status: 'confirmed', value: { relation: found.value, handle: opened.value } }
         },
+        // oxlint-disable-next-line no-restricted-globals -- Explicit history reads return isolated native branch entries to the host.
         history: () => (unavailable() ? [] : structuredClone(entry.session.sessionManager.getBranch())),
         archive: () => {
           if (released) throw new Error('Pi history access is closed')
+          // oxlint-disable-next-line no-restricted-globals -- Explicit archive reads detach committed content from the live projection.
           return structuredClone(entry.projection.archive())
         },
         async settled() {

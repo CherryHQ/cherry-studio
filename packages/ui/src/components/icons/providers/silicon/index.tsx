@@ -9,7 +9,7 @@ const Silicon = ({ variant, className, ...props }: CompoundIconProps) => {
 
 export const SiliconIcon: CompoundIcon = /*#__PURE__*/ Object.assign(Silicon, {
   Avatar: SiliconAvatar,
-  colorPrimary: '#6E29F6'
+  colorPrimary: '#f2ecfe'
 })
 
 export default SiliconIcon

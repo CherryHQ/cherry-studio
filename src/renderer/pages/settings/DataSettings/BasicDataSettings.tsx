@@ -12,7 +12,8 @@ import {
   SelectTrigger,
   SelectValue,
   Switch,
-  Tooltip
+  Tooltip,
+  HelpTooltip
 } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
@@ -28,6 +29,7 @@ import {
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { ipcApi } from '@renderer/ipc'
+import { settingsControlClasses } from '@renderer/pages/settings/settingsStyles'
 import { resolveNotesPath } from '@renderer/services/NotesService'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
@@ -323,11 +325,11 @@ const BasicDataSettings: React.FC = () => {
         </SettingRow>
         <SettingDivider />
         <SettingRow id="setting-data-data-skip-file-data" className="scroll-mt-6">
-          <SettingRowTitle>{t('settings.data.backup.skip_file_data_title')}</SettingRowTitle>
+          <SettingRowTitle className="flex items-center gap-1.5">
+            {t('settings.data.backup.skip_file_data_title')}{' '}
+            <HelpTooltip content={t('settings.data.backup.skip_file_data_help')} />
+          </SettingRowTitle>
           <Switch checked={skipBackupFile} onCheckedChange={(value) => void setSkipBackupFile(value)} />
-        </SettingRow>
-        <SettingRow>
-          <SettingHelpText>{t('settings.data.backup.skip_file_data_help')}</SettingHelpText>
         </SettingRow>
       </SettingGroup>
       <SettingGroup theme={theme}>
@@ -419,9 +421,11 @@ const BasicDataSettings: React.FC = () => {
         </SettingRow>
         <SettingDivider />
         <SettingRow id="setting-data-data-log-retention" className="scroll-mt-6">
-          <SettingRowTitle>{t('settings.data.log_retention.label')}</SettingRowTitle>
+          <SettingRowTitle className="flex items-center gap-1.5">
+            {t('settings.data.log_retention.label')} <HelpTooltip content={t('settings.data.log_retention.help')} />
+          </SettingRowTitle>
           <Select value={String(logRetentionDays)} onValueChange={(value) => void setLogRetentionDays(Number(value))}>
-            <SelectTrigger className="w-40" aria-label={t('settings.data.log_retention.label')}>
+            <SelectTrigger className={settingsControlClasses.field} aria-label={t('settings.data.log_retention.label')}>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -432,9 +436,6 @@ const BasicDataSettings: React.FC = () => {
               ))}
             </SelectContent>
           </Select>
-        </SettingRow>
-        <SettingRow>
-          <SettingHelpText>{t('settings.data.log_retention.help')}</SettingHelpText>
         </SettingRow>
         <SettingDivider />
         <SettingRow id="setting-data-data-clear-cache" className="scroll-mt-6">
