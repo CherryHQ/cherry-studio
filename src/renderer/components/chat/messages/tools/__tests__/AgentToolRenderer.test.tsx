@@ -180,10 +180,11 @@ describe('AgentToolRenderer', () => {
     'agent.builtin.cherry_support.diagnostics.prepared': 'Cherry Support prepared an editable description.',
     'agent.builtin.cherry_support.diagnostics.review': 'Review diagnostic report',
     'agent.sidebar_title': 'Agents',
-    'message.tools.identity_card.created': 'Created',
     'message.tools.identity_card.updated': 'Updated',
-    'message.tools.identity_card.open_conversation': 'Open conversation',
     'library.config.dialogs.create.result.adjust': 'Adjust settings',
+    'library.config.dialogs.create.result.start': 'Start conversation',
+    'library.type.agent': 'Agent',
+    'library.type.assistant': 'Assistant',
     'settings.tool.file_processing.features.document_to_markdown.title': 'Document Processing',
     'message.tools.subagent.requestedModel': 'Requested model: {{model}}',
     'message.tools.status.done': 'Done',
@@ -773,18 +774,60 @@ describe('AgentToolRenderer', () => {
       name: 'Reviewer',
       emoji: '🧐',
       description: 'Reviews pull requests',
-      summary: ['Model: Other Model', 'Permission mode: Ask Before Acting']
+      summary: ['System Prompt: Review the diff.', 'Model: Other Model', 'Permission mode: Ask Before Acting'],
+      highlights: ['Other Model', 'Ask Before Acting']
+    }
+    const createdAssistant = {
+      ...createdAgent,
+      kind: 'assistant',
+      agentId: undefined,
+      assistantId: 'assistant-created',
+      name: 'Translator'
     }
 
-    it('shows the new Agent with its avatar, description and what was set', () => {
+    it('shows a new Agent as an Agent, with its highlighted settings instead of the full summary', () => {
       render(<MessageTools toolResponse={configToolResponse('assistant', 'create_agent', structured(createdAgent))} />)
 
       const card = screen.getByTestId('resource-identity-card')
       expect(within(card).getByText('🧐')).toBeInTheDocument()
       expect(within(card).getByText('Reviewer')).toBeInTheDocument()
+      expect(within(card).getByText('Agent')).toBeInTheDocument()
       expect(within(card).getByText('Reviews pull requests')).toBeInTheDocument()
-      expect(within(card).getByText('Model: Other Model')).toBeInTheDocument()
-      expect(within(card).getByText('Created')).toBeInTheDocument()
+      expect(within(card).getByText('Other Model')).toBeInTheDocument()
+      expect(within(card).getByText('Ask Before Acting')).toBeInTheDocument()
+      expect(within(card).queryByText('System Prompt: Review the diff.')).not.toBeInTheDocument()
+      expect(within(card).queryByText('Updated')).not.toBeInTheDocument()
+    })
+
+    it('shows a new Assistant as an Assistant', () => {
+      render(
+        <MessageTools
+          toolResponse={configToolResponse('cherry-tools', 'assistant_create', structured(createdAssistant))}
+        />
+      )
+
+      const card = screen.getByTestId('resource-identity-card')
+      expect(within(card).getByText('Assistant')).toBeInTheDocument()
+      expect(within(card).queryByText('Agent')).not.toBeInTheDocument()
+    })
+
+    // A create result saved before the tools reported highlights must still show what was set.
+    it('falls back to the first summary lines for a create result without highlights', () => {
+      const legacy = { ...createdAgent, highlights: undefined }
+      render(<MessageTools toolResponse={configToolResponse('assistant', 'create_agent', structured(legacy))} />)
+
+      expect(screen.getByText('Model: Other Model')).toBeInTheDocument()
+    })
+
+    it('shows an update as Updated with each change as current → new', () => {
+      const updated = { ...createdAgent, summary: ['Model: Default Model → Other Model'], highlights: undefined }
+      mockMessageListActions.mockReturnValue({ navigateToRoute: vi.fn() })
+      render(<MessageTools toolResponse={configToolResponse('assistant', 'update_agent', structured(updated))} />)
+
+      const card = screen.getByTestId('resource-identity-card')
+      expect(within(card).getByText('Updated')).toBeInTheDocument()
+      expect(within(card).getByText('Model: Default Model → Other Model')).toBeInTheDocument()
+      expect(within(card).getByRole('button', { name: 'Start conversation: Reviewer' })).toBeInTheDocument()
     })
 
     it("opens the Agent's conversation from the card and from its button", async () => {
@@ -794,7 +837,7 @@ describe('AgentToolRenderer', () => {
       render(<MessageTools toolResponse={configToolResponse('assistant', 'create_agent', structured(createdAgent))} />)
 
       await user.click(screen.getByText('Reviews pull requests'))
-      await user.click(screen.getByRole('button', { name: 'Open conversation: Reviewer' }))
+      await user.click(screen.getByRole('button', { name: 'Start conversation: Reviewer' }))
 
       expect(navigateToRoute).toHaveBeenCalledTimes(2)
       expect(navigateToRoute).toHaveBeenNthCalledWith(1, { path: '/app/agents', query: { agentId: 'agent-created' } })
@@ -814,10 +857,13 @@ describe('AgentToolRenderer', () => {
         topic: { id: 'topic-placeholder' },
         created: true
       })
-      const output = { ...createdAgent, kind: 'assistant', agentId: undefined, assistantId: 'assistant-created' }
-      render(<MessageTools toolResponse={configToolResponse('cherry-tools', 'assistant_create', structured(output))} />)
+      render(
+        <MessageTools
+          toolResponse={configToolResponse('cherry-tools', 'assistant_create', structured(createdAssistant))}
+        />
+      )
 
-      await user.click(screen.getByRole('button', { name: 'Open conversation: Reviewer' }))
+      await user.click(screen.getByRole('button', { name: 'Start conversation: Translator' }))
 
       await waitFor(() => expect(navigateToRoute).toHaveBeenCalledWith({ path: '/app/chat', query: { topicId } }))
     })
@@ -850,7 +896,7 @@ describe('AgentToolRenderer', () => {
       )
 
       expect(screen.getByRole('button', { name: 'Adjust settings: Reviewer' })).toBeInTheDocument()
-      expect(screen.queryByRole('button', { name: 'Open conversation: Reviewer' })).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Start conversation: Reviewer' })).not.toBeInTheDocument()
     })
 
     it.each([

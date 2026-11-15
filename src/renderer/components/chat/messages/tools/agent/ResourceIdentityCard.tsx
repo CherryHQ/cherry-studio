@@ -1,8 +1,8 @@
-import { Check } from 'lucide-react'
+import { ArrowRight, Check } from 'lucide-react'
 import type { MouseEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button, EmojiAvatar } from '@cherrystudio/ui'
+import { Badge, Button, EmojiAvatar } from '@cherrystudio/ui'
 import { dataApiService } from '@data/DataApiService'
 import { loggerService } from '@logger'
 import { openResourceEditDialog } from '@renderer/components/resourceCatalog/dialogs/ResourceEditDialogEventHost'
@@ -39,8 +39,11 @@ export function ResourceIdentityCard({ result }: { result: ResourceIdentityResul
             .catch((error) => logger.error('Failed to open the conversation', error as Error))
       : undefined
   const fallbackEmoji = result.kind === 'agent' ? DEFAULT_AGENT_CREATE_AVATAR : DEFAULT_ASSISTANT_CREATE_AVATAR
-  const openLabel = t('message.tools.identity_card.open_conversation')
+  const startLabel = t('library.config.dialogs.create.result.start')
   const adjustLabel = t('library.config.dialogs.create.result.adjust')
+  const created = result.action === 'created'
+  // Results saved before the tools reported highlights only carry the summary lines.
+  const chips = created ? (result.highlights ?? result.summary).slice(0, 3) : []
 
   const handleButton = (action: () => void) => (event: MouseEvent) => {
     event.stopPropagation()
@@ -48,39 +51,51 @@ export function ResourceIdentityCard({ result }: { result: ResourceIdentityResul
   }
 
   return (
-    // The card is a mouse shortcut for the Open conversation button, which stays the keyboard path.
+    // The card is a mouse shortcut for the Start conversation button, which stays the keyboard path.
     <div
       data-testid="resource-identity-card"
-      className="my-1 w-full max-w-md rounded-xl border border-border bg-background px-3.5 py-3 data-[clickable=true]:cursor-pointer data-[clickable=true]:hover:bg-muted/40"
+      className="my-1 w-full max-w-md rounded-xl border border-border bg-card p-3 transition-colors data-[clickable=true]:cursor-pointer data-[clickable=true]:hover:border-border-strong data-[clickable=true]:hover:bg-accent/40"
       data-clickable={openConversation ? 'true' : undefined}
       onClick={openConversation}>
       <div className="flex items-center gap-3">
         <EmojiAvatar
-          size={40}
-          fontSize={20}
-          className="shrink-0 cursor-default rounded-[28%] border border-border hover:opacity-100">
+          size={44}
+          fontSize={24}
+          className="shrink-0 cursor-default rounded-xl border border-border bg-background hover:opacity-100">
           {result.emoji || fallbackEmoji}
         </EmojiAvatar>
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-1 text-success-subtle-foreground text-xs">
-            <Check aria-hidden="true" size={13} strokeWidth={2} />
-            <span>
-              {result.action === 'created'
-                ? t('message.tools.identity_card.created')
-                : t('message.tools.identity_card.updated')}
+          <div className="flex min-w-0 items-center gap-1.5">
+            <span className="truncate font-medium text-foreground text-sm" title={result.name}>
+              {result.name}
             </span>
-          </div>
-          <div className="truncate font-medium text-foreground text-sm" title={result.name}>
-            {result.name}
+            <Badge variant="secondary" className="px-1.5 font-normal text-[11px] leading-4">
+              {result.kind === 'agent' ? t('library.type.agent') : t('library.type.assistant')}
+            </Badge>
+            {created ? null : (
+              <span className="flex shrink-0 items-center gap-0.5 text-success-subtle-foreground text-xs">
+                <Check aria-hidden="true" size={12} strokeWidth={2} />
+                {t('message.tools.identity_card.updated')}
+              </span>
+            )}
           </div>
           {result.description ? (
-            <div className="truncate text-muted-foreground text-xs" title={result.description}>
+            <div className="mt-0.5 truncate text-muted-foreground text-xs" title={result.description}>
               {result.description}
             </div>
           ) : null}
         </div>
       </div>
-      {result.summary.length > 0 ? (
+      {chips.length > 0 ? (
+        <div className="mt-2.5 flex min-w-0 flex-wrap gap-1.5">
+          {chips.map((chip) => (
+            <Badge key={chip} variant="outline" className="max-w-full font-normal text-muted-foreground" title={chip}>
+              <span className="truncate">{chip}</span>
+            </Badge>
+          ))}
+        </div>
+      ) : null}
+      {!created && result.summary.length > 0 ? (
         <ul className="mt-2.5 space-y-0.5 border-border-subtle border-t pt-2">
           {result.summary.map((line) => (
             <li key={line} className="truncate text-[12px] text-muted-foreground leading-5" title={line}>
@@ -89,7 +104,7 @@ export function ResourceIdentityCard({ result }: { result: ResourceIdentityResul
           ))}
         </ul>
       ) : null}
-      <div className="mt-2.5 flex justify-end gap-2">
+      <div className="mt-3 flex justify-end gap-2">
         <Button
           type="button"
           variant="outline"
@@ -103,9 +118,10 @@ export function ResourceIdentityCard({ result }: { result: ResourceIdentityResul
             type="button"
             variant="emphasis"
             size="sm"
-            aria-label={`${openLabel}: ${result.name}`}
+            aria-label={`${startLabel}: ${result.name}`}
             onClick={handleButton(openConversation)}>
-            {openLabel}
+            {startLabel}
+            <ArrowRight aria-hidden="true" className="size-3.5" />
           </Button>
         ) : null}
       </div>
