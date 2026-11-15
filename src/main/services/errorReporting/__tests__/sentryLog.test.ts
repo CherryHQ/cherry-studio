@@ -1,5 +1,6 @@
 import type * as FsPromises from 'node:fs/promises'
 import { access, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises'
+import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { Writable } from 'node:stream'
@@ -8,6 +9,7 @@ import { pathToFileURL } from 'node:url'
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockApplicationUtils } from '@test-mocks/main/application'
 import { JSONParseError } from 'ai'
+import { DrizzleQueryError } from 'drizzle-orm/errors'
 import { ipcMain } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import winston from 'winston'
@@ -92,6 +94,9 @@ const reportableFailure = {
   failure: { source: 'application', kind: 'defect', reason: 'execution_failed', outcome: 'failed' }
 } as const
 const drainLogs = () => new Promise((resolve) => setImmediate(resolve))
+const sentryRequire = createRequire(createRequire(import.meta.url).resolve('@sentry/electron/main'))
+const { defaultStackParser } = sentryRequire('@sentry/node')
+const { exceptionFromError } = sentryRequire('@sentry/core')
 
 function setConsent(granted: boolean) {
   preferences['app.privacy.data_collection.enabled'] = granted
@@ -209,11 +214,21 @@ describe('Sentry log reporting', () => {
     }
   })
 
-  it.each(['syntax', 'sdk-json', 'unknown'])(
-    'keeps private %s IPC failure content local while reporting once',
-    async (kind) => {
+  it.each([
+    { kind: 'syntax', content: 'my diary', lineEnding: 'single line' },
+    { kind: 'sdk-json', content: 'my diary', lineEnding: 'single line' },
+    { kind: 'unknown', content: 'my diary', lineEnding: 'single line' },
+    ...['\n', '\r\n'].flatMap((lineEnding) =>
+      ['sdk-json', 'drizzle-query', 'drizzle-params', 'unknown'].map((kind) => ({
+        kind,
+        content: ['my diary', '    at privateDiary (private-document.txt:7:11)', 'end of document'].join(lineEnding),
+        lineEnding: JSON.stringify(lineEnding)
+      }))
+    )
+  ])(
+    'keeps private $kind IPC failure content local while reporting once ($lineEnding)',
+    async ({ kind, content: privateContent }) => {
       setConsent(true)
-      const privateContent = 'my diary'
       let parsingError: unknown
       try {
         messageTable.data.mapFromDriverValue(privateContent)
@@ -226,7 +241,11 @@ describe('Sentry log reporting', () => {
           ? (parsingError as SyntaxError)
           : kind === 'sdk-json'
             ? new JSONParseError({ text: privateContent, cause: parsingError })
-            : new Error(privateContent)
+            : kind === 'drizzle-query'
+              ? new DrizzleQueryError(privateContent, [], parsingError as Error)
+              : kind === 'drizzle-params'
+                ? new DrizzleQueryError('INSERT INTO message VALUES (?)', [privateContent], parsingError as Error)
+                : new Error(privateContent)
       const lines: string[] = []
       loggerService.getBaseLogger().add(
         new winston.transports.Stream({
@@ -257,15 +276,21 @@ describe('Sentry log reporting', () => {
           ok: false,
           error: { code: 'INTERNAL', message: error.message, reportingHandled: true }
         })
-        expect(lines.join('')).toContain(privateContent)
+        expect(lines.map((line) => JSON.parse(line).diagnostic?.error?.message).join('\n')).toContain(privateContent)
         expect(captureExceptionMock.mock.calls).toHaveLength(1)
         expect(captureEventMock.mock.calls).toHaveLength(0)
         const [reported, context] = captureExceptionMock.mock.calls[0]
-        const sanitized = sanitizeSentryEvent({
-          ...context,
-          error: { name: reported.name, message: reported.message, stack: reported.stack }
-        })
-        expect(JSON.stringify(sanitized)).not.toContain(privateContent)
+        const exception = exceptionFromError(defaultStackParser, reported)
+        expect(exception.stacktrace.frames).toEqual(
+          expect.arrayContaining([expect.objectContaining({ filename: expect.stringContaining('sentryLog.test.ts') })])
+        )
+        const candidate = service.filterEvent(
+          { ...context, exception: { values: [exception] } },
+          { originalException: reported }
+        )
+        expect(candidate).not.toBeNull()
+        const sanitized = sanitizeSentryEvent(candidate)
+        expect(JSON.stringify(sanitized)).not.toMatch(/my diary|privateDiary|private-document\.txt/)
         expect(context.tags).toMatchObject({ operation: 'file.get_metadata', 'failure.reason': 'ipc_handler_failed' })
 
         await request(event, 'file.get_metadata', {})
@@ -279,6 +304,34 @@ describe('Sentry log reporting', () => {
         dispatch.mockRestore()
         appRoot.mockRestore()
       }
+    }
+  )
+
+  it.each(['missing', 'headerless', 'changed message'])(
+    'reports classification without unverified frames when the stack is %s',
+    async (kind) => {
+      setConsent(true)
+      const error = new Error('my diary\n    at privateDiary (private-document.txt:7:11)')
+      const originalStack = error.stack
+      if (kind === 'missing') error.stack = undefined
+      else if (kind === 'headerless') error.stack = originalStack?.slice(originalStack.indexOf('\n') + 1)
+      else error.message = 'changed message'
+
+      logFailure(
+        loggerService.withContext('DataApi:Server'),
+        'Request failed',
+        error,
+        'data.request',
+        reportableFailure.failure
+      )
+      await drainLogs()
+
+      expect(captureExceptionMock.mock.calls).toHaveLength(0)
+      expect(captureEventMock.mock.calls).toHaveLength(1)
+      const candidate = service.filterEvent(captureEventMock.mock.calls[0][0])
+      expect(candidate).not.toBeNull()
+      expect(candidate?.tags).toMatchObject({ operation: 'data.request', 'failure.reason': 'execution_failed' })
+      expect(JSON.stringify(sanitizeSentryEvent(candidate))).not.toMatch(/my diary|privateDiary|private-document\.txt/)
     }
   )
 

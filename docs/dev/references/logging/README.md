@@ -147,6 +147,9 @@ network failures stay local; broken feeds, signatures and checksums remain eligi
 
 Sensitive data/storage boundaries use `core/logger/logFailure`: local diagnostics
 retain the error, while reporting receives only stable facts and stack frames.
+Frame extraction first removes the complete error name/message header, including
+multiline content. Frame-like lines inside that header remain local. If the header
+cannot be matched, reporting retains the classification without the unverified stack.
 SQL text, parameters, remote responses and file contents are not reporting fields.
 The IpcApi fallback uses the same projection for unowned handler failures, including
 JSON parse errors. Its structured IPC response retains the original error message.

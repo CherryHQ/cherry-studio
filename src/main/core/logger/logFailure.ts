@@ -11,7 +11,16 @@ export function logFailure(
   failure: FailureFacts,
   level: 'error' | 'warn' = 'error'
 ): void {
-  const frames = error instanceof Error ? error.stack?.split('\n').filter((line) => /^\s+at /.test(line)) : undefined
+  const stack = error instanceof Error ? error.stack : undefined
+  const header = error instanceof Error ? `${Error.prototype.toString.call(error)}\n` : undefined
+  // Multiline messages can contain pasted stack frames; only trust frames after the complete header.
+  const frames =
+    stack && header && stack.startsWith(header)
+      ? stack
+          .slice(header.length)
+          .split('\n')
+          .filter((line) => /^\s+at /.test(line))
+      : undefined
   logger[level](message, {
     operation,
     failure,
