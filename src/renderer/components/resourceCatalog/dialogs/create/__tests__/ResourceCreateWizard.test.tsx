@@ -393,7 +393,7 @@ describe('ResourceCreateWizard', () => {
     await user.click(screen.getByRole('button', { name: MANUAL }))
     await user.click(screen.getByRole('button', { name: 'fill name' }))
     await user.click(screen.getByRole('button', { name: 'choose draft image' }))
-    for (let step = 0; step < 3; step++) await user.click(screen.getByRole('button', { name: NEXT }))
+    await walkToLastStep(user)
     const create = screen.getByRole('button', { name: CREATE })
     act(() => {
       fireEvent.click(create)
@@ -411,7 +411,7 @@ describe('ResourceCreateWizard', () => {
     rerender(<ResourceCreateWizard {...props} open />)
     await user.click(screen.getByRole('button', { name: MANUAL }))
     await user.click(screen.getByRole('button', { name: 'fill name' }))
-    for (let step = 0; step < 3; step++) await user.click(screen.getByRole('button', { name: NEXT }))
+    await walkToLastStep(user)
     await user.click(screen.getByRole('button', { name: CREATE }))
     expect(onSubmit.mock.calls[2][0]).not.toHaveProperty('avatarImage')
   })
