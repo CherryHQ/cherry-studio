@@ -1,90 +1,114 @@
 import { type EventSourceMessage, EventSourceParserStream } from '@ai-sdk/provider-utils'
 
-// Relays may line-wrap base64 data inside a Markdown image.
-const DATA_IMAGE_MARKDOWN = /!\[[^\]]*\]\((data:image\/[^;()\s]+;base64,[A-Za-z0-9+/=\s]+)\)/g
-// An open data image that has not received its closing `)` yet.
-const DATA_IMAGE_OPEN = /^!\[[^\]]*\]\(data:image\/[^;()\s]+;base64,/
-
 type ImageContent = { content?: unknown; images?: unknown[] }
 type ImageChoice = { index?: number; message?: ImageContent; delta?: ImageContent; finish_reason?: string | null }
 
-function extractMarkdownImages(target: ImageContent): void {
-  if (typeof target.content !== 'string') return
-  target.content = target.content.replace(DATA_IMAGE_MARKDOWN, (_match, url: string) => {
-    target.images = [
-      ...(Array.isArray(target.images) ? target.images : []),
-      { type: 'image_url', image_url: { url: url.replace(/\s+/g, '') } }
-    ]
-    return ''
-  })
-}
+class DataImageParser {
+  private phase: 'text' | 'bang' | 'label' | 'prefix' | 'mime' | 'base64' | 'payload' = 'text'
+  private parts: string[] = []
+  private position = 0
 
-/** Whether `text` can still grow into `![label](data:image/<type>;base64,` (no closing `)` yet). */
-function mayBecomeDataImage(text: string): boolean {
-  if (!text.startsWith('!')) return false
-  const labelEnd = text.indexOf(']', 1)
-  if (labelEnd < 0) return true
-  // The label just closed: only a `(` may still follow.
-  if (labelEnd + 1 === text.length) return true
-  if (text[labelEnd + 1] !== '(') return false
-  const target = text.slice(labelEnd + 2)
-  if (!target.startsWith('data:image/')) return 'data:image/'.startsWith(target)
-  const rest = target.slice('data:image/'.length)
-  if (rest.includes(')')) return false
-  const params = rest.indexOf(';')
-  if (params < 0) return !rest.includes(',')
-  if (!/^[A-Za-z0-9.+-]+$/.test(rest.slice(0, params))) return false
-  const options = rest.slice(params)
-  return ';base64,'.startsWith(options) || options.startsWith(';base64,')
-}
-
-/**
- * Append one delta, emitting text that can never become a data image. Once a payload is open
- * only the new bytes are scanned for its `)`, so reassembly stays linear in the payload size.
- */
-function feedPending(pending: string, delta: string): { text: string; pending: string } {
-  let rest = pending + delta
-  let text = ''
-  let scannedPrefix = pending.length
-  for (;;) {
-    const open = DATA_IMAGE_OPEN.exec(rest)
-    if (!open) break
-    // Everything before this match is settled; only bytes from here on are unscanned.
-    const from = Math.max(open[0].length, scannedPrefix)
-    const end = rest.indexOf(')', from)
-    if (end < 0) return { text, pending: rest }
-    scannedPrefix = 0
-    // A complete payload stays in the text so `extractMarkdownImages` converts it, then the
-    // remainder is scanned again (it may start another image).
-    text += rest.slice(0, end + 1)
-    rest = rest.slice(end + 1)
+  feed(delta: string, final = false): { content: string; images: unknown[] } {
+    const text: string[] = []
+    const images: unknown[] = []
+    let start = 0
+    for (let index = 0; index < delta.length; index++) {
+      const char = delta[index]
+      let valid = true
+      switch (this.phase) {
+        case 'text':
+          if (char !== '!') continue
+          text.push(delta.slice(start, index))
+          start = index
+          this.phase = 'bang'
+          continue
+        case 'bang':
+          valid = char === '['
+          if (valid) this.phase = 'label'
+          break
+        case 'label':
+          if (char === ']') {
+            this.phase = 'prefix'
+            this.position = 0
+          }
+          break
+        case 'prefix':
+          valid = char === '(data:image/'[this.position++]
+          if (valid && this.position === '(data:image/'.length) {
+            this.phase = 'mime'
+            this.position = 0
+          }
+          break
+        case 'mime':
+          if (char === ';' && this.position > 0) {
+            this.phase = 'base64'
+            this.position = 0
+          } else {
+            valid = /^[^;()\s]$/.test(char)
+            this.position++
+          }
+          break
+        case 'base64':
+          valid = char === 'base64,'[this.position++]
+          if (valid && this.position === 'base64,'.length) {
+            this.phase = 'payload'
+            this.position = 0
+          }
+          break
+        case 'payload':
+          if (char === ')' && this.position > 0) {
+            this.parts.push(delta.slice(start, index + 1))
+            const markdown = this.parts.join('')
+            const url = markdown.slice(markdown.indexOf('](') + 2, -1).replace(/\s+/g, '')
+            images.push({ type: 'image_url', image_url: { url } })
+            this.parts = []
+            this.phase = 'text'
+            start = index + 1
+          } else {
+            valid = /^[A-Za-z0-9+/=\s]$/.test(char)
+            this.position++
+          }
+          break
+      }
+      if (!valid) {
+        text.push(this.parts.join(''), delta.slice(start, index))
+        this.parts = []
+        this.phase = 'text'
+        start = index
+        // A rejected candidate can end at the start of another image.
+        index--
+      }
+    }
+    if (this.phase === 'text') text.push(delta.slice(start))
+    else if (start < delta.length) this.parts.push(delta.slice(start))
+    if (final) {
+      text.push(this.parts.join(''))
+      this.parts = []
+      this.phase = 'text'
+    }
+    return { content: text.join(''), images }
   }
-  const start = rest.lastIndexOf('!')
-  if (start < 0) return { text: text + rest, pending: '' }
-  const tail = rest.slice(start)
-  return mayBecomeDataImage(tail)
-    ? { text: text + rest.slice(0, start), pending: tail }
-    : { text: text + rest, pending: '' }
 }
 
-function normalizeJson(body: string, pending?: Map<number, string>): string {
+function normalizeJson(body: string, pending?: Map<number, DataImageParser>): string {
   if (!pending?.size && !body.includes('!')) return body
   try {
     const value = JSON.parse(body) as { choices?: ImageChoice[] }
     for (const choice of Array.isArray(value?.choices) ? value.choices : []) {
       const target = choice.message ?? choice.delta
       if (!target) continue
+      const index = choice.index ?? 0
+      const parser = pending?.get(index) ?? new DataImageParser()
+      const fed = parser.feed(
+        typeof target.content === 'string' ? target.content : '',
+        !pending || !!choice.finish_reason
+      )
       if (pending && choice.delta) {
-        const index = choice.index ?? 0
-        const delta = typeof target.content === 'string' ? target.content : ''
-        const fed = feedPending(pending.get(index) ?? '', delta)
-        // A hold that survives the finish reason would be lost with the stream, so release it.
-        const flushed = choice.finish_reason && fed.pending ? fed.text + fed.pending : fed.text
-        if (fed.pending && !choice.finish_reason) pending.set(index, fed.pending)
-        else pending.delete(index)
-        if (typeof target.content === 'string' || flushed.length > 0) target.content = flushed
+        if (choice.finish_reason) pending.delete(index)
+        else pending.set(index, parser)
       }
-      extractMarkdownImages(target)
+      if (typeof target.content === 'string' || fed.content.length > 0) target.content = fed.content
+      if (fed.images.length) target.images = [...(Array.isArray(target.images) ? target.images : []), ...fed.images]
     }
     return JSON.stringify(value)
   } catch {
@@ -105,7 +129,7 @@ export async function normalizeNewApiDataImages(response: Response): Promise<Res
   const init = { status: response.status, statusText: response.statusText, headers }
   if (contentType.includes('application/json')) return new Response(normalizeJson(await response.text()), init)
 
-  const pending = new Map<number, string>()
+  const pending = new Map<number, DataImageParser>()
   const encoder = new TextEncoder()
   const stream = response.body
     .pipeThrough(new TextDecoderStream())
@@ -125,7 +149,9 @@ export async function normalizeNewApiDataImages(response: Response): Promise<Res
     )
 
   function flushPending(controller: TransformStreamDefaultController<Uint8Array>): void {
-    for (const [index, content] of pending) {
+    for (const [index, parser] of pending) {
+      const { content } = parser.feed('', true)
+      if (!content) continue
       controller.enqueue(encoder.encode(`data: ${JSON.stringify({ choices: [{ index, delta: { content } }] })}\n\n`))
     }
     pending.clear()
