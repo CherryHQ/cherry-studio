@@ -69,7 +69,7 @@ Codex 的[生命周期准备](https://github.com/openai/codex/blob/b1573f102413e
 - **后台控制：** `app.asar/.vite/build/index.chunk-D1yJ0UIX.js` 获取已有 `session.query`，调用 `backgroundTasks(toolUseId)`。`index.chunk-fch7zeJ_.js` 中的 SDK 封装发送 `{ subtype: "background_tasks", tool_use_id }`。这条 Desktop 路径既不调用 `startShellPty`，也不通过 `run_in_terminal` 重新提交命令。后台输出通过 `get_task_output(taskId)` 或输出文件读取，renderer 定期刷新文本。这证明它在控制已有调用，不能证明进程转换成了交互式 PTY。本次检查没有进入实际 CLI Bash 执行器，也没有在运行时验证 PID 连续性。
 - **显式终端工具：** `app.asar/.vite/build/index.chunk-Me4G-tma.js` 实现了 `run_in_terminal`、`open_terminal_tab`、`list_terminal_tabs`、`read_terminal` 和 `stop_terminal_tab`。工具指引建议短命令用 Bash，用户需要查看和控制的长任务或交互工作用终端工具。新 tab 经过 `nextClaudeTabId → startShellPty → typeWhenShellReady`；可复用的 `tab_id` 经过 `claudeTabReuse → typeWhenShellReady`，向原 shell 写入。读取返回终端屏幕文本；停止默认发送 Ctrl-C，`close: true` 则结束 shell。创建或运行 tab 不必打开面板。工具是否可用取决于应用、组织、会话及沙箱策略。
 - **输入所有权：** 复用要求 tab 由 Claude 创建、处于空闲、名称可核验且用户没有输入。等待调用期间用户键入会产生 `user_typed`；tab 可能包含用户工作后，会拒绝后续复用或停止。提示符 integration 和前台进程检查避免把新的 shell 命令输入忙碌程序。Cherry 保留显式接管和归还控制权的契约，不隐式照搬 Claude 的首次输入所有权策略。
-- **PTY 基础设施：** `app.asar/.vite/build/index.chunk-hvY9X4w1.js` 包含 `ShellPtyManager`，并通过 `MessageChannelMain` 连接共享的 `utilityProcess` host。`pty-host/ptyHostWorker.js` 导入 `node-pty`，按 `ptyId` 处理 spawn、write、resize、kill、data 和 exit。一个 worker 管理多个 PTY。`ion-dist.asar/assets/v1/c6bf19e8f-Df49HNKY.js` 包含 xterm 终端、fit 和 WebGL addon 路径，输入转给 `writeShellPty`。Cherry 拟定的每实例 utility 隔离和 host 权威 Ghostty VT 是独立选择，不能视为该参考实现已经证明的行为。
+- **PTY 基础设施：** `app.asar/.vite/build/index.chunk-hvY9X4w1.js` 包含 `ShellPtyManager`，并通过 `MessageChannelMain` 连接共享的 `utilityProcess` host。`pty-host/ptyHostWorker.js` 导入 `node-pty`，按 `ptyId` 处理 spawn、write、resize、kill、data 和 exit。一个 worker 管理多个 PTY。`ion-dist.asar/assets/v1/c6bf19e8f-Df49HNKY.js` 包含 xterm 终端、fit 和 WebGL addon 路径，输入转给 `writeShellPty`。Cherry 拟定的每对话 utility 隔离和 host 权威 Ghostty VT 是独立选择，不能视为该参考实现已经证明的行为。
 - **独立 Bash mode：** `runBashCommand → ShellPtyManager.runCommand → startBashPty` 使用可复用的隐藏 shell。`bashPtyProcesses` 与可见的 `shellPtyProcesses` 是不同 Map；重置提示明确说明 cwd 和环境状态丢失。这个入口不能证明模型原生 Bash 工具共享可见终端 tab。
 
 Cherry 采纳这种区分：命令执行、等待、保留后台工作、持久 shell 状态及面板可见性是不同契约。Cherry 按上述任务身份、读取、停止和结算契约增加显式 Bash 转后台，不自动提升。交互附着要求创建进程时选择 PTY；打开面板不能为 pipe 进程事后补上 PTY，也不能重跑命令。
@@ -98,7 +98,7 @@ flowchart TD
   R[Terminal panel and Canvas renderer] --> I[IpcApi handlers]
   I --> T
   T --> U[UtilityProcessManager]
-  U -->|createInstance per execution or terminal| P[TerminalHost utility process]
+  U -->|createInstance per conversation| P[TerminalHost utility process]
   P --> C[Fresh pipe command process]
   P --> N[node-pty for persistent terminals]
   N --> S[Interactive bash or PowerShell process]
@@ -107,9 +107,15 @@ flowchart TD
 
 箭头表示调用与依赖关系。PTY 输出和屏幕更新沿这些连接返回。智能体工具直接调用注入的 host 接口，不经过 renderer IPC。工具完成不依赖面板挂载、绘制或确认更新。
 
-`TerminalService` 是唯一新增的生命周期服务。它继承 `BaseService`，使用 `Phase.WhenReady`，注册到 `serviceRegistry.ts`，并声明同阶段的 `UtilityProcessManager` 依赖。它负责执行及会话注册、准入、输入所有权、订阅和独立进程客户端。桌面运行时 host 注入接口；运行时包不导入 `application` 或 Cherry 服务。`TerminalService` 不导入智能体运行时实现、UI 或模型代码。
+`TerminalService` 是唯一新增的生命周期服务。它继承 `BaseService`，使用 `Phase.WhenReady`，注册到 `serviceRegistry.ts`，并声明同阶段的 `UtilityProcessManager` 依赖。它负责执行及会话注册、准入、输入所有权、订阅，以及按既有稳定产品对话身份管理的进程客户端。桌面运行时 host 注入接口；运行时包不导入 `application` 或 Cherry 服务。`TerminalService` 不导入智能体运行时实现、UI 或模型代码。
 
-通过 `createInstance()` 使用[独立拥有的 utility process 实例](../../../../src/main/core/utilityProcess/README.md)，每个活跃命令或持久终端一个，不使用 manager 的共享缓存客户端。TerminalHost 持有所选 pipe 进程或 `node-pty` 句柄、VT 投影和有界输出采集；只有持久分支需要 shell integration。命令完成后释放进程实例，同时保留可观察的输出。关闭持久终端只停止其自身实例。TerminalHost 是执行模块，不是另一个 DI 服务。它使用 utility runtime 提供的 logger 和初始化数据，不导入 Main 的容器、数据库或 IPC。
+通过 `createInstance()` 使用[独立拥有的 utility process 实例](../../../../src/main/core/utilityProcess/README.md)，每个对话惰性创建一个 TerminalHost，不按命令／终端创建，也不使用全局缓存客户端。并发首次准入合并到该对话唯一的 host generation。键不是工作区路径、智能体定义、turn、运行时连接 generation 或 renderer 窗口；不同产品对话，包括子智能体／fork 对话，使用不同 host。Host 内每个资源仍校验精确运行时上下文和输入控制权。共享 host 不授予访问其他上下文终端的权限。
+
+TerminalHost 管理该对话的多个新 pipe 进程和持久 PTY。每个执行／终端独立持有进程句柄、VT 状态、输出采集、取消范围及输入所有者；只有持久分支需要 shell integration。一个命令完成或停止，只释放其自身资源。关闭或强制关闭某个终端，只停止其受管理范围，不停止共享 host 或兄弟资源。不能为清理一条超时命令而杀 host。保留的后台任务及用户控制终端使 host 在停止智能体和替换运行时连接后继续存活。
+
+只有最后一个命令和终端都完成清理，且没有待处理的资源准入或清理时，才回收 host。最终释放与新准入串行处理；已经进入 closing 的 generation 释放完后，才能创建下一个，不能迁移存活 PTY。已完成输出保留在 host 外，打开旧输出视图不启动新 host。面板订阅不算进程所有权。TerminalHost 仍是执行模块，不是另一个 DI 服务；它使用 utility runtime 提供的 logger 和初始化数据，不导入 Main 的容器、数据库或 IPC。
+
+崩溃边界是对话。普通命令／shell 退出或资源范围内的错误只影响该资源。Host 致命故障或 watchdog 重启可能丢失该对话的所有活跃命令和终端；将其标为 lost、等待只结算一次，并保留清理不确定性，不重放。其他对话的 host 不受影响。确认 Host 已退出后，退役其死亡 generation，Main 保留未解决的子进程清理记录。只有新的显式资源准入才能创建替代 Host；旧资源句柄及输出视图不能作为存活工作附着到新 generation。逐资源缓冲、输出配额和有界解析工作避免普通输出洪泛独占兄弟资源，但不承诺原生崩溃或解析器卡死时同 host 资源仍存活。限制活跃 host 和每 host 资源数量，并在作出资源消耗结论前测量有代表性的并发对话与终端。
 
 ### 模块位置与传输
 
@@ -131,7 +137,7 @@ flowchart TD
 | 身份 | 含义 | 所有者 |
 | --- | --- | --- |
 | `terminalId` | 一个显式打开的持久 shell 及其 VT 状态 | TerminalService |
-| 进程 generation | 一个存活的 utility process 实例 | UtilityProcessManager |
+| 进程 generation | 一个归对话所有的存活 TerminalHost 实例，由其资源句柄共享 | UtilityProcessManager |
 | `executionId` | 一条获准执行的一次性命令及其输出视图 | TerminalService |
 | 终端操作身份 | 一次 send/read/signal 操作，与命令退出不同 | TerminalService |
 | `commandId` 与程序 revision | 受管理命令及其当前前台程序，用于隔离过期 stdin | TerminalHost |
@@ -211,8 +217,8 @@ Pi Durable 将 `ExecutionEnv` 的 shell 部分桥接到新的命令执行，同�
 | 中断或达到一次性执行超时 | 停止该命令的进程范围，确认完成或终止后才释放所有权 |
 | 达到终端 send 等待预算 | 返回有界输出和当前状态，保留 shell 或前台程序运行；没有证据时报告完成状态未知 |
 | 观察者丢失或观察等待超时 | 只解除该观察者，保留执行 |
-| 显式关闭终端 | 停止其受管理进程范围，确认关闭并释放其 utility 实例 |
-| Utility 崩溃或应用重启 | 将未完成执行标为中断，不自动重放 shell 命令，不假装旧 PTY 仍然存在 |
+| 显式关闭终端 | 只停止并确认其受管理进程范围；没有资源或待处理清理时才回收对话 host |
+| Utility 崩溃或应用重启 | 将受影响 host generation 的未完成执行／终端标为 lost；不自动重放命令，不假装旧 PTY 仍存活；单个 host 故障不停止其他对话 |
 
 保留原生 `timeout` 参数的执行期限语义，显式转后台后仍有效。持久工具使用名称不同的等待预算，它只返回当前输出，不杀进程。Send yield 或视图订阅超时都不证明命令完成。归 session 保留的终端程序，包括已 yield 的 dev server，在停止智能体后继续运行，不需要再次执行转后台操作。UI 区分前台命令、后台任务和持久终端；附着普通命令的输出视图不改变其保留范围。
 
@@ -222,7 +228,7 @@ Pi Durable 将 `ExecutionEnv` 的 shell 部分桥接到新的命令执行，同�
 
 中断首先发送 PTY 的 Ctrl-C，或 pipe 进程范围支持的优雅中断，最多等待 2 秒以获取命令／进程证据。程序忽略 Ctrl-C 时，终端中断不自动杀死可复用 shell；显示仍在运行，并提供强制停止。强制停止针对已验证的当前程序范围；无法将其与 shell 隔离时，应提供明确的强制关闭终端操作，不能静默销毁 shell。任务停止、终端关闭、归 turn 所有命令的清理及应用退出会对其所属范围升级处理：优雅终止最多等待 3 秒，然后强制终止并最多等待 2 秒确认。POSIX 根据目标使用已验证的进程组／前台范围及 SIGTERM/SIGKILL；Windows 使用经过验证的受管理进程树／ConPTY 实现，强制终止使用 `taskkill /T /F` 或已验证的 Job Object 接入。已有[进程终止辅助函数](../../../../src/main/utils/processRunner.ts)的真实句柄／进程组契约适用时应复用；PTY 句柄需要独立的平台验证。这些是初始策略预算，不保证 OS 总能完成终止。
 
-停止中／关闭中的资源继续保留注册，拒绝新写入，并保留确认所需的进程句柄、generation 和输出。强制终止仍无法确认时，把清理状态置为 `unconfirmed`，显示最后错误及重试强制停止，不能报告成功或重开同一 generation。重复停止请求合并到同次清理或重试；目标必须是当前已验证的句柄／进程范围，不能使用持久化的裸 PID。Host 连接失败时，执行报告为 lost，清理在独立验证前保持 unconfirmed；这不证明后代进程已退出。确认受管理范围清理后才释放实例，不能先杀 host 并丢弃唯一的子进程句柄。[Node 的 kill 契约](https://nodejs.org/api/child_process.html#subprocesskillsignal) 区分信号送达和退出；[Windows Job Objects](https://learn.microsoft.com/en-us/windows/win32/procthread/job-objects) 提供进程分组机制，其保证必须在实际 PTY 接入中验证，不能因使用 node-pty 就作出假设。
+停止中／关闭中的资源继续保留注册，拒绝对这些资源的新写入，并保留确认所需的进程句柄、generation 和输出。强制终止仍无法确认时，把清理状态置为 `unconfirmed`，显示最后错误及重试强制停止，不能报告成功或把该资源作为新执行重开。重复停止请求合并到同次清理或重试；目标必须是当前已验证的句柄／进程范围，不能使用持久化的裸 PID。Host 连接失败时，将该 generation 的全部活跃资源标为 lost，清理在独立验证前保持 unconfirmed；这不证明后代进程已退出。Host 仍存活时，每个资源的受管理范围都确认清理后，才释放共享实例；不能为一条命令杀 host 或丢弃兄弟资源句柄。已确认退出的 Host 按上述 generation 退役规则处理，不抹去未解决的子进程清理。关闭整个对话时，先封闭全部资源准入，再清理。[Node 的 kill 契约](https://nodejs.org/api/child_process.html#subprocesskillsignal) 区分信号送达和退出；[Windows Job Objects](https://learn.microsoft.com/en-us/windows/win32/procthread/job-objects) 提供进程分组机制，其保证必须在实际 PTY 接入中验证，不能因使用 node-pty 就作出假设。
 
 运行时观察者释放连接时，通过现有运行时关闭屏障停止或协调其归 turn 所有的命令，不关闭归 session 保留的任务和终端会话。删除或 purge 对话及应用退出时，停止该对话所有保留工作，包括用户控制的终端，并保留可见的清理失败。终端状态仅存在于当前进程生命周期；工具历史保留执行引用和结果。应用重启后重新打开对话时，只有显式执行或打开终端才创建新 shell。主动脱离受管理进程范围的程序，不保证被终端关闭操作杀死；应明确报告这一边界，不能声称所有后代进程都已消失。
 
@@ -232,7 +238,7 @@ Pi Durable 将 `ExecutionEnv` 的 shell 部分桥接到新的命令执行，同�
 | --- | --- | --- |
 | Spec | 本双语 proposed 文档 | 实现前，当前 Spec PR head 获得人工批准 |
 | SDK 后台契约 | Pi 与 Durable 的有类型运行回执、原生后台控制及取消交接 | 不伪造退出结果；通过真实原生工具调用验证转后台／Stop／退出竞争及 replay 行为 |
-| 终端 host | 独立命令与 PTY 实例、权威 VT、integration、状态机与输出采集 | 无 renderer 时真实 bash 与 Windows PowerShell 的新命令隔离及持久 shell 状态、取消、异常 integration 和独立实例故障 |
+| 终端 host | 每对话一个惰性 Host，内含独立命令／PTY 资源、权威 VT、integration、状态机及输出采集 | 无 renderer 时真实 bash／Windows PowerShell 的隔离和持久状态；兄弟资源清理、并发准入／最终释放及对话范围的 Host 故障 |
 | 运行时适配器 | Pi operations 桥接、Durable environment 桥接及显式终端工具 | 两套运行时的真实原生工具调用保留 guard、ID、结果、timeout 和 replay 行为，不获得持久 shell 语义 |
 | Renderer | Attach/重连、快照、交互、显式接管与无障碍 | Electron 中真实 IME、TUI、多视图和关闭面板后执行场景 |
 | 打包交付 | 原生 addon、helper、WASM 和 integration 资源 | 支持架构上的 macOS、Linux、Windows 打包产物，不依赖开发工具 |
@@ -247,6 +253,7 @@ Pi Durable 将 `ExecutionEnv` 的 shell 部分桥接到新的命令执行，同�
 - 只在挂载的 renderer 中保留 Ghostty：终端查询和权威屏幕恢复仍依赖窗口。保留不可见 renderer 会让 UI 生命周期拥有后台 shell 执行。
 - 让所有原生 shell 调用持久化：悄悄改变 cwd、环境、TTY、timeout 和完成假设。在共享进程基础设施上保留一次性调用及显式持久工具。只有输出镜像、没有共享所有权仍然不足。
 - 让每个运行时或面板各自拥有 PTY：产生多套会话注册与取消行为。改用一个 TerminalService 及独立 PTY 实例。
+- 每个命令／终端使用一个 utility：Host 崩溃隔离更细，但每个资源都增加一个 Node utility 进程，包括短命令。选择每对话一个 Host，接受同一对话内共享致命故障范围。整个应用共享一个 Host 则会丢失已选择的跨对话崩溃边界。
 - 将 Durable 可执行参数数组重新解释为持久 shell 文本：改变直接执行可执行文件的语义，并隐藏 SDK 耦合。应保留精确 argv 执行，并使用独立持久终端工具。
 
 ## 验收标准
@@ -261,9 +268,9 @@ Pi Durable 将 `ExecutionEnv` 的 shell 部分桥接到新的命令执行，同�
 - AC8 — 缓慢或断开的观察者、历史淘汰、大快照和持续输出均不突破声明的预算；有序快照恢复保留屏幕状态，工具截断和存储失败始终显式报告。（验证：有界传输压力与 Electron 重连场景；负责人：传输与 renderer）
 - AC9 — 原生 shell 的现有 guard 与 Bash 专属改写保留作用范围；持久终端工具声明独立策略，执行或控制上下文变化使待准入请求失效，shell cwd 变化不重新绑定文件工具。（验证：受影响策略测试与实际工具调用；负责人：运行时适配器）
 - AC10 — VT 处理、备用屏幕 TUI、Unicode、CJK、emoji、选择、链接、粘贴、IME、焦点、无障碍输出及控制视图 resize 在 Electron 中正常工作，不产生重复终端回复。（验证：renderer 行为测试与各平台 Electron 场景；负责人：终端 renderer）
-- AC11 — Utility 崩溃、应用重启、运行时观察释放、显式会话 purge 和退出各自具有不同结果；中断的 unsafe 命令不重放，单个实例故障不影响其他终端存活。（验证：故障注入、原生 Durable 重开与 Electron 生命周期场景；负责人：运行时与终端生命周期）
+- AC11 — 普通命令退出、终端关闭或资源清理保留同 Host 的兄弟资源；Host 致命故障只丢失该对话的活跃资源，等待结算一次且不重放，其他对话继续运行。重启、运行时释放、purge 和退出保留各自契约。（验证：双对话故障注入、兄弟资源清理、原生 Durable 重开及 Electron 生命周期场景；负责人：运行时与终端生命周期）
 - AC12 — 支持的桌面打包产物不依赖开发路径或工具即可加载 node-pty、其 helper、固定版本的 Ghostty WASM 和 shell integration，并通过真实 shell 输入、输出、resize 与关闭场景。（验证：macOS、Linux、Windows 打包产物；负责人：打包）
-- AC13 — 只新增 TerminalService 一个生命周期服务；运行时包保持不依赖应用，IPC 只面向授权订阅者，终端状态不进入 DataApi。（验证：依赖与范围审查及定向契约测试；负责人：架构）
+- AC13 — TerminalService 是唯一新增的生命周期服务，按对话惰性拥有一个 Host；并发首次准入只创建一个实例，最终清理后的回收不与新准入竞争，面板／运行时释放不能销毁保留资源。运行时包不依赖应用，IPC 定向发送，终端状态不进入 DataApi。（验证：依赖／范围审查及定向所有权／准入生命周期测试；负责人：架构）
 - AC14 — 在每个已接入运行时中，真实提供商触发的原生 shell 调用使用新的执行，显式终端调用复用所选 PTY；两者均显示实时输出、返回正确结果且不切换模式。证据与模拟事件和单元测试分开记录。（验证：真实提供商支持的 Electron 场景；负责人：运行时集成）
 - AC15 — Pi 与 Durable 的显式 Bash 后台启动和运行中转后台，为同一次执行返回有类型的运行回执，不重启、不伪造退出码、不重复工具结果；后台／Stop／退出竞争确定结算，并保留显式执行期限。（验证：原生 SDK 契约测试及真实进程身份／输出采集；负责人：shell 适配器）
 - AC16 — 停止智能体只终止其范围内归 turn 所有的命令，已转后台 pipe 任务和持久终端 dev server 继续运行；yield 和运行时连接替换后，任务读取／停止／列表仍可使用，不擅自启动模型轮次。（验证：原生运行时与 Electron 停止／后台场景；负责人：TerminalService）
@@ -278,5 +285,5 @@ Pi Durable 将 `ExecutionEnv` 的 shell 部分桥接到新的命令执行，同�
 - 与 renderer 内的仿真器相比，host 权威屏幕快照增加传输和渲染工作。宣称功能或性能相当前，必须验证无界面 WASM、输入编码、屏幕保真、无障碍及实际输出负载。
 - Durable 的可执行参数数组路径必须保留精确 argv 和原生输出处理。如果遇到缺少的 SDK hook，应在上游解决；不能从 argv 重建脚本或回退到持久执行器。
 - Node/Electron ABI、Windows ConPTY 启动、进程中断、helper 权限、CJK 字体和资源打包需要各平台证据。macOS 开发运行不能证明 Windows 或打包兼容性。
-- 每个终端一个 utility 实例会消耗内存与进程。实现时限制会话数量并测量有代表性的并发会话，不能悄悄换成共享进程来取消隔离。
+- 每个活跃对话增加一个 utility 进程，其命令和终端共享该 Host 的致命故障范围。限制活跃对话、并发命令、终端及每 Host 的采集／VT 总内存；同时测量多对话和单对话多终端场景。不能静默合并为全应用共享进程，也不能承诺同对话内的 Host 崩溃隔离。
 - PTY 进程以用户账户权限运行。Utility process 隔离是崩溃边界，不是沙箱；终端数据可能含有秘密。保留审批、访问控制、定向发送和现有输出存储控制，默认不记录原始命令、环境值或终端内容。
