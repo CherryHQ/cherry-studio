@@ -623,6 +623,9 @@ vi.mock('@shared/utils/model', async (importOriginal) => {
     isAudioModel: actual.isAudioModel,
     isFunctionCallingModel: (currentModel?: Model) =>
       currentModel?.capabilities.includes(MODEL_CAPABILITY.FUNCTION_CALL) ?? false,
+    isChatSelectableModel: actual.isChatSelectableModel,
+    isGenerateImageModel: actual.isGenerateImageModel,
+    isImageGenerationOnlyModel: actual.isImageGenerationOnlyModel,
     isGPT5SeriesReasoningModel: actual.isGPT5SeriesReasoningModel,
     isNonChatModel: (currentModel?: Model) => currentModel?.capabilities.includes(MODEL_CAPABILITY.RERANK) ?? false,
     isReasoningModel: (currentModel?: Model) =>
@@ -1510,11 +1513,13 @@ describe('ChatComposer', () => {
     expect(mocks.setModel).toHaveBeenCalledWith(modelB, {})
   })
 
-  it('filters reranker models from the composer model selector', () => {
+  it('keeps image models in the composer selector while filtering non-chat models', () => {
+    const imageModel = { ...modelB, capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION] }
     const rerankerModel = { ...modelB, capabilities: [MODEL_CAPABILITY.RERANK] }
 
     render(<ChatComposer topic={topic} onSend={vi.fn()} />)
 
+    expect(mocks.modelSelectorProps.at(-1)?.filter?.(imageModel)).toBe(true)
     expect(mocks.modelSelectorProps.at(-1)?.filter?.(rerankerModel)).toBe(false)
   })
 
