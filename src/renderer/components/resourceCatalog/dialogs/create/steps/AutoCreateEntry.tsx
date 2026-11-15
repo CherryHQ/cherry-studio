@@ -18,7 +18,7 @@ type AutoCreateEntryProps = {
   fallbackAvatar: string
   modelFilter?: ModelSelectorFilter
   includeAgentOnlyModels: boolean
-  /** Locks the fields while auto create is generating. */
+  /** Locks the fields while the resource is being created. */
   disabled: boolean
   onSettingsNavigate?: (navigate: () => void) => void
 }
