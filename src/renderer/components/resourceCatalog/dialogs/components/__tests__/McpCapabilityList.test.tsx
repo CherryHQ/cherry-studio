@@ -23,11 +23,33 @@ vi.mock('@renderer/hooks/useMcpServer', () => ({
 vi.mock('@renderer/hooks/useMcpRuntimeStatus', () => ({ useMcpRuntimeStatusMap: () => ({}) }))
 vi.mock('@renderer/services/toast', () => ({ toast: { error: toastError, success: vi.fn() } }))
 vi.mock('@renderer/components/mcp/QuickCreateMcpServerDialog', () => ({
-  default: ({ open }: { open: boolean }) => (open ? <div role="dialog" aria-label="quick create" /> : null)
+  // The real dialog creates manual servers inactive.
+  default: ({ open, onCreate }: { open: boolean; onCreate: (dto: object) => Promise<void> }) =>
+    open ? (
+      <div role="dialog" aria-label="quick create">
+        <button type="button" onClick={() => void onCreate({ name: 'Manual', type: 'stdio', isActive: false })}>
+          save manual
+        </button>
+      </div>
+    ) : null
 }))
 vi.mock('@renderer/components/mcp/AddMcpServerModal', () => ({
-  default: ({ visible, initialImportMethod }: { visible: boolean; initialImportMethod: string }) =>
-    visible ? <div role="dialog" aria-label={`import ${initialImportMethod}`} /> : null
+  default: ({
+    visible,
+    initialImportMethod,
+    onSuccess
+  }: {
+    visible: boolean
+    initialImportMethod: string
+    onSuccess: (dtos: object[]) => Promise<unknown>
+  }) =>
+    visible ? (
+      <div role="dialog" aria-label={`import ${initialImportMethod}`}>
+        <button type="button" onClick={() => void onSuccess([{ name: 'A' }, { name: 'B' }])}>
+          import two
+        </button>
+      </div>
+    ) : null
 }))
 
 beforeAll(() => {
@@ -132,5 +154,31 @@ describe('McpCapabilityList', () => {
     await user.click(screen.getByRole('button', { name: 'library.config.tools.add_mcp' }))
     await user.click(screen.getByRole('menuitem', { name: 'library.config.tools.add_manually' }))
     expect(screen.getByRole('dialog', { name: 'quick create' })).toBeInTheDocument()
+  })
+
+  // A server added from this list is meant for this resource; an inactive one could not be bound at all.
+  it('turns on a manually added server and binds it', async () => {
+    const user = userEvent.setup()
+    mcp.addMcpServer.mockImplementation(async (dto: object) => ({ ...dto, id: 'mcp-manual' }))
+    render(<Harness />)
+
+    await user.click(screen.getByRole('button', { name: 'library.config.tools.add_mcp' }))
+    await user.click(screen.getByRole('menuitem', { name: 'library.config.tools.add_manually' }))
+    await user.click(screen.getByRole('button', { name: 'save manual' }))
+
+    await waitFor(() => expect(screen.getByTestId('selected')).toHaveTextContent('mcp-manual'))
+    expect(mcp.addMcpServer.mock.calls[0][0]).toMatchObject({ name: 'Manual', isActive: true })
+  })
+
+  it('binds every server imported from JSON', async () => {
+    const user = userEvent.setup()
+    mcp.addMcpServer.mockImplementation(async (dto: { name: string }) => ({ ...dto, id: `mcp-${dto.name}` }))
+    render(<Harness />)
+
+    await user.click(screen.getByRole('button', { name: 'library.config.tools.add_mcp' }))
+    await user.click(screen.getByRole('menuitem', { name: 'settings.mcp.addServer.importFrom.json' }))
+    await user.click(screen.getByRole('button', { name: 'import two' }))
+
+    await waitFor(() => expect(screen.getByTestId('selected')).toHaveTextContent('mcp-A,mcp-B'))
   })
 })
