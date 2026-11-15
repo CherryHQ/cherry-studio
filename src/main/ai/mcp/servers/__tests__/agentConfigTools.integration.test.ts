@@ -21,7 +21,8 @@ import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { assistantDataService } from '@data/services/AssistantService'
 import { previewAgentConfigUpdate } from '@main/ai/agents/agentConfigTool'
 import { resolveAgentCapabilities } from '@main/ai/agents/builtin/builtinAgentCapabilities'
-import { BUILTIN_AGENT_ROLE, CHERRY_SUPPORT_AGENT_ID } from '@shared/ai/builtinAgent'
+import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
+import { BUILTIN_AGENT_ROLE, CHERRY_SUPPORT_AGENT_ID, isProtectedBuiltinAgentRole } from '@shared/ai/builtinAgent'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import { ENDPOINT_TYPE, MODEL_CAPABILITY } from '@shared/data/types/model'
 
@@ -42,6 +43,7 @@ describe('Agent create and configure tools', () => {
   const assistantServer = () => createAssistantServer(DEFAULT_MODEL)
 
   function cherryToolsServer(agentId: string, sessionId = 'session-unused') {
+    const agent = agentService.getAgent(agentId)
     const context: AutonomyToolsContext = {
       agentId,
       sessionId,
@@ -49,13 +51,29 @@ describe('Agent create and configure tools', () => {
       workspacePath: agentsDataDir,
       trustedNotifyChannels: [],
       allowAnyOwnedNotifyChannel: false,
-      resourceCreateEnabled: resolveAgentCapabilities(agentService.getAgent(agentId)).createResources
+      resourceCreateEnabled: resolveAgentCapabilities(agent).createResources,
+      selfConfigEnabled: !isProtectedBuiltinAgentRole(agent?.configuration?.builtin_role)
     }
     return () => {
       const server = new McpServer({ name: 'cherry-tools', version: '1.0.0' })
       registerAutonomyTools(server, context)
       return server
     }
+  }
+
+  let approvalCount = 0
+  /** A pending approval as a runtime registers it; the preview reads the call from here. */
+  function pendingApproval(toolName: string, input: Record<string, unknown>, sessionId = 'session-unused') {
+    const approvalId = `approval-${++approvalCount}`
+    toolApprovalRegistry.register({
+      approvalId,
+      sessionId,
+      toolCallId: approvalId,
+      toolName,
+      originalInput: input,
+      resolve: () => {}
+    })
+    return approvalId
   }
 
   function seedAgent(id: string, overrides: Partial<Parameters<typeof agentService.createAgentWithId>[1]> = {}) {
@@ -182,6 +200,7 @@ describe('Agent create and configure tools', () => {
   })
 
   afterEach(() => {
+    toolApprovalRegistry.clear()
     MockApplicationUtils.resetServices()
     MockMainPreferenceServiceUtils.resetMocks()
     vi.restoreAllMocks()
@@ -417,16 +436,36 @@ describe('Agent create and configure tools', () => {
     it('previews the approval summary without writing', () => {
       seedAgent('target')
 
-      expect(previewAgentConfigUpdate({ tool: 'update_agent', input: { agentId: 'target', language: 'off' } })).toEqual(
-        { ok: true, summary: ['Reply language: Follow global setting → No constraint'] }
-      )
+      expect(
+        previewAgentConfigUpdate(
+          pendingApproval('mcp__assistant__update_agent', { agentId: 'target', language: 'off' })
+        )
+      ).toEqual({ ok: true, summary: ['Reply language: Follow global setting → No constraint'] })
       expect(agentService.getAgent('target')?.configuration).not.toHaveProperty('language')
       expect(
-        previewAgentConfigUpdate({
-          tool: 'update_agent',
-          input: { agentId: 'target', permissionMode: 'bypassPermissions' }
-        })
-      ).toMatchObject({ ok: false })
+        previewAgentConfigUpdate(
+          pendingApproval('mcp__assistant__update_agent', { agentId: 'target', permissionMode: 'bypassPermissions' })
+        )
+      ).toEqual({ ok: false })
+    })
+
+    it('shows a schedule-only heartbeat change while the heartbeat is off', () => {
+      seedAgent('target')
+
+      const preview = previewAgentConfigUpdate(
+        pendingApproval('mcp__assistant__update_agent', { agentId: 'target', heartbeat: { intervalMinutes: 60 } })
+      )
+
+      expect(preview).toMatchObject({ ok: true, summary: [expect.stringContaining('60 min')] })
+    })
+
+    it('previews nothing for an approval that is not an Agent settings change', () => {
+      seedAgent('target')
+
+      expect(previewAgentConfigUpdate('missing-approval')).toEqual({ ok: false })
+      expect(
+        previewAgentConfigUpdate(pendingApproval('mcp__cherry-tools__kb_manage', { agentId: 'target', name: 'x' }))
+      ).toEqual({ ok: false })
     })
   })
 
@@ -483,12 +522,13 @@ describe('Agent create and configure tools', () => {
     })
 
     it.each(Object.values(BUILTIN_AGENT_ROLE))(
-      'is not offered to the built-in %s Agent, which has no cherry-tools create',
+      'is not offered to the built-in %s Agent, which cannot create or change these settings',
       async (role) => {
         const names = (await listBuiltinTools(cherryToolsServer(seedBuiltinAgent(role)))).map((tool) => tool.name)
 
         expect(names).not.toContain('agent_create')
         expect(names).not.toContain('assistant_create')
+        expect(names).not.toContain('config_update')
         expect(names).toContain('config')
       }
     )
@@ -533,22 +573,13 @@ describe('Agent create and configure tools', () => {
       })
     })
 
-    it.each(Object.values(BUILTIN_AGENT_ROLE))('refuses every new field for the built-in %s Agent', async (role) => {
-      const id = seedBuiltinAgent(role)
-
-      const result = await callBuiltinTool(cherryToolsServer(id), 'config_update', { description: 'Changed' })
-
-      expect(result.isError).toBe(true)
-      expect(toolText(result)).toContain('Built-in Agents cannot change these settings')
-      expect(agentService.getAgent(id)?.description).toBe('Original description')
-    })
-
     it('previews against the Agent that owns the Session', () => {
       seedAgent('self')
       const session = createSession('self')
 
+      // Pi names the server `cherry_tools`.
       expect(
-        previewAgentConfigUpdate({ tool: 'config_update', sessionId: session.id, input: { emoji: '🐼' } })
+        previewAgentConfigUpdate(pendingApproval('mcp__cherry_tools__config_update', { emoji: '🐼' }, session.id))
       ).toEqual({ ok: true, summary: ['Avatar: 🦊 → 🐼'] })
     })
   })

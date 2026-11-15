@@ -582,7 +582,7 @@
   "agent.tasks.timeout.label": "Μέγιστος χρόνος εκτέλεσης",
   "agent.tasks.timeout.placeholder": "Χωρίς όριο",
   "agent.toolPermission.agent_config.changes": "Αλλαγές",
-  "agent.toolPermission.agent_config.error": "Δεν είναι δυνατή η εφαρμογή αυτών των αλλαγών: {{error}}",
+  "agent.toolPermission.agent_config.error": "Δεν είναι δυνατή η προεπισκόπηση αυτών των αλλαγών. Ζητούμενες τιμές:",
   "agent.toolPermission.agent_config.loading": "Ανάγνωση των τρεχουσών ρυθμίσεων…",
   "agent.toolPermission.background": "Εργασία παρασκηνίου",
   "agent.toolPermission.button.allow": "Επιτρέπεται",

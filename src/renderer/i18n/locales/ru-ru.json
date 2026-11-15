@@ -582,7 +582,7 @@
   "agent.tasks.timeout.label": "Максимальное время выполнения",
   "agent.tasks.timeout.placeholder": "Без ограничений",
   "agent.toolPermission.agent_config.changes": "Изменения",
-  "agent.toolPermission.agent_config.error": "Не удаётся применить эти изменения: {{error}}",
+  "agent.toolPermission.agent_config.error": "Не удаётся показать предпросмотр изменений. Запрошенные значения:",
   "agent.toolPermission.agent_config.loading": "Чтение текущих настроек…",
   "agent.toolPermission.background": "Фоновая задача",
   "agent.toolPermission.button.allow": "Разрешить",

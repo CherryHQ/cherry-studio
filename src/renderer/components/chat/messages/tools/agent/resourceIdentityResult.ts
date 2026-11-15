@@ -1,6 +1,8 @@
 import { isToolUIPart } from 'ai'
+import * as z from 'zod'
 
 import type { McpToolResponse, NormalToolResponse } from '@renderer/types/mcpTool'
+import { AgentConfigToolOutputSchema, AssistantCreateToolOutputSchema } from '@shared/ai/agentConfigToolOutput'
 import { isDeferredToolOutput } from '@shared/ai/transport'
 import type { CherryMessagePart } from '@shared/data/types/message'
 
@@ -53,36 +55,31 @@ function toStructuredOutput(value: unknown): unknown {
   return typeof candidate === 'string' ? parseText(candidate) : candidate
 }
 
-function stringOr(value: unknown, fallback: string): string {
-  return typeof value === 'string' ? value : fallback
-}
+// Results saved before the tools reported a kind, avatar or summary: `create_agent` returned only these.
+const LegacyCreateAgentOutputSchema = z.object({ ok: z.literal(true), agentId: z.string(), name: z.string() })
 
-function stringList(value: unknown): string[] | undefined {
-  return Array.isArray(value) ? value.filter((item) => typeof item === 'string') : undefined
-}
+const ToolOutputSchema = z.union([
+  AgentConfigToolOutputSchema,
+  AssistantCreateToolOutputSchema,
+  LegacyCreateAgentOutputSchema
+])
 
 export function getResourceIdentityResult(
   toolResponse: McpToolResponse | NormalToolResponse
 ): ResourceIdentityResult | undefined {
   const toolKind = toolResponse.status === 'done' ? getAgentConfigToolKind(toolResponse) : undefined
   if (!toolKind) return undefined
-  const output = toStructuredOutput(toolResponse.response)
-  if (!isRecord(output) || output.ok !== true || typeof output.name !== 'string') return undefined
+  const parsed = ToolOutputSchema.safeParse(toStructuredOutput(toolResponse.response))
+  if (!parsed.success) return undefined
 
-  const isAssistant = output.kind === 'assistant'
-  const id = isAssistant ? output.assistantId : output.agentId
-  if (typeof id !== 'string') return undefined
-  return {
-    kind: isAssistant ? 'assistant' : 'agent',
-    id,
-    name: output.name,
-    emoji: stringOr(output.emoji, ''),
-    description: stringOr(output.description, ''),
-    summary: stringList(output.summary) ?? [],
-    highlights: stringList(output.highlights),
-    action: toolKind === 'create' ? 'created' : 'updated',
-    self: toolKind === 'self_update'
+  const output = parsed.data
+  const action = { action: toolKind === 'create' ? 'created' : 'updated', self: toolKind === 'self_update' } as const
+  if (!('kind' in output)) {
+    return { kind: 'agent', id: output.agentId, name: output.name, emoji: '', description: '', summary: [], ...action }
   }
+  const { kind, name, emoji, description, summary, highlights } = output
+  const id = output.kind === 'assistant' ? output.assistantId : output.agentId
+  return { kind, id, name, emoji, description, summary, highlights, ...action }
 }
 
 /** Decided before the output loads, so a deferred result still lands in the inline result lane. */

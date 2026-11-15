@@ -817,6 +817,16 @@ describe('AgentToolRenderer', () => {
       expect(screen.getByTestId('resource-identity-card')).toHaveTextContent('Model: Other Model')
     })
 
+    // `create_agent` returned only these fields before the tools reported a kind and an avatar.
+    it('still shows an Agent created by the older create_agent result', () => {
+      const older = { ok: true, agentId: 'agent-older', name: 'Older', model: 'wire::default-model' }
+      render(<MessageTools toolResponse={configToolResponse('assistant', 'create_agent', structured(older))} />)
+
+      const card = screen.getByTestId('resource-identity-card')
+      expect(within(card).getByText('Older')).toBeInTheDocument()
+      expect(within(card).getByText('Agent')).toBeInTheDocument()
+    })
+
     it('shows an update as Updated with each change as current → new', () => {
       const updated = { ...createdAgent, summary: ['Model: Default Model → Other Model'], highlights: undefined }
       mockMessageListActions.mockReturnValue({ navigateToRoute: vi.fn() })
@@ -840,6 +850,19 @@ describe('AgentToolRenderer', () => {
       expect(navigateToRoute).toHaveBeenCalledTimes(2)
       expect(navigateToRoute).toHaveBeenNthCalledWith(1, { path: '/app/agents', query: { agentId: 'agent-created' } })
       expect(navigateToRoute).toHaveBeenNthCalledWith(2, { path: '/app/agents', query: { agentId: 'agent-created' } })
+    })
+
+    it('stays in the conversation when a click ends a text selection on the card', async () => {
+      const user = userEvent.setup()
+      const navigateToRoute = vi.fn()
+      mockMessageListActions.mockReturnValue({ navigateToRoute })
+      const selection = vi.spyOn(window, 'getSelection').mockReturnValue({ isCollapsed: false } as Selection)
+      render(<MessageTools toolResponse={configToolResponse('assistant', 'create_agent', structured(createdAgent))} />)
+
+      await user.click(screen.getByText('Reviews pull requests · Other Model · Ask Before Acting'))
+      selection.mockRestore()
+
+      expect(navigateToRoute).not.toHaveBeenCalled()
     })
 
     // The chat page renders nothing for a bare `?assistantId=` entry, so the card must land on a topic.

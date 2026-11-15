@@ -51,6 +51,13 @@ export function ResourceIdentityCard({ result }: { result: ResourceIdentityResul
   }
 
   const meta = [result.description, ...chips].filter(Boolean).join(' · ')
+  // A drag that selects text ends in a click too; copying the description must not leave the conversation.
+  const handleCardClick = openConversation
+    ? () => {
+        if (window.getSelection()?.isCollapsed === false) return
+        openConversation()
+      }
+    : undefined
 
   return (
     // The card is a mouse shortcut for the Start conversation button, which stays the keyboard path.
@@ -58,7 +65,7 @@ export function ResourceIdentityCard({ result }: { result: ResourceIdentityResul
       data-testid="resource-identity-card"
       className="my-1 w-fit max-w-md rounded-lg border border-border-subtle bg-card px-2.5 py-2 transition-colors data-[clickable=true]:cursor-pointer data-[clickable=true]:hover:bg-accent/40"
       data-clickable={openConversation ? 'true' : undefined}
-      onClick={openConversation}>
+      onClick={handleCardClick}>
       <div className="flex items-center gap-2.5">
         <EmojiAvatar
           size={32}
@@ -82,7 +89,7 @@ export function ResourceIdentityCard({ result }: { result: ResourceIdentityResul
             )}
           </div>
           {meta ? (
-            <div className="truncate text-[11.5px] text-muted-foreground leading-4" title={meta}>
+            <div className="truncate text-muted-foreground text-xs leading-4" title={meta}>
               {meta}
             </div>
           ) : null}
@@ -92,7 +99,7 @@ export function ResourceIdentityCard({ result }: { result: ResourceIdentityResul
             type="button"
             variant="ghost"
             size="sm"
-            className="min-h-6 h-6 px-1.5 text-[11.5px] text-muted-foreground"
+            className="h-6 min-h-6 px-1.5 text-muted-foreground"
             aria-label={`${adjustLabel}: ${result.name}`}
             onClick={handleButton(() => openResourceEditDialog({ kind: result.kind, id: result.id }))}>
             {adjustLabel}
@@ -102,7 +109,7 @@ export function ResourceIdentityCard({ result }: { result: ResourceIdentityResul
               type="button"
               variant="secondary"
               size="sm"
-              className="min-h-6 h-6 gap-0.5 rounded-md px-2 font-medium text-[11.5px] text-foreground"
+              className="h-6 min-h-6 gap-0.5 rounded-md px-2 font-medium text-foreground"
               aria-label={`${startLabel}: ${result.name}`}
               onClick={handleButton(openConversation)}>
               {startLabel}
@@ -112,9 +119,9 @@ export function ResourceIdentityCard({ result }: { result: ResourceIdentityResul
         </div>
       </div>
       {!created && result.summary.length > 0 ? (
-        <ul className="mt-1.5 ml-[42px] space-y-0.5">
+        <ul className="mt-1.5 ml-10.5 space-y-0.5">
           {result.summary.map((line) => (
-            <li key={line} className="truncate text-[11.5px] text-muted-foreground leading-4" title={line}>
+            <li key={line} className="truncate text-muted-foreground text-xs leading-4" title={line}>
               {line}
             </li>
           ))}

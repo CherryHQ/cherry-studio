@@ -582,7 +582,7 @@
   "agent.tasks.timeout.label": "Maximum Execution Time",
   "agent.tasks.timeout.placeholder": "No limit",
   "agent.toolPermission.agent_config.changes": "Changes",
-  "agent.toolPermission.agent_config.error": "These changes cannot be applied: {{error}}",
+  "agent.toolPermission.agent_config.error": "Can't preview these changes. Requested values:",
   "agent.toolPermission.agent_config.loading": "Reading the current settings…",
   "agent.toolPermission.background": "Background task",
   "agent.toolPermission.button.allow": "Allow",

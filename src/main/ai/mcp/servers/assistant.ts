@@ -11,8 +11,8 @@ import { mcpServerService } from '@data/services/McpServerService'
 import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
 import {
-  AgentConfigToolOutputSchema,
-  AssistantCreateToolOutputSchema,
+  CREATE_AGENT_TOOL_DESCRIPTION,
+  CREATE_ASSISTANT_TOOL_DESCRIPTION,
   createAgentFromTool,
   CreateAgentToolInputSchema,
   createAssistantFromTool,
@@ -23,6 +23,7 @@ import {
 } from '@main/ai/agents/agentConfigTool'
 import { type AssistantToolName, DEFAULT_ASSISTANT_TOOL_NAMES } from '@main/ai/toolApproval/assistantToolNames'
 import { providerChatBaseUrl } from '@main/utils/providerEndpoint'
+import { AgentConfigToolOutputSchema, AssistantCreateToolOutputSchema } from '@shared/ai/agentConfigToolOutput'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
 import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { DoctorRunTier } from '@shared/types/doctor'
@@ -671,8 +672,7 @@ ${Object.values(APPLY_SETTING_REGISTRY)
     server.registerTool(
       'create_agent',
       {
-        description:
-          'Create a new Agent (an autonomous worker with its own tools, skills and workspace) when the user asks to create or set up an Agent, e.g. "建一个 Agent". Propose the configuration first; the user approves every call. Omit model to use the default model.',
+        description: CREATE_AGENT_TOOL_DESCRIPTION,
         inputSchema: CreateAgentToolInputSchema,
         outputSchema: AgentConfigToolOutputSchema
       },
@@ -682,8 +682,7 @@ ${Object.values(APPLY_SETTING_REGISTRY)
     server.registerTool(
       'create_assistant',
       {
-        description:
-          'Create a new Assistant (a chat persona with a prompt, a model and optional knowledge bases, MCP servers and web search) when the user asks to create or set up an Assistant, e.g. "建一个助手". Propose the configuration first; the user approves every call. Omit model to use the default model.',
+        description: CREATE_ASSISTANT_TOOL_DESCRIPTION,
         inputSchema: CreateAssistantToolInputSchema,
         outputSchema: AssistantCreateToolOutputSchema
       },

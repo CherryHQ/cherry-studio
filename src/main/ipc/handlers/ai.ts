@@ -213,7 +213,7 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
 
   // ── Agent creation + session warm-connection lifecycle. ──
   'ai.agent.create': createAgent,
-  'ai.agent.preview_config_update': async (request) => previewAgentConfigUpdate(request),
+  'ai.agent.preview_config_update': async ({ approvalId }) => previewAgentConfigUpdate(approvalId),
   'ai.agent.restore': async ({ agentId }) => {
     try {
       return await application.get('AgentLifecycleService').restoreAgent(agentId)

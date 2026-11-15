@@ -582,7 +582,7 @@
   "agent.tasks.timeout.label": "Timp maxim de execuție",
   "agent.tasks.timeout.placeholder": "Fără limită",
   "agent.toolPermission.agent_config.changes": "Modificări",
-  "agent.toolPermission.agent_config.error": "Aceste modificări nu pot fi aplicate: {{error}}",
+  "agent.toolPermission.agent_config.error": "Aceste modificări nu pot fi previzualizate. Valori solicitate:",
   "agent.toolPermission.agent_config.loading": "Se citesc setările curente…",
   "agent.toolPermission.background": "Sarcină în fundal",
   "agent.toolPermission.button.allow": "Permite",

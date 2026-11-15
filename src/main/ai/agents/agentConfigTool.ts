@@ -16,7 +16,11 @@ import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
 import { mcpServerService } from '@data/services/McpServerService'
 import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
+import { loggerService } from '@logger'
+import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import { t } from '@main/i18n'
+import { getAgentConfigToolKind } from '@shared/ai/agentConfigToolKind'
+import type { AgentConfigToolOutput, AssistantCreateToolOutput } from '@shared/ai/agentConfigToolOutput'
 import { buildCreateAgentCommand, DEFAULT_AGENT_CREATE_AVATAR } from '@shared/ai/agentCreateCommand'
 import {
   type AgentFormState,
@@ -30,6 +34,8 @@ import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import { buildCreateAssistantDto, DEFAULT_ASSISTANT_CREATE_AVATAR } from '@shared/ai/assistantCreateDto'
 import { isProtectedBuiltinAgentRole } from '@shared/ai/builtinAgent'
 import { normalizePiDisabledToolId } from '@shared/ai/piBuiltinTools'
+import { parseFunctionCallToolName } from '@shared/ai/tools/mcpToolName'
+import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import {
   type AgentEntity,
   type AgentPermissionMode,
@@ -45,6 +51,8 @@ import { isBrowserMcpServer } from '@shared/utils/mcp'
 import { isNonChatModel } from '@shared/utils/model'
 
 import { createAgent } from './createAgent'
+
+const logger = loggerService.withContext('AgentConfigTool')
 
 /** Every create entry point builds the runtime the create wizard defaults to. */
 const NEW_AGENT_TYPE: AgentType = 'pi-durable'
@@ -87,6 +95,12 @@ const settingsShape = {
     .describe('Periodic heartbeat check.')
 }
 
+export const CREATE_AGENT_TOOL_DESCRIPTION =
+  'Create a new Agent (an autonomous worker with its own tools, skills and workspace) when the user asks to create or set up an Agent, e.g. "建一个 Agent". Propose the configuration first; the user approves every call. Omit model to use the default model.'
+
+export const CREATE_ASSISTANT_TOOL_DESCRIPTION =
+  'Create a new Assistant (a chat persona with a prompt, a model and optional knowledge bases, MCP servers and web search) when the user asks to create or set up an Assistant, e.g. "建一个助手". Propose the configuration first; the user approves every call. Omit model to use the default model.'
+
 export const CreateAgentToolInputSchema = z.strictObject({
   ...settingsShape,
   name: z.string().trim().min(1).describe('Short display name, e.g. "Python Reviewer" or "周报助手".'),
@@ -121,26 +135,6 @@ export const CreateAssistantToolInputSchema = z.strictObject({
   webSearch: z.boolean().optional().describe('Let the Assistant search and read the web.'),
   language: settingsShape.language
 })
-
-export const AgentConfigToolOutputSchema = z.object({
-  ok: z.literal(true),
-  kind: z.literal('agent'),
-  agentId: z.string(),
-  name: z.string(),
-  emoji: z.string(),
-  description: z.string(),
-  /** What was set (create) or `field: current → new` (update), in the app language. */
-  summary: z.array(z.string()),
-  /** Create only: the model and a key setting or two, short enough for the card's chips. */
-  highlights: z.array(z.string()).optional()
-})
-export type AgentConfigToolOutput = z.infer<typeof AgentConfigToolOutputSchema>
-
-export const AssistantCreateToolOutputSchema = AgentConfigToolOutputSchema.omit({ kind: true, agentId: true }).extend({
-  kind: z.literal('assistant'),
-  assistantId: z.string()
-})
-export type AssistantCreateToolOutput = z.infer<typeof AssistantCreateToolOutputSchema>
 
 type SettingsInput = z.infer<typeof SelfUpdateToolInputSchema> & { name?: string }
 
@@ -177,8 +171,11 @@ function resolveModel(raw: string, target: ModelTarget): UniqueModelId {
   try {
     model = modelService.getByKey(providerId, modelId)
     provider = providerService.getByProviderId(providerId)
-  } catch {
-    throw new Error(`Model is not configured in Cherry Studio: ${parsed.data}`)
+  } catch (error) {
+    if (isDataApiError(error) && error.code === ErrorCode.NOT_FOUND) {
+      throw new Error(`Model is not configured in Cherry Studio: ${parsed.data}`)
+    }
+    throw error
   }
   if (!model.isEnabled || !provider.isEnabled) throw new Error(`Model is disabled in Cherry Studio: ${parsed.data}`)
   if (!isModelUsableFor(target, provider, model)) {
@@ -402,7 +399,7 @@ function rawValue(field: SummaryField, form: AgentFormState): unknown {
     case 'language':
       return form.languageMode === 'custom' ? form.languageCustom : form.languageMode
     case 'heartbeat':
-      return form.heartbeatEnabled ? [form.heartbeatInterval, form.heartbeatTimeoutMinutes] : false
+      return [form.heartbeatEnabled, form.heartbeatInterval, form.heartbeatTimeoutMinutes]
     case 'webSearch':
       return false
   }
@@ -454,13 +451,14 @@ function displayValue(field: SummaryField, form: AgentFormState): string {
       if (form.languageMode === 'inherit') return t('agent.config_tool.value.language_inherit')
       if (form.languageMode === 'off') return t('agent.config_tool.value.language_off')
       return form.languageCustom
-    case 'heartbeat':
-      return form.heartbeatEnabled
-        ? t('agent.config_tool.value.heartbeat_on', {
-            minutes: form.heartbeatInterval,
-            timeout: form.heartbeatTimeoutMinutes
-          })
-        : t('agent.config_tool.value.heartbeat_off')
+    case 'heartbeat': {
+      const schedule = t('agent.config_tool.value.heartbeat_on', {
+        minutes: form.heartbeatInterval,
+        timeout: form.heartbeatTimeoutMinutes
+      })
+      // The schedule stays visible while off, so a schedule-only change still reads as one.
+      return form.heartbeatEnabled ? schedule : `${t('agent.config_tool.value.heartbeat_off')} · ${schedule}`
+    }
     case 'webSearch':
       return t('agent.config_tool.value.enabled')
   }
@@ -663,21 +661,28 @@ function planAgentUpdate(agentId: string, input: SettingsInput, { self }: { self
   return { dto: diff.dto, summary: describeChanges(baseline, next) }
 }
 
-/** The `field: current → new` lines a pending update would apply, for its approval card. Writes nothing. */
-export function previewAgentConfigUpdate(
-  request: { tool: 'update_agent'; input: unknown } | { tool: 'config_update'; sessionId: string; input: unknown }
-): { ok: true; summary: string[] } | { ok: false; error: string } {
+/**
+ * The `field: current → new` lines a pending update would apply, for its approval card. Writes nothing.
+ * Reads the call from the approval itself, so the preview always matches what approving runs.
+ */
+export function previewAgentConfigUpdate(approvalId: string): { ok: true; summary: string[] } | { ok: false } {
+  const call = toolApprovalRegistry.peekCall(approvalId)
+  const name = call && parseFunctionCallToolName(call.toolName)
+  const kind = name ? getAgentConfigToolKind(name.serverPart, name.toolPart) : undefined
+  if (!call || (kind !== 'update' && kind !== 'self_update')) return { ok: false }
   try {
-    if (request.tool === 'update_agent') {
-      const { agentId, ...settings } = UpdateAgentToolInputSchema.parse(request.input)
+    if (kind === 'update') {
+      const { agentId, ...settings } = UpdateAgentToolInputSchema.parse(call.originalInput)
       return { ok: true, summary: planAgentUpdate(agentId, settings, { self: false }).summary }
     }
-    const { agentId } = agentSessionService.getById(request.sessionId)
-    if (!agentId) throw new Error(`Session has no Agent: ${request.sessionId}`)
-    const settings = SelfUpdateToolInputSchema.parse(request.input)
+    const { agentId } = agentSessionService.getById(call.sessionId)
+    if (!agentId) throw new Error(`Session has no Agent: ${call.sessionId}`)
+    const settings = SelfUpdateToolInputSchema.parse(call.originalInput)
     return { ok: true, summary: planAgentUpdate(agentId, settings, { self: true }).summary }
   } catch (error) {
-    return { ok: false, error: error instanceof Error ? error.message : String(error) }
+    // The tool reports the same refusal to the model when it runs; the user sees the raw arguments.
+    logger.warn('Agent settings preview failed', { approvalId, error })
+    return { ok: false }
   }
 }
 

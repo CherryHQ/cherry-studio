@@ -19,8 +19,8 @@ import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentTaskService as taskService } from '@data/services/AgentTaskService'
 import { loggerService } from '@logger'
 import {
-  AgentConfigToolOutputSchema,
-  AssistantCreateToolOutputSchema,
+  CREATE_AGENT_TOOL_DESCRIPTION,
+  CREATE_ASSISTANT_TOOL_DESCRIPTION,
   createAgentFromTool,
   CreateAgentToolInputSchema,
   createAssistantFromTool,
@@ -47,6 +47,7 @@ import { findPersistedToolOutput } from '@main/ai/messages/persistedToolOutput'
 import { readConversation, type ReadConversationInput } from '@main/ai/messages/readConversation'
 import type { NotifyChannel } from '@main/ai/runtime/agentMcpServers'
 import { runtimeDriverRegistry } from '@main/ai/runtime/registry'
+import { AgentConfigToolOutputSchema, AssistantCreateToolOutputSchema } from '@shared/ai/agentConfigToolOutput'
 import { isHeartbeatEnabled } from '@shared/ai/agentHeartbeat'
 import {
   AgentSessionDeliveryStatusSchema,
@@ -88,6 +89,8 @@ export interface AutonomyToolsContext {
   allowAnyOwnedNotifyChannel: boolean
   /** Offer `agent_create` and `assistant_create`; see the `createResources` Agent capability. */
   resourceCreateEnabled?: boolean
+  /** Offer `config_update`; built-in Agents cannot change these settings. */
+  selfConfigEnabled?: boolean
 }
 
 /**
@@ -250,7 +253,7 @@ const CHANNEL_CONFIG_SCHEMAS: Record<string, { required: string[]; optional: str
 }
 
 const CONFIG_DESCRIPTION =
-  'Inspect or change your agent config: status, rename, add/update/remove/reconnect channels, complete or reset bootstrap. Use config_update for other settings.'
+  'Inspect or change your agent config: status, rename, add/update/remove/reconnect channels, complete or reset bootstrap.'
 
 const ConfigInputSchema = z.object({
   action: z
@@ -1196,29 +1199,37 @@ export function registerAutonomyTools(server: McpServer, ctx: AutonomyToolsConte
       (args) => sendNotification(ctx, args)
     )
   }
-  server.registerTool(CONFIG_TOOL_NAME, { description: CONFIG_DESCRIPTION, inputSchema: ConfigInputSchema }, (args) =>
-    runConfig(ctx, args)
-  )
   server.registerTool(
-    CONFIG_UPDATE_TOOL_NAME,
+    CONFIG_TOOL_NAME,
     {
-      description:
-        'Change your own settings: avatar, description, instructions, model, permission mode, skills, knowledge bases, MCP servers, built-in tools, reply language, heartbeat. Pass only the fields to change; the user approves every call.',
-      inputSchema: SelfUpdateToolInputSchema,
-      outputSchema: AgentConfigToolOutputSchema
+      description: ctx.selfConfigEnabled
+        ? `${CONFIG_DESCRIPTION} Use ${CONFIG_UPDATE_TOOL_NAME} for other settings.`
+        : CONFIG_DESCRIPTION,
+      inputSchema: ConfigInputSchema
     },
-    (args) => {
-      assertConfigMutationAuthorized(ctx)
-      return toolOutput(updateAgentFromTool(ctx.agentId, args, { self: true }))
-    }
+    (args) => runConfig(ctx, args)
   )
+  if (ctx.selfConfigEnabled) {
+    server.registerTool(
+      CONFIG_UPDATE_TOOL_NAME,
+      {
+        description:
+          'Change your own settings: avatar, description, instructions, model, permission mode, skills, knowledge bases, MCP servers, built-in tools, reply language, heartbeat. Pass only the fields to change; the user approves every call.',
+        inputSchema: SelfUpdateToolInputSchema,
+        outputSchema: AgentConfigToolOutputSchema
+      },
+      (args) => {
+        assertConfigMutationAuthorized(ctx)
+        return toolOutput(updateAgentFromTool(ctx.agentId, args, { self: true }))
+      }
+    )
+  }
   if (ctx.resourceCreateEnabled) {
     const fallbackModel = () => agentService.getAgent(ctx.agentId)?.model ?? undefined
     server.registerTool(
       AGENT_CREATE_TOOL_NAME,
       {
-        description:
-          'Create a new Agent (an autonomous worker with its own tools, skills and workspace) when the user asks to create or set up an Agent, e.g. "建一个 Agent". Propose the configuration first; the user approves every call. Omit model to use the default model.',
+        description: CREATE_AGENT_TOOL_DESCRIPTION,
         inputSchema: CreateAgentToolInputSchema,
         outputSchema: AgentConfigToolOutputSchema
       },
@@ -1230,8 +1241,7 @@ export function registerAutonomyTools(server: McpServer, ctx: AutonomyToolsConte
     server.registerTool(
       ASSISTANT_CREATE_TOOL_NAME,
       {
-        description:
-          'Create a new Assistant (a chat persona with a prompt, a model and optional knowledge bases, MCP servers and web search) when the user asks to create or set up an Assistant, e.g. "建一个助手". Propose the configuration first; the user approves every call. Omit model to use the default model.',
+        description: CREATE_ASSISTANT_TOOL_DESCRIPTION,
         inputSchema: CreateAssistantToolInputSchema,
         outputSchema: AssistantCreateToolOutputSchema
       },
