@@ -13,7 +13,7 @@ import { getLeadingEmoji, getProviderDisplayNameById } from '@renderer/utils/nam
 import { cn } from '@renderer/utils/style'
 import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { isNonChatModel } from '@shared/utils/model'
+import { isChatSelectableModel } from '@shared/utils/model'
 
 import { SelectedModelsTrigger } from '../SelectedModelsTrigger'
 import {
@@ -83,7 +83,7 @@ export function ChatConversationControls({
   onMentionedModelSelectorRestore
 }: ChatConversationControlsProps) {
   const { t } = useTranslation()
-  const chatModelFilter = useCallback<ModelSelectorFilter>((candidate) => !isNonChatModel(candidate), [])
+  const chatModelFilter = useCallback<ModelSelectorFilter>((candidate) => isChatSelectableModel(candidate), [])
   const assistantIcon = assistantEmoji || getLeadingEmoji(assistantName)
   const triggerClassName = side === 'bottom' ? COMPOSER_BELOW_SELECTOR_BUTTON_CLASS : COMPOSER_SELECTOR_BUTTON_CLASS
   // `side` is where menus open: the top bar's open downward.

@@ -16,7 +16,7 @@ import { type AssistantCatalogPreset, useAssistantCatalogPresets } from '@render
 import type { Assistant } from '@renderer/types/assistant'
 import { cn } from '@renderer/utils/style'
 import { buildCreateAssistantDto } from '@shared/ai/assistantCreateDto'
-import { isNonChatModel } from '@shared/utils/model'
+import { isChatSelectableModel } from '@shared/utils/model'
 
 const logger = loggerService.withContext('AssistantConversationPickerDialog')
 
@@ -249,7 +249,7 @@ export function AssistantConversationPickerDialog({
         onOpenChange={handleCreateDialogOpenChange}
         onSubmit={handleSubmitCreate}
         onStartConversation={handleStartConversation}
-        modelFilter={(candidate) => !isNonChatModel(candidate)}
+        modelFilter={(candidate) => isChatSelectableModel(candidate)}
       />
     </>
   )
