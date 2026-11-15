@@ -238,6 +238,11 @@ Implemented in `normalizeModelId()` (`packages/provider-registry/src/utils/norma
 | `orderKey` | Fractional order key in the provider's model list |
 | `notes` | User notes about this model |
 
+Runtime models expose `hasCustomPricing` from whether the stored `pricing` column
+is non-null. This is read-only provenance, not a persisted field or a comparison
+against current catalog prices. Automatic provider billing defaults use it to
+preserve user-owned model prices.
+
 ## Provider Configuration Merge
 
 Provider connection config follows the same layered, read-time merge as
