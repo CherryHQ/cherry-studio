@@ -71,7 +71,8 @@ const settingsShape = {
     .describe("The Agent's system prompt: role, behavior, output format. Write it in the user's language."),
   model: z.string().optional().describe('Model id in the form "providerId::modelId".'),
   permissionMode: AgentPermissionModeSchema.optional().describe(
-    'default asks before acting, acceptEdits accepts file edits, auto approves routine actions. bypassPermissions is never accepted here.'
+    // Users name modes by their UI labels; Kimi K2.6 read "逐次确认" as acceptEdits without them.
+    'default ("Ask Before Acting" / "逐次确认") asks before acting; acceptEdits ("Auto-accept Edits" / "自动接受编辑") accepts file edits; auto ("Approve for Me" / "智能批准") approves routine actions. bypassPermissions ("Full Access" / "完全访问") is never accepted here.'
   ),
   skillIds: z
     .array(z.string())
