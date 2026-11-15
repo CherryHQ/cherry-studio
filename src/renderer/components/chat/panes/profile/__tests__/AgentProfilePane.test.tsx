@@ -201,6 +201,15 @@ describe('AgentProfilePane', () => {
       expect(suggestions.getByText('Remember my habits')).toBeInTheDocument()
     })
 
+    it('still suggests Feishu when the Agent only has a channel on another platform', () => {
+      serveAgentData({ tasks: [], channels: [{ agentId: agent.id, type: 'telegram' }] })
+      renderInRightPane(<AgentProfilePane agentId={agent.id} sessionId="session-1" />)
+
+      expect(
+        within(screen.getByRole('region', { name: 'Suggestions' })).getByText('Connect to Feishu')
+      ).toBeInTheDocument()
+    })
+
     it('fills the composer from a suggestion and opens the edit dialog to link a knowledge base', async () => {
       renderInRightPane(<AgentProfilePane agentId={agent.id} sessionId="session-1" />)
       const region = screen.getByRole('region', { name: 'Suggestions' })
