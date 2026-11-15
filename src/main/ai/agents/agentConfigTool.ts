@@ -130,7 +130,9 @@ export const AgentConfigToolOutputSchema = z.object({
   emoji: z.string(),
   description: z.string(),
   /** What was set (create) or `field: current → new` (update), in the app language. */
-  summary: z.array(z.string())
+  summary: z.array(z.string()),
+  /** Create only: the model and a key setting or two, short enough for the card's chips. */
+  highlights: z.array(z.string()).optional()
 })
 export type AgentConfigToolOutput = z.infer<typeof AgentConfigToolOutputSchema>
 
@@ -488,6 +490,23 @@ function describeCreated(blank: AgentFormState, created: AgentFormState): string
   ).map((field) => setLine(field, created))
 }
 
+function agentHighlights(form: AgentFormState): string[] {
+  return [
+    displayValue('model', form),
+    displayValue('permissionMode', form),
+    ...(form.heartbeatEnabled ? [FIELD_LABEL.heartbeat()] : [])
+  ]
+}
+
+function assistantHighlights(form: AgentFormState, webSearch: boolean | undefined): string[] {
+  return [
+    displayValue('model', form),
+    ...(webSearch ? [FIELD_LABEL.webSearch()] : []),
+    ...(form.knowledgeBaseIds.length ? [setLine('knowledgeBases', form)] : []),
+    ...(form.mcps.length ? [setLine('mcpServers', form)] : [])
+  ].slice(0, 3)
+}
+
 function setLine(field: SummaryField, form: AgentFormState): string {
   return t('agent.config_tool.summary.set', { field: FIELD_LABEL[field](), value: displayValue(field, form) })
 }
@@ -557,7 +576,7 @@ export async function createAgentFromTool(
       }
     })
   )
-  return toOutput(agent, describeCreated(blank, created))
+  return { ...toOutput(agent, describeCreated(blank, created)), highlights: agentHighlights(created) }
 }
 
 /**
@@ -586,7 +605,9 @@ export function createAssistantFromTool(
       mcpServerIds,
       enableWebSearch: input.webSearch,
       replyLanguage
-    })
+    }),
+    // A create from a conversation goes to the top of the list, where the user can see it.
+    { position: 'first' }
   )
   // The renderer refreshes its own creates; one made in main must announce itself to the lists.
   assistantDataService.notifyReadModelChange([assistant.id], 'membership')
@@ -616,7 +637,8 @@ export function createAssistantFromTool(
     name: assistant.name,
     emoji: assistant.emoji || DEFAULT_ASSISTANT_CREATE_AVATAR,
     description: assistant.description ?? '',
-    summary
+    summary,
+    highlights: assistantHighlights(form, input.webSearch)
   }
 }
 
