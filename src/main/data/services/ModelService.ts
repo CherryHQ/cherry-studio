@@ -623,7 +623,7 @@ class ModelService {
 
       if (dtoKey === 'reportedReasoning') {
         // Server-managed discovery metadata: verbatim store, `null` clears.
-        updates.reportedReasoning = value ?? null
+        updates.reportedReasoning = dto.reportedReasoning ?? null
         continue
       }
 
