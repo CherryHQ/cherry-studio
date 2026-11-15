@@ -35,7 +35,7 @@ import {
   SettingGroup,
   SettingRowTitle,
   SettingsContentColumn,
-  SettingTitle
+  SettingsPageHeader
 } from '@renderer/components/SettingsPrimitives'
 import { useApiGateway } from '@renderer/hooks/useApiGateway'
 import { useTheme } from '@renderer/hooks/useTheme'
@@ -284,15 +284,16 @@ const DeviceConnectionsSettings: FC = () => {
       theme={theme}
       className="@container min-w-0"
       contentProps={{ className: 'pb-18' }}
-      innerClassName="flex min-h-full max-w-6xl flex-col">
-      <div className="min-w-0">
-        <SettingTitle className="justify-start gap-2">
-          <MonitorSmartphone size={16} />
-          {t('deviceConnections.title')}
-        </SettingTitle>
-        <PageDescription>{t('deviceConnections.description')}</PageDescription>
-      </div>
-
+      innerClassName="flex min-h-full flex-col">
+      <SettingsPageHeader
+        title={
+          <>
+            <MonitorSmartphone size={16} />
+            {t('deviceConnections.title')}
+          </>
+        }
+        help={t('deviceConnections.description')}
+      />
       <Dialog open={endpointDialogOpen} onOpenChange={setEndpointDialogOpen}>
         <DialogContent closeLabel={t('common.close')}>
           <RemoteEndpointSettings
@@ -343,7 +344,6 @@ const DeviceConnectionsSettings: FC = () => {
               </div>
               {connectionAction}
             </StatusCard>
-
             <Sections>
               <SettingGroup theme={theme} className="mt-0 overflow-hidden p-0">
                 <SectionFields>
@@ -373,7 +373,6 @@ const DeviceConnectionsSettings: FC = () => {
                       </div>
                     </div>
                   </div>
-
                   {(invitation || claims.length > 0) && (
                     <div
                       role="alert"
@@ -539,7 +538,6 @@ const DeviceConnectionsSettings: FC = () => {
                   )}
                 </SectionFields>
               </SettingGroup>
-
               <SettingGroup theme={theme} className="mt-0 overflow-hidden p-0">
                 <SectionFields>
                   <SettingRowTitle>{t('deviceConnections.devices.title')}</SettingRowTitle>
@@ -614,10 +612,6 @@ const DeviceConnectionsSettings: FC = () => {
     </SettingsContentColumn>
   )
 }
-
-const PageDescription = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('mt-2 max-w-140 text-foreground-tertiary text-xs leading-5', className)} {...props} />
-)
 
 const StatusCard = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
   <div

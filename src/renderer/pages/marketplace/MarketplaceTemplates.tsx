@@ -2,7 +2,7 @@ import { FileText, Plus } from 'lucide-react'
 import { useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button, Dialog } from '@cherrystudio/ui'
+import { Button, Dialog, EmojiIcon } from '@cherrystudio/ui'
 import { ResourceCreateWizard } from '@renderer/components/resourceCatalog/dialogs/create'
 import { useAgentMutations } from '@renderer/hooks/resourceCatalog'
 import { useExitPresence } from '@renderer/hooks/useExitPresence'
@@ -98,9 +98,9 @@ export function MarketplaceTemplates({
             name={item.name}
             description={item.description || item.prompt.replace(/\s+/g, ' ')}
             icon={
-              <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-background-subtle text-2xl">
-                {item.avatar}
-              </span>
+              <div className="size-10 shrink-0">
+                <EmojiIcon emoji={item.avatar} fluid className="rounded-xl" />
+              </div>
             }
             onOpen={(event) => {
               trigger.current = event.currentTarget
@@ -145,9 +145,13 @@ export function MarketplaceTemplates({
                 description={selected.description || selected.name}
                 type={t('marketplace.type.agent')}
                 icon={
-                  <span className="flex size-14 shrink-0 items-center justify-center rounded-2xl border border-border-subtle bg-background text-3xl shadow-sm">
-                    {selected.avatar}
-                  </span>
+                  <div className="size-14 shrink-0">
+                    <EmojiIcon
+                      emoji={selected.avatar}
+                      fluid
+                      className="rounded-2xl border border-border-subtle bg-background shadow-sm"
+                    />
+                  </div>
                 }></MarketplaceDetailHeader>
               <MarketplaceDetailBody>
                 {selected.groups.length ? (

@@ -9,7 +9,7 @@ const Doubao = ({ variant, className, ...props }: CompoundIconProps) => {
 
 export const DoubaoIcon: CompoundIcon = /*#__PURE__*/ Object.assign(Doubao, {
   Avatar: DoubaoAvatar,
-  colorPrimary: '#000000'
+  colorPrimary: '#EDF5FF'
 })
 
 export default DoubaoIcon
