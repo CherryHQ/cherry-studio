@@ -69,6 +69,7 @@ import { getPromptBlockTitleKey, PiPromptField } from '../components/PiPromptFie
 import { PromptPolishActions } from '../components/PromptPolishActions'
 import { ReplyLanguageSelect } from '../components/ReplyLanguageSelect'
 import { AgentChannelsPage } from './AgentChannelsPage'
+import { AgentIdentityFiles } from './AgentIdentityFiles'
 import { AgentMemoryPanel, type AgentMemoryPanelHandle } from './AgentMemoryPanel'
 import { AgentTasksPage } from './AgentTasksPage'
 import { countSummary, type EditPage, type EditSubPage, resolveInitialEditPage } from './editPages'
@@ -609,7 +610,7 @@ function AgentEditDialogContent({
           section={promptSection}
           onSectionChange={setPromptSection}
           identityEditor={
-            open ? <AgentMemoryPanel key={resource.id} ref={memoryPanelRef} agent={resource} /> : undefined
+            open ? <AgentIdentityFiles key={resource.id} ref={memoryPanelRef} agentId={resource.id} /> : undefined
           }
           draft={{
             agentId: resource.id,

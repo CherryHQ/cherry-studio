@@ -1308,7 +1308,7 @@ describe('edit dialogs', () => {
     )
 
     expect(
-      await screen.findByRole('button', { name: /^library\.config\.agent\.prompt\.block\.agent_identity:/ })
+      await screen.findByRole('button', { name: /^library\.config\.agent\.prompt\.block\.agent_identity$/ })
     ).toBeInTheDocument()
     expect(ipcRequestMock).toHaveBeenCalledWith(
       'agent.system_prompt.preview',
@@ -1326,7 +1326,7 @@ describe('edit dialogs', () => {
     )
 
     // Guidance opens on its own page, titled with the block, inside the dialog.
-    fireEvent.click(screen.getByRole('button', { name: /^library\.config\.agent\.prompt\.block\.report_artifacts:/ }))
+    fireEvent.click(screen.getByRole('button', { name: /^library\.config\.agent\.prompt\.block\.report_artifacts$/ }))
     expect(
       screen.getByRole('heading', { name: 'library.config.agent.prompt.block.report_artifacts' })
     ).toBeInTheDocument()
@@ -2822,10 +2822,13 @@ describe('Agent configuration memory', () => {
       <AgentEditDialog open resource={{ ...AGENT, type: 'pi-durable' }} onOpenChange={vi.fn()} initialTab="prompt" />
     )
     await user.click(
-      await screen.findByRole('button', { name: /^library\.config\.agent\.prompt\.block\.agent_identity:/ })
+      await screen.findByRole('button', { name: /^library\.config\.agent\.prompt\.block\.agent_identity$/ })
     )
 
-    await user.click(await screen.findByRole('button', { name: 'Edit' }))
+    // Editable at once, one draft per file: a USER.md draft survives switching back to SOUL.md.
+    await user.click(await screen.findByRole('tab', { name: 'User profile' }))
+    await user.type(screen.getByRole('textbox', { name: 'Edit USER.md' }), ' and more')
+    await user.click(screen.getByRole('tab', { name: 'Persona' }))
     const editor = screen.getByRole('textbox', { name: 'Edit SOUL.md' })
     await user.clear(editor)
     await user.type(editor, 'Updated persona')
@@ -2838,8 +2841,8 @@ describe('Agent configuration memory', () => {
         expectedVersion: 'v1'
       })
     )
+    expect(ipcRequestMock.mock.calls.filter(([route]) => route === 'agent.memory.write')).toHaveLength(1)
 
-    await user.click(await screen.findByRole('button', { name: 'Edit' }))
     await user.type(screen.getByRole('textbox', { name: 'Edit SOUL.md' }), ' unsaved')
     await user.click(screen.getByRole('button', { name: 'Back' }))
     await user.click(

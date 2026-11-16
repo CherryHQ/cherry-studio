@@ -86,16 +86,16 @@ afterEach(() => {
 })
 
 const openSection = (user: ReturnType<typeof userEvent.setup>, name: string) =>
-  user.click(screen.getByRole('button', { name: new RegExp(`^${name}:`) }))
+  user.click(screen.getByRole('button', { name: new RegExp(`^${name}(:|$)`) }))
 
 describe('PiPromptField', () => {
-  it('leads with the Agent prompt and lists the other blocks, each with how it is produced', async () => {
+  it('leads with the Agent prompt and lists the other blocks, marking those it cannot change', async () => {
     answerWithDraft()
     render(<Harness initial="Review code." withOverrides />)
 
-    expect(await screen.findByRole('button', { name: `${REPORT}: 自动生成` })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '技能: 自动更新' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '回复语言: 自动更新' })).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: REPORT })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '技能: 只读' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '回复语言: 只读' })).toBeInTheDocument()
     expect(screen.getAllByRole('textbox')).toEqual([screen.getByRole('textbox', INSTRUCTIONS)])
     expect(screen.getByRole('textbox', INSTRUCTIONS)).toHaveValue('Review code.')
   })
@@ -104,7 +104,7 @@ describe('PiPromptField', () => {
     answerWithDraft()
     const user = userEvent.setup()
     render(<Harness />)
-    await screen.findByRole('button', { name: '技能: 自动更新' })
+    await screen.findByRole('button', { name: '技能: 只读' })
 
     await openSection(user, '技能')
 
@@ -121,7 +121,7 @@ describe('PiPromptField', () => {
     answerWithDraft()
     const user = userEvent.setup()
     render(<Harness />)
-    await screen.findByRole('button', { name: `${REPORT}: 自动生成` })
+    await screen.findByRole('button', { name: `${REPORT}: 只读` })
 
     await openSection(user, REPORT)
 
@@ -133,7 +133,7 @@ describe('PiPromptField', () => {
     answerWithDraft()
     const user = userEvent.setup()
     render(<Harness withOverrides />)
-    await screen.findByRole('button', { name: `${REPORT}: 自动生成` })
+    await screen.findByRole('button', { name: REPORT })
     await openSection(user, REPORT)
     const block = screen.getByRole('textbox', { name: REPORT })
     expect(block).toHaveValue(GENERATED_REPORT)
@@ -152,7 +152,7 @@ describe('PiPromptField', () => {
     answerWithDraft()
     const user = userEvent.setup()
     render(<Harness withOverrides />)
-    await screen.findByRole('button', { name: `${REPORT}: 自动生成` })
+    await screen.findByRole('button', { name: REPORT })
     await openSection(user, REPORT)
     await user.type(screen.getByRole('textbox', { name: REPORT }), ' More.')
 
@@ -182,7 +182,7 @@ describe('PiPromptField', () => {
     fetchGenerate.mockResolvedValue('## Reporting deliverables\n\nReport every final file.')
     const user = userEvent.setup()
     render(<Harness withOverrides initial="Review code." />)
-    await screen.findByRole('button', { name: `${REPORT}: 自动生成` })
+    await screen.findByRole('button', { name: REPORT })
     await openSection(user, REPORT)
 
     await user.click(screen.getByRole('button', { name: /润色提示词/ }))
@@ -200,7 +200,7 @@ describe('PiPromptField', () => {
     answerWithDraft()
     const user = userEvent.setup()
     const { rerender } = render(<Harness />)
-    await screen.findByRole('button', { name: '技能: 自动更新' })
+    await screen.findByRole('button', { name: '技能: 只读' })
     await openSection(user, '技能')
     expect(screen.getByText('skills=')).toBeInTheDocument()
 
@@ -220,7 +220,7 @@ describe('PiPromptField', () => {
     answerWithDraft()
     await user.click(screen.getByRole('button', { name: '重试' }))
 
-    expect(await screen.findByRole('button', { name: '技能: 自动更新' })).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: '技能: 只读' })).toBeInTheDocument()
     expect(screen.queryByText(LOAD_FAILED)).not.toBeInTheDocument()
   })
 })

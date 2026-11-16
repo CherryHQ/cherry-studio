@@ -35,7 +35,7 @@ const FILE_LABEL_KEYS: Record<AgentMemoryFileKey, string> = {
 /** Mirrors AGENT_MEMORY_MAX_WRITE_CHARS in the main-side schema (kept local so zod stays out of the renderer bundle). */
 const MAX_WRITE_CHARS = 1_000_000
 
-function useMemorySnapshot(agentId: string) {
+export function useMemorySnapshot(agentId: string) {
   const [snapshot, setSnapshot] = useState<AgentMemorySnapshot | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(false)
