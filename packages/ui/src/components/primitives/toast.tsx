@@ -20,7 +20,6 @@ export interface ToastConfig {
   secondaryAction?: ToastAction
   title?: React.ReactNode
   description?: React.ReactNode
-  details?: string
   icon?: React.ReactNode
   key?: string | number
   timeout?: number
@@ -48,7 +47,6 @@ export interface ToastRecord extends ToastConfig {
 
 export interface ToastLabels {
   close: string
-  details?: string
   error: React.ReactNode
   errorDescription: React.ReactNode
   loading: React.ReactNode
@@ -69,7 +67,6 @@ export type ToastStore = ReturnType<typeof createToastStore>
 const DEFAULT_TIMEOUT = 3000
 const DEFAULT_TOAST_LABELS: ToastLabels = {
   close: 'Close',
-  details: 'View details',
   error: 'Error',
   errorDescription: 'An error occurred',
   loading: 'Loading...',
@@ -437,14 +434,6 @@ const ToastItem = ({
             {toast.description && <div className="min-w-0 flex-1 break-words">{toast.description}</div>}
             {!hasActions && extraSlot}
           </div>
-        )}
-        {toast.details && (
-          <details className="mt-1 text-xs text-muted-foreground" onClick={(event) => event.stopPropagation()}>
-            <summary className="cursor-pointer" title={toast.details}>
-              {labels.details ?? DEFAULT_TOAST_LABELS.details}
-            </summary>
-            <pre className="mt-1 max-h-40 overflow-auto font-mono break-words whitespace-pre-wrap">{toast.details}</pre>
-          </details>
         )}
         {hasActions && (
           <div className="mt-2.5 flex flex-wrap items-center gap-2">

@@ -25,7 +25,6 @@ export default function ToastHost() {
   const labels = useMemo(
     () => ({
       close: t('common.close'),
-      details: t('error.diagnosis.view_details'),
       error: t('common.error'),
       errorDescription: t('error.unknown'),
       loading: t('common.loading'),

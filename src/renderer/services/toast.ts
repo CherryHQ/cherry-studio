@@ -27,7 +27,6 @@ import { openExternalWebsite } from './website'
  */
 const resolveToastLabels = (): Partial<ToastLabels> => ({
   close: i18n.t('common.close'),
-  details: i18n.t('error.diagnosis.view_details'),
   error: i18n.t('common.error'),
   errorDescription: i18n.t('error.unknown'),
   loading: i18n.t('common.loading'),
