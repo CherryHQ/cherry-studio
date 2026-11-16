@@ -120,7 +120,7 @@ describe('HeartbeatEditorDialog', () => {
     )
   })
 
-  it('keeps the latest execution message and the status query error', async () => {
+  it('shows a failed latest run by its translated summary and keeps the status query error', async () => {
     const user = userEvent.setup()
     const runError = { code: 'failed', message: 'runner exploded', retryable: false }
     MockUseDataApiUtils.mockQueryData('/agents/:agentId/heartbeat', {
@@ -133,13 +133,14 @@ describe('HeartbeatEditorDialog', () => {
       } as JobSnapshot
     })
     const { rerender } = render(<HeartbeatEditorDialog agentId="a1" enabled onOpenChange={vi.fn()} />)
-    expect(await screen.findByText('runner exploded')).toBeInTheDocument()
+    expect(await screen.findByText(en['agent.tasks.logs.runFailed'])).toBeInTheDocument()
+    expect(screen.queryByText('runner exploded')).not.toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: en['common.detail'] }))
     await waitFor(() =>
       expect(detailMocks.open).toHaveBeenCalledWith(
         expect.objectContaining({
           error: runError,
-          message: en['agent.tasks.logs.failed'],
+          message: en['agent.tasks.logs.runFailed'],
           source: 'agent.heartbeat',
           operation: 'heartbeat.run',
           recordId: 'run-9'

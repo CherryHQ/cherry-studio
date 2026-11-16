@@ -516,6 +516,7 @@
   "agent.tasks.logs.loadError": "Не удалось загрузить историю запусков",
   "agent.tasks.logs.result": "Результат",
   "agent.tasks.logs.runAt": "Запущено в",
+  "agent.tasks.logs.runFailed": "Этот запуск завершился ошибкой",
   "agent.tasks.logs.running": "Бежит...",
   "agent.tasks.logs.search": "Искать журналы...",
   "agent.tasks.logs.status": "Статус",

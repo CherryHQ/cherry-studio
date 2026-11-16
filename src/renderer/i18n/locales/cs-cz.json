@@ -516,6 +516,7 @@
   "agent.tasks.logs.loadError": "Nepodařilo se načíst historii spuštění",
   "agent.tasks.logs.result": "Výsledek",
   "agent.tasks.logs.runAt": "Čas spuštění",
+  "agent.tasks.logs.runFailed": "Toto spuštění selhalo",
   "agent.tasks.logs.running": "Probíhá...",
   "agent.tasks.logs.search": "Hledat v záznamech...",
   "agent.tasks.logs.status": "Stav",

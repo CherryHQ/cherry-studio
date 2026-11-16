@@ -530,6 +530,7 @@
   "agent.tasks.logs.loadError": "Nie udało się załadować historii uruchomień",
   "agent.tasks.logs.result": "Wynik",
   "agent.tasks.logs.runAt": "Uruchomiono o",
+  "agent.tasks.logs.runFailed": "To uruchomienie nie powiodło się",
   "agent.tasks.logs.running": "Wykonywanie...",
   "agent.tasks.logs.search": "Szukaj dzienników...",
   "agent.tasks.logs.status": "Status",

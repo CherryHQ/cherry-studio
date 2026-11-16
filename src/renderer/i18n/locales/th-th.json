@@ -516,6 +516,7 @@
   "agent.tasks.logs.loadError": "ไม่สามารถโหลดประวัติการรัน",
   "agent.tasks.logs.result": "ผลลัพธ์",
   "agent.tasks.logs.runAt": "รันเมื่อ",
+  "agent.tasks.logs.runFailed": "การเรียกใช้ครั้งนี้ล้มเหลว",
   "agent.tasks.logs.running": "กำลังรัน...",
   "agent.tasks.logs.search": "ค้นหา log...",
   "agent.tasks.logs.status": "สถานะ",
