@@ -1,13 +1,62 @@
 import { JSONRPC_VERSION, ProtocolErrorCode } from '@modelcontextprotocol/server'
+import { APICallError } from 'ai'
 import { ElysiaCustomStatusResponse, type ErrorHandler, ValidationError } from 'elysia'
 
 import { loggerService } from '@logger'
 import { isDev } from '@main/core/platform'
 import { DataApiError } from '@shared/data/api/errors'
+import type { SerializedError } from '@shared/types/error'
 
 import type { OutputFormat } from './adapters'
 
 const logger = loggerService.withContext('ApiGatewayErrors')
+
+const providerDetails = Symbol('internal provider details')
+type ProviderDetails = {
+  body: Record<string, unknown>
+  error: Record<string, unknown>
+  headers: Record<string, string>
+}
+type InternalError = SerializedError & { [providerDetails]: ProviderDetails }
+
+function record(value: unknown): Record<string, unknown> | undefined {
+  return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : undefined
+}
+
+/** Retain provider response details only for authenticated in-process runtime requests. */
+export function internalGatewayError(error: unknown, fallback: SerializedError): SerializedError {
+  if (!(error instanceof Error) && !APICallError.isInstance(error)) return fallback
+  const api = APICallError.isInstance(error) ? error : undefined
+  let body: Record<string, unknown> = {}
+  try {
+    body = record(JSON.parse(api?.responseBody ?? '')) ?? {}
+  } catch {
+    body = record(api?.data) ?? (api?.responseBody ? { message: api.responseBody } : {})
+  }
+  const cause = error.cause instanceof Error ? error.cause : undefined
+  const causeCode = record(cause)?.code
+  const headers = Object.fromEntries(
+    Object.entries(api?.responseHeaders ?? {}).filter(([name]) =>
+      /^(retry-after|request-id|x-request-id|(?:x-|anthropic-)?ratelimit-[a-z0-9-]+)$/i.test(name)
+    )
+  )
+  const detail = {
+    ...(causeCode !== undefined && { code: causeCode }),
+    ...(record(body.error) ?? body),
+    ...(cause && {
+      cause: { name: cause.name, message: cause.message, ...(typeof causeCode === 'string' && { code: causeCode }) }
+    })
+  }
+  return {
+    ...fallback,
+    message: error.message,
+    [providerDetails]: { body, error: detail, headers }
+  }
+}
+
+function detailsOf(error: unknown): ProviderDetails | undefined {
+  return error !== null && typeof error === 'object' ? (error as InternalError)[providerDetails] : undefined
+}
 
 type GatewayErrorContext = Parameters<ErrorHandler<{ DATA_API: DataApiError }>>[0]
 
@@ -134,11 +183,18 @@ function normalizeProviderError(error: unknown): {
   type?: string
   category?: string
 } {
-  const { status, message, type, name, code, category } = extractError(error)
+  const extracted = extractError(error)
+  const details = detailsOf(error)
+  const { status, name, code, category } = extracted
+  const message = typeof details?.error.message === 'string' ? details.error.message : extracted.message
+  const type = typeof details?.error.type === 'string' ? details.error.type : extracted.type
   if (status !== undefined)
     return {
       statusCode: status >= 200 && status < 300 ? 502 : status,
-      message: safeMessage(status, message),
+      message:
+        !details && status === 400 && category === 'context_length'
+          ? `context_length_exceeded: ${safeMessage(status, message)}`
+          : safeMessage(status, message),
       type,
       category
     }
@@ -153,7 +209,7 @@ function normalizeProviderError(error: unknown): {
   if (name === 'AbortError' || name === 'ResponseAborted' || code === 'ABORT_ERR') {
     return { statusCode: 504, message: 'Upstream stream aborted', type }
   }
-  return { statusCode: 500, message: safeMessage(undefined, message), type }
+  return { statusCode: 500, message: details && message ? message : safeMessage(undefined, message), type }
 }
 
 /** Anthropic error `type` for a status (the Anthropic vocabulary uses `api_error` for 5xx). */
@@ -175,15 +231,27 @@ function transformAnthropicError(error: unknown): {
   statusCode: number
   errorResponse: { type: 'error'; error: { type: string; message: string; requestId?: string } }
 } {
-  const { statusCode, message, type } = normalizeProviderError(error)
+  const { statusCode, message, type, category } = normalizeProviderError(error)
+  const details = detailsOf(error)
   const errorType = type ?? anthropicTypeForStatus(statusCode)
+  const clientMessage =
+    details &&
+    statusCode === 400 &&
+    category === 'context_length' &&
+    !message.toLowerCase().includes('prompt is too long')
+      ? `Prompt is too long: ${message}`
+      : message
   const requestId =
     error !== null && typeof error === 'object' && typeof (error as { request_id?: unknown }).request_id === 'string'
       ? (error as { request_id: string }).request_id
       : undefined
   return {
     statusCode,
-    errorResponse: { type: 'error', error: { type: errorType, message, requestId } }
+    errorResponse: {
+      ...details?.body,
+      type: 'error',
+      error: { ...details?.error, type: errorType, message: clientMessage, ...(requestId && { requestId }) }
+    }
   }
 }
 
@@ -205,15 +273,29 @@ const openaiTypeAndCodeForStatus = (status: number): { type: string; code: strin
  */
 function transformOpenAiError(error: unknown): {
   statusCode: number
-  errorResponse: { error: { message: string; type: string; code: string } }
+  errorResponse: { error: { message: string; type: string; code: string | null } }
 } {
   const { statusCode, message, category } = normalizeProviderError(error)
+  const details = detailsOf(error)
   // OpenAI's own quota code: clients such as Pi treat it as final instead of retrying a rate limit.
   const { type, code } =
     category === 'quota'
       ? { type: 'insufficient_quota', code: 'insufficient_quota' }
-      : openaiTypeAndCodeForStatus(statusCode)
-  return { statusCode, errorResponse: { error: { message, type, code } } }
+      : statusCode === 400 && category === 'context_length'
+        ? { type: 'invalid_request_error', code: 'context_length_exceeded' }
+        : openaiTypeAndCodeForStatus(statusCode)
+  return {
+    statusCode,
+    errorResponse: {
+      ...details?.body,
+      error: {
+        ...details?.error,
+        message,
+        type: typeof details?.error.type === 'string' ? details.error.type : type,
+        code: typeof details?.error.code === 'string' || details?.error.code === null ? details.error.code : code
+      }
+    }
+  }
 }
 
 /**
@@ -227,7 +309,18 @@ function transformGoogleError(error: unknown): {
   errorResponse: { error: { code: number; message: string; status: string } }
 } {
   const { statusCode, message } = normalizeProviderError(error)
-  return { statusCode, errorResponse: googleEnvelope(statusCode, message) }
+  const details = detailsOf(error)
+  return {
+    statusCode,
+    errorResponse: {
+      ...details?.body,
+      error: {
+        ...details?.error,
+        ...(typeof details?.error.code === 'string' && { provider_code: details.error.code }),
+        ...googleEnvelope(statusCode, message).error
+      }
+    }
+  }
 }
 
 /**
@@ -252,7 +345,8 @@ export function buildStreamErrorFrame(outputFormat: OutputFormat, error: unknown
     // Responses streams use named events; `type: 'error'` is the event discriminator,
     // distinct from the OpenAI error `type` (carried as part of the message envelope).
     const { message, code } = errorResponse.error
-    return `event: error\ndata: ${JSON.stringify({ type: 'error', code, message })}\n\n`
+    const details = detailsOf(error)
+    return `event: error\ndata: ${JSON.stringify({ ...details?.body, type: 'error', code, message, ...(details && { error: errorResponse.error }) })}\n\n`
   }
   return `data: ${JSON.stringify(errorResponse)}\n\n`
 }
@@ -438,6 +532,8 @@ export function gatewayErrorHandler(ctx: GatewayErrorContext) {
   if (ctx.code === 'PARSE' && ctx.error.cause instanceof ElysiaCustomStatusResponse) {
     return ctx.error.cause
   }
+  const details = detailsOf(ctx.error)
+  if (details && ctx.set) Object.assign(ctx.set.headers, details.headers)
   switch (dialectForPath(ctx.request)) {
     case 'anthropic':
       return anthropicErrorHandler(ctx)

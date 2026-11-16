@@ -1,5 +1,5 @@
-# Bilingual-pair consistency record (docs/i18n/README.md).
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
 # After editing either side, update its counterpart and re-record with:
 #   pnpm docs:check-pairing --write .agents/notes/proposed/architecture/2026-10-18-agent-behavior-package.md
-2026-10-18-agent-behavior-package.md: e5d4125619d59ff61dc6f42a1fe8440cc9ce48fe
-2026-10-18-agent-behavior-package.zh.md: 7319f488baaf7c56cb0ae8b1b4ebc2f391ecb6f3
+2026-10-18-agent-behavior-package.md: 5cd98380d9bc594193972762e504365ec088d5c4
+2026-10-18-agent-behavior-package.zh.md: b8eacdb3ef3c2ac3b017fc2fab93d3b14cdf5c23

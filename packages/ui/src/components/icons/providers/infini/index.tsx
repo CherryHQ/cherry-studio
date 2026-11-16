@@ -9,7 +9,7 @@ const Infini = ({ variant, className, ...props }: CompoundIconProps) => {
 
 export const InfiniIcon: CompoundIcon = /*#__PURE__*/ Object.assign(Infini, {
   Avatar: InfiniAvatar,
-  colorPrimary: '#6A3CFD'
+  colorPrimary: '#f2edff'
 })
 
 export default InfiniIcon
