@@ -423,5 +423,3 @@ export const DOCTOR_TOOLS: readonly DoctorTool[] = [
   PROBE_ENDPOINT_TOOL,
   DOCTOR_FIX_TOOL
 ]
-
-export const DOCTOR_TOOL_NAMES = DOCTOR_TOOLS.map((tool) => tool.name)

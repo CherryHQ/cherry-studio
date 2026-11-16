@@ -1,5 +1,3 @@
-import type { TaskSelection } from './cases'
-
 export const PLATFORMS = ['macos', 'windows'] as const
 export const RUN_MODES = ['branch', 'tag'] as const
 export const CASE_STATUSES = ['pending', 'running', 'passed', 'failed', 'blocked', 'not_applicable'] as const
@@ -7,7 +5,6 @@ export type Platform = (typeof PLATFORMS)[number]
 export type RunMode = (typeof RUN_MODES)[number]
 export type CaseStatus = (typeof CASE_STATUSES)[number]
 export type TestProfile = 'authenticated' | 'clean' | 'translation-history'
-export type ProviderMode = 'real' | 'mock'
 
 export interface CaseResult {
   id: string
@@ -26,10 +23,10 @@ export interface RunMetadata {
   platform: Platform
   ref: string
   runner: string
-  task: TaskSelection
+  task: string
   artifactName?: string
   artifactSha256?: string
-  providerMode?: ProviderMode
+  providerMode?: 'mock'
   mockVersion?: string
 }
 
@@ -48,19 +45,7 @@ export interface RegressionRun {
   phases: Record<string, PhaseResult>
 }
 
-export type RunVerdict =
-  | 'mock_pass'
-  | 'mock_failed'
-  | 'mock_blocked'
-  | 'mock_not_applicable'
-  | 'development_pass'
-  | 'development_failed'
-  | 'development_blocked'
-  | 'development_not_applicable'
-  | 'release_pass'
-  | 'release_failed'
-  | 'release_blocked'
-  | 'release_not_applicable'
+export type RunVerdict = 'mock_pass' | 'mock_failed' | 'mock_blocked' | 'mock_not_applicable'
 
 export interface AggregateReport {
   verdict: RunVerdict

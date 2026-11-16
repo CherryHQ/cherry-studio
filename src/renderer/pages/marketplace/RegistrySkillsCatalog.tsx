@@ -1,4 +1,4 @@
-import { Check, Download, Loader2, Plus, Sparkles } from 'lucide-react'
+import { Check, Download, Loader2, Plus } from 'lucide-react'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import useSWRInfinite from 'swr/infinite'
@@ -14,6 +14,7 @@ import { parseSkillSourceUrl } from '@shared/utils/skillMarketplace'
 
 import { MarketplaceCard, MarketplaceCardAction, MarketplaceGrid, MarketplaceLoadState } from './MarketplaceComponents'
 import { MarketplaceSkillDialog } from './MarketplaceSkillDialog'
+import { MarketplaceSkillIcon } from './MarketplaceSkillIcon'
 
 export const SKILL_REGISTRY_SOURCES = ['skills.sh', 'claude-plugins.dev'] as const
 export type SkillRegistrySource = (typeof SKILL_REGISTRY_SOURCES)[number]
@@ -179,11 +180,7 @@ export function RegistrySkillsCatalog({
             <MarketplaceCard
               name={item.name}
               description={item.description || item.slug.slice(0, item.slug.lastIndexOf('/'))}
-              icon={
-                <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-background-subtle">
-                  <Sparkles className="size-5 text-muted-foreground" />
-                </span>
-              }
+              icon={<MarketplaceSkillIcon skill={{ icon: null, sourceUrl: item.sourceUrl }} />}
               onOpen={(event) => {
                 trigger.current = event.currentTarget
                 setSelected(item)

@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { PageSidePanel } from '@cherrystudio/ui'
+import { PageSidePanel, HelpTooltip } from '@cherrystudio/ui'
 
 interface ProviderSettingsDrawerProps {
   open: boolean
@@ -41,8 +41,10 @@ export default function ProviderSettingsDrawer({
     description || titleActions ? (
       <div className="flex min-w-0 flex-1 items-center gap-3">
         <div className="flex min-w-0 flex-1 flex-col gap-1">
-          <span className="text-base font-semibold text-foreground">{title}</span>
-          {description ? <span className="text-xs leading-tight text-muted-foreground">{description}</span> : null}
+          <span className="flex items-center gap-1.5 text-base font-semibold text-foreground">
+            {title}
+            {description && <HelpTooltip content={description} />}
+          </span>
         </div>
         {titleActions ? <div className="flex shrink-0 items-center">{titleActions}</div> : null}
       </div>

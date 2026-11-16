@@ -370,8 +370,13 @@ export class SelectionAgentWindowService extends BaseService {
     }
 
     if (!isFullScreen) {
+      // A pooled panel can be left at normal level by the renderer's unpin request, and an inactive
+      // app's normal-level panel can stay behind the active app's windows (#24622).
+      const pinned = window.isAlwaysOnTop()
+      window.setAlwaysOnTop(true)
       getSelectionNativePanel().moveToActiveSpace(window.getNativeWindowHandle())
       window.show()
+      if (!pinned) window.setAlwaysOnTop(false)
       return
     }
 
