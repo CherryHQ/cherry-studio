@@ -388,7 +388,8 @@ describe('session MCP skills through real protocol and persistence', () => {
   function authorizer(
     approved: boolean,
     onRequest?: (approvalId: string) => void,
-    mode: 'default' | 'auto' | 'bypassPermissions' = 'default'
+    mode: 'default' | 'auto' | 'bypassPermissions' = 'default',
+    child = false
   ) {
     const approval: PiApprovalContext = {
       sessionId,
@@ -415,7 +416,7 @@ describe('session MCP skills through real protocol and persistence', () => {
       let gate!: GateHandlers
       const host = createScriptedHost({
         settings: {
-          permissionMode: mode,
+          permissionMode: child ? 'bypassPermissions' : mode,
           attendance: 'stream',
           goalDefaults: { maxGoalRounds: 1, maxGoalRoundsCeiling: 50, blockedAfter: 3 },
           autonomy: 'auto',
@@ -468,6 +469,43 @@ describe('session MCP skills through real protocol and persistence', () => {
       return undefined
     }
   }
+
+  it.each(['bash', 'codemode', 'powershell'])(
+    'keeps remote-skill approval for child %s calls unless the root has Full Access',
+    async (toolName) => {
+      await skills.load(sessionId, serverId, fixture.uri)
+      const call = { toolName, toolCallId: 'child-execute', input: { command: 'python ./scripts/task.py' } }
+      expect(await authorizer(false, undefined, 'default', true)(call)).toMatchObject({ block: true })
+      expect(
+        await authorizer(true, undefined, 'default', true)({ ...call, toolCallId: 'child-approved' })
+      ).toBeUndefined()
+      expect(await authorizer(false, undefined, 'auto', true)({ ...call, toolCallId: 'child-auto' })).toMatchObject({
+        block: true
+      })
+      let requested = false
+      expect(
+        await authorizer(
+          false,
+          () => {
+            requested = true
+          },
+          'bypassPermissions',
+          true
+        )({ ...call, toolCallId: 'full-access' })
+      ).toBeUndefined()
+      expect(requested).toBe(false)
+    }
+  )
+
+  it('cancels pending PowerShell execution when discovery replaces the loaded skill', async () => {
+    await skills.load(sessionId, serverId, fixture.uri)
+    const approval = skills.toolApproval(sessionId, 'powershell', { command: 'python ./scripts/task.py' }, 'auto')!
+    fixture.files.set('skill://reports/references/facts.txt', 'replacement')
+    fixture.refresh()
+    await skills.get(sessionId, serverId, fixture.uri)
+    expect(approval.signal.aborted).toBe(true)
+    expect(() => approval.approve()).toThrow()
+  })
 
   it('requires per-call code execution approval in both runtimes in default mode', async () => {
     await skills.load(sessionId, serverId, fixture.uri)

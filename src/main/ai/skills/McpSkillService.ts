@@ -51,6 +51,7 @@ const manifestOf = (entry: McpSkillEntry) => ({
 const executionTools = new Set([
   'Bash',
   'bash',
+  'powershell',
   'codemode',
   'Skill',
   'Agent',

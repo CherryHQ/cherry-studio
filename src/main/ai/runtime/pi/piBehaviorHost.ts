@@ -222,6 +222,7 @@ export async function createPiInteractionPorts(
             !!denied ||
             !!(skillApproval && skillApproval.signal.aborted) ||
             !!skills.guardTool(input.sessionId, tool.name),
+          nonBypassable: facts.nonBypassable || !!skillApproval,
           approvalRequired: facts.approvalRequired || !!skillApproval
         }
       },
