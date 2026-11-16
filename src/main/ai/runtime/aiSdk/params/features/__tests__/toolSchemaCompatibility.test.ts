@@ -1286,7 +1286,19 @@ describe('toolSchemaCompatibilityFeature', () => {
       provider: makeProvider({ id: 'aionly', presetProviderId: 'aionly' })
     })
     expect(result.tools).toHaveLength(1)
-    expect(result.tools?.[0]).toBe(params.tools?.[0])
+    const transformed = result.tools?.[0]
+    if (transformed?.type !== 'function') throw new Error('expected a transformed function tool')
+    // Since #24664, propertyNames is stripped for recognizable Gemini identities on
+    // chat-completions relays; every other constraint passes through untouched.
+    expect(transformed.inputSchema).toEqual({
+      type: 'object',
+      properties: {
+        count: { type: 'integer', enum: [1, 2] },
+        flag: { const: true },
+        values: { type: 'array' }
+      },
+      additionalProperties: false
+    })
   })
 
   it('keeps propertyNames and additionalProperties out of Gemini wire declarations', async () => {
