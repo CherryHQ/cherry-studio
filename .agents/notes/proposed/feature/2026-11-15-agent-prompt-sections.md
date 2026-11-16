@@ -10,12 +10,12 @@ The System Prompt page of a Pi Durable Agent (`PiPromptField`) shows the assembl
 
 ## Proposal
 
-- The page leads with the Agent System Prompt and lists the other blocks by name, in the order the runtime sends them, each with how it is produced (auto-generated, edited, or updates automatically). A block opens on its own page, titled in the dialog header, to edit or read.
+- The page leads with the Agent System Prompt and lists the other blocks by name, in the order the runtime sends them. A row is marked only when that matters: Edited for a block the user changed, Read-only for one that cannot be changed there. A block opens on its own page, titled in the dialog header, to edit or read.
 - **Guidance blocks** (instruction precedence, reporting deliverables, creating Agents and changing settings, bootstrap, memories, citations) can be edited. An edit is saved for that Agent as an override in `configuration.prompt_overrides`, keyed by block. An edited block is marked as changed and offers Restore auto-generated, which removes the override.
 - An override replaces only a block the runtime would generate for the current settings. When a setting removes the block (for example, citations when no lookup tool is enabled), the override is kept but not sent.
 - **The Agent System Prompt block** holds the Agent's instructions. For a built-in Agent without its own instructions, it shows the built-in prompt; editing it saves custom instructions, and Restore built-in prompt clears them so the built-in prompt applies again.
 - **AI optimize** is offered on every editable block and rewrites only that block with the default model; the result can be undone, as with the existing prompt polish.
-- **The identity block** opens the Agent's memory editor, the same one as the Memory page, so SOUL.md, USER.md, and FACT.md are edited in place. The block keeps following the files, and an unsaved file edit asks before Back leaves the block.
+- **The identity block** edits SOUL.md, USER.md, and FACT.md directly: one tab per file, editable at once, with one draft per file and an explicit Save. The block keeps following the files, and an unsaved file edit asks before Back leaves the block.
 - **Other live blocks** stay read-only with a caption naming what keeps them current: the skills list, workspace instructions, and MCP server instructions change with skills, the workspace, and MCP servers. The reply language block follows the reply language setting.
 - Overrides apply to Pi Durable Agents only, the runtime with a full prompt preview. Claude Code and Pi Agents keep only their instructions editable.
 - The preview route returns each block's key, kind, and generated text, instead of the text before and after the instructions, so the page can show generated text, overrides, and resets per block.
@@ -38,7 +38,7 @@ The System Prompt page of a Pi Durable Agent (`PiPromptField`) shows the assembl
 - AC7 — Claude Code and Pi Agents ignore saved overrides and keep their instructions-only prompt page (verification: unit; owner: implementer)
 - AC8 — The new block titles, captions, and actions exist in every locale (verification: renderer; owner: implementer)
 - AC9 — In the app, an edited guidance block of a Pi Durable Agent appears in its prompt and Restore auto-generated brings back the generated text (verification: Electron; owner: implementer)
-- AC10 — The identity block edits SOUL.md, USER.md, and FACT.md through the memory editor, and Back with an unsaved file edit asks before leaving (verification: renderer, Electron; owner: implementer)
+- AC10 — The identity block edits SOUL.md, USER.md, and FACT.md directly, with one draft per file saved explicitly, and Back with an unsaved file edit asks before leaving (verification: renderer, Electron; owner: implementer)
 
 ## Risks
 
