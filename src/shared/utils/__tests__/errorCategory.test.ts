@@ -516,3 +516,13 @@ describe('classifyErrorCategory invalid inline image', () => {
     expect(classifyErrorCategory({ text, status: 429 })).toBe('rate_limit')
   })
 })
+
+describe('request payload size rejection', () => {
+  it.each([undefined, 400, 413])('recognizes the reported wording with status %s', (status) => {
+    expect(classifyErrorCategory({ text: 'Request payload is too large', status })).toBe('payload')
+  })
+
+  it('does not treat a large response as an oversized request', () => {
+    expect(classifyErrorCategory({ text: 'Response is too large' })).toBe('unknown')
+  })
+})

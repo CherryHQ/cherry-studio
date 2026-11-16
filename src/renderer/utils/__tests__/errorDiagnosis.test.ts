@@ -65,6 +65,18 @@ describe('ErrorDiagnosisService', () => {
   })
 
   describe('diagnoseError', () => {
+    it('provides request-size recovery guidance for the reported payload rejection', async () => {
+      mockFetchGenerate.mockResolvedValue(
+        JSON.stringify({ summary: 'Request too large', category: 'payload', explanation: 'Too large', steps: [] })
+      )
+      await diagnoseError(makeError({ message: 'Request payload is too large' }), 'en')
+      const prompt = mockFetchGenerate.mock.calls[0][0].prompt
+      const context = prompt.split('## Context\n')[1]?.split('\n')[0]
+      expect(context).toContain('request payload is too large')
+      expect(context).toContain('removing large attachments')
+      expect(JSON.parse(mockFetchGenerate.mock.calls[0][0].content).message).toBe('Request payload is too large')
+    })
+
     it.each([
       [
         `service_tier auto is not available for this org. You can check your plan at

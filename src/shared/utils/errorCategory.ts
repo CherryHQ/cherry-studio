@@ -222,7 +222,7 @@ export function classifyErrorCategory({ text, status, finishReason }: ErrorCateg
   }
 
   // Payload too large (413)
-  if (status === 413 || msg.includes('payload too large') || msg.includes('request entity too large')) {
+  if (status === 413 || /payload (?:is )?too large/.test(msg) || msg.includes('request entity too large')) {
     return 'payload'
   }
 

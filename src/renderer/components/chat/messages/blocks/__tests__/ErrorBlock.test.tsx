@@ -421,6 +421,20 @@ required service tier.`
     expect(screen.queryByText('error.diagnosis.rate_limit')).toBeNull()
   })
 
+  it('shows payload guidance and preserves the status-less provider rejection', () => {
+    render(
+      <ErrorBlock
+        partId="message-1-part-0"
+        error={{ name: 'Error', message: 'Request payload is too large', stack: null }}
+        message={message}
+      />
+    )
+
+    expect(screen.getByText('error.diagnosis.payload')).toBeInTheDocument()
+    expect(screen.getByText('Request payload is too large')).toBeInTheDocument()
+    expect(screen.queryByText('error.diagnosis.unknown')).toBeNull()
+  })
+
   it('shows a useful status when a proxy returns an HTML 413 response', () => {
     render(
       <ErrorBlock
