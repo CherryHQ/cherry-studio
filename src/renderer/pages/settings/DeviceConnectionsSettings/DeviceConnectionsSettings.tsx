@@ -9,7 +9,6 @@ import { useTranslation } from 'react-i18next'
 import { directEndpointUrl } from '@cherrystudio/remote-protocol'
 import type { PairingQr, RemoteCapability } from '@cherrystudio/remote-protocol'
 import {
-  Alert,
   Badge,
   Button,
   Checkbox,
@@ -32,6 +31,7 @@ import { usePersistCache, useSharedCacheValue } from '@data/hooks/useCache'
 import { useDataChange, useMutation, useQuery } from '@data/hooks/useDataApi'
 import { usePreference } from '@data/hooks/usePreference'
 import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
+import { ErrorNotice } from '@renderer/components/ErrorNotice'
 import {
   SettingGroup,
   SettingRowTitle,
@@ -143,7 +143,7 @@ const DeviceConnectionsSettings: FC = () => {
       if (requestId === invitationRequestId.current && Date.parse(result.expiresAt) > Date.now()) setInvitation(result)
     } catch (error) {
       if (requestId === invitationRequestId.current) {
-        toast.error(t('deviceConnections.pairing.error') + ((error as Error).message || error))
+        toast.error({ title: t('deviceConnections.pairing.error'), cause: error })
       }
     } finally {
       if (requestId === invitationRequestId.current) setIsCreatingInvitation(false)
@@ -183,7 +183,7 @@ const DeviceConnectionsSettings: FC = () => {
       }
       clearInvitation()
     } catch (error) {
-      toast.error(t('deviceConnections.claims.error') + ((error as Error).message || error))
+      toast.error({ title: t('deviceConnections.claims.error'), cause: error })
     } finally {
       setDecidingClaimId(undefined)
     }
@@ -212,7 +212,7 @@ const DeviceConnectionsSettings: FC = () => {
     try {
       await ipcApi.request('api_gateway.lan.set_enabled', { enabled })
     } catch (error) {
-      toast.error(t('deviceConnections.lan.error') + ((error as Error).message || error))
+      toast.error({ title: t('deviceConnections.lan.error'), cause: error })
     } finally {
       setIsUpdatingLan(false)
     }
@@ -543,26 +543,21 @@ const DeviceConnectionsSettings: FC = () => {
                 <SectionFields>
                   <SettingRowTitle>{t('deviceConnections.devices.title')}</SettingRowTitle>
                   {devicesError ? (
-                    <Alert
-                      type="error"
-                      showIcon
-                      message={t('deviceConnections.devices.loadError')}
-                      action={
-                        <div className="flex items-center gap-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            loading={isRefreshingDevices}
-                            onClick={() => void refetchDevices().catch(() => {})}>
-                            {t('common.retry')}
-                          </Button>
-                          <ErrorDetailAction
-                            error={devicesError}
-                            message={t('deviceConnections.devices.loadError')}
-                            source="settings.devices"
-                            operation="device.list"
-                          />
-                        </div>
+                    <ErrorNotice
+                      variant="inline"
+                      title={t('deviceConnections.devices.loadError')}
+                      action={{
+                        label: t('common.retry'),
+                        disabled: isRefreshingDevices,
+                        onClick: () => void refetchDevices().catch(() => {})
+                      }}
+                      detail={
+                        <ErrorDetailAction
+                          error={devicesError}
+                          message={t('deviceConnections.devices.loadError')}
+                          source="settings.devices"
+                          operation="device.list"
+                        />
                       }
                     />
                   ) : isLoadingDevices ? (
