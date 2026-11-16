@@ -9,7 +9,7 @@ const Napkin = ({ variant, className, ...props }: CompoundIconProps) => {
 
 export const NapkinIcon: CompoundIcon = /*#__PURE__*/ Object.assign(Napkin, {
   Avatar: NapkinAvatar,
-  colorPrimary: '#000000'
+  colorPrimary: '#2c2c2c'
 })
 
 export default NapkinIcon

@@ -392,5 +392,7 @@ export function classifyErrorCategory({ text, status, finishReason }: ErrorCateg
     return 'parse'
   }
 
-  return status === 400 ? 'bad_request' : 'unknown'
+  // A provider's validation type marks a rejected request when no structured status survived
+  // (`Unexpected role "tool"` — #24238), so it must not fall through to the stream-interruption label.
+  return status === 400 || (status === undefined && msg.includes('invalid_request_error')) ? 'bad_request' : 'unknown'
 }
