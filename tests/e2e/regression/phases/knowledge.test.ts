@@ -630,6 +630,11 @@ test(...caseDefinition('MP-61'), async ({ app, mainWindow: page }, testInfo) => 
     expect(directory.data.source).toBe(documents)
     const row = page.getByRole('row', { name: `Open ${basename(documents)}`, exact: true })
     await expect(row.getByRole('gridcell').nth(2)).toHaveText('Folders')
+    // A folder import copies the children into the base before the folder lists them; entering it
+    // while it still reports Copying/Reading shows an empty folder and no child rows to assert.
+    await expect
+      .poll(async () => (await row.locator('[role="gridcell"]').nth(3).innerText()).trim(), { timeout: 180_000 })
+      .toMatch(/^(Ready|Error|Failed)$/)
     await screenshot('MP-61 imported directory and type')
     await row.click()
 
