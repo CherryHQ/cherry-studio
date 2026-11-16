@@ -64,10 +64,14 @@ export const CreateModelSchema = z.strictObject({
   maxOutputTokens: PositiveModelTokenLimitSchema.optional(),
   /** Streaming support */
   supportsStreaming: z.boolean().optional(),
-  /** Provider-declared reasoning descriptor (used when the registry has no match). */
-  reasoning: ReasoningConfigSchema.optional(),
   /** Parameter support (DB form) */
   parameterSupport: ParameterSupportDbSchema.optional(),
+  /** User default only; intrinsic controls remain catalog-owned. */
+  reasoning: z
+    .strictObject({ defaultEffort: ReasoningConfigSchema.shape.defaultEffort.unwrap().nullable().optional() })
+    .optional(),
+  /** Provider-declared intrinsic descriptor, carried when the registry has no match to author one. */
+  providerReasoning: ReasoningConfigSchema.optional(),
   /** Pricing configuration */
   pricing: RuntimeModelPricingSchema.optional()
 })
@@ -94,7 +98,7 @@ export const UpdateModelSchema = CreateModelSchema.omit({
   modelId: true,
   presetModelId: true,
   // Create-time provider metadata; a PATCH must not silently accept and drop it.
-  reasoning: true
+  providerReasoning: true
 })
   .partial()
   .extend({

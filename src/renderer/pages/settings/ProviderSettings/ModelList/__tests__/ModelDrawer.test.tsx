@@ -159,7 +159,7 @@ describe('Model drawers', () => {
       expect.objectContaining({
         providerId: 'openrouter',
         modelId: 'stealth/crouton-alpha',
-        reasoning
+        providerReasoning: reasoning
       })
     )
   })

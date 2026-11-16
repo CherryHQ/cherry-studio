@@ -1,8 +1,8 @@
-import { Info } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
+  HelpTooltip,
   InputNumber,
   PageSidePanelItem,
   Select,
@@ -10,8 +10,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-  Switch,
-  Tooltip
+  Switch
 } from '@cherrystudio/ui'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { toast } from '@renderer/services/toast'
@@ -73,13 +72,7 @@ function OptionTitle({ id, label, help }: { id: string; label: string; help: str
       <label htmlFor={id} className="min-w-0 cursor-pointer truncate">
         {label}
       </label>
-      <Tooltip content={help}>
-        <span
-          className="inline-flex size-4 shrink-0 items-center justify-center rounded-full text-foreground-tertiary"
-          aria-label={help}>
-          <Info className="size-3" aria-hidden />
-        </span>
-      </Tooltip>
+      <HelpTooltip content={help} />
     </span>
   )
 }

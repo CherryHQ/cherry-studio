@@ -198,7 +198,7 @@ export default function AddModelFormPanel({
         ...(values.maxInputTokens !== null ? { maxInputTokens: values.maxInputTokens } : {}),
         ...(values.maxOutputTokens !== null ? { maxOutputTokens: values.maxOutputTokens } : {}),
         // A model the registry does not know has only the provider's own declaration as a descriptor.
-        ...(providerReasoning ? { reasoning: providerReasoning } : {})
+        ...(providerReasoning ? { providerReasoning } : {})
       })
 
       return createUniqueModelId(providerId, modelId)

@@ -402,7 +402,7 @@ describe('toCreateModelDto', () => {
       isHidden: false
     } as any)
 
-    expect(dto.reasoning).toEqual(reasoning)
+    expect(dto.providerReasoning).toEqual(reasoning)
   })
 
   it('omits a reasoning descriptor with no controls or efforts', () => {
@@ -418,7 +418,7 @@ describe('toCreateModelDto', () => {
       isHidden: false
     } as any)
 
-    expect(dto).not.toHaveProperty('reasoning')
+    expect(dto).not.toHaveProperty('providerReasoning')
   })
 })
 

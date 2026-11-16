@@ -93,7 +93,7 @@ describe('Model handler validation', () => {
       {
         providerId: 'openrouter',
         modelId: 'stealth/crouton-alpha',
-        reasoning: {
+        providerReasoning: {
           controls: [{ kind: 'effort', values: ['max', 'xhigh', 'high', 'medium', 'low', 'minimal'], default: 'max' }],
           selectableEfforts: ['max', 'xhigh', 'high', 'medium', 'low', 'minimal'],
           defaultEffort: 'max'
@@ -101,10 +101,18 @@ describe('Model handler validation', () => {
       }
     ])
 
-    expect(parsed.reasoning?.controls).toEqual([
+    expect(parsed.providerReasoning?.controls).toEqual([
       { kind: 'effort', values: ['max', 'xhigh', 'high', 'medium', 'low', 'minimal'], default: 'max' }
     ])
-    expect(parsed.reasoning?.defaultEffort).toBe('max')
+    expect(parsed.providerReasoning?.defaultEffort).toBe('max')
+  })
+
+  it('rejects an intrinsic descriptor on the update path', () => {
+    expect(() =>
+      UpdateModelSchema.parse({
+        providerReasoning: { controls: [{ kind: 'effort', values: ['high'] }] }
+      })
+    ).toThrow()
   })
 
   it('rejects single-object payloads for /models', () => {
@@ -280,12 +288,12 @@ describe('/models', () => {
     createMock.mockReturnValue([{ id: 'openrouter::stealth/crouton-alpha' }])
 
     await modelHandlers['/models'].POST({
-      body: [{ providerId: 'openrouter', modelId: 'stealth/crouton-alpha', reasoning }]
+      body: [{ providerId: 'openrouter', modelId: 'stealth/crouton-alpha', providerReasoning: reasoning }]
     })
 
     expect(createMock).toHaveBeenCalledWith([
       {
-        dto: { providerId: 'openrouter', modelId: 'stealth/crouton-alpha', reasoning },
+        dto: { providerId: 'openrouter', modelId: 'stealth/crouton-alpha', providerReasoning: reasoning },
         registryData
       }
     ] satisfies CreateModelInput[])

@@ -342,3 +342,104 @@ test('persists an uploaded agent avatar and freezes past message avatars after r
   await expectDecodedImage(messageAvatar(page, 'agent avatar turn').locator('img'))
   await screenshot(page, testInfo, 'agent-avatar-old-and-new-messages')
 })
+
+test('applies an image selected after the avatar menu is dismissed', async ({ mainWindow: page, server }, testInfo) => {
+  await initialize(page)
+  const providerId = 'agent-avatar-smoke'
+  const provider = await page.evaluate(
+    ({ providerId, baseUrl }) =>
+      window.api.dataApi.request({
+        id: 'avatar-provider',
+        method: 'POST',
+        path: '/providers',
+        body: {
+          providerId,
+          name: 'Avatar smoke mock',
+          defaultChatEndpoint: 'openai-chat-completions',
+          endpointConfigs: { 'openai-chat-completions': { baseUrl } },
+          apiKeys: [{ id: 'mock-key', key: 'mock-key', isEnabled: true }]
+        }
+      }),
+    { providerId, baseUrl: server.baseUrl }
+  )
+  expect(provider.status).toBe(201)
+  const enabled = await page.evaluate(
+    (id) =>
+      window.api.dataApi.request({
+        id: 'avatar-enable',
+        method: 'PATCH',
+        path: `/providers/${id}`,
+        body: { isEnabled: true }
+      }),
+    providerId
+  )
+  expect(enabled.status).toBe(200)
+  const models = await page.evaluate(
+    ({ providerId, modelId }) =>
+      window.api.dataApi.request({
+        id: 'avatar-model',
+        method: 'POST',
+        path: '/models',
+        body: [{ providerId, modelId, endpointTypes: ['openai-chat-completions'] }]
+      }),
+    { providerId, modelId: server.modelId }
+  )
+  expect(models.status).toBe(201)
+  const created = await page.evaluate(
+    ({ model }) =>
+      window.api.ipcApi.request('ai.agent.create', {
+        type: 'pi',
+        name: 'Avatar Agent Probe',
+        model,
+        instructions: 'Answer briefly without using tools.'
+      }),
+    { model: createUniqueModelId(providerId, server.modelId) }
+  )
+  expect(created).toMatchObject({ ok: true })
+  const agent = AgentEntitySchema.parse((created as { data: unknown }).data)
+  await page.reload()
+  await selectSidebarApp(page, 'Work')
+  const card = await catalog(page, agent.name)
+  await card.click()
+  const dialog = page.getByRole('dialog', { name: 'Edit Agent', exact: true })
+  await expect(dialog).toBeVisible()
+  const picker = dialog.getByRole('button', { name: 'Choose avatar', exact: true }).first()
+  const fixture = testInfo.outputPath('avatar.png')
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128"><rect width="128" height="128" fill="#ff2d9b"/><circle cx="64" cy="64" r="52" fill="none" stroke="white" stroke-width="8"/><text x="64" y="87" text-anchor="middle" font-family="sans-serif" font-size="64" fill="white">A</text></svg>`
+  await sharp(Buffer.from(svg)).png().toFile(fixture)
+  await testInfo.attach('avatar-fixture', { path: fixture, contentType: 'image/png' })
+  await picker.click()
+  const upload = page.getByRole('button', { name: 'Image Upload', exact: true })
+  await expect(upload).toBeVisible()
+  await dialog.getByRole('textbox', { name: 'Avatar and name', exact: true }).click()
+  await expect(upload).toBeHidden()
+  // Before the fix, closing the popover removed its file input, silently dropping a late selection.
+  // Re-resolving the locator after dismissal would fail because the input was gone.
+  await page.getByLabel('Image Upload', { exact: true }).setInputFiles(fixture)
+  await expect
+    .poll(
+      async () => {
+        const current = await readAgent(page, agent.id)
+        if (!current.avatarFileId || !current.avatarSrc) return null
+        const src = await picker.locator('img').getAttribute('src')
+        return src === current.avatarSrc ? current.avatarSrc : null
+      },
+      { timeout: 20_000, message: 'the avatar selected after the menu was dismissed is persisted and rendered' }
+    )
+    .not.toBeNull()
+  const uploaded = await readAgent(page, agent.id)
+  expect(uploaded.avatarFileId).toBeTruthy()
+  expect(uploaded.avatarSrc).toMatch(/^file:\/\/\/.+/)
+  await expectDecodedImage(picker.locator('img'))
+  await expect(picker.locator('img')).toHaveAttribute('src', uploaded.avatarSrc!)
+  await screenshot(page, testInfo, 'agent-avatar-dismissed-upload')
+  await closeAgentDialog(page)
+  await expect(card.locator('img')).toHaveAttribute('src', uploaded.avatarSrc!)
+  await expectDecodedImage(card.locator('img'))
+  await screenshot(page, testInfo, 'agent-avatar-dismissed-catalog')
+  await card.click()
+  await expect(dialog).toBeVisible()
+  await expect(picker.locator('img')).toHaveAttribute('src', uploaded.avatarSrc!)
+  await expectDecodedImage(picker.locator('img'))
+  await screenshot(page, testInfo, 'agent-avatar-dismissed-reopen')
+})
