@@ -13,7 +13,7 @@ import type {
 import { taskStatusSchema } from '@cherrystudio/remote-protocol/agent'
 import { RemoteRpcError } from '@cherrystudio/remote-transport'
 import { agentTaskService, type TaskRunRecord } from '@data/services/AgentTaskService'
-import { toExecutionFailure } from '@shared/ai/executionFailure'
+import { toExecutionFailure, toWireExecutionFailure } from '@shared/ai/executionFailure'
 import type { ScheduledTaskEntity } from '@shared/data/api/schemas/agents'
 
 import { queryPage } from './agentPagination'
@@ -147,12 +147,14 @@ function toTaskRun(run: TaskRunRecord): TaskRun {
       return {
         ...terminal,
         status: 'failed',
-        failure: toExecutionFailure({
-          name: null,
-          stack: null,
-          message: run.error?.message ?? null,
-          isRetryable: run.error?.retryable ?? false
-        })
+        failure: toWireExecutionFailure(
+          toExecutionFailure({
+            name: null,
+            stack: null,
+            message: run.error?.message ?? null,
+            isRetryable: run.error?.retryable ?? false
+          })
+        )
       }
     case 'cancelled':
       return { ...terminal, status: 'cancelled' }
