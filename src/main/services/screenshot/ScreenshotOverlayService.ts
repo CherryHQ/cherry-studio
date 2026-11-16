@@ -12,6 +12,7 @@ import { isDev, isMac, isWin } from '@main/core/platform'
 import { WindowType } from '@main/core/window/types'
 import { t } from '@main/i18n'
 import { MediaKind } from '@main/services/mediaProtocol'
+import { trackMainProductEvent } from '@main/services/productAnalytics'
 import { cropPng } from '@main/utils/image'
 import {
   getScreenCapturePermissionStatus,
@@ -29,6 +30,9 @@ import { type CaptureResult, type MonitorInfo, type RawWindowInfo, ScreenCapture
 import { listWindowsOffThread } from './windowEnumerator'
 
 const logger = loggerService.withContext('ScreenshotOverlayService')
+
+/** One capture that produced a result: copied, saved, or handed to a consumer. */
+const reportCaptured = () => trackMainProductEvent({ event: 'feature_used', feature: 'screenshot', action: 'captured' })
 
 /**
  * How long an overlay may stay invisible while waiting for its renderer to report
@@ -137,6 +141,7 @@ export class ScreenshotOverlayService extends BaseService {
       throw new Error('The screenshot could not be decoded')
     }
     await consumer.submit(result)
+    reportCaptured()
     if (generation === this.sessionGeneration) this.dismiss()
   }
 
@@ -635,6 +640,7 @@ export class ScreenshotOverlayService extends BaseService {
   public async commit(result: ScreenshotResultData): Promise<void> {
     const generation = this.sessionGeneration
     await this.copy(result)
+    reportCaptured()
 
     // Outside the try: the overlays come down whether or not the clipboard took it, but
     // only for this session — the clipboard write yields, so a newer one may own them now.
@@ -693,6 +699,7 @@ export class ScreenshotOverlayService extends BaseService {
         }
         writeFileSync(dialogResult.filePath, result.pngBytes)
         logger.info('Screenshot saved to file')
+        reportCaptured()
       } catch (error) {
         // Logged, not rethrown: a failed write must not skip the teardown below.
         logger.error('Failed to save the screenshot', error as Error)

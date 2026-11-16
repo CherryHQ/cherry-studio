@@ -1,5 +1,6 @@
 import { loggerService } from '@logger'
 import { preferenceService } from '@renderer/data/PreferenceService'
+import { trackProductEvent } from '@renderer/services/productAnalytics'
 import { isVoiceRecognitionOff } from '@renderer/utils/voiceRecognitionPreference'
 import type { TranscriptRevision, SpeechPcmChunk } from '@shared/ai/voice'
 import { voiceErrorCodes, type VoiceErrorReason } from '@shared/ipc/errors/voice'
@@ -22,6 +23,9 @@ import { voiceTargetManager, type CapturedVoiceTarget, type VoiceTargetInsertRes
 const RECORDING_MIME_TYPE = 'audio/webm;codecs=opus'
 const MAX_RECORDING_DURATION_MS = 300_000
 const ELAPSED_UPDATE_INTERVAL_MS = 1_000
+
+const reportDictation = (status: 'success' | 'error') =>
+  trackProductEvent({ event: 'feature_used', feature: 'voice', action: 'dictation_used', status })
 
 export type DictationPhase =
   | 'idle'
@@ -591,6 +595,7 @@ export class DictationService {
   }
 
   private async complete(active: ActiveDictation, text: string): Promise<void> {
+    reportDictation('success')
     let inserted: VoiceTargetInsertResult = 'unavailable'
     try {
       if (active.target) inserted = this.targets.insert(active.target, text)
@@ -837,6 +842,7 @@ export class DictationService {
     error?: DictationErrorCategory,
     retryAvailable?: true
   ): void {
+    if (phase === 'failed' && this.snapshot.phase !== 'failed') reportDictation('error')
     this.snapshot = Object.freeze({
       phase,
       elapsedMs,

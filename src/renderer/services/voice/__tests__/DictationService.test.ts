@@ -1198,6 +1198,31 @@ describe('DictationService failure and retry', () => {
     expect(harness.service.getSnapshot()).not.toHaveProperty('retryAvailable')
   })
 
+  it('reports a failed transcription and its successful retry, but not a cancelled run', async () => {
+    const request = vi.mocked(window.api.ipcApi.request)
+    const dictationEvents = () =>
+      request.mock.calls.filter(([route]) => route === 'analytics.track').map(([, event]) => event)
+    const transcription = deferred<{ sessionId: string; requestId: string; text: string }>()
+    const harness = createHarness()
+    harness.voice.transcribe.mockReturnValueOnce(operation('session-1', 'request-asr-1', transcription.promise))
+    request.mockClear()
+
+    await harness.service.start()
+    const stopping = harness.service.stop()
+    await vi.waitFor(() => expect(harness.voice.transcribe).toHaveBeenCalledOnce())
+    transcription.reject({ reason: 'operation_failed' })
+    await stopping
+    await harness.service.retry()
+    await harness.service.start()
+    await harness.service.cancel()
+
+    const used = { event: 'feature_used', feature: 'voice', action: 'dictation_used' }
+    expect(dictationEvents()).toEqual([
+      { ...used, status: 'error' },
+      { ...used, status: 'success' }
+    ])
+  })
+
   it('retains the same FileEntry after ASR failure and retries with the latest recognition preferences', async () => {
     const transcription = deferred<{ sessionId: string; requestId: string; text: string }>()
     const retry = deferred<{ sessionId: string; requestId: string; text: string }>()

@@ -1036,6 +1036,77 @@ describe('AiService', () => {
     })
   })
 
+  describe('runImageRequest — painting analytics', () => {
+    const imagePayload = {
+      uniqueModelId: createUniqueModelId('cherryai', 'image-model'),
+      prompt: 'secret prompt',
+      cleanupPolicy: 'delete_when_unreferenced' as const,
+      paramValues: {}
+    }
+    const trackProductEvent = vi.fn()
+    const trackedEvents = () => trackProductEvent.mock.calls.map(([event]) => event)
+
+    beforeEach(() => {
+      trackProductEvent.mockReset()
+      mockApplicationGet.mockImplementation((name: string) =>
+        name === 'AnalyticsService' ? { trackProductEvent } : undefined
+      )
+    })
+
+    it('reports the generated image count and model source without the prompt', async () => {
+      const service = createService()
+      vi.spyOn(service, 'generateImage').mockResolvedValue({
+        files: [{ id: 'file-1' }, { id: 'file-2' }] as never
+      })
+
+      await service.runImageRequest('request-1', imagePayload)
+
+      expect(trackedEvents()).toEqual([
+        {
+          event: 'feature_used',
+          feature: 'paintings',
+          action: 'image_generated',
+          status: 'success',
+          modelSource: 'cherry_free',
+          count: 2
+        }
+      ])
+    })
+
+    it('reports a failed generation as an error and still rejects', async () => {
+      const service = createService()
+      vi.spyOn(service, 'generateImage').mockRejectedValue(new Error('provider down'))
+
+      await expect(service.runImageRequest('request-2', imagePayload)).rejects.toThrow('provider down')
+
+      expect(trackedEvents()).toEqual([
+        {
+          event: 'feature_used',
+          feature: 'paintings',
+          action: 'image_generated',
+          status: 'error',
+          modelSource: 'cherry_free'
+        }
+      ])
+    })
+
+    it('stays silent when the user cancels the generation', async () => {
+      const service = createService()
+      vi.spyOn(service, 'generateImage').mockImplementation(
+        (request) =>
+          new Promise((_resolve, reject) =>
+            request.requestOptions?.signal?.addEventListener('abort', () => reject(new Error('aborted')))
+          )
+      )
+
+      const pending = service.runImageRequest('request-3', imagePayload)
+      service.abortRequest('request-3')
+
+      await expect(pending).rejects.toThrow('aborted')
+      expect(trackedEvents()).toEqual([])
+    })
+  })
+
   // Assistant-bound image models reach generateImage without an explicit
   // uniqueModelId — the transport routing must survive that shape (a bare
   // `request.uniqueModelId` gate dropped them onto the generic image path).

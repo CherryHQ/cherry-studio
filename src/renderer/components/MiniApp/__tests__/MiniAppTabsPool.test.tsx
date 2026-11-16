@@ -73,6 +73,9 @@ function Controls() {
       <button type="button" onClick={() => tabs.openTab('/app/mini-app/b', { id: 'b' })}>
         Open B
       </button>
+      <button type="button" onClick={() => tabs.openTab('/app/mini-app/openai', { id: 'openai' })}>
+        Open OpenAI
+      </button>
       {['a', 'b', 'c'].map((appId) => (
         <button
           key={appId}
@@ -446,5 +449,31 @@ describe('MiniApp guest ownership', () => {
     expect(screen.getByLabelText('tabs')).toHaveTextContent('a')
     expect(screen.getByLabelText('primary')).toHaveTextContent('a')
     expect(getGuest('a')).toBe(guest)
+  })
+})
+
+describe('MiniApp open analytics', () => {
+  const openedEvents = () =>
+    (ipc.request.mock.calls as unknown as Array<[string, unknown]>)
+      .filter(([route]) => route === 'analytics.track')
+      .map(([, event]) => event)
+
+  it('reports each newly opened guest once, naming only built-in apps', async () => {
+    MockUseDataApiUtils.mockQueryData('/mini-apps', [
+      createMiniApp('openai'),
+      createMiniApp('a', { presetMiniAppId: null })
+    ])
+    const user = userEvent.setup()
+    mount()
+
+    await user.click(screen.getByText('Open OpenAI'))
+    await user.click(screen.getByText('Open A'))
+    await user.click(screen.getByText('Show home'))
+    await user.click(screen.getByText('Show A'))
+
+    expect(openedEvents()).toEqual([
+      { event: 'feature_used', feature: 'mini_app', action: 'opened', target: 'openai' },
+      { event: 'feature_used', feature: 'mini_app', action: 'opened' }
+    ])
   })
 })

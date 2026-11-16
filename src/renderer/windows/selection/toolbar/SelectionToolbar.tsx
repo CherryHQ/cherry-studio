@@ -8,6 +8,7 @@ import SelectionToolbarView from '@renderer/components/selection/SelectionToolba
 import { useSelectionAgents } from '@renderer/hooks/useSelectionAgents'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
+import { trackProductEvent } from '@renderer/services/productAnalytics'
 import {
   getSelectionActionAgent,
   parseSelectionActions,
@@ -194,6 +195,13 @@ const SelectionToolbar: FC = () => {
     (action: SelectionAction) => {
       /** avoid mutating the original action, it will cause syncing issue */
       const newAction = { ...action, selectedText: selectedText.current, programName: programName.current }
+      trackProductEvent({
+        event: 'feature_used',
+        feature: 'selection',
+        action: 'action_used',
+        trigger: 'selection',
+        ...(action.isBuiltIn && { target: action.id })
+      })
 
       if (newAction.isBuiltIn) {
         switch (newAction.id) {

@@ -1,9 +1,9 @@
 import { application } from '@application'
 import { agentService } from '@data/services/AgentService'
 import { isProtectedBuiltinAgentRole } from '@shared/ai/builtinAgent'
-import { CHERRY_CLOUD_PROVIDER_ID, CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
-import type { AnalyticsModelSource, MainAnalyticsEvent } from '@shared/ipc/schemas/analytics'
-import { SystemProviderIds } from '@shared/utils/systemProviderId'
+import type { MainAnalyticsEvent } from '@shared/ipc/schemas/analytics'
+
+export { analyticsModelSource } from '@shared/utils/analyticsModelSource'
 
 /** Main-process product events; telemetry never throws into its caller. */
 export function trackMainProductEvent(event: MainAnalyticsEvent): void {
@@ -12,13 +12,6 @@ export function trackMainProductEvent(event: MainAnalyticsEvent): void {
   } catch {
     // Analytics is optional infrastructure for every caller.
   }
-}
-
-export function analyticsModelSource(providerId: string): AnalyticsModelSource {
-  if (providerId === CHERRYAI_PROVIDER_ID) return 'cherry_free'
-  if (providerId === CHERRY_CLOUD_PROVIDER_ID) return 'cherry_cloud'
-  if (providerId === SystemProviderIds.cherryin) return 'cherryin'
-  return 'own_key'
 }
 
 export function analyticsAgentKind(agentId: string): 'builtin' | 'custom' {

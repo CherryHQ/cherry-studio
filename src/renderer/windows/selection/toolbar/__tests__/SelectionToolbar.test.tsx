@@ -174,6 +174,22 @@ describe('SelectionToolbar actions', () => {
     expect(mocks.ipcRequest).toHaveBeenCalledWith('selection.write_to_clipboard', 'bridge text')
   })
 
+  it('reports used actions without selected text, naming only built-in actions', () => {
+    render(<SelectionToolbar />)
+    mocks.ipcRequest.mockClear()
+    pushSelection('private selected text', false, 'com.example.App')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Copy' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Research' }))
+
+    expect(
+      mocks.ipcRequest.mock.calls.filter(([route]) => route === 'analytics.track').map(([, event]) => event)
+    ).toEqual([
+      { event: 'feature_used', feature: 'selection', action: 'action_used', trigger: 'selection', target: 'copy' },
+      { event: 'feature_used', feature: 'selection', action: 'action_used', trigger: 'selection' }
+    ])
+  })
+
   it('marks agent actions whose agent cannot run, once agents have loaded', () => {
     MockUseDataApiUtils.mockQueryResult('/agents', { data: undefined, isLoading: true })
     const { rerender } = render(<SelectionToolbar />)

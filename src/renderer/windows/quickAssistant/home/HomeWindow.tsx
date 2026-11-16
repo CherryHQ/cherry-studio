@@ -15,6 +15,7 @@ import { useTemporaryTopic } from '@renderer/hooks/useTemporaryTopic'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
+import { trackProductEvent } from '@renderer/services/productAnalytics'
 import { toast } from '@renderer/services/toast'
 import { autoReadService, readMessageAloud, voiceTargetManager } from '@renderer/services/voice'
 import { getTextFromParts } from '@renderer/utils/message/partsHelpers'
@@ -22,7 +23,9 @@ import { isMac } from '@renderer/utils/platform'
 import { cn } from '@renderer/utils/style'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
+import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { type CherryReasoningMeta, readCherryMeta, withCherryMeta } from '@shared/data/types/uiParts'
+import { analyticsModelSource } from '@shared/utils/analyticsModelSource'
 
 import ClipboardPreview from './components/ClipboardPreview'
 import type { FeatureMenusRef } from './components/FeatureMenus'
@@ -177,6 +180,14 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
       const context = voiceExecutionContextsRef.current.get(key)
       if (!context) return
       voiceExecutionContextsRef.current.delete(key)
+      // A stopped reply has no outcome, so it reports without a status.
+      trackProductEvent({
+        event: 'feature_used',
+        feature: 'quick_assistant',
+        action: 'asked',
+        ...(!isAbort && { status: isError ? 'error' : 'success' }),
+        modelSource: analyticsModelSource(parseUniqueModelId(executionId as UniqueModelId).providerId)
+      })
       if (context.topicId !== temporaryTopicId || context.generation !== voiceScopeGenerationRef.current) {
         return
       }

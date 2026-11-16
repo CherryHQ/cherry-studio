@@ -4,6 +4,7 @@ import type React from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { ExecutionFinishEvent } from '@renderer/hooks/useExecutionOverlay'
+import { ipcApi } from '@renderer/ipc'
 import type { VoiceTargetRegistration } from '@renderer/services/voice'
 import { AutoReadService } from '@renderer/services/voice/AutoReadService'
 import type { ActiveExecution } from '@shared/ai/transport'
@@ -579,5 +580,39 @@ describe('HomeWindow', () => {
 
     expect(state.autoReadConsume).not.toHaveBeenCalled()
     expect(screen.queryByRole('button', { name: 'Read result aloud' })).not.toBeInTheDocument()
+  })
+
+  it('reports each finished ask once with its outcome and model source, never its content', () => {
+    const view = render(<HomeWindow draggable={false} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Chat route' }))
+    state.activeExecutions = [
+      { executionId: 'cherryai::qwen', attemptId: 11 },
+      { executionId: 'anthropic::claude-sonnet', attemptId: 12 },
+      { executionId: 'anthropic::claude-sonnet', attemptId: 13 }
+    ]
+    view.rerender(<HomeWindow draggable={false} />)
+    vi.mocked(ipcApi.request).mockClear()
+    const message = {
+      id: 'private-answer',
+      role: 'assistant',
+      parts: [{ type: 'text', text: 'private answer', state: 'done' }]
+    } as CherryUIMessage
+
+    act(() => {
+      state.overlayOnFinish?.('cherryai::qwen', { attemptId: 11, message, isAbort: false, isError: false })
+      state.overlayOnFinish?.('cherryai::qwen', { attemptId: 11, message, isAbort: false, isError: false })
+      state.overlayOnFinish?.('anthropic::claude-sonnet', { attemptId: 12, message, isAbort: false, isError: true })
+      state.overlayOnFinish?.('anthropic::claude-sonnet', { attemptId: 13, message, isAbort: true, isError: false })
+    })
+
+    const tracked = (vi.mocked(ipcApi.request).mock.calls as unknown as Array<[string, unknown]>)
+      .filter(([route]) => route === 'analytics.track')
+      .map(([, event]) => event)
+    const asked = { event: 'feature_used', feature: 'quick_assistant', action: 'asked' }
+    expect(tracked).toEqual([
+      { ...asked, status: 'success', modelSource: 'cherry_free' },
+      { ...asked, status: 'error', modelSource: 'own_key' },
+      { ...asked, modelSource: 'own_key' }
+    ])
   })
 })
