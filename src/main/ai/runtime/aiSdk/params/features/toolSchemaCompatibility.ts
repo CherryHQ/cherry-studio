@@ -39,7 +39,7 @@ import type { LanguageModelMiddleware } from 'ai'
 
 import { definePlugin } from '@cherrystudio/ai-core'
 import { loggerService } from '@logger'
-import { ENDPOINT_TYPE } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, isUniqueModelId } from '@shared/data/types/model'
 import { isGeminiModel } from '@shared/utils/model'
 
 import type { RequestFeature } from '../feature'
@@ -265,7 +265,12 @@ function normalizeToolSchemas(params: LanguageModelV3CallOptions, scope: Request
 
   const isGeminiEndpoint =
     scope.endpointType === ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT && scope.sdkConfig.providerId !== 'google-vertex-maas'
-  const isChatGeminiModel = scope.endpointType === ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS && isGeminiModel(scope.model)
+  // Partial scopes exist at runtime and may lack a resolvable model identity.
+  const isChatGeminiModel =
+    scope.endpointType === ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS &&
+    scope.model &&
+    (scope.model.apiModelId || isUniqueModelId(scope.model.id)) &&
+    isGeminiModel(scope.model)
   const isResponsesEndpoint = scope.endpointType === ENDPOINT_TYPE.OPENAI_RESPONSES
 
   let changed = false
