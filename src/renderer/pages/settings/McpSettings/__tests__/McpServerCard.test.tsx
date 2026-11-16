@@ -78,6 +78,8 @@ describe('McpServerCard', () => {
     const user = userEvent.setup()
     render(<McpServerCard server={brokenServer} onEdit={vi.fn()} />)
 
+    expect(screen.getByText('error.boundary.mcp.invalid')).toBeInTheDocument()
+    expect(screen.queryByText(/Objects are not valid/)).not.toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: /common\.delete/ }))
 
     await waitFor(() => expect(toast.success).toHaveBeenCalled())
