@@ -256,11 +256,16 @@ function elementKind(element: Element): ClickElement {
   }
 }
 
-// Reads only the data-ui attribute: the first role token, else the first part token.
+// Reads only data-ui attributes: the nearest role token, else the nearest part token (bare buttons carry parts only).
 function uiTokenOf(element: Element): string {
-  const tokens = element.closest('[data-ui]')?.getAttribute('data-ui')?.split(/\s+/).filter(Boolean) ?? []
-  const token = tokens.find((value) => !value.startsWith('part:')) ?? tokens[0]
-  return token && UI_TOKEN.test(token) ? token : 'unlabeled'
+  let part: string | undefined
+  for (let node = element.closest('[data-ui]'); node; node = node.parentElement?.closest('[data-ui]') ?? null) {
+    const tokens = node.getAttribute('data-ui')?.split(/\s+/).filter(Boolean) ?? []
+    const role = tokens.find((value) => !value.startsWith('part:'))
+    if (role) return UI_TOKEN.test(role) ? role : 'unlabeled'
+    part ??= tokens[0]
+  }
+  return part && UI_TOKEN.test(part) ? part : 'unlabeled'
 }
 
 /** Reports clicks on interactive controls by their static data-ui token, without reading any content. */

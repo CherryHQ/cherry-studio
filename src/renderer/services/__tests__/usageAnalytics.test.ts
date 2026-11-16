@@ -266,6 +266,20 @@ describe('installUiClickTracker', () => {
     ])
   })
 
+  it('names a part-only button by its nearest role ancestor instead of the shared part token', () => {
+    mount(`
+      <nav data-ui="app.sidebar">
+        <button id="entry" data-ui="part:button part:context-menu-trigger"><svg id="icon"></svg></button>
+      </nav>
+      <div><button id="orphan" data-ui="part:button">x</button></div>`)
+
+    click('#icon')
+    vi.advanceTimersByTime(500)
+    click('#orphan')
+
+    expect(clicks.map(({ ui }) => ui)).toEqual(['app.sidebar', 'part:button'])
+  })
+
   it.each([
     ['<button id="c" data-ui="t1">x</button>', 'button'],
     ['<a id="c" data-ui="t2">x</a>', 'link'],
