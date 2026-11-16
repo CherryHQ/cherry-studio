@@ -30,6 +30,7 @@ const mocks = vi.hoisted(() => ({
     'chat.input.paste_long_text_threshold': 1500,
     'chat.message.render_as_markdown': false,
     'chat.message.show_outline': false,
+    'chat.message.scroll_to_bottom_on_send': true,
     'chat.code.show_line_numbers': false,
     'chat.code.collapsible': false,
     'chat.code.wrappable': false,
@@ -124,6 +125,7 @@ vi.mock('react-i18next', () => ({
 describe('ChatPreferenceSections', () => {
   beforeEach(() => {
     mocks.preferenceValues['chat.message.timestamp_context.enabled'] = false
+    mocks.preferenceValues['chat.message.scroll_to_bottom_on_send'] = true
     mocks.preferenceValues['chat.message.font_size'] = 14
     mocks.preferenceValues['chat.narrow_mode'] = true
     mocks.preferenceValues['chat.message.user_content.default_expanded'] = false
@@ -189,6 +191,23 @@ describe('ChatPreferenceSections', () => {
 
     await user.click(screen.getByRole('button', { name }))
     expect(mocks.setPreference).toHaveBeenCalledWith('chat.message.user_content.default_expanded', false)
+  })
+
+  it('saves the send-scroll choice and reads it again after remounting', async () => {
+    const user = userEvent.setup()
+    const view = render(<ChatPreferenceSections />)
+    const name = 'settings.messages.scroll_to_bottom_on_send.label'
+    expect(screen.getByRole('button', { name })).toHaveAttribute('data-checked', 'true')
+    await user.click(screen.getByRole('button', { name }))
+    expect(mocks.setPreference).toHaveBeenLastCalledWith('chat.message.scroll_to_bottom_on_send', false)
+    view.unmount()
+    const remounted = render(<ChatPreferenceSections />)
+    expect(screen.getByRole('button', { name })).toHaveAttribute('data-checked', 'false')
+    await user.click(screen.getByRole('button', { name }))
+    expect(mocks.setPreference).toHaveBeenLastCalledWith('chat.message.scroll_to_bottom_on_send', true)
+    remounted.unmount()
+    render(<ChatPreferenceSections />)
+    expect(screen.getByRole('button', { name })).toHaveAttribute('data-checked', 'true')
   })
 
   it('lets the user update the long paste threshold through the real number field', async () => {

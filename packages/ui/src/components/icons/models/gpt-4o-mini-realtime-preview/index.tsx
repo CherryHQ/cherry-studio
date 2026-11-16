@@ -9,7 +9,7 @@ const Gpt4oMiniRealtimePreview = ({ variant, className, ...props }: CompoundIcon
 
 export const Gpt4oMiniRealtimePreviewIcon: CompoundIcon = /*#__PURE__*/ Object.assign(Gpt4oMiniRealtimePreview, {
   Avatar: Gpt4oMiniRealtimePreviewAvatar,
-  colorPrimary: '#000000'
+  colorPrimary: '#1ca66d'
 })
 
 export default Gpt4oMiniRealtimePreviewIcon

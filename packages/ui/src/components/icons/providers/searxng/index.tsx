@@ -9,7 +9,7 @@ const Searxng = ({ variant, className, ...props }: CompoundIconProps) => {
 
 export const SearxngIcon: CompoundIcon = /*#__PURE__*/ Object.assign(Searxng, {
   Avatar: SearxngAvatar,
-  colorPrimary: '#3050FF'
+  colorPrimary: '#ecefff'
 })
 
 export default SearxngIcon
