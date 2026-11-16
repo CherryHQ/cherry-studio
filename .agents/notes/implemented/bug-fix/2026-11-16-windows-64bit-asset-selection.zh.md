@@ -14,7 +14,7 @@ Status: implemented
 
 强制替换之前，先将当前版本可读取的安装目录复制到 `app.temp` 下的临时目录；只有本地备份成功后才继续。
 
-若窄化安装或其后的 `reshim` 失败，先将备份复制回原安装路径（目录已被删除时重新创建），再运行 `reshim`。这种回滚不需要下载；只有本地恢复也失败时，才退回使用固定版本的普通 spec 执行 `mise use` 恢复。若恢复本身失败，日志会明确指出窄化的资产选择可能仍处于配置状态。
+若窄化安装或其后的 `reshim` 失败，先将备份复制回原安装路径（目录已被删除时重新创建）。mise v2026.7.14 在安装前清空该工具的缓存并写入 `<MISE_CACHE_DIR>/<tool-kebab>/<version>/incomplete`；15 分钟超时可能留下该标记，而 mise 只有在版本已安装且不处于 incomplete 状态时才认定它已安装。回灌目录后，若该标记在替换前不存在则将其清除；替换前已存在的标记保持原样。运行 `reshim` 后，只有当 `mise ls --json` 报告该版本的 `installed !== false` 且 shim 能解析出可执行文件时，才算本地回滚成功。这种回滚不需要下载。若任一检查未通过或本地恢复因其他原因失败，则保留备份并退回使用固定版本的普通 spec 执行 `mise use` 恢复；该分支成功后再删除备份。若恢复本身失败，日志会明确指出窄化的资产选择可能仍处于配置状态。
 
 若拿不到安装路径或本地暂存失败，则记录警告并跳过重试，保留当前可用的安装。整个附加逻辑仍处于 fail-open 边界内，只记日志并返回，不向调用方抛出异常。
 
@@ -31,7 +31,7 @@ Status: implemented
 
 ## 验证
 
-- Regression — `node_modules/.bin/vitest run --project main src/main/services/binaryManager`：9 个文件、332 条用例通过，覆盖严格的 PE 头校验、具体版本固定、fail-open 边界、本地暂存回滚、无法暂存时跳过重试，以及涵盖 `reshim` 和恢复失败的重装/恢复命令序列。
+- Regression — `node node_modules/vitest/vitest.mjs run --project main src/main/services/binaryManager`：9 个文件、335 条用例通过，覆盖严格的 PE 头校验、具体版本固定、fail-open 边界、本地暂存回滚、无法暂存时跳过重试，以及涵盖 `reshim` 和恢复失败的重装/恢复命令序列。
 - Regression — `node_modules/.bin/eslint src/main/services/binaryManager --ext .ts`：0 个错误；`node scripts/validation/run.mjs --all --group types`：通过。这两项检查在测试文件修复前均曾在 CI 中失败，现在均已通过。
 - Regression — 三个暂存用例在前一个 head b1ae5cb 上失败（3 failed | 256 passed），其中回滚用例的失败信息为 "mise did not report an installed version"。
 - Root cause — 读自 mise v2026.7.14 的 `asset_matcher.rs`（`pick_best_asset`、`score_os_match`、`score_arch_match`），并用 `LibreDWG/libredwg` 0.14 的资产清单核对：x64 模式只命中 `libredwg-0.14-win64.zip`。

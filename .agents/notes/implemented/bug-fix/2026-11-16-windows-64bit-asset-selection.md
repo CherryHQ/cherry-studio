@@ -14,7 +14,7 @@ After a `github:` backend install succeeds on a 64-bit Windows host, read the in
 
 Before forcing the replacement, copy the current version's readable install directory into a temporary directory under `app.temp`. Only proceed once that local backup succeeds.
 
-If the narrowed install or its `reshim` fails, copy the backup back to the original install path, recreating the directory if it was deleted, and run `reshim`. This rollback requires no download. Only if local restoration also fails does the installer fall back to `mise use` with the pinned plain spec. If restoration itself fails, the log states that the narrowed asset selection may still be configured.
+If the narrowed install or its `reshim` fails, copy the backup back to the original install path, recreating the directory if it was deleted. mise v2026.7.14 clears the tool cache before installation and writes `<MISE_CACHE_DIR>/<tool-kebab>/<version>/incomplete`; a 15-minute timeout can leave this marker behind, and mise recognizes the version as installed only when it is installed and not incomplete. Remove the marker after restoring the directory if it did not exist before replacement; preserve a pre-existing marker. Run `reshim`, then consider local rollback successful only if `mise ls --json` reports the version with `installed !== false` and the shim resolves to an executable. This rollback requires no download. If either check fails or local restoration otherwise fails, keep the backup and fall back to `mise use` with the pinned plain spec; remove the backup after that branch succeeds. If restoration itself fails, the log states that the narrowed asset selection may still be configured.
 
 If the install path is unavailable or local staging fails, log a warning and skip the retry, preserving the usable installation. The whole add-on remains inside a fail-open boundary that logs and returns without throwing to the caller.
 
@@ -31,7 +31,7 @@ Each `github:` install on a 64-bit Windows host costs one local PE-header read. 
 
 ## Verification
 
-- Regression — `node_modules/.bin/vitest run --project main src/main/services/binaryManager`: 9 files, 332 tests passed, including strict PE-header validation, concrete-version pinning, the fail-open boundary, the local staging rollback, the skipped retry when staging is unavailable, and reinstall/restore command sequences covering `reshim` and restoration failures.
+- Regression — `node node_modules/vitest/vitest.mjs run --project main src/main/services/binaryManager`: 9 files, 335 tests passed, including strict PE-header validation, concrete-version pinning, the fail-open boundary, the local staging rollback, the skipped retry when staging is unavailable, and reinstall/restore command sequences covering `reshim` and restoration failures.
 - Regression — `node_modules/.bin/eslint src/main/services/binaryManager --ext .ts`: 0 errors; `node scripts/validation/run.mjs --all --group types`: passed. Both checks failed in CI before the test-file fixes and now pass.
 - Regression — the three staging cases fail on the previous head b1ae5cb (3 failed | 256 passed), the rollback case failing with "mise did not report an installed version".
 - Root cause — read from mise v2026.7.14 `asset_matcher.rs` (`pick_best_asset`, `score_os_match`, `score_arch_match`) and confirmed against the `LibreDWG/libredwg` 0.14 release asset list: the x64 pattern matches only `libredwg-0.14-win64.zip`.
