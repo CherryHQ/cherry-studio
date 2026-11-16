@@ -4490,7 +4490,7 @@
   "settings.data.s3.secretAccessKey.placeholder": "Secret Access Key",
   "settings.data.s3.skipBackupFile.help": "開啟後備份時將跳過檔案資料，僅備份設定資訊，顯著減小備份檔案體積",
   "settings.data.s3.skipBackupFile.label": "精簡備份",
-  "settings.data.s3.syncStatus.error": "同步錯誤：{{message}}",
+  "settings.data.s3.syncStatus.error": "同步錯誤",
   "settings.data.s3.syncStatus.label": "同步狀態",
   "settings.data.s3.syncStatus.lastSync": "上次同步：{{time}}",
   "settings.data.s3.syncStatus.noSync": "未同步",

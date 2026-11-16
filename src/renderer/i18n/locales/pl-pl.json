@@ -4536,7 +4536,7 @@
   "settings.data.s3.secretAccessKey.placeholder": "Secret Access Key",
   "settings.data.s3.skipBackupFile.help": "Gdy włączone, dane plików zostaną pominięte podczas tworzenia kopii zapasowej, a zapisane zostaną tylko informacje konfiguracyjne, co znacznie zmniejsza rozmiar pliku kopii zapasowej",
   "settings.data.s3.skipBackupFile.label": "Lekka kopia zapasowa",
-  "settings.data.s3.syncStatus.error": "Błąd synchronizacji: {{message}}",
+  "settings.data.s3.syncStatus.error": "Błąd synchronizacji",
   "settings.data.s3.syncStatus.label": "Stan synchronizacji",
   "settings.data.s3.syncStatus.lastSync": "Ostatnia synchronizacja: {{time}}",
   "settings.data.s3.syncStatus.noSync": "Brak synchronizacji",

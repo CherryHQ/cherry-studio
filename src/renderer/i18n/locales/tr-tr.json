@@ -4490,7 +4490,7 @@
   "settings.data.s3.secretAccessKey.placeholder": "Gizli Erişim Anahtarı",
   "settings.data.s3.skipBackupFile.help": "Etkinleştirildiğinde yedekleme sırasında dosya verileri atlanır ve yalnızca yapılandırma bilgileri yedeklenir; böylece yedekleme dosyasının boyutu önemli ölçüde azalır",
   "settings.data.s3.skipBackupFile.label": "Hafif Yedekleme",
-  "settings.data.s3.syncStatus.error": "Eşitleme hatası: {{message}}",
+  "settings.data.s3.syncStatus.error": "Eşitleme hatası",
   "settings.data.s3.syncStatus.label": "Eşitleme Durumu",
   "settings.data.s3.syncStatus.lastSync": "Son eşitleme: {{time}}",
   "settings.data.s3.syncStatus.noSync": "Eşitlenmedi",

@@ -4490,7 +4490,7 @@
   "settings.data.s3.secretAccessKey.placeholder": "Secret Access Key",
   "settings.data.s3.skipBackupFile.help": "有効にすると、バックアップ時にファイルデータがスキップされ、設定情報のみがバックアップされ、バックアップファイルのサイズが大幅に削減されます。",
   "settings.data.s3.skipBackupFile.label": "軽量バックアップ",
-  "settings.data.s3.syncStatus.error": "同期エラー: {{message}}",
+  "settings.data.s3.syncStatus.error": "同期エラー",
   "settings.data.s3.syncStatus.label": "同期ステータス",
   "settings.data.s3.syncStatus.lastSync": "最終同期: {{time}}",
   "settings.data.s3.syncStatus.noSync": "未同期",

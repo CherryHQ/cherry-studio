@@ -92,14 +92,13 @@ describe('LocalBackupSettings', () => {
     expect(input).toHaveValue('/saved-backups')
   })
 
-  it('keeps the sync failure reason beside the translated caption', async () => {
+  it('shows the translated sync failure caption and keeps the reason behind details', async () => {
     MockUsePreferenceUtils.setPreferenceValue('data.backup.local.sync_interval', 5)
     setBackupSyncState('local', { lastSyncError: 'disk full' })
     const { rerender } = render(<LocalBackupSettings />)
 
-    expect(screen.getByTestId('warn-tooltip')).toHaveTextContent(
-      `${i18n.t('settings.data.local.syncError')}: disk full`
-    )
+    expect(screen.getByText(i18n.t('settings.data.local.syncError'))).toBeInTheDocument()
+    expect(screen.queryByText(/disk full/)).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: i18n.t('common.detail') }))
     await waitFor(() => expect(detailMocks.open).toHaveBeenCalled())
     const first = lastDetailRequest()

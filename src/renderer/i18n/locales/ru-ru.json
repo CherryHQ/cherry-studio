@@ -4492,7 +4492,7 @@
   "settings.data.s3.secretAccessKey.placeholder": "Secret Access Key",
   "settings.data.s3.skipBackupFile.help": "Если включено, данные файлов будут пропущены во время резервного копирования, будет скопирована только информация о конфигурации, что значительно уменьшит размер файла резервной копии.",
   "settings.data.s3.skipBackupFile.label": "Облегченное резервное копирование",
-  "settings.data.s3.syncStatus.error": "Ошибка синхронизации: {{message}}",
+  "settings.data.s3.syncStatus.error": "Ошибка синхронизации",
   "settings.data.s3.syncStatus.label": "Статус синхронизации",
   "settings.data.s3.syncStatus.lastSync": "Последняя синхронизация: {{time}}",
   "settings.data.s3.syncStatus.noSync": "Не синхронизировано",

@@ -4,9 +4,10 @@ import type { FC } from 'react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button, Input, RowFlex, Switch, WarnTooltip, HelpTooltip } from '@cherrystudio/ui'
+import { Button, HelpTooltip, Input, RowFlex, Switch } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
+import { ErrorNotice } from '@renderer/components/ErrorNotice'
 import Selector from '@renderer/components/Selector'
 import {
   SettingDivider,
@@ -72,26 +73,32 @@ const WebDavSettings: FC = () => {
     return (
       <RowFlex className="items-center gap-1.25">
         {webdavSync.syncing && <RefreshCw className="animate-spin" size={14} />}
-        {!webdavSync.syncing && webdavSync.lastSyncError && (
-          <>
-            <WarnTooltip
-              content={`${t('settings.data.webdav.syncError')}: ${webdavSync.lastSyncError}`}
-              iconProps={{ color: 'var(--error)' }}
-            />
-            <ErrorDetailAction
-              error={webdavSync.lastSyncError}
-              message={t('settings.data.webdav.syncError')}
-              source="settings.data.webdav"
-              operation="backup.sync"
-            />
-          </>
-        )}
         {webdavSync.lastSyncTime && (
           <span style={{ color: SYNC_STATUS_COLOR }}>
             {t('settings.data.webdav.lastSync')}: {dayjs(webdavSync.lastSyncTime).format('HH:mm:ss')}
           </span>
         )}
       </RowFlex>
+    )
+  }
+
+  const renderSyncError = () => {
+    if (!webdavHost || webdavSync.syncing || !webdavSync.lastSyncError) return null
+
+    return (
+      <ErrorNotice
+        variant="inline"
+        className="mb-2"
+        title={t('settings.data.webdav.syncError')}
+        detail={
+          <ErrorDetailAction
+            error={webdavSync.lastSyncError}
+            message={t('settings.data.webdav.syncError')}
+            source="settings.data.webdav"
+            operation="backup.sync"
+          />
+        }
+      />
     )
   }
 
@@ -245,6 +252,7 @@ const WebDavSettings: FC = () => {
             <SettingRowTitle>{t('settings.data.webdav.syncStatus')}</SettingRowTitle>
             {renderSyncStatus()}
           </SettingRow>
+          {renderSyncError()}
         </>
       )}
       <>

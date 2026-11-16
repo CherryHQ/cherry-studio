@@ -4491,7 +4491,7 @@
   "settings.data.s3.secretAccessKey.placeholder": "Secret Access Key",
   "settings.data.s3.skipBackupFile.help": "Po zapnutí se při záloze přeskočí soubory a zazálohuje se pouze konfigurace, čímž se výrazně zmenší velikost záložního souboru",
   "settings.data.s3.skipBackupFile.label": "Odlehčená záloha",
-  "settings.data.s3.syncStatus.error": "Chyba synchronizace: {{message}}",
+  "settings.data.s3.syncStatus.error": "Chyba synchronizace",
   "settings.data.s3.syncStatus.label": "Stav synchronizace",
   "settings.data.s3.syncStatus.lastSync": "Poslední synchronizace: {{time}}",
   "settings.data.s3.syncStatus.noSync": "Nesynchronizováno",
