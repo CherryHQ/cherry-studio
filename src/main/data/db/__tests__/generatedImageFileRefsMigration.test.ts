@@ -17,7 +17,9 @@ describe('generated image reference migrate-forward', () => {
       INSERT INTO agent_session (id,name,workspace_id,order_key,last_activity_at,created_at,updated_at)
       VALUES ('session','Session','workspace','a0',1,1,2);
       INSERT INTO agent_session_message (id,session_id,role,data,status,created_at,updated_at)
-      VALUES ('agent-message','session','assistant','{"parts":[{"type":"text","text":"keep"}]}','success',1,2);
+      VALUES ('agent-root','session','root','{"parts":[]}','success',1,2);
+      INSERT INTO agent_session_message (id,parent_id,session_id,role,data,status,created_at,updated_at)
+      VALUES ('agent-message','agent-root','session','assistant','{"parts":[{"type":"text","text":"keep"}]}','success',1,2);
       INSERT INTO topic (id,name,order_key,last_activity_at,created_at,updated_at)
       VALUES ('topic','Topic','a0',1,1,2);
       INSERT INTO message (id,topic_id,role,data,status,created_at,updated_at)
