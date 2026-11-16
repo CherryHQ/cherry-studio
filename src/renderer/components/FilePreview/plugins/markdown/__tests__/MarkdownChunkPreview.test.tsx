@@ -69,6 +69,17 @@ describe('MarkdownChunkPreview', () => {
     expect(screen.queryByText(/block-4/)).not.toBeInTheDocument()
   })
 
+  it('shows the opening chunk while the scroller has no measured height', async () => {
+    // An unmeasured pane reports no intersecting chunk at all, so a preview that trusted the range
+    // alone stayed blank until the observer fired — and forever in a host with no layout engine.
+    mocks.range = []
+
+    render(<MarkdownChunkPreview chunks={chunks} id="doc" />)
+
+    expect(await screen.findByText(/block-1/)).toBeInTheDocument()
+    expect(screen.queryByText(/block-4/)).not.toBeInTheDocument()
+  })
+
   it('mounts the newly reported chunks and drops the ones scrolled away', async () => {
     mocks.range = [1]
 

@@ -103,6 +103,14 @@ export function MarkdownChunkPreview({ chunks, id, renderVersion = 0 }: Markdown
     }
   }
 
+  const chunk = (index: number) => (
+    <div className="mx-auto w-full max-w-4xl px-4 pt-4">
+      <StaticMarkdown id={`${id}:${index}`} headingSlugs={chunks[index].headingSlugs}>
+        {chunks[index].text}
+      </StaticMarkdown>
+    </div>
+  )
+
   // The viewer owns the scroll here: its virtualizer measures its own scroller, so an unbounded
   // wrapper would hand it the whole document as the viewport and mount every chunk.
   return (
@@ -115,15 +123,15 @@ export function MarkdownChunkPreview({ chunks, id, renderVersion = 0 }: Markdown
           <div
             className="absolute top-0 left-0 w-full"
             style={{ transform: `translateY(${virtualItems[0]?.start ?? 0}px)` }}>
-            {virtualItems.map((item) => (
-              <div key={`${item.key}:${renderVersion}`} data-index={item.index} ref={virtualizer.measureElement}>
-                <div className="mx-auto w-full max-w-4xl px-4 pt-4">
-                  <StaticMarkdown id={`${id}:${item.index}`} headingSlugs={chunks[item.index].headingSlugs}>
-                    {chunks[item.index].text}
-                  </StaticMarkdown>
-                </div>
-              </div>
-            ))}
+            {virtualItems.length > 0
+              ? virtualItems.map((item) => (
+                  <div key={`${item.key}:${renderVersion}`} data-index={item.index} ref={virtualizer.measureElement}>
+                    {chunk(item.index)}
+                  </div>
+                ))
+              : // A scroller whose height is not known yet reports an empty viewport and would mount
+                // nothing, leaving the preview blank on first paint; the opening chunk covers it.
+                chunks.length > 0 && <div>{chunk(0)}</div>}
           </div>
         </div>
       </div>
