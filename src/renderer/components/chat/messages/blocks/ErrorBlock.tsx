@@ -4,6 +4,7 @@ import { Trans, useTranslation } from 'react-i18next'
 
 import { loggerService } from '@logger'
 import { ErrorNotice, type ErrorNoticeAction } from '@renderer/components/ErrorNotice'
+import { useProviderById } from '@renderer/hooks/useProvider'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { getProviderLabelKey } from '@renderer/i18n/label'
 import type { SerializedError } from '@renderer/types/error'
@@ -63,14 +64,22 @@ const ErrorBlock: React.FC<Props> = ({ partId, error, message }) => {
   return <MessageErrorInfo partId={partId} error={error} message={message} />
 }
 
+/** Built-in providers show their localized label; a custom one shows the name the user gave it. */
+function useProviderDisplayName(providerId: string | undefined): string {
+  const { t } = useTranslation()
+  const { provider } = useProviderById(providerId)
+  const labelKey = providerId ? getProviderLabelKey(providerId, '') : ''
+  return labelKey ? t(labelKey) : (provider?.name ?? t('error.notice.provider_fallback'))
+}
+
 /** An app-owned key interpolating `<provider>` renders the provider name as a settings link. */
 const ProviderLinkedErrorText: React.FC<{ i18nKey: string; providerId: string }> = ({ i18nKey, providerId }) => {
-  const { t } = useTranslation()
   const { navigateToRoute } = useMessageListActions()
+  const providerName = useProviderDisplayName(providerId)
   return (
     <Trans
       i18nKey={i18nKey}
-      values={{ provider: t(getProviderLabelKey(providerId)) }}
+      values={{ provider: providerName }}
       components={{
         provider: navigateToRoute ? (
           <button
@@ -125,6 +134,7 @@ const MessageErrorInfo: React.FC<{
 
   const providerId = getMessageListItemModel(message)?.provider ?? errorProviderId
   const classification = useMemo(() => classifyError(error, providerId), [error, providerId])
+  const providerName = useProviderDisplayName(providerId)
   const category = classification.category
   const localModelFailure = useMemo(() => getLocalModelResolutionFailure(error), [error])
   const cloudPresentation = getCherryCloudErrorPresentation(error, providerId, category)
@@ -220,10 +230,7 @@ const MessageErrorInfo: React.FC<{
     }
     const infoKey = NOTICE_KEYS[category].info
     if (infoKey) {
-      const providerLabelKey = providerId ? getProviderLabelKey(providerId, '') : ''
-      return t(infoKey, {
-        provider: providerLabelKey ? t(providerLabelKey) : t('error.notice.provider_fallback')
-      })
+      return t(infoKey, { provider: providerName })
     }
     if (translation) return translation
     if (summaryEligible && !summarySettled) return t('error.notice.unknown.summarizing')
