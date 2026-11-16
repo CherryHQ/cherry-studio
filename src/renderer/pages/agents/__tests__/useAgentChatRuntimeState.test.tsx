@@ -611,7 +611,9 @@ describe('useAgentChatRuntimeState', () => {
     })
     expect(result.current.uiMessages).toEqual(history)
     expect(result.current.editing).toMatchObject(draft)
-    expect(mocks.toastError).toHaveBeenCalledWith(expect.objectContaining({ description: 'Rejected' }))
+    const failureToast = mocks.toastError.mock.calls.at(-1)?.[0] as { description?: string; cause?: unknown }
+    expect(failureToast.description).toBeUndefined()
+    expect(failureToast.cause).toMatchObject({ message: 'Rejected' })
     await act(() => result.current.resendEditedMessage({ text: 'Replacement' }))
     expect(mocks.editResend).toHaveBeenLastCalledWith(
       expect.objectContaining({ target: { messageId: draft.messageId, version: draft.version } })
