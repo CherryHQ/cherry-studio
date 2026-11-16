@@ -4,6 +4,7 @@ import {
   normalizeHeartbeatTimeoutMinutes
 } from '@shared/ai/agentHeartbeat'
 import { normalizePermissionMode } from '@shared/ai/agentPermissionMode'
+import type { AgentPromptOverrides } from '@shared/ai/agentPromptSections'
 import { normalizePiDisabledToolId } from '@shared/ai/piBuiltinTools'
 import type { AgentEntity, AgentSkillUpdateDto, UpdateAgentDto } from '@shared/data/api/schemas/agents'
 import type { AgentConfiguration } from '@shared/data/types/agent'
@@ -52,6 +53,8 @@ export interface AgentFormState {
   languageMode: AgentLanguageMode
   /** Draft label; only meaningful when `languageMode` is custom. */
   languageCustom: string
+  /** Pi Durable only: the Agent's own text for guidance blocks of its System Prompt. */
+  promptOverrides: AgentPromptOverrides
 }
 
 function asString(value: unknown): string {
@@ -119,7 +122,8 @@ export function buildInitialAgentFormState(agent?: AgentEntity | null, skillIds:
     heartbeatEnabled: isHeartbeatEnabled(cfg),
     heartbeatInterval: clampHeartbeatIntervalMinutes(cfg.heartbeat_interval),
     heartbeatTimeoutMinutes: normalizeHeartbeatTimeoutMinutes(cfg.heartbeat_timeout_minutes),
-    ...initialLanguageFields(cfg.language)
+    ...initialLanguageFields(cfg.language),
+    promptOverrides: { ...cfg.prompt_overrides }
   }
 }
 
@@ -235,6 +239,10 @@ export function diffAgentUpdate(baseline: AgentFormState, next: AgentFormState):
   }
   if (baseline.heartbeatTimeoutMinutes !== next.heartbeatTimeoutMinutes) {
     cfgPatch.heartbeat_timeout_minutes = normalizeHeartbeatTimeoutMinutes(next.heartbeatTimeoutMinutes)
+    cfgDirty = true
+  }
+  if (JSON.stringify(baseline.promptOverrides) !== JSON.stringify(next.promptOverrides)) {
+    cfgPatch.prompt_overrides = next.promptOverrides
     cfgDirty = true
   }
   const languagePatch = diffLanguageUpdate(baseline, next)

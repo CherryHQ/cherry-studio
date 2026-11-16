@@ -8,12 +8,14 @@ import { setupTestDatabase } from '@test-helpers/db'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
+import { agentTable } from '@data/db/schemas/agent'
 import { agentGlobalSkillTable } from '@data/db/schemas/agentGlobalSkill'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { agentService } from '@data/services/AgentService'
 import { createAgentDataDirectory } from '@main/ai/agents/agentDataDirectory'
-import type { AgentSystemPromptDraft } from '@shared/ipc/schemas/agent'
+import { AGENT_INSTRUCTIONS_SLOT } from '@shared/ai/agentPromptSections'
+import type { AgentSystemPromptDraft, AgentSystemPromptPreview } from '@shared/ipc/schemas/agent'
 
 import { loadPiSdk } from '../pi/piSdk'
 import { buildDurablePrompt, renderDurablePrompt } from './durablePrompt'
@@ -33,13 +35,28 @@ describe('previewDurableSystemPrompt', () => {
     mcpServerIds: [],
     ...patch
   })
-  const fullText = ({ before, after }: { before: string; after: string }, instructions: string) =>
-    `${before}${instructions}${after}`
+  // Pi Durable renders its extension sections as `<key>` blocks, then every other block inside <instructions>.
+  const HARNESS_SECTIONS = new Set(['agent_identity', 'project_context', 'skills', 'mcp_instructions'])
+  const fullText = ({ blocks }: AgentSystemPromptPreview, instructions: string) =>
+    [
+      ...blocks
+        .filter((block) => HARNESS_SECTIONS.has(block.key))
+        .map(({ key, text }) => `<${key}>\n${text}\n</${key}>`),
+      `<instructions>\n${blocks
+        .filter((block) => !HARNESS_SECTIONS.has(block.key))
+        .map((block) => block.text.replace(AGENT_INSTRUCTIONS_SLOT, instructions))
+        .filter(Boolean)
+        .join('\n\n')}\n</instructions>`
+    ].join('\n\n')
+  const block = ({ blocks }: AgentSystemPromptPreview, key: string) => blocks.find((item) => item.key === key)
 
   beforeEach(async () => {
     root = await mkdtemp(path.join(os.tmpdir(), 'durable-prompt-preview-'))
+    // Built-in Agent templates are bundled resources, not per-test files.
     vi.mocked(application.getPath).mockImplementation((key: string, filename?: string) =>
-      path.join(root, key, filename ?? '')
+      key === 'feature.agents.builtin'
+        ? path.resolve('resources/builtin-agents', filename ?? '')
+        : path.join(root, key, filename ?? '')
     )
     dbh.db.insert(userProviderTable).values({ providerId: 'preview-test', name: 'Test', orderKey: 'a0' }).run()
     dbh.db
@@ -102,15 +119,20 @@ describe('previewDurableSystemPrompt', () => {
       })
     )
     expect(fullText(preview, instructions)).toBe(runtime)
-    expect(preview.before).toMatch(/<agent_instructions>\n$/)
-    expect(preview.after).toMatch(/^\n<\/agent_instructions>/)
-    expect(preview.before).toContain('I am Cedar, concise and warm.')
-    expect(fullText(preview, instructions)).not.toContain('## Bootstrap Mode')
+    expect(block(preview, 'instructions')).toMatchObject({
+      kind: 'instructions',
+      text: expect.stringContaining(`<agent_instructions>\n${AGENT_INSTRUCTIONS_SLOT}\n</agent_instructions>`)
+    })
+    expect(block(preview, 'agent_identity')).toMatchObject({
+      kind: 'live',
+      text: expect.stringContaining('I am Cedar')
+    })
+    expect(block(preview, 'bootstrap')).toBeUndefined()
   })
 
   it('omits the sections that depend on instructions when they are empty, as the runtime does', async () => {
     const preview = await previewDurableSystemPrompt(draft({ instructions: '  ' }))
-    const text = `${preview.before}${preview.after}`
+    const text = fullText(preview, '')
 
     expect(text).not.toContain('## Instruction Precedence')
     expect(text).not.toContain('<agent_instructions>')
@@ -133,9 +155,11 @@ describe('previewDurableSystemPrompt', () => {
   it('includes onboarding for a new Agent with instructions', async () => {
     const preview = await previewDurableSystemPrompt(draft())
 
-    expect(preview.before).toContain('## Instruction Precedence')
-    expect(preview.after).toContain('## Bootstrap Mode')
-    expect(preview.after).toContain('**Discover your presentation**')
+    expect(block(preview, 'instruction_precedence')?.text).toContain('## Instruction Precedence')
+    expect(block(preview, 'bootstrap')).toMatchObject({
+      kind: 'guidance',
+      text: expect.stringContaining('**Discover your presentation**')
+    })
   })
 
   it('follows the reply language and enabled skills of the draft', async () => {
@@ -145,10 +169,71 @@ describe('previewDurableSystemPrompt', () => {
     const off = await previewDurableSystemPrompt(draft({ language: null }))
     const withSkill = await previewDurableSystemPrompt(draft({ skillIds: ['skill-1'] }))
 
-    expect(english.after).toContain('By default, respond in English.')
-    expect(off.after).not.toContain('By default, respond in')
-    expect(english.before).not.toContain('Write release notes from merged changes.')
-    expect(withSkill.before).toContain('Write release notes from merged changes.')
+    expect(block(english, 'language')).toMatchObject({
+      kind: 'setting',
+      text: expect.stringContaining('respond in English')
+    })
+    expect(block(off, 'language')).toBeUndefined()
+    expect(fullText(english, '')).not.toContain('Write release notes from merged changes.')
+    expect(block(withSkill, 'skills')?.text).toContain('Write release notes from merged changes.')
+  })
+
+  it('shows the generated guidance while the Agent overrides it, and sends the override at run time', async () => {
+    const id = randomUUID()
+    const agentDataPath = await createAgentDataDirectory(application.getPath('feature.agents.data'), id)
+    const agent = agentService.createAgentWithId(id, {
+      type: 'pi-durable',
+      name: 'Reviewer',
+      model,
+      instructions: 'Review pull requests.',
+      configuration: {
+        bootstrap_completed: true,
+        // Citations are not generated without lookups, so that override must not be sent.
+        prompt_overrides: { report_artifacts: 'Report files your own way.', citations: 'Cite nothing.' }
+      }
+    })
+    const runtime = async (configuration: typeof agent.configuration) =>
+      (
+        await buildDurablePrompt(await loadPiSdk(), {
+          agent: { ...agent, configuration },
+          cwd: application.getPath('feature.agents.system_workspaces'),
+          agentDataPath,
+          effectiveLanguage: 'English',
+          channelLinked: false,
+          disabledTools: new Set(['mcp__cherry_tools__web_search', 'mcp__cherry_tools__web_fetch']),
+          knowledgeBaseScope: [],
+          skillPaths: []
+        })
+      ).instructions
+
+    const preview = await previewDurableSystemPrompt(draft({ agentId: id }))
+    const edited = await runtime(agent.configuration)
+    const restored = await runtime({ ...agent.configuration, prompt_overrides: {} })
+
+    expect(edited).toContain('Report files your own way.')
+    expect(edited).not.toContain('## Reporting deliverables')
+    expect(edited).not.toContain('Cite nothing.')
+    expect(restored).toContain('## Reporting deliverables')
+    expect(block(preview, 'report_artifacts')?.text).toContain('## Reporting deliverables')
+  })
+
+  it('returns the built-in prompt of a built-in Agent', async () => {
+    // Built-in Agents are seeded, never created through the service.
+    const { id } = dbh.db
+      .insert(agentTable)
+      .values({
+        type: 'pi-durable',
+        name: 'Cherry Assistant',
+        instructions: '',
+        orderKey: 'a0',
+        configuration: { bootstrap_completed: true, builtin_role: 'assistant' }
+      })
+      .returning()
+      .get()
+
+    const preview = await previewDurableSystemPrompt(draft({ agentId: id, instructions: '' }))
+
+    expect(preview.builtinInstructions).toContain('Cherry')
   })
 
   it('rejects an Agent that does not exist', async () => {

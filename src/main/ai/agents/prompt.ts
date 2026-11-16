@@ -85,6 +85,9 @@ export interface AgentPromptParts {
    * contents are loaded separately by the runtime's turn hooks.
    */
   context: string
+  /** The two blocks `context` joins, for a runtime that lets an Agent replace either one. */
+  bootstrap?: string
+  memories: string
 }
 
 function memoriesTemplate(agentDataPath: string): string {
@@ -142,16 +145,18 @@ export class PromptBuilder {
 
     // Bootstrap detection: inject bootstrap instructions if not completed
     const needsBootstrap = await this.shouldRunBootstrap(agentDataPath, config)
-    if (needsBootstrap) {
-      contextParts.push(
-        `${buildBootstrapInstructions(hasUserInstructions)}\n\nDuring bootstrap, write persona and user-profile files at these exact absolute paths:\n- ${path.join(agentDataPath, 'SOUL.md')}\n- ${path.join(agentDataPath, 'USER.md')}`
-      )
+    const bootstrap = needsBootstrap
+      ? `${buildBootstrapInstructions(hasUserInstructions)}\n\nDuring bootstrap, write persona and user-profile files at these exact absolute paths:\n- ${path.join(agentDataPath, 'SOUL.md')}\n- ${path.join(agentDataPath, 'USER.md')}`
+      : undefined
+    if (bootstrap) {
+      contextParts.push(bootstrap)
       logger.info('Bootstrap mode active — injecting onboarding instructions')
     }
 
-    contextParts.push(memoriesTemplate(agentDataPath))
+    const memories = memoriesTemplate(agentDataPath)
+    contextParts.push(memories)
 
-    return { base, context: contextParts.join('\n\n') }
+    return { base, context: contextParts.join('\n\n'), bootstrap, memories }
   }
 
   /**

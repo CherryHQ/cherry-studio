@@ -17,6 +17,7 @@ import type * as UseModelModule from '@renderer/hooks/useModel'
 import { toast } from '@renderer/services/toast'
 import type { AgentDetail } from '@renderer/types/resourceCatalog'
 import { checkEntityImageSize, prepareEntityImageBytes } from '@renderer/utils/image'
+import { AGENT_INSTRUCTIONS_SLOT } from '@shared/ai/agentPromptSections'
 import type { Assistant } from '@shared/data/types/assistant'
 import { BuiltinMcpServerNames } from '@shared/utils/mcp'
 
@@ -1284,17 +1285,29 @@ describe('edit dialogs', () => {
     )
   })
 
-  it("shows a Pi Durable Agent's full prompt for that Agent and saves edits to its instructions", async () => {
+  it("shows a Pi Durable Agent's full prompt and saves edits to its instructions and guidance", async () => {
+    const onOpenChange = vi.fn()
     ipcRequestMock.mockImplementation(async (route: string) =>
       route === 'agent.system_prompt.preview'
-        ? { before: '<agent_identity>Cedar</agent_identity>\n<agent_instructions>\n', after: '\n</agent_instructions>' }
+        ? {
+            blocks: [
+              { key: 'agent_identity', kind: 'live', text: '<soul>Cedar</soul>' },
+              { key: 'report_artifacts', kind: 'guidance', text: '## Reporting deliverables' },
+              { key: 'instructions', kind: 'instructions', text: AGENT_INSTRUCTIONS_SLOT }
+            ]
+          }
         : undefined
     )
     render(
-      <AgentEditDialog open resource={{ ...AGENT, type: 'pi-durable' }} onOpenChange={vi.fn()} initialTab="prompt" />
+      <AgentEditDialog
+        open
+        resource={{ ...AGENT, type: 'pi-durable' }}
+        onOpenChange={onOpenChange}
+        initialTab="prompt"
+      />
     )
 
-    expect(await screen.findByText(/<agent_identity>Cedar<\/agent_identity>/)).toBeInTheDocument()
+    expect(await screen.findByText('<soul>Cedar</soul>')).toBeInTheDocument()
     expect(ipcRequestMock).toHaveBeenCalledWith(
       'agent.system_prompt.preview',
       expect.objectContaining({ agentId: AGENT.id, instructions: 'Original instructions' })
@@ -1309,6 +1322,22 @@ describe('edit dialogs', () => {
         body: expect.objectContaining({ instructions: 'Review pull requests.' })
       })
     )
+
+    fireEvent.change(screen.getByRole('textbox', { name: 'library.config.agent.prompt.block.report_artifacts' }), {
+      target: { value: 'Report your own way.' }
+    })
+
+    await waitFor(() =>
+      expect(updateAgentMock).toHaveBeenCalledWith({
+        body: expect.objectContaining({
+          configuration: expect.objectContaining({ prompt_overrides: { report_artifacts: 'Report your own way.' } })
+        })
+      })
+    )
+
+    // A saved override must count as saved, or the dialog refuses to close.
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+    await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false))
   })
 
   it('marks the System Prompt row as the full prompt only for Pi Durable Agents', () => {
