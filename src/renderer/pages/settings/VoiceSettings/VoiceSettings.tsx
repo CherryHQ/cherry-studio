@@ -19,8 +19,8 @@ import { useSharedCacheSelector } from '@data/hooks/useCache'
 import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
+import { ErrorNotice } from '@renderer/components/ErrorNotice'
 import {
-  SettingDescription,
   SettingDivider,
   SettingGroup,
   SettingRow,
@@ -221,25 +221,22 @@ function latestLoadFault(faults: LoadFaults): unknown {
 }
 
 function VoiceFailureDetail({
-  className,
   error,
   id,
   message,
   operation
 }: {
-  className: string
   error: unknown
   id?: string
   message: string
   operation: string
 }) {
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      <p className={className} id={id} role="alert">
-        {message}
-      </p>
-      <ErrorDetailAction error={error} message={message} operation={operation} source="voice" />
-    </div>
+    <ErrorNotice
+      variant="inline"
+      title={<span id={id}>{message}</span>}
+      detail={<ErrorDetailAction error={error} message={message} operation={operation} source="voice" />}
+    />
   )
 }
 
@@ -982,21 +979,23 @@ function VoiceSettings() {
   return (
     <SettingsContentColumn theme={theme} className="[&_[data-slot=select-trigger]]:max-w-full">
       {showLoadFailure ? (
-        <div className="flex flex-wrap items-center gap-2">
-          <SettingDescription>{t('settings.voice.status.operation_failed')}</SettingDescription>
-          <Button
-            variant="outline"
-            disabled={catalogLoading}
-            onClick={() => setQueryRevision((revision) => revision + 1)}>
-            {t('common.retry')}
-          </Button>
-          <ErrorDetailAction
-            error={loadFailure}
-            message={t('settings.voice.status.operation_failed')}
-            operation="voice.load"
-            source="voice"
-          />
-        </div>
+        <ErrorNotice
+          variant="inline"
+          title={t('settings.voice.status.operation_failed')}
+          action={{
+            label: t('common.retry'),
+            disabled: catalogLoading,
+            onClick: () => setQueryRevision((revision) => revision + 1)
+          }}
+          detail={
+            <ErrorDetailAction
+              error={loadFailure}
+              message={t('settings.voice.status.operation_failed')}
+              operation="voice.load"
+              source="voice"
+            />
+          }
+        />
       ) : null}
       <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.voice.recognition.title')}</SettingTitle>
@@ -1055,7 +1054,6 @@ function VoiceSettings() {
             ) : null}
             {microphoneError || microphonesFailed ? (
               <VoiceFailureDetail
-                className="text-destructive text-sm"
                 error={microphoneDetail}
                 message={t(errorKey(microphoneError ?? 'operation_failed'))}
                 operation="voice.microphone"
@@ -1395,7 +1393,6 @@ function VoiceSettings() {
           </div>
           {speechError ? (
             <VoiceFailureDetail
-              className="text-error text-sm"
               error={speechDetail}
               id="voice-speech-error"
               message={t(errorKey(speechError))}
@@ -1420,12 +1417,7 @@ function VoiceSettings() {
 
       {actionFailed ? (
         <div className="mt-4">
-          <VoiceFailureDetail
-            className="text-destructive text-sm"
-            error={actionDetail}
-            message={t(errorKey(actionFailed))}
-            operation="voice.action"
-          />
+          <VoiceFailureDetail error={actionDetail} message={t(errorKey(actionFailed))} operation="voice.action" />
         </div>
       ) : null}
     </SettingsContentColumn>
