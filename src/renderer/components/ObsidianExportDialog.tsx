@@ -3,7 +3,6 @@ import React, { useEffect, useState } from 'react'
 import { parse, stringify } from 'yaml'
 
 import {
-  Alert,
   Button,
   Dialog,
   DialogContent,
@@ -26,6 +25,7 @@ import {
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
+import { ErrorNotice } from '@renderer/components/ErrorNotice'
 import i18n from '@renderer/i18n/resolver'
 import { ipcApi } from '@renderer/ipc'
 import {
@@ -463,12 +463,11 @@ const PopupContainer: React.FC<PopupContainerProps> = ({
           <DialogTitle>{i18n.t('chat.topics.export.obsidian_atributes')}</DialogTitle>
         </DialogHeader>
         {error && (
-          <Alert
+          <ErrorNotice
+            variant="inline"
             className="mb-1 shrink-0"
-            message={error.message}
-            type="error"
-            showIcon
-            action={
+            title={error.message}
+            detail={
               error.cause ? (
                 <ErrorDetailAction
                   error={error.cause}
