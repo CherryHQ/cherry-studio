@@ -149,7 +149,7 @@ export function EmptyStateScene({ size = 'page', accent, sprites = [], children,
         aria-hidden="true"
         inert
         data-slot="empty-state-scene"
-        className={cn('pointer-events-none relative shrink-0 select-none', className)}
+        className={cn('pointer-events-none relative shrink-0 text-left select-none', className)}
         style={{ width, height }}>
         <div className="absolute inset-0 [mask-image:radial-gradient(ellipse_80%_80%_at_50%_20%,black_55%,transparent)]">
           {children}
