@@ -8,7 +8,10 @@
  * session relation.
  */
 
+import { application } from '@application'
+import { agentService } from '@data/services/AgentService'
 import { agentSessionService } from '@data/services/AgentSessionService'
+import { isProtectedBuiltinAgentRole } from '@shared/ai/builtinAgent'
 import { toDataApiError } from '@shared/data/api/errors'
 import { OrderBatchRequestSchema, OrderRequestSchema } from '@shared/data/api/schemas/_endpointHelpers'
 import {
@@ -22,6 +25,19 @@ import {
 } from '@shared/data/api/schemas/agentSessions'
 import type { HandlersFor } from '@shared/data/api/types'
 
+/** This route is only reached by the user creating a conversation; telemetry never fails it. */
+function trackUserCreatedSession(agentId: string | null): void {
+  try {
+    const agent = agentId ? agentService.getAgent(agentId) : null
+    const builtin = isProtectedBuiltinAgentRole(agent?.configuration?.builtin_role)
+    application
+      .get('AnalyticsService')
+      .trackProductEvent({ event: 'agent_session_created', agentKind: builtin ? 'builtin' : 'custom' })
+  } catch {
+    // Analytics is optional infrastructure.
+  }
+}
+
 export const agentSessionHandlers: HandlersFor<AgentSessionSchemas> = {
   '/agent-sessions': {
     GET: async ({ query }) => {
@@ -33,7 +49,9 @@ export const agentSessionHandlers: HandlersFor<AgentSessionSchemas> = {
     POST: async ({ body }) => {
       const parsed = CreateAgentSessionSchema.safeParse(body)
       if (!parsed.success) throw toDataApiError(parsed.error)
-      return agentSessionService.create(parsed.data)
+      const session = agentSessionService.create(parsed.data)
+      trackUserCreatedSession(session.agentId)
+      return session
     }
   },
 

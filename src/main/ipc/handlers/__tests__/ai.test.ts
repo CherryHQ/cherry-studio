@@ -21,7 +21,9 @@ const {
   createBuiltinAssistantSession,
   createBuiltinSkillSession,
   createBuiltinSupportSession,
-  openRequestPath
+  openRequestPath,
+  agentService,
+  analyticsService
 } = vi.hoisted(() => ({
   appGetMock: vi.fn(),
   agentSessionMessageService: { getSessionMessage: vi.fn() },
@@ -32,11 +34,14 @@ const {
   createBuiltinAssistantSession: vi.fn(),
   createBuiltinSkillSession: vi.fn(),
   createBuiltinSupportSession: vi.fn(),
-  openRequestPath: vi.fn()
+  openRequestPath: vi.fn(),
+  agentService: { getAgent: vi.fn() },
+  analyticsService: { trackProductEvent: vi.fn() }
 }))
 vi.mock('@application', () => ({ application: { get: appGetMock } }))
 vi.mock('@data/services/AgentSessionMessageService', () => ({ agentSessionMessageService }))
 vi.mock('@data/services/AgentSessionService', () => ({ agentSessionService }))
+vi.mock('@data/services/AgentService', () => ({ agentService }))
 vi.mock('@data/services/FileEntryService', () => ({ fileEntryService }))
 vi.mock('@data/services/MessageService', () => ({ messageService }))
 vi.mock('@main/services/file', () => ({ openRequestPath }))
@@ -142,6 +147,8 @@ beforeEach(() => {
         return windowManager
       case 'FileManager':
         return fileManager
+      case 'AnalyticsService':
+        return analyticsService
       default:
         throw new Error(`Unexpected application.get(${name})`)
     }
@@ -669,7 +676,25 @@ describe('aiHandlers — agent sessions & tasks', () => {
     createAgent.mockResolvedValue(agent)
 
     await expect(aiHandlers['ai.agent.create'](request, ctx)).resolves.toBe(agent)
-    expect(createAgent).toHaveBeenCalledWith(request, ctx)
+    // The IPC context must not leak into createAgent's creation-source argument.
+    expect(createAgent).toHaveBeenCalledWith(request)
+  })
+
+  it('reports a session start only when reuse_or_create actually creates one', async () => {
+    const input = { agentId: 'agent-1', workspace: { type: 'system' } } as never
+    agentService.getAgent.mockReturnValue({ id: 'agent-1', configuration: { builtin_role: 'assistant' } })
+    agentLifecycleService.reuseOrCreateSession
+      .mockResolvedValueOnce({ session: { id: 's1' }, created: false, deletedDuplicateSessionIds: [] })
+      .mockResolvedValueOnce({ session: { id: 's2' }, created: true, deletedDuplicateSessionIds: [] })
+    analyticsService.trackProductEvent.mockClear()
+
+    await aiHandlers['ai.agent.session.reuse_or_create'](input, ctx)
+    expect(analyticsService.trackProductEvent).not.toHaveBeenCalled()
+    await aiHandlers['ai.agent.session.reuse_or_create'](input, ctx)
+    expect(analyticsService.trackProductEvent).toHaveBeenCalledWith({
+      event: 'agent_session_created',
+      agentKind: 'builtin'
+    })
   })
 
   it('prewarm_agent_session acquires a warm lease keyed to the sender window', async () => {

@@ -159,10 +159,15 @@ export class AnalyticsService extends BaseService implements Activatable {
       })
     }
 
+    // app_opened precedes replayed events so funnels see the launch first.
     if (!this.hasTrackedAppLaunch) {
       this.client.trackAppLaunch({
         version: app.getVersion(),
         os: process.platform
+      })
+      this.captureProductEvent({
+        event: 'app_opened',
+        onboardingStatus: application.get('PreferenceService').get('app.onboarding.provider_setup.status')
       })
       this.hasTrackedAppLaunch = true
     }

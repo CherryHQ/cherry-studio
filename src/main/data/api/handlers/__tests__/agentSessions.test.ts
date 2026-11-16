@@ -1,14 +1,26 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { getConversationByIdMock, getLatestActiveMock, updateMock, setWorkspaceMock, reorderMock, reorderBatchMock } =
-  vi.hoisted(() => ({
-    getConversationByIdMock: vi.fn(),
-    getLatestActiveMock: vi.fn(),
-    updateMock: vi.fn(),
-    setWorkspaceMock: vi.fn(),
-    reorderMock: vi.fn(),
-    reorderBatchMock: vi.fn()
-  }))
+const {
+  getConversationByIdMock,
+  getLatestActiveMock,
+  updateMock,
+  setWorkspaceMock,
+  reorderMock,
+  reorderBatchMock,
+  createMock,
+  getAgentMock,
+  trackProductEventMock
+} = vi.hoisted(() => ({
+  createMock: vi.fn(),
+  getAgentMock: vi.fn(),
+  trackProductEventMock: vi.fn(),
+  getConversationByIdMock: vi.fn(),
+  getLatestActiveMock: vi.fn(),
+  updateMock: vi.fn(),
+  setWorkspaceMock: vi.fn(),
+  reorderMock: vi.fn(),
+  reorderBatchMock: vi.fn()
+}))
 
 vi.mock('@data/services/AgentSessionService', () => ({
   agentSessionService: {
@@ -17,9 +29,15 @@ vi.mock('@data/services/AgentSessionService', () => ({
     update: updateMock,
     setWorkspace: setWorkspaceMock,
     reorder: reorderMock,
-    reorderBatch: reorderBatchMock
+    reorderBatch: reorderBatchMock,
+    create: createMock
   }
 }))
+vi.mock('@data/services/AgentService', () => ({ agentService: { getAgent: getAgentMock } }))
+vi.mock('@application', async () => {
+  const { mockApplicationFactory } = await import('@test-mocks/main/application')
+  return mockApplicationFactory({ AnalyticsService: { trackProductEvent: trackProductEventMock } } as never)
+})
 
 import { agentSessionHandlers } from '../agentSessions'
 
@@ -28,6 +46,31 @@ describe('agentSessionHandlers', () => {
     vi.clearAllMocks()
     // `getConversationById` is synchronous; scope violations throw inline.
     getConversationByIdMock.mockReturnValue({ id: 'session-1' })
+  })
+
+  describe('/agent-sessions POST', () => {
+    const body = { agentId: 'agent-1', name: '', workspace: { type: 'system' } }
+
+    it('reports a user-started session with the Agent kind', async () => {
+      createMock.mockReturnValueOnce({ id: 'session-new', agentId: 'agent-1' })
+      getAgentMock.mockReturnValueOnce({ id: 'agent-1', configuration: { builtin_role: 'assistant' } })
+
+      await expect(agentSessionHandlers['/agent-sessions'].POST({ body } as never)).resolves.toMatchObject({
+        id: 'session-new'
+      })
+      expect(trackProductEventMock).toHaveBeenCalledWith({ event: 'agent_session_created', agentKind: 'builtin' })
+    })
+
+    it('still returns the session when analytics fails', async () => {
+      createMock.mockReturnValueOnce({ id: 'session-new', agentId: 'agent-1' })
+      trackProductEventMock.mockImplementationOnce(() => {
+        throw new Error('analytics down')
+      })
+
+      await expect(agentSessionHandlers['/agent-sessions'].POST({ body } as never)).resolves.toMatchObject({
+        id: 'session-new'
+      })
+    })
   })
 
   describe('/agent-sessions/latest', () => {

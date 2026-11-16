@@ -7,20 +7,25 @@ const {
   removeAgentDataDirectory,
   createAgentWithId,
   syncHeartbeatSchedule,
-  repairHeartbeatSchedules
+  repairHeartbeatSchedules,
+  trackProductEvent
 } = vi.hoisted(() => ({
   createAgentDataDirectory: vi.fn(),
   removeAgentDataDirectory: vi.fn(),
   createAgentWithId: vi.fn(),
   syncHeartbeatSchedule: vi.fn(),
-  repairHeartbeatSchedules: vi.fn()
+  repairHeartbeatSchedules: vi.fn(),
+  trackProductEvent: vi.fn()
 }))
 
 vi.mock('@data/services/AgentService', () => ({ agentService: { createAgentWithId } }))
 vi.mock('../agentDataDirectory', () => ({ createAgentDataDirectory, removeAgentDataDirectory }))
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
-  return mockApplicationFactory({ AgentJobsService: { waitForHeartbeat: syncHeartbeatSchedule } } as never)
+  return mockApplicationFactory({
+    AgentJobsService: { waitForHeartbeat: syncHeartbeatSchedule },
+    AnalyticsService: { trackProductEvent }
+  } as never)
 })
 vi.mock('uuid', () => ({ v4: () => '11111111-1111-4111-8111-111111111111' }))
 
@@ -53,6 +58,22 @@ describe('createAgent', () => {
     expect(createAgentDataDirectory.mock.invocationCallOrder[0]).toBeLessThan(
       createAgentWithId.mock.invocationCallOrder[0]
     )
+  })
+
+  it('reports who created the Agent only after it exists', async () => {
+    await createAgent(request)
+    await createAgent(request, 'assistant_tool')
+    expect(trackProductEvent.mock.calls).toEqual([
+      [{ event: 'agent_created', source: 'manual' }],
+      [{ event: 'agent_created', source: 'assistant_tool' }]
+    ])
+
+    trackProductEvent.mockClear()
+    createAgentWithId.mockImplementation(() => {
+      throw new Error('database failed')
+    })
+    await expect(createAgent(request)).rejects.toThrow('database failed')
+    expect(trackProductEvent).not.toHaveBeenCalled()
   })
 
   it('removes the provisioned directory when the database write fails', async () => {

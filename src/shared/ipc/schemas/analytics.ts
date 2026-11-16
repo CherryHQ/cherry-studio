@@ -60,7 +60,6 @@ export type MainAnalyticsEvent =
       modelSource: AnalyticsModelSource
       durationMs: number
       toolCallCount: number
-      sessionTurnIndex: number
     }
   | { event: 'agent_created'; source: 'manual' | 'assistant_tool' }
   | { event: 'cherryin_quota_error'; composer: 'chat' | 'agent' }

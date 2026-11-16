@@ -450,6 +450,28 @@ describe('AnalyticsService product events', () => {
     )
   })
 
+  it('reports app_opened once per process, before events replayed from the consent click', async () => {
+    vi.stubEnv('MAIN_VITE_POSTHOG_KEY', 'phc_test')
+    captured.preferenceValues['app.privacy.policy_version'] = ''
+    captured.preferenceValues['app.onboarding.provider_setup.status'] = 'pending'
+    const service = new AnalyticsService()
+    await service._doInit()
+
+    changePreference('app.privacy.policy_version', LATEST_PRIVACY_POLICY_VERSION)
+    service.trackProductEvent({ event: 'onboarding_option_selected', option: 'cherryin_login' })
+    await vi.waitFor(() => expect(service.isActivated).toBe(true))
+    changePreference('app.privacy.data_collection.enabled', false)
+    await vi.waitFor(() => expect(destroyResolvers).toHaveLength(1))
+    destroyResolvers[0]()
+    await vi.waitFor(() => expect(service.isActivated).toBe(false))
+    changePreference('app.privacy.data_collection.enabled', true)
+    await vi.waitFor(() => expect(service.isActivated).toBe(true))
+
+    const events = posthog.capture.mock.calls.map(([call]) => call)
+    expect(events.map(({ event }) => event)).toEqual(['app_opened', 'onboarding_option_selected'])
+    expect(events[0].properties).toMatchObject({ onboarding_status: 'pending' })
+  })
+
   it('drops events raised without consent instead of replaying them later', async () => {
     vi.stubEnv('MAIN_VITE_POSTHOG_KEY', 'phc_test')
     captured.preferenceValues['app.privacy.policy_version'] = ''

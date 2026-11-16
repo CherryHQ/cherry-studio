@@ -4,13 +4,15 @@ import { application } from '@application'
 import { agentService } from '@data/services/AgentService'
 import { loggerService } from '@logger'
 import { withCreatedImageEntry } from '@main/services/entityImageBinding'
+import { trackMainProductEvent } from '@main/services/productAnalytics'
 import type { CreateAgentCommand } from '@shared/ipc/schemas/ai'
 
 import { createAgentDataDirectory, removeAgentDataDirectory } from './agentDataDirectory'
 
 const logger = loggerService.withContext('CreateAgent')
 
-export async function createAgent(request: CreateAgentCommand) {
+/** User-initiated creation only; builtin agents are seeded through `ensureBuiltinAgent`. */
+export async function createAgent(request: CreateAgentCommand, source: 'manual' | 'assistant_tool' = 'manual') {
   const { avatarImage, ...data } = request
   const agentId = uuidv4()
   const agentsDataRoot = application.getPath('feature.agents.data')
@@ -28,6 +30,7 @@ export async function createAgent(request: CreateAgentCommand) {
     } catch (error) {
       logger.warn('Failed to provision heartbeat schedule for new agent', { agentId, error })
     }
+    trackMainProductEvent({ event: 'agent_created', source })
     return agent
   } catch (error) {
     try {

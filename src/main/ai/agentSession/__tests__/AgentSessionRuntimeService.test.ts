@@ -71,7 +71,8 @@ const mocks = vi.hoisted(() => ({
   getAgent: vi.fn(),
   ensureTraceId: vi.fn(),
   recordUsage: vi.fn(),
-  trackTokenUsage: vi.fn()
+  trackTokenUsage: vi.fn(),
+  trackProductEvent: vi.fn()
 }))
 
 const forkRecoveryMocks = vi.hoisted(() => ({
@@ -615,7 +616,8 @@ describe('AgentSessionRuntimeService', () => {
           closeAgentSessionWarm: mocks.closeAgentSessionWarm,
           close: mocks.closeWarmSession
         }
-      if (name === 'AnalyticsService') return { trackTokenUsage: mocks.trackTokenUsage }
+      if (name === 'AnalyticsService')
+        return { trackTokenUsage: mocks.trackTokenUsage, trackProductEvent: mocks.trackProductEvent }
       if (name === 'WindowManager') return { getWindow: mocks.getWindow }
       throw new Error(`Unexpected application.get(${name})`)
     })
@@ -645,6 +647,53 @@ describe('AgentSessionRuntimeService', () => {
     expect(() => service.assertSessionEditable('session-2')).not.toThrow()
     await settled
     expect(() => service.assertSessionEditable('session-1')).not.toThrow()
+  })
+
+  describe('turn analytics', () => {
+    const finishedTurns = () =>
+      mocks.trackProductEvent.mock.calls
+        .map(([event]) => event)
+        .filter((event) => event.event === 'agent_turn_finished')
+
+    beforeEach(() => mocks.trackProductEvent.mockClear())
+
+    it('reports a user stop once, even when the terminal arrives twice', () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      service.markTurnTerminal('session-1', 'paused')
+      service.markTurnTerminal('session-1', 'paused')
+
+      expect(finishedTurns()).toEqual([
+        expect.objectContaining({ status: 'stopped', trigger: 'user', agentKind: 'custom', modelSource: 'own_key' })
+      ])
+    })
+
+    it('keeps background turns out of user activity and attributes CherryIN models', () => {
+      const service = new AgentSessionRuntimeService()
+      mocks.getAgent.mockReturnValue({ id: 'agent-1', configuration: { builtin_role: 'assistant' } })
+      service.beginTurn({ ...baseTurnInput, headless: true, modelId: 'cherryin::agent/glm-5.1' })
+      service.markTurnTerminal('session-1', 'success')
+
+      expect(finishedTurns()).toEqual([
+        expect.objectContaining({
+          status: 'success',
+          trigger: 'headless',
+          agentKind: 'builtin',
+          modelSource: 'cherryin'
+        })
+      ])
+      mocks.getAgent.mockReset()
+    })
+
+    it('never lets analytics failures break turn settlement', () => {
+      const service = new AgentSessionRuntimeService()
+      mocks.trackProductEvent.mockImplementationOnce(() => {
+        throw new Error('analytics down')
+      })
+      service.beginTurn(baseTurnInput)
+      expect(() => service.markTurnTerminal('session-1', 'error')).not.toThrow()
+      expect(service.isSessionBusy('session-1')).toBe(false)
+    })
   })
 
   describe('runtime activity for detached work', () => {

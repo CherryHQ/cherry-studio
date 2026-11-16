@@ -295,17 +295,20 @@ async function createAgent(
   }
 
   try {
-    const result = await createAgentCommand({
-      type: 'claude-code',
-      name,
-      description,
-      instructions,
-      model: parsedModel.data,
-      configuration: {
-        permission_mode: 'default',
-        env_vars: {}
-      }
-    })
+    const result = await createAgentCommand(
+      {
+        type: 'claude-code',
+        name,
+        description,
+        instructions,
+        model: parsedModel.data,
+        configuration: {
+          permission_mode: 'default',
+          env_vars: {}
+        }
+      },
+      'assistant_tool'
+    )
     logger.info('create_agent succeeded', { agentId: result.id, name })
     const output = { ok: true as const, agentId: result.id, name: result.name, model: result.model }
     return {

@@ -342,17 +342,20 @@ describe('create_agent', () => {
       model: 'anthropic::claude-sonnet'
     })
 
-    expect(mocks.agentCreate).toHaveBeenCalledWith({
-      type: 'claude-code',
-      name: 'Reviewer',
-      description: 'Reviews code',
-      instructions: 'Review Python code.',
-      model: 'anthropic::claude-sonnet',
-      configuration: {
-        permission_mode: 'default',
-        env_vars: {}
-      }
-    })
+    expect(mocks.agentCreate).toHaveBeenCalledWith(
+      {
+        type: 'claude-code',
+        name: 'Reviewer',
+        description: 'Reviews code',
+        instructions: 'Review Python code.',
+        model: 'anthropic::claude-sonnet',
+        configuration: {
+          permission_mode: 'default',
+          env_vars: {}
+        }
+      },
+      'assistant_tool'
+    )
     const output = {
       ok: true,
       agentId: 'agent-created',
