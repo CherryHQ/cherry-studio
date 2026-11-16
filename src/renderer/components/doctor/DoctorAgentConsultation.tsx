@@ -237,8 +237,8 @@ function ModelPicker({
 
   return (
     <>
-      <div className="space-y-2">
-        <h3 className="text-sm font-medium">{t('settings.doctor.agent.model_picker.title')}</h3>
+      <div className="flex items-center justify-between gap-3">
+        <h3 className="shrink-0 text-sm font-medium">{t('settings.doctor.agent.model_picker.title')}</h3>
         <DefaultModelSelector
           model={model}
           providers={providers}
