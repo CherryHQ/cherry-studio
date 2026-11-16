@@ -88,6 +88,7 @@ vi.mock('react-i18next', () => ({
   })
 }))
 vi.mock('@cherrystudio/ui', () => ({
+  Alert: ({ children, role }: { children?: ReactNode; role?: string }) => <div role={role ?? 'alert'}>{children}</div>,
   Button: ({ children, ...props }: ComponentProps<'button'> & { size?: string; variant?: string }) => {
     const { size, variant, ...buttonProps } = props
     void size
