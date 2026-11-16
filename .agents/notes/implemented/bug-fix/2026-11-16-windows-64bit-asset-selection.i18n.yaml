@@ -1,5 +1,5 @@
 # Bilingual-pair consistency record (docs/dev/i18n/README.md).
 # After editing either side, update its counterpart and re-record with:
 #   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-16-windows-64bit-asset-selection.md
-2026-11-16-windows-64bit-asset-selection.md: 80d45d0d4a1f7104c036b8de1077ff070db84a53
-2026-11-16-windows-64bit-asset-selection.zh.md: 4228f3419c76163c78bb20d9e13961e5e1c7dff7
+2026-11-16-windows-64bit-asset-selection.md: 011c53c4d91f882ec22a6049c33f6b5dfab8dcdf
+2026-11-16-windows-64bit-asset-selection.zh.md: c433dec61fa986554e4f8c01031f5deb2eeeb61f
