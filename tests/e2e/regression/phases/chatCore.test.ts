@@ -293,7 +293,8 @@ test(...caseDefinition('MP-10'), async ({ app, mainWindow }, testInfo) => {
     fetch: await window.api.preference.get('chat.web_search.default_fetch_urls_provider'),
     overrides: await window.api.preference.get('chat.web_search.provider_overrides'),
     preferred: await window.api.preference.get('chat.web_search.model_tools_preferred'),
-    naming: await window.api.preference.get('topic.naming.enabled')
+    naming: await window.api.preference.get('topic.naming.enabled'),
+    displayMode: await window.api.preference.get('topic.tab.display_mode')
   }))
   await testInfo.attach('Original provider selections', {
     body: JSON.stringify({ search: preferences.search, fetch: preferences.fetch }),
@@ -348,7 +349,7 @@ test(...caseDefinition('MP-10'), async ({ app, mainWindow }, testInfo) => {
     })
     await screenshot('MP-10 scrolled search provider list')
     await page.getByRole('option', { name: 'DuckDuckGo', exact: true }).click()
-    await expect(searchSection()).toContainText('No API key required')
+    await expect(searchSection().getByRole('img', { name: /No API key required/ })).toBeVisible()
     expect(await page.evaluate(() => window.api.preference.get('chat.web_search.default_fetch_urls_provider'))).toBe(
       preferences.fetch
     )
@@ -384,7 +385,8 @@ test(...caseDefinition('MP-10'), async ({ app, mainWindow }, testInfo) => {
       async ({ providerId, config }) => {
         await window.api.preference.setMultiple({
           'chat.web_search.model_tools_preferred': false,
-          'topic.naming.enabled': false
+          'topic.naming.enabled': false,
+          'topic.tab.display_mode': 'assistant'
         })
         const provider = await window.api.dataApi.request({
           id: 'mp10-provider',
@@ -534,7 +536,8 @@ test(...caseDefinition('MP-10'), async ({ app, mainWindow }, testInfo) => {
           'chat.web_search.default_fetch_urls_provider': preferences.fetch,
           'chat.web_search.provider_overrides': preferences.overrides,
           'chat.web_search.model_tools_preferred': preferences.preferred,
-          'topic.naming.enabled': preferences.naming
+          'topic.naming.enabled': preferences.naming,
+          'topic.tab.display_mode': preferences.displayMode
         })
         if (assistantId) {
           const permanentlyDeletedAssistant = (await window.api.ipcApi.request('trash.assistant.delete_permanently', {
