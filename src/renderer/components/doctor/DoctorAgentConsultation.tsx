@@ -1,4 +1,5 @@
 import { Settings2, Undo2 } from 'lucide-react'
+import type { ReactNode } from 'react'
 import { useCallback, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { BeatLoader } from 'react-spinners'
@@ -15,6 +16,8 @@ import {
 } from '@cherrystudio/ui'
 import { useSharedCacheValue } from '@data/hooks/useCache'
 import { DefaultModelSelector } from '@renderer/components/DefaultModelSelector'
+import { ErrorDetailLink } from '@renderer/components/ErrorDetailLink'
+import { ErrorNotice } from '@renderer/components/ErrorNotice'
 import { StaticMarkdown } from '@renderer/components/markdown'
 import type { ModelSelectorFilter } from '@renderer/components/ModelSelector'
 import { usePreference } from '@renderer/data/hooks/usePreference'
@@ -22,7 +25,7 @@ import { useDoctorAgent } from '@renderer/hooks/doctor'
 import { useModels } from '@renderer/hooks/useModel'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
-import { checkDoctorAgentModel, healthCheckErrorToDisplayString } from '@renderer/services/modelHealthCheck'
+import { checkDoctorAgentModel } from '@renderer/services/modelHealthCheck'
 import { serializeHealthCheckError } from '@renderer/utils/error'
 import { classifyError } from '@renderer/utils/errorClassifier'
 import type { Model } from '@shared/data/types/model'
@@ -60,7 +63,6 @@ type ModelCheckState =
   | { status: 'checking'; key: string }
   | { status: 'failed'; key: string; message: string; settingsPath: SettingsPath }
 
-const GENERIC_MODEL_CHECK_ERRORS = new Set(['Error', 'IpcError', 'AI_APICallError'])
 export interface DoctorAgentDialogProps {
   readonly subject: DoctorSubjectRef
   /** A message incident reads that conversation; an operation incident reads its error context and diagnostics. */
@@ -214,13 +216,10 @@ function ModelPicker({
 
       const serializedError = serializeHealthCheckError(error)
       const classification = classifyError(serializedError, providerId)
-      const detail = healthCheckErrorToDisplayString(serializedError)
       const message =
         classification.category !== 'unknown'
           ? t(classification.i18nKey)
-          : !detail || GENERIC_MODEL_CHECK_ERRORS.has(detail)
-            ? t('settings.doctor.agent.model_picker.check_failed')
-            : detail
+          : t('settings.doctor.agent.model_picker.check_failed')
       const settingsPath = normalizeSettingsPath(
         classification.navTarget ??
           (providerId ? `/settings/provider?id=${encodeURIComponent(providerId)}` : '/settings/provider')
@@ -249,30 +248,18 @@ function ModelPicker({
         />
       </div>
       {currentCheckState.status === 'failed' ? (
-        <Alert
-          type="error"
-          showIcon
-          className="mt-3 [&_[data-slot=alert-description]]:mt-0"
-          description={currentCheckState.message}
-          action={
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => onSettingsNavigate(() => openSettingsTab(currentCheckState.settingsPath))}>
-              <Settings2 className="size-4" aria-hidden />
-              {t('common.go_to_settings')}
-            </Button>
-          }
+        <ErrorNotice
+          variant="inline"
+          className="mt-3"
+          title={currentCheckState.message}
+          action={{
+            label: t('common.go_to_settings'),
+            icon: <Settings2 className="size-3.5" aria-hidden />,
+            onClick: () => onSettingsNavigate(() => openSettingsTab(currentCheckState.settingsPath))
+          }}
         />
       ) : null}
-      {actionError ? (
-        <Alert
-          type="error"
-          showIcon
-          className="mt-3 [&_[data-slot=alert-description]]:mt-0"
-          description={actionError}
-        />
-      ) : null}
+      {actionError ? <ErrorNotice variant="inline" className="mt-3" title={actionError} /> : null}
       <DialogFooter>
         <Button variant="outline" onClick={onCancel}>
           {t('common.cancel')}
@@ -308,7 +295,7 @@ function Consultation({
   return (
     <>
       <div className="max-h-[55vh] space-y-3 overflow-y-auto rounded-xl border border-border bg-background p-4 text-sm">
-        {agent.actionError ? <Alert type="error" showIcon description={agent.actionError} /> : null}
+        {agent.actionError ? <ErrorNotice variant="inline" title={agent.actionError} /> : null}
         {running ? (
           <div className="flex items-center gap-2 text-xs text-muted-foreground" role="status" aria-live="polite">
             <BeatLoader color="currentColor" size={4} speedMultiplier={0.8} />
@@ -402,19 +389,13 @@ function RunFailureAlert({ state }: { readonly state: Extract<DoctorAgentState, 
       ? serviceRunFailureText(t, detail.failure)
       : null
   return (
-    <Alert
-      type="error"
-      showIcon
-      description={
-        <div className="space-y-1">
-          <div>{t('settings.doctor.agent.messages.run_failed')}</div>
-          {detail.source === 'external' ? (
-            <div className="break-words font-mono text-xs">{detail.text}</div>
-          ) : serviceText ? (
-            <div>{serviceText}</div>
-          ) : null}
-        </div>
+    <FailureNotice
+      title={
+        <>
+          {t('settings.doctor.agent.messages.run_failed')} {serviceText ? <span>{serviceText}</span> : null}
+        </>
       }
+      raw={detail.source === 'external' ? detail.text : undefined}
     />
   )
 }
@@ -424,13 +405,43 @@ function ProposalFailure({ proposal }: { readonly proposal: DoctorAgentProposal 
   const detail = doctorProposalFailureDetail(proposal)
   if (!detail) return null
   return (
-    <div className="text-destructive">
-      <div>
-        {detail.source === 'service' && detail.failure.kind === 'report_superseded'
+    <FailureNotice
+      role="note"
+      title={
+        detail.source === 'service' && detail.failure.kind === 'report_superseded'
           ? t('settings.doctor.agent.messages.report_superseded')
-          : t('settings.doctor.agent.messages.proposal_failed')}
-      </div>
-      {detail.source === 'external' ? <div className="break-words font-mono text-xs">{detail.text}</div> : null}
+          : t('settings.doctor.agent.messages.proposal_failed')
+      }
+      raw={detail.source === 'external' ? detail.text : undefined}
+    />
+  )
+}
+
+// This dialog is often opened from the error detail modal, which cannot stack a second one,
+// so the raw cause unfolds in place behind Details.
+function FailureNotice({
+  title,
+  raw,
+  role
+}: {
+  readonly title: ReactNode
+  readonly raw?: string
+  readonly role?: string
+}) {
+  const [expanded, setExpanded] = useState(false)
+  return (
+    <div>
+      <ErrorNotice
+        variant="inline"
+        role={role}
+        title={title}
+        detail={raw ? <ErrorDetailLink onClick={() => setExpanded((open) => !open)} /> : undefined}
+      />
+      {expanded && raw ? (
+        <p className="mt-1.5 select-text break-words px-3 font-mono text-[11px] text-muted-foreground leading-4">
+          {raw}
+        </p>
+      ) : null}
     </div>
   )
 }

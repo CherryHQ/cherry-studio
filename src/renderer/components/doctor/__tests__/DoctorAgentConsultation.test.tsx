@@ -54,11 +54,7 @@ vi.mock('@renderer/hooks/useModel', () => ({
   useModels: () => ({ models: mocks.models, isLoading: mocks.modelsLoading })
 }))
 vi.mock('@renderer/services/mainWindowNavigation', () => ({ openSettingsTab: mocks.openSettings }))
-vi.mock('@renderer/services/modelHealthCheck', () => ({
-  checkDoctorAgentModel: mocks.checkDoctorAgentModel,
-  healthCheckErrorToDisplayString: (error: { message?: string | null; name?: string | null } | string) =>
-    typeof error === 'string' ? error : (error.message ?? error.name ?? '')
-}))
+vi.mock('@renderer/services/modelHealthCheck', () => ({ checkDoctorAgentModel: mocks.checkDoctorAgentModel }))
 // The real selector is a popover with its own tests; here it is a select so the filter and the choice can be checked.
 vi.mock('@renderer/components/DefaultModelSelector', () => ({
   DefaultModelSelector: ({
@@ -205,6 +201,18 @@ describe('DoctorAgentConsultation', () => {
     expect(mocks.openSettings).toHaveBeenCalledWith('/settings/provider?id=openai')
   })
 
+  it('shows the generic check failure instead of an unclassified raw provider message', async () => {
+    const user = userEvent.setup()
+    mocks.checkDoctorAgentModel.mockRejectedValueOnce(new Error('upstream said: teapot overflow 418x'))
+    render(<DoctorAgentConsultation subject={{ kind: 'global' }} open onOpenChange={vi.fn()} />)
+
+    await user.click(screen.getByRole('button', { name: 'settings.doctor.agent.actions.start' }))
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent('settings.doctor.agent.model_picker.check_failed')
+    expect(alert).not.toHaveTextContent('teapot overflow')
+    expect(screen.getByRole('button', { name: 'common.go_to_settings' })).toBeInTheDocument()
+  })
+
   it('retries a failed check and starts immediately after it passes', async () => {
     const user = userEvent.setup()
     mocks.checkDoctorAgentModel
@@ -331,7 +339,8 @@ describe('DoctorAgentConsultation', () => {
     expect(screen.getByRole('button', { name: 'settings.doctor.agent.actions.restart' })).toBeInTheDocument()
   })
 
-  it('explains a failed analysis without replacing the model text or opening details', () => {
+  it('explains a failed analysis without replacing the model text or opening details', async () => {
+    const user = userEvent.setup()
     mocks.agentState = {
       status: 'failed',
       error: 'unknown error',
@@ -378,11 +387,14 @@ describe('DoctorAgentConsultation', () => {
     expect(screen.queryByText('report superseded')).not.toBeInTheDocument()
     expect(screen.getByText('Clear the cache.')).toBeInTheDocument()
     expect(screen.getByText('settings.doctor.agent.messages.proposal_failed')).toBeInTheDocument()
+    expect(screen.queryByText('disk full')).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'common.detail' }))
     expect(screen.getByText('disk full')).toBeInTheDocument()
     expect(screen.queryByRole('dialog', { name: 'error.details' })).not.toBeInTheDocument()
   })
 
-  it('keeps a real analysis failure as technical detail under the translated explanation', () => {
+  it('keeps a real analysis failure behind Details under the translated explanation', async () => {
+    const user = userEvent.setup()
     mocks.agentState = {
       status: 'failed',
       error: 'database locked',
@@ -402,10 +414,12 @@ describe('DoctorAgentConsultation', () => {
 
     const alert = screen.getByRole('alert')
     expect(alert).toHaveTextContent('settings.doctor.agent.messages.run_failed')
-    expect(alert).toHaveTextContent('database locked')
+    expect(screen.queryByText('database locked')).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'common.detail' }))
+    expect(screen.getByText('database locked')).toBeInTheDocument()
   })
 
-  it('localizes each service-owned analysis failure and still shows an external cause', () => {
+  it('localizes each service-owned analysis failure and keeps an external cause behind Details', () => {
     const base = {
       runId: 'run-1',
       scope: 'global' as const,
@@ -455,11 +469,12 @@ describe('DoctorAgentConsultation', () => {
     expect(screen.queryByText('Execution failed')).not.toBeInTheDocument()
 
     show({ status: 'failed', error: 'Execution failed', errorSource: 'external', ...base })
-    expect(screen.getByText('Execution failed')).toBeInTheDocument()
+    expect(screen.queryByText('Execution failed')).not.toBeInTheDocument()
     expect(screen.queryByText('settings.doctor.agent.messages.execution_failed')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'common.detail' })).toBeInTheDocument()
 
     show({ status: 'failed', error: 'not started: busy', errorSource: 'external', ...base })
-    expect(screen.getByText('not started: busy')).toBeInTheDocument()
+    expect(screen.queryByText('not started: busy')).not.toBeInTheDocument()
     expect(screen.queryByText('settings.doctor.agent.messages.not_started_busy')).not.toBeInTheDocument()
 
     show({
@@ -481,7 +496,8 @@ describe('DoctorAgentConsultation', () => {
     })
     expect(screen.getByText('settings.doctor.agent.messages.not_started_session_invalid')).toBeInTheDocument()
     expect(screen.queryByText('not started: session-invalid')).not.toBeInTheDocument()
-    expect(screen.getByText('unknown error')).toBeInTheDocument()
+    expect(screen.queryByText('unknown error')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'common.detail' })).toBeInTheDocument()
   })
 
   it('shows a start failure in the model picker and keeps start usable', () => {
