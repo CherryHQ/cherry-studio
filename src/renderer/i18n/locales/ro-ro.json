@@ -5989,6 +5989,7 @@
   "settings.subscription.no_quota": "Nicio cotă configurată",
   "settings.subscription.no_recovery": "Nicio utilizare în așteptarea eliberării",
   "settings.subscription.open_portal_failed": "Pagina de abonament nu a putut fi deschisă. Încearcă din nou.",
+  "settings.subscription.quota_out_of_date": "Statisticile de utilizare ale planului sunt mai vechi decât decizia serverului privind cota; se actualizează.",
   "settings.subscription.remaining": "{{percent}}% rămas",
   "settings.subscription.sign_in": "Conectare",
   "settings.subscription.sign_in_hint": "Conectează-te cu un cont Cherry pentru a te abona la un plan și a vedea aici utilizarea",

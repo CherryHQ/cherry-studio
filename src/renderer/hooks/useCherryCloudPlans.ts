@@ -16,7 +16,8 @@ export function useCherryCloudPlans(enabled = true) {
     () => refresh('initial'),
     { shouldRetryOnError: false, revalidateOnFocus: false, revalidateOnReconnect: false }
   )
-  const fact = receipt?.status.scopeId === scopeId ? receipt.plans : undefined
+  const scopedReceipt = receipt?.status.scopeId === scopeId ? receipt : undefined
+  const fact = scopedReceipt?.plans
   const plansFreshness = fact?.freshness ?? 'unknown'
   const isPlansReady = plansFreshness === 'fresh'
   const data = fact && fact.freshness !== 'unknown' ? fact.value : undefined
@@ -40,7 +41,7 @@ export function useCherryCloudPlans(enabled = true) {
     isValidating: initial.isValidating || isRefreshing,
     mutate
   }
-  return { session, plansQuery, activePaid, upcomingPaid, isPlansReady, plansFreshness }
+  return { session, receipt: scopedReceipt, plansQuery, activePaid, upcomingPaid, isPlansReady, plansFreshness }
 }
 
 /** China-edition Subscribe dot, quiet while current-account plans are unknown. */

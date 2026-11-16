@@ -16,7 +16,8 @@ export function SubscriptionSettings() {
     plansQuery: { data: plans, error, isLoading: loading, mutate },
     activePaid,
     upcomingPaid,
-    isPlansReady
+    isPlansReady,
+    receipt
   } = useCherryCloudPlans()
   const paidPlan = activePaid ?? upcomingPaid
   const failed = Boolean(error) || (!loading && !isPlansReady)
@@ -146,14 +147,18 @@ export function SubscriptionSettings() {
             <p className="py-6 text-center text-sm text-muted-foreground">{t('settings.subscription.loading')}</p>
           ) : failed ? (
             <div className="py-4 text-center">
-              <p className="text-sm text-destructive">{t('settings.subscription.load_failed')}</p>
+              {paidPlan && receipt ? (
+                <CherryCloudQuotaUsage entitlement={paidPlan} receipt={receipt} />
+              ) : (
+                <p className="text-sm text-destructive">{t('settings.subscription.load_failed')}</p>
+              )}
               <Button variant="outline" size="sm" className="mt-3" onClick={() => void mutate()}>
                 <RefreshCw />
                 {t('common.retry')}
               </Button>
             </div>
-          ) : paidPlan?.quota_pools.length ? (
-            <CherryCloudQuotaUsage entitlement={paidPlan} />
+          ) : paidPlan?.quota_pools.length && receipt ? (
+            <CherryCloudQuotaUsage entitlement={paidPlan} receipt={receipt} />
           ) : (
             <p className="py-6 text-center text-sm text-muted-foreground">
               {paidPlan ? t('settings.subscription.no_quota') : t('settings.subscription.subscribe_hint')}

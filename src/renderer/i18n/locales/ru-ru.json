@@ -5989,6 +5989,7 @@
   "settings.subscription.no_quota": "Квота не настроена",
   "settings.subscription.no_recovery": "Нет использования, ожидающего освобождения",
   "settings.subscription.open_portal_failed": "Не удалось открыть страницу подписки. Попробуйте ещё раз.",
+  "settings.subscription.quota_out_of_date": "Статистика использования тарифа старше решения сервера о квоте; выполняется обновление.",
   "settings.subscription.remaining": "Осталось {{percent}}%",
   "settings.subscription.sign_in": "Войти",
   "settings.subscription.sign_in_hint": "Войдите в аккаунт Cherry, чтобы оформить подписку и видеть здесь использование",

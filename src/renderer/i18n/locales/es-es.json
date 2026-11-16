@@ -5989,6 +5989,7 @@
   "settings.subscription.no_quota": "No hay cuota configurada",
   "settings.subscription.no_recovery": "No hay uso pendiente de liberarse",
   "settings.subscription.open_portal_failed": "No se pudo abrir la página de suscripción. Inténtalo de nuevo.",
+  "settings.subscription.quota_out_of_date": "Las estadísticas de uso del plan son anteriores a la decisión del servidor sobre la cuota; se están actualizando.",
   "settings.subscription.remaining": "{{percent}}% restante",
   "settings.subscription.sign_in": "Iniciar sesión",
   "settings.subscription.sign_in_hint": "Inicia sesión con una cuenta de Cherry para suscribirte a un plan y ver aquí tu uso",

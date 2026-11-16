@@ -1453,14 +1453,11 @@ describe('CherryCloudService', () => {
     }
   })
 
-  it.each([
-    [403, 'ENTITLEMENT_INACTIVE'],
-    [429, 'QUOTA_EXHAUSTED']
-  ])('asks for models again after a model request is rejected with %i %s', async (status, code) => {
+  it('asks for models again after a model request is rejected with 403 ENTITLEMENT_INACTIVE', async () => {
     const service = await createSignedInService()
     mockModelSync()
     await service.syncEntitledModelsIfStale()
-    mockCloudRoute('/v1/messages', cloudErrorResponse(status, code))
+    mockCloudRoute('/v1/messages', cloudErrorResponse(403, 'ENTITLEMENT_INACTIVE'))
     await service.authenticatedFetch('/v1/messages', { method: 'POST' })
     mocks.netFetch.mockClear()
 
@@ -2331,6 +2328,214 @@ describe('CherryCloudService', () => {
     }
   })
 
+  it('refreshes plans after a trusted quota refusal without consuming or delaying the response', async () => {
+    const service = await createSignedInService()
+    const scopeId = service.getCurrentScopeId()
+    mockModelSync()
+    mockCloudRoute('/api/v1/account/plans', accountPlansWith([authorizationId]))
+    await service.refreshAccount({ scopeId, reason: 'initial' })
+    mocks.netFetch.mockClear()
+    mocks.broadcast.mockClear()
+    const pendingPlans = deferred<Response>()
+    mockModelSync({
+      ...accountSnapshot,
+      quota_pools: [{ model_ids: ['deepseek-go'], windows: [{ remaining_units: 5 }] }]
+    })
+    mockCloudRoute('/api/v1/account/plans', pendingPlans.promise)
+    const refusal = cloudErrorResponse(429, 'QUOTA_EXHAUSTED')
+    refusal.headers.set('Retry-After', '60')
+    mockCloudRoute('/v1/messages', refusal)
+
+    const response = await service.authenticatedFetch('/v1/messages', {
+      method: 'POST',
+      body: '{"model":"deepseek-go","messages":[]}'
+    })
+
+    expect(response).toBe(refusal)
+    expect(response.status).toBe(429)
+    expect(response.headers.get('Cherry-Error-Code')).toBe('QUOTA_EXHAUSTED')
+    expect(response.headers.get('Retry-After')).toBe('60')
+    expect(await response.json()).toEqual({
+      type: 'error',
+      error: { code: 'QUOTA_EXHAUSTED', message: 'QUOTA_EXHAUSTED' }
+    })
+    expect(service.getAccountReceipt()).toMatchObject({ reason: 'quota_refusal', plans: { freshness: 'stale' } })
+    expect(
+      mocks.broadcast.mock.calls.some(
+        ([event, receipt]) =>
+          event === 'cherry_cloud.account_changed' &&
+          receipt.reason === 'quota_refusal' &&
+          receipt.plans.freshness === 'stale'
+      )
+    ).toBe(true)
+    await vi.waitFor(() => expect(requestCalls('/api/v1/account/plans')).toHaveLength(1))
+    pendingPlans.resolve(accountPlansWith([authorizationId]))
+    await vi.waitFor(() =>
+      expect(service.getAccountReceipt()).toMatchObject({
+        reason: 'quota_refusal',
+        plans: { freshness: 'fresh' },
+        models: { freshness: 'fresh', value: { quotaExhaustedModelIds: ['cherryai-subscription::deepseek-go'] } }
+      })
+    )
+    expect(requestCalls('/v1/messages')).toHaveLength(1)
+    await service._doStop()
+  })
+
+  it('bounds concurrent refusals and cooldown refreshes while recording each refused model', async () => {
+    const service = await createSignedInService()
+    const clock = vi.spyOn(performance, 'now').mockReturnValue(1000)
+    const pendingPlans = deferred<Response>()
+    const account = {
+      ...accountSnapshot,
+      quota_pools: [{ model_ids: ['deepseek-go', 'deepseek-free'], windows: [{ remaining_units: 5 }] }]
+    }
+    try {
+      mockModelSync(account)
+      mockCloudRoute('/api/v1/account/plans', pendingPlans.promise)
+      mockCloudRoute('/v1/messages', ...Array.from({ length: 5 }, () => cloudErrorResponse(429, 'QUOTA_EXHAUSTED')))
+      const refuse = (model = 'deepseek-go') =>
+        service.authenticatedFetch('/v1/messages', {
+          method: 'POST',
+          body: JSON.stringify({ model, messages: [] })
+        })
+      await Promise.all([refuse(), refuse('deepseek-free'), refuse()])
+      await vi.waitFor(() => expect(requestCalls('/api/v1/account/plans')).toHaveLength(1))
+      pendingPlans.resolve(accountPlansWith([]))
+      await vi.waitFor(() => expect(service.getAccountReceipt().plans.freshness).toBe('fresh'))
+      expect(service.getAccountReceipt().models).toMatchObject({
+        freshness: 'fresh',
+        value: {
+          quotaExhaustedModelIds: ['cherryai-subscription::deepseek-free', 'cherryai-subscription::deepseek-go']
+        }
+      })
+      clock.mockReturnValue(30_999)
+      await refuse()
+      expect(requestCalls('/api/v1/account/plans')).toHaveLength(1)
+      const secondPlans = deferred<Response>()
+      mockModelSync(account)
+      mockCloudRoute('/api/v1/account/plans', secondPlans.promise)
+      mockCloudRoute('/v1/messages', cloudErrorResponse(429, 'QUOTA_EXHAUSTED'))
+      clock.mockReturnValue(31_000)
+      await refuse()
+      await vi.waitFor(() => expect(requestCalls('/api/v1/account/plans')).toHaveLength(2))
+      clock.mockReturnValue(61_001)
+      await refuse()
+      expect(requestCalls('/api/v1/account/plans')).toHaveLength(2)
+      secondPlans.resolve(accountPlansWith([]))
+      await vi.waitFor(() => expect(service.getAccountReceipt().plans.freshness).toBe('fresh'))
+      expect(requestCalls('/v1/messages')).toHaveLength(6)
+    } finally {
+      clock.mockRestore()
+      await service._doStop()
+    }
+  })
+
+  it.each([
+    [429, undefined, 'QUOTA_EXHAUSTED'],
+    [429, 'RATE_LIMITED', 'RATE_LIMITED'],
+    [429, undefined, 'upstream quota exceeded'],
+    [403, 'QUOTA_EXHAUSTED', 'QUOTA_EXHAUSTED']
+  ])('does not refresh plans for an untrusted refusal (%s/%s/%s)', async (status, header, message) => {
+    const service = await createSignedInService()
+    const refusal = jsonResponse({ error: { code: message, message } }, status)
+    if (header) refusal.headers.set('Cherry-Error-Code', header)
+    mockCloudRoute('/v1/messages', refusal)
+
+    const response = await service.authenticatedFetch('/v1/messages', {
+      method: 'POST',
+      body: '{"model":"deepseek-go","messages":[]}'
+    })
+
+    expect(await response.json()).toEqual({ error: { code: message, message } })
+    expect(requestCalls('/api/v1/account/plans')).toHaveLength(0)
+    expect(service.getAccountReceipt().reason).not.toBe('quota_refusal')
+    await service._doStop()
+  })
+
+  it.each([
+    [401, 'AUTH_REQUIRED'],
+    [409, 'REQUEST_REPLAYED']
+  ] as const)('refreshes plans for a trusted refusal after recovering %s/%s', async (status, code) => {
+    const service = await createSignedInService()
+    mockCloudRoute('/v1/messages', cloudErrorResponse(status, code), cloudErrorResponse(429, 'QUOTA_EXHAUSTED'))
+    if (status === 401) mockCloudRoute('/api/v1/product-sessions/refresh', jsonResponse(refreshedTokenSet()))
+    mockModelSync({
+      ...accountSnapshot,
+      quota_pools: [{ model_ids: ['deepseek-go'], windows: [{ remaining_units: 5 }] }]
+    })
+    mockCloudRoute('/api/v1/account/plans', accountPlansWith([]))
+
+    const response = await service.authenticatedFetch('/v1/messages', {
+      method: 'POST',
+      body: '{"model":"deepseek-go","messages":[]}'
+    })
+
+    expect(response.status).toBe(429)
+    expect(response.headers.get('Cherry-Error-Code')).toBe('QUOTA_EXHAUSTED')
+    expect(await response.json()).toMatchObject({ error: { code: 'QUOTA_EXHAUSTED' } })
+    await vi.waitFor(() =>
+      expect(service.getAccountReceipt().models).toMatchObject({
+        freshness: 'fresh',
+        value: { quotaExhaustedModelIds: ['cherryai-subscription::deepseek-go'] }
+      })
+    )
+    expect(requestCalls('/api/v1/account/plans')).toHaveLength(1)
+    expect(requestCalls('/v1/messages')).toHaveLength(2)
+    await service._doStop()
+  })
+
+  it.each(['direct', 'retry'] as const)('ignores a late %s quota refusal after sign-out', async (path) => {
+    const service = await createSignedInService()
+    const pending = deferred<Response>()
+    if (path === 'retry') {
+      mockCloudRoute('/v1/messages', cloudErrorResponse(409, 'REQUEST_REPLAYED'), pending.promise)
+    } else {
+      mockCloudRoute('/v1/messages', pending.promise)
+    }
+    const request = service.authenticatedFetch('/v1/messages', {
+      method: 'POST',
+      body: '{"model":"deepseek-go","messages":[]}'
+    })
+    await vi.waitFor(() => expect(requestCalls('/v1/messages')).toHaveLength(path === 'retry' ? 2 : 1))
+    mockCloudRoute('/api/v1/product-sessions/current', new Response(null, { status: 204 }))
+    await service.revokeCurrentSession()
+    pending.resolve(cloudErrorResponse(429, 'QUOTA_EXHAUSTED'))
+
+    const response = await request
+    expect(response.status).toBe(429)
+    expect(await response.json()).toMatchObject({ error: { code: 'QUOTA_EXHAUSTED' } })
+    expect(requestCalls('/api/v1/account/plans')).toHaveLength(0)
+    expect(service.getAccountReceipt()).toMatchObject({
+      reason: 'initial',
+      status: { phase: 'signed-out' },
+      plans: { freshness: 'unknown' }
+    })
+    await service._doStop()
+  })
+
+  it('does not recursively refresh for a control-plane quota refusal', async () => {
+    const service = await createSignedInService()
+    mockCloudRoute('/api/v1/account', cloudErrorResponse(429, 'QUOTA_EXHAUSTED'))
+    mockCloudRoute('/v1/models?limit=1000', jsonResponse(cloudModelCatalog))
+    mockCloudRoute('/api/v1/account/plans', cloudErrorResponse(429, 'QUOTA_EXHAUSTED'))
+    mockCloudRoute('/v1/messages', cloudErrorResponse(429, 'QUOTA_EXHAUSTED'))
+
+    await service.authenticatedFetch('/v1/messages', {
+      method: 'POST',
+      body: '{"model":"deepseek-go","messages":[]}'
+    })
+
+    await vi.waitFor(() =>
+      expect(service.getAccountReceipt().plans).toMatchObject({
+        freshness: 'unknown',
+        error: 'Cherry Cloud request failed (429)'
+      })
+    )
+    expect(requestCalls('/api/v1/account/plans')).toHaveLength(1)
+    expect(requestCalls('/api/v1/account')).toHaveLength(1)
+    await service._doStop()
+  })
+
   it('keeps a pool the gateway refused for quota exhausted until one of its windows grows', async () => {
     const service = await createSignedInService()
     const withRemaining = (units: number) => ({
@@ -2341,7 +2546,10 @@ describe('CherryCloudService', () => {
     expect((await service['syncEntitledModels']()).quotaExhaustedModelIds).toEqual([])
 
     mockCloudRoute('/v1/messages', cloudErrorResponse(429, 'QUOTA_EXHAUSTED'))
+    mockModelSync(withRemaining(5))
+    mockCloudRoute('/api/v1/account/plans', accountPlansWith([]))
     await service.authenticatedFetch('/v1/messages', { method: 'POST', body: '{"model":"deepseek-go","messages":[]}' })
+    await vi.waitFor(() => expect(service.getAccountReceipt().plans.freshness).toBe('fresh'))
 
     mockModelSync(withRemaining(5))
     expect((await service['syncEntitledModels']()).quotaExhaustedModelIds).toEqual([

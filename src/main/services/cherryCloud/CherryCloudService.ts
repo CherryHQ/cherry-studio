@@ -204,6 +204,7 @@ export class CherryCloudService extends BaseService {
   private revision = 0
   private readonly accountRefreshQueue = new Sequencer()
   private readonly accountRefreshes = new Set<AbortController>()
+  private quotaRefusalRefresh: { scopeId: string; admittedAt: number; inFlight: boolean } | null = null
   private receiptReason: CherryCloudRefreshReason = 'initial'
   private accountFact: CherryCloudAccountReceipt['account'] = { freshness: 'unknown', error: null }
   private modelFact: CherryCloudAccountReceipt['models'] = { freshness: 'unknown', error: null }
@@ -704,6 +705,7 @@ export class CherryCloudService extends BaseService {
   }
 
   private resetAccountFacts(): void {
+    this.quotaRefusalRefresh = null
     this.accountFact = { freshness: 'unknown', error: null }
     this.modelFact = { freshness: 'unknown', error: null }
     this.plansFact = { freshness: 'unknown', error: null }
@@ -723,6 +725,27 @@ export class CherryCloudService extends BaseService {
     const receipt = this.getAccountReceipt()
     application.get('IpcApiService').broadcast('cherry_cloud.account_changed', receipt)
     return receipt
+  }
+
+  private scheduleQuotaRefusalRefresh(scopeId: string): void {
+    if (!this.isCurrentScope(scopeId)) return
+    if (this.plansFact.freshness !== 'unknown') {
+      this.plansFact = this.failedFact(this.plansFact, 'Quota decision is newer than plan usage statistics')
+    }
+    this.publishAccountReceipt('quota_refusal')
+    const now = performance.now()
+    const previous = this.quotaRefusalRefresh
+    if (previous?.scopeId === scopeId && (previous.inFlight || now - previous.admittedAt < 30_000)) return
+    const refresh = { scopeId, admittedAt: now, inFlight: true }
+    this.quotaRefusalRefresh = refresh
+    void this.refreshAccount({ scopeId, reason: 'quota_refusal' })
+      .then((result) => {
+        if (result.outcome === 'failed') logger.warn('Cherry Cloud quota refusal refresh failed')
+      })
+      .catch((error) => logger.warn('Cherry Cloud quota refusal refresh failed', error as Error))
+      .finally(() => {
+        if (this.quotaRefusalRefresh === refresh) refresh.inFlight = false
+      })
   }
 
   public async refreshAccount({
@@ -1289,7 +1312,10 @@ export class CherryCloudService extends BaseService {
     ) {
       this.modelSyncCache = null
     }
-    if (response.status === 429 && code === 'QUOTA_EXHAUSTED') this.recordQuotaRefusal(generation, init?.body)
+    if (response.status === 429 && code === 'QUOTA_EXHAUSTED') {
+      this.recordQuotaRefusal(generation, init?.body)
+      if (idempotencyKey !== undefined) this.scheduleQuotaRefusalRefresh(this.currentStatus().scopeId)
+    }
     const refreshRequired = response.status === 401 && code === 'AUTH_REQUIRED'
     const replayed = response.status === 409 && code === 'REQUEST_REPLAYED'
     if (!refreshRequired && !replayed) return response
@@ -1315,6 +1341,16 @@ export class CherryCloudService extends BaseService {
     discardResponse(response)
     response = await this.signedFetch(url, init, session, { bearer: true, idempotencyKey })
     if (requiresLogin(response)) await this.clearSession(session, signOutReason(response))
+    if (
+      generation === this.sessionGeneration &&
+      this.cloudState.session &&
+      response.status === 429 &&
+      response.headers.get('Cherry-Error-Code') === 'QUOTA_EXHAUSTED'
+    ) {
+      this.modelSyncCache = null
+      this.recordQuotaRefusal(generation, init?.body)
+      if (idempotencyKey !== undefined) this.scheduleQuotaRefusalRefresh(this.currentStatus().scopeId)
+    }
     return response
   }
 

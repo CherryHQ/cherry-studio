@@ -58,7 +58,8 @@ export function UserAccountPanel({
     plansQuery: { data: plans, error: plansError, mutate: reloadPlans },
     activePaid,
     upcomingPaid,
-    isPlansReady
+    isPlansReady,
+    receipt
   } = useCherryCloudPlans()
 
   const handleOpenAccountDetails = () => {
@@ -75,7 +76,8 @@ export function UserAccountPanel({
   // A bought plan that has not started yet is shown as such, not offered again.
   const upcomingPaidPlan = activePaidPlan ? undefined : upcomingPaid
   const paidPlanName = (activePaidPlan ?? upcomingPaidPlan)?.plan.display_name
-  const remainingPercent = activePaidPlan ? (getLowestRemainingPercent(activePaidPlan) ?? null) : null
+  const remainingPercent =
+    activePaidPlan && receipt ? (getLowestRemainingPercent(activePaidPlan, receipt) ?? null) : null
   const cloudSubtitle = isCloudSignedIn
     ? paidPlanName || cloudStatus.displayName || t('settings.provider.cherry_cloud.logged_in')
     : isAuthorizing
@@ -233,7 +235,7 @@ export function UserAccountPanel({
             <HoverCardContent side="right" align="start" sideOffset={8} className="w-64">
               <div className="truncate font-medium text-sm">{activePaidPlan.plan.display_name}</div>
               <div className="mt-2 border-border border-t pt-1">
-                <CherryCloudQuotaUsage entitlement={activePaidPlan} />
+                {receipt && <CherryCloudQuotaUsage entitlement={activePaidPlan} receipt={receipt} />}
               </div>
               <Button
                 type="button"

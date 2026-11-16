@@ -5989,6 +5989,7 @@
   "settings.subscription.no_quota": "未配置额度",
   "settings.subscription.no_recovery": "暂无待释放用量",
   "settings.subscription.open_portal_failed": "无法打开订阅页面，请重试。",
+  "settings.subscription.quota_out_of_date": "套餐用量统计早于服务器的额度判定，正在刷新。",
   "settings.subscription.remaining": "剩余 {{percent}}%",
   "settings.subscription.sign_in": "登录",
   "settings.subscription.sign_in_hint": "登录 Cherry 账号后可订阅套餐，并在这里查看用量",

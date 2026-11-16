@@ -1,28 +1,57 @@
 import type { TFunction } from 'i18next'
 
-import type { CherryCloudAccountPlans } from '@shared/ipc/schemas/cherryCloud'
+import { CHERRY_CLOUD_PROVIDER_ID } from '@shared/data/presets/cherryai'
+import { parseUniqueModelId } from '@shared/data/types/model'
+import type { CherryCloudAccountPlans, CherryCloudAccountReceipt } from '@shared/ipc/schemas/cherryCloud'
 
 export type CherryCloudEntitlement = CherryCloudAccountPlans['entitlements'][number]
-export type CherryCloudQuotaWindow = CherryCloudEntitlement['quota_pools'][number]['windows'][number]
+export type CherryCloudQuotaPool = CherryCloudEntitlement['quota_pools'][number]
+export type CherryCloudQuotaWindow = CherryCloudQuotaPool['windows'][number]
 
-/**
- * Share of the limit not yet used by settled requests; reservations of requests still running are
- * left out so the figure does not jump while they settle. Rounded down to two decimals, so a window
- * that has been used never reads as full.
- */
+/** Server-reported remaining quota, rounded down to two decimal places. */
 export function getQuotaRemainingPercent(window: CherryCloudQuotaWindow): number {
   if (window.limit_units <= 0) return 0
-  const unused = (window.limit_units - window.used_units) / window.limit_units
-  return Math.min(100, Math.max(0, Math.floor(unused * 10_000) / 100))
+  const remaining = window.remaining_units / window.limit_units
+  return Math.min(100, Math.max(0, Math.floor(remaining * 10_000) / 100))
 }
 
 export function formatQuotaPercent(percent: number): string {
   return percent.toFixed(2)
 }
 
-/** The tightest window decides how much of the plan is left. */
-export function getLowestRemainingPercent(entitlement: CherryCloudEntitlement): number | undefined {
-  const percents = entitlement.quota_pools.flatMap((pool) => pool.windows.map(getQuotaRemainingPercent))
+export function getQuotaPoolDisplay(
+  entitlement: CherryCloudEntitlement,
+  pool: CherryCloudQuotaPool,
+  receipt: CherryCloudAccountReceipt
+): {
+  exhausted: boolean
+  snapshotOutOfDate: boolean
+  remainingPercent: number | undefined
+} {
+  const exhausted =
+    entitlement.state === 'active' &&
+    receipt.models.freshness === 'fresh' &&
+    receipt.models.value.quotaExhaustedModelIds.some((id) => {
+      const { providerId, modelId } = parseUniqueModelId(id)
+      return providerId === CHERRY_CLOUD_PROVIDER_ID && pool.model_ids.includes(modelId)
+    })
+  const percents = pool.windows.map(getQuotaRemainingPercent)
+  return {
+    exhausted,
+    snapshotOutOfDate: exhausted && pool.windows.some((window) => window.remaining_units > 0),
+    remainingPercent: exhausted ? 0 : percents.length > 0 ? Math.min(...percents) : undefined
+  }
+}
+
+/** The tightest pool decides how much of the plan is left. */
+export function getLowestRemainingPercent(
+  entitlement: CherryCloudEntitlement,
+  receipt: CherryCloudAccountReceipt
+): number | undefined {
+  const percents = entitlement.quota_pools.flatMap((pool) => {
+    const { remainingPercent } = getQuotaPoolDisplay(entitlement, pool, receipt)
+    return remainingPercent === undefined ? [] : [remainingPercent]
+  })
   return percents.length > 0 ? Math.min(...percents) : undefined
 }
 

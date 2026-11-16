@@ -5989,6 +5989,7 @@
   "settings.subscription.no_quota": "利用枠が設定されていません",
   "settings.subscription.no_recovery": "解放待ちの使用量はありません",
   "settings.subscription.open_portal_failed": "サブスクリプションページを開けませんでした。もう一度お試しください。",
+  "settings.subscription.quota_out_of_date": "プランの使用状況の統計はサーバーのクォータ判定より古いため、更新しています。",
   "settings.subscription.remaining": "残り{{percent}}%",
   "settings.subscription.sign_in": "サインイン",
   "settings.subscription.sign_in_hint": "Cherry アカウントでログインすると、プランを購読してここで使用量を確認できます",

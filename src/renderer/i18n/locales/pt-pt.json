@@ -5989,6 +5989,7 @@
   "settings.subscription.no_quota": "Nenhuma quota configurada",
   "settings.subscription.no_recovery": "Sem utilização a aguardar libertação",
   "settings.subscription.open_portal_failed": "Não foi possível abrir a página de subscrição. Tente novamente.",
+  "settings.subscription.quota_out_of_date": "As estatísticas de utilização do plano são anteriores à decisão do servidor sobre a quota; a atualizar.",
   "settings.subscription.remaining": "{{percent}}% restante",
   "settings.subscription.sign_in": "Iniciar sessão",
   "settings.subscription.sign_in_hint": "Inicie sessão com uma conta Cherry para subscrever um plano e ver aqui a sua utilização",

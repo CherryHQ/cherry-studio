@@ -5989,6 +5989,7 @@
   "settings.subscription.no_quota": "Nessuna quota configurata",
   "settings.subscription.no_recovery": "Nessun utilizzo in attesa di rilascio",
   "settings.subscription.open_portal_failed": "Impossibile aprire la pagina dell'abbonamento. Riprova.",
+  "settings.subscription.quota_out_of_date": "Le statistiche di utilizzo del piano sono precedenti alla decisione del server sulla quota; aggiornamento in corso.",
   "settings.subscription.remaining": "{{percent}}% rimanente",
   "settings.subscription.sign_in": "Accedi",
   "settings.subscription.sign_in_hint": "Accedi con un account Cherry per abbonarti a un piano e vedere qui il tuo utilizzo",

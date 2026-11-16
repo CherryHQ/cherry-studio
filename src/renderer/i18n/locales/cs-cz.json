@@ -5989,6 +5989,7 @@
   "settings.subscription.no_quota": "Kvóta není nastavena",
   "settings.subscription.no_recovery": "Žádné využití čekající na obnovení",
   "settings.subscription.open_portal_failed": "Stránku předplatného se nepodařilo otevřít. Zkuste to prosím znovu.",
+  "settings.subscription.quota_out_of_date": "Statistiky využití tarifu jsou starší než rozhodnutí serveru o kvótě; probíhá aktualizace.",
   "settings.subscription.remaining": "Zbývá {{percent}} %",
   "settings.subscription.sign_in": "Přihlásit se",
   "settings.subscription.sign_in_hint": "Přihlaste se k účtu Cherry a můžete si předplatit tarif a zobrazit zde své využití",

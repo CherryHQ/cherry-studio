@@ -5989,6 +5989,7 @@
   "settings.subscription.no_quota": "Δεν έχει οριστεί όριο",
   "settings.subscription.no_recovery": "Καμία χρήση σε αναμονή αποδέσμευσης",
   "settings.subscription.open_portal_failed": "Δεν ήταν δυνατό το άνοιγμα της σελίδας συνδρομής. Δοκιμάστε ξανά.",
+  "settings.subscription.quota_out_of_date": "Τα στατιστικά χρήσης του προγράμματος είναι παλαιότερα από την απόφαση του διακομιστή για το όριο· γίνεται ανανέωση.",
   "settings.subscription.remaining": "Απομένει {{percent}}%",
   "settings.subscription.sign_in": "Σύνδεση",
   "settings.subscription.sign_in_hint": "Συνδεθείτε με λογαριασμό Cherry για να εγγραφείτε σε ένα πρόγραμμα και να βλέπετε εδώ τη χρήση σας",

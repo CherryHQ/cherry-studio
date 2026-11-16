@@ -360,7 +360,7 @@ describe('UserAccountPanel', () => {
     )
   })
 
-  it('shows the tightest remaining limit, from settled usage, instead of adding overlapping quota windows', async () => {
+  it('shows the tightest server-reported remaining limit instead of adding overlapping quota windows', async () => {
     plans = paidPlans('Pro')
     plans.entitlements[0].quota_pools[0].windows.push({
       window_type: 'calendar_day',
@@ -372,8 +372,39 @@ describe('UserAccountPanel', () => {
     })
     renderAccount(<UserAccountPanel />)
 
-    // 13 of 20 settled; the 2 reserved by a running request are not counted yet.
-    expect(await screen.findByRole('button', { name: '用量 剩余 35.00%' })).toBeEnabled()
+    // The server reports 5 of 20 remaining, including any reservation effect.
+    expect(await screen.findByRole('button', { name: '用量 剩余 25.00%' })).toBeEnabled()
+  })
+
+  it('shows exhausted and out-of-date usage when a fresh model decision contradicts plans', async () => {
+    plans = paidPlans('Pro')
+    const pool = plans.entitlements[0].quota_pools[0]
+    pool.windows.push({ ...pool.windows[0], duration_seconds: 18000, used_units: 60, remaining_units: 40 })
+    renderAccount(<UserAccountPanel />)
+    await screen.findByRole('button', { name: '用量 剩余 40.00%' })
+    const refused = receiptFor(session, plans)
+    refused.reason = 'quota_refusal'
+    refused.models = {
+      freshness: 'fresh',
+      observedRevision: refused.status.revision,
+      value: {
+        entitledModelIds: ['cherryai-subscription::test-model'],
+        freeModelIds: [],
+        availableModelIds: { agent: [], general: ['cherryai-subscription::test-model'] },
+        quotaExhaustedModelIds: ['cherryai-subscription::test-model']
+      }
+    }
+    act(() => publishReceipt(refused))
+
+    const row = await screen.findByRole('button', { name: '用量 剩余 0.00%' })
+    await userEvent.hover(row)
+
+    expect(await screen.findByText(i18n.t('models.detail.quota_exhausted'))).toBeVisible()
+    expect(screen.getByText(i18n.t('settings.subscription.quota_out_of_date'))).toBeVisible()
+    const bars = screen.getAllByRole('progressbar')
+    expect(bars).toHaveLength(2)
+    for (const bar of bars) expect(bar).toHaveAttribute('aria-valuenow', '0')
+    expect(screen.queryByText(/[1-9]\d*\.\d+%/)).not.toBeInTheDocument()
   })
 
   it('shows zero remaining when a quota window is exhausted', async () => {
@@ -534,6 +565,7 @@ describe('UserAccountPanel', () => {
     await user.hover(row)
 
     expect(await screen.findByRole('progressbar', { name: '30 天额度' })).toHaveAttribute('aria-valuenow', '92')
+    expect(screen.getByRole('progressbar', { name: '5 小时额度' })).toHaveAttribute('aria-valuenow', '40')
     await user.click(screen.getByRole('button', { name: '查看用量详情' }))
     await waitFor(() =>
       expect(request).toHaveBeenCalledWith(

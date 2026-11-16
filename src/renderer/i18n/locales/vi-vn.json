@@ -5989,6 +5989,7 @@
   "settings.subscription.no_quota": "Chưa cấu hình hạn mức",
   "settings.subscription.no_recovery": "Không có mức sử dụng đang chờ giải phóng",
   "settings.subscription.open_portal_failed": "Không thể mở trang đăng ký. Vui lòng thử lại.",
+  "settings.subscription.quota_out_of_date": "Thống kê sử dụng của gói cũ hơn quyết định về hạn mức của máy chủ; đang làm mới.",
   "settings.subscription.remaining": "Còn lại {{percent}}%",
   "settings.subscription.sign_in": "Đăng nhập",
   "settings.subscription.sign_in_hint": "Đăng nhập bằng tài khoản Cherry để đăng ký gói và xem mức sử dụng tại đây",

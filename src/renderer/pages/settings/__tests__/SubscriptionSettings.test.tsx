@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import type {
   CherryCloudAccountPlans,
+  CherryCloudAccountReceipt,
   CherryCloudEndpointFact,
   CherryCloudStatus
 } from '@shared/ipc/schemas/cherryCloud'
@@ -14,6 +15,7 @@ import { SubscriptionSettings } from '../SubscriptionSettings'
 const { requestMock, session, receiptFixture } = vi.hoisted(() => ({
   requestMock: vi.fn(),
   receiptFixture: {
+    models: undefined as CherryCloudAccountReceipt['models'] | undefined,
     initialFact: undefined as CherryCloudEndpointFact<CherryCloudAccountPlans> | undefined,
     refresh: undefined as (() => Promise<unknown>) | undefined
   },
@@ -75,7 +77,7 @@ vi.mock('@renderer/hooks/useCherryCloudReceipt', async () => {
               status,
               reason: 'initial',
               account: { freshness: 'unknown', error: null },
-              models: { freshness: 'unknown', error: null },
+              models: receiptFixture.models ?? { freshness: 'unknown', error: null },
               plans: query.data ?? { freshness: 'unknown', error: null }
             }
           : undefined,
@@ -153,6 +155,7 @@ vi.mock('react-i18next', () => ({
 afterEach(() => {
   session.status = signedIn('account-1')
   session.loadState = 'ready'
+  receiptFixture.models = undefined
   receiptFixture.initialFact = undefined
   receiptFixture.refresh = undefined
   vi.clearAllMocks()
@@ -385,7 +388,7 @@ describe('SubscriptionSettings', () => {
       await act(async () => receiptFixture.refresh?.())
 
       expect(screen.getByText('Cherry Plus')).toBeInTheDocument()
-      expect(screen.getByText('settings.subscription.load_failed')).toBeInTheDocument()
+      expect(screen.queryByText('settings.subscription.load_failed')).not.toBeInTheDocument()
       expect(screen.queryByRole('button', { name: 'settings.subscription.subscribe' })).not.toBeInTheDocument()
       await userEvent.click(screen.getByRole('button', { name: 'settings.subscription.faq' }))
       expect(requestMock.mock.calls.filter(([route]) => route === 'cherry_cloud.analytics.track')).toEqual([])
@@ -413,6 +416,52 @@ describe('SubscriptionSettings', () => {
       expect(screen.getByText('Cherry Plus')).toBeInTheDocument()
       expect(screen.getByRole('button', { name: 'settings.subscription.manage' })).toBeEnabled()
     }
+  })
+
+  it('retains usage, the quota contradiction marker and retry after a plans refresh fails', async () => {
+    const plans = paidPlans('Plus')
+    plans.entitlements[0].quota_pools = [
+      {
+        allocation_id: '33333333-3333-4333-8333-333333333333',
+        display_name: 'Plan quota',
+        measurement_kind: 'requests',
+        model_ids: ['test-model'],
+        windows: [
+          {
+            window_type: 'rolling',
+            duration_seconds: 604800,
+            limit_units: 100,
+            used_units: 21,
+            active_reserved_units: 0,
+            remaining_units: 79
+          }
+        ]
+      }
+    ]
+    receiptFixture.initialFact = { freshness: 'stale', value: plans, observedRevision: 1, error: '503' }
+    receiptFixture.models = {
+      freshness: 'fresh',
+      observedRevision: 2,
+      value: {
+        entitledModelIds: ['cherryai-subscription::test-model'],
+        freeModelIds: [],
+        availableModelIds: { agent: [], general: ['cherryai-subscription::test-model'] },
+        quotaExhaustedModelIds: ['cherryai-subscription::test-model']
+      }
+    }
+    requestMock.mockRejectedValue(new Error('503'))
+    renderSettings()
+
+    expect(await screen.findByRole('button', { name: /common.retry/ })).toBeEnabled()
+    expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '0')
+    expect(screen.getByText('0.00% remaining')).toBeInTheDocument()
+    expect(screen.getByText('models.detail.quota_exhausted')).toBeInTheDocument()
+    expect(screen.getByText('settings.subscription.quota_out_of_date')).toBeInTheDocument()
+    expect(screen.queryByText('79.00% remaining')).not.toBeInTheDocument()
+    expect(screen.queryByText('settings.subscription.load_failed')).not.toBeInTheDocument()
+    requestMock.mockClear()
+    await userEvent.click(screen.getByRole('button', { name: /common.retry/ }))
+    expect(requestMock).toHaveBeenCalledWith('test.fixture.plans')
   })
 
   it('shows the backend plan name without a price or renewal interval', async () => {

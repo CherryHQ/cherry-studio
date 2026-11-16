@@ -5989,6 +5989,7 @@
   "settings.subscription.no_quota": "ยังไม่ได้ตั้งค่าโควตา",
   "settings.subscription.no_recovery": "ไม่มีการใช้งานที่รอคืน",
   "settings.subscription.open_portal_failed": "ไม่สามารถเปิดหน้าการสมัครสมาชิกได้ โปรดลองอีกครั้ง",
+  "settings.subscription.quota_out_of_date": "สถิติการใช้งานของแพ็กเกจเก่ากว่าผลการพิจารณาโควต้าของเซิร์ฟเวอร์ กำลังรีเฟรช",
   "settings.subscription.remaining": "เหลืออีก {{percent}}%",
   "settings.subscription.sign_in": "ลงชื่อเข้าใช้",
   "settings.subscription.sign_in_hint": "เข้าสู่ระบบด้วยบัญชี Cherry เพื่อสมัครแพ็กเกจและดูการใช้งานได้ที่นี่",

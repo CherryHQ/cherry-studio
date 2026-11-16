@@ -5989,6 +5989,7 @@
   "settings.subscription.no_quota": "Aucun quota configuré",
   "settings.subscription.no_recovery": "Aucune utilisation en attente de libération",
   "settings.subscription.open_portal_failed": "Impossible d'ouvrir la page d'abonnement. Veuillez réessayer.",
+  "settings.subscription.quota_out_of_date": "Les statistiques d’utilisation du forfait sont antérieures à la décision du serveur sur le quota ; actualisation en cours.",
   "settings.subscription.remaining": "{{percent}} % restants",
   "settings.subscription.sign_in": "Se connecter",
   "settings.subscription.sign_in_hint": "Connectez-vous avec un compte Cherry pour souscrire un forfait et consulter votre utilisation ici",

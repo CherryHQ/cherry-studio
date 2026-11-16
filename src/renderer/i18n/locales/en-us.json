@@ -5989,6 +5989,7 @@
   "settings.subscription.no_quota": "No quota configured",
   "settings.subscription.no_recovery": "No usage awaiting recovery",
   "settings.subscription.open_portal_failed": "Couldn't open the subscription page. Please try again.",
+  "settings.subscription.quota_out_of_date": "The plan's usage statistics are older than the server's quota decision; refreshing.",
   "settings.subscription.remaining": "{{percent}}% remaining",
   "settings.subscription.sign_in": "Sign in",
   "settings.subscription.sign_in_hint": "Sign in with a Cherry account to subscribe to a plan and see your usage here",

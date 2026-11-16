@@ -5989,6 +5989,7 @@
   "settings.subscription.no_quota": "Kota yapılandırılmamış",
   "settings.subscription.no_recovery": "Serbest bırakılmayı bekleyen kullanım yok",
   "settings.subscription.open_portal_failed": "Abonelik sayfası açılamadı. Lütfen tekrar deneyin.",
+  "settings.subscription.quota_out_of_date": "Planın kullanım istatistikleri, sunucunun kota kararından daha eski; yenileniyor.",
   "settings.subscription.remaining": "%{{percent}} kaldı",
   "settings.subscription.sign_in": "Giriş yap",
   "settings.subscription.sign_in_hint": "Bir plana abone olmak ve kullanımınızı burada görmek için Cherry hesabıyla giriş yapın",

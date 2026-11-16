@@ -6061,6 +6061,7 @@
   "settings.subscription.no_quota": "Nie skonfigurowano limitu",
   "settings.subscription.no_recovery": "Brak zużycia oczekującego na odnowienie",
   "settings.subscription.open_portal_failed": "Nie udało się otworzyć strony subskrypcji. Spróbuj ponownie.",
+  "settings.subscription.quota_out_of_date": "Statystyki wykorzystania planu są starsze niż decyzja serwera dotycząca limitu; trwa odświeżanie.",
   "settings.subscription.remaining": "Pozostało {{percent}}%",
   "settings.subscription.sign_in": "Zaloguj się",
   "settings.subscription.sign_in_hint": "Zaloguj się na konto Cherry, aby subskrybować plan i przeglądać tutaj swoje zużycie",
