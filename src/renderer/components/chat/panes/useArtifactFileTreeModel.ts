@@ -225,6 +225,7 @@ interface WorkspaceFileTreeResult {
   isLoading: boolean
   hasLoaded: boolean
   error?: Error
+  reload: () => void
 }
 
 const useWorkspaceFileTree = (
@@ -232,7 +233,7 @@ const useWorkspaceFileTree = (
   watchMissingRoot: boolean,
   onMutation: (event: TreeMutationEvent) => void
 ): WorkspaceFileTreeResult => {
-  const { root, version, isLoading, error } = useDirectoryTree(
+  const { root, version, isLoading, error, reload } = useDirectoryTree(
     path,
     watchMissingRoot ? ARTIFACT_MISSING_WORKSPACE_TREE_OPTIONS : WORKSPACE_TREE_OPTIONS,
     onMutation
@@ -247,7 +248,8 @@ const useWorkspaceFileTree = (
     tree,
     isLoading,
     hasLoaded: !isLoading && root !== null,
-    error: error ?? undefined
+    error: error ?? undefined,
+    reload
   }
 }
 
@@ -584,12 +586,23 @@ function useLazyArtifactFileTree({
     workspacePath
   ])
 
+  // A re-created watcher re-reads its folder once active, and replaces one whose builder died.
+  const reloadDirectories = useCallback(() => {
+    if (!treeOpen) return
+    for (const dirId of expandedIds) {
+      if (dirId === WORKSPACE_ROOT_ID) continue
+      disposeLazyDirectoryWatcher(dirId)
+      createLazyDirectoryWatcher(dirId)
+    }
+  }, [createLazyDirectoryWatcher, disposeLazyDirectoryWatcher, expandedIds, treeOpen])
+
   return {
     displayTree,
     isLoading:
       lazyLoadingDirIdsRef.current.size > 0 ||
       Array.from(expandedIds).some((id) => id !== WORKSPACE_ROOT_ID && !lazyChildrenByDirIdRef.current.has(id)),
-    loadDirectoryChildren
+    loadDirectoryChildren,
+    reloadDirectories
   }
 }
 
@@ -629,6 +642,8 @@ export interface ArtifactFileTreeModel {
   setExpandedIds: (ids: ReadonlySet<string>) => void
   /** Loads a folder's entries into `nodeById` without expanding it. */
   loadFolder: (id: string) => void
+  /** Re-reads the workspace tree and every expanded folder from disk. */
+  reloadTree: () => void
 }
 
 export type ArtifactFileTreeErrorKind = 'invalid_path' | 'load_error'
@@ -676,15 +691,18 @@ export function useArtifactFileTreeModel({
     [selectedFilePath]
   )
 
-  const { tree, isLoading, hasLoaded, error } = useWorkspaceFileTree(
-    treeOpen ? validWorkspacePath : undefined,
-    watchMissingRoot,
-    handleTreeMutation
-  )
+  const {
+    tree,
+    isLoading,
+    hasLoaded,
+    error,
+    reload: reloadWorkspaceTree
+  } = useWorkspaceFileTree(treeOpen ? validWorkspacePath : undefined, watchMissingRoot, handleTreeMutation)
   const {
     displayTree,
     isLoading: isLazyLoading,
-    loadDirectoryChildren
+    loadDirectoryChildren,
+    reloadDirectories
   } = useLazyArtifactFileTree({
     workspacePath: validWorkspacePath,
     treeOpen,
@@ -712,6 +730,11 @@ export function useArtifactFileTreeModel({
     },
     [loadDirectoryChildren]
   )
+
+  const reloadTree = useCallback(() => {
+    reloadWorkspaceTree()
+    reloadDirectories()
+  }, [reloadDirectories, reloadWorkspaceTree])
 
   const trimmedFileSearch = enableFileSearch ? searchKeyword.trim() : ''
   const searchTree = useArtifactFileSearch(
@@ -821,6 +844,7 @@ export function useArtifactFileTreeModel({
     hasLoaded: hasLoaded && !isLazyLoading,
     errorKind: invalidWorkspacePath ? 'invalid_path' : error ? 'load_error' : undefined,
     setExpandedIds,
-    loadFolder
+    loadFolder,
+    reloadTree
   }
 }

@@ -475,13 +475,18 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
     setContentRefreshToken((value) => value + 1)
   }, [editMode, fileSession])
 
+  const { reloadTree } = model
+  const handleRefresh = useCallback(() => {
+    reloadTree()
+    if (overlaySelection) refreshFileContent()
+  }, [overlaySelection, refreshFileContent, reloadTree])
+
   const refreshChangedFile = useEffectEvent((path: string) => {
     if (overlaySelection && path === getArtifactPaneSelectionPath(overlaySelection)) refreshFileContent()
   })
   useEffect(() => {
     if (model.selectedFileChange) refreshChangedFile(model.selectedFileChange.path)
     // `refreshChangedFile` is an Effect Event; only a new disk change should run this.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [model.selectedFileChange])
 
   // Successful writes return an exact byte size through the edit session.
@@ -875,6 +880,19 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
       )}
       <div className="ml-auto flex shrink-0 items-center gap-1">
         {treeToggleOnRight ? treeToggle : null}
+        {workspacePath || overlaySelection ? (
+          <Tooltip content={t('common.refresh')} delay={800}>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              className={TOOLBAR_BUTTON_CLASS}
+              aria-label={t('common.refresh')}
+              onClick={handleRefresh}>
+              <RefreshCw size={16} />
+            </Button>
+          </Tooltip>
+        ) : null}
         <ArtifactPaneSettingsMenu buttonClassName={TOOLBAR_BUTTON_CLASS} wordWrapUnavailable={wordWrapUnavailable} />
         {paneActions}
       </div>
@@ -973,17 +991,6 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
             </Button>
           </Tooltip>
         ) : null}
-        <Tooltip content={t('common.refresh')} delay={800}>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            className={TOOLBAR_BUTTON_CLASS}
-            aria-label={t('common.refresh')}
-            onClick={refreshFileContent}>
-            <RefreshCw size={16} />
-          </Button>
-        </Tooltip>
         <OpenTargetButton targetPath={getArtifactPaneSelectionPath(overlaySelection)} pathKind="file" />
       </>
     )

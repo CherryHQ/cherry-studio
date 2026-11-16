@@ -1065,7 +1065,8 @@ describe('ArtifactPane', () => {
       isLoading: false,
       hasLoaded: true,
       setExpandedIds: vi.fn(),
-      loadFolder: vi.fn()
+      loadFolder: vi.fn(),
+      reloadTree: vi.fn()
     }
   }
 
@@ -2361,12 +2362,40 @@ describe('ArtifactPane', () => {
     it('reloads the preview from disk when the refresh button is pressed', async () => {
       mockWorkspaceTree('/tmp/workspace', ['report.docx'])
       render(<ArtifactPaneHarness workspacePath="/tmp/workspace" initialSelectedFile="report.docx" />)
-      const overlay = await screen.findByTestId('artifact-file-preview-overlay')
+      await screen.findByTestId('artifact-file-preview-overlay')
       const before = previewRefreshKey()
 
-      fireEvent.click(within(overlay).getByRole('button', { name: 'common.refresh' }))
+      fireEvent.click(
+        within(screen.getByTestId('artifact-pane-header')).getByRole('button', { name: 'common.refresh' })
+      )
 
       await waitFor(() => expect(previewRefreshKey()).toBe(before + 1))
+    })
+
+    it('re-reads the workspace tree and expanded folders when refresh is pressed with no file open', async () => {
+      let rootPaths = ['src/index.ts']
+      mocks.treeCreate.mockImplementation(async (rootPath: string) => ({
+        treeId: `tree-for-${rootPath}`,
+        revision: 0,
+        snapshot: pathsToSnapshot(rootPath, rootPath === '/tmp/workspace' ? rootPaths : [])
+      }))
+      mocks.listDirectoryEntries
+        .mockResolvedValueOnce([{ path: '/tmp/workspace/src/old.md', isDirectory: false }])
+        .mockResolvedValue([{ path: '/tmp/workspace/src/new.md', isDirectory: false }])
+      render(<ArtifactPaneHarness workspacePath="/tmp/workspace" />)
+      await waitFor(() => expect(screen.getByTestId('tree-node-src')).toBeInTheDocument())
+      fireEvent.click(screen.getByTestId('tree-node-src'))
+      await waitFor(() => expect(screen.getByTestId('tree-node-src/old.md')).toBeInTheDocument())
+      await waitFor(() => expect(mocks.treeActivate).toHaveBeenCalledTimes(2))
+
+      rootPaths = ['src/index.ts', 'added.md']
+      fireEvent.click(
+        within(screen.getByTestId('artifact-pane-header')).getByRole('button', { name: 'common.refresh' })
+      )
+
+      await waitFor(() => expect(screen.getByTestId('tree-node-added.md')).toBeInTheDocument())
+      await waitFor(() => expect(screen.getByTestId('tree-node-src/new.md')).toBeInTheDocument())
+      expect(screen.queryByTestId('tree-node-src/old.md')).not.toBeInTheDocument()
     })
 
     it('reloads the preview when the watcher reports the open file changed, and ignores other files', async () => {
