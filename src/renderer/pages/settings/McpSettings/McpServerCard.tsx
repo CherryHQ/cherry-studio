@@ -5,11 +5,11 @@ import { useCallback, useEffect, useState } from 'react'
 import type { FallbackProps } from 'react-error-boundary'
 import { useTranslation } from 'react-i18next'
 
-import { Alert, Badge, Button, Switch, Tooltip } from '@cherrystudio/ui'
+import { Badge, Button, Switch, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
-import DeleteIcon from '@renderer/components/icons/DeleteIcon'
+import { ErrorNotice } from '@renderer/components/ErrorNotice'
 import { useMcpRuntimeStatus } from '@renderer/hooks/useMcpRuntimeStatus'
 import { useMcpServerMutations } from '@renderer/hooks/useMcpServer'
 import { getMcpTypeLabelKey } from '@renderer/i18n/label'
@@ -17,7 +17,6 @@ import { ipcApi } from '@renderer/ipc'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import { openExternalWebsite } from '@renderer/services/website'
-import { formatErrorMessage } from '@renderer/utils/error'
 import { cn } from '@renderer/utils/style'
 import type { UpdateMcpServerDto } from '@shared/data/api/schemas/mcpServers'
 import type { McpServer } from '@shared/data/types/mcpServer'
@@ -108,7 +107,7 @@ const McpServerCard: FC<McpServerCardProps> = ({ server, onEdit }) => {
       await removeMcpServer()
       toast.success(t('settings.mcp.deleteSuccess'))
     } catch (error: any) {
-      toast.error(`${t('settings.mcp.deleteError')}: ${error.message}`)
+      toast.error({ title: t('settings.mcp.deleteError'), cause: error })
     }
   }, [removeMcpServer, t])
 
@@ -144,48 +143,29 @@ const McpServerCard: FC<McpServerCardProps> = ({ server, onEdit }) => {
     event.stopPropagation()
   }, [])
 
-  const handleDeleteClick = useCallback(
-    (event: React.MouseEvent) => {
-      event.stopPropagation()
-      void handleDelete()
-    },
-    [handleDelete]
-  )
-
   const isLoading = loading
 
   const Fallback = useCallback(
     (props: FallbackProps) => {
       const { error } = props
-      const errorDetails = formatErrorMessage(error)
 
       return (
-        <Alert
-          message={t('error.boundary.mcp.invalid')}
-          showIcon
-          type="error"
-          style={{ height: 125, alignItems: 'flex-start', padding: 12, borderRadius: 'var(--radius-lg)' }}
-          description={<div className="line-clamp-3 text-xs leading-5 text-error">{errorDetails}</div>}
-          action={
-            <div className="flex items-center gap-1">
-              <Button variant="destructive" size="sm" onClick={handleDeleteClick}>
-                <Tooltip content={t('common.delete')}>
-                  <DeleteIcon size={16} />
-                </Tooltip>
-              </Button>
-              <ErrorDetailAction
-                error={error}
-                message={t('error.boundary.mcp.invalid')}
-                operation="mcp.server.render"
-                recordId={server.id}
-                source="mcp"
-              />
-            </div>
+        <ErrorNotice
+          title={t('error.boundary.mcp.invalid')}
+          action={{ label: t('common.delete'), onClick: () => void handleDelete() }}
+          detail={
+            <ErrorDetailAction
+              error={error}
+              message={t('error.boundary.mcp.invalid')}
+              operation="mcp.server.render"
+              recordId={server.id}
+              source="mcp"
+            />
           }
         />
       )
     },
-    [handleDeleteClick, server.id, t]
+    [handleDelete, server.id, t]
   )
 
   return (
@@ -193,7 +173,7 @@ const McpServerCard: FC<McpServerCardProps> = ({ server, onEdit }) => {
       <CardContainer onClick={handleRowClick} data-slot="mcp-server-row">
         <ServerNameCell>
           {runtimeStatus.state === 'error' && server.isActive ? (
-            <Tooltip content={runtimeStatus.lastError || t('settings.mcp.runtimeStatus.error', 'Error')}>
+            <Tooltip content={t('settings.mcp.runtimeStatus.unavailable')}>
               <ActiveDot $state="error" />
             </Tooltip>
           ) : (
