@@ -4750,7 +4750,6 @@
   "settings.dependencies.update": "Cập nhật lên phiên bản mới nhất",
   "settings.dependencies.updateCheckFailed": "Không thể kiểm tra bản cập nhật",
   "settings.dependencies.updateCheckSuccess": "Kiểm tra phiên bản hoàn tất",
-  "settings.dependencies.viewErrorDetails": "Xem chi tiết",
   "settings.developer.cdp.description": "Cho phép các công cụ cục bộ đáng tin cậy điều khiển ứng dụng. Địa chỉ đã lưu: {{address}}. Cần khởi động lại; cổng được chỉ định trên dòng lệnh được ưu tiên.",
   "settings.developer.cdp.invalid_port": "Nhập số cổng là số nguyên từ 1 đến 65534.",
   "settings.developer.cdp.port": "Cổng CDP",

@@ -4750,7 +4750,6 @@
   "settings.dependencies.update": "Update to latest version",
   "settings.dependencies.updateCheckFailed": "Failed to check for updates",
   "settings.dependencies.updateCheckSuccess": "Version check complete",
-  "settings.dependencies.viewErrorDetails": "View details",
   "settings.developer.cdp.description": "Allow trusted local tools to control the app. Saved address: {{address}}. Restart required; a command-line port takes precedence.",
   "settings.developer.cdp.invalid_port": "Enter a whole-number port from 1 to 65534.",
   "settings.developer.cdp.port": "CDP port",

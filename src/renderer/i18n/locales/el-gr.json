@@ -4750,7 +4750,6 @@
   "settings.dependencies.update": "Ενημέρωση στην πιο πρόσφατη έκδοση",
   "settings.dependencies.updateCheckFailed": "Αποτυχία ελέγχου για ενημερώσεις",
   "settings.dependencies.updateCheckSuccess": "Ο έλεγχος έκδοσης ολοκληρώθηκε",
-  "settings.dependencies.viewErrorDetails": "Δείτε λεπτομέρειες",
   "settings.developer.cdp.description": "Επιτρέψτε σε έμπιστα τοπικά εργαλεία να ελέγχουν την εφαρμογή. Αποθηκευμένη διεύθυνση: {{address}}. Απαιτείται επανεκκίνηση· η θύρα που ορίζεται στη γραμμή εντολών έχει προτεραιότητα.",
   "settings.developer.cdp.invalid_port": "Εισαγάγετε έναν ακέραιο αριθμό θύρας από 1 έως 65534.",
   "settings.developer.cdp.port": "Θύρα CDP",

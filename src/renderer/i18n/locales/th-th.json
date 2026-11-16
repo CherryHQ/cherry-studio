@@ -4750,7 +4750,6 @@
   "settings.dependencies.update": "อัปเดตเป็นเวอร์ชันล่าสุด",
   "settings.dependencies.updateCheckFailed": "ตรวจสอบอัปเดตไม่สำเร็จ",
   "settings.dependencies.updateCheckSuccess": "ตรวจสอบเวอร์ชันเสร็จสมบูรณ์",
-  "settings.dependencies.viewErrorDetails": "ดูรายละเอียด",
   "settings.developer.cdp.description": "อนุญาตให้เครื่องมือภายในเครื่องที่เชื่อถือได้ควบคุมแอป ที่อยู่ที่บันทึกไว้: {{address}} ต้องรีสตาร์ต; พอร์ตจากคำสั่งบรรทัดคำสั่งมีลำดับความสำคัญกว่า",
   "settings.developer.cdp.invalid_port": "กรอกพอร์ตเป็นจำนวนเต็มระหว่าง 1 ถึง 65534",
   "settings.developer.cdp.port": "พอร์ต CDP",

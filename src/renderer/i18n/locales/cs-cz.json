@@ -4751,7 +4751,6 @@
   "settings.dependencies.update": "Aktualizovat na nejnovější verzi",
   "settings.dependencies.updateCheckFailed": "Kontrola aktualizací se nezdařila",
   "settings.dependencies.updateCheckSuccess": "Kontrola verze dokončena",
-  "settings.dependencies.viewErrorDetails": "Zobrazit podrobnosti",
   "settings.developer.cdp.description": "Povolte důvěryhodným místním nástrojům ovládat aplikaci. Uložená adresa: {{address}}. Vyžaduje restart; port zadaný na příkazovém řádku má přednost.",
   "settings.developer.cdp.invalid_port": "Zadejte celé číslo portu od 1 do 65534.",
   "settings.developer.cdp.port": "Port CDP",

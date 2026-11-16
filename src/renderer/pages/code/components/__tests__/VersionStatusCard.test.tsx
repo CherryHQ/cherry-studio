@@ -181,7 +181,7 @@ describe('VersionStatusCard', () => {
     expect(screen.queryByRole('button', { name: 'code.open_web_ui' })).not.toBeInTheDocument()
   })
 
-  it('renders a persistent failure row with retry label and opens details on click', () => {
+  it('renders a translated failure row with retry label and opens details on click', () => {
     const onShowError = vi.fn()
     render(
       <VersionStatusCard
@@ -194,11 +194,11 @@ describe('VersionStatusCard', () => {
       />
     )
 
-    // Install button flips to retry; row shows only the error's first line.
+    // Install button flips to retry; the row shows a translated conclusion, never the mise output.
     expect(screen.getByRole('button', { name: 'common.retry' })).toBeInTheDocument()
-    const row = screen.getByText('mise use timed out after 900s')
-    expect(screen.queryByText(/\[1\/3\] install/)).not.toBeInTheDocument()
-    fireEvent.click(row)
+    expect(screen.getByText('settings.dependencies.installError')).toBeInTheDocument()
+    expect(screen.queryByText(/mise use timed out/)).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /common\.detail/ }))
     expect(onShowError).toHaveBeenCalledTimes(1)
   })
 

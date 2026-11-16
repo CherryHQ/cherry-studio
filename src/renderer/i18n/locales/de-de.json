@@ -4750,7 +4750,6 @@
   "settings.dependencies.update": "Auf die neueste Version aktualisieren",
   "settings.dependencies.updateCheckFailed": "Aktualisierungsprüfung fehlgeschlagen",
   "settings.dependencies.updateCheckSuccess": "Versionsprüfung abgeschlossen",
-  "settings.dependencies.viewErrorDetails": "Details anzeigen",
   "settings.developer.cdp.description": "Vertrauenswürdigen lokalen Tools erlauben, die App zu steuern. Gespeicherte Adresse: {{address}}. Neustart erforderlich; ein per Befehlszeile angegebener Port hat Vorrang.",
   "settings.developer.cdp.invalid_port": "Gib eine ganzzahlige Portnummer von 1 bis 65534 ein.",
   "settings.developer.cdp.port": "CDP-Port",

@@ -4816,7 +4816,6 @@
   "settings.dependencies.update": "Zaktualizuj do najnowszej wersji",
   "settings.dependencies.updateCheckFailed": "Nie udało się sprawdzić dostępności aktualizacji",
   "settings.dependencies.updateCheckSuccess": "Sprawdzanie wersji zakończone",
-  "settings.dependencies.viewErrorDetails": "Pokaż szczegóły",
   "settings.developer.cdp.description": "Zezwalaj zaufanym narzędziom lokalnym na sterowanie aplikacją. Zapisany adres: {{address}}. Wymagane ponowne uruchomienie; port z wiersza poleceń ma pierwszeństwo.",
   "settings.developer.cdp.invalid_port": "Wprowadź port jako liczbę całkowitą od 1 do 65534.",
   "settings.developer.cdp.port": "Port CDP",
