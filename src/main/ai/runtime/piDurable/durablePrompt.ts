@@ -11,7 +11,7 @@ import {
 } from '@shared/ai/builtinTools'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 
-import { buildAgentRuntimePrompt } from '../agentPrompt'
+import { type AgentPromptBlock, buildAgentRuntimePrompt } from '../agentPrompt'
 import { buildCitationsGuidance } from '../citationsGuidance'
 import { buildConfigToolsGuidance, buildReportArtifactsGuidance, type ToolCallForm } from '../configToolsGuidance'
 import { buildPiMcpToolName } from '../pi/piMcpExtension'
@@ -51,6 +51,8 @@ export interface DurablePrompt {
   sections: DurablePromptSection[]
   /** The agent's `instructions`, which the harness renders after every extension section. */
   instructions: string
+  /** The generated blocks of `instructions`, before the Agent's overrides. */
+  blocks: AgentPromptBlock[]
 }
 
 /** Cherry's part of a Pi Durable system prompt, shared by the runtime and the prompt preview. */
@@ -64,6 +66,7 @@ export async function buildDurablePrompt(pi: PiSdk, options: DurablePromptOption
     effectiveLanguage: options.effectiveLanguage,
     modelName: options.modelName,
     instructionsSlot: options.instructionsSlot,
+    overrides: agent.configuration?.prompt_overrides,
     reportArtifactsGuidance: buildReportArtifactsGuidance(DURABLE_TOOL_CALL_FORM),
     configToolsGuidance: buildConfigToolsGuidance(agent, {
       channelLinked: options.channelLinked,
@@ -128,7 +131,13 @@ export async function buildDurablePrompt(pi: PiSdk, options: DurablePromptOption
     sections,
     instructions: [prompt.base.kind === 'custom' ? prompt.base.content : undefined, prompt.append]
       .filter(Boolean)
-      .join('\n\n')
+      .join('\n\n'),
+    blocks: [
+      ...(prompt.base.kind === 'custom' && prompt.base.content
+        ? [{ key: 'workspace_system', kind: 'live' as const, text: prompt.base.content }]
+        : []),
+      ...prompt.blocks
+    ]
   }
 }
 

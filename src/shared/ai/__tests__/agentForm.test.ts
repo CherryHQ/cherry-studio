@@ -171,6 +171,22 @@ describe('diffAgentUpdate', () => {
     expect(diffAgentUpdate(baseline, baseline)).toBeNull()
   })
 
+  // Restoring a block must reach the runtime too, so the remaining map replaces the stored one.
+  it('saves the whole prompt override map when a block is edited or restored', () => {
+    const baseline = buildInitialAgentFormState(
+      createAgent({ type: 'pi-durable', configuration: { prompt_overrides: { citations: 'Cite briefly.' } } })
+    )
+    expect(baseline.promptOverrides).toEqual({ citations: 'Cite briefly.' })
+
+    const edited = applyAgentFormPatch(baseline, { promptOverrides: { citations: 'Cite briefly.', memories: 'Mine.' } })
+    const restored = applyAgentFormPatch(baseline, { promptOverrides: {} })
+
+    expect(diffAgentUpdate(baseline, edited)?.dto).toEqual({
+      configuration: { prompt_overrides: { citations: 'Cite briefly.', memories: 'Mine.' } }
+    })
+    expect(diffAgentUpdate(baseline, restored)?.dto).toEqual({ configuration: { prompt_overrides: {} } })
+  })
+
   it('includes only changed top-level keys in the PATCH payload', () => {
     const agent = createAgent()
     const baseline = buildInitialAgentFormState(agent)

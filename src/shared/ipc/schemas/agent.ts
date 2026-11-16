@@ -52,8 +52,20 @@ export const AgentSystemPromptDraftSchema = z.strictObject({
 })
 export type AgentSystemPromptDraft = z.infer<typeof AgentSystemPromptDraftSchema>
 
-/** The full system prompt split around the Agent's own instructions. */
-export const AgentSystemPromptPreviewSchema = z.object({ before: z.string(), after: z.string() })
+/** `guidance` blocks may be replaced per Agent; `live` and `setting` blocks follow data and settings. */
+export const AgentPromptBlockSchema = z.object({
+  key: z.string(),
+  kind: z.enum(['guidance', 'instructions', 'live', 'setting']),
+  text: z.string()
+})
+export type AgentPromptBlockPreview = z.infer<typeof AgentPromptBlockSchema>
+
+/** The full system prompt as generated blocks, in the order the runtime sends them. */
+export const AgentSystemPromptPreviewSchema = z.object({
+  blocks: z.array(AgentPromptBlockSchema),
+  /** A built-in Agent's own prompt, which applies while it has no instructions of its own. */
+  builtinInstructions: z.string().optional()
+})
 export type AgentSystemPromptPreview = z.infer<typeof AgentSystemPromptPreviewSchema>
 
 export const agentRequestSchemas = {

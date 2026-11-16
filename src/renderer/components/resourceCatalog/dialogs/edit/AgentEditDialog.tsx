@@ -31,6 +31,7 @@ import {
   buildInitialAgentFormState,
   diffAgentSaveIntent
 } from '@shared/ai/agentForm'
+import type { AgentPromptOverrides } from '@shared/ai/agentPromptSections'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import { isSealedBuiltinAgentRole } from '@shared/ai/builtinAgent'
 import { AGENT_PROMPT } from '@shared/ai/prompts'
@@ -97,6 +98,7 @@ type AgentEditFormValues = {
   heartbeatTimeoutMinutes: number
   languageMode: AgentLanguageMode
   languageCustom: string
+  promptOverrides: AgentPromptOverrides
 }
 
 const logger = loggerService.withContext('AgentEditDialog')
@@ -137,7 +139,8 @@ function defaultValuesForAgent(resource: AgentDetail): AgentEditFormValues {
     heartbeatInterval: form.heartbeatInterval,
     heartbeatTimeoutMinutes: form.heartbeatTimeoutMinutes,
     languageMode: form.languageMode,
-    languageCustom: form.languageCustom
+    languageCustom: form.languageCustom,
+    promptOverrides: form.promptOverrides
   }
 }
 
@@ -170,7 +173,8 @@ function buildAgentFormState(baseline: AgentFormState, values: AgentEditFormValu
     heartbeatInterval: values.heartbeatInterval,
     heartbeatTimeoutMinutes: values.heartbeatTimeoutMinutes,
     languageMode: values.languageMode,
-    languageCustom: values.languageCustom
+    languageCustom: values.languageCustom,
+    promptOverrides: values.promptOverrides
   }
 }
 
@@ -210,6 +214,7 @@ function advanceAgentFormBaseline(
       next.languageMode = submitted.languageMode
       next.languageCustom = submitted.languageCustom
     }
+    if (hasOwn(configuration, 'prompt_overrides')) next.promptOverrides = { ...submitted.promptOverrides }
   }
 
   return next
@@ -583,6 +588,8 @@ function AgentEditDialogContent({
         <PiPromptField
           value={values.instructions}
           onChange={(next) => form.setValue('instructions', next, { shouldDirty: true, shouldTouch: true })}
+          overrides={values.promptOverrides}
+          onOverridesChange={(next) => form.setValue('promptOverrides', next, { shouldDirty: true, shouldTouch: true })}
           draft={{
             agentId: resource.id,
             skillIds: values.skillIds,
