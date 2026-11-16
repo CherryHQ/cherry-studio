@@ -11,6 +11,7 @@ import { toMessageListItem } from '@renderer/components/chat/messages/utils/mess
 import { CodeBlockWrapLinesContext } from '@renderer/components/CodeBlockView/wrapLinesContext'
 import CopyButton from '@renderer/components/CopyButton'
 import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
+import { ErrorNotice } from '@renderer/components/ErrorNotice'
 import LanguageSelect from '@renderer/components/LanguageSelect'
 import { detectLanguageOrUnknown, useDetectLang, useLanguages, useTranslate } from '@renderer/hooks/translate'
 import { useDefaultModel } from '@renderer/hooks/useModel'
@@ -442,15 +443,19 @@ const ActionTranslate: FC<Props> = ({ action, sourceEntityId, scrollToBottom }) 
           )}
         </div>
         {error && completionError && (
-          <div className="mb-3 break-all rounded border border-error-border bg-error-subtle px-3 py-2 text-[13px] text-error-subtle-foreground">
-            <div>{error}</div>
-            <ErrorDetailAction
-              error={completionError.cause}
-              message={error}
-              source="selection"
-              operation="selection.translate"
-            />
-          </div>
+          <ErrorNotice
+            variant="inline"
+            className="mb-3"
+            title={error}
+            detail={
+              <ErrorDetailAction
+                error={completionError.cause}
+                message={error}
+                source="selection"
+                operation="selection.translate"
+              />
+            }
+          />
         )}
       </div>
       <div className="min-h-3" />

@@ -294,6 +294,15 @@ describe('ActionGeneral', () => {
     expect(screen.getByText('error.diagnosis.model:')).toBeInTheDocument()
   })
 
+  it('keeps an unclassified raw error off the surface', () => {
+    render(<ActionGeneral sourceEntityId="test-session" action={createBuiltinAction()} />)
+
+    act(() => state.onError?.(new Error('Provider returned an unexpected response')))
+
+    expect(screen.getByText('error.diagnosis.unknown:')).toBeInTheDocument()
+    expect(screen.queryByText('Provider returned an unexpected response')).not.toBeInTheDocument()
+  })
+
   it('advances the visible processing time for a temporary streamed message', async () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-07-25T00:00:00.000Z'))
