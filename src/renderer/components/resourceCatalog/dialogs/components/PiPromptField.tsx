@@ -1,4 +1,5 @@
-import { type ReactNode, useEffect, useRef, useState } from 'react'
+import { ChevronLeft } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { estimateTokenCount } from 'tokenx'
 
@@ -18,13 +19,14 @@ import type {
   AgentSystemPromptPreview
 } from '@shared/ipc/schemas/agent'
 
+import { SettingsLinkButton, SettingsRow, SettingsSection } from './EditDialogPages'
 import { PromptPolishActions } from './PromptPolishActions'
 
 const logger = loggerService.withContext('PiPromptField')
 const PREVIEW_DEBOUNCE_MS = 300
 const fixedTextClassName = 'whitespace-pre-wrap break-words font-mono text-[11px] text-muted-foreground leading-5'
 const editorClassName =
-  'max-h-96 min-h-16 border-0 bg-transparent px-0 font-mono text-[12px] leading-5 shadow-none focus-visible:ring-0 dark:bg-transparent'
+  'min-h-24 border-0 bg-transparent px-0 font-mono text-[12px] leading-5 shadow-none focus-visible:ring-0 dark:bg-transparent'
 
 const BLOCK_TITLES: Record<string, string> = {
   agent_identity: 'library.config.agent.prompt.block.agent_identity',
@@ -70,6 +72,9 @@ type PiPromptFieldProps = {
   /** Given only where the Agent exists: guidance blocks are then editable and saved here. */
   overrides?: AgentPromptOverrides
   onOverridesChange?: (next: AgentPromptOverrides) => void
+  /** The block open on its own page; given with `onSectionChange` when a dialog header shows it. */
+  section?: string | null
+  onSectionChange?: (key: string | null) => void
 }
 
 /** Mirrors how the edit form saves `configuration.language`; an invalid custom label keeps the inherited one. */
@@ -126,17 +131,35 @@ function usePiPromptPreview(draft: PiPromptDraft, instructions: string) {
   return { preview, failed, retry: () => setAttempt((count) => count + 1) }
 }
 
-/** The full Pi Durable System Prompt, block by block: guidance and the Agent's own prompt can be edited. */
-export function PiPromptField({ value, onChange, draft, overrides, onOverridesChange }: PiPromptFieldProps) {
+/** The title key of a prompt block, for a page header that shows one block. */
+export function getPromptBlockTitleKey(key: string): string | undefined {
+  return BLOCK_TITLES[key]
+}
+
+/**
+ * A Pi Durable System Prompt: the Agent's own prompt to edit, then the blocks the runtime adds, each
+ * opened on its own page. The page is controlled where a dialog header shows it, else local.
+ */
+export function PiPromptField({
+  value,
+  onChange,
+  draft,
+  overrides,
+  onOverridesChange,
+  section: controlledSection,
+  onSectionChange
+}: PiPromptFieldProps) {
   const { t } = useTranslation()
   const { preview, failed, retry } = usePiPromptPreview(draft, value)
+  const [localSection, setLocalSection] = useState<string | null>(null)
+  const section = onSectionChange ? (controlledSection ?? null) : localSection
+  const setSection = onSectionChange ?? setLocalSection
   const instructions = value || preview?.builtinInstructions || ''
+  const overrideOf = (key: string) => (isEditablePromptSection(key) ? overrides?.[key] : undefined)
   const sentText = (block: AgentPromptBlockPreview) =>
     block.kind === 'instructions'
       ? block.text.replace(AGENT_INSTRUCTIONS_SLOT, instructions)
-      : isEditablePromptSection(block.key)
-        ? (overrides?.[block.key] ?? block.text)
-        : block.text
+      : (overrideOf(block.key) ?? block.text)
   const tokens = preview ? estimateTokenCount(preview.blocks.map(sentText).join('\n\n')) : null
 
   const setOverride = (key: string, next: string | undefined) => {
@@ -145,111 +168,99 @@ export function PiPromptField({ value, onChange, draft, overrides, onOverridesCh
     onOverridesChange(next === undefined ? rest : { ...rest, [key]: next })
   }
 
+  const opened = preview?.blocks.find((block) => block.key === section && block.kind !== 'instructions')
+  if (opened) {
+    const editable = opened.kind === 'guidance' && Boolean(overrides) && isEditablePromptSection(opened.key)
+    return (
+      <div className="flex flex-col gap-3">
+        {onSectionChange ? null : (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-6 self-start px-1.5 text-xs"
+            onClick={() => setSection(null)}>
+            <ChevronLeft className="size-3.5" />
+            {t(BLOCK_TITLES[opened.key] ?? '') || opened.key}
+          </Button>
+        )}
+        {editable ? (
+          <GuidanceEditor
+            block={opened}
+            override={overrideOf(opened.key)}
+            onChange={(next) => setOverride(opened.key, next === opened.text ? undefined : next)}
+            onRestore={() => setOverride(opened.key, undefined)}
+          />
+        ) : (
+          <BlockViewer block={opened} />
+        )}
+      </div>
+    )
+  }
+
+  const instructionsBlock = preview?.blocks.find((block) => block.kind === 'instructions') ?? STANDALONE_INSTRUCTIONS
+  const others = preview?.blocks.filter((block) => block.kind !== 'instructions') ?? []
+
   return (
-    <div className="flex flex-col gap-2">
-      <div className="flex items-baseline justify-between gap-3">
-        <div className="flex items-baseline gap-1.5">
-          <span className="shrink-0 font-medium text-foreground text-sm leading-none">
-            {t('library.config.prompt.label')}
-          </span>
-          <span className="text-muted-foreground text-xs">{t('library.config.agent.prompt.full_hint')}</span>
-        </div>
+    <div className="flex flex-col gap-5">
+      <InstructionsEditor
+        block={instructionsBlock}
+        value={instructions}
+        builtin={preview?.builtinInstructions}
+        onChange={onChange}
+      />
+      {preview ? (
+        <SettingsSection title={t('library.config.agent.prompt.runtime_sections')}>
+          {others.map((block) => {
+            const edited = overrideOf(block.key) !== undefined
+            const summary =
+              block.kind === 'guidance'
+                ? t(edited ? 'library.config.agent.prompt.edited' : 'library.config.agent.prompt.summary.generated')
+                : t('library.config.agent.prompt.summary.live')
+            const label = BLOCK_TITLES[block.key] ? t(BLOCK_TITLES[block.key]) : block.key
+            return (
+              <SettingsRow key={block.key} label={label}>
+                <SettingsLinkButton label={label} summary={summary} onClick={() => setSection(block.key)} />
+              </SettingsRow>
+            )
+          })}
+        </SettingsSection>
+      ) : (
+        <p role="status" className="text-muted-foreground text-xs">
+          {failed ? t('library.config.agent.prompt.load_failed') : t('library.config.agent.prompt.loading')}
+        </p>
+      )}
+      <div className="flex items-center justify-between gap-2 text-foreground-tertiary text-xs">
         {tokens !== null ? (
-          <span className="shrink-0 text-foreground-tertiary text-xs tabular-nums">
+          <span className="tabular-nums">
             {t('library.config.agent.prompt.tokens', { tokens: tokens.toLocaleString() })}
           </span>
-        ) : null}
-      </div>
-      {preview ? (
-        preview.blocks.map((block) =>
-          block.kind === 'instructions' ? (
-            <InstructionsBlock
-              key={block.key}
-              block={block}
-              value={instructions}
-              builtin={preview.builtinInstructions}
-              onChange={onChange}
-            />
-          ) : block.kind === 'guidance' && overrides && isEditablePromptSection(block.key) ? (
-            <GuidanceBlock
-              key={block.key}
-              block={block}
-              override={overrides[block.key]}
-              onChange={(next) => setOverride(block.key, next === block.text ? undefined : next)}
-              onRestore={() => setOverride(block.key, undefined)}
-            />
-          ) : (
-            <FixedBlock key={block.key} block={block} />
-          )
-        )
-      ) : (
-        <>
-          <p role="status" className="py-2 text-muted-foreground text-xs">
-            {failed ? t('library.config.agent.prompt.load_failed') : t('library.config.agent.prompt.loading')}
-          </p>
-          {/* The Agent's own prompt stays editable while the rest cannot be assembled. */}
-          <InstructionsBlock block={STANDALONE_INSTRUCTIONS} value={value} builtin={undefined} onChange={onChange} />
-        </>
-      )}
-      {failed ? (
-        <div className="flex items-center gap-2 text-destructive text-xs">
-          {preview ? t('library.config.agent.prompt.load_failed') : null}
+        ) : (
+          <span />
+        )}
+        {failed ? (
           <Button type="button" variant="link" size="sm" className="h-auto p-0 text-xs" onClick={retry}>
             {t('common.retry')}
           </Button>
-        </div>
-      ) : null}
+        ) : null}
+      </div>
     </div>
   )
 }
 
-function BlockFrame({
-  block,
-  note,
-  actions,
-  editable,
-  children
-}: {
-  block: AgentPromptBlockPreview
-  note?: string
-  actions?: ReactNode
-  editable?: boolean
-  children: ReactNode
-}) {
+/** Live data or a setting's output, shown as sent. */
+function BlockViewer({ block }: { block: AgentPromptBlockPreview }) {
   const { t } = useTranslation()
-  const title = BLOCK_TITLES[block.key] ? t(BLOCK_TITLES[block.key]) : block.key
+  const caption = BLOCK_CAPTIONS[block.key]
   return (
-    <section
-      aria-label={title}
-      className={
-        editable
-          ? 'rounded-xl border border-border bg-background px-3 py-2'
-          : 'rounded-xl border border-border-subtle bg-muted/30 px-3 py-2'
-      }>
-      <div className="mb-1 flex min-h-6 items-center justify-between gap-2">
-        <span className="flex min-w-0 items-baseline gap-2">
-          <span className="shrink-0 font-medium text-foreground text-xs">{title}</span>
-          {note ? <span className="truncate text-foreground-tertiary text-xs">{note}</span> : null}
-        </span>
-        {actions ? <span className="flex shrink-0 items-center gap-1">{actions}</span> : null}
-      </div>
-      {children}
-    </section>
+    <div className="flex flex-col gap-2">
+      {caption ? <p className="text-muted-foreground text-xs">{t(caption)}</p> : null}
+      <pre className={`${fixedTextClassName} rounded-xl bg-muted/40 px-3 py-2.5`}>{block.text}</pre>
+    </div>
   )
 }
 
-/** Live data, a setting's output, or guidance shown before the Agent exists: read-only. */
-function FixedBlock({ block }: { block: AgentPromptBlockPreview }) {
-  const { t } = useTranslation()
-  const note = BLOCK_CAPTIONS[block.key] ? t(BLOCK_CAPTIONS[block.key]) : undefined
-  return (
-    <BlockFrame block={block} note={note}>
-      <pre className={`${fixedTextClassName} max-h-40 overflow-y-auto`}>{block.text}</pre>
-    </BlockFrame>
-  )
-}
-
-function GuidanceBlock({
+function GuidanceEditor({
   block,
   override,
   onChange,
@@ -262,39 +273,32 @@ function GuidanceBlock({
 }) {
   const { t } = useTranslation()
   const text = override ?? block.text
+  const label = BLOCK_TITLES[block.key] ? t(BLOCK_TITLES[block.key]) : block.key
   return (
-    <BlockFrame
-      block={block}
-      editable
-      note={override !== undefined ? t('library.config.agent.prompt.edited') : undefined}
-      actions={
-        <>
-          <PromptPolishActions
-            value={text}
-            fallbackSource={block.text}
-            emptyValueSystemPrompt={RESOURCE_PROMPT_POLISH_SYSTEM_PROMPT}
-            existingValueSystemPrompt={RESOURCE_PROMPT_POLISH_SYSTEM_PROMPT}
-            onChange={onChange}
-          />
-          {override !== undefined ? (
-            <Button type="button" variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={onRestore}>
-              {t('library.config.agent.prompt.restore_generated')}
-            </Button>
-          ) : null}
-        </>
-      }>
-      <Textarea.Input
-        value={text}
-        aria-label={BLOCK_TITLES[block.key] ? t(BLOCK_TITLES[block.key]) : block.key}
-        onValueChange={onChange}
-        className={editorClassName}
-      />
-    </BlockFrame>
+    <div className="flex flex-col gap-2">
+      <div className="flex items-center justify-end gap-1">
+        <PromptPolishActions
+          value={text}
+          fallbackSource={block.text}
+          emptyValueSystemPrompt={RESOURCE_PROMPT_POLISH_SYSTEM_PROMPT}
+          existingValueSystemPrompt={RESOURCE_PROMPT_POLISH_SYSTEM_PROMPT}
+          onChange={onChange}
+        />
+        {override !== undefined ? (
+          <Button type="button" variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={onRestore}>
+            {t('library.config.agent.prompt.restore_generated')}
+          </Button>
+        ) : null}
+      </div>
+      <div className="rounded-xl border border-border px-3 py-1">
+        <Textarea.Input value={text} aria-label={label} onValueChange={onChange} className={editorClassName} />
+      </div>
+    </div>
   )
 }
 
 /** The Agent's own prompt; a built-in Agent shows its built-in prompt until it is edited. */
-function InstructionsBlock({
+function InstructionsEditor({
   block,
   value,
   builtin,
@@ -306,13 +310,11 @@ function InstructionsBlock({
   onChange: (next: string) => void
 }) {
   const { t } = useTranslation()
-  const [before, after = ''] = block.text.split(AGENT_INSTRUCTIONS_SLOT)
   return (
-    <BlockFrame
-      block={block}
-      editable
-      actions={
-        <>
+    <div className="flex flex-col gap-2">
+      <div className="flex min-h-6 items-center justify-between gap-2">
+        <span className="font-medium text-foreground text-sm">{t(BLOCK_TITLES[block.key] ?? '')}</span>
+        <span className="flex items-center gap-1">
           <PromptPolishActions
             value={value}
             emptyValueSystemPrompt={RESOURCE_PROMPT_POLISH_SYSTEM_PROMPT}
@@ -324,19 +326,18 @@ function InstructionsBlock({
               {t('library.config.agent.prompt.restore_builtin')}
             </Button>
           ) : null}
-        </>
-      }>
-      {before.trim() ? <pre className={fixedTextClassName}>{before.trimEnd()}</pre> : null}
-      <div className="my-1 rounded-lg bg-accent/40 px-2 ring-1 ring-border">
+        </span>
+      </div>
+      <div className="rounded-xl border border-border px-3 py-1">
         <Textarea.Input
           value={value}
           aria-label={t('library.config.agent.prompt.instructions_label')}
           placeholder={t('library.config.agent.prompt.placeholder')}
           onValueChange={onChange}
-          className={editorClassName}
+          // Capped so the blocks below stay in reach on the same page.
+          className={`${editorClassName} max-h-72`}
         />
       </div>
-      {after.trim() ? <pre className={fixedTextClassName}>{after.trimStart()}</pre> : null}
-    </BlockFrame>
+    </div>
   )
 }
