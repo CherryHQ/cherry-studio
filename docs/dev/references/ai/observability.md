@@ -94,6 +94,11 @@ the same size estimator. Metadata for traces without retained spans is limited t
 1,000 traces, while metadata for retained spans stays available. These limits govern diagnostic retention,
 not runtime execution or conversation history.
 
+Bounded HTTP bodies and turn-text attributes own independent string storage. A preview cannot
+keep a full serialized request or answer alive through a V8 string slice. Capture preserves
+UTF-16 code units, including a surrogate pair split by the existing character limit. Background
+response capture keeps the abort signal without retaining the already-sent request body.
+
 ## AiSdkSpanAdapter
 
 `src/main/ai/observability/adapters/aiSdk/aiSdkSpanAdapter.ts` converts an OTel span into the

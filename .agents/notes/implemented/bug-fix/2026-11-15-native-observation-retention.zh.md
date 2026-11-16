@@ -12,6 +12,8 @@ Status: implemented
 
 ## Decision
 
+即使观察队列已排空，消费者仍保留完整基线；通过序列化深复制，会在 feed、观察者和产品投影间重复分配不可变的图片字符串。将已有的 Claude 历史复制器复用于公共运行时：复制可变容器，保留普通对象的循环引用，共用不可变字符串。非 JSON 值继续使用原生复制。feed 快照、捕获元数据和发生变化的产品消息部分使用该方式，消费者修改隔离和完整载荷保持不变。
+
 保留已有的修改隔离、异步交付、游标屏障、关键帧捕获和条数限制。为每个观察者增加保守估算的 16 MiB 待交付大小预算，不使用 JSON 序列化计量。不可变交付记录的估算会被缓存。大小压力复用已有的 gap / 当前快照恢复路径，并按顺序保留带发布时元数据的关键帧。
 
 允许一份完整的超大帧，尚未启动的观察者也保留首份基线。因此恢复期间的基线、关键帧和最新完整状态可能超过名义预算；限制针对重复的过期大快照，不裁剪单次会话。关键帧积压超过条数或大小许可时明确报告 overflow 和 source-lost，不静默丢弃完成事实。首个回调前发生关闭时仍先交付基线。
@@ -34,5 +36,6 @@ ThreadFeed 提供隔离的纯状态视图，供 Durable 查找输入和保留发
 - Regression — `packages/agent-runtime/tests/observation.test.ts`：在 100 条事件之前按大小恢复，快观察者仍能前进，终态元数据顺序和 drain 屏障得到保留，超大关键帧积压会明确关闭。最先新增的三个用例在修复前失败。
 - Regression — `packages/agent-runtime/tests/observation.test.ts`：未启动的观察者先收到基线再收到 source-lost；超大最新快照保持完整；纯状态读取隔离修改且不携带历史消息。
 - Regression — 合成 ThreadFeed 实验：同一份 2 MiB / 40 次发布场景，修复后 GC 后额外保留约 2 MiB，修复前约 80 MiB。不涉及用户数据、网络或工具。
+- Regression — `observation.test.ts` 与 `MessageProjection.test.ts`：十二个隔离消费者保留完整 4 MiB 图片字符串，GC 后新增堆内存低于 16 MiB；容器复制修复前分别保留约 52 MiB 和 48 MiB。`cloneHistoryData.test.ts` 验证循环引用，隔离数组、类型化数组、日期和错误原因；函数和 Symbol 载荷仍被拒绝。
 
 原始负载下的 Windows 安装包验收仍待完成；本地内存实验不能证明所有可能的 OOM 均已消除。

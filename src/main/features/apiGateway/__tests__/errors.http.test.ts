@@ -22,6 +22,20 @@ import type { OutputFormat } from '../adapters'
 import { buildStreamErrorFrame, gatewayErrorHandler, internalGatewayError } from '../errors'
 import { CountTokensBodySchema, MessagesBodySchema } from '../routes/schemas'
 
+it('reports a status-only 413 as request_too_large to Anthropic streaming clients', () => {
+  const frame = buildStreamErrorFrame('anthropic', {
+    name: 'AI_APICallError',
+    message: 'Request body exceeds the upstream limit',
+    statusCode: 413,
+    isRetryable: false
+  })
+
+  expect(JSON.parse(frame.split('data: ')[1])).toEqual({
+    type: 'error',
+    error: { type: 'request_too_large', message: 'Request body exceeds the upstream limit' }
+  })
+})
+
 const timeoutMessage = 'Upstream request timed out'
 const abortMessage = 'Upstream stream aborted'
 const genericMessage = 'Internal server error'

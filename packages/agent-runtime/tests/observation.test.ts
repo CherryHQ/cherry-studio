@@ -1,3 +1,7 @@
+import { setImmediate as nextTurn } from 'node:timers/promises'
+import { setFlagsFromString } from 'node:v8'
+import { runInNewContext } from 'node:vm'
+
 import { describe, expect, it } from 'vitest'
 
 import { runtimeId, ThreadFeed, type RuntimeMessage, type ObservationPayload, type ThreadSnapshot } from '../src'
@@ -16,6 +20,55 @@ const snapshot = (): ThreadSnapshot => ({
   activity: { state: 'idle' }
 })
 const tick = () => new Promise<void>((resolve) => setImmediate(resolve))
+
+setFlagsFromString('--expose_gc')
+const collectGarbage = runInNewContext('gc') as () => void
+async function retainedHeap(): Promise<number> {
+  await nextTurn()
+  collectGarbage()
+  await nextTurn()
+  collectGarbage()
+  return process.memoryUsage().heapUsed
+}
+
+it('shares immutable image strings across isolated observer containers', async () => {
+  const url = JSON.parse(JSON.stringify(`data:image/png;base64,${'A'.repeat(4 * 1024 * 1024)}`)) as string
+  const before = await retainedHeap()
+  const feed = new ThreadFeed(
+    {
+      ...snapshot(),
+      messages: [
+        {
+          id: 'image',
+          role: 'user',
+          parts: [{ type: 'file', mediaType: 'image/png', url }],
+          metadata: { completeness: 'complete' }
+        }
+      ]
+    },
+    () => {}
+  )
+  const received: ObservationPayload[] = []
+  const observers = Array.from({ length: 12 }, () =>
+    feed.observe((event) => {
+      received.push(event)
+    })
+  )
+  await Promise.all(observers.map((observer) => observer.drain()))
+  const retained = (await retainedHeap()) - before
+
+  expect(received).toHaveLength(12)
+  expect(
+    received.every(
+      (event) =>
+        event.type === 'snapshot' &&
+        event.messages[0].parts[0].type === 'file' &&
+        event.messages[0].parts[0].url === url
+    )
+  ).toBe(true)
+  expect(retained).toBeLessThan(16 * 1024 * 1024)
+  observers.forEach((observer) => observer.stop())
+})
 
 describe('normalized observation delivery', () => {
   it('reads state and individual message bindings without exposing the stored message graph', () => {

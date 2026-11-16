@@ -12,6 +12,8 @@ A synthetic experiment using the preview's ThreadFeed holds one consumer while p
 
 ## Decision
 
+Even a drained observer retains its complete baseline, and serializing deep copies duplicates immutable image strings across feeds, observers and product projections. Reuse the existing Claude history copier in the common runtime: copy mutable containers, preserve plain-object cycles and reuse immutable strings. Non-JSON values retain the native-clone fallback. Apply it to feed snapshots, captured metadata and changed product message parts; consumer mutation isolation and complete payloads remain intact.
+
 Keep existing mutation isolation, asynchronous delivery, cursor barriers, critical-frame capture and count limits. Add a conservative 16 MiB pending-size budget per observer, measured without JSON serialization. Cache estimates for immutable delivery records. Size pressure uses the existing gap/current-snapshot recovery path and retains ordered critical frames with publication-time metadata.
 
 One complete oversized frame is allowed, and an unstarted observer keeps its first baseline. Recovery may therefore hold a baseline, critical frames and the latest complete state beyond the nominal budget; the budget prevents repeated obsolete large snapshots, not the size of an individual conversation. If the retained critical backlog exceeds the count or size allowance, report overflow and source-lost rather than discard completion silently. Closing before first callback still delivers the baseline first.
@@ -34,5 +36,6 @@ Slow observers recover sooner for large histories. Unrecoverable critical-byte p
 - Regression — `packages/agent-runtime/tests/observation.test.ts`: size pressure recovers before 100 events, keeps fast observers progressing, preserves ordered terminal metadata and drain barriers, and closes an oversized critical backlog explicitly. The first three new cases fail before this repair.
 - Regression — `packages/agent-runtime/tests/observation.test.ts`: an unstarted observer receives its baseline before source-lost; an oversized latest snapshot remains complete; state-only reads isolate mutations without carrying historical messages.
 - Regression — synthetic ThreadFeed experiment: the same 2 MiB / 40-publication scenario retains about 2 MiB after GC with the repair, versus about 80 MiB before. No user data, network or tools are involved.
+- Regression — `observation.test.ts` and `MessageProjection.test.ts`: twelve isolated consumers keep complete 4 MiB image strings within a 16 MiB additional-heap budget after GC; before the container-copy repair they retain approximately 52 MiB and 48 MiB. `cloneHistoryData.test.ts` preserves cycles and isolates arrays, typed arrays, dates and error causes; function and symbol payloads remain rejected.
 
 Windows packaged acceptance under the original workload remains pending; the local memory experiment does not establish that every possible OOM has been eliminated.
