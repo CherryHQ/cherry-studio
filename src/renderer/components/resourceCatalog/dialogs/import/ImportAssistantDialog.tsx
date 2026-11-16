@@ -18,9 +18,11 @@ import {
   Textarea
 } from '@cherrystudio/ui'
 import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
+import { ErrorNotice } from '@renderer/components/ErrorNotice'
 import { useImportAssistantMutation } from '@renderer/hooks/resourceCatalog'
 import { toast } from '@renderer/services/toast'
 import { AssistantTransferError, parseAssistantImportContent } from '@renderer/utils/assistantTransfer'
+import { LocalizedToastError } from '@renderer/utils/errorToast'
 
 const ALLOWED_FETCH_PROTOCOLS = new Set(['http:', 'https:'])
 const ALLOWED_FETCH_HOSTS = new Set(['gist.githubusercontent.com', 'raw.githubusercontent.com'])
@@ -40,7 +42,7 @@ type ImportStatus =
   | { kind: 'success'; message: string }
   | { kind: 'error'; message: string; cause?: unknown }
 type CompletedImportStatus = Exclude<ImportStatus, { kind: 'idle' }>
-type DraftOutcome = { kind: 'ok' } | { kind: 'failed'; name: string; error: string }
+type DraftOutcome = { kind: 'ok' } | { kind: 'failed'; name: string; cause: unknown }
 const IMPORT_ERROR_I18N_KEYS = {
   invalid_format: 'assistants.presets.import.error.invalid_format'
 } as const
@@ -94,7 +96,7 @@ export function summarizeAssistantImportOutcomes(
   fileName?: string
 ): CompletedImportStatus {
   const successes = outcomes.filter((o) => o.kind === 'ok').length
-  const failures = outcomes.filter((o): o is { kind: 'failed'; name: string; error: string } => o.kind === 'failed')
+  const failures = outcomes.filter((o): o is { kind: 'failed'; name: string; cause: unknown } => o.kind === 'failed')
 
   if (failures.length === 0) {
     return {
@@ -112,15 +114,16 @@ export function summarizeAssistantImportOutcomes(
       message: t('library.import_dialog.partial_success', {
         success: successes,
         failed: failures.length,
-        first_name: first.name,
-        first_error: first.error
-      })
+        first_name: first.name
+      }),
+      cause: first.cause
     }
   }
 
   return {
     kind: 'error',
-    message: t('library.import_dialog.failure', { error: first.error })
+    message: t('library.import_dialog.failure'),
+    cause: first.cause
   }
 }
 
@@ -182,9 +185,7 @@ export function ImportAssistantDialog({ open, onOpenChange, onImported }: Props)
       const message =
         error instanceof AssistantTransferError
           ? t(IMPORT_ERROR_I18N_KEYS[error.code])
-          : error instanceof Error
-            ? error.message
-            : t('message.agents.import.error')
+          : t('message.agents.import.error')
       setStatus({ kind: 'error', message, cause: error })
       setLoading(false)
       return
@@ -197,11 +198,7 @@ export function ImportAssistantDialog({ open, onOpenChange, onImported }: Props)
         await importAssistant({ ...draft.dto, ...(groupName ? { groupName } : {}) })
         outcomes.push({ kind: 'ok' })
       } catch (error) {
-        outcomes.push({
-          kind: 'failed',
-          name: draft.dto.name,
-          error: error instanceof Error ? error.message : t('message.agents.import.error')
-        })
+        outcomes.push({ kind: 'failed', name: draft.dto.name, cause: error })
       }
     }
 
@@ -222,7 +219,7 @@ export function ImportAssistantDialog({ open, onOpenChange, onImported }: Props)
         }, AUTO_CLOSE_DELAY_MS)
       }
     } else {
-      toast.error(nextStatus.message)
+      toast.error({ title: nextStatus.message, cause: nextStatus.cause })
     }
 
     setLoading(false)
@@ -282,11 +279,11 @@ export function ImportAssistantDialog({ open, onOpenChange, onImported }: Props)
         throw new Error(t('assistants.presets.import.error.fetch_failed'))
       }
       if (isAssistantImportResponseTooLarge(response.headers)) {
-        throw new Error(t('library.import_dialog.error.response_too_large'))
+        throw new LocalizedToastError(t('library.import_dialog.error.response_too_large'))
       }
       const content = await response.text()
       if (isAssistantImportContentTooLarge(content)) {
-        throw new Error(t('library.import_dialog.error.response_too_large'))
+        throw new LocalizedToastError(t('library.import_dialog.error.response_too_large'))
       }
       setLoading(false)
       await runImport(content, 'url')
@@ -295,9 +292,9 @@ export function ImportAssistantDialog({ open, onOpenChange, onImported }: Props)
       const message =
         error instanceof DOMException && error.name === 'TimeoutError'
           ? t('library.import_dialog.error.timeout')
-          : error instanceof Error
+          : error instanceof LocalizedToastError
             ? error.message
-            : t('message.agents.import.error')
+            : t('assistants.presets.import.error.fetch_failed')
       setStatus({ kind: 'error', message, cause: error })
     }
   }
@@ -454,12 +451,10 @@ function StatusBanner({ status }: { status: ImportStatus }) {
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0 }}
           className="mt-4">
-          <Alert
-            type="error"
-            showIcon
-            message={status.message}
-            className="rounded-md px-3 py-2 text-xs shadow-none"
-            action={
+          <ErrorNotice
+            variant="inline"
+            title={status.message}
+            detail={
               status.cause ? (
                 <ErrorDetailAction
                   error={status.cause}

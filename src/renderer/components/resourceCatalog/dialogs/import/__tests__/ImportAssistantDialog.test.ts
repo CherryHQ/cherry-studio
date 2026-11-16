@@ -48,16 +48,17 @@ describe('ImportAssistantDialog URL guards', () => {
 
   it('summarizes partial import success with the first failed draft', () => {
     const t = (key: string, values?: Record<string, unknown>) => `${key}:${JSON.stringify(values)}`
+    const cause = new Error('invalid model')
 
-    expect(
-      summarizeAssistantImportOutcomes(
-        [{ kind: 'ok' }, { kind: 'failed', name: 'Broken assistant', error: 'invalid model' }],
-        t
-      )
-    ).toEqual({
+    const status = summarizeAssistantImportOutcomes(
+      [{ kind: 'ok' }, { kind: 'failed', name: 'Broken assistant', cause }],
+      t
+    )
+    expect(status).toEqual({
       kind: 'error',
-      message:
-        'library.import_dialog.partial_success:{"success":1,"failed":1,"first_name":"Broken assistant","first_error":"invalid model"}'
+      message: 'library.import_dialog.partial_success:{"success":1,"failed":1,"first_name":"Broken assistant"}',
+      cause
     })
+    expect(status.message).not.toContain('invalid model')
   })
 })
