@@ -650,6 +650,30 @@ it('migrates saved block ownership without duplicating content or changing the p
   expect(restored.accept(update).size).toBe(0)
 })
 
+// Child approvals have no native root part; their task attribution must survive projection.
+it('preserves the source metadata of an unprojected child approval', () => {
+  const f = fixture()
+  const id = f.reply()
+  f.projection.accept(f.update([text('root-answer', 'Delegating work')]), id)
+  const metadata = { cherry: { transport: 'pi-agent', parentToolCallId: 'spawn' } }
+  f.projection.control(id, {
+    type: 'tool-input-available',
+    toolCallId: 'child-shell',
+    toolName: 'bash',
+    input: { command: 'pwd' },
+    providerExecuted: true,
+    providerMetadata: metadata
+  })
+  f.projection.control(id, { type: 'tool-approval-request', toolCallId: 'child-shell', approvalId: 'approval-child' })
+  expect(f.projection.parts(id)).toContainEqual(
+    expect.objectContaining({ toolCallId: 'child-shell', callProviderMetadata: metadata })
+  )
+  f.save(id)
+  expect(new RootMessageProjection(f.context.id).parts(id)).toContainEqual(
+    expect.objectContaining({ toolCallId: 'child-shell', callProviderMetadata: metadata })
+  )
+})
+
 // The approval request can arrive before its tool source; keep enough input to render the card.
 it('builds an approval card from the approval input when no tool source was projected', () => {
   const f = fixture()

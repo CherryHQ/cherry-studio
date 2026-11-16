@@ -24,6 +24,23 @@ function makePart(overrides: Partial<Record<string, unknown>> = {}): CherryMessa
 }
 
 describe('findNextPendingPermissionRequest', () => {
+  it('attributes a child approval to its own task across message boundaries', () => {
+    const request = makePart({ callProviderMetadata: { cherry: { parentToolCallId: 'spawn-a' } } })
+    const task = (toolUseId: string, title: string, isBackgrounded: boolean): CherryMessagePart => ({
+      type: 'data-agent-task-event',
+      data: { event: 'started', taskId: toolUseId, toolUseId, title, status: 'in_progress', isBackgrounded }
+    })
+    const result = findNextPendingPermissionRequest(
+      { live: [request] },
+      {
+        history: [task('spawn-a', 'Review changes', true), task('spawn-b', 'Unrelated task', false)],
+        live: [request]
+      }
+    )
+    expect(result?.source).toEqual({ toolCallId: 'spawn-a', title: 'Review changes', isBackgrounded: true })
+    expect(findNextPendingPermissionRequest({ live: [makePart()] })?.source).toBeUndefined()
+  })
+
   it('returns pending permissions in FIFO order', () => {
     const partsByMessageId = {
       'message-1': [makePart()],
@@ -145,6 +162,44 @@ describe('findNextPendingPermissionRequest', () => {
         makePart({ approval: undefined }),
         makePart({ toolCallId: undefined }),
         { type: 'text', text: 'hello' }
+      ]
+    })
+
+    expect(result).toBeNull()
+  })
+
+  // Catches a provider-executed dynamic tool whose approval never reaches a person: the part can
+  // stay in `input-available` while `approval.id` is already set, which used to be skipped.
+  it('treats an unresolved approval on a dynamic tool as pending', () => {
+    const request = findNextPendingPermissionRequest({
+      'message-1': [
+        makePart({
+          type: 'dynamic-tool',
+          toolName: 'codemode',
+          state: 'input-available',
+          input: { code: 'return 1' },
+          approval: { id: 'codemode-approval-1' },
+          callProviderMetadata: undefined
+        })
+      ]
+    })
+
+    expect(request).toMatchObject({ approvalId: 'codemode-approval-1', toolCallId: 'call-1' })
+    expect(request?.toolResponse.tool.name).toBe('codemode')
+  })
+
+  // Catches a resolved decision re-prompting the same call.
+  it('ignores a dynamic tool approval that is already resolved', () => {
+    const result = findNextPendingPermissionRequest({
+      'message-1': [
+        makePart({
+          type: 'dynamic-tool',
+          toolName: 'codemode',
+          state: 'input-available',
+          input: { code: 'return 1' },
+          approval: { id: 'codemode-approval-1', approved: true },
+          callProviderMetadata: undefined
+        })
       ]
     })
 
