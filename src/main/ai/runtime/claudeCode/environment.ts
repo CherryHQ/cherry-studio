@@ -21,6 +21,7 @@ import { getProxyEnvironment } from '@main/services/proxy/proxyEnv'
 import { getBinaryPath } from '@main/utils/binaryResolver'
 import { autoDiscoverGitBash } from '@main/utils/commandResolver'
 import { getShellEnv, refreshShellEnv } from '@main/utils/shellEnv'
+import { isAgentEnvVarBlocked } from '@shared/ai/agentEnvVars'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { Provider } from '@shared/data/types/provider'
 import { isExternalCliProvider } from '@shared/utils/provider'
@@ -174,33 +175,8 @@ export async function buildEnvironment(
   // Merge user-defined env vars with blocked list
   const userEnvVars = agent.configuration?.env_vars
   if (userEnvVars && typeof userEnvVars === 'object') {
-    const BLOCKED_ENV_KEYS = new Set([
-      'ANTHROPIC_API_KEY',
-      'ANTHROPIC_AUTH_TOKEN',
-      'ANTHROPIC_BASE_URL',
-      'ANTHROPIC_MODEL',
-      'ANTHROPIC_DEFAULT_OPUS_MODEL',
-      'ANTHROPIC_DEFAULT_SONNET_MODEL',
-      'ANTHROPIC_DEFAULT_HAIKU_MODEL',
-      'ELECTRON_RUN_AS_NODE',
-      'ELECTRON_NO_ATTACH_CONSOLE',
-      'CLAUDE_CONFIG_DIR',
-      'CLAUDE_CODE_USE_BEDROCK',
-      'CLAUDE_CODE_USE_VERTEX',
-      'CLAUDE_CODE_GIT_BASH_PATH',
-      'ENABLE_TOOL_SEARCH',
-      'CHERRY_STUDIO_NODE_PROXY_RULES',
-      'CHERRY_STUDIO_NODE_PROXY_BYPASS_RULES',
-      'CHERRY_STUDIO_BUN_PATH',
-      'CHERRY_STUDIO_SKILLS_DIR',
-      'CLAUDE_AGENT_SDK_CLIENT_APP',
-      'NODE_OPTIONS',
-      '__PROTO__',
-      'CONSTRUCTOR',
-      'PROTOTYPE'
-    ])
     for (const [key, value] of Object.entries(userEnvVars)) {
-      if (BLOCKED_ENV_KEYS.has(key.toUpperCase())) {
+      if (isAgentEnvVarBlocked('claude-code', key)) {
         logger.warn('Blocked user env var override', { key })
       } else if (typeof value === 'string') {
         env[key] = value

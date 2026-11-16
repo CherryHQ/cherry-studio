@@ -4,6 +4,7 @@ import { useForm, type UseFormReturn, useWatch } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 
 import {
+  Alert,
   Button,
   FormControl,
   FormField,
@@ -37,6 +38,7 @@ import { useExitPresence } from '@renderer/hooks/useExitPresence'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBase'
 import { useModelById } from '@renderer/hooks/useModel'
 import { usePromptProcessor } from '@renderer/hooks/usePromptProcessor'
+import { useProviderById } from '@renderer/hooks/useProvider'
 import { useInstalledSkills, useReconcileSkillsOnOpen } from '@renderer/hooks/useSkills'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import { toast } from '@renderer/services/toast'
@@ -49,8 +51,10 @@ import {
   applyAgentFormPatch,
   buildInitialAgentFormState,
   diffAgentSaveIntent,
+  envVarsFromText,
   RESOURCE_PROMPT_POLISH_SYSTEM_PROMPT
 } from '@renderer/utils/resourceCatalog'
+import { getIgnoredAgentEnvVarKeys } from '@shared/ai/agentEnvVars'
 import {
   MAX_HEARTBEAT_INTERVAL_MINUTES,
   MAX_HEARTBEAT_TIMEOUT_MINUTES,
@@ -71,6 +75,7 @@ import type { UpdateAgentDto } from '@shared/data/api/schemas/agents'
 import type { AgentType } from '@shared/data/types/agent'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { InstalledSkill } from '@shared/types/skill'
+import { isExternalCliProvider } from '@shared/utils/provider'
 
 import { AgentAvatarPicker } from '../components/AgentAvatarPicker'
 import { type CatalogItem, CatalogToggleGrid } from '../components/CatalogPicker'
@@ -317,6 +322,7 @@ function AgentEditDialogContent({
   const form = useForm<AgentEditFormValues>({ defaultValues })
   const values = form.watch()
   const { model: selectedAgentModel } = useModelById(values.modelId)
+  const { provider: selectedProvider } = useProviderById(selectedAgentModel?.providerId)
   const promptModelName =
     selectedAgentModel?.name ?? (values.modelId === resource.model ? resource.modelName : undefined)
   const replaceFormBaseline = useCallback((next: AgentFormState) => {
@@ -641,7 +647,11 @@ function AgentEditDialogContent({
           </TabsContent>
         ) : null}
         <TabsContent value="advanced" forceMount hidden={activeTab !== 'advanced'} className="m-0">
-          <AgentAdvancedFields form={form} />
+          <AgentAdvancedFields
+            form={form}
+            agentType={resource.type}
+            externalCli={selectedProvider ? isExternalCliProvider(selectedProvider) : undefined}
+          />
         </TabsContent>
       </>
     </EditDialogShell>
@@ -1336,8 +1346,22 @@ function AgentToolsFields({
   )
 }
 
-function AgentAdvancedFields({ form }: { form: UseFormReturn<AgentEditFormValues> }) {
+function AgentAdvancedFields({
+  form,
+  agentType,
+  externalCli
+}: {
+  form: UseFormReturn<AgentEditFormValues>
+  agentType: AgentType
+  externalCli: boolean | undefined
+}) {
   const { t } = useTranslation()
+  const text = useWatch({ control: form.control, name: 'envVarsText' })
+  const ignoredKeys =
+    externalCli === undefined
+      ? []
+      : getIgnoredAgentEnvVarKeys(agentType, Object.keys(envVarsFromText(text ?? '')), externalCli)
+  const caps = AGENT_RUNTIME_CAPABILITIES[agentType]
 
   return (
     <div>
@@ -1358,6 +1382,18 @@ function AgentAdvancedFields({ form }: { form: UseFormReturn<AgentEditFormValues
                 rows={5}
               />
             </FormControl>
+            {ignoredKeys.length > 0 && (
+              <Alert
+                type="warning"
+                showIcon
+                message={t(
+                  agentType === 'pi-durable'
+                    ? 'library.config.agent.field.env_vars.unsupported_runtime'
+                    : 'library.config.agent.field.env_vars.ignored_keys',
+                  { keys: ignoredKeys.join(', '), runtime: t(caps.labelKey, caps.labelFallback) }
+                )}
+              />
+            )}
             <FormMessage />
           </FormItem>
         )}

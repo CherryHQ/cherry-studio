@@ -59,3 +59,20 @@ export function mergePiShellExecutionEnv(env: NodeJS.ProcessEnv): Record<string,
 
   return mergeBinaryExecutionEnv(definedEnv, standaloneBinaryDirs)
 }
+
+export function overlayPiAgentEnvVars(
+  env: NodeJS.ProcessEnv,
+  agentEnvVars: Readonly<Record<string, string>>,
+  platform: NodeJS.Platform = process.platform
+): NodeJS.ProcessEnv {
+  const result = { ...env }
+  for (const [key, value] of Object.entries(agentEnvVars)) {
+    if (platform === 'win32') {
+      for (const existing of Object.keys(result)) {
+        if (existing.toUpperCase() === key.toUpperCase()) delete result[existing]
+      }
+    }
+    result[key] = value
+  }
+  return result
+}

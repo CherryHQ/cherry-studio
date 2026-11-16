@@ -891,6 +891,13 @@ require approval outside Full Access and cannot run without a responder outside 
 mode. Only Bash commands use RTK rewriting. A failed command is not retried under a
 different shell.
 
+Ordinary Pi captures allowed Agent environment variables when a connection starts and passes
+that snapshot to managed Bash and PowerShell commands, including native child commands.
+The Agent panel reports reserved keys that the selected runtime ignores. Agent PATH is
+composed with Cherry's binary directories; an Agent `MISE_*` key selects caller-owned mise
+and keeps caller PATH priority. Pi Durable does not yet apply Agent variables. This does
+not change global `process.env` or service-owned MCP server environments.
+
 Disallowed in v1 unless Cherry adds an explicit trust/import flow:
 
 - User-global pi resources under the standalone pi home (`~/.pi/agent`) other

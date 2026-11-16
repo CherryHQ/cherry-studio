@@ -82,7 +82,7 @@ function envVarsToText(raw: unknown): string {
 }
 
 /** Reverse of `envVarsToText` — record of `KEY -> VALUE`, empty lines dropped. */
-function envVarsFromText(text: string): Record<string, string> {
+export function envVarsFromText(text: string): Record<string, string> {
   const entries = text
     .split(/\r?\n/)
     .filter((line) => line.trim().length > 0)

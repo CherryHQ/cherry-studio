@@ -1087,6 +1087,110 @@ describe('desktop Pi root connection', () => {
     expect(nativeFiles()).toHaveLength(1)
   })
 
+  it('passes agent env_vars to native bash', async () => {
+    const previous = [process.env.ISSUE24634_A, process.env.ISSUE24634_B]
+    delete process.env.ISSUE24634_A
+    delete process.env.ISSUE24634_B
+    try {
+      dbh.db
+        .update(agentTable)
+        .set({
+          configuration: {
+            permission_mode: 'bypassPermissions',
+            env_vars: { ISSUE24634_A: 'alpha', ISSUE24634_B: 'beta value' }
+          }
+        })
+        .where(eq(agentTable.id, input.agentId))
+        .run()
+      snapshot.agent = { ...agentService.getAgent(input.agentId)!, model: modelId }
+      setScript([
+        assistantReply(
+          [
+            {
+              type: 'toolCall',
+              id: 'agent-env',
+              name: 'bash',
+              arguments: { command: `printf '%s|%s' "\${ISSUE24634_A-unset}" "\${ISSUE24634_B-unset}"` }
+            }
+          ],
+          'toolUse'
+        ),
+        assistantReply('done')
+      ])
+      const { connection, events } = await connect()
+      snapshot.agent.configuration!.env_vars!.ISSUE24634_A = 'changed after connection'
+      await connection.send({ message: message('read environment') })
+      await done(events)
+      expect(events.filter((event) => event.type === 'error')).toEqual([])
+      const result = script.calls[1].messages.find(
+        (entry) => entry.role === 'toolResult' && entry.toolCallId === 'agent-env'
+      )
+      expect(
+        (result?.role === 'toolResult' ? result.content : [])
+          .filter((part) => part.type === 'text')
+          .map((part) => part.text)
+          .join('')
+      ).toBe('alpha|beta value')
+    } finally {
+      if (previous[0] === undefined) delete process.env.ISSUE24634_A
+      else process.env.ISSUE24634_A = previous[0]
+      if (previous[1] === undefined) delete process.env.ISSUE24634_B
+      else process.env.ISSUE24634_B = previous[1]
+    }
+  })
+
+  it.runIf(process.platform === 'win32')('passes agent env_vars to native PowerShell', async () => {
+    const previous = [process.env.ISSUE24634_A, process.env.ISSUE24634_B]
+    delete process.env.ISSUE24634_A
+    delete process.env.ISSUE24634_B
+    try {
+      dbh.db
+        .update(agentTable)
+        .set({
+          configuration: {
+            permission_mode: 'bypassPermissions',
+            env_vars: { ISSUE24634_A: 'alpha', ISSUE24634_B: 'beta value' }
+          }
+        })
+        .where(eq(agentTable.id, input.agentId))
+        .run()
+      snapshot.agent = { ...agentService.getAgent(input.agentId)!, model: modelId }
+      setScript([
+        assistantReply(
+          [
+            {
+              type: 'toolCall',
+              id: 'agent-env',
+              name: 'powershell',
+              arguments: { command: 'Write-Output "$env:ISSUE24634_A|$env:ISSUE24634_B"' }
+            }
+          ],
+          'toolUse'
+        ),
+        assistantReply('done')
+      ])
+      const { connection, events } = await connect()
+      await connection.send({ message: message('read environment') })
+      await done(events)
+      expect(events.filter((event) => event.type === 'error')).toEqual([])
+      const result = script.calls[1].messages.find(
+        (entry) => entry.role === 'toolResult' && entry.toolCallId === 'agent-env'
+      )
+      expect(
+        (result?.role === 'toolResult' ? result.content : [])
+          .filter((part) => part.type === 'text')
+          .map((part) => part.text)
+          .join('')
+          .trim()
+      ).toBe('alpha|beta value')
+    } finally {
+      if (previous[0] === undefined) delete process.env.ISSUE24634_A
+      else process.env.ISSUE24634_A = previous[0]
+      if (previous[1] === undefined) delete process.env.ISSUE24634_B
+      else process.env.ISSUE24634_B = previous[1]
+    }
+  })
+
   it('executes a native tool once, projects its result, and sends it back through the model port', async () => {
     writeFileSync(join(directory, 'note.txt'), 'native tool result')
     setScript([

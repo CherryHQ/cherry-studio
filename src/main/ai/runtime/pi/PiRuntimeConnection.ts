@@ -38,6 +38,7 @@ import { CHERRY_MCP_SERVER, listBuiltinToolPolicies } from '@main/ai/toolApprova
 import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import { getPathFromEnvironment, getShellEnv } from '@main/utils/shellEnv'
+import { isAgentEnvVarBlocked } from '@shared/ai/agentEnvVars'
 import type { AgentSessionCompactionTrigger } from '@shared/ai/agentSessionCompaction'
 import type { AutonomousTurnOrigin } from '@shared/ai/agentSessionTurnOrigin'
 import {
@@ -79,7 +80,7 @@ import {
 import { buildPiMcpToolName, createPiMcpExtension } from './piMcpExtension'
 import { PiMessageMetadata, resolvePiMcpToolMetadata } from './PiMessageMetadata'
 import { loadPiSdk } from './piSdk'
-import { buildPiLoginPathPrefix, mergePiShellExecutionEnv, resolvePiShellPath } from './piShell'
+import { buildPiLoginPathPrefix, mergePiShellExecutionEnv, overlayPiAgentEnvVars, resolvePiShellPath } from './piShell'
 import { withPiShellTimeout } from './piShellTimeout'
 import { PiTurnUsage } from './PiTurnUsage'
 
@@ -153,6 +154,11 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       this.input.knowledgeBaseIds
     )
     const { agent, session } = initialSnapshot
+    const capturedAgentEnvVars = Object.fromEntries(
+      Object.entries(agent.configuration?.env_vars ?? {}).filter(
+        (entry): entry is [string, string] => typeof entry[1] === 'string' && !isAgentEnvVarBlocked('pi', entry[0])
+      )
+    )
     const workspacePath = session.workspace?.path
     if (!session.agentId || !workspacePath) throw new Error('Pi requires an agent and workspace')
     await prepareAgentSessionWorkspaceDirectory(session)
@@ -287,14 +293,20 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     const managedBashTool = pi.createBashToolDefinition(workspacePath, {
       commandPrefix: loginPathPrefix,
       shellPath,
-      spawnHook: (context) => ({ ...context, env: mergePiShellExecutionEnv(context.env) })
+      spawnHook: (context) => ({
+        ...context,
+        env: mergePiShellExecutionEnv(overlayPiAgentEnvVars(context.env, capturedAgentEnvVars))
+      })
     })
     const managedShellTools = [
       managedBashTool,
       ...(process.platform === 'win32'
         ? [
             pi.createPowerShellToolDefinition(workspacePath, {
-              spawnHook: (context) => ({ ...context, env: mergePiShellExecutionEnv(context.env) })
+              spawnHook: (context) => ({
+                ...context,
+                env: mergePiShellExecutionEnv(overlayPiAgentEnvVars(context.env, capturedAgentEnvVars))
+              })
             })
           ]
         : [])
