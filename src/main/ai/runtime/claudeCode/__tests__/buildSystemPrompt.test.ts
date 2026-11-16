@@ -240,7 +240,7 @@ describe('buildSystemPrompt — report_artifacts prompt', () => {
   it('ignores prompt overrides saved on the Agent', async () => {
     const agent = makeAgent({
       instructions: 'Do the task.',
-      configuration: { prompt_overrides: { report_artifacts: 'OVERRIDDEN' } } as never
+      configuration: { prompt_overrides: { report_artifacts: 'OVERRIDDEN' } }
     })
 
     const text = promptText(await buildSystemPrompt(agent, '/tmp/cwd'))

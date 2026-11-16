@@ -217,7 +217,7 @@ describe('desktop Pi Durable connection', () => {
     mocks.capture.mockImplementation(async () => snapshot)
     mocks.mcpServers.mockReset().mockReturnValue({})
     mocks.catalog.mockReset().mockReturnValue([])
-    mocks.prompt.mockReset().mockResolvedValue({ base: { kind: 'custom', content: 'You are Cherry.' } })
+    mocks.prompt.mockReset().mockResolvedValue({ base: { kind: 'custom', content: 'You are Cherry.' }, blocks: [] })
     setScript([assistantReply('Hello world')])
     mocks.binding.mockImplementation(async () => createTestBinding({ model: MODEL, stream: script.model }))
   })
