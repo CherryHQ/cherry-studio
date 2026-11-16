@@ -8,6 +8,7 @@ import androidLogo from '@renderer/assets/images/deviceConnections/android.svg'
 import googlePlayLogo from '@renderer/assets/images/deviceConnections/google-play.png'
 import iosLogo from '@renderer/assets/images/deviceConnections/ios.svg'
 import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
+import { ErrorNotice } from '@renderer/components/ErrorNotice'
 import { ipcApi } from '@renderer/ipc'
 import { getAppEdition } from '@renderer/utils/appEdition'
 
@@ -62,18 +63,20 @@ export function MobileAppDownload() {
             ) : (
               <div className="flex size-[202px] flex-col items-center justify-center gap-3 text-center text-sm text-muted-foreground">
                 {error && !isValidating ? (
-                  <>
-                    <p role="alert">{t('deviceConnections.download.loadFailed')}</p>
-                    <ErrorDetailAction
-                      error={error}
-                      message={t('deviceConnections.download.loadFailed')}
-                      operation="app.mobile.download_url"
-                      source="deviceConnections"
-                    />
-                    <Button variant="outline" size="sm" onClick={() => void mutate()}>
-                      {t('common.retry')}
-                    </Button>
-                  </>
+                  <ErrorNotice
+                    variant="inline"
+                    className="w-full text-left"
+                    title={t('deviceConnections.download.loadFailed')}
+                    action={{ label: t('common.retry'), onClick: () => void mutate() }}
+                    detail={
+                      <ErrorDetailAction
+                        error={error}
+                        message={t('deviceConnections.download.loadFailed')}
+                        operation="app.mobile.download_url"
+                        source="deviceConnections"
+                      />
+                    }
+                  />
                 ) : (
                   <div role="status">
                     <Spinner text={t('common.loading')} />
