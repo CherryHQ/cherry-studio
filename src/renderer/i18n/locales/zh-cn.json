@@ -2023,6 +2023,7 @@
   "knowledge.data_source.bulk.reindex_skipped": "已跳过 {{count}} 个处理中的数据源",
   "knowledge.data_source.bulk.selected_count": "已选 {{count}} 项",
   "knowledge.data_source.chunks_count": "{{count}} chunks",
+  "knowledge.data_source.chunks_load_failed": "无法加载分块",
   "knowledge.data_source.delete_confirm_description": "删除后将无法恢复该数据源及其索引数据。",
   "knowledge.data_source.delete_confirm_title": "确认删除数据源",
   "knowledge.data_source.delete_failed": "删除数据源失败",

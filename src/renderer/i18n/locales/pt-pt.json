@@ -2023,6 +2023,7 @@
   "knowledge.data_source.bulk.reindex_skipped": "Ignoradas {{count}} fonte(s) de dados ainda a processar.",
   "knowledge.data_source.bulk.selected_count": "{{count}} selecionado",
   "knowledge.data_source.chunks_count": "{{count}} blocos",
+  "knowledge.data_source.chunks_load_failed": "Não foi possível carregar os blocos",
   "knowledge.data_source.delete_confirm_description": "Esta fonte de dados e os respetivos dados de índice não poderão ser recuperados após a eliminação.",
   "knowledge.data_source.delete_confirm_title": "Eliminar Fonte de Dados?",
   "knowledge.data_source.delete_failed": "Falha ao eliminar fonte de dados",

@@ -2023,6 +2023,7 @@
   "knowledge.data_source.bulk.reindex_skipped": "Ignoré {{count}} source(s) de données en cours de traitement",
   "knowledge.data_source.bulk.selected_count": "{{count}} sélectionné",
   "knowledge.data_source.chunks_count": "{{count}} morceaux",
+  "knowledge.data_source.chunks_load_failed": "Impossible de charger les morceaux",
   "knowledge.data_source.delete_confirm_description": "Cette source de données et ses données d'index ne peuvent pas être récupérées après la suppression.",
   "knowledge.data_source.delete_confirm_title": "Supprimer la source de données ?",
   "knowledge.data_source.delete_failed": "Échec de la suppression de la source de données",

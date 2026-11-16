@@ -2023,6 +2023,7 @@
   "knowledge.data_source.bulk.reindex_skipped": "ข้าม {{count}} แหล่งข้อมูลที่ยังประมวลผล",
   "knowledge.data_source.bulk.selected_count": "เลือก {{count}} รายการ",
   "knowledge.data_source.chunks_count": "{{count}} ส่วน",
+  "knowledge.data_source.chunks_load_failed": "โหลดส่วนไม่สำเร็จ",
   "knowledge.data_source.delete_confirm_description": "แหล่งข้อมูลนี้และข้อมูลดัชนีไม่สามารถกู้คืนได้หลังจากลบ",
   "knowledge.data_source.delete_confirm_title": "ลบแหล่งข้อมูล?",
   "knowledge.data_source.delete_failed": "ไม่สามารถลบแหล่งข้อมูล",

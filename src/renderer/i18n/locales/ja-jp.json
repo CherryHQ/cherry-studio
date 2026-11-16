@@ -2023,6 +2023,7 @@
   "knowledge.data_source.bulk.reindex_skipped": "処理中の {{count}} 件のデータソースをスキップしました",
   "knowledge.data_source.bulk.selected_count": "{{count}} 件選択",
   "knowledge.data_source.chunks_count": "{{count}} チャンク",
+  "knowledge.data_source.chunks_load_failed": "チャンクを読み込めませんでした",
   "knowledge.data_source.delete_confirm_description": "このデータソースとそのインデックスデータは、削除後に回復できません。",
   "knowledge.data_source.delete_confirm_title": "データソースを削除しますか？",
   "knowledge.data_source.delete_failed": "データソースの削除に失敗しました",

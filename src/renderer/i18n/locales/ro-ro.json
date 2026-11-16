@@ -2024,6 +2024,7 @@
   "knowledge.data_source.bulk.reindex_skipped": "S-au omis {{count}} sursă(s) de date încă în procesare",
   "knowledge.data_source.bulk.selected_count": "{{count}} selectate",
   "knowledge.data_source.chunks_count": "{{count}} fragmente",
+  "knowledge.data_source.chunks_load_failed": "Fragmentele nu au putut fi încărcate",
   "knowledge.data_source.delete_confirm_description": "Această sursă de date și datele sale index nu pot fi recuperate după ștergere.",
   "knowledge.data_source.delete_confirm_title": "Șterge sursa de date?",
   "knowledge.data_source.delete_failed": "Nu s-a reușit ștergerea sursei de date",
