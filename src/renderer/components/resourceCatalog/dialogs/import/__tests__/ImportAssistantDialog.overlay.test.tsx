@@ -1,5 +1,5 @@
 import '@testing-library/jest-dom/vitest'
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -98,5 +98,24 @@ describe('ImportAssistantDialog', () => {
       2,
       expect.objectContaining({ name: 'Second', groupName: 'work' })
     )
+  })
+
+  it('reports a failed import by its translated summary and keeps the raw reason behind Details', async () => {
+    const user = userEvent.setup()
+    const cause = new Error('UNIQUE constraint failed: assistant.name')
+    importMocks.importAssistant.mockRejectedValue(cause)
+    render(<ImportAssistantDialog open onOpenChange={vi.fn()} />)
+
+    await user.click(screen.getByRole('tab', { name: 'library.import_dialog.tab.clipboard' }))
+    fireEvent.change(await screen.findByPlaceholderText('library.import_dialog.clipboard.placeholder'), {
+      target: { value: JSON.stringify([{ name: 'First', prompt: 'first prompt' }]) }
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'library.import_dialog.clipboard.button' }))
+
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent('library.import_dialog.failure')
+    expect(alert).not.toHaveTextContent(cause.message)
+    expect(within(alert).getByRole('button', { name: /common\.detail/ })).toBeInTheDocument()
+    expect(importMocks.toastError).toHaveBeenCalledWith({ title: 'library.import_dialog.failure', cause })
   })
 })
