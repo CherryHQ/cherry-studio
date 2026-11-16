@@ -8,15 +8,6 @@ import { type ComposerAttachment, toComposerAttachment } from '@renderer/utils/m
 import { LONG_TEXT_PASTE_THRESHOLD } from '../../composerPaste'
 import pasteHandling from '../pasteHandling'
 
-vi.mock('@logger', () => ({
-  loggerService: {
-    withContext: () => ({
-      error: vi.fn(),
-      verbose: vi.fn()
-    })
-  }
-}))
-
 describe('pasteHandling', () => {
   const selectedFile: FileMetadata = {
     id: 'file-1',
@@ -31,23 +22,144 @@ describe('pasteHandling', () => {
   }
 
   beforeEach(() => {
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: {
-        file: {
-          createTempFile: vi.fn().mockResolvedValue('/tmp/pasted_text.txt'),
-          get: vi.fn().mockResolvedValue(selectedFile),
-          getPathForFile: vi.fn().mockReturnValue(''),
-          write: vi.fn()
-        }
-      }
+    Object.assign(window.api.file, {
+      createTempFile: vi.fn().mockResolvedValue('/tmp/pasted_text.txt'),
+      get: vi.fn().mockResolvedValue(selectedFile),
+      getPathForFile: vi.fn().mockReturnValue(''),
+      write: vi.fn()
     })
+    vi.mocked(window.api.ipcApi.request)
+      .mockReset()
+      .mockResolvedValue({
+        ok: true,
+        data: { kind: 'file', type: 'other', size: 2048, createdAt: 0, modifiedAt: 0, mime: 'application/octet-stream' }
+      })
     Object.defineProperty(window, 'toast', {
       configurable: true,
       value: {
         error: vi.fn(),
         info: vi.fn()
       }
+    })
+  })
+
+  describe('copied directories', () => {
+    const directoryPath = '/tmp/Project Notes'
+    const directory = { name: 'Project Notes', type: '' } as File
+    const diskFile = { name: 'pasted_text.txt', type: 'text/plain' } as File
+    const screenshot = {
+      name: 'image.png',
+      type: 'image/png',
+      arrayBuffer: async () => new Uint8Array([1, 2, 3]).buffer
+    } as File
+    const directoryMetadata = { kind: 'directory', size: 0, createdAt: 0, modifiedAt: 0 }
+
+    beforeEach(() => {
+      vi.mocked(window.api.file.getPathForFile).mockImplementation((file) =>
+        file === directory ? directoryPath : file === diskFile ? selectedFile.path : ''
+      )
+    })
+
+    it.each([false, true])('inserts directories separately from attachments (mixed sources: %s)', async (mixed) => {
+      vi.mocked(window.api.ipcApi.request).mockImplementation(async (_route, handle) => ({
+        ok: true,
+        data:
+          (handle as { path: string }).path === directoryPath
+            ? directoryMetadata
+            : { kind: 'file', type: 'text', size: 2048, createdAt: 0, modifiedAt: 0, mime: 'text/plain' }
+      }))
+      let files: ComposerAttachment[] = []
+      const folderPaths: string[] = []
+      const event = {
+        preventDefault: vi.fn(),
+        clipboardData: {
+          getData: (type: string) => (type === 'text/plain' ? 'Project Notes' : ''),
+          files: mixed ? [directory, screenshot, diskFile] : [directory, diskFile]
+        }
+      } as unknown as ClipboardEvent
+
+      expect(
+        await pasteHandling.handlePaste(
+          event,
+          ['*'],
+          (updater) => {
+            files = updater(files)
+          },
+          undefined,
+          undefined,
+          undefined,
+          (key) => key,
+          (path) => folderPaths.push(path)
+        )
+      ).toBe(true)
+
+      expect(folderPaths).toEqual([directoryPath])
+      expect(files.map((file) => file.origin_name)).toEqual(
+        mixed ? ['image.png', 'pasted_text.txt'] : ['pasted_text.txt']
+      )
+      expect(files).not.toContainEqual(expect.objectContaining({ path: directoryPath }))
+      expect(window.api.file.get).not.toHaveBeenCalledWith(directoryPath)
+      expect(toast.info).not.toHaveBeenCalled()
+      expect(toast.error).not.toHaveBeenCalled()
+    })
+
+    it('rejects a directory when the consumer cannot insert folder tokens', async () => {
+      vi.mocked(window.api.ipcApi.request).mockResolvedValue({ ok: true, data: directoryMetadata })
+      let files: ComposerAttachment[] = []
+      const event = {
+        preventDefault: vi.fn(),
+        clipboardData: { getData: () => '', files: [directory] }
+      } as unknown as ClipboardEvent
+
+      await pasteHandling.handlePaste(
+        event,
+        ['*'],
+        (updater) => {
+          files = updater(files)
+        },
+        undefined,
+        undefined,
+        undefined,
+        (key) => key
+      )
+
+      expect(files).toEqual([])
+      expect(window.api.file.get).not.toHaveBeenCalled()
+      expect(toast.info).toHaveBeenCalledWith('chat.input.file_not_supported')
+    })
+
+    it.each(['missing', 'transport failure'] as const)('rejects paths with %s metadata', async (failure) => {
+      if (failure === 'missing') {
+        vi.mocked(window.api.ipcApi.request).mockResolvedValue({ ok: true, data: null })
+      } else {
+        vi.mocked(window.api.ipcApi.request).mockRejectedValue(new Error('transport failed'))
+      }
+      let files: ComposerAttachment[] = []
+      const folderPaths: string[] = []
+      const event = {
+        preventDefault: vi.fn(),
+        clipboardData: { getData: () => '', files: [directory] }
+      } as unknown as ClipboardEvent
+
+      await pasteHandling.handlePaste(
+        event,
+        ['*'],
+        (updater) => {
+          files = updater(files)
+        },
+        undefined,
+        undefined,
+        undefined,
+        (key) => key,
+        (path) => folderPaths.push(path)
+      )
+
+      expect(files).toEqual([])
+      expect(folderPaths).toEqual([])
+      expect(window.api.file.get).not.toHaveBeenCalled()
+      expect(failure === 'missing' ? toast.info : toast.error).toHaveBeenCalledWith(
+        failure === 'missing' ? 'chat.input.file_not_supported' : 'chat.input.file_error'
+      )
     })
   })
 
