@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest'
 import { applyMigrations } from '@data/db/applyMigrations'
 
 describe('per-model api key routing migration: upgrade from main', () => {
-  const dbh = setupTestDatabase({ beforeMigration: '0039_talented_dust' })
+  const dbh = setupTestDatabase({ beforeMigration: '0041_talented_dust' })
 
   it('preserves an existing model and adds a null api_key_id', () => {
     const columnsBefore = (dbh.sqlite.pragma('table_info(user_model)') as Array<{ name: string }>).map(
