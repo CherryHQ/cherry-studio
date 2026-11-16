@@ -1,22 +1,7 @@
 import { createHash } from 'node:crypto'
 
 import { isDataUIPart, isToolUIPart } from 'ai'
-import {
-  and,
-  asc,
-  desc,
-  eq,
-  gte,
-  inArray,
-  isNotNull,
-  isNull,
-  lt,
-  lte,
-  ne,
-  or,
-  type SQL,
-  sql
-} from 'drizzle-orm'
+import { and, asc, desc, eq, gte, inArray, isNotNull, isNull, lt, lte, ne, or, type SQL, sql } from 'drizzle-orm'
 import { chunk } from 'es-toolkit'
 import { v4 as uuidv4, v7 as uuidv7, validate as isUuid } from 'uuid'
 
@@ -215,7 +200,6 @@ type RankedSessionMessageSearchInput = {
 }
 
 type ListSessionMessagesOptions = {
-  deferToolOutputs?: boolean
   cursor?: string
   limit?: number
   messageId?: string
@@ -1206,8 +1190,7 @@ export class AgentSessionMessageService {
 
     const hasNext = rows.length > limit
     const pageRows = hasNext ? rows.slice(0, limit) : rows
-    const hydratedRows = options.deferToolOutputs ? pageRows : hydrateAgentSessionMessageRowsTx(database, pageRows)
-    const parents = hydratedRows.flatMap((row) => (row.parentId ? [row.parentId] : []))
+    const parents = pageRows.flatMap((row) => (row.parentId ? [row.parentId] : []))
     const siblings = parents.length
       ? database
           .select({ id: sessionMessagesTable.id, parentId: sessionMessagesTable.parentId })
@@ -1217,7 +1200,23 @@ export class AgentSessionMessageService {
           .orderBy(asc(sql`+${sessionMessagesTable.createdAt}`), asc(sql`+${sessionMessagesTable.id}`))
           .all()
       : []
-import { projectMessagePartForRenderer } from '@main/utils/messageOutputProjection'
+    const siblingsByParent = new Map<string | null, string[]>()
+    for (const sibling of siblings) {
+      const group = siblingsByParent.get(sibling.parentId)
+      if (group) group.push(sibling.id)
+      else siblingsByParent.set(sibling.parentId, [sibling.id])
+    }
+    const readRow = database
+      .select()
+      .from(sessionMessagesTable)
+      .where(eq(sessionMessagesTable.id, sql.placeholder('id')))
+      .prepare()
+    const storedRows = pageRows.map(({ id }) => readRow.get({ id })!)
+    const hydratedRows = options.deferToolOutputs ? storedRows : hydrateAgentSessionMessageRowsTx(database, storedRows)
+    const items = hydratedRows.map((row) => ({
+      ...this.rowToEntity(row),
+      siblings: siblingsByParent.get(row.parentId) ?? []
+    }))
     const tail = pageRows[pageRows.length - 1]
     const nextCursor = hasNext && tail ? encodeCursor(tail.createdAt, tail.id) : undefined
 
