@@ -1,9 +1,10 @@
 import type { ErrorComponentProps } from '@tanstack/react-router'
+import { RefreshCw } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
-import { Alert, Button } from '@cherrystudio/ui'
-import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
-import { ErrorFallbackCopyButton, ErrorFallbackDetails } from '@renderer/components/ErrorFallbackDetails'
+import { Button } from '@cherrystudio/ui'
+import { ErrorNotice } from '@renderer/components/ErrorNotice'
+import { useErrorDetailOpener } from '@renderer/hooks/useErrorDetailOpener'
 import { ipcApi } from '@renderer/ipc'
 
 /**
@@ -15,25 +16,30 @@ import { ipcApi } from '@renderer/ipc'
  */
 export const RouteErrorFallback = ({ error, reset }: ErrorComponentProps) => {
   const { t } = useTranslation()
+  const openDetail = useErrorDetailOpener({ error, source: 'router', operation: 'route.render' })
 
   return (
-    <div className="flex h-full w-full flex-col items-center justify-center gap-4 p-4">
-      <Alert
-        type="error"
-        message={t('error.boundary.default.message')}
-        description={<ErrorFallbackDetails error={error} />}
+    <div className="flex h-full w-full items-center justify-center p-4">
+      <ErrorNotice
         className="max-w-xl"
+        title={t('error.boundary.default.title')}
+        info={t('error.boundary.default.info')}
+        action={{ label: t('common.retry'), icon: <RefreshCw size={13} />, onClick: () => reset() }}
+        extra={
+          <Button
+            type="button"
+            variant="link"
+            size="sm"
+            className="h-auto min-h-0 px-0 text-foreground-tertiary shadow-none hover:text-foreground hover:no-underline dark:text-foreground-tertiary dark:hover:text-foreground"
+            onClick={(event) => {
+              event.stopPropagation()
+              void ipcApi.request('window.main.reload')
+            }}>
+            {t('error.boundary.default.reload')}
+          </Button>
+        }
+        onOpenDetail={openDetail}
       />
-      <div className="flex items-center gap-2">
-        <ErrorDetailAction error={error} source="router" operation="route.render" />
-        <ErrorFallbackCopyButton error={error} />
-        <Button size="sm" onClick={() => reset()}>
-          {t('common.retry')}
-        </Button>
-        <Button size="sm" onClick={() => void ipcApi.request('window.main.reload')}>
-          {t('error.boundary.default.reload')}
-        </Button>
-      </div>
     </div>
   )
 }

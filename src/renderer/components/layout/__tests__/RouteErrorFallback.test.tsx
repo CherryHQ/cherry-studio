@@ -33,7 +33,7 @@ describe('RouteErrorFallback', () => {
     vi.restoreAllMocks()
   })
 
-  it('contains a route render error inside the router instead of bubbling it up', async () => {
+  it('contains a route render error inside the router with a localized message and no raw error text', async () => {
     const router = buildRouter(() => {
       throw new Error('route exploded')
     })
@@ -41,8 +41,8 @@ describe('RouteErrorFallback', () => {
     render(<RouterProvider router={router} />)
 
     const alert = await screen.findByRole('alert')
-    expect(alert).toHaveTextContent(i18n.t('error.boundary.default.message'))
-    expect(alert).toHaveTextContent('route exploded')
+    expect(alert).toHaveTextContent(i18n.t('error.boundary.default.title'))
+    expect(alert).not.toHaveTextContent('route exploded')
   })
 
   it('re-renders the route when retry is clicked after the cause clears', async () => {
