@@ -256,8 +256,9 @@ describe('ModelCheckDialog', () => {
 
     render(<ModelCheckDialog />)
 
-    expect(screen.getByRole('button', { name: /message\.api\.connection\.failed/ })).toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: /message.api.connection.failed/ }))
+    expect(screen.getByText('error.diagnosis.auth')).toBeInTheDocument()
+    expect(screen.queryByText(/Invalid API key/)).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: /common\.detail/ }))
 
     expect(showErrorDetailPopup).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -275,7 +276,7 @@ describe('ModelCheckDialog', () => {
     )
     const first = showErrorDetailPopup.mock.calls[0]?.[0] as { errorContext: { id: string; imageOnly?: boolean } }
     expect(first.errorContext.imageOnly).toBeUndefined()
-    await user.click(screen.getByRole('button', { name: /message.api.connection.failed/ }))
+    await user.click(screen.getByRole('button', { name: /common\.detail/ }))
     const second = showErrorDetailPopup.mock.calls[1]?.[0] as { errorContext: { id: string } }
     expect(second.errorContext.id).toBe(first.errorContext.id)
   })
@@ -304,7 +305,7 @@ describe('ModelCheckDialog', () => {
     }
 
     render(<ModelCheckDialog />)
-    await user.click(screen.getByRole('button', { name: /message.api.connection.failed/ }))
+    await user.click(screen.getByRole('button', { name: /common\.detail/ }))
 
     const shown = showErrorDetailPopup.mock.calls[0]?.[0] as {
       error: { responseBody: string }
@@ -339,12 +340,12 @@ describe('ModelCheckDialog', () => {
     }
     health.singleModelResult = failedRun()
     const view = render(<ModelCheckDialog />)
-    await user.click(screen.getByRole('button', { name: /message.api.connection.failed/ }))
+    await user.click(screen.getByRole('button', { name: /common\.detail/ }))
     const first = showErrorDetailPopup.mock.calls[0]?.[0] as { errorContext: { id: string } }
 
     health.singleModelResult = failedRun()
     view.rerender(<ModelCheckDialog />)
-    await user.click(screen.getByRole('button', { name: /message.api.connection.failed/ }))
+    await user.click(screen.getByRole('button', { name: /common\.detail/ }))
     const retried = showErrorDetailPopup.mock.calls[1]?.[0] as { errorContext: { id: string } }
 
     expect(retried.errorContext.id).not.toBe(first.errorContext.id)
@@ -404,11 +405,11 @@ describe('ModelCheckDialog', () => {
     })
 
     render(<ModelCheckDialog />)
-    await user.click(screen.getByRole('button', { name: /message.api.connection.failed/ }))
+    await user.click(screen.getByRole('button', { name: /common\.detail/ }))
     const first = showErrorDetailPopup.mock.calls[0]?.[0] as {
       errorContext: { id: string; responseBody?: string }
     }
-    await user.click(screen.getByRole('button', { name: /message.api.connection.failed/ }))
+    await user.click(screen.getByRole('button', { name: /common\.detail/ }))
     const second = showErrorDetailPopup.mock.calls[1]?.[0] as { errorContext: { id: string } }
     expect(second.errorContext.id).toBe(first.errorContext.id)
     expect(first.errorContext.responseBody).toBe('{"error":"invalid"}')
@@ -416,7 +417,7 @@ describe('ModelCheckDialog', () => {
     await user.click(screen.getByRole('button', { name: 'settings.models.check.start' }))
     await waitFor(() => expect(screen.getByRole('button', { name: 'settings.models.check.start' })).toBeEnabled())
     showErrorDetailPopup.mockClear()
-    await user.click(screen.getByRole('button', { name: /message.api.connection.failed/ }))
+    await user.click(screen.getByRole('button', { name: /common\.detail/ }))
 
     expect(showErrorDetailPopup).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -468,7 +469,7 @@ describe('ModelCheckDialog', () => {
     }
 
     render(<ModelCheckDialog />)
-    await user.click(screen.getByRole('button', { name: /message.api.connection.failed/ }))
+    await user.click(screen.getByRole('button', { name: /common\.detail/ }))
 
     expect(showErrorDetailPopup).toHaveBeenCalledWith(
       expect.objectContaining({

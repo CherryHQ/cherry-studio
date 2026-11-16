@@ -1,5 +1,4 @@
 import { sortBy } from 'es-toolkit/compat'
-import { AlertTriangle, ChevronRight } from 'lucide-react'
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -24,11 +23,13 @@ import {
 import { useIcon } from '@cherrystudio/ui/icons'
 import { loggerService } from '@logger'
 import { showErrorDetailPopup } from '@renderer/components/ErrorDetailModal'
+import { ErrorNotice } from '@renderer/components/ErrorNotice'
 import type { ModelCheckKeySelection } from '@renderer/pages/settings/ProviderSettings/types/healthCheck'
 import { getModelHealthCheckSkipReason } from '@renderer/pages/settings/ProviderSettings/utils/healthCheck'
 import { contextFromUnknown } from '@renderer/services/AppErrorContextService'
 import { healthCheckErrorToDisplayString } from '@renderer/services/modelHealthCheck'
 import { maskApiKey } from '@renderer/utils/api'
+import { classifyError } from '@renderer/utils/errorClassifier'
 import { getModelLogoRef } from '@renderer/utils/model'
 import { parseUniqueModelId, type Model } from '@shared/data/types/model'
 import type { ApiKeyEntry } from '@shared/data/types/provider'
@@ -43,9 +44,6 @@ const logger = loggerService.withContext('ModelCheckDialog')
 
 type DialogView = 'single' | 'all'
 type ModelOption = ComboboxOption<{ model: Model }>
-
-const CONNECTION_ERROR_DESCRIPTION_COLOR = 'var(--muted-foreground)'
-const CONNECTION_ERROR_DETAIL_COLOR = 'var(--foreground-tertiary)'
 
 function filterModelCheckOption(option: ComboboxOption, search: string) {
   const haystack = [option.label, option.value, option.description].filter(Boolean).join(' ').toLocaleLowerCase()
@@ -288,6 +286,12 @@ export default function ModelCheckDialog() {
     return failedResult?.kind === 'failed' ? failedResult.error : singleModelResult.error
   })()
   const singleErrorText = healthCheckErrorToDisplayString(singleError)
+  // The surface shows a localized reason; the provider's raw text stays in the detail modal.
+  const singleErrorClass = singleError ? classifyError(singleError, selectedModel?.providerId) : undefined
+  const singleErrorMessage =
+    singleErrorClass && singleErrorClass.category !== 'unknown'
+      ? t(singleErrorClass.i18nKey)
+      : t('message.api.connection.failed')
 
   useEffect(() => {
     if (!health.modelCheckOpen) return
@@ -442,31 +446,7 @@ export default function ModelCheckDialog() {
               ) : null}
             </div>
             {singleErrorText ? (
-              <button
-                type="button"
-                aria-label={`${t('message.api.connection.failed')}: ${singleErrorText}. ${t('common.detail')}`}
-                className="group w-full cursor-pointer rounded-lg border border-border border-l-[3px] border-l-error-border bg-transparent px-3.5 py-3 text-left text-[13px] transition-all duration-200 focus-visible:border-ring focus-visible:bg-accent/30 focus-visible:outline-none"
-                onClick={handleShowConnectionErrorDetail}>
-                <div className="mb-1.5 flex items-center gap-2">
-                  <div className="flex shrink-0 items-center justify-center text-error">
-                    <AlertTriangle size={15} className="lucide-custom" />
-                  </div>
-                  <div className="pr-5 text-[13px] leading-[1.4]">{t('message.api.connection.failed')}</div>
-                </div>
-                <div
-                  className="ml-5.75 line-clamp-3 text-xs leading-normal [overflow-wrap:anywhere]"
-                  style={{ color: CONNECTION_ERROR_DESCRIPTION_COLOR }}>
-                  {singleErrorText}
-                </div>
-                <div className="mt-2.5 ml-5.75 flex items-center">
-                  <div
-                    className="ml-auto inline-flex items-center gap-0.5 text-xs transition-colors duration-150 group-hover:text-foreground"
-                    style={{ color: CONNECTION_ERROR_DETAIL_COLOR }}>
-                    {t('common.detail')}
-                    <ChevronRight size={14} />
-                  </div>
-                </div>
-              </button>
+              <ErrorNotice variant="inline" title={singleErrorMessage} onOpenDetail={handleShowConnectionErrorDetail} />
             ) : null}
           </div>
         ) : (
