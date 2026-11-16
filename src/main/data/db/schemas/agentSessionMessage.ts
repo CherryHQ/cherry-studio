@@ -1,5 +1,5 @@
 import { asc, desc, sql } from 'drizzle-orm'
-import { check, index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
+import { check, foreignKey, index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
 
 import type { McpSkillContext } from '@data/db/mcpSkillContext'
 import type { AgentSessionDeliveryEnvelope, AgentSessionDeliveryStatus } from '@shared/ai/agentSessionDelivery'
@@ -54,6 +54,9 @@ export const agentSessionMessageTable = sqliteTable(
     ...createUpdateTimestamps
   },
   (t) => [
+    uniqueIndex('agent_session_message_session_id_uniq').on(t.sessionId, t.id),
+    foreignKey({ columns: [t.sessionId, t.parentId], foreignColumns: [t.sessionId, t.id] }),
+    check('agent_session_message_root_parent_check', sql`(${t.role} = 'root') = (${t.parentId} IS NULL)`),
     uniqueIndex('agent_session_message_native_input_uniq').on(t.inputContextId, t.nativeInputId),
     index('agent_session_message_parent_idx').on(t.sessionId, t.parentId),
     uniqueIndex('agent_session_message_root_uniq')

@@ -108,7 +108,6 @@ const InteractionElicitRequestSchema = ElicitRequestSchema.extend({
   params: z.union([ElicitRequestFormParamsSchema, ElicitRequestURLParamsSchema.partial({ elicitationId: true })])
 })
 
-const NonEmptyStringSchema = z.string().min(1)
 export const McpCallToolPayloadSchema = z.object({
   serverId: z.string().min(1),
   name: z.string().min(1),
@@ -119,7 +118,6 @@ export const McpGetResourcePayloadSchema = z.object({
   serverId: z.string().min(1),
   uri: z.string().min(1)
 })
-export const McpStringArgSchema = NonEmptyStringSchema
 
 const logger = loggerService.withContext('McpRuntimeService')
 const mcpStatusCacheKey = (serverId: string): SharedCacheKey => `mcp.status.${serverId}`

@@ -179,7 +179,9 @@ Do not add Cherry policy directly to one driver. Extend the common materializer,
    - system workspaces are materialized under Cherry's managed root, while user
      workspace paths must already resolve to a directory;
    - the agent type must have a registered runtime driver;
-   - the agent must have a model.
+   - an effective model must be configured: interactive turns use `session.model ?? agent.model`,
+     while headless turns use the Agent default and ignore the session override. See
+     [Agent Prompt Layers](./agent-prompt-layers.md#update-and-variable-lifecycle).
 3. The provider atomically saves:
    - a `user` message with the submitted parts;
    - a pending `assistant` message with the selected model id.
@@ -207,7 +209,8 @@ Do not add Cherry policy directly to one driver. Extend the common materializer,
 
 Agent archives have one hidden root and `parentId` links. `agent_session.activeNodeId`
 selects the displayed path; it is separate from a runtime entry's captured execution
-head. The shared sibling navigator chooses the latest descendant of a sibling.
+head. The shared sibling navigator follows the newest immediate child by
+`(createdAt, id)` at each level beneath the chosen sibling.
 Selection is a SQLite operation and never opens or resumes a harness.
 
 Dispatch captures its parent before asynchronous validation. If the parent has
