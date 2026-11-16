@@ -4490,7 +4490,7 @@
   "settings.data.s3.secretAccessKey.placeholder": "Clé d'accès secrète",
   "settings.data.s3.skipBackupFile.help": "Lorsqu'activé, les données de fichiers seront ignorées lors de la sauvegarde, seules les configurations seront sauvegardées, réduisant considérablement la taille du fichier de sauvegarde",
   "settings.data.s3.skipBackupFile.label": "Sauvegarde allégée",
-  "settings.data.s3.syncStatus.error": "Erreur de synchronisation : {{message}}",
+  "settings.data.s3.syncStatus.error": "Erreur de synchronisation",
   "settings.data.s3.syncStatus.label": "État de synchronisation",
   "settings.data.s3.syncStatus.lastSync": "Dernière synchronisation : {{time}}",
   "settings.data.s3.syncStatus.noSync": "Non synchronisé",

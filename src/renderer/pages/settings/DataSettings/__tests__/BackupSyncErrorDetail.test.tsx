@@ -99,9 +99,8 @@ describe('backup sync error details', () => {
     setBackupSyncState('webdav', { lastSyncError: 'unauthorized' })
     const { rerender } = render(<WebDavSettings />)
 
-    expect(screen.getByTestId('warn-tooltip')).toHaveTextContent(
-      `${i18n.t('settings.data.webdav.syncError')}: unauthorized`
-    )
+    expect(screen.getByText(i18n.t('settings.data.webdav.syncError'))).toBeInTheDocument()
+    expect(screen.queryByText(/unauthorized/)).not.toBeInTheDocument()
     expect(await openDetail()).toEqual({
       localized: i18n.t('settings.data.webdav.syncError'),
       cause: 'unauthorized',
@@ -123,9 +122,8 @@ describe('backup sync error details', () => {
     setBackupSyncState('nutstore', { lastSyncError: 'quota' })
     render(<NutstoreSettings />)
 
-    expect(await screen.findByTestId('warn-tooltip')).toHaveTextContent(
-      `${i18n.t('settings.data.webdav.syncError')}: quota`
-    )
+    expect(await screen.findByText(i18n.t('settings.data.webdav.syncError'))).toBeInTheDocument()
+    expect(screen.queryByText(/quota/)).not.toBeInTheDocument()
     expect(await openDetail()).toEqual({
       localized: i18n.t('settings.data.webdav.syncError'),
       cause: 'quota',
@@ -136,14 +134,15 @@ describe('backup sync error details', () => {
     })
   })
 
-  it('reuses the interpolated S3 caption and keeps the raw reason on the error', async () => {
+  it('shows the translated S3 caption and keeps the raw reason on the error', async () => {
     MockUsePreferenceUtils.setPreferenceValue('data.backup.s3.endpoint', 'https://s3.example')
     MockUsePreferenceUtils.setPreferenceValue('data.backup.s3.sync_interval', 5)
     setBackupSyncState('s3', { lastSyncError: 'bucket missing' })
     render(<S3Settings />)
 
-    const caption = i18n.t('settings.data.s3.syncStatus.error', { message: 'bucket missing' })
-    expect(screen.getByTestId('warn-tooltip')).toHaveTextContent(caption)
+    const caption = i18n.t('settings.data.s3.syncStatus.error')
+    expect(screen.getByText(caption)).toBeInTheDocument()
+    expect(screen.queryByText(/bucket missing/)).not.toBeInTheDocument()
     expect(await openDetail()).toEqual({
       localized: caption,
       cause: 'bucket missing',

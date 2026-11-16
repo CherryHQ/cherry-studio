@@ -4490,7 +4490,7 @@
   "settings.data.s3.secretAccessKey.placeholder": "Geheimer Zugriffsschlüssel",
   "settings.data.s3.skipBackupFile.help": "Nach Aktivierung werden beim Backup Dateidaten übersprungen, nur Konfiguration gesichert. Reduziert Backup-Größe erheblich",
   "settings.data.s3.skipBackupFile.label": "Kompaktes Backup",
-  "settings.data.s3.syncStatus.error": "Synchronisationsfehler: {{message}}",
+  "settings.data.s3.syncStatus.error": "Synchronisationsfehler",
   "settings.data.s3.syncStatus.label": "Synchronisationsstatus",
   "settings.data.s3.syncStatus.lastSync": "Letzte Synchronisation: {{time}}",
   "settings.data.s3.syncStatus.noSync": "Nicht synchronisiert",

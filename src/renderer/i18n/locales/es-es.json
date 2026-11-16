@@ -4490,7 +4490,7 @@
   "settings.data.s3.secretAccessKey.placeholder": "Clave de acceso secreta",
   "settings.data.s3.skipBackupFile.help": "Al activarlo, durante el respaldo se omitirán los datos de archivos, respaldando solo la configuración, lo que reduce significativamente el tamaño del archivo de respaldo",
   "settings.data.s3.skipBackupFile.label": "Respaldo reducido",
-  "settings.data.s3.syncStatus.error": "Error de sincronización: {{message}}",
+  "settings.data.s3.syncStatus.error": "Error de sincronización",
   "settings.data.s3.syncStatus.label": "Estado de sincronización",
   "settings.data.s3.syncStatus.lastSync": "Última sincronización: {{time}}",
   "settings.data.s3.syncStatus.noSync": "No sincronizado",

@@ -4490,7 +4490,7 @@
   "settings.data.s3.secretAccessKey.placeholder": "Secret Access Key",
   "settings.data.s3.skipBackupFile.help": "When enabled, file data will be skipped during backup, only configuration information will be backed up, significantly reducing backup file size",
   "settings.data.s3.skipBackupFile.label": "Lightweight Backup",
-  "settings.data.s3.syncStatus.error": "Sync error: {{message}}",
+  "settings.data.s3.syncStatus.error": "Sync error",
   "settings.data.s3.syncStatus.label": "Sync Status",
   "settings.data.s3.syncStatus.lastSync": "Last sync: {{time}}",
   "settings.data.s3.syncStatus.noSync": "Not synced",

@@ -4490,7 +4490,7 @@
   "settings.data.s3.secretAccessKey.placeholder": "Secret Access Key",
   "settings.data.s3.skipBackupFile.help": "Όταν ενεργοποιηθεί, η δημιουργία αντιγράφου ασφαλείας θα παραλείπει τα δεδομένα αρχείων και θα δημιουργεί αντίγραφο μόνο τις πληροφορίες ρυθμίσεων, μειώνοντας σημαντικά το μέγεθος του αρχείου αντιγράφου ασφαλείας",
   "settings.data.s3.skipBackupFile.label": "Ελαφρύ αντίγραφο ασφαλείας",
-  "settings.data.s3.syncStatus.error": "Σφάλμα συγχρονισμού: {{message}}",
+  "settings.data.s3.syncStatus.error": "Σφάλμα συγχρονισμού",
   "settings.data.s3.syncStatus.label": "Κατάσταση συγχρονισμού",
   "settings.data.s3.syncStatus.lastSync": "Τελευταίος συγχρονισμός: {{time}}",
   "settings.data.s3.syncStatus.noSync": "Χωρίς συγχρονισμό",

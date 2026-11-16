@@ -4491,7 +4491,7 @@
   "settings.data.s3.secretAccessKey.placeholder": "Cheie secretă de acces",
   "settings.data.s3.skipBackupFile.help": "Când este activat, datele fișierelor vor fi omise în timpul backup-ului, vor fi salvate doar informațiile de configurare, reducând semnificativ dimensiunea fișierului de backup",
   "settings.data.s3.skipBackupFile.label": "Backup ușor",
-  "settings.data.s3.syncStatus.error": "Eroare sincronizare: {{message}}",
+  "settings.data.s3.syncStatus.error": "Eroare sincronizare",
   "settings.data.s3.syncStatus.label": "Stare sincronizare",
   "settings.data.s3.syncStatus.lastSync": "Ultima sincronizare: {{time}}",
   "settings.data.s3.syncStatus.noSync": "Nesincronizat",

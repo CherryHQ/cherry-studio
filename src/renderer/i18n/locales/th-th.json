@@ -4490,7 +4490,7 @@
   "settings.data.s3.secretAccessKey.placeholder": "Secret Access Key",
   "settings.data.s3.skipBackupFile.help": "เมื่อเปิดใช้ จะข้ามข้อมูลไฟล์ระหว่างการสำรอง จะสำรองเฉพาะข้อมูลคอนฟิก ลดขนาดไฟล์สำรองลงอย่างมาก",
   "settings.data.s3.skipBackupFile.label": "สำรองแบบเบา",
-  "settings.data.s3.syncStatus.error": "ข้อผิดพลาดในการซิงค์: {{message}}",
+  "settings.data.s3.syncStatus.error": "ข้อผิดพลาดในการซิงค์",
   "settings.data.s3.syncStatus.label": "สถานะการซิงค์",
   "settings.data.s3.syncStatus.lastSync": "ซิงค์ล่าสุด: {{time}}",
   "settings.data.s3.syncStatus.noSync": "ยังไม่ได้ซิงค์",

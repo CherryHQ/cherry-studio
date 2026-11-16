@@ -4490,7 +4490,7 @@
   "settings.data.s3.secretAccessKey.placeholder": "Khóa truy cập bí mật",
   "settings.data.s3.skipBackupFile.help": "Khi được bật, dữ liệu tập tin sẽ được bỏ qua trong quá trình sao lưu, chỉ thông tin cấu hình được sao lưu, giảm đáng kể kích thước tệp sao lưu",
   "settings.data.s3.skipBackupFile.label": "Sao lưu Nhẹ",
-  "settings.data.s3.syncStatus.error": "Lỗi đồng bộ: {{message}}",
+  "settings.data.s3.syncStatus.error": "Lỗi đồng bộ",
   "settings.data.s3.syncStatus.label": "Trạng thái đồng bộ",
   "settings.data.s3.syncStatus.lastSync": "Lần đồng bộ gần nhất: {{time}}",
   "settings.data.s3.syncStatus.noSync": "Chưa đồng bộ",
