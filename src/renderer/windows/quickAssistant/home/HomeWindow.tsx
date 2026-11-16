@@ -561,6 +561,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
           )}
           <Suspense fallback={<LazyBranchFallback />}>
             <ChatWindow
+              draggable={draggable}
               route={route}
               assistant={currentAssistant ?? null}
               isOutputted={isOutputted}
