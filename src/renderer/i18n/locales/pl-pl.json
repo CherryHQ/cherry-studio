@@ -4119,6 +4119,8 @@
   "settings.computerUse.controlHelp": "Zezwalaj lokalnym rozmowom i agentom na obserwowanie oraz klikanie w aplikacjach na komputerze. Możesz zatrzymać sterowanie z zasobnika systemowego. Wyłączenie tej opcji zatrzymuje całe bieżące sterowanie komputerem.",
   "settings.computerUse.description": "Pozwól AI na podgląd ekranu i korzystanie z aplikacji, aby pomóc Ci w wykonywaniu zadań na komputerze.",
   "settings.computerUse.error": "Nie udało się sprawdzić lub zażądać uprawnień pomocniczych. Spróbuj ponownie.",
+  "settings.computerUse.globalInput": "Globalne wejście",
+  "settings.computerUse.globalInputHelp": "Pozwala agentom kontrolować wspólny wskaźnik myszy i systemową klawiaturę, np. klikać, przeciągać, przewijać i pisać. Wymagane dla akcji wskaźnika i klawiatury na Linuxie; po wyłączeniu agenci nadal mogą obserwować aplikacje i korzystać z ich elementów dostępności.",
   "settings.computerUse.noPermissions": "To środowisko wykonawcze nie posiada procedury żądania uprawnień systemowych. Dostępność funkcji na pulpicie nadal zależy od Twojego środowiska.",
   "settings.computerUse.recheck": "Sprawdź uprawnienia ponownie",
   "settings.computerUse.request": "Otwórz przewodnik po uprawnieniach",

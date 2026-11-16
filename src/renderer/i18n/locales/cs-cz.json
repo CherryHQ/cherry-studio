@@ -4079,6 +4079,8 @@
   "settings.computerUse.controlHelp": "Povolí místním konverzacím a agentům sledovat a klikat v desktopových aplikacích. Ovládání můžete zastavit z oblasti oznámení. Vypnutím tohoto přepínače zastavíte veškeré aktuální ovládání počítače.",
   "settings.computerUse.description": "Nechte AI zobrazit vaši obrazovku a používat aplikace, které vám pomohou udělat věci na počítači.",
   "settings.computerUse.error": "Nelze zkontrolovat ani požádat o oprávnění pomocného programu. Zkuste to znovu.",
+  "settings.computerUse.globalInput": "Globální vstup",
+  "settings.computerUse.globalInputHelp": "Umožňuje agentům ovládat sdílený ukazatel myši a systémovou klávesnici, například klikat, táhnout, posouvat a psát. Vyžaduje se pro akce s ukazatelem a klávesnicí na Linuxu; při vypnutí mohou agenti aplikace stále pozorovat a používat jejich přístupnostní ovládací prvky.",
   "settings.computerUse.noPermissions": "Toto běhové prostředí nemá postup pro žádost o systémová oprávnění. Dostupnost ovládání počítače stále závisí na vašem prostředí.",
   "settings.computerUse.recheck": "Znovu zkontrolovat oprávnění",
   "settings.computerUse.request": "Otevřít průvodce oprávněními",

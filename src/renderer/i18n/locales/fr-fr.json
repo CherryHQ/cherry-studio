@@ -4079,6 +4079,8 @@
   "settings.computerUse.controlHelp": "Autorise les conversations locales et les agents à observer les applications et à cliquer. Vous pouvez arrêter le contrôle depuis la zone de notification. La désactivation arrête tout contrôle en cours.",
   "settings.computerUse.description": "Laissez l’IA voir votre écran et utiliser des applications pour vous aider à accomplir vos tâches sur votre ordinateur.",
   "settings.computerUse.error": "Impossible de vérifier ou de demander les autorisations de l’assistant. Réessayez.",
+  "settings.computerUse.globalInput": "Saisie globale",
+  "settings.computerUse.globalInputHelp": "Autorise les agents à contrôler le pointeur de souris et le clavier du système partagés, par exemple pour cliquer, faire glisser, faire défiler et taper. Nécessaire pour les actions du pointeur et du clavier sous Linux ; lorsqu'elle est désactivée, les agents peuvent toujours observer les applications et utiliser leurs commandes d'accessibilité.",
   "settings.computerUse.noPermissions": "Ce moteur ne propose pas de demande d’autorisation système. Les fonctions du bureau dépendent toujours de votre environnement.",
   "settings.computerUse.recheck": "Revérifier les autorisations",
   "settings.computerUse.request": "Ouvrir le guide des autorisations",

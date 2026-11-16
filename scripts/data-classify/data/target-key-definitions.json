@@ -48,6 +48,13 @@
       "description": "Stable native application identities explicitly allowed for Computer Use on this installation"
     },
     {
+      "targetKey": "app.computer_use.agent_control.global_input",
+      "type": "boolean",
+      "defaultValue": false,
+      "status": "classified",
+      "description": "Allow agent actions to use the shared pointer and system keyboard (required for pointer and keyboard control on Linux)"
+    },
+    {
       "targetKey": "agent.commit_attribution.enabled",
       "type": "boolean",
       "defaultValue": true,

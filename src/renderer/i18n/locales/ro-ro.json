@@ -4079,6 +4079,8 @@
   "settings.computerUse.controlHelp": "Permite conversațiilor locale și agenților să observe aplicațiile și să facă clic. Poți opri controlul din zona de notificare. Dezactivarea oprește tot controlul în curs.",
   "settings.computerUse.description": "Permite inteligenței artificiale să vadă ecranul și să folosească aplicații pentru a te ajuta cu sarcinile de pe computer.",
   "settings.computerUse.error": "Permisiunile asistentului nu au putut fi verificate sau solicitate. Încercați din nou.",
+  "settings.computerUse.globalInput": "Intrare globală",
+  "settings.computerUse.globalInputHelp": "Permite agenților să controleze indicatorul comun al mouse-ului și tastatura de sistem, de exemplu pentru a face clic, a trage, a derula și a tasta. Necesar pentru acțiunile de indicator și tastatură pe Linux; când este dezactivat, agenții pot totuși observa aplicațiile și le pot folosi elementele de accesibilitate.",
   "settings.computerUse.noPermissions": "Acest mediu de execuție nu oferă solicitări de permisiuni de sistem. Funcțiile desktop depind în continuare de mediul dvs.",
   "settings.computerUse.recheck": "Verifică din nou permisiunile",
   "settings.computerUse.request": "Deschide ghidul de permisiuni",
