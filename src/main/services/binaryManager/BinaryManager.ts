@@ -1643,78 +1643,99 @@ export class BinaryManager extends BaseService {
     includePrerelease: boolean,
     releaseAgeArgs: string[]
   ): Promise<void> {
-    const arch = process.arch
-    if (!isWin || (arch !== 'x64' && arch !== 'arm64')) return
-    if (!definition.tool.startsWith('github:') || definition.tool.includes('[')) return
-
-    let runnable: { path: string; canonical: string } | null
     try {
-      runnable = await this.resolveRunnableShim(definition.name, definition.tool)
-    } catch {
-      return
-    }
-    if (!runnable) return
+      const arch = process.arch
+      if (!isWin || (arch !== 'x64' && arch !== 'arm64')) return
+      if (!definition.tool.startsWith('github:') || definition.tool.includes('[')) return
 
-    let bitness: 32 | 64 | null
-    try {
-      bitness = await readWindowsExecutableBitness(runnable.canonical)
-    } catch {
-      return
-    }
-    if (bitness !== 32) return
-
-    const narrowedSpec = `${definition.tool}[matching_regex=${windows64BitAssetPattern(arch)}]@${requested}`
-    try {
-      await this.runMise(['use', '-g', '--force', ...releaseAgeArgs, narrowedSpec], {
-        timeoutMs: MISE_INSTALL_TIMEOUT_MS,
-        includePrerelease
-      })
-      await this.runMise(['reshim'])
-    } catch {
-      // The narrowed spec matched no asset (or its download failed) — put the
-      // plain spec back so the just-installed build stays the active selection.
+      let runnable: { path: string; canonical: string } | null
       try {
-        await this.runMise(['use', '-g', '--force', ...releaseAgeArgs, `${definition.tool}@${requested}`], {
+        runnable = await this.resolveRunnableShim(definition.name, definition.tool)
+      } catch {
+        return
+      }
+      if (!runnable) return
+
+      let bitness: 32 | 64 | null
+      try {
+        bitness = await readWindowsExecutableBitness(runnable.canonical)
+      } catch {
+        return
+      }
+      if (bitness !== 32) return
+
+      let version = requested
+      try {
+        version = (await this.getInstalledVersion(definition.tool, requested)) || requested
+      } catch {
+        // Version lookup must not invalidate the successful initial install.
+      }
+
+      const narrowedSpec = `${definition.tool}[matching_regex=${windows64BitAssetPattern(arch)}]@${version}`
+      try {
+        await this.runMise(['use', '-g', '--force', ...releaseAgeArgs, narrowedSpec], {
           timeoutMs: MISE_INSTALL_TIMEOUT_MS,
           includePrerelease
         })
         await this.runMise(['reshim'])
-      } catch (restoreError) {
-        logger.warn('Failed to restore the original tool spec after the 64-bit reinstall failed', {
+      } catch {
+        // Restore the plain selection when either reinstalling or reshim fails.
+        try {
+          await this.runMise(['use', '-g', '--force', ...releaseAgeArgs, `${definition.tool}@${version}`], {
+            timeoutMs: MISE_INSTALL_TIMEOUT_MS,
+            includePrerelease
+          })
+          await this.runMise(['reshim'])
+        } catch (restoreError) {
+          logger.warn(
+            'Failed to restore the original tool spec; the narrowed asset selection may still be configured',
+            {
+              name: definition.name,
+              tool: definition.tool,
+              version,
+              error: this.errorMessage(restoreError)
+            }
+          )
+          return
+        }
+        logger.warn('Release ships no matching 64-bit Windows asset; keeping the installed build', {
           name: definition.name,
           tool: definition.tool,
-          version: requested,
-          error: this.errorMessage(restoreError)
+          version
         })
         return
       }
-      logger.warn('Release ships no matching 64-bit Windows asset; keeping the installed build', {
-        name: definition.name,
-        tool: definition.tool,
-        version: requested
-      })
-      return
-    }
 
-    let verified = false
-    try {
-      const rechecked = await this.resolveRunnableShim(definition.name, definition.tool)
-      verified = rechecked !== null && (await readWindowsExecutableBitness(rechecked.canonical)) === 64
-    } catch {
-      verified = false
-    }
-    if (verified) {
-      logger.info('Reinstalled the managed tool from the 64-bit Windows asset', {
-        name: definition.name,
-        tool: definition.tool,
-        version: requested
-      })
-    } else {
-      logger.warn('Tool still does not run a 64-bit executable after the reinstall', {
-        name: definition.name,
-        tool: definition.tool,
-        version: requested
-      })
+      let verified = false
+      try {
+        const rechecked = await this.resolveRunnableShim(definition.name, definition.tool)
+        verified = rechecked !== null && (await readWindowsExecutableBitness(rechecked.canonical)) === 64
+      } catch {
+        verified = false
+      }
+      if (verified) {
+        logger.info('Reinstalled the managed tool from the 64-bit Windows asset', {
+          name: definition.name,
+          tool: definition.tool,
+          version
+        })
+      } else {
+        logger.warn('Tool still does not run a 64-bit executable after the reinstall', {
+          name: definition.name,
+          tool: definition.tool,
+          version
+        })
+      }
+    } catch (error) {
+      try {
+        logger.warn('Failed to prefer a 64-bit Windows asset; keeping the successful install', {
+          name: definition.name,
+          tool: definition.tool,
+          error: error instanceof Error ? error.message : String(error)
+        })
+      } catch {
+        // Logging failures must also leave the successful install intact.
+      }
     }
   }
 
