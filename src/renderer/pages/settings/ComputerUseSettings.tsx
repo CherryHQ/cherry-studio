@@ -7,6 +7,7 @@ import { Button, Switch, HelpTooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
+import { ErrorNotice } from '@renderer/components/ErrorNotice'
 import {
   SettingDescription,
   SettingDivider,
@@ -57,6 +58,10 @@ export function ComputerUseSettings() {
     }
   )
   const busy = isLoading || isValidating || isMutating
+  const recheck = () => {
+    reset()
+    void mutate()
+  }
 
   return (
     <SettingsContentColumn>
@@ -92,15 +97,19 @@ export function ComputerUseSettings() {
           />
         </SettingRow>
         {saveError != null && (
-          <p role="alert" className="mt-2 flex flex-wrap items-center gap-2 text-error text-sm">
-            <span>{t('settings.computerUse.controlError')}</span>
-            <ErrorDetailAction
-              error={saveError}
-              message={t('settings.computerUse.controlError')}
-              operation="computer_use.preference"
-              source="settings.computerUse"
-            />
-          </p>
+          <ErrorNotice
+            variant="inline"
+            className="mt-2"
+            title={t('settings.computerUse.controlError')}
+            detail={
+              <ErrorDetailAction
+                error={saveError}
+                message={t('settings.computerUse.controlError')}
+                operation="computer_use.preference"
+                source="settings.computerUse"
+              />
+            }
+          />
         )}
         {isLinux && enabled && (
           <>
@@ -178,29 +187,28 @@ export function ComputerUseSettings() {
             })}
           </>
         )}
-        <div className="mt-3 flex flex-wrap items-center gap-3">
-          {(error || requestError) && (
-            <p role="alert" className="flex flex-wrap items-center gap-2 text-error text-sm">
-              <span>{t('settings.computerUse.error')}</span>
+        {error || requestError ? (
+          <ErrorNotice
+            variant="inline"
+            className="mt-3"
+            title={t('settings.computerUse.error')}
+            action={{ label: t('settings.computerUse.recheck'), disabled: busy, onClick: recheck }}
+            detail={
               <ErrorDetailAction
                 error={requestError ?? error}
                 message={t('settings.computerUse.error')}
                 operation={requestError ? 'computer_use.request_permissions' : 'computer_use.get_permission_status'}
                 source="settings.computerUse"
               />
-            </p>
-          )}
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={busy}
-            onClick={() => {
-              reset()
-              void mutate()
-            }}>
-            {t('settings.computerUse.recheck')}
-          </Button>
-        </div>
+            }
+          />
+        ) : (
+          <div className="mt-3">
+            <Button variant="outline" size="sm" disabled={busy} onClick={recheck}>
+              {t('settings.computerUse.recheck')}
+            </Button>
+          </div>
+        )}
       </SettingGroup>
       <SettingGroup>
         <SettingRowTitle>{t('settings.computerUse.approval.saved')}</SettingRowTitle>
