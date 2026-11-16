@@ -2,6 +2,10 @@
 // `dir="auto"` only considers the first strong character, so mixed paragraphs
 // starting with a Latin word render LTR even when most words are Arabic.
 // Code fences, inline code, URLs and link targets are excluded from the vote.
+//
+// The vote is per sentence first, then per word inside that sentence, so a
+// paragraph that opens with a Latin sentence but continues in Arabic still
+// resolves to the direction of its dominant content rather than its opener.
 
 export type TextDirection = 'ltr' | 'rtl' | 'auto'
 
