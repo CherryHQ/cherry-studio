@@ -103,7 +103,7 @@ test(...caseDefinition('MP-51'), async ({ app, mainWindow }, testInfo) => {
   await agentPermissionDecisions(app, mainWindow, testInfo)
 })
 
-test(...caseDefinition('MP-152'), async ({ app, mainWindow }, testInfo) => {
+test(...caseDefinition('MP-153'), async ({ app, mainWindow }, testInfo) => {
   test.setTimeout(10 * 60_000)
   await agentGlobalInstallApproval(app, mainWindow, testInfo)
 })

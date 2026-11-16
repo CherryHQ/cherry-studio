@@ -10,7 +10,7 @@ export function LongcatAvatar({ size = 32, shape = 'circle', className }: Omit<I
     <Avatar
       className={cn('overflow-hidden', shape === 'circle' ? 'rounded-full' : 'rounded-[20%]', className)}
       style={{ width: size, height: size }}>
-      <AvatarFallback className="text-foreground bg-background">
+      <AvatarFallback className="text-foreground">
         <LongcatLight className="dark:hidden" style={{ width: size, height: size }} />
         <LongcatDark className="hidden dark:block" style={{ width: size, height: size }} />
       </AvatarFallback>

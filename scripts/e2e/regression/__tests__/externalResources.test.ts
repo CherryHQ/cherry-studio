@@ -39,6 +39,7 @@ beforeEach(() => {
       )
       desktop.windows = desktop.windows.filter(({ pid }) => pid !== request.process?.pid)
     }
+    // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
     return structuredClone(desktop)
   })
 })
@@ -143,6 +144,7 @@ it('preserves foreign tabs and records bounded cleanup identities without privat
       url: `https://private.invalid/?token=${secret}`
     }))
   )
+  // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
   const foreign = structuredClone(desktop.windows.slice(1))
 
   expect(() => cleanupExternalResources(paths)).toThrow('has unrelated windows; refusing to quit')
@@ -166,6 +168,7 @@ it('preserves a recorded terminal window that gained an unrelated tab and retrie
   opened()
   observeExternalResource(paths, id)
   desktop.windows[0].matches = false
+  // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
   const unrelatedContent = structuredClone(desktop)
 
   expect(() => cleanupExternalResources(paths)).toThrow('unrelated content; refusing to close')
@@ -285,6 +288,7 @@ it('force-terminates a real owned process when a graceful request leaves it runn
       process.kill(child.pid!, 'SIGKILL')
       desktop.processes = []
     }
+    // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
     return structuredClone(desktop)
   })
   const exited = once(child, 'exit')

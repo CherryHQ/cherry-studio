@@ -208,6 +208,7 @@ it('keeps both real SDK background notifications in one persisted Main reply unt
   const unexpected: unknown[] = []
   MockApplicationUtils.setService('AiStreamManager', {
     getInteractionWindow: () => undefined,
+    retireToolApproval: () => false,
     startRuntimeTurn: (input: unknown) => unexpected.push(input),
     broadcastTopicError: (...args: unknown[]) => unexpected.push(args),
     drainRuntimeReply: async () => {},
@@ -309,7 +310,7 @@ it('joins native steer to the shared answer while keeping foreground child histo
   request.reply.finish('tool_use')
   const child = await test.request()
   const second = test.input('Use the revised requirement')
-  expect(connection.redirect!(second)).toBe(true)
+  expect(connection.redirect!({ ...second, systemReminder: true })).toBe(true)
   await expect
     .poll(() =>
       test.nativeInputs.some((state) => state.inputId === second.message.id && state.facts.includes('dispatch-started'))
@@ -318,7 +319,29 @@ it('joins native steer to the shared answer while keeping foreground child histo
   child.reply.block({ type: 'text', text: 'Independent child answer' })
   child.reply.finish()
   const response = await test.request()
-  expect(JSON.stringify(response.body.messages)).toContain('Use the revised requirement')
+  const steerEntry = response.body.messages.find((message) =>
+    JSON.stringify(message).includes('Use the revised requirement')
+  )
+  expect(steerEntry).toBeDefined()
+  const steerPayload = JSON.stringify(steerEntry)
+  // Measured provider payloads wrap Cherry's block in the vendor's own outer <system-reminder>.
+  expect(steerPayload.match(/The user sent the following message:/g)).toHaveLength(1)
+  const cherryStart = steerPayload.indexOf('The user sent the following message:')
+  const cherryEnd = steerPayload.indexOf('</system-reminder>', cherryStart)
+  expect(cherryEnd).toBeGreaterThan(cherryStart)
+  const cherryReminder = steerPayload.slice(cherryStart, cherryEnd)
+  expect(cherryReminder).toContain('Use the revised requirement')
+  expect(cherryReminder).toContain('arrived while you were already working')
+  expect(cherryReminder).toContain('a new instruction from the user, not a continuation of the current task')
+  expect(cherryReminder).toContain('Finish the step already in flight if it cannot be interrupted')
+  expect(cherryReminder).toContain('Before any further work and before ending this turn, you must write')
+  expect(cherryReminder).toContain('one short user-visible sentence that restates what the user asked for')
+  expect(cherryReminder).toContain('Then either act on the message or state when it will be handled')
+  expect(cherryReminder).toContain('Do not silently defer it to a later turn')
+  expect(cherryReminder).toContain(
+    "Where it conflicts with the remainder of your current plan, the user's message takes priority"
+  )
+  expect(steerPayload).toContain('Use the revised requirement')
   response.reply.block({ type: 'text', text: 'Revised root answer' })
   response.reply.finish()
   const boundary = await test.wait('steer-boundary')
@@ -1378,4 +1401,53 @@ it.each([
     expect(existsSync(path.join(test.options.cwd, 'marker.txt'))).toBe(runs)
   },
   30000
+)
+
+it('interrupts an active native request before retiring its owner and permits a new connection', async () => {
+  const test = await desktop()
+  const connection = await test.connect()
+  await connection.send(test.input('Start a response that will be stopped'))
+  const request = await test.request()
+  request.reply.block({ type: 'text', text: 'Content before stop' })
+  await expect.poll(() => JSON.stringify(test.events)).toContain('Content before stop')
+
+  await connection.interrupt!()
+  await expect
+    .poll(() => test.events.some((event) => event.type === 'error' || event.type === 'turn-complete'))
+    .toBe(true)
+  await connection.close()
+  expect(test.children.every((child) => child.exitCode !== null || child.signalCode !== null)).toBe(true)
+  expect(JSON.stringify(test.events)).toContain('Content before stop')
+
+  test.events.length = 0
+  const next = await test.connect()
+  await next.send(test.input('Continue after stopping'))
+  const resumed = await test.request()
+  resumed.reply.block({ type: 'text', text: 'New response after stop' })
+  resumed.reply.finish()
+  await test.wait('turn-complete')
+  expect(JSON.stringify(test.events)).toContain('New response after stop')
+}, 30000)
+
+it.each(['unanswered', 'rejected'] as const)(
+  'retires the native process when interrupt is %s',
+  async (failure) => {
+    const test = await desktop()
+    const connection = await test.connect()
+    const handle = (connection as unknown as { handle: ClaudeThreadHandle }).handle
+    vi.spyOn(handle, 'interrupt').mockImplementation(() =>
+      failure === 'unanswered'
+        ? new Promise(() => {})
+        : Promise.resolve({
+            status: 'unknown',
+            error: { operation: 'interrupt', code: 'native-error', message: 'No receipt' }
+          })
+    )
+    await connection.send(test.input('Wait for cancellation'))
+    await test.request()
+    await connection.interrupt!()
+    expect(test.children.every((child) => child.exitCode !== null || child.signalCode !== null)).toBe(true)
+    await connection.close()
+  },
+  15000
 )

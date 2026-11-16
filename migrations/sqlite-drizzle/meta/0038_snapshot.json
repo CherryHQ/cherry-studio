@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "2283c5c5-2017-44c3-bab5-ae912d0b9baf",
+  "id": "d46ad276-de68-4169-9d6c-3606a8c7d29f",
   "prevId": "bbe3bf61-b9ed-451f-b7ec-94db86dd1dd9",
   "tables": {
     "agent": {
@@ -59,13 +59,6 @@
         },
         "small_model": {
           "name": "small_model",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "expert_model": {
-          "name": "expert_model",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
@@ -172,19 +165,6 @@
           "tableTo": "user_model",
           "columnsFrom": [
             "small_model"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        },
-        "agent_expert_model_user_model_id_fk": {
-          "name": "agent_expert_model_user_model_id_fk",
-          "tableFrom": "agent",
-          "tableTo": "user_model",
-          "columnsFrom": [
-            "expert_model"
           ],
           "columnsTo": [
             "id"
@@ -831,6 +811,13 @@
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
+        },
+        "model": {
+          "name": "model",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
         }
       },
       "indexes": {
@@ -924,6 +911,19 @@
           "tableTo": "job_schedule",
           "columnsFrom": [
             "task_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "agent_session_model_user_model_id_fk": {
+          "name": "agent_session_model_user_model_id_fk",
+          "tableFrom": "agent_session",
+          "tableTo": "user_model",
+          "columnsFrom": [
+            "model"
           ],
           "columnsTo": [
             "id"

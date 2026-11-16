@@ -190,7 +190,7 @@ const Chat: FC<Props> = (props) => {
   const openCitationInBrowser = useCallback(
     (url: string) => {
       if (!activeTopicId) return
-      topicBrowserRuntimeService.ensure(activeTopicId, url)
+      topicBrowserRuntimeService.openPage(activeTopicId, url)
       rightPanelActions.tryOpen('browser', { userInitiated: true })
       setCitationPanelState(null)
     },
