@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 
-import { setupTestDatabase, seedSessionRoot } from '@test-helpers/db'
+import { linkSessionMessageChain, setupTestDatabase, seedSessionRoot } from '@test-helpers/db'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { eq } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -16,7 +16,6 @@ import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
-import { AgentSessionMessageTreeSeeder } from '@data/db/seeding/seeders/AgentSessionMessageTreeSeeder'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { queueRetiredAgentRuntimeMigration } from '@data/services/retiredAgentRuntimeMigration'
@@ -425,9 +424,11 @@ describe('system workspace relocation', () => {
         .run()
       const nativeId = randomUUID()
       await writeHistory('pi', workspace.id, nativeId)
+      const messageId = randomUUID()
       dbh.db
         .insert(agentSessionMessageTable)
         .values({
+          id: messageId,
           parentId: seedSessionRoot(dbh.db, workspace.sessionId),
           sessionId: workspace.sessionId,
           role: 'assistant',
@@ -436,7 +437,7 @@ describe('system workspace relocation', () => {
           data: { parts: [] }
         })
         .run()
-      new AgentSessionMessageTreeSeeder().run(dbh.db)
+      linkSessionMessageChain(dbh.db, workspace.sessionId, [messageId])
       if (empty)
         dbh.db.delete(agentSessionMessageTable).where(eq(agentSessionMessageTable.sessionId, workspace.sessionId)).run()
       await writeFile(path.join(workspace.newPath, 'output.txt'), 'recoverable output')
@@ -684,10 +685,14 @@ describe('system workspace relocation', () => {
       const firstFile = await writeHistory('claude-code', workspace.id, firstId)
       const secondFile = await writeHistory('claude-code', workspace.id, secondId, `canonical-${workspace.id}`)
       const originals = await Promise.all([firstFile, secondFile].map((file) => readFile(file, 'utf8')))
+      const messageIds: string[] = []
       for (const [index, id] of [firstId, secondId].entries()) {
+        const messageId = randomUUID()
+        messageIds.push(messageId)
         dbh.db
           .insert(agentSessionMessageTable)
           .values({
+            id: messageId,
             parentId: seedSessionRoot(dbh.db, workspace.sessionId),
             sessionId: workspace.sessionId,
             role: 'assistant',
@@ -698,7 +703,7 @@ describe('system workspace relocation', () => {
           })
           .run()
       }
-      new AgentSessionMessageTreeSeeder().run(dbh.db)
+      linkSessionMessageChain(dbh.db, workspace.sessionId, messageIds)
       const firstArtifact = path.join(path.dirname(firstFile), 'subdirectory', 'first.txt')
       const secondArtifact = path.join(
         path.dirname(secondFile),
@@ -945,6 +950,8 @@ describe('system workspace relocation', () => {
       const actualId = randomUUID()
       const assistantId = randomUUID()
       const initializationId = randomUUID()
+      const userMessageId = randomUUID()
+      const initializationMessageId = randomUUID()
       const checkpoint =
         runtime === 'claude-code'
           ? {
@@ -960,6 +967,7 @@ describe('system workspace relocation', () => {
           {
             parentId: seedSessionRoot(dbh.db, workspace.sessionId),
             sessionId: workspace.sessionId,
+            id: userMessageId,
             role: 'user',
             status: 'success',
             data: { nativeSessionId: randomUUID(), parts: [] },
@@ -978,6 +986,7 @@ describe('system workspace relocation', () => {
           {
             parentId: seedSessionRoot(dbh.db, workspace.sessionId),
             sessionId: workspace.sessionId,
+            id: initializationMessageId,
             role: 'user',
             status: 'success',
             data: { nativeSessionId: initializationId, parts: [] },
@@ -985,7 +994,7 @@ describe('system workspace relocation', () => {
           }
         ])
         .run()
-      new AgentSessionMessageTreeSeeder().run(dbh.db)
+      linkSessionMessageChain(dbh.db, workspace.sessionId, [userMessageId, assistantId, initializationMessageId])
       const file = await writeHistory(runtime, workspace.id, actualId)
       if (runtime === 'pi')
         await writeFile(
@@ -1035,9 +1044,11 @@ describe('system workspace relocation', () => {
     async (evidence) => {
       const workspace = await createWorkspace('dsh')
       const oldToken = randomUUID()
+      const messageId = randomUUID()
       dbh.db
         .insert(agentSessionMessageTable)
         .values({
+          id: messageId,
           parentId: seedSessionRoot(dbh.db, workspace.sessionId),
           sessionId: workspace.sessionId,
           role: 'assistant',
@@ -1051,7 +1062,7 @@ describe('system workspace relocation', () => {
           }
         })
         .run()
-      new AgentSessionMessageTreeSeeder().run(dbh.db)
+      linkSessionMessageChain(dbh.db, workspace.sessionId, [messageId])
       queueRetiredAgentRuntimeMigration(dbh.db)
 
       expect(await relocateSystemWorkspaces()).toEqual(new Set())

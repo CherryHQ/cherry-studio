@@ -14,7 +14,9 @@ Branch navigation issued one ORM query per descendant. SQLite could choose the s
 
 Reject public PATCH for `accepted` and `delivering` inside the write transaction, before changing content, attachments, checkpoints or timestamps. Terminal display-message behavior remains unchanged. This restores the input immutability boundary in the [runtime contract](../../proposed/architecture/2026-10-17-agent-runtime-contract.md).
 
-Resolve a branch in one recursive query, selecting the newest immediate child by `(created_at, id)` at every level. Unary `+` on the ordering timestamp prevents the session-time ordering shortcut; the existing `(session_id, parent_id)` index restricts each lookup to that parent's children. Group page siblings once by parent. Seed flat histories with SQLite `lag()` and one update per session, retaining timestamps, roots, selected branches and the existing seeder version.
+Resolve a branch in one recursive query, selecting the newest immediate child by `(created_at, id)` at every level. Unary `+` on the ordering timestamp prevents the session-time ordering shortcut; the existing `(session_id, parent_id)` index restricts each lookup to that parent's children. Group page siblings once by parent.
+
+Flat-history reconstruction belongs to the appended migrations in the [storage constraint decision](2026-11-09-session-tree-storage-constraints.md). Startup `AgentSessionMessageTreeSeeder` only initializes empty Session roots and selections and backfills legacy delivery reply anchors. Existing non-empty trees and their selections, including an absent selection, remain unchanged. Direct-SQL fixtures link their intended message IDs explicitly through `linkSessionMessageChain`.
 
 For #23359, select only page IDs, parents and timestamps before loading payloads. Reuse one prepared primary-key read and project each assistant message immediately when `deferToolOutputs` is requested. This prevents a full page of raw tool outputs from remaining live during projection and avoids decoding the lookahead row. Default reads stay verbatim. The bounded per-row reads trade up to 200 synchronous lookups for a smaller live payload set.
 
@@ -24,7 +26,7 @@ Shared tool-output projection reuses the oversized JSON string from the 32 KiB U
 
 - UI-only disabling leaves the public PATCH endpoint writable.
 - Selecting the newest leaf anywhere in the subtree changes Session navigation semantics.
-- Persistent path caches introduce invalidation ownership; these local query repairs require no cache or schema migration.
+- Persistent path caches introduce invalidation ownership; indexed query repairs need no persistent cache. The separate [storage constraint decision](2026-11-09-session-tree-storage-constraints.md) owns schema migration and flat-history backfill.
 
 ## Consequences
 
@@ -34,8 +36,8 @@ Single oversized rows and non-deferred reads can still require substantial memor
 
 ## Verification
 
-- Regression — `agentSessionTreeConstraints.test.ts` preserves 10,001 messages through upgrade; `AgentSessionMessageService.test.ts` rejects in-flight delivery PATCH without changing the row.
-- Regression — `agentSessionMessageTree.test.ts`: immediate-child ordering, timestamp ties, siblings, empty sessions, repeated seeding and delayed replies retain their contracts.
+- Regression — `AgentSessionMessageService.test.ts` rejects in-flight delivery PATCH without changing the row. Migration evidence is recorded in the [storage constraint decision](2026-11-09-session-tree-storage-constraints.md).
+- Regression — `agentSessionMessageTree.test.ts`: immediate-child ordering, timestamp ties, siblings, empty sessions, repeated seeding and delayed replies retain their contracts. Startup seeding preserves non-empty branches with either an absent or selected head, and initializes both missing and existing empty roots without changing timestamps.
 
 Local service measurements use identical file-backed SQLite fixtures and alternate before/after operations. Timing observations are not packaged-app or live-provider acceptance.
 

@@ -1,5 +1,6 @@
-import { and, eq } from 'drizzle-orm'
+import { and, eq, sql } from 'drizzle-orm'
 
+import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { messageTable } from '@data/db/schemas/message'
 import type { DbType } from '@data/db/types'
@@ -49,4 +50,20 @@ export function seedSessionRoot(db: DbType, sessionId: string): string {
     .values({ sessionId, role: 'root', data: { parts: [] }, status: 'success', createdAt: 1, updatedAt: 1 })
     .returning({ id: agentSessionMessageTable.id })
     .get().id
+}
+
+/** Link fixture rows in the given order and select the last row without changing timestamps. */
+export function linkSessionMessageChain(db: DbType, sessionId: string, messageIds: readonly string[]): void {
+  let parentId = seedSessionRoot(db, sessionId)
+  for (const id of messageIds) {
+    db.update(agentSessionMessageTable)
+      .set({ parentId, updatedAt: sql`${agentSessionMessageTable.updatedAt}` })
+      .where(and(eq(agentSessionMessageTable.sessionId, sessionId), eq(agentSessionMessageTable.id, id)))
+      .run()
+    parentId = id
+  }
+  db.update(agentSessionTable)
+    .set({ activeNodeId: parentId, updatedAt: sql`${agentSessionTable.updatedAt}` })
+    .where(eq(agentSessionTable.id, sessionId))
+    .run()
 }

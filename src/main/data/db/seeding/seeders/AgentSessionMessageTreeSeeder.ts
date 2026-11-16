@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, isNull, ne, sql } from 'drizzle-orm'
+import { and, eq, inArray, isNull, ne, notExists } from 'drizzle-orm'
 
 import { agentSessionTable as sessions } from '@data/db/schemas/agentSession'
 import { agentSessionMessageTable as messages } from '@data/db/schemas/agentSessionMessage'
@@ -9,7 +9,7 @@ import type { DbType, ISeeder } from '../../types'
 export class AgentSessionMessageTreeSeeder implements ISeeder {
   readonly name = 'agentSessionMessageTree'
   readonly version = '1'
-  readonly description = 'Preserve flat Agent archives as one selected message path'
+  readonly description = 'Initialize empty Agent session roots and legacy delivery reply anchors'
   readonly executionPolicy = 'run-on-change' as const
 
   run(db: DbType): void {
@@ -18,25 +18,21 @@ export class AgentSessionMessageTreeSeeder implements ISeeder {
         for (const session of tx
           .select({ id: sessions.id, updatedAt: sessions.updatedAt })
           .from(sessions)
-          .where(isNull(sessions.activeNodeId))
+          .where(
+            and(
+              isNull(sessions.activeNodeId),
+              notExists(
+                tx
+                  .select({ id: messages.id })
+                  .from(messages)
+                  .where(and(eq(messages.sessionId, sessions.id), ne(messages.role, 'root')))
+              )
+            )
+          )
           .all()) {
           const rootId = ensureAgentSessionRootTx(tx, session.id)
-          tx.run(sql`
-            WITH ordered AS (
-              SELECT id, lag(id, 1, ${rootId}) OVER (ORDER BY created_at, id) AS parent_id
-              FROM agent_session_message WHERE session_id = ${session.id} AND role != 'root'
-            )
-            UPDATE agent_session_message SET parent_id = ordered.parent_id
-            FROM ordered WHERE agent_session_message.id = ordered.id
-          `)
-          const leaf = tx
-            .select({ id: messages.id })
-            .from(messages)
-            .where(and(eq(messages.sessionId, session.id), ne(messages.role, 'root')))
-            .orderBy(desc(messages.createdAt), desc(messages.id))
-            .get()
           tx.update(sessions)
-            .set({ activeNodeId: leaf?.id ?? rootId, updatedAt: session.updatedAt })
+            .set({ activeNodeId: rootId, updatedAt: session.updatedAt })
             .where(eq(sessions.id, session.id))
             .run()
         }

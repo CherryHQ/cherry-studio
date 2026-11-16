@@ -2,7 +2,7 @@ import { mkdtemp, readdir, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
-import { setupTestDatabase, seedSessionRoot } from '@test-helpers/db'
+import { linkSessionMessageChain, setupTestDatabase, seedSessionRoot } from '@test-helpers/db'
 import { and, eq, ne } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -16,7 +16,6 @@ import { fileEntryTable } from '@data/db/schemas/file'
 import { agentSessionMessageFileRefTable } from '@data/db/schemas/fileRelations'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
-import { AgentSessionMessageTreeSeeder } from '@data/db/seeding/seeders/AgentSessionMessageTreeSeeder'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionForkService } from '@data/services/AgentSessionForkService'
 import type { AgentSessionDeliveryRoutingError } from '@data/services/AgentSessionMessageService'
@@ -2101,7 +2100,7 @@ describe('AgentSessionMessageService', () => {
       }
     ])
 
-    new AgentSessionMessageTreeSeeder().run(dbh.db)
+    linkSessionMessageChain(dbh.db, SESSION_ID, [USER_MESSAGE_ID, ASSISTANT_MESSAGE_ID])
     const result = agentSessionMessageService.listSessionMessages(SESSION_ID, {
       cursor: 'not-a-cursor',
       limit: 1
@@ -2159,7 +2158,7 @@ describe('AgentSessionMessageService', () => {
       }
     ])
 
-    new AgentSessionMessageTreeSeeder().run(dbh.db)
+    linkSessionMessageChain(dbh.db, SESSION_ID, [older, middle, target, newer])
     const firstPage = agentSessionMessageService.listSessionMessages(SESSION_ID, {
       messageId: target,
       limit: 2
@@ -2204,7 +2203,7 @@ describe('AgentSessionMessageService', () => {
       }
     ])
 
-    new AgentSessionMessageTreeSeeder().run(dbh.db)
+    linkSessionMessageChain(dbh.db, SESSION_ID, [newestMessageId])
     const result = agentSessionMessageService.listSessionMessages(SESSION_ID, {
       messageId: otherMessageId
     })

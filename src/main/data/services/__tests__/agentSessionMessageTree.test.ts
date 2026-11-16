@@ -339,8 +339,67 @@ describe('Agent message tree', () => {
     ])
   })
 
-  it('seeds empty sessions without resetting their timestamps or an existing branch selection', () => {
-    dbh.db.update(sessions).set({ updatedAt: 123 }).where(eq(sessions.id, sessionId)).run()
+  it.each([
+    { head: null, replies: false },
+    { head: null, replies: true },
+    { head: 'right-reply', replies: true }
+  ])('preserves existing branches during startup seeding (head: $head, replies: $replies)', ({ head, replies }) => {
+    const rootId = service.captureHead(sessionId)
+    dbh.db
+      .insert(messages)
+      .values(
+        [
+          {
+            id: 'left',
+            parentId: rootId,
+            sessionId,
+            role: 'user',
+            status: 'success',
+            data: { parts: [] },
+            createdAt: 1
+          },
+          {
+            id: 'right',
+            parentId: rootId,
+            sessionId,
+            role: 'user',
+            status: 'success',
+            data: { parts: [] },
+            createdAt: 2
+          },
+          {
+            id: 'left-reply',
+            parentId: 'left',
+            sessionId,
+            role: 'assistant',
+            status: 'success',
+            data: { parts: [] },
+            createdAt: 3
+          },
+          {
+            id: 'right-reply',
+            parentId: 'right',
+            sessionId,
+            role: 'assistant',
+            status: 'success',
+            data: { parts: [] },
+            createdAt: 4
+          }
+        ].filter((row) => replies || row.role === 'user')
+      )
+      .run()
+    dbh.db.update(sessions).set({ activeNodeId: head, updatedAt: 123 }).where(eq(sessions.id, sessionId)).run()
+    const rows = dbh.db.select().from(messages).all()
+    const session = dbh.db.select().from(sessions).where(eq(sessions.id, sessionId)).get()
+    new AgentSessionMessageTreeSeeder().run(dbh.db)
+    new AgentSessionMessageTreeSeeder().run(dbh.db)
+    expect(dbh.db.select().from(messages).all()).toEqual(rows)
+    expect(dbh.db.select().from(sessions).where(eq(sessions.id, sessionId)).get()).toEqual(session)
+  })
+
+  it.each([false, true])('initializes an empty session without changing timestamps (existing root: %s)', (hasRoot) => {
+    if (hasRoot) service.captureHead(sessionId)
+    dbh.db.update(sessions).set({ activeNodeId: null, updatedAt: 123 }).where(eq(sessions.id, sessionId)).run()
     new AgentSessionMessageTreeSeeder().run(dbh.db)
     const session = dbh.db.select().from(sessions).where(eq(sessions.id, sessionId)).get()!
     expect(session.updatedAt).toBe(123)

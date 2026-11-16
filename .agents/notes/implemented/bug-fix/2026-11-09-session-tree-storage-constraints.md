@@ -14,6 +14,8 @@ Require `(role = 'root') = (parent_id IS NULL)` and a composite foreign key from
 
 Append a custom backfill migration before the generated constraint migration. Only archives without a selected head or any parent edges are reconstructed, ordered by `(created_at, id)`. Preserve existing branches, selections, timestamps and message facts. Explicitly reject invalid existing parent edges while the migration runner has foreign keys disabled; failure rolls back the complete upgrade. Root insertion disables the FTS insert trigger during backfill to avoid conflicting with explicitly allocated FTS rowids; the production migration runner restores triggers afterward. Rebuild FTS within the migration transaction so every generated root has an FTS document, including roots with no text. The one-time rebuild scans existing searchable text; merely restoring triggers leaves external-content integrity broken and can make later Session deletion fail.
 
+Flat-archive reconstruction moves from the startup seeder described in the [runtime contract](../../proposed/architecture/2026-10-17-agent-runtime-contract.md) into schema migration, partially superseding that backfill responsibility. Startup seeding only initializes empty Session roots and backfills legacy delivery reply anchors. The [tree operation decision](2026-11-09-agent-session-tree-operations.md) records query, mutation and projection behavior.
+
 The current application delegates v1 conversion to the 2.2.2 bridge release. Its resulting v2 archives use the appended migrations above. Direct-SQL test fixtures create real roots through a shared fixture helper.
 
 ## Alternatives considered

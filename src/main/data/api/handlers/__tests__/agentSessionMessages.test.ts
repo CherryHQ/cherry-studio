@@ -47,27 +47,32 @@ describe('agentSessionMessageHandlers', () => {
   })
 
   describe('/agent-sessions/:sessionId/messages', () => {
-    it('returns stored tool outputs verbatim unless the caller opts in', async () => {
-      const output = { content: 'x'.repeat(64 * 1024) }
-      const assistant = {
-        id: 'assistant-message',
-        role: 'assistant',
-        data: {
-          parts: [{ type: 'dynamic-tool', toolCallId: 'tool-call-1', state: 'output-available', output }]
-        }
+    it.each([
+      { name: 'default', query: undefined, options: {} },
+      { name: 'verbatim', query: { deferToolOutputs: false }, options: { deferToolOutputs: false } },
+      {
+        name: 'projected',
+        query: { deferToolOutputs: true, limit: 2, cursor: '100:previous', messageId: 'anchor' },
+        options: { deferToolOutputs: true, limit: 2, cursor: '100:previous', messageId: 'anchor' }
       }
-      const response = { items: [assistant], nextCursor: undefined }
-      listSessionMessagesMock.mockReturnValueOnce(response)
+    ])('forwards parsed $name options and attaches history actions by message ID', async ({ query, options }) => {
+      const user = { id: 'user-message', role: 'user', data: { parts: [] } }
+      const assistant = { id: 'assistant-message', role: 'assistant', data: { parts: [] } }
+      listSessionMessagesMock.mockReturnValueOnce({ items: [user, assistant], nextCursor: '50:older' })
 
-      // Default read is verbatim, so a read-modify-write caller cannot persist a trimmed copy.
       await expect(
         agentSessionMessageHandlers['/agent-sessions/:sessionId/messages'].GET({
-          params: { sessionId: 'session-1' }
+          params: { sessionId: 'session-1' },
+          query
         })
       ).resolves.toEqual({
-        ...response,
-        items: [{ ...assistant, historyActions: { fork: 'legacy_history', edit: 'invalid_target' } }]
+        items: [
+          { ...user, historyActions: { fork: 'not_turn_boundary', edit: 'checkpoint_unsupported' } },
+          { ...assistant, historyActions: { fork: 'legacy_history', edit: 'invalid_target' } }
+        ],
+        nextCursor: '50:older'
       })
+      expect(listSessionMessagesMock).toHaveBeenCalledWith('session-1', options)
     })
 
     it('hides the message list of a session outside the conversation scope', async () => {
