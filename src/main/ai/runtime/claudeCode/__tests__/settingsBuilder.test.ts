@@ -16,6 +16,8 @@ import type * as UserDataSqliteGuard from '@main/ai/toolApproval/userDataSqliteG
 import { BrowserSessionService } from '@main/features/browser'
 import type * as FileUtils from '@main/utils/file'
 
+import { GLOBAL_INSTALL_PLAN_DENIAL, GLOBAL_INSTALL_UNATTENDED_DENIAL } from '../guardRules'
+
 const APPROVAL_REQUIRED_RUNTIME_NAMES = listBuiltinToolPolicies()
   .filter(({ approval }) => approval !== 'auto')
   .map(toMcpRuntimeName)
@@ -1521,6 +1523,119 @@ describe('buildClaudeCodeSessionSettings', () => {
     }
   })
 
+  describe('global install approvals without SDK matchedAskRule', () => {
+    async function installSettings(
+      permissionMode: string,
+      attendance: 'stream' | 'message' | 'unavailable' = 'stream'
+    ) {
+      mocks.createToolPolicySnapshot.mockResolvedValue({
+        resolve: vi.fn(() => ({ approval: 'auto' })),
+        isDisabled: vi.fn(() => false),
+        getPermissionMode: vi.fn(() => permissionMode),
+        update: vi.fn(),
+        setPermissionMode: vi.fn()
+      })
+      const originalGet = mocks.applicationGet.getMockImplementation()!
+      mocks.applicationGet.mockImplementation((name: string) =>
+        name === 'AgentSessionRuntimeService'
+          ? { getInteractionState: () => ({ currentTurn: 'interactive', userResponse: attendance }) }
+          : originalGet(name)
+      )
+      const settings = await buildClaudeCodeSessionSettings(
+        {
+          id: 'session-1',
+          agentId: 'agent-1',
+          workspace: { type: 'user', path: '/workspace/project' }
+        } as never,
+        {} as never
+      )
+      settings.approvalEmitter!.emit = vi.fn()
+      return settings
+    }
+
+    // Catches auto and background shortcuts executing an install before its approval is answered.
+    it.each([
+      { mode: 'default', command: 'npm install -g left-pad' },
+      { mode: 'acceptEdits', command: 'npm install -g left-pad' },
+      { mode: 'auto', command: 'npm install -g left-pad' },
+      { mode: 'acceptEdits', command: 'mkdir -p build && npm install -g left-pad' },
+      { mode: 'default', command: 'npm install -g left-pad', agentID: 'subagent-1' },
+      { mode: 'auto', command: 'npm install -g left-pad', attendance: 'message' as const }
+    ])(
+      'waits for approval in $mode ($command, agentID=$agentID, attendance=$attendance)',
+      async ({ mode, command, agentID, attendance }) => {
+        const settings = await installSettings(mode, attendance)
+        const input = { command }
+        for (const approved of [true, false]) {
+          const pending = settings.canUseTool!('Bash', input, {
+            signal: new AbortController().signal,
+            toolUseID: 'install',
+            requestId: 'install-request',
+            agentID,
+            matchedAskRule: undefined
+          })
+          let settled = false
+          void pending.then(() => (settled = true))
+          await Promise.resolve()
+          expect(settled).toBe(false)
+          const presentation = agentID || attendance === 'message' ? 'message' : 'stream'
+          expect(settings.approvalEmitter!.emit).toHaveBeenCalledWith(
+            expect.objectContaining({ toolName: 'Bash', input, presentation })
+          )
+          expect(mocks.approvalRegister).toHaveBeenLastCalledWith(
+            expect.objectContaining({ originalInput: input, presentation })
+          )
+          mocks.approvalRegister.mock.lastCall![0].resolve({ approved })
+          await expect(pending).resolves.toEqual(
+            approved
+              ? { behavior: 'allow', updatedInput: input }
+              : { behavior: 'deny', message: 'User denied permission for this tool' }
+          )
+        }
+      }
+    )
+
+    it.each([
+      ['default', 'unavailable', GLOBAL_INSTALL_UNATTENDED_DENIAL],
+      ['acceptEdits', 'unavailable', GLOBAL_INSTALL_UNATTENDED_DENIAL],
+      ['auto', 'unavailable', GLOBAL_INSTALL_UNATTENDED_DENIAL],
+      ['plan', 'stream', GLOBAL_INSTALL_PLAN_DENIAL],
+      ['plan', 'unavailable', GLOBAL_INSTALL_PLAN_DENIAL]
+    ] as const)('denies %s with %s attendance before registration', async (mode, attendance, message) => {
+      const settings = await installSettings(mode, attendance)
+      await expect(
+        settings.canUseTool!(
+          'Bash',
+          { command: 'npm install -g left-pad' },
+          {
+            signal: new AbortController().signal,
+            toolUseID: 'install',
+            requestId: 'install-request',
+            matchedAskRule: undefined
+          }
+        )
+      ).resolves.toEqual({ behavior: 'deny', message })
+      expect(mocks.approvalRegister).not.toHaveBeenCalled()
+    })
+
+    it.each(['stream', 'message', 'unavailable'] as const)(
+      'allows root Full Access with %s attendance',
+      async (attendance) => {
+        const settings = await installSettings('bypassPermissions', attendance)
+        const input = { command: 'npm install -g left-pad' }
+        await expect(
+          settings.canUseTool!('Bash', input, {
+            signal: new AbortController().signal,
+            toolUseID: 'install',
+            requestId: 'install-request',
+            matchedAskRule: undefined
+          })
+        ).resolves.toEqual({ behavior: 'allow', updatedInput: input })
+        expect(mocks.approvalRegister).not.toHaveBeenCalled()
+      }
+    )
+  })
+
   describe.each(['auto', 'bypassPermissions'])('SDK-forced delegation approval in %s', (permissionMode) => {
     it.each(
       DELEGATION_RUNTIME_NAMES.flatMap((toolName) =>
@@ -2093,6 +2208,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     mocks.createToolPolicySnapshot.mockResolvedValue({
       resolve: vi.fn(() => ({ approval: 'auto' })),
       isDisabled: vi.fn(() => false),
+      getPermissionMode: vi.fn(() => 'bypassPermissions'),
       update: vi.fn(),
       setPermissionMode: vi.fn()
     })
@@ -2806,6 +2922,7 @@ describe('buildClaudeCodeSessionSettings', () => {
       mocks.createToolPolicySnapshot.mockResolvedValue({
         resolve: vi.fn(() => ({ approval: 'auto' })),
         isDisabled: vi.fn(() => false),
+        getPermissionMode: vi.fn(() => undefined),
         update: vi.fn(),
         setPermissionMode: vi.fn()
       })

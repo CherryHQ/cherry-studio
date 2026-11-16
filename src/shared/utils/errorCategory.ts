@@ -1,3 +1,5 @@
+import { isContextOverflowMessage } from '@cherrystudio/ai-core/contextOverflow'
+
 // Single source of error-text recognition. Main classifies subprocess stderr, the renderer
 // classifies provider responses; both must agree on precedence (region before 403, quota
 // before 429, feature timeouts before generic network).
@@ -215,14 +217,7 @@ export function classifyErrorCategory({ text, status, finishReason }: ErrorCateg
   }
 
   // Context length exceeded
-  if (
-    msg.includes('context_length_exceeded') ||
-    msg.includes('too many tokens') ||
-    msg.includes('maximum context length') ||
-    msg.includes('context window') ||
-    msg.includes('prompt is too long') ||
-    msg.includes('input is too long')
-  ) {
+  if (isContextOverflowMessage(msg)) {
     return 'context_length'
   }
 
@@ -397,5 +392,7 @@ export function classifyErrorCategory({ text, status, finishReason }: ErrorCateg
     return 'parse'
   }
 
-  return status === 400 ? 'bad_request' : 'unknown'
+  // A provider's validation type marks a rejected request when no structured status survived
+  // (`Unexpected role "tool"` — #24238), so it must not fall through to the stream-interruption label.
+  return status === 400 || (status === undefined && msg.includes('invalid_request_error')) ? 'bad_request' : 'unknown'
 }

@@ -205,7 +205,9 @@ describe('owned application debug bridge', () => {
                   applicationActive = true
                 }
               },
-              BrowserWindow: { getAllWindows: () => [secondary, main] }
+              BrowserWindow: {
+                getAllWindows: () => [{ webContents: { getURL: () => '' } }, secondary, main]
+              }
             })
           }
         }

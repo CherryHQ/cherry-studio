@@ -256,12 +256,13 @@ export function WorkspaceSelector({
 
           return (
             <ScrollArea
+              contentProps={{ className: 'px-1 py-1' }}
               viewportProps={{
                 ref: listRef,
                 id: listboxId,
                 role: 'listbox',
                 tabIndex: -1,
-                className: 'px-1 py-1 outline-none'
+                className: 'outline-none'
               }}
               className="min-h-0 flex-1"
               style={{ height: listHeight }}>

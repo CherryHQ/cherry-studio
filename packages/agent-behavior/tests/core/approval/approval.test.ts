@@ -38,17 +38,105 @@ const decide = (
 
 describe('approval decisions (D34)', () => {
   // Catches full access lifting a block that holds in every mode (P1–P3), or a non-bypassable tool's approval.
-  it('blocks disabled tools, SQLite writes and global installs in every mode', () => {
+  it('blocks disabled tools and SQLite writes in every mode', () => {
     expect(decide('x', { disabled: true }, 'bypassPermissions')).toBe('block')
     expect(decide('x', { sqliteGuard: 'protected' }, 'bypassPermissions')).toBe('block')
-    expect(
-      decideApproval(gateCall('bash'), host({ globalInstall: 'npm i -g x' }), 'bypassPermissions', 'stream', undefined)
-    ).toMatchObject({
-      kind: 'block',
-      reason: expect.stringMatching(/^Blocked to avoid cross-agent dependency pollution: npm i -g x\./)
-    })
     expect(decide('x', {}, 'bypassPermissions')).toBe('allow')
     expect(decide('x', { nonBypassable: true }, 'bypassPermissions')).toBe('ask')
+  })
+
+  // Catches installs escaping approvals via auto mode, child bypass, or a missing responder.
+  describe.each(['bash', 'powershell'])('global installs via %s', (tool) => {
+    it.each(['default', 'acceptEdits', 'auto', 'plan', 'bypassPermissions'] as const)(
+      'uses the effective %s mode for every attendance',
+      (mode) => {
+        for (const attendance of ['stream', 'message', 'unavailable'] as const) {
+          const result = decideApproval(
+            gateCall(tool),
+            host({ globalInstall: 'npm i -g x' }),
+            mode,
+            attendance,
+            undefined
+          )
+          expect(result).toEqual(
+            mode === 'plan'
+              ? { kind: 'block', reason: PLAN_BLOCK }
+              : mode === 'bypassPermissions'
+                ? { kind: 'allow' }
+                : attendance === 'unavailable'
+                  ? { kind: 'block', reason: UNATTENDED }
+                  : { kind: 'ask', presentation: attendance }
+          )
+        }
+      }
+    )
+
+    it.each(['default', 'acceptEdits', 'auto', 'plan', 'bypassPermissions'] as const)(
+      'uses root fact %s over incidental child bypass',
+      (globalInstallPermissionMode) => {
+        for (const attendance of ['stream', 'message', 'unavailable'] as const) {
+          const facts = host({ globalInstall: 'npm i -g x', globalInstallPermissionMode })
+          const result = decideApproval(gateCall(tool), facts, 'bypassPermissions', attendance, undefined)
+          expect(result).toEqual(
+            globalInstallPermissionMode === 'plan'
+              ? { kind: 'block', reason: PLAN_BLOCK }
+              : globalInstallPermissionMode === 'bypassPermissions'
+                ? { kind: 'allow' }
+                : attendance === 'unavailable'
+                  ? { kind: 'block', reason: UNATTENDED }
+                  : { kind: 'ask', presentation: attendance }
+          )
+          expect(facts.approvalRequired).toBe(false)
+        }
+      }
+    )
+
+    it.each(['default', 'acceptEdits', 'auto'] as const)('does not auto-approve installs in %s', (mode) => {
+      expect(
+        decideApproval(
+          gateCall(tool),
+          host({ globalInstall: 'install', autoApproved: true }),
+          mode,
+          'stream',
+          undefined
+        )
+      ).toEqual({ kind: 'ask', presentation: 'stream' })
+    })
+
+    it('preserves active plans and higher-authority blocks', () => {
+      const facts = host({ globalInstall: 'install', globalInstallPermissionMode: 'bypassPermissions' })
+      expect(decideApproval(gateCall(tool), facts, 'bypassPermissions', 'stream', { active: true, at: 1 })).toEqual({
+        kind: 'block',
+        reason: PLAN_BLOCK
+      })
+      expect(
+        decideApproval(gateCall(tool), { ...facts, disabled: true }, 'bypassPermissions', 'stream', undefined)
+      ).toEqual({ kind: 'block', reason: `Tool "${tool}" is disabled for this agent.` })
+      expect(
+        decideApproval(gateCall(tool), { ...facts, sqliteGuard: 'protected' }, 'bypassPermissions', 'stream', undefined)
+      ).toEqual({ kind: 'block', reason: 'protected' })
+      expect(
+        decideApproval(gateCall(tool), { ...facts, nonBypassable: true }, 'bypassPermissions', 'unavailable', undefined)
+      ).toEqual({
+        kind: 'block',
+        reason: 'This tool always requires user approval and cannot run unattended. Retry interactively.'
+      })
+    })
+
+    it.each(['default', 'acceptEdits', 'auto', 'plan', 'bypassPermissions'] as const)(
+      'hard-blocks mise in %s',
+      (mode) => {
+        expect(
+          decideApproval(
+            gateCall(tool),
+            host({ globalInstall: 'install', miseMutation: 'direct mise mutation (use cli_search / cli_install)' }),
+            mode,
+            'stream',
+            undefined
+          )
+        ).toEqual({ kind: 'block', reason: 'Blocked: direct mise mutation (use cli_search / cli_install).' })
+      }
+    )
   })
 
   // Catches unattended delegation escaping Full Access, or interactive delegation bypassing an active plan.

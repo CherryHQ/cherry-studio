@@ -281,7 +281,10 @@ const AboutSettings: FC = () => {
             </SettingRowTitle>
           </SettingRow>
           <Divider className="my-3" />
-          <ScrollArea viewportProps={{ className: 'overflow-x-hidden pr-2' }} className="max-h-96">
+          <ScrollArea
+            contentProps={{ className: 'pr-2' }}
+            viewportProps={{ className: 'overflow-x-hidden' }}
+            className="max-h-96">
             <UpgradeReleaseNotes releaseInfo={appUpdateState.info} />
           </ScrollArea>
         </SettingGroup>
