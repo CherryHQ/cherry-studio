@@ -8,6 +8,7 @@ import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
 import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
+import { ErrorNotice } from '@renderer/components/ErrorNotice'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { type ExecutionFinishEvent, useExecutionOverlay } from '@renderer/hooks/useExecutionOverlay'
 import { useDefaultModel } from '@renderer/hooks/useModel'
@@ -605,17 +606,21 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
             />
           </Suspense>
           {flowError && (
-            <div className="mb-3 rounded border border-error-border bg-error-subtle px-3 py-2 text-[13px] break-all text-error-subtle-foreground">
-              <div>{flowError.message}</div>
-              <ErrorDetailAction
-                error={flowError.cause}
-                message={flowError.message}
-                source="quickAssistant"
-                operation="quick_assistant.send"
-                providerId={flowError.providerId}
-                modelId={flowError.modelId}
-              />
-            </div>
+            <ErrorNotice
+              variant="inline"
+              className="mb-3"
+              title={flowError.message}
+              detail={
+                <ErrorDetailAction
+                  error={flowError.cause}
+                  message={flowError.message}
+                  source="quickAssistant"
+                  operation="quick_assistant.send"
+                  providerId={flowError.providerId}
+                  modelId={flowError.modelId}
+                />
+              }
+            />
           )}
 
           <Separator className="my-2.5" />
