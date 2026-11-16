@@ -16,6 +16,7 @@ import {
   SettingsPageHeader
 } from '@renderer/components/SettingsPrimitives'
 import { ipcApi } from '@renderer/ipc'
+import { isLinux } from '@renderer/utils/platform'
 
 const logger = loggerService.withContext('ComputerUseSettings')
 const PERMISSION_KEY = 'computer_use.get_permission_status'
@@ -94,7 +95,7 @@ export function ComputerUseSettings() {
             {t('settings.computerUse.controlError')}
           </p>
         )}
-        {enabled && (
+        {isLinux && enabled && (
           <>
             <SettingDivider />
             <SettingRow className="flex-nowrap items-start">

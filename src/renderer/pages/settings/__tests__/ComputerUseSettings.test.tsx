@@ -11,6 +11,12 @@ import { ComputerUseSettings } from '../ComputerUseSettings'
 
 vi.unmock('@cherrystudio/ui')
 vi.mock('@renderer/ipc', () => ({ ipcApi: { request: vi.fn() } }))
+const platform = vi.hoisted(() => ({ current: 'linux' }))
+vi.mock('@renderer/utils/platform', () => ({
+  get isLinux() {
+    return platform.current === 'linux'
+  }
+}))
 
 function showSettings() {
   return render(
@@ -22,6 +28,7 @@ function showSettings() {
 
 beforeEach(async () => {
   vi.clearAllMocks()
+  platform.current = 'linux'
   MockUsePreferenceUtils.resetMocks()
   MockUsePreferenceUtils.setPreferenceValue('app.computer_use.approved_apps', [])
   MockUsePreferenceUtils.setPreferenceValue('app.computer_use.agent_control.enabled', true)
@@ -57,6 +64,13 @@ describe('Computer Use permission settings', () => {
     await waitFor(() =>
       expect(MockUsePreferenceUtils.getPreferenceValue('app.computer_use.agent_control.global_input')).toBe(true)
     )
+  })
+  it.each(['win32', 'darwin'])('hides the Linux global input setting on %s', (current) => {
+    platform.current = current
+    vi.mocked(ipcApi.request).mockResolvedValue({ permissions: [] })
+    showSettings()
+    expect(screen.getByRole('switch', { name: 'Allow agents to control desktop applications' })).toBeChecked()
+    expect(screen.queryByRole('switch', { name: 'Global input' })).not.toBeInTheDocument()
   })
   it('revokes only the selected saved app through the main-process authority', async () => {
     MockUsePreferenceUtils.setPreferenceValue('app.computer_use.approved_apps', [
