@@ -46,7 +46,6 @@ import {
   useMcpRegistryState
 } from './McpServerFields'
 import McpToolsSection from './McpTool'
-import { isQVerisApiKeyMissing, QVerisApiKeyGuide } from './QVerisApiKeyGuide'
 import { useMcpServerTrust } from './useMcpServerTrust'
 import { toUpdateMcpServerDto } from './utils'
 
@@ -325,15 +324,6 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
       return
     }
 
-    if (active && isQVerisApiKeyMissing(server)) {
-      void popup.error({
-        title: t('settings.mcp.startError'),
-        content: <QVerisApiKeyGuide />,
-        centered: true
-      })
-      return
-    }
-
     const isValid = await form.trigger()
     if (!isValid) {
       return
@@ -601,7 +591,7 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
           variant="line"
           className="flex min-h-0 flex-1 flex-col bg-transparent">
           <div className="shrink-0 px-6 pt-4">
-            <div className="mx-auto w-full max-w-3xl">
+            <div className="mx-auto w-full max-w-5xl">
               <SettingTitle className="min-w-0 flex-wrap gap-2">
                 <Flex className="min-w-0 flex-1 flex-wrap items-center gap-2">
                   <Button
@@ -683,7 +673,7 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
             contentProps={{ className: 'px-6 pt-2 pb-6' }}
 
             className="min-h-0 flex-1">
-            <div className="mx-auto w-full max-w-3xl">
+            <div className="mx-auto w-full max-w-5xl">
               {tabs.map((tab) => (
                 <TabsContent key={tab.key} value={tab.key} className="mt-0 min-h-0">
                   {tab.children}
@@ -693,7 +683,7 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
           </ScrollArea>
           {activeTabValue === 'settings' && (
             <div className="flex min-h-14 shrink-0 items-center border-border-subtle border-t px-6">
-              <div className="mx-auto flex w-full max-w-3xl items-center justify-between gap-3">
+              <div className="mx-auto flex w-full max-w-5xl items-center justify-between gap-3">
                 <Button
                   size="sm"
                   variant="ghost"

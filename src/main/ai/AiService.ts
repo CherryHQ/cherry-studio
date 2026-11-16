@@ -42,6 +42,7 @@ import type { CompactionSink } from '@shared/ai/compaction'
 import type { AiToolApprovalRespondRequest, AiToolApprovalRespondResponse } from '@shared/ai/transport'
 import { isDataApiNotFoundError } from '@shared/data/api/errors'
 import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
+import { isManagedCherryCloudModel } from '@shared/data/presets/cherryai'
 import { type Assistant } from '@shared/data/types/assistant'
 import type { CleanupPolicy, FileEntry } from '@shared/data/types/file'
 import type { ImageGenerationMode, ListedModels } from '@shared/data/types/model'
@@ -56,6 +57,7 @@ import {
   isRerankModel
 } from '@shared/utils/model'
 import { isExternalCliProvider, isOllamaProvider } from '@shared/utils/provider'
+import { getDefaultProviderBilling } from '@shared/utils/providerBillingDefaults'
 
 import { isAgentSessionTopic } from './agentSession/topic'
 import { createAnalyticsHook } from './hooks/analyticsHook'
@@ -202,7 +204,13 @@ function createCaptureContext(input: {
         providerId: provider.id,
         modelId,
         pricing: model.pricing,
-        billing: provider.settings.billing
+        billing:
+          provider.settings.billing ??
+          getDefaultProviderBilling(
+            input.provider,
+            model,
+            resolveEffectiveEndpoint(input.provider, input.model).baseUrl
+          )
       }).pricingSnapshot
     } catch (error) {
       logger.warn('Could not capture invocation pricing', { error })
@@ -1406,6 +1414,7 @@ export class AiService extends BaseService {
 
   /** Captures one model configuration for related probes without re-reading changing settings. */
   prepareModelCheck(uniqueModelId: UniqueModelId) {
+    // oxlint-disable-next-line no-restricted-globals -- Resolve one request model independently of mutable provider/model settings.
     const resolvedModel = structuredClone(this.getProviderAndModel({ uniqueModelId }))
     const { provider, model } = resolvedModel
     const endpoint = resolveEffectiveEndpoint(provider, model)
@@ -1424,7 +1433,8 @@ export class AiService extends BaseService {
       },
       modelId: resolveWireModelId(model, endpoint.endpointType),
       baseUrl: routeToEndpoint(endpoint.baseUrl).baseURL,
-      supportsModelListing: provider.modelListSource !== 'registry',
+      // Cherry Cloud has no model-list API; availability is the account's entitlement set.
+      supportsModelListing: provider.modelListSource !== 'registry' && !isManagedCherryCloudModel(provider.id),
       isExternalCli: isExternalCliProvider(provider),
       supportsChat: chatPrimary || !isNonChatModel(model),
       listModels: async (signal: AbortSignal) => {

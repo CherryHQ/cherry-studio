@@ -9,7 +9,7 @@ const Bilibili = ({ variant, className, ...props }: CompoundIconProps) => {
 
 export const BilibiliIcon: CompoundIcon = /*#__PURE__*/ Object.assign(Bilibili, {
   Avatar: BilibiliAvatar,
-  colorPrimary: '#FB7299'
+  colorPrimary: '#FFF0F5'
 })
 
 export default BilibiliIcon

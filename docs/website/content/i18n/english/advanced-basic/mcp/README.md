@@ -61,7 +61,7 @@ Open **Work** → the Agent's menu → **Edit** → **MCP**, and enable the serv
 
 <figure><img src="../../../../assets/633967fe8c9224f7d27945a8.webp" alt="The Builtin Servers list in MCP settings, with an Install button for each server"><figcaption><p>① The built-in list shows whether an account, API key or folder configuration is needed; after installing, you still need to finish the configuration and verify the connection.</p></figcaption></figure>
 
-QVeris is under **Built-in Servers** and lets Agents discover, inspect and call external capabilities. After installing it, you need to configure `QVERIS_API_KEY`; don't put the key in Agent prompts, Skills or public screenshots.
+QVeris is under **Built-in Servers** and lets Agents discover, inspect and call external capabilities. It signs in through browser OAuth by default, with optional `QVERIS_API_KEY` as a fallback; don't put the key in Agent prompts, Skills or public screenshots.
 
 ### Use MCP Prompts and Resources in the Input Area
 

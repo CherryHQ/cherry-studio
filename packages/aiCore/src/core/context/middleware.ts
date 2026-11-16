@@ -322,7 +322,8 @@ function toCompressRole(role: string): CompressRole {
  */
 export function createCompressionAdapter(
   model: LanguageModel,
-  maxOutputTokens: number = COMPRESSION_MIN_OUTPUT_TOKENS
+  maxOutputTokens: number = COMPRESSION_MIN_OUTPUT_TOKENS,
+  abortSignal?: AbortSignal
 ): (messages: ContextMessage[]) => Promise<string> {
   return async (messages: ContextMessage[]): Promise<string> => {
     const formatted = messages.map((m): { role: CompressRole; content: string } => {
@@ -347,11 +348,17 @@ export function createCompressionAdapter(
       }
     })
 
-    const { text } = await generateText({
+    const { text, finishReason } = await generateText({
       model,
       messages: formatted,
-      maxOutputTokens
+      maxOutputTokens,
+      abortSignal
     })
+
+    if (finishReason === 'length') throw new Error('Compaction summary exceeded the output token limit')
+    if (finishReason === 'error' || finishReason === 'content-filter' || finishReason === 'tool-calls') {
+      throw new Error(`Compaction summary ended with ${finishReason}`)
+    }
 
     // Return the model's output verbatim — an empty string included. Both
     // callers already fail open on an empty summary (`compactHistory` keeps the

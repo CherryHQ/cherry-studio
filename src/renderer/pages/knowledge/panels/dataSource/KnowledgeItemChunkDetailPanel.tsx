@@ -152,7 +152,8 @@ const KnowledgeItemChunkDetailPanel = ({
           estimateSize={estimateChunkSize}
           itemContainerStyle={CHUNK_ITEM_CONTAINER_STYLE}
           autoHideScrollbar={false}
-          className="min-h-0 flex-1 px-4 py-3">
+          className="min-h-0 flex-1"
+          contentProps={{ className: 'px-4 py-3' }}>
           {renderChunk}
         </DynamicVirtualList>
       ) : (
