@@ -113,8 +113,9 @@ describe('ProviderSettingsPage', () => {
 
     render(<ProviderSettingsPage />)
 
-    expect(screen.getByRole('alert')).toHaveTextContent(i18n.t('common.error'))
-    expect(screen.getByRole('alert')).toHaveTextContent('Provider registry unavailable')
+    expect(screen.getByRole('alert')).toHaveTextContent(i18n.t('common.load_failed'))
+    expect(screen.getByRole('alert')).not.toHaveTextContent('Provider registry unavailable')
+    expect(screen.getByRole('button', { name: i18n.t('common.detail') })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'select-openai' })).not.toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: i18n.t('common.retry') }))

@@ -1,4 +1,3 @@
-import { healthCheckErrorToDisplayString } from '@renderer/services/modelHealthCheck'
 import { serializeHealthCheckError } from '@renderer/utils/error'
 import { classifyError } from '@renderer/utils/errorClassifier'
 import type { BulkUpdateModelsDto, CreateModelsDto } from '@shared/data/api/schemas/models'
@@ -81,7 +80,6 @@ export function getProviderSetupErrorDetails(error: unknown, secrets: Iterable<s
   const diagnostic = redactSecretLiterals(serializedError, knownSecrets, SECRET_MASK)
   return {
     i18nKey: classification.category === 'unknown' ? null : classification.i18nKey,
-    summary: redactSecretLiterals(healthCheckErrorToDisplayString(diagnostic), knownSecrets, SECRET_MASK),
     diagnostic
   }
 }
