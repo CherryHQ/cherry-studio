@@ -2876,13 +2876,11 @@ describe('BinaryManager', () => {
         if (args[0] === 'ls' && args.length === 2) return { stdout: JSON.stringify({}), stderr: '' }
         if (args[0] === 'ls')
           return {
-            stdout: JSON.stringify({
-              [DWG_TOOL]: [
-                ...(missingPath ? [] : [{ version: '0.14', install_path: '/install' }]),
-                { version: '0.14', active: true },
-                ...(missingPath ? [] : [{ version: 'latest', install_path: '/install' }])
-              ]
-            }),
+            stdout: JSON.stringify([
+              ...(missingPath ? [] : [{ version: '0.14', install_path: '/install/installs/libre-dwg-tool/0.14' }]),
+              { version: '0.14', active: true },
+              ...(missingPath ? [] : [{ version: 'latest', install_path: '/install/installs/libre-dwg-tool/0.14' }])
+            ]),
             stderr: ''
           }
         if (args[0] === 'use' && args[2] === '--force') {
@@ -2974,7 +2972,7 @@ describe('BinaryManager', () => {
       const realFs = await vi.importActual<typeof NodeFsPromises>('node:fs/promises')
       const realOs = await vi.importActual<typeof NodeOs>('node:os')
       const root = await realFs.mkdtemp(path.join(realOs.tmpdir(), 'mise-rollback-test-'))
-      const installPath = path.join(root, 'installs', '0.14')
+      const installPath = path.join(root, 'installs', 'libre-dwg-tool', '0.14')
       const file = path.join(installPath, 'original.exe')
       await realFs.mkdir(installPath, { recursive: true })
       await realFs.writeFile(file, 'original executable')
@@ -3029,7 +3027,7 @@ describe('BinaryManager', () => {
         const realFs = await vi.importActual<typeof NodeFsPromises>('node:fs/promises')
         const realOs = await vi.importActual<typeof NodeOs>('node:os')
         const root = await realFs.mkdtemp(path.join(realOs.tmpdir(), 'mise-marker-test-'))
-        const installPath = path.join(root, 'installs', '0.14')
+        const installPath = path.join(root, 'installs', 'libre-dwg-tool', '0.14')
         const file = path.join(installPath, 'original.exe')
         const marker = path.join(root, 'cache', 'libre-dwg-tool', '0.14', 'incomplete')
         await realFs.mkdir(installPath, { recursive: true })
@@ -3092,6 +3090,66 @@ describe('BinaryManager', () => {
       }
     )
 
+    it.each(['array', 'object'] as const)(
+      'stages and restores the install after a failed retry with %s-shaped listing',
+      async (shape) => {
+        const realFs = await vi.importActual<typeof NodeFsPromises>('node:fs/promises')
+        const realOs = await vi.importActual<typeof NodeOs>('node:os')
+        const root = await realFs.mkdtemp(path.join(realOs.tmpdir(), 'mise-listing-test-'))
+        const installPath = path.join(root, 'installs', 'libre-dwg-tool', '0.14')
+        const file = path.join(installPath, 'original.exe')
+        const marker = path.join(root, 'cache', 'libre-dwg-tool', '0.14', 'incomplete')
+        await realFs.mkdir(installPath, { recursive: true })
+        await realFs.mkdir(path.dirname(marker), { recursive: true })
+        await realFs.writeFile(file, 'original executable')
+        const getPath = vi.mocked(application.getPath).getMockImplementation()!
+        vi.mocked(application.getPath).mockImplementation((key, filename) =>
+          key === 'app.temp' || key === 'feature.binary.data' ? root : getPath(key, filename)
+        )
+        mockFsp.mkdtemp.mockImplementation(realFs.mkdtemp)
+        mockFsp.cp.mockImplementation(realFs.cp)
+        mockFsp.mkdir.mockImplementation(realFs.mkdir as typeof mockFsp.mkdir)
+        mockFsp.rm.mockImplementation(realFs.rm)
+        mockFsp.access.mockImplementation(realFs.access as typeof mockFsp.access)
+        mockBitness.mockResolvedValueOnce(32)
+        let staged = false
+        mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
+          if (args[0] === 'ls' && args.length === 2) return { stdout: '{}', stderr: '' }
+          if (args[0] === 'ls') {
+            const entries = [{ version: '0.14', active: true, installed: true, install_path: installPath }]
+            return { stdout: JSON.stringify(shape === 'array' ? entries : { [DWG_TOOL]: entries }), stderr: '' }
+          }
+          if (args.at(-1) === X64_SPEC) {
+            const backups = (await realFs.readdir(root)).filter((name) => name.startsWith('mise-backup-'))
+            staged =
+              backups.length === 1 &&
+              (await realFs.readFile(path.join(root, backups[0], 'install', 'original.exe'), 'utf8')) ===
+                'original executable'
+            await realFs.rm(installPath, { recursive: true, force: true })
+            await realFs.writeFile(marker, '')
+            throw new Error('install timed out')
+          }
+          return { stdout: '', stderr: '' }
+        })
+        try {
+          await expect(
+            (makeService() as any).installWithMise({ name: 'dwg2dxf', tool: DWG_TOOL }, undefined, [])
+          ).resolves.toBe('0.14')
+          expect(staged).toBe(true)
+          expect(await realFs.readFile(file, 'utf8')).toBe('original executable')
+          await expect(realFs.access(marker)).rejects.toMatchObject({ code: 'ENOENT' })
+          expect(miseUseCommands()).toEqual([
+            ['use', '-g', `${DWG_TOOL}@latest`],
+            ['use', '-g', '--force', X64_SPEC]
+          ])
+        } finally {
+          vi.mocked(application.getPath).mockImplementation(getPath)
+          mockFsp.access.mockReset().mockResolvedValue(undefined)
+          await realFs.rm(root, { recursive: true, force: true })
+        }
+      }
+    )
+
     it('removes the backup once the plain-spec restoration succeeds', async () => {
       stubGithubToolchain('use')
       mockFsp.cp.mockResolvedValue(undefined)
@@ -3124,7 +3182,9 @@ describe('BinaryManager', () => {
         if (args[0] === 'ls' && args.length === 2) return { stdout: JSON.stringify({}), stderr: '' }
         if (args[0] === 'ls')
           return {
-            stdout: JSON.stringify({ [DWG_TOOL]: [{ version: '0.14', active: true, install_path: '/install' }] }),
+            stdout: JSON.stringify({
+              [DWG_TOOL]: [{ version: '0.14', active: true, install_path: '/install/installs/libre-dwg-tool/0.14' }]
+            }),
             stderr: ''
           }
         if (args.at(-1) === X64_SPEC) throw new Error('download unavailable')

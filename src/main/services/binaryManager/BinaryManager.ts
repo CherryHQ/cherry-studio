@@ -1345,6 +1345,11 @@ export class BinaryManager extends BaseService {
     return null
   }
 
+  private parseMiseEntries(stdout: string): MiseInstallEntry[] {
+    const parsed = JSON.parse(stdout) as MiseInstallEntry[] | Record<string, MiseInstallEntry[]>
+    return (Array.isArray(parsed) ? parsed : Object.values(parsed)).flat()
+  }
+
   /** Whether a resolved target belongs to the recipe's own active install. */
   private async isWithinInstall(entry: MiseInstallEntry, canonical: string): Promise<boolean> {
     // When mise omits install_path there is nothing to attribute against, so the
@@ -1364,7 +1369,7 @@ export class BinaryManager extends BaseService {
    */
   private async isRecipeRunnable(name: string, tool: string): Promise<boolean> {
     const { stdout } = await this.runMise(['ls', '--json', tool])
-    const entries = Object.values(JSON.parse(stdout) as Record<string, MiseInstallEntry[]>).flat()
+    const entries = this.parseMiseEntries(stdout)
     const activeEntry = entries.find((entry) => entry.active)
     if (!activeEntry) return false
     const runnable = await this.resolveRunnableShim(name, tool)
@@ -1502,7 +1507,7 @@ export class BinaryManager extends BaseService {
     dependencies: readonly string[]
   ): Promise<void> {
     const { stdout } = await this.runMise(['ls', '--json', definition.tool])
-    const entries = Object.values(JSON.parse(stdout) as Record<string, MiseInstallEntry[]>).flat()
+    const entries = this.parseMiseEntries(stdout)
     const installPath = entries.find((entry) => entry.active)?.install_path
     if (!installPath) throw new Error(`mise did not report an active install path for ${definition.name}`)
 
@@ -1695,7 +1700,7 @@ export class BinaryManager extends BaseService {
           if (!backup.hadMarker) await fsp.rm(backup.markerPath, { force: true })
           await this.runMise(['reshim'])
           const { stdout } = await this.runMise(['ls', '--json', definition.tool])
-          const entries = Object.values(JSON.parse(stdout) as Record<string, MiseInstallEntry[]>).flat()
+          const entries = this.parseMiseEntries(stdout)
           restored =
             entries.some((entry) => entry.version === version && entry.installed !== false) &&
             !!(await this.resolveRunnableShim(definition.name, definition.tool))
@@ -1782,22 +1787,17 @@ export class BinaryManager extends BaseService {
     let tempDir: string | undefined
     try {
       const { stdout } = await this.runMise(['ls', '--json', tool])
-      const tools = Object.entries(JSON.parse(stdout) as Record<string, MiseInstallEntry[]>)
-      const match = tools
-        .flatMap(([short, entries]) => entries.map((entry) => ({ short, entry })))
-        .find(({ entry }) => entry.version === version)
-      const installPath = match?.entry.install_path
-      if (!installPath || !match?.entry.version) return undefined
-      const short = match.short
-        .replace(/([a-z0-9])([A-Z])/g, '$1-$2')
-        .replace(/([A-Z])([A-Z][a-z])/g, '$1-$2')
-        .replace(/[_\s]+/g, '-')
-        .toLowerCase()
+      const match = this.parseMiseEntries(stdout).find((entry) => entry.version === version)
+      const installPath = match?.install_path
+      if (!installPath) return undefined
+      const short = path.basename(path.dirname(installPath))
+      if (short === 'installs') return undefined
+      const versionPathname = path.basename(installPath)
       const markerPath = path.join(
         application.getPath('feature.binary.data'),
         'cache',
         short,
-        match.entry.version,
+        versionPathname,
         'incomplete'
       )
       let hadMarker = true
@@ -1832,9 +1832,7 @@ export class BinaryManager extends BaseService {
 
   private async getInstalledVersion(tool: string, requested?: string): Promise<string> {
     const { stdout } = await this.runMise(['ls', '--json', tool])
-    const entries = Object.values(
-      JSON.parse(stdout) as Record<string, Array<{ version?: string; active?: boolean }>>
-    ).flat()
+    const entries = this.parseMiseEntries(stdout)
     const requestedVersion = requested ? semverValid(requested) : null
     const matching = requestedVersion
       ? entries.find((entry) => semverValid(entry.version) === requestedVersion)
