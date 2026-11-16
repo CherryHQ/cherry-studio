@@ -126,7 +126,6 @@ const Failure = ({
           {error}
         </pre>
       )}
-      <p className="text-xs text-muted-foreground">{t('relocation.support.analysis_unavailable')}</p>
       {linkError ? <p className="text-xs text-destructive">{linkError}</p> : null}
       {copyError ? <p className="text-xs text-destructive">{copyError}</p> : null}
       <div className="flex w-full flex-wrap justify-center gap-2">
