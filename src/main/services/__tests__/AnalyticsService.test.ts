@@ -556,6 +556,48 @@ describe('AnalyticsService product events', () => {
     expect(events.filter((event) => event === '$identify')).toHaveLength(1)
   })
 
+  it('marks development traffic and keeps release traffic unmarked', async () => {
+    vi.stubEnv('DEV', false)
+    vi.stubEnv('MAIN_VITE_POSTHOG_KEY', '')
+    const release = new AnalyticsService()
+    await release._doInit()
+    await vi.waitFor(() => expect(release.isActivated).toBe(true))
+    release.trackProductEvent({ event: 'onboarding_option_selected', option: 'skip' })
+    expect(posthog.capture.mock.calls.at(-1)?.[0].properties.test).toBe(false)
+
+    BaseService.resetInstances()
+    vi.stubEnv('DEV', true)
+    vi.stubEnv('MAIN_VITE_POSTHOG_KEY', 'phc_test')
+    const development = new AnalyticsService()
+    await development._doInit()
+    await vi.waitFor(() => expect(development.isActivated).toBe(true))
+    development.trackProductEvent({ event: 'onboarding_option_selected', option: 'skip' })
+    expect(posthog.capture.mock.calls.at(-1)?.[0].properties.test).toBe(true)
+  })
+
+  it('sends usage-behavior events only when the build enables them', async () => {
+    vi.stubEnv('MAIN_VITE_POSTHOG_KEY', 'phc_test')
+    const service = new AnalyticsService()
+    await service._doInit()
+    await vi.waitFor(() => expect(service.isActivated).toBe(true))
+    const click = {
+      event: 'ui_clicked',
+      ui: 'chat.message.action.copy',
+      page: 'chat',
+      element: 'button',
+      input: 'pointer'
+    } as const
+
+    service.trackProductEvent(click)
+    service.trackProductEvent({ event: 'setting_changed', key: 'app.language' })
+    expect(posthog.capture).not.toHaveBeenCalledWith(expect.objectContaining({ event: 'ui_clicked' }))
+    expect(posthog.capture).not.toHaveBeenCalledWith(expect.objectContaining({ event: 'setting_changed' }))
+
+    vi.stubEnv('MAIN_VITE_ANALYTICS_BEHAVIOR_EVENTS', 'true')
+    service.trackProductEvent(click)
+    expect(posthog.capture).toHaveBeenCalledWith(expect.objectContaining({ event: 'ui_clicked' }))
+  })
+
   it('drops events raised without consent instead of replaying them later', async () => {
     vi.stubEnv('MAIN_VITE_POSTHOG_KEY', 'phc_test')
     captured.preferenceValues['app.privacy.policy_version'] = ''
