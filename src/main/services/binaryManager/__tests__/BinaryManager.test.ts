@@ -213,7 +213,7 @@ describe('BinaryManager', () => {
   it('finds a system mise on PATH when the bundled binary is missing', async () => {
     const misePath = '/usr/local/bin/mise'
     mockExecFileAsync.mockResolvedValue({ stdout: `${misePath}\n`, stderr: '' })
-    mockFs.existsSync.mockImplementation((candidate: string) => candidate === misePath)
+    ;(mockFs.existsSync as any).mockImplementation((candidate: string) => candidate === misePath)
 
     const service = new BinaryManager()
 
