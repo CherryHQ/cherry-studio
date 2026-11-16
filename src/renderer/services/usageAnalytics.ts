@@ -49,7 +49,10 @@ export function toAnalyticsPage(tab: Pick<Tab, 'type' | 'url'>): Omit<AnalyticsV
   }
   if (root !== 'app' || !first) return { page: 'other' }
   const page = APP_PAGES[first] ?? 'other'
-  if (page === 'mini_app' && second && BUILTIN_MINI_APP_IDS.has(second)) return { page, subpage: second }
+  // Built-in ids outside the event's id pattern (e.g. 'Felo') would make main reject the whole event.
+  if (page === 'mini_app' && second && BUILTIN_MINI_APP_IDS.has(second) && UI_TOKEN.test(second)) {
+    return { page, subpage: second }
+  }
   return { page }
 }
 
