@@ -7,7 +7,7 @@ const ImaLight: IconComponent = (props: SVGProps<SVGSVGElement>) => {
   return (
     <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="0 0 120 120" {...props}>
       <path fill="var(--icon-neutral-background, #FFFFFF)" d="M0 0H120V120H0z" />
-      <g transform="matrix(1.27919 0 0 1.27919 -16.112 -16.112)">
+      <g transform="matrix(1.84615 0 0 1.84615 -49.846 -49.846)">
         <mask
           id={`${iconId}-imalight__a`}
           width={65}
