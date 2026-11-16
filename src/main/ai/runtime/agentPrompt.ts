@@ -42,6 +42,8 @@ export interface BuildAgentRuntimePromptOptions {
   /** Materialized effective language; when omitted the preference is read live. */
   effectiveLanguage?: string | null
   mcpInstructions?: string
+  /** Effective turn model display name for `{{model_name}}`; defaults to `agent.modelName`. */
+  modelName?: string | null
   /** Variable values the turn was admitted with; a rebuild inside that turn must reuse them. */
   promptVariables?: PromptVariableInputs | null
 }
@@ -57,6 +59,7 @@ export async function buildAgentRuntimePrompt({
   customBaseContext,
   effectiveLanguage,
   mcpInstructions,
+  modelName,
   promptVariables
 }: BuildAgentRuntimePromptOptions): Promise<AgentRuntimePrompt> {
   const builtinRole = agent.configuration?.builtin_role as string | undefined
@@ -73,7 +76,7 @@ export async function buildAgentRuntimePrompt({
   if (builtinRole) await provisionBuiltinAgent(agentDataPath, builtinRole)
 
   const resolvedInstructions = instructions?.trim()
-    ? await replacePromptVariables(instructions, agent.modelName ?? undefined, promptVariables)
+    ? await replacePromptVariables(instructions, modelName ?? agent.modelName ?? undefined, promptVariables)
     : ''
   const hasAgentInstructions = Boolean(resolvedInstructions.trim())
   const parts = await promptBuilder.buildPromptParts(

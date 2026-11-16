@@ -224,6 +224,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       agent: { ...agent, instructions: this.turnInstructions ?? undefined },
       citationsGuidance,
       effectiveLanguage: this.turnLanguage,
+      modelName: initialSnapshot.model.name ?? initialSnapshot.model.id,
       promptVariables: this.turnPromptVariables
     })
     const mountedServers = resolveMountedMcpServers(agent, {
@@ -271,7 +272,9 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       initialSnapshot.mcpServerSnapshots,
       linkedChannel,
       agentDataPath,
-      this.input.knowledgeBaseIds
+      this.input.knowledgeBaseIds,
+      undefined,
+      this.input.modelId
     )
 
     const finalSnapshot = await capturePiConnectionSnapshot(
