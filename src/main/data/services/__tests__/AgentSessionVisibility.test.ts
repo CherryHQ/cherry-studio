@@ -1,4 +1,4 @@
-import { setupTestDatabase } from '@test-helpers/db'
+import { setupTestDatabase, seedSessionRoot } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -322,6 +322,7 @@ describe('background session isolation', () => {
       dbh.db
         .insert(agentSessionMessageTable)
         .values({
+          parentId: seedSessionRoot(dbh.db, session.id),
           id: crypto.randomUUID(),
           sessionId: session.id,
           role: 'user',

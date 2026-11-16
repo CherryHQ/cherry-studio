@@ -195,9 +195,7 @@ export default function MarketplacePage() {
                 variant={moreMcpSources ? 'ghost' : 'default'}
                 className="shrink-0 rounded-full focus-visible:underline"
                 aria-pressed={!moreMcpSources}
-                style={
-                  moreMcpSources ? undefined : { backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)' }
-                }
+                style={moreMcpSources ? undefined : { backgroundColor: 'var(--primary)' }}
                 onClick={() =>
                   void navigate({ to: '/app/marketplace', search: { mcpView: 'curated' }, replace: true })
                 }>

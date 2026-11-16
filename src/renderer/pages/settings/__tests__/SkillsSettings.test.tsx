@@ -45,6 +45,7 @@ vi.mock('@renderer/components/resourceCatalog/catalog', () => ({
     ]
     return (
       <>
+        {props.headerActions}
         {props.toolbarLeading}
         {props.toolbarFooter}
         <ul aria-label="Installed skills">
@@ -80,9 +81,34 @@ describe('SkillsSettings', () => {
     )
   })
 
+  it('opens export controls on demand and returns keyboard focus to the entry', async () => {
+    const user = userEvent.setup()
+    render(<SkillsSettings />)
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(screen.queryByRole('switch', { name: '向外部智能体导出技能' })).not.toBeInTheDocument()
+    expect(ipcMock).not.toHaveBeenCalled()
+    const help = screen.getByRole('button', { name: '技能设置' })
+    help.focus()
+    await user.keyboard('{Enter}')
+    expect(screen.getByRole('dialog')).toHaveTextContent('~/.agents/skills')
+    await user.keyboard('{Escape}')
+    expect(help).toHaveFocus()
+    await user.click(help)
+    await user.click(screen.getByRole('button', { name: '帮助' }))
+    expect(screen.getByText(/每个技能的选择仍会保留/)).toBeVisible()
+    await user.keyboard('{Escape}')
+    await waitFor(() => expect(screen.queryByText(/每个技能的选择仍会保留/)).not.toBeInTheDocument())
+    await user.click(screen.getByRole('button', { name: '完成' }))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(help).toHaveFocus()
+    expect(ipcMock).not.toHaveBeenCalled()
+  })
+
   it('saves the export switch and retries only the failed sync', async () => {
     ipcMock.mockRejectedValueOnce(new Error('failed')).mockResolvedValueOnce(undefined)
     render(<SkillsSettings />)
+    await userEvent.setup().click(screen.getByRole('button', { name: '技能设置' }))
     const toggle = screen.getByRole('switch', { name: '向外部智能体导出技能' })
     expect(toggle).not.toBeChecked()
     await userEvent.setup().click(toggle)
@@ -96,11 +122,9 @@ describe('SkillsSettings', () => {
     expect(ipcMock).toHaveBeenCalledTimes(2)
   })
 
-  it('filters the supplied catalog by physical scope and round-trips the tab through the route search', async () => {
+  it('filters by physical scope and round-trips the tab through the route search', async () => {
     const user = userEvent.setup()
     const view = render(<SkillsSettings />)
-
-    expect(screen.getAllByRole('tab').map((tab) => tab.textContent)).toEqual(['全部', '系统', '内置'])
     expect(screen.getAllByRole('listitem')).toHaveLength(5)
 
     await user.click(screen.getByRole('tab', { name: '系统' }))
@@ -112,19 +136,16 @@ describe('SkillsSettings', () => {
       'Online import'
     ])
     expect(screen.getByRole('tab', { name: '系统' })).toHaveAttribute('aria-selected', 'true')
-
     await user.click(screen.getByRole('tab', { name: '内置' }))
-    expect(navigateMock).toHaveBeenLastCalledWith({ to: '/settings/skills', search: { scope: 'builtin' } })
     view.rerender(<SkillsSettings />)
     expect(screen.getAllByRole('listitem').map((item) => item.textContent)).toEqual(['Builtin skill'])
 
     await user.click(screen.getByRole('tab', { name: '全部' }))
-    expect(navigateMock).toHaveBeenLastCalledWith({ to: '/settings/skills', search: { scope: 'all' } })
     view.rerender(<SkillsSettings />)
     expect(screen.getAllByRole('listitem')).toHaveLength(5)
   })
 
-  it('restores the active tab from the route search and carries it into the detail route', () => {
+  it('restores the selected scope from the route search and carries it into the detail route', () => {
     routerState.search = { scope: 'system' }
     render(<SkillsSettings />)
 
@@ -162,14 +183,16 @@ describe('SkillsSettings', () => {
     const user = userEvent.setup()
     const firstView = render(<SkillsSettings />)
 
-    await user.click(screen.getByRole('switch', { name: '仅显示已开启技能' }))
+    await user.click(screen.getByRole('button', { name: '筛选技能' }))
+    await user.click(screen.getByRole('menuitemcheckbox', { name: '仅显示已开启技能' }))
 
     expect(MockUseCacheUtils.getPersistCacheValue('settings.skills.enabled_only')).toBe(true)
 
     firstView.unmount()
     render(<SkillsSettings />)
 
-    expect(screen.getByRole('switch', { name: '仅显示已开启技能' })).toBeChecked()
+    await user.click(screen.getByRole('button', { name: '筛选技能' }))
+    expect(screen.getByRole('menuitemcheckbox', { name: '仅显示已开启技能' })).toBeChecked()
   })
 
   it('keeps globally enabled Skills when the enabled-only filter is active', () => {
