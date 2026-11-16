@@ -50,6 +50,7 @@ import AgentComposerSlot from './AgentComposerSlot'
 import { AgentChatNavbar } from './components/AgentChatNavbar'
 import AgentCitationsPanel from './components/AgentCitationsPanel'
 import { type AgentFileNavigationRequest, AgentRightPane, AgentTaskProgressCapsule } from './components/AgentRightPane'
+import { AgentSessionMetricsBar } from './components/AgentSessionMetricsBar'
 import { locateAgentMessageInList, scrollAgentMessageListToEnd } from './messages/agentMessageListAdapter'
 import type { CreateAgentSessionDefaults } from './types'
 import { type AgentChatRuntimeState, useAgentChatRuntimeState } from './useAgentChatRuntimeState'
@@ -637,6 +638,9 @@ const AgentChatSessionCenter = ({
   const composer = (
     <div className="flex w-full flex-col">
       {!isMultiSelectMode && <AgentTaskProgressCapsule />}
+      {!isMultiSelectMode && (
+        <AgentSessionMetricsBar messages={runtime.uiMessages} partsByMessageId={runtime.partsByMessageId} />
+      )}
       <AgentComposerSlot
         editBusy={runtime.editBusy}
         agentId={agentId}
