@@ -122,6 +122,7 @@ vi.mock('@cherrystudio/ui', async () => {
       React.createElement(tag, withoutDomOnlyProps(props), children)
 
   return {
+    Alert: ({ children, role }: any) => React.createElement('div', { role: role ?? 'alert' }, children),
     Breadcrumb: passthrough('nav'),
     BreadcrumbItem: passthrough('span'),
     BreadcrumbList: passthrough('div'),

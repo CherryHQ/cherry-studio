@@ -3,9 +3,10 @@ import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button, type CodeEditorHandles, ConfirmDialog } from '@cherrystudio/ui'
+import { type CodeEditorHandles, ConfirmDialog } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
+import { ErrorNotice } from '@renderer/components/ErrorNotice'
 import type { RichEditorRef } from '@renderer/components/RichEditor/types'
 import { useCache } from '@renderer/data/hooks/useCache'
 import { useDirectoryTree } from '@renderer/hooks/useDirectoryTree'
@@ -1099,37 +1100,36 @@ const NotesPage: FC<NotesPageProps> = ({ notePath, onNoteOpened }) => {
             onRenameNode={handleRenameNode}
           />
           {fileSession.saveError && (
-            <div
-              role="alert"
-              className="bg-error-subtle text-error-subtle-foreground flex shrink-0 items-center gap-2 border-b border-error-border px-3 py-2 text-xs">
-              <span className="min-w-0 flex-1">
-                {t(
-                  fileSession.metadataRecoveryPending
-                    ? 'notes.save_failure.metadata_pending'
-                    : 'notes.save_failure.description'
-                )}
-              </span>
-              {!fileSession.metadataRecoveryPending && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  disabled={fileSession.isSaving}
-                  onClick={() => void handleRetrySave()}>
-                  {t('common.retry')}
-                </Button>
+            <ErrorNotice
+              variant="inline"
+              className="shrink-0 rounded-none border-x-0 border-t-0"
+              title={t(
+                fileSession.metadataRecoveryPending
+                  ? 'notes.save_failure.metadata_pending'
+                  : 'notes.save_failure.description'
               )}
-              <ErrorDetailAction
-                error={fileSession.saveError}
-                message={t(
-                  fileSession.metadataRecoveryPending
-                    ? 'notes.save_failure.metadata_pending'
-                    : 'notes.save_failure.description'
-                )}
-                source="notes"
-                operation={fileSession.metadataRecoveryPending ? 'notes.metadata.recover' : 'notes.file.write'}
-              />
-            </div>
+              action={
+                !fileSession.metadataRecoveryPending
+                  ? {
+                      label: t('common.retry'),
+                      onClick: () => void handleRetrySave(),
+                      disabled: fileSession.isSaving
+                    }
+                  : undefined
+              }
+              detail={
+                <ErrorDetailAction
+                  error={fileSession.saveError}
+                  message={t(
+                    fileSession.metadataRecoveryPending
+                      ? 'notes.save_failure.metadata_pending'
+                      : 'notes.save_failure.description'
+                  )}
+                  source="notes"
+                  operation={fileSession.metadataRecoveryPending ? 'notes.metadata.recover' : 'notes.file.write'}
+                />
+              }
+            />
           )}
           {shouldRetainMissingDraft && (
             <div
