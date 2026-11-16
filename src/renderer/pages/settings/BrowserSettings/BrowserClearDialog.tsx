@@ -14,6 +14,7 @@ import {
   Label
 } from '@cherrystudio/ui'
 import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
+import { ErrorNotice } from '@renderer/components/ErrorNotice'
 import { cacheService } from '@renderer/data/CacheService'
 import { ipcApi } from '@renderer/ipc'
 
@@ -101,17 +102,18 @@ function BrowserClearContent({
         ))}
       </div>
       {error ? (
-        <div className="flex items-center gap-2">
-          <p role="alert" className="text-error text-sm">
-            {t('settings.browser.clearError')}
-          </p>
-          <ErrorDetailAction
-            error={error}
-            message={t('settings.browser.clearError')}
-            source="settings.browser"
-            operation="browser.clear"
-          />
-        </div>
+        <ErrorNotice
+          variant="inline"
+          title={t('settings.browser.clearError')}
+          detail={
+            <ErrorDetailAction
+              error={error}
+              message={t('settings.browser.clearError')}
+              source="settings.browser"
+              operation="browser.clear"
+            />
+          }
+        />
       ) : null}
       <DialogFooter>
         <DialogClose asChild>

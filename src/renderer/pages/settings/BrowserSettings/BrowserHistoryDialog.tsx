@@ -22,6 +22,7 @@ import {
 import { useInfiniteFlatItems, useInfiniteQuery, useMutation } from '@data/hooks/useDataApi'
 import { useDataChange } from '@data/hooks/useDataChange'
 import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
+import { ErrorNotice } from '@renderer/components/ErrorNotice'
 import { GroupedVirtualList } from '@renderer/components/VirtualList'
 import { useTabs } from '@renderer/hooks/tab'
 import { toast } from '@renderer/services/toast'
@@ -158,18 +159,19 @@ function BrowserHistoryContent({ onOpenPage }: { onOpenPage: () => void }) {
           />
         </div>
         {(actionError || historyError) && (
-          <div role="alert" className="flex items-center gap-2 text-error text-sm">
-            <span>{t('settings.browser.error')}</span>
-            <Button variant="ghost" onClick={() => void run(refetch)}>
-              {t('common.refresh')}
-            </Button>
-            <ErrorDetailAction
-              error={actionError ?? historyError}
-              message={t('settings.browser.error')}
-              source="settings.browser"
-              operation={actionError ? 'browser.history.action' : 'browser.history.load'}
-            />
-          </div>
+          <ErrorNotice
+            variant="inline"
+            title={t('settings.browser.error')}
+            action={{ label: t('common.refresh'), onClick: () => void run(refetch) }}
+            detail={
+              <ErrorDetailAction
+                error={actionError ?? historyError}
+                message={t('settings.browser.error')}
+                source="settings.browser"
+                operation={actionError ? 'browser.history.action' : 'browser.history.load'}
+              />
+            }
+          />
         )}
       </div>
       <div className="@container min-h-0 flex-1" aria-busy={isRefreshing}>
