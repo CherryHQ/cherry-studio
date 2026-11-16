@@ -10,7 +10,7 @@ The System Prompt page of a Pi Durable Agent (`PiPromptField`) shows the assembl
 
 ## Proposal
 
-- The page shows the prompt as blocks in the order the runtime sends them, each with a short title.
+- The page leads with the Agent System Prompt and lists the other blocks by name, in the order the runtime sends them, each with how it is produced (auto-generated, edited, or updates automatically). A block opens on its own page, titled in the dialog header, to edit or read.
 - **Guidance blocks** (instruction precedence, reporting deliverables, creating Agents and changing settings, bootstrap, memories, citations) can be edited. An edit is saved for that Agent as an override in `configuration.prompt_overrides`, keyed by block. An edited block is marked as changed and offers Restore auto-generated, which removes the override.
 - An override replaces only a block the runtime would generate for the current settings. When a setting removes the block (for example, citations when no lookup tool is enabled), the override is kept but not sent.
 - **The Agent System Prompt block** holds the Agent's instructions. For a built-in Agent without its own instructions, it shows the built-in prompt; editing it saves custom instructions, and Restore built-in prompt clears them so the built-in prompt applies again.
@@ -28,7 +28,7 @@ The System Prompt page of a Pi Durable Agent (`PiPromptField`) shows the assembl
 
 ## Acceptance criteria
 
-- AC1 — A Pi Durable Agent's System Prompt page shows its prompt as titled blocks in runtime order: editable guidance blocks, the Agent System Prompt, and read-only live blocks captioned with what keeps them current (verification: renderer; owner: implementer)
+- AC1 — A Pi Durable Agent's System Prompt page leads with the Agent System Prompt and lists the other blocks by name in runtime order; each opens on its own page, where guidance blocks are editable and live blocks are read-only and captioned with what keeps them current (verification: renderer; owner: implementer)
 - AC2 — Editing a guidance block saves an override for that Agent, marks the block as changed, and the next prompt the runtime assembles uses the edited text in that block's place (verification: unit; owner: implementer)
 - AC3 — Restore auto-generated removes the override, and the block and the next assembled prompt show the generated text again (verification: unit; owner: implementer)
 - AC4 — An override for a block the current settings do not generate is not sent (verification: unit; owner: implementer)
