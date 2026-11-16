@@ -141,6 +141,10 @@ export class MockMainPreferenceService {
     }
   )
 
+  public onRendererPreferencesChanged = vi.fn((_listener: (changes: Array<[string, unknown]>) => void) => ({
+    dispose: () => {}
+  }))
+
   // Mock utility methods
   public getAll = vi.fn((): UnifiedPreferenceType => {
     const result: any = {}

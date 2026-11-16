@@ -14,6 +14,7 @@ import ToastHost from '@renderer/components/ToastHost'
 import { VoicePlaybackHost } from '@renderer/components/VoicePlaybackHost'
 import { WindowFatalFallback } from '@renderer/components/WindowFatalFallback'
 import { useAutoReadPreferenceSync } from '@renderer/hooks/useAutoReadPreferenceSync'
+import { useTabDwellTracking, useUiClickTracking } from '@renderer/hooks/useUsageAnalytics'
 import { useWindowRuntime } from '@renderer/hooks/useWindowRuntime'
 import { registerImageModeChooser } from '@renderer/services/imageExportModeChooser'
 import { SubWindowAppShell } from '@renderer/windows/subWindow/SubWindowAppShell'
@@ -26,6 +27,8 @@ import { WindowFileEditRecovery } from '@renderer/windows/WindowFileEditRecovery
 function SubWindowRuntime(): null {
   useWindowRuntime()
   useAutoReadPreferenceSync()
+  useUiClickTracking()
+  useTabDwellTracking(true)
 
   // Same route tree as main, so topic/message exports run here too — register the
   // image-mode popup behind the services seam like MainApp does.

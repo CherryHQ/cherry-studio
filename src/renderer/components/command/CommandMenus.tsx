@@ -50,6 +50,8 @@ type CommandIconRenderer = (iconKey: string | undefined) => React.ReactNode
 
 const logger = loggerService.withContext('CommandMenus')
 
+const menuSource = (location: MenuLocation) => (location === 'command.palette' ? 'palette' : 'menu')
+
 export type MaybePromise<T> = T | PromiseLike<T>
 
 function useNativeMenuRequest() {
@@ -354,7 +356,7 @@ export function CommandMenuItems({
         <CommandMenuItemView
           key={`${item.type}-${index}`}
           item={item}
-          onExecute={runtime.execute}
+          onExecute={(command) => runtime.execute(command, undefined, menuSource(location))}
           renderIcon={renderIcon}
         />
       ))}
@@ -563,7 +565,7 @@ export function CommandContextMenu({
             }
 
             if (result?.type === 'command') {
-              request.origin.execute(result.command)
+              request.origin.execute(result.command, undefined, menuSource(location))
               return
             }
 
@@ -625,7 +627,7 @@ export function CommandContextMenu({
               <CommandMenuItemView
                 key={`${item.type}-${index}`}
                 item={item}
-                onExecute={runtime.execute}
+                onExecute={(command) => runtime.execute(command, undefined, menuSource(location))}
                 onSelectItem={handleCherrySelectItem}
                 renderIcon={renderIcon}
               />
@@ -852,7 +854,7 @@ export function CommandPopupMenu({
         const result = await window.api.command.showNativePopupMenu(model, anchor)
         if (!request.isCurrent()) return
         if (result?.type === 'command') {
-          request.origin.execute(result.command)
+          request.origin.execute(result.command, undefined, menuSource(location))
         } else if (result?.type === 'custom') {
           getExtraItemActions(decoratedExtraItems).get(result.id)?.()
         }
@@ -957,7 +959,7 @@ export function CommandPopupMenu({
             <CommandDropdownMenuItemView
               key={`${item.type}-${index}`}
               item={item}
-              onExecute={runtime.execute}
+              onExecute={(command) => runtime.execute(command, undefined, menuSource(location))}
               onSelectItem={handleCherrySelectItem}
               renderIcon={renderIcon}
             />

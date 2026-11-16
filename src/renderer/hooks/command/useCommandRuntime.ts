@@ -1,6 +1,7 @@
 import { createContext, type RefObject, use, useCallback, useLayoutEffect, useRef } from 'react'
 
 import { loggerService } from '@logger'
+import { trackProductEvent } from '@renderer/services/productAnalytics'
 import type { PreferenceShortcutType } from '@shared/data/preference/preferenceTypes'
 import type { MenuPresentationMode } from '@shared/types/command'
 import type { CommandId } from '@shared/utils/command'
@@ -17,12 +18,19 @@ const logger = loggerService.withContext('useCommandRuntime')
 
 export type CommandHandler = (args?: unknown) => void | Promise<void>
 export type CommandHandlerSource = CommandHandler | Readonly<RefObject<CommandHandler>>
+export type CommandExecutionSource = 'shortcut' | 'menu' | 'palette' | 'other'
 
-export function runCommandHandler(command: CommandId, handler: CommandHandler, args?: unknown): void {
+export function runCommandHandler(
+  command: CommandId,
+  handler: CommandHandler,
+  args?: unknown,
+  source: CommandExecutionSource = 'other'
+): void {
   try {
     void Promise.resolve(handler(args)).catch((error) =>
       logger.error(`Renderer command handler failed: ${command}`, error as Error)
     )
+    trackProductEvent({ event: 'command_executed', command, source })
   } catch (error) {
     logger.error(`Renderer command handler failed: ${command}`, error as Error)
   }
@@ -36,7 +44,7 @@ export interface CommandHandlerOptions {
 }
 
 export interface CommandRuntime {
-  execute: (command: CommandId, args?: unknown) => void
+  execute: (command: CommandId, args?: unknown, source?: CommandExecutionSource) => void
   hasHandler: (command: CommandId) => boolean
   registerHandler: (command: CommandId, handler: CommandHandlerSource, options?: CommandHandlerOptions) => () => void
 }
@@ -131,12 +139,12 @@ export function useCommandOrigin() {
       )
       return {
         isActive,
-        execute: (command: CommandId, args?: unknown) => {
+        execute: (command: CommandId, args?: unknown, source?: CommandExecutionSource) => {
           const selected = captured.get(command)
           if (!isActive() || !selected) return
           const current = findScopeHandler(originScope, command)
           if (current !== selected.entry || readRegisteredHandler(current) !== selected.handler) return
-          runCommandHandler(command, selected.handler, args)
+          runCommandHandler(command, selected.handler, args, source)
         }
       }
     },

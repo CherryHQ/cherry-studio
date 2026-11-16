@@ -9,6 +9,7 @@ import { WindowFatalFallback } from '@renderer/components/WindowFatalFallback'
 import { useAutoReadPreferenceSync } from '@renderer/hooks/useAutoReadPreferenceSync'
 import { useCustomCss } from '@renderer/hooks/useCustomCss'
 import { useLanguageSync } from '@renderer/hooks/useLanguageSync'
+import { useUiClickTracking, useWindowDwellTracking } from '@renderer/hooks/useUsageAnalytics'
 import { useWebSearchFallbackNotice } from '@renderer/hooks/useWebSearchFallbackNotice'
 
 import HomeWindow from './home/HomeWindow'
@@ -24,6 +25,8 @@ function QuickAssistantRuntime(): null {
   useWebSearchFallbackNotice()
   useAutoReadPreferenceSync()
   useCustomCss()
+  useUiClickTracking('quick_assistant')
+  useWindowDwellTracking('quick_assistant')
 
   return null
 }

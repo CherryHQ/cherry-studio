@@ -25,6 +25,7 @@ const PRODUCT_POSTHOG_KEY = POSTHOG_PROJECT_KEYS.global
 const POSTHOG_HOST = 'https://us.i.posthog.com'
 const PRODUCT_EVENT_SCHEMA_VERSION = 1
 const MAX_PENDING_PRODUCT_EVENTS = 200
+const SETTING_CHANGE_COALESCE_MS = 2_000
 
 // Development builds record usage insights only in a project set through MAIN_VITE_POSTHOG_KEY.
 function resolvePostHogKey(releaseKey: string): string {
@@ -80,6 +81,7 @@ export class AnalyticsService extends BaseService implements Activatable {
   /** Consented product events raised while the clients are still starting; replayed once they are up. */
   private pendingProductEvents: ProductAnalyticsEvent[] = []
   private productEventsReady = false
+  private readonly pendingSettingChanges = new Map<string, { value: unknown; timer: ReturnType<typeof setTimeout> }>()
   /** Latest desired running state — requires both data collection and current policy consent. */
   private desiredEnabled = false
   /**
@@ -124,6 +126,15 @@ export class AnalyticsService extends BaseService implements Activatable {
       preferenceService.subscribeChange('app.privacy.data_collection.enabled', refreshDesiredEnabled)
     )
     this.registerDisposable(preferenceService.subscribeChange('app.privacy.policy_version', refreshDesiredEnabled))
+    this.registerDisposable(
+      preferenceService.onRendererPreferencesChanged((changes) => {
+        for (const [key, value] of changes) this.recordSettingChange(key, value)
+      })
+    )
+    this.registerDisposable(() => {
+      for (const { timer } of this.pendingSettingChanges.values()) clearTimeout(timer)
+      this.pendingSettingChanges.clear()
+    })
   }
 
   protected async onReady() {
@@ -257,6 +268,21 @@ export class AnalyticsService extends BaseService implements Activatable {
     }
     if (this.pendingProductEvents.length >= MAX_PENDING_PRODUCT_EVENTS) this.pendingProductEvents.shift()
     this.pendingProductEvents.push(event)
+  }
+
+  // Rapid edits of one setting (sliders, typing) report once with the last value; text values stay out.
+  private recordSettingChange(key: string, value: unknown): void {
+    const pending = this.pendingSettingChanges.get(key)
+    if (pending) clearTimeout(pending.timer)
+    const timer = setTimeout(() => {
+      const latest = this.pendingSettingChanges.get(key)?.value
+      this.pendingSettingChanges.delete(key)
+      const value =
+        typeof latest === 'boolean' || (typeof latest === 'number' && Number.isFinite(latest)) ? latest : undefined
+      this.trackProductEvent({ event: 'setting_changed', key, ...(value !== undefined && { value }) })
+    }, SETTING_CHANGE_COALESCE_MS)
+    timer.unref?.()
+    this.pendingSettingChanges.set(key, { value, timer })
   }
 
   /** Binds later product events to the signed-in Cherry AI account; null returns them to the device id. */

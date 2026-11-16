@@ -4,7 +4,7 @@ import { isEqual } from 'es-toolkit/compat'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
-import { BaseService, DependsOn, Injectable, ServicePhase } from '@main/core/lifecycle'
+import { BaseService, DependsOn, Emitter, type Event, Injectable, ServicePhase } from '@main/core/lifecycle'
 import { Phase } from '@main/core/lifecycle'
 import { isDev } from '@main/core/platform'
 import { validateSender } from '@main/core/security/validateSender'
@@ -206,6 +206,11 @@ export class PreferenceService extends BaseService {
   // Custom notifier for main process change notifications
   private notifier = new PreferenceNotifier()
 
+  private readonly _onRendererPreferencesChanged = new Emitter<Array<[key: string, value: unknown]>>()
+  /** Values a renderer window actually changed; main-process writes never fire it. */
+  public readonly onRendererPreferencesChanged: Event<Array<[key: string, value: unknown]>> =
+    this._onRendererPreferencesChanged.event
+
   constructor() {
     super()
   }
@@ -265,7 +270,9 @@ export class PreferenceService extends BaseService {
       IpcChannel.Preference_Set,
       async (event, key: UnifiedPreferenceKeyType, value: UnifiedPreferenceType[UnifiedPreferenceKeyType]) => {
         this.assertTrustedSender(event, IpcChannel.Preference_Set)
+        const changed = this.changedEntries({ [key]: value })
         await this.set(key, value)
+        if (changed.length > 0) this._onRendererPreferencesChanged.fire(changed)
       }
     )
 
@@ -276,7 +283,9 @@ export class PreferenceService extends BaseService {
 
     this.ipcHandle(IpcChannel.Preference_SetMultiple, async (event, updates: Partial<UnifiedPreferenceType>) => {
       this.assertTrustedSender(event, IpcChannel.Preference_SetMultiple)
+      const changed = this.changedEntries(updates)
       await this.setMultiple(updates)
+      if (changed.length > 0) this._onRendererPreferencesChanged.fire(changed)
     })
 
     this.ipcHandle(IpcChannel.Preference_GetAll, (event) => {
@@ -296,6 +305,17 @@ export class PreferenceService extends BaseService {
         throw new Error('Preference subscribe requires a BrowserWindow sender')
       }
       this.subscribeForWindow(windowId, keys)
+    })
+  }
+
+  // Read before the write; an unknown key yields nothing here and still fails in the write itself.
+  private changedEntries(updates: Partial<UnifiedPreferenceType>): Array<[key: string, value: unknown]> {
+    return Object.entries(updates).filter(([key, value]) => {
+      try {
+        return !isEqual(this.get(key as UnifiedPreferenceKeyType), value)
+      } catch {
+        return false
+      }
     })
   }
 
