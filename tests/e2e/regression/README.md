@@ -141,7 +141,7 @@ Custom chat provider creation fills two required endpoint URLs:
 - OpenAI: `CHERRY_TEST_CUSTOM_PROVIDER_BASE_URL` (for example, `https://api.siliconflow.cn/v1`).
 - Anthropic: `CHERRY_TEST_CUSTOM_PROVIDER_ANTHROPIC_BASE_URL` (for example, `https://api.siliconflow.cn`).
 
-Both endpoints use `CHERRY_TEST_CUSTOM_PROVIDER_API_KEY`. Embedding uses a worker-owned loopback mock with deterministic fixture vectors; no embedding provider environment variables are required. The mock stays available across application restarts and closes with the Playwright worker. Knowledge cases annotate this boundary in reports: indexing, retrieval, and persistence run in the application, while vector similarity comes from fixtures and does not validate model quality.
+Both endpoints use `CHERRY_TEST_CUSTOM_PROVIDER_API_KEY`. The embedding provider remains separately configured.
 
 Never attach credentials or enable credential-bearing Playwright traces. HTML reports and failure screenshots are produced by Playwright and the fixture; sanitized Electron logs are copied during finalization.
 

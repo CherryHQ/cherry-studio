@@ -16,7 +16,6 @@ The separate [on-demand QA controller](../ondemand/README.md) reuses the ref, in
 | `windowsNotificationShortcut.ts` | Register the SDK shortcut with the Windows shell and remove the unchanged owned copy |
 | `lifecycle.ts` | Start, reuse, restart, and stop the owned application |
 | `mockProvider.ts`, `mockWorker.ts` | Start, verify and stop the run-owned aiMock service |
-| `embeddingMock.ts` | Loopback embedding fixtures shared by regression workers and on-demand QA |
 | `process.ts` | OS process identity, ancestry, ports, and termination |
 | `debugBridge.ts`, `cdpClient.ts` | Explicit main-process debug operations and HTTP callback delivery |
 | `systemAutomation.ts` | Native dialogs and notifications, external text selection, and keyboard input |
