@@ -374,6 +374,7 @@ export class McpSkillService extends BaseService {
       .get('AgentSessionRuntimeService')
       .recordMcpSkillLoad(sessionId, { ...entry, originFingerprint: held.originFingerprint, invalidated: false })
     held.loaded = true
+    // oxlint-disable-next-line no-restricted-globals -- Isolate the held manifest, including arbitrary nested metadata, from tool callers.
     return { entry: structuredClone(held.entry), content: file }
   }
 
@@ -395,6 +396,7 @@ export class McpSkillService extends BaseService {
         AbortSignal.any([session.abort.signal, held.abort.signal, ...(signal ? [signal] : [])]),
         async () => ({ contents: [cached] })
       )
+      // oxlint-disable-next-line no-restricted-globals -- Prevent callers from mutating the verified cached resource and its nested metadata.
       return structuredClone(cached)
     }
     const result = await application.get('McpRuntimeService').getResource({
@@ -407,6 +409,7 @@ export class McpSkillService extends BaseService {
     this.assertHeld(session, held)
     const file = this.verify(held, uri, result.contents)
     held.files.set(uri, file)
+    // oxlint-disable-next-line no-restricted-globals -- Keep the verified cache independent of the resource returned to tool callers.
     return structuredClone(file)
   }
 
