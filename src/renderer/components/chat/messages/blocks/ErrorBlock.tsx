@@ -5,10 +5,14 @@ import { Trans, useTranslation } from 'react-i18next'
 import { Button } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { loggerService } from '@logger'
+import { useCherryCloudModelAvailability } from '@renderer/hooks/useCherryCloudModelAvailability'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { getHttpMessageLabelKey, getProviderLabelKey } from '@renderer/i18n/label'
 import type { SerializedError } from '@renderer/types/error'
-import { getCherryCloudErrorPresentation } from '@renderer/utils/cherryCloudErrorPresentation'
+import {
+  getCherryCloudErrorPresentation,
+  getCherryCloudQuotaRefusalTitleKey
+} from '@renderer/utils/cherryCloudErrorPresentation'
 import { formatErrorMessageWithPrefix, providerErrorText } from '@renderer/utils/error'
 import {
   classifyError,
@@ -16,6 +20,8 @@ import {
   getClaudeCodeExitInfo,
   getLocalModelResolutionFailure
 } from '@renderer/utils/errorClassifier'
+import { resolveUniqueModelId } from '@renderer/utils/message/modelIdentity'
+import { parseUniqueModelId } from '@shared/data/types/model'
 
 import { useMessageListActions } from '../MessageListProvider'
 import type { MessageListItem } from '../types'
@@ -144,13 +150,18 @@ const MessageErrorInfo: React.FC<{
   const cloudPresentation = getCherryCloudErrorPresentation(error, providerId, classification.category)
   const cherryCloudQuotaRejection = cloudPresentation.quota
   const cherryCloudQuotaText = cherryCloudQuotaRejection ? cloudPresentation.text : ''
+  const { isModelUnavailable } = useCherryCloudModelAvailability(cherryCloudQuotaRejection)
+  const cloudModelId = cherryCloudQuotaRejection ? resolveUniqueModelId(message.modelId, message.model) : undefined
+  const cherryCloudQuotaExhausted = Boolean(
+    cloudModelId && isModelUnavailable({ id: cloudModelId, providerId: parseUniqueModelId(cloudModelId).providerId })
+  )
   // An app-owned i18nKey is the throwing code's own display text — prefer it over a
   // pattern-matched category heading, which can name the wrong subsystem entirely (an
   // OCR-fallback failure must not present as a chat-provider auth error). Keys that
   // interpolate <provider> still go through the classification branch: plain `t()`
   // would render the raw tags, and the provider branch needs the <Trans> link form.
   const localizedErrorMessage = useMemo(() => {
-    if (cherryCloudQuotaRejection) return t('models.detail.quota_exhausted')
+    if (cherryCloudQuotaRejection) return t(getCherryCloudQuotaRefusalTitleKey(cherryCloudQuotaExhausted))
     if (hasAppOwnedI18nKey && !providerId) return t(appOwnedErrorKey)
     if (localModelFailure) {
       const { providerId: failedProviderId, modelId } = localModelFailure
@@ -162,6 +173,7 @@ const MessageErrorInfo: React.FC<{
     return t(classification.i18nKey, providerId ? { provider: t(getProviderLabelKey(providerId)) } : undefined)
   }, [
     cherryCloudQuotaRejection,
+    cherryCloudQuotaExhausted,
     hasAppOwnedI18nKey,
     appOwnedErrorKey,
     classification.i18nKey,

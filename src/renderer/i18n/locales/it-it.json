@@ -2937,6 +2937,7 @@
   "models.detail.model_id": "ID del modello",
   "models.detail.provider": "Fornitore",
   "models.detail.quota_exhausted": "Quota del piano esaurita; in attesa del ripristino",
+  "models.detail.quota_insufficient_for_request": "Quota insufficiente per questa richiesta. Riduci il contesto o attendi il termine delle richieste in corso",
   "models.edit": "Modifica modello",
   "models.group.ungrouped": "Senza gruppo",
   "models.multi_select.label": "Selezione multipla",

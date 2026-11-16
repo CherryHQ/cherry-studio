@@ -5,6 +5,11 @@ import type { ErrorCategory } from '@shared/utils/errorCategory'
 
 import { providerErrorText } from './error'
 
+/** A refusal may only mean this request's reservation did not fit; "exhausted" needs a zero-unit snapshot. */
+export function getCherryCloudQuotaRefusalTitleKey(exhausted: boolean | undefined) {
+  return exhausted ? 'models.detail.quota_exhausted' : 'models.detail.quota_insufficient_for_request'
+}
+
 /** Provider wording is presentation only; structured classification owns quota identity. */
 export function getCherryCloudErrorPresentation(
   error: SerializedError | undefined,

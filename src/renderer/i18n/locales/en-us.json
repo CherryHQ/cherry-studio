@@ -2937,6 +2937,7 @@
   "models.detail.model_id": "Model ID",
   "models.detail.provider": "Provider",
   "models.detail.quota_exhausted": "Plan quota exhausted; waiting for reset",
+  "models.detail.quota_insufficient_for_request": "Not enough quota for this request. Reduce the context or wait for in-progress requests to finish",
   "models.edit": "Edit Model",
   "models.group.ungrouped": "Ungrouped",
   "models.multi_select.label": "Multi-select",

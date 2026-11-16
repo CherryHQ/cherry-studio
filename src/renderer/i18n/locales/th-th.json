@@ -2937,6 +2937,7 @@
   "models.detail.model_id": "ID โมเดล",
   "models.detail.provider": "ผู้ให้บริการ",
   "models.detail.quota_exhausted": "โควตาแพ็กเกจหมดแล้ว รอการรีเซ็ต",
+  "models.detail.quota_insufficient_for_request": "โควตาไม่พอสำหรับคำขอนี้ โปรดลดบริบทหรือรอให้คำขอที่กำลังดำเนินอยู่เสร็จสิ้น",
   "models.edit": "แก้ไขโมเดล",
   "models.group.ungrouped": "ไม่ได้จัดกลุ่ม",
   "models.multi_select.label": "เลือกหลายรายการ",
