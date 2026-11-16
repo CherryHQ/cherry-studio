@@ -17,6 +17,7 @@ const mocks = vi.hoisted(() => ({
 }))
 
 const GO_TO_SETTINGS_LABEL = enUS['error.diagnosis.go_to_settings']
+const CUSTOM_PROVIDER = vi.hoisted(() => ({ id: 'my-gateway', name: 'My Gateway' }))
 
 vi.mock('@renderer/hooks/useTimer', () => ({
   useTimer: () => ({
@@ -27,7 +28,13 @@ vi.mock('@renderer/hooks/useTimer', () => ({
 }))
 
 vi.mock('@renderer/i18n/label', () => ({
-  getProviderLabelKey: (providerId: string) => providerId
+  getProviderLabelKey: (providerId: string, fallback?: string) =>
+    providerId === CUSTOM_PROVIDER.id && fallback !== undefined ? fallback : providerId
+}))
+vi.mock('@renderer/hooks/useProvider', () => ({
+  useProviderById: (providerId?: string) => ({
+    provider: providerId === CUSTOM_PROVIDER.id ? CUSTOM_PROVIDER : undefined
+  })
 }))
 
 vi.mock('react-i18next', () => ({
@@ -125,6 +132,20 @@ describe('ErrorBlock', () => {
       if (detail) expect(screen.queryByText(detail, { exact: false })).not.toBeInTheDocument()
     }
   )
+
+  it('names a custom provider in a server error instead of the generic word', () => {
+    mocks.translations = new Map(Object.entries(enUS))
+    render(
+      <ErrorBlock
+        partId="message-1-part-0"
+        error={{ name: 'AI_APICallError', message: 'upstream exploded', stack: null, statusCode: 500 }}
+        message={{ ...message, model: { id: 'm', name: 'M', provider: CUSTOM_PROVIDER.id } }}
+      />
+    )
+
+    const info = enUS['error.notice.server.info'].replace('{{provider}}', CUSTOM_PROVIDER.name)
+    expect(screen.getByText(info, { exact: true })).toBeInTheDocument()
+  })
 
   it('renders Groq entitlement copy and opens its provider settings', async () => {
     const user = userEvent.setup()
