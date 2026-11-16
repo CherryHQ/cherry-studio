@@ -19,6 +19,7 @@ import {
   HelpTooltip
 } from '@cherrystudio/ui'
 import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
+import { ErrorNotice } from '@renderer/components/ErrorNotice'
 import { FullAccessConfirmDialog, PermissionModeSelectItem } from '@renderer/components/PermissionModeOption'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import type { FeishuChannelConfig, FeishuDomain } from '@renderer/types/agent'
@@ -306,19 +307,22 @@ export const FeishuForm: FC<ChannelFormProps> = ({ channel, onConfigChange }) =>
             </>
           )}
           {status === 'error' && (
-            <>
-              <span className="inline-block h-2 w-2 rounded-full bg-error" />
-              <span className="text-xs text-error">{t('agent.channels.error')}</span>
-              {loginFault != null ? (
-                <ErrorDetailAction
-                  error={loginFault}
-                  message={t('agent.channels.error')}
-                  source="settings.channels"
-                  operation="channel.feishu.login"
-                  recordId={channel.id}
-                />
-              ) : null}
-            </>
+            <ErrorNotice
+              variant="inline"
+              className="flex-1"
+              title={t('agent.channels.error')}
+              detail={
+                loginFault != null ? (
+                  <ErrorDetailAction
+                    error={loginFault}
+                    message={t('agent.channels.error')}
+                    source="settings.channels"
+                    operation="channel.feishu.login"
+                    recordId={channel.id}
+                  />
+                ) : undefined
+              }
+            />
           )}
           {status === 'idle' && <span className="text-xs text-info">{t('agent.channels.feishu.loginHint')}</span>}
         </div>
@@ -536,19 +540,22 @@ export const WeChatForm: FC<ChannelFormProps & { onRemove?: () => void }> = ({ c
             </>
           )}
           {status === 'error' && (
-            <>
-              <span className="inline-block h-2 w-2 rounded-full bg-error" />
-              <span className="text-xs text-error">{t('agent.channels.error')}</span>
-              {loginFault != null ? (
-                <ErrorDetailAction
-                  error={loginFault}
-                  message={t('agent.channels.error')}
-                  source="settings.channels"
-                  operation="channel.wechat.login"
-                  recordId={channel.id}
-                />
-              ) : null}
-            </>
+            <ErrorNotice
+              variant="inline"
+              className="flex-1"
+              title={t('agent.channels.error')}
+              detail={
+                loginFault != null ? (
+                  <ErrorDetailAction
+                    error={loginFault}
+                    message={t('agent.channels.error')}
+                    source="settings.channels"
+                    operation="channel.wechat.login"
+                    recordId={channel.id}
+                  />
+                ) : undefined
+              }
+            />
           )}
           {(status === 'idle' || status === 'pending') && (
             <span className="text-xs text-info">{t('agent.channels.wechat.loginHint')}</span>
