@@ -1671,6 +1671,15 @@ export class BinaryManager extends BaseService {
         // Version lookup must not invalidate the successful initial install.
       }
 
+      const backup = await this.backupMiseInstall(definition.tool, version)
+      if (!backup) {
+        logger.warn('Skipped the 64-bit Windows asset retry because the current install could not be staged locally', {
+          name: definition.name,
+          tool: definition.tool,
+          version
+        })
+        return
+      }
       const narrowedSpec = `${definition.tool}[matching_regex=${windows64BitAssetPattern(arch)}]@${version}`
       try {
         await this.runMise(['use', '-g', '--force', ...releaseAgeArgs, narrowedSpec], {
@@ -1679,6 +1688,26 @@ export class BinaryManager extends BaseService {
         })
         await this.runMise(['reshim'])
       } catch {
+        if (backup) {
+          let restored = false
+          try {
+            await fsp.mkdir(backup.installPath, { recursive: true })
+            await fsp.cp(backup.copyPath, backup.installPath, { recursive: true })
+            await this.runMise(['reshim'])
+            restored = true
+          } catch {
+            // Fall back to the existing mise restoration if local restoration fails.
+          }
+          if (restored) {
+            await this.removeMiseBackup(backup.tempDir)
+            logger.warn('Release ships no matching 64-bit Windows asset; keeping the installed build', {
+              name: definition.name,
+              tool: definition.tool,
+              version
+            })
+            return
+          }
+        }
         // Restore the plain selection when either reinstalling or reshim fails.
         try {
           await this.runMise(['use', '-g', '--force', ...releaseAgeArgs, `${definition.tool}@${version}`], {
@@ -1686,6 +1715,7 @@ export class BinaryManager extends BaseService {
             includePrerelease
           })
           await this.runMise(['reshim'])
+          if (backup) await this.removeMiseBackup(backup.tempDir)
         } catch (restoreError) {
           logger.warn(
             'Failed to restore the original tool spec; the narrowed asset selection may still be configured',
@@ -1706,6 +1736,7 @@ export class BinaryManager extends BaseService {
         return
       }
 
+      if (backup) await this.removeMiseBackup(backup.tempDir)
       let verified = false
       try {
         const rechecked = await this.resolveRunnableShim(definition.name, definition.tool)
@@ -1735,6 +1766,38 @@ export class BinaryManager extends BaseService {
         })
       } catch {
         // Logging failures must also leave the successful install intact.
+      }
+    }
+  }
+
+  private async backupMiseInstall(
+    tool: string,
+    version: string
+  ): Promise<{ installPath: string; copyPath: string; tempDir: string } | undefined> {
+    let tempDir: string | undefined
+    try {
+      const { stdout } = await this.runMise(['ls', '--json', tool])
+      const entries = Object.values(JSON.parse(stdout) as Record<string, MiseInstallEntry[]>).flat()
+      const installPath = entries.find((entry) => entry.version === version)?.install_path
+      if (!installPath) return undefined
+      tempDir = await fsp.mkdtemp(path.join(application.getPath('app.temp'), 'mise-backup-'))
+      const copyPath = path.join(tempDir, 'install')
+      await fsp.cp(installPath, copyPath, { recursive: true })
+      return { installPath, copyPath, tempDir }
+    } catch {
+      if (tempDir) await this.removeMiseBackup(tempDir)
+      return undefined
+    }
+  }
+
+  private async removeMiseBackup(tempDir: string): Promise<void> {
+    try {
+      await fsp.rm(tempDir, { recursive: true, force: true })
+    } catch (error) {
+      try {
+        logger.warn('Failed to remove mise installation backup', { tempDir, error })
+      } catch {
+        // Cleanup must remain best-effort even if logging fails.
       }
     }
   }
