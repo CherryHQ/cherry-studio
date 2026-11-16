@@ -99,6 +99,8 @@ export class ErrorReportingService extends BaseService {
       CRITICAL_OPERATIONS.has(String(tags.operation)) ||
       event.exception?.values?.some((value) => value.mechanism?.handled === false)
     const budget = critical ? 'critical' : 'unexpected'
+    // Native fault identity lives in the dump, which the SDK deletes after scanning.
+    const deduplicate = event.platform !== 'native'
     const key = createHash('sha256')
       .update(
         JSON.stringify([
@@ -117,9 +119,9 @@ export class ErrorReportingService extends BaseService {
       this.totals[budget] = { count: 0, expires: now + BUDGET_WINDOW_MS }
     }
     const total = this.totals[budget]
-    if (total.count >= EVENTS_PER_BUDGET || (this.buckets.get(key) ?? 0) > now) return null
+    if (total.count >= EVENTS_PER_BUDGET || (deduplicate && (this.buckets.get(key) ?? 0) > now)) return null
     total.count++
-    this.buckets.set(key, now + WINDOW_MS)
+    if (deduplicate) this.buckets.set(key, now + WINDOW_MS)
     event.event_id ??= randomUUID().replaceAll('-', '')
     logger.info('Error report accepted for delivery', {
       reportId: event.event_id,

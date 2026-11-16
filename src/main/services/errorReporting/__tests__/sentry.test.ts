@@ -142,6 +142,73 @@ afterEach(async () => {
 })
 
 describe('Sentry consent gate', () => {
+  it('delivers distinct native dumps through the SDK up to the critical hourly budget', async () => {
+    grantConsent()
+    const client = sdkClient()
+    const processes = ['browser', 'renderer', 'gpu', ...Array<string>(8).fill('renderer')]
+    const dumps = processes.map((_, index) => new Uint8Array([77, 68, 77, 80, index]))
+    try {
+      for (const [index, process] of processes.entries()) {
+        client.captureEvent(
+          {
+            platform: 'native',
+            level: 'fatal',
+            tags: {
+              'event.environment': 'native',
+              'event.process': process,
+              ...(index > 0 ? { 'exit.reason': 'crashed' } : {})
+            }
+          },
+          { attachments: [{ attachmentType: 'event.minidump', filename: `${index}.dmp`, data: dumps[index] }] }
+        )
+        await client.flush(2000)
+      }
+      const delivered = sendMock.mock.calls.map(([envelope]) => envelope[1])
+      expect(delivered).toHaveLength(10)
+      expect(
+        delivered.flatMap((items) => items.filter(([header]) => header.type === 'event').map(([, event]) => event))
+      ).toEqual(
+        processes.slice(0, 10).map((process) =>
+          expect.objectContaining({
+            platform: 'native',
+            level: 'fatal',
+            tags: expect.objectContaining({ 'event.process': process })
+          })
+        )
+      )
+      expect(
+        delivered.flatMap((items) => items.filter(([header]) => header.type === 'attachment').map(([, data]) => data))
+      ).toEqual(dumps.slice(0, 10))
+      expect(initOptions().beforeSend({ tags: { module: 'ordinary-after-native-crashes' } })).not.toBeNull()
+    } finally {
+      await client.close(2000)
+    }
+  })
+
+  it.each(['disabled', 'outdated policy', 'not ready'])(
+    'blocks native dumps with %s consent without consuming their budget',
+    (state) => {
+      grantConsent()
+      if (state === 'disabled') {
+        MockMainPreferenceServiceUtils.setPreferenceValue('app.privacy.data_collection.enabled', false)
+      } else if (state === 'outdated policy') {
+        MockMainPreferenceServiceUtils.setPreferenceValue('app.privacy.policy_version', '20200101')
+      } else {
+        preferenceState.ready = false
+      }
+      const options = initOptions()
+      for (let i = 0; i < 11; i++) {
+        expect(options.beforeSend({ platform: 'native', level: 'fatal' })).toBeNull()
+      }
+      grantConsent()
+      preferenceState.ready = true
+      for (let i = 0; i < 10; i++) {
+        expect(options.beforeSend({ platform: 'native', level: 'fatal' })).not.toBeNull()
+      }
+      expect(options.beforeSend({ platform: 'native', level: 'fatal' })).toBeNull()
+    }
+  )
+
   it.each(
     [undefined, 'OperationError: renderer_exit\n    at rendererExit (app/window.js:10:20)'].flatMap((stack) =>
       [

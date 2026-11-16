@@ -171,8 +171,12 @@ Logged failures require valid domain classification; error severity, a stack,
 or an operation name alone does not make them eligible. Unclassified logs stay
 in local diagnostics. React error boundaries explicitly classify render failures;
 automatic unhandled exception capture remains independent of handled logging.
-In the main process, each signature, including classified failures, retains only
-its first sample per ten minutes. Two independent hourly budgets each admit at
+In the main process, each JavaScript event signature, including classified failures,
+retains only its first sample per ten minutes. Native crash events bypass signature
+deduplication because their fault identity resides in the binary dump; process and
+exit reason alone cannot distinguish separate crashes. They still consume the
+critical hourly budget and pass the current consent checks.
+Two independent hourly budgets each admit at
 most ten events: one for critical stability failures and one for other eligible
 unexpected failures. Critical events are fatal or unhandled exceptions, renderer
 process exits, React render failures (including file previews), caught service
