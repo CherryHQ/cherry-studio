@@ -625,9 +625,14 @@ export async function adoptRelaunchedApp(paths: RunPaths, timeout = 120_000): Pr
 
 export async function stopApp(paths: RunPaths): Promise<void> {
   const current = readOwnedRecord(paths)
-  if (current.platform === 'windows' && current.electronPid && isAlive(current.electronPid)) {
-    const { requestOwnedAppQuit } = await import('./debugBridge')
+  if (current.electronPid && isAlive(current.electronPid)) {
+    const { hasOwnedAppActiveTasks, requestOwnedAppQuit } = await import('./debugBridge')
     const app = readAppRecord(paths)
+    const deadline = Date.now() + 30_000
+    while (await hasOwnedAppActiveTasks(app)) {
+      if (Date.now() >= deadline) throw new Error('Owned Cherry Studio still has active tasks before shutdown')
+      await new Promise((resolve) => setTimeout(resolve, 100))
+    }
     await requestOwnedAppQuit(app)
     if (!(await waitForExit(app.electronPid, 30_000))) {
       throw new Error('Owned Cherry Studio did not exit after a normal shutdown request')

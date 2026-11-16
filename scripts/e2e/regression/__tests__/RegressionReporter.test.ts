@@ -62,24 +62,22 @@ describe('Playwright reporter contract', () => {
   })
 
   it('retains the case fixture provenance and redacts sensitive values before reporting it', () => {
-    vi.stubEnv('CHERRY_TEST_CUSTOM_PROVIDER_API_KEY', 'test-secret')
     const reporter = new RegressionReporter()
     reporter.onBegin(config, suite)
     reporter.onTestBegin(startup)
     reporter.onTestEnd(startup, {
       ...passed,
-      annotations: [{ type: 'data-source', description: 'Mock fixture test-secret; real UI' }]
+      annotations: [{ type: 'data-source', description: 'Mock fixture mock-key-not-checked; real UI' }]
     })
     const run = readRun(getRunPaths(directory).runState)
     expect(run.cases['S-01'].dataSources).toEqual(['Mock fixture [REDACTED]; real UI'])
   })
   it('preserves a global executor error even when every test and onEnd report passed', () => {
-    vi.stubEnv('CHERRY_TEST_CUSTOM_PROVIDER_API_KEY', 'test-secret')
     const reporter = new RegressionReporter()
     reporter.onBegin(config, suite)
     reporter.onTestBegin(startup)
     reporter.onTestEnd(startup, passed)
-    reporter.onError({ message: 'teardown failed: test-secret' })
+    reporter.onError({ message: 'teardown failed: mock-key-not-checked' })
     reporter.onEnd({ status: 'passed', startTime: new Date(), duration: 10 })
 
     const run = readRun(getRunPaths(directory).runState)

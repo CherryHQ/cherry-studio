@@ -166,7 +166,7 @@ export async function imageAttachments(app: RegressionApp, page: Page, testInfo:
     await topicRow.click()
     await expect(page.getByRole('button', { name: 'Selected models', exact: true })).toContainText('MP32 Vision')
     const composer = chat.locator('[data-ui~="chat.composer"] [contenteditable="true"]').first()
-    // Real PNG bytes and real provider inference; the prompt contains neither the OCR answer nor the scene.
+    // Real PNG transport with fixture model output; no OCR model quality evidence.
     const makePng = (label: string) =>
       page.evaluate((label) => {
         const canvas = document.createElement('canvas')

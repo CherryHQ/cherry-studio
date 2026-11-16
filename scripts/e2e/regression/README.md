@@ -171,7 +171,7 @@ Capability probes are preflight checks, not evidence that a product interaction 
 
 ## Combined report
 
-Initialize with `--provider-mode real` (default) or `--provider-mode mock`. Mock runs
+Mock runs
 call `mock-start --run-dir ...` before preflight and launch. The controller uses the
 exact aiMock version in `package.json` and `pnpm-lock.yaml`, binds a free loopback
 port, and records PID, token, port and version in `mock.json`. It verifies the worker
@@ -184,7 +184,7 @@ Mock verdicts use `mock_*`, including tag runs; they are not release acceptance.
 Aggregation blocks missing provider provenance, mixed real/mock platforms, or evidence
 that differs from the requested mode. Older reports without provider provenance must
 be rerun. Cases using their own fixtures record `data-source` annotations, retained in
-JSON and platform Markdown, even when the configured backend is real.
+JSON and platform Markdown.
 
 The aggregate job publishes `test-report`. Download and extract
 it, then open `index.html` to browse every platform and phase in one HTML

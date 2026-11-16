@@ -96,7 +96,11 @@ function runtime(preventQuit = false) {
       }
     }
   })
-  execute.mockImplementation(async (_url: string, expression: string) => runInContext(expression, context))
+  execute.mockImplementation(async (_url: string, expression: string) =>
+    expression.includes("application.get('RuntimeActivityService').hasActiveTasks()")
+      ? false
+      : runInContext(expression, context)
+  )
   return { record, paths, pendingFile, alive, state }
 }
 

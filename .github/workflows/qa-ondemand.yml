@@ -81,11 +81,6 @@ jobs:
       - name: Validate request and pin application SHA
         id: ref
         shell: bash
-        env:
-          CHERRY_TEST_CUSTOM_PROVIDER_BASE_URL: ${{ vars.CHERRY_TEST_CUSTOM_PROVIDER_BASE_URL }}
-          CHERRY_TEST_CUSTOM_PROVIDER_ANTHROPIC_BASE_URL: ${{ vars.CHERRY_TEST_CUSTOM_PROVIDER_ANTHROPIC_BASE_URL }}
-          CHERRY_TEST_CUSTOM_PROVIDER_API_KEY: ${{ secrets.CHERRY_TEST_CUSTOM_PROVIDER_API_KEY }}
-          CHERRY_TEST_CUSTOM_PROVIDER_CHAT_MODEL: ${{ vars.CHERRY_TEST_CUSTOM_PROVIDER_CHAT_MODEL }}
         run: pnpm exec tsx scripts/e2e/ondemand/run.ts resolve
       - name: Upload input failure
         if: failure()
@@ -153,18 +148,12 @@ jobs:
         run: pnpm exec tsx scripts/e2e/ondemand/run.ts release
       - name: Run one test
         shell: bash
-        env:
-          CHERRY_TEST_CUSTOM_PROVIDER_BASE_URL: ${{ vars.CHERRY_TEST_CUSTOM_PROVIDER_BASE_URL }}
-          CHERRY_TEST_CUSTOM_PROVIDER_ANTHROPIC_BASE_URL: ${{ vars.CHERRY_TEST_CUSTOM_PROVIDER_ANTHROPIC_BASE_URL }}
-          CHERRY_TEST_CUSTOM_PROVIDER_API_KEY: ${{ secrets.CHERRY_TEST_CUSTOM_PROVIDER_API_KEY }}
-          CHERRY_TEST_CUSTOM_PROVIDER_CHAT_MODEL: ${{ vars.CHERRY_TEST_CUSTOM_PROVIDER_CHAT_MODEL }}
         run: pnpm exec tsx scripts/e2e/ondemand/run.ts run
       - name: Finalize and clean up owned application
         if: always()
         shell: bash
         env:
           QA_CANCELLED: ${{ job.status == 'cancelled' }}
-          CHERRY_TEST_CUSTOM_PROVIDER_API_KEY: ${{ secrets.CHERRY_TEST_CUSTOM_PROVIDER_API_KEY }}
         run: pnpm exec tsx scripts/e2e/ondemand/run.ts finalize
       - name: Record bootstrap failure and publish summary
         if: always()
