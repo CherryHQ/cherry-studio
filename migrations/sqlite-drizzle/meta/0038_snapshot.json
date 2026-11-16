@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "179669c2-b935-46f5-a95e-1029d7e5ca95",
+  "id": "d46ad276-de68-4169-9d6c-3606a8c7d29f",
   "prevId": "bbe3bf61-b9ed-451f-b7ec-94db86dd1dd9",
   "tables": {
     "agent": {
@@ -80,13 +80,6 @@
           "autoincrement": false,
           "default": "'{}'"
         },
-        "group_id": {
-          "name": "group_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
         "order_key": {
           "name": "order_key",
           "type": "text",
@@ -131,13 +124,6 @@
           ],
           "isUnique": false
         },
-        "agent_group_id_idx": {
-          "name": "agent_group_id_idx",
-          "columns": [
-            "group_id"
-          ],
-          "isUnique": false
-        },
         "agent_order_key_idx": {
           "name": "agent_order_key_idx",
           "columns": [
@@ -179,19 +165,6 @@
           "tableTo": "user_model",
           "columnsFrom": [
             "small_model"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        },
-        "agent_group_id_group_id_fk": {
-          "name": "agent_group_id_group_id_fk",
-          "tableFrom": "agent",
-          "tableTo": "group",
-          "columnsFrom": [
-            "group_id"
           ],
           "columnsTo": [
             "id"
@@ -838,6 +811,13 @@
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
+        },
+        "model": {
+          "name": "model",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
         }
       },
       "indexes": {
@@ -931,6 +911,19 @@
           "tableTo": "job_schedule",
           "columnsFrom": [
             "task_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "agent_session_model_user_model_id_fk": {
+          "name": "agent_session_model_user_model_id_fk",
+          "tableFrom": "agent_session",
+          "tableTo": "user_model",
+          "columnsFrom": [
+            "model"
           ],
           "columnsTo": [
             "id"

@@ -15,6 +15,7 @@ export type ResourceEditDialogTarget = ({ kind: 'assistant'; id: string } | { ki
 
 /** Validated values shared by every Assistant / Agent creation entry point. */
 export type ResourceCreateValues = {
+  avatarImage?: Uint8Array<ArrayBuffer>
   agentType: AgentType
   permissionMode: AgentPermissionMode
   avatar: string

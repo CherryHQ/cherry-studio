@@ -118,11 +118,6 @@ export function getWorkdirPathFromSessionGroupId(groupId: string): string | unde
   return decodeURIComponent(groupId.slice(SESSION_WORKDIR_GROUP_ID_PREFIX.length))
 }
 
-export function getWorkspaceIdFromSessionGroupId(groupId: string): string | undefined {
-  if (!groupId.startsWith(SESSION_WORKSPACE_GROUP_ID_PREFIX)) return undefined
-  return decodeURIComponent(groupId.slice(SESSION_WORKSPACE_GROUP_ID_PREFIX.length))
-}
-
 export function getWorkspaceSessionGroupId(workspaceId: string): string {
   return `${SESSION_WORKSPACE_GROUP_ID_PREFIX}${encodeURIComponent(workspaceId)}`
 }
@@ -264,13 +259,6 @@ export function createSessionWorkdirLabelMap(
   workspaces: readonly WorkspaceDisplaySource[] = []
 ) {
   return createSessionWorkdirDisplayMaps(sessions, workspaces).labelByGroupId
-}
-
-export function createSessionWorkdirRankMap(
-  sessions: readonly SessionWorkdirSource[],
-  workspaces: readonly WorkspaceDisplaySource[] = []
-) {
-  return createSessionWorkdirDisplayMaps(sessions, workspaces).rankByGroupId
 }
 
 export function createSessionDisplayGroupResolver<T extends SessionListItem>({

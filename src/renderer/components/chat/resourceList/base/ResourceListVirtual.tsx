@@ -207,17 +207,16 @@ function useAutoHideScrollbar(delay = SCROLLBAR_AUTO_HIDE_DELAY) {
   return { stage, handleScroll }
 }
 
-function getListViewportClassName(stage: ScrollbarStage, className?: string) {
+function getListViewportClassName(stage: ScrollbarStage) {
   return cn(
-    '-mr-2 min-h-0 flex-1 overflow-auto py-1.5 pt-0.5! pr-2 [contain:layout_paint] [scrollbar-gutter:stable]',
+    '-mr-2 min-h-0 flex-1 overflow-auto [contain:layout_paint] [scrollbar-gutter:stable]',
     '[&>div>[data-index]]:transition-transform [&>div>[data-index]]:duration-200 [&>div>[data-index]]:ease-out',
     'motion-reduce:[&>div>[data-index]]:transition-none [&[data-virtual-scrolling=true]>div>[data-index]]:transition-none',
     '[&:has([data-dragging=true])>div>[data-index]]:transition-none',
     '[&[data-virtual-scrolling=true]_[data-index]]:pointer-events-none!',
     '[&::-webkit-scrollbar-thumb:hover]:bg-[var(--scrollbar-thumb-hover)]',
     '[&::-webkit-scrollbar-thumb]:transition-[background] [&::-webkit-scrollbar-thumb]:duration-150 [&::-webkit-scrollbar-thumb]:ease-out',
-    SCROLLBAR_THUMB_CLASS_BY_STAGE[stage],
-    className
+    SCROLLBAR_THUMB_CLASS_BY_STAGE[stage]
   )
 }
 
@@ -638,7 +637,8 @@ export function VirtualItems<T extends ResourceListItemBase>({
         scrollElementRef={setScrollElementRef}
         role="listbox"
         groups={groups}
-        className={getListViewportClassName(stage, className)}
+        className={getListViewportClassName(stage)}
+        contentProps={{ className: cn('pt-0.5 pr-2 pb-1.5', className) }}
         scrollerProps={{
           'data-scrolling': isScrolling ? 'true' : 'false',
           'aria-label': ariaLabel,
@@ -891,7 +891,8 @@ export function VirtualDraggableItems<T extends ResourceListItemBase>({
         scrollElementRef={setScrollElementRef}
         role="listbox"
         groups={groups}
-        className={getListViewportClassName(stage, className)}
+        className={getListViewportClassName(stage)}
+        contentProps={{ className: cn('pt-0.5 pr-2 pb-1.5', className) }}
         scrollerProps={{
           'data-scrolling': isScrolling ? 'true' : 'false',
           'aria-label': ariaLabel,

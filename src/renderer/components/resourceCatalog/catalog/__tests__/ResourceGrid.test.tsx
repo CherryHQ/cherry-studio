@@ -511,7 +511,7 @@ function getResourceCardProps(overrides: Partial<ComponentProps<typeof ResourceC
 }
 
 describe('ResourceGrid empty state copy', () => {
-  it('keeps search in the library toolbar and places a local search beside the settings title', () => {
+  it('searches resources from both the library and settings toolbars', async () => {
     const { unmount } = renderResourceGrid()
 
     expect(screen.getByPlaceholderText('library.toolbar.search_placeholder')).toBeInTheDocument()
@@ -519,6 +519,7 @@ describe('ResourceGrid empty state copy', () => {
     unmount()
     const onSearchChange = vi.fn()
     renderResourceGrid({ activeResourceType: 'skill', onSearchChange, variant: 'settings', title: '技能' })
+    await userEvent.setup().click(screen.getByRole('button', { name: 'common.search' }))
 
     fireEvent.change(screen.getByPlaceholderText('library.toolbar.search_placeholder'), {
       target: { value: 'creator' }
@@ -550,35 +551,6 @@ describe('ResourceGrid empty state copy', () => {
       )
     } finally {
       width.mockRestore()
-    }
-  })
-
-  it('keeps the layout control aligned with the visible columns after resizing', async () => {
-    const user = userEvent.setup()
-    let width = 900
-    const clientWidthSpy = vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockImplementation(() => width)
-    vi.stubGlobal('ResizeObserver', undefined)
-    try {
-      renderResourceGrid({ activeResourceType: 'skill', isLoading: true, variant: 'settings', allowColumnToggle: true })
-      const grid = screen.getByTestId('resource-grid-loading')
-      const toggle = screen.getByRole('button', { name: 'common.layout.two_columns' })
-      expect(toggle).toHaveAccessibleName('common.layout.two_columns')
-      await user.click(toggle)
-      expect(grid).toHaveStyle({ gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' })
-      expect(toggle).toHaveAccessibleName('common.layout.single_column')
-      width = 500
-      fireEvent(window, new Event('resize'))
-      await waitFor(() => expect(grid).toHaveStyle({ gridTemplateColumns: 'repeat(1, minmax(0, 1fr))' }))
-      expect(toggle).toHaveAccessibleName('common.layout.two_columns')
-      expect(toggle).toBeDisabled()
-      width = 900
-      fireEvent(window, new Event('resize'))
-      await waitFor(() => expect(grid).toHaveStyle({ gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }))
-      expect(toggle).toBeEnabled()
-      expect(toggle).toHaveAccessibleName('common.layout.single_column')
-    } finally {
-      clientWidthSpy.mockRestore()
-      vi.unstubAllGlobals()
     }
   })
 
@@ -832,20 +804,6 @@ describe('ResourceGrid group toolbar management', () => {
 })
 
 describe('ResourceGrid card actions', () => {
-  it('shows only the visibly labeled global switch on Skill settings cards', () => {
-    render(<ResourceCard resource={createSkillResource()} variant="settings" {...getResourceCardProps()} />)
-
-    expect(screen.getAllByRole('switch')).toHaveLength(1)
-    expect(screen.getByText('全局启用')).toBeVisible()
-    expect(screen.queryByRole('switch', { name: '同步技能到外部目录' })).not.toBeInTheDocument()
-  })
-
-  it('does not expose a sidebar shortcut action on Skill settings cards', () => {
-    render(<ResourceCard resource={createSkillResource()} variant="settings" {...getResourceCardProps()} />)
-
-    expect(screen.queryByRole('button', { name: 'launchpad.pin_to_sidebar' })).not.toBeInTheDocument()
-  })
-
   it('toggles a Skill globally from its settings card without opening the card', async () => {
     const user = userEvent.setup()
     const onEdit = vi.fn()

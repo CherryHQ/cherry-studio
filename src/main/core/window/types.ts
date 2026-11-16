@@ -18,9 +18,6 @@ export enum WindowType {
   Screenshot = 'screenshot'
 }
 
-/** Valid WindowType values for runtime validation */
-export const VALID_WINDOW_TYPES = new Set<string>(Object.values(WindowType))
-
 /** Window lifecycle mode — determines how WindowManager handles creation, reuse, and destruction */
 export type WindowLifecycleMode = 'default' | 'singleton' | 'pooled'
 

@@ -89,9 +89,20 @@ describe('Sentry consent gate', () => {
     expect(initMock).not.toHaveBeenCalled()
   })
 
-  it('drops every outbound envelope until the user consents', async () => {
+  it.each([
+    { kind: 'error', envelope: [{}, []] },
+    {
+      kind: 'native crash',
+      envelope: [
+        {},
+        [
+          [{ type: 'event' }, { platform: 'native', level: 'fatal' }],
+          [{ type: 'attachment', attachment_type: 'event.minidump' }, new Uint8Array([77, 68, 77, 80])]
+        ]
+      ]
+    }
+  ])('sends $kind envelopes only while the user consents', async ({ envelope }) => {
     const transport = initOptions().transport({})
-    const envelope = [{}, []]
 
     await transport.send(envelope)
     expect(sendMock).not.toHaveBeenCalled()

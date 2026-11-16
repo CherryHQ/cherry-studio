@@ -1,5 +1,4 @@
 import type * as ChildProcess from 'node:child_process'
-import { createServer } from 'node:http'
 import { basename, join, normalize } from 'node:path'
 import { createContext as createVmContext, runInContext } from 'node:vm'
 
@@ -7,12 +6,10 @@ import { afterEach, vi } from 'vitest'
 
 import {
   assertOwnedAppIsolation,
-  captureCherryInAuthorizationUrl,
   inspectOwnedNotificationHistory,
   inspectOwnedWindowsByUrl,
   isOwnedGlobalShortcutRegistered,
   prepareOwnedWindowsNotifications,
-  sendCherryInCallbackToOwnedApp,
   setOwnedMainWindowFocus
 } from '../debugBridge'
 import type { AppRecord } from '../lifecycle'
@@ -75,23 +72,15 @@ function ownedApp(platform: 'macos' | 'windows', listenerPid = 42_001): AppRecor
 }
 
 function mainInspector() {
-  const opened: string[] = []
-  const original = async (url: string) => {
-    opened.push(url)
-  }
-  const shell = { openExternal: original }
-  const context = createVmContext({ URL, process: { mainModule: { require: () => ({ shell }) } } })
+  const context = createVmContext({ URL, process: { mainModule: { require: () => ({}) } } })
   evaluateCdpExpressionMock.mockImplementation(async (_url: string, expression: string) =>
     runInContext(expression, context)
   )
   vi.stubGlobal('fetch', async () =>
     Response.json([{ type: 'node', webSocketDebuggerUrl: 'ws://127.0.0.1:9229/main-process' }])
   )
-  return { shell, original, opened, context }
+  return { context }
 }
-
-const authorizationUrl = 'https://open.cherryin.ai/oauth2/auth?state=test-state'
-const callback = 'http://127.0.0.1:29873/oauth/callback?code=test-code&state=test-state'
 
 describe('owned application debug bridge', () => {
   it('registers only the SDK shortcut for the owned development executable', async () => {
@@ -251,36 +240,7 @@ describe('owned application debug bridge', () => {
     }
   )
 
-  it.each(['macos', 'windows'] as const)(
-    'captures main-process authorization and restores the browser opener on %s',
-    async (platform) => {
-      const record = ownedApp(platform)
-      const { shell, original, opened, context } = mainInspector()
-      const captured = await captureCherryInAuthorizationUrl(record, async () => {
-        await shell.openExternal('https://example.test')
-        await shell.openExternal(authorizationUrl)
-      })
-      expect(captured).toBe(authorizationUrl)
-      expect(opened).toEqual(['https://example.test'])
-      expect(shell.openExternal).toBe(original)
-      expect(context.__cherryRegressionOauth).toBeUndefined()
-    }
-  )
-
-  it('restores the browser opener when the authorization click fails', async () => {
-    const record = ownedApp('macos')
-    const { shell, original, context } = mainInspector()
-    await expect(
-      captureCherryInAuthorizationUrl(record, async () => {
-        throw new Error('Button unavailable')
-      })
-    ).rejects.toThrow('Button unavailable')
-    expect(shell.openExternal).toBe(original)
-    expect(context.__cherryRegressionOauth).toBeUndefined()
-  })
-
   it.each([
-    ['authorization capture', (record: AppRecord) => captureCherryInAuthorizationUrl(record, async () => {})],
     [
       'window inspection',
       (record: AppRecord) => inspectOwnedWindowsByUrl(record, 'file:///windows/selection/toolbar/index.html')
@@ -322,45 +282,6 @@ describe('owned application debug bridge', () => {
         'not loopback-owned'
       )
       expect(evaluateCdpExpressionMock).not.toHaveBeenCalled()
-    }
-  )
-
-  it('delivers the authorization code to the real HTTP listener without forwarding credentials', async () => {
-    const record = ownedApp('macos')
-    let received: { url?: string; cookie?: string; authorization?: string } | undefined
-    const server = createServer((request, response) => {
-      received = { url: request.url, cookie: request.headers.cookie, authorization: request.headers.authorization }
-      response.end('Signed in successfully')
-    })
-    await new Promise<void>((resolve, reject) => {
-      server.once('error', reject)
-      server.listen(29873, '127.0.0.1', resolve)
-    })
-    try {
-      await sendCherryInCallbackToOwnedApp(record, callback)
-      expect(received).toEqual({
-        url: '/oauth/callback?code=test-code&state=test-state',
-        cookie: undefined,
-        authorization: undefined
-      })
-    } finally {
-      await new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())))
-    }
-  })
-
-  it('rejects a callback listener owned by another process', async () => {
-    const record = ownedApp('macos', 99_999)
-    await expect(sendCherryInCallbackToOwnedApp(record, callback)).rejects.toThrow(
-      'does not own the OAuth callback listener'
-    )
-  })
-
-  it.each(['http://127.0.0.1:29874/oauth/callback', 'https://example.test/oauth/callback'])(
-    'does not send the code to an unexpected destination: %s',
-    async (url) => {
-      await expect(sendCherryInCallbackToOwnedApp(ownedApp('macos'), `${url}?code=code&state=state`)).rejects.toThrow(
-        'invalid application callback'
-      )
     }
   )
 })
