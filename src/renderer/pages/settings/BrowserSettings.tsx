@@ -17,6 +17,7 @@ import {
 import { usePreference } from '@data/hooks/usePreference'
 import { BrowserImportDialog } from '@renderer/components/BrowserImportDialog'
 import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
+import { ErrorNotice } from '@renderer/components/ErrorNotice'
 import {
   SettingDescription,
   SettingDivider,
@@ -232,17 +233,19 @@ export function BrowserSettings() {
           )}
         </SettingRow>
         {failure && (
-          <div className="mt-2 flex items-center gap-2">
-            <p role="alert" className="text-error text-sm">
-              {t('settings.browser.error')}
-            </p>
-            <ErrorDetailAction
-              error={failure.error}
-              message={t('settings.browser.error')}
-              source="settings.browser"
-              operation={failure.operation}
-            />
-          </div>
+          <ErrorNotice
+            variant="inline"
+            className="mt-2"
+            title={t('settings.browser.error')}
+            detail={
+              <ErrorDetailAction
+                error={failure.error}
+                message={t('settings.browser.error')}
+                source="settings.browser"
+                operation={failure.operation}
+              />
+            }
+          />
         )}
       </SettingGroup>
       <SettingGroup>
