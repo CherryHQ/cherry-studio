@@ -1,4 +1,4 @@
-import { AlertCircle, Info, TriangleAlert, XCircle } from 'lucide-react'
+import { AlertCircle, Info, TriangleAlert } from 'lucide-react'
 import type React from 'react'
 import { useCallback, useRef } from 'react'
 
@@ -32,7 +32,7 @@ function getIcon(type: ConfirmPopupType, icon: React.ReactNode) {
 
   switch (type) {
     case 'error':
-      return <XCircle className={cn(className, 'text-destructive')} />
+      return <AlertCircle className={cn(className, 'text-error')} />
     case 'warning':
       return <TriangleAlert className={cn(className, 'text-warning')} />
     case 'info':
@@ -174,6 +174,7 @@ export default function ConfirmPopupItem({ entry }: { entry: ConfirmPopupEntry }
             {showDetails ? (
               <ErrorDetailLink
                 className="me-auto"
+                label={i18n.t('error.diagnosis.view_details')}
                 onClick={(event) => {
                   event.preventDefault()
                   if (!presentedContext) return
