@@ -45,7 +45,7 @@ export default function ReleaseNotesPage() {
     <div className="flex h-full min-h-0 flex-col bg-background">
       <PageHeader
         bordered
-        className="mb-0"
+        className="my-0 h-10.5"
         title={t('settings.about.releases.title')}
         action={<span className="text-foreground-tertiary text-xs">v{releases[0].version}</span>}
       />

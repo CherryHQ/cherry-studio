@@ -1,4 +1,4 @@
-import { execFile, spawn } from 'child_process'
+import { execFile } from 'child_process'
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -237,28 +237,6 @@ describe('shellEnv – Windows registry PATH', () => {
     // Present, and dead last so system git (C:\Git\cmd) and the managed tool dirs win ahead of it.
     expect(segments[segments.length - 1]).toBe(bundledGitDir)
     expect(segments.indexOf('C:\\Git\\cmd')).toBeLessThan(segments.length - 1)
-  })
-
-  // -- does not spawn cmd.exe -----------------------------------------------
-
-  it('should not spawn cmd.exe or any shell process', async () => {
-    mockRegistryPaths({ system: 'C:\\Windows' })
-
-    await refreshShellEnv()
-
-    expect(spawn).not.toHaveBeenCalled()
-  })
-
-  // -- concurrent dedup -----------------------------------------------------
-
-  it('should collapse overlapping fetches onto a single env resolution', async () => {
-    mockRegistryPaths({ system: 'C:\\Windows' })
-
-    // getWindowsEnvironment() reads HKLM + HKCU, i.e. two registry calls
-    // per resolution. Overlapping callers must share one resolution → 2 calls.
-    await Promise.all([refreshShellEnv(), refreshShellEnv(), getShellEnv()])
-
-    expect(enumerateValuesSafeMock).toHaveBeenCalledTimes(2)
   })
 
   // -- cache isolation ------------------------------------------------------

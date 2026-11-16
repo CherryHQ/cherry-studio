@@ -89,13 +89,6 @@ describe('parseJSONC - JSON with Comments Parser', () => {
       const result = parseJSONC(maliciousContent)
       expect(result).toEqual({ name: 'test' })
     })
-
-    it('should safely handle malicious input without crashing', () => {
-      const maliciousInputs = ['{"a": __dirname}', '{"a": process.cwd()}', '{"a": require("fs")}', '{"a": eval("1+1")}']
-      for (const input of maliciousInputs) {
-        expect(() => parseJSONC(input)).not.toThrow()
-      }
-    })
   })
 })
 

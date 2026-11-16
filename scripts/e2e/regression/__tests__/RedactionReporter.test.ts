@@ -9,7 +9,7 @@ import AdmZip from 'adm-zip'
 it('redacts step titles and failures before JSON, HTML and blob reporters serialize them', () => {
   const directory = mkdtempSync(join(tmpdir(), 'cherry-report-redaction-'))
   const require = createRequire(import.meta.url)
-  const secret = 'synthetic-provider-secret'
+  const secret = 'mock-key-not-checked'
   const config = join(directory, 'playwright.config.ts')
   const blob = join(directory, 'report.zip')
   const html = join(directory, 'html')
@@ -19,6 +19,7 @@ it('redacts step titles and failures before JSON, HTML and blob reporters serial
       config,
       `export default { testDir: ${JSON.stringify(directory)}, reporter: [
         [${JSON.stringify(resolve('scripts/e2e/regression/RedactionReporter.ts'))}],
+        ['github'],
         ['blob', { outputFile: ${JSON.stringify(blob)} }],
         ['html', { outputFolder: ${JSON.stringify(html)}, open: 'never' }],
         ['json', { outputFile: ${JSON.stringify(json)} }]
@@ -28,16 +29,18 @@ it('redacts step titles and failures before JSON, HTML and blob reporters serial
       join(directory, 'example.test.ts'),
       `const { test } = require(${JSON.stringify(require.resolve('@playwright/test'))});
       test('credential entry', async () => {
-        const secret = process.env.CHERRY_TEST_CUSTOM_PROVIDER_API_KEY;
+        const secret = process.env.CHERRY_E2E_TEST_KEY;
         await test.step('Fill "' + secret + '"', async () => { throw new Error('Entry failed: ' + secret); });
       });`
     )
     const result = spawnSync(process.execPath, [require.resolve('@playwright/test/cli'), 'test', '--config', config], {
       encoding: 'utf8',
       timeout: 30_000,
-      env: { ...process.env, CHERRY_TEST_CUSTOM_PROVIDER_API_KEY: secret }
+      env: { ...process.env, CHERRY_E2E_TEST_KEY: secret }
     })
     expect(result.status, result.stdout + result.stderr).toBe(1)
+    expect(result.stdout).toContain('::error')
+    expect(result.stdout + result.stderr).not.toContain(secret)
     const report = JSON.parse(readFileSync(json, 'utf8'))
     expect(report.stats.unexpected).toBe(1)
     expect(readFileSync(json, 'utf8')).not.toContain(secret)

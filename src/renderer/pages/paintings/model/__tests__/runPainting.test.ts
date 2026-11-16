@@ -17,14 +17,28 @@ describe('runPainting error surfacing', () => {
   const fail = (error: unknown) => runPainting(() => Promise.reject(error))
 
   it('surfaces the provider detail message from an AI_REQUEST_FAILED IpcError', async () => {
-    const detail = { name: 'AI_APICallError', message: '401 Unauthorized', stack: null, statusCode: 401 }
+    const detail = { name: 'AI_APICallError', message: '503 Service unavailable', stack: null, statusCode: 503 }
     // Empty top-level message (the message-less case the user hit): the detail must win.
     const err = new IpcError(aiErrorCodes.AI_REQUEST_FAILED, '', detail)
 
     await expect(fail(err)).rejects.toMatchObject({
       name: 'PaintingGenerateError',
       code: 'REMOTE_ERROR',
-      message: '401 Unauthorized'
+      message: '503 Service unavailable'
+    })
+  })
+
+  it('maps authentication failures to localized token guidance without echoing the credential', async () => {
+    const detail = {
+      name: 'AI_APICallError',
+      message: 'Incorrect API key provided: sk-mp92-invalid-secret',
+      stack: null,
+      statusCode: 401
+    }
+    const error = new IpcError(aiErrorCodes.AI_REQUEST_FAILED, '', detail)
+    await expect(fail(error)).rejects.toMatchObject({
+      code: 'REQ_ERROR_TOKEN',
+      message: 'REQ_ERROR_TOKEN'
     })
   })
 

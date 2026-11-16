@@ -9,8 +9,7 @@ import {
   type ClaudeToolDescriptor,
   type ClaudeToolPolicy,
   normalizeClaudeBuiltinName,
-  resolveClaudeToolAccess,
-  resolveClaudeToolInvocationAccess
+  resolveClaudeToolAccess
 } from '@shared/ai/claudecode/toolRules'
 import type { Tool } from '@shared/ai/tool'
 import { resolveMcpSourceToolAccess } from '@shared/ai/tools/mcpSourcePolicy'
@@ -110,12 +109,6 @@ export async function listClaudeAgentToolDescriptors(agent: Pick<AgentEntity, 'm
   }
 }
 
-export async function listClaudeAgentTools(agent: AgentEntity): Promise<Tool[]> {
-  const { descriptors } = await listClaudeAgentToolDescriptors(agent)
-  const policy = buildClaudeToolPolicy(agent)
-  return descriptors.map((descriptor) => descriptorToTool(descriptor, policy))
-}
-
 function findRuntimeDescriptor(
   descriptors: readonly ClaudeToolDescriptor[],
   runtimeName: string
@@ -150,11 +143,11 @@ function injectedRuntimeToolRequiringApproval(runtimeName: string): Tool {
 }
 
 export interface ClaudeAgentToolPolicySnapshot {
-  resolve(runtimeName: string, input?: unknown): Tool | undefined
+  resolve(runtimeName: string): Tool | undefined
   isDisabled(runtimeName: string): boolean
   getPermissionMode(): AgentPermissionMode | undefined
   setPermissionMode(permissionMode: AgentPermissionMode | undefined): void
-  update(agent: Pick<AgentEntity, 'mcps' | 'disabledTools' | 'configuration'>): Promise<void>
+  update(agent: Pick<AgentEntity, 'mcps' | 'disabledTools'>): Promise<void>
 }
 
 export async function createClaudeAgentToolPolicySnapshot(
@@ -169,11 +162,11 @@ export async function createClaudeAgentToolPolicySnapshot(
   } = {}
 ): Promise<ClaudeAgentToolPolicySnapshot> {
   let descriptors: ClaudeToolDescriptor[] = []
-  let policy: ClaudeToolPolicy = {}
+  let policy = buildClaudeToolPolicy(agent)
   let disallowed = new Set<string>()
   let rebuildSequence = 0
 
-  const rebuild = async (nextAgent: Pick<AgentEntity, 'mcps' | 'disabledTools' | 'configuration'>) => {
+  const rebuild = async (nextAgent: Pick<AgentEntity, 'mcps' | 'disabledTools'>) => {
     // `update()` is fire-and-forget and unserialized, so two rebuilds can overlap. Guard with a
     // sequence so an older slow rebuild that resolves AFTER a newer one can't clobber the newer
     // policy's `disallowed`/`descriptors` (which would re-enable a just-disabled tool).
@@ -194,7 +187,6 @@ export async function createClaudeAgentToolPolicySnapshot(
       }
     }
     descriptors = nextDescriptors
-    policy = buildClaudeToolPolicy(nextAgent)
     // Same derivation as the build-time SDK `disallowedTools`, recomputed on every live update so a
     // mid-session disable is honored by `canUseTool` on the warm connection (registry exposure +
     // user opt-out + dependency cascade).
@@ -204,7 +196,7 @@ export async function createClaudeAgentToolPolicySnapshot(
   await rebuild(agent)
 
   return {
-    resolve(runtimeName, input) {
+    resolve(runtimeName) {
       if (options.autoAllowRuntimeNameExceptions?.includes(runtimeName)) {
         return injectedRuntimeToolRequiringApproval(runtimeName)
       }
@@ -216,7 +208,7 @@ export async function createClaudeAgentToolPolicySnapshot(
       }
       const descriptor = findRuntimeDescriptor(descriptors, runtimeName)
       if (!descriptor) return undefined
-      const access = resolveClaudeToolInvocationAccess(descriptor, policy, { toolName: runtimeName, input })
+      const access = resolveClaudeToolAccess(descriptor, policy)
       return descriptorToToolWithAccess(descriptor, access)
     },
 

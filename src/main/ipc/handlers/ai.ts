@@ -4,6 +4,7 @@ import { application } from '@application'
 import { AgentSessionEditError } from '@data/services/AgentSessionEditError'
 import { AgentSessionForkSourceError } from '@data/services/AgentSessionForkService'
 import { agentSessionService } from '@data/services/AgentSessionService'
+import { temporaryChatService } from '@data/services/TemporaryChatService'
 import { loggerService } from '@logger'
 import { AgentSessionArchiveBusyError } from '@main/ai/agents/AgentLifecycleService'
 import { agentWorkspaceStorageService } from '@main/ai/agents/AgentWorkspaceStorageService'
@@ -98,6 +99,12 @@ async function exposeAgentSessionArchiveError<T>(operation: () => T | Promise<T>
       throw new IpcError(aiErrorCodes.AI_AGENT_SESSION_ARCHIVE_BUSY, error.message, {
         sessionIds: error.sessionIds
       })
+    }
+    if (isDataApiError(error) && error.code === ErrorCode.INVALID_OPERATION) {
+      const operation = (error.details as { operation?: string } | undefined)?.operation
+      if (operation === 'delete pinned session') {
+        throw new IpcError(aiErrorCodes.AI_AGENT_SESSION_PINNED, error.message)
+      }
     }
     throw error
   }
@@ -347,5 +354,12 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
   'ai.agent.task.run': async ({ agentId, taskId }) => {
     const fired = await application.get('AgentJobsService').runTask(agentId, taskId)
     if (!fired) throw agentTaskNotFound(taskId)
+  },
+  'ai.temporary_topic.create': async (dto) => temporaryChatService.createTopic(dto),
+  'ai.temporary_topic.delete': async ({ id }) => {
+    temporaryChatService.deleteTopic(id)
+  },
+  'ai.temporary_topic.persist': async ({ id }) => {
+    temporaryChatService.persist(id)
   }
 }

@@ -3,14 +3,20 @@ import type { TFunction } from 'i18next'
 import type { ActionAvailabilityInput } from '@renderer/components/chat/actions/actionTypes'
 import type { MessageListItem } from '@renderer/components/chat/messages/types'
 import type { AgentSessionForkFailureReason } from '@shared/ai/agentSessionFork'
+import type { AgentSessionHistoryActions } from '@shared/data/api/schemas/agentSessionMessages'
 
-export function agentSessionForkAvailability(t: TFunction, message: MessageListItem): ActionAvailabilityInput {
+export function agentSessionForkAvailability(
+  t: TFunction,
+  message: MessageListItem,
+  actions?: AgentSessionHistoryActions
+): ActionAvailabilityInput {
   if (message.role !== 'assistant') return false
-  const enabled = message.status === 'success'
+  const failure = message.status !== 'success' ? 'not_turn_boundary' : actions ? actions.fork : 'unsupported_checkpoint'
+  const enabled = failure === null
   return {
     visible: true,
     enabled,
-    reason: enabled ? undefined : agentSessionForkReasonLabel(t, 'not_turn_boundary')
+    reason: failure ? agentSessionForkReasonLabel(t, failure) : undefined
   }
 }
 

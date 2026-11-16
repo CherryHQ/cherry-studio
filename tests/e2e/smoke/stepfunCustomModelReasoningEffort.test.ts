@@ -1,4 +1,5 @@
 import { expect, test } from './fixtures/electron.fixture'
+import { openSettings } from './utils/navigation'
 
 test('manually added StepFun preview exposes low, medium and high reasoning effort', async ({
   mainWindow
@@ -12,7 +13,7 @@ test('manually added StepFun preview exposes low, medium and high reasoning effo
     await mainWindow.getByRole('button', { name: 'Set up later', exact: true }).click()
   }
 
-  await mainWindow.getByRole('button', { name: 'Settings', exact: true }).first().click()
+  await openSettings(mainWindow)
   await mainWindow
     .locator('[data-ui~="settings.navigation"]')
     .getByRole('button', { name: 'Model Provider', exact: true })

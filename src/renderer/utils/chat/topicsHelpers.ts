@@ -154,14 +154,6 @@ export function normalizeTopicDropPayload(payload: ResourceListItemReorderPayloa
   return payload
 }
 
-export function groupTopicByPinned(topic: Pick<Topic, 'pinned'>, pinnedLabel: string, topicLabel: string) {
-  if (topic.pinned) {
-    return { id: 'pinned', label: pinnedLabel }
-  }
-
-  return { id: 'topics', label: topicLabel }
-}
-
 export function getTopicTimeBucket(
   lastActivityAt: string,
   now?: Parameters<typeof getResourceTimeBucket>[1]

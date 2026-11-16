@@ -186,7 +186,7 @@ async function expectPendingIdentity(action: () => Promise<unknown>) {
   expect(cache.getShared('feature.api_gateway.running')).toBe(true)
   expect(cache.getShared('feature.api_gateway.lan_running')).toBe(true)
   expectNoSynchronousStorage()
-  expect(storage.isAsyncEncryptionAvailable).toHaveBeenCalledTimes(1)
+  await vi.waitFor(() => expect(storage.isAsyncEncryptionAvailable).toHaveBeenCalledTimes(1))
   expect(availabilitySettled).toBe(false)
   expect.soft(cache.getShared('feature.remote_access.discovery_status')).toBe('starting')
   expect(transport.published).toEqual([])

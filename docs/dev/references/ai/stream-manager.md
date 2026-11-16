@@ -187,10 +187,13 @@ interface StreamListener {
   onMessage?(message: CherryUIMessage, sourceModelId?: string, sourceKind?: 'chunks' | 'messages'): void
   onDone(result: StreamDoneResult): void | Promise<void>      // { finalMessage?, status: 'success', ... }
   onPaused(result: StreamPausedResult): void | Promise<void>  // { finalMessage?, status: 'paused',  ... }
-  onError(result: StreamErrorResult): void | Promise<void>    // { finalMessage?, error, status: 'error', ... }
+  onError(result: StreamErrorResult, originalError?: unknown): void | Promise<void>
   isAlive(): boolean
 }
 ```
+
+For prompt streams, `onError` may also receive the original in-process exception.
+Persistent chat listeners receive only the serialized error.
 
 All three terminal shapes share the same `finalMessage?` field — the
 current `CherryUIMessage` from the execution's selected source. Chunk sources use
@@ -374,6 +377,8 @@ chunks are still-operable state a reconnect must replay for the user to
 decide. Growth stays bounded because the approval blocks the round (almost no
 chunks stream during the wait) and `approvalIdleTimeoutMs` caps the window.
 Eviction resumes with the same chunk that resolves the approval.
+
+A host-recorded refusal remains `output-denied` in the message projection and final persistence input even if the runtime later reports the rejected tool as an error. Allowed tools retain their actual execution results; an allowed call can still fail.
 
 This keeps `attach` observational: subscribing a new window may never abort,
 pause, or otherwise change the topic or agent runtime. Runtime termination stays

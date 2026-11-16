@@ -47,6 +47,12 @@ function isConversationTarget(meta: unknown): meta is ConversationNavigationTarg
 @DependsOn(['ConversationNavigationService'])
 @ServicePhase(Phase.WhenReady)
 export class NotificationService extends BaseService {
+  private readonly activeNotifications = new Set<ElectronNotification>()
+
+  protected onStop(): void {
+    this.activeNotifications.clear()
+  }
+
   protected onInit(): void {
     this.registerDisposable(
       application
@@ -130,7 +136,7 @@ export class NotificationService extends BaseService {
           logger.warn('Failed to open notification target', { error })
         )
       })
-      notification.show()
+      this.showNotification(notification)
       return true
     } catch (error) {
       logger.warn('Failed to publish notification', { error, eventKey: input.eventKey })
@@ -191,7 +197,21 @@ export class NotificationService extends BaseService {
       application.get('IpcApiService').broadcastToType(WindowType.Main, 'notification.clicked', notification)
     })
 
-    electronNotification.show()
+    this.showNotification(electronNotification)
+  }
+
+  private showNotification(notification: ElectronNotification): void {
+    this.activeNotifications.add(notification)
+    const release = () => this.activeNotifications.delete(notification)
+    notification.once('click', release)
+    notification.once('close', release)
+    notification.once('failed', release)
+    try {
+      notification.show()
+    } catch (error) {
+      release()
+      throw error
+    }
   }
 
   public deliverConversationNotification(notification: ConversationNotification): void {

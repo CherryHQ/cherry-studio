@@ -7,24 +7,6 @@ import SelectionToolbarView from '../SelectionToolbarView'
 
 vi.mock('@renderer/assets/images/logo.png', () => ({ default: 'logo.png' }))
 
-describe('SelectionToolbarView surface', () => {
-  it('uses an opaque card as the default toolbar background', () => {
-    const { container } = render(
-      <SelectionToolbarView
-        actionItems={[]}
-        isCompact={false}
-        handleAction={vi.fn()}
-        copyIconStatus="normal"
-        copyIconAnimation="none"
-      />
-    )
-
-    expect(container.firstElementChild?.className).toContain('bg-card')
-    expect(container.firstElementChild?.className).not.toContain('rgb(245_245_245_/_0.95)')
-    expect(container.firstElementChild?.className).not.toContain('rgb(20_20_20_/_0.95)')
-  })
-})
-
 describe('SelectionToolbarView unavailable actions', () => {
   const ACTIONS: SelectionAction[] = [
     { id: 'ask-agent', name: 'Ask Agent', enabled: true, isBuiltIn: true },

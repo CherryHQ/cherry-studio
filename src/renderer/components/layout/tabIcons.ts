@@ -1,5 +1,6 @@
 import {
   Code,
+  Clock,
   FileSearch,
   Folder,
   Globe,
@@ -12,7 +13,8 @@ import {
   Rocket,
   ScanSearch,
   Settings,
-  Sparkles
+  Sparkles,
+  Store
 } from 'lucide-react'
 
 import type { Tab } from '@renderer/hooks/tab'
@@ -26,7 +28,9 @@ export const ROUTE_ICONS: Record<string, IconComponent> = {
   '/app/chat': MessageCircle,
   '/app/browser': Globe,
   '/app/agents': MousePointerClick,
+  '/app/scheduled-tasks': Clock,
   '/app/paintings': Palette,
+  '/app/marketplace': Store,
   '/app/translate': Languages,
   '/app/mini-app': LayoutGrid,
   '/app/launchpad': Rocket,

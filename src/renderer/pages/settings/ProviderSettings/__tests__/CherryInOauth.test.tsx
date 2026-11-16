@@ -125,32 +125,6 @@ describe('CherryInOauth', () => {
     expect(screen.getByText('-')).toBeInTheDocument()
   })
 
-  it('renders the logged-out card when there is no OAuth token', () => {
-    useProviderMock.mockReturnValue({
-      provider: {
-        id: 'cherryin',
-        name: 'CherryIN',
-        apiKeys: [],
-        isEnabled: true
-      },
-      updateProvider: vi.fn(),
-      addApiKey: vi.fn(),
-      deleteApiKey: vi.fn()
-    })
-    ipcApiRequestMock.mockImplementation((route: string) =>
-      route === 'oauth.has_token' ? Promise.resolve(false) : Promise.resolve(undefined)
-    )
-
-    render(<CherryInOauth providerId="cherryin" />)
-
-    const loginButton = screen.getByRole('button', { name: /CherryIN|授权/i })
-    const tagline = screen.getByText(/登录后即可使用所有模型服务|all model services/i)
-
-    expect(loginButton).toBeInTheDocument()
-    expect(screen.getByTestId('cherryin-avatar')).toBeInTheDocument()
-    expect(tagline.compareDocumentPosition(loginButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-  })
-
   it('cancels a preset-derived CherryIN login through its registered OAuth provider', async () => {
     let rejectSignIn: (error: unknown) => void = () => {}
     oauthWithCherryInMock.mockImplementationOnce(

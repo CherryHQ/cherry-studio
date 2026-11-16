@@ -13,6 +13,7 @@ import {
   type SelectorShellProps
 } from '@renderer/components/SelectorShell'
 import { useDataChange, useInvalidateCache, useQuery } from '@renderer/data/hooks/useDataApi'
+import { useExitPresence } from '@renderer/hooks/useExitPresence'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import type { AgentWorkspaceEntity } from '@shared/data/api/schemas/agentWorkspaces'
@@ -69,6 +70,7 @@ export function WorkspaceSelector({
   const [internalOpen, setInternalOpen] = useState(false)
   const [searchValue, setSearchValue] = useState('')
   const [deletingWorkspace, setDeletingWorkspace] = useState<AgentWorkspaceEntity | null>(null)
+  const { value: retainedDeletingWorkspace } = useExitPresence(deletingWorkspace)
   const [isCreatingWorkspace, setIsCreatingWorkspace] = useState(false)
   const open = openProp ?? internalOpen
   const listboxId = useId()
@@ -254,12 +256,13 @@ export function WorkspaceSelector({
 
           return (
             <ScrollArea
+              contentProps={{ className: 'px-1 py-1' }}
               viewportProps={{
                 ref: listRef,
                 id: listboxId,
                 role: 'listbox',
                 tabIndex: -1,
-                className: 'px-1 py-1 outline-none'
+                className: 'outline-none'
               }}
               className="min-h-0 flex-1"
               style={{ height: listHeight }}>
@@ -269,10 +272,11 @@ export function WorkspaceSelector({
         }}
       </SelectorShell>
 
-      {deletingWorkspace ? (
+      {retainedDeletingWorkspace ? (
         <Suspense fallback={null}>
           <WorkspaceDeleteConfirmDialog
-            workspace={deletingWorkspace}
+            workspace={retainedDeletingWorkspace}
+            open={deletingWorkspace !== null}
             onDeleted={handleWorkspaceDeleted}
             onClose={() => setDeletingWorkspace(null)}
           />

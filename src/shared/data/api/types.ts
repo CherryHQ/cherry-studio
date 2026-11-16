@@ -392,7 +392,7 @@ export type ApiParams<TPath extends ApiPaths, TMethod extends string> = TPath ex
  */
 export type ApiQuery<TPath extends ApiPaths, TMethod extends string> = TPath extends keyof ApiSchemas
   ? TMethod extends keyof ApiSchemas[TPath]
-    ? ApiSchemas[TPath][TMethod] extends { query: infer Q }
+    ? ApiSchemas[TPath][TMethod] extends { query?: infer Q }
       ? Q
       : never
     : never

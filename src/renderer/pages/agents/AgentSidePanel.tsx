@@ -23,6 +23,7 @@ interface AgentSidePanelProps {
   ) => AgentSessionEntity | null | void | Promise<AgentSessionEntity | null | void>
   onShowMissingAgentSelection?: () => void | Promise<void>
   panePosition?: TopicTabPosition
+  onLocalPermanentDeletePendingChange?: (id: string | null) => void
   revealRequest?: ResourceListRevealRequest
   setActiveSessionId: (id: string | null, session?: AgentSessionEntity | null) => void
 }
@@ -40,6 +41,7 @@ const AgentSidePanel = ({
   onSetPanePosition,
   onCreateSession,
   onShowMissingAgentSelection,
+  onLocalPermanentDeletePendingChange,
   panePosition,
   revealRequest,
   setActiveSessionId
@@ -60,6 +62,7 @@ const AgentSidePanel = ({
         onSetPanePosition={onSetPanePosition}
         panePosition={panePosition}
         revealRequest={revealRequest}
+        onLocalPermanentDeletePendingChange={onLocalPermanentDeletePendingChange}
         onCreateSession={onCreateSession}
         onShowMissingAgentSelection={onShowMissingAgentSelection}
       />

@@ -88,20 +88,27 @@ The latter requires confirmation and uses `ai.agent.session.delete_permanently`
 to remove active Sessions directly, under the same busy check and dispatch lock
 as archive. It does not first archive and then purge. Both actions are disabled
 while generating or awaiting approval; main-process admission remains authoritative.
-The existing Recycle Bin purge still accepts only archived Sessions, so a stale
-Recycle Bin page cannot delete a Session that has already been restored.
+The same write transaction reads pin membership before any delete. A pinned member
+rejects the batch and leaves the Session, its messages, and its pin in place.
+Recycle Bin purge still accepts only archived Sessions and does not apply this pin
+rejection, so a stale Recycle Bin page cannot delete a restored Session.
+
+Deleting the active Session does not prompt for a dirty Agent file. As with other
+Agent file navigation, the detached file session keeps saving in the background.
 
 Agent menus use the same distinction. `ai.agent.delete_permanently` removes an
 active Agent directly, with the same Agent/Session locks and busy checks as archive.
 Related Sessions are retained by default. The explicit cascade option permanently
-deletes all related Sessions, including archived ones, in the Agent transaction;
-unrelated Sessions and user workspace directories are preserved. There is no Undo
-for permanent deletion. Archived-Agent purge still retains related Sessions.
+deletes all related Sessions, including archived and pinned ones, in the Agent
+transaction; unrelated Sessions and user workspace directories are preserved. There
+is no Undo for permanent deletion. Archived-Agent purge still retains related
+Sessions.
 
-Assistant menus follow the same product contract through
+Assistant menus follow the same Archive and permanent-delete distinction through
 `trash.assistant.delete_permanently`: `TrashService` owns topic dispatch locks and
 busy checks, and `AssistantService` commits owner and optional topic deletion
-atomically. Runtime coordination does not move into DataApi.
+atomically. Explicit topic cascade still deletes pinned children. Runtime
+coordination does not move into DataApi.
 
 - Agent commands serialize by Agent ID.
 - Session lifecycle operations serialize by Session ID, acquiring multiple IDs
@@ -129,7 +136,7 @@ On restore:
 | Previously paused by the user | Remains paused |
 | Enabled cron or interval | Re-arms for a future occurrence; no catch-up Job |
 | Future once | Re-arms |
-| Overdue, unconsumed once | Disabled with `metadata.missed`, displayed as **Missed** |
+| Overdue, unconsumed once | Disabled with `metadata.missed`, displayed in **Paused** with a missed-time reason |
 | Consumed once | Remains completed; no repeat |
 
 Missed tasks remain editable, deletable, and manually runnable; they cannot be

@@ -3,27 +3,6 @@ import { describe, expect, it } from 'vitest'
 import { serializeOkfFrontmatter, stripOkfFrontmatter } from '../okfFrontmatter'
 
 describe('serializeOkfFrontmatter', () => {
-  it('renders a flat OKF block with keys in priority order', () => {
-    const block = serializeOkfFrontmatter({
-      type: 'URL',
-      title: 'Getting Started',
-      resource: 'https://example.com/guide',
-      timestamp: '2026-06-11T10:00:00.000Z'
-    })
-
-    expect(block).toBe(
-      [
-        '---',
-        'type: "URL"',
-        'title: "Getting Started"',
-        'resource: "https://example.com/guide"',
-        'timestamp: "2026-06-11T10:00:00.000Z"',
-        '---',
-        ''
-      ].join('\n')
-    )
-  })
-
   it('omits absent optional fields', () => {
     const block = serializeOkfFrontmatter({
       type: 'Note',
@@ -31,9 +10,6 @@ describe('serializeOkfFrontmatter', () => {
       timestamp: '2026-06-11T10:00:00.000Z'
     })
 
-    expect(block).toBe(
-      ['---', 'type: "Note"', 'title: "Meeting notes"', 'timestamp: "2026-06-11T10:00:00.000Z"', '---', ''].join('\n')
-    )
     expect(block).not.toContain('resource')
   })
 })

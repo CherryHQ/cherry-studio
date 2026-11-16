@@ -31,10 +31,10 @@ export const authConnectionClasses = {
 export const providerDetailColumnClasses = {
   headerPad: 'shrink-0 px-6 py-2.5',
   scrollViewport: 'px-6 pt-1.5 pb-6',
-  contentMaxWidth: 'mx-auto w-full max-w-3xl',
+  contentMaxWidth: 'mx-auto w-full max-w-5xl',
   /** Header inner wrapper: same max-width as body content. */
-  headerContentMaxWidth: 'mx-auto w-full max-w-3xl',
-  sectionStack: 'mx-auto flex min-h-full w-full min-w-0 max-w-3xl flex-col gap-5'
+  headerContentMaxWidth: 'mx-auto w-full max-w-5xl',
+  sectionStack: 'mx-auto flex min-h-full w-full min-w-0 max-w-5xl flex-col gap-5'
 } as const
 
 /** Connection-field actions. */
@@ -70,7 +70,7 @@ export const providerListClasses = {
   sectionHeaderAfterEnabled: 'pt-2',
   sectionLabel: 'mb-0.5 text-xs leading-[1.2] text-foreground-tertiary',
   emptyState: 'flex h-full min-h-40 items-center justify-center px-3 text-center text-foreground-tertiary text-[14px]',
-  addFooter: 'shrink-0 px-2.5 pb-2.5',
+  addFooter: 'shrink-0 px-2.5 pt-2 pb-2.5',
   addButton:
     'flex h-8 w-full items-center justify-center gap-1.5 rounded-lg border border-border bg-transparent px-2.5 py-0 text-xs text-foreground shadow-none transition-colors hover:border-border-strong hover:bg-accent/50 disabled:pointer-events-none disabled:opacity-40',
   item: providerListItemFrame,
@@ -397,7 +397,7 @@ export const modelSyncClasses = {
   manageTabsTriggerDestructive:
     'text-error-subtle-foreground hover:text-error-subtle-foreground data-[state=active]:border-error-border data-[state=active]:bg-error-subtle data-[state=active]:text-error-subtle-foreground dark:text-error-subtle-foreground dark:data-[state=active]:border-error-border dark:data-[state=active]:bg-error-subtle dark:data-[state=active]:text-error-subtle-foreground',
   manageTabCount: 'text-[11px] text-foreground-tertiary tabular-nums',
-  manageScrollArea: 'min-h-0 flex-1 pr-1 [scrollbar-gutter:stable]',
+  manageScrollArea: 'min-h-0 flex-1',
   manageLoading: 'flex min-h-52 items-center justify-center text-muted-foreground',
   manageList: 'pb-1',
   manageGroup: 'contents',

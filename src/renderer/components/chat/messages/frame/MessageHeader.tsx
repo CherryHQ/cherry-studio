@@ -1,7 +1,7 @@
 import dayjs from 'dayjs'
-import { ArrowUpRight, Bot, MousePointerClick, Sparkle, Target } from 'lucide-react'
+import { ArrowUpRight, MousePointerClick, Sparkle, Target } from 'lucide-react'
 import type { FC, ReactNode } from 'react'
-import { memo, useCallback, useMemo } from 'react'
+import { memo, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Checkbox, Tooltip } from '@cherrystudio/ui'
@@ -11,7 +11,6 @@ import { useTheme } from '@renderer/hooks/useTheme'
 import type { Model } from '@renderer/types/model'
 import { getModelLogoRef } from '@renderer/utils/model'
 import { firstLetter, removeLeadingEmoji } from '@renderer/utils/naming'
-import type { AutonomousTurnOrigin } from '@shared/ai/agentSessionTurnOrigin'
 
 import {
   useMessageListActions,
@@ -35,18 +34,13 @@ interface Props {
   footerSlot?: ReactNode
 }
 
-/** Why a runtime opened an assistant turn with no user message; the transcript's only explanation. */
-export const AutonomousTurnOriginBadge: FC<{ origin: AutonomousTurnOrigin }> = ({ origin }) => {
+const GoalRoundBadge: FC<{ round: number }> = ({ round }) => {
   const { t } = useTranslation()
-  const label =
-    origin.kind === 'goal-round'
-      ? t('agent.session_turn_origin.goal_round', { round: origin.round })
-      : t('agent.session_turn_origin.background_work')
-  const Icon = origin.kind === 'goal-round' ? Target : Bot
+  const label = t('agent.session_turn_origin.goal_round', { round })
   return (
     <Tooltip content={label}>
       <span className="flex h-5 min-w-0 max-w-[min(18rem,45vw)] items-center gap-1 text-foreground-tertiary text-xs">
-        <Icon aria-hidden="true" className="size-3.5 shrink-0" />
+        <Target aria-hidden="true" className="size-3.5 shrink-0" />
         <span className="min-w-0 truncate">{label}</span>
       </span>
     </Tooltip>
@@ -125,7 +119,13 @@ const MessageHeader: FC<Props> = memo(
     // so editing/deleting the live entity never changes a past message's name or avatar.
     const authorSnapshot = message.messageSnapshot
     const authorName = authorSnapshot ? authorSnapshot.name : assistantProfile?.name
-    const authorAvatar = authorSnapshot ? authorSnapshot.emoji : assistantProfile?.avatar
+    const snapshotAvatarSrc = authorSnapshot?.avatarFileId
+      ? meta.assistantAvatarSources?.get(authorSnapshot.avatarFileId)
+      : undefined
+    const avatarSource = authorSnapshot ? (snapshotAvatarSrc ?? authorSnapshot.emoji) : assistantProfile?.avatar
+    const [failedAvatarKey, setFailedAvatarKey] = useState<string>()
+    const avatarKey = `${message.id}:${avatarSource}`
+    const authorAvatar = failedAvatarKey === avatarKey ? authorSnapshot?.emoji : avatarSource
     const getUserName = useCallback(() => {
       if (message.role === 'assistant') {
         return authorName || displayModel?.name || displayModel?.id || ''
@@ -158,7 +158,11 @@ const MessageHeader: FC<Props> = memo(
         className={`message-header group/header relative flex gap-2.5 ${hasBodySlot ? 'mb-0 items-start' : 'mb-2 items-center'}`}>
         {isAssistantMessage ? (
           authorAvatar ? (
-            <MessageAvatar avatar={authorAvatar} fallback={avatarName} />
+            <MessageAvatar
+              avatar={authorAvatar}
+              fallback={authorSnapshot?.emoji || avatarName}
+              onErrorCapture={() => setFailedAvatarKey(avatarKey)}
+            />
           ) : ModelIcon ? (
             <MessageAvatarFrame className="bg-background">
               <ModelIcon className={MESSAGE_MODEL_AVATAR_ICON_CLASS} aria-hidden="true" />
@@ -186,7 +190,9 @@ const MessageHeader: FC<Props> = memo(
               {username}
             </span>
             {!isAssistantMessage && delivery && <AgentSessionDeliveryBadge delivery={delivery} />}
-            {isAssistantMessage && message.turnOrigin && <AutonomousTurnOriginBadge origin={message.turnOrigin} />}
+            {isAssistantMessage && message.turnOrigin?.kind === 'goal-round' && (
+              <GoalRoundBadge round={message.turnOrigin.round} />
+            )}
             {isAssistantMessage && showModelIdentity && displayModelName && (
               <span className="flex min-w-0 shrink items-center gap-1 text-foreground-tertiary text-xs leading-5">
                 <span aria-hidden="true" className="shrink-0">

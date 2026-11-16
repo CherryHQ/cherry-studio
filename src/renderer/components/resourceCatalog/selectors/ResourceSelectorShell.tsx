@@ -15,6 +15,7 @@ import {
 import { ScrollArea } from '@cherrystudio/ui'
 import { Checkbox, EmptyState, type EmptyStatePreset } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
+import { AssistantAvatarImage } from '@renderer/components/Avatar/AssistantAvatarImage'
 import {
   MODEL_SELECTOR_ROW_CHECKBOX_CLASS,
   ModelSelectorRow,
@@ -32,6 +33,7 @@ export type ResourceSelectorShellItem = {
   id: string
   name: string
   emoji?: string
+  avatarSrc?: string
   description?: string
   groupId?: string
   groupName?: string
@@ -257,7 +259,14 @@ function ResourceSelectorOptionRowComponent<T extends ResourceSelectorShellItem>
             />
           ) : null
         }
-        leading={leading}
+        leading={
+          <AssistantAvatarImage
+            src={item.avatarSrc}
+            alt={item.name}
+            className="size-5 shrink-0 rounded-full object-cover"
+            fallback={leading}
+          />
+        }
         trailing={trailing}
         actions={
           <>
@@ -766,13 +775,14 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
 
         return (
           <ScrollArea
+            contentProps={{ className: 'px-1 py-1' }}
             viewportProps={{
               ref: listRef,
               id: listboxId,
               role: 'listbox',
               'aria-multiselectable': multiEnabled,
               tabIndex: -1,
-              className: 'scroll-pt-1.5 px-1 py-1 outline-none'
+              className: 'scroll-pt-1.5 outline-none'
             }}
             className="min-h-0 flex-1"
             style={{ height: listHeight }}>
