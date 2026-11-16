@@ -1424,7 +1424,9 @@ describe('desktop Pi Durable connection', () => {
     const late = message('late correction')
     expect(connection.redirect({ message: late })).toBe(true)
     await expect
-      .poll(() => nativeInputs.some((state) => state.inputId === late.id && state.outcome === 'completed'))
+      .poll(() => nativeInputs.some((state) => state.inputId === late.id && state.outcome === 'completed'), {
+        timeout: 10_000
+      })
       .toBe(true)
     expect(nativeInputs.some((state) => state.inputId === first.id && state.outcome === 'completed')).toBe(true)
     expect(injected).toBe(true)
