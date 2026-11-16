@@ -15,20 +15,21 @@ The System Prompt page of a Pi Durable Agent (`PiPromptField`) shows the assembl
 - An override replaces only a block the runtime would generate for the current settings. When a setting removes the block (for example, citations when no lookup tool is enabled), the override is kept but not sent.
 - **The Agent System Prompt block** holds the Agent's instructions. For a built-in Agent without its own instructions, it shows the built-in prompt; editing it saves custom instructions, and Restore built-in prompt clears them so the built-in prompt applies again.
 - **AI optimize** is offered on every editable block and rewrites only that block with the default model; the result can be undone, as with the existing prompt polish.
-- **Live blocks** stay read-only with a caption naming what keeps them current: the identity snapshot (SOUL, USER, and FACT), the skills list, workspace instructions, and MCP server instructions change with memory, skills, the workspace, and MCP servers. The reply language block follows the reply language setting.
+- **The identity block** opens the Agent's memory editor, the same one as the Memory page, so SOUL.md, USER.md, and FACT.md are edited in place. The block keeps following the files, and an unsaved file edit asks before Back leaves the block.
+- **Other live blocks** stay read-only with a caption naming what keeps them current: the skills list, workspace instructions, and MCP server instructions change with skills, the workspace, and MCP servers. The reply language block follows the reply language setting.
 - Overrides apply to Pi Durable Agents only, the runtime with a full prompt preview. Claude Code and Pi Agents keep only their instructions editable.
 - The preview route returns each block's key, kind, and generated text, instead of the text before and after the instructions, so the page can show generated text, overrides, and resets per block.
 
 ## Alternatives considered
 
-- Make the live blocks editable too (rejected: an edited copy would freeze memory, skills, and workspace instructions, which then no longer update).
+- Save edited copies of the live blocks as overrides (rejected: a copy would freeze memory, skills, and workspace instructions, which then no longer update; the identity block edits the files themselves instead).
 - Make the reply language block editable (rejected: it would drift from the reply language setting that produces it).
 - Apply overrides on every runtime (rejected: only Pi Durable shows the whole prompt, so users could not see the result elsewhere).
 - One AI optimize for the whole prompt (rejected: a whole-prompt rewrite is hard to review and would touch blocks the user did not mean to change).
 
 ## Acceptance criteria
 
-- AC1 — A Pi Durable Agent's System Prompt page leads with the Agent System Prompt and lists the other blocks by name in runtime order; each opens on its own page, where guidance blocks are editable and live blocks are read-only and captioned with what keeps them current (verification: renderer; owner: implementer)
+- AC1 — A Pi Durable Agent's System Prompt page leads with the Agent System Prompt and lists the other blocks by name in runtime order; each opens on its own page, where guidance blocks are editable and live blocks other than identity are read-only and captioned with what keeps them current (verification: renderer; owner: implementer)
 - AC2 — Editing a guidance block saves an override for that Agent, marks the block as changed, and the next prompt the runtime assembles uses the edited text in that block's place (verification: unit; owner: implementer)
 - AC3 — Restore auto-generated removes the override, and the block and the next assembled prompt show the generated text again (verification: unit; owner: implementer)
 - AC4 — An override for a block the current settings do not generate is not sent (verification: unit; owner: implementer)
@@ -37,6 +38,7 @@ The System Prompt page of a Pi Durable Agent (`PiPromptField`) shows the assembl
 - AC7 — Claude Code and Pi Agents ignore saved overrides and keep their instructions-only prompt page (verification: unit; owner: implementer)
 - AC8 — The new block titles, captions, and actions exist in every locale (verification: renderer; owner: implementer)
 - AC9 — In the app, an edited guidance block of a Pi Durable Agent appears in its prompt and Restore auto-generated brings back the generated text (verification: Electron; owner: implementer)
+- AC10 — The identity block edits SOUL.md, USER.md, and FACT.md through the memory editor, and Back with an unsaved file edit asks before leaving (verification: renderer, Electron; owner: implementer)
 
 ## Risks
 
