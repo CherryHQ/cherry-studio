@@ -2864,7 +2864,7 @@ describe('BinaryManager', () => {
       return service
     }
     const miseArgs = () => mockExecFileAsync.mock.calls.map((call: any[]) => call[1])
-    const useArgs = () => miseArgs().filter((args: string[]) => args[0] === 'use')
+    const miseUseCommands = () => miseArgs().filter((args: string[]) => args[0] === 'use')
     const stubGithubToolchain = (failure?: 'use' | 'reshim' | 'restore') => {
       let reshims = 0
       mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
@@ -2885,7 +2885,7 @@ describe('BinaryManager', () => {
       return service.installByName({ name: 'dwg2dxf' })
     }
     const expectRestored = () => {
-      expect(useArgs()).toEqual([
+      expect(miseUseCommands()).toEqual([
         ['use', '-g', `${DWG_TOOL}@latest`],
         ['use', '-g', '--force', X64_SPEC],
         ['use', '-g', '--force', `${DWG_TOOL}@0.14`]
@@ -2919,7 +2919,7 @@ describe('BinaryManager', () => {
 
         await expect(installGithubTool(service, DWG_TOOL, requested)).resolves.toBeUndefined()
 
-        expect(useArgs()).toEqual([
+        expect(miseUseCommands()).toEqual([
           ['use', '-g', `${DWG_TOOL}@${requested}`],
           ['use', '-g', '--force', X64_SPEC]
         ])
@@ -2934,7 +2934,7 @@ describe('BinaryManager', () => {
 
       await expect(installGithubTool(makeService())).resolves.toBeUndefined()
 
-      expect(useArgs()).toEqual([
+      expect(miseUseCommands()).toEqual([
         ['use', '-g', `${DWG_TOOL}@latest`],
         ['use', '-g', '--force', ARM64_SPEC]
       ])
@@ -2964,7 +2964,7 @@ describe('BinaryManager', () => {
 
       await expect(installGithubTool(makeService())).resolves.toBeUndefined()
 
-      expect(useArgs()).toEqual([
+      expect(miseUseCommands()).toEqual([
         ['use', '-g', `${DWG_TOOL}@latest`],
         ['use', '-g', '--force', X64_SPEC],
         ['use', '-g', '--force', `${DWG_TOOL}@0.14`]
@@ -2991,19 +2991,19 @@ describe('BinaryManager', () => {
           )
         ).resolves.toBeUndefined()
 
-        expect(useArgs()).toEqual([
+        expect(miseUseCommands()).toEqual([
           ['use', '-g', '--force', ...releaseAgeArgs, X64_SPEC],
           ['use', '-g', '--force', ...releaseAgeArgs, `${DWG_TOOL}@0.14`]
         ])
       }
     )
 
-    it.each([64, null])('leaves an executable of bitness %s untouched', async (bitness) => {
+    it.each([64, null] as const)('leaves an executable of bitness %s untouched', async (bitness) => {
       mockBitness.mockResolvedValueOnce(bitness)
 
       await expect(installGithubTool(makeService())).resolves.toBeUndefined()
 
-      expect(useArgs()).toEqual([['use', '-g', `${DWG_TOOL}@latest`]])
+      expect(miseUseCommands()).toEqual([['use', '-g', `${DWG_TOOL}@latest`]])
     })
 
     it.each(['npm:foo', `${DWG_TOOL}[matching_regex=custom]`])('leaves recipe %s untouched', async (tool) => {
@@ -3011,7 +3011,7 @@ describe('BinaryManager', () => {
 
       await expect(installGithubTool(makeService(), tool)).resolves.toBeUndefined()
 
-      expect(useArgs()).toEqual([['use', '-g', ...(tool === 'npm:foo' ? ['node@22'] : []), `${tool}@latest`]])
+      expect(miseUseCommands()).toEqual([['use', '-g', ...(tool === 'npm:foo' ? ['node@22'] : []), `${tool}@latest`]])
     })
 
     it.each(['null', 'throw'])('leaves the install successful when shim resolution returns %s', async (result) => {
@@ -3022,7 +3022,7 @@ describe('BinaryManager', () => {
 
       await expect(installGithubTool(service)).resolves.toBeUndefined()
 
-      expect(useArgs()).toEqual([['use', '-g', `${DWG_TOOL}@latest`]])
+      expect(miseUseCommands()).toEqual([['use', '-g', `${DWG_TOOL}@latest`]])
     })
 
     it('leaves the install successful when bitness lookup throws', async () => {
@@ -3030,7 +3030,7 @@ describe('BinaryManager', () => {
 
       await expect(installGithubTool(makeService())).resolves.toBeUndefined()
 
-      expect(useArgs()).toEqual([['use', '-g', `${DWG_TOOL}@latest`]])
+      expect(miseUseCommands()).toEqual([['use', '-g', `${DWG_TOOL}@latest`]])
     })
 
     it('warns and leaves the install successful when verification still reports 32-bit', async () => {
@@ -3038,7 +3038,7 @@ describe('BinaryManager', () => {
 
       await expect(installGithubTool(makeService())).resolves.toBeUndefined()
 
-      expect(useArgs()).toEqual([
+      expect(miseUseCommands()).toEqual([
         ['use', '-g', `${DWG_TOOL}@latest`],
         ['use', '-g', '--force', X64_SPEC]
       ])
@@ -3058,7 +3058,7 @@ describe('BinaryManager', () => {
 
       await expect(installGithubTool(service)).resolves.toBeUndefined()
 
-      expect(useArgs()).toEqual([
+      expect(miseUseCommands()).toEqual([
         ['use', '-g', `${DWG_TOOL}@latest`],
         ['use', '-g', '--force', X64_SPEC.replace('@0.14', '@latest')],
         ['use', '-g', '--force', `${DWG_TOOL}@latest`]
@@ -3104,7 +3104,7 @@ describe('BinaryManager', () => {
 
       await expect(installGithubTool(makeService())).resolves.toBeUndefined()
 
-      expect(useArgs()).toEqual([['use', '-g', `${DWG_TOOL}@latest`]])
+      expect(miseUseCommands()).toEqual([['use', '-g', `${DWG_TOOL}@latest`]])
     })
   })
 
