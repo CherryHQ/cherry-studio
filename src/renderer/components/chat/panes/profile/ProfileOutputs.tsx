@@ -60,7 +60,6 @@ export function AgentOutputs({ agentId, onOpen }: { agentId: string; onOpen?: (p
       onFilterChange={setFilter}
       emptyHint="chat.profile_pane.outputs.empty.agent"
       untitledSource="agent.session.new"
-      delivers="page"
       onOpen={onOpen ? (item) => item.path && onOpen(item.path) : undefined}
     />
   )
@@ -86,7 +85,6 @@ export function AssistantOutputs({ assistantId }: { assistantId: string }) {
       onFilterChange={setFilter}
       emptyHint="chat.profile_pane.outputs.empty.assistant"
       untitledSource="chat.default.topic.name"
-      delivers="image"
       onOpen={previewImage}
     />
   )
@@ -112,7 +110,6 @@ function OutputsList({
   onFilterChange,
   emptyHint,
   untitledSource,
-  delivers,
   onOpen
 }: {
   list?: ArtifactList
@@ -123,7 +120,6 @@ function OutputsList({
   emptyHint: string
   /** What the source conversation is called before it has a name. */
   untitledSource: string
-  delivers: 'page' | 'image'
   onOpen?: (item: ArtifactEntity) => void
 }) {
   const { t, i18n } = useTranslation()
@@ -156,7 +152,7 @@ function OutputsList({
     )
   }
 
-  if (!list.counts.all) return <OutputsEmpty hint={t(emptyHint)} delivers={delivers} />
+  if (!list.counts.all) return <OutputsEmpty hint={t(emptyHint)} />
 
   const now = new Date()
   const firstDayOfWeek = getLocaleFirstDayOfWeek(i18n.language)
@@ -315,142 +311,222 @@ function formatTime(date: Date, group: OutputsGroup, now: Date, language: string
   return new Intl.DateTimeFormat(language, options).format(date)
 }
 
-/** The three output kinds the Outputs filter uses, as empty slots. */
-const OUTPUT_SLOTS = [
-  { kind: 'page', x: 23 },
-  { kind: 'image', x: 49 },
-  { kind: 'file', x: 75 }
+type Sprite = { x: number; y: number; tilt: number; fill: string; cells: readonly (readonly [number, number])[] }
+
+/** Pixel sprites around the cards, each on a 4-unit grid. */
+const SPRITES: readonly Sprite[] = [
+  {
+    x: 26,
+    y: 94,
+    tilt: -12,
+    fill: 'fill-orange-500',
+    cells: [
+      [1, 0],
+      [3, 0],
+      [0, 1],
+      [2, 1],
+      [1, 2],
+      [3, 2],
+      [0, 3],
+      [2, 3]
+    ]
+  },
+  {
+    x: 54,
+    y: 34,
+    tilt: 14,
+    fill: 'fill-sky-500',
+    cells: [
+      [0, 0],
+      [1, 0],
+      [2, 0],
+      [3, 0],
+      [0, 1],
+      [0, 2],
+      [2, 3],
+      [3, 3]
+    ]
+  },
+  {
+    x: 110,
+    y: 10,
+    tilt: 18,
+    fill: 'fill-amber-400',
+    cells: [
+      [0, 0],
+      [3, 0],
+      [1, 1],
+      [2, 1],
+      [1, 2],
+      [0, 3],
+      [3, 3]
+    ]
+  },
+  {
+    x: 166,
+    y: 28,
+    tilt: -16,
+    fill: 'fill-emerald-500',
+    cells: [
+      [1, 0],
+      [3, 0],
+      [0, 1],
+      [1, 1],
+      [2, 1],
+      [3, 1],
+      [4, 1],
+      [1, 2],
+      [3, 2],
+      [0, 3],
+      [2, 3],
+      [4, 3]
+    ]
+  },
+  {
+    x: 196,
+    y: 82,
+    tilt: 10,
+    fill: 'fill-pink-500',
+    cells: [
+      [0, 0],
+      [3, 0],
+      [1, 1],
+      [2, 1],
+      [1, 2],
+      [2, 2],
+      [0, 3],
+      [3, 3]
+    ]
+  }
+]
+
+const CARDS = [
+  { x: 52, y: 66, rotate: -8, tint: 8 },
+  { x: 86, y: 44, rotate: 4, tint: 6 },
+  { x: 106, y: 72, rotate: -3, tint: 3 }
 ] as const
 
-function SlotGlyph({ kind, x }: { kind: 'page' | 'image' | 'file'; x: number }) {
-  // Glyphs are drawn for the first slot (x = 23) and shifted to their own.
+/** What each window holds, in card coordinates: a picture, a file of code, and a page being written. */
+function CardContent({
+  index,
+  x,
+  y,
+  quiet,
+  strong,
+  lineClass
+}: {
+  index: number
+  x: number
+  y: number
+  quiet: string
+  strong: string
+  /** Animates a line as if it were being written. */
+  lineClass: string
+}) {
+  if (index === 0) {
+    return (
+      <>
+        <rect x={x + 6} y={y + 18} width="28" height="36" rx="3" stroke={quiet} strokeWidth="1.5" />
+        <circle cx={x + 26} cy={y + 26} r="3" className="fill-amber-400" />
+        <path d={`m${x + 8} ${y + 50} 8-10 6 6 4-4 6 8`} stroke={quiet} strokeWidth="1.5" strokeLinejoin="round" />
+      </>
+    )
+  }
+  if (index === 1) {
+    return (
+      <g stroke={quiet} strokeWidth="2" strokeLinecap="round">
+        <path d={`M${x + 8} ${y + 20}h14M${x + 26} ${y + 20}h20`} />
+        <path d={`M${x + 14} ${y + 26}h24`} />
+      </g>
+    )
+  }
   return (
-    <g transform={`translate(${x - 23} 0)`}>
-      {kind === 'page' ? (
-        <>
-          <circle cx="34" cy="37" r="5" />
-          <path d="M29 37h10M34 32a8 8 0 0 1 0 10M34 32a8 8 0 0 0 0 10" />
-        </>
-      ) : kind === 'image' ? (
-        <>
-          <rect x="29" y="32" width="10" height="10" rx="2" />
-          <circle cx="32" cy="35.5" r="1" />
-          <path d="m29 41 3.5-3.5 6.5 4.5" />
-        </>
-      ) : (
-        <>
-          <path d="M31 31.5h4l3 3v7a1 1 0 0 1-1 1h-6a1 1 0 0 1-1-1v-9a1 1 0 0 1 1-1Z" />
-          <path d="M35 31.5v3h3" />
-        </>
-      )}
+    <g strokeLinecap="round">
+      {PAGE_LINES.map((line, row) => (
+        <path
+          key={line.dy}
+          className={lineClass}
+          style={{ animationDelay: `${row * 0.3}s` }}
+          pathLength={1}
+          d={`M${x + 10} ${y + line.dy}h${line.width}`}
+          stroke={line.heading ? strong : quiet}
+          strokeWidth={line.heading ? 3 : 2}
+        />
+      ))}
     </g>
   )
 }
 
-/**
- * The Outputs story: while the conversation types, a page (Agents) or an image (Assistants) rises
- * into its empty slot, which then takes on the brand tint. Neutral tokens plus one accent; the CSS
- * motion lives in the SVG so reduced motion stops it.
- */
-function OutputsIllustration({ delivers }: { delivers: 'page' | 'image' }) {
+const PAGE_LINES: readonly { dy: number; width: number; heading?: boolean }[] = [
+  { dy: 22, width: 34, heading: true },
+  { dy: 32, width: 64 },
+  { dy: 39, width: 56 },
+  { dy: 46, width: 60 },
+  { dy: 53, width: 36 }
+]
+
+/** Empty windows waiting for their first output, with pixel sprites drifting around them. */
+function OutputsIllustration() {
   const id = useId().replace(/:/g, '')
-  const slotX = OUTPUT_SLOTS.find((slot) => slot.kind === delivers)!.x - 23
-  const line = { strokeWidth: 1.3, strokeLinecap: 'round', strokeLinejoin: 'round' } as const
-  const accent = 'var(--color-primary)'
-  const muted = 'color-mix(in oklab, var(--color-muted-foreground) 70%, transparent)'
+  const edge = 'color-mix(in oklab, var(--foreground) 12%, transparent)'
+  const dot = 'color-mix(in oklab, var(--muted-foreground) 45%, transparent)'
+  const quiet = 'color-mix(in oklab, var(--muted-foreground) 35%, transparent)'
+  const strong = 'color-mix(in oklab, var(--muted-foreground) 60%, transparent)'
 
   return (
-    <svg width="150" height="118" viewBox="12 14 96 76" fill="none" aria-hidden="true">
+    <svg width="220" height="150" viewBox="0 0 240 164" fill="none" aria-hidden="true">
       <style>{`
-        .${id}-card { animation: ${id}-rise 4s cubic-bezier(.25,.8,.25,1) infinite; filter: drop-shadow(0 4px 6px color-mix(in oklab, var(--color-foreground) 12%, transparent)) }
-        .${id}-fill { animation: ${id}-fill 4s ease-out infinite; opacity: 0 }
-        .${id}-dot { animation: ${id}-type 1.2s ease-in-out infinite; opacity: .35 }
-        @keyframes ${id}-rise {
-          0% { transform: translate(${26 - slotX}px, 38px) scale(.55); opacity: 0 }
-          10% { opacity: 1 }
-          40% { transform: translate(0, -1.5px); opacity: 1 }
-          48%, 82% { transform: none; opacity: 1 }
-          100% { transform: none; opacity: 0 }
+        .${id}-sprite { transform-box: fill-box; transform-origin: center; animation: ${id}-float 3.6s ease-in-out infinite }
+        .${id}-front { animation: ${id}-drift 6s ease-in-out infinite }
+        @keyframes ${id}-float {
+          0%, 100% { transform: translateY(0) rotate(0deg) }
+          50% { transform: translateY(-7px) rotate(10deg) }
         }
-        @keyframes ${id}-fill { 0%, 40% { opacity: 0 } 52%, 84% { opacity: 1 } 100% { opacity: 0 } }
-        @keyframes ${id}-type { 0%, 60%, 100% { opacity: .35 } 30% { opacity: 1 } }
-        @media (prefers-reduced-motion: reduce) { .${id}-card, .${id}-fill, .${id}-dot { animation: none } }
+        .${id}-line { stroke-dasharray: 1; animation: ${id}-write 5s ease-out infinite }
+        @keyframes ${id}-drift { 0%, 100% { transform: translateY(0) } 50% { transform: translateY(-3px) } }
+        @keyframes ${id}-write { 0% { stroke-dashoffset: 1 } 30%, 88% { stroke-dashoffset: 0 } 100% { stroke-dashoffset: 1 } }
+        @media (prefers-reduced-motion: reduce) { .${id}-sprite, .${id}-front, .${id}-line { animation: none } }
       `}</style>
 
-      {/* Empty slots, one per output kind */}
-      {OUTPUT_SLOTS.map(({ kind, x }) => (
-        <g key={kind}>
-          <rect
-            x={x}
-            y="26"
-            width="22"
-            height="22"
-            rx="6"
-            fill="color-mix(in oklab, var(--color-foreground) 3%, transparent)"
-            stroke="color-mix(in oklab, var(--color-foreground) 18%, transparent)"
-            strokeDasharray="2.4 2.4"
-            strokeWidth="1.1"
-          />
-          <g stroke={muted} {...line}>
-            <SlotGlyph kind={kind} x={x} />
+      {CARDS.map((card, index) => (
+        <g key={index} className={index === CARDS.length - 1 ? `${id}-front` : undefined}>
+          <g transform={`rotate(${card.rotate} ${card.x + 42} ${card.y + 31})`}>
+            <rect
+              x={card.x}
+              y={card.y}
+              width="84"
+              height="62"
+              rx="6"
+              fill={`color-mix(in oklab, var(--muted-foreground) ${card.tint}%, var(--card))`}
+              stroke={edge}
+            />
+            <path d={`M${card.x} ${card.y + 12}h84`} stroke={edge} />
+            {[8, 14, 20].map((dx) => (
+              <circle key={dx} cx={card.x + dx} cy={card.y + 6} r="1.6" fill={dot} />
+            ))}
+            <CardContent index={index} x={card.x} y={card.y} quiet={quiet} strong={strong} lineClass={`${id}-line`} />
           </g>
         </g>
       ))}
-      <rect
-        className={`${id}-fill`}
-        x={23 + slotX - 2}
-        y="24"
-        width="26"
-        height="26"
-        rx="8"
-        fill={`color-mix(in oklab, ${accent} 12%, transparent)`}
-      />
 
-      {/* What the conversation delivers */}
-      <g transform={`translate(${slotX} 0)`}>
-        <g className={`${id}-card`}>
-          <rect
-            x="23.5"
-            y="26.5"
-            width="21"
-            height="21"
-            rx="5.5"
-            fill="var(--color-card)"
-            stroke="color-mix(in oklab, var(--color-foreground) 14%, transparent)"
-          />
-          <g stroke={accent} {...line}>
-            <SlotGlyph kind={delivers} x={23} />
+      {SPRITES.map((sprite, index) => (
+        <g key={sprite.fill} transform={`rotate(${sprite.tilt} ${sprite.x + 8} ${sprite.y + 8})`}>
+          <g className={cn(`${id}-sprite`, sprite.fill)} style={{ animationDelay: `${index * -0.7}s` }}>
+            {sprite.cells.map(([cx, cy]) => (
+              <rect key={`${cx}-${cy}`} x={sprite.x + cx * 4} y={sprite.y + cy * 4} width="4" height="4" />
+            ))}
           </g>
         </g>
-      </g>
-
-      {/* The conversation it comes from, still typing */}
-      <path
-        d="M40 64h40a7 7 0 0 1 7 7v6a7 7 0 0 1-7 7H63l-6 5v-5H40a7 7 0 0 1-7-7v-6a7 7 0 0 1 7-7Z"
-        fill="var(--color-card)"
-        stroke="color-mix(in oklab, var(--color-foreground) 14%, transparent)"
-      />
-      <g fill="var(--color-muted-foreground)">
-        {[51, 60, 69].map((cx, index) => (
-          <circle
-            key={cx}
-            className={`${id}-dot`}
-            cx={cx}
-            cy="74"
-            r="1.6"
-            style={{ animationDelay: `${index * 0.18}s` }}
-          />
-        ))}
-      </g>
+      ))}
     </svg>
   )
 }
 
-function OutputsEmpty({ hint, delivers }: { hint: string; delivers: 'page' | 'image' }) {
+function OutputsEmpty({ hint }: { hint: string }) {
   const { t } = useTranslation()
   return (
     <div className="flex flex-col items-center px-6 pt-8 pb-12 text-center">
-      <OutputsIllustration delivers={delivers} />
+      <OutputsIllustration />
       <span className="mt-4 text-foreground text-sm">{t('chat.profile_pane.outputs.empty.title')}</span>
       <span className="mt-1.5 max-w-60 text-muted-foreground text-xs leading-relaxed">{hint}</span>
     </div>
