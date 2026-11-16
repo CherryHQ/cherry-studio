@@ -2,19 +2,11 @@ import { RotateCcw } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-  Alert,
-  Button,
-  ScrollArea
-} from '@cherrystudio/ui'
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger, Button, ScrollArea } from '@cherrystudio/ui'
 import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
+import { ErrorNotice } from '@renderer/components/ErrorNotice'
 import { useEnableKnowledgeBaseEmbedding } from '@renderer/hooks/useKnowledgeBase'
 import { toast } from '@renderer/services/toast'
-import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 
 import { KnowledgeDialogFooter } from '../../components/KnowledgeDialogLayout'
@@ -72,24 +64,18 @@ const FailedRagConfigPanel = ({ base, onRestoreBase }: RagConfigPanelProps) => {
   return (
     <ScrollArea contentProps={{ className: 'flex items-center justify-center' }} className="h-full min-h-0">
       <div className="w-full max-w-120 px-5 py-4">
-        <Alert
-          type="error"
-          message={t('knowledge.status.failed')}
-          description={failureReason}
-          data-testid="rag-failed-state"
-          action={
-            <div className="flex items-center gap-2">
-              <Button type="button" size="sm" onClick={() => onRestoreBase(base)}>
-                {t('knowledge.restore.action')}
-              </Button>
-              <ErrorDetailAction
-                error={base.error ?? failureReason}
-                message={failureReason}
-                operation="knowledge.base.failed"
-                recordId={base.id}
-                source="knowledge"
-              />
-            </div>
+        <ErrorNotice
+          title={t('knowledge.status.failed')}
+          info={failureReason}
+          action={{ label: t('knowledge.restore.action'), onClick: () => onRestoreBase(base) }}
+          detail={
+            <ErrorDetailAction
+              error={base.error ?? failureReason}
+              message={failureReason}
+              operation="knowledge.base.failed"
+              recordId={base.id}
+              source="knowledge"
+            />
           }
         />
       </div>
@@ -134,7 +120,7 @@ const ActiveRagConfigPanel = ({ base, itemCount, onRestoreBase }: RagConfigPanel
         await save(values)
         toast.success(t('knowledge.rag.saved'))
       } catch (error) {
-        toast.error(formatErrorMessageWithPrefix(error, t('knowledge.error.failed_to_edit')))
+        toast.error({ title: t('knowledge.error.failed_to_edit'), cause: error })
       }
       return
     }
@@ -151,7 +137,7 @@ const ActiveRagConfigPanel = ({ base, itemCount, onRestoreBase }: RagConfigPanel
       try {
         dimensions = await fetchDimensions(values.embeddingModelId)
       } catch (error) {
-        toast.error(formatErrorMessageWithPrefix(error, t('message.error.get_embedding_dimensions')))
+        toast.error({ title: t('message.error.get_embedding_dimensions'), cause: error })
         return
       }
     }
@@ -162,7 +148,7 @@ const ActiveRagConfigPanel = ({ base, itemCount, onRestoreBase }: RagConfigPanel
         await enableEmbedding(base.id, { ...patch, embeddingModelId: values.embeddingModelId, dimensions })
         toast.success(t('knowledge.rag.saved'))
       } catch (error) {
-        toast.error(formatErrorMessageWithPrefix(error, t('knowledge.error.failed_to_edit')))
+        toast.error({ title: t('knowledge.error.failed_to_edit'), cause: error })
       }
       return
     }
@@ -171,7 +157,7 @@ const ActiveRagConfigPanel = ({ base, itemCount, onRestoreBase }: RagConfigPanel
       await save(values, { embeddingModelId: values.embeddingModelId, dimensions })
       toast.success(t('knowledge.rag.saved'))
     } catch (error) {
-      toast.error(formatErrorMessageWithPrefix(error, t('knowledge.error.failed_to_edit')))
+      toast.error({ title: t('knowledge.error.failed_to_edit'), cause: error })
     }
   }
 
