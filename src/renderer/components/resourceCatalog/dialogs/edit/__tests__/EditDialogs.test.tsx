@@ -1307,7 +1307,9 @@ describe('edit dialogs', () => {
       />
     )
 
-    expect(await screen.findByText('<soul>Cedar</soul>')).toBeInTheDocument()
+    expect(
+      await screen.findByRole('button', { name: /^library\.config\.agent\.prompt\.block\.agent_identity:/ })
+    ).toBeInTheDocument()
     expect(ipcRequestMock).toHaveBeenCalledWith(
       'agent.system_prompt.preview',
       expect.objectContaining({ agentId: AGENT.id, instructions: 'Original instructions' })
@@ -1323,6 +1325,11 @@ describe('edit dialogs', () => {
       })
     )
 
+    // Guidance opens on its own page, titled with the block, inside the dialog.
+    fireEvent.click(screen.getByRole('button', { name: /^library\.config\.agent\.prompt\.block\.report_artifacts:/ }))
+    expect(
+      screen.getByRole('heading', { name: 'library.config.agent.prompt.block.report_artifacts' })
+    ).toBeInTheDocument()
     fireEvent.change(screen.getByRole('textbox', { name: 'library.config.agent.prompt.block.report_artifacts' }), {
       target: { value: 'Report your own way.' }
     })

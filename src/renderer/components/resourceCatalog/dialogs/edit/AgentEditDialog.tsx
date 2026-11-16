@@ -65,7 +65,7 @@ import {
 import { HeartbeatCard } from '../components/HeartbeatCard'
 import { KnowledgeCapabilityList } from '../components/KnowledgeCapabilityList'
 import { McpCapabilityList } from '../components/McpCapabilityList'
-import { PiPromptField } from '../components/PiPromptField'
+import { getPromptBlockTitleKey, PiPromptField } from '../components/PiPromptField'
 import { PromptPolishActions } from '../components/PromptPolishActions'
 import { ReplyLanguageSelect } from '../components/ReplyLanguageSelect'
 import { AgentChannelsPage } from './AgentChannelsPage'
@@ -269,6 +269,8 @@ function AgentEditDialogContent({
   const { t } = useTranslation()
   const subPages = useMemo(() => agentSubPages(resource), [resource])
   const [page, setPage] = useState<EditPage>(() => resolveInitialEditPage('agent', initialTab, subPages))
+  // The System Prompt page opens one block of the prompt as a page of its own.
+  const [promptSection, setPromptSection] = useState<string | null>(null)
   const memoryPanelRef = useRef<AgentMemoryPanelHandle>(null)
   const [avatarSrc, setAvatarSrc] = useState(resource.avatarSrc)
   const [dialogContentElement, setDialogContentElement] = useState<HTMLDivElement | null>(null)
@@ -331,6 +333,7 @@ function AgentEditDialogContent({
     form.reset(defaultValues)
     form.clearErrors()
     setPage(resolveInitialEditPage('agent', initialTab, subPages))
+    setPromptSection(null)
     setAvatarSrc(resource.avatarSrc)
     setModelLabels(modelLabelsForAgent(resource))
     replaceFormBaseline(buildInitialAgentFormState(resource))
@@ -513,17 +516,25 @@ function AgentEditDialogContent({
   // Leaving Memory with an unsaved file edit asks first, as switching tabs did.
   const goTo = async (next: EditPage) => {
     if (page === 'memory' && memoryPanelRef.current && !(await memoryPanelRef.current.confirmLeave())) return
+    setPromptSection(null)
     setPage(next)
   }
+  const promptSectionTitle = page === 'prompt' && promptSection ? getPromptBlockTitleKey(promptSection) : undefined
 
   return (
     <EditDialogPageShell
       form={form}
       open={open}
       onOpenChange={handleOpenChange}
-      page={page}
-      title={pageTitles[page]}
-      onBack={page === 'settings' ? undefined : () => void goTo('settings')}
+      page={promptSectionTitle ? `prompt.${promptSection}` : page}
+      title={promptSectionTitle ? t(promptSectionTitle) : pageTitles[page]}
+      onBack={
+        promptSectionTitle
+          ? () => setPromptSection(null)
+          : page === 'settings'
+            ? undefined
+            : () => void goTo('settings')
+      }
       fill={page === 'prompt' || page === 'memory'}
       rootError={rootError}
       setDialogContentElement={setDialogContentElement}>
@@ -590,6 +601,8 @@ function AgentEditDialogContent({
           onChange={(next) => form.setValue('instructions', next, { shouldDirty: true, shouldTouch: true })}
           overrides={values.promptOverrides}
           onOverridesChange={(next) => form.setValue('promptOverrides', next, { shouldDirty: true, shouldTouch: true })}
+          section={promptSection}
+          onSectionChange={setPromptSection}
           draft={{
             agentId: resource.id,
             skillIds: values.skillIds,

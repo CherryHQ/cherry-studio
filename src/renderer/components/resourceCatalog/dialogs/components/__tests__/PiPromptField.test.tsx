@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
-import { cleanup, render, screen, waitFor, within } from '@testing-library/react'
+import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -85,45 +85,80 @@ afterEach(() => {
   cleanup()
 })
 
-describe('PiPromptField', () => {
-  it('shows the prompt as titled blocks, with live data read-only and labelled with what updates it', async () => {
-    answerWithDraft()
-    render(<Harness initial="Review code." />)
+const openSection = (user: ReturnType<typeof userEvent.setup>, name: string) =>
+  user.click(screen.getByRole('button', { name: new RegExp(`^${name}:`) }))
 
-    const skills = await screen.findByRole('region', { name: '技能' })
-    expect(within(skills).getByText('skills=')).toBeInTheDocument()
-    expect(within(skills).getByText('随启用的技能更新')).toBeInTheDocument()
-    expect(within(screen.getByRole('region', { name: '回复语言' })).getByText('跟随回复语言设置')).toBeInTheDocument()
+describe('PiPromptField', () => {
+  it('leads with the Agent prompt and lists the other blocks, each with how it is produced', async () => {
+    answerWithDraft()
+    render(<Harness initial="Review code." withOverrides />)
+
+    expect(await screen.findByRole('button', { name: `${REPORT}: 自动生成` })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '技能: 自动更新' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '回复语言: 自动更新' })).toBeInTheDocument()
+    expect(screen.getAllByRole('textbox')).toEqual([screen.getByRole('textbox', INSTRUCTIONS)])
     expect(screen.getByRole('textbox', INSTRUCTIONS)).toHaveValue('Review code.')
   })
 
-  // The create wizard has no Agent to save overrides on, so guidance stays read-only there.
-  it('keeps guidance read-only when overrides cannot be saved', async () => {
+  it('opens a live block read-only with what keeps it current, and goes back', async () => {
     answerWithDraft()
+    const user = userEvent.setup()
     render(<Harness />)
+    await screen.findByRole('button', { name: '技能: 自动更新' })
 
-    await screen.findByRole('region', { name: REPORT })
-    expect(screen.getAllByRole('textbox')).toEqual([screen.getByRole('textbox', INSTRUCTIONS)])
+    await openSection(user, '技能')
+
+    expect(screen.getByText('随启用的技能更新')).toBeInTheDocument()
+    expect(screen.getByText('skills=')).toBeInTheDocument()
+    expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: '技能' }))
+    expect(screen.getByRole('textbox', INSTRUCTIONS)).toBeInTheDocument()
+  })
+
+  // The create wizard has no Agent to save overrides on, so guidance stays read-only there.
+  it('shows guidance read-only when overrides cannot be saved', async () => {
+    answerWithDraft()
+    const user = userEvent.setup()
+    render(<Harness />)
+    await screen.findByRole('button', { name: `${REPORT}: 自动生成` })
+
+    await openSection(user, REPORT)
+
+    expect(screen.getByText(/Call report_artifacts/)).toBeInTheDocument()
+    expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
   })
 
   it('saves an edited guidance block as an override and restores the generated text', async () => {
     answerWithDraft()
     const user = userEvent.setup()
     render(<Harness withOverrides />)
-    const block = await screen.findByRole('textbox', { name: REPORT })
+    await screen.findByRole('button', { name: `${REPORT}: 自动生成` })
+    await openSection(user, REPORT)
+    const block = screen.getByRole('textbox', { name: REPORT })
     expect(block).toHaveValue(GENERATED_REPORT)
 
     await user.clear(block)
     await user.type(block, 'Mine.')
-
     expect(screen.getByText('overrides: {"report_artifacts":"Mine."}')).toBeInTheDocument()
-    const region = screen.getByRole('region', { name: REPORT })
-    expect(within(region).getByText('已修改')).toBeInTheDocument()
 
-    await user.click(within(region).getByRole('button', { name: '恢复自动生成' }))
+    await user.click(screen.getByRole('button', { name: '恢复自动生成' }))
 
     expect(screen.getByText('overrides: {}')).toBeInTheDocument()
     expect(screen.getByRole('textbox', { name: REPORT })).toHaveValue(GENERATED_REPORT)
+  })
+
+  it('marks an edited block in the list', async () => {
+    answerWithDraft()
+    const user = userEvent.setup()
+    render(<Harness withOverrides />)
+    await screen.findByRole('button', { name: `${REPORT}: 自动生成` })
+    await openSection(user, REPORT)
+    await user.type(screen.getByRole('textbox', { name: REPORT }), ' More.')
+
+    await user.click(screen.getByRole('button', { name: REPORT }))
+
+    expect(screen.getByRole('button', { name: `${REPORT}: 已修改` })).toBeInTheDocument()
   })
 
   it('shows a built-in Agent its built-in prompt and restores it after an edit', async () => {
@@ -142,34 +177,36 @@ describe('PiPromptField', () => {
     expect(screen.getByRole('textbox', INSTRUCTIONS)).toHaveValue('You are Cherry Assistant.')
   })
 
-  it('optimizes one guidance block with AI, leaving the others as they were', async () => {
+  it('optimizes one guidance block with AI, leaving the Agent prompt as it was', async () => {
     answerWithDraft()
     fetchGenerate.mockResolvedValue('## Reporting deliverables\n\nReport every final file.')
     const user = userEvent.setup()
     render(<Harness withOverrides initial="Review code." />)
-    const region = await screen.findByRole('region', { name: REPORT })
+    await screen.findByRole('button', { name: `${REPORT}: 自动生成` })
+    await openSection(user, REPORT)
 
-    await user.click(within(region).getByRole('button', { name: /润色提示词/ }))
+    await user.click(screen.getByRole('button', { name: /润色提示词/ }))
 
     await waitFor(() =>
       expect(screen.getByRole('textbox', { name: REPORT })).toHaveValue(
         '## Reporting deliverables\n\nReport every final file.'
       )
     )
-    expect(screen.getByRole('textbox', INSTRUCTIONS)).toHaveValue('Review code.')
+    expect(screen.getByText('saved: Review code.')).toBeInTheDocument()
     expect(fetchGenerate).toHaveBeenCalledWith(expect.objectContaining({ content: GENERATED_REPORT }))
   })
 
-  it('reassembles the prompt when skills or the reply language change', async () => {
+  it('reassembles the prompt when skills change', async () => {
     answerWithDraft()
+    const user = userEvent.setup()
     const { rerender } = render(<Harness />)
-    expect(await screen.findByText('skills=')).toBeInTheDocument()
+    await screen.findByRole('button', { name: '技能: 自动更新' })
+    await openSection(user, '技能')
+    expect(screen.getByText('skills=')).toBeInTheDocument()
 
     rerender(<Harness draft={{ ...baseDraft, skillIds: ['release-notes'] }} />)
-    expect(await screen.findByText('skills=release-notes')).toBeInTheDocument()
 
-    rerender(<Harness draft={{ ...baseDraft, skillIds: ['release-notes'], languageMode: 'off' }} />)
-    expect(await screen.findByText('language=null')).toBeInTheDocument()
+    expect(await screen.findByText('skills=release-notes')).toBeInTheDocument()
   })
 
   it('reports a failed assembly and recovers on retry, keeping the instructions editable', async () => {
@@ -183,7 +220,7 @@ describe('PiPromptField', () => {
     answerWithDraft()
     await user.click(screen.getByRole('button', { name: '重试' }))
 
-    await waitFor(() => expect(screen.getByText('skills=')).toBeInTheDocument())
+    expect(await screen.findByRole('button', { name: '技能: 自动更新' })).toBeInTheDocument()
     expect(screen.queryByText(LOAD_FAILED)).not.toBeInTheDocument()
   })
 })
