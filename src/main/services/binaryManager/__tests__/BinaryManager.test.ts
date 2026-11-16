@@ -3023,6 +3023,92 @@ describe('BinaryManager', () => {
       }
     })
 
+    it.each([false, true])(
+      'restores the install with an external marker (present before retry: %s)',
+      async (hadMarker) => {
+        const realFs = await vi.importActual<typeof NodeFsPromises>('node:fs/promises')
+        const realOs = await vi.importActual<typeof NodeOs>('node:os')
+        const root = await realFs.mkdtemp(path.join(realOs.tmpdir(), 'mise-marker-test-'))
+        const installPath = path.join(root, 'installs', '0.14')
+        const file = path.join(installPath, 'original.exe')
+        const marker = path.join(root, 'cache', 'libre-dwg-tool', '0.14', 'incomplete')
+        await realFs.mkdir(installPath, { recursive: true })
+        await realFs.mkdir(path.dirname(marker), { recursive: true })
+        await realFs.writeFile(file, 'original executable')
+        if (hadMarker) await realFs.writeFile(marker, '')
+        const getPath = vi.mocked(application.getPath).getMockImplementation()!
+        vi.mocked(application.getPath).mockImplementation((key, filename) =>
+          key === 'app.temp' || key === 'feature.binary.data' ? root : getPath(key, filename)
+        )
+        mockFsp.mkdtemp.mockImplementation(realFs.mkdtemp)
+        mockFsp.cp.mockImplementation(realFs.cp)
+        mockFsp.mkdir.mockImplementation(realFs.mkdir as typeof mockFsp.mkdir)
+        mockFsp.rm.mockImplementation(realFs.rm)
+        mockFsp.access.mockImplementation(realFs.access as typeof mockFsp.access)
+        mockBitness.mockResolvedValueOnce(32)
+        mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
+          if (args[0] === 'ls') {
+            const exists = await realFs.access(file).then(
+              () => true,
+              () => false
+            )
+            return {
+              stdout: JSON.stringify({
+                LibreDWGTool: exists ? [{ version: '0.14', active: true, install_path: installPath }] : []
+              }),
+              stderr: ''
+            }
+          }
+          if (args[0] === 'use' && args[2] === '--force') {
+            await realFs.rm(installPath, { recursive: true, force: true })
+            await realFs.writeFile(marker, '')
+            throw new Error('install timed out')
+          }
+          return { stdout: '', stderr: '' }
+        })
+        try {
+          const service = makeService()
+          await expect(
+            (service as any).installWithMise({ name: 'dwg2dxf', tool: DWG_TOOL }, undefined, [])
+          ).resolves.toBe('0.14')
+          expect(await realFs.readFile(file, 'utf8')).toBe('original executable')
+          expect(
+            await realFs.access(marker).then(
+              () => true,
+              () => false
+            )
+          ).toBe(hadMarker)
+          expect(miseArgs().filter((args: string[]) => args[0] === 'reshim')).toHaveLength(2)
+          expect(miseUseCommands()).toEqual([
+            ['use', '-g', `${DWG_TOOL}@latest`],
+            ['use', '-g', '--force', X64_SPEC]
+          ])
+          await expect((service as any).getInstalledVersion(DWG_TOOL)).resolves.toBe('0.14')
+        } finally {
+          vi.mocked(application.getPath).mockImplementation(getPath)
+          mockFsp.access.mockReset().mockResolvedValue(undefined)
+          await realFs.rm(root, { recursive: true, force: true })
+        }
+      }
+    )
+
+    it('removes the backup once the plain-spec restoration succeeds', async () => {
+      stubGithubToolchain('use')
+      mockFsp.cp.mockResolvedValue(undefined)
+      mockBitness.mockResolvedValueOnce(32)
+      const service = makeService()
+      vi.mocked((service as any).resolveRunnableShim)
+        .mockResolvedValueOnce({ path: 'shim', canonical: 'exe' })
+        .mockResolvedValueOnce(null)
+
+      await expect(installGithubTool(service)).resolves.toBeUndefined()
+
+      expectRestored()
+      expect(mockFsp.rm.mock.calls.filter(([target]) => target === '/tmp/mise-backup-test')).toEqual([
+        ['/tmp/mise-backup-test', { recursive: true, force: true }]
+      ])
+    })
+
     it('skips the 64-bit retry when the install path is missing', async () => {
       stubGithubToolchain('use', true)
       mockBitness.mockResolvedValueOnce(32)

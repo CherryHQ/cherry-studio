@@ -257,7 +257,7 @@ type FixedToolDefinition = {
 }
 type InstallableToolDefinition = CustomToolDefinition &
   Pick<FixedToolDefinition, 'npmAllowBuilds' | 'pipDependencies' | 'latestVersionPrefix'>
-type MiseInstallEntry = { version?: string; active?: boolean; install_path?: string }
+type MiseInstallEntry = { version?: string; active?: boolean; install_path?: string; installed?: boolean }
 
 // One build's env and the facts derived from it, so no caller can pair them
 // with another build's — see the `isolatedEnv` field comment.
@@ -1692,10 +1692,15 @@ export class BinaryManager extends BaseService {
         try {
           await fsp.mkdir(backup.installPath, { recursive: true })
           await fsp.cp(backup.copyPath, backup.installPath, { recursive: true })
+          if (!backup.hadMarker) await fsp.rm(backup.markerPath, { force: true })
           await this.runMise(['reshim'])
-          restored = true
-        } catch {
-          // Fall back to the existing mise restoration if local restoration fails.
+          const { stdout } = await this.runMise(['ls', '--json', definition.tool])
+          const entries = Object.values(JSON.parse(stdout) as Record<string, MiseInstallEntry[]>).flat()
+          restored =
+            entries.some((entry) => entry.version === version && entry.installed !== false) &&
+            !!(await this.resolveRunnableShim(definition.name, definition.tool))
+        } catch (error) {
+          logger.warn('Failed to restore the local mise installation', { name: definition.name, error })
         }
         if (restored) {
           await this.removeMiseBackup(backup.tempDir)
@@ -1713,7 +1718,6 @@ export class BinaryManager extends BaseService {
             includePrerelease
           })
           await this.runMise(['reshim'])
-          await this.removeMiseBackup(backup.tempDir)
         } catch (restoreError) {
           logger.warn(
             'Failed to restore the original tool spec; the narrowed asset selection may still be configured',
@@ -1726,6 +1730,7 @@ export class BinaryManager extends BaseService {
           )
           return
         }
+        await this.removeMiseBackup(backup.tempDir)
         logger.warn('Release ships no matching 64-bit Windows asset; keeping the installed build', {
           name: definition.name,
           tool: definition.tool,
@@ -1771,18 +1776,43 @@ export class BinaryManager extends BaseService {
   private async backupMiseInstall(
     tool: string,
     version: string
-  ): Promise<{ installPath: string; copyPath: string; tempDir: string } | undefined> {
+  ): Promise<
+    { installPath: string; copyPath: string; tempDir: string; markerPath: string; hadMarker: boolean } | undefined
+  > {
     let tempDir: string | undefined
     try {
       const { stdout } = await this.runMise(['ls', '--json', tool])
-      const entries = Object.values(JSON.parse(stdout) as Record<string, MiseInstallEntry[]>).flat()
-      const installPath = entries.find((entry) => entry.version === version)?.install_path
-      if (!installPath) return undefined
+      const tools = Object.entries(JSON.parse(stdout) as Record<string, MiseInstallEntry[]>)
+      const match = tools
+        .flatMap(([short, entries]) => entries.map((entry) => ({ short, entry })))
+        .find(({ entry }) => entry.version === version)
+      const installPath = match?.entry.install_path
+      if (!installPath || !match?.entry.version) return undefined
+      const short = match.short
+        .replace(/([a-z0-9])([A-Z])/g, '$1-$2')
+        .replace(/([A-Z])([A-Z][a-z])/g, '$1-$2')
+        .replace(/[_\s]+/g, '-')
+        .toLowerCase()
+      const markerPath = path.join(
+        application.getPath('feature.binary.data'),
+        'cache',
+        short,
+        match.entry.version,
+        'incomplete'
+      )
+      let hadMarker = true
+      try {
+        await fsp.access(markerPath)
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+        hadMarker = false
+      }
       tempDir = await fsp.mkdtemp(path.join(application.getPath('app.temp'), 'mise-backup-'))
       const copyPath = path.join(tempDir, 'install')
       await fsp.cp(installPath, copyPath, { recursive: true })
-      return { installPath, copyPath, tempDir }
-    } catch {
+      return { installPath, copyPath, tempDir, markerPath, hadMarker }
+    } catch (error) {
+      logger.warn('Failed to stage the mise installation backup', { tool, version, error })
       if (tempDir) await this.removeMiseBackup(tempDir)
       return undefined
     }
