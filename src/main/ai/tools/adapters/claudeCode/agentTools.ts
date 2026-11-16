@@ -110,12 +110,6 @@ export async function listClaudeAgentToolDescriptors(agent: Pick<AgentEntity, 'm
   }
 }
 
-export async function listClaudeAgentTools(agent: AgentEntity): Promise<Tool[]> {
-  const { descriptors } = await listClaudeAgentToolDescriptors(agent)
-  const policy = buildClaudeToolPolicy(agent)
-  return descriptors.map((descriptor) => descriptorToTool(descriptor, policy))
-}
-
 function findRuntimeDescriptor(
   descriptors: readonly ClaudeToolDescriptor[],
   runtimeName: string

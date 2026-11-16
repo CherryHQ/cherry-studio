@@ -6059,7 +6059,6 @@
   "settings.tool.websearch.compression.method.label": "Compression Method",
   "settings.tool.websearch.compression.method.none": "None",
   "settings.tool.websearch.errors.save_failed": "Save failed",
-  "settings.tool.websearch.errors.zhipu_sync_failed": "Failed to sync Zhipu API key to Web Search. Please re-save the key or check Web Search settings.",
   "settings.tool.websearch.fetch_urls_provider": "URL fetch provider",
   "settings.tool.websearch.model_tools_preferred.description": "Prefer model-native web search and URL fetching for web search in chat, with automatic fallback to the services above when unavailable. Agent conversations always use the services above.",
   "settings.tool.websearch.model_tools_preferred.label": "Prefer model-native web tools",

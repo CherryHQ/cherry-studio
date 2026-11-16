@@ -6131,7 +6131,6 @@
   "settings.tool.websearch.compression.method.label": "Metoda kompresji",
   "settings.tool.websearch.compression.method.none": "Brak",
   "settings.tool.websearch.errors.save_failed": "Zapisywanie nie powiodło się",
-  "settings.tool.websearch.errors.zhipu_sync_failed": "Nie udało się zsynchronizować klucza API Zhipu z wyszukiwaniem w sieci. Zapisz klucz ponownie lub sprawdź ustawienia wyszukiwania w sieci.",
   "settings.tool.websearch.fetch_urls_provider": "Dostawca pobierania adresów URL",
   "settings.tool.websearch.model_tools_preferred.description": "Preferuj natywne dla modelu wyszukiwanie w sieci i pobieranie stron URL, z automatycznym przełączeniem na powyższe usługi, gdy są niedostępne.",
   "settings.tool.websearch.model_tools_preferred.label": "Preferuj natywne narzędzia sieciowe modelu",

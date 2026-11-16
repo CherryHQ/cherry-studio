@@ -6059,7 +6059,6 @@
   "settings.tool.websearch.compression.method.label": "壓縮方法",
   "settings.tool.websearch.compression.method.none": "不壓縮",
   "settings.tool.websearch.errors.save_failed": "儲存失敗",
-  "settings.tool.websearch.errors.zhipu_sync_failed": "智譜 API 金鑰同步到 Web Search 失敗，請重新儲存金鑰或檢查 Web Search 設定。",
   "settings.tool.websearch.fetch_urls_provider": "URL 擷取供應商",
   "settings.tool.websearch.model_tools_preferred.description": "在對話中優先使用模型內建的網頁搜尋和 URL 抓取功能，無法使用時回退到上方服務。Agent 對話始終使用上方服務。",
   "settings.tool.websearch.model_tools_preferred.label": "優先使用模型內建 Web 工具",

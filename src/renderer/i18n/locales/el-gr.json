@@ -6059,7 +6059,6 @@
   "settings.tool.websearch.compression.method.label": "Μέθοδος συμπίεσης",
   "settings.tool.websearch.compression.method.none": "Χωρίς συμπίεση",
   "settings.tool.websearch.errors.save_failed": "Η αποθήκευση απέτυχε",
-  "settings.tool.websearch.errors.zhipu_sync_failed": "Αποτυχία συγχρονισμού του κλειδιού API του Zhipu με την Αναζήτηση Ιστού. Παρακαλώ αποθηκεύστε ξανά το κλειδί ή ελέγξτε τις ρυθμίσεις Αναζήτησης Ιστού.",
   "settings.tool.websearch.fetch_urls_provider": "Πάροχος λήψης διευθύνσεων URL",
   "settings.tool.websearch.model_tools_preferred.description": "Προτιμά την εγγενή αναζήτηση ιστού και ανάκτηση URL του μοντέλου για την αναζήτηση ιστού στη συνομιλία και μεταβαίνει αυτόματα στις παραπάνω υπηρεσίες όταν αυτές οι δυνατότητες δεν είναι διαθέσιμες. Οι συνομιλίες με πράκτορες χρησιμοποιούν πάντα τις παραπάνω υπηρεσίες.",
   "settings.tool.websearch.model_tools_preferred.label": "Προτίμηση εγγενών εργαλείων ιστού του μοντέλου",

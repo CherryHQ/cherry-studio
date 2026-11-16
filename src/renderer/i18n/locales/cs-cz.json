@@ -6059,7 +6059,6 @@
   "settings.tool.websearch.compression.method.label": "Metoda komprese",
   "settings.tool.websearch.compression.method.none": "Bez komprese",
   "settings.tool.websearch.errors.save_failed": "Uložení se nezdařilo",
-  "settings.tool.websearch.errors.zhipu_sync_failed": "Synchronizace API klíče Zhipu do Web Search se nezdařila. Klíč znovu uložte nebo zkontrolujte nastavení Web Search.",
   "settings.tool.websearch.fetch_urls_provider": "Poskytovatel načítání URL",
   "settings.tool.websearch.model_tools_preferred.description": "V chatu dávat přednost vestavěnému webovému vyhledávání a načítání URL modelu; pokud není dostupné, použije se výše uvedená služba. Konverzace agentů vždy používají výše uvedené služby.",
   "settings.tool.websearch.model_tools_preferred.label": "Dávat přednost nativním webovým nástrojům modelu",

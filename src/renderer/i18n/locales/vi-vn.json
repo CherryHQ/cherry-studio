@@ -6059,7 +6059,6 @@
   "settings.tool.websearch.compression.method.label": "Phương pháp nén",
   "settings.tool.websearch.compression.method.none": "không",
   "settings.tool.websearch.errors.save_failed": "Lưu thất bại",
-  "settings.tool.websearch.errors.zhipu_sync_failed": "Không thể đồng bộ khóa API Zhipu với Tìm kiếm Web. Vui lòng lưu lại khóa hoặc kiểm tra cài đặt Tìm kiếm Web.",
   "settings.tool.websearch.fetch_urls_provider": "Nhà cung cấp tìm nạp URL",
   "settings.tool.websearch.model_tools_preferred.description": "Ưu tiên tìm kiếm web và truy xuất URL tích hợp của mô hình khi tìm kiếm web trong cuộc trò chuyện, tự động chuyển sang các dịch vụ ở trên khi các tính năng này không khả dụng. Các cuộc trò chuyện với tác nhân luôn sử dụng các dịch vụ ở trên.",
   "settings.tool.websearch.model_tools_preferred.label": "Ưu tiên công cụ web tích hợp của mô hình",
