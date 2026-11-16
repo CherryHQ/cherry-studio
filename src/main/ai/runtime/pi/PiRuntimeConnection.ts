@@ -185,7 +185,8 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       web: isToolEnabled('cherry-tools', WEB_SEARCH_TOOL_NAME) || isToolEnabled('cherry-tools', WEB_FETCH_TOOL_NAME),
       kb:
         (resolveAgentCapabilities(agent).allKnowledgeBases || knowledgeBaseScope.length > 0) &&
-        (isToolEnabled('cherry-tools', KB_SEARCH_TOOL_NAME) || isToolEnabled('cherry-tools', KB_READ_TOOL_NAME))
+        (isToolEnabled('cherry-tools', KB_SEARCH_TOOL_NAME) || isToolEnabled('cherry-tools', KB_READ_TOOL_NAME)),
+      ref: PI_TOOL_CALL_FORM.ref
     })
     const prompt = await buildAgentRuntimePrompt({
       workspacePath,

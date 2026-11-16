@@ -73,7 +73,8 @@ export async function buildDurablePrompt(pi: PiSdk, options: DurablePromptOption
       web: enabled(WEB_SEARCH_TOOL_NAME) || enabled(WEB_FETCH_TOOL_NAME),
       kb:
         (resolveAgentCapabilities(agent).allKnowledgeBases || options.knowledgeBaseScope.length > 0) &&
-        (enabled(KB_SEARCH_TOOL_NAME) || enabled(KB_READ_TOOL_NAME))
+        (enabled(KB_SEARCH_TOOL_NAME) || enabled(KB_READ_TOOL_NAME)),
+      ref: DURABLE_TOOL_CALL_FORM.ref
     })
   })
   const agentDir = application.getPath('feature.agents.pi.root')
