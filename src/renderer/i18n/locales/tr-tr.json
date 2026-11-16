@@ -4735,7 +4735,7 @@
   "settings.doctor.agent.description": "Mevcut bulgular uygulamanın çalışma zamanı durumuyla birlikte analiz ediliyor.",
   "settings.doctor.agent.incident_disclosure": "Bu analiz, bu konuşmanın mesajlarını ve çalışma kayıtlarını okur ve seçtiğiniz modele gönderir.",
   "settings.doctor.agent.messages.applied": "Değişiklik uygulandı.",
-  "settings.doctor.agent.messages.apply_failed": "Uygulanamadı: {{message}}",
+  "settings.doctor.agent.messages.apply_failed": "Uygulanamadı",
   "settings.doctor.agent.messages.execution_failed": "Analiz, bildirilen bir neden olmadan sona erdi.",
   "settings.doctor.agent.messages.no_model": "Varsayılan model yapılandırılmamış. Analizden önce Ayarlar'dan bir model seçin.",
   "settings.doctor.agent.messages.not_started_busy": "Başka bir analiz hâlâ çalışıyor. Bitmesini bekleyin, sonra yeniden deneyin.",

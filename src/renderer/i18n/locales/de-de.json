@@ -4735,7 +4735,7 @@
   "settings.doctor.agent.description": "Die aktuellen Befunde werden zusammen mit dem Laufzeitzustand der App analysiert.",
   "settings.doctor.agent.incident_disclosure": "Diese Analyse liest die Nachrichten und Laufzeitprotokolle dieser Unterhaltung und sendet sie an das von Ihnen gewählte Modell.",
   "settings.doctor.agent.messages.applied": "Änderung angewendet.",
-  "settings.doctor.agent.messages.apply_failed": "Anwenden nicht möglich: {{message}}",
+  "settings.doctor.agent.messages.apply_failed": "Anwenden nicht möglich",
   "settings.doctor.agent.messages.execution_failed": "Die Analyse endete ohne eine gemeldete Ursache.",
   "settings.doctor.agent.messages.no_model": "Kein Standardmodell konfiguriert. Wähle vor der Analyse eines in den Einstellungen.",
   "settings.doctor.agent.messages.not_started_busy": "Eine andere Analyse läuft noch. Warten Sie, bis sie fertig ist, und versuchen Sie es erneut.",

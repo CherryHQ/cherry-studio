@@ -86,14 +86,13 @@ export function useDoctorAgent({
             )
           )
         } else if (result.status === 'stale') setFailure({ key, message: t('settings.doctor.messages.stale') })
-        else
-          setFailure({
-            key,
-            message: t('settings.doctor.agent.messages.apply_failed', { message: result.message })
-          })
+        else {
+          logger.warn('Doctor proposal was not applied', { message: result.message })
+          setFailure({ key, message: t('settings.doctor.agent.messages.apply_failed') })
+        }
       } catch (error) {
         logger.error('Failed to apply a doctor proposal', error as Error)
-        setFailure({ key, message: t('settings.doctor.agent.messages.apply_failed', { message: String(error) }) })
+        setFailure({ key, message: t('settings.doctor.agent.messages.apply_failed') })
       } finally {
         setBusy(null)
       }

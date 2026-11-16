@@ -4736,7 +4736,7 @@
   "settings.doctor.agent.description": "Se analizează constatările curente împreună cu starea de execuție a aplicației.",
   "settings.doctor.agent.incident_disclosure": "Această analiză citește mesajele și înregistrările de execuție ale acestei conversații și le trimite modelului ales.",
   "settings.doctor.agent.messages.applied": "Modificare aplicată.",
-  "settings.doctor.agent.messages.apply_failed": "Nu s-a putut aplica: {{message}}",
+  "settings.doctor.agent.messages.apply_failed": "Nu s-a putut aplica",
   "settings.doctor.agent.messages.execution_failed": "Analiza s-a încheiat fără o cauză raportată.",
   "settings.doctor.agent.messages.no_model": "Nu este configurat un model implicit. Alege unul în Setări înainte de analiză.",
   "settings.doctor.agent.messages.not_started_busy": "O altă analiză este încă în curs. Așteaptă să se termine, apoi încearcă din nou.",

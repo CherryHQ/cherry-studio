@@ -82,7 +82,7 @@ describe('useDoctorAgent', () => {
     expect(request).toHaveBeenCalledWith('diagnostics.doctor.agent.cancel', { key: 'global', runId: 'run-1' })
   })
 
-  it('keeps a failed apply in the panel, including the backend message, and clears it when apply succeeds', async () => {
+  it('keeps a failed apply in the panel without the raw backend message and clears it when apply succeeds', async () => {
     seedAnalysis('completed')
     request.mockResolvedValueOnce({ status: 'failed', message: 'disk full' }).mockResolvedValueOnce({
       status: 'applied',
@@ -92,7 +92,7 @@ describe('useDoctorAgent', () => {
 
     await act(async () => result.current.apply('proposal-1'))
 
-    expect(result.current.actionError).toBe('settings.doctor.agent.messages.apply_failed:message=disk full')
+    expect(result.current.actionError).toBe('settings.doctor.agent.messages.apply_failed')
     expect(result.current.busy).toBeNull()
     expect(toast.error).not.toHaveBeenCalled()
     expect(toast.success).not.toHaveBeenCalled()

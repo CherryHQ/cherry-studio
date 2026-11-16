@@ -4735,7 +4735,7 @@
   "settings.doctor.agent.description": "กำลังวิเคราะห์ผลที่ตรวจพบร่วมกับสถานะ runtime ของแอป",
   "settings.doctor.agent.incident_disclosure": "การวิเคราะห์นี้จะอ่านข้อความและบันทึก runtime ของบทสนทนานี้ แล้วส่งไปยังโมเดลที่คุณเลือก",
   "settings.doctor.agent.messages.applied": "ใช้การแก้ไขแล้ว",
-  "settings.doctor.agent.messages.apply_failed": "ใช้การแก้ไขไม่สำเร็จ: {{message}}",
+  "settings.doctor.agent.messages.apply_failed": "ใช้การแก้ไขไม่สำเร็จ",
   "settings.doctor.agent.messages.execution_failed": "การวิเคราะห์จบลงโดยไม่ได้รายงานสาเหตุ",
   "settings.doctor.agent.messages.no_model": "ยังไม่ได้ตั้งค่าโมเดลเริ่มต้น โปรดเลือกในหน้าตั้งค่าก่อนวิเคราะห์",
   "settings.doctor.agent.messages.not_started_busy": "มีการวิเคราะห์อื่นที่ยังทำงานอยู่ รอให้เสร็จสิ้นแล้วลองอีกครั้ง",

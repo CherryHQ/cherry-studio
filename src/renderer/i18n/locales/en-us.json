@@ -4735,7 +4735,7 @@
   "settings.doctor.agent.description": "Analyzing the current findings together with the app's runtime state.",
   "settings.doctor.agent.incident_disclosure": "This analysis reads the messages and runtime records of this conversation and sends them to the model you pick.",
   "settings.doctor.agent.messages.applied": "Change applied.",
-  "settings.doctor.agent.messages.apply_failed": "Could not apply: {{message}}",
+  "settings.doctor.agent.messages.apply_failed": "Could not apply",
   "settings.doctor.agent.messages.execution_failed": "The analysis ended without a reported cause.",
   "settings.doctor.agent.messages.no_model": "No default model is configured. Pick one in Settings before analyzing.",
   "settings.doctor.agent.messages.not_started_busy": "Another analysis is still running. Wait for it to finish, then try again.",

@@ -4735,7 +4735,7 @@
   "settings.doctor.agent.description": "Analisi dei risultati attuali insieme allo stato di esecuzione dell'app.",
   "settings.doctor.agent.incident_disclosure": "Questa analisi legge i messaggi e i registri di esecuzione di questa conversazione e li invia al modello che scegli.",
   "settings.doctor.agent.messages.applied": "Modifica applicata.",
-  "settings.doctor.agent.messages.apply_failed": "Impossibile applicare: {{message}}",
+  "settings.doctor.agent.messages.apply_failed": "Impossibile applicare",
   "settings.doctor.agent.messages.execution_failed": "L'analisi è terminata senza una causa segnalata.",
   "settings.doctor.agent.messages.no_model": "Nessun modello predefinito configurato. Scegline uno nelle Impostazioni prima dell'analisi.",
   "settings.doctor.agent.messages.not_started_busy": "Un'altra analisi è ancora in corso. Attendi che finisca, poi riprova.",

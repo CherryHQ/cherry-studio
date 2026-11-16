@@ -4801,7 +4801,7 @@
   "settings.doctor.agent.description": "Analizowanie bieżących wyników wraz ze stanem środowiska uruchomieniowego aplikacji.",
   "settings.doctor.agent.incident_disclosure": "Ta analiza odczytuje wiadomości oraz rekordy wykonawcze tej rozmowy i wysyła je do wybranego modelu.",
   "settings.doctor.agent.messages.applied": "Zastosowano zmianę.",
-  "settings.doctor.agent.messages.apply_failed": "Nie udało się zastosować: {{message}}",
+  "settings.doctor.agent.messages.apply_failed": "Nie udało się zastosować",
   "settings.doctor.agent.messages.execution_failed": "Analiza zakończyła się bez podania przyczyny.",
   "settings.doctor.agent.messages.no_model": "Nie skonfigurowano domyślnego modelu. Wybierz model w Ustawieniach przed rozpoczęciem analizy.",
   "settings.doctor.agent.messages.not_started_busy": "Inna analiza jest nadal w toku. Poczekaj na jej zakończenie i spróbuj ponownie.",

@@ -4736,7 +4736,7 @@
   "settings.doctor.agent.description": "Analýza aktuálních zjištění spolu se stavem běhu aplikace.",
   "settings.doctor.agent.incident_disclosure": "Tato analýza čte zprávy a záznamy běhu této konverzace a odešle je modelu, který vyberete.",
   "settings.doctor.agent.messages.applied": "Změna byla použita.",
-  "settings.doctor.agent.messages.apply_failed": "Nelze použít: {{message}}",
+  "settings.doctor.agent.messages.apply_failed": "Nelze použít",
   "settings.doctor.agent.messages.execution_failed": "Analýza skončila bez uvedené příčiny.",
   "settings.doctor.agent.messages.no_model": "Není nastaven výchozí model. Před analýzou jej vyberte v nastavení.",
   "settings.doctor.agent.messages.not_started_busy": "Stále probíhá jiná analýza. Počkejte na její dokončení a zkuste to znovu.",
