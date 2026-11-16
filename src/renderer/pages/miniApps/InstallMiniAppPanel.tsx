@@ -3,7 +3,6 @@ import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
-  Alert,
   Button,
   DialogFooter,
   Dropzone,
@@ -16,6 +15,7 @@ import {
   InputGroupInput
 } from '@cherrystudio/ui'
 import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
+import { ErrorNotice } from '@renderer/components/ErrorNotice'
 import { InstallConsentDialog } from '@renderer/components/MiniApp/InstallConsentDialog'
 import { useExitPresence } from '@renderer/hooks/useExitPresence'
 import { useMiniAppInstallPreview } from '@renderer/hooks/useMiniAppInstallPreview'
@@ -100,10 +100,10 @@ export const InstallMiniAppPicker: FC<{ open?: boolean; onClose: () => void }> =
         </Field>
 
         {error && (
-          <Alert
-            type="error"
-            message={t(error.key, error.params)}
-            action={
+          <ErrorNotice
+            variant="inline"
+            title={t(error.key, error.params)}
+            detail={
               <ErrorDetailAction
                 error={error.cause ?? error}
                 message={t(error.key, error.params)}
