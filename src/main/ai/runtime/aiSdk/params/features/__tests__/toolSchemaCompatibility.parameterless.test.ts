@@ -7,15 +7,27 @@ import { generateText, tool, wrapLanguageModel } from 'ai'
 import { describe, expect, it } from 'vitest'
 
 import { createMcpInputSchema } from '@main/ai/tools/adapters/aiSdk/mcpSchema'
-import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, type EndpointType, type Model } from '@shared/data/types/model'
 
 import { toolSchemaCompatibilityFeature } from '../toolSchemaCompatibility'
+
+const TEST_MODEL: Model = {
+  id: 'custom::gpt-4o',
+  apiModelId: 'gpt-4o',
+  providerId: 'custom',
+  name: 'GPT-4o',
+  capabilities: [],
+  supportsStreaming: true,
+  isEnabled: true,
+  isHidden: false
+}
 
 async function getMiddleware(
   scope: { aiSdkProviderId?: string; endpointType?: EndpointType; runtimeProviderId?: string } = {}
 ): Promise<LanguageModelMiddleware> {
   const [plugin] = toolSchemaCompatibilityFeature.contributeModelAdapters!({
     ...scope,
+    model: TEST_MODEL,
     sdkConfig: { providerId: scope.runtimeProviderId ?? scope.aiSdkProviderId ?? 'openai-compatible' }
   } as never)
   if (!plugin) throw new Error('Tool-schema compatibility plugin was not contributed')
