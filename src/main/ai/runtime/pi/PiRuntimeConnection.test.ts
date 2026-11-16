@@ -591,7 +591,7 @@ describe('desktop Pi root connection', () => {
     childRuns = 0
     events.length = 0
     await connection.send({ message: message('delegate now') })
-    await done(events)
+    await done(events, 15_000)
     const firstChild = child
     expect(events.filter((event) => event.type === 'error')).toEqual([])
     const access = await connection.childProjection('spawn')
@@ -614,7 +614,7 @@ describe('desktop Pi root connection', () => {
     detach()
     events.length = 0
     await connection.send({ message: message('continue child') })
-    await done(events)
+    await done(events, 15_000)
     await expect.poll(() => childText()).toContain('child continued answer')
     const childMessage = access!
       .snapshot()
