@@ -4,6 +4,7 @@ import { context as otelContext, type Span, SpanStatusCode, trace } from '@opent
 import { isToolUIPart, type UIMessageChunk } from 'ai'
 
 import { application } from '@application'
+import { cloneObservationValue } from '@cherrystudio/agent-runtime'
 import type { TokenUsageSource } from '@cherrystudio/analytics-client'
 import { loggerService } from '@logger'
 import { CHAT_STREAM_IDLE_TIMEOUT_MS } from '@main/ai/constants'
@@ -386,7 +387,7 @@ export class AiStreamManager extends BaseService {
           [...stream.executions.values()].find(
             (item) => item.anchorMessageId === message.id || item.finalMessage?.id === message.id
           )
-        if (!exec) return structuredClone(projectStreamMessageForRenderer(topicId, message))
+        if (!exec) return cloneObservationValue(projectStreamMessageForRenderer(topicId, message))
         const accepted = (exec.acceptedToolResults ??= new AcceptedToolResults(topicId))
         const parts = message.parts.map((part) => {
           if (isToolUIPart(part) && part.state === 'output-available')
@@ -395,9 +396,9 @@ export class AiStreamManager extends BaseService {
                 .get(topicId)
                 ?.invalidateToolResults([{ topicId, messageId: message.id, toolCallId: part.toolCallId }])
             })
-          return structuredClone(part)
+          return cloneObservationValue(part)
         })
-        return { ...structuredClone({ ...message, parts: [] }), parts }
+        return { ...cloneObservationValue({ ...message, parts: [] }), parts }
       })
       this.projections.set(topicId, projection)
     }

@@ -79,6 +79,7 @@ export class MessageProjection<S extends ProjectionState> {
       const { messages, ...state } = source
       return {
         ...source,
+        // oxlint-disable-next-line no-restricted-globals -- Isolate producer metadata once at acceptance; parts reuse captured values.
         ...structuredClone(state),
         messages: messages.map((message) => captureMessage(message, previous.get(message.id)))
       }

@@ -1,6 +1,6 @@
 import { isDeepStrictEqual } from 'node:util'
 
-import { snapshotToolPart } from '@cherrystudio/agent-runtime'
+import { cloneObservationValue, snapshotToolPart } from '@cherrystudio/agent-runtime'
 import { projectMessagePartForRenderer } from '@main/utils/messageOutputProjection'
 import type { CherryMessagePart } from '@shared/data/types/message'
 
@@ -40,7 +40,7 @@ export class AcceptedToolResults {
     }
     if (isDeepStrictEqual({ ...part, output: undefined }, { ...known.part, output: undefined })) return known.part
     const projected: CherryMessagePart = {
-      ...structuredClone({ ...part, output: undefined }),
+      ...cloneObservationValue({ ...part, output: undefined }),
       output: 'output' in known.part ? known.part.output : part.output
     }
     known.part = projected

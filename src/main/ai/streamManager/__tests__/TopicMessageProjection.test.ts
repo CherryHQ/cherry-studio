@@ -1,5 +1,6 @@
 import { afterEach, expect, it, vi } from 'vitest'
 
+import { cloneObservationValue } from '@cherrystudio/agent-runtime'
 import type { CherryUIMessage } from '@shared/data/types/message'
 
 import { TopicMessageProjection } from '../TopicMessageProjection'
@@ -66,7 +67,7 @@ it.each(['success', 'paused', 'error'] as const)('flushes the final message with
 // Acceptance must detach mutable native messages before coalescing; later mutation is not an accepted frame.
 it('publishes only accepted snapshots and leaves earlier batches immutable', () => {
   vi.useFakeTimers()
-  const projection = new TopicMessageProjection('topic', (value) => structuredClone(value))
+  const projection = new TopicMessageProjection('topic', (value) => cloneObservationValue(value))
   projection.begin([{ executionId: 'p::a', attemptId: 1, anchorMessageId: 'a' }], true)
   const source = message('accepted')
   projection.accumulate('p::a', 1, source)

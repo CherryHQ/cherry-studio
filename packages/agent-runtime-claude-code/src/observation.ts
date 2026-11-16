@@ -33,8 +33,7 @@ export class ClaudeFeed {
         subagents: [],
         activity: { state: 'unknown' }
       },
-      report,
-      cloneHistoryData
+      report
     )
   }
 

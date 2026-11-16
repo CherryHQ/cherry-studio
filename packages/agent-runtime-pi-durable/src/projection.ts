@@ -235,7 +235,7 @@ export class DurableProjection {
       }
     }
     if (reset) this.feed.publish({ type: 'gap', reason: 'mapping-reset' })
-    this.previews = previews
+    this.preview = preview
     const desiredOrder = content.messages.map((message) => message.id)
     const retained = new Set(desiredOrder)
     const known = new Set(before.messages.map((message) => message.id))
@@ -259,7 +259,9 @@ export class DurableProjection {
       for (const message of content.messages) {
         const changedParts = message.parts.flatMap((part, index) =>
           part.type === 'dynamic-tool'
-            ? part.callProviderMetadata?.pi?.nested || changedCalls.has(part.toolCallId) || (message.id === nextLiveId && part.state !== 'output-available')
+            ? part.callProviderMetadata?.pi?.nested ||
+              changedCalls.has(part.toolCallId) ||
+              (message.id === nextLiveId && part.state !== 'output-available')
               ? [index]
               : []
             : message.id === nextLiveId

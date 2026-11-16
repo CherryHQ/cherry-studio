@@ -161,8 +161,8 @@ describe('MessageGenerateImageToolTitle', () => {
         })}
       />
     )
-    expect(screen.getByTestId('image-block')).toHaveTextContent(uri)
-    expect(getPhysicalPath).not.toHaveBeenCalled()
+    expect(screen.getByTestId('image-viewer')).toHaveAttribute('data-src', uri)
+    expect(mocks.getPhysicalPath).not.toHaveBeenCalled()
   })
 
   it('shows localized failure copy (not the English MCP text) when no image block was returned', () => {

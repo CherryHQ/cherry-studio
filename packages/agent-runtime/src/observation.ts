@@ -1,6 +1,13 @@
 import { isToolUIPart } from 'ai'
 
-import type { InputId, Observation, ObservationPayload, ObservationSink, RuntimeMessage, ThreadSnapshot } from './contracts'
+import type {
+  InputId,
+  Observation,
+  ObservationPayload,
+  ObservationSink,
+  RuntimeMessage,
+  ThreadSnapshot
+} from './contracts'
 
 const immutableOutputs = new WeakSet<object>()
 const acceptedToolParts = new WeakSet<object>()
@@ -41,6 +48,7 @@ function freezeOutput(value: unknown, seen = new WeakSet<object>()): boolean {
 export function cloneObservationValue<T>(value: T): T {
   const copies = new WeakMap<object, object>()
   const clone = (item: unknown): unknown => {
+    // oxlint-disable-next-line no-restricted-globals -- Preserve native rejection of unsupported values at acceptance.
     if (typeof item === 'function' || typeof item === 'symbol') return structuredClone(item)
     if (typeof item !== 'object' || item === null || immutableOutputs.has(item)) return item
     const known = copies.get(item)
@@ -52,6 +60,7 @@ export function cloneObservationValue<T>(value: T): T {
       return result
     }
     if (Object.getPrototypeOf(item) !== Object.prototype && Object.getPrototypeOf(item) !== null)
+      // oxlint-disable-next-line no-restricted-globals -- Non-JSON native payloads require the platform clone at acceptance.
       return structuredClone(item)
     const result: Record<string, unknown> = {}
     copies.set(item, result)
@@ -110,9 +119,7 @@ export class ThreadFeed {
 
   constructor(
     private value: ThreadSnapshot,
-    private readonly report: (error: unknown) => void,
-    // oxlint-disable-next-line no-restricted-globals -- Isolate caller-owned snapshots by default.
-    private readonly copy: <T extends ObservationPayload>(value: T) => T = (value) => structuredClone(value)
+    private readonly report: (error: unknown) => void
   ) {
     this.value = {
       ...cloneObservationValue({ ...value, messages: [] }),

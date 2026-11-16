@@ -105,8 +105,8 @@ it('captures only the latest unobserved update when a baseline is requested', ()
   expect(reads).toBe(0)
   expect(projection.snapshot().messages[0].parts).toEqual(msg('ABC').parts)
   expect(reads).toBe(1)
-    projection.dispose()
-  })
+  projection.dispose()
+})
 // Native adapters can reuse and mutate both the original baseline and an accepted message before a batch flush.
 it('snapshots mutable values at acceptance without changing earlier baselines', () => {
   const initial = msg('first')

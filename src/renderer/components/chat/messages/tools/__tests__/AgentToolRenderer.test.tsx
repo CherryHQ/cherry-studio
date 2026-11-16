@@ -432,7 +432,9 @@ describe('AgentToolRenderer', () => {
 
     it('shows file content from a deferred Pi Durable read result', async () => {
       mockGetToolResult.mockResolvedValue({
-        status: 'ready', purpose: 'text-range', text: 'lazy file content'
+        status: 'ready',
+        purpose: 'text-range',
+        text: 'lazy file content'
       })
       const toolResponse = createToolResponse({
         tool: { id: 'Read', name: 'Read', description: 'Read a file', type: 'provider' },
@@ -444,7 +446,7 @@ describe('AgentToolRenderer', () => {
       render(<MessageTools toolResponse={toolResponse} />)
 
       expect(mockGetToolResult).not.toHaveBeenCalled()
-      fireEvent.click(await screen.findByRole('button'))
+      fireEvent.click(await screen.findByRole('button', { expanded: false }))
       await waitFor(() =>
         expect(mockGetToolResult).toHaveBeenCalledWith('ai.tool.get_result', {
           topicId: 'topic-1',
@@ -454,7 +456,6 @@ describe('AgentToolRenderer', () => {
           cursor: 0
         })
       )
-      fireEvent.click(await screen.findByRole('button'))
       expect(await screen.findByText('lazy file content')).toBeVisible()
     })
 
