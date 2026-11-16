@@ -139,6 +139,21 @@ describe('settings search index', () => {
   })
 
   it.each([
+    { locale: enUS, language: 'en-US', query: 'Scroll to the latest message on send' },
+    { locale: zhCN, language: 'zh-CN', query: '发送后滚动到最新消息' }
+  ])('finds the send-scroll setting in $language', ({ locale, query }) => {
+    const t = (key: string) => String(lookup(locale, key) ?? key)
+    expect(rankEntries(query, settingsSearchSections, t)).toContainEqual(
+      expect.objectContaining({
+        route: '/settings/appearance',
+        focusId: 'setting-appearance-scroll-to-bottom-on-send',
+        title: t('settings.messages.scroll_to_bottom_on_send.label'),
+        description: t('settings.messages.scroll_to_bottom_on_send.hint')
+      })
+    )
+  })
+
+  it.each([
     { locale: enUS, language: 'en-US', query: 'Expand long user messages by default' },
     { locale: zhCN, language: 'zh-CN', query: '默认展开长用户消息' },
     { locale: enUS, language: 'en-US', query: 'Messages you manually expand or collapse' }

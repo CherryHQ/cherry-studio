@@ -25,6 +25,7 @@ const mocks = vi.hoisted(() => ({
   overlayOnFinish: null as ((executionId: string, event: ExecutionFinishEvent) => void) | null,
   sendTurn: vi.fn(),
   autoReadConsume: vi.fn(async () => ({ status: 'started' })),
+  scrollToBottomOnSend: true,
   autoReadEnabled: true
 }))
 
@@ -42,7 +43,13 @@ vi.mock('@data/hooks/useDataApi', () => ({
 }))
 
 vi.mock('@renderer/data/hooks/usePreference', () => ({
-  usePreference: () => [mocks.autoReadEnabled, vi.fn()]
+  usePreference: (key: string) => {
+    const values: Record<string, boolean> = {
+      'feature.voice.auto_read.enabled': mocks.autoReadEnabled,
+      'chat.message.scroll_to_bottom_on_send': mocks.scrollToBottomOnSend
+    }
+    return [values[key], vi.fn()]
+  }
 }))
 
 vi.mock('@renderer/services/voice', () => ({
@@ -220,6 +227,7 @@ describe('useChatRuntimeState', () => {
     mocks.autoReadUpdate.mockReset()
     mocks.autoReadConsume.mockClear()
     mocks.autoReadEnabled = true
+    mocks.scrollToBottomOnSend = true
     latestRuntime = null
   })
 
@@ -257,19 +265,40 @@ describe('useChatRuntimeState', () => {
     coordinator.cancelScope('topic-1')
   })
 
-  it('reports a blocked stream open as not sent', async () => {
-    mocks.sendTurn.mockResolvedValueOnce(false)
+  it.each([true, false])('gates scrolling after a successful send with preference %s', async (enabled) => {
+    mocks.scrollToBottomOnSend = enabled
+    mocks.autoReadEnabled = !enabled
+    const requestAnimationFrame = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+      callback(0)
+      return 1
+    })
+    let finishSend!: (sent: boolean) => void
+    mocks.sendTurn.mockReturnValueOnce(
+      new Promise<boolean>((resolve) => {
+        finishSend = resolve
+      })
+    )
+    const scrollToBottom = vi.fn()
     render(<RuntimeHost topicId="topic-1" />)
-
-    let sent: boolean | undefined
-    await act(async () => {
-      sent = await latestRuntime?.sendMessage('keep this draft')
+    latestRuntime?.bindMessageListRuntime({
+      copyTopicImage: vi.fn(),
+      exportTopicImage: vi.fn(),
+      locateMessage: vi.fn(),
+      scrollToBottom
     })
 
-    expect(sent).toBe(false)
+    const pending = latestRuntime!.sendMessage('follow this response')
+    expect(scrollToBottom).not.toHaveBeenCalled()
+    await act(async () => {
+      finishSend(true)
+      expect(await pending).toBe(true)
+    })
+    expect(scrollToBottom).toHaveBeenCalledTimes(enabled ? 1 : 0)
+    requestAnimationFrame.mockRestore()
   })
 
-  it('returns the viewport to bottom-follow after opening a conversation turn', async () => {
+  it.each([true, false])('does not scroll for an unsuccessful or throwing send with preference %s', async (enabled) => {
+    mocks.scrollToBottomOnSend = enabled
     const requestAnimationFrame = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
       callback(0)
       return 1
@@ -282,11 +311,42 @@ describe('useChatRuntimeState', () => {
       locateMessage: vi.fn(),
       scrollToBottom
     })
-
+    mocks.sendTurn.mockResolvedValueOnce(false)
     await act(async () => {
-      await latestRuntime?.sendMessage('follow this response')
+      expect(await latestRuntime!.sendMessage('keep this draft')).toBe(false)
     })
+    const error = new Error('send failed')
+    mocks.sendTurn.mockRejectedValueOnce(error)
+    await act(async () => {
+      await expect(latestRuntime!.sendMessage('keep this draft')).rejects.toThrow(error)
+    })
+    expect(scrollToBottom).not.toHaveBeenCalled()
+    requestAnimationFrame.mockRestore()
+  })
 
+  it('uses the updated scroll preference on the next send', async () => {
+    mocks.scrollToBottomOnSend = false
+    const requestAnimationFrame = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+      callback(0)
+      return 1
+    })
+    const scrollToBottom = vi.fn()
+    const view = render(<RuntimeHost topicId="topic-1" />)
+    latestRuntime?.bindMessageListRuntime({
+      copyTopicImage: vi.fn(),
+      exportTopicImage: vi.fn(),
+      locateMessage: vi.fn(),
+      scrollToBottom
+    })
+    await act(async () => {
+      expect(await latestRuntime!.sendMessage('first')).toBe(true)
+    })
+    expect(scrollToBottom).not.toHaveBeenCalled()
+    mocks.scrollToBottomOnSend = true
+    view.rerender(<RuntimeHost topicId="topic-1" />)
+    await act(async () => {
+      expect(await latestRuntime!.sendMessage('second')).toBe(true)
+    })
     expect(scrollToBottom).toHaveBeenCalledOnce()
     requestAnimationFrame.mockRestore()
   })

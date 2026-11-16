@@ -4,7 +4,10 @@
 `create` creates a new access; `open` loads an existing native context with an identity check.
 Concurrent handles share one execution source; release stops observation, while shutdown closes owned sessions.
 `pi.observe` delivers content, input outcomes, aliases, live provenance, child task facts and settle evidence
-in one captured batch. `backgroundResults` reads existing behavior records and notification inputs;
+in one captured batch. Native text/thinking updates synchronously capture the current
+block's full text before asynchronous processing; they do not copy unrelated blocks or
+the complete native partial. End events still apply authoritative text corrections, and
+completed tool arguments are captured separately. `backgroundResults` reads existing behavior records and notification inputs;
 its pending and notification IDs name the current triggering tool calls, including continuations.
 Results remain pending through report delivery and parent generation, including the gap before that
 generation starts. Lifecycle and ledger callbacks publish them through the same ordered projection.

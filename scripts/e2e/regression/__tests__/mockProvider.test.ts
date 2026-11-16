@@ -135,3 +135,8 @@ it('refuses unsupported knowledge and whole-suite mock acceptance before launchi
   for (const task of ['knowledge', 'knowledge-smoke', 'notes', 'translation', 'mini-app', 'all'] as const)
     expect(() => assertMockTask(task)).toThrow('provider_mode=real')
 })
+
+it('permits combinations only when every selected task supports the mock backend', () => {
+  expect(() => assertMockTask(['startup-smoke', 'translation-settings'])).not.toThrow()
+  expect(() => assertMockTask(['startup-smoke', 'knowledge'])).toThrow('provider_mode=real')
+})

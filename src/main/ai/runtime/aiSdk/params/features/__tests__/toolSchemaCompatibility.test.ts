@@ -135,6 +135,7 @@ describe('toolSchemaCompatibilityFeature', () => {
     async ({ provider, modelId, createModel, omitExamples }) => {
       const { requests, captureFetch } = captureRequest()
       const tools = createMetaTools()
+      // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
       const originals = Object.values(tools).map((entry) => structuredClone(entry.inputExamples))
       const model = wrapLanguageModel({
         model: createModel(captureFetch),

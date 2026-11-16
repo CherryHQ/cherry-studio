@@ -1011,10 +1011,14 @@ function chooseNativeSelection(
           cap: 10,
           action: [],
           condition: '(exists splitter group 1 of window 1)',
-          extra:
+          extra: [
             macProductMajor >= 27
-              ? 'if (count of buttons of splitter group 1 of window 1) ≥ 2 then set reached to true'
-              : `if exists ${acceptButton} then set reached to true`,
+              ? 'if (count of buttons of splitter group 1 of window 1) ≥ 2 then'
+              : `if exists ${acceptButton} then`,
+            'set previousWindowCount to count of windows',
+            'if previousWindowCount > 0 then set reached to true',
+            'end if'
+          ].join('\n'),
           detail: 'panel splitter group or accept button missing'
         },
         {
@@ -1063,7 +1067,7 @@ function chooseNativeSelection(
         {
           stage: 'completion',
           cap: 5,
-          action: ['set previousWindowCount to count of windows', `click ${acceptButton}`],
+          action: ['if not frontmost then error "Owned native file panel is not frontmost"', 'key code 36'],
           condition: '(count of windows) < previousWindowCount',
           detail: 'panel window count did not decrease'
         }
