@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -7,20 +7,22 @@ import {
   fauxProvider,
   fauxToolCall,
   InMemoryCredentialStore,
-  Type,
   type FauxResponseStep
 } from '@earendil-works/pi-ai'
 import { defineTool, ModelRuntime, SessionManager } from '@earendil-works/pi-coding-agent'
+import { arr, obj, str } from '@earendil-works/pi-schema'
 import { expect, it, onTestFinished } from 'vitest'
 
 import {
   runtimeId,
   type ObservationPayload,
   type OperationResult,
-  type ThreadHandle
+  type ThreadHandle,
+  type RuntimeMessage
 } from '@cherrystudio/agent-runtime'
 
 import { createPiRuntime, type AgentRuntimeEvent, type PiRuntimeOptions } from '../src'
+import { createTestBehavior } from './sessionSupport'
 
 function gate() {
   let resolve!: () => void
@@ -52,7 +54,13 @@ async function setup(load?: PiRuntimeOptions['load']) {
     refreshOnCreate: false
   })
   modelRuntime.registerNativeProvider(faux.provider)
-  const options = { cwd, agentDir: cwd, modelRuntime, model: modelRuntime.getModel('faux', 'faux-1')! }
+  const options = {
+    cwd,
+    agentDir: cwd,
+    modelRuntime,
+    model: modelRuntime.getModel('faux', 'faux-1')!,
+    behavior: createTestBehavior({ provider: 'faux', id: 'faux-1' })
+  }
   const runtime = confirmed(await createPiRuntime({ backendId: runtimeId('native-pi'), load }))
   onTestFinished(async () => {
     await runtime.shutdown()
@@ -151,15 +159,14 @@ it('keeps native command preflight, rejects busy prompts and acknowledges queued
     status: 'acknowledged',
     facts: ['queued']
   })
-  expect(await handle.interrupt!()).toEqual({ status: 'confirmed', value: { effect: 'native-scope-idle' } })
+  expect(await handle.interrupt!()).toEqual({ status: 'confirmed', value: undefined })
   await expect.poll(() => events.at(-1)).toMatchObject({ type: 'activity.changed', activity: { state: 'idle' } })
   const states = events.filter((event) => event.type === 'input.changed').map((event) => event.input)
   expect(states.filter((state) => state.inputId === 'later')).toEqual([{ inputId: 'later', facts: ['queued'] }])
   expect(states.some((state) => state.inputId === 'rejected')).toBe(false)
   expect(states.some((state) => state.outcome === 'completed')).toBe(false)
   expect(states.findLast((state) => state.inputId === 'start')).toMatchObject({
-    outcome: 'aborted',
-    response: { session: handle.thread }
+    outcome: 'aborted'
   })
   expect(handle.pi.cancelQueuedInputs()).toEqual({ status: 'confirmed', value: ['later'] })
   const after = await observe(handle)
@@ -280,18 +287,11 @@ it('correlates identical transformed inputs and shares one response across batch
   for (const item of after[0].messages) {
     if (item.role === 'assistant') expect(item.metadata?.inputId).toBeUndefined()
   }
-  const snapshot = after[0]
-  const responseText = (id: string) => {
-    const state = snapshot.inputs.find((value) => value.inputId === id)
-    const response = snapshot.messages.find((item) => item.id === state?.response?.id)
-    return response?.parts.find((part) => part.type === 'text')?.text
-  }
-  expect(['root', 'steer-1', 'steer-2', 'follow'].map(responseText)).toEqual([
-    'initial answer',
-    'shared steering answer',
-    'shared steering answer',
-    'follow-up answer'
-  ])
+  expect(
+    after[0].messages
+      .filter((message) => message.role === 'assistant')
+      .flatMap((message) => message.parts.flatMap((part) => (part.type === 'text' ? [part.text] : [])))
+  ).toEqual(['initial answer', 'shared steering answer', 'follow-up answer'])
   const placed = nativeEvents.filter((event) => event.type === 'input-placed')
   expect(placed.map((event) => event.inputId)).toEqual(['root', 'steer-1', 'steer-2', 'follow'])
   expect(new Set(placed.map((event) => event.entryId)).size).toBe(4)
@@ -300,20 +300,6 @@ it('correlates identical transformed inputs and shares one response across batch
       type: 'message',
       message: { role: 'user', content: [{ type: 'text', text: 'same' }] }
     })
-  }
-  const settled = nativeEvents.filter((event) => event.type === 'input-settled')
-  expect(settled.map((event) => event.inputIds)).toEqual([['root'], ['steer-1', 'steer-2'], ['follow']])
-  for (const event of settled) {
-    expect(manager.getEntry(event.entryId)).toMatchObject({
-      type: 'message',
-      message: { role: 'assistant', stopReason: 'stop' }
-    })
-    expect(event).toMatchObject({ stopReason: 'stop', aborted: false })
-    expect(
-      nativeEvents
-        .slice(0, nativeEvents.indexOf(event))
-        .some((prior) => prior.type === 'session-append' && prior.entries.some((entry) => entry.id === event.entryId))
-    ).toBe(true)
   }
 })
 
@@ -368,7 +354,7 @@ it('attributes a final answer to the original input and steering delivered after
           name: 'hold',
           label: 'Hold',
           description: 'Hold the tool boundary',
-          parameters: Type.Object({}),
+          parameters: obj({}),
           execute: async () => {
             executing.resolve()
             await finish.promise
@@ -391,8 +377,7 @@ it('attributes a final answer to the original input and steering delivered after
   if (snapshot.type !== 'snapshot') throw new Error('Missing snapshot')
   expect(snapshot.inputs).toHaveLength(2)
   expect(snapshot.inputs.every((state) => state.outcome === 'completed')).toBe(true)
-  expect(snapshot.inputs[0].response).toEqual(snapshot.inputs[1].response)
-  expect(snapshot.messages.find((item) => item.id === snapshot.inputs[0].response?.id)).toMatchObject({
+  expect(snapshot.messages.findLast((item) => item.role === 'assistant')).toMatchObject({
     parts: [{ type: 'text', text: 'answer using both inputs' }]
   })
 })
@@ -470,14 +455,12 @@ it.each(['stop', 'error'] as const)(
     expect(terminal[0]).toMatchObject({
       input: {
         inputId: 'work',
-        outcome: stopReason === 'stop' ? 'completed' : 'failed',
-        response: { session: handle.thread }
+        outcome: stopReason === 'stop' ? 'completed' : 'failed'
       }
     })
     if (terminal[0].type !== 'input.changed') throw new Error('Missing input outcome')
-    const responseId = terminal[0].input.response?.id
     expect(
-      events.findLast((event) => event.type === 'message.upsert' && event.message.id === responseId)
+      events.findLast((event) => event.type === 'message.upsert' && event.message.role === 'assistant')
     ).toMatchObject({
       message: { parts: [{ type: 'text', text: 'final response' }] }
     })
@@ -504,7 +487,6 @@ it.each(['error', 'length', 'toolUse'] as const)(
       inputId: 'work',
       facts: ['dispatch-started', 'placed'],
       outcome: stopReason === 'error' ? 'failed' : 'unanswered',
-      response: { session: handle.thread },
       error: {
         code: stopReason === 'error' ? 'model-error' : stopReason === 'length' ? 'output-truncated' : 'no-final-answer'
       }
@@ -524,31 +506,33 @@ it.each(['error', 'length', 'toolUse'] as const)(
   }
 )
 
-it('keeps a retrying input pending and attributes only the successful final response', async () => {
+it('reports provider failure without a native retry and accepts a new input afterward', async () => {
   const { runtime, options, faux } = await setup()
-  const retry = gate()
-  const finish = gate()
-  onTestFinished(() => finish.resolve())
   faux.setResponses([
     fauxAssistantMessage('temporary failure', { stopReason: 'error', errorMessage: '429 rate limit exceeded' }),
-    async () => {
-      retry.resolve()
-      await finish.promise
-      return fauxAssistantMessage('recovered answer')
-    }
+    fauxAssistantMessage('recovered answer')
   ])
-  const handle = confirmed(
-    await runtime.create({ ...options, settings: { retry: { enabled: true, maxRetries: 1, baseDelayMs: 1 } } })
-  )
+  const handle = confirmed(await runtime.create({ ...options, settings: { retry: { enabled: true } } }))
   const events = await observe(handle)
-  await handle.input.submit(input('retry me'))
-  await retry.promise
-  expect(events.filter((event) => event.type === 'input.changed').every((event) => !event.input.outcome)).toBe(true)
-  finish.resolve()
-  await expect.poll(() => events.at(-1)).toMatchObject({ type: 'activity.changed', activity: { state: 'idle' } })
-  const states = events.filter((event) => event.type === 'input.changed')
-  expect(states.at(-1)?.input).toMatchObject({ outcome: 'completed', response: { session: handle.thread } })
-  expect(states.some((event) => event.input.outcome === 'failed')).toBe(false)
+  await handle.input.submit(input('first'))
+  await handle.pi.settled()
+  expect(faux.state.callCount).toBe(1)
+  await expect
+    .poll(() => events.filter((event) => event.type === 'input.changed').at(-1)?.input)
+    .toMatchObject({
+      inputId: 'first',
+      outcome: 'failed',
+      error: { code: 'model-error' }
+    })
+  await handle.input.submit(input('next'))
+  await handle.pi.settled()
+  expect(faux.state.callCount).toBe(2)
+  await expect
+    .poll(() => events.filter((event) => event.type === 'input.changed').at(-1)?.input)
+    .toMatchObject({
+      inputId: 'next',
+      outcome: 'completed'
+    })
 })
 
 it('reopens native files after shutdown without requiring the Cherry model bridge', async () => {
@@ -587,9 +571,7 @@ it('reopens native files after shutdown without requiring the Cherry model bridg
 
 it('continues an observed child through its owner, keeps one relationship, and reports the new run once', async () => {
   const { runtime, options, faux } = await setup()
-  const stored = new Map<string, SessionManager>()
   const manager = SessionManager.inMemory(options.cwd)
-  const childNativeEvents: AgentRuntimeEvent[] = []
   faux.setResponses([
     fauxAssistantMessage(fauxToolCall('subagent', { description: 'A', prompt: 'child task' }, { id: 'spawn' }), {
       stopReason: 'toolUse'
@@ -600,16 +582,7 @@ it('continues an observed child through its owner, keeps one relationship, and r
   const parent = confirmed(
     await runtime.create({
       ...options,
-      sessionManager: manager,
-      subagents: {
-        configure: () => ({
-          onEvent: (event) => childNativeEvents.push(event),
-          onSessionCreated: (session) => {
-            stored.set(session.sessionId, session.sessionManager)
-          }
-        }),
-        load: async (id) => stored.get(id)
-      }
+      sessionManager: manager
     })
   )
   const parentEvents = await observe(parent)
@@ -643,17 +616,13 @@ it('continues an observed child through its owner, keeps one relationship, and r
     },
     fauxAssistantMessage('parent received the result')
   ])
-  expect(child.input.policies).toEqual(['steer'])
   expect(await child.input.submit(input('continue', 'follow-up'))).toMatchObject({ status: 'unsupported' })
   expect(await child.input.submit(input('continue', 'steer'))).toMatchObject({
     status: 'acknowledged',
     facts: ['dispatch-started']
   })
   await started.promise
-  expect(await second.input.submit(input('add detail', 'steer'))).toMatchObject({
-    status: 'acknowledged',
-    facts: ['queued']
-  })
+  const steering = second.input.submit(input('add detail', 'steer'))
   await parent.release()
   await child.release()
   expect(await child.input.submit(input('released', 'steer'))).toMatchObject({
@@ -661,6 +630,7 @@ it('continues an observed child through its owner, keeps one relationship, and r
     error: { code: 'closed' }
   })
   finish.resolve()
+  expect(await steering).toMatchObject({ status: 'acknowledged', facts: ['queued'] })
   await expect
     .poll(() =>
       childEvents.some(
@@ -717,113 +687,9 @@ it('continues an observed child through its owner, keeps one relationship, and r
       outcome: 'completed'
     })
   ])
-  const placed = childNativeEvents.filter((event) => event.type === 'input-placed')
-  expect(placed.map((event) => event.inputId)).toEqual(['continue', 'add detail'])
-  expect(new Set(placed.map((event) => event.entryId)).size).toBe(2)
-  for (const event of placed) {
-    expect(stored.get(child.thread.id)?.getEntry(event.entryId)).toMatchObject({
-      type: 'custom_message',
-      customType: 'cherry.subagent-message',
-      content: event.inputId
-    })
-  }
-})
-
-it('joins a child continuation already loading before shutting down its owner', async () => {
-  const { runtime, options, faux } = await setup()
-  const loading = gate()
-  const loaded = gate()
-  onTestFinished(() => loaded.resolve())
-  let stored: SessionManager | undefined
-  faux.setResponses([
-    fauxAssistantMessage(fauxToolCall('subagent', { description: 'A', prompt: 'child task' }), {
-      stopReason: 'toolUse'
-    }),
-    fauxAssistantMessage('child done'),
-    fauxAssistantMessage('parent done')
-  ])
-  const parent = confirmed(
-    await runtime.create({
-      ...options,
-      subagents: {
-        configure: () => ({
-          onSessionCreated: (session) => {
-            stored = session.sessionManager
-          }
-        }),
-        load: async () => {
-          loading.resolve()
-          await loaded.promise
-          return stored
-        }
-      }
-    })
-  )
-  const events = await observe(parent)
-  await parent.input.submit(input('delegate'))
-  await expect.poll(() => events.at(-1)).toMatchObject({ type: 'activity.changed', activity: { state: 'idle' } })
-  const relation = events.find((event) => event.type === 'subagent.upsert')
-  if (relation?.type !== 'subagent.upsert' || !relation.subagent.child) throw new Error('Missing child')
-  const child = confirmed(await runtime.open(relation.subagent.child))
-  faux.setResponses([fauxAssistantMessage('continued')])
-  const admission = child.input.submit(input('continue', 'steer'))
-  await loading.promise
-  let closed = false
-  const shutdown = runtime.shutdown().then((result) => {
-    closed = true
-    return result
-  })
-  await new Promise((resolve) => setImmediate(resolve))
-  expect(closed).toBe(false)
-  loaded.resolve()
-  expect(await admission).toMatchObject({ status: 'acknowledged' })
-  expect(await shutdown).toMatchObject({ status: 'confirmed', value: { effect: 'closed' } })
-  expect(await child.input.submit(input('after close', 'steer'))).toMatchObject({
-    status: 'rejected',
-    error: { code: 'closed' }
-  })
-})
-
-it('binds a child launched during session initialization to its ready parent', async () => {
-  const { runtime, options, faux } = await setup()
-  const manager = SessionManager.inMemory(options.cwd)
-  let settled!: () => void
-  const startup = new Promise<void>((resolve) => {
-    settled = resolve
-  })
-  faux.setResponses([
-    fauxAssistantMessage(fauxToolCall('subagent', { description: 'Startup child', prompt: 'child task' })),
-    fauxAssistantMessage('child report'),
-    fauxAssistantMessage('parent report')
-  ])
-  const parent = confirmed(
-    await runtime.create({
-      ...options,
-      sessionManager: manager,
-      subagents: { configure: () => ({}) },
-      extensionFactories: [
-        (pi) => {
-          pi.on('agent_end', () => {
-            settled()
-          })
-          pi.on('session_start', async () => {
-            pi.sendUserMessage('startup task')
-            await startup
-          })
-        }
-      ]
-    })
-  )
-  const events = await observe(parent)
-  const snapshot = events[0]
-  if (snapshot.type !== 'snapshot') throw new Error('Missing snapshot')
-  expect(JSON.stringify(snapshot.messages)).toContain('child report')
-  expect(JSON.stringify(snapshot.messages)).not.toContain('before initialization')
-  expect(snapshot.subagents).toHaveLength(1)
-  const delegation = snapshot.subagents?.[0]
-  if (!delegation?.child) throw new Error('Missing child thread')
-  const child = confirmed(await runtime.open(delegation.child))
-  expect(await child.interrupt!()).toMatchObject({ status: 'confirmed' })
+  const placed = second.pi.archive().messages.filter((message) => message.metadata?.inputId)
+  expect(placed.map((message) => message.metadata?.inputId)).toEqual(['continue', 'add detail'])
+  expect(new Set(placed.map((message) => message.id)).size).toBe(2)
 })
 
 // A tool update must change its part, without splitting or reordering the surrounding native message.
@@ -851,7 +717,7 @@ it('streams interleaved content and preliminary tool output in the same native m
           name: 'progress',
           label: 'Progress',
           description: 'Report progress',
-          parameters: Type.Object({}),
+          parameters: obj({}),
           execute: async (_id, _args, _signal, update) => {
             update?.({ content: [{ type: 'text', text: 'FIRST' }], details: { stage: 1 } })
             await finish.promise
@@ -893,3 +759,379 @@ it('streams interleaved content and preliminary tool output in the same native m
   expect(committed.parts).toEqual(latest().parts)
   expect(archive.messages.filter((message) => message.role === 'assistant')).toHaveLength(2)
 })
+
+it('reads native context without submitting work and rejects released access', async () => {
+  const { runtime, options } = await setup()
+  const handle = confirmed(await runtime.create({ ...options, systemPrompt: 'Native context contract' }))
+  const events = await observe(handle)
+  const before = confirmed(await handle.contextUsage())
+  expect(before.contextWindow).toBe(options.model.contextWindow)
+  expect(before.used?.precision).toBe('estimated')
+  expect(before.breakdown?.categories.map((row) => row.key)).toContain('messages')
+  const messages = events.filter((event) => event.type === 'message.upsert')
+  expect(confirmed(await handle.contextUsage())).toEqual(before)
+  await Promise.resolve()
+  expect(events.filter((event) => event.type === 'message.upsert')).toEqual(messages)
+  expect(events.filter((event) => event.type === 'activity.changed' && event.activity.state === 'active')).toEqual([])
+  await handle.release()
+  expect(await handle.contextUsage()).toMatchObject({ status: 'rejected', error: { code: 'released' } })
+})
+
+it.each(['deferred', 'codemode'] as const)(
+  'retains prepared %s resource provenance instead of recounting discovered files',
+  async (exposure) => {
+    const { runtime, options, faux } = await setup()
+    const skillDir = join(options.cwd, 'skills', 'example')
+    mkdirSync(skillDir, { recursive: true })
+    writeFileSync(
+      join(skillDir, 'SKILL.md'),
+      '---\nname: example\ndescription: A loaded summary\n---\nFull body is not in the catalog.'
+    )
+    writeFileSync(join(options.cwd, 'AGENTS.md'), 'Use project instructions.')
+    faux.setResponses([fauxAssistantMessage('ready')])
+    const handle = confirmed(
+      await runtime.create({
+        ...options,
+        contextFiles: true,
+        skillPaths: [skillDir],
+        builtinTools: ['read'],
+        tools: [
+          defineTool({
+            name: 'direct_lookup',
+            label: 'Direct',
+            description: 'Loaded external schema',
+            parameters: obj({}),
+            contextSource: { kind: 'mcp-tools', source: 'direct-server' },
+            execute: async () => ({ content: [{ type: 'text' as const, text: 'ok' }], details: {} })
+          }),
+          defineTool({
+            name: 'external_lookup',
+            label: 'External',
+            description: 'Deferred external schema',
+            parameters: obj({}),
+            exposure,
+            contextSource: { kind: 'mcp-tools', source: 'test-server' },
+            execute: async () => ({ content: [{ type: 'text' as const, text: 'ok' }], details: {} })
+          })
+        ]
+      })
+    )
+    const events = await observe(handle)
+    await handle.input.submit(input('prepare resource context'))
+    await expect
+      .poll(() => events.some((event) => event.type === 'activity.changed' && event.activity.state === 'idle'))
+      .toBe(true)
+    const before = confirmed(await handle.contextUsage())
+    expect(before.resources).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          category: 'memory-files',
+          source: join(options.cwd, 'AGENTS.md'),
+          state: 'loaded',
+          count: { precision: 'estimated', tokens: expect.any(Number) }
+        }),
+        expect.objectContaining({
+          category: 'skills',
+          name: 'example',
+          source: join(skillDir, 'SKILL.md'),
+          state: 'loaded'
+        }),
+        expect.objectContaining({
+          category: 'mcp-tools',
+          name: 'external_lookup',
+          source: 'test-server',
+          state: 'deferred',
+          count: { precision: 'estimated', tokens: expect.any(Number) }
+        })
+      ])
+    )
+    expect(before.breakdown?.categories).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ key: 'memory-files', occupancy: 'included', tokens: expect.any(Number) }),
+        expect.objectContaining({ key: 'skills', occupancy: 'included', tokens: expect.any(Number) }),
+        expect.objectContaining({ key: 'mcp-tools', occupancy: 'deferred' })
+      ])
+    )
+    expect(before.resources).toContainEqual(
+      expect.objectContaining({
+        category: 'mcp-tools',
+        name: 'direct_lookup',
+        source: 'direct-server',
+        state: 'loaded'
+      })
+    )
+    writeFileSync(join(options.cwd, 'AGENTS.md'), 'Changed after the request '.repeat(100))
+    expect(confirmed(await handle.contextUsage())).toEqual(before)
+  }
+)
+
+it('publishes a local extension model switch to existing and newly attached observers', async () => {
+  const { runtime, options } = await setup()
+  const provider = fauxProvider({
+    models: [
+      { id: 'wide', contextWindow: 128_000 },
+      { id: 'small', contextWindow: 64_000 }
+    ]
+  })
+  options.modelRuntime.registerNativeProvider(provider.provider)
+  await options.modelRuntime.refresh({ allowNetwork: false })
+  let switched = false
+  const handle = confirmed(
+    await runtime.create({
+      ...options,
+      model: options.modelRuntime.getModel('faux', 'wide')!,
+      extensionFactories: [
+        (pi) => {
+          pi.registerCommand('smaller', {
+            handler: async () => {
+              switched = await pi.setModel(options.modelRuntime.getModel('faux', 'small')!)
+            }
+          })
+        }
+      ]
+    })
+  )
+  const events = await observe(handle)
+  await expect
+    .poll(() => events[0])
+    .toMatchObject({
+      type: 'snapshot',
+      contextUsage: { status: 'confirmed', value: { model: 'wide', contextWindow: 128_000 } }
+    })
+  expect(await handle.input.submit(input('/smaller'))).toMatchObject({
+    status: 'acknowledged',
+    facts: ['locally-handled']
+  })
+  await handle.pi.settled()
+  expect(switched).toBe(true)
+  const attached = await observe(confirmed(await runtime.open(handle.thread)))
+  await expect
+    .poll(() => attached[0])
+    .toMatchObject({
+      type: 'snapshot',
+      contextUsage: { status: 'confirmed', value: { model: 'small', contextWindow: 64_000 } }
+    })
+  expect(events).toContainEqual(
+    expect.objectContaining({
+      type: 'context.changed',
+      result: expect.objectContaining({
+        status: 'confirmed',
+        value: expect.objectContaining({ model: 'small', contextWindow: 64_000 })
+      })
+    })
+  )
+  expect(provider.state.callCount).toBe(0)
+})
+
+it.each([false, true])('retains nested results across outer failure and reopen (%s)', async (fails) => {
+  const { runtime, options, faux } = await setup()
+  const manager = SessionManager.create(options.cwd, options.cwd)
+  const value = 'retained-'.repeat(60)
+  let executions = 0
+  const tools = [
+    defineTool({
+      name: 'leaf',
+      label: 'Leaf',
+      description: 'Return evidence',
+      parameters: obj({ value: str() }),
+      prepareArguments: () => ({ value }),
+      execute: async (_id, args, _signal, update) => {
+        executions++
+        update?.({ content: [{ type: 'text', text: 'working' }], details: {} })
+        return {
+          content: [{ type: 'text' as const, text: (args as { value: string }).value }],
+          details: { proof: true }
+        }
+      }
+    }),
+    defineTool({
+      name: 'script',
+      label: 'Script',
+      description: 'Call nested tools',
+      parameters: obj({}),
+      execute: async (_id, _args, _signal, _update, context) => {
+        await Promise.all([
+          context.executeTool('leaf', { value: 'repair me' }),
+          context.executeTool('leaf', { value: 'repair me' })
+        ])
+        if (fails) throw new Error('outer failure')
+        return { content: [{ type: 'text' as const, text: 'done' }], details: {} }
+      }
+    })
+  ]
+  faux.setResponses([
+    fauxAssistantMessage(fauxToolCall('script', {}, { id: 'script' }), { stopReason: 'toolUse' }),
+    fauxAssistantMessage('done')
+  ])
+  const handle = confirmed(await runtime.create({ ...options, tools, sessionManager: manager }))
+  const events = await observe(handle)
+  await handle.input.submit(input('nested'))
+  await handle.pi.settled()
+  const parts = handle.pi
+    .archive()
+    .messages.flatMap((message) => message.parts)
+    .filter((part) => part.type === 'dynamic-tool' && part.toolName === 'leaf')
+  expect(parts).toHaveLength(2)
+  expect(new Set(parts.map((part) => (part.type === 'dynamic-tool' ? part.toolCallId : ''))).size).toBe(2)
+  for (const part of parts)
+    expect(part).toMatchObject({
+      state: 'output-available',
+      input: { value },
+      output: { content: [{ type: 'text', text: value }], details: { proof: true } },
+      callProviderMetadata: { pi: { parentToolCallId: 'script' } }
+    })
+  expect(
+    events.some(
+      (event) =>
+        event.type === 'message.upsert' &&
+        event.message.parts.some(
+          (part) =>
+            part.type === 'dynamic-tool' &&
+            part.toolName === 'leaf' &&
+            part.state === 'output-available' &&
+            part.preliminary
+        )
+    )
+  ).toBe(true)
+  await runtime.shutdown()
+  const reopenedRuntime = confirmed(await createPiRuntime({ backendId: runtimeId('reopened') }))
+  onTestFinished(async () => {
+    await reopenedRuntime.shutdown()
+  })
+  const reopened = confirmed(
+    await reopenedRuntime.create({ ...options, tools, sessionManager: SessionManager.open(manager.getSessionFile()!) })
+  )
+  expect(
+    reopened.pi
+      .archive()
+      .messages.flatMap((message) => message.parts)
+      .filter((part) => part.type === 'dynamic-tool' && part.toolName === 'leaf')
+  ).toEqual(parts)
+  expect(executions).toBe(2)
+})
+
+it.each([false, true])('retains recursive failures and cancellation (cancel=%s)', async (cancel) => {
+  const { runtime, options, faux } = await setup()
+  const reached = gate()
+  const tools = [
+    defineTool({
+      name: 'leaf',
+      label: 'Leaf',
+      description: 'Fail or wait',
+      parameters: obj({}),
+      execute: async (_id, _args, signal) => {
+        reached.resolve()
+        if (cancel)
+          await new Promise<never>((_resolve, reject) => {
+            if (signal?.aborted) reject(signal.reason)
+            else signal?.addEventListener('abort', () => reject(signal.reason), { once: true })
+          })
+        throw new Error('nested failure')
+      }
+    }),
+    defineTool({
+      name: 'middle',
+      label: 'Middle',
+      description: 'Nested owner',
+      parameters: obj({}),
+      execute: async (_id, _args, _signal, _update, context) => {
+        const result = await context.executeTool('leaf', {})
+        return { ...result.result, isError: result.isError }
+      }
+    }),
+    defineTool({
+      name: 'script',
+      label: 'Script',
+      description: 'Outer owner',
+      parameters: obj({}),
+      execute: async (_id, _args, _signal, _update, context) => {
+        await context.executeTool('middle', {})
+        return { content: [{ type: 'text' as const, text: 'outer' }], details: {} }
+      }
+    })
+  ]
+  faux.setResponses([
+    fauxAssistantMessage(fauxToolCall('script', {}, { id: 'script' }), { stopReason: 'toolUse' }),
+    fauxAssistantMessage('done')
+  ])
+  const handle = confirmed(await runtime.create({ ...options, tools }))
+  await handle.input.submit(input('recursive'))
+  await reached.promise
+  if (cancel) confirmed(await handle.interrupt!())
+  await handle.pi.settled()
+  const parts = handle.pi.archive().messages.flatMap((message) => message.parts)
+  expect(parts.find((part) => part.type === 'dynamic-tool' && part.toolName === 'leaf')).toMatchObject({
+    state: 'output-error',
+    callProviderMetadata: { pi: { parentToolCallId: 'script/1' } }
+  })
+  expect(parts.find((part) => part.type === 'dynamic-tool' && part.toolName === 'middle')).toMatchObject({
+    state: 'output-error'
+  })
+})
+it.each([false, true])(
+  'retains native nested-call evidence in live and reopened projections (outer failure=%s)',
+  async (fails) => {
+    const { runtime, options, faux } = await setup()
+    const manager = SessionManager.create(options.cwd, options.cwd)
+    const declaration = { artifacts: [{ path: '/workspace/report.html' }] }
+    faux.setResponses([
+      fauxAssistantMessage([fauxToolCall('script', {}, { id: 'script' })], { stopReason: 'toolUse' }),
+      fauxAssistantMessage('done')
+    ])
+    const tools = [
+      defineTool({
+        name: 'declare',
+        label: 'Declare',
+        description: 'Declare a file',
+        parameters: obj({ artifacts: arr(obj({ path: str() })) }),
+        execute: async () => ({ content: [{ type: 'text' as const, text: 'recorded' }], details: undefined })
+      }),
+      defineTool({
+        name: 'script',
+        label: 'Script',
+        description: 'Call a declaration',
+        parameters: obj({}),
+        execute: async (_id, _args, _signal, _update, context) => {
+          await context.executeTool('declare', declaration)
+          if (fails) throw new Error('Failure after declaration')
+          return { content: [{ type: 'text' as const, text: 'script finished' }], details: undefined }
+        }
+      })
+    ]
+    const handle = confirmed(await runtime.create({ ...options, tools, sessionManager: manager }))
+    const events = await observe(handle)
+    await handle.input.submit(input('declare a file'))
+    await handle.pi.settled()
+    const partOf = (messages: readonly RuntimeMessage[]) =>
+      messages
+        .flatMap((message) => message.parts)
+        .find((part) => part.type === 'dynamic-tool' && part.toolCallId === 'script')!
+    const resultOf = (part: ReturnType<typeof partOf>) => {
+      if (part.type !== 'dynamic-tool') throw new Error('Missing script call')
+      return part.state === 'output-available'
+        ? part.output
+        : part.state === 'output-error'
+          ? part.resultProviderMetadata?.pi?.result
+          : undefined
+    }
+    const live = partOf(events.flatMap((event) => (event.type === 'message.upsert' ? [event.message] : [])).reverse())
+    expect(resultOf(live)).toMatchObject({
+      nestedCalls: { complete: true, calls: [{ name: 'declare', status: 'ok', arguments: declaration }] }
+    })
+    const saved = partOf(handle.pi.archive().messages)
+    expect(resultOf(saved)).toEqual(resultOf(live))
+    await runtime.shutdown()
+    const reopenedRuntime = confirmed(await createPiRuntime({ backendId: runtimeId('reopened') }))
+    onTestFinished(async () => {
+      await reopenedRuntime.shutdown()
+    })
+    const reopened = confirmed(
+      await reopenedRuntime.create({
+        ...options,
+        tools,
+        sessionManager: SessionManager.open(manager.getSessionFile()!)
+      })
+    )
+    expect(resultOf(partOf(reopened.pi.archive().messages))).toEqual(resultOf(saved))
+  }
+)

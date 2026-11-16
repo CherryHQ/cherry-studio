@@ -197,9 +197,7 @@ describe('system workspace relocation', () => {
       const replacement = { ...checkpoint, locator: { ...checkpoint.locator, volume: 'new' } }
       runtimeDriverRegistry.register({
         type: 'test-runtime',
-        capabilities: ['agent-session'],
         validateSession: () => {},
-        listAvailableTools: async () => [],
         connect: async () => {
           throw new Error('Relocation must not connect a runtime')
         },

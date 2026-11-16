@@ -35,10 +35,12 @@ const runResultKeys: Record<HeartbeatRunResult, string> = {
 export function HeartbeatEditorDialog({
   agentId,
   enabled,
+  open = true,
   onOpenChange
 }: {
   agentId: string
   enabled: boolean
+  open?: boolean
   onOpenChange: (open: boolean) => void
 }) {
   const { t } = useTranslation()
@@ -58,9 +60,12 @@ export function HeartbeatEditorDialog({
     swrOptions: { refreshInterval: 2000, keepPreviousData: false }
   })
   useEffect(() => {
+    if (!open) return
     let cancelled = false
     setDocument(null)
+    setContent('')
     setError(null)
+    setRunNotice(null)
     void ipcApi
       .request('ai.agent.heartbeat.read', { agentId })
       .then((value) => {
@@ -76,7 +81,7 @@ export function HeartbeatEditorDialog({
     return () => {
       cancelled = true
     }
-  }, [agentId, reloadKey, t])
+  }, [agentId, open, reloadKey, t])
 
   const latest = status?.latestRun
   const running = latest && ['pending', 'delayed', 'running'].includes(latest.status)
@@ -133,7 +138,7 @@ export function HeartbeatEditorDialog({
 
   return (
     <Dialog
-      open
+      open={open}
       onOpenChange={(open) => {
         if (!open) void close()
       }}>

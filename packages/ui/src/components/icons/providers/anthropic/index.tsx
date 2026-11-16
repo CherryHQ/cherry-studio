@@ -9,7 +9,7 @@ const Anthropic = ({ variant, className, ...props }: CompoundIconProps) => {
 
 export const AnthropicIcon: CompoundIcon = /*#__PURE__*/ Object.assign(Anthropic, {
   Avatar: AnthropicAvatar,
-  colorPrimary: '#CA9F7B'
+  colorPrimary: '#ca9f7b'
 })
 
 export default AnthropicIcon

@@ -20,13 +20,13 @@ Credential directories, `cherry.home`, VCS metadata, OS directories, volume root
 
 - Exempt every target inside the passed `workspacePath`: a user-selected workspace at `<userData>/Data` could then trash `cherrystudio.sqlite`.
 - Infer ownership from the `<date>/<sessionId>` directory layout: `<sessionId>.archiving` and `<sessionId>.restoring` are real app-owned recovery siblings at the same depth, so depth cannot prove workspace ownership.
-- Expose the failure reason to the model: the shared failure wrapper deliberately hides absolute paths and entry ids, and an existing test pins that contract.
+- Expose the failure reason to the model: rejected at the time because the shared failure wrapper hid absolute paths and entry ids and a test pinned that contract; later adopted with sanitization (see [2026-11-05-assistant-files-toolchain](2026-11-05-assistant-files-toolchain.md)).
 
 ## Consequences
 
-Ordinary files and directories strictly inside a `system` workspace can now reach the OS trash operation despite their application-data ancestors. Required approval and OS-trash-only behavior remain unchanged; there is no permanent-delete fallback. Protected targets, workspace roots, and paths outside the workspace still fail under the existing checks. A `user` workspace inside application data remains refused, even when its directory resembles a managed session workspace. Callers omitting the trusted type receive no exemption.
+Ordinary files and directories strictly inside a `system` workspace can now reach the OS trash operation despite their application-data ancestors. Required approval and OS-trash-only behavior remain unchanged; there is no permanent-delete fallback. Protected targets, workspace roots, and paths outside the workspace still fail under the existing checks. A `user` workspace inside Windows application data remains refused, even when its directory resembles a managed session workspace; on macOS the blanket `~/Library` container was later narrowed to its sensitive children, so a user workspace under `Application Support` is allowed while Cherry Studio's own data stays protected (see [2026-11-05-assistant-files-toolchain](2026-11-05-assistant-files-toolchain.md)). Callers omitting the trusted type receive no exemption.
 
-Agent host tools, including `move_to_trash`, are mounted only for builtin-role agents. The reported surface is the built-in assistant.
+Agent host tools, including `move_to_trash`, are mounted only for builtin-role agents. The reported surface is the built-in assistant. Tool failures now return a sanitized reason instead of the opaque `Tool execution failed` (see [2026-11-05-assistant-files-toolchain](2026-11-05-assistant-files-toolchain.md)).
 
 ## Verification
 

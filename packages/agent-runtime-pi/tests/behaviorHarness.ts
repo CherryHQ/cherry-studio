@@ -18,14 +18,8 @@ import { onTestFinished } from 'vitest'
 
 import type { ContractHarness, HarnessPorts, ScriptedReply, UsageFact } from '@cherrystudio/agent-behavior'
 
-import {
-  type AgentRuntimeSession,
-  type AgentRuntimeSessionOptions,
-  type BehaviorSessionRequest,
-  createAgentRuntimeSession,
-  createPiBehavior,
-  type PiBehavior
-} from '../src'
+import { type BehaviorSessionRequest, createPiBehavior, type PiBehavior } from '../src/behavior/harness'
+import { type AgentRuntimeSession, type AgentRuntimeSessionOptions, createAgentRuntimeSession } from '../src/session'
 
 type Script = {
   readonly replies: ScriptedReply[]
@@ -153,7 +147,7 @@ export async function openPiHarness(
   })
   const model = modelRuntime.getModel('contract', 'model')!
   const errors: unknown[] = []
-  const open: OpenSession = ({ sessionManager, extension, summarize }, options) =>
+  const open: OpenSession = ({ sessionManager, extension }, options) =>
     createAgentRuntimeSession({
       cwd,
       agentDir: cwd,
@@ -162,8 +156,7 @@ export async function openPiHarness(
       sessionManager,
       extensionFactories: [...extensions, extension],
       settings: { retry: { enabled: false }, cacheWarming: 'off' },
-      // Manual compaction only, summarized by the adapter through onCompacting, so it never takes a scripted reply.
-      compaction: { enabled: false, reserveTokens: 1, keepRecentTokens: 1, summarize },
+      compaction: { enabled: false, reserveTokens: 1, keepRecentTokens: 1 },
       ...options
     })
   const behavior = createPiBehavior({

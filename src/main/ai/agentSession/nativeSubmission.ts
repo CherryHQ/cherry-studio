@@ -1,6 +1,9 @@
 import { application } from '@application'
 import {
   runtimeId,
+  type AgentRuntime,
+  type InputLookup,
+  type OperationResult,
   type BusyPolicy,
   type InputDraft,
   type InputState,
@@ -66,4 +69,39 @@ export function applyNativeSubmissionResult(sessionId: string, contextId: string
     application
       .get('DbService')
       .withWriteTx((tx) => messages.releaseInputBindingTx(tx, sessionId, result.inputId, contextId))
+}
+
+/** Read only the original native binding; absence is not proof of non-admission. */
+export async function lookupNativeInput(
+  runtime: AgentRuntime,
+  sessionId: string,
+  contextId: string,
+  inputId: string
+): Promise<OperationResult<InputLookup>> {
+  const unknown = (): OperationResult<InputLookup> => ({
+    status: 'unknown',
+    error: { operation: 'lookup-input', code: 'unavailable', message: 'The original native input is not observable' }
+  })
+  const context = contexts.context(contextId)
+  const binding = messages.inputBinding(sessionId, inputId)
+  if (context.sessionId !== sessionId || binding?.contextId !== contextId || !context.nativeThreadId) return unknown()
+  const opened = await runtime.open({ backendId: runtimeId(context.backendId), id: runtimeId(context.nativeThreadId) })
+  if (opened.status !== 'confirmed') return unknown()
+  try {
+    let found: InputState | undefined
+    const observed = await opened.value.observe((event) => {
+      if (event.type === 'snapshot')
+        found = event.inputs.find(
+          (input) =>
+            input.inputId === inputId ||
+            Boolean(binding.nativeInputId && input.nativeInput?.id === binding.nativeInputId)
+        )
+    })
+    if (observed.status !== 'confirmed') return unknown()
+    await observed.value.drain()
+    await observed.value.stop()
+    return found ? { status: 'confirmed', value: { found: true, input: found } } : unknown()
+  } finally {
+    await opened.value.release()
+  }
 }

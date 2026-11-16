@@ -27,8 +27,9 @@ vi.mock('node:fs', async () => {
   }
 })
 
-import { handleExportStage, handleParseStage } from '../documentToMarkdown/handler'
-import { uploadFile } from '../utils'
+import { buildDoc2xMarkdown, handleExportStage, handleParseStage } from '../documentToMarkdown/handler'
+import type { PreparedDoc2xStartContext } from '../types'
+import { createUploadTask, uploadFile } from '../utils'
 
 const { getExportResultMock, getParseStatusMock, triggerExportTaskMock } = vi.hoisted(() => ({
   getExportResultMock: vi.fn(),
@@ -92,6 +93,489 @@ describe('doc2x utils', () => {
     ).rejects.toThrow('Unsafe remote url: local or private addresses are not allowed (127.0.0.1)')
 
     expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('sends the selected model to preupload and omits it for the default model', async () => {
+    fetchMock.mockImplementation(
+      async () =>
+        new Response(
+          JSON.stringify({ code: 'success', data: { uid: 'uid-1', url: 'https://upload.example.com/file' } }),
+          {
+            status: 200
+          }
+        )
+    )
+
+    const context = {
+      apiHost: 'https://doc2x.example.com',
+      apiKey: 'secret',
+      file: { path: '/tmp/file.pdf' }
+    } as unknown as PreparedDoc2xStartContext
+
+    await createUploadTask({ ...context, modelVersion: 'v3-2026' })
+    expect(JSON.parse(fetchMock.mock.calls.at(-1)?.[1]?.body as string)).toEqual({ model: 'v3-2026' })
+
+    await createUploadTask(context)
+    expect(JSON.parse(fetchMock.mock.calls.at(-1)?.[1]?.body as string)).toEqual({})
+  })
+
+  it('preserves page markdown, removes boilerplate comments, and replaces markdown tables with HTML', () => {
+    expect(
+      buildDoc2xMarkdown([
+        {
+          page_idx: 1,
+          md: '<!-- Meanless: header<br>1 -->\n\nbody\n\n| Name | Value |\n| --- | --- |\n| item | 42 |',
+          layout: {
+            blocks: [
+              {
+                id: 'boilerplate',
+                type: 'Text',
+                text: 'header',
+                bbox: [0, 0, 1, 1],
+                reading_order: 0,
+                parent_id: '',
+                src: '',
+                attributes: { is_boilerplate: true }
+              },
+              {
+                id: 'table',
+                type: 'Table',
+                text: '',
+                bbox: [0, 0, 1, 1],
+                reading_order: 2,
+                parent_id: '',
+                src: '',
+                table_data: { html: '<table><tr><td>value</td></tr></table>' }
+              },
+              {
+                id: 'body',
+                type: 'Text',
+                text: 'body',
+                bbox: [0, 0, 1, 1],
+                reading_order: 1,
+                parent_id: '',
+                src: ''
+              }
+            ]
+          }
+        }
+      ])
+    ).toBe('body\n\n<table><tr><td>value</td></tr></table>')
+  })
+
+  it('does not replace a table-shaped example inside a fenced code block', () => {
+    expect(
+      buildDoc2xMarkdown([
+        {
+          page_idx: 0,
+          md: '```md\n| Example | Value |\n| --- | --- |\n| kept | as code |\n```\n\n| Actual | Value |\n| --- | --- |\n| item | 42 |',
+          layout: {
+            blocks: [
+              {
+                id: 'table',
+                type: 'Table',
+                text: '',
+                bbox: [0, 0, 1, 1],
+                reading_order: 0,
+                parent_id: '',
+                src: '',
+                table_data: { html: '<table><tr><td>actual</td></tr></table>' }
+              }
+            ]
+          }
+        }
+      ])
+    ).toBe(
+      '```md\n| Example | Value |\n| --- | --- |\n| kept | as code |\n```\n\n<table><tr><td>actual</td></tr></table>'
+    )
+  })
+
+  it('matches fence characters and lengths before replacing tables', () => {
+    expect(
+      buildDoc2xMarkdown([
+        {
+          page_idx: 0,
+          md: '````md\n```md\n| Nested | Value |\n| --- | --- |\n| kept | as code |\n```\n````\n\n| Actual | Value |\n| --- | --- |\n| item | 42 |',
+          layout: {
+            blocks: [
+              {
+                id: 'backtick-table',
+                type: 'Table',
+                text: '',
+                bbox: [0, 0, 1, 1],
+                reading_order: 0,
+                parent_id: '',
+                src: '',
+                table_data: { html: '<table><tr><td>backtick</td></tr></table>' }
+              }
+            ]
+          }
+        },
+        {
+          page_idx: 1,
+          md: '```md\n~~~md\n| Nested | Value |\n| --- | --- |\n| kept | as code |\n~~~\n```\n\n| Actual | Value |\n| --- | --- |\n| item | 42 |',
+          layout: {
+            blocks: [
+              {
+                id: 'tilde-table',
+                type: 'Table',
+                text: '',
+                bbox: [0, 0, 1, 1],
+                reading_order: 0,
+                parent_id: '',
+                src: '',
+                table_data: { html: '<table><tr><td>tilde</td></tr></table>' }
+              }
+            ]
+          }
+        },
+        {
+          page_idx: 2,
+          md: '~~~~md\n~~~~not-a-closer\n| Nested | Value |\n| --- | --- |\n| kept | as code |\n~~~~\n\n| Actual | Value |\n| --- | --- |\n| item | 42 |',
+          layout: {
+            blocks: [
+              {
+                id: 'trailing-text-table',
+                type: 'Table',
+                text: '',
+                bbox: [0, 0, 1, 1],
+                reading_order: 0,
+                parent_id: '',
+                src: '',
+                table_data: { html: '<table><tr><td>trailing text</td></tr></table>' }
+              }
+            ]
+          }
+        }
+      ])
+    ).toBe(
+      '````md\n```md\n| Nested | Value |\n| --- | --- |\n| kept | as code |\n```\n````\n\n<table><tr><td>backtick</td></tr></table>\n\n```md\n~~~md\n| Nested | Value |\n| --- | --- |\n| kept | as code |\n~~~\n```\n\n<table><tr><td>tilde</td></tr></table>\n\n~~~~md\n~~~~not-a-closer\n| Nested | Value |\n| --- | --- |\n| kept | as code |\n~~~~\n\n<table><tr><td>trailing text</td></tr></table>'
+    )
+  })
+
+  it('preserves table-shaped code after an indented fence marker', () => {
+    expect(
+      buildDoc2xMarkdown([
+        {
+          page_idx: 0,
+          md: '~~~~md\n    ~~~~\n| Nested | Value |\n| --- | --- |\n| kept | as code |\n~~~~\n\n| Actual | Value |\n| --- | --- |\n| item | 42 |',
+          layout: {
+            blocks: [
+              {
+                id: 'table',
+                type: 'Table',
+                text: '',
+                bbox: [0, 0, 1, 1],
+                reading_order: 0,
+                parent_id: '',
+                src: '',
+                table_data: { html: '<table><tr><td>actual</td></tr></table>' }
+              }
+            ]
+          }
+        }
+      ])
+    ).toBe(
+      '~~~~md\n    ~~~~\n| Nested | Value |\n| --- | --- |\n| kept | as code |\n~~~~\n\n<table><tr><td>actual</td></tr></table>'
+    )
+  })
+
+  it('does not replace tables inside an indented code block', () => {
+    expect(
+      buildDoc2xMarkdown([
+        {
+          page_idx: 0,
+          md: 'intro\n\n    ~~~~md\n    | Nested | Value |\n    | --- | --- |\n    | kept | as code |\n    ~~~~\n\n| Actual | Value |\n| --- | --- |\n| item | 42 |',
+          layout: {
+            blocks: [
+              {
+                id: 'table',
+                type: 'Table',
+                text: '',
+                bbox: [0, 0, 1, 1],
+                reading_order: 0,
+                parent_id: '',
+                src: '',
+                table_data: { html: '<table><tr><td>actual</td></tr></table>' }
+              }
+            ]
+          }
+        }
+      ])
+    ).toBe(
+      'intro\n\n    ~~~~md\n    | Nested | Value |\n    | --- | --- |\n    | kept | as code |\n    ~~~~\n\n<table><tr><td>actual</td></tr></table>'
+    )
+  })
+
+  it('replaces tables nested inside list items without duplicating them', () => {
+    expect(
+      buildDoc2xMarkdown([
+        {
+          page_idx: 0,
+          md: '- Item\n\n    | Nested | Value |\n    | --- | --- |\n    | kept | as table |\n\n  Following paragraph.',
+          layout: {
+            blocks: [
+              {
+                id: 'table',
+                type: 'Table',
+                text: '',
+                bbox: [0, 0, 1, 1],
+                reading_order: 0,
+                parent_id: '',
+                src: '',
+                table_data: { html: '<table>\n<tr><td>nested</td></tr>\n</table>' }
+              }
+            ]
+          }
+        }
+      ])
+    ).toBe('- Item\n\n    <table>\n    <tr><td>nested</td></tr>\n    </table>\n\n  Following paragraph.')
+  })
+
+  it('keeps multiline table HTML inside blockquotes', () => {
+    expect(
+      buildDoc2xMarkdown([
+        {
+          page_idx: 0,
+          md: '> | Nested | Value |\n> | --- | --- |\n> | kept | as quote |',
+          layout: {
+            blocks: [
+              {
+                id: 'table',
+                type: 'Table',
+                text: '',
+                bbox: [0, 0, 1, 1],
+                reading_order: 0,
+                parent_id: '',
+                src: '',
+                table_data: { html: '<table>\n<tr><td>quoted</td></tr>\n</table>' }
+              }
+            ]
+          }
+        }
+      ])
+    ).toBe('> <table>\n> <tr><td>quoted</td></tr>\n> </table>')
+  })
+
+  it('uses structured figure URLs when a v3 page has no Markdown fallback', () => {
+    expect(
+      buildDoc2xMarkdown([
+        {
+          page_idx: 0,
+          layout: {
+            blocks: [
+              {
+                id: 'figure',
+                type: 'Figure',
+                text: '',
+                bbox: [0, 0, 1, 1],
+                reading_order: 1,
+                parent_id: '',
+                src: 'https://img.example.com/figure.png'
+              },
+              {
+                id: 'text',
+                type: 'Text',
+                text: 'caption',
+                bbox: [0, 0, 1, 1],
+                reading_order: 2,
+                parent_id: '',
+                src: ''
+              }
+            ]
+          }
+        }
+      ])
+    ).toBe('![](https://img.example.com/figure.png)\n\ncaption')
+  })
+
+  it('reconstructs empty pages in provider reading order', () => {
+    expect(
+      buildDoc2xMarkdown([
+        {
+          page_idx: 0,
+          layout: {
+            blocks: [
+              {
+                id: 'second',
+                type: 'Text',
+                text: 'second',
+                bbox: [0, 0, 1, 1],
+                reading_order: 2,
+                parent_id: '',
+                src: ''
+              },
+              {
+                id: 'first',
+                type: 'Text',
+                text: 'first',
+                bbox: [0, 0, 1, 1],
+                reading_order: 1,
+                parent_id: '',
+                src: ''
+              }
+            ]
+          }
+        }
+      ])
+    ).toBe('first\n\nsecond')
+  })
+
+  it('sends v3 export options and omits v3-only fields for v2', async () => {
+    const { triggerExportTask: triggerExportTaskImpl } = await vi.importActual<typeof Doc2xUtils>('../utils')
+    fetchMock.mockImplementation(
+      async () =>
+        new Response(JSON.stringify({ code: 'success', data: { status: 'processing', url: '' } }), {
+          status: 200
+        })
+    )
+
+    const context = {
+      apiHost: 'https://doc2x.example.com',
+      apiKey: 'secret'
+    }
+
+    await triggerExportTaskImpl('uid-v2', context, { modelVersion: 'v2' })
+    expect(JSON.parse(fetchMock.mock.calls.at(-1)?.[1]?.body as string)).toEqual({
+      uid: 'uid-v2',
+      to: 'md',
+      formula_mode: 'normal'
+    })
+
+    await triggerExportTaskImpl('uid-v3', context, {
+      modelVersion: 'v3-2026',
+      formulaLevel: 1,
+      mergeCrossPageForms: true
+    })
+    expect(JSON.parse(fetchMock.mock.calls.at(-1)?.[1]?.body as string)).toEqual({
+      uid: 'uid-v3',
+      to: 'md',
+      formula_mode: 'normal',
+      formula_level: 1,
+      merge_cross_page_forms: true
+    })
+  })
+
+  it('keeps v2 responses on the ZIP fallback even if layout blocks are present', async () => {
+    getParseStatusMock.mockResolvedValueOnce({
+      code: 'success',
+      data: {
+        status: 'success',
+        result: {
+          pages: [
+            {
+              page_idx: 0,
+              md: 'legacy markdown',
+              layout: {
+                blocks: [
+                  {
+                    id: 'text',
+                    type: 'Text',
+                    text: 'structured text',
+                    bbox: [0, 0, 1, 1],
+                    reading_order: 0,
+                    parent_id: '',
+                    src: ''
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    })
+    triggerExportTaskMock.mockResolvedValueOnce({
+      code: 'success',
+      data: { status: 'processing' }
+    })
+
+    await expect(
+      handleParseStage(
+        'uid-v2',
+        {
+          apiHost: 'https://doc2x.example.com',
+          apiKey: 'secret',
+          stage: 'parsing',
+          modelVersion: 'v2'
+        },
+        {
+          apiHost: 'https://doc2x.example.com',
+          apiKey: 'secret'
+        }
+      )
+    ).resolves.toEqual({
+      status: 'processing',
+      progress: 99,
+      remoteContext: {
+        apiHost: 'https://doc2x.example.com',
+        apiKey: 'secret',
+        stage: 'exporting',
+        modelVersion: 'v2'
+      }
+    })
+  })
+
+  it('keeps provider ZIP output when v3 export controls are non-default', async () => {
+    getParseStatusMock.mockResolvedValueOnce({
+      code: 'success',
+      data: {
+        status: 'success',
+        result: {
+          pages: [
+            {
+              page_idx: 0,
+              md: 'provider markdown',
+              layout: {
+                blocks: [
+                  {
+                    id: 'text',
+                    type: 'Text',
+                    text: 'structured text',
+                    bbox: [0, 0, 1, 1],
+                    reading_order: 0,
+                    parent_id: '',
+                    src: ''
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    })
+    triggerExportTaskMock.mockResolvedValueOnce({
+      code: 'success',
+      data: { status: 'processing' }
+    })
+
+    await expect(
+      handleParseStage(
+        'uid-v3',
+        {
+          apiHost: 'https://doc2x.example.com',
+          apiKey: 'secret',
+          stage: 'parsing',
+          modelVersion: 'v3-2026',
+          formulaLevel: 1,
+          mergeCrossPageForms: false
+        },
+        {
+          apiHost: 'https://doc2x.example.com',
+          apiKey: 'secret'
+        }
+      )
+    ).resolves.toEqual({
+      status: 'processing',
+      progress: 99,
+      remoteContext: {
+        apiHost: 'https://doc2x.example.com',
+        apiKey: 'secret',
+        stage: 'exporting',
+        modelVersion: 'v3-2026',
+        formulaLevel: 1,
+        mergeCrossPageForms: false
+      }
+    })
   })
 
   it('maps document-to-markdown parse and export poll states', async () => {
@@ -219,6 +703,28 @@ describe('doc2x utils', () => {
         kind: 'remote-zip-url',
         downloadUrl: 'https://download.example.com/result.zip',
         configuredApiHost: 'https://doc2x.example.com'
+      }
+    })
+
+    getExportResultMock.mockResolvedValueOnce({
+      code: 'success',
+      data: {
+        status: 'success',
+        url: 'https://download.example.com/result.zip'
+      }
+    })
+
+    await expect(
+      handleExportStage('uid-v3', {
+        apiHost: 'https://doc2x.example.com',
+        apiKey: 'secret',
+        markdownContent: '# structured output'
+      })
+    ).resolves.toEqual({
+      status: 'completed',
+      output: {
+        kind: 'markdown',
+        markdownContent: '# structured output'
       }
     })
   })

@@ -16,6 +16,7 @@ import {
   bindNativeInput,
   prepareNativeSubmission
 } from '@main/ai/agentSession/nativeSubmission'
+import { preparePiBranch, reservePiBranchTx } from '@main/ai/runtime/pi/piContext'
 
 describe('message-owned native input bindings', () => {
   const dbh = setupTestDatabase()
@@ -31,10 +32,7 @@ describe('message-owned native input bindings', () => {
       .values({ id: workspaceId, name: 'Work', path: '/test', type: 'user', orderKey: 'a0' })
       .run()
     dbh.db.insert(agentSessionTable).values({ id: sessionId, workspaceId, name: 'Session', orderKey: 'a0' }).run()
-    const backend = application
-      .get('DbService')
-      .withWriteTx((tx) => contexts.ensureBackendTx(tx, { version: 1, kind: 'pi' }, 'bound'))
-    const context = contexts.allocateContext(sessionId, backend.id, 'native-session')
+    const context = preparePiBranch(sessionId, undefined, 'native-session')
     contexts.bindContext(context.id, 'native-session')
     contextId = context.id
     messageId = uuid()
@@ -120,7 +118,14 @@ describe('message-owned native input bindings', () => {
 
   it('keeps a late event on the captured context and ignores another branch', () => {
     prepareNativeSubmission(sessionId, messageId, contextId, 'reject')
-    const other = contexts.allocateContext(sessionId, contexts.context(contextId).backendId, 'other-thread')
+    const edited = messages.saveMessage({
+      sessionId,
+      parentId: contexts.context(contextId).anchorMessageId!,
+      message: { role: 'user', data: { parts: [{ type: 'text', text: 'edited' }] } }
+    })
+    const other = application
+      .get('DbService')
+      .withWriteTx((tx) => reservePiBranchTx(tx, sessionId, edited.id, 'other-thread'))
     contexts.bindContext(other.id, 'other-thread')
     expect(bindNativeInput(sessionId, other.id, { inputId: runtimeId(messageId), facts: ['accepted'] })).toBeUndefined()
     bindNativeInput(sessionId, contextId, nativeInput())

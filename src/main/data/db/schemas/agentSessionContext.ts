@@ -7,6 +7,11 @@ import { agentSessionTable } from './agentSession'
 
 export interface AgentSessionCheckpoints {
   fork?: Record<string, unknown>
+  root?: {
+    version?: 2
+    sources: Record<string, { messageId: string; offset: number; count: number }>
+    removed: string[]
+  }
   child?: {
     sources: Record<string, string>
     gap?: string

@@ -9,7 +9,7 @@ const MinimaxAgent = ({ variant, className, ...props }: CompoundIconProps) => {
 
 export const MinimaxAgentIcon: CompoundIcon = /*#__PURE__*/ Object.assign(MinimaxAgent, {
   Avatar: MinimaxAgentAvatar,
-  colorPrimary: '#7EC7FF'
+  colorPrimary: '#7ec7ff'
 })
 
 export default MinimaxAgentIcon

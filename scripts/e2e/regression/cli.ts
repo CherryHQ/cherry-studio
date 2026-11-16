@@ -2,11 +2,13 @@ import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, write
 import { join, resolve } from 'node:path'
 
 import { probeCapabilities } from './capabilities'
-import { PHASE_IDS, TASK_SELECTIONS } from './cases'
+import { parseTaskSelection, PHASE_IDS, resolveWorkflowTasks, selectCases, serializeTaskSelection } from './cases'
 import { getSensitiveConfigValues, loadTestConfig, REQUIRED_CONFIG } from './config'
+import { cleanupExternalResources } from './externalResources'
 import { createFixtures } from './fixtureFiles'
 import { prepareRelease } from './installation'
 import { launchApp, stopOwnedApp } from './lifecycle'
+import { prepareMacRuntime } from './macRuntime'
 import { assertMockTask, startMockProvider, stopMockProvider, verifyMockProvider } from './mockProvider'
 import { ensureRunDirectories, getRunPaths } from './paths'
 import { runPhase } from './phases'
@@ -15,6 +17,7 @@ import { resolveRepositoryRef } from './ref'
 import { aggregateRuns, renderAggregateMarkdown, writeReports } from './report'
 import { createRun, finalizeRun, getRunVerdict, readRun, setCapabilities, updateRunMetadata, writeRun } from './state'
 import { PLATFORMS, RUN_MODES } from './types'
+import { cleanupWindowsNotificationShortcut } from './windowsNotificationShortcut'
 
 function argument(name: string, required = true): string | undefined {
   const index = process.argv.indexOf(`--${name}`)
@@ -80,11 +83,18 @@ async function resolveRefCommand(): Promise<void> {
   outputLine('sha', resolvedRef.sha)
 }
 
+function selectTasksCommand(): void {
+  const inputs = JSON.parse(argument('inputs-json') ?? '{}')
+  const resolved = resolveWorkflowTasks(inputs)
+  if (inputs.provider_mode === 'mock') assertMockTask(parseTaskSelection(resolved.task))
+  for (const [name, value] of Object.entries(resolved)) outputLine(name, value)
+}
+
 async function initializeCommand(): Promise<void> {
   const paths = runDirectory()
   const mode = oneOf(argument('mode') ?? '', RUN_MODES, 'mode')
   const platform = oneOf(argument('platform') ?? '', PLATFORMS, 'platform')
-  const task = oneOf(argument('task', false) ?? 'all', TASK_SELECTIONS, 'task')
+  const task = parseTaskSelection(argument('task', false) ?? 'all')
   const providerMode = oneOf(argument('provider-mode', false) ?? 'real', ['real', 'mock'] as const, 'provider mode')
   if (providerMode === 'mock') assertMockTask(task)
   const ref = argument('ref') ?? ''
@@ -98,7 +108,7 @@ async function initializeCommand(): Promise<void> {
     platform,
     ref,
     runner,
-    task,
+    task: serializeTaskSelection(task),
     providerMode
   })
   await createFixtures(paths)
@@ -107,13 +117,13 @@ async function initializeCommand(): Promise<void> {
 }
 
 async function preflightCommand(): Promise<void> {
-  const task = oneOf(argument('task', false) ?? 'all', TASK_SELECTIONS, 'task')
+  const task = parseTaskSelection(argument('task', false) ?? 'all')
   const directory = argument('run-dir', false)
   if (directory && readRun(getRunPaths(directory).runState).metadata.providerMode === 'mock') {
     assertMockTask(task)
     await verifyMockProvider(getRunPaths(directory))
   }
-  if (task === 'chat-stream-failure' || task === 'translation-settings') return
+  if (selectCases(task).every(({ id }) => id === 'C-03' || id === 'MP-86')) return
   loadTestConfig()
   const redacted = createRedactor(getSensitiveConfigValues())
   process.stdout.write(`${JSON.stringify(redacted({ configured: REQUIRED_CONFIG }), null, 2)}\n`)
@@ -199,11 +209,20 @@ async function aggregateGateCommand(): Promise<void> {
 
 async function cleanupCommand(): Promise<void> {
   const paths = runDirectory()
-  try {
-    await stopOwnedApp(paths)
-  } finally {
-    await stopMockProvider(paths)
+  const errors: unknown[] = []
+  for (const cleanup of [
+    () => stopOwnedApp(paths),
+    () => stopMockProvider(paths),
+    () => cleanupExternalResources(paths),
+    () => cleanupWindowsNotificationShortcut(paths)
+  ]) {
+    try {
+      await Promise.resolve(cleanup())
+    } catch (error) {
+      errors.push(error)
+    }
   }
+  if (errors.length) throw new AggregateError(errors, `Regression cleanup failed: ${errors.map(String).join('; ')}`)
 }
 
 async function mockStartCommand(): Promise<void> {
@@ -224,6 +243,9 @@ async function main(): Promise<void> {
     case 'mock-stop':
       await stopMockProvider(runDirectory())
       break
+    case 'select-tasks':
+      selectTasksCommand()
+      break
     case 'resolve-ref':
       await resolveRefCommand()
       break
@@ -235,6 +257,9 @@ async function main(): Promise<void> {
       break
     case 'release':
       await releaseCommand()
+      break
+    case 'prepare-mac-runtime':
+      await prepareMacRuntime(runDirectory(), resolve(argument('target-root') ?? ''))
       break
     case 'launch':
       await launchCommand()

@@ -214,7 +214,10 @@ const BaseNavigatorContent = ({
       onDragOver={(event) => setIndicator(getIndicator(event))}
       onDragCancel={clearDrag}
       onDragEnd={handleDragEnd}>
-      <ScrollArea viewportProps={{ className: 'overflow-x-hidden pt-1 pb-3' }} className="min-h-0 flex-1">
+      <ScrollArea
+        contentProps={{ className: 'pt-1 pb-3' }}
+        viewportProps={{ className: 'overflow-x-hidden' }}
+        className="min-h-0 flex-1">
         {isLoading ? (
           <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
             {t('common.loading')}

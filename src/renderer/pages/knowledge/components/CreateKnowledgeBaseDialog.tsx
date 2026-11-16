@@ -118,7 +118,7 @@ const CreateKnowledgeBaseDialogRoot = ({
   const handleSettingsNavigate = useCloseBeforeAction(onOpenChange)
 
   useEffect(() => {
-    if (!open) {
+    if (open) {
       setValues(createInitialInput(normalizedInitialGroupId))
       setHasAttemptedSubmit(false)
       setSubmitError(null)

@@ -3,6 +3,7 @@ import type * as fs from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
+import * as regressionCases from '../cases'
 import { completeE2eCase, createRun, finalizeRun, getRunVerdict, readRun, updatePhase, writeRun } from '../state'
 import type { RegressionRun } from '../types'
 
@@ -10,6 +11,8 @@ vi.mock('node:fs', async (importOriginal) => {
   const actual = await importOriginal<typeof fs>()
   return { ...actual, renameSync: vi.fn(actual.renameSync) }
 })
+
+afterEach(() => vi.restoreAllMocks())
 
 describe('Playwright run state', () => {
   it('initializes every phase selected by a module task without selecting unrelated cases', () => {
@@ -36,10 +39,10 @@ describe('Playwright run state', () => {
       platform: 'macos',
       ref: 'main',
       runner: 'macos-latest',
-      task: 'code-cli-permissions'
+      task: 'code-cli'
     })
     const completed = updatePhase(
-      completeE2eCase(run, 'MP-97', 'passed', 'Permission modes verified'),
+      completeE2eCase(run, 'CODE-01', 'passed', 'CLI launch verified'),
       'codeTools',
       'passed'
     )
@@ -106,6 +109,9 @@ describe('Playwright run state', () => {
   })
 
   it('marks platform-scoped cases as not applicable instead of failing a Windows run', () => {
+    vi.spyOn(regressionCases, 'supportsPlatform').mockImplementation(
+      (id, platform) => id !== 'CODE-01' || platform !== 'windows'
+    )
     const run = createRun({
       appVersion: 'development',
       commitSha: 'sha',
@@ -116,7 +122,7 @@ describe('Playwright run state', () => {
       task: 'all'
     })
 
-    expect(run.cases['MP-133']).toMatchObject({
+    expect(run.cases['CODE-01']).toMatchObject({
       status: 'not_applicable',
       summary: 'Not supported on windows'
     })
@@ -124,6 +130,7 @@ describe('Playwright run state', () => {
   })
 
   it('reports a task with no applicable case on this platform as not applicable instead of blocked', () => {
+    vi.spyOn(regressionCases, 'supportsPlatform').mockImplementation((_id, platform) => platform !== 'windows')
     const run = finalizeRun(
       createRun({
         appVersion: 'development',
@@ -132,7 +139,7 @@ describe('Playwright run state', () => {
         platform: 'windows',
         ref: 'main',
         runner: 'windows-2022',
-        task: 'code-cli-permissions'
+        task: 'code-cli'
       })
     )
 

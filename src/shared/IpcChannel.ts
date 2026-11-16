@@ -9,8 +9,6 @@ export enum IpcChannel {
   App_HasWritePermission = 'app:has-write-permission',
   App_ResolvePath = 'app:resolve-path',
   App_IsPathInside = 'app:is-path-inside',
-  Application_PreventQuit = 'application:prevent-quit',
-  Application_AllowQuit = 'application:allow-quit',
   App_LogToMain = 'app:log-to-main',
   App_QuoteToMain = 'app:quote-to-main',
 
@@ -90,9 +88,6 @@ export enum IpcChannel {
   Backup_ListS3Files = 'backup:listS3Files',
   Backup_DeleteS3File = 'backup:deleteS3File',
 
-  // zip
-  Zip_Decompress = 'zip:decompress',
-
   // system
   System_GetHostname = 'system:getHostname',
 
@@ -124,8 +119,7 @@ export enum IpcChannel {
   IpcApi_Event = 'ipc-api:event',
 
   // TRACE
-  TRACE_GET_DATA = 'trace:getData',
-  TRACE_CLEAN_LOCAL_DATA = 'trace:cleanLocalData'
+  TRACE_GET_DATA = 'trace:getData'
 
   // ──────────────────────────────────────────────────────────────
   // TODO(v2): the following IPC channels are still referenced via

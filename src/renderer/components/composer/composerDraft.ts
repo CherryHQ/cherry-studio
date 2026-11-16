@@ -11,6 +11,7 @@ import type {
 } from '@shared/data/types/uiParts'
 import { FileTypeSchema } from '@shared/types/file'
 
+import { createComposerLineParagraphs } from './composerTokenMarkers'
 import { COMPOSER_TOKEN_NODE_NAME } from './ComposerTokenNode'
 import { createPromptVariableContent } from './promptVariables'
 import { getComposerInputLeafText } from './quickPanel'
@@ -123,10 +124,7 @@ function createComposerContent(
 
   if (!tokens.length) {
     appendTextContent(nodes, text)
-    return {
-      type: 'doc',
-      content: [{ type: 'paragraph', ...(nodes.length > 0 && { content: nodes }) }]
-    }
+    return { type: 'doc', content: createComposerLineParagraphs(nodes) }
   }
 
   let cursor = 0
@@ -155,10 +153,7 @@ function createComposerContent(
     appendTextContent(nodes, text.slice(cursor))
   }
 
-  return {
-    type: 'doc',
-    content: [{ type: 'paragraph', ...(nodes.length > 0 && { content: nodes }) }]
-  }
+  return { type: 'doc', content: createComposerLineParagraphs(nodes) }
 }
 
 export function createComposerDocumentContent(text: string, composer?: ComposerMessageSnapshot): JSONContent {
@@ -167,12 +162,37 @@ export function createComposerDocumentContent(text: string, composer?: ComposerM
 
 export function createComposerDraftContent(
   draft: { text: string; tokens: readonly ComposerSerializedToken[] },
-  options: { tokenizeVariables?: boolean } = {}
+  options: { tokenizeVariables?: boolean; literalFencedCode?: boolean } = {}
 ): JSONContent {
   const inputTokens = draft.tokens.filter((token) => isComposerInputTokenKind(token.kind))
-  if (!inputTokens.length && options.tokenizeVariables !== false) return createPromptVariableContent(draft.text)
+  if (!inputTokens.length && options.tokenizeVariables !== false) {
+    return createPromptVariableContent(draft.text, { literalFencedCode: options.literalFencedCode })
+  }
 
   return createComposerContent(draft.text, inputTokens, isComposerInputTokenKind)
+}
+
+/**
+ * Tokens for rebuilding editor content from `text`. `draftTokens` is the persisted seed, but it is
+ * only read once at mount, so a rebuilt editor can hold the current text — which already embeds a
+ * live token's folded prompt text — with an empty seed, materializing that prompt text as plain
+ * prose. Live tokens whose prompt text is present in the text fill the gap where it appears.
+ */
+export function resolveComposerRestoreTokens(
+  text: string,
+  draftTokens: readonly ComposerSerializedToken[] | undefined,
+  liveTokens: readonly ComposerDraftToken[]
+): ComposerSerializedToken[] {
+  if (draftTokens?.length) return [...draftTokens]
+
+  const resolved: ComposerSerializedToken[] = []
+  liveTokens.forEach((token) => {
+    if (!token.promptText) return
+    const textOffset = text.indexOf(token.promptText)
+    if (textOffset < 0) return
+    resolved.push({ ...token, index: resolved.length, textOffset })
+  })
+  return resolved
 }
 
 export function serializeComposerDocument(source: ComposerSerializableSource): ComposerSerializedDraft {

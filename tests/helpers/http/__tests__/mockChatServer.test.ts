@@ -41,6 +41,36 @@ describe('mock chat HTTP server', () => {
   })
 
   describe.each(providers)('$name SDK', ({ create }) => {
+    it.each([false, true])('delivers an executable function call over HTTP (stream=%s)', async (stream) => {
+      const model = create(server.baseUrl)
+      const requestCall = { id: 'sum-call', name: 'get_sum', arguments: { a: 31415, b: 27182 } }
+      const expectedCall = {
+        type: 'tool-call',
+        toolCallId: 'sum-call',
+        toolName: 'get_sum',
+        input: '{"a":31415,"b":27182}'
+      }
+      if (stream) {
+        const pending = model.doStream({ prompt })
+        const request = await server.nextRequest()
+        request.completeToolCall(requestCall)
+        const parts: LanguageModelV3StreamPart[] = []
+        for await (const part of (await pending).stream) parts.push(part)
+        expect(parts).toContainEqual(expect.objectContaining(expectedCall))
+        expect(parts).toContainEqual(
+          expect.objectContaining({ type: 'finish', finishReason: { unified: 'tool-calls', raw: 'tool_calls' } })
+        )
+      } else {
+        const pending = model.doGenerate({ prompt })
+        const request = await server.nextRequest()
+        request.completeToolCall(requestCall)
+        await expect(pending).resolves.toMatchObject({
+          content: [expect.objectContaining(expectedCall)],
+          finishReason: { unified: 'tool-calls' }
+        })
+      }
+    })
+
     it('receives a complete non-streaming response over HTTP', async () => {
       const result = create(server.baseUrl).doGenerate({ prompt })
       const request = await server.nextRequest()

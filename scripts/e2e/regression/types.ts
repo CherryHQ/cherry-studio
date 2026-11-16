@@ -1,5 +1,3 @@
-import type { TaskSelection } from './cases'
-
 export const PLATFORMS = ['macos', 'windows'] as const
 export const RUN_MODES = ['branch', 'tag'] as const
 export const CASE_STATUSES = ['pending', 'running', 'passed', 'failed', 'blocked', 'not_applicable'] as const
@@ -26,7 +24,7 @@ export interface RunMetadata {
   platform: Platform
   ref: string
   runner: string
-  task: TaskSelection
+  task: string
   artifactName?: string
   artifactSha256?: string
   providerMode?: ProviderMode

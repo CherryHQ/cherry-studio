@@ -563,7 +563,7 @@
       "metadata": {
         "website": {
           "apiKey": "https://ppio.com/settings/key-management",
-          "docs": "https://docs.cherry-ai.com/pre-basic/providers/ppio",
+          "docs": "https://cherryai.com/docs/en/pre-basic/providers/",
           "models": "https://ppio.com/model-api/product/llm-api",
           "official": "https://ppio.com/"
         }
@@ -1132,10 +1132,47 @@
       "name": "oMLX"
     },
     {
+      "authOptional": true,
+      "availableInEditions": ["global", "cn"],
+      "defaultChatEndpoint": "openai-chat-completions",
+      "description": "Rapid-MLX - AI model provider",
+      "endpointConfigs": {
+        "anthropic-messages": {
+          "adapterFamily": "anthropic",
+          "baseUrl": "http://localhost:8000"
+        },
+        "openai-chat-completions": {
+          "adapterFamily": "openai-compatible",
+          "baseUrl": "http://localhost:8000",
+          "reasoningFormat": {
+            "type": "openai-chat"
+          }
+        },
+        "openai-responses": {
+          "adapterFamily": "open-responses",
+          "baseUrl": "http://localhost:8000"
+        }
+      },
+      "id": "rapid-mlx",
+      "metadata": {
+        "website": {
+          "docs": "https://github.com/raullenchai/Rapid-MLX",
+          "official": "https://rapidmlx.com"
+        }
+      },
+      "name": "Rapid-MLX"
+    },
+    {
       "availableInEditions": ["global"],
       "defaultChatEndpoint": "openai-responses",
       "description": "OpenAI - AI model provider",
       "endpointConfigs": {
+        "openai-image-edit": {
+          "adapterFamily": "openai"
+        },
+        "openai-image-generation": {
+          "adapterFamily": "openai"
+        },
         "openai-responses": {
           "adapterFamily": "openai",
           "baseUrl": "https://api.openai.com",
@@ -1727,7 +1764,7 @@
     {
       "availableInEditions": ["global", "cn"],
       "defaultChatEndpoint": "openai-chat-completions",
-      "description": "Qwen AI Platform - AI model provider",
+      "description": "Qianwen AI platform - CN - AI model provider",
       "endpointConfigs": {
         "anthropic-messages": {
           "adapterFamily": "anthropic",
@@ -1751,13 +1788,13 @@
       "id": "dashscope",
       "metadata": {
         "website": {
-          "apiKey": "https://platform.qianwenai.com/home/api-keys",
+          "apiKey": "https://platform.qianwenai.com/home/api-keys?utm_content=g_20000003252",
           "docs": "https://platform.qianwenai.com/docs/developer-guides/getting-started/first-api-call",
-          "models": "https://www.qianwenai.com/models",
+          "models": "https://platform.qianwenai.com/docs/developer-guides/getting-started/model-selection?utm_content=g_20000003253",
           "official": "https://www.qianwenai.com/"
         }
       },
-      "name": "Qwen AI Platform",
+      "name": "Qianwen AI platform - CN",
       "serverTools": [
         {
           "endpointTypes": ["openai-chat-completions", "openai-responses"],
@@ -1784,22 +1821,22 @@
     {
       "availableInEditions": ["global"],
       "defaultChatEndpoint": "openai-chat-completions",
-      "description": "QwenCloud - AI model provider",
+      "description": "Qwen Cloud - AI model provider",
       "endpointConfigs": {
         "anthropic-messages": {
           "adapterFamily": "anthropic",
-          "baseUrl": "https://ap-southeast-1.maas.qwencloudapi.com/apps/anthropic"
+          "baseUrl": "https://maas.qwencloudapi.com/apps/anthropic"
         },
         "openai-chat-completions": {
           "adapterFamily": "openai-compatible",
-          "baseUrl": "https://ap-southeast-1.maas.qwencloudapi.com/compatible-mode/v1/",
+          "baseUrl": "https://maas.qwencloudapi.com/compatible-mode/v1/",
           "reasoningFormat": {
             "type": "openai-chat"
           }
         },
         "openai-responses": {
           "adapterFamily": "openai",
-          "baseUrl": "https://ap-southeast-1.maas.qwencloudapi.com/compatible-mode/v1/",
+          "baseUrl": "https://maas.qwencloudapi.com/compatible-mode/v1/",
           "reasoningFormat": {
             "type": "openai-responses"
           }
@@ -1808,13 +1845,13 @@
       "id": "qwencloud",
       "metadata": {
         "website": {
-          "apiKey": "https://home.qwencloud.com/api-keys",
+          "apiKey": "https://home.qwencloud.com/api-keys?utm_content=g_20000003254",
           "docs": "https://docs.qwencloud.com/developer-guides/getting-started/introduction",
-          "models": "https://www.qwencloud.com/models",
+          "models": "https://docs.qwencloud.com/developer-guides/getting-started/model-selection?utm_content=g_20000003255",
           "official": "https://www.qwencloud.com/"
         }
       },
-      "name": "QwenCloud",
+      "name": "Qwen Cloud",
       "serverTools": [
         {
           "endpointTypes": ["openai-chat-completions"],
@@ -2931,5 +2968,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "70e1e7ba16416870"
+  "version": "a6291a3a00ded246"
 }

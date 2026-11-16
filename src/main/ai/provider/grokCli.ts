@@ -1,16 +1,14 @@
 import fs from 'node:fs'
-import os from 'node:os'
-import path from 'node:path'
 
 import { gte, valid as validSemver } from 'semver'
 
+import { application } from '@application'
 import { loggerService } from '@logger'
 
 /**
  * Request shaping for the Grok CLI provider (xAI's `cli-chat-proxy.grok.com`
- * Responses endpoint). Kept in its own module — free of the electron/app import
- * graph in `config.ts` — so the body/header coercion can be unit-tested
- * directly.
+ * Responses endpoint). Kept in its own module, apart from `config.ts`, so the
+ * body/header coercion can be unit-tested directly.
  *
  * xAI's proxy speaks the OpenAI Responses surface but with stricter edges than
  * the generic adapter emits: it wants `system`/`developer` turns hoisted into
@@ -59,14 +57,14 @@ export function pickGrokClientVersion(fileContents: string | null, floor: string
  * Reads `~/.grok/version.json` (the file the Grok CLI itself writes; `~/.grok`
  * is user-owned and same-user readable from the Electron main process). Honors
  * `GROK_CLIENT_VERSION_OVERRIDE` for emergency ops. Falls back to the floor
- * constant on any failure. Result is captured at module load and reused for
- * the lifetime of the process; restart Cherry Studio after updating the Grok
- * CLI to pick up the new version.
+ * constant on any failure. Result is captured on the first Grok CLI request and
+ * reused for the lifetime of the process; restart Cherry Studio after updating
+ * the Grok CLI once a request has been made to pick up the new version.
  */
 export function resolveGrokClientVersion(): string {
   const override = process.env.GROK_CLIENT_VERSION_OVERRIDE?.trim()
   if (override) return override
-  const filePath = path.join(os.homedir(), '.grok', 'version.json')
+  const filePath = application.getPath('external.grok.version_file')
   let raw: string
   try {
     raw = fs.readFileSync(filePath, 'utf8')
@@ -79,7 +77,8 @@ export function resolveGrokClientVersion(): string {
   return pickGrokClientVersion(raw)
 }
 
-const GROK_CLIENT_VERSION = resolveGrokClientVersion()
+// Lazy: this module is imported via serviceRegistry before the path registry is initialized.
+let grokClientVersion: string | undefined
 
 export interface GrokCliCredentials {
   accessToken: string
@@ -165,7 +164,8 @@ export function buildGrokCliRequestHeaders(base: HeadersInit | undefined, creds:
   const headers = new Headers(base)
   headers.set('Authorization', `Bearer ${creds.accessToken}`)
   headers.set('x-grok-client-identifier', 'cherry-studio')
-  headers.set('x-grok-client-version', GROK_CLIENT_VERSION)
+  grokClientVersion ??= resolveGrokClientVersion()
+  headers.set('x-grok-client-version', grokClientVersion)
   headers.set('x-xai-token-auth', 'xai-grok-cli')
   headers.set('x-authenticateresponse', 'authenticate-response')
   headers.set('x-grok-client-mode', 'interactive')

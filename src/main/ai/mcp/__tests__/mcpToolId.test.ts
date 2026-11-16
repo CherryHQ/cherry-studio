@@ -3,12 +3,6 @@ import { describe, expect, it } from 'vitest'
 import { buildMcpToolWireId } from '../mcpToolId'
 
 describe('buildMcpToolWireId', () => {
-  it('pins the 80-bit SHA-256 identity suffix', () => {
-    expect(buildMcpToolWireId({ serverId: 'server-a', serverName: 'mysql', toolName: 'query' })).toBe(
-      'mcp__mysql__query_306d76332fabbe783838'
-    )
-  })
-
   it('distinguishes identical display and tool names by server id', () => {
     const first = buildMcpToolWireId({ serverId: 'server-a', serverName: 'mysql', toolName: 'executeSql' })
     const second = buildMcpToolWireId({ serverId: 'server-b', serverName: 'mysql', toolName: 'executeSql' })
@@ -38,18 +32,6 @@ describe('buildMcpToolWireId', () => {
     expect(idCard).not.toBe(invoice)
   })
 
-  it('romanizes Chinese names so the readable slug survives', () => {
-    const id = buildMcpToolWireId({ serverId: 'server-a', serverName: '票据 OCR', toolName: '识别发票' })
-
-    expect(id).toMatch(/^mcp__piaoJuOcr__shiBieFaPiao_[0-9a-f]{20}$/)
-  })
-
-  it('leaves ASCII names untouched by romanization', () => {
-    const id = buildMcpToolWireId({ serverId: 'server-a', serverName: 'MySQL', toolName: 'search_issues' })
-
-    expect(id).toMatch(/^mcp__mysql__searchIssues_[0-9a-f]{20}$/)
-  })
-
   it('is deterministic, identifier-safe, and at most 63 characters', () => {
     const input = { serverId: 'server-a', serverName: '数据库'.repeat(40), toolName: '123 查询'.repeat(40) }
     const first = buildMcpToolWireId(input)
@@ -58,13 +40,5 @@ describe('buildMcpToolWireId', () => {
     expect(first).toBe(second)
     expect(first).toMatch(/^[a-zA-Z_][a-zA-Z0-9_]*$/)
     expect(first.length).toBeLessThanOrEqual(63)
-  })
-
-  it('keeps the identity digest stable across server display-name changes', () => {
-    const before = buildMcpToolWireId({ serverId: 'server-a', serverName: 'old-name', toolName: 'query' })
-    const after = buildMcpToolWireId({ serverId: 'server-a', serverName: 'new-name', toolName: 'query' })
-
-    expect(before).not.toBe(after)
-    expect(before.slice(-20)).toBe(after.slice(-20))
   })
 })

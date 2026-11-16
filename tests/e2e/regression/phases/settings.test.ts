@@ -1,8 +1,7 @@
 import { execFileSync } from 'node:child_process'
-import { readFile, stat, writeFile } from 'node:fs/promises'
+import { readFile, realpath, stat, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
-import type { Request } from '@playwright/test'
 import AdmZip from 'adm-zip'
 import { parse } from 'yaml'
 
@@ -10,12 +9,11 @@ import { AssistantSchema } from '@shared/data/types/assistant'
 import { createUniqueModelId } from '@shared/data/types/model'
 import { TopicSchema } from '@shared/data/types/topic'
 import type { IpcResult } from '@shared/ipc/errors/IpcError'
-import { languageNativeNameMap } from '@shared/utils/languages'
 import { formatShortcutDisplay } from '@shared/utils/shortcut'
 
 import { caseDefinition } from '../../../../scripts/e2e/regression/cases'
 import { getSensitiveConfigValues } from '../../../../scripts/e2e/regression/config'
-import { isAlive } from '../../../../scripts/e2e/regression/process'
+import { observeExternalResource, registerExternalResource } from '../../../../scripts/e2e/regression/externalResources'
 import { captureMaskedScreenshot } from '../../../../scripts/e2e/regression/screenshotEvidence'
 import { saveNativeFile } from '../../../../scripts/e2e/regression/systemAutomation'
 import { startMockChatServer } from '../../../helpers/http/mockChatServer'
@@ -25,251 +23,12 @@ import { sendChatMarker } from '../helpers/chat'
 import { selectVisibleModel } from '../helpers/models'
 import { selectSidebarApp, dismissOnboarding, openHelpMenu } from '../helpers/navigation'
 import { closeSettings, openSettingsSection } from '../helpers/settings'
-import { inspectStartup } from '../helpers/startupInspection'
 import { revealVirtualized } from '../helpers/virtualList'
 import { feishuChannelSettings } from '../scenarios/feishuChannelSettings'
 import { fontsAndZoom } from '../scenarios/fontsAndZoom'
 import { longUserMessageExpansion } from '../scenarios/longUserMessageExpansion'
 import { networkProxySettings } from '../scenarios/networkProxySettings'
 import { notificationSettings } from '../scenarios/notificationSettings'
-
-test(...caseDefinition('MP-06'), async ({ app }, testInfo) => {
-  let page = await app.mainWindow()
-  const readSettings = () =>
-    page.evaluate(async () => ({
-      theme: await window.api.preference.get('ui.theme_mode'),
-      language: await window.api.preference.get('app.language'),
-      onClose: await window.api.preference.get('app.tray.on_close'),
-      tray: await window.api.preference.get('app.tray.enabled'),
-      privacy: await window.api.preference.get('app.privacy.policy_version'),
-      onboarding: await window.api.preference.get('app.onboarding.provider_setup.status')
-    }))
-  const original = await readSettings()
-  await testInfo.attach('MP-06 original settings', {
-    body: JSON.stringify(original, null, 2),
-    contentType: 'application/json'
-  })
-  const screenshot = async (name: string) => {
-    const path = testInfo.outputPath(`${name}.png`)
-    await writeFile(path, await captureMaskedScreenshot(page, getSensitiveConfigValues()))
-    await testInfo.attach(name, { path, contentType: 'image/png' })
-  }
-  const navigation = () => page.locator('[data-ui~="settings.navigation"]')
-  const content = () => page.locator('[data-ui~="settings.content"]')
-  const languagePicker = () => page.locator('#setting-appearance-display-language').getByRole('combobox')
-  const closeSwitch = () => page.locator('#setting-general-tray-onclose').getByRole('switch')
-  const errors: string[] = []
-  let section = 'setup'
-  const watchErrors = () => page.on('pageerror', (error) => errors.push(`${section}: ${error.message}`))
-  watchErrors()
-  const assertNoBrokenText = async () => {
-    const text = await page.locator('[data-ui~="settings.view"]').innerText()
-    expect(text).not.toMatch(
-      /\b(?:settings|common|languages|title)\.[\w.]+|\[to be translated\]|undefined|\[object Object\]/
-    )
-    const emptyLabels = await page.locator('[data-ui~="settings.view"]').evaluate(
-      (root) =>
-        Array.from(root.querySelectorAll('[data-slot="menu-item"], [id^="setting-"]')).filter((element) => {
-          if (!element.getClientRects().length) return false
-          return !(element as HTMLElement).innerText.trim()
-        }).length
-    )
-    expect(emptyLabels, 'Visible settings rows and navigation labels must not be blank').toBe(0)
-  }
-  const assertTheme = async (dark: boolean) => {
-    // The root dark marker controls the application's documented light/dark rendering.
-    await expect.poll(() => page.evaluate(() => document.documentElement.classList.contains('dark'))).toBe(dark)
-  }
-
-  try {
-    await page.evaluate(() =>
-      window.api.preference.setMultiple({
-        'app.language': 'en-US',
-        'app.onboarding.provider_setup.status': 'skipped'
-      })
-    )
-    const privacy = page.getByRole('button', { name: 'Accept and Continue', exact: true })
-    if (
-      await privacy
-        .waitFor({ state: 'visible', timeout: 2_000 })
-        .then(() => true)
-        .catch(() => false)
-    ) {
-      await privacy.click()
-    }
-    await selectSidebarApp(page, 'Chat')
-    await test.step('Dark theme applies immediately on the main screen', async () => {
-      section = 'Appearance / Theme'
-      await openSettingsSection(page, 'Appearance')
-      await page.getByRole('button', { name: 'Dark', exact: true }).click()
-      await expect(page.getByRole('button', { name: 'Dark', exact: true })).toHaveAttribute('aria-pressed', 'true')
-      await expect.poll(async () => (await readSettings()).theme).toBe('dark')
-      await closeSettings(page)
-      await expect(page.locator('[data-ui~="chat.view"]:visible')).toBeVisible()
-      await assertTheme(true)
-      await screenshot('MP-06 dark main window immediately')
-    })
-    await test.step('Minimize to Tray on Close applies immediately', async () => {
-      section = 'General / Startup and tray'
-      await openSettingsSection(page, 'General')
-      await expect(content().getByText('Startup and tray', { exact: true })).toBeVisible()
-      await closeSwitch().setChecked(true)
-      await expect(closeSwitch()).toBeChecked()
-      await expect.poll(async () => (await readSettings()).onClose).toBe(true)
-      await expect.poll(async () => (await readSettings()).tray).toBe(true)
-      await screenshot('MP-06 minimize to tray enabled')
-    })
-    await test.step('Thai translates the sidebar and settings before returning to English', async () => {
-      section = 'Appearance / Display & Language / Thai'
-      await openSettingsSection(page, 'Appearance')
-      await languagePicker().click()
-      const thai = page.getByRole('option', { name: /Thai|ไทย/ })
-      const available = await thai.count()
-      await screenshot('MP-06 display language options')
-      expect.soft(available, 'Display & Language must offer Thai (ไทย)').toBe(1)
-      if (available !== 1) {
-        await testInfo.attach('MP-06 missing Thai language', {
-          body: await page.getByRole('listbox').innerText(),
-          contentType: 'text/plain'
-        })
-        await page.keyboard.press('Escape')
-        return
-      }
-      await thai.click()
-      await expect.poll(async () => (await readSettings()).language).toBe('th-TH')
-      await expect(navigation()).toContainText(/[\u0e00-\u0e7f]/)
-      await expect(content()).toContainText(/[\u0e00-\u0e7f]/)
-      await expect(navigation().getByText('Appearance', { exact: true })).toHaveCount(0)
-      await assertNoBrokenText()
-      await screenshot('MP-06 Thai settings and sidebar')
-      await page
-        .getByRole('button', { name: /Back|กลับ|ย้อนกลับ/, exact: true })
-        .first()
-        .click()
-      await expect(page.locator('[data-ui~="app.shell"]').first()).toContainText(/[\u0e00-\u0e7f]/)
-      await screenshot('MP-06 Thai main sidebar')
-      await page
-        .getByRole('button', { name: /Settings|ตั้งค่า|การตั้งค่า/, exact: true })
-        .first()
-        .click()
-      await navigation().getByText('ลักษณะที่ปรากฏ', { exact: true }).click()
-      await languagePicker().click()
-      await page.getByRole('option', { name: /English/ }).click()
-      await expect(navigation().getByText('Appearance', { exact: true })).toBeVisible()
-      await expect.poll(async () => (await readSettings()).language).toBe('en-US')
-      await assertNoBrokenText()
-    })
-    await test.step('Restart preserves theme, close preference and English', async () => {
-      section = 'restart'
-      const before = await readSettings()
-      expect(before).toMatchObject({ theme: 'dark', language: 'en-US', onClose: true, tray: true })
-      page = await app.restart()
-      watchErrors()
-      await expect.poll(readSettings).toEqual(before)
-      await assertTheme(true)
-      await openSettingsSection(page, 'Appearance')
-      await expect(page.getByRole('button', { name: 'Dark', exact: true })).toHaveAttribute('aria-pressed', 'true')
-      await expect(languagePicker()).toContainText('English')
-      await openSettingsSection(page, 'General')
-      await expect(closeSwitch()).toBeChecked()
-      await screenshot('MP-06 persisted settings after restart')
-    })
-    await test.step('Every settings section opens without blank content or error overlays', async () => {
-      const items = navigation().locator('[data-slot="menu-item"]')
-      const names = await items.evaluateAll((items) => items.map((item) => (item as HTMLElement).innerText.trim()))
-      expect(names).toEqual(
-        expect.arrayContaining([
-          'Model Provider',
-          'Default Model',
-          'Web Search',
-          'MCP',
-          'Skills',
-          'Voice',
-          'Computer Use',
-          'Data',
-          'Usage',
-          'About & Feedback'
-        ])
-      )
-      await testInfo.attach('MP-06 settings menu groups and sections', {
-        body: await navigation().innerText(),
-        contentType: 'text/plain'
-      })
-      for (const [index, name] of names.entries()) {
-        await test.step(name, async () => {
-          section = name
-          try {
-            await items.nth(index).click()
-            await expect(items.nth(index)).toHaveAttribute('data-active', 'true', { timeout: 5_000 })
-            await expect(content()).toBeVisible()
-            await expect
-              .poll(async () => (await content().innerText()).trim().length, { timeout: 10_000 })
-              .toBeGreaterThan(10)
-            await expect(
-              page.getByText(/Something went wrong|An unexpected error|Application error|出了点问题/i)
-            ).toHaveCount(0)
-            await assertNoBrokenText()
-          } catch (error) {
-            expect.soft(false, `${name}: ${String(error)}`).toBe(true)
-          } finally {
-            await screenshot(`MP-06 section ${index + 1} ${name.replaceAll('/', '-')}`)
-          }
-        })
-      }
-      expect.soft(errors, 'Renderer exceptions by settings section').toEqual([])
-    })
-  } finally {
-    section = 'restore original settings'
-    try {
-      await page.keyboard.press('Escape')
-      await page.evaluate(async (original) => {
-        await window.api.preference.setMultiple({
-          'app.language': 'en-US',
-          'ui.theme_mode': original.theme,
-          'app.tray.on_close': original.onClose,
-          'app.tray.enabled': original.tray
-        })
-      }, original)
-      await expect(page.locator('html')).toHaveAttribute('lang', 'en-US')
-      await openSettingsSection(page, 'General')
-      await expect(closeSwitch()).toBeChecked({ checked: original.onClose })
-      await screenshot('MP-06 original tray setting restored')
-      await openSettingsSection(page, 'Appearance')
-      const themeIndex = { light: 0, dark: 1, system: 2 }[original.theme]
-      await expect(page.locator('#setting-appearance-theme-mode').getByRole('button').nth(themeIndex)).toHaveAttribute(
-        'aria-pressed',
-        'true'
-      )
-      await page.evaluate((language) => window.api.preference.set('app.language', language), original.language)
-      await expect(page.locator('html')).toHaveAttribute(
-        'lang',
-        original.language ?? (await page.evaluate(() => navigator.language))
-      )
-      if (original.language) {
-        await expect(languagePicker()).toHaveAccessibleName(languageNativeNameMap[original.language])
-      }
-      const expectedDark =
-        original.theme === 'dark' ||
-        (original.theme === 'system' && (await page.evaluate(() => matchMedia('(prefers-color-scheme: dark)').matches)))
-      await assertTheme(expectedDark)
-      await screenshot('MP-06 original settings restored')
-    } finally {
-      await page.evaluate(
-        (original) =>
-          window.api.preference.setMultiple({
-            'ui.theme_mode': original.theme,
-            'app.language': original.language,
-            'app.tray.on_close': original.onClose,
-            'app.tray.enabled': original.tray,
-            'app.privacy.policy_version': original.privacy,
-            'app.onboarding.provider_setup.status': original.onboarding
-          }),
-        original
-      )
-      await expect.poll(readSettings).toEqual(original)
-    }
-  }
-})
 
 test(...caseDefinition('MP-104'), async ({ mainWindow: page }, testInfo) => {
   const attachScreenshot = async (name: string) => {
@@ -295,6 +54,60 @@ test(...caseDefinition('MP-104'), async ({ mainWindow: page }, testInfo) => {
       await expect(navigation.getByRole('button', { name: section, exact: true })).toBeVisible()
     }
     await attachScreenshot('MP-104 settings navigation groups')
+
+    await navigation.getByRole('button', { name: '通用', exact: true }).click()
+    const displayLanguage = content.locator('#setting-general-display-language')
+    await expect(displayLanguage).toContainText('界面语言')
+    await displayLanguage.getByRole('combobox').click()
+    await page.getByRole('option', { name: /English$/ }).click()
+    await expect(navigation.getByRole('button', { name: 'General', exact: true })).toBeVisible()
+    await expect.poll(() => page.evaluate(() => window.api.preference.get('app.language'))).toBe('en-US')
+    await displayLanguage.getByRole('combobox').click()
+    await page.getByRole('option', { name: /中文$/ }).click()
+    await expect(navigation.getByRole('button', { name: '通用', exact: true })).toBeVisible()
+    await expect.poll(() => page.evaluate(() => window.api.preference.get('app.language'))).toBe('zh-CN')
+    await attachScreenshot('MP-104 General language module')
+    await navigation.getByRole('button', { name: '外观', exact: true }).click()
+    await expect(content.getByText('显示', { exact: true })).toBeVisible()
+    await expect(displayLanguage).toHaveCount(0)
+    await navigation.getByRole('button', { name: '搜索设置', exact: true }).click()
+    await navigation.getByRole('combobox', { name: '搜索设置', exact: true }).fill('界面语言')
+    const languageResult = content
+      .getByRole('listbox', { name: '设置搜索结果', exact: true })
+      .getByRole('option')
+      .filter({ hasText: '界面语言' })
+    await expect(languageResult).toHaveCount(1)
+    await languageResult.click()
+    await expect(displayLanguage).toBeInViewport()
+    await expect(displayLanguage).toHaveClass(/\bsearch-hit-highlight\b/)
+    await expect(navigation.getByRole('button', { name: '通用', exact: true })).toHaveAttribute('data-active', 'true')
+
+    const builtinTools = settings.getByRole('navigation', { name: '内置工具', exact: true })
+    await navigation.getByRole('button', { name: '内置工具', exact: true }).click()
+    const toolSections = [
+      { name: '提示词', marker: content.getByRole('button', { name: '添加提示词', exact: true }) },
+      { name: '电脑操作', marker: content.getByText('允许智能体控制桌面应用', { exact: true }) },
+      { name: '浏览器', marker: content.getByText('允许 AI 控制浏览器', { exact: true }) },
+      { name: '网络搜索', marker: content.locator('#web-search-searchKeywords-title') },
+      { name: '文档处理', marker: content.getByRole('combobox', { name: '文档处理', exact: true }) },
+      { name: 'OCR', marker: content.getByRole('combobox', { name: 'OCR', exact: true }) }
+    ]
+    await expect(builtinTools.getByRole('button')).toHaveText(toolSections.map(({ name }) => name))
+    for (const section of toolSections) {
+      await expect(navigation.getByRole('button', { name: section.name, exact: true })).toHaveCount(0)
+      await builtinTools.getByRole('button', { name: section.name, exact: true }).click()
+      await expect(section.marker).toBeVisible()
+      await expect(builtinTools.getByRole('button', { name: section.name, exact: true })).toHaveAttribute(
+        'data-active',
+        'true'
+      )
+      await expect(navigation.getByRole('button', { name: '内置工具', exact: true })).toHaveAttribute(
+        'data-active',
+        'true'
+      )
+      await expect(builtinTools.locator('[data-slot="menu-item"][data-active="true"]')).toHaveCount(1)
+    }
+    await attachScreenshot('MP-104 built-in tool secondary navigation')
 
     await navigation.getByRole('button', { name: '搜索设置', exact: true }).click()
     await navigation.getByRole('combobox', { name: '搜索设置', exact: true }).fill('代理')
@@ -325,6 +138,7 @@ test(...caseDefinition('MP-104'), async ({ mainWindow: page }, testInfo) => {
       await navigation.getByRole('button', { name: section.name, exact: true }).click()
       await expect(section.marker).toBeVisible()
       await expect(previous).toBeHidden()
+      await expect(builtinTools).toBeHidden()
       await expect(navigation.getByRole('button', { name: section.name, exact: true })).toHaveAttribute(
         'data-active',
         'true'
@@ -353,6 +167,7 @@ test(...caseDefinition('MP-104'), async ({ mainWindow: page }, testInfo) => {
 
 test(...caseDefinition('MP-105'), async ({ app, mainWindow }, testInfo) => {
   let page = mainWindow
+  const supportsTransparentWindow = app.record.platform === 'macos'
   const readAppearance = () =>
     page.evaluate(async () => ({
       theme: await window.api.preference.get('ui.theme_mode'),
@@ -400,15 +215,21 @@ test(...caseDefinition('MP-105'), async ({ app, mainWindow }, testInfo) => {
       page.locator('#setting-appearance-theme-color-primary').getByRole('button', { name: color, exact: true })
     ).toHaveAttribute('aria-pressed', 'true')
     await expect(themeButton('System').locator(':scope > div')).toHaveCSS('border-top-color', rgb)
-    await expect
-      .soft(transparentSwitch(), 'A checked switch must render a filled track')
-      .not.toHaveCSS('background-color', 'rgba(0, 0, 0, 0)', { timeout: 3_000 })
+    if (supportsTransparentWindow) {
+      await expect
+        .soft(transparentSwitch(), 'A checked switch must render a filled track')
+        .not.toHaveCSS('background-color', 'rgba(0, 0, 0, 0)', { timeout: 3_000 })
+    }
   }
 
   try {
     await openSettingsSection(page, 'Appearance')
-    await transparentSwitch().setChecked(false)
-    await assertStyle(false)
+    if (supportsTransparentWindow) {
+      await transparentSwitch().setChecked(false)
+      await assertStyle(false)
+    } else {
+      await expect(transparentSwitch()).toHaveCount(0)
+    }
     for (const [name, mode] of [
       ['Dark', 'dark'],
       ['Light', 'light'],
@@ -470,21 +291,29 @@ test(...caseDefinition('MP-105'), async ({ app, mainWindow }, testInfo) => {
         .locator('#setting-appearance-theme-color-primary')
         .getByRole('button', { name: color, exact: true })
         .click()
-      await transparentSwitch().setChecked(true)
-      await assertStyle(true)
+      if (supportsTransparentWindow) {
+        await transparentSwitch().setChecked(true)
+        await assertStyle(true)
+      }
       await assertColor()
-      await screenshot('MP-105 primary color and transparent window')
+      await screenshot('MP-105 primary color')
     })
-    await test.step('Both window styles apply immediately', async () => {
-      await transparentSwitch().setChecked(false)
-      await assertStyle(false)
-      await screenshot('MP-105 opaque window')
-      await transparentSwitch().setChecked(finalTransparent)
-      await assertStyle(finalTransparent)
-    })
+    if (supportsTransparentWindow) {
+      await test.step('Both window styles apply immediately', async () => {
+        await transparentSwitch().setChecked(false)
+        await assertStyle(false)
+        await screenshot('MP-105 opaque window')
+        await transparentSwitch().setChecked(finalTransparent)
+        await assertStyle(finalTransparent)
+      })
+    }
     await test.step('Restart preserves System theme, primary color and window style', async () => {
       const before = await readAppearance()
-      expect(before).toEqual({ theme: 'system', color, style: finalTransparent ? 'transparent' : 'opaque' })
+      expect(before).toEqual({
+        theme: 'system',
+        color,
+        style: supportsTransparentWindow ? (finalTransparent ? 'transparent' : 'opaque') : original.style
+      })
       const previousPid = app.record.electronPid
       page = await app.restart()
       watchErrors()
@@ -494,12 +323,17 @@ test(...caseDefinition('MP-105'), async ({ app, mainWindow }, testInfo) => {
       await expect(themeButton('System')).toHaveAttribute('aria-pressed', 'true')
       const systemDark = await page.evaluate(() => matchMedia('(prefers-color-scheme: dark)').matches)
       await expect.poll(() => page.evaluate(() => document.documentElement.classList.contains('dark'))).toBe(systemDark)
-      await assertStyle(finalTransparent)
-      // The checked switch is a colored control; restore the persisted state after checking its color.
-      await transparentSwitch().setChecked(true)
+      if (supportsTransparentWindow) {
+        await assertStyle(finalTransparent)
+        await transparentSwitch().setChecked(true)
+      }
       await assertColor()
-      await transparentSwitch().setChecked(finalTransparent)
-      await assertStyle(finalTransparent)
+      if (supportsTransparentWindow) {
+        await transparentSwitch().setChecked(finalTransparent)
+        await assertStyle(finalTransparent)
+      } else {
+        await expect(transparentSwitch()).toHaveCount(0)
+      }
       await screenshot('MP-105 appearance retained after restart')
       expect(errors, 'Theme changes and restart must not cause renderer exceptions').toEqual([])
     })
@@ -1204,245 +1038,12 @@ test(...caseDefinition('MP-110'), async ({ app, mainWindow }, testInfo) => {
   await notificationSettings(app, mainWindow, testInfo)
 })
 
-test(...caseDefinition('MP-111'), async ({ app, mainWindow }, testInfo) => {
-  let page = mainWindow
-  const original = await page.evaluate(async () => ({
-    'app.launch_on_boot': await window.api.preference.get('app.launch_on_boot'),
-    'app.tray.enabled': await window.api.preference.get('app.tray.enabled'),
-    'app.tray.on_launch': await window.api.preference.get('app.tray.on_launch'),
-    'app.tray.on_close': await window.api.preference.get('app.tray.on_close')
-  }))
-  const setSwitch = async (id: string, checked: boolean) => {
-    const control = page.locator(`#setting-general-${id}`).getByRole('switch')
-    await control.setChecked(checked)
-    await expect(control).toBeChecked({ checked })
-  }
-  const attachScreenshot = async (name: string) => {
-    const path = testInfo.outputPath(`${name}.png`)
-    await writeFile(path, await captureMaskedScreenshot(page, getSensitiveConfigValues()))
-    await testInfo.attach(name, { path, contentType: 'image/png' })
-  }
-  const closeNativeWindow = async () => {
-    await expect.poll(async () => (await inspectStartup(app)).visible).toBe(true)
-    execFileSync(
-      'osascript',
-      [
-        '-e',
-        `tell application "System Events"
-          tell (first process whose unix id is ${app.record.electronPid})
-            set frontmost to true
-            repeat 30 times
-              if exists window 1 then exit repeat
-              delay 0.1
-            end repeat
-            click (first button of window 1 whose subrole is "AXCloseButton")
-          end tell
-        end tell`
-      ],
-      { timeout: 10_000 }
-    )
-  }
-  try {
-    await openSettingsSection(page, 'General')
-    await setSwitch('launch-onboot', false)
-    await expect.poll(async () => (await inspectStartup(app)).openAtLogin).toBe(false)
-    await setSwitch('launch-onboot', true)
-    await expect.poll(async () => (await inspectStartup(app)).openAtLogin).toBe(true)
-    await setSwitch('launch-totray', true)
-    await setSwitch('tray-onclose', true)
-    await expect(page.locator('#setting-general-tray-show').getByRole('switch')).toBeChecked()
-    await attachScreenshot('MP-111 startup and tray enabled')
-
-    const previousPid = app.record.electronPid
-    await inspectStartup(app, 'quit')
-    await expect.poll(() => isAlive(previousPid)).toBe(false)
-    app.windowHiddenExpected = true
-    page = await app.restart()
-    expect(app.record.electronPid).not.toBe(previousPid)
-    expect(await page.evaluate(() => window.api.preference.get('app.launch_on_boot'))).toBe(true)
-    await expect.poll(async () => (await inspectStartup(app)).openAtLogin).toBe(true)
-    const hidden = await inspectStartup(app)
-    expect(hidden.visible).toBe(false)
-    expect(hidden.dockVisible).toBe(false)
-    expect(hidden.openAtLogin).toBe(true)
-    expect(hidden.trays).toEqual(expect.arrayContaining([expect.objectContaining({ destroyed: false })]))
-    expect(hidden.trays.some(({ destroyed, bounds }) => !destroyed && bounds.width > 0 && bounds.height > 0)).toBe(true)
-    await testInfo.attach('MP-111 native startup state', {
-      body: JSON.stringify(hidden),
-      contentType: 'application/json'
-    })
-
-    await inspectStartup(app, 'show')
-    await openSettingsSection(page, 'General')
-    await expect(page.locator('#setting-general-launch-totray').getByRole('switch')).toBeChecked()
-    await attachScreenshot('MP-111 persisted startup settings after restart')
-    await closeNativeWindow()
-    await expect.poll(async () => (await inspectStartup(app)).visible).toBe(false)
-    await expect.poll(async () => (await inspectStartup(app)).dockVisible).toBe(false)
-    expect(isAlive(app.record.electronPid)).toBe(true)
-
-    await inspectStartup(app, 'show')
-    await setSwitch('tray-onclose', false)
-    await closeNativeWindow()
-    await expect.poll(async () => (await inspectStartup(app)).visible).toBe(false)
-    expect((await inspectStartup(app)).dockVisible).toBe(true)
-    expect(isAlive(app.record.electronPid)).toBe(true)
-
-    await inspectStartup(app, 'show')
-    await setSwitch('launch-onboot', false)
-    await setSwitch('launch-totray', false)
-    await expect.poll(async () => (await inspectStartup(app)).openAtLogin).toBe(false)
-    await attachScreenshot('MP-111 startup options disabled')
-    app.windowHiddenExpected = false
-    page = await app.restart()
-    await expect.poll(async () => (await inspectStartup(app)).visible).toBe(true)
-    await openSettingsSection(page, 'General')
-    await expect(page.locator('#setting-general-launch-totray').getByRole('switch')).not.toBeChecked()
-    await expect(page.locator('#setting-general-launch-onboot').getByRole('switch')).not.toBeChecked()
-  } catch (error) {
-    await testInfo.attach('MP-111 primary failure', {
-      body: error instanceof Error ? (error.stack ?? error.message) : String(error),
-      contentType: 'text/plain'
-    })
-    throw error
-  } finally {
-    app.windowHiddenExpected = false
-    page = await app.mainWindow().catch(() => app.restart())
-    await page.evaluate((preferences) => window.api.preference.setMultiple(preferences), original)
-    await inspectStartup(app, 'show')
-    await expect.poll(async () => (await inspectStartup(app)).openAtLogin).toBe(original['app.launch_on_boot'])
-  }
-})
-
 test(...caseDefinition('MP-112'), async ({ app, mainWindow }, testInfo) => {
   await networkProxySettings(app, mainWindow, testInfo)
 })
 
 test(...caseDefinition('MP-151'), async ({ app, mainWindow }, testInfo) => {
   await feishuChannelSettings(app, mainWindow, testInfo)
-})
-
-test(...caseDefinition('MP-113'), async ({ app, mainWindow }, testInfo) => {
-  // Catches lost opt-out after restart, missing consent guidance, and telemetry sent after opting out.
-  let page = mainWindow
-  const original = await page.evaluate(() => window.api.preference.get('app.privacy.data_collection.enabled'))
-  const originalPolicy = await page.evaluate(() => window.api.preference.get('app.privacy.policy_version'))
-  const screenshot = async (name: string) => {
-    const path = testInfo.outputPath(`${name}.png`)
-    await writeFile(path, await captureMaskedScreenshot(page, getSensitiveConfigValues()))
-    await testInfo.attach(name, { path, contentType: 'image/png' })
-  }
-  const privacyRow = () => page.locator('#setting-data-data-privacy-mode')
-  const readConsent = () => page.evaluate(() => window.api.preference.get('app.privacy.data_collection.enabled'))
-  const openPrivacy = async () => {
-    await page.addLocatorHandler(
-      page.getByRole('dialog', { name: 'Privacy Policy Updated', exact: true }),
-      async (dialog) => {
-        await screenshot('MP-113 privacy policy acknowledgement')
-        await dialog.getByRole('button', { name: 'Accept and Continue', exact: true }).click()
-      }
-    )
-    await expect(
-      page
-        .locator('[data-ui~="settings.view"]:visible')
-        .or(page.getByRole('button', { name: 'Chat', exact: true }))
-        .first()
-    ).toBeVisible()
-    await openSettingsSection(page, 'Data')
-    await privacyRow().scrollIntoViewIfNeeded()
-    await expect(privacyRow()).toContainText('Anonymous reporting of errors and statistics')
-  }
-  const reportingRequests: string[] = []
-  const observeRequest = (request: Request) => {
-    const url = new URL(request.url())
-    if (/(^|\.)(sentry\.io|sentry\.cherry-ai\.com)$/.test(url.hostname)) {
-      reportingRequests.push(`${request.method()} ${url.origin}${url.pathname}`)
-    }
-  }
-  let observedContext = page.context()
-  try {
-    await openPrivacy()
-    await expect(privacyRow().getByRole('switch')).toBeChecked({ checked: original })
-    await testInfo.attach('MP-113 initial consent', {
-      body: JSON.stringify({ enabled: original }),
-      contentType: 'application/json'
-    })
-    await screenshot('MP-113 original privacy setting')
-    await privacyRow().getByRole('switch').click()
-    await expect.poll(readConsent).toBe(!original)
-    await screenshot('MP-113 toggled privacy setting')
-
-    page = await app.restart()
-    await openPrivacy()
-    await expect(privacyRow().getByRole('switch')).toBeChecked({ checked: !original })
-    expect(await readConsent()).toBe(!original)
-    await screenshot('MP-113 toggled consent survives application restart')
-
-    if (await readConsent()) await privacyRow().getByRole('switch').click()
-    await expect.poll(readConsent).toBe(false)
-    page = await app.restart()
-    observedContext = page.context()
-    observedContext.on('request', observeRequest)
-    await openPrivacy()
-    await expect(privacyRow().getByRole('switch')).not.toBeChecked()
-    expect(await readConsent()).toBe(false)
-    await screenshot('MP-113 disabled reporting survives application restart')
-
-    await page.evaluate(() => {
-      const error = new Error('MP-113 opted-out reporting probe')
-      window.dispatchEvent(new ErrorEvent('error', { error, message: error.message }))
-    })
-    await page.waitForTimeout(5_000)
-    await testInfo.attach('MP-113 renderer reporting requests', {
-      body: JSON.stringify({ observationMs: 5_000, reportingRequests, mode: app.record.mode }),
-      contentType: 'application/json'
-    })
-    if (app.record.mode === 'branch') {
-      // Development disables Sentry, and the renderer cannot observe the main-process transport,
-      // so opt-out of error reporting is not verifiable on a branch build.
-      testInfo.annotations.push({
-        type: 'not-applicable',
-        description: 'Error-reporting transport opt-out needs a packaged build; branch builds disable Sentry.'
-      })
-    } else {
-      expect(reportingRequests, 'Opted-out renderer must not send error/statistics requests').toEqual([])
-      testInfo.annotations.push({
-        type: 'limitation',
-        description: 'Renderer request observation cannot prove the main-process transport stays silent.'
-      })
-    }
-
-    await selectSidebarApp(page, 'Chat')
-    await openHelpMenu(page)
-    await page.getByText('System diagnostics', { exact: true }).click()
-    await page
-      .getByRole('dialog', { name: 'System diagnostics', exact: true })
-      .getByRole('button', { name: 'More', exact: true })
-      .click()
-    await page.getByRole('menuitem', { name: 'Export diagnostic bundle', exact: true }).click()
-    const bundle = page.getByRole('dialog', { name: 'Export diagnostic bundle', exact: true })
-    await expect(bundle).toContainText('Save selected diagnostic information as a local ZIP file.')
-    await bundle.getByRole('button', { name: 'Export', exact: true }).click()
-    const consent = page.getByRole('dialog', { name: 'Before you share', exact: true })
-    await expect(consent).toContainText('Cherry Studio does not redact or upload them automatically.')
-    await expect(consent).toContainText('Share the ZIP only with support')
-    await expect(consent.getByRole('checkbox')).not.toBeChecked()
-    await expect(consent.getByRole('button', { name: 'Export', exact: true })).toBeDisabled()
-    expect(await readConsent(), 'Manual diagnostics must not re-enable anonymous reporting').toBe(false)
-    await screenshot('MP-113 diagnostic bundle privacy and explicit consent')
-    await consent.getByRole('button', { name: 'Cancel', exact: true }).click()
-    await page.keyboard.press('Escape')
-  } finally {
-    observedContext.off('request', observeRequest)
-    await page.evaluate(
-      ({ original, originalPolicy }) =>
-        window.api.preference.setMultiple({
-          'app.privacy.data_collection.enabled': original,
-          'app.privacy.policy_version': originalPolicy
-        }),
-      { original, originalPolicy }
-    )
-  }
 })
 
 test(...caseDefinition('MP-114'), async ({ app, mainWindow: page }, testInfo) => {
@@ -1571,6 +1172,7 @@ test(...caseDefinition('MP-114'), async ({ app, mainWindow: page }, testInfo) =>
       contentType: 'application/json'
     })
     await screenshot('MP-114 exported bundle size and file count')
+    const folderResource = registerExternalResource(app.paths, app.record.platform, { kind: 'folder', path: output })
     await page.getByRole('button', { name: 'Open file location', exact: true }).click()
     if (app.record.platform === 'macos') {
       await expect
@@ -1581,7 +1183,7 @@ test(...caseDefinition('MP-114'), async ({ app, mainWindow: page }, testInfo) =>
             { encoding: 'utf8', timeout: 10_000 }
           ).trim()
         )
-        .toBe(output)
+        .toBe(await realpath(output))
     } else {
       const script =
         '(New-Object -ComObject Shell.Application).Windows() | ForEach-Object { $_.Document.SelectedItems() } | ForEach-Object { $_.Path }'
@@ -1594,6 +1196,7 @@ test(...caseDefinition('MP-114'), async ({ app, mainWindow: page }, testInfo) =>
         )
         .toContain(output)
     }
+    observeExternalResource(app.paths, folderResource)
   })
 })
 

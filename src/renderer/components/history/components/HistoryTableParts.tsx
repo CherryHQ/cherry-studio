@@ -1,7 +1,7 @@
 import dayjs from 'dayjs'
 import type { TFunction } from 'i18next'
 import { Archive, PinIcon } from 'lucide-react'
-import type { ReactElement, ReactNode } from 'react'
+import type { ReactElement, ReactNode, Ref } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { Button, Checkbox, RowFlex } from '@cherrystudio/ui'
@@ -12,7 +12,7 @@ import ConfirmActionPopup from '@renderer/components/popups/ConfirmActionPopup'
 import { DynamicVirtualList } from '@renderer/components/VirtualList'
 import { cn } from '@renderer/utils/style'
 
-const historyTableClassName = 'min-w-[760px] rounded-none border-0 bg-card shadow-none'
+const historyTableClassName = 'rounded-none border-0 bg-card shadow-none'
 export const historyTableGridClassName =
   'grid min-w-[760px] grid-cols-[44px_minmax(180px,1fr)_minmax(280px,2.5fr)_100px_84px]'
 const historyHeaderClassName =
@@ -84,12 +84,13 @@ export function HistoryVirtualTable<TItem>({
   }, [items.length, updateFixedActionShadow])
 
   return (
-    <div className="min-h-0 flex-1 px-3 pt-3 pb-2" role="table">
+    <div className="min-h-0 flex-1" role="table">
       <div className={cn('flex h-full min-h-0 flex-col overflow-hidden', historyTableClassName)}>
         {items.length > 0 ? (
           <DynamicVirtualList
             autoHideScrollbar
             className="min-h-0 flex-1"
+            contentProps={{ className: 'px-3 pt-3 pb-2', style: { minWidth: 784 } }}
             estimateSize={estimateSize}
             header={header}
             list={items}
@@ -102,8 +103,10 @@ export function HistoryVirtualTable<TItem>({
           </DynamicVirtualList>
         ) : (
           <div ref={scrollerRef} className="min-h-0 flex-1 overflow-auto" onScroll={updateFixedActionShadow}>
-            {header}
-            {emptyContent}
+            <div className="min-w-[784px] px-3 pt-3 pb-2">
+              {header}
+              {emptyContent}
+            </div>
           </div>
         )}
       </div>
@@ -447,6 +450,7 @@ interface HistoryRecordRowProps {
   onOpen?: () => void
   onSelectedChange: (checked: boolean, selectRange?: boolean) => void
   onTogglePin?: () => void | Promise<void>
+  rowRef?: Ref<HTMLDivElement>
 }
 
 /** One record row shared by both history modes. */
@@ -467,9 +471,11 @@ export const HistoryRecordRow = ({
   onAction,
   onOpen,
   onSelectedChange,
-  onTogglePin
+  onTogglePin,
+  rowRef
 }: HistoryRecordRowProps) => (
   <div
+    ref={rowRef}
     className={cn(historyTableGridClassName, historyBodyRowClassName)}
     style={{ minHeight }}
     data-state={isSelected ? 'selected' : undefined}

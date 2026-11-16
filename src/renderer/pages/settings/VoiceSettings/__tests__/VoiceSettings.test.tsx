@@ -151,9 +151,8 @@ function recognitionStatus() {
   const anchor = document.getElementById('setting-voice-recognition-status')!
   expect(row).toContainElement(anchor)
   expect(document.querySelectorAll('#setting-voice-recognition-status')).toHaveLength(1)
-  const status = anchor.querySelector<HTMLElement>('[role="status"]')
-  expect(status).not.toBeNull()
-  return status!
+  expect(anchor).toHaveAttribute('role', 'status')
+  return anchor
 }
 
 async function renderPreviewTest() {
@@ -889,7 +888,7 @@ describe('VoiceSettings', () => {
     await user.click(screen.getByRole('option', { name: /Chinese.*Download/ }))
     await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(/download/i))
     expect(MockUsePreferenceUtils.getPreferenceValue('feature.voice.recognition.language')).toBe('zh-CN')
-    expect(language).toHaveTextContent('Chinese')
+    await waitFor(() => expect(language).toHaveTextContent('Chinese'))
     expect(voice.install).toHaveBeenCalledTimes(1)
     await user.click(language)
     await user.click(screen.getByRole('option', { name: /Chinese.*Download/ }))

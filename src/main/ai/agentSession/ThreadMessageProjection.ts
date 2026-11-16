@@ -9,8 +9,7 @@ import type {
   RuntimeMessage,
   Subagent,
   Thread,
-  ThreadHandle,
-  ThreadSnapshot
+  ThreadHandle
 } from '@cherrystudio/agent-runtime'
 import { loggerService } from '@logger'
 import type { CherryUIMessage } from '@shared/data/types/message'
@@ -19,7 +18,6 @@ const logger = loggerService.withContext('ThreadMessageProjection')
 type Gap = Extract<ObservationPayload, { type: 'gap' }>['reason']
 type Closed = Extract<ObservationPayload, { type: 'closed' }>['reason']
 interface ProjectionState {
-  coverage?: ThreadSnapshot['coverage']
   activity: Activity
   inputs: readonly InputState[]
   subagents: readonly Subagent[]
@@ -46,10 +44,9 @@ export type MessageDecorator = (message: CherryUIMessage, source: RuntimeMessage
 
 /** Main-owned current view. Native execution, product IDs and archive writes belong to its caller. */
 export class ThreadMessageProjection {
-  private sources = new Map<string, RuntimeMessage>()
-  private messages = new Map<string, CherryUIMessage>()
+  private entries = new Map<string, { source: RuntimeMessage; view: CherryUIMessage }>()
   private readonly listeners = new Set<(update: ThreadProjectionUpdate) => void>()
-  private state: ProjectionState = { activity: { scope: 'foreground', state: 'unknown' }, inputs: [], subagents: [] }
+  private state: ProjectionState = { activity: { state: 'unknown' }, inputs: [], subagents: [] }
   private revision = 0
   private pending: Promise<void> = Promise.resolve()
   private attachment: Promise<void> = Promise.resolve()
@@ -71,7 +68,7 @@ export class ThreadMessageProjection {
       ...this.state,
       thread: this.thread,
       revision: this.revision,
-      messages: [...this.messages.values()]
+      messages: [...this.entries.values()].map((entry) => entry.view)
     })
   }
 
@@ -114,12 +111,12 @@ export class ThreadMessageProjection {
 
   accept(
     event: ObservationPayload | readonly ObservationPayload[],
-    refresh: readonly string[] = []
+    refresh: readonly string[] | true = []
   ): Promise<readonly CherryUIMessage[]> {
     if (this.disposed) return Promise.reject(new Error('Thread projection is closed'))
     const accepted = this.pending.then(() => {
       const changed = new Map<string, CherryUIMessage>()
-      const invalidated = new Set(refresh)
+      const invalidated = new Set(refresh === true ? this.entries.keys() : refresh)
       try {
         for (const item of 'type' in event ? [event] : event) {
           for (const message of this.reduce(item)) changed.set(message.id, message)
@@ -130,7 +127,6 @@ export class ThreadMessageProjection {
           for (const message of this.reduce(undefined, invalidated)) changed.set(message.id, message)
       } catch (error) {
         this.source = undefined
-        this.sources.clear()
         const state = this.state
         this.state = {
           ...state,
@@ -142,8 +138,9 @@ export class ThreadMessageProjection {
         logger.warn('Thread projection requires a new observation baseline', { thread: this.thread, error })
         throw error
       }
-      if (changed.size > 1) return [...this.messages.values()].filter((message) => changed.has(message.id))
-      return [...changed.values()].filter((message) => this.messages.get(message.id) === message)
+      if (changed.size > 1)
+        return [...this.entries.values()].filter((entry) => changed.has(entry.view.id)).map((entry) => entry.view)
+      return [...changed.values()].filter((message) => this.entries.get(message.id)?.view === message)
     })
     this.pending = accepted.then(
       () => {},
@@ -182,7 +179,6 @@ export class ThreadMessageProjection {
 
   private validateInput(input: InputState): void {
     if (input.nativeInput) this.assertThread(input.nativeInput.session)
-    if (input.response) this.assertThread(input.response.session)
   }
 
   private mergeInputs(inputs: readonly InputState[]): readonly InputState[] {
@@ -199,7 +195,6 @@ export class ThreadMessageProjection {
         ...input,
         facts: [...new Set([...(previous?.facts ?? []), ...input.facts])],
         outcome: input.outcome ?? previous?.outcome,
-        response: input.response ?? previous?.response,
         error: input.error ?? previous?.error
       }
       if (index < 0) merged.push(next)
@@ -213,17 +208,16 @@ export class ThreadMessageProjection {
     if (event) this.validate(event)
     const state = this.state
     let nextState = state
-    let sources = this.sources
     let candidates = new Map<string, RuntimeMessage>()
     let removed: string[] = []
+    let order: string[] | undefined
     let orderChanged = false
     if (event?.type === 'snapshot') {
-      sources = new Map(event.messages.map((message) => [message.id, message]))
-      candidates = sources
-      removed = [...this.messages.keys()].filter((id) => !sources.has(id))
-      orderChanged = !isDeepStrictEqual([...this.messages.keys()], [...sources.keys()])
+      candidates = new Map(event.messages.map((message) => [message.id, message]))
+      removed = [...this.entries.keys()].filter((id) => !candidates.has(id))
+      order = [...candidates.keys()]
+      orderChanged = !isDeepStrictEqual([...this.entries.keys()], order)
       nextState = {
-        coverage: event.coverage,
         activity: event.activity,
         inputs: this.mergeInputs(event.inputs),
         subagents: event.subagents ?? []
@@ -231,22 +225,24 @@ export class ThreadMessageProjection {
     } else if (event?.type === 'message.upsert' || event?.type === 'message.remove') {
       if (this.state.gap || this.state.closed) return []
       if (event.type === 'message.remove') {
-        removed = this.messages.has(event.ref.id) ? [event.ref.id] : []
+        removed = this.entries.has(event.ref.id) ? [event.ref.id] : []
         orderChanged = removed.length > 0
       } else {
         candidates.set(event.message.id, event.message)
-        if (event.replaces?.some((ref) => ref.id !== event.message.id && sources.has(ref.id))) {
+        if (event.replaces?.some((ref) => ref.id !== event.message.id && this.entries.has(ref.id))) {
           const replaced = new Set<string>(event.replaces.map((ref) => ref.id))
           replaced.add(event.message.id)
-          sources = new Map()
-          for (const [id, item] of this.sources) {
+          order = []
+          let inserted = false
+          for (const id of this.entries.keys()) {
             if (replaced.has(id)) {
-              if (!sources.has(event.message.id)) sources.set(event.message.id, event.message)
-            } else sources.set(id, item)
+              if (!inserted) order.push(event.message.id)
+              inserted = true
+            } else order.push(id)
           }
-          removed = [...replaced].filter((id) => id !== event.message.id && this.messages.has(id))
+          removed = [...replaced].filter((id) => id !== event.message.id && this.entries.has(id))
           orderChanged = true
-        } else orderChanged = !sources.has(event.message.id)
+        } else orderChanged = !this.entries.has(event.message.id)
       }
     } else if (event?.type === 'input.changed') nextState = { ...state, inputs: this.mergeInputs([event.input]) }
     else if (event?.type === 'activity.changed') nextState = { ...state, activity: event.activity }
@@ -259,23 +255,16 @@ export class ThreadMessageProjection {
       nextState = event.type === 'gap' ? { ...state, gap: event.reason } : { ...state, closed: event.reason }
     }
     for (const id of refresh) {
-      const source = sources.get(id)
+      const source = this.entries.get(id)?.source
       if (source) candidates.set(id, source)
     }
     // Decorators may throw; commit only after every affected message has been projected.
+    const projected = [...candidates.values()].map((source) => ({ source, view: this.project(source) }))
     const changed: CherryUIMessage[] = []
-    for (const source of candidates.values()) {
-      const message = this.project(source)
-      if (message !== this.messages.get(message.id)) changed.push(message)
-    }
-    if (event?.type === 'message.upsert') sources.set(event.message.id, event.message)
-    if (event?.type === 'message.remove') sources.delete(event.ref.id)
-    for (const id of removed) this.messages.delete(id)
-    for (const message of changed) this.messages.set(message.id, message)
-    if (sources !== this.sources) {
-      this.sources = sources
-      this.messages = new Map([...sources.keys()].map((id) => [id, this.messages.get(id)!]))
-    }
+    for (const entry of projected) if (entry.view !== this.entries.get(entry.view.id)?.view) changed.push(entry.view)
+    for (const id of removed) this.entries.delete(id)
+    for (const entry of projected) this.entries.set(entry.source.id, entry)
+    if (order) this.entries = new Map(order.map((id) => [id, this.entries.get(id)!]))
     this.state = nextState
     this.publish(changed, removed, orderChanged, state)
     return changed
@@ -296,7 +285,7 @@ export class ThreadMessageProjection {
         revision: this.revision,
         messages: changed,
         removed,
-        order: [...this.messages.keys()],
+        order: [...this.entries.keys()],
         state: this.state
       }
       for (const listener of [...this.listeners]) this.deliver(listener, update)
@@ -331,7 +320,7 @@ export class ThreadMessageProjection {
       metadata: { status: pending ? 'pending' : 'success' }
     }
     const message = this.decorate?.(normalized, source) ?? normalized
-    const previous = this.messages.get(message.id)
+    const previous = this.entries.get(message.id)?.view
     return previous && isDeepStrictEqual(message, previous) ? previous : message
   }
 }

@@ -13,6 +13,7 @@ export interface ChildProjectionState {
   sessionId: string
   active: boolean
   available: boolean
+  canSubmit: boolean
   diagnostic?: string
 }
 

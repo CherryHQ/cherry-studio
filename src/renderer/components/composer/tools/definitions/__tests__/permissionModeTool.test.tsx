@@ -4,7 +4,6 @@ import type { TFunction } from 'i18next'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { ComposerToolLauncher } from '@renderer/components/composer/toolLauncher'
-import { QuickPanelRow } from '@renderer/components/QuickPanel'
 
 // The global renderer UI stand-in closes ConfirmDialog unconditionally on
 // confirm; the no-agent case needs the real return-false-keeps-open contract.
@@ -52,61 +51,35 @@ describe('permissionModeTool submenu', () => {
     mocks.agent = { id: 'agent-1', name: 'Support Bot' }
   })
 
-  it('keeps the current mode in the description so the submenu indicator remains visible', () => {
-    const launcher = renderLauncher()
-
-    expect(launcher?.description).toBe('Ask Before Acting')
-    expect(launcher?.suffix).toBeUndefined()
-    expect(launcher?.submenu).not.toHaveLength(0)
-
-    const { container } = render(
-      <QuickPanelRow
-        active={false}
-        item={{
-          label: launcher.label,
-          description: launcher.description,
-          isMenu: true
-        }}
-        onSelect={vi.fn()}
-      />
+  it('offers planning as a root toggle instead of a permission submenu choice', () => {
+    renderLauncher()
+    const launchers = mocks.registerLaunchers.mock.calls.at(-1)?.[0] ?? []
+    const permission = launchers.find((item) => item.id === 'permission-mode')
+    const plan = launchers.find((item) => item.id === 'plan-mode')
+    expect(permission?.submenu?.some((item) => item.id === 'permission-mode-plan')).toBe(false)
+    expect(plan?.sources).toEqual(['popover', 'root-panel'])
+    expect(plan?.active).toBe(false)
+    plan?.action?.({} as any)
+    expect(mocks.updateAgent).toHaveBeenCalledWith(
+      { id: 'agent-1', configuration: { permission_mode: 'plan' } },
+      { showSuccessToast: false }
     )
-    expect(container.querySelector('.lucide-chevron-right')).toBeInTheDocument()
   })
 
-  it('keeps the live permission mode in the pinned toolbar tooltip', () => {
-    const Runtime = permissionModeTool.composer!.runtime!
-    const context = {
-      t,
-      launcher: { registerLaunchers: mocks.registerLaunchers },
-      session: { agentId: 'agent-1' }
-    }
-    const { rerender } = render(<Runtime context={context as any} />)
-
-    expect(mocks.registerLaunchers.mock.calls.at(-1)?.[0][0]?.tooltip).toBe('Permission Mode · Ask Before Acting')
-
-    mocks.permissionMode = 'bypassPermissions'
-    rerender(<Runtime context={context as any} />)
-
-    expect(mocks.registerLaunchers.mock.calls.at(-1)?.[0][0]?.tooltip).toBe('Permission Mode · Full Access')
+  it('returns to ordinary approval when the active root plan toggle is selected', () => {
+    mocks.permissionMode = 'plan'
+    renderLauncher()
+    const plan = mocks.registerLaunchers.mock.calls.at(-1)?.[0].find((item) => item.id === 'plan-mode')
+    expect(plan?.active).toBe(true)
+    plan?.action?.({} as any)
+    expect(mocks.updateAgent).toHaveBeenCalledWith(
+      { id: 'agent-1', configuration: { permission_mode: 'default' } },
+      { showSuccessToast: false }
+    )
   })
 
   // The quick panel row is a fixed-height single line: a stacked warning under the title
   // overflows it and collides with the neighbouring rows.
-  it('keeps the caveat out of permanent copy and exposes it as row metadata', () => {
-    const submenu = renderRuntime()
-    const auto = submenu.find((item) => item.id === 'permission-mode-auto')
-    expect(auto).toBeDefined()
-
-    render(<>{auto!.label}</>)
-    expect(screen.queryByText(/Needs a model/)).not.toBeInTheDocument()
-
-    render(<>{auto!.description}</>)
-    expect(screen.queryByText(/Needs a model/)).not.toBeInTheDocument()
-    expect(auto?.tooltip).toBe('Needs a model that supports it; others may ignore it or keep asking.')
-
-    render(<QuickPanelRow active item={auto!} onSelect={vi.fn()} />)
-    expect(screen.getByRole('button', { name: /Needs a model/ })).toBeInTheDocument()
-  })
 
   it('holds Full Access behind a scope confirmation instead of persisting it from the submenu', async () => {
     const user = userEvent.setup()

@@ -45,6 +45,15 @@ export function agentSessionPathIds(sessionId: string, head: string) {
   ) select id from path)`
 }
 
+export function agentSessionDescendantIds(sessionId: string, messageId: string) {
+  return sql`(with recursive descendants(id) as (
+    select id from agent_session_message where session_id = ${sessionId} and id = ${messageId}
+    union
+    -- CROSS JOIN pins descendants as the outer loop so each step probes parent_idx instead of rescanning the session.
+    select m.id from descendants d cross join agent_session_message m on m.parent_id = d.id and m.session_id = ${sessionId}
+  ) select id from descendants)`
+}
+
 export function readAgentSessionPath(db: DbOrTx, sessionId: string, head?: string | null) {
   const selected = head ?? getAgentSessionHead(db, sessionId)
   if (!selected) return []
@@ -53,7 +62,7 @@ export function readAgentSessionPath(db: DbOrTx, sessionId: string, head?: strin
     .from(messages)
     .where(and(eq(messages.sessionId, sessionId), inArray(messages.id, agentSessionPathIds(sessionId, selected))))
     .all()
-  return orderPath(rows, selected).filter((row) => row.role !== 'root')
+  return orderAgentSessionPath(rows, selected).filter((row) => row.role !== 'root')
 }
 
 export function readAgentSessionAncestry(db: DbOrTx, sessionId: string, head: string) {
@@ -62,10 +71,13 @@ export function readAgentSessionAncestry(db: DbOrTx, sessionId: string, head: st
     .from(messages)
     .where(and(eq(messages.sessionId, sessionId), inArray(messages.id, agentSessionPathIds(sessionId, head))))
     .all()
-  return orderPath(rows, head)
+  return orderAgentSessionPath(rows, head)
 }
 
-function orderPath<T extends { id: string; parentId: string | null }>(rows: T[], selected: string): T[] {
+export function orderAgentSessionPath<T extends { id: string; parentId: string | null }>(
+  rows: T[],
+  selected: string
+): T[] {
   const byId = new Map(rows.map((row) => [row.id, row]))
   const path: T[] = []
   let row = byId.get(selected)

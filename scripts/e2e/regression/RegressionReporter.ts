@@ -8,7 +8,7 @@ import type {
   TestResult
 } from '@playwright/test/reporter'
 
-import { getCase, selectCases } from './cases'
+import { getCase, parseTaskSelection, selectCases } from './cases'
 import { REQUIRED_CONFIG } from './config'
 import { getRunPaths } from './paths'
 import { createRedactor } from './redaction'
@@ -39,7 +39,9 @@ export default class RegressionReporter implements Reporter {
     if (!this.started) {
       this.started = true
       for (const phase of this.phases) {
-        const expected = selectCases(run.metadata.task).filter((testCase) => testCase.phase === phase)
+        const expected = selectCases(parseTaskSelection(run.metadata.task)).filter(
+          (testCase) => testCase.phase === phase
+        )
         if (expected.length === 0 || expected.some(({ id }) => !this.ids.includes(id))) {
           this.errors.push(`Registered cases for phase ${phase} do not match the selected task`)
         }

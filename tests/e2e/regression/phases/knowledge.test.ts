@@ -1,10 +1,11 @@
 import { once } from 'node:events'
 import { constants } from 'node:fs'
-import { access, mkdir, readdir, writeFile } from 'node:fs/promises'
+import { access, mkdir, readdir, realpath, writeFile } from 'node:fs/promises'
 import { createServer } from 'node:http'
 import { basename, dirname, extname, join } from 'node:path'
 
 import type { KnowledgeBaseListResponse, KnowledgeItemListResponse } from '@shared/data/api/schemas/knowledges'
+import { AssistantSchema } from '@shared/data/types/assistant'
 import { GroupSchema } from '@shared/data/types/group'
 import {
   type KnowledgeBase,
@@ -26,7 +27,7 @@ import { expect, test } from '../fixture'
 import { customAssistantName, ensureCustomAssistant } from '../helpers/assistants'
 import { submitChatMarker } from '../helpers/chat'
 import { EMBEDDING_PROVIDER, ensureEmbeddingProvider, ensureKnowledgeBase, knowledgeName } from '../helpers/knowledge'
-import { selectVisibleModel } from '../helpers/models'
+import { ensureCustomChatProvider, selectVisibleModel } from '../helpers/models'
 import { dismissOnboarding, selectSidebarApp } from '../helpers/navigation'
 import { closeSettings } from '../helpers/settings'
 import { knowledgeNotes } from '../scenarios/knowledgeNotes'
@@ -540,7 +541,7 @@ test(...caseDefinition('MP-60'), async ({ app, mainWindow: page }, testInfo) => 
 })
 
 test(...caseDefinition('MP-61'), async ({ app, mainWindow: page }, testInfo) => {
-  const documents = app.fixturesPath('documents')
+  const documents = await realpath(app.fixturesPath('documents'))
   const screenshot = async (name: string) => {
     const path = testInfo.outputPath(`${name}.png`)
     await writeFile(path, await captureMaskedScreenshot(page, getSensitiveConfigValues()))
@@ -661,7 +662,8 @@ test(...caseDefinition('MP-61'), async ({ app, mainWindow: page }, testInfo) => 
     const emptyRow = page.getByRole('row', { name: `Open ${basename(emptyDirectory)}`, exact: true })
     await expect(emptyRow.getByRole('gridcell').nth(2)).toHaveText('Folders')
     await expect.poll(async () => (await list(null)).length).toBe(2)
-    const emptyItem = (await list(null)).find((item) => item.data.source === emptyDirectory)
+    const emptySource = await realpath(emptyDirectory)
+    const emptyItem = (await list(null)).find((item) => item.data.source === emptySource)
     expect(emptyItem?.type).toBe('directory')
     await emptyRow.click()
     await expect(page.getByText('This folder is empty', { exact: true })).toBeVisible()
@@ -814,169 +816,223 @@ test(...caseDefinition('MP-65'), async ({ app, mainWindow }, testInfo) => {
 test(...caseDefinition('MP-66'), async ({ app, mainWindow }, testInfo) => {
   let page = mainWindow
   const name = app.resourceName(`Retrieval ${Date.now()}`)
+  const assistantName = `${name} assistant`
+  let ownedBaseId: string | undefined
+  let assistantId: string | undefined
+  let primaryFailure: unknown
   const attachScreenshot = async (name: string) => {
     const path = testInfo.outputPath(`${name}.png`)
     await writeFile(path, await captureMaskedScreenshot(page, getSensitiveConfigValues()))
     await testInfo.attach(name, { path, contentType: 'image/png' })
   }
-  const providerId = await ensureEmbeddingProvider(app, page)
-  await closeSettings(page)
-  await selectSidebarApp(page, 'Knowledge Base')
-  await page.getByRole('button', { name: /^(Create|New) Knowledge Base$/ }).click()
-  const create = page.getByRole('dialog', { name: 'New Knowledge Base' })
-  await create.getByRole('textbox', { name: 'Name', exact: true }).fill(name)
-  await create.getByRole('button', { name: 'Embedding Model', exact: true }).click()
-  await selectVisibleModel(page, app.config.customEmbeddingProvider.model, providerId)
-  await create.getByRole('button', { name: 'Create', exact: true }).click()
-  await expect(create).toBeHidden({ timeout: 120_000 })
-  const bases = await page.evaluate(() =>
-    window.api.dataApi.request({
-      id: 'mp66-bases',
-      method: 'GET',
-      path: '/knowledge-bases',
-      params: { limit: 100 }
-    })
-  )
-  expect(bases.status).toBe(200)
-  const base = (bases.data as { items: KnowledgeBase[] }).items.find((base) => base.name === name)
-  expect(base).toBeDefined()
-  const baseId = base!.id
-  const sectionText = (index: number) =>
-    `## 第 ${index} 节 测试记录\n这一节只记录回归测试的背景信息，编号 ${index}。客户端把会话与知识条目保存在本地，重启后依旧可用，不会把内容发送到外部服务。检索时系统先切分文本，再写入向量索引，查询按相似度召回若干分块并拼进上下文。引用需要带编号，方便核对来源文件与命中的原文片段。以上说明与内部代号无关，只用于填充分块数量。`
-  const canarySection =
-    '## 内部代号\n本项目的内部代号是 canary-seven，只在测试环境使用。任何对外文档都不得出现这个代号，canary-seven 也不应该出现在发布说明里。'
-  const sections = Array.from({ length: 26 }, (_, index) => sectionText(index + 1))
-  const groundTruthPath = testInfo.outputPath('mp66-ground-truth.md')
-  await writeFile(
-    groundTruthPath,
-    `# mp66 ground truth\n\n${sections.slice(0, 13).join('\n\n')}\n\n${canarySection}\n\n${sections
-      .slice(13)
-      .join('\n\n')}\n`
-  )
-  await page.evaluate(
-    ({ baseId, path }) =>
-      window.api.ipcApi.request('knowledge.add_items', {
-        baseId,
-        items: [{ type: 'file', data: { path, source: 'mp66-ground-truth.md' } }]
-      }),
-    { baseId, path: groundTruthPath }
-  )
-  const readItems = async () => {
-    const result = await page.evaluate(
-      (baseId) =>
-        window.api.dataApi.request({
-          id: 'mp66-items',
-          method: 'GET',
-          path: `/knowledge-bases/${baseId}/items`
-        }),
-      baseId
-    )
-    expect(result.status).toBe(200)
-    return (result.data as { items: KnowledgeItem[] }).items
-  }
-  await expect
-    .poll(async () => (await readItems()).map((item) => item.status), { timeout: 180_000 })
-    .toEqual(['completed'])
-  const itemId = (await readItems())[0].id
-  const chunkResult = (await page.evaluate(
-    ({ baseId, itemId }) => window.api.ipcApi.request('knowledge.list_item_chunks', { baseId, itemId }),
-    { baseId, itemId }
-  )) as IpcResult<KnowledgeItemChunk[]>
-  if (!chunkResult.ok) throw new Error(JSON.stringify(chunkResult.error))
-  const chunks = chunkResult.data
-  expect(chunks.length, 'The Top K test needs more than three indexed chunks').toBeGreaterThan(3)
-  const readBase = async () => {
-    const result = await page.evaluate(
-      (baseId) =>
-        window.api.dataApi.request({
-          id: 'mp66-base',
-          method: 'GET',
-          path: `/knowledge-bases/${baseId}`
-        }),
-      baseId
-    )
-    expect(result.status).toBe(200)
-    return result.data as KnowledgeBase
-  }
-  const openSettings = async () => {
+  try {
+    const providerId = await ensureEmbeddingProvider(app, page)
+    await closeSettings(page)
     await selectSidebarApp(page, 'Knowledge Base')
-    await page.locator('[data-ui~="knowledge.navigation"]').getByText(name, { exact: true }).click()
-    await page.getByRole('button', { name: 'Knowledge Base Settings', exact: true }).click()
-    await page.getByRole('button', { name: 'Advanced Settings', exact: true }).click()
-  }
-  // Chunk fields currently lack accessible labels; scope each input by its visible field label.
-  const field = (label: string) =>
-    page
-      .locator('div')
-      .filter({ has: page.getByText(label, { exact: true }) })
-      .filter({ has: page.getByRole('textbox') })
-      .last()
-      .getByRole('textbox')
-  await openSettings()
-  const topK = page.getByRole('slider').first()
-  await topK.focus()
-  await page.keyboard.press('Home')
-  await page.keyboard.press('ArrowRight')
-  await page.keyboard.press('ArrowRight')
-  await expect(topK).toHaveAttribute('aria-valuenow', '3')
-  await field('Chunk Size').fill('500')
-  await field('Overlap Size').fill('50')
-  await expect(page.getByText('Chunking changes only apply to newly added content', { exact: true })).toBeVisible()
-  await page.getByRole('button', { name: 'Save', exact: true }).click()
-  await expect.poll(readBase).toMatchObject({ documentCount: 3, chunkSize: 500, chunkOverlap: 50 })
-  await attachScreenshot('MP-66 saved retrieval and chunking warning')
-  await field('Overlap Size').fill('501')
-  await expect(page.getByText('Chunk overlap must be smaller than chunk size', { exact: true })).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Save', exact: true })).toBeDisabled()
-  expect(await readBase()).toMatchObject({ documentCount: 3, chunkSize: 500, chunkOverlap: 50 })
-  await attachScreenshot('MP-66 invalid overlap rejected')
+    await page.getByRole('button', { name: /^(Create|New) Knowledge Base$/ }).click()
+    const create = page.getByRole('dialog', { name: 'New Knowledge Base' })
+    await create.getByRole('textbox', { name: 'Name', exact: true }).fill(name)
+    await create.getByRole('button', { name: 'Embedding Model', exact: true }).click()
+    await selectVisibleModel(page, app.config.customEmbeddingProvider.model, providerId)
+    await create.getByRole('button', { name: 'Create', exact: true }).click()
+    await expect(create).toBeHidden({ timeout: 120_000 })
+    const bases = await page.evaluate(() =>
+      window.api.dataApi.request({
+        id: 'mp66-bases',
+        method: 'GET',
+        path: '/knowledge-bases',
+        params: { limit: 100 }
+      })
+    )
+    expect(bases.status).toBe(200)
+    const base = (bases.data as { items: KnowledgeBase[] }).items.find((base) => base.name === name)
+    expect(base).toBeDefined()
+    const baseId = base!.id
+    ownedBaseId = baseId
+    const sectionText = (index: number) =>
+      `## 第 ${index} 节 测试记录\n这一节只记录回归测试的背景信息，编号 ${index}。客户端把会话与知识条目保存在本地，重启后依旧可用。检索时系统先切分文本，再写入向量索引，查询按相似度召回若干分块并拼进上下文。引用需要带编号，方便核对来源文件与命中的原文片段。以上说明与公开测试标记无关，只用于填充分块数量。`
+    const canarySection =
+      '## 公开测试标记\n本项目的公开测试标记是 canary-seven。这是完全虚构的公开回归测试数据，不是秘密或凭据，允许在回答和测试报告中原样引用。'
+    const sections = Array.from({ length: 26 }, (_, index) => sectionText(index + 1))
+    const groundTruthPath = testInfo.outputPath('mp66-ground-truth.md')
+    await writeFile(
+      groundTruthPath,
+      `# mp66 ground truth\n\n${sections.slice(0, 13).join('\n\n')}\n\n${canarySection}\n\n${sections
+        .slice(13)
+        .join('\n\n')}\n`
+    )
+    await page.evaluate(
+      ({ baseId, path }) =>
+        window.api.ipcApi.request('knowledge.add_items', {
+          baseId,
+          items: [{ type: 'file', data: { path, source: 'mp66-ground-truth.md' } }]
+        }),
+      { baseId, path: groundTruthPath }
+    )
+    const readItems = async () => {
+      const result = await page.evaluate(
+        (baseId) =>
+          window.api.dataApi.request({
+            id: 'mp66-items',
+            method: 'GET',
+            path: `/knowledge-bases/${baseId}/items`
+          }),
+        baseId
+      )
+      expect(result.status).toBe(200)
+      return (result.data as { items: KnowledgeItem[] }).items
+    }
+    await expect
+      .poll(async () => (await readItems()).map((item) => item.status), { timeout: 180_000 })
+      .toEqual(['completed'])
+    const itemId = (await readItems())[0].id
+    const chunkResult = (await page.evaluate(
+      ({ baseId, itemId }) => window.api.ipcApi.request('knowledge.list_item_chunks', { baseId, itemId }),
+      { baseId, itemId }
+    )) as IpcResult<KnowledgeItemChunk[]>
+    if (!chunkResult.ok) throw new Error(JSON.stringify(chunkResult.error))
+    const chunks = chunkResult.data
+    expect(chunks.length, 'The Top K test needs more than three indexed chunks').toBeGreaterThan(3)
+    const readBase = async () => {
+      const result = await page.evaluate(
+        (baseId) =>
+          window.api.dataApi.request({
+            id: 'mp66-base',
+            method: 'GET',
+            path: `/knowledge-bases/${baseId}`
+          }),
+        baseId
+      )
+      expect(result.status).toBe(200)
+      return result.data as KnowledgeBase
+    }
+    const openSettings = async () => {
+      await selectSidebarApp(page, 'Knowledge Base')
+      await page.locator('[data-ui~="knowledge.navigation"]').getByText(name, { exact: true }).click()
+      await page.getByRole('button', { name: 'Knowledge Base Settings', exact: true }).click()
+      await page.getByRole('button', { name: 'Advanced Settings', exact: true }).click()
+    }
+    // Chunk fields currently lack accessible labels; scope each input by its visible field label.
+    const field = (label: string) =>
+      page
+        .locator('div')
+        .filter({ has: page.getByText(label, { exact: true }) })
+        .filter({ has: page.getByRole('textbox') })
+        .last()
+        .getByRole('textbox')
+    await openSettings()
+    const topK = page.getByRole('slider').first()
+    await topK.focus()
+    await page.keyboard.press('Home')
+    await page.keyboard.press('ArrowRight')
+    await page.keyboard.press('ArrowRight')
+    await expect(topK).toHaveAttribute('aria-valuenow', '3')
+    await field('Chunk Size').fill('500')
+    await field('Overlap Size').fill('50')
+    await expect(page.getByText('Chunking changes only apply to newly added content', { exact: true })).toBeVisible()
+    await page.getByRole('button', { name: 'Save', exact: true }).click()
+    await expect.poll(readBase).toMatchObject({ documentCount: 3, chunkSize: 500, chunkOverlap: 50 })
+    await attachScreenshot('MP-66 saved retrieval and chunking warning')
+    await field('Overlap Size').fill('501')
+    await expect(page.getByText('Chunk overlap must be smaller than chunk size', { exact: true })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Save', exact: true })).toBeDisabled()
+    expect(await readBase()).toMatchObject({ documentCount: 3, chunkSize: 500, chunkOverlap: 50 })
+    await attachScreenshot('MP-66 invalid overlap rejected')
 
-  page = await app.restart('authenticated')
-  await dismissOnboarding(page)
-  expect(await readBase()).toMatchObject({ documentCount: 3, chunkSize: 500, chunkOverlap: 50 })
-  await openSettings()
-  await expect(page.getByRole('slider').first()).toHaveAttribute('aria-valuenow', '3')
-  await expect(field('Chunk Size')).toHaveValue('500')
-  await expect(field('Overlap Size')).toHaveValue('50')
-  await page.keyboard.press('Escape')
-  const hitResult = (await page.evaluate(
-    (baseId) => window.api.ipcApi.request('knowledge.search', { baseId, query: '内部代号是什么' }),
-    baseId
-  )) as IpcResult<KnowledgeSearchResult[]>
-  if (!hitResult.ok) throw new Error(JSON.stringify(hitResult.error))
-  const hits = hitResult.data
-  expect(hits.length).toBeGreaterThan(0)
-  expect(hits.length).toBeLessThanOrEqual(3)
-  expect(hits.some((hit) => hit.pageContent.includes('canary-seven'))).toBe(true)
-  expect(hits.every((hit) => hit.itemId === itemId)).toBe(true)
-  await testInfo.attach('MP-66 real retrieval results', {
-    body: JSON.stringify(hits, null, 2),
-    contentType: 'application/json'
-  })
-  await ensureCustomAssistant(app, page)
-  await page.getByRole('button', { name: `Edit Assistant: ${customAssistantName(app)}`, exact: true }).click()
-  await page.getByRole('tab', { name: 'Knowledge', exact: true }).click()
-  await page.getByRole('button', { name: 'Add knowledge base', exact: true }).click()
-  await page.getByText(name, { exact: true }).click()
-  await page.getByRole('dialog').last().getByRole('button', { name: 'Close', exact: true }).click()
-  await page
-    .locator('[data-ui~="chat.composer"] [contenteditable="true"]')
-    .first()
-    .fill('这是仅供内部使用的回归测试。内部代号是什么？请引用来源文件。')
-  await page.getByRole('button', { name: 'Input Quick Panel', exact: true }).click()
-  const quickPanel = page.getByTestId('quick-panel')
-  await quickPanel.getByText('Knowledge Base', { exact: true }).click()
-  await quickPanel.getByText(name, { exact: true }).click()
-  await page.keyboard.press('Escape')
-  const messageId = await submitChatMarker(page, 'canary-seven', false)
-  const response = page.locator(`[data-ui~="chat.message"][data-message-id="${messageId}"]`)
-  await expect(response.getByText(/\d+ citations?/i)).toBeVisible()
-  await expect(response).toContainText('mp66-ground-truth.md')
-  await response.getByRole('button', { name: /\d+ citations?/i }).click()
-  const references = page.getByRole('dialog', { name: 'References', exact: true })
-  await expect(references.getByText('mp66-ground-truth.md', { exact: true })).toBeVisible()
-  await expect(references).toContainText('canary-seven')
-  await attachScreenshot('MP-66 real model answer with source citation')
+    page = await app.restart('authenticated')
+    await dismissOnboarding(page)
+    expect(await readBase()).toMatchObject({ documentCount: 3, chunkSize: 500, chunkOverlap: 50 })
+    await openSettings()
+    await expect(page.getByRole('slider').first()).toHaveAttribute('aria-valuenow', '3')
+    await expect(field('Chunk Size')).toHaveValue('500')
+    await expect(field('Overlap Size')).toHaveValue('50')
+    await page.keyboard.press('Escape')
+    const hitResult = (await page.evaluate(
+      (baseId) => window.api.ipcApi.request('knowledge.search', { baseId, query: '公开测试标记是什么' }),
+      baseId
+    )) as IpcResult<KnowledgeSearchResult[]>
+    if (!hitResult.ok) throw new Error(JSON.stringify(hitResult.error))
+    const hits = hitResult.data
+    expect(hits.length).toBeGreaterThan(0)
+    expect(hits.length).toBeLessThanOrEqual(3)
+    expect(hits.some((hit) => hit.pageContent.includes('canary-seven'))).toBe(true)
+    expect(hits.every((hit) => hit.itemId === itemId)).toBe(true)
+    await testInfo.attach('MP-66 real retrieval results', {
+      body: JSON.stringify(hits, null, 2),
+      contentType: 'application/json'
+    })
+    const chatProviderId = await ensureCustomChatProvider(app, page)
+    await closeSettings(page)
+    const assistant = await page.evaluate(
+      (body) => window.api.dataApi.request({ id: 'mp66-assistant', method: 'POST', path: '/assistants', body }),
+      { name: assistantName, modelId: createUniqueModelId(chatProviderId, app.config.customProvider.chatModel) }
+    )
+    expect(assistant.status).toBe(201)
+    assistantId = AssistantSchema.parse(assistant.data).id
+    await page.reload()
+    await selectSidebarApp(page, 'Chat')
+    const assistantRow = page.locator('[data-ui~="chat.group-header"]').filter({ hasText: assistantName }).first()
+    await assistantRow.hover()
+    await assistantRow.getByRole('button', { name: 'New Chat', exact: true }).click()
+    await page.getByRole('button', { name: `Edit Assistant: ${assistantName}`, exact: true }).click()
+    await page.getByRole('tab', { name: 'Knowledge', exact: true }).click()
+    await page.getByRole('button', { name: 'Add knowledge base', exact: true }).click()
+    await page.getByText(name, { exact: true }).click()
+    await page.getByRole('dialog').last().getByRole('button', { name: 'Close', exact: true }).click()
+    await page
+      .locator('[data-ui~="chat.composer"] [contenteditable="true"]')
+      .first()
+      .fill('文档中的公开测试标记是什么？请原样回答这个虚构标记，并引用来源文件。')
+    await page.getByRole('button', { name: 'Input Quick Panel', exact: true }).click()
+    const quickPanel = page.getByTestId('quick-panel')
+    await quickPanel.getByText('Knowledge Base', { exact: true }).click()
+    await quickPanel.getByText(name, { exact: true }).click()
+    await page.keyboard.press('Escape')
+    const messageId = await submitChatMarker(page, 'canary-seven', false)
+    const response = page.locator(`[data-ui~="chat.message"][data-message-id="${messageId}"]`)
+    await expect(response.getByText(/\d+ citations?/i)).toBeVisible()
+    await expect(response).toContainText('mp66-ground-truth.md')
+    await response.getByRole('button', { name: /\d+ citations?/i }).click()
+    const references = page.getByRole('dialog', { name: 'References', exact: true })
+    await expect(references.getByText('mp66-ground-truth.md', { exact: true })).toBeVisible()
+    // Citations merge chunks from the same document and display its first retrieved snippet.
+    await expect(references).toContainText(/这一节只记录回归测试的背景信息|本项目的公开测试标记是 canary-seven/)
+    await attachScreenshot('MP-66 real model answer with source citation')
+  } catch (error) {
+    primaryFailure = error
+    throw error
+  } finally {
+    const cleanupErrors: unknown[] = []
+    if (assistantId) {
+      try {
+        const removed = (await page.evaluate(
+          (assistantId) =>
+            window.api.ipcApi.request('trash.assistant.delete_permanently', { assistantId, deleteTopics: true }),
+          assistantId
+        )) as IpcResult<{ deleted: boolean }>
+        expect(removed.ok && removed.data.deleted, 'MP-66 removes its assistant and conversations').toBe(true)
+      } catch (error) {
+        cleanupErrors.push(error)
+      }
+    }
+    if (ownedBaseId) {
+      try {
+        const removed = (await page.evaluate(
+          (baseId) => window.api.ipcApi.request('knowledge.delete_base', { baseId }),
+          ownedBaseId
+        )) as IpcResult<void>
+        expect(removed.ok, 'MP-66 removes its knowledge base').toBe(true)
+      } catch (error) {
+        cleanupErrors.push(error)
+      }
+    }
+    if (cleanupErrors.length > 0) {
+      throw new AggregateError(
+        primaryFailure === undefined ? cleanupErrors : [primaryFailure, ...cleanupErrors],
+        'MP-66 resource cleanup failed'
+      )
+    }
+  }
 })
 
 test(...caseDefinition('MP-67'), async ({ app, mainWindow }, testInfo) => {

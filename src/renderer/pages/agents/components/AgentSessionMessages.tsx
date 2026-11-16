@@ -18,6 +18,7 @@ import type { GetAgentResponse } from '@renderer/types/agent'
 import { type Topic, TopicType } from '@renderer/types/topic'
 import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
+import type { AgentSessionHistoryActions } from '@shared/data/api/schemas/agentSessionMessages'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 
 import { type NavigateToForkSource, useAgentMessageListProviderValue } from '../messages/agentMessageListAdapter'
@@ -31,6 +32,7 @@ type Props = {
   sessionId: string
   workspacePath?: string
   messages: CherryUIMessage[]
+  historyActions?: Readonly<Record<string, AgentSessionHistoryActions | undefined>>
   activeAgent?: GetAgentResponse
   partsByMessageId: Record<string, CherryMessagePart[]>
   streamingLayers?: MessageStreamingLayers
@@ -64,6 +66,7 @@ const AgentSessionMessages = ({
   sessionId,
   workspacePath,
   messages,
+  historyActions,
   activeAgent,
   partsByMessageId,
   streamingLayers,
@@ -102,7 +105,7 @@ const AgentSessionMessages = ({
       activeAgent
         ? {
             name: activeAgent.name,
-            avatar: getAgentAvatarFromConfiguration(activeAgent.configuration)
+            avatar: getAgentAvatarFromConfiguration(activeAgent.configuration, activeAgent.avatarSrc)
           }
         : undefined,
     [activeAgent]
@@ -150,6 +153,7 @@ const AgentSessionMessages = ({
   const messageList = useAgentMessageListProviderValue({
     topic: derivedTopic,
     messages,
+    historyActions,
     partsByMessageId,
     streamingLayers,
     assistantProfile,
@@ -174,6 +178,7 @@ const AgentSessionMessages = ({
     editBusy,
     respondToolApproval,
     navigateToForkSource,
+    scrollToBottomOnSend: true,
     messageNavigation,
     workspacePath: workspacePath ?? session?.workspace?.path,
     messageTail,

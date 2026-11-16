@@ -1,0 +1,36 @@
+name: Deploy release sync SCF
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-release-sync-scf
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: github.repository == 'CherryHQ/cherry-studio' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.10"
+      - name: Install deployment and runtime dependencies
+        run: |
+          python -m pip install tencentcloud-sdk-python-scf==3.1.100
+          python -m pip install --target "$RUNNER_TEMP/scf-dependencies" cos-python-sdk-v5==1.9.44
+          find "$RUNNER_TEMP/scf-dependencies" -name '_crcfunext*.so' -delete
+      - name: Deploy function code to Shanghai
+        env:
+          TENCENT_SECRET_ID: ${{ secrets.TENCENT_SECRET_ID }}
+          TENCENT_SECRET_KEY: ${{ secrets.TENCENT_SECRET_KEY }}
+        run: |
+          : "${TENCENT_SECRET_ID:?TENCENT_SECRET_ID is required}"
+          : "${TENCENT_SECRET_KEY:?TENCENT_SECRET_KEY is required}"
+          python scripts/release/gitcode-scf.py deploy "$RUNNER_TEMP/scf-dependencies"

@@ -1,8 +1,8 @@
 /**
  * DataApi-backed session queries and data mutations; lifecycle commands use IpcApi.
  *
- * Sessions are pure agent instances — only `id / agentId / name / description /
- * orderKey / timestamps` live here. For config (model / instructions /
+ * Sessions are pure agent instances — only `id / agentId / model / name / description /
+ * orderKey / timestamps` live here. For remaining config (instructions /
  * configuration / ...) call {@link import('./useAgent').useAgent}
  * with `session.agentId`.
  */
@@ -40,6 +40,7 @@ import type {
 } from '@shared/data/api/schemas/agentSessions'
 import type { CursorPaginationResponse } from '@shared/data/api/types'
 import type { Pin } from '@shared/data/types/pin'
+import { isAgentSessionPinnedError } from '@shared/ipc/errors/ai'
 
 const DEFAULT_SESSION_PAGE_SIZE = 20
 const SESSION_PINS_QUERY = { entityType: 'session' } as const
@@ -90,9 +91,10 @@ function useStructurallySharedSessions(sessions: AgentSessionEntity[]): AgentSes
 }
 
 /**
- * Fetch a single session by id. Config (model / instructions / ...) lives on
- * the parent agent — fetch via `useAgent(session.agentId)` separately. For
- * mutations call `useUpdateSession()` directly.
+ * Fetch a single session by id. Remaining config (instructions / ...) lives on
+ * the parent agent — fetch via `useAgent(session.agentId)` separately. The
+ * session `model` is a per-session override falling back to the agent default.
+ * For mutations call `useUpdateSession()` directly.
  */
 export const useSession = (sessionId: string | null) => {
   const {
@@ -106,8 +108,20 @@ export const useSession = (sessionId: string | null) => {
     swrOptions: { keepPreviousData: false }
   })
 
+  const sessionModelRef = useRef(session?.model ?? null)
+  useEffect(() => {
+    sessionModelRef.current = session?.model ?? null
+  }, [session?.model])
+
   useDataChange('/agent-sessions/:sessionId', (effects) => {
     if (sessionId && effects.some((effect) => !effect.entityIds || effect.entityIds.includes(sessionId))) {
+      void mutate()
+    }
+  })
+  useDataChange('/models', (effects) => {
+    const overrideModel = sessionModelRef.current
+    if (!sessionId || !overrideModel) return
+    if (effects.some((effect) => !effect.entityIds || effect.entityIds.includes(overrideModel))) {
       void mutate()
     }
   })
@@ -332,6 +346,7 @@ export const useSessions = (
             agentId,
             name: form.name,
             description: form.description,
+            model: form.model,
             workspace: form.workspace
           }
         })
@@ -372,8 +387,20 @@ export const useSessions = (
         }
         return { status: 'succeeded' }
       } catch (error) {
-        if (showFeedback) toast.error(formatErrorMessageWithPrefix(error, t('agent.session.delete.error.failed')))
-        return { status: 'failed', error: getErrorMessage(error) }
+        try {
+          await invalidate(['/agent-sessions', '/agent-workspaces', '/pins', '/agent-channels'])
+        } catch (refreshError) {
+          logger.warn('Failed to refresh after Agent Session deletion failed', refreshError as Error, { sessionId: id })
+        }
+        const pinned = isAgentSessionPinnedError(error)
+        if (showFeedback) {
+          toast.error(
+            pinned
+              ? t('recycle_bin.delete.pinned')
+              : formatErrorMessageWithPrefix(error, t('agent.session.delete.error.failed'))
+          )
+        }
+        return { status: 'failed', error: pinned ? t('recycle_bin.delete.pinned') : getErrorMessage(error) }
       }
     },
     [closeConversationTabs, invalidate, t]
@@ -501,8 +528,8 @@ export const useSessions = (
 }
 
 /**
- * Patch session-level fields (`name`, `description`, `agentId`). Config fields
- * (model, instructions, configuration, ...) live on the parent agent — use
+ * Patch session-level fields (`name`, `description`, `agentId`, `model`). Remaining
+ * config fields (instructions, configuration, ...) live on the parent agent — use
  * {@link import('./useAgent').useUpdateAgent} for those. The workspace binding
  * is changed separately via {@link setSessionWorkspace} (only while empty).
  */

@@ -1,3 +1,5 @@
+import { isContextOverflowMessage } from '@cherrystudio/ai-core/contextOverflow'
+
 // Single source of error-text recognition. Main classifies subprocess stderr, the renderer
 // classifies provider responses; both must agree on precedence (region before 403, quota
 // before 429, feature timeouts before generic network).
@@ -204,20 +206,18 @@ export function classifyErrorCategory({ text, status, finishReason }: ErrorCateg
     return 'permission'
   }
 
+  // Invalid inline image payloads are request errors; only a real 429 may carry rate-limit wording.
+  if (status !== 429 && /inlinedata.{0,80}not valid base64|image\/[a-z0-9.+-]+ inlinedata is not valid/.test(msg)) {
+    return 'bad_request'
+  }
+
   // Rate limit (429 / "too many requests")
   if (status === 429 || /rate[_ -]?limit/.test(msg) || msg.includes('too many requests')) {
     return 'rate_limit'
   }
 
   // Context length exceeded
-  if (
-    msg.includes('context_length_exceeded') ||
-    msg.includes('too many tokens') ||
-    msg.includes('maximum context length') ||
-    msg.includes('context window') ||
-    msg.includes('prompt is too long') ||
-    msg.includes('input is too long')
-  ) {
+  if (isContextOverflowMessage(msg)) {
     return 'context_length'
   }
 
@@ -238,7 +238,8 @@ export function classifyErrorCategory({ text, status, finishReason }: ErrorCateg
     msg.includes('finishreason: safety') ||
     msg.includes('"safety"') ||
     msg.includes('recitation') ||
-    msg.includes('blocked by safety')
+    msg.includes('blocked by safety') ||
+    /\bblocked by (?:our |the )?content filter(?:ing)?\b/.test(msg)
   ) {
     return 'content'
   }
@@ -374,6 +375,8 @@ export function classifyErrorCategory({ text, status, finishReason }: ErrorCateg
 
   if (
     msg.includes('unexpected token') ||
+    msg.includes('failed to process successful response') ||
+    msg.includes('api returned an empty or malformed response') ||
     msg.includes('invalid response') ||
     msg.includes('parse error') ||
     (!requestParseFailure && msg.includes('failed to parse')) ||

@@ -1,23 +1,6 @@
-import { rm } from 'node:fs/promises'
-
-import { _electron as electron } from '@playwright/test'
 import type { Locator } from '@playwright/test'
 
-import { expect, test as base } from './fixtures/electron.fixture'
-
-const test = base.extend({
-  electronApp: async ({}, runTest, testInfo) => {
-    const profileRoot = testInfo.outputPath('profile')
-    const electronApp = await electron.launch({
-      args: ['.'],
-      env: { ...process.env, NODE_ENV: 'development', CS_DEV_PROFILE_ROOT: profileRoot },
-      timeout: 60000
-    })
-    await runTest(electronApp)
-    await electronApp.close()
-    await rm(profileRoot, { recursive: true, force: true, maxRetries: 3 })
-  }
-})
+import { expect, test } from './fixtures/electron.fixture'
 
 // The transform-derived token on the component root; present in both the fixed
 // and unfixed builds, and the element whose box the fix bounds.

@@ -17,6 +17,10 @@ it('offers editing on earlier user messages and disables it while the session is
       useAgentMessageListProviderValue({
         topic: { id: 'agent-session:source', assistantId: 'agent-1', name: 'Source', messages: [] } as unknown as Topic,
         messages,
+        historyActions: {
+          'user-a': { fork: 'not_turn_boundary', edit: null },
+          'user-b': { fork: 'not_turn_boundary', edit: null }
+        },
         partsByMessageId: {},
         isLoading: false,
         messageNavigation: 'anchor',
@@ -31,4 +35,19 @@ it('offers editing on earlier user messages and disables it while the session is
   expect(result.current.actions.canEditMessage!(assistant)).toBe(false)
   rerender({ editBusy: true })
   expect(result.current.actions.canEditMessage!(firstUser)).toBe(false)
+})
+
+it('does not offer edit without Main checkpoint approval, including unsupported Durable history', () => {
+  const { result } = renderHook(() =>
+    useAgentMessageListProviderValue({
+      topic: { id: 'agent-session:source', assistantId: 'agent-1', name: 'Source', messages: [] } as unknown as Topic,
+      messages: [{ id: 'user', role: 'user', parts: [] }],
+      partsByMessageId: {},
+      isLoading: false,
+      messageNavigation: 'anchor',
+      startEditing: async () => {},
+      historyActions: { user: { fork: 'unsupported_checkpoint', edit: 'checkpoint_unsupported' } }
+    })
+  )
+  expect(result.current.actions.canEditMessage!(result.current.state.messages[0])).toBe(false)
 })

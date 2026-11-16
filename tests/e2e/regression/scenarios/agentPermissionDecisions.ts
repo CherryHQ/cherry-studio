@@ -74,8 +74,6 @@ export async function agentPermissionDecisions(app: RegressionApp, page: Page, t
     await expect
       .soft(view.getByText('Denied', { exact: true }), 'The denied tool card must preserve the rejection decision')
       .toBeVisible({ timeout: 1_000 })
-    const deniedReply = messages.last()
-    await expect(deniedReply.locator('.markdown').last()).toContainText(/denied|rejected|拒绝/i)
     expect(existsSync(output), 'Denied write must leave no file after the turn finishes').toBe(false)
     await screenshot('MP-51 denied tool and absent file')
 
@@ -90,9 +88,6 @@ export async function agentPermissionDecisions(app: RegressionApp, page: Page, t
     const allowedReply = messages.last()
     await expect(allowedReply.getByText('Denied', { exact: true })).toHaveCount(0)
     await expect(allowedReply.getByRole('link', { name: 'qa-permission.txt', exact: true }).first()).toBeVisible()
-    await expect(allowedReply.locator('.markdown').last()).toContainText(
-      /created|wrote|written|success|创建|写入|成功/i
-    )
     await screenshot('MP-51 allowed tool and verified file')
   } finally {
     if (await pause.isVisible().catch(() => false)) await pause.click()

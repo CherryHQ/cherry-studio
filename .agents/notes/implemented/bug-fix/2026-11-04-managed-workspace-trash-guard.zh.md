@@ -20,13 +20,13 @@ Status: implemented
 
 - 豁免传入的 `workspacePath` 内的所有目标：用户选择 `<userData>/Data` 作为工作区后，就能将 `cherrystudio.sqlite` 移至回收站。
 - 从 `<date>/<sessionId>` 目录布局推断归属：`<sessionId>.archiving` 和 `<sessionId>.restoring` 是实际存在、由应用持有的同深度恢复兄弟目录，因此深度不能证明工作区归属。
-- 向模型公开失败原因：共享失败包装器刻意隐藏绝对路径和条目 id，已有测试固定了这一契约。
+- 向模型公开失败原因：当时被否决，因为共享失败包装器隐藏绝对路径和条目 id，且已有测试固定了这一契约；后来以脱敏形式采纳（见 [2026-11-05-assistant-files-toolchain](2026-11-05-assistant-files-toolchain.md)）。
 
 ## 影响
 
-`system` 工作区内的普通文件和目录现在可以通过应用数据祖先目录的保护，进入操作系统回收站操作。强制审批和仅使用操作系统回收站的行为保持不变；没有永久删除的后备路径。受保护目标、工作区根目录及工作区外的路径仍由既有检查拒绝。应用数据内的 `user` 工作区仍被拒绝，即使其目录形似托管会话工作区。未传入可信类型的调用方不获得豁免。
+`system` 工作区内的普通文件和目录现在可以通过应用数据祖先目录的保护，进入操作系统回收站操作。强制审批和仅使用操作系统回收站的行为保持不变；没有永久删除的后备路径。受保护目标、工作区根目录及工作区外的路径仍由既有检查拒绝。Windows 应用数据内的 `user` 工作区仍被拒绝，即使其目录形似托管会话工作区；macOS 的 `~/Library` blanket 容器后来被收窄为敏感子目录，因此 `Application Support` 下的用户工作区被放行，而 Cherry Studio 自身数据仍受保护（见 [2026-11-05-assistant-files-toolchain](2026-11-05-assistant-files-toolchain.md)）。未传入可信类型的调用方不获得豁免。
 
-智能体宿主工具（包括 `move_to_trash`）仅为具有 builtin-role 的智能体挂载。报告中的使用入口是内置助手。
+智能体宿主工具（包括 `move_to_trash`）仅为具有 builtin-role 的智能体挂载。报告中的使用入口是内置助手。工具失败现在返回脱敏后的具体原因，而不是不透明的 `Tool execution failed`（见 [2026-11-05-assistant-files-toolchain](2026-11-05-assistant-files-toolchain.md)）。
 
 ## 验证
 

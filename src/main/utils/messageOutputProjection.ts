@@ -3,6 +3,8 @@
  * Full oversized values remain addressable through `ai.tool.get_result`.
  */
 
+import { createHash } from 'node:crypto'
+
 import type { UIMessageChunk } from 'ai'
 import { isToolUIPart } from 'ai'
 
@@ -180,17 +182,18 @@ function withCitationSkeleton(deferred: DeferredToolOutput, output: unknown): De
 }
 
 function projectToolOutputForRenderer(output: unknown, ref: DeferredToolResultRef): unknown {
+  if (!isPersistedToolOutput(output) && !shouldDeferToolOutput(output)) return output
+  const versionedRef = { ...ref, revision: createHash('sha256').update(JSON.stringify(output)).digest('hex') }
   if (isPersistedToolOutput(output)) {
     const persisted = output.$persistedToolOutput
     const deferred = {
-      $deferredToolResult: ref,
+      $deferredToolResult: versionedRef,
       excerpt: envelopeDisplayExcerpt(persisted)
     } satisfies DeferredToolOutput
     return persisted.shape === 'entities' ? withCitationSkeleton(deferred, persisted.skeleton) : deferred
   }
 
-  if (!shouldDeferToolOutput(output)) return output
-  return withCitationSkeleton({ $deferredToolResult: ref }, output)
+  return withCitationSkeleton({ $deferredToolResult: versionedRef }, output)
 }
 
 /** Projects a stored or finalized message part. Returns the same object when nothing changed. */
