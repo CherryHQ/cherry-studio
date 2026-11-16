@@ -3015,6 +3015,7 @@
   "notes.export_to_pdf_failed": "Export do PDF se nezdařil",
   "notes.export_to_pdf_success": "Exportováno do PDF",
   "notes.export_to_word_failed": "Export do Wordu se nezdařil",
+  "notes.favorites_empty": "Zatím žádné oblíbené poznámky",
   "notes.file_removed_draft": "Tato poznámka byla z disku odstraněna. Neuložený koncept je stále dostupný v editoru.",
   "notes.load_failed": "Načtení poznámky se nezdařilo",
   "notes.load_failed_description": "Soubor nelze přečíst. Úpravy jsou zakázány, aby byl chráněn obsah poznámky.",

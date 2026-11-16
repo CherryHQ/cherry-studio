@@ -3015,6 +3015,7 @@
   "notes.export_to_pdf_failed": "匯出為 PDF 失敗",
   "notes.export_to_pdf_success": "已匯出為 PDF",
   "notes.export_to_word_failed": "匯出為 Word 失敗",
+  "notes.favorites_empty": "暫無收藏的筆記",
   "notes.file_removed_draft": "此筆記已從磁碟中移除。您未儲存的草稿仍可在編輯器中取得。",
   "notes.load_failed": "筆記載入失敗",
   "notes.load_failed_description": "無法讀取該檔案。為保護筆記內容，已停用編輯。",

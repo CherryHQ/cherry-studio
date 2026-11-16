@@ -3015,6 +3015,7 @@
   "notes.export_to_pdf_failed": "Falha ao exportar para PDF",
   "notes.export_to_pdf_success": "Exportado para PDF",
   "notes.export_to_word_failed": "Falha ao exportar para Word",
+  "notes.favorites_empty": "Ainda não há notas favoritas",
   "notes.file_removed_draft": "Esta nota foi removida do disco. Seu rascunho não guardado ainda está disponível no editor.",
   "notes.load_failed": "Falha ao carregar a nota",
   "notes.load_failed_description": "O ficheiro não pôde ser lido. A edição está desabilitada para proteger o conteúdo da nota.",

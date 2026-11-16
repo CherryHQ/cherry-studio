@@ -3015,6 +3015,7 @@
   "notes.export_to_pdf_failed": "ไม่สามารถส่งออกเป็น PDF",
   "notes.export_to_pdf_success": "ส่งออกเป็น PDF แล้ว",
   "notes.export_to_word_failed": "ไม่สามารถส่งออกเป็น Word",
+  "notes.favorites_empty": "ยังไม่มีโน้ตที่ชื่นชอบ",
   "notes.file_removed_draft": "โน้ตนี้ถูกลบจากดิสก์ ฉบับร่างที่ยังไม่บันทึกยังคงอยู่ในตัวแก้ไข",
   "notes.load_failed": "ไม่สามารถโหลดโน้ต",
   "notes.load_failed_description": "ไม่สามารถอ่านไฟล์ ปิดการแก้ไขเพื่อป้องกันเนื้อหาโน้ต",

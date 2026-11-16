@@ -3015,6 +3015,7 @@
   "notes.export_to_pdf_failed": "Impossibile esportare in PDF",
   "notes.export_to_pdf_success": "Esportato in PDF",
   "notes.export_to_word_failed": "Impossibile esportare in Word",
+  "notes.favorites_empty": "Nessuna nota preferita",
   "notes.file_removed_draft": "Questa nota è stata rimossa dal disco. La bozza non salvata è ancora disponibile nell'editor.",
   "notes.load_failed": "Impossibile caricare la nota",
   "notes.load_failed_description": "Impossibile leggere il file. La modifica è disabilitata per proteggere il contenuto della nota.",

@@ -3015,6 +3015,7 @@
   "notes.export_to_pdf_failed": "Failed to export to PDF",
   "notes.export_to_pdf_success": "Exported to PDF",
   "notes.export_to_word_failed": "Failed to export to Word",
+  "notes.favorites_empty": "No favorite notes yet",
   "notes.file_removed_draft": "This note was removed from disk. Your unsaved draft is still available in the editor.",
   "notes.load_failed": "Failed to load note",
   "notes.load_failed_description": "The file could not be read. Editing is disabled to protect the note content.",

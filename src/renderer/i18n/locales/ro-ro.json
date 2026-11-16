@@ -3015,6 +3015,7 @@
   "notes.export_to_pdf_failed": "Nu s-a reușit exportul în PDF",
   "notes.export_to_pdf_success": "Exportat în PDF",
   "notes.export_to_word_failed": "Exportul în Word a eșuat",
+  "notes.favorites_empty": "Nicio notă favorită încă",
   "notes.file_removed_draft": "Această notă a fost eliminată de pe disc. Schița ta nesalvată este încă disponibilă în editor.",
   "notes.load_failed": "Nu s-a reușit încărcarea notei",
   "notes.load_failed_description": "Fișierul nu a putut fi citit. Editarea este dezactivată pentru a proteja conținutul notei.",
