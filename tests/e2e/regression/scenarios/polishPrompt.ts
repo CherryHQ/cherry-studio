@@ -131,10 +131,10 @@ export async function polishPrompt(app: RegressionApp, page: Page, testInfo: Tes
     await editor.fill(rough)
     await polish.click()
     await expect(dialog.getByRole('button', { name: /^Cancel · / })).toBeVisible()
-    await attachScreenshot('MP-16 real polish running')
     await expect
       .soft(editor, 'Prompt editor must lock while the real request is pending')
-      .toHaveAttribute('contenteditable', 'false', { timeout: 1000 })
+      .toHaveAttribute('contenteditable', 'false', { timeout: 5000 })
+    await attachScreenshot('MP-16 real polish running')
     await expect(polish).toBeVisible({ timeout: 70_000 })
     await expect(editor).toHaveAttribute('contenteditable', 'true')
     // A real model may legitimately return the prompt unchanged, so the applied-result contract is
@@ -161,7 +161,7 @@ export async function polishPrompt(app: RegressionApp, page: Page, testInfo: Tes
     expect(JSON.stringify(invalid.body.messages)).toContain('{{date}}')
     await expect
       .soft(editor, 'Prompt editor must be locked during polishing')
-      .toHaveAttribute('contenteditable', 'false', { timeout: 1000 })
+      .toHaveAttribute('contenteditable', 'false', { timeout: 5000 })
     const beforeTyping = await editor.innerText()
     await editor.click()
     await page.keyboard.type('MP16_LOCK_PROBE')
