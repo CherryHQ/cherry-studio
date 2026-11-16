@@ -543,9 +543,10 @@ describe('ResourceCreateWizard', () => {
     )
   })
 
-  it('shows why the request was rejected, without a fault Details action', async () => {
+  it('keeps the raw text of a rejected request behind Details under the translated summary', async () => {
     const user = userEvent.setup()
-    const onSubmit = vi.fn().mockRejectedValue(DataApiErrorFactory.conflict('An assistant named My Resource exists'))
+    const rejection = DataApiErrorFactory.conflict('An assistant named My Resource exists')
+    const onSubmit = vi.fn().mockRejectedValue(rejection)
 
     render(<ResourceCreateWizard kind="assistant" open onOpenChange={vi.fn()} onSubmit={onSubmit} />)
     await user.click(screen.getByRole('button', { name: 'fill basic' }))
@@ -553,9 +554,10 @@ describe('ResourceCreateWizard', () => {
     await user.click(screen.getByRole('button', { name: NEXT }))
     await user.click(screen.getByRole('button', { name: CREATE }))
 
-    expect(await screen.findByText('An assistant named My Resource exists')).toBeInTheDocument()
-    expect(screen.queryByText('library.config.dialogs.create.submit_failed')).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'common.detail' })).not.toBeInTheDocument()
+    expect(await screen.findByText('library.config.dialogs.create.submit_failed')).toBeInTheDocument()
+    expect(screen.queryByText('An assistant named My Resource exists')).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'common.detail' }))
+    await waitFor(() => expect(detailMocks.open).toHaveBeenCalledWith(expect.objectContaining({ error: rejection })))
   })
 
   it('reports an unexpected submit fault with Details and leaves the dialog closable', async () => {
