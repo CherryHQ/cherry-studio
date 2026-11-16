@@ -5,6 +5,7 @@ sources:
   - src/main/ai/runtime/aiSdk/params/feature.ts
   - src/main/ai/runtime/aiSdk/params/features/internalFeatures.ts
   - src/main/ai/runtime/aiSdk/params/features/qwenAnthropicWebTools.ts
+  - src/main/ai/runtime/aiSdk/params/features/toolSchemaCompatibility.ts
 ---
 
 # Params Pipeline
@@ -53,6 +54,15 @@ routing. It does not move system messages into Responses `instructions` or set
 run, as does `Agent.stream()`'s `messageRules` normalization. Caller requests
 omit loop stop conditions and AI tool repair; their execution uses single-step
 `streamText` / `generateText` instead of `ToolLoopAgent`.
+
+On `openai-chat-completions`, tool-schema middleware removes only `propertyNames`
+for recognizable Gemini raw model IDs. Recognition is a compatibility heuristic,
+not proof of endpoint schema support; opaque upstream aliases remain unrecognized.
+This intentionally relaxes provider-visible key constraints rather than converting
+them losslessly. Validation ownership is unchanged: MCP tools keep their compiled
+validator against the original schema, while caller-owned gateway tools remain the
+caller's responsibility. Responses, Ollama, Anthropic Messages and undefined
+endpoint scopes receive no new treatment from this pass.
 
 ## RequestFeature
 
