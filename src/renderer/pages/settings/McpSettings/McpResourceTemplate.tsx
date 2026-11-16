@@ -2,8 +2,9 @@ import { UriTemplate } from '@modelcontextprotocol/client'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Alert, Button, Input, Label } from '@cherrystudio/ui'
+import { Button, Input, Label } from '@cherrystudio/ui'
 import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
+import { ErrorNotice } from '@renderer/components/ErrorNotice'
 import type { McpResourceTemplate as Template } from '@shared/types/mcp'
 
 import McpResourcePreview from './McpResourcePreview'
@@ -32,10 +33,10 @@ export default function McpResourceTemplate({ template }: { template: Template }
       <p className="text-sm text-muted-foreground">{template.description}</p>
       <code className="break-all text-xs">{template.uriTemplate}</code>
       {!parsed ? (
-        <Alert
-          type="error"
-          message={t('common.error')}
-          action={
+        <ErrorNotice
+          variant="inline"
+          title={t('common.error')}
+          detail={
             <ErrorDetailAction
               error={parsedResult.error}
               source="mcp"

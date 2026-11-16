@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { Alert, Button, Spinner } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
+import { ErrorNotice } from '@renderer/components/ErrorNotice'
 import { ipcApi } from '@renderer/ipc'
 import type { McpServerInstructions } from '@shared/types/mcp'
 
@@ -52,10 +53,10 @@ export default function McpInstructions({ serverId, connectionState }: { serverI
       {loading ? (
         <Spinner text={t('common.loading')} />
       ) : failure ? (
-        <Alert
-          type="error"
-          message={t('common.error')}
-          action={<ErrorDetailAction error={failure} source="mcp" operation="mcp.instructions" recordId={serverId} />}
+        <ErrorNotice
+          variant="inline"
+          title={t('common.error')}
+          detail={<ErrorDetailAction error={failure} source="mcp" operation="mcp.instructions" recordId={serverId} />}
         />
       ) : instructions ? (
         <>

@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { Alert, Button, Spinner } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
+import { ErrorNotice } from '@renderer/components/ErrorNotice'
 import { ipcApi } from '@renderer/ipc'
 import type { OutputFor } from '@shared/ipc/types'
 import type { EventPayload } from '@shared/ipc/types'
@@ -83,10 +84,10 @@ export default function McpResourcePreview({ serverId, uri }: { serverId: string
         </Button>
       </div>
       {failure ? (
-        <Alert
-          type="error"
-          message={t('common.error')}
-          action={
+        <ErrorNotice
+          variant="inline"
+          title={t('file_preview.load_error.title')}
+          detail={
             <ErrorDetailAction error={failure} source="mcp" operation="mcp.resource.preview" recordId={serverId} />
           }
         />
