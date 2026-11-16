@@ -2267,6 +2267,7 @@
   "library.config.agent.prompt.caption.skills": "Etkin becerilerle güncellenir",
   "library.config.agent.prompt.caption.workspace_system": "Çalışma alanının system.md dosyasıyla güncellenir",
   "library.config.agent.prompt.edited": "Düzenlendi",
+  "library.config.agent.prompt.edited_frozen": "Düzenlendi; artık otomatik güncellenmiyor",
   "library.config.agent.prompt.editor_placeholder": "Ajanın sistem istemini yazın: kim olduğu, ne yaptığı ve sınırları.",
   "library.config.agent.prompt.instructions_label": "Ajan sistem istemi",
   "library.config.agent.prompt.load_failed": "Tam sistem istemi oluşturulamadı",

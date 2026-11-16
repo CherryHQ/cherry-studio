@@ -2267,6 +2267,7 @@
   "library.config.agent.prompt.caption.skills": "有効なスキルに合わせて更新",
   "library.config.agent.prompt.caption.workspace_system": "ワークスペースの system.md に合わせて更新",
   "library.config.agent.prompt.edited": "編集済み",
+  "library.config.agent.prompt.edited_frozen": "編集済み。自動では更新されません",
   "library.config.agent.prompt.editor_placeholder": "エージェントのシステムプロンプトを書きます：誰なのか、何をするのか、どんな制限があるのか。",
   "library.config.agent.prompt.instructions_label": "エージェントのシステムプロンプト",
   "library.config.agent.prompt.load_failed": "完全なシステムプロンプトを生成できませんでした",

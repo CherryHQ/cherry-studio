@@ -2267,6 +2267,7 @@
   "library.config.agent.prompt.caption.skills": "Atualiza com as competências ativadas",
   "library.config.agent.prompt.caption.workspace_system": "Atualiza com o system.md do espaço de trabalho",
   "library.config.agent.prompt.edited": "Editado",
+  "library.config.agent.prompt.edited_frozen": "Editado; já não se atualiza automaticamente",
   "library.config.agent.prompt.editor_placeholder": "Escreva o prompt de sistema do agente: quem é, o que faz e quais são os seus limites.",
   "library.config.agent.prompt.instructions_label": "Prompt de sistema do agente",
   "library.config.agent.prompt.load_failed": "Não foi possível gerar o prompt de sistema completo",

@@ -2267,6 +2267,7 @@
   "library.config.agent.prompt.caption.skills": "隨已啟用的技能更新",
   "library.config.agent.prompt.caption.workspace_system": "隨工作區的 system.md 更新",
   "library.config.agent.prompt.edited": "已修改",
+  "library.config.agent.prompt.edited_frozen": "已修改，不再自動更新",
   "library.config.agent.prompt.editor_placeholder": "撰寫智慧體的系統提示詞：它是誰、要做什麼、有哪些限制。",
   "library.config.agent.prompt.instructions_label": "智慧體系統提示詞",
   "library.config.agent.prompt.load_failed": "無法產生完整的系統提示詞",

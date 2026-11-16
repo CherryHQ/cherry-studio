@@ -2267,6 +2267,7 @@
   "library.config.agent.prompt.caption.skills": "อัปเดตตามทักษะที่เปิดใช้",
   "library.config.agent.prompt.caption.workspace_system": "อัปเดตตาม system.md ของพื้นที่ทำงาน",
   "library.config.agent.prompt.edited": "แก้ไขแล้ว",
+  "library.config.agent.prompt.edited_frozen": "แก้ไขแล้ว ไม่อัปเดตอัตโนมัติอีกต่อไป",
   "library.config.agent.prompt.editor_placeholder": "เขียนพรอมต์ระบบของเอเจนต์: เป็นใคร ทำอะไร และมีข้อจำกัดอะไรบ้าง",
   "library.config.agent.prompt.instructions_label": "พรอมต์ระบบของเอเจนต์",
   "library.config.agent.prompt.load_failed": "ไม่สามารถสร้างพรอมต์ระบบฉบับเต็มได้",

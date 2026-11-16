@@ -2269,6 +2269,7 @@
   "library.config.agent.prompt.caption.skills": "Обновляется вместе с включёнными навыками",
   "library.config.agent.prompt.caption.workspace_system": "Обновляется вместе с system.md рабочей области",
   "library.config.agent.prompt.edited": "Изменено",
+  "library.config.agent.prompt.edited_frozen": "Изменено; больше не обновляется автоматически",
   "library.config.agent.prompt.editor_placeholder": "Напишите системный промпт агента: кто он, что делает и какие у него ограничения.",
   "library.config.agent.prompt.instructions_label": "Системный промпт агента",
   "library.config.agent.prompt.load_failed": "Не удалось собрать полный системный промпт",

@@ -2267,6 +2267,7 @@
   "library.config.agent.prompt.caption.skills": "Cập nhật theo các kỹ năng đã bật",
   "library.config.agent.prompt.caption.workspace_system": "Cập nhật theo system.md của không gian làm việc",
   "library.config.agent.prompt.edited": "Đã sửa",
+  "library.config.agent.prompt.edited_frozen": "Đã chỉnh sửa; không còn tự động cập nhật",
   "library.config.agent.prompt.editor_placeholder": "Viết lời nhắc hệ thống của tác tử: nó là ai, làm gì và có những giới hạn nào.",
   "library.config.agent.prompt.instructions_label": "Lời nhắc hệ thống của tác tử",
   "library.config.agent.prompt.load_failed": "Không thể tạo lời nhắc hệ thống đầy đủ",

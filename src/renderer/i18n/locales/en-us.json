@@ -2267,6 +2267,7 @@
   "library.config.agent.prompt.caption.skills": "Updates with the enabled skills",
   "library.config.agent.prompt.caption.workspace_system": "Updates with the workspace's system.md",
   "library.config.agent.prompt.edited": "Edited",
+  "library.config.agent.prompt.edited_frozen": "Edited; no longer updates automatically",
   "library.config.agent.prompt.editor_placeholder": "Write the Agent's System Prompt: who it is, what it does, and its limits.",
   "library.config.agent.prompt.instructions_label": "Agent System Prompt",
   "library.config.agent.prompt.load_failed": "Couldn't assemble the full System Prompt",

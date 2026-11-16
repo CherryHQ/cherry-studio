@@ -2270,6 +2270,7 @@
   "library.config.agent.prompt.caption.skills": "Aktualizuje se podle zapnutých dovedností",
   "library.config.agent.prompt.caption.workspace_system": "Aktualizuje se podle system.md pracovního prostoru",
   "library.config.agent.prompt.edited": "Upraveno",
+  "library.config.agent.prompt.edited_frozen": "Upraveno; už se neaktualizuje automaticky",
   "library.config.agent.prompt.editor_placeholder": "Napište systémový prompt agenta: kdo je, co dělá a jaké má hranice.",
   "library.config.agent.prompt.instructions_label": "Systémový prompt agenta",
   "library.config.agent.prompt.load_failed": "Úplný systémový prompt se nepodařilo sestavit",

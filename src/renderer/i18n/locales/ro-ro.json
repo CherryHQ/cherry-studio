@@ -2268,6 +2268,7 @@
   "library.config.agent.prompt.caption.skills": "Se actualizează odată cu abilitățile activate",
   "library.config.agent.prompt.caption.workspace_system": "Se actualizează odată cu system.md al spațiului de lucru",
   "library.config.agent.prompt.edited": "Modificat",
+  "library.config.agent.prompt.edited_frozen": "Editat; nu se mai actualizează automat",
   "library.config.agent.prompt.editor_placeholder": "Scrieți promptul de sistem al agentului: cine este, ce face și care îi sunt limitele.",
   "library.config.agent.prompt.instructions_label": "Promptul de sistem al agentului",
   "library.config.agent.prompt.load_failed": "Nu s-a putut genera promptul de sistem complet",

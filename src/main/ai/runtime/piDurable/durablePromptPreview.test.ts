@@ -218,6 +218,48 @@ describe('previewDurableSystemPrompt', () => {
     expect(block(preview, 'report_artifacts')?.text).toContain('## Reporting deliverables')
   })
 
+  it('sends an edited skills or reply language section in place of the generated one until it is restored', async () => {
+    await seedSkill('skill-1', 'release-notes', 'Write release notes from merged changes.')
+    const id = randomUUID()
+    const agentDataPath = await createAgentDataDirectory(application.getPath('feature.agents.data'), id)
+    const agent = agentService.createAgentWithId(id, {
+      type: 'pi-durable',
+      name: 'Reviewer',
+      model,
+      instructions: 'Review pull requests.',
+      configuration: {
+        bootstrap_completed: true,
+        // No MCP server is enabled, so that section is not generated and its edit must not be sent.
+        prompt_overrides: { skills: 'Use only my skills.', language: 'Reply in French.', mcp_instructions: 'MCP edit.' }
+      }
+    })
+    await mkdir(application.getPath('feature.agents.system_workspaces'), { recursive: true })
+    const runtime = async (configuration: typeof agent.configuration) =>
+      renderDurablePrompt(
+        await buildDurablePrompt(await loadPiSdk(), {
+          agent: { ...agent, configuration },
+          cwd: application.getPath('feature.agents.system_workspaces'),
+          agentDataPath,
+          effectiveLanguage: 'English',
+          channelLinked: false,
+          disabledTools: new Set(),
+          knowledgeBaseScope: [],
+          skillPaths: [application.getPath('feature.agents.skills', 'release-notes')]
+        })
+      )
+
+    const edited = await runtime(agent.configuration)
+    const restored = await runtime({ ...agent.configuration, prompt_overrides: {} })
+
+    expect(edited).toContain('<skills>\nUse only my skills.\n</skills>')
+    expect(edited).not.toContain('Write release notes from merged changes.')
+    expect(edited).toContain('Reply in French.')
+    expect(edited).not.toContain('respond in English')
+    expect(edited).not.toContain('MCP edit.')
+    expect(restored).toContain('Write release notes from merged changes.')
+    expect(restored).toContain('respond in English')
+  })
+
   it('returns the built-in prompt of a built-in Agent', async () => {
     // Built-in Agents are seeded, never created through the service.
     const { id } = dbh.db

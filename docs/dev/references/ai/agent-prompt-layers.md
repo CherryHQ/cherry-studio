@@ -56,14 +56,15 @@ guidance both name tools in the call form each runtime adapter passes: Claude Co
 `tools.mcp__cherry_tools__…()` inside `codemode`, because it registers MCP tools
 for scripts only and its `tool_search` loads model tools.
 
-A Pi Durable Agent may replace any of the Cherry-written guidance blocks
-(instruction precedence, deliverables, create tools, bootstrap, memories,
-citations) with its own text, stored in `configuration.prompt_overrides` and
-keyed by `EDITABLE_PROMPT_SECTIONS`. `buildAgentRuntimePrompt` substitutes an
-override only for a block the current settings generate; Claude Code and Pi
-ignore overrides. Identity, skills, workspace, MCP, and language blocks are never
-overridden: the System Prompt page edits identity through the `SOUL.md`,
-`USER.md`, and `FACT.md` files themselves.
+A Pi Durable Agent may replace any block of its System Prompt except identity
+with its own text, stored in `configuration.prompt_overrides` and keyed by
+`EDITABLE_PROMPT_SECTIONS`: the Cherry-written guidance and the blocks that
+follow data or settings (workspace instructions, skills, MCP instructions,
+workspace `system.md`, reply language). `buildAgentRuntimePrompt` and
+`buildDurablePrompt` substitute an override only for a block the current
+settings generate, and a replaced live block no longer follows its data until
+the override is removed. Claude Code and Pi ignore overrides. Identity is edited
+through the `SOUL.md`, `USER.md`, and `FACT.md` files themselves.
 
 ## Persona and onboarding
 

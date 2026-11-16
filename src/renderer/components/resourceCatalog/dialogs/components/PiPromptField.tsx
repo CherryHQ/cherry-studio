@@ -1,9 +1,9 @@
-import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { ChevronLeft, ChevronRight, RotateCcw } from 'lucide-react'
 import { type ReactNode, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { estimateTokenCount } from 'tokenx'
 
-import { Button, Textarea } from '@cherrystudio/ui'
+import { Button, Textarea, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
 import { RESOURCE_PROMPT_POLISH_SYSTEM_PROMPT } from '@renderer/utils/resourceCatalog'
@@ -173,7 +173,7 @@ export function PiPromptField({
 
   const opened = preview?.blocks.find((block) => block.key === section && block.kind !== 'instructions')
   if (opened) {
-    const editable = opened.kind === 'guidance' && Boolean(overrides) && isEditablePromptSection(opened.key)
+    const editable = Boolean(overrides) && isEditablePromptSection(opened.key)
     const identity = opened.key === 'agent_identity' ? identityEditor : undefined
     return (
       <div className="flex min-h-0 flex-1 flex-col gap-3">
@@ -190,7 +190,7 @@ export function PiPromptField({
         )}
         {identity ??
           (editable ? (
-            <GuidanceEditor
+            <BlockEditor
               block={opened}
               override={overrideOf(opened.key)}
               onChange={(next) => setOverride(opened.key, next === opened.text ? undefined : next)}
@@ -224,7 +224,8 @@ export function PiPromptField({
               const note =
                 overrideOf(block.key) !== undefined
                   ? t('library.config.agent.prompt.edited')
-                  : (block.kind === 'guidance' && overrides) || (block.key === 'agent_identity' && identityEditor)
+                  : (overrides && isEditablePromptSection(block.key)) ||
+                      (block.key === 'agent_identity' && identityEditor)
                     ? undefined
                     : t('library.config.agent.prompt.read_only')
               return (
@@ -282,7 +283,25 @@ function BlockViewer({ block }: { block: AgentPromptBlockPreview }) {
   )
 }
 
-function GuidanceEditor({
+/** Resets a page to where it started; always in the same corner, enabled once there is something to undo. */
+function RestoreButton({ label, disabled, onClick }: { label: string; disabled: boolean; onClick: () => void }) {
+  return (
+    <Tooltip content={label}>
+      <Button
+        type="button"
+        variant="ghost"
+        aria-label={label}
+        aria-disabled={disabled}
+        onClick={disabled ? undefined : onClick}
+        className="flex size-6 min-h-0 items-center justify-center rounded-md border border-border-subtle p-0 text-muted-foreground! shadow-none transition-colors hover:bg-accent/50 hover:text-foreground! focus-visible:bg-accent/50 focus-visible:text-foreground! focus-visible:ring-0 aria-disabled:pointer-events-none aria-disabled:opacity-40">
+        <RotateCcw className="size-3" />
+      </Button>
+    </Tooltip>
+  )
+}
+
+/** A block the Agent may rewrite; an edited live block stops following the data it was generated from. */
+function BlockEditor({
   block,
   override,
   onChange,
@@ -296,17 +315,17 @@ function GuidanceEditor({
   const { t } = useTranslation()
   const text = override ?? block.text
   const label = BLOCK_TITLES[block.key] ? t(BLOCK_TITLES[block.key]) : block.key
+  const status =
+    override === undefined
+      ? t(BLOCK_CAPTIONS[block.key] ?? 'library.config.agent.prompt.summary.generated')
+      : t(
+          block.kind === 'guidance' ? 'library.config.agent.prompt.edited' : 'library.config.agent.prompt.edited_frozen'
+        )
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-2">
       <div className="flex min-h-6 items-center justify-between gap-2">
-        <span className="text-muted-foreground text-xs">
-          {t(
-            override === undefined
-              ? 'library.config.agent.prompt.summary.generated'
-              : 'library.config.agent.prompt.edited'
-          )}
-        </span>
-        <span className="flex items-center gap-1">
+        <span className="truncate text-muted-foreground text-xs">{status}</span>
+        <span className="flex shrink-0 items-center gap-1">
           <PromptPolishActions
             value={text}
             fallbackSource={block.text}
@@ -314,11 +333,11 @@ function GuidanceEditor({
             existingValueSystemPrompt={RESOURCE_PROMPT_POLISH_SYSTEM_PROMPT}
             onChange={onChange}
           />
-          {override !== undefined ? (
-            <Button type="button" variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={onRestore}>
-              {t('library.config.agent.prompt.restore_generated')}
-            </Button>
-          ) : null}
+          <RestoreButton
+            label={t('library.config.agent.prompt.restore_generated')}
+            disabled={override === undefined}
+            onClick={onRestore}
+          />
         </span>
       </div>
       <div className="flex min-h-0 flex-1 rounded-xl border border-border px-3 py-1">
@@ -357,10 +376,12 @@ function InstructionsEditor({
             existingValueSystemPrompt={RESOURCE_PROMPT_POLISH_SYSTEM_PROMPT}
             onChange={onChange}
           />
-          {builtin && value !== builtin ? (
-            <Button type="button" variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={() => onChange('')}>
-              {t('library.config.agent.prompt.restore_builtin')}
-            </Button>
+          {builtin ? (
+            <RestoreButton
+              label={t('library.config.agent.prompt.restore_builtin')}
+              disabled={value === builtin}
+              onClick={() => onChange('')}
+            />
           ) : null}
         </span>
       </div>

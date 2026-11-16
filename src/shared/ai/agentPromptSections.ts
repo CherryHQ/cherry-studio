@@ -1,17 +1,26 @@
 import * as z from 'zod'
 
-/** Cherry-written guidance blocks of a Pi Durable System Prompt that an Agent may replace with its own text. */
+/**
+ * Blocks of a Pi Durable System Prompt that an Agent may replace with its own text. Identity is not one:
+ * it is edited through SOUL.md, USER.md and FACT.md instead.
+ */
 export const EDITABLE_PROMPT_SECTIONS = [
   'instruction_precedence',
   'report_artifacts',
   'config_tools',
   'bootstrap',
   'memories',
-  'citations'
+  'citations',
+  'project_context',
+  'skills',
+  'mcp_instructions',
+  'workspace_system',
+  'custom_base_context',
+  'language'
 ] as const
 export type EditablePromptSection = (typeof EDITABLE_PROMPT_SECTIONS)[number]
 
-/** Per-Agent replacement text, keyed by guidance block; a missing key keeps the generated text. */
+/** Per-Agent replacement text, keyed by block; a missing key keeps the generated text. */
 export const AgentPromptOverridesSchema = z.partialRecord(z.enum(EDITABLE_PROMPT_SECTIONS), z.string())
 export type AgentPromptOverrides = z.infer<typeof AgentPromptOverridesSchema>
 

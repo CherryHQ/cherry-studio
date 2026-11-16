@@ -2267,6 +2267,7 @@
   "library.config.agent.prompt.caption.skills": "Ενημερώνεται με τις ενεργές δεξιότητες",
   "library.config.agent.prompt.caption.workspace_system": "Ενημερώνεται με το system.md του χώρου εργασίας",
   "library.config.agent.prompt.edited": "Τροποποιήθηκε",
+  "library.config.agent.prompt.edited_frozen": "Επεξεργάστηκε· δεν ενημερώνεται πλέον αυτόματα",
   "library.config.agent.prompt.editor_placeholder": "Γράψτε το System Prompt του πράκτορα: ποιος είναι, τι κάνει και ποια είναι τα όριά του.",
   "library.config.agent.prompt.instructions_label": "System Prompt πράκτορα",
   "library.config.agent.prompt.load_failed": "Δεν ήταν δυνατή η σύνθεση του πλήρους System Prompt",

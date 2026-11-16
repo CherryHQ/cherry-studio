@@ -89,13 +89,13 @@ const openSection = (user: ReturnType<typeof userEvent.setup>, name: string) =>
   user.click(screen.getByRole('button', { name: new RegExp(`^${name}(:|$)`) }))
 
 describe('PiPromptField', () => {
-  it('leads with the Agent prompt and lists the other blocks, marking those it cannot change', async () => {
+  it('leads with the Agent prompt and lists every other block as editable where edits can be saved', async () => {
     answerWithDraft()
     render(<Harness initial="Review code." withOverrides />)
 
     expect(await screen.findByRole('button', { name: REPORT })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '技能: 只读' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '回复语言: 只读' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '技能' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '回复语言' })).toBeInTheDocument()
     expect(screen.getAllByRole('textbox')).toEqual([screen.getByRole('textbox', INSTRUCTIONS)])
     expect(screen.getByRole('textbox', INSTRUCTIONS)).toHaveValue('Review code.')
   })
@@ -148,6 +148,26 @@ describe('PiPromptField', () => {
     expect(screen.getByRole('textbox', { name: REPORT })).toHaveValue(GENERATED_REPORT)
   })
 
+  it('edits a live block, says it no longer updates, and restores it from the corner icon', async () => {
+    answerWithDraft()
+    const user = userEvent.setup()
+    render(<Harness withOverrides />)
+    await screen.findByRole('button', { name: '技能' })
+    await openSection(user, '技能')
+    expect(screen.getByText('随启用的技能更新')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '恢复自动生成' })).toHaveAttribute('aria-disabled', 'true')
+
+    await user.type(screen.getByRole('textbox', { name: '技能' }), ' Only mine.')
+
+    expect(screen.getByText('overrides: {"skills":"skills= Only mine."}')).toBeInTheDocument()
+    expect(screen.getByText('已修改，不再自动更新')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: '恢复自动生成' }))
+
+    expect(screen.getByText('overrides: {}')).toBeInTheDocument()
+    expect(screen.getByRole('textbox', { name: '技能' })).toHaveValue('skills=')
+  })
+
   it('marks an edited block in the list', async () => {
     answerWithDraft()
     const user = userEvent.setup()
@@ -166,7 +186,7 @@ describe('PiPromptField', () => {
     const user = userEvent.setup()
     render(<Harness />)
     await waitFor(() => expect(screen.getByRole('textbox', INSTRUCTIONS)).toHaveValue('You are Cherry Assistant.'))
-    expect(screen.queryByRole('button', { name: '恢复内置提示词' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '恢复内置提示词' })).toHaveAttribute('aria-disabled', 'true')
 
     await user.type(screen.getByRole('textbox', INSTRUCTIONS), ' Be brief.')
     expect(screen.getByText('saved: You are Cherry Assistant. Be brief.')).toBeInTheDocument()
