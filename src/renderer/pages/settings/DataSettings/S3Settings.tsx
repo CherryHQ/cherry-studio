@@ -13,6 +13,7 @@ import Selector from '@renderer/components/Selector'
 import {
   SettingDivider,
   SettingGroup,
+  SettingHelpText,
   SettingRow,
   SettingRowTitle,
   SettingTitle
