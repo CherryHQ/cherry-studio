@@ -423,6 +423,18 @@ describe('ActionTranslate', () => {
     expect(screen.queryByText("Model with id 'provider/model' not found")).not.toBeInTheDocument()
   })
 
+  it('keeps an unclassified raw translation error off the surface', async () => {
+    state.detectLanguage.mockResolvedValue('unknown')
+    state.translate.mockRejectedValue(new Error('Provider returned an unexpected response'))
+
+    render(
+      <ActionTranslate sourceEntityId="test-session" action={createAction()} scrollToBottom={state.scrollToBottom} />
+    )
+
+    expect(await screen.findByText('error.diagnosis.unknown')).toBeInTheDocument()
+    expect(screen.queryByText('Provider returned an unexpected response')).not.toBeInTheDocument()
+  })
+
   it('reads a completed translation result only after the response is final', async () => {
     state.detectLanguage.mockResolvedValue('en-us')
     let resolveTranslate: (value: string) => void = () => {}

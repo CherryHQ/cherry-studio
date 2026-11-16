@@ -8,6 +8,7 @@ import { loggerService } from '@logger'
 import { toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
 import CopyButton from '@renderer/components/CopyButton'
 import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
+import { ErrorNotice } from '@renderer/components/ErrorNotice'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useExecutionOverlay } from '@renderer/hooks/useExecutionOverlay'
 import { useStreamCommands } from '@renderer/hooks/useStreamCommands'
@@ -202,15 +203,19 @@ const ActionGeneral: FC<Props> = React.memo(({ action, sourceEntityId, scrollToB
           )}
         </div>
         {error && completionError && (
-          <div className="mt-3 mb-3 rounded border border-error-border bg-error-subtle px-3 py-2 text-[13px] break-all text-error-subtle-foreground">
-            <div>{error}</div>
-            <ErrorDetailAction
-              error={completionError.cause}
-              message={error}
-              source="selection"
-              operation="selection.action"
-            />
-          </div>
+          <ErrorNotice
+            variant="inline"
+            className="my-3"
+            title={error}
+            detail={
+              <ErrorDetailAction
+                error={completionError.cause}
+                message={error}
+                source="selection"
+                operation="selection.action"
+              />
+            }
+          />
         )}
       </div>
       <div className="min-h-3" />
