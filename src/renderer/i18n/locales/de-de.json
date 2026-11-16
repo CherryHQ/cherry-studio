@@ -6058,7 +6058,6 @@
   "settings.tool.websearch.compression.method.label": "Kompressionsmethode",
   "settings.tool.websearch.compression.method.none": "Nicht komprimieren",
   "settings.tool.websearch.errors.save_failed": "Speichern fehlgeschlagen",
-  "settings.tool.websearch.errors.zhipu_sync_failed": "Synchronisierung des Zhipu-API-Schlüssels mit der Websuche fehlgeschlagen. Bitte speichern Sie den Schlüssel erneut oder überprüfen Sie die Einstellungen der Websuche.",
   "settings.tool.websearch.fetch_urls_provider": "URL-Abrufanbieter",
   "settings.tool.websearch.model_tools_preferred.description": "Bei der Websuche im Chat modellintegrierte Websuche und URL-Abrufe bevorzugen und bei Nichtverfügbarkeit automatisch zu den oben aufgeführten Diensten wechseln. Agent-Unterhaltungen verwenden immer die oben aufgeführten Dienste.",
   "settings.tool.websearch.model_tools_preferred.label": "Modellintegrierte Web-Tools bevorzugen",

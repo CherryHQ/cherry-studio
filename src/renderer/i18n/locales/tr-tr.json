@@ -6058,7 +6058,6 @@
   "settings.tool.websearch.compression.method.label": "Sıkıştırma Yöntemi",
   "settings.tool.websearch.compression.method.none": "Yok",
   "settings.tool.websearch.errors.save_failed": "Kaydetme başarısız",
-  "settings.tool.websearch.errors.zhipu_sync_failed": "Zhipu API anahtarı Web Arama ile eşitlenemedi. Anahtarı yeniden kaydedin veya Web Arama ayarlarını kontrol edin.",
   "settings.tool.websearch.fetch_urls_provider": "URL getirme sağlayıcısı",
   "settings.tool.websearch.model_tools_preferred.description": "Sohbette web araması için modelin yerleşik web araması ve URL getirme özelliklerini tercih eder; bu özellikler kullanılamadığında otomatik olarak yukarıdaki hizmetlere başvurur. Ajan sohbetleri her zaman yukarıdaki hizmetleri kullanır.",
   "settings.tool.websearch.model_tools_preferred.label": "Modelin yerleşik web araçlarını tercih et",

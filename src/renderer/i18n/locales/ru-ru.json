@@ -6058,7 +6058,6 @@
   "settings.tool.websearch.compression.method.label": "Метод сжатия",
   "settings.tool.websearch.compression.method.none": "Не сжимать",
   "settings.tool.websearch.errors.save_failed": "Ошибка сохранения",
-  "settings.tool.websearch.errors.zhipu_sync_failed": "Не удалось синхронизировать ключ API Zhipu с веб-поиском. Повторно сохраните ключ или проверьте настройки веб-поиска.",
   "settings.tool.websearch.fetch_urls_provider": "Провайдер загрузки URL",
   "settings.tool.websearch.model_tools_preferred.description": "Предпочитать встроенные в модель веб-поиск и получение данных по URL для веб-поиска в чате, автоматически переключаясь на указанные выше сервисы, если эти функции недоступны. В диалогах с агентами всегда используются указанные выше сервисы.",
   "settings.tool.websearch.model_tools_preferred.label": "Предпочитать встроенные веб-инструменты модели",

@@ -6058,7 +6058,6 @@
   "settings.tool.websearch.compression.method.label": "圧縮方法",
   "settings.tool.websearch.compression.method.none": "圧縮しない",
   "settings.tool.websearch.errors.save_failed": "保存に失敗しました",
-  "settings.tool.websearch.errors.zhipu_sync_failed": "Zhipu APIキーのWeb Searchへの同期に失敗しました。キーを再保存するか、Web Searchの設定を確認してください。",
   "settings.tool.websearch.fetch_urls_provider": "URL取得プロバイダー",
   "settings.tool.websearch.model_tools_preferred.description": "チャットでの Web 検索ではモデル内蔵の Web 検索と URL 取得を優先し、利用できない場合は上記のサービスへ自動的に切り替えます。エージェントとの会話では常に上記のサービスを使用します。",
   "settings.tool.websearch.model_tools_preferred.label": "モデル内蔵の Web ツールを優先",

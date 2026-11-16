@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 
 import type * as IconLibrary from '@cherrystudio/ui/icons'
@@ -72,6 +72,7 @@ const items: ModelSelectorModelItem[] = Array.from({ length: 50 }, (_, index) =>
 const originalScrollTo = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'scrollTo')
 
 beforeEach(() => {
+  vi.useFakeTimers({ shouldAdvanceTime: true })
   // Supply browser geometry while retaining the real portal and virtualizer lifecycles.
   vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockImplementation(function (this: HTMLElement) {
     return this.hasAttribute('data-index') ? 36 : 200
@@ -88,7 +89,11 @@ beforeEach(() => {
   })
 })
 
-afterEach(() => {
+afterEach(async () => {
+  cleanup()
+  // Flush the virtualizer scroll debounce before the DOM environment is torn down.
+  await act(() => vi.runOnlyPendingTimersAsync())
+  vi.useRealTimers()
   vi.restoreAllMocks()
   if (originalScrollTo) Object.defineProperty(HTMLElement.prototype, 'scrollTo', originalScrollTo)
   else Reflect.deleteProperty(HTMLElement.prototype, 'scrollTo')

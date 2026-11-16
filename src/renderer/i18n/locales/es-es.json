@@ -6058,7 +6058,6 @@
   "settings.tool.websearch.compression.method.label": "Método de compresión",
   "settings.tool.websearch.compression.method.none": "Sin compresión",
   "settings.tool.websearch.errors.save_failed": "Error al guardar",
-  "settings.tool.websearch.errors.zhipu_sync_failed": "Error al sincronizar la clave API de Zhipu con Web Search. Vuelve a guardar la clave o verifica la configuración de Web Search.",
   "settings.tool.websearch.fetch_urls_provider": "Proveedor de obtención de URL",
   "settings.tool.websearch.model_tools_preferred.description": "Prioriza la búsqueda web y la obtención de URL nativas del modelo para la búsqueda web en el chat, y cambia automáticamente a los servicios anteriores cuando estas funciones no están disponibles. Las conversaciones con agentes siempre usan los servicios anteriores.",
   "settings.tool.websearch.model_tools_preferred.label": "Preferir las herramientas web nativas del modelo",
