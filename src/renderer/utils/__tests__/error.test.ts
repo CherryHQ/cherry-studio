@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 import { isSerializedAiSdkErrorUnion } from '@renderer/types/error'
 import { aiStreamAdmissionReasons } from '@shared/ai/transport'
+import { DataApiError, DataApiErrorFactory, ErrorCode } from '@shared/data/api/errors'
 import { aiErrorCodes, aiErrorDetail } from '@shared/ipc/errors/ai'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 
@@ -20,7 +21,12 @@ import {
 } from '../error'
 import { classifyError } from '../errorClassifier'
 
-vi.mock('i18next', () => ({ t: (key: string) => key }))
+vi.mock('i18next', async () => {
+  const { default: enUS } = await import('@renderer/i18n/locales/en-us.json')
+  return {
+    t: (key: string) => (key === 'message.error.agent_session_message_protected' ? enUS[key as keyof typeof enUS] : key)
+  }
+})
 
 describe('error', () => {
   it.each(['responseBody', 'data'] as const)('preserves quota diagnosis after sanitizing %s', (field) => {
@@ -53,15 +59,20 @@ describe('error', () => {
     expect(classifyError(serializeError(error)).category).toBe('rate_limit')
   })
 
-  it('maps stream admission reasons to renderer i18n without the generic error prefix', () => {
+  it.each([
+    ['SINGLE_MODEL_REQUIRED', 'single_model_required'],
+    ['TARGET_NOT_IN_LIVE_GROUP', 'target_not_in_live_group'],
+    ['MODEL_ALREADY_IN_LIVE_GROUP', 'model_already_in_live_group'],
+    ['EXECUTION_NOT_READY', 'execution_not_ready'],
+    ['EXECUTION_CHANGED', 'execution_changed'],
+    ['TOPIC_BUSY', 'topic_busy']
+  ] as const)('keeps %s admission guidance from falling through to a generic prefix', (reason, key) => {
     const error = new IpcError(aiErrorCodes.AI_STREAM_ADMISSION_REJECTED, 'reason-code', {
-      reason: aiStreamAdmissionReasons.MODEL_ALREADY_IN_LIVE_GROUP
+      reason: aiStreamAdmissionReasons[reason]
     })
 
-    expect(getErrorMessage(error)).toBe('message.error.stream_admission.model_already_in_live_group')
-    expect(formatErrorMessageWithPrefix(error, 'Unknown error')).toBe(
-      'message.error.stream_admission.model_already_in_live_group'
-    )
+    expect(getErrorMessage(error)).toBe(`message.error.stream_admission.${key}`)
+    expect(formatErrorMessageWithPrefix(error, 'Unknown error')).toBe(`message.error.stream_admission.${key}`)
   })
 
   it('maps Agent Session archive busy errors to localized guidance without the internal message', () => {
@@ -73,6 +84,69 @@ describe('error', () => {
     expect(formatErrorMessageWithPrefix(error, 'Failed to delete the session')).toBe(
       'recycle_bin.move.blocked_generation'
     )
+  })
+
+  describe('Agent-session message protection guidance', () => {
+    const guidance =
+      'This message is protected to preserve session history or a pending reply. Choose New task to start a new session, or use Fork on an earlier completed reply if available. Both options keep the original session and this message.'
+
+    it.each(['factory', 'IPC round trip', 'different id and text without request context'])(
+      'prevents internal lock details leaking through either display helper: %s',
+      (variant) => {
+        let error: DataApiError = DataApiErrorFactory.resourceLocked('Message', 'u', 'native input binding')
+        if (variant === 'IPC round trip') error = DataApiError.fromJSON(error.toJSON())
+        if (variant === 'different id and text without request context') {
+          error = DataApiErrorFactory.resourceLocked('Message', 'protected-message-id', 'native input binding')
+          error.message = 'A different operation was refused'
+        }
+        expect(error.requestContext).toBeUndefined()
+        const outputs = [formatErrorMessageWithPrefix(error, 'Unknown error'), getErrorMessage(error)]
+        for (const output of outputs) {
+          expect(output).toBe(guidance)
+          for (const internal of [
+            'Unknown error',
+            'message.error.unknown',
+            'error.unknown',
+            'native input binding',
+            'inputContextId',
+            'nativeSessionId',
+            'deliveryReplyAnchor',
+            'RESOURCE_LOCKED',
+            'message.error.agent_session_message_protected',
+            variant === 'different id and text without request context' ? 'protected-message-id' : "'u'",
+            'is locked by'
+          ]) {
+            expect(output).not.toContain(internal)
+          }
+        }
+      }
+    )
+
+    it.each([
+      ['delivery lock', { details: { resource: 'Message', id: 'u', lockedBy: 'an in-flight Session delivery' } }],
+      ['root lock', { details: { resource: 'Message', id: 'u', lockedBy: 'the conversation root' } }],
+      ['other lock', { details: { resource: 'Message', id: 'u', lockedBy: 'another operation' } }],
+      ['missing lock owner', { details: { resource: 'Message', id: 'u' } }],
+      ['missing details', { details: undefined }],
+      ['other resource', { details: { resource: 'Session', id: 'u', lockedBy: 'native input binding' } }],
+      ['other code', { code: ErrorCode.CONFLICT }],
+      ['wrong status', { status: 409 }]
+    ] as const)('does not misclassify a partial protection signature: %s', (_regression, overrides) => {
+      const original = DataApiErrorFactory.resourceLocked('Message', 'u', 'native input binding')
+      const error = DataApiError.fromJSON({ ...original.toJSON(), ...overrides })
+      expect(formatErrorMessageWithPrefix(error, 'Unknown error')).toBe(
+        "Unknown error: Message 'u' is locked by native input binding"
+      )
+      expect(getErrorMessage(error)).toBe("Message 'u' is locked by native input binding")
+    })
+
+    it('does not mistake plain error text for a structured protection refusal', () => {
+      const error = new Error("Message 'u' is locked by native input binding")
+      expect(formatErrorMessageWithPrefix(error, 'Unknown error')).toBe(
+        "Unknown error: Message 'u' is locked by native input binding"
+      )
+      expect(getErrorMessage(error)).toBe(error.message)
+    })
   })
 
   describe('getErrorDetails', () => {
