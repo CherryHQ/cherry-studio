@@ -1,7 +1,6 @@
 import { type RefObject, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button } from '@cherrystudio/ui'
 import { ResourceList } from '@renderer/components/chat/resourceList/base'
 import { useConversationListShortcuts } from '@renderer/components/chat/resourceList/useConversationListShortcuts'
 import {
@@ -9,7 +8,6 @@ import {
   isSystemWorkspaceSession,
   type SessionListItem
 } from '@renderer/utils/chat/sessionListHelpers'
-import { formatErrorMessage } from '@renderer/utils/error'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { TopicTabPosition } from '@shared/data/preference/preferenceTypes'
 
@@ -126,25 +124,15 @@ export function SessionListBody({
       draggable={isDraggable}
       errorFallback={
         <ResourceList.ErrorState
+          message={t('agent.session.get.error.failed')}
+          action={{ label: t('common.retry'), onClick: () => void onRetry(), disabled: isValidating }}
           detail={{
             error,
             message: t('agent.session.get.error.failed'),
             source: 'agent.session',
             operation: 'agent.session.list'
-          }}>
-          <div className="flex flex-col gap-2">
-            <div className="font-medium text-destructive">{t('agent.session.get.error.failed')}</div>
-            <div className="text-muted-foreground">{formatErrorMessage(error)}</div>
-            <Button
-              size="sm"
-              variant="outline"
-              className="w-fit"
-              onClick={() => void onRetry()}
-              disabled={isValidating}>
-              {t('common.retry')}
-            </Button>
-          </div>
-        </ResourceList.ErrorState>
+          }}
+        />
       }
       emptyFallback={
         <div className="text-muted-foreground mx-auto flex h-full w-full max-w-sm items-center justify-center px-5 py-10 text-center text-xs break-words">
