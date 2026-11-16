@@ -1404,6 +1404,7 @@
   "common.language": "言語",
   "common.link.copy": "リンクをコピー",
   "common.link.open_browser": "内蔵ブラウザーで開く",
+  "common.load_failed": "読み込みに失敗しました",
   "common.loading": "読み込み中...",
   "common.maximize": "最大化",
   "common.minimize": "最小化",

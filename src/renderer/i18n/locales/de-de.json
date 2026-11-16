@@ -1404,6 +1404,7 @@
   "common.language": "Sprache",
   "common.link.copy": "Link kopieren",
   "common.link.open_browser": "Im integrierten Browser öffnen",
+  "common.load_failed": "Laden fehlgeschlagen",
   "common.loading": "Lädt...",
   "common.maximize": "Maximieren",
   "common.minimize": "Minimieren",

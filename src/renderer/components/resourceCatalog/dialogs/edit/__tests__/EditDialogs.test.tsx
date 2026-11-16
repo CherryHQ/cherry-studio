@@ -1280,6 +1280,32 @@ describe('edit dialogs', () => {
     expect(bindPromptMock).not.toHaveBeenCalled()
   })
 
+  it('shows a prompt load failure as the translated summary and keeps the raw text behind Details', async () => {
+    const queryAll = useQueryMock.getMockImplementation()!
+    useQueryMock.mockImplementation((path: string, options?: unknown) =>
+      path === '/prompts'
+        ? { data: undefined, error: new Error('SQLITE_BUSY: database is locked'), isLoading: false, refetch: vi.fn() }
+        : queryAll(path, options)
+    )
+    render(<PromptBindingTab onManageGlobal={vi.fn()} enabled target={{ type: 'assistant', id: ASSISTANT.id }} />)
+
+    const alert = screen.getByRole('alert')
+    expect(alert).toHaveTextContent('Failed to load prompts')
+    expect(alert).not.toHaveTextContent('SQLITE_BUSY')
+    expect(within(alert).getByRole('button', { name: /common\.detail/ })).toBeInTheDocument()
+  })
+
+  it('titles a failed prompt link with the translated conclusion and keeps the raw text as the cause', async () => {
+    const cause = new Error('FOREIGN KEY constraint failed')
+    bindPromptMock.mockRejectedValueOnce(cause)
+    render(<PromptBindingTab onManageGlobal={vi.fn()} enabled target={{ type: 'assistant', id: ASSISTANT.id }} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Bind prompt' }))
+    fireEvent.click(await screen.findByText('Reusable prompt'))
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith({ title: 'Failed to link prompt', cause }))
+  })
+
   it('keeps a new target binding locked when the previous target request settles', async () => {
     const previousBinding = createDeferred<void>()
     const currentBinding = createDeferred<void>()

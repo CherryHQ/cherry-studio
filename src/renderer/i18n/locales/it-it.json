@@ -1404,6 +1404,7 @@
   "common.language": "Lingua",
   "common.link.copy": "Copia link",
   "common.link.open_browser": "Apri nel browser integrato",
+  "common.load_failed": "Caricamento non riuscito",
   "common.loading": "Caricamento...",
   "common.maximize": "Ingrandisci",
   "common.minimize": "Riduci a icona",

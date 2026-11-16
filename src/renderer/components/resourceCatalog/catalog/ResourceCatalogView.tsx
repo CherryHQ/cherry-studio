@@ -1,9 +1,9 @@
 import { lazy, type ReactNode, Suspense, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Alert, Button } from '@cherrystudio/ui'
 import { archiveAgentSessionsPopup } from '@renderer/components/chat/archiveAgentSessionsPopup'
 import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
+import { ErrorNotice } from '@renderer/components/ErrorNotice'
 import { ResourceDeleteConfirmDialog } from '@renderer/components/resourceCatalog/dialogs/delete'
 import { useResourceCatalogController } from '@renderer/hooks/resourceCatalog'
 import type { ResourceItem, ResourceType } from '@renderer/types/resourceCatalog'
@@ -92,25 +92,18 @@ export function ResourceCatalogView({
               </div>
             ) : null}
             <div className="flex min-h-0 flex-1 items-center justify-center p-6">
-              <Alert
-                type="error"
-                showIcon
-                message={t('common.error')}
-                description={resourceError.message}
-                action={
-                  <div className="flex items-center gap-2">
-                    <Button variant="outline" size="sm" onClick={refetch}>
-                      {t('common.retry')}
-                    </Button>
-                    <ErrorDetailAction
-                      error={resourceError}
-                      message={t('common.error')}
-                      source="resource.catalog"
-                      operation={`${resourceType}.list`}
-                    />
-                  </div>
+              <ErrorNotice
+                className="max-w-lg"
+                title={t('common.load_failed')}
+                action={{ label: t('common.retry'), onClick: refetch }}
+                detail={
+                  <ErrorDetailAction
+                    error={resourceError}
+                    message={t('common.load_failed')}
+                    source="resource.catalog"
+                    operation={`${resourceType}.list`}
+                  />
                 }
-                className="max-w-lg rounded-md px-4 py-3 shadow-none"
               />
             </div>
           </>

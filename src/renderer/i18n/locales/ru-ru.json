@@ -1404,6 +1404,7 @@
   "common.language": "Язык",
   "common.link.copy": "Копировать ссылку",
   "common.link.open_browser": "Открыть во встроенном браузере",
+  "common.load_failed": "Не удалось загрузить",
   "common.loading": "Загрузка...",
   "common.maximize": "Максимизировать",
   "common.minimize": "Минимизировать",

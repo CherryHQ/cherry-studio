@@ -1404,6 +1404,7 @@
   "common.language": "Jazyk",
   "common.link.copy": "Kopírovat odkaz",
   "common.link.open_browser": "Otevřít ve vestavěném prohlížeči",
+  "common.load_failed": "Načtení se nezdařilo",
   "common.loading": "Načítání...",
   "common.maximize": "Maximalizovat",
   "common.minimize": "Minimalizovat",

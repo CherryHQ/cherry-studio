@@ -1404,6 +1404,7 @@
   "common.language": "Γλώσσα",
   "common.link.copy": "Αντιγραφή συνδέσμου",
   "common.link.open_browser": "Άνοιγμα στον ενσωματωμένο περιηγητή",
+  "common.load_failed": "Η φόρτωση απέτυχε",
   "common.loading": "Φόρτωση...",
   "common.maximize": "Μεγιστοποίηση",
   "common.minimize": "Ελαχιστοποίηση",
