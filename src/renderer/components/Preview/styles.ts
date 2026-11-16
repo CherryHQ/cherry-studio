@@ -6,18 +6,6 @@ import { cn } from '@renderer/utils/style'
 type DivProps = React.ComponentProps<'div'>
 type ShadowContainerStyle = React.CSSProperties & Record<string, string>
 
-export const PreviewError = ({ className, ref, ...props }: DivProps) =>
-  React.createElement('div', {
-    ref,
-    className: cn(
-      'overflow-auto rounded-[4px] border border-error p-4 break-words whitespace-pre-wrap text-error',
-      className
-    ),
-    ...props
-  })
-
-PreviewError.displayName = 'PreviewError'
-
 export const PreviewContainer = ({
   className,
   role = 'alert',
