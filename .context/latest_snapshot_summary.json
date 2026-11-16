@@ -1,101 +1,252 @@
 {
-  "generated_at": "2026-11-11T17:51:05.255333+00:00",
+  "generated_at": "2026-11-16T17:48:43.073789+00:00",
   "open_issues": {
-    "count": 1000,
+    "count": 1775,
     "total_in_repo": null
   },
   "open_prs": {
-    "count": 926,
+    "count": 1000,
     "by_base": {
-      "": 926
+      "main": 885,
+      "SiinXu/empty-state-scene-kit": 1,
+      "SiinXu/cherry-studio-empty-state-ui-redesign": 1,
+      "SiinXu/product-usage-features": 1,
+      "SiinXu/product-usage-core": 1,
+      "SiinXu/product-usage-spec": 1,
+      "SiinXu/product-analytics-account": 1,
+      "refactor/agent-observation-sharing": 1,
+      "SiinXu/product-analytics-cherryin": 1,
+      "SiinXu/product-analytics-new-user": 1,
+      "SiinXu/product-analytics-core": 1,
+      "SiinXu/product-analytics-spec": 1,
+      "docs/agent-image-byte-paths-spec": 1,
+      "kangfenmao/cherry-diagnostics-analysis-v3": 2,
+      "SiinXu/avatar-crop-spec": 1,
+      "SiinXu/chat-profile-outputs-backfill": 1,
+      "SiinXu/resource-edit-single-page": 1,
+      "SiinXu/chat-profile-settings": 1,
+      "SiinXu/chat-profile-outputs": 1,
+      "SiinXu/chat-profile-suggest": 1,
+      "SiinXu/resource-edit-pages": 1,
+      "SiinXu/chat-profile-pane": 1,
+      "SiinXu/resource-create-avatar-upload": 1,
+      "SiinXu/resource-pi-prompt-preview": 1,
+      "SiinXu/resource-agent-channels": 1,
+      "SiinXu/resource-agent-wizard": 1,
+      "SiinXu/resource-language-heartbeat": 1,
+      "SiinXu/resource-capability-lists": 1,
+      "SiinXu/resource-create-result": 1,
+      "SiinXu/subscription-activation-guide-spec": 1,
+      "SiinXu/resource-create-entry": 1,
+      "SiinXu/resource-create-avatars": 1,
+      "SiinXu/resource-auto-create": 1,
+      "SiinXu/agent-creator-skill": 1,
+      "spec/sidebar-markdown-live-preview": 1,
+      "t3/tab-status-hover-cards": 1,
+      "docs/22442-live-note-references-spec": 1,
+      "404-Page-Found/spec-telegram-topic-agent-binding": 1,
+      "docs/notification-center-list-refinement": 1,
+      "t3/unified-agent-approval-spec": 1,
+      "feat/agent-session-message-part": 1,
+      "spec/message-list-subscriptions": 1,
+      "side-chat/runtime": 1,
+      "side-chat/storage": 1,
+      "t3/tool-result-details": 1,
+      "side-chat/privacy": 1,
+      "docs/side-chat-plan": 1,
+      "investigate_timeout_cause": 1,
+      "t3/stream-rendering-list-jank": 1,
+      "codex/local-history-import/opencode": 1,
+      "codex/local-history-import/codex": 1,
+      "codex/local-history-import/claude-code": 1,
+      "codex/local-history-import/design": 1,
+      "SiinXu/agent-profile-card": 1,
+      "SiinXu/agent-auto-create-skills": 1,
+      "SiinXu/agent-quick-create": 1,
+      "SiinXu/agent-profile-spec": 1,
+      "codex/issue-15970-knowledge-ui": 1,
+      "SiinXu/global-errors-6-settings": 1,
+      "SiinXu/global-errors-5-content": 1,
+      "SiinXu/global-errors-4-chat": 1,
+      "SiinXu/global-errors-3-boot": 1,
+      "SiinXu/global-errors-2-update": 1,
+      "SiinXu/global-errors-1-core": 1,
+      "SiinXu/global-errors-0-spec": 1,
+      "codex/shared-memory/dreaming": 1,
+      "codex/shared-memory/migration": 1,
+      "codex/shared-memory/tools": 1,
+      "codex/shared-memory/runtime": 1,
+      "codex/shared-memory/editor": 1,
+      "codex/shared-memory/access": 1,
+      "codex/shared-memory/storage": 1,
+      "codex/shared-memory/design": 1,
+      "DeJeune/gateway-provider-id": 1,
+      "feat/web-core-m2-agent": 1,
+      "feat/web-core-m1-chat": 1,
+      "feat/web-core-m0-database": 1,
+      "spec/web-core": 1,
+      "split/20440-b-hook": 1,
+      "split/20440-d-lifecycle": 1,
+      "split/20440-a-data-layer": 1,
+      "codex/shared-connector-credentials-spec": 1,
+      "spec/model-defaults-endpoint-routing": 1,
+      "DeJeune/openai-gemini-endpoints-implement": 1,
+      "codex/task-dashboard-runtime": 1,
+      "orca/video-stack-20261016-settings": 1,
+      "orca/video-stack-20261016-media": 1,
+      "orca/media-frame-analysis": 1,
+      "orca/video-stack-20261016-chat": 1,
+      "codex/generated-attachments": 1,
+      "SiinXu/media-ffmpeg-linux-runtime": 1,
+      "DeJeune/native-tool-search-code-mode": 2,
+      "SiinXu/check-assigned-2.2.0-issues": 1,
+      "orca/fix-conditional-service-dependencies": 1,
+      "DeJeune/ai-sdk-v7-upgrade": 1,
+      "DeJeune/ai-sdk-v7-research": 1,
+      "codex/issue-15970-lifecycle-completion": 1,
+      "codex/issue-15970-manual-sync": 1,
+      "codex/issue-15970-feishu-scope-adapter": 1,
+      "codex/issue-15970-external-knowledge-domain": 1,
+      "codex/issue-15970-feishu-connection": 1,
+      "codex/system-speech-validation": 1,
+      "codex/shared-connector-credential-store": 1,
+      "EurFelux/feature-tab-tab": 1,
+      "feat/backup-auto-sync-jobs": 1,
+      "feat/backup-progress-ui": 1,
+      "v1": 4,
+      "feat/backup-progress-resources": 1,
+      "feat/backup-progress-events": 1,
+      "feat/backup-v2-replacement": 1,
+      "SiinXu/v2-shared-components": 1
     }
   },
-  "closed_issues_30d": 639,
-  "closed_prs_30d": 916,
+  "closed_issues_30d": 273,
+  "closed_prs_30d": 500,
   "label_distribution": [
     {
-      "label": "bug",
-      "count": 528
+      "label": "feature",
+      "count": 818
     },
     {
-      "label": "feature",
-      "count": 370
+      "label": "bug",
+      "count": 792
     },
     {
       "label": "p2",
-      "count": 334
-    },
-    {
-      "label": "p3",
-      "count": 286
-    },
-    {
-      "label": "agent",
-      "count": 278
-    },
-    {
-      "label": "needs-info",
-      "count": 226
-    },
-    {
-      "label": "needs-review",
-      "count": 207
-    },
-    {
-      "label": "ai:assign:coding",
-      "count": 205
-    },
-    {
-      "label": "models",
-      "count": 198
+      "count": 428
     },
     {
       "label": "ui-ux",
-      "count": 190
+      "count": 412
     },
     {
-      "label": "chat",
-      "count": 134
+      "label": "agent",
+      "count": 366
     },
     {
-      "label": "provider",
-      "count": 108
+      "label": "models",
+      "count": 342
     },
     {
-      "label": "windows",
-      "count": 82
+      "label": "p3",
+      "count": 330
     },
     {
-      "label": "p1",
-      "count": 58
+      "label": "needs-info",
+      "count": 243
     },
     {
-      "label": "Dev Team",
-      "count": 55
+      "label": "ai:assign:coding",
+      "count": 231
+    },
+    {
+      "label": "needs-review",
+      "count": 222
     },
     {
       "label": "internal-team",
-      "count": 49
+      "count": 188
     },
     {
-      "label": "data",
-      "count": 44
+      "label": "chat",
+      "count": 149
     },
     {
-      "label": "claude-code",
-      "count": 38
+      "label": "provider",
+      "count": 122
     },
     {
       "label": "assistant",
-      "count": 33
+      "count": 120
+    },
+    {
+      "label": "data",
+      "count": 109
+    },
+    {
+      "label": "p1",
+      "count": 106
+    },
+    {
+      "label": "windows",
+      "count": 101
+    },
+    {
+      "label": "Dev Team",
+      "count": 79
+    },
+    {
+      "label": "mcp",
+      "count": 73
     },
     {
       "label": "rag",
-      "count": 32
+      "count": 71
     }
   ],
-  "unlabeled_pct": 2.1,
+  "unlabeled_pct": 1.2,
   "p1_issues": [
+    {
+      "number": 24649,
+      "title": "[Bug]: Subscription page reports 100% quota remaining while the composer blocks sending and the API returns 429 QUOTA_EXHAUSTED",
+      "labels": [
+        "bug",
+        "p1",
+        "ui-ux",
+        "ai:assign:coding"
+      ],
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/24649"
+    },
+    {
+      "number": 24602,
+      "title": "[Bug]: Frequent crashes when using agent in version 2.2.1",
+      "labels": [
+        "p1"
+      ],
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/24602"
+    },
+    {
+      "number": 24539,
+      "title": "[Bug]: Opening a local .docx from the sidebar closes every Microsoft Word window and loses unsaved work",
+      "labels": [
+        "bug",
+        "p1",
+        "windows",
+        "ai:assign:coding"
+      ],
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/24539"
+    },
+    {
+      "number": 24521,
+      "title": "[Bug]: Two concurrent Agent tasks freeze the whole window in 2.2.0 and require killing the process",
+      "labels": [
+        "bug",
+        "p1",
+        "agent",
+        "ai:assign:coding"
+      ],
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/24521"
+    },
     {
       "number": 24183,
       "title": "[Feature]: Keep cross-session delivery results out of the human user message pool",
@@ -190,6 +341,17 @@
         "ai:assign:coding"
       ],
       "url": "https://github.com/CherryHQ/cherry-studio/issues/22850"
+    },
+    {
+      "number": 22572,
+      "title": "[Bug]: Unexpected API spend of roughly US$200 within half an hour of normal use",
+      "labels": [
+        "bug",
+        "p1",
+        "needs-info",
+        "provider"
+      ],
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/22572"
     },
     {
       "number": 22401,
@@ -430,18 +592,6 @@
         "code-mate"
       ],
       "url": "https://github.com/CherryHQ/cherry-studio/issues/20338"
-    },
-    {
-      "number": 20314,
-      "title": "[Bug]: Agent task model selection overwrites another task",
-      "labels": [
-        "bug",
-        "p1",
-        "ui-ux",
-        "models",
-        "agent"
-      ],
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/20314"
     },
     {
       "number": 20300,
@@ -769,6 +919,492 @@
         "performance"
       ],
       "url": "https://github.com/CherryHQ/cherry-studio/issues/19706"
+    },
+    {
+      "number": 19625,
+      "title": "[Bug]: Windows in-app update exits but leaves the old 1.9.x version installed",
+      "labels": [
+        "bug",
+        "p1",
+        "windows",
+        "needs-repro",
+        "needs-triage",
+        "v2"
+      ],
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/19625"
+    },
+    {
+      "number": 19584,
+      "title": "Agent replies are generated but not delivered to WeChat after upgrading to 2.0.9",
+      "labels": [
+        "bug",
+        "p1",
+        "windows",
+        "connectivity",
+        "agent"
+      ],
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/19584"
+    },
+    {
+      "number": 19582,
+      "title": "Assistant Management hides tags and assistants after upgrading to 2.0.9",
+      "labels": [
+        "bug",
+        "p1",
+        "windows",
+        "assistant",
+        "ui-ux"
+      ],
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/19582"
+    },
+    {
+      "number": 19578,
+      "title": "[Bug]: Linux arm64 main window continuously flickers",
+      "labels": [
+        "bug",
+        "p1",
+        "needs-more-info",
+        "linux",
+        "ui-ux"
+      ],
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/19578"
+    },
+    {
+      "number": 19452,
+      "title": "OneAPI-compatible providers leave knowledge-base search stuck",
+      "labels": [
+        "bug",
+        "p1",
+        "windows",
+        "rag",
+        "connectivity",
+        "models"
+      ],
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/19452"
+    },
+    {
+      "number": 19441,
+      "title": "[Feature]: Video generation feature urgently needed",
+      "labels": [
+        "p1",
+        "feature",
+        "models"
+      ],
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/19441"
+    },
+    {
+      "number": 19379,
+      "title": "Pi runtime: report_artifacts deliverables never render (code mode masks the inner tool name)",
+      "labels": [
+        "bug",
+        "p1",
+        "ui-ux",
+        "v2",
+        "agent"
+      ],
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/19379"
+    },
+    {
+      "number": 19376,
+      "title": "Pi runtime: auto permission mode still prompts for every tool call",
+      "labels": [
+        "bug",
+        "p1",
+        "assistant",
+        "v2",
+        "agent"
+      ],
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/19376"
+    },
+    {
+      "number": 19326,
+      "title": "[Bug]: Retry state can persist after success and poison later conversation turns",
+      "labels": [
+        "bug",
+        "p1",
+        "needs-more-info",
+        "chat"
+      ],
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/19326"
+    },
+    {
+      "number": 19322,
+      "title": "[Bug]: Newly created DSH Zstandard session logs fail the first-frame contract",
+      "labels": [
+        "bug",
+        "p1",
+        "windows",
+        "agent"
+      ],
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/19322"
+    },
+    {
+      "number": 19321,
+      "title": "[Bug]: Local API drops DeepSeek reasoning_text on tool continuations",
+      "labels": [
+        "bug",
+        "p1",
+        "models",
+        "agent"
+      ],
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/19321"
+    },
+    {
+      "number": 19316,
+      "title": "[Bug]: DeepSeek Harness (dsh) Agent 会话报 400：所选服务商不接受 messages[0].role=developer",
+      "labels": [
+        "bug",
+        "p1",
+        "models",
+        "agent"
+      ],
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/19316"
+    },
+    {
+      "number": 19314,
+      "title": "[Bug]: DeepSeek V4 Pro reasoning can finish without a final answer",
+      "labels": [
+        "bug",
+        "p1",
+        "models"
+      ],
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/19314"
+    },
+    {
+      "number": 19313,
+      "title": "[Bug]: Managed DSH fails to start because @deepseek-ai/dsh-scope is missing",
+      "labels": [
+        "bug",
+        "p1",
+        "agent"
+      ],
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/19313"
+    },
+    {
+      "number": 19272,
+      "title": "[Bug]: I found a bug when I used it with augment claude type agent. who can tell me how to fix it?",
+      "labels": [
+        "bug",
+        "p1",
+        "needs-more-info",
+        "agent"
+      ],
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/19272"
+    },
+    {
+      "number": 19271,
+      "title": "[Bug] MiniMax-M3 agent intermittent disconnection: reasoning part reasoning-0 not found (wrapped as Internal server error), cron task failures are not retried",
+      "labels": [
+        "bug",
+        "p1",
+        "models",
+        "agent"
+      ],
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/19271"
+    },
+    {
+      "number": 19254,
+      "title": "[Bug]: Multimodal content block built incorrectly in single-model chat — images not passed to vision models (GLM-4V-Flash 1213 / DeepSeek vision sees no image)",
+      "labels": [
+        "bug",
+        "p1",
+        "models",
+        "chat"
+      ],
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/19254"
+    },
+    {
+      "number": 19171,
+      "title": "Model connectivity check hardcodes reasoning_effort: \"none\", causing detection failure for models that don't accept this value",
+      "labels": [
+        "bug",
+        "p1",
+        "connectivity",
+        "models"
+      ],
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/19171"
+    },
+    {
+      "number": 19124,
+      "title": "[Bug]: ClaudeCodeResultError - API Error 400 litellm.BadRequestError: System message must be at the beginning",
+      "labels": [
+        "bug",
+        "p1",
+        "models",
+        "agent"
+      ],
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/19124"
+    },
+    {
+      "number": 18957,
+      "title": "[Feature]: Direct Intermediate Installer and Resume for Required Upgrade Paths",
+      "labels": [
+        "p1",
+        "feature",
+        "needs-triage",
+        "data",
+        "internal-team"
+      ],
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/18957"
+    },
+    {
+      "number": 18872,
+      "title": "[Bug]: After switching model from the top, sending new message still uses the previous model, can only bypass by creating new session",
+      "labels": [
+        "bug",
+        "p1",
+        "models",
+        "chat"
+      ],
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/18872"
+    },
+    {
+      "number": 18775,
+      "title": "[Feature]: Suggestions for Improving the Local OCR Feature in CherryStudio",
+      "labels": [
+        "p1",
+        "feature",
+        "ocr"
+      ],
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/18775"
+    },
+    {
+      "number": 18765,
+      "title": "[Bug]: Agent mode sends Anthropic \"max_tokens\" to OpenAI-compatible gateways -> GPT-5.x 400: use \"max_completion_tokens\" instead",
+      "labels": [
+        "bug",
+        "p1",
+        "models",
+        "agent"
+      ],
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/18765"
+    },
+    {
+      "number": 18741,
+      "title": "[Bug]: DeepSeek V4 shows \"No tool output found for tool call\" after a long conversation; session becomes permanently broken with HTTP 400",
+      "labels": [
+        "bug",
+        "p1",
+        "agent",
+        "chat"
+      ],
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/18741"
+    },
+    {
+      "number": 18643,
+      "title": "[Bug]: [Bug] Agent runtime + local Ollama model: all tool calls return 500 (OpenAI-format tools break gateway Ollama adapter)",
+      "labels": [
+        "bug",
+        "p1",
+        "needs-triage",
+        "models",
+        "agent"
+      ],
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/18643"
+    },
+    {
+      "number": 18382,
+      "title": "[Bug]:发送超过8000字符的文件会被截断",
+      "labels": [
+        "bug",
+        "p1"
+      ],
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/18382"
+    },
+    {
+      "number": 18286,
+      "title": "[Bug]: 向纯文本模型发送图片时以 image_url 原生发送，OpenAI 兼容网关返回 400 报错中断对话",
+      "labels": [
+        "bug",
+        "p1",
+        "models",
+        "agent"
+      ],
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/18286"
+    },
+    {
+      "number": 18261,
+      "title": "[Bug]: Auto permission mode classifier has no fallback strategy, upstream model jitter causes all commands to be rejected",
+      "labels": [
+        "bug",
+        "p1",
+        "needs-triage",
+        "agent"
+      ],
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/18261"
+    },
+    {
+      "number": 18255,
+      "title": "[Bug]: Agent gateway does not set prompt_cache_key for GPT-5.6, causing unreliable cache hits",
+      "labels": [
+        "bug",
+        "p1",
+        "macos",
+        "models",
+        "performance",
+        "agent"
+      ],
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/18255"
+    },
+    {
+      "number": 18150,
+      "title": "[Bug]: 当使用DeepSeek V4 Flash 0731触发回传要求错误",
+      "labels": [
+        "bug",
+        "p1",
+        "models"
+      ],
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/18150"
+    },
+    {
+      "number": 17949,
+      "title": "[Bug]: V2 (regression) cannot check and manage topic prompt",
+      "labels": [
+        "bug",
+        "p1",
+        "assistant",
+        "ui-ux",
+        "v2"
+      ],
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/17949"
+    },
+    {
+      "number": 17801,
+      "title": "[Feature]: Add prominent status indicator for agent thinking/tool execution & restore context break function",
+      "labels": [
+        "p1",
+        "feature",
+        "ui-ux",
+        "agent",
+        "chat"
+      ],
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/17801"
+    },
+    {
+      "number": 17587,
+      "title": "[Bug]: Claude Agent sessions intermittently persist zero-output results as successful turns",
+      "labels": [
+        "bug",
+        "p1",
+        "assistant",
+        "agent"
+      ],
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/17587"
+    },
+    {
+      "number": 16863,
+      "title": "[Bug]: (ARM version) Cannot upload documents and switch input methods",
+      "labels": [
+        "bug",
+        "p1",
+        "linux",
+        "ui-ux"
+      ],
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/16863"
+    },
+    {
+      "number": 15711,
+      "title": "[Bug]: Claude Opus 4.6 Extended Thinking multi-turn conversation fails - missing thinking.signature field (AWS Bedrock)",
+      "labels": [
+        "bug",
+        "p1",
+        "needs-triage",
+        "models"
+      ],
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/15711"
+    },
+    {
+      "number": 15431,
+      "title": "[Bug]: Quick Assist feature not working",
+      "labels": [
+        "bug",
+        "p1",
+        "ui-ux"
+      ],
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/15431"
+    },
+    {
+      "number": 15383,
+      "title": "[Feature]: Real-Time Meeting Transcription and Smart Meeting Notes",
+      "labels": [
+        "p1",
+        "feature"
+      ],
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/15383"
+    },
+    {
+      "number": 14356,
+      "title": "[Bug]: v2 fresh install — every message fails with \"Topic not found\" (stale topic id persists across assistant creation)",
+      "labels": [
+        "bug",
+        "p1",
+        "data",
+        "chat"
+      ],
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/14356"
+    },
+    {
+      "number": 12397,
+      "title": "[Bug]: Expected 'function.name' to be a string.",
+      "labels": [
+        "bug",
+        "p1",
+        "mcp",
+        "assistant"
+      ],
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/12397"
+    },
+    {
+      "number": 12290,
+      "title": "[Feature]: Support for Manual Skill Installation and Display in Installed Plugins List",
+      "labels": [
+        "p1",
+        "feature",
+        "ui-ux"
+      ],
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/12290"
+    },
+    {
+      "number": 10512,
+      "title": "[Bug]: Cloud Backup Complete Failure BUG",
+      "labels": [
+        "bug",
+        "p1",
+        "windows",
+        "data"
+      ],
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/10512"
+    },
+    {
+      "number": 8730,
+      "title": "[讨论]: cherry studio是否无法接入商汤大模型？",
+      "labels": [
+        "bug",
+        "p1",
+        "models"
+      ],
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/8730"
+    },
+    {
+      "number": 5996,
+      "title": "[错误]: v1.2.10中在使用deepseek模型时即使设置了上下文数为无限但出现上下文长度不够",
+      "labels": [
+        "bug",
+        "p1",
+        "needs-repro",
+        "models",
+        "performance"
+      ],
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/5996"
+    },
+    {
+      "number": 5256,
+      "title": "[错误]: 开机自启和启动时最小化到托盘冲突",
+      "labels": [
+        "bug",
+        "p1"
+      ],
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/5256"
     }
   ],
   "v2_prs": {
@@ -777,15 +1413,27 @@
   },
   "top_issues_by_comments": [
     {
+      "number": 6505,
+      "title": "[FAQ&反馈]: 划词助手 / Selection Assistant",
+      "comments": 374,
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/6505"
+    },
+    {
+      "number": 14198,
+      "title": "[Bug]: Switching model mid-conversation fails with No conversation found with session ID",
+      "comments": 273,
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/14198"
+    },
+    {
       "number": 20941,
       "title": "[Bug]: Work and Agent conversations terminate with an empty no-response error",
-      "comments": 193,
+      "comments": 222,
       "url": "https://github.com/CherryHQ/cherry-studio/issues/20941"
     },
     {
       "number": 20976,
       "title": "[Bug]: Cherry adapter rejects mid-conversation system messages for models without the mid-conversation-system beta — 49 local 400s/day, each triggering a fallback chain",
-      "comments": 158,
+      "comments": 160,
       "url": "https://github.com/CherryHQ/cherry-studio/issues/20976"
     },
     {
@@ -795,46 +1443,34 @@
       "url": "https://github.com/CherryHQ/cherry-studio/issues/20940"
     },
     {
+      "number": 18894,
+      "title": "[Bug]: Agent v2 context grows past provider window before auto-compaction",
+      "comments": 123,
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/18894"
+    },
+    {
       "number": 19793,
       "title": "Chat fails when a response stream ends without a finish reason",
-      "comments": 119,
+      "comments": 121,
       "url": "https://github.com/CherryHQ/cherry-studio/issues/19793"
     },
     {
       "number": 22775,
       "title": "[Bug]: DeepSeek Harness crashes on every work-conversation request (exit code 3, finalizer affected GC state) and surfaces only a generic \"unknown error\"",
-      "comments": 103,
+      "comments": 108,
       "url": "https://github.com/CherryHQ/cherry-studio/issues/22775"
     },
     {
       "number": 21191,
       "title": "[Bug]: A single corrupt image permanently bricks an Agent session — every request 400s at a fixed message index, with no UI recovery path",
-      "comments": 103,
+      "comments": 105,
       "url": "https://github.com/CherryHQ/cherry-studio/issues/21191"
     },
     {
       "number": 21965,
       "title": "[Bug]: Turns fail with HTTP 400 \"Function tools with reasoning_effort are not supported\" when an OpenAI-compatible relay receives reasoning_effort together with function tools",
-      "comments": 78,
+      "comments": 82,
       "url": "https://github.com/CherryHQ/cherry-studio/issues/21965"
-    },
-    {
-      "number": 22265,
-      "title": "[Bug]: Qwen home conversation reaches tool-call limit before producing final answer",
-      "comments": 71,
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/22265"
-    },
-    {
-      "number": 22197,
-      "title": "[Bug] DeepSeek Flash normal chat rejects max_tokens with HTTP 400",
-      "comments": 47,
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/22197"
-    },
-    {
-      "number": 20942,
-      "title": "[Bug]: Chat streams fail with net::ERR_HTTP2_PROTOCOL_ERROR and are not retried",
-      "comments": 42,
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/20942"
     }
   ]
 }
