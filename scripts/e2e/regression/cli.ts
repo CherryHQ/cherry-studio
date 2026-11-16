@@ -103,7 +103,6 @@ async function initializeCommand(): Promise<void> {
   const mode = oneOf(argument('mode') ?? '', RUN_MODES, 'mode')
   const platform = oneOf(argument('platform') ?? '', PLATFORMS, 'platform')
   const task = parseTaskSelection(argument('task', false) ?? 'all')
-  const providerMode = oneOf(argument('provider-mode', false) ?? 'mock', ['mock'] as const, 'provider mode')
   const ref = argument('ref') ?? ''
   const sha = argument('sha') ?? ''
   const runner = argument('runner') ?? ''
@@ -115,8 +114,7 @@ async function initializeCommand(): Promise<void> {
     platform,
     ref,
     runner,
-    task: serializeTaskSelection(task),
-    providerMode
+    task: serializeTaskSelection(task)
   })
   await createFixtures(paths)
   run = setCapabilities(run, probeCapabilities(platform, paths))
@@ -195,15 +193,9 @@ async function gateCommand(): Promise<void> {
 async function aggregateCommand(): Promise<void> {
   const input = resolve(argument('input') ?? '')
   const output = resolve(argument('output') ?? '')
-  const modeValue = argument('mode', false)
-  const expectedMode = modeValue ? oneOf(modeValue, RUN_MODES, 'mode') : undefined
-  const providerModeValue = argument('provider-mode', false)
-  const expectedProviderMode = providerModeValue
-    ? oneOf(providerModeValue, ['real', 'mock'] as const, 'provider mode')
-    : undefined
   const resultFiles = findFiles(input, 'results.json')
   const runs = resultFiles.map(readRun)
-  const report = aggregateRuns(runs, expectedMode, expectedProviderMode)
+  const report = aggregateRuns(runs)
   mkdirSync(output, { recursive: true })
   const markdown = renderAggregateMarkdown(report)
   writeFileSync(join(output, 'combined-results.json'), `${JSON.stringify(report, null, 2)}\n`)

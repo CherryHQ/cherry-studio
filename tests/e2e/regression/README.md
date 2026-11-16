@@ -131,8 +131,8 @@ Windows MP-90 opens the exported image in Microsoft Edge with a run-owned profil
 language detection and translation, while exercising the real settings UI, model
 routing, automatic clipboard copy, history and usage storage, and restart persistence.
 Its `data-source` annotation and request-journal attachment identify the mocked model
-boundary. Configured provider mode is recorded independently in the run reports;
-mock-mode success cannot substitute for real-provider acceptance.
+boundary. Mock provider provenance is recorded independently in the run reports;
+fixture success does not establish external model quality.
 
 Never attach credentials or enable credential-bearing Playwright traces. HTML reports and failure screenshots are produced by Playwright and the fixture; sanitized Electron logs are copied during finalization.
 

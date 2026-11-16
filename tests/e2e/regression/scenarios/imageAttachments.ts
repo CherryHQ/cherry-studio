@@ -48,7 +48,7 @@ export async function imageAttachments(app: RegressionApp, page: Page, testInfo:
             name: 'MP32 real vision provider',
             defaultChatEndpoint: 'openai-chat-completions',
             endpointConfigs: { 'openai-chat-completions': { baseUrl } },
-            apiKeys: [{ id: 'real-provider-key', key: apiKey, isEnabled: true }]
+            apiKeys: [{ id: 'mock-provider-key', key: apiKey, isEnabled: true }]
           }
         }),
       { providerId, baseUrl: config.baseUrl, apiKey: config.apiKey }

@@ -1,7 +1,7 @@
 # Mock provider fixtures
 
 `chat.json` is served by the exactly pinned `@copilotkit/aimock@1.46.0` on a run-owned free loopback port when the workflow runs with
-`provider_mode=mock`. It answers the prompts the regression scenarios send through the custom
+the local mock provider. It answers the prompts the regression scenarios send through the custom
 provider, so a phase can run without repository provider credentials and without network flakiness.
 
 First match wins. Strict mode returns HTTP 503 for a prompt with no fixture, which fails the request

@@ -20,6 +20,7 @@ beforeEach(() => {
     paths.runState,
     createRun({
       appVersion: 'development',
+      mockVersion: '1.46.0',
       commitSha: 'sha',
       mode: 'branch',
       platform: 'macos',
@@ -56,7 +57,7 @@ describe('Playwright reporter contract', () => {
       reporter.onTestEnd(test, passed)
     }
     reporter.onEnd({ status: 'passed', startTime: new Date(), duration: 10 })
-    expect(getRunVerdict(readRun(paths.runState))).toBe('development_pass')
+    expect(getRunVerdict(readRun(paths.runState))).toBe('mock_pass')
     expect(readRun(paths.runState).metadata.task).toBe('startup-smoke,notes-smoke')
     expect(readRun(paths.runState).cases['APP-01'].status).toBe('not_applicable')
   })
@@ -81,7 +82,7 @@ describe('Playwright reporter contract', () => {
     reporter.onEnd({ status: 'passed', startTime: new Date(), duration: 10 })
 
     const run = readRun(getRunPaths(directory).runState)
-    expect(getRunVerdict(run)).toBe('development_failed')
+    expect(getRunVerdict(run)).toBe('mock_failed')
     expect(run.cases['S-01'].status).toBe('passed')
     expect(run.phases['startup'].errors).toEqual(['Executor error: teardown failed: [REDACTED]'])
   })
@@ -105,7 +106,7 @@ describe('Playwright reporter contract', () => {
     })
     reporter.onEnd({ status: 'passed', startTime: new Date(), duration: 10 })
     const run = readRun(getRunPaths(directory).runState)
-    expect(getRunVerdict(run)).toBe('development_blocked')
+    expect(getRunVerdict(run)).toBe('mock_blocked')
     expect(run.cases['S-01'].summary).toContain('desktopAutomation')
   })
 })

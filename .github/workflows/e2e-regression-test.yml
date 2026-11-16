@@ -158,7 +158,6 @@ jobs:
           --sha "$TEST_SHA"
           --runner "$TEST_RUNNER"
           --task "$TEST_TASK"
-          --provider-mode "mock"
 
       - name: Prepare Notification Center on the disposable macOS runner
         if: matrix.platform == 'macos'
@@ -657,8 +656,6 @@ jobs:
           pnpm exec tsx scripts/e2e/regression/cli.ts aggregate
           --input platform-reports
           --output combined-report
-          --mode "${{ needs.resolve.outputs.mode }}"
-          --provider-mode "mock"
 
       - name: Summarize standalone smoke results
         if: needs.resolve.outputs.mode == 'branch' && needs.resolve.outputs.smoke != 'none'

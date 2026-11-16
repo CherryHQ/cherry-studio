@@ -179,11 +179,10 @@ command, listener and authenticated identity before reuse. `mock-stop` and `clea
 stop only the recorded worker, including when application cleanup fails. Workflow
 cleanup runs with `always()`; runner teardown remains the fallback on hard cancellation.
 
-JSON, Markdown and JUnit reports retain the configured provider mode and mock version.
+JSON, Markdown and JUnit reports retain the mock provider provenance and version.
 Mock verdicts use `mock_*`, including tag runs; they are not release acceptance.
-Aggregation blocks missing provider provenance, mixed real/mock platforms, or evidence
-that differs from the requested mode. Older reports without provider provenance must
-be rerun. Cases using their own fixtures record `data-source` annotations, retained in
+Aggregation blocks missing mock provider provenance or service versions. Older reports
+without this provenance must be rerun. Cases using their own fixtures record `data-source` annotations, retained in
 JSON and platform Markdown.
 
 The aggregate job publishes `test-report`. Download and extract

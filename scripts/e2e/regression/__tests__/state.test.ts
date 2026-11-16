@@ -18,6 +18,7 @@ describe('Playwright run state', () => {
   it('initializes every phase selected by a module task without selecting unrelated cases', () => {
     const run = createRun({
       appVersion: 'development',
+      mockVersion: '1.46.0',
       commitSha: 'sha',
       mode: 'branch',
       platform: 'macos',
@@ -34,6 +35,7 @@ describe('Playwright run state', () => {
   it('preserves recorded verdicts after a task name is removed from the current manifest', () => {
     const run = createRun({
       appVersion: 'development',
+      mockVersion: '1.46.0',
       commitSha: 'sha',
       mode: 'branch',
       platform: 'macos',
@@ -52,11 +54,12 @@ describe('Playwright run state', () => {
         metadata: { ...completed.metadata, task: 'codeTools' }
       })
     ) as RegressionRun
-    expect(getRunVerdict(historical)).toBe('development_pass')
+    expect(getRunVerdict(historical)).toBe('mock_pass')
   })
   it('accepts English summaries but rejects empty results', () => {
     const run = createRun({
       appVersion: '2.0.8',
+      mockVersion: '1.46.0',
       commitSha: 'sha',
       mode: 'tag',
       platform: 'macos',
@@ -73,6 +76,7 @@ describe('Playwright run state', () => {
   it('records Playwright results and artifacts without the legacy evidence contract', () => {
     const run = createRun({
       appVersion: 'development',
+      mockVersion: '1.46.0',
       commitSha: 'sha',
       mode: 'branch',
       platform: 'macos',
@@ -94,6 +98,7 @@ describe('Playwright run state', () => {
     const run = finalizeRun(
       createRun({
         appVersion: 'development',
+        mockVersion: '1.46.0',
         commitSha: 'sha',
         mode: 'branch',
         platform: 'macos',
@@ -105,7 +110,7 @@ describe('Playwright run state', () => {
 
     expect(run.cases['S-01'].status).toBe('blocked')
     expect(run.cases['N-01'].status).toBe('blocked')
-    expect(getRunVerdict(run)).toBe('development_blocked')
+    expect(getRunVerdict(run)).toBe('mock_blocked')
   })
 
   it('marks platform-scoped cases as not applicable instead of failing a Windows run', () => {
@@ -114,6 +119,7 @@ describe('Playwright run state', () => {
     )
     const run = createRun({
       appVersion: 'development',
+      mockVersion: '1.46.0',
       commitSha: 'sha',
       mode: 'branch',
       platform: 'windows',
@@ -134,6 +140,7 @@ describe('Playwright run state', () => {
     const run = finalizeRun(
       createRun({
         appVersion: 'development',
+        mockVersion: '1.46.0',
         commitSha: 'sha',
         mode: 'branch',
         platform: 'windows',
@@ -144,12 +151,13 @@ describe('Playwright run state', () => {
     )
 
     expect(run.phases).toEqual({})
-    expect(getRunVerdict(run)).toBe('development_not_applicable')
+    expect(getRunVerdict(run)).toBe('mock_not_applicable')
   })
 
   it('marks unselected tasks as not applicable', () => {
     const run = createRun({
       appVersion: 'development',
+      mockVersion: '1.46.0',
       commitSha: 'sha',
       mode: 'branch',
       platform: 'macos',
@@ -177,6 +185,7 @@ describe('atomic run-state writes', () => {
     filePath = join(directory, 'run.json')
     const run = createRun({
       appVersion: 'development',
+      mockVersion: '1.46.0',
       commitSha: 'base',
       mode: 'branch',
       platform: 'windows',
