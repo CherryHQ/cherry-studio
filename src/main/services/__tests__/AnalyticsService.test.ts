@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { AnalyticsClient, AnalyticsClientOptions } from '@cherrystudio/analytics-client'
 import { BaseService } from '@main/core/lifecycle'
@@ -47,7 +47,8 @@ const {
     captured: {
       prefHandlers: {},
       preferenceValues: {},
-      clientOptions
+      clientOptions,
+      rendererPreferenceListener: undefined as ((changes: Array<[string, unknown]>) => void) | undefined
     }
   }
 })
@@ -93,7 +94,11 @@ vi.mock('@application', async () => {
         captured.prefHandlers[key] = cb
         return () => {}
       }),
-      get: vi.fn((key: string) => captured.preferenceValues[key])
+      get: vi.fn((key: string) => captured.preferenceValues[key]),
+      onRendererPreferencesChanged: vi.fn((listener: (changes: Array<[string, unknown]>) => void) => {
+        captured.rendererPreferenceListener = listener
+        return { dispose: () => {} }
+      })
     }
   })
 })
@@ -627,6 +632,78 @@ describe('AnalyticsService product events', () => {
     await vi.waitFor(() => expect(service.isActivated).toBe(true))
 
     expect(posthog.capture).not.toHaveBeenCalledWith(expect.objectContaining({ event: 'onboarding_option_selected' }))
+  })
+})
+
+describe('AnalyticsService setting changes', () => {
+  const settingEvents = () =>
+    posthog.capture.mock.calls
+      .map(([message]) => message)
+      .filter(({ event }) => event === 'setting_changed')
+      .map(({ properties }) => properties)
+
+  async function startService() {
+    vi.stubEnv('MAIN_VITE_POSTHOG_KEY', 'phc_test')
+    vi.stubEnv('MAIN_VITE_ANALYTICS_BEHAVIOR_EVENTS', 'true')
+    const service = new AnalyticsService()
+    await service._doInit()
+    await vi.waitFor(() => expect(service.isActivated).toBe(true))
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    return (changes: Array<[string, unknown]>) => captured.rendererPreferenceListener?.(changes)
+  }
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('reports rapid writes to one key once, after 2 s, with the last value', async () => {
+    const change = await startService()
+
+    change([['app.zoom_factor', 1.1]])
+    vi.advanceTimersByTime(1_000)
+    change([['app.zoom_factor', 1.3]])
+    vi.advanceTimersByTime(1_999)
+    expect(settingEvents()).toEqual([])
+
+    vi.advanceTimersByTime(1)
+    expect(settingEvents()).toEqual([expect.objectContaining({ key: 'app.zoom_factor', value: 1.3 })])
+  })
+
+  it('coalesces each key independently', async () => {
+    const change = await startService()
+
+    change([
+      ['app.tray.enabled', false],
+      ['app.spell_check.enabled', true]
+    ])
+    vi.advanceTimersByTime(2_000)
+
+    expect(settingEvents()).toEqual([
+      expect.objectContaining({ key: 'app.tray.enabled', value: false }),
+      expect.objectContaining({ key: 'app.spell_check.enabled', value: true })
+    ])
+  })
+
+  it('reports only the key for values that are not booleans or finite numbers', async () => {
+    const change = await startService()
+
+    change([
+      ['app.language', 'zh-CN'],
+      ['app.spell_check.languages', ['en-US']],
+      ['app.zoom_factor', Number.NaN],
+      ['app.tray.on_close', 0]
+    ])
+    vi.advanceTimersByTime(2_000)
+
+    const events = settingEvents()
+    expect(events.map(({ key }) => key)).toEqual([
+      'app.language',
+      'app.spell_check.languages',
+      'app.zoom_factor',
+      'app.tray.on_close'
+    ])
+    expect(events.slice(0, 3).every((properties) => !('value' in properties))).toBe(true)
+    expect(events[3]).toMatchObject({ value: 0 })
   })
 })
 

@@ -49,7 +49,8 @@ const untrustedEvent = {
 // The mocked BaseService captures ipcMain handlers we can invoke directly.
 const ipcHandlers = new Map<string, (event: IpcMainInvokeEvent, ...args: any[]) => unknown>()
 
-vi.mock('@main/core/lifecycle', () => ({
+vi.mock('@main/core/lifecycle', async () => ({
+  Emitter: (await import('@main/core/lifecycle/event')).Emitter,
   BaseService: class {
     protected ipcHandle(channel: string, handler: (event: IpcMainInvokeEvent, ...args: any[]) => unknown) {
       ipcHandlers.set(channel, handler)

@@ -208,6 +208,60 @@ describe('CommandProvider', () => {
   })
 })
 
+describe('command analytics', () => {
+  const trackedEvents = () =>
+    vi
+      .mocked(window.api.ipcApi.request)
+      .mock.calls.filter(([route]) => route === 'analytics.track')
+      .map(([, event]) => event)
+
+  function RuntimeProbe({ onRuntime }: { onRuntime: (runtime: ReturnType<typeof useCommandRuntime>) => void }) {
+    onRuntime(useCommandRuntime())
+    return null
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  afterEach(() => {
+    cleanup()
+  })
+
+  it('reports a command run by its shortcut with the shortcut source', () => {
+    renderProvider(<RegisteredCommand command="topic.create" onExecute={vi.fn()} />)
+
+    dispatchShortcut({})
+
+    expect(trackedEvents()).toEqual([{ event: 'command_executed', command: 'topic.create', source: 'shortcut' }])
+  })
+
+  it('reports nothing when a shortcut has no handler to run', () => {
+    renderProvider(null)
+
+    dispatchShortcut({})
+
+    expect(trackedEvents()).toEqual([])
+  })
+
+  it('reports the caller source when the runtime runs a handler, and nothing without one', () => {
+    let runtime: ReturnType<typeof useCommandRuntime> | undefined
+    const onExecute = vi.fn()
+    renderProvider(
+      <>
+        <RegisteredCommand command="topic.create" onExecute={onExecute} />
+        <RuntimeProbe onRuntime={(value) => (runtime = value)} />
+      </>
+    )
+
+    runtime!.execute('topic.create', undefined, 'palette')
+    runtime!.execute('app.search', undefined, 'menu')
+
+    expect(onExecute).toHaveBeenCalledOnce()
+    expect(trackedEvents()).toEqual([{ event: 'command_executed', command: 'topic.create', source: 'palette' }])
+  })
+})
+
 describe('keyboard routing predicates', () => {
   function PredicateCommand({ accept, onExecute }: { accept: boolean; onExecute: () => void }) {
     useCommandHandler('topic.create', onExecute, { shouldHandleKeyEvent: () => accept })
