@@ -1,6 +1,6 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as CherryStudioUi from '@cherrystudio/ui'
 import { HealthStatus, type ModelWithStatus } from '@renderer/pages/settings/ProviderSettings/types/healthCheck'
@@ -56,6 +56,12 @@ beforeAll(() => {
 })
 
 describe('ModelCheckDialog', () => {
+  afterEach(async () => {
+    // Radix focus scopes restore focus on a timer after unmount; let it run before jsdom tears down.
+    cleanup()
+    await new Promise((resolve) => setTimeout(resolve, 0))
+  })
+
   beforeEach(() => {
     vi.clearAllMocks()
     health.modelCheckOpen = true
