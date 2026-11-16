@@ -520,6 +520,11 @@ function AgentEditDialogContent({
     setPage(next)
   }
   const promptSectionTitle = page === 'prompt' && promptSection ? getPromptBlockTitleKey(promptSection) : undefined
+  // The identity page edits the memory files, so an unsaved file edit asks first there too.
+  const leavePromptSection = async () => {
+    if (memoryPanelRef.current && !(await memoryPanelRef.current.confirmLeave())) return
+    setPromptSection(null)
+  }
 
   return (
     <EditDialogPageShell
@@ -530,7 +535,7 @@ function AgentEditDialogContent({
       title={promptSectionTitle ? t(promptSectionTitle) : pageTitles[page]}
       onBack={
         promptSectionTitle
-          ? () => setPromptSection(null)
+          ? () => void leavePromptSection()
           : page === 'settings'
             ? undefined
             : () => void goTo('settings')
@@ -603,6 +608,9 @@ function AgentEditDialogContent({
           onOverridesChange={(next) => form.setValue('promptOverrides', next, { shouldDirty: true, shouldTouch: true })}
           section={promptSection}
           onSectionChange={setPromptSection}
+          identityEditor={
+            open ? <AgentMemoryPanel key={resource.id} ref={memoryPanelRef} agent={resource} /> : undefined
+          }
           draft={{
             agentId: resource.id,
             skillIds: values.skillIds,

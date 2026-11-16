@@ -2802,6 +2802,54 @@ describe('Agent configuration memory', () => {
     expect(screen.getByText('{"event":"remembered"}')).toBeVisible()
   })
 
+  // Catches the identity page of a Pi Durable System Prompt showing its files read-only or losing a draft on Back.
+  it('edits SOUL.md from the identity page of the System Prompt and guards an unsaved draft on Back', async () => {
+    ipcRequestMock.mockImplementation(async (route: string, input: { key?: string; content?: string }) => {
+      if (route === 'agent.system_prompt.preview')
+        return {
+          blocks: [
+            { key: 'agent_identity', kind: 'live', text: '<soul>Original persona</soul>' },
+            { key: 'instructions', kind: 'instructions', text: AGENT_INSTRUCTIONS_SLOT }
+          ]
+        }
+      if (route === 'agent.memory.read') return { directory: '/agents/agent-1', files }
+      if (route === 'agent.memory.write')
+        return { ...files.find((file) => file.key === input.key), content: input.content, version: 'v2' }
+      return undefined
+    })
+    const user = userEvent.setup()
+    render(
+      <AgentEditDialog open resource={{ ...AGENT, type: 'pi-durable' }} onOpenChange={vi.fn()} initialTab="prompt" />
+    )
+    await user.click(
+      await screen.findByRole('button', { name: /^library\.config\.agent\.prompt\.block\.agent_identity:/ })
+    )
+
+    await user.click(await screen.findByRole('button', { name: 'Edit' }))
+    const editor = screen.getByRole('textbox', { name: 'Edit SOUL.md' })
+    await user.clear(editor)
+    await user.type(editor, 'Updated persona')
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+    await waitFor(() =>
+      expect(ipcRequestMock).toHaveBeenCalledWith('agent.memory.write', {
+        agentId: AGENT.id,
+        key: 'soul',
+        content: 'Updated persona',
+        expectedVersion: 'v1'
+      })
+    )
+
+    await user.click(await screen.findByRole('button', { name: 'Edit' }))
+    await user.type(screen.getByRole('textbox', { name: 'Edit SOUL.md' }), ' unsaved')
+    await user.click(screen.getByRole('button', { name: 'Back' }))
+    await user.click(
+      within(await screen.findByRole('dialog', { name: 'Discard unsaved changes?' })).getByRole('button', {
+        name: 'Cancel'
+      })
+    )
+    expect(screen.getByRole('textbox', { name: 'Edit SOUL.md' })).toHaveValue('Updated persona unsaved')
+  })
+
   it('keeps copy and folder actions available through the memory menu', async () => {
     const user = userEvent.setup()
     const writeClipboard = vi.spyOn(navigator.clipboard, 'writeText')

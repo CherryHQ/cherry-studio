@@ -1,5 +1,5 @@
 import { ChevronLeft } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
+import { type ReactNode, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { estimateTokenCount } from 'tokenx'
 
@@ -75,6 +75,8 @@ type PiPromptFieldProps = {
   /** The block open on its own page; given with `onSectionChange` when a dialog header shows it. */
   section?: string | null
   onSectionChange?: (key: string | null) => void
+  /** Shown on the identity page in place of its text, to edit the files it is built from. */
+  identityEditor?: ReactNode
 }
 
 /** Mirrors how the edit form saves `configuration.language`; an invalid custom label keeps the inherited one. */
@@ -147,7 +149,8 @@ export function PiPromptField({
   overrides,
   onOverridesChange,
   section: controlledSection,
-  onSectionChange
+  onSectionChange,
+  identityEditor
 }: PiPromptFieldProps) {
   const { t } = useTranslation()
   const { preview, failed, retry } = usePiPromptPreview(draft, value)
@@ -164,15 +167,17 @@ export function PiPromptField({
 
   const setOverride = (key: string, next: string | undefined) => {
     if (!overrides || !onOverridesChange || !isEditablePromptSection(key)) return
-    const { [key]: _previous, ...rest } = overrides
+    const rest = { ...overrides }
+    delete rest[key]
     onOverridesChange(next === undefined ? rest : { ...rest, [key]: next })
   }
 
   const opened = preview?.blocks.find((block) => block.key === section && block.kind !== 'instructions')
   if (opened) {
     const editable = opened.kind === 'guidance' && Boolean(overrides) && isEditablePromptSection(opened.key)
+    const identity = opened.key === 'agent_identity' ? identityEditor : undefined
     return (
-      <div className="flex flex-col gap-3">
+      <div className="flex min-h-0 flex-1 flex-col gap-3">
         {onSectionChange ? null : (
           <Button
             type="button"
@@ -184,16 +189,17 @@ export function PiPromptField({
             {t(BLOCK_TITLES[opened.key] ?? '') || opened.key}
           </Button>
         )}
-        {editable ? (
-          <GuidanceEditor
-            block={opened}
-            override={overrideOf(opened.key)}
-            onChange={(next) => setOverride(opened.key, next === opened.text ? undefined : next)}
-            onRestore={() => setOverride(opened.key, undefined)}
-          />
-        ) : (
-          <BlockViewer block={opened} />
-        )}
+        {identity ??
+          (editable ? (
+            <GuidanceEditor
+              block={opened}
+              override={overrideOf(opened.key)}
+              onChange={(next) => setOverride(opened.key, next === opened.text ? undefined : next)}
+              onRestore={() => setOverride(opened.key, undefined)}
+            />
+          ) : (
+            <BlockViewer block={opened} />
+          ))}
       </div>
     )
   }
