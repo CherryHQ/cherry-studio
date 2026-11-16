@@ -1404,6 +1404,7 @@
   "common.language": "ภาษา",
   "common.link.copy": "คัดลอกลิงก์",
   "common.link.open_browser": "เปิดในเบราว์เซอร์ในตัว",
+  "common.load_failed": "โหลดไม่สำเร็จ",
   "common.loading": "กำลังโหลด...",
   "common.maximize": "ขยายใหญ่สุด",
   "common.minimize": "ย่อเล็กสุด",

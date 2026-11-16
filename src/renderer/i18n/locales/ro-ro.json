@@ -1404,6 +1404,7 @@
   "common.language": "Limbă",
   "common.link.copy": "Copiază linkul",
   "common.link.open_browser": "Deschide în browserul integrat",
+  "common.load_failed": "Încărcarea a eșuat",
   "common.loading": "Se încarcă...",
   "common.maximize": "Maximizează",
   "common.minimize": "Minimizează",

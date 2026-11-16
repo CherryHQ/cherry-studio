@@ -1404,6 +1404,7 @@
   "common.language": "語言",
   "common.link.copy": "複製連結",
   "common.link.open_browser": "在內建瀏覽器開啟",
+  "common.load_failed": "載入失敗",
   "common.loading": "載入中...",
   "common.maximize": "最大化",
   "common.minimize": "最小化",
