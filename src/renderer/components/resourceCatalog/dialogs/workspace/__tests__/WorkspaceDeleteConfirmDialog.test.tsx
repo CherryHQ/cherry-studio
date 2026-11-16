@@ -3,10 +3,13 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import i18n from '@renderer/i18n/resolver'
+import { ipcApi } from '@renderer/ipc'
+import { toast } from '@renderer/services/toast'
 import type { AgentWorkspaceEntity } from '@shared/data/api/schemas/agentWorkspaces'
 
 const detailMocks = vi.hoisted(() => ({ open: vi.fn() }))
 
+vi.mock('@renderer/ipc', () => ({ ipcApi: { request: vi.fn() } }))
 vi.mock('@renderer/hooks/tab', () => ({
   useCloseConversationTabs: () => vi.fn()
 }))
@@ -40,7 +43,7 @@ describe('WorkspaceDeleteConfirmDialog reference preview', () => {
     MockUseDataApiUtils.mockQueryResult('/agent-workspaces/:workspaceId/references', { error: cause, refetch })
     render(<WorkspaceDeleteConfirmDialog workspace={workspace} onDeleted={vi.fn()} onClose={vi.fn()} />)
 
-    expect(await screen.findByText(i18n.t('agent.session.workdir.delete.preview_failed'))).toBeInTheDocument()
+    expect(await screen.findByRole('alert')).toHaveTextContent(i18n.t('agent.session.workdir.delete.preview_failed'))
     fireEvent.click(screen.getByRole('button', { name: i18n.t('common.retry') }))
     expect(refetch).toHaveBeenCalled()
     fireEvent.click(screen.getByRole('button', { name: i18n.t('common.detail') }))
@@ -72,5 +75,17 @@ describe('WorkspaceDeleteConfirmDialog reference preview', () => {
     expect(refetch).toHaveBeenCalled()
     fireEvent.click(screen.getByRole('button', { name: i18n.t('common.detail') }))
     await waitFor(() => expect(detailMocks.open).toHaveBeenCalledWith(expect.objectContaining({ error: cause })))
+  })
+  it('titles a failed delete with the translated conclusion and keeps the raw text as the cause', async () => {
+    const cause = new Error('SQLITE_BUSY: database is locked')
+    vi.mocked(ipcApi.request).mockRejectedValueOnce(cause)
+    MockUseDataApiUtils.mockQueryResult('/agent-workspaces/:workspaceId/references', { data: emptyReferences })
+    render(<WorkspaceDeleteConfirmDialog workspace={workspace} onDeleted={vi.fn()} onClose={vi.fn()} />)
+
+    fireEvent.click(await screen.findByRole('button', { name: i18n.t('common.delete') }))
+
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith({ title: i18n.t('agent.session.workdir.delete.error.failed'), cause })
+    )
   })
 })

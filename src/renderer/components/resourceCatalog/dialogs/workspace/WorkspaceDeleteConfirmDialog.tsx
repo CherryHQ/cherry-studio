@@ -1,5 +1,5 @@
 import type { LucideIcon } from 'lucide-react'
-import { BotMessageSquare, CalendarClock, FolderOpen, Loader2, MousePointerClick, TriangleAlert } from 'lucide-react'
+import { BotMessageSquare, CalendarClock, FolderOpen, Loader2, MousePointerClick } from 'lucide-react'
 import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -19,7 +19,6 @@ import { useInvalidateCache, useQuery } from '@renderer/data/hooks/useDataApi'
 import { useCloseConversationTabs } from '@renderer/hooks/tab'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
-import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { AgentWorkspaceEntity, AgentWorkspaceReferenceItem } from '@shared/data/api/schemas/agentWorkspaces'
 
 const logger = loggerService.withContext('WorkspaceDeleteConfirmDialog')
@@ -138,7 +137,7 @@ export function WorkspaceDeleteConfirmDialog({
       hasSucceeded = true
     } catch (error) {
       logger.error('Failed to delete workspace', error as Error, { workspaceId: workspace.id })
-      toast.error(formatErrorMessageWithPrefix(error, t('agent.session.workdir.delete.error.failed')))
+      toast.error({ title: t('agent.session.workdir.delete.error.failed'), cause: error })
     } finally {
       isPendingRef.current = false
       setIsPending(false)
@@ -147,6 +146,22 @@ export function WorkspaceDeleteConfirmDialog({
     if (hasSucceeded) onClose()
   }
 
+  const referencesErrorNotice = (
+    <ErrorNotice
+      variant="inline"
+      title={t('agent.session.workdir.delete.preview_failed')}
+      action={{ label: t('common.retry'), onClick: () => void refetchReferences() }}
+      detail={
+        <ErrorDetailAction
+          error={referencesError}
+          message={t('agent.session.workdir.delete.preview_failed')}
+          source="agent.workspace"
+          operation="workspace.references"
+          recordId={workspace.id}
+        />
+      }
+    />
+  )
   const content = references ? (
     <div className="min-h-0 space-y-3 overflow-y-auto">
       {isPreviewPending ? (
@@ -155,22 +170,7 @@ export function WorkspaceDeleteConfirmDialog({
           <span>{t('agent.session.workdir.delete.preview_loading')}</span>
         </div>
       ) : null}
-      {referencesError ? (
-        <ErrorNotice
-          variant="inline"
-          title={t('agent.session.workdir.delete.preview_failed')}
-          action={{ label: t('common.retry'), onClick: () => void refetchReferences() }}
-          detail={
-            <ErrorDetailAction
-              error={referencesError}
-              message={t('agent.session.workdir.delete.preview_failed')}
-              source="agent.workspace"
-              operation="workspace.references"
-              recordId={workspace.id}
-            />
-          }
-        />
-      ) : null}
+      {referencesError ? referencesErrorNotice : null}
       <ImpactSection
         title={t('agent.session.workdir.delete.sessions_title')}
         countLabel={t('agent.session.workdir.delete.sessions_count', { count: references.sessions.total })}
@@ -206,29 +206,12 @@ export function WorkspaceDeleteConfirmDialog({
         </div>
       </div>
     </div>
+  ) : referencesError ? (
+    referencesErrorNotice
   ) : (
     <div className="flex min-h-24 items-center justify-center gap-2 text-muted-foreground text-xs">
-      {referencesError ? (
-        <>
-          <TriangleAlert aria-hidden="true" className="size-3.5" />
-          <span>{t('agent.session.workdir.delete.preview_failed')}</span>
-          <Button variant="ghost" size="sm" onClick={() => void refetchReferences()}>
-            {t('common.retry')}
-          </Button>
-          <ErrorDetailAction
-            error={referencesError}
-            message={t('agent.session.workdir.delete.preview_failed')}
-            source="agent.workspace"
-            operation="workspace.references"
-            recordId={workspace.id}
-          />
-        </>
-      ) : (
-        <>
-          <Loader2 aria-hidden="true" className="size-3.5 animate-spin" />
-          <span>{t('agent.session.workdir.delete.preview_loading')}</span>
-        </>
-      )}
+      <Loader2 aria-hidden="true" className="size-3.5 animate-spin" />
+      <span>{t('agent.session.workdir.delete.preview_loading')}</span>
     </div>
   )
 
