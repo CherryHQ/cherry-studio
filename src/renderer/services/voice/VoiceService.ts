@@ -1,6 +1,7 @@
 import { preferenceService } from '@renderer/data/PreferenceService'
 import i18n from '@renderer/i18n/resolver'
 import { ipcApi } from '@renderer/ipc'
+import { isVoiceRecognitionOff } from '@renderer/utils/voiceRecognitionPreference'
 import {
   isTranscriptionModelId,
   isSpeechModelId,
@@ -186,9 +187,10 @@ export class VoiceService {
   }
 
   async resolveTranscriptionPreferences(
-    captured?: ResolvedTranscriptionPreferences
-  ): Promise<ResolvedTranscriptionPreferences> {
-    const input = captured ?? (await this.readTranscriptionPreferenceInput())
+    captured?: ResolvedTranscriptionPreferences | null
+  ): Promise<ResolvedTranscriptionPreferences | null> {
+    const input = captured === undefined ? await this.readTranscriptionPreferenceInput() : captured
+    if (input === null) return null
     const resolved = await this.resolveTranscriptionConfiguration({
       ...(input.modelId && { modelId: input.modelId }),
       language: input.language
@@ -204,8 +206,9 @@ export class VoiceService {
     }
   }
 
-  async readTranscriptionPreferenceInput(): Promise<ResolvedTranscriptionPreferences> {
+  async readTranscriptionPreferenceInput(): Promise<ResolvedTranscriptionPreferences | null> {
     const preferences = await this.readTranscriptionPreferences()
+    if (isVoiceRecognitionOff(preferences.modelId)) return null
     const storedModelId = preferences.modelId.trim()
     let modelId: LocalTranscriptionModelId | undefined
     if (storedModelId) {
