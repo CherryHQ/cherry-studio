@@ -438,3 +438,21 @@ describe('response processing diagnostics', () => {
     expect(serialized).toMatchObject({ message: generic, cause: null })
   })
 })
+
+describe('reasoning-only provider rejection', () => {
+  it('preserves the reported cause and classifies it before discarding the provider body', () => {
+    const message = 'upstream returned reasoning without output text; retry'
+    const error = new APICallError({
+      message: 'Bad Request',
+      url: 'https://example.invalid/chat/completions',
+      statusCode: 400,
+      requestBodyValues: {},
+      responseBody: JSON.stringify({ error: { message } })
+    })
+    expect(serializeNestedProviderError(error)).toMatchObject({
+      message,
+      providerErrorCategory: 'parse',
+      responseBody: null
+    })
+  })
+})

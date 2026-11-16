@@ -377,6 +377,7 @@ export function classifyErrorCategory({ text, status, finishReason }: ErrorCateg
     msg.includes('unexpected token') ||
     msg.includes('failed to process successful response') ||
     msg.includes('api returned an empty or malformed response') ||
+    msg.includes('upstream returned reasoning without output text') ||
     msg.includes('invalid response') ||
     msg.includes('parse error') ||
     (!requestParseFailure && msg.includes('failed to parse')) ||

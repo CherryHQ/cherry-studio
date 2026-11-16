@@ -128,6 +128,17 @@ describe('ErrorBlock', () => {
     }
   )
 
+  it.each([enUS, zhCN])('shows recovery guidance for a provider reasoning-only rejection', (catalog) => {
+    mocks.translations = new Map(Object.entries(catalog))
+    const detail = 'upstream returned reasoning without output text; retry'
+    render(
+      <ErrorBlock partId="message-1-part-0" error={{ name: 'Error', message: detail, stack: null }} message={message} />
+    )
+    expect(screen.getByText(catalog['error.diagnosis.parse'], { exact: true })).toBeInTheDocument()
+    expect(screen.getByText(detail, { exact: true })).toBeInTheDocument()
+    expect(screen.queryByText(catalog['error.diagnosis.unknown'], { exact: true })).not.toBeInTheDocument()
+  })
+
   it('renders Groq entitlement copy and opens its provider settings', async () => {
     const user = userEvent.setup()
     const navigateErrorTarget = vi.fn()
