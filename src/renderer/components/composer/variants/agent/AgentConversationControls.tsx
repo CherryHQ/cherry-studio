@@ -107,7 +107,7 @@ function AgentControl({
           src={agent.avatarSrc}
           alt=""
           size={20}
-          className="rounded-full object-cover"
+          className="max-w-none rounded-full object-cover"
           fallback={<EmojiIcon emoji={getAgentAvatarFromConfiguration(agent.configuration)} size={20} />}
         />
       </button>
