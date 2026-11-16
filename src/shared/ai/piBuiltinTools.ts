@@ -41,7 +41,6 @@ export function normalizePiDisabledToolId(name: string): string {
   if (name === 'tool_exec') return PI_TOOL_EXEC_TOOL_NAME
   return PI_NATIVE_BUILTIN_TOOLS.find((tool) => tool.name === name.toLowerCase())?.name ?? name
 }
-
 type PiDependencyToolRef = { name: string; serverName: string; serverId: string }
 
 const TOOL_DEFS_BY_LOWER_NAME = new Map(CLAUDE_TOOL_DEFS.map((def) => [def.name.toLowerCase(), def]))
@@ -75,9 +74,3 @@ export function isPiToolDisabledByDependency(
       isPiToolDisabledByDependency(dependency, disabled, resolveMcpTool, nextSeen)
   )
 }
-
-export const PI_BUILTIN_TOOL_CATEGORIES = [
-  'file',
-  'shell',
-  'search'
-] as const satisfies readonly PiBuiltinToolCategory[]

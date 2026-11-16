@@ -1,3 +1,5 @@
+import { isContextOverflowMessage } from '@cherrystudio/ai-core/contextOverflow'
+
 // Single source of error-text recognition. Main classifies subprocess stderr, the renderer
 // classifies provider responses; both must agree on precedence (region before 403, quota
 // before 429, feature timeouts before generic network).
@@ -215,18 +217,7 @@ export function classifyErrorCategory({ text, status, finishReason }: ErrorCateg
   }
 
   // Context length exceeded
-  if (
-    /context[_ ]length[_ ]exceeded/.test(msg) ||
-    msg.includes('model_context_window_exceeded') ||
-    msg.includes('too many tokens') ||
-    (msg.includes('maximum context length') &&
-      /exceed|too (?:long|large)|maximum context length is [\d,]+ tokens/.test(msg)) ||
-    (msg.includes('context window') && /exceed|too (?:long|large)/.test(msg)) ||
-    msg.includes('prompt is too long') ||
-    msg.includes('input exceeds the context limit') ||
-    (msg.includes('input is too long') && /model|context|token/.test(msg)) ||
-    /input.{0,80}(?:longer than|exceeds).{0,80}context length/.test(msg)
-  ) {
+  if (isContextOverflowMessage(msg)) {
     return 'context_length'
   }
 
@@ -304,6 +295,12 @@ export function classifyErrorCategory({ text, status, finishReason }: ErrorCateg
   // anchors the diagnostics scanner already recognizes (see network.ts).
   if (
     msg.includes('econnrefused') ||
+    msg.includes('econnreset') ||
+    msg.includes('und_err_socket') ||
+    msg.includes('err_incomplete_chunked_encoding') ||
+    msg.includes('err_connection_closed') ||
+    msg.includes('err_connection_reset') ||
+    msg.includes('err_empty_response') ||
     msg.includes('etimedout') ||
     msg.includes('timeout') ||
     msg.includes('timed out') ||
@@ -401,5 +398,7 @@ export function classifyErrorCategory({ text, status, finishReason }: ErrorCateg
     return 'parse'
   }
 
-  return status === 400 ? 'bad_request' : 'unknown'
+  // A provider's validation type marks a rejected request when no structured status survived
+  // (`Unexpected role "tool"` — #24238), so it must not fall through to the stream-interruption label.
+  return status === 400 || (status === undefined && msg.includes('invalid_request_error')) ? 'bad_request' : 'unknown'
 }

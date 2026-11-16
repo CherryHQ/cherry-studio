@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "e5da9a9e-6626-40f3-aba2-a88c046514d1",
+  "id": "d46ad276-de68-4169-9d6c-3606a8c7d29f",
   "prevId": "bbe3bf61-b9ed-451f-b7ec-94db86dd1dd9",
   "tables": {
     "agent": {
@@ -170,81 +170,6 @@
             "id"
           ],
           "onDelete": "set null",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "checkConstraints": {}
-    },
-    "agent_background_task": {
-      "name": "agent_background_task",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "agent_id": {
-          "name": "agent_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "status": {
-          "name": "status",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "record": {
-          "name": "record",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "started_at": {
-          "name": "started_at",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "finished_at": {
-          "name": "finished_at",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        }
-      },
-      "indexes": {
-        "agent_background_task_agent_started_idx": {
-          "name": "agent_background_task_agent_started_idx",
-          "columns": [
-            "agent_id",
-            "started_at"
-          ],
-          "isUnique": false
-        }
-      },
-      "foreignKeys": {
-        "agent_background_task_agent_id_agent_id_fk": {
-          "name": "agent_background_task_agent_id_agent_id_fk",
-          "tableFrom": "agent_background_task",
-          "tableTo": "agent",
-          "columnsFrom": [
-            "agent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
           "onUpdate": "no action"
         }
       },
@@ -886,6 +811,13 @@
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
+        },
+        "model": {
+          "name": "model",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
         }
       },
       "indexes": {
@@ -979,6 +911,19 @@
           "tableTo": "job_schedule",
           "columnsFrom": [
             "task_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "agent_session_model_user_model_id_fk": {
+          "name": "agent_session_model_user_model_id_fk",
+          "tableFrom": "agent_session",
+          "tableTo": "user_model",
+          "columnsFrom": [
+            "model"
           ],
           "columnsTo": [
             "id"
