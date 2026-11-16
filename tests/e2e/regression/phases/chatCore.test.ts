@@ -39,7 +39,7 @@ test(...caseDefinition('MP-09'), async ({ app, mainWindow: page }, testInfo) => 
   const providerId = `mp09-${Date.now()}`
   const assistantName = app.resourceName('Attachment input')
   const topicName = app.resourceName('Attachment conversation')
-  const imageText = `ORCHID ${Date.now()}`
+  const imageText = 'ORCHID 314159265'
   const documentText = `The project is named IRIS. Its launch date is 17 November. Its budget is 731 dollars.`
   const imageName = 'mp09-readable.png'
   const textName = 'mp09-summary.txt'
@@ -66,7 +66,7 @@ test(...caseDefinition('MP-09'), async ({ app, mainWindow: page }, testInfo) => 
         'feature.screenshot.enabled': true
       })
     )
-    // Use the configured real provider: canned answers cannot establish OCR or document comprehension.
+    // Use fixture model decisions to verify image and document transport through the real application.
     const config = app.config.customProvider
     const created = await page.evaluate(
       async ({ providerId, config }) => {
