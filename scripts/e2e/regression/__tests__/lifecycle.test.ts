@@ -422,8 +422,6 @@ describe('owned application lifecycle', () => {
         return true
       })
       execFileSyncMock.mockImplementation((file: string, args: string[]) => {
-        if (file === 'ps') return args.includes('command=') ? record.executablePath! : ''
-        if (file === 'lsof') return alive.has(record.electronPid) ? String(record.electronPid) : ''
         if (file === 'taskkill.exe') {
           terminated = true
           return ''
