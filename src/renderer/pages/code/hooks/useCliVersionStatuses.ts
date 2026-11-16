@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { loggerService } from '@renderer/services/LoggerService'
@@ -35,6 +35,7 @@ export interface CliVersionStatusesState {
   statuses: Record<string, VersionStatus>
   /** False until a read settles — either successfully or at the retry cap. */
   resolved: boolean
+  retry: () => void
 }
 
 /** Availability and managed upgrade status for every CLI tool. */
@@ -42,6 +43,7 @@ export const useCliVersionStatuses = (toolIds: readonly CodeCli[]): CliVersionSt
   const [statuses, setStatuses] = useState<Record<string, VersionStatus>>({})
   const [resolved, setResolved] = useState(false)
   const [availabilityRevision, setAvailabilityRevision] = useState(0)
+  const retry = useCallback(() => setAvailabilityRevision((revision) => revision + 1), [])
   const latestRef = useRef<Record<string, string | undefined>>({})
   const toolKey = toolIds.join('|')
   const tools = useMemo(() => (toolKey ? (toolKey.split('|') as CodeCli[]) : []), [toolKey])
@@ -50,6 +52,12 @@ export const useCliVersionStatuses = (toolIds: readonly CodeCli[]): CliVersionSt
     let cancelled = false
     let retryTimer: ReturnType<typeof setTimeout> | undefined
     let attempts = 0
+    setResolved(false)
+    setStatuses((previous) =>
+      Object.fromEntries(
+        tools.map((toolId) => [toolId, { ...(previous[toolId] ?? buildStatus(undefined)), detectionStatus: 'loading' }])
+      )
+    )
 
     const refresh = async () => {
       const binaryNames = tools.map((toolId) => CODE_CLI_TOOL_PRESET_MAP[toolId].executable)
@@ -59,11 +67,20 @@ export const useCliVersionStatuses = (toolIds: readonly CodeCli[]): CliVersionSt
       })
       if (cancelled) return
       if (!snapshots) {
-        // Only an install/remove event re-runs this read, so without a retry a first
-        // attempt that races main-process readiness strands every tool for the session.
+        // Retry transient failures while main initializes; manual retry remains available after the cap.
         attempts += 1
         if (attempts < SNAPSHOT_MAX_ATTEMPTS) retryTimer = setTimeout(() => void refresh(), SNAPSHOT_RETRY_MS)
-        else setResolved(true)
+        else {
+          setStatuses((previous) =>
+            Object.fromEntries(
+              tools.map((toolId) => [
+                toolId,
+                { ...(previous[toolId] ?? buildStatus(undefined)), detectionStatus: 'error' }
+              ])
+            )
+          )
+          setResolved(true)
+        }
         return
       }
 
@@ -74,6 +91,23 @@ export const useCliVersionStatuses = (toolIds: readonly CodeCli[]): CliVersionSt
           delete latestRef.current[toolId]
         }
       }
+      const publish = (latestVersions: Record<string, string> = {}) => {
+        setStatuses((previous) =>
+          Object.fromEntries(
+            tools.map((toolId) => {
+              const binaryName = CODE_CLI_TOOL_PRESET_MAP[toolId].executable
+              const snapshot = snapshots[binaryName]
+              if (!snapshot)
+                return [toolId, { ...(previous[toolId] ?? buildStatus(undefined)), detectionStatus: 'error' }]
+              const latest = latestVersions[binaryName] ?? latestRef.current[toolId]
+              return [toolId, buildStatus(snapshot, latest)]
+            })
+          )
+        )
+      }
+      publish()
+      setResolved(true)
+
       const hasAppliedCli = tools.some(
         (toolId) => snapshots[CODE_CLI_TOOL_PRESET_MAP[toolId].executable]?.application?.status === 'applied'
       )
@@ -83,6 +117,7 @@ export const useCliVersionStatuses = (toolIds: readonly CodeCli[]): CliVersionSt
           logger.error('Failed to read latest-version cache', error as Error)
           return {}
         })
+        if (cancelled) return
         const needsLatest = tools.some((toolId) => {
           const binaryName = CODE_CLI_TOOL_PRESET_MAP[toolId].executable
           const snapshot = snapshots[binaryName]
@@ -99,15 +134,13 @@ export const useCliVersionStatuses = (toolIds: readonly CodeCli[]): CliVersionSt
       }
       if (cancelled) return
 
-      const next: Record<string, VersionStatus> = {}
       for (const toolId of tools) {
         const binaryName = CODE_CLI_TOOL_PRESET_MAP[toolId].executable
-        const latest = latestVersions[binaryName] ?? latestRef.current[toolId]
-        latestRef.current[toolId] = latest
-        next[toolId] = buildStatus(snapshots[binaryName], latest)
+        if (snapshots[binaryName]?.application?.status === 'applied') {
+          latestRef.current[toolId] = latestVersions[binaryName] ?? latestRef.current[toolId]
+        }
       }
-      setStatuses(next)
-      setResolved(true)
+      publish(latestVersions)
     }
 
     void refresh()
@@ -121,5 +154,5 @@ export const useCliVersionStatuses = (toolIds: readonly CodeCli[]): CliVersionSt
     setAvailabilityRevision((revision) => revision + 1)
   })
 
-  return { statuses, resolved }
+  return { statuses, resolved, retry }
 }

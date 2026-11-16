@@ -42,10 +42,13 @@ const CLI_TOOL_IDS = CLI_TOOLS.map((tool) => tool.value)
 const codeCliSidebarTarget = (tool: CodeCli) =>
   createSidebarShortcutTarget(SIDEBAR_SHORTCUT_PROVIDER_IDS.CODE_CLI, tool)
 
-// A broken managed install reports installed:false (inactive entries, no shim), and hiding it
-// would strip the only surface offering the Retry/Remove that repair or undo it.
+// Keep detection retry reachable while availability is uncertain; a broken copy also needs repair/removal.
 const isGeminiVisible = (status?: VersionStatus): boolean =>
-  status?.installed === true || status?.applicationStatus === 'broken'
+  !status ||
+  !!status.detectionStatus ||
+  status.installed ||
+  status.applicationStatus === 'broken' ||
+  status.applicationStatus === 'unknown'
 
 export function useCodeCliPageViewProps(
   initialTool?: CodeCli,
@@ -177,7 +180,7 @@ export function useCodeCliPageViewProps(
     apiGatewayProvider: apiGatewayBundle
   })
 
-  const { statuses, resolved: statusesResolved } = useCliVersionStatuses(CLI_TOOL_IDS)
+  const { statuses, retry: retryDetection } = useCliVersionStatuses(CLI_TOOL_IDS)
   const { isPinned: isSidebarShortcutPinned, setPinned: setSidebarShortcutPinned } = useSidebarShortcuts()
   const isCliSidebarPinned = useCallback(
     (tool: CodeCli) => isSidebarShortcutPinned(codeCliSidebarTarget(tool)),
@@ -203,13 +206,11 @@ export function useCodeCliPageViewProps(
     [selectedCliTool, visibleTools]
   )
   useEffect(() => {
-    // Gate on `resolved`, not on the status being absent: a failed read leaves the map
-    // empty forever, which would hide Gemini while never redirecting off it.
-    if (selectedCliTool !== CodeCli.GEMINI_CLI || !statusesResolved) return
+    if (selectedCliTool !== CodeCli.GEMINI_CLI) return
     if (isGeminiVisible(statuses[CodeCli.GEMINI_CLI]) || isCliSidebarPinned(CodeCli.GEMINI_CLI)) return
     const fallback = visibleTools[0]
     if (fallback) selectTool(fallback.value)
-  }, [isCliSidebarPinned, selectedCliTool, selectTool, statuses, statusesResolved, visibleTools])
+  }, [isCliSidebarPinned, selectedCliTool, selectTool, statuses, visibleTools])
   const isProviderlessTool = PROVIDERLESS_CLI_TOOLS.has(selectedCliTool)
   const isOwnLoginSelected = selectedProvider?.id === CLI_OWN_LOGIN_PROVIDER_ID
   const isDeepSeekHarnessTool = selectedCliTool === CodeCli.DEEPSEEK_HARNESS
@@ -230,7 +231,8 @@ export function useCodeCliPageViewProps(
   const versionStatus: VersionStatus = statuses[selectedCliTool] ?? {
     installed: false,
     source: 'none',
-    canUpgrade: false
+    canUpgrade: false,
+    detectionStatus: 'loading'
   }
   const canLaunch = isHermesDashboardTool
     ? versionStatus.installed
@@ -384,6 +386,7 @@ export function useCodeCliPageViewProps(
               selectedCliTool,
               versionStatus.operation?.status === 'failed' ? versionStatus.operation.targetVersion : undefined
             ),
+          onRetryDetection: retryDetection,
           onUpgrade: () => void upgrade(selectedCliTool, versionStatus.latest),
           // Uninstall authority is the live application fact: offer removal only
           // when the fixed CLI's exact recipe is applied or broken.
