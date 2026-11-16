@@ -9,7 +9,7 @@ const Palm = ({ variant, className, ...props }: CompoundIconProps) => {
 
 export const PalmIcon: CompoundIcon = /*#__PURE__*/ Object.assign(Palm, {
   Avatar: PalmAvatar,
-  colorPrimary: '#F8AB02'
+  colorPrimary: '#fef7e8'
 })
 
 export default PalmIcon

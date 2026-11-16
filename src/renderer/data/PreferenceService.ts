@@ -30,6 +30,10 @@ export class PreferenceService {
   private changeListenerCleanup: (() => void) | null = null
 
   private subscribedKeys = new Set<string>()
+  private pendingSubscriptions = new Map<string, Promise<boolean>>()
+  private alignedKeys = new Set<string>()
+  private pendingAlignments = new Map<string, Promise<{ ok: true; value: any } | { ok: false }>>()
+  private pushVersions = new Map<string, number>()
 
   private fullCacheLoaded = false
 
@@ -71,6 +75,7 @@ export class PreferenceService {
     }
 
     this.changeListenerCleanup = window.api.preference.onChanged((key, value) => {
+      this.pushVersions.set(key, (this.pushVersions.get(key) ?? 0) + 1)
       const oldValue = this.cache[key]
 
       // Deep equality filters self-induced IPC echoes: the main-process broadcast
@@ -233,6 +238,19 @@ export class PreferenceService {
     } catch (error) {
       logger.error(`Pessimistic update failed for ${key}:`, error as Error)
       throw error
+    }
+  }
+
+  // Read the source of truth without changing the cache or subscriptions.
+  public async getAuthoritative<K extends UnifiedPreferenceKeyType>(
+    key: K
+  ): Promise<UnifiedPreferenceType[K] | undefined> {
+    try {
+      const value = await window.api.preference.get(key)
+      if (value === undefined || value === null) return undefined
+      return value
+    } catch {
+      return undefined
     }
   }
 
@@ -408,21 +426,86 @@ export class PreferenceService {
    * @param keys Array of preference keys to subscribe to
    * @returns Promise that resolves when subscription is established
    */
-  private async subscribeToKeyInternal(keys: UnifiedPreferenceKeyType[]): Promise<void> {
-    const keysToSubscribe = keys.filter((key) => !this.subscribedKeys.has(key))
-    if (keysToSubscribe.length === 0) return
-
-    // Optimistically mark as subscribed before the IPC round-trip so concurrent
-    // callers don't send duplicate subscriptions; rolled back on failure.
-    keysToSubscribe.forEach((key) => this.subscribedKeys.add(key))
-
-    try {
-      await window.api.preference.subscribe(keysToSubscribe)
-      logger.verbose(`Subscribed to preference keys: ${keysToSubscribe.join(', ')}`)
-    } catch (error) {
-      keysToSubscribe.forEach((key) => this.subscribedKeys.delete(key))
-      logger.error(`Failed to subscribe to preference keys ${keysToSubscribe.join(', ')}:`, error as Error)
+  private async subscribeToKeyInternal(keys: UnifiedPreferenceKeyType[], align = true): Promise<boolean> {
+    if (!this.changeListenerCleanup) return false
+    const keysToSubscribe = [...new Set(keys)].filter(
+      (key) => !this.subscribedKeys.has(key) && !this.pendingSubscriptions.has(key)
+    )
+    if (keysToSubscribe.length > 0) {
+      const task = (async () => {
+        try {
+          await window.api.preference.subscribe(keysToSubscribe)
+          keysToSubscribe.forEach((key) => this.subscribedKeys.add(key))
+          logger.verbose(`Subscribed to preference keys: ${keysToSubscribe.join(', ')}`)
+          return true
+        } catch (error) {
+          logger.error(`Failed to subscribe to preference keys ${keysToSubscribe.join(', ')}:`, error as Error)
+          return false
+        }
+      })().finally(() => {
+        keysToSubscribe.forEach((key) => this.pendingSubscriptions.delete(key))
+      })
+      keysToSubscribe.forEach((key) => this.pendingSubscriptions.set(key, task))
     }
+    const results = await Promise.all(
+      keys.map(async (key) => this.pendingSubscriptions.get(key) ?? this.subscribedKeys.has(key))
+    )
+    if (!results.every(Boolean)) return false
+    if (align) {
+      await Promise.all(keys.filter((key) => !this.alignedKeys.has(key)).map((key) => this.alignSubscription(key)))
+    }
+    return true
+  }
+
+  private alignSubscription<K extends UnifiedPreferenceKeyType>(
+    key: K
+  ): Promise<{ ok: true; value: UnifiedPreferenceType[K] } | { ok: false }> {
+    const pending = this.pendingAlignments.get(key)
+    if (pending) return pending
+    const task = (async () => {
+      try {
+        for (let attempt = 0; attempt < 3; attempt++) {
+          const version = this.pushVersions.get(key)
+          const value = await window.api.preference.get(key)
+          if (value === undefined || value === null) {
+            this.alignedKeys.delete(key)
+            logger.verbose(`Failed to align subscribed preference: ${key}`)
+            return { ok: false } as const
+          }
+          // Reread on races; never return cache values that may have been rolled back.
+          if (this.pushVersions.get(key) !== version) continue
+          this.alignedKeys.add(key)
+          const changed = !isEqual(this.cache[key], value)
+          this.cache[key] = value
+          if (changed) this.notifyChangeListeners(key)
+          return { ok: true, value } as const
+        }
+        this.alignedKeys.delete(key)
+        return { ok: false } as const
+      } catch {
+        this.alignedKeys.delete(key)
+        logger.verbose(`Failed to align subscribed preference: ${key}`)
+        return { ok: false } as const
+      }
+    })().finally(() => this.pendingAlignments.delete(key))
+    this.pendingAlignments.set(key, task)
+    return task
+  }
+
+  public async ensureFreshSubscription<K extends UnifiedPreferenceKeyType>(
+    key: K
+  ): Promise<{ ok: true; value: UnifiedPreferenceType[K] } | { ok: false }> {
+    // Subscribe before reading so every change after the snapshot will arrive through pushes.
+    try {
+      if (!(await this.subscribeToKeyInternal([key], false))) return { ok: false }
+      return await this.alignSubscription(key)
+    } catch {
+      return { ok: false }
+    }
+  }
+
+  public ensureSubscription(key: UnifiedPreferenceKeyType): Promise<boolean> {
+    return this.subscribeToKeyInternal([key])
   }
 
   /**
@@ -680,6 +763,7 @@ export class PreferenceService {
   public clearCache(): void {
     this.cache = {}
     this.fullCacheLoaded = false
+    this.alignedKeys.clear()
     logger.debug('Preference cache cleared')
   }
 
@@ -700,6 +784,7 @@ export class PreferenceService {
     this.allChangesListeners.clear()
     this.keyChangeListeners.clear()
     this.subscribedKeys.clear()
+    this.pendingAlignments.clear()
   }
 }
 

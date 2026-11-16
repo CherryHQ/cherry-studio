@@ -6,6 +6,12 @@
 
 - Change the package license from AGPL-3.0-only to MIT.
 
+## 0.4.0
+
+### Minor Changes
+
+- [#24494](https://github.com/CherryHQ/cherry-studio/pull/24494) [`2130f5e`](https://github.com/CherryHQ/cherry-studio/commit/2130f5ebe23c7d668d49e549200fd147d4f7d580) Thanks [@markiceman](https://github.com/markiceman)! - Add Czech (cs-CZ) translations.
+
 ## 0.3.0
 
 ### Minor Changes

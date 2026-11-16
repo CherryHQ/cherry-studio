@@ -74,6 +74,16 @@ describe('Notes dictation integration', () => {
     codeEditorRef.current = null
   })
 
+  it('hides dictation while Off and restores it on On without changing the draft', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('feature.voice.recognition.model_id', 'off')
+    const view = render(<Note />)
+    expect(screen.queryByRole('button', { name: 'Dictate locally' })).toBeNull()
+    expect(screen.getByLabelText('saved draft')).toHaveTextContent('alpha beta')
+    MockUsePreferenceUtils.setPreferenceValue('feature.voice.recognition.model_id', '')
+    view.rerender(<Note />)
+    expect(await screen.findByRole('button', { name: 'Dictate locally' })).toBeInTheDocument()
+  })
+
   it('starts from the microphone and replaces the live rich-text selection in the saved draft', async () => {
     let binding: CapturedVoiceTarget | null = null
     vi.spyOn(dictationService, 'startScoped').mockImplementation(() => {
