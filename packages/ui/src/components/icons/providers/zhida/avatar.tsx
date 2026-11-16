@@ -2,6 +2,7 @@ import { Avatar, AvatarFallback } from '@cherrystudio/ui/components/primitives/a
 import { cn } from '@cherrystudio/ui/lib/utils'
 
 import { type IconAvatarProps } from '../../types'
+import { ZhidaDark } from './dark'
 import { ZhidaLight } from './light'
 
 export function ZhidaAvatar({ size = 32, shape = 'circle', className }: Omit<IconAvatarProps, 'icon'>) {
@@ -10,7 +11,8 @@ export function ZhidaAvatar({ size = 32, shape = 'circle', className }: Omit<Ico
       className={cn('overflow-hidden', shape === 'circle' ? 'rounded-full' : 'rounded-[20%]', className)}
       style={{ width: size, height: size }}>
       <AvatarFallback className="text-foreground">
-        <ZhidaLight style={{ width: size, height: size }} />
+        <ZhidaLight className="dark:hidden" style={{ width: size, height: size }} />
+        <ZhidaDark className="hidden dark:block" style={{ width: size, height: size }} />
       </AvatarFallback>
     </Avatar>
   )
