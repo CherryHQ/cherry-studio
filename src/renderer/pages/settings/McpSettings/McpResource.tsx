@@ -10,6 +10,7 @@ import {
   EmptyState,
   Flex
 } from '@cherrystudio/ui'
+import { formatFileSize } from '@renderer/utils/file'
 import type { McpResource } from '@shared/types/mcp'
 
 import { McpDetailItem, McpDetailList } from './McpDetailList'
@@ -21,22 +22,6 @@ interface McpResourcesSectionProps {
 
 const McpResourcesSection = ({ resources }: McpResourcesSectionProps) => {
   const { t } = useTranslation()
-
-  // Format file size to human-readable format
-  const formatFileSize = (size?: number) => {
-    if (size === undefined) return 'Unknown size'
-
-    const units = ['B', 'KB', 'MB', 'GB', 'TB']
-    let formattedSize = size
-    let unitIndex = 0
-
-    while (formattedSize >= 1024 && unitIndex < units.length - 1) {
-      formattedSize /= 1024
-      unitIndex++
-    }
-
-    return `${formattedSize.toFixed(2)} ${units[unitIndex]}`
-  }
 
   // Render resource properties
   const renderResourceProperties = (resource: McpResource) => {

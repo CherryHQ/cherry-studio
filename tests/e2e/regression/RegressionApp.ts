@@ -8,6 +8,7 @@ import type { IpcResult } from '@shared/ipc/errors/IpcError'
 
 import { loadTestConfig, type RegressionTestConfig } from '../../../scripts/e2e/regression/config'
 import { assertOwnedAppIsolation, prepareWindowsCdpConnection } from '../../../scripts/e2e/regression/debugBridge'
+import type { EmbeddingProviderConfig } from '../../../scripts/e2e/regression/embeddingMock'
 import {
   adoptRelaunchedApp,
   assertNoLaunchFailure,
@@ -40,7 +41,8 @@ export class RegressionApp {
 
   constructor(
     runDirectory: string,
-    readonly caseId: string
+    readonly caseId: string,
+    private readonly embeddingConfig?: EmbeddingProviderConfig
   ) {
     const paths = getRunPaths(runDirectory)
     this.paths = { ...paths, workspace: join(paths.workspace, `agent-workspace-${caseId}`) }
@@ -62,6 +64,11 @@ export class RegressionApp {
 
   get config(): RegressionTestConfig {
     return loadTestConfig()
+  }
+
+  get embeddingProvider(): EmbeddingProviderConfig {
+    if (!this.embeddingConfig) throw new Error('Embedding mock fixture is required')
+    return this.embeddingConfig
   }
 
   get record(): AppRecord {
@@ -112,6 +119,7 @@ export class RegressionApp {
       }
     }
     const { cdpPort } = record
+    await prepareWindowsCdpConnection(record)
     this.browser = await chromium.connectOverCDP(`http://127.0.0.1:${cdpPort}`, {
       isLocal: true,
       noDefaults: true,
@@ -140,7 +148,7 @@ export class RegressionApp {
     try {
       if ((await this.revealWindow()) && (await rootVisible(page, 60_000))) return page
       await this.disconnect()
-      await prepareWindowsCdpConnection(await restartApp(this.paths))
+      await restartApp(this.paths)
       return await this.mainWindow()
     } finally {
       this.recoveringWindow = false
@@ -226,22 +234,19 @@ export class RegressionApp {
 
   async restart(profile?: TestProfile): Promise<Page> {
     await this.disconnect()
-    const record = await restartApp(this.paths, profile)
-    await prepareWindowsCdpConnection(record)
+    await restartApp(this.paths, profile)
     return this.mainWindow()
   }
 
   async adoptRelaunch(): Promise<Page> {
     await this.disconnect()
-    const record = await adoptRelaunchedApp(this.paths)
-    await prepareWindowsCdpConnection(record)
+    await adoptRelaunchedApp(this.paths)
     return this.mainWindow()
   }
 
   async useProfile(profile: TestProfile): Promise<Page> {
     await this.disconnect()
-    const record = await ensureProfile(this.paths, profile)
-    await prepareWindowsCdpConnection(record)
+    await ensureProfile(this.paths, profile)
     return this.mainWindow()
   }
 }

@@ -10,6 +10,7 @@ import { getSensitiveConfigValues } from '../../../../scripts/e2e/regression/con
 import { captureMaskedScreenshot } from '../../../../scripts/e2e/regression/screenshotEvidence'
 import { startMockChatServer } from '../../../helpers/http/mockChatServer'
 import { selectSidebarApp } from '../helpers/navigation'
+import { revealVirtualized } from '../helpers/virtualList'
 import type { RegressionApp } from '../RegressionApp'
 
 export async function polishPrompt(app: RegressionApp, page: Page, testInfo: TestInfo): Promise<void> {
@@ -105,24 +106,31 @@ export async function polishPrompt(app: RegressionApp, page: Page, testInfo: Tes
     )
     await page.reload()
     await selectSidebarApp(page, 'Chat')
+    const chat = page.locator('[data-ui~="chat.view"]:visible')
+    const topics = chat.locator('[data-ui~="chat.topic-list"]:visible')
+    if (!(await topics.isVisible())) await chat.getByRole('button', { name: 'Show Sidebar', exact: true }).click()
+    await expect(topics).toBeVisible()
     const row = page.locator('[data-ui~="chat.group-header"]').filter({ hasText: name }).first()
     const dialog = page.getByRole('dialog', { name: 'Edit Assistant', exact: true })
     const openEditor = async () => {
+      await revealVirtualized(page, chat.locator('[data-virtual-scrolling]').first(), row)
       await expect(row).toBeVisible()
-      await row.click({ button: 'right' })
-      await page.getByRole('menuitem', { name: 'Edit Assistant', exact: true }).click()
-      await expect(dialog).toBeVisible()
+      await expect(async () => {
+        await row.click({ button: 'right' })
+        await page.getByRole('menuitem', { name: 'Edit Assistant', exact: true }).click()
+        await expect(dialog).toBeVisible()
+      }).toPass({ timeout: 30_000 })
       await dialog.getByRole('tab', { name: 'System Prompt', exact: true }).click()
       const edit = dialog.getByRole('button', { name: 'Edit', exact: true })
       if (await edit.isVisible()) await edit.click()
     }
     await openEditor()
     const editor = dialog.locator('.cm-content')
-    const polish = dialog.getByRole('button', { name: 'Polish prompt', exact: true })
+    const polish = dialog.getByRole('button', { name: /^Polish prompt · / })
     const rough = '你是测试助手，回答简短'
     await editor.fill(rough)
     await polish.click()
-    await expect(dialog.getByRole('button', { name: 'Cancel', exact: true })).toBeVisible()
+    await expect(dialog.getByRole('button', { name: /^Cancel · / })).toBeVisible()
     await attachScreenshot('MP-16 real polish running')
     await expect
       .soft(editor, 'Prompt editor must lock while the real request is pending')
@@ -175,7 +183,7 @@ export async function polishPrompt(app: RegressionApp, page: Page, testInfo: Tes
     const failed = await server.nextRequest()
     failed.complete('')
     await expect(page.getByText('Failed to polish prompt', { exact: true })).toBeVisible()
-    await expect(page.getByText('Check or change the default model, then try again.', { exact: true })).toBeVisible()
+    await expect(page.getByText('No response', { exact: true })).toBeVisible()
     await expect(editor).toHaveAttribute('contenteditable', 'true')
     await expect.poll(() => editor.innerText()).toBe(withVariable)
     await attachScreenshot('MP-16 failed polish retains final prompt')

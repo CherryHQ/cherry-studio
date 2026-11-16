@@ -466,7 +466,7 @@ index 627c5b060dc278e18962d7d9b8e22ba299bb3653..d7cf741be9d5936e269496550c40d37a
          toolName: call.name,
          content,
 diff --git a/dist/harness/types.d.ts b/dist/harness/types.d.ts
-index efa6889460e9c42ea0c58105494e6598ad0070d9..7bc3f6fe93a6128c999f8fc4b0a785c79c183732 100644
+index 7f4a0ba59df6d5870248c60c055dd188fdab51c4..93c158e79225c75da8860c78646915a77925c175 100644
 --- a/dist/harness/types.d.ts
 +++ b/dist/harness/types.d.ts
 @@ -141,6 +141,7 @@ export type ToolDiagnostic = {
@@ -498,7 +498,16 @@ index efa6889460e9c42ea0c58105494e6598ad0070d9..7bc3f6fe93a6128c999f8fc4b0a785c7
      /** Default true: wrap the text as `<key>\n...\n</key>`. */
      readonly tag?: boolean;
  };
-@@ -465,7 +468,7 @@ export type Agent<Tool extends ToolRegistration = ToolRegistration> = {
+@@ -356,6 +359,8 @@ export interface Extension<Tool extends ToolRegistration = ToolRegistration> {
+     readonly hooks?: readonly HookRegistration[];
+     /** Apply where this extension is selected, in order. */
+     readonly wraps?: readonly Wrap<Tool>[];
++    /** Applied to every tool after all `wraps`, where this extension is selected, with the agent's model. Must keep the name; pure. */
++    wrapTools?(tool: Tool, model: ModelRef | undefined): Tool;
+     /** Resolved by name for every task, whichever conversations select this extension. */
+     readonly tasks?: readonly AnyTask[];
+ }
+@@ -465,7 +470,7 @@ export type Agent<Tool extends ToolRegistration = ToolRegistration> = {
      /** The tools nested calls (`executeTool()`) resolve among, in order: enabled and callable by tools. */
      readonly callable: readonly Tool[];
      /** Enabled deferred tools the model may call and is not offered yet, in registry order: what `tool_search` loads. */
@@ -507,7 +516,7 @@ index efa6889460e9c42ea0c58105494e6598ad0070d9..7bc3f6fe93a6128c999f8fc4b0a785c7
      /** Extension sections, then `instructions` when set. */
      readonly sections: readonly PromptSection<Tool>[];
      readonly instructions?: string;
-@@ -758,8 +761,19 @@ export type ContextView = {
+@@ -758,8 +763,19 @@ export type ContextView = {
      readonly messages: readonly Message[];
  };
  /** Stateless handle for one conversation, bound to the Harness that returned it. Compare handles by `id`. */
@@ -527,7 +536,7 @@ index efa6889460e9c42ea0c58105494e6598ad0070d9..7bc3f6fe93a6128c999f8fc4b0a785c7
      /** Resolved with the current registry snapshot and settings. */
      agent(context: Context): Promise<Agent>;
      /** `configure()` in its own commit. */
-@@ -990,6 +1004,10 @@ export interface ToolHooks {
+@@ -990,6 +1006,10 @@ export interface ToolHooks {
  }
  /** Hooks of the built-in compaction task. */
  export interface CompactionHooks {
@@ -538,7 +547,7 @@ index efa6889460e9c42ea0c58105494e6598ad0070d9..7bc3f6fe93a6128c999f8fc4b0a785c7
      /**
       * After range selection, before summarizing; the first decision wins. `entries` are the active entries the summary
       * replaces, the head marker first, and `messages` their model context, the summarizer's source; `firstKept` is the
-@@ -997,6 +1015,7 @@ export interface CompactionHooks {
+@@ -997,6 +1017,7 @@ export interface CompactionHooks {
       */
      beforeCompact(compaction: {
          readonly reason: CompactionReason;
@@ -546,7 +555,7 @@ index efa6889460e9c42ea0c58105494e6598ad0070d9..7bc3f6fe93a6128c999f8fc4b0a785c7
          readonly entries: readonly EntryRecord[];
          readonly messages: readonly Message[];
          readonly firstKept: EntryId;
-@@ -1005,6 +1024,8 @@ export interface CompactionHooks {
+@@ -1005,6 +1026,8 @@ export interface CompactionHooks {
          readonly decline: true;
      } | {
          readonly summary: string;
@@ -807,3 +816,20 @@ index 5f6f124761cb6b4739b802eecadd51fc8f0c034b..706312d02e58efb1de7d3aa902ac88d6
      doc<T extends JsonObject>(token: SessionDocToken<T>): Promise<Draft<T>>;
      doc<T extends JsonObject>(token: ConversationDocToken<T>, conversationId: ConversationId): Promise<Draft<T>>;
      doc<T extends JsonObject>(token: TaskDocToken<T>, taskId: TaskId): Promise<Draft<T>>;
+diff --git a/dist/harness/agent.js b/dist/harness/agent.js
+index dbae2ff3bd5ded4db56c1fa3f5c4a58eee2af315..e46f1b66e980e29d74c6aeabfafa221fb6501014 100644
+--- a/dist/harness/agent.js
++++ b/dist/harness/agent.js
+@@ -242,6 +242,12 @@ report) {
+                 applyWrap(sections, wrap.section, (section) => wrap.wrap(section), (section) => section.key, wrapReport);
+         }
+     }
++    for (const extension of extensions) {
++        if (extension.wrapTools === undefined)
++            continue;
++        for (const name of [...composed.keys()])
++            applyWrap(composed, name, (tool) => extension.wrapTools(tool, state?.model), (tool) => tool.name, (error) => report(error, extension.name));
++    }
+     const enabled = filterTools([...composed.values()], state?.tools);
+     const callableBy = (caller) => (tool) => tool.callers === undefined || tool.callers.includes(caller);
+     const modelCallable = enabled.filter(callableBy("model"));

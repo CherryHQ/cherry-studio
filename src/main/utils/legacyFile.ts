@@ -88,14 +88,6 @@ export function getFileType(ext: string): FileType {
   return fileTypeMap.get(ext) || FILE_TYPE.OTHER
 }
 
-export function getFileDir(filePath: string) {
-  return path.dirname(filePath)
-}
-
-export function getFileName(filePath: string) {
-  return path.basename(filePath)
-}
-
 export function getFileExt(filePath: string) {
   return path.extname(filePath)
 }

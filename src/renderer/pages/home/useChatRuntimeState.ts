@@ -119,6 +119,7 @@ export function useChatRuntimeState({
   composerModelId,
   onBranchLiveStateChange
 }: UseChatRuntimeStateParams) {
+  const [scrollToBottomOnSend] = usePreference('chat.message.scroll_to_bottom_on_send')
   const [autoReadEnabled] = usePreference('feature.voice.auto_read.enabled')
   const { regenerate, stop, setMessages, activeExecutions } = useChatWithHistory(topic.id, initialMessages, refresh)
   const { isPending: isTopicStreamPending } = useTopicStreamStatus(topic.id)
@@ -264,6 +265,7 @@ export function useChatRuntimeState({
     [uiMessages]
   )
   const toolApprovalComposerOverrides = useToolApprovalComposerOverrides({
+    topicId: topic.id,
     partsByMessageId,
     persistedPartsByMessageId,
     streamingLayers,
@@ -519,7 +521,7 @@ export function useChatRuntimeState({
         const continuesExistingTopic = hasMessagesRef.current
         const sent = await send({ text, options })
         if (sent) {
-          scrollToBottom()
+          if (scrollToBottomOnSend) scrollToBottom()
           if (continuesExistingTopic) {
             // POST /pins is idempotent, so an already-pinned topic is left untouched.
             void pinTopic({ body: { entityType: 'topic', entityId: topic.id } }).catch((err) =>
@@ -533,7 +535,7 @@ export function useChatRuntimeState({
         throw err
       }
     },
-    [pinTopic, scrollToBottom, send, topic.id]
+    [pinTopic, scrollToBottom, scrollToBottomOnSend, send, topic.id]
   )
 
   return {

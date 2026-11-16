@@ -162,6 +162,7 @@ export function ChatConversationControls({
         />
       ) : useMentionedModelSelector ? (
         <ModelSelector
+          allowPresentationSwitch
           multiple
           value={mentionedModelSelectorValue}
           onSelect={handleMentionedModelSelect}
@@ -191,6 +192,7 @@ export function ChatConversationControls({
         />
       ) : (
         <ModelSelector
+          allowPresentationSwitch
           multiple={false}
           value={model}
           onSelect={onModelSelect}
