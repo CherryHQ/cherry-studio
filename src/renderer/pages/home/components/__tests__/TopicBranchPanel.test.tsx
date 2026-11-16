@@ -12,8 +12,9 @@ import TopicBranchPanel from '../TopicBranchPanel'
 
 vi.mock('@cherrystudio/ui', async () => {
   const { ConfirmDialog } = await import('@cherrystudio/ui/components/composites/confirm-dialog')
+  const { Alert } = await import('@cherrystudio/ui/components/primitives/alert')
   const { Button } = await import('@cherrystudio/ui/components/primitives/button')
-  return { Button, ConfirmDialog }
+  return { Alert, Button, ConfirmDialog }
 })
 
 const mocks = vi.hoisted(() => ({
