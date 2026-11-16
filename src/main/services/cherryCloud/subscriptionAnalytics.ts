@@ -3,6 +3,19 @@ import { getAppEdition } from '@main/utils/appEdition'
 import { getClientId } from '@main/utils/systemInfo'
 import type { CherryCloudAnalyticsEvent } from '@shared/ipc/schemas/cherryCloud'
 
+function isTestTraffic(): boolean {
+  return import.meta.env.DEV || !!import.meta.env.MAIN_VITE_CHERRY_CLOUD_API_ORIGIN?.trim()
+}
+
+function accountDistinctId(accountId: string): string {
+  return `cloud-api:${getAppEdition()}:${isTestTraffic() ? 'development' : 'production'}:account:${accountId}`
+}
+
+/** Binds product analytics to the signed-in Cherry AI account; null returns it to the device id. */
+export function publishProductAnalyticsAccount(accountId: string | null): void {
+  application.get('AnalyticsService').setProductAccount(accountId ? accountDistinctId(accountId) : null)
+}
+
 /** Formats the existing Cloud funnel contract while generic analytics owns consent and transport. */
 export async function trackCherryCloudAnalyticsEvent(
   payload: CherryCloudAnalyticsEvent,
@@ -16,13 +29,11 @@ export async function trackCherryCloudAnalyticsEvent(
   const matchesScope = current && eventScopeId === admittedScopeId
   // A real click still happened after its intent was superseded; late results do not belong to a new account.
   if (!matchesScope && eventScopeId !== null && payload.event !== 'subscription_entry_clicked') return
-  const testTraffic = import.meta.env.DEV || !!import.meta.env.MAIN_VITE_CHERRY_CLOUD_API_ORIGIN?.trim()
+  const testTraffic = isTestTraffic()
   const environment = testTraffic ? 'development' : 'production'
   const edition = getAppEdition()
-  const accountDistinctId =
-    matchesScope && status.accountId && edition === 'cn'
-      ? `cloud-api:cn:${environment}:account:${status.accountId}`
-      : null
+  const subscriptionDistinctId =
+    matchesScope && status.accountId && edition === 'cn' ? accountDistinctId(status.accountId) : null
   const { event, ...fields } = payload
   const properties = Object.fromEntries(
     Object.entries(fields).map(([key, value]) => [key.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`), value])
@@ -40,6 +51,6 @@ export async function trackCherryCloudAnalyticsEvent(
       test: testTraffic,
       schema_version: 1
     },
-    { distinctId: accountDistinctId ?? getClientId(), processPersonProfile: accountDistinctId !== null }
+    { distinctId: subscriptionDistinctId ?? getClientId(), processPersonProfile: subscriptionDistinctId !== null }
   )
 }

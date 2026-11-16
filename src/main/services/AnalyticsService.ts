@@ -20,15 +20,17 @@ const POSTHOG_PROJECT_KEYS = {
   cn: 'phc_vwsf7qr54Vk2ff23Nj2B4PEYtSkkpheKrb8VcdfDujna',
   global: 'phc_G0omsYajA6A9BY5c0rnU04ZaZck25xpR0DqKhwfF39n'
 } as const satisfies Record<AppEdition, string>
+// Product events from both editions go to the Cherry Studio project.
+const PRODUCT_POSTHOG_KEY = POSTHOG_PROJECT_KEYS.global
 const POSTHOG_HOST = 'https://us.i.posthog.com'
 const PRODUCT_EVENT_SCHEMA_VERSION = 1
 const MAX_PENDING_PRODUCT_EVENTS = 200
 
 // Development builds record usage insights only in a project set through MAIN_VITE_POSTHOG_KEY.
-function resolvePostHogKey(): string {
+function resolvePostHogKey(releaseKey: string): string {
   const override = import.meta.env.MAIN_VITE_POSTHOG_KEY?.trim()
   if (override) return override
-  return import.meta.env.DEV ? '' : POSTHOG_PROJECT_KEYS[getAppEdition()]
+  return import.meta.env.DEV ? '' : releaseKey
 }
 
 // Distinct name so the SDK retry classifier treats it as non-retriable.
@@ -58,6 +60,10 @@ function linkSignals(first: AbortSignal, second?: AbortSignal | null): AbortSign
 export class AnalyticsService extends BaseService implements Activatable {
   private client: AnalyticsClient | null = null
   private posthog: PostHog | null = null
+  private productPosthog: PostHog | null = null
+  /** Signed-in Cherry AI account's distinct id; product events fall back to the device id. */
+  private productAccountId: string | null = null
+  private identifiedProductAccountId: string | null = null
   private revokeController: AbortController | null = null
   private hasTrackedAppLaunch = false
   /** Consented product events raised while the clients are still starting; replayed once they are up. */
@@ -148,17 +154,22 @@ export class AnalyticsService extends BaseService implements Activatable {
       }
     })
 
-    const posthogKey = resolvePostHogKey()
-    if (posthogKey) {
+    const posthogKey = resolvePostHogKey(POSTHOG_PROJECT_KEYS[getAppEdition()])
+    const productKey = resolvePostHogKey(PRODUCT_POSTHOG_KEY)
+    if (posthogKey || productKey) {
       const { PostHog } = await import('posthog-node')
-      this.posthog = new PostHog(posthogKey, {
-        host: POSTHOG_HOST,
-        disableGeoip: true,
-        enableExceptionAutocapture: false,
-        fetch: (url, options) => revokedFetch(url, options)
-      })
+      const createClient = (key: string) =>
+        new PostHog(key, {
+          host: POSTHOG_HOST,
+          disableGeoip: true,
+          enableExceptionAutocapture: false,
+          fetch: (url, options) => revokedFetch(url, options)
+        })
+      this.posthog = posthogKey ? createClient(posthogKey) : null
+      this.productPosthog = productKey === posthogKey ? this.posthog : productKey ? createClient(productKey) : null
     }
 
+    this.identifyProductAccount()
     // app_opened precedes replayed events so funnels see the launch first.
     if (!this.hasTrackedAppLaunch) {
       this.client.trackAppLaunch({
@@ -180,13 +191,16 @@ export class AnalyticsService extends BaseService implements Activatable {
 
   async onDeactivate(): Promise<void> {
     this.productEventsReady = false
-    if (this.posthog) {
+    this.identifiedProductAccountId = null
+    const posthogClients = new Set([this.posthog, this.productPosthog].filter((client) => client !== null))
+    if (posthogClients.size > 0) {
       // After a revocation the shared revoke signal fails every request, so the queue is dropped
       // without waiting out PostHog's retries.
       const revoked = !this.desiredEnabled
       if (revoked) this.revokeController?.abort()
-      await this.posthog.shutdown(revoked ? 1_000 : undefined)
+      await Promise.all([...posthogClients].map((client) => client.shutdown(revoked ? 1_000 : undefined)))
       this.posthog = null
+      this.productPosthog = null
     }
     if (this.client) {
       if (!this.desiredEnabled) {
@@ -233,21 +247,44 @@ export class AnalyticsService extends BaseService implements Activatable {
     this.pendingProductEvents.push(event)
   }
 
+  /** Binds later product events to the signed-in Cherry AI account; null returns them to the device id. */
+  public setProductAccount(accountDistinctId: string | null): void {
+    this.productAccountId = accountDistinctId
+    if (this.productEventsReady) this.identifyProductAccount()
+  }
+
+  // Merges this device's earlier anonymous events into the account, once per account and activation.
+  private identifyProductAccount(): void {
+    const accountId = this.productAccountId
+    if (!this.desiredEnabled || !accountId || accountId === this.identifiedProductAccountId) return
+    this.identifiedProductAccountId = accountId
+    this.capture(
+      '$identify',
+      { $anon_distinct_id: getClientId() },
+      { distinctId: accountId, processPersonProfile: true },
+      this.productPosthog
+    )
+  }
+
   private captureProductEvent({ event, ...fields }: ProductAnalyticsEvent): void {
     const properties: Record<string, string | number | boolean> = { schema_version: PRODUCT_EVENT_SCHEMA_VERSION }
     for (const [key, value] of Object.entries(fields)) {
       if (value !== undefined) properties[key.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`)] = value
     }
-    this.capture(event, properties)
+    const identity = this.productAccountId
+      ? { distinctId: this.productAccountId, processPersonProfile: true }
+      : undefined
+    this.capture(event, properties, identity, this.productPosthog)
   }
 
   private capture(
     eventType: string,
     data: Record<string, string | number | boolean>,
-    identity?: { distinctId: string; processPersonProfile: boolean }
+    identity?: { distinctId: string; processPersonProfile: boolean },
+    posthog = this.posthog
   ): void {
-    if (!this.posthog) return
-    this.posthog.capture({
+    if (!posthog) return
+    posthog.capture({
       distinctId: identity?.distinctId ?? getClientId(),
       event: eventType,
       properties: {

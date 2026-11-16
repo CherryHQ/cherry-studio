@@ -54,6 +54,7 @@ const {
 
 const posthog = vi.hoisted(() => ({
   capture: vi.fn(),
+  captureByKey: vi.fn(),
   shutdown: vi.fn(async () => undefined),
   constructor: vi.fn()
 }))
@@ -61,7 +62,13 @@ const posthog = vi.hoisted(() => ({
 vi.mock('posthog-node', () => ({
   PostHog: vi.fn(function PostHogMock(key: string, options: unknown) {
     posthog.constructor(key, options)
-    return { capture: posthog.capture, shutdown: posthog.shutdown }
+    return {
+      capture: (message: unknown) => {
+        posthog.capture(message)
+        posthog.captureByKey(key, message)
+      },
+      shutdown: posthog.shutdown
+    }
   })
 }))
 
@@ -104,6 +111,7 @@ beforeEach(() => {
   BaseService.resetInstances()
   vi.unstubAllEnvs()
   posthog.capture.mockClear()
+  posthog.captureByKey.mockClear()
   posthog.shutdown.mockClear()
   posthog.constructor.mockClear()
   vi.mocked(getAppEdition).mockReturnValue('global')
@@ -470,6 +478,82 @@ describe('AnalyticsService product events', () => {
     const events = posthog.capture.mock.calls.map(([call]) => call)
     expect(events.map(({ event }) => event)).toEqual(['app_opened', 'onboarding_option_selected'])
     expect(events[0].properties).toMatchObject({ onboarding_status: 'pending' })
+  })
+
+  it('sends China-edition product events to the Cherry Studio project and subscription insights to the China project', async () => {
+    vi.stubEnv('DEV', false)
+    vi.stubEnv('MAIN_VITE_POSTHOG_KEY', '')
+    vi.mocked(getAppEdition).mockReturnValue('cn')
+    const service = new AnalyticsService()
+    await service._doInit()
+    await vi.waitFor(() => expect(service.isActivated).toBe(true))
+
+    service.trackProductEvent({ event: 'onboarding_option_selected', option: 'skip' })
+    service.trackEvent('subscription_entry_view', { source: 'settings' })
+
+    const keysFor = (event: string) =>
+      posthog.captureByKey.mock.calls.filter(([, message]) => message.event === event).map(([key]) => key)
+    expect(keysFor('onboarding_option_selected')).toEqual(['phc_G0omsYajA6A9BY5c0rnU04ZaZck25xpR0DqKhwfF39n'])
+    expect(keysFor('subscription_entry_view')).toEqual(['phc_vwsf7qr54Vk2ff23Nj2B4PEYtSkkpheKrb8VcdfDujna'])
+  })
+
+  it('binds product events to a signed-in account, merging the device first, and returns to the device on sign-out', async () => {
+    vi.stubEnv('MAIN_VITE_POSTHOG_KEY', 'phc_test')
+    const service = new AnalyticsService()
+    await service._doInit()
+    await vi.waitFor(() => expect(service.isActivated).toBe(true))
+    posthog.capture.mockClear()
+
+    service.setProductAccount('cloud-api:global:production:account:a1')
+    service.trackProductEvent({ event: 'onboarding_option_selected', option: 'skip' })
+    service.setProductAccount(null)
+    service.trackProductEvent({ event: 'onboarding_option_selected', option: 'other_provider' })
+
+    const sent = posthog.capture.mock.calls.map(([message]) => message)
+    expect(sent.map(({ event, distinctId }) => [event, distinctId])).toEqual([
+      ['$identify', 'cloud-api:global:production:account:a1'],
+      ['onboarding_option_selected', 'cloud-api:global:production:account:a1'],
+      ['onboarding_option_selected', 'test-client-id']
+    ])
+    expect(sent[0].properties).toMatchObject({ $anon_distinct_id: 'test-client-id', $ip: '0.0.0.0' })
+    expect(sent[1].properties.$process_person_profile).toBe(true)
+    expect(sent[2].properties.$process_person_profile).toBe(false)
+  })
+
+  it('identifies an account known before start-up ahead of the launch event', async () => {
+    vi.stubEnv('MAIN_VITE_POSTHOG_KEY', 'phc_test')
+    captured.preferenceValues['app.privacy.policy_version'] = ''
+    const service = new AnalyticsService()
+    await service._doInit()
+    service.setProductAccount('cloud-api:cn:production:account:a1')
+
+    changePreference('app.privacy.policy_version', LATEST_PRIVACY_POLICY_VERSION)
+    await vi.waitFor(() => expect(service.isActivated).toBe(true))
+
+    expect(posthog.capture.mock.calls.map(([message]) => [message.event, message.distinctId])).toEqual([
+      ['$identify', 'cloud-api:cn:production:account:a1'],
+      ['app_opened', 'cloud-api:cn:production:account:a1']
+    ])
+  })
+
+  it('drops events raised after data collection is turned off, even once it is turned back on', async () => {
+    vi.stubEnv('MAIN_VITE_POSTHOG_KEY', 'phc_test')
+    const service = new AnalyticsService()
+    await service._doInit()
+    await vi.waitFor(() => expect(service.isActivated).toBe(true))
+    destroyResolvers.forEach((resolve) => resolve())
+    mockDestroy.mockResolvedValue(undefined)
+
+    changePreference('app.privacy.data_collection.enabled', false)
+    service.trackProductEvent({ event: 'onboarding_option_selected', option: 'skip' })
+    service.setProductAccount('cloud-api:global:production:account:a1')
+    await vi.waitFor(() => expect(service.isActivated).toBe(false))
+    changePreference('app.privacy.data_collection.enabled', true)
+    await vi.waitFor(() => expect(service.isActivated).toBe(true))
+
+    const events = posthog.capture.mock.calls.map(([message]) => message.event)
+    expect(events).not.toContain('onboarding_option_selected')
+    expect(events.filter((event) => event === '$identify')).toHaveLength(1)
   })
 
   it('drops events raised without consent instead of replaying them later', async () => {

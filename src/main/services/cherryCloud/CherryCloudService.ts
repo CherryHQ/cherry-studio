@@ -52,7 +52,7 @@ import {
 } from './contracts'
 import { createAuthorizationSecrets, createDeviceKeyPair, createDeviceSignature, createIdempotencyKey } from './crypto'
 import { getMachineCode } from './machineCode'
-import { trackCherryCloudAnalyticsEvent } from './subscriptionAnalytics'
+import { publishProductAnalyticsAccount, trackCherryCloudAnalyticsEvent } from './subscriptionAnalytics'
 
 const logger = loggerService.withContext('CherryCloudService')
 const PRODUCTION_API_ORIGINS = {
@@ -246,6 +246,9 @@ export class CherryCloudService extends BaseService {
     // A plan can end while the machine sleeps, so the snapshot taken before sleep is not reused.
     this.registerDisposable(application.get('PowerService').onResume(() => (this.modelSyncCache = null)))
     await this.restoreSession()
+    publishProductAnalyticsAccount(this.cloudState.session?.accountId ?? null)
+    this.registerDisposable(this.onStatusChanged((status) => publishProductAnalyticsAccount(status.accountId)))
+    this.registerDisposable(() => publishProductAnalyticsAccount(null))
     if (this.cloudState.session) void this.syncEntitledModels().catch(() => undefined)
   }
 

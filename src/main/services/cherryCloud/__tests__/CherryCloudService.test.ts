@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   appIsPackaged: false,
   broadcast: vi.fn(),
   trackEvent: vi.fn(),
+  setProductAccount: vi.fn(),
   gatewayStart: vi.fn(),
   loopbackOpen: vi.fn(),
   loopbackReceiver: {
@@ -87,7 +88,7 @@ vi.mock('@application', async () => {
     IpcApiService: { broadcast: mocks.broadcast },
     MainWindowService: { showMainWindow: mocks.showMainWindow },
     WindowManager: { getWindow: mocks.windowLookup },
-    AnalyticsService: { trackEvent: mocks.trackEvent }
+    AnalyticsService: { trackEvent: mocks.trackEvent, setProductAccount: mocks.setProductAccount }
   }
   return mockApplicationFactory(overrides)
 })
@@ -568,6 +569,16 @@ describe('CherryCloudService', () => {
     const headers = new Headers(requestCalls('/api/v1/public/plans')[0][1].headers)
     expect(headers.has('Authorization')).toBe(false)
     expect(headers.has('X-Signature')).toBe(false)
+  })
+
+  it('binds product analytics to the signed-in account and releases it on sign-out', async () => {
+    const service = await createSignedInService()
+    expect(mocks.setProductAccount).toHaveBeenLastCalledWith(`cloud-api:global:development:account:${accountId}`)
+
+    mockCloudRoute('/api/v1/product-sessions/current', new Response(null, { status: 204 }))
+    await service.revokeCurrentSession()
+
+    expect(mocks.setProductAccount).toHaveBeenLastCalledWith(null)
   })
 
   it('reuses the device key after logout and a service restart', async () => {
