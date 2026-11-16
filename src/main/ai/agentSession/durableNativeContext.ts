@@ -91,6 +91,7 @@ export async function openDurableStorage(backend: AgentRuntimeBackendRow): Promi
     const doc = marker && (await storage.document(marker.id, 'current', nativeContext))
     if (doc?.version !== 1 || doc.value.backendId !== backend.id)
       throw new Error('Native backend identity does not match')
+    await storage.migrateImages()
     return storage
   } catch (error) {
     await storage.close(nativeContext)

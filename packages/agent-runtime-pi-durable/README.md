@@ -180,6 +180,30 @@ Declared differences in the shared contract suite:
   foreground-continuation case is skipped; there is no implicit fork or id forwarding.
 - Desktop Fork and noninitial Edit and resend use same-storage ownerless native forks. First-input edits start a fresh context. File rewind and `vcc_recall` remain unavailable.
 
+## SQLite image storage
+
+The native dependency patch stores canonical Base64 image payloads as SHA-256-keyed
+binary resources inside the same SQLite file. Record-local manifests restore the
+original images for all public reads, including tasks, submissions, documents and
+fork history. MIME metadata remains with each image. Noncanonical encodings and
+ordinary text remain inline. Deduplication is backend-local; it does not change
+product message storage or model request encoding.
+
+Schema version 3 adds resource storage and transactional reference accounting.
+The native `open()` path upgrades and converts legacy rows in restartable pages;
+`openExisting()` also reads version 2 without mutating it, but requires
+`migrateImages()` before writes. Desktop calls that migration after validating
+backend identity. Image-bearing document deltas become bases at the same sequence
+and version, preserving historical reads and fork cutoffs. Missing or corrupt
+resources fail reads explicitly.
+
+Reference accounting includes retained revisions and ancestry. Only unreferenced
+resources are deleted after a successful commit. Context compaction does not
+expire history. Backups use the existing consistent SQLite/checkpoint boundary;
+no extra image directory is required. Conversion makes freed pages reusable but
+does not run `VACUUM` or promise immediate physical file shrinkage. Older runtimes
+that support only schema version 2 reject the upgraded store.
+
 ## Validation
 
 Offline tests use the native faux provider and native Memory/Node SQLite storage:
@@ -189,6 +213,22 @@ pnpm --filter @cherrystudio/agent-runtime build
 pnpm test:agent-runtime-pi-durable packages/agent-runtime-pi-durable/tests/behaviorContract.test.ts packages/agent-runtime-pi-durable/tests/runtime.test.ts packages/agent-runtime-pi-durable/tests/runMetadata.test.ts packages/agent-runtime-pi-durable/tests/projection.test.ts
 pnpm --filter @cherrystudio/agent-runtime-pi-durable typecheck
 ```
+
+`imageStorage.test.ts` exercises native SQLite image deduplication, reference
+reclamation, interrupted migration, transactional failures, process death,
+checkpointed backup/restore, forks, model input after reopen and the Durable
+Object adapter with a local SQL binding. That binding test is not a live
+Cloudflare deployment. Run it with an explicit file filter:
+
+```sh
+pnpm test:agent-runtime-pi-durable packages/agent-runtime-pi-durable/tests/imageStorage.test.ts
+node packages/agent-runtime-pi-durable/tests/fixtures/imageStorageBenchmark.mjs
+```
+
+The benchmark uses 64 synthetic image records with four distinct 256 KiB payloads.
+An optional package-directory argument runs the same scenario against another
+Pi Durable build, which must have its dependencies available. Each run reports
+database/WAL bytes, write/read time and process peak RSS separately.
 
 The child test covers continued conversation, busy rejection, steering, independent
 observation after release, stable relationship identity, and unchanged parent output.
@@ -201,8 +241,9 @@ Archive tests cover pagination, reset, fork ownership and stable identities afte
 SQLite reopen. Projection tests cover repeated text, ambiguous coalesced frames,
 retries and tool progress. Shared behavior cases exercise native transactions, goal and
 child ownership, stop, delivery, approval and reopen; run-metadata tests distinguish
-same-run steering from late continuation. SQLite tests close and reopen an orderly
-runtime; they do not prove process-kill recovery or exactly-once external side effects.
+same-run steering from late continuation. The image-storage crash fixture covers
+process death around SQLite commit; other SQLite fixtures close and reopen an orderly
+runtime. None proves exactly-once external side effects.
 Desktop and live-provider acceptance are separate from these package tests.
 
 ## Nested tool evidence

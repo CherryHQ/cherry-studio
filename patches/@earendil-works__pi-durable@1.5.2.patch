@@ -745,7 +745,7 @@ index 009a71b90d93ddecb70589d0fe5e90d5779c7735..439e4cdba16935f7af54108457ec0911
      setTask(value) {
          this.#assertOpen();
 diff --git a/dist/storage/sqlite/storage.d.ts b/dist/storage/sqlite/storage.d.ts
-index 9c50c1d3a9e1c99d43aeba1dd01ef5de2f362c35..e30b1aaabb3bd01266d2309836fb405bcc0fa736 100644
+index 22a6246735be5cc1aeb56716f45602dbd6c5e088..71c3ce3ac33700952ff0675e5283a58956a531e9 100644
 --- a/dist/storage/sqlite/storage.d.ts
 +++ b/dist/storage/sqlite/storage.d.ts
 @@ -22,6 +22,8 @@ export declare class SqliteStorage implements Storage {
@@ -757,20 +757,55 @@ index 9c50c1d3a9e1c99d43aeba1dd01ef5de2f362c35..e30b1aaabb3bd01266d2309836fb405b
      /**
       * Commit `batches` in one SQL transaction, each with its own seq. Each batch is checked before it writes anything,
       * against the state the earlier ones left, and the first one refused ends the batch: the transaction commits the ones
+@@ -32,6 +34,8 @@ export declare class SqliteStorage implements Storage {
+      * batches costs a few statements per fork.
+      */
+     commit(batches: readonly (readonly StorageWrite[])[], receive: (index: number, seq: Seq) => void, _context: Context): Promise<CommitResult>;
++    /** Upgrade existing storage and convert inline images in restartable transactions. */
++    migrateImages(): Promise<void>;
+     private readMetadata;
+     private writeMetadata;
+     /**
 diff --git a/dist/storage/sqlite/storage.js b/dist/storage/sqlite/storage.js
-index 6201f4927479b79fb1b417efb368e3e8f954443c..b3017f8f4bf18dda4e0c364a6051d7fc6eda6939 100644
+index 6d3a6eb2d40b05510c08c02289d847ae13ce2ad9..ec6d2219280c15cfa74fca79efb960c9cb78279f 100644
 --- a/dist/storage/sqlite/storage.js
 +++ b/dist/storage/sqlite/storage.js
-@@ -3,7 +3,7 @@ import { StorageRequestError } from "../../errors.js";
+@@ -1,10 +1,11 @@
++import { hasImages, hydrateImageRows, migrateInlineImages, parseImageRow } from "./images.js";
+ import { apply } from "@earendil-works/chord/delta";
+ import { StorageRequestError } from "../../errors.js";
  import { idFromNumber, seqFromNumber } from "../../ids.js";
  import { nextCursor, scanStart } from "../scan.js";
  import { CommitState, claimOf, PendingWrites, prepareDocumentActions } from "./commit.js";
 -import { applySqliteMigrationsForSchema } from "./migrations.js";
+-import { addressParts, encodeIndexedString, isCurrentOnly, parseJson, scopeColumns } from "./rows.js";
 +import { applySqliteMigrationsForSchema, CURRENT_SQLITE_SCHEMA_VERSION } from "./migrations.js";
- import { addressParts, encodeIndexedString, isCurrentOnly, parseJson, scopeColumns } from "./rows.js";
++import { addressParts, encodeIndexedString, isCurrentOnly, scopeColumns } from "./rows.js";
  import { createSqliteSchema } from "./schema.js";
  const cursorId = (cursor) => {
-@@ -94,6 +94,23 @@ export class SqliteStorage {
+     const after = cursor?.after;
+@@ -60,7 +61,8 @@ export class SqliteStorage {
+     closing;
+     admittedReads = 0;
+     readsDrained;
+-    constructor(db, schema, nextId) {
++    constructor(db, schema, nextId, images = true) {
++        this.images = images;
+         this.db = db;
+         this.schema = schema;
+         this.nextId = nextId;
+@@ -73,7 +75,9 @@ export class SqliteStorage {
+             const metadata = await db.get(`SELECT next_id, next_seq FROM ${schema.tables.durableMetadata} WHERE singleton = 1`);
+             if (metadata === undefined)
+                 throw new Error("Durable SQLite metadata is missing");
+-            return new SqliteStorage(db, schema, Number(metadata.next_id));
++            const storage = new SqliteStorage(db, schema, Number(metadata.next_id));
++            await storage.migrateImages();
++            return storage;
+         }
+         catch (error) {
+             try {
+@@ -94,8 +98,26 @@ export class SqliteStorage {
       * copy reads the copy's source from the database: the batches before it are written first, so a call of many fork
       * batches costs a few statements per fork.
       */
@@ -779,13 +814,13 @@ index 6201f4927479b79fb1b417efb368e3e8f954443c..b3017f8f4bf18dda4e0c364a6051d7fc
 +        try {
 +            const schema = createSqliteSchema(options.prefix);
 +            const version = await db.get(`SELECT version FROM ${schema.tables.durableSchema} WHERE singleton = 1`);
-+            if (version?.version !== CURRENT_SQLITE_SCHEMA_VERSION)
++            if (version?.version !== 2 && version?.version !== CURRENT_SQLITE_SCHEMA_VERSION)
 +                throw new Error("Durable SQLite schema requires explicit migration");
 +            const metadata = await db.get(`SELECT next_id FROM ${schema.tables.durableMetadata} WHERE singleton = 1`);
 +            const nextId = Number(metadata?.next_id);
 +            if (!Number.isSafeInteger(nextId) || nextId < 2)
 +                throw new Error("Durable SQLite metadata is invalid");
-+            return new SqliteStorage(db, schema, nextId);
++            return new SqliteStorage(db, schema, nextId, version.version === CURRENT_SQLITE_SCHEMA_VERSION);
 +        } catch (error) {
 +            try { await db.close(); } catch { /* Preserve the opening failure. */ }
 +            throw error;
@@ -793,7 +828,265 @@ index 6201f4927479b79fb1b417efb368e3e8f954443c..b3017f8f4bf18dda4e0c364a6051d7fc
 +    }
      async commit(batches, receive, _context) {
          this.assertOpen();
++        if (!this.images) throw new Error("Durable SQLite schema requires explicit migration");
          const seqs = [];
+         let refused;
+         let candidateNextId = this.nextId;
+@@ -118,6 +140,7 @@ export class SqliteStorage {
+                 candidateNextId = Math.max(candidateNextId, this.candidateNextId(writes));
+             }
+             await pending.flush(transaction, this.schema.tables);
++            await transaction.run(`DELETE FROM ${this.schema.tables.imageBlobs} WHERE refs = 0`);
+             if (seqs.length > 0) {
+                 await this.writeMetadata(transaction, Math.max(Number(metadata.next_id), candidateNextId), next);
+             }
+@@ -151,12 +174,18 @@ export class SqliteStorage {
+         catch (error) {
+             return { refused: error };
+         }
+-        if (![...actions.values()].some((action) => action.copy !== undefined))
++        if (![...actions.values()].some((action) => action.copy !== undefined || action.content?.kind === "delta"))
+             return { actions };
+         await pending.flush(transaction, this.schema.tables);
+         const calls = { failed: false };
+         try {
+             await this.resolveCopies(watchCalls(transaction, calls), actions);
++            for (const [id, action] of actions) {
++                if (action.content?.kind !== "delta") continue;
++                const stored = await this.materializeDocument(watchCalls(transaction, calls), id, "current");
++                const value = apply(stored.value, action.content.ops);
++                if (hasImages(stored.value) || hasImages(value)) action.content = { kind: "base", version: action.content.version, value };
++            }
+         }
+         catch (error) {
+             if (calls.failed)
+@@ -173,8 +202,8 @@ export class SqliteStorage {
+     }
+     async conversation(id, _context) {
+         this.assertOpen();
+-        const row = await this.db.get(`SELECT record FROM ${this.schema.tables.conversations} WHERE id = ?`, id);
+-        return row === undefined ? undefined : parseJson(row.record);
++        const row = await this.imageRow(`SELECT ${this.imageColumns("record")} FROM ${this.schema.tables.conversations} WHERE id = ?`, id);
++        return row === undefined ? undefined : parseImageRow(row);
+     }
+     async scanConversations(query, limit, cursor, _context) {
+         this.assertOpen();
+@@ -191,8 +220,8 @@ export class SqliteStorage {
+             params.push(query.ownerTaskId);
+         }
+         params.push(limit + 1);
+-        const rows = await this.db.all(`SELECT record FROM ${this.schema.tables.conversations} WHERE ${clauses.join(" AND ")} ORDER BY id ${scan.direction} LIMIT ?`, ...params);
+-        return page(rows.map((row) => parseJson(row.record)), limit, start.order);
++        const rows = await this.imageRows(`SELECT ${this.imageColumns("record")} FROM ${this.schema.tables.conversations} WHERE ${clauses.join(" AND ")} ORDER BY id ${scan.direction} LIMIT ?`, ...params);
++        return page(rows.map((row) => parseImageRow(row)), limit, start.order);
+     }
+     entry(idOrConversationId, idOrContext, context) {
+         return this.admitRead(() => this.readEntry(idOrConversationId, idOrContext, context));
+@@ -218,10 +247,10 @@ export class SqliteStorage {
+             if (conversation === undefined)
+                 throw new StorageRequestError(`Unknown conversation: ${conversationId}`);
+         }
+-        const row = await this.db.get(`SELECT record, commit_seq FROM ${this.schema.tables.entries} WHERE id = ?`, id);
++        const row = await this.imageRow(`SELECT ${this.imageColumns("record")}, commit_seq FROM ${this.schema.tables.entries} WHERE id = ?`, id);
+         if (row === undefined)
+             return undefined;
+-        const entry = parseJson(row.record);
++        const entry = parseImageRow(row);
+         if (conversation !== undefined) {
+             let upperEntryId = Number.POSITIVE_INFINITY;
+             while (conversation.id !== entry.conversationId) {
+@@ -242,10 +271,10 @@ export class SqliteStorage {
+         let upper = atOrBeforeEntryId;
+         while (true) {
+             const row = upper === undefined
+-                ? await this.db.get(`SELECT record FROM ${this.schema.tables.entries} WHERE conversation_id = ? AND head IS NOT NULL ORDER BY id DESC LIMIT 1`, conversation.id)
+-                : await this.db.get(`SELECT record FROM ${this.schema.tables.entries} WHERE conversation_id = ? AND head IS NOT NULL AND id <= ? ORDER BY id DESC LIMIT 1`, conversation.id, upper);
++                ? await this.imageRow(`SELECT ${this.imageColumns("record")} FROM ${this.schema.tables.entries} WHERE conversation_id = ? AND head IS NOT NULL ORDER BY id DESC LIMIT 1`, conversation.id)
++                : await this.imageRow(`SELECT ${this.imageColumns("record")} FROM ${this.schema.tables.entries} WHERE conversation_id = ? AND head IS NOT NULL AND id <= ? ORDER BY id DESC LIMIT 1`, conversation.id, upper);
+             if (row !== undefined)
+-                return parseJson(row.record);
++                return parseImageRow(row);
+             if (conversation.parent === undefined)
+                 return undefined;
+             upper = upper === undefined ? conversation.parent.at : Math.min(upper, conversation.parent.at);
+@@ -275,8 +304,8 @@ export class SqliteStorage {
+                 params.push(upper);
+             }
+             params.push(limit + 1 - values.length);
+-            const rows = await this.db.all(`SELECT record FROM ${this.schema.tables.entries} WHERE ${clauses.join(" AND ")} ORDER BY id DESC LIMIT ?`, ...params);
+-            values.push(...rows.map((row) => parseJson(row.record)));
++            const rows = await this.imageRows(`SELECT ${this.imageColumns("record")} FROM ${this.schema.tables.entries} WHERE ${clauses.join(" AND ")} ORDER BY id DESC LIMIT ?`, ...params);
++            values.push(...rows.map((row) => parseImageRow(row)));
+             if (values.length > limit || conversation.parent === undefined)
+                 break;
+             upper = upper === undefined ? conversation.parent.at : Math.min(upper, conversation.parent.at);
+@@ -318,8 +347,8 @@ export class SqliteStorage {
+                 params.push(segment.upper);
+             }
+             params.push(limit + 1 - values.length);
+-            const rows = await this.db.all(`SELECT record FROM ${this.schema.tables.entries} WHERE ${clauses.join(" AND ")} ORDER BY id ASC LIMIT ?`, ...params);
+-            values.push(...rows.map((row) => parseJson(row.record)));
++            const rows = await this.imageRows(`SELECT ${this.imageColumns("record")} FROM ${this.schema.tables.entries} WHERE ${clauses.join(" AND ")} ORDER BY id ASC LIMIT ?`, ...params);
++            values.push(...rows.map((row) => parseImageRow(row)));
+             if (values.length > limit)
+                 break;
+         }
+@@ -327,8 +356,8 @@ export class SqliteStorage {
+     }
+     async task(id, _context) {
+         this.assertOpen();
+-        const row = await this.db.get(`SELECT record FROM ${this.schema.tables.tasks} WHERE id = ?`, id);
+-        return row === undefined ? undefined : parseJson(row.record);
++        const row = await this.imageRow(`SELECT ${this.imageColumns("record")} FROM ${this.schema.tables.tasks} WHERE id = ?`, id);
++        return row === undefined ? undefined : parseImageRow(row);
+     }
+     async scanTasks(query, limit, cursor, _context) {
+         this.assertOpen();
+@@ -357,13 +386,13 @@ export class SqliteStorage {
+             params.push(query.background ? 1 : 0);
+         }
+         params.push(limit + 1);
+-        const rows = await this.db.all(`SELECT record FROM ${this.schema.tables.tasks} WHERE ${clauses.join(" AND ")} ORDER BY id ${scan.direction} LIMIT ?`, ...params);
+-        return page(rows.map((row) => parseJson(row.record)), limit, start.order);
++        const rows = await this.imageRows(`SELECT ${this.imageColumns("record")} FROM ${this.schema.tables.tasks} WHERE ${clauses.join(" AND ")} ORDER BY id ${scan.direction} LIMIT ?`, ...params);
++        return page(rows.map((row) => parseImageRow(row)), limit, start.order);
+     }
+     async submission(id, _context) {
+         this.assertOpen();
+-        const row = await this.db.get(`SELECT record FROM ${this.schema.tables.submissions} WHERE id = ?`, id);
+-        return row === undefined ? undefined : parseJson(row.record);
++        const row = await this.imageRow(`SELECT ${this.imageColumns("record")} FROM ${this.schema.tables.submissions} WHERE id = ?`, id);
++        return row === undefined ? undefined : parseImageRow(row);
+     }
+     async scanSubmissions(query, limit, cursor, _context) {
+         this.assertOpen();
+@@ -380,30 +409,30 @@ export class SqliteStorage {
+             params.push(query.status);
+         }
+         params.push(limit + 1);
+-        const rows = await this.db.all(`SELECT record FROM ${this.schema.tables.submissions} WHERE ${clauses.join(" AND ")} ORDER BY id ${scan.direction} LIMIT ?`, ...params);
+-        return page(rows.map((row) => parseJson(row.record)), limit, start.order);
++        const rows = await this.imageRows(`SELECT ${this.imageColumns("record")} FROM ${this.schema.tables.submissions} WHERE ${clauses.join(" AND ")} ORDER BY id ${scan.direction} LIMIT ?`, ...params);
++        return page(rows.map((row) => parseImageRow(row)), limit, start.order);
+     }
+     async submissionByRequest(conversationId, requestId, _context) {
+         this.assertOpen();
+-        const row = await this.db.get(`SELECT record FROM ${this.schema.tables.submissions} WHERE conversation_id = ? AND request_id = ?`, conversationId, encodeIndexedString(requestId));
+-        return row === undefined ? undefined : parseJson(row.record);
++        const row = await this.imageRow(`SELECT ${this.imageColumns("record")} FROM ${this.schema.tables.submissions} WHERE conversation_id = ? AND request_id = ?`, conversationId, encodeIndexedString(requestId));
++        return row === undefined ? undefined : parseImageRow(row);
+     }
+     async findDocument(address, at, _context) {
+         this.assertOpen();
+         const parts = addressParts(address);
+         const sql = at === "current"
+-            ? `SELECT record FROM ${this.schema.tables.documents}
+-					WHERE kind = ? AND scope_kind = ? AND owner_id = ? AND family = ? AND key_value = ?
+-					AND retired_at IS NULL ORDER BY created_at DESC LIMIT 1`
+-            : `SELECT record FROM ${this.schema.tables.documents}
+-					WHERE kind = ? AND scope_kind = ? AND owner_id = ? AND family = ? AND key_value = ?
+-					AND created_at <= ? AND (retired_at IS NULL OR retired_at > ?)
+-					ORDER BY created_at DESC LIMIT 1`;
++            ? `SELECT ${this.imageColumns("record")} FROM ${this.schema.tables.documents}
++                    WHERE kind = ? AND scope_kind = ? AND owner_id = ? AND family = ? AND key_value = ?
++                    AND retired_at IS NULL ORDER BY created_at DESC LIMIT 1`
++            : `SELECT ${this.imageColumns("record")} FROM ${this.schema.tables.documents}
++                    WHERE kind = ? AND scope_kind = ? AND owner_id = ? AND family = ? AND key_value = ?
++                    AND created_at <= ? AND (retired_at IS NULL OR retired_at > ?)
++                    ORDER BY created_at DESC LIMIT 1`;
+         const params = [parts.kind, parts.scopeKind, parts.ownerId, parts.family, parts.keyValue];
+         if (at !== "current")
+             params.push(at, at);
+-        const row = await this.db.get(sql, ...params);
+-        return row === undefined ? undefined : parseJson(row.record);
++        const row = await this.imageRow(sql, ...params);
++        return row === undefined ? undefined : parseImageRow(row);
+     }
+     async document(id, at, _context) {
+         this.assertOpen();
+@@ -427,8 +456,8 @@ export class SqliteStorage {
+             params.push(query.at, query.at);
+         }
+         params.push(limit + 1);
+-        const rows = await this.db.all(`SELECT record FROM ${this.schema.tables.documents} WHERE ${clauses.join(" AND ")} ORDER BY id LIMIT ?`, ...params);
+-        return page(rows.map((row) => parseJson(row.record)), limit);
++        const rows = await this.imageRows(`SELECT ${this.imageColumns("record")} FROM ${this.schema.tables.documents} WHERE ${clauses.join(" AND ")} ORDER BY id LIMIT ?`, ...params);
++        return page(rows.map((row) => parseImageRow(row)), limit);
+     }
+     close(_context) {
+         if (this.closing === undefined) {
+@@ -461,32 +490,32 @@ export class SqliteStorage {
+         }
+     }
+     async readConversation(id) {
+-        const row = await this.db.get(`SELECT record FROM ${this.schema.tables.conversations} WHERE id = ?`, id);
+-        return row === undefined ? undefined : parseJson(row.record);
++        const row = await this.imageRow(`SELECT ${this.imageColumns("record")} FROM ${this.schema.tables.conversations} WHERE id = ?`, id);
++        return row === undefined ? undefined : parseImageRow(row);
+     }
+     async materializeDocument(executor, id, at) {
+-        const row = await executor.get(`SELECT record FROM ${this.schema.tables.documents} WHERE id = ?`, id);
++        const row = (await this.hydrate(executor, await executor.all(`SELECT ${this.imageColumns("record")} FROM ${this.schema.tables.documents} WHERE id = ?`, id)))[0];
+         if (row === undefined)
+             return undefined;
+-        const record = parseJson(row.record);
++        const record = parseImageRow(row);
+         if (at !== "current" && isCurrentOnly(record)) {
+             throw new StorageRequestError(`Document ${id} does not retain historical content`);
+         }
+         if (!isAliveAt(record, at))
+             return undefined;
+         const upper = at === "current" ? Number.MAX_SAFE_INTEGER : at;
+-        const base = await executor.get(`SELECT seq, kind, version, content FROM ${this.schema.tables.documentRevisions}
+-				WHERE document_id = ? AND kind = 'base' AND seq <= ? ORDER BY seq DESC LIMIT 1`, id, upper);
++        const base = (await this.hydrate(executor, await executor.all(`SELECT seq, kind, version, ${this.imageColumns("content")} FROM ${this.schema.tables.documentRevisions}
++                WHERE document_id = ? AND kind = 'base' AND seq <= ? ORDER BY seq DESC LIMIT 1`, id, upper)))[0];
+         if (base === undefined)
+             throw new Error(`Document ${id} is missing a required base`);
+-        let value = parseJson(base.content);
+-        const tail = await executor.all(`SELECT seq, kind, version, content FROM ${this.schema.tables.documentRevisions}
+-				WHERE document_id = ? AND seq > ? AND seq <= ? ORDER BY seq`, id, base.seq, upper);
++        let value = parseImageRow(base, "content");
++        const tail = await this.hydrate(executor, await executor.all(`SELECT seq, kind, version, ${this.imageColumns("content")} FROM ${this.schema.tables.documentRevisions}
++                WHERE document_id = ? AND seq > ? AND seq <= ? ORDER BY seq`, id, base.seq, upper));
+         for (const revision of tail) {
+             if (revision.kind !== "delta" || revision.version !== base.version) {
+                 throw new Error(`Document ${id} crosses a stored version boundary without a base`);
+             }
+-            value = apply(value, parseJson(revision.content));
++            value = apply(value, parseImageRow(revision, "content"));
+         }
+         return { record, version: base.version, value, deltasSinceBase: tail.length };
+     }
+@@ -524,6 +553,28 @@ export class SqliteStorage {
+             }
+         }
+     }
++    imageColumns(column) {
++        return this.images ? `${column}, image_refs` : column;
++    }
++    hydrate(executor, rows) {
++        return this.images ? hydrateImageRows(executor, this.schema.tables.imageBlobs, rows) : rows;
++    }
++    imageRows(sql, ...params) {
++        return this.db.transaction(async (tx) => this.hydrate(tx, await tx.all(sql, ...params)));
++    }
++    async imageRow(sql, ...params) {
++        return (await this.imageRows(sql, ...params))[0];
++    }
++    /** Upgrade only after the owner has validated the existing backend identity. */
++    migrateImages() {
++        return this.admitRead(async () => {
++            if (!this.images) {
++                await applySqliteMigrationsForSchema(this.db, this.schema);
++                this.images = true;
++            }
++            await migrateInlineImages(this.db, this.schema.tables);
++        });
++    }
+     assertOpen() {
+         if (this.closed)
+             throw new Error("SqliteStorage is closed");
 diff --git a/dist/types.d.ts b/dist/types.d.ts
 index 5f6f124761cb6b4739b802eecadd51fc8f0c034b..706312d02e58efb1de7d3aa902ac88d6d5502181 100644
 --- a/dist/types.d.ts
@@ -833,3 +1126,324 @@ index dbae2ff3bd5ded4db56c1fa3f5c4a58eee2af315..e46f1b66e980e29d74c6aeabfafa221f
      const enabled = filterTools([...composed.values()], state?.tools);
      const callableBy = (caller) => (tool) => tool.callers === undefined || tool.callers.includes(caller);
      const modelCallable = enabled.filter(callableBy("model"));
+diff --git a/dist/storage/sqlite/commit.js b/dist/storage/sqlite/commit.js
+index 9ecf3e9be5a2ac509ca1c3c937540957c7b4ecd8..248e47819b1efb99e58b227d89f9ee0443a32a77 100644
+--- a/dist/storage/sqlite/commit.js
++++ b/dist/storage/sqlite/commit.js
+@@ -1,8 +1,9 @@
++import { insertImageRows } from "./images.js";
+ // One `SqliteStorage.commit()` call in a few statements whatever its number of batches: the check state of all its
+ // batches read up front (`CommitState`), each batch checked in memory against what the batches before it left, and the
+ // accepted batches written per table (`PendingWrites`, through `statements.ts`). Over a remote SQLite every statement
+ // is a round trip while the write lock is held; a group of commits must not cost one round trip per write.
+-import { addressColumnsKey, addressKey, addressParts, documentRow, encodeIndexedString, encodeJson, isCurrentOnly, parseJson, } from "./rows.js";
++import { addressColumnsKey, addressKey, addressParts, documentRow, encodeIndexedString, isCurrentOnly, parseJson, } from "./rows.js";
+ import { insertRows, readRows, runForEach } from "./statements.js";
+ /** The record ID a write claims and its table, if it claims one. */
+ export const claimOf = (write) => {
+@@ -120,15 +121,15 @@ export class CommitState {
+             recordIds.set(row.id, row.record_type);
+         }
+         const documents = new Map();
+-        for (const row of await readRows(executor, `SELECT record FROM ${tables.documents} WHERE id IN (SELECT value FROM json_each(?))`, [...documentIds])) {
++        for (const row of await readRows(executor, `SELECT record, image_refs FROM ${tables.documents} WHERE id IN (SELECT value FROM json_each(?))`, [...documentIds])) {
+             const record = parseJson(row.record);
+             documents.set(record.id, record);
+         }
+         const versions = new Map();
+         // Driven by the requested IDs: each latest revision is one descending probe of the primary key.
+         for (const row of await readRows(executor, `SELECT requested.value AS document_id, (
+-				SELECT version FROM ${tables.documentRevisions} WHERE document_id = requested.value ORDER BY seq DESC LIMIT 1
+-			) AS version FROM json_each(?) AS requested`, [...deltaIds])) {
++                SELECT version FROM ${tables.documentRevisions} WHERE document_id = requested.value ORDER BY seq DESC LIMIT 1
++            ) AS version FROM json_each(?) AS requested`, [...deltaIds])) {
+             if (row.version !== null)
+                 versions.set(row.document_id, row.version);
+         }
+@@ -241,11 +242,11 @@ async function readCurrent(executor, tables, addresses) {
+     for (const key of addresses.keys())
+         current.set(key, undefined);
+     const rows = await readRows(executor, `SELECT document.id, document.kind, document.scope_kind, document.owner_id, document.family, document.key_value
+-			FROM json_each(?) AS address JOIN ${tables.documents} AS document
+-			ON document.kind = json_extract(address.value, '$[0]') AND document.scope_kind = json_extract(address.value, '$[1]')
+-			AND document.owner_id = json_extract(address.value, '$[2]') AND document.family = json_extract(address.value, '$[3]')
+-			AND document.key_value = json_extract(address.value, '$[4]')
+-			WHERE document.retired_at IS NULL`, [...addresses.values()].map((part) => [part.kind, part.scopeKind, part.ownerId, part.family, part.keyValue]));
++            FROM json_each(?) AS address JOIN ${tables.documents} AS document
++            ON document.kind = json_extract(address.value, '$[0]') AND document.scope_kind = json_extract(address.value, '$[1]')
++            AND document.owner_id = json_extract(address.value, '$[2]') AND document.family = json_extract(address.value, '$[3]')
++            AND document.key_value = json_extract(address.value, '$[4]')
++            WHERE document.retired_at IS NULL`, [...addresses.values()].map((part) => [part.kind, part.scopeKind, part.ownerId, part.family, part.keyValue]));
+     for (const row of rows) {
+         current.set(addressColumnsKey(row.kind, row.scope_kind, row.owner_id, row.family, row.key_value), row.id);
+     }
+@@ -285,7 +286,7 @@ export class PendingWrites {
+                     write.value.id,
+                     write.value.owner?.conversationId ?? null,
+                     write.value.owner?.taskId ?? null,
+-                    encodeJson(write.value),
++                    write.value,
+                 ]);
+                 break;
+             case "entry":
+@@ -294,7 +295,7 @@ export class PendingWrites {
+                     write.value.conversationId,
+                     write.value.head ?? null,
+                     seq,
+-                    encodeJson(write.value),
++                    write.value,
+                 ]);
+                 break;
+             case "task":
+@@ -305,7 +306,7 @@ export class PendingWrites {
+                     write.value.state.status,
+                     write.value.abortRequested ? 1 : 0,
+                     write.value.background ? 1 : 0,
+-                    encodeJson(write.value),
++                    write.value,
+                 ]);
+                 break;
+             case "submission":
+@@ -314,7 +315,7 @@ export class PendingWrites {
+                     write.value.conversationId,
+                     write.value.requestId === undefined ? null : encodeIndexedString(write.value.requestId),
+                     write.value.status,
+-                    encodeJson(write.value),
++                    write.value,
+                 ]);
+                 break;
+             default:
+@@ -328,7 +329,7 @@ export class PendingWrites {
+         if (content !== undefined) {
+             if (content.kind === "base" && isCurrentOnly(record))
+                 this.#clear(id);
+-            const encoded = content.kind === "base" ? encodeJson(content.value) : encodeJson(content.ops);
++            const encoded = content.kind === "base" ? content.value : content.ops;
+             let revisions = this.#revisions.get(id);
+             if (revisions === undefined) {
+                 revisions = [];
+@@ -347,17 +348,17 @@ export class PendingWrites {
+     /** Writes everything pending, a few statements per table (`insertRows`), and forgets it. */
+     async flush(executor, tables) {
+         await insertRows(executor, tables.recordIds, ["id", "record_type"], [...this.#recordIds].map(([id, table]) => [id, table]), "ON CONFLICT(id) DO NOTHING");
+-        await insertRows(executor, tables.conversations, ["id", "owner_conversation_id", "owner_task_id", "record"], this.#conversations);
+-        await insertRows(executor, tables.entries, ["id", "conversation_id", "head", "commit_seq", "record"], this.#entries);
+-        await insertRows(executor, tables.tasks, ["id", "conversation_id", "kind", "status", "abort_requested", "background", "record"], [...this.#tasks.values()], `ON CONFLICT(id) DO UPDATE SET conversation_id = excluded.conversation_id, kind = excluded.kind,
+-				status = excluded.status, abort_requested = excluded.abort_requested,
+-				background = excluded.background, record = excluded.record`);
+-        await insertRows(executor, tables.submissions, ["id", "conversation_id", "request_id", "status", "record"], [...this.#submissions.values()], `ON CONFLICT(id) DO UPDATE SET conversation_id = excluded.conversation_id,
+-				request_id = excluded.request_id, status = excluded.status, record = excluded.record`);
++        await insertImageRows(executor, tables, tables.conversations, ["id", "owner_conversation_id", "owner_task_id", "record"], this.#conversations);
++        await insertImageRows(executor, tables, tables.entries, ["id", "conversation_id", "head", "commit_seq", "record"], this.#entries);
++        await insertImageRows(executor, tables, tables.tasks, ["id", "conversation_id", "kind", "status", "abort_requested", "background", "record"], [...this.#tasks.values()], `ON CONFLICT(id) DO UPDATE SET conversation_id = excluded.conversation_id, kind = excluded.kind,
++                status = excluded.status, abort_requested = excluded.abort_requested,
++                background = excluded.background, record = excluded.record`);
++        await insertImageRows(executor, tables, tables.submissions, ["id", "conversation_id", "request_id", "status", "record"], [...this.#submissions.values()], `ON CONFLICT(id) DO UPDATE SET conversation_id = excluded.conversation_id,
++                request_id = excluded.request_id, status = excluded.status, record = excluded.record`);
+         // A created document is inserted, a stored one retired: one upsert writes both.
+-        await insertRows(executor, tables.documents, ["id", "kind", "family", "key_value", "scope_kind", "owner_id", "created_at", "retired_at", "record"], [...this.#documents.values()].map(documentRow), "ON CONFLICT(id) DO UPDATE SET retired_at = excluded.retired_at, record = excluded.record");
++        await insertImageRows(executor, tables, tables.documents, ["id", "kind", "family", "key_value", "scope_kind", "owner_id", "created_at", "retired_at", "record"], [...this.#documents.values()].map(documentRow), "ON CONFLICT(id) DO UPDATE SET retired_at = excluded.retired_at, record = excluded.record");
+         await runForEach(executor, `DELETE FROM ${tables.documentRevisions} WHERE document_id IN (SELECT value FROM json_each(?))`, [...this.#cleared]);
+-        await insertRows(executor, tables.documentRevisions, ["document_id", "seq", "kind", "version", "content"], [...this.#revisions.values()].flat());
++        await insertImageRows(executor, tables, tables.documentRevisions, ["document_id", "seq", "kind", "version", "content"], [...this.#revisions.values()].flat());
+         this.#recordIds.clear();
+         this.#conversations.length = 0;
+         this.#entries.length = 0;
+diff --git a/dist/storage/sqlite/images.js b/dist/storage/sqlite/images.js
+new file mode 100644
+index 0000000000000000000000000000000000000000..7672ed61a50e39ad82fea33251512f03cb5153a5
+--- /dev/null
++++ b/dist/storage/sqlite/images.js
+@@ -0,0 +1,150 @@
++import { apply } from "@earendil-works/chord/delta";
++import { toBase64 } from "../../tools/image-processor.js";
++import { insertRows, readRows } from "./statements.js";
++
++export function hasImages(value) {
++    if (value === null || typeof value !== "object") return false;
++    if (value.type === "image" && typeof value.data === "string" && typeof value.mimeType === "string") return true;
++    return Object.values(value).some(hasImages);
++}
++
++async function digest(bytes) {
++    const hash = new Uint8Array(await globalThis.crypto.subtle.digest("SHA-256", bytes));
++    return Array.from(hash, (byte) => byte.toString(16).padStart(2, "0")).join("");
++}
++
++async function encodeImages(executor, table, json) {
++    const value = typeof json === "string" ? JSON.parse(json) : json;
++    const refs = [];
++    async function visit(node, path) {
++        if (node === null || typeof node !== "object") return node;
++        let result = node;
++        if (node.type === "image" && typeof node.data === "string" && typeof node.mimeType === "string") {
++            let bytes;
++            try {
++                const binary = atob(node.data);
++                bytes = new Uint8Array(binary.length);
++                for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
++            } catch { /* Noncanonical inputs must round-trip unchanged. */ }
++            if (bytes !== undefined && toBase64(bytes) === node.data && bytes.length > 0) {
++                const hash = await digest(bytes);
++                await executor.run(`INSERT INTO ${table} (hash, bytes, refs) VALUES (?, ?, 0) ON CONFLICT(hash) DO NOTHING`, hash, bytes);
++                refs.push({ path: [...path, "data"], hash });
++                result = { ...node, data: null };
++            }
++        }
++        for (const [key, child] of Object.entries(result)) {
++            const encoded = await visit(child, [...path, key]);
++            if (encoded === child) continue;
++            if (result === node) result = Array.isArray(node) ? [...node] : { ...node };
++            Object.defineProperty(result, key, { value: encoded, enumerable: true, writable: true, configurable: true });
++        }
++        return result;
++    }
++    const encoded = await visit(value, []);
++    return [refs.length === 0 && typeof json === "string" ? json : JSON.stringify(encoded), JSON.stringify(refs)];
++}
++
++export function parseImageRow(row, column = "record") {
++    return Object.hasOwn(row, "decoded") ? row.decoded : JSON.parse(row[column]);
++}
++
++export async function insertImageRows(executor, tables, table, columns, rows, conflict = "") {
++    const column = columns.includes("record") ? "record" : "content";
++    const index = columns.indexOf(column);
++    const encoded = [];
++    for (const row of rows) {
++        const [json, refs] = await encodeImages(executor, tables.imageBlobs, row[index]);
++        const copy = [...row];
++        copy[index] = json;
++        copy.push(refs);
++        encoded.push(copy);
++    }
++    if (conflict.includes("DO UPDATE SET")) conflict += ", image_refs = excluded.image_refs";
++    await insertRows(executor, table, [...columns, "image_refs"], encoded, conflict);
++}
++
++export async function hydrateImageRows(executor, table, rows) {
++    const manifests = rows.map((row) => JSON.parse(row.image_refs ?? "[]"));
++    const hashes = [...new Set(manifests.flatMap((refs) => refs.map((ref) => ref.hash)))];
++    if (hashes.length === 0) return rows;
++    const blobs = await readRows(executor, `SELECT hash, bytes FROM ${table} WHERE hash IN (SELECT value FROM json_each(?))`, hashes);
++    const data = new Map();
++    for (const blob of blobs) {
++        const bytes = blob.bytes instanceof ArrayBuffer ? new Uint8Array(blob.bytes) : blob.bytes;
++        if (!(bytes instanceof Uint8Array) || await digest(bytes) !== blob.hash) throw new Error("Durable image resource is corrupt");
++        data.set(blob.hash, toBase64(bytes));
++    }
++    return rows.map((row, index) => {
++        const refs = manifests[index];
++        if (refs.length === 0) return row;
++        const column = "record" in row ? "record" : "content";
++        const value = JSON.parse(row[column]);
++        for (const { path, hash } of refs) {
++            if (!data.has(hash)) throw new Error("Durable image resource is missing");
++            if (!Array.isArray(path) || path.length === 0) throw new Error("Durable image reference is invalid");
++            let target = value;
++            for (const key of path.slice(0, -1)) {
++                if (target === null || typeof target !== "object" || !Object.hasOwn(target, key)) throw new Error("Durable image reference is invalid");
++                target = target[key];
++            }
++            const key = path.at(-1);
++            if (target === null || typeof target !== "object" || !Object.hasOwn(target, key) || target[key] !== null) throw new Error("Durable image reference is invalid");
++            Object.defineProperty(target, key, { value: data.get(hash), enumerable: true, writable: true, configurable: true });
++        }
++        return { ...row, decoded: value };
++    });
++}
++
++export function imageMigrations(tables) {
++    const statements = [
++        `CREATE TABLE ${tables.imageBlobs} (hash TEXT PRIMARY KEY, bytes BLOB NOT NULL, refs INTEGER NOT NULL CHECK (refs >= 0)) STRICT`,
++        `CREATE INDEX ${tables.imageBlobs}_unreferenced ON ${tables.imageBlobs} (refs) WHERE refs = 0`,
++    ];
++    for (const key of ["conversations", "entries", "tasks", "submissions", "documents", "documentRevisions"]) {
++        const table = tables[key];
++        const ids = key === "documentRevisions" ? "document_id, seq" : "id";
++        statements.push(`ALTER TABLE ${table} ADD COLUMN image_refs TEXT CHECK (image_refs IS NULL OR json_valid(image_refs))`);
++        statements.push(`CREATE INDEX ${table}_images_pending ON ${table} (${ids}) WHERE image_refs IS NULL`);
++        const count = (owner) => `(SELECT count(*) FROM json_each(${owner}.image_refs) WHERE json_extract(value, '$.hash') = hash)`;
++        const hashes = (owner) => `(SELECT json_extract(value, '$.hash') FROM json_each(${owner}.image_refs))`;
++        const add = `UPDATE ${tables.imageBlobs} SET refs = refs + ${count("NEW")} WHERE hash IN ${hashes("NEW")};`;
++        const remove = `UPDATE ${tables.imageBlobs} SET refs = refs - ${count("OLD")} WHERE hash IN ${hashes("OLD")};`;
++        const check = `SELECT CASE WHEN EXISTS (SELECT 1 FROM json_each(NEW.image_refs) WHERE json_extract(value, '$.hash') NOT IN (SELECT hash FROM ${tables.imageBlobs})) THEN RAISE(ABORT, 'Durable image resource is missing') END;`;
++        statements.push(`CREATE TRIGGER ${table}_images_insert AFTER INSERT ON ${table} BEGIN ${check} ${add} END`);
++        statements.push(`CREATE TRIGGER ${table}_images_update AFTER UPDATE OF image_refs ON ${table} BEGIN ${check} ${add} ${remove} END`);
++        statements.push(`CREATE TRIGGER ${table}_images_delete AFTER DELETE ON ${table} BEGIN ${remove} END`);
++    }
++    return statements;
++}
++
++export async function migrateInlineImages(database, tables) {
++    for (const key of ["conversations", "entries", "tasks", "submissions", "documents", "documentRevisions"]) {
++        const table = tables[key];
++        const column = key === "documentRevisions" ? "content" : "record";
++        while (await database.transaction(async (tx) => {
++            const rows = await tx.all(`SELECT rowid AS migration_id, ${column}${key === "documentRevisions" ? ", document_id, seq, kind, version" : ""} FROM ${table} WHERE image_refs IS NULL ORDER BY ${key === "documentRevisions" ? "document_id, seq" : "id"} LIMIT 16`);
++            for (const row of rows) {
++                if (row.kind === "delta") {
++                    const base = await tx.get(`SELECT content, image_refs, seq, version FROM ${table} WHERE document_id = ? AND kind = 'base' AND seq < ? ORDER BY seq DESC LIMIT 1`, row.document_id, row.seq);
++                    if (!base) throw new Error("Durable image migration is missing a document base");
++                    if (base.version !== row.version) throw new Error("Durable image migration crosses a document version boundary");
++                    let value = parseImageRow((await hydrateImageRows(tx, tables.imageBlobs, [base]))[0], "content");
++                    const revisions = await hydrateImageRows(tx, tables.imageBlobs, await tx.all(`SELECT content, image_refs, kind, version FROM ${table} WHERE document_id = ? AND seq > ? AND seq <= ? ORDER BY seq`, row.document_id, base.seq, row.seq));
++                    const hadImages = hasImages(value);
++                    for (const revision of revisions) {
++                        if (revision.kind !== "delta" || revision.version !== base.version) throw new Error("Durable image migration crosses a document version boundary");
++                        value = apply(value, parseImageRow(revision, "content"));
++                    }
++                    if (hadImages || hasImages(value)) {
++                        row.content = JSON.stringify(value);
++                        await tx.run(`UPDATE ${table} SET kind = 'base' WHERE rowid = ?`, row.migration_id);
++                    }
++                }
++                const [json, refs] = await encodeImages(tx, tables.imageBlobs, row[column]);
++                await tx.run(`UPDATE ${table} SET ${column} = ?, image_refs = ? WHERE rowid = ?`, json, refs, row.migration_id);
++            }
++            return rows.length > 0;
++        })) { /* Each committed page is a restart boundary. */ }
++    }
++}
+diff --git a/dist/storage/sqlite/migrations.js b/dist/storage/sqlite/migrations.js
+index eab60bc2232e28732a34b8391384d8afbb4068b9..286fa0a8fd0591d55e3a090c81e8d8ceedd70af3 100644
+--- a/dist/storage/sqlite/migrations.js
++++ b/dist/storage/sqlite/migrations.js
+@@ -1,4 +1,5 @@
+ import { applySqliteMigrations as applyMigrations, } from "@earendil-works/chord/sqlite";
++import { imageMigrations } from "./images.js";
+ import { DEFAULT_SQLITE_SCHEMA } from "./schema.js";
+ /** Build immutable, ordered schema history for a set of SQLite identifiers. */
+ export function createSqliteMigrations(schema) {
+@@ -106,6 +107,7 @@ export function createSqliteMigrations(schema) {
+     return [
+         { version: 1, statements: initialSchema },
+         { version: 2, statements: sleepingStatus },
++        { version: 3, statements: imageMigrations(tables) },
+     ];
+ }
+ export const SQLITE_MIGRATIONS = createSqliteMigrations(DEFAULT_SQLITE_SCHEMA);
+diff --git a/dist/storage/sqlite/schema.d.ts b/dist/storage/sqlite/schema.d.ts
+index f00bb5328cf664486b41141767b195867468ff4d..b8d943599040510cb3770d94309aeb3e6848e120 100644
+--- a/dist/storage/sqlite/schema.d.ts
++++ b/dist/storage/sqlite/schema.d.ts
+@@ -4,6 +4,7 @@ export { validateSqliteSchemaPrefix } from "@earendil-works/chord/sqlite";
+  * rename adds a new entry so historical migrations keep rendering their original object names.
+  */
+ declare const TABLE_NAMES: {
++    readonly imageBlobs: "image_blobs";
+     readonly durableSchema: "durable_schema";
+     readonly durableMetadata: "durable_metadata";
+     readonly recordIds: "record_ids";
+diff --git a/dist/storage/sqlite/schema.js b/dist/storage/sqlite/schema.js
+index a7fcf1a229ec6843bc4f902dac094f257ed72187..e0cf87a434296c3718a33b071234f859618cdfed 100644
+--- a/dist/storage/sqlite/schema.js
++++ b/dist/storage/sqlite/schema.js
+@@ -5,6 +5,7 @@ export { validateSqliteSchemaPrefix } from "@earendil-works/chord/sqlite";
+  * rename adds a new entry so historical migrations keep rendering their original object names.
+  */
+ const TABLE_NAMES = {
++    imageBlobs: "image_blobs",
+     durableSchema: "durable_schema",
+     durableMetadata: "durable_metadata",
+     recordIds: "record_ids",

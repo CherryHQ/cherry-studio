@@ -11,12 +11,13 @@ import {
 } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { DatabaseSync } from 'node:sqlite'
 
 import { BACKGROUND_CONTEXT } from '@earendil-works/chord/context'
 import { createModels, fauxAssistantMessage, fauxProvider, InMemoryCredentialStore } from '@earendil-works/pi-ai'
 import { ModelRuntime, SessionManager } from '@earendil-works/pi-coding-agent'
 import { createRegistry } from '@earendil-works/pi-durable'
-import { SqliteStorage } from '@earendil-works/pi-durable/storage/sqlite'
+import { applySqliteMigrations, SQLITE_MIGRATIONS, SqliteStorage } from '@earendil-works/pi-durable/storage/sqlite'
 import { NodeSqliteDatabase, openNodeSqliteStorage } from '@earendil-works/pi-durable/storage/sqlite/node'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
@@ -249,6 +250,46 @@ describe('native context storage and reconciliation', () => {
         .all()
         .map((row) => row.id)
     ).toEqual([backend.id])
+  })
+
+  it.each([true, false])('validates legacy Durable backend identity before image migration: %s', async (matches) => {
+    const intent = prepareDurableBranch(sessionId)
+    const backend = contexts.backend(intent.backendId)
+    if (backend.locator.kind !== 'pi-durable') throw new Error('Expected Durable backend')
+    mkdirSync(application.getPath('feature.agents.durable.stores'), { recursive: true })
+    const file = application.getPath('feature.agents.durable.stores', backend.locator.fileName)
+    const database = new NodeSqliteDatabase(new DatabaseSync(file))
+    await applySqliteMigrations(database, SQLITE_MIGRATIONS.slice(0, 2))
+    const marker = { id: 2, kind: 'cherry.runtime-backend', scope: { kind: 'session' }, createdAt: 1 }
+    await database.run(
+      'INSERT INTO documents (id, kind, family, key_value, scope_kind, owner_id, created_at, record) VALUES (2, ?, 0, ?, ?, 0, 1, ?)',
+      JSON.stringify(marker.kind),
+      JSON.stringify(''),
+      'session',
+      JSON.stringify(marker)
+    )
+    await database.run(
+      "INSERT INTO document_revisions VALUES (2, 1, 'base', 1, ?)",
+      JSON.stringify({ backendId: matches ? backend.id : 'another-backend' })
+    )
+    await database.run("INSERT INTO record_ids VALUES (2, 'document')")
+    await database.run("UPDATE durable_metadata SET next_id = '3', next_seq = 2")
+    await database.close()
+    if (matches) {
+      const storage = await openDurableStorage(backend)
+      await storage.close(BACKGROUND_CONTEXT)
+    } else {
+      await expect(openDurableStorage(backend)).rejects.toThrow('identity does not match')
+    }
+    const check = new DatabaseSync(file)
+    try {
+      expect(check.prepare('SELECT version FROM durable_schema').get()).toEqual({ version: matches ? 3 : 2 })
+      expect(check.prepare('SELECT content FROM document_revisions').get()).toEqual({
+        content: JSON.stringify({ backendId: matches ? backend.id : 'another-backend' })
+      })
+    } finally {
+      check.close()
+    }
   })
 
   it.each([false, true])(

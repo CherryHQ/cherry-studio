@@ -1,5 +1,0 @@
-# Bilingual-pair consistency record (docs/dev/i18n/README.md).
-# After editing either side, update its counterpart and re-record with:
-#   pnpm docs:check-pairing --write .agents/notes/proposed/architecture/2026-11-16-pi-durable-image-storage.md
-2026-11-16-pi-durable-image-storage.md: 2b1a1d382a5a72cfe40b825083141fe6feb6fbf9
-2026-11-16-pi-durable-image-storage.zh.md: 107d573aa5e1ef211aff0cce8d21032fffdab94c

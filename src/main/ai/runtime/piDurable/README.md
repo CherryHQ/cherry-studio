@@ -41,6 +41,10 @@ corresponding database binding.
 `agent_runtime_backend` and `agent_session_context` bind product sessions to native
 SQLite storage and conversations. Native backend and conversation markers repair an
 interrupted association write without guessing by history or replacing a missing store.
+After identity validation, existing stores migrate inline images through native
+`migrateImages()`. Interrupted conversion resumes on the next open; a mismatched
+backend is rejected before any migration. The [runtime package](../../../../../packages/agent-runtime-pi-durable/README.md#sqlite-image-storage)
+describes the single-file image format, retention and backup contract.
 Creation initializes and closes a private staging store before exclusively publishing
 its final path. An initialization failure before publication leaves the same reservation
 retryable. Reopening checks identity and never creates or replaces a SQLite file.
