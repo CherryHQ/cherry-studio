@@ -20,6 +20,13 @@
       "description": "Remember whether archiving an assistant also archives its related topics"
     },
     {
+      "targetKey": "chat.message.scroll_to_bottom_on_send",
+      "type": "boolean",
+      "defaultValue": true,
+      "status": "classified",
+      "description": "Scroll to the latest message after successfully sending a message"
+    },
+    {
       "targetKey": "chat.message.user_content.default_expanded",
       "type": "boolean",
       "defaultValue": false,

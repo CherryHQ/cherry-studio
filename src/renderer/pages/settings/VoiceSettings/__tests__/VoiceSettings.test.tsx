@@ -151,9 +151,8 @@ function recognitionStatus() {
   const anchor = document.getElementById('setting-voice-recognition-status')!
   expect(row).toContainElement(anchor)
   expect(document.querySelectorAll('#setting-voice-recognition-status')).toHaveLength(1)
-  const status = anchor.querySelector<HTMLElement>('[role="status"]')
-  expect(status).not.toBeNull()
-  return status!
+  expect(anchor).toHaveAttribute('role', 'status')
+  return anchor
 }
 
 async function renderPreviewTest() {
