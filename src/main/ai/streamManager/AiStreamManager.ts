@@ -44,6 +44,7 @@ import type { ServiceTierSelection, UniqueModelId } from '@shared/data/types/mod
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import type { SerializedError } from '@shared/types/error'
 import { KeyedMutex } from '@shared/utils/async'
+import { SystemProviderIds } from '@shared/utils/systemProviderId'
 
 import { extractAgentSessionId, isAgentSessionTopic } from '../agentSession/topic'
 import type { AsInProcess } from '../AiService'
@@ -351,6 +352,20 @@ const nullStreamListener: StreamListener = {
   onPaused: () => {},
   onError: () => {},
   isAlive: () => false
+}
+
+/** Insufficient CherryIN balance, classified the same way as the failure shown to the user. */
+function trackCherryInQuotaError(topicId: string, modelId: UniqueModelId, error: SerializedError): void {
+  if (!modelId.startsWith(`${SystemProviderIds.cherryin}::`)) return
+  if (toExecutionFailure(error, modelId).failure.reasonCode !== 'quota') return
+  try {
+    application.get('AnalyticsService').trackProductEvent({
+      event: 'cherryin_quota_error',
+      composer: isAgentSessionTopic(topicId) ? 'agent' : 'chat'
+    })
+  } catch {
+    // Telemetry must never affect stream termination.
+  }
 }
 
 /**
@@ -1700,6 +1715,7 @@ export class AiStreamManager extends BaseService {
     exec.status = 'error'
     exec.error = error
     endRootSpan(exec, 'error', error)
+    trackCherryInQuotaError(topicId, modelId, error)
 
     // Mirror of onExecutionPaused: clear the set so the status anchor drops;
     // the in-flight tool part is terminalized by `finalizeInterruptedParts`.

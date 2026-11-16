@@ -9,8 +9,14 @@ import { loggerService } from '@logger'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { ipcApi } from '@renderer/ipc'
 import { oauthCardClasses } from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives'
+import {
+  buildCherryInTopupUrl,
+  cherryInSignInFailureResult,
+  trackCherryInEntryView
+} from '@renderer/services/cherryInAnalytics'
 import { oauthWithCherryIn } from '@renderer/services/oauth'
 import { popup } from '@renderer/services/popup'
+import { trackProductEvent } from '@renderer/services/productAnalytics'
 import { toast } from '@renderer/services/toast'
 import { openExternalWebsite } from '@renderer/services/website'
 import { cn } from '@renderer/utils/style'
@@ -50,7 +56,8 @@ const CherryInOauth: FC<CherryInOauthProps> = ({ providerId }) => {
   // `oauth.has_token` returns only a boolean — the access/refresh tokens stay in
   // the main process and never reach the renderer (null = status not loaded yet).
   const [remoteHasOAuthToken, setRemoteHasOAuthToken] = useState<boolean | null>(null)
-  const topupInProgressRef = useRef(false)
+  // Set by a top-up click; the next window focus compares the refreshed balance against it.
+  const pendingTopupRef = useRef<{ flowId: string; balanceBefore: number | null } | null>(null)
   const signInRequestIdRef = useRef<string | null>(null)
 
   const refreshHasToken = useCallback(async () => {
@@ -69,15 +76,22 @@ const CherryInOauth: FC<CherryInOauthProps> = ({ providerId }) => {
   const hasKeys = provider ? hasApiKeys(provider) : false
   const hasOAuthToken = oauthTokenOverride ?? remoteHasOAuthToken ?? false
   const isOAuthLoggedIn = hasKeys && hasOAuthToken
+  const isSignInStateKnown = !!provider && !(remoteHasOAuthToken === null && hasKeys)
 
-  const fetchData = useCallback(async () => {
+  useEffect(() => {
+    if (isSignInStateKnown) trackCherryInEntryView(isOAuthLoggedIn)
+  }, [isOAuthLoggedIn, isSignInStateKnown])
+
+  const fetchData = useCallback(async (): Promise<CherryInBalance | null> => {
     setIsLoadingData(true)
     try {
       const balance = await ipcApi.request('cherryin.get_balance', { apiHost: CHERRYIN_OAUTH_SERVER })
       setBalanceInfo(balance)
+      return balance
     } catch (error) {
       logger.warn('Failed to fetch balance:', error as Error)
       setBalanceInfo(null)
+      return null
     } finally {
       setIsLoadingData(false)
     }
@@ -101,10 +115,14 @@ const CherryInOauth: FC<CherryInOauthProps> = ({ providerId }) => {
   // so the balance refresh must wait for the user to come back.
   useEffect(() => {
     const handleWindowFocus = () => {
-      if (topupInProgressRef.current) {
-        topupInProgressRef.current = false
-        void fetchData()
-      }
+      const topup = pendingTopupRef.current
+      if (!topup) return
+      pendingTopupRef.current = null
+      void fetchData().then((balance) => {
+        if (balance && topup.balanceBefore !== null && balance.balance > topup.balanceBefore) {
+          trackProductEvent({ event: 'cherryin_balance_increased', flowId: topup.flowId })
+        }
+      })
     }
     window.addEventListener('focus', handleWindowFocus)
     return () => window.removeEventListener('focus', handleWindowFocus)
@@ -116,6 +134,14 @@ const CherryInOauth: FC<CherryInOauthProps> = ({ providerId }) => {
     const requestId = crypto.randomUUID()
     signInRequestIdRef.current = requestId
     setIsLoggingIn(true)
+    const startedAt = Date.now()
+    const trackResult = (result: 'success' | 'failed' | 'cancelled') =>
+      trackProductEvent({
+        event: 'cherryin_sign_in_result',
+        source: 'provider_settings',
+        result,
+        durationMs: Date.now() - startedAt
+      })
     try {
       await oauthWithCherryIn(
         async (apiKeys: string) => {
@@ -136,7 +162,9 @@ const CherryInOauth: FC<CherryInOauthProps> = ({ providerId }) => {
           requestId
         }
       )
+      trackResult('success')
     } catch (error) {
+      trackResult(cherryInSignInFailureResult(error))
       if (error instanceof IpcError && error.code === oauthErrorCodes.SIGN_IN_CANCELLED) return
       logger.error('OAuth error:', error as Error)
       toast.error(t('settings.provider.oauth.error'))
@@ -199,9 +227,11 @@ const CherryInOauth: FC<CherryInOauthProps> = ({ providerId }) => {
   }, [deleteApiKey, provider?.apiKeys, refreshHasToken, t])
 
   const handleTopup = useCallback(() => {
-    topupInProgressRef.current = true
-    void openExternalWebsite(CHERRYIN_TOPUP_URL)
-  }, [])
+    const flowId = crypto.randomUUID()
+    pendingTopupRef.current = { flowId, balanceBefore: balanceInfo?.balance ?? null }
+    trackProductEvent({ event: 'cherryin_topup_clicked', source: 'provider_settings', flowId })
+    void openExternalWebsite(buildCherryInTopupUrl(CHERRYIN_TOPUP_URL, flowId))
+  }, [balanceInfo])
 
   if (!provider) {
     return null

@@ -154,6 +154,7 @@ const fakeCacheService = {
 const mockSaveSpans = vi.fn<(topicId: string) => Promise<void>>(async () => undefined)
 const mockWillContinueTopic = vi.fn<(topicId: string) => boolean>(() => false)
 const mockCloseSession = vi.fn<(sessionId: string, interrupt?: boolean) => Promise<void>>(async () => undefined)
+const mockTrackProductEvent = vi.fn()
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
@@ -171,6 +172,7 @@ vi.mock('@application', async () => {
     },
     CacheService: fakeCacheService,
     TraceStorageService: { saveSpans: mockSaveSpans },
+    AnalyticsService: { trackProductEvent: mockTrackProductEvent },
     AgentSessionRuntimeService: {
       willContinueTopic: mockWillContinueTopic,
       abortPendingTurn: mockAbortPendingTurn,
@@ -2076,6 +2078,32 @@ describe('AiStreamManager', () => {
 
       expect(l.errorResults[0].finalMessage?.id).toBe('assistant-1')
       expect(mgr.inspect('a')!.executions[0].finalMessage?.id).toBe('assistant-1')
+    })
+
+    it.each([
+      ['a', 'chat'],
+      ['agent-session:s1', 'agent']
+    ] as const)('reports an insufficient CherryIN balance on %s as a %s quota error', async (topicId, composer) => {
+      mockTrackProductEvent.mockClear()
+      startSingle(mgr, { topicId, modelId: 'cherryin::gpt-test', request: req(topicId), listeners: [] })
+
+      await mgr.onExecutionError(topicId, 'cherryin::gpt-test', {
+        ...error('403: insufficient_user_quota'),
+        statusCode: 403
+      })
+
+      expect(mockTrackProductEvent).toHaveBeenCalledExactlyOnceWith({ event: 'cherryin_quota_error', composer })
+    })
+
+    it('does not report quota errors from other providers or other CherryIN failures', async () => {
+      mockTrackProductEvent.mockClear()
+      startSingle(mgr, { topicId: 'a', modelId: 'openai::gpt-test', request: req('a'), listeners: [] })
+      startSingle(mgr, { topicId: 'b', modelId: 'cherryin::gpt-test', request: req('b'), listeners: [] })
+
+      await mgr.onExecutionError('a', 'openai::gpt-test', error('insufficient_quota'))
+      await mgr.onExecutionError('b', 'cherryin::gpt-test', { ...error('rate limit exceeded'), statusCode: 429 })
+
+      expect(mockTrackProductEvent).not.toHaveBeenCalled()
     })
   })
 
