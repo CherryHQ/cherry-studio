@@ -826,6 +826,7 @@ it('isolates child restore failures and recovers the same child after its model 
   const archive = child.pi.archive()
   const runs = () =>
     manager.getBranch().filter((entry) => entry.type === 'custom' && entry.customType === 'cherry.subagent-run')
+  // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
   const completedRuns = structuredClone(runs())
   confirmed(await runtime.shutdown())
   unavailable = true

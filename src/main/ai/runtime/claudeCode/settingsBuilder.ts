@@ -66,6 +66,7 @@ import {
 import { claudeToolRequiresUserInteraction } from '@shared/ai/claudecode/toolRegistry'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
+import type { UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import type { CherryToolMeta } from '@shared/data/types/uiParts'
 import { isExternalCliProvider } from '@shared/utils/provider'
@@ -147,6 +148,10 @@ export interface ClaudeCodeSessionOptions {
   }
   /** Claude Code SDK-native Fast mode. */
   fastMode?: boolean
+  /** Effective turn model display name for `{{model_name}}`; defaults to `agent.modelName`. */
+  promptModelName?: string | null
+  /** Effective connection model; defaults to `session.model ?? agent.model`. */
+  effectiveModelId?: UniqueModelId
   /**
    * True when the turn these settings serve was already accepted and frozen to an agent the
    * session row no longer names. Tool contexts then carry that execution ownership.
@@ -198,6 +203,7 @@ export async function buildClaudeCodeSessionSettings(
   const cwd = session.workspace.path
   await prepareClaudeCodeWorkspaceDirectory(session)
   const mcpWarmPromise = warmAgentMcpToolCaches(agent)
+  const effectiveModelId = options?.effectiveModelId ?? session.model ?? agent.model ?? undefined
   const [agentDataPath, env, workspacePlugins] = await Promise.all([
     ensureAgentDataDirectory(application.getPath('feature.agents.data'), agent.id),
     buildEnvironment(provider, agent),
@@ -246,7 +252,8 @@ export async function buildClaudeCodeSessionSettings(
     agentDataPath,
     knowledgeBaseScope,
     disallowedTools,
-    options?.effectiveLanguage
+    options?.effectiveLanguage,
+    options?.promptModelName
   )
 
   // 6. MCP servers (session + built-in)
@@ -259,6 +266,7 @@ export async function buildClaudeCodeSessionSettings(
     agentDataPath,
     options?.knowledgeBaseIds,
     notificationContext,
+    effectiveModelId ?? null,
     options?.servesAcceptedTurn === true
   )
   let mcpToolMetadata = await buildMcpToolMetadata(agent)
@@ -570,7 +578,7 @@ async function buildToolPermissions(
       }
     }
 
-    const access = snapshot.resolve(toolName, input)
+    const access = snapshot.resolve(toolName)
     // AskUserQuestion produces user-authored tool input; it is not an operation that a permission
     // mode can meaningfully approve on the user's behalf. Keep it on the response path even when
     // bypassPermissions marks every ordinary tool as auto-approved.
@@ -673,7 +681,9 @@ export async function buildSystemPrompt(
   /** Final SDK visibility after declarative exposure, runtime gates, and dependency propagation. */
   disallowedTools: readonly string[] = resolveDisallowedTools({ disabledTools: agent.disabledTools }, { cwd }),
   /** Materialized effective language; when omitted the preference is read live. */
-  effectiveLanguage?: string | null
+  effectiveLanguage?: string | null,
+  /** Effective turn model display name for `{{model_name}}`; defaults to `agent.modelName`. */
+  promptModelName?: string | null
 ): Promise<ClaudeCodeSettings['systemPrompt']> {
   const canReadAllKnowledgeBases = resolveAgentCapabilities(agent).allKnowledgeBases
   const unavailableTools = new Set(disallowedTools)
@@ -695,7 +705,8 @@ export async function buildSystemPrompt(
     agent,
     citationsGuidance,
     customBaseContext,
-    effectiveLanguage
+    effectiveLanguage,
+    modelName: promptModelName
   })
 
   // Rebuilding and resuming must apply changed Cherry instructions without waiting for compaction.

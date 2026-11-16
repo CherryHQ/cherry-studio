@@ -2,6 +2,7 @@ import { type IconMeta } from '../../types'
 
 export const meta: IconMeta = {
   id: 'essential-ai',
-  colorPrimary: '#35058E',
-  colorScheme: 'color'
+  colorPrimary: '#ede9f5',
+  colorScheme: 'color',
+  artworkKind: 'tile'
 }

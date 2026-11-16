@@ -84,15 +84,18 @@ export async function capturePiConnectionSnapshot(
 ): Promise<PiConnectionSnapshot> {
   const session = agentSessionService.getById(sessionId)
   const agent = agentService.getAgent(agentId)
-  if (!session || !agent?.model) {
-    throw new PiInvalidConnectionSnapshotError(`Invalid Pi session snapshot: ${sessionId}`, 'unavailable')
+  // A cleared agent default still routes when the caller passes the session's
+  // own override — only a session with no effective model is unroutable.
+  const modelId = requestedModelId ?? agent?.model
+  if (!session?.agentId || !agent || !modelId) {
+    throw new PiInvalidConnectionSnapshotError(`Invalid Pi session snapshot: ${sessionId}`)
   }
-  // Ownership alone: the frozen agent above resolved, so a live turn may keep this connection.
-  if (!opts?.servesAcceptedTurn && (!session.agentId || session.agentId !== agentId)) {
+  // Ownership alone: a turn already accepted under this agent keeps its connection across a
+  // mid-session reassignment; any other snapshot is a different connection's.
+  if (!opts?.servesAcceptedTurn && session.agentId !== agentId) {
     throw new PiInvalidConnectionSnapshotError(`Reassigned Pi session snapshot: ${sessionId}`, 'reassigned')
   }
 
-  const modelId = requestedModelId ?? agent.model
   const parsed = parseUniqueModelId(modelId)
   const provider = providerService.getByProviderId(parsed.providerId)
   const model = modelService.getByKey(parsed.providerId, parsed.modelId)
