@@ -26,6 +26,8 @@ vi.mock('react-i18next', () => ({
   })
 }))
 vi.mock('@renderer/utils/image', () => ({ checkEntityImageSize: vi.fn(), prepareEntityImageBytes: vi.fn() }))
+const cropAvatar = vi.hoisted(() => vi.fn())
+vi.mock('@renderer/components/Avatar/AvatarCropPopup', () => ({ AvatarCropPopup: { show: cropAvatar } }))
 vi.mock('@renderer/components/EmojiPicker', () => ({
   EmojiPicker: ({ onEmojiClick }: { onEmojiClick: (emoji: string) => void }) => (
     <button type="button" onClick={() => onEmojiClick('🎓')}>
@@ -46,12 +48,14 @@ const props = {
 }
 const file = new File(['image'], 'avatar.png', { type: 'image/png' })
 const bytes = new Uint8Array([1, 2, 3])
+const framed = { x: 10, y: 20, width: 64, height: 64 }
 const uploadLabel = 'Image Upload'
 
 beforeEach(() => {
   vi.mocked(ipcApi.request).mockReset().mockResolvedValue(undefined)
   vi.mocked(checkEntityImageSize).mockReset().mockReturnValue(null)
   vi.mocked(prepareEntityImageBytes).mockReset().mockResolvedValue(bytes)
+  cropAvatar.mockReset().mockResolvedValue(framed)
   invalidate.mockReset().mockResolvedValue(undefined)
   vi.mocked(dataApiService.get).mockResolvedValue({ emoji: '🤖', avatarSrc: 'file:///new.webp' })
 })
@@ -120,6 +124,29 @@ describe('AgentAvatarPicker persistence', () => {
         avatar: { kind: 'image', data: bytes }
       })
     })
+  })
+
+  it('saves the region framed in the crop dialog', async () => {
+    render(<AgentAvatarPicker {...props} />)
+    const user = await openPicker()
+    await user.upload(screen.getByLabelText(uploadLabel), file)
+
+    await waitFor(() => expect(ipcApi.request).toHaveBeenCalledOnce())
+    expect(cropAvatar).toHaveBeenCalledWith({ file, shape: 'square' })
+    expect(prepareEntityImageBytes).toHaveBeenCalledWith(file, framed)
+  })
+
+  it('keeps the current avatar when the crop dialog is cancelled', async () => {
+    cropAvatar.mockResolvedValue(null)
+    const onChanged = vi.fn()
+    render(<AgentAvatarPicker {...props} onChanged={onChanged} />)
+    const user = await openPicker()
+    await user.upload(screen.getByLabelText(uploadLabel), file)
+
+    await waitFor(() => expect(cropAvatar).toHaveBeenCalled())
+    expect(prepareEntityImageBytes).not.toHaveBeenCalled()
+    expect(ipcApi.request).not.toHaveBeenCalled()
+    expect(onChanged).not.toHaveBeenCalled()
   })
 
   it('resets the agent avatar from the menu', async () => {

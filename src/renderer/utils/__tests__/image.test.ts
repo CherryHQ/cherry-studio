@@ -177,6 +177,32 @@ describe('utils/image', () => {
 
       await expect(prepareEntityImageBytes(file)).rejects.toThrow('message.error.image_process_failed')
     })
+
+    // A 400×200 image: the centered square starts at x 100; a framed square is used as given.
+    function drawnRegion(area?: Parameters<typeof prepareEntityImageBytes>[1]) {
+      const bitmap = { width: 400, height: 200, close: vi.fn() }
+      vi.stubGlobal('createImageBitmap', vi.fn().mockResolvedValue(bitmap))
+      const drawImage = vi.fn()
+      const canvas = document.createElement('canvas')
+      vi.spyOn(canvas, 'getContext').mockReturnValue({ drawImage } as unknown as CanvasRenderingContext2D)
+      vi.spyOn(canvas, 'toBlob').mockImplementation((done) =>
+        done({ arrayBuffer: async () => new ArrayBuffer(1) } as Blob)
+      )
+      const createElement = document.createElement.bind(document)
+      vi.spyOn(document, 'createElement').mockImplementation(((tag: string) =>
+        tag === 'canvas' ? canvas : createElement(tag)) as typeof document.createElement)
+      return prepareEntityImageBytes(new File(['x'], 'a.png', { type: 'image/png' }), area).then(() =>
+        drawImage.mock.calls[0].slice(1)
+      )
+    }
+
+    it('keeps the largest centered square when nothing is framed', async () => {
+      expect(await drawnRegion()).toEqual([100, 0, 200, 200, 0, 0, 128, 128])
+    })
+
+    it('saves exactly the framed square, scaled to 128×128', async () => {
+      expect(await drawnRegion({ x: 230, y: 40, width: 120, height: 120 })).toEqual([230, 40, 120, 120, 0, 0, 128, 128])
+    })
   })
 
   describe('captureElement', () => {
