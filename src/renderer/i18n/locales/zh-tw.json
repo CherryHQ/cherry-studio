@@ -5844,6 +5844,8 @@
   "settings.shortcuts.number_keys.custom": "自訂",
   "settings.shortcuts.number_keys.custom_description": "已保留現有自訂綁定。選擇一種模式將取代所有數字快捷鍵。",
   "settings.shortcuts.number_keys.description": "使用 {{conversations}} 切換對話，使用 {{tabs}} 切換分頁",
+  "settings.shortcuts.number_keys.off": "關閉",
+  "settings.shortcuts.number_keys.off_description": "數字快速鍵已關閉。按住修飾鍵再按數字鍵不會有任何反應。",
   "settings.shortcuts.number_keys.tabs": "切換分頁",
   "settings.shortcuts.number_keys.title": "數字快捷鍵",
   "settings.shortcuts.occupied_by_other_application": "此快捷鍵已被系統或其他應用程式佔用",

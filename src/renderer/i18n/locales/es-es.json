@@ -5844,6 +5844,8 @@
   "settings.shortcuts.number_keys.custom": "Personalizado",
   "settings.shortcuts.number_keys.custom_description": "Se conservan los atajos personalizados. Elegir un modo sustituye todos los atajos numéricos.",
   "settings.shortcuts.number_keys.description": "Usa {{conversations}} para cambiar de conversación y {{tabs}} para cambiar de pestaña.",
+  "settings.shortcuts.number_keys.off": "Desactivado",
+  "settings.shortcuts.number_keys.off_description": "Los atajos numéricos están desactivados. Pulsar los números con el modificador no hace nada.",
   "settings.shortcuts.number_keys.tabs": "Cambiar pestañas",
   "settings.shortcuts.number_keys.title": "Atajos numéricos",
   "settings.shortcuts.occupied_by_other_application": "Este atajo ya está en uso por el sistema u otra aplicación",

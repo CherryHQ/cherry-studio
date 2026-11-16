@@ -5844,6 +5844,8 @@
   "settings.shortcuts.number_keys.custom": "Свои настройки",
   "settings.shortcuts.number_keys.custom_description": "Текущие сочетания сохранены. Выбор режима заменит все цифровые сочетания клавиш.",
   "settings.shortcuts.number_keys.description": "Используйте {{conversations}} для бесед и {{tabs}} для вкладок.",
+  "settings.shortcuts.number_keys.off": "Выключено",
+  "settings.shortcuts.number_keys.off_description": "Цифровые сочетания клавиш выключены. Нажатие цифр с модификатором ничего не делает.",
   "settings.shortcuts.number_keys.tabs": "Переключить вкладки",
   "settings.shortcuts.number_keys.title": "Цифровые сочетания клавиш",
   "settings.shortcuts.occupied_by_other_application": "Это сочетание клавиш уже используется системой или другим приложением",

@@ -5844,6 +5844,8 @@
   "settings.shortcuts.number_keys.custom": "Özel",
   "settings.shortcuts.number_keys.custom_description": "Mevcut özel kısayollar korunur. Bir mod seçmek tüm sayı kısayollarını değiştirir.",
   "settings.shortcuts.number_keys.description": "Konuşmalar için {{conversations}}, sekmeler için {{tabs}} kullanın.",
+  "settings.shortcuts.number_keys.off": "Kapalı",
+  "settings.shortcuts.number_keys.off_description": "Sayı kısayolları kapalı. Değiştirici tuşla birlikte sayılara basmak hiçbir şey yapmaz.",
   "settings.shortcuts.number_keys.tabs": "Sekme değiştir",
   "settings.shortcuts.number_keys.title": "Sayı kısayolları",
   "settings.shortcuts.occupied_by_other_application": "Bu kısayol sistem veya başka bir uygulama tarafından zaten kullanılıyor",

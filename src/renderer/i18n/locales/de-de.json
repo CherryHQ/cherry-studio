@@ -5844,6 +5844,8 @@
   "settings.shortcuts.number_keys.custom": "Benutzerdefiniert",
   "settings.shortcuts.number_keys.custom_description": "Bestehende eigene Belegungen bleiben erhalten. Die Moduswahl ersetzt alle Ziffern-Tastenkürzel.",
   "settings.shortcuts.number_keys.description": "Mit {{conversations}} Unterhaltungen und mit {{tabs}} Tabs wechseln.",
+  "settings.shortcuts.number_keys.off": "Aus",
+  "settings.shortcuts.number_keys.off_description": "Zahlen-Tastenkürzel sind deaktiviert. Zahlen mit Zusatztaste lösen nichts aus.",
   "settings.shortcuts.number_keys.tabs": "Tabs wechseln",
   "settings.shortcuts.number_keys.title": "Ziffern-Tastenkürzel",
   "settings.shortcuts.occupied_by_other_application": "Dieses Kürzel wird bereits vom System oder einer anderen Anwendung verwendet",

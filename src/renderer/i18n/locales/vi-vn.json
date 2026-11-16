@@ -5844,6 +5844,8 @@
   "settings.shortcuts.number_keys.custom": "Tùy chỉnh",
   "settings.shortcuts.number_keys.custom_description": "Các phím tắt tùy chỉnh được giữ lại. Chọn một chế độ sẽ thay thế tất cả phím tắt số.",
   "settings.shortcuts.number_keys.description": "Dùng {{conversations}} để chuyển cuộc trò chuyện và {{tabs}} để chuyển tab.",
+  "settings.shortcuts.number_keys.off": "Tắt",
+  "settings.shortcuts.number_keys.off_description": "Phím tắt số đã tắt. Nhấn phím số cùng phím bổ trợ sẽ không có tác dụng.",
   "settings.shortcuts.number_keys.tabs": "Chuyển tab",
   "settings.shortcuts.number_keys.title": "Phím tắt số",
   "settings.shortcuts.occupied_by_other_application": "Phím tắt này đã được hệ thống hoặc một ứng dụng khác sử dụng",

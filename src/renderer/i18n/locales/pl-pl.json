@@ -5916,6 +5916,8 @@
   "settings.shortcuts.number_keys.custom": "Niestandardowe",
   "settings.shortcuts.number_keys.custom_description": "Istniejące niestandardowe przypisania zostaną zachowane. Wybierz tryb, aby zastąpić wszystkie skróty numeryczne.",
   "settings.shortcuts.number_keys.description": "Użyj {{conversations}}, aby przełączać tematy, oraz {{tabs}}, aby przełączać karty.",
+  "settings.shortcuts.number_keys.off": "Wyłączone",
+  "settings.shortcuts.number_keys.off_description": "Skróty numeryczne są wyłączone. Naciśnięcie cyfry z modyfikatorem nic nie robi.",
   "settings.shortcuts.number_keys.tabs": "Przełącz karty",
   "settings.shortcuts.number_keys.title": "Skróty numeryczne",
   "settings.shortcuts.occupied_by_other_application": "Ten skrót jest już używany przez system lub inną aplikację",

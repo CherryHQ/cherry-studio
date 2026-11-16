@@ -5844,6 +5844,8 @@
   "settings.shortcuts.number_keys.custom": "กำหนดเอง",
   "settings.shortcuts.number_keys.custom_description": "เก็บปุ่มลัดที่กำหนดเองไว้แล้ว การเลือกโหมดจะแทนที่ปุ่มลัดตัวเลขทั้งหมด",
   "settings.shortcuts.number_keys.description": "ใช้ {{conversations}} เพื่อสลับการสนทนา และ {{tabs}} เพื่อสลับแท็บ",
+  "settings.shortcuts.number_keys.off": "ปิด",
+  "settings.shortcuts.number_keys.off_description": "ปิดใช้ทางลัดตัวเลขแล้ว การกดตัวเลขพร้อมปุ่มปรับแต่งจะไม่เกิดอะไรขึ้น",
   "settings.shortcuts.number_keys.tabs": "สลับแท็บ",
   "settings.shortcuts.number_keys.title": "ปุ่มลัดตัวเลข",
   "settings.shortcuts.occupied_by_other_application": "แป้นพิมพ์ลัดนี้ถูกใช้โดยระบบหรือแอปพลิเคชันอื่นแล้ว",
