@@ -32,7 +32,6 @@ import {
   collectIconDirs,
   ensureViewBox,
   getComponentName,
-  isImageBased,
   isWhiteFill,
   type LogoType,
   OUTPUT_DIR_MAP,
@@ -122,7 +121,7 @@ function detectBackgroundByArea(svgCode: string): boolean {
   // Collect all <path> and <rect> elements
   const pathMatches = [...stripped.matchAll(/<path\b([^>]*)>/g)]
   const rectMatches = [...stripped.matchAll(/<rect\b([^>]*)>/g)]
-  const totalVisual = pathMatches.length + rectMatches.length
+  const totalVisual = pathMatches.length + rectMatches.length + [...stripped.matchAll(/<image\b/g)].length
   if (totalVisual < 2) return false
 
   // Determine which element comes first in document order
@@ -165,8 +164,6 @@ function detectBackgroundByArea(svgCode: string): boolean {
     const fill = getElementFill(attrs, cssFills)
     if (!fill) return false
 
-    if (isWhiteFill(fill)) return false
-
     const w = parseAttrFloat(attrs, 'width')
     const h = parseAttrFloat(attrs, 'height')
     if (!isFinite(w) || !isFinite(h)) return false
@@ -197,7 +194,6 @@ function detectBackgroundByArea(svgCode: string): boolean {
  */
 export function detectHasBackground(svgPath: string): boolean {
   const svgCode = fs.readFileSync(svgPath, 'utf-8')
-  if (isImageBased(svgCode)) return false
 
   const processedSvg = ensureViewBox(svgCode)
 

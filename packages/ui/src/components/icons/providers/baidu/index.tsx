@@ -9,7 +9,7 @@ const Baidu = ({ variant, className, ...props }: CompoundIconProps) => {
 
 export const BaiduIcon: CompoundIcon = /*#__PURE__*/ Object.assign(Baidu, {
   Avatar: BaiduAvatar,
-  colorPrimary: '#2932E1'
+  colorPrimary: '#EDF0FF'
 })
 
 export default BaiduIcon

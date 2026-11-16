@@ -52,6 +52,16 @@ service is ready, after it stops, or without consent, outbound reporting is
 blocked. Startup database/migration failures therefore still require local
 logs or a diagnostic bundle. No offline event queue is maintained.
 
+`ErrorReportingService` also installs the SDK's native minidump integration after
+`PreferenceService` is ready. Crashpad collects dumps locally during preboot;
+Sentry uploads main-process dumps on the next launch and renderer or child-process
+dumps when their termination is observed. Uploads use the same current consent
+checks as error events, without a separate prompt or diagnostic bundle. The SDK
+consumes and deletes scanned dumps, so scanning must not start before preferences
+are ready. Binary dumps can contain process memory and are not redacted by the
+JSON event sanitizer. The SDK limits uploads to ten dumps per session; the
+transport does not persist failed uploads for an offline retry.
+
 Pass an original `Error` and a fixed operation identifier for ordinary failures:
 
 ```typescript

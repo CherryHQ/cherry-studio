@@ -9,7 +9,7 @@ const Zhipu = ({ variant, className, ...props }: CompoundIconProps) => {
 
 export const ZhipuIcon: CompoundIcon = /*#__PURE__*/ Object.assign(Zhipu, {
   Avatar: ZhipuAvatar,
-  colorPrimary: '#3859FF'
+  colorPrimary: '#edf0ff'
 })
 
 export default ZhipuIcon

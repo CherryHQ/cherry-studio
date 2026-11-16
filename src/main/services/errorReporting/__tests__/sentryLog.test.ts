@@ -67,7 +67,12 @@ vi.mock('node:fs/promises', async (importOriginal) => {
   const actual = await importOriginal<typeof FsPromises>()
   return { ...actual, access: vi.fn(actual.access), writeFile: vi.fn(actual.writeFile) }
 })
-vi.mock('@sentry/electron/main', () => ({ captureException: captureExceptionMock, captureEvent: captureEventMock }))
+vi.mock('@sentry/electron/main', () => ({
+  captureException: captureExceptionMock,
+  captureEvent: captureEventMock,
+  addIntegration: vi.fn(),
+  sentryMinidumpIntegration: () => ({ name: 'SentryMinidump' })
+}))
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
   return mockApplicationFactory({

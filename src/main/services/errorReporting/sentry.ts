@@ -8,15 +8,8 @@ import { dependencies, name, version } from '../../../../package.json'
 
 const SENTRY_DSN = 'https://194ceab3bd44e686bd3ebda9de3c20fd@o4509184559218688.ingest.us.sentry.io/4509184569442304'
 
-/**
- * Allowlist rather than a filter over the SDK defaults: an integration added or
- * renamed by an upgrade stays off until it is reviewed and listed here.
- * Deliberately absent — SentryMinidump (native process memory), LocalVariables
- * (stack-frame values), ElectronNet / NodeFetch (tracing-only, and they record
- * provider URLs), ChildProcess, Console, ElectronBreadcrumbs, Screenshots,
- * MainProcessSession, RendererEventLoopBlock. Dedupe is also excluded: the
- * reporting service owns classification-aware, time-bounded deduplication.
- */
+// An explicit allowlist prevents SDK upgrades from adding instrumentation.
+// ErrorReportingService installs SentryMinidump after preferences are ready.
 function allowedIntegrations() {
   return [
     Sentry.onUncaughtExceptionIntegration(),

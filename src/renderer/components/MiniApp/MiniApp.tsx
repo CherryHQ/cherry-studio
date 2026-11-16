@@ -7,6 +7,7 @@ import { cn } from '@cherrystudio/ui/lib/utils'
 import { loggerService } from '@logger'
 import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
 import MiniAppIcon from '@renderer/components/icons/MiniAppIcon'
+import { getMiniAppsLogoRef } from '@renderer/components/icons/miniAppsLogo'
 import MarqueeText from '@renderer/components/MarqueeText'
 import { PendingPermissionsDialog } from '@renderer/components/MiniApp/PendingPermissionsDialog'
 import { UpdateReviewDialog } from '@renderer/components/MiniApp/UpdateReviewDialog'
@@ -168,6 +169,7 @@ const MiniApp: FC<Props> = ({
   }
 
   const isLaunchpad = variant === 'launchpad'
+  const hasBuiltinIcon = getMiniAppsLogoRef(app.logo || undefined) !== undefined
 
   const answerPending = async (route: 'mini_app.grant.approve_pending' | 'mini_app.grant.snooze_pending') => {
     setPendingBusy(true)
@@ -271,7 +273,7 @@ const MiniApp: FC<Props> = ({
             'flex flex-col items-center justify-center overflow-hidden outline-none',
             disabled ? 'cursor-default' : 'cursor-pointer',
             isLaunchpad
-              ? 'min-h-[104px] w-[92px] bg-transparent pt-1 hover:[&_.mini-app-icon-frame]:bg-accent focus-visible:[&_.mini-app-icon-frame]:border-ring focus-visible:[&_.mini-app-icon-frame]:bg-accent'
+              ? 'min-h-[104px] w-[92px] bg-transparent pt-1 hover:[&_.mini-app-icon-frame]:border-border hover:[&_.mini-app-icon-frame]:bg-accent focus-visible:[&_.mini-app-icon-frame]:border-ring focus-visible:[&_.mini-app-icon-frame]:bg-accent'
               : 'min-h-[85px]'
           )}
           onClick={handleClick}
@@ -291,7 +293,8 @@ const MiniApp: FC<Props> = ({
               className={cn(
                 'mini-app-icon-frame relative flex items-center justify-center',
                 isLaunchpad &&
-                  'size-[58px] rounded-[14px] border border-border-subtle bg-transparent transition-[border-color,background-color] duration-[160ms] ease-in-out motion-reduce:transition-none'
+                  'size-[58px] rounded-[14px] border bg-transparent transition-[border-color,background-color] duration-[160ms] ease-in-out motion-reduce:transition-none',
+                isLaunchpad && (hasBuiltinIcon ? 'border-transparent' : 'border-border-subtle')
               )}>
               {icon}
               {updating && (
@@ -347,7 +350,7 @@ const MiniApp: FC<Props> = ({
             className={cn(
               'w-full select-none text-center text-muted-foreground',
               isLaunchpad
-                ? 'mt-2 min-h-9 max-w-[92px] overflow-hidden whitespace-normal text-[13px] leading-[18px] [-webkit-box-orient:vertical] [-webkit-line-clamp:2] [display:-webkit-box] [overflow-wrap:anywhere]'
+                ? 'mt-2 min-h-9 max-w-[92px] truncate text-[13px] leading-[18px]'
                 : 'mt-[5px] max-w-20 text-xs leading-normal'
             )}>
             {isLaunchpad ? displayName : <MarqueeText>{displayName}</MarqueeText>}

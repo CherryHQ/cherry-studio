@@ -19,6 +19,12 @@ export const settingsContentBodyClassName = 'flex min-h-full w-full flex-col p-6
 
 export const settingsContentHeaderClassName = 'mb-5'
 
+export const settingsControlClasses = {
+  field: 'w-60 max-w-full shrink-0',
+  model: 'w-80 max-w-full shrink-0',
+  text: 'w-80 max-w-full min-w-0 shrink-0'
+} as const
+
 export const settingsContentHeaderTitleClassName = 'font-semibold text-foreground text-[15px]'
 
 export const settingsContentHeaderDescriptionClassName = 'mt-1 text-muted-foreground text-sm'

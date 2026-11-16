@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto'
 
-import type { ErrorEvent, EventHint } from '@sentry/electron/main'
+import { addIntegration, type ErrorEvent, type EventHint, sentryMinidumpIntegration } from '@sentry/electron/main'
 import { LRUCache } from 'lru-cache'
 
 import { application } from '@application'
@@ -50,6 +50,8 @@ export class ErrorReportingService extends BaseService {
 
   protected onInit(): void {
     if (import.meta.env.DEV) return
+    // Scanning consumes startup dumps, so it must wait for preferences.
+    addIntegration(sentryMinidumpIntegration())
     this.registerDisposable(
       loggerService.setErrorReporter(({ error, entry }) => {
         if (!this.enabled || !getSentryLogContext(entry)) return

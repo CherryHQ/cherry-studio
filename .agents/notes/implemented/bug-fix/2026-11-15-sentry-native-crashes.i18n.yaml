@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-15-sentry-native-crashes.md
+2026-11-15-sentry-native-crashes.md: e48c011bef7b9f1ac2c6a499a7f879c925ae7f27
+2026-11-15-sentry-native-crashes.zh.md: 431cec57f7ff722d679e3ac2f8b199f8c8e44818
