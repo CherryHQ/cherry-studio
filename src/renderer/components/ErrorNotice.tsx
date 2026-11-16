@@ -10,6 +10,7 @@ export interface ErrorNoticeAction {
   readonly label: string
   readonly onClick: () => void
   readonly icon?: ReactNode
+  readonly disabled?: boolean
 }
 
 export interface ErrorNoticeProps {
@@ -64,6 +65,7 @@ export function ErrorNotice({
       size="sm"
       variant="outline"
       className={ACTION_CLASS}
+      disabled={action.disabled}
       onClick={(event) => {
         stop(event)
         action.onClick()
