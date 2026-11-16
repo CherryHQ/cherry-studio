@@ -18,7 +18,10 @@ Status: proposed
 
 单次变化的成本是 O(历史)；变化次数随历史增长；慢观察者会把保留的历史再成倍放大。
 
-**图片字节内嵌在产品内容中。** Pi、Durable、Claude 三个 adapter 都把原生图片转成 `data:` URL 形式的 file part，工具输出里则直接保留原生的 `{ type: 'image', data }` 块。这些字符串会经过 Main 的每一层投影，写进 `agent_session_message` 的单个 JSON `data` 列，并随 `ai.projection.changed` IPC 发出。[MessageProjection](../../../../src/main/ai/messages/MessageProjection.ts) 每次 flush 都深比较整个 view，任何非文本变化都会发送整条消息。Cherry 已经把用户附件存为 FileManager entry，通过 `cherry.fileEntryId` 引用：消息文件引用表维持其生命周期，`MessageImageBlock` 按 entry 渲染。运行时产生的图片没有走这套机制。
+**Main 持有并重发整份产品内容。** 工具输出保留原生的 `{ type: 'image', data }` 块，并内嵌存进 `agent_session_message` 的 JSON `data` 列。内嵌存储早于 agent runtime：之前的 Claude 和 Pi stream adapter 也是这样写入工具输出图片的。当时它不在热路径上，因为 Main 只按需读取行、不持有它们，而 DataApi 读取时至今仍会把大工具输出换成延迟引用交给 renderer。桌面切换（[#22856](https://github.com/CherryHQ/cherry-studio/pull/22856)）引入的两个结构，把整份内容放上了热路径：
+
+- 一行产品回复由多个原生 source 消息的 parts 和 Cherry 追加的 parts（如 task event）拼成。root checkpoint 只记录每个 source 的 offset 和 count，`replaceMessageParts` 整行替换。为了在某个 source 或 extra 变化时重建整行，[RootMessageProjection](../../../../src/main/ai/agentSession/RootMessageProjection.ts) 在构造时读取 context root 映射里的每一行，并保留它接收的每个 source 的 parts。会话的 runtime entry 存活期间，这些内容都不会释放。需要重建的晚到变化有后台结果、task event、审批撤销和 Claude 全量刷新，它们其实都只需要找到所属回复，再重写那一行。
+- [MessageProjection](../../../../src/main/ai/messages/MessageProjection.ts) 对除文本增长以外的任何变化，都通过 `ai.projection.changed` 发送整条消息。已经含有图片的回复，每新增一个工具 part 或变化一次状态，都会把这些图片重发一遍。
 
 **每次原生模型调用都在同一进程内绕一圈 HTTP，并重新校验每一张图片。** 原生 Pi provider 把请求发往 `127.0.0.1` 上的内部网关监听端口（[binding](../../../../src/main/ai/runtime/pi/gatewayModelBinding.ts)）。一次调用依次经过：
 
@@ -58,21 +61,18 @@ Status: proposed
 
 P1 不改变任何观察事件、顺序规则或投递次数。它部分取代 #24500 的观察保留决策：删除字节预算及其 fail-closed 路径。
 
-### P2 — 产品内容中的图片改为文件引用
+### P2 — Main 只常驻索引、不持有产品内容，并只发送变化的 part
 
-1. **在宿主边界外部化一次。** `ThreadMessageProjection` 归约事件之前，一个异步的宿主步骤把每张内嵌图片替换为 FileManager 内部 entry，覆盖 file part 和工具输出中的图片块。这是各运行时的 root 和 child 投影在 Main 中共享的第一步，它们的 accept 链本来就是串行且异步的。
-   - entry 按内容哈希、字节长度和媒体类型查找或创建。查找必须能处理哈希碰撞，因为 `contentHash` 是 xxh3 且不唯一。
-   - entry 使用 `cleanupPolicy: delete_when_unreferenced`。
-   - 对已提交消息，按消息 ID 和 part 路径缓存外部化结果，同一条消息再次 upsert 时不重新计算哈希。
-2. **沿用现有的引用形状。** file part 改为 `{ type: 'file', mediaType, url: <entry 文件 URL>, providerMetadata: { cherry: { fileEntryId } } }`，与用户附件一致，`MessageImageBlock` 已经能渲染。工具输出中的图片块改为引用块，用 `fileEntryId` 和媒体类型代替 `data`。目前读取内嵌 base64 的 Agent 工具渲染器，改为通过同一个 entry 查找来解析。
-3. **引用的生命周期。**
-   - `agent_session_message_file_ref` 增加一个工具输出图片的 role，由一个追加的迁移扩展 role 检查约束。
-   - 引用扫描覆盖工具输出中的引用块。
-   - 被尚未持久化的实时 view 引用的 entry，一直保留到消息持久化或 view 关闭。这样长时间运行的 turn 中，清理宽限期不会删掉图片。
-4. **保持不变的部分。**
-   - 原生运行时的存储和原生模型上下文保留它们自己的图片字节，模型请求逐字节不变。
-   - 已经持久化、含 data URL 的旧行继续可读，不做改写。
-   - 内存中仍有两份图片：原生运行时自己持有的一份，以及 adapter 投影值在 feed 状态中的一份。每份只有一个，不再成倍增加。
+1. **root projection 只常驻索引。**
+   - 对每条产品回复，它只保留 source 范围、每个工具调用的所属回复和审批状态。晚到的变化通过这个索引找到所属回复。
+   - 尚未持久化的实时回复，其 parts 仍像现在一样留在内存中。它们就是 P1 中共享的观察值。
+   - 回复持久化后，projection 释放它的 parts。构造 projection 时读取行只用于建立索引。
+2. **晚到的变化按需读取所属行。** 在一个 `withWriteTx` 事务中，Main 读取所属行，替换发生变化的 source 范围或 extra，再写回该行。Claude 刷新只读取它要比较的行，并且只重写 parts 确实变化的行。
+3. **投影更新只携带变化的 part。**
+   - `MessageProjection` 为每个变化的 part 发布一个 part patch，同时带上该消息的 part 数量和消息顺序。未变化的 part（包括图片）不再重发。
+   - 文本增长仍使用 append patch。角色或 metadata 变化以及新消息仍发送整条消息。
+   - renderer 和 child view 的消费方把 part patch 应用到各自的 view。
+4. **保持不变的部分。** 持久化行的格式、本改动前后写入的行以及模型上下文都保持不变，不做数据迁移。
 
 ### P3 — 原生模型调用留在进程内，每张图片只校验一次
 
@@ -83,7 +83,7 @@ P1 不改变任何观察事件、顺序规则或投递次数。它部分取代 #
 3. **同一内容的图片只校验一次。** `materializeNativeFilePart` 按内容哈希、字节长度和媒体类型缓存校验结论（有效、拒绝或补边后的替换图），历史中重复出现的图片因此跳过 base64 解码和 sharp 像素解码。缓存有上限，只保存结论和很小的补边结果。
 4. **wire 方言仍是契约。** 网关继续接收 Pi 的原生方言，继续负责 provider 执行。thinking 签名、cache control、工具调用身份和重试分类因此沿用现有经过测试的路径。本提案不引入绕过方言的自定义进程内 `streamSimple`（见替代方案）。
 
-P3 完成后，用实测数据重新评估 #24500 的载荷准入。除非 AC12 的证据表明并发工作集已经不需要它，否则保留。
+P3 完成后，用实测数据重新评估 #24500 的载荷准入。除非 AC11 的证据表明并发工作集已经不需要它，否则保留。
 
 ## 考虑过的替代方案
 
@@ -91,8 +91,7 @@ P3 完成后，用实测数据重新评估 #24500 的载荷准入。除非 AC12 
 - `ThreadFeed` 继续复制，只把 Durable 改为增量：否决。每个观察者的副本和完整恢复快照仍然存在，而正是这些副本让慢观察者长期占着整份历史。
 - 共享值但不冻结：否决。其他观察者或发布者对值的修改，会从立即报错变成悄无声息的数据损坏。
 - 用每个观察者的合并机制（脏消息 ID + 有序事实队列）取代帧队列，并让 Durable 发布 upsert：暂缓。各帧共享值之后，一个积压帧只占指针而不是历史。合并还会改变投递次数、completion 顺序和恢复语义，而这些已经由 #24500 和回复归属工作验证过。
-- 在各个运行时包内部做图片外部化：P2 不采用。包不依赖宿主存储，而且包内的投影步骤是同步的；在 Main 边界做一次即可覆盖所有运行时。要去掉 adapter 中剩下的那份 data URL 值，需要原生或 adapter 层面的引用，留给后续提案。
-- 在 FileManager 之外另建内容寻址的 blob 存储：否决。FileManager entry、消息文件引用、清理策略、备份和 renderer 解析都已经具备。
+- 在 Main 边界把运行时图片转成 FileManager `fileEntryId` 引用：暂缓。它能缩小 Main 持有和重发的内容，但根因是 Main 持有整份内容、更新单位是整条消息。它还需要抗碰撞的内容查找、引用 role 迁移，以及对未持久化实时 view 的保留。已经内嵌图片的旧行如果不迁移，会被 Claude 刷新比较零散地改写，或者每次重新打开会话都创建再清理 entry。有了 P2 之后，剩下的是行大小、数据库大小和 renderer 内存；如果 AC11 的证据表明它们重要，再重新评估。
 - 裁剪或降采样历史图片：否决，因为这会改变模型看到的上下文。
 - 对历史图片使用 provider 文件 API（Anthropic、OpenAI、Gemini 的文件 ID）：暂缓。它能进一步缩小请求，但依赖 provider 支持，上传的生命周期和隐私问题也需要产品决策。
 - 自定义 Pi `streamSimple`，把 Pi 上下文直接转成 Cherry 消息：暂不采用。它能去掉最多的副本，但会重新引入 [harness 边界](2026-10-17-agent-harness-boundaries.md) 决策已经删除的那类进程内专用模型协议，还需要重新实现 thinking 回放、工具配对、cache control 和重试错误形状。
@@ -105,21 +104,20 @@ P3 完成后，用实测数据重新评估 #24500 的载荷准入。除非 AC12 
 - AC3 — Durable 在每个原生窗口内对每个已提交 entry 只投影一次：未变化的消息在各 view 间保持对象身份；之后的工具结果或实时进度只复制受影响的消息，不改变更早的快照或已提交层；不延续上一份 entry 的 view 会重建。(verification: unit — Durable projection with native view shapes; owner: P1 implementer)
 - AC4 — 观察事件、顺序、completion 捕获、恢复和回复归属保持不变：现有的运行时包测试，以及 Main 的 agent-session、runtime 和 messages 测试全部通过。(verification: unit — package suites and scoped Main tests; owner: P1 implementer)
 - AC5 — Main 投影对未变化的来源直接复用上一次的 view，不再重新装饰；显式失效仍会重新装饰。停滞的 Claude 观察者在 2,000 条原生消息上积压 90 个关键帧时，保留内存低于 16 MiB；Pi 原生事实在发出后被修改时，仍按发出时的内容投影。(verification: unit — ThreadMessageProjection, Claude observation, Pi runtime projection; owner: P1 implementer)
-- AC6 — root 和 child 的 Agent 消息、持久化行和投影 IPC 中，运行时图片（file part 和工具输出图片）都以 `fileEntryId` 引用而非 data URL 承载；相同的图片内容对应同一个 entry。(verification: unit and database — projection and AgentSessionMessageService with `setupTestDatabase`; owner: P2 implementer)
-- AC7 — Agent 消息和工具渲染器能显示引用的图片，已持久化、含内嵌 data URL 的旧消息渲染结果不变。(verification: renderer; owner: P2 implementer)
-- AC8 — 被未持久化的实时 view 引用的图片 entry 在清理宽限期之后依然存在；消息删除后 entry 变为无引用并被清理；role 迁移在已有数据的数据库上可以正常执行。(verification: database and migration tests; owner: P2 implementer)
-- AC9 — 对同一份原生历史，P2 前后的原生模型请求逐字节一致。(verification: unit — gateway binding integration fixture; owner: P2 implementer)
-- AC10 — 进程内原生模型调用不打开 socket；鉴权、内部控制项、用量与 response ID 归属、trace、错误信封、取消和 HTTP 413 等现有网关契约在进程内路径上依然成立；外部调用方继续走 HTTP。(verification: unit — gateway and binding integration tests; owner: P3 implementer)
-- AC11 — 能拿到请求对象的原生调用，网关侧不再解析序列化后的请求体；历史中重复出现的图片在首次校验后跳过 base64 和 sharp 解码，补边结果保持一致。(verification: unit — binding and fileProcessor tests; owner: P3 implementer)
-- AC12 — 按 #24500 的负载形态（一个会话派发四个大量读取图片的 Durable 子任务），在开发版 Electron 中运行 30 分钟不发生 OOM；报告对照 #24500 基线，记录主进程堆、external 内存和模型调用次数。(verification: Electron; owner: final implementation integrator)
-- AC13 — runtime README、observability 和网关参考文档以及本 note 三件套，描述的是实际交付的投递、引用和传输语义；#24500 中被取代的每一项上限，要么移除，要么有 AC12 的证据说明保留理由。(verification: docs gate; owner: final implementation integrator)
+- AC6 — 会话 context 打开后，Main 不持有已持久化回复的内容：root projection 只保留 source 范围、工具调用所属回复和审批状态，回复持久化后释放其 parts。(verification: unit — RootMessageProjection with `setupTestDatabase`; owner: P2 implementer)
+- AC7 — 晚到的后台结果、task event、审批撤销或 Claude 刷新，在一个写事务中按需读取所属行，写入的行内容与之前一致；刷新只重写 parts 确实变化的行。(verification: unit and database — AgentSessionRuntimeService and RootMessageProjection with `setupTestDatabase`; owner: P2 implementer)
+- AC8 — 投影更新只携带变化的 part：新增或修改一个 part 不会重发未变化的 part（包括图片），renderer 和 child view 最终得到的消息与整条消息更新时一致。(verification: unit — MessageProjection and renderer projection consumers; owner: P2 implementer)
+- AC9 — 进程内原生模型调用不打开 socket；鉴权、内部控制项、用量与 response ID 归属、trace、错误信封、取消和 HTTP 413 等现有网关契约在进程内路径上依然成立；外部调用方继续走 HTTP。(verification: unit — gateway and binding integration tests; owner: P3 implementer)
+- AC10 — 能拿到请求对象的原生调用，网关侧不再解析序列化后的请求体；历史中重复出现的图片在首次校验后跳过 base64 和 sharp 解码，补边结果保持一致。(verification: unit — binding and fileProcessor tests; owner: P3 implementer)
+- AC11 — 按 #24500 的负载形态（一个会话派发四个大量读取图片的 Durable 子任务），在开发版 Electron 中运行 30 分钟不发生 OOM；报告对照 #24500 基线，记录主进程堆、external 内存和模型调用次数。(verification: Electron; owner: final implementation integrator)
+- AC12 — runtime README、observability 和网关参考文档以及本 note 三件套，描述的是实际交付的投递、持久化和传输语义；#24500 中被取代的每一项上限，要么移除，要么有 AC11 的证据说明保留理由。(verification: docs gate; owner: final implementation integrator)
 
 ## 风险
 
 - 冻结会把对已投递值的原地修改变成运行时错误。运行时包测试以及 Main 的 agent-session、runtime 和 messages 测试都已通过，但未被测试覆盖的消费者路径仍可能出错；这类错误会停止该观察者并被上报。
 - 非普通对象（日期、类型化数组、错误）无法冻结。它们从发布方复制一次，之后以未冻结的形式共享。
 - Durable 增量投影依赖原生 view 对未变化的前缀复用 entry 对象。Pi Durable 1.5.2 是这样实现的；如果原生改为返回新对象，只会失去复用，因为身份检查随即触发重建。
-- P2 在观察链路上增加了磁盘写入和一个异步步骤。FileManager 失败时不能丢内容：该 part 保留内嵌值，同时上报一条诊断。
-- P2 有意让图片字节在磁盘上存两份（原生存储和 FileManager 各一份），因为产品存档必须在原生压缩和删除之后依然存在。
+- 按需读取把一次行解析移进了每个晚到的变化。一条含有大量内嵌图片的已持久化回复，每收到一个 task event 或后台结果都要付出这次解析。AC11 会测量这一点，它也是重新考虑暂缓的文件引用方案的依据。
+- part patch 改变了投影 IPC 协议。Main 和 renderer 一起发布，但每个投影消费方（包括 topic 和 child view）都必须能应用它。
 - P3 的进程内派发必须复现 Elysia 错误处理器现在产生的错误信封，否则会改变 Pi 的重试分类。Anthropic 的 `fetch` 注入目前在仓库里没有测试。
-- AC12 是开发版的实测，不等于 Windows 安装包的验收。原始 Windows 负载仍需单独验证。
+- AC11 是开发版的实测，不等于 Windows 安装包的验收。原始 Windows 负载仍需单独验证。

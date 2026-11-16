@@ -18,7 +18,10 @@ Three structural properties remain.
 
 Per change, the cost is O(history). The number of changes grows with the history, and a slow observer multiplies the retained history.
 
-**Image bytes are inline in product content.** The Pi, Durable and Claude adapters convert native images into `data:` URL file parts, and tool outputs keep native `{ type: 'image', data }` blocks. These strings pass through every Main projection, the single JSON `data` column of `agent_session_message`, and `ai.projection.changed` IPC. [MessageProjection](../../../../src/main/ai/messages/MessageProjection.ts) deep-compares its view on every flush and sends the whole message for any non-text change. Cherry already stores user attachments as FileManager entries referenced by `cherry.fileEntryId`; message file refs keep them alive, and `MessageImageBlock` renders them by entry. Runtime-produced images bypass that mechanism.
+**Main keeps and resends whole product bodies.** Tool outputs keep native `{ type: 'image', data }` blocks, and these are persisted inline in the JSON `data` column of `agent_session_message`. Inline storage predates the agent runtime: the earlier Claude and Pi stream adapters wrote tool-output images the same way. It was not on a hot path then, because Main read rows on demand without keeping them, and DataApi reads still hand the renderer deferred references for large tool outputs. Two structures added with the desktop cutover ([#22856](https://github.com/CherryHQ/cherry-studio/pull/22856)) put whole bodies on the hot path:
+
+- One product reply row joins the parts of several native source messages with parts that Cherry adds, such as task events. The root checkpoint records only each source's offset and count, and `replaceMessageParts` replaces the whole row. To rebuild a row when one source or extra changes, [RootMessageProjection](../../../../src/main/ai/agentSession/RootMessageProjection.ts) reads every row named by the context's root mapping when it is constructed. It also keeps the parts of every source it accepts. Nothing is released while the session's runtime entry lives. The late changes that need a rebuild are background results, task events, approval retirement and Claude's full refresh, and all of them only need to find the owning reply and then rewrite that one row.
+- [MessageProjection](../../../../src/main/ai/messages/MessageProjection.ts) sends the whole message over `ai.projection.changed` for any change other than text growth. Each new tool part or state change in a reply that already holds images resends those images.
 
 **Each native model call makes an HTTP round trip inside the same process and revalidates every image.** Native Pi providers send requests to the internal gateway listener on `127.0.0.1` ([binding](../../../../src/main/ai/runtime/pi/gatewayModelBinding.ts)). One call takes these steps in order:
 
@@ -58,21 +61,18 @@ Delivery semantics stay as they are: ordered frames per observer, capture at pub
 
 P1 changes no observation event, ordering rule or delivery count. It partially supersedes the #24500 observation-retention decision: the byte budget and its fail-closed path are removed.
 
-### P2 — Images in product content become file references
+### P2 — Main keeps indexes instead of product bodies and sends changed parts
 
-1. **Externalize once at the host boundary.** Before `ThreadMessageProjection` reduces an event, an asynchronous host step replaces each inline image with a FileManager internal entry. This covers images in file parts and image blocks in tool outputs. It is the first Main step that root and child projections of every runtime share, and their accept chain is already serialized and asynchronous.
-   - Entries are found or created by content hash, byte length and media type. The lookup must be collision-safe, because `contentHash` is xxh3 and not unique.
-   - Entries use `cleanupPolicy: delete_when_unreferenced`.
-   - For committed messages, the step caches results by message ID and part path, so a re-upserted message is not hashed again.
-2. **Use the existing reference shape.** File parts become `{ type: 'file', mediaType, url: <entry file URL>, providerMetadata: { cherry: { fileEntryId } } }`. This matches user attachments, and `MessageImageBlock` already renders it. Image blocks in tool outputs become reference blocks that carry `fileEntryId` and the media type in place of `data`. Agent tool renderers that read inline base64 today resolve the reference through the same entry lookup.
-3. **Reference ownership.**
-   - `agent_session_message_file_ref` gains a role for tool-output images; an appended migration extends its role check.
-   - The ref scan includes tool-output reference blocks.
-   - Entries referenced by a live view that is not yet persisted stay retained until the message is persisted or the view closes, so the cleanup grace period cannot delete an image during a long turn.
-4. **What does not change.**
-   - Native runtime storage and native model context keep their own image bytes, so model requests stay byte-identical.
-   - Persisted rows that already contain data URLs remain readable and are not rewritten.
-   - Two image copies remain in memory, each held once rather than multiplied: the native runtime's own value, and the adapter's projected value in the feed state.
+1. **The root projection keeps an index resident.**
+   - For each product reply it keeps the source ranges, the owner of each tool call and the approval state. Late changes find their owning reply through this index.
+   - Parts of a live reply that is not yet persisted stay in memory as today. They are the shared observation values from P1.
+   - Once a reply is persisted, the projection releases its parts. Constructing a projection reads rows only to build the index.
+2. **A late change reads its row on demand.** Inside one `withWriteTx` transaction, Main reads the owning row, replaces the changed source range or extra, and writes the row. A Claude refresh reads the rows it compares and rewrites only rows whose parts changed.
+3. **Projection updates carry changed parts.**
+   - `MessageProjection` publishes a part patch for each changed part, together with the message's part count and the message order. Unchanged parts, images included, are not resent.
+   - Text growth keeps its append patch. Role or metadata changes and new messages still send the whole message.
+   - The renderer and child-view consumers apply part patches to their views.
+4. **What does not change.** The persisted row format, rows written before or after this change, and the model context stay as they are. No data is migrated.
 
 ### P3 — Native model calls stay in process and validate each image once
 
@@ -83,7 +83,7 @@ P1 changes no observation event, ordering rule or delivery count. It partially s
 3. **Validate each image once per content.** `materializeNativeFilePart` caches its decision (valid, rejected, or a padded replacement) by content hash, byte length and media type. Repeated history images then skip the base64 decode and the sharp pixel decode. The cache is bounded and holds only decisions and small padded results.
 4. **The wire dialect stays the contract.** The gateway still receives the native Pi dialect and still owns provider execution. Thinking signatures, cache control, tool-call identity and retry classification therefore keep their tested path. This proposal does not add a custom in-process `streamSimple` that bypasses the dialect (see Alternatives considered).
 
-After P3, the #24500 payload admission is re-evaluated against measurements. It stays unless the AC12 evidence shows that the concurrent working set no longer needs it.
+After P3, the #24500 payload admission is re-evaluated against measurements. It stays unless the AC11 evidence shows that the concurrent working set no longer needs it.
 
 ## Alternatives considered
 
@@ -91,8 +91,7 @@ After P3, the #24500 payload admission is re-evaluated against measurements. It 
 - Keep cloning in `ThreadFeed` and only make Durable incremental: rejected. Per-observer copies and full recovery snapshots would remain, and those copies are what make slow observers retain history.
 - Share values without freezing: rejected. Mutation by another observer or by the publisher would become silent corruption instead of an immediate failure.
 - Replace frame queues with per-observer coalescing (dirty message IDs plus an ordered fact queue) and have Durable publish upserts: deferred. Once frames share values, a pending frame costs pointers rather than history. Coalescing would also change delivery counts, completion ordering and recovery semantics that #24500 and the reply-ownership work verified.
-- Externalize images inside each runtime package: rejected for P2. Packages have no host storage dependency, and their projection step is synchronous; the Main boundary covers every runtime once. Removing the adapter's remaining data-URL value needs native or adapter-level references and is left to a later proposal.
-- A content-addressed blob store separate from FileManager: rejected. FileManager entries, message file refs, cleanup policy, backup and renderer resolution already exist.
+- Convert runtime images into FileManager `fileEntryId` references at the Main boundary: deferred. It shrinks the bodies that Main keeps and resends, but the cause is that Main keeps whole bodies and that its update unit is the whole message. It would also need collision-safe content lookup, a ref-role migration and retention for live unpersisted views. Rows that already hold inline images would be rewritten piecemeal by Claude refresh comparisons, or would create and clean up entries every time a session reopens, unless they were migrated. With P2, row size, database size and renderer memory remain; revisit them if AC11 evidence shows they matter.
 - Prune or downscale historical images: rejected, because it changes the context the model sees.
 - Provider file APIs (Anthropic, OpenAI or Gemini file IDs) for history images: deferred. They would shrink requests further, but they depend on provider support and need a product decision on upload lifecycle and privacy.
 - A custom Pi `streamSimple` that converts Pi context directly to Cherry messages: rejected for now. It removes the most copies, but it brings back a bespoke in-process model protocol of the kind the [harness boundaries](2026-10-17-agent-harness-boundaries.md) decision removed. It would also have to reimplement thinking replay, tool pairing, cache control and retry error shapes.
@@ -105,21 +104,20 @@ After P3, the #24500 payload admission is re-evaluated against measurements. It 
 - AC3 — Durable projects each committed entry once per native window: unchanged messages keep their identity across views, a later tool result or live progress copies only the affected message without changing earlier snapshots or the committed layer, and a view that does not extend the previous entries rebuilds. (verification: unit — Durable projection with native view shapes; owner: P1 implementer)
 - AC4 — Observation events, ordering, completion capture, recovery and reply ownership are unchanged: the existing runtime package suites and the Main agent-session, runtime and message suites pass. (verification: unit — package suites and scoped Main tests; owner: P1 implementer)
 - AC5 — Main projections reuse the previous view of an unchanged source without decorating it again, and explicit invalidation still re-decorates. A stalled Claude observer holding 90 critical frames over 2,000 native messages retains under 16 MiB, and a Pi native fact mutated after emission is projected as emitted. (verification: unit — ThreadMessageProjection, Claude observation, Pi runtime projection; owner: P1 implementer)
-- AC6 — Root and child agent messages, persisted rows and projection IPC carry runtime images as `fileEntryId` references rather than data URLs, for file parts and tool-output images, and identical image content maps to one entry. (verification: unit and database — projection and AgentSessionMessageService with `setupTestDatabase`; owner: P2 implementer)
-- AC7 — Agent message and tool renderers display referenced images, and previously persisted messages with inline data URLs render unchanged. (verification: renderer; owner: P2 implementer)
-- AC8 — Image entries referenced by a live unpersisted view survive beyond the cleanup grace period, entries become unreferenced and are cleaned up after their messages are deleted, and the role migration applies on a populated database. (verification: database and migration tests; owner: P2 implementer)
-- AC9 — Native model requests are byte-identical before and after P2 for the same native history. (verification: unit — gateway binding integration fixture; owner: P2 implementer)
-- AC10 — In-process native model calls open no socket, the existing gateway contracts for authentication, internal controls, usage and response-ID attribution, tracing, error envelopes, cancellation and HTTP 413 hold on the in-process path, and external callers keep HTTP. (verification: unit — gateway and binding integration tests; owner: P3 implementer)
-- AC11 — A native call whose request object is available performs no gateway-side parse of the serialized body, and repeated history images skip base64 and sharp decoding after their first validation while padding results stay identical. (verification: unit — binding and fileProcessor tests; owner: P3 implementer)
-- AC12 — The #24500 workload shape, one session dispatching four image-reading Durable subagents, runs 30 minutes in a development Electron build without OOM, and the report records main-process heap, external memory and model-call counts against the #24500 baseline. (verification: Electron; owner: final implementation integrator)
-- AC13 — The runtime README, the observability and gateway references and this note's triplet describe the shipped delivery, reference and transport semantics, and each superseded #24500 bound is removed or justified by AC12 evidence. (verification: docs gate; owner: final implementation integrator)
+- AC6 — Once a session context is open, Main keeps no persisted reply bodies: the root projection retains source ranges, tool-call owners and approval state, and a reply's parts are released after it is persisted. (verification: unit — RootMessageProjection with `setupTestDatabase`; owner: P2 implementer)
+- AC7 — A late background result, task event, approval retirement or Claude refresh writes the same row content as before by reading the owning row on demand in one write transaction, and a refresh rewrites only rows whose parts changed. (verification: unit and database — AgentSessionRuntimeService and RootMessageProjection with `setupTestDatabase`; owner: P2 implementer)
+- AC8 — Projection updates carry only changed parts: adding or changing one part does not resend unchanged parts, including images, and renderer and child views converge to the same messages as with whole-message updates. (verification: unit — MessageProjection and renderer projection consumers; owner: P2 implementer)
+- AC9 — In-process native model calls open no socket, the existing gateway contracts for authentication, internal controls, usage and response-ID attribution, tracing, error envelopes, cancellation and HTTP 413 hold on the in-process path, and external callers keep HTTP. (verification: unit — gateway and binding integration tests; owner: P3 implementer)
+- AC10 — A native call whose request object is available performs no gateway-side parse of the serialized body, and repeated history images skip base64 and sharp decoding after their first validation while padding results stay identical. (verification: unit — binding and fileProcessor tests; owner: P3 implementer)
+- AC11 — The #24500 workload shape, one session dispatching four image-reading Durable subagents, runs 30 minutes in a development Electron build without OOM, and the report records main-process heap, external memory and model-call counts against the #24500 baseline. (verification: Electron; owner: final implementation integrator)
+- AC12 — The runtime README, the observability and gateway references and this note's triplet describe the shipped delivery, persistence and transport semantics, and each superseded #24500 bound is removed or justified by AC11 evidence. (verification: docs gate; owner: final implementation integrator)
 
 ## Risks
 
 - Freezing turns in-place mutation of delivered values into runtime errors. The runtime package suites and the Main agent-session, runtime and message suites pass, but an untested consumer path could still fail; such a failure stops that observer and is reported.
 - Non-plain values (dates, typed arrays, errors) cannot be frozen. They are copied once from the publisher and then shared unfrozen.
 - Incremental Durable projection relies on native views reusing entry objects for an unchanged prefix. Pi Durable 1.5.2 does so; a native change that returns new objects only loses the reuse, because the identity check then rebuilds.
-- P2 adds disk writes and an asynchronous step to the observation path. A FileManager failure must not drop content: the step keeps the inline value for that part and reports a diagnostic.
-- P2 stores image bytes on disk twice, in the native store and in FileManager, by design: the product archive must outlive native compaction and deletion.
+- On-demand reads move a row parse into each late change. A persisted reply that holds many inline images costs that parse for every task event or background result it receives. AC11 measures this, and it is the evidence that would reopen the deferred file-reference alternative.
+- Part patches change the projection IPC protocol. Main and the renderer ship together, but every projection consumer, topic and child views included, must apply them.
 - The P3 in-process dispatch must reproduce the error envelopes that Elysia's error handler produces today. Any divergence changes Pi's retry classification. Anthropic `fetch` injection has no existing repository test.
-- AC12 is a development-build measurement, not acceptance on a Windows packaged build. The original Windows workload remains a separate verification.
+- AC11 is a development-build measurement, not acceptance on a Windows packaged build. The original Windows workload remains a separate verification.
