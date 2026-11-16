@@ -18,6 +18,8 @@ Resolve a branch in one recursive query, selecting the newest immediate child by
 
 For #23359, select only page IDs, parents and timestamps before loading payloads. Reuse one prepared primary-key read and project each assistant message immediately when `deferToolOutputs` is requested. This prevents a full page of raw tool outputs from remaining live during projection and avoids decoding the lookahead row. Default reads stay verbatim. The bounded per-row reads trade up to 200 synchronous lookups for a smaller live payload set.
 
+Shared tool-output projection reuses the oversized JSON string from the 32 KiB UTF-8 transport check to compute the reference revision. Each stored-message or live-chunk projection serializes the original output once, keeping the existing hash format without a retained cache.
+
 ## Alternatives considered
 
 - UI-only disabling leaves the public PATCH endpoint writable.
@@ -39,3 +41,5 @@ Local service measurements use identical file-backed SQLite fixtures and alterna
 
 - Regression — page projection preserves raw storage, small outputs, older-page cursors and default verbatim reads; a guarded lookahead decoder catches hydration outside the requested page.
 - Local memory probe — 80 stored messages with 1 MiB tool outputs, reading the default 50-item page: maximum sampled live JS heap growth at decode boundaries was 102.0 MiB before and 2.2 MiB after, with forced GC at each sample. This measures retained payloads, not peak RSS. A 16 MiB SQLite heap probe did not reproduce SQLITE_NOMEM.
+
+- Regression — `messageOutputProjection.test.ts` rejects a second serialization of the same output while checking the exact reference revision on stored and live paths; exact-budget, over-budget, CJK and persisted citation cases preserve transport behavior.
