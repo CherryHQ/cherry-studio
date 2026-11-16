@@ -2025,6 +2025,7 @@
   "knowledge.data_source.bulk.reindex_skipped": "Пропущено {{count}} источников данных в обработке",
   "knowledge.data_source.bulk.selected_count": "{{count}} выбрано",
   "knowledge.data_source.chunks_count": "{{count}} частей",
+  "knowledge.data_source.chunks_load_failed": "Не удалось загрузить части",
   "knowledge.data_source.delete_confirm_description": "Этот источник данных и его индексные данные не могут быть восстановлены после удаления.",
   "knowledge.data_source.delete_confirm_title": "Удалить источник данных?",
   "knowledge.data_source.delete_failed": "Не удалось удалить источник данных",

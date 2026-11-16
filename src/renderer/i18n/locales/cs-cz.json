@@ -2024,6 +2024,7 @@
   "knowledge.data_source.bulk.reindex_skipped": "Přeskočeno zdrojů dat ve zpracování: {{count}}",
   "knowledge.data_source.bulk.selected_count": "Vybráno: {{count}}",
   "knowledge.data_source.chunks_count": "{{count}} segmentů",
+  "knowledge.data_source.chunks_load_failed": "Segmenty se nepodařilo načíst",
   "knowledge.data_source.delete_confirm_description": "Po smazání nebude možné obnovit tento zdroj dat ani jeho indexovaná data.",
   "knowledge.data_source.delete_confirm_title": "Smazat zdroj dat?",
   "knowledge.data_source.delete_failed": "Zdroj dat se nepodařilo smazat",

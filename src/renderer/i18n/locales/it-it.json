@@ -2023,6 +2023,7 @@
   "knowledge.data_source.bulk.reindex_skipped": "Saltate {{count}} fonti dati ancora in elaborazione",
   "knowledge.data_source.bulk.selected_count": "{{count}} selezionate",
   "knowledge.data_source.chunks_count": "{{count}} segmenti",
+  "knowledge.data_source.chunks_load_failed": "Impossibile caricare i segmenti",
   "knowledge.data_source.delete_confirm_description": "Questa fonte dati e i suoi indici non potranno essere recuperati dopo l'eliminazione.",
   "knowledge.data_source.delete_confirm_title": "Eliminare la fonte dati?",
   "knowledge.data_source.delete_failed": "Impossibile eliminare la fonte dati",

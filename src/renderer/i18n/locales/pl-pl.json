@@ -2045,6 +2045,7 @@
   "knowledge.data_source.bulk.reindex_skipped": "Pominięto {{count}} nadal przetwarzane(ych) źródło/źródeł danych",
   "knowledge.data_source.bulk.selected_count": "Wybrano: {{count}}",
   "knowledge.data_source.chunks_count": "Liczba fragmentów: {{count}}",
+  "knowledge.data_source.chunks_load_failed": "Nie udało się wczytać fragmentów",
   "knowledge.data_source.delete_confirm_description": "Po usunięciu tego źródła danych i jego danych indeksu nie będzie można odzyskać.",
   "knowledge.data_source.delete_confirm_title": "Usunąć źródło danych?",
   "knowledge.data_source.delete_failed": "Nie udało się usunąć źródła danych",

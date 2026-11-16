@@ -2023,6 +2023,7 @@
   "knowledge.data_source.bulk.reindex_skipped": "Skipped {{count}} data source(s) still processing",
   "knowledge.data_source.bulk.selected_count": "{{count}} selected",
   "knowledge.data_source.chunks_count": "{{count}} chunks",
+  "knowledge.data_source.chunks_load_failed": "Couldn't load the chunks",
   "knowledge.data_source.delete_confirm_description": "This data source and its index data cannot be recovered after deletion.",
   "knowledge.data_source.delete_confirm_title": "Delete Data Source?",
   "knowledge.data_source.delete_failed": "Failed to delete data source",

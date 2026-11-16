@@ -2023,6 +2023,7 @@
   "knowledge.data_source.bulk.reindex_skipped": "Đã bỏ qua {{count}} nguồn dữ liệu vẫn đang xử lý",
   "knowledge.data_source.bulk.selected_count": "{{count}} đã chọn",
   "knowledge.data_source.chunks_count": "{{count}} phần",
+  "knowledge.data_source.chunks_load_failed": "Không thể tải các phần",
   "knowledge.data_source.delete_confirm_description": "Nguồn dữ liệu này và dữ liệu chỉ mục của nó không thể được khôi phục sau khi xóa.",
   "knowledge.data_source.delete_confirm_title": "Xóa Nguồn Dữ Liệu?",
   "knowledge.data_source.delete_failed": "Không xóa được nguồn dữ liệu",

@@ -70,6 +70,7 @@ const chunks: KnowledgeItemChunk[] = [
 ]
 
 vi.mock('@cherrystudio/ui', () => ({
+  Alert: ({ children, role }: { children?: ReactNode; role?: string }) => <div role={role ?? 'alert'}>{children}</div>,
   Button: ({ children, ...props }: { children: ReactNode; [key: string]: unknown }) => (
     <button type="button" {...props}>
       {children}
@@ -123,6 +124,7 @@ vi.mock('react-i18next', () => ({
           {
             'common.back': '返回',
             'common.loading': '加载中',
+            'knowledge.data_source.chunks_load_failed': '分块加载失败',
             'knowledge.data_source.empty_description': '暂无数据源',
             'knowledge.data_source.filters.file': '文件',
             'knowledge.rag.tokens_unit': 'tokens',
@@ -199,19 +201,32 @@ describe('KnowledgeItemChunkDetailPanel', () => {
     expect(screen.getByText('2')).toBeInTheDocument()
   })
 
-  it('logs chunk list failures and shows the original error message', async () => {
+  it('shows a translated failure instead of the raw chunk list error and logs it', async () => {
     const listError = new Error('list failed')
     mockIpcRequest.mockRejectedValueOnce(listError)
 
     renderPanel()
 
     await waitFor(() => {
-      expect(screen.getByText('list failed')).toBeInTheDocument()
+      expect(screen.getByText('分块加载失败')).toBeInTheDocument()
     })
+    expect(screen.queryByText('list failed')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /common\.detail/ })).toBeInTheDocument()
     expect(mockLogger.error).toHaveBeenCalledWith('Failed to list knowledge item chunks', listError, {
       baseId: 'base-1',
       itemId: 'file-1'
     })
+  })
+
+  it('shows a translated failure instead of the raw item load error', async () => {
+    mockUseQuery.mockReturnValue({ data: undefined, isLoading: false, error: new Error('item fetch failed') })
+
+    renderPanel()
+
+    await waitFor(() => {
+      expect(screen.getByText('分块加载失败')).toBeInTheDocument()
+    })
+    expect(screen.queryByText('item fetch failed')).not.toBeInTheDocument()
   })
 
   it('renders an empty state when the item has no chunks', async () => {
