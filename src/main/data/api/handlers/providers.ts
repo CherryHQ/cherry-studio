@@ -6,6 +6,7 @@
  * - Listing with filters
  */
 
+import { application } from '@application'
 import { providerRegistryService } from '@data/services/ProviderRegistryService'
 import { providerService } from '@data/services/ProviderService'
 import { OrderBatchRequestSchema, OrderRequestSchema } from '@shared/data/api/schemas/_endpointHelpers'
@@ -21,6 +22,7 @@ import {
   UpdateProviderSchema
 } from '@shared/data/api/schemas/providers'
 import type { HandlersFor } from '@shared/data/api/types'
+import { isSystemProviderId } from '@shared/utils/systemProviderId'
 
 export const providerHandlers: HandlersFor<ProviderSchemas> = {
   '/providers': {
@@ -42,7 +44,18 @@ export const providerHandlers: HandlersFor<ProviderSchemas> = {
 
     PATCH: async ({ params, body }) => {
       const parsed = UpdateProviderSchema.parse(body)
-      return providerService.update(params.providerId, parsed)
+      // A user switching a provider on is when it becomes configured; seeding and sync never come through here.
+      const enabling = parsed.isEnabled === true && !providerService.getByProviderId(params.providerId).isEnabled
+      const provider = providerService.update(params.providerId, parsed)
+      if (enabling) {
+        application.get('AnalyticsService').trackProductEvent({
+          event: 'feature_used',
+          feature: 'provider',
+          action: 'provider_configured',
+          ...(isSystemProviderId(provider.id) && { target: provider.id })
+        })
+      }
+      return provider
     },
 
     DELETE: async ({ params }) => {

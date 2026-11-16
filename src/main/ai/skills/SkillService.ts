@@ -10,6 +10,7 @@ import { agentGlobalSkillService } from '@data/services/AgentGlobalSkillService'
 import { loggerService } from '@logger'
 import { isWin } from '@main/core/platform'
 import { runPathMutationExclusive } from '@main/services/file'
+import { trackMainProductEvent } from '@main/services/productAnalytics'
 import { isPathInside } from '@main/utils/file'
 import { directoryExists } from '@main/utils/legacyFile'
 import { findAllSkillDirectories, findSkillMdPath, parseSkillMetadata } from '@main/utils/markdownParser'
@@ -719,6 +720,9 @@ export class SkillService {
     await this.linkMirror(destFolderName, { throwOnError: true })
     if (isBuiltin) {
       this.enableForAllAgents(inserted.id)
+    } else {
+      // Only first installs report; user skills carry no preset id, so no target.
+      trackMainProductEvent({ event: 'feature_used', feature: 'skills', action: 'skill_installed' })
     }
 
     logger.info('Skill installed', { id: inserted.id, name: metadata.name, folderName: destFolderName, source })

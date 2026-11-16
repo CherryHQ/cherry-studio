@@ -12,12 +12,14 @@ import { knowledgeErrorCodes } from '@shared/ipc/errors/knowledge'
 
 import { knowledgeHandlers } from '../knowledge'
 
-const knowledgeService = { addItems: vi.fn(), getFilePath: vi.fn() }
+const knowledgeService = { addItems: vi.fn(), getFilePath: vi.fn(), createBase: vi.fn(), search: vi.fn() }
+const analyticsService = { trackProductEvent: vi.fn() }
 const ctx = { senderId: 'w1' }
 
 beforeEach(() => {
   vi.clearAllMocks()
   MockApplicationUtils.setService('KnowledgeService', knowledgeService)
+  MockApplicationUtils.setService('AnalyticsService', analyticsService)
 })
 afterEach(() => MockApplicationUtils.resetServices())
 
@@ -107,5 +109,43 @@ describe('knowledgeHandlers', () => {
     const error = await knowledgeHandlers['knowledge.get_file_path']({ itemId: 'i1' }, ctx).catch((cause) => cause)
 
     expect(error).toBe(databaseError)
+  })
+
+  describe('usage analytics', () => {
+    const reported = () => analyticsService.trackProductEvent.mock.calls.map(([event]) => event)
+    const note = { type: 'note' as const, data: { source: 'Secret title', content: 'Secret body' } }
+
+    it('reports a created base without its name', async () => {
+      knowledgeService.createBase.mockResolvedValue({ id: 'base-1' })
+      await knowledgeHandlers['knowledge.create_base']({ base: { name: 'Private base' } }, ctx)
+      expect(reported()).toEqual([{ event: 'feature_used', feature: 'knowledge', action: 'base_created' }])
+    })
+
+    it('counts added items only when the add commits, not when it stops at conflicts', async () => {
+      knowledgeService.addItems.mockResolvedValueOnce({ status: 'conflicts', conflicts: [] })
+      knowledgeService.addItems.mockResolvedValueOnce({ status: 'added' })
+      await knowledgeHandlers['knowledge.add_items'](
+        { baseId: 'base-1', items: [note, note], conflictStrategy: 'detect' },
+        ctx
+      )
+      await knowledgeHandlers['knowledge.add_items'](
+        { baseId: 'base-1', items: [note, note], conflictStrategy: 'rename' },
+        ctx
+      )
+      expect(reported()).toEqual([{ event: 'feature_used', feature: 'knowledge', action: 'items_added', count: 2 }])
+    })
+
+    it('reports each search outcome without the query and still surfaces the failure', async () => {
+      knowledgeService.search.mockResolvedValueOnce([])
+      knowledgeService.search.mockRejectedValueOnce(new Error('embedding failed'))
+      await knowledgeHandlers['knowledge.search']({ baseId: 'base-1', query: 'secret query' }, ctx)
+      await expect(
+        knowledgeHandlers['knowledge.search']({ baseId: 'base-1', query: 'secret query' }, ctx)
+      ).rejects.toThrow('embedding failed')
+      expect(reported()).toEqual([
+        { event: 'feature_used', feature: 'knowledge', action: 'searched', status: 'success' },
+        { event: 'feature_used', feature: 'knowledge', action: 'searched', status: 'error' }
+      ])
+    })
   })
 })

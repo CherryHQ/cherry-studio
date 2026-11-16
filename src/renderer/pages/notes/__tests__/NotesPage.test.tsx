@@ -807,6 +807,28 @@ describe('NotesPage print payloads', () => {
     })
   })
 
+  it('reports a created note without its name, and nothing when creation fails', async () => {
+    mocks.activeFilePath = undefined
+    mocks.projectedNodes = []
+    vi.mocked(addNote).mockRejectedValueOnce(new Error('disk full'))
+    vi.mocked(addNote).mockResolvedValueOnce({ path: '/notes/Untitled Note.md', name: 'Untitled Note' })
+    const analyticsEvents = () =>
+      mocks.ipcRequest.mock.calls.filter(([route]) => route === 'analytics.track').map(([, event]) => event)
+
+    render(<NotesPage />)
+    const newNote = await screen.findByRole('button', { name: 'notes.new_note' })
+
+    fireEvent.click(newNote)
+    await waitFor(() => expect(addNote).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('notes.create_note_failed'))
+    expect(analyticsEvents()).toEqual([])
+
+    fireEvent.click(newNote)
+    await waitFor(() =>
+      expect(analyticsEvents()).toEqual([{ event: 'feature_used', feature: 'notes', action: 'note_created' }])
+    )
+  })
+
   // Exercise the page callback itself so failures cannot be hidden by the entry-point hooks.
   async function rename(newName = 'Roadmap', nodeId = mocks.noteNode.id) {
     mocks.showWorkspace = true

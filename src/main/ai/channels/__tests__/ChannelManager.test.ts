@@ -12,6 +12,7 @@ import { ChannelManager } from '../ChannelManager'
 import { channelMessageHandler } from '../ChannelMessageHandler'
 
 const mocks = vi.hoisted(() => ({
+  trackProductEvent: vi.fn(),
   getLifecycleState: vi.fn(),
   resumeListeners: new Set<() => void>(),
   onResume: vi.fn((listener: () => void) => {
@@ -116,6 +117,7 @@ describe('ChannelManager', () => {
     mocks.resumeListeners.clear()
     vi.mocked(application.get).mockImplementation((name: string) => {
       if (name === 'PowerService') return { onResume: mocks.onResume } as never
+      if (name === 'AnalyticsService') return { trackProductEvent: mocks.trackProductEvent } as never
       if (name in defaultServiceInstances) {
         return defaultServiceInstances[name as keyof typeof defaultServiceInstances] as never
       }
@@ -228,6 +230,64 @@ describe('ChannelManager', () => {
     expect(manager.getAdapter('ch-1')).toBeUndefined()
     expect(manager.getChannelLogs('ch-1')).toEqual([])
     expect(MockMainCacheServiceExport.cacheService.getShared('channel.status.ch-1')).toBeUndefined()
+  })
+
+  describe('connection analytics', () => {
+    const reported = () => mocks.trackProductEvent.mock.calls.map(([event]) => event)
+
+    it('reports only the first outcome of a channel the user set up, never startup reconnects', async () => {
+      rows = [makeChannel({ id: 'ch-startup' })]
+      await manager.start()
+      await vi.waitFor(() => expect(adapters).toHaveLength(1))
+      adapters[0].emit('statusChange', { channelId: 'ch-startup', connected: true })
+
+      rows.push(makeChannel({ id: 'ch-new', type: 'dingtalk' }))
+      manager.requestReconcile('ch-new')
+      manager.reportNextConnection('ch-new', 'dingtalk')
+      await vi.waitFor(() => expect(adapters).toHaveLength(2))
+      adapters[1].emit('statusChange', { channelId: 'ch-new', connected: true })
+      adapters[1].emit('statusChange', { channelId: 'ch-new', connected: true })
+
+      expect(reported()).toEqual([
+        {
+          event: 'feature_used',
+          feature: 'channels',
+          action: 'channel_connected',
+          target: 'dingtalk',
+          status: 'success'
+        }
+      ])
+    })
+
+    it('reports a failed first connect as an error without its message', async () => {
+      await manager.start()
+      rows = [makeChannel()]
+      vi.mocked(loadChannelAdapter).mockImplementationOnce(async (channel, agentId) => {
+        const adapter = new MockAdapter({
+          channelId: channel.id,
+          channelType: channel.type,
+          agentId,
+          channelConfig: channel.config
+        })
+        adapter.connect.mockRejectedValue(new Error('invalid bot token secret'))
+        adapters.push(adapter)
+        return adapter
+      })
+      manager.requestReconcile('ch-1')
+      manager.reportNextConnection('ch-1', 'telegram')
+
+      await vi.waitFor(() =>
+        expect(reported()).toEqual([
+          {
+            event: 'feature_used',
+            feature: 'channels',
+            action: 'channel_connected',
+            target: 'telegram',
+            status: 'error'
+          }
+        ])
+      )
+    })
   })
 
   it('installs the QR waiter before starting reconciliation', async () => {

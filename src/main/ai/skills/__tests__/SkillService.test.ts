@@ -6,6 +6,7 @@ import * as path from 'node:path'
 import { pathToFileURL } from 'node:url'
 
 import { setupTestDatabase } from '@test-helpers/db'
+import { MockApplicationUtils } from '@test-mocks/main/application'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import AdmZip from 'adm-zip'
 import Database from 'better-sqlite3'
@@ -661,6 +662,23 @@ describe('SkillService', () => {
         expect.objectContaining({ id: installed.id, name: 'direct-import' })
       ])
       expect(fs.existsSync(path.join(service.getInstalledSkillDirectory(installed), 'SKILL.md'))).toBe(true)
+    })
+
+    it('reports a first install without naming the skill, and not its reinstall', async () => {
+      const trackProductEvent = vi.fn()
+      MockApplicationUtils.setService('AnalyticsService', { trackProductEvent })
+      const directoryPath = path.join(root, 'private-skill')
+      await fs.promises.mkdir(directoryPath)
+      await fs.promises.writeFile(path.join(directoryPath, 'SKILL.md'), '---\nname: private-skill\n---')
+      try {
+        await service.installFromDirectory({ directoryPath })
+        await service.installFromDirectory({ directoryPath })
+        expect(trackProductEvent.mock.calls).toEqual([
+          [{ event: 'feature_used', feature: 'skills', action: 'skill_installed' }]
+        ])
+      } finally {
+        MockApplicationUtils.resetServices()
+      }
     })
 
     it.each(['file.txt', 'directory.zip'])('classifies %s as an invalid ZIP input', async (name) => {
@@ -2452,6 +2470,18 @@ describe('SkillService', () => {
       expect(row?.name).toBe('My Builtin')
       expect(row?.version).toBe('1.0.0')
       expect(row?.contentHash).toBe(contentHash)
+    })
+
+    it('does not report bundled builtin skills as user installs', async () => {
+      const trackProductEvent = vi.fn()
+      MockApplicationUtils.setService('AnalyticsService', { trackProductEvent })
+      try {
+        await new SkillService().syncBuiltinSkill(FOLDER_NAME, sourcePath, APP_VERSION)
+        expect(dbh.db.select().from(agentGlobalSkillTable).all()).toHaveLength(1)
+        expect(trackProductEvent).not.toHaveBeenCalled()
+      } finally {
+        MockApplicationUtils.resetServices()
+      }
     })
 
     it('inserts a new builtin skill on first install, already enabled for existing agents without any agent_skill row', async () => {

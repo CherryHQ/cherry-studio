@@ -3,6 +3,7 @@ import fs from 'fs'
 import { application } from '@application'
 import { createAgentChannel, deleteAgentChannel, updateAgentChannel } from '@main/ai/channels'
 import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
+import type { AgentChannelEntity } from '@shared/data/api/schemas/agentChannels'
 import { channelErrorCodes } from '@shared/ipc/errors/channel'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import { channelRequestSchemas } from '@shared/ipc/schemas/channel'
@@ -22,6 +23,14 @@ async function exposeChannelError<T>(operation: () => T | Promise<T>): Promise<T
   }
 }
 
+/** A user command that leaves a disconnected channel set to connect gets its outcome reported. */
+function reportConnectOutcome(channel: AgentChannelEntity, wasConnected: boolean): AgentChannelEntity {
+  if (!wasConnected && channel.isActive && channel.agentId) {
+    application.get('ChannelManager').reportNextConnection(channel.id, channel.type)
+  }
+  return channel
+}
+
 /**
  * Channel-domain request handlers. `wechat.has_credentials` is self-contained (reads the
  * bot token file, returns whether it exists) — it does not touch ChannelManager; the log /
@@ -34,8 +43,12 @@ export const channelHandlers: IpcHandlersFor<typeof channelRequestSchemas> = {
     application.get('ChannelManager').registration.poll(senderId, requestId),
   'channel.registration.cancel': async ({ requestId }, { senderId }) =>
     application.get('ChannelManager').registration.cancel(senderId, requestId),
-  'channel.create': async (input) => exposeChannelError(() => createAgentChannel(input)),
-  'channel.update': async ({ channelId, updates }) => exposeChannelError(() => updateAgentChannel(channelId, updates)),
+  'channel.create': async (input) => exposeChannelError(() => reportConnectOutcome(createAgentChannel(input), false)),
+  'channel.update': async ({ channelId, updates }) =>
+    exposeChannelError(() => {
+      const wasConnected = application.get('ChannelManager').getAdapter(channelId)?.connected === true
+      return reportConnectOutcome(updateAgentChannel(channelId, updates), wasConnected)
+    }),
   'channel.delete': async ({ channelId }) => {
     await exposeChannelError(async () => {
       if (!(await deleteAgentChannel(channelId))) {

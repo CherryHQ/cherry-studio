@@ -1,5 +1,6 @@
 import { application } from '@application'
 import { t } from '@main/i18n'
+import { trackMainProductEvent } from '@main/services/productAnalytics'
 import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import { knowledgeErrorCodes } from '@shared/ipc/errors/knowledge'
@@ -17,7 +18,11 @@ import { isHttpUrl } from '@shared/utils/url'
  * route's `z.void()` output (see selection.ts hide_toolbar).
  */
 export const knowledgeHandlers: IpcHandlersFor<typeof knowledgeRequestSchemas> = {
-  'knowledge.create_base': async ({ base }) => application.get('KnowledgeService').createBase(base),
+  'knowledge.create_base': async ({ base }) => {
+    const created = await application.get('KnowledgeService').createBase(base)
+    trackMainProductEvent({ event: 'feature_used', feature: 'knowledge', action: 'base_created' })
+    return created
+  },
   'knowledge.restore_base': async (dto) => application.get('KnowledgeService').restoreBase(dto),
   'knowledge.delete_base': async ({ baseId }) => {
     await application.get('KnowledgeService').deleteBase(baseId)
@@ -26,7 +31,11 @@ export const knowledgeHandlers: IpcHandlersFor<typeof knowledgeRequestSchemas> =
     if (items.some((item) => item.type === 'url' && !isHttpUrl(item.data.url))) {
       throw new IpcError(knowledgeErrorCodes.INVALID_SOURCE_URL, t('knowledge.source.invalid_url'))
     }
-    return application.get('KnowledgeService').addItems(baseId, items, conflictStrategy)
+    const result = await application.get('KnowledgeService').addItems(baseId, items, conflictStrategy)
+    if (result.status === 'added') {
+      trackMainProductEvent({ event: 'feature_used', feature: 'knowledge', action: 'items_added', count: items.length })
+    }
+    return result
   },
   'knowledge.delete_items': async ({ baseId, itemIds }) => {
     await application.get('KnowledgeService').deleteItems(baseId, itemIds)
@@ -36,7 +45,18 @@ export const knowledgeHandlers: IpcHandlersFor<typeof knowledgeRequestSchemas> =
   },
   'knowledge.enable_embedding_model': async ({ baseId, patch }) =>
     application.get('KnowledgeService').enableEmbeddingModel(baseId, patch),
-  'knowledge.search': async ({ baseId, query }) => application.get('KnowledgeService').search(baseId, query),
+  'knowledge.search': async ({ baseId, query }) => {
+    const report = (status: 'success' | 'error') =>
+      trackMainProductEvent({ event: 'feature_used', feature: 'knowledge', action: 'searched', status })
+    try {
+      const results = await application.get('KnowledgeService').search(baseId, query)
+      report('success')
+      return results
+    } catch (error) {
+      report('error')
+      throw error
+    }
+  },
   'knowledge.get_file_path': async ({ itemId }) => {
     try {
       return application.get('KnowledgeService').getFilePath(itemId)

@@ -799,6 +799,22 @@ describe('aiHandlers — agent task commands', () => {
     expect(result).toBe(taskEntity)
   })
 
+  it('reports a created task without its name or prompt, and nothing when creation is rejected', async () => {
+    analyticsService.trackProductEvent.mockClear()
+    agentJobsService.createTask.mockImplementationOnce(() => {
+      throw new Error('agent is archived')
+    })
+    agentJobsService.createTask.mockReturnValueOnce(taskEntity)
+    const input = { agentId: 'agent-1', ...(form as object) } as never
+
+    await expect(aiHandlers['ai.agent.task.create'](input, ctx)).rejects.toThrow('agent is archived')
+    expect(analyticsService.trackProductEvent).not.toHaveBeenCalled()
+    await aiHandlers['ai.agent.task.create'](input, ctx)
+    expect(analyticsService.trackProductEvent.mock.calls).toEqual([
+      [{ event: 'feature_used', feature: 'scheduled_tasks', action: 'task_created' }]
+    ])
+  })
+
   // The four-segment trigger-invalid chain: JobManager's coded Error must be
   // translated to the AI-domain IpcError, or IpcError.from would flatten it to
   // INTERNAL and the renderer form could not branch.
