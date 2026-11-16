@@ -190,6 +190,7 @@ export function createMockApplication(overrides: ServiceOverrides = {}) {
     forceExit: vi.fn(),
     // Graceful quit entry point (real Application.quit()). Tests can assert it was called.
     quit: vi.fn(),
+    markQuitting: vi.fn(),
     // Tests can mutate `application.isQuitting = true` to exercise quit-aware code paths.
     isQuitting: false
   }

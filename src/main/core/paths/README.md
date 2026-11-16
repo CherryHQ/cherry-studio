@@ -23,9 +23,10 @@ application.getPath('invalid.key')
 | File | Role |
 |------|------|
 | `constants.ts` | Earliest path constants (`CHERRY_HOME`, `BOOT_CONFIG_PATH`, `LOGS_DIR`) and dev-profile isolation — used before the registry exists; imported directly by the pre-registry bootstrappers (`LoggerService`, `BootConfigService`) |
+| `legacyProfilePaths.ts` | Resolves read-only probe paths within a recorded legacy profile, including custom directories outside the active userData root |
 | `pathRegistry.ts` | `buildPathRegistry()` + `shouldAutoEnsure` + `PathKey` / `PathMap` types. Imported directly by `Application.ts`. ESLint-enforced key format |
 
-**No barrel.** The module's public access point is `application.getPath()`, not an `index.ts` — its two files are independent building blocks imported directly by their specific consumers (per [Naming §6.4](../../../../docs/dev/references/architecture/naming-conventions.md): a directory that merely aggregates independent sub-modules gets no barrel).
+**No barrel.** The module's public access point is `application.getPath()`, not an `index.ts` — its files are independent building blocks imported directly by their specific consumers (per [Naming §6.4](../../../../docs/dev/references/architecture/naming-conventions.md): a directory that merely aggregates independent sub-modules gets no barrel).
 
 ## Top-Level Namespaces
 

@@ -9,7 +9,7 @@ import type {
 } from '@playwright/test/reporter'
 
 import { getCase, parseTaskSelection, selectCases } from './cases'
-import { REQUIRED_CONFIG } from './config'
+import { getSensitiveConfigValues } from './config'
 import { getRunPaths } from './paths'
 import { createRedactor } from './redaction'
 import { beginCase, completeE2eCase, readRun, updatePhase, writeRun } from './state'
@@ -24,7 +24,7 @@ export default class RegressionReporter implements Reporter {
   private readonly paths = getRunPaths(process.env.CHERRY_TEST_RUN_DIR ?? '')
   private readonly phases = new Set<string>()
   private readonly errors: string[] = []
-  private readonly redact = createRedactor(REQUIRED_CONFIG.map((name) => process.env[name] ?? ''))
+  private readonly redact = createRedactor(getSensitiveConfigValues())
   private started = false
   private ids: string[] = []
 

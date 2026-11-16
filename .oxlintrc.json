@@ -6,13 +6,6 @@
   },
   "globals": {},
   "jsPlugins": ["@shadcn/lint", "./scripts/lint/scroll-area.mjs"],
-  "settings": {
-    "shadcn": {
-      "ui": "@cherrystudio/ui",
-      "themeImports": ["^@cherrystudio/ui/styles/"],
-      "note": "See DESIGN.md and packages/ui/docs/design-token-system.md."
-    }
-  },
   "ignorePatterns": [
     "node_modules/**",
     "build/**",
@@ -122,6 +115,36 @@
     "no-caller": "error",
     "no-eval": "error",
     "no-fallthrough": "error",
+    "no-restricted-globals": [
+      "error",
+      {
+        "name": "structuredClone",
+        "message": "Avoid synchronous deep copies. Prefer explicit construction or structural sharing; exceptions need a call-site lint suppression with a reason."
+      }
+    ],
+    "no-restricted-properties": [
+      "error",
+      {
+        "object": "globalThis",
+        "property": "structuredClone",
+        "message": "Avoid synchronous deep copies. Prefer explicit construction or structural sharing; exceptions need a call-site lint suppression with a reason."
+      },
+      {
+        "object": "window",
+        "property": "structuredClone",
+        "message": "Avoid synchronous deep copies. Prefer explicit construction or structural sharing; exceptions need a call-site lint suppression with a reason."
+      },
+      {
+        "object": "self",
+        "property": "structuredClone",
+        "message": "Avoid synchronous deep copies. Prefer explicit construction or structural sharing; exceptions need a call-site lint suppression with a reason."
+      },
+      {
+        "object": "global",
+        "property": "structuredClone",
+        "message": "Avoid synchronous deep copies. Prefer explicit construction or structural sharing; exceptions need a call-site lint suppression with a reason."
+      }
+    ],
     "no-unassigned-vars": "error",
     "no-unused-expressions": "off",
     "no-unused-vars": ["error", { "caughtErrors": "none" }],
@@ -190,6 +213,11 @@
     "unicorn/prefer-string-starts-ends-with": "error"
   },
   "settings": {
+    "shadcn": {
+      "ui": "@cherrystudio/ui",
+      "themeImports": ["^@cherrystudio/ui/styles/"],
+      "note": "See DESIGN.md and packages/ui/docs/design-token-system.md."
+    },
     "jsdoc": {
       "augmentsExtendsReplacesDocs": false,
       "exemptDestructuredRootsFromChecks": false,
