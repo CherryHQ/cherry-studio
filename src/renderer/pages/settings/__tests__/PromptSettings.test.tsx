@@ -5,6 +5,7 @@ import type { ComponentProps, ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as AppErrorDetailService from '@renderer/services/AppErrorDetailService'
+import { toast } from '@renderer/services/toast'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 
 import { PromptSettings } from '../PromptSettings'
@@ -121,9 +122,6 @@ vi.mock('@renderer/services/AppErrorDetailService', async (importOriginal) => ({
   appErrorDetailService: { openAppErrorDetail: mocks.openErrorDetail }
 }))
 vi.mock('@renderer/services/toast', () => ({ toast: { error: vi.fn() } }))
-vi.mock('@renderer/utils/error', () => ({
-  formatErrorMessageWithPrefix: (_error: unknown, prefix: string) => prefix
-}))
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -132,12 +130,7 @@ vi.mock('react-i18next', () => ({
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
-  Alert: ({ action, message }: { action?: ReactNode; message: ReactNode }) => (
-    <div role="alert">
-      {message}
-      {action}
-    </div>
-  ),
+  Alert: ({ children }: { children?: ReactNode }) => <div role="alert">{children}</div>,
   Badge: ({ children }: { children: ReactNode }) => <span>{children}</span>,
   Button: ({
     children,
@@ -266,6 +259,8 @@ describe('PromptSettings', () => {
     )
     render(<PromptSettings />)
 
+    expect(screen.getByRole('alert')).toHaveTextContent('settings.prompts.errors.loadFailed')
+    expect(screen.getByRole('alert')).not.toHaveTextContent('SQLITE_BUSY')
     await user.click(within(screen.getByRole('alert')).getByRole('button', { name: 'common.detail' }))
 
     await waitFor(() => expect(mocks.openErrorDetail).toHaveBeenCalledTimes(1))
@@ -419,6 +414,23 @@ describe('PromptSettings', () => {
 
     expect(screen.getByRole('dialog', { name: 'settings.prompts.delete' })).toHaveTextContent(
       'settings.prompts.deleteRestrictedConfirm'
+    )
+  })
+  it('titles a failed delete with the translated conclusion and keeps the raw text as the cause', async () => {
+    const user = userEvent.setup()
+    const cause = new Error('SQLITE_BUSY: database is locked')
+    mocks.deletePrompt.mockRejectedValueOnce(cause)
+    render(<PromptSettings />)
+
+    await user.click(screen.getByRole('button', { name: 'common.delete Global prompt' }))
+    await user.click(
+      within(screen.getByRole('dialog', { name: 'settings.prompts.delete' })).getByRole('button', {
+        name: 'common.delete'
+      })
+    )
+
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith({ title: 'settings.prompts.errors.deleteFailed', cause })
     )
   })
 })
