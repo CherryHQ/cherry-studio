@@ -252,7 +252,10 @@ const Chat: FC<Props> = (props) => {
     ) : (
       // Nothing left to resolve and still no topic: the library is genuinely empty, so settle on
       // the empty center rather than spinning forever. Same split as AgentChat.
-      <ConversationCenterState state={props.topicPending ? 'loading' : 'empty'} />
+      <ConversationCenterState
+        state={props.topicPending ? 'loading' : 'empty'}
+        onNewConversation={props.onNewTopic ? () => void props.onNewTopic?.() : undefined}
+      />
     ))
   // ChatContent is keyed by topic; keep width-derived layout state outside that remount boundary.
   const center = <ChatLayoutModeProvider>{centerContent}</ChatLayoutModeProvider>

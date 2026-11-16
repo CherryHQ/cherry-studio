@@ -38,6 +38,7 @@ import type { FileItem } from './fileDisplay'
 import { FileGrid } from './FileGrid'
 import type { SortDir, SortKey } from './FileList'
 import { FileList, FileListHeader } from './FileList'
+import { FilesEmptyScene } from './FilesEmptyScene'
 import type { SidebarFilter } from './FileSidebar'
 import { FileSidebar } from './FileSidebar'
 import { useFileHydration } from './useFileHydration'
@@ -964,9 +965,9 @@ function FilesPage({ entryId, onEntryIdChange }: FilesPageProps) {
               ) : (
                 <div className="flex h-full flex-1 flex-col items-center justify-center px-6">
                   {files.length === 0 ? (
-                    <EmptyState title={t('files.empty.title')} />
+                    <EmptyState scene={<FilesEmptyScene />} title={t('files.empty.title')} />
                   ) : (
-                    <EmptyState title={t('files.empty.no_match_title')} />
+                    <EmptyState scene={<FilesEmptyScene />} title={t('files.empty.no_match_title')} />
                   )}
                 </div>
               )
