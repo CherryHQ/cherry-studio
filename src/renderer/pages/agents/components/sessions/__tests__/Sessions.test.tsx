@@ -1723,13 +1723,13 @@ describe('Sessions', () => {
     )
   })
 
-  it('renders load errors inside the shared ResourceList shell', () => {
+  it('renders load errors inside the shared ResourceList shell without the raw error', () => {
     setupSessions({ error: new Error('Failed request'), sessions: [] })
 
     render(<SessionsForTest />)
 
     expect(screen.getByRole('alert')).toHaveTextContent('Failed to get tasks')
-    expect(screen.getByRole('alert')).toHaveTextContent('Failed request')
+    expect(screen.getByRole('alert')).not.toHaveTextContent('Failed request')
     expect(within(screen.getByRole('alert')).getByRole('button', { name: /common\.detail/ })).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
@@ -1777,7 +1777,7 @@ describe('Sessions', () => {
     render(<SessionsForTest />)
 
     expect(screen.getByRole('alert')).toHaveTextContent('Failed to get tasks')
-    expect(screen.getByRole('alert')).toHaveTextContent('Workspace request failed')
+    expect(screen.getByRole('alert')).not.toHaveTextContent('Workspace request failed')
 
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
 
