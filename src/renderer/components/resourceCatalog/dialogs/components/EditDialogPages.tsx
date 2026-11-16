@@ -241,7 +241,8 @@ export function SettingsLinkButton({
       size="sm"
       aria-label={summary ? `${label}: ${summary}` : label}
       onClick={onClick}
-      className={cn(settingsPillClassName, 'max-w-60')}>
+      // One width for every summary, so a column of drill-in links lines up.
+      className={cn(settingsPillClassName, 'max-w-60', summary && 'min-w-36')}>
       {summary ? <span className="truncate">{summary}</span> : null}
       <ChevronRight className="size-3.5 shrink-0 text-muted-foreground" />
     </Button>
