@@ -449,6 +449,8 @@ function useLazyArtifactFileTree({
 
       const watcher: LazyDirectoryWatcher = { disposed: false }
       lazyDirectoryWatchersRef.current.set(dirId, watcher)
+      // Children cached by an earlier watch (a collapsed folder expanded again) miss every change made since.
+      const hasStaleChildren = lazyChildrenByDirIdRef.current.has(dirId)
 
       const requestWorkspacePath = workspacePath
       const dirPath = joinPath(workspacePath, dirId)
@@ -490,7 +492,7 @@ function useLazyArtifactFileTree({
             if (activated) {
               // A refused round means events were dropped while we were unwatched, so
               // the rendered children predate them. Nothing else re-runs this effect.
-              if (attempt > 1) loadDirectoryChildren(dirId, { force: true })
+              if (attempt > 1 || hasStaleChildren) loadDirectoryChildren(dirId, { force: true })
               return
             }
 

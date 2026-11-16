@@ -1668,6 +1668,28 @@ describe('ArtifactPane', () => {
     expect(screen.queryByTestId('tree-node-src/old.md')).not.toBeInTheDocument()
   })
 
+  it('re-reads a folder from disk when it is expanded again', async () => {
+    mockWorkspaceTree('/tmp/workspace', ['src/index.ts'])
+    mocks.listDirectoryEntries
+      .mockResolvedValueOnce([{ path: '/tmp/workspace/src/old.md', isDirectory: false }])
+      .mockResolvedValue([{ path: '/tmp/workspace/src/new.md', isDirectory: false }])
+
+    render(<ArtifactPaneHarness workspacePath="/tmp/workspace" />)
+    await waitFor(() => expect(screen.getByTestId('tree-node-src')).toBeInTheDocument())
+
+    fireEvent.click(screen.getByTestId('tree-node-src'))
+    await waitFor(() => expect(screen.getByTestId('tree-node-src/old.md')).toBeInTheDocument())
+    await waitFor(() => expect(mocks.treeActivate).toHaveBeenCalledTimes(2))
+
+    // Collapsed folders are unwatched, so a change made meanwhile only shows if re-expanding re-reads.
+    fireEvent.click(screen.getByTestId('tree-node-src'))
+    expect(screen.getByTestId('tree-node-src')).toHaveAttribute('data-expanded', 'false')
+    fireEvent.click(screen.getByTestId('tree-node-src'))
+
+    await waitFor(() => expect(screen.getByTestId('tree-node-src/new.md')).toBeInTheDocument())
+    expect(screen.queryByTestId('tree-node-src/old.md')).not.toBeInTheDocument()
+  })
+
   it('activates a lazy directory watcher so buffered mutations are released', async () => {
     mockWorkspaceTree('/tmp/workspace', ['src/index.ts'])
     // Queued after the workspace tree, so this is the lazy watcher's create.
