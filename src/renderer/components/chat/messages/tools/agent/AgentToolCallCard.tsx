@@ -1,4 +1,4 @@
-import { Check, ChevronRight, Circle, CircleStop, Loader2, TriangleAlert } from 'lucide-react'
+import { AlertCircle, Check, ChevronRight, Circle, CircleStop, Loader2 } from 'lucide-react'
 import { type ReactNode, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -83,17 +83,20 @@ export function AgentToolCallCard({
     if (output !== undefined) return output
     return { status: 'error' as const }
   }, [failed, output, rawErrorText])
-  const withToolFault = (node: ReactNode) =>
+  // Details sits on the header row, even when the disclosure below it is expanded.
+  const withToolFault = (node: ReactNode, headerHeightClass: string) =>
     toolFault ? (
-      <div className="flex w-full min-w-0 items-center gap-2">
+      <div className="flex w-full min-w-0 items-start gap-2">
         <div className="min-w-0 flex-1">{node}</div>
-        <ErrorDetailAction
-          error={toolFault}
-          message={t('message.tools.error')}
-          source="agent.tool"
-          operation="agent.tool.call"
-          recordId={toolCallId}
-        />
+        <div className={cn('flex shrink-0 items-center', headerHeightClass)}>
+          <ErrorDetailAction
+            error={toolFault}
+            message={t('message.tools.error')}
+            source="agent.tool"
+            operation="agent.tool.call"
+            recordId={toolCallId}
+          />
+        </div>
       </div>
     ) : (
       node
@@ -127,7 +130,7 @@ export function AgentToolCallCard({
     const title = getAgentToolFlowTitle(toolName, input) ?? t('agent.right_pane.info.subagents')
     const running = status === 'streaming' || status === 'invoking'
     const Icon = failed
-      ? TriangleAlert
+      ? AlertCircle
       : running
         ? Loader2
         : status === 'done'
@@ -178,7 +181,8 @@ export function AgentToolCallCard({
           )}
           <ChevronRight aria-hidden="true" className="size-3.5 shrink-0 text-muted-foreground" />
         </Button>
-      </Tooltip>
+      </Tooltip>,
+      'h-8'
     )
   }
 
@@ -214,6 +218,7 @@ export function AgentToolCallCard({
       onOpenDetails={openToolFlow}
       stateId={toolCallId}
       showInlineDetails={canShowInlineDetails}
-    />
+    />,
+    'h-7'
   )
 }
