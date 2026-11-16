@@ -761,7 +761,8 @@ export async function buildSystemPrompt(
     web: isLookupEnabled(WEB_SEARCH_TOOL_NAME) || isLookupEnabled(WEB_FETCH_TOOL_NAME),
     kb:
       (canReadAllKnowledgeBases || knowledgeBaseIds.length > 0) &&
-      (isLookupEnabled(KB_SEARCH_TOOL_NAME) || isLookupEnabled(KB_READ_TOOL_NAME))
+      (isLookupEnabled(KB_SEARCH_TOOL_NAME) || isLookupEnabled(KB_READ_TOOL_NAME)),
+    ref: CLAUDE_CODE_TOOL_CALL_FORM.ref
   })
   const customBaseContext = [
     '## Current Workspace',
