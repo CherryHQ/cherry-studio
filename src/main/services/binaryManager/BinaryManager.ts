@@ -1688,25 +1688,23 @@ export class BinaryManager extends BaseService {
         })
         await this.runMise(['reshim'])
       } catch {
-        if (backup) {
-          let restored = false
-          try {
-            await fsp.mkdir(backup.installPath, { recursive: true })
-            await fsp.cp(backup.copyPath, backup.installPath, { recursive: true })
-            await this.runMise(['reshim'])
-            restored = true
-          } catch {
-            // Fall back to the existing mise restoration if local restoration fails.
-          }
-          if (restored) {
-            await this.removeMiseBackup(backup.tempDir)
-            logger.warn('Release ships no matching 64-bit Windows asset; keeping the installed build', {
-              name: definition.name,
-              tool: definition.tool,
-              version
-            })
-            return
-          }
+        let restored = false
+        try {
+          await fsp.mkdir(backup.installPath, { recursive: true })
+          await fsp.cp(backup.copyPath, backup.installPath, { recursive: true })
+          await this.runMise(['reshim'])
+          restored = true
+        } catch {
+          // Fall back to the existing mise restoration if local restoration fails.
+        }
+        if (restored) {
+          await this.removeMiseBackup(backup.tempDir)
+          logger.warn('Release ships no matching 64-bit Windows asset; keeping the installed build', {
+            name: definition.name,
+            tool: definition.tool,
+            version
+          })
+          return
         }
         // Restore the plain selection when either reinstalling or reshim fails.
         try {
@@ -1715,7 +1713,7 @@ export class BinaryManager extends BaseService {
             includePrerelease
           })
           await this.runMise(['reshim'])
-          if (backup) await this.removeMiseBackup(backup.tempDir)
+          await this.removeMiseBackup(backup.tempDir)
         } catch (restoreError) {
           logger.warn(
             'Failed to restore the original tool spec; the narrowed asset selection may still be configured',
@@ -1736,7 +1734,7 @@ export class BinaryManager extends BaseService {
         return
       }
 
-      if (backup) await this.removeMiseBackup(backup.tempDir)
+      await this.removeMiseBackup(backup.tempDir)
       let verified = false
       try {
         const rechecked = await this.resolveRunnableShim(definition.name, definition.tool)
