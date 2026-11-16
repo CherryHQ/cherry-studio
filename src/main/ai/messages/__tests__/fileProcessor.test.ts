@@ -3,13 +3,14 @@ import os from 'node:os'
 import path from 'node:path'
 
 import sharp from 'sharp'
+import type * as SharpModule from 'sharp'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
 import type { FileUIPart } from '@shared/data/types/message'
 
 const sharpCalls = vi.hoisted(() => ({ count: 0 }))
 vi.mock('sharp', async (importOriginal) => {
-  const actual = (await importOriginal<typeof import('sharp')>()).default
+  const actual = (await importOriginal<typeof SharpModule>()).default
   // A proxy keeps `sharp.prototype` spies working while counting decoder instances.
   const counted = new Proxy(actual, {
     apply: (target, self, args) => {
