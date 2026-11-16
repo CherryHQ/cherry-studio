@@ -5844,6 +5844,8 @@
   "settings.shortcuts.number_keys.custom": "Προσαρμοσμένο",
   "settings.shortcuts.number_keys.custom_description": "Οι υπάρχουσες προσαρμοσμένες συντομεύσεις διατηρούνται. Η επιλογή λειτουργίας αντικαθιστά όλες τις συντομεύσεις αριθμών.",
   "settings.shortcuts.number_keys.description": "Χρησιμοποιήστε {{conversations}} για συνομιλίες και {{tabs}} για καρτέλες.",
+  "settings.shortcuts.number_keys.off": "Ανενεργό",
+  "settings.shortcuts.number_keys.off_description": "Οι αριθμητικές συντομεύσεις είναι ανενεργές. Το πάτημα αριθμών με το πλήκτρο τροποποίησης δεν κάνει τίποτα.",
   "settings.shortcuts.number_keys.tabs": "Εναλλαγή καρτελών",
   "settings.shortcuts.number_keys.title": "Συντομεύσεις αριθμών",
   "settings.shortcuts.occupied_by_other_application": "Αυτή η συντόμευση χρησιμοποιείται ήδη από το σύστημα ή από άλλη εφαρμογή",

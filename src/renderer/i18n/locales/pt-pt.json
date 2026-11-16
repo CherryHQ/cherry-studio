@@ -5844,6 +5844,8 @@
   "settings.shortcuts.number_keys.custom": "Personalizado",
   "settings.shortcuts.number_keys.custom_description": "Os atalhos personalizados são mantidos. Escolher um modo substitui todos os atalhos numéricos.",
   "settings.shortcuts.number_keys.description": "Use {{conversations}} para mudar de conversa e {{tabs}} para mudar de separador.",
+  "settings.shortcuts.number_keys.off": "Desativado",
+  "settings.shortcuts.number_keys.off_description": "Os atalhos numéricos estão desativados. Premir os números com o modificador não faz nada.",
   "settings.shortcuts.number_keys.tabs": "Mudar de separador",
   "settings.shortcuts.number_keys.title": "Atalhos numéricos",
   "settings.shortcuts.occupied_by_other_application": "Este atalho já está a ser utilizado pelo sistema ou por outra aplicação",

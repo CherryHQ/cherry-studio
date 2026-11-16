@@ -5844,6 +5844,8 @@
   "settings.shortcuts.number_keys.custom": "Personnalisé",
   "settings.shortcuts.number_keys.custom_description": "Les raccourcis personnalisés sont conservés. Choisir un mode remplace tous les raccourcis numériques.",
   "settings.shortcuts.number_keys.description": "Utilisez {{conversations}} pour les conversations et {{tabs}} pour les onglets.",
+  "settings.shortcuts.number_keys.off": "Désactivé",
+  "settings.shortcuts.number_keys.off_description": "Les raccourcis numériques sont désactivés. Appuyer sur les chiffres avec le modificateur n'a aucun effet.",
   "settings.shortcuts.number_keys.tabs": "Changer d’onglet",
   "settings.shortcuts.number_keys.title": "Raccourcis numériques",
   "settings.shortcuts.occupied_by_other_application": "Ce raccourci est déjà utilisé par le système ou une autre application",

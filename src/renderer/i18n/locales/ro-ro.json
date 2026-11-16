@@ -5844,6 +5844,8 @@
   "settings.shortcuts.number_keys.custom": "Personalizat",
   "settings.shortcuts.number_keys.custom_description": "Scurtăturile personalizate existente sunt păstrate. Alegerea unui mod înlocuiește toate scurtăturile numerice.",
   "settings.shortcuts.number_keys.description": "Folosește {{conversations}} pentru conversații și {{tabs}} pentru file.",
+  "settings.shortcuts.number_keys.off": "Dezactivat",
+  "settings.shortcuts.number_keys.off_description": "Scurtăturile numerice sunt dezactivate. Apăsarea cifrelor cu modificatorul nu face nimic.",
   "settings.shortcuts.number_keys.tabs": "Schimbă filele",
   "settings.shortcuts.number_keys.title": "Scurtături numerice",
   "settings.shortcuts.occupied_by_other_application": "Această comandă rapidă este deja utilizată de sistem sau de o altă aplicație",

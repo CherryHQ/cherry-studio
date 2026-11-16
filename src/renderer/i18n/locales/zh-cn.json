@@ -5844,6 +5844,8 @@
   "settings.shortcuts.number_keys.custom": "自定义",
   "settings.shortcuts.number_keys.custom_description": "已保留现有自定义绑定。选择一种模式将替换全部数字快捷键。",
   "settings.shortcuts.number_keys.description": "使用 {{conversations}} 切换聊天，使用 {{tabs}} 切换标签页",
+  "settings.shortcuts.number_keys.off": "关闭",
+  "settings.shortcuts.number_keys.off_description": "数字快捷键已关闭。按住修饰键再按数字键不会有任何反应。",
   "settings.shortcuts.number_keys.tabs": "切换标签页",
   "settings.shortcuts.number_keys.title": "数字快捷键",
   "settings.shortcuts.occupied_by_other_application": "该快捷键已被系统或其他应用占用",

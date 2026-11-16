@@ -5844,6 +5844,8 @@
   "settings.shortcuts.number_keys.custom": "Custom",
   "settings.shortcuts.number_keys.custom_description": "Existing custom bindings are preserved. Choose a mode to replace all number shortcuts.",
   "settings.shortcuts.number_keys.description": "Use {{conversations}} to switch conversations and {{tabs}} to switch tabs.",
+  "settings.shortcuts.number_keys.off": "Off",
+  "settings.shortcuts.number_keys.off_description": "Number shortcuts are turned off. Pressing the digit keys with the modifier does nothing.",
   "settings.shortcuts.number_keys.tabs": "Switch tabs",
   "settings.shortcuts.number_keys.title": "Number shortcuts",
   "settings.shortcuts.occupied_by_other_application": "This shortcut is already used by the system or another application",

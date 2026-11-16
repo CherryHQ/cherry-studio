@@ -5844,6 +5844,8 @@
   "settings.shortcuts.number_keys.custom": "Personalizzato",
   "settings.shortcuts.number_keys.custom_description": "Le scorciatoie personalizzate vengono mantenute. Scegliendo una modalità si sostituiscono tutte le scorciatoie numeriche.",
   "settings.shortcuts.number_keys.description": "Usa {{conversations}} per cambiare conversazione e {{tabs}} per cambiare scheda.",
+  "settings.shortcuts.number_keys.off": "Disattivato",
+  "settings.shortcuts.number_keys.off_description": "Le scorciatoie numeriche sono disattivate. Premere i numeri con il modificatore non fa nulla.",
   "settings.shortcuts.number_keys.tabs": "Cambia scheda",
   "settings.shortcuts.number_keys.title": "Scorciatoie numeriche",
   "settings.shortcuts.occupied_by_other_application": "Questa scorciatoia è già usata dal sistema o da un'altra applicazione",

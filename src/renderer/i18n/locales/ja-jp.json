@@ -5844,6 +5844,8 @@
   "settings.shortcuts.number_keys.custom": "カスタム",
   "settings.shortcuts.number_keys.custom_description": "既存のカスタム設定は保持されています。モードを選ぶと数字ショートカットがすべて置き換わります。",
   "settings.shortcuts.number_keys.description": "{{conversations}} で会話を、{{tabs}} でタブを切り替えます。",
+  "settings.shortcuts.number_keys.off": "オフ",
+  "settings.shortcuts.number_keys.off_description": "数字ショートカットはオフです。修飾キーを押しながら数字キーを押しても何も起きません。",
   "settings.shortcuts.number_keys.tabs": "タブを切り替え",
   "settings.shortcuts.number_keys.title": "数字ショートカット",
   "settings.shortcuts.occupied_by_other_application": "このショートカットは既にシステムまたは別のアプリケーションで使用されています",

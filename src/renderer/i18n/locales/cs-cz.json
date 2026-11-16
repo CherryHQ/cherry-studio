@@ -5844,6 +5844,8 @@
   "settings.shortcuts.number_keys.custom": "Vlastní",
   "settings.shortcuts.number_keys.custom_description": "Stávající vlastní přiřazení zůstanou zachována. Výběrem režimu nahradíte všechny číselné klávesové zkratky.",
   "settings.shortcuts.number_keys.description": "Pomocí {{conversations}} přepínáte chaty a pomocí {{tabs}} přepínáte karty.",
+  "settings.shortcuts.number_keys.off": "Vypnuto",
+  "settings.shortcuts.number_keys.off_description": "Číselné zkratky jsou vypnuté. Stisknutím číslic s modifikátorem se nic nestane.",
   "settings.shortcuts.number_keys.tabs": "Přepínat karty",
   "settings.shortcuts.number_keys.title": "Číselné klávesové zkratky",
   "settings.shortcuts.occupied_by_other_application": "Tuto klávesovou zkratku již používá systém nebo jiná aplikace",
