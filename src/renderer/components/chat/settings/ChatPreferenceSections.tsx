@@ -388,6 +388,8 @@ const ChatPreferenceSections: FC<ChatPreferenceSectionsProps> = ({ sectionClassN
               onCheckedChange={setTimestampContext}
               label={t('settings.messages.timestamp_context.label')}
               hint={t('settings.messages.timestamp_context.hint')}
+            />
+          </SettingRow>
           <SettingRow id="setting-appearance-scroll-to-bottom-on-send" className="scroll-mt-6">
             <SettingSwitch
               checked={scrollToBottomOnSend}
