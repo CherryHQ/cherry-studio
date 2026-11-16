@@ -1,5 +1,0 @@
-# Bilingual-pair consistency record (docs/dev/i18n/README.md).
-# After editing either side, update its counterpart and re-record with:
-#   pnpm docs:check-pairing --write .agents/notes/proposed/feature/2026-11-16-product-funnel-analytics.md
-2026-11-16-product-funnel-analytics.md: 265528fa77cb821e68f5728e2eb53d87c8690263
-2026-11-16-product-funnel-analytics.zh.md: 0ac2729021187971152f3c0c7aab4cc28f30f3f5
