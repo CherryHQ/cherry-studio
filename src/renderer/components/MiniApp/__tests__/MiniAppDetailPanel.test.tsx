@@ -198,7 +198,8 @@ describe('activity log', () => {
     )
     render(<MiniAppDetailPanel appId={detail.appId} />)
 
-    expect(await screen.findByText(/log directory is gone/)).toBeInTheDocument()
+    expect(await screen.findByText(i18n.t('miniApp.activity.load_error'))).toBeInTheDocument()
+    expect(screen.queryByText(/log directory is gone/)).not.toBeInTheDocument()
   })
 
   it('re-reads the log when the user asks, not on its own', async () => {
@@ -306,7 +307,7 @@ describe('MiniAppDetailPanel', () => {
     const payload = vi.mocked(toast.error).mock.calls[0][0] as Parameters<
       typeof appErrorContextService.contextForHostError
     >[1]
-    expect(payload).toMatchObject({ title: expect.stringMatching(/not a mini app package/) })
+    expect(payload).toMatchObject({ title: i18n.t('miniApp.install.preview_error') })
     expect(appErrorContextService.contextForHostError('replace-pick-failed', payload)).toMatchObject({
       message: 'not a mini app package',
       operation: 'miniapp.install.pick_and_preview',
@@ -373,7 +374,9 @@ describe('MiniAppDetailPanel', () => {
     request.mockRejectedValue(new Error('no such app'))
     render(<MiniAppDetailPanel appId={detail.appId} />)
 
-    expect(await screen.findByRole('alert')).toHaveTextContent(/could not load details: no such app/i)
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent(i18n.t('miniApp.detail.load_error'))
+    expect(alert).not.toHaveTextContent(/no such app/)
   })
 
   it('reports a refused action and keeps the panel usable', async () => {
@@ -383,7 +386,9 @@ describe('MiniAppDetailPanel', () => {
     request.mockRejectedValueOnce(new Error('disk full'))
     await userEvent.click(screen.getByRole('checkbox', { name: 'Sandbox data · Write' }))
 
-    expect(await screen.findByRole('alert')).toHaveTextContent(/action failed: disk full/i)
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent(i18n.t('miniApp.detail.action_failed'))
+    expect(alert).not.toHaveTextContent(/disk full/)
     expect(screen.getByRole('heading', { name: 'My Game' })).toBeInTheDocument()
     expect(screen.getByRole('checkbox', { name: 'Sandbox data · Write' })).toBeEnabled()
   })

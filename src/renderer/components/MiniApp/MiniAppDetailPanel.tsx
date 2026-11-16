@@ -23,6 +23,7 @@ import { useMutation } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import { DefaultModelSelector } from '@renderer/components/DefaultModelSelector'
 import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
+import { ErrorNotice } from '@renderer/components/ErrorNotice'
 import MiniAppLogoAvatar from '@renderer/components/icons/MiniAppLogoAvatar'
 import { InstallConsentDialog } from '@renderer/components/MiniApp/InstallConsentDialog'
 import { PermissionChecklist } from '@renderer/components/MiniApp/PermissionChecklist'
@@ -106,8 +107,6 @@ interface Props {
 
 const logger = loggerService.withContext('MiniAppDetailPanel')
 
-const errorMessage = (error: unknown): string => (error instanceof Error ? error.message : String(error))
-
 const asUniqueModelId = (id: string | null | undefined): UniqueModelId | null => (id && isUniqueModelId(id) ? id : null)
 
 const hostOf = (url: string): string => {
@@ -173,7 +172,7 @@ const MiniAppDetailPanel: FC<Props> = ({ appId, open = true, onClose }) => {
       // Not a silent empty list: this panel is where a user goes to find out what an app
       // did, and "nothing recorded" is the one answer a failed read must never give.
       setError({
-        message: t('miniApp.activity.load_error', { message: errorMessage(e) }),
+        message: t('miniApp.activity.load_error'),
         cause: e,
         operation: 'miniapp.activity'
       })
@@ -206,7 +205,7 @@ const MiniAppDetailPanel: FC<Props> = ({ appId, open = true, onClose }) => {
     } catch (e) {
       logger.error('Failed to load mini app detail', e as Error)
       setError({
-        message: t('miniApp.detail.load_error', { message: errorMessage(e) }),
+        message: t('miniApp.detail.load_error'),
         cause: e,
         operation: 'miniapp.detail'
       })
@@ -228,7 +227,7 @@ const MiniAppDetailPanel: FC<Props> = ({ appId, open = true, onClose }) => {
     } catch (e) {
       logger.error('Mini app action failed', e as Error)
       setError({
-        message: t('miniApp.detail.action_error', { message: errorMessage(e) }),
+        message: t('miniApp.detail.action_failed'),
         cause: e,
         operation: 'miniapp.action'
       })
@@ -332,10 +331,10 @@ const MiniAppDetailPanel: FC<Props> = ({ appId, open = true, onClose }) => {
             </div>
             {/* In the pinned header, not the scrolling body: a refused action must stay in view. */}
             {error && (
-              <Alert
-                type="error"
-                message={error.message}
-                action={
+              <ErrorNotice
+                variant="inline"
+                title={error.message}
+                detail={
                   <ErrorDetailAction
                     error={error.cause}
                     message={error.message}

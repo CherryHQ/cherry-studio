@@ -110,7 +110,7 @@ export function useMiniAppInstallPreview(onDone: () => void, options: { expectAp
       } catch (e) {
         if (closedRef.current || generation !== generationRef.current || /superseded/i.test(errorMessage(e))) return
         logger.error('Failed to preview mini app', e as Error)
-        setError({ key: errorKey, params: { message: errorMessage(e) }, cause: e, operation })
+        setError({ key: errorKey, cause: e, operation })
       } finally {
         if (!closedRef.current && generation === generationRef.current) setBusy(false)
       }
@@ -167,7 +167,6 @@ export function useMiniAppInstallPreview(onDone: () => void, options: { expectAp
       setPreview(null)
       setError({
         key: 'miniApp.install.install_error',
-        params: { message: errorMessage(e) },
         cause: e,
         operation: preview.kind === 'upgrade' ? 'miniapp.update.apply' : 'miniapp.install.confirm'
       })
