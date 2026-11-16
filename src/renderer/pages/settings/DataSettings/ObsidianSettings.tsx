@@ -14,6 +14,7 @@ import {
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
+import { ErrorNotice } from '@renderer/components/ErrorNotice'
 import {
   SettingDivider,
   SettingGroup,
@@ -107,15 +108,18 @@ const ObsidianSettings: FC = () => {
               </SelectContent>
             </Select>
           ) : loadError != null ? (
-            <div className="flex flex-col items-end gap-2">
-              <EmptyState compact description={fetchFailureSummary} />
-              <ErrorDetailAction
-                error={loadError}
-                message={fetchFailureSummary}
-                source="settings.obsidian"
-                operation="obsidian.vaults.fetch"
-              />
-            </div>
+            <ErrorNotice
+              variant="inline"
+              title={fetchFailureSummary}
+              detail={
+                <ErrorDetailAction
+                  error={loadError}
+                  message={fetchFailureSummary}
+                  source="settings.obsidian"
+                  operation="obsidian.vaults.fetch"
+                />
+              }
+            />
           ) : (
             <EmptyState compact description={t('settings.data.obsidian.default_vault_no_vaults')} />
           )}
