@@ -54,11 +54,7 @@ describe('single regression artifact bundle', () => {
     expect(generate.run).toContain('cli.ts finalize --run-dir "$RUN_DIR"')
     expect(final.run).toBe(generate.run)
     for (const step of [generate, final]) {
-      expect(Object.keys(step.env).sort()).toEqual([
-        'CHERRY_TEST_CHERRYIN_ACCOUNT',
-        'CHERRY_TEST_CHERRYIN_PASSWORD',
-        'CHERRY_TEST_CUSTOM_PROVIDER_API_KEY'
-      ])
+      expect(Object.keys(step.env).sort()).toEqual(['CHERRY_TEST_CUSTOM_PROVIDER_API_KEY'])
       for (const [name, value] of Object.entries(step.env)) expect(value).toBe(`\${{ secrets.${name} }}`)
     }
     for (const name of ['Upload regression checkpoint', 'Upload platform report and evidence']) {

@@ -8,11 +8,7 @@ describe('regression test configuration', () => {
     CHERRY_TEST_CUSTOM_PROVIDER_BASE_URL: 'https://gateway.example.test/v1',
     CHERRY_TEST_CUSTOM_PROVIDER_ANTHROPIC_BASE_URL: ' https://anthropic.example.test ',
     CHERRY_TEST_CUSTOM_PROVIDER_API_KEY: 'provider-secret',
-    CHERRY_TEST_CUSTOM_PROVIDER_CHAT_MODEL: 'Qwen/Qwen3.6-27B',
-    CHERRY_TEST_CHERRYIN_CHAT_MODEL: 'cherry-chat-test',
-    CHERRY_TEST_CHERRYIN_IMAGE_MODEL: 'image-test',
-    CHERRY_TEST_CHERRYIN_ACCOUNT: 'automation@example.test',
-    CHERRY_TEST_CHERRYIN_PASSWORD: 'account-secret'
+    CHERRY_TEST_CUSTOM_PROVIDER_CHAT_MODEL: 'Qwen/Qwen3.6-27B'
   }
 
   it('requires a separate Anthropic URL instead of reusing the OpenAI URL', () => {
@@ -30,18 +26,15 @@ describe('regression test configuration', () => {
       apiKey: 'provider-secret',
       chatModel: 'Qwen/Qwen3.6-27B'
     })
-    expect(config.cherryIn.imageModel).toBe('image-test')
     expect(config.customProvider.apiKey).toBe('provider-secret')
-    expect(config.cherryIn.password).toBe('account-secret')
-    expect(getSensitiveConfigValues(validEnv)).toEqual(['provider-secret', 'automation@example.test', 'account-secret'])
+    expect(getSensitiveConfigValues(validEnv)).toEqual(['provider-secret'])
   })
 
   it('collects available secrets for failure evidence without requiring external providers', () => {
     expect(getSensitiveConfigValues({})).toEqual([])
     expect(
       getSensitiveConfigValues({
-        CHERRY_TEST_CUSTOM_PROVIDER_API_KEY: ' provider-secret ',
-        CHERRY_TEST_CHERRYIN_PASSWORD: '   '
+        CHERRY_TEST_CUSTOM_PROVIDER_API_KEY: ' provider-secret '
       })
     ).toEqual(['provider-secret'])
   })
@@ -68,10 +61,10 @@ describe('regression test configuration', () => {
       loadTestConfig({
         ...validEnv,
         CHERRY_TEST_CUSTOM_PROVIDER_CHAT_MODEL: '   ',
-        CHERRY_TEST_CHERRYIN_ACCOUNT: undefined
+        CHERRY_TEST_CUSTOM_PROVIDER_API_KEY: undefined
       })
     ).toThrow(
-      'Missing regression test configuration: CHERRY_TEST_CUSTOM_PROVIDER_CHAT_MODEL, CHERRY_TEST_CHERRYIN_ACCOUNT'
+      'Missing regression test configuration: CHERRY_TEST_CUSTOM_PROVIDER_API_KEY, CHERRY_TEST_CUSTOM_PROVIDER_CHAT_MODEL'
     )
   })
 
