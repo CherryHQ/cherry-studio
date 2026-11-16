@@ -9,7 +9,7 @@ const Dalle = ({ variant, className, ...props }: CompoundIconProps) => {
 
 export const DalleIcon: CompoundIcon = /*#__PURE__*/ Object.assign(Dalle, {
   Avatar: DalleAvatar,
-  colorPrimary: '#FFFF67'
+  colorPrimary: '#fffff1'
 })
 
 export default DalleIcon

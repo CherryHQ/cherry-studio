@@ -92,6 +92,7 @@ export function conversationExtension(adapter: Adapter, conv: Conversation): Ext
         const nested = event.parentToolCallId !== undefined
         const key = callKeyFor(conv.thread, event.toolCallId)
         conv.callIds.set(key, event.toolCallId)
+        // oxlint-disable-next-line no-restricted-globals -- Capture one tool invocation input before behavior stores it across native execution.
         const args = structuredClone(event.input) as JsonValue
         const call: ToolCallFact = { callId: event.toolCallId, callKey: key, name: event.toolName, args }
         if (run && !nested) run.window.push(call)

@@ -48,6 +48,7 @@ import { ReasoningEffortOptionSchema } from '@shared/types/aiSdk'
 import { AbsoluteFilePathSchema, FileVersionSchema } from '@shared/types/file'
 
 import { defineRoute } from '../define'
+import { ImageBytesSchema } from './entityImage'
 
 /**
  * AI IPC schemas — `AiService`'s non-streaming model operations (text/embedding/image
@@ -82,6 +83,7 @@ export type HeartbeatRunResult = z.infer<typeof HeartbeatRunResultSchema>
 
 export const CreateAgentCommandSchema = AgentBaseSchema.extend({
   type: AgentEntitySchema.shape.type,
+  avatarImage: ImageBytesSchema.optional(),
   /**
    * Create-only: ids of pre-existing global skills to enable for the new
    * Agent. Join rows are written in the same DB transaction as the Agent.
@@ -234,6 +236,7 @@ export const aiRequestSchemas = {
       // Callers that do not need cancellation keep the existing wire shape.
       requestId: z.string().min(1).optional(),
       ...aiChatRequestShape,
+      disableTools: z.boolean().optional(),
       reasoningEffort: ReasoningEffortOptionSchema.optional(),
       serviceTier: ServiceTierSelectionSchema.optional(),
       system: z.string().optional(),

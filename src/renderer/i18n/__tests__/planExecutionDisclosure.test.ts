@@ -7,12 +7,12 @@ import enUs from '@renderer/i18n/locales/en-us.json'
 import zhCn from '@renderer/i18n/locales/zh-cn.json'
 
 /**
- * The plan-approval handoff PATCHes the agent row (`AgentChat` → `useUpdateAgent().updateModel`),
- * so the approval card (`agent.toolPermission.executionModel.notice`) and the Settings row
- * (`settings.models.plan_execution_model.description`) are the only surfaces that disclose what the
- * choice does to the agent's persistent configuration. The review that requested this disclosure
- * names the full scope it must cover: the change reaches later turns **and other sessions** using
- * the same agent — naming only one lets the other half of the harm ship undisclosed.
+ * The plan-approval handoff writes the session's own model override (`AgentChat` →
+ * `useUpdateSession().updateSession`), so the approval card
+ * (`agent.toolPermission.executionModel.notice`) and the Settings row
+ * (`settings.models.plan_execution_model.description`) are the surfaces that disclose what the
+ * choice does. Upstream #20826 scoped model selection to the session: the copy must name the
+ * session and its later turns, and must not promise other sessions an override cannot reach.
  *
  * Catalog-content contract test (miniAppPermission.test.ts pattern): the two hand-maintained
  * catalogs are asserted on their real content, so dropping a scope from the copy fails here
@@ -29,13 +29,13 @@ const locales = readdirSync(resolve('src/renderer/i18n/locales'))
 
 describe('plan-execution persistence disclosure', () => {
   it('discloses the full persistent scope in the hand-maintained catalogs', () => {
-    // "later turn" / "other session" (and their zh counterparts) are the two halves of the scope
-    // the requesting review names; a copy that mentions only one hides the other.
+    // "later turn" / "this session" (and their zh counterparts) are the two halves of the scope:
+    // a copy that names neither hides that the override outlives the approved turn.
     const expectations: Array<[string, RegExp]> = [
       ['en-us', /later turns/i],
-      ['en-us', /other sessions/i],
+      ['en-us', /this session/i],
       ['zh-cn', /后续回合/],
-      ['zh-cn', /其他会话/]
+      ['zh-cn', /本会话/]
     ]
     for (const key of [NOTICE_KEY, DESCRIPTION_KEY]) {
       for (const [locale, pattern] of expectations) {

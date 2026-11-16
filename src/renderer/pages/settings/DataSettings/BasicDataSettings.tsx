@@ -12,20 +12,21 @@ import {
   SelectTrigger,
   SelectValue,
   Switch,
-  Tooltip
+  Tooltip,
+  HelpTooltip
 } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import {
   SettingDivider,
   SettingGroup,
-  SettingHelpText,
   SettingRow,
   SettingRowTitle,
   SettingTitle
 } from '@renderer/components/SettingsPrimitives'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { ipcApi } from '@renderer/ipc'
+import { settingsControlClasses } from '@renderer/pages/settings/settingsStyles'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import type { AppInfo } from '@renderer/types/app'
@@ -44,11 +45,8 @@ import {
   mergeLegacyV1CleanupResults
 } from './legacyV1BrowserData'
 import RestorePopup from './RestorePopup'
-import V1RemigrationPopup from './V1RemigrationPopup'
 
 const DATA_SETTINGS_SUBTLE_TEXT_COLOR = 'var(--foreground-tertiary)'
-const V1_INDEXED_DB_NAME = 'CherryStudio'
-const V1_REDUX_PERSIST_KEY = 'persist:cherry-studio'
 const logger = loggerService.withContext('BasicDataSettings')
 
 const BasicDataSettings: React.FC = () => {
@@ -60,30 +58,6 @@ const BasicDataSettings: React.FC = () => {
   const [skipBackupFile, setSkipBackupFile] = usePreference('data.backup.general.skip_backup_file')
   const [enableDataCollection, setEnableDataCollection] = usePreference('app.privacy.data_collection.enabled')
   const [logRetentionDays, setLogRetentionDays] = usePreference('app.logs.retention_days')
-  const [hasV1MigrationSource, setHasV1MigrationSource] = useState(
-    () => localStorage.getItem(V1_REDUX_PERSIST_KEY) !== null
-  )
-
-  useEffect(() => {
-    if (hasV1MigrationSource) return
-
-    let cancelled = false
-    void indexedDB
-      .databases()
-      .then((databases) => {
-        if (!cancelled && databases.some((database) => database.name === V1_INDEXED_DB_NAME)) {
-          setHasV1MigrationSource(true)
-        }
-      })
-      .catch((error) => {
-        logger.warn('Failed to inspect IndexedDB for retained v1 data', { error: String(error) })
-      })
-
-    return () => {
-      cancelled = true
-    }
-  }, [hasV1MigrationSource])
-
   const refreshCacheSize = useCallback(async () => {
     try {
       const response = await ipcApi.request('app.cache_cleanup.inspect', { groups: ['normal_cache'] })
@@ -323,11 +297,11 @@ const BasicDataSettings: React.FC = () => {
         </SettingRow>
         <SettingDivider />
         <SettingRow id="setting-data-data-skip-file-data" className="scroll-mt-6">
-          <SettingRowTitle>{t('settings.data.backup.skip_file_data_title')}</SettingRowTitle>
+          <SettingRowTitle className="flex items-center gap-1.5">
+            {t('settings.data.backup.skip_file_data_title')}{' '}
+            <HelpTooltip content={t('settings.data.backup.skip_file_data_help')} />
+          </SettingRowTitle>
           <Switch checked={skipBackupFile} onCheckedChange={(value) => void setSkipBackupFile(value)} />
-        </SettingRow>
-        <SettingRow>
-          <SettingHelpText>{t('settings.data.backup.skip_file_data_help')}</SettingHelpText>
         </SettingRow>
       </SettingGroup>
       <SettingGroup theme={theme}>
@@ -375,9 +349,11 @@ const BasicDataSettings: React.FC = () => {
         </SettingRow>
         <SettingDivider />
         <SettingRow id="setting-data-data-log-retention" className="scroll-mt-6">
-          <SettingRowTitle>{t('settings.data.log_retention.label')}</SettingRowTitle>
+          <SettingRowTitle className="flex items-center gap-1.5">
+            {t('settings.data.log_retention.label')} <HelpTooltip content={t('settings.data.log_retention.help')} />
+          </SettingRowTitle>
           <Select value={String(logRetentionDays)} onValueChange={(value) => void setLogRetentionDays(Number(value))}>
-            <SelectTrigger className="w-40" aria-label={t('settings.data.log_retention.label')}>
+            <SelectTrigger className={settingsControlClasses.field} aria-label={t('settings.data.log_retention.label')}>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -388,9 +364,6 @@ const BasicDataSettings: React.FC = () => {
               ))}
             </SelectContent>
           </Select>
-        </SettingRow>
-        <SettingRow>
-          <SettingHelpText>{t('settings.data.log_retention.help')}</SettingHelpText>
         </SettingRow>
         <SettingDivider />
         <SettingRow id="setting-data-data-clear-cache" className="scroll-mt-6">
@@ -418,19 +391,6 @@ const BasicDataSettings: React.FC = () => {
             </Button>
           </RowFlex>
         </SettingRow>
-        {hasV1MigrationSource && (
-          <>
-            <SettingDivider />
-            <SettingRow>
-              <SettingRowTitle>{t('settings.data.v1_remigration.title')}</SettingRowTitle>
-              <RowFlex className="gap-1.25">
-                <Button onClick={() => V1RemigrationPopup.show()} variant="outline">
-                  {t('settings.data.v1_remigration.button')}
-                </Button>
-              </RowFlex>
-            </SettingRow>
-          </>
-        )}
         <SettingDivider />
         <SettingRow id="setting-data-data-reset" className="scroll-mt-6">
           <SettingRowTitle>{t('settings.data.data_reset.title')}</SettingRowTitle>

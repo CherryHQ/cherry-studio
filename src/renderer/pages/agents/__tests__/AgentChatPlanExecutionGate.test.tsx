@@ -187,7 +187,7 @@ vi.mock('@renderer/hooks/useProvider', () => ({
 
 // Held pending per test so the handoff can be stopped while the model switch is still applying —
 // the window the finding describes.
-const updateModelMock = vi.hoisted(() => vi.fn<() => Promise<{ id: string } | undefined>>())
+const updateSessionMock = vi.hoisted(() => vi.fn<() => Promise<{ id: string } | undefined>>())
 const agentModelMock = vi.hoisted(() => ({ model: 'cherryai::claude-sonnet-5' as string }))
 
 vi.mock('@renderer/hooks/agent/useAgent', () => ({
@@ -198,8 +198,7 @@ vi.mock('@renderer/hooks/agent/useAgent', () => ({
   useAgents: () => ({
     agents: [{ id: 'agent-1', model: agentModelMock.model }],
     isLoading: false
-  }),
-  useUpdateAgent: () => ({ updateModel: updateModelMock })
+  })
 }))
 
 vi.mock('@renderer/hooks/agent/useAgentWorkspaceWarning', () => ({
@@ -231,7 +230,7 @@ const agentSessionPartsMocks = vi.hoisted(() => ({
 
 vi.mock('@renderer/hooks/agent/useSession', () => ({
   useActiveSession: () => activeSessionMocks.result,
-  useUpdateSession: () => ({ updateSession: vi.fn() })
+  useUpdateSession: () => ({ updateSession: updateSessionMock })
 }))
 
 vi.mock('@renderer/hooks/useAgentSessionParts', () => ({
@@ -302,7 +301,7 @@ function planApprovalMessage() {
 }
 
 // The agent starts on another model so the handoff has a real switch to perform: the renderer then
-// issues `updateModel` and only sends the follow-up once it resolves.
+// issues `updateSession` and only sends the follow-up once it resolves.
 const INITIAL_AGENT_MODEL_ID = 'cherryai::claude-sonnet-5'
 
 function agentChatBootstrap(sessionId = 'session-1'): ComponentProps<typeof AgentChat>['conversationBootstrap'] {
@@ -315,7 +314,8 @@ function agentChatBootstrap(sessionId = 'session-1'): ComponentProps<typeof Agen
     resources: {
       agent: { id: 'agent-1', model: INITIAL_AGENT_MODEL_ID } as any,
       agentLoading: false,
-      model: { id: PLAN_EXECUTION_MODEL_ID, name: 'Claude Opus 5' } as any,
+      // The session still runs on the agent's model: the handoff is what switches it.
+      model: { id: INITIAL_AGENT_MODEL_ID, name: 'Claude Sonnet 5' } as any,
       modelLoading: false
     }
   }
@@ -356,7 +356,7 @@ describe('AgentChat plan-execution handoff gates', () => {
     })
     ipcMocks.on.mockClear()
     MockUseCacheUtils.resetMocks()
-    updateModelMock.mockReset().mockResolvedValue({ id: 'agent-1' })
+    updateSessionMock.mockReset().mockResolvedValue({ id: 'agent-1' })
     agentModelMock.model = 'cherryai::claude-sonnet-5'
     chatHistoryMocks.result = {
       activeExecutions: [],
@@ -477,7 +477,7 @@ describe('AgentChat plan-execution handoff gates', () => {
   // A failed model switch means no follow-up is coming; dropping the handoff locally would leave
   // Main's preserved-input gate set, so the renderer must coordinate the abandonment.
   it('abandons the handoff with Main when the model switch fails', async () => {
-    updateModelMock.mockResolvedValue(undefined)
+    updateSessionMock.mockResolvedValue(undefined)
     renderAgentChat()
 
     await screen.findByTestId('plan-execution-model')
@@ -498,7 +498,7 @@ describe('AgentChat plan-execution handoff gates', () => {
   it('does not send the execution follow-up when another window stops the session', async () => {
     // Hold the model switch open so the handoff is still in teardown when the other window stops.
     let applyModel: () => void = () => {}
-    updateModelMock.mockReturnValue(
+    updateSessionMock.mockReturnValue(
       new Promise((resolve) => {
         applyModel = () => resolve({ id: 'agent-1' })
       })
@@ -509,7 +509,7 @@ describe('AgentChat plan-execution handoff gates', () => {
     expect(notice).toHaveTextContent('agent.toolPermission.executionModel.notice')
 
     fireEvent.click(screen.getByRole('button', { name: /agent\.toolPermission\.button\.allow/ }))
-    await waitFor(() => expect(updateModelMock).toHaveBeenCalled())
+    await waitFor(() => expect(updateSessionMock).toHaveBeenCalled())
 
     // The other window stops the session: the shared flag is what carries that across windows.
     MockUseCacheUtils.setSharedCacheValue(AGENT_SESSION_STOPPED_CACHE_KEY('session-1'), true)
@@ -571,7 +571,7 @@ describe('AgentChat plan-execution handoff gates', () => {
   // discards that promise, so the page must release Main's preserved input instead of stranding it.
   it('abandons an armed handoff when the page unmounts', async () => {
     let applyModel: () => void = () => {}
-    updateModelMock.mockReturnValue(
+    updateSessionMock.mockReturnValue(
       new Promise((resolve) => {
         applyModel = () => resolve({ id: 'agent-1' })
       })
@@ -580,7 +580,7 @@ describe('AgentChat plan-execution handoff gates', () => {
 
     await screen.findByTestId('plan-execution-model')
     fireEvent.click(screen.getByRole('button', { name: /agent\.toolPermission\.button\.allow/ }))
-    await waitFor(() => expect(updateModelMock).toHaveBeenCalled())
+    await waitFor(() => expect(updateSessionMock).toHaveBeenCalled())
 
     view.unmount()
 

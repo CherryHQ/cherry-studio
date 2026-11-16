@@ -29,7 +29,6 @@ import {
 } from '@renderer/components/composer/variants/AgentComposer'
 import { DoctorPopup } from '@renderer/components/doctor'
 import { useCache, useSharedCache } from '@renderer/data/hooks/useCache'
-import { useUpdateAgent } from '@renderer/hooks/agent/useAgent'
 import { useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
 import { useAgentWorkspaceWarning } from '@renderer/hooks/agent/useAgentWorkspaceWarning'
 import { useUpdateSession } from '@renderer/hooks/agent/useSession'
@@ -61,6 +60,7 @@ const EMPTY_MESSAGES: CherryUIMessage[] = []
 const EMPTY_PARTS: Record<string, CherryMessagePart[]> = {}
 
 interface ModelSwitchTarget {
+  sessionId: string
   agentId: string
   model: Model
 }
@@ -230,7 +230,6 @@ const AgentChat = ({
   const isActiveAgentLoading = conversationBootstrap.resources.agentLoading
   const activeModel = conversationBootstrap.resources.model
   const isActiveModelLoading = conversationBootstrap.resources.modelLoading
-  const { updateModel } = useUpdateAgent()
   const { updateSession } = useUpdateSession()
   // Fail closed while the agent has not resolved: an unknown runtime must not become "every chat
   // model fits", or a plan-approval handoff would target models the agent cannot run.
@@ -373,19 +372,19 @@ const AgentChat = ({
       })
       return
     }
-    // The update revalidates the agent query, handing `activeAgent` a fresh identity while this
+    // The update revalidates the session query, handing `activeModel` a fresh value while this
     // effect is still awaiting it. Content, not identity, decides whether the update phase is
     // done — otherwise the re-run would issue a second update and cancel this one's result.
-    if (activeAgent.model === handoff.modelId) {
+    if (activeModel?.id === handoff.modelId) {
       setPlanExecutionHandoff({ ...handoff, modelApplied: true })
       return
     }
     let cancelled = false
     void (async () => {
-      // `updateModel` never throws — it toasts and resolves `undefined` on failure. Dropping the
+      // `updateSession` never throws — it toasts and resolves `undefined` on failure. Dropping the
       // handoff is the only honest path: executing on the old model is not the approved plan.
-      const updated = await updateModel(
-        { agentId: activeAgent.id, modelId: handoff.modelId },
+      const updated = await updateSession(
+        { id: handoff.sessionId, model: handoff.modelId },
         { showSuccessToast: false }
       )
       // A superseded run must not touch the handoff — the run that re-ran this effect owns it.
@@ -404,13 +403,14 @@ const AgentChat = ({
     }
   }, [
     activeAgent,
+    activeModel?.id,
     planExecutionHandoff,
     runtime.abandonPlanExecutionHandoff,
     runtime.isPending,
     runtime.sendPlanExecutionFollowUp,
     sessionSnapshot?.id,
     sessionStopped,
-    updateModel
+    updateSession
   ])
   const openDiagnosticReport = useCallback(
     (description = '') => {
@@ -452,16 +452,24 @@ const AgentChat = ({
   )
   const handleAgentModelChange = useCallback(
     async (nextModel?: Model) => {
-      if (!activeAgent || !nextModel || nextModel.id === activeModel?.id) return
+      if (!sessionSnapshot || !nextModel || nextModel.id === activeModel?.id) return
       if (!isEmptyConversation && !skipModelSwitchConfirmationsForAppRun) {
-        setModelSwitchTarget({ agentId: activeAgent.id, model: nextModel })
+        if (!activeAgent) return
+        setModelSwitchTarget({ sessionId: sessionSnapshot.id, agentId: activeAgent.id, model: nextModel })
         setSkipModelSwitchConfirmation(false)
         setModelSwitchConfirmOpen(true)
         return
       }
-      await updateModel({ agentId: activeAgent.id, modelId: nextModel.id }, { showSuccessToast: false })
+      await updateSession({ id: sessionSnapshot.id, model: nextModel.id }, { showSuccessToast: false })
     },
-    [activeAgent, activeModel?.id, isEmptyConversation, skipModelSwitchConfirmationsForAppRun, updateModel]
+    [
+      activeAgent,
+      activeModel?.id,
+      isEmptyConversation,
+      sessionSnapshot,
+      skipModelSwitchConfirmationsForAppRun,
+      updateSession
+    ]
   )
   const handleSessionWorkspaceChange = useCallback(
     (workspaceId: string | null) => {
@@ -717,18 +725,19 @@ const AgentChat = ({
         cancelText={t('common.cancel')}
         onConfirm={async () => {
           if (
-            !activeAgent ||
+            !sessionSnapshot ||
             !modelSwitchTarget ||
-            modelSwitchTarget.agentId !== activeAgent.id ||
+            modelSwitchTarget.sessionId !== sessionSnapshot.id ||
+            modelSwitchTarget.agentId !== sessionSnapshot.agentId ||
             modelSwitchTarget.model.id === activeModel?.id
           ) {
             return
           }
-          const updatedAgent = await updateModel(
-            { agentId: activeAgent.id, modelId: modelSwitchTarget.model.id },
+          const updatedSession = await updateSession(
+            { id: sessionSnapshot.id, model: modelSwitchTarget.model.id },
             { showSuccessToast: false }
           )
-          if (updatedAgent && skipModelSwitchConfirmation) {
+          if (updatedSession && skipModelSwitchConfirmation) {
             setSkipModelSwitchConfirmationsForAppRun(true)
           }
         }}
@@ -791,6 +800,7 @@ const AgentChatSessionCenter = ({
         sendMessage={runtime.sendMessage}
         stop={runtime.stop}
         isStreaming={runtime.isPending}
+        messages={runtime.uiMessages}
         sendDisabled={composerPending}
         onAgentChange={onAgentChange}
         agentChanging={agentChanging}

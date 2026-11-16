@@ -57,6 +57,7 @@ import {
   isRerankModel
 } from '@shared/utils/model'
 import { isExternalCliProvider, isOllamaProvider } from '@shared/utils/provider'
+import { getDefaultProviderBilling } from '@shared/utils/providerBillingDefaults'
 
 import { isAgentSessionTopic } from './agentSession/topic'
 import { createAnalyticsHook } from './hooks/analyticsHook'
@@ -203,7 +204,13 @@ function createCaptureContext(input: {
         providerId: provider.id,
         modelId,
         pricing: model.pricing,
-        billing: provider.settings.billing
+        billing:
+          provider.settings.billing ??
+          getDefaultProviderBilling(
+            input.provider,
+            model,
+            resolveEffectiveEndpoint(input.provider, input.model).baseUrl
+          )
       }).pricingSnapshot
     } catch (error) {
       logger.warn('Could not capture invocation pricing', { error })
@@ -1427,6 +1434,7 @@ export class AiService extends BaseService {
 
   /** Captures one model configuration for related probes without re-reading changing settings. */
   prepareModelCheck(uniqueModelId: UniqueModelId) {
+    // oxlint-disable-next-line no-restricted-globals -- Resolve one request model independently of mutable provider/model settings.
     const resolvedModel = structuredClone(this.getProviderAndModel({ uniqueModelId }))
     const { provider, model } = resolvedModel
     const endpoint = resolveEffectiveEndpoint(provider, model)
