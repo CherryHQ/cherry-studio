@@ -327,7 +327,7 @@ describe('MiniAppDetailPanel', () => {
     const payload = vi.mocked(toast.error).mock.calls[0][0] as Parameters<
       typeof appErrorContextService.contextForHostError
     >[1]
-    expect(payload).toMatchObject({ title: expect.stringMatching(/registry offline/) })
+    expect(payload).toMatchObject({ title: expect.not.stringMatching(/registry offline/) })
     expect(appErrorContextService.contextForHostError('update-check-failed', payload)).toMatchObject({
       message: 'registry offline',
       operation: 'miniapp.update.check',

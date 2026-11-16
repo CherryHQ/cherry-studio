@@ -2878,7 +2878,6 @@
   "miniApp.attention.updating": "Aggiornamento alla versione {{version}} ({{percent}}%)",
   "miniApp.builtin.not_installed": "Non ancora installata",
   "miniApp.debugging": "Debug",
-  "miniApp.detail.action_error": "Operazione non riuscita: {{message}}",
   "miniApp.detail.action_failed": "Operazione non riuscita",
   "miniApp.detail.check_update": "Cerca aggiornamenti",
   "miniApp.detail.clear_data": "Cancella dati",

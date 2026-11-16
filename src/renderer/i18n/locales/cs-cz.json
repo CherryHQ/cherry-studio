@@ -2879,7 +2879,6 @@
   "miniApp.attention.updating": "Aktualizace na {{version}} ({{percent}}%)",
   "miniApp.builtin.not_installed": "Zatím nenainstalováno",
   "miniApp.debugging": "Ladění",
-  "miniApp.detail.action_error": "Akce selhala: {{message}}",
   "miniApp.detail.action_failed": "Akce selhala",
   "miniApp.detail.check_update": "Zkontrolovat aktualizace",
   "miniApp.detail.clear_data": "Vymazat data",

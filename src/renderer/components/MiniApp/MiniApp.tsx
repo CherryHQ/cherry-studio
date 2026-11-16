@@ -185,18 +185,12 @@ const MiniApp: FC<Props> = ({
       await ipcApi.request(route, { appId: app.appId })
       setPendingOpen(false)
     } catch (error) {
-      toastAppError(
-        t('miniApp.detail.action_error', { message: error instanceof Error ? error.message : String(error) }),
-        error,
-        {
-          source: 'miniapp',
-          operation:
-            route === 'mini_app.grant.approve_pending'
-              ? 'miniapp.grant.approve_pending'
-              : 'miniapp.grant.snooze_pending',
-          recordId: app.appId
-        }
-      )
+      toastAppError(t('miniApp.detail.action_failed'), error, {
+        source: 'miniapp',
+        operation:
+          route === 'mini_app.grant.approve_pending' ? 'miniapp.grant.approve_pending' : 'miniapp.grant.snooze_pending',
+        recordId: app.appId
+      })
     } finally {
       setPendingBusy(false)
     }
