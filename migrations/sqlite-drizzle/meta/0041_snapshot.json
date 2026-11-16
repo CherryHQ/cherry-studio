@@ -1264,6 +1264,14 @@
         }
       },
       "indexes": {
+        "agent_session_message_session_id_uniq": {
+          "name": "agent_session_message_session_id_uniq",
+          "columns": [
+            "session_id",
+            "id"
+          ],
+          "isUnique": true
+        },
         "agent_session_message_native_input_uniq": {
           "name": "agent_session_message_native_input_uniq",
           "columns": [
@@ -1396,11 +1404,30 @@
           ],
           "onDelete": "no action",
           "onUpdate": "no action"
+        },
+        "agent_session_message_session_id_parent_id_agent_session_message_session_id_id_fk": {
+          "name": "agent_session_message_session_id_parent_id_agent_session_message_session_id_id_fk",
+          "tableFrom": "agent_session_message",
+          "tableTo": "agent_session_message",
+          "columnsFrom": [
+            "session_id",
+            "parent_id"
+          ],
+          "columnsTo": [
+            "session_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {
+        "agent_session_message_root_parent_check": {
+          "name": "agent_session_message_root_parent_check",
+          "value": "(\"agent_session_message\".\"role\" = 'root') = (\"agent_session_message\".\"parent_id\" IS NULL)"
+        },
         "agent_session_message_role_check": {
           "name": "agent_session_message_role_check",
           "value": "\"agent_session_message\".\"role\" IN ('root', 'user', 'assistant', 'system')"
