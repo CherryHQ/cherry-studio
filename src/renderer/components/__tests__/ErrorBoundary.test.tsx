@@ -4,6 +4,17 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { loggerService } from '@logger'
 import i18n from '@renderer/i18n/resolver'
+import type { InlineErrorDetailInput } from '@renderer/services/AppErrorDetailService'
+
+const detail = vi.hoisted(() => ({ open: vi.fn(async () => 'opened' as const) }))
+
+vi.mock('@renderer/services/AppErrorDetailService', () => ({
+  buildInlineErrorDetailRequest: (input: InlineErrorDetailInput) => ({
+    context: { id: 'fault', message: '', occurredAt: '', operation: input.operation, source: input.source },
+    error: input.error
+  }),
+  appErrorDetailService: { openAppErrorDetail: detail.open }
+}))
 
 import { ErrorBoundary } from '../ErrorBoundary'
 
@@ -21,6 +32,8 @@ describe('ErrorBoundary', () => {
 
   afterEach(() => {
     vi.restoreAllMocks()
+    vi.unstubAllGlobals()
+    detail.open.mockClear()
   })
 
   it('logs caught render errors through loggerService', () => {
@@ -73,6 +86,28 @@ describe('ErrorBoundary', () => {
     expect(screen.queryByText(boomError.message, { exact: false })).not.toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: i18n.t('error.boundary.default.reload') }))
     expect(request).toHaveBeenCalledWith('window.main.reload', undefined)
+  })
+
+  it('opens the error detail for this fault when the card is clicked, but not from its reload action', async () => {
+    const user = userEvent.setup()
+    vi.stubGlobal('api', { ipcApi: { request: vi.fn().mockResolvedValue({ ok: true, data: undefined }) } })
+    render(
+      <ErrorBoundary>
+        <Bomb />
+      </ErrorBoundary>
+    )
+
+    await user.click(screen.getByRole('button', { name: i18n.t('error.boundary.default.reload') }))
+    expect(detail.open).not.toHaveBeenCalled()
+
+    await user.click(screen.getByText(i18n.t('error.boundary.default.title')))
+    await vi.waitFor(() => expect(detail.open).toHaveBeenCalledTimes(1))
+    expect(detail.open).toHaveBeenCalledWith(
+      expect.objectContaining({
+        context: expect.objectContaining({ source: 'renderer', operation: 'react.render' }),
+        error: boomError
+      })
+    )
   })
 
   // B6: the boundary wraps every window's provider stack (incl. the lightest

@@ -6,8 +6,8 @@ import { useTranslation } from 'react-i18next'
 
 import { Button } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
 import { ErrorNotice } from '@renderer/components/ErrorNotice'
+import { useErrorDetailOpener } from '@renderer/hooks/useErrorDetailOpener'
 import { ipcApi } from '@renderer/ipc'
 import { isDev } from '@renderer/utils/platform'
 
@@ -15,6 +15,7 @@ const logger = loggerService.withContext('ErrorBoundary')
 const DefaultFallback: ComponentType<FallbackProps> = (props: FallbackProps): ReactNode => {
   const { t } = useTranslation()
   const { error } = props
+  const openDetail = useErrorDetailOpener({ error, source: 'renderer', operation: 'react.render' })
   const debug = async () => {
     await ipcApi.request('system.toggle_dev_tools')
   }
@@ -39,12 +40,15 @@ const DefaultFallback: ComponentType<FallbackProps> = (props: FallbackProps): Re
               variant="link"
               size="sm"
               className="h-auto min-h-0 px-0 text-foreground-tertiary shadow-none hover:text-foreground hover:no-underline dark:text-foreground-tertiary dark:hover:text-foreground"
-              onClick={() => void debug()}>
+              onClick={(event) => {
+                event.stopPropagation()
+                void debug()
+              }}>
               {t('error.boundary.default.devtools')}
             </Button>
           ) : undefined
         }
-        detail={<ErrorDetailAction error={error} source="renderer" operation="react.render" />}
+        onOpenDetail={openDetail}
       />
     </div>
   )
