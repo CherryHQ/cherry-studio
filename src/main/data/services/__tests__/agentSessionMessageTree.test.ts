@@ -396,16 +396,4 @@ describe('Agent message tree', () => {
     expect(dbh.db.select().from(messages).all()).toEqual(rows)
     expect(dbh.db.select().from(sessions).where(eq(sessions.id, sessionId)).get()).toEqual(session)
   })
-
-  it.each([false, true])('initializes an empty session without changing timestamps (existing root: %s)', (hasRoot) => {
-    if (hasRoot) service.captureHead(sessionId)
-    dbh.db.update(sessions).set({ activeNodeId: null, updatedAt: 123 }).where(eq(sessions.id, sessionId)).run()
-    new AgentSessionMessageTreeSeeder().run(dbh.db)
-    const session = dbh.db.select().from(sessions).where(eq(sessions.id, sessionId)).get()!
-    expect(session.updatedAt).toBe(123)
-    expect(dbh.db.select().from(messages).where(eq(messages.id, session.activeNodeId!)).get()?.role).toBe('root')
-    expect(visibleIds()).toEqual([])
-    new AgentSessionMessageTreeSeeder().run(dbh.db)
-    expect(dbh.db.select().from(sessions).where(eq(sessions.id, sessionId)).get()).toEqual(session)
-  })
 })

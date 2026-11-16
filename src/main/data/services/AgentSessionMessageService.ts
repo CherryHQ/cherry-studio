@@ -1121,7 +1121,7 @@ export class AgentSessionMessageService {
     this.assertActiveSession(database, sessionId)
 
     const existing = this.findExistingMessageRow(database, sessionId, messageId)
-    if (existing?.deliveryStatus === 'accepted' || existing?.deliveryStatus === 'delivering') {
+    if (AGENT_SESSION_DELIVERY_RECOVERABLE_STATUSES.some((status) => status === existing?.deliveryStatus)) {
       throw DataApiErrorFactory.resourceLocked('Message', messageId, 'an in-flight Session delivery')
     }
 
@@ -1154,7 +1154,7 @@ export class AgentSessionMessageService {
       this.assertActiveSession(tx, sessionId)
       const existing = this.findExistingMessageRow(tx, sessionId, messageId)
       if (!existing) throw DataApiErrorFactory.notFound('Message', messageId)
-      if (existing.deliveryStatus === 'accepted' || existing.deliveryStatus === 'delivering')
+      if (AGENT_SESSION_DELIVERY_RECOVERABLE_STATUSES.some((status) => status === existing.deliveryStatus))
         throw DataApiErrorFactory.resourceLocked('Message', messageId, 'an in-flight Session delivery')
       if (existing.inputContextId || existing.data.nativeSessionId || existing.role === 'root')
         throw DataApiErrorFactory.resourceLocked('Message', messageId, 'native input binding')
