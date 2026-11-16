@@ -2,7 +2,13 @@ import { defaultServiceInstances } from '@test-mocks/main/application'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { ComputerUse, type ComputerUseClient, type ClosedEvent, type Snapshot } from '@cherrystudio/computer-use'
+import {
+  ComputerUse,
+  type Action,
+  type ComputerUseClient,
+  type ClosedEvent,
+  type Snapshot
+} from '@cherrystudio/computer-use'
 import type * as ComputerUseModule from '@cherrystudio/computer-use'
 import { BaseService } from '@main/core/lifecycle'
 
@@ -418,6 +424,42 @@ describe('desktop control ownership and user stop', () => {
     await expect(service.openApp(service.createTask('owner', 'Conversation'), 'app')).rejects.toMatchObject({
       code: 'USER_STOPPED'
     })
+    await service.stop()
+  })
+
+  it('sends the user global input choice to SDK act and perform calls', async () => {
+    const flags: boolean[] = []
+    const snapshot: Snapshot = {
+      id: 'snapshot',
+      appSessionId: 'app-1',
+      app: { id: 'app', name: 'Editor' },
+      window: { id: 'window', title: 'Document' },
+      inputChannel: { kind: 'accessibility' },
+      tree: { status: 'available', elements: [], truncated: [] },
+      screenshot: { status: 'unavailable', reason: { code: 'CAPTURE_FAILED', message: 'No capture' } }
+    }
+    const native = backend({
+      act: async (input) => {
+        flags.push(input.allowGlobalInput ?? false)
+        return { status: 'completed', observation: { status: 'available', snapshot } }
+      },
+      perform: async (input) => {
+        flags.push(input.allowGlobalInput ?? false)
+        return { status: 'completed', appSessionId: input.appSessionId }
+      }
+    })
+    vi.mocked(ComputerUse.start).mockResolvedValue(native.client)
+    const service = new TestService()
+    const task = service.createTask('owner', 'Conversation')
+    const app = await service.openApp(task, 'app')
+    const click: Action = { appSessionId: app.id, snapshotId: 'snapshot', elementId: 'button', type: 'click' }
+    await service.act(task, click)
+    await service.perform(task, click)
+    expect(flags).toEqual([false, false])
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.computer_use.agent_control.global_input', true)
+    await service.act(task, click)
+    await service.perform(task, click)
+    expect(flags).toEqual([false, false, true, true])
     await service.stop()
   })
 

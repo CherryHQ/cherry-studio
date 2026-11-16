@@ -275,11 +275,25 @@
       "breakpoints": true
     },
     {
-      "breakpoints": true,
       "idx": 39,
-      "tag": "0039_fancy_kabuki",
       "version": "6",
-      "when": 1794411221037
+      "when": 1794662249449,
+      "tag": "0039_agent_session_tree_backfill",
+      "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "6",
+      "when": 1794662254214,
+      "tag": "0040_agent_session_tree_constraints",
+      "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "6",
+      "when": 1794411221037,
+      "tag": "0041_fancy_kabuki",
+      "breakpoints": true
     }
   ],
   "version": "7"
