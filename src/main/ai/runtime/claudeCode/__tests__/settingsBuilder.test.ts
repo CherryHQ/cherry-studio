@@ -14,6 +14,7 @@ import {
   toMcpRuntimeName
 } from '@main/ai/toolApproval/builtinToolPolicy'
 import type * as UserDataSqliteGuard from '@main/ai/toolApproval/userDataSqliteGuard'
+import type * as AgentTools from '@main/ai/tools/adapters/claudeCode/agentTools'
 import { BrowserSessionService } from '@main/features/browser'
 import type * as FileUtils from '@main/utils/file'
 
@@ -1692,6 +1693,38 @@ describe('buildClaudeCodeSessionSettings', () => {
         expect(mocks.approvalRegister).not.toHaveBeenCalled()
       }
     )
+  })
+
+  // Catches a leading safe command word auto-approving a Bash call the SDK escalated to canUseTool.
+  it('waits for approval on an escalated acceptEdits Bash call that starts with mkdir', async () => {
+    const actual = await vi.importActual<typeof AgentTools>('@main/ai/tools/adapters/claudeCode/agentTools')
+    mocks.createToolPolicySnapshot.mockImplementation(actual.createClaudeAgentToolPolicySnapshot)
+    mocks.getAgent.mockReturnValue({ ...mocks.getAgent(), configuration: { permission_mode: 'acceptEdits' } })
+    const settings = await buildClaudeCodeSessionSettings(
+      {
+        id: 'session-accept-edits',
+        agentId: 'agent-1',
+        workspace: { type: 'user', path: '/workspace/project' }
+      } as never,
+      {} as never
+    )
+    settings.approvalEmitter!.emit = vi.fn()
+    const input = { command: 'mkdir x && rm -rf ~' }
+
+    const pending = settings.canUseTool!('Bash', input, {
+      signal: new AbortController().signal,
+      toolUseID: 'accept-edits-bash',
+      requestId: 'accept-edits-bash-request',
+      matchedAskRule: undefined
+    })
+    let settled = false
+    void pending.then(() => (settled = true))
+    await Promise.resolve()
+
+    expect(settled).toBe(false)
+    expect(mocks.approvalRegister).toHaveBeenLastCalledWith(expect.objectContaining({ originalInput: input }))
+    mocks.approvalRegister.mock.lastCall![0].resolve({ approved: false })
+    await expect(pending).resolves.toEqual({ behavior: 'deny', message: 'User denied permission for this tool' })
   })
 
   describe.each(['auto', 'bypassPermissions'])('SDK-forced delegation approval in %s', (permissionMode) => {

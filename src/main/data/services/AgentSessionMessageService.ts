@@ -1213,21 +1213,7 @@ export class AgentSessionMessageService {
     if (!messageId) {
       throw DataApiErrorFactory.validation({ messageId: ['must not be empty'] })
     }
-    const database = application.get('DbService').getDb()
-
-    this.assertActiveSession(database, sessionId)
-
-    const existing = this.findExistingMessageRow(database, sessionId, messageId)
-    if (existing?.data.mcpSkills?.length) {
-      throw DataApiErrorFactory.resourceLocked(
-        'Message',
-        messageId,
-        'MCP skill instructions retained in native session history'
-      )
-    }
-    if (AGENT_SESSION_DELIVERY_RECOVERABLE_STATUSES.some((status) => status === existing?.deliveryStatus)) {
-      throw DataApiErrorFactory.resourceLocked('Message', messageId, 'an in-flight Session delivery')
-    }
+    this.assertActiveSession(application.get('DbService').getDb(), sessionId)
 
     const result = withSqliteErrors(
       () => application.get('DbService').withWriteTx((tx) => this.deleteSessionMessageTx(tx, sessionId, messageId)),
@@ -1287,7 +1273,28 @@ export class AgentSessionMessageService {
   }
 
   deleteSessionMessageTx(tx: DbOrTx, sessionId: string, messageId: string): { rowsAffected: number } {
-    const existing = this.findExistingMessageRow(tx, sessionId, messageId)
+    const existing = tx
+      .select({
+        role: sessionMessagesTable.role,
+        skillCount: sql<number | null>`json_array_length(${sessionMessagesTable.data}, '$.mcpSkills')`,
+        parentId: sessionMessagesTable.parentId,
+        inputContextId: sessionMessagesTable.inputContextId,
+        deliveryStatus: sessionMessagesTable.deliveryStatus,
+        nativeSessionId: sql<string | null>`json_extract(${sessionMessagesTable.data}, '$.nativeSessionId')`
+      })
+      .from(sessionMessagesTable)
+      .where(and(eq(sessionMessagesTable.sessionId, sessionId), eq(sessionMessagesTable.id, messageId)))
+      .get()
+    if (existing?.skillCount) {
+      throw DataApiErrorFactory.resourceLocked(
+        'Message',
+        messageId,
+        'MCP skill instructions retained in native session history'
+      )
+    }
+    if (AGENT_SESSION_DELIVERY_RECOVERABLE_STATUSES.some((status) => status === existing?.deliveryStatus)) {
+      throw DataApiErrorFactory.resourceLocked('Message', messageId, 'an in-flight Session delivery')
+    }
     if (existing?.role === 'root')
       throw DataApiErrorFactory.resourceLocked('Message', messageId, 'the conversation root')
     const ownsPendingReply = tx
@@ -1301,7 +1308,7 @@ export class AgentSessionMessageService {
       )
       .limit(1)
       .get()
-    if (existing?.inputContextId || existing?.data.nativeSessionId || ownsPendingReply) {
+    if (existing?.inputContextId || existing?.nativeSessionId || ownsPendingReply) {
       throw DataApiErrorFactory.resourceLocked('Message', messageId, 'native input binding')
     }
     this.invalidateForkPrefixTx(tx, sessionId, messageId)

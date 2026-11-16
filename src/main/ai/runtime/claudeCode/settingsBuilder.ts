@@ -578,7 +578,7 @@ async function buildToolPermissions(
       }
     }
 
-    const access = snapshot.resolve(toolName, input)
+    const access = snapshot.resolve(toolName)
     // AskUserQuestion produces user-authored tool input; it is not an operation that a permission
     // mode can meaningfully approve on the user's behalf. Keep it on the response path even when
     // bypassPermissions marks every ordinary tool as auto-approved.
