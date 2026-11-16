@@ -971,10 +971,10 @@ vi.mock('@cherrystudio/ui', async () => {
           ? React.createElement('button', { type: 'button', onClick: onSecondary }, secondaryLabel)
           : null
       ),
-    Alert: ({ children, message, description, action, icon, showIcon, type, ...props }) =>
+    Alert: ({ children, message, description, action, icon, showIcon, type, role, ...props }) =>
       React.createElement(
         'div',
-        { ...props, role: 'alert', 'data-testid': 'alert', 'data-type': type },
+        { ...props, role: role ?? 'alert', 'data-testid': 'alert', 'data-type': type },
         showIcon ? icon : null,
         message,
         description,
