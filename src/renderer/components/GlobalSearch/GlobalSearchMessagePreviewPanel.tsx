@@ -411,16 +411,19 @@ export function GlobalSearchMessagePreviewPanel({
         </div>
       ) : error && messageItems.length === 0 ? (
         <div className="min-h-0 flex-1 px-6 pt-5 pb-20">
-          <div className="flex h-full flex-col items-center justify-center gap-2 text-muted-foreground text-sm">
-            <span>{t('globalSearch.error')}</span>
-            <ErrorDetailAction
-              error={error}
-              message={t('globalSearch.error')}
-              operation="globalSearch.messages"
-              recordId={target.sourceType === 'topic' ? target.topicId : target.sessionId}
-              source="globalSearch"
-            />
-          </div>
+          <ErrorNotice
+            variant="inline"
+            title={t('globalSearch.error')}
+            detail={
+              <ErrorDetailAction
+                error={error}
+                message={t('globalSearch.error')}
+                operation="globalSearch.messages"
+                recordId={target.sourceType === 'topic' ? target.topicId : target.sessionId}
+                source="globalSearch"
+              />
+            }
+          />
         </div>
       ) : messageItems.length === 0 ? (
         <div className="min-h-0 flex-1 px-6 pt-5 pb-20">
