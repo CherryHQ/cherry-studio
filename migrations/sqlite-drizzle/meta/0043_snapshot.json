@@ -718,6 +718,13 @@
           "notNull": false,
           "autoincrement": false
         },
+        "model": {
+          "name": "model",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
         "name": {
           "name": "name",
           "type": "text",
@@ -811,13 +818,6 @@
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
-        },
-        "model": {
-          "name": "model",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
         }
       },
       "indexes": {
@@ -892,6 +892,19 @@
           "onDelete": "set null",
           "onUpdate": "no action"
         },
+        "agent_session_model_user_model_id_fk": {
+          "name": "agent_session_model_user_model_id_fk",
+          "tableFrom": "agent_session",
+          "tableTo": "user_model",
+          "columnsFrom": [
+            "model"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
         "agent_session_workspace_id_agent_workspace_id_fk": {
           "name": "agent_session_workspace_id_agent_workspace_id_fk",
           "tableFrom": "agent_session",
@@ -911,19 +924,6 @@
           "tableTo": "job_schedule",
           "columnsFrom": [
             "task_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        },
-        "agent_session_model_user_model_id_fk": {
-          "name": "agent_session_model_user_model_id_fk",
-          "tableFrom": "agent_session",
-          "tableTo": "user_model",
-          "columnsFrom": [
-            "model"
           ],
           "columnsTo": [
             "id"
@@ -1264,6 +1264,14 @@
         }
       },
       "indexes": {
+        "agent_session_message_session_id_uniq": {
+          "name": "agent_session_message_session_id_uniq",
+          "columns": [
+            "session_id",
+            "id"
+          ],
+          "isUnique": true
+        },
         "agent_session_message_native_input_uniq": {
           "name": "agent_session_message_native_input_uniq",
           "columns": [
@@ -1396,11 +1404,30 @@
           ],
           "onDelete": "no action",
           "onUpdate": "no action"
+        },
+        "agent_session_message_session_id_parent_id_agent_session_message_session_id_id_fk": {
+          "name": "agent_session_message_session_id_parent_id_agent_session_message_session_id_id_fk",
+          "tableFrom": "agent_session_message",
+          "tableTo": "agent_session_message",
+          "columnsFrom": [
+            "session_id",
+            "parent_id"
+          ],
+          "columnsTo": [
+            "session_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {
+        "agent_session_message_root_parent_check": {
+          "name": "agent_session_message_root_parent_check",
+          "value": "(\"agent_session_message\".\"role\" = 'root') = (\"agent_session_message\".\"parent_id\" IS NULL)"
+        },
         "agent_session_message_role_check": {
           "name": "agent_session_message_role_check",
           "value": "\"agent_session_message\".\"role\" IN ('root', 'user', 'assistant', 'system')"
@@ -6914,6 +6941,105 @@
       "uniqueConstraints": {},
       "checkConstraints": {}
     },
+    "followup_queue_file_ref": {
+      "name": "followup_queue_file_ref",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "file_entry_id": {
+          "name": "file_entry_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "source_id": {
+          "name": "source_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "role": {
+          "name": "role",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "fqfr_entry_id_idx": {
+          "name": "fqfr_entry_id_idx",
+          "columns": [
+            "file_entry_id"
+          ],
+          "isUnique": false
+        },
+        "fqfr_source_id_idx": {
+          "name": "fqfr_source_id_idx",
+          "columns": [
+            "source_id"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "followup_queue_file_ref_file_entry_id_file_entry_id_fk": {
+          "name": "followup_queue_file_ref_file_entry_id_file_entry_id_fk",
+          "tableFrom": "followup_queue_file_ref",
+          "tableTo": "file_entry",
+          "columnsFrom": [
+            "file_entry_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "followup_queue_file_ref_source_id_followup_queue_id_fk": {
+          "name": "followup_queue_file_ref_source_id_followup_queue_id_fk",
+          "tableFrom": "followup_queue_file_ref",
+          "tableTo": "followup_queue",
+          "columnsFrom": [
+            "source_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "fqfr_role_check": {
+          "name": "fqfr_role_check",
+          "value": "\"followup_queue_file_ref\".\"role\" IN ('attachment')"
+        }
+      }
+    },
     "followup_queue": {
       "name": "followup_queue",
       "columns": {
@@ -7061,105 +7187,6 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {}
-    },
-    "followup_queue_file_ref": {
-      "name": "followup_queue_file_ref",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "file_entry_id": {
-          "name": "file_entry_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "source_id": {
-          "name": "source_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "role": {
-          "name": "role",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        }
-      },
-      "indexes": {
-        "fqfr_entry_id_idx": {
-          "name": "fqfr_entry_id_idx",
-          "columns": [
-            "file_entry_id"
-          ],
-          "isUnique": false
-        },
-        "fqfr_source_id_idx": {
-          "name": "fqfr_source_id_idx",
-          "columns": [
-            "source_id"
-          ],
-          "isUnique": false
-        }
-      },
-      "foreignKeys": {
-        "followup_queue_file_ref_file_entry_id_file_entry_id_fk": {
-          "name": "followup_queue_file_ref_file_entry_id_file_entry_id_fk",
-          "tableFrom": "followup_queue_file_ref",
-          "tableTo": "file_entry",
-          "columnsFrom": [
-            "file_entry_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "followup_queue_file_ref_source_id_followup_queue_id_fk": {
-          "name": "followup_queue_file_ref_source_id_followup_queue_id_fk",
-          "tableFrom": "followup_queue_file_ref",
-          "tableTo": "followup_queue",
-          "columnsFrom": [
-            "source_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "checkConstraints": {
-        "fqfr_role_check": {
-          "name": "fqfr_role_check",
-          "value": "\"followup_queue_file_ref\".\"role\" IN ('attachment')"
-        }
-      }
     }
   },
   "views": {},
