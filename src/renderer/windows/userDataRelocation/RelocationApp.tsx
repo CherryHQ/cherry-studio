@@ -1,8 +1,9 @@
-import { CircleCheck, Loader2, XCircle } from 'lucide-react'
+import { AlertCircle, ChevronRight, CircleCheck, Loader2 } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@cherrystudio/ui'
+import { cn } from '@cherrystudio/ui/lib/utils'
 import { UserDataRelocationIpcChannels } from '@shared/types/userDataRelocation'
 import type { SupportLinkPurpose } from '@shared/utils/officialLinks'
 
@@ -104,53 +105,88 @@ const Failure = ({
   onRestart: () => void
 }) => {
   const { t } = useTranslation()
-  const [linkError, setLinkError] = useState<string | null>(null)
-  const [copyError, setCopyError] = useState<string | null>(null)
+  const [expanded, setExpanded] = useState(false)
+  const [copied, setCopied] = useState(false)
+  const [actionError, setActionError] = useState<string | null>(null)
   const openSupportLink = (purpose: SupportLinkPurpose) => {
+    setCopied(false)
     void window.electron.ipcRenderer.invoke(UserDataRelocationIpcChannels.OpenSupportLink, purpose).then(
       (opened: unknown) => {
-        setLinkError(opened === true ? null : t('relocation.support.open_failed'))
+        setActionError(opened === true ? null : t('relocation.support.open_failed'))
       },
       () => {
-        setLinkError(t('relocation.support.open_failed'))
+        setActionError(t('relocation.support.open_failed'))
       }
     )
   }
+  const copyError = () => {
+    if (!error) return
+    setCopied(false)
+    void navigator.clipboard.writeText(error).then(
+      () => {
+        setActionError(null)
+        setCopied(true)
+      },
+      () => setActionError(t('relocation.support.copy_failed'))
+    )
+  }
+  const links = [
+    ...(error ? [{ label: t('relocation.support.copy'), onClick: copyError }] : []),
+    { label: t('relocation.support.feedback'), onClick: () => openSupportLink('feedback') },
+    { label: t('relocation.support.download'), onClick: () => openSupportLink('download') }
+  ]
+
   return (
-    <div className="flex w-full flex-col items-center gap-3 text-center">
-      <XCircle className="text-destructive" size={40} />
-      <h2 className="text-base font-semibold text-foreground">{title}</h2>
-      <p className="text-sm text-muted-foreground">{description}</p>
-      {error && (
-        <pre className="max-h-24 w-full overflow-auto rounded border border-border bg-background-subtle px-3 py-2 text-left text-xs break-words whitespace-pre-wrap text-foreground-tertiary">
-          {error}
-        </pre>
-      )}
-      {linkError ? <p className="text-xs text-destructive">{linkError}</p> : null}
-      {copyError ? <p className="text-xs text-destructive">{copyError}</p> : null}
-      <div className="flex w-full flex-wrap justify-center gap-2">
+    <div
+      role="alert"
+      className="group grid w-full grid-cols-[auto_minmax(0,1fr)] gap-x-2 gap-y-0.5 rounded-lg border border-border-subtle bg-background-subtle px-3 py-2.5 text-foreground">
+      <AlertCircle size={14} className="mt-[3px] text-error" />
+      <h2 className="font-medium text-[13px] leading-5">{title}</h2>
+      <p className="col-start-2 text-muted-foreground text-xs leading-[18px]">{description}</p>
+      <div className="col-start-2 mt-2 flex items-center gap-2">
         <Button
-          variant="outline"
+          type="button"
           size="sm"
-          onClick={() => {
-            if (!error) return
-            void navigator.clipboard.writeText(error).then(
-              () => setCopyError(null),
-              () => setCopyError(t('relocation.support.copy_failed'))
-            )
-          }}>
-          {t('relocation.support.copy')}
+          variant="outline"
+          className="rounded-[5px] text-muted-foreground hover:border-border-strong hover:bg-accent hover:text-foreground"
+          onClick={onRestart}>
+          {buttonLabel}
         </Button>
-        <Button variant="outline" size="sm" onClick={() => openSupportLink('feedback')}>
-          {t('relocation.support.feedback')}
-        </Button>
-        <Button variant="outline" size="sm" onClick={() => openSupportLink('download')}>
-          {t('relocation.support.download')}
-        </Button>
+        <button
+          type="button"
+          aria-expanded={expanded}
+          className="ml-auto inline-flex cursor-pointer items-center gap-0.5 text-foreground-tertiary text-xs hover:text-foreground group-hover:text-foreground"
+          onClick={() => setExpanded((open) => !open)}>
+          {t('relocation.support.details')}
+          <ChevronRight className={cn('size-3.5 transition-transform', expanded && 'rotate-90')} aria-hidden />
+        </button>
       </div>
-      <Button onClick={onRestart} className="mt-2 w-full">
-        {buttonLabel}
-      </Button>
+      {expanded ? (
+        <div className="col-start-2 mt-2 flex flex-col gap-1.5 border-border-subtle border-t pt-2">
+          {error ? (
+            <p className="line-clamp-3 select-text break-all font-mono text-[11px] text-muted-foreground leading-4">
+              {error}
+            </p>
+          ) : null}
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-foreground-tertiary text-xs">
+            {links.map((link) => (
+              <button
+                key={link.label}
+                type="button"
+                className="cursor-pointer hover:text-foreground"
+                onClick={link.onClick}>
+                {link.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : null}
+      {actionError ? <p className="col-start-2 mt-1 text-muted-foreground text-xs">{actionError}</p> : null}
+      {copied ? (
+        <p role="status" className="col-start-2 mt-1 text-muted-foreground text-xs">
+          {t('relocation.support.copied')}
+        </p>
+      ) : null}
     </div>
   )
 }

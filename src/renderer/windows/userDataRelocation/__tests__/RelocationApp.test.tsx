@@ -63,19 +63,29 @@ describe('RelocationApp', () => {
     expect(restartMock).toHaveBeenCalledOnce()
   })
 
-  it('shows the failure detail and offers continuing with the previous directory', () => {
+  it('shows only the localized failure and the restart action until Details is opened', () => {
     useRelocationProgressMock.mockReturnValue({
-      progress: makeProgress('failed', { error: 'disk full' }),
+      progress: makeProgress('failed', { error: 'EACCES: permission denied, open /new/data/x.db' }),
       restart: restartMock
     })
 
     render(<RelocationApp />)
-    fireEvent.click(screen.getByRole('button', { name: 'relocation.restart_failure' }))
 
-    expect(screen.getByText('disk full')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'relocation.support.download' })).toBeInTheDocument()
+    expect(screen.getByText('relocation.failed.title')).toBeInTheDocument()
     expect(screen.getByText('relocation.failed.description')).toBeInTheDocument()
+    expect(screen.queryByText(/EACCES/)).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'relocation.support.copy' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'relocation.support.feedback' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'relocation.support.download' })).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'relocation.restart_failure' }))
     expect(restartMock).toHaveBeenCalledOnce()
+
+    openDetails()
+    expect(screen.getByText('EACCES: permission denied, open /new/data/x.db')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'relocation.support.copy' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'relocation.support.feedback' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'relocation.support.download' })).toBeInTheDocument()
   })
 
   it('asks main to open feedback and the download page and keeps retry available when the open fails', async () => {
@@ -86,6 +96,7 @@ describe('RelocationApp', () => {
     invoke.mockResolvedValueOnce(false).mockResolvedValueOnce(true)
 
     render(<RelocationApp />)
+    openDetails()
     fireEvent.click(screen.getByRole('button', { name: 'relocation.support.feedback' }))
 
     expect(await screen.findByText('relocation.support.open_failed')).toBeInTheDocument()
@@ -103,7 +114,7 @@ describe('RelocationApp', () => {
     expect(window.open).not.toHaveBeenCalled()
   })
 
-  it('shows a copy failure after clipboard denial and clears it when retry succeeds', async () => {
+  it('shows a copy failure after clipboard denial and confirms the copy when retry succeeds', async () => {
     useRelocationProgressMock.mockReturnValue({
       progress: makeProgress('failed', { error: 'disk full' }),
       restart: restartMock
@@ -114,30 +125,29 @@ describe('RelocationApp', () => {
 
     try {
       render(<RelocationApp />)
+      openDetails()
       fireEvent.click(screen.getByRole('button', { name: 'relocation.support.copy' }))
 
       expect(await screen.findByText('relocation.support.copy_failed')).toBeInTheDocument()
-      expect(screen.getByText('disk full')).toBeInTheDocument()
-      expect(screen.queryByText('relocation.support.open_failed')).not.toBeInTheDocument()
+      expect(screen.queryByText('relocation.support.copied')).not.toBeInTheDocument()
       expect(screen.getByRole('button', { name: 'relocation.support.copy' })).toBeEnabled()
       expect(screen.getByRole('button', { name: 'relocation.restart_failure' })).toBeEnabled()
 
       fireEvent.click(screen.getByRole('button', { name: 'relocation.support.copy' }))
-      await waitFor(() => {
-        expect(screen.queryByText('relocation.support.copy_failed')).not.toBeInTheDocument()
-      })
+      expect(await screen.findByRole('status')).toHaveTextContent('relocation.support.copied')
+      expect(screen.queryByText('relocation.support.copy_failed')).not.toBeInTheDocument()
 
       expect(writeText).toHaveBeenNthCalledWith(1, 'disk full')
       expect(writeText).toHaveBeenNthCalledWith(2, 'disk full')
-      expect(screen.getByText('disk full')).toBeInTheDocument()
-      expect(screen.getByRole('button', { name: 'relocation.support.feedback' })).toBeEnabled()
-      expect(screen.getByRole('button', { name: 'relocation.support.download' })).toBeEnabled()
-      expect(screen.getByRole('button', { name: 'relocation.restart_failure' })).toBeEnabled()
     } finally {
       Object.defineProperty(navigator, 'clipboard', { configurable: true, value: clipboard })
     }
   })
 })
+
+function openDetails() {
+  fireEvent.click(screen.getByRole('button', { name: 'relocation.support.details' }))
+}
 
 function makeProgress(
   stage: RelocationProgress['stage'],
