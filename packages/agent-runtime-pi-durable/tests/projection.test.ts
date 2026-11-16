@@ -52,14 +52,68 @@ it('keeps complete isolated history when updating a view without observers', () 
   const entries = Array.from({ length: 32 }, (_, index) => entry(index + 1, `saved-${index}`))
   projection.update(view(entries))
   const previous = projection.feed.snapshot
-  previous.messages[0].parts.length = 0
+  expect(() => {
+    previous.messages[0].parts.length = 0
+  }).toThrow(TypeError)
   projection.update(view([...entries, entry(33, 'new')]))
   expect(projection.feed.snapshot.messages.map((message) => message.parts)).toEqual([
     ...Array.from({ length: 32 }, (_, index) => [{ type: 'text', text: `saved-${index}`, state: 'done' }]),
     [{ type: 'text', text: 'new', state: 'done' }]
   ])
   expect(previous.messages).toHaveLength(32)
+  previous.messages.forEach((message, index) => expect(projection.feed.snapshot.messages[index]).toBe(message))
   onTestFinished(() => projection.close())
+})
+
+it('copies only messages that live progress or a later result changes, and rebuilds after compaction', () => {
+  const call = fauxAssistantMessage(fauxToolCall('echo', {}, { id: 'call' }), { stopReason: 'toolUse' })
+  const before = entry(9, 'before')
+  const assistant: EntryRecord = { ...entry(10, ''), model: [call] }
+  const result: EntryRecord = {
+    id: 11 as EntryId,
+    conversationId,
+    kind: 'pi.tool_result',
+    byTaskId: 8 as TaskId,
+    model: [
+      {
+        role: 'toolResult',
+        toolCallId: 'call',
+        toolName: 'echo',
+        content: [{ type: 'text', text: 'finished' }],
+        isError: false,
+        timestamp: 0
+      }
+    ]
+  }
+  const { projection, update } = setup(view([before, assistant]))
+  const initial = projection.feed.snapshot.messages
+  update(
+    view([before, assistant], {
+      run: { taskId, inputs: [], turns: 0 },
+      tools: [{ callId: 'call', name: 'echo', status: 'running', taskId: 8 as TaskId, output: 'partial' }]
+    })
+  )
+  const progressed = projection.feed.snapshot.messages
+  update(view([before, assistant]))
+  const settled = projection.feed.snapshot.messages
+  update(view([before, assistant, result]))
+  const finished = projection.feed.snapshot.messages
+
+  expect(progressed[0]).toBe(initial[0])
+  expect(finished[0]).toBe(initial[0])
+  expect(progressed[1].parts[0]).toMatchObject({ output: { content: [{ text: 'partial' }] }, preliminary: true })
+  expect(settled[1]).toBe(initial[1])
+  expect(initial[1].parts[0]).toMatchObject({ toolCallId: 'call', state: 'input-available' })
+  expect(finished[1].parts[0]).toMatchObject({
+    state: 'output-available',
+    output: { content: [{ type: 'text', text: 'finished' }] },
+    preliminary: false
+  })
+
+  update(view([entry(20, 'compacted')]))
+  expect(projection.feed.snapshot.messages.map((message) => message.parts)).toEqual([
+    [{ type: 'text', text: 'compacted', state: 'done' }]
+  ])
 })
 
 describe('Durable preview identity', () => {
