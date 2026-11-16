@@ -516,6 +516,7 @@
   "agent.tasks.logs.loadError": "Không tải được lịch sử chạy",
   "agent.tasks.logs.result": "Kết quả",
   "agent.tasks.logs.runAt": "Chạy tại",
+  "agent.tasks.logs.runFailed": "Lần chạy này thất bại",
   "agent.tasks.logs.running": "Đang chạy...",
   "agent.tasks.logs.search": "Tìm nhật ký...",
   "agent.tasks.logs.status": "Trạng thái",

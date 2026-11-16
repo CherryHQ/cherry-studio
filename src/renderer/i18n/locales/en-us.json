@@ -516,6 +516,7 @@
   "agent.tasks.logs.loadError": "Failed to load run history",
   "agent.tasks.logs.result": "Result",
   "agent.tasks.logs.runAt": "Run At",
+  "agent.tasks.logs.runFailed": "This run failed",
   "agent.tasks.logs.running": "Running...",
   "agent.tasks.logs.search": "Search logs...",
   "agent.tasks.logs.status": "Status",

@@ -516,6 +516,7 @@
   "agent.tasks.logs.loadError": "Error al cargar el historial de ejecución",
   "agent.tasks.logs.result": "Resultado",
   "agent.tasks.logs.runAt": "Ejecutado en",
+  "agent.tasks.logs.runFailed": "Esta ejecución falló",
   "agent.tasks.logs.running": "Corriendo...",
   "agent.tasks.logs.search": "Buscar registros...",
   "agent.tasks.logs.status": "Estado",

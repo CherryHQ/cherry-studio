@@ -14,6 +14,7 @@ import {
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
+import { ErrorNotice } from '@renderer/components/ErrorNotice'
 import { useQuery } from '@renderer/data/hooks/useDataApi'
 import { ipcApi } from '@renderer/ipc'
 import { popup } from '@renderer/services/popup'
@@ -175,9 +176,15 @@ export function HeartbeatEditorDialog({
                 : t('agent.heartbeat.saved_next_run')}
           </p>
           {fault ? (
-            <div role="alert" className="space-y-2 text-destructive text-sm">
-              <div className="flex items-center gap-2">
-                <p>{fault.summary}</p>
+            <ErrorNotice
+              variant="inline"
+              title={fault.summary}
+              action={{
+                label: t('agent.heartbeat.reload'),
+                disabled: busy,
+                onClick: () => setReloadKey((key) => key + 1)
+              }}
+              detail={
                 <ErrorDetailAction
                   error={fault.cause}
                   message={fault.summary}
@@ -185,30 +192,25 @@ export function HeartbeatEditorDialog({
                   operation={fault.operation}
                   recordId={agentId}
                 />
-              </div>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                disabled={busy}
-                onClick={() => setReloadKey((key) => key + 1)}>
-                {t('agent.heartbeat.reload')}
-              </Button>
-            </div>
+              }
+            />
           ) : null}
           <div className="space-y-1 border-t border-border-subtle pt-3 text-sm" aria-live="polite">
             <p className="font-medium">{t('agent.tasks.lastRun')}</p>
             {statusError ? (
-              <div role="alert" className="flex items-center gap-2">
-                <p>{t('agent.tasks.logs.loadError')}</p>
-                <ErrorDetailAction
-                  error={statusError}
-                  message={t('agent.tasks.logs.loadError')}
-                  source="agent.heartbeat"
-                  operation="heartbeat.status"
-                  recordId={agentId}
-                />
-              </div>
+              <ErrorNotice
+                variant="inline"
+                title={t('agent.tasks.logs.loadError')}
+                detail={
+                  <ErrorDetailAction
+                    error={statusError}
+                    message={t('agent.tasks.logs.loadError')}
+                    source="agent.heartbeat"
+                    operation="heartbeat.status"
+                    recordId={agentId}
+                  />
+                }
+              />
             ) : latest ? (
               <>
                 <p>
@@ -216,16 +218,20 @@ export function HeartbeatEditorDialog({
                   {new Date(latest.createdAt).toLocaleString()}
                 </p>
                 {latest.error ? (
-                  <div className="flex items-center gap-2 text-destructive">
-                    <p>{latest.error.message}</p>
-                    <ErrorDetailAction
-                      error={latest.error}
-                      message={t('agent.tasks.logs.failed')}
-                      source="agent.heartbeat"
-                      operation="heartbeat.run"
-                      recordId={latest.id}
-                    />
-                  </div>
+                  <ErrorNotice
+                    variant="inline"
+                    role="group"
+                    title={t('agent.tasks.logs.runFailed')}
+                    detail={
+                      <ErrorDetailAction
+                        error={latest.error}
+                        message={t('agent.tasks.logs.runFailed')}
+                        source="agent.heartbeat"
+                        operation="heartbeat.run"
+                        recordId={latest.id}
+                      />
+                    }
+                  />
                 ) : null}
                 {result?.result ? (
                   <p className="max-h-28 overflow-auto whitespace-pre-wrap break-words text-muted-foreground">

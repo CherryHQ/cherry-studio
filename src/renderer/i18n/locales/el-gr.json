@@ -516,6 +516,7 @@
   "agent.tasks.logs.loadError": "Αποτυχία φόρτωσης ιστορικού εκτέλεσης",
   "agent.tasks.logs.result": "Αποτέλεσμα",
   "agent.tasks.logs.runAt": "Εκτελέστηκε στις",
+  "agent.tasks.logs.runFailed": "Αυτή η εκτέλεση απέτυχε",
   "agent.tasks.logs.running": "Τρέχει...",
   "agent.tasks.logs.search": "Αναζήτηση αρχείων καταγραφής...",
   "agent.tasks.logs.status": "Κατάσταση",
