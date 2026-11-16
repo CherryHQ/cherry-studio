@@ -20,6 +20,7 @@ import {
 } from '@cherrystudio/ui'
 import { cacheService } from '@data/CacheService'
 import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
+import { ErrorNotice } from '@renderer/components/ErrorNotice'
 import { ipcApi } from '@renderer/ipc'
 import type { BrowserImportReason, BrowserImportResult, BrowserImportSource } from '@shared/ipc/schemas/browserImport'
 
@@ -322,20 +323,19 @@ function BrowserImportContent({
         </div>
       )}
       {fault != null && (
-        <div role="alert" className="flex flex-wrap items-center gap-2 text-error text-sm">
-          <span>{t('settings.browser.error')}</span>
-          {!sourceId && (
-            <Button variant="ghost" onClick={() => setScan((value) => value + 1)}>
-              {t('common.refresh')}
-            </Button>
-          )}
-          <ErrorDetailAction
-            error={fault}
-            message={t('settings.browser.error')}
-            operation={sourceId ? 'browser.import.run' : 'browser.import.sources'}
-            source="settings.browser"
-          />
-        </div>
+        <ErrorNotice
+          variant="inline"
+          title={t('settings.browser.error')}
+          action={!sourceId ? { label: t('common.refresh'), onClick: () => setScan((value) => value + 1) } : undefined}
+          detail={
+            <ErrorDetailAction
+              error={fault}
+              message={t('settings.browser.error')}
+              operation={sourceId ? 'browser.import.run' : 'browser.import.sources'}
+              source="settings.browser"
+            />
+          }
+        />
       )}
       <DialogFooter>
         {result ? (
