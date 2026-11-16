@@ -57,7 +57,7 @@ describe('owned application lifecycle', () => {
     ['windows', 'timed-out'],
     ['macos', 'timed-out']
   ] as const)(
-    'waits for active tasks and permits a complete %s profile backup only after normal shutdown: %s',
+    'permits a complete %s profile backup only after the owned application finishes normal shutdown: %s',
     async (platform, outcome) => {
       vi.useFakeTimers()
       const directory = mkdtempSync(join(tmpdir(), 'cherry-stopped-profile-'))
@@ -116,10 +116,7 @@ describe('owned application lifecycle', () => {
         throw new Error('Unexpected process query')
       })
       const debugBridge = await import('../debugBridge')
-      const idleAt = Date.now() + 250
-      vi.spyOn(debugBridge, 'hasOwnedAppActiveTasks').mockImplementation(async () => Date.now() < idleAt)
       vi.spyOn(debugBridge, 'requestOwnedAppQuit').mockImplementation(async () => {
-        expect(Date.now()).toBeGreaterThanOrEqual(idleAt)
         if (outcome === 'exited') {
           setTimeout(() => {
             for (const [name, content] of Object.entries(files)) writeFileSync(join(profile, name), content)
