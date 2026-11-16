@@ -3,9 +3,6 @@ export const REQUIRED_CONFIG = [
   'CHERRY_TEST_CUSTOM_PROVIDER_ANTHROPIC_BASE_URL',
   'CHERRY_TEST_CUSTOM_PROVIDER_API_KEY',
   'CHERRY_TEST_CUSTOM_PROVIDER_CHAT_MODEL',
-  'CHERRY_TEST_CUSTOM_PROVIDER_EMBEDDING_BASE_URL',
-  'CHERRY_TEST_CUSTOM_PROVIDER_EMBEDDING_API_KEY',
-  'CHERRY_TEST_CUSTOM_PROVIDER_EMBEDDING_MODEL',
   'CHERRY_TEST_CHERRYIN_CHAT_MODEL',
   'CHERRY_TEST_CHERRYIN_IMAGE_MODEL',
   'CHERRY_TEST_CHERRYIN_ACCOUNT',
@@ -20,11 +17,6 @@ export interface RegressionTestConfig {
     anthropicBaseUrl: string
     apiKey: string
     chatModel: string
-  }
-  customEmbeddingProvider: {
-    baseUrl: string
-    apiKey: string
-    model: string
   }
   cherryIn: {
     chatModel: string
@@ -60,11 +52,6 @@ export function loadTestConfig(environment: Environment = process.env): Regressi
       apiKey: value('CHERRY_TEST_CUSTOM_PROVIDER_API_KEY'),
       chatModel: value('CHERRY_TEST_CUSTOM_PROVIDER_CHAT_MODEL')
     },
-    customEmbeddingProvider: {
-      baseUrl: absoluteUrl('CHERRY_TEST_CUSTOM_PROVIDER_EMBEDDING_BASE_URL'),
-      apiKey: value('CHERRY_TEST_CUSTOM_PROVIDER_EMBEDDING_API_KEY'),
-      model: value('CHERRY_TEST_CUSTOM_PROVIDER_EMBEDDING_MODEL')
-    },
     cherryIn: {
       chatModel: value('CHERRY_TEST_CHERRYIN_CHAT_MODEL'),
       imageModel: value('CHERRY_TEST_CHERRYIN_IMAGE_MODEL'),
@@ -77,7 +64,6 @@ export function loadTestConfig(environment: Environment = process.env): Regressi
 export function getSensitiveConfigValues(environment: Environment = process.env): string[] {
   return [
     environment.CHERRY_TEST_CUSTOM_PROVIDER_API_KEY,
-    environment.CHERRY_TEST_CUSTOM_PROVIDER_EMBEDDING_API_KEY,
     environment.CHERRY_TEST_CHERRYIN_ACCOUNT,
     environment.CHERRY_TEST_CHERRYIN_PASSWORD
   ].flatMap((value) => (value?.trim() ? [value.trim()] : []))

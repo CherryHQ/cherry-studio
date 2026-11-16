@@ -9,9 +9,6 @@ describe('regression test configuration', () => {
     CHERRY_TEST_CUSTOM_PROVIDER_ANTHROPIC_BASE_URL: ' https://anthropic.example.test ',
     CHERRY_TEST_CUSTOM_PROVIDER_API_KEY: 'provider-secret',
     CHERRY_TEST_CUSTOM_PROVIDER_CHAT_MODEL: 'Qwen/Qwen3.6-27B',
-    CHERRY_TEST_CUSTOM_PROVIDER_EMBEDDING_BASE_URL: 'https://embedding.example.test/v1',
-    CHERRY_TEST_CUSTOM_PROVIDER_EMBEDDING_API_KEY: 'embedding-secret',
-    CHERRY_TEST_CUSTOM_PROVIDER_EMBEDDING_MODEL: 'text-embedding-test',
     CHERRY_TEST_CHERRYIN_CHAT_MODEL: 'cherry-chat-test',
     CHERRY_TEST_CHERRYIN_IMAGE_MODEL: 'image-test',
     CHERRY_TEST_CHERRYIN_ACCOUNT: 'automation@example.test',
@@ -24,7 +21,7 @@ describe('regression test configuration', () => {
     )
   })
 
-  it('loads provider-scoped values for Playwright', () => {
+  it('loads Playwright configuration without external embedding credentials', () => {
     const config = loadTestConfig(validEnv)
 
     expect(config.customProvider).toEqual({
@@ -33,21 +30,10 @@ describe('regression test configuration', () => {
       apiKey: 'provider-secret',
       chatModel: 'Qwen/Qwen3.6-27B'
     })
-    expect(config.customEmbeddingProvider).toEqual({
-      apiKey: 'embedding-secret',
-      baseUrl: 'https://embedding.example.test/v1',
-      model: 'text-embedding-test'
-    })
     expect(config.cherryIn.imageModel).toBe('image-test')
     expect(config.customProvider.apiKey).toBe('provider-secret')
-    expect(config.customEmbeddingProvider.apiKey).toBe('embedding-secret')
     expect(config.cherryIn.password).toBe('account-secret')
-    expect(getSensitiveConfigValues(validEnv)).toEqual([
-      'provider-secret',
-      'embedding-secret',
-      'automation@example.test',
-      'account-secret'
-    ])
+    expect(getSensitiveConfigValues(validEnv)).toEqual(['provider-secret', 'automation@example.test', 'account-secret'])
   })
 
   it('collects available secrets for failure evidence without requiring external providers', () => {
@@ -89,16 +75,15 @@ describe('regression test configuration', () => {
     )
   })
 
-  it.each([
-    'CHERRY_TEST_CUSTOM_PROVIDER_BASE_URL',
-    'CHERRY_TEST_CUSTOM_PROVIDER_ANTHROPIC_BASE_URL',
-    'CHERRY_TEST_CUSTOM_PROVIDER_EMBEDDING_BASE_URL'
-  ])('validates %s before application launch', (name) => {
-    expect(() =>
-      loadTestConfig({
-        ...validEnv,
-        [name]: 'not-a-url'
-      })
-    ).toThrow(`${name} must be an absolute URL`)
-  })
+  it.each(['CHERRY_TEST_CUSTOM_PROVIDER_BASE_URL', 'CHERRY_TEST_CUSTOM_PROVIDER_ANTHROPIC_BASE_URL'])(
+    'validates %s before application launch',
+    (name) => {
+      expect(() =>
+        loadTestConfig({
+          ...validEnv,
+          [name]: 'not-a-url'
+        })
+      ).toThrow(`${name} must be an absolute URL`)
+    }
+  )
 })

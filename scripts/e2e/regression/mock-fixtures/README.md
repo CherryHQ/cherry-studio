@@ -23,8 +23,9 @@ instead of silently passing it.
 `provider_mode=mock` fails fast for every other task (see the mock step in
 `mockProvider.ts`) because a fixture cannot drive them:
 
-- `knowledge`, `knowledge-smoke` — K-01 asserts semantic retrieval. With no embedding fixture aimock returns its
-  deterministic fallback vectors, so a "pass" would carry no semantic evidence.
+- `knowledge`, `knowledge-smoke` — embedding requests use the separate worker-owned loopback mock in
+  `embeddingMock.ts`, with per-input vectors for source/query topics and distractors. K-01 still requires
+  the configured chat model to answer with retrieved context and citations; these tasks have no chat fixtures.
 - `everything-mcp` — MCP-01 asserts a persisted, successful `everything/get-sum` execution. The
   application exposes MCP tools to the model only through the deferred-tool meta tools
   (`tool_search`, `tool_inspect`, `tool_invoke`); a measured request offered exactly

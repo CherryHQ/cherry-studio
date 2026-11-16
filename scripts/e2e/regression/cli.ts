@@ -231,7 +231,6 @@ async function mockStartCommand(): Promise<void> {
   outputLine('anthropic_base_url', `http://127.0.0.1:${record.port}`)
   outputLine('api_key', 'mock-key-not-checked')
   outputLine('chat_model', 'mock-chat')
-  outputLine('embedding_model', 'mock-embedding')
 }
 
 async function main(): Promise<void> {

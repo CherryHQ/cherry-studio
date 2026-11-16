@@ -57,8 +57,7 @@ describe('single regression artifact bundle', () => {
       expect(Object.keys(step.env).sort()).toEqual([
         'CHERRY_TEST_CHERRYIN_ACCOUNT',
         'CHERRY_TEST_CHERRYIN_PASSWORD',
-        'CHERRY_TEST_CUSTOM_PROVIDER_API_KEY',
-        'CHERRY_TEST_CUSTOM_PROVIDER_EMBEDDING_API_KEY'
+        'CHERRY_TEST_CUSTOM_PROVIDER_API_KEY'
       ])
       for (const [name, value] of Object.entries(step.env)) expect(value).toBe(`\${{ secrets.${name} }}`)
     }
