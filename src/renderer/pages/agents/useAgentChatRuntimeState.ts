@@ -243,7 +243,6 @@ export function useAgentChatRuntimeState({
       const notification: ToastConfig = {
         title: t('agent.edit_resend.label'),
         description,
-        details,
         timeout: 0,
         action: {
           label: t('common.copy'),

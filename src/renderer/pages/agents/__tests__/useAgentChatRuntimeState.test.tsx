@@ -422,19 +422,17 @@ describe('useAgentChatRuntimeState', () => {
       vi.useRealTimers()
       const user = userEvent.setup()
       const writeText = vi.spyOn(navigator.clipboard, 'writeText').mockResolvedValue(undefined)
-      await user.click(within(alert).getByText('View details'))
-      const details = within(alert).getByText((_, element) => element?.tagName === 'PRE')
-      expect(details).toBeVisible()
-      expect(details).toHaveTextContent(catalog['agent.edit_resend.error.checkpoint_unsupported'])
-      expect(details).toHaveTextContent(aiErrorCodes.AI_AGENT_SESSION_EDIT_FAILED)
-      expect(details).toHaveTextContent('checkpoint_unsupported')
-      expect(details).toHaveTextContent('Native checkpoint cannot be restored')
-      expect(details).toHaveTextContent('session-1')
-      expect(details).toHaveTextContent(draft.messageId)
-      const diagnosticText = details.textContent
+      expect(within(alert).queryByText('Native checkpoint cannot be restored')).not.toBeInTheDocument()
       rerender({ sessionId: 'session-2' })
       await user.click(within(alert).getByRole('button', { name: catalog['common.copy'] }))
-      expect(writeText).toHaveBeenCalledExactlyOnceWith(diagnosticText)
+      expect(writeText).toHaveBeenCalledOnce()
+      const diagnosticText = writeText.mock.calls[0][0]
+      expect(diagnosticText).toContain(catalog['agent.edit_resend.error.checkpoint_unsupported'])
+      expect(diagnosticText).toContain(aiErrorCodes.AI_AGENT_SESSION_EDIT_FAILED)
+      expect(diagnosticText).toContain('checkpoint_unsupported')
+      expect(diagnosticText).toContain('Native checkpoint cannot be restored')
+      expect(diagnosticText).toContain('sessionId: session-1')
+      expect(diagnosticText).toContain(draft.messageId)
     }
   )
 
@@ -465,14 +463,15 @@ describe('useAgentChatRuntimeState', () => {
     const restored = toast
       .getToastQueue()
       .toasts.find((item) => item.description === en['agent_session_fork.history_missing'])
-    expect(restored?.details).toContain('Native history missing')
-    expect(restored?.details).toContain('history_missing')
-    expect(restored?.details).toContain(aiErrorCodes.AI_AGENT_SESSION_FORK_FAILED)
     expect(restored?.timeout).toBe(0)
+    const diagnosticText = writeText.mock.calls[0][0]
+    expect(diagnosticText).toContain('Native history missing')
+    expect(diagnosticText).toContain('history_missing')
+    expect(diagnosticText).toContain(aiErrorCodes.AI_AGENT_SESSION_FORK_FAILED)
     // Expand the real toast stack so the restored diagnostic's retry control is reachable.
     await user.hover(screen.getByRole('region', { name: 'notifications' }))
     await user.click(screen.getByRole('button', { name: en['common.copy'] }))
-    expect(writeText).toHaveBeenLastCalledWith(restored?.details)
+    expect(writeText).toHaveBeenLastCalledWith(diagnosticText)
     expect(writeText).toHaveBeenCalledTimes(2)
   })
 

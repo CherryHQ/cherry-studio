@@ -65,7 +65,6 @@ required service tier.`
       action: undefined,
       cause: failure
     })
-    expect(shown?.details).toBeUndefined()
   })
 
   it('titles an unclassified error generically and keeps its raw text only in the detail', () => {
@@ -77,7 +76,6 @@ required service tier.`
     expect(shown.title).toBe(enUS['toast.error.unexpected'])
     expect(shown.description).toBe(`Acme · ${enUS['toast.error.interrupted']}`)
     expect(shown.cause).toBe(failure)
-    expect(shown.details).toBeUndefined()
   })
 
   it('titles an unclassified error with the caller summary but keeps classified diagnoses', () => {
