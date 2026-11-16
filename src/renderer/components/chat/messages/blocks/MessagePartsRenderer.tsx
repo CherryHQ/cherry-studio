@@ -148,9 +148,13 @@ function estimatePayloadLength(value: unknown, budget: number, depth = 0): numbe
 
   if (typeof value === 'object') {
     let total = 0
-    for (const [key, nested] of Object.entries(value as Record<string, unknown>)) {
+    const record = value as Record<string, unknown>
+    // Enumerated key by key: `Object.entries` reads every value up front, so a wide
+    // payload would be fully traversed before the budget below could stop the walk.
+    for (const key in record) {
+      if (!Object.hasOwn(record, key)) continue
       total += key.length + 4
-      total += estimatePayloadLength(nested, budget - total, depth + 1)
+      total += estimatePayloadLength(record[key], budget - total, depth + 1)
       if (total >= budget) break
     }
     return total
