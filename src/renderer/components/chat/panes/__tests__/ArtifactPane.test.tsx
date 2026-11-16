@@ -301,6 +301,7 @@ vi.mock('@cherrystudio/ui', async (importActual) => {
   const actual = await importActual<typeof CherryStudioUi>()
 
   return {
+    Alert: actual.Alert,
     Breadcrumb: actual.Breadcrumb,
     BreadcrumbItem: actual.BreadcrumbItem,
     BreadcrumbList: actual.BreadcrumbList,
