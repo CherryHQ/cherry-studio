@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/proposed/architecture/2026-11-16-agent-image-byte-paths.md
+2026-11-16-agent-image-byte-paths.md: 7aaacfb109ef36afce70151765953a6d49cd4227
+2026-11-16-agent-image-byte-paths.zh.md: 79ee11f2f2a14c5fe2921f4b73519a54469ab177
