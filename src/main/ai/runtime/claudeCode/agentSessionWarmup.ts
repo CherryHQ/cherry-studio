@@ -550,15 +550,15 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
   /** Composer knowledge selection frozen when the turn was submitted. */
   selectedKnowledgeBaseIds: readonly string[] = [],
   serviceTier: AgentRuntimeConnectInput['serviceTier'] = 'standard',
+  /** True for a headless (scheduled/responder-less) turn: it resolves against the agent
+   *  default while ignoring session overrides. */
+  headless = false,
   /**
    * Facts the replayed turn was admitted under, kept so a rebuild cannot pick up an edit that
    * landed mid-backoff. Both are what the live connection already serves; omitting a field leaves
    * that fact to the freshly read agent row.
    */
-  pinned?: FallbackReplayPins,
-  /** True for a headless (scheduled/responder-less) turn: it resolves against the agent
-   *  default while ignoring session overrides. */
-  headless = false
+  pinned?: FallbackReplayPins
 ): Promise<ClaudeCodeAgentSessionQueryRequest | undefined> {
   const session = agentSessionService.getById(sessionId)
   if (!session?.agentId) return undefined
@@ -1023,8 +1023,6 @@ export async function buildClaudeCodeWarmQueryRequestForAgentSession(
     false,
     [],
     'standard',
-    // No replay pins: a prewarm reads the live row.
-    undefined,
     true
   )
   if (!request) return undefined

@@ -1598,7 +1598,7 @@ it.each([
 
     await test.wait('chunk', (event) => event.chunk.type === 'data-model-fallback')
     const fallbackCall = ports.build.mock.calls.find((call) => call[2] === test.fallbackModelId)
-    expect(fallbackCall?.[7]).toMatchObject({ disabledTools: [] })
+    expect(fallbackCall?.[8]).toMatchObject({ disabledTools: [] })
     // The replay re-enters the SAME host turn on a freshly built runtime.
     await expect.poll(() => test.wires[1]?.inputs.length ?? 0).toBe(1)
     expect(JSON.stringify(test.wires[1].inputs[0].message.content)).toContain('Ask the provider')

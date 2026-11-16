@@ -239,8 +239,6 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       this.input.fastMode === true,
       this.input.knowledgeBaseIds,
       this.input.serviceTier,
-      // No replay pins: a fresh turn reads the live row.
-      undefined,
       this.input.headless === true
     )
     if (!request) {
@@ -637,13 +635,13 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       this.input.fastMode === true,
       this.input.knowledgeBaseIds,
       this.input.serviceTier,
+      this.input.headless === true,
       {
         instructions: this.capturedInstructions,
         language: this.capturedLanguage,
         promptVariables: this.capturedPromptVariables,
         disabledTools: [...this.turnDisabledTools]
-      },
-      this.input.headless === true
+      }
     ).catch((cause) => {
       logger.warn('Failed to build the fallback-model query request; surfacing the original turn error', {
         sessionId: this.input.sessionId,

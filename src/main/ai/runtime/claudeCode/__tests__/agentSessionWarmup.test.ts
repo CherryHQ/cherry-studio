@@ -1884,6 +1884,7 @@ describe('deriveConnectionConfig', () => {
       false,
       [],
       'standard',
+      false,
       {
         instructions: 'admitted prompt',
         language: 'English',
