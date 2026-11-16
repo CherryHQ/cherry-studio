@@ -352,7 +352,9 @@ describe('ModelSettings', () => {
     render(<ModelSettings />)
 
     expect(screen.getByRole('button', { name: 'settings.tool.file_processing.video_vision.title' })).toBeInTheDocument()
-    expect(screen.getByText('settings.tool.file_processing.video_vision.description')).toBeInTheDocument()
+    expect(
+      screen.getByRole('img', { name: 'settings.tool.file_processing.video_vision.description' })
+    ).toBeInTheDocument()
   })
 
   it('writes a vision model selection to the media preference key', async () => {
