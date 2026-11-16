@@ -33,6 +33,7 @@ export interface Result {
     platform: string
     mode: string
     profile?: string
+    embeddingDataSource?: string
     ref: string
     controllerSha: string | null
     applicationSha: string | null
@@ -131,6 +132,7 @@ export function markdown(result: Result): string {
     `Application: ${cell(result.environment.appVersion)} · ${cell(result.metadata.platform)} · ${cell(result.metadata.ref)} · ${cell(result.metadata.applicationSha)}`,
     `Controller: ${cell(result.metadata.controllerSha)} · runner: ${cell(result.environment.runner)} · image: ${cell(result.environment.imageOS)} ${cell(result.environment.imageVersion)}`,
     `Locale: ${cell(result.environment.appLocale)} · browser: ${cell(result.environment.browserLocale)} · timezone: ${cell(result.environment.timezone.main)} / ${cell(result.environment.timezone.renderer)}`,
+    ...(result.metadata.embeddingDataSource ? [`Embedding: ${cell(result.metadata.embeddingDataSource)}`] : []),
     '',
     '| Preparation (s) | Application readiness (s) | Steps (s) |',
     '|---|---|---|',

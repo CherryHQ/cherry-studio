@@ -8,6 +8,7 @@ import type { IpcResult } from '@shared/ipc/errors/IpcError'
 
 import { loadTestConfig, type RegressionTestConfig } from '../../../scripts/e2e/regression/config'
 import { assertOwnedAppIsolation, prepareWindowsCdpConnection } from '../../../scripts/e2e/regression/debugBridge'
+import type { EmbeddingProviderConfig } from '../../../scripts/e2e/regression/embeddingMock'
 import {
   adoptRelaunchedApp,
   assertNoLaunchFailure,
@@ -40,7 +41,8 @@ export class RegressionApp {
 
   constructor(
     runDirectory: string,
-    readonly caseId: string
+    readonly caseId: string,
+    private readonly embeddingConfig?: EmbeddingProviderConfig
   ) {
     const paths = getRunPaths(runDirectory)
     this.paths = { ...paths, workspace: join(paths.workspace, `agent-workspace-${caseId}`) }
@@ -62,6 +64,11 @@ export class RegressionApp {
 
   get config(): RegressionTestConfig {
     return loadTestConfig()
+  }
+
+  get embeddingProvider(): EmbeddingProviderConfig {
+    if (!this.embeddingConfig) throw new Error('Embedding mock fixture is required')
+    return this.embeddingConfig
   }
 
   get record(): AppRecord {

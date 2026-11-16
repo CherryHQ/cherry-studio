@@ -6,6 +6,7 @@ import { chromium, expect, type Browser, type Page } from '@playwright/test'
 
 import { getSensitiveConfigValues } from '../regression/config'
 import { prepareWindowsCdpConnection } from '../regression/debugBridge'
+import { EMBEDDING_DATA_SOURCE, startEmbeddingMock } from '../regression/embeddingMock'
 import { prepareRelease } from '../regression/installation'
 import { launchApp, readAppRecord, stopOwnedApp } from '../regression/lifecycle'
 import { ensureRunDirectories, getRunPaths } from '../regression/paths'
@@ -29,6 +30,7 @@ let result: Result = createResult()
 let secrets = getSensitiveConfigValues()
 let interrupted = false
 let browser: Browser | undefined
+let embeddingMock: Awaited<ReturnType<typeof startEmbeddingMock>> | undefined
 
 const persist = () => saveResult(out, result, secrets)
 function failure(error: unknown): void {
@@ -58,6 +60,10 @@ async function cleanup(): Promise<void> {
   await stopOwnedApp(paths).catch((error) =>
     addFailure(result, new QaError('cleanup', 2, 'CLEANUP_FAILED', String(error)))
   )
+  await embeddingMock
+    ?.close()
+    .catch((error) => addFailure(result, new QaError('cleanup', 2, 'EMBEDDING_MOCK_CLEANUP_FAILED', String(error))))
+  embeddingMock = undefined
 }
 function copyLogs(): void {
   if (!existsSync(paths.logs)) return
@@ -94,6 +100,7 @@ async function run(request: Request, profileConfig?: ProfileConfig): Promise<voi
   process.once('SIGINT', signal)
   phase('ready')
   try {
+    if (profileConfig) embeddingMock = await startEmbeddingMock()
     const record = await launchApp(paths, {
       mode: request.mode,
       platform: request.platform,
@@ -129,7 +136,10 @@ async function run(request: Request, profileConfig?: ProfileConfig): Promise<voi
     result.timings.readinessSeconds = (Date.now() - readyStarted) / 1000
     phase('environment')
     try {
-      if (profileConfig) await prepareAuthenticatedProfile(page, profileConfig)
+      if (profileConfig && embeddingMock) {
+        result.metadata.embeddingDataSource = EMBEDDING_DATA_SOURCE
+        await prepareAuthenticatedProfile(page, profileConfig, embeddingMock)
+      }
       await ensureChinese(page, true)
     } finally {
       await collectEnvironment(page, readAppRecord(paths), result)
