@@ -430,6 +430,8 @@ export const ModelSchema = z.object({
   parameterSupport: RuntimeParameterSupportSchema.optional(),
 
   pricing: RuntimeModelPricingSchema.optional(),
+  /** Runtime provenance; never inferred by comparing prices with the catalog. */
+  hasCustomPricing: z.boolean().optional(),
 
   /**
    * Painting-page metadata (per-mode `supports.*` widget specs).

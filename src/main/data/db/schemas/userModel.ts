@@ -128,12 +128,3 @@ export const userModelTable = sqliteTable(
 // Export table type
 export type UserModelRow = typeof userModelTable.$inferSelect
 export type InsertUserModelRow = typeof userModelTable.$inferInsert
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// Utility Functions
-// ═══════════════════════════════════════════════════════════════════════════════
-
-/** Check if this is a preset override or fully custom model */
-export function isPresetOverride(model: UserModelRow): boolean {
-  return model.presetModelId != null
-}

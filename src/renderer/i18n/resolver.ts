@@ -1,3 +1,4 @@
+import 'dayjs/locale/cs'
 import 'dayjs/locale/de'
 import 'dayjs/locale/el'
 import 'dayjs/locale/es'
@@ -32,6 +33,7 @@ const localeLoaders = {
   'en-US': () => import('./locales/en-us.json'),
   'zh-CN': () => import('./locales/zh-cn.json'),
   'zh-TW': () => import('./locales/zh-tw.json'),
+  'cs-CZ': () => import('./locales/cs-cz.json'),
   'de-DE': () => import('./locales/de-de.json'),
   'el-GR': () => import('./locales/el-gr.json'),
   'es-ES': () => import('./locales/es-es.json'),
@@ -62,6 +64,7 @@ const dayjsLocaleMap: Record<string, string> = {
   'ru-RU': 'ru',
   'zh-CN': 'zh-cn',
   'zh-TW': 'zh-tw',
+  'cs-CZ': 'cs',
   'de-DE': 'de',
   'el-GR': 'el',
   'es-ES': 'es',

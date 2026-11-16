@@ -26,3 +26,11 @@ Business-logic layer for DataApi: one service per domain, each a **direct-import
 - **Cross-service cycles** — **only** the services in a real cycle join the registry: they self-register *and* resolve the sibling via `getDataService('X')`. Every other service stays a plain singleton; **never** `await import` to break a cycle.
 - **Transactions** — wrap multi-statement / read-then-write mutations in a transaction for atomicity; `application.get('DbService').withWriteTx(...)` is the conventional wrapper (a direct `db.transaction(...)` is equivalent under the single synchronous connection). A single autocommit write needs neither.
 - **Paths & logging** — `application.getPath(...)` and `loggerService.withContext(...)`; never ad-hoc.
+
+## Message context window
+
+`MessageService.ts` owns the shared conversation policy used by persistent
+context reads and `TemporaryChatService.listMessages(topicId, maxMessages)`. It
+keeps the last N rows and extends backward to the current user turn. Temporary
+reads select this window before copying message payloads; omitting the limit
+continues to return an isolated full history.
