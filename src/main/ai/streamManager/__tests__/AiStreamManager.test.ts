@@ -2107,6 +2107,109 @@ describe('AiStreamManager', () => {
     })
   })
 
+  describe('chat reply analytics', () => {
+    const chatTurns = () =>
+      mockTrackProductEvent.mock.calls.map(([event]) => event).filter((event) => event.event === 'chat_turn_finished')
+    const withAttachment = (topicId: string): AiStreamRequest => ({
+      ...req(topicId),
+      messages: [
+        {
+          id: 'u1',
+          role: 'user',
+          parts: [
+            { type: 'text', text: 'describe this' },
+            { type: 'file', mediaType: 'image/png', url: 'data:image/png;base64,AA==' }
+          ]
+        }
+      ] as AiStreamRequest['messages']
+    })
+
+    async function finishWithTools(topicId: string) {
+      const feed = controlledStream()
+      mockStreamText.mockResolvedValueOnce(feed.stream)
+      const listener = new FakeListener(`l:${topicId}`)
+      startSingle(mgr, { topicId, modelId: 'cherryin::m', request: withAttachment(topicId), listeners: [listener] })
+      feed.enqueue({ type: 'start', messageId: 'answer' })
+      for (const [toolCallId, toolName] of [
+        ['w', 'web_search'],
+        ['k', 'kb_search'],
+        ['m1', 'mcp__github__searchIssues'],
+        ['m2', 'mcp__fs__readFile']
+      ]) {
+        feed.enqueue({ type: 'tool-input-available', toolCallId, toolName, input: {} })
+        feed.enqueue({ type: 'tool-output-available', toolCallId, output: {} })
+      }
+      feed.enqueue({ type: 'finish' })
+      feed.close()
+      await vi.waitFor(() => expect(listener.doneResults).toHaveLength(1))
+    }
+
+    it('reports a finished chat reply with its tool use and attachments but no content', async () => {
+      mockTrackProductEvent.mockClear()
+      await finishWithTools('chat-topic')
+
+      await vi.waitFor(() => expect(chatTurns()).toHaveLength(1))
+      expect(chatTurns()[0]).toEqual({
+        event: 'chat_turn_finished',
+        status: 'success',
+        modelSource: 'cherryin',
+        durationMs: expect.any(Number),
+        usedWebSearch: true,
+        usedKnowledge: true,
+        mcpToolCount: 2,
+        attachmentCount: 1
+      })
+    })
+
+    it('does not report Agent session turns as chat replies', async () => {
+      mockTrackProductEvent.mockClear()
+      await finishWithTools('agent-session:s1')
+      await flushMicrotasksUntil(() => true)
+
+      expect(chatTurns()).toEqual([])
+    })
+
+    it('does not report prompt streams such as translation as chat replies', async () => {
+      mockTrackProductEvent.mockClear()
+      const feed = controlledStream()
+      mockStreamText.mockResolvedValueOnce(feed.stream)
+      const listener = new FakeListener('translate')
+      mgr.streamPrompt({ streamId: 'translate:1', uniqueModelId: 'openai::m', prompt: 'hello', listener })
+      feed.enqueue({ type: 'start', messageId: 'answer' })
+      feed.enqueue({ type: 'finish' })
+      feed.close()
+      await vi.waitFor(() => expect(listener.doneResults).toHaveLength(1))
+      await flushMicrotasksUntil(() => true)
+
+      expect(chatTurns()).toEqual([])
+    })
+
+    it('reports a stopped reply as stopped and an errored reply as error', async () => {
+      mockTrackProductEvent.mockClear()
+      const stopped = new AbortController()
+      startSingle(mgr, {
+        topicId: 'stop',
+        modelId: 'openai::m',
+        request: req('stop'),
+        listeners: [],
+        abortController: stopped
+      })
+      mockStreamText.mockRejectedValueOnce(new Error('boom'))
+      startSingle(mgr, { topicId: 'fail', modelId: 'openai::m', request: req('fail'), listeners: [] })
+      stopped.abort()
+
+      await vi.waitFor(() => expect(chatTurns()).toHaveLength(2))
+      expect(
+        chatTurns()
+          .map(({ status, modelSource }) => [status, modelSource])
+          .sort()
+      ).toEqual([
+        ['error', 'own_key'],
+        ['stopped', 'own_key']
+      ])
+    })
+  })
+
   describe('unsuccessful conversation outcomes', () => {
     it.each(['reason', 'abort-error', 'real-error'] as const)(
       'settles a startup rejection after Stop without hiding genuine errors: %s',

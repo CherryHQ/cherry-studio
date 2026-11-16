@@ -172,7 +172,6 @@ export type MainAnalyticsEvent =
       status: 'success' | 'error' | 'stopped'
       modelSource: AnalyticsModelSource
       durationMs: number
-      firstTokenMs?: number
       usedWebSearch: boolean
       usedKnowledge: boolean
       mcpToolCount: number

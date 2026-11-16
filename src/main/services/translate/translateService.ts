@@ -28,6 +28,7 @@ import {
 import { modelService } from '@main/data/services/ModelService'
 import { providerService } from '@main/data/services/ProviderService'
 import { translateLanguageService } from '@main/data/services/TranslateLanguageService'
+import { analyticsModelSource, trackMainProductEvent } from '@main/services/productAnalytics'
 import { isTranslateLangCode, type TranslateLangCode } from '@shared/data/preference/preferenceTypes'
 import type { Model } from '@shared/data/types/model'
 import { createUniqueModelId, isUniqueModelId, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
@@ -35,7 +36,7 @@ import type { TranslateLanguage } from '@shared/data/types/translate'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import { isQwenMTModel } from '@shared/utils/model'
 
-import { WebContentsListener } from '../../ai/streamManager'
+import { type StreamListener, WebContentsListener } from '../../ai/streamManager'
 
 const logger = loggerService.withContext('TranslateService')
 
@@ -110,13 +111,30 @@ export class TranslateService {
     const { reasoningEffort, callOverrides } = this.resolveRequestParameters(model)
 
     const wcListener = new WebContentsListener(sender, req.streamId)
+    const report = (status: 'success' | 'error') =>
+      trackMainProductEvent({
+        event: 'feature_used',
+        feature: 'translate',
+        action: 'translated',
+        status,
+        modelSource: analyticsModelSource(model.providerId)
+      })
+    // Lives exactly as long as the window's listener, so it never keeps an abandoned translation running.
+    const analyticsListener: StreamListener = {
+      id: `analytics:${req.streamId}`,
+      onChunk: () => {},
+      onDone: () => report('success'),
+      onPaused: () => {},
+      onError: () => report('error'),
+      isAlive: () => wcListener.isAlive()
+    }
 
     const streamManager = application.get('AiStreamManager')
     streamManager.streamPrompt({
       streamId: req.streamId,
       uniqueModelId,
       prompt: content,
-      listener: wcListener,
+      listener: [wcListener, analyticsListener],
       reasoningEffort,
       callOverrides
     })

@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 
 import { context as otelContext, type Span, SpanStatusCode, trace } from '@opentelemetry/api'
-import { isToolUIPart, type UIMessageChunk } from 'ai'
+import { getToolName, isToolUIPart, type UIMessageChunk } from 'ai'
 
 import { application } from '@application'
 import type { TokenUsageSource } from '@cherrystudio/analytics-client'
@@ -22,10 +22,19 @@ import {
 } from '@main/core/lifecycle'
 import type { SourceSnapshot } from '@main/data/services/AiUsageRecordService'
 import { messageService } from '@main/data/services/MessageService'
+import { analyticsModelSource, trackMainProductEvent } from '@main/services/productAnalytics'
 import { topicNamingService } from '@main/services/TopicNamingService'
 import { isAbortError } from '@main/utils/error'
 import { shouldDeferToolOutput } from '@main/utils/messageOutputProjection'
 import { withIdleTimeout } from '@main/utils/withIdleTimeout'
+import {
+  KB_LIST_TOOL_NAME,
+  KB_READ_TOOL_NAME,
+  KB_SEARCH_TOOL_NAME,
+  PROVIDER_WEB_SEARCH_TOOL_NAME,
+  WEB_FETCH_TOOL_NAME,
+  WEB_SEARCH_TOOL_NAME
+} from '@shared/ai/builtinTools'
 import { toExecutionFailure } from '@shared/ai/executionFailure'
 import type { MessageProjectionUpdate, MessageProjectionView } from '@shared/ai/messageProjection'
 import { getSafeProviderErrorMessage } from '@shared/ai/providerError'
@@ -40,7 +49,7 @@ import { aiStreamAdmissionReasons } from '@shared/ai/transport'
 import { isDataApiNotFoundError } from '@shared/data/api/errors'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import type { MessageRuntimeSpan, MessageRuntimeTiming } from '@shared/data/types/message'
-import type { ServiceTierSelection, UniqueModelId } from '@shared/data/types/model'
+import { parseUniqueModelId, type ServiceTierSelection, type UniqueModelId } from '@shared/data/types/model'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import type { SerializedError } from '@shared/types/error'
 import { KeyedMutex } from '@shared/utils/async'
@@ -368,6 +377,31 @@ function trackCherryInQuotaError(topicId: string, modelId: UniqueModelId, error:
   }
 }
 
+const WEB_TOOL_NAMES = new Set([WEB_SEARCH_TOOL_NAME, PROVIDER_WEB_SEARCH_TOOL_NAME, WEB_FETCH_TOOL_NAME])
+const KNOWLEDGE_TOOL_NAMES = new Set([KB_SEARCH_TOOL_NAME, KB_READ_TOOL_NAME, KB_LIST_TOOL_NAME])
+
+/** One ordinary chat reply's outcome; Agent sessions and replies parked for tool approval report elsewhere. */
+function trackChatTurnFinished(topicId: string, request: ManagedAiStreamRequest, exec: StreamExecution): void {
+  if (isAgentSessionTopic(topicId) || exec.status === 'streaming') return
+  if (exec.status === 'done' && (exec.pendingApprovalToolCallIds?.size ?? 0) > 0) return
+  try {
+    const toolNames = (exec.finalMessage?.parts ?? []).filter(isToolUIPart).map((part) => getToolName(part))
+    const userParts = request.messages?.findLast((message) => message.role === 'user')?.parts ?? []
+    trackMainProductEvent({
+      event: 'chat_turn_finished',
+      status: exec.status === 'done' ? 'success' : exec.status === 'error' ? 'error' : 'stopped',
+      modelSource: analyticsModelSource(parseUniqueModelId(exec.modelId).providerId),
+      durationMs: Math.max(0, Math.round((exec.timings.completedAt ?? performance.now()) - exec.timings.startedAt)),
+      usedWebSearch: toolNames.some((name) => WEB_TOOL_NAMES.has(name)),
+      usedKnowledge: toolNames.some((name) => KNOWLEDGE_TOOL_NAMES.has(name)),
+      mcpToolCount: toolNames.filter((name) => name.startsWith('mcp__')).length,
+      attachmentCount: userParts.filter((part) => part.type === 'file').length
+    })
+  } catch {
+    // Telemetry must never affect stream termination.
+  }
+}
+
 /**
  * Active-stream registry. See `docs/dev/references/ai/stream-manager.md`.
  *
@@ -387,6 +421,8 @@ export class AiStreamManager extends BaseService {
   private readonly _onConversationUnsuccessful = new Emitter<ConversationUnsuccessfulEvent>()
   public readonly onConversationUnsuccessful = this._onConversationUnsuccessful.event
   private readonly activeStreams = new Map<string, ActiveStream>()
+  /** Ordinary chat replies; prompt streams (translate, gateway, mini apps) and scheduled task runs are excluded. */
+  private readonly chatReplyExecutions = new WeakSet<StreamExecution>()
   private readonly completedBatchTasks = new Map<string, Set<string>>()
   private readonly failedCompletionAttempts = new Map<string, Set<number>>()
   private readonly projections = new Map<string, TopicMessageProjection>()
@@ -904,6 +940,7 @@ export class AiStreamManager extends BaseService {
       // Replacing an existing key preserves its insertion position; appending a new key places the
       // new model last. Both cases keep the visual multi-model order stable.
       existing.executions.set(model.modelId, nextExecution)
+      if (this.isChatReplyStream(existing)) this.chatReplyExecutions.add(nextExecution)
       const failures = this.failedCompletionAttempts.get(input.topicId)
       if (previous && failures?.delete(previous.attemptId) && failures.size === 0) {
         this.failedCompletionAttempts.delete(input.topicId)
@@ -993,6 +1030,7 @@ export class AiStreamManager extends BaseService {
       hasTaskResultOwner: input.listeners.some((listener) => listener.ownsTaskResult)
     }
     this.activeStreams.set(input.topicId, stream)
+    if (this.isChatReplyStream(stream)) for (const exec of executions.values()) this.chatReplyExecutions.add(exec)
     if (stream.lifecycle !== promptStreamLifecycle) {
       const projection = this.topicProjection(input.topicId)
       projection.begin([...executions.values()].map(toActiveExecution), true)
@@ -2187,9 +2225,16 @@ export class AiStreamManager extends BaseService {
         // Defensive funnel for sync throws (e.g. `streamText` rejects before returning a stream).
         return this.onExecutionError(topicId, modelId, serializeError(err), exec, err)
       })
-      .finally(() => activity.dispose())
+      .finally(() => {
+        activity.dispose()
+        if (this.chatReplyExecutions.has(exec)) trackChatTurnFinished(topicId, request, exec)
+      })
 
     return exec
+  }
+
+  private isChatReplyStream(stream: ActiveStream): boolean {
+    return stream.lifecycle !== promptStreamLifecycle && !stream.hasTaskResultOwner
   }
 
   private async runExecutionLoop(
