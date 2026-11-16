@@ -1,8 +1,8 @@
 import React from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
-import { isProd } from '@renderer/utils/platform'
+import { ErrorNotice } from '@renderer/components/ErrorNotice'
+import { useErrorDetailOpener } from '@renderer/hooks/useErrorDetailOpener'
 
 interface Props {
   fallback?: React.ReactNode
@@ -16,24 +16,11 @@ interface State {
 
 const ErrorFallback = ({ fallback, error }: { fallback?: React.ReactNode; error?: Error }) => {
   const { t } = useTranslation()
-
-  // 如果有详细错误信息，添加到描述中
-  const errorDescription =
-    !isProd && error ? `${t('error.render.description')}: ${error.message}` : t('error.render.description')
+  const openDetail = useErrorDetailOpener({ error, source: 'chat.message', operation: 'message.render' })
 
   return (
     fallback || (
-      <div
-        role="alert"
-        className="rounded-md border border-error-border bg-error-subtle px-3 py-2 text-sm text-error-subtle-foreground">
-        <div className="font-medium">{t('error.render.title')}</div>
-        <div className="mt-1">{errorDescription}</div>
-        {error ? (
-          <div className="mt-2">
-            <ErrorDetailAction error={error} source="chat.message" operation="message.render" />
-          </div>
-        ) : null}
-      </div>
+      <ErrorNotice title={t('error.render.title')} info={t('error.render.description')} onOpenDetail={openDetail} />
     )
   )
 }
