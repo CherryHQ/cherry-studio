@@ -68,6 +68,46 @@ const dbh = setupTestDatabase()
 const sessionContexts = (sessionId: string) =>
   dbh.db.select().from(agentSessionContextTable).where(eq(agentSessionContextTable.sessionId, sessionId)).all()
 const cleanups: (() => Promise<void>)[] = []
+
+it('surfaces fatal observation loss before the root projection consumer resumes', async () => {
+  const wire = wireProcess()
+  const test = await desktop({ spawnClaudeCodeProcess: () => wire.process })
+  let release!: () => void
+  const gate = new Promise<void>((resolve) => {
+    release = resolve
+  })
+  const original = ClaudeFeed.prototype.observe
+  const observing = vi.spyOn(ClaudeFeed.prototype, 'observe').mockImplementationOnce(function (this: ClaudeFeed, sink) {
+    return original.call(this, async (batch) => {
+      await gate
+      await sink(batch)
+    })
+  })
+  try {
+    const connection = await test.connect()
+    await connection.send(test.input('Create backlog'))
+    const handle = (connection as unknown as { handle: ClaudeThreadHandle }).handle
+    for (let index = 0; index < 12; index++)
+      wire.send({
+        type: 'system',
+        subtype: 'commands_changed',
+        uuid: randomUUID(),
+        session_id: handle.claude.sessionId,
+        commands: [{ name: `large-${index}`, description: 'x'.repeat(1024 * 1024), argumentHint: '' }]
+      })
+    await expect.poll(() => test.events.some((event) => event.type === 'error')).toBe(true)
+    expect(test.events.find((event) => event.type === 'error')).toMatchObject({
+      fatal: true,
+      error: { message: 'Claude observer exceeded recoverable control backlog' }
+    })
+    await expect.poll(() => wire.process.exitCode).toBe(0)
+    expect(test.events.some((event) => event.type === 'turn-complete')).toBe(false)
+  } finally {
+    release()
+    observing.mockRestore()
+    wire.exit()
+  }
+}, 30000)
 afterEach(async () => {
   for (const close of cleanups.splice(0).reverse()) await close()
   MockApplicationUtils.resetServices()

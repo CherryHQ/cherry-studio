@@ -205,7 +205,7 @@ export type AgentRuntimeEvent =
       recoveredInputId?: string
     }
   | { type: 'autonomous-turn-state'; state: 'finished' }
-  | { type: 'error'; error: unknown }
+  | { type: 'error'; error: unknown; fatal?: boolean }
 
 /**
  * Verdict of {@link AgentRuntimeConnection.reconcile}.

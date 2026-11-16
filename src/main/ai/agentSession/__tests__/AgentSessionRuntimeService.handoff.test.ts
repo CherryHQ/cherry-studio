@@ -296,6 +296,29 @@ function failReplyWrites() {
   )
 }
 
+it('retires a fatal connection without sending queued input and waits for confirmed close', async () => {
+  const f = await fixture()
+  const finish = f.openB()
+  await vi.waitFor(() => expect(f.sent).toEqual([f.user.id]))
+  const queued = messages.saveMessage({
+    sessionId: 'root',
+    message: { role: 'user', status: 'success', data: { parts: [{ type: 'text', text: 'Must not auto-send' }] } }
+  })
+  f.service.enqueueUserMessage('root', queued, { messageSnapshot: snapshot })
+  f.blockClose()
+  await f.emit({ type: 'error', error: new Error('Fatal observation backlog'), fatal: true })
+  await finish()
+  expect(f.sent).toEqual([f.user.id])
+  expect(f.starts).toHaveLength(0)
+  expect(f.service.isSessionBusy('root')).toBe(true)
+  expect(() => f.service.enqueueUserMessage('root', queued, { messageSnapshot: snapshot })).toThrow()
+  f.closeGate.resolve()
+  await f.service.closeSession('root')
+  expect(f.service.isSessionBusy('root')).toBe(false)
+  expect(messages.getSessionMessage('root', f.replyB.id).status).toBe('error')
+  expect(f.sent).toEqual([f.user.id])
+})
+
 it.each([false, true])(
   'appends a command notification without resending input or losing earlier charges (persistence blocked: %s)',
   async (blocked) => {

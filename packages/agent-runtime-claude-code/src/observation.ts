@@ -1,6 +1,8 @@
 import {
   cloneHistoryData,
+  HistoryRetention,
   ThreadFeed,
+  type CapturedHistory,
   type Observation,
   type ObservationPayload,
   type ThreadSnapshot
@@ -8,6 +10,8 @@ import {
 
 import type { ClaudeControl, ClaudeControlState } from './control'
 import type { ClaudeInvocation, ClaudeNativeMessage, ClaudeObservation, ClaudeObservationSink } from './types'
+
+type CapturedBatch = { batch: ClaudeObservation; snapshot?: CapturedHistory<ThreadSnapshot> }
 
 /** Keeps typed native payloads and normalized changes in the same bounded delivery queue. */
 export class ClaudeFeed {
@@ -18,12 +22,15 @@ export class ClaudeFeed {
   private readonly replaces = new Map<string, string>()
   private readonly pendingRetractions = new Set<string>()
   private readonly taskRuns = new Map<string, string>()
-  private readonly observers = new Set<(batch: ClaudeObservation) => void>()
+  private readonly observers = new Set<(batch: CapturedBatch, baseline: CapturedBatch) => void>()
   private ended = false
   private legacy: NonNullable<ClaudeObservation['legacy']> = {}
   private controlState?: ClaudeControlState['snapshot']
 
-  constructor(private readonly report: (error: unknown) => void) {
+  constructor(
+    private readonly report: (error: unknown) => void,
+    private readonly onBacklog?: (error: Error) => void
+  ) {
     this.state = new ThreadFeed(
       {
         type: 'snapshot',
@@ -41,22 +48,25 @@ export class ClaudeFeed {
     return this.state.snapshot
   }
 
-  private baseline(): ClaudeObservation {
+  private baseline(): CapturedBatch {
     return {
-      events: [this.snapshot],
-      state: { aborted: this.controlState?.aborted ?? false },
-      controls: this.controlState?.backgroundTasks
-        ? [
-            { type: 'background-tasks', tasks: this.controlState.backgroundTasks },
-            { type: 'background-work-state', active: this.controlState.backgroundWorkActive === true },
-            { type: 'background-results', result: this.controlState.backgroundResults }
-          ]
-        : [],
-      live: [...this.live],
-      replaces: Object.fromEntries(this.replaces),
-      legacy: this.legacy,
-      native: [...this.native.values()],
-      retracted: [...this.retracted]
+      snapshot: this.state.captureSnapshot(),
+      batch: {
+        events: [],
+        state: { aborted: this.controlState?.aborted ?? false },
+        controls: this.controlState?.backgroundTasks
+          ? [
+              { type: 'background-tasks', tasks: this.controlState.backgroundTasks },
+              { type: 'background-work-state', active: this.controlState.backgroundWorkActive === true },
+              { type: 'background-results', result: this.controlState.backgroundResults }
+            ]
+          : [],
+        live: [...this.live],
+        replaces: Object.fromEntries(this.replaces),
+        legacy: this.legacy,
+        native: [...this.native.values()],
+        retracted: [...this.retracted]
+      }
     }
   }
 
@@ -69,7 +79,7 @@ export class ClaudeFeed {
     state?: ClaudeControlState['snapshot']
   ): void {
     if (this.ended) return
-    if (state) this.controlState = state
+    if (state) this.controlState = cloneHistoryData(state)
     // oxlint-disable-next-line no-restricted-globals -- Own the legacy map only when bindings change; ordinary deltas omit it.
     if (legacy) this.legacy = structuredClone(legacy)
     const replaces: Record<string, string> = {}
@@ -115,12 +125,16 @@ export class ClaudeFeed {
       if (key && !(value.source === 'archive' && this.native.get(key)?.source === 'live'))
         this.native.set(key, cloneHistoryData(value))
     }
+    if (!this.observers.size) {
+      this.pendingRetractions.clear()
+      return
+    }
     const batch: ClaudeObservation = {
-      events,
-      controls,
+      events: cloneHistoryData(events),
+      controls: cloneHistoryData(controls),
       state: { aborted: this.controlState?.aborted ?? false },
-      invocations,
-      native,
+      invocations: cloneHistoryData(invocations),
+      native: cloneHistoryData(native),
       live: events.flatMap((event) =>
         event.type === 'message.upsert' && this.live.has(event.message.id) ? [event.message.id] : []
       ),
@@ -129,7 +143,8 @@ export class ClaudeFeed {
       retracted: [...this.pendingRetractions]
     }
     this.pendingRetractions.clear()
-    for (const send of this.observers) send(batch)
+    const baseline = this.baseline()
+    for (const send of this.observers) send({ batch }, baseline)
   }
 
   forget(uuid: string): void {
@@ -146,13 +161,16 @@ export class ClaudeFeed {
     let started = false
     let sent = 1
     let delivered = 0
-    const historical = new Set(this.snapshot.messages.map((message) => message.id))
-    const capture = (batch: ClaudeObservation, baseline = false): ClaudeObservation => ({
-      ...cloneHistoryData(batch),
-      live: baseline ? [] : batch.live?.filter((id) => !historical.has(id))
+    const historical = new Set(this.state.messageIds)
+    const capture = ({ batch, snapshot }: CapturedBatch, baseline = false): CapturedBatch => ({
+      snapshot,
+      batch: { ...batch, live: baseline ? [] : batch.live?.filter((id) => !historical.has(id)) }
     })
-    type Delivery = { batch: ClaudeObservation; through: number; recovery?: ClaudeObservation }
-    let pending: Delivery[] = [{ batch: capture(this.baseline(), true), through: sent }]
+    const retention = new HistoryRetention()
+    const baseline = this.baseline()
+    retention.setBaseline(baseline)
+    type Delivery = { captured: CapturedBatch; through: number; recovery?: CapturedBatch }
+    let pending: Delivery[] = [{ captured: capture(baseline, true), through: sent }]
     const barriers = new Set<{ through: number; resolve(): void; reject(error: Error): void }>()
     const settle = () => {
       for (const barrier of barriers) {
@@ -165,6 +183,7 @@ export class ClaudeFeed {
     const stop = () => {
       stopped = true
       pending = []
+      retention.clear()
       this.observers.delete(send)
       settle()
     }
@@ -175,7 +194,9 @@ export class ClaudeFeed {
         try {
           while (!stopped && pending.length) {
             started = true
-            const { batch, through } = pending.shift()!
+            const { captured, through } = pending.shift()!
+            const batch = cloneHistoryData(captured.batch)
+            if (captured.snapshot) Object.assign(batch, { events: [captured.snapshot.read()] })
             await sink(batch)
             delivered = Math.max(delivered, through)
             settle()
@@ -186,46 +207,61 @@ export class ClaudeFeed {
           this.report(error)
         } finally {
           draining = false
+          if (!pending.length) retention.clear()
         }
       })
     }
-    const send = (batch: ClaudeObservation) => {
+    const send = (captured: CapturedBatch, baseline: CapturedBatch) => {
       if (stopped || lost) return
+      const { batch } = captured
       for (const [previous, replacement] of Object.entries(batch.replaces ?? {}))
         if (historical.has(previous)) historical.add(replacement)
-      const recover = () => capture({ ...this.baseline(), controls: batch.controls, invocations: batch.invocations })
+      const recover = () =>
+        capture({ ...baseline, batch: { ...baseline.batch, controls: batch.controls, invocations: batch.invocations } })
       const critical = Boolean(batch.controls?.length || batch.invocations?.length)
-      pending.push({ batch: capture(batch), through: ++sent, ...(critical && { recovery: recover() }) })
-      if (pending.length > 100) {
+      pending.push({ captured: capture(captured), through: ++sent, ...(critical && { recovery: recover() }) })
+      if (pending.length > 1) retention.setBaseline(baseline)
+      if (pending.length > 100 || retention.exceeds(pending)) {
         const closed = batch.events.filter((event) => event.type === 'closed')
-        const retained = pending.filter((item) => item.recovery).map((item) => ({ ...item, batch: item.recovery! }))
-        if (retained.length > 1000) {
+        const retained = pending.filter((item) => item.recovery).map((item) => ({ ...item, captured: item.recovery! }))
+        if (retained.length > 1000 || retention.exceeds(retained)) {
           lost = true
           pending = [
+            ...(started ? [] : [pending[0]]),
             {
-              batch: {
-                events: [
-                  { type: 'gap', reason: 'overflow' },
-                  { type: 'closed', reason: 'source-lost' }
-                ],
-                native: [],
-                retracted: []
+              captured: {
+                batch: {
+                  events: [
+                    { type: 'gap', reason: 'overflow' },
+                    { type: 'closed', reason: 'source-lost' }
+                  ],
+                  native: [],
+                  retracted: []
+                }
               },
               through: sent
             }
           ]
-          this.report(new Error('Claude observer exceeded recoverable control backlog'))
+          retention.clear()
+          const error = new Error('Claude observer exceeded recoverable control backlog')
+          this.report(error)
+          this.onBacklog?.(error)
           drain()
           return
         }
         pending = [
           ...(started ? [] : [pending[0]]),
-          { batch: { events: [{ type: 'gap', reason: 'overflow' }], native: [], retracted: [] }, through: delivered },
+          {
+            captured: { batch: { events: [{ type: 'gap', reason: 'overflow' }], native: [], retracted: [] } },
+            through: delivered
+          },
           ...retained,
           ...(retained.at(-1)?.through === sent
             ? []
-            : [{ batch: recover(), through: closed.length ? sent - 1 : sent }]),
-          ...(closed.length ? [{ batch: { events: closed, native: [], retracted: [] }, through: sent }] : [])
+            : [{ captured: recover(), through: closed.length ? sent - 1 : sent }]),
+          ...(closed.length
+            ? [{ captured: { batch: { events: closed, native: [], retracted: [] } }, through: sent }]
+            : [])
         ]
       }
       drain()

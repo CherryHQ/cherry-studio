@@ -101,7 +101,9 @@ Create `src/main/ai/runtime/<name>/` implementing the contract in
      host controls and display metadata, `turn-complete` to settle the
      host turn (the host closes the UI turn on this event — a runtime that
      never emits it strands the turn), `resume-token` whenever the runtime
-     learns a recovery handle, `error` on failure.
+     learns a recovery handle, `error` on failure. Set `fatal: true` only when the
+     connection cannot continue safely: the host clears queued input and closes
+     that session through its existing verified-close barrier.
    - `send(input)` — deliver a user message; `input.systemReminder` marks a
      steer, wrap it with `wrapSteerReminder(...)`.
    - `reconcile(input)` — re-derive the desired connection state. Serialize concurrent

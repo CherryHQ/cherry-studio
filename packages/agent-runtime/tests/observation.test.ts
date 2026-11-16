@@ -21,6 +21,17 @@ const snapshot = (): ThreadSnapshot => ({
 })
 const tick = () => new Promise<void>((resolve) => setImmediate(resolve))
 
+it('captures an isolated historical revision without following later publications', () => {
+  const feed = new ThreadFeed(snapshot(), () => {})
+  feed.publish({ type: 'message.upsert', message: item('answer', 'earlier') })
+  const captured = feed.captureSnapshot()
+  feed.publish({ type: 'message.upsert', message: item('answer', 'later') })
+  const first = captured.read()
+  first.messages[0].parts.length = 0
+  expect(captured.read().messages[0].parts).toEqual([{ type: 'text', text: 'earlier' }])
+  expect(feed.snapshot.messages[0].parts).toEqual([{ type: 'text', text: 'later' }])
+})
+
 setFlagsFromString('--expose_gc')
 const collectGarbage = runInNewContext('gc') as () => void
 async function retainedHeap(): Promise<number> {

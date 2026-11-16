@@ -1,4 +1,7 @@
 import { randomUUID } from 'node:crypto'
+import { setImmediate as nextTurn } from 'node:timers/promises'
+import { setFlagsFromString } from 'node:v8'
+import { runInNewContext } from 'node:vm'
 
 import type {
   SDKAssistantMessage,
@@ -13,6 +16,263 @@ import { claudeThread, type ClaudeObservation } from '../src'
 import { ClaudeFeed } from '../src/observation'
 import { confirmed, observe, textOf } from './nativeFixture'
 import { assistantMessage, wireFixture } from './wireFixture'
+
+it('does not multiply unchanged tool-result containers behind a slow observer', async () => {
+  setFlagsFromString('--expose_gc')
+  const gc = runInNewContext('gc') as () => void
+  const heap = async () => {
+    await nextTurn()
+    gc()
+    await nextTurn()
+    gc()
+    return process.memoryUsage().heapUsed
+  }
+  const failures: unknown[] = []
+  const feed = new ClaudeFeed((error) => failures.push(error))
+  const content = Array.from({ length: 16000 }, (_, index) => ({ type: 'text' as const, text: `block ${index}` }))
+  feed.publish(
+    [
+      {
+        type: 'message.upsert',
+        message: {
+          id: 'tool',
+          role: 'assistant',
+          metadata: { completeness: 'complete' },
+          parts: [
+            {
+              type: 'dynamic-tool',
+              toolName: 'test',
+              toolCallId: 'call',
+              state: 'output-available',
+              input: {},
+              output: content
+            }
+          ]
+        }
+      }
+    ],
+    [
+      {
+        source: 'live',
+        message: {
+          type: 'user',
+          uuid: randomUUID(),
+          session_id: 'test',
+          parent_tool_use_id: null,
+          message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'call', content }] }
+        }
+      }
+    ]
+  )
+  let release!: () => void
+  const gate = new Promise<void>((resolve) => {
+    release = resolve
+  })
+  let received = 0,
+    controls = 0,
+    closed = false
+  const observation = feed.observe(async (batch) => {
+    controls += batch.controls?.length ?? 0
+    closed ||= batch.events.some((event) => event.type === 'closed')
+    if (++received === 1) await gate
+  })
+  try {
+    await nextTurn()
+    const before = await heap()
+    for (let index = 0; index < 40; index++)
+      feed.publish([], [], undefined, [], [{ type: 'background-work-state', active: index % 2 === 0 }])
+    expect((await heap()) - before).toBeLessThan(16 * 1024 * 1024)
+    release()
+    await observation.drain()
+    expect(controls).toBe(40)
+    expect(closed).toBe(false)
+    expect(failures).toEqual([])
+  } finally {
+    release()
+    await observation.stop()
+  }
+})
+
+it('reports critical byte pressure before a stalled consumer resumes', async () => {
+  const failures: unknown[] = []
+  const feed = new ClaudeFeed((error) => failures.push(error))
+  let release!: () => void
+  const gate = new Promise<void>((resolve) => {
+    release = resolve
+  })
+  const received: string[] = []
+  const observation = feed.observe(async (batch) => {
+    received.push(...batch.events.map((event) => event.type))
+    if (received.length === 1) await gate
+  })
+  try {
+    await nextTurn()
+    for (let index = 0; index < 12; index++)
+      feed.publish([], [], undefined, [], [{ type: 'diagnostic', message: `${index}:${'x'.repeat(1024 * 1024)}` }])
+    expect(failures).toEqual([
+      expect.objectContaining({ message: 'Claude observer exceeded recoverable control backlog' })
+    ])
+    expect(received).toEqual(['snapshot'])
+    release()
+    await observation.drain()
+    expect(received).toEqual(['snapshot', 'gap', 'closed'])
+  } finally {
+    release()
+    await observation.stop()
+  }
+})
+
+it('keeps a complete oversized baseline first when byte pressure closes before delivery starts', async () => {
+  const feed = new ClaudeFeed(() => {})
+  const body = 'x'.repeat(9 * 1024 * 1024)
+  feed.publish([
+    {
+      type: 'message.upsert',
+      message: {
+        id: 'large',
+        role: 'assistant',
+        metadata: { completeness: 'complete' },
+        parts: [{ type: 'text', text: body }]
+      }
+    }
+  ])
+  const received: ClaudeObservation[] = []
+  const observation = feed.observe((batch) => {
+    received.push(batch)
+  })
+  for (let index = 0; index < 12; index++)
+    feed.publish([], [], undefined, [], [{ type: 'diagnostic', message: `${index}:${'y'.repeat(1024 * 1024)}` }])
+  await observation.drain()
+  expect(received.flatMap((batch) => batch.events.map((event) => event.type))).toEqual(['snapshot', 'gap', 'closed'])
+  expect(received[0].events[0]).toMatchObject({ messages: [{ parts: [{ type: 'text', text: body }] }] })
+})
+
+it('recovers small typed views that retain oversized backing buffers', async () => {
+  const feed = new ClaudeFeed((error) => {
+    throw error
+  })
+  let release!: () => void
+  const gate = new Promise<void>((resolve) => {
+    release = resolve
+  })
+  const received: ClaudeObservation[] = []
+  const observation = feed.observe(async (batch) => {
+    received.push(batch)
+    if (received.length === 1) await gate
+  })
+  try {
+    await nextTurn()
+    for (let index = 0; index < 3; index++) {
+      const output = new Uint8Array(new ArrayBuffer(9 * 1024 * 1024), 0, 1)
+      output[0] = index
+      feed.publish([
+        {
+          type: 'message.upsert',
+          message: {
+            id: 'buffer',
+            role: 'assistant',
+            metadata: { completeness: 'complete' },
+            parts: [
+              {
+                type: 'dynamic-tool',
+                toolName: 'test',
+                toolCallId: 'call',
+                state: 'output-available',
+                input: {},
+                output
+              }
+            ]
+          }
+        }
+      ])
+    }
+    release()
+    await observation.drain()
+    expect(received.some((batch) => batch.events.some((event) => event.type === 'gap'))).toBe(true)
+    expect(received.at(-1)?.events).toContainEqual(
+      expect.objectContaining({
+        type: 'snapshot',
+        messages: [expect.objectContaining({ parts: [expect.objectContaining({ output: new Uint8Array([2]) })] })]
+      })
+    )
+  } finally {
+    release()
+    await observation.stop()
+  }
+})
+
+it('recovers the captured revision and usage once despite publisher and observer edits', async () => {
+  const feed = new ClaudeFeed((error) => {
+    throw error
+  })
+  let release!: () => void
+  const gate = new Promise<void>((resolve) => {
+    release = resolve
+  })
+  const batches: ClaudeObservation[] = []
+  const held = feed.observe(async (batch) => {
+    batches.push(batch)
+    if (batches.length === 1) await gate
+  })
+  const mutating = feed.observe((batch) => {
+    for (const event of batch.events) {
+      if (event.type === 'snapshot') for (const message of event.messages) message.parts.length = 0
+      if (event.type === 'message.upsert') event.message.parts.length = 0
+    }
+    for (const value of batch.native)
+      if (value.source === 'live' && value.message.type === 'assistant') value.message.message.content = []
+  })
+  try {
+    await nextTurn()
+    const nativeId = randomUUID()
+    for (let revision = 1; revision <= 3; revision++) {
+      const native = assistantMessage('test', [{ type: 'text', text: `revision ${revision}`, citations: null }], {
+        uuid: nativeId
+      })
+      const message = {
+        id: 'answer',
+        role: 'assistant' as const,
+        metadata: { completeness: 'complete' as const },
+        parts: [{ type: 'text' as const, text: `revision ${revision}` }]
+      }
+      feed.publish(
+        [{ type: 'message.upsert', message }],
+        [{ source: 'live', message: native }],
+        undefined,
+        [{ responseId: `response-${revision}` }],
+        [{ type: 'response-start', responseId: `response-${revision}` }]
+      )
+      message.parts[0].text = 'publisher edit'
+      native.message.content = []
+      await mutating.drain()
+    }
+    for (let index = 0; index < 110; index++) feed.publish([{ type: 'activity.changed', activity: { state: 'idle' } }])
+    release()
+    await held.drain()
+    const recovered = batches.filter((batch) => batch.invocations?.length)
+    expect(recovered.flatMap((batch) => batch.invocations!.map((invocation) => invocation.responseId))).toEqual([
+      'response-1',
+      'response-2',
+      'response-3'
+    ])
+    for (const [index, batch] of recovered.entries()) {
+      expect(batch.events).toContainEqual(
+        expect.objectContaining({
+          type: 'snapshot',
+          messages: [expect.objectContaining({ parts: [{ type: 'text', text: `revision ${index + 1}` }] })]
+        })
+      )
+      expect(batch.native[0].message).toMatchObject({
+        message: { content: [{ type: 'text', text: `revision ${index + 1}` }] }
+      })
+    }
+    expect(feed.snapshot.messages[0].parts).toEqual([{ type: 'text', text: 'revision 3' }])
+  } finally {
+    release()
+    await held.stop()
+    await mutating.stop()
+  }
+})
 
 function denied(sessionId: string, toolUseId: string): SDKPermissionDeniedMessage {
   return {

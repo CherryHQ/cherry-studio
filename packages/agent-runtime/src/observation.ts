@@ -7,6 +7,7 @@ import type {
   RuntimeMessage,
   ThreadSnapshot
 } from './contracts'
+import { captureOwnedHistory, type CapturedHistory } from './historyRetention'
 
 const MAX_PENDING_BYTES = 16 * 1024 * 1024
 
@@ -40,6 +41,10 @@ export class ThreadFeed {
 
   get snapshot(): ThreadSnapshot {
     return this.copy(this.value)
+  }
+
+  captureSnapshot(): CapturedHistory<ThreadSnapshot> {
+    return captureOwnedHistory(this.value, this.copy)
   }
 
   get state(): Omit<ThreadSnapshot, 'messages'> {
