@@ -41,16 +41,17 @@ The reader is not seeded from a partial snapshot: SDK parser state must come fro
 
 `ThreadFeed` is a protocol utility: one normalized snapshot, ordered per-observer delivery,
 bounded pending frames, explicit overflow gaps, and observer error isolation. It owns no native
-queue or execution lifecycle. `state` copies non-message state, `message(id)` copies one
-selected message, and `messageIds` / `messageInputId(id)` read scalar identities. Adapters
-use these selectors instead of copying the entire history for a narrow read; public snapshots
-and observer deliveries remain isolated copies of mutable containers. Immutable text and image strings
-are reused without serialization. Adapters maintain source identity before publishing events. `observeCaptured`
-captures concrete metadata with each native revision and retains critical frames through overflow recovery.
-Pending delivery uses a conservative 16 MiB size budget as well as event-count limits. Overflow
-replaces superseded ordinary delivery with a gap and a current recovery snapshot while retaining
-critical frames. One oversized complete frame is allowed so history is never truncated to fit;
-multiple oversized critical frames fail closed with `source-lost` rather than growing without bound.
+queue or execution lifecycle. Published values pass through `immutable()`: the publisher's containers
+are copied once and frozen, while values already frozen by an earlier publication are reused. The
+stored snapshot, `state`, `message(id)`, captured metadata and every observer delivery share those
+frozen values; mutating one throws instead of affecting other consumers. Adapters that republish
+unchanged messages from `snapshot` or their own `immutable()` cache therefore keep message identity,
+so pending frames and downstream comparisons do not multiply history. `messageIds` and
+`messageInputId(id)` read scalar identities. Adapters maintain source identity before publishing
+events. `observeCaptured` captures concrete metadata with each native revision and retains critical
+frames through overflow recovery. More than 100 pending frames replaces superseded ordinary delivery
+with a gap and a current recovery snapshot while retaining critical frames; more than 1,000 retained
+critical frames closes the observation with `source-lost`. History is never truncated to fit.
 The first baseline remains first even when overflow closes an observation before its callback starts.
 An unrecoverable control backlog closes the observation with a gap instead of inventing completion.
 `Observation.drain()` joins delivery and callbacks through the facts already published when it is called.
