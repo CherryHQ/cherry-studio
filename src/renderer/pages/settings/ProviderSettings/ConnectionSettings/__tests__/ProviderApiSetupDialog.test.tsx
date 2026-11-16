@@ -354,7 +354,8 @@ describe('ProviderApiSetupDialog', () => {
     fireEvent.change(screen.getByLabelText('settings.provider.api_key.label'), { target: { value: 'sk-valid' } })
     fireEvent.click(screen.getByRole('button', { name: 'settings.provider.api_setup.next' }))
 
-    await screen.findByText(/storage unavailable/)
+    expect(await screen.findByRole('alert')).toHaveTextContent('settings.provider.api_key.save_failed')
+    expect(screen.queryByText(/storage unavailable/)).not.toBeInTheDocument()
     expect(screen.getByLabelText('settings.provider.api_key.label')).toHaveValue('sk-valid')
     expect(fetchResolvedProviderModelsMock).not.toHaveBeenCalled()
     expect(enableProviderMock).not.toHaveBeenCalled()
@@ -518,7 +519,7 @@ describe('ProviderApiSetupDialog', () => {
 
     await screen.findByRole('alert')
     expect(screen.queryByText(/sk-existing/)).not.toBeInTheDocument()
-    expect(screen.getByRole('alert')).toHaveTextContent('••••')
+    expect(screen.getByRole('alert')).not.toHaveTextContent('401 rejected')
     expect(screen.getByRole('button', { name: 'settings.provider.api_setup.edit_key' })).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'common.back' }))
@@ -568,7 +569,6 @@ describe('ProviderApiSetupDialog', () => {
     render(<ProviderApiSetupDialog providerId="openai" initialStep="models" onClose={vi.fn()} />)
 
     const alert = await screen.findByRole('alert')
-    expect(alert).toHaveTextContent('settings.models.manage.sync_pull_failed')
     expect(alert).toHaveTextContent('error.diagnosis.auth')
     expect(alert).not.toHaveTextContent('Invalid API key')
   })
@@ -610,7 +610,7 @@ describe('ProviderApiSetupDialog', () => {
 
     render(<ProviderApiSetupDialog providerId="openai" initialStep="models" onClose={vi.fn()} />)
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('settings.models.manage.sync_pull_failed')
+    expect(await screen.findByRole('alert')).toHaveTextContent('error.diagnosis.auth')
     expect(screen.queryByRole('button', { name: 'common.detail' })).not.toBeInTheDocument()
   })
 
@@ -689,7 +689,8 @@ describe('ProviderApiSetupDialog', () => {
     expect(enableProviderMock).not.toHaveBeenCalled()
 
     await user.click(screen.getByRole('button', { name: 'settings.provider.api_setup.verify_and_enable' }))
-    await screen.findByText(/storage unavailable/)
+    expect(await screen.findByRole('alert')).toHaveTextContent('settings.provider.api_setup.enable_failed')
+    expect(screen.queryByText(/storage unavailable/)).not.toBeInTheDocument()
     expect(checkApiMock).toHaveBeenCalledTimes(2)
     expect(enableProviderMock).toHaveBeenCalledTimes(1)
 
@@ -698,6 +699,22 @@ describe('ProviderApiSetupDialog', () => {
     expect(checkApiMock).toHaveBeenCalledTimes(2)
     expect(enableProviderMock).toHaveBeenCalledTimes(2)
     expect(createModelsMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('shows an unrecognized check failure as the translated step summary with Details', async () => {
+    storedApiKeys = [{ id: 'saved-key', key: 'sk-existing', isEnabled: true }]
+    checkApiMock.mockRejectedValueOnce(new Error('upstream returned gibberish'))
+
+    render(<ProviderApiSetupDialog providerId="openai" initialStep="models" onClose={vi.fn()} />)
+
+    await screen.findAllByText('alpha')
+    fireEvent.click(screen.getAllByLabelText('settings.provider.api_setup.select_model')[0])
+    fireEvent.click(screen.getByRole('button', { name: 'settings.provider.api_setup.progress.add_models' }))
+
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent('settings.provider.api_setup.check_failed')
+    expect(screen.queryByText(/upstream returned gibberish/)).not.toBeInTheDocument()
+    expect(within(alert).getByRole('button', { name: 'common.detail' })).toBeInTheDocument()
   })
 
   it('treats a verification timeout as a failed real request and leaves the provider off', async () => {
@@ -733,7 +750,8 @@ describe('ProviderApiSetupDialog', () => {
     fireEvent.click(screen.getByRole('button', { name: 'common.select_all' }))
     fireEvent.click(screen.getByRole('button', { name: 'settings.provider.api_setup.progress.add_models' }))
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('second batch failed')
+    expect(await screen.findByRole('alert')).toHaveTextContent('settings.models.manage.operation_failed')
+    expect(screen.getByRole('alert')).not.toHaveTextContent('second batch failed')
     expect(screen.getByRole('heading', { name: /settings\.provider\.api_setup\.models_title/ })).toBeInTheDocument()
     expect(
       screen.queryByRole('heading', { name: /settings\.provider\.api_setup\.verify_and_enable/ })

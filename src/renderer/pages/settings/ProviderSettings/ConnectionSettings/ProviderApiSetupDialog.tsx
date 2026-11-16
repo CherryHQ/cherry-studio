@@ -188,18 +188,16 @@ export default function ProviderApiSetupDialog({ providerId, initialStep, onClos
 
   const createError = useCallback(
     (kind: SetupErrorKind, fallbackKey: string, cause: unknown): SetupError => {
-      const fallback = t(fallbackKey)
       const storedKeys = apiKeysData?.keys
-      const canSafelyShowSummary = apiKey.trim().length > 0 || storedKeys !== undefined
+      const canSafelyShowDiagnostic = apiKey.trim().length > 0 || storedKeys !== undefined
       const details = getProviderSetupErrorDetails(cause, [
         ...parseProviderApiKeys(apiKey),
         ...storedApiKeyEntries.map((entry) => entry.key)
       ])
-      const summary = details.i18nKey ? t(details.i18nKey) : canSafelyShowSummary ? details.summary : ''
       return {
         kind,
-        message: summary ? `${fallback} ${summary}` : fallback,
-        diagnostic: canSafelyShowSummary ? details.diagnostic : undefined
+        message: t(details.i18nKey ?? fallbackKey),
+        diagnostic: canSafelyShowDiagnostic ? details.diagnostic : undefined
       }
     },
     [apiKey, apiKeysData?.keys, storedApiKeyEntries, t]
@@ -653,48 +651,49 @@ export default function ProviderApiSetupDialog({ providerId, initialStep, onClos
               ) : null}
             </div>
           ) : (
-            <ol className="space-y-1 px-1">
-              {verificationSteps.map(({ id, label }) => {
-                let status: VerificationStepStatus = 'pending'
-                if (completedVerificationSteps.has(id)) {
-                  status = 'complete'
-                } else if (failedVerificationStep === id) {
-                  status = 'error'
-                } else if (requiresManualConfirmation && id === 'check') {
-                  status = 'warning'
-                } else if (activeVerificationStep === id) {
-                  status = 'active'
-                }
+            <div className="space-y-3">
+              <ol className="space-y-1 px-1">
+                {verificationSteps.map(({ id, label }) => {
+                  let status: VerificationStepStatus = 'pending'
+                  if (completedVerificationSteps.has(id)) {
+                    status = 'complete'
+                  } else if (failedVerificationStep === id) {
+                    status = 'error'
+                  } else if (requiresManualConfirmation && id === 'check') {
+                    status = 'warning'
+                  } else if (activeVerificationStep === id) {
+                    status = 'active'
+                  }
 
-                const statusText =
-                  status === 'complete'
-                    ? t('common.success')
-                    : status === 'active'
-                      ? t('common.loading')
-                      : status === 'error'
-                        ? t('settings.models.check.failed')
-                        : status === 'warning'
-                          ? t('settings.models.check.status_skipped')
-                          : undefined
+                  const statusText =
+                    status === 'complete'
+                      ? t('common.success')
+                      : status === 'active'
+                        ? t('common.loading')
+                        : status === 'error'
+                          ? t('settings.models.check.failed')
+                          : status === 'warning'
+                            ? t('settings.models.check.status_skipped')
+                            : undefined
 
-                const description =
-                  status === 'error'
-                    ? error?.message
-                    : status === 'warning'
-                      ? t('settings.provider.api_setup.manual_description')
-                      : undefined
+                  const description =
+                    status === 'warning' ? t('settings.provider.api_setup.manual_description') : undefined
 
-                return (
-                  <VerificationProgressRow
-                    key={id}
-                    label={label}
-                    status={status}
-                    statusText={statusText}
-                    description={description}
-                  />
-                )
-              })}
-            </ol>
+                  return (
+                    <VerificationProgressRow
+                      key={id}
+                      label={label}
+                      status={status}
+                      statusText={statusText}
+                      description={description}
+                    />
+                  )
+                })}
+              </ol>
+              {error ? (
+                <SetupErrorMessage diagnostic={error.diagnostic} message={error.message} providerId={providerId} />
+              ) : null}
+            </div>
           )}
 
           {step === 'verification' ? (
@@ -832,14 +831,7 @@ function VerificationProgressRow({
           ) : null}
         </div>
         {description ? (
-          <div
-            role={status === 'error' ? 'alert' : undefined}
-            className={cn(
-              'mt-1 break-words text-xs leading-5',
-              status === 'error' ? 'text-error' : 'text-muted-foreground'
-            )}>
-            {description}
-          </div>
+          <div className="mt-1 break-words text-muted-foreground text-xs leading-5">{description}</div>
         ) : null}
       </div>
     </li>
