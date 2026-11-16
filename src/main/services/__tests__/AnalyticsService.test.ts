@@ -407,6 +407,63 @@ describe('AnalyticsService consent revocation', () => {
   })
 })
 
+describe('AnalyticsService product events', () => {
+  it('sends catalogued events anonymously with snake_case properties', async () => {
+    vi.stubEnv('MAIN_VITE_POSTHOG_KEY', 'phc_test')
+    const service = new AnalyticsService()
+    await service._doInit()
+    await vi.waitFor(() => expect(service.isActivated).toBe(true))
+
+    service.trackProductEvent({
+      event: 'cherryin_sign_in_result',
+      source: 'onboarding',
+      result: 'success',
+      durationMs: 1200
+    })
+
+    expect(posthog.capture).toHaveBeenCalledWith({
+      distinctId: 'test-client-id',
+      event: 'cherryin_sign_in_result',
+      properties: expect.objectContaining({
+        source: 'onboarding',
+        result: 'success',
+        duration_ms: 1200,
+        schema_version: 1,
+        $ip: '0.0.0.0',
+        $process_person_profile: false
+      })
+    })
+  })
+
+  it('replays an event raised between consent and client start-up', async () => {
+    vi.stubEnv('MAIN_VITE_POSTHOG_KEY', 'phc_test')
+    captured.preferenceValues['app.privacy.policy_version'] = ''
+    const service = new AnalyticsService()
+    await service._doInit()
+
+    changePreference('app.privacy.policy_version', LATEST_PRIVACY_POLICY_VERSION)
+    service.trackProductEvent({ event: 'onboarding_option_selected', option: 'cherryin_login' })
+    expect(service.isActivated).toBe(false)
+
+    await vi.waitFor(() =>
+      expect(posthog.capture).toHaveBeenCalledWith(expect.objectContaining({ event: 'onboarding_option_selected' }))
+    )
+  })
+
+  it('drops events raised without consent instead of replaying them later', async () => {
+    vi.stubEnv('MAIN_VITE_POSTHOG_KEY', 'phc_test')
+    captured.preferenceValues['app.privacy.policy_version'] = ''
+    const service = new AnalyticsService()
+    await service._doInit()
+
+    service.trackProductEvent({ event: 'onboarding_option_selected', option: 'skip' })
+    changePreference('app.privacy.policy_version', LATEST_PRIVACY_POLICY_VERSION)
+    await vi.waitFor(() => expect(service.isActivated).toBe(true))
+
+    expect(posthog.capture).not.toHaveBeenCalledWith(expect.objectContaining({ event: 'onboarding_option_selected' }))
+  })
+})
+
 describe('AnalyticsService token usage', () => {
   it('forwards reportable usage without changing its source', async () => {
     const service = new AnalyticsService()
