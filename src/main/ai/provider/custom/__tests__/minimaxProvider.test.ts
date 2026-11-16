@@ -143,7 +143,7 @@ describe('createMinimaxProvider', () => {
     const result = await provider.speechModel('speech-2.8-hd').doGenerate({
       text: 'Hello from MiniMax',
       voice: 'male-qn-qingse',
-      outputFormat: 'wav',
+      outputFormat: 'opus',
       speed: 1.2,
       language: 'en',
       instructions: 'Speak clearly',
@@ -169,7 +169,7 @@ describe('createMinimaxProvider', () => {
       language_boost: 'English',
       output_format: 'hex',
       voice_setting: { emotion: 'happy', voice_id: 'male-qn-qingse', speed: 1.2 },
-      audio_setting: { sample_rate: 32000, format: 'wav' },
+      audio_setting: { sample_rate: 32000, format: 'opus' },
       pronunciation_dict: { tone: ['Hello/(hello)'] },
       voice_modify: { pitch: 1 },
       subtitle_enable: true
@@ -192,6 +192,30 @@ describe('createMinimaxProvider', () => {
         details: 'MiniMax speech does not expose an instructions request field.'
       }
     ])
+  })
+
+  it('omits voice settings that do not include a voice ID', async () => {
+    const fetch = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ data: { audio: '00', status: 2 }, base_resp: { status_code: 0 } }), {
+        headers: { 'content-type': 'application/json' },
+        status: 200
+      })
+    )
+    const provider = createMinimaxProvider({ apiKey: 'sk-test', baseURL: 'https://api.minimax.io/v1', fetch })
+
+    const result = await provider.speechModel('speech-2.8-hd').doGenerate({
+      text: 'Hello from MiniMax',
+      speed: 1.2,
+      providerOptions: { minimax: { voice_setting: { emotion: 'happy' } } }
+    })
+
+    const sent = JSON.parse((fetch.mock.calls[0][1] as RequestInit).body as string)
+    expect(sent).not.toHaveProperty('voice_setting')
+    expect(result.warnings).toContainEqual({
+      type: 'unsupported',
+      feature: 'voice',
+      details: 'MiniMax requires a voice ID when voice settings are provided.'
+    })
   })
 
   it('uses the China speech endpoint and surfaces MiniMax API errors', async () => {

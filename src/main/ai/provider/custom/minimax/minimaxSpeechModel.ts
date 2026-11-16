@@ -22,7 +22,7 @@ interface MinimaxSpeechResponse {
   }
 }
 
-const AUDIO_FORMATS = ['mp3', 'wav', 'flac', 'pcm'] as const
+const AUDIO_FORMATS = ['mp3', 'wav', 'flac', 'pcm', 'pcmu_raw', 'pcmu_wav', 'opus'] as const
 
 function responseHeaders(response: Response): Record<string, string> {
   const headers: Record<string, string> = {}
@@ -100,7 +100,15 @@ export class MinimaxSpeechModel implements SpeechModelV3 {
     const voiceSetting = asRecord(bag.voice_setting)
     if (voice !== undefined) voiceSetting.voice_id = voice
     if (speed !== undefined) voiceSetting.speed = speed
-    if (Object.keys(voiceSetting).length > 0) body.voice_setting = voiceSetting
+    if (typeof voiceSetting.voice_id === 'string' && voiceSetting.voice_id.trim().length > 0) {
+      body.voice_setting = voiceSetting
+    } else if (Object.keys(voiceSetting).length > 0) {
+      warnings.push({
+        type: 'unsupported',
+        feature: 'voice',
+        details: 'MiniMax requires a voice ID when voice settings are provided.'
+      })
+    }
 
     const audioSetting = asRecord(bag.audio_setting)
     if (outputFormat !== undefined) {
