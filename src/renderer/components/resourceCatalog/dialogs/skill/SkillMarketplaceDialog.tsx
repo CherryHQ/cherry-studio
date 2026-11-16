@@ -146,13 +146,11 @@ export function SkillMarketplaceDialog({ open, onOpenChange }: Props) {
 
       pendingInstallSourcesRef.current.add(result.installSource)
       try {
-        const { skill, error: installError } = await install(result.installSource)
+        const { skill, cause } = await install(result.installSource)
         if (!skill) {
-          const message = t('settings.skills.installFailed', { name: result.name })
           toast.error({
-            title: message,
-            description: installError,
-            cause: installError,
+            title: t('settings.skills.installFailed', { name: result.name }),
+            cause,
             data: { source: 'skills', operation: 'skill.install', recordId: result.installSource }
           })
           return

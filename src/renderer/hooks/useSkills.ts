@@ -427,14 +427,14 @@ export function useSkillInstall() {
   }, [])
 
   const install = useCallback(
-    async (installSource: string): Promise<{ skill: InstalledSkill | null; error?: string }> => {
+    async (installSource: string): Promise<{ skill: InstalledSkill | null; error?: string; cause?: unknown }> => {
       beginInstalling(installSource)
       try {
         const skill = unwrapSkillResult(await ipcApi.request('skill.install', { installSource }))
         await refreshSkillsBestEffort(invalidate)
         return { skill }
       } catch (err) {
-        return { skill: null, error: skillErrorMessage(err) }
+        return { skill: null, error: skillErrorMessage(err), cause: err }
       } finally {
         finishInstalling(installSource)
       }

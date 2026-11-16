@@ -3,12 +3,12 @@ import { AnimatePresence, motion } from 'motion/react'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Alert, Button, Dialog, DialogContent, Dropzone, DropzoneEmptyState, ScrollArea } from '@cherrystudio/ui'
+import { Button, Dialog, DialogContent, Dropzone, DropzoneEmptyState, ScrollArea } from '@cherrystudio/ui'
 import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
+import { ErrorNotice } from '@renderer/components/ErrorNotice'
 import { useSkillInstall } from '@renderer/hooks/useSkills'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
-import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 import type { InstalledSkill } from '@shared/types/skill'
 import { createFilePathHandle } from '@shared/utils/file'
@@ -30,6 +30,7 @@ type ImportItem = {
   status: ImportItemStatus
   skillName?: string
   error?: string
+  cause?: unknown
 }
 
 /**
@@ -65,10 +66,7 @@ export function ImportSkillDialog({ open, onOpenChange }: Props) {
   }
 
   const getInstallErrorMessage = useCallback(
-    (e: unknown, fallbackName?: string) => {
-      const prefix = t('settings.skills.installFailed', { name: fallbackName ?? t('library.type.skill') })
-      return e instanceof Error && e.message ? formatErrorMessageWithPrefix(e, prefix) : prefix
-    },
+    (fallbackName?: string) => t('settings.skills.installFailed', { name: fallbackName ?? t('library.type.skill') }),
     [t]
   )
 
@@ -91,13 +89,13 @@ export function ImportSkillDialog({ open, onOpenChange }: Props) {
       try {
         for (const item of nextItems) {
           if (item.status === 'error') continue
-          updateItem(item.id, { status: 'installing', error: undefined })
+          updateItem(item.id, { status: 'installing', error: undefined, cause: undefined })
 
           try {
             const skill = item.kind === 'zip' ? await installFromZip(item.path) : await installFromDirectory(item.path)
             if (!skill) {
               failedCount += 1
-              updateItem(item.id, { status: 'error', error: getInstallErrorMessage(undefined, item.name) })
+              updateItem(item.id, { status: 'error', error: getInstallErrorMessage(item.name) })
               continue
             }
 
@@ -106,7 +104,7 @@ export function ImportSkillDialog({ open, onOpenChange }: Props) {
             updateItem(item.id, { status: 'success', skillName: skill.name })
           } catch (error) {
             failedCount += 1
-            updateItem(item.id, { status: 'error', error: getInstallErrorMessage(error, item.name) })
+            updateItem(item.id, { status: 'error', error: getInstallErrorMessage(item.name), cause: error })
           }
         }
 
@@ -174,7 +172,7 @@ export function ImportSkillDialog({ open, onOpenChange }: Props) {
       )
       await runImportQueue(zipItems, 'zip')
     } catch (e) {
-      setStatus({ kind: 'error', message: getInstallErrorMessage(e), cause: e })
+      setStatus({ kind: 'error', message: getInstallErrorMessage(), cause: e })
     }
   }
 
@@ -190,7 +188,7 @@ export function ImportSkillDialog({ open, onOpenChange }: Props) {
       )
       await runImportQueue(directoryItems, 'directory')
     } catch (e) {
-      setStatus({ kind: 'error', message: getInstallErrorMessage(e), cause: e })
+      setStatus({ kind: 'error', message: getInstallErrorMessage(), cause: e })
     }
   }
 
@@ -239,7 +237,7 @@ export function ImportSkillDialog({ open, onOpenChange }: Props) {
       const installingKey = droppedItems.some((item) => item.kind === 'zip') ? 'zip' : 'directory'
       await runImportQueue(droppedItems, installingKey)
     } catch (e) {
-      setStatus({ kind: 'error', message: getInstallErrorMessage(e), cause: e })
+      setStatus({ kind: 'error', message: getInstallErrorMessage(), cause: e })
     }
   }
 
@@ -354,6 +352,14 @@ function ImportResultList({ items }: { items: ImportItem[] }) {
                   </div>
                 ) : null}
               </div>
+              {item.status === 'error' && item.cause !== undefined ? (
+                <ErrorDetailAction
+                  error={item.cause}
+                  message={item.error}
+                  source="resource.skill"
+                  operation="skill.import"
+                />
+              ) : null}
             </div>
           )
         })}
@@ -384,12 +390,10 @@ function StatusBanner({ status }: { status: ImportStatus }) {
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0 }}
           className="mt-4">
-          <Alert
-            type="error"
-            showIcon
-            message={status.message}
-            className="rounded-md px-3 py-2 text-xs shadow-none"
-            action={
+          <ErrorNotice
+            variant="inline"
+            title={status.message}
+            detail={
               status.cause ? (
                 <ErrorDetailAction
                   error={status.cause}

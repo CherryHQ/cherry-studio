@@ -508,21 +508,19 @@ describe('SkillMarketplaceDialog', () => {
   it('tells the user why a marketplace install failed without closing', async () => {
     const user = userEvent.setup()
     const onOpenChange = vi.fn()
-    installMock.mockResolvedValueOnce({ skill: null, error: 'clone failed' })
+    const cause = new Error('clone failed')
+    installMock.mockResolvedValueOnce({ skill: null, error: 'clone failed', cause })
     renderDialog({ onOpenChange })
 
     typeSearchQuery('code')
     await user.click(screen.getByRole('button', { name: /settings.skills.install/ }))
 
     await waitFor(() => {
-      expect(toastError).toHaveBeenCalledWith(
-        expect.objectContaining({
-          title: 'settings.skills.installFailed:React Skill',
-          description: 'clone failed',
-          cause: 'clone failed',
-          data: { source: 'skills', operation: 'skill.install', recordId: 'skills.sh:vercel/skills/react-skill' }
-        })
-      )
+      expect(toastError).toHaveBeenCalledWith({
+        title: 'settings.skills.installFailed:React Skill',
+        cause,
+        data: { source: 'skills', operation: 'skill.install', recordId: 'skills.sh:vercel/skills/react-skill' }
+      })
     })
     expect(onOpenChange).not.toHaveBeenCalled()
   })
