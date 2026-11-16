@@ -16,7 +16,7 @@ Reject public PATCH for `accepted` and `delivering` inside the write transaction
 
 Resolve a branch in one recursive query, selecting the newest immediate child by `(created_at, id)` at every level. Unary `+` on the ordering timestamp prevents the session-time ordering shortcut; the existing `(session_id, parent_id)` index restricts each lookup to that parent's children. Group page siblings once by parent.
 
-Flat-history reconstruction belongs to the appended migrations in the [storage constraint decision](2026-11-09-session-tree-storage-constraints.md). Startup `AgentSessionMessageTreeSeeder` only initializes empty Session roots and selections and backfills legacy delivery reply anchors. Existing non-empty trees and their selections, including an absent selection, remain unchanged. Direct-SQL fixtures link their intended message IDs explicitly through `linkSessionMessageChain`.
+Flat-history reconstruction belongs to the appended migrations in the [storage constraint decision](2026-11-09-session-tree-storage-constraints.md). The same migration gives empty Sessions their root and selection; startup `AgentSessionMessageTreeSeeder` only backfills legacy delivery reply anchors. Existing non-empty trees and their selections, including an absent selection, remain unchanged. Direct-SQL fixtures link their intended message IDs explicitly through `linkSessionMessageChain`.
 
 For #23359, select only page IDs, parents and timestamps before loading payloads. Reuse one prepared primary-key read and project each assistant message immediately when `deferToolOutputs` is requested. This prevents a full page of raw tool outputs from remaining live during projection and avoids decoding the lookahead row. Default reads stay verbatim. The bounded per-row reads trade up to 200 synchronous lookups for a smaller live payload set.
 
@@ -37,7 +37,7 @@ Single oversized rows and non-deferred reads can still require substantial memor
 ## Verification
 
 - Regression — `AgentSessionMessageService.test.ts` rejects in-flight delivery PATCH without changing the row. Migration evidence is recorded in the [storage constraint decision](2026-11-09-session-tree-storage-constraints.md).
-- Regression — `agentSessionMessageTree.test.ts`: immediate-child ordering, timestamp ties, siblings, empty sessions, repeated seeding and delayed replies retain their contracts. Startup seeding preserves non-empty branches with either an absent or selected head, and initializes both missing and existing empty roots without changing timestamps.
+- Regression — `agentSessionMessageTree.test.ts`: immediate-child ordering, timestamp ties, siblings, empty sessions, repeated seeding and delayed replies retain their contracts. Startup seeding preserves non-empty branches with either an absent or selected head.
 
 Local service measurements use identical file-backed SQLite fixtures and alternate before/after operations. Timing observations are not packaged-app or live-provider acceptance.
 

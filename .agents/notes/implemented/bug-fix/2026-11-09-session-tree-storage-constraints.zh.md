@@ -14,7 +14,7 @@ Session 消息的父节点只是无约束文本。直接写入可以保存不存
 
 在自动生成的约束迁移之前追加自定义补数据迁移。仅重建没有选中节点且没有任何父节点连边的历史，按 `(created_at, id)` 排序。保留已有分支、选中节点、时间戳和消息事实。迁移器关闭外键期间，显式检查已有父节点是否合法；失败时回滚整个升级。补 root 时关闭 FTS 插入触发器，避免与显式分配的 FTS rowid 冲突；生产迁移器随后恢复触发器。在迁移事务内重建 FTS，确保生成的 root 即使没有文本也有对应的 FTS 文档。该一次性重建会扫描已有可搜索文本；仅恢复触发器会破坏外部内容一致性，并可能导致后续 Session 删除失败。
 
-平铺归档重构从[运行时契约](../../proposed/architecture/2026-10-17-agent-runtime-contract.md)描述的启动 Seeder 前移至表结构迁移，部分替代其回填职责。启动 Seeder 仅初始化空 Session 的 root 并回填遗留投递回复锚点。[树操作决策](2026-11-09-agent-session-tree-operations.md)记录查询、修改及投影行为。
+平铺归档重构从[运行时契约](../../proposed/architecture/2026-10-17-agent-runtime-contract.md)描述的启动 Seeder 前移至表结构迁移，部分替代其回填职责。该迁移也为空 Session 建立 root 和选择状态；启动 Seeder 仅回填遗留投递回复锚点。[树操作决策](2026-11-09-agent-session-tree-operations.md)记录查询、修改及投影行为。
 
 当前应用通过 2.2.2 中间版本完成 v1 转换，其生成的 v2 历史使用上述追加迁移。直接写 SQL 的测试夹具通过共享辅助函数创建真实 root。
 

@@ -16,7 +16,7 @@ Session 消息 PATCH 允许修改投递中的正文，而 DELETE 会拒绝同一
 
 通过一次递归查询解析分支，在每一层按 `(created_at, id)` 选择最新的直接子节点。排序时间戳前的一元 `+` 避免走会话时间索引的排序捷径；现有 `(session_id, parent_id)` 索引将每次查找限制在该父节点的子节点内。分页兄弟节点按父节点一次分组。
 
-平铺历史重构由[存储约束决策](2026-11-09-session-tree-storage-constraints.md)中的追加迁移负责。启动时的 `AgentSessionMessageTreeSeeder` 仅初始化空 Session 的 root 和选择状态，并回填遗留投递回复锚点。已有非空树及其选择状态保持不变，包括未选中头节点的状态。直接 SQL 夹具通过 `linkSessionMessageChain` 显式按预期消息 ID 顺序串联。
+平铺历史重构由[存储约束决策](2026-11-09-session-tree-storage-constraints.md)中的追加迁移负责。同一迁移也为空 Session 建立 root 和选择状态；启动时的 `AgentSessionMessageTreeSeeder` 仅回填遗留投递回复锚点。已有非空树及其选择状态保持不变，包括未选中头节点的状态。直接 SQL 夹具通过 `linkSessionMessageChain` 显式按预期消息 ID 顺序串联。
 
 针对 #23359，先仅查询分页 ID、父节点和时间戳，再使用一个预编译主键查询逐条加载正文。在请求 `deferToolOutputs` 时立即投影每条 assistant 消息，避免投影期间同时保留整页原始工具输出，也不解码用于探测下一页的额外行。默认读取仍返回完整数据。最多 200 次同步逐行查询换取更小的存活正文集合。
 
@@ -37,7 +37,7 @@ Session 消息 PATCH 允许修改投递中的正文，而 DELETE 会拒绝同一
 ## Verification
 
 - Regression — `AgentSessionMessageService.test.ts` 验证未完成投递的 PATCH 被拒绝且不改变原行。迁移证据记录在[存储约束决策](2026-11-09-session-tree-storage-constraints.md)中。
-- Regression — `agentSessionMessageTree.test.ts`：直接子节点排序、相同时间戳、兄弟节点、空会话、重复初始化及延迟回复保持原有契约。启动初始化保留已选中或未选中头节点的非空分支，并在不改变时间戳的情况下初始化空会话缺失或已有的 root。
+- Regression — `agentSessionMessageTree.test.ts`：直接子节点排序、相同时间戳、兄弟节点、空会话、重复初始化及延迟回复保持原有契约。启动初始化保留已选中或未选中头节点的非空分支。
 
 本地服务测量使用相同的文件型 SQLite 测试数据，交替执行优化前后操作。耗时观察不代表打包应用或真实供应商验收。
 

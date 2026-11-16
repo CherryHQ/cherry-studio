@@ -382,7 +382,7 @@ Child 内容可以复用消息存储和树形渲染，但界面上嵌套到父�
 | 关注点 | 当前普通聊天 | 当前 Agent 路径 | 拟议边界 |
 | --- | --- | --- | --- |
 | 容器与导航 | `topic` 拥有 assistant 选择、名称、排序、活跃时间、回收站及 `activeNodeId`。 | `agent_session` 混合了会话元数据、agent/workspace 绑定、计划复用及 `conversation`/`background` 分类。 | Runtime 切换期间保留既有 ID 和导航所有者。显式用户会话成员关系由 [#20635](https://github.com/CherryHQ/cherry-studio/issues/20635) 拆分；能够访问 Runtime 不代表应进入侧栏。 |
-| 消息结构 | `message.parentId`、单个虚拟根、兄弟分组和选中路径查询。 | `agent_session_message.parentId` 和隐藏根定义前序，`agent_session.activeNodeId` 选择路径；追加迁移按 `(createdAt, id)` 串联未改动的平铺记录；启动 Seeder 仅初始化空 root 和遗留投递回复锚点。 | Agent 归档复用消息树契约，不以原生 context 代替消息节点。 |
+| 消息结构 | `message.parentId`、单个虚拟根、兄弟分组和选中路径查询。 | `agent_session_message.parentId` 和隐藏根定义前序，`agent_session.activeNodeId` 选择路径；追加迁移按 `(createdAt, id)` 串联未改动的平铺记录；启动 Seeder 仅回填遗留投递回复锚点。 | Agent 归档复用消息树契约，不以原生 context 代替消息节点。 |
 | 编辑与 fork | 产品树操作选择或创建替代路径。 | [编辑](../../../../src/main/data/services/AgentSessionMessageService.ts)在发布原生 fork 后创建并选中兄弟输入，保留旧尾部；[fork](../../../../src/main/ai/agentSession/fork/AgentSessionForkOperations.ts)发布另一个产品会话并复制前缀。 | 已确认的目标行为是保留旧分支并选中编辑后的分支，随相应 UI/action 改动一起交付。“fork 为新会话”仍是另一项操作。 |
 | 原生位置 | 普通聊天根据选中路径组装模型历史。 | 消息保留原生来源；`agent_session_context` 将根/分支锚点关联到原生身份和 fork checkpoint 映射。 | 持久化经过验证的原生绑定，保留历史 checkpoint；不能从选中的展示路径重建 harness。 |
 | 可信产品状态 | 共享消息内容、snapshot、用量及附件。 | 另有 Main 写入的 `delivery*` 状态和原生 checkpoint 证据。 | 保留 Main 独占写入和跨会话投递语义；共享消息编辑不能接受这些字段。 |
@@ -608,9 +608,9 @@ P1 基础现已包含 backend/context 的增量 migration、现有消息上的�
 
 严格打开通过固定版本依赖的小补丁实现：`SessionManager.openExisting` 验证当前格式的文件头，不初始化文件；`SqliteStorage.openExisting` 读取已有 schema，不执行 migration。Node SQLite 使用 [`mode=rw`](https://www.sqlite.org/uri.html)，缺失文件不会被创建。不支持的原生格式版本保持不可用，等待显式迁移。Runtime 所有者对账身份关联与投影写入；写入失败不能授权重新提交。原生创建与观察 fixture 保留在测试中，不再暴露并行的生产提交路径。初始输入路径接受保留的纯文本内容，拒绝其他 parts，不另存转换后的 payload 副本。
 
-Agent 树阶段现已通过追加式 schema migration 重构未改动的平铺归档并增加存储约束，详见[存储约束决策](../../implemented/bug-fix/2026-11-09-session-tree-storage-constraints.md)。这部分替代了原先的启动回填职责：注册的 `AgentSessionMessageTreeSeeder` 仅初始化空 root 和遗留投递回复锚点。迁移保留消息 ID、时间戳、附件、用量及投递元数据，再选中迁移后的末端，不补造提交事实；已有分支和选择状态保持不变。待完成回复的投递会捕获发送分支。既有 context 行增加 `anchorMessageId` 和 `checkpointMapping.fork` 命名空间；共享前缀行保留原始原生来源。根会话展示映射使用强类型的 `checkpointMapping.root` 命名空间，保存来源范围与移除记录；根投影写入保留 fork checkpoint。
+Agent 树阶段现已通过追加式 schema migration 重构未改动的平铺归档并增加存储约束，详见[存储约束决策](../../implemented/bug-fix/2026-11-09-session-tree-storage-constraints.md)。这部分替代了原先的启动回填职责：注册的 `AgentSessionMessageTreeSeeder` 仅回填遗留投递回复锚点。迁移保留消息 ID、时间戳、附件、用量及投递元数据，再选中迁移后的末端，不补造提交事实；已有分支和选择状态保持不变。待完成回复的投递会捕获发送分支。既有 context 行增加 `anchorMessageId` 和 `checkpointMapping.fork` 命名空间；共享前缀行保留原始原生来源。根会话展示映射使用强类型的 `checkpointMapping.root` 命名空间，保存来源范围与移除记录；根投影写入保留 fork checkpoint。
 
-既有桌面 driver 路径复用共享兄弟分支导航。选择兄弟节点会选中其最新后代，不打开 harness；后续发送再解析该分支的原生目标。发送在异步校验前捕获父节点，父节点已被推进则拒绝，不跟随后来的 UI 选择。Runtime 输出、排队轮次及完成/失败回复保持所捕获的分支。Renderer 收到确认后刷新 Main 选中路径，不将其他分支的预留消息插入缓存。
+既有桌面 driver 路径复用共享兄弟分支导航。选择兄弟节点会逐层沿最新的直接子节点选中，不打开 harness；后续发送再解析该分支的原生目标。发送在异步校验前捕获父节点，父节点已被推进则拒绝，不跟随后来的 UI 选择。Runtime 输出、排队轮次及完成/失败回复保持所捕获的分支。Renderer 收到确认后刷新 Main 选中路径，不将其他分支的预留消息插入缓存。
 
 [树 fixture](../../../../src/main/data/services/__tests__/agentSessionMessageTree.test.ts) 验证可重复迁移、选中路径分页、分支隔离和迟到投递。[原生发布 fixture](../../../../src/main/ai/agentSession/fork/__tests__/branchPublication.sdkContract.test.ts) 使用真实 Pi 会话文件与 SQLite，验证反复编辑和独立绑定，不改写公共前缀。这些 fixture 不证明 provider 执行或应用崩溃恢复。另外，已在受跟踪的开发版 Electron 实例中，经真实 UI/Main/Pi 路径及本地脚本 HTTP 模型验证后续输入编辑、兄弟分支切换、分别继续两套原生历史，以及首条输入编辑；原生请求仅包含选中分支的输入。这是开发环境接入证据，不等于真实 provider、打包构建、Durable 或强制退出进程后的恢复验收。
 

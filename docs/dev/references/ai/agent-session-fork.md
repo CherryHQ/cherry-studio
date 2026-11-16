@@ -6,6 +6,10 @@ sources:
   - src/main/ai/agentSession/persistence/AgentSessionMessageBackend.ts
   - src/main/data/services/AgentSessionForkService.ts
   - src/main/data/services/AgentSessionMessageService.ts
+  - src/main/data/db/schemas/agentSessionMessage.ts
+  - src/main/data/db/seeding/seeders/AgentSessionMessageTreeSeeder.ts
+  - migrations/sqlite-drizzle/0039_agent_session_tree_backfill.sql
+  - migrations/sqlite-drizzle/0040_agent_session_tree_constraints.sql
   - src/main/ai/runtime/fork
   - src/main/ai/runtime/claudeCode
   - src/main/ai/runtime/pi
@@ -82,12 +86,12 @@ exists in the same Session. Deleting a message with children requires reparentin
 those children first; deleting the whole Session still removes its entire archive.
 These constraints do not enforce acyclicity or native execution bindings.
 
-An appended data migration converts untouched flat archives into one selected
-path before the constraint migration rebuilds the table. Existing branches and
+An appended data migration converts untouched flat archives, including empty
+Sessions, into one selected path before the constraint migration rebuilds the table. Existing branches and
 selections are preserved; invalid existing parent edges abort the upgrade without
 changing user rows. V1 conversion runs in the 2.2.2 bridge release; its v2
-archives follow the same appended migration path. Startup seeding remains responsible for empty
-Session roots and legacy delivery reply anchors. Previously deleted tails cannot
+archives follow the same appended migration path. Startup seeding only backfills
+legacy delivery reply anchors. Previously deleted tails cannot
 be recovered.
 
 Message pages select IDs before loading payloads. With `deferToolOutputs`, each
