@@ -229,6 +229,24 @@ describe('PiPromptField', () => {
     expect(await screen.findByText('skills=release-notes')).toBeInTheDocument()
   })
 
+  // A page may save files the prompt is built from (SOUL.md on the identity page), so the list recounts.
+  it('recounts the tokens after coming back from a block page', async () => {
+    answerWithDraft()
+    const user = userEvent.setup()
+    render(<Harness />)
+    const before = (await screen.findByText(/^约 .* tokens$/)).textContent
+    await openSection(user, '技能')
+
+    request.mockImplementation(async () => ({
+      blocks: [
+        { key: 'skills', kind: 'live', text: 'A much longer identity saved while the page was open. '.repeat(20) }
+      ]
+    }))
+    await user.click(screen.getByRole('button', { name: '技能' }))
+
+    await waitFor(() => expect(screen.getByText(/^约 .* tokens$/).textContent).not.toBe(before))
+  })
+
   it('reports a failed assembly and recovers on retry, keeping the instructions editable', async () => {
     request.mockRejectedValueOnce(new Error('boom'))
     const user = userEvent.setup()

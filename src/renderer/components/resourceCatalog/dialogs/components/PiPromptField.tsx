@@ -85,7 +85,7 @@ function draftLanguage({ languageMode, languageCustom }: PiPromptDraft): string 
   return undefined
 }
 
-function usePiPromptPreview(draft: PiPromptDraft, instructions: string) {
+function usePiPromptPreview(draft: PiPromptDraft, instructions: string, listShown: boolean) {
   const [preview, setPreview] = useState<AgentSystemPromptPreview | null>(null)
   const [failed, setFailed] = useState(false)
   const [attempt, setAttempt] = useState(0)
@@ -106,6 +106,7 @@ function usePiPromptPreview(draft: PiPromptDraft, instructions: string) {
   // The assembly only depends on whether instructions exist; their text sits in the editable slot.
   const requestKey = JSON.stringify([request, Boolean(instructions.trim())])
 
+  // Re-read on each switch between the list and a page: a page may save files the prompt is built from.
   useEffect(() => {
     let cancelled = false
     const [nextRequest] = JSON.parse(requestKey) as [Omit<AgentSystemPromptDraft, 'instructions'>]
@@ -127,7 +128,7 @@ function usePiPromptPreview(draft: PiPromptDraft, instructions: string) {
       cancelled = true
       clearTimeout(timer)
     }
-  }, [requestKey, attempt])
+  }, [requestKey, attempt, listShown])
 
   return { preview, failed, retry: () => setAttempt((count) => count + 1) }
 }
@@ -152,9 +153,9 @@ export function PiPromptField({
   identityEditor
 }: PiPromptFieldProps) {
   const { t } = useTranslation()
-  const { preview, failed, retry } = usePiPromptPreview(draft, value)
   const [localSection, setLocalSection] = useState<string | null>(null)
   const section = onSectionChange ? (controlledSection ?? null) : localSection
+  const { preview, failed, retry } = usePiPromptPreview(draft, value, section === null)
   const setSection = onSectionChange ?? setLocalSection
   const instructions = value || preview?.builtinInstructions || ''
   const overrideOf = (key: string) => (isEditablePromptSection(key) ? overrides?.[key] : undefined)
