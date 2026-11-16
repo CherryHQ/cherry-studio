@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-04-responses-model-check.md
+2026-11-04-responses-model-check.md: f36055ebbdd48d7184828f0883525b4ae5eeb66f
+2026-11-04-responses-model-check.zh.md: 19b58d6821d81d3d9955a71a34cfce0ff7b96813
