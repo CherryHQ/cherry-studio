@@ -8,7 +8,7 @@ import { describe, expect, it } from 'vitest'
 import * as z from 'zod'
 
 import { createMcpInputSchema } from '@main/ai/tools/adapters/aiSdk/mcpSchema'
-import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, type EndpointType, type Model } from '@shared/data/types/model'
 
 import { toolSchemaCompatibilityFeature } from '../toolSchemaCompatibility'
 
@@ -17,6 +17,16 @@ async function getMiddleware(
 ): Promise<LanguageModelMiddleware> {
   const [plugin] = toolSchemaCompatibilityFeature.contributeModelAdapters!({
     ...scope,
+    model: {
+      id: 'custom::test-model',
+      apiModelId: 'test-model',
+      providerId: 'custom',
+      name: 'Test Model',
+      capabilities: [],
+      supportsStreaming: true,
+      isEnabled: true,
+      isHidden: false
+    } satisfies Model,
     sdkConfig: { providerId: scope.runtimeProviderId ?? scope.aiSdkProviderId ?? 'openai-compatible' }
   } as never)
   if (!plugin) throw new Error('Tool-schema compatibility plugin was not contributed')
