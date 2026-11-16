@@ -126,6 +126,16 @@ describe('diffAgentSaveIntent', () => {
 })
 
 describe('diffAgentUpdate', () => {
+  it('preserves a migrated shell restriction while editing another tool and reopening the form', () => {
+    const agent = createAgent({ type: 'pi-durable', disabledTools: ['Bash', 'NotebookEdit'] })
+    const baseline = buildInitialAgentFormState(agent)
+    const update = diffAgentUpdate(baseline, { ...baseline, disabledTools: [...baseline.disabledTools, 'write'] })
+    expect(update?.dto.disabledTools).toEqual(['bash', 'NotebookEdit', 'write'])
+    const reopened = buildInitialAgentFormState({ ...agent, disabledTools: update?.dto.disabledTools })
+    expect(reopened.disabledTools).toEqual(['bash', 'NotebookEdit', 'write'])
+    expect(diffAgentUpdate(reopened, reopened)).toBeNull()
+  })
+
   it('round-trips an edited heartbeat timeout without changing the interval or toggle', () => {
     const baseline = buildInitialAgentFormState(createAgent({ configuration: { heartbeat_enabled: true } }))
     expect(baseline.heartbeatTimeoutMinutes).toBe(2)

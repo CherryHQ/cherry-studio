@@ -22,6 +22,7 @@ import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { AgentSessionContextSeeder } from '@data/db/seeding/seeders/AgentSessionContextSeeder'
 import { AgentSessionMessageTreeSeeder } from '@data/db/seeding/seeders/AgentSessionMessageTreeSeeder'
+import { AgentSessionRuntimeSeeder } from '@data/db/seeding/seeders/AgentSessionRuntimeSeeder'
 import { RetiredAgentRuntimeSeeder } from '@data/db/seeding/seeders/RetiredAgentRuntimeSeeder'
 import { SeedRunner } from '@data/db/seeding/SeedRunner'
 import { agentSessionContextService } from '@data/services/AgentSessionContextService'
@@ -105,15 +106,24 @@ describe('retired DSH session migration', () => {
       .values([
         {
           id: 'conversation',
+          runtimeType: 'pi',
           name: 'Old conversation',
           workspaceId: 'workspace',
           agentId: 'legacy',
           orderKey: 'a0',
           lastActivityAt: 100
         },
-        { id: 'empty', name: 'Empty conversation', workspaceId: 'workspace', agentId: 'legacy', orderKey: 'a1' },
+        {
+          id: 'empty',
+          runtimeType: 'pi',
+          name: 'Empty conversation',
+          workspaceId: 'workspace',
+          agentId: 'legacy',
+          orderKey: 'a1'
+        },
         {
           id: 'archived-session',
+          runtimeType: 'pi',
           name: 'Archived conversation',
           workspaceId: 'workspace',
           agentId: 'archived',
@@ -202,6 +212,7 @@ describe('retired DSH session migration', () => {
     async (retry) => {
       BaseService.resetInstances()
       seeder.run(dbh.db)
+      new AgentSessionRuntimeSeeder().run(dbh.db)
       new AgentSessionMessageTreeSeeder().run(dbh.db)
       const migration = getRetiredAgentSessionMigration(dbh.db, 'conversation')!
       const sessions = path.join(directory, 'sessions')
@@ -794,7 +805,14 @@ describe('retired DSH session migration', () => {
     const sessionId = randomUUID()
     dbh.db
       .insert(agentSessionTable)
-      .values({ id: sessionId, name: 'Published fork', agentId: 'legacy', workspaceId: 'workspace', orderKey: 'a3' })
+      .values({
+        id: sessionId,
+        runtimeType: 'pi',
+        name: 'Published fork',
+        agentId: 'legacy',
+        workspaceId: 'workspace',
+        orderKey: 'a3'
+      })
       .run()
     dbh.db
       .insert(agentSessionMessageTable)

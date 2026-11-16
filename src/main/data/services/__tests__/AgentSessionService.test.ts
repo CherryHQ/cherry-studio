@@ -563,6 +563,7 @@ describe('AgentSessionService', () => {
         {
           id: 'user-created-later',
           agentId: 'agent-session-test',
+          runtimeType: 'pi-durable',
           name: '',
           workspaceId: userWorkspace.id,
           orderKey: 'a0',
@@ -572,6 +573,7 @@ describe('AgentSessionService', () => {
         {
           id: 'user-updated-later',
           agentId: 'agent-session-test',
+          runtimeType: 'pi-durable',
           name: '  ',
           workspaceId: userWorkspace.id,
           orderKey: 'a1',
@@ -581,6 +583,7 @@ describe('AgentSessionService', () => {
         {
           id: 'user-with-message',
           agentId: 'agent-session-test',
+          runtimeType: 'pi-durable',
           name: '',
           workspaceId: userWorkspace.id,
           orderKey: 'a2',
@@ -589,6 +592,7 @@ describe('AgentSessionService', () => {
         {
           id: 'system-empty',
           agentId: 'agent-session-test',
+          runtimeType: 'pi-durable',
           name: '',
           workspaceId: 'reusable-system-workspace',
           orderKey: 'a3',
@@ -597,6 +601,7 @@ describe('AgentSessionService', () => {
         {
           id: 'system-empty-old',
           agentId: 'agent-session-test',
+          runtimeType: 'pi-durable',
           name: '',
           workspaceId: 'reusable-system-workspace-old',
           orderKey: 'a4',
@@ -605,6 +610,7 @@ describe('AgentSessionService', () => {
         {
           id: 'manually-named',
           agentId: 'agent-session-test',
+          runtimeType: 'pi-durable',
           name: '',
           isNameManuallyEdited: true,
           workspaceId: userWorkspace.id,
@@ -659,6 +665,7 @@ describe('AgentSessionService', () => {
       await dbh.db.insert(agentSessionTable).values({
         id: 'reuse-activity-session',
         agentId: 'agent-session-test',
+        runtimeType: 'pi-durable',
         name: '',
         workspaceId: userWorkspace.id,
         orderKey: 'a0',
@@ -1333,11 +1340,7 @@ describe('AgentSessionService', () => {
     ])
   })
 
-  it('clears the session model override when reassignment crosses runtimes (inv_f15449b3ea653a29)', async () => {
-    // A subscription override selected under Claude Code is not servable by a
-    // Pi agent: retaining it makes Pi reject the first message with
-    // PiUnsupportedProviderError. The cross-runtime reassignment must clear
-    // the override atomically so the new agent's default applies.
+  it('keeps the session model and runtime when the new Agent has a different type', async () => {
     await dbh.db.insert(agentTable).values({
       id: 'agent-pi-reassigned',
       type: 'pi',
@@ -1367,16 +1370,13 @@ describe('AgentSessionService', () => {
     const updated = agentSessionService.update(session.id, { agentId: 'agent-pi-reassigned' })
 
     expect(updated.agentId).toBe('agent-pi-reassigned')
-    expect(updated.model).toBeNull()
+    expect(updated.model).toBe('anthropic::claude-sonnet-4-5')
+    expect(updated.runtimeType).toBe(session.runtimeType)
   })
 
   it.each(['pi', 'pi-durable'] as const)(
-    'clears an orphan session override that the new %s agent cannot serve',
+    'clears an orphan override incompatible with its bound %s runtime',
     async (runtimeType) => {
-      // The previous agent was permanently deleted: SQLite nulled the session's
-      // agentId, so the cross-runtime comparison has no previous type to read.
-      // Reassigning the orphan to a Pi agent must still clear an override Pi
-      // cannot serve — a non-chat (embedding) model is not gateway-routable.
       await dbh.db.insert(agentTable).values({
         id: 'agent-pi-orphan-target',
         type: runtimeType,
@@ -1401,6 +1401,7 @@ describe('AgentSessionService', () => {
         })
         .onConflictDoNothing()
       const session = await createSession('Orphaned unservable override')
+      dbh.db.update(agentSessionTable).set({ runtimeType }).where(eq(agentSessionTable.id, session.id)).run()
       agentSessionService.update(session.id, { model: 'anthropic::claude-embed-1' })
       await dbh.db.delete(agentTable).where(eq(agentTable.id, 'agent-session-test'))
       await dbh.db.update(agentSessionTable).set({ agentId: null }).where(eq(agentSessionTable.id, session.id))

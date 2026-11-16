@@ -14,9 +14,11 @@ import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { appStateTable } from '@data/db/schemas/appState'
 import { seeders } from '@data/db/seeding/seederRegistry'
 import { SeedRunner } from '@data/db/seeding/SeedRunner'
+import { agentSessionService } from '@data/services/AgentSessionService'
 import { getRetiredAgentSessionMigration } from '@data/services/retiredAgentRuntimeMigration'
 
 import { AgentSessionContextSeeder } from '../AgentSessionContextSeeder'
+import { AgentSessionRuntimeSeeder } from '../AgentSessionRuntimeSeeder'
 import { RetiredAgentRuntimeSeeder } from '../RetiredAgentRuntimeSeeder'
 
 const upgradeSeeders = seeders.filter(({ name }) => name === 'retiredAgentRuntime' || name === 'agentSessionContext')
@@ -153,6 +155,87 @@ describe('AgentSessionContextSeeder', () => {
       { sessionId: id, nativeThreadId: migration.resumeToken, bindingState: 'pending' }
     ])
     expect(dbh.db.select().from(agentSessionMessageTable).all()).toEqual(before)
+  })
+
+  it('preserves Claude history after reassignment to a Pi Agent', () => {
+    const id = session('claude-code')
+    const piAgentId = session('pi')
+    const nativeId = randomUUID()
+    const backendId = randomUUID()
+    dbh.db
+      .insert(agentRuntimeBackendTable)
+      .values({
+        id: backendId,
+        locator: { version: 1, kind: 'claude-code', configDir: '/claude' },
+        state: 'bound'
+      })
+      .run()
+    dbh.db
+      .insert(agentSessionContextTable)
+      .values({
+        sessionId: id,
+        backendId,
+        nativeThreadId: nativeId,
+        bindingState: 'bound'
+      })
+      .run()
+    message(id, { role: 'assistant', runtimeResumeToken: nativeId })
+    dbh.db.update(agentSessionTable).set({ agentId: piAgentId }).where(eq(agentSessionTable.id, id)).run()
+    const originalContexts = dbh.db.select().from(agentSessionContextTable).all()
+    const originalBackends = dbh.db.select().from(agentRuntimeBackendTable).all()
+    const originalMessages = dbh.db.select().from(agentSessionMessageTable).all()
+
+    new SeedRunner(dbh.db).runAll(upgradeSeeders)
+    new AgentSessionRuntimeSeeder().run(dbh.db)
+
+    expect(dbh.db.select().from(agentSessionContextTable).all()).toEqual(originalContexts)
+    expect(dbh.db.select().from(agentRuntimeBackendTable).all()).toEqual(originalBackends)
+    expect(dbh.db.select().from(agentSessionMessageTable).all()).toEqual(originalMessages)
+    expect(agentSessionService.getRuntimeTypeTx(dbh.db, id)).toBe('claude-code')
+    expect(journal()?.value).toEqual({ version: seeder.version })
+  })
+
+  it.each(['claude-code', 'pi-durable', 'unknown'])(
+    'does not reinterpret tokens under a persisted %s session binding as Pi',
+    (runtimeType) => {
+      const id = session('pi')
+      dbh.db.update(agentSessionTable).set({ runtimeType }).where(eq(agentSessionTable.id, id)).run()
+      message(id, { runtimeResumeToken: 'existing-native-identity' })
+
+      seeder.run(dbh.db)
+
+      expect(dbh.db.select().from(agentSessionContextTable).all()).toEqual([])
+      expect(dbh.db.select().from(agentRuntimeBackendTable).all()).toEqual([])
+      expect(dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, id)).get()?.runtimeType).toBe(
+        runtimeType
+      )
+    }
+  )
+
+  it('backfills a pinned Pi session after its Agent has been normalized to Durable', () => {
+    const id = session('pi-durable')
+    dbh.db.update(agentSessionTable).set({ runtimeType: 'pi' }).where(eq(agentSessionTable.id, id)).run()
+    message(id, { runtimeResumeToken: 'preserved-pi' })
+    dbh.db
+      .insert(appStateTable)
+      .values({ key: `seed:${seeder.name}`, value: { version: '1' } })
+      .run()
+
+    new SeedRunner(dbh.db).runAll(upgradeSeeders)
+    new SeedRunner(dbh.db).runAll(upgradeSeeders)
+
+    const rows = dbh.db
+      .select({ context: agentSessionContextTable, backend: agentRuntimeBackendTable })
+      .from(agentSessionContextTable)
+      .innerJoin(agentRuntimeBackendTable, eq(agentSessionContextTable.backendId, agentRuntimeBackendTable.id))
+      .all()
+    expect(rows).toEqual([
+      expect.objectContaining({
+        context: expect.objectContaining({ sessionId: id, nativeThreadId: 'preserved-pi' }),
+        backend: expect.objectContaining({ locator: { version: 1, kind: 'pi' } })
+      })
+    ])
+    expect(journal()?.value).toEqual({ version: seeder.version })
   })
 
   it('does not assume other harnesses or orphaned histories have Pi identities', () => {

@@ -468,6 +468,7 @@ const activeSessionMocks = vi.hoisted(() => ({
     session: {
       id: 'session-1',
       agentId: 'agent-1',
+      runtimeType: 'pi-durable',
       traceId: 'trace-a',
       workspaceId: 'workspace-1',
       workspace: { path: '/tmp/workspace' }
@@ -481,6 +482,7 @@ const activeSessionMocks = vi.hoisted(() => ({
       | {
           id: string
           agentId: string | null
+          runtimeType?: 'pi-durable'
           traceId?: string | null
           workspaceId?: string
           workspace: { path: string } | null
@@ -735,6 +737,7 @@ describe('AgentChat artifact pane', () => {
       session: {
         id: 'session-1',
         agentId: 'agent-1',
+        runtimeType: 'pi-durable',
         traceId: 'trace-a',
         workspaceId: 'workspace-1',
         workspace: { path: '/tmp/workspace' }
@@ -949,7 +952,12 @@ describe('AgentChat artifact pane', () => {
 
     activeSessionMocks.result = {
       ...activeSessionMocks.result,
-      session: { id: 'session-1', agentId: 'agent-1', workspace: { path: '/tmp/other-workspace' } }
+      session: {
+        id: 'session-1',
+        agentId: 'agent-1',
+        runtimeType: 'pi-durable',
+        workspace: { path: '/tmp/other-workspace' }
+      }
     }
     rerenderAgentChat(rerender, { pane: <aside data-testid="session-pane" />, paneOpen: true, panePosition: 'left' })
 
@@ -1137,7 +1145,12 @@ describe('AgentChat artifact pane', () => {
     const onSelectSession = vi.fn((sessionId: string) => {
       activeSessionMocks.result = {
         activeSessionId: sessionId,
-        session: { id: sessionId, agentId: 'agent-1', workspace: { path: '/tmp/workspace' } },
+        session: {
+          id: sessionId,
+          agentId: 'agent-1',
+          runtimeType: 'pi-durable',
+          workspace: { path: '/tmp/workspace' }
+        },
         isLoading: false,
         sessionSource: 'pending',
         setActiveSessionId: vi.fn()
@@ -1185,7 +1198,12 @@ describe('AgentChat artifact pane', () => {
 
     activeSessionMocks.result = {
       activeSessionId: 'pending-session-1',
-      session: { id: 'pending-session-1', agentId: 'agent-1', workspace: { path: '/tmp/temp-workspace' } },
+      session: {
+        id: 'pending-session-1',
+        agentId: 'agent-1',
+        runtimeType: 'pi-durable',
+        workspace: { path: '/tmp/temp-workspace' }
+      },
       isLoading: false,
       sessionSource: 'pending',
       setActiveSessionId: vi.fn()

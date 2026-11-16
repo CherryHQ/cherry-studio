@@ -109,7 +109,7 @@ function AgentEditDialogHost({
 }) {
   const { t } = useTranslation()
   const { agent, error } = useAgent(target.id)
-  const modelFilter = useAgentModelFilter(agent?.type)
+  const modelFilter = useAgentModelFilter(agent?.type, 'configuration')
 
   useEffect(() => {
     if (!error) return

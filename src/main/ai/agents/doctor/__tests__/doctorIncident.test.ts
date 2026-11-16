@@ -38,7 +38,10 @@ vi.mock('@main/ai/messages/readConversation', () => ({
   })
 }))
 vi.mock('@data/services/AgentSessionService', () => ({
-  agentSessionService: { getById: (id: string) => ({ id, agentId: 'agent-1', workspace: { type: 'system' } }) }
+  agentSessionService: {
+    getRuntimeType: () => mocks.agentType,
+    getById: (id: string) => ({ id, agentId: 'agent-1', runtimeType: mocks.agentType, workspace: { type: 'system' } })
+  }
 }))
 vi.mock('@data/services/AgentService', () => ({
   agentService: { getAgent: (id: string) => ({ id, type: mocks.agentType }) }

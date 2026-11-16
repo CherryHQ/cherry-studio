@@ -52,7 +52,7 @@ describe('Pi branch publication with native files', () => {
       .run()
     dbh.db
       .insert(agentSessionTable)
-      .values({ id: 'product', agentId: 'agent', workspaceId: 'work', name: 'Tree', orderKey: 'a0' })
+      .values({ runtimeType: 'pi', id: 'product', agentId: 'agent', workspaceId: 'work', name: 'Tree', orderKey: 'a0' })
       .run()
     runtimeDriverRegistry.register({
       type: 'pi',

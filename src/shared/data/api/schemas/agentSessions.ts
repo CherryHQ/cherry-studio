@@ -9,6 +9,7 @@ import { TraceIdSchema } from '@shared/data/types/trace'
 
 import type { CursorPaginationResponse } from '../types'
 import type { OrderEndpoints } from './_endpointHelpers'
+import { AgentTypeSchema } from './agents'
 import {
   type AgentSessionWorkspaceSource,
   AgentSessionWorkspaceSourceSchema,
@@ -29,6 +30,7 @@ export const SessionNameEntitySchema = z.string().max(255)
 export const AgentSessionEntitySchema = z.strictObject({
   id: z.string(),
   agentId: z.string().nullable(),
+  runtimeType: AgentTypeSchema.optional(),
   /** Per-session model override; null/missing follows the parent agent's model. */
   model: UniqueModelIdSchema.nullable().optional(),
   /** May be empty for an untitled placeholder session, matching topic.name semantics. */

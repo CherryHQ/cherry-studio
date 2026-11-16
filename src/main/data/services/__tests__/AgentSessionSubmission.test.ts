@@ -31,7 +31,10 @@ describe('message-owned native input bindings', () => {
       .insert(agentWorkspaceTable)
       .values({ id: workspaceId, name: 'Work', path: '/test', type: 'user', orderKey: 'a0' })
       .run()
-    dbh.db.insert(agentSessionTable).values({ id: sessionId, workspaceId, name: 'Session', orderKey: 'a0' }).run()
+    dbh.db
+      .insert(agentSessionTable)
+      .values({ runtimeType: 'pi', id: sessionId, workspaceId, name: 'Session', orderKey: 'a0' })
+      .run()
     const context = preparePiBranch(sessionId, undefined, 'native-session')
     contexts.bindContext(context.id, 'native-session')
     contextId = context.id

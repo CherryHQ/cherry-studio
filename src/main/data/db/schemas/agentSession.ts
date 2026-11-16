@@ -16,6 +16,8 @@ export const agentSessionTable = sqliteTable(
       .notNull()
       .default('conversation'),
     agentId: text().references(() => agentTable.id, { onDelete: 'set null' }),
+    // NULL awaits upgrade; 'unknown' records unresolved ownership without retrying against an upgraded Agent.
+    runtimeType: text(),
     /** Per-session model override; null follows the parent agent's model. */
     model: text().references(() => userModelTable.id, { onDelete: 'set null' }),
     name: text().notNull(),

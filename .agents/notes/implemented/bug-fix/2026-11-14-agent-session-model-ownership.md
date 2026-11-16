@@ -22,7 +22,7 @@ Turn preparation captures the effective model. Runtime connection construction, 
 
 ## Consequences
 
-The additive nullable foreign key leaves existing sessions following their Agent default. Deleting a selected model clears the override through `ON DELETE SET NULL`; deletion notifications refresh affected mounted sessions. Forks inherit the override and reject a source-model change before committing. Reassignment across runtime types clears an inherited override atomically; orphan reassignment to Pi also clears an incompatible inherited override. Same-runtime reassignment keeps the override.
+The additive nullable foreign key leaves existing sessions following their Agent default. Deleting a selected model clears the override through `ON DELETE SET NULL`; deletion notifications refresh affected mounted sessions. Forks inherit the override and reject a source-model change before committing. Agent reassignment preserves the bound session runtime and its model override, including Claude subscription models. For Pi and Pi Durable sessions, an incompatible inherited override is cleared atomically with reassignment. Runtime ownership follows [session runtime binding](../../proposed/architecture/2026-11-12-session-runtime-binding.md), rather than the replacement Agent type.
 
 This separates the interactive model choice from the Agent default without turning other Agent settings into session settings. A captured turn and a historical saved request can intentionally retain an older model selection after the session is edited.
 

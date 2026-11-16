@@ -1,6 +1,7 @@
 import type { ISeeder } from '../types'
 import { AgentSessionContextSeeder } from './seeders/AgentSessionContextSeeder'
 import { AgentSessionMessageTreeSeeder } from './seeders/AgentSessionMessageTreeSeeder'
+import { AgentSessionRuntimeSeeder } from './seeders/AgentSessionRuntimeSeeder'
 import { BrowserCapabilityUpgradeSeeder } from './seeders/browserCapabilityUpgradeSeeder'
 import { BuiltinMcpServerSeeder } from './seeders/builtinMcpServerSeeder'
 import { CherryAiDefaultModelSeeder } from './seeders/cherryaiDefaultModelSeeder'
@@ -38,6 +39,7 @@ export const seeders: ISeeder[] = [
   new ExternalSkillExportUpgradeSeeder(),
   new RetiredAgentRuntimeSeeder(),
   new AgentSessionContextSeeder(),
+  new AgentSessionRuntimeSeeder(),
   new AgentSessionMessageTreeSeeder(),
   new KnowledgeBaseOrderSeeder(),
   new BrowserCapabilityUpgradeSeeder(),

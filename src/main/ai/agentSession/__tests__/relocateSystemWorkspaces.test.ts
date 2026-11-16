@@ -17,6 +17,7 @@ import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { AgentSessionMessageTreeSeeder } from '@data/db/seeding/seeders/AgentSessionMessageTreeSeeder'
+import { AgentSessionRuntimeSeeder } from '@data/db/seeding/seeders/AgentSessionRuntimeSeeder'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { queueRetiredAgentRuntimeMigration } from '@data/services/retiredAgentRuntimeMigration'
@@ -112,7 +113,13 @@ describe('system workspace relocation', () => {
     await mkdir(newPath, { recursive: true })
     dbh.db
       .insert(agentTable)
-      .values({ id: agentId, type: runtime, name: 'Agent', instructions: '', orderKey: 'a0' })
+      .values({
+        id: agentId,
+        type: runtime === 'dsh' ? 'dsh' : 'pi-durable',
+        name: 'Agent',
+        instructions: '',
+        orderKey: 'a0'
+      })
       .run()
     dbh.db
       .insert(agentWorkspaceTable)
@@ -120,7 +127,14 @@ describe('system workspace relocation', () => {
       .run()
     dbh.db
       .insert(agentSessionTable)
-      .values({ id: sessionId, agentId, workspaceId: id, name: 'Session', orderKey: 'a0' })
+      .values({
+        id: sessionId,
+        agentId,
+        runtimeType: runtime === 'dsh' ? null : runtime,
+        workspaceId: id,
+        name: 'Session',
+        orderKey: 'a0'
+      })
       .run()
     return { id, sessionId, agentId, oldPath, newPath }
   }
@@ -170,7 +184,11 @@ describe('system workspace relocation', () => {
     async (foreignTarget) => {
       const workspace = await createWorkspace('pi')
       const foreign = await createWorkspace('pi')
-      dbh.db.update(agentTable).set({ type: 'test-runtime' }).where(eq(agentTable.id, workspace.agentId)).run()
+      dbh.db
+        .update(agentSessionTable)
+        .set({ runtimeType: 'test-runtime' })
+        .where(eq(agentSessionTable.id, workspace.sessionId))
+        .run()
       const messageId = randomUUID()
       const foreignMessageId = randomUUID()
       const checkpoint = { runtime: 'test-runtime', locator: { volume: 'old', cursor: [1, 2, 3] }, version: 7 }
@@ -805,6 +823,7 @@ describe('system workspace relocation', () => {
           .values({
             id: sessionId,
             agentId: workspace.agentId,
+            runtimeType: 'claude-code',
             workspaceId: workspace.id,
             name: 'Other session',
             orderKey: 'a1'
@@ -1043,6 +1062,7 @@ describe('system workspace relocation', () => {
         .run()
       new AgentSessionMessageTreeSeeder().run(dbh.db)
       queueRetiredAgentRuntimeMigration(dbh.db)
+      new AgentSessionRuntimeSeeder().run(dbh.db)
 
       expect(await relocateSystemWorkspaces()).toEqual(new Set())
       expect(workspacePath(workspace.id)).toBe(workspace.newPath)

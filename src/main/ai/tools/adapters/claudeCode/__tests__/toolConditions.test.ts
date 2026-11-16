@@ -14,6 +14,18 @@ beforeEach(() => {
 })
 
 describe('resolveDisallowedTools', () => {
+  it.each([
+    ['bash', 'Bash'],
+    ['read', 'Read'],
+    ['write', 'Write'],
+    ['edit', 'Edit']
+  ])('translates shared %s restrictions to the Claude SDK identifier %s', (shared, native) => {
+    const blocked = resolveDisallowedTools({ disabledTools: [shared] })
+    expect(blocked).toContain(native)
+    expect(blocked).not.toContain(shared)
+    if (native === 'Bash') expect(blocked).toContain('BashOutput')
+  })
+
   it('disables a user tool and its dependents (BashOutput follows Bash)', () => {
     const disallowed = new Set(resolveDisallowedTools({ disabledTools: ['Bash'] }))
     expect(disallowed.has('Bash')).toBe(true)

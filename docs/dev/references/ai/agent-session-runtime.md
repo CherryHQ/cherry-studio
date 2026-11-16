@@ -7,6 +7,8 @@ sources:
   - src/main/ai/agents/AgentWorkspaceStorageService.ts
   - src/main/data/services/AgentSessionService.ts
   - src/main/data/db/schemas/agentSession.ts
+  - src/main/data/db/seeding/seeders/AgentSessionContextSeeder.ts
+  - src/main/data/db/seeding/seeders/AgentSessionRuntimeSeeder.ts
   - src/main/ai/agents/runAgentTask.ts
   - src/main/ai/agents/heartbeatSchedule.ts
   - src/shared/ai/agentHeartbeat.ts
@@ -42,6 +44,46 @@ The boundary is:
 The built-in drivers are Claude Code, Pi and Pi Durable. Their
 query/session transports, tool surfaces, approval gates, and resume formats are
 driver internals behind the same host contract.
+
+## Session runtime ownership
+
+`agent_session.runtime_type` binds execution to the session independently of its
+Agent's current `type`. Fresh conversations default to Pi Durable. When the
+effective creation model's provider uses an external CLI login (Claude subscription),
+the session binds Claude Code before prewarming. The creation model is a supplied
+session override, otherwise the Agent default. Provider registry authentication metadata selects this exception,
+including preset-backed provider instances. Historical Pi and
+Claude Code sessions, their native forks and child archives retain their original
+engine; updating or replacing Agent settings does not change that ownership.
+Creation and editing forms do not expose runtime selection or a runtime summary.
+
+The startup upgrade runs after retired-runtime and native-context backfills. It
+captures existing backend evidence, falling back to the pre-upgrade Agent type,
+then normalizes Agents to Pi Durable in the same transaction. Existing bindings
+and activity timestamps survive retries. `NULL` means not yet processed;
+`unknown` preserves unresolved history without guessing an engine on a later
+retry. Such history remains readable but cannot execute. Native backend identity
+must agree with the session binding before dispatch, prewarming or history edits.
+Message-list reads return disabled fork/edit actions when ownership is unresolved
+or conflicts with a backend; that quarantine does not block reading saved messages.
+
+Legacy Pi context backfill honors a persisted session binding before the Agent type
+or pending retired-runtime conversion. It skips sessions with any non-Pi context,
+so changing Agents cannot cause another engine's resume token to become Pi evidence.
+Version 2 reruns the corrected backfill for existing installations without deleting
+contexts or automatically resolving previously ambiguous bindings.
+
+Model choices, instructions and configuration remain Agent-owned. CLI subscription
+credentials stay in the existing Claude Code login path. Agent configuration pickers
+allow subscription models, while session pickers enforce the bound runtime. Changing
+an Agent model affects runtime selection for new sessions only. Placeholder reuse
+requires matching runtime ownership; changing Agents in an empty conversation opens
+the target Agent’s conversation rather than reassigning a prewarmed branch. Pi and
+Claude Code drivers remain installed for historical continuation, and Claude Code
+also serves new subscription-backed sessions.
+Shared tool restrictions use the editor's Pi tool identifiers. The Claude adapter
+also recognizes these identifiers and maps them to native SDK names, so editing
+other tool settings does not remove restrictions from historical Claude sessions.
 
 ## Ownership
 
@@ -178,7 +220,7 @@ Do not add Cherry policy directly to one driver. Extend the common materializer,
    - the session must have an agent and workspace;
    - system workspaces are materialized under Cherry's managed root, while user
      workspace paths must already resolve to a directory;
-   - the agent type must have a registered runtime driver;
+   - the session runtime binding must have a registered driver and agree with its native backends;
    - an effective model must be configured: interactive turns use `session.model ?? agent.model`,
      while headless turns use the Agent default and ignore the session override. See
      [Agent Prompt Layers](./agent-prompt-layers.md#update-and-variable-lifecycle).

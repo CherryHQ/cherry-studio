@@ -156,6 +156,7 @@ export function incidentOverview(incident: DoctorAgentIncident): unknown {
       const agent = session.agentId ? agentService.getAgent(session.agentId) : null
       owner = {
         workspaceType: session.workspace.type,
+        runtimeType: session.runtimeType,
         agent: agent && {
           id: agent.id,
           type: agent.type,
@@ -327,9 +328,11 @@ export async function incidentTranscript(incident: DoctorAgentIncident, maxEntri
   const sessionId = conversationIdOf(incident.topicId)
   const session = agentSessionService.getById(sessionId)
   const agent = session.agentId ? agentService.getAgent(session.agentId) : null
-  const driver = agent ? runtimeDriverRegistry.getAgentSessionDriver(agent.type) : undefined
+  const driver = agent
+    ? runtimeDriverRegistry.getAgentSessionDriver(agentSessionService.getRuntimeType(sessionId))
+    : undefined
   if (!agent || !driver?.readTranscriptEvidence) {
-    return { unavailable: `the ${agent?.type ?? 'unknown'} runtime keeps no readable transcript` }
+    return { unavailable: `the ${session.runtimeType ?? 'unknown'} runtime keeps no readable transcript` }
   }
   const message = readIncidentMessage(incident) as AgentSessionMessageEntity | undefined
   // The message's own token survives forks and edits; the session's latest one is the fallback.
@@ -338,5 +341,5 @@ export async function incidentTranscript(incident: DoctorAgentIncident, maxEntri
   if (!events) return { unavailable: 'no transcript for this session (Claude-login sessions keep theirs in ~/.claude)' }
   let kept = events
   while (kept.length > 1 && JSON.stringify(kept).length > OUTPUT_LIMIT) kept = kept.slice(1)
-  return untrustedForModel({ runtime: agent.type, events: kept })
+  return untrustedForModel({ runtime: session.runtimeType, events: kept })
 }
