@@ -4751,7 +4751,6 @@
   "settings.dependencies.update": "Actualizează la cea mai recentă versiune",
   "settings.dependencies.updateCheckFailed": "Nu s-a putut verifica dacă există actualizări",
   "settings.dependencies.updateCheckSuccess": "Verificarea versiunii finalizată",
-  "settings.dependencies.viewErrorDetails": "Vizualizați detaliile",
   "settings.developer.cdp.description": "Permite instrumentelor locale de încredere să controleze aplicația. Adresă salvată: {{address}}. Este necesară repornirea; portul specificat în linia de comandă are prioritate.",
   "settings.developer.cdp.invalid_port": "Introduceți un număr întreg de port între 1 și 65534.",
   "settings.developer.cdp.port": "Port CDP",

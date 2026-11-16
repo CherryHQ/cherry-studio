@@ -4752,7 +4752,6 @@
   "settings.dependencies.update": "Обновить до последней версии",
   "settings.dependencies.updateCheckFailed": "Не удалось проверить наличие обновлений",
   "settings.dependencies.updateCheckSuccess": "Проверка версии завершена",
-  "settings.dependencies.viewErrorDetails": "Просмотреть детали",
   "settings.developer.cdp.description": "Разрешить доверенным локальным инструментам управлять приложением. Сохранённый адрес: {{address}}. Требуется перезапуск; порт, указанный в командной строке, имеет приоритет.",
   "settings.developer.cdp.invalid_port": "Введите целый номер порта от 1 до 65534.",
   "settings.developer.cdp.port": "Порт CDP",

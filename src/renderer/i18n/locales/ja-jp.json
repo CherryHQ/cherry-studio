@@ -4750,7 +4750,6 @@
   "settings.dependencies.update": "最新版に更新",
   "settings.dependencies.updateCheckFailed": "アップデートの確認に失敗しました",
   "settings.dependencies.updateCheckSuccess": "バージョンチェック完了",
-  "settings.dependencies.viewErrorDetails": "詳細を表示",
   "settings.developer.cdp.description": "信頼できるローカルツールによるアプリの操作を許可します。保存済みのアドレス：{{address}}。再起動が必要です。コマンドラインで指定したポートが優先されます。",
   "settings.developer.cdp.invalid_port": "1 から 65534 までの整数でポート番号を入力してください。",
   "settings.developer.cdp.port": "CDP ポート",

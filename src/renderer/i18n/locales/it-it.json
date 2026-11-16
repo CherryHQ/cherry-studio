@@ -4750,7 +4750,6 @@
   "settings.dependencies.update": "Aggiorna alla versione più recente",
   "settings.dependencies.updateCheckFailed": "Impossibile verificare gli aggiornamenti",
   "settings.dependencies.updateCheckSuccess": "Verifica della versione completata",
-  "settings.dependencies.viewErrorDetails": "Visualizza dettagli",
   "settings.developer.cdp.description": "Consenti a strumenti locali attendibili di controllare l'app. Indirizzo salvato: {{address}}. Riavvio richiesto; una porta specificata da riga di comando ha la precedenza.",
   "settings.developer.cdp.invalid_port": "Inserisci una porta con valore intero da 1 a 65534.",
   "settings.developer.cdp.port": "Porta CDP",

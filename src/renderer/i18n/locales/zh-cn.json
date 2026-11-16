@@ -4750,7 +4750,6 @@
   "settings.dependencies.update": "更新到最新版本",
   "settings.dependencies.updateCheckFailed": "检查更新失败",
   "settings.dependencies.updateCheckSuccess": "版本检查完成",
-  "settings.dependencies.viewErrorDetails": "查看详情",
   "settings.developer.cdp.description": "允许受信任的本地工具控制应用。已保存的地址：{{address}}。重启后生效；命令行指定的端口优先。",
   "settings.developer.cdp.invalid_port": "请输入 1 到 65534 之间的整数端口号。",
   "settings.developer.cdp.port": "CDP 端口",

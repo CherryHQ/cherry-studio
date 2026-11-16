@@ -4750,7 +4750,6 @@
   "settings.dependencies.update": "更新到最新版本",
   "settings.dependencies.updateCheckFailed": "檢查更新失敗",
   "settings.dependencies.updateCheckSuccess": "版本檢查完成",
-  "settings.dependencies.viewErrorDetails": "檢視詳細資訊",
   "settings.developer.cdp.description": "允許受信任的本機工具控制應用程式。已儲存的位址：{{address}}。重新啟動後生效；命令列指定的連接埠優先。",
   "settings.developer.cdp.invalid_port": "請輸入 1 到 65534 之間的整數連接埠號碼。",
   "settings.developer.cdp.port": "CDP 連接埠",
