@@ -2878,7 +2878,6 @@
   "miniApp.attention.updating": "Mise à jour vers {{version}} ({{percent}} %)",
   "miniApp.builtin.not_installed": "Pas encore installé",
   "miniApp.debugging": "Débogage en cours",
-  "miniApp.detail.action_error": "L'action a échoué : {{message}}",
   "miniApp.detail.action_failed": "L'action a échoué",
   "miniApp.detail.check_update": "Rechercher une mise à jour",
   "miniApp.detail.clear_data": "Effacer les données",

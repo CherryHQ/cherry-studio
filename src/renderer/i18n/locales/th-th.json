@@ -2878,7 +2878,6 @@
   "miniApp.attention.updating": "กำลังอัปเดตเป็น {{version}} ({{percent}}%)",
   "miniApp.builtin.not_installed": "ยังไม่ได้ติดตั้ง",
   "miniApp.debugging": "กำลังดีบัก",
-  "miniApp.detail.action_error": "ดำเนินการไม่สำเร็จ: {{message}}",
   "miniApp.detail.action_failed": "ดำเนินการไม่สำเร็จ",
   "miniApp.detail.check_update": "ตรวจสอบอัปเดต",
   "miniApp.detail.clear_data": "ล้างข้อมูล",

@@ -9,8 +9,6 @@ import type { OutputFor } from '@shared/ipc/types'
 
 const logger = loggerService.withContext('useMiniAppUpdate')
 
-const errorMessage = (error: unknown): string => (error instanceof Error ? error.message : String(error))
-
 /** An update that carries a token — the two shapes the review surfaces can render. */
 export type UpdateOffer = Exclude<OutputFor<'mini_app.update.check'>, { status: 'current' }>
 
@@ -51,7 +49,7 @@ export function useMiniAppUpdate(
       options.onChecked?.()
     } catch (e) {
       logger.error('Mini app update check failed', e as Error)
-      toastAppError(t('miniApp.detail.action_error', { message: errorMessage(e) }), e, {
+      toastAppError(t('miniApp.detail.action_failed'), e, {
         source: 'miniapp',
         operation: 'miniapp.update.check',
         recordId: appId
@@ -79,7 +77,7 @@ export function useMiniAppUpdate(
       options.onApplied?.()
     } catch (e) {
       logger.error('Mini app update failed', e as Error)
-      toastAppError(t('miniApp.detail.action_error', { message: errorMessage(e) }), e, {
+      toastAppError(t('miniApp.detail.action_failed'), e, {
         source: 'miniapp',
         operation: 'miniapp.update.apply',
         recordId: appId
