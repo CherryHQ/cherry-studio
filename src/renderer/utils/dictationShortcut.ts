@@ -102,6 +102,13 @@ export function hasDictationCommandConflict(
   keyByCode: ReadonlyMap<string, string>
 ): boolean {
   return getDictationShortcutBinding(value, options.platform, keyByCode)
-    .reduce<ShortcutBinding[]>((bindings, key) => [...bindings, ...bindings.map((binding) => [...binding, key])], [[]])
+    .reduce<ShortcutBinding[]>(
+      (bindings, key) => {
+        const count = bindings.length
+        for (let index = 0; index < count; index++) bindings.push([...bindings[index], key])
+        return bindings
+      },
+      [[]]
+    )
     .some((binding) => resolveCommandByKeybinding({ ...options, binding }))
 }

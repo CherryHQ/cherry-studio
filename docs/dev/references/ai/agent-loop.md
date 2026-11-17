@@ -92,7 +92,7 @@ Composition rules per hook key:
 | key | rule |
 |---|---|
 | `onStart`, `onFinish`, `onAbort`, `onStepFinish`, `onToolExecutionStart/End` | `chainVoid` — sequential `for`-loop await; per-hook throws logged and swallowed, chain continues |
-| `prepareStep` | chained — each invocation receives the previous return value |
+| `prepareStep` | only `messages` is threaded into the next invocation; other input fields stay unchanged; returned overrides merge last-wins |
 | `onError` | `chainOnError` — every handler invoked sequentially; any `'retry'` makes the result `'retry'`; default `abort` |
 
 All void hooks share the same `chainVoid` helper in `composeHooks.ts` —

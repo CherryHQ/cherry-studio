@@ -104,7 +104,8 @@ async function fetchFollowingRedirects(
   sendRequest: (target: string, init: RequestInit) => Promise<Response>
 ): Promise<Response> {
   let url = target
-  let requestInit = initialInit
+  const requestBase = { ...initialInit }
+  let requestInit = requestBase
   let redirectCount = 0
 
   while (true) {
@@ -129,7 +130,7 @@ async function fetchFollowingRedirects(
     const dropBody = shouldRedirectWithGet(response.status, method)
 
     requestInit = {
-      ...requestInit,
+      ...requestBase,
       body: dropBody ? undefined : requestInit?.body,
       headers: redirectHeaders(requestInit?.headers, canPreserveSensitiveHeaders(currentUrl, nextUrl), dropBody),
       method: dropBody ? 'GET' : method

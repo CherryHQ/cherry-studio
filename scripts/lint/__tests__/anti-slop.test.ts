@@ -45,6 +45,7 @@ describe('available generic anti-slop rules', () => {
   it.each([
     ['no-reflect-apply', 'export const result = Reflect.apply(Math.max, undefined, [1, 2])'],
     ['no-reflect-get', 'export const result = Reflect.get({ value: 1 }, "value")'],
+    ['no-accumulating-spread', 'export const result = [1, 2].reduce((acc, item) => [...acc, item], [] as number[])'],
     ['no-unknown-type-aliases', 'export type Boundary = unknown'],
     [
       'no-widen-then-assert',
@@ -58,7 +59,12 @@ describe('available generic anti-slop rules', () => {
     const result = lint(source)
     expect(result.status).toBe(1)
     expect(result.diagnostics).toEqual(
-      expect.arrayContaining([expect.objectContaining({ code: `anti-slop(${rule})`, severity: 'error' })])
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: `${rule === 'no-accumulating-spread' ? 'oxc' : 'anti-slop'}(${rule})`,
+          severity: 'error'
+        })
+      ])
     )
   })
 

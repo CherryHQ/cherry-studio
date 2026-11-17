@@ -84,7 +84,7 @@ async function runOcr(file: FileHandle, signal?: AbortSignal): Promise<string> {
     const res = await prepared.pollRemote(ref, signal)
     if (res.status === 'completed') return res.output.text
     if (res.status === 'failed') throw new Error(res.error)
-    if (res.remoteContext) ref = { ...ref, remoteContext: res.remoteContext }
+    if (res.remoteContext) ref = { providerTaskId: ref.providerTaskId, remoteContext: res.remoteContext }
   }
   throw new Error('OCR timed out')
 }

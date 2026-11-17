@@ -409,7 +409,7 @@ async function executeForward(ctx: PromotionContext, journal: PromotingJournal):
       // later crash intervenes.
       if (i === commitIndex && !fs.existsSync(ctx.workPath) && fs.existsSync(ctx.livePath)) {
         logger.error('Commit rename landed but its durability tail failed — continuing in memory', error as Error)
-        current = { ...current, step }
+        current = { ...journal, step }
         continue
       }
       logger.error(`Promotion step '${step}' failed`, error as Error)
@@ -429,7 +429,7 @@ async function executeForward(ctx: PromotionContext, journal: PromotingJournal):
         return
       }
       logger.error(`Marker write for '${step}' failed at/past the commit point — continuing in memory`, error as Error)
-      current = { ...current, step }
+      current = { ...journal, step }
     }
   }
   logger.info('Restore promoted — new DB is live', { restoreId: ctx.journal.restoreId })

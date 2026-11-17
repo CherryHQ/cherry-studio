@@ -69,16 +69,14 @@ export class PluginManager<TParams = unknown, TResult = unknown> {
 
   /**
    * 执行 transformParams 钩子 - 链式参数转换
-   * 每个插件返回 Partial<TParams>，逐步合并到原始参数
+   * 每个插件接收并返回完整的 TParams
    */
   async executeTransformParams(initialValue: TParams, context: AiRequestContext<TParams, TResult>): Promise<TParams> {
     let result = initialValue
 
     for (const plugin of this.plugins) {
       if (plugin.transformParams) {
-        const partial = await plugin.transformParams(result, context)
-        // 合并 Partial 到现有参数
-        result = { ...result, ...partial }
+        result = await plugin.transformParams(result, context)
       }
     }
 
