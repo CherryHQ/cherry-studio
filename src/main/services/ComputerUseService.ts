@@ -280,7 +280,7 @@ export class ComputerUseService extends BaseService {
     await this.approveApp(task, control.app, signal)
     const client = await this.getClient(task)
     this.assertAvailable(task, control.app.id)
-    return client.act({ ...action, allowGlobalInput: false }, { signal: this.signal(task, signal) })
+    return client.act({ ...action, allowGlobalInput: this.allowsGlobalInput() }, { signal: this.signal(task, signal) })
   }
 
   async perform(context: ComputerUseTask, action: Action, signal?: AbortSignal) {
@@ -297,10 +297,10 @@ export class ComputerUseService extends BaseService {
     }
     const options = { signal: this.signal(task, signal) }
     if (executor.perform) {
-      await executor.perform({ ...action, allowGlobalInput: false }, options)
+      await executor.perform({ ...action, allowGlobalInput: this.allowsGlobalInput() }, options)
       return { targetRetained: true as const }
     }
-    const result = await client.act({ ...action, allowGlobalInput: false }, options)
+    const result = await client.act({ ...action, allowGlobalInput: this.allowsGlobalInput() }, options)
     return {
       targetRetained: false as const,
       snapshot: result.observation.status === 'available' ? result.observation.snapshot : undefined
@@ -484,6 +484,10 @@ export class ComputerUseService extends BaseService {
     if (owner?.stopped || (appId && owner?.blockedApps.has(appId))) throw new ComputerUseControlError('USER_STOPPED')
     if (task.context.closed) throw new ComputerUseControlError('TASK_CLOSED')
     task.abort.signal.throwIfAborted()
+  }
+
+  private allowsGlobalInput(): boolean {
+    return application.get('PreferenceService').get('app.computer_use.agent_control.global_input')
   }
 
   private assertCleanupConfirmed(ownerId: string): void {
