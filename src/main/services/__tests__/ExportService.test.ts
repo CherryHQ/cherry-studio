@@ -444,7 +444,8 @@ describe('ExportService.exportToWord', () => {
         const { media, xml } = await exportImages(
           `${files.map(([alt, file]) => `![${alt}](<${pathToFileURL(file).href}>)`).join(' ')}\n\nafter`
         )
-        expect(media).toEqual([bytes])
+        expect(media).toHaveLength(1)
+        expect(media[0].equals(bytes)).toBe(true)
         expect(textsOf(xml).filter((text) => text.trim())).toEqual([
           'missing',
           'corrupt',
@@ -468,7 +469,8 @@ describe('ExportService.exportToWord', () => {
           const { media, xml } = await exportImages(
             `![accepted](${src(atLimit, 'limit.png')}) ![rejected](${src(overLimit, 'over.png')})`
           )
-          expect(media).toEqual([atLimit])
+          expect(media).toHaveLength(1)
+          expect(media[0].equals(atLimit)).toBe(true)
           expect(textsOf(xml)).toEqual([' ', 'rejected'])
         }
       )
@@ -486,7 +488,7 @@ describe('ExportService.exportToWord', () => {
         const { media, xml } = await exportImages(
           `![large](${pathToFileURL(large).href}) ![growing](${pathToFileURL(growing).href}) after`
         )
-        expect(media).toEqual([])
+        expect(media).toHaveLength(0)
         expect(textsOf(xml)).toEqual(['large', ' ', 'growing', ' after'])
         expect(readFile.mock.calls.some(([file]) => file === large)).toBe(false)
       })
@@ -500,7 +502,7 @@ describe('ExportService.exportToWord', () => {
         const { media, xml } = await exportImages(
           `![large-output](data:image/webp;base64,${bytes.toString('base64')}) after`
         )
-        expect(media).toEqual([])
+        expect(media).toHaveLength(0)
         expect(textsOf(xml)).toEqual(['large-output', ' after'])
       })
 
