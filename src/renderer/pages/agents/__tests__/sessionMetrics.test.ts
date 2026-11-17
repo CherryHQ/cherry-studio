@@ -4,8 +4,14 @@ import type { CherryMessagePart, CherryUIMessage, MessageStats } from '@shared/d
 
 import { buildAgentSessionMetrics } from '../sessionMetrics'
 
-function assistant(id: string, stats?: MessageStats): CherryUIMessage {
-  return { id, role: 'assistant', parts: [], metadata: stats ? { stats } : {} } as unknown as CherryUIMessage
+function assistant(id: string, stats?: MessageStats, status = 'success'): CherryUIMessage {
+  return {
+    id,
+    role: 'assistant',
+    parts: [],
+    status,
+    metadata: stats ? { stats } : {}
+  } as unknown as CherryUIMessage
 }
 
 const toolPart = (type: string) => ({ type }) as unknown as CherryMessagePart
@@ -56,10 +62,23 @@ describe('buildAgentSessionMetrics', () => {
     expect(metrics.tokensPerSecond).toBeUndefined()
   })
 
-  it('ignores user messages and assistant messages without stats', () => {
+  it('ignores user messages and assistant messages that have not completed', () => {
     const user = { id: 'u', role: 'user', parts: [], metadata: {} } as unknown as CherryUIMessage
-    const metrics = buildAgentSessionMetrics([user, assistant('a')], {})
+    const metrics = buildAgentSessionMetrics([user, assistant('a', undefined, 'pending')], {})
 
     expect(metrics.turns).toBe(0)
+  })
+
+  it('counts completed turns and tool steps after a fork cleared usage stats', () => {
+    // Forked history keeps successful messages and tool parts but stores stats: null.
+    const forked = [assistant('a'), assistant('b')]
+    const parts = { a: [toolPart('tool-Read'), toolPart('text')], b: [toolPart('tool-Bash')] }
+
+    const metrics = buildAgentSessionMetrics(forked, parts)
+
+    expect(metrics.turns).toBe(2)
+    expect(metrics.toolSteps).toBe(2)
+    expect(metrics.inputTokens).toBeUndefined()
+    expect(metrics.outputTokens).toBeUndefined()
   })
 })

@@ -29,13 +29,19 @@ export function buildAgentSessionMetrics(
   messages: readonly CherryUIMessage[],
   partsByMessageId: Readonly<Record<string, readonly CherryMessagePart[]>>
 ): AgentSessionMetrics {
-  const turns: Array<{ id: string; stats: MessageStats }> = []
+  // A completed assistant turn counts by its completion status, not by the presence of usage
+  // stats: forking a session preserves successful messages and tool parts but clears stats,
+  // and a stats-only gate would report zero turns/steps for the forked history.
+  const turns: Array<{ id: string; stats?: MessageStats }> = []
   for (const message of messages) {
-    const stats = message.metadata?.stats
-    if (message.role === 'assistant' && stats) turns.push({ id: message.id, stats })
+    if (message.role === 'assistant' && message.status === 'success') {
+      turns.push({ id: message.id, stats: message.metadata?.stats })
+    }
   }
 
-  const statsList = turns.map((turn) => turn.stats)
+  // Usage aggregates still come from stats alone; missing stats leave the field undefined
+  // rather than undercounting a partial sum as if it were complete.
+  const statsList = turns.map((turn) => turn.stats).filter((stats): stats is MessageStats => stats !== undefined)
   const inputTokens = sumDefined(statsList.map((stats) => stats.inputTokens))
   const cacheReadTokens = sumDefined(statsList.map((stats) => stats.inputTokenDetails?.cacheReadTokens))
   const samples = statsList.map(getMessageGenerationSample).filter((sample) => sample !== undefined)
