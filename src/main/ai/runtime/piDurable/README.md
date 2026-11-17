@@ -72,8 +72,13 @@ cancellation and ownership semantics.
 
 ## Stop, close and reopen
 
-- User Stop calls `interrupt()` before closing, records the shared stop policy and
-  cancels the native foreground scope. Unconsumed input is withdrawn.
+- User Stop calls `interrupt()` and keeps the access open. It records the shared stop policy,
+  cancels the native foreground scope and stops running background children. Unconsumed input is
+  withdrawn. The connection emits `stop-confirmed` after the stopped turn's terminal event; the
+  next message reuses the same access.
+- A gap is followed by a recovery snapshot. A failed child projection write is logged and
+  reattaches that child from a fresh native snapshot instead of reaching the backend error hook,
+  which closes every root.
 - Releasing one root does not shut down its peers. Final backend release closes and joins the native scheduler without marking ordinary
   unfinished root work cancelled. It awaits observation queues and in-flight callbacks before
   flushing child archives; observation detach and access release happen last. Backup uses the
@@ -95,7 +100,8 @@ Native fork creation and its new product-context identity commit together. The o
 `PiDurableRuntimeConnection.test.ts` uses the real runtime and SQLite with a scripted
 provider. It covers approved argument edits, question answers, incremental output,
 native identity on reopen, independent background output and continuation, late steer
-attribution, repeated snapshots, and the difference between stop and shutdown.
+attribution, repeated snapshots, the difference between stop and shutdown, Stop without
+closing, and resynchronization after a child projection fault.
 `durableMcp.test.ts` runs an actual linked MCP server through the native tool loop.
 The storage and child-projection suites cover strict reopen, interrupted binding
 recovery and asynchronous archive reconciliation. These tests do not replace Electron

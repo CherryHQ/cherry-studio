@@ -206,6 +206,8 @@ export type AgentRuntimeEvent =
       recoveredInputId?: string
     }
   | { type: 'autonomous-turn-state'; state: 'finished' }
+  /** A `retainOnStop` connection finished the requested stop; later input may start. */
+  | { type: 'stop-confirmed' }
   | { type: 'error'; error: unknown }
 
 /**
@@ -283,8 +285,16 @@ export interface AgentRuntimeConnection {
   messageChild?(contextId: string, text: string): Promise<void>
   /** Wait for admitted child execution and its archive writes; does not close the owner. */
   drainChildWrites?(): Promise<void>
-  /** Stop foreground work before retiring its owner; shutdown alone may preserve durable work. */
+  /**
+   * Stop foreground work for user Stop. Without `retainOnStop` the host then retires the owner;
+   * shutdown alone may preserve durable work.
+   */
   interrupt?(): Promise<void>
+  /**
+   * User Stop only interrupts: the owner and this connection stay open for later input. After each
+   * `interrupt()`, emit `stop-confirmed` once the stopped turn's terminal event has been emitted.
+   */
+  readonly retainOnStop?: boolean
   close(): void | Promise<void>
   /** Confirm native process exit before replacing this session's history. */
   closeForEdit?(): Promise<void>

@@ -31,7 +31,10 @@ beforeEach(() => {
   runtimeDriverRegistry.clearForTest()
 })
 
-async function fixture(interrupt?: (emit: (event: AgentRuntimeEvent) => Promise<void>) => Promise<void>) {
+async function fixture(
+  interrupt?: (emit: (event: AgentRuntimeEvent) => Promise<void>) => Promise<void>,
+  retainOnStop = false
+) {
   dbh.db.insert(userProviderTable).values({ providerId: 'test', name: 'Test', orderKey: 'a0' }).run()
   dbh.db
     .insert(userModelTable)
@@ -69,10 +72,12 @@ async function fixture(interrupt?: (emit: (event: AgentRuntimeEvent) => Promise<
   let queue = new AsyncEventQueue<{ event: AgentRuntimeEvent; consumed: () => void }>()
   const closed = Promise.withResolvers<void>()
   const emit = (event: AgentRuntimeEvent) => new Promise<void>((consumed) => queue.push({ event, consumed }))
+  const connections = { opened: 0, sent: [] as string[] }
   runtimeDriverRegistry.register({
     type: 'pi',
     validateSession: () => {},
     connect: async () => {
+      connections.opened++
       const activeQueue = queue
       return {
         events: {
@@ -86,7 +91,9 @@ async function fixture(interrupt?: (emit: (event: AgentRuntimeEvent) => Promise<
             }
           }
         },
-        send: async () => {},
+        send: async ({ message }) => {
+          connections.sent.push(message.id)
+        },
         redirect: () => true,
         close: async () => {
           activeQueue.close()
@@ -94,6 +101,7 @@ async function fixture(interrupt?: (emit: (event: AgentRuntimeEvent) => Promise<
         },
         reconcile: async () => 'current',
         retainWhileIdle: true,
+        retainOnStop,
         ...(interrupt && { interrupt: () => interrupt(emit) })
       }
     }
@@ -148,7 +156,7 @@ async function fixture(interrupt?: (emit: (event: AgentRuntimeEvent) => Promise<
     queue = new AsyncEventQueue()
     await service.primeConnection('root')
   }
-  return { service, handle, context, reply, emit, project, views, done, reconnect }
+  return { service, handle, context, reply, emit, project, views, done, reconnect, connections, closed: closed.promise }
 }
 const text = (id: string, value: string): CherryUIMessage => ({
   id,
@@ -237,6 +245,44 @@ it('keeps a stopped reply paused when the runtime reports the abort before closi
     status: 'paused',
     data: { parts: text('', 'Partial answer').parts }
   })
+})
+
+it('keeps a retained connection open on Stop and starts later input only after native confirmation', async () => {
+  let next: StartRuntimeTurnInput | undefined
+  MockApplicationUtils.setService('AiStreamManager', {
+    drainRuntimeReply: async () => {},
+    pauseRuntimeTurn: () => false,
+    startRuntimeTurn: (input: StartRuntimeTurnInput) => {
+      next = input
+    }
+  })
+  const f = await fixture(async () => {}, true)
+  await vi.waitFor(() => expect(f.connections.sent).toHaveLength(1))
+  await f.project([text('partial', 'Partial answer')])
+  await vi.waitFor(() => expect(f.views.at(-1)?.parts).toEqual(text('', 'Partial answer').parts))
+  f.handle.abortController.abort('user-requested')
+  const paused: StreamPausedResult = { status: 'paused', isTopicDone: true, finalMessage: (await f.done).finalMessage }
+  await f.handle.listeners[0].onPaused(paused)
+  await f.handle.listeners[1].onPaused(paused)
+  const followup = messages.saveMessage({
+    sessionId: 'root',
+    parentId: f.reply.id,
+    message: { role: 'user', status: 'success', data: { parts: [{ type: 'text', text: 'After Stop' }] } }
+  })
+  f.service.enqueueUserMessage('root', followup)
+
+  await f.emit({ type: 'turn-complete', status: 'paused' })
+  expect(f.service.isSessionBusy('root')).toBe(true)
+  expect(next).toBeUndefined()
+  await f.emit({ type: 'stop-confirmed' })
+
+  await vi.waitFor(() => expect(next?.listeners).toBeDefined())
+  expect(messages.getSessionMessage('root', f.reply.id)).toMatchObject({
+    status: 'paused',
+    data: { parts: text('', 'Partial answer').parts }
+  })
+  expect(f.connections.opened).toBe(1)
+  expect(await Promise.race([f.closed.then(() => 'closed'), Promise.resolve('open')])).toBe('open')
 })
 
 // The native successor can publish before the preceding reply has committed and created its row.

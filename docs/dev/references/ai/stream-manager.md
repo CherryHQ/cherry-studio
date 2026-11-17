@@ -777,7 +777,7 @@ duplicated; the rest are stream-manager-specific.
 | Tool-approval pause+resume | approval-request chunk → `awaiting-approval` | decision via `ai.tool.respond_approval`; a live agent runtime resolves its registry entry, while MCP dispatches `continue-conversation` | card clears when the resumed stream broadcasts `pending` — see [Tool Approval](./tool-approval.md) |
 | Desktop reconnect | `ai.projection.attach` on mount | Register a window-scoped subscription and return the current message baseline; subsequent revisions arrive through `ai.projection.changed` | live messages resume; terminal overlays yield to refreshed history; attach never changes runtime state |
 | Raw-stream reconnect | `ai.stream.attach` | `manager.attach`: `not-found` / streaming (register listener + compact replay) / done-paused (`finalMessage(s)`) / error | bounded raw replay or terminal result for consumers that still require chunks |
-| Abort — user stop | `ai.stream.abort` | `abortAndDrain` holds the topic dispatch lock; per exec: `abortController.abort` → loop `signal` aborts → broadcast reader `cancel` → read loop `done`; then Agent runtime close settles | partial persists as **`paused`** and the request resolves before the next same-topic dispatch is admitted |
+| Abort — user stop | `ai.stream.abort` | `abortAndDrain` holds the topic dispatch lock; per exec: `abortController.abort` → loop `signal` aborts → broadcast reader `cancel` → read loop `done`; then the Agent runtime stop settles (a `retainOnStop` connection stays open; others close) | partial persists as **`paused`** and the request resolves before the next same-topic dispatch is admitted |
 | Abort — no observers | `backgroundMode === 'abort'`, no non-projection listeners and no projection observers | After pruning dead listeners, `onChunk` excludes the manager-owned projection listener from the raw-listener check and checks `projection.observed`; when both are empty it calls `abort(topicId, 'no-subscribers')` | partial persisted as **`paused`** |
 | Multi-window | window B opens a live topic | B sends `ai.projection.attach` → baseline + its own subscription; Main delivers the same message revisions to A and B | both windows render the same current messages |
 | Channel / Agent | `AiStreamManager.send` in-process (no IPC) | scenario differs only by listener composition (table below) | per-listener effect |
@@ -819,7 +819,7 @@ chunks-only prompt stream with no message target. See
 | `ai.projection.detach` | `{ target, subscriptionId }` | void | Release a desktop delivery subscription (execution continues) |
 | `ai.stream.attach` | `{ topicId }` | `AiStreamAttachResponse` | Raw-stream consumers: subscribe and receive compact replay when streaming |
 | `ai.stream.detach` | `{ topicId }` | void | Unsubscribe a raw-stream listener (stream continues) |
-| `ai.stream.abort` | `{ topicId }` | void | Stop current generation; resolves after terminal persistence and Agent runtime close settle |
+| `ai.stream.abort` | `{ topicId }` | void | Stop current generation; resolves after terminal persistence and the Agent runtime stop settle |
 
 > Topic status snapshots need no dedicated IPC: a new window pulls every
 > `topic.stream.statuses.${topicId}` entry via `Cache_GetAllShared` on

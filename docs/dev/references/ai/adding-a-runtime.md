@@ -117,8 +117,10 @@ Create `src/main/ai/runtime/<name>/` implementing the contract in
    - Optional `contextId` identifies the bound product context. Expose it before controls
      that may precede the first native message so Main can attach them to the reserved reply.
    - Optional, with host fallbacks when omitted:
-     - `interrupt()` — cancel foreground work for user Stop before the host closes the
-       connection. Keep this separate from durable shutdown and recovery.
+     - `interrupt()` — cancel foreground work for user Stop. The host then closes the
+       connection unless it declares `retainOnStop`; a retained connection stays open and emits
+       `stop-confirmed` after the stopped turn's terminal event. Keep this separate from durable
+       shutdown and recovery.
      - `redirect(input)` — native mid-turn steering; without it the host
        queues follow-ups as the next turn. If implemented, you must emit
        `steer-boundary` with input IDs when native placement is evidenced. Keep original product

@@ -143,6 +143,8 @@ const DEFAULT_IDLE_TTL_MS = 5 * 60 * 1000
  */
 const WARM_LEASE_RELEASE_DELAY_MS = 10_000
 const CONTEXT_USAGE_REFRESH_THROTTLE_MS = 3_000
+/** Stream abort reasons that mean the user stopped the work, as opposed to teardown. */
+const USER_STOP_REASONS: ReadonlySet<unknown> = new Set(['user-requested', 'remote-cancel'])
 /** Shown on a card whose requesting runtime went away before the user could answer it. */
 const ABANDONED_APPROVAL_ERROR = 'The runtime connection closed before this request was answered'
 
@@ -288,6 +290,8 @@ type AgentSessionRuntimeEntry = {
     result: Promise<string>
   }
   closing?: true
+  /** User Stop on a retained connection; `confirmed` runs on native confirmation, disconnect or close. */
+  stopping?: { connection: AgentRuntimeConnection; confirmed: () => void; settled: Promise<void> }
   interactionWindowId?: string
   sessionId: string
   topicId: string
@@ -1164,9 +1168,11 @@ export class AgentSessionRuntimeService extends BaseService {
         this.applyRuntimeStateEvent(entry, { type: 'turn-stream-opened', turn })
         if (turn.projection) this.publishTurnMessage(entry, turn, turn.projection.parts(turn.assistantMessageId) ?? [])
 
-        // Durable shutdown preserves work; user Stop must record cancellation before closing.
-        const onAbort = () =>
-          void this.closeSession(entry.sessionId, !this.isShuttingDown && input.signal.reason !== 'app-shutdown')
+        const onAbort = () => {
+          // A native abort already ended the run; a retained connection has nothing to stop.
+          if (input.signal.reason === 'agent-runtime-aborted' && this.currentConnection(entry)?.retainOnStop) return
+          void this.stopSession(entry.sessionId, input.signal.reason)
+        }
         if (input.signal.aborted) {
           onAbort()
           return
@@ -1261,6 +1267,7 @@ export class AgentSessionRuntimeService extends BaseService {
       entry.runtimeState.execution.reply.delivery.kind === 'open' &&
       turn &&
       this.isTurnLive(entry, turn) &&
+      !entry.stopping &&
       turn.headless !== true &&
       !headless &&
       canRedirectOnCurrentConfig
@@ -1322,6 +1329,45 @@ export class AgentSessionRuntimeService extends BaseService {
     })
     this.refreshIdleTimer(entry)
     if (!this.isSessionBusy(sessionId)) this._onRuntimeIdle.fire({ sessionId })
+  }
+
+  /**
+   * Ends a session's work after its stream aborts. User Stop on a `retainOnStop` connection only
+   * interrupts and keeps the connection; other aborts close the session as before.
+   */
+  stopSession(sessionId: string, reason: unknown): Promise<void> {
+    const entry = this.entries.get(sessionId)
+    const connection = entry && !entry.closing && !this.isShuttingDown ? this.currentConnection(entry) : undefined
+    if (!entry || !connection?.retainOnStop || !connection.interrupt || !USER_STOP_REASONS.has(reason))
+      // Durable shutdown preserves work; user Stop must record cancellation before closing.
+      return this.closeSession(sessionId, !this.isShuttingDown && reason !== 'app-shutdown')
+    if (entry.stopping) return entry.stopping.settled
+    const confirmation = Promise.withResolvers<void>()
+    const stopping = { connection, confirmed: () => confirmation.resolve(), settled: Promise.resolve() }
+    entry.stopping = stopping
+    // Stop withdraws queued follow-ups; input arriving after Stop waits for the native confirmation.
+    this.applyRuntimeStateEvent(entry, { type: 'clear-queue' })
+    this.applyRuntimeStateEvent(entry, { type: 'connection-occupancy', occupancy: 'stopping', active: true })
+    let timer: ReturnType<typeof setTimeout> | undefined
+    stopping.settled = connection
+      .interrupt()
+      .then(() =>
+        Promise.race([
+          confirmation.promise,
+          new Promise<never>((_, reject) => {
+            timer = setTimeout(() => reject(new Error('Agent runtime stop was not confirmed')), 20_000)
+          })
+        ])
+      )
+      .catch((error) => {
+        logger.warn('Agent runtime stop failed; closing the session', { sessionId, error })
+        return this.closeSession(sessionId, true)
+      })
+      .finally(() => {
+        clearTimeout(timer)
+        if (entry.stopping === stopping) delete entry.stopping
+      })
+    return stopping.settled
   }
 
   closeSession(sessionId: string, interrupt = false): Promise<void> {
@@ -2258,6 +2304,7 @@ export class AgentSessionRuntimeService extends BaseService {
         this.applyRuntimeStateEvent(entry, { type: 'connection-disconnected', connection })
         entry.connectionGeneration = undefined
       }
+      if (entry.stopping?.connection === connection) entry.stopping.confirmed()
       if (entry.connectionLoop === connectionLoop) entry.connectionLoop = undefined
     })
     entry.connectionLoop = connectionLoop
@@ -2573,6 +2620,15 @@ export class AgentSessionRuntimeService extends BaseService {
           this.applyRuntimeStateEvent(entry, { type: 'clear-steer-reservation' })
         this.clearApiRetry(entry)
         this.refreshContextUsage(entry)
+        break
+      }
+      case 'stop-confirmed': {
+        const stopping = entry.stopping
+        if (!stopping || stopping.connection !== connection) break
+        this.applyRuntimeStateEvent(entry, { type: 'connection-occupancy', occupancy: 'stopping', active: false })
+        stopping.confirmed()
+        this.refreshIdleTimer(entry)
+        if (!this.isSessionBusy(entry.sessionId)) this._onRuntimeIdle.fire({ sessionId: entry.sessionId })
         break
       }
       case 'error':
@@ -3113,6 +3169,8 @@ export class AgentSessionRuntimeService extends BaseService {
       cache.setShared(AGENT_SESSION_COMPACTION_CACHE_KEY(entry.sessionId), { status: 'idle' })
     }
     await this.refreshTurnTraceContext(entry, turn)
+    // A Stop during the await must not reach a connection that it leaves open.
+    if (entry.stopping || !this.isTurnLive(entry, turn)) return
     const connection = this.currentConnection(entry)
     if (!connection) throw new Error('Agent runtime connection unavailable')
     await connection.send({
@@ -3616,6 +3674,7 @@ export class AgentSessionRuntimeService extends BaseService {
     }
     this.closeConnection(entry, false)
     this.applyRuntimeStateEvent(entry, { type: 'reset' })
+    entry.stopping?.confirmed()
     delete entry.closing
   }
 

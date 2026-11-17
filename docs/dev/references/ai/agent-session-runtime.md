@@ -1228,9 +1228,12 @@ For other connections, when the idle timer expires, the runtime closes the entry
 - closes the runtime connection;
 - prewarms Claude Code when a latest resume token is known.
 
-Service stop and destroy close all runtime entries. User Stop additionally invokes an
-optional connection `interrupt()` before closing, including when the visible stream has
-already finished but background work remains. Durable shutdown preserves ordinary
+Service stop and destroy close all runtime entries. User Stop (`stopSession()`) additionally
+invokes an optional connection `interrupt()` before closing, including when the visible stream has
+already finished but background work remains. A `retainOnStop` connection (Pi Durable) is
+interrupted but not closed: Stop withdraws queued follow-ups, and the connection's `stopping`
+occupancy keeps the session busy and holds later input until the connection emits
+`stop-confirmed`. A failed or unconfirmed stop (20 s) falls back to closing. Durable shutdown preserves ordinary
 unfinished root tasks; explicit interruption cancels them. Reopen applies shared behavior's
 `onOpen` before native resume, disarming goals and stopping interrupted background children.
 Repeated `closeSession()` calls join the in-flight close. A closing session rejects new
