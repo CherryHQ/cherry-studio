@@ -6124,6 +6124,7 @@
   "settings.usage.cards.cacheHitRate": "快取命中率",
   "settings.usage.cards.cacheObservedTokens": "可觀測輸入：{{tokens}}",
   "settings.usage.cards.cacheStartsWithNewRequests": "從新的請求開始統計",
+  "settings.usage.cards.costDisclosure": "總計可能包含本機成本估算；實際費用以服務商帳單為準。",
   "settings.usage.cards.dailyAverage": "每日平均",
   "settings.usage.cards.explicitApiKey": "已選金鑰",
   "settings.usage.cards.lastPeriod": "與上期相比",

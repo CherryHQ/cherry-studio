@@ -6124,6 +6124,7 @@
   "settings.usage.cards.cacheHitRate": "キャッシュヒット率",
   "settings.usage.cards.cacheObservedTokens": "観測可能な入力: {{tokens}}",
   "settings.usage.cards.cacheStartsWithNewRequests": "新しいリクエストから始まります",
+  "settings.usage.cards.costDisclosure": "合計にはローカルで算出した費用の見積もりが含まれる場合があります。実際の請求額はプロバイダーの請求書に従います。",
   "settings.usage.cards.dailyAverage": "日平均",
   "settings.usage.cards.explicitApiKey": "選択されたキー",
   "settings.usage.cards.lastPeriod": "前期対比",

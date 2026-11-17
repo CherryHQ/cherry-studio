@@ -6124,6 +6124,7 @@
   "settings.usage.cards.cacheHitRate": "Tỷ lệ truy cập bộ nhớ đệm thành công",
   "settings.usage.cards.cacheObservedTokens": "Đầu vào có thể quan sát: {{tokens}}",
   "settings.usage.cards.cacheStartsWithNewRequests": "Bắt đầu với các yêu cầu mới",
+  "settings.usage.cards.costDisclosure": "Tổng có thể bao gồm chi phí ước tính được tính cục bộ; hóa đơn của nhà cung cấp là căn cứ chính thức.",
   "settings.usage.cards.dailyAverage": "Trung bình hàng ngày",
   "settings.usage.cards.explicitApiKey": "Phím được chọn",
   "settings.usage.cards.lastPeriod": "so với kỳ trước",

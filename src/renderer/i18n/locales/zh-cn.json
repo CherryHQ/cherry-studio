@@ -6124,6 +6124,7 @@
   "settings.usage.cards.cacheHitRate": "缓存命中率",
   "settings.usage.cards.cacheObservedTokens": "可观测输入：{{tokens}}",
   "settings.usage.cards.cacheStartsWithNewRequests": "发送新请求后开始统计",
+  "settings.usage.cards.costDisclosure": "总计可能包含本地成本估算；实际费用以服务商账单为准。",
   "settings.usage.cards.dailyAverage": "日均",
   "settings.usage.cards.explicitApiKey": "已选密钥",
   "settings.usage.cards.lastPeriod": "较上期",

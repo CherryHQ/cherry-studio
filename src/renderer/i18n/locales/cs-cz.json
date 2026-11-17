@@ -6124,6 +6124,7 @@
   "settings.usage.cards.cacheHitRate": "Míra zásahů do mezipaměti",
   "settings.usage.cards.cacheObservedTokens": "Sledovaný vstup: {{tokens}}",
   "settings.usage.cards.cacheStartsWithNewRequests": "Statistika začne od nových požadavků",
+  "settings.usage.cards.costDisclosure": "Součty mohou zahrnovat místní odhady nákladů; rozhodující jsou faktury poskytovatele.",
   "settings.usage.cards.dailyAverage": "Denní průměr",
   "settings.usage.cards.explicitApiKey": "Vybraný klíč",
   "settings.usage.cards.lastPeriod": "oproti předchozímu období",

@@ -6124,6 +6124,7 @@
   "settings.usage.cards.cacheHitRate": "Rată de acces cache reușit",
   "settings.usage.cards.cacheObservedTokens": "Intrare observabilă: {{tokens}}",
   "settings.usage.cards.cacheStartsWithNewRequests": "Începe cu cereri noi",
+  "settings.usage.cards.costDisclosure": "Totalurile pot include estimări locale ale costurilor; facturile furnizorului au prioritate.",
   "settings.usage.cards.dailyAverage": "Medie zilnică",
   "settings.usage.cards.explicitApiKey": "Cheie selectată",
   "settings.usage.cards.lastPeriod": "față de perioada anterioară",
