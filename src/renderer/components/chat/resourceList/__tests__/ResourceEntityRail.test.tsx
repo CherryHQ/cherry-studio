@@ -670,4 +670,23 @@ describe('ResourceEntityRail', () => {
 
     expect(document.querySelector('[data-resource-list-permanent-delete]')).toBeInTheDocument()
   })
+
+  it.each([
+    ['assistant', 'selector.assistant.empty_text'],
+    ['agent', 'selector.agent.empty_text']
+  ] as const)('explains an empty %s rail instead of rendering a blank sidebar', (variant, emptyKey) => {
+    render(
+      <ResourceEntityRail
+        addLabel="New"
+        ariaLabel="Entities"
+        items={[]}
+        selectedId={null}
+        variant={variant}
+        onAdd={vi.fn()}
+        onSelect={vi.fn()}
+      />
+    )
+
+    expect(screen.getByText(emptyKey)).toBeInTheDocument()
+  })
 })

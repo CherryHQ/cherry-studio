@@ -8,7 +8,20 @@ interface UseSmoothStreamOptions {
   initialText?: string
 }
 
-const languages = ['en-US', 'de-DE', 'es-ES', 'zh-CN', 'zh-TW', 'ja-JP', 'ru-RU', 'el-GR', 'fr-FR', 'pt-PT', 'ro-RO']
+const languages = [
+  'en-US',
+  'de-DE',
+  'es-ES',
+  'zh-CN',
+  'zh-TW',
+  'ja-JP',
+  'ru-RU',
+  'el-GR',
+  'fr-FR',
+  'pl-PL',
+  'pt-PT',
+  'ro-RO'
+]
 const segmenter = new Intl.Segmenter(languages)
 
 /**
