@@ -5,8 +5,7 @@
   "scripts": {
     "generate": "node scripts/generate-all.js",
     "generate:preferences": "node scripts/generate-preferences.js",
-    "generate:boot-config": "node scripts/generate-boot-config.js",
-    "generate:migration": "node scripts/generate-migration.js"
+    "generate:boot-config": "node scripts/generate-boot-config.js"
   },
   "license": "ISC",
   "type": "commonjs",

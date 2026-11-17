@@ -30,6 +30,9 @@ import {
   callKeyOf,
   encodeEntry,
   goalForRequest,
+  TOOL_INTENT_GUIDE,
+  createToolIntent,
+  offersToolIntent,
   type BoundPorts,
   type HarnessPorts,
   type JobHandler,
@@ -708,9 +711,18 @@ export function createPiDurableBehavior(options: PiDurableBehaviorOptions) {
       }
     }
   })
+  const intent = createToolIntent()
   const extension: Extension = defineExtension({
     name: 'cherry.behavior',
     tasks: [jobTask, backgroundOwner],
+    // A DeepSeek agent's tools offer `intent`; every call drops it before the tool's own repair, validation, hooks and run.
+    wrapTools: (tool, model) => intent(tool, offersToolIntent(model?.modelId)),
+    sections: [
+      {
+        key: 'tool_intent',
+        render: ({ agent }) => (offersToolIntent(agent.model?.modelId) ? TOOL_INTENT_GUIDE : undefined)
+      }
+    ],
     tools: tools.map((tool) =>
       defineTool({
         name: tool.name,
