@@ -39,7 +39,8 @@ never enter this pipeline; they use `resolveSdkConfig` directly.
 
 `AiStreamRequest` requires `conversation.topicId` as its sole stream-topic
 field. `conversation.id` may instead identify the longer-lived agent session;
-non-streaming requests such as probes may omit `topicId`.
+headless requests such as probes may omit `topicId`, even when the provider
+response is streamed and consumed entirely in the main process.
 
 Callers (chat, agent session, translate, prompt-only) shape their own
 `AiChatRequest` and hand it in. The pipeline refines the request-local
