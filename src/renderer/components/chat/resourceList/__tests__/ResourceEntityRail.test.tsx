@@ -94,9 +94,7 @@ vi.mock('@renderer/components/VirtualList', () => {
         ref={(node) => {
           // The real virtual list exposes an imperative scrollToIndex; stub it so keyboard
           // navigation (which scrolls the active item into view) works under this mock.
-          if (node && typeof Reflect.get(node, 'scrollToIndex') !== 'function') {
-            Reflect.set(node, 'scrollToIndex', () => {})
-          }
+          if (node) Object.assign(node, { scrollToIndex: () => {} })
           if (typeof ref === 'function') ref(node)
           else if (ref) (ref as { current: HTMLDivElement | null }).current = node
           if (typeof scrollElementRef === 'function') scrollElementRef(node)

@@ -7,20 +7,18 @@ import { HttpProxyAgent } from 'http-proxy-agent'
 import { HttpsProxyAgent } from 'https-proxy-agent'
 import { describe, expect, it, vi } from 'vitest'
 
-import type { ProxyBypassRuleMatcher } from '../bypassRules'
 import { NodeProxyBackend } from '../NodeProxyBackend'
 
 function bindWithSharedAgent() {
   const backend = new NodeProxyBackend()
   const sharedProxyAgent = new https.Agent()
   const originalMethod = vi.fn()
-  // bindHttpMethod is private; exercise the bound wrapper directly
-  const bound = (backend as any).bindHttpMethod(originalMethod, sharedProxyAgent) as (...args: unknown[]) => unknown
+  const bound = backend['bindHttpMethod'](originalMethod, sharedProxyAgent)
   return { bound, originalMethod, sharedProxyAgent }
 }
 
 function setBypassRules(backend: NodeProxyBackend, rules: string[]) {
-  const matcher = Reflect.get(backend, 'proxyBypassRuleMatcher') as ProxyBypassRuleMatcher
+  const matcher = backend['proxyBypassRuleMatcher']
   matcher.updateByPassRules(rules)
 }
 
@@ -96,7 +94,7 @@ describe('NodeProxyBackend request binding', () => {
       const backend = new NodeProxyBackend()
       const agent = new HttpProxyAgent(proxy.url)
       setBypassRules(backend, [`127.0.0.1:${local.port}`])
-      const bound = Reflect.get(backend, 'bindHttpMethod').call(backend, http[method], agent) as typeof http.request
+      const bound = backend['bindHttpMethod'](http[method], agent)
 
       try {
         expect(await readResponse(bound({ hostname: local.host, port: local.port }))).toBe('direct')
@@ -155,12 +153,7 @@ describe('NodeProxyBackend request binding', () => {
     const callerAgent = new https.Agent({ rejectUnauthorized: false })
     const proxyAgent = new HttpsProxyAgent(`http://127.0.0.1:${await unusedPort()}`)
     setBypassRules(backend, [`https://127.0.0.1:${local.port}`])
-    const bound = Reflect.get(backend, 'bindHttpMethod').call(
-      backend,
-      https.get,
-      proxyAgent,
-      'https:'
-    ) as typeof https.get
+    const bound = backend['bindHttpMethod'](https.get, proxyAgent, 'https:')
 
     try {
       const status = new Promise<number | undefined>((resolve, reject) => {
@@ -195,7 +188,7 @@ describe('NodeProxyBackend request binding', () => {
     const originalMethod = vi.fn()
     const proxyAgent = new http.Agent()
     setBypassRules(backend, [rule])
-    const bound = Reflect.get(backend, 'bindHttpMethod').call(backend, originalMethod, proxyAgent, protocol)
+    const bound = backend['bindHttpMethod'](originalMethod, proxyAgent, protocol)
 
     bound(options)
 

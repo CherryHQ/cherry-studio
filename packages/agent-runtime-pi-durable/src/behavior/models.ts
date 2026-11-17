@@ -42,11 +42,30 @@ export function meteredModels(models: Models, behavior: PiDurableBehavior): Mode
     })()
     return output
   }
-  return new Proxy(models, {
-    get(target, key, receiver) {
-      if (key === 'streamSimple') return streamSimple
-      const value = Reflect.get(target, key, receiver)
-      return typeof value === 'function' ? value.bind(target) : value
-    }
-  })
+  return {
+    getProviders: models.getProviders.bind(models),
+    getProvider: models.getProvider.bind(models),
+    getModels: models.getModels.bind(models),
+    getModel: models.getModel.bind(models),
+    getModelsOfType: models.getModelsOfType.bind(models),
+    getModelOfType: models.getModelOfType.bind(models),
+    getAllModels: models.getAllModels.bind(models),
+    refresh: models.refresh.bind(models),
+    checkAuth: models.checkAuth.bind(models),
+    getAvailable: models.getAvailable.bind(models),
+    getAvailableOfType: models.getAvailableOfType.bind(models),
+    getAllAvailable: models.getAllAvailable.bind(models),
+    getAuth: models.getAuth.bind(models),
+    login: models.login.bind(models),
+    logout: models.logout.bind(models),
+    stream: models.stream.bind(models),
+    complete: models.complete.bind(models),
+    completeSimple: models.completeSimple.bind(models),
+    streamDeferred: models.streamDeferred.bind(models),
+    fetchDeferred: models.fetchDeferred.bind(models),
+    cancelDeferred: models.cancelDeferred.bind(models),
+    generateImages: models.generateImages.bind(models),
+    classify: models.classify.bind(models),
+    streamSimple
+  }
 }

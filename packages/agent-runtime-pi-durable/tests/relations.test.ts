@@ -18,6 +18,7 @@ import { expect, it, onTestFinished } from 'vitest'
 import { runtimeId, type ObservationPayload, type OperationResult } from '@cherrystudio/agent-runtime'
 
 import { createPiDurableRuntime, type PiDurableThreadHandle } from '../src'
+import { bindStorage } from '../src/storage'
 
 function confirmed<T>(result: OperationResult<T>): T {
   if (result.status !== 'confirmed') throw new Error(result.error.message)
@@ -208,20 +209,16 @@ it('gives concurrent opens independent cancellation and reports unknown or compl
 it('rejects ambiguous creation origins and retries a failed relation read without resubmitting', async () => {
   const storage = new MemoryStorage()
   let fail = false
-  const wrapped = new Proxy(storage, {
-    get(target, key) {
-      if (key === 'scanConversations')
-        return async (...args: Parameters<Storage['scanConversations']>) => {
-          if (fail) {
-            fail = false
-            throw new StorageRequestError('relation temporarily unavailable')
-          }
-          return target.scanConversations(...args)
-        }
-      const value = Reflect.get(target, key)
-      return typeof value === 'function' ? value.bind(target) : value
+  const wrapped: Storage = {
+    ...bindStorage(storage),
+    scanConversations: async (...args: Parameters<Storage['scanConversations']>) => {
+      if (fail) {
+        fail = false
+        throw new StorageRequestError('relation temporarily unavailable')
+      }
+      return storage.scanConversations(...args)
     }
-  })
+  }
   const children: ConversationRecord[] = []
   const { runtime, faux } = await setup(async (api, context) => {
     await api.commit(async (tx) => {
@@ -259,29 +256,25 @@ it('covers creation queued during the first parent scan and permits retry after 
   let scanned = false
   let fail = true
   const storage = new MemoryStorage()
-  const wrapped = new Proxy(storage, {
-    get(target, key) {
-      if (key === 'scanConversations')
-        return async (...args: Parameters<Storage['scanConversations']>) => {
-          if (record && args[0].ownerConversationId === record.id) {
-            if (fail) {
-              fail = false
-              throw new StorageRequestError('initial scan unavailable')
-            }
-            if (!scanned) {
-              scanned = true
-              const page = await target.scanConversations(...args)
-              scanning.resolve()
-              await finishScan.promise
-              return page
-            }
-          }
-          return target.scanConversations(...args)
+  const wrapped: Storage = {
+    ...bindStorage(storage),
+    scanConversations: async (...args: Parameters<Storage['scanConversations']>) => {
+      if (record && args[0].ownerConversationId === record.id) {
+        if (fail) {
+          fail = false
+          throw new StorageRequestError('initial scan unavailable')
         }
-      const value = Reflect.get(target, key)
-      return typeof value === 'function' ? value.bind(target) : value
+        if (!scanned) {
+          scanned = true
+          const page = await storage.scanConversations(...args)
+          scanning.resolve()
+          await finishScan.promise
+          return page
+        }
+      }
+      return storage.scanConversations(...args)
     }
-  })
+  }
   const { runtime, registry } = await setup(async (api, context) => {
     const target = await api.commit(async (tx) => {
       const created = await tx.createConversation({ ownership: { kind: 'ownerless' } })
@@ -330,17 +323,13 @@ it('does not repeat child lookups for unrelated text revisions while creation is
   const storage = new MemoryStorage()
   let parentId = ''
   let lookups = 0
-  const wrapped = new Proxy(storage, {
-    get(target, key) {
-      if (key === 'scanConversations')
-        return async (...args: Parameters<Storage['scanConversations']>) => {
-          if (String(args[0].ownerConversationId) === parentId) lookups++
-          return target.scanConversations(...args)
-        }
-      const value = Reflect.get(target, key)
-      return typeof value === 'function' ? value.bind(target) : value
+  const wrapped: Storage = {
+    ...bindStorage(storage),
+    scanConversations: async (...args: Parameters<Storage['scanConversations']>) => {
+      if (String(args[0].ownerConversationId) === parentId) lookups++
+      return storage.scanConversations(...args)
     }
-  })
+  }
   const { runtime } = await setup(async (api, context) => {
     entered.resolve()
     await write.promise
@@ -394,17 +383,13 @@ it('settles a pending child open when its access is released without cancelling 
 it('closes observations when the native session fails without a task graph watch', async () => {
   const storage = new MemoryStorage()
   let fail = false
-  const wrapped = new Proxy(storage, {
-    get(target, key) {
-      if (key === 'scanConversations')
-        return async (...args: Parameters<Storage['scanConversations']>) => {
-          if (fail) throw new Error('native storage failed')
-          return target.scanConversations(...args)
-        }
-      const value = Reflect.get(target, key)
-      return typeof value === 'function' ? value.bind(target) : value
+  const wrapped: Storage = {
+    ...bindStorage(storage),
+    scanConversations: async (...args: Parameters<Storage['scanConversations']>) => {
+      if (fail) throw new Error('native storage failed')
+      return storage.scanConversations(...args)
     }
-  })
+  }
   const { runtime, errors } = await setup(async (api, context) => {
     await api.commit((tx) => tx.createConversation({ ownership: { kind: 'task', taskId: api.taskId } }), context)
   }, wrapped)
@@ -444,17 +429,13 @@ it('signals source loss before blocked tool cleanup finishes', async () => {
   const never = gate()
   let fail = false
   const storage = new MemoryStorage()
-  const wrapped = new Proxy(storage, {
-    get(target, key) {
-      if (key === 'scanEntries')
-        return async (...args: Parameters<Storage['scanEntries']>) => {
-          if (fail) throw new Error('fatal storage read')
-          return target.scanEntries(...args)
-        }
-      const value = Reflect.get(target, key)
-      return typeof value === 'function' ? value.bind(target) : value
+  const wrapped: Storage = {
+    ...bindStorage(storage),
+    scanEntries: async (...args: Parameters<Storage['scanEntries']>) => {
+      if (fail) throw new Error('fatal storage read')
+      return storage.scanEntries(...args)
     }
-  })
+  }
   const { runtime } = await setup(async (_api, context) => {
     entered.resolve()
     try {
@@ -491,29 +472,24 @@ it.each(['settled', 'shutdown'] as const)('joins admitted relation delivery befo
   const deliver = gate()
   const storage = new MemoryStorage()
   let held: ConversationRecord['owner']
-  const wrapped = new Proxy(storage, {
-    get(target, key) {
-      if (key === 'commit')
-        return async (...args: Parameters<Storage['commit']>) => {
-          const seq = await target.commit(...args)
-          const child = args[0].flat().find((write) => write.type === 'conversation' && write.value.owner)
-          if (child?.type === 'conversation') held = child.value.owner
-          return seq
-        }
-      if (key === 'task')
-        return async (...args: Parameters<Storage['task']>) => {
-          const task = await target.task(...args)
-          if (held?.taskId === args[0]) {
-            held = undefined
-            reading.resolve()
-            await deliver.promise
-          }
-          return task
-        }
-      const value = Reflect.get(target, key)
-      return typeof value === 'function' ? value.bind(target) : value
+  const wrapped: Storage = {
+    ...bindStorage(storage),
+    commit: async (...args: Parameters<Storage['commit']>) => {
+      const seq = await storage.commit(...args)
+      const child = args[0].flat().find((write) => write.type === 'conversation' && write.value.owner)
+      if (child?.type === 'conversation') held = child.value.owner
+      return seq
+    },
+    task: async (...args: Parameters<Storage['task']>) => {
+      const task = await storage.task(...args)
+      if (held?.taskId === args[0]) {
+        held = undefined
+        reading.resolve()
+        await deliver.promise
+      }
+      return task
     }
-  })
+  }
   const { runtime, errors } = await setup(async (api, context) => {
     await api.commit((tx) => tx.createConversation({ ownership: { kind: 'task', taskId: api.taskId } }), context)
   }, wrapped)

@@ -169,13 +169,11 @@ describe('McpServersList protocol install', () => {
     const getComputedStyle = window.getComputedStyle
     const styleSpy = vi.spyOn(window, 'getComputedStyle').mockImplementation((element) => {
       const styles = getComputedStyle(element)
-      return new Proxy(styles, {
-        get(target, property, receiver) {
-          if (property === 'animationName') return element.getAttribute('data-state') === 'closed' ? 'exit' : 'enter'
-          if (property === 'display') return 'grid'
-          return Reflect.get(target, property, receiver)
-        }
+      Object.defineProperties(styles, {
+        animationName: { get: () => (element.getAttribute('data-state') === 'closed' ? 'exit' : 'enter') },
+        display: { value: 'grid' }
       })
+      return styles
     })
     mocks.pendingProtocolInstalls.push({
       requestId: 'request-2',

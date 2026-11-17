@@ -2,7 +2,7 @@ import { readdirSync, renameSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { type ExtensionAPI, SessionManager } from '@earendil-works/pi-coding-agent'
-import { describe, expect, it, onTestFinished } from 'vitest'
+import { describe, expect, it, onTestFinished, vi } from 'vitest'
 
 import {
   type ChildSpec,
@@ -1323,16 +1323,11 @@ describe('coding-agent behavior adapter', () => {
         const native = await open(request)
         if (!first) return native
         first = false
-        const session = new Proxy(native.session, {
-          get: (target, property) =>
-            property === 'abort'
-              ? () => Promise.reject(new Error('abort failed'))
-              : Reflect.get(target, property, target)
-        })
+        const abort = vi.spyOn(native.session, 'abort').mockRejectedValue(new Error('abort failed'))
         return {
           ...native,
-          session,
           dispose: async () => {
+            abort.mockRestore()
             await native.dispose()
             throw new Error('dispose failed')
           }
