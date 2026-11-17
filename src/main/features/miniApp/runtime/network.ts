@@ -93,7 +93,7 @@ export async function installNetworkPolicy(session: Electron.Session, appId: str
 /**
  * Cuts WebRTC's UDP path — **half** the WebRTC story, never used alone.
  *
- * Measured (design §8; `docs/references/mini-app/probes.md`, probe 1): with this
+ * Measured (design §8; `docs/dev/references/mini-app/probes.md`, probe 1): with this
  * policy and `setProxy({ mode: 'direct' })`, a guest declaring NO network still opened
  * TCP to an undeclared host and sent a 196-byte STUN Allocate. The policy means "UDP
  * only through a proxy"; TCP on the public interface is explicitly allowed, and Electron

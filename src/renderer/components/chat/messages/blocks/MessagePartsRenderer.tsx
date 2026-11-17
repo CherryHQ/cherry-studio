@@ -101,7 +101,7 @@ import MessageProcessGroup from './MessageProcessGroup'
 import PlaceholderBlock, { type PlaceholderStatus } from './PlaceholderBlock'
 import RetryStatusBlock from './RetryStatusBlock'
 import ThinkingBlock, { ThinkingBlockContent } from './ThinkingBlock'
-import { ToolBlockGroup, ToolBlockGroupContent } from './ToolBlockGroup'
+import { hasToolIntent, ToolBlockGroup, ToolBlockGroupContent } from './ToolBlockGroup'
 import TranslationBlock from './TranslationBlock'
 
 const logger = loggerService.withContext('MessagePartsRenderer')
@@ -302,6 +302,7 @@ type GroupedEntry = PartEntry | PartEntry[]
 interface RenderGroupedEntryOptions {
   inlineHtmlPreviewMode?: InlineHtmlPreviewMode
   enableAnimation?: boolean
+  expandToolGroups?: boolean
   expandedTextPartIds?: ReadonlySet<string>
   messageCitations?: MessageCitations
   citationProjectionByPart?: ReadonlyMap<CherryMessagePart, ResolvedCitationMarkers>
@@ -1065,7 +1066,7 @@ function renderGroupedEntry(
       return (
         <AnimatedBlockWrapper key={stableGroupKey} enableAnimation={enableAnimation} animation="fade">
           {options?.toolDisplay === 'disclosure' ? (
-            <ToolBlockGroup items={toolItems} />
+            <ToolBlockGroup items={toolItems} defaultExpanded={options?.expandToolGroups} />
           ) : (
             <ToolBlockGroupContent items={toolItems} />
           )}
@@ -1218,11 +1219,21 @@ function renderNestedHistory(
       (lastProcessEntry.part.type as string) === 'reasoning' &&
       (lastProcessEntry.part as ReasoningUIPart).state === 'streaming'
 
+    // Stated intents already say what each step is for, so thinking blocks between them only add noise.
+    const showsReasoning = !toolItems.some(hasToolIntent)
+    const visibleEntries = groupPartEntries(item.entries).filter(
+      (entry) => showsReasoning || Array.isArray(entry) || !isReasoningMessagePart(entry.part)
+    )
+
     return (
       <AnimatedBlockWrapper key={`nested-process-${message.id}-${item.key}`} enableAnimation={false} animation="fade">
-        <ToolBlockGroup items={toolItems} isLiveProgress={isLiveProgress} isThinking={isThinking}>
+        <ToolBlockGroup
+          items={toolItems}
+          defaultExpanded={options.expandToolGroups}
+          isLiveProgress={isLiveProgress}
+          isThinking={isThinking}>
           <div className="flex w-full flex-col gap-1 [&>.block-wrapper+.block-wrapper]:mt-0! [&>.block-wrapper]:mt-0! [&_.message-thought-container]:mt-0! [&_.message-thought-container]:mb-0!">
-            {groupPartEntries(item.entries).map((entry) =>
+            {visibleEntries.map((entry) =>
               renderGroupedEntry(entry, message, false, {
                 ...options,
                 enableAnimation: false,
@@ -1389,6 +1400,7 @@ const MessageProcessLayout = React.memo(function MessageProcessLayout({
   entries,
   isActive,
   isStreamLive,
+  keepIntermediateAssistantText,
   message,
   renderOptions
 }: {
@@ -1396,26 +1408,36 @@ const MessageProcessLayout = React.memo(function MessageProcessLayout({
   entries: readonly PartEntry[]
   isActive: boolean
   isStreamLive: boolean
+  keepIntermediateAssistantText: boolean
   message: MessageListItem
   renderOptions: RenderGroupedEntryOptions
 }) {
-  const { thoughtAutoCollapse } = useMessageRenderConfig()
+  const { expandToolSteps, thoughtAutoCollapse } = useMessageRenderConfig()
   const projectedLiveItems = useMemo(
     () =>
       isActive
-        ? projectLiveMessageParts(entries).filter(
+        ? projectLiveMessageParts(entries, { keepIntermediateAssistantText }).filter(
             (item) => item.kind !== 'part' || !isReportArtifactEntry(item.entry, message.id)
           )
         : [],
-    [entries, isActive, message.id]
+    [entries, isActive, keepIntermediateAssistantText, message.id]
   )
   const liveProcessBoundary = useMemo(() => findLastLiveProcessBoundaryIndex(projectedLiveItems), [projectedLiveItems])
-  // Preserve hard-boundary parts in the ordered process prefix; only the trailing result stays outside.
-  const liveProcessItems = projectedLiveItems.slice(0, liveProcessBoundary + 1)
-  const liveResultItems = projectedLiveItems.slice(liveProcessBoundary + 1)
+  // Keep hard-boundary parts in process history while enabled text stays in the response lane.
+  const liveProcessItems = projectedLiveItems
+    .slice(0, liveProcessBoundary + 1)
+    .filter((item) => !keepIntermediateAssistantText || item.kind !== 'part' || item.entry.part.type !== 'text')
+  const liveResultItems = projectedLiveItems.filter(
+    (item, index) =>
+      index > liveProcessBoundary ||
+      (keepIntermediateAssistantText && item.kind === 'part' && item.entry.part.type === 'text')
+  )
   const openTextTailIndex = isActive && isStreamLive ? findOpenTextTailIndex(entries) : null
 
-  const completedLayout = useMemo(() => (isActive ? null : projectCompletedMessageParts(entries)), [entries, isActive])
+  const completedLayout = useMemo(
+    () => (isActive ? null : projectCompletedMessageParts(entries, { keepIntermediateAssistantText })),
+    [entries, isActive, keepIntermediateAssistantText]
+  )
   const completedRenderOptions = useMemo(
     () => ({ ...renderOptions, settleActiveTools: true, settleStreamingReasoning: true }),
     [renderOptions]
@@ -1469,7 +1491,7 @@ const MessageProcessLayout = React.memo(function MessageProcessLayout({
           collapseHistory
             ? {
                 ...completedRenderOptions,
-                reasoningDisplay: 'content',
+                reasoningDisplay: 'disclosure',
                 toolDisplay: 'disclosure'
               }
             : {
@@ -1541,7 +1563,8 @@ const MessageProcessLayout = React.memo(function MessageProcessLayout({
         phase="completed"
         outcome={completedHasError ? 'error' : 'success'}
         defaultExpanded={
-          !thoughtAutoCollapse && completedHistoryEntries.some((entry) => isReasoningMessagePart(entry.part))
+          expandToolSteps ||
+          (!thoughtAutoCollapse && completedHistoryEntries.some((entry) => isReasoningMessagePart(entry.part)))
         }
         message={message}
         toolItems={completedToolItems}>
@@ -1560,6 +1583,7 @@ interface MessagePartsRendererContentProps extends Props {
   collapseCompletedToolHistory: boolean
   isActiveTurnProcessing: boolean
   isStreamLive: boolean
+  keepIntermediateAssistantText: boolean
   messageParts: CherryMessagePart[]
   priorCitationParts: readonly CherryMessagePart[]
 }
@@ -1574,11 +1598,12 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
   hoistAttachments,
   isActiveTurnProcessing,
   isStreamLive,
+  keepIntermediateAssistantText,
   message,
   messageParts,
   priorCitationParts
 }: MessagePartsRendererContentProps) {
-  const { subagentListTitle, userMessageDefaultExpanded } = useMessageRenderConfig()
+  const { expandToolSteps, subagentListTitle, userMessageDefaultExpanded } = useMessageRenderConfig()
   const { openAgentToolFlow, isAgentToolFlowActive, openFile, previewFile, previewInputFile } = useMessageListActions()
   const hoistNonImageFiles = !!hoistAttachments && !!(previewInputFile || previewFile || openFile)
   const { t } = useTranslation()
@@ -1624,10 +1649,19 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
     })
   }, [])
 
-  const partEntries = useMemo(
-    () => messageParts.flatMap((part, index) => (hasPartParentToolCallId(part) ? [] : [{ part, index }])),
-    [messageParts]
-  )
+  const partEntries = useMemo(() => {
+    const shownErrors = new Set<string>()
+    return messageParts.flatMap((part, index) => {
+      if (hasPartParentToolCallId(part)) return []
+      if (part.type === 'data-error') {
+        // Older builds could persist one failure twice; each distinct error gets one card.
+        const errorKey = JSON.stringify(part.data)
+        if (shownErrors.has(errorKey)) return []
+        shownErrors.add(errorKey)
+      }
+      return [{ part, index }]
+    })
+  }, [messageParts])
   const placeholderStatus = useMemo(() => getProcessingPlaceholderStatus(partEntries), [partEntries])
   const nextReportArtifactToolResponses = useMemo(
     () => getReportArtifactToolResponses(partEntries, message.id),
@@ -1751,6 +1785,7 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
   const renderOptions = useMemo(
     () => ({
       citationProjectionByPart,
+      expandToolGroups: expandToolSteps,
       expandedTextPartIds,
       messageCitations,
       readOnlyFilePreviews,
@@ -1760,6 +1795,7 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
       onTextPartExpandedChange: handleTextPartExpandedChange
     }),
     [
+      expandToolSteps,
       expandedTextPartIds,
       citationProjectionByPart,
       handleTextPartExpandedChange,
@@ -1817,6 +1853,7 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
         entries={displayEntries}
         isActive={isActiveTurnProcessing}
         isStreamLive={isStreamLive}
+        keepIntermediateAssistantText={keepIntermediateAssistantText}
         message={message}
         renderOptions={renderOptions}
       />
@@ -1900,11 +1937,12 @@ const MessagePartsRenderer: React.FC<Props> = ({ message, hoistAttachments }) =>
   const messageParts = useMessageParts(message.id)
   const { isActiveTurnProcessing, isStreamLive } = useMessageListItemActivityState(message)
   const priorCitationParts = useMessagePriorCitationParts(message.id)
-  const { collapseCompletedToolHistory } = useMessageRenderConfig()
+  const { collapseCompletedToolHistory, keepIntermediateAssistantText } = useMessageRenderConfig()
 
   return (
     <MessagePartsRendererContent
       collapseCompletedToolHistory={collapseCompletedToolHistory}
+      keepIntermediateAssistantText={keepIntermediateAssistantText}
       hoistAttachments={hoistAttachments}
       isActiveTurnProcessing={isActiveTurnProcessing}
       isStreamLive={isStreamLive}

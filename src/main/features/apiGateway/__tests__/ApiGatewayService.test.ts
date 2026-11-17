@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { BaseService } from '@main/core/lifecycle'
+import type { AdvertisedRemoteEndpoint } from '@shared/data/preference/preferenceTypes'
 
 /**
  * Exercises `ApiGatewayService`'s reconcile-after-settle convergence: a toggle that
@@ -34,6 +35,7 @@ const {
     hostPreference: '127.0.0.1',
     portPreference: 23333,
     ipv6Addresses: [] as string[],
+    advertisedEndpoint: null as AdvertisedRemoteEndpoint | null,
     ipv6Listening: true
   }
 }))
@@ -81,9 +83,11 @@ vi.mock('@application', async () => {
         captured.prefHandler = cb
         return () => {}
       }),
-      get: vi.fn((key: string) =>
-        key === 'app.language' ? 'en-US' : key.endsWith('api_key') ? 'existing-key' : false
-      ),
+      get: vi.fn((key: string) => {
+        if (key === 'app.language') return 'en-US'
+        if (key.endsWith('advertised_endpoint')) return captured.advertisedEndpoint
+        return key.endsWith('api_key') ? 'existing-key' : false
+      }),
       getMultiple: vi.fn(() => ({
         enabled: captured.enabledPreference,
         host: captured.hostPreference,
@@ -122,6 +126,7 @@ beforeEach(() => {
   captured.hostPreference = '127.0.0.1'
   captured.portPreference = 23333
   captured.ipv6Addresses = []
+  captured.advertisedEndpoint = null
   captured.ipv6Listening = true
   mockPreferenceSet.mockReset()
   mockPreferenceSet.mockImplementation(async (key, value) => {
@@ -287,17 +292,73 @@ describe('ApiGatewayService internal gateway', () => {
     expect(service.isInternalRequest(headers(second.apiKey))).toBe(true)
   })
 
+  // A delayed summary request must retain its initiator when the active turn changes.
+  it('freezes auxiliary ownership and rejects released or cross-session captures', async () => {
+    const service = new ApiGatewayService()
+    const internal = await startInternalGateway(service)
+    const original = {
+      agentSessionId: 'session-1',
+      assistantMessageId: 'original-message',
+      source: { type: 'agent', id: 'agent-1', name: 'Original', icon: null }
+    }
+    mockGetActiveUsageContext.mockReturnValue(original)
+    const root = service.captureAgentSessionUsage('session-1')
+    const child = service.captureAgentSessionUsage('session-1', 'child-session')
+    mockGetActiveUsageContext.mockReturnValue({ ...original, assistantMessageId: 'next-message' })
+    const headers = (capture: typeof root, apiKey = internal.apiKey) =>
+      new Headers({ ...capture.headers, 'x-api-key': apiKey })
+    expect(service.resolveAgentSessionUsage(headers(root), 'late-response')).toEqual(original)
+    expect(service.resolveAgentSessionUsage(headers(child), 'child-summary')).toEqual({
+      agentSessionId: 'child-session',
+      source: original.source
+    })
+    const crossed = headers(root)
+    crossed.set('x-cherry-agent-session-id', 'another-session')
+    expect(service.resolveAgentSessionUsage(crossed)).toBeUndefined()
+    expect(service.resolveAgentSessionUsage(headers(root, 'existing-key'))).toBeUndefined()
+    root.release()
+    child.release()
+    expect(service.resolveAgentSessionUsage(headers(root))).toBeUndefined()
+    expect(service.resolveAgentSessionUsage(headers(child))).toBeUndefined()
+  })
+
+  it('freezes the native phase parent without changing billing ownership', async () => {
+    const service = new ApiGatewayService()
+    const internal = await startInternalGateway(service)
+    const current = { agentSessionId: 'session-1', assistantMessageId: 'answer', source: null }
+    mockGetActiveUsageContext.mockReturnValue(current)
+    const parent = {
+      sessionId: 'session-1',
+      turnId: 'turn',
+      topicId: 'agent-session:session-1',
+      traceId: '11111111111111111111111111111111',
+      rootSpanId: '2222222222222222'
+    }
+    const captured = service.captureAgentSessionUsage('session-1', undefined, parent)
+    mockGetActiveUsageContext.mockReturnValue({ ...current, assistantMessageId: 'later' })
+    const headers = new Headers({ ...captured.headers, 'x-api-key': internal.apiKey })
+    expect(service.resolveAgentSessionUsage(headers)).toEqual({ ...current, traceContext: parent })
+    expect(Object.keys(captured.headers)).not.toContain('traceparent')
+    captured.release()
+    expect(service.resolveAgentSessionUsage(headers)).toBeUndefined()
+  })
+
   it('attributes usage to an Agent session only for the unrestricted internal key', async () => {
     const service = new ApiGatewayService()
     const internal = await startInternalGateway(service)
     const scoped = await service.createScopedCredential(CHAT_SCOPE)
     const sessionHeaders = service.getAgentSessionUsageHeaders('session-1')
 
-    expect(service.resolveAgentSessionUsage(new Headers({ ...sessionHeaders, 'x-api-key': internal.apiKey }))).toEqual({
+    expect(
+      service.resolveAgentSessionUsage(
+        new Headers({ ...sessionHeaders, 'x-api-key': internal.apiKey }),
+        'native-response'
+      )
+    ).toEqual({
       agentSessionId: 'session-1',
       source: { type: 'agent', id: 'agent-1', name: 'Original Agent', icon: '🧠' }
     })
-    expect(mockGetActiveUsageContext).toHaveBeenCalledWith('session-1')
+    expect(mockGetActiveUsageContext).toHaveBeenCalledWith('session-1', 'native-response')
     expect(service.getAgentSessionId(new Headers({ ...sessionHeaders, 'x-api-key': scoped.apiKey }))).toBeUndefined()
     expect(service.getAgentSessionId(new Headers({ ...sessionHeaders, 'x-api-key': 'existing-key' }))).toBeUndefined()
   })
@@ -515,6 +576,46 @@ describe('ApiGatewayService LAN shutdown', () => {
     expect(invitation.addresses[0]).toBe('192.168.1.8')
     expect(invitation.addressOptions).toHaveLength(41)
     expect(invitation.addressOptions[0]).toEqual({ address: '192.168.1.8', interfaceName: 'en0' })
+  })
+
+  it('advertises an external endpoint and restores the actual bound port without rebinding', async () => {
+    const service = new ApiGatewayService()
+    await service._doInit()
+    captured.advertisedEndpoint = { host: 'Desktop.example.com', port: 443, security: 'wss' }
+    captured.portPreference = 24444
+    expect(await service.createRemoteInvitation()).toMatchObject({
+      port: 23333,
+      endpoints: [{ host: 'desktop.example.com', port: 443, security: 'wss' }],
+      desktopIdentity: '12D3KooWDesktop',
+      invitationId: 'invitation'
+    })
+    captured.advertisedEndpoint = null
+    expect(await service.getRemoteEndpoint()).toMatchObject({
+      advertisedEndpoint: null,
+      endpoints: [{ host: '192.168.1.8', port: 23333, security: 'ws' }]
+    })
+  })
+
+  it('keeps the saved input URL out of invitation transport endpoints', async () => {
+    const service = new ApiGatewayService()
+    await service._doInit()
+    captured.advertisedEndpoint = {
+      host: 'desktop.example.com',
+      port: 443,
+      security: 'wss',
+      inputUrl: 'https://Desktop.example.com'
+    }
+    const invitation = await service.createRemoteInvitation()
+    const endpoint = { host: 'desktop.example.com', port: 443, security: 'wss' }
+    expect(invitation.advertisedEndpoint).toEqual(endpoint)
+    expect(invitation.endpoints).toEqual([endpoint])
+  })
+
+  it('rejects invalid persisted destinations instead of issuing an unusable invitation', async () => {
+    const service = new ApiGatewayService()
+    await service._doInit()
+    captured.advertisedEndpoint = { host: '127.0.0.1', port: 443, security: 'wss' }
+    await expect(service.createRemoteInvitation()).rejects.toThrow('Invalid remote destination')
   })
 
   it('offers routable IPv6 candidates only while IPv6 is actually listening', async () => {

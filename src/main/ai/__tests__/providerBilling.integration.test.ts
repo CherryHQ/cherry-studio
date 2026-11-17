@@ -4,6 +4,7 @@ import { resolve } from 'node:path'
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { tool, type UIMessageChunk } from 'ai'
+import { eq } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import * as z from 'zod'
 
@@ -14,7 +15,6 @@ import { userProviderTable } from '@data/db/schemas/userProvider'
 import { aiUsageRecordService } from '@data/services/AiUsageRecordService'
 import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
-import { buildPiProviderInjection } from '@main/ai/runtime/pi/modelInjection'
 import { createAiUsageCaptureContext } from '@main/ai/utils/usageCapture'
 import { BaseService } from '@main/core/lifecycle/BaseService'
 import { ENDPOINT_TYPE, MODEL_CAPABILITY } from '@shared/data/types/model'
@@ -66,7 +66,9 @@ describe('provider billing through AiService and the real SDK', () => {
     vi.spyOn(application, 'getPath').mockImplementation((key, filename) =>
       key === 'feature.provider_registry.data'
         ? resolve('packages/provider-registry/data', filename ?? '')
-        : getPath(key, filename)
+        : key === 'app.root'
+          ? resolve(filename ?? '')
+          : getPath(key, filename)
     )
     transport.mockReset()
     MockMainPreferenceServiceUtils.resetMocks()
@@ -104,26 +106,84 @@ describe('provider billing through AiService and the real SDK', () => {
     vi.restoreAllMocks()
   })
 
-  it('uses frozen peak pricing for Pi while preserving trusted reported costs', () => {
+  it('automatically prices official requests, freezes the boundary, and preserves user overrides', async () => {
+    dbh.db
+      .insert(userProviderTable)
+      .values({
+        providerId: 'deepseek',
+        presetProviderId: 'deepseek',
+        name: 'DeepSeek',
+        orderKey: 'a1',
+        isEnabled: true,
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        endpointConfigs: { [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://api.deepseek.com' } }
+      })
+      .run()
+    dbh.db
+      .insert(userModelTable)
+      .values({
+        id: 'deepseek::deepseek-flash',
+        providerId: 'deepseek',
+        modelId: 'deepseek-flash',
+        presetModelId: 'deepseek-flash',
+        orderKey: 'a1',
+        isEnabled: true,
+        endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
+      })
+      .run()
+    const service = new (AiService as unknown as new () => AiService)()
+    const officialRequest = { ...request, uniqueModelId: 'deepseek::deepseek-flash' as const }
+    vi.setSystemTime(new Date('2026-11-16T11:59:59+08:00'))
+    transport
+      .mockImplementationOnce(async () => {
+        vi.setSystemTime(new Date('2026-11-16T12:00:01+08:00'))
+        return completion()
+      })
+      .mockImplementation(async () => completion())
+    await service.generateText(officialRequest)
+    await service.generateText(officialRequest)
+    let rows = dbh.db.select().from(aiUsageRecordTable).all()
+    expect(rows.map((row) => row.cost).sort()).toEqual([expect.closeTo(0.00075, 12), expect.closeTo(0.0015, 12)])
+    expect(rows.map((row) => row.pricingSnapshot?.billing?.multiplier).sort()).toEqual([0.5, 1])
+    expect(providerService.getByProviderId('deepseek').settings.billing).toBeUndefined()
+
+    providerService.update('deepseek', {
+      providerSettings: { billing: { defaultMultiplier: 2, scheduleEnabled: false, timeZone: '+08:00', periods: [] } }
+    })
+    await service.generateText(officialRequest)
+    expect(
+      dbh.db
+        .select()
+        .from(aiUsageRecordTable)
+        .all()
+        .map((row) => row.cost)
+    ).toEqual(expect.arrayContaining([expect.closeTo(0.003, 12)]))
+    providerService.update('deepseek', { providerSettings: { billing: null } })
+    dbh.db.update(userModelTable).set({ pricing }).where(eq(userModelTable.id, 'deepseek::deepseek-flash')).run()
+    expect(modelService.getByKey('deepseek', 'deepseek-flash').hasCustomPricing).toBe(true)
+    await service.generateText(officialRequest)
+    rows = dbh.db.select().from(aiUsageRecordTable).all()
+    expect(rows.map((row) => row.cost)).toContain(0.008)
+    expect(rows.filter((row) => row.pricingSnapshot?.billing?.source === 'deepseek')).toHaveLength(2)
+  })
+
+  it('uses frozen peak pricing when invocation time is unknown while preserving trusted reported costs', () => {
     vi.setSystemTime(new Date('2026-10-11T23:00:00+08:00'))
-    const injection = buildPiProviderInjection(
-      providerService.getByProviderId('billing-group'),
-      modelService.getByKey('billing-group', 'model'),
-      'test-only-key'
-    )
-    const capture = injection.usageCapture
-    if (capture.owner !== 'agent-sdk') throw new Error('Expected direct SDK capture')
-    providerService.update('billing-group', { providerSettings: { billing: { defaultMultiplier: 100 } } })
+    const provider = providerService.getByProviderId('billing-group')
+    const model = modelService.getByKey('billing-group', 'model')
     const context = createAiUsageCaptureContext({
-      providerId: capture.providerId,
-      modelId: capture.frozenModels[0].modelId,
-      pricingSnapshot: capture.frozenModels[0].pricingSnapshot,
+      providerId: provider.id,
+      modelId: model.id,
+      pricing: model.pricing,
+      billing: provider.settings?.billing,
+      invocationStartedAt: null,
       trustProviderReportedCost: true,
       reportedCostCurrency: 'USD'
     })
+    providerService.update('billing-group', { providerSettings: { billing: { defaultMultiplier: 100 } } })
     for (const providerCost of [undefined, { amount: 0.7, currency: 'USD' as const }]) {
       aiUsageRecordService.recordInvocation({
-        requestId: providerCost ? 'pi:reported' : 'pi:computed',
+        requestId: providerCost ? 'unknown-time:reported' : 'unknown-time:computed',
         context,
         modality: 'language',
         usage: { inputTokens: 1000, outputTokens: 1000 },
@@ -188,7 +248,8 @@ describe('provider billing through AiService and the real SDK', () => {
       requestOptions: { maxRetries: 0, signal: new AbortController().signal }
     })
     const chunks: UIMessageChunk[] = []
-    for await (const chunk of stream) chunks.push(chunk)
+    if (stream.kind !== 'chunks') throw new Error('Expected provider chunks')
+    for await (const chunk of stream.stream) chunks.push(chunk)
     expect(chunks).toContainEqual(expect.objectContaining({ type: 'text-delta', delta: 'ok' }))
     const rows = dbh.db.select().from(aiUsageRecordTable).all()
     expect(rows).toHaveLength(1)
@@ -228,6 +289,7 @@ describe('provider billing through AiService and the real SDK', () => {
       })
     const result = await service.generateText({
       ...request,
+      contextOwner: 'cherry',
       callOverrides: {
         tools: {
           next: tool({
@@ -296,7 +358,7 @@ describe('provider billing through AiService and the real SDK', () => {
         expect(String(url)).toContain('fallback.test')
         return completion()
       })
-    expect((await service.generateText({ ...request, requestOptions: {} })).text).toBe('ok')
+    expect((await service.generateText({ ...request, contextOwner: 'cherry', requestOptions: {} })).text).toBe('ok')
     const rows = dbh.db.select().from(aiUsageRecordTable).all()
     expect(rows).toHaveLength(1)
     expect(rows[0]).toMatchObject({

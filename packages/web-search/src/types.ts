@@ -5,13 +5,18 @@ export const REMOTE_PROVIDER_IDS = Object.freeze([
   'exa',
   'exa-mcp',
   'bocha',
+  'stepfun',
   'querit',
   'jina',
   'firecrawl',
   'crawl4ai',
   'parallel',
   'serply',
-  'deepseek'
+  'yuanbao',
+  'deepseek',
+  'desearch',
+  'searchapi',
+  'serpkite'
 ] as const)
 
 export type RemoteProviderId = (typeof REMOTE_PROVIDER_IDS)[number]
@@ -48,6 +53,7 @@ export type WebSearchCall = CallBase &
         config: Readonly<{
           apiHost?: string
           maxResults: number
+          useDefaultResultCount?: boolean
           engines?: readonly string[]
           excludeDomains?: readonly string[]
         }>

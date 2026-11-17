@@ -5,7 +5,7 @@ import { fileErrorCodes } from '@shared/ipc/errors/file'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 
-import { safeOpen } from '../system'
+import { type DefaultOpenContext, safeOpen } from '../system'
 
 function expandHomePath(rawPath: string): string {
   if (!rawPath.startsWith('~/') && !rawPath.startsWith('~\\')) return rawPath
@@ -45,10 +45,14 @@ export function resolveRequestedPath(rawPath: string, workspaceRoot?: AbsoluteFi
 /**
  * Open a renderer-supplied path with the system default app.
  *
- * Every raw-path entry point (the legacy `file:openPath` channel, `system.shell.open_path`, the
- * session-scoped agent route) funnels through here, so an unusable path can never reach
- * `shell.openPath` — see `assertOpenableTarget` for why that matters on Linux.
+ * Every raw-path entry point (`system.shell.open_path`, the session-scoped agent route) funnels
+ * through here, so an unusable path can never reach `shell.openPath` — see `assertOpenableTarget`
+ * for why that matters on Linux.
  */
-export async function openRequestPath(rawPath: string, workspaceRoot?: AbsoluteFilePath): Promise<void> {
-  return safeOpen(resolveRequestedPath(rawPath, workspaceRoot))
+export async function openRequestPath(
+  rawPath: string,
+  workspaceRoot?: AbsoluteFilePath,
+  context?: DefaultOpenContext
+): Promise<void> {
+  return safeOpen(resolveRequestedPath(rawPath, workspaceRoot), context)
 }

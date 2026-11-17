@@ -18,6 +18,7 @@ export function ContextUsageMeter({
   isBusy = false,
   className,
   style,
+  tabIndex = 0,
   ...props
 }: ContextUsageMeterProps) {
   const normalizedPercentage = normalizeContextUsagePercentage(percentage)
@@ -28,7 +29,7 @@ export function ContextUsageMeter({
       {...props}
       ref={ref}
       role="meter"
-      tabIndex={0}
+      tabIndex={tabIndex}
       aria-label={`${label} ${normalizedPercentage}%`}
       aria-valuemin={0}
       aria-valuemax={100}
@@ -46,7 +47,7 @@ export function ContextUsageMeter({
           '--context-usage-progress': `${normalizedPercentage}%`
         } as CSSProperties
       }>
-      <span aria-hidden className="absolute inset-[2px] rounded-full bg-card" />
+      <span aria-hidden className="absolute inset-[2px] rounded-full bg-composer-surface" />
     </span>
   )
 }

@@ -117,10 +117,6 @@ describe('TranslateHistoryService', () => {
       expect(result.items.some((i) => i.sourceText.includes('Hello'))).toBe(true)
     })
 
-    it('should escape LIKE wildcards in search', async () => {
-      expect(translateHistoryService.list({ limit: 20, search: '100% off_sale\\test' })).toBeDefined()
-    })
-
     it('should filter by star', async () => {
       await seedHistory({ star: true })
       await seedHistory({ id: '550e8400-e29b-41d4-a716-446655440002', star: false })

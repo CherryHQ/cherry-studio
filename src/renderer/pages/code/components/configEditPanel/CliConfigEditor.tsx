@@ -6,7 +6,6 @@ import { useTranslation } from 'react-i18next'
 import { Button, Tabs, TabsContent, TabsList, TabsTrigger, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { LazyCodeEditor } from '@renderer/components/LazyCodeEditor'
-import { useCmTheme } from '@renderer/hooks/useCodeStyle'
 import { type CliConfigFileDraft, formatCliConfigDraftFile } from '@renderer/pages/code/cliConfig'
 import { toast } from '@renderer/services/toast'
 import { cn } from '@renderer/utils/style'
@@ -29,7 +28,6 @@ export const CliConfigEditor: FC<CliConfigEditorProps> = ({ files, error, onChan
     () => files.find((file) => file.target === activeTarget) ?? files[0],
     [activeTarget, files]
   )
-  const activeCmTheme = useCmTheme(!!activeFile)
 
   if (!files.length) return null
 
@@ -79,12 +77,12 @@ export const CliConfigEditor: FC<CliConfigEditorProps> = ({ files, error, onChan
           </TabsList>
           {activeFile && (
             <TabsContent key={activeFile.target} value={activeFile.target} className="mt-2">
-              <EditorBody file={activeFile} fontSize={fontSize} theme={activeCmTheme} onChange={updateFile} />
+              <EditorBody file={activeFile} fontSize={fontSize} onChange={updateFile} />
             </TabsContent>
           )}
         </Tabs>
       ) : (
-        activeFile && <EditorBody file={activeFile} fontSize={fontSize} theme={activeCmTheme} onChange={updateFile} />
+        activeFile && <EditorBody file={activeFile} fontSize={fontSize} onChange={updateFile} />
       )}
 
       {error && (
@@ -99,12 +97,10 @@ export const CliConfigEditor: FC<CliConfigEditorProps> = ({ files, error, onChan
 const EditorBody: FC<{
   file: CliConfigFileDraft
   fontSize: number
-  theme: React.ComponentProps<typeof LazyCodeEditor>['theme']
   onChange: (target: string, content: string) => void
-}> = ({ file, fontSize, theme, onChange }) => (
+}> = ({ file, fontSize, onChange }) => (
   <div className={cn('overflow-hidden rounded-lg border border-border-subtle bg-background')}>
     <LazyCodeEditor
-      theme={theme}
       fontSize={fontSize - 1}
       value={file.content}
       language={file.language === 'dotenv' ? 'dotenv' : file.language}

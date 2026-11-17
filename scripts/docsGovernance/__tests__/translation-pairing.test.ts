@@ -58,14 +58,14 @@ describe('translation pairing helpers', () => {
   })
 
   it('accepts translated descriptions with identical sources and structure', () => {
-    const paths = pairPaths('docs/i18n/README.md')
+    const paths = pairPaths('docs/dev/i18n/README.md')
     const source = normalPair('Pairing rules', 'English | [中文](README.zh.md)', 'Pairing', '- One\n- Two')
     const zh = normalPair('配对规则', '[English](README.md) | 中文', '配对', '- 一\n- 二')
     expect(validatePairContent(paths, Buffer.from(source), Buffer.from(zh))).toEqual([])
   })
 
   it('rejects source and structural drift', () => {
-    const paths = pairPaths('docs/i18n/README.md')
+    const paths = pairPaths('docs/dev/i18n/README.md')
     const source = normalPair('Pairing rules', 'English | [中文](README.zh.md)', 'Pairing', '- One\n- Two')
     const zh = normalPair('配对规则', '[English](README.md) | 中文', '配对', '- 一').replace(
       'src/main/foo',
@@ -78,7 +78,7 @@ describe('translation pairing helpers', () => {
   })
 
   it('requires fenced code blocks to be byte-identical', () => {
-    const paths = pairPaths('docs/i18n/README.md')
+    const paths = pairPaths('docs/dev/i18n/README.md')
     const sourceBody = ['```ts', '// Keep this comment.', 'run()', '```'].join('\n')
     const zhBody = ['~~~ts', '// Keep this comment.', 'run()', '~~~'].join('\n')
     const source = normalPair('Pairing rules', 'English | [中文](README.zh.md)', 'Pairing', sourceBody)
@@ -90,21 +90,21 @@ describe('translation pairing helpers', () => {
   })
 
   it('rejects matching non-switcher links to Chinese documents', () => {
-    const paths = pairPaths('docs/i18n/README.md')
+    const paths = pairPaths('docs/dev/i18n/README.md')
     const body = '[Guide](../guide.zh.md)'
     const source = normalPair('Pairing rules', 'English | [中文](README.zh.md)', 'Pairing', body)
     const zh = normalPair('配对规则', '[English](README.md) | 中文', '配对', body)
 
     expect(validatePairContent(paths, Buffer.from(source), Buffer.from(zh))).toEqual(
       expect.arrayContaining([
-        expect.stringContaining('docs/i18n/README.md: non-switcher link'),
-        expect.stringContaining('docs/i18n/README.zh.md: non-switcher link')
+        expect.stringContaining('docs/dev/i18n/README.md: non-switcher link'),
+        expect.stringContaining('docs/dev/i18n/README.zh.md: non-switcher link')
       ])
     )
   })
 
   it('rejects divergent reference-style link targets', () => {
-    const paths = pairPaths('docs/i18n/README.md')
+    const paths = pairPaths('docs/dev/i18n/README.md')
     const source = normalPair(
       'Pairing rules',
       'English | [中文](README.zh.md)',
@@ -119,15 +119,15 @@ describe('translation pairing helpers', () => {
   })
 
   it('rejects reference-style links to Chinese documents', () => {
-    const paths = pairPaths('docs/i18n/README.md')
+    const paths = pairPaths('docs/dev/i18n/README.md')
     const body = '[Guide][doc]\n\n[doc]: ../guide.zh.md'
     const source = normalPair('Pairing rules', 'English | [中文](README.zh.md)', 'Pairing', body)
     const zh = normalPair('配对规则', '[English](README.md) | 中文', '配对', body)
 
     expect(validatePairContent(paths, Buffer.from(source), Buffer.from(zh))).toEqual(
       expect.arrayContaining([
-        expect.stringContaining('docs/i18n/README.md: non-switcher link'),
-        expect.stringContaining('docs/i18n/README.zh.md: non-switcher link')
+        expect.stringContaining('docs/dev/i18n/README.md: non-switcher link'),
+        expect.stringContaining('docs/dev/i18n/README.zh.md: non-switcher link')
       ])
     )
   })

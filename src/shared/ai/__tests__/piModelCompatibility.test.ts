@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 
-import { isPiCompatibleModel, mapEndpointToPiApi, resolvePiApi } from '../piModelCompatibility'
+import { isPiCompatibleModel, mapEndpointToPiApi } from '../piModelCompatibility'
 
 function makeProvider(overrides: Partial<Provider>): Provider {
   return {
@@ -35,15 +35,15 @@ describe('mapEndpointToPiApi', () => {
     expect(mapEndpointToPiApi('google-generate-content', 'google')).toBe('google-generative-ai')
   })
 
-  it('maps Azure responses to the dedicated pi family', () => {
-    expect(mapEndpointToPiApi('openai-responses', 'azure-responses')).toBe('azure-openai-responses')
+  it('uses the gateway fallback for Azure responses', () => {
+    expect(mapEndpointToPiApi('openai-responses', 'azure-responses')).toBeUndefined()
   })
 
   it('rejects Azure chat-completions (no pi azure-completions family)', () => {
     expect(mapEndpointToPiApi('openai-chat-completions', 'azure')).toBeUndefined()
   })
 
-  it('rejects Bedrock and Vertex (auth models pi cannot inject in v1)', () => {
+  it('uses the gateway fallback for Bedrock and Vertex', () => {
     expect(mapEndpointToPiApi('openai-chat-completions', 'bedrock')).toBeUndefined()
     expect(mapEndpointToPiApi('google-generate-content', 'google-vertex')).toBeUndefined()
     expect(mapEndpointToPiApi('anthropic-messages', 'google-vertex-anthropic')).toBeUndefined()
@@ -56,85 +56,28 @@ describe('mapEndpointToPiApi', () => {
   })
 })
 
-describe('resolvePiApi', () => {
-  it('uses the model endpoint first, then the provider default', () => {
-    const provider = makeProvider({
-      defaultChatEndpoint: 'anthropic-messages',
-      endpointConfigs: {
-        'anthropic-messages': { adapterFamily: 'anthropic', baseUrl: 'https://api.anthropic.com' }
-      }
-    })
-    // No model endpoint → falls back to provider default.
-    expect(resolvePiApi(provider, makeModel({}))).toBe('anthropic-messages')
-    // Model endpoint wins over provider default.
-    const openaiProvider = makeProvider({
-      defaultChatEndpoint: 'anthropic-messages',
-      endpointConfigs: {
-        'anthropic-messages': { adapterFamily: 'anthropic' },
-        'openai-chat-completions': { adapterFamily: 'openai-compatible' }
-      }
-    })
-    expect(resolvePiApi(openaiProvider, makeModel({ endpointTypes: ['openai-chat-completions'] }))).toBe(
-      'openai-completions'
-    )
+describe('isPiCompatibleModel', () => {
+  it.each(['grok-cli', 'openai-codex'])('allows app-managed OAuth through the gateway: %s', (providerId) => {
+    const provider = makeProvider({ id: providerId, authMethods: ['oauth'] })
+    expect(isPiCompatibleModel(provider, makeModel({ id: `${providerId}::m`, providerId }))).toBe(true)
   })
 
-  it('accepts an unmapped chat provider through the local gateway', () => {
-    const provider = makeProvider({
-      defaultChatEndpoint: 'ollama-chat',
-      endpointConfigs: { 'ollama-chat': { adapterFamily: 'ollama' } }
-    })
-    expect(isPiCompatibleModel(provider, makeModel({}))).toBe(true)
-  })
-
-  it('accepts a model whose context window is unknown', () => {
-    const provider = makeProvider({
-      defaultChatEndpoint: 'anthropic-messages',
-      endpointConfigs: { 'anthropic-messages': { adapterFamily: 'anthropic' } }
-    })
-
+  it('allows a gateway model without a native Pi protocol or declared context window', () => {
+    const provider = makeProvider({ defaultChatEndpoint: 'ollama-chat' })
     expect(isPiCompatibleModel(provider, makeModel({ contextWindow: undefined }))).toBe(true)
   })
 
-  it('uses a cloned gateway per-model route before an unsupported provider default', () => {
-    const provider = makeProvider({
-      id: 'custom-aihubmix',
-      presetProviderId: 'aihubmix',
-      defaultChatEndpoint: 'ollama-chat',
-      endpointConfigs: {
-        'ollama-chat': { adapterFamily: 'ollama' },
-        'anthropic-messages': { adapterFamily: 'anthropic' }
-      }
-    })
-
-    expect(resolvePiApi(provider, makeModel({ apiModelId: 'claude-sonnet-4' }))).toBe('anthropic-messages')
-  })
-
-  it('rejects external-CLI models because neither Pi nor the Gateway can execute them', () => {
+  it('rejects external CLI providers', () => {
     const provider = makeProvider({
       id: 'claude-code',
       authMethods: ['external-cli'],
-      defaultChatEndpoint: 'anthropic-messages',
-      endpointConfigs: { 'anthropic-messages': { adapterFamily: 'anthropic' } }
+      defaultChatEndpoint: 'anthropic-messages'
     })
-    const model = makeModel({ id: 'claude-code::claude', providerId: 'claude-code' })
-    expect(resolvePiApi(provider, model)).toBeUndefined()
-    expect(isPiCompatibleModel(provider, model)).toBe(false)
+    expect(isPiCompatibleModel(provider, makeModel({ id: 'claude-code::claude', providerId: provider.id }))).toBe(false)
   })
 
-  it.each([
-    ['grok-cli', 'grok'],
-    ['openai-codex', 'openai']
-  ])('accepts the app-managed-OAuth provider %s via its transport adapter', (providerId, adapterFamily) => {
-    // Login-based (authMethods declared, no api-key) but adapter-backed, so pi
-    // CAN drive it on its openai-responses endpoint.
-    const provider = makeProvider({
-      id: providerId,
-      authMethods: ['oauth'],
-      defaultChatEndpoint: 'openai-responses',
-      endpointConfigs: { 'openai-responses': { adapterFamily } }
-    })
-    expect(resolvePiApi(provider, makeModel({}))).toBe('openai-responses')
-    expect(isPiCompatibleModel(provider, makeModel({}))).toBe(true)
+  it('rejects models without a routable provider id even when Pi supports their protocol', () => {
+    const provider = makeProvider({ id: 'custom:anthropic', defaultChatEndpoint: 'anthropic-messages' })
+    expect(isPiCompatibleModel(provider, makeModel({ id: 'custom:anthropic::m', providerId: provider.id }))).toBe(false)
   })
 })

@@ -110,16 +110,21 @@ const DESKTOP_REMOTE_CAPABILITIES: Record<RemoteProviderId, readonly WebSearchCa
   zhipu: ['searchKeywords'],
   tavily: ['searchKeywords'],
   searxng: ['searchKeywords'],
-  exa: ['searchKeywords'],
+  exa: ['searchKeywords', 'fetchUrls'],
   'exa-mcp': ['searchKeywords'],
   bocha: ['searchKeywords'],
+  stepfun: ['searchKeywords'],
   querit: ['searchKeywords', 'fetchUrls'],
   jina: ['searchKeywords', 'fetchUrls'],
   firecrawl: ['searchKeywords', 'fetchUrls'],
   crawl4ai: ['fetchUrls'],
   parallel: ['searchKeywords'],
   serply: ['searchKeywords'],
-  deepseek: ['searchKeywords', 'fetchUrls']
+  yuanbao: ['searchKeywords'],
+  deepseek: ['searchKeywords', 'fetchUrls'],
+  desearch: ['searchKeywords'],
+  searchapi: ['searchKeywords'],
+  serpkite: ['searchKeywords']
 }
 
 const remotePresets = Object.fromEntries(

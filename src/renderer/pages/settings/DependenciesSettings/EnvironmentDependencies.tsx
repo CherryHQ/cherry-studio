@@ -49,11 +49,13 @@ import {
   BinaryInstallingHint,
   type BinaryOperationError
 } from '@renderer/components/BinaryInstallErrorDialog'
+import { SettingsPageHeader } from '@renderer/components/SettingsPrimitives'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import { openExternalWebsite } from '@renderer/services/website'
 import { interpretBinarySnapshot } from '@renderer/utils/binarySnapshot'
 import { formatErrorMessage } from '@renderer/utils/error'
+import { formatFileSize } from '@renderer/utils/file'
 import { cn } from '@renderer/utils/style'
 import type { BinaryInstallSettings, CustomToolDefinition } from '@shared/data/preference/preferenceTypes'
 import {
@@ -71,6 +73,7 @@ import type {
   BinaryAvailability,
   BinaryOperation,
   BinaryRemoveResult,
+  BinaryToolInstalledSizes,
   BinaryToolSnapshot
 } from '@shared/types/binary'
 
@@ -121,6 +124,8 @@ interface EnvironmentDependenciesProps {
 
 const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = false }) => {
   const [snapshots, setSnapshots] = useState<Record<string, BinaryToolSnapshot>>({})
+  const [installedSizes, setInstalledSizes] = useState<BinaryToolInstalledSizes>({})
+  const [sizeSnapshotGeneration, setSizeSnapshotGeneration] = useState(-1)
   const [resolutionsReady, setResolutionsReady] = useState(false)
   const [latestVersions, setLatestVersions] = useState<Record<string, string> | null>(null)
   const [checkingUpdates, setCheckingUpdates] = useState(false)
@@ -147,6 +152,7 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
   const mountedRef = useRef(true)
   const resolutionRequestIdRef = useRef(0)
   const latestRequestIdRef = useRef(0)
+  const sizeGenerationRef = useRef(0)
 
   useEffect(() => {
     mountedRef.current = true
@@ -157,6 +163,8 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
 
   const refreshState = useCallback(async (propagateError = false): Promise<boolean> => {
     const requestId = ++resolutionRequestIdRef.current
+    const sizeGeneration = ++sizeGenerationRef.current
+    setInstalledSizes({})
     try {
       const nextSnapshots = await ipcApi.request(
         'binary.get_tool_snapshots',
@@ -165,6 +173,7 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
       if (!mountedRef.current || requestId !== resolutionRequestIdRef.current) return false
       setSnapshots(nextSnapshots)
       setResolutionsReady(true)
+      setSizeSnapshotGeneration(sizeGeneration)
       const queryFailure = Object.values(nextSnapshots).find(
         (snapshot) => snapshot.application?.status === 'unknown' && snapshot.application.reason === 'query_failed'
       )?.application
@@ -331,9 +340,27 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
 
   // One unified inventory: presets first, then the user's custom tools (Code CLIs
   // stay on their dedicated page).
-  const presetNames = new Set(PRESETS_BINARY_TOOLS.map((tool) => tool.name))
-  const extraTools = inventorySnapshots.filter((snapshot) => !presetNames.has(snapshot.name))
-  const totalCount = PRESETS_BINARY_TOOLS.length + extraTools.length
+  const extraTools = useMemo(
+    () => inventorySnapshots.filter((snapshot) => !PRESETS_BINARY_TOOLS.some((tool) => tool.name === snapshot.name)),
+    [inventorySnapshots]
+  )
+  useEffect(() => {
+    if (mini || sizeSnapshotGeneration !== sizeGenerationRef.current) return
+    let active = true
+    const generation = sizeSnapshotGeneration
+    const names = [
+      ...new Set([...PRESETS_BINARY_TOOLS.map((tool) => tool.name), ...extraTools.map((tool) => tool.name)])
+    ]
+    void ipcApi.request('binary.get_tool_installed_sizes', names).then(
+      (sizes) => {
+        if (active && mountedRef.current && generation === sizeGenerationRef.current) setInstalledSizes(sizes)
+      },
+      () => undefined
+    )
+    return () => {
+      active = false
+    }
+  }, [extraTools, mini, sizeSnapshotGeneration])
 
   if (mini) {
     if (!resolutionsReady) {
@@ -360,41 +387,42 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
 
   return (
     <div className="flex flex-col gap-5">
-      <div className="min-w-0">
-        <div className="flex min-w-0 items-center gap-2">
-          <h1 className="text-[15px] leading-6 font-semibold text-foreground">{t('settings.dependencies.title')}</h1>
-          <span className="text-xs text-foreground-tertiary">{totalCount}</span>
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            className="text-muted-foreground hover:text-foreground"
-            onClick={() => void fetchLatestVersions(true)}
-            disabled={checkingUpdates}
-            aria-label={t('settings.dependencies.checkUpdates')}
-            title={t('settings.dependencies.checkUpdates')}>
-            {checkingUpdates ? (
-              <Loader2 className="size-3 motion-safe:animate-spin" />
-            ) : (
-              <RefreshCw className="size-3" />
-            )}
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            className="text-muted-foreground hover:text-foreground"
-            onClick={() => setShowInstallSettings(true)}
-            aria-label={t('settings.dependencies.installSettings.title')}
-            title={t('settings.dependencies.installSettings.title')}>
-            <Settings2 className="size-3" />
-          </Button>
-          <Button className="ml-auto" onClick={() => setShowAddDialog(true)}>
-            <Plus size={16} />
-            {t('settings.dependencies.addTool')}
-          </Button>
-        </div>
-        <p className="mt-1 text-xs leading-5 text-muted-foreground">{t('settings.dependencies.description')}</p>
-      </div>
-
+      <SettingsPageHeader
+        className="mb-0"
+        title={t('settings.dependencies.title')}
+        help={t('settings.dependencies.description')}
+        action={
+          <>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              className="text-muted-foreground hover:text-foreground"
+              onClick={() => void fetchLatestVersions(true)}
+              disabled={checkingUpdates}
+              aria-label={t('settings.dependencies.checkUpdates')}
+              title={t('settings.dependencies.checkUpdates')}>
+              {checkingUpdates ? (
+                <Loader2 className="size-3 motion-safe:animate-spin" />
+              ) : (
+                <RefreshCw className="size-3" />
+              )}
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              className="text-muted-foreground hover:text-foreground"
+              onClick={() => setShowInstallSettings(true)}
+              aria-label={t('settings.dependencies.installSettings.title')}
+              title={t('settings.dependencies.installSettings.title')}>
+              <Settings2 className="size-3" />
+            </Button>
+            <Button onClick={() => setShowAddDialog(true)}>
+              <Plus size={16} />
+              {t('settings.dependencies.addTool')}
+            </Button>
+          </>
+        }
+      />
       <div role="list" className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         {PRESETS_BINARY_TOOLS.map((tool) => {
           const snapshot = snapshots[tool.name]
@@ -409,6 +437,7 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
               systemPath={view.systemPath}
               installedVersion={view.installedVersion}
               latestVersion={view.hasUpdate ? latestVersion : undefined}
+              sizeBytes={mini ? undefined : installedSizes[tool.name]}
               operation={snapshot?.operation}
               onShowError={(message) =>
                 setInstallError({
@@ -451,6 +480,7 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
               systemPath={view.systemPath}
               installedVersion={view.installedVersion}
               latestVersion={view.hasUpdate ? latestVersion : undefined}
+              sizeBytes={mini ? undefined : installedSizes[snapshot.name]}
               operation={snapshot.operation}
               onShowError={(message) =>
                 setInstallError({
@@ -472,12 +502,9 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
           )
         })}
       </div>
-
       <AddToolDialog open={showAddDialog} onOpenChange={setShowAddDialog} onAdd={handleAddCustomTool} />
       <InstallSettingsDialog open={showInstallSettings} onOpenChange={setShowInstallSettings} />
-
       <BinaryInstallErrorDialog error={installError} onOpenChange={(open) => !open && setInstallError(null)} />
-
       <ConfirmDialog
         open={!!deleteTarget}
         onOpenChange={(open) => !open && setDeleteTarget(null)}
@@ -501,7 +528,6 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
           if (deleteTarget) await handleRemoveTool({ name: deleteTarget.name, custom: deleteTarget.custom })
         }}
       />
-
       <ConfirmDialog
         open={!!definitionFallback}
         onOpenChange={(open) => !open && setDefinitionFallback(null)}
@@ -533,6 +559,7 @@ const BinaryToolPresetCard: FC<{
   systemPath?: string
   installedVersion?: string
   latestVersion?: string
+  sizeBytes?: number | null
   operation?: BinaryOperation
   onShowError: (message: string) => void
   onInstall: () => void
@@ -546,6 +573,7 @@ const BinaryToolPresetCard: FC<{
   systemPath,
   installedVersion,
   latestVersion,
+  sizeBytes,
   operation,
   onShowError,
   onInstall,
@@ -618,11 +646,15 @@ const BinaryToolPresetCard: FC<{
                     {t('settings.dependencies.source.system')}
                   </Badge>
                 )}
+                {sizeBytes != null && (
+                  <Badge variant="secondary" className="gap-1 px-1.5 py-0 text-[11px] leading-4">
+                    {formatFileSize(sizeBytes)}
+                  </Badge>
+                )}
               </div>
             )}
           </div>
         </div>
-
         {backendControllable && (
           <div className="flex shrink-0 items-center gap-1">
             {applied && (
@@ -650,11 +682,9 @@ const BinaryToolPresetCard: FC<{
           </div>
         )}
       </div>
-
       <p className="mt-2.5 line-clamp-2 text-xs leading-4 text-muted-foreground" title={description}>
         {description}
       </p>
-
       <div className="mt-3 flex min-w-0 items-center gap-3">
         <button
           type="button"
@@ -683,13 +713,12 @@ const BinaryToolPresetCard: FC<{
           </button>
         )}
       </div>
-
       {(failedInstall || failedRemove) && !busy && (
         <BinaryInstallFailureRow error={operation.error} onShowError={() => onShowError(operation.error)} />
       )}
 
       {canInstall && !failedRemove && (
-        <div className="mt-3 border-t border-border pt-3">
+        <div className="mt-3 pt-3">
           <Button
             variant="outline"
             size="sm"
@@ -719,6 +748,7 @@ const CustomToolCard: FC<{
   systemPath?: string
   installedVersion?: string
   latestVersion?: string
+  sizeBytes?: number | null
   operation?: BinaryOperation
   onShowError: (message: string) => void
   onInstall: () => void
@@ -733,6 +763,7 @@ const CustomToolCard: FC<{
   systemPath,
   installedVersion,
   latestVersion,
+  sizeBytes,
   operation,
   onShowError,
   onInstall,
@@ -803,11 +834,15 @@ const CustomToolCard: FC<{
                     <ArrowBigUp className="size-2.5" />v{latestVersion}
                   </Badge>
                 )}
+                {sizeBytes != null && (
+                  <Badge variant="secondary" className="gap-1 px-1.5 py-0 text-[11px] leading-4">
+                    {formatFileSize(sizeBytes)}
+                  </Badge>
+                )}
               </div>
             )}
           </div>
         </div>
-
         <div className="flex shrink-0 items-center gap-1">
           {canUpdate && (
             <Button
@@ -844,13 +879,12 @@ const CustomToolCard: FC<{
           </Button>
         </div>
       </div>
-
       {(failedInstall || failedRemove) && !busy && (
         <BinaryInstallFailureRow error={operation.error} onShowError={() => onShowError(operation.error)} />
       )}
 
       {canInstall && !failedRemove && (
-        <div className="mt-3 border-t border-border pt-3">
+        <div className="mt-3 pt-3">
           <Button
             variant="outline"
             size="sm"
@@ -1000,7 +1034,6 @@ function AddToolDialog({
             )}
             {searchError && <p className="mt-1 text-xs text-destructive">{t('settings.dependencies.searchFailed')}</p>}
           </div>
-
           {selectedName && (
             <div className="flex items-center gap-2 rounded-lg bg-muted px-3 py-2">
               <Terminal className="size-4 text-muted-foreground" />
@@ -1243,6 +1276,7 @@ const InstallSettingsDialog: FC<{ open: boolean; onOpenChange: (open: boolean) =
             </FieldDescription>
           </Field>
           <DescriptionSwitch
+            descriptionDisplay="tooltip"
             size="sm"
             label={t('settings.dependencies.installSettings.verifySignatures.label')}
             description={t('settings.dependencies.installSettings.verifySignatures.help')}

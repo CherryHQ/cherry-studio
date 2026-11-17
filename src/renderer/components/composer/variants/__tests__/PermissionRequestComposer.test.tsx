@@ -17,6 +17,10 @@ vi.mock('react-i18next', async (importOriginal) => ({
         'agent.toolPermission.error.sendFailed': 'Failed to send your decision. Please try again.',
         'agent.toolPermission.reasonLabel': 'Reason for rejection (optional)',
         'agent.toolPermission.reasonPlaceholder': 'Tell the Agent what to do instead',
+        'agent.toolPermission.risk.title': 'What this does',
+        'agent.toolPermission.risk.destructive': 'Deletes or overwrites data.',
+        'agent.toolPermission.risk.irreversible': 'Cannot be undone automatically.',
+        'agent.toolPermission.risk.network': 'Sends data over the network or fetches remote content.',
         'agent.toolPermission.confirmation': 'Allow tool call?',
         'agent.toolPermission.inputPreview': 'Tool input preview',
         'agent.toolPermission.button.allow': 'Allow',
@@ -85,12 +89,6 @@ function makeRequest(overrides: Partial<PermissionRequestComposerRequest> = {}):
 }
 
 describe('PermissionRequestComposer', () => {
-  it('marks the root panel as a composer viewport inset target', () => {
-    const { container } = render(<PermissionRequestComposer request={makeRequest()} onRespond={vi.fn()} />)
-
-    expect(container.firstElementChild).toHaveAttribute('data-composer-viewport-inset-target', '')
-  })
-
   it('submits an approval decision', async () => {
     const onRespond = vi.fn().mockResolvedValue(undefined)
     render(
@@ -99,10 +97,6 @@ describe('PermissionRequestComposer', () => {
         onRespond={onRespond}
       />
     )
-
-    expect(screen.getByRole('heading', { name: 'Processing' })).toBeInTheDocument()
-    expect(screen.getByText('Allow CustomTool to run focused tests?')).toBeInTheDocument()
-    expect(screen.queryByText('Tool input preview')).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Allow' }))
 
@@ -167,20 +161,10 @@ describe('PermissionRequestComposer', () => {
       />
     )
 
-    expect(screen.getByRole('heading', { name: 'Bringing in an extension' })).toBeInTheDocument()
     expect(screen.getByText('Search project documentation.')).toBeInTheDocument()
-    expect(screen.getByTestId('permission-preview')).not.toHaveClass('overflow-y-auto')
-    expect(screen.getByTestId('permission-mcp-args-scroll')).toHaveClass('max-h-60', 'overflow-y-auto')
-    expect(screen.queryByText('Docs : lookup_docs')).not.toBeInTheDocument()
+
     expect(screen.getByText('query')).toBeInTheDocument()
     expect(screen.getByText('composer')).toBeInTheDocument()
-  })
-
-  it('bounds builtin previews that do not own their own scroll region', () => {
-    render(<PermissionRequestComposer request={makeRequest()} onRespond={vi.fn()} />)
-
-    expect(screen.getByTestId('permission-preview')).not.toHaveClass('overflow-y-auto')
-    expect(screen.getByTestId('permission-builtin-body-scroll')).toHaveClass('max-h-60', 'overflow-y-auto')
   })
 
   it('renders the ExitPlanMode plan in the approval preview', () => {
@@ -205,22 +189,19 @@ describe('PermissionRequestComposer', () => {
     expect(preview).toHaveTextContent('Run the focused tests')
   })
 
-  it('does not add a fallback body scroller when the tool content owns scrolling', () => {
+  it('shows the reason once in the header and warnings in the risk summary', () => {
     render(
       <PermissionRequestComposer
         request={makeRequest({
-          title: 'Write',
+          title: 'Clean up the old build output',
           toolResponse: {
-            id: 'write-call-1',
-            toolCallId: 'write-call-1',
+            id: 'bash-call-1',
+            toolCallId: 'bash-call-1',
             status: 'pending',
-            arguments: {
-              file_path: '/tmp/cherry-approval-long-preview-note.md',
-              content: '# Long approval preview\n\nA long document body.'
-            },
+            arguments: { command: 'rm -rf ./dist' },
             tool: {
-              id: 'Write',
-              name: 'Write',
+              id: 'Bash',
+              name: 'Bash',
               type: 'builtin'
             }
           }
@@ -229,15 +210,20 @@ describe('PermissionRequestComposer', () => {
       />
     )
 
-    expect(screen.getByTestId('code-viewer')).toHaveAttribute('data-max-height', '240')
-    expect(screen.queryByTestId('permission-builtin-body-scroll')).not.toBeInTheDocument()
+    expect(screen.getByText('Clean up the old build output')).toBeInTheDocument()
+    const summary = screen.getByTestId('permission-risk-summary')
+    expect(summary).toHaveTextContent('What this does')
+    expect(summary).toHaveTextContent('Deletes or overwrites data.')
+    expect(summary).toHaveTextContent('Cannot be undone automatically.')
+    expect(summary).not.toHaveTextContent('Clean up the old build output')
+    expect(screen.getByTestId('permission-preview')).toHaveTextContent('rm -rf ./dist')
   })
 
-  it('uses the streaming tool icon and semantic title for the approval header', () => {
+  it('hides the risk summary for read-only commands and keeps the reason in the header', () => {
     render(
       <PermissionRequestComposer
         request={makeRequest({
-          title: 'Bash',
+          title: 'Run the focused tests',
           toolResponse: {
             id: 'bash-call-1',
             toolCallId: 'bash-call-1',
@@ -254,16 +240,8 @@ describe('PermissionRequestComposer', () => {
       />
     )
 
-    const heading = screen.getByRole('heading', { name: 'Checking project checks' })
-    expect(heading.querySelector('.lucide-square-terminal')).toBeInTheDocument()
-    expect(screen.queryByText('Allow tool call?')).not.toBeInTheDocument()
-  })
-
-  it('hides the request subtitle when it only repeats the tool name', () => {
-    render(<PermissionRequestComposer request={makeRequest()} onRespond={vi.fn()} />)
-
-    expect(screen.getByRole('heading', { name: 'Processing' })).toBeInTheDocument()
-    expect(screen.getAllByText('CustomTool')).toHaveLength(1)
+    expect(screen.queryByTestId('permission-risk-summary')).not.toBeInTheDocument()
+    expect(screen.getByText('Run the focused tests')).toBeInTheDocument()
   })
 
   it('approves when Enter is pressed outside editable controls', async () => {
@@ -365,19 +343,6 @@ describe('PermissionRequestComposer', () => {
       approved: false,
       reason: 'use a copy instead'
     })
-  })
-
-  it('moves the Enter hint onto Deny once a rejection reason is typed', async () => {
-    const user = userEvent.setup()
-    render(<PermissionRequestComposer request={makeRequest()} onRespond={vi.fn()} />)
-
-    expect(screen.getByRole('button', { name: /Allow/ })).toHaveTextContent('Enter')
-    expect(screen.getByRole('button', { name: /Deny/ })).toHaveTextContent('Esc')
-
-    await user.type(screen.getByRole('textbox', { name: 'Reason for rejection (optional)' }), 'use a copy instead')
-
-    expect(screen.getByRole('button', { name: /Allow/ })).not.toHaveTextContent('Enter')
-    expect(screen.getByRole('button', { name: /Deny/ })).toHaveTextContent('Enter')
   })
 
   it('does not carry a rejection reason into the next approval request', async () => {

@@ -45,9 +45,9 @@ const KnowledgeItemEmbeddingProgress = ({ itemId }: { itemId: string }) => {
 
 /**
  * Live " NN%" suffix for a row whose linked document processor is running (remote OCR /
- * conversion). Mounted only while `item.status === 'processing'`; the check job mirrors the
- * processor job's progress into the shared cache every poll round and TTL-collects it when
- * polling stops, so absence just means the processor reports no progress.
+ * conversion). Mounted only while `item.status === 'processing'`; the main process mirrors the
+ * processor task's progress into the shared cache while the item waits on it and clears it once
+ * the task settles, so absence just means the conversion has not started.
  */
 const KnowledgeItemFileProcessingProgress = ({ itemId }: { itemId: string }) => {
   const progress = useSharedCacheValue(`knowledge.item.file_processing_progress.${itemId}` as const)
@@ -130,8 +130,6 @@ const KnowledgeItemRow = ({
   } = useTranslation()
   const { icon, status, title } = toKnowledgeItemRowViewModel(item, language)
   const Icon = icon.icon
-  // `failed` carries a reason code in `error` (e.g. a migrated folder whose vectors could not
-  // be migrated); surface it as the badge tooltip.
   const failureReason = item.status === 'failed' ? getKnowledgeItemFailureReason(item, t) : null
   const canReindex = canReindexKnowledgeItem(item)
   const canViewChunks = item.status === 'completed'
@@ -252,9 +250,14 @@ const KnowledgeItemRow = ({
           <span className="flex size-6 shrink-0 items-center justify-center rounded bg-background-subtle">
             <Icon className={cn('size-3.5', icon.iconClassName)} />
           </span>
-          <span className="min-w-0 flex-1 truncate text-sm text-foreground" title={fullTitle}>
-            {title}
-          </span>
+          <div className="flex min-w-0 flex-1 flex-col">
+            <span className="truncate text-sm text-foreground" title={fullTitle}>
+              {title}
+            </span>
+            {item.status === 'failed' ? (
+              <span className="line-clamp-1 text-xs text-muted-foreground">{failureReason}</span>
+            ) : null}
+          </div>
         </div>
         <div role="gridcell" className="truncate text-xs text-muted-foreground">
           {typeLabel}

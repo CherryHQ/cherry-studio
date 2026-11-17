@@ -20,7 +20,8 @@ export const FeishuChannelConfigSchema = z.object({
   encrypt_key: z.string(),
   verification_token: z.string(),
   allowed_chat_ids: z.array(z.string()).default([]),
-  domain: FeishuDomainSchema
+  domain: FeishuDomainSchema,
+  mention_only: z.boolean().optional()
 })
 
 export type FeishuChannelConfig = z.infer<typeof FeishuChannelConfigSchema>

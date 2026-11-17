@@ -1,3 +1,5 @@
+import { resolve } from 'node:path'
+
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const bootConfig = vi.hoisted(() => ({ get: vi.fn(), set: vi.fn(), getLoadError: vi.fn(), repair: vi.fn() }))
@@ -75,7 +77,7 @@ describe('config-hardware-acceleration', () => {
       actions: [{ kind: 'navigate', target: '/settings/general' }]
     })
     expect(scan.collectErrorLogRecords).toHaveBeenCalledWith(
-      '/mock/app.logs',
+      resolve('/mock/app.logs'),
       {
         fromMs: 1_999_395_200_000,
         toMs: 2_000_000_000_000

@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-09-agent-response-identity-context-reading.md
+2026-11-09-agent-response-identity-context-reading.md: 917fd79bd2264566a91893ecfa82ceb641554a44
+2026-11-09-agent-response-identity-context-reading.zh.md: cc1fa65a1a9088499712a66072cfeb79c6e7894f

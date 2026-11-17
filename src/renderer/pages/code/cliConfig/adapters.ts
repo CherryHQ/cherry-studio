@@ -400,7 +400,7 @@ const codexAdapter: CliConfigAdapter = {
   providerBaseUrls: (provider) => [normalizeUrl(resolveCodexBaseUrl(provider))].filter(Boolean),
   sanitize: sanitizeCodexConfigBlob,
   async buildDraft(args, context) {
-    const { provider, apiKey, model, configBlob } = context
+    const { provider, apiKey, model, modelRecord, configBlob } = context
     const responsesUrl = resolveCodexBaseUrl(provider)
     if (!responsesUrl) {
       throw new Error('Codex requires an OpenAI Responses API endpoint, which this provider does not expose')
@@ -412,7 +412,16 @@ const codexAdapter: CliConfigAdapter = {
     return [
       makeDraftFile(
         'codex-config',
-        stringifyToml(buildCodexConfig(config, { baseUrl: responsesUrl, providerName, model }, configBlob)),
+        stringifyToml(
+          buildCodexConfig(
+            config,
+            { baseUrl: responsesUrl, providerName, model },
+            {
+              ...configBlob,
+              contextWindow: modelRecord?.contextWindow
+            }
+          )
+        ),
         read
       ),
       makeDraftFile('codex-auth', renderJsonFile(buildCodexAuthConfig(auth, apiKey)), read)

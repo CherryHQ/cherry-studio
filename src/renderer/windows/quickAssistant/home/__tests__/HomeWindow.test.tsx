@@ -68,8 +68,8 @@ vi.mock('@renderer/ipc', () => ({
   useIpcOn: vi.fn()
 }))
 
-vi.mock('@ai-sdk/react', () => ({
-  useChat: () => ({
+vi.mock('@renderer/hooks/useStreamCommands', () => ({
+  useStreamCommands: () => ({
     messages: state.messages,
     sendMessage: state.sendMessage,
     stop: state.stopChat,
@@ -124,7 +124,6 @@ vi.mock('@renderer/hooks/useExecutionOverlay', () => ({
   useExecutionOverlay: (
     _topicId: string,
     _executions: unknown[],
-    _messages: CherryUIMessage[],
     options?: {
       onUpdate?: (executionId: string, event: Pick<ExecutionFinishEvent, 'attemptId' | 'message'>) => void
       onFinish?: (executionId: string, event: ExecutionFinishEvent) => void

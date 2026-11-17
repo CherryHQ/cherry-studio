@@ -1,5 +1,4 @@
-import { Bot, Clock, Folder, History } from 'lucide-react'
-import type { ReactNode } from 'react'
+import { Bot, History } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import type { AgentSessionDisplayMode } from '@shared/data/preference/preferenceTypes'
@@ -11,11 +10,6 @@ export const SESSION_DISPLAY_LABEL_KEYS: Record<AgentSessionDisplayMode, string>
   agent: 'agent.session.display.agent',
   time: 'agent.session.display.time',
   workdir: 'agent.session.display.workdir'
-}
-const SESSION_DISPLAY_ICONS: Record<AgentSessionDisplayMode, ReactNode> = {
-  agent: <Bot size={16} />,
-  time: <Clock size={16} />,
-  workdir: <Folder size={16} />
 }
 
 type SessionListOptionsMenuProps = {
@@ -45,7 +39,6 @@ export function SessionListOptionsMenu({
       mode={mode}
       onChange={onChange}
       options={SESSION_DISPLAY_OPTIONS.map((option) => ({
-        icon: SESSION_DISPLAY_ICONS[option],
         label: t(SESSION_DISPLAY_LABEL_KEYS[option]),
         value: option
       }))}

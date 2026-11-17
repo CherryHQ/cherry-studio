@@ -5,80 +5,14 @@ import {
   canProduceSelectionReference,
   createFilePreviewRegistry,
   filePreviewRegistry,
+  hasRenderedFilePreview,
+  isMarkdownFilePreview,
   resolveExtensionPlugin
 } from '../filePreviewRegistry'
-import { textFilePreviewPlugin } from '../plugins/text/textFilePreviewPlugin'
+import { markdownFilePreviewPlugin } from '../plugins/markdown/markdownFilePreviewPlugin'
 import type { FilePreviewPlugin, FilePreviewPluginProps } from '../types'
 
 const Preview: ComponentType<FilePreviewPluginProps> = () => null
-const TEXT_PREVIEW_EXTENSIONS = [
-  'txt',
-  'log',
-  'json',
-  'jsonc',
-  'jsonl',
-  'yaml',
-  'yml',
-  'xml',
-  'toml',
-  'ini',
-  'conf',
-  'config',
-  'properties',
-  'js',
-  'jsx',
-  'mjs',
-  'cjs',
-  'ts',
-  'tsx',
-  'mts',
-  'cts',
-  'css',
-  'scss',
-  'sass',
-  'less',
-  'py',
-  'pyw',
-  'rb',
-  'php',
-  'java',
-  'kt',
-  'kts',
-  'c',
-  'cc',
-  'cpp',
-  'cxx',
-  'h',
-  'hh',
-  'hpp',
-  'hxx',
-  'cs',
-  'go',
-  'rs',
-  'swift',
-  'dart',
-  'lua',
-  'r',
-  'scala',
-  'groovy',
-  'sh',
-  'bash',
-  'zsh',
-  'fish',
-  'ps1',
-  'psm1',
-  'bat',
-  'cmd',
-  'sql',
-  'graphql',
-  'gql',
-  'proto',
-  'vue',
-  'svelte',
-  'astro',
-  'diff',
-  'patch'
-] as const
 
 function plugin(id: string, extensions: readonly string[]): FilePreviewPlugin {
   return {
@@ -104,6 +38,11 @@ describe('file preview registry', () => {
   it('registers the Word plugin', () => {
     const extension = 'docx'
     expect(resolveExtensionPlugin(`/tmp/report.${extension}`, filePreviewRegistry)?.id).toBe('word')
+  })
+
+  it.each(['rtf', 'RTF'])('routes .%s to rich document preview instead of source fallback', (extension) => {
+    expect(resolveExtensionPlugin(`/tmp/report.${extension}`, filePreviewRegistry)?.id).toBe('rtf')
+    expect(canProduceSelectionReference(`/tmp/report.${extension}`)).toBe(false)
   })
 
   it('registers the PowerPoint plugin', () => {
@@ -132,10 +71,6 @@ describe('file preview registry', () => {
 
   it.each(['md', 'markdown', 'mdx'])('registers the Markdown plugin for .%s files', (extension) => {
     expect(resolveExtensionPlugin(`/tmp/readme.${extension}`, filePreviewRegistry)?.id).toBe('markdown')
-  })
-
-  it('keeps the text plugin extension whitelist explicit', () => {
-    expect(textFilePreviewPlugin.extensions).toEqual(TEXT_PREVIEW_EXTENSIONS)
   })
 
   it('does not route an unknown extension through the registry', () => {
@@ -182,4 +117,41 @@ describe('file preview registry', () => {
     expect(canProduceSelectionReference('/tmp/photo.png')).toBe(false)
     expect(canProduceSelectionReference('/tmp/no-extension')).toBe(false)
   })
+})
+
+describe('hasRenderedFilePreview', () => {
+  it('treats rendered formats as preview-only and plain text as editable', () => {
+    for (const path of [
+      '/w/README.md',
+      '/w/page.html',
+      '/w/logo.svg',
+      '/w/photo.png',
+      '/w/spec.pdf',
+      '/w/clip.mp4',
+      '/w/flow.mmd',
+      '/w/flow.mermaid'
+    ]) {
+      expect(hasRenderedFilePreview(path)).toBe(true)
+    }
+    for (const path of ['/w/main.ts', '/w/notes.txt', '/w/config.json', '/w/Makefile']) {
+      expect(hasRenderedFilePreview(path)).toBe(false)
+    }
+  })
+})
+
+describe('isMarkdownFilePreview', () => {
+  it('recognizes every Markdown extension regardless of case', () => {
+    for (const extension of markdownFilePreviewPlugin.extensions) {
+      expect(isMarkdownFilePreview(`file.${extension}`)).toBe(true)
+      expect(isMarkdownFilePreview(`file.${extension.toUpperCase()}`)).toBe(true)
+    }
+    for (const path of ['README.md', 'notes.markdown', 'component.mdx', '.hidden.md']) {
+      expect(isMarkdownFilePreview(path)).toBe(true)
+    }
+  })
+
+  it.each(['.md', 'README', 'README.', 'notes.md.txt', '/tmp/folder.md/README', '.txt', '.html', '.pdf', '.png'])(
+    'rejects %s',
+    (path) => expect(isMarkdownFilePreview(path)).toBe(false)
+  )
 })

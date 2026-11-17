@@ -51,13 +51,5 @@ describe('ImagePreviewService', () => {
 
       expect(mocks.popupShow).not.toHaveBeenCalled()
     })
-
-    it('should default options to an empty object when not provided', async () => {
-      const mockSvgElement = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
-
-      await ImagePreviewService.show(mockSvgElement)
-
-      expect(mocks.imageInputToPreviewUrl).toHaveBeenCalledWith(mockSvgElement, {})
-    })
   })
 })

@@ -1418,7 +1418,13 @@ export class VoiceSessionService extends BaseService {
     this.powerEpoch += 1
     const event = { type: 'interruption' as const, revision: ++this.revision }
     const ipc = application.get('IpcApiService')
-    for (const type of [WindowType.Main, WindowType.SubWindow, WindowType.QuickAssistant, WindowType.SelectionAction]) {
+    for (const type of [
+      WindowType.Main,
+      WindowType.SubWindow,
+      WindowType.QuickAssistant,
+      WindowType.SelectionAction,
+      WindowType.SelectionAgent
+    ]) {
       ipc.broadcastToType(type, 'ai.voice.session_event', event)
     }
     const session = this.lease

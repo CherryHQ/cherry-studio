@@ -15,7 +15,7 @@ interface McpDescriptionProps {
 const McpDescription: FC<McpDescriptionProps> = ({ searchKey }) => {
   const { t } = useTranslation()
   const { theme } = useTheme()
-  const { shikiMarkdownIt } = useCodeStyle()
+  const { renderMarkdown } = useCodeStyle()
   const [loading, setLoading] = useState(false)
   const [mcpInfo, setMcpInfo] = useState<string>('')
 
@@ -25,7 +25,7 @@ const McpDescription: FC<McpDescriptionProps> = ({ searchKey }) => {
     void npxFinder(searchKey)
       .then((packages) => {
         const readme = packages[0]?.original?.readme ?? t('settings.mcp.noDescriptionAvailable')
-        void shikiMarkdownIt(readme).then((result) => {
+        void renderMarkdown(readme).then((result) => {
           if (isMounted) setMcpInfo(DOMPurify.sanitize(result))
         })
       })
@@ -35,7 +35,7 @@ const McpDescription: FC<McpDescriptionProps> = ({ searchKey }) => {
     return () => {
       isMounted = false
     }
-  }, [shikiMarkdownIt, searchKey, t])
+  }, [renderMarkdown, searchKey, t])
 
   return (
     <div className="w-full min-w-0 pt-2">

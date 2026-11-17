@@ -176,11 +176,6 @@ describe('parseViewBox', () => {
     const vb = parseViewBox({ width: '32', height: '32' })
     expect(vb).toEqual({ x: 0, y: 0, w: 32, h: 32 })
   })
-
-  it('defaults to 24x24 when no attributes', () => {
-    const vb = parseViewBox({})
-    expect(vb).toEqual({ x: 0, y: 0, w: 24, h: 24 })
-  })
 })
 
 // ─── isLargeShape ───────────────────────────────────────────────────

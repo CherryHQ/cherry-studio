@@ -4,12 +4,12 @@ import type { DoctorState } from '@shared/types/doctor'
 import type { DoctorAgentState } from '@shared/types/doctorAgent'
 import type { AbsoluteFilePath, FileType } from '@shared/types/file'
 import type { McpTool } from '@shared/types/mcp'
+import type { MarketplaceSkill } from '@shared/types/skillMarketplace'
 
 import type { AgentSessionApiRetryState } from '../../ai/agentSessionApiRetry'
 import type { AgentSessionBackgroundTasks, AgentSessionTaskEvents } from '../../ai/agentSessionBackgroundTasks'
 import type { AgentSessionCompactionState } from '../../ai/agentSessionCompaction'
 import type { AgentSessionContextUsage } from '../../ai/agentSessionContextUsage'
-import type { AgentSessionFlowParts } from '../../ai/agentSessionFlowParts'
 import type { AgentSessionSlashCommand } from '../../ai/agentSessionSlashCommands'
 import type { AutonomousTurnOrigin } from '../../ai/agentSessionTurnOrigin'
 import type { McpServer } from '../types/mcpServer'
@@ -27,9 +27,12 @@ export type CacheAppUpdateState = {
   ignore: boolean
   //   /** Whether the update check was manually triggered by user clicking the button */
   manualCheck: boolean
+  lastErrorKey: 'settings.about.updateError' | 'settings.about.updateNotPublished' | null
 }
 
 export type CacheActiveSearches = Record<string, WebSearchStatus>
+
+export type CacheMarketplaceSkillCatalog = MarketplaceSkill[] | null
 
 // For cache schema, we use any for complex types to avoid circular dependencies
 // The actual type checking will be done at runtime by the cache system
@@ -201,7 +204,6 @@ export type CacheAgentSessionApiRetryState = AgentSessionApiRetryState | null
 export type CacheAgentSessionSlashCommands = AgentSessionSlashCommand[] | null
 export type CacheAgentSessionBackgroundTasks = AgentSessionBackgroundTasks
 export type CacheAgentSessionTaskEvents = AgentSessionTaskEvents
-export type CacheAgentSessionFlowParts = AgentSessionFlowParts
 export type CacheAgentSessionTurnOrigin = AutonomousTurnOrigin | null
 
 /**

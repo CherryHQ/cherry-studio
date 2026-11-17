@@ -201,7 +201,7 @@ Before publishing a lifecycle move, run `pnpm agent-notes:check-transition --bas
 
 ## Pairing and gates
 
-Every note and this README follow [the bilingual pairing contract](../../docs/i18n/README.md). Agent instruction files remain English-only.
+Every note and this README follow [the bilingual pairing contract](../../docs/dev/i18n/README.md). Agent instruction files remain English-only.
 
 Run:
 
