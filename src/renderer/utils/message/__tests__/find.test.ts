@@ -234,6 +234,7 @@ describe('hidden citation export', () => {
   it('strips tool markers outside code without modifying stored parts', () => {
     const parts = [{ type: 'text', text: 'Claim.[cite:abc-1] `literal [cite:abc-1]`' }]
     const message = createExportView(parts as MessageExportView['parts'])
+    // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
     const before = structuredClone(parts)
     expect(getToolCitationExport(message, parts[0].text, true)).toEqual({
       content: 'Claim. `literal [cite:abc-1]`',
