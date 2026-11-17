@@ -20,7 +20,7 @@ import { getOpenTargetBadge, getOpenTargetLabel, OpenTargetIcon } from '@rendere
 import { useExternalOpenTargets } from '@renderer/hooks/useExternalOpenTargets'
 import { ipcApi } from '@renderer/ipc'
 import { getFileIconName } from '@renderer/utils/fileIconName'
-import { normalizeInlineFilePath, resolveInlineFilePath } from '@renderer/utils/filePath'
+import { normalizeInlineFilePath, parseInlineFileTarget } from '@renderer/utils/filePath'
 import { openFileTarget } from '@renderer/utils/openFileTarget'
 import { isMac, isWin } from '@renderer/utils/platform'
 import type { ExternalOpenTarget } from '@shared/types/externalApp'
@@ -48,10 +48,11 @@ export const ClickableFilePath = memo(function ClickableFilePath({
     () => (preserveWrappingPunctuation ? path : normalizeInlineFilePath(path)),
     [path, preserveWrappingPunctuation]
   )
-  const unresolvedTargetPath = useMemo(
-    () => resolveInlineFilePath(path, { preserveWrappingPunctuation }),
+  const target = useMemo(
+    () => parseInlineFileTarget(path, { preserveWrappingPunctuation }),
     [path, preserveWrappingPunctuation]
   )
+  const unresolvedTargetPath = target.path
   const iconName = useMemo(() => getFileIconName(displayPath), [displayPath])
   const actions = useOptionalMessageListActions()
   const resolvePath = actions?.resolvePath
@@ -128,14 +129,28 @@ export const ClickableFilePath = memo(function ClickableFilePath({
       e?.stopPropagation()
       // Each action takes the unresolved path and resolves it itself — the pane and `isDirectory`
       // against the workspace, `openPath` in main. `targetPath` is left for the menu and the toast.
-      await openFileTarget(unresolvedTargetPath, {
-        openArtifactFile,
-        openPath,
-        isDirectory,
-        onError: () => notifyError?.(t('chat.input.tools.open_file_error', { path: targetPath }))
-      })
+      await openFileTarget(
+        unresolvedTargetPath,
+        {
+          openArtifactFile,
+          openPath,
+          isDirectory,
+          onError: () => notifyError?.(t('chat.input.tools.open_file_error', { path: targetPath }))
+        },
+        target.location ? { ...target.location } : undefined
+      )
     },
-    [canOpen, isDirectory, notifyError, openArtifactFile, openPath, t, targetPath, unresolvedTargetPath]
+    [
+      canOpen,
+      isDirectory,
+      notifyError,
+      openArtifactFile,
+      openPath,
+      t,
+      targetPath,
+      unresolvedTargetPath,
+      target.location
+    ]
   )
 
   const handleKeyDown = useCallback(

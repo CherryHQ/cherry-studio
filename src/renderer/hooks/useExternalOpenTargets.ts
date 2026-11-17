@@ -35,7 +35,7 @@ export function useExternalOpenTargets(
 
 export function usePreferredExternalOpenTarget(targetPath: string, pathKind: ExternalOpenTargetPathKind) {
   const query = useExternalOpenTargets(targetPath, pathKind)
-  const [preferences] = usePersistCache('external_app.target.preferences')
+  const [preferences, setPreferences] = usePersistCache('external_app.target.preferences')
   const resolvedPathKind = query.data?.pathKind ?? pathKind
   const preferenceScope = getExternalOpenTargetScope(targetPath, resolvedPathKind)
   const selectedTarget = useMemo(() => {
@@ -47,5 +47,10 @@ export function usePreferredExternalOpenTarget(targetPath: string, pathKind: Ext
     )
   }, [preferenceScope, preferences, query.data?.recommendedTargetId, query.targets])
 
-  return { ...query, selectedTarget }
+  const selectTarget = useCallback(
+    (target: ExternalOpenTarget) => setPreferences((previous) => ({ ...previous, [preferenceScope]: target.id })),
+    [preferenceScope, setPreferences]
+  )
+
+  return { ...query, selectedTarget, selectTarget }
 }

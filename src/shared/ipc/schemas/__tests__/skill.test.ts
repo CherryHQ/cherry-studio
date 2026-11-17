@@ -30,6 +30,9 @@ describe('Skill authoring and update IPC schemas', () => {
   it('keeps full and scoped reconcile on one strict route', () => {
     const input = skillRequestSchemas['skill.reconcile'].input
 
+    expect(input.parse({ externalExportsOnly: true })).toEqual({ externalExportsOnly: true })
+    expect(input.safeParse({ externalExportsOnly: true, skillId: 'skill-1' }).success).toBe(false)
+    expect(input.safeParse({ externalExportsOnly: true, unknown: true }).success).toBe(false)
     expect(input.parse({})).toEqual({})
     expect(input.parse({ skillId: 'skill-1' })).toEqual({ skillId: 'skill-1' })
     expect(input.safeParse({ skillId: '' }).success).toBe(false)

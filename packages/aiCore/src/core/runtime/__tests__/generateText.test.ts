@@ -19,7 +19,7 @@ import { RuntimeExecutor } from '../executor'
 
 // Mock AI SDK - use importOriginal to keep jsonSchema and other non-mocked exports
 vi.mock('ai', async (importOriginal) => {
-  const actual = (await importOriginal()) as Record<string, unknown>
+  const actual = await importOriginal<Record<string, unknown>>()
   return {
     ...actual,
     generateText: vi.fn()
@@ -430,12 +430,12 @@ describe('RuntimeExecutor.generateText', () => {
         })
       ).rejects.toThrow('Generation failed')
 
-      // onError receives the original error and context with core fields
+      // onError receives the original error and context holding the resolved model
       expect(errorPlugin.onError).toHaveBeenCalledWith(
         error,
         expect.objectContaining({
           providerId: 'openai',
-          model: 'gpt-4'
+          model: mockLanguageModel
         })
       )
     })

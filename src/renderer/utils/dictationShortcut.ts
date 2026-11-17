@@ -63,12 +63,18 @@ export function formatDictationShortcut(value: string, isMac: boolean, left: str
     .join(' + ')
 }
 
-export function getDictationShortcutBinding(value: string, platform: SupportedPlatform): ShortcutBinding {
+export function getDictationShortcutBinding(
+  value: string,
+  platform: SupportedPlatform,
+  keyByCode?: ReadonlyMap<string, string>
+): ShortcutBinding {
   const codes = parseDictationShortcut(value)
-  const code = codes.find((code) => !MODIFIER_CODES[code]) ?? codes[0] ?? ''
+  const keyCode = codes.find((code) => !MODIFIER_CODES[code]) ?? codes[0] ?? ''
+  // An unfinished chord has no character identity until that key is observed.
+  const code = !keyByCode || keyByCode.has(keyCode) ? keyCode : ''
   return getShortcutBindingFromKeyboardEvent(
     {
-      key: MODIFIER_CODES[code] ?? code,
+      key: keyByCode?.get(code) ?? MODIFIER_CODES[code] ?? code,
       code,
       ctrlKey: codes.some((code) => code.startsWith('Control')),
       altKey: codes.some((code) => code.startsWith('Alt')),
@@ -79,7 +85,7 @@ export function getDictationShortcutBinding(value: string, platform: SupportedPl
   )
 }
 
-export function dictationShortcutMatches(value: string, pressed: ReadonlySet<string>): boolean {
+export function dictationShortcutMatches(value: string, pressed: Pick<ReadonlySet<string>, 'size' | 'has'>): boolean {
   const codes = parseDictationShortcut(value)
   return codes.length > 0 && codes.length === pressed.size && codes.every((code) => pressed.has(code))
 }
@@ -92,9 +98,10 @@ export function dictationShortcutsConflict(hold: string, toggle: string): boolea
 
 export function hasDictationCommandConflict(
   value: string,
-  options: Pick<ResolveCommandByKeybindingOptions, 'preferences' | 'context'> & { platform: SupportedPlatform }
+  options: Pick<ResolveCommandByKeybindingOptions, 'preferences' | 'context'> & { platform: SupportedPlatform },
+  keyByCode: ReadonlyMap<string, string>
 ): boolean {
-  return getDictationShortcutBinding(value, options.platform)
+  return getDictationShortcutBinding(value, options.platform, keyByCode)
     .reduce<ShortcutBinding[]>((bindings, key) => [...bindings, ...bindings.map((binding) => [...binding, key])], [[]])
     .some((binding) => resolveCommandByKeybinding({ ...options, binding }))
 }

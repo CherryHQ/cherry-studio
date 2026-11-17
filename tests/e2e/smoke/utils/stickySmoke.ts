@@ -11,7 +11,7 @@ export async function stickyWindow(app: ElectronApplication): Promise<Page> {
     .poll(
       async () => {
         for (const candidate of app.windows()) {
-          if ((await candidate.title()) === 'Cherry Studio') page = candidate
+          if (/\/windows\/main\/index\.html(?:[?#]|$)/.test(candidate.url())) page = candidate
         }
         return Boolean(page)
       },

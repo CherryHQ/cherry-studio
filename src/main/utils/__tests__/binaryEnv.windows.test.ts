@@ -3,6 +3,8 @@ import path from 'path'
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { application } from '@application'
+
 // Pin the Windows code path so we exercise mergeBinaryExecutionEnv's
 // case-insensitive PATH dedup (the `.toLowerCase()` branch), which the
 // host-platform run in binaryEnv.test.ts (isWin=false) cannot reach.
@@ -123,5 +125,28 @@ describe('mergeBinaryExecutionEnv (Windows)', () => {
     const env = getBinaryIsolatedHomeEnv()
     expect(env['LOCALAPPDATA']).toBe('C:\\data\\binary-manager\\localappdata')
     expect(env['APPDATA']).toBe('C:\\data\\binary-manager\\appdata')
+  })
+
+  it('does not override the uv cache for a spaced Windows profile', () => {
+    const getPath = application.getPath
+    const spy = vi.spyOn(application, 'getPath').mockImplementation((key, filename) => {
+      if (key === 'feature.binary.data') return 'C:\\Dev Oslo\\Toolchain\\mise'
+      if (key === 'feature.binary.data.isolated.localappdata') return 'C:\\Dev Oslo\\Toolchain\\mise\\localappdata'
+      if (key === 'feature.binary.data.isolated.appdata') return 'C:\\Dev Oslo\\Toolchain\\mise\\appdata'
+      return getPath(key, filename)
+    })
+    try {
+      expect(getBinaryIsolatedHomeEnv()).toEqual({
+        HOME: 'C:\\Dev Oslo\\Toolchain\\mise\\home',
+        XDG_CONFIG_HOME: 'C:\\Dev Oslo\\Toolchain\\mise\\xdg\\config',
+        XDG_CACHE_HOME: 'C:\\Dev Oslo\\Toolchain\\mise\\xdg\\cache',
+        XDG_STATE_HOME: 'C:\\Dev Oslo\\Toolchain\\mise\\xdg\\state',
+        LOCALAPPDATA: 'C:\\Dev Oslo\\Toolchain\\mise\\localappdata',
+        APPDATA: 'C:\\Dev Oslo\\Toolchain\\mise\\appdata'
+      })
+      expect(getBinaryIsolatedHomeEnv()).not.toHaveProperty('UV_CACHE_DIR')
+    } finally {
+      spy.mockRestore()
+    }
   })
 })

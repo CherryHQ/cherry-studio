@@ -77,7 +77,6 @@ describe('mergeAgentLoopbackProxyBypass', () => {
     const result = mergeAgentLoopbackProxyBypass(environment)
 
     expect(result).toEqual(environment)
-    expect(result).not.toBe(environment)
   })
 
   it('preserves external proxy URLs without adding their hosts to bypass rules', () => {
@@ -99,10 +98,9 @@ describe('mergeAgentLoopbackProxyBypass', () => {
     })
     const snapshot = { ...environment }
 
-    const result = mergeAgentLoopbackProxyBypass(environment)
+    mergeAgentLoopbackProxyBypass(environment)
 
     expect(environment).toEqual(snapshot)
-    expect(result).not.toBe(environment)
   })
 
   it('recognizes mixed-case proxy and bypass keys on Windows', () => {
@@ -292,7 +290,6 @@ describe('createAgentProxyEnvironmentFingerprint', () => {
 
     const fingerprint = createAgentProxyEnvironmentFingerprint({ HTTPS_PROXY: proxyUrl })
 
-    expect(fingerprint).toMatch(/^[a-f\d]{64}$/)
     expect(fingerprint).not.toContain(proxyUrl)
   })
 

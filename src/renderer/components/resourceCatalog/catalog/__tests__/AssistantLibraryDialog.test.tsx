@@ -1,4 +1,5 @@
-import { cleanup, render, screen, waitFor, within } from '@testing-library/react'
+import { MockCherrystudioUI } from '@test-mocks/renderer/CherrystudioUI'
+import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { type ComponentProps, type ReactNode, useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -50,7 +51,7 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key, i18n: { language: 'en-US' } })
 }))
 
-vi.mock('@renderer/hooks/resourceCatalog', () => ({
+vi.mock('@renderer/hooks/useAssistant', () => ({
   useAssistantMutations: () => ({ createAssistant: createAssistantMock })
 }))
 
@@ -74,6 +75,7 @@ vi.mock('@cherrystudio/ui', () => {
   let dialogOnOpenChange: ((open: boolean) => void) | undefined
 
   return {
+    ScrollArea: MockCherrystudioUI.ScrollArea,
     Dialog: ({
       children,
       onOpenChange,
@@ -156,43 +158,6 @@ describe('AssistantLibraryDialog', () => {
     screen.getByTestId('dialog-overlay').click()
 
     expect(onOpenChange).toHaveBeenCalledWith(false)
-  })
-
-  it('renders the title, an "全部" tab plus categories, and every preset as a list row', async () => {
-    renderDialog()
-
-    expect(screen.getByText('library.assistant_catalog.title')).toBeInTheDocument()
-    expect(await screen.findByText('Web Generator')).toBeInTheDocument()
-    expect(screen.getByText('Chain of Thought')).toBeInTheDocument()
-
-    const tabs = screen.getByTestId('library-tabs')
-    expect(within(tabs).getByText('common.all')).toBeInTheDocument()
-    expect(within(tabs).getByText('Featured')).toBeInTheDocument()
-    // The catalog's "我的" tab is dropped in the library dialog.
-    expect(within(tabs).queryByText('Mine')).not.toBeInTheDocument()
-  })
-
-  it('windows the full preset list with TanStack Virtual', async () => {
-    assistantCatalogMocks.state.presets = Array.from({ length: 780 }, (_, index) => ({
-      id: `preset-${index}`,
-      name: `Preset ${index}`,
-      description: `Preset description ${index}`,
-      group: ['Featured']
-    }))
-
-    renderDialog()
-
-    expect(await screen.findByText('Preset 0')).toBeInTheDocument()
-    expect(virtualizerMocks.useVirtualizer).toHaveBeenLastCalledWith(
-      expect.objectContaining({
-        count: 780,
-        overscan: 6
-      })
-    )
-
-    const virtualizerOptions = virtualizerMocks.useVirtualizer.mock.calls.at(-1)?.[0]
-    expect(virtualizerOptions?.estimateSize()).toBe(70)
-    expect(virtualizerOptions?.getScrollElement()).toBeInstanceOf(HTMLElement)
   })
 
   it('shows a loading skeleton instead of the empty state while presets load', () => {

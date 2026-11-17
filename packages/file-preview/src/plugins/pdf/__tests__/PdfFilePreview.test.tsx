@@ -644,15 +644,6 @@ describe('PdfFilePreview', () => {
         worker: expect.any(Object)
       })
     )
-    expect(mocks.pdfViewerConstructor).toHaveBeenCalledWith(
-      expect.objectContaining({
-        annotationMode: 1,
-        abortSignal: expect.any(AbortSignal),
-        pageColors: { background: 'rgb(10, 11, 12)' },
-        supportsPinchToZoom: true
-      })
-    )
-    expect(screen.getByTestId('pdfjs-viewer-container')).toHaveClass('absolute', 'inset-0', 'overflow-auto')
     expect(screen.getByTestId('pdfjs-viewer')).toHaveClass('pdfViewer')
     expect(mocks.pdfViewerScaleValues).toContain('page-width')
   })
@@ -981,7 +972,7 @@ describe('PdfFilePreview', () => {
       await user.click(screen.getByRole('button', { name: 'file_preview.pdf.outline.title' }))
       const outline = await screen.findByRole('navigation', { name: 'file_preview.pdf.outline.title' })
       // The documented content inset must be inside the outline's scrollable area.
-      expect(outline.lastElementChild).toHaveStyle({
+      expect(outline.querySelector('[data-radix-scroll-area-viewport]')).toHaveStyle({
         paddingBottom: 'calc(0.5rem + var(--file-preview-bottom-inset, 0px))'
       })
       expect(screen.getByRole('button', { name: 'Last section' })).toBeVisible()

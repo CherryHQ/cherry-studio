@@ -8,7 +8,6 @@ import {
   oauthWithAihubmix,
   oauthWithAiOnly,
   oauthWithPPIO,
-  oauthWithSiliconFlow,
   oauthWithTokenDance
 } from '@renderer/services/oauth'
 import { toast } from '@renderer/services/toast'
@@ -24,7 +23,6 @@ const API_KEY_OAUTH_LAUNCHERS: Record<
   (typeof API_KEY_OAUTH_PROVIDER_IDS)[number],
   (onSuccess: (key: string) => void) => void
 > = {
-  silicon: oauthWithSiliconFlow,
   aihubmix: oauthWithAihubmix,
   ppio: oauthWithPPIO,
   '302ai': oauthWith302AI,

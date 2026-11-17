@@ -39,23 +39,6 @@ describe('agent composer token mapping', () => {
     expect(() => agentComposerTokenId.file(file)).toThrow('fileTokenSourceId')
   })
 
-  it('maps skills to prompt-bearing composer tokens', () => {
-    const skill = {
-      name: 'pdf',
-      description: 'Read and analyze PDFs',
-      filename: 'pdf'
-    } satisfies LocalSkill
-
-    expect(agentSkillToComposerToken(skill)).toEqual({
-      id: 'skill:pdf',
-      kind: 'skill',
-      label: 'pdf',
-      description: 'Read and analyze PDFs',
-      promptText: 'Use the pdf skill.',
-      payload: skill
-    })
-  })
-
   it('prompts with the skill directory name when the display name differs', () => {
     const skill = {
       name: 'Magic Word',

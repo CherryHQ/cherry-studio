@@ -1,8 +1,8 @@
 /**
  * DataApi-backed session queries and data mutations; lifecycle commands use IpcApi.
  *
- * Sessions are pure agent instances — only `id / agentId / name / description /
- * orderKey / timestamps` live here. For config (model / instructions /
+ * Sessions are pure agent instances — only `id / agentId / model / name / description /
+ * orderKey / timestamps` live here. For remaining config (instructions /
  * configuration / ...) call {@link import('./useAgent').useAgent}
  * with `session.agentId`.
  */
@@ -19,6 +19,7 @@ import {
   useInvalidateCache,
   useMutation,
   useQuery,
+  useReadCache,
   useWriteCache
 } from '@renderer/data/hooks/useDataApi'
 import { useReorder } from '@renderer/data/hooks/useReorder'
@@ -26,6 +27,7 @@ import { useCloseConversationTabs } from '@renderer/hooks/tab'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import type { UpdateAgentBaseOptions } from '@renderer/types/agent'
+import type { SessionListItem } from '@renderer/utils/chat/sessionListHelpers'
 import { formatErrorMessageWithPrefix, getErrorMessage } from '@renderer/utils/error'
 import { isDataApiNotFoundError } from '@shared/data/api/errors'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
@@ -36,8 +38,13 @@ import type {
   SetAgentSessionWorkspaceDto,
   UpdateAgentSessionDto
 } from '@shared/data/api/schemas/agentSessions'
+import type { CursorPaginationResponse } from '@shared/data/api/types'
+import type { Pin } from '@shared/data/types/pin'
+import { isAgentSessionPinnedError } from '@shared/ipc/errors/ai'
 
 const DEFAULT_SESSION_PAGE_SIZE = 20
+const SESSION_PINS_QUERY = { entityType: 'session' } as const
+const getSessionListQuery = (agentId?: string | null) => (agentId ? { agentId } : undefined)
 const logger = loggerService.withContext('useSession')
 export type AgentSessionSource = 'query' | 'pending' | 'none'
 type UseSessionsOptions = {
@@ -84,9 +91,10 @@ function useStructurallySharedSessions(sessions: AgentSessionEntity[]): AgentSes
 }
 
 /**
- * Fetch a single session by id. Config (model / instructions / ...) lives on
- * the parent agent — fetch via `useAgent(session.agentId)` separately. For
- * mutations call `useUpdateSession()` directly.
+ * Fetch a single session by id. Remaining config (instructions / ...) lives on
+ * the parent agent — fetch via `useAgent(session.agentId)` separately. The
+ * session `model` is a per-session override falling back to the agent default.
+ * For mutations call `useUpdateSession()` directly.
  */
 export const useSession = (sessionId: string | null) => {
   const {
@@ -100,8 +108,20 @@ export const useSession = (sessionId: string | null) => {
     swrOptions: { keepPreviousData: false }
   })
 
+  const sessionModelRef = useRef(session?.model ?? null)
+  useEffect(() => {
+    sessionModelRef.current = session?.model ?? null
+  }, [session?.model])
+
   useDataChange('/agent-sessions/:sessionId', (effects) => {
     if (sessionId && effects.some((effect) => !effect.entityIds || effect.entityIds.includes(sessionId))) {
+      void mutate()
+    }
+  })
+  useDataChange('/models', (effects) => {
+    const overrideModel = sessionModelRef.current
+    if (!sessionId || !overrideModel) return
+    if (effects.some((effect) => !effect.entityIds || effect.entityIds.includes(overrideModel))) {
       void mutate()
     }
   })
@@ -227,6 +247,7 @@ export const useSessions = (
   const { t } = useTranslation()
   const closeConversationTabs = useCloseConversationTabs()
   const invalidate = useInvalidateCache()
+  const readCache = useReadCache()
   const writeCache = useWriteCache()
   const pageSize = typeof options === 'number' ? options : (options.pageSize ?? DEFAULT_SESSION_PAGE_SIZE)
   const loadAll = typeof options === 'number' ? false : (options.loadAll ?? false)
@@ -240,7 +261,7 @@ export const useSessions = (
   // complete. Progressive pagination retains SWR's first-page revalidation.
   const [revalidateAllPages, setRevalidateAllPages] = useState(false)
   const { pages, isLoading, isRefreshing, error, hasNext, loadNext, refresh } = useInfiniteQuery('/agent-sessions', {
-    query: agentId ? { agentId } : undefined,
+    query: getSessionListQuery(agentId),
     limit: pageSize,
     enabled,
     swrOptions: { revalidateAll: revalidateAllPages, revalidateFirstPage: !loadAll }
@@ -259,7 +280,7 @@ export const useSessions = (
     isLoading: isPinsLoading,
     isRefreshing: isPinsRefreshing,
     refetch: refetchPins
-  } = useQuery('/pins', { query: { entityType: 'session' }, enabled })
+  } = useQuery('/pins', { query: SESSION_PINS_QUERY, enabled })
   useDataChange('/pins', () => {
     if (enabled !== false) void refetchPins()
   })
@@ -269,6 +290,18 @@ export const useSessions = (
   )
   const pinIdBySessionIdRef = useRef(pinIdBySessionId)
   pinIdBySessionIdRef.current = pinIdBySessionId
+  const readSessionListItems = useCallback((): SessionListItem[] => {
+    const loadedPages = readCache<CursorPaginationResponse<AgentSessionEntity>[]>(
+      '/agent-sessions',
+      getSessionListQuery(agentId),
+      { limit: pageSize }
+    )
+    const pins = readCache<Pin[]>('/pins', SESSION_PINS_QUERY)
+    const pinnedIds = new Set(pins?.map((pin) => pin.entityId))
+    return (loadedPages ?? []).flatMap((page) =>
+      page.items.map((session) => ({ ...session, pinned: pinnedIds.has(session.id) }))
+    )
+  }, [agentId, pageSize, readCache])
   const total = sessions.length
   const hasMore = hasNext
   const isFullyLoaded = !loadAll || (!isLoading && !hasMore)
@@ -313,6 +346,7 @@ export const useSessions = (
             agentId,
             name: form.name,
             description: form.description,
+            model: form.model,
             workspace: form.workspace
           }
         })
@@ -353,8 +387,20 @@ export const useSessions = (
         }
         return { status: 'succeeded' }
       } catch (error) {
-        if (showFeedback) toast.error(formatErrorMessageWithPrefix(error, t('agent.session.delete.error.failed')))
-        return { status: 'failed', error: getErrorMessage(error) }
+        try {
+          await invalidate(['/agent-sessions', '/agent-workspaces', '/pins', '/agent-channels'])
+        } catch (refreshError) {
+          logger.warn('Failed to refresh after Agent Session deletion failed', refreshError as Error, { sessionId: id })
+        }
+        const pinned = isAgentSessionPinnedError(error)
+        if (showFeedback) {
+          toast.error(
+            pinned
+              ? t('recycle_bin.delete.pinned')
+              : formatErrorMessageWithPrefix(error, t('agent.session.delete.error.failed'))
+          )
+        }
+        return { status: 'failed', error: pinned ? t('recycle_bin.delete.pinned') : getErrorMessage(error) }
       }
     },
     [closeConversationTabs, invalidate, t]
@@ -469,6 +515,7 @@ export const useSessions = (
     deleteSession,
     deleteSessionWithOutcome,
     deleteSessions,
+    readSessionListItems,
     restoreSession,
     reorderSession,
     reorderSessions,
@@ -481,8 +528,8 @@ export const useSessions = (
 }
 
 /**
- * Patch session-level fields (`name`, `description`, `agentId`). Config fields
- * (model, instructions, configuration, ...) live on the parent agent — use
+ * Patch session-level fields (`name`, `description`, `agentId`, `model`). Remaining
+ * config fields (instructions, configuration, ...) live on the parent agent — use
  * {@link import('./useAgent').useUpdateAgent} for those. The workspace binding
  * is changed separately via {@link setSessionWorkspace} (only while empty).
  */

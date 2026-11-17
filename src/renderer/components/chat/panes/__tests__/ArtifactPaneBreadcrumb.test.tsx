@@ -62,6 +62,7 @@ function Harness({ onOpenFile }: { onOpenFile: (id: string) => void }) {
       onOpenFile={onOpenFile}
       onLoadFolder={(id) => id === 'src/lib' && setLibLoaded(true)}
       fileMenuItems={[menuItem('file')]}
+      getFileMenuItems={() => [menuItem('file')]}
       getFolderMenuItems={(id) => [menuItem(`folder:${id}`)]}
     />
   )

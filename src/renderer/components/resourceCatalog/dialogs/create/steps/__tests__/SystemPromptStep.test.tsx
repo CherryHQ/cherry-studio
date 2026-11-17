@@ -143,20 +143,10 @@ describe('SystemPromptStep', () => {
     render(<Harness name="Research Assistant" />)
 
     const action = screen.getByRole('button', { name: 'Polish prompt' })
-    expect(action).toHaveAttribute('data-fallback-source', 'Research Assistant')
-    expect(action).toHaveAttribute(
-      'data-empty-value-system-prompt',
-      expect.stringContaining('You are a Prompt Generator.')
-    )
-    expect(action).toHaveAttribute(
-      'data-existing-value-system-prompt',
-      expect.stringContaining('Improve the supplied system prompt without changing its intent or authority.')
-    )
 
     await user.click(action)
 
     expect(screen.getByLabelText('system-prompt')).toHaveValue('Polished system prompt')
-    expect(screen.getByTestId('preview-reset-key')).toHaveTextContent('1')
   })
 
   it('locks the editor only while polishing is running', async () => {

@@ -1,10 +1,10 @@
+export type { AgentRuntimeEvent, CompactionReason } from './sessionEvents'
 export {
-  type AgentRuntimeModel,
-  type AgentRuntimeSession,
-  type AgentRuntimeSessionOptions,
-  type AgentRuntimeSettings,
-  createAgentRuntimeSession
-} from './session'
-
-export type { PiRuntime, PiRuntimeOptions, PiSessionOptions } from './runtime'
-export { createPiRuntime } from './runtime'
+  createPiRuntime,
+  type PiRuntime,
+  type PiRuntimeOptions,
+  type PiRuntimeBehavior,
+  type PiSessionOptions,
+  type PiThreadHandle
+} from './runtime'
+export type { PiObservation } from './runtimeProjection'

@@ -73,7 +73,7 @@ with `..` can resolve outside that root; this provider does not enforce workspac
 access policy. Without this capability, previews retain Streamdown's default safe link treatment.
 
 Use `type="artifact"` for an explicit development-artifact surface whose host owns editing. Markdown and HTML then
-stay in rendered preview mode and omit their preview/source switch, while HTML uses the interactive artifact sandbox
+stay in rendered preview mode unless a source location is requested, and omit their preview/source switch. Without a location, HTML uses the interactive artifact sandbox
 so generated applications can run scripts. This does not hide format-specific controls such as PDF zoom or image
 transforms.
 
@@ -267,6 +267,24 @@ coordinates (worksheet range, paragraph ordinal, page number), never DOM or pixe
   size and mtime against `fileStamp`, and ask the user to re-select on a mismatch rather than re-anchoring.
   No code on either side performs that check, so the renderer's job is only to stamp references accurately —
   if an in-app consumer ever needs the comparison, it belongs with that consumer.
+
+## Source locations
+
+The optional `location` prop carries one-based `line`, optional inclusive `endLine`, and optional `column`.
+Text previews reveal and highlight the requested lines after loading. Markdown and HTML open their source view
+for a located navigation; artifact HTML does not execute in the browser for that request. Columns are retained
+but this version navigates and highlights whole lines. Binary previews ignore source locations.
+
+Chat inline paths and local Markdown links accept `path:42`, `path:42:5`, `path#L42`, and `path#L42-L48`.
+Markdown targets parse coordinates before percent-decoding, so `./report%3A42` names the literal file `report:42`.
+Use `./file.ts:42` for a single-segment Markdown destination: bare `file.ts:42` is URI-scheme-shaped and remains blocked by link safety. Only the pure path reaches filesystem and external-app operations. Ordinary Markdown fragments keep their
+existing handling. Invalid coordinates do not produce navigation; positive coordinates beyond EOF clamp to
+the loaded file. `FilePreviewNavigationProvider.openFile` also accepts the optional location.
+
+The navigation owner creates a fresh location object per accepted click, including repeated clicks on the same
+file and line. Dirty-file confirmation still owns acceptance. Plain opens clear the location. `FileEditor`
+uses Pierre logical-line measurements and its virtualizer; navigation completes only once layout has settled
+and the target is in the viewport, rather than when an off-screen DOM line happens to exist.
 
 ## File I/O, States, and Errors
 

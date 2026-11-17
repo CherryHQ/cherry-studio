@@ -1,3 +1,4 @@
+import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { createInstance } from 'i18next'
@@ -124,11 +125,27 @@ describe('dictationTool', () => {
     mocks.transcribeRecording.mockClear()
   })
 
+  it('hides the launcher and shared microphone while Off and restores both on On', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('feature.voice.recognition.model_id', 'off')
+    const rendered = renderRuntime()
+    await waitFor(() => expect(latestLauncher(rendered)?.hidden).toBe(true))
+    expect(screen.queryByRole('button', { name: 'Start dictation' })).toBeNull()
+    act(() => {
+      MockUsePreferenceUtils.setPreferenceValue('feature.voice.recognition.model_id', '')
+      mocks.snapshot = { ...mocks.snapshot }
+      mocks.listener?.()
+    })
+    await waitFor(() => expect(latestLauncher(rendered)?.hidden).toBe(false))
+    expect(screen.getByRole('button', { name: 'Start dictation' })).toBeInTheDocument()
+  })
+
   it('starts scoped dictation only after the user invokes the launcher and passes no preference overrides', async () => {
     const rendered = renderRuntime()
     await waitFor(() => expect(latestLauncher(rendered)).toBeDefined())
 
     expect(mocks.startScoped).not.toHaveBeenCalled()
+    expect(latestLauncher(rendered)?.description).toBeUndefined()
+    expect(latestLauncher(rendered)?.submenu?.some((item) => item.id === 'dictation:open-settings')).toBe(false)
     await userEvent.setup().click(screen.getByRole('button', { name: 'Start dictation' }))
 
     expect(mocks.startScoped).toHaveBeenCalledOnce()
@@ -171,6 +188,7 @@ describe('dictationTool', () => {
     expect(await screen.findByRole('button', { name: 'Start dictation' })).toBeEnabled()
     expect(latestLauncher(rendered)?.active).toBe(false)
     expect(latestLauncher(rendered)?.description).toBe(enUS['settings.voice.status.no_speech'])
+    expect(latestLauncher(rendered)?.submenu?.some((item) => item.id === 'dictation:open-settings')).toBe(false)
     expect(document.querySelector('[data-slot="bar-visualizer"]')).toBeNull()
     expect(screen.queryByRole('button', { name: 'Retry transcription' })).not.toBeInTheDocument()
     expect(screen.queryByText('3 s')).not.toBeInTheDocument()
@@ -259,24 +277,50 @@ describe('dictationTool', () => {
     expect(mocks.discard).toHaveBeenCalledOnce()
   })
 
-  it('keeps configuration failures discoverable with localized detail and a Voice Settings recovery action', async () => {
+  it.each([TopicType.Chat, 'painting'] as const)(
+    'explains the missing recognition model and offers Local Models recovery in %s',
+    async (scope) => {
+      const rendered = renderRuntime(scope)
+      await waitFor(() => expect(latestLauncher(rendered)).toBeDefined())
+
+      act(() => {
+        mocks.snapshot = {
+          phase: 'failed',
+          elapsedMs: 0,
+          recoveryAvailable: false,
+          error: 'model_required'
+        }
+        mocks.listener?.()
+      })
+
+      const launcher = latestLauncher(rendered)!
+      expect(launcher.description).toBe(enUS['settings.voice.status.model_required'])
+      expect(launcher.disabled).toBe(false)
+      expect(screen.getByRole('status')).toHaveTextContent(enUS['settings.voice.status.model_required'])
+      const recovery = launcher.submenu?.find((item) => item.id === 'dictation:open-settings')
+      expect(recovery?.label).toBe(enUS['settings.dependencies.localModels.title'])
+      recovery?.action?.({} as never)
+      expect(mocks.openSettingsTab).toHaveBeenCalledWith('/settings/local-models')
+    }
+  )
+
+  it.each([
+    ['microphone_permission', 'settings.voice.microphone.denied'],
+    ['asset_required', 'settings.voice.status.asset_required']
+  ] as const)('keeps %s recovery in Voice Settings', async (error, descriptionKey) => {
     const rendered = renderRuntime()
     await waitFor(() => expect(latestLauncher(rendered)).toBeDefined())
 
     act(() => {
-      mocks.snapshot = {
-        phase: 'failed',
-        elapsedMs: 0,
-        recoveryAvailable: false,
-        error: 'model_required'
-      }
+      mocks.snapshot = { phase: 'failed', elapsedMs: 0, recoveryAvailable: false, error }
       mocks.listener?.()
     })
 
     const launcher = latestLauncher(rendered)!
-    expect(launcher.description).toBe(enUS['settings.voice.status.unconfigured'])
-    expect(launcher.disabled).toBe(false)
-    launcher.submenu?.find((item) => item.id === 'dictation:open-settings')?.action?.({} as never)
+    expect(launcher.description).toBe(enUS[descriptionKey])
+    const recovery = launcher.submenu?.find((item) => item.id === 'dictation:open-settings')
+    expect(recovery?.label).toBe(enUS['settings.voice.action.open_settings'])
+    recovery?.action?.({} as never)
     expect(mocks.openSettingsTab).toHaveBeenCalledWith('/settings/voice')
   })
 

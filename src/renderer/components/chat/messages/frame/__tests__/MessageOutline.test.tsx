@@ -1,5 +1,5 @@
+import { MockCherrystudioUI } from '@test-mocks/renderer/CherrystudioUI'
 import { fireEvent, render, screen } from '@testing-library/react'
-import type { ComponentPropsWithoutRef } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ChatBottomOverlayInsetProvider } from '../../../layout/ChatViewportInsetContext'
@@ -12,7 +12,7 @@ vi.mock('@cherrystudio/ui', () => ({
   }),
   extractTextFromNode: (node: { children?: Array<{ value?: string }> }) =>
     node.children?.map((child) => child.value ?? '').join('') ?? '',
-  Scrollbar: ({ children, ...props }: ComponentPropsWithoutRef<'div'>) => <div {...props}>{children}</div>
+  ScrollArea: MockCherrystudioUI.ScrollArea
 }))
 
 vi.mock('../../blocks/MessagePartsContext', () => ({
@@ -99,7 +99,7 @@ describe('MessageOutline', () => {
       </ChatBottomOverlayInsetProvider>
     )
 
-    const scrollBox = container.querySelector('[data-ui="part:message-outline"]')
+    const scrollBox = container.querySelector<HTMLElement>('[data-slot=scroll-area]')
     expect(scrollBox).not.toBeNull()
     expect(scrollBox?.parentElement?.style.bottom).toBe('140px')
   })
@@ -114,7 +114,7 @@ describe('MessageOutline', () => {
       />
     )
 
-    const scrollBox = container.querySelector('[data-ui="part:message-outline"]')
+    const scrollBox = container.querySelector<HTMLElement>('[data-slot=scroll-area]')
     expect(scrollBox).not.toBeNull()
     expect(scrollBox?.parentElement?.style.bottom).toBe('0px')
   })
