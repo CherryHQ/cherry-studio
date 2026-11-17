@@ -128,5 +128,9 @@ placed follow-ups getting their own replies in Main; `recoverSessionDeliveries.t
 delivery recovery.
 `durableMcp.test.ts` runs an actual linked MCP server through the native tool loop.
 The storage and child-projection suites cover strict reopen, interrupted binding
-recovery and asynchronous archive reconciliation. These tests do not replace Electron
-or live-provider acceptance, nor do they prove recovery after a process kill.
+recovery and asynchronous archive reconciliation.
+
+`tests/e2e/smoke/piDurableTurnAuthority.test.ts` runs the built Electron app against a local mock
+provider: a queued follow-up, steer, Stop with subagent content and the next message, and killing
+Main mid-turn. Run it with `pnpm test:e2e tests/e2e/smoke/piDurableTurnAuthority.test.ts` after the
+[e2e prerequisites](../../../../../tests/e2e/README.md). Live providers stay unverified.
