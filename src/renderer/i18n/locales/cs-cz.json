@@ -5158,6 +5158,7 @@
   "settings.mcp.headersTooltip": "Vlastní hlavičky pro požadavky HTTP",
   "settings.mcp.install": "Instalovat",
   "settings.mcp.instructions.empty": "Aktuální připojení neposkytuje žádné pokyny.",
+  "settings.mcp.instructions.load_failed": "Pokyny serveru se nepodařilo načíst",
   "settings.mcp.instructions.source": "Poskytuje {{name}}. Tyto pokyny neudělují oprávnění ani neaktivují dovednosti.",
   "settings.mcp.instructions.title": "Pokyny serveru",
   "settings.mcp.instructions.truncated": "Tyto pokyny překračují limit délky. Modelu se odesílá pouze zobrazený úryvek.",

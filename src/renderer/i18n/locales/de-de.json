@@ -5157,6 +5157,7 @@
   "settings.mcp.headersTooltip": "Benutzerdefinierte Request-Header für HTTP-Anfragen",
   "settings.mcp.install": "Installieren",
   "settings.mcp.instructions.empty": "Für die aktuelle Verbindung sind keine Anweisungen verfügbar.",
+  "settings.mcp.instructions.load_failed": "Serveranweisungen konnten nicht geladen werden",
   "settings.mcp.instructions.source": "Von {{name}} bereitgestellt. Diese Hinweise gewähren keine Berechtigungen und aktivieren keine Skills.",
   "settings.mcp.instructions.title": "Serveranweisungen",
   "settings.mcp.instructions.truncated": "Die Anweisungen überschreiten die Längenbegrenzung. Nur der angezeigte Auszug wird an das Modell gesendet.",

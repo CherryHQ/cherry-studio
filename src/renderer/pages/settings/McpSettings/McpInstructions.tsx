@@ -55,8 +55,16 @@ export default function McpInstructions({ serverId, connectionState }: { serverI
       ) : failure ? (
         <ErrorNotice
           variant="inline"
-          title={t('common.error')}
-          detail={<ErrorDetailAction error={failure} source="mcp" operation="mcp.instructions" recordId={serverId} />}
+          title={t('settings.mcp.instructions.load_failed')}
+          detail={
+            <ErrorDetailAction
+              error={failure}
+              message={t('settings.mcp.instructions.load_failed')}
+              source="mcp"
+              operation="mcp.instructions"
+              recordId={serverId}
+            />
+          }
         />
       ) : instructions ? (
         <>

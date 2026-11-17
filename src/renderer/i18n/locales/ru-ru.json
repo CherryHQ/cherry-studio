@@ -5159,6 +5159,7 @@
   "settings.mcp.headersTooltip": "Пользовательские заголовки для HTTP-запросов",
   "settings.mcp.install": "Установить",
   "settings.mcp.instructions.empty": "Для текущего подключения инструкции недоступны.",
+  "settings.mcp.instructions.load_failed": "Не удалось загрузить инструкции сервера",
   "settings.mcp.instructions.source": "Предоставлены {{name}}. Эти указания не предоставляют разрешений и не активируют навыки.",
   "settings.mcp.instructions.title": "Инструкции сервера",
   "settings.mcp.instructions.truncated": "Инструкции превышают ограничение длины. Модели отправляется только отображаемый фрагмент.",

@@ -5157,6 +5157,7 @@
   "settings.mcp.headersTooltip": "Custom headers for HTTP requests",
   "settings.mcp.install": "Install",
   "settings.mcp.instructions.empty": "No instructions are available from the current connection.",
+  "settings.mcp.instructions.load_failed": "Couldn't load server instructions",
   "settings.mcp.instructions.source": "Provided by {{name}}. This guidance does not grant permissions or activate skills.",
   "settings.mcp.instructions.title": "Server instructions",
   "settings.mcp.instructions.truncated": "These instructions exceed the length limit. Only the displayed excerpt is sent to the model.",

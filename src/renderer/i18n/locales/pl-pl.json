@@ -5223,6 +5223,7 @@
   "settings.mcp.headersTooltip": "Niestandardowe nagłówki żądań HTTP",
   "settings.mcp.install": "Zainstaluj",
   "settings.mcp.instructions.empty": "Brak instrukcji z bieżącego połączenia.",
+  "settings.mcp.instructions.load_failed": "Nie udało się wczytać instrukcji serwera",
   "settings.mcp.instructions.source": "Dostarczone przez {{name}}. Te wskazówki nie przyznają uprawnień ani nie aktywują umiejętności.",
   "settings.mcp.instructions.title": "Instrukcje serwera",
   "settings.mcp.instructions.truncated": "Te instrukcje przekraczają limit długości. Do modelu wysyłany jest tylko wyświetlany fragment.",
