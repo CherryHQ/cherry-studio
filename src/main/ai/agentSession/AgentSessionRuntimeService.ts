@@ -1349,16 +1349,11 @@ export class AgentSessionRuntimeService extends BaseService {
     this.applyRuntimeStateEvent(entry, { type: 'clear-queue' })
     this.applyRuntimeStateEvent(entry, { type: 'connection-occupancy', occupancy: 'stopping', active: true })
     let timer: ReturnType<typeof setTimeout> | undefined
-    stopping.settled = connection
-      .interrupt()
-      .then(() =>
-        Promise.race([
-          confirmation.promise,
-          new Promise<never>((_, reject) => {
-            timer = setTimeout(() => reject(new Error('Agent runtime stop was not confirmed')), 20_000)
-          })
-        ])
-      )
+    // The bound includes the native interrupt itself, which awaits admission and child stops.
+    const unconfirmed = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => reject(new Error('Agent runtime stop was not confirmed')), 20_000)
+    })
+    stopping.settled = Promise.race([connection.interrupt().then(() => confirmation.promise), unconfirmed])
       .catch((error) => {
         logger.warn('Agent runtime stop failed; closing the session', { sessionId, error })
         return this.closeSession(sessionId, true)

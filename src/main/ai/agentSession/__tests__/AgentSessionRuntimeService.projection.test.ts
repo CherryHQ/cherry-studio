@@ -285,6 +285,28 @@ it('keeps a retained connection open on Stop and starts later input only after n
   expect(await Promise.race([f.closed.then(() => 'closed'), Promise.resolve('open')])).toBe('open')
 })
 
+// The native interrupt waits on admission and child stops; a hang there must still end the Stop.
+it('ends a retained Stop whose native interrupt never returns', async () => {
+  MockApplicationUtils.setService('AiStreamManager', {
+    drainRuntimeReply: async () => {},
+    pauseRuntimeTurn: () => false
+  })
+  const f = await fixture(() => new Promise<void>(() => {}), true)
+  await vi.waitFor(() => expect(f.connections.sent).toHaveLength(1))
+  vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+  onTestFinished(() => void vi.useRealTimers())
+  f.handle.abortController.abort('user-requested')
+  let settled = false
+  void f.service.stopSession('root', 'user-requested').then(
+    () => (settled = true),
+    () => (settled = true)
+  )
+
+  await vi.advanceTimersByTimeAsync(40_000)
+
+  expect(settled).toBe(true)
+})
+
 // The native successor can publish before the preceding reply has committed and created its row.
 it('retains a reserved steer reply until its stream takes ownership', async () => {
   let next: StartRuntimeTurnInput | undefined

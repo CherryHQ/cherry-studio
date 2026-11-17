@@ -397,7 +397,7 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
 
   /** A failed child attachment is retried by the next snapshot that lists the child. */
   private attachChild(id: string) {
-    void this.observeChild(id).catch((error) => logger.warn('Failed to release Durable child', { id, error }))
+    void this.observeChild(id).catch((error) => logger.warn('Failed to observe Durable child', { id, error }))
   }
 
   private childKey(id: string): string {
