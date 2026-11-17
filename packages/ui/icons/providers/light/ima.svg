@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="120" height="120" viewBox="0 0 120 120" fill="none">
 <rect width="120" height="120" fill="var(--icon-neutral-background, #FFFFFF)"/>
-<g fill="none" transform="translate(18 18) scale(1.27918782) translate(-26.6667 -26.6667)">
+<g fill="none" transform="scale(1.84615385) translate(-27 -27)">
 <mask id="mask0_1_5621" style="mask-type:luminance" maskUnits="userSpaceOnUse" x="27" y="27" width="65" height="65">
 <path d="M77.7813 27H41.2188C33.3659 27 27 33.3659 27 41.2188V77.7813C27 85.6341 33.3659 92 41.2188 92H77.7813C85.6341 92 92 85.6341 92 77.7813V41.2188C92 33.3659 85.6341 27 77.7813 27Z" fill="white"/>
 </mask>

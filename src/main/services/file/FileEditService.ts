@@ -4,6 +4,7 @@ import { realpath } from 'node:fs/promises'
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService, DependsOn, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { logFailure } from '@main/core/logger/logFailure'
 import {
   assertNotesPathNotMutatingDuringMigration,
   assertNotesPathNotRetired,
@@ -24,7 +25,9 @@ import {
 } from '@shared/ipc/schemas/fileEdit'
 import type { WindowId } from '@shared/ipc/types'
 import { AbsoluteFilePathSchema, type AbsoluteFilePath } from '@shared/types/file'
+import { markReportingHandled } from '@shared/utils/errorReporting'
 
+import { classifyFileFailure } from './failureFacts'
 import { ContentCommittedMetadataPendingError, StaleVersionError } from './FileManager'
 import { runPathMutationExclusive } from './pathMutationLock'
 import { readEditSnapshot } from './utils/editSnapshot'
@@ -39,6 +42,7 @@ interface EditLease {
   handle: FileHandle
   /** Captured at open so writes key the retired-root guard on the same identity. */
   entryOrigin?: FileEntry['origin']
+  externalPath: boolean
   pending: Set<Promise<unknown>>
   retention?: Disposable
   closing?: Promise<void>
@@ -69,6 +73,7 @@ export class FileEditService extends BaseService {
 
   async open(owner: WindowId, handle: FileHandle): Promise<FileEditResource> {
     let retention: Disposable | undefined
+    let externalPath = handle.kind === 'path'
     try {
       if (this.stopped || this.closedOwners.has(owner)) throw this.closed()
       let entryOrigin: FileEntry['origin'] | undefined
@@ -76,6 +81,7 @@ export class FileEditService extends BaseService {
         const files = application.get('FileManager')
         const entry = await files.getById(handle.entryId)
         entryOrigin = entry.origin
+        externalPath = entry.origin === 'external'
         if (entry.origin === 'internal' && entry.cleanupPolicy === 'delete_when_unreferenced')
           retention = files.retainTemporaryEntry(entry.id)
       }
@@ -104,13 +110,14 @@ export class FileEditService extends BaseService {
         path,
         handle: { ...handle },
         entryOrigin,
+        externalPath,
         pending: new Set(),
         retention
       })
       return resource
     } catch (error) {
       retention?.dispose()
-      throw this.normalize(error)
+      throw this.reportFailure(error, 'file.edit.open', externalPath)
     }
   }
 
@@ -129,7 +136,7 @@ export class FileEditService extends BaseService {
       this.require(owner, editId)
       return snapshot
     } catch (error) {
-      throw this.normalize(error)
+      throw this.reportFailure(error, 'file.edit.read', lease.externalPath)
     } finally {
       lease.pending.delete(task)
     }
@@ -168,7 +175,7 @@ export class FileEditService extends BaseService {
         if (error instanceof ContentCommittedMetadataPendingError) {
           return { baseline: { version: error.version, contentHash }, metadataRecoveryPending: true }
         }
-        const failure = this.normalize(error)
+        const failure = this.reportFailure(error, 'file.edit.write', lease.externalPath)
         logger.warn('File edit write did not commit', { editId: input.editId, code: failure.code })
         throw failure
       }
@@ -224,6 +231,15 @@ export class FileEditService extends BaseService {
 
   private closed(): IpcError {
     return new IpcError(fileErrorCodes.EDIT_LEASE_CLOSED, 'File edit lease is unavailable')
+  }
+
+  private reportFailure(error: unknown, operation: string, externalPath: boolean): IpcError {
+    const failure = this.normalize(error)
+    const classifiedError =
+      error instanceof PathStaleVersionError || error instanceof StaleVersionError ? failure : error
+    logFailure(logger, 'File editing failed', error, operation, classifyFileFailure(classifiedError, externalPath))
+    markReportingHandled(failure)
+    return failure
   }
 
   private normalize(error: unknown): IpcError {

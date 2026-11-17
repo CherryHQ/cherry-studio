@@ -86,10 +86,7 @@ vi.mock('node:os', () => ({
 }))
 
 vi.mock('node:child_process', () => ({
-  execFile: vi.fn(),
-  execFileSync: vi.fn(() => {
-    throw new Error('not found')
-  })
+  execFile: vi.fn()
 }))
 
 vi.mock('electron', () => ({
@@ -211,6 +208,25 @@ describe('BinaryManager', () => {
     await expect((service as any).findMiseBin()).resolves.toBe(misePath)
     expect(findMiseExecutable).toHaveBeenCalledOnce()
     expect(findExecutable).not.toHaveBeenCalled()
+  })
+
+  it('finds a system mise on PATH when the bundled binary is missing', async () => {
+    const misePath = '/usr/local/bin/mise'
+    mockExecFileAsync.mockResolvedValue({ stdout: `${misePath}\n`, stderr: '' })
+    ;(mockFs.existsSync as any).mockImplementation((candidate: string) => candidate === misePath)
+
+    const service = new BinaryManager()
+
+    await expect((service as any).findMiseBin()).resolves.toBe(misePath)
+    expect(mockExecFileAsync).toHaveBeenCalledWith('which', ['mise'], expect.objectContaining({ timeout: 5000 }))
+  })
+
+  it('reports no mise when the PATH lookup fails', async () => {
+    mockExecFileAsync.mockRejectedValue(Object.assign(new Error('not found'), { code: 1 }))
+
+    const service = new BinaryManager()
+
+    await expect((service as any).findMiseBin()).resolves.toBeNull()
   })
 
   it('initializes with binary management disabled when the Windows mise lookup fails', async () => {
@@ -1407,7 +1423,7 @@ describe('BinaryManager', () => {
       const service = new BinaryManager()
       await (service as any).onInit()
 
-      expect(mockExecFileAsync).not.toHaveBeenCalled()
+      expect(mockExecFileAsync.mock.calls.filter(([command]) => command !== 'which')).toEqual([])
     })
   })
 

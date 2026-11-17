@@ -40,6 +40,7 @@ import {
   VoiceDomainError,
   voiceService
 } from '@renderer/services/voice'
+import { isVoiceRecognitionOff, VOICE_RECOGNITION_OFF } from '@renderer/utils/voiceRecognitionPreference'
 import {
   APPLE_ASR_MODEL_ID,
   APPLE_TTS_MODEL_ID,
@@ -336,10 +337,15 @@ function VoiceSettings() {
     }
   }, [models, queryRevision, asrInstallationStatus, ttsInstallationStatus])
 
+  const recognitionOff = isVoiceRecognitionOff(recognitionModel)
   const configuredRecognitionModel =
     recognitionModel && isTranscriptionModelId(recognitionModel) ? recognitionModel : undefined
   const hasConfiguredRecognitionModel = optionalValue(recognitionModel) !== undefined
-  const effectiveRecognitionModel = hasConfiguredRecognitionModel ? configuredRecognitionModel : defaultAsrModel
+  const effectiveRecognitionModel = recognitionOff
+    ? undefined
+    : hasConfiguredRecognitionModel
+      ? configuredRecognitionModel
+      : defaultAsrModel
   const recognitionDescriptor = models.find((model) => model.id === effectiveRecognitionModel)
   const automaticLanguage = recognitionDescriptor?.localeSelection === null
   const incompatibleLanguage = automaticLanguage ? languageValue(recognitionLanguage) : undefined
@@ -452,6 +458,10 @@ function VoiceSettings() {
         : { status: !configuredSpeechModel && !catalogLoading ? 'unsupported' : 'loading' }
 
   useEffect(() => {
+    if (recognitionOff) {
+      setQueriedRecognitionStatus(undefined)
+      return
+    }
     if (hasConfiguredRecognitionModel && !configuredRecognitionModel) return
     if (installingRecognitionLocaleRef.current) return
     let current = true
@@ -486,6 +496,7 @@ function VoiceSettings() {
       current = false
     }
   }, [
+    recognitionOff,
     configuredRecognitionModel,
     hasConfiguredRecognitionModel,
     recognitionLanguage,
@@ -907,13 +918,17 @@ function VoiceSettings() {
         <SettingRow id="setting-voice-recognition-model" className="scroll-mt-6 flex-wrap gap-3">
           <SettingRowTitle>
             {t('settings.voice.recognition.model')}
-            <HelpTooltip content={recognitionStatusText} />
-            <span id="setting-voice-recognition-status" role="status" className="sr-only">
-              {recognitionStatusText}
-            </span>
+            {!recognitionOff && (
+              <>
+                <HelpTooltip content={recognitionStatusText} />
+                <span id="setting-voice-recognition-status" role="status" className="sr-only">
+                  {recognitionStatusText}
+                </span>
+              </>
+            )}
           </SettingRowTitle>
           <Select
-            value={recognitionModel || EMPTY_VALUE}
+            value={recognitionOff ? VOICE_RECOGNITION_OFF : recognitionModel || EMPTY_VALUE}
             disabled={installingLocale}
             onValueChange={(value) => {
               if (value.startsWith(DOWNLOAD_MODEL_PREFIX)) {
@@ -942,13 +957,16 @@ function VoiceSettings() {
               </SelectValue>
             </SelectTrigger>
             <SelectContent>
+              <SelectItem value={VOICE_RECOGNITION_OFF}>{t('settings.voice.recognition.off')}</SelectItem>
               <SelectItem value={EMPTY_VALUE}>
                 {t('settings.voice.automatic')}
                 {!recognitionModel && effectiveRecognitionModel
                   ? ` · ${t(MODEL_LABEL_KEYS[effectiveRecognitionModel])}`
                   : ''}
               </SelectItem>
-              {recognitionModel && !transcriptionModels.some((model) => model.id === recognitionModel) ? (
+              {!recognitionOff &&
+              recognitionModel &&
+              !transcriptionModels.some((model) => model.id === recognitionModel) ? (
                 <SelectItem value={recognitionModel} disabled>
                   {isTranscriptionModelId(recognitionModel) ? t(MODEL_LABEL_KEYS[recognitionModel]) : recognitionModel}{' '}
                   — {t('settings.voice.status.unsupported')}
@@ -991,6 +1009,7 @@ function VoiceSettings() {
               automaticLanguage ? (incompatibleLanguage ?? 'auto') : (languageValue(recognitionLanguage) ?? EMPTY_VALUE)
             }
             disabled={
+              recognitionOff ||
               installingLocale ||
               (automaticLanguage ? !incompatibleLanguage : !recognitionDescriptor?.localeSelection || !asrLocales)
             }
@@ -1048,7 +1067,7 @@ function VoiceSettings() {
           </Select>
         </SettingRow>
         <SettingDivider />
-        <DictationShortcutSettings />
+        <DictationShortcutSettings disabled={recognitionOff} />
         {canOpenMicrophoneSettings ? (
           <>
             <SettingDivider />
