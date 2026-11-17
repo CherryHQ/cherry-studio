@@ -1560,6 +1560,10 @@
           "visible": true
         },
         {
+          "id": "detached_tasks",
+          "visible": true
+        },
+        {
           "id": "other",
           "visible": true
         },

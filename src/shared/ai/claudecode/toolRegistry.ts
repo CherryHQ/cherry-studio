@@ -358,6 +358,16 @@ const CLAUDE_TOOL_REGISTRY = {
     description: 'Inspects and manages this agent configuration and channels',
     mcpServer: 'cherry-tools'
   },
+  // Detached shell execution. Exposed like Bash because it launches arbitrary commands, and tied to
+  // Bash so disabling the shell toggle cannot leave this second door open.
+  CherryBackgroundTask: {
+    name: 'mcp__cherry-tools__background_task',
+    category: 'shell',
+    exposure: 'user',
+    description: 'Runs a shell command as a detached background task',
+    dependsOn: ['Bash'],
+    mcpServer: 'cherry-tools'
+  },
   // media (image generation). Hosted by cherry-tools; requires per-call approval and returns a
   // "configure a painting model" note at runtime when none is set (see builtinToolPolicy.ts).
   CherryGenerateImage: {
