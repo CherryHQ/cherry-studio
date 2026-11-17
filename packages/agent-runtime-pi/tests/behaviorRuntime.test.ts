@@ -977,6 +977,8 @@ it('uses child-specific compaction budgets instead of the large root reserve', a
     { enabled: true, reserveTokens: 108_192, keepRecentTokens: 20_000 },
     { enabled: true, reserveTokens: 16_384, keepRecentTokens: 16_384 }
   ])
+})
+
 it('predicts from native context without appending history or executing a tool response', async () => {
   const provider = respondingModel((_call, n) =>
     n <= 2
