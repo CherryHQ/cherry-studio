@@ -10,6 +10,8 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
+  Input,
+  PageSidePanelSection,
   Table,
   TableBody,
   TableCell,
@@ -18,8 +20,10 @@ import {
   TableRow
 } from '@cherrystudio/ui'
 import { type Model, parseUniqueModelId } from '@shared/data/types/model'
+import type { Provider } from '@shared/data/types/provider'
 import { billingTimeMinutes, type ProviderBilling } from '@shared/data/types/providerBilling'
 import { resolveProviderBilling } from '@shared/utils/providerBilling'
+import { getDefaultProviderBilling } from '@shared/utils/providerBillingDefaults'
 import { createAiUsagePricingSnapshot } from '@shared/utils/usagePricing'
 
 dayjs.extend(utc)
@@ -28,24 +32,40 @@ dayjs.extend(timezone)
 const formatTime = (minutes: number) =>
   `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`
 
-export function BillingPreview({ billing, models }: { billing: ProviderBilling; models: readonly Model[] }) {
+export function BillingPreview({
+  billing,
+  models,
+  defaultProvider
+}: {
+  billing: ProviderBilling
+  models: readonly Model[]
+  defaultProvider?: Provider
+}) {
   const { t } = useTranslation()
   const [modelId, setModelId] = useState<string>(models[0]?.id ?? '')
   const model = models.find((item) => item.id === modelId) ?? models[0]
+  const effectiveBilling = defaultProvider && model ? getDefaultProviderBilling(defaultProvider, model) : billing
+  const [date, setDate] = useState('')
   const boundaries = [
     ...new Set([
       0,
       1440,
-      ...(billing.scheduleEnabled
-        ? billing.periods.flatMap((period) => [billingTimeMinutes(period.start), billingTimeMinutes(period.end)])
+      ...(effectiveBilling?.scheduleEnabled
+        ? effectiveBilling.periods.flatMap((period) => [
+            billingTimeMinutes(period.start),
+            billingTimeMinutes(period.end)
+          ])
         : [])
     ])
   ].sort((a, b) => a - b)
-  const day = dayjs().tz(billing.timeZone).startOf('day')
+  const now = dayjs().tz(billing.timeZone)
+  const today = now.format('YYYY-MM-DD')
+  const currentMinute = now.hour() * 60 + now.minute()
+  const day = dayjs.tz(date || today, billing.timeZone).startOf('day')
   const ranges = boundaries.slice(0, -1).map((start, index) => {
     const resolved = resolveProviderBilling(
       model?.pricing,
-      billing,
+      effectiveBilling,
       model ? parseUniqueModelId(model.id).modelId : '',
       day.add(start, 'minute').toDate()
     )
@@ -56,6 +76,12 @@ export function BillingPreview({ billing, models }: { billing: ProviderBilling; 
       snapshot: createAiUsagePricingSnapshot(resolved.pricing)
     }
   })
+  for (let index = ranges.length - 1; index > 0; index--) {
+    if (ranges[index].periodId === ranges[index - 1].periodId) {
+      ranges[index - 1].end = ranges[index].end
+      ranges.splice(index, 1)
+    }
+  }
   const first = ranges[0]
   const last = ranges.at(-1)!
   if (ranges.length > 1 && first.periodId === last.periodId) {
@@ -64,10 +90,16 @@ export function BillingPreview({ billing, models }: { billing: ProviderBilling; 
   }
   const currency = ranges.find((range) => range.snapshot)?.snapshot?.currency
   return (
-    <section
-      className="space-y-3 border-t border-border-subtle pt-4"
+    <PageSidePanelSection
+      role="region"
+      title={t('settings.provider.billing.preview')}
       aria-label={t('settings.provider.billing.preview')}>
-      <h3 className="text-sm font-medium">{t('settings.provider.billing.preview')}</h3>
+      <Input
+        type="date"
+        aria-label={t('settings.provider.billing.preview_date')}
+        value={date || today}
+        onChange={(event) => setDate(event.target.value)}
+      />
       <Select value={model?.id ?? ''} onValueChange={setModelId}>
         <SelectTrigger aria-label={t('settings.provider.billing.model')}>
           <SelectValue placeholder={t('settings.provider.billing.model')} />
@@ -96,6 +128,11 @@ export function BillingPreview({ billing, models }: { billing: ProviderBilling; 
         </TableHeader>
         <TableBody aria-live="polite">
           {ranges.flatMap(({ start, end, snapshot }) => {
+            const current =
+              (!date || date === today) &&
+              (end > start
+                ? currentMinute >= start && currentMinute < end
+                : currentMinute >= start || currentMinute < end)
             const tiers = [{ ...snapshot, minInputTokens: 0 }, ...(snapshot?.inputTokenTiers ?? [])]
             return tiers.map((tier) => {
               const rates = {
@@ -105,7 +142,11 @@ export function BillingPreview({ billing, models }: { billing: ProviderBilling; 
                 cacheWrite: tier.cacheWritePerMillionTokens ?? tier.inputPerMillionTokens
               }
               return (
-                <TableRow key={`${start}:${tier.minInputTokens}`}>
+                <TableRow
+                  key={`${start}:${tier.minInputTokens}`}
+                  title={current ? t('common.current') : undefined}
+                  aria-current={current ? 'time' : undefined}
+                  className={current ? 'bg-background-subtle' : undefined}>
                   <TableCell>
                     <span className="whitespace-nowrap tabular-nums">{`${formatTime(start)}–${formatTime(end)}`}</span>
                     {tiers.length > 1 && (
@@ -125,6 +166,6 @@ export function BillingPreview({ billing, models }: { billing: ProviderBilling; 
           })}
         </TableBody>
       </Table>
-    </section>
+    </PageSidePanelSection>
   )
 }

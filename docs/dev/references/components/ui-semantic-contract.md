@@ -178,7 +178,7 @@ layers (Tailwind's layers, then `app`; declared in `src/renderer/assets/styles/i
 declarations beat every layered declaration regardless of load order or selector specificity, custom CSS can use the
 full CSS surface—including `:root`, `body`, top-level at-rules, and semantic `data-ui` selectors—and wins without
 blanket `!important`. Every regular renderer window subscribes to the same `ui.custom_css` preference and injects that
-stylesheet into its own document. The preboot windows (`migrationV2`, `userDataRelocation`) are the exceptions because
+stylesheet into its own document. The preboot windows (`userDataRelocation`) are the exceptions because
 they do not initialize preferences.
 
 Two deliberate limits: `!important` inverts layer precedence, so a layered application `!important` rule beats an

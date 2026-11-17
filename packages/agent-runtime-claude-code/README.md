@@ -157,6 +157,9 @@ survives out-of-order assistant messages and archive refresh.
 The adapter preserves signatures, files, citations and raw tool outputs in SDK parts/metadata.
 The desktop adds display metadata and persists source mappings/retractions with its checkpoint.
 `legacy` maps prior UUID/block identities to proven whole-message part positions.
+Baseline and recovery batches always include the full map. Live batches include it only
+when bindings change; omission means retain the previous map. Each observer receives
+an isolated batch, so consumers cannot mutate the feed or another observer's metadata.
 
 Live content uses SDK discriminated unions; block, stream-delta and message-event
 handling is checked exhaustively against the pinned SDK. Archive `SessionMessage.message`
