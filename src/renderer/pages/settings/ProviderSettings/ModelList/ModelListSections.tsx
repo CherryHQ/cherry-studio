@@ -2,7 +2,7 @@ import type React from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { EmptyState } from '@cherrystudio/ui'
+import { EmptyState, EmptyStateMessage } from '@cherrystudio/ui'
 import LoadingIcon from '@renderer/components/icons/LoadingIcon'
 import { DynamicVirtualList } from '@renderer/components/VirtualList'
 import { ProviderModelsEmptyScene } from '@renderer/pages/settings/SettingsEmptyScenes'
@@ -166,7 +166,11 @@ const ModelListSections: React.FC<ModelListSectionsProps> = ({
   }
 
   if (!hasVisibleModels) {
-    return <div className={modelListClasses.emptyState}>{t('common.no_results')}</div>
+    return (
+      <div className={modelListClasses.emptyState}>
+        <EmptyStateMessage>{t('common.no_results')}</EmptyStateMessage>
+      </div>
+    )
   }
 
   return (

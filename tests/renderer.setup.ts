@@ -169,6 +169,9 @@ vi.mock('@cherrystudio/ui', async () => {
   const { BarVisualizer } = await import('@cherrystudio/ui/components/primitives/bar-visualizer')
   const { Progress } = await import('@cherrystudio/ui/components/primitives/progress')
   const { InputGroupInputNumber } = await import('@cherrystudio/ui/components/primitives/input-group')
+  const { EmptyStateMark, EmptyStateMessage } = await import('@cherrystudio/ui/components/primitives/empty-state-mark')
+  const { EmptyNote, EmptyPlaceholder, EmptyStateRow } =
+    await import('@cherrystudio/ui/components/primitives/empty-state-compact')
   const { createCodeHighlightPlugin } =
     await import('@cherrystudio/ui/components/composites/markdown/plugins/code-highlight')
   const SelectContext = React.createContext({ value: undefined, onValueChange: undefined })
@@ -186,6 +189,11 @@ vi.mock('@cherrystudio/ui', async () => {
   return {
     KeyboardLayerProvider,
     BarVisualizer,
+    EmptyNote,
+    EmptyPlaceholder,
+    EmptyStateMark,
+    EmptyStateMessage,
+    EmptyStateRow,
     createCodeHighlightPlugin,
     // Markdown — `@cherrystudio/ui` barrel re-exports composites/markdown (#16228).
     // Lightweight stand-ins so tests mounting real ChatMarkdown still surface text.

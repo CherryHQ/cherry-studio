@@ -17,10 +17,11 @@ import {
   verticalListSortingStrategy
 } from '@dnd-kit/sortable'
 import { isKeyboardEvent } from '@dnd-kit/utilities'
+import { SearchX } from 'lucide-react'
 import { useCallback, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Accordion, BlurCancelPointerSensor, EmptyState, ScrollArea } from '@cherrystudio/ui'
+import { Accordion, BlurCancelPointerSensor, EmptyStateRow, ScrollArea } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { useSidebarShortcuts } from '@renderer/hooks/useSidebarShortcuts'
 import { toast } from '@renderer/services/toast'
@@ -225,7 +226,9 @@ const BaseNavigatorContent = ({
         ) : sections.length === 0 || (flatSection && flatSection.items.length === 0) ? (
           // KnowledgePage normally owns the zero-base empty state; keep a defensive fallback
           // for a transient empty collection while navigator data changes.
-          <EmptyState title={t('common.no_results')} compact className="h-full" />
+          <EmptyStateRow icon={SearchX} className="mx-1 my-2">
+            {t('common.no_results')}
+          </EmptyStateRow>
         ) : flatSection ? (
           <SortableContext
             items={flatSection.items.map((base) => `base:${base.id}`)}

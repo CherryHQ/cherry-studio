@@ -10,6 +10,7 @@ import {
   DialogHeader,
   DialogTitle,
   Divider,
+  EmptyNote,
   ScrollArea
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
@@ -82,7 +83,11 @@ const PopupContainer: React.FC<Props> = ({ releaseInfo, open, resolve }) => {
           contentProps={{ className: 'pr-2' }}
           viewportProps={{ className: 'overflow-x-hidden' }}
           className="min-h-0 max-h-96">
-          {releaseInfo ? <UpgradeReleaseNotes releaseInfo={releaseInfo} /> : t('update.noReleaseNotes')}
+          {releaseInfo ? (
+            <UpgradeReleaseNotes releaseInfo={releaseInfo} />
+          ) : (
+            <EmptyNote>{t('update.noReleaseNotes')}</EmptyNote>
+          )}
         </ScrollArea>
         <Divider className="my-0" />
         <DialogFooter>

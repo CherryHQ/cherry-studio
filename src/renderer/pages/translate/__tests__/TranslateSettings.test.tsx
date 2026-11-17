@@ -56,6 +56,9 @@ vi.mock('../components/IconButton', () => ({
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
+  EmptyStateRow: (props: React.ComponentProps<typeof MockCherrystudioUI.EmptyStateRow>) => (
+    <MockCherrystudioUI.EmptyStateRow {...props} />
+  ),
   Button: ({ children, ...props }: React.ComponentProps<'button'>) => (
     <button type="button" {...props}>
       {children}
@@ -176,6 +179,8 @@ vi.mock('@cherrystudio/ui', () => ({
   ),
   Tooltip: ({ children }: { children: React.ReactNode }) => <>{children}</>
 }))
+
+import { MockCherrystudioUI } from '@test-mocks/renderer/CherrystudioUI'
 
 import TranslateSettings, { TranslateSettingsPanelContent } from '../TranslateSettings'
 

@@ -122,6 +122,9 @@ vi.mock('@renderer/components/KnowledgeBaseSelector', () => ({
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
+  EmptyNote: (props: React.ComponentProps<typeof MockCherrystudioUI.EmptyNote>) => (
+    <MockCherrystudioUI.EmptyNote {...props} />
+  ),
   Button: ({ children, loading, ...props }: React.ComponentProps<'button'> & { loading?: boolean }) => (
     <button type="button" {...props}>
       {loading ? 'loading' : children}
@@ -144,6 +147,8 @@ vi.mock('@cherrystudio/ui', () => ({
   HelpTooltip: () => null,
   Label: ({ children, ...props }: React.ComponentProps<'label'>) => <label {...props}>{children}</label>
 }))
+
+import { MockCherrystudioUI } from '@test-mocks/renderer/CherrystudioUI'
 
 import { PopupHost } from '@renderer/components/PopupHost'
 

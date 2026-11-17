@@ -1,9 +1,18 @@
 import { getRouteApi, useNavigate } from '@tanstack/react-router'
-import { Plus } from 'lucide-react'
+import { Bot, Plus } from 'lucide-react'
 import { lazy, Suspense, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Tooltip } from '@cherrystudio/ui'
+import {
+  Button,
+  EmptyPlaceholder,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  Tooltip
+} from '@cherrystudio/ui'
 import { ResourceList } from '@renderer/components/chat/resourceList/base'
 import { ConversationNavigationPane } from '@renderer/components/chat/shell/ConversationNavigationPane'
 import { ConversationSidebarToggleButton } from '@renderer/components/chat/shell/ConversationSidebarToggleButton'
@@ -285,18 +294,26 @@ export default function ScheduledTasksPage() {
             agentNotice={
               !agentsLoading &&
               (agentsError || !availableAgents?.items.length) && (
-                <div role="status" className="flex items-center gap-2 p-3">
-                  {agentsError ? t('agent.tasks.error.loadFailed') : t('settings.scheduledTasks.noAgents')}
+                <div role="status" className="p-3">
                   {agentsError ? (
-                    <Button onClick={() => void refreshAgents()}>{t('common.retry')}</Button>
+                    <div className="flex items-center gap-2">
+                      {t('agent.tasks.error.loadFailed')}
+                      <Button onClick={() => void refreshAgents()}>{t('common.retry')}</Button>
+                    </div>
                   ) : (
-                    <Button
-                      onClick={() => {
-                        changeCreateOpen(false)
-                        void navigate({ to: '/app/agents' })
-                      }}>
-                      {t('title.work')}
-                    </Button>
+                    <EmptyPlaceholder
+                      icon={Bot}
+                      title={t('settings.scheduledTasks.noAgents')}
+                      action={
+                        <Button
+                          onClick={() => {
+                            changeCreateOpen(false)
+                            void navigate({ to: '/app/agents' })
+                          }}>
+                          {t('title.work')}
+                        </Button>
+                      }
+                    />
                   )}
                 </div>
               )

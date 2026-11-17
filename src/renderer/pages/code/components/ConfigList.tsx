@@ -1,7 +1,7 @@
 import { type FC, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { EmptyState, ReorderableList } from '@cherrystudio/ui'
+import { EmptyState, EmptyStateMessage, ReorderableList } from '@cherrystudio/ui'
 import { isOwnLoginConfigurable } from '@renderer/pages/code/cliConfig'
 import type { CliProviderConfig } from '@shared/data/preference/preferenceTypes'
 import type { Provider } from '@shared/data/types/provider'
@@ -74,7 +74,11 @@ export const ConfigList: FC<ConfigListProps> = ({
   }
 
   if (displayedProviders.length === 0) {
-    return <div className="py-8 text-center text-xs text-foreground-tertiary">{t('code.no_matching_providers')}</div>
+    return (
+      <div className="py-8 text-center text-xs text-foreground-tertiary">
+        <EmptyStateMessage>{t('code.no_matching_providers')}</EmptyStateMessage>
+      </div>
+    )
   }
 
   return (

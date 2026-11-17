@@ -10,6 +10,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  EmptyNote,
   Flex,
   HelpTooltip,
   Label
@@ -464,11 +465,7 @@ const PopupContainer: React.FC<Props> = ({ dialogTitle, source, sourceTitle, ope
     resolve(null)
   }
 
-  const renderEmptyState = () => (
-    <div className="flex min-h-[100px] items-center justify-center text-center">
-      <span className="text-sm text-muted-foreground">{uiState.message}</span>
-    </div>
-  )
+  const renderEmptyState = () => <EmptyNote>{uiState.message}</EmptyNote>
 
   const renderFormContent = () => (
     <div className="space-y-4">

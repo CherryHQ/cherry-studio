@@ -318,6 +318,7 @@ vi.mock('@cherrystudio/ui', async (importActual) => {
     DropdownMenuSubContent: actual.DropdownMenuSubContent,
     DropdownMenuSubTrigger: actual.DropdownMenuSubTrigger,
     DropdownMenuTrigger: actual.DropdownMenuTrigger,
+    EmptyStateRow: actual.EmptyStateRow,
     ResizableHandle: actual.ResizableHandle,
     ResizablePanel: actual.ResizablePanel,
     ResizablePanelGroup: actual.ResizablePanelGroup,

@@ -1,8 +1,8 @@
 import '../layout/ShellNavigation.css'
-import { ChevronDown, Search } from 'lucide-react'
+import { ChevronDown, Pin, Search } from 'lucide-react'
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 
-import { Button, Separator, Tooltip } from '@cherrystudio/ui'
+import { Button, EmptyStateRow, Separator, Tooltip } from '@cherrystudio/ui'
 import { useLeadingWindowControlsOverlay } from '@renderer/hooks/useLeadingWindowControlsOverlay'
 import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
 import { isMac } from '@renderer/utils/platform'
@@ -133,7 +133,9 @@ export function Sidebar({
   const showHeaderDivider = !showUserInFooter && contentLayout === 'icon' && (isFullscreen || !hasLeadingWindowControls)
   const emptyState =
     entries.length === 0 && contentLayout === 'full' && emptyHint ? (
-      <p className="px-4 py-3 text-xs text-muted-foreground [-webkit-app-region:no-drag]">{emptyHint}</p>
+      <EmptyStateRow icon={Pin} className="mx-3 my-2 [-webkit-app-region:no-drag]">
+        {emptyHint}
+      </EmptyStateRow>
     ) : null
 
   const footerProps = {

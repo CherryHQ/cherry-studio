@@ -1,7 +1,9 @@
+import { SearchX } from 'lucide-react'
 import type { ComponentPropsWithoutRef, FC } from 'react'
 import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { EmptyNote } from '@cherrystudio/ui'
 import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
 import { useTimer } from '@renderer/hooks/useTimer'
 import type { NormalToolResponse } from '@renderer/types/mcpTool'
@@ -162,7 +164,7 @@ const ToolSearchBody: FC<{ toolResponse: NormalToolResponse }> = ({ toolResponse
     <BodyContainer>
       <ArgsBlock args={args} />
       {toolResponse.status === 'done' && matchedNamespaces.length === 0 && (
-        <Empty>{t('message.tools.meta.no_tools_matched')}</Empty>
+        <EmptyNote icon={SearchX}>{t('message.tools.meta.no_tools_matched')}</EmptyNote>
       )}
       {matchedNamespaces.map((group) => (
         <NamespaceGroup key={group.namespace}>
@@ -216,7 +218,7 @@ const ToolInvokeBody: FC<{ toolResponse: NormalToolResponse }> = ({ toolResponse
   if (!innerName) {
     return (
       <BodyContainer>
-        <Empty>{t('message.tools.meta.invoke_missing_name')}</Empty>
+        <EmptyNote>{t('message.tools.meta.invoke_missing_name')}</EmptyNote>
       </BodyContainer>
     )
   }
@@ -459,10 +461,6 @@ const Highlighted = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) =
       .join(' ')}
     {...props}
   />
-)
-
-const Empty = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) => (
-  <div className={['text-foreground-tertiary text-xs italic', className].filter(Boolean).join(' ')} {...props} />
 )
 
 export default memo(MessageMetaTool)

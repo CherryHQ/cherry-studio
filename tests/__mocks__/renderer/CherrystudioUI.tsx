@@ -1,6 +1,9 @@
 import type { ComponentProps, InputHTMLAttributes, ReactNode } from 'react'
 import React from 'react'
 
+import { EmptyNote, EmptyPlaceholder, EmptyStateRow } from '@cherrystudio/ui/components/primitives/empty-state-compact'
+import { EmptyStateMark, EmptyStateMessage } from '@cherrystudio/ui/components/primitives/empty-state-mark'
+
 const itemHandler = (onSelect: ((event: Event) => void) | undefined, props: Record<string, unknown>) => ({
   ...props,
   'data-disabled': props.disabled ? '' : undefined,
@@ -146,6 +149,12 @@ export const MockCherrystudioUI = {
       {description && <p>{description}</p>}
     </div>
   ),
+  // Real compact templates: plain DOM with no portals, so tests read the shipped markup.
+  EmptyNote,
+  EmptyPlaceholder,
+  EmptyStateMark,
+  EmptyStateMessage,
+  EmptyStateRow,
   FieldError: ({ children, ...props }: { children?: ReactNode }) => <p {...props}>{children}</p>,
   Input: (props: InputHTMLAttributes<HTMLInputElement>) => <input {...props} />,
   Label: ({ children, ...props }: { children?: ReactNode }) => <label {...props}>{children}</label>,

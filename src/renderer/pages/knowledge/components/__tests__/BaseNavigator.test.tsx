@@ -31,6 +31,7 @@ vi.mock('@cherrystudio/ui', () => {
   const AccordionItemContext = React.createContext<string | null>(null)
 
   return {
+    EmptyStateRow: MockCherrystudioUI.EmptyStateRow,
     BlurCancelPointerSensor: require('@dnd-kit/core').PointerSensor,
     Accordion: ({
       children,

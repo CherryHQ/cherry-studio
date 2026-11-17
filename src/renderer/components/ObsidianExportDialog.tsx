@@ -10,7 +10,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  EmptyState,
+  EmptyNote,
   Input,
   Label,
   Select,
@@ -407,9 +407,7 @@ const PopupContainer: React.FC<PopupContainerProps> = ({
       )
     }
 
-    return (
-      <EmptyState compact className="min-h-20 py-4" description={i18n.t('chat.topics.export.obsidian_no_vaults')} />
-    )
+    return <EmptyNote>{i18n.t('chat.topics.export.obsidian_no_vaults')}</EmptyNote>
   }
 
   const renderPathSelector = () => {
@@ -438,13 +436,7 @@ const PopupContainer: React.FC<PopupContainerProps> = ({
       )
     }
 
-    return (
-      <EmptyState
-        compact
-        className="min-h-20 py-4"
-        description={i18n.t('chat.topics.export.obsidian_select_vault_first')}
-      />
-    )
+    return <EmptyNote>{i18n.t('chat.topics.export.obsidian_select_vault_first')}</EmptyNote>
   }
 
   return (

@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import useSWR from 'swr'
 import useSWRMutation from 'swr/mutation'
 
-import { Button, Switch, HelpTooltip } from '@cherrystudio/ui'
+import { Button, EmptyNote, EmptyStateRow, HelpTooltip, Switch } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import {
@@ -133,9 +133,7 @@ export function ComputerUseSettings() {
         {busy && <SettingDescription role="status">{t('common.loading')}</SettingDescription>}
         {!error && data && (
           <>
-            {data.permissions.length === 0 && (
-              <SettingDescription>{t('settings.computerUse.noPermissions')}</SettingDescription>
-            )}
+            {data.permissions.length === 0 && <EmptyNote>{t('settings.computerUse.noPermissions')}</EmptyNote>}
             {data.permissions.map((permission, index) => {
               const id = permission.id
               const known = id === 'accessibility' || id === 'screenRecording'
@@ -192,7 +190,7 @@ export function ComputerUseSettings() {
       <SettingGroup>
         <SettingRowTitle>{t('settings.computerUse.approval.saved')}</SettingRowTitle>
         {approvedApps.length === 0 && (
-          <SettingDescription>{t('settings.computerUse.approval.empty')}</SettingDescription>
+          <EmptyStateRow className="mt-2">{t('settings.computerUse.approval.empty')}</EmptyStateRow>
         )}
         {approvedApps.map((identity) => (
           <SettingRow key={identity}>

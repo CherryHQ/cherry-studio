@@ -13,6 +13,8 @@ import {
   CommandInput,
   CommandItem,
   CommandList,
+  EmptyPlaceholder,
+  EmptyStateMessage,
   Popover,
   PopoverContent,
   PopoverTrigger,
@@ -88,7 +90,7 @@ export const CatalogToggleGrid: FC<{
     return <CatalogEmptyPlaceholder>{t('common.loading')}</CatalogEmptyPlaceholder>
   }
   if (items.length === 0 && !trailingItem) {
-    return <CatalogEmptyPlaceholder>{emptyLabel}</CatalogEmptyPlaceholder>
+    return <EmptyPlaceholder title={emptyLabel} />
   }
 
   return (
@@ -285,7 +287,7 @@ export const AddCatalogPopover: FC<{
           />
           <CommandList>
             {filteredOptions.length === 0 ? (
-              <div className="py-6 text-center text-sm text-muted-foreground">{emptyLabel}</div>
+              <EmptyStateMessage className="py-6 text-sm text-muted-foreground">{emptyLabel}</EmptyStateMessage>
             ) : (
               <CommandGroup>
                 {filteredOptions.map((option) => (

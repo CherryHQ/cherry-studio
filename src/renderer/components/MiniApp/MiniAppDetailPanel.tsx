@@ -13,6 +13,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  EmptyNote,
   Tabs,
   TabsContent,
   TabsList,
@@ -485,7 +486,7 @@ const MiniAppDetailPanel: FC<Props> = ({ appId, open = true, onClose }) => {
                     </div>
                   </div>
                   {activity.entries.length === 0 ? (
-                    <p className="text-muted-foreground text-xs">{t('miniApp.activity.empty')}</p>
+                    <EmptyNote>{t('miniApp.activity.empty')}</EmptyNote>
                   ) : (
                     <ul
                       className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto font-mono text-xs"

@@ -10,7 +10,8 @@ import {
   DialogDescription,
   DialogFooter,
   DialogHeader,
-  DialogTitle
+  DialogTitle,
+  EmptyStateRow
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { useInvalidateCache, useQuery } from '@renderer/data/hooks/useDataApi'
@@ -70,7 +71,9 @@ function ImpactSection({ title, countLabel, emptyLabel, items, total, icon: Icon
           ) : null}
         </div>
       ) : (
-        <p className="px-3 py-3 text-center text-muted-foreground text-xs">{emptyLabel}</p>
+        <EmptyStateRow icon={Icon} className="m-1">
+          {emptyLabel}
+        </EmptyStateRow>
       )}
     </div>
   )

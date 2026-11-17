@@ -2,7 +2,7 @@ import { Globe2, GripVertical, Plus, Unlink, Zap } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Alert, Button, EmptyState, ReorderableList, Tooltip } from '@cherrystudio/ui'
+import { Alert, Button, EmptyPlaceholder, ReorderableList, Tooltip } from '@cherrystudio/ui'
 import { useDataChange, useQuery } from '@data/hooks/useDataApi'
 import { useReorder } from '@data/hooks/useReorder'
 import { usePromptBindingMutations, usePromptMutations } from '@renderer/hooks/resourceCatalog'
@@ -205,12 +205,7 @@ export function PromptBindingTab({ enabled, target, portalContainer, onManageGlo
         ) : isLoading ? (
           <CatalogEmptyPlaceholder>{t('common.loading')}</CatalogEmptyPlaceholder>
         ) : (boundPromptsData ?? []).length === 0 ? (
-          <EmptyState
-            compact
-            icon={Zap}
-            title={t('settings.prompts.binding.noLinked')}
-            className="rounded-md border border-border-subtle border-dashed py-6"
-          />
+          <EmptyPlaceholder icon={Zap} title={t('settings.prompts.binding.noLinked')} />
         ) : (
           <ReorderableList
             items={boundPromptsData ?? []}

@@ -6,6 +6,7 @@ import {
   Eye,
   List,
   MessageSquareText,
+  SearchX,
   SquareDashedMousePointer,
   SquarePen
 } from 'lucide-react'
@@ -26,6 +27,7 @@ import { FilePreviewToolbarPortalHost, FilePreviewToolbarPortalProvider } from '
 import {
   Button,
   ConfirmDialog,
+  EmptyStateRow,
   ResizableHandle,
   ResizablePanel,
   ResizablePanelGroup,
@@ -1075,15 +1077,17 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
           getMenuItems={getFileTreeMenuItems}
           showFolderIcons={false}
           emptyState={
-            <div className="px-2 py-3 text-xs text-muted-foreground">
-              {treeErrorKeys
-                ? t(treeErrorKeys.title)
-                : trimmedFileSearch
+            treeErrorKeys ? (
+              <div className="px-2 py-3 text-xs text-muted-foreground">{t(treeErrorKeys.title)}</div>
+            ) : (
+              <EmptyStateRow icon={trimmedFileSearch ? SearchX : undefined} className="mx-1 my-2">
+                {trimmedFileSearch
                   ? t('agent.preview_pane.no_search_results')
                   : workspacePath
                     ? t('agent.preview_pane.empty.title')
                     : t('agent.preview_pane.empty.description')}
-            </div>
+              </EmptyStateRow>
+            )
           }
         />
       ),

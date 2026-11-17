@@ -6,7 +6,12 @@ import { ComposerPanelSymbol, prepareComposerQuickPanelSearch } from '@renderer/
 import type { ComposerToolLauncher } from '@renderer/components/composer/toolLauncher'
 import { defineTool, type ToolRenderContext, TopicType } from '@renderer/components/composer/tools/types'
 import { McpLogo } from '@renderer/components/icons/SvgIcon'
-import { type QuickPanelCallBackOptions, type QuickPanelListItem, useQuickPanel } from '@renderer/components/QuickPanel'
+import {
+  type QuickPanelCallBackOptions,
+  QuickPanelEmptyIcon,
+  type QuickPanelListItem,
+  useQuickPanel
+} from '@renderer/components/QuickPanel'
 import { useAgent } from '@renderer/hooks/agent/useAgent'
 import { useScopedMcpServers } from '@renderer/hooks/useMcpServer'
 import { ipcApi } from '@renderer/ipc'
@@ -211,7 +216,7 @@ const McpPromptComposerRuntime = ({ context }: { context: McpPromptToolContext }
         {
           id: 'mcp-prompts:empty',
           label: t('chat.input.mcp_prompts.empty'),
-          icon: <McpLogo aria-hidden />,
+          icon: <QuickPanelEmptyIcon />,
           disabled: true
         }
       ]

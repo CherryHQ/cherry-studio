@@ -1,4 +1,4 @@
-import { ArrowLeftRight, ChevronDown, PenLine, Plus, X } from 'lucide-react'
+import { ArrowLeftRight, ChevronDown, Languages, PenLine, Plus, X } from 'lucide-react'
 import type { FC, KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { memo, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next'
 import {
   Button,
   ConfirmDialog,
+  EmptyStateRow,
   Field,
   FieldDescription,
   FieldLabel,
@@ -492,9 +493,7 @@ const CustomLanguageList: FC = () => {
           <CustomLanguageRow key={language.langCode} language={language} />
         ))}
         {customLanguages.length === 0 && !isAdding && (
-          <p className="rounded-md bg-muted/30 px-2 py-2 text-center text-sm text-muted-foreground">
-            {t('common.no_results')}
-          </p>
+          <EmptyStateRow icon={Languages}>{t('common.no_results')}</EmptyStateRow>
         )}
         {isAdding ? (
           <AddCustomLanguageForm

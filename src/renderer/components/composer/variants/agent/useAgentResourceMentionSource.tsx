@@ -4,6 +4,7 @@ import { Folder } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { QuickPanelEmptyIcon } from '@renderer/components/QuickPanel'
 import { FILE_TYPE } from '@renderer/types/file'
 import { getFileIconName } from '@renderer/utils/fileIconName'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
@@ -308,7 +309,7 @@ export function useAgentResourceMentionSource({
               id: 'agent-resource:no-paths',
               label: t('chat.input.resource_panel.no_resources_found.label'),
               description: t('chat.input.resource_panel.no_resources_found.description'),
-              icon: <Folder size={16} />,
+              icon: <QuickPanelEmptyIcon />,
               disabled: true,
               command: () => undefined
             }
