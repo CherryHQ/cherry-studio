@@ -1,6 +1,5 @@
 import Copy from 'lucide-react/dist/esm/icons/copy'
 import FileDown from 'lucide-react/dist/esm/icons/file-down'
-import FileText from 'lucide-react/dist/esm/icons/file-text'
 import FileWarning from 'lucide-react/dist/esm/icons/file-warning'
 import ImageDown from 'lucide-react/dist/esm/icons/image-down'
 import LoaderCircle from 'lucide-react/dist/esm/icons/loader-circle'
@@ -16,6 +15,7 @@ import { loggerService } from '@logger'
 import MermaidPreview from '@renderer/components/Preview/MermaidPreview'
 import type { BasicPreviewHandles } from '@renderer/components/Preview/types'
 
+import { FilePreviewEmptyScene } from '../../FilePreviewEmptyScene'
 import type { FilePreviewPluginProps } from '../../types'
 
 const logger = loggerService.withContext('MermaidFilePreview')
@@ -66,7 +66,7 @@ export default function MermaidFilePreview({ filePath, refreshKey }: FilePreview
   } else if (!loadState.source.trim()) {
     content = (
       <EmptyState
-        icon={FileText}
+        scene={<FilePreviewEmptyScene kind="empty" />}
         title={t('file_preview.text.empty.title')}
         description={t('file_preview.text.empty.description')}
         className="h-full"

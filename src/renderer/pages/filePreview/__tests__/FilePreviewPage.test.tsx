@@ -26,6 +26,7 @@ vi.mock('@renderer/hooks/tab', () => ({
 }))
 
 vi.mock('@renderer/components/FilePreview', () => ({
+  FilePreviewEmptyScene: () => null,
   FilePreview: ({ filePath, refreshKey }: { filePath: AbsoluteFilePath; refreshKey: number }) => (
     <div data-testid="file-preview" data-refresh-key={refreshKey}>
       {filePath}

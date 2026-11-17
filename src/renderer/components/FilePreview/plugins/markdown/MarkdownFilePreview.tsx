@@ -1,4 +1,3 @@
-import FileText from 'lucide-react/dist/esm/icons/file-text'
 import FileWarning from 'lucide-react/dist/esm/icons/file-warning'
 import LoaderCircle from 'lucide-react/dist/esm/icons/loader-circle'
 import { lazy, type ReactNode, Suspense, useCallback, useId, useLayoutEffect, useState } from 'react'
@@ -14,6 +13,7 @@ import { joinPath } from '@renderer/utils/path'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 import { toFileUrl } from '@shared/utils/file'
 
+import { FilePreviewEmptyScene } from '../../FilePreviewEmptyScene'
 import type { FilePreviewPluginProps } from '../../types'
 import { useOptionalFilePreviewNavigation } from '../../useFilePreviewNavigation'
 import { type MarkdownFilePreviewMode, MarkdownFilePreviewToolbar } from './MarkdownFilePreviewToolbar'
@@ -58,7 +58,7 @@ function MarkdownPreviewEmpty() {
 
   return (
     <EmptyState
-      icon={FileText}
+      scene={<FilePreviewEmptyScene kind="empty" />}
       title={t('file_preview.markdown.empty.title')}
       description={t('file_preview.markdown.empty.description')}
       className="h-full"

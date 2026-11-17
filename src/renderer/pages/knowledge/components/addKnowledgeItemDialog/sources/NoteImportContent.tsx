@@ -2,13 +2,14 @@ import { NotebookPen } from 'lucide-react'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Checkbox } from '@cherrystudio/ui'
+import { Checkbox, EmptyState } from '@cherrystudio/ui'
 import { useDirectoryTree } from '@renderer/hooks/useDirectoryTree'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { projectNotesTree } from '@renderer/services/NotesService'
 import { flattenTreeToFiles } from '@renderer/services/NotesTreeService'
 
 import type { NoteItem } from '../types'
+import { NoteImportEmptyScene } from './NoteImportEmptyScene'
 
 interface NoteImportContentProps {
   selectedNotes: NoteItem[]
@@ -54,20 +55,13 @@ const NoteImportContent = ({ selectedNotes, onToggle, onSelectionChange }: NoteI
 
     if (noteFiles.length === 0) {
       return (
-        <div className="flex min-h-24 min-w-0 flex-1 items-center justify-center rounded-md border border-border-subtle border-dashed p-4 text-center text-foreground-tertiary">
-          <div className="flex min-w-0 flex-col items-center gap-2.5">
-            <div className="flex size-8 items-center justify-center rounded-full bg-accent text-foreground-tertiary">
-              <NotebookPen className="size-4" />
-            </div>
-            <div className="min-w-0 space-y-1">
-              <p className="text-foreground text-sm leading-5">
-                {t('knowledge.data_source.add_dialog.note.empty_title')}
-              </p>
-              <p className="max-w-60 text-xs leading-5">
-                {t('knowledge.data_source.add_dialog.note.empty_description')}
-              </p>
-            </div>
-          </div>
+        <div className="flex min-h-24 min-w-0 flex-1 items-center justify-center">
+          <EmptyState
+            compact
+            scene={<NoteImportEmptyScene />}
+            title={t('knowledge.data_source.add_dialog.note.empty_title')}
+            description={t('knowledge.data_source.add_dialog.note.empty_description')}
+          />
         </div>
       )
     }

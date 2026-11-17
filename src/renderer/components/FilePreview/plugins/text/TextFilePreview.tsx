@@ -1,4 +1,3 @@
-import FileText from 'lucide-react/dist/esm/icons/file-text'
 import FileWarning from 'lucide-react/dist/esm/icons/file-warning'
 import LoaderCircle from 'lucide-react/dist/esm/icons/loader-circle'
 import { lazy, type ReactNode, Suspense, useLayoutEffect, useState } from 'react'
@@ -9,6 +8,7 @@ import { EmptyState } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { FILE_EDIT_MAX_SIZE_BYTES } from '@shared/types/file'
 
+import { FilePreviewEmptyScene } from '../../FilePreviewEmptyScene'
 import type { FilePreviewPluginProps } from '../../types'
 
 const logger = loggerService.withContext('TextFilePreview')
@@ -39,7 +39,7 @@ function TextPreviewEmpty() {
   return (
     <div role="status" className="h-full">
       <EmptyState
-        icon={FileText}
+        scene={<FilePreviewEmptyScene kind="empty" />}
         title={t('file_preview.text.empty.title')}
         description={t('file_preview.text.empty.description')}
         className="h-full"
