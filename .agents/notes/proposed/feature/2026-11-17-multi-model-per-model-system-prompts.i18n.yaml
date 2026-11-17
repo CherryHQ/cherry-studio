@@ -1,5 +1,5 @@
 # Bilingual-pair consistency record (docs/dev/i18n/README.md).
 # After editing either side, update its counterpart and re-record with:
 #   pnpm docs:check-pairing --write .agents/notes/proposed/feature/2026-11-17-multi-model-per-model-system-prompts.md
-2026-11-17-multi-model-per-model-system-prompts.md: a4bb5378743a845a874b851f226414adf54a73bc
-2026-11-17-multi-model-per-model-system-prompts.zh.md: a6c3853e622abfc5372361f7f220a6ab0ca6ca19
+2026-11-17-multi-model-per-model-system-prompts.md: f4263a5a521b1181020ee898de52d50235cd74ae
+2026-11-17-multi-model-per-model-system-prompts.zh.md: 0db3d62ad869439304934e4d9bda8d6d6844424b

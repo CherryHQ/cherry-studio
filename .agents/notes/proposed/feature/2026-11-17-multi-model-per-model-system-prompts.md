@@ -32,13 +32,13 @@ Out of scope: mentioning assistants (the second shape in the issue, which overla
 - AC1 — A turn with two or more mentions, each with a different `systemPrompt`, sends each branch's request with its own prompt (verification: unit)
 - AC2 — A mention without `systemPrompt` sends the topic assistant's prompt unchanged from current behavior (verification: unit)
 - AC3 — No branch's override appears in another selected model's request (verification: unit)
-- AC4 — Regenerate and edit-and-resend use the prompt recorded on the original reply, not the current assistant prompt (verification: unit)
+- AC4 — Regenerate and edit-and-resend use the prompt recorded on the original reply, including replies that fell back to the topic assistant's prompt, not the current assistant prompt (verification: unit)
 - AC5 — Each assistant reply shows its model, and a prompt label when an override was used, after reloading history (verification: renderer)
 - AC6 — Bare `UniqueModelId` mentions dispatch exactly as before (verification: unit)
 - AC7 — Template variables in an override resolve the same way as in an assistant prompt (verification: unit)
 
 ## Risks
 
-- Persisted prompt text increases message size. Mitigation: bound the override length during implementation and store the text only on replies that used an override.
+- Persisted prompt text increases message size. Mitigation: bound the stored prompt length during implementation. Every assistant reply records the effective prompt it used, including fallback replies that used the topic assistant's prompt, so regenerate and edit-and-resend never re-read a changed assistant prompt.
 - Overridden branches have a different prompt prefix, which can lower provider prompt-cache hit rates. Mitigation: state this in the UI copy only if measurements show a real cost.
-- Unverified: whether per-branch request building is fully separable from the single assistant lookup on the request path (`src/main/ai/AiService.ts`, around lines 1375 and 1659). Implementation must confirm this before the Spec is approved.
+- Unverified: whether per-branch request building is fully separable from the single assistant lookup on the request path - the chat-path request construction in `buildAgentParamsFor` (`src/main/ai/AiService.ts:1620`) and the per-model resolution in `getProviderAndModel` (`src/main/ai/AiService.ts:1669`). Implementation must confirm this before the Spec is approved.

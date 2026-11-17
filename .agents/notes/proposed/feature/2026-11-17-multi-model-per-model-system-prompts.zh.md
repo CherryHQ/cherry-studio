@@ -32,13 +32,13 @@ Tracks: CherryHQ/cherry-studio#18321
 - AC1 — 一轮中有两个或以上提及且各自 `systemPrompt` 不同时，每个分支的请求都带有各自的提示词（verification: unit）
 - AC2 — 未设置 `systemPrompt` 的提及，发送的是话题助手的提示词，与当前行为一致（verification: unit）
 - AC3 — 任一分支的覆盖内容都不会出现在其他被选模型的请求中（verification: unit）
-- AC4 — 重新生成和编辑后重发使用原回复上记录的提示词，而非当前助手的提示词（verification: unit）
+- AC4 — 重新生成和编辑后重发使用原回复上记录的提示词，包括回退到话题助手提示词的回复，而非当前助手的提示词（verification: unit）
 - AC5 — 重新加载历史后，每条助手回复都显示其模型；若使用了覆盖提示词，还显示提示词标签（verification: renderer）
 - AC6 — 裸 `UniqueModelId` 提及的分发行为与之前完全一致（verification: unit）
 - AC7 — 覆盖提示词中的模板变量，解析方式与助手提示词相同（verification: unit）
 
 ## Risks
 
-- 持久化的提示词文本会增大消息体积。缓解：实现时限制覆盖提示词的长度，且仅在使用了覆盖的回复上保存文本。
+- 持久化的提示词文本会增大消息体积。缓解：实现时限制所保存提示词的长度。每条助手回复都记录其实际使用的提示词，包括回退到话题助手提示词的回复，确保重新生成和编辑后重发不会重新读取已变更的助手提示词。
 - 使用覆盖的分支提示词前缀不同，可能降低服务商的提示词缓存命中率。缓解：仅当测量显示确有成本时，才在界面文案中说明。
-- 未验证：按分支构建请求，能否与请求路径上唯一的助手查找（`src/main/ai/AiService.ts`，约第 1375 和 1659 行）完全解耦。实现前必须确认，Spec 才能获批。
+- 未验证：按分支构建请求，能否与请求路径上唯一的助手查找完全解耦 - 即聊天路径上的请求构建 `buildAgentParamsFor`（`src/main/ai/AiService.ts:1620`）与按模型解析的 `getProviderAndModel`（`src/main/ai/AiService.ts:1669`）。实现前必须确认，Spec 才能获批。
