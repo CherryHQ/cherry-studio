@@ -97,7 +97,7 @@ class ReleaseCosTests(unittest.TestCase):
                 with (
                     self.subTest(edition=edition, platform=platform, architecture=architecture),
                     patch.object(sys, "argv", ["release-cos.py", "upload", edition, platform, *architecture]),
-                    patch.dict(os.environ, {"TAG": "v2.2.1", "COS_SECRET_ID": "id", "COS_SECRET_KEY": "key"}),
+                    patch.dict(os.environ, {"TAG": "v2.2.1", "TENCENT_CLOUD_SECRET_ID": "id", "TENCENT_CLOUD_SECRET_KEY": "key"}),
                     patch.object(release, "CosConfig") as config,
                     patch.object(release, "CosS3Client", return_value=self.store),
                 ):
@@ -206,7 +206,7 @@ class ReleaseCosTests(unittest.TestCase):
     def run_cli(self, *arguments):
         with (
             patch.object(sys, "argv", ["release-cos.py", *arguments]),
-            patch.dict(os.environ, {"COS_SECRET_ID": "id", "COS_SECRET_KEY": "key"}),
+            patch.dict(os.environ, {"TENCENT_CLOUD_SECRET_ID": "id", "TENCENT_CLOUD_SECRET_KEY": "key"}),
             patch.object(release, "CosConfig"),
             patch.object(release, "CosS3Client", return_value=self.store),
         ):

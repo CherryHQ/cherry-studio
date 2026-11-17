@@ -9,7 +9,7 @@ const Gpt54Mini = ({ variant, className, ...props }: CompoundIconProps) => {
 
 export const Gpt54MiniIcon: CompoundIcon = /*#__PURE__*/ Object.assign(Gpt54Mini, {
   Avatar: Gpt54MiniAvatar,
-  colorPrimary: '#000000'
+  colorPrimary: '#c0d1ff'
 })
 
 export default Gpt54MiniIcon

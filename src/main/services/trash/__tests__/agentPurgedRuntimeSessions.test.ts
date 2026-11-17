@@ -4,7 +4,7 @@ import { existsSync, mkdirSync, mkdtempSync, rmSync, utimesSync, writeFileSync }
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
-import { setupTestDatabase } from '@test-helpers/db'
+import { setupTestDatabase, seedSessionRoot } from '@test-helpers/db'
 import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 
 import { application } from '@application'
@@ -91,6 +91,7 @@ describe('permanent Agent Session transcript reclaim', () => {
     dbh.db
       .insert(agentSessionMessageTable)
       .values({
+        parentId: seedSessionRoot(dbh.db, id),
         id: `msg-${id}`,
         sessionId: id,
         role: 'user',
