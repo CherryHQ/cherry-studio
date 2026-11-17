@@ -116,6 +116,7 @@
   ],
   "plugins": ["unicorn", "typescript", "oxc", "import"],
   "rules": {
+    "anti-slop/no-reflect-apply": "error",
     "no-array-constructor": "off",
     "no-caller": "error",
     "no-eval": "error",

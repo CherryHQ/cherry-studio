@@ -42,6 +42,14 @@ function lint(source: string, rule?: string) {
 }
 
 describe('available generic anti-slop rules', () => {
+  it('enforces no-reflect-apply in the repository gate after its cleanup', () => {
+    const result = lint('export const result = Reflect.apply(Math.max, undefined, [1, 2])')
+    expect(result.status).toBe(1)
+    expect(result.diagnostics).toEqual(
+      expect.arrayContaining([expect.objectContaining({ code: 'anti-slop(no-reflect-apply)', severity: 'error' })])
+    )
+  })
+
   it.each([
     ['no-array-filter-map', 'export const result = [1, 2].filter(value => value > 0).map(value => value * 2)'],
     [
