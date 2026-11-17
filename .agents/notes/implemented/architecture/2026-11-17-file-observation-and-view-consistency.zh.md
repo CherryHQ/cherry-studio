@@ -195,6 +195,8 @@ renderer 注册表是具名的窗口内单例 `fileObservationService`，不是 
 
 已挂接编辑器独立于树观察自己的绑定资源。保存中会话保留观察，直到已接收的操作结束。已脱离的脏／失败／冲突会话在有界宽限期后释放观察，同时保留草稿和现有恢复状态；重新挂接后先重新验证再接纳磁盘内容，每次保存仍验证基线。已完成且脱离的会话释放租约。获取失败时同时释放部分订阅和已打开的编辑租约。观察回调调用带保护的重新验证：干净会话可接纳新字节；脏会话保留草稿并比较磁盘基线。Notes／Skills 到编辑器的树事件转发与 hook 中重复的聚焦监听已移除。保存确认仍以写入回复为准，不以 watcher 回声为准。
 
+自动保存的准入由编辑状态决定。进入保存失败、冲突或变更封存状态时，在通知消费者之前取消待执行定时器。仅在安排定时器时检查状态并不足够：保存期间继续输入会创建一个在前次保存失败后仍存活的定时器，未经用户操作就再次尝试保存。已接受的队列项保持原顺序，显式恢复能力仍保留。
+
 ### 协议、新鲜度与恢复
 
 | 边界 | 契约 |
@@ -233,7 +235,7 @@ renderer 注册表是具名的窗口内单例 `fileObservationService`，不是 
 
 - AC1 — `useArtifactFileTreeModel.observation.test.tsx` 与真实 Electron 重放：折叠超过空闲释放期后，外部删建文件，再展开直接采用替换快照，无需后续事件。
 - AC2 — `FileObservationService.test.ts`、`FilePreview.observation.test.tsx` 与真实 Electron：关闭树后的等长写入、原子替换、删除／重建、显式隐藏／工作区外路径，以及符号链接绑定变化。
-- AC3 — `FileEditSessionManager.test.ts`、切换消费者测试与真实 Electron：独立的干净／脏实例接纳磁盘变化，或保留自己的草稿并暴露冲突。
+- AC3 — `FileEditSessionManager.test.ts`、切换消费者测试与真实 Electron：独立的干净／脏实例接纳磁盘变化，或保留自己的草稿并暴露冲突；写入失败、响应丢失和冲突会取消较新的待执行自动保存，同时保留草稿。
 - AC4 — `FilePreviewRefresh.test.tsx`、`FilePreview.observation.test.tsx` 与 `electronPreviewSource.test.ts`：延迟的过期读取不能替换最新内容，兼容的工作簿阅读状态在刷新后保留。
 - AC5 — `DirectoryTreeManager.protocol.test.ts`、`useDirectoryTree.test.tsx` 与 `FileObservationSession.test.ts`：激活回放、修订号断档恢复，以及拒绝已退役的事件流。
 - AC6 — Main watcher 错误注入、renderer 重连／聚焦测试与真实 Electron `powerMonitor` 挂起／恢复：观察覆盖丢失会显式暴露，并能在不重启 renderer 的情况下恢复。

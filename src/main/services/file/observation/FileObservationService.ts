@@ -197,7 +197,7 @@ export class FileObservationService extends BaseService {
         const lease = await this.acquireFile(address, binding, (event) => {
           if (!this.subscriptions.has(subscriptionId)) return
           if (event.kind === 'ready') live = true
-          if (binding && live && event.kind !== 'ready' && event.kind !== 'error' && event.kind !== 'stale') {
+          if (live && event.kind !== 'ready' && event.kind !== 'error' && event.kind !== 'stale') {
             void this.fileTargets(target).then(
               (current) => {
                 bindingChanged ||= targetsChanged(current)

@@ -5,6 +5,7 @@ sources:
   - src/renderer/services/fileObservation
   - src/renderer/services/fileEdit
   - src/renderer/hooks/useFileEditSession.ts
+  - src/renderer/hooks/useFileSize.ts
   - src/renderer/components/FileEditSessionProvider.tsx
   - src/shared/ipc/schemas/fileEdit.ts
 ---
@@ -41,7 +42,7 @@ Main 对原始文件系统 locator 异步调用 `realpath`，不预先折叠点�
 
 写入成功时返回新基线和 `metadataRecoveryPending`；元数据收尾失败不能重放已提交字节。写入失败时抛出 `IpcError`，Renderer 保留草稿。不存在回执协议：只有进程退出才会丢失回复；基于旧基线的重试若发现磁盘已是相同字节，会将其视为已保存。
 
-`flush()` 立即捕获当前草稿和修订号。其目标排在旧写入之后，不能被后续编辑替换。另一份保存尚未完成时，即使撤销到此前的磁盘文本，也仍需后续写入。自动保存对尚未发送的编辑进行防抖。租约可以通过 `setAutoSave(false)` 关闭自动保存；此时编辑等待显式 `flush()`，挂载分离和释放时仍会保存。持续失败暂停自动重试，同时保留草稿与显式重试能力。
+`flush()` 立即捕获当前草稿和修订号。其目标排在旧写入之后，不能被后续编辑替换。另一份保存尚未完成时，即使撤销到此前的磁盘文本，也仍需后续写入。自动保存对尚未发送的编辑进行防抖。已确认的保存大小也会使元数据大小限制缓存失效，因此草稿增长到加载上限之外后，不会保留过期的“复制内容”操作。租约可以通过 `setAutoSave(false)` 关闭自动保存；此时编辑等待显式 `flush()`，挂载分离和释放时仍会保存。进入保存失败、冲突或封存状态时，会取消所有待执行的自动保存定时器，包括在前次保存期间继续输入所创建的定时器。草稿与显式重试能力仍保留；已经接受的写入继续遵循原队列顺序。
 
 条目写入、条目重命名/删除/清理和路径变更按条目锁 → 路径互斥锁顺序协调。即使大小和时间戳相同，哈希校验仍能发现字节变化。独立打开的编辑器均可编辑；基于旧基线的保存报告冲突并保留本地草稿。原子替换不提供相对于任意外部程序在校验与 rename 之间的比较并交换保证。
 

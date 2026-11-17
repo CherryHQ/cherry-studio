@@ -323,7 +323,7 @@
     },
     {
       "path": "docs/dev/references/file/file-editing.md",
-      "sources": ["src/main/services/file/FileEditService.ts","src/renderer/components/FileEditSessionProvider.tsx","src/renderer/hooks/useFileEditSession.ts","src/renderer/services/fileEdit","src/renderer/services/fileObservation","src/shared/ipc/schemas/fileEdit.ts"]
+      "sources": ["src/main/services/file/FileEditService.ts","src/renderer/components/FileEditSessionProvider.tsx","src/renderer/hooks/useFileEditSession.ts","src/renderer/hooks/useFileSize.ts","src/renderer/services/fileEdit","src/renderer/services/fileObservation","src/shared/ipc/schemas/fileEdit.ts"]
     },
     {
       "path": "docs/dev/references/file/file-entry-cleanup.md",

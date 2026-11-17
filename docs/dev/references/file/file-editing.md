@@ -5,6 +5,7 @@ sources:
   - src/renderer/services/fileObservation
   - src/renderer/services/fileEdit
   - src/renderer/hooks/useFileEditSession.ts
+  - src/renderer/hooks/useFileSize.ts
   - src/renderer/components/FileEditSessionProvider.tsx
   - src/shared/ipc/schemas/fileEdit.ts
 ---
@@ -41,7 +42,7 @@ The 8 MiB limit applies before and during loading. An already-open editor can gr
 
 A successful write returns the new baseline and `metadataRecoveryPending`; a metadata finalization failure must not replay committed bytes. A failed write throws an `IpcError` and the renderer keeps the draft. There is no receipt protocol: a reply is lost only when a process dies, and a retry against the old baseline that finds the same bytes on disk adopts them as saved.
 
-`flush()` captures the current draft and revision immediately. Its target waits behind older writes and cannot be replaced by a later edit. Undoing to the previous disk text while a different save is pending still requires a subsequent write. Autosave debounces unsent edits. A lease can turn autosave off with `setAutoSave(false)`; edits then wait for an explicit `flush()`, while detachment and release still save them. Persistent failures pause automatic retry while preserving the draft and explicit retry.
+`flush()` captures the current draft and revision immediately. Its target waits behind older writes and cannot be replaced by a later edit. Undoing to the previous disk text while a different save is pending still requires a subsequent write. Autosave debounces unsent edits. Confirmed saved sizes also invalidate metadata size gates, so a draft that grows beyond the loading limit cannot retain a stale Copy content action. A lease can turn autosave off with `setAutoSave(false)`; edits then wait for an explicit `flush()`, while detachment and release still save them. Entering a save failure, conflict, or sealed state cancels any pending autosave timer, including one created by typing during an earlier save. The draft and explicit retry remain available; already accepted writes retain their queue order.
 
 Entry writes, entry rename/delete/cleanup, and path mutations coordinate in entry-lock → path-mutex order. Hash validation detects changed bytes even when size and timestamps match. Independently opened editors can both edit; a stale save reports a conflict and retains its local draft. Atomic replacement does not provide compare-and-swap against arbitrary external programs between validation and rename.
 

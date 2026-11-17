@@ -195,6 +195,8 @@ The canonical `FilePreview` host observes its current resource, including previe
 
 An attached editor observes its bound resource independently of the tree. Saving sessions retain observation until their pending work settles. A detached dirty/failed/conflicted session releases observation after bounded grace while retaining its draft and existing recovery state; reattachment revalidates before adopting disk content, and every save still validates its baseline. A settled detached session releases its lease. A failed acquisition releases both partial subscriptions and existing edit leases. Observation callbacks invoke guarded revalidation: clean sessions may adopt new bytes; dirty sessions retain their draft and compare disk baselines. Notes/Skills tree-to-editor forwarding and duplicate hook-level focus listeners are removed. Save confirmation remains the write reply, never a watcher echo.
 
+Autosave admission follows the editing state. Entering save failure, conflict or a mutation seal cancels pending timers before notifying consumers. Checking only when scheduling was insufficient: typing during an in-flight save could create a timer that survived its failure and retried without user action. Accepted queue entries retain their ordering; explicit recovery remains available.
+
 ### Protocol, freshness and recovery
 
 | Boundary | Contract |
@@ -233,7 +235,7 @@ Use the existing bounded setup/retry behavior and retain an actionable stale/err
 
 - AC1 — `useArtifactFileTreeModel.observation.test.tsx` and real Electron replay: collapse past idle release, delete/create externally, reopen to the replacement snapshot without a later event.
 - AC2 — `FileObservationService.test.ts`, `FilePreview.observation.test.tsx` and real Electron: equal-length writes with the tree closed, atomic replacement, deletion/recreation, explicit hidden/outside paths and symlink binding changes.
-- AC3 — `FileEditSessionManager.test.ts`, switching consumers and real Electron: independent clean/dirty instances accept disk changes or preserve their local draft and expose conflict.
+- AC3 — `FileEditSessionManager.test.ts`, switching consumers and real Electron: independent clean/dirty instances accept disk changes or preserve their local draft and expose conflict; write failure, lost reply and conflict cancel a newer pending autosave without losing its draft.
 - AC4 — `FilePreviewRefresh.test.tsx`, `FilePreview.observation.test.tsx` and `electronPreviewSource.test.ts`: delayed obsolete reads cannot replace the latest content; compatible workbook reading state survives refresh.
 - AC5 — `DirectoryTreeManager.protocol.test.ts`, `useDirectoryTree.test.tsx` and `FileObservationSession.test.ts`: activation replay, revision-gap recovery and retired-stream rejection.
 - AC6 — Main watcher-error injection, renderer reconnect/focus tests and real Electron `powerMonitor` suspend/resume: coverage loss is explicit and observation resumes without restarting the renderer.

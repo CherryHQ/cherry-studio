@@ -327,7 +327,6 @@ export class FileEditSessionManager {
         }
         this.evict(session)
         if (!session.attachments.size && !session.pending) this.releaseObservationLater(session)
-        if (!session.attachments.size && !session.pending) this.releaseObservationLater(session)
       }
     }
   }
@@ -339,6 +338,7 @@ export class FileEditSessionManager {
         : (patch.bindingEpoch ?? session.snapshot.bindingEpoch)
     session.snapshot = { ...session.snapshot, ...patch, bindingEpoch }
     session.snapshot = { ...session.snapshot, isDirty: session.snapshot.draft !== session.disk.content }
+    if (!this.canAutoSave(session)) this.cancelTimer(session)
     for (const listener of session.listeners) listener()
     this.publishInventory()
   }
@@ -363,9 +363,13 @@ export class FileEditSessionManager {
     session.timer = undefined
   }
 
+  private canAutoSave(session: Session): boolean {
+    return session.autoSave && !session.snapshot.saveError && !session.snapshot.conflict && !session.snapshot.sealed
+  }
+
   private schedule(session: Session): void {
     this.cancelTimer(session)
-    if (!session.autoSave || session.snapshot.saveError || session.snapshot.conflict || session.snapshot.sealed) return
+    if (!this.canAutoSave(session)) return
     session.timer = setTimeout(() => {
       void this.flush(session).catch(() => {})
     }, 800)
@@ -383,6 +387,7 @@ export class FileEditSessionManager {
         session.pending--
         this.publish(session, { isSaving: session.pending > 0 })
         this.evict(session)
+        if (!session.attachments.size && !session.pending) this.releaseObservationLater(session)
         if (
           !session.pending &&
           session.needsRevalidation &&

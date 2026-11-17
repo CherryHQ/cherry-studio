@@ -6,6 +6,9 @@ export function createMockFileObservationService() {
     let state = { version: 0, coverage: 'live' as const, error: null }
     const listeners = new Set<() => void>()
     return {
+      get subscriberCount() {
+        return listeners.size
+      },
       getSnapshot: () => state,
       whenReady: async () => {},
       subscribe: (listener: () => void) => {

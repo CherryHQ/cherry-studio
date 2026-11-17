@@ -463,9 +463,7 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
     setSelectionReference(null)
   }, [pickerActive])
 
-  // Successful writes return an exact byte size through the edit session.
-  // Invalidate the separate metadata gate whenever that size changes so a
-  // saved file that crosses the preview limit cannot reuse stale metadata.
+  // Saved growth must invalidate metadata gates even when the active editor can keep growing.
   useEffect(() => {
     if (fileSession?.savedSizeBytes === undefined) return
     setKnownFileSizeBytes(fileSession.savedSizeBytes)

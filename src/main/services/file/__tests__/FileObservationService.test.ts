@@ -202,6 +202,42 @@ it('reports lost coverage before a failed watcher is released', async () => {
   expect(events(sender).at(-1)?.coverage).toBe('unavailable')
 })
 
+it('rebinds observation when a regular file becomes a symlink to another directory', async () => {
+  const target = AbsoluteFilePathSchema.parse(path.join(root, 'file.txt'))
+  const otherDirectory = await realpath(await mkdtemp(path.join(tmpdir(), 'cherry-observe-target-')))
+  const destination = path.join(otherDirectory, 'destination.txt')
+  try {
+    await writeFile(target, 'original')
+    await writeFile(destination, 'linked')
+    const sender = owner(1)
+    const opened = await service.open(sender, target)
+    service.activateSubscription(opened.subscriptionId, opened.revision, 1)
+    await symlink(destination, `${target}.swap`)
+    await rename(`${target}.swap`, target)
+    await vi.waitFor(() => expect(events(sender).some((event) => event.coverage === 'stale')).toBe(true), {
+      timeout: 5000
+    })
+
+    service.close(opened.subscriptionId)
+    const rebound = await service.open(sender, target)
+    expect(rebound.coverage).toBe('live')
+    service.activateSubscription(rebound.subscriptionId, rebound.revision, 1)
+    let observed = ''
+    sender.webContents.send.mockImplementation(() => {
+      void readFile(target, 'utf8').then(
+        (content) => {
+          observed = content
+        },
+        () => {}
+      )
+    })
+    await writeFile(destination, 'updated target')
+    await vi.waitFor(() => expect(observed).toBe('updated target'), { timeout: 5000 })
+  } finally {
+    await rm(otherDirectory, { recursive: true, force: true })
+  }
+})
+
 it('does not claim live coverage when a symlink changes before its binding watcher attaches', async () => {
   const first = path.join(root, 'first.txt')
   const second = path.join(root, 'second.txt')
