@@ -18262,19 +18262,19 @@
       ],
       "ownedBy": "minimax",
       "parameterSupport": {
-        "frequencyPenalty": true,
+        "frequencyPenalty": false,
         "maxTokens": true,
-        "presencePenalty": true,
+        "presencePenalty": false,
         "stopSequences": true,
         "systemMessage": true,
         "temperature": {
-          "supported": true
+          "supported": false
         },
         "topK": {
           "supported": false
         },
         "topP": {
-          "supported": true
+          "supported": false
         }
       },
       "pricing": {
@@ -18327,19 +18327,19 @@
       ],
       "ownedBy": "minimax",
       "parameterSupport": {
-        "frequencyPenalty": true,
+        "frequencyPenalty": false,
         "maxTokens": true,
-        "presencePenalty": true,
+        "presencePenalty": false,
         "stopSequences": true,
         "systemMessage": true,
         "temperature": {
-          "supported": true
+          "supported": false
         },
         "topK": {
           "supported": false
         },
         "topP": {
-          "supported": true
+          "supported": false
         }
       },
       "pricing": {
@@ -20497,6 +20497,22 @@
         "text"
       ],
       "ownedBy": "moonshot",
+      "parameterSupport": {
+        "frequencyPenalty": false,
+        "maxTokens": true,
+        "presencePenalty": false,
+        "stopSequences": true,
+        "systemMessage": true,
+        "temperature": {
+          "supported": false
+        },
+        "topK": {
+          "supported": false
+        },
+        "topP": {
+          "supported": false
+        }
+      },
       "pricing": {
         "cacheRead": {
           "currency": "USD",
@@ -24008,6 +24024,22 @@
         "text"
       ],
       "ownedBy": "openai",
+      "parameterSupport": {
+        "frequencyPenalty": true,
+        "maxTokens": true,
+        "presencePenalty": true,
+        "stopSequences": true,
+        "systemMessage": true,
+        "temperature": {
+          "supported": true
+        },
+        "topK": {
+          "supported": false
+        },
+        "topP": {
+          "supported": false
+        }
+      },
       "pricing": {
         "cacheRead": {
           "currency": "USD",
@@ -33218,5 +33250,5 @@
       "ownedBy": "zhipu"
     }
   ],
-  "version": "ff36ed0a4d71e22c"
+  "version": "c20964f8efeaa72f"
 }
