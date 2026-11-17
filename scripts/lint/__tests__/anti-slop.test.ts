@@ -44,6 +44,7 @@ function lint(source: string, rule?: string) {
 describe('available generic anti-slop rules', () => {
   it.each([
     ['no-reflect-apply', 'export const result = Reflect.apply(Math.max, undefined, [1, 2])'],
+    ['no-reflect-get', 'export const result = Reflect.get({ value: 1 }, "value")'],
     ['no-unknown-type-aliases', 'export type Boundary = unknown'],
     [
       'no-widen-then-assert',

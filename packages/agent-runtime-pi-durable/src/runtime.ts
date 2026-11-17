@@ -55,6 +55,7 @@ import { meteredModels } from './behavior/models'
 import { ContentProjection } from './content'
 import { readContextUsage } from './contextUsage'
 import { DurableProjection, submissionState, type DurableObservation } from './projection'
+import { bindStorage } from './storage'
 
 export interface PiDurableRuntimeOptions {
   readonly backendId: BackendId
@@ -196,41 +197,37 @@ export async function createPiDurableRuntime(
   try {
     storage = await options.openStorage()
     const owned = storage
-    const finalArchive = new Proxy(owned, {
-      get(target, key) {
-        if (key === 'close')
-          return async () => {
-            try {
-              while (pending.size) await Promise.allSettled([...pending])
-              for (const entry of live.values()) {
-                const content = new ContentProjection()
-                let cursor: Cursor | undefined
-                do {
-                  const page = await owned.scanEntries(
-                    { conversationId: entry.conversation.id, order: 'ascending' },
-                    256,
-                    cursor,
-                    context
-                  )
-                  for (const record of page.items)
-                    if (record.conversationId === entry.conversation.id) content.entry(record)
-                  cursor = page.next
-                } while (cursor)
-                archives.set(entry.conversation.id, {
-                  messages: content.messages,
-                  responseIds: content.responseIds,
-                  legacy: content.legacy,
-                  aliases: { ...entry.projection.aliases }
-                })
-              }
-            } finally {
-              await owned.close(context)
-            }
+    const finalArchive: Storage = {
+      ...bindStorage(owned),
+      close: async () => {
+        try {
+          while (pending.size) await Promise.allSettled([...pending])
+          for (const entry of live.values()) {
+            const content = new ContentProjection()
+            let cursor: Cursor | undefined
+            do {
+              const page = await owned.scanEntries(
+                { conversationId: entry.conversation.id, order: 'ascending' },
+                256,
+                cursor,
+                context
+              )
+              for (const record of page.items)
+                if (record.conversationId === entry.conversation.id) content.entry(record)
+              cursor = page.next
+            } while (cursor)
+            archives.set(entry.conversation.id, {
+              messages: content.messages,
+              responseIds: content.responseIds,
+              legacy: content.legacy,
+              aliases: { ...entry.projection.aliases }
+            })
           }
-        const value = Reflect.get(target, key)
-        return typeof value === 'function' ? value.bind(target) : value
+        } finally {
+          await owned.close(context)
+        }
       }
-    })
+    }
     harness = await Harness.open(finalArchive, harnessOptions, context)
     await behavior?.bind(harness)
   } catch (cause) {

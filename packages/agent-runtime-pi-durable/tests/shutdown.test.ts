@@ -18,6 +18,7 @@ import { createScriptedHost } from '@cherrystudio/agent-behavior'
 import { runtimeId, type OperationResult } from '@cherrystudio/agent-runtime'
 
 import { createPiDurableRuntime } from '../src'
+import { bindStorage } from '../src/storage'
 
 function confirmed<T>(result: OperationResult<T>): T {
   if (result.status !== 'confirmed') throw new Error(result.error.message)
@@ -62,29 +63,21 @@ it('closes a blocked shared-behavior child with an admitted steer without cancel
       backendId: runtimeId('shutdown'),
       async openStorage() {
         const storage = await openNodeSqliteStorage(file)
-        return new Proxy(storage, {
-          get(target, key) {
-            if (key === 'commit')
-              return (...[batches, receive, context]: Parameters<Storage['commit']>) =>
-                target.commit(
-                  batches,
-                  (index, seq) => {
-                    receive(index, seq)
-                    if (watch)
-                      for (const write of batches[index])
-                        if (
-                          write.type === 'submission' &&
-                          write.value.type === 'input' &&
-                          write.value.status === 'queued'
-                        )
-                          queued = write.value
-                  },
-                  context
-                )
-            const value = Reflect.get(target, key)
-            return typeof value === 'function' ? value.bind(target) : value
-          }
-        })
+        return {
+          ...bindStorage(storage),
+          commit: (...[batches, receive, context]: Parameters<Storage['commit']>) =>
+            storage.commit(
+              batches,
+              (index, seq) => {
+                receive(index, seq)
+                if (watch)
+                  for (const write of batches[index])
+                    if (write.type === 'submission' && write.value.type === 'input' && write.value.status === 'queued')
+                      queued = write.value
+              },
+              context
+            )
+        }
       },
       harness: { models, registry: createRegistry() },
       behavior: {

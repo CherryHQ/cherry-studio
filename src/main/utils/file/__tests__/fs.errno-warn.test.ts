@@ -334,25 +334,9 @@ describe('atomicWriteFile (write/sync failure cleans up .tmp-{uuid})', () => {
     vi.restoreAllMocks()
   })
 
-  /**
-   * Wrap the real FileHandle returned by `open` so one method (e.g. `writeFile`
-   * or `sync`) throws the supplied error while the rest still hit the underlying
-   * fd. `Reflect.get` + `bind(target)` keeps `this` pointing at the real handle
-   * so internal slots (`[symbol.fd]`) resolve — a fresh plain object would lose
-   * the binding and `close()` would explode.
-   */
   function failingHandle(real: Awaited<ReturnType<typeof actualOpen>>, failOn: 'writeFile' | 'sync', err: Error) {
-    return new Proxy(real, {
-      get(target, prop) {
-        if (prop === failOn) {
-          return async () => {
-            throw err
-          }
-        }
-        const v = Reflect.get(target, prop)
-        return typeof v === 'function' ? v.bind(target) : v
-      }
-    })
+    vi.spyOn(real, failOn).mockRejectedValue(err)
+    return real
   }
 
   it('on writeFile failure (ENOSPC): rejects with the write error and leaves no .tmp- residue', async () => {

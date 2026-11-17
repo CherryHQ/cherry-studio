@@ -5,9 +5,13 @@ import { urlToHttpOptions } from 'node:url'
 import axios from 'axios'
 import { socksDispatcher } from 'fetch-socks'
 import { Dispatcher, EnvHttpProxyAgent, getGlobalDispatcher, setGlobalDispatcher } from 'undici'
+import * as z from 'zod'
 
 import { type NodeProxyLogger, ProxyBypassRuleMatcher } from './bypassRules'
 import type { ProxyEndpoint } from './proxyRouting'
+
+const agentProtocolSchema = z.object({ protocol: z.string().optional() })
+const agentPortSchema = z.object({ defaultPort: z.number().optional() })
 
 const SOCKS_DISPATCHER_SYMBOL = Symbol.for('undici.globalDispatcher.1')
 const globalDispatcherRegistry = globalThis as typeof globalThis & Record<symbol, Dispatcher | undefined>
@@ -151,12 +155,12 @@ export class NodeProxyBackend {
         : options
       const defaultAgent =
         targetOptions._defaultAgent || (defaultProtocol === 'https:' ? https.globalAgent : http.globalAgent)
-      const protocol = targetOptions.protocol || (Reflect.get(defaultAgent, 'protocol') as string)
+      const protocol = targetOptions.protocol || agentProtocolSchema.parse(defaultAgent).protocol
       const hostname = targetOptions.hostname || targetOptions.host || 'localhost'
       const host = hostname.includes(':') && !hostname.startsWith('[') ? `[${hostname}]` : hostname
       const targetAgent = typeof targetOptions.agent === 'boolean' ? defaultAgent : targetOptions.agent || defaultAgent
       const port =
-        targetOptions.port || targetOptions.defaultPort || (Reflect.get(targetAgent, 'defaultPort') as number) || 80
+        targetOptions.port || targetOptions.defaultPort || agentPortSchema.parse(targetAgent).defaultPort || 80
 
       if (this.proxyBypassRuleMatcher.isByPass(`${protocol}//${host}:${port}`, this.logger)) {
         return url ? originalMethod(url, options, callback) : originalMethod(options, callback)
