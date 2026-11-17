@@ -284,14 +284,7 @@ export const SkillFileBrowser = function SkillFileBrowser({
   }
 
   if (error) {
-    return (
-      <EmptyState
-        preset="no-resource"
-        title={t('library.skill_detail.no_files')}
-        description={error.message}
-        className="min-h-80"
-      />
-    )
+    return <EmptyState title={t('library.skill_detail.no_files')} description={error.message} className="min-h-80" />
   }
 
   const selectedFileName = selectedFile?.split('/').pop() ?? ''
