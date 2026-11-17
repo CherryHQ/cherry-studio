@@ -98,48 +98,32 @@ export class DbService extends BaseService {
       }
     }
 
-    const describe = (method: 'run' | 'get' | 'all', res: unknown, sqlText: string): string => {
-      const rows =
-        method === 'all'
-          ? String((res as unknown[])?.length ?? '?')
-          : method === 'get'
-            ? res == null
-              ? '0'
-              : '1'
-            : `changes=${(res as { changes?: number })?.changes ?? '?'}`
-      return `${rows} sql=${sqlText}`
-    }
-
-    type AnyFn = (...args: unknown[]) => unknown
-    const sqlite = this.sqlite as unknown as { prepare: AnyFn; exec: AnyFn }
-
-    const origPrepare = sqlite.prepare.bind(sqlite)
-    sqlite.prepare = (...prepareArgs: unknown[]) => {
-      const stmt = origPrepare(...prepareArgs) as Record<string, AnyFn>
-      const sqlText = String(prepareArgs[0] ?? '?').slice(0, 160)
-      for (const method of ['run', 'get', 'all'] as const) {
-        const orig = stmt[method]
-        if (typeof orig !== 'function') continue
-        const bound = orig.bind(stmt)
-        stmt[method] = (...args: unknown[]) => {
-          const callerStack = new Error().stack
-          const t0 = performance.now()
-          const res = bound(...args)
-          logSlow(performance.now() - t0, method, describe(method, res, sqlText), callerStack)
-          return res
-        }
+    const measure =
+      <Args extends unknown[], Result>(
+        run: (...args: Args) => Result,
+        method: string,
+        describe: (result: Result, ...args: Args) => string
+      ) =>
+      (...args: Args): Result => {
+        const callerStack = new Error().stack
+        const t0 = performance.now()
+        const result = run(...args)
+        logSlow(performance.now() - t0, method, describe(result, ...args), callerStack)
+        return result
       }
+
+    const sqlite = this.sqlite
+    const origPrepare = sqlite.prepare.bind(sqlite)
+    sqlite.prepare = <BindParameters extends unknown[] | {} = unknown[], Result = unknown>(source: string) => {
+      const stmt = origPrepare<BindParameters, Result>(source)
+      const sqlText = source.slice(0, 160)
+      stmt.run = measure(stmt.run.bind(stmt), 'run', (result) => `changes=${result.changes} sql=${sqlText}`)
+      stmt.get = measure(stmt.get.bind(stmt), 'get', (result) => `${result == null ? '0' : '1'} sql=${sqlText}`)
+      stmt.all = measure(stmt.all.bind(stmt), 'all', (result) => `${result.length} sql=${sqlText}`)
       return stmt
     }
 
-    const origExec = sqlite.exec.bind(sqlite)
-    sqlite.exec = (...execArgs: unknown[]) => {
-      const callerStack = new Error().stack
-      const t0 = performance.now()
-      const res = origExec(...execArgs)
-      logSlow(performance.now() - t0, 'exec', `sql=${String(execArgs[0] ?? '?').slice(0, 160)}`, callerStack)
-      return res
-    }
+    sqlite.exec = measure(sqlite.exec.bind(sqlite), 'exec', (_result, source) => `sql=${source.slice(0, 160)}`)
   }
 
   /**
