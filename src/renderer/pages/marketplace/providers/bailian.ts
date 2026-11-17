@@ -24,11 +24,6 @@ export const clearBailianToken = (): void => {
   localStorage.removeItem(TOKEN_STORAGE_KEY)
 }
 
-export const hasBailianToken = (): boolean => {
-  const hasToken = !!getBailianToken()
-  return hasToken
-}
-
 // ========== 类型定义 ==========
 export interface BailianServer {
   id: string

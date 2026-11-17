@@ -8,9 +8,10 @@ import { AgentDoc, configure, createSession, type ConversationId } from '@earend
 import { trace } from '@opentelemetry/api'
 import { BasicTracerProvider } from '@opentelemetry/sdk-trace-base'
 import { setupTestDatabase } from '@test-helpers/db'
+import { connectMcpTestClient } from '@test-helpers/mcp/client'
 import { eq } from 'drizzle-orm'
 import { v7 as uuid } from 'uuid'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
 import { runtimeId, type InputState } from '@cherrystudio/agent-runtime'
@@ -31,10 +32,13 @@ import { readForkResources } from '@main/ai/agentSession/fork/resources'
 import { bindNativeInput, prepareNativeSubmission } from '@main/ai/agentSession/nativeSubmission'
 import { ThreadMessageProjection } from '@main/ai/agentSession/ThreadMessageProjection'
 import { getPiTraceContext, observabilitySinks } from '@main/ai/observability'
+import { checkCommand } from '@main/ai/toolApproval/commandPolicy'
 import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import type { ToolGuardInteractionState } from '@main/ai/toolApproval/toolGuards'
 import { serializeError } from '@main/ai/utils/serializeError'
 import { getShellEnv } from '@main/utils/shellEnv'
+import { BUILTIN_AGENT_ROLE } from '@shared/ai/builtinAgent'
+import { McpServerSchema } from '@shared/data/types/mcpServer'
 import { ModelSchema } from '@shared/data/types/model'
 import { ProviderSchema } from '@shared/data/types/provider'
 import type { SpanEntity } from '@shared/data/types/trace'
@@ -48,10 +52,13 @@ import {
   tempDir
 } from '../../../../../packages/agent-runtime-pi/tests/sessionSupport'
 import { gate, toolCallPart } from '../../../../../packages/agent-runtime-pi/tests/subagentSupport'
+import type * as AgentMcpServers from '../agentMcpServers'
+import type * as AgentPrompt from '../agentPrompt'
 import type { PiConnectionSnapshot } from '../pi/piConnectionSignature'
 import { runtimeDriverRegistry } from '../registry'
 import type { AgentRuntimeConnectInput, AgentRuntimeEvent } from '../types'
 import { allocateDurableBackendTx, prepareDurableBranch, reserveDurableBranchTx } from './durableContext'
+import { prepareDurableDesktop } from './durableDesktop'
 import type { PiDurableRuntimeConnection } from './PiDurableRuntimeConnection'
 import { PiDurableRuntimeDriver } from './PiDurableRuntimeDriver'
 
@@ -61,6 +68,8 @@ const mocks = vi.hoisted(() => ({
   capture: vi.fn(),
   binding: vi.fn(),
   prompt: vi.fn(),
+  mcpServers: vi.fn(),
+  catalog: vi.fn(),
   interaction: vi.fn<() => ToolGuardInteractionState>(),
   delegated: vi.fn(),
   prime: vi.fn()
@@ -74,8 +83,20 @@ vi.mock('@application', async () => {
       ensureInternalGateway: async () => ({ baseUrl: 'http://gateway.invalid', apiKey: 'fixture' }),
       getAgentSessionUsageHeaders: () => ({})
     },
-    McpCatalogService: { listTools: () => [] },
-    AgentSessionRuntimeService: { getInteractionState: mocks.interaction, primeConnection: mocks.prime }
+    McpCatalogService: { listTools: mocks.catalog, onToolsCacheUpdated: () => ({ dispose() {} }) },
+    McpRuntimeService: {
+      getConnectedServerInstructions: () => undefined,
+      onCatalogChanged: () => ({ dispose() {} }),
+      onResourceUpdated: () => ({ dispose() {} }),
+      callTool: async ({ interactionContext }: { interactionContext: { model?: string } }) => ({
+        content: [{ type: 'text', text: `Sampling model: ${interactionContext.model}` }]
+      })
+    },
+    AgentSessionRuntimeService: {
+      getInteractionState: mocks.interaction,
+      primeConnection: mocks.prime,
+      getTurnTrustedNotifyChannels: () => undefined
+    }
   }
   return mockApplicationFactory(overrides)
 })
@@ -87,14 +108,22 @@ vi.mock('../pi/gatewayModelBinding', () => ({ createPiGatewayModelBinding: mocks
 vi.mock('@main/ai/runtime/agentPrompt', () => ({ buildAgentRuntimePrompt: mocks.prompt }))
 vi.mock('@main/ai/runtime/agentMcpServers', () => ({
   warmAgentMcpToolCatalogs: async () => {},
-  buildAgentMcpServers: () => ({})
+  buildAgentMcpServers: mocks.mcpServers
 }))
 vi.mock('@main/utils/shellEnv', () => ({
   getShellEnv: vi.fn(async (): Promise<Record<string, string>> => ({})),
   getPathFromEnvironment: () => undefined
 }))
 
+// Load the grammars before tests redirect application paths.
+beforeAll(() => checkCommand({ command: 'true', dialect: 'bash', permissionMode: 'default' }))
+
 // Real Runtime, native Pi and SQLite; only provider/environment configuration is substituted.
+/** An approval crosses the runtime boundary and starts a native tool, so the one-second default is a race on CI. */
+const APPROVAL_WAIT = { timeout: 10_000 } as const
+// Native child scheduling and archive projection can exceed the one-second poll default on Windows CI.
+const CHILD_WAIT = { timeout: 10_000 } as const
+
 describe('desktop Pi Durable connection', () => {
   const dbh = setupTestDatabase()
   let directory: string
@@ -167,7 +196,9 @@ describe('desktop Pi Durable connection', () => {
       signature: 'frozen'
     }
     mocks.capture.mockImplementation(async () => snapshot)
-    mocks.prompt.mockResolvedValue({ base: { kind: 'custom', content: 'You are Cherry.' } })
+    mocks.mcpServers.mockReset().mockReturnValue({})
+    mocks.catalog.mockReset().mockReturnValue([])
+    mocks.prompt.mockReset().mockResolvedValue({ base: { kind: 'custom', content: 'You are Cherry.' } })
     setScript([assistantReply('Hello world')])
     mocks.binding.mockImplementation(async () => createTestBinding({ model: MODEL, stream: script.model }))
   })
@@ -176,6 +207,119 @@ describe('desktop Pi Durable connection', () => {
     for (const connection of connections.splice(0)) await connection.close()
     vi.restoreAllMocks()
   })
+  it.each([false, true])('materializes the captured model name for headless=%s', async (headless) => {
+    const { buildAgentRuntimePrompt } = await vi.importActual<typeof AgentPrompt>('../agentPrompt')
+    mocks.prompt.mockImplementation(buildAgentRuntimePrompt)
+    snapshot.agent.instructions = 'My model is {{model_name}}.'
+    snapshot.agent.modelName = 'Agent default'
+    snapshot.session.model = 'test::later-selection'
+    snapshot.model.name = 'Captured model'
+    input.headless = headless
+
+    const current = await connect()
+    await current.connection.send({ message: message('Identify your model') })
+    await done(current.events)
+
+    expect(script.calls[0].systemPrompt).toContain('My model is Captured model.')
+    expect(script.calls[0].systemPrompt).not.toContain('My model is Agent default.')
+  })
+
+  it.each([false, true])('creates an Agent with the captured model for headless=%s', async (headless) => {
+    sharedHosts()
+    dbh.db
+      .insert(userModelTable)
+      .values({
+        id: 'test::later-selection',
+        providerId: 'test',
+        modelId: 'later-selection',
+        name: 'Later model',
+        capabilities: ['function-call'],
+        supportsStreaming: true,
+        isEnabled: true,
+        orderKey: 'a1'
+      })
+      .run()
+    dbh.db
+      .update(agentSessionTable)
+      .set({ model: 'test::later-selection' })
+      .where(eq(agentSessionTable.id, input.sessionId))
+      .run()
+    snapshot.agent.configuration = { ...snapshot.agent.configuration, builtin_role: BUILTIN_AGENT_ROLE.ASSISTANT }
+    input.headless = headless
+    const { buildAgentMcpServers } = await vi.importActual<typeof AgentMcpServers>('../agentMcpServers')
+    mocks.mcpServers.mockImplementation((...args: Parameters<typeof buildAgentMcpServers>) => {
+      const servers = buildAgentMcpServers(...args)
+      return { assistant: servers.assistant }
+    })
+    const desktop = await prepareDurableDesktop(input, () => {})
+    try {
+      const tool = desktop.mcp.extension.tools!.find((tool) => tool.name === 'mcp__assistant__create_agent')!
+      const result = await tool.execute(
+        { name: 'Created Agent', instructions: 'Help with testing.' },
+        undefined as never,
+        BACKGROUND_CONTEXT
+      )
+      expect(result.isError).toBe(false)
+      expect(result.details).toMatchObject({ ok: true, model: modelId })
+      const created = dbh.db
+        .select()
+        .from(agentTable)
+        .all()
+        .find((agent) => agent.name === 'Created Agent')
+      expect(created?.model).toBe(modelId)
+    } finally {
+      await desktop.close()
+    }
+  })
+
+  it.each([
+    { captured: modelId, selected: 'test::selected', expected: modelId },
+    { captured: undefined, selected: 'test::selected', expected: 'test::selected' },
+    { captured: undefined, selected: null, expected: 'test::agent-default' }
+  ] as const)(
+    'routes MCP sampling with $expected (captured=$captured, selected=$selected)',
+    async ({ captured, selected, expected }) => {
+      const { buildAgentMcpServers } = await vi.importActual<typeof AgentMcpServers>('../agentMcpServers')
+      const server = McpServerSchema.parse({
+        id: '9c4cda7c-6bb8-4eb6-a0b5-e3e7d79ca337',
+        name: 'Sampling',
+        isActive: true
+      })
+      snapshot.agent.model = 'test::agent-default'
+      snapshot.agent.mcps = [server.id]
+      snapshot.session.model = selected
+      mocks.catalog.mockReturnValue([
+        {
+          name: 'sample',
+          inputSchema: { type: 'object', properties: {} },
+          id: 'sample',
+          serverId: server.id,
+          serverName: server.name,
+          type: 'mcp'
+        }
+      ])
+      const servers = buildAgentMcpServers(
+        snapshot.session,
+        snapshot.agent,
+        new Set(),
+        new Map([[server.id, server]]),
+        null,
+        directory,
+        [],
+        undefined,
+        captured
+      )
+      const client = await connectMcpTestClient(servers[server.id])
+      try {
+        const result = await client.callTool({ name: 'sample', arguments: {} })
+        expect(result.isError).not.toBe(true)
+        expect(result.content).toEqual([{ type: 'text', text: `Sampling model: ${expected}` }])
+      } finally {
+        await client.close()
+      }
+    }
+  )
+
   function setScript(parts: AssistantMessage[], delay?: number) {
     script = scriptedModel(parts, delay)
   }
@@ -517,7 +661,7 @@ describe('desktop Pi Durable connection', () => {
       child.connection.send({ message: message('write fork') })
     ])
     const approvals = (events: AgentRuntimeEvent[]) => events.filter((event) => event.type === 'tool-approval-request')
-    await expect.poll(() => approvals(parent.events).length + approvals(child.events).length).toBe(2)
+    await expect.poll(() => approvals(parent.events).length + approvals(child.events).length, APPROVAL_WAIT).toBe(2)
     const parentPrompt = script.calls.find((call) => call.model.provider === sourceId)?.systemPrompt
     const forkPrompt = script.calls.find((call) => call.model.provider === forkId)?.systemPrompt
     expect(parentPrompt).toContain('Parent instructions only')
@@ -656,55 +800,62 @@ describe('desktop Pi Durable connection', () => {
     expect(next.events.filter((event) => event.type === 'error')).toEqual([])
   })
 
-  it('attaches a pending peer before shared recovery and restores its frozen request settings', async () => {
-    sharedHosts()
-    input = { ...input, reasoningEffort: 'high', fastMode: true }
-    const sourceInput = { ...input }
-    const parent = await connect()
-    await parent.connection.send({ message: message('initial boundary') })
-    const answer = await savedAnswer(parent)
-    const forkId = await new AgentSessionForkOperations().fork(input.sessionId, answer.id)
-    const held = gate()
-    script = respondingModel(() => held.wait(assistantReply('unfinished source answer')))
-    parent.events.length = 0
-    await parent.connection.send({ message: message('pending source input') })
-    await held.reached
-    await parent.connection.close()
-    const recoveredEvents: AgentRuntimeEvent[] = []
-    let recovered: PiDurableRuntimeConnection | undefined
-    mocks.binding.mockImplementation(async (next: AgentRuntimeConnectInput, _provider, _model, _usage, shared) => {
-      const model = { ...MODEL, provider: next.sessionId }
-      const stream = respondingModel(() =>
-        assistantReply(`${next.sessionId}:${next.reasoningEffort}:${next.fastMode}`)
-      ).model
-      if (!shared) return createTestBinding({ model, stream })
-      shared.registerProvider(model.provider, {
-        api: model.api,
-        apiKey: 'fixture',
-        baseUrl: model.baseUrl,
-        models: [model],
-        streamSimple: stream
+  it.each([false, true])(
+    'restores a pending peer with cleared Agent default=%s and its frozen request settings',
+    async (clearDefault) => {
+      sharedHosts()
+      input = { ...input, reasoningEffort: 'high', fastMode: true }
+      const sourceInput = { ...input }
+      const parent = await connect()
+      await parent.connection.send({ message: message('initial boundary') })
+      const answer = await savedAnswer(parent)
+      const forkId = await new AgentSessionForkOperations().fork(input.sessionId, answer.id)
+      const held = gate()
+      script = respondingModel(() => held.wait(assistantReply('unfinished source answer')))
+      parent.events.length = 0
+      await parent.connection.send({ message: message('pending source input') })
+      await held.reached
+      await parent.connection.close()
+      if (clearDefault) {
+        dbh.db.update(agentSessionTable).set({ model: modelId }).where(eq(agentSessionTable.id, input.sessionId)).run()
+        dbh.db.update(agentTable).set({ model: null }).where(eq(agentTable.id, input.agentId)).run()
+      }
+      const recoveredEvents: AgentRuntimeEvent[] = []
+      let recovered: PiDurableRuntimeConnection | undefined
+      mocks.binding.mockImplementation(async (next: AgentRuntimeConnectInput, _provider, _model, _usage, shared) => {
+        const model = { ...MODEL, provider: next.sessionId }
+        const stream = respondingModel(() =>
+          assistantReply(`${next.sessionId}:${next.reasoningEffort}:${next.fastMode}`)
+        ).model
+        if (!shared) return createTestBinding({ model, stream })
+        shared.registerProvider(model.provider, {
+          api: model.api,
+          apiKey: 'fixture',
+          baseUrl: model.baseUrl,
+          models: [model],
+          streamSimple: stream
+        })
+        return { modelRuntime: shared, model: shared.getModel(model.provider, model.id)! }
       })
-      return { modelRuntime: shared, model: shared.getModel(model.provider, model.id)! }
-    })
-    mocks.prime.mockImplementation(async (sessionId: string) => {
-      recovered = await driver.connect({ sessionId, agentId: sourceInput.agentId, modelId })
-      connections.push(recovered)
-      void (async () => {
-        for await (const event of recovered.events) recoveredEvents.push(event)
-      })()
-    })
-    input = { ...input, sessionId: forkId, reasoningEffort: 'low', fastMode: false }
-    const fork = await connect()
-    await expect.poll(() => recoveredEvents.some((event) => event.type === 'turn-complete')).toBe(true)
-    expect(text(recoveredEvents)).toContain(`${sourceInput.sessionId}:high:true`)
-    expect(recovered!['runtime']).toBe(fork.connection['runtime'])
-    await fork.connection.send({ message: message('independent fork input') })
-    await done(fork.events)
-    expect(text(fork.events)).toContain(`${forkId}:low:false`)
-    expect([...recoveredEvents, ...fork.events].filter((event) => event.type === 'error')).toEqual([])
-    held.open()
-  })
+      mocks.prime.mockImplementation(async (sessionId: string) => {
+        recovered = await driver.connect({ sessionId, agentId: sourceInput.agentId, modelId })
+        connections.push(recovered)
+        void (async () => {
+          for await (const event of recovered.events) recoveredEvents.push(event)
+        })()
+      })
+      input = { ...input, sessionId: forkId, reasoningEffort: 'low', fastMode: false }
+      const fork = await connect()
+      await expect.poll(() => recoveredEvents.some((event) => event.type === 'turn-complete')).toBe(true)
+      expect(text(recoveredEvents)).toContain(`${sourceInput.sessionId}:high:true`)
+      expect(recovered!['runtime']).toBe(fork.connection['runtime'])
+      await fork.connection.send({ message: message('independent fork input') })
+      await done(fork.events)
+      expect(text(fork.events)).toContain(`${forkId}:low:false`)
+      expect([...recoveredEvents, ...fork.events].filter((event) => event.type === 'error')).toEqual([])
+      held.open()
+    }
+  )
 
   it('retains an identifiable inert native preparation when product publication fails', async () => {
     sharedHosts()
@@ -780,6 +931,8 @@ describe('desktop Pi Durable connection', () => {
     try {
       const current = await connect()
       await current.connection.send({ message: message('run a tool') })
+      // Native shell execution and model streaming can exceed the event poll's timeout.
+      await current.connection.drainChildWrites()
       await done(current.events)
       await current.connection.close()
       expect(text(current.events)).toContain('finished')
@@ -1104,14 +1257,14 @@ describe('desktop Pi Durable connection', () => {
     const { connection, events } = await connect()
     await connection.send({ message: message('write and ask') })
     const approvals = () => events.filter((event) => event.type === 'tool-approval-request')
-    await expect.poll(() => approvals().length).toBe(1)
+    await expect.poll(() => approvals().length, APPROVAL_WAIT).toBe(1)
     expect(existsSync(join(directory, 'original.txt'))).toBe(false)
     expect(approvals()[0].request.toolCallId).toBe('write')
     toolApprovalRegistry.dispatch(approvals()[0].request.approvalId, {
       approved: true,
       updatedInput: { path: 'approved.txt', content: 'approved' }
     })
-    await expect.poll(() => approvals().length).toBe(2)
+    await expect.poll(() => approvals().length, APPROVAL_WAIT).toBe(2)
     expect(approvals()[1].request).toMatchObject({ toolCallId: 'ask', toolName: 'AskUserQuestion' })
     toolApprovalRegistry.dispatch(approvals()[1].request.approvalId, {
       approved: true,
@@ -1156,7 +1309,7 @@ describe('desktop Pi Durable connection', () => {
     const { connection, events } = await connect()
     await connection.send({ message: message('ask then write') })
     const approvals = () => events.filter((event) => event.type === 'tool-approval-request')
-    await expect.poll(() => approvals().length).toBe(1)
+    await expect.poll(() => approvals().length, APPROVAL_WAIT).toBe(1)
 
     snapshot.agent.configuration = { ...snapshot.agent.configuration, permission_mode: to }
     expect(await connection.reconcile({ modelId: input.modelId })).toBe('patched')
@@ -1166,7 +1319,7 @@ describe('desktop Pi Durable connection', () => {
     })
 
     if (asksForWrite) {
-      await expect.poll(() => approvals().length).toBe(2)
+      await expect.poll(() => approvals().length, APPROVAL_WAIT).toBe(2)
       expect(approvals()[1].request).toMatchObject({ toolCallId: 'write' })
       expect(existsSync(join(directory, 'after-switch.txt'))).toBe(false)
       toolApprovalRegistry.dispatch(approvals()[1].request.approvalId, { approved: true })
@@ -1187,14 +1340,14 @@ describe('desktop Pi Durable connection', () => {
       events.flatMap((event) => (event.type === 'tool-approval-request' ? [event.request.approvalId] : []))
     const first = await connect()
     await first.connection.send({ message: message('write') })
-    await expect.poll(() => approvals(first.events)).toHaveLength(1)
+    await expect.poll(() => approvals(first.events), APPROVAL_WAIT).toHaveLength(1)
 
     await first.connection.close()
     subscription.dispose()
     expect(aborted).toEqual(approvals(first.events))
 
     const second = await connect()
-    await expect.poll(() => approvals(second.events)).toEqual(approvals(first.events))
+    await expect.poll(() => approvals(second.events), APPROVAL_WAIT).toEqual(approvals(first.events))
     expect(existsSync(join(directory, 'a.txt'))).toBe(false)
   })
 
@@ -1346,7 +1499,7 @@ describe('desktop Pi Durable connection', () => {
     expect(events.filter((event) => event.type === 'error')).toEqual([])
   })
 
-  it('lets subagents write without approval when the root uses default permissions', async () => {
+  it('requires approval for subagent writes when the root uses default permissions', async () => {
     snapshot.agent.configuration = { ...snapshot.agent.configuration, permission_mode: 'default' }
     let root = ''
     script = respondingModel((call) => {
@@ -1368,9 +1521,17 @@ describe('desktop Pi Durable connection', () => {
     })
     const { connection, events } = await connect()
     await connection.send({ message: message('delegate') })
+    const approvals = () => events.filter((event) => event.type === 'tool-approval-request')
+    await expect.poll(() => approvals().length, APPROVAL_WAIT).toBe(1)
+    expect(approvals()[0].request).toMatchObject({
+      toolCallId: 'child-write',
+      toolName: 'write',
+      providerMetadata: { cherry: { parentToolCallId: 'spawn' } }
+    })
+    expect(existsSync(join(directory, 'child-result.txt'))).toBe(false)
+    toolApprovalRegistry.dispatch(approvals()[0].request.approvalId, { approved: true })
     await done(events, 10_000)
     expect(readFileSync(join(directory, 'child-result.txt'), 'utf8')).toBe('child completed')
-    expect(events.filter((event) => event.type === 'tool-approval-request')).toEqual([])
     expect(events.filter((event) => event.type === 'error')).toEqual([])
   })
 
@@ -1408,18 +1569,18 @@ describe('desktop Pi Durable connection', () => {
       const user = message('delegate')
       await connection.send({ message: user })
       await held.reached
-      await done(events)
+      await done(events, CHILD_WAIT.timeout)
       const view = await connection.childProjection('spawn')
       expect(view).toBeDefined()
       expect(view!.snapshot().canSubmit).toBe(true)
       expect(text(events)).not.toContain('child first')
       held.open()
-      await expect.poll(() => JSON.stringify(view!.snapshot().messages)).toContain('child first answer')
-      await expect.poll(() => view!.snapshot().active).toBe(false)
+      await expect.poll(() => JSON.stringify(view!.snapshot().messages), CHILD_WAIT).toContain('child first answer')
+      await expect.poll(() => view!.snapshot().active, CHILD_WAIT).toBe(false)
       const contextId = view!.snapshot().contextId
       const childIdentity = contexts.context(contextId).nativeThreadId
       await connection.messageChild(contextId, 'continue research')
-      await expect.poll(() => JSON.stringify(view!.snapshot().messages)).toContain('child continued answer')
+      await expect.poll(() => JSON.stringify(view!.snapshot().messages), CHILD_WAIT).toContain('child continued answer')
       expect(contexts.context(contextId).nativeThreadId).toBe(childIdentity)
       const childMessage = view!
         .snapshot()
@@ -1427,8 +1588,9 @@ describe('desktop Pi Durable connection', () => {
           message.parts.some((part) => part.type === 'text' && part.text === 'child continued answer')
         )!
       await expect
-        .poll(() =>
-          events.filter((event) => event.type === 'response-start' && event.responseId === 'child-response-2')
+        .poll(
+          () => events.filter((event) => event.type === 'response-start' && event.responseId === 'child-response-2'),
+          CHILD_WAIT
         )
         .toContainEqual({
           type: 'response-start',
@@ -1457,7 +1619,9 @@ describe('desktop Pi Durable connection', () => {
       expect(JSON.stringify(restored?.snapshot().messages)).toContain('child continued answer')
       expect(text(reopened.events)).toBe('')
       await reopened.connection.messageChild(contextId, 'continue after reopen')
-      await expect.poll(() => JSON.stringify(restored!.snapshot().messages)).toContain('child answer after reopen')
+      await expect
+        .poll(() => JSON.stringify(restored!.snapshot().messages), CHILD_WAIT)
+        .toContain('child answer after reopen')
       expect(script.calls[0].model.id).toBe(MODEL.id)
     }
   )
@@ -1668,18 +1832,16 @@ describe('desktop Pi Durable connection', () => {
 
   it('streams child text and tool progress after the parent finishes', async () => {
     let root = ''
+    const toolName = process.platform === 'win32' ? 'powershell' : 'bash'
     const releaseTool = join(directory, 'release-tool')
+    const command =
+      toolName === 'powershell'
+        ? "[Console]::Write('TOOL-FIRST'); while (!(Test-Path -LiteralPath release-tool)) { Start-Sleep -Milliseconds 50 }; [Console]::Write('TOOL-LAST')"
+        : "printf 'TOOL-FIRST'; while [ ! -f release-tool ]; do /bin/sleep 0.05; done; printf 'TOOL-LAST'"
     script = respondingModel((call) => {
       root ||= call.sessionId!
       if (call.sessionId !== root)
-        return assistantReply(
-          [
-            toolCallPart('child-bash', 'bash', {
-              command: `printf 'TOOL-FIRST'; while [ ! -f '${releaseTool}' ]; do /bin/sleep 0.05; done; printf 'TOOL-LAST'`
-            })
-          ],
-          'toolUse'
-        )
+        return assistantReply([toolCallPart('child-shell', toolName, { command })], 'toolUse')
       if (!call.messages.some((entry) => entry.role === 'toolResult'))
         return assistantReply(
           [toolCallPart('spawn', 'subagent', { description: 'streaming child', prompt: 'work', background: true })],
@@ -1694,7 +1856,7 @@ describe('desktop Pi Durable connection', () => {
       if (
         !root ||
         options?.sessionId === root ||
-        !context.messages.some((entry) => entry.role === 'toolResult' && entry.toolCallId === 'child-bash')
+        !context.messages.some((entry) => entry.role === 'toolResult' && entry.toolCallId === 'child-shell')
       )
         return fallback(model, context, options)
       const stream = createAssistantMessageEventStream()
@@ -1720,7 +1882,7 @@ describe('desktop Pi Durable connection', () => {
     }
     const { connection, events } = await connect()
     await connection.send({ message: message('delegate') })
-    await done(events)
+    await done(events, 10_000)
     const view = await connection.childProjection('spawn')
     expect(view).toBeDefined()
     const tool = () =>
@@ -1728,11 +1890,11 @@ describe('desktop Pi Durable connection', () => {
         .snapshot()
         .messages.flatMap((message) => message.parts)
         .find((part) => part.type === 'dynamic-tool')
-    await expect.poll(() => JSON.stringify(tool()?.output)).toContain('TOOL-FIRST')
+    await expect.poll(() => JSON.stringify(tool()?.output), { timeout: 10_000 }).toContain('TOOL-FIRST')
     expect(view!.snapshot().active).toBe(true)
     expect(tool()).toMatchObject({
-      toolCallId: 'child-bash',
-      toolName: 'bash',
+      toolCallId: 'child-shell',
+      toolName,
       state: 'output-available',
       preliminary: true,
       callProviderMetadata: { cherry: { transport: 'pi-agent' } }

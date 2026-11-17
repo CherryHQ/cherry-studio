@@ -267,6 +267,7 @@ describe('TopicBranchPanel focus with the production graph and canvas', () => {
     const previousViewport = flow.getAttribute('data-default-viewport')
     setViewport.mockClear()
     for (const preview of ['Updated sibling', 'Updated sibling again']) {
+      // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
       const updated = structuredClone(refreshed)
       updated.nodes.find((value) => value.id === 'short-sibling')!.preview = preview
       get.mockResolvedValueOnce(updated)
@@ -520,6 +521,7 @@ describe('TopicBranchPanel focus with the production graph and canvas', () => {
     get
       .mockResolvedValueOnce(cached)
       .mockResolvedValueOnce(refreshed)
+      // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
       .mockResolvedValueOnce(structuredClone(refreshed))
       .mockRejectedValueOnce(error)
     const cache = new Map()

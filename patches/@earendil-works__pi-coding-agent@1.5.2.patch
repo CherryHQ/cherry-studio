@@ -1,8 +1,13 @@
 diff --git a/dist/core/agent-session.d.ts b/dist/core/agent-session.d.ts
-index f99ebc8a1deba3af9612248b424c5363527c82ff..8ebcb42db2e29e26c08377e9de316fa8c873c704 100644
+index 8b6a58430eea2cbb463e2b51773a8bc6e4914505..9e4057f33d8a8cfa09e41567d7384581d59fe0d1 100644
 --- a/dist/core/agent-session.d.ts
 +++ b/dist/core/agent-session.d.ts
-@@ -13,11 +13,11 @@
+@@ -1,3 +1,4 @@
++import type { QueryFork } from "@earendil-works/pi-ai/utils/query-fork";
+ /**
+  * AgentSession - Core abstraction for agent lifecycle and session management.
+  *
+@@ -13,11 +14,11 @@
   * Modes use this class and add their own I/O layer on top.
   */
  import { type Agent, type AgentEvent, type AgentMessage, type AgentState, type AgentTool, type StreamFn, type ThinkingLevel } from "@earendil-works/pi-agent-core";
@@ -16,7 +21,7 @@ index f99ebc8a1deba3af9612248b424c5363527c82ff..8ebcb42db2e29e26c08377e9de316fa8
  import { type CustomMessage } from "./messages.ts";
  import type { ModelRuntime } from "./model-runtime.ts";
  import { type PromptTemplate } from "./prompt-templates.ts";
-@@ -44,17 +44,33 @@ type WithParentToolCallId<E> = E extends {
+@@ -44,17 +45,33 @@ type WithParentToolCallId<E> = E extends {
      type: "tool_execution_start" | "tool_execution_update" | "tool_execution_end";
  } ? E & {
      parentToolCallId?: string;
@@ -51,7 +56,7 @@ index f99ebc8a1deba3af9612248b424c5363527c82ff..8ebcb42db2e29e26c08377e9de316fa8
  } | {
      type: "queue_update";
      steering: readonly string[];
-@@ -177,6 +193,8 @@ export type QueuedInputDisposition = "handled" | "queued";
+@@ -177,6 +194,8 @@ export type QueuedInputDisposition = "handled" | "queued";
  export type PromptDisposition = QueuedInputDisposition | "started";
  /** Options for AgentSession.prompt() */
  export interface PromptOptions {
@@ -60,7 +65,15 @@ index f99ebc8a1deba3af9612248b424c5363527c82ff..8ebcb42db2e29e26c08377e9de316fa8
      /** Whether to dispatch extension commands and expand skill commands and prompt templates (default: true) */
      expandPromptTemplates?: boolean;
      /** Image attachments */
-@@ -237,6 +255,11 @@ export declare class AgentSession {
+@@ -220,6 +239,7 @@ export interface SessionStats {
+     contextUsage?: ContextUsage;
+ }
+ export declare class AgentSession {
++    createQueryFork(): QueryFork;
+     readonly agent: Agent;
+     readonly sessionManager: SessionManager;
+     readonly settingsManager: SettingsManager;
+@@ -237,6 +257,11 @@ export declare class AgentSession {
      private _followUpMessages;
      /** Queued user messages whose images are normalized when they are delivered. */
      private _queuedMessagesWithImages;
@@ -72,7 +85,19 @@ index f99ebc8a1deba3af9612248b424c5363527c82ff..8ebcb42db2e29e26c08377e9de316fa8
      /** Messages queued to be included with the next user prompt as context ("asides"). */
      private _pendingNextTurnMessages;
      /** Context-only custom messages queued during a run, flushed once the current turn's tool results are in. */
-@@ -577,6 +600,11 @@ export declare class AgentSession {
+@@ -440,6 +465,11 @@ export declare class AgentSession {
+      */
+     getAllTools(): ToolInfo[];
+     getToolDefinition(name: string): ToolDefinition | undefined;
++    /**
++     * Map every active tool before it is declared to the model and executed, and re-apply the current loadout.
++     * The transform must keep the tool's name and should return the same object for the same tool.
++     */
++    setToolTransform(transform: ((tool: AgentTool) => AgentTool) | undefined): void;
+     /**
+      * Set active tools by name.
+      * Only tools in the registry can be enabled. Unknown and hidden tool names are ignored.
+@@ -577,6 +607,11 @@ export declare class AgentSession {
       * Try to execute an extension command. Returns true if command was found and executed.
       */
      private _tryExecuteExtensionCommand;
@@ -84,7 +109,7 @@ index f99ebc8a1deba3af9612248b424c5363527c82ff..8ebcb42db2e29e26c08377e9de316fa8
      /**
       * Expand skill commands (/skill:name args) to their full content.
       * Returns the expanded text, or the original text if not a skill command or skill not found.
-@@ -593,9 +621,7 @@ export declare class AgentSession {
+@@ -593,9 +628,7 @@ export declare class AgentSession {
       * @param options Input source; defaults to interactive
       * @throws Error if text is an extension command
       */
@@ -95,7 +120,7 @@ index f99ebc8a1deba3af9612248b424c5363527c82ff..8ebcb42db2e29e26c08377e9de316fa8
      /**
       * Queue a follow-up message to be processed after the agent finishes.
       * Delivered only when agent has no more tool calls or steering messages.
-@@ -604,9 +630,7 @@ export declare class AgentSession {
+@@ -604,9 +637,7 @@ export declare class AgentSession {
       * @param options Input source; defaults to interactive
       * @throws Error if text is an extension command
       */
@@ -106,7 +131,7 @@ index f99ebc8a1deba3af9612248b424c5363527c82ff..8ebcb42db2e29e26c08377e9de316fa8
      /**
       * Internal: Queue a steering message (already expanded, no extension command check).
       */
-@@ -617,6 +641,7 @@ export declare class AgentSession {
+@@ -617,6 +648,7 @@ export declare class AgentSession {
      private _queueFollowUp;
      /** Replace a queued user message's images in place with normalized ones, appending hints to its text. */
      private _normalizeQueuedMessageImages;
@@ -114,7 +139,7 @@ index f99ebc8a1deba3af9612248b424c5363527c82ff..8ebcb42db2e29e26c08377e9de316fa8
      /**
       * Throw an error if the text is an extension command.
       */
-@@ -633,10 +658,12 @@ export declare class AgentSession {
+@@ -633,10 +665,12 @@ export declare class AgentSession {
       * @param message Custom message with customType, content, display, details
       * @param options.triggerTurn If true and not streaming, triggers a new LLM turn
       * @param options.deliverAs Delivery mode: "steer", "followUp", or "nextTurn"
@@ -128,10 +153,15 @@ index f99ebc8a1deba3af9612248b424c5363527c82ff..8ebcb42db2e29e26c08377e9de316fa8
      private _appendCustomMessage;
      /**
 diff --git a/dist/core/agent-session.js b/dist/core/agent-session.js
-index c53868ec938ea3c26a4a4d9a6d02b232e433d8ce..1968183985368de49ec03d5c9b3068c76a8f4f31 100644
+index d67feeb70a00ff60a93583bf4ffb79a3d780fa9b..ef6bb656027688f04f8e2e04f01e1d8016e752d1 100644
 --- a/dist/core/agent-session.js
 +++ b/dist/core/agent-session.js
-@@ -40,7 +40,7 @@ import { exportSessionToJsonl } from "./session-export.js";
+@@ -1,3 +1,4 @@
++import { createQueryFork } from "@earendil-works/pi-ai/utils/query-fork";
+ /**
+  * AgentSession - Core abstraction for agent lifecycle and session management.
+  *
+@@ -40,7 +41,7 @@ import { exportSessionToJsonl } from "./session-export.js";
  import { getLatestCompactionEntry, SessionManager, } from "./session-manager.js";
  import { applyToolModifiers, DEFAULT_TOOL_NAMES, } from "./settings-manager.js";
  import { BUILTIN_PATH_PREFIX, createSyntheticSourceInfo, isSyntheticPath } from "./source-info.js";
@@ -140,11 +170,13 @@ index c53868ec938ea3c26a4a4d9a6d02b232e433d8ce..1968183985368de49ec03d5c9b3068c7
  import { createLocalBashOperations } from "./tools/bash.js";
  import { createAllToolDefinitions } from "./tools/index.js";
  import { createToolDefinitionFromAgentTool } from "./tools/tool-definition-wrapper.js";
-@@ -120,6 +120,11 @@ export class AgentSession {
+@@ -120,6 +121,13 @@ export class AgentSession {
      _steeringMessages = [];
      /** Tracks pending follow-up messages for UI display. Removed when delivered. */
      _followUpMessages = [];
 +    _inputIdsByMessage = new WeakMap();
++    /** Maps each active tool before it is declared and executed; see `setToolTransform`. */
++    _toolTransform;
 +    _unansweredInputIds = new Set();
 +    _requestInputIds = [];
 +    _inputResponse;
@@ -152,7 +184,7 @@ index c53868ec938ea3c26a4a4d9a6d02b232e433d8ce..1968183985368de49ec03d5c9b3068c7
      /** Queued user messages whose images are normalized when they are delivered. */
      _queuedMessagesWithImages = new WeakSet();
      /** Messages queued to be included with the next user prompt as context ("asides"). */
-@@ -456,7 +461,11 @@ export class AgentSession {
+@@ -456,7 +464,11 @@ export class AgentSession {
                      tools: this._getCallableTools(),
                      assistantMessage,
                      context: { messages: this.agent.state.messages, tools: this.agent.state.tools },
@@ -165,7 +197,7 @@ index c53868ec938ea3c26a4a4d9a6d02b232e433d8ce..1968183985368de49ec03d5c9b3068c7
                      afterToolCall: (context) => this._afterToolCall(context, parentId),
                      signal,
                      onUpdate,
-@@ -488,6 +497,7 @@ export class AgentSession {
+@@ -488,6 +500,7 @@ export class AgentSession {
      _installAgentRequestProjection() {
          const previousPrepareRequest = this.agent.prepareRequest;
          this.agent.prepareRequest = async (request, signal) => {
@@ -173,7 +205,7 @@ index c53868ec938ea3c26a4a4d9a6d02b232e433d8ce..1968183985368de49ec03d5c9b3068c7
              const failed = this._failedResponse;
              this._failedResponse = undefined;
              const prepare = async () => {
-@@ -583,6 +593,9 @@ export class AgentSession {
+@@ -583,6 +596,9 @@ export class AgentSession {
                  return previousDecision;
              if (extensionContinue || previousDecision?.action === "continue")
                  return { action: "continue" };
@@ -183,7 +215,7 @@ index c53868ec938ea3c26a4a4d9a6d02b232e433d8ce..1968183985368de49ec03d5c9b3068c7
              return undefined;
          };
      }
-@@ -709,8 +722,8 @@ export class AgentSession {
+@@ -709,8 +725,8 @@ export class AgentSession {
      _emitQueueUpdate() {
          this._emit({
              type: "queue_update",
@@ -194,7 +226,7 @@ index c53868ec938ea3c26a4a4d9a6d02b232e433d8ce..1968183985368de49ec03d5c9b3068c7
          });
      }
      async _emitSessionCompactFailed(event) {
-@@ -741,6 +754,7 @@ export class AgentSession {
+@@ -741,6 +757,7 @@ export class AgentSession {
          this._isEmittingAgentSettled = true;
          try {
              const aborted = this._agentRunAbortRequested;
@@ -202,7 +234,7 @@ index c53868ec938ea3c26a4a4d9a6d02b232e433d8ce..1968183985368de49ec03d5c9b3068c7
              await this._extensionRunner.emit({ type: "agent_settled", aborted });
              this._emit({ type: "agent_settled", aborted });
          }
-@@ -785,16 +799,15 @@ export class AgentSession {
+@@ -785,16 +802,15 @@ export class AgentSession {
          // This ensures the UI sees the updated queue state
          if (event.type === "message_start" && event.message.role === "user") {
              this._overflowRecoveryAttempted = false;
@@ -221,7 +253,7 @@ index c53868ec938ea3c26a4a4d9a6d02b232e433d8ce..1968183985368de49ec03d5c9b3068c7
                  if (followUpIndex !== -1) {
                      this._followUpMessages.splice(followUpIndex, 1);
                      this._emitQueueUpdate();
-@@ -825,11 +838,15 @@ export class AgentSession {
+@@ -825,11 +841,15 @@ export class AgentSession {
                  // Regular LLM message - persist as SessionMessageEntry
                  entryId = this.sessionManager.appendMessage(event.message);
              }
@@ -238,7 +270,23 @@ index c53868ec938ea3c26a4a4d9a6d02b232e433d8ce..1968183985368de49ec03d5c9b3068c7
                  this._lastAssistantMessage = assistantMsg;
                  if (assistantMsg.stopReason !== "error" && assistantMsg.stopReason !== "length") {
                      this._overflowRecoveryAttempted = false;
-@@ -1155,6 +1172,7 @@ export class AgentSession {
+@@ -1107,6 +1127,15 @@ export class AgentSession {
+         this.settingsManager.setCacheWarmingMode(mode);
+         this._cacheWarmer?.onModeChanged();
+     }
++    createQueryFork() {
++        if (!this.isIdle) throw new Error("Query forks require an idle session");
++        const model = this.routedModel?.model ?? this.model;
++        if (!model) throw new Error("No model selected");
++        const reasoning = this.routedModel?.thinkingLevel ?? this.thinkingLevel;
++        return createQueryFork(model, convertToLlm(this.sessionManager.buildSessionProjection().messages),
++            (model, context, options) => this.modelRuntime.streamSimple(model, context, options),
++            { reasoning: reasoning === "off" ? undefined : reasoning, sessionId: this.sessionManager.getSessionId() });
++    }
+     /** Current model (may be undefined if not yet selected) */
+     get model() {
+         return this.agent.state.model;
+@@ -1155,6 +1184,7 @@ export class AgentSession {
       */
      getAllTools() {
          return Array.from(this._toolDefinitions.values()).map(({ definition, sourceInfo }) => ({
@@ -246,7 +294,29 @@ index c53868ec938ea3c26a4a4d9a6d02b232e433d8ce..1968183985368de49ec03d5c9b3068c7
              name: definition.name,
              description: definition.description,
              parameters: definition.parameters,
-@@ -1388,8 +1406,12 @@ export class AgentSession {
+@@ -1175,6 +1205,10 @@ export class AgentSession {
+      * Also rebuilds the system prompt to reflect the new tool set.
+      * Changes take effect on the next agent turn.
+      */
++    setToolTransform(transform) {
++        this._toolTransform = transform;
++        this._applyToolLoadout(this.getActiveToolNames());
++    }
+     setActiveToolsByName(toolNames) {
+         const previous = this.getActiveToolNames();
+         this._setActiveTools(toolNames);
+@@ -1239,7 +1273,9 @@ export class AgentSession {
+         const kept = this.getActiveToolNames().filter((name) => requested.has(name));
+         const tools = [...new Set([...kept, ...requested])].flatMap((name) => {
+             const tool = this._toolRegistry.get(name);
+-            return tool && this._getToolExposure(name) !== "hidden" && this._isActivatable(name) ? [tool] : [];
++            return tool && this._getToolExposure(name) !== "hidden" && this._isActivatable(name)
++                ? [this._toolTransform ? this._toolTransform(tool) : tool]
++                : [];
+         });
+         const hooks = tools.flatMap((tool) => {
+             const entry = this._toolDefinitions.get(tool.name);
+@@ -1388,8 +1424,12 @@ export class AgentSession {
          options.selectedTools = this._applyToolLoadout(options.selectedTools).map((tool) => tool.name);
          // The tool list and rules must match the declarations the request carries.
          options.hiddenTools = [...this._hiddenDeclarations];
@@ -261,7 +331,7 @@ index c53868ec938ea3c26a4a4d9a6d02b232e433d8ce..1968183985368de49ec03d5c9b3068c7
      }
      /**
       * Send a forced prompt as the provider's leading system prompt without recording it.
-@@ -1484,12 +1506,12 @@ export class AgentSession {
+@@ -1484,12 +1524,12 @@ export class AgentSession {
       * starting another, and an abort requested meanwhile aborts the run as soon as it exists.
       * @param onStarted Called once the run's messages are prepared, before the first request.
       */
@@ -276,7 +346,7 @@ index c53868ec938ea3c26a4a4d9a6d02b232e433d8ce..1968183985368de49ec03d5c9b3068c7
          }
          catch (error) {
              this._isAgentRunActive = false;
-@@ -1515,6 +1537,7 @@ export class AgentSession {
+@@ -1515,6 +1555,7 @@ export class AgentSession {
                  if (await this._handlePostAgentRun()) {
                      if (this._agentRunAbortRequested)
                          break;
@@ -284,7 +354,7 @@ index c53868ec938ea3c26a4a4d9a6d02b232e433d8ce..1968183985368de49ec03d5c9b3068c7
                      await this.agent.continue();
                      continue;
                  }
-@@ -1522,6 +1545,7 @@ export class AgentSession {
+@@ -1522,6 +1563,7 @@ export class AgentSession {
                      break;
                  if (this._agentRunAbortRequested)
                      break;
@@ -292,7 +362,7 @@ index c53868ec938ea3c26a4a4d9a6d02b232e433d8ce..1968183985368de49ec03d5c9b3068c7
                  await this.agent.continue();
              }
          }
-@@ -1541,7 +1565,7 @@ export class AgentSession {
+@@ -1541,7 +1583,7 @@ export class AgentSession {
       * message followed by pending nextTurn messages (consumed here) and handler messages, with a
       * system patch first when the prompt changed.
       */
@@ -301,7 +371,7 @@ index c53868ec938ea3c26a4a4d9a6d02b232e433d8ce..1968183985368de49ec03d5c9b3068c7
          // Check if we need to compact before sending (catches aborted responses).
          // The starting message is sent below, so do not call agent.continue() here.
          const lastAssistant = this._findLastAssistantMessage();
-@@ -1566,11 +1590,7 @@ export class AgentSession {
+@@ -1566,11 +1608,7 @@ export class AgentSession {
              // determines the resize profile used for the request and history.
              const normalized = await this._normalizePromptImages(trigger.images);
              const text = normalized.hints.length > 0 ? `${trigger.prompt}\n\n${normalized.hints.join("\n")}` : trigger.prompt;
@@ -314,7 +384,7 @@ index c53868ec938ea3c26a4a4d9a6d02b232e433d8ce..1968183985368de49ec03d5c9b3068c7
          }
          // Inject any pending "nextTurn" messages as context alongside the starting message
          messages.push(...this._pendingNextTurnMessages);
-@@ -1702,7 +1722,7 @@ export class AgentSession {
+@@ -1702,7 +1740,7 @@ export class AgentSession {
          // Handle extension commands first (execute immediately, even during streaming)
          // Extension commands manage their own LLM interaction via pi.sendMessage()
          if (expandPromptTemplates && text.startsWith("/")) {
@@ -323,7 +393,7 @@ index c53868ec938ea3c26a4a4d9a6d02b232e433d8ce..1968183985368de49ec03d5c9b3068c7
              if (handled) {
                  // Extension command executed, no prompt to send
                  preflightResult?.("handled");
-@@ -1723,7 +1743,7 @@ export class AgentSession {
+@@ -1723,7 +1761,7 @@ export class AgentSession {
              this._promptPreflightCount--;
          }
          if (trigger)
@@ -332,7 +402,7 @@ index c53868ec938ea3c26a4a4d9a6d02b232e433d8ce..1968183985368de49ec03d5c9b3068c7
      }
      /**
       * Run input hooks, expand templates, queue while streaming, and validate model and auth.
-@@ -1735,6 +1755,7 @@ export class AgentSession {
+@@ -1735,6 +1773,7 @@ export class AgentSession {
          // Emit input event for extension interception (before skill/template expansion)
          const processedInput = await this._runInputHandlers(text, options?.images, options?.source ?? "interactive", this.isStreaming ? options?.streamingBehavior : undefined);
          if (!processedInput) {
@@ -340,7 +410,7 @@ index c53868ec938ea3c26a4a4d9a6d02b232e433d8ce..1968183985368de49ec03d5c9b3068c7
              preflightResult?.("handled");
              return undefined;
          }
-@@ -1751,10 +1772,10 @@ export class AgentSession {
+@@ -1751,10 +1790,10 @@ export class AgentSession {
                  throw new Error("Agent is already processing. Specify streamingBehavior ('steer' or 'followUp') to queue the message.");
              }
              if (options.streamingBehavior === "followUp") {
@@ -353,7 +423,7 @@ index c53868ec938ea3c26a4a4d9a6d02b232e433d8ce..1968183985368de49ec03d5c9b3068c7
              }
              preflightResult?.("queued");
              return undefined;
-@@ -1779,7 +1800,7 @@ export class AgentSession {
+@@ -1779,7 +1818,7 @@ export class AgentSession {
      /**
       * Try to execute an extension command. Returns true if command was found and executed.
       */
@@ -362,7 +432,7 @@ index c53868ec938ea3c26a4a4d9a6d02b232e433d8ce..1968183985368de49ec03d5c9b3068c7
          // Parse command name and args
          const spaceIndex = text.indexOf(" ");
          const commandName = spaceIndex === -1 ? text.slice(1) : text.slice(1, spaceIndex);
-@@ -1791,17 +1812,56 @@ export class AgentSession {
+@@ -1791,17 +1830,56 @@ export class AgentSession {
          const ctx = this._extensionRunner.createCommandContext();
          try {
              await command.handler(args, ctx);
@@ -421,7 +491,7 @@ index c53868ec938ea3c26a4a4d9a6d02b232e433d8ce..1968183985368de49ec03d5c9b3068c7
      }
      /**
       * Expand skill commands (/skill:name args) to their full content.
-@@ -1833,20 +1893,22 @@ export class AgentSession {
+@@ -1833,20 +1911,22 @@ export class AgentSession {
              return text; // Return original on error
          }
      }
@@ -448,7 +518,7 @@ index c53868ec938ea3c26a4a4d9a6d02b232e433d8ce..1968183985368de49ec03d5c9b3068c7
          }
          return "queued";
      }
-@@ -1860,7 +1922,7 @@ export class AgentSession {
+@@ -1860,7 +1940,7 @@ export class AgentSession {
       * @throws Error if text is an extension command
       */
      async steer(text, images, options) {
@@ -457,7 +527,7 @@ index c53868ec938ea3c26a4a4d9a6d02b232e433d8ce..1968183985368de49ec03d5c9b3068c7
      }
      /**
       * Queue a follow-up message to be processed after the agent finishes.
-@@ -1871,37 +1933,39 @@ export class AgentSession {
+@@ -1871,37 +1951,39 @@ export class AgentSession {
       * @throws Error if text is an extension command
       */
      async followUp(text, images, options) {
@@ -514,7 +584,7 @@ index c53868ec938ea3c26a4a4d9a6d02b232e433d8ce..1968183985368de49ec03d5c9b3068c7
      }
      /** Replace a queued user message's images in place with normalized ones, appending hints to its text. */
      async _normalizeQueuedMessageImages(message) {
-@@ -1942,6 +2006,7 @@ export class AgentSession {
+@@ -1942,6 +2024,7 @@ export class AgentSession {
       * @param message Custom message with customType, content, display, details
       * @param options.triggerTurn If true and not streaming, triggers a new LLM turn
       * @param options.deliverAs Delivery mode: "steer", "followUp", or "nextTurn"
@@ -522,7 +592,7 @@ index c53868ec938ea3c26a4a4d9a6d02b232e433d8ce..1968183985368de49ec03d5c9b3068c7
       */
      async sendCustomMessage(message, options) {
          const appMessage = {
-@@ -1953,6 +2018,8 @@ export class AgentSession {
+@@ -1953,6 +2036,8 @@ export class AgentSession {
              details: message.details,
              timestamp: Date.now(),
          };
@@ -531,7 +601,7 @@ index c53868ec938ea3c26a4a4d9a6d02b232e433d8ce..1968183985368de49ec03d5c9b3068c7
          if (options?.deliverAs === "nextTurn") {
              this._pendingNextTurnMessages.push(appMessage);
          }
-@@ -1983,10 +2050,11 @@ export class AgentSession {
+@@ -1983,10 +2068,11 @@ export class AgentSession {
          }
      }
      _appendCustomMessage(appMessage) {
@@ -544,7 +614,7 @@ index c53868ec938ea3c26a4a4d9a6d02b232e433d8ce..1968183985368de49ec03d5c9b3068c7
      }
      /**
       * Append custom messages queued while the agent was running.
-@@ -2044,8 +2112,8 @@ export class AgentSession {
+@@ -2044,8 +2130,8 @@ export class AgentSession {
       * @returns Object with steering and followUp arrays
       */
      clearQueue() {
@@ -555,7 +625,7 @@ index c53868ec938ea3c26a4a4d9a6d02b232e433d8ce..1968183985368de49ec03d5c9b3068c7
          this._steeringMessages = [];
          this._followUpMessages = [];
          this.agent.clearAllQueues();
-@@ -2058,11 +2126,11 @@ export class AgentSession {
+@@ -2058,11 +2144,11 @@ export class AgentSession {
      }
      /** Get pending steering messages (read-only) */
      getSteeringMessages() {
@@ -569,7 +639,7 @@ index c53868ec938ea3c26a4a4d9a6d02b232e433d8ce..1968183985368de49ec03d5c9b3068c7
      }
      get resourceLoader() {
          return this._resourceLoader;
-@@ -2094,12 +2162,14 @@ export class AgentSession {
+@@ -2094,12 +2180,14 @@ export class AgentSession {
      async _emitModelSelect(nextModel, previousModel, source) {
          if (modelsAreEqual(previousModel, nextModel))
              return;
@@ -587,7 +657,7 @@ index c53868ec938ea3c26a4a4d9a6d02b232e433d8ce..1968183985368de49ec03d5c9b3068c7
      /**
       * Set model directly.
 diff --git a/dist/core/compaction/compaction.d.ts b/dist/core/compaction/compaction.d.ts
-index 748b06fd49cfd635773dfd423de7d7c138c3071b..4c3fc171ade2532df362601a8fe67d8d951775bf 100644
+index 4c2a2703b8573db5ea1975276fef5bdea5a4990a..4c3fc171ade2532df362601a8fe67d8d951775bf 100644
 --- a/dist/core/compaction/compaction.d.ts
 +++ b/dist/core/compaction/compaction.d.ts
 @@ -143,3 +143,4 @@ export declare function prepareCompaction(pathEntries: SessionEntry[], settings:
@@ -596,7 +666,7 @@ index 748b06fd49cfd635773dfd423de7d7c138c3071b..4c3fc171ade2532df362601a8fe67d8d
  //# sourceMappingURL=compaction.d.ts.map
 +export declare function estimateSystemCharacters(promptCharacters: number, toolCharacters: number): number;
 diff --git a/dist/core/compaction/compaction.js b/dist/core/compaction/compaction.js
-index e1ce6ec1975da431fbd5d1be13df40b829bee1aa..5d7c4aea8565028007ff9d7aa0993dd8a9e88b70 100644
+index 9b1a409d96b39413d8598c79f14fee72f4cd533c..5d7c4aea8565028007ff9d7aa0993dd8a9e88b70 100644
 --- a/dist/core/compaction/compaction.js
 +++ b/dist/core/compaction/compaction.js
 @@ -198,6 +198,9 @@ function estimateTextAndImageContentChars(content) {
@@ -643,7 +713,7 @@ index e1ce6ec1975da431fbd5d1be13df40b829bee1aa..5d7c4aea8565028007ff9d7aa0993dd8
      };
  }
 diff --git a/dist/core/extensions/types.d.ts b/dist/core/extensions/types.d.ts
-index d312d9f2310af6151a1801b9754484bfea49f111..0a2a7f8fb0c4aa2d94b13918eca4c6cb8ea87884 100644
+index f527dee4c02869611b6fbf1871bc82841b14125b..0a2a7f8fb0c4aa2d94b13918eca4c6cb8ea87884 100644
 --- a/dist/core/extensions/types.d.ts
 +++ b/dist/core/extensions/types.d.ts
 @@ -350,6 +350,7 @@ export interface ReplacedSessionContext extends ExtensionCommandContext {
@@ -692,7 +762,7 @@ index d312d9f2310af6151a1801b9754484bfea49f111..0a2a7f8fb0c4aa2d94b13918eca4c6cb
      annotations?: ToolAnnotations;
      sourceInfo: SourceInfo;
 diff --git a/dist/core/nested-tool-calls.d.ts b/dist/core/nested-tool-calls.d.ts
-index 4795a91b4bc64d92c81f39c65189f4f0879f64b6..6edfd2519e8b692d8827fd0c57b78e72cf092d4c 100644
+index 1d3adb1b412c5ecc81e2f9f68368cdfbc3234ab3..6edfd2519e8b692d8827fd0c57b78e72cf092d4c 100644
 --- a/dist/core/nested-tool-calls.d.ts
 +++ b/dist/core/nested-tool-calls.d.ts
 @@ -39,8 +39,8 @@ export declare class NestedCallRecorder {
@@ -715,7 +785,7 @@ index 4795a91b4bc64d92c81f39c65189f4f0879f64b6..6edfd2519e8b692d8827fd0c57b78e72
      isError: boolean;
      durationMs?: number;
 diff --git a/dist/core/nested-tool-calls.js b/dist/core/nested-tool-calls.js
-index 7b1b18c340cb0ef0242024a4a6fe5cde40fb2bdd..9ee07223113a3bff53a280b9d397b368358a7332 100644
+index be4a571d0f5ab07f482d8d634f937e0448787c1d..9ee07223113a3bff53a280b9d397b368358a7332 100644
 --- a/dist/core/nested-tool-calls.js
 +++ b/dist/core/nested-tool-calls.js
 @@ -1,3 +1,4 @@
@@ -802,7 +872,7 @@ index 7b1b18c340cb0ef0242024a4a6fe5cde40fb2bdd..9ee07223113a3bff53a280b9d397b368
              isError: outcome.isError,
              ...(outcome.durationMs === undefined ? {} : { durationMs: outcome.durationMs }),
 diff --git a/dist/core/session-manager.d.ts b/dist/core/session-manager.d.ts
-index 4b1262925b07ceff7c59c25e8a5a66d9c47226ad..521423dcb047c572c87bad250737edc1d90ded84 100644
+index c042aaf3f7aff9aa8dca36a83a6d96cdbbfc949e..521423dcb047c572c87bad250737edc1d90ded84 100644
 --- a/dist/core/session-manager.d.ts
 +++ b/dist/core/session-manager.d.ts
 @@ -260,6 +260,8 @@ export declare class SessionManager {
@@ -824,7 +894,7 @@ index 4b1262925b07ceff7c59c25e8a5a66d9c47226ad..521423dcb047c572c87bad250737edc1
      /**
       * Continue the most recent session, or create new if none.
 diff --git a/dist/core/session-manager.js b/dist/core/session-manager.js
-index 6f8d14e5127442096eed27ceefd46585913320be..02a1c5d134ef538f3893155467f2a1a6c1dee9e6 100644
+index 7ee05014e13c6434040bfdd7b39b455a6731a7d6..02a1c5d134ef538f3893155467f2a1a6c1dee9e6 100644
 --- a/dist/core/session-manager.js
 +++ b/dist/core/session-manager.js
 @@ -1,6 +1,6 @@
@@ -898,7 +968,7 @@ index 6f8d14e5127442096eed27ceefd46585913320be..02a1c5d134ef538f3893155467f2a1a6
          const resolvedPath = resolvePath(path);
          let header = null;
 diff --git a/dist/core/skills.d.ts b/dist/core/skills.d.ts
-index f5eb06714370e2bc3578c180ca97d4f5ac61dfaa..91226214c574010ce9ade51bbfe72626477e0e88 100644
+index 4d13be8f001f2376baa6a9dfc5476406a1cd86ca..91226214c574010ce9ade51bbfe72626477e0e88 100644
 --- a/dist/core/skills.d.ts
 +++ b/dist/core/skills.d.ts
 @@ -61,3 +61,4 @@ export interface LoadSkillsOptions {
@@ -907,7 +977,7 @@ index f5eb06714370e2bc3578c180ca97d4f5ac61dfaa..91226214c574010ce9ade51bbfe72626
  //# sourceMappingURL=skills.d.ts.map
 +export declare function skillPromptResources(skills: Skill[]): { id: string; name: string; source: string; characters: number }[];
 diff --git a/dist/core/skills.js b/dist/core/skills.js
-index d574810607557873fb1f27c7cfa4308b1312e571..291b349e8d59be937b8c06766a84697c3ac4ea3f 100644
+index b1600f5ba0484df4309db9ca0345e1e888469537..291b349e8d59be937b8c06766a84697c3ac4ea3f 100644
 --- a/dist/core/skills.js
 +++ b/dist/core/skills.js
 @@ -292,11 +292,7 @@ export function formatSkillsForPrompt(skills, fileReadTool = "read") {
@@ -937,7 +1007,7 @@ index d574810607557873fb1f27c7cfa4308b1312e571..291b349e8d59be937b8c06766a84697c
 +        name: skill.name, source: skill.filePath, characters: formatSkillEntry(skill).length }));
 +}
 diff --git a/dist/core/system-prompt.d.ts b/dist/core/system-prompt.d.ts
-index f14a60e7a454860b6def374cea0d62268da7f43f..386ea11326b6a950e764a6e36848da8e30b61ab3 100644
+index 4af86187b69e25f58d4f1959df02629da2c53621..386ea11326b6a950e764a6e36848da8e30b61ab3 100644
 --- a/dist/core/system-prompt.d.ts
 +++ b/dist/core/system-prompt.d.ts
 @@ -1,6 +1,7 @@
@@ -957,7 +1027,7 @@ index f14a60e7a454860b6def374cea0d62268da7f43f..386ea11326b6a950e764a6e36848da8e
      cwd: string;
      /** Pre-loaded context files. */
 diff --git a/dist/core/system-prompt.js b/dist/core/system-prompt.js
-index 1d7099a342a6870c9b9592a5f37e234f5add7c2c..123042ef063d0ebdfc0f3d1a0467276d531695aa 100644
+index 94c320ec7175265d067891d044d5b37407bdbbb4..123042ef063d0ebdfc0f3d1a0467276d531695aa 100644
 --- a/dist/core/system-prompt.js
 +++ b/dist/core/system-prompt.js
 @@ -3,7 +3,7 @@
@@ -1008,7 +1078,7 @@ index 1d7099a342a6870c9b9592a5f37e234f5add7c2c..123042ef063d0ebdfc0f3d1a0467276d
 +        tool.contextSource ?? { kind: "system-tools", source: tool.sourceInfo?.path }])) };
 +}
 diff --git a/dist/extensions/mcp/tools.js b/dist/extensions/mcp/tools.js
-index 086bb779429e259e85828b7c5cb3f606a6809e01..ad6bc3453ce9a15ee8643871973efe7ddbf9ba3e 100644
+index 67aa2b865615914fa39c3c8edbace40ee1bed325..ad6bc3453ce9a15ee8643871973efe7ddbf9ba3e 100644
 --- a/dist/extensions/mcp/tools.js
 +++ b/dist/extensions/mcp/tools.js
 @@ -198,6 +198,7 @@ export function createMcpToolDefinition(options) {
@@ -1020,7 +1090,7 @@ index 086bb779429e259e85828b7c5cb3f606a6809e01..ad6bc3453ce9a15ee8643871973efe7d
          ...createMcpToolRenderers(label),
          async execute(_toolCallId, params, signal, onUpdate) {
 diff --git a/dist/index.d.ts b/dist/index.d.ts
-index 9501ec64605181b3940035ab354709a7e48d54d5..9e20739fa56b61901e724182c10c9d05785f8096 100644
+index bb8acdb1b034f89e8fcb86a5933fa513d49a8ef3..9e20739fa56b61901e724182c10c9d05785f8096 100644
 --- a/dist/index.d.ts
 +++ b/dist/index.d.ts
 @@ -3,7 +3,7 @@ export { CONFIG_DIR_NAME, getAgentDir, getDocsPath, getExamplesPath, getPackageD
@@ -1042,7 +1112,7 @@ index 9501ec64605181b3940035ab354709a7e48d54d5..9e20739fa56b61901e724182c10c9d05
  export { type EditDiffResult, generateDiffString, generateUnifiedPatch } from "./core/tools/edit-diff.ts";
  export { type BashOperations, type BashSpawnContext, type BashSpawnHook, type BashToolDetails, type BashToolInput, type BashToolOptions, createBashToolDefinition, createEditToolDefinition, createFindToolDefinition, createGrepToolDefinition, createLocalBashOperations, createLocalPowerShellOperations, createLsToolDefinition, createPowerShellToolDefinition, createReadToolDefinition, createWriteToolDefinition, DEFAULT_MAX_BYTES, DEFAULT_MAX_LINES, type EditOperations, type EditToolDetails, type EditToolInput, type EditToolOptions, type FindOperations, type FindToolDetails, type FindToolInput, type FindToolOptions, formatSize, type GrepOperations, type GrepToolDetails, type GrepToolInput, type GrepToolOptions, type LsOperations, type LsToolDetails, type LsToolInput, type LsToolOptions, type PowerShellOperations, type PowerShellSpawnContext, type PowerShellSpawnHook, type PowerShellToolDetails, type PowerShellToolInput, type PowerShellToolOptions, type ReadOperations, type ReadToolDetails, type ReadToolInput, type ReadToolOptions, type ToolsOptions, type TruncationOptions, type TruncationResult, truncateHead, truncateLine, truncateTail, type WriteOperations, type WriteToolInput, type WriteToolOptions, withFileMutationQueue, } from "./core/tools/index.ts";
 diff --git a/dist/index.js b/dist/index.js
-index 64863bb82c791fd025cb037052c3ff95da4dac7c..05e7c326b4027c4243ad47c1bbe0c615d2fa423e 100644
+index ab5cfccc3a90939e533b9118122189507a7af326..05e7c326b4027c4243ad47c1bbe0c615d2fa423e 100644
 --- a/dist/index.js
 +++ b/dist/index.js
 @@ -5,7 +5,7 @@ export { CONFIG_DIR_NAME, getAgentDir, getDocsPath, getExamplesPath, getPackageD

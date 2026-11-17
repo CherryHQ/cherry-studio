@@ -207,9 +207,9 @@ describe('publishRegistryCatalog', () => {
       const decoded = read(file, wire)
       expect(decoded[key]).toHaveLength(formats.length)
       for (const [index, entry] of decoded[key].entries()) {
-        for (const descriptor of Object.values(entry.imageGeneration.modes) as Array<{
+        for (const descriptor of Object.values<{
           supports: Record<string, unknown>
-        }>) {
+        }>(entry.imageGeneration.modes)) {
           expect(descriptor.supports.outputFormat).toEqual(expectedFormats[index])
           expect(descriptor.supports.quality).toEqual(quality)
         }
@@ -281,7 +281,7 @@ describe('publishRegistryCatalog', () => {
     expect(models).toHaveLength(1)
     expect(offers).toHaveLength(3)
     for (const entry of [models[0], offers[0], offers[1]]) {
-      for (const mode of Object.values(entry.imageGeneration.modes) as Array<{ supports: Record<string, unknown> }>) {
+      for (const mode of Object.values<{ supports: Record<string, unknown> }>(entry.imageGeneration.modes)) {
         expect(mode.supports).toEqual({
           numImages: supports.numImages,
           size: supports.size,
@@ -292,7 +292,7 @@ describe('publishRegistryCatalog', () => {
         })
       }
     }
-    for (const mode of Object.values(offers[2].imageGeneration.modes) as Array<{ supports: Record<string, unknown> }>) {
+    for (const mode of Object.values<{ supports: Record<string, unknown> }>(offers[2].imageGeneration.modes)) {
       expect(mode.supports.outputFormat).toEqual(supports.outputFormat)
       expect(mode.supports.outputCompression).toEqual(supports.outputCompression)
       expect(mode.supports.frameCount).toBeUndefined()
@@ -321,6 +321,7 @@ describe('publishRegistryCatalog', () => {
       }
     }
     expect(readV3('models.json', { version: 'm1', models: [model] }).models).toHaveLength(1)
+    // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
     const expanded = structuredClone(model)
     Object.assign(expanded.imageGeneration.modes.generate.supports, {
       futureImageOption: { type: 'text' }

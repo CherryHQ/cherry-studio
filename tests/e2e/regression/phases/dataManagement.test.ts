@@ -115,7 +115,7 @@ test(...caseDefinition('MP-115'), async ({ app, mainWindow: page }, testInfo) =>
     await selectSidebarApp(page, 'Chat')
     const group = page.locator('[data-ui~="chat.group-header"]').filter({ hasText: assistantName }).first()
     await group.hover()
-    await group.getByRole('button', { name: 'New Chat', exact: true }).click()
+    await group.getByRole('button', { name: 'New Chat', exact: true }).press('Enter')
     await Promise.all([
       sendChatMarker(page, 'MP115 preserve this conversation in the backup.', 'MP115 backup history ready.'),
       server.nextRequest().then((request) => request.complete('MP115 backup history ready.'))

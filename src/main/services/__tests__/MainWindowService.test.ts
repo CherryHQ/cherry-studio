@@ -190,7 +190,7 @@ vi.mock('../../../../build/icon.png?asset', () => ({ default: '/mock/icon.png' }
 
 // BaseService.ipcHandle/ipcOn/registerDisposable rely on real ipc internals; bypass them here.
 vi.mock('@main/core/lifecycle', async () => {
-  const actual = (await vi.importActual('@main/core/lifecycle')) as Record<string, unknown>
+  const actual = await vi.importActual<Record<string, unknown>>('@main/core/lifecycle')
   class StubBase {
     ipcHandle = vi.fn()
     ipcOn = vi.fn()
@@ -1606,7 +1606,13 @@ describe('MainWindowService', () => {
       expect(win.webContents.reload).not.toHaveBeenCalled()
       expect(applicationMock.forceExit).not.toHaveBeenCalled()
       // The crash is still reported — only the recovery attempt is skipped.
-      expect(loggerMock.error).toHaveBeenCalledWith('Renderer process crashed with: {"reason":"crashed"}')
+      expect(loggerMock.error).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({
+          operation: 'window.renderer.exit',
+          failure: { source: 'application', kind: 'reliability', reason: 'crashed', outcome: 'failed' }
+        })
+      )
     })
 
     it('neither reloads nor forceExits when only the webContents is destroyed', () => {
