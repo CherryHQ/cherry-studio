@@ -906,7 +906,7 @@ describe('automation history output boundaries (#23303)', () => {
         ),
         ui('user', [{ type: 'text', text: 'continue' }], 'later')
       ]
-      // oxlint-disable-next-line no-restricted-globals -- Snapshot history before conversion to assert toModelMessages does not mutate it.
+      // oxlint-disable-next-line no-restricted-globals -- Keep an independent baseline to detect mutations of nested history.
       const original = structuredClone(history)
       const model = await toModelMessages(history, undefined, automationTools)
       expect(model).toEqual([
