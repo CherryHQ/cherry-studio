@@ -22,7 +22,8 @@ vi.mock('@pierre/diffs', async () => {
   await diffModules.loadingGate
 
   return {
-    parseDiffFromFile: vi.fn(() => ({ files: [] }))
+    parseDiffFromFile: vi.fn(() => ({ files: [] })),
+    registerCustomTheme: vi.fn()
   }
 })
 

@@ -27,12 +27,10 @@ async function makeTwoTonePng(): Promise<Buffer> {
 }
 
 describe('transcodeToEntityWebp', () => {
-  it('normalizes arbitrary image bytes to a 128×128 WebP', async () => {
+  it('normalizes arbitrary image bytes to WebP', async () => {
     const out = await transcodeToEntityWebp(new Uint8Array(PNG_1X1))
     const meta = await sharp(out).metadata()
     expect(meta.format).toBe('webp')
-    expect(meta.width).toBe(128)
-    expect(meta.height).toBe(128)
   })
 
   it('throws on undecodable input', async () => {

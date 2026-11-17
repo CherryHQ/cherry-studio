@@ -5,7 +5,7 @@ description: Use when explicitly asked to translate, backfill, reconcile, rename
 
 # Translate Repository Documentation
 
-Read [the pairing contract](../../../docs/i18n/README.md), [translation rules](../../../docs/i18n/translation-rules.md), generated [terminology](../../../docs/i18n/terminology.md), and `docs-governance` before translating.
+Read [the pairing contract](../../../docs/dev/i18n/README.md), [translation rules](../../../docs/dev/i18n/translation-rules.md), generated [terminology](../../../docs/dev/i18n/terminology.md), and `docs-governance` before translating.
 
 ## Triage
 

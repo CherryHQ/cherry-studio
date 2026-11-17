@@ -41,7 +41,24 @@ vi.mock('@renderer/hooks/useDirectoryTree', () => ({
     return mocks.tree
   }
 }))
-vi.mock('@renderer/hooks/useCodeStyle', () => ({ useCodeStyle: () => ({ activeCmTheme: 'light' }) }))
+vi.mock('@renderer/components/FileEditor', () => ({
+  default: ({
+    value,
+    onChange,
+    readOnly
+  }: {
+    value: string
+    onChange?: (value: string) => void
+    readOnly?: boolean
+  }) => (
+    <textarea
+      aria-label="code-editor"
+      value={value}
+      readOnly={readOnly}
+      onChange={(event) => onChange?.(event.target.value)}
+    />
+  )
+}))
 vi.mock('@tanstack/react-router', () => ({
   useBlocker: (options: typeof mocks.blockerOptions) => {
     mocks.blockerOptions = options
@@ -75,9 +92,6 @@ vi.mock('@cherrystudio/ui', () => ({
       </button>
     )
   },
-  CodeEditor: ({ value, onChange }: { value: string; onChange?: (value: string) => void }) => (
-    <textarea aria-label="code-editor" value={value} onChange={(event) => onChange?.(event.target.value)} />
-  ),
   ConfirmDialog: ({ open, title }: { open: boolean; title: ReactNode }) =>
     open ? <div role="dialog">{title}</div> : null,
   EmptyState: ({ title }: { title: ReactNode }) => <div>{title}</div>,
@@ -216,7 +230,7 @@ describe('SkillFileBrowser', () => {
     renderBrowser('read_write')
 
     await waitFor(() => expect(screen.getByTestId('file-preview')).toHaveAttribute('data-preview-type', 'artifact'))
-    expect(screen.getByRole('radiogroup', { name: 'preview.label' })).toBeInTheDocument()
+    expect(await screen.findByRole('radiogroup', { name: 'preview.label' })).toBeInTheDocument()
     expect(screen.getByRole('radio', { name: 'settings.skills.editor.preview' })).toBeChecked()
     expect(screen.getByRole('radio', { name: 'settings.skills.editor.edit' })).not.toBeChecked()
   })
@@ -243,7 +257,7 @@ describe('SkillFileBrowser', () => {
     await screen.findByText(message)
     await user.click(screen.getByRole('button', { name: 'SKILL.md' }))
     await user.click(await screen.findByRole('radio', { name: 'settings.skills.editor.edit' }))
-    expect(screen.getByRole('textbox', { name: 'code-editor' })).toHaveValue('# Writer')
+    expect(await screen.findByRole('textbox', { name: 'code-editor' })).toHaveValue('# Writer')
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     expect(mocks.ipcRequest.mock.calls.filter(([route]) => route === 'file.edit.write')).toEqual([])
   })

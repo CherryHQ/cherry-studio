@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   ipcRequest: vi.fn(),
   loggerError: vi.fn(),
   openRoute: vi.fn(),
+  showDoctor: vi.fn(),
   toastError: vi.fn()
 }))
 
@@ -24,6 +25,10 @@ vi.mock('@renderer/ipc', () => ({
   ipcApi: {
     request: (...args: unknown[]) => mocks.ipcRequest(...args)
   }
+}))
+
+vi.mock('@renderer/components/doctor', () => ({
+  DoctorPopup: { show: (...args: unknown[]) => mocks.showDoctor(...args) }
 }))
 
 vi.mock('@renderer/services/mainWindowNavigation', () => ({
@@ -59,16 +64,49 @@ describe('FeedbackDialog', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.ipcRequest.mockResolvedValue({ sessionId: 'feedback-session' })
+    Object.defineProperty(window.electron, 'process', {
+      configurable: true,
+      value: { platform: 'darwin' }
+    })
   })
 
-  it('keeps the feedback assistant and GitHub in order without the moved report entry', () => {
-    render(<FeedbackDialog open onOpenChange={vi.fn()} />)
+  it('closes the chooser and opens an email draft with version and platform details', async () => {
+    mocks.ipcRequest.mockImplementation(async (route: string) => {
+      if (route === 'app.get_info') return { version: '2.1.9' }
+      if (route === 'system.shell.open_external_website') {
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+      }
+      return undefined
+    })
+    render(<ControlledFeedbackDialog />)
 
-    const agent = screen.getByRole('button', { name: /Feedback assistant/ })
-    const github = screen.getByRole('button', { name: /GitHub Issue/ })
+    await userEvent.setup().click(screen.getByRole('button', { name: /Contact/ }))
 
-    expect(screen.queryByRole('button', { name: /Report a problem/i })).not.toBeInTheDocument()
-    expect(agent.compareDocumentPosition(github)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+    await waitFor(() =>
+      expect(mocks.ipcRequest).toHaveBeenCalledWith(
+        'system.shell.open_external_website',
+        expect.stringMatching(/^mailto:/)
+      )
+    )
+    const request = mocks.ipcRequest.mock.calls.find(([route]) => route === 'system.shell.open_external_website')
+    const url = new URL(request![1] as string)
+    expect(url.pathname).toBe('support@cherry-ai.com')
+    expect(url.searchParams.get('subject')).toBe('Cherry Studio Feedback')
+    expect(url.searchParams.get('body')).toContain('Version: 2.1.9')
+    expect(url.searchParams.get('body')).toContain('Platform: darwin')
+  })
+
+  it('closes feedback before opening the problem report panel', async () => {
+    mocks.showDoctor.mockImplementationOnce(() => {
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+      return Promise.resolve()
+    })
+    render(<ControlledFeedbackDialog />)
+
+    await userEvent.setup().click(screen.getByRole('button', { name: /Report a problem/i }))
+
+    await waitFor(() => expect(mocks.showDoctor).toHaveBeenCalledWith({ initialPanel: 'report' }))
+    expect(mocks.ipcRequest).not.toHaveBeenCalled()
   })
 
   it('creates an isolated feedback session before opening the Agent route', async () => {

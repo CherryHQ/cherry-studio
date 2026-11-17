@@ -29,6 +29,30 @@ const read = (sessionId: string, revision = 0) =>
   request({ type: 'read', sessionId, revision, configurationRevision: 0, range: { start: 0, end: 5 } })
 
 describe('highlight worker document protocol', () => {
+  it('exports escaped HTML and fenced or indented Markdown through the shared syntax parser', async () => {
+    const code = 'const value = "<script>中文 🥟</script>";\r\n'
+    const html = await request({ type: 'html', code, language: 'ts', theme: 'one-light' })
+    if (!('result' in html) || typeof html.result !== 'string') throw new Error('Expected HTML')
+    const container = document.createElement('div')
+    container.innerHTML = html.result
+    expect(container.querySelector('code')?.textContent).toBe(code)
+    expect(container.querySelector('script')).toBeNull()
+    expect(container.querySelector('span')?.style.color).toBeTruthy()
+    const markdown = await request({
+      type: 'markdown',
+      code: '> ```ts\n> const nested = 1\n> ```\n\n    plain <tag>\n',
+      theme: 'one-light'
+    })
+    if (!('result' in markdown) || typeof markdown.result !== 'string') throw new Error('Expected Markdown HTML')
+    container.innerHTML = markdown.result
+    expect(container.querySelector('blockquote code')?.textContent).toBe('const nested = 1\n')
+    expect(Array.from(container.querySelectorAll('code'), (node) => node.textContent)).toEqual([
+      'const nested = 1\n',
+      'plain <tag>\n'
+    ])
+    expect(container.querySelector('tag')).toBeNull()
+  })
+
   it('orders open, delta and read and rejects stale edits without corrupting the current source', async () => {
     const first = open('ordered')
     const update = request({
@@ -73,5 +97,33 @@ describe('highlight worker document protocol', () => {
     await open('lru-0', 'const reopened = 2')
     expect(await read('lru-0')).toHaveProperty('result')
     for (let i = 0; i < 51; i++) await request({ type: 'close', sessionId: `lru-${i}` })
+  })
+
+  it('drops replies when the response channel is gone instead of crashing the drain', async () => {
+    const deliver = host.postMessage
+    host.postMessage = () => {
+      throw new TypeError("Failed to execute 'dispatchEvent' on 'EventTarget': parameter 1 is not of type 'Event'.")
+    }
+    try {
+      // result path and error path both reply through the dead channel; an unhandled
+      // rejection here fails the run, so reaching the end is the assertion
+      host.onmessage({
+        data: { type: 'html', code: 'const a = 1', language: 'ts', theme: 'one-light', id: 900, generation: 7 }
+      })
+      host.onmessage({
+        data: {
+          type: 'read',
+          sessionId: 'gone',
+          revision: 0,
+          configurationRevision: 0,
+          range: { start: 0, end: 1 },
+          id: 901,
+          generation: 7
+        }
+      })
+      await new Promise((resolve) => setTimeout(resolve, 50))
+    } finally {
+      host.postMessage = deliver
+    }
   })
 })

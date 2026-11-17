@@ -1,185 +1,116 @@
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { getCmThemeByName } from '@cherrystudio/ui'
-import type * as codeEditorUtils from '@cherrystudio/ui/components/composites/code-editor/utils'
+import { getCodeBlockPalette } from '@cherrystudio/ui/code-block'
+import { loadCodeTheme } from '@cherrystudio/ui/code-highlight'
 import { CodeStyleProvider } from '@renderer/components/CodeStyleProvider'
-import { useCmTheme, useCodeStyle, useCodeStyleThemeCatalog } from '@renderer/hooks/useCodeStyle'
+import { useCodeStyle, useCodeStyleThemeCatalog } from '@renderer/hooks/useCodeStyle'
 
-// Override the global lightweight '@cherrystudio/ui' stand-in with the real theme
-// utils — this test locks the provider + theme-resolution behavior end-to-end.
-vi.mock('@cherrystudio/ui', async () => {
-  const utils = await vi.importActual<typeof codeEditorUtils>(
-    '@cherrystudio/ui/components/composites/code-editor/utils'
-  )
-  return {
-    getCmThemeNames: utils.getCmThemeNames,
-    getCmThemeByName: vi.fn((name: string) => utils.getCmThemeByName(name))
-  }
-})
+vi.unmock('@cherrystudio/ui')
 
 const themeState = vi.hoisted(() => ({ theme: 'light' as 'light' | 'dark' }))
+vi.mock('@renderer/hooks/useTheme', () => ({ useTheme: () => ({ theme: themeState.theme }) }))
 
-vi.mock('@renderer/hooks/useTheme', () => ({
-  useTheme: () => ({ theme: themeState.theme })
-}))
-
-vi.mock('@renderer/hooks/useMermaid', () => ({
-  useMermaid: () => {}
-}))
-
-const Probe = () => {
-  const { highlightCode, activeCodeTheme } = useCodeStyle()
-  const { loadThemeNames, themeNames } = useCodeStyleThemeCatalog()
+function Probe() {
+  const { codeBlockStyle, activeCodeTheme, isCodeThemeDark } = useCodeStyle()
+  const { themeNames } = useCodeStyleThemeCatalog()
   return (
-    <>
-      <span data-testid="has-dracula">{String(themeNames.includes('dracula'))}</span>
-      <span data-testid="shiki-theme">{activeCodeTheme}</span>
-      <button type="button" onClick={() => void loadThemeNames()}>
-        Load themes
-      </button>
-      <button type="button" onClick={() => void highlightCode('value', 'missing-language')}>
-        Highlight code
-      </button>
-    </>
+    <div aria-label="Code appearance" style={codeBlockStyle}>
+      <output aria-label="Selected code theme">{activeCodeTheme}</output>
+      <span>{isCodeThemeDark ? 'Dark code' : 'Light code'}</span>
+      <select aria-label="Available code themes">
+        {themeNames.map((name) => (
+          <option key={name}>{name}</option>
+        ))}
+      </select>
+    </div>
   )
 }
-
-// Stands in for any CodeMirror consumer boundary (Notes, MCP editors, ArtifactPane, previews).
-const EditorBoundary = ({ active = true }: { active?: boolean }) => {
-  const theme = useCmTheme(active)
-  return (
-    <>
-      <span data-testid="cm-theme-type">{typeof theme}</span>
-      <span data-testid="cm-theme-string">{typeof theme === 'string' ? theme : ''}</span>
-    </>
-  )
-}
-
-const renderProvider = (children: React.ReactNode = <Probe />) =>
-  render(<CodeStyleProvider>{children}</CodeStyleProvider>)
-
-describe('CodeStyleProvider', () => {
+const appearance = () => screen.getByLabelText('Code appearance')
+describe('shared code appearance', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     MockUsePreferenceUtils.resetMocks()
     themeState.theme = 'light'
   })
 
-  it('throws when useCodeStyle is used outside CodeStyleProvider', () => {
-    expect(() => render(<Probe />)).toThrow('useCodeStyle must be used within a CodeStyleProvider')
-  })
-
-  it('does not resolve the cm theme while no editor boundary is mounted', () => {
-    MockUsePreferenceUtils.setPreferenceValue('chat.code.editor.enabled', true)
-    MockUsePreferenceUtils.setPreferenceValue('chat.code.editor.theme_light', 'dracula')
-
-    renderProvider()
-
-    // Mounting the provider alone must not pull the themes-all catalog; only an
-    // editor boundary (useCmTheme) may trigger resolution.
-    expect(vi.mocked(getCmThemeByName)).not.toHaveBeenCalled()
-  })
-
-  it('does not demand the theme while the editor boundary is inactive', async () => {
-    MockUsePreferenceUtils.setPreferenceValue('chat.code.editor.theme_light', 'dracula')
-
-    const { rerender } = renderProvider(<EditorBoundary active={false} />)
-    expect(vi.mocked(getCmThemeByName)).not.toHaveBeenCalled()
-
-    rerender(
+  it('keeps the message palette independent of the CodeMirror preference', async () => {
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'chat.code.viewer.theme_light': 'nord',
+      'chat.code.editor.theme_light': 'dracula'
+    })
+    render(
       <CodeStyleProvider>
-        <EditorBoundary />
+        <Probe />
       </CodeStyleProvider>
     )
-
-    await waitFor(() => expect(vi.mocked(getCmThemeByName)).toHaveBeenCalledWith('dracula'))
+    const palette = getCodeBlockPalette(await loadCodeTheme('nord'))
+    await waitFor(() =>
+      expect(appearance().style.getPropertyValue('--code-syntax-keyword')).toBe(palette['--code-syntax-keyword'])
+    )
+    expect(screen.getByLabelText('Selected code theme')).toHaveTextContent('nord')
+    expect(screen.getByText('Dark code')).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: 'dracula' })).toBeInTheDocument()
   })
 
-  it('resolves the saved cm theme once an editor boundary demands it', async () => {
-    MockUsePreferenceUtils.setPreferenceValue('chat.code.editor.enabled', true)
-    MockUsePreferenceUtils.setPreferenceValue('chat.code.editor.theme_light', 'dracula')
-
-    renderProvider(
-      <>
-        <Probe />
-        <EditorBoundary />
-      </>
-    )
-    fireEvent.click(screen.getByRole('button', { name: 'Load themes' }))
-
-    // The first waitFor in this file pays the real (cold) dynamic import of
-    // @uiw/codemirror-themes-all; under a fully loaded worker pool that takes
-    // several seconds, so it needs more than the 1s waitFor default. Later
-    // tests reuse the module-level cmThemesPromise cache and stay fast.
-    await waitFor(
-      () => {
-        expect(screen.getByTestId('has-dracula').textContent).toBe('true')
-        expect(screen.getByTestId('cm-theme-type').textContent).toBe('object')
-      },
-      { timeout: 15000 }
-    )
-  })
-
-  it('resolves basic string cm themes without loading a themes-all extension', async () => {
-    MockUsePreferenceUtils.setPreferenceValue('chat.code.editor.enabled', true)
-    MockUsePreferenceUtils.setPreferenceValue('chat.code.editor.theme_light', 'dark')
-
-    renderProvider(<EditorBoundary />)
-
-    await waitFor(() => {
-      expect(screen.getByTestId('cm-theme-string').textContent).toBe('dark')
+  it('updates the palette when the app theme changes', async () => {
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'chat.code.viewer.theme_light': 'one-light',
+      'chat.code.viewer.theme_dark': 'nord'
     })
+    const { rerender } = render(
+      <CodeStyleProvider>
+        <Probe />
+      </CodeStyleProvider>
+    )
+    const light = getCodeBlockPalette(await loadCodeTheme('one-light'))
+    await waitFor(() =>
+      expect(appearance().style.getPropertyValue('--code-background')).toBe(light['--code-background'])
+    )
+    themeState.theme = 'dark'
+    rerender(
+      <CodeStyleProvider>
+        <Probe />
+      </CodeStyleProvider>
+    )
+    const dark = getCodeBlockPalette(await loadCodeTheme('nord'))
+    await waitFor(() =>
+      expect(appearance().style.getPropertyValue('--code-background')).toBe(dark['--code-background'])
+    )
+    expect(screen.getByText('Dark code')).toBeInTheDocument()
   })
 
-  // Notes, MCP editors, ArtifactPane and the previews all read the cm theme; gating its
-  // resolution on the chat-only flag left them on the bare light/dark theme.
-  it('resolves a real cm theme for non-chat editors while the chat code editor is disabled', async () => {
-    MockUsePreferenceUtils.setPreferenceValue('chat.code.editor.enabled', false)
-    MockUsePreferenceUtils.setPreferenceValue('chat.code.editor.theme_light', 'dracula')
-
-    renderProvider(<EditorBoundary />)
-
-    await waitFor(() => expect(screen.getByTestId('cm-theme-type').textContent).toBe('object'), { timeout: 15000 })
+  it('falls back to a valid palette for a removed theme identifier', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('chat.code.viewer.theme_light', 'theme-deleted-upstream')
+    render(
+      <CodeStyleProvider>
+        <Probe />
+      </CodeStyleProvider>
+    )
+    await waitFor(() => expect(screen.getByLabelText('Selected code theme')).toHaveTextContent('cherry'))
   })
 
-  it('falls back to the base material light theme when the stored name is auto', async () => {
-    MockUsePreferenceUtils.setPreferenceValue('chat.code.editor.theme_light', 'auto')
-
-    renderProvider(<EditorBoundary />)
-
-    await waitFor(() => expect(vi.mocked(getCmThemeByName)).toHaveBeenCalledWith('materialLight'))
-  })
-
-  it('re-resolves with the dark-side theme when the window theme flips', async () => {
-    MockUsePreferenceUtils.setPreferenceValue('chat.code.editor.theme_light', 'dracula')
-    MockUsePreferenceUtils.setPreferenceValue('chat.code.editor.theme_dark', 'githubDark')
-
-    const { rerender } = renderProvider(<EditorBoundary />)
-    await waitFor(() => expect(vi.mocked(getCmThemeByName)).toHaveBeenCalledWith('dracula'))
+  it('defaults to the transparent Cherry theme and follows the app mode without switching themes', async () => {
+    const { rerender } = render(
+      <CodeStyleProvider>
+        <Probe />
+      </CodeStyleProvider>
+    )
+    await waitFor(() =>
+      expect(appearance().style.getPropertyValue('--code-background')).toBe(
+        'var(--cherry-code-background, transparent)'
+      )
+    )
+    expect(appearance().style.getPropertyValue('--code-syntax-keyword')).toMatch(/^var\(--cherry-code-keyword, /)
+    expect(screen.getByText('Light code')).toBeInTheDocument()
 
     themeState.theme = 'dark'
     rerender(
       <CodeStyleProvider>
-        <EditorBoundary />
+        <Probe />
       </CodeStyleProvider>
     )
-
-    await waitFor(() => expect(vi.mocked(getCmThemeByName)).toHaveBeenCalledWith('githubDark'))
-  })
-
-  it('keeps the viewer catalog separate from CodeMirror and preserves saved themes', () => {
-    MockUsePreferenceUtils.setPreferenceValue('chat.code.editor.enabled', false)
-    MockUsePreferenceUtils.setPreferenceValue('chat.code.viewer.theme_light', 'nord')
-    renderProvider()
-    expect(screen.getByTestId('has-dracula').textContent).toBe('true')
-    expect(screen.getByTestId('shiki-theme').textContent).toBe('nord')
-  })
-
-  it('falls back for removed themes before any consumer requests highlighting', () => {
-    MockUsePreferenceUtils.setPreferenceValue('chat.code.viewer.theme_light', 'theme-deleted-upstream')
-    renderProvider()
-    expect(screen.getByTestId('shiki-theme').textContent).toBe('one-light')
+    expect(screen.getByLabelText('Selected code theme')).toHaveTextContent('cherry')
+    expect(screen.getByText('Dark code')).toBeInTheDocument()
   })
 })

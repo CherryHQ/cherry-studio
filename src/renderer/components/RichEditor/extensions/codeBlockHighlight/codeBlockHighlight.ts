@@ -94,8 +94,7 @@ export const CodeBlockHighlight = CodeBlock.extend<CodeBlockHighlightOptions>({
   addProseMirrorPlugins() {
     const highlightPlugin = HighlightPlugin({
       name: this.name,
-      defaultLanguage: this.options.defaultLanguage,
-      theme: this.options.theme
+      defaultLanguage: this.options.defaultLanguage
     })
 
     const codeBlockEventPlugin = new Plugin({

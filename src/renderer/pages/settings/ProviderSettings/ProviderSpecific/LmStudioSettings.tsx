@@ -1,16 +1,12 @@
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { InputGroup, InputGroupAddon, InputGroupInputNumber, InputGroupText } from '@cherrystudio/ui'
+import { InputGroup, InputGroupAddon, InputGroupInputNumber, InputGroupText, HelpTooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { toast } from '@renderer/services/toast'
 
-import {
-  ProviderHelpText,
-  ProviderHelpTextRow,
-  ProviderSettingsSubtitle
-} from '../primitives/ProviderSettingsPrimitives'
+import { ProviderSettingsSubtitle } from '../primitives/ProviderSettingsPrimitives'
 
 const logger = loggerService.withContext('LmStudioSettings')
 
@@ -39,7 +35,9 @@ const LmStudioSettings: FC<Props> = ({ providerId }) => {
 
   return (
     <div>
-      <ProviderSettingsSubtitle className="mb-1">{t('lmstudio.keep_alive_time.title')}</ProviderSettingsSubtitle>
+      <ProviderSettingsSubtitle className="mb-1 flex items-center gap-1.5">
+        {t('lmstudio.keep_alive_time.title')} <HelpTooltip content={t('lmstudio.keep_alive_time.description')} />
+      </ProviderSettingsSubtitle>
       <InputGroup>
         <InputGroupInputNumber
           aria-label={t('lmstudio.keep_alive_time.title')}
@@ -52,9 +50,6 @@ const LmStudioSettings: FC<Props> = ({ providerId }) => {
           <InputGroupText>{t('lmstudio.keep_alive_time.placeholder')}</InputGroupText>
         </InputGroupAddon>
       </InputGroup>
-      <ProviderHelpTextRow>
-        <ProviderHelpText>{t('lmstudio.keep_alive_time.description')}</ProviderHelpText>
-      </ProviderHelpTextRow>
     </div>
   )
 }

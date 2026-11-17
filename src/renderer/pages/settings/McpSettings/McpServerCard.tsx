@@ -22,7 +22,6 @@ import { cn } from '@renderer/utils/style'
 import type { UpdateMcpServerDto } from '@shared/data/api/schemas/mcpServers'
 import type { McpServer } from '@shared/data/types/mcpServer'
 
-import { isQVerisApiKeyMissing, QVerisApiKeyGuide } from './QVerisApiKeyGuide'
 import { useMcpServerTrust } from './useMcpServerTrust'
 
 const logger = loggerService.withContext('McpServerCard')
@@ -65,15 +64,6 @@ const McpServerCard: FC<McpServerCardProps> = ({ server, onEdit }) => {
 
   const handleToggleActive = useCallback(
     async (active: boolean) => {
-      if (active && isQVerisApiKeyMissing(server)) {
-        void popup.error({
-          title: t('settings.mcp.startError'),
-          content: <QVerisApiKeyGuide />,
-          centered: true
-        })
-        return
-      }
-
       let serverForUpdate = server
       if (active) {
         const trustedServer = await ensureServerTrusted(server)
@@ -103,7 +93,7 @@ const McpServerCard: FC<McpServerCardProps> = ({ server, onEdit }) => {
         setLoading(false)
       }
     },
-    [server, ensureServerTrusted, fetchServerVersion, updateMcpServer, t]
+    [server, ensureServerTrusted, fetchServerVersion, updateMcpServer]
   )
 
   const handleDelete = useCallback(async () => {
@@ -244,8 +234,7 @@ const McpServerCard: FC<McpServerCardProps> = ({ server, onEdit }) => {
               variant="ghost"
               size="icon-sm"
               className="size-7 rounded-md text-muted-foreground shadow-none hover:text-foreground"
-              onClick={handleOpenUrl}
-              data-no-dnd>
+              onClick={handleOpenUrl}>
               <ExternalLink size={13} />
             </Button>
           )}
@@ -259,7 +248,6 @@ const McpServerCard: FC<McpServerCardProps> = ({ server, onEdit }) => {
             size="xs"
             className="shadow-none data-[state=checked]:bg-success"
             onCheckedChange={handleToggleActive}
-            data-no-dnd
           />
         </ToolbarWrapper>
       </CardContainer>

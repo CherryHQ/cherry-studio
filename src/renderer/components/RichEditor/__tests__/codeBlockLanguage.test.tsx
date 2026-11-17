@@ -1,8 +1,8 @@
-import { render, renderHook, screen, waitFor, within } from '@testing-library/react'
+import { cleanup, render, renderHook, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import i18n from 'i18next'
 import { useRef } from 'react'
-import { beforeAll, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@cherrystudio/ui', async (importOriginal) => importOriginal())
 vi.mock('@renderer/hooks/useCodeStyle', () => ({
@@ -11,12 +11,23 @@ vi.mock('@renderer/hooks/useCodeStyle', () => ({
 
 vi.mock('@renderer/components/Preview/MermaidPreview', () => ({ default: () => null }))
 
+import { codeHighlightService } from '@renderer/services/CodeHighlightService'
+
 import RichEditor from '../RichEditor'
 import type { RichEditorRef } from '../types'
 
 beforeAll(async () => {
   HTMLElement.prototype.scrollIntoView = vi.fn()
   await i18n.changeLanguage('en-us')
+})
+
+afterEach(async () => {
+  cleanup()
+  // Tiptap destroys editors on the next tick; the worker reply then drains their queued session work.
+  // Vitest's simulated terminate() removes listeners without canceling running async tasks.
+  await new Promise((resolve) => setTimeout(resolve, 1))
+  await codeHighlightService.highlightCodeToHtml('', 'text', 'one-light')
+  codeHighlightService.dispose()
 })
 
 describe('code block language search', () => {
@@ -41,6 +52,14 @@ describe('code block language search', () => {
     render(<RichEditor ref={ref} initialContent={saved} autoFocus={false} />)
     expect(await screen.findByRole('button', { name: 'Language' })).toHaveTextContent('python')
     expect(ref.current?.getMarkdown()).toContain('print("hello")')
+  })
+
+  it('opens an empty Mermaid block in source mode so its source stays editable', async () => {
+    render(<RichEditor initialContent={'```mermaid\n```'} autoFocus={false} />)
+
+    expect(await screen.findByRole('button', { name: 'Language' })).toHaveTextContent('mermaid')
+    expect(screen.queryByRole('button', { name: 'Edit' })).not.toBeInTheDocument()
+    expect(document.querySelector('.code-block-wrapper pre')).toBeVisible()
   })
 
   it('supports searching from Mermaid source mode, empty results and reopening with a cleared search', async () => {

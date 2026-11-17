@@ -2,14 +2,13 @@
  * Plugin presets for Streamdown's `plugins` prop.
  *
  * Defaults to `code` + `cjk` (the most commonly needed for chat / docs UIs).
- * Math + Mermaid are opt-in via `withMath()` / `withMermaid()` so a
- * consumer that doesn't need them can avoid bundling KaTeX / Mermaid into
- * their tree-shaken build.
+ * Math is opt-in at render time via `withMath()`, but its plugin is bundled with
+ * this module. Mermaid presets live in `mermaid-presets.ts` so they stay out of
+ * the bundle unless imported.
  */
 
 import { cjk, type CjkPlugin } from '@streamdown/cjk'
 import { createMathPlugin } from '@streamdown/math'
-import { mermaid } from '@streamdown/mermaid'
 import type { PluginConfig } from 'streamdown'
 import type { Pluggable } from 'unified'
 
@@ -19,10 +18,6 @@ export interface WithMathOptions {
   singleDollar?: boolean
   /** Render the longest closed, valid prefix; keep final input errors visible when false. */
   streaming?: boolean
-}
-
-export interface WithFullMarkdownOptions {
-  singleDollarMath?: boolean
 }
 
 const cjkWithLiteralTildes: CjkPlugin = (() => {
@@ -48,26 +43,3 @@ export function withMath(opts?: WithMathOptions): PluginConfig['math'] {
   const math = createMathPlugin({ singleDollarTextMath: opts?.singleDollar ?? false })
   return opts?.streaming ? { ...math, rehypePlugin: [rehypeStreamingMath, math.rehypePlugin] } : math
 }
-
-/** Mermaid diagram plugin. Heavy — only import where actually rendered. */
-export function withMermaid(): PluginConfig['mermaid'] {
-  return mermaid
-}
-
-/**
- * Composer preset bundling all four plugins (code + cjk + math + mermaid).
- * Suitable for consumers that render the full markdown surface.
- */
-export function withFullMarkdown(opts?: WithFullMarkdownOptions): PluginConfig {
-  return {
-    ...defaultMarkdownPlugins,
-    math: withMath({ singleDollar: opts?.singleDollarMath ?? false }),
-    mermaid: withMermaid()
-  }
-}
-
-/**
- * @deprecated Use `withFullMarkdown`. Kept as a compatibility alias for
- * downstream branches that still import this preset from the markdown barrel.
- */
-export const withChatPlugins = withFullMarkdown

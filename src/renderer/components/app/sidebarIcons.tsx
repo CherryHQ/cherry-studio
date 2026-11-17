@@ -1,6 +1,7 @@
 import type { LucideProps } from 'lucide-react'
 import {
   BotMessageSquare,
+  Clock,
   Code,
   Database,
   FileSearch,
@@ -14,7 +15,8 @@ import {
   MousePointerClick,
   NotepadText,
   Package,
-  Palette
+  Palette,
+  Store
 } from 'lucide-react'
 import type { ReactNode } from 'react'
 
@@ -33,7 +35,9 @@ const CodeMateIcon: SidebarIconComponent = (props) => <Code {...props} viewBox="
 export const SIDEBAR_ICON_COMPONENTS = {
   assistants: MessageSquare,
   agents: MousePointerClick,
+  scheduled_tasks: Clock,
   paintings: Palette,
+  marketplace: Store,
   translate: Languages,
   mini_app: LayoutGrid,
   knowledge: FileSearch,
@@ -84,12 +88,25 @@ export function SidebarIcon({
 }: LucideProps & { icon: SidebarGlyph; active?: boolean }) {
   const Outline = NAVIGATION_ICON_COMPONENTS[icon]
   if (!active) return <Outline {...props} />
+  if (icon === 'marketplace') return <Outline {...props} fill="currentColor" stroke="var(--sidebar)" />
+  if (icon === 'scheduled_tasks') {
+    return (
+      <Icon
+        {...props}
+        fill="currentColor"
+        iconNode={[
+          ['circle', { cx: '12', cy: '12', r: '10', key: 'clock' }],
+          ['path', { d: 'M12 6v6l4 2', fill: 'none', stroke: 'var(--background)', key: 'hands' }]
+        ]}
+      />
+    )
+  }
   const filledPath = FILLED_PATHS[icon]
   if (filledPath) {
     return (
       <Icon
         {...props}
-        viewBox={icon === 'code_tools' ? '-2 -2 28 28' : '0 0 24 24'}
+        viewBox={icon === 'code_tools' ? '-2 -2 28 28' : '-1 -1 26 26'}
         iconNode={[['path', { d: filledPath, key: 'fill' }]]}
         fill="currentColor"
         fillRule={icon === 'translate' ? 'nonzero' : 'evenodd'}
@@ -97,5 +114,5 @@ export function SidebarIcon({
       />
     )
   }
-  return <Outline {...props} fill="currentColor" />
+  return <Outline {...props} viewBox="-1 -1 26 26" fill="currentColor" />
 }

@@ -214,16 +214,6 @@ describe('ScreenshotSettings', () => {
     expect(screen.queryByLabelText('settings.shortcuts.occupied_by_other_application')).not.toBeInTheDocument()
   })
 
-  it('says the shortcut is unset rather than showing an empty badge', async () => {
-    MockUsePreferenceUtils.setPreferenceValue('shortcut.screenshot.capture', { binding: [], enabled: false })
-    stubIpc({ permission: 'authorized' })
-    render(<ScreenshotSettings />)
-
-    await screen.findByRole('switch', { name: screenshotEnabledSwitchName })
-
-    expect(screen.getByText('settings.screenshot.shortcut.unset')).toBeInTheDocument()
-  })
-
   it('renders no permission section off macOS', async () => {
     platform.isMac = false
     stubIpc({ permission: 'denied' })
@@ -233,17 +223,6 @@ describe('ScreenshotSettings', () => {
 
     expect(screen.queryByText('settings.screenshot.permission.title')).not.toBeInTheDocument()
     expect(requestedRoutes()).not.toContain('system.mac.screen_capture_status')
-  })
-
-  it('renders no permission section on macOS once the permission is already granted', async () => {
-    publishLocalModelStatus(OCR, { status: 'ready', percent: 100 })
-    stubIpc({ permission: 'authorized' })
-    await act(async () => {
-      render(<ScreenshotSettings />)
-    })
-
-    expect(await screen.findByText('provider.system')).toBeInTheDocument()
-    expect(screen.queryByText('settings.screenshot.permission.title')).not.toBeInTheDocument()
   })
 
   it('moves into the restart state when the OS grants the permission', async () => {

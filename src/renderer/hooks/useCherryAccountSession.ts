@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { ipcApi, useIpcOn } from '@renderer/ipc'
+import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
-import { cherryCloudErrorCodes } from '@shared/ipc/errors/cherryCloud'
-import { IpcError } from '@shared/ipc/errors/IpcError'
-import type { CherryCloudStatus } from '@shared/ipc/schemas/cherryCloud'
+import { getCherryCloudSignInErrorMessage } from '@renderer/utils/cherryCloudSignIn'
+
+import { useCherryCloudReceipt } from './useCherryCloudReceipt'
 
 type CherryCloudStatusLoadState = 'error' | 'loading' | 'ready'
 
@@ -13,74 +13,46 @@ type CherryCloudSessionAction = 'cancel' | 'login' | 'revoke'
 
 export function useCherryAccountSession(enabled = true) {
   const { t } = useTranslation()
-  const [status, setStatus] = useState<CherryCloudStatus | null>(null)
-  const [loadState, setLoadState] = useState<CherryCloudStatusLoadState>('loading')
+  const { receipt, error, reload: reloadReceipt } = useCherryCloudReceipt(enabled)
+  const status = receipt?.status ?? null
+  const loadState: CherryCloudStatusLoadState = status ? 'ready' : error ? 'error' : 'loading'
   const [pendingAction, setPendingAction] = useState<CherryCloudSessionAction | null>(null)
   const requestRef = useRef(0)
 
-  const applyStatus = useCallback((nextStatus: CherryCloudStatus) => {
-    setStatus(nextStatus)
-    setLoadState('ready')
-  }, [])
-
-  useIpcOn('cherry_cloud.status_changed', (nextStatus) => {
-    if (!enabled) return
-    requestRef.current += 1
-    applyStatus(nextStatus)
-  })
-
   const reload = useCallback(async () => {
-    const requestId = ++requestRef.current
-    setLoadState('loading')
-    try {
-      const nextStatus = await ipcApi.request('cherry_cloud.status.get')
-      if (requestId === requestRef.current) applyStatus(nextStatus)
-    } catch {
-      if (requestId === requestRef.current) setLoadState('error')
-    }
-  }, [applyStatus])
+    await reloadReceipt().catch(() => {})
+  }, [reloadReceipt])
 
   useEffect(() => {
-    if (!enabled) return
-    void reload()
     return () => {
       requestRef.current += 1
     }
-  }, [enabled, reload])
+  }, [enabled])
 
   const runAction = useCallback(
     async (action: CherryCloudSessionAction) => {
       const requestId = ++requestRef.current
       setPendingAction(action)
       try {
-        const nextStatus = await ipcApi.request(
-          action === 'login'
-            ? 'cherry_cloud.login.start'
-            : action === 'cancel'
-              ? 'cherry_cloud.login.cancel'
-              : 'cherry_cloud.session.revoke'
-        )
-        if (requestId === requestRef.current) applyStatus(nextStatus)
+        if (action === 'login') await ipcApi.request('cherry_cloud.login.start')
+        else await ipcApi.request(action === 'cancel' ? 'cherry_cloud.login.cancel' : 'cherry_cloud.session.revoke')
+        if (requestId === requestRef.current) await reloadReceipt()
       } catch (error) {
         if (requestId !== requestRef.current) return
-        let message = t(
-          action === 'revoke'
-            ? 'settings.provider.cherry_cloud.logout_failed'
-            : 'settings.provider.cherry_cloud.sign_in_failed'
+        toast.error(
+          action === 'login'
+            ? getCherryCloudSignInErrorMessage(error, t)
+            : t(
+                action === 'revoke'
+                  ? 'settings.provider.cherry_cloud.logout_failed'
+                  : 'settings.provider.cherry_cloud.sign_in_failed'
+              )
         )
-        if (action === 'login' && error instanceof IpcError) {
-          if (error.code === cherryCloudErrorCodes.UPGRADE_REQUIRED) {
-            message = t('settings.provider.cherry_cloud.upgrade_required')
-          } else if (error.code === cherryCloudErrorCodes.LOGIN_SERVICE_UNAVAILABLE) {
-            message = t('error.http.503')
-          }
-        }
-        toast.error(message)
       } finally {
-        setPendingAction((current) => (current === action ? null : current))
+        if (requestId === requestRef.current) setPendingAction(null)
       }
     },
-    [applyStatus, t]
+    [reloadReceipt, t]
   )
 
   const login = useCallback(() => runAction('login'), [runAction])

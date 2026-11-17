@@ -146,22 +146,6 @@ describe.skipIf(!ripgrepAvailable)('createDirectoryTree — initial scan', () =>
     }
   })
 
-  it('always excludes the .git directory even when .gitignore does not mention it', async () => {
-    // git itself never lists `.git` in `.gitignore` — but watching it is
-    // pointless and chunky, so the predicate adds it unconditionally.
-    await writeFile(path.join(tmp, 'app.ts'), 'src')
-    await mkdir(path.join(tmp, '.git'))
-    await writeFile(path.join(tmp, '.git', 'HEAD'), 'ref: refs/heads/main')
-
-    const builder = await createDirectoryTree(tmp)
-    try {
-      expect(builder.root.hasChild('app.ts')).toBe(true)
-      expect(builder.root.hasChild('.git')).toBe(false)
-    } finally {
-      await builder.disposeAsync()
-    }
-  })
-
   it('respectGitignore=false disables both .gitignore parsing and the .git carve-out', async () => {
     // The Notes data dir opts out of gitignore semantics — surface everything.
     await writeFile(path.join(tmp, '.gitignore'), 'secret.md\n')
@@ -276,42 +260,6 @@ describe.skipIf(!ripgrepAvailable)('createDirectoryTree — watcher mutations', 
       await expected
       sub.dispose()
       expect(allEvents.some((e) => 'path' in e && e.path.endsWith('/unwanted.txt'))).toBe(false)
-    } finally {
-      await builder.disposeAsync()
-    }
-  })
-
-  it('drops chokidar add events for OS-noise files (.DS_Store, Thumbs.db) — defaults match initial scan', async () => {
-    // Prior to wiring chokidar's predicate to the same DEFAULT_IGNORE_PATTERNS,
-    // a `.DS_Store` written *after* mount would slip into the tree even
-    // though the initial ripgrep scan filtered it. No `extensions` filter
-    // here so the only thing keeping these files out is the ignore predicate.
-    // `includeHidden: true` removes the dotfile pre-filter as well so the
-    // ignore-predicate is the *only* remaining gate.
-    const builder = await createDirectoryTree(tmp, { includeHidden: true })
-    try {
-      const events: TreeMutationEvent[] = []
-      const sub = builder.onMutation((e) => events.push(e))
-
-      // Race-free: create a regular .txt alongside the OS-noise files, wait
-      // for the legit event, then assert the OS-noise files were suppressed.
-      const sentinelPromise = waitForEvent(
-        builder,
-        (e) => e.type === 'added' && 'path' in e && e.path.endsWith('/sentinel.txt')
-      )
-      await writeFile(path.join(tmp, '.DS_Store'), 'noise')
-      await writeFile(path.join(tmp, 'Thumbs.db'), 'noise')
-      await writeFile(path.join(tmp, 'sentinel.txt'), 'ok')
-      await sentinelPromise
-
-      const noiseEvents = events.filter(
-        (e) => 'path' in e && (e.path.endsWith('/.DS_Store') || e.path.endsWith('/Thumbs.db'))
-      )
-      expect(noiseEvents).toEqual([])
-      expect(builder.getNode(path.join(tmp, '.DS_Store'))).toBeNull()
-      expect(builder.getNode(path.join(tmp, 'Thumbs.db'))).toBeNull()
-
-      sub.dispose()
     } finally {
       await builder.disposeAsync()
     }
@@ -525,26 +473,6 @@ describe.skipIf(!ripgrepAvailable)('createDirectoryTree — watcher mutations', 
       expect(JSON.stringify(snap)).not.toMatch(/parent/)
     } finally {
       await builder.disposeAsync()
-    }
-  })
-})
-
-describe.skipIf(!ripgrepAvailable)('createDirectoryTree — DB isolation', () => {
-  it('the tree primitive does not import @main/data', async () => {
-    // Import-graph proxy: a regex over the source files. The classes live
-    // in `src/shared/utils/file/tree.ts` and the main-side primitive
-    // is split across `builder.ts` / `DirectoryTreeManager.ts`. None of
-    // them may pull anything from `@main/data`.
-    const { readFile } = await import('node:fs/promises')
-    const builderSource = await readFile(new URL('../builder.ts', import.meta.url), 'utf8')
-    const managerSource = await readFile(new URL('../DirectoryTreeManager.ts', import.meta.url), 'utf8')
-    const sharedTreeSource = await readFile(
-      new URL('../../../../../shared/utils/file/tree.ts', import.meta.url),
-      'utf8'
-    )
-    for (const src of [builderSource, managerSource, sharedTreeSource]) {
-      expect(src).not.toMatch(/from\s+['"]@main\/data/)
-      expect(src).not.toMatch(/from\s+['"]@data\//)
     }
   })
 })

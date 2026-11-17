@@ -1,8 +1,8 @@
-import { useNavigate } from '@tanstack/react-router'
 import { type ReactNode, useCallback, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { dataApiService } from '@data/DataApiService'
+import { useMessageAuthorAvatarSources } from '@renderer/components/chat/messages/hooks/useMessageAuthorAvatarSources'
 import { useMessageListAdapterCapabilities } from '@renderer/components/chat/messages/hooks/useMessageListAdapterCapabilities'
 import {
   pickMessageHeaderActions,
@@ -20,6 +20,7 @@ import {
   type MessageListRuntime,
   type MessageListSelectAllPagination,
   type MessageListState,
+  type MessageUserProfile,
   type MessageRuntime,
   type MessageStreamingLayers
 } from '@renderer/components/chat/messages/types'
@@ -37,6 +38,7 @@ import { extractAgentSessionIdFromTopicId } from '@renderer/utils/agentSession'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { normalizeInlineFilePath, resolveInlineFilePath } from '@renderer/utils/filePath'
 import { isDataApiNotFoundError } from '@shared/data/api/errors'
+import type { AgentSessionHistoryActions } from '@shared/data/api/schemas/agentSessionMessages'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { agentSessionForkFailureReason } from '@shared/ipc/errors/ai'
 import type { DoctorSubjectRef } from '@shared/types/doctor'
@@ -56,7 +58,13 @@ const exportToObsidian: ExportMessagesToObsidian = async (title, messages) => {
   return popup.show({ title, messages, processingMethod: '1' })
 }
 
+const canDeleteMessage = (message: MessageListItem): boolean => message.role !== 'assistant'
+
 const agentMessageListRuntimes = new Map<string, MessageListRuntime>()
+
+export function scrollAgentMessageListToEnd(topicId: string): void {
+  agentMessageListRuntimes.get(topicId)?.scrollToBottom()
+}
 
 export function locateAgentMessageInList(topicId: string, messageId: string, highlight?: boolean): boolean {
   const runtime = agentMessageListRuntimes.get(topicId) ?? null
@@ -64,15 +72,16 @@ export function locateAgentMessageInList(topicId: string, messageId: string, hig
   return runtime !== null
 }
 
+/** In-place navigation a routed host supplies; without it the fork-source link is hidden. */
+export type NavigateToForkSource = (input: { sourceSessionId: string; returnSessionId?: string }) => Promise<void>
+
 interface AgentMessageListParams {
   topic: Topic
   messages: CherryUIMessage[]
+  historyActions?: Readonly<Record<string, AgentSessionHistoryActions | undefined>>
   partsByMessageId: Record<string, CherryMessagePart[]>
   streamingLayers?: MessageStreamingLayers
-  assistantProfile?: {
-    name?: string
-    avatar?: string
-  }
+  assistantProfile?: MessageUserProfile & { id?: string }
   assistantId?: string
   isLoading: boolean
   hasOlder?: boolean
@@ -87,11 +96,15 @@ interface AgentMessageListParams {
   previewInputFile?: MessageListActions['previewInputFile']
   openDiagnosticReport?: MessageListActions['openDiagnosticReport']
   diagnosticReport?: DiagnosticReportConfig
+  getMessageSiblings?: MessageListState['getMessageSiblings']
+  setActiveBranch?: MessageListActions['setActiveBranch']
   deleteMessage?: MessageListActions['deleteMessage']
   startEditing?: (messageId: string) => Promise<void>
   editBusy?: boolean
   respondToolApproval?: MessageListActions['respondToolApproval']
+  navigateToForkSource?: NavigateToForkSource
   imageActionConsumer?: 'capture'
+  scrollToBottomOnSend?: boolean
   messageNavigation: string
   workspacePath?: string
   messageTail?: MessageListState['messageTail']
@@ -135,6 +148,7 @@ const requireWorkspaceFilePath = (workspacePath: string | undefined, rawPath: st
 export function useAgentMessageListProviderValue({
   topic,
   messages,
+  historyActions,
   partsByMessageId,
   streamingLayers,
   assistantProfile,
@@ -153,10 +167,14 @@ export function useAgentMessageListProviderValue({
   openDiagnosticReport,
   diagnosticReport,
   deleteMessage,
+  getMessageSiblings,
+  setActiveBranch,
   startEditing,
   editBusy,
   respondToolApproval,
+  navigateToForkSource,
   imageActionConsumer,
+  scrollToBottomOnSend = false,
   messageNavigation,
   workspacePath,
   messageTail,
@@ -165,7 +183,6 @@ export function useAgentMessageListProviderValue({
   const { t } = useTranslation()
   const normalInteractionsEnabled = imageActionConsumer !== 'capture'
   const sessionId = useMemo(() => extractAgentSessionIdFromTopicId(topic.id), [topic.id])
-  const navigate = useNavigate()
   const resolvedAgentId = assistantId ?? topic.assistantId
   const messageItemCacheRef = useRef(
     new WeakMap<
@@ -252,6 +269,7 @@ export function useAgentMessageListProviderValue({
     partsByMessageId,
     streamingLayers: displayStreamingLayers,
     deleteMessage,
+    canDeleteMessage,
     diagnosticReport,
     getDoctorSubject,
     selectAllPagination
@@ -310,14 +328,20 @@ export function useAgentMessageListProviderValue({
       }
 
       agentMessageListRuntimes.set(topic.id, runtime)
+      const unsubscribeSend = scrollToBottomOnSend
+        ? EventEmitter.on(EVENT_NAMES.SEND_MESSAGE, ({ topicId }: { topicId: string }) => {
+            if (topicId === topic.id) runtime.scrollToBottom()
+          })
+        : undefined
 
       return () => {
+        unsubscribeSend?.()
         if (agentMessageListRuntimes.get(topic.id) === runtime) {
           agentMessageListRuntimes.delete(topic.id)
         }
       }
     },
-    [imageActionConsumer, sessionId, topic.id]
+    [imageActionConsumer, scrollToBottomOnSend, sessionId, topic.id]
   )
 
   const bindMessageRuntime = useCallback(
@@ -363,17 +387,14 @@ export function useAgentMessageListProviderValue({
     async (sourceSessionId: string) => {
       try {
         await dataApiService.get(`/agent-sessions/${sourceSessionId}`)
-        await navigate({
-          to: '/app/agents',
-          search: { sessionId: sourceSessionId, forkReturnSessionId: sessionId ?? undefined }
-        })
+        await navigateToForkSource?.({ sourceSessionId, returnSessionId: sessionId ?? undefined })
       } catch (error) {
         notifyError(
           isDataApiNotFoundError(error) ? t('agent_session_fork.source_not_found') : formatErrorMessage(error)
         )
       }
     },
-    [navigate, notifyError, sessionId, t]
+    [navigateToForkSource, notifyError, sessionId, t]
   )
   const forkSession = useCallback(
     async (messageId: string) => {
@@ -395,9 +416,14 @@ export function useAgentMessageListProviderValue({
     },
     [sessionId, t, notifyError]
   )
+  const agentRenderConfig = useMemo(
+    () => ({ ...renderConfig, keepIntermediateAssistantText: true, expandToolSteps: true }),
+    [renderConfig]
+  )
   const state = useMemo<MessageListState>(
     () => ({
       topic,
+      getMessageSiblings,
       messages: messageItems,
       partsByMessageId: displayPartsByMessageId,
       streamingLayers: displayStreamingLayers,
@@ -409,7 +435,7 @@ export function useAgentMessageListProviderValue({
       messageNavigation,
       ...DEFAULT_MESSAGE_LIST_CONFIG,
       listKey: resolvedAgentId,
-      renderConfig,
+      renderConfig: agentRenderConfig,
       menuConfig,
       selection: selectionController.selection,
       getMessageUiState: messageUiStateCache.getMessageUiState,
@@ -419,6 +445,7 @@ export function useAgentMessageListProviderValue({
     }),
     [
       getMessageActivityState,
+      getMessageSiblings,
       hasOlder,
       isLoading,
       leafCapabilities,
@@ -432,7 +459,7 @@ export function useAgentMessageListProviderValue({
       normalInteractionsEnabled,
       displayPartsByMessageId,
       renderActiveTurnStatus,
-      renderConfig,
+      agentRenderConfig,
       resolvedAgentId,
       selectionController.selection,
       displayStreamingLayers,
@@ -442,25 +469,32 @@ export function useAgentMessageListProviderValue({
 
   const actions = useMemo<MessageListActions>(
     () => ({
+      setActiveBranch: normalInteractionsEnabled ? setActiveBranch : undefined,
       editLabel: t('agent.edit_resend.label'),
       canEditMessage: (message) =>
-        normalInteractionsEnabled && !!startEditing && !editBusy && message.role === 'user' && !message.delivery,
+        normalInteractionsEnabled &&
+        !!startEditing &&
+        !editBusy &&
+        historyActions?.[message.id]?.edit === null &&
+        message.role === 'user' &&
+        !message.delivery,
       startEditing: startEditing
         ? (message) => {
             void startEditing(message.id)
           }
         : undefined,
-      openForkSourceSession: normalInteractionsEnabled ? openForkSourceSession : undefined,
+      openForkSourceSession: normalInteractionsEnabled && navigateToForkSource ? openForkSourceSession : undefined,
       forkSession: normalInteractionsEnabled
         ? {
             label: t('agent_session_fork.label'),
-            availability: (message) => agentSessionForkAvailability(t, message),
+            availability: (message) => agentSessionForkAvailability(t, message, historyActions?.[message.id]),
             run: forkSession
           }
         : undefined,
       loadOlder,
       bindRuntime,
       deleteMessage,
+      canDeleteMessage,
       ...exportActions,
       ...errorActions,
       ...pickMessageLeafActions(leafCapabilities),
@@ -488,8 +522,11 @@ export function useAgentMessageListProviderValue({
     }),
     [
       forkSession,
+      setActiveBranch,
       startEditing,
       editBusy,
+      historyActions,
+      navigateToForkSource,
       openForkSourceSession,
       t,
       abortTool,
@@ -523,15 +560,21 @@ export function useAgentMessageListProviderValue({
     ]
   )
 
+  const assistantAvatarSources = useMessageAuthorAvatarSources(messageItems, topic.id)
   const meta = useMemo<MessageListMeta>(
     () => ({
       selectionLayer: true,
       userProfile: headerCapabilities.userProfile,
       assistantProfile,
+      authorAvatars:
+        assistantProfile?.id && assistantProfile.avatar !== undefined
+          ? new Map([[assistantProfile.id, assistantProfile.avatar]])
+          : undefined,
+      assistantAvatarSources,
       imageExportFileName: topic.name,
       aiUsageMessageKind: 'agent-session'
     }),
-    [assistantProfile, headerCapabilities.userProfile, topic.name]
+    [assistantProfile, assistantAvatarSources, headerCapabilities.userProfile, topic.name]
   )
 
   return useMemo(() => ({ state, actions, meta }), [actions, meta, state])

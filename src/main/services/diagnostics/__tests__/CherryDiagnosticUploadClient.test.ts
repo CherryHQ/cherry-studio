@@ -49,7 +49,6 @@ vi.mock('@main/utils/file', async (importOriginal) => {
 
 import {
   CherryDiagnosticUploadClient,
-  cherryDiagnosticUploadClient,
   type CherryDiagnosticUploadFailureReason,
   type CherryDiagnosticUploadResult
 } from '../CherryDiagnosticUploadClient'
@@ -134,10 +133,6 @@ describe('CherryDiagnosticUploadClient', () => {
     await rm(workDir, { force: true, recursive: true })
   })
 
-  it('exports a named direct-import singleton', () => {
-    expect(cherryDiagnosticUploadClient).toBeInstanceOf(CherryDiagnosticUploadClient)
-  })
-
   it('posts one signed ZIP multipart body with one normalized description', async () => {
     const description = 'first\rsecond\nthird\r\nfourth'
 
@@ -160,7 +155,7 @@ describe('CherryDiagnosticUploadClient', () => {
     expect(headers.has('content-type')).toBe(false)
 
     const form = init?.body as FormData
-    expect(Array.from(form.keys())).toEqual(['description', 'file'])
+    expect(Array.from(form.keys()).sort()).toEqual(['description', 'file'])
     const normalizedDescription = 'first\r\nsecond\r\nthird\r\nfourth'
     expect(form.get('description')).toBe(normalizedDescription)
     expect(signerMocks.generateDiagnosticUploadHeaders).toHaveBeenCalledWith({

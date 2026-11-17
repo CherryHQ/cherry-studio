@@ -75,6 +75,21 @@ describe('CodeHighlightService', () => {
     await append
   })
 
+  it('reuses syntax across palettes without reopening or reconfiguring the document', async () => {
+    const source = 'const answer = 42'
+    const tokens = { start: 0, lines: [[{ content: source, offset: 0, className: 'code-syntax-keyword' }]] }
+    const first = read(source)
+    await flush()
+    latest().respond(latest().requests.at(-1)!, tokens)
+    expect(await first).toEqual(tokens)
+    latest().requests = []
+    const dark = codeHighlightService.highlightRange(source, 'ts', 'material-theme-darker', 'a', { start: 0, end: 1 })
+    await flush()
+    expect(latest().requests.map((request) => request.type)).toEqual(['read'])
+    latest().respond(latest().requests[0], tokens)
+    expect(await dark).toEqual(tokens)
+  })
+
   it('routes concurrent callers even when responses arrive out of order', async () => {
     const first = read('alpha', 'first')
     const second = read('beta', 'second')

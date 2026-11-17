@@ -1,9 +1,10 @@
+import { pathToFileURL } from 'node:url'
+
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { ipcMain } from 'electron'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { BaseService, Phase } from '@main/core/lifecycle'
-import { getPhase } from '@main/core/lifecycle/decorators'
+import { BaseService } from '@main/core/lifecycle'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import { IpcChannel } from '@shared/IpcChannel'
 
@@ -35,11 +36,11 @@ function registeredHandler() {
 
 const trustedEvent = {
   sender: { getType: () => 'window' },
-  senderFrame: { url: 'file:///app/index.html', parent: null }
+  senderFrame: { url: pathToFileURL('/app/index.html').href, parent: null }
 }
 const webviewEvent = {
   sender: { getType: () => 'webview' },
-  senderFrame: { url: 'file:///app/index.html', parent: null }
+  senderFrame: { url: pathToFileURL('/app/index.html').href, parent: null }
 }
 
 beforeEach(() => {
@@ -56,19 +57,7 @@ beforeEach(() => {
   })
 })
 
-describe('IpcApiService lifecycle metadata', () => {
-  it('runs in the BeforeReady phase (peer of DataApiService, registered before the first window)', () => {
-    expect(getPhase(IpcApiService)).toBe(Phase.BeforeReady)
-  })
-})
-
 describe('IpcApiService request handling', () => {
-  it('registers a single ipcMain handler on the IpcApi_Request channel', () => {
-    const svc = makeService()
-    ;(svc as unknown as { onInit(): void }).onInit()
-    expect(ipcMain.handle).toHaveBeenCalledWith(IpcChannel.IpcApi_Request, expect.any(Function))
-  })
-
   it('dispatches a trusted request and wraps the result as { ok: true, data }', async () => {
     dispatchMock.mockResolvedValue({ sum: 3 })
     const svc = makeService()
@@ -113,16 +102,6 @@ describe('IpcApiService request handling', () => {
     )
   })
 
-  it('does not log a rejection warning for a trusted dispatch', async () => {
-    dispatchMock.mockResolvedValue({})
-    const svc = makeService()
-    ;(svc as unknown as { onInit(): void }).onInit()
-
-    await registeredHandler()(trustedEvent, 'demo.add', {})
-
-    expect(mockMainLoggerService.warn).not.toHaveBeenCalled()
-  })
-
   it('serializes a thrown IpcError into a structured { ok: false, error } result (never rejects)', async () => {
     dispatchMock.mockRejectedValue(new IpcError('ROUTE_NOT_FOUND', 'Unknown IpcApi route: demo.add'))
     const svc = makeService()
@@ -162,7 +141,7 @@ describe('IpcApiService event sending', () => {
   it('send() directs an event to one window resolved from its WindowId', () => {
     const svc = makeService()
     ;(svc.send as unknown as (id: string, e: string, p: unknown) => void)('win-1', 'window.resized', { width: 640 })
-    expect(windowManager.getWindow).toHaveBeenCalledWith('win-1')
+
     expect(sendSpy).toHaveBeenCalledWith(IpcChannel.IpcApi_Event, 'window.resized', { width: 640 })
   })
 

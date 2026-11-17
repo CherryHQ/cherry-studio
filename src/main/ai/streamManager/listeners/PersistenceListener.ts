@@ -36,6 +36,8 @@ export interface PersistenceListenerOptions {
   /** Multi-model: one listener per execution, filter by modelId. Undefined = single-model "any". */
   modelId?: UniqueModelId
   backend: PersistenceBackend
+  /** The content owner may normalize grouped sources before their checkpoint is saved. */
+  prepareMessage?: (message: CherryUIMessage, status: 'success' | 'paused' | 'error') => CherryUIMessage | undefined
   /**
    * Called when persistence fails after a terminal event. The DB row is already driven to
    * `error`; this lets the caller surface that error while the manager suppresses the original
@@ -108,12 +110,13 @@ export class PersistenceListener implements StreamListener {
     }
 
     const finalMessageForPersistence = finalMessage
-      ? {
+      ? (this.opts.prepareMessage?.(finalMessage, status) ?? {
           ...finalMessage,
           parts: finalizeInterruptedParts(dropEmptyContentParts(stripTransientStatusParts(finalMessage.parts)), status)
-        }
+        })
       : finalMessage
     const contextTokens = finalMessageForPersistence?.metadata?.stats?.contextTokens
+    result.finalMessage = finalMessageForPersistence
     const runtimeStats: MessageRuntimeStatsInput = {
       ...(runtimeTiming ? { runtimeTiming } : {}),
       ...(typeof contextTokens === 'number' && Number.isFinite(contextTokens) ? { contextTokens } : {})

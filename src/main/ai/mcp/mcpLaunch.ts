@@ -45,9 +45,11 @@ export type LaunchCommand = {
   env: Record<string, string>
   resolution: 'system' | 'bundled' | 'unresolved'
   unavailableReason?: string
+  /** Original lookup error when resolution falls back to the configured command. */
+  lookupError?: unknown
 }
 
-type CommandResolution = Pick<LaunchCommand, 'command' | 'resolution' | 'unavailableReason'>
+type CommandResolution = Pick<LaunchCommand, 'command' | 'resolution' | 'unavailableReason' | 'lookupError'>
 export type LaunchResolutionCache = Map<string, Promise<CommandResolution>>
 
 /**
@@ -106,7 +108,21 @@ export async function resolveLaunchCommand({
     pending = resolve()
     resolutionCache?.set(key, pending)
   }
-  const resolution = await pending
+  let resolution: CommandResolution
+  try {
+    resolution = await pending
+  } catch (error) {
+    if (runner) throw error
+    signal?.throwIfAborted()
+    if (resolutionCache?.get(key) === pending) {
+      resolutionCache.delete(key)
+    }
+    logger.warn('Failed to resolve stdio command; attempting the configured command', {
+      command: normalizedCommand,
+      error
+    })
+    resolution = { command: normalizedCommand, resolution: 'unresolved', lookupError: error }
+  }
   signal?.throwIfAborted()
   logger.debug('Resolved stdio launch command', { resolution: resolution.resolution })
   return {

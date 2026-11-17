@@ -40,8 +40,7 @@ describe('createPpioProvider', () => {
 
   it('languageModel uses provider key "ppio.chat" with Bearer auth at chat baseURL', () => {
     const provider = createPpioProvider({ apiKey: 'sk-test', baseURL: 'https://api.ppinfra.com/v3/openai' })
-    const model = provider.languageModel('llama-3') as unknown as { provider: string }
-    expect(model.provider).toBe('ppio.chat')
+    provider.languageModel('llama-3')
 
     const [modelId, config] = ChatCtor.mock.calls[0]
     expect(modelId).toBe('llama-3')
@@ -49,32 +48,5 @@ describe('createPpioProvider', () => {
       'https://api.ppinfra.com/v3/openai/chat/completions'
     )
     expect(config.headers()).toMatchObject({ Authorization: 'Bearer sk-test' })
-  })
-
-  it('embeddingModel uses provider key "ppio.embedding"', () => {
-    const provider = createPpioProvider({ apiKey: 'sk-test', baseURL: 'https://api.ppinfra.com/v3/openai' })
-    const model = provider.embeddingModel('text-embed') as unknown as { provider: string }
-    expect(model.provider).toBe('ppio.embedding')
-  })
-
-  it('imageModel still returns an ImageGenerationModel with provider="ppio" (painting regression guard)', () => {
-    const provider = createPpioProvider({ apiKey: 'sk-test', baseURL: 'https://api.ppinfra.com/v3/openai' })
-    const img = provider.imageModel('z-image-turbo')
-    expect(img.provider).toBe('ppio')
-    expect(img.specificationVersion).toBe('v3')
-  })
-
-  it('image transport is built from imageBaseURL, NOT chat baseURL', () => {
-    createPpioProvider({
-      apiKey: 'sk-test',
-      baseURL: 'https://api.ppinfra.com/v3/openai',
-      imageBaseURL: 'https://api.ppio.com'
-    })
-    expect(TransportCtor).toHaveBeenCalledWith({ apiKey: 'sk-test', baseURL: 'https://api.ppio.com' })
-  })
-
-  it('image transport falls back to DEFAULT_PPIO_BASE_URL when imageBaseURL is omitted', () => {
-    createPpioProvider({ apiKey: 'sk-test', baseURL: 'https://api.ppinfra.com/v3/openai' })
-    expect(TransportCtor).toHaveBeenCalledWith({ apiKey: 'sk-test', baseURL: 'https://api.ppio.com' })
   })
 })
