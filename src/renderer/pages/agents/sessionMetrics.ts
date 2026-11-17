@@ -34,7 +34,7 @@ export function buildAgentSessionMetrics(
   // and a stats-only gate would report zero turns/steps for the forked history.
   const turns: Array<{ id: string; stats?: MessageStats }> = []
   for (const message of messages) {
-    if (message.role === 'assistant' && message.status === 'success') {
+    if (message.role === 'assistant' && message.metadata?.status === 'success') {
       turns.push({ id: message.id, stats: message.metadata?.stats })
     }
   }

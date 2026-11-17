@@ -9,8 +9,7 @@ function assistant(id: string, stats?: MessageStats, status = 'success'): Cherry
     id,
     role: 'assistant',
     parts: [],
-    status,
-    metadata: stats ? { stats } : {}
+    metadata: { status, ...(stats ? { stats } : {}) }
   } as unknown as CherryUIMessage
 }
 
