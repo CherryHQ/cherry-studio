@@ -183,7 +183,8 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
 
   async generate(
     input: { prompt: string } | { messages: ModelMessage[] },
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    mode: 'generate' | 'stream' = 'generate'
   ): Promise<{ text: string; usage: LanguageModelUsage; finishReason: FinishReason; rawFinishReason?: string }> {
     const hooks = this.composedHooks()
     try {
@@ -203,7 +204,34 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
               ),
               ...(signal && { abortSignal: signal })
             }
-      const result = await execution.generate(generateInput)
+      const result = await (async () => {
+        if (mode === 'generate') return execution.generate(generateInput)
+
+        const stream = await execution.stream({
+          messages:
+            'prompt' in generateInput ? [{ role: 'user', content: generateInput.prompt }] : generateInput.messages,
+          ...(signal && { abortSignal: signal })
+        })
+        let finished = false
+        for await (const part of stream.fullStream) {
+          signal?.throwIfAborted()
+          if (part.type === 'error') throw part.error
+          if (part.type === 'abort') throw signal?.reason ?? new Error('Model check aborted')
+          if (part.type === 'finish') finished = true
+        }
+        signal?.throwIfAborted()
+        const [text, usage, finishReason, rawFinishReason, steps] = await Promise.all([
+          stream.text,
+          stream.usage,
+          stream.finishReason,
+          stream.rawFinishReason,
+          stream.steps
+        ])
+        if (!finished || !text.trim() || (finishReason !== 'stop' && finishReason !== 'length')) {
+          throw new InvalidResponseDataError({ message: 'Invalid response from model check', data: undefined })
+        }
+        return { text, usage, finishReason, rawFinishReason, steps }
+      })()
       signal?.throwIfAborted()
       const terminalError =
         this.params.contextOwner === 'caller'
