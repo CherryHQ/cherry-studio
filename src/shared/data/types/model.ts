@@ -263,29 +263,32 @@ export type RuntimeReasoning = z.infer<typeof RuntimeReasoningSchema>
 
 export type ParameterSupport = z.infer<typeof ParameterSupportDbSchema>
 
-/** Runtime form: strict parameter support with more fields (not derivable from DB form — different shape) */
+/** Runtime support retains catalog ranges and accepts legacy flat bounds. */
 export const RuntimeParameterSupportSchema = z.object({
   temperature: z
     .object({
       supported: z.boolean(),
-      min: z.number(),
-      max: z.number(),
+      range: NumericRangeSchema.optional(),
+      min: z.number().optional(),
+      max: z.number().optional(),
       default: z.number().optional()
     })
     .optional(),
   topP: z
     .object({
       supported: z.boolean(),
-      min: z.number(),
-      max: z.number(),
+      range: NumericRangeSchema.optional(),
+      min: z.number().optional(),
+      max: z.number().optional(),
       default: z.number().optional()
     })
     .optional(),
   topK: z
     .object({
       supported: z.boolean(),
-      min: z.number(),
-      max: z.number()
+      range: NumericRangeSchema.optional(),
+      min: z.number().optional(),
+      max: z.number().optional()
     })
     .optional(),
   frequencyPenalty: z.boolean().optional(),
