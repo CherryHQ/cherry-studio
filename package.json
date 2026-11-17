@@ -352,7 +352,7 @@
     "@types/which": "3.0.4",
     "@types/word-extractor": "^1",
     "@types/ws": "^8.18.1",
-    "@typescript/native": "npm:typescript@7.0.2",
+    "@typescript/native": "npm:typescript@7.1.0-beta",
     "@typescript/typescript6": "6.0.2",
     "@uiw/codemirror-extensions-langs": "4.25.7",
     "@uiw/codemirror-themes-all": "4.25.7",
