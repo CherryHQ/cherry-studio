@@ -80,6 +80,7 @@ import { buildPiMcpToolName, createPiMcpExtension } from './piMcpExtension'
 import { PiMessageMetadata, resolvePiMcpToolMetadata } from './PiMessageMetadata'
 import { loadPiSdk } from './piSdk'
 import { buildPiLoginPathPrefix, mergePiShellExecutionEnv, resolvePiShellPath } from './piShell'
+import { withPiShellTimeout } from './piShellTimeout'
 import { PiTurnUsage } from './PiTurnUsage'
 
 const logger = loggerService.withContext('PiRuntimeConnection')
@@ -181,7 +182,8 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       agentDataPath,
       agent,
       citationsGuidance,
-      effectiveLanguage: initialSnapshot.effectiveLanguage
+      effectiveLanguage: initialSnapshot.effectiveLanguage,
+      modelName: initialSnapshot.model.name ?? initialSnapshot.model.id
     })
     const mountedServers = resolveMountedMcpServers(agent, {
       browserEnabled: application.get('PreferenceService').get('app.browser.agent_control.enabled'),
@@ -197,6 +199,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       getInteractionState: () =>
         application.get('AgentSessionRuntimeService').getInteractionState(this.input.sessionId),
       getPermissionMode: () => this.permissionMode,
+      builtinRole: agent.configuration?.builtin_role,
       isDisabled: (toolName: string) => this.isToolDisabled(toolName),
       additionalReadOnlyRoots: [...additionalSkillPaths, application.getPath('feature.agents.outputs')],
       // Approval follows the mounted server set; disabledTools still blocks at fire-time.
@@ -228,7 +231,9 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       initialSnapshot.mcpServerSnapshots,
       linkedChannel,
       agentDataPath,
-      this.input.knowledgeBaseIds
+      this.input.knowledgeBaseIds,
+      undefined,
+      this.input.modelId
     )
 
     const finalSnapshot = await capturePiConnectionSnapshot(
@@ -284,24 +289,24 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       commandPrefix: loginPathPrefix,
       shellPath,
       spawnHook: (context) => ({ ...context, env: mergePiShellExecutionEnv(context.env) })
-    }) as ToolDefinition
+    })
     const managedShellTools = [
       managedBashTool,
       ...(process.platform === 'win32'
         ? [
             pi.createPowerShellToolDefinition(workspacePath, {
               spawnHook: (context) => ({ ...context, env: mergePiShellExecutionEnv(context.env) })
-            }) as ToolDefinition
+            })
           ]
         : [])
-    ]
-    const toolCallId = async (call: CallRef) => {
+    ].map(withPiShellTimeout) as ToolDefinition[]
+    const toolCallIdentity = async (call: CallRef) => {
       const opened = await this.runtime!.open({ backendId: runtimeId(this.context!.backendId), id: call.thread })
       if (opened.status !== 'confirmed') throw new Error(opened.error.message)
       try {
         const id = opened.value.pi.toolCallId(call)
         if (!id) throw new Error('Behavior call has no native tool identity')
-        return id
+        return { toolCallId: id, parentToolCallId: opened.value.pi.relation()?.origin?.toolCallId }
       } finally {
         await opened.value.release()
       }
@@ -314,7 +319,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       approval: approvalContext,
       emit: (event) => this.eventQueue.push(event),
       observe: (event) => this.handleBehaviorEvent(event),
-      toolCallId,
+      toolCallIdentity,
       usageSessionId: async (thread) => {
         if (thread === nativeId) return this.input.sessionId
         const child = await this.observeChild(thread)

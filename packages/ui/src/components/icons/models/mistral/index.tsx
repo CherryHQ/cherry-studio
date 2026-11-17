@@ -9,7 +9,7 @@ const Mistral = ({ variant, className, ...props }: CompoundIconProps) => {
 
 export const MistralIcon: CompoundIcon = /*#__PURE__*/ Object.assign(Mistral, {
   Avatar: MistralAvatar,
-  colorPrimary: '#FFD700'
+  colorPrimary: '#FFF0D9'
 })
 
 export default MistralIcon

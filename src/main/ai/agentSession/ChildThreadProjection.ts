@@ -99,7 +99,7 @@ export class ChildThreadProjection {
   }
 
   snapshot(): AgentChildView {
-    return this.view
+    return this.delivery.snapshot()
   }
 
   subscribe(listener: (update: AgentChildUpdate) => void): () => void {
@@ -246,7 +246,7 @@ export class ChildThreadProjection {
       for (const [id, live] of Object.entries(archive.aliases))
         if (!this.canonicalIds.has(live)) this.canonicalIds.set(live, id)
     }
-    const beforeComposition = structuredClone(this.composition)
+    const beforeComposition = { ...this.composition }
     for (const id of archive?.removed ?? []) this.removed.add(id)
     for (const [old, source] of Object.entries(this.history?.legacy ?? {}))
       if (this.removed.has(source.messageId)) this.removed.add(old)
@@ -446,8 +446,8 @@ export class ChildThreadProjection {
   }
 
   private publish(next: AgentChildView): void {
-    this.delivery.update(next, true)
-    this.view = this.delivery.snapshot()
+    this.view = next
+    this.delivery.update(next, this.delivery.observed)
   }
 
   async stop(): Promise<void> {
@@ -461,6 +461,7 @@ export class ChildThreadProjection {
     await this.flush()
     await this.projection.close()
     this.publish({ ...this.view, available: false, canSubmit: false, active: false })
+    this.delivery.flush()
     this.delivery.dispose()
   }
 
