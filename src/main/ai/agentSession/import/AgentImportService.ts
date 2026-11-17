@@ -322,9 +322,14 @@ export class AgentImportService extends BaseService {
         'conversation',
         Date.parse(source.inserted_at)
       )
+      const orderedTimes = new Map<number, number>()
       const rows = source.messages.map((message) => {
         const id = productId(message.id)
         const node = nodes[id]
+        const parentTime = message.parent_id === null ? undefined : orderedTimes.get(message.parent_id)
+        const sourceTime = Date.parse(message.inserted_at)
+        const createdAt = parentTime === undefined ? sourceTime : Math.max(sourceTime, parentTime + 1)
+        orderedTimes.set(message.id, createdAt)
         const checkpoint = {
           runtime: 'pi-durable' as const,
           backendId: receipt.backendId,
@@ -341,6 +346,7 @@ export class AgentImportService extends BaseService {
             importedHistory: {
               source: 'deepseek' as const,
               messageId: String(message.id),
+              insertedAt: message.inserted_at,
               status: message.status,
               missingFiles: message.fragments.flatMap((part) =>
                 part.type === 'FILE'
@@ -368,8 +374,8 @@ export class AgentImportService extends BaseService {
                 }
               : null,
           runtimeResumeToken: node.conversationId,
-          createdAt: Date.parse(message.inserted_at),
-          updatedAt: Date.parse(message.inserted_at)
+          createdAt,
+          updatedAt: createdAt
         }
       })
       agentSessionMessageService.insertImportedMessagesTx(

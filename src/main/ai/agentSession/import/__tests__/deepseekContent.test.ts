@@ -30,6 +30,40 @@ afterEach(async () => {
   await rm(root, { recursive: true, force: true })
 })
 
+it('exposes search and opened URLs as citations while retaining search context for continuation', async () => {
+  const source = message(2, 1, 'ASSISTANT', 'An answer with sources')
+  source.fragments.push(
+    {
+      type: 'TOOL_SEARCH',
+      queries: ['example question'],
+      results: [
+        { url: 'https://example.com/search', title: 'Search result', snippet: 'Relevant evidence' },
+        { url: 'javascript:alert(1)', title: 'Unsafe URL' },
+        { url: null }
+      ],
+      status: 'FINISHED'
+    },
+    { type: 'TOOL_OPEN', url: 'https://example.com/search', title: 'Same page', status: 'FINISHED' },
+    { type: 'TOOL_OPEN', url: 'https://example.com/open', title: 'Opened page', status: 'FINISHED' }
+  )
+  const result = await deepseekContent(
+    source,
+    async () => Buffer.alloc(0),
+    {},
+    () => {}
+  )
+  expect(result.parts.filter((part) => part.type === 'source-url')).toEqual([
+    { type: 'source-url', sourceId: 'deepseek-2-1', url: 'https://example.com/search', title: 'Search result' },
+    { type: 'source-url', sourceId: 'deepseek-2-2', url: 'https://example.com/open', title: 'Opened page' }
+  ])
+  expect(result.parts.filter((part) => part.type === 'text')).toEqual([
+    { type: 'text', text: 'An answer with sources' }
+  ])
+  expect(JSON.stringify(result.model)).toContain('Relevant evidence')
+  expect(JSON.stringify(result.model)).toContain('example question')
+  expect(JSON.stringify(result.model)).toContain('https://example.com/open')
+})
+
 // Catch references to the source ZIP instead of persistent image bytes, and accidental executable search records.
 it('stores an independent image and keeps reasoning, missing files, and searches inert', async () => {
   const image = Buffer.from(

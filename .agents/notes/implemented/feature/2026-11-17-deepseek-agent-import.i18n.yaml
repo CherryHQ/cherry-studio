@@ -1,5 +1,5 @@
 # Bilingual-pair consistency record (docs/dev/i18n/README.md).
 # After editing either side, update its counterpart and re-record with:
 #   pnpm docs:check-pairing --write .agents/notes/implemented/feature/2026-11-17-deepseek-agent-import.md
-2026-11-17-deepseek-agent-import.md: 1345eaa2abdf39167381827cd98535e4dd7759e6
-2026-11-17-deepseek-agent-import.zh.md: 6e5d0881546d19f7121fbd0462ea25389df525d4
+2026-11-17-deepseek-agent-import.md: cd29fdbc076598fe1b866091a7ca96ebe3c55870
+2026-11-17-deepseek-agent-import.zh.md: 8001bf84139c230ebe304d0d2297da928cbb906e

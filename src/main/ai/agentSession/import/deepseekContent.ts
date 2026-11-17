@@ -23,6 +23,7 @@ export async function deepseekContent(
 ): Promise<ImportedContent> {
   const parts: CherryMessagePart[] = []
   const native: Array<TextContent | ImageContent> = []
+  const sourceUrls = new Set<string>()
   const text = (value: string) => {
     parts.push({ type: 'text', text: value })
     native.push({ type: 'text', text: value })
@@ -45,7 +46,23 @@ export async function deepseekContent(
         native.push({ type: 'text', text: `${t('agent_import_reasoning')}\n${part.content}` })
         break
       case 'TOOL_SEARCH':
-      case 'TOOL_OPEN':
+      case 'TOOL_OPEN': {
+        const results = part.type === 'TOOL_SEARCH' ? part.results : [part]
+        for (const result of results) {
+          if (!result.url || !URL.canParse(result.url) || !['https:', 'http:'].includes(new URL(result.url).protocol))
+            continue
+          if (sourceUrls.has(result.url)) continue
+          sourceUrls.add(result.url)
+          parts.push({
+            type: 'source-url',
+            sourceId: `deepseek-${source.id}-${sourceUrls.size}`,
+            url: result.url,
+            ...(result.title && { title: result.title })
+          })
+        }
+        native.push({ type: 'text', text: `${t('agent_import_search')}\n${JSON.stringify(part, null, 2)}` })
+        break
+      }
       case 'TOOL_IMAGE_SEARCH':
         text(`${t('agent_import_search')}\n${JSON.stringify(part, null, 2)}`)
         break

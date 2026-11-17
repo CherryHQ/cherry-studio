@@ -34,14 +34,14 @@ export const conversation = (): DeepseekConversation => ({
   ]
 })
 
-export async function archiveFixture(extra: Array<[string, string]> = [], version = 3) {
+export async function archiveFixture(extra: Array<[string, string]> = [], version = 3, source = conversation()) {
   const dir = await mkdtemp(join(tmpdir(), 'deepseek-import-'))
   onTestFinished(() => rm(dir, { recursive: true, force: true }))
   const file = join(dir, 'sample.zip')
   const entries: Array<[string, string]> = [
     ['manifest.json', JSON.stringify({ export_format_version: version })],
-    ['chat_session_index.json', JSON.stringify([{ id: 'sample', message_count: 3 }])],
-    ['chat_sessions/sample.json', JSON.stringify(conversation())],
+    ['chat_session_index.json', JSON.stringify([{ id: source.id, message_count: source.messages.length }])],
+    [`chat_sessions/${source.id}.json`, JSON.stringify(source)],
     ...extra
   ]
   await new Promise<void>((resolve, reject) => {

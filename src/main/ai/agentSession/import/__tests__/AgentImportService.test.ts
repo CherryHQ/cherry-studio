@@ -18,7 +18,7 @@ import { agentSessionService } from '@data/services/AgentSessionService'
 import { BaseService } from '@main/core/lifecycle/BaseService'
 
 import { AgentImportService } from '../AgentImportService'
-import { archiveFixture } from './fixtures'
+import { archiveFixture, conversation, message } from './fixtures'
 
 describe('DeepSeek Agent import publication', () => {
   const dbh = setupTestDatabase()
@@ -44,6 +44,35 @@ describe('DeepSeek Agent import publication', () => {
     await vi.waitFor(() => expect(service.status(agentId)?.status).not.toBe('running'), { timeout: 10_000 })
     return service.status(agentId)!
   }
+  it.each(['2026-01-01T00:00:00Z', '2025-12-31T23:59:59Z'])(
+    'keeps consecutive users before the answer across pages when its timestamp is %s',
+    async (answerTime) => {
+      const source = conversation()
+      source.current_message_id = 3
+      source.messages = [message(1, null, 'USER', 'u1'), message(2, 1, 'USER', 'u2'), message(3, 2, 'ASSISTANT', 'a1')]
+      source.messages[2].inserted_at = answerTime
+      const service = new AgentImportService()
+      const preview = await service.prepare(agentId, await archiveFixture([], 3, source))
+      service.start(preview.id)
+      const result = await settle(service)
+      expect(result.status).toBe('completed')
+      const newest = agentSessionMessageService.listSessionMessages(result.sessionIds[0], { limit: 2 })
+      const older = agentSessionMessageService.listSessionMessages(result.sessionIds[0], {
+        limit: 2,
+        cursor: newest.nextCursor
+      })
+      const chronological = [...newest.items, ...older.items].reverse()
+      expect(chronological.map((row) => row.data.parts)).toEqual([
+        [{ type: 'text', text: 'u1' }],
+        [{ type: 'text', text: 'u2' }],
+        [{ type: 'text', text: 'a1' }]
+      ])
+      expect(chronological.map((row) => row.data.importedHistory?.insertedAt)).toEqual(
+        source.messages.map((item) => item.inserted_at)
+      )
+      expect(older.nextCursor).toBeUndefined()
+    }
+  )
   it('publishes all branches, selects the source head, and deduplicates a retry after service replacement', async () => {
     const service = new AgentImportService()
     const preview = await service.prepare(agentId, await archiveFixture())

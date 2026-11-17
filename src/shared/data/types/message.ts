@@ -157,6 +157,7 @@ export interface AssistantTurnOptions {
  */
 export interface MessageData {
   importedHistory?: {
+    insertedAt?: string
     source: 'deepseek'
     messageId: string
     status: string
