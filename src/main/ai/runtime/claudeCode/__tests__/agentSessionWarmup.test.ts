@@ -1983,7 +1983,9 @@ describe('deriveConnectionConfig', () => {
       Object.keys(original.rebuildFactFingerprints).filter(
         (name) => original.rebuildFactFingerprints[name] !== changed.rebuildFactFingerprints[name]
       )
-    ).toEqual(['contextWindow'])
+      // The route fingerprint moves too: routed budget slots carry window-derived budgets,
+      // so a window change re-materializes the route (#18894).
+    ).toEqual(['contextWindow', 'route'])
   })
 
   it('rebuilds when browser control or browser permissions change', async () => {
