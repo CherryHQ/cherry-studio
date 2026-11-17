@@ -52,6 +52,7 @@ const executionTools = new Set([
   'Bash',
   'bash',
   'powershell',
+  'PowerShell',
   'codemode',
   'Skill',
   'Agent',

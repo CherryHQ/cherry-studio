@@ -223,10 +223,16 @@ export async function createPiInteractionPorts(
         const args = recordSchema.parse(tool.args)
         const skills = application.get('McpSkillService')
         const denied = skills.guardTool(input.sessionId, tool.name)
-        const skillApproval =
-          !denied && skills.toolApproval(input.sessionId, tool.name, args, approval.getPermissionMode())
-        if (skillApproval) skillApprovals.set(call, skillApproval)
         const facts = await readPiApprovalFacts(approval, tool.name, args)
+        const skillApproval =
+          !denied &&
+          skills.toolApproval(
+            input.sessionId,
+            tool.name,
+            facts.rewrittenArgs === undefined ? args : recordSchema.parse(facts.rewrittenArgs),
+            approval.getPermissionMode()
+          )
+        if (skillApproval) skillApprovals.set(call, skillApproval)
         return {
           ...facts,
           disabled:

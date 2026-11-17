@@ -37,6 +37,7 @@ import { listBuiltinToolPolicies } from '@main/ai/toolApproval/builtinToolPolicy
 import { toolApprovalRegistry, type DispatchDecision } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import { evaluateToolGuards } from '@main/ai/toolApproval/toolGuards'
 import { BaseService } from '@main/core/lifecycle'
+import { rtkRewrite } from '@main/utils/rtk'
 import { createUniqueModelId } from '@shared/data/types/model'
 import { IpcChannel } from '@shared/IpcChannel'
 
@@ -44,6 +45,8 @@ import { McpSkillService } from '../McpSkillService'
 
 const transport = vi.hoisted(() => ({ connect: vi.fn<() => Promise<McpConnection>>() }))
 vi.mock('@main/ai/mcp/connections/ExternalMcpConnection', () => ({ createExternalMcpConnection: transport.connect }))
+
+vi.mock('@main/utils/rtk', () => ({ rtkRewrite: vi.fn().mockResolvedValue(null) }))
 
 const sessionId = 'skill-session'
 const agentId = 'skill-agent'
@@ -497,15 +500,30 @@ describe('session MCP skills through real protocol and persistence', () => {
     }
   )
 
-  it('cancels pending PowerShell execution when discovery replaces the loaded skill', async () => {
+  it('preserves the approved RTK execution arguments with a loaded remote skill', async () => {
     await skills.load(sessionId, serverId, fixture.uri)
-    const approval = skills.toolApproval(sessionId, 'powershell', { command: 'python ./scripts/task.py' }, 'auto')!
-    fixture.files.set('skill://reports/references/facts.txt', 'replacement')
-    fixture.refresh()
-    await skills.get(sessionId, serverId, fixture.uri)
-    expect(approval.signal.aborted).toBe(true)
-    expect(() => approval.approve()).toThrow()
+    vi.mocked(rtkRewrite).mockResolvedValue('rtk git status')
+    const call = { toolName: 'bash', toolCallId: 'rewritten', input: { command: 'git status' } }
+    try {
+      expect(await authorizer(true)(call)).toBeUndefined()
+      expect(call.input.command).toBe('rtk git status')
+    } finally {
+      vi.mocked(rtkRewrite).mockResolvedValue(null)
+    }
   })
+
+  it.each(['powershell', 'PowerShell'])(
+    'cancels pending %s execution when discovery replaces the loaded skill',
+    async (toolName) => {
+      await skills.load(sessionId, serverId, fixture.uri)
+      const approval = skills.toolApproval(sessionId, toolName, { command: 'python ./scripts/task.py' }, 'auto')!
+      fixture.files.set('skill://reports/references/facts.txt', 'replacement')
+      fixture.refresh()
+      await skills.get(sessionId, serverId, fixture.uri)
+      expect(approval.signal.aborted).toBe(true)
+      expect(() => approval.approve()).toThrow()
+    }
+  )
 
   it('requires per-call code execution approval in both runtimes in default mode', async () => {
     await skills.load(sessionId, serverId, fixture.uri)
