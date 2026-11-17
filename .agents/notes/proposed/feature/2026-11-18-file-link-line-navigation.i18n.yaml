@@ -1,5 +1,0 @@
-# Bilingual-pair consistency record (docs/dev/i18n/README.md).
-# After editing either side, update its counterpart and re-record with:
-#   pnpm docs:check-pairing --write .agents/notes/proposed/feature/2026-11-18-file-link-line-navigation.md
-2026-11-18-file-link-line-navigation.md: b6bbd18cf9ad9bfd4521d7d470423da46691cea3
-2026-11-18-file-link-line-navigation.zh.md: f11e96790addc176578c18803ed3c4a460edef8f

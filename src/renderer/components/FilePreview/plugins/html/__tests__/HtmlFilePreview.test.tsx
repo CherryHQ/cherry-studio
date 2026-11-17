@@ -106,6 +106,22 @@ function renderPreview(
 }
 
 describe('HtmlFilePreview', () => {
+  it('opens a located artifact as source instead of rendering it', async () => {
+    mocks.readText.mockResolvedValue('<h1>Source</h1>')
+    render(
+      <HtmlFilePreview
+        filePath={filePath}
+        fileName="source.html"
+        metadata={{ size: 128, modifiedAt: 1 }}
+        refreshKey={0}
+        type="artifact"
+        location={{ line: 1 }}
+      />
+    )
+    expect(await screen.findByRole('textbox', { name: 'HTML source' })).toHaveValue('<h1>Source</h1>')
+    expect(screen.queryByTestId('webview-browser')).not.toBeInTheDocument()
+  })
+
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.readText.mockResolvedValue('<h1>Hello</h1>')
