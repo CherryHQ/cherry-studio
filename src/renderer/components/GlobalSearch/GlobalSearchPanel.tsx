@@ -950,7 +950,7 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
               return 44
             }}
             estimateGroupFooterSize={() => 48}
-            className="pt-2 pb-2"
+            contentProps={{ className: 'pt-2 pb-2' }}
             renderGroupHeader={(group) => <GlobalMessageSearchGroupHeader group={group} />}
             renderGroupFooter={() => {
               const active = activeItemId === GLOBAL_MESSAGE_SEARCH_LOAD_MORE_ITEM_ID
@@ -1124,7 +1124,7 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
                 return 52
               }}
               estimateGroupFooterSize={() => 36}
-              className="pt-1 pb-2"
+              contentProps={{ className: 'pt-1 pb-2' }}
               renderGroupHeader={(group) => <GlobalSearchGroupHeader group={group} />}
               renderGroupFooter={(footer, group) => {
                 const footerId = getGlobalSearchFooterItemId(group.id, footer)

@@ -16,7 +16,7 @@ Share `mergePiShellExecutionEnv` with Bash. It merges environment variables and 
 
 Pi Durable merges the complete environment when it constructs `NodeExecutionEnv`. The SDK starts each shell call with empty environment overrides. Merging that empty object creates a managed-only `Path` that replaces the inherited `Path`, so the child can fail to locate PowerShell. Both Durable shell tools inherit the environment prepared for the session.
 
-Apply the existing disabled-tool, global-install and user-data SQLite rules to PowerShell. Auto mode asks for approval for recognized destructive commands, including PowerShell deletion and truncation commands. This heuristic is not a complete PowerShell parser or a sandbox.
+Apply the existing disabled-tool, global-install and user-data SQLite rules to PowerShell. Auto mode asks for approval for recognized destructive commands, including PowerShell deletion and truncation commands. The [structured command policy](../architecture/2026-11-13-command-approval-policy.md) supersedes that heuristic with an actual PowerShell grammar and shared approval semantics. It remains a usability guard rather than operating-system isolation.
 
 ## Alternatives considered
 

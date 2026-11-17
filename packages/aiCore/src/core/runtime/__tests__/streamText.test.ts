@@ -18,7 +18,7 @@ import { RuntimeExecutor } from '../executor'
 
 // Mock AI SDK - use importOriginal to keep jsonSchema and other non-mocked exports
 vi.mock('ai', async (importOriginal) => {
-  const actual = (await importOriginal()) as Record<string, unknown>
+  const actual = await importOriginal<Record<string, unknown>>()
   return {
     ...actual,
     streamText: vi.fn()

@@ -23,6 +23,7 @@ import { ImagePreviewService } from '@renderer/services/ImagePreviewService'
 import { popup } from '@renderer/services/popup'
 import { showRecycleBinBatchUndo } from '@renderer/services/recycleBinFeedback'
 import { toast } from '@renderer/services/toast'
+import { formatFileSize } from '@renderer/utils/file'
 import { normalizeFilePreviewPath } from '@renderer/utils/filePreview'
 import { isMac } from '@renderer/utils/platform'
 import { createSidebarShortcutTarget, SIDEBAR_SHORTCUT_PROVIDER_IDS } from '@renderer/utils/sidebar'
@@ -34,7 +35,6 @@ import { createFileEntryHandle, getFileTypeByExt, toSafeFileUrl } from '@shared/
 
 import type { FileContextMenuActions } from './FileContextMenu'
 import type { FileItem } from './fileDisplay'
-import { formatFileSize } from './fileDisplay'
 import { FileGrid } from './FileGrid'
 import type { SortDir, SortKey } from './FileList'
 import { FileList, FileListHeader } from './FileList'
@@ -969,7 +969,7 @@ function FilesPage({ entryId, onEntryIdChange }: FilesPageProps) {
                   {files.length === 0 ? (
                     <EmptyState title={t('files.empty.title')} />
                   ) : (
-                    <EmptyState preset="no-result" title={t('files.empty.no_match_title')} />
+                    <EmptyState title={t('files.empty.no_match_title')} />
                   )}
                 </div>
               )

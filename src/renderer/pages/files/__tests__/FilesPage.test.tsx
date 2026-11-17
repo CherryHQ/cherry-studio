@@ -289,7 +289,7 @@ describe('FilesPage keyboard rename', () => {
     selectFileAt(0)
     fireEvent.keyDown(document, { key: 'Enter' })
 
-    const input = screen.getByDisplayValue('report.md') as HTMLInputElement
+    const input = screen.getByDisplayValue<HTMLInputElement>('report.md')
 
     act(() => {
       vi.runOnlyPendingTimers()
@@ -1552,7 +1552,7 @@ describe('FilesPage file operations', () => {
 
     fireEvent.click(screen.getByLabelText('files.rename'))
 
-    const input = screen.getByDisplayValue('report.md') as HTMLInputElement
+    const input = screen.getByDisplayValue<HTMLInputElement>('report.md')
     act(() => {
       vi.runOnlyPendingTimers()
     })

@@ -37,9 +37,20 @@ function clearMessageSelection(): void {
 
 /** Window composition mounts this outside page Activity; the runtime owns its instances. */
 export function AgentBrowserRuntimeHost() {
-  useIpcOn('browser.guest.ensure_requested', ({ sessionId, url, scope }) => {
+  useIpcOn('browser.guest.ensure_requested', ({ sessionId, url, scope, pageId, action, activate }) => {
     const runtime = scope === 'topic' ? topicBrowserRuntimeService : agentBrowserRuntimeService
-    runtime.ensure(sessionId, url)
+    if (action === 'navigate') runtime.navigate(sessionId, pageId, url ?? 'about:blank')
+    else runtime.openPage(sessionId, url, undefined, { pageId, activate })
+  })
+  useIpcOn('browser.pane.open_requested', ({ sessionId, scope, pageId }) => {
+    if (pageId)
+      (scope === 'topic' ? topicBrowserRuntimeService : agentBrowserRuntimeService).activate(sessionId, pageId)
+  })
+  useIpcOn('browser.page.execution', ({ sessionId, scope, pageId, tabId, executing, webviewId }) => {
+    const runtime = scope === 'topic' ? topicBrowserRuntimeService : agentBrowserRuntimeService
+    const page = runtime.get(sessionId, pageId)
+    if (page?.guest && (page.bindingId === tabId || (!page.bindingId && page.guest.getWebContentsId() === webviewId)))
+      runtime.update(sessionId, { executing, bindingId: tabId }, pageId)
   })
   return (
     <>
@@ -90,11 +101,11 @@ function BrowserRuntimeHost({ runtime, scope }: { runtime: AgentBrowserRuntimeSe
   })
 
   return ids.map((sessionId) => (
-    <AgentBrowserGuest key={sessionId} sessionId={sessionId} runtime={runtime} scope={scope} />
+    <BrowserSessionGuests key={sessionId} sessionId={sessionId} runtime={runtime} scope={scope} />
   ))
 }
 
-const AgentBrowserGuest = memo(function AgentBrowserGuest({
+function BrowserSessionGuests({
   sessionId,
   runtime,
   scope
@@ -103,16 +114,39 @@ const AgentBrowserGuest = memo(function AgentBrowserGuest({
   runtime: AgentBrowserRuntimeService
   scope?: 'topic'
 }) {
-  const resource = useSyncExternalStore(runtime.subscribe, () => runtime.get(sessionId))
+  const pages = useSyncExternalStore(runtime.subscribe, () => runtime.getPages(sessionId))
+  return pages.map((page) => (
+    <AgentBrowserGuest key={page.pageId} pageId={page.pageId} sessionId={sessionId} runtime={runtime} scope={scope} />
+  ))
+}
+
+const AgentBrowserGuest = memo(function AgentBrowserGuest({
+  sessionId,
+  pageId,
+  runtime,
+  scope
+}: {
+  sessionId: string
+  pageId: string
+  runtime: AgentBrowserRuntimeService
+  scope?: 'topic'
+}) {
+  const resource = useSyncExternalStore(runtime.subscribe, () => runtime.get(sessionId, pageId))
   const guest = resource?.guest ?? null
-  const tabId = useAgentBrowserGuest(sessionId, guest, 0, scope)
+  const tabId = useAgentBrowserGuest(sessionId, guest, 0, scope, pageId)
+  useEffect(() => runtime.update(sessionId, { bindingId: tabId }, pageId), [runtime, sessionId, pageId, tabId])
   const onWebviewChange = useCallback(
-    (webview: WebviewTag | null) => runtime.update(sessionId, { guest: webview, ready: false, title: '' }),
-    [runtime, sessionId]
+    (webview: WebviewTag | null) =>
+      runtime.update(
+        sessionId,
+        { guest: webview, ready: false, title: '', favicon: undefined, bindingId: undefined, executing: false },
+        pageId
+      ),
+    [runtime, sessionId, pageId]
   )
   const onOverlaysChange = useCallback(
-    (overlays: HTMLDivElement | null) => runtime.update(sessionId, { overlays }),
-    [runtime, sessionId]
+    (overlays: HTMLDivElement | null) => runtime.update(sessionId, { overlays }, pageId),
+    [runtime, sessionId, pageId]
   )
   if (!resource) return null
   const { sourceUrl, securityProfile, anchor } = resource
@@ -123,7 +157,7 @@ const AgentBrowserGuest = memo(function AgentBrowserGuest({
       guest={
         <WebviewHost
           key={authorization}
-          id={`agent-browser:${sessionId}`}
+          id={`agent-browser:${sessionId}:${pageId}`}
           src={sourceUrl}
           reloadKey={resource.reloadKey}
           partition={getWebviewPartition(securityProfile)}
@@ -132,17 +166,33 @@ const AgentBrowserGuest = memo(function AgentBrowserGuest({
           testId="webview-browser-guest"
           onWebviewChange={onWebviewChange}
           onDomReady={(webview) =>
-            runtime.update(sessionId, { ready: true, url: webview.getURL(), title: webview.getTitle() })
+            runtime.update(
+              sessionId,
+              { ready: true, loading: webview.isLoading(), url: webview.getURL(), title: webview.getTitle() },
+              pageId
+            )
           }
-          onDidStartLoading={() => runtime.update(sessionId, { loading: true, failed: false })}
-          onDidFinishLoad={() => runtime.update(sessionId, { ready: true, loading: false })}
-          onDidNavigate={(event) => {
-            if (!('isMainFrame' in event) || event.isMainFrame) runtime.update(sessionId, { url: event.url })
+          onDidStartLoading={() => runtime.update(sessionId, { loading: true, failed: false }, pageId)}
+          onDidFinishLoad={() => runtime.update(sessionId, { ready: true, loading: false }, pageId)}
+          onDidStopLoading={() => runtime.update(sessionId, { loading: false }, pageId)}
+          onDidStartNavigation={(event) => {
+            if (event.isMainFrame && !event.isInPlace)
+              runtime.update(sessionId, { title: '', favicon: undefined }, pageId)
           }}
-          onPageTitleUpdated={(event) => runtime.update(sessionId, { title: event.title })}
+          onDidNavigate={(event) => {
+            if (!('isMainFrame' in event) || event.isMainFrame) runtime.update(sessionId, { url: event.url }, pageId)
+          }}
+          onPageTitleUpdated={(event) => runtime.update(sessionId, { title: event.title }, pageId)}
+          onPageFaviconUpdated={(event) =>
+            runtime.update(
+              sessionId,
+              { favicon: event.favicons.find((url) => /^https?:\/\//i.test(url) || url.startsWith('data:image/')) },
+              pageId
+            )
+          }
           onDidFailLoad={(event) => {
             if (event.isMainFrame && event.errorCode !== -3)
-              runtime.update(sessionId, { failed: true, ready: true, loading: false })
+              runtime.update(sessionId, { failed: true, ready: true, loading: false }, pageId)
           }}
         />
       }

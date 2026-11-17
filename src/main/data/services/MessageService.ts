@@ -120,6 +120,22 @@ const MESSAGE_SEARCH_CURSOR_CONFIG = {
   errorMessage: 'Invalid message search cursor'
 }
 
+// Invalid stored limits preserve unlimited history rather than dropping context or indexing past its end.
+export function normalizeMaxMessages(value: unknown): number | null {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return null
+  const floored = Math.floor(value)
+  return floored >= 1 ? floored : null
+}
+
+// Extend backward so a resumed assistant turn keeps its prompt; short histories remain untouched.
+export function applyMaxMessagesWindow<T extends { role: string }>(messages: T[], maxMessages: number | null): T[] {
+  const limit = normalizeMaxMessages(maxMessages)
+  if (limit === null || messages.length <= limit) return messages
+  let start = messages.length - limit
+  while (start > 0 && messages[start].role !== 'user') start--
+  return messages.slice(start)
+}
+
 /**
  * Convert database row to Message entity.
  *
@@ -2208,11 +2224,12 @@ export class MessageService {
    * Uses recursive CTE to fetch all ancestors in a single query,
    * avoiding N+1 query problem for deep message trees.
    */
-  getPathToNode(nodeId: string): Message[] {
+  getPathToNode(nodeId: string, options: { last?: number } = {}): Message[] {
     const db = application.get('DbService').getDb()
     this.getAddressableMessageRowTx(db, nodeId)
-    const pathRows = this.getPathRowsToNodeTx(db, nodeId)
-    return pathRows.map(rowToMessage)
+    const ids = this.getPathIdsToNodeTx(db, nodeId)
+    const tail = options.last === undefined ? ids : ids.slice(Math.max(0, ids.length - options.last))
+    return this.getRowsInOrderTx(db, tail).map(rowToMessage)
   }
 
   /**
