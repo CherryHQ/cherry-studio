@@ -43,7 +43,7 @@ export async function deepseekContent(
             { ...(part.elapsed_secs != null && { thinkingMs: part.elapsed_secs * 1000 }) }
           )
         )
-        native.push({ type: 'text', text: `${t('agent_import_reasoning')}\n${part.content}` })
+        native.push({ type: 'text', text: `${t('agent.import.reasoning')}\n${part.content}` })
         break
       case 'TOOL_SEARCH':
       case 'TOOL_OPEN': {
@@ -60,16 +60,16 @@ export async function deepseekContent(
             ...(result.title && { title: result.title })
           })
         }
-        native.push({ type: 'text', text: `${t('agent_import_search')}\n${JSON.stringify(part, null, 2)}` })
+        native.push({ type: 'text', text: `${t('agent.import.search')}\n${JSON.stringify(part, null, 2)}` })
         break
       }
       case 'TOOL_IMAGE_SEARCH':
-        text(`${t('agent_import_search')}\n${JSON.stringify(part, null, 2)}`)
+        text(`${t('agent.import.search')}\n${JSON.stringify(part, null, 2)}`)
         break
       case 'FILE':
         for (const file of part.files) {
           if (file.export_path === null) {
-            text(t('agent_import_missing_file', { name: file.file_name }))
+            text(t('agent.import.missing_file', { name: file.file_name }))
             continue
           }
           const bytes = await read(file.export_path)
@@ -106,7 +106,7 @@ export async function deepseekContent(
   if (sourceUrls.size) {
     parts.push({
       type: 'text',
-      text: `${t('agent_import_search')}\n${Array.from(sourceUrls, (_, index) => `[cite:${index + 1}]`).join(' ')}`
+      text: `${t('agent.import.search')}\n${Array.from(sourceUrls, (_, index) => `[cite:${index + 1}]`).join(' ')}`
     })
   }
   const timestamp = Date.parse(source.inserted_at)
