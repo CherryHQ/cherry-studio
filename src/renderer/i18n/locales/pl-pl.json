@@ -6196,6 +6196,7 @@
   "settings.usage.cards.cacheHitRate": "Wskaźnik trafień pamięci podręcznej",
   "settings.usage.cards.cacheObservedTokens": "Obserwowane tokeny wejściowe: {{tokens}}",
   "settings.usage.cards.cacheStartsWithNewRequests": "Rozpoczyna się nowymi żądaniami",
+  "settings.usage.cards.costDisclosure": "Sumy mogą obejmować lokalne szacunki kosztów; wiążące są faktury dostawcy.",
   "settings.usage.cards.dailyAverage": "Średnia dzienna",
   "settings.usage.cards.explicitApiKey": "Wybrany klucz",
   "settings.usage.cards.lastPeriod": "w porównaniu z poprzednim okresem",

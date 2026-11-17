@@ -6125,6 +6125,7 @@
   "settings.usage.cards.cacheHitRate": "Tasa de aciertos de caché",
   "settings.usage.cards.cacheObservedTokens": "Entrada observable: {{tokens}}",
   "settings.usage.cards.cacheStartsWithNewRequests": "Comienza con nuevas solicitudes",
+  "settings.usage.cards.costDisclosure": "Los totales pueden incluir estimaciones de costes calculadas localmente; prevalecen las facturas del proveedor.",
   "settings.usage.cards.dailyAverage": "Promedio diario",
   "settings.usage.cards.explicitApiKey": "Clave seleccionada",
   "settings.usage.cards.lastPeriod": "vs último período",
