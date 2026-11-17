@@ -913,6 +913,30 @@
     },
     {
       "availableInEditions": ["global"],
+      "defaultChatEndpoint": "openai-chat-completions",
+      "description": "Fortytwo - AI model provider",
+      "endpointConfigs": {
+        "openai-chat-completions": {
+          "adapterFamily": "openai-compatible",
+          "baseUrl": "https://api.fortytwo.network/v1",
+          "reasoningFormat": {
+            "type": "openai-chat"
+          }
+        }
+      },
+      "id": "fortytwo",
+      "metadata": {
+        "website": {
+          "apiKey": "https://platform.fortytwo.network",
+          "docs": "https://docs.fortytwo.network",
+          "models": "https://docs.fortytwo.network/docs/models",
+          "official": "https://fortytwo.network"
+        }
+      },
+      "name": "Fortytwo"
+    },
+    {
+      "availableInEditions": ["global"],
       "defaultChatEndpoint": "anthropic-messages",
       "description": "Anthropic - AI model provider",
       "endpointConfigs": {
@@ -2968,5 +2992,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "a6291a3a00ded246"
+  "version": "32f0384063f9059c"
 }
