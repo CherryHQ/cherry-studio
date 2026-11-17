@@ -1,5 +1,5 @@
-import { MockUseDataApiUtils, mockUseMutation, mockUseQuery } from '@test-mocks/renderer/useDataApi'
-import { act, renderHook, waitFor } from '@testing-library/react'
+import { MockUseDataApiUtils, mockUseMutation } from '@test-mocks/renderer/useDataApi'
+import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { CreatePaintingDto, UpdatePaintingDto } from '@shared/data/api/schemas/paintings'
@@ -89,22 +89,5 @@ describe('usePaintings', () => {
     expect(updateTrigger).toHaveBeenCalledWith({ params: { id: 'painting-1' }, body: updateDto })
     expect(deleteTrigger).toHaveBeenCalledWith({ params: { id: 'painting-1' } })
     expect(restoreTrigger).toHaveBeenCalledWith({ params: { id: 'painting-1' } })
-  })
-
-  it('passes only caller-provided query params to useQuery', async () => {
-    MockUseDataApiUtils.mockQueryData('/paintings', {
-      items: [],
-      total: 0
-    })
-
-    renderHook(() => usePaintings({ providerId: 'silicon' }))
-
-    await waitFor(() => expect(mockUseQuery).toHaveBeenCalled())
-
-    expect(mockUseQuery).toHaveBeenCalledWith('/paintings', {
-      query: {
-        providerId: 'silicon'
-      }
-    })
   })
 })

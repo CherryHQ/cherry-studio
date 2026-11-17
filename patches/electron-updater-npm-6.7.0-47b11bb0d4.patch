@@ -1,3 +1,409 @@
+diff --git a/out/AppUpdater.js b/out/AppUpdater.js
+index 7358a8f0efca83c0e05186fa51f154592b66c8dd..34c35ca7b4a7bf89574836cbf239314024447b60 100644
+--- a/out/AppUpdater.js
++++ b/out/AppUpdater.js
+@@ -207,7 +207,7 @@ class AppUpdater extends events_1.EventEmitter {
+         }
+         else {
+             this.app = app;
+-            this.httpExecutor = null;
++            this.httpExecutor = new electronHttpExecutor_1.ElectronHttpExecutor((authInfo, callback) => this.emit("login", authInfo, callback));
+         }
+         const currentVersionString = this.app.version;
+         const currentVersion = (0, semver_1.parse)(currentVersionString);
+diff --git a/out/MacUpdater.d.ts b/out/MacUpdater.d.ts
+index 2940c797a5ea957a3e3acf12267f3e19d4ad216c..11edc8689e758922e1eb66658eaad0a6b5bd67b9 100644
+--- a/out/MacUpdater.d.ts
++++ b/out/MacUpdater.d.ts
+@@ -11,5 +11,7 @@ export declare class MacUpdater extends AppUpdater {
+     protected doDownloadUpdate(downloadUpdateOptions: DownloadUpdateOptions): Promise<Array<string>>;
+     private updateDownloaded;
+     private handleUpdateDownloaded;
++    /** Release native listeners and the staging server after the download has settled. */
++    dispose(): void;
+     quitAndInstall(): void;
+ }
+diff --git a/out/MacUpdater.js b/out/MacUpdater.js
+index 8f18dc5416c91835ded4e47f2358fba680c129ac..35a629185bbde1f83a3debdd41b1d161ef26bee1 100644
+--- a/out/MacUpdater.js
++++ b/out/MacUpdater.js
+@@ -15,14 +15,28 @@ class MacUpdater extends AppUpdater_1.AppUpdater {
+         super(options, app);
+         this.nativeUpdater = require("electron").autoUpdater;
+         this.squirrelDownloadedUpdate = false;
+-        this.nativeUpdater.on("error", it => {
++        this.disposed = false;
++        this.installListener = null;
++        this.nativeErrorListener = it => {
+             this._logger.warn(it);
+             this.emit("error", it);
+-        });
+-        this.nativeUpdater.on("update-downloaded", () => {
++        };
++        this.nativeUpdater.on("error", this.nativeErrorListener);
++        this.nativeDownloadedListener = () => {
+             this.squirrelDownloadedUpdate = true;
+             this.debug("nativeUpdater.update-downloaded");
+-        });
++        };
++        this.nativeUpdater.on("update-downloaded", this.nativeDownloadedListener);
++    }
++    dispose() {
++        this.disposed = true;
++        this.nativeUpdater.removeListener("error", this.nativeErrorListener);
++        this.nativeUpdater.removeListener("update-downloaded", this.nativeDownloadedListener);
++        if (this.installListener) {
++            this.nativeUpdater.removeListener("update-downloaded", this.installListener);
++            this.installListener = null;
++        }
++        this.closeServerIfExists();
+     }
+     debug(message) {
+         if (this._logger.debug != null) {
+@@ -225,6 +239,7 @@ class MacUpdater extends AppUpdater_1.AppUpdater {
+         });
+     }
+     handleUpdateDownloaded() {
++        if (this.disposed) return;
+         if (this.autoRunAppAfterInstall) {
+             this.nativeUpdater.quitAndInstall();
+         }
+@@ -234,13 +249,15 @@ class MacUpdater extends AppUpdater_1.AppUpdater {
+         this.closeServerIfExists();
+     }
+     quitAndInstall() {
++        if (this.disposed || this.installListener) return;
+         if (this.squirrelDownloadedUpdate) {
+             // update already fetched by Squirrel, it's ready to install
+             this.handleUpdateDownloaded();
+         }
+         else {
+             // Quit and install as soon as Squirrel get the update
+-            this.nativeUpdater.on("update-downloaded", () => this.handleUpdateDownloaded());
++            this.installListener = () => this.handleUpdateDownloaded();
++            this.nativeUpdater.once("update-downloaded", this.installListener);
+             if (!this.autoInstallOnAppQuit) {
+                 /**
+                  * If this was not `true` previously then MacUpdater.doDownloadUpdate()
+diff --git a/out/PortableUpdater.d.ts b/out/PortableUpdater.d.ts
+new file mode 100644
+index 0000000000000000000000000000000000000000..f69021789133ffe1a7659e4902fb0be1d17e9e7b
+--- /dev/null
++++ b/out/PortableUpdater.d.ts
+@@ -0,0 +1,8 @@
++import { NsisUpdater } from "./NsisUpdater";
++export declare class PortableUpdater extends NsisUpdater {
++    portableExecutable?: string;
++    portableSha512?: string;
++    portableFollowup?: { source: string; sha512: string; versionLog: string; prerequisiteVersion: string };
++    private portableInstalling;
++    quitAndInstall(): void;
++}
+diff --git a/out/PortableUpdater.js b/out/PortableUpdater.js
+new file mode 100644
+index 0000000000000000000000000000000000000000..34581807457d64eca6231bf3b2524acafe7d7531
+--- /dev/null
++++ b/out/PortableUpdater.js
+@@ -0,0 +1,62 @@
++"use strict";
++Object.defineProperty(exports, "__esModule", { value: true });
++exports.PortableUpdater = void 0;
++const { spawn } = require("child_process");
++const path = require("path");
++const { NsisUpdater } = require("./NsisUpdater");
++const { portableInstallScript } = require("./portableInstallScript");
++class PortableUpdater extends NsisUpdater {
++    quitAndInstall() {
++        if (this.portableInstalling) return;
++        if (!this.installerPath || !this.portableExecutable || !this.portableSha512 || !path.isAbsolute(this.portableExecutable)) {
++            this.dispatchError(new Error("Portable installation requires a verified download and absolute executable path"));
++            return;
++        }
++        this.portableInstalling = true;
++        const config = Buffer.from(JSON.stringify({ source: this.installerPath, target: this.portableExecutable,
++            sha512: this.portableSha512, parent: process.pid, followup: this.portableFollowup })).toString("base64");
++        const script = `$c = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${config}')) | ConvertFrom-Json\n${portableInstallScript}`;
++        let child;
++        let timer;
++        let ready = false;
++        let accepting = false;
++        let output = "";
++        const fail = error => {
++            if (ready || !this.portableInstalling) return;
++            clearTimeout(timer);
++            this.portableInstalling = false;
++            child?.stdin?.destroy();
++            this.dispatchError(error);
++        };
++        try {
++            const bootstrap = "& ([ScriptBlock]::Create([Text.Encoding]::UTF8.GetString([Convert]::FromBase64String([Console]::In.ReadLine()))))";
++            const encoded = Buffer.from(bootstrap, "utf16le").toString("base64");
++            const command = `""%SystemRoot%\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -NoProfile -NonInteractive -EncodedCommand ${encoded}"`;
++            child = spawn(path.join(process.env.SystemRoot, "System32", "cmd.exe"), ["/d", "/s", "/c", command],
++                { windowsHide: true, windowsVerbatimArguments: true, stdio: ["pipe", "pipe", "pipe"] });
++            timer = setTimeout(() => { child.kill(); fail(new Error("Portable installer preparation timed out")); }, 120000);
++            child.once("error", fail);
++            child.once("exit", code => fail(new Error(`Portable installer exited before handoff (${code})`)));
++            child.stdin.on("error", fail);
++            child.stderr.on("data", data => this._logger.error(data.toString()));
++            child.stdout.on("data", data => {
++                output += data.toString();
++                if (!accepting && this.portableInstalling && output.split(/\r?\n/).includes("ready")) {
++                    accepting = true;
++                    clearTimeout(timer);
++                    child.stdin.end("install\n", () => {
++                        if (!this.portableInstalling) return;
++                        ready = true;
++                        child.stdout.destroy();
++                        child.stderr.destroy();
++                        child.unref();
++                        require("electron").autoUpdater.emit("before-quit-for-update");
++                        this.app.quit();
++                    });
++                }
++            });
++            child.stdin.write(Buffer.from(script, "utf8").toString("base64") + "\n");
++        } catch (error) { fail(error); }
++    }
++}
++exports.PortableUpdater = PortableUpdater;
+diff --git a/out/RpmUpdater.d.ts b/out/RpmUpdater.d.ts
+index 41eb04a6b38e98249b8ec30556db3b45a4c548e4..0d1aa957f2b1a8074cd8cd7ffdc61e14ac0c18ef 100644
+--- a/out/RpmUpdater.d.ts
++++ b/out/RpmUpdater.d.ts
+@@ -9,5 +9,5 @@ export declare class RpmUpdater extends LinuxUpdater {
+     /*** @private */
+     protected doDownloadUpdate(downloadUpdateOptions: DownloadUpdateOptions): Promise<Array<string>>;
+     protected doInstall(options: InstallOptions): boolean;
+-    static installWithCommandRunner(packageManager: "zypper" | "dnf" | "yum" | "rpm", installerPath: string, commandRunner: (commandWithArgs: string[]) => void, logger: Logger): void;
++    static installWithCommandRunner(packageManager: "zypper" | "dnf" | "yum" | "rpm", installerPath: string, commandRunner: (commandWithArgs: string[]) => void, logger: Logger, isDowngrade?: boolean): void;
+ }
+diff --git a/out/RpmUpdater.js b/out/RpmUpdater.js
+index 7095549478c7f880eeef4c8baa7ce300720f1afe..c84c44f3eb308ac82d851f41030eb4d6b076900a 100644
+--- a/out/RpmUpdater.js
++++ b/out/RpmUpdater.js
+@@ -1,6 +1,7 @@
+ "use strict";
+ Object.defineProperty(exports, "__esModule", { value: true });
+ exports.RpmUpdater = void 0;
++const semver_1 = require("semver");
+ const types_1 = require("./types");
+ const Provider_1 = require("./providers/Provider");
+ const LinuxUpdater_1 = require("./LinuxUpdater");
+@@ -33,7 +34,8 @@ class RpmUpdater extends LinuxUpdater_1.LinuxUpdater {
+         const priorityList = ["zypper", "dnf", "yum", "rpm"];
+         const packageManager = this.detectPackageManager(priorityList);
+         try {
+-            RpmUpdater.installWithCommandRunner(packageManager, installerPath, this.runCommandWithSudoIfNeeded.bind(this), this._logger);
++            const isDowngrade = this.updateInfoAndProvider != null && (0, semver_1.lt)(this.updateInfoAndProvider.info.version, this.currentVersion);
++            RpmUpdater.installWithCommandRunner(packageManager, installerPath, this.runCommandWithSudoIfNeeded.bind(this), this._logger, this.allowDowngrade && isDowngrade);
+         }
+         catch (error) {
+             this.dispatchError(error);
+@@ -44,19 +46,19 @@ class RpmUpdater extends LinuxUpdater_1.LinuxUpdater {
+         }
+         return true;
+     }
+-    static installWithCommandRunner(packageManager, installerPath, commandRunner, logger) {
++    static installWithCommandRunner(packageManager, installerPath, commandRunner, logger, isDowngrade = false) {
+         if (packageManager === "zypper") {
+-            return commandRunner(["zypper", "--non-interactive", "--no-refresh", "install", "--allow-unsigned-rpm", "-f", installerPath]);
++            return commandRunner(["zypper", "--non-interactive", "--no-refresh", "install", "--allow-unsigned-rpm", "-f", ...(isDowngrade ? ["--oldpackage"] : []), installerPath]);
+         }
+         if (packageManager === "dnf") {
+-            return commandRunner(["dnf", "install", "--nogpgcheck", "-y", installerPath]);
++            return commandRunner(["dnf", isDowngrade ? "downgrade" : "install", "--nogpgcheck", "-y", installerPath]);
+         }
+         if (packageManager === "yum") {
+-            return commandRunner(["yum", "install", "--nogpgcheck", "-y", installerPath]);
++            return commandRunner(["yum", isDowngrade ? "downgrade" : "install", "--nogpgcheck", "-y", installerPath]);
+         }
+         if (packageManager === "rpm") {
+             logger.warn("Installing with rpm only (no dependency resolution).");
+-            return commandRunner(["rpm", "-Uvh", "--replacepkgs", "--replacefiles", "--nodeps", installerPath]);
++            return commandRunner(["rpm", "-Uvh", "--replacepkgs", "--replacefiles", "--nodeps", ...(isDowngrade ? ["--oldpackage"] : []), installerPath]);
+         }
+         throw new Error(`Package manager ${packageManager} not supported`);
+     }
+diff --git a/out/main.d.ts b/out/main.d.ts
+index 82382c2b42686bfd22bce78b4d5f0d883dfb5587..ccda3335c4aab3ffcece897fa924b5fee5badfeb 100644
+--- a/out/main.d.ts
++++ b/out/main.d.ts
+@@ -17,3 +17,4 @@ export declare const autoUpdater: AppUpdater;
+  */
+ export type VerifyUpdateCodeSignature = (publisherName: string[], path: string) => Promise<string | null>;
+ export type VerifyUpdateSupport = (updateInfo: UpdateInfo) => boolean | Promise<boolean>;
++export { PortableUpdater } from "./PortableUpdater";
+diff --git a/out/main.js b/out/main.js
+index 7052a0e9726f2ac26155f77319a108ff86c61396..a401598afad378effc8d1c58a829789d33be4580 100644
+--- a/out/main.js
++++ b/out/main.js
+@@ -84,3 +84,4 @@ Object.defineProperty(exports, "autoUpdater", {
+     },
+ });
+ //# sourceMappingURL=main.js.map
++Object.defineProperty(exports, "PortableUpdater", { enumerable: true, get: function () { return require("./PortableUpdater").PortableUpdater; } });
+diff --git a/out/portableInstallScript.js b/out/portableInstallScript.js
+new file mode 100644
+index 0000000000000000000000000000000000000000..b9b41304b48c915259c3f38e43f6e5108b74a29d
+--- /dev/null
++++ b/out/portableInstallScript.js
+@@ -0,0 +1,155 @@
++"use strict";
++exports.portableInstallScript = String.raw`
++$ErrorActionPreference = 'Stop'
++$stage = $c.target + '.update-' + [Guid]::NewGuid().ToString() + '.exe'
++$bridgeStage = $stage + '.bridge.exe'
++$ready = $false
++$lock = $null
++
++function Get-PortableHash($file) {
++    $stream = [IO.File]::OpenRead($file)
++    $sha = [Security.Cryptography.SHA512]::Create()
++    try { return [Convert]::ToBase64String($sha.ComputeHash($stream)) }
++    finally { $sha.Dispose(); $stream.Dispose() }
++}
++
++function Assert-PortablePackage($file, $expectedHash, $publisher) {
++    if ((Get-PortableHash $file) -cne $expectedHash) { throw 'Portable SHA512 verification failed' }
++    $signature = Get-AuthenticodeSignature -LiteralPath $file
++    if ($signature.Status -ne 'Valid' -or $signature.SignerCertificate.Subject -cne $publisher) {
++        throw 'Portable publisher verification failed'
++    }
++}
++
++function Replace-AndLaunch($replacement, $backup) {
++    $deadline = [DateTime]::UtcNow.AddSeconds(60)
++    while ($true) {
++        try { [IO.File]::Move($c.target, $backup); break }
++        catch { if ([DateTime]::UtcNow -ge $deadline) { throw }; Start-Sleep -Milliseconds 250 }
++    }
++    $installed = $false
++    try {
++        [IO.File]::Move($replacement, $c.target)
++        $installed = $true
++        return Start-Process -FilePath $c.target -WorkingDirectory ([IO.Path]::GetDirectoryName($c.target)) -PassThru
++    } catch {
++        if ($installed) { [IO.File]::Delete($c.target) }
++        [IO.File]::Move($backup, $c.target)
++        Start-Process -FilePath $c.target -WorkingDirectory ([IO.Path]::GetDirectoryName($c.target))
++        throw
++    }
++}
++
++function Read-MigrationConfig($file) {
++    if (![IO.File]::Exists($file)) { return ,$json.DeserializeObject('{}') }
++    $value = $json.DeserializeObject([IO.File]::ReadAllText($file))
++    if ($value -isnot [Collections.IDictionary]) { throw 'Invalid legacy settings' }
++    return ,$value
++}
++
++function Write-MigrationConfig($file, $value) {
++    $temp = $file + '.' + [Guid]::NewGuid().ToString() + '.tmp'
++    try {
++        [IO.File]::WriteAllText($temp, $json.Serialize($value))
++        if ([IO.File]::Exists($file)) {
++            [IO.File]::Replace($temp, $file, [NullString]::Value)
++        } else {
++            [IO.File]::Move($temp, $file)
++        }
++    } finally {
++        [IO.File]::Delete($temp)
++    }
++}
++
++function Start-Prerequisite {
++    Add-Type -AssemblyName System.Web.Extensions
++    $json = [Web.Script.Serialization.JavaScriptSerializer]::new()
++    $json.MaxJsonLength = [int]::MaxValue
++    $json.RecursionLimit = 100
++    $config = Join-Path ([IO.Path]::GetDirectoryName($c.followup.versionLog)) 'config.json'
++    $savedConfig = $config + '.portable-migration.json'
++    if ([IO.File]::Exists($savedConfig)) { throw 'A portable migration settings backup already exists' }
++    $settings = Read-MigrationConfig $config
++    $override = $settings['trayOnClose'] -isnot [bool] -or $settings['trayOnClose']
++    if ($override) {
++        $original = @{ configExisted = [IO.File]::Exists($config) }
++        if ($settings.ContainsKey('trayOnClose')) { $original['trayOnClose'] = $settings['trayOnClose'] }
++        Write-MigrationConfig $savedConfig $original
++    }
++    try {
++        if ($override) {
++            $settings['trayOnClose'] = $false
++            Write-MigrationConfig $config $settings
++        }
++        $process = Start-Process -FilePath $stage -WorkingDirectory ([IO.Path]::GetDirectoryName($c.target)) -PassThru
++        $process.WaitForExit()
++        return $process.ExitCode
++    } finally {
++        if ($override) {
++            $settings = Read-MigrationConfig $config
++            if ($original.ContainsKey('trayOnClose')) {
++                $settings['trayOnClose'] = $original['trayOnClose']
++            } else {
++                $null = $settings.Remove('trayOnClose')
++            }
++            if ($original.configExisted -or $settings.Count) {
++                Write-MigrationConfig $config $settings
++            } else {
++                [IO.File]::Delete($config)
++            }
++            [IO.File]::Delete($savedConfig)
++        }
++    }
++}
++
++try {
++    $parentProcess = [Diagnostics.Process]::GetProcessById($c.parent)
++    $lock = [IO.FileStream]::new($c.target + '.update-lock', [IO.FileMode]::OpenOrCreate,
++        [IO.FileAccess]::ReadWrite, [IO.FileShare]::None, 4096, [IO.FileOptions]::DeleteOnClose)
++    $current = Get-AuthenticodeSignature -LiteralPath $c.target
++    if ($current.Status -ne 'Valid') { throw 'Portable publisher verification failed' }
++    $publisher = $current.SignerCertificate.Subject
++    Copy-Item -LiteralPath $c.source -Destination $stage
++    Assert-PortablePackage $stage $c.sha512 $publisher
++    if ($c.followup) {
++        Copy-Item -LiteralPath $c.followup.source -Destination $bridgeStage
++        Assert-PortablePackage $bridgeStage $c.followup.sha512 $publisher
++        $versionHistory = [IO.File]::ReadAllText($c.followup.versionLog)
++        $originalHash = Get-PortableHash $c.target
++    }
++    [Console]::Out.WriteLine('ready')
++    [Console]::Out.Flush()
++    if ([Console]::In.ReadLine() -cne 'install') { throw 'Portable installation handoff cancelled' }
++    $ready = $true
++    if (!$parentProcess.WaitForExit(120000)) { throw 'Application did not exit' }
++
++    $backup = $stage + '.previous'
++    if ($c.followup) {
++        $exitCode = Start-Prerequisite
++        if ($exitCode -ne 0) { throw "Portable prerequisite exited with code $exitCode" }
++        $history = [IO.File]::ReadAllText($c.followup.versionLog)
++        $version = [regex]::Escape($c.followup.prerequisiteVersion)
++        $record = '^' + $version + '\|win\|prod\|packaged\|portable\|\d{4}-\d{2}-\d{2}T'
++        if ($history.Length -le $versionHistory.Length -or
++            !$history.StartsWith($versionHistory, [StringComparison]::Ordinal) -or
++            $history.TrimEnd().Split([char]10)[-1] -cnotmatch $record) {
++            throw 'Portable prerequisite did not record startup in the migration profile'
++        }
++
++        Assert-PortablePackage $c.target $originalHash $publisher
++        Assert-PortablePackage $bridgeStage $c.followup.sha512 $publisher
++        $null = Replace-AndLaunch $bridgeStage $backup
++    } else {
++        $null = Replace-AndLaunch $stage $backup
++    }
++    Remove-Item -LiteralPath $backup -ErrorAction SilentlyContinue
++} catch {
++    $failure = $_.ToString()
++    [IO.File]::WriteAllText($c.source + '.install-error.log', $failure)
++    if (!$ready) { [Console]::Error.WriteLine($failure) }
++    exit 1
++} finally {
++    Remove-Item -LiteralPath $stage, $bridgeStage -ErrorAction SilentlyContinue
++    if ($lock) { $lock.Dispose() }
++}
++`;
 diff --git a/out/util.js b/out/util.js
 index 9294ffd6ca8f02c2e0f90c663e7e9cdc02c1ac37..f52107493e2995320ee4efd0eb2a8c9bf03291a2 100644
 --- a/out/util.js

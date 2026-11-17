@@ -7,8 +7,21 @@ export default defineCreator({
   fetchModels: openaiCompatible('longcat', 'LONGCAT_API_KEY'),
   families: ['longcat'],
   idPrefixes: ['longcat'],
-  reasoningFamilies: [{ pattern: '^longcat-2[.-]0$', toggle: true }],
+  reasoningFamilies: [
+    { pattern: '^longcat-2[.-]0$', toggle: true },
+    { pattern: '^longcat-2[.-]5$', toggle: true }
+  ],
   models: [
+    {
+      id: 'longcat-2-5',
+      name: 'LongCat-2.5',
+      family: 'longcat',
+      capabilities: ['function-call', 'reasoning', 'image-recognition', 'video-recognition'],
+      inputModalities: ['text', 'image', 'video'],
+      outputModalities: ['text'],
+      contextWindow: 1_048_576,
+      maxOutputTokens: 262_144
+    },
     {
       id: 'longcat-2-0',
       name: 'LongCat-2.0',

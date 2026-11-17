@@ -1,3 +1,5 @@
+import { getFilePreviewFileName } from '@renderer/utils/filePreview'
+
 import type { EditToolInput, EditToolOutput } from '../shared/agentToolTypes'
 import { AgentToolsType } from '../shared/agentToolTypes'
 import { ClickableFilePath } from '../shared/ClickableFilePath'
@@ -23,7 +25,7 @@ function EditToolChildren({ input, output }: { input?: EditToolInput; output?: E
 }
 
 export function EditTool({ input, output }: { input?: EditToolInput; output?: EditToolOutput }): ToolDisclosureItem {
-  const filename = input?.file_path?.split('/').pop()
+  const filename = input?.file_path ? getFilePreviewFileName(input.file_path) : undefined
 
   return {
     key: AgentToolsType.Edit,

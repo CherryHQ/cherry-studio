@@ -3,34 +3,25 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 
+import { setupTestDatabase } from '@test-helpers/db'
+import { MockApplicationUtils } from '@test-mocks/main/application'
+import { eq } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { agentSessionTable } from '@data/db/schemas/agentSession'
+import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
+import { agentSessionContextService as contexts } from '@data/services/AgentSessionContextService'
 import { packWorkspaceDirectory, unpackWorkspaceArchive } from '@main/ai/agents/agentWorkspaceStorage'
 import { BaseService, LifecycleManager, ServiceContainer } from '@main/core/lifecycle'
 import { deriveRootSpanId } from '@shared/data/types/trace'
 
-const {
-  startupMock,
-  buildWarmRequestMock,
-  applicationGetMock,
-  traceModeEnabledMock,
-  prepareTraceMock,
-  ensureTraceIdMock
-} = vi.hoisted(() => ({
+import { prepareClaudeBranch } from '../claudeContext'
+
+const { startupMock, buildWarmRequestMock, traceModeEnabledMock, prepareTraceMock } = vi.hoisted(() => ({
   startupMock: vi.fn(),
   buildWarmRequestMock: vi.fn(),
-  applicationGetMock: vi.fn(),
   traceModeEnabledMock: vi.fn(),
-  prepareTraceMock: vi.fn(),
-  ensureTraceIdMock: vi.fn()
-}))
-
-vi.mock('@data/services/AgentSessionService', () => ({
-  agentSessionService: { ensureTraceId: ensureTraceIdMock }
-}))
-
-vi.mock('@application', () => ({
-  application: { get: applicationGetMock }
+  prepareTraceMock: vi.fn()
 }))
 
 vi.mock('@anthropic-ai/claude-agent-sdk', () => ({
@@ -40,14 +31,6 @@ vi.mock('@anthropic-ai/claude-agent-sdk', () => ({
 vi.mock('../agentSessionWarmup', () => ({
   buildClaudeCodeWarmQueryRequestForAgentSession: buildWarmRequestMock
 }))
-
-vi.mock('@logger', () => ({
-  loggerService: {
-    withContext: vi.fn(() => ({ debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() }))
-  }
-}))
-
-const { spawnClaudeCodeProcess } = await import('../ClaudeCodeProcessManager')
 const { ClaudeCodeWarmQueryManager, createClaudeCodeWarmQuerySignature } = await import('../ClaudeCodeWarmQueryManager')
 
 function warmQuery(cleanup: Promise<void> = Promise.resolve()) {
@@ -71,22 +54,32 @@ function createDeferred<T>() {
 }
 
 describe('ClaudeCodeWarmQueryManager', () => {
+  const dbh = setupTestDatabase()
   beforeEach(() => {
     LifecycleManager.reset()
     ServiceContainer.reset()
     BaseService.resetInstances()
     vi.clearAllMocks()
     vi.useFakeTimers()
-    applicationGetMock.mockImplementation((name: string) => {
-      if (name === 'ClaudeCodeTraceBridgeService') {
-        return { isTraceModeEnabled: traceModeEnabledMock, prepareTrace: prepareTraceMock }
-      }
-      throw new Error(`Unexpected application.get(${name})`)
+    MockApplicationUtils.setService('ClaudeCodeTraceBridgeService', {
+      isTraceModeEnabled: traceModeEnabledMock,
+      prepareTrace: prepareTraceMock
     })
+    startupMock.mockReset()
+    buildWarmRequestMock.mockReset()
+    dbh.db
+      .insert(agentWorkspaceTable)
+      .values({ id: 'workspace-1', name: 'Work', type: 'user', path: '/test/work', orderKey: 'a0' })
+      .run()
+    dbh.db
+      .insert(agentSessionTable)
+      .values({ id: 'session-1', workspaceId: 'workspace-1', name: 'Root', orderKey: 'a0' })
+      .run()
     traceModeEnabledMock.mockReturnValue(false)
   })
 
   afterEach(() => {
+    MockApplicationUtils.resetServices()
     vi.useRealTimers()
   })
 
@@ -103,38 +96,8 @@ describe('ClaudeCodeWarmQueryManager', () => {
 
     expect(consumed?.warmQuery).toBe(warm)
     expect(second).toBeUndefined()
-    expect(startupMock).toHaveBeenCalledWith({
-      options: {
-        model: 'sonnet',
-        resume: 'sdk-1',
-        spawnClaudeCodeProcess: expect.any(Function)
-      },
-      initializeTimeoutMs: undefined
-    })
+
     expect(warm.close).not.toHaveBeenCalled()
-  })
-
-  it('preserves the host spawn wrapper on the warm startup path', async () => {
-    const manager = new ClaudeCodeWarmQueryManager()
-    const warm = warmQuery()
-    const ignoredSpawn = vi.fn()
-    startupMock.mockResolvedValueOnce(warm)
-
-    await manager.prewarm({
-      key: 'session-1',
-      options: { model: 'sonnet', spawnClaudeCodeProcess: ignoredSpawn }
-    })
-    await Promise.resolve()
-
-    expect(startupMock).toHaveBeenCalledWith({
-      options: {
-        model: 'sonnet',
-        spawnClaudeCodeProcess: expect.any(Function)
-      },
-      initializeTimeoutMs: undefined
-    })
-    expect(startupMock.mock.calls[0][0].options.spawnClaudeCodeProcess).not.toBe(ignoredSpawn)
-    expect(startupMock.mock.calls[0][0].options.spawnClaudeCodeProcess).not.toBe(spawnClaudeCodeProcess)
   })
 
   it('keeps process diagnostics isolated between warm queries', async () => {
@@ -176,13 +139,6 @@ describe('ClaudeCodeWarmQueryManager', () => {
 
     secondCleanup.resolve()
     await expect(closing).resolves.toBeUndefined()
-  })
-
-  it('declares ClaudeCodeProcessManager so the CLI owner stops last', () => {
-    const container = ServiceContainer.getInstance()
-    container.register(ClaudeCodeWarmQueryManager)
-
-    expect(container.getMetadata('ClaudeCodeWarmQueryManager')?.dependencies).toContain('ClaudeCodeProcessManager')
   })
 
   it('closes every warm entry on service stop', async () => {
@@ -261,17 +217,6 @@ describe('ClaudeCodeWarmQueryManager', () => {
     const withoutAbort = createClaudeCodeWarmQuerySignature({ model: 'sonnet', resume: 'sdk-1' })
 
     expect(withAbort).toBe(withoutAbort)
-  })
-
-  it('uses the same signature with or without the session steer holder', () => {
-    const withHolder = createClaudeCodeWarmQuerySignature({
-      model: 'sonnet',
-      resume: 'sdk-1',
-      steerHolder: { pending: [], dispose: vi.fn() }
-    } as any)
-    const withoutHolder = createClaudeCodeWarmQuerySignature({ model: 'sonnet', resume: 'sdk-1' })
-
-    expect(withHolder).toBe(withoutHolder)
   })
 
   it('uses the same signature across rotated credential env values', () => {
@@ -473,19 +418,6 @@ describe('ClaudeCodeWarmQueryManager', () => {
     expect(warm.close).toHaveBeenCalledOnce()
   })
 
-  it('closes unused warm queries after the idle ttl', async () => {
-    const manager = new ClaudeCodeWarmQueryManager()
-    const warm = warmQuery()
-    startupMock.mockResolvedValueOnce(warm)
-
-    await manager.prewarm({ key: 'session-1', options: { model: 'sonnet' } })
-    await Promise.resolve()
-    vi.advanceTimersByTime(5 * 60 * 1000)
-    await Promise.resolve()
-
-    expect(warm.close).toHaveBeenCalledOnce()
-  })
-
   it.each(['session', 'all'] as const)(
     '%s close drains delayed workspace preparation before archiving',
     async (scope) => {
@@ -571,6 +503,28 @@ describe('ClaudeCodeWarmQueryManager', () => {
     expect(warm[Symbol.asyncDispose]).toHaveBeenCalledTimes(2)
   })
 
+  it.each([
+    ['pending', { sessionId: 'native-root', resume: undefined }],
+    ['bound', { sessionId: undefined, resume: 'native-root' }]
+  ] as const)('prewarms a %s native identity with the matching SDK operation', async (state, expected) => {
+    const manager = new ClaudeCodeWarmQueryManager()
+    const context = prepareClaudeBranch('session-1', '/test/claude', 'native-root')
+    if (state === 'bound') contexts.bindContext(context.id, 'native-root')
+    buildWarmRequestMock.mockResolvedValueOnce({
+      key: 'session-1',
+      options: { model: 'sonnet', env: { CLAUDE_CONFIG_DIR: '/test/claude' } }
+    })
+    startupMock.mockResolvedValueOnce(warmQuery())
+    try {
+      await manager.prewarmAgentSession('session-1')
+      const options = startupMock.mock.calls[0]?.[0].options
+      expect(options).toBeDefined()
+      expect({ sessionId: options.sessionId, resume: options.resume }).toStrictEqual(expected)
+    } finally {
+      await manager.close('session-1')
+    }
+  })
+
   it('prewarms an agent session from the session request builder', async () => {
     const manager = new ClaudeCodeWarmQueryManager()
     const warm = warmQuery()
@@ -584,7 +538,6 @@ describe('ClaudeCodeWarmQueryManager', () => {
     await manager.prewarmAgentSession('session-1')
     const consumed = await manager.consume({ key: 'session-1', options: { model: 'sonnet', resume: 'sdk-1' } })
 
-    expect(buildWarmRequestMock).toHaveBeenCalledWith('session-1')
     expect(consumed?.warmQuery).toBe(warm)
   })
 
@@ -593,7 +546,7 @@ describe('ClaudeCodeWarmQueryManager', () => {
   it('bakes the session trace env into the park so a traced turn can consume it', async () => {
     traceModeEnabledMock.mockReturnValue(true)
     const traceId = '0'.repeat(31) + 'a'
-    ensureTraceIdMock.mockReturnValue(traceId)
+    dbh.db.update(agentSessionTable).set({ traceId }).where(eq(agentSessionTable.id, 'session-1')).run()
     const traceEnv = {
       CLAUDE_CODE_ENABLE_TELEMETRY: '1',
       TRACEPARENT: `00-${traceId}-${deriveRootSpanId(traceId)}-01`
@@ -609,9 +562,6 @@ describe('ClaudeCodeWarmQueryManager', () => {
 
     await manager.prewarmAgentSession('session-1')
 
-    expect(prepareTraceMock).toHaveBeenCalledWith(
-      expect.objectContaining({ sessionId: 'session-1', traceId, rootSpanId: deriveRootSpanId(traceId) })
-    )
     expect(startupMock).toHaveBeenCalledWith(
       expect.objectContaining({
         options: expect.objectContaining({

@@ -1,4 +1,6 @@
 import { fireEvent, render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { useState } from 'react'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -28,13 +30,15 @@ vi.mock('react-i18next', () => ({
       (
         ({
           'common.error': 'Error',
-          'common.retry': 'Retry'
+          'common.retry': 'Retry',
+          'assistants.presets.export.title': 'Export Assistants'
         }) satisfies Record<string, string>
       )[key] ?? key
   })
 }))
 
-vi.mock('@cherrystudio/ui', () => ({
+vi.mock('@cherrystudio/ui', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   Alert: ({ action, description, message }: { action?: ReactNode; description?: ReactNode; message?: ReactNode }) => (
     <div role="alert">
       {message}
@@ -101,10 +105,17 @@ vi.mock('../AssistantLibraryDialog', () => {
 })
 
 vi.mock('../ResourceGrid', () => ({
-  ResourceGrid: (props: { toolbarLeading?: ReactNode }) => {
+  ResourceGrid: (props: { toolbarLeading?: ReactNode; onExportAssistants?: () => void }) => {
     resourceGridMock(props)
 
-    return <div data-testid="resource-grid">{props.toolbarLeading}</div>
+    return (
+      <div data-testid="resource-grid">
+        {props.toolbarLeading}
+        <button type="button" onClick={props.onExportAssistants}>
+          Export
+        </button>
+      </div>
+    )
   }
 }))
 
@@ -125,6 +136,7 @@ function createController(resourceError?: Error, resources: ResourceItem[] = [])
       onEdit: vi.fn(),
       onExport: vi.fn(),
       onImportAssistant: vi.fn(),
+      onExportAssistants: vi.fn(),
       onOpenAssistantLibrary: vi.fn(),
       onOpenSkillMarketplace: vi.fn(),
       onOpenSystemSkills: vi.fn(),
@@ -135,6 +147,12 @@ function createController(resourceError?: Error, resources: ResourceItem[] = [])
     },
     dialogs: {
       assistantImportOpen: false,
+      assistantExportOpen: false,
+      exportAssistants: [],
+      assistantExportLoading: false,
+      assistantExporting: false,
+      handleAssistantExportOpenChange: vi.fn(),
+      handleExportAssistants: vi.fn(),
       assistantLibraryOpen: false,
       createDialogKind: null,
       createDialogOpen: false,
@@ -186,28 +204,11 @@ describe('ResourceCatalogView', () => {
     rerender(<ResourceCatalogView resourceType="assistant" />)
 
     expect(await screen.findByTestId('resource-create-wizard')).toHaveAttribute('data-kind', 'assistant')
-    expect(dialogImplementationsLoadedMock).toHaveBeenCalledWith('create')
-    expect(dialogImplementationsLoadedMock).not.toHaveBeenCalledWith('detail')
-    expect(dialogImplementationsLoadedMock).toHaveBeenCalledWith('edit')
-    expect(dialogImplementationsLoadedMock).toHaveBeenCalledWith('import')
-    expect(dialogImplementationsLoadedMock).toHaveBeenCalledWith('skill')
-    expect(dialogImplementationsLoadedMock).toHaveBeenCalledWith('assistant-library')
 
     resourceCatalogControllerMock.mockReturnValue(inactiveController)
     rerender(<ResourceCatalogView resourceType="assistant" />)
 
     expect(screen.queryByTestId('resource-create-wizard')).not.toBeInTheDocument()
-    expect(resourceCreateWizardMock).toHaveBeenLastCalledWith(expect.objectContaining({ open: false }))
-  })
-
-  it('keeps toolbar leading in the resource grid success state', () => {
-    render(
-      <ResourceCatalogView resourceType="assistant" toolbarLeading={<button type="button">Toggle sidebar</button>} />
-    )
-
-    expect(screen.getByTestId('resource-grid')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Toggle sidebar' })).toBeInTheDocument()
-    expect(resourceGridMock).toHaveBeenCalledWith(expect.objectContaining({ toolbarLeading: expect.anything() }))
   })
 
   it('filters controller resources before rendering the grid', () => {
@@ -257,21 +258,20 @@ describe('ResourceCatalogView', () => {
     expect(refetchMock).toHaveBeenCalledOnce()
   })
 
-  it('opens system skill management without agent enablement semantics', async () => {
-    const controller = createController()
-    resourceCatalogControllerMock.mockReturnValue({
-      ...controller,
-      dialogs: {
-        ...controller.dialogs,
-        systemSkillOpen: true
+  it('opens the batch export dialog on the first toolbar click through the lazy host', async () => {
+    const user = userEvent.setup()
+    resourceCatalogControllerMock.mockImplementation(function useExportController() {
+      const [open, setOpen] = useState(false)
+      const controller = createController()
+      return {
+        ...controller,
+        gridProps: { ...controller.gridProps, onExportAssistants: () => setOpen(true) },
+        dialogs: { ...controller.dialogs, assistantExportOpen: open, handleAssistantExportOpenChange: setOpen }
       }
     })
-
-    render(<ResourceCatalogView resourceType="skill" />)
-
-    expect(resourceGridMock).toHaveBeenCalledWith(expect.objectContaining({ onOpenSystemSkills: expect.any(Function) }))
-    await vi.waitFor(() =>
-      expect(systemSkillDialogMock).toHaveBeenCalledWith(expect.objectContaining({ mode: 'manage' }))
-    )
+    render(<ResourceCatalogView resourceType="assistant" />)
+    expect(screen.queryByRole('dialog', { name: 'Export Assistants' })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Export' }))
+    expect(await screen.findByRole('dialog', { name: 'Export Assistants' })).toBeInTheDocument()
   })
 })

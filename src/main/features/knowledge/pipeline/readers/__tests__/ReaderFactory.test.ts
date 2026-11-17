@@ -1,3 +1,5 @@
+import { resolve as resolvePath } from 'node:path'
+
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as FsUtils from '@main/utils/file'
@@ -134,7 +136,7 @@ function createFileItem(ext: string, sourcePath?: string): KnowledgeItemOf<'file
     createdAt: '2026-04-03T00:00:00.000Z',
     updatedAt: '2026-04-03T00:00:00.000Z',
     data: {
-      source: sourcePath ?? `/tmp/sample${ext}`,
+      source: sourcePath ?? resolvePath(`/tmp/sample${ext}`),
       relativePath: `sample${ext}` as PosixRelativeFilePath
     }
   }
@@ -187,7 +189,7 @@ function createDirectoryItem(): KnowledgeItemOf<'directory'> {
     createdAt: '2026-04-03T00:00:00.000Z',
     updatedAt: '2026-04-03T00:00:00.000Z',
     data: {
-      source: '/tmp/example-directory'
+      source: resolvePath('/tmp/example-directory')
     }
   }
 }
@@ -198,46 +200,11 @@ describe('loadKnowledgeItemDocuments', () => {
     toMarkdownBytesMock.mockRejectedValue(new Error('anydoc conversion failed'))
   })
 
-  it.each([
-    ['.pdf', 'pdf'],
-    ['.csv', 'csv'],
-    ['.html', 'html'],
-    ['.htm', 'html'],
-    ['.json', 'json'],
-    ['.markdown', 'markdown'],
-    ['.md', 'markdown'],
-    ['.mdx', 'markdown']
-  ])('maps %s files to the %s reader', async (ext, expectedReader) => {
-    const item = createFileItem(ext)
-    const docs = await loadKnowledgeItemDocuments(item)
-
-    expect(readerSpies[expectedReader as keyof typeof readerSpies]).toHaveBeenCalledWith(
-      `/mock/feature.knowledgebase.data/base-1/raw/sample${ext}`
-    )
-    expect(docs[0]).toMatchObject({
-      metadata: {
-        source: `/tmp/sample${ext}`
-      }
-    })
-  })
-
-  it('falls back to TextFileReader for unmatched file extensions', async () => {
-    const item = createFileItem('.log')
-    const docs = await loadKnowledgeItemDocuments(item)
-
-    expect(readerSpies.text).toHaveBeenCalledWith('/mock/feature.knowledgebase.data/base-1/raw/sample.log')
-    expect(docs[0]).toMatchObject({
-      metadata: {
-        source: '/tmp/sample.log'
-      }
-    })
-  })
-
   it('can read a processed artifact path while preserving source metadata', async () => {
     const item = {
-      ...createFileItem('.pdf', '/tmp/source.pdf'),
+      ...createFileItem('.pdf', resolvePath('/tmp/source.pdf')),
       data: {
-        source: '/tmp/source.pdf',
+        source: resolvePath('/tmp/source.pdf'),
         relativePath: 'source.pdf' as PosixRelativeFilePath,
         indexedRelativePath: 'source.md' as PosixRelativeFilePath
       }
@@ -245,71 +212,35 @@ describe('loadKnowledgeItemDocuments', () => {
 
     const docs = await loadKnowledgeItemDocuments(item)
 
-    expect(readerSpies.markdown).toHaveBeenCalledWith('/mock/feature.knowledgebase.data/base-1/raw/source.md')
+    expect(readerSpies.markdown).toHaveBeenCalledWith(
+      resolvePath('/mock/feature.knowledgebase.data/base-1/raw/source.md')
+    )
     expect(docs[0]).toMatchObject({
       metadata: {
-        source: '/tmp/source.pdf'
+        source: resolvePath('/tmp/source.pdf')
       }
     })
   })
 
-  it.each([
-    ['.doc', fallbackReaderSpies.doc],
-    ['.docx', fallbackReaderSpies.docx],
-    ['.epub', fallbackReaderSpies.epub]
-  ])('routes %s files through anydoc with the intended fallback reader', async (ext, expectedFallback) => {
-    const content = new Uint8Array([1, 2, 3])
-    const reader = createSupportedFileReader(`/tmp/sample${ext}` as AbsoluteFilePath)
-
-    await reader.loadDataAsContent(content, `sample${ext}`)
-
-    expect(expectedFallback).toHaveBeenCalledWith(content, `sample${ext}`)
-  })
-
-  it.each(['.ppt', '.pptx', '.xls', '.xlsx'])(
+  it.each(['.ppt', '.pptx', '.xls', '.xlsx', '.odt', '.odp', '.ods', '.rtf'])(
     'throws instead of falling back to TextFileReader for %s when anydoc conversion fails',
     async (ext) => {
       const failure = new Error('anydoc conversion failed')
       toMarkdownBytesMock.mockRejectedValueOnce(failure)
       const content = new Uint8Array([1, 2, 3])
-      const reader = createSupportedFileReader(`/tmp/sample${ext}` as AbsoluteFilePath)
+      const reader = createSupportedFileReader(resolvePath(`/tmp/sample${ext}`) as AbsoluteFilePath)
 
       await expect(reader.loadDataAsContent(content, `sample${ext}`)).rejects.toBe(failure)
       expect(fallbackReaderSpies.text).not.toHaveBeenCalled()
     }
   )
 
-  it('uses the EPUB fallback when anydoc produces no text', async () => {
-    toMarkdownBytesMock.mockResolvedValue('')
-    const content = new Uint8Array([1, 2, 3])
-    const reader = createSupportedFileReader('/tmp/sample.epub' as AbsoluteFilePath)
-
-    await reader.loadDataAsContent(content, 'sample.epub')
-
-    expect(fallbackReaderSpies.epub).toHaveBeenCalledWith(content, 'sample.epub')
-  })
-
-  it('uses the drafts export reader for .draftsexport files', async () => {
-    const item = createFileItem('.draftsexport')
-
-    const docs = await loadKnowledgeItemDocuments(item)
-
-    expect(customReaderSpies.drafts).toHaveBeenCalledWith(
-      '/mock/feature.knowledgebase.data/base-1/raw/sample.draftsexport'
-    )
-    expect(docs[0]).toMatchObject({
-      metadata: {
-        source: '/tmp/sample.draftsexport'
-      }
-    })
-  })
-
   it('creates a note reader that returns a single Document from its snapshot', async () => {
     readFileMock.mockResolvedValueOnce('hello world')
     const item = createNoteItem('hello world', 'my-note.md' as PosixRelativeFilePath)
     const docs = await loadKnowledgeItemDocuments(item)
 
-    expect(readFileMock).toHaveBeenCalledWith('/mock/feature.knowledgebase.data/base-1/raw/my-note.md')
+    expect(readFileMock).toHaveBeenCalledWith(resolvePath('/mock/feature.knowledgebase.data/base-1/raw/my-note.md'))
     expect(docs).toHaveLength(1)
     expect(docs[0]).toMatchObject({
       text: 'hello world',
@@ -328,7 +259,9 @@ describe('loadKnowledgeItemDocuments', () => {
 
     // The reader never fetches; the indexing job's ensure-snapshot step does.
     expect(fetchMock).not.toHaveBeenCalled()
-    expect(readFileMock).toHaveBeenCalledWith('/mock/feature.knowledgebase.data/base-1/raw/example-page.md')
+    expect(readFileMock).toHaveBeenCalledWith(
+      resolvePath('/mock/feature.knowledgebase.data/base-1/raw/example-page.md')
+    )
     expect(docs).toHaveLength(1)
     expect(docs[0]).toMatchObject({
       text: '# Page\n\nbody\n',

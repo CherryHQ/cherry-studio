@@ -2,8 +2,8 @@ import { mkdtemp, readdir, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
-import { setupTestDatabase } from '@test-helpers/db'
-import { eq } from 'drizzle-orm'
+import { linkSessionMessageChain, setupTestDatabase, seedSessionRoot } from '@test-helpers/db'
+import { and, eq, ne } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
@@ -23,7 +23,10 @@ import { agentSessionMessageService } from '@data/services/AgentSessionMessageSe
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { aiUsageRecordService } from '@data/services/AiUsageRecordService'
 import { AgentSessionForkOperations } from '@main/ai/agentSession/fork/AgentSessionForkOperations'
+import { prepareClaudeBranch } from '@main/ai/runtime/claudeCode/claudeContext'
+import { ClaudeForkCheckpointSchema } from '@main/ai/runtime/claudeCode/forkCheckpoint'
 import { AgentSessionForkError, type RuntimeForkInput } from '@main/ai/runtime/fork/checkpoint'
+import { PiForkCheckpointSchema } from '@main/ai/runtime/pi/forkCheckpoint'
 import { runtimeDriverRegistry } from '@main/ai/runtime/registry'
 import { createAiUsageCaptureContext } from '@main/ai/utils/usageCapture'
 
@@ -44,8 +47,8 @@ type AgentSessionInsert = typeof agentSessionTable.$inferInsert
 describe('AgentSessionMessageService', () => {
   const dbh = setupTestDatabase()
 
-  function commitData(input: Parameters<typeof agentSessionForkService.commitTx>[1]): void {
-    application.get('DbService').withWriteTx((tx) => agentSessionForkService.commitTx(tx, input))
+  function commitData(input: Omit<Parameters<typeof agentSessionForkService.commitTx>[1], 'contexts'>): void {
+    application.get('DbService').withWriteTx((tx) => agentSessionForkService.commitTx(tx, { ...input, contexts: [] }))
   }
 
   async function seedSession(values: Omit<AgentSessionInsert, 'workspaceId'> & { workspaceId?: string }) {
@@ -85,7 +88,53 @@ describe('AgentSessionMessageService', () => {
   })
 
   afterEach(() => {
+    runtimeDriverRegistry.clearForTest()
     vi.restoreAllMocks()
+  })
+
+  it('pins a snapshot avatar across message updates and releases it when the file is deleted', () => {
+    dbh.db
+      .insert(fileEntryTable)
+      .values({
+        id: FILE_ENTRY_ID,
+        name: 'avatar',
+        ext: 'webp',
+        size: 3,
+        origin: 'internal',
+        cleanupPolicy: 'delete_when_unreferenced',
+        createdAt: 1
+      })
+      .run()
+    const message = {
+      id: ASSISTANT_MESSAGE_ID,
+      role: 'assistant' as const,
+      status: 'success' as const,
+      data: { parts: [] },
+      messageSnapshot: {
+        id: 'agent',
+        name: 'Agent',
+        emoji: '🤖',
+        avatarFileId: FILE_ENTRY_ID,
+        model: { id: 'm', name: 'M', provider: 'p' }
+      }
+    }
+    agentSessionMessageService.saveMessage({ sessionId: SESSION_ID, message })
+    agentSessionMessageService.saveMessage({ sessionId: SESSION_ID, message })
+    expect(
+      dbh.db
+        .select()
+        .from(agentSessionMessageFileRefTable)
+        .where(eq(agentSessionMessageFileRefTable.sourceId, ASSISTANT_MESSAGE_ID))
+        .all()
+    ).toEqual([expect.objectContaining({ fileEntryId: FILE_ENTRY_ID, role: 'author_avatar' })])
+    dbh.db.delete(fileEntryTable).where(eq(fileEntryTable.id, FILE_ENTRY_ID)).run()
+    expect(
+      dbh.db
+        .select()
+        .from(agentSessionMessageFileRefTable)
+        .where(eq(agentSessionMessageFileRefTable.sourceId, ASSISTANT_MESSAGE_ID))
+        .all()
+    ).toEqual([])
   })
 
   it('reports message existence per session', async () => {
@@ -128,11 +177,11 @@ describe('AgentSessionMessageService', () => {
         for (const type of ['claude-code', 'pi']) {
           runtimeDriverRegistry.register({
             type,
-            capabilities: ['agent-session'],
             validateSession: vi.fn(),
-            listAvailableTools: vi.fn().mockResolvedValue([]),
             connect,
-            fork
+            fork,
+            isForkCheckpoint: (value) =>
+              (type === 'pi' ? PiForkCheckpointSchema : ClaudeForkCheckpointSchema).safeParse(value).success
           })
         }
         try {
@@ -147,6 +196,7 @@ describe('AgentSessionMessageService', () => {
               data: { parts: [{ type: 'text', text: 'answer' }] }
             }
           })
+          if (storedType !== 'pi') prepareClaudeBranch('fork-source', directory, 'native-parent')
           const operations = new AgentSessionForkOperations()
           if (storedType === 'claude-code') {
             fork.mockRejectedValueOnce(new AgentSessionForkError('history_missing'))
@@ -290,6 +340,18 @@ describe('AgentSessionMessageService', () => {
       'reports %s when fork is requested without publishing a session',
       async (_label, runtimeAnchor, reason) => {
         await seedAgent('fork-agent', 'Fork Agent')
+        dbh.db.update(agentTable).set({ type: 'pi' }).where(eq(agentTable.id, 'fork-agent')).run()
+        runtimeDriverRegistry.register({
+          type: 'pi',
+          validateSession() {},
+          isForkCheckpoint: (value) => PiForkCheckpointSchema.safeParse(value).success,
+          async connect() {
+            throw new Error('History validation must not connect')
+          },
+          async fork() {
+            throw new Error('Invalid checkpoints must not reach native preparation')
+          }
+        })
         await seedSession({ id: 'fork-source', agentId: 'fork-agent', name: 'Source', orderKey: 'fork-order' })
         agentSessionMessageService.saveMessage({
           sessionId: 'fork-source',
@@ -510,6 +572,34 @@ describe('AgentSessionMessageService', () => {
   })
 
   describe('cross-session delivery', () => {
+    it.each(['accepted', 'delivering'] as const)(
+      'rejects edits to a %s delivery before native binding',
+      async (state) => {
+        await seedAgent('agent-a', 'Agent A')
+        await seedSession({ id: 'sender', agentId: 'agent-a', name: 'Sender', orderKey: 'b0' })
+        await seedSession({ id: 'receiver', agentId: 'agent-a', name: 'Receiver', orderKey: 'b1' })
+        const request = agentSessionMessageService.acceptSessionDelivery({
+          senderAgentId: 'agent-a',
+          senderSessionId: 'sender',
+          receiverSessionId: 'receiver',
+          content: 'original instruction'
+        })
+        if (state === 'delivering')
+          agentSessionMessageService.transitionSessionDelivery('receiver', request.id, 'delivering', {
+            expected: ['accepted'],
+            turnRef: 'running-reply'
+          })
+        const before = agentSessionMessageService.getSessionMessage('receiver', request.id)
+        expect(() => agentSessionMessageService.deleteSessionMessage('receiver', request.id)).toThrow()
+        expect(() =>
+          agentSessionMessageService.updateSessionMessage('receiver', request.id, {
+            data: { parts: [{ type: 'text', text: 'changed instruction' }] }
+          })
+        ).toThrow(expect.objectContaining({ code: 'RESOURCE_LOCKED' }))
+        expect(agentSessionMessageService.getSessionMessage('receiver', request.id)).toEqual(before)
+      }
+    )
+
     it('persists same-Agent and cross-Agent envelopes before scheduling', async () => {
       await seedAgent('agent-a', 'Agent A')
       await seedAgent('agent-b', 'Agent B')
@@ -897,7 +987,7 @@ describe('AgentSessionMessageService', () => {
         dbh.db
           .select({ id: agentSessionMessageTable.id })
           .from(agentSessionMessageTable)
-          .where(eq(agentSessionMessageTable.sessionId, 'sender'))
+          .where(and(eq(agentSessionMessageTable.sessionId, 'sender'), ne(agentSessionMessageTable.role, 'root')))
           .all()
       ).toEqual([])
       expect(agentSessionMessageService.getSessionMessage('target', request.id).delivery).toMatchObject({
@@ -931,7 +1021,7 @@ describe('AgentSessionMessageService', () => {
         dbh.db
           .select({ id: agentSessionMessageTable.id })
           .from(agentSessionMessageTable)
-          .where(eq(agentSessionMessageTable.sessionId, 'sender'))
+          .where(and(eq(agentSessionMessageTable.sessionId, 'sender'), ne(agentSessionMessageTable.role, 'root')))
           .all()
       ).toEqual([])
       expect(agentSessionMessageService.getSessionMessage('target', request.id).delivery).toMatchObject({
@@ -1043,7 +1133,7 @@ describe('AgentSessionMessageService', () => {
         dbh.db
           .select({ id: agentSessionMessageTable.id })
           .from(agentSessionMessageTable)
-          .where(eq(agentSessionMessageTable.sessionId, 'sender'))
+          .where(and(eq(agentSessionMessageTable.sessionId, 'sender'), ne(agentSessionMessageTable.role, 'root')))
           .all()
       ).toEqual([])
       expect(agentSessionMessageService.getSessionMessage('target', request.id).delivery).toMatchObject({
@@ -1209,6 +1299,118 @@ describe('AgentSessionMessageService', () => {
     const [session] = dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, SESSION_ID)).all()
     expect(session.lastActivityAt).toBe(2_000)
     now.mockRestore()
+  })
+
+  it('retires a parked approval card so it stops offering a decision the host no longer holds', () => {
+    agentSessionMessageService.saveMessage({
+      sessionId: SESSION_ID,
+      message: {
+        id: ASSISTANT_MESSAGE_ID,
+        role: 'assistant',
+        status: 'success',
+        data: {
+          parts: [
+            {
+              type: 'tool-AskUserQuestion',
+              toolCallId: 'tool-call-1',
+              state: 'approval-requested',
+              input: { questions: [] },
+              approval: { id: 'approval-1' }
+            }
+          ]
+        }
+      }
+    })
+
+    expect(agentSessionMessageService.retireAbandonedApproval(SESSION_ID, 'approval-1', 'connection closed')).toBe(true)
+
+    const saved = agentSessionMessageService.getSessionMessage(SESSION_ID, ASSISTANT_MESSAGE_ID)
+    expect(saved.data.parts?.[0]).toMatchObject({ state: 'output-error', errorText: 'connection closed' })
+    // A second sweep (another abort, or shutdown after the same teardown) must not rewrite the row.
+    expect(agentSessionMessageService.retireAbandonedApproval(SESSION_ID, 'approval-1', 'connection closed')).toBe(
+      false
+    )
+  })
+
+  it('records a late answer on a retired card exactly once', () => {
+    agentSessionMessageService.saveMessage({
+      sessionId: SESSION_ID,
+      message: {
+        id: ASSISTANT_MESSAGE_ID,
+        role: 'assistant',
+        status: 'success',
+        data: {
+          parts: [
+            {
+              type: 'tool-AskUserQuestion',
+              toolCallId: 'tool-call-1',
+              state: 'approval-requested',
+              input: { questions: [] },
+              approval: { id: 'approval-1' }
+            }
+          ]
+        }
+      }
+    })
+    agentSessionMessageService.retireAbandonedApproval(SESSION_ID, 'approval-1', 'connection closed')
+    const decision = {
+      approvalId: 'approval-1',
+      approved: true,
+      updatedInput: { questions: [], answers: { Choice: 'SQLite' } }
+    }
+
+    expect(agentSessionMessageService.applyToolApprovalDecision(SESSION_ID, ASSISTANT_MESSAGE_ID, decision)).toBe(true)
+    expect(agentSessionMessageService.applyToolApprovalDecision(SESSION_ID, ASSISTANT_MESSAGE_ID, decision)).toBe(false)
+    expect(
+      agentSessionMessageService.getSessionMessage(SESSION_ID, ASSISTANT_MESSAGE_ID).data.parts?.[0]
+    ).toMatchObject({
+      state: 'approval-responded',
+      input: decision.updatedInput,
+      approval: { id: 'approval-1', approved: true }
+    })
+  })
+
+  it('leaves an answered approval card and other sessions untouched when retiring an abandoned one', async () => {
+    await seedSession({ id: 'session-2', name: 'Other', orderKey: 'a1' })
+    const answered = {
+      type: 'tool-AskUserQuestion' as const,
+      toolCallId: 'tool-call-answered',
+      state: 'approval-requested' as const,
+      input: { questions: [] },
+      approval: { id: 'approval-answered' }
+    }
+    agentSessionMessageService.saveMessage({
+      sessionId: SESSION_ID,
+      message: { id: ASSISTANT_MESSAGE_ID, role: 'assistant', status: 'success', data: { parts: [answered] } }
+    })
+    agentSessionMessageService.saveMessage({
+      sessionId: 'session-2',
+      message: {
+        id: '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d099',
+        role: 'assistant',
+        status: 'success',
+        data: { parts: [{ ...answered, approval: { id: 'approval-other' } }] }
+      }
+    })
+    agentSessionMessageService.applyToolApprovalDecision(SESSION_ID, ASSISTANT_MESSAGE_ID, {
+      approvalId: 'approval-answered',
+      approved: true,
+      updatedInput: { questions: [], answers: { Choice: 'SQLite' } }
+    })
+
+    expect(
+      agentSessionMessageService.retireAbandonedApproval(SESSION_ID, 'approval-answered', 'connection closed')
+    ).toBe(false)
+    expect(agentSessionMessageService.retireAbandonedApproval('session-2', 'approval-other', 'connection closed')).toBe(
+      true
+    )
+
+    expect(
+      agentSessionMessageService.getSessionMessage(SESSION_ID, ASSISTANT_MESSAGE_ID).data.parts?.[0]
+    ).toMatchObject({ state: 'approval-responded', approval: { id: 'approval-answered', approved: true } })
+    expect(
+      agentSessionMessageService.getSessionMessage('session-2', '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d099').data.parts?.[0]
+    ).toMatchObject({ state: 'output-error' })
   })
 
   it('keeps attachment refs in sync with agent-session message history', async () => {
@@ -1731,8 +1933,9 @@ describe('AgentSessionMessageService', () => {
     const rows = await dbh.db.select().from(agentSessionMessageTable)
     const [session] = await dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, SESSION_ID))
 
-    expect(rows).toHaveLength(2)
-    expect(rows.map((row) => row.createdAt)).toEqual([1_700_000_001_000, 1_700_000_001_000])
+    const content = rows.filter((row) => row.role !== 'root')
+    expect(content).toHaveLength(2)
+    expect(content.map((row) => row.createdAt)).toEqual([1_700_000_001_000, 1_700_000_001_000])
     expect(session.updatedAt).toBe(1_700_000_001_000)
   })
 
@@ -1745,6 +1948,7 @@ describe('AgentSessionMessageService', () => {
     })
     await dbh.db.insert(agentSessionMessageTable).values([
       {
+        parentId: seedSessionRoot(dbh.db, SESSION_ID),
         id: 'range-start',
         sessionId: SESSION_ID,
         role: 'user',
@@ -1754,6 +1958,7 @@ describe('AgentSessionMessageService', () => {
         updatedAt: 100
       },
       {
+        parentId: seedSessionRoot(dbh.db, SESSION_ID),
         id: 'range-tie-a',
         sessionId: SESSION_ID,
         role: 'assistant',
@@ -1763,6 +1968,7 @@ describe('AgentSessionMessageService', () => {
         updatedAt: 200
       },
       {
+        parentId: seedSessionRoot(dbh.db, SESSION_ID),
         id: 'range-tie-z',
         sessionId: SESSION_ID,
         role: 'assistant',
@@ -1772,6 +1978,7 @@ describe('AgentSessionMessageService', () => {
         updatedAt: 200
       },
       {
+        parentId: seedSessionRoot(dbh.db, SESSION_ID),
         id: 'range-end',
         sessionId: SESSION_ID,
         role: 'assistant',
@@ -1795,6 +2002,7 @@ describe('AgentSessionMessageService', () => {
         updatedAt: 300
       },
       {
+        parentId: seedSessionRoot(dbh.db, 'archived-range-session'),
         id: 'archived-range-middle',
         sessionId: 'archived-range-session',
         role: 'assistant',
@@ -1804,6 +2012,7 @@ describe('AgentSessionMessageService', () => {
         updatedAt: 250
       },
       {
+        parentId: seedSessionRoot(dbh.db, SESSION_ID),
         id: 'range-before',
         sessionId: SESSION_ID,
         role: 'user',
@@ -1813,6 +2022,7 @@ describe('AgentSessionMessageService', () => {
         updatedAt: 99
       },
       {
+        parentId: seedSessionRoot(dbh.db, SESSION_ID),
         id: 'range-after',
         sessionId: SESSION_ID,
         role: 'user',
@@ -1869,6 +2079,7 @@ describe('AgentSessionMessageService', () => {
   it('falls back to the newest page when list pagination receives a malformed cursor', async () => {
     await dbh.db.insert(agentSessionMessageTable).values([
       {
+        parentId: seedSessionRoot(dbh.db, SESSION_ID),
         id: USER_MESSAGE_ID,
         sessionId: SESSION_ID,
         role: 'user',
@@ -1878,6 +2089,7 @@ describe('AgentSessionMessageService', () => {
         updatedAt: 100
       },
       {
+        parentId: seedSessionRoot(dbh.db, SESSION_ID),
         id: ASSISTANT_MESSAGE_ID,
         sessionId: SESSION_ID,
         role: 'assistant',
@@ -1888,6 +2100,7 @@ describe('AgentSessionMessageService', () => {
       }
     ])
 
+    linkSessionMessageChain(dbh.db, SESSION_ID, [USER_MESSAGE_ID, ASSISTANT_MESSAGE_ID])
     const result = agentSessionMessageService.listSessionMessages(SESSION_ID, {
       cursor: 'not-a-cursor',
       limit: 1
@@ -1904,6 +2117,7 @@ describe('AgentSessionMessageService', () => {
     const newer = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d304'
     await dbh.db.insert(agentSessionMessageTable).values([
       {
+        parentId: seedSessionRoot(dbh.db, SESSION_ID),
         id: older,
         sessionId: SESSION_ID,
         role: 'assistant',
@@ -1913,6 +2127,7 @@ describe('AgentSessionMessageService', () => {
         updatedAt: 100
       },
       {
+        parentId: seedSessionRoot(dbh.db, SESSION_ID),
         id: middle,
         sessionId: SESSION_ID,
         role: 'assistant',
@@ -1922,6 +2137,7 @@ describe('AgentSessionMessageService', () => {
         updatedAt: 200
       },
       {
+        parentId: seedSessionRoot(dbh.db, SESSION_ID),
         id: target,
         sessionId: SESSION_ID,
         role: 'assistant',
@@ -1931,6 +2147,7 @@ describe('AgentSessionMessageService', () => {
         updatedAt: 300
       },
       {
+        parentId: seedSessionRoot(dbh.db, SESSION_ID),
         id: newer,
         sessionId: SESSION_ID,
         role: 'assistant',
@@ -1941,6 +2158,7 @@ describe('AgentSessionMessageService', () => {
       }
     ])
 
+    linkSessionMessageChain(dbh.db, SESSION_ID, [older, middle, target, newer])
     const firstPage = agentSessionMessageService.listSessionMessages(SESSION_ID, {
       messageId: target,
       limit: 2
@@ -1964,6 +2182,7 @@ describe('AgentSessionMessageService', () => {
     await seedSession({ id: otherSessionId, name: 'Other Session', orderKey: 'b0' })
     await dbh.db.insert(agentSessionMessageTable).values([
       {
+        parentId: seedSessionRoot(dbh.db, otherSessionId),
         id: otherMessageId,
         sessionId: otherSessionId,
         role: 'assistant',
@@ -1973,6 +2192,7 @@ describe('AgentSessionMessageService', () => {
         updatedAt: 100
       },
       {
+        parentId: seedSessionRoot(dbh.db, SESSION_ID),
         id: newestMessageId,
         sessionId: SESSION_ID,
         role: 'assistant',
@@ -1983,6 +2203,7 @@ describe('AgentSessionMessageService', () => {
       }
     ])
 
+    linkSessionMessageChain(dbh.db, SESSION_ID, [newestMessageId])
     const result = agentSessionMessageService.listSessionMessages(SESSION_ID, {
       messageId: otherMessageId
     })
@@ -1996,6 +2217,7 @@ describe('AgentSessionMessageService', () => {
     // UI does not render. They must never reach `searchable_text` (which global-search snippets
     // show verbatim) nor the FTS index. Only `text` parts are searchable.
     await dbh.db.insert(agentSessionMessageTable).values({
+      parentId: seedSessionRoot(dbh.db, SESSION_ID),
       id: USER_MESSAGE_ID,
       sessionId: SESSION_ID,
       role: 'user',
@@ -2078,6 +2300,7 @@ describe('AgentSessionMessageService', () => {
       updatedAt: 150
     })
     await dbh.db.insert(agentSessionMessageTable).values({
+      parentId: seedSessionRoot(dbh.db, 'session-search'),
       id: '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d101',
       sessionId: 'session-search',
       role: 'assistant',
@@ -2109,6 +2332,7 @@ describe('AgentSessionMessageService', () => {
       orderKey: 'se0'
     })
     await dbh.db.insert(agentSessionMessageTable).values({
+      parentId: seedSessionRoot(dbh.db, 'session-escaped'),
       id: '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d102',
       sessionId: 'session-escaped',
       role: 'assistant',
@@ -2132,6 +2356,7 @@ describe('AgentSessionMessageService', () => {
       orderKey: 'ssd0'
     })
     await dbh.db.insert(agentSessionMessageTable).values({
+      parentId: seedSessionRoot(dbh.db, 'session-substring-default'),
       id: '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d1aa',
       sessionId: 'session-substring-default',
       role: 'assistant',
@@ -2154,6 +2379,7 @@ describe('AgentSessionMessageService', () => {
     })
     await dbh.db.insert(agentSessionMessageTable).values([
       {
+        parentId: seedSessionRoot(dbh.db, 'session-search-and'),
         id: '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d1ba',
         sessionId: 'session-search-and',
         role: 'assistant',
@@ -2163,6 +2389,7 @@ describe('AgentSessionMessageService', () => {
         updatedAt: 100
       },
       {
+        parentId: seedSessionRoot(dbh.db, 'session-search-and'),
         id: '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d1bb',
         sessionId: 'session-search-and',
         role: 'assistant',
@@ -2183,6 +2410,7 @@ describe('AgentSessionMessageService', () => {
     await seedSession({ id: 'session-ranked-secondary', name: 'Session Ranked Secondary', orderKey: 'sr1' })
     await dbh.db.insert(agentSessionMessageTable).values([
       {
+        parentId: seedSessionRoot(dbh.db, 'session-ranked-secondary'),
         id: '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d1ca',
         sessionId: 'session-ranked-secondary',
         role: 'assistant',
@@ -2192,6 +2420,7 @@ describe('AgentSessionMessageService', () => {
         updatedAt: 300
       },
       {
+        parentId: seedSessionRoot(dbh.db, 'session-ranked'),
         id: '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d1cb',
         sessionId: 'session-ranked',
         role: 'assistant',
@@ -2217,6 +2446,7 @@ describe('AgentSessionMessageService', () => {
       ...Array.from({ length: 25 }, (_, index) => ({
         id: `018f6ed6-73b8-7f40-8d0d-9bb2f8f1${String(index).padStart(4, '0')}`,
         sessionId: 'session-ranked-frequent',
+        parentId: seedSessionRoot(dbh.db, 'session-ranked-frequent'),
         role: 'assistant' as const,
         data: { parts: [{ type: 'text' as const, text: 'needle' }] },
         status: 'success' as const,
@@ -2224,6 +2454,7 @@ describe('AgentSessionMessageService', () => {
         updatedAt: 500 - index
       })),
       {
+        parentId: seedSessionRoot(dbh.db, 'session-ranked-diverse'),
         id: '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d1cf',
         sessionId: 'session-ranked-diverse',
         role: 'assistant',
@@ -2246,6 +2477,7 @@ describe('AgentSessionMessageService', () => {
       ...Array.from({ length: 400 }, (_, index) => ({
         id: `ranked-overflow-${String(index).padStart(4, '0')}`,
         sessionId: 'session-ranked-overflow',
+        parentId: seedSessionRoot(dbh.db, 'session-ranked-overflow'),
         role: 'assistant' as const,
         data: { parts: [{ type: 'text' as const, text: 'boundedneedle' }] },
         status: 'success' as const,
@@ -2253,6 +2485,7 @@ describe('AgentSessionMessageService', () => {
         updatedAt: 1_000 - index
       })),
       {
+        parentId: seedSessionRoot(dbh.db, 'session-ranked-after-cap'),
         id: 'ranked-after-cap',
         sessionId: 'session-ranked-after-cap',
         role: 'assistant',
@@ -2275,6 +2508,7 @@ describe('AgentSessionMessageService', () => {
     await seedSession({ id: 'session-ranked-b', agentId: 'agent-ranked-b', name: 'Ranked B', orderKey: 'srb0' })
     await dbh.db.insert(agentSessionMessageTable).values([
       {
+        parentId: seedSessionRoot(dbh.db, 'session-ranked-a'),
         id: '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d1cc',
         sessionId: 'session-ranked-a',
         role: 'assistant',
@@ -2284,6 +2518,7 @@ describe('AgentSessionMessageService', () => {
         updatedAt: 300
       },
       {
+        parentId: seedSessionRoot(dbh.db, 'session-ranked-b'),
         id: '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d1cd',
         sessionId: 'session-ranked-b',
         role: 'assistant',
@@ -2302,6 +2537,7 @@ describe('AgentSessionMessageService', () => {
   it('supports exact identifiers, short CJK fallback, and empty ranked results', async () => {
     await seedSession({ id: 'session-ranked-shapes', name: 'Ranked Shapes', orderKey: 'srs0' })
     await dbh.db.insert(agentSessionMessageTable).values({
+      parentId: seedSessionRoot(dbh.db, 'session-ranked-shapes'),
       id: '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d1ce',
       sessionId: 'session-ranked-shapes',
       role: 'assistant',
@@ -2327,6 +2563,7 @@ describe('AgentSessionMessageService', () => {
       .slice(0, 129)
     expect(uniqueShortTerms).toHaveLength(129)
     await dbh.db.insert(agentSessionMessageTable).values({
+      parentId: seedSessionRoot(dbh.db, 'session-ranked-fallback-cap'),
       id: 'ranked-fallback-cap',
       sessionId: 'session-ranked-fallback-cap',
       role: 'assistant',
@@ -2352,6 +2589,7 @@ describe('AgentSessionMessageService', () => {
     })
     await dbh.db.insert(agentSessionMessageTable).values([
       {
+        parentId: seedSessionRoot(dbh.db, 'session-search-literal'),
         id: '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d1bc',
         sessionId: 'session-search-literal',
         role: 'assistant',
@@ -2361,6 +2599,7 @@ describe('AgentSessionMessageService', () => {
         updatedAt: 100
       },
       {
+        parentId: seedSessionRoot(dbh.db, 'session-search-literal'),
         id: '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d1bd',
         sessionId: 'session-search-literal',
         role: 'assistant',
@@ -2370,6 +2609,7 @@ describe('AgentSessionMessageService', () => {
         updatedAt: 200
       },
       {
+        parentId: seedSessionRoot(dbh.db, 'session-search-literal'),
         id: '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d1be',
         sessionId: 'session-search-literal',
         role: 'assistant',
@@ -2394,6 +2634,7 @@ describe('AgentSessionMessageService', () => {
       orderKey: 'sfc0'
     })
     await dbh.db.insert(agentSessionMessageTable).values({
+      parentId: seedSessionRoot(dbh.db, 'session-fts-candidate'),
       id: '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d1ab',
       sessionId: 'session-fts-candidate',
       role: 'assistant',
@@ -2438,6 +2679,7 @@ describe('AgentSessionMessageService', () => {
     ])
     await dbh.db.insert(agentSessionMessageTable).values([
       {
+        parentId: seedSessionRoot(dbh.db, 'session-source-filter'),
         id: '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d103',
         sessionId: 'session-source-filter',
         role: 'assistant',
@@ -2447,6 +2689,7 @@ describe('AgentSessionMessageService', () => {
         updatedAt: 300
       },
       {
+        parentId: seedSessionRoot(dbh.db, 'session-source-other'),
         id: '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d104',
         sessionId: 'session-source-other',
         role: 'assistant',
@@ -2473,6 +2716,7 @@ describe('AgentSessionMessageService', () => {
     })
     await dbh.db.insert(agentSessionMessageTable).values([
       {
+        parentId: seedSessionRoot(dbh.db, 'session-created-filter'),
         id: '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d108',
         sessionId: 'session-created-filter',
         role: 'assistant',
@@ -2482,6 +2726,7 @@ describe('AgentSessionMessageService', () => {
         updatedAt: 500
       },
       {
+        parentId: seedSessionRoot(dbh.db, 'session-created-filter'),
         id: '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d109',
         sessionId: 'session-created-filter',
         role: 'assistant',
@@ -2508,6 +2753,7 @@ describe('AgentSessionMessageService', () => {
     })
     await dbh.db.insert(agentSessionMessageTable).values([
       {
+        parentId: seedSessionRoot(dbh.db, 'session-page'),
         id: '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d105',
         sessionId: 'session-page',
         role: 'assistant',
@@ -2517,6 +2763,7 @@ describe('AgentSessionMessageService', () => {
         updatedAt: 100
       },
       {
+        parentId: seedSessionRoot(dbh.db, 'session-page'),
         id: '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d106',
         sessionId: 'session-page',
         role: 'assistant',
@@ -2526,6 +2773,7 @@ describe('AgentSessionMessageService', () => {
         updatedAt: 200
       },
       {
+        parentId: seedSessionRoot(dbh.db, 'session-page'),
         id: '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d107',
         sessionId: 'session-page',
         role: 'assistant',
@@ -2565,6 +2813,7 @@ describe('AgentSessionMessageService', () => {
     })
     await dbh.db.insert(agentSessionMessageTable).values([
       {
+        parentId: seedSessionRoot(dbh.db, 'session-page-tie'),
         id: '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d205',
         sessionId: 'session-page-tie',
         role: 'assistant',
@@ -2574,6 +2823,7 @@ describe('AgentSessionMessageService', () => {
         updatedAt: 100
       },
       {
+        parentId: seedSessionRoot(dbh.db, 'session-page-tie'),
         id: '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d206',
         sessionId: 'session-page-tie',
         role: 'assistant',
@@ -2583,6 +2833,7 @@ describe('AgentSessionMessageService', () => {
         updatedAt: 100
       },
       {
+        parentId: seedSessionRoot(dbh.db, 'session-page-tie'),
         id: '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d207',
         sessionId: 'session-page-tie',
         role: 'assistant',

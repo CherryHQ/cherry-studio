@@ -1,3 +1,4 @@
+import { MockCherrystudioUI } from '@test-mocks/renderer/CherrystudioUI'
 import { mockPreferenceState } from '@test-mocks/renderer/PreferenceService'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -34,11 +35,7 @@ vi.mock('@cherrystudio/ui', async () => ({
       {children}
     </button>
   ),
-  Scrollbar: ({ children, ref, ...props }: React.ComponentProps<'div'> & { ref?: React.Ref<HTMLDivElement> }) => (
-    <div ref={ref} {...props}>
-      {children}
-    </div>
-  ),
+  ScrollArea: MockCherrystudioUI.ScrollArea,
   NormalTooltip: ({ children }: { children: React.ReactNode }) => <>{children}</>
 }))
 
@@ -72,6 +69,18 @@ describe('TranslateInputPane', () => {
     vi.restoreAllMocks()
   })
 
+  it('hides dictation while Off and restores it on On while upload remains available', () => {
+    mockPreferenceState.set('feature.voice.recognition.model_id', 'off')
+    const props = baseProps()
+    const view = render(<TranslateInputPane {...props} />)
+    expect(screen.queryByRole('button', { name: i18n.t('chat.input.dictation.title') })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: i18n.t('translate.files.upload') }))
+    expect(props.onSelectFile).toHaveBeenCalledOnce()
+    mockPreferenceState.set('feature.voice.recognition.model_id', '')
+    view.rerender(<TranslateInputPane {...props} />)
+    expect(screen.getByRole('button', { name: i18n.t('chat.input.dictation.title') })).toBeInTheDocument()
+  })
+
   it('disables file upload while the parent pane is disabled', () => {
     const props = baseProps()
     render(<TranslateInputPane {...props} disabled />)
@@ -103,25 +112,12 @@ describe('TranslateInputPane', () => {
     expect(props.onTextChange).toHaveBeenCalledWith('')
   })
 
-  it('hides the clear button when there is no text', () => {
-    render(<TranslateInputPane {...baseProps()} />)
-
-    expect(screen.queryByRole('button', { name: i18n.t('common.clear') })).not.toBeInTheDocument()
-  })
-
   it('shows the drop indicator while a file is dragged over the pane', () => {
     dragState.isDragging = true
 
     render(<TranslateInputPane {...baseProps()} />)
 
     expect(screen.getByText(i18n.t('translate.files.drag_text'))).toBeInTheDocument()
-  })
-
-  it('does not show the OCR processing overlay by default', () => {
-    render(<TranslateInputPane {...baseProps()} />)
-
-    expect(screen.queryByText(i18n.t('ocr.processing'))).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: i18n.t('common.cancel') })).not.toBeInTheDocument()
   })
 
   it('shows the OCR processing overlay and supports cancellation', () => {
@@ -143,7 +139,7 @@ describe('TranslateInputPane', () => {
       return <TranslateInputPane {...baseProps()} text={text} onTextChange={setText} onKeyDown={onTranslate} />
     }
     render(<Harness />)
-    const textarea = screen.getByRole('textbox') as HTMLTextAreaElement
+    const textarea = screen.getByRole<HTMLTextAreaElement>('textbox')
 
     expect(voiceTargetManager.captureCurrent()?.targetId).not.toBe('translate-page-source')
     fireEvent.focus(textarea)

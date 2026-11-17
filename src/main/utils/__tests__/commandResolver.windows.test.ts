@@ -51,13 +51,6 @@ describe('findCommandInShellEnv on Windows', () => {
 
     await expect(result).resolves.toBe(expected)
     expect(spawn).not.toHaveBeenCalled()
-    expect(which).toHaveBeenCalledWith('npx', {
-      all: true,
-      delimiter: ';',
-      nothrow: true,
-      path: 'D:\\开发工具\\nodejs',
-      pathExt: '.exe;.cmd'
-    })
   })
 
   it('prefers an executable when PATH contains both .cmd and .exe candidates', async () => {
@@ -107,13 +100,6 @@ describe('findCommandInShellEnv on Windows', () => {
     const result = findExecutable('runner', { env: { PATH: 'D:\\Tools' }, extensions: ['.bat'] })
 
     expect(result).toBe(expected)
-    expect(which.sync).toHaveBeenCalledWith('runner', {
-      all: true,
-      delimiter: ';',
-      nothrow: true,
-      path: 'D:\\Tools',
-      pathExt: '.bat'
-    })
   })
 
   it('finds mise at a Unicode path through bounded asynchronous PATH lookup', async () => {

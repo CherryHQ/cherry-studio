@@ -154,14 +154,20 @@ describe.skipIf(!ripgrepAvailable)('listDirectory (list mode, no searchPattern)'
     expect(results.length).toBe(75)
   })
 
-  it('uses the BinaryManager-resolved ripgrep path', async () => {
-    await writeFile(path.join(tmp, 'root.md'), 'root')
+  it.each(['.cache', 'build'])(
+    'lists files below an excluded ancestor %s while excluding matching children',
+    async (ancestor) => {
+      const root = path.join(tmp, ancestor, 'notes')
+      await mkdir(path.join(root, 'build'), { recursive: true })
+      await writeFile(path.join(root, 'visible-note.md'), 'saved note')
+      await writeFile(path.join(root, '.hidden.md'), 'hidden')
+      await writeFile(path.join(root, 'build', 'generated.md'), 'generated')
 
-    await listDirectory(tmp)
-
-    const checkedPaths = mockExistsSync.mock.calls.map(([p]) => String(p).replace(/\\/g, '/'))
-    expect(checkedPaths.some((p) => path.basename(p) === (process.platform === 'win32' ? 'rg.exe' : 'rg'))).toBe(true)
-  })
+      expect(await listDirectory(root, { includeDirectories: false })).toEqual([
+        path.join(root, 'visible-note.md').replace(/\\/g, '/')
+      ])
+    }
+  )
 
   it('lists nested directories and files alongside top-level entries', async () => {
     await writeFile(path.join(tmp, 'root.md'), 'root')
@@ -205,6 +211,46 @@ describe.skipIf(!ripgrepAvailable)('listDirectory (search mode, fuzzy + maxEntri
   })
   afterEach(async () => {
     await rm(tmp, { recursive: true, force: true })
+  })
+
+  it.each([
+    { searchPattern: 'README', git: false },
+    { searchPattern: 'README', git: true },
+    { searchPattern: 'dR', git: false },
+    { searchPattern: 'dR', git: true }
+  ])('honors nested gitignore exceptions for $searchPattern (git=$git)', async ({ searchPattern, git }) => {
+    if (git) await mkdir(path.join(tmp, '.git'))
+    await mkdir(path.join(tmp, 'docs'))
+    await writeFile(path.join(tmp, '.gitignore'), '*.md\n')
+    await writeFile(path.join(tmp, 'docs', '.gitignore'), '!README.md\n')
+    await writeFile(path.join(tmp, 'README.md'), 'ignored')
+    await writeFile(path.join(tmp, 'docs', 'DRAFT.md'), 'ignored')
+    await writeFile(path.join(tmp, 'docs', 'README.md'), 'included')
+
+    expect(await listDirectory(tmp, { includeDirectories: false, searchPattern })).toEqual([
+      path.join(tmp, 'docs', 'README.md').replace(/\\/g, '/')
+    ])
+  })
+
+  it('finds files below an excluded ancestor during fuzzy search', async () => {
+    const root = path.join(tmp, '.cache', 'notes')
+    await mkdir(path.join(root, 'build'), { recursive: true })
+    await writeFile(path.join(root, 'target-note.md'), 'saved note')
+    await writeFile(path.join(root, '.hidden-target-note.md'), 'hidden note')
+    await writeFile(path.join(root, 'build', 'target-generated.md'), 'generated')
+    expect(await listDirectory(root, { includeDirectories: false, searchPattern: 'trgtn' })).toEqual([
+      path.join(root, 'target-note.md').replace(/\\/g, '/')
+    ])
+  })
+
+  it('allows hidden fuzzy candidates only when explicitly requested', async () => {
+    const root = path.join(tmp, '.cache', 'notes')
+    await mkdir(root, { recursive: true })
+    await writeFile(path.join(root, '.hidden-target.md'), 'hidden note')
+
+    expect(
+      await listDirectory(root, { includeDirectories: false, includeHidden: true, searchPattern: 'trgt' })
+    ).toEqual([path.join(root, '.hidden-target.md').replace(/\\/g, '/')])
   })
 
   it('caps results at the caller-supplied maxEntries', async () => {
@@ -289,7 +335,7 @@ describe.skipIf(!ripgrepAvailable)('listDirectory (search mode, fuzzy + maxEntri
     ])
   })
 
-  it('falls back to scanning all files when the ripgrep glob misses a cross-segment fuzzy match', async () => {
+  it('finds fuzzy matches across path segments', async () => {
     await mkdir(path.join(tmp, 'alpha'))
     await writeFile(path.join(tmp, 'alpha', 'beta.md'), 'match across path segments')
 
@@ -502,11 +548,9 @@ describe('listDirectory (error paths)', () => {
     await expect(listDirectory(tmp as AbsoluteFilePath)).rejects.toThrow(/Ripgrep binary not available/)
   })
 
-  it('propagates a ripgrep fallback failure after the glob returns no matches', async () => {
+  it('propagates a ripgrep failure during fuzzy search', async () => {
     mockExistsSync.mockReturnValue(true)
-    mockSpawn
-      .mockImplementationOnce(() => createMockRipgrepChild(1))
-      .mockImplementationOnce(() => createMockRipgrepChild(2, { stderr: 'fallback failed' }))
+    mockSpawn.mockImplementationOnce(() => createMockRipgrepChild(2, { stderr: 'search failed' }))
 
     await expect(
       listDirectory(tmp as AbsoluteFilePath, {
@@ -514,7 +558,7 @@ describe('listDirectory (error paths)', () => {
         includeDirectories: false,
         searchPattern: 'ab'
       })
-    ).rejects.toThrow('Ripgrep failed with exit code 2: fallback failed')
+    ).rejects.toThrow('Ripgrep failed with exit code 2: search failed')
   })
 
   it('throws when the root path is not readable (EACCES from fs.promises.stat)', async () => {

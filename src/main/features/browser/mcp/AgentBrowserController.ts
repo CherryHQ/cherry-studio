@@ -21,12 +21,14 @@ export class AgentBrowserController extends SessionBrowserController {
         )
           throw new BrowserSessionError('not_allowed')
       },
-      get: () => registry.get(owner),
+      get: (tabId) => registry.get(owner, tabId),
+      list: () => registry.list(owner),
       focusInput: (target, options) => registry.focusInput(owner, target, options),
-      ensureGuest: (signal, url) => registry.ensureGuest(owner, signal, url),
+      ensureGuest: (signal, url, options) => registry.ensureGuest(owner, signal, url, options),
       reveal: (target) =>
         application.get('IpcApiService').send(target.windowId, 'browser.pane.open_requested', {
-          sessionId: context.sessionId
+          sessionId: context.sessionId,
+          pageId: target.pageId
         }),
       cursorMoved: () => {
         cursorTurn = application.get('AgentSessionRuntimeService').getLiveAssistantMessageId(context.sessionId)

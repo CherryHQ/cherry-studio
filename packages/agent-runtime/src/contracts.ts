@@ -6,7 +6,7 @@ export type BackendId = RuntimeId<'backend'>
 export type ThreadId = RuntimeId<'thread'>
 export type InputId = RuntimeId<'input'>
 export type ItemId = RuntimeId<'item'>
-export type DelegationId = RuntimeId<'delegation'>
+export type SubagentId = RuntimeId<'subagent'>
 export type NativeInputId = RuntimeId<'native-input'>
 
 /** Restore an opaque ID at a validated storage or transport boundary. */
@@ -22,10 +22,6 @@ export interface Thread {
 export interface ItemRef {
   readonly session: Thread
   readonly id: ItemId
-}
-export interface DelegationRef {
-  readonly session: Thread
-  readonly id: DelegationId
 }
 export interface NativeInputRef {
   readonly session: Thread
@@ -62,23 +58,7 @@ export type InputState = (
   readonly outcome?: 'completed' | 'failed' | 'aborted' | 'unanswered'
   readonly error?: RuntimeError
 }
-export type InputQuery =
-  | { readonly by: 'native-ref'; readonly ref: NativeInputRef }
-  | { readonly by: 'deduplication-key'; readonly key: string }
 export type InputLookup = { readonly found: false } | { readonly found: true; readonly input: InputState }
-export interface RetractionReceipt {
-  readonly effect: 'withdrawn' | 'already-placed' | 'already-settled'
-}
-export interface InterruptReceipt {
-  readonly effect: 'requested' | 'native-scope-idle'
-}
-export interface ResumeReceipt {
-  readonly scope: 'runtime'
-  readonly effect: 'scheduling-enabled'
-}
-export interface ShutdownReceipt {
-  readonly effect: 'closed'
-}
 export type JsonValue = null | boolean | number | string | readonly JsonValue[] | { readonly [key: string]: JsonValue }
 export type Completeness = 'partial' | 'complete' | 'unknown'
 /** One native conversation message; tools and their results remain in its ordered parts. */
@@ -86,48 +66,93 @@ export type RuntimeMessage = UIMessage<{
   completeness: Completeness
   inputId?: InputId
 }>
-export interface Delegation {
-  readonly ref: DelegationRef
+export interface Subagent {
+  /** Stable within the parent's observed relationships, across child inputs and runs. */
+  readonly id: SubagentId
   readonly parent: Thread
-  readonly child: Thread
-  readonly trigger?: ItemRef
-  readonly status: 'active' | 'completed' | 'unknown'
+  readonly child?: Thread
+  /** Evidenced creation call, scoped to parent; continuation does not replace it. */
+  readonly origin?: { readonly toolCallId: string; readonly description?: string }
 }
 export interface Activity {
-  readonly scope: 'foreground'
   readonly state: 'active' | 'idle' | 'unknown'
+}
+export type ContextCategoryKey =
+  | 'messages'
+  | 'system-prompt'
+  | 'system-tools'
+  | 'mcp-tools'
+  | 'mcp-instructions'
+  | 'memory-files'
+  | 'skills'
+  | 'agents'
+  | 'other'
+export interface ContextTokenCount {
+  readonly tokens: number
+  readonly precision: 'reported' | 'estimated'
+}
+export interface ContextCategory extends ContextTokenCount {
+  readonly id: string
+  readonly key: ContextCategoryKey
+  readonly label?: string
+  readonly occupancy: 'included' | 'deferred'
+}
+export interface ContextResource {
+  readonly id: string
+  readonly category: ContextCategoryKey
+  readonly name: string
+  readonly source?: string
+  readonly count?: ContextTokenCount
+  readonly state?: 'loaded' | 'deferred'
+}
+export interface ThreadContextUsage {
+  readonly model: string
+  readonly revision: string
+  readonly contextWindow: number
+  readonly used?: ContextTokenCount
+  readonly basis: 'current-context' | 'last-request'
+  readonly reserved?: ContextTokenCount
+  readonly free?: ContextTokenCount
+  readonly breakdown?: { readonly coverage: 'partial' | 'complete'; readonly categories: readonly ContextCategory[] }
+  readonly resources?: readonly ContextResource[]
 }
 export interface ThreadSnapshot {
   readonly type: 'snapshot'
-  readonly coverage: 'live-only' | 'current-view' | 'retained-view'
+  readonly contextUsage?: OperationResult<ThreadContextUsage>
   readonly messages: readonly RuntimeMessage[]
   readonly inputs: readonly InputState[]
-  readonly delegations?: readonly Delegation[]
+  readonly subagents?: readonly Subagent[]
   readonly activity: Activity
 }
 export type ObservationPayload =
   | ThreadSnapshot
+  | { readonly type: 'context.changed'; readonly result: OperationResult<ThreadContextUsage> }
   | { readonly type: 'message.upsert'; readonly message: RuntimeMessage; readonly replaces?: readonly ItemRef[] }
   | { readonly type: 'message.remove'; readonly ref: ItemRef }
   | { readonly type: 'input.changed'; readonly input: InputState }
   | { readonly type: 'activity.changed'; readonly activity: Activity }
-  | { readonly type: 'delegation.upsert'; readonly delegation: Delegation }
+  | { readonly type: 'subagent.upsert'; readonly subagent: Subagent }
   | { readonly type: 'diagnostic'; readonly error: RuntimeError }
   | { readonly type: 'gap'; readonly reason: 'overflow' | 'disconnected' | 'mapping-reset' }
   | { readonly type: 'closed'; readonly reason: 'stopped' | 'released' | 'shutdown' | 'source-lost' | 'consumer-error' }
 export type ObservationSink = (event: ObservationPayload) => void | Promise<void>
 export interface Observation {
+  /** Join callbacks through facts published before this call; rejects if delivery was discarded. */
+  drain(): Promise<void>
   stop(): Promise<void>
+}
+export interface ThreadInput {
+  submit(input: InputDraft): Promise<SubmitResult>
 }
 export interface ThreadHandle {
   readonly thread: Thread
-  readonly inputPolicies: readonly BusyPolicy[]
-  submit(input: InputDraft): Promise<SubmitResult>
+  contextUsage(): Promise<OperationResult<ThreadContextUsage>>
+  readonly input?: ThreadInput
   observe(sink: ObservationSink): Promise<OperationResult<Observation>>
-  interrupt?: () => Promise<OperationResult<InterruptReceipt>>
+  interrupt?: () => Promise<OperationResult<void>>
   release(): Promise<void>
 }
 export interface AgentRuntime {
   open(ref: Thread): Promise<OperationResult<ThreadHandle>>
-  shutdown(): Promise<OperationResult<ShutdownReceipt>>
+  shutdown(): Promise<OperationResult<void>>
 }

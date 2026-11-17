@@ -61,3 +61,7 @@ export function hasRenderedFilePreview(filePath: string): boolean {
   const plugin = resolveExtensionPlugin(filePath, filePreviewRegistry)
   return plugin !== null && plugin !== textFilePreviewPlugin
 }
+
+export function isMarkdownFilePreview(filePath: string): boolean {
+  return resolveExtensionPlugin(filePath, filePreviewRegistry) === markdownFilePreviewPlugin
+}

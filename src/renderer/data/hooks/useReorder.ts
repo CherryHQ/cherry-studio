@@ -16,7 +16,7 @@
  * collection cache key (`[collectionUrl]`) is revalidated; on failure it is
  * always re-fetched from the server so the optimistic overlay is discarded.
  *
- * See `docs/references/data/data-ordering-guide.md` for the end-to-end flow.
+ * See `docs/dev/references/data/data-ordering-guide.md` for the end-to-end flow.
  */
 
 import { useCallback, useRef, useState } from 'react'

@@ -9,7 +9,7 @@ import fs from 'node:fs/promises'
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { FileProcessorMerged } from '@shared/data/presets/fileProcessing'
+import type { DocumentToMarkdownCapability, FileProcessorMerged } from '@shared/data/presets/fileProcessing'
 import { type FileInfo, FileInfoSchema } from '@shared/types/file'
 
 import { doc2xDocumentToMarkdownHandler } from '../doc2x/documentToMarkdown/handler'
@@ -72,7 +72,14 @@ describe('A1 whitelist invariant: real toPersistable() never emits apiKey', () =
     const prepared = await prepareRemote(doc2xDocumentToMarkdownHandler, config)
 
     const persisted = prepared.toPersistable(
-      { apiHost: 'https://doc2x.example.com', apiKey: 'SUPER_SECRET', stage: 'exporting' },
+      {
+        apiHost: 'https://doc2x.example.com',
+        apiKey: 'SUPER_SECRET',
+        stage: 'exporting',
+        modelVersion: 'v3-2026',
+        formulaLevel: 2,
+        mergeCrossPageForms: true
+      },
       'provider-task-xyz'
     )
 
@@ -82,7 +89,28 @@ describe('A1 whitelist invariant: real toPersistable() never emits apiKey', () =
     expect(persisted).toMatchObject({
       providerTaskId: 'provider-task-xyz',
       apiHost: 'https://doc2x.example.com',
-      stage: 'exporting'
+      stage: 'exporting',
+      modelVersion: 'v3-2026',
+      formulaLevel: 2,
+      mergeCrossPageForms: true
+    })
+
+    const restored = prepared.rehydrate(persisted, {
+      ...config,
+      capabilities: [
+        {
+          ...(config.capabilities[0] as DocumentToMarkdownCapability),
+          modelId: 'v2',
+          formulaLevel: 0,
+          mergeCrossPageForms: false
+        }
+      ]
+    })
+
+    expect(restored.remoteContext).toMatchObject({
+      modelVersion: 'v3-2026',
+      formulaLevel: 2,
+      mergeCrossPageForms: true
     })
   })
 

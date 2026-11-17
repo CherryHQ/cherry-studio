@@ -15,6 +15,8 @@ type FileItemCore = {
   trashed: boolean
   danglingState?: DanglingState
   isMissing?: boolean
+  /** Filesystem or external path used to distinguish same-name rows. Not a preview URL. */
+  sourcePath?: string
 }
 
 type InternalFileItemFields = {
@@ -50,6 +52,9 @@ export function getFormatLabel(format: string): string {
     pdf: 'PDF',
     doc: 'DOC',
     docx: 'DOCX',
+    odt: 'ODT',
+    rtf: 'RTF',
+    epub: 'EPUB',
     py: 'Python',
     ts: 'TypeScript',
     tsx: 'TSX',
@@ -59,28 +64,21 @@ export function getFormatLabel(format: string): string {
     mp3: 'MP3',
     mp4: 'MP4',
     md: 'Markdown',
+    markdown: 'Markdown',
+    mdx: 'Markdown',
     txt: 'Text',
+    text: 'Text',
     xls: 'Excel',
     xlsx: 'Excel',
+    ods: 'Excel',
+    csv: 'CSV',
+    tsv: 'TSV',
     ppt: 'PPT',
     pptx: 'PPT',
+    odp: 'PPT',
     bin: 'Binary'
   }
   return map[format] || format.toUpperCase()
-}
-
-export function formatFileSize(bytes: number | null | undefined): string {
-  if (bytes === null || bytes === undefined || !Number.isFinite(bytes)) return '—'
-  if (bytes < 1024) return `${bytes} B`
-
-  const units = ['KB', 'MB', 'GB', 'TB'] as const
-  let value = bytes / 1024
-  let unitIndex = 0
-  while (value >= 1024 && unitIndex < units.length - 1) {
-    value /= 1024
-    unitIndex += 1
-  }
-  return `${value >= 10 ? value.toFixed(0) : value.toFixed(1)} ${units[unitIndex]}`
 }
 
 export const typeIcons: Record<FileType, FC<{ size?: number; strokeWidth?: number; className?: string }>> = {

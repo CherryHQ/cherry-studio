@@ -1,13 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
+import { buildResourceListItemDropAnchor, compareResourceOrderKey } from '@renderer/utils/chat/resourceListBase'
 import { applyOptimisticOrder } from '@renderer/utils/resourceEntity'
 
-import {
-  buildResourceListItemDropAnchor,
-  compareResourceOrderKey,
-  type ResourceListReorderPayload,
-  type ResourceListStatus
-} from './base'
+import type { ResourceListReorderPayload, ResourceListStatus } from './base'
 import type { ResourceEntityRailItem } from './ResourceEntityRail'
 import { useOwnerResourceActivation } from './useOwnerResourceActivation'
 

@@ -1323,6 +1323,7 @@ function GroupedSortableVirtualList<TGroup, TItem, THeader = TGroup, TFooter = u
     <DndContext
       sensors={sensors}
       onDragStart={handleDragStart}
+      onDragMove={handleDragOver}
       onDragOver={handleDragOver}
       onDragCancel={clearDragState}
       onDragEnd={handleDragEnd}>

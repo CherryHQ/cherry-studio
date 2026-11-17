@@ -46,6 +46,26 @@ export default defineCreator({
       maxOutputTokens: 131072
     },
     {
+      id: 'hy4',
+      name: 'Hunyuan 4',
+      capabilities: ['reasoning', 'function-call', 'structured-output', 'image-recognition'],
+      inputModalities: ['text', 'image'],
+      contextWindow: 1048576,
+      maxInputTokens: 983010,
+      maxOutputTokens: 65536
+    },
+    {
+      // Flash tier of the Hy4 generation: same window, image input and effort ladder as hy4,
+      // only the serving tier differs.
+      id: 'hy4-flash',
+      name: 'Hunyuan 4 Flash',
+      capabilities: ['reasoning', 'function-call', 'structured-output', 'image-recognition'],
+      inputModalities: ['text', 'image'],
+      contextWindow: 1048576,
+      maxInputTokens: 983040,
+      maxOutputTokens: 65536
+    },
+    {
       id: 'hy4-preview',
       name: 'Hunyuan 4 Preview',
       capabilities: ['reasoning', 'function-call', 'structured-output'],

@@ -13,7 +13,7 @@ import type { ModelBundle, SharedArtifact, SharedArtifactId } from './types'
  * `../installation/LocalModelStorageService`, mirror resolution in `../acquisition/modelSource`.
  *
  * Adding a model means adding an entry here; nothing else in the subsystem is
- * per-model. See `docs/references/ai/local-models.md` for the checklist.
+ * per-model. See `docs/dev/references/ai/local-models.md` for the checklist.
  *
  * ## Obtaining `sha256`
  * The upstream APIs publish the digest, so no download is needed:

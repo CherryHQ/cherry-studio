@@ -13,6 +13,7 @@ import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbOrTx } from '@data/db/types'
 import { agentChannelService } from '@data/services/AgentChannelService'
 import { getDataService } from '@data/services/dataServiceRegistry'
+import { pinService } from '@data/services/PinService'
 import { applyMoves, insertWithOrderKey } from '@data/services/utils/orderKey'
 import { timestampToISO } from '@data/services/utils/rowMappers'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
@@ -331,6 +332,7 @@ export class AgentWorkspaceService {
       .returning({ id: agentWorkspaceTable.id })
       .all()
     if (!row) throw DataApiErrorFactory.notFound('Workspace', id)
+    pinService.purgeForEntityTx(tx, 'workspace', id)
   }
 
   /**

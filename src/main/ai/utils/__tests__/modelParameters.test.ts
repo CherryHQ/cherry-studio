@@ -26,6 +26,55 @@ function makeSampling(settings: Partial<AssistantSettings> = {}): SamplingSettin
 }
 
 describe('stripUnsupportedModelParams', () => {
+  it('removes fixed-sampling Claude overrides from every request container without mutating inputs', () => {
+    const parameters = Object.freeze({
+      temperature: 0.5,
+      topP: 0.8,
+      top_p: 0.8,
+      topK: 5,
+      top_k: 5,
+      maxOutputTokens: 1024,
+      cachedContent: 'kept',
+      cached_content: 'kept',
+      metadata: Object.freeze({ top_k: 'application data' })
+    })
+    const params = Object.freeze({
+      standardParams: parameters,
+      providerOptions: Object.freeze({ anthropic: parameters, openrouter: parameters }),
+      bodyParams: parameters
+    })
+    const model = makeModel({ id: 'anthropic::claude-sonnet-5', providerId: 'anthropic' })
+
+    const result = stripUnsupportedModelParams(params, model)
+
+    const expected = {
+      maxOutputTokens: 1024,
+      cachedContent: 'kept',
+      cached_content: 'kept',
+      metadata: { top_k: 'application data' }
+    }
+    expect(result).toEqual({
+      standardParams: expected,
+      providerOptions: { anthropic: expected, openrouter: expected },
+      bodyParams: expected
+    })
+  })
+
+  it('preserves top-k overrides for a Claude model that supports sampling', () => {
+    const params = {
+      standardParams: { topK: 5 },
+      providerOptions: { anthropic: { topK: 5, top_k: 5 } },
+      bodyParams: { topK: 5, top_k: 5 }
+    }
+    const model = makeModel({ id: 'anthropic::claude-sonnet-4-6', providerId: 'anthropic' })
+
+    expect(stripUnsupportedModelParams(params, model)).toEqual({
+      standardParams: { topK: 5 },
+      providerOptions: { anthropic: { topK: 5, top_k: 5 } },
+      bodyParams: { topK: 5, top_k: 5 }
+    })
+  })
+
   describe('DashScope Qwen temperature normalization', () => {
     const model = makeModel({ id: 'dashscope::qwen-long', providerId: 'dashscope' })
 
@@ -422,7 +471,7 @@ describe('filterStandardParams', () => {
 
   it('keeps topK for other models', () => {
     const input = { topK: 40 }
-    expect(filterStandardParams(input, makeModel())).toBe(input)
+    expect(filterStandardParams(input, makeModel())).toEqual(input)
   })
 })
 
