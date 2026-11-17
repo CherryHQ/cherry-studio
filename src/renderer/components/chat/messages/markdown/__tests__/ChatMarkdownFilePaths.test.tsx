@@ -130,7 +130,7 @@ describe('ChatMarkdown code entries', () => {
 
   it.each([
     ['/Users/foo/bar.tsx', '/Users/foo/bar.tsx'],
-    ['src/index.ts:42:5', 'src/index.ts'],
+    ['src/index.ts:42:5', 'src/index.ts:42:5'],
     ['./src/index.ts', './src/index.ts'],
     ['../packages/ui/src/', '../packages/ui/src/'],
     ['/Users/lee/My Project/notes.txt', '/Users/lee/My Project/notes.txt'],
