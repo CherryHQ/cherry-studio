@@ -209,7 +209,13 @@ function endpointFactSchema<TSchema extends z.ZodType>(value: TSchema) {
 
 export type CherryCloudEndpointFact<T> = z.infer<ReturnType<typeof endpointFactSchema<z.ZodType<T>>>>
 
-export const cherryCloudRefreshReasonSchema = z.enum(['initial', 'focus_refresh', 'notification', 'models'])
+export const cherryCloudRefreshReasonSchema = z.enum([
+  'initial',
+  'focus_refresh',
+  'notification',
+  'models',
+  'quota_refusal'
+])
 export type CherryCloudRefreshReason = z.infer<typeof cherryCloudRefreshReasonSchema>
 
 export const cherryCloudAccountReceiptSchema = z.strictObject({

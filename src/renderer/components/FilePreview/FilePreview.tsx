@@ -162,7 +162,13 @@ function FilePreviewPluginRenderer({
       key={`${plugin.descriptor.id}:${filePath}`}
       resetKeys={[refreshKey]}
       FallbackComponent={PluginErrorFallback}
-      onError={(error) => logger.error(`Failed to render file preview plugin: ${plugin.descriptor.id}`, error)}>
+      onError={(error, info) =>
+        logger.error(`Failed to render file preview plugin: ${plugin.descriptor.id}`, error, {
+          componentStack: info.componentStack,
+          operation: 'react.render',
+          failure: { source: 'application', kind: 'defect', reason: 'render_failed', outcome: 'failed' }
+        })
+      }>
       <PluginPreview
         filePath={filePath}
         fileName={fileName}
