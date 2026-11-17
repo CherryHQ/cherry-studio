@@ -15,6 +15,11 @@ declare module '@tiptap/core' {
 // EnhancedMath takes the same options as upstream Mathematics (block/inline/katex).
 export type EnhancedMathOptions = MathematicsOptions
 
+const findFirstDelimiter = (source: string, delimiters: string[]): number => {
+  const positions = delimiters.map((delimiter) => source.indexOf(delimiter)).filter((position) => position >= 0)
+  return positions.length > 0 ? Math.min(...positions) : -1
+}
+
 export const EnhancedMath = Extension.create<EnhancedMathOptions>({
   name: 'enhancedMath',
 
@@ -61,6 +66,17 @@ export const EnhancedMath = Extension.create<EnhancedMathOptions>({
               }
             })
           ]
+        },
+        markdownTokenizer: {
+          name: 'blockMath',
+          level: 'block',
+          start: (source: string) => findFirstDelimiter(source, ['$$', '\\[']),
+          tokenize: (source: string) => {
+            const bracketMatch = source.match(/^\\\[([\s\S]*?)\\\]/)
+            if (bracketMatch) return { type: 'blockMath', raw: bracketMatch[0], latex: bracketMatch[1].trim() }
+            const dollarMatch = source.match(/^\$\$([^$]+)\$\$/)
+            return dollarMatch ? { type: 'blockMath', raw: dollarMatch[0], latex: dollarMatch[1].trim() } : undefined
+          }
         }
       }).configure({ ...this.options.blockOptions, katexOptions: this.options.katexOptions }),
       InlineMath.extend({
@@ -90,6 +106,17 @@ export const EnhancedMath = Extension.create<EnhancedMathOptions>({
               }
             })
           ]
+        },
+        markdownTokenizer: {
+          name: 'inlineMath',
+          level: 'inline',
+          start: (source: string) => findFirstDelimiter(source, ['$', '\\(']),
+          tokenize: (source: string) => {
+            const parenMatch = source.match(/^\\\(([^\n]*?)\\\)/)
+            if (parenMatch) return { type: 'inlineMath', raw: parenMatch[0], latex: parenMatch[1].trim() }
+            const dollarMatch = source.match(/^\$([^$]+)\$(?!\$)/)
+            return dollarMatch ? { type: 'inlineMath', raw: dollarMatch[0], latex: dollarMatch[1].trim() } : undefined
+          }
         }
       }).configure({ ...this.options.inlineOptions, katexOptions: this.options.katexOptions }),
       Node.create({

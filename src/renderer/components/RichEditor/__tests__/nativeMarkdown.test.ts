@@ -150,6 +150,17 @@ describe('native markdown round-trip matrix', () => {
     expect(block.getMarkdown()).toContain('x = y')
   })
 
+  it('parses LaTeX bracket and parenthesis delimiters', () => {
+    expect(parse('\\[a^2+b^2=c^2\\]')[0]).toMatchObject({ type: 'blockMath', attrs: { latex: 'a^2+b^2=c^2' } })
+    expect(parse('\\[\n  x = y\n  y = z\n\\]')[0]).toMatchObject({
+      type: 'blockMath',
+      attrs: { latex: 'x = y\n  y = z' }
+    })
+
+    const inline = parse('Inline \\(a + b\\) math')[0]
+    expect(inline?.content).toContainEqual({ type: 'inlineMath', attrs: { latex: 'a + b' } })
+  })
+
   it('round-trips GFM tables (regression: table-plus has no native markdown hooks)', () => {
     const src = '| a | b |\n| --- | --- |\n| 1 | 2 |'
     expect(parse(src)[0]?.type).toBe('table')
