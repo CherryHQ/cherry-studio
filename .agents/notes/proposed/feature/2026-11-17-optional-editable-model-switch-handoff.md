@@ -26,12 +26,12 @@ Switching the model of a non-empty Agent session keeps the conversation history,
 
 ## Acceptance criteria
 
-- AC1 — The switch dialog offers the handoff option unchecked by default; with it unchecked, the switch makes no LLM call and persists nothing new (verification: renderer)
+- AC1 — The switch dialog offers the handoff option unchecked by default; with it unchecked, the switch makes no LLM call and persists no handoff data (the session's selected model still updates, as today) (verification: renderer)
 - AC2 — With the option checked, a generated handoff separates completed and pending work and lists relevant files and risks (verification: unit)
 - AC3 — The user can edit the generated handoff before confirming; the persisted system message contains the edited text, not the generated text (verification: renderer)
 - AC4 — The persisted handoff records both the previous and next model identities; original messages are unchanged (verification: unit)
 - AC5 — The next turn after a handoff sends the edited handoff to the new model in its context (verification: unit)
-- AC6 — Switching without a handoff, and cancelling the dialog, leave the session unchanged (verification: renderer)
+- AC6 — Confirming a switch without a handoff updates the session's selected model and preserves the existing history with no handoff data added; cancelling the dialog leaves the session entirely unchanged (verification: renderer)
 - AC7 — If handoff generation fails, the dialog shows the error and the user can still switch without a handoff (verification: renderer)
 
 ## Risks

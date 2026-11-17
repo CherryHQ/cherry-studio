@@ -26,12 +26,12 @@ Status: proposed
 
 ## Acceptance criteria
 
-- AC1 — 切换对话框提供交接选项，默认不勾选；未勾选时，切换不调用 LLM，也不持久化任何新内容（verification: renderer）
+- AC1 — 切换对话框提供交接选项，默认不勾选；未勾选时，切换不调用 LLM，也不持久化任何交接数据（会话的所选模型仍照常更新）（verification: renderer）
 - AC2 — 勾选时，生成的交接区分已完成与待办工作，并列出相关文件和风险（verification: unit）
 - AC3 — 用户确认前可编辑生成的交接；持久化的系统消息包含编辑后的文本，而非生成的原文（verification: renderer）
 - AC4 — 持久化的交接记录先后两个模型身份；原始消息保持不变（verification: unit）
 - AC5 — 交接后的下一轮会把编辑后的交接发送给新模型作为上下文（verification: unit）
-- AC6 — 不交接直接切换、或取消对话框，都不改变会话（verification: renderer）
+- AC6 — 确认不带交接的切换会更新会话的所选模型并保留现有历史，不新增交接数据；取消对话框则会话完全不变（verification: renderer）
 - AC7 — 交接生成失败时，对话框显示错误，用户仍可不带交接直接切换（verification: renderer）
 
 ## Risks
