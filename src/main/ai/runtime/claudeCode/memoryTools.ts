@@ -13,7 +13,7 @@ import type {
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { agentMemoryAuthority } from '@main/ai/memory/memoryAuthority'
-import { MEMORY_MAX_BYTES, memoryHash } from '@main/ai/memory/memoryFiles'
+import { MEMORY_MAX_BYTES } from '@main/ai/memory/memoryFiles'
 import type { MemorySession } from '@main/ai/memory/MemoryService'
 import { memoryTarget, type MemoryTarget } from '@main/ai/memory/memoryTarget'
 import type { Disposable } from '@main/core/lifecycle'
@@ -238,7 +238,11 @@ export class ClaudeMemoryTools {
       file.fullRead = false
       try {
         const current = await file.session.read(file.target.path)
-        if (current.hash === memoryHash(bytes)) {
+        // Rendered text omits retirement metadata; confirm both the committed disk version and the visible edit.
+        if (
+          current.hash === result.files.find((item) => item.path === file.target.path)?.hash &&
+          current.content === content
+        ) {
           file.hash = current.hash
           file.receipt = current.receipt
           file.fullRead = !!current.receipt

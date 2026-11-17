@@ -170,6 +170,31 @@ describe('Claude native memory file adapter', () => {
     expect(await readFile(target, 'utf8')).toBe('NEW\n')
   })
 
+  it('keeps consecutive native edits usable after a correction hides its history', async () => {
+    const extraction = memory.open({ scope: { kind: 'shared' }, assertAuthorized: () => undefined }, 'extraction')
+    const proposal = await extraction.prepareRevisions((await extraction.read('MEMORY.md')).receipt, [
+      {
+        quote: 'INITIAL',
+        text: 'CURRENT',
+        reason: 'corrected',
+        recordedAt: '2026-11-17T10:00:00.000Z',
+        sources: [{ kind: 'chat', conversationId: 't', messageId: 'm', sourceVersion: 'v' }]
+      }
+    ])
+    await extraction.commit([proposal], async () => () => undefined)
+    const first = await read()
+    expect(JSON.stringify(first.result)).not.toContain('INITIAL')
+    for (const text of ['First edit', 'Second edit']) {
+      const call = await begin('Edit', { old_string: 'CURRENT', new_string: text })
+      const result = await finishWrite(call, `- "CURRENT"\n- "${text}"\n`)
+      expect(result).toMatchObject({ hookSpecificOutput: { updatedToolOutput: { filePath: file } } })
+      tools.release(call.input.tool_use_id)
+    }
+    expect(await readFile(file, 'utf8')).toContain('retirement')
+    expect(await extraction.revisions()).toHaveLength(1)
+    extraction.dispose()
+  })
+
   it('keeps working copies out of direct file tools and directory searches', async () => {
     const call = await read()
     const stage = call.updated.file_path as string
