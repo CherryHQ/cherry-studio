@@ -1,9 +1,11 @@
+import 'dayjs/locale/cs'
 import 'dayjs/locale/de'
 import 'dayjs/locale/el'
 import 'dayjs/locale/es'
 import 'dayjs/locale/fr'
 import 'dayjs/locale/it'
 import 'dayjs/locale/ja'
+import 'dayjs/locale/pl'
 import 'dayjs/locale/pt'
 import 'dayjs/locale/ro'
 import 'dayjs/locale/ru'
@@ -31,12 +33,14 @@ const localeLoaders = {
   'en-US': () => import('./locales/en-us.json'),
   'zh-CN': () => import('./locales/zh-cn.json'),
   'zh-TW': () => import('./locales/zh-tw.json'),
+  'cs-CZ': () => import('./locales/cs-cz.json'),
   'de-DE': () => import('./locales/de-de.json'),
   'el-GR': () => import('./locales/el-gr.json'),
   'es-ES': () => import('./locales/es-es.json'),
   'fr-FR': () => import('./locales/fr-fr.json'),
   'it-IT': () => import('./locales/it-it.json'),
   'ja-JP': () => import('./locales/ja-jp.json'),
+  'pl-PL': () => import('./locales/pl-pl.json'),
   'pt-PT': () => import('./locales/pt-pt.json'),
   'ro-RO': () => import('./locales/ro-ro.json'),
   'ru-RU': () => import('./locales/ru-ru.json'),
@@ -60,11 +64,13 @@ const dayjsLocaleMap: Record<string, string> = {
   'ru-RU': 'ru',
   'zh-CN': 'zh-cn',
   'zh-TW': 'zh-tw',
+  'cs-CZ': 'cs',
   'de-DE': 'de',
   'el-GR': 'el',
   'es-ES': 'es',
   'fr-FR': 'fr',
   'it-IT': 'it',
+  'pl-PL': 'pl',
   'pt-PT': 'pt',
   'ro-RO': 'ro',
   'th-TH': 'th',
