@@ -19,7 +19,13 @@
  */
 import { createGoogleGenerativeAI } from '@ai-sdk/google'
 import { OpenAICompatibleImageModel } from '@ai-sdk/openai-compatible'
-import type { ImageModelV3, ImageModelV3CallOptions, JSONValue } from '@ai-sdk/provider'
+import {
+  type ImageModelV3,
+  type ImageModelV3CallOptions,
+  isJSONObject,
+  type JSONObject,
+  type JSONValue
+} from '@ai-sdk/provider'
 import type { FetchFunction } from '@ai-sdk/provider-utils'
 import { withoutTrailingSlash } from '@ai-sdk/provider-utils'
 import * as z from 'zod'
@@ -170,10 +176,10 @@ function withAihubmixGoogleImageOptions(model: ImageModelV3, isGeminiImage: bool
     maxImagesPerCall: model.maxImagesPerCall,
     doGenerate(options) {
       const providerOptions = options.providerOptions ?? {}
-      const aihubmixOptions = (providerOptions.aihubmix ?? {}) as Record<string, unknown>
-      const openaiOptions = (providerOptions.openai ?? {}) as Record<string, unknown>
-      const existingGoogle = (providerOptions.google ?? {}) as Record<string, unknown>
-      const existingImageConfig = (existingGoogle.imageConfig ?? {}) as Record<string, unknown>
+      const aihubmixOptions = providerOptions.aihubmix ?? {}
+      const openaiOptions = providerOptions.openai ?? {}
+      const existingGoogle = providerOptions.google ?? {}
+      const existingImageConfig = isJSONObject(existingGoogle.imageConfig) ? existingGoogle.imageConfig : {}
 
       const aspectRatio =
         options.aspectRatio ??
@@ -189,7 +195,7 @@ function withAihubmixGoogleImageOptions(model: ImageModelV3, isGeminiImage: bool
           aihubmixOptions.resolution
       )
 
-      const googleOptions: Record<string, unknown> = {
+      const googleOptions: JSONObject = {
         ...(aspectRatio ? { aspectRatio } : {}),
         ...(personGeneration ? { personGeneration } : {}),
         ...existingGoogle
@@ -208,7 +214,7 @@ function withAihubmixGoogleImageOptions(model: ImageModelV3, isGeminiImage: bool
         ...(aspectRatio ? { aspectRatio, size: undefined } : {}),
         providerOptions: {
           ...providerOptions,
-          google: googleOptions as Record<string, JSONValue>
+          google: googleOptions
         }
       })
     }
