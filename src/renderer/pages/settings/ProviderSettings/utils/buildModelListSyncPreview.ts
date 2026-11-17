@@ -11,12 +11,15 @@ const logger = loggerService.withContext('ModelListSyncPreview')
  * state. Apply uses `POST /models` and `DELETE /models/:uniqueModelId` with
  * the preview selection (no extra apply route).
  */
-export async function buildModelListSyncPreview(params: { providerId: string }): Promise<ModelSyncPreviewResponse> {
-  const { providerId } = params
+export async function buildModelListSyncPreview(params: {
+  providerId: string
+  presetProviderId?: string | null
+}): Promise<ModelSyncPreviewResponse> {
+  const { providerId, presetProviderId } = params
 
   const [localModels, listing] = await Promise.all([
     dataApiService.get('/models' as const, { query: { providerId } }),
-    fetchResolvedProviderModels(providerId)
+    fetchResolvedProviderModels(providerId, presetProviderId)
   ])
   const remoteModels = listing.models
 
