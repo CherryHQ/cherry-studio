@@ -4,6 +4,7 @@ import { ElysiaCustomStatusResponse, type ErrorHandler, ValidationError } from '
 
 import { loggerService } from '@logger'
 import { isDev } from '@main/core/platform'
+import { getSafeProviderErrorMessage } from '@shared/ai/providerError'
 import { DataApiError } from '@shared/data/api/errors'
 import type { SerializedError } from '@shared/types/error'
 
@@ -198,6 +199,9 @@ function normalizeProviderError(error: unknown): {
       type,
       category
     }
+  if (name === 'AI_InvalidArgumentError') {
+    return { statusCode: 400, message: getSafeProviderErrorMessage({ message }) || 'Invalid request parameters', type }
+  }
   if (
     name === 'TimeoutError' ||
     message === 'Upstream idle timeout exceeded' ||

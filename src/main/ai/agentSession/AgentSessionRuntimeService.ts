@@ -2855,6 +2855,26 @@ export class AgentSessionRuntimeService extends BaseService {
   private handleToolApprovalRequest(entry: AgentSessionRuntimeEntry, request: AgentRuntimeToolApprovalRequest): void {
     if (request.presentation === 'stream') {
       const turn = getAgentSessionRuntimeNativeTurn(entry.runtimeState)
+      const hasBufferedInput =
+        turn &&
+        getAgentSessionRuntimeReply(entry.runtimeState, turn)?.buffer.some(
+          (chunk) => chunk.type === 'tool-input-available' && chunk.toolCallId === request.toolCallId
+        )
+      if (
+        turn &&
+        (request.providerMetadata?.cherry?.commandPolicy !== undefined ||
+          (!hasBufferedInput &&
+            !turn.activeToolIds.has(request.toolCallId) &&
+            !turn.projection?.toolCallMessageId(request.toolCallId)))
+      )
+        this.deliverRuntimeChunk(entry, {
+          type: 'tool-input-available',
+          toolCallId: request.toolCallId,
+          toolName: request.toolName,
+          input: request.input,
+          providerExecuted: true,
+          ...(request.providerMetadata ? { providerMetadata: request.providerMetadata } : {})
+        })
       const contextId = this.currentConnection(entry)?.contextId
       if (turn) {
         const projection = turn.projection ?? (contextId ? this.rootProjection(entry, contextId) : undefined)
@@ -2866,7 +2886,8 @@ export class AgentSessionRuntimeService extends BaseService {
             toolName: request.toolName,
             input: request.input,
             providerExecuted: true,
-            dynamic: true
+            dynamic: true,
+            ...(request.providerMetadata ? { providerMetadata: request.providerMetadata } : {})
           })
         }
       }

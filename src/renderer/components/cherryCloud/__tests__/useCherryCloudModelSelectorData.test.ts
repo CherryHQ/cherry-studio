@@ -1,16 +1,18 @@
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
+import { mockUseQuery } from '@test-mocks/renderer/useDataApi'
 import { renderHook, waitFor } from '@testing-library/react'
 import { createElement, type PropsWithChildren } from 'react'
 import { SWRConfig } from 'swr'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { CHERRY_CLOUD_PROVIDER_ID } from '@shared/data/presets/cherryai'
+import { CHERRY_CLOUD_PROVIDER_ID, CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import type { CherryCloudAccountPlans, CherryCloudPlanModel } from '@shared/ipc/schemas/cherryCloud'
 
 import {
   isCherryCloudChatOffer,
+  useCherryCloudModelSelectorData,
   useCherryCloudModelSelectorOffers,
   useCherryCloudModelSelectorPolicy
 } from '../useCherryCloudModelSelectorData'
@@ -98,9 +100,55 @@ beforeEach(() => {
   mocks.ready = true
   mocks.isModelHidden.mockReset().mockReturnValue(false)
   mocks.isModelFree.mockReset().mockReturnValue(true)
+  mockUseQuery.mockReturnValue({ data: [], isLoading: false, isRefreshing: false, refetch: vi.fn(), mutate: vi.fn() })
 })
 
 describe('Cloud selector policy', () => {
+  it.each(['active', 'upcoming'] as const)(
+    'moves CherryAI first for a %s subscription and last when it ends',
+    (state) => {
+      const providers: Provider[] = ['other-b', CHERRY_CLOUD_PROVIDER_ID, 'other-a', CHERRYAI_PROVIDER_ID].map(
+        (id) => ({
+          id,
+          name: id,
+          apiKeys: [],
+          authType: 'api-key',
+          reportsActualCost: false,
+          settings: {},
+          isEnabled: true
+        })
+      )
+      const models: Model[] = providers.map(({ id }) => ({
+        id: `${id}::model`,
+        providerId: id,
+        name: id,
+        capabilities: [],
+        supportsStreaming: true,
+        isEnabled: true,
+        isHidden: false
+      }))
+      mockUseQuery.mockImplementation((path) => ({
+        data: path === '/providers' ? providers : path === '/models' ? models : [],
+        isLoading: false,
+        isRefreshing: false,
+        refetch: vi.fn(),
+        mutate: vi.fn()
+      }))
+      const { result, rerender } = renderHook(() => useCherryCloudModelSelectorData({ searchText: '' }))
+      const groupIds = () =>
+        result.current.listItems.flatMap((item) => (item.type === 'group' ? [item.provider?.id] : []))
+      expect(groupIds()).toEqual(['other-b', 'other-a', CHERRYAI_PROVIDER_ID])
+
+      mocks.data = plans(state)
+      rerender()
+      expect(groupIds()).toEqual([CHERRYAI_PROVIDER_ID, 'other-b', 'other-a'])
+
+      mocks.data = plans()
+      rerender()
+      expect(groupIds()).toEqual(['other-b', 'other-a', CHERRYAI_PROVIDER_ID])
+    }
+  )
+
   it('projects entitlement Free tags independently of the executable model name', () => {
     const model: Model = {
       id: `${CHERRY_CLOUD_PROVIDER_ID}::gpt-5`,
