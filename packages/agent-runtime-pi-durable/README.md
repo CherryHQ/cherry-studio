@@ -18,7 +18,10 @@ available for native diagnostics; `onError` receives adapter/observer failures.
 `create(options)` takes native `ConversationCreateOptions`. `open(ref)` only opens
 an existing conversation in this backend. Concurrent accesses share one normalized
 source. `release()` stops that access's subscriptions; it does not close the shared
-Harness or cancel work. `shutdown()` seals all accesses, closes the Harness and
+Harness or cancel work. Releasing a conversation's last access unloads it: the adapter
+detaches its native view and drops its loaded history, and a later `open` loads it again.
+When an unloaded child receives input, its nearest loaded ancestor publishes
+`subagent.upsert` so hosts can observe it again. `shutdown()` seals all accesses, closes the Harness and
 storage, and joins tracked calls. Unfinished durable tasks are not marked cancelled.
 It captures committed archives after native execution has quiesced and before storage
 closes; retained accesses can flush these archives until `release()`.

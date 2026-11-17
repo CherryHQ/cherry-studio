@@ -1045,7 +1045,10 @@ Child attachment waits for the shared root connection, then calls the concrete
 origin, actual parent and access together. Main joins concurrent attachment through one child
 resource record. Failed creation or owner closure ends the wait; parent reply completion does not
 close independently running children. Failed attachment releases its lease and can retry, while
-failed final persistence retains the resource and its unflushed output. A detached or
+failed final persistence retains the resource and its unflushed output. A finished child (idle
+with a run result and no input without an outcome) that no viewer subscribes to is flushed and
+released, keeping only its origin and context ID; opening its panel, messaging it or a native
+resume attaches it again. A detached or
 destroyed window cannot install a late subscription. Archive reconciliation preserves product IDs
 and orders evidenced rows by committed native history followed by live content, correcting saved
 parent links when necessary; rows outside current native/live coverage remain retained in place.
