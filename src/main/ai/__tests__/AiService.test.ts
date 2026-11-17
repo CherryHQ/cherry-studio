@@ -1,3 +1,4 @@
+import { createOpenAICompatible } from '@ai-sdk/openai-compatible'
 import type { FetchFunction } from '@ai-sdk/provider-utils'
 import type { CreateMessageRequestParamsBase } from '@modelcontextprotocol/client'
 import { trace } from '@opentelemetry/api'
@@ -5,7 +6,7 @@ import { BasicTracerProvider, InMemorySpanExporter, SimpleSpanProcessor } from '
 import { defaultServiceInstances } from '@test-mocks/main/application'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
-import { modelMessageSchema } from 'ai'
+import { generateText, modelMessageSchema, streamText } from 'ai'
 import { afterEach, beforeEach, describe, expect, expectTypeOf, it, vi } from 'vitest'
 
 import { BaseService } from '@main/core/lifecycle/BaseService'
@@ -20,6 +21,7 @@ import { makeModel } from './fixtures/model'
 import { makeProvider } from './fixtures/provider'
 
 type AiServicePrivate = {
+  generateTextWithMode: (...args: never[]) => Promise<unknown>
   buildAgentParamsFor: (...args: never[]) => Promise<unknown>
   resolveTransportFor: (...args: never[]) => Promise<unknown>
   trackUsage: (...args: never[]) => void
@@ -1948,7 +1950,9 @@ describe('AiService tool approval', () => {
 
       const service = createService()
       const embedSpy = vi.spyOn(service, 'embedMany').mockResolvedValue({ embeddings: [[1]] })
-      const generateSpy = vi.spyOn(service, 'generateText').mockResolvedValue({ text: 'ok', finishReason: 'stop' })
+      const generateSpy = vi
+        .spyOn(service as unknown as AiServicePrivate, 'generateTextWithMode')
+        .mockResolvedValue({ text: 'ok', finishReason: 'stop' })
       mockModelGetByKey.mockReturnValue({
         ...listedModel,
         capabilities: [MODEL_CAPABILITY.EMBEDDING]
@@ -1957,7 +1961,7 @@ describe('AiService tool approval', () => {
       await service.checkModel({ uniqueModelId: 'new-api::deepseek-v4-flash' })
 
       expect(embedSpy).not.toHaveBeenCalled()
-      expect(generateSpy).toHaveBeenCalledWith(expect.objectContaining({ system: 'test', prompt: 'hi' }))
+      expect(generateSpy).toHaveBeenCalledWith(expect.objectContaining({ system: 'test', prompt: 'hi' }), [], 'stream')
     } finally {
       vi.mocked(customFetch).mockReset()
     }
@@ -1965,7 +1969,9 @@ describe('AiService tool approval', () => {
 
   it('passes the selected API key override into text health checks', async () => {
     const service = createService()
-    const generateSpy = vi.spyOn(service, 'generateText').mockResolvedValue({ text: 'ok', finishReason: 'stop' })
+    const generateSpy = vi
+      .spyOn(service as unknown as AiServicePrivate, 'generateTextWithMode')
+      .mockResolvedValue({ text: 'ok', finishReason: 'stop' })
     mockModelGetByKey.mockReturnValue({
       id: 'test-provider::test-model',
       providerId: 'test-provider',
@@ -1987,7 +1993,9 @@ describe('AiService tool approval', () => {
         apiKeyOverride: 'sk-selected',
         system: 'test',
         prompt: 'hi'
-      })
+      }),
+      [],
+      'stream'
     )
   })
 
@@ -2003,7 +2011,9 @@ describe('AiService tool approval', () => {
       finishReason: Promise.resolve('stop'),
       rawFinishReason: Promise.resolve('stop'),
       steps: Promise.resolve([]),
-      fullStream: (async function* () {})()
+      fullStream: (async function* () {
+        yield { type: 'finish', finishReason: 'stop', totalUsage: { inputTokens: 1, outputTokens: 1 } }
+      })()
     })
     mockCreateAgent.mockResolvedValue({ generate: mockAgentGenerate, stream: mockAgentStream })
     vi.spyOn(service as unknown as AiServicePrivate, 'buildAgentParamsFor').mockResolvedValue({
@@ -2074,7 +2084,7 @@ describe('AiService tool approval', () => {
     // its readable message even though the part is a plain object rather than an Error.
     await expect(
       service.generateText({ uniqueModelId: 'openai-codex::gpt-5.1-codex', prompt: 'hi' } as never)
-    ).rejects.toThrow('Response stream ended with a terminal provider error: Rate limit exceeded')
+    ).rejects.toThrow('Rate limit exceeded')
     expect(mockAgentStream).toHaveBeenCalledOnce()
     expect(mockAgentGenerate).not.toHaveBeenCalled()
   })
@@ -2250,6 +2260,81 @@ describe('AiService tool approval', () => {
     expect(mockAgentGenerate).not.toHaveBeenCalled()
   })
 
+  it.each([true, false])('completes the supported wire protocol (supportsStreaming=%s)', async (supportsStreaming) => {
+    const service = createService()
+    const model = makeModel({ supportsStreaming })
+    mockModelGetByKey.mockReturnValue(model)
+    const fetch = vi.fn(async (_url: unknown, init?: RequestInit) => {
+      const body = JSON.parse(init?.body as string)
+      expect(body.stream === true).toBe(supportsStreaming)
+      expect(body.model).toBe('gpt-4')
+      return new Response(
+        supportsStreaming
+          ? 'data: {"choices":[{"index":0,"delta":{"content":"OK"},"finish_reason":"stop"}]}\n\ndata: [DONE]\n\n'
+          : '{"choices":[{"index":0,"message":{"role":"assistant","content":"OK"},"finish_reason":"stop"}]}'
+      )
+    })
+    const sdkModel = createOpenAICompatible({ name: 'probe', baseURL: 'https://probe.invalid/v1', fetch }).chatModel(
+      'gpt-4'
+    )
+    vi.spyOn(service as unknown as AiServicePrivate, 'buildAgentParamsFor').mockResolvedValue({
+      sdkConfig: { providerId: 'openai-compatible', providerSettings: {}, modelId: 'gpt-4' },
+      credentialReceipt: { attribution: 'unknown' },
+      provider: makeProvider(),
+      model,
+      tools: undefined,
+      plugins: [],
+      system: 'test',
+      options: { maxRetries: 0 },
+      hookParts: [],
+      nativeFileSupport: { image: false, pdf: false, audio: false, video: false }
+    })
+    mockCreateAgent.mockResolvedValue({
+      generate: (options: Parameters<typeof generateText>[0]) => generateText({ ...options, model: sdkModel }),
+      stream: (options: Parameters<typeof streamText>[0]) =>
+        streamText({ ...options, model: sdkModel, onError: () => {} })
+    })
+    await expect(service.checkModel({ uniqueModelId: model.id, requestOptions: { maxRetries: 0 } })).resolves.toEqual({
+      latency: expect.any(Number)
+    })
+    expect(fetch).toHaveBeenCalledTimes(1)
+  })
+
+  it('aborts the streaming probe at the total deadline', async () => {
+    vi.useFakeTimers()
+    try {
+      const service = createService()
+      let probeSignal: AbortSignal | undefined
+      vi.spyOn(service as unknown as AiServicePrivate, 'generateTextWithMode').mockImplementation((input) => {
+        probeSignal = (input as { requestOptions: { signal: AbortSignal } }).requestOptions.signal
+        return new Promise((_, reject) =>
+          probeSignal!.addEventListener('abort', () => reject(probeSignal!.reason), { once: true })
+        )
+      })
+      const result = expect(service.checkModel({ uniqueModelId: 'test-provider::test-model' })).rejects.toThrow(
+        'Check model timeout'
+      )
+      await vi.advanceTimersByTimeAsync(15000)
+      await result
+      expect(probeSignal?.aborted).toBe(true)
+      expect(vi.getTimerCount()).toBe(0)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('closes the probe transport after a streaming failure', async () => {
+    const service = createService()
+    let probeSignal: AbortSignal | undefined
+    const error = new Error('upstream stream error')
+    vi.spyOn(service as unknown as AiServicePrivate, 'generateTextWithMode').mockImplementation((input) => {
+      probeSignal = (input as { requestOptions: { signal: AbortSignal } }).requestOptions.signal
+      return Promise.reject(error)
+    })
+    await expect(service.checkModel({ uniqueModelId: 'test-provider::test-model' })).rejects.toBe(error)
+    expect(probeSignal?.aborted).toBe(true)
+  })
+
   it('checks embedding models with the normal embedding path', async () => {
     const service = createService()
     const embedSpy = vi.spyOn(service, 'embedMany').mockResolvedValue({ embeddings: [[1]] })
@@ -2296,7 +2381,9 @@ describe('AiService tool approval', () => {
   it('checks chat models that can also generate images through text generation', async () => {
     const service = createService()
     const imageSpy = vi.spyOn(service, 'generateImage').mockResolvedValue({ files: [] })
-    const generateSpy = vi.spyOn(service, 'generateText').mockResolvedValue({ text: 'ok', finishReason: 'stop' })
+    const generateSpy = vi
+      .spyOn(service as unknown as AiServicePrivate, 'generateTextWithMode')
+      .mockResolvedValue({ text: 'ok', finishReason: 'stop' })
     mockModelGetByKey.mockReturnValue({
       id: 'test-provider::test-multimodal',
       providerId: 'test-provider',

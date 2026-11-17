@@ -66,21 +66,18 @@ export class DurableBackend {
     let storageOwned = true
     try {
       for (const binding of contexts.roots(context.backendId)) {
+        if (binding.id === context.id) {
+          await owner.prepare(input, binding)
+          continue
+        }
         const session = agentSessionService.getById(binding.sessionId)
         const agent = session.agentId ? agentService.getAgent(session.agentId) : undefined
-        if (!agent?.model && binding.id !== context.id) continue
-        const saved = binding.nativeThreadId && (await readDurableRequest(root.storage, binding.nativeThreadId))
-        await owner.prepare(
-          binding.id === context.id
-            ? input
-            : {
-                sessionId: binding.sessionId,
-                agentId: agent!.id,
-                modelId: agent!.model!,
-                ...saved
-              },
-          binding
-        )
+        const saved = binding.nativeThreadId
+          ? await readDurableRequest(root.storage, binding.nativeThreadId)
+          : undefined
+        const modelId = saved?.modelId ?? session.model ?? agent?.model
+        if (!agent || !modelId) continue
+        await owner.prepare({ sessionId: binding.sessionId, agentId: agent.id, modelId, ...saved }, binding)
       }
       const records = new Map<number, Awaited<ReturnType<typeof root.storage.scanConversations>>['items'][number]>()
       let cursor: Parameters<typeof root.storage.scanConversations>[2]
@@ -227,7 +224,7 @@ export class DurableBackend {
         emit: (event) => host.sink?.event(event),
         observe: (event) => host.sink?.behavior(event),
         usageSessionId: (thread) => this.usageSessionId(thread),
-        toolCallId: (call) => this.toolCallId(context.backendId, call)
+        toolCallIdentity: (call) => this.toolCallIdentity(context.backendId, call)
       })
       let attached!: () => void
       const ready = new Promise<void>((resolve) => {
@@ -311,13 +308,13 @@ export class DurableBackend {
     return (await find(thread)).sessionId
   }
 
-  private async toolCallId(backendId: string, call: CallRef): Promise<string> {
+  private async toolCallIdentity(backendId: string, call: CallRef) {
     const opened = await this.runtime.open({ backendId: runtimeId(backendId), id: call.thread })
     if (opened.status !== 'confirmed') throw new Error(opened.error.message)
     try {
       const id = await opened.value.durable.behaviorToolCallId(call)
       if (!id) throw new Error('Durable behavior call has no native identity')
-      return id
+      return { toolCallId: id, parentToolCallId: (await opened.value.durable.relation())?.origin?.toolCallId }
     } finally {
       await opened.value.release()
     }

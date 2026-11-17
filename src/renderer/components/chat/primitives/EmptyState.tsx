@@ -1,10 +1,6 @@
 import type { ComponentType, ReactNode } from 'react'
 
-import {
-  EmptyState as UIEmptyState,
-  type EmptyStatePreset,
-  type EmptyStateProps as UIEmptyStateProps
-} from '@cherrystudio/ui'
+import { EmptyState as UIEmptyState, type EmptyStateProps as UIEmptyStateProps } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 
 type EmptyStateIcon = ComponentType<{ size?: number; className?: string; strokeWidth?: number }>
@@ -74,5 +70,3 @@ export function EmptyState({
     </div>
   )
 }
-
-export type { EmptyStatePreset }

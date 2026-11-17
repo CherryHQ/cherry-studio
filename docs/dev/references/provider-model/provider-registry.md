@@ -3,6 +3,7 @@ description: How preset provider and model registry data is loaded, normalized, 
 sources:
   - packages/provider-registry
   - src/main/data/services/ProviderRegistryService.ts
+  - src/main/services/CherryInModelSyncService.ts
   - src/main/data/services/ModelService.ts
   - src/main/data/db/seeding
 ---
@@ -98,6 +99,14 @@ GET /providers/:providerId/models:resolve?ids=gpt-4o&ids=o3
 SDK only provides model IDs. All other data (capabilities, pricing, etc.)
 comes from the registry — SDK data does not overwrite curated registry data.
 ```
+
+### 4. CherryIN Endpoint Refresh
+
+`CherryInModelSyncService` checks the enabled built-in CherryIN provider 30 seconds after startup and every six hours afterward. It skips providers without an enabled API key or without local models. The last request attempt is stored in Main's persist cache, so restarts and failed or empty requests do not bypass the six-hour limit.
+
+The service reads the provider's model list and updates only the endpoint types of existing models with matching raw API model IDs and non-empty recognized endpoints. Server endpoint types are authoritative, including their order: a later refresh replaces manually changed endpoint types too. Other model settings and model membership remain unchanged. Failed requests, empty lists, missing models, and absent or unrecognized endpoint types preserve local data.
+
+Requests time out after 30 seconds and are cancelled on shutdown. A changed provider configuration discards an in-flight response. Updates commit atomically through `ModelService`, then notify mounted model queries to refetch. The service does not replay active generation requests.
 
 ## Merge Functions
 
@@ -232,11 +241,16 @@ Implemented in `normalizeModelId()` (`packages/provider-registry/src/utils/norma
 | `name` / `capabilities` / `supportsStreaming` | Required for custom rows; nullable preset deltas |
 | `inputModalities` / `outputModalities` | Complete custom config or nullable preset deltas |
 | `contextWindow` / `maxOutputTokens` | Complete custom config or nullable preset deltas |
-| `reasoning` | Custom-model intrinsic controls/token limits; preset rows resolve it from the registry |
+| `reasoning` | Custom-model intrinsic controls/token limits and user `defaultEffort` overrides; preset controls resolve from the registry |
 | `pricing` | Complete custom config or nullable preset delta |
 | `parameters` | Complete custom config or nullable preset delta |
 | `orderKey` | Fractional order key in the provider's model list |
 | `notes` | User notes about this model |
+
+Runtime models expose `hasCustomPricing` from whether the stored `pricing` column
+is non-null. This is read-only provenance, not a persisted field or a comparison
+against current catalog prices. Automatic provider billing defaults use it to
+preserve user-owned model prices.
 
 ## Provider Configuration Merge
 
@@ -322,6 +336,8 @@ Reasoning is split across two boundaries:
 - **Provider registry data** declares a closed `reasoningFormat` wire profile. It is resolved and interpreted in Main only; it is never copied into SQLite, DataApi, or renderer state.
 
 The request path resolves one profile from exact provider-model, endpoint override/default, then exhaustive format defaults. It combines that profile with the submit-time canonical selection and emits either native AI SDK provider options or generic compatible parameters.
+
+The model settings drawer saves only `{ reasoning: { defaultEffort } }`; `null` clears that override. Runtime `userDefaultReasoningEffort` carries its user-row provenance to the request resolver. An explicit composer selection wins; composer `default` uses the user override when present and otherwise preserves the endpoint default behavior. Catalog defaults alone do not opt a request into reasoning.
 
 See [Reasoning Control](../../../../packages/provider-registry/docs/reasoning-control.md) for the schemas, precedence rules, and UI-to-request data flow.
 

@@ -58,6 +58,7 @@ import {
   isRerankModel
 } from '@shared/utils/model'
 import { isExternalCliProvider, isOllamaProvider } from '@shared/utils/provider'
+import { getDefaultProviderBilling } from '@shared/utils/providerBillingDefaults'
 
 import { isAgentSessionTopic } from './agentSession/topic'
 import { createAnalyticsHook } from './hooks/analyticsHook'
@@ -204,7 +205,13 @@ function createCaptureContext(input: {
         providerId: provider.id,
         modelId,
         pricing: model.pricing,
-        billing: provider.settings.billing
+        billing:
+          provider.settings.billing ??
+          getDefaultProviderBilling(
+            input.provider,
+            model,
+            resolveEffectiveEndpoint(input.provider, input.model).baseUrl
+          )
       }).pricingSnapshot
     } catch (error) {
       logger.warn('Could not capture invocation pricing', { error })
@@ -839,6 +846,14 @@ export class AiService extends BaseService {
     request: AsInProcessChat<AiGenerateRequest>,
     extraFeatures: readonly RequestFeature[] = []
   ): Promise<AiGenerateResult> {
+    return this.generateTextWithMode(request, extraFeatures, 'generate')
+  }
+
+  private async generateTextWithMode(
+    request: AsInProcessChat<AiGenerateRequest>,
+    extraFeatures: readonly RequestFeature[],
+    mode: 'generate' | 'stream'
+  ): Promise<AiGenerateResult> {
     logger.info('generateText started', { assistantId: request.assistantId })
     const signal = request.requestOptions?.signal
     // Model messages go directly to generation, not the UI-message context scanner.
@@ -959,7 +974,7 @@ export class AiService extends BaseService {
         // The ChatGPT Codex backend rejects non-streaming Responses requests
         // (HTTP 400 "Stream must be set to true"), so its generations run over
         // the streaming transport and resolve with the aggregated result.
-        { streamingTransport: isCodexProviderId(provider.id) }
+        isCodexProviderId(provider.id) ? 'stream' : mode
       )
     )
   }
@@ -1415,6 +1430,7 @@ export class AiService extends BaseService {
 
   /** Captures one model configuration for related probes without re-reading changing settings. */
   prepareModelCheck(uniqueModelId: UniqueModelId) {
+    // oxlint-disable-next-line no-restricted-globals -- Resolve one request model independently of mutable provider/model settings.
     const resolvedModel = structuredClone(this.getProviderAndModel({ uniqueModelId }))
     const { provider, model } = resolvedModel
     const endpoint = resolveEffectiveEndpoint(provider, model)
@@ -1571,14 +1587,17 @@ export class AiService extends BaseService {
       } else {
         // Latency is the probe's measured output — thinking tokens would pollute it
         // for reasoning-capable models whose provider default enables reasoning.
-        probe = this.generateText({
+        const textRequest = {
           ...probeRequest,
           // A health check has no topic; each probe is its own conversation.
           conversation: { id: `check:${randomUUID()}` },
           system: 'test',
           prompt: 'hi',
-          reasoningEffort: 'none'
-        })
+          reasoningEffort: 'none' as const
+        }
+        probe = model.supportsStreaming
+          ? this.generateTextWithMode(textRequest, [], 'stream')
+          : this.generateText(textRequest)
       }
 
       await Promise.race([probe, aborted])
@@ -1587,6 +1606,7 @@ export class AiService extends BaseService {
     } finally {
       clearTimeout(timeoutHandle)
       signal.removeEventListener('abort', onAbort)
+      controller.abort()
     }
   }
 

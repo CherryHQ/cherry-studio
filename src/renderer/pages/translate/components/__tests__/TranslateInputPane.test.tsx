@@ -69,6 +69,18 @@ describe('TranslateInputPane', () => {
     vi.restoreAllMocks()
   })
 
+  it('hides dictation while Off and restores it on On while upload remains available', () => {
+    mockPreferenceState.set('feature.voice.recognition.model_id', 'off')
+    const props = baseProps()
+    const view = render(<TranslateInputPane {...props} />)
+    expect(screen.queryByRole('button', { name: i18n.t('chat.input.dictation.title') })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: i18n.t('translate.files.upload') }))
+    expect(props.onSelectFile).toHaveBeenCalledOnce()
+    mockPreferenceState.set('feature.voice.recognition.model_id', '')
+    view.rerender(<TranslateInputPane {...props} />)
+    expect(screen.getByRole('button', { name: i18n.t('chat.input.dictation.title') })).toBeInTheDocument()
+  })
+
   it('disables file upload while the parent pane is disabled', () => {
     const props = baseProps()
     render(<TranslateInputPane {...props} disabled />)
