@@ -2945,6 +2945,7 @@
   "models.detail.model_id": "ID modelu",
   "models.detail.provider": "Poskytovatel",
   "models.detail.quota_exhausted": "Limit tarifu vyčerpán; čeká se na obnovení",
+  "models.detail.quota_insufficient_for_request": "Limit tarifu na tento požadavek nestačí",
   "models.edit": "Upravit model",
   "models.group.ungrouped": "Bez skupiny",
   "models.multi_select.label": "Vícenásobný výběr",
