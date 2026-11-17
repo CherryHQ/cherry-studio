@@ -1,0 +1,250 @@
+diff --git a/dist/index.js b/dist/index.js
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -28,6 +28,7 @@
+ 
+ // src/mistral-provider.ts
+ var import_provider4 = require("@ai-sdk/provider");
++var InvalidResponseDataError = import_provider4.InvalidResponseDataError;
+ var import_provider_utils5 = require("@ai-sdk/provider-utils");
+ 
+ // src/mistral-chat-language-model.ts
+@@ -533,6 +534,11 @@
+     let activeText = false;
+     let activeReasoningId = null;
+     const generateId2 = this.generateId;
++    const toolCalls = [];
++    const toolCallsByIndex = /* @__PURE__ */ new Map();
++    const toolCallsById = /* @__PURE__ */ new Map();
++    const pendingCalls = [];
++    let latestToolCall;
+     return {
+       stream: response.pipeThrough(
+         new TransformStream({
+@@ -606,29 +612,47 @@
+             }
+             if ((delta == null ? void 0 : delta.tool_calls) != null) {
+               for (const toolCall of delta.tool_calls) {
+-                const toolCallId = toolCall.id;
+-                const toolName = toolCall.function.name;
+-                const input = toolCall.function.arguments;
+-                controller.enqueue({
+-                  type: "tool-input-start",
+-                  id: toolCallId,
+-                  toolName
+-                });
+-                controller.enqueue({
+-                  type: "tool-input-delta",
+-                  id: toolCallId,
+-                  delta: input
+-                });
+-                controller.enqueue({
+-                  type: "tool-input-end",
+-                  id: toolCallId
+-                });
+-                controller.enqueue({
+-                  type: "tool-call",
+-                  toolCallId,
+-                  toolName,
+-                  input
+-                });
++                const index = toolCall.index;
++                const wireId = toolCall.id || void 0;
++                const fn = toolCall.function;
++                let call = (index != null ? toolCallsByIndex.get(index) : void 0) ??
++                  (wireId != null ? toolCallsById.get(wireId) : void 0);
++                if (call == null && index == null && wireId == null && pendingCalls.length === 0) {
++                  call = latestToolCall;
++                }
++                if (call == null) {
++                  let pending = (index != null ? pendingCalls.find((item) => item.indexes.includes(index)) : void 0) ??
++                    (wireId != null ? pendingCalls.find((item) => item.ids.includes(wireId)) : void 0) ??
++                    (index == null && wireId == null ? pendingCalls[pendingCalls.length - 1] : void 0);
++                  if (pending == null) {
++                    pending = { indexes: [], ids: [], arguments: "" };
++                    pendingCalls.push(pending);
++                  }
++                  if (index != null && !pending.indexes.includes(index)) pending.indexes.push(index);
++                  if (wireId != null && !pending.ids.includes(wireId)) pending.ids.push(wireId);
++                  if (typeof (fn == null ? void 0 : fn.name) !== "string" || !fn.name) {
++                    if ((fn == null ? void 0 : fn.arguments) != null) pending.arguments += fn.arguments;
++                    continue;
++                  }
++                  call = { id: pending.ids[pending.ids.length - 1] || generateId2(), name: fn.name, input: "" };
++                  toolCalls.push(call);
++                  pendingCalls.splice(pendingCalls.indexOf(pending), 1);
++                  for (const pendingIndex of pending.indexes) toolCallsByIndex.set(pendingIndex, call);
++                  for (const pendingId of pending.ids) toolCallsById.set(pendingId, call);
++                  controller.enqueue({ type: "tool-input-start", id: call.id, toolName: call.name });
++                  if (pending.arguments) {
++                    call.input += pending.arguments;
++                    controller.enqueue({ type: "tool-input-delta", id: call.id, delta: pending.arguments });
++                  }
++                }
++                if (index != null) toolCallsByIndex.set(index, call);
++                if (wireId != null) toolCallsById.set(wireId, call);
++                latestToolCall = call;
++                if ((fn == null ? void 0 : fn.name) && !call.name) call.name = fn.name;
++                if ((fn == null ? void 0 : fn.arguments) != null) {
++                  call.input += fn.arguments;
++                  if (fn.arguments) controller.enqueue({ type: "tool-input-delta", id: call.id, delta: fn.arguments });
++                }
+               }
+             }
+             if (choice.finish_reason != null) {
+@@ -647,7 +671,18 @@
+             }
+             if (activeText) {
+               controller.enqueue({ type: "text-end", id: "0" });
++            }
++            const pending = pendingCalls[0];
++            if (pending != null) {
++              throw new InvalidResponseDataError({
++                data: { index: pending.indexes[0], id: pending.ids[0], function: { arguments: pending.arguments } },
++                message: "Expected 'function.name' to be a string."
++              });
+             }
++            for (const call of toolCalls) {
++              controller.enqueue({ type: "tool-input-end", id: call.id });
++              controller.enqueue({ type: "tool-call", toolCallId: call.id, toolName: call.name, input: call.input });
++            }
+             controller.enqueue({
+               type: "finish",
+               finishReason,
+@@ -763,8 +798,9 @@
+         content: mistralContentSchema,
+         tool_calls: import_v43.z.array(
+           import_v43.z.object({
+-            id: import_v43.z.string(),
+-            function: import_v43.z.object({ name: import_v43.z.string(), arguments: import_v43.z.string() })
++            index: import_v43.z.number().nullish(),
++            id: import_v43.z.string().nullish(),
++            function: import_v43.z.object({ name: import_v43.z.string().nullish(), arguments: import_v43.z.string().nullish() }).optional()
+           })
+         ).nullish()
+       }),
+diff --git a/dist/index.mjs b/dist/index.mjs
+--- a/dist/index.mjs
++++ b/dist/index.mjs
+@@ -2,6 +2,7 @@
+ import {
+   NoSuchModelError
+ } from "@ai-sdk/provider";
++import { InvalidResponseDataError } from "@ai-sdk/provider";
+ import {
+   loadApiKey,
+   withoutTrailingSlash,
+@@ -523,6 +524,11 @@
+     let activeText = false;
+     let activeReasoningId = null;
+     const generateId2 = this.generateId;
++    const toolCalls = [];
++    const toolCallsByIndex = /* @__PURE__ */ new Map();
++    const toolCallsById = /* @__PURE__ */ new Map();
++    const pendingCalls = [];
++    let latestToolCall;
+     return {
+       stream: response.pipeThrough(
+         new TransformStream({
+@@ -596,29 +602,47 @@
+             }
+             if ((delta == null ? void 0 : delta.tool_calls) != null) {
+               for (const toolCall of delta.tool_calls) {
+-                const toolCallId = toolCall.id;
+-                const toolName = toolCall.function.name;
+-                const input = toolCall.function.arguments;
+-                controller.enqueue({
+-                  type: "tool-input-start",
+-                  id: toolCallId,
+-                  toolName
+-                });
+-                controller.enqueue({
+-                  type: "tool-input-delta",
+-                  id: toolCallId,
+-                  delta: input
+-                });
+-                controller.enqueue({
+-                  type: "tool-input-end",
+-                  id: toolCallId
+-                });
+-                controller.enqueue({
+-                  type: "tool-call",
+-                  toolCallId,
+-                  toolName,
+-                  input
+-                });
++                const index = toolCall.index;
++                const wireId = toolCall.id || void 0;
++                const fn = toolCall.function;
++                let call = (index != null ? toolCallsByIndex.get(index) : void 0) ??
++                  (wireId != null ? toolCallsById.get(wireId) : void 0);
++                if (call == null && index == null && wireId == null && pendingCalls.length === 0) {
++                  call = latestToolCall;
++                }
++                if (call == null) {
++                  let pending = (index != null ? pendingCalls.find((item) => item.indexes.includes(index)) : void 0) ??
++                    (wireId != null ? pendingCalls.find((item) => item.ids.includes(wireId)) : void 0) ??
++                    (index == null && wireId == null ? pendingCalls[pendingCalls.length - 1] : void 0);
++                  if (pending == null) {
++                    pending = { indexes: [], ids: [], arguments: "" };
++                    pendingCalls.push(pending);
++                  }
++                  if (index != null && !pending.indexes.includes(index)) pending.indexes.push(index);
++                  if (wireId != null && !pending.ids.includes(wireId)) pending.ids.push(wireId);
++                  if (typeof (fn == null ? void 0 : fn.name) !== "string" || !fn.name) {
++                    if ((fn == null ? void 0 : fn.arguments) != null) pending.arguments += fn.arguments;
++                    continue;
++                  }
++                  call = { id: pending.ids[pending.ids.length - 1] || generateId2(), name: fn.name, input: "" };
++                  toolCalls.push(call);
++                  pendingCalls.splice(pendingCalls.indexOf(pending), 1);
++                  for (const pendingIndex of pending.indexes) toolCallsByIndex.set(pendingIndex, call);
++                  for (const pendingId of pending.ids) toolCallsById.set(pendingId, call);
++                  controller.enqueue({ type: "tool-input-start", id: call.id, toolName: call.name });
++                  if (pending.arguments) {
++                    call.input += pending.arguments;
++                    controller.enqueue({ type: "tool-input-delta", id: call.id, delta: pending.arguments });
++                  }
++                }
++                if (index != null) toolCallsByIndex.set(index, call);
++                if (wireId != null) toolCallsById.set(wireId, call);
++                latestToolCall = call;
++                if ((fn == null ? void 0 : fn.name) && !call.name) call.name = fn.name;
++                if ((fn == null ? void 0 : fn.arguments) != null) {
++                  call.input += fn.arguments;
++                  if (fn.arguments) controller.enqueue({ type: "tool-input-delta", id: call.id, delta: fn.arguments });
++                }
+               }
+             }
+             if (choice.finish_reason != null) {
+@@ -637,7 +661,18 @@
+             }
+             if (activeText) {
+               controller.enqueue({ type: "text-end", id: "0" });
++            }
++            const pending = pendingCalls[0];
++            if (pending != null) {
++              throw new InvalidResponseDataError({
++                data: { index: pending.indexes[0], id: pending.ids[0], function: { arguments: pending.arguments } },
++                message: "Expected 'function.name' to be a string."
++              });
+             }
++            for (const call of toolCalls) {
++              controller.enqueue({ type: "tool-input-end", id: call.id });
++              controller.enqueue({ type: "tool-call", toolCallId: call.id, toolName: call.name, input: call.input });
++            }
+             controller.enqueue({
+               type: "finish",
+               finishReason,
+@@ -753,8 +788,9 @@
+         content: mistralContentSchema,
+         tool_calls: z3.array(
+           z3.object({
+-            id: z3.string(),
+-            function: z3.object({ name: z3.string(), arguments: z3.string() })
++            index: z3.number().nullish(),
++            id: z3.string().nullish(),
++            function: z3.object({ name: z3.string().nullish(), arguments: z3.string().nullish() }).optional()
+           })
+         ).nullish()
+       }),

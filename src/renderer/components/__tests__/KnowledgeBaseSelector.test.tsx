@@ -70,30 +70,26 @@ describe('KnowledgeBaseSelector', () => {
     expect(screen.getAllByRole('option')).toHaveLength(2)
   })
 
-  it('opens a trigger-width SelectorShell and filters by name', () => {
+  it('filters knowledge bases by name or ID', () => {
     renderSelector()
 
     const trigger = screen.getByRole('button', { name: 'Select knowledge base' })
     fireEvent.click(trigger)
 
-    expect(screen.getByTestId('knowledge-base-selector-content')).toHaveStyle({
-      width: 'var(--radix-popover-trigger-width)',
-      height: '156px'
-    })
-    // Select triggers must not add border or outer-ring feedback when expanded.
     expect(trigger).toHaveAttribute('aria-expanded', 'true')
-    expect(trigger).not.toHaveClass(
-      'aria-expanded:border-primary',
-      'aria-expanded:ring-3',
-      'aria-expanded:ring-primary/20'
-    )
     expect(screen.getByRole('option', { name: 'Alpha Knowledge' })).toBeInTheDocument()
 
     fireEvent.change(screen.getByPlaceholderText('Search knowledge bases'), { target: { value: 'beta' } })
 
-    expect(screen.getByTestId('knowledge-base-selector-content')).toHaveStyle({ height: '84px' })
     expect(screen.queryByRole('option', { name: 'Alpha Knowledge' })).not.toBeInTheDocument()
     expect(screen.getByRole('option', { name: 'Beta Knowledge' })).toBeInTheDocument()
+
+    fireEvent.change(screen.getByPlaceholderText('Search knowledge bases'), {
+      target: { value: 'base-gamma' }
+    })
+
+    expect(screen.queryByRole('option', { name: 'Alpha Knowledge' })).not.toBeInTheDocument()
+    expect(screen.getByRole('option', { name: 'Gamma Knowledge' })).toBeInTheDocument()
   })
 
   it('selects available knowledge bases and ignores unavailable ones', () => {

@@ -1,24 +1,30 @@
-import { Loader2 } from 'lucide-react'
-import { useCallback, useState } from 'react'
+import { ArrowUpRight, ChevronDown, Loader2, ShieldCheck, TriangleAlert } from 'lucide-react'
+import { type ComponentType, useCallback, useState } from 'react'
 import { useHotkeys } from 'react-hotkeys-hook'
 import { useTranslation } from 'react-i18next'
 
+import { ScrollArea } from '@cherrystudio/ui'
 import { Button, Kbd, Textarea } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import { getToolGroupIcon, getToolGroupSemanticTitle } from '@renderer/components/chat/messages/blocks/ToolBlockGroup'
-import { isValidAgentToolsType, renderTool, UnknownToolRenderer } from '@renderer/components/chat/messages/tools/agent'
+import {
+  isValidAgentToolsType,
+  renderTool,
+  TerminalOutput,
+  UnknownToolRenderer
+} from '@renderer/components/chat/messages/tools/agent'
 import { AgentToolsType } from '@renderer/components/chat/messages/tools/shared/agentToolTypes'
 import { ToolArgsTable } from '@renderer/components/chat/messages/tools/shared/ArgsTable'
 import { ToolDisclosure, type ToolDisclosureItem } from '@renderer/components/chat/messages/tools/shared/ToolDisclosure'
 import type { ToolResponseLike } from '@renderer/components/chat/messages/tools/toolResponse'
 import type { MessageToolApprovalInput } from '@renderer/components/chat/messages/types'
-import Scrollbar from '@renderer/components/Scrollbar'
+import CopyButton from '@renderer/components/CopyButton'
 import { toast } from '@renderer/services/toast'
 import type { McpToolResponse, NormalToolResponse } from '@renderer/types/mcpTool'
 import { cn } from '@renderer/utils/style'
 
 import type { ComposerOverride } from '../ComposerContext'
 import type { PermissionRequestComposerRequest } from './permissionRequestComposerRequest'
+import { getPermissionRiskEffects, type PermissionRiskEffect } from './permissionRisk'
 
 export type { PermissionRequestComposerRequest } from './permissionRequestComposerRequest'
 export { findNextPendingPermissionRequest } from './permissionRequestComposerRequest'
@@ -26,18 +32,26 @@ export { findNextPendingPermissionRequest } from './permissionRequestComposerReq
 const logger = loggerService.withContext('PermissionRequestComposer')
 
 function isHandledElsewhere(event: KeyboardEvent) {
-  return event.defaultPrevented || event.isComposing
+  return (
+    event.defaultPrevented ||
+    event.isComposing ||
+    (event.key === 'Enter' && event.target instanceof Element && !!event.target.closest('button, [role="button"]'))
+  )
 }
 
-type PermissionRequestComposerProps = {
+export type PermissionRequestComposerProps = {
   request: PermissionRequestComposerRequest
   onRespond: (input: MessageToolApprovalInput) => void | Promise<void>
   className?: string
+  agentName?: string
+  onOpenSource?: (source: NonNullable<PermissionRequestComposerRequest['source']>) => void
 }
 
 type PermissionRequestComposerOverrideOptions = {
   request: PermissionRequestComposerRequest
   onRespond: (input: MessageToolApprovalInput) => void | Promise<void>
+  component?: ComponentType<PermissionRequestComposerProps>
+  agentName?: string
 }
 
 function isMcpToolResponse(toolResponse: ToolResponseLike): toolResponse is McpToolResponse {
@@ -66,21 +80,25 @@ function renderBuiltinPreviewChildren(toolName: string, children: ToolDisclosure
   }
 
   return (
-    <Scrollbar className="max-h-60 overflow-x-hidden" data-testid="permission-builtin-body-scroll">
+    <ScrollArea
+      viewportProps={{ className: 'overflow-x-hidden', 'data-testid': 'permission-builtin-body-scroll' }}
+      className="max-h-60">
       {children}
-    </Scrollbar>
+    </ScrollArea>
   )
 }
 
 export function createPermissionRequestComposerOverride({
   request,
-  onRespond
+  onRespond,
+  component: Component = PermissionRequestComposer,
+  agentName
 }: PermissionRequestComposerOverrideOptions): ComposerOverride {
   return {
     id: `tool-permission:${request.approvalId}`,
     priority: 90,
     render: ({ className }) => (
-      <PermissionRequestComposer request={request} onRespond={onRespond} className={className} />
+      <Component request={request} onRespond={onRespond} className={className} agentName={agentName} />
     )
   }
 }
@@ -121,9 +139,11 @@ function McpPermissionPreview({ toolResponse }: { toolResponse: McpToolResponse 
     <div className="px-3 py-2">
       <PermissionPreviewHeader toolName={toolResponse.tool.name} description={toolResponse.tool.description} />
       {args ? (
-        <Scrollbar className="max-h-60 overflow-x-hidden" data-testid="permission-mcp-args-scroll">
+        <ScrollArea
+          viewportProps={{ className: 'overflow-x-hidden', 'data-testid': 'permission-mcp-args-scroll' }}
+          className="max-h-60">
           <ToolArgsTable args={args} title={t('message.tools.sections.input')} />
-        </Scrollbar>
+        </ScrollArea>
       ) : (
         <div className="py-2 text-muted-foreground text-xs">{t('message.tools.noData')}</div>
       )}
@@ -132,6 +152,25 @@ function McpPermissionPreview({ toolResponse }: { toolResponse: McpToolResponse 
 }
 
 function PermissionPreview({ toolResponse }: { toolResponse: ToolResponseLike }) {
+  const { t } = useTranslation()
+  const args = toolResponse.arguments
+  const command =
+    args && typeof args === 'object' && 'command' in args && typeof args.command === 'string' ? args.command : undefined
+  if (
+    !isMcpToolResponse(toolResponse) &&
+    ['Bash', 'bash', 'pwsh', 'powershell'].includes(toolResponse.tool.name) &&
+    command
+  ) {
+    return (
+      <div className="px-3 py-2">
+        <div className="mb-1 flex items-center justify-between gap-2 text-muted-foreground text-xs">
+          <span>{t('message.tools.sections.command')}</span>
+          <CopyButton textToCopy={command} tooltip={t('common.copy')} successFeedback="icon" />
+        </div>
+        <TerminalOutput content={command} commandMode maxHeight="10rem" />
+      </div>
+    )
+  }
   if (isMcpToolResponse(toolResponse)) {
     return <McpPermissionPreview toolResponse={toolResponse} />
   }
@@ -158,17 +197,56 @@ function PermissionPreviewHeader({ toolName, description }: { toolName: string; 
   )
 }
 
-export default function PermissionRequestComposer({ request, onRespond, className }: PermissionRequestComposerProps) {
+const RISK_EFFECT_TONE: Record<PermissionRiskEffect, string> = {
+  destructive: 'text-destructive',
+  irreversible: 'text-destructive',
+  network: 'text-warning'
+}
+
+function PermissionRiskSummary({ toolName, args }: { toolName: string; args: unknown }) {
   const { t } = useTranslation()
+  const effects = getPermissionRiskEffects(toolName, args)
+  if (effects.length === 0) return null
+  const effectLabels: Record<PermissionRiskEffect, string> = {
+    destructive: t('agent.toolPermission.risk.destructive'),
+    irreversible: t('agent.toolPermission.risk.irreversible'),
+    network: t('agent.toolPermission.risk.network')
+  }
+
+  return (
+    <div
+      data-testid="permission-risk-summary"
+      className="mt-2 rounded-[12px] border border-border bg-background px-3 py-2">
+      <div className="font-medium text-muted-foreground text-xs">{t('agent.toolPermission.risk.title')}</div>
+      <ul className="mt-1 space-y-0.5">
+        {effects.map((effect) => (
+          <li key={effect} className={`flex items-start gap-1.5 text-xs leading-4 ${RISK_EFFECT_TONE[effect]}`}>
+            <TriangleAlert aria-hidden="true" className="mt-0.5 size-3 shrink-0" />
+            {effectLabels[effect]}
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
+export default function PermissionRequestComposer({
+  request,
+  onRespond,
+  className,
+  agentName,
+  onOpenSource
+}: PermissionRequestComposerProps) {
+  const { t } = useTranslation()
+  const [evidenceApprovalId, setEvidenceApprovalId] = useState<string | null>(null)
   const [submittingApprovalId, setSubmittingApprovalId] = useState<string | null>(null)
-  const [rejectionDraft, setRejectionDraft] = useState({ approvalId: request.approvalId, value: '' })
+  const [rejectionDraft, setRejectionDraft] = useState({ approvalId: request.approvalId, value: '', expanded: false })
+  const reasonExpanded = rejectionDraft.approvalId === request.approvalId && rejectionDraft.expanded
   const isSubmitting = submittingApprovalId === request.approvalId
   const rejectionReason = rejectionDraft.approvalId === request.approvalId ? rejectionDraft.value : ''
   // A typed reason means the user is denying — Enter must not approve behind their back.
   const hasRejectionReason = rejectionReason.trim().length > 0
   const subtitle = getPermissionRequestSubtitle(request)
-  const ToolIcon = getToolGroupIcon(request.toolResponse.tool, request.toolResponse.arguments)
-  const toolTitle = getToolGroupSemanticTitle(request.toolResponse, 'waiting', t)
 
   const respond = useCallback(
     async (input: MessageToolApprovalInput, action: 'approve' | 'deny') => {
@@ -232,11 +310,10 @@ export default function PermissionRequestComposer({ request, onRespond, classNam
         <div className="flex min-w-0 items-center gap-2 px-1">
           <h2 className="flex shrink-0 items-center gap-2 font-semibold text-foreground text-sm leading-5">
             <span className="inline-flex shrink-0 text-muted-foreground">
-              <ToolIcon aria-hidden="true" className="size-4" />
+              <ShieldCheck aria-hidden="true" className="size-4" />
             </span>
-            {toolTitle}
+            {t('agent.toolPermission.title')}
           </h2>
-          {subtitle ? <span className="min-w-0 truncate text-muted-foreground text-xs">{subtitle}</span> : null}
           {/* Live region stays mounted while idle so injecting the processing pill is announced */}
           <div role="status" aria-live="polite" className="ml-auto shrink-0">
             {isSubmitting ? (
@@ -248,28 +325,111 @@ export default function PermissionRequestComposer({ request, onRespond, classNam
           </div>
         </div>
 
+        <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1 px-1 text-muted-foreground text-xs">
+          <span>{t('agent.toolPermission.source')}</span>
+          {request.source ? (
+            <>
+              <span>{t('agent.toolPermission.subagent')}</span>
+              {onOpenSource ? (
+                <Button
+                  type="button"
+                  variant="link"
+                  className="h-auto min-w-0 max-w-full justify-start gap-1 p-0 text-link text-xs"
+                  onClick={() => onOpenSource(request.source!)}>
+                  <span className="truncate">{request.source.title || t('agent.toolPermission.subagent')}</span>
+                  <ArrowUpRight aria-hidden="true" className="size-3 shrink-0" />
+                </Button>
+              ) : (
+                <span className="min-w-0 break-words text-foreground">{request.source.title}</span>
+              )}
+              {request.source.isBackgrounded ? (
+                <span className="rounded bg-muted px-1.5 py-0.5">{t('agent.toolPermission.background')}</span>
+              ) : null}
+            </>
+          ) : (
+            <span className="text-foreground">{agentName || t('common.agent')}</span>
+          )}
+        </div>
+        {subtitle ? <p className="mt-1 break-words px-1 text-muted-foreground text-xs">{subtitle}</p> : null}
+        {request.commandPolicy ? (
+          <div className="mt-2 space-y-1 px-1 text-xs">
+            <p className="flex items-start gap-1.5 text-warning-subtle-foreground">
+              <TriangleAlert aria-hidden="true" className="mt-0.5 size-3 shrink-0" />
+              {request.commandPolicy.reason}
+            </p>
+            {request.commandPolicy.cwd ? (
+              <p className="break-all text-muted-foreground">
+                {t('agent.toolPermission.workingDirectory')}:{' '}
+                <span className="font-mono text-foreground">{request.commandPolicy.cwd}</span>
+              </p>
+            ) : null}
+            {request.commandPolicy.rules.length > 0 ? (
+              <>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-auto gap-1 px-0 py-1 text-xs"
+                  aria-expanded={evidenceApprovalId === request.approvalId}
+                  onClick={() =>
+                    setEvidenceApprovalId((current) => (current === request.approvalId ? null : request.approvalId))
+                  }>
+                  <ChevronDown
+                    aria-hidden="true"
+                    className={cn('size-3', evidenceApprovalId === request.approvalId && 'rotate-180')}
+                  />
+                  {t('agent.toolPermission.policyEvidence')}
+                </Button>
+                {evidenceApprovalId === request.approvalId ? (
+                  <ul className="max-h-28 space-y-1 overflow-auto rounded bg-muted p-2 font-mono text-foreground">
+                    {request.commandPolicy.rules.map((rule) => (
+                      <li key={rule.ruleId} className="whitespace-pre-wrap break-all">
+                        {rule.evidence}
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+              </>
+            ) : null}
+          </div>
+        ) : (
+          <PermissionRiskSummary toolName={request.toolResponse.tool.name} args={request.toolResponse.arguments} />
+        )}
         <div className="mt-2 overflow-hidden rounded-[12px] bg-muted dark:bg-muted/30" data-testid="permission-preview">
           <PermissionPreview toolResponse={request.toolResponse} />
         </div>
 
-        <label className="mt-2.5 block px-1 text-muted-foreground text-xs">
-          <span>{t('agent.toolPermission.reasonLabel')}</span>
-          <Textarea.Input
-            value={rejectionReason}
+        <div className="mt-2 px-1">
+          <Button
+            type="button"
+            variant="ghost"
             disabled={isSubmitting}
-            maxLength={500}
-            rows={2}
-            aria-label={t('agent.toolPermission.reasonLabel')}
-            placeholder={t('agent.toolPermission.reasonPlaceholder')}
-            className="mt-1 min-h-14 resize-none px-3 py-2 text-sm"
-            onValueChange={(value) => setRejectionDraft({ approvalId: request.approvalId, value })}
-            onKeyDown={(event) => {
-              if (event.key !== 'Enter' || event.shiftKey || event.nativeEvent.isComposing) return
-              event.preventDefault()
-              void (hasRejectionReason ? deny() : approve())
-            }}
-          />
-        </label>
+            aria-expanded={reasonExpanded}
+            className="h-auto gap-1 px-0 py-1 text-muted-foreground text-xs"
+            onClick={() =>
+              setRejectionDraft({ approvalId: request.approvalId, value: rejectionReason, expanded: !reasonExpanded })
+            }>
+            <ChevronDown aria-hidden="true" className={cn('size-3', reasonExpanded && 'rotate-180')} />
+            {t('agent.toolPermission.reasonLabel')}
+          </Button>
+          {reasonExpanded ? (
+            <Textarea.Input
+              value={rejectionReason}
+              disabled={isSubmitting}
+              maxLength={500}
+              rows={2}
+              aria-label={t('agent.toolPermission.reasonLabel')}
+              placeholder={t('agent.toolPermission.reasonPlaceholder')}
+              className="mt-1 min-h-14 resize-none px-3 py-2 text-sm"
+              onValueChange={(value) => setRejectionDraft({ approvalId: request.approvalId, value, expanded: true })}
+              onKeyDown={(event) => {
+                if (event.key !== 'Enter' || event.shiftKey || event.nativeEvent.isComposing) return
+                event.preventDefault()
+                void (hasRejectionReason ? deny() : approve())
+              }}
+            />
+          ) : null}
+        </div>
 
         <div className="mt-2.5 flex justify-end gap-2 px-1 pb-0.5">
           <Button type="button" variant="outline" disabled={isSubmitting} onClick={() => void deny()}>
@@ -279,7 +439,7 @@ export default function PermissionRequestComposer({ request, onRespond, classNam
             </Kbd>
           </Button>
           <Button type="button" variant="emphasis" disabled={isSubmitting} onClick={() => void approve()}>
-            {t('agent.toolPermission.button.allow')}
+            {t(request.commandPolicy ? 'agent.toolPermission.button.allowOnce' : 'agent.toolPermission.button.allow')}
             {!hasRejectionReason && (
               <Kbd aria-hidden="true" className="bg-current/10 text-current">
                 Enter

@@ -70,6 +70,7 @@ export default function WordFilePreview({
   const docxClassName = `docx-preview-${useId().replace(/[^a-zA-Z0-9_-]/g, '')}`
   const containerRef = useRef<HTMLDivElement>(null)
   const bodyRef = useRef<HTMLDivElement>(null)
+  const pressPositionRef = useRef<{ x: number; y: number } | null>(null)
   const styleRef = useRef<HTMLDivElement>(null)
   const renderTokenRef = useRef(0)
   const fitScrollTopRef = useRef<number | null>(null)
@@ -114,7 +115,8 @@ export default function WordFilePreview({
     const fit = () => {
       const width = body.offsetWidth
       if (container.clientWidth > 0 && width > 0) {
-        setFitZoom(Math.min(DOCX_PREVIEW_DEFAULT_ZOOM, container.clientWidth / width))
+        // Fit both ways: a pane wider than the paper should scale the page up instead of leaving gutters.
+        setFitZoom(Math.min(DOCX_PREVIEW_MAX_ZOOM, container.clientWidth / width))
       }
     }
     fit()
@@ -218,7 +220,14 @@ export default function WordFilePreview({
         })
         if (!isCurrent()) return
 
-        stagingBody.querySelector(`.${docxClassName}-wrapper`)?.classList.add('docx-preview-wrapper')
+        const wrapper = stagingBody.querySelector<HTMLElement>(`.${docxClassName}-wrapper`)
+        if (wrapper) {
+          wrapper.classList.add('docx-preview-wrapper')
+          // docx-preview's own sheet paints a grey mat with 30px of padding around the page. The pane
+          // owns that space, and the padding would keep a grey frame around the paper once it is fitted.
+          wrapper.style.background = 'transparent'
+          wrapper.style.padding = '0'
+        }
         const pages = getRenderedPages(stagingBody)
         pages.forEach((page, index) => {
           page.id = `docx-preview-page-${index + 1}`
@@ -291,9 +300,24 @@ export default function WordFilePreview({
   // paragraph must not look picked while the host gets null.
   const handlePick = useCallback(
     (event: ReactMouseEvent<HTMLDivElement>) => {
+      const pressPosition = pressPositionRef.current
+      pressPositionRef.current = null
       if (!onSelection || !(event.target instanceof Element)) return
       if (event.target.closest('a[href]')) event.preventDefault()
       const bodyContainer = bodyRef.current
+      const selection = bodyContainer?.ownerDocument.getSelection()
+      // A plain click can collapse an existing selection only after this handler runs.
+      if (
+        pressPosition &&
+        (event.clientX !== pressPosition.x || event.clientY !== pressPosition.y) &&
+        bodyContainer &&
+        selection &&
+        !selection.isCollapsed &&
+        selection.rangeCount > 0 &&
+        selection.getRangeAt(0).intersectsNode(bodyContainer)
+      ) {
+        return
+      }
       const previous = bodyContainer?.querySelector<HTMLElement>('[data-docx-picked="true"]') ?? null
       const resolved = paragraphToDocxAnchor(event.target)
       previous?.removeAttribute('data-docx-picked')
@@ -388,9 +412,12 @@ export default function WordFilePreview({
               data-testid="docx-preview-content"
               data-zoom={zoom}
               data-picker={onSelection ? 'true' : undefined}
+              onMouseDown={(event) => {
+                pressPositionRef.current = { x: event.clientX, y: event.clientY }
+              }}
               onClick={handlePick}
               style={contentStyle}
-              className="mx-auto w-fit min-w-0 [&_.docx-preview]:box-border [&_.docx-preview]:max-w-full [&_.docx-preview-wrapper]:mx-auto [&_p[data-docx-picked=true]]:bg-primary/15 [&_p[data-docx-picked=true]]:outline [&_p[data-docx-picked=true]]:outline-1 [&_p[data-docx-picked=true]]:outline-primary/60 [&_section]:overflow-hidden [&_section]:rounded-sm [&_section]:shadow-md [&[data-picker=true]_p[data-docx-part=body]]:cursor-pointer [&[data-picker=true]_p[data-docx-part=body]:not([data-docx-picked=true]):hover]:bg-primary/10"
+              className="selectable mx-auto w-fit min-w-0 [&_.docx-preview]:box-border [&_.docx-preview]:max-w-full [&_.docx-preview-wrapper]:mx-auto [&_p[data-docx-picked=true]]:bg-primary/15 [&_p[data-docx-picked=true]]:outline [&_p[data-docx-picked=true]]:outline-1 [&_p[data-docx-picked=true]]:outline-primary/60 [&_section]:overflow-hidden [&_section]:rounded-sm [&_section]:shadow-md [&[data-picker=true]_p[data-docx-part=body]]:cursor-pointer [&[data-picker=true]_p[data-docx-part=body]:not([data-docx-picked=true]):hover]:bg-primary/10"
             />
           </div>
           {loading ? (

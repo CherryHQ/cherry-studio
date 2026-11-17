@@ -282,3 +282,18 @@ describe('FileRefSchema discriminated union', () => {
     }
   })
 })
+
+describe('assistant avatar references', () => {
+  it('accepts roleless owner slots and the dedicated frozen author role', () => {
+    const common = { id: REF_ID, fileEntryId: ENTRY_ID, sourceId: MESSAGE_ID, createdAt: TS, updatedAt: TS }
+    expect(FileRefSchema.parse({ ...common, sourceType: 'assistant_avatar' })).toEqual({
+      ...common,
+      sourceType: 'assistant_avatar'
+    })
+    expect(FileRefSchema.parse({ ...common, sourceType: 'chat_message', role: 'author_avatar' })).toEqual({
+      ...common,
+      sourceType: 'chat_message',
+      role: 'author_avatar'
+    })
+  })
+})

@@ -202,11 +202,14 @@ function sanitizeAttributeName(attribute: SanitizeAttribute): string {
   return Array.isArray(attribute) ? attribute[0] : attribute
 }
 
-export function createMarkdownSanitizeSchema(schema: MarkdownSanitizeSchema): MarkdownSanitizeSchema {
+export function createMarkdownSanitizeSchema(
+  schema: MarkdownSanitizeSchema,
+  additionalLinkProtocols?: readonly string[]
+): MarkdownSanitizeSchema {
   const svgAttributes = Object.fromEntries(
     SVG_ELEMENTS.map((tagName) => [tagName, mergeUnique(schema.attributes?.[tagName], SVG_ATTRIBUTES)])
   )
-  const safeLinkProtocols = mergeUnique(schema.protocols?.href, ['http', 'https'])
+  const safeLinkProtocols = mergeUnique(schema.protocols?.href, ['http', 'https'], additionalLinkProtocols)
 
   return {
     ...schema,

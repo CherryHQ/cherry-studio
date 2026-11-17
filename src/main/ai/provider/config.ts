@@ -24,7 +24,8 @@ import {
   formatOllamaApiHost,
   isBareVertexApiHost,
   isWithTrailingSharp,
-  withoutTrailingApiVersion
+  withoutTrailingApiVersion,
+  withoutTrailingSlash
 } from '@shared/utils/api'
 import { isGenerateImageModel } from '@shared/utils/model'
 import {
@@ -133,8 +134,25 @@ const IMAGE_EXTENSION_PRESETS = [
   SystemProviderIds.silicon,
   SystemProviderIds.doubao,
   SystemProviderIds.dmxapi,
-  SystemProviderIds.tokenhub
+  SystemProviderIds.tokenhub,
+  SystemProviderIds.qwencloud
 ] as const
+
+/**
+ * Image-endpoint origin for AIGC transports that hang off the chat host: strip the
+ * `/compatible-mode/v1` suffix so `https://maas.qwencloudapi.com/compatible-mode/v1/`
+ * yields `https://maas.qwencloudapi.com` (chat/custom hosts track the user config).
+ */
+function deriveImageBaseURL(provider: Provider): string {
+  const baseURL = formatBaseURL(
+    getBaseUrl(provider, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS),
+    provider,
+    ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+  )
+  const normalized = withoutTrailingSlash(baseURL) ?? baseURL
+  const compatSuffix = '/compatible-mode/v1'
+  return normalized.endsWith(compatSuffix) ? normalized.slice(0, -compatSuffix.length) : normalized
+}
 
 // ── SDK Config Building ──
 
@@ -322,28 +340,22 @@ export async function resolveProviderAiSdkConfig(
       match: (p, id) => id === 'openai' && matchesPreset(p, SystemProviderIds.dashscope),
       build: withSelectedApiKey((ctx) => {
         const config = buildGenericProviderConfig(ctx)
+        if (isGenerateImageModel(ctx.model)) {
+          config.providerSettings = {
+            ...config.providerSettings,
+            imageBaseURL: deriveImageBaseURL(ctx.actualProvider)
+          }
+        }
         config.providerSettings.fetch = (input: RequestInfo | URL, init?: RequestInit) =>
           customFetch(input, { ...init, body: appendDashScopeWebExtractor(init?.body) })
         return config
       })
     },
-    // Subset Responses servers (HuggingFace router today) speak the spec-neutral dialect: the
-    // minimal body only, no OpenAI-only extras they would reject.
-    { match: (_, id) => id === 'open-responses', build: withSelectedApiKey(buildOpenResponsesConfig) },
-    // modelscope / ppio / doubao / dmxapi / tokenhub: chat & embedding are OpenAI-compatible, but IMAGE
-    // generation needs the bespoke transport inside the extension provider
-    // (createXProvider().imageModel()) — a submit/poll loop for most, Ark's own
-    // `/images/generations` protocol for doubao. Override the resolved `openai-compatible` id
-    // to the extension id for image models only — chat/embedding fall through to the generic
-    // openai-compatible builder (which keeps `includeUsage`). Matched by PRESET, not by a bare
-    // `provider.id` — a user-added instance of the same host carries a UUID id, and keying on
-    // the id left it on the generic image model (multipart `/images/edits`, 404 on Ark #18537).
-    // Routing here is also what makes the vendor params land under the `providerOptions` key
-    // the image model reads: the delivery adapter keys the body by this `providerId`, which the
-    // generic branch would leave as `openai-compatible` while the model looked under its own id.
+    // Native image models use preset-owned transports and providerOptions namespaces.
+    // QwenCloud's image transport is independent of the selected text adapter.
     {
       match: (_, id) =>
-        id === 'openai-compatible' &&
+        (id === 'openai-compatible' || imageExtensionPreset === SystemProviderIds.qwencloud) &&
         isGenerateImageModel(model) &&
         imageExtensionPreset !== undefined &&
         (imageExtensionPreset !== SystemProviderIds.dmxapi || dmxapiUsesCustomTransport(model.apiModelId ?? model.id)),
@@ -353,10 +365,17 @@ export async function resolveProviderAiSdkConfig(
         endpoint: ctx.endpoint,
         providerSettings: {
           ...ctx.baseConfig,
+          // QwenCloud's AIGC transport hangs off the chat host; the other presets
+          // pin their origin inside their transport defaults.
+          ...(imageExtensionPreset === SystemProviderIds.qwencloud && {
+            imageBaseURL: deriveImageBaseURL(ctx.actualProvider)
+          }),
           headers: { ...getProviderAppHeaders(ctx.actualProvider), ...getExtraHeaders(ctx.actualProvider) }
         }
       }))
     },
+    // Native image transports take precedence over the selected text adapter.
+    { match: (_, id) => id === 'open-responses', build: withSelectedApiKey(buildOpenResponsesConfig) },
     {
       match: (p, id) => id === 'openai-compatible' && isGenerateImageModel(model) && matchesPreset(p, 'minimax'),
       build: withSelectedApiKey((ctx) => ({
@@ -928,6 +947,9 @@ function buildDashScopeConfig(ctx: BuilderContext): ProviderConfig<'dashscope'> 
     endpoint: ctx.endpoint,
     providerSettings: {
       ...ctx.baseConfig,
+      ...(isGenerateImageModel(ctx.model) && {
+        imageBaseURL: deriveImageBaseURL(ctx.actualProvider)
+      }),
       headers: { ...getProviderAppHeaders(ctx.actualProvider), ...getExtraHeaders(ctx.actualProvider) },
       includeUsage: resolveEndpointDialect(ctx.actualProvider, ctx.endpointType).streamOptions
     }

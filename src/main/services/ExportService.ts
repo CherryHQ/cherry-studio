@@ -5,11 +5,14 @@ import fs from 'fs'
 
 import type * as Docx from 'docx'
 import type { ExternalHyperlink, Table, TableCell, TableRow, TextRun } from 'docx'
-import { dialog } from 'electron'
+import { type BrowserWindow, dialog } from 'electron'
 import type MarkdownIt from 'markdown-it'
 
+import { application } from '@application'
 import { loggerService } from '@logger'
+import { logFailure } from '@main/core/logger/logFailure'
 import { t } from '@main/i18n'
+import { classifyFileFailure } from '@main/services/file'
 
 const logger = loggerService.withContext('ExportService')
 export class ExportService {
@@ -374,15 +377,24 @@ export class ExportService {
     return elements
   }
 
-  public exportToWord = async (markdown: string, fileName: string): Promise<boolean> => {
+  public exportToWord = async (markdown: string, fileName: string, senderId?: string | null): Promise<boolean> => {
     try {
       // Dialog-first is perf-driven: canceling costs zero conversion, and the dialog
       // opens without waiting on the markdown→docx conversion.
-      const { canceled, filePath } = await dialog.showSaveDialog({
+      const dialogOptions = {
         title: t('dialog.save_file'),
         filters: [{ name: t('dialog.word_document'), extensions: ['docx'] }],
         defaultPath: fileName
-      })
+      }
+      // Parented dialog avoids the unparented-save crash with Unicode names.
+      // Missing or destroyed caller window falls back to the unparented overload.
+      const candidate: BrowserWindow | undefined = senderId
+        ? application.get('WindowManager').getWindow(senderId)
+        : undefined
+      const parent = candidate && !candidate.isDestroyed() ? candidate : undefined
+      const { canceled, filePath } = parent
+        ? await dialog.showSaveDialog(parent, dialogOptions)
+        : await dialog.showSaveDialog(dialogOptions)
       if (canceled || !filePath) {
         return false
       }
@@ -417,7 +429,7 @@ export class ExportService {
       logger.debug('Document exported successfully')
       return true
     } catch (error) {
-      logger.error('Export to Word failed:', error as Error)
+      logFailure(logger, 'Export to Word failed:', error, 'export.word', classifyFileFailure(error, true))
       throw error
     }
   }

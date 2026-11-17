@@ -2,6 +2,7 @@ import { Avatar, AvatarFallback } from '@cherrystudio/ui/components/primitives/a
 import { cn } from '@cherrystudio/ui/lib/utils'
 
 import { type IconAvatarProps } from '../../types'
+import { DashscopeDark } from './dark'
 import { DashscopeLight } from './light'
 
 export function DashscopeAvatar({ size = 32, shape = 'circle', className }: Omit<IconAvatarProps, 'icon'>) {
@@ -9,8 +10,9 @@ export function DashscopeAvatar({ size = 32, shape = 'circle', className }: Omit
     <Avatar
       className={cn('overflow-hidden', shape === 'circle' ? 'rounded-full' : 'rounded-[20%]', className)}
       style={{ width: size, height: size }}>
-      <AvatarFallback className="text-foreground bg-background">
-        <DashscopeLight style={{ width: size, height: size }} />
+      <AvatarFallback className="text-foreground">
+        <DashscopeLight className="dark:hidden" style={{ width: size, height: size }} />
+        <DashscopeDark className="hidden dark:block" style={{ width: size, height: size }} />
       </AvatarFallback>
     </Avatar>
   )

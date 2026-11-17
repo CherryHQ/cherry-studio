@@ -2,15 +2,15 @@
 
 General-purpose stateless time scheduler: cron expressions, intervals, one-shot delays. Knows "when to fire a callback" — nothing about what the callback does.
 
-> **Full documentation** is at [docs/references/job-and-scheduler/](../../../../docs/references/job-and-scheduler/).
+> **Full documentation** is at [docs/dev/references/job-and-scheduler/](../../../../docs/dev/references/job-and-scheduler/).
 > This file is a quick-reference pointer.
 
 ## Quick Links
 
 | Topic | Reference Doc |
 |-------|--------------|
-| When to use SchedulerService vs `registerInterval` vs raw `setInterval` | [Scheduler Usage](../../../../docs/references/job-and-scheduler/scheduler-usage.md) |
-| Architecture context (Scheduler as the lower layer under JobManager) | [Overview](../../../../docs/references/job-and-scheduler/overview.md) |
+| When to use SchedulerService vs `registerInterval` vs raw `setInterval` | [Scheduler Usage](../../../../docs/dev/references/job-and-scheduler/scheduler-usage.md) |
+| Architecture context (Scheduler as the lower layer under JobManager) | [Overview](../../../../docs/dev/references/job-and-scheduler/overview.md) |
 
 ## File Structure
 
@@ -44,6 +44,6 @@ disp.dispose()                    // or
 scheduler.unregister('my.cleanup')
 ```
 
-**No persistence** — SchedulerService re-arms nothing on startup. JobManager re-registers all `jobScheduleTable` rows during its deferred [Startup Recovery](../../../../docs/references/job-and-scheduler/overview.md#startup-recovery), which is scheduled inside JobManager's `onAllReady` and runs ~60 s later. Direct consumers must re-register their schedules in their own service's `onReady`.
+**No persistence** — SchedulerService re-arms nothing on startup. JobManager re-registers all `jobScheduleTable` rows during its deferred [Startup Recovery](../../../../docs/dev/references/job-and-scheduler/overview.md#startup-recovery), which is scheduled inside JobManager's `onAllReady` and runs ~60 s later. Direct consumers must re-register their schedules in their own service's `onReady`.
 
-See [Scheduler Usage](../../../../docs/references/job-and-scheduler/scheduler-usage.md) for the full decision tree.
+See [Scheduler Usage](../../../../docs/dev/references/job-and-scheduler/scheduler-usage.md) for the full decision tree.

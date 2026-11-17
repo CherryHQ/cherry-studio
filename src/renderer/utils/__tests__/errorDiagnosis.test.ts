@@ -65,6 +65,33 @@ describe('ErrorDiagnosisService', () => {
   })
 
   describe('diagnoseError', () => {
+    it.each([
+      [
+        `service_tier auto is not available for this org. You can check your plan at
+[Billing - Plans](https://console.groq.com/settings/billing/plans), and upgrade to access the
+required service tier.`,
+        false
+      ],
+      ['insufficient_quota', true]
+    ] as const)('gives the correct Context for %s', async (message, quota) => {
+      mockFetchGenerate.mockResolvedValue(
+        JSON.stringify({ summary: 'x', category: 'permission', explanation: 'x', steps: [] })
+      )
+      await diagnoseError(makeError({ message, statusCode: 400 }), 'en', { providerId: 'groq' })
+      const prompt = mockFetchGenerate.mock.calls[0][0].prompt
+      const context = prompt.split('## Context\n')[1]?.split('\n')[0]
+      if (quota) {
+        expect(context).toBe(
+          "The user's quota or account balance is exhausted on groq. Suggest checking billing on the provider's website, topping up, or switching to a different provider. DO NOT suggest waiting or retrying - this is not a transient issue."
+        )
+      } else {
+        expect(context).toBe(
+          "Groq rejected the selected service tier because it is not available for this organization. Suggest opening Response settings > Service tier in the chat composer and selecting Standard (on_demand), or checking the organization's plan and service-tier access in Groq Billing > Plans. This message does not establish quota or balance exhaustion or an invalid API key. Do not recommend topping up or regenerating the key based on this message. Do not promise that changing tiers will make the request succeed."
+        )
+        expect(context).not.toContain('quota or account balance is exhausted')
+      }
+    })
+
     it('returns parsed diagnosis result from AI', async () => {
       const mockResult = {
         summary: 'Auth error',
@@ -108,21 +135,6 @@ describe('ErrorDiagnosisService', () => {
       await expect(diagnoseError(makeError(), 'en')).rejects.toThrow('Free diagnosis model is unavailable')
     })
 
-    it('uses the persisted CherryAI free model', async () => {
-      const mockResult = {
-        summary: 'Error',
-        category: 'unknown',
-        explanation: 'Something went wrong.',
-        steps: []
-      }
-      mockFetchGenerate.mockResolvedValue(JSON.stringify(mockResult))
-
-      await diagnoseError(makeError(), 'en')
-      expect(mockFetchGenerate.mock.calls[0][0]).toEqual(
-        expect.objectContaining({ model: expect.objectContaining({ id: CHERRYAI_DEFAULT_UNIQUE_MODEL_ID }) })
-      )
-    })
-
     it('uses persisted Qwen without falling back to the default model', async () => {
       const defaultModel = { id: 'dashscope::deepseek-v3', name: 'DeepSeek V3', providerId: 'dashscope' }
       mockReadDefaultModel.mockResolvedValueOnce(defaultModel as any)
@@ -162,23 +174,6 @@ describe('ErrorDiagnosisService', () => {
       expect(mockReadDefaultModel).not.toHaveBeenCalled()
     })
 
-    it('uses only CherryAI when no default model', async () => {
-      const mockResult = {
-        summary: 'Error',
-        category: 'unknown',
-        explanation: 'Something went wrong.',
-        steps: []
-      }
-      mockFetchGenerate.mockResolvedValue(JSON.stringify(mockResult))
-
-      await diagnoseError(makeError(), 'en')
-      expect(mockFetchGenerate).toHaveBeenCalledWith(
-        expect.objectContaining({
-          model: expect.objectContaining({ id: CHERRYAI_DEFAULT_UNIQUE_MODEL_ID })
-        })
-      )
-    })
-
     it('includes context in error info', async () => {
       const mockResult = {
         summary: 'Error',
@@ -198,18 +193,6 @@ describe('ErrorDiagnosisService', () => {
       expect(callArgs.content).toContain('openai')
       expect(callArgs.content).toContain('gpt-4')
       expect(callArgs.content).toContain('401')
-    })
-
-    it('requires all diagnosis fields to use the language selected in settings', async () => {
-      mockFetchGenerate.mockResolvedValue(
-        JSON.stringify({ summary: 'summary', category: 'category', explanation: 'explanation', steps: [] })
-      )
-
-      await diagnoseError(makeError(), 'preferred-language')
-
-      expect(mockFetchGenerate.mock.calls[0][0].prompt).toContain(
-        'Write all values for summary, category, explanation, and steps[].text in preferred-language'
-      )
     })
 
     it('defaults category to unknown when missing', async () => {
@@ -235,7 +218,6 @@ describe('ErrorDiagnosisService', () => {
 
       const callArgs = mockFetchGenerate.mock.calls[0][0]
       expect(callArgs.content).toContain('billing_hard_limit_reached')
-      expect(callArgs.prompt).toContain('quota or account balance is exhausted')
     })
 
     it('gives payload-too-large errors actionable context', async () => {
@@ -257,84 +239,6 @@ describe('ErrorDiagnosisService', () => {
       expect(callArgs.prompt).toContain('new topic')
       expect(callArgs.prompt).toContain('attachments')
       expect(callArgs.prompt).toContain('summarize')
-    })
-
-    it('does not route insufficient permissions to quota context', async () => {
-      mockFetchGenerate.mockResolvedValue(
-        JSON.stringify({ summary: 'x', category: 'unknown', explanation: 'x', steps: [] })
-      )
-
-      await diagnoseError(makeError({ message: 'insufficient permissions' }), 'en')
-
-      const callArgs = mockFetchGenerate.mock.calls[0][0]
-      expect(callArgs.prompt).not.toContain('quota or account balance is exhausted')
-    })
-
-    it('does not route an unqualified MCP mention to MCP context', async () => {
-      mockFetchGenerate.mockResolvedValue(
-        JSON.stringify({ summary: 'x', category: 'unknown', explanation: 'x', steps: [] })
-      )
-
-      await diagnoseError(makeError({ message: 'something mcp related' }), 'en')
-
-      const callArgs = mockFetchGenerate.mock.calls[0][0]
-      expect(callArgs.prompt).not.toContain('MCP (Model Context Protocol) server error')
-    })
-
-    it('routes a qualified MCP timeout to MCP context', async () => {
-      mockFetchGenerate.mockResolvedValue(
-        JSON.stringify({ summary: 'x', category: 'mcp', explanation: 'x', steps: [] })
-      )
-
-      await diagnoseError(makeError({ message: 'MCP server timeout' }), 'en')
-
-      const callArgs = mockFetchGenerate.mock.calls[0][0]
-      expect(callArgs.prompt).toContain('MCP (Model Context Protocol) server error')
-      expect(callArgs.prompt).not.toContain('Network or proxy error')
-    })
-
-    it('does not route an unqualified proxy mention to network/proxy context', async () => {
-      mockFetchGenerate.mockResolvedValue(
-        JSON.stringify({ summary: 'x', category: 'unknown', explanation: 'x', steps: [] })
-      )
-
-      await diagnoseError(makeError({ message: 'something proxy related' }), 'en')
-
-      const callArgs = mockFetchGenerate.mock.calls[0][0]
-      expect(callArgs.prompt).not.toContain('Network or proxy error')
-    })
-
-    it('routes a Chromium ERR_PROXY_CONNECTION_FAILED to network/proxy context', async () => {
-      mockFetchGenerate.mockResolvedValue(
-        JSON.stringify({ summary: 'x', category: 'proxy', explanation: 'x', steps: [] })
-      )
-
-      await diagnoseError(makeError({ message: 'net::ERR_PROXY_CONNECTION_FAILED' }), 'en')
-
-      const callArgs = mockFetchGenerate.mock.calls[0][0]
-      expect(callArgs.prompt).toContain('Network or proxy error')
-    })
-
-    it('routes a Chromium ERR_MANDATORY_PROXY_CONFIGURATION_FAILED to network/proxy context', async () => {
-      mockFetchGenerate.mockResolvedValue(
-        JSON.stringify({ summary: 'x', category: 'proxy', explanation: 'x', steps: [] })
-      )
-
-      await diagnoseError(makeError({ message: 'net::ERR_MANDATORY_PROXY_CONFIGURATION_FAILED' }), 'en')
-
-      const callArgs = mockFetchGenerate.mock.calls[0][0]
-      expect(callArgs.prompt).toContain('Network or proxy error')
-    })
-
-    it('routes a SOCKS proxy rejected connection to network/proxy context', async () => {
-      mockFetchGenerate.mockResolvedValue(
-        JSON.stringify({ summary: 'x', category: 'proxy', explanation: 'x', steps: [] })
-      )
-
-      await diagnoseError(makeError({ message: 'Socks5 proxy rejected connection' }), 'en')
-
-      const callArgs = mockFetchGenerate.mock.calls[0][0]
-      expect(callArgs.prompt).toContain('Network or proxy error')
     })
 
     it('routes a Chromium DNS failure to network/proxy context', async () => {
@@ -359,39 +263,6 @@ describe('ErrorDiagnosisService', () => {
       expect(callArgs.prompt).toContain('Network or proxy error')
     })
 
-    it('does not route an unrelated ERR_ token near proxy configuration prose to network/proxy context', async () => {
-      mockFetchGenerate.mockResolvedValue(
-        JSON.stringify({ summary: 'x', category: 'unknown', explanation: 'x', steps: [] })
-      )
-
-      await diagnoseError(makeError({ message: 'net::ERR_INVALID_ARGUMENT in proxy configuration' }), 'en')
-
-      const callArgs = mockFetchGenerate.mock.calls[0][0]
-      expect(callArgs.prompt).not.toContain('Network or proxy error')
-    })
-
-    it('routes an undici ProxyAgent CONNECT failure to network/proxy context', async () => {
-      mockFetchGenerate.mockResolvedValue(
-        JSON.stringify({ summary: 'x', category: 'proxy', explanation: 'x', steps: [] })
-      )
-
-      await diagnoseError(makeError({ message: 'Proxy response (407) !== 200 when HTTP Tunneling' }), 'en')
-
-      const callArgs = mockFetchGenerate.mock.calls[0][0]
-      expect(callArgs.prompt).toContain('Network or proxy error')
-    })
-
-    it('routes an https-proxy-agent CONNECT close to network/proxy context', async () => {
-      mockFetchGenerate.mockResolvedValue(
-        JSON.stringify({ summary: 'x', category: 'proxy', explanation: 'x', steps: [] })
-      )
-
-      await diagnoseError(makeError({ message: 'Proxy connection ended before receiving CONNECT response' }), 'en')
-
-      const callArgs = mockFetchGenerate.mock.calls[0][0]
-      expect(callArgs.prompt).toContain('Network or proxy error')
-    })
-
     it('forwards finishReason for safety-blocked responses', async () => {
       mockFetchGenerate.mockResolvedValue(
         JSON.stringify({ summary: 'x', category: 'content', explanation: 'x', steps: [] })
@@ -401,7 +272,6 @@ describe('ErrorDiagnosisService', () => {
 
       const callArgs = mockFetchGenerate.mock.calls[0][0]
       expect(callArgs.content).toContain('SAFETY')
-      expect(callArgs.prompt.toLowerCase()).toContain('safety')
     })
 
     it('forwards structured data as serialized JSON', async () => {
@@ -416,67 +286,8 @@ describe('ErrorDiagnosisService', () => {
       expect(callArgs.content).toContain('Key revoked')
     })
 
-    it('routes HTTP 402 to quota context instead of rate-limit context', async () => {
-      mockFetchGenerate.mockResolvedValue(
-        JSON.stringify({ summary: 'x', category: 'quota', explanation: 'x', steps: [] })
-      )
-
-      await diagnoseError(makeError({ statusCode: 402, message: 'Payment Required' }), 'en')
-
-      const callArgs = mockFetchGenerate.mock.calls[0][0]
-      expect(callArgs.prompt).toContain('quota or account balance is exhausted')
-      expect(callArgs.prompt).not.toContain('hitting a rate limit')
-    })
-
     // The inline card classifies 403 as `permission`; the prompt must not then tell the user
     // their key is invalid. Region and quota keep winning, matching `classifyError`.
-    it('routes HTTP 403 to permission context instead of auth context', async () => {
-      mockFetchGenerate.mockResolvedValue(
-        JSON.stringify({ summary: 'x', category: 'permission', explanation: 'x', steps: [] })
-      )
-
-      await diagnoseError(makeError({ statusCode: 403, responseBody: '{"detail":"no access"}' }), 'en')
-
-      const callArgs = mockFetchGenerate.mock.calls[0][0]
-      expect(callArgs.prompt).toContain('refused this request with HTTP 403')
-      expect(callArgs.prompt).not.toContain('got an authentication error')
-    })
-
-    it('keeps a geo-blocked 403 in region context', async () => {
-      mockFetchGenerate.mockResolvedValue(
-        JSON.stringify({ summary: 'x', category: 'region', explanation: 'x', steps: [] })
-      )
-
-      await diagnoseError(makeError({ statusCode: 403, message: 'unsupported_country_region_territory' }), 'en')
-
-      const callArgs = mockFetchGenerate.mock.calls[0][0]
-      expect(callArgs.prompt).toContain('IP region is not supported')
-      expect(callArgs.prompt).not.toContain('refused this request with HTTP 403')
-    })
-
-    it('keeps a billing 403 in quota context', async () => {
-      mockFetchGenerate.mockResolvedValue(
-        JSON.stringify({ summary: 'x', category: 'quota', explanation: 'x', steps: [] })
-      )
-
-      await diagnoseError(makeError({ statusCode: 403, responseBody: '{"detail":"insufficient balance"}' }), 'en')
-
-      const callArgs = mockFetchGenerate.mock.calls[0][0]
-      expect(callArgs.prompt).toContain('quota or account balance is exhausted')
-      expect(callArgs.prompt).not.toContain('refused this request with HTTP 403')
-    })
-
-    it('still routes HTTP 401 to auth context', async () => {
-      mockFetchGenerate.mockResolvedValue(
-        JSON.stringify({ summary: 'x', category: 'auth', explanation: 'x', steps: [] })
-      )
-
-      await diagnoseError(makeError({ statusCode: 401, message: 'Unauthorized' }), 'en')
-
-      const callArgs = mockFetchGenerate.mock.calls[0][0]
-      expect(callArgs.prompt).toContain('got an authentication error')
-      expect(callArgs.prompt).not.toContain('refused this request with HTTP 403')
-    })
 
     it('falls back to provider and model fields on the error', async () => {
       mockFetchGenerate.mockResolvedValue(

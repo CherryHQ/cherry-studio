@@ -129,6 +129,21 @@ describe('status snapshots', () => {
     })
   })
 
+  it('publishes the missing-runtime hint with the installed model files', () => {
+    onDisk({ [OCR]: INSTALLED })
+    isArtifactReady.mockReturnValue(false)
+
+    expect(localModelService.refreshStatus(OCR)).toEqual({
+      status: 'not_downloaded',
+      hintCode: 'missing_shared_runtime'
+    })
+    expect(MockMainCacheServiceUtils.getSharedCacheValue(LOCAL_MODEL_STATUS_CACHE_KEY)?.[OCR]).toEqual({
+      status: 'not_downloaded',
+      percent: 0,
+      hintCode: 'missing_shared_runtime'
+    })
+  })
+
   it('preserves other bundle snapshots when publishing one bundle', () => {
     const ocrSnapshot = { status: 'downloading', percent: 42 } satisfies LocalModelStatusSnapshot
     MockMainCacheServiceUtils.setSharedCacheValue(LOCAL_MODEL_STATUS_CACHE_KEY, { [OCR]: ocrSnapshot })

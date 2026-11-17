@@ -43,6 +43,7 @@ export const ProviderCard: FC<ProviderCardProps> = ({
 
   return (
     <div
+      data-ui="code.provider-card"
       className={`group relative rounded-xl border p-3.5 transition-colors ${
         dragging
           ? 'border-primary/40 opacity-50'
@@ -88,7 +89,7 @@ export const ProviderCard: FC<ProviderCardProps> = ({
           {description && <p className="mt-0.5 truncate text-xs text-muted-foreground">{description}</p>}
         </div>
 
-        <div className="pointer-events-auto flex shrink-0 items-center gap-1.5 opacity-0 transition-opacity group-hover:opacity-100 group-has-[:focus-visible]:opacity-100">
+        <div className="pointer-events-none flex shrink-0 items-center gap-1.5 opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 group-has-[:focus-visible]:pointer-events-auto group-has-[:focus-visible]:opacity-100 no-hover:pointer-events-auto no-hover:opacity-100">
           {onMoveToTop && (
             <NormalTooltip content={t('code.move_provider_to_top')} side="top" sideOffset={4} delayDuration={300}>
               <Button

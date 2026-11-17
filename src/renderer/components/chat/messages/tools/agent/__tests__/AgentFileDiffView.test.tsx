@@ -22,7 +22,8 @@ vi.mock('@pierre/diffs', async () => {
   await diffModules.loadingGate
 
   return {
-    parseDiffFromFile: vi.fn(() => ({ files: [] }))
+    parseDiffFromFile: vi.fn(() => ({ files: [] })),
+    registerCustomTheme: vi.fn()
   }
 })
 
@@ -37,8 +38,8 @@ vi.mock('@pierre/diffs/react', async () => {
 
 vi.mock('@renderer/hooks/useCodeStyle', () => ({
   useCodeStyle: () => ({
-    activeShikiTheme: 'github-light',
-    isShikiThemeDark: false
+    activeCodeTheme: 'github-light',
+    isCodeThemeDark: false
   })
 }))
 

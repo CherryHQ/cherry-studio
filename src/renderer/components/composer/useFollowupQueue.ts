@@ -46,10 +46,19 @@ interface UseFollowupQueueParams {
   /** Stream completion is independent of the conversation list read receipt. */
   status: TopicStreamStatus | undefined
   lastCompletedAt: number | null
-  /** Send a payload (busy → backend steer; idle → normal send). Resolves to whether it was sent. */
+  /** Resolves to whether the submission was accepted; execution completes separately. */
   onDrain: (payload: ComposerQueuedMessagePayload) => Promise<boolean>
   /** Called when a send fails and leaves the queued draft paused for retry. */
   onDrainFailed?: () => void
+}
+
+export interface FollowupEditOptions {
+  /** The composer holds a message edit rather than a queued draft, so nothing is swapped back. */
+  editingMessage: boolean
+  getDraft: () => ComposerSerializedDraft
+  buildPayload: (draft: ComposerSerializedDraft) => ComposerQueuedMessagePayload | null
+  hasFiles: boolean
+  restore: (item: FollowupQueueItem) => void
 }
 
 export interface FollowupQueueController {
@@ -62,6 +71,8 @@ export interface FollowupQueueController {
     id: string,
     captureOutgoing: (taken: FollowupQueueItem) => Pick<FollowupQueueItem, 'draft' | 'payload'> | null
   ): FollowupQueueItem | null
+  /** Moves a queued item into the composer, returning any draft already taken to its queue slot. */
+  editItem(id: string, options: FollowupEditOptions): void
   releaseEdit(): void
   paused: boolean
   setPaused: (paused: boolean) => void
@@ -184,6 +195,27 @@ export function useFollowupQueue({
     [persist, reconcileEdit, scopeKey]
   )
 
+  const editItem = useCallback<FollowupQueueController['editItem']>(
+    (id, { editingMessage, getDraft, buildPayload, hasFiles, restore }) => {
+      if (editingMessage) {
+        releaseEdit()
+        const item = loadQueue(scopeKey).find((entry) => entry.id === id)
+        if (!item) return
+        restore(item)
+        removeId(id)
+        return
+      }
+      const incoming = takeForEdit(id, (taken) => {
+        const draft = getDraft()
+        const payload = buildPayload(draft)
+        if (payload) return { draft, payload: { ...payload, chatTarget: taken.payload.chatTarget } }
+        return !draft.text.trim() && !hasFiles ? { draft: taken.draft, payload: taken.payload } : null
+      })
+      if (incoming) restore(incoming)
+    },
+    [releaseEdit, removeId, scopeKey, takeForEdit]
+  )
+
   const sendItem = useCallback(
     async (id: string, completedAt?: number): Promise<boolean> => {
       const item = loadQueue(scopeKey).find((entry) => entry.id === id)
@@ -250,6 +282,7 @@ export function useFollowupQueue({
     removeId,
     reorder: persist,
     takeForEdit,
+    editItem,
     releaseEdit,
     paused: state.paused,
     setPaused

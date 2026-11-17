@@ -1,7 +1,8 @@
+import { MockCherrystudioUI } from '@test-mocks/renderer/CherrystudioUI'
 import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import type { ComponentPropsWithoutRef } from 'react'
+import type { ComponentPropsWithoutRef, ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { AbsoluteFilePath } from '@shared/types/file'
@@ -36,17 +37,17 @@ vi.mock('@renderer/components/WebviewBrowser', () => ({
   }
 }))
 
-vi.mock('@renderer/components/CodeViewer', () => ({
-  default: (props: { language: string; value: string; wrapped: boolean }) => {
+vi.mock('@renderer/components/FileEditor', () => ({
+  default: (props: { fileName: string; value: string; wrapLines: boolean; readOnly: boolean }) => {
     mocks.codeViewer(props)
-    return <div data-testid="code-viewer">{props.value}</div>
+    return <textarea aria-label="HTML source" readOnly={props.readOnly} defaultValue={props.value} />
   }
 }))
 
 vi.mock('@renderer/components/CodeBlockView/HtmlPreviewFrame', async (importOriginal) => {
   // Keep the real named exports (incl. HTML_PREVIEW_RESTRICTED_SANDBOX) so the
   // sandbox assertion checks the actual constant, not a mock stand-in.
-  const actual = (await importOriginal()) as Record<string, unknown>
+  const actual = await importOriginal<Record<string, unknown>>()
   return {
     ...actual,
     default: (props: { html: string; title: string; baseUrl?: string; sandbox?: string; csp?: string }) => {
@@ -73,31 +74,9 @@ vi.mock('@cherrystudio/ui', () => ({
       <span>{description}</span>
     </div>
   ),
-  SegmentedControl: ({
-    disabled,
-    onValueChange,
-    options,
-    value
-  }: {
-    disabled?: boolean
-    onValueChange: (value: string) => void
-    options: Array<{ label: string; value: string }>
-    value: string
-  }) => (
-    <div>
-      {options.map((option) => (
-        <button
-          type="button"
-          aria-pressed={value === option.value}
-          disabled={disabled}
-          key={option.value}
-          onClick={() => onValueChange(option.value)}>
-          {option.label}
-        </button>
-      ))}
-    </div>
-  ),
-  Scrollbar: ({ children, ...props }: ComponentPropsWithoutRef<'div'>) => <div {...props}>{children}</div>
+  Button: (props: ComponentPropsWithoutRef<'button'>) => <button type="button" {...props} />,
+  Tooltip: ({ children }: { children: ReactNode }) => <>{children}</>,
+  ScrollArea: MockCherrystudioUI.ScrollArea
 }))
 
 vi.mock('react-i18next', () => ({
@@ -127,6 +106,22 @@ function renderPreview(
 }
 
 describe('HtmlFilePreview', () => {
+  it('opens a located artifact as source instead of rendering it', async () => {
+    mocks.readText.mockResolvedValue('<h1>Source</h1>')
+    render(
+      <HtmlFilePreview
+        filePath={filePath}
+        fileName="source.html"
+        metadata={{ size: 128, modifiedAt: 1 }}
+        refreshKey={0}
+        type="artifact"
+        location={{ line: 1 }}
+      />
+    )
+    expect(await screen.findByRole('textbox', { name: 'HTML source' })).toHaveValue('<h1>Source</h1>')
+    expect(screen.queryByTestId('webview-browser')).not.toBeInTheDocument()
+  })
+
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.readText.mockResolvedValue('<h1>Hello</h1>')
@@ -144,7 +139,6 @@ describe('HtmlFilePreview', () => {
     const frame = await screen.findByTestId('html-frame')
     expect(frame).toHaveAttribute('srcdoc', '<h1>Hello</h1>')
     expect(frame.getAttribute('data-base-url')).toMatch(/^file:\/\/.*index\.html$/)
-    expect(frame.parentElement).toHaveClass('h-full', 'bg-white')
     expect(mocks.readText).toHaveBeenCalledWith(filePath)
   })
 
@@ -170,12 +164,19 @@ describe('HtmlFilePreview', () => {
     expect(screen.queryByTestId('html-frame')).not.toBeInTheDocument()
   })
 
-  it('rejects files over 2 MiB before reading their contents', async () => {
-    renderPreview({ size: 2 * 1024 * 1024 + 1 })
+  it('rejects files over 8 MiB before reading their contents', async () => {
+    renderPreview({ size: 8 * 1024 * 1024 + 1 })
 
     expect(await screen.findByRole('alert')).toHaveTextContent('file_preview.html.too_large.title')
     expect(screen.getByRole('alert')).toHaveTextContent('file_preview.html.too_large.description')
     expect(mocks.readText).not.toHaveBeenCalled()
+  })
+
+  it('renders files at exactly the 8 MiB limit', async () => {
+    mocks.readText.mockResolvedValueOnce('<h1>Boundary content</h1>')
+    renderPreview({ size: 8 * 1024 * 1024 })
+
+    expect(await screen.findByTestId('html-frame')).toHaveAttribute('srcdoc', '<h1>Boundary content</h1>')
   })
 
   it('logs the actual read error but shows only a localized description', async () => {
@@ -200,10 +201,7 @@ describe('HtmlFilePreview', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'file_preview.html.mode.source' }))
 
-    expect(await screen.findByTestId('code-viewer')).toHaveTextContent('<h1>Hello</h1>')
-    expect(mocks.codeViewer).toHaveBeenLastCalledWith(
-      expect.objectContaining({ language: 'html', value: '<h1>Hello</h1>', wrapped: true })
-    )
+    expect(await screen.findByRole('textbox', { name: 'HTML source' })).toHaveValue('<h1>Hello</h1>')
 
     fireEvent.click(screen.getByRole('button', { name: 'file_preview.html.mode.preview' }))
     expect(screen.getByTestId('html-frame')).toBeInTheDocument()
@@ -270,13 +268,11 @@ describe('HtmlFilePreview', () => {
     expect(screen.getByTestId('html-frame')).toHaveAttribute('srcdoc', html)
 
     await user.click(screen.getByRole('button', { name: 'file_preview.html.mode.source' }))
-    await screen.findByTestId('code-viewer')
+    await screen.findByRole('textbox', { name: 'HTML source' })
     view.rerender(<HtmlFilePreview {...props} refreshKey={2} />)
     await waitFor(() => expect(mocks.readText).toHaveBeenCalledTimes(3))
-    expect(screen.getByRole('button', { name: 'file_preview.html.mode.source' })).toHaveAttribute(
-      'aria-pressed',
-      'true'
-    )
+    // Still in source mode: the toggle now offers the way back to the preview.
+    expect(screen.getByRole('button', { name: 'file_preview.html.mode.preview' })).toBeInTheDocument()
     expect(screen.queryByTestId('html-frame')).not.toBeInTheDocument()
   })
 

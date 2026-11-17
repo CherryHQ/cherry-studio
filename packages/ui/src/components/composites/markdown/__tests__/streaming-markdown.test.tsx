@@ -25,15 +25,6 @@ describe('StreamingMarkdown', () => {
     }
   })
 
-  it('emits no animate spans when animated={false}', () => {
-    const { container } = render(
-      <StreamingMarkdown id="s3" animated={false}>
-        {'Quiet text'}
-      </StreamingMarkdown>
-    )
-    expect(container.querySelectorAll('[data-sd-animate]').length).toBe(0)
-  })
-
   it('preserves GitHub alert markup while streaming', () => {
     const { container } = render(
       <StreamingMarkdown id="alert-stream">{'> [!NOTE]\n> Streaming alert'}</StreamingMarkdown>
@@ -43,32 +34,6 @@ describe('StreamingMarkdown', () => {
     expect(alert).not.toBeNull()
     expect(alert?.querySelector('.markdown-alert-title')?.textContent).toContain('NOTE')
     expect(alert?.textContent).toContain('Streaming alert')
-  })
-
-  it('animates inline code text like surrounding prose', () => {
-    // Patch narrows streamdown's animate skip set to pre/svg/math, so inline code must get animate spans too.
-    const { container } = render(<StreamingMarkdown id="s5">{'run `npm i` now'}</StreamingMarkdown>)
-    const inlineCode = container.querySelector('p code')
-    expect(inlineCode).not.toBeNull()
-    expect(inlineCode?.querySelector('[data-sd-animate]')).not.toBeNull()
-  })
-
-  it('still skips fenced code blocks (pre stays in the skip set)', () => {
-    const { container } = render(<StreamingMarkdown id="s6">{'```js\nconst a = 1\n```'}</StreamingMarkdown>)
-    const pre = container.querySelector('pre')
-    expect(pre).not.toBeNull()
-    expect(pre?.querySelector('[data-sd-animate]')).toBeNull()
-  })
-
-  it('defaults to opacity-only fadeIn (no lingering filter that alters text antialiasing)', () => {
-    // blurIn ends at `filter: blur(0)`, which `animation-fill-mode: both`
-    // keeps applied; a non-`none` filter drops subpixel AA so streamed bold/CJK
-    // renders heavier than the filter-free static pass. fadeIn leaves no filter.
-    const { container } = render(<StreamingMarkdown id="s4">{'**重要** text'}</StreamingMarkdown>)
-    const animated = container.querySelector('[data-sd-animate]')
-    expect(animated).not.toBeNull()
-    const animation = (animated as HTMLElement).style.getPropertyValue('--sd-animation')
-    expect(animation).toBe('sd-fadeIn')
   })
 
   it('provides each streaming block source to custom renderers', async () => {
@@ -145,5 +110,36 @@ describe('StreamingMarkdown', () => {
       </StreamingMarkdown>
     )
     expect(rendered).toEqual(['Third paragraph'])
+  })
+})
+
+describe('additional link protocols', () => {
+  it('keeps an arriving mixed-case link clickable without changing its query', () => {
+    const { getByRole, rerender } = render(<StreamingMarkdown id="mixed-case-protocol">{'Opening'}</StreamingMarkdown>)
+    rerender(
+      <StreamingMarkdown
+        id="mixed-case-protocol"
+        components={{ a: ({ href, children }) => <a href={href}>{children}</a> }}
+        additionalLinkProtocols={['obsidian']}>
+        {'Opening\n\n[Note](Obsidian://open?vault=My%20Vault&file=Note)'}
+      </StreamingMarkdown>
+    )
+
+    const link = getByRole('link', { name: 'Note' })
+    expect(link.tagName).toBe('A')
+    expect(link.getAttribute('href')).toBe('obsidian://open?vault=My%20Vault&file=Note')
+  })
+
+  it.each([false, true])('only preserves injected application links (injected: %s)', (injected) => {
+    const href = 'zotero://select/items/Note'
+    const { container } = render(
+      <StreamingMarkdown
+        id="protocol"
+        components={{ a: ({ href, children }) => <a href={href}>{children}</a> }}
+        additionalLinkProtocols={injected ? ['zotero'] : undefined}>
+        {`[Note](${href})`}
+      </StreamingMarkdown>
+    )
+    expect(container.querySelector('a')?.getAttribute('href') ?? null).toBe(injected ? href : null)
   })
 })

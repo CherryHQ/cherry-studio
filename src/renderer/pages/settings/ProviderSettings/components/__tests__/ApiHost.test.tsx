@@ -126,12 +126,12 @@ describe('ApiHost', () => {
 
     render(<ApiHost providerId="openai" />)
 
-    fireEvent.click(screen.getByRole('button', { name: /^复制$|^Copy$/ }))
+    const copyButton = screen.getByRole('button', { name: /^复制$|^Copy$/ })
+    fireEvent.click(copyButton)
 
-    await waitFor(() => {
-      expect(navigator.clipboard.writeText).toHaveBeenCalledWith('https://api.example.com')
-      expect(toast.success).toHaveBeenCalled()
-    })
+    await waitFor(() => expect(copyButton.querySelector('.lucide-check')).toBeInTheDocument())
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith('https://api.example.com')
+    expect(toast.success).not.toHaveBeenCalled()
     expect(screen.queryByTestId('request-config-drawer')).not.toBeInTheDocument()
   })
 

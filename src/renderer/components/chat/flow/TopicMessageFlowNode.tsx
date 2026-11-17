@@ -59,7 +59,7 @@ function useRoleLabel(role: MessageRole, isContextBoundary?: boolean) {
   if (isContextBoundary) return t('chat.message.new.context')
   if (role === 'user') return t('export.user')
   if (role === 'assistant') return t('export.assistant')
-  return t('assistants.tag.system')
+  return t('globalSearch.messageSearch.roles.system')
 }
 
 function useStatusLabel(status: MessageStatus, isAwaitingInput?: boolean) {
@@ -164,7 +164,7 @@ function TopicMessageFlowNodePreviewCard({
           </div>
         </MessageContentProvider>
       ) : (
-        <EmptyState className="min-h-24 py-4" compact preset="no-result" title={t('common.no_results')} />
+        <EmptyState className="min-h-24 py-4" compact title={t('common.no_results')} />
       )}
     </div>
   )

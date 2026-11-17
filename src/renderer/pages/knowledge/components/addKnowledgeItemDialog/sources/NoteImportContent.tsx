@@ -40,14 +40,15 @@ const NoteImportContent = ({ selectedNotes, onToggle, onSelectionChange }: NoteI
       cancelled = true
     }
   }, [notesPath])
-  const { root, isLoading, error } = useDirectoryTree(resolvedNotesPath ?? undefined)
+  const { root, version, isLoading, error } = useDirectoryTree(resolvedNotesPath ?? undefined)
 
   const noteFiles = useMemo(() => {
     if (!root || !resolvedNotesPath) {
       return []
     }
     return flattenTreeToFiles(projectNotesTree(root, resolvedNotesPath))
-  }, [root, resolvedNotesPath])
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- Directory mutations retain root identity and increment version.
+  }, [root, version, resolvedNotesPath])
 
   const selectedPaths = useMemo(() => new Set(selectedNotes.map((note) => note.externalPath)), [selectedNotes])
   const allNotesSelected = noteFiles.every((note) => selectedPaths.has(note.externalPath))

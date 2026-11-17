@@ -13,6 +13,7 @@ import HtmlPreviewFrame, {
 } from '@renderer/components/CodeBlockView/HtmlPreviewFrame'
 import { WebviewBrowser } from '@renderer/components/WebviewBrowser'
 import { getFilePreviewExtension } from '@renderer/utils/filePreview'
+import { FILE_EDIT_MAX_SIZE_BYTES } from '@shared/types/file'
 import { WEBVIEW_ANNOTATION_LIMITS } from '@shared/types/webviewAnnotation'
 import { toSafeFileUrl } from '@shared/utils/file'
 import { WebviewSecurityProfile } from '@shared/utils/webviewSecurity'
@@ -21,9 +22,8 @@ import type { FilePreviewPluginProps } from '../../types'
 import { type HtmlFilePreviewMode, HtmlFilePreviewToolbar } from './HtmlFilePreviewToolbar'
 
 const logger = loggerService.withContext('HtmlFilePreview')
-const HTML_PREVIEW_MAX_SIZE_MIB = 2
-const HTML_PREVIEW_MAX_SIZE_BYTES = HTML_PREVIEW_MAX_SIZE_MIB * 1024 * 1024
-const LazyCodeViewer = lazy(() => import('@renderer/components/CodeViewer'))
+const HTML_PREVIEW_MAX_SIZE_MIB = FILE_EDIT_MAX_SIZE_BYTES / (1024 * 1024)
+const FileEditor = lazy(() => import('@renderer/components/FileEditor'))
 type HtmlFileLoadState =
   | { status: 'error'; error: Error }
   | { status: 'loading' }
@@ -34,7 +34,7 @@ function HtmlPreviewLoading() {
   const { t } = useTranslation()
 
   return (
-    <div role="status" className="text-muted-foreground flex h-full items-center justify-center gap-2 text-sm">
+    <div role="status" className="flex h-full items-center justify-center gap-2 text-sm text-muted-foreground">
       <LoaderCircle className="size-4 animate-spin" aria-hidden />
       <span>{t('file_preview.loading')}</span>
     </div>
@@ -85,13 +85,14 @@ function HtmlPreviewEmpty() {
 }
 
 interface HtmlPreviewContentProps {
+  location?: FilePreviewPluginProps['location']
   loadState: HtmlFileLoadState
   fileName: string
   baseUrl: string
   mode: HtmlFilePreviewMode
 }
 
-function HtmlPreviewContent({ loadState, fileName, baseUrl, mode }: HtmlPreviewContentProps): ReactNode {
+function HtmlPreviewContent({ loadState, fileName, baseUrl, mode, location }: HtmlPreviewContentProps): ReactNode {
   if (loadState.status === 'loading') return <HtmlPreviewLoading />
   if (loadState.status === 'error') return <HtmlPreviewError />
   if (loadState.status === 'too_large') return <HtmlPreviewTooLarge />
@@ -100,10 +101,13 @@ function HtmlPreviewContent({ loadState, fileName, baseUrl, mode }: HtmlPreviewC
     return (
       <div className="flex min-h-full w-full">
         <Suspense fallback={<HtmlPreviewLoading />}>
-          <LazyCodeViewer
+          <FileEditor
+            location={location}
             value={loadState.content}
-            language="html"
-            wrapped
+            fileName={fileName}
+            wrapLines
+            readOnly
+            expanded
             className="min-w-0 flex-1 overflow-hidden"
           />
         </Suspense>
@@ -133,13 +137,20 @@ export default function HtmlFilePreview({
   metadata,
   metadataRequest,
   refreshKey,
-  type = 'file'
+  type = 'file',
+  location
 }: FilePreviewPluginProps) {
-  const [mode, setMode] = useState<HtmlFilePreviewMode>('preview')
+  const [mode, setMode] = useState<HtmlFilePreviewMode>(location ? 'source' : 'preview')
   const [loadState, setLoadState] = useState<HtmlFileLoadState>({ status: 'loading' })
   const sourceMetadata = metadataRequest ?? metadata.size
   const baseUrl = useMemo(() => toSafeFileUrl(filePath, getFilePreviewExtension(filePath)), [filePath])
-  const effectiveMode = type === 'artifact' ? 'preview' : mode
+  const [previousLocation, setPreviousLocation] = useState(location)
+  if (previousLocation !== location) {
+    setPreviousLocation(location)
+    setMode(location ? 'source' : 'preview')
+  }
+  const effectiveMode = type === 'artifact' ? (location ? 'source' : 'preview') : mode
+  const renderArtifact = type === 'artifact' && !location
   const artifactTarget = useMemo(() => {
     const prefix = 'artifact-file:'
     const pathSuffix = filePath.slice(-(WEBVIEW_ANNOTATION_LIMITS.targetId - prefix.length))
@@ -152,7 +163,7 @@ export default function HtmlFilePreview({
   // Layout cleanup invalidates reads before promise callbacks can beat passive cleanup.
   // Read metadata after ancestor layout setup, including Activity reconnections.
   useLayoutEffect(() => {
-    if (type === 'artifact') return
+    if (renderArtifact) return
     let cancelled = false
     setLoadState((current) => (current.status === 'ready' ? current : { status: 'loading' }))
 
@@ -163,7 +174,7 @@ export default function HtmlFilePreview({
             ? await Promise.resolve().then(sourceMetadata)
             : { kind: 'file', size: sourceMetadata }
         if (cancelled || loadedMetadata?.kind !== 'file') return
-        if (loadedMetadata.size > HTML_PREVIEW_MAX_SIZE_BYTES) {
+        if (loadedMetadata.size > FILE_EDIT_MAX_SIZE_BYTES) {
           setLoadState({ status: 'too_large' })
           return
         }
@@ -182,9 +193,9 @@ export default function HtmlFilePreview({
     return () => {
       cancelled = true
     }
-  }, [filePath, sourceMetadata, refreshKey, type])
+  }, [filePath, sourceMetadata, refreshKey, renderArtifact])
 
-  if (type === 'artifact') {
+  if (renderArtifact) {
     return (
       <FilePreviewLayout.Frame>
         <div className="min-h-0 flex-1">
@@ -206,7 +217,13 @@ export default function HtmlFilePreview({
         <HtmlFilePreviewToolbar disabled={loadState.status !== 'ready'} mode={mode} onModeChange={setMode} />
       ) : null}
       <FilePreviewLayout.Content>
-        <HtmlPreviewContent loadState={loadState} fileName={fileName} baseUrl={baseUrl} mode={effectiveMode} />
+        <HtmlPreviewContent
+          location={location}
+          loadState={loadState}
+          fileName={fileName}
+          baseUrl={baseUrl}
+          mode={effectiveMode}
+        />
       </FilePreviewLayout.Content>
     </FilePreviewLayout.Frame>
   )

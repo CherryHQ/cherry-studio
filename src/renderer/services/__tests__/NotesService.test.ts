@@ -1,16 +1,29 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = {
-  ipcRequest: vi.fn(),
+import type { ResolvedNotesPath } from '../NotesService'
+
+const mocks = vi.hoisted(() => ({
+  request: vi.fn(),
+  warn: vi.fn(),
   validateNotesDirectory: vi.fn(),
   checkFileName: vi.fn(),
   mkdir: vi.fn()
-}
+}))
+
+vi.mock('@logger', () => ({
+  loggerService: {
+    withContext: () => ({ warn: mocks.warn })
+  }
+}))
 
 vi.mock('@renderer/ipc', () => ({
   ipcApi: {
-    request: (...args: unknown[]) => mocks.ipcRequest(...args)
+    request: (...args: unknown[]) => mocks.request(...args)
   }
+}))
+
+vi.mock('@renderer/utils/file', () => ({
+  getFileDirectory: vi.fn()
 }))
 
 const DEFAULT_PATH = '/default-notes'
@@ -37,28 +50,73 @@ async function loadService() {
   return import('../NotesService')
 }
 
-beforeEach(() => {
-  vi.clearAllMocks()
-  devicePath = null
-  deviceReadFails = false
-  stampedPaths = []
-  mocks.ipcRequest.mockImplementation((route: string, input?: { path?: string }) => {
-    if (route === 'app.get_info') return Promise.resolve({ notesPath: DEFAULT_PATH })
-    if (route === 'file.notes.get_device_path') {
-      return deviceReadFails ? Promise.reject(new Error('ipc down')) : Promise.resolve(devicePath)
-    }
-    if (route === 'file.notes.set_device_path') {
-      stampedPaths.push(input?.path)
+describe('resolveNotesPath', () => {
+  let resolveNotesPath: (parentPath: string) => Promise<ResolvedNotesPath>
+
+  beforeEach(async () => {
+    vi.clearAllMocks()
+    mocks.request.mockImplementation((channel: string) => {
+      if (channel === 'app.get_info') return Promise.resolve({ notesPath: DEFAULT_PATH })
+      if (channel === 'file.notes.get_device_path') return Promise.resolve(null)
       return Promise.resolve(undefined)
-    }
-    return Promise.resolve(true)
+    })
+    ;({ resolveNotesPath } = await loadService())
   })
-  mocks.validateNotesDirectory.mockResolvedValue(true)
-  mocks.checkFileName.mockImplementation(async (_dir: string, name: string) => ({ safeName: name }))
-  mocks.mkdir.mockResolvedValue(undefined)
+
+  it('keeps a valid configured Notes path through the typed file route', async () => {
+    mocks.request.mockImplementation((channel: string) => {
+      if (channel === 'app.get_info') return Promise.resolve({ notesPath: DEFAULT_PATH })
+      if (channel === 'file.notes.get_device_path') return Promise.resolve(null)
+      if (channel === 'file.validate_notes_directory') return Promise.resolve(true)
+      return Promise.resolve(undefined)
+    })
+
+    await expect(resolveNotesPath('/configured-notes')).resolves.toEqual({
+      path: '/configured-notes',
+      isFallback: false
+    })
+    expect(mocks.request).toHaveBeenNthCalledWith(1, 'app.get_info')
+    expect(mocks.request).toHaveBeenCalledWith('file.validate_notes_directory', '/configured-notes')
+  })
+
+  it('falls back to the default Notes directory when typed validation rejects a configured path', async () => {
+    mocks.request.mockImplementation((channel: string) => {
+      if (channel === 'app.get_info') return Promise.resolve({ notesPath: DEFAULT_PATH })
+      if (channel === 'file.notes.get_device_path') return Promise.resolve(null)
+      if (channel === 'file.validate_notes_directory') return Promise.resolve(false)
+      return Promise.resolve(undefined)
+    })
+
+    await expect(resolveNotesPath('/invalid-notes')).resolves.toEqual({
+      path: DEFAULT_PATH,
+      isFallback: true
+    })
+    expect(mocks.request).toHaveBeenCalledWith('file.validate_notes_directory', '/invalid-notes')
+  })
 })
 
 describe('resolveNotesPath device path', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    devicePath = null
+    deviceReadFails = false
+    stampedPaths = []
+    mocks.request.mockImplementation((route: string, input?: { path?: string }) => {
+      if (route === 'app.get_info') return Promise.resolve({ notesPath: DEFAULT_PATH })
+      if (route === 'file.notes.get_device_path') {
+        return deviceReadFails ? Promise.reject(new Error('ipc down')) : Promise.resolve(devicePath)
+      }
+      if (route === 'file.notes.set_device_path') {
+        stampedPaths.push(input?.path)
+        return Promise.resolve(undefined)
+      }
+      return Promise.resolve(true)
+    })
+    mocks.validateNotesDirectory.mockResolvedValue(true)
+    mocks.checkFileName.mockImplementation(async (_dir: string, name: string) => ({ safeName: name }))
+    mocks.mkdir.mockResolvedValue(undefined)
+  })
+
   it('prefers this PC’s stamped path over a foreign synced pref', async () => {
     devicePath = 'D:\\Notes'
     mocks.validateNotesDirectory.mockImplementation(async (dir: string) => dir === 'D:/Notes')
@@ -77,7 +135,7 @@ describe('resolveNotesPath device path', () => {
     const resolved = await resolveNotesPath('D:/Notes/sub')
 
     expect(resolved).toEqual({ path: 'D:/Notes/sub', isFallback: false })
-    expect(mocks.validateNotesDirectory).toHaveBeenCalledWith('D:/Notes/sub')
+    expect(mocks.request).toHaveBeenCalledWith('file.validate_notes_directory', 'D:/Notes/sub')
     expect(stampedPaths).toEqual([])
   })
 
@@ -115,7 +173,16 @@ describe('resolveNotesPath device path', () => {
   })
 
   it('falls back to default for a missing pref path without stamping', async () => {
-    mocks.validateNotesDirectory.mockResolvedValue(false)
+    mocks.request.mockImplementation((route: string, input?: { path?: string }) => {
+      if (route === 'app.get_info') return Promise.resolve({ notesPath: DEFAULT_PATH })
+      if (route === 'file.notes.get_device_path') return Promise.resolve(devicePath)
+      if (route === 'file.notes.set_device_path') {
+        stampedPaths.push(input?.path)
+        return Promise.resolve(undefined)
+      }
+      if (route === 'file.validate_notes_directory') return Promise.resolve(false)
+      return Promise.resolve(true)
+    })
     const { resolveNotesPath } = await loadService()
 
     const resolved = await resolveNotesPath('/gone-notes')
@@ -146,6 +213,27 @@ describe('resolveNotesPath device path', () => {
 })
 
 describe('addDir device path', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    devicePath = null
+    deviceReadFails = false
+    stampedPaths = []
+    mocks.request.mockImplementation((route: string, input?: { path?: string }) => {
+      if (route === 'app.get_info') return Promise.resolve({ notesPath: DEFAULT_PATH })
+      if (route === 'file.notes.get_device_path') {
+        return deviceReadFails ? Promise.reject(new Error('ipc down')) : Promise.resolve(devicePath)
+      }
+      if (route === 'file.notes.set_device_path') {
+        stampedPaths.push(input?.path)
+        return Promise.resolve(undefined)
+      }
+      return Promise.resolve(true)
+    })
+    mocks.validateNotesDirectory.mockResolvedValue(true)
+    mocks.checkFileName.mockImplementation(async (_dir: string, name: string) => ({ safeName: name }))
+    mocks.mkdir.mockResolvedValue(undefined)
+  })
+
   it('creates inside the selected subfolder without redirecting or stamping', async () => {
     devicePath = 'D:\\Notes'
     const { addDir } = await loadService()

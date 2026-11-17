@@ -157,14 +157,14 @@ describe('useConfigMetadata.makeModelFilter (gateway)', () => {
     expect(filter(model(CHERRYAI_PROVIDER_ID, 'some-other-model'))).toBe(true)
   })
 
-  it('excludes Cherry Cloud models because Code Mate has no cloud feature entitlement', () => {
+  it('offers Cherry Cloud models through the gateway', () => {
     const cloudProvider = enabledProvider(CHERRY_CLOUD_PROVIDER_ID)
     const cloudModel = model(CHERRY_CLOUD_PROVIDER_ID, 'deepseek-free')
     modelRecords.push(cloudModel)
 
     const { result } = renderHook(() => useConfigMetadata(CodeCli.CLAUDE_CODE, [cloudProvider]))
-    expect(result.current.makeModelFilter(CLI_API_GATEWAY_PROVIDER_ID)(cloudModel)).toBe(false)
-    expect(result.current.gatewayModelsById.has(cloudModel.id)).toBe(false)
+    expect(result.current.makeModelFilter(CLI_API_GATEWAY_PROVIDER_ID)(cloudModel)).toBe(true)
+    expect(result.current.gatewayModelsById.has(cloudModel.id)).toBe(true)
   })
 
   // The picker shares isPublicGatewayRoutableModel with the gateway's /v1/models listing, so every

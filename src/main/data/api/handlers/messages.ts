@@ -11,17 +11,24 @@ import { messageService } from '@data/services/MessageService'
 import {
   BranchMessagesQuerySchema,
   CreateMessageSchema,
+  DeleteBranchQuerySchema,
   DeleteMessageQuerySchema,
   type MessageSchemas,
   PathThroughQuerySchema,
   ReserveBranchSchema,
-  TreeQuerySchema,
   UpdateMessageSchema
 } from '@shared/data/api/schemas/messages'
 import type { HandlersFor } from '@shared/data/api/types'
 import { MessageDataSchema } from '@shared/data/types/message'
 
 export const messageHandlers: HandlersFor<MessageSchemas> = {
+  '/messages/:id/branch': {
+    DELETE: async ({ params, query }) => {
+      const q = DeleteBranchQuerySchema.parse(query ?? {})
+      return messageService.deleteBranch(params.id, q.topicId)
+    }
+  },
+
   '/messages/:id/reply-group': {
     DELETE: async ({ params }) => {
       return messageService.deleteReplyGroup(params.id)
@@ -29,13 +36,8 @@ export const messageHandlers: HandlersFor<MessageSchemas> = {
   },
 
   '/topics/:topicId/tree': {
-    GET: async ({ params, query }) => {
-      const q = TreeQuerySchema.parse(query ?? {})
-      return messageService.getTree(params.topicId, {
-        rootId: q.rootId,
-        nodeId: q.nodeId,
-        depth: q.depth
-      })
+    GET: async ({ params }) => {
+      return messageService.getTree(params.topicId)
     }
   },
 

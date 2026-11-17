@@ -1,12 +1,12 @@
 {
   "name": "@cherrystudio/extension-table-plus",
-  "version": "3.0.13",
+  "version": "3.0.15",
   "description": "table extension for tiptap forked from tiptap/extension-table",
   "keywords": [
     "tiptap",
     "tiptap extension"
   ],
-  "homepage": "https://cherry-ai.com",
+  "homepage": "https://cherryai.com",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -19,55 +19,55 @@
   ],
   "type": "module",
   "main": "dist/index.cjs",
-  "module": "dist/index.js",
-  "types": "dist/index.d.ts",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.mts",
   "exports": {
     ".": {
       "types": {
-        "import": "./dist/index.d.ts",
+        "import": "./dist/index.d.mts",
         "require": "./dist/index.d.cts"
       },
-      "import": "./dist/index.js",
+      "import": "./dist/index.mjs",
       "require": "./dist/index.cjs"
     },
     "./table": {
       "types": {
-        "import": "./dist/table/index.d.ts",
+        "import": "./dist/table/index.d.mts",
         "require": "./dist/table/index.d.cts"
       },
-      "import": "./dist/table/index.js",
+      "import": "./dist/table/index.mjs",
       "require": "./dist/table/index.cjs"
     },
     "./cell": {
       "types": {
-        "import": "./dist/cell/index.d.ts",
+        "import": "./dist/cell/index.d.mts",
         "require": "./dist/cell/index.d.cts"
       },
-      "import": "./dist/cell/index.js",
+      "import": "./dist/cell/index.mjs",
       "require": "./dist/cell/index.cjs"
     },
     "./header": {
       "types": {
-        "import": "./dist/header/index.d.ts",
+        "import": "./dist/header/index.d.mts",
         "require": "./dist/header/index.d.cts"
       },
-      "import": "./dist/header/index.js",
+      "import": "./dist/header/index.mjs",
       "require": "./dist/header/index.cjs"
     },
     "./kit": {
       "types": {
-        "import": "./dist/kit/index.d.ts",
+        "import": "./dist/kit/index.d.mts",
         "require": "./dist/kit/index.d.cts"
       },
-      "import": "./dist/kit/index.js",
+      "import": "./dist/kit/index.mjs",
       "require": "./dist/kit/index.cjs"
     },
     "./row": {
       "types": {
-        "import": "./dist/row/index.d.ts",
+        "import": "./dist/row/index.d.mts",
         "require": "./dist/row/index.d.cts"
       },
-      "import": "./dist/row/index.js",
+      "import": "./dist/row/index.mjs",
       "require": "./dist/row/index.cjs"
     }
   },
@@ -80,8 +80,6 @@
     "@tiptap/core": "3.26.1",
     "@tiptap/pm": "3.26.1",
     "eslint": "^9.22.0",
-    "eslint-plugin-react-hooks": "^5.2.0",
-    "eslint-plugin-unused-imports": "^4.1.4",
     "tsdown": "^0.22.14",
     "typescript": "5.9.3"
   },

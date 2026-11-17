@@ -1,31 +1,37 @@
 /**
  * Normalizes function-tool JSON Schemas into what providers actually accept.
  *
- * Keyword passes are always on — the keywords involved are advisory hints no
- * provider enforces, so dropping them everywhere costs nothing and beats
- * per-provider gating:
- *   - every function tool loses `$schema` (dialect metadata Gemini's parser
- *     rejects) and the keywords Gemini's Schema proto has no field for
- *     (`Unknown name "exclusiveMaximum" … Cannot find field`, issue #10052);
- *   - a `strict: true` tool additionally loses every validation keyword outside
- *     the strict subset — Anthropic and OpenAI compile that schema into a
- *     sampling grammar and 400 the whole request otherwise (issue #18037).
- *     Zod emits them freely (`.int()` alone adds safe-integer bounds).
- *   - a root-only pass adds missing `properties: {}` to explicit object schemas
- *     for compatibility (issue #21957); this is validation-neutral because absent
- *     `properties` and `{}` declare the same empty property set while
- *     `additionalProperties` keeps its meaning.
- *   - a Gemini-only pass replaces non-string `enum`/`const` values with their
- *     bare type (Gemini's Schema proto types `enum` as string lists only) and
- *     drops a function tool when an array has no typed `items` schema; there
- *     is no safe element type to infer.
- *   - a Gemini-only pass drops `propertyNames` / `additionalProperties`
- *     (Gemini's Schema proto has no field for either — issue #20939).
- *     Custom Gemini relays translate client schemas literally, so the
- *     repo-owned middleware is the last choke point that can remove them.
+ * Every function tool loses `$schema` and the advisory keywords rejected by
+ * Gemini's Schema proto (issue #10052).
  *
- * Local input validation is unaffected: the AI SDK still checks tool calls
- * against the original zod schema.
+ * Strict tools additionally lose validation keywords outside the sampling
+ * grammar subset accepted by Anthropic and OpenAI (issue #18037).
+ *
+ * Explicit root objects gain missing `properties: {}` (issue #21957), a
+ * validation-neutral change that preserves `additionalProperties` semantics.
+ *
+ * Native Gemini replaces non-string `enum`/`const` with their bare type and
+ * expands type arrays because its Schema proto requires concrete types.
+ *
+ * Native Gemini drops tools with untyped array items: no safe type can be inferred.
+ * It drops `propertyNames` / `additionalProperties`, absent from its proto (#20939).
+ *
+ * Chat completions also drops only `propertyNames` for recognizable Gemini raw
+ * model identities; an opaque upstream alias stays unrecognized.
+ *
+ * Model recognition is a heuristic, not proof of endpoint schema support.
+ * Removal intentionally relaxes key constraints instead of converting them losslessly.
+ *
+ * Responses, Ollama, Anthropic Messages and undefined endpoint scopes receive
+ * no new treatment from the chat-completions pass.
+ *
+ * Responses (including Azure OpenAI) gets `strict: false` when `strict` is absent,
+ * preventing its default strict mode from making optional fields required.
+ *
+ * Other endpoints never receive a `strict` key they didn't ask for.
+ *
+ * Supplied validators, including MCP's compiled validator, keep the original schema.
+ * Caller-owned gateway tools remain the caller's validation responsibility.
  */
 
 import type { JSONSchema7, JSONSchema7Definition, LanguageModelV3CallOptions } from '@ai-sdk/provider'
@@ -33,7 +39,8 @@ import type { LanguageModelMiddleware } from 'ai'
 
 import { definePlugin } from '@cherrystudio/ai-core'
 import { loggerService } from '@logger'
-import { ENDPOINT_TYPE } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, isUniqueModelId } from '@shared/data/types/model'
+import { isGeminiModel } from '@shared/utils/model'
 
 import type { RequestFeature } from '../feature'
 import type { RequestScope } from '../scope'
@@ -45,6 +52,9 @@ const ALWAYS_UNSUPPORTED = ['$schema', 'exclusiveMinimum', 'exclusiveMaximum', '
 
 /** Gemini's function-declaration Schema has no field for these (issue #20939). */
 const GEMINI_UNSUPPORTED = new Set(['propertyNames', 'additionalProperties'])
+
+/** Gemini-backed chat relays may reject record key constraints. */
+const CHAT_GEMINI_UNSUPPORTED = new Set(['propertyNames'])
 
 /** Outside the strict-mode subset (`format`, `enum`, `const` stay). */
 const STRICT_UNSUPPORTED = new Set([
@@ -133,7 +143,7 @@ function dropKeywords(node: JSONSchema7, keywords: ReadonlySet<string>): JSONSch
   let changed = false
   const kept: Record<string, unknown> = {}
   for (const [key, value] of Object.entries(node)) {
-    if (keywords.has(key)) {
+    if (keywords.has(key) || (key === 'required' && value === null)) {
       changed = true
       continue
     }
@@ -255,6 +265,13 @@ function normalizeToolSchemas(params: LanguageModelV3CallOptions, scope: Request
 
   const isGeminiEndpoint =
     scope.endpointType === ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT && scope.sdkConfig.providerId !== 'google-vertex-maas'
+  // Partial scopes exist at runtime and may lack a resolvable model identity.
+  const isChatGeminiModel =
+    scope.endpointType === ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS &&
+    scope.model &&
+    (scope.model.apiModelId || isUniqueModelId(scope.model.id)) &&
+    isGeminiModel(scope.model)
+  const isResponsesEndpoint = scope.endpointType === ENDPOINT_TYPE.OPENAI_RESPONSES
 
   let changed = false
   const droppedTools: string[] = []
@@ -275,10 +292,16 @@ function normalizeToolSchemas(params: LanguageModelV3CallOptions, scope: Request
     if (isGeminiEndpoint) inputSchema = stripKeywords(inputSchema, GEMINI_UNSUPPORTED)
     if (isGeminiEndpoint) inputSchema = mapSchemas(inputSchema, expandTypeArrays)
     if (isGeminiEndpoint) inputSchema = mapSchemas(inputSchema, stripNonStringEnums)
-    if (inputSchema === tool.inputSchema) transformedTools.push(tool)
+    if (isChatGeminiModel) inputSchema = stripKeywords(inputSchema, CHAT_GEMINI_UNSUPPORTED)
+    const optOutOfStrict = isResponsesEndpoint && tool.strict === undefined
+    if (inputSchema === tool.inputSchema && !optOutOfStrict) transformedTools.push(tool)
     else {
       changed = true
-      transformedTools.push({ ...tool, inputSchema: inputSchema as JSONSchema7 })
+      transformedTools.push({
+        ...tool,
+        inputSchema: inputSchema as JSONSchema7,
+        ...(optOutOfStrict ? { strict: false } : {})
+      })
     }
   }
 
@@ -309,7 +332,7 @@ const createToolSchemaCompatibilityPlugin = (scope: RequestScope) =>
     }
   })
 
-/** Drop provider-rejected JSON Schema keywords and unsafe Gemini array tools. */
+/** Drop provider-rejected JSON Schema keywords and unsafe Gemini array tools; opt Responses tools out of default strict mode. */
 export const toolSchemaCompatibilityFeature: RequestFeature = {
   name: 'tool-schema-compatibility',
   contributeModelAdapters: (scope) => [createToolSchemaCompatibilityPlugin(scope)]

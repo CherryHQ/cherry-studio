@@ -3,7 +3,12 @@ import { ENDPOINT_TYPE, type Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { mapRegexToPatterns } from '@shared/utils/blacklistMatchPattern'
 import { getRawModelId, isOpenAIDeepResearchModel, isOpenAIWebSearchChatCompletionOnlyModel } from '@shared/utils/model'
-import { isBuiltinWebFetchAvailable, matchesPreset } from '@shared/utils/provider'
+import {
+  DASHSCOPE_HOSTED_WEB_SEARCH_MODELS,
+  isBuiltinWebFetchAvailable,
+  isBuiltinWebSearchAvailable,
+  matchesPreset
+} from '@shared/utils/provider'
 
 import type { KimiFormulaCredentials } from '../provider/custom/moonshotProvider'
 import type { AppProviderId } from '../types'
@@ -27,6 +32,13 @@ export interface CherryWebSearchConfig {
  * `config.ts` still routes it through the preset's transform (both use `matchesPreset`). Comparing
  * `model.providerId` there routed those copies to the server side and then injected nothing.
  */
+// DeepSeek-V4 / GLM-5.2 / Kimi-K3 on QwenCloud serve web search through the Responses `web_search`
+// tool only; the supported-models table marks these lines "Responses API only" as a CLOSED id list,
+// so the pattern anchors exactly — flash-vision-exp and glm-5.2-fast/-fast-preview stay out. Dots and
+// hyphens both appear depending on id origin (wire apiModelId vs catalog modelId).
+const qwencloudResponsesOnlySearch =
+  /^(?:deepseek-v4-(?:pro(?:-0813)?|flash(?:-0731)?)|deepseek-v4[.-]1-flash(?:-1017)?|glm-5[.-]2|kimi-k3)$/
+
 export function getWebSearchParams(model: Model, provider: Provider | undefined): Record<string, any> {
   if (provider && matchesPreset(provider, 'zhipu')) {
     // BigModel's web search rides the tools array, which providerOptions cannot
@@ -55,6 +67,35 @@ export function getWebSearchParams(model: Model, provider: Provider | undefined)
     }
   }
 
+  if (provider && matchesPreset(provider, 'qwencloud')) {
+    // Qwen3.8 text models reject agent search on Chat; Omni Flash requires it.
+    // https://docs.qwencloud.com/developer-guides/tool-calling/web-search
+    const apiModelId = getRawModelId(model)
+    // DeepSeek-V4 / GLM-5.2 search through the Responses `web_search` tool only ("Responses API only"
+    // in the table) — Chat's enable_search is not served for them, so inject nothing on this path.
+    if (qwencloudResponsesOnlySearch.test(apiModelId)) {
+      return {}
+    }
+    // Unlike mainland Bailian, the international table is a closed list with no qwen-plus/flash/turbo
+    // rows, so chat injects enable_search only for lines the registry declared eligible.
+    if (!isBuiltinWebSearchAvailable(model, provider)) {
+      return {}
+    }
+    const searchStrategy =
+      /qwen3[.-]8-omni-flash|qwen3[.-]7-(?:max|plus|flash)|qwen3[.-]6-(?:plus|flash)|qwen3[.-]5-(?:plus|flash)|qwen3-max/.test(
+        apiModelId
+      )
+        ? 'agent'
+        : undefined
+    return {
+      enable_search: true,
+      search_options: {
+        forced_search: true,
+        ...(searchStrategy ? { search_strategy: searchStrategy } : {})
+      }
+    }
+  }
+
   // https://creator.poe.com/docs/external-applications/openai-compatible-api#using-custom-parameters-with-extra_body
   if (provider && matchesPreset(provider, 'poe')) {
     return {
@@ -72,21 +113,16 @@ export function getWebSearchParams(model: Model, provider: Provider | undefined)
   return {}
 }
 
-/**
- * Bailian splits built-in web search by endpoint. The Responses `{ type: 'web_search' }` tool is served
- * for the Qwen3.x line only — "Responses API 仅支持 Qwen3.7 Max系列、Qwen3.6、Qwen3.5、qwen3-max"
- * (help.aliyun.com/zh/model-studio/web-search). The `qwen-plus` / `qwen-flash` / character aliases and the
- * hosted third-party models search through Chat Completions' `enable_search` instead (see
- * `getWebSearchParams`), so emitting the tool for them yields a provider error or an empty result.
- *
- * Those aliases are ordered chat-first in the registry, so this only guards a manual endpoint override.
- */
+// Bailian Responses search covers Qwen3.x and the hosted SKUs in the shared hosted-model declaration.
+// Qwen aliases outside Qwen3.x keep Chat search; see DASHSCOPE_HOSTED_WEB_SEARCH_MODELS.
 function servesResponsesWebSearch(model: Model): boolean {
-  // Key off the shared wire-id resolution: `apiModelId` alone is optional on the
-  // runtime Model, and reading it directly made this silently return false — the
-  // route still picked the server side, so the request went out with no search
-  // tool AND no client tools.
-  return /^qwen3[.-]/.test(getRawModelId(model))
+  // Use shared wire-id resolution: runtime Model.apiModelId is optional; reading it directly can
+  // return false while the route stays `server`, leaving the request with neither server nor client tools.
+  const rawId = getRawModelId(model)
+  return (
+    /^qwen3[.-]/.test(rawId) ||
+    DASHSCOPE_HOSTED_WEB_SEARCH_MODELS.some((row) => row.wireIds.some((wireId) => wireId === rawId))
+  )
 }
 
 /**
@@ -137,6 +173,12 @@ export function buildProviderBuiltinWebSearchConfig(
         // `undefined` (not `{}`) is what suppresses the tool: `providerWebSearchFeature` applies on a
         // truthy config, so an empty object would still attach it.
         return servesResponsesWebSearch(model) ? { openai: {} } : undefined
+      }
+      if (model && provider && matchesPreset(provider, 'qwencloud')) {
+        // Only the DeepSeek-V4/GLM-5.2/Kimi-K3 lines take the Responses web_search tool
+        // (docs.qwencloud.com web-search); Qwen lines search via Chat's enable_search — `undefined`
+        // keeps the tool off.
+        return qwencloudResponsesOnlySearch.test(getRawModelId(model)) ? { openai: {} } : undefined
       }
       const searchContextSize =
         model && isOpenAIDeepResearchModel(model)

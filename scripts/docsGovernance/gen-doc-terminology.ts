@@ -4,7 +4,7 @@ import * as path from 'path'
 
 const ROOT = path.resolve(__dirname, '../..')
 const GLOSSARY_PATH = path.join(ROOT, 'scripts/i18n-glossary.json')
-const OUTPUT_PATH = path.join(ROOT, 'docs/i18n/terminology.md')
+const OUTPUT_PATH = path.join(ROOT, 'docs/dev/i18n/terminology.md')
 
 type Term = { note?: unknown; 'zh-cn'?: unknown }
 type Glossary = { doNotTranslate?: unknown; terms?: unknown }
@@ -59,7 +59,7 @@ const main = (): void => {
   if (process.argv.includes('--check')) {
     const current = fs.existsSync(OUTPUT_PATH) ? fs.readFileSync(OUTPUT_PATH, 'utf8') : ''
     if (current !== generated) {
-      console.error('docs/i18n/terminology.md is stale — run `pnpm docs:terminology`.')
+      console.error('docs/dev/i18n/terminology.md is stale — run `pnpm docs:terminology`.')
       process.exitCode = 1
       return
     }
@@ -68,7 +68,7 @@ const main = (): void => {
   }
   fs.mkdirSync(path.dirname(OUTPUT_PATH), { recursive: true })
   fs.writeFileSync(OUTPUT_PATH, generated)
-  console.log('Wrote docs/i18n/terminology.md.')
+  console.log('Wrote docs/dev/i18n/terminology.md.')
 }
 
 if (require.main === module) main()

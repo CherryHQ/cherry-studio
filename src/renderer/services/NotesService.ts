@@ -184,7 +184,7 @@ export async function resolveNotesPath(
   }
 
   try {
-    const isValid = await window.api.file.validateNotesDirectory(basePath)
+    const isValid = await ipcApi.request('file.validate_notes_directory', AbsoluteFilePathSchema.parse(basePath))
     if (isValid) {
       // Adopt the valid root as this PC's choice (single-machine upgrade,
       // stale-choice healing). Never the default tree or a nested folder,

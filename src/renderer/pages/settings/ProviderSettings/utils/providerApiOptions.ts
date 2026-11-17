@@ -1,5 +1,6 @@
 import type { Provider } from '@shared/data/types/provider'
 import {
+  isAIGatewayProvider,
   isAnthropicSupportedProvider,
   isAzureOpenAIProvider,
   isOpenAICompatibleProvider,
@@ -12,7 +13,8 @@ function isOpenAIOptionsProvider(provider: Provider): boolean {
 
 export function getProviderApiOptionsVisibility(provider: Provider) {
   const showDialectSettings = !isSystemProvider(provider)
-  const isSupportAnthropicPromptCache = isAnthropicSupportedProvider(provider)
+  // The Vercel AI Gateway caches through its own request option, not an Anthropic endpoint.
+  const isSupportAnthropicPromptCache = isAnthropicSupportedProvider(provider) || isAIGatewayProvider(provider)
   const isOpenAIProvider = isOpenAIOptionsProvider(provider)
 
   return {

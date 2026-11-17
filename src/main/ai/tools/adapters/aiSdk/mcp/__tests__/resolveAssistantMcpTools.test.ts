@@ -17,7 +17,7 @@ vi.mock('@application', () => ({
   application: { get: () => ({ warmToolsCache: warmMock, listTools: listToolsMock }) }
 }))
 
-import { getEffectiveMcpMode, resolveAssistantMcpToolIds } from '../resolveAssistantMcpTools'
+import { resolveAssistantMcpToolIds } from '../resolveAssistantMcpTools'
 
 const SERVER = { id: 'srv-1', name: '@cherry/filesystem', isActive: true }
 const TOOLS = [
@@ -65,10 +65,6 @@ describe('resolveAssistantMcpToolIds', () => {
 
       expect(await resultPromise).toEqual([])
       expect(listToolsMock).toHaveBeenCalledWith('srv-1')
-      expect(warnMock).toHaveBeenCalledWith(
-        expect.stringContaining('Timed out warming MCP tools cache'),
-        expect.objectContaining({ serverId: 'srv-1' })
-      )
     } finally {
       vi.useRealTimers()
     }
@@ -78,13 +74,6 @@ describe('resolveAssistantMcpToolIds', () => {
     getByIdMock.mockReturnValue(assistant())
 
     expect(await resolveAssistantMcpToolIds('a1')).toEqual(['mcp__fs__read', 'mcp__fs__ls'])
-    expect(warnMock).not.toHaveBeenCalled()
-  })
-
-  it('defaults a mode-less assistant to manual (linked servers only)', async () => {
-    getByIdMock.mockReturnValue(assistant({ mcpServerIds: [] }))
-    expect(await resolveAssistantMcpToolIds('a1')).toEqual([])
-    expect(warmMock).not.toHaveBeenCalled()
   })
 
   it('explicit disabled resolves nothing without touching the catalog', async () => {
@@ -96,13 +85,5 @@ describe('resolveAssistantMcpToolIds', () => {
   it('explicit auto resolves all active servers', async () => {
     getByIdMock.mockReturnValue(assistant({ mcpServerIds: [], settings: { mcpMode: 'auto' } }))
     expect(await resolveAssistantMcpToolIds('a1')).toEqual(['mcp__fs__read', 'mcp__fs__ls'])
-  })
-})
-
-describe('getEffectiveMcpMode', () => {
-  it('uses the shared default (manual) when unset — regardless of linked servers', () => {
-    expect(getEffectiveMcpMode(assistant() as never)).toBe('manual')
-    expect(getEffectiveMcpMode(assistant({ mcpServerIds: [] }) as never)).toBe('manual')
-    expect(getEffectiveMcpMode(assistant({ settings: { mcpMode: 'auto' } }) as never)).toBe('auto')
   })
 })

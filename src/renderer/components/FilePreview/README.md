@@ -1,8 +1,9 @@
 # FilePreview
 
-`FilePreview` is the canonical read-only preview host for local files. Callers provide a file path and decide where the preview appears. The host validates the path target and selects the preview strategy. PDF, DOCX, PPTX, XLSX, RTF and images use the portable [file-preview package](../../../../packages/file-preview/README.md); HTML, Markdown, text and video remain local plugins.
+`FilePreview` is the canonical read-only preview host for local files. Callers provide a file path and decide where the preview appears. The host validates the path target and selects the preview strategy. PDF, DOCX, PPTX, XLSX, RTF and images use the portable [file-preview package](../../../../packages/file-preview/README.md); HTML, Markdown, Mermaid, text and video remain local plugins. The Mermaid plugin renders the
+file with `MermaidPreview` in `contain` fit, edge to edge on the host's own background.
 
-The built-in plugins currently support HTML, images (`.jpg`, `.jpeg`, `.png`, `.gif`, `.bmp`, `.webp`, `.avif`, `.ico`, `.svg` — SVG renders via `<img>`, which never executes embedded scripts), browser-playable video (`.mp4`, `.webm`, `.m4v`), PDF, Word (`.docx`), Rich Text Format (`.rtf`), PowerPoint (`.pptx`), spreadsheets (`.xlsx`), Markdown (`.md`, `.markdown`, `.mdx`), and text/source files. Files outside the text extension whitelist still use the text plugin when content sniffing identifies them as text.
+The built-in plugins currently support HTML, images (`.jpg`, `.jpeg`, `.png`, `.gif`, `.bmp`, `.webp`, `.avif`, `.ico`, `.svg` — SVG renders via `<img>`, which never executes embedded scripts), browser-playable video (`.mp4`, `.webm`, `.m4v`), PDF, Word (`.docx`), Rich Text Format (`.rtf`), PowerPoint (`.pptx`), spreadsheets (`.xlsx`), Markdown (`.md`, `.markdown`, `.mdx`), Mermaid diagrams (`.mmd`, `.mermaid`), and text/source files. Files outside the text extension whitelist still use the text plugin when content sniffing identifies them as text.
 
 ## Path Contract
 
@@ -72,7 +73,7 @@ with `..` can resolve outside that root; this provider does not enforce workspac
 access policy. Without this capability, previews retain Streamdown's default safe link treatment.
 
 Use `type="artifact"` for an explicit development-artifact surface whose host owns editing. Markdown and HTML then
-stay in rendered preview mode and omit their preview/source switch, while HTML uses the interactive artifact sandbox
+stay in rendered preview mode unless a source location is requested, and omit their preview/source switch. Without a location, HTML uses the interactive artifact sandbox
 so generated applications can run scripts. This does not hide format-specific controls such as PDF zoom or image
 transforms.
 
@@ -191,7 +192,7 @@ export const filePreviewRegistry = createFilePreviewRegistry({
 ## Composition Rules
 
 Keep the public `FilePreview` props minimal: `filePath`, optional `header`, optional `refreshKey`, optional `type`, and
-optional `onSelectionReference`. Follow these boundaries when adding formats or capabilities:
+optional `onSelectionReference` and `onLineComment`. Follow these boundaries when adding formats or capabilities:
 
 - Express format differences as independent plugins. Do not add booleans such as `isPdf` or `isImage` to `FilePreview`.
 - The plugin owns its loading state, view state, and actions. Its toolbar receives only the state and callbacks required for rendering.
@@ -211,6 +212,10 @@ optional `onSelectionReference`. Follow these boundaries when adding formats or 
 This composition lets the same plugin work in embedded and tab hosts without format-specific branches.
 
 ## Selection References
+
+`onLineComment` enables gutter comments in the text plugin's read-only editor. It reports the
+inclusive line range, the current source lines and the comment to the embedding surface, which owns
+composer insertion. Commenting does not grant edit access or write to the file.
 
 `onSelectionReference` is an optional pass-through channel for reporting the user's selection as a
 `SelectionReference` (`@renderer/types/selectionReference`) — an anchor into the document's own structural
@@ -240,9 +245,10 @@ coordinates (worksheet range, paragraph ordinal, page number), never DOM or pixe
   surface owns the held reference's lifetime across file changes. Each reference is self-describing (`path` +
   `fileStamp`), which keeps holding one safe.
 - The embedding surface, not the host, reports `null` when it turns capture off (it stops passing the
-  callback, so the plugin cannot). Text selection is never the capture gesture: most previews render
-  inside the app-wide `user-select: none` (the PDF viewer is the exception — it opts back in with
-  `.selectable` so its text layer stays copyable), and a block pick does not depend on it either way.
+  callback, so the plugin cannot). Text selection is never the capture gesture. PDF and DOCX opt back
+  into text selection with `.selectable` despite the app-wide `user-select: none`. DOCX supports native
+  Ctrl+C / Cmd+C copying and ignores the click ending a text selection when updating a paragraph pick.
+  Copying does not use the normalized, length-limited reference excerpt.
 - Known limitation: a click on an in-document jump link picks nothing. The PDF and PPTX renderers both
   navigate from their own listener before the pick handler runs — pdf.js binds an internal destination
   with `link.onclick`, and the PPTX renderer's in-deck links are `role="link"` spans that stop
@@ -262,6 +268,24 @@ coordinates (worksheet range, paragraph ordinal, page number), never DOM or pixe
   No code on either side performs that check, so the renderer's job is only to stamp references accurately —
   if an in-app consumer ever needs the comparison, it belongs with that consumer.
 
+## Source locations
+
+The optional `location` prop carries one-based `line`, optional inclusive `endLine`, and optional `column`.
+Text previews reveal and highlight the requested lines after loading. Markdown and HTML open their source view
+for a located navigation; artifact HTML does not execute in the browser for that request. Columns are retained
+but this version navigates and highlights whole lines. Binary previews ignore source locations.
+
+Chat inline paths and local Markdown links accept `path:42`, `path:42:5`, `path#L42`, and `path#L42-L48`.
+Markdown targets parse coordinates before percent-decoding, so `./report%3A42` names the literal file `report:42`.
+Use `./file.ts:42` for a single-segment Markdown destination: bare `file.ts:42` is URI-scheme-shaped and remains blocked by link safety. Only the pure path reaches filesystem and external-app operations. Ordinary Markdown fragments keep their
+existing handling. Invalid coordinates do not produce navigation; positive coordinates beyond EOF clamp to
+the loaded file. `FilePreviewNavigationProvider.openFile` also accepts the optional location.
+
+The navigation owner creates a fresh location object per accepted click, including repeated clicks on the same
+file and line. Dirty-file confirmation still owns acceptance. Plain opens clear the location. `FileEditor`
+uses Pierre logical-line measurements and its virtualizer; navigation completes only once layout has settled
+and the target is in the viewport, rather than when an off-screen DOM line happens to exist.
+
 ## File I/O, States, and Errors
 
 - Opening surfaces should classify a clicked path before choosing UI: open directories in the file browser without a preview selection; send concrete files to `FilePreview`; let missing or inaccessible file selections reach `FilePreview` so it can show the unavailable state.
@@ -278,6 +302,10 @@ coordinates (worksheet range, paragraph ordinal, page number), never DOM or pixe
 | Missing or inaccessible path | Unavailable | Explanation without an open action |
 | Invalid or non-absolute path | Invalid | Explanation without an open action |
 
+- Markdown previews read the complete document without a fixed file-size rejection limit.
+- Text, Markdown and HTML source bodies use the renderer's `FileEditor` in read-only mode, with Pierre
+  row virtualization bound to the preview scroller. File editing uses the same component and
+  viewer-theme preferences; the existing host still owns permissions, drafts and saving.
 - Local text plugins use `window.api.fs.readText`. Shared plugins read through `PreviewDocument`;
   they never access Electron APIs. The adapter serves whole-document reads with one full
   `file.read` and PDF ranges with 1 MiB range requests, checking every response against the
@@ -291,7 +319,8 @@ coordinates (worksheet range, paragraph ordinal, page number), never DOM or pixe
   or its byte copy. PDF range reads also check cancellation between 1 MiB requests.
   Synchronous parsing cannot be interrupted.
 - Local loading effects depend on `filePath`, `refreshKey`, and the host's metadata request. Text,
-  Markdown, and restricted HTML wait for that request before checking size or reading content.
+  Markdown, and restricted HTML wait for that request before reading content. Text and restricted
+  HTML also apply their size checks after metadata resolves.
   Shared plugins reload when their opened document changes. Do not request metadata again inside a format plugin.
 - A same-path refresh retains a compatible preview while metadata and content reload. Local plugins
   and the portable preview package preserve valid reading state; different paths or formats reset it.
