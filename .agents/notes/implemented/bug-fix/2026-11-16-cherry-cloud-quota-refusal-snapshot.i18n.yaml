@@ -1,5 +1,5 @@
 # Bilingual-pair consistency record (docs/dev/i18n/README.md).
 # After editing either side, update its counterpart and re-record with:
 #   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-16-cherry-cloud-quota-refusal-snapshot.md
-2026-11-16-cherry-cloud-quota-refusal-snapshot.md: 8079fc7059022bbc2c93872c9bd263fbf4db48af
-2026-11-16-cherry-cloud-quota-refusal-snapshot.zh.md: 3c69b454d1b067bde074057509a73119b3e0dde3
+2026-11-16-cherry-cloud-quota-refusal-snapshot.md: a29256ca853d7c3d50fb9a8aab77dbcd3f27c96c
+2026-11-16-cherry-cloud-quota-refusal-snapshot.zh.md: 8e4b5bf77238ced8df51d2004921e580a67ea5a4

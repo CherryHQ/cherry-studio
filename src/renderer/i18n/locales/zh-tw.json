@@ -2937,7 +2937,7 @@
   "models.detail.model_id": "模型 ID",
   "models.detail.provider": "供應商",
   "models.detail.quota_exhausted": "方案額度已用完，待重設",
-  "models.detail.quota_insufficient_for_request": "本次請求所需額度不足，請減少上下文或等待進行中的請求結束",
+  "models.detail.quota_insufficient_for_request": "方案額度不足以完成本次請求",
   "models.edit": "編輯模型",
   "models.group.ungrouped": "未群組",
   "models.multi_select.label": "多重選擇",

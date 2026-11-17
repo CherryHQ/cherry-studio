@@ -53,17 +53,6 @@ required service tier.`
       action: undefined
     })
   })
-
-  it('says the Cherry AI plan quota is exhausted only when the snapshot reports it at zero', () => {
-    const key = toast.errorFromException(
-      { name: 'Error', message: '429', statusCode: 429, providerErrorCategory: 'quota' },
-      { provider: { id: 'cherryai-subscription', name: 'CherryAI' }, cherryCloudQuotaExhausted: true }
-    )
-
-    expect(toast.getToastQueue().toasts.find((item) => item.key === key)).toMatchObject({
-      title: enUS['models.detail.quota_exhausted']
-    })
-  })
 })
 
 it('keeps Cloud rate limits retryable even when their text mentions quota', async () => {
@@ -77,25 +66,4 @@ it('keeps Cloud rate limits retryable even when their text mentions quota', asyn
   expect(shown.action?.label).toBe(enUS['toast.error.retry'])
   await shown.action!.onClick()
   expect(retry).toHaveBeenCalledOnce()
-})
-
-it('does not carry the original snapshot fact into a Cloud quota refusal raised by retry', async () => {
-  const refusal = { name: 'Error', message: '429', statusCode: 429, providerErrorCategory: 'quota' }
-  const key = toast.errorFromException(
-    { name: 'Error', statusCode: 429, message: 'Too Many Requests' },
-    {
-      provider: { id: 'cherryai-subscription', name: 'CherryAI' },
-      cherryCloudQuotaExhausted: true,
-      actions: { retry: () => Promise.reject(refusal) }
-    }
-  )
-
-  await toast
-    .getToastQueue()
-    .toasts.find((item) => item.key === key)!
-    .action!.onClick()
-
-  expect(toast.getToastQueue().toasts.find((item) => item.key === key)).toMatchObject({
-    title: enUS['models.detail.quota_insufficient_for_request']
-  })
 })

@@ -2937,7 +2937,7 @@
   "models.detail.model_id": "ID mô hình",
   "models.detail.provider": "Nhà cung cấp",
   "models.detail.quota_exhausted": "Đã dùng hết hạn mức gói, đang chờ đặt lại",
-  "models.detail.quota_insufficient_for_request": "Không đủ hạn mức cho yêu cầu này. Hãy rút gọn ngữ cảnh hoặc chờ các yêu cầu đang chạy hoàn tất",
+  "models.detail.quota_insufficient_for_request": "Hạn mức gói không đủ cho yêu cầu này",
   "models.edit": "Chỉnh sửa Mô hình",
   "models.group.ungrouped": "Chưa nhóm",
   "models.multi_select.label": "Chọn nhiều",

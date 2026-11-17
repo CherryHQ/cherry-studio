@@ -2937,7 +2937,7 @@
   "models.detail.model_id": "モデルID",
   "models.detail.provider": "プロバイダー",
   "models.detail.quota_exhausted": "プランの利用枠を使い切りました。リセットをお待ちください",
-  "models.detail.quota_insufficient_for_request": "このリクエストに必要な利用枠が足りません。コンテキストを減らすか、処理中のリクエストが終わるまでお待ちください",
+  "models.detail.quota_insufficient_for_request": "このリクエストにはプランの利用枠が足りません",
   "models.edit": "モデルを編集",
   "models.group.ungrouped": "グループ化解除",
   "models.multi_select.label": "複数選択",

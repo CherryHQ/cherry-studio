@@ -9,7 +9,6 @@ import type { ExecutionFinishEvent } from '@renderer/services/aiTransport'
 import { toast, type ErrorToastContext } from '@renderer/services/toast'
 import { getProviderDisplayName } from '@renderer/utils/naming'
 import type { ActiveExecution, StreamDonePayload, StreamErrorPayload } from '@shared/ai/transport'
-import { CHERRY_CLOUD_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import { isUniqueModelId, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 
@@ -114,22 +113,10 @@ export function useConversationErrorToasts(scopeKey: string, actions: RecoveryAc
     async (error: unknown, modelId?: string, message?: CherryUIMessage) => {
       if (!state.active) return
       const generation = state.generation
-      const uniqueModelId = modelId && isUniqueModelId(modelId) ? modelId : undefined
-      const identity = uniqueModelId ? parseUniqueModelId(uniqueModelId) : undefined
-      const cloudModelId = identity?.providerId === CHERRY_CLOUD_PROVIDER_ID ? uniqueModelId : undefined
-      const [provider, cherryCloudQuotaExhausted] = await Promise.all([
-        identity ? dataApiService.get(`/providers/${identity.providerId}`).catch(() => undefined) : undefined,
-        // Main returns a quota refusal after a bounded account refresh; a stale snapshot yields the weaker title.
-        cloudModelId
-          ? ipcApi
-              .request('cherry_cloud.account.get')
-              .then(
-                ({ models }) =>
-                  models.freshness === 'fresh' && models.value.quotaExhaustedModelIds.includes(cloudModelId)
-              )
-              .catch(() => undefined)
-          : undefined
-      ])
+      const identity = modelId && isUniqueModelId(modelId) ? parseUniqueModelId(modelId) : undefined
+      const provider = identity
+        ? await dataApiService.get(`/providers/${identity.providerId}`).catch(() => undefined)
+        : undefined
       if (!state.active || generation !== state.generation) return
       const key = `error:${state.scopeKey}:${message?.id ?? modelId ?? 'send'}`
       state.keys.add(key)
@@ -156,7 +143,6 @@ export function useConversationErrorToasts(scopeKey: string, actions: RecoveryAc
             ? { id: identity.providerId, name: identity.providerId }
             : undefined,
         modelName: message?.metadata?.messageSnapshot?.model?.name ?? identity?.modelId,
-        cherryCloudQuotaExhausted,
         actions: recovery,
         isCurrent: () => state.active && generation === state.generation
       })

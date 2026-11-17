@@ -61,8 +61,6 @@ const PRODUCTION_API_ORIGINS = {
 } as const
 const ACCESS_TOKEN_REFRESH_SKEW_MS = 60_000
 const CLOUD_CONTROL_REQUEST_TIMEOUT_MS = 30_000
-// Bounds how long a quota refusal waits for the refreshed snapshot before reaching the conversation.
-const QUOTA_REFUSAL_REFRESH_TIMEOUT_MS = 5_000
 const CLOUD_MODEL_SYNC_CACHE_TTL_MS = 60_000
 
 type CherryCloudRequestInit = Omit<RequestInit, 'body'> & { body?: string }
@@ -1033,7 +1031,8 @@ export class CherryCloudService extends BaseService {
     const models = catalog.data.filter((model) => entitledModelIds.has(model.id))
     const quotaAvailableByModelId = new Map<string, boolean>()
     for (const pool of account.quota_pools) {
-      const poolAvailable = pool.windows.every((window) => window.remaining_units > 0)
+      // Settled usage only: remaining_units also subtracts in-flight reservations, which free up within seconds.
+      const poolAvailable = pool.windows.every((window) => window.used_units < window.limit_units)
       for (const modelId of pool.model_ids) {
         quotaAvailableByModelId.set(modelId, (quotaAvailableByModelId.get(modelId) ?? false) || poolAvailable)
       }
@@ -1267,7 +1266,10 @@ export class CherryCloudService extends BaseService {
     ) {
       this.modelSyncCache = null
     }
-    if (idempotencyKey && isQuotaRefusal(response)) return this.settleQuotaRefusal(response, init?.signal)
+    if (idempotencyKey && isQuotaRefusal(response)) {
+      this.refreshAfterQuotaRefusal()
+      return response
+    }
     const refreshRequired = response.status === 401 && code === 'AUTH_REQUIRED'
     const replayed = response.status === 409 && code === 'REQUEST_REPLAYED'
     if (!refreshRequired && !replayed) return response
@@ -1300,42 +1302,25 @@ export class CherryCloudService extends BaseService {
       this.cloudState.session
     ) {
       this.modelSyncCache = null
-      return this.settleQuotaRefusal(response, init?.signal)
+      this.refreshAfterQuotaRefusal()
     }
     return response
   }
 
-  /**
-   * A refusal may only mean this request's reservation did not fit, so the refusal is returned after a
-   * fresh snapshot lands. Concurrent refusals share one refresh; the caller's abort stops only its own wait.
-   */
-  private async settleQuotaRefusal(response: Response, signal: AbortSignal | null | undefined): Promise<Response> {
+  /** The refusal itself is the server's verdict; the refresh only updates the snapshot, so nothing waits on it. */
+  private refreshAfterQuotaRefusal(): void {
     const scopeId = this.getCurrentScopeId()
-    let refresh = this.quotaRefusalRefresh
-    if (refresh?.scopeId !== scopeId) {
-      const promise: Promise<void> = this.refreshAccount({
-        scopeId,
-        reason: 'quota_refusal',
-        signal: AbortSignal.timeout(QUOTA_REFUSAL_REFRESH_TIMEOUT_MS)
+    if (this.quotaRefusalRefresh?.scopeId === scopeId) return
+    const promise: Promise<void> = this.refreshAccount({ scopeId, reason: 'quota_refusal' })
+      .then(({ outcome }) => {
+        if (outcome !== 'refreshed')
+          logger.warn('Cherry Cloud account refresh after a quota refusal did not complete', { outcome })
       })
-        .then(({ outcome }) => {
-          if (outcome !== 'refreshed')
-            logger.warn('Cherry Cloud account refresh after a quota refusal did not complete', { outcome })
-        })
-        .catch((error) => logger.warn('Cherry Cloud account refresh after a quota refusal failed', error as Error))
-        .finally(() => {
-          if (this.quotaRefusalRefresh?.promise === promise) this.quotaRefusalRefresh = null
-        })
-      refresh = { scopeId, promise }
-      this.quotaRefusalRefresh = refresh
-    }
-    try {
-      await abortable(refresh.promise, signal)
-    } catch (error) {
-      discardResponse(response)
-      throw error
-    }
-    return response
+      .catch((error) => logger.warn('Cherry Cloud account refresh after a quota refusal failed', error as Error))
+      .finally(() => {
+        if (this.quotaRefusalRefresh?.promise === promise) this.quotaRefusalRefresh = null
+      })
+    this.quotaRefusalRefresh = { scopeId, promise }
   }
 
   public async revokeCurrentSession(): Promise<CherryCloudStatus> {

@@ -1,9 +1,6 @@
 import { getToastUtilities, type ToastLabels } from '@cherrystudio/ui'
 import i18n from '@renderer/i18n/resolver'
-import {
-  getCherryCloudErrorPresentation,
-  getCherryCloudQuotaRefusalTitleKey
-} from '@renderer/utils/cherryCloudErrorPresentation'
+import { getCherryCloudErrorPresentation } from '@renderer/utils/cherryCloudErrorPresentation'
 import { isAbortError, providerErrorText } from '@renderer/utils/error'
 import { classifyError, type ErrorCategory } from '@renderer/utils/errorClassifier'
 import {
@@ -45,8 +42,6 @@ export interface ErrorToastContext {
   modelName?: string
   mcpServer?: { id: string; name: string }
   retryAfterSeconds?: number
-  /** Whether the latest Cherry Cloud snapshot reports the failed model's quota pool at zero. */
-  cherryCloudQuotaExhausted?: boolean
   actions?: Partial<Record<ErrorToastAction, () => void | boolean | Promise<void | boolean>>>
   isCurrent?: () => boolean
 }
@@ -80,7 +75,7 @@ function errorFromException(error: unknown, context: ErrorToastContext = {}): st
   const key = notifications[presentation.type]({
     key: context.key,
     title: planQuota
-      ? i18n.t(getCherryCloudQuotaRefusalTitleKey(context.cherryCloudQuotaExhausted))
+      ? i18n.t('models.detail.quota_insufficient_for_request')
       : category === 'unknown'
         ? details || i18n.t('error.unknown')
         : i18n.t(diagnosisKey),
@@ -126,8 +121,6 @@ function errorFromException(error: unknown, context: ErrorToastContext = {}): st
                     ...context,
                     key,
                     category: undefined,
-                    // The snapshot fact described the original failure, not this retry's.
-                    cherryCloudQuotaExhausted: undefined,
                     actions: tracksCompletion ? context.actions : {}
                   })
               } finally {

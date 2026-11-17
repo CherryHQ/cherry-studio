@@ -2937,7 +2937,7 @@
   "models.detail.model_id": "Modell-ID",
   "models.detail.provider": "Anbieter",
   "models.detail.quota_exhausted": "Tarifkontingent aufgebraucht; Zurücksetzung steht aus",
-  "models.detail.quota_insufficient_for_request": "Nicht genug Kontingent für diese Anfrage. Kontext kürzen oder warten, bis laufende Anfragen abgeschlossen sind",
+  "models.detail.quota_insufficient_for_request": "Tarifkontingent reicht für diese Anfrage nicht aus",
   "models.edit": "Modell bearbeiten",
   "models.group.ungrouped": "Nicht gruppiert",
   "models.multi_select.label": "Mehrfachauswahl",

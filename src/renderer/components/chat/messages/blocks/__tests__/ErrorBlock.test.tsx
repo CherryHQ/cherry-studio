@@ -1,7 +1,6 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import React from 'react'
-import { SWRConfig } from 'swr'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import enUS from '@renderer/i18n/locales/en-us.json'
@@ -346,54 +345,6 @@ required service tier.`
     expect(screen.queryByText(GO_TO_SETTINGS_LABEL)).toBeNull()
   })
 
-  it.each([
-    { exhaustedModelIds: [], title: 'models.detail.quota_insufficient_for_request' },
-    { exhaustedModelIds: ['cherryai-subscription::qwen3.8-flash'], title: 'models.detail.quota_exhausted' }
-  ])('titles a Cloud quota refusal from the latest account snapshot: %j', async ({ exhaustedModelIds, title }) => {
-    const models = {
-      entitledModelIds: [],
-      freeModelIds: [],
-      availableModelIds: { agent: [], general: [] },
-      quotaExhaustedModelIds: exhaustedModelIds
-    }
-    const receipt = {
-      status: { phase: 'signed-in', accountId: 'a', displayName: null, scopeId: 's', revision: 1 },
-      reason: 'quota_refusal',
-      account: { freshness: 'fresh' },
-      models: { freshness: 'fresh', value: models, observedRevision: 1 },
-      plans: { freshness: 'unknown', error: null }
-    }
-    const request = vi.spyOn(window.api.ipcApi, 'request').mockImplementation(async (route) => ({
-      ok: true,
-      data: route === 'cherry_cloud.account.get' ? receipt : route === 'cherry_cloud.models.sync' ? models : undefined
-    }))
-    const cloudMessage = {
-      ...message,
-      model: { id: 'qwen3.8-flash', name: 'Qwen 3.8 Flash', provider: 'cherryai-subscription' }
-    }
-
-    render(
-      <SWRConfig value={{ provider: () => new Map() }}>
-        <ErrorBlock
-          partId="message-1-part-0"
-          error={{
-            name: 'AI_APICallError',
-            message: planText,
-            stack: null,
-            statusCode: 429,
-            providerErrorCategory: 'quota'
-          }}
-          message={cloudMessage}
-        />
-      </SWRConfig>
-    )
-
-    // The availability sync is keyed by the receipt's scope, so it runs only after the snapshot landed.
-    await waitFor(() => expect(request).toHaveBeenCalledWith('cherry_cloud.models.sync', undefined))
-    await waitFor(() => expect(screen.getByText(title)).toBeInTheDocument())
-    request.mockRestore()
-  })
-
   it('keeps an unspecified Cloud HTTP 429 as a rate limit', () => {
     const cloudMessage = {
       ...message,
@@ -409,7 +360,7 @@ required service tier.`
     )
 
     expect(screen.getByText('error.diagnosis.rate_limit')).toBeInTheDocument()
-    expect(screen.queryByText('models.detail.quota_exhausted')).toBeNull()
+    expect(screen.queryByText('models.detail.quota_insufficient_for_request')).toBeNull()
     expect(screen.getByText(/HTTP 429/)).toBeInTheDocument()
   })
 
