@@ -240,6 +240,26 @@ describe('message tool-output projection', () => {
     expect(isDeferredToolOutput(projected.output)).toBe(true)
   })
 
+  // An escaped newline costs two bytes, so characters that fit can still serialize past the budget.
+  it('measures JSON escapes, not only characters', () => {
+    const escaped = { content: '\n'.repeat(DEFER_TOOL_OUTPUT_BYTES / 2 + 1) }
+    expect(escaped.content.length).toBeLessThan(DEFER_TOOL_OUTPUT_BYTES)
+
+    const projected = projectMessagePartForRenderer(partWith(escaped), TOPIC_ID, MESSAGE_ID) as unknown as {
+      output: unknown
+    }
+    expect(isDeferredToolOutput(projected.output)).toBe(true)
+  })
+
+  it('measures a value by its JSON form, not by fields its toJSON leaves out', () => {
+    const summarized = { content: 'x'.repeat(DEFER_TOOL_OUTPUT_BYTES + 1), toJSON: () => ({ content: 'summary' }) }
+
+    const projected = projectMessagePartForRenderer(partWith(summarized), TOPIC_ID, MESSAGE_ID) as unknown as {
+      output: unknown
+    }
+    expect(projected.output).toBe(summarized)
+  })
+
   it('does nothing without a message id to address the result by', () => {
     const chunk = chunkWith(large)
     expect(projectStreamChunkForRenderer(chunk, TOPIC_ID, undefined)).toEqual(chunk)
