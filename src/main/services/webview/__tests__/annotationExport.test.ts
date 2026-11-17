@@ -1,5 +1,6 @@
 import { EventEmitter } from 'node:events'
 
+import type { Debugger } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 
 import { BaseService } from '@main/core/lifecycle'
@@ -24,7 +25,7 @@ interface MockGuest extends EventEmitter {
     attach: Mock<() => void>
     detach: Mock<() => void>
     isAttached: Mock<() => boolean>
-    sendCommand: Mock<(method: string, params?: Record<string, unknown>) => Promise<unknown>>
+    sendCommand: Mock<Debugger['sendCommand']>
   }
   getTitle: Mock<() => string>
   getURL: Mock<() => string>
@@ -39,7 +40,7 @@ const annotation: WebviewAnnotation = {
 }
 
 function createGuest(
-  sendCommand: (method: string, params?: Record<string, unknown>) => Promise<unknown>,
+  sendCommand: Debugger['sendCommand'],
   options: { title?: string; url?: string; devToolsOpened?: boolean } = {}
 ): MockGuest {
   let attached = false

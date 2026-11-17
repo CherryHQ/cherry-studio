@@ -107,8 +107,8 @@ export function runWithResponse<T>(
  * (e.g. image models that bind `config.fetch` at construction, before any
  * global mock would apply). The caller wires the provided fetch in and runs.
  */
-export async function captureWithFetch(
-  run: (fetch: typeof globalThis.fetch) => PromiseLike<unknown>
+export async function captureWithFetch<TResult>(
+  run: (fetch: typeof globalThis.fetch) => TResult
 ): Promise<CapturedRequest> {
   const cap = makeCapturingFetch()
   try {

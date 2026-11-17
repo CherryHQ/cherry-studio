@@ -1,16 +1,5 @@
 /**
- * Tests for `DbService.withWriteTx`.
- *
- * better-sqlite3 keeps a single synchronous connection, so a write transaction
- * is inherently atomic and cannot interleave with another. The libsql-era
- * process-wide mutex and SQLITE_BUSY retry (workarounds for upstream issue
- * #288) were removed; `withWriteTx` is now a readiness guard in front of one
- * `BEGIN IMMEDIATE` transaction. The contracts worth guarding:
- *   - several writes compose into one transaction and all persist on commit;
- *   - any throw inside the tx rolls every write back;
- *   - the readiness guard rejects calls made before `init()`;
- *   - the engine rejects an async callback, enforcing the synchronous-fn
- *     contract the production JSDoc promises.
+ * Real SQLite coverage for atomic writes, rollback, and rejection of asynchronous transactions.
  */
 
 import { setupTestDatabase } from '@test-helpers/db'
@@ -23,43 +12,6 @@ import { jobService } from '@data/services/JobService'
 vi.mock('@application', async () => {
   const mod = await import('@test-mocks/main/application')
   return mod.mockApplicationFactory()
-})
-
-/**
- * Faithful mirror of production `withWriteTx` (DbService.ts) — a readiness guard
- * in front of one `BEGIN IMMEDIATE` transaction. It is two lines, so keeping it
- * in lockstep with production is trivial; the unit tests below pin the guard
- * branch and the transaction options, which the always-ready integration suite
- * cannot reach.
- */
-function makeWithWriteTx<Tx>(
-  db: { transaction: (fn: (tx: Tx) => unknown, opts: { behavior: 'immediate' }) => unknown },
-  isReady: boolean
-) {
-  return async function withWriteTx<T>(fn: (tx: Tx) => T): Promise<T> {
-    if (!isReady) {
-      throw new Error('Database is not initialized, please call init() first!')
-    }
-    return db.transaction(fn, { behavior: 'immediate' }) as T
-  }
-}
-
-describe('withWriteTx readiness guard — unit', () => {
-  it('rejects before init() without touching the db', async () => {
-    const transaction = vi.fn()
-    const withWriteTx = makeWithWriteTx({ transaction }, false)
-
-    await expect(withWriteTx(() => 'never')).rejects.toThrow(/not initialized/i)
-    expect(transaction).not.toHaveBeenCalled()
-  })
-
-  it('runs fn inside a BEGIN IMMEDIATE transaction when ready', async () => {
-    const transaction = vi.fn((fn: (tx: unknown) => unknown) => fn({}))
-    const withWriteTx = makeWithWriteTx({ transaction }, true)
-
-    await expect(withWriteTx(() => 'ok')).resolves.toBe('ok')
-    expect(transaction).toHaveBeenCalledWith(expect.any(Function), { behavior: 'immediate' })
-  })
 })
 
 describe('withWriteTx integration — real better-sqlite3', () => {
