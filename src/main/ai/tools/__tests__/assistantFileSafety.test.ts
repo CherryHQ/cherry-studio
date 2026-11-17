@@ -213,11 +213,11 @@ describe('publishFileNoClobber', () => {
     await writeFile(staged, 'new content')
     await writeFile(outsideVictim, 'keep me')
 
-    vi.mocked(execFile).mockImplementationOnce(((...args: unknown[]) => {
+    vi.mocked(execFile).mockImplementationOnce((...args: Parameters<typeof execFile>) => {
       renameSync(outputParent, displacedParent)
       symlinkSync(outsideParent, outputParent, process.platform === 'win32' ? 'junction' : 'dir')
-      return Reflect.apply(actualExecFile, undefined, args)
-    }) as typeof execFile)
+      return actualExecFile(...args)
+    })
 
     try {
       await expect(
