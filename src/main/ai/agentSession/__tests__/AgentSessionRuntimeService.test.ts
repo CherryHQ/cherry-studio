@@ -2717,9 +2717,18 @@ describe('AgentSessionRuntimeService', () => {
         signal: new AbortController().signal
       })
       const reader = source.stream.getReader()
-      await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
+      // openTurnStream wraps inner chunks as control events; the turn start is the first one.
+      await expect(reader.read()).resolves.toMatchObject({
+        value: { type: 'control', chunk: { type: 'start' } },
+        done: false
+      })
 
-      await expect(reader.read()).rejects.toThrow('the model is disabled')
+      await expect(reader.read()).resolves.toMatchObject({
+        value: {
+          type: 'error',
+          error: expect.objectContaining({ message: expect.stringContaining('the model is disabled') })
+        }
+      })
       expect(firstConnection.close).toHaveBeenCalledOnce()
       expect(connect).toHaveBeenCalledTimes(1)
     })
