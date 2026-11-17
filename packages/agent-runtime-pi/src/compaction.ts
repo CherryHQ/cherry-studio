@@ -45,6 +45,18 @@ export interface AgentRuntimeCompaction
   summarize?: CompactionSummarizer
 }
 
+/**
+ * True when compaction budgets fit a session model's window. Budgets derived for another (larger)
+ * model can exceed it: the compaction threshold (contextWindow - reserveTokens) goes negative and
+ * the retained tail can outsize the window. Sessions fall back to their per-model native budgets.
+ */
+export function compactionBudgetsFitModel(
+  compaction: Pick<AgentRuntimeCompaction, 'reserveTokens' | 'keepRecentTokens'>,
+  model: { contextWindow: number }
+): boolean {
+  return compaction.reserveTokens + compaction.keepRecentTokens < model.contextWindow
+}
+
 /** The request the extension builds from Pi's compaction event; the session wrapper adds the metered stream. */
 export type CompactionSummaryEventRequest = Omit<CompactionSummaryRequest, 'stream'>
 

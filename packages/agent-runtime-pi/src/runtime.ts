@@ -27,6 +27,7 @@ import {
 
 import { createPiBehavior, type PiBehavior } from './behavior/harness'
 import { historyOf } from './behavior/history'
+import { compactionBudgetsFitModel } from './compaction'
 import { readContextUsage } from './contextUsage'
 import { PiProjection, type PiObservation } from './runtimeProjection'
 import { createAgentRuntimeSession, type AgentRuntimeSession, type AgentRuntimeSessionOptions } from './session'
@@ -191,7 +192,15 @@ export async function createPiRuntime(options: PiRuntimeOptions): Promise<Operat
             model,
             sessionManager,
             settings: { ...config.settings, retry: { enabled: false }, cacheWarming: 'off' },
-            compaction: { ...settings, ...config.compaction },
+            compaction: {
+              ...settings,
+              ...config.compaction,
+              // Budgets derived for a different (larger) model must not shrink this session model's
+              // threshold below zero; the per-model native budgets take over, the summarizer stays.
+              ...(config.compaction && !compactionBudgetsFitModel(config.compaction, model)
+                ? { reserveTokens: settings.reserveTokens, keepRecentTokens: settings.keepRecentTokens }
+                : {})
+            },
             extensionFactories: [...(config.extensionFactories ?? []), extension],
             onEvent: (event) => {
               try {

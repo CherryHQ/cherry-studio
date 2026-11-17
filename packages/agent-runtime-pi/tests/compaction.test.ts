@@ -4,7 +4,7 @@ import { defineTool } from '@earendil-works/pi-coding-agent'
 import { Type } from 'typebox'
 import { describe, expect, it } from 'vitest'
 
-import type { CompactionSummarizer, CompactionSummaryRequest } from '../src/compaction'
+import { compactionBudgetsFitModel, type CompactionSummarizer, type CompactionSummaryRequest } from '../src/compaction'
 import { readContextUsage } from '../src/contextUsage'
 import type { ModelCall } from './sessionSupport'
 import { respondingModel } from './sessionSupport'
@@ -402,5 +402,25 @@ describe('host summarizer', () => {
         error: 'compression model unavailable',
         aborted: true
       })
+  })
+})
+
+describe('compactionBudgetsFitModel', () => {
+  it('accepts budgets derived for the session model and rejects budgets that exceed its window', () => {
+    // Root-derived budgets fit the root window they were computed from.
+    expect(
+      compactionBudgetsFitModel({ reserveTokens: 113_050, keepRecentTokens: 209_715 }, { contextWindow: 1_048_576 })
+    ).toBe(true)
+    // The same budgets on a 49,152-token child would push the threshold negative and retain more
+    // than the window, so the session falls back to its per-model native budgets.
+    expect(
+      compactionBudgetsFitModel({ reserveTokens: 113_050, keepRecentTokens: 209_715 }, { contextWindow: 49_152 })
+    ).toBe(false)
+    expect(compactionBudgetsFitModel({ reserveTokens: 16_384, keepRecentTokens: 1 }, { contextWindow: 32_000 })).toBe(
+      true
+    )
+    expect(compactionBudgetsFitModel({ reserveTokens: 32_000, keepRecentTokens: 0 }, { contextWindow: 32_000 })).toBe(
+      false
+    )
   })
 })
