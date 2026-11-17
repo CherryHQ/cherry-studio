@@ -155,30 +155,26 @@ export default function ElectronFilePreview({
   }, [filePath, t])
 
   return (
-    <div className="relative h-full min-h-0">
-      <Preview
-        source={source}
-        refreshKey={previewRefreshKey}
-        locale={i18n.language}
-        resources={resources}
-        options={previewOptions}
-        onSelection={onSelectionReference ? onSelection : undefined}
-        onDiagnostic={onDiagnostic}
-        onError={(error) => setPreviewError({ error, source, refreshKey: previewRefreshKey })}
-        onRequestOpen={onRequestOpen}
-      />
-      {faultError ? (
-        <div className="pointer-events-none absolute inset-x-0 bottom-6 z-10 flex justify-center">
-          <div className="pointer-events-auto">
-            <ErrorDetailAction
-              error={faultError}
-              message={t('file_preview.load_error.description')}
-              source="file.preview"
-              operation={`file.preview.${faultError.code}`}
-            />
-          </div>
-        </div>
-      ) : null}
-    </div>
+    <Preview
+      source={source}
+      refreshKey={previewRefreshKey}
+      locale={i18n.language}
+      resources={resources}
+      options={previewOptions}
+      onSelection={onSelectionReference ? onSelection : undefined}
+      onDiagnostic={onDiagnostic}
+      onError={(error) => setPreviewError({ error, source, refreshKey: previewRefreshKey })}
+      onRequestOpen={onRequestOpen}
+      errorDetail={
+        faultError ? (
+          <ErrorDetailAction
+            error={faultError}
+            message={t('file_preview.load_error.description')}
+            source="file.preview"
+            operation={`file.preview.${faultError.code}`}
+          />
+        ) : undefined
+      }
+    />
   )
 }

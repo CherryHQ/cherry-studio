@@ -69,10 +69,11 @@ vi.mock('@renderer/components/CodeBlockView/HtmlPreviewFrame', async (importOrig
 
 vi.mock('@cherrystudio/ui', () => ({
   Button: (props: ComponentPropsWithoutRef<'button'>) => <button type="button" {...props} />,
-  EmptyState: ({ title, description }: { title: string; description?: string }) => (
+  EmptyState: ({ title, description, detail }: { title: string; description?: string; detail?: ReactNode }) => (
     <div>
       <span>{title}</span>
       <span>{description}</span>
+      {detail}
     </div>
   ),
   Tooltip: ({ children }: { children: ReactNode }) => <>{children}</>,

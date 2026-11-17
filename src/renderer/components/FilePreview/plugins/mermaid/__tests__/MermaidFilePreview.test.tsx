@@ -25,7 +25,12 @@ vi.mock('@renderer/components/Preview/MermaidPreview', () => ({
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
-  EmptyState: ({ title }: { title: string }) => <div>{title}</div>,
+  EmptyState: ({ title, detail }: { title: string; detail?: ReactNode }) => (
+    <div>
+      {title}
+      {detail}
+    </div>
+  ),
   ScrollArea: MockCherrystudioUI.ScrollArea,
   Tooltip: ({ children }: { children: ReactNode }) => children,
   Button: (props: ComponentPropsWithoutRef<'button'>) => <button type="button" {...props} />

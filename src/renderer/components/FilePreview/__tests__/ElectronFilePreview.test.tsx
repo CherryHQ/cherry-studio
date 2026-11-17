@@ -1,6 +1,7 @@
 import '@testing-library/jest-dom/vitest'
 import { resetToastMocks } from '@test-mocks/renderer/toast'
 import { act, render, screen, waitFor } from '@testing-library/react'
+import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { PreviewError } from '@cherrystudio/file-preview/core'
@@ -19,11 +20,12 @@ vi.mock('@cherrystudio/file-preview/react', () => ({
     onError?: (error: PreviewError) => void
     onDiagnostic?: (diagnostic: PreviewDiagnostic) => void
     onRequestOpen?: () => void
+    errorDetail?: ReactNode
   }) => {
     preview.onError = props.onError
     preview.onDiagnostic = props.onDiagnostic
     preview.onRequestOpen = props.onRequestOpen
-    return <div data-testid="preview" />
+    return <div data-testid="preview">{props.errorDetail}</div>
   }
 }))
 
