@@ -47,7 +47,7 @@ vi.mock('@renderer/components/FileEditor', () => ({
 vi.mock('@renderer/components/CodeBlockView/HtmlPreviewFrame', async (importOriginal) => {
   // Keep the real named exports (incl. HTML_PREVIEW_RESTRICTED_SANDBOX) so the
   // sandbox assertion checks the actual constant, not a mock stand-in.
-  const actual = (await importOriginal()) as Record<string, unknown>
+  const actual = await importOriginal<Record<string, unknown>>()
   return {
     ...actual,
     default: (props: { html: string; title: string; baseUrl?: string; sandbox?: string; csp?: string }) => {
