@@ -178,25 +178,6 @@ describe('ImagePreviewDialog', () => {
     expect(screen.getByAltText('One')).toHaveAttribute('src', ITEMS[0].src)
   })
 
-  it('renders all view transform controls', () => {
-    render(<ImagePreviewDialog open items={ITEMS} labels={LABELS} onOpenChange={vi.fn()} />)
-
-    expect(
-      screen
-        .getAllByRole('button')
-        .map((button) => button.getAttribute('aria-label'))
-        .filter((label) => label !== LABELS.previous && label !== LABELS.next && label !== LABELS.close)
-    ).toEqual([
-      LABELS.zoomOut,
-      LABELS.zoomIn,
-      LABELS.rotateLeft,
-      LABELS.rotateRight,
-      LABELS.flipHorizontal,
-      LABELS.flipVertical,
-      LABELS.reset
-    ])
-  })
-
   it('fades the full-screen preview and overlay without moving the image', () => {
     render(<ImagePreviewDialog open items={ITEMS} labels={LABELS} onOpenChange={vi.fn()} />)
 

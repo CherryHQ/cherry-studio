@@ -7,7 +7,6 @@
 import type { ProviderOptions } from '@ai-sdk/provider-utils'
 
 import { loggerService } from '@logger'
-import { DEFAULT_TIMEOUT } from '@main/ai/constants'
 import type { SamplingSettings } from '@main/ai/types'
 import { ENDPOINT_TYPE, type EndpointType, type Model } from '@shared/data/types/model'
 import type { AiSdkParam } from '@shared/types/aiSdk'
@@ -18,7 +17,6 @@ import {
   isGemini4Model,
   isMaxTemperatureOneModel,
   isQwenModel,
-  isSupportedFlexServiceTier,
   isSupportTemperatureModel,
   isSupportTopPModel,
   isTemperatureTopPMutuallyExclusiveModel
@@ -186,12 +184,6 @@ export function filterStandardParams(
   }
 
   return standardParams
-}
-
-/** Provider timeout override (`flex` tier gets a longer timeout). */
-export function getTimeout(model: Model): number {
-  if (isSupportedFlexServiceTier(model)) return 15 * 1000 * 60
-  return DEFAULT_TIMEOUT
 }
 
 /**

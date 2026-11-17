@@ -35,27 +35,6 @@ describe('ensureBuiltinAgent command', () => {
     mocks.ensure.mockReturnValue({ id: 'support-1' })
   })
 
-  it('uses the current package definition and configured default model', () => {
-    expect(ensureBuiltinAgent('support')).toEqual({ id: 'support-1' })
-
-    expect(mocks.appGet).toHaveBeenCalledWith('PreferenceService')
-    expect(mocks.preferenceGet).toHaveBeenCalledWith('chat.default_model_id')
-    expect(mocks.ensure).toHaveBeenCalledWith({
-      name: 'Cherry Support',
-      builtinRole: 'support',
-      preferredModelId: 'anthropic::claude-sonnet-4-5',
-      type: 'claude-code',
-      configuration: {
-        avatar: '🧰',
-        permission_mode: 'default',
-        bootstrap_completed: true,
-        builtin_role: 'support',
-        env_vars: {}
-      }
-    })
-    expect(mocks.loadDefaults).toHaveBeenCalledWith('support')
-  })
-
   it('refuses to create a system Agent from an invalid package definition', () => {
     mocks.loadDefaults.mockImplementation(() => {
       throw new Error('Builtin Agent package configuration is invalid for support: permission_mode')

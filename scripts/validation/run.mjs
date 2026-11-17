@@ -31,6 +31,7 @@ if (process.env.VALIDATION_PLAN) {
   if (
     !Array.isArray(plan.tasks) ||
     !Array.isArray(plan.projects) ||
+    typeof plan.platform !== 'boolean' ||
     plan.tasks.some((task) => !Object.hasOwn(checkTasks, task)) ||
     plan.projects.some((project) => !testProjects.includes(project))
   )
@@ -48,7 +49,7 @@ if (process.env.VALIDATION_PLAN) {
 if (values['github-output']) {
   if (!process.env.GITHUB_OUTPUT) throw new Error('GITHUB_OUTPUT is required')
   const scope = createHash('sha256')
-    .update(JSON.stringify([plan.tasks, plan.projects]))
+    .update(JSON.stringify([plan.tasks, plan.projects, plan.platform]))
     .digest('hex')
   appendFileSync(
     process.env.GITHUB_OUTPUT,
@@ -69,7 +70,7 @@ const tasks = plan.tasks.filter(
   (task) => !values.group || values.group === 'checks' || checkTasks[task].group === values.group
 )
 const projects =
-  values.group === 'platform' && plan.projects.includes('main')
+  values.group === 'platform' && plan.platform
     ? ['main', 'shared', 'system-speech']
     : plan.projects.filter((project) => {
         if (!values.group || values.group === 'tests') return true

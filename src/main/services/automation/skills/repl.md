@@ -23,7 +23,8 @@ fails, do not repeat earlier completed actions. Stop at a failure and observe be
 recovery; never automatically replay a cell. Output marked OMITTED is not evidence.
 
 Ordinary JS errors retain valid bindings. Cancellation, process failure or an API
-change clears JS state. Cells have a 60-second deadline; idle sessions expire after
+change clears JS state. Cells have a 60-second execution deadline, excluding time
+waiting for application approval; idle sessions expire after
 30 minutes. Reset clears variables and releases leases without closing user apps or
 pages, restoring permissions, or bypassing user stop. The host owns all control.
 
