@@ -5,6 +5,7 @@ import { memo, useCallback, useMemo, useState, useSyncExternalStore } from 'reac
 import { useTranslation } from 'react-i18next'
 
 import { Kbd, Tooltip } from '@cherrystudio/ui'
+import { EmptyState } from '@cherrystudio/ui'
 import { useSharedCacheSelector } from '@data/hooks/useCache'
 import { ResourceListActionContextMenu } from '@renderer/components/chat/actions/ResourceListActionContextMenu'
 import type {
@@ -21,6 +22,7 @@ import {
   useResourceListActions,
   useResourceListRowState
 } from '@renderer/components/chat/resourceList/base'
+import { ResourceListEmptyScene } from '@renderer/components/chat/resourceList/ResourceListEmptyScene'
 import { SessionHoverPreview } from '@renderer/components/chat/resourceList/SessionHoverPreview'
 import { useConversationListShortcuts } from '@renderer/components/chat/resourceList/useConversationListShortcuts'
 import {
@@ -208,8 +210,12 @@ export function TopicListBody(props: TopicListBodyProps) {
       draggable={variant === 'draggable'}
       errorFallback={<ResourceList.ErrorState message={t('error.boundary.default.message')} />}
       emptyFallback={
-        <div className="text-muted-foreground mx-auto flex h-full w-full max-w-sm items-center justify-center px-5 py-10 text-center text-xs break-words">
-          {t('chat.topics.empty.title')}
+        <div className="flex h-full w-full items-center justify-center">
+          <EmptyState
+            compact
+            scene={<ResourceListEmptyScene title={t('chat.topics.title')} addLabel={t('chat.add.topic.title')} />}
+            title={t('chat.topics.empty.title')}
+          />
         </div>
       }
       renderItem={renderItem}

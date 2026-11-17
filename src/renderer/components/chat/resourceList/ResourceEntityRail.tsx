@@ -3,7 +3,7 @@ import type { ReactNode, RefObject } from 'react'
 import { useCallback, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Tooltip } from '@cherrystudio/ui'
+import { EmptyState, Tooltip } from '@cherrystudio/ui'
 import { actionsToCommandMenuExtraItems } from '@renderer/components/chat/actions/actionMenuItems'
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
 import { ResourceListActionContextMenu } from '@renderer/components/chat/actions/ResourceListActionContextMenu'
@@ -22,6 +22,7 @@ import {
   type ResourceListSection,
   type ResourceListStatus
 } from './base'
+import { ResourceListEmptyScene } from './ResourceListEmptyScene'
 
 export type ResourceEntityRailItem = {
   id: string
@@ -272,7 +273,22 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
     },
     [getContextMenuActions, onContextMenuAction, runContextMenuAction, t]
   )
-  const empty = useMemo(() => emptyFallback ?? <div className="min-h-0 flex-1" />, [emptyFallback])
+  const empty = useMemo(() => {
+    if (emptyFallback) return emptyFallback
+    const copy =
+      variant === 'agent'
+        ? { title: 'agent.sidebar_title', add: 'agent.add.title', empty: 'selector.agent.empty_text' }
+        : { title: 'assistants.abbr', add: 'chat.add.assistant.title', empty: 'selector.assistant.empty_text' }
+    return (
+      <div className="flex min-h-0 flex-1 items-center justify-center">
+        <EmptyState
+          compact
+          scene={<ResourceListEmptyScene title={t(copy.title)} addLabel={t(copy.add)} lead />}
+          title={t(copy.empty)}
+        />
+      </div>
+    )
+  }, [emptyFallback, t, variant])
   const providerItems = useMemo(
     () => (groupByGroup ? sortEntityRailItemsForGroupGrouping(items) : items),
     [groupByGroup, items]

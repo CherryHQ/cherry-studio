@@ -1,4 +1,3 @@
-import '@renderer/assets/styles/vendor/xyflow.css'
 import {
   Controls,
   MiniMap,
@@ -10,11 +9,15 @@ import {
   type ReactFlowProps,
   type Viewport
 } from '@xyflow/react'
+
+import '@renderer/assets/styles/vendor/xyflow.css'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { EmptyState } from '@cherrystudio/ui'
 import { cn } from '@renderer/utils/style'
 
+import { TopicMessageFlowEmptyScene } from './TopicMessageFlowEmptyScene'
 import { TOPIC_MESSAGE_FLOW_INACTIVE_EDGE_COLOR, TOPIC_MESSAGE_FLOW_NODE_SIZE } from './topicMessageFlowLayout'
 import TopicMessageFlowLegend from './TopicMessageFlowLegend'
 import TopicMessageFlowNode from './TopicMessageFlowNode'
@@ -235,7 +238,7 @@ const TopicMessageFlowCanvas = ({
           className
         )}
         data-testid="topic-message-flow-empty">
-        {t('common.no_results')}
+        <EmptyState compact scene={<TopicMessageFlowEmptyScene />} title={t('common.no_results')} />
       </div>
     )
   }

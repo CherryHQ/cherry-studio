@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 
 import { Button, ConfirmDialog, EmptyState, SegmentedControl, Skeleton } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
+import { ArtifactOpenScene } from '@renderer/components/chat/panes/ArtifactEmptyScenes'
 import { FilePreview } from '@renderer/components/FilePreview'
 import { FileTree, type FileTreeNode } from '@renderer/components/FileTree'
 import { useDirectoryTree } from '@renderer/hooks/useDirectoryTree'
@@ -425,9 +426,8 @@ export const SkillFileBrowser = function SkillFileBrowser({
                 />
               )
             ) : (
-              <div className="flex h-full flex-col items-center justify-center gap-2 text-foreground-tertiary">
-                <FileText className="size-7" strokeWidth={1.2} aria-hidden />
-                <span className="text-xs">{t('library.skill_detail.select_file')}</span>
+              <div className="flex h-full items-center justify-center">
+                <EmptyState compact scene={<ArtifactOpenScene />} title={t('library.skill_detail.select_file')} />
               </div>
             )}
           </div>

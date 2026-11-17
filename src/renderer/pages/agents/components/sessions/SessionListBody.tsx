@@ -2,7 +2,9 @@ import { type RefObject, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@cherrystudio/ui'
+import { EmptyState } from '@cherrystudio/ui'
 import { ResourceList } from '@renderer/components/chat/resourceList/base'
+import { ResourceListEmptyScene } from '@renderer/components/chat/resourceList/ResourceListEmptyScene'
 import { useConversationListShortcuts } from '@renderer/components/chat/resourceList/useConversationListShortcuts'
 import {
   type AgentSessionDisplayMode,
@@ -141,8 +143,14 @@ export function SessionListBody({
         </ResourceList.ErrorState>
       }
       emptyFallback={
-        <div className="text-muted-foreground mx-auto flex h-full w-full max-w-sm items-center justify-center px-5 py-10 text-center text-xs break-words">
-          {t('agent.session.empty.title')}
+        <div className="flex h-full w-full items-center justify-center">
+          <EmptyState
+            compact
+            scene={
+              <ResourceListEmptyScene title={t('agent.session.list.title')} addLabel={t('agent.session.new')} lead />
+            }
+            title={t('agent.session.empty.title')}
+          />
         </div>
       }
       renderItem={renderItem}

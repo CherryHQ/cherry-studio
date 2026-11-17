@@ -25,6 +25,7 @@ vi.mock('@cherrystudio/ui', () => {
         {children}
       </button>
     ),
+    EmptyState: ({ title }: { title?: string }) => <div>{title}</div>,
     Field: Div,
     FieldContent: Div,
     FieldDescription: Div,

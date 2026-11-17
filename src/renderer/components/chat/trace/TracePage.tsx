@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { EmptyState } from '@cherrystudio/ui'
 import type { SpanEntity } from '@shared/data/types/trace'
 import type { TraceDataCursor } from '@shared/data/types/trace'
 
 import SpanDetail from './SpanDetail'
+import { TraceEmptyScene } from './TraceEmptyScene'
 import TraceTree from './TraceTree'
 import { TraceTreeModel } from './TraceTreeModel'
 
@@ -143,8 +145,8 @@ export const TracePage = ({ topicId, traceId }: TracePageProps) => {
                   {t('trace.pollError')}: {pollError}
                 </div>
               ) : model.nodeCount === 0 ? (
-                <div className="flex h-full min-h-40 items-center justify-center text-muted-foreground text-xs">
-                  {t('trace.noTraceList')}
+                <div className="flex h-full min-h-40 items-center justify-center">
+                  <EmptyState compact scene={<TraceEmptyScene />} title={t('trace.noTraceList')} />
                 </div>
               ) : (
                 <TraceTree
