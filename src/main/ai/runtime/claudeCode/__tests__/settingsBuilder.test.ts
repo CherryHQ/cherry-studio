@@ -110,6 +110,10 @@ vi.mock('@data/services/ProviderService', () => ({
   providerService: { list: vi.fn(() => []), getByProviderId: mocks.getByProviderId }
 }))
 
+vi.mock('@data/services/ModelService', () => ({
+  modelService: { getByKey: mocks.modelGetByKey }
+}))
+
 vi.mock('@main/ai/skills/SkillService', () => ({
   skillService: {
     list: mocks.listSkills,
