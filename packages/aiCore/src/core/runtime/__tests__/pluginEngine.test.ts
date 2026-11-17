@@ -10,7 +10,13 @@ import { wrapLanguageModel } from 'ai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ModelResolutionError, RecursiveDepthError } from '../../errors'
-import type { AiPlugin, GenerateTextParams, GenerateTextResult } from '../../plugins'
+import {
+  type AiPlugin,
+  createContext as createRequestContext,
+  type GenerateTextParams,
+  type GenerateTextResult,
+  PluginManager
+} from '../../plugins'
 import { PluginEngine } from '../pluginEngine'
 
 vi.mock('ai', async (importOriginal) => {
@@ -442,63 +448,38 @@ describe('PluginEngine', () => {
   })
 
   describe('Parameter Transformation', () => {
-    it('should transform parameters through plugin', async () => {
-      const transformParamsSpy = vi.fn().mockImplementation(async (params) => ({
-        ...params,
-        temperature: 0.8
-      }))
+    it('passes complete results to subsequent plugins without restoring omitted fields', async () => {
+      type Settings = { prompt: string; temperature?: number; maxOutputTokens?: number }
+      const plugins: AiPlugin<Settings>[] = [
+        { name: 'remove-temperature', transformParams: (params) => ({ prompt: params.prompt }) },
+        {
+          name: 'consume-result',
+          transformParams: async (params) => ({
+            ...params,
+            maxOutputTokens: 'temperature' in params ? 1 : 100
+          })
+        }
+      ]
+      const manager = new PluginManager(plugins)
+      const initial: Settings = { prompt: 'hello', temperature: 0.5 }
 
-      const plugin: AiPlugin = {
-        name: 'transformer',
-        resolveModel: vi.fn().mockResolvedValue(mockLanguageModel),
-        transformParams: transformParamsSpy
-      }
-
-      engine = new PluginEngine('openai', [plugin])
-
-      const mockExecutor = vi.fn().mockResolvedValue({ text: 'test' })
-
-      await engine.executeWithPlugins('generateText', { model: 'gpt-4', messages: [] }, mockExecutor)
-
-      expect(mockExecutor).toHaveBeenCalledWith(
-        expect.any(Object),
-        expect.objectContaining({
-          temperature: 0.8
-        })
+      const result = await manager.executeTransformParams(
+        initial,
+        createRequestContext('openai', mockLanguageModel, initial)
       )
+
+      expect(result).toEqual({ prompt: 'hello', maxOutputTokens: 100 })
+      expect(initial).toEqual({ prompt: 'hello', temperature: 0.5 })
     })
 
-    it('should chain parameter transformations across plugins', async () => {
-      const plugin1: AiPlugin = {
-        name: 'transform-1',
-        transformParams: vi.fn().mockImplementation(async (params) => ({
-          ...params,
-          temperature: 0.5
-        }))
-      }
+    it('preserves identity when plugins return unchanged parameters', async () => {
+      engine = new PluginEngine('openai', [
+        { name: 'unchanged', transformParams: (params) => params },
+        { name: 'async-unchanged', transformParams: async (params) => params }
+      ])
+      const initial = { prompt: 'hello', temperature: 0.5 }
 
-      const plugin2: AiPlugin = {
-        name: 'transform-2',
-        transformParams: vi.fn().mockImplementation(async (params) => ({
-          ...params,
-          maxTokens: 100
-        }))
-      }
-
-      engine = new PluginEngine('openai', [plugin1, plugin2])
-      engine.usePlugins([{ name: 'resolver', resolveModel: vi.fn().mockResolvedValue(mockLanguageModel) }])
-
-      const mockExecutor = vi.fn().mockResolvedValue({ text: 'test' })
-
-      await engine.executeWithPlugins('generateText', { model: 'gpt-4', messages: [] }, mockExecutor)
-
-      expect(mockExecutor).toHaveBeenCalledWith(
-        expect.any(Object),
-        expect.objectContaining({
-          temperature: 0.5,
-          maxTokens: 100
-        })
-      )
+      expect(await engine.transformAgentSettings(mockLanguageModel, initial)).toBe(initial)
     })
   })
 

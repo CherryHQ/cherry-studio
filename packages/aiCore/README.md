@@ -229,6 +229,8 @@ const executor = AiCore.create('openai', { apiKey: 'your-key' }, [
 
 ### 自定义插件
 
+`transformParams` 必须返回完整参数，返回值会直接交给后续插件，不再与输入隐式合并。旧插件返回 `{ temperature: 0.5 }` 时，需要迁移为 `return { ...params, temperature: 0.5 }`；无需修改时可直接 `return params`。返回值省略的字段会被移除。此公开插件契约变更不兼容旧的局部补丁插件，需要升级所有自定义插件。
+
 创建自定义插件非常简单：
 
 ```typescript

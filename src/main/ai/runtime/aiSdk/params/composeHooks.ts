@@ -84,9 +84,10 @@ function chainPrepareStep(parts: ReadonlyArray<Partial<AgentLoopHooks>>): AgentL
     for (const fn of fns) {
       const r = await fn(mutated)
       if (r) {
-        merged = { ...merged, ...r }
+        merged ??= {}
+        Object.defineProperties(merged, Object.getOwnPropertyDescriptors({ ...r }))
         if (r.messages) {
-          mutated = { ...mutated, messages: r.messages }
+          mutated = { ...options, messages: r.messages }
         }
       }
     }

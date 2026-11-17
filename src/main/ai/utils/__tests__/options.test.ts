@@ -91,6 +91,27 @@ describe('extractAiSdkStandardParams', () => {
 })
 
 describe('mergeCustomProviderParameters', () => {
+  it('preserves precedence across direct fields and provider aliases without mutating inputs', () => {
+    const untouched = { flag: true }
+    const initial = { openai: { retained: true }, other: untouched }
+    const params = { temperature: 0.1, cherryin: { temperature: 0.5 }, openai: { temperature: 0.8 }, maxTokens: 20 }
+
+    expect(mergeCustomProviderParameters(initial, params, 'cherryin')).toEqual({
+      openai: { retained: true, temperature: 0.8, maxTokens: 20 },
+      other: untouched
+    })
+    expect(initial).toEqual({ openai: { retained: true }, other: { flag: true } })
+    expect(mergeCustomProviderParameters(initial, {}, 'cherryin')).toBe(initial)
+  })
+
+  it('preserves reserved data keys and explicit undefined without changing prototypes', () => {
+    const initial = { openai: { retained: true } }
+    const result = mergeCustomProviderParameters(initial, { ['__proto__']: 'value', retained: undefined }, 'openai')
+
+    expect(result.openai).toEqual({ ['__proto__']: 'value', retained: undefined })
+    expect(Object.getPrototypeOf(result.openai)).toBe(Object.prototype)
+  })
+
   it('Case 1: key in actualAiSdkProviderIds → merge directly', () => {
     const initial = { openai: { reasoningEffort: 'low' as never } }
     const result = mergeCustomProviderParameters(initial, { openai: { customFlag: true } }, 'openai')

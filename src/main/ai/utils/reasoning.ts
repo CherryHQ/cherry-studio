@@ -2,22 +2,22 @@ import type { Assistant } from '@shared/data/types/assistant'
 
 /** Extract user-defined request parameters from assistant settings. */
 export function getCustomParameters(assistant: Assistant): Record<string, any> {
-  return (
-    assistant.settings?.customParameters?.reduce<Record<string, unknown>>((acc, param) => {
-      if (!param.name?.trim()) return acc
+  return Object.fromEntries(
+    assistant.settings?.customParameters?.flatMap((param) => {
+      if (!param.name?.trim()) return []
 
       if (param.type === 'json') {
-        const value = param.value as string
-        if (value === 'undefined') return { ...acc, [param.name]: undefined }
+        const value = param.value
+        if (value === 'undefined') return [[param.name, undefined]]
         try {
-          return { ...acc, [param.name]: JSON.parse(value) }
+          return [[param.name, JSON.parse(String(value))]]
         } catch {
-          return { ...acc, [param.name]: value }
+          return [[param.name, value]]
         }
       }
 
-      return { ...acc, [param.name]: param.value }
-    }, {}) ?? {}
+      return [[param.name, param.value]]
+    }) ?? []
   )
 }
 
