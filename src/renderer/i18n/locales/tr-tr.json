@@ -1014,6 +1014,7 @@
   "chat.navigation.anchor.label": "Konuşma turları",
   "chat.navigation.bottom": "En alta dön",
   "chat.navigation.close": "Kapat",
+  "chat.profile_pane.all_topics.title": "Tüm konular",
   "chat.profile_pane.knowledge.manage": "Yönet",
   "chat.profile_pane.knowledge.title": "Bilgi tabanları",
   "chat.profile_pane.open": "{{name}} profilini görüntüle",

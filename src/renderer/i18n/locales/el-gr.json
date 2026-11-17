@@ -1014,6 +1014,7 @@
   "chat.navigation.anchor.label": "Γύροι συνομιλίας",
   "chat.navigation.bottom": "Επιστροφή στο κάτω μέρος",
   "chat.navigation.close": "Κλείσιμο",
+  "chat.profile_pane.all_topics.title": "Όλα τα θέματα",
   "chat.profile_pane.knowledge.manage": "Διαχείριση",
   "chat.profile_pane.knowledge.title": "Βάσεις γνώσεων",
   "chat.profile_pane.open": "Προβολή προφίλ του {{name}}",

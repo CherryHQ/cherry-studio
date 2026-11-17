@@ -1028,6 +1028,7 @@
   "chat.navigation.anchor.label": "Tury rozmowy",
   "chat.navigation.bottom": "Przejdź na dół",
   "chat.navigation.close": "Zamknij",
+  "chat.profile_pane.all_topics.title": "Wszystkie tematy",
   "chat.profile_pane.knowledge.manage": "Zarządzaj",
   "chat.profile_pane.knowledge.title": "Bazy wiedzy",
   "chat.profile_pane.open": "Pokaż profil: {{name}}",

@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Switch } from '@cherrystudio/ui'
@@ -18,26 +19,35 @@ import {
   ProfileSettingButton,
   ProfileSettingsRow
 } from './ProfilePaneParts'
-import { ProfileStatTiles, RecentTopicsSection } from './ProfilePaneStats'
+import { AssistantTopicsPage, ProfileStatTiles, RecentTopicsSection } from './ProfilePaneStats'
 
 /** Profile of the conversation's Assistant: who it is, its activity, and a few settings. */
 export function AssistantProfilePane({
   assistantId,
   activeTopicId,
-  onOpenTopic,
-  onShowAllTopics
+  onOpenTopic
 }: {
   assistantId: string
   /** The conversation's topic, marked in the recent topics. */
   activeTopicId?: string
   onOpenTopic?: (topicId: string) => void
-  /** Shows the topic list of this Assistant. */
-  onShowAllTopics?: () => void
 }) {
   const { t } = useTranslation()
+  const [topicsOpen, setTopicsOpen] = useState(false)
+  const onShowAllTopics = () => setTopicsOpen(true)
   const { assistant, model, updateAssistantSettings } = useAssistant(assistantId)
 
   if (!assistant) return <ProfilePaneFrame />
+  if (topicsOpen) {
+    return (
+      <AssistantTopicsPage
+        assistantId={assistant.id}
+        activeTopicId={activeTopicId}
+        onOpenTopic={onOpenTopic}
+        onBack={() => setTopicsOpen(false)}
+      />
+    )
+  }
 
   const openEdit = (initialTab?: string) => openResourceEditDialog({ kind: 'assistant', id: assistant.id, initialTab })
   const modelLabel = t('common.model')

@@ -1014,6 +1014,7 @@
   "chat.navigation.anchor.label": "对话轮次",
   "chat.navigation.bottom": "回到底部",
   "chat.navigation.close": "关闭",
+  "chat.profile_pane.all_topics.title": "全部话题",
   "chat.profile_pane.knowledge.manage": "管理",
   "chat.profile_pane.knowledge.title": "知识库",
   "chat.profile_pane.open": "查看 {{name}} 的资料",

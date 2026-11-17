@@ -1014,6 +1014,7 @@
   "chat.navigation.anchor.label": "Turni della conversazione",
   "chat.navigation.bottom": "Torna in fondo",
   "chat.navigation.close": "Chiudi",
+  "chat.profile_pane.all_topics.title": "Tutti gli argomenti",
   "chat.profile_pane.knowledge.manage": "Gestisci",
   "chat.profile_pane.knowledge.title": "Basi di conoscenza",
   "chat.profile_pane.open": "Visualizza il profilo di {{name}}",

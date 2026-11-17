@@ -1014,6 +1014,7 @@
   "chat.navigation.anchor.label": "รอบการสนทนา",
   "chat.navigation.bottom": "กลับล่างสุด",
   "chat.navigation.close": "ปิด",
+  "chat.profile_pane.all_topics.title": "หัวข้อทั้งหมด",
   "chat.profile_pane.knowledge.manage": "จัดการ",
   "chat.profile_pane.knowledge.title": "ฐานความรู้",
   "chat.profile_pane.open": "ดูโปรไฟล์ของ {{name}}",

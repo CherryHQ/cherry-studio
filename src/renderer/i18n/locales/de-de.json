@@ -1014,6 +1014,7 @@
   "chat.navigation.anchor.label": "Gesprächsrunden",
   "chat.navigation.bottom": "Zum Boden scrollen",
   "chat.navigation.close": "Schließen",
+  "chat.profile_pane.all_topics.title": "Alle Themen",
   "chat.profile_pane.knowledge.manage": "Verwalten",
   "chat.profile_pane.knowledge.title": "Wissensdatenbanken",
   "chat.profile_pane.open": "Profil von {{name}} anzeigen",

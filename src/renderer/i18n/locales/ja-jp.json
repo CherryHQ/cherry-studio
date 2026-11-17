@@ -1014,6 +1014,7 @@
   "chat.navigation.anchor.label": "会話のターン",
   "chat.navigation.bottom": "下部に戻る",
   "chat.navigation.close": "閉じる",
+  "chat.profile_pane.all_topics.title": "すべてのトピック",
   "chat.profile_pane.knowledge.manage": "管理",
   "chat.profile_pane.knowledge.title": "ナレッジベース",
   "chat.profile_pane.open": "{{name}} のプロフィールを表示",

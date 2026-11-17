@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import i18n from '@renderer/i18n/resolver'
 import { KNOWLEDGE_BASES_MAX_LIMIT } from '@shared/data/api/schemas/knowledges'
 import type { Assistant } from '@shared/data/types/assistant'
+import type { Topic } from '@shared/data/types/topic'
 
 import { AssistantProfilePane } from '../AssistantProfilePane'
 import { recordEditDialogRequests, renderInRightPane, serveQueries } from './profilePaneTestUtils'
@@ -117,14 +118,8 @@ describe('AssistantProfilePane', () => {
           : undefined
     })
     const opened: string[] = []
-    let showAll = 0
     renderInRightPane(
-      <AssistantProfilePane
-        assistantId={assistant.id}
-        activeTopicId="topic-a"
-        onOpenTopic={(id) => opened.push(id)}
-        onShowAllTopics={() => showAll++}
-      />
+      <AssistantProfilePane assistantId={assistant.id} activeTopicId="topic-a" onOpenTopic={(id) => opened.push(id)} />
     )
 
     for (const [value, label] of [
@@ -144,8 +139,58 @@ describe('AssistantProfilePane', () => {
     expect(within(older).queryByTitle('Current topic')).toBeNull()
 
     fireEvent.click(older)
-    fireEvent.click(within(recent).getByRole('button', { name: 'All' }))
     expect(opened).toEqual(['topic-b'])
-    expect(showAll).toBe(1)
+  })
+
+  it('lists every topic of this Assistant on a page of the pane from All, and goes back', () => {
+    const now = Date.now()
+    const at = (daysAgo: number) => new Date(now - daysAgo * 86_400_000).toISOString()
+    const topic = (id: string, name: string, assistantId: string, daysAgo: number) =>
+      ({ id, name, assistantId, lastActivityAt: at(daysAgo) }) as Topic
+    serveQueries({
+      '/assistants/:id': () => assistant,
+      '/assistants/:id/stats': () => ({
+        topicCount: 7,
+        messageCount: 20,
+        recentTokens: 0,
+        recentTopics: [{ id: 'topic-1', name: 'Topic 1', lastActivityAt: at(1), messageCount: 2 }]
+      })
+    })
+    // Six topics of this Assistant, more than the recent list shows, plus one of another Assistant.
+    MockUseDataApiUtils.seedInfiniteQuery(
+      '/topics',
+      [
+        {
+          items: [
+            ...[3, 1, 6, 2, 5, 4].map((days) => topic(`topic-${days}`, `Topic ${days}`, assistant.id, days)),
+            topic('other', 'Someone else', 'assistant-2', 0)
+          ]
+        }
+      ],
+      { limit: 200 }
+    )
+    const opened: string[] = []
+    renderInRightPane(
+      <AssistantProfilePane assistantId={assistant.id} activeTopicId="topic-2" onOpenTopic={(id) => opened.push(id)} />
+    )
+
+    fireEvent.click(within(screen.getByRole('region', { name: 'Recent topics' })).getByRole('button', { name: 'All' }))
+
+    const rows = screen.getAllByRole('button', { name: /^Topic \d/ })
+    expect(rows.map((row) => row.textContent?.match(/Topic \d/)?.[0])).toEqual([
+      'Topic 1',
+      'Topic 2',
+      'Topic 3',
+      'Topic 4',
+      'Topic 5',
+      'Topic 6'
+    ])
+    expect(screen.queryByText('Someone else')).toBeNull()
+    expect(within(rows[1]).getByTitle('Current topic')).toBeInTheDocument()
+    fireEvent.click(rows[2])
+    expect(opened).toEqual(['topic-3'])
+
+    fireEvent.click(screen.getByRole('button', { name: 'All topics' }))
+    expect(screen.getByRole('region', { name: 'Recent topics' })).toBeInTheDocument()
   })
 })

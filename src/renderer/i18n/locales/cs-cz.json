@@ -1014,6 +1014,7 @@
   "chat.navigation.anchor.label": "Kola konverzace",
   "chat.navigation.bottom": "Zpět dolů",
   "chat.navigation.close": "Zavřít",
+  "chat.profile_pane.all_topics.title": "Všechna témata",
   "chat.profile_pane.knowledge.manage": "Spravovat",
   "chat.profile_pane.knowledge.title": "Znalostní báze",
   "chat.profile_pane.open": "Zobrazit profil: {{name}}",

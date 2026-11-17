@@ -39,8 +39,6 @@ interface TopicRightPaneMeta {
   assistantId?: string
   /** Opens one of the Assistant's topics from its profile. */
   onOpenTopic?: (topicId: string) => void
-  /** Shows the Assistant's topics in the topic list. */
-  onShowTopics?: () => void
   topicId?: string
   topicName?: string
   /** Container-level trace id. When developer mode is on, the Trace tab renders this trace tree. */
@@ -195,7 +193,6 @@ function TopicProfileRightPanel({ scope }: RightPanelComponentProps<TopicRightPa
       assistantId={scope.assistantId}
       activeTopicId={scope.topicId}
       onOpenTopic={scope.onOpenTopic}
-      onShowAllTopics={scope.onShowTopics}
     />
   ) : null
 }
@@ -255,7 +252,6 @@ function TopicRightPaneProvider({
   children,
   assistantId,
   onOpenTopic,
-  onShowTopics,
   resourcePane,
   topicId,
   topicName,
@@ -283,7 +279,6 @@ function TopicRightPaneProvider({
     () => ({
       assistantId,
       onOpenTopic,
-      onShowTopics,
       topicId,
       topicName,
       traceId,
@@ -294,7 +289,7 @@ function TopicRightPaneProvider({
       profileTitle: t('chat.profile_pane.title'),
       traceTitle: t('trace.label')
     }),
-    [assistantId, enableDeveloperMode, onOpenTopic, onShowTopics, resourcePane, t, topicId, topicName, traceId]
+    [assistantId, enableDeveloperMode, onOpenTopic, resourcePane, t, topicId, topicName, traceId]
   )
 
   return (

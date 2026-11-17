@@ -1014,6 +1014,7 @@
   "chat.navigation.anchor.label": "Các lượt hội thoại",
   "chat.navigation.bottom": "Quay lại đầu trang",
   "chat.navigation.close": "Đóng",
+  "chat.profile_pane.all_topics.title": "Tất cả chủ đề",
   "chat.profile_pane.knowledge.manage": "Quản lý",
   "chat.profile_pane.knowledge.title": "Cơ sở tri thức",
   "chat.profile_pane.open": "Xem hồ sơ của {{name}}",

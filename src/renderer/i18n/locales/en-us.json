@@ -1014,6 +1014,7 @@
   "chat.navigation.anchor.label": "Conversation turns",
   "chat.navigation.bottom": "Back to bottom",
   "chat.navigation.close": "Close",
+  "chat.profile_pane.all_topics.title": "All topics",
   "chat.profile_pane.knowledge.manage": "Manage",
   "chat.profile_pane.knowledge.title": "Knowledge bases",
   "chat.profile_pane.open": "View {{name}}'s profile",

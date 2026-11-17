@@ -1014,6 +1014,7 @@
   "chat.navigation.anchor.label": "Rândurile conversației",
   "chat.navigation.bottom": "Înapoi jos",
   "chat.navigation.close": "Închide",
+  "chat.profile_pane.all_topics.title": "Toate subiectele",
   "chat.profile_pane.knowledge.manage": "Gestionați",
   "chat.profile_pane.knowledge.title": "Baze de cunoștințe",
   "chat.profile_pane.open": "Vedeți profilul lui {{name}}",

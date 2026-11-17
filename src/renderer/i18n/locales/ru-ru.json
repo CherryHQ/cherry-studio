@@ -1014,6 +1014,7 @@
   "chat.navigation.anchor.label": "Реплики диалога",
   "chat.navigation.bottom": "Вернуться вниз",
   "chat.navigation.close": "Закрыть",
+  "chat.profile_pane.all_topics.title": "Все темы",
   "chat.profile_pane.knowledge.manage": "Управлять",
   "chat.profile_pane.knowledge.title": "Базы знаний",
   "chat.profile_pane.open": "Открыть профиль {{name}}",
