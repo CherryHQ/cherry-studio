@@ -75,7 +75,7 @@ remain unchanged. Configure both in Settings → Browser.
 Runtime gates and queued dispatch recheck the switch, so turning it off revokes Agent access. Ordinary pages use
 `persist:agent-browser` and permit public/LAN/loopback HTTP(S); preview/artifact profiles stay separate.
 The session service owns ordinary guests' popup handlers across all host windows. HTTP(S) popup
-links navigate an Agent-bound guest in place or open a standalone browser tab. Agent attachment and
+links create a page in the bound guest’s conversation or open a standalone browser tab. Background-tab requests preserve the current conversation page selection. Agent attachment and
 control revocation do not replace this handler; shutdown removes the routing along with history tracking.
 History is SQLite-backed through `BrowserHistoryService`. The session service tracks ordinary webview
 lifetimes independently of Agent bindings; history entries reopen in browser tabs sharing the same partition. Import readers live in `import/` and
@@ -142,3 +142,9 @@ and exact guest binding before and after renderer acknowledgement. Inert retaine
 guests acknowledge background execution without taking DOM focus or revealing the
 pane; visible guests must focus successfully. Missing guests, cancellation and
 ownership changes reject the input before CDP keyboard dispatch.
+
+Conversation panes retain multiple independent pages. The renderer runtime owns their ordered collection,
+selection and guests; main verifies each stable `pageId` and issues a fresh binding `tabId` on attachment.
+Switching pages changes only presentation anchors. Agent handles retain their exact target independently
+of user selection, and closing a page revokes only that binding. Page collection restoration after restart
+is not provided. See the [session-browser Spec](../../../../.agents/notes/proposed/feature/2026-11-14-session-browser-tabs.md).

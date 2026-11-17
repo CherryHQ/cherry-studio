@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-09-session-tree-storage-constraints.md
+2026-11-09-session-tree-storage-constraints.md: d7ff9411667351c82fccf44658437348d59aef6b
+2026-11-09-session-tree-storage-constraints.zh.md: 8318cc084797e4eb6ba904932e56cd5381de7ff2

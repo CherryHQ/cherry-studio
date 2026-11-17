@@ -82,11 +82,7 @@ resets the mocks.
 - Handler tests that only verify wiring/routing — these legitimately mock
   the downstream service because the assertion is about the call shape,
   not the DB state.
-- Migrator tests under `src/main/data/migration/v2/migrators/__tests__/*` —
-  their mock context has been deliberately modelled to verify the
-  migrator's orchestration logic (phase ordering, idempotency, source
-  fallbacks). A real DB would not add coverage over what the mock
-  already asserts.
+- Legacy upgrade detection tests use the same production-schema harness and read-only database copies.
 - Orchestration-layer service tests that mock their downstream data
   service (`KnowledgeService`, `McpService`) — they test
   coordination, not persistence.

@@ -50,10 +50,27 @@ std::wstring Association(const std::wstring& extension, ASSOCSTR field) {
 bool SameIdentity(const std::wstring& a, const std::wstring& b) {
   return !a.empty() && !b.empty() && CompareStringOrdinal(a.c_str(), -1, b.c_str(), -1, TRUE) == CSTR_EQUAL;
 }
-ComPtr<IEnumAssocHandlers> Handlers(const std::wstring& extension) {
+ComPtr<IEnumAssocHandlers> Handlers(const std::wstring& source) {
   ComPtr<IEnumAssocHandlers> result;
-  if (!extension.empty()) Check(SHAssocEnumHandlers(extension.c_str(), ASSOC_FILTER_NONE, &result));
+  if (!source.empty()) Check(SHAssocEnumHandlers(source.c_str(), ASSOC_FILTER_NONE, &result));
   return result;
+}
+bool IsDirectory(const std::filesystem::path& target) {
+  std::error_code error;
+  return std::filesystem::is_directory(target, error);
+}
+// Shell association sources for a path. Folders are registered as the "Folder" and "Directory"
+// programmatic identifiers instead of a file name extension, so both are enumerated and merged.
+std::vector<std::wstring> AssociationSources(const std::filesystem::path& target, bool directory) {
+  if (directory) return {L"Folder", L"Directory"};
+  const auto extension = target.extension().wstring();
+  if (extension.empty()) return {};
+  return {extension};
+}
+// Windows Explorer opens folders itself; the service presents it as the file manager row instead.
+bool IsFileManager(const std::wstring& id) {
+  const auto name = std::filesystem::path(id).filename().wstring();
+  return !name.empty() && CompareStringOrdinal(name.c_str(), -1, L"explorer.exe", -1, TRUE) == CSTR_EQUAL;
 }
 std::wstring Identity(IAssocHandler* handler) {
   PWSTR name = nullptr;
@@ -119,51 +136,62 @@ std::string Icon(IAssocHandler* handler, const std::wstring& id) {
 namespace external_app {
 Listing List(const std::string& path) {
   Apartment apartment;
-  const auto extension = std::filesystem::path(Wide(path)).extension().wstring();
-  const auto defaultExe = extension.empty() ? L"" : Association(extension, ASSOCSTR_EXECUTABLE);
-  const auto defaultAppId = extension.empty() ? L"" : Association(extension, ASSOCSTR_APPID);
+  const std::filesystem::path target(Wide(path));
+  const bool directory = IsDirectory(target);
+  const auto extension = target.extension().wstring();
+  const auto defaultExe =
+      directory || extension.empty() ? L"" : Association(extension, ASSOCSTR_EXECUTABLE);
+  const auto defaultAppId = directory || extension.empty() ? L"" : Association(extension, ASSOCSTR_APPID);
   Listing result;
-  auto enumeration = Handlers(extension);
-  ComPtr<IAssocHandler> handler;
   std::set<std::wstring> seen;
-  while (enumeration && enumeration->Next(1, handler.ReleaseAndGetAddressOf(), nullptr) == S_OK) {
-    const auto id = Identity(handler.Get());
-    if (id.empty() || !seen.insert(id).second) continue;
-    PWSTR rawName = nullptr;
-    handler->GetUIName(&rawName);
-    const auto name = TakeString(rawName);
-    Application entry{Utf8(id), Utf8(name.empty() ? std::filesystem::path(id).filename().wstring() : name), {}, {}};
-    if (std::filesystem::path(id).is_absolute()) entry.iconPath = Utf8(id);
-    entry.iconDataUrl = Icon(handler.Get(), id);
-    result.applications.push_back(entry);
-    if (SameIdentity(id, defaultExe) || SameIdentity(id, defaultAppId)) result.defaultApplication = entry;
+  for (const auto& source : AssociationSources(target, directory)) {
+    auto enumeration = Handlers(source);
+    ComPtr<IAssocHandler> handler;
+    while (enumeration && enumeration->Next(1, handler.ReleaseAndGetAddressOf(), nullptr) == S_OK) {
+      const auto id = Identity(handler.Get());
+      if (id.empty() || !seen.insert(id).second || (directory && IsFileManager(id))) continue;
+      PWSTR rawName = nullptr;
+      handler->GetUIName(&rawName);
+      const auto name = TakeString(rawName);
+      Application entry{Utf8(id), Utf8(name.empty() ? std::filesystem::path(id).filename().wstring() : name), {}, {}};
+      if (std::filesystem::path(id).is_absolute()) entry.iconPath = Utf8(id);
+      entry.iconDataUrl = Icon(handler.Get(), id);
+      result.applications.push_back(entry);
+      if (!directory && (SameIdentity(id, defaultExe) || SameIdentity(id, defaultAppId))) result.defaultApplication = entry;
+    }
   }
-  if (!result.defaultApplication && !extension.empty()) {
+  if (!result.defaultApplication && !directory && !extension.empty()) {
     const auto name = Association(extension, ASSOCSTR_FRIENDLYAPPNAME);
     if (!name.empty()) result.defaultApplication = Application{Utf8(defaultAppId.empty() ? defaultExe : defaultAppId), Utf8(name), Utf8(defaultExe), {}};
   }
   return result;
 }
+void Invoke(IAssocHandler* handler, const std::wstring& file) {
+  PIDLIST_ABSOLUTE pidl = nullptr;
+  Check(SHParseDisplayName(file.c_str(), nullptr, &pidl, 0, nullptr));
+  ComPtr<IShellFolder> parent;
+  PCUITEMID_CHILD child = nullptr;
+  HRESULT result = SHBindToParent(pidl, IID_PPV_ARGS(&parent), &child);
+  ComPtr<IDataObject> data;
+  if (SUCCEEDED(result)) result = parent->GetUIObjectOf(nullptr, 1, &child, IID_IDataObject, nullptr,
+                                                     reinterpret_cast<void**>(data.GetAddressOf()));
+  CoTaskMemFree(pidl);
+  Check(result);
+  Check(handler->Invoke(data.Get()));
+}
 void Open(const std::string& path, const std::string& applicationId) {
   Apartment apartment;
-  const auto file = Wide(path);
+  const std::filesystem::path target(Wide(path));
+  const auto file = target.wstring();
   const auto selectedId = Wide(applicationId);
-  auto enumeration = Handlers(std::filesystem::path(file).extension().wstring());
-  ComPtr<IAssocHandler> handler;
-  while (enumeration && enumeration->Next(1, handler.ReleaseAndGetAddressOf(), nullptr) == S_OK) {
-    if (Identity(handler.Get()) != selectedId) continue;
-    PIDLIST_ABSOLUTE pidl = nullptr;
-    Check(SHParseDisplayName(file.c_str(), nullptr, &pidl, 0, nullptr));
-    ComPtr<IShellFolder> parent;
-    PCUITEMID_CHILD child = nullptr;
-    HRESULT result = SHBindToParent(pidl, IID_PPV_ARGS(&parent), &child);
-    ComPtr<IDataObject> data;
-    if (SUCCEEDED(result)) result = parent->GetUIObjectOf(nullptr, 1, &child, IID_IDataObject, nullptr,
-                                                       reinterpret_cast<void**>(data.GetAddressOf()));
-    CoTaskMemFree(pidl);
-    Check(result);
-    Check(handler->Invoke(data.Get()));
-    return;
+  for (const auto& source : AssociationSources(target, IsDirectory(target))) {
+    auto enumeration = Handlers(source);
+    ComPtr<IAssocHandler> handler;
+    while (enumeration && enumeration->Next(1, handler.ReleaseAndGetAddressOf(), nullptr) == S_OK) {
+      if (Identity(handler.Get()) != selectedId) continue;
+      Invoke(handler.Get(), file);
+      return;
+    }
   }
   throw std::runtime_error("Application is no longer associated with this file");
 }

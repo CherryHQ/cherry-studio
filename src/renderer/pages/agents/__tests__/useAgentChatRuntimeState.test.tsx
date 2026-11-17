@@ -324,7 +324,29 @@ describe('useAgentChatRuntimeState', () => {
       useAgentChatRuntimeState({ sessionId: 'session-1', sessionMessagesEnabled: true, reservedMessages: [] })
     )
     await act(() => result.current.startEditing(draft.messageId))
-    await act(() => result.current.resendEditedMessage({ text: 'Replacement' }))
+    await act(() =>
+      result.current.resendEditedMessage(
+        { text: 'Replacement' },
+        {
+          body: {
+            agentId: 'agent-1',
+            sessionId: 'session-1',
+            userMessageParts: [{ type: 'text', text: 'Replacement' }],
+            reasoningEffort: 'high',
+            serviceTier: 'flex',
+            fastMode: true
+          }
+        }
+      )
+    )
+    expect(mocks.editResend).toHaveBeenCalledWith({
+      sessionId: 'session-1',
+      target: { messageId: draft.messageId, version: draft.version },
+      userMessageParts: [{ type: 'text', text: 'Replacement' }],
+      reasoningEffort: 'high',
+      serviceTier: 'flex',
+      fastMode: true
+    })
     expect(result.current.uiMessages.map((message) => message.id)).toEqual([
       'earlier-user',
       'earlier-assistant',
