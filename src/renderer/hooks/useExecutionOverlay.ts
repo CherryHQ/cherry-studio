@@ -33,7 +33,7 @@ export function useExecutionOverlay(
   options: UseExecutionOverlayOptions = {}
 ): ExecutionOverlayApi {
   // Identity of this consumer inside the service's refcount/contribution maps.
-  const consumer = useRef({}).current
+  const consumer = useRef(Symbol('execution-overlay-consumer')).current
 
   const onFinishRef = useRef(options.onFinish)
   onFinishRef.current = options.onFinish

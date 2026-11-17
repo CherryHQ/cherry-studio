@@ -49,7 +49,7 @@ function fakeSession(setProxy = vi.fn().mockResolvedValue(undefined)) {
     onPermissionRequest: undefined as PermissionRequestHandler | undefined,
     permissionCheck: undefined as (() => boolean) | undefined,
     devicePermission: undefined as (() => boolean) | undefined,
-    displayMedia: undefined as ((req: unknown, cb: (streams: object) => void) => void) | undefined,
+    displayMedia: undefined as ((req: unknown, cb: (streams: Electron.Streams | null) => void) => void) | undefined,
     willDownload: undefined as
       | ((event: { preventDefault: () => void }, item: { getURL: () => string }) => void)
       | undefined,
@@ -158,7 +158,7 @@ describe('installNetworkPolicy', () => {
     }
     expect(captured.permissionCheck!()).toBe(false)
     expect(captured.devicePermission!()).toBe(false)
-    expect(await new Promise<object>((r) => captured.displayMedia!({}, r))).toEqual({})
+    expect(await new Promise<Electron.Streams | null>((r) => captured.displayMedia!({}, r))).toEqual({})
   })
 
   it('does not report ready until the deny-all proxy is actually in effect', async () => {

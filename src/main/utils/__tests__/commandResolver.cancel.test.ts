@@ -1,4 +1,4 @@
-import type { ChildProcess } from 'node:child_process'
+import type { ChildProcess, SpawnOptions } from 'node:child_process'
 import type * as ChildProcessModule from 'node:child_process'
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -8,7 +8,7 @@ vi.mock('child_process', async (importOriginal) => {
   const actual = await importOriginal<typeof ChildProcessModule>()
   return {
     ...actual,
-    spawn: (_file: string, _args: string[], options: object) => {
+    spawn: (_file: string, _args: string[], options: SpawnOptions) => {
       const child = actual.spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], options)
       owned.children.push(child)
       return child

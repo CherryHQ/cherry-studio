@@ -237,7 +237,12 @@ describe('AgentBrowserRuntimeHost', () => {
     const view = render(<Harness visible />)
     await waitFor(() => expect(bridge.binding).toBe(42))
     const guest = view.getByTestId('webview-browser-guest')
-    const emit = (type: string, values: object) => {
+    const emit = (
+      type: string,
+      values:
+        | Pick<Electron.PageFaviconUpdatedEvent, 'favicons'>
+        | Pick<Electron.DidStartNavigationEvent, 'isMainFrame' | 'isInPlace'>
+    ) => {
       act(() => {
         guest.dispatchEvent(Object.assign(new Event(type), values))
       })

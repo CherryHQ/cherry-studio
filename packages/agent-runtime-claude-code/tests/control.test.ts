@@ -1,6 +1,8 @@
 import type { SDKMessage } from '@anthropic-ai/claude-agent-sdk'
 import { describe, expect, it } from 'vitest'
 
+import type { JsonValue } from '@cherrystudio/agent-runtime'
+
 import { ClaudeControlState, type ClaudeControl } from '../src/control'
 
 // A newly added SDK variant must receive an explicit owner before upgrading the dependency.
@@ -64,9 +66,9 @@ it.each(
 function fixture() {
   const events: ClaudeControl[] = []
   const state = new ClaudeControlState((event) => events.push(event))
-  const accept = (value: object) =>
+  const accept = (value: { readonly [key: string]: JsonValue }) =>
     state.accept({ session_id: 'native', uuid: crypto.randomUUID(), ...value } as SDKMessage)
-  const result = (extra: object = {}) => ({
+  const result = (extra: { readonly [key: string]: JsonValue } = {}) => ({
     type: 'result',
     subtype: 'success',
     is_error: false,
@@ -294,7 +296,12 @@ describe('Claude native lifecycle', () => {
   ])('interprets task patch status %s without settling the parent turn', (status, expected) => {
     const f = fixture()
     f.state.beginTurn()
-    f.accept({ type: 'system', subtype: 'task_updated', task_id: 'child', patch: { status } })
+    f.accept({
+      type: 'system',
+      subtype: 'task_updated',
+      task_id: 'child',
+      patch: status === undefined ? {} : { status }
+    })
     expect(f.events.at(-1)).toMatchObject({ type: 'background-task-event', data: { status: expected } })
     expect(f.state.isTurnActive).toBe(true)
   })

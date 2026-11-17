@@ -1,6 +1,8 @@
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { MessageUiState } from '@renderer/types/message'
+
 const mocks = vi.hoisted(() => ({
   messageId: 'message-1' as string | undefined,
   states: new Map<string, Record<string, boolean>>(),
@@ -31,14 +33,12 @@ describe('useMessageDisclosureState', () => {
     mocks.states.clear()
     mocks.listeners.clear()
     mocks.update.mockReset()
-    mocks.update.mockImplementation(
-      (messageId: string, update: (current: object) => { disclosures?: Record<string, boolean> }) => {
-        const current = { disclosures: mocks.states.get(messageId) }
-        const next = update(current)
-        mocks.states.set(messageId, next.disclosures ?? {})
-        for (const listener of mocks.listeners.get(messageId) ?? []) listener()
-      }
-    )
+    mocks.update.mockImplementation((messageId: string, update: (current: MessageUiState) => MessageUiState) => {
+      const current = { disclosures: mocks.states.get(messageId) }
+      const next = update(current)
+      mocks.states.set(messageId, next.disclosures ?? {})
+      for (const listener of mocks.listeners.get(messageId) ?? []) listener()
+    })
   })
 
   it('restores a disclosure state after its streamed subtree remounts', () => {
