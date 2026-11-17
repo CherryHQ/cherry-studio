@@ -1,4 +1,4 @@
-import { FileQuestion, FileWarning, FileX2, FolderOpen, LoaderCircle } from 'lucide-react'
+import { LoaderCircle } from 'lucide-react'
 import {
   type ComponentType,
   type ReactNode,
@@ -22,6 +22,7 @@ import { getFilePreviewFileName, normalizeFilePreviewPath } from '@renderer/util
 import type { AbsoluteFilePath } from '@shared/types/file'
 import { createFilePathHandle } from '@shared/utils/file'
 
+import { FilePreviewEmptyScene } from './FilePreviewEmptyScene'
 import { filePreviewRegistry, resolveExtensionPlugin } from './filePreviewRegistry'
 import { textFilePreviewPlugin } from './plugins/text/textFilePreviewPlugin'
 import type {
@@ -67,14 +68,6 @@ interface FilePreviewStateProps {
 
 function FilePreviewState({ kind, filePath }: FilePreviewStateProps) {
   const { t } = useTranslation()
-  const Icon =
-    kind === 'unsupported'
-      ? FileQuestion
-      : kind === 'directory'
-        ? FolderOpen
-        : kind === 'invalid_path'
-          ? FileX2
-          : FileWarning
   const keys = FILE_PREVIEW_STATE_KEYS[kind]
   // Only the "unsupported" state can fall back to an external open: the path is
   // already validated (unlike invalid_path) and points at a real file we simply
@@ -89,7 +82,7 @@ function FilePreviewState({ kind, filePath }: FilePreviewStateProps) {
     <FilePreviewLayout.Frame>
       <FilePreviewLayout.Content>
         <EmptyState
-          icon={Icon}
+          scene={<FilePreviewEmptyScene kind={kind} />}
           title={t(keys.title)}
           description={t(keys.description)}
           className="h-full"

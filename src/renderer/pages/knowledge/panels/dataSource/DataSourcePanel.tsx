@@ -3,7 +3,7 @@ import { ChevronLeft, Settings2 } from 'lucide-react'
 import { type DragEvent, useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button, CircularProgress, ConfirmDialog } from '@cherrystudio/ui'
+import { Button, CircularProgress, ConfirmDialog, EmptyState } from '@cherrystudio/ui'
 import { useDrag } from '@renderer/hooks/useDrag'
 import { useLocalModel } from '@renderer/hooks/useLocalModel'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
@@ -19,6 +19,7 @@ import { KNOWLEDGE_DATA_SOURCE_TYPES } from '../../components/addKnowledgeItemDi
 import KnowledgePanelShell from '../../components/KnowledgePanelShell'
 import { usePreviewKnowledgeSource } from '../../hooks/usePreviewKnowledgeSource'
 import type { KnowledgeFilePreviewTarget } from '../../types'
+import { DataSourceEmptyScene } from './DataSourceEmptyScenes'
 import DataSourcePanelHeader from './DataSourcePanelHeader'
 import KnowledgeItemList from './KnowledgeItemList'
 import { dataSourceTypeDisplayConfig } from './utils/models'
@@ -121,6 +122,9 @@ const DataSourceEmptyState = ({ onAddSource }: { onAddSource: (source: Knowledge
   return (
     <div className="flex min-h-0 flex-1 items-center justify-center px-6 py-12 text-center">
       <div className="flex max-w-4xl flex-col items-center">
+        <div className="mb-3">
+          <DataSourceEmptyScene />
+        </div>
         <h3 className="font-semibold text-foreground text-lg leading-7">
           {t('knowledge.data_source.empty_description')}
         </h3>
@@ -399,8 +403,8 @@ const DataSourcePanelContent = ({
           <LocalEmbeddingStatus {...localEmbeddingState} />
         ) : !isLoading && items.length === 0 ? (
           currentDirectory ? (
-            <div className="flex min-h-0 flex-1 items-center justify-center px-6 py-12 text-center text-foreground-tertiary text-sm">
-              {t('knowledge.data_source.empty_folder')}
+            <div className="flex min-h-0 flex-1 items-center justify-center px-6 py-12">
+              <EmptyState compact scene={<DataSourceEmptyScene />} title={t('knowledge.data_source.empty_folder')} />
             </div>
           ) : (
             <DataSourceEmptyState onAddSource={handleAddSource} />

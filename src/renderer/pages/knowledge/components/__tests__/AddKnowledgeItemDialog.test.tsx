@@ -134,6 +134,12 @@ vi.mock('@cherrystudio/ui', async () => {
         {children}
       </button>
     ),
+    EmptyState: ({ title, description }: { title?: string; description?: string }) => (
+      <div>
+        <p>{title}</p>
+        <p>{description}</p>
+      </div>
+    ),
     Input: (props: React.InputHTMLAttributes<HTMLInputElement>) => <input {...props} />,
     Label: ({ children, ...props }: { children: React.ReactNode; [key: string]: unknown }) => (
       <label {...props}>{children}</label>

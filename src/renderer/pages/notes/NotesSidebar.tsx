@@ -3,6 +3,8 @@ import type { FC } from 'react'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { EmptyState } from '@cherrystudio/ui'
+import { ResourceListEmptyScene } from '@renderer/components/chat/resourceList/ResourceListEmptyScene'
 import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
 import { FileTree, type FileTreeNode } from '@renderer/components/FileTree'
 import HighlightText from '@renderer/components/HighlightText'
@@ -445,6 +447,17 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
                 renderRowExtras={renderRowExtras}
                 renderRowDetail={renderRowDetail}
                 getMenuItems={getTreeNodeMenuItems}
+                emptyState={
+                  isShowSearch || isShowStarred ? undefined : (
+                    <div className="flex h-full items-center justify-center">
+                      <EmptyState
+                        compact
+                        scene={<ResourceListEmptyScene title={t('notes.title')} addLabel={t('notes.new_note')} />}
+                        title={t('notes.empty')}
+                      />
+                    </div>
+                  )
+                }
               />
             </div>
           </CommandContextMenu>
