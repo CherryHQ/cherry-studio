@@ -6,7 +6,7 @@ English | [中文](2026-11-16-cherry-cloud-quota-refusal-snapshot.zh.md)
 
 ## Problem
 
-The Cloud gateway reserves the estimated input cost plus `max_tokens` × output price before it serves a request. It returns `429 QUOTA_EXHAUSTED` when that reservation, added to used units and other in-flight reservations, exceeds any window. A large Agent request can therefore be refused while the pool still reports units left, and the next request can succeed a second later.
+The Cloud gateway reserves the estimated input cost plus a per-request charge before it serves a request; `max_tokens` is not reserved. It returns `429 QUOTA_EXHAUSTED` when that reservation, added to used units and other in-flight reservations, exceeds any window. A request can therefore be refused while the pool still reports units left, and the next request can succeed a second later. The same code covers a used-up window; `Retry-After` tells the two apart by giving the earliest time this request's reservation could be admitted.
 
 `CherryCloudService` recorded each refused model and kept its pool marked exhausted until some window's `remaining_units` grew above the value seen at refusal. One refusal locked the model in the selector and composer for the rest of the window. Every Cloud quota refusal was also titled "Plan quota exhausted", even with most of the plan left.
 
@@ -22,12 +22,12 @@ This partially supersedes the "quota-refusal floors" preservation in the [Cherry
 
 - Keep the floors and only refresh sooner: rejected because the floor still locks a pool whose units are unchanged after an in-flight reservation is released.
 - Stamp exhausted/insufficient into the serialized error at refusal time: rejected for now because it threads a Cloud-specific fact through the shared error serialization and Claude Code replay paths. As a result, historical error messages follow the current snapshot.
-- Infer the cause from the server's retry delay or message text: rejected because the gateway does not expose that as a contract.
-- Refresh in the background without waiting, as [#24660](https://github.com/CherryHQ/cherry-studio/pull/24660) proposes: rejected because the error title would then read the pre-refusal snapshot.
+- Pick the title from `Retry-After`, the gateway's documented signal for which cause applies: deferred to a follow-up because serialized errors drop response headers, so the renderer cannot read it yet. Message text is not a contract.
+- Refresh in the background without waiting, as [#24660](https://github.com/CherryHQ/cherry-studio/pull/24660) proposed: rejected because the error title would then read the pre-refusal snapshot.
 
 ## Consequences
 
-A refused model stays selectable while its pool has units, and the composer quota notice appears only for a real zero. A refusal is delayed by up to one account refresh before it reaches the conversation. The gateway still reports both causes with the same code; separating them belongs to the backend.
+A refused model stays selectable while its pool has units, and the composer quota notice appears only for a real zero. A refusal is delayed by up to one account refresh before it reaches the conversation. Because `remaining_units` already subtracts in-flight reservations, a burst of concurrent requests can briefly read as zero and show the exhausted title until the next sync. Reading `Retry-After` would remove that gap.
 
 ## Verification
 
