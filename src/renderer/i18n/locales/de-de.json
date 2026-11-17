@@ -4175,6 +4175,7 @@
   "settings.browser.fromFile": "Aus einer Datei importieren…",
   "settings.browser.history": "Verlauf",
   "settings.browser.historyHelp": "Besuchte Seiten finden und erneut öffnen.",
+  "settings.browser.historyLoadFailed": "Verlauf konnte nicht geladen werden",
   "settings.browser.import": "Browserdaten importieren",
   "settings.browser.importAction": "Importieren",
   "settings.browser.importComplete": "Import abgeschlossen",

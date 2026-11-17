@@ -4175,6 +4175,7 @@
   "settings.browser.fromFile": "Import from a file…",
   "settings.browser.history": "History",
   "settings.browser.historyHelp": "Find and reopen pages you have visited.",
+  "settings.browser.historyLoadFailed": "Couldn't load history",
   "settings.browser.import": "Import browser data",
   "settings.browser.importAction": "Import",
   "settings.browser.importComplete": "Import complete",

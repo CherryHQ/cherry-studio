@@ -4175,6 +4175,7 @@
   "settings.browser.fromFile": "從檔案匯入…",
   "settings.browser.history": "瀏覽紀錄",
   "settings.browser.historyHelp": "尋找並重新開啟造訪過的網頁。",
+  "settings.browser.historyLoadFailed": "無法載入瀏覽紀錄",
   "settings.browser.import": "匯入瀏覽器資料",
   "settings.browser.importAction": "匯入",
   "settings.browser.importComplete": "匯入完成",

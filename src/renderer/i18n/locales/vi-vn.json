@@ -4175,6 +4175,7 @@
   "settings.browser.fromFile": "Nhập từ tệp…",
   "settings.browser.history": "Lịch sử",
   "settings.browser.historyHelp": "Tìm và mở lại các trang đã truy cập.",
+  "settings.browser.historyLoadFailed": "Không thể tải lịch sử",
   "settings.browser.import": "Nhập dữ liệu trình duyệt",
   "settings.browser.importAction": "Nhập",
   "settings.browser.importComplete": "Đã nhập xong",

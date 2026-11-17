@@ -4176,6 +4176,7 @@
   "settings.browser.fromFile": "Importă dintr-un fișier…",
   "settings.browser.history": "Istoric",
   "settings.browser.historyHelp": "Găsește și redeschide paginile vizitate.",
+  "settings.browser.historyLoadFailed": "Nu s-a putut încărca istoricul",
   "settings.browser.import": "Importă datele browserului",
   "settings.browser.importAction": "Importă",
   "settings.browser.importComplete": "Import finalizat",

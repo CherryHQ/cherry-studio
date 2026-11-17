@@ -4176,6 +4176,7 @@
   "settings.browser.fromFile": "Importovat ze souboru…",
   "settings.browser.history": "Historie",
   "settings.browser.historyHelp": "Najděte a znovu otevřete stránky, které jste navštívili.",
+  "settings.browser.historyLoadFailed": "Historii se nepodařilo načíst",
   "settings.browser.import": "Importovat data prohlížeče",
   "settings.browser.importAction": "Importovat",
   "settings.browser.importComplete": "Import dokončen",

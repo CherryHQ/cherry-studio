@@ -58,6 +58,7 @@ function BrowserHistoryContent({ onOpenPage }: { onOpenPage: () => void }) {
     refresh: refetch
   } = useInfiniteQuery('/browser-visits', { query, limit: 50, swrOptions: { keepPreviousData: false } })
   const items = useInfiniteFlatItems(pages)
+  const failureMessage = actionError ? t('error.boundary.action_failed') : t('settings.browser.historyLoadFailed')
   const { trigger: deleteVisit } = useMutation('DELETE', '/browser-visits/:id')
   useDataChange('/browser-visits', () => void refetch())
 
@@ -161,12 +162,12 @@ function BrowserHistoryContent({ onOpenPage }: { onOpenPage: () => void }) {
         {(actionError || historyError) && (
           <ErrorNotice
             variant="inline"
-            title={t('settings.browser.error')}
+            title={failureMessage}
             action={{ label: t('common.refresh'), onClick: () => void run(refetch) }}
             detail={
               <ErrorDetailAction
                 error={actionError ?? historyError}
-                message={t('settings.browser.error')}
+                message={failureMessage}
                 source="settings.browser"
                 operation={actionError ? 'browser.history.action' : 'browser.history.load'}
               />

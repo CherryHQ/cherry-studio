@@ -4175,6 +4175,7 @@
   "settings.browser.fromFile": "Dosyadan içe aktar…",
   "settings.browser.history": "Geçmiş",
   "settings.browser.historyHelp": "Ziyaret ettiğiniz sayfaları bulun ve yeniden açın.",
+  "settings.browser.historyLoadFailed": "Geçmiş yüklenemedi",
   "settings.browser.import": "Tarayıcı verilerini içe aktar",
   "settings.browser.importAction": "İçe aktar",
   "settings.browser.importComplete": "İçe aktarma tamamlandı",

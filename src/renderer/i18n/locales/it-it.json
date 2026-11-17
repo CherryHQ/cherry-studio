@@ -4175,6 +4175,7 @@
   "settings.browser.fromFile": "Importa da un file…",
   "settings.browser.history": "Cronologia",
   "settings.browser.historyHelp": "Trova e riapri le pagine che hai visitato.",
+  "settings.browser.historyLoadFailed": "Impossibile caricare la cronologia",
   "settings.browser.import": "Importa dati del browser",
   "settings.browser.importAction": "Importa",
   "settings.browser.importComplete": "Importazione completata",

@@ -4175,6 +4175,7 @@
   "settings.browser.fromFile": "ファイルからインポート…",
   "settings.browser.history": "履歴",
   "settings.browser.historyHelp": "閲覧したページを探して再度開きます。",
+  "settings.browser.historyLoadFailed": "履歴を読み込めませんでした",
   "settings.browser.import": "ブラウザーデータをインポート",
   "settings.browser.importAction": "インポート",
   "settings.browser.importComplete": "インポート完了",
