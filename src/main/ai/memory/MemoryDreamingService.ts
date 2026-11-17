@@ -29,7 +29,8 @@ import type { MemoryCommitResult, MemoryRead } from './MemoryStore'
 const logger = loggerService.withContext('MemoryDreamingService')
 const AUTO_KEY = 'feature.memory.dreaming.enabled'
 const manualReady = (state: DreamingState, now: number) =>
-  state.manual && (state.manualAttempts === 0 || now - (state.lastRunAt ?? 0) >= 10 * 60_000)
+  state.manual &&
+  (state.manualAttempts === 0 || Object.values(state.files).some((file) => file.attempts < 2 && file.retryAt <= now))
 
 @Injectable('MemoryDreamingService')
 @ServicePhase(Phase.WhenReady)
@@ -258,6 +259,7 @@ export class MemoryDreamingService extends BaseService {
     ctx.signal.addEventListener('abort', abort, { once: true })
     this.active = { scope, controller }
     const revisions = new Map<string, number>()
+    const attempts = new Map<string, number>()
     let attempted = false
     let inputs: MemoryRead[] = []
     const assertCurrent = (): undefined => {
@@ -354,6 +356,7 @@ export class MemoryDreamingService extends BaseService {
         latest.lastRunAt = Date.now()
         latest.reason = undefined
         for (const read of inputs) {
+          attempts.set(read.path, latest.files[read.path].attempts)
           latest.files[read.path].attempts++
           latest.files[read.path].retryAt = Date.now() + 10 * 60_000
         }
@@ -429,9 +432,28 @@ export class MemoryDreamingService extends BaseService {
             file.attempts = 2
             file.reason = 'budget'
           }
+        const preempted = controller.signal.reason === 'foreground' && !ctx.signal.aborted
+        if (preempted && attempted) {
+          for (const read of inputs) {
+            const file = latest.files[read.path]
+            const previous = attempts.get(read.path)
+            if (
+              previous === undefined ||
+              file?.observedHash !== read.hash ||
+              file.revision !== revisions.get(read.path)
+            )
+              continue
+            if (file.attempts !== previous + 1) continue
+            file.attempts = previous
+            file.retryAt = Date.now() + 60_000
+          }
+          if (start.manual && latest.manualAttempts === start.manualAttempts + 1)
+            latest.manualAttempts = start.manualAttempts
+          attempted = false
+        }
         const retryable =
           attempted && latest.manualAttempts < 2 && inputs.some((read) => (latest.files[read.path]?.attempts ?? 2) < 2)
-        latest.manual = start.manual && retryable
+        latest.manual = start.manual && (preempted || retryable)
         if (ctx.signal.aborted) {
           latest.generation++
           latest.manual = false

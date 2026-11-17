@@ -107,6 +107,49 @@ describe('memory organization lifecycle and commit fences', () => {
     return session.commit([{ kind: 'write', receipt: read.receipt, content }], approve)
   }
 
+  it.each(['automatic', 'manual'] as const)(
+    'resumes %s organization after repeated foreground interruptions',
+    async (mode) => {
+      let now = Date.now()
+      vi.spyOn(Date, 'now').mockImplementation(() => now)
+      for (let i = 0; i < 10; i++) await save(`Fact ${i}`)
+      if (mode === 'manual') dreaming.request(scope)
+      for (let i = 0; i < 3; i++) {
+        generate.mockImplementationOnce(async () => {
+          busy.mockReturnValue(true)
+          return { text: '{"writes":[],"deletes":[]}', finishReason: 'stop' }
+        })
+        await expect(dreaming.execute(job())).rejects.toMatchObject({ name: 'AbortError' })
+        const state = readDreamingState(scope)
+        expect(state.files['MEMORY.md']).toMatchObject({ attempts: 0, retryAt: now + 60_000 })
+        expect(state.manual).toBe(mode === 'manual')
+        expect(state.manualAttempts).toBe(0)
+        busy.mockReturnValue(false)
+        now += 60_000
+      }
+      await expect(dreaming.execute(job())).resolves.toMatchObject({ checked: 1 })
+      expect(readDreamingState(scope).files['MEMORY.md'].pendingSince).toBeUndefined()
+    }
+  )
+
+  it('preserves concurrent file progress when foreground work interrupts organization', async () => {
+    await save('Old fact')
+    dreaming.request(scope)
+    generate.mockImplementationOnce(async () => {
+      busy.mockReturnValue(true)
+      await new Promise((resolve) => setTimeout(resolve, 600))
+      await save('New fact')
+      return { text: '{"writes":[],"deletes":[]}', finishReason: 'stop' }
+    })
+    await expect(dreaming.execute(job())).rejects.toMatchObject({ name: 'AbortError' })
+    expect(readDreamingState(scope).files['MEMORY.md']).toMatchObject({
+      observedHash: memoryHash(Buffer.from('New fact')),
+      attempts: 0,
+      retryAt: 0
+    })
+    expect((await session.read('MEMORY.md')).content).toBe('New fact')
+  })
+
   it('processes smaller due topics past an unfit topic and retries the blocked file only after it changes', async () => {
     dbh.db.update(userModelTable).set({ maxOutputTokens: 4096 }).run()
     await save('Entry that is not due')
