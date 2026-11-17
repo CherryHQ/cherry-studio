@@ -88,38 +88,35 @@ function drive(seed: number): { readonly history: HistoryEntry[]; readonly expec
     if (step.result.kind !== 'start-round' && step.result.kind !== 'notify') break
     const effect = step.effects[0]
     if (effect.type !== 'start-turn') throw new Error('a round or a notification starts a turn')
-    history = [...history, inputEntry(effect.input, effect.key)]
+    history.push(inputEntry(effect.input, effect.key))
     const tokens = Math.floor(next() * 100)
     const request = assistant(next() < 0.5 ? 'same' : `text ${i}`, { usage: usage(tokens) })
     if (step.result.kind === 'notify') {
-      history = [...history, request]
+      history.push(request)
       billed += tokens
       continue
     }
     // Half the time the admission lands after the round's first request, as on Durable (R1).
     const first = next() < 0.5
     if (first) {
-      history = [...history, request]
+      history.push(request)
       billed += tokens
     }
     history = apply(history, admitRound(at(history), inputs(), step.result))
     expected.push({ tokens: billed, rounds: ++rounds })
     if (!first) {
-      history = [...history, request]
+      history.push(request)
       billed += tokens
     }
     const child = next() < 0.3 ? `c${i}` : undefined
     if (child) {
-      history = [...history, runEntry(run(child))]
+      history.push(runEntry(run(child)))
       billed += 7
     }
-    history = [...history, result(next() < 0.5 ? 'read' : 'bash')]
+    history.push(result(next() < 0.5 ? 'read' : 'bash'))
     // The child ends after the round; its result waits for the next wake.
     if (child)
-      history = [
-        ...history,
-        runEntry(run(child, { status: 'finished', outcome: 'completed', report: 'done', usage: usage(7) }))
-      ]
+      history.push(runEntry(run(child, { status: 'finished', outcome: 'completed', report: 'done', usage: usage(7) })))
   }
   return { history, expected }
 }

@@ -82,10 +82,8 @@ export interface AiPlugin<TParams = unknown, TResult = unknown> {
   // 【Sequential】串行钩子 - 链式执行，支持数据转换
   configureContext?: (context: AiRequestContext<TParams, TResult>) => void | Promise<void>
 
-  transformParams?: (
-    params: TParams,
-    context: AiRequestContext<TParams, TResult>
-  ) => Partial<TParams> | Promise<Partial<TParams>>
+  /** Return the complete next parameters; omitted fields are removed, with no implicit merge. */
+  transformParams?: (params: TParams, context: AiRequestContext<TParams, TResult>) => TParams | Promise<TParams>
 
   transformResult?: (result: TResult, context: AiRequestContext<TParams, TResult>) => TResult | Promise<TResult>
 

@@ -242,7 +242,7 @@ export function mergeCustomProviderParameters(
       ? normalizeOpenAICompatibleParams(providerParams)
       : providerParams
 
-  let result = providerOptions
+  const updatedNamespaces = new Map<string, Map<string, JSONValue>>()
   for (const key of Object.keys(normalizedProviderParams)) {
     const isProviderNamespace = isCustomProviderNamespace(key, providerOptions, rawProviderId)
     const value =
@@ -253,43 +253,32 @@ export function mergeCustomProviderParameters(
       !Array.isArray(normalizedProviderParams[key])
         ? normalizeOpenAICompatibleParams(normalizedProviderParams[key])
         : normalizedProviderParams[key]
-    if (actualAiSdkProviderIds.includes(key)) {
-      result = {
-        ...result,
-        [key]: {
-          ...result[key],
-          ...value
-        }
-      }
-    } else if (key === rawProviderId && !actualAiSdkProviderIds.includes(rawProviderId)) {
-      if (key === SystemProviderIds.gateway) {
-        result = {
-          ...result,
-          [key]: {
-            ...result[key],
-            ...value
-          }
-        }
-      } else {
-        result = {
-          ...result,
-          [primaryAiSdkProviderId]: {
-            ...result[primaryAiSdkProviderId],
-            ...value
-          }
-        }
+    const mergeNamespace =
+      actualAiSdkProviderIds.includes(key) || (key === rawProviderId && !actualAiSdkProviderIds.includes(rawProviderId))
+    const namespace =
+      actualAiSdkProviderIds.includes(key) || (key === rawProviderId && key === SystemProviderIds.gateway)
+        ? key
+        : primaryAiSdkProviderId
+    let fields = updatedNamespaces.get(namespace)
+    if (!fields) {
+      fields = new Map(Object.entries(providerOptions[namespace] ?? {}))
+      updatedNamespaces.set(namespace, fields)
+    }
+    if (mergeNamespace) {
+      for (const [field, fieldValue] of Object.entries<JSONValue>(value ?? {})) {
+        fields.set(field, fieldValue)
       }
     } else {
-      result = {
-        ...result,
-        [primaryAiSdkProviderId]: {
-          ...result[primaryAiSdkProviderId],
-          [key]: value
-        }
-      }
+      fields.set(key, value)
     }
   }
-  return result
+  if (updatedNamespaces.size === 0) return providerOptions
+
+  const result = new Map(Object.entries(providerOptions))
+  for (const [namespace, fields] of updatedNamespaces) {
+    result.set(namespace, Object.fromEntries(fields))
+  }
+  return Object.fromEntries(result)
 }
 
 function normalizeOpenAICompatibleParams(params: Record<string, any>): Record<string, any> {
