@@ -10,7 +10,7 @@ Moonshot AI 是国内知名大模型团队，主打产品是 **Kimi**，以 **�
 
 ## 在 Cherry Studio 配置
 
-* 打开 `设置 → 模型服务`，找到 **Moonshot AI** Provider 进入详情页
+* 打开 `设置 → 模型服务`，找到 **Moonshot AI** 服务商进入详情页
 * 填入 `sk-...` 密钥
 * API 地址默认 `https://api.moonshot.cn`
 * 点击 **获取模型列表**

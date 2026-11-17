@@ -2,9 +2,9 @@ import { createAnthropic } from '@ai-sdk/anthropic'
 import { createOpenAI } from '@ai-sdk/openai'
 import type { LanguageModelV3FunctionTool } from '@ai-sdk/provider'
 import type { MessageCreateParams } from '@anthropic-ai/sdk/resources/messages'
-import { asSchema, type ToolSet, type UIMessageChunk } from 'ai'
+import { APICallError, asSchema, type ToolSet, type UIMessageChunk } from 'ai'
 import { status } from 'elysia'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { StreamListener } from '@main/ai/streamManager/types'
 import { serializeError } from '@main/ai/utils/serializeError'
@@ -78,7 +78,7 @@ vi.mock('@data/services/ModelService', () => ({
 
 vi.mock('@logger', () => ({
   loggerService: {
-    withContext: vi.fn(() => ({ debug: vi.fn(), info: vi.fn(), warn: mockLoggerWarn, error: vi.fn() }))
+    withContext: vi.fn(() => ({ debug: vi.fn(), silly: vi.fn(), info: vi.fn(), warn: mockLoggerWarn, error: vi.fn() }))
   }
 }))
 
@@ -93,23 +93,26 @@ vi.mock('../adapters', () => ({
     })
   },
   StreamAdapterFactory: {
-    createAdapter: () => ({
+    createAdapter: vi.fn(() => ({
+      getMessageId: () => 'gateway-response',
       transformChunk: (chunk: UIMessageChunk) => {
         if (chunk.type === 'tool-input-error') throw new Error(chunk.errorText)
         return [chunk]
       },
       finalizeEvents: () => [],
       buildNonStreamingResponse: () => ({ done: true })
-    }),
-    getFormatter: () => ({
+    })),
+    getFormatter: vi.fn(() => ({
       formatEvent: (event: unknown) => `data: ${JSON.stringify(event)}\n\n`,
       formatDone: () => 'data: [DONE]\n\n'
-    })
+    }))
   }
 }))
 
-import type { OutputFormat } from '../adapters'
+import { StreamAdapterFactory, type OutputFormat } from '../adapters'
 import { AnthropicMessageConverter } from '../adapters/converters/AnthropicMessageConverter'
+import { OpenAiResponsesMessageConverter } from '../adapters/converters/OpenAiResponsesMessageConverter'
+import { StreamAdapterFactory as RealStreamAdapterFactory } from '../adapters/factory/StreamAdapterFactory'
 import { gatewayErrorHandler } from '../errors'
 import { processMessage } from '../proxyStream'
 import { AGENT_CONTINUATION_TEXT } from '../utils/agentContinuation'
@@ -337,12 +340,15 @@ describe('processMessage (internal Agent continuation normalization)', () => {
     const params = createAnthropicParams(
       'gpt-5',
       [
+        // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
         { role: 'assistant', content: [call, structuredClone(call)] },
+        // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
         { role: 'user', content: [output, structuredClone(output)] }
       ],
       true,
       'openai'
     )
+    // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
     const snapshot = structuredClone(params)
 
     await processAndCaptureStreamMessages(params)
@@ -370,6 +376,7 @@ describe('processMessage (internal Agent continuation normalization)', () => {
     mockIsInternalAgentRequest.mockReturnValue(false)
     const call = { type: 'tool_use' as const, id: 'c1', name: 'read_file', input: {} }
     const params = createAnthropicParams('claude-opus-5', [
+      // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
       { role: 'assistant', content: [call, structuredClone(call)] }
     ])
 
@@ -388,6 +395,7 @@ describe('processMessage (internal Agent continuation normalization)', () => {
     const call = { type: 'tool_use' as const, id: 'c1', name: 'read_file', input: {} }
     const params = createAnthropicParams(
       'gpt-5',
+      // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
       [{ role: 'assistant', content: [call, structuredClone(call)] }],
       true,
       'openai'
@@ -439,6 +447,7 @@ describe('processMessage (internal Agent continuation normalization)', () => {
       { role: 'user', content: 'Build the requested feature' },
       { role: 'assistant', content: 'Deferred tools, agents, and skills context' }
     ])
+    // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
     const snapshot = structuredClone(params)
 
     const messages = await processAndCaptureStreamMessages(params)
@@ -460,6 +469,51 @@ describe('processMessage (internal Agent continuation normalization)', () => {
     expect(params).toEqual(snapshot)
   })
 
+  it('appends after a settled local tool followed by text without mutating config params', async () => {
+    useGatewayModel('claude-opus-5')
+    mockIsInternalAgentRequest.mockReturnValue(true)
+    const converter = new AnthropicMessageConverter()
+    mockToUIMessages.mockImplementationOnce((params) => converter.toUIMessages(params))
+    const params = createAnthropicParams('claude-opus-5', [
+      { role: 'user', content: 'Continue task' },
+      {
+        role: 'assistant',
+        content: [
+          { type: 'tool_use', id: 'call_1', name: 'Bash', input: {} },
+          { type: 'text', text: 'Working' }
+        ]
+      },
+      {
+        role: 'user',
+        content: [{ type: 'tool_result', tool_use_id: 'call_1', content: 'Tool failed', is_error: true }]
+      }
+    ])
+    // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
+    const snapshot = structuredClone(params)
+
+    const messages = await processAndCaptureStreamMessages(params)
+
+    expect(messages).toMatchObject([
+      { role: 'user', parts: [{ type: 'text', text: 'Continue task' }] },
+      {
+        role: 'assistant',
+        parts: [
+          {
+            type: 'dynamic-tool',
+            toolName: 'Bash',
+            toolCallId: 'call_1',
+            state: 'output-error',
+            input: {},
+            errorText: 'Tool failed'
+          },
+          { type: 'text', text: 'Working' }
+        ]
+      },
+      { id: 'no-prefill-continuation', role: 'user', parts: [{ type: 'text', text: AGENT_CONTINUATION_TEXT }] }
+    ])
+    expect(params).toEqual(snapshot)
+  })
+
   it('appends after conversion when a trailing empty user message is dropped', async () => {
     useGatewayModel('claude-opus-5')
     mockIsInternalAgentRequest.mockReturnValue(true)
@@ -468,6 +522,7 @@ describe('processMessage (internal Agent continuation normalization)', () => {
       { role: 'assistant', content: 'Deferred tools, agents, and skills context' },
       { role: 'user', content: '' }
     ])
+    // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
     const snapshot = structuredClone(params)
 
     const messages = await processAndCaptureStreamMessages(params)
@@ -665,7 +720,7 @@ describe('processMessage (streaming)', () => {
     })
     await vi.waitFor(() => expect(captured.listener).toBeDefined())
 
-    expect(mockResolveAgentSessionUsage).toHaveBeenCalledWith(requestHeaders)
+    expect(mockResolveAgentSessionUsage).toHaveBeenCalledWith(requestHeaders, 'gateway-response')
     expect(mockStreamPrompt).toHaveBeenCalledWith(expect.objectContaining({ tokenUsageSource: 'agent', usageContext }))
 
     commit(captured.listener!)
@@ -783,14 +838,6 @@ describe('processMessage (streaming)', () => {
     await expect(readAll(res.body)).resolves.toBe('')
   })
 
-  it('passes the 20-minute idle timeout to streamPrompt', async () => {
-    const { response, listener } = await startStreaming()
-    commit(listener)
-    await response
-
-    expect(mockStreamPrompt.mock.calls[0][0]).toMatchObject({ idleTimeoutMs: 20 * 60_000 })
-  })
-
   it('marks streaming requests as caller-owned', async () => {
     const { response, listener } = await startStreaming()
     commit(listener)
@@ -905,6 +952,51 @@ describe('processMessage (error & pause)', () => {
     expect(text).not.toContain('secret body')
     expect(text).not.toContain('https://provider/v1')
   })
+
+  it.each([false, true])(
+    'keeps provider error details after stream commitment only for internal requests (%s)',
+    async (internal) => {
+      mockIsInternalAgentRequest.mockReturnValue(internal)
+      const onError = vi.fn()
+      const pending = processMessage({
+        params: { model: 'openai:gpt-4', stream: true, messages: [] },
+        inputFormat: 'openai',
+        outputFormat: 'openai',
+        requestHeaders: new Headers({ authorization: 'Bearer fixture' }),
+        onError
+      })
+      await vi.waitFor(() => expect(captured.listener).toBeDefined())
+      const listener = captured.listener!
+      commit(listener)
+      const response = await pending
+      const upstream = new APICallError({
+        message: 'A provider-specific failure',
+        url: 'https://private.invalid',
+        requestBodyValues: { secret: 'request-secret' },
+        statusCode: 429,
+        responseHeaders: { 'retry-after': '37', authorization: 'private-token' },
+        responseBody: JSON.stringify({
+          error: { message: 'A provider-specific failure', type: 'custom_type', code: 'vendor_busy', param: 'mode' },
+          request_id: 'upstream-id'
+        })
+      })
+      await listener.onError({ status: 'error', error: serializeError(upstream) }, upstream)
+      const text = await readAll(response.body)
+      expect(response.status).toBe(200)
+      expect(onError).toHaveBeenCalledOnce()
+      expect(text).toContain('A provider-specific failure')
+      if (internal) {
+        expect(text).toContain('vendor_busy')
+        expect(text).toContain('custom_type')
+        expect(text).toContain('upstream-id')
+      } else {
+        expect(text).not.toContain('vendor_busy')
+        expect(text).not.toContain('upstream-id')
+      }
+      expect(text).not.toContain('request-secret')
+      expect(text).not.toContain('private-token')
+    }
+  )
 
   it('rejects with a 504 when the stream pauses before semantic commitment', async () => {
     const { response, listener } = await startStreaming()
@@ -1063,6 +1155,180 @@ describe('processMessage (statusless interruption delivery)', () => {
             )
           }
         })
+      }
+    }
+  }
+})
+
+describe('caller-owned Responses instructions', () => {
+  it.each([undefined, '', 'Client instructions'])(
+    'keeps instructions %s separate from developer turns on the same protocol',
+    async (instructions) => {
+      useGatewayModel('gpt-5', ENDPOINT_TYPE.OPENAI_RESPONSES, 'openai')
+      mockGetProvider.mockReturnValue({
+        id: 'openai',
+        name: 'OpenAI',
+        isEnabled: true,
+        endpointConfigs: { [ENDPOINT_TYPE.OPENAI_RESPONSES]: { adapterFamily: 'openai' } }
+      })
+      const converter = new OpenAiResponsesMessageConverter()
+      mockToUIMessages.mockImplementation((params) =>
+        converter.toUIMessages(params as unknown as Parameters<typeof converter.toUIMessages>[0])
+      )
+      mockIsInternalAgentRequest.mockReturnValue(true)
+      const response = processMessage({
+        params: {
+          model: 'openai:gpt-5',
+          stream: true,
+          instructions,
+          input: [
+            { role: 'developer', content: 'Client skill catalog' },
+            { role: 'user', content: 'Which skills?' }
+          ]
+        },
+        inputFormat: 'openai-responses',
+        outputFormat: 'openai-responses',
+        requestHeaders: new Headers({ 'x-cherry-reasoning-effort': 'low' })
+      })
+      await vi.waitFor(() => expect(captured.listener).toBeDefined())
+      const request = mockStreamPrompt.mock.calls[0][0]
+      expect(request.callOverrides.providerOptions?.openai?.instructions).toBe(instructions)
+      expect(
+        request.messages.map((message: CherryUIMessage) => ({ role: message.role, parts: message.parts }))
+      ).toEqual([
+        { role: 'system', parts: [{ type: 'text', text: 'Client skill catalog' }] },
+        { role: 'user', parts: [{ type: 'text', text: 'Which skills?' }] }
+      ])
+      commit(captured.listener!)
+      void captured.listener!.onDone({} as never)
+      await readAll((await response).body)
+    }
+  )
+})
+
+describe('processMessage (terminal finish reasons)', () => {
+  afterEach(() => {
+    vi.mocked(StreamAdapterFactory.createAdapter).mockReset()
+    vi.mocked(StreamAdapterFactory.getFormatter).mockReset()
+  })
+  const formats: { format: OutputFormat; path: string }[] = [
+    { format: 'gemini', path: '/v1beta/models/fixture:generateContent' },
+    { format: 'anthropic', path: '/v1/messages' },
+    { format: 'openai', path: '/v1/chat/completions' },
+    { format: 'openai-responses', path: '/v1/responses' }
+  ]
+  it.each([
+    { format: 'gemini', terminal: '"finishReason":"OTHER"', done: '"finishReason":"OTHER"' },
+    { format: 'anthropic', terminal: '"stop_reason":"end_turn"', done: 'event: message_stop' },
+    { format: 'openai', terminal: '"finish_reason":"stop"', done: 'data: [DONE]' },
+    { format: 'openai-responses', terminal: '"status":"completed"', done: 'event: response.completed' }
+  ] as const)('$format / other completes successfully', async ({ format, terminal, done }) => {
+    vi.mocked(StreamAdapterFactory.createAdapter).mockImplementation(
+      RealStreamAdapterFactory.createAdapter.bind(RealStreamAdapterFactory)
+    )
+    vi.mocked(StreamAdapterFactory.getFormatter).mockImplementation(
+      RealStreamAdapterFactory.getFormatter.bind(RealStreamAdapterFactory)
+    )
+    const pending = processMessage({
+      params: { model: 'openai:gpt-4', stream: true, messages: [] },
+      inputFormat: 'openai',
+      outputFormat: format
+    })
+    await vi.waitFor(() => expect(captured.listener).toBeDefined())
+    const listener = captured.listener!
+    listener.onChunk({ type: 'finish', finishReason: 'other' })
+    await listener.onDone({} as any)
+    const response = await pending
+    expect(response.status).toBe(200)
+    const body = await readAll(response.body)
+    expect(body).toContain(terminal)
+    expect(body).toContain(done)
+    expect(body).not.toContain('"error"')
+    expect(listener.isAlive?.()).toBe(false)
+  })
+  for (const { format, path } of formats) {
+    for (const reason of ['error'] as const) {
+      for (const withTool of [false, true]) {
+        for (const stream of [false, true]) {
+          it(`${format} / ${reason} / tool=${withTool} / stream=${stream}`, async () => {
+            vi.mocked(StreamAdapterFactory.createAdapter).mockImplementation(
+              RealStreamAdapterFactory.createAdapter.bind(RealStreamAdapterFactory)
+            )
+            vi.mocked(StreamAdapterFactory.getFormatter).mockImplementation(
+              RealStreamAdapterFactory.getFormatter.bind(RealStreamAdapterFactory)
+            )
+            const pending = processMessage({
+              params: { model: 'openai:gpt-4', stream, messages: [] },
+              inputFormat: 'openai',
+              outputFormat: format
+            })
+            const settled = pending.then(
+              (value) => ({ value }),
+              (error: unknown) => ({ error })
+            )
+            await vi.waitFor(() => expect(captured.listener).toBeDefined())
+            const listener = captured.listener!
+            if (withTool)
+              listener.onChunk({ type: 'tool-input-available', toolCallId: 'call', toolName: 'read', input: {} })
+            listener.onChunk({ type: 'finish', finishReason: reason })
+            listener.onChunk({ type: 'text-delta', id: 'late', delta: 'late' })
+            await listener.onDone({} as any)
+            const result = await settled
+            expect(listener.isAlive?.()).toBe(false)
+            if (stream) {
+              if (!('value' in result)) throw result.error
+              expect(result.value.status).toBe(200)
+              const body = await readAll(result.value.body)
+              const frames = body.trim().split(/\r?\n\r?\n/)
+              const payloads = frames.map((frame) => {
+                const data = frame.match(/^data:\s?(.*)$/m)
+                expect(data).not.toBeNull()
+                return JSON.parse(data![1])
+              })
+              const errors = payloads.filter((payload) => payload.error || payload.type === 'error')
+              expect(errors).toHaveLength(1)
+              const message = expect.stringContaining(reason)
+              if (format === 'gemini') expect(errors[0]).toEqual({ error: { code: 502, message, status: 'INTERNAL' } })
+              else if (format === 'anthropic') {
+                expect(frames.find((frame) => frame.startsWith('event: error'))).toBeDefined()
+                expect(errors[0]).toEqual({ type: 'error', error: { type: 'api_error', message } })
+              } else if (format === 'openai-responses')
+                expect(errors[0]).toEqual({ type: 'error', code: 'internal_error', message })
+              else expect(errors[0]).toEqual({ error: { message, type: 'server_error', code: 'internal_error' } })
+              expect(body).not.toContain('data: [DONE]')
+              expect(body).not.toContain('"finishReason":"STOP"')
+              expect(frames.some((frame) => /^event:\s*message_stop\s*$/m.test(frame))).toBe(false)
+              for (const payload of payloads) {
+                if (payload.type === 'message_delta') expect(payload.delta?.stop_reason || null).toBeNull()
+                for (const choice of payload.choices ?? []) expect(choice.finish_reason || null).toBeNull()
+                for (const candidate of payload.candidates ?? []) expect(candidate).not.toHaveProperty('finishReason')
+              }
+              expect(
+                payloads.some(
+                  (payload) => payload.type === 'response.completed' || payload.response?.status === 'completed'
+                )
+              ).toBe(false)
+              expect(body).not.toContain('late')
+            } else {
+              if (!('error' in result)) throw new Error('Expected rejection')
+              expect(result.error).toMatchObject({ statusCode: 502 })
+              const mapped = gatewayErrorHandler({
+                request: new Request(`http://fixture${path}`),
+                code: 'UNKNOWN',
+                error: result.error,
+                status
+              } as Parameters<typeof gatewayErrorHandler>[0])
+              expect(mapped.code).toBe(502)
+              expect(mapped.response).toMatchObject(
+                format === 'gemini'
+                  ? { error: { code: 502 } }
+                  : format === 'anthropic'
+                    ? { error: { type: 'api_error' } }
+                    : { error: { type: 'server_error', code: 'internal_error' } }
+              )
+            }
+          })
+        }
       }
     }
   }

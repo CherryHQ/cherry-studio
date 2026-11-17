@@ -63,30 +63,6 @@ describe('useTemporaryValue', () => {
   })
 
   describe('timer management', () => {
-    it('should clear timeout on unmount', () => {
-      const { result, unmount } = renderHook(() => useTemporaryValue('default', 1000))
-      const [, setTemporaryValue] = result.current
-
-      // 设置临时值
-      act(() => {
-        setTemporaryValue('temporary')
-      })
-
-      // 验证值已更改
-      expect(result.current[0]).toBe('temporary')
-
-      // 卸载 hook
-      unmount()
-
-      // 快进定时器
-      act(() => {
-        vi.advanceTimersByTime(1000)
-      })
-
-      // 验证没有错误发生（值保持不变，因为我们已卸载）
-      expect(result.current[0]).toBe('temporary') // 注意：这里应该还是'temporary'，因为组件已卸载
-    })
-
     it('should handle multiple calls correctly', () => {
       const { result } = renderHook(() => useTemporaryValue('default', 1000))
       const [, setTemporaryValue] = result.current

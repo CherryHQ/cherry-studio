@@ -1,5 +1,5 @@
 import '@cherrystudio/ui/components/composites/markdown/styles'
-import type { EditorState } from '@uiw/react-codemirror'
+import { type EditorState, EditorView } from '@uiw/react-codemirror'
 import { Edit, Eye } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useEffect, useId, useImperativeHandle, useMemo, useRef, useState } from 'react'
@@ -11,6 +11,8 @@ import { usePreference } from '@data/hooks/usePreference'
 import { LazyCodeEditor } from '@renderer/components/LazyCodeEditor'
 import { StaticMarkdown } from '@renderer/components/markdown'
 import { cn } from '@renderer/utils/style'
+
+const promptEditorExtensions = [EditorView.theme({ '&.cm-focused': { outline: 'none' } })]
 
 export interface PromptEditorFieldHandles {
   insertText: (text: string) => boolean
@@ -151,7 +153,8 @@ export function PromptEditorField({
               language="markdown"
               onChange={handleChange}
               editable={!disabled}
-              options={{ foldGutter: false, lineNumbers: false }}
+              options={{ foldGutter: false, lineNumbers: false, highlightActiveLine: false }}
+              extensions={promptEditorExtensions}
               expanded={false}
               className={fill ? 'min-h-0 flex-1' : undefined}
               height={fill ? '100%' : undefined}

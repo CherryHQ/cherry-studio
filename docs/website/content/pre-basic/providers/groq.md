@@ -9,7 +9,7 @@ Groq（注意：不是 xAI 的 Grok）是一个以 **LPU 硬件加速、超低�
 
 ## 在 Cherry Studio 配置
 
-* 打开 `设置 → 模型服务`，找到 **Groq** Provider 进入详情页
+* 打开 `设置 → 模型服务`，找到 **Groq** 服务商进入详情页
 * **API 密钥** 填入 `gsk_...`
 * **API 地址** 默认 `https://api.groq.com/openai/v1`，无需修改
 * 点击 **获取模型列表**
@@ -38,7 +38,7 @@ Groq（注意：不是 xAI 的 Grok）是一个以 **LPU 硬件加速、超低�
 | 模型 | `grok-4` 等自研 | `llama-3.x` 等开源 |
 
 {% hint style="warning" %}
-Grok（xAI）和 Groq 经常被混淆。在 Cherry Studio Provider 列表中是两个独立条目，请注意区分。
+Grok（xAI）和 Groq 经常被混淆。在 Cherry Studio 服务商列表中是两个独立条目，请注意区分。
 {% endhint %}
 
 ***

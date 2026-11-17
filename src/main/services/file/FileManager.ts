@@ -195,7 +195,7 @@ import {
 import { showInFolder as internalShellShowInFolder } from './internal/system/shell'
 import { withTempCopy as internalWithTempCopy } from './internal/system/tempCopy'
 import { runPathMutationExclusive } from './pathMutationLock'
-import { safeOpen } from './system'
+import { type DefaultOpenContext, safeOpen } from './system'
 import { createContentHashBackfillJobHandler } from './tasks/contentHashBackfillJobHandler'
 import { ensureContentMetadataGeneration } from './tasks/contentMetadataGeneration'
 import { readEditSnapshot as readEditingSnapshot } from './utils/editSnapshot'
@@ -702,7 +702,7 @@ export interface IFileManager {
   // ─── System ───
 
   /** Open with the system default application. Unsafe executable/script types are blocked. */
-  open(id: FileEntryId): Promise<void>
+  open(id: FileEntryId, context?: DefaultOpenContext): Promise<void>
 
   /** Reveal in the system file manager. */
   showInFolder(id: FileEntryId): Promise<void>
@@ -1326,9 +1326,9 @@ export class FileManager extends BaseService implements IFileManager {
     return internalWithTempCopy(this.deps, id, fn)
   }
 
-  async open(id: FileEntryId): Promise<void> {
+  async open(id: FileEntryId, context?: DefaultOpenContext): Promise<void> {
     const entry = this.deps.fileEntryService.getById(id)
-    return safeOpen(resolvePhysicalPath(entry))
+    return safeOpen(resolvePhysicalPath(entry), context)
   }
 
   async showInFolder(id: FileEntryId): Promise<void> {

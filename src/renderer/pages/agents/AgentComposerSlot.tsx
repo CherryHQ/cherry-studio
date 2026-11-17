@@ -12,6 +12,7 @@ import AgentComposer, {
 import { ipcApi } from '@renderer/ipc'
 import type { GetAgentResponse } from '@renderer/types/agent'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
+import type { CherryUIMessage } from '@shared/data/types/message'
 import type { Model } from '@shared/data/types/model'
 
 import { ClaudeCodeDownloadStatus } from './ClaudeCodeDownloadStatus'
@@ -32,6 +33,7 @@ interface AgentComposerSlotProps {
   sendMessage: AgentChatRuntimeState['sendMessage']
   stop: AgentChatRuntimeState['stop']
   isStreaming: boolean
+  messages?: readonly CherryUIMessage[]
   sendDisabled: boolean
   onAgentChange?: (agentId: string | null) => void | Promise<void>
   agentChanging?: boolean
@@ -42,6 +44,7 @@ interface AgentComposerSlotProps {
   editBusy?: boolean
   cancelEditing: () => void
   resendEditedMessage: AgentChatRuntimeState['sendMessage']
+  steerWhileBusy?: boolean
 }
 
 function AgentComposerSlot({
@@ -55,6 +58,7 @@ function AgentComposerSlot({
   sendMessage,
   stop,
   isStreaming,
+  messages,
   sendDisabled,
   onAgentChange,
   agentChanging,
@@ -64,7 +68,8 @@ function AgentComposerSlot({
   editing,
   editBusy,
   cancelEditing,
-  resendEditedMessage
+  resendEditedMessage,
+  steerWhileBusy
 }: AgentComposerSlotProps) {
   const binary = useClaudeCodeBinary(activeAgent?.type === 'claude-code')
   useEffect(() => {
@@ -85,7 +90,6 @@ function AgentComposerSlot({
             editing: {
               messageId: editing.messageId,
               onCancel: cancelEditing,
-              description: t('agent.edit_resend.warning'),
               sendLabel: t('agent.edit_resend.save')
             }
           }
@@ -106,6 +110,7 @@ function AgentComposerSlot({
         sendMessage={isEditing ? resendEditedMessage : sendMessage}
         stop={stop}
         isStreaming={!isEditing && isStreaming}
+        messages={isEditing ? undefined : messages}
         sendDisabled={binary.blocked || sendDisabled || (isEditing && (isStreaming || editBusy))}
         onCreateEmptySession={isEditing ? undefined : onCreateEmptySession}
         compactWhenSingleLine={compactWhenSingleLine}
@@ -113,6 +118,7 @@ function AgentComposerSlot({
           rightPaneActions?.canPreviewInputFileInRightPane ? rightPaneActions.previewInputFileInRightPane : undefined
         }
         launchOptions={isEditing ? editLaunchOptions : composerLaunchOptions}
+        steerWhileBusy={steerWhileBusy}
       />
     ) : (
       <MissingAgentHomeComposer onAgentChange={onAgentChange} agentChanging={agentChanging} />

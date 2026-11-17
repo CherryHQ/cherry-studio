@@ -61,6 +61,12 @@ A `topic` is an individual conversation within an assistant. Key points:
 
 For example, you might have an "Email Writer" assistant with separate topics for "Marketing Email", "Customer Reply", and "Newsletter Draft".
 
+## Export Assistants
+
+Open the display menu above the assistant list and choose **Manage Assistants**. Its toolbar provides **New Assistant**, **Assistant Library**, **Import Assistant** and **Export**. Export loads the complete assistant list afresh and selects all entries when loading finishes, independently of the management page's search or group filter. Search by name or description without losing hidden selections; **Select All** and **Deselect All** apply to the complete list.
+
+Confirm to save `assistants.json`: one flat assistant preset array containing the selected assistants' prompts, groups and regular phrases in binding order. Cancelling Save retains the selection for retry. The file limit is 5 MiB; the existing importer requires nonempty assistant prompts, and export does not fill empty prompts automatically.
+
 ## Working with Topics
 
 ### Creating a New Topic

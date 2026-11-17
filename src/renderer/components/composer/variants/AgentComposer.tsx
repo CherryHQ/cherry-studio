@@ -57,16 +57,19 @@ import { useAgentSessionSlashCommands } from '@renderer/hooks/agent/useAgentSess
 import { useUpdateSession } from '@renderer/hooks/agent/useSession'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { useIsActiveTab } from '@renderer/hooks/tab'
+import { useCherryCloudQuotaExhaustion } from '@renderer/hooks/useCherryCloudQuotaExhaustion'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBase'
 import { useLatest } from '@renderer/hooks/useLatest'
 import { useAvailableSkills } from '@renderer/hooks/useSkills'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { ipcApi } from '@renderer/ipc'
+import { subscribeAgentDraftHandoff, takeAgentDraftHandoffs } from '@renderer/services/agentDraftHandoff'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { toast } from '@renderer/services/toast'
 import type { ThinkingOption } from '@renderer/types/reasoning'
 import { TopicType } from '@renderer/types/topic'
+import { getPermissionModeCards } from '@renderer/utils/agent'
 import { buildAgentFileWorkspaceKey, buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import {
   getComposerShortcutLabel,
@@ -79,12 +82,13 @@ import { resolveReasoningEffortForModel } from '@renderer/utils/model'
 import type { ComposerQueuedMessagePayload } from '@shared/ai/transport'
 import type { AgentEntity } from '@shared/data/types/agent'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
-import type { CherryMessagePart, FileUIPart } from '@shared/data/types/message'
+import type { CherryMessagePart, CherryUIMessage, FileUIPart } from '@shared/data/types/message'
 import type { Model, ServiceTierSelection } from '@shared/data/types/model'
 import { getKnowledgeBaseIdsFromParts, withKnowledgeScopePart } from '@shared/data/types/uiParts'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 import type { LocalSkill } from '@shared/types/skill'
 
+import { CherryCloudQuotaNotice } from '../CherryCloudQuotaNotice'
 import { useComposerLayerActive } from '../ComposerContext'
 import { excludeComposerDraftTokens } from '../composerDraft'
 import type { ComposerInputFilePreviewAction } from '../filePreview'
@@ -107,6 +111,7 @@ import { type AgentConversationWorkspace } from './agent/AgentConversationContro
 import {
   type AgentComposerDraftCache,
   type AgentComposerDraftCacheKey,
+  appendConversationDraft,
   getAgentDraftCacheKey,
   getAgentDraftTokens,
   getCachedSkillTokens,
@@ -116,6 +121,7 @@ import {
   writeAgentDraftCache
 } from './agent/agentDraftCache'
 import { buildAgentFilePartsForAttachments, toAccessiblePaths } from './agent/agentFileParts'
+import { useAgentPromptSuggestion } from './agent/useAgentPromptSuggestion'
 import { createAttachmentFromPath, useAgentResourceMentionSource } from './agent/useAgentResourceMentionSource'
 import {
   AGENT_MANAGED_TOKEN_KINDS,
@@ -207,10 +213,13 @@ type Props = {
   workspaceChanging?: boolean
   canChangeModel?: boolean
   isStreaming: boolean
+  messages?: readonly CherryUIMessage[]
   sendDisabled?: boolean
   compactWhenSingleLine?: boolean
   previewInputFile?: ComposerInputFilePreviewAction
   launchOptions?: AgentComposerLaunchOptions
+  /** Sends during a running turn steer it instead of queueing, for windows that cannot keep a queue alive. */
+  steerWhileBusy?: boolean
 }
 
 type AgentComposerRootProps = Props & {
@@ -237,10 +246,12 @@ const AgentComposerRoot = ({
   workspaceChanging,
   canChangeModel = true,
   isStreaming,
+  messages,
   sendDisabled = false,
   compactWhenSingleLine = false,
   previewInputFile,
   launchOptions,
+  steerWhileBusy = false,
   renderControls,
   forceNarrowLayout = false,
   deferQuickPanel = false
@@ -263,7 +274,10 @@ const AgentComposerRoot = ({
   // Persistence follows the live launch options, not the sticky seed: once the launch message is
   // sent the session owns its draft again, so follow-ups are cached like any other session's.
   const draftPersistenceEnabled = launchOptions === undefined
-  const composerInstanceKey = `${sessionId}:${launchInitialDraft === undefined ? 'default' : 'launch'}`
+  // A draft handed over from another window remounts the composer around the merged draft.
+  const handoffDraftRef = useRef<RestoredAgentComposerDraftCache | null>(null)
+  const [handoffRevision, setHandoffRevision] = useState(0)
+  const composerInstanceKey = `${sessionId}:${launchInitialDraft === undefined ? 'default' : 'launch'}:${handoffRevision}`
   const resolvedWorkspaceId = workspaceId ?? session?.workspaceId ?? null
   const workspaceKey = buildAgentFileWorkspaceKey(resolvedWorkspaceId, session?.workspace?.path)
   const draftCacheKey = getAgentDraftCacheKey(sessionId)
@@ -275,7 +289,7 @@ const AgentComposerRoot = ({
   if (initialDraftRef.current?.instanceKey !== scopedComposerInstanceKey) {
     let draft: RestoredAgentComposerDraftCache
     if (launchInitialDraft === undefined) {
-      draft = readAgentDraftCache(draftCacheKey, { workspaceKey, agentId })
+      draft = handoffDraftRef.current ?? readAgentDraftCache(draftCacheKey, { workspaceKey, agentId })
     } else {
       // A launch draft is never cached, so a scope change (switching the session workspace)
       // has to carry the live edits over itself — re-seeding the template would silently
@@ -300,6 +314,27 @@ const AgentComposerRoot = ({
     initialDraftRef.current = { instanceKey: scopedComposerInstanceKey, draft }
   }
   const { draft: initialDraft } = initialDraftRef.current
+
+  useEffect(() => {
+    if (!draftPersistenceEnabled) return
+    const takeHandoffs = () => {
+      const drafts = takeAgentDraftHandoffs(sessionId)
+      if (drafts.length === 0) return
+      handoffDraftRef.current = drafts.reduce(
+        appendConversationDraft,
+        readAgentDraftCache(draftCacheKey, { workspaceKey, agentId })
+      )
+      setHandoffRevision((revision) => revision + 1)
+    }
+    takeHandoffs()
+    return subscribeAgentDraftHandoff(sessionId, takeHandoffs)
+  }, [agentId, draftCacheKey, draftPersistenceEnabled, sessionId, workspaceKey])
+  // Passive effects run after the replaced composer saved its own draft on unmount, so this write wins.
+  useEffect(() => {
+    if (!handoffDraftRef.current) return
+    writeAgentDraftCache(draftCacheKey, handoffDraftRef.current)
+    handoffDraftRef.current = null
+  }, [draftCacheKey, handoffRevision])
   const handleNewSessionShortcut = useCallback(() => {
     void onCreateEmptySession?.()
   }, [onCreateEmptySession])
@@ -371,10 +406,12 @@ const AgentComposerRoot = ({
         workspaceChanging={workspaceChanging}
         canChangeModel={canChangeModel}
         isStreaming={isStreaming}
+        messages={messages}
         sendDisabled={sendDisabled}
         compactWhenSingleLine={compactWhenSingleLine}
         previewInputFile={previewInputFile}
         launchOptions={launchOptions}
+        steerWhileBusy={steerWhileBusy}
         renderControls={renderControls}
         forceNarrowLayout={forceNarrowLayout}
         deferQuickPanel={deferQuickPanel}
@@ -414,10 +451,12 @@ interface InnerProps {
   workspaceChanging?: boolean
   canChangeModel: boolean
   isStreaming: boolean
+  messages?: readonly CherryUIMessage[]
   sendDisabled: boolean
   compactWhenSingleLine: boolean
   previewInputFile?: ComposerInputFilePreviewAction
   launchOptions?: AgentComposerLaunchOptions
+  steerWhileBusy: boolean
   renderControls: AgentComposerControlsRenderer
   forceNarrowLayout?: boolean
   deferQuickPanel?: boolean
@@ -426,7 +465,7 @@ interface InnerProps {
 
 function AgentComposerContextUsage({ model, sessionId }: { model?: Model; sessionId: string }) {
   const { t } = useTranslation()
-  const { percentage, usage, maxTokens } = useAgentSessionContextUsage(sessionId, model)
+  const { percentage, usage } = useAgentSessionContextUsage(sessionId, model)
   const compaction = useAgentSessionCompaction(sessionId)
   if (percentage === null || !usage) return null
 
@@ -447,7 +486,6 @@ function AgentComposerContextUsage({ model, sessionId }: { model?: Model; sessio
         <AgentContextUsageSummary
           usage={usage}
           percentage={percentage}
-          maxTokens={maxTokens}
           isCompacting={isCompacting}
           modelName={model?.name}
           showCategories={false}
@@ -494,16 +532,20 @@ const AgentComposerInner = ({
   workspaceChanging,
   canChangeModel,
   isStreaming,
+  messages,
   sendDisabled,
   compactWhenSingleLine,
   previewInputFile,
   launchOptions,
+  steerWhileBusy,
   renderControls,
   forceNarrowLayout = false,
   deferQuickPanel = false,
   resolvedWorkspaceWarning
 }: InnerProps) => {
-  const { updateAgent, updateModel } = useUpdateAgent()
+  const { updateAgent } = useUpdateAgent()
+  const quotaExhaustion = useCherryCloudQuotaExhaustion(model, true)
+  const quotaBlocksSend = !!quotaExhaustion && quotaExhaustion.reason !== 'unknown'
   const { updateSession } = useUpdateSession()
   const scope = TopicType.Session
   const config = getComposerToolConfig(scope)
@@ -513,9 +555,10 @@ const AgentComposerInner = ({
   const toolLaunchersVersion = useComposerToolLauncherVersion()
   const [enableSpellCheck] = usePreference('app.spell_check.enabled')
   const [fontSize] = usePreference('chat.message.font_size')
+  const [renderInputMessageAsMarkdown] = usePreference('chat.message.render_as_markdown')
   const [narrowMode] = usePreference('chat.narrow_mode')
   // Yield the same rail gutter as the message column so the composer stays aligned.
-  const { railGutterPx } = useChatLayoutMode()
+  const { railGutterPx, sidePaddingPx } = useChatLayoutMode()
   const [storedSendShortcut] = usePreference('chat.input.send_message_shortcut')
   const sendMessageShortcut = resolveSendShortcut(storedSendShortcut)
   const [steerShortcut] = usePreference('chat.input.steer_shortcut')
@@ -591,6 +634,7 @@ const AgentComposerInner = ({
   const [shouldValidateSkills, setShouldValidateSkills] = useState(initialDraft.shouldValidateSkills)
   const [text, setTextState] = useState(() => initialDraft.text)
   const [draftTokens, setDraftTokens] = useState<ComposerSerializedToken[]>(() => initialDraft.tokens)
+  const supportsPlan = !!agent && getPermissionModeCards(agent.type).some((card) => card.mode === 'plan')
   const [isDirectSending, setIsDirectSending] = useState(false)
   const directSendInFlightRef = useRef(false)
   const releaseFollowupEditRef = useRef<() => void>(() => {})
@@ -611,6 +655,10 @@ const AgentComposerInner = ({
   const workspaceWarning = resolvedWorkspaceWarning ?? undefined
   const compaction = useAgentSessionCompaction(sessionId)
   const quickPanel = useOptionalQuickPanel()
+  const togglePlanMode = useCallback(() => {
+    const launcher = getLaunchers('root-panel').find((entry) => entry.id === 'plan-mode')
+    if (launcher && quickPanel) dispatchLauncher(launcher, { quickPanel, source: 'root-panel' })
+  }, [dispatchLauncher, getLaunchers, quickPanel])
   const rootPanelVisible =
     layerActive && Boolean(quickPanel?.isVisible && quickPanel.symbol === ComposerPanelSymbol.Root)
   const skillsPanelVisible =
@@ -812,7 +860,6 @@ const AgentComposerInner = ({
       shouldValidateSkills
     })
   })
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- `useEffectEvent` reads the latest draft; cleanup is keyed only by persistence/session/workspace.
   useEffect(() => () => persistFinalDraft(), [draftCacheKey, draftPersistenceEnabled, workspaceKey])
 
   const tokens = useMemo(
@@ -1011,7 +1058,6 @@ const AgentComposerInner = ({
       const nextReasoningEffort = resolveReasoningEffortForModel(nextModel, reasoningEffort) ?? 'default'
       const pendingReasoningEdit =
         pendingReasoningEditRef.current?.agentId === agent.id ? pendingReasoningEditRef.current : null
-      const pendingReasoningEffort = pendingReasoningEdit ? { reasoningEffort: pendingReasoningEdit.effort } : {}
       const previousReasoningOverride = activeReasoningOverride
       const version = ++reasoningMutationVersionRef.current
       setReasoningOverride({
@@ -1020,11 +1066,8 @@ const AgentComposerInner = ({
         version
       })
 
-      const updatedAgent = await updateModel(
-        { agentId: agent.id, modelId: nextModel.id, ...pendingReasoningEffort },
-        { showSuccessToast: false }
-      )
-      if (!updatedAgent) {
+      const updatedSession = await updateSession({ id: sessionId, model: nextModel.id }, { showSuccessToast: false })
+      if (!updatedSession) {
         setReasoningOverride((current) => {
           if (current?.agentId !== agent.id || current.version !== version) return current
           if (!previousReasoningOverride || previousReasoningOverride.version === failedReasoningVersionRef.current) {
@@ -1040,6 +1083,8 @@ const AgentComposerInner = ({
         })
         return
       }
+      // Replaying the selection-time Agent update could overwrite a newer setting from another surface;
+      // the agents API provides no conditional write to make that replay safe.
       if (
         pendingReasoningEdit &&
         pendingReasoningEditRef.current?.agentId === pendingReasoningEdit.agentId &&
@@ -1049,7 +1094,16 @@ const AgentComposerInner = ({
       }
       setReasoningOverride((current) => (current?.agentId === agent.id && current.version === version ? null : current))
     },
-    [activeReasoningOverride, agent, canChangeModel, canonicalReasoningEffort, model?.id, reasoningEffort, updateModel]
+    [
+      activeReasoningOverride,
+      agent,
+      canChangeModel,
+      canonicalReasoningEffort,
+      model?.id,
+      reasoningEffort,
+      sessionId,
+      updateSession
+    ]
   )
 
   const handleCreateEmptySession = useCallback(() => {
@@ -1108,7 +1162,9 @@ const AgentComposerInner = ({
       void updateAgent(
         {
           id: agent.id,
-          configuration: { reasoning_effort: option }
+          configuration: { reasoning_effort: option },
+          // Validate against the session's effective model: under a session-level override the agent default is unchanged and would normalize away an effort the effective model supports (cherry-pr-review inv_98911732422a84bf).
+          reasoningValidationModelId: model?.id
         },
         { showSuccessToast: false }
       ).then((updatedAgent) => {
@@ -1136,7 +1192,7 @@ const AgentComposerInner = ({
         )
       })
     },
-    [agent, canonicalReasoningEffort, updateAgent]
+    [agent, canonicalReasoningEffort, model?.id, updateAgent]
   )
   const handleServiceTierChange = useCallback(
     (tier: ServiceTierSelection) => {
@@ -1198,13 +1254,12 @@ const AgentComposerInner = ({
   const sendKeyLabel = getComposerShortcutLabel(sendMessageShortcut)
   const steerKeyLabel = getComposerShortcutLabel(resolvedSteerShortcut)
 
-  const placeholderText = useMemo(
-    () =>
-      isStreaming
-        ? t('agent.input.placeholder_streaming', { sendKey: sendKeyLabel, steerKey: steerKeyLabel })
-        : t('agent.input.placeholder'),
-    [isStreaming, sendKeyLabel, steerKeyLabel, t]
-  )
+  const placeholderText = useMemo(() => {
+    if (!isStreaming) return t('agent.input.placeholder')
+    return steerWhileBusy
+      ? t('agent.input.placeholder_steering')
+      : t('agent.input.placeholder_streaming', { sendKey: sendKeyLabel, steerKey: steerKeyLabel })
+  }, [isStreaming, sendKeyLabel, steerKeyLabel, steerWhileBusy, t])
 
   const buildQueuedPayload = useCallback(
     (draft: ComposerSerializedDraft): ComposerQueuedMessagePayload | null => {
@@ -1340,6 +1395,24 @@ const AgentComposerInner = ({
     onDrain: sendQueuedPayload
   })
   releaseFollowupEditRef.current = releaseEdit
+  const promptSuggestion = useAgentPromptSuggestion({
+    sessionId,
+    messages,
+    model,
+    busy: isStreaming,
+    blocked:
+      !layerActive ||
+      sendDisabled ||
+      isDirectSending ||
+      quotaBlocksSend ||
+      !!launchOptions ||
+      text.length > 0 ||
+      draftTokens.length > 0 ||
+      files.length > 0 ||
+      selectedSkills.length > 0 ||
+      selectedKnowledgeBases.length > 0 ||
+      queuedFollowups.length > 0
+  })
 
   useEffect(() => {
     if (launchOptions?.editing) return
@@ -1395,7 +1468,7 @@ const AgentComposerInner = ({
       // Busy (streaming) → queue the follow-up; the head auto-drains when the session goes idle and
       // the dock lets the user steer/edit/remove items. The steer shortcut opts out of the queue and
       // falls through to the direct send below, mirroring the dock's "insert" action.
-      if (isStreaming && !options?.steer) {
+      if (isStreaming && !options?.steer && !steerWhileBusy) {
         enqueueFollowup(draft, payload)
         clearCurrentDraft()
         return
@@ -1419,6 +1492,7 @@ const AgentComposerInner = ({
       model,
       sendDisabled,
       sendQueuedPayload,
+      steerWhileBusy,
       t,
       workspaceWarning
     ]
@@ -1549,7 +1623,7 @@ const AgentComposerInner = ({
 
   const sendAccessory: ComposerSurfaceProps['sendAccessory'] = (inputAdapter) => (
     <>
-      {model && !launchOptions?.editing ? (
+      {model ? (
         <ModelSpeedControl
           model={model}
           reasoningEffort={reasoningEffort}
@@ -1574,6 +1648,7 @@ const AgentComposerInner = ({
       <ResourceEditDialogEventHost />
       <ComposerPinnedToolsProvider value={pinnedLauncherIds}>
         <ComposerSurface
+          markdownLivePreview={renderInputMessageAsMarkdown}
           showAiDisclaimer
           voiceTarget={{ targetId: `composer:session:${sessionId}`, sourceEntityId: sessionId }}
           text={text}
@@ -1590,14 +1665,17 @@ const AgentComposerInner = ({
           resolveKnowledgeBaseMarker={resolveKnowledgeBaseMarker}
           resolveSkillMarker={resolveSkillMarker}
           placeholder={placeholderText}
+          promptSuggestion={promptSuggestion.text}
+          onDismissPromptSuggestion={promptSuggestion.dismiss}
           sendMessageShortcut={sendMessageShortcut}
-          steerShortcut={isStreaming ? resolvedSteerShortcut : undefined}
+          steerShortcut={isStreaming && !steerWhileBusy ? resolvedSteerShortcut : undefined}
           sendDisabled={
             sendDisabled ||
             isDirectSending ||
             hasPendingReference ||
             modelPending ||
             !!missingModelMessage ||
+            quotaBlocksSend ||
             (text.trim().length === 0 && files.length === 0 && selectedSkills.length === 0)
           }
           sendBlockedReason={
@@ -1609,8 +1687,10 @@ const AgentComposerInner = ({
             launchOptions?.editing ? { ...launchOptions.editing, cancelDisabled: isDirectSending } : undefined
           }
           onPause={abortAgentSession}
+          onShiftTab={supportsPlan ? togglePlanMode : undefined}
           queueContent={
             <>
+              {quotaExhaustion ? <CherryCloudQuotaNotice exhaustion={quotaExhaustion} /> : null}
               {compaction.status === 'failed' && (
                 <Alert
                   type="warning"
@@ -1653,6 +1733,7 @@ const AgentComposerInner = ({
           fontSize={fontSize}
           narrowMode={forceNarrowLayout || narrowMode}
           railGutterPx={railGutterPx}
+          sidePaddingPx={sidePaddingPx}
           onActionsChange={handleSurfaceActionsChange}
           isInputHistoryActive={isInputHistoryActive}
           onInputHistoryNavigate={handleInputHistoryNavigate}

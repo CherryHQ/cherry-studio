@@ -19,7 +19,7 @@ renderer-side transport that connects to them.
 |---|---|
 | [Core Architecture](./core-architecture.md) | End-to-end call flow: `ai.stream.open` IpcApi route → context provider → AiStreamManager → runtime → broadcast / persist |
 | [Stream Manager](./stream-manager.md) | Active-stream registry, listeners, reconnect, abort, queue/yield/continuation steering, persistence backends |
-| [Agent Session Runtime](./agent-session-runtime.md) | Agent-session host/driver split, follow-up admission, resume persistence, and the registered Claude Code and Pi drivers |
+| [Agent Session Runtime](./agent-session-runtime.md) | Agent-session host/driver split, follow-up admission, resume persistence, and the registered Claude Code, Pi and Pi Durable drivers |
 | [Agent Session Fork](./agent-session-fork.md) | Native fork behavior, service ownership, opaque checkpoints, workspace handling, publication, and recovery |
 | [Agent Lifecycle](./agent-lifecycle.md) | Archive, restore, purge, schedule recovery, ownership boundaries, and Agent-side backup quiescing |
 | [Remote Agent API Design](./remote-agent-access.md) | Target network and package APIs: device-level authorization, complete incremental events, receipts, and weak-network recovery |
@@ -51,8 +51,8 @@ renderer-side transport that connects to them.
 
 | Document | What it covers |
 |---|---|
-| [IPC Transport](./ipc-transport.md) | `useChat` + `IpcChatTransport`: `sendMessages` / `reconnectToStream`, dispatch service, topic-status mirror |
-| [Execution Overlay](./execution-overlay.md) | `TopicStreamSubscription` + `useExecutionOverlay`: ref-counted attach, execution + anchor demux, one-shot `readUIMessageStream` per turn (the renderer half of the same merge function Main uses) |
+| [IPC Transport](./ipc-transport.md) | Commands, dispatch results, root/child projection subscriptions and topic-status mirror |
+| [Execution Overlay](./execution-overlay.md) | Shared message snapshots/patches, bounded reconnect recovery, independent child views and root DB handoff |
 | [Text Translation](./translation.md) | `translate.open` prompt streams, renderer-owned result handling, and Home `data-translation` persistence |
 | [Tool Approval](./tool-approval.md) | Approval registry, Main-as-writer model, persistent decisions, `useToolApproval` hook |
 
@@ -71,7 +71,8 @@ src/main/ai/
 ├── runtime/                      ← AI execution backends + agent-session runtime registry
 │   ├── aiSdk/                    ← Agent class, loop, observers, params/features
 │   ├── claudeCode/               ← Claude Code driver, warm query, SDK adapter
-│   └── pi/                       ← Pi runtime connection and approval extension
+│   ├── pi/                       ← Pi runtime connection and shared behavior host
+│   └── piDurable/                ← Durable native storage, execution and child projection wiring
 ├── agentSession/                 ← agent-session topic host
 │   └── AgentSessionRuntimeService.ts
 ├── agents/                       ← AgentLifecycleService, AgentJobsService, runAgentTask, prompt, heartbeat, builtin/
@@ -109,12 +110,11 @@ src/main/ai/
 
 ## How a chat turn flows
 
-1. Renderer `useChat({ transport: IpcChatTransport })` calls `sendMessages` →
+1. Renderer command hook or conversation controller sends input →
    IpcApi `ai.stream.open` (`{ topicId, trigger, userMessageParts,
    parentAnchorId?, mentionedModelIds? }`).
 2. The thin handler in `src/main/ipc/handlers/ai.ts` resolves the caller's
-   `WebContents`, wraps it in a `WebContentsListener`, and delegates to
-   `AiStreamManager.dispatch`. Stream state stays in the manager; transport
+   managed window and delegates to `AiStreamManager.dispatchCommand`. Stream state stays in the manager; transport
    registration stays in IpcApi.
 3. `dispatchStreamRequest` picks the first `ChatContextProvider` whose
    `canHandle(topicId)` matches (persistent chat / temporary / agent
@@ -133,9 +133,10 @@ src/main/ai/
    Agent-session runtime requests are the exception: `AiService.streamText`
    routes them to `AgentSessionRuntimeService.openTurnStream()` so the
    registered driver can own the concrete agent runtime.
-6. `pipeStreamLoop` tees the chunk stream: one branch broadcasts to listeners
-   (WebContents / SSE / channel-adapter / persistence), one branch runs
-   `readUIMessageStream` to accumulate a `CherryUIMessage` snapshot.
+6. Each execution selects one content source. `chunks` uses `pipeStreamLoop` and
+   `readUIMessageStream`; Pi, Pi Durable, and Claude use `messages` and `pipeMessageStream` over native
+   projection views. Both publish the same `CherryUIMessage` model through the
+   root projection and `onMessage` listeners. See [Stream Manager](./stream-manager.md).
 7. On terminal (done / error / aborted / paused-for-approval), listeners get
    a typed terminal callback. `PersistenceListener` writes the final
    message via the appropriate `PersistenceBackend`.
@@ -144,9 +145,10 @@ src/main/ai/
 
 ## Key invariants
 
-- **Topic-level addressing.** Every IPC and broadcast is keyed by `topicId`.
+- **Topic-level addressing.** Root chat streams are keyed by `topicId`.
   A topic has at most one active stream; subscribers are equal — there's no
-  "owner" window.
+  "owner" window. Child projections share the same delivery protocol while using their own owner-scoped subscription
+  and remain independent of the parent's active turn.
 - **Main owns persistence.** Renderer closing or crashing does not abort the
   stream and does not lose data — `PersistenceListener` writes on terminal
   regardless of who is listening.
@@ -191,5 +193,4 @@ instances release their histories. History and branches are isolated per chain.
 - [Service Lifecycle](../lifecycle/README.md) — `AiService` extends `BaseService`
 - [Data Layer](../data/README.md) — `MessageService`, `ModelService`,
   `ProviderService` (called from main-side AI code)
-- [Window Manager](../window-manager/README.md) — `WebContentsListener`
-  attaches to whatever windows are open
+- [Window Manager](../window-manager/README.md) — projection subscriptions are scoped to managed windows

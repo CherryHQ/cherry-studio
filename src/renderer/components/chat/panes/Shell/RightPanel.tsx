@@ -652,7 +652,7 @@ export function RightPanelShortcut({
   if (tooltipContent === false) return button
 
   return (
-    <Tooltip content={tooltipContent} delay={800}>
+    <Tooltip content={tooltipContent} placement="bottom" delay={800}>
       {button}
     </Tooltip>
   )

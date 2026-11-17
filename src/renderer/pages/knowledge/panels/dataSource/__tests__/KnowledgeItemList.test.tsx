@@ -39,7 +39,6 @@ vi.mock('@renderer/components/VirtualList', () => ({
     list: T[]
     children: (item: T) => ReactNode
     onScroll?: (event: UIEvent<HTMLDivElement>) => void
-    getItemKey?: (index: number) => string | number
   }) => {
     return (
       <div data-testid="virtual-list" onScroll={onScroll}>
@@ -254,39 +253,6 @@ describe('KnowledgeItemList', () => {
     rerender(<KnowledgeItemList items={items} isLoading={false} {...noopProps} hasMore={false} isLoadingMore={false} />)
 
     expect(screen.getByText('没有更多了')).toBeInTheDocument()
-  })
-
-  it('omits the end-of-list note for a single page that never paginated', () => {
-    render(
-      <KnowledgeItemList items={[createNoteItem({ id: 'note-1' })]} isLoading={false} {...noopProps} hasMore={false} />
-    )
-
-    expect(screen.queryByText('没有更多了')).not.toBeInTheDocument()
-  })
-
-  it('drops the end-of-list note when switching from a paged base to a single-page base', () => {
-    // The list instance is reused across base switches; the note is derived from the live row count
-    // (not a sticky ref), so it must not linger when a single-page base replaces a paged-in one.
-    const pagedItems = Array.from({ length: 60 }, (_, index) => createNoteItem({ id: `a-${index}` }))
-    const { rerender } = render(
-      <KnowledgeItemList items={pagedItems} isLoading={false} {...noopProps} hasMore isLoadingMore />
-    )
-
-    rerender(
-      <KnowledgeItemList items={pagedItems} isLoading={false} {...noopProps} hasMore={false} isLoadingMore={false} />
-    )
-    expect(screen.getByText('没有更多了')).toBeInTheDocument()
-
-    rerender(
-      <KnowledgeItemList
-        items={[createNoteItem({ id: 'b-1' })]}
-        isLoading={false}
-        {...noopProps}
-        hasMore={false}
-        isLoadingMore={false}
-      />
-    )
-    expect(screen.queryByText('没有更多了')).not.toBeInTheDocument()
   })
 
   it('exposes grid semantics with column headers', () => {

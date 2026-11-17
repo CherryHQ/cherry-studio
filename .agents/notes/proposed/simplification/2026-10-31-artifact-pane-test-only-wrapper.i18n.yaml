@@ -1,5 +1,0 @@
-# Bilingual-pair consistency record (docs/i18n/README.md).
-# After editing either side, update its counterpart and re-record with:
-#   pnpm docs:check-pairing --write .agents/notes/proposed/simplification/2026-10-31-artifact-pane-test-only-wrapper.md
-2026-10-31-artifact-pane-test-only-wrapper.md: a64c76d1199540b6d077fc4b3de9f44dfff7c6ab
-2026-10-31-artifact-pane-test-only-wrapper.zh.md: 8ff1285e3813b62871ad649c5327a1b8ea4a0dc3

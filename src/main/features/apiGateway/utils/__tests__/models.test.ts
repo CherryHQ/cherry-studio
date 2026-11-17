@@ -271,13 +271,16 @@ describe('api gateway model listing', () => {
       mocks.getProvider.mockReturnValue({ id: CHERRY_CLOUD_PROVIDER_ID, name: 'CherryAI', isEnabled: true })
     })
 
-    it('keeps listed Cherry Cloud models out of the public gateway', async () => {
+    it('lists and resolves Cherry Cloud models through the public gateway', async () => {
       const response = await getModels()
-      expect(response.data.map((model) => model.id)).toEqual(['openai:gpt-4o'])
+      expect(response.data.map((model) => model.id)).toEqual([
+        `${CHERRY_CLOUD_PROVIDER_ID}:deepseek-free`,
+        'openai:gpt-4o'
+      ])
 
-      await expect(resolveGatewayModelAddress(`${CHERRY_CLOUD_PROVIDER_ID}:deepseek-free`)).rejects.toThrow(
-        'not available through the API gateway'
-      )
+      await expect(resolveGatewayModelAddress(`${CHERRY_CLOUD_PROVIDER_ID}:deepseek-free`)).resolves.toMatchObject({
+        model: cloudModel
+      })
     })
 
     it('serves Cherry Cloud models to internal requests', async () => {

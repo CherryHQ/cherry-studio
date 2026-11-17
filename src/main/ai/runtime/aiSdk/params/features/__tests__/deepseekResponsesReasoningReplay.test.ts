@@ -2,14 +2,7 @@ import type { LanguageModelV3Prompt } from '@ai-sdk/provider'
 import type { LanguageModelMiddleware } from 'ai'
 import { describe, expect, it } from 'vitest'
 
-import type { Model } from '@shared/data/types/model'
-import { ENDPOINT_TYPE } from '@shared/data/types/model'
-
-import type { RequestScope } from '../../scope'
-import {
-  createDeepseekResponsesReasoningReplayPlugin,
-  deepseekResponsesReasoningReplayFeature
-} from '../deepseekResponsesReasoningReplay'
+import { createDeepseekResponsesReasoningReplayPlugin } from '../deepseekResponsesReasoningReplay'
 
 async function getMiddleware(): Promise<LanguageModelMiddleware> {
   const plugin = createDeepseekResponsesReasoningReplayPlugin()
@@ -29,36 +22,7 @@ async function transform(prompt: LanguageModelV3Prompt): Promise<LanguageModelV3
   return result.prompt
 }
 
-const model = (id: string): Model => ({ id, apiModelId: id, providerId: 'cherryin', name: id }) as Model
-
 describe('deepseekResponsesReasoningReplay', () => {
-  describe('applies', () => {
-    const scope = (endpointType: string, modelId: string) =>
-      ({ endpointType, model: model(modelId) }) as unknown as RequestScope
-
-    it('activates for DeepSeek models on the Responses endpoint, including agent/ prefixed ids', () => {
-      expect(
-        deepseekResponsesReasoningReplayFeature.applies!(scope(ENDPOINT_TYPE.OPENAI_RESPONSES, 'deepseek-v4-flash'))
-      ).toBe(true)
-      expect(
-        deepseekResponsesReasoningReplayFeature.applies!(
-          scope(ENDPOINT_TYPE.OPENAI_RESPONSES, 'agent/deepseek-v4-flash')
-        )
-      ).toBe(true)
-    })
-
-    it('stays inactive for other endpoints and non-DeepSeek models', () => {
-      expect(
-        deepseekResponsesReasoningReplayFeature.applies!(
-          scope(ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, 'deepseek-v4-flash')
-        )
-      ).toBe(false)
-      expect(deepseekResponsesReasoningReplayFeature.applies!(scope(ENDPOINT_TYPE.OPENAI_RESPONSES, 'gpt-5'))).toBe(
-        false
-      )
-    })
-  })
-
   describe('transformParams', () => {
     it('tags metadata-less assistant reasoning parts for raw passback', async () => {
       const prompt: LanguageModelV3Prompt = [

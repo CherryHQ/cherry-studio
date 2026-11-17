@@ -10,7 +10,7 @@ OpenRouter 是一个 **统一网关**，用一把 key 接入 200+ 家厂商的�
 
 ## 在 Cherry Studio 配置
 
-* 打开 `设置 → 模型服务`，找到 **OpenRouter** Provider 进入详情页
+* 打开 `设置 → 模型服务`，找到 **OpenRouter** 服务商进入详情页
 * **API 密钥** 填入 `sk-or-...`
 * **API 地址** 默认 `https://openrouter.ai/api`，无需修改
 * 点击 **获取模型列表**，OpenRouter 会返回数百个可用模型
@@ -30,7 +30,7 @@ OpenRouter 的模型 ID 形如 `<vendor>/<model>`：
 
 ## 适用场景
 
-* **多模型 A/B 对比**：在同一 Cherry Studio Provider 下随意切模型，无需切 Provider
+* **多模型 A/B 对比**：在同一 Cherry Studio 服务商下随意切模型，无需切服务商
 * **避免一一注册**：一个 key 一个发票就能用 200+ 模型
 * **冷门模型**：很多小厂商只在 OpenRouter 上提供（如 Cohere、Reka 等）
 

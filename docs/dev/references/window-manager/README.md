@@ -55,12 +55,13 @@ Per-type metadata in `windowRegistry.ts` is split into three layers. Each field 
 
 ## WM Does Not Know "Pin"
 
-**Cherry Studio windows do not share a single "pin" concept** — the three pinnable windows each mean something different by it:
+**Cherry Studio windows do not share a single "pin" concept** — the pinnable windows do not all mean the same thing by it:
 
 | Window | What "pin" toggles |
 |---|---|
 | QuickAssistant | Suppress blur-auto-hide (`alwaysOnTop` stays true) |
 | SelectionAction | Toggle `alwaysOnTop` (no blur auto-hide to suppress) |
+| SelectionAgent | Toggle `alwaysOnTop`, same as SelectionAction |
 | SelectionToolbar | No pin concept (always hide on blur) |
 
 Plus SelectionAction has an independent `auto_close` user preference that drives blur-auto-hide on its own axis — so all four `{hideOnBlur, alwaysOnTop}` quadrants are reachable.
@@ -80,7 +81,7 @@ wm.behavior.setHideOnBlur(id, isAutoClose && !isPinned)
 
 ### When to Provide a Runtime Setter
 
-Runtime setters for the declarative behavior layer live on `wm.behavior` (the {@link BehaviorController} instance). WindowManager provides `setHideOnBlur`, `setAlwaysOnTop`, and `setMacShowInDockByType` there but deliberately does **not** provide `setVisibleOnAllWorkspaces`. A `behavior` field deserves a runtime setter only when at least one of:
+Runtime setters for the declarative behavior layer live on `wm.behavior` (the {@link BehaviorController} instance). WindowManager provides `setHideOnBlur`, `setAlwaysOnTop`, `setMacShowInDockByType`, and `hideMacDockWhileShown` there but deliberately does **not** provide `setVisibleOnAllWorkspaces`. A `behavior` field deserves a runtime setter only when at least one of:
 
 1. **WM must maintain state** — e.g. `hideOnBlur` needs an override map the blur listener reads; `macShowInDock` needs a per-type override map the Dock predicate reads.
 2. **WM can derive parameters from the registry** — e.g. `setAlwaysOnTop` auto-fills `level` / `relativeLevel`.
@@ -88,6 +89,8 @@ Runtime setters for the declarative behavior layer live on `wm.behavior` (the {@
 `visibleOnAllWorkspaces` satisfies neither (no state; options differ per call, as in SelectionAction's full-screen show sequence) — consumers drive it directly on the `BrowserWindow` instance.
 
 **Note on `wm.behavior.setMacShowInDockByType`**: uniquely keyed by window TYPE (not windowId), because Dock visibility is an app-level UI decision — two instances of the same type should contribute identically, and services routinely need to flip the override BEFORE any instance exists (e.g. tray-on-launch calls `wm.behavior.setMacShowInDockByType(Main, false)` before the first `open(Main)`). See [Platform → Declarative Behavior Layer](./window-manager-platform.md#declarative-behavior-layer) for semantics.
+
+**Note on `wm.behavior.hideMacDockWhileShown`**: keyed by windowId and visibility-based, unlike the type override — it holds the Dock icon hidden only while one window is shown. It exists because macOS keeps a regular app's windows out of another app's full-screen Space, including the windows the system opens for it, such as the IME candidate panel; an accessory process has no such restriction.
 
 ### Consumer Decision Guide
 
@@ -155,7 +158,7 @@ Behavioral injection goes through **`onWindowCreated`** (or its type-filtered co
 ### Core Infrastructure
 
 - `src/main/core/window/WindowManager.ts` — Service implementation; runtime behavior setters live on `wm.behavior` (see `behavior.ts`)
-- `src/main/core/window/behavior.ts` — Initial `applyWindowBehavior` + `BehaviorController` (runtime setters: `setHideOnBlur`, `setAlwaysOnTop`, `setMacShowInDockByType`)
+- `src/main/core/window/behavior.ts` — Initial `applyWindowBehavior` + `BehaviorController` (runtime setters: `setHideOnBlur`, `setAlwaysOnTop`, `setMacShowInDockByType`, `hideMacDockWhileShown`)
 - `src/main/core/window/windowRegistry.ts` — Per-type metadata (lifecycle, pool config, `windowOptions`, `behavior`, `quirks`, platform overrides)
 - `src/main/core/window/types.ts` — `WindowType`, `WindowTypeMetadata`, `WindowBehavior`, `WindowQuirks`, `PoolConfig`, `SingletonConfig`, `WarmupMode`, `WarmupState`, `WarmupStateInit`, `ManagedWindow`
 - `src/main/core/window/quirks.ts` — macOS method-slot monkey-patches

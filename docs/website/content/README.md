@@ -50,7 +50,11 @@ Cherry Studio 使用文档：按你要完成的事找到教程。
 
 ## 配置与数据
 
-[连接模型服务](pre-basic/providers/README.md) · [软件设置](pre-basic/settings/README.md) · [备份与数据管理](pre-basic/data-settings/README.md)
+[连接模型服务](pre-basic/providers/README.md) · [API 网关](advanced-basic/developer-tools/api-gateway.md) · [软件设置](pre-basic/settings/README.md) · [备份与数据管理](pre-basic/data-settings/README.md)
+
+## 选型与参考
+
+[选型与使用指南](articles/README.md) · [AI 基础知识](question-contact/knowledge.md) · [模型数据](other/models-info/README.md) · [模型榜单](other/model_rank/README.md)
 
 ## 故障排查
 
@@ -58,7 +62,11 @@ Cherry Studio 使用文档：按你要完成的事找到教程。
 
 ## 开发者与贡献
 
-[API 网关与诊断工具](advanced-basic/developer-tools/README.md) · [贡献代码](contribution/code.md) · [贡献文档](contribution/docs.md)
+[开发与诊断](advanced-basic/developer-tools/README.md) · [贡献代码](contribution/code.md) · [贡献文档](contribution/docs.md)
+
+## 关于
+
+[商务合作](contact-us/questions.md) · [隐私政策](about/privacypolicy.md) · [开源协议](contact-us/questions/license.md)
 
 ***
 
@@ -66,7 +74,7 @@ Cherry Studio 使用文档：按你要完成的事找到教程。
 
 关注我们的社交账号：[推特(X)](https://x.com/CherryStudioHQ)、[小红书](https://www.xiaohongshu.com/user/profile/662b6853000000000b031d9a)、[微博](https://weibo.com/u/7975656228)、[哔哩哔哩](https://space.bilibili.com/3546657515898892)、[抖音](https://www.douyin.com/user/MS4wLjABAAAAmw9A54m5J0hHVMQY5eGrVJ-EHDoOS0hgJ6M1F9MN2Tn2V163A0xrC4_KVzfmQSxC)
 
-加入我们的社群：[QQ 群](https://qm.qq.com/q/lo0D4qVZKi)、[Telegram](https://t.me/CherryStudioAI)、[Discord](https://discord.gg/wez8HtpxqQ)、[微信群](https://www.cherry-ai.com/#Community)
+加入我们的社群：[QQ 群](https://qm.qq.com/q/lo0D4qVZKi)、[Telegram](https://t.me/CherryStudioAI)、[Discord](https://discord.gg/wez8HtpxqQ)、[微信群](https://cherryai.com.cn/#Community)
 
 ***
 

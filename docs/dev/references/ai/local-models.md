@@ -178,8 +178,9 @@ until the bundle is removed. The compatibility decoder uses a pinned ModelScope 
 the older Hugging Face decoder is not a fallback for it.
 
 Bundle files and shared artifacts are scanned separately, and callers compose them. A
-bundle whose weights are complete but whose runtime is missing is an offer to download
-~40MB, not a broken install — so it reports as not-installed rather than as an error.
+bundle whose weights are complete but whose runtime is missing keeps the `not_downloaded`
+status and includes a `missing_shared_runtime` hint so the model card can explain why it is
+unavailable. Download installs only the missing runtime rather than re-fetching the model files.
 
 ### Superseded layouts
 

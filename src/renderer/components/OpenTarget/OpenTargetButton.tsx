@@ -1,5 +1,5 @@
 import { ChevronDown, FolderOpen } from 'lucide-react'
-import { type ReactNode, useCallback, useState } from 'react'
+import { type ComponentProps, type ReactNode, useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
@@ -29,8 +29,11 @@ export interface OpenTargetButtonProps {
   targetPath: string
   pathKind: ExternalOpenTargetPathKind
   primaryContent?: ReactNode
+  primaryShortcut?: ReactNode
   primaryClassName?: string
   menuClassName?: string
+  menuAction?: 'open' | 'select'
+  menuContentProps?: Pick<ComponentProps<typeof PopoverContent>, 'className' | 'alignOffset'>
   tooltip?: string
   className?: string
 }
@@ -39,15 +42,18 @@ export function OpenTargetButton({
   targetPath,
   pathKind,
   primaryContent,
+  primaryShortcut,
   primaryClassName,
   menuClassName,
+  menuAction = 'open',
+  menuContentProps,
   tooltip,
   className
 }: OpenTargetButtonProps) {
   const { t } = useTranslation()
   const [menuOpen, setMenuOpen] = useState(false)
   const hasCustomPrimary = primaryContent !== undefined
-  const { targets, selectedTarget, openTarget } = usePreferredExternalOpenTarget(targetPath, pathKind)
+  const { targets, selectedTarget, openTarget, selectTarget } = usePreferredExternalOpenTarget(targetPath, pathKind)
 
   const handleOpen = useCallback(
     async (target = selectedTarget) => {
@@ -66,18 +72,32 @@ export function OpenTargetButton({
     : t('agent.preview_pane.default_app')
   const primaryIcon = selectedTarget ? <OpenTargetIcon target={selectedTarget} /> : <FolderOpen size={16} />
   const menu = (
-    <PopoverContent className="w-56 p-1" align={hasCustomPrimary ? 'start' : 'end'}>
+    <PopoverContent
+      align={hasCustomPrimary ? 'start' : 'end'}
+      {...menuContentProps}
+      className={cn('w-56 p-1', menuContentProps?.className)}>
       <MenuList>
         {targets.map((target) => (
           <MenuItem
             key={target.id}
             label={getOpenTargetLabel(target, t)}
             icon={<OpenTargetIcon target={target} />}
-            suffix={getOpenTargetBadge(target, t)}
+            suffix={
+              selectedTarget?.id === target.id && primaryShortcut ? (
+                <>
+                  {getOpenTargetBadge(target, t)}
+                  {primaryShortcut}
+                </>
+              ) : (
+                getOpenTargetBadge(target, t)
+              )
+            }
             active={selectedTarget?.id === target.id}
+            aria-pressed={menuAction === 'select' ? selectedTarget?.id === target.id : undefined}
             onClick={() => {
               setMenuOpen(false)
-              void handleOpen(target)
+              if (menuAction === 'select') selectTarget(target)
+              else void handleOpen(target)
             }}
           />
         ))}

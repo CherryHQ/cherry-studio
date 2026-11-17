@@ -1,0 +1,56 @@
+name: Cancel closed PR CI
+
+on:
+  pull_request_target:
+    types: [closed]
+
+permissions: {}
+
+jobs:
+  cancel:
+    if: github.repository == 'CherryHQ/cherry-studio'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: write
+      pull-requests: read
+    steps:
+      - uses: actions/github-script@v8
+        with:
+          script: |
+            const pull = { ...context.repo, pull_number: context.payload.pull_request.number };
+            const { data: pr } = await github.rest.pulls.get(pull);
+            if (pr.state !== 'closed' || !pr.head.repo) return;
+
+            const runs = await github.paginate(github.rest.actions.listWorkflowRuns, {
+              ...context.repo,
+              workflow_id: 'ci.yml',
+              branch: pr.head.ref,
+              created: `${pr.created_at}..${pr.closed_at}`,
+              per_page: 100,
+            });
+            const openPulls = await github.paginate(github.rest.pulls.list, {
+              ...context.repo,
+              state: 'open',
+              head: `${pr.head.repo.owner.login}:${pr.head.ref}`,
+              per_page: 100,
+            });
+            if (openPulls.length > 0) return;
+
+            const protectedBranch = pr.head.ref === context.payload.repository.default_branch || pr.head.ref.startsWith('release/v');
+            for (const run of runs) {
+              if (run.status === 'completed' || run.head_repository?.id !== pr.head.repo.id || run.run_started_at > pr.closed_at) continue;
+              if (run.event !== 'pull_request' && !(run.event === 'workflow_dispatch' && !protectedBranch)) continue;
+
+              const { data: currentPr } = await github.rest.pulls.get(pull);
+              if (currentPr.state !== 'closed' || currentPr.closed_at !== pr.closed_at) return;
+
+              try {
+                await github.rest.actions.cancelWorkflowRun({ ...context.repo, run_id: run.id });
+                core.info(`Requested cancellation of CI run ${run.id} for closed PR #${pr.number}`);
+              } catch (error) {
+                if (error.status !== 409) throw error;
+                const { data: currentRun } = await github.rest.actions.getWorkflowRun({ ...context.repo, run_id: run.id });
+                if (currentRun.status !== 'completed') throw error;
+              }
+            }

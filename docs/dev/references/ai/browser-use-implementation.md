@@ -273,16 +273,20 @@ rejects pending operations; snapshots are serialized and discarded if the docume
 Scoped snapshots do not replace the full-page diff baseline.
 
 PR A attach sequence (`GuestSession.ensureAttached`): `attach('1.3')` → `Page.enable`,
-`Runtime.enable`, `DOM.enable`, `Accessibility.enable` → `Page.getFrameTree`. Concurrent callers
-share initialization. Main-frame navigation and debugger detach invalidate refs and the previous
+`DOM.enable`, `Accessibility.enable` → `Page.getFrameTree`. Concurrent callers
+share initialization. `Runtime.enable` is on demand from console/annotation/WebMCP flows (site
+anti-debugging: #23400). Main-frame navigation and debugger detach invalidate refs and the previous
 snapshot; the ref counter never resets within the session. Dialog open/closed events update state.
 
 PR B adds download tracking and the Network events needed for settling. PR3 adds console/network
 inspection and typed consumed events via `ProtocolMapping.Events`. `BrowserInspection` belongs to
 the guest, records only managed sessions, retains recent history across navigation and clears on
-detach/disposal. Managed-tab readiness enables Runtime and Network after the initial blank document;
-GUI navigation waits for that readiness so its initial requests are captured. Annotation-only borrowed
-guests remain lazy. Diagnostic URLs redact credential query values while retaining ordinary parameters.
+detach/disposal. Managed-tab readiness enables Network after the initial blank document.
+`Runtime.enable` is issued on demand by the console-inspection tools, WebMCP tool discovery and
+annotation capture; console and uncaught-exception recording therefore starts with the first of
+those calls on a tab, and that is the documented compatibility trade-off (#23400). GUI navigation
+waits for that readiness so its initial requests are captured. Annotation-only borrowed guests
+remain lazy. Diagnostic URLs redact credential query values while retaining ordinary parameters.
 Text fields cap at 2,000 characters; entry-array output caps at 40,000 serialized
 characters, returning the newest entries with `truncated` when needed. `clear` removes all selected
 entries, including ones omitted by the output cap, without touching the separate settling state.
@@ -881,7 +885,7 @@ which breaks bare `vitest run`; rebuild for Node before running D3/D4 tests.
 **Status: implemented in [#20166](https://github.com/CherryHQ/cherry-studio/pull/20166)
 on `agent-browser-integration`.** This product layer
 is based on PR3 and combines this section with the supported import paths in §10.
-Use Electron 44.2.0 inherited from `main`. No new browser shell, visible multi-tab UI, WebMCP, upload tool, freeze/thaw,
+Use Electron 44.2.0 inherited from `main`. No new browser shell, upload tool, freeze/thaw,
 full handoff protocol or `WebContentsView` migration is required to complete this scope.
 
 ### 12.1 Reuse and first vertical slice
@@ -889,10 +893,17 @@ full handoff protocol or `WebContentsView` migration is required to complete thi
 Reuse `AgentBrowserRightPanel` in `AgentRightPane.tsx`, shared browser chrome, `WebviewHost`, navigation,
 search, annotations and the shared CDP engine. First prove that a snapshot and one click from an
 Agent Session affect the very guest shown in its right pane; do this before history/import work.
-Keep one visible browser page per Agent Session in this delivery.
+Each Agent Session and ordinary chat Topic owns an ordered collection of pages with one selected page.
+The shared `SessionBrowserView` uses `RightPaneTabs` with the same selected surface and sizing as Files.
+Its overflow menu appears only when pages do not fit and keeps the selected page visible; keyboard switching and closing remain available. Closing the last page or all pages closes the right sidebar. Page favicons replace the loading indicator when guest loading stops; address suggestions display locally cached icons with a globe fallback.
+Tab context menus act on the clicked page without selecting it. They open its committed URL in a top-level browser tab, a fresh detached window or the external browser (HTTP(S)), copy the link, or close current/other/right/all conversation pages. Opening elsewhere keeps the source guest. Overflow entries expose the same menu; bulk closes include hidden pages. There is no duplicate reload action in the tab menu.
+Each page retains its guest when hidden. Message links reuse a matching URL/profile or create a page; address-bar
+navigation stays in its selected page. Manual first-page and new-tab actions share the configured start-page
+policy with standalone browsing; last-page memory is conversation-specific and changes only for the selected
+ordinary page. Explicit URLs and automation-created pages retain their requested destinations. Development preview updates reuse their preview identity without stealing selection.
 
 Extend `BrowserSessionService` with a main-owned binding from Agent Session to the attached guest:
-`{ agentId, sessionId, tabId, guest, windowId, abort }`. The guest determines its validated profile,
+`{ ownerId, sessionId, pageId, tabId, guest, windowId, abort }`. The controller retains a separate observation lease per acquired binding, so inspecting another page preserves existing element refs; page revocation and controller disposal release those leases. The stable renderer `pageId` identifies one page. The guest determines its validated profile,
 and each fresh opaque `tabId` is the binding generation. It changes when the guest is replaced,
 not when its presentation resumes. `AgentBrowserRuntimeHost` mounts beside the page Activities in
 `TabsProvider`; its session resources own the guest, native event listeners and binding effects.
@@ -970,10 +981,11 @@ explicit `handle_dialog`. A remaining annotation lease must survive browser-cont
 
 Extract the target lookup/page-host boundary currently embedded in `CdpBrowserController`; keep
 actions and snapshots shared. The standalone host retains its existing behavior. The pane host
-supports only its actual capabilities: `open` navigates/reveals its one page, `list_tabs` returns that
-session's page, and explicit tab targets must match it. `newTab`/private-window requests and multi-tab
-operations are rejected until supported, rather than silently opening hidden windows. Popup attempts
-must be reported as unsupported; no fabricated `newTabId`. Closing/resetting the visible page requires
+supports only its actual capabilities: `open` navigates/reveals an exact page, `list_tabs` returns only that
+conversation’s pages, and `newTab` creates an independent conversation page. The REPL exposes `browser.listTabs()`,
+`browser.getTab({ tabId })` and `browser.newTab(url)`. A bound handle does not follow user selection. Private-window
+requests remain rejected. Ordinary HTTP(S) popup requests create a page in their source conversation and preserve
+background-tab intent; POST and isolated preview/artifact popups remain unsupported and report `popupUnsupported`. Closing/resetting the visible page requires
 an explicit host operation, never direct destruction by borrowed-session disposal.
 
 Mount the pane-backed MCP through `buildAgentMcpServers` and `resolveMountedMcpServers`, using the
@@ -1175,9 +1187,10 @@ The Agent browser group opt-out remains independent. Disabling Agent control lea
 `app.browser.open_links_in_browser` also defaults true when unset. When enabled, ordinary HTTP(S) clicks in Agent
 message links open the current session's right browser pane through the message action provider;
 other website links open `/app/browser` tabs through main-window navigation, sharing the browser profile and history. Shell link
-IPC, host-window link interception, app menu links and external mini-app popups use that policy. Explicit
-external-browser buttons use a separate IPC command; OAuth authorization and non-HTTP schemes retain
-their existing handling.
+IPC, host-window link interception, app menu links and non-popup mini-app links use that policy. HTTP(S)
+`new-window` popups from website MiniApps remain in the originating `persist:webview` session so authentication
+cookies and opener callbacks are preserved. Explicit external-browser buttons use a separate IPC command;
+non-HTTP schemes retain their existing handling.
 
 `app.browser.auto_open_panel` defaults to `true` and controls tool-driven opening of the right-side browser panel
 in Agent sessions and Assistant topics. When disabled, browser tools continue operating without opening the panel
