@@ -14,7 +14,9 @@ import { ParallelProvider } from './api/ParallelProvider'
 import { QueritProvider } from './api/QueritProvider'
 import { SearchApiProvider } from './api/SearchApiProvider'
 import { SearxngProvider } from './api/SearxngProvider'
+import { SerpKiteProvider } from './api/SerpKiteProvider'
 import { SerplyProvider } from './api/SerplyProvider'
+import { StepfunProvider } from './api/StepfunProvider'
 import { TavilyProvider } from './api/TavilyProvider'
 import { YuanbaoProvider } from './api/YuanbaoProvider'
 import { ZhipuProvider } from './api/ZhipuProvider'
@@ -33,6 +35,7 @@ export const WEB_SEARCH_PROVIDER_REGISTRY = {
   exa: ExaProvider,
   'exa-mcp': ExaMcpProvider,
   bocha: BochaProvider,
+  stepfun: StepfunProvider,
   querit: QueritProvider,
   fetch: FetchProvider,
   jina: JinaProvider,
@@ -44,5 +47,6 @@ export const WEB_SEARCH_PROVIDER_REGISTRY = {
   deepseek: DeepSeekProvider,
   desearch: DesearchProvider,
   searchapi: SearchApiProvider,
+  serpkite: SerpKiteProvider,
   duckduckgo: DuckduckgoProvider
 } as const satisfies Record<WebSearchProvider['id'], WebSearchProviderConstructor>

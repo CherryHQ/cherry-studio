@@ -19,6 +19,7 @@ import type { ProviderReportedOutputUsage } from '@shared/ai/reportedOutputUsage
 import type { CursorPaginationResponse } from '@shared/data/api/types'
 import { type ReasoningEffortOption, ReasoningEffortOptionSchema } from '@shared/types/aiSdk'
 
+import { FileEntryIdSchema } from './file'
 import { type ServiceTierSelection, ServiceTierSelectionSchema } from './model'
 import type { CherryDataPartTypes } from './uiParts'
 
@@ -457,6 +458,7 @@ export type ModelSnapshot = z.infer<typeof ModelSnapshotSchema>
  * here (and the two are converging), keeping this a single flat author shape.
  */
 export const MessageSnapshotSchema = z.strictObject({
+  avatarFileId: z.lazy(() => FileEntryIdSchema).optional(),
   id: z.string(),
   name: z.string(),
   emoji: z.string().optional(),

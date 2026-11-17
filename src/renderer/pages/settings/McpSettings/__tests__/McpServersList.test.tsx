@@ -136,11 +136,13 @@ describe('McpServersList protocol install', () => {
       expect(mocks.ipcRequest).toHaveBeenCalledWith('mcp.protocol_install.install', { requestId: 'request-1' })
     )
     expect(mocks.refetch).toHaveBeenCalledOnce()
-    expect(mocks.navigate).toHaveBeenCalledWith({
-      to: '/settings/mcp/settings/$serverId',
-      params: { serverId: 'second-server-id' },
-      search: { autoEnable: 'true' }
-    })
+    await waitFor(() =>
+      expect(mocks.navigate).toHaveBeenCalledWith({
+        to: '/settings/mcp/settings/$serverId',
+        params: { serverId: 'second-server-id' },
+        search: { autoEnable: 'true' }
+      })
+    )
   })
 
   it('restores a pending request after remount and removes it only after cancellation', async () => {
@@ -161,6 +163,41 @@ describe('McpServersList protocol install', () => {
     )
     expect(screen.queryByText('first-server')).not.toBeInTheDocument()
     expect(mocks.navigate).not.toHaveBeenCalled()
+  })
+
+  it('retains the canceled request through its exit before showing the next request', async () => {
+    const getComputedStyle = window.getComputedStyle
+    const styleSpy = vi.spyOn(window, 'getComputedStyle').mockImplementation((element) => {
+      const styles = getComputedStyle(element)
+      return new Proxy(styles, {
+        get(target, property, receiver) {
+          if (property === 'animationName') return element.getAttribute('data-state') === 'closed' ? 'exit' : 'enter'
+          if (property === 'display') return 'grid'
+          return Reflect.get(target, property, receiver)
+        }
+      })
+    })
+    mocks.pendingProtocolInstalls.push({
+      requestId: 'request-2',
+      servers: [{ ...protocolServers[0], name: 'queued-server' }]
+    })
+    const user = userEvent.setup()
+    try {
+      render(<McpServersList />)
+      await screen.findByText('first-server')
+      const closingDialog = screen.getByRole('dialog')
+
+      await user.click(screen.getByRole('button', { name: 'common.cancel' }))
+
+      expect(closingDialog).toBeInTheDocument()
+      expect(closingDialog).toHaveAttribute('data-state', 'closed')
+      expect(closingDialog).toHaveTextContent('first-server')
+      expect(screen.queryByText('queued-server')).not.toBeInTheDocument()
+      expect(await screen.findByText('queued-server')).toBeInTheDocument()
+      expect(closingDialog).not.toBeInTheDocument()
+    } finally {
+      styleSpy.mockRestore()
+    }
   })
 
   it('keeps a new request queued until the current install completes', async () => {

@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/feature/2026-11-11-pinned-session-groups.md
+2026-11-11-pinned-session-groups.md: 919eadefc67f2b3e9bb4bf7b25b0a9d985704d25
+2026-11-11-pinned-session-groups.zh.md: 03c6a0ac61a3cf715ae539a5e0ffb3252323f67a

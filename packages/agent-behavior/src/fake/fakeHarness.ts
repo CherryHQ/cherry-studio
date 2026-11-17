@@ -3,6 +3,8 @@ import type { ItemId, JsonValue, ThreadId } from '@cherrystudio/agent-runtime'
 import type { ContractHarness, ScriptedReply } from '../contract/harness'
 import type { JobKind, Step } from '../core/decisions'
 import type { ConversationFacts } from '../core/facts'
+import { goalForRequest } from '../core/goal/goalHistory'
+import { nativeSummaryKey } from '../core/keys'
 import type { Key } from '../core/keys'
 import type {
   BoundPorts,
@@ -40,6 +42,7 @@ export type FakeHarnessOptions = {
   readonly scripts?: (thread: ThreadId, lineage: ConversationFacts['lineage']) => readonly ScriptedReply[]
 }
 export interface FakeHarness extends ContractHarness {
+  scriptSummary(thread: ThreadId, reply: ScriptedReply): void
   /** Await points passed since creation. */
   readonly awaitPoints: number
   /** Crash at the n-th await point from now (1-based): that point and all later work of this epoch never settle. */
@@ -80,6 +83,7 @@ function reopenPorts(ports: BoundPorts): BoundPorts {
 
 export function createFakeHarness(options: FakeHarnessOptions = {}): FakeHarness {
   const state = createState()
+  const summaries = new Map<ThreadId, ScriptedReply[]>()
   const seed: Seed = (thread, lineage) => options.scripts?.(thread, lineage) ?? []
   let epoch = createEpoch()
   let awaitPoints = 0
@@ -306,6 +310,11 @@ export function createFakeHarness(options: FakeHarnessOptions = {}): FakeHarness
     script(thread, replies) {
       threadOf(state, thread).script.push(...replies)
     },
+    scriptSummary(thread, reply) {
+      const queue = summaries.get(thread) ?? []
+      queue.push(reply)
+      summaries.set(thread, queue)
+    },
     async sendUser(thread, text) {
       assertOpen()
       state.counters.users += 1
@@ -321,27 +330,20 @@ export function createFakeHarness(options: FakeHarnessOptions = {}): FakeHarness
         if (!(epoch.meter?.allow(thread, active.requests, lineage).ok ?? true)) return
         active.requests += 1
       }
-      const handlers = epoch.lifecycle
-      let summary: string | undefined
-      if (handlers) {
-        const asking = epoch
-        const key = `${thread}:${target.entries.at(-1)?.entry.id ?? 'start'}`
-        const request = {
+      const queue = summaries.get(thread)
+      const reply = queue?.length ? queue.shift() : target.script[target.cursor++]
+      if (!reply || 'error' in reply || !reply.text.trim() || reply.toolCalls?.length) return
+      if (reply.usage) {
+        const owner = goalForRequest(buildFacts(state, thread).history)
+        const key = nativeSummaryKey(`${thread}:${target.entries.at(-1)?.entry.id ?? 'start'}`)
+        append(target, {
+          kind: 'record',
+          id: nextItem(state),
           key,
-          reason: 'manual',
-          history: buildFacts(state, thread).history,
-          messages: modelContext(state, epoch, target),
-          signal: new AbortController().signal
-        } as const
-        const verdict = await within((ports) => handlers.onCompacting(thread, request, ports))
-        if ('decline' in verdict) return
-        // A restart while onCompacting ran retired the epoch that asked; its compaction must not land in the next one.
-        if (!alive(asking)) return
-        summary = verdict.summary
-        if (verdict.accounting && !buildFacts(state, thread).keysSeen.has(verdict.accounting.key))
-          append(target, { kind: 'record', id: nextItem(state), ...verdict.accounting })
+          record: { type: 'summary-usage', value: { ...owner, usage: reply.usage } }
+        })
       }
-      append(target, { kind: 'compaction', id: nextItem(state) }, summary)
+      append(target, { kind: 'compaction', id: nextItem(state) }, reply.text)
       await lifecycle((handlers, ports) => handlers.onCompacted(thread, ports))
     },
     async settle() {

@@ -89,7 +89,7 @@
 
 | Document | Description |
 |----------|-------------|
-| [Chat Reference](./references/chat/README.md) | Current chat-domain map covering shared renderer modules, page-owned adapters, rich clipboard, and the message tree |
+| [Chat Reference](./references/chat/README.md) | Current chat-domain map covering shared renderer modules, page-owned adapters, rich clipboard, the message tree, and ordinary-chat context handling |
 | [Composer Rich Clipboard](./references/chat/composer-rich-clipboard.md) | Private clipboard format that preserves composer tokens across copy/paste between message surfaces and the composer |
 | [Message Tree](./references/chat/message-tree.md) | Message-tree model for topic chat: adjacency list, virtual root, sibling groups, invariants, delete semantics |
 
@@ -136,7 +136,7 @@
 | [Preference System Overview](./references/data/preference-overview.md) | Preference architecture - generated key schema, SQLite ownership, BootConfig routing, renderer cache, and cross-window sync |
 | [Preference Schema Guide](./references/data/preference-schema-guide.md) | How to add Preference keys through the data-classify generator without editing generated schemas |
 | [Preference Usage Guide](./references/data/preference-usage.md) | Current usePreference, useMultiplePreferences, and direct PreferenceService APIs |
-| [Migration V2 (Main Process)](./references/data/v2-migration-guide.md) | One-shot v1-to-v2 migration engine - upgrade gate, migrator contracts, data source readers, status tracking |
+| [Upgrading v1 Data](./references/data/v2-migration-guide.md) | Upgrade old profiles through a fixed migration-capable release before starting the current application |
 
 ### Diagnostics
 

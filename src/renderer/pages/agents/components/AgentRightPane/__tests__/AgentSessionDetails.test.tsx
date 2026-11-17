@@ -55,6 +55,46 @@ const toggle = () => screen.getByRole('button', { name: 'agent.right_pane.tabs.d
 beforeEach(() => MockCacheUtils.resetMocks())
 
 describe('session details presentation', () => {
+  it('waits 800ms before showing the details tooltip below the toolbar button', async () => {
+    const measure = (element: Element) => {
+      if (element === document.documentElement || element === document.body) return new DOMRect(0, 0, 1280, 800)
+      if (element.matches('button')) return new DOMRect(1100, 60, 28, 28)
+      if (element.matches('[data-radix-popper-content-wrapper], [data-slot="tooltip-content"]'))
+        return new DOMRect(0, 0, 160, 32)
+      return new DOMRect(0, 0, 0, 0)
+    }
+    vi.useFakeTimers()
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+      return measure(this)
+    })
+    vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockImplementation(function (this: HTMLElement) {
+      return measure(this).width
+    })
+    vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockImplementation(function (this: HTMLElement) {
+      return measure(this).height
+    })
+    vi.spyOn(Element.prototype, 'clientWidth', 'get').mockImplementation(function (this: Element) {
+      return measure(this).width
+    })
+    vi.spyOn(Element.prototype, 'clientHeight', 'get').mockImplementation(function (this: Element) {
+      return measure(this).height
+    })
+
+    try {
+      render(<Fixture />)
+      fireEvent.pointerMove(toggle(), { pointerType: 'mouse' })
+      await act(() => vi.advanceTimersByTimeAsync(799))
+      expect(screen.queryByRole('tooltip')).not.toBeInTheDocument()
+
+      await act(() => vi.advanceTimersByTimeAsync(1))
+      const tooltip = screen.getByRole('tooltip', { name: 'agent.right_pane.tabs.details' })
+      expect(tooltip.closest('[data-slot="tooltip-content"]')).toHaveAttribute('data-side', 'bottom')
+    } finally {
+      vi.useRealTimers()
+      vi.restoreAllMocks()
+    }
+  })
+
   // Catches breakpoint flapping and an inline card taking space from an undersized conversation.
   it('keeps a four-pixel restore band and requires enough vertical space', () => {
     expect(resolveAgentDetailsMode(975, 800, 'inline')).toBe('popover')

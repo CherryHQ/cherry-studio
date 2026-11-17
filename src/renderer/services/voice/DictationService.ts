@@ -1,5 +1,6 @@
 import { loggerService } from '@logger'
 import { preferenceService } from '@renderer/data/PreferenceService'
+import { isVoiceRecognitionOff } from '@renderer/utils/voiceRecognitionPreference'
 import type { TranscriptRevision, SpeechPcmChunk } from '@shared/ai/voice'
 import { voiceErrorCodes, type VoiceErrorReason } from '@shared/ipc/errors/voice'
 
@@ -60,10 +61,10 @@ interface TranscriptionResult {
 
 interface DictationVoiceService {
   initialize(): Promise<void>
-  readTranscriptionPreferenceInput(): Promise<ResolvedTranscriptionPreferences>
+  readTranscriptionPreferenceInput(): Promise<ResolvedTranscriptionPreferences | null>
   resolveTranscriptionPreferences(
-    captured?: ResolvedTranscriptionPreferences
-  ): Promise<ResolvedTranscriptionPreferences>
+    captured?: ResolvedTranscriptionPreferences | null
+  ): Promise<ResolvedTranscriptionPreferences | null>
   subscribeCommands(listener: (event: VoiceCommandEvent) => void): () => void
   subscribeInterruptions(listener: () => void): () => void
   startRecording(input: StartRecordingInput): VoiceOperation<unknown>
@@ -170,6 +171,7 @@ export class DictationService {
   private maximumTimer?: ReturnType<typeof setTimeout>
   private timerOwner?: ActiveDictation
   private initialization?: { generation: number; promise: Promise<void> }
+  private unsubscribePreference?: () => void
   private unsubscribeCommands?: () => void
   private unsubscribeInterruptions?: () => void
   private lifecycleGeneration = 0
@@ -207,19 +209,14 @@ export class DictationService {
     if (this.initialization) return this.initialization.promise
     const generation = this.lifecycleGeneration
     try {
-      this.unsubscribeCommands = this.voice.subscribeCommands((event) => this.handleCommand(generation, event))
-      this.unsubscribeInterruptions = this.voice.subscribeInterruptions(() => {
-        if (generation === this.lifecycleGeneration && this.pendingStart) {
-          void this.cancelRun(this.pendingStart)
-        }
-      })
+      this.attachCommands()
     } catch (error) {
       return Promise.reject(error)
     }
     const promise = this.voice.initialize().catch((error: unknown) => {
       if (this.initialization?.generation === generation) {
-        this.detachCommands()
         this.initialization = undefined
+        if (!this.pendingStart && !this.active) this.detachCommands()
       }
       throw error
     })
@@ -247,7 +244,7 @@ export class DictationService {
           ? Promise.resolve()
           : this.active?.runToken === runToken && (this.active.recorder || this.active.streaming)
             ? this.stop()
-            : this.cancelRun(runToken),
+            : this.cancelRun(runToken, { abandonPendingCapture: false }),
       cancel: () => this.cancelRun(runToken)
     }
   }
@@ -255,9 +252,26 @@ export class DictationService {
   private async startRun(runToken: symbol, generation: number, target: CapturedVoiceTarget | null): Promise<void> {
     if (await this.cleanupActive()) return
     if (!this.isRunCurrent(runToken, generation)) return
-    this.publish('starting')
-
+    let preferences: ResolvedTranscriptionPreferences | null
     try {
+      this.attachCommands()
+      if (!this.isRunCurrent(runToken, generation)) return
+      const snapshot = await preferenceService.ensureFreshSubscription('feature.voice.recognition.model_id')
+      if (!this.isRunCurrent(runToken, generation)) return
+      if (!snapshot.ok || isVoiceRecognitionOff(snapshot.value)) {
+        await this.cancelRun(runToken)
+        return
+      }
+      preferences = await this.voice.readTranscriptionPreferenceInput()
+      if (!this.isRunCurrent(runToken, generation)) return
+      if (
+        preferences === null ||
+        isVoiceRecognitionOff(preferenceService.getCachedValue('feature.voice.recognition.model_id'))
+      ) {
+        await this.cancelRun(runToken)
+        return
+      }
+      this.publish('starting')
       await this.initialize()
     } catch (error) {
       if (this.isRunCurrent(runToken, generation)) {
@@ -270,7 +284,6 @@ export class DictationService {
     let deviceId: string | null = null
     let active: ActiveDictation | undefined
     try {
-      const preferences = await this.voice.readTranscriptionPreferenceInput()
       deviceId = await this.readMicrophoneDeviceId()
       if (!this.isRunCurrent(runToken, generation)) return
       const admission = this.voice.startRecording({
@@ -301,7 +314,13 @@ export class DictationService {
     }
 
     try {
-      active.preferences = await this.voice.resolveTranscriptionPreferences(active.preferences)
+      const resolved = await this.voice.resolveTranscriptionPreferences(active.preferences)
+      if (!this.isCurrent(active)) return
+      if (resolved === null) {
+        await this.cancelRun(runToken)
+        return
+      }
+      active.preferences = resolved
     } catch (error) {
       await this.failUnready(active, error)
       return
@@ -379,7 +398,7 @@ export class DictationService {
       if (!active.stopTask) active.stopTask = this.finishStreaming(active)
       return active.stopTask
     }
-    if (!active.recorder) return this.cancel()
+    if (!active.recorder) return this.cancelRun(active.runToken, { abandonPendingCapture: false })
     if (!active.stopTask) active.stopTask = this.finishRecording(active)
     return active.stopTask
   }
@@ -539,6 +558,10 @@ export class DictationService {
     try {
       const preferences = retry ? await this.voice.resolveTranscriptionPreferences() : active.preferences
       if (!this.isCurrent(active)) return
+      if (preferences === null) {
+        await this.cancelRun(active.runToken)
+        return
+      }
       const input: TranscriptionInput = {
         sessionId: active.sessionId,
         fileEntryId: active.fileEntryId,
@@ -589,11 +612,16 @@ export class DictationService {
     }
   }
 
-  private async cancelRun(runToken: symbol): Promise<void> {
+  private async cancelRun(
+    runToken: symbol,
+    { abandonPendingCapture = true }: { abandonPendingCapture?: boolean } = {}
+  ): Promise<void> {
     if (this.currentRunToken !== runToken) return
     this.generation += 1
     this.recovery = undefined
-    const cleanupError = await this.cleanupActive()
+    const cleanupError = this.active
+      ? await this.cleanupSession(this.active, true, { abandonPendingCapture })
+      : await this.cleanupActive()
     if (this.currentRunToken !== runToken) return
     if (!cleanupError) {
       this.currentRunToken = undefined
@@ -630,7 +658,8 @@ export class DictationService {
 
   private async cleanupSession(
     active: ActiveDictation,
-    publishFailure = true
+    publishFailure = true,
+    { abandonPendingCapture = false }: { abandonPendingCapture?: boolean } = {}
   ): Promise<DictationErrorCategory | undefined> {
     this.clearTimers(active)
     this.stopRecorder(active)
@@ -639,8 +668,14 @@ export class DictationService {
     active.pcm = undefined
     this.clearRecordingData(active)
     if (active.capture) {
-      await active.capture.catch(() => undefined)
-      active.capture = undefined
+      const capture = active.capture
+      if (abandonPendingCapture) {
+        active.capture = undefined
+        void capture.catch(() => undefined)
+      } else {
+        await capture.catch(() => undefined)
+        active.capture = undefined
+      }
     }
     if (active.transcription) {
       await this.voice.abortTranscription(active.transcription).catch(() => undefined)
@@ -753,7 +788,34 @@ export class DictationService {
     }
   }
 
+  private attachCommands(): void {
+    if (this.unsubscribeCommands) return
+    const generation = this.lifecycleGeneration
+    const cancelIfOff = () => {
+      if (
+        generation === this.lifecycleGeneration &&
+        isVoiceRecognitionOff(preferenceService.getCachedValue('feature.voice.recognition.model_id')) &&
+        (this.pendingStart ||
+          this.active ||
+          this.recovery ||
+          (this.currentRunToken && this.snapshot.phase === 'failed'))
+      ) {
+        void this.cancel()
+      }
+    }
+    this.unsubscribePreference = preferenceService.subscribeChange('feature.voice.recognition.model_id')(cancelIfOff)
+    cancelIfOff()
+    this.unsubscribeCommands = this.voice.subscribeCommands((event) => this.handleCommand(generation, event))
+    this.unsubscribeInterruptions = this.voice.subscribeInterruptions(() => {
+      if (generation === this.lifecycleGeneration && this.pendingStart) {
+        void this.cancelRun(this.pendingStart)
+      }
+    })
+  }
+
   private detachCommands(): void {
+    this.unsubscribePreference?.()
+    this.unsubscribePreference = undefined
     this.unsubscribeCommands?.()
     this.unsubscribeCommands = undefined
     this.unsubscribeInterruptions?.()

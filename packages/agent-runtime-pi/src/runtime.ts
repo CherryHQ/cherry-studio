@@ -42,11 +42,17 @@ export interface PiRuntimeBehavior {
     | Promise<Partial<Pick<AgentRuntimeSessionOptions, 'model' | 'modelRuntime'>>>
 }
 
+interface PiRuntimeErrorContext {
+  operation: 'compact'
+  thread: Thread
+  compactionFailure?: { aborted: boolean; errorMessage?: string }
+}
+
 export interface PiRuntimeOptions {
   backendId: BackendId
   /** Load the exact saved context and its configuration; undefined means not found. */
   load?: (ref: Thread) => Promise<PiSessionOptions | undefined>
-  onError?: (error: unknown) => void
+  onError?: (error: unknown, context?: PiRuntimeErrorContext) => void
 }
 export type PiSessionOptions = Omit<AgentRuntimeSessionOptions, 'compaction'> & {
   behavior: PiRuntimeBehavior
@@ -105,9 +111,9 @@ export async function createPiRuntime(options: PiRuntimeOptions): Promise<Operat
   let closing = false
   const closingAccess = new AbortController()
   let shutdown: Promise<OperationResult<void>> | undefined
-  const report = (cause: unknown) => {
+  const report = (cause: unknown, context?: PiRuntimeErrorContext) => {
     try {
-      options.onError?.(cause)
+      options.onError?.(cause, context)
     } catch {
       /* Diagnostics cannot alter native work. */
     }
@@ -165,7 +171,7 @@ export async function createPiRuntime(options: PiRuntimeOptions): Promise<Operat
       },
       onError: report,
       onResults: (thread, result) => owned.find((entry) => entry.ref.id === thread)?.projection.results(result),
-      openSession: async ({ sessionManager, extension, summarize, child }) => {
+      openSession: async ({ sessionManager, extension, child }) => {
         const parent = child && owned.find((entry) => entry.ref.id === child.parent)
         const nativeCallId =
           parent &&
@@ -191,7 +197,7 @@ export async function createPiRuntime(options: PiRuntimeOptions): Promise<Operat
             model,
             sessionManager,
             settings: { ...config.settings, retry: { enabled: false }, cacheWarming: 'off' },
-            compaction: { ...settings, ...config.compaction, summarize },
+            compaction: { ...settings, ...config.compaction },
             extensionFactories: [...(config.extensionFactories ?? []), extension],
             onEvent: (event) => {
               try {
@@ -330,9 +336,11 @@ export async function createPiRuntime(options: PiRuntimeOptions): Promise<Operat
           }
           return { status: 'confirmed', value: { relation: found.value, handle: opened.value } }
         },
+        // oxlint-disable-next-line no-restricted-globals -- Explicit history reads return isolated native branch entries to the host.
         history: () => (unavailable() ? [] : structuredClone(entry.session.sessionManager.getBranch())),
         archive: () => {
           if (released) throw new Error('Pi history access is closed')
+          // oxlint-disable-next-line no-restricted-globals -- Explicit archive reads detach committed content from the live projection.
           return structuredClone(entry.projection.archive())
         },
         async settled() {
@@ -362,15 +370,27 @@ export async function createPiRuntime(options: PiRuntimeOptions): Promise<Operat
             if (!entry.owner) return rejected('compact', 'not-owner')
             if (entry.session.isStreaming) return rejected('compact', 'busy')
             let compacted = false
+            let compactionFailure: PiRuntimeErrorContext['compactionFailure']
             const unsubscribe = entry.session.subscribe((event) => {
-              if (event.type === 'compaction_end' && event.reason === 'manual') compacted = event.result !== undefined
+              if (event.type !== 'compaction_end' || event.reason !== 'manual') return
+              compacted = event.result !== undefined
+              if (!compacted && (event.aborted || event.errorMessage)) {
+                compactionFailure = {
+                  aborted: event.aborted === true,
+                  ...(event.errorMessage && { errorMessage: event.errorMessage })
+                }
+              }
             })
             try {
               await entry.behavior.harness.compact(entry.ref.id, instructions)
               if (!compacted) return rejected('compact', 'declined')
               return { status: 'confirmed', value: undefined }
             } catch (cause) {
-              report(cause)
+              report(cause, {
+                operation: 'compact',
+                thread: entry.ref,
+                ...(compactionFailure && { compactionFailure })
+              })
               return { status: 'unknown', error: error('compact', 'native-error') }
             } finally {
               unsubscribe()

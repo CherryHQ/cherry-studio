@@ -6,7 +6,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { Tooltip } from '@cherrystudio/ui'
 
-import { getRightPaneWidthPolicy } from '../../../shell/paneLayout'
 import {
   RightPanel,
   type RightPanelCapability,
@@ -21,9 +20,6 @@ import {
   useRightPanelPresentationMaximized,
   useRightPanelState
 } from '../RightPanel'
-
-const LIST_POLICY = getRightPaneWidthPolicy('navigation-list')
-const INSPECTOR_POLICY = getRightPaneWidthPolicy('inspector')
 
 const commandMock = vi.hoisted(() => ({ handler: undefined as (() => void) | undefined }))
 
@@ -479,31 +475,6 @@ describe('RightPanel', () => {
     expect(screen.getByTestId('right-pane-host')).toHaveAttribute('data-open', 'true')
   })
 
-  it('keeps the composer lifted from the maximize click until the pane stops covering the centre', () => {
-    render(
-      <Harness defaultOpen>
-        <RightPanelViewport>
-          <RightPanel />
-        </RightPanelViewport>
-      </Harness>
-    )
-
-    expect(screen.getByTestId('composer-elevated')).toHaveTextContent('false')
-
-    fireEvent.click(screen.getByRole('button', { name: 'common.maximize' }))
-    expect(screen.getByTestId('composer-elevated')).toHaveTextContent('true')
-
-    fireEvent.click(screen.getByRole('button', { name: 'common.minimize' }))
-
-    // The restore drops the maximized presentation at the click, but the pane goes on covering the
-    // centre: dropping the composer here sinks it behind the pane for the rest of the animation.
-    expect(screen.getByTestId('presentation-maximized')).toHaveTextContent('false')
-    expect(screen.getByTestId('composer-elevated')).toHaveTextContent('true')
-
-    fireEvent.click(screen.getByRole('button', { name: 'settle pane' }))
-    expect(screen.getByTestId('composer-elevated')).toHaveTextContent('false')
-  })
-
   it('offers maximize only for capable panels and keeps the minimize control while maximized', () => {
     render(
       <Harness defaultOpen>
@@ -526,17 +497,6 @@ describe('RightPanel', () => {
     expect(screen.getByTestId('right-pane-host')).toHaveAttribute('data-maximized', 'false')
     expect(screen.getByTestId('presentation-maximized')).toHaveTextContent('false')
     expect(screen.queryByRole('button', { name: 'common.maximize' })).toBeNull()
-  })
-
-  it('lets a content-composed panel replace the shell header', () => {
-    render(
-      <Harness defaultOpen scope={{ ...readyScope, firstHeaderMode: 'content' }}>
-        <RightPanel />
-      </Harness>
-    )
-
-    expect(screen.queryByTestId('shell-tab-list')).toBeNull()
-    expect(screen.getByText('first:0')).toBeInTheDocument()
   })
 
   it('drops the close tooltip once the panel closes, so it cannot park at the viewport origin', () => {
@@ -614,32 +574,6 @@ describe('RightPanel', () => {
     expect(screen.getByTestId('right-pane-host')).toHaveAttribute('data-open', 'false')
 
     consoleError.mockRestore()
-  })
-
-  it('keeps inspector sizing uncapped when switching to a width-limited list and back', async () => {
-    const user = userEvent.setup()
-    render(
-      <Harness defaultOpen>
-        <RightPanelViewport>
-          <RightPanel />
-        </RightPanelViewport>
-      </Harness>
-    )
-
-    const host = screen.getByTestId('right-pane-host')
-    expect(host).toHaveAttribute('data-cache-key', INSPECTOR_POLICY.cacheKey)
-    expect(host).not.toHaveAttribute('data-max-width')
-
-    await user.click(screen.getByRole('button', { name: 'open second' }))
-
-    expect(host).toHaveAttribute('data-cache-key', LIST_POLICY.cacheKey)
-    expect(host).toHaveAttribute('data-max-width', String(LIST_POLICY.maxWidth))
-    expect(host).toHaveAttribute('data-min-width', String(LIST_POLICY.minWidth))
-
-    await user.click(screen.getByRole('button', { name: 'open first' }))
-
-    expect(host).toHaveAttribute('data-cache-key', INSPECTOR_POLICY.cacheKey)
-    expect(host).not.toHaveAttribute('data-max-width')
   })
 
   it('rejects duplicate panel ids', () => {

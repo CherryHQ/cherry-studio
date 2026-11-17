@@ -68,14 +68,6 @@ export function ServicePhase(phase: Phase): ClassDecorator {
 }
 
 /**
- * Get whether a class is marked as injectable
- * @param target - Class constructor
- */
-export function isInjectable(target: ServiceConstructor): boolean {
-  return Reflect.getMetadata(METADATA_KEYS.INJECTABLE, target) === true
-}
-
-/**
  * Get service name from metadata
  * @param target - Class constructor
  */
