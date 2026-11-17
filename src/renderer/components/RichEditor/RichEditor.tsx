@@ -152,6 +152,7 @@ function scrollAndHighlight(element: HTMLElement, container: HTMLElement): void 
 const RichEditor = ({
   ref,
   initialContent = '',
+  onWikiLinkClick,
   placeholder = t('richEditor.placeholder'),
   onContentChange,
   onHtmlChange,
@@ -181,6 +182,7 @@ const RichEditor = ({
   // Use the rich editor hook for complete editor management
   const { editor, markdown, formattingState, tableOfContentsItems, linkEditor, setMarkdown, clear } = useRichEditor({
     initialContent,
+    onWikiLinkClick,
     onChange: onMarkdownChange,
     onHtmlChange,
     onContentChange,

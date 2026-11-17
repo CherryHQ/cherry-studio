@@ -1,7 +1,16 @@
 diff --git a/dist/index.cjs b/dist/index.cjs
-index 5812dcd0b4..8cdda3f5df 100644
+index 5812dcd..0cc51d9 100644
 --- a/dist/index.cjs
 +++ b/dist/index.cjs
+@@ -79,7 +79,7 @@ function closeMarksBeforeNode(activeMarks, getMarkClosing) {
+     const mark = activeMarks.get(markType);
+     const closeMarkdown = getMarkClosing(markType, mark);
+     if (closeMarkdown) {
+-      beforeMarkdown = closeMarkdown + beforeMarkdown;
++      beforeMarkdown += closeMarkdown;
+     }
+   });
+   activeMarks.clear();
 @@ -231,7 +231,8 @@ var MarkdownManager = class {
    createTokenizerHelpers(lexer) {
      return {
@@ -12,6 +21,15 @@ index 5812dcd0b4..8cdda3f5df 100644
      };
    }
    tokenizeInline(src) {
+@@ -699,7 +700,7 @@ var MarkdownManager = class {
+    */
+   applyMarkToContent(markType, content, attrs) {
+     return content.map((node) => {
+-      if (node.type === "text") {
++      if (node.type === "text" || !node.content) {
+         const existingMarks = node.marks || [];
+         const newMark = attrs ? { type: markType, attrs } : { type: markType };
+         return {
 @@ -805,7 +806,7 @@ var MarkdownManager = class {
        return this.htmlAsLiteralText(html, !!token.block);
      }
@@ -21,7 +39,7 @@ index 5812dcd0b4..8cdda3f5df 100644
        if (parsed.type === "doc" && parsed.content) {
          if (token.block) {
            return parsed.content;
-@@ -1011,6 +1012,21 @@ var MarkdownManager = class {
+@@ -1011,6 +1012,36 @@ var MarkdownManager = class {
     * This handles cases where marks span across multiple text nodes.
     */
    renderNodesWithMarkBoundaries(nodes, parentNode, separator = "", level = 0) {
@@ -37,14 +55,98 @@ index 5812dcd0b4..8cdda3f5df 100644
 +          (!hasMark(next) && /[\p{P}\p{S}]$/u.test(node.text || "") && /^[^\s\p{P}\p{S}]/u.test(next?.text || ""));
 +      });
 +    });
++    if (needsHtml && nodes.some((node) => node.type !== "text" && !node.content && node.type !== "hardBreak")) {
++      const parts = [];
++      let textNodes = [];
++      for (const node of nodes) {
++        if (node.type !== "text" && !node.content && node.type !== "hardBreak") {
++          if (textNodes.length) parts.push(this.renderNodesWithMarkBoundaries(textNodes, parentNode, separator, level));
++          parts.push(this.renderNodesWithMarkBoundaries([node], parentNode, separator, level));
++          textNodes = [];
++        } else {
++          textNodes.push(node);
++        }
++      }
++      if (textNodes.length) parts.push(this.renderNodesWithMarkBoundaries(textNodes, parentNode, separator, level));
++      return parts.join(separator);
++    }
 +    if (needsHtml) {
-+      return `<span>${_core.generateHTML({ type: "doc", content: nodes }, this.baseExtensions)}</span>`;
++      return `<span>${_core.generateHTML({ type: "doc", content: nodes }, this.baseExtensions).replace(/`/g, "&#96;")}</span>`;
 +    }
      const result = [];
      const activeMarks = /* @__PURE__ */ new Map();
      const reopenWithHtmlOnNextOpen = /* @__PURE__ */ new Set();
+@@ -1124,6 +1155,56 @@ var MarkdownManager = class {
+         textContent += middleTrailingWhitespace;
+         result.push(textContent);
+       } else {
++        if (!node.content && node.type !== "hardBreak") {
++          const currentMarks = new Map((node.marks || []).map((mark) => [mark.type, mark]));
++          const suspended = [];
++          let before = "";
++          const active = Array.from(activeMarks.entries());
++          const same = (a, b) => a?.type === b?.type && JSON.stringify(a?.attrs || {}) === JSON.stringify(b?.attrs || {});
++          const firstMissing = active.findIndex(([type, mark]) => !same(mark, currentMarks.get(type)));
++          if (firstMissing >= 0) {
++            for (const [type, mark] of active.slice(firstMissing).reverse()) {
++              before += this.getMarkClosing(type, mark, markOpeningModes.get(type));
++              suspended.unshift([type, mark, markOpeningModes.get(type)]);
++              activeMarks.delete(type);
++              markOpeningModes.delete(type);
++            }
++          }
++          const nextMarks = nextNode?.type === "hardBreak" ? [] : nextNode?.marks || [];
++          const ordered = Array.from(currentMarks.entries()).sort((a, b) => Number(nextMarks.some((mark) => same(mark, b[1]))) - Number(nextMarks.some((mark) => same(mark, a[1]))));
++          for (const [type, mark] of ordered) {
++            if (!activeMarks.has(type)) {
++              before += this.getMarkOpening(type, mark);
++              activeMarks.set(type, mark);
++              markOpeningModes.set(type, "markdown");
++            }
++          }
++          let after = "";
++          const activeAfter = Array.from(activeMarks.entries());
++          const firstEnding = activeAfter.findIndex(([, mark]) => !nextMarks.some((next) => same(mark, next)));
++          if (firstEnding >= 0 || suspended.length) {
++            const closing = activeAfter.slice(suspended.length ? 0 : firstEnding);
++            for (const [type, mark] of closing.reverse()) {
++              after += this.getMarkClosing(type, mark, markOpeningModes.get(type));
++              activeMarks.delete(type);
++              markOpeningModes.delete(type);
++            }
++            for (const [type, mark] of closing.reverse()) {
++              if (!nextMarks.some((next) => same(mark, next))) continue;
++              after += this.getMarkOpening(type, mark);
++              activeMarks.set(type, mark);
++              markOpeningModes.set(type, "markdown");
++            }
++          }
++          for (const [type, mark, mode] of suspended) {
++            if (!nextMarks.some((next) => same(mark, next))) continue;
++            after += this.getMarkOpening(type, mark, mode);
++            activeMarks.set(type, mark);
++            markOpeningModes.set(type, mode);
++          }
++          result.push(before + this.renderNodeToMarkdown(node, parentNode, i, level) + after);
++          return;
++        }
+         const nodeMarkTypes = new Set((node.marks || []).map((mark) => mark.type));
+         const marksToReopen = /* @__PURE__ */ new Map();
+         const openingModesToReopen = /* @__PURE__ */ new Map();
+@@ -1134,9 +1215,8 @@ var MarkdownManager = class {
+             openingModesToReopen.set(type, (_a = markOpeningModes.get(type)) != null ? _a : "markdown");
+           }
+         });
+-        const beforeMarkdown = closeMarksBeforeNode(activeMarks, (markType, mark) => {
+-          return this.getMarkClosing(markType, mark, markOpeningModes.get(markType));
+-        });
++        const beforeMarkdown = Array.from(activeMarks.entries()).reverse().map(([type, mark]) => this.getMarkClosing(type, mark, markOpeningModes.get(type))).join("");
++        activeMarks.clear();
+         markOpeningModes.clear();
+         const nodeContent = this.renderNodeToMarkdown(node, parentNode, i, level);
+         const afterMarkdown = node.type === "hardBreak" ? "" : reopenMarksAfterNode(marksToReopen, activeMarks, (markType, mark) => {
 diff --git a/dist/index.js b/dist/index.js
-index f29ad96882..11527901c7 100644
+index f29ad96..9f26533 100644
 --- a/dist/index.js
 +++ b/dist/index.js
 @@ -11,7 +11,8 @@ import {
@@ -57,6 +159,15 @@ index f29ad96882..11527901c7 100644
    getExtensionField,
    getSchema,
    marksEqual,
+@@ -79,7 +80,7 @@ function closeMarksBeforeNode(activeMarks, getMarkClosing) {
+     const mark = activeMarks.get(markType);
+     const closeMarkdown = getMarkClosing(markType, mark);
+     if (closeMarkdown) {
+-      beforeMarkdown = closeMarkdown + beforeMarkdown;
++      beforeMarkdown += closeMarkdown;
+     }
+   });
+   activeMarks.clear();
 @@ -231,7 +232,8 @@ var MarkdownManager = class {
    createTokenizerHelpers(lexer) {
      return {
@@ -67,6 +178,15 @@ index f29ad96882..11527901c7 100644
      };
    }
    tokenizeInline(src) {
+@@ -699,7 +701,7 @@ var MarkdownManager = class {
+    */
+   applyMarkToContent(markType, content, attrs) {
+     return content.map((node) => {
+-      if (node.type === "text") {
++      if (node.type === "text" || !node.content) {
+         const existingMarks = node.marks || [];
+         const newMark = attrs ? { type: markType, attrs } : { type: markType };
+         return {
 @@ -805,7 +807,7 @@ var MarkdownManager = class {
        return this.htmlAsLiteralText(html, !!token.block);
      }
@@ -76,7 +196,7 @@ index f29ad96882..11527901c7 100644
        if (parsed.type === "doc" && parsed.content) {
          if (token.block) {
            return parsed.content;
-@@ -1011,6 +1013,21 @@ var MarkdownManager = class {
+@@ -1011,6 +1013,36 @@ var MarkdownManager = class {
     * This handles cases where marks span across multiple text nodes.
     */
    renderNodesWithMarkBoundaries(nodes, parentNode, separator = "", level = 0) {
@@ -92,14 +212,98 @@ index f29ad96882..11527901c7 100644
 +          (!hasMark(next) && /[\p{P}\p{S}]$/u.test(node.text || "") && /^[^\s\p{P}\p{S}]/u.test(next?.text || ""));
 +      });
 +    });
++    if (needsHtml && nodes.some((node) => node.type !== "text" && !node.content && node.type !== "hardBreak")) {
++      const parts = [];
++      let textNodes = [];
++      for (const node of nodes) {
++        if (node.type !== "text" && !node.content && node.type !== "hardBreak") {
++          if (textNodes.length) parts.push(this.renderNodesWithMarkBoundaries(textNodes, parentNode, separator, level));
++          parts.push(this.renderNodesWithMarkBoundaries([node], parentNode, separator, level));
++          textNodes = [];
++        } else {
++          textNodes.push(node);
++        }
++      }
++      if (textNodes.length) parts.push(this.renderNodesWithMarkBoundaries(textNodes, parentNode, separator, level));
++      return parts.join(separator);
++    }
 +    if (needsHtml) {
-+      return `<span>${generateHTML({ type: "doc", content: nodes }, this.baseExtensions)}</span>`;
++      return `<span>${generateHTML({ type: "doc", content: nodes }, this.baseExtensions).replace(/`/g, "&#96;")}</span>`;
 +    }
      const result = [];
      const activeMarks = /* @__PURE__ */ new Map();
      const reopenWithHtmlOnNextOpen = /* @__PURE__ */ new Set();
+@@ -1124,6 +1156,56 @@ var MarkdownManager = class {
+         textContent += middleTrailingWhitespace;
+         result.push(textContent);
+       } else {
++        if (!node.content && node.type !== "hardBreak") {
++          const currentMarks = new Map((node.marks || []).map((mark) => [mark.type, mark]));
++          const suspended = [];
++          let before = "";
++          const active = Array.from(activeMarks.entries());
++          const same = (a, b) => a?.type === b?.type && JSON.stringify(a?.attrs || {}) === JSON.stringify(b?.attrs || {});
++          const firstMissing = active.findIndex(([type, mark]) => !same(mark, currentMarks.get(type)));
++          if (firstMissing >= 0) {
++            for (const [type, mark] of active.slice(firstMissing).reverse()) {
++              before += this.getMarkClosing(type, mark, markOpeningModes.get(type));
++              suspended.unshift([type, mark, markOpeningModes.get(type)]);
++              activeMarks.delete(type);
++              markOpeningModes.delete(type);
++            }
++          }
++          const nextMarks = nextNode?.type === "hardBreak" ? [] : nextNode?.marks || [];
++          const ordered = Array.from(currentMarks.entries()).sort((a, b) => Number(nextMarks.some((mark) => same(mark, b[1]))) - Number(nextMarks.some((mark) => same(mark, a[1]))));
++          for (const [type, mark] of ordered) {
++            if (!activeMarks.has(type)) {
++              before += this.getMarkOpening(type, mark);
++              activeMarks.set(type, mark);
++              markOpeningModes.set(type, "markdown");
++            }
++          }
++          let after = "";
++          const activeAfter = Array.from(activeMarks.entries());
++          const firstEnding = activeAfter.findIndex(([, mark]) => !nextMarks.some((next) => same(mark, next)));
++          if (firstEnding >= 0 || suspended.length) {
++            const closing = activeAfter.slice(suspended.length ? 0 : firstEnding);
++            for (const [type, mark] of closing.reverse()) {
++              after += this.getMarkClosing(type, mark, markOpeningModes.get(type));
++              activeMarks.delete(type);
++              markOpeningModes.delete(type);
++            }
++            for (const [type, mark] of closing.reverse()) {
++              if (!nextMarks.some((next) => same(mark, next))) continue;
++              after += this.getMarkOpening(type, mark);
++              activeMarks.set(type, mark);
++              markOpeningModes.set(type, "markdown");
++            }
++          }
++          for (const [type, mark, mode] of suspended) {
++            if (!nextMarks.some((next) => same(mark, next))) continue;
++            after += this.getMarkOpening(type, mark, mode);
++            activeMarks.set(type, mark);
++            markOpeningModes.set(type, mode);
++          }
++          result.push(before + this.renderNodeToMarkdown(node, parentNode, i, level) + after);
++          return;
++        }
+         const nodeMarkTypes = new Set((node.marks || []).map((mark) => mark.type));
+         const marksToReopen = /* @__PURE__ */ new Map();
+         const openingModesToReopen = /* @__PURE__ */ new Map();
+@@ -1134,9 +1216,8 @@ var MarkdownManager = class {
+             openingModesToReopen.set(type, (_a = markOpeningModes.get(type)) != null ? _a : "markdown");
+           }
+         });
+-        const beforeMarkdown = closeMarksBeforeNode(activeMarks, (markType, mark) => {
+-          return this.getMarkClosing(markType, mark, markOpeningModes.get(markType));
+-        });
++        const beforeMarkdown = Array.from(activeMarks.entries()).reverse().map(([type, mark]) => this.getMarkClosing(type, mark, markOpeningModes.get(type))).join("");
++        activeMarks.clear();
+         markOpeningModes.clear();
+         const nodeContent = this.renderNodeToMarkdown(node, parentNode, i, level);
+         const afterMarkdown = node.type === "hardBreak" ? "" : reopenMarksAfterNode(marksToReopen, activeMarks, (markType, mark) => {
 diff --git a/src/MarkdownManager.ts b/src/MarkdownManager.ts
-index 0d1c9fd5c8..86747543d4 100644
+index 0d1c9fd..cd868c5 100644
 --- a/src/MarkdownManager.ts
 +++ b/src/MarkdownManager.ts
 @@ -15,7 +15,8 @@ import {
@@ -112,11 +316,32 @@ index 0d1c9fd5c8..86747543d4 100644
    getExtensionField,
    getSchema,
    marksEqual,
-@@ -985,9 +986,12 @@ export class MarkdownManager {
+@@ -208,10 +209,11 @@ export class MarkdownManager {
+     return new this.markedInstance.Lexer()
+   }
+ 
+-  private createTokenizerHelpers(lexer: Lexer): MarkdownLexerConfiguration {
++  private createTokenizerHelpers(lexer: Lexer): MarkdownLexerConfiguration & { lexer: Lexer } {
+     return {
+       inlineTokens: (src: string) => lexer.inlineTokens(src),
+       blockTokens: (src: string) => lexer.blockTokens(src),
++      lexer,
+     }
+   }
+ 
+@@ -849,7 +851,7 @@ export class MarkdownManager {
+    */
+   private applyMarkToContent(markType: string, content: JSONContent[], attrs?: any): JSONContent[] {
+     return content.map(node => {
+-      if (node.type === 'text') {
++      if (node.type === 'text' || !node.content) {
+         // Add the mark to existing marks or create new marks array
+         const existingMarks = node.marks || []
+         const newMark = attrs ? { type: markType, attrs } : { type: markType }
+@@ -985,9 +987,12 @@ export class MarkdownManager {
        return this.htmlAsLiteralText(html, !!token.block)
      }
--
-+
+ 
 -    // Use generateJSON to parse the HTML using extensions' parseHTML rules
 +    // Preserve inline Markdown whitespace when parsing its HTML representation.
      try {
@@ -125,11 +350,10 @@ index 0d1c9fd5c8..86747543d4 100644
 +        slice: false,
 +        parseOptions: { preserveWhitespace: token.block ? false : 'full' },
 +      }).toJSON()
--
-+
+ 
        // If the result is a doc node, extract its content
        if (parsed.type === 'doc' && parsed.content) {
-@@ -1271,6 +1275,25 @@ export class MarkdownManager {
+@@ -1271,6 +1276,44 @@ export class MarkdownManager {
      separator = '',
      level = 0,
    ): string {
@@ -147,11 +371,112 @@ index 0d1c9fd5c8..86747543d4 100644
 +        )
 +      })
 +    })
++    if (needsHtml && nodes.some(node => node.type !== 'text' && !node.content && node.type !== 'hardBreak')) {
++      const parts: string[] = []
++      let textNodes: JSONContent[] = []
++      for (const node of nodes) {
++        if (node.type !== 'text' && !node.content && node.type !== 'hardBreak') {
++          if (textNodes.length) {
++            parts.push(this.renderNodesWithMarkBoundaries(textNodes, parentNode, separator, level))
++          }
++          parts.push(this.renderNodesWithMarkBoundaries([node], parentNode, separator, level))
++          textNodes = []
++        } else {
++          textNodes.push(node)
++        }
++      }
++      if (textNodes.length) {
++        parts.push(this.renderNodesWithMarkBoundaries(textNodes, parentNode, separator, level))
++      }
++      return parts.join(separator)
++    }
 +    if (needsHtml) {
 +      // CommonMark cannot delimit these emphasis ranges. Keep the inline fragment in HTML
 +      // so nested marks and literal markdown characters retain their meaning together.
-+      return `<span>${generateHTML({ type: 'doc', content: nodes }, this.baseExtensions)}</span>`
++      return `<span>${generateHTML({ type: 'doc', content: nodes }, this.baseExtensions).replace(/`/g, '&#96;')}</span>`
 +    }
      const result: string[] = []
      const activeMarks: Map<string, any> = new Map()
      const reopenWithHtmlOnNextOpen = new Set<string>()
+@@ -1441,6 +1484,56 @@ export class MarkdownManager {
+ 
+         result.push(textContent)
+       } else {
++        if (!node.content && node.type !== 'hardBreak') {
++          const currentMarks = new Map((node.marks || []).map(mark => [mark.type, mark]))
++          const suspended: [string, NonNullable<JSONContent['marks']>[number], 'markdown' | 'html' | undefined][] = []
++          let before = ''
++          const active = Array.from(activeMarks.entries())
++          const same = (a: any, b: any) => a?.type === b?.type && JSON.stringify(a?.attrs || {}) === JSON.stringify(b?.attrs || {})
++          const firstMissing = active.findIndex(([type, mark]) => !same(mark, currentMarks.get(type)))
++          if (firstMissing >= 0) {
++            for (const [type, mark] of active.slice(firstMissing).reverse()) {
++              before += this.getMarkClosing(type, mark, markOpeningModes.get(type))
++              suspended.unshift([type, mark, markOpeningModes.get(type)])
++              activeMarks.delete(type)
++              markOpeningModes.delete(type)
++            }
++          }
++          const nextMarks = nextNode?.type === 'hardBreak' ? [] : (nextNode?.marks || [])
++          const ordered = Array.from(currentMarks.entries()).sort((a, b) => Number(nextMarks.some(mark => same(mark, b[1]))) - Number(nextMarks.some(mark => same(mark, a[1]))))
++          for (const [type, mark] of ordered) {
++            if (!activeMarks.has(type)) {
++              before += this.getMarkOpening(type, mark)
++              activeMarks.set(type, mark)
++              markOpeningModes.set(type, 'markdown')
++            }
++          }
++          let after = ''
++          const activeAfter = Array.from(activeMarks.entries())
++          const firstEnding = activeAfter.findIndex(([, mark]) => !nextMarks.some(next => same(mark, next)))
++          if (firstEnding >= 0 || suspended.length) {
++            const closing = activeAfter.slice(suspended.length ? 0 : firstEnding)
++            for (const [type, mark] of closing.reverse()) {
++              after += this.getMarkClosing(type, mark, markOpeningModes.get(type))
++              activeMarks.delete(type)
++              markOpeningModes.delete(type)
++            }
++            for (const [type, mark] of closing.reverse()) {
++              if (!nextMarks.some(next => same(mark, next))) continue
++              after += this.getMarkOpening(type, mark)
++              activeMarks.set(type, mark)
++              markOpeningModes.set(type, 'markdown')
++            }
++          }
++          for (const [type, mark, mode] of suspended) {
++            if (!nextMarks.some(next => same(mark, next))) continue
++            after += this.getMarkOpening(type, mark, mode)
++            activeMarks.set(type, mark)
++            markOpeningModes.set(type, mode!)
++          }
++          result.push(before + this.renderNodeToMarkdown(node, parentNode, i, level) + after)
++          return
++        }
+         // For non-text nodes, close all active marks before rendering, then reopen after
+         // Only reopen marks that the node itself carries — marks don't skip over inline atoms.
+         const nodeMarkTypes = new Set((node.marks || []).map((mark: { type: string }) => mark.type))
+@@ -1454,9 +1547,8 @@ export class MarkdownManager {
+         })
+ 
+         // Close all marks before the node
+-        const beforeMarkdown = closeMarksBeforeNode(activeMarks, (markType, mark) => {
+-          return this.getMarkClosing(markType, mark, markOpeningModes.get(markType))
+-        })
++        const beforeMarkdown = Array.from(activeMarks.entries()).reverse().map(([type, mark]) => this.getMarkClosing(type, mark, markOpeningModes.get(type))).join('')
++        activeMarks.clear()
+         markOpeningModes.clear()
+ 
+         // Render the node
+diff --git a/src/utils.ts b/src/utils.ts
+index 3d2fd138753..f1d2063d021 100644
+--- a/src/utils.ts
++++ b/src/utils.ts
+@@ -131,7 +131,7 @@ export function closeMarksBeforeNode(
+       const mark = activeMarks.get(markType)
+       const closeMarkdown = getMarkClosing(markType, mark)
+       if (closeMarkdown) {
+-        beforeMarkdown = closeMarkdown + beforeMarkdown
++        beforeMarkdown += closeMarkdown
+       }
+     })
+   activeMarks.clear()

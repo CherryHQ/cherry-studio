@@ -43,6 +43,7 @@ import { createFilePathHandle, type DirectoryTreeOptions } from '@shared/utils/f
 import HeaderNavbar from './HeaderNavbar'
 import NotesEditor, { NotesEditorLoading } from './NotesEditor'
 import NotesSidebar from './NotesSidebar'
+import { resolveNoteLink } from './resolveNoteLink'
 
 const logger = loggerService.withContext('NotesPage')
 const SAVE_FAILURE_TOAST_INTERVAL_MS = 5000
@@ -596,6 +597,16 @@ const NotesPage: FC<NotesPageProps> = ({ notePath, onNoteOpened }) => {
     [activeFilePath, handleToggleExpanded, requestFileTransition, setActiveFilePath, notePath, onNoteOpened]
   )
 
+  const handleWikiLinkClick = useCallback(
+    (target: string) => {
+      const resolution = resolveNoteLink(notesTree, target)
+      if (resolution.kind !== 'resolved') return
+      const node = findNode(notesTree, resolution.nodeId)
+      if (node?.type === 'file') void handleSelectNode(node)
+    },
+    [notesTree, handleSelectNode]
+  )
+
   useEffect(() => {
     if (!notePath || !hasProjectedTree || isTreeLoading || isComposing) return
     const node = findNodeByPath(notesTree, normalizePathValue(notePath))
@@ -1145,6 +1156,7 @@ const NotesPage: FC<NotesPageProps> = ({ notePath, onNoteOpened }) => {
               contentLoadError={contentLoadError}
               tokenCount={tokenCount}
               onMarkdownChange={handleMarkdownChange}
+              onWikiLinkClick={handleWikiLinkClick}
               editorRef={editorRef}
               codeEditorRef={codeEditorRef}
               onCreateNote={handleCreateUntitledNote}

@@ -21,21 +21,40 @@ export const MarkdownTable = Table.extend({
       header?: Array<{ tokens?: MarkdownToken[] }>
       rows?: Array<Array<{ tokens?: MarkdownToken[] }>>
     }
-    const cell = (type: 'tableHeader' | 'tableCell', tokens?: MarkdownToken[]) =>
-      helpers.createNode(type, {}, [helpers.createNode('paragraph', {}, helpers.parseInline(tokens || []))])
-
+    const rawRows = (token.raw || '').split(/\r?\n/).filter((_, index) => index !== 1)
+    const cell = (type: 'tableHeader' | 'tableCell', tokens: MarkdownToken[] | undefined, raw: string) => {
+      const rawWikiLinks = Array.from(raw.matchAll(/(`+)(?!`)(?:[^`]|`+(?!`))*?\1(?!`)|\[\[(?:\\.|[^\]\n])*\]\]/g))
+        .map((match) => match[0])
+        .filter((match) => match.startsWith('[[') && match.includes('\\|'))
+      let rawIndex = 0
+      return helpers.createNode(type, {}, [
+        helpers.createNode(
+          'paragraph',
+          {},
+          helpers.parseInline(tokens || []).map((node) => {
+            if (node.type === 'wikiLink' && rawWikiLinks[rawIndex]?.replace(/\\\|/g, '|') === node.attrs?.raw) {
+              node.attrs.raw = rawWikiLinks[rawIndex++]
+            }
+            return node
+          })
+        )
+      ])
+    }
+    const cells = (row: string) => row.replace(/^\s*\||\|\s*$/g, '').split(/(?<!\\)\|/)
+    const headerCells = cells(rawRows[0] || '')
     const headerRow = helpers.createNode(
       'tableRow',
       {},
-      (tableToken.header || []).map((c) => cell('tableHeader', c.tokens))
+      (tableToken.header || []).map((c, index) => cell('tableHeader', c.tokens, headerCells[index] || ''))
     )
-    const bodyRows = (tableToken.rows || []).map((row) =>
-      helpers.createNode(
+    const bodyRows = (tableToken.rows || []).map((row, rowIndex) => {
+      const rawCells = cells(rawRows[rowIndex + 1] || '')
+      return helpers.createNode(
         'tableRow',
         {},
-        row.map((c) => cell('tableCell', c.tokens))
+        row.map((c, index) => cell('tableCell', c.tokens, rawCells[index] || ''))
       )
-    )
+    })
     return helpers.createNode('table', {}, [headerRow, ...bodyRows])
   },
 
@@ -49,7 +68,7 @@ export const MarkdownTable = Table.extend({
           helpers
             .renderChildren(cellNode.content || [])
             .replace(/\r?\n+/g, ' ')
-            .replace(/\|/g, '\\|')
+            .replace(/(\\*)\|/g, (_, slashes: string) => `${slashes}${slashes.length % 2 === 0 ? '\\' : ''}|`)
             .trim()
         )
         .join(' | ')} |`

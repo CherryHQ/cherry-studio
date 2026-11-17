@@ -13,6 +13,22 @@ Range.prototype.getClientRects = () => [] as unknown as DOMRectList
 Range.prototype.getBoundingClientRect = () => new DOMRect()
 
 describe('RichEditor range replacement', () => {
+  it('returns the exact selected wiki token', async () => {
+    const editorRef: { current: RichEditorRef | null } = { current: null }
+    render(
+      <RichEditor
+        ref={editorRef}
+        initialContent="before [[T|Alias]] after"
+        onWikiLinkClick={() => {}}
+        autoFocus={false}
+        showToolbar={false}
+      />
+    )
+    await waitFor(() => expect(editorRef.current?.getContent()).toBe('before [[T|Alias]] after'))
+    act(() => editorRef.current?.executeCommand('setTextSelection', { from: 8, to: 9 }))
+    expect(editorRef.current?.getSelection()).toEqual({ from: 8, to: 9, text: '[[T|Alias]]' })
+  })
+
   it('inserts at an empty document caret', async () => {
     const editorRef: { current: RichEditorRef | null } = { current: null }
     render(<RichEditor ref={editorRef} autoFocus={false} showToolbar={false} />)
