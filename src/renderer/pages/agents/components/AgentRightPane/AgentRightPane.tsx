@@ -1,4 +1,4 @@
-import { ArrowLeft, Bot, FolderOpen, GitBranch, Waypoints } from 'lucide-react'
+import { ArrowLeft, Bot, FolderOpen, Waypoints } from 'lucide-react'
 import { Globe } from 'lucide-react'
 import type { ReactNode } from 'react'
 import {
@@ -127,6 +127,7 @@ import {
 } from './AgentSessionDetails'
 import { AgentRunTaskStopsProvider, AgentSessionDetailsSections, TaskStatusIcon } from './AgentSessionDetailsSections'
 import { AgentWorkspaceOpenShortcut } from './AgentWorkspaceOpenShortcut'
+import { SubagentFlowEmptyScene } from './SubagentFlowEmptyScene'
 import { useAgentPreviewUrl } from './useAgentPreviewUrl'
 import { useAgentSessionDetails } from './useAgentSessionDetails'
 
@@ -1368,7 +1369,7 @@ function AgentFlowRightPanel({ active, panelId, scope }: RightPanelComponentProp
   if (!flow.messages.length && !child?.view) {
     return (
       <EmptyState
-        icon={GitBranch}
+        scene={<SubagentFlowEmptyScene />}
         title={tab.title || t('agent.right_pane.flow.no_messages.title')}
         description={t('agent.right_pane.flow.no_messages.description')}
       />

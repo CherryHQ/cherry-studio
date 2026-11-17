@@ -4,10 +4,8 @@ import {
   AtSign,
   Copy,
   Eye,
-  Folder,
   List,
   MessageSquareText,
-  Sparkles,
   SquareDashedMousePointer,
   SquarePen
 } from 'lucide-react'
@@ -93,6 +91,7 @@ export {
   normalizeArtifactPaneFilePath,
   resolveArtifactPaneFileSelection
 } from './artifactPanePath'
+import { ArtifactOpenScene, ArtifactReadyScene } from './ArtifactEmptyScenes'
 
 const logger = loggerService.withContext('ArtifactPane')
 const FileEditor = lazy(() => import('@renderer/components/FileEditor'))
@@ -1110,7 +1109,7 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
       <div ref={artifactPaneRef} className="flex h-full min-h-0 flex-col overflow-hidden bg-card text-card-foreground">
         {paneHeader}
         <EmptyState
-          icon={Sparkles}
+          scene={<ArtifactReadyScene />}
           title={t('agent.preview_pane.empty.title')}
           description={t('agent.preview_pane.empty.description')}
         />
@@ -1139,7 +1138,7 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
       {isWide && !overlaySelection ? (
         <div className="flex h-full min-w-0 flex-1">
           <EmptyState
-            icon={Folder}
+            scene={<ArtifactOpenScene />}
             title={t('agent.preview_pane.no_file_selected.title')}
             description={t('agent.preview_pane.no_file_selected.description')}
           />

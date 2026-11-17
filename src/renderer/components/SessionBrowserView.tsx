@@ -5,7 +5,7 @@ import { useEffect, useId, useLayoutEffect, useRef, useState, useSyncExternalSto
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 
-import { Avatar, AvatarFallback, AvatarImage, Button, Tooltip } from '@cherrystudio/ui'
+import { Avatar, AvatarFallback, AvatarImage, Button, EmptyState, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { BrowserChrome } from '@renderer/components/BrowserChrome'
 import { BrowserOverlays } from '@renderer/components/BrowserOverlays'
@@ -26,6 +26,8 @@ import { openExternalWebsite } from '@renderer/services/website'
 import type { WebviewAnnotationTarget } from '@shared/types/webviewAnnotation'
 import { isHttpUrl } from '@shared/utils/url'
 import { WebviewSecurityProfile } from '@shared/utils/webviewSecurity'
+
+import { SessionBrowserEmptyScene } from './SessionBrowserEmptyScene'
 
 const logger = loggerService.withContext('SessionBrowserView')
 
@@ -252,13 +254,13 @@ export function SessionBrowserView({
             toolbarActions={undefined}
           />
         ) : (
-          <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-muted-foreground">
-            <Globe className="size-6" />
-            <p className="text-sm">{t('webview.tabs.empty')}</p>
-            <Button variant="secondary" onClick={add}>
-              <Plus className="size-4" />
-              {t('webview.tabs.new')}
-            </Button>
+          <div className="flex h-full items-center justify-center p-6">
+            <EmptyState
+              scene={<SessionBrowserEmptyScene />}
+              title={t('webview.tabs.empty')}
+              actionLabel={t('webview.tabs.new')}
+              onAction={add}
+            />
           </div>
         )}
       </div>
