@@ -5716,3 +5716,39 @@ function getCapturedQueueDock(): ReactElement<CapturedQueueDockProps> | undefine
       isValidElement<CapturedQueueDockProps>(node) && Array.isArray(node.props.items)
   )
 }
+
+async function notifyComposerBottomToolbarWidth(width: number, scrollWidth = width + 240) {
+  await waitFor(() => {
+    expect(
+      resizeObserverMockInstances.some((instance) =>
+        Array.from(instance.targets).some((target) => String(target.getAttribute('class') ?? '').includes('max-w-full'))
+      )
+    ).toBe(true)
+  })
+
+  const toolbarObservers = resizeObserverMockInstances.flatMap((instance) => {
+    const target = Array.from(instance.targets).find((target) =>
+      String(target.getAttribute('class') ?? '').includes('max-w-full')
+    )
+    return target ? [{ instance, target }] : []
+  })
+  if (toolbarObservers.length === 0) {
+    throw new Error('Expected composer bottom toolbar to create a ResizeObserver')
+  }
+
+  act(() => {
+    for (const { instance, target } of toolbarObservers) {
+      Object.defineProperty(target, 'clientWidth', { configurable: true, value: width })
+      Object.defineProperty(target, 'scrollWidth', { configurable: true, value: scrollWidth })
+      instance.callback(
+        [
+          {
+            target,
+            contentRect: { width }
+          } as ResizeObserverEntry
+        ],
+        {} as ResizeObserver
+      )
+    }
+  })
+}
