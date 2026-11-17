@@ -2,6 +2,7 @@ import { Avatar, AvatarFallback } from '@cherrystudio/ui/components/primitives/a
 import { cn } from '@cherrystudio/ui/lib/utils'
 
 import { type IconAvatarProps } from '../../types'
+import { XinghuoDark } from './dark'
 import { XinghuoLight } from './light'
 
 export function XinghuoAvatar({ size = 32, shape = 'circle', className }: Omit<IconAvatarProps, 'icon'>) {
@@ -10,7 +11,8 @@ export function XinghuoAvatar({ size = 32, shape = 'circle', className }: Omit<I
       className={cn('overflow-hidden', shape === 'circle' ? 'rounded-full' : 'rounded-[20%]', className)}
       style={{ width: size, height: size }}>
       <AvatarFallback className="text-foreground">
-        <XinghuoLight style={{ width: size, height: size }} />
+        <XinghuoLight className="dark:hidden" style={{ width: size, height: size }} />
+        <XinghuoDark className="hidden dark:block" style={{ width: size, height: size }} />
       </AvatarFallback>
     </Avatar>
   )

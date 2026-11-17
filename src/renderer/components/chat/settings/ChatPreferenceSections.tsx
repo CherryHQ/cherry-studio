@@ -95,6 +95,7 @@ const ChatPreferenceSections: FC<ChatPreferenceSectionsProps> = ({ sectionClassN
   const [renderInputMessageAsMarkdown, setRenderInputMessageAsMarkdown] = usePreference(
     'chat.message.render_as_markdown'
   )
+  const [scrollToBottomOnSend, setScrollToBottomOnSend] = usePreference('chat.message.scroll_to_bottom_on_send')
   const [showMessageOutline, setShowMessageOutline] = usePreference('chat.message.show_outline')
   const [codeShowLineNumbers, setCodeShowLineNumbers] = usePreference('chat.code.show_line_numbers')
   const [codeCollapsible, setCodeCollapsible] = usePreference('chat.code.collapsible')
@@ -377,6 +378,15 @@ const ChatPreferenceSections: FC<ChatPreferenceSectionsProps> = ({ sectionClassN
               onCheckedChange={setUserMessageDefaultExpanded}
               label={t('settings.messages.user_content.default_expanded.label')}
               hint={t('settings.messages.user_content.default_expanded.hint')}
+            />
+          </SettingRow>
+          <SettingDivider />
+          <SettingRow id="setting-appearance-scroll-to-bottom-on-send" className="scroll-mt-6">
+            <SettingSwitch
+              checked={scrollToBottomOnSend}
+              onCheckedChange={setScrollToBottomOnSend}
+              label={t('settings.messages.scroll_to_bottom_on_send.label')}
+              hint={t('settings.messages.scroll_to_bottom_on_send.hint')}
             />
           </SettingRow>
           <SettingDivider />

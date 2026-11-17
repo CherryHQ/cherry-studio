@@ -51,9 +51,14 @@ describe('isolated profile environment', () => {
 })
 
 describe('owned application lifecycle', () => {
-  it.each(['exited', 'timed-out'] as const)(
-    'only permits a complete Windows profile backup after normal shutdown: %s',
-    async (outcome) => {
+  it.each([
+    ['windows', 'exited'],
+    ['macos', 'exited'],
+    ['windows', 'timed-out'],
+    ['macos', 'timed-out']
+  ] as const)(
+    'permits a complete %s profile backup only after the owned application finishes normal shutdown: %s',
+    async (platform, outcome) => {
       vi.useFakeTimers()
       const directory = mkdtempSync(join(tmpdir(), 'cherry-stopped-profile-'))
       const paths = getRunPaths(directory)
@@ -74,7 +79,7 @@ describe('owned application lifecycle', () => {
         ownership: 'regression-driver',
         policy: 'ephemeral',
         mode: 'tag',
-        platform: 'windows',
+        platform,
         profile: 'authenticated',
         runKey: 'stopped-profile',
         targetRoot: directory,
@@ -98,6 +103,8 @@ describe('owned application lifecycle', () => {
       })
       execFileSyncMock.mockImplementation((file: string, args: string[]) => {
         const script = args.at(-1) ?? ''
+        if (file === 'ps') return args.includes('command=') ? record.executablePath! : ''
+        if (file === 'lsof') return alive.has(record.electronPid) ? String(record.electronPid) : ''
         if (file === 'taskkill.exe') {
           alive.clear()
           return ''

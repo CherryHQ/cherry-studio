@@ -7,7 +7,6 @@ export interface IconDisplayConfig {
 
 export type IconDisplayContext = 'mini-app' | 'provider-list'
 
-export const miniAppContainedIcon: Readonly<IconDisplayConfig> = { scale: 5 / 7, borderRadius: 10 }
 const defaultIcon: IconDisplayConfig = { scale: 1.2 }
 
 export function getIconDisplayConfig(

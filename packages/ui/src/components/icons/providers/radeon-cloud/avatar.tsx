@@ -2,6 +2,7 @@ import { Avatar, AvatarFallback } from '@cherrystudio/ui/components/primitives/a
 import { cn } from '@cherrystudio/ui/lib/utils'
 
 import { type IconAvatarProps } from '../../types'
+import { RadeonCloudDark } from './dark'
 import { RadeonCloudLight } from './light'
 
 export function RadeonCloudAvatar({ size = 32, shape = 'circle', className }: Omit<IconAvatarProps, 'icon'>) {
@@ -10,7 +11,8 @@ export function RadeonCloudAvatar({ size = 32, shape = 'circle', className }: Om
       className={cn('overflow-hidden', shape === 'circle' ? 'rounded-full' : 'rounded-[20%]', className)}
       style={{ width: size, height: size }}>
       <AvatarFallback className="text-foreground">
-        <RadeonCloudLight style={{ width: size, height: size }} />
+        <RadeonCloudLight className="dark:hidden" style={{ width: size, height: size }} />
+        <RadeonCloudDark className="hidden dark:block" style={{ width: size, height: size }} />
       </AvatarFallback>
     </Avatar>
   )

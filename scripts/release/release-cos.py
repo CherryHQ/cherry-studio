@@ -165,7 +165,7 @@ def main():
     )
     client = CosS3Client(CosConfig(
         Region="ap-shanghai", Domain=domain,
-        SecretId=os.environ["COS_SECRET_ID"], SecretKey=os.environ["COS_SECRET_KEY"],
+        SecretId=os.environ["TENCENT_CLOUD_SECRET_ID"], SecretKey=os.environ["TENCENT_CLOUD_SECRET_KEY"],
     ))
     if command == "upload":
         stage_build(client, prefix, *args)

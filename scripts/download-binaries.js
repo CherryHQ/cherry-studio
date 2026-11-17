@@ -18,6 +18,7 @@ const fs = require('fs')
 const path = require('path')
 const os = require('os')
 const { execFileSync, spawn } = require('child_process')
+const AdmZip = require('adm-zip')
 
 const REPO_ROOT = path.join(__dirname, '..')
 const BINARIES_ROOT = path.join(REPO_ROOT, 'resources', 'binaries')
@@ -508,19 +509,36 @@ function download(url, dest) {
   }
 }
 
+/**
+ * Extract a zip synchronously in-process. On the windows-2022 runner image the
+ * PowerShell 7 Microsoft.PowerShell.Archive module is on PSModulePath, and
+ * loaded by Windows PowerShell 5.1 its -Force branch fails non-terminatingly
+ * while powershell still exits 0 — so Expand-Archive cannot be trusted to fail
+ * when extraction fails; the empty tree resurfaces later as a copy ENOENT.
+ */
+function extractZipArchive(archivePath, destinationDir) {
+  fs.mkdirSync(destinationDir, { recursive: true })
+  try {
+    new AdmZip(archivePath).extractAllTo(destinationDir, true)
+  } catch (error) {
+    throw new Error(`failed to extract ${path.basename(archivePath)}: ${error.message}`, { cause: error })
+  }
+}
+
 function extract(archivePath, archive, outputDir, pkg) {
   if (archive === 'zip') {
     if (process.platform === 'win32') {
       const tmpExtract = path.join(outputDir, '__extract_tmp')
-      fs.mkdirSync(tmpExtract, { recursive: true })
       try {
-        execFileSync(
-          'powershell',
-          ['-NoProfile', '-Command', `Expand-Archive -Path '${archivePath}' -DestinationPath '${tmpExtract}' -Force`],
-          { stdio: 'inherit' }
-        )
+        extractZipArchive(archivePath, tmpExtract)
         for (const b of pkg.binaries) {
-          const src = pkg.strip ? path.join(tmpExtract, pkg.strip, b) : path.join(tmpExtract, b)
+          const expected = pkg.strip ? `${pkg.strip}/${b}` : b
+          const src = path.join(tmpExtract, expected)
+          // A short extraction must fail here, named after the archive, not
+          // later as a copyFileSync ENOENT that points at nothing.
+          if (!fs.existsSync(src)) {
+            throw new Error(`archive ${path.basename(archivePath)} did not contain ${expected}`)
+          }
           fs.copyFileSync(src, path.join(outputDir, b))
         }
       } finally {
@@ -538,11 +556,7 @@ function extract(archivePath, archive, outputDir, pkg) {
     fs.rmSync(destDir, { recursive: true, force: true })
     fs.mkdirSync(destDir, { recursive: true })
     if (process.platform === 'win32') {
-      execFileSync(
-        'powershell',
-        ['-NoProfile', '-Command', `Expand-Archive -Path '${archivePath}' -DestinationPath '${destDir}' -Force`],
-        { stdio: 'inherit' }
-      )
+      extractZipArchive(archivePath, destDir)
     } else {
       execFileSync('unzip', ['-o', '-q', archivePath, '-d', destDir], { stdio: 'inherit' })
     }
@@ -980,6 +994,7 @@ module.exports = {
   download,
   downloadTool,
   extract,
+  extractZipArchive,
   materialize,
   sweepUnreferencedVersions,
   verifyBundledBinaries,

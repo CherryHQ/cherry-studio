@@ -6,7 +6,7 @@ const AiStudioDark: IconComponent = (props: SVGProps<SVGSVGElement>) => {
 
   return (
     <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="0 0 120 120" {...props}>
-      <path fill="#FFF" d="M0 0H120V120H0z" />
+      <path fill="#24262B" d="M0 0H120V120H0z" />
       <g transform="matrix(1.61538 0 0 1.61538 -38.27 -31)">
         <mask
           id={`${iconId}-aistudiodark__a`}
@@ -26,14 +26,14 @@ const AiStudioDark: IconComponent = (props: SVGProps<SVGSVGElement>) => {
         </mask>
         <g mask={`url(#${iconId}-aistudiodark__a)`}>
           <path
-            stroke="#1A1A1A"
+            stroke="#E5E7EB"
             strokeLinejoin="round"
             strokeWidth={6.016}
             d="M75.1592 38.9091H42.6592C40.5882 38.9091 38.9092 40.5881 38.9092 42.6592V75.1592C38.9092 77.2302 40.5882 78.9091 42.6592 78.9091H75.1592C77.2303 78.9091 78.9092 77.2302 78.9092 75.1592V42.6592C78.9092 40.5881 77.2303 38.9091 75.1592 38.9091Z"
           />
         </g>
         <path
-          fill="#1A1A1A"
+          fill="#E5E7EB"
           d="M71.5625 30.625C71.5625 30.625 69.6875 38.4375 67.1875 40.9375C64.6875 43.4375 56.875 45.3125 56.875 45.3125C56.875 45.3125 64.6875 47.1875 67.1875 49.6875C69.6875 52.1875 71.5625 60 71.5625 60C71.5625 60 73.4375 52.1875 75.9375 49.6875C78.4375 47.1875 86.2501 45.3125 86.2501 45.3125C86.2501 45.3125 78.4375 43.4375 75.9375 40.9375C73.4375 38.4375 71.5625 30.625 71.5625 30.625Z"
         />
       </g>
