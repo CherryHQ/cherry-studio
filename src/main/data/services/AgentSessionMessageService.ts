@@ -767,7 +767,15 @@ export class AgentSessionMessageService {
     const mapping = context?.checkpointMapping?.fork
     return rows.map((row) => {
       const anchor = RuntimeForkAnchorSchema.safeParse(row.data.runtimeAnchor)
-      const checkpoint = mapping?.[row.id]
+      const importedCheckpoint = anchor.data?.checkpoint
+      const checkpoint =
+        row.data.importedHistory &&
+        importedCheckpoint?.runtime === 'pi-durable' &&
+        context &&
+        importedCheckpoint.backendId === context.backendId &&
+        context.nativeThreadId
+          ? { ...importedCheckpoint, conversationId: context.nativeThreadId }
+          : mapping?.[row.id]
       return checkpoint && anchor.success && context
         ? {
             ...row,
@@ -776,6 +784,36 @@ export class AgentSessionMessageService {
           }
         : row
     })
+  }
+
+  insertImportedMessagesTx(
+    tx: DbOrTx,
+    sessionId: string,
+    rows: readonly Pick<
+      SessionMessageRow,
+      | 'id'
+      | 'parentId'
+      | 'role'
+      | 'data'
+      | 'status'
+      | 'messageSnapshot'
+      | 'runtimeResumeToken'
+      | 'createdAt'
+      | 'updatedAt'
+    >[],
+    activeNodeId: string | null
+  ): void {
+    const root = ensureAgentSessionRootTx(tx, sessionId)
+    for (const row of rows) {
+      tx.insert(sessionMessagesTable)
+        .values({ ...row, sessionId, parentId: row.parentId ?? root })
+        .run()
+      replaceAgentSessionMessageFileRefsTx(tx, row.id, row.data)
+    }
+    tx.update(sessionTable)
+      .set({ activeNodeId: activeNodeId ?? root })
+      .where(eq(sessionTable.id, sessionId))
+      .run()
   }
 
   /** Inserts historical facts only, never delivery, billing, queue or approval ownership. */

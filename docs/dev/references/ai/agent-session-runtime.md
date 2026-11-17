@@ -2,6 +2,7 @@
 description: Host/driver split for agent sessions — turn lifecycle, follow-up queue, resume tokens, and shared prompt materializer
 sources:
   - src/main/ai/agentSession/AgentSessionRuntimeService.ts
+  - src/main/ai/agentSession/import
   - src/main/ai/agentSession/relocateSystemWorkspaces.ts
   - src/main/ai/runtime/workspaceRelocation.ts
   - src/main/ai/agents/AgentWorkspaceStorageService.ts
@@ -1183,6 +1184,16 @@ user-selected workspaces are not rebased. `AgentWorkspaceStorageService` owns fa
 relocation admission blocks. Workspace guards consult that owner, and verified recovery
 removes the block. Pending retired-runtime sessions defer native-history work to the
 existing migration below.
+
+## DeepSeek Agent history import
+
+`AgentImportService` imports DeepSeek v3 ZIP exports into new Pi Durable Agent sessions. The Agent group menu opens a preview with counts and unavailable-file warnings. Main owns the selected file, bounded archive reads, validation, progress, cancellation, and retry; closing the dialog does not cancel work. Other runtimes cannot import this format.
+
+The importer preserves the complete parent graph and source selected head. It writes inert `cherry.imported-history` native entries through the public Session API, with one native conversation per message prefix. A committed parent is required before a descendant can fork. Per-node native receipts make interrupted preparation resumable. The native projection omits these entries because the product message tree already owns their display. Historical reasoning and searches become labeled text in model context, never executable tools; source failure states remain on product rows. Model-history entries use a normal terminal stop so provider adapters do not discard partially completed source text.
+
+Operation snapshots, latest-operation pointers, and per-source publication receipts use the `agent-import:operation:`, `agent-import:latest:`, and `agent-import:conversation:` namespaces in `app_state`. The archive digest and destination Agent identify retries. Native preparation completes before one synchronous product transaction publishes session, messages, branch bindings, file references, and its receipt. Cancellation stops before the next publication and preserves completed sessions. Agent lifecycle ingress pause/drain includes archive preparation and import, so backup and restore cannot overlap their writes.
+
+Available images are copied into FileManager and encoded in native context; missing files remain explicit text. Frozen archives under `feature.agents.imports`, prepared native stores, and manual-cleanup file entries remain identifiable for retry rather than being destructively reclaimed. This retention also keeps historical file paths available to native continuations. Import does not recreate absent payloads or import DeepSeek credentials, billing, pending tasks, or approvals.
 
 ## Retired Agent runtime migration
 

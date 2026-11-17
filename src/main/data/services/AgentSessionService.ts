@@ -393,6 +393,13 @@ export class AgentSessionService {
     ensureAgentSessionRootTx(tx, id)
   }
 
+  finishHistoryImportTx(tx: DbOrTx, sessionId: string, updatedAt: number): void {
+    tx.update(sessionsTable)
+      .set({ isNameManuallyEdited: true, updatedAt, lastActivityAt: updatedAt })
+      .where(eq(sessionsTable.id, sessionId))
+      .run()
+  }
+
   /** Bump metadata modification time from a foreign service's transaction. */
   touchUpdatedAtTx(tx: DbOrTx, sessionId: string, timestampMs: number): void {
     tx.update(sessionsTable).set({ updatedAt: timestampMs }).where(eq(sessionsTable.id, sessionId)).run()

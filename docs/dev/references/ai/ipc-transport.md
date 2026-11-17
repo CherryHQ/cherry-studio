@@ -10,6 +10,10 @@ sources:
 
 # IPC Transport
 
+## DeepSeek import commands
+
+`ai.agent.import.prepare` opens the native ZIP picker and returns validated preview counts for a Pi Durable Agent. `status`, `start`, and `cancel` address the persisted import operation; `ai.agent.import.progress` broadcasts revisioned snapshots. `AgentImportService` owns execution independently of the dialog lifetime. Imported conversations use normal Agent session reads and navigation after publication.
+
 ## Commands and observation
 
 Desktop consumers send commands through `useStreamCommands` or the existing conversation turn controller. They observe assistant output through the shared message projection store. Input admission and observation have separate lifetimes.

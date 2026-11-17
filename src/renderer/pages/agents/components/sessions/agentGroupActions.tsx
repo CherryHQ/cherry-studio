@@ -1,5 +1,5 @@
 import type { TFunction } from 'i18next'
-import { Archive, Pin, PinOff, Smile, SquarePen, Trash2 } from 'lucide-react'
+import { Archive, Import, Pin, PinOff, Smile, SquarePen, Trash2 } from 'lucide-react'
 
 import { createActionRegistry } from '@renderer/components/chat/actions/actionRegistry'
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
@@ -11,6 +11,8 @@ import {
 } from '@renderer/components/chat/resourceList/base'
 import SidebarShortcutIcon from '@renderer/components/icons/SidebarShortcutIcon'
 import type { AssistantIconType } from '@shared/data/preference/preferenceTypes'
+
+import { AgentImportPopup } from './AgentImportPopup'
 
 export interface AgentGroupActionContext {
   agentId: string
@@ -34,6 +36,22 @@ export interface AgentGroupActionContext {
 export type AgentGroupAction = ResolvedAction<AgentGroupActionContext>
 
 const agentGroupActionRegistry = createActionRegistry<AgentGroupActionContext>()
+
+agentGroupActionRegistry.registerCommand({
+  id: 'agent-group.import-deepseek',
+  run: ({ agentId }) => {
+    void AgentImportPopup.show({ agentId })
+  }
+})
+agentGroupActionRegistry.registerAction(
+  buildResourceEntityMenuActionDescriptor({
+    id: 'agent-group.import-deepseek',
+    commandId: 'agent-group.import-deepseek',
+    label: ({ t }) => t('agent.import.title'),
+    icon: () => <Import size={14} />,
+    order: 32
+  })
+)
 
 agentGroupActionRegistry.registerCommand({
   id: 'agent-group.edit',

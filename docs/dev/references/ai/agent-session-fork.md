@@ -193,6 +193,8 @@ without an `app_state` fork record. Cherry does not
 generate a summary, reconstruct model context from UI messages, or apply Chat
 compression settings to Agent forks.
 
+Imported DeepSeek assistant checkpoints retain their native entry IDs. When reading a Fork/Edit prefix, `AgentSessionMessageService` rebases their conversation ID to the selected product branch's native conversation in the same backend. This preserves the corresponding ancestor path without a quadratic checkpoint map. Only successful assistant boundaries carry a fork anchor; source timeout, incomplete, and filtered boundaries remain ineligible.
+
 ## Native adapter paths
 
 | Adapter | Native boundary | Fork implementation |

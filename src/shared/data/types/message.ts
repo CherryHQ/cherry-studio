@@ -156,6 +156,12 @@ export interface AssistantTurnOptions {
  * they need Cherry-specific data part type safety.
  */
 export interface MessageData {
+  importedHistory?: {
+    source: 'deepseek'
+    messageId: string
+    status: string
+    missingFiles?: Array<{ id: string; name: string; size: number; isImage: boolean }>
+  }
   parts?: CherryMessagePart[]
   /** Explicit multi-model or per-reply selection; default for ordinary single-model turns, absent on old replies. */
   modelSelection?: 'default' | 'explicit'
