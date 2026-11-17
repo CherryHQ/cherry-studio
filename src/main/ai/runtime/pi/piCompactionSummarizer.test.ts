@@ -35,11 +35,9 @@ function summarizerFor() {
 
 /** The metered stream the runtime supplies; its result resolves like pi's stream output. */
 function meteredStream(completeSimple: ReturnType<typeof vi.fn>) {
-  return vi
-    .fn()
-    .mockImplementation((...args: unknown[]) => ({
-      result: () => (completeSimple as (...a: unknown[]) => unknown)(...args)
-    }))
+  return vi.fn().mockImplementation((...args: unknown[]) => ({
+    result: () => (completeSimple as (...a: unknown[]) => unknown)(...args)
+  }))
 }
 
 function request(messages: Message[], stream: ReturnType<typeof meteredStream>) {
