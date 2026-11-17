@@ -7,10 +7,16 @@ import type { ApiImplementation } from '@shared/data/api/types'
 import type { DataRequest, DataResponse, HttpMethod, RequestContext, SuccessStatusCode } from '@shared/data/api/types'
 import { isCustomStatusResult, SuccessStatus } from '@shared/data/api/types'
 
+import type { DataApiCallContext } from './callContext'
 import { MiddlewareEngine } from './MiddlewareEngine'
 
 // Handler function type
-type HandlerFunction = (params: { params?: Record<string, string>; query?: any; body?: any }) => Promise<any>
+type HandlerFunction = (params: {
+  params?: Record<string, string>
+  query?: any
+  body?: any
+  context?: DataApiCallContext
+}) => Promise<any>
 
 const logger = loggerService.withContext('DataApi:Server')
 const DATA_API_TIMING_ENABLED = isDev || DIAGNOSTICS_ENABLED
@@ -23,9 +29,9 @@ const DATA_API_HANDLER_TIMING_ENABLED = isDev
 export class ApiServer {
   private static instance: ApiServer
   private middlewareEngine: MiddlewareEngine
-  private handlers: ApiImplementation
+  private handlers: ApiImplementation<DataApiCallContext>
 
-  private constructor(handlers: ApiImplementation) {
+  private constructor(handlers: ApiImplementation<DataApiCallContext>) {
     this.middlewareEngine = new MiddlewareEngine()
     this.handlers = handlers
   }
@@ -33,7 +39,7 @@ export class ApiServer {
   /**
    * Initialize singleton instance with handlers
    */
-  public static initialize(handlers: ApiImplementation): ApiServer {
+  public static initialize(handlers: ApiImplementation<DataApiCallContext>): ApiServer {
     if (ApiServer.instance) {
       throw new Error('ApiServer already initialized')
     }
@@ -61,7 +67,7 @@ export class ApiServer {
   /**
    * Main request handler - direct handler lookup
    */
-  async handleRequest(request: DataRequest): Promise<DataResponse> {
+  async handleRequest(request: DataRequest, context?: DataApiCallContext): Promise<DataResponse> {
     const { method, path } = request
     const startTime = Date.now()
     // DevTools and CS_DIAGNOSTICS both need monotonic request timings.
@@ -85,7 +91,7 @@ export class ApiServer {
       }
 
       // Create request context
-      const requestContext = this.createRequestContext(request, path, method)
+      const requestContext = this.createRequestContext(request, path, method, context)
 
       // Execute middleware chain
       await this.middlewareEngine.executeMiddlewares(requestContext)
@@ -248,7 +254,12 @@ export class ApiServer {
   /**
    * Create request context
    */
-  private createRequestContext(request: DataRequest, path: string, method: HttpMethod): RequestContext {
+  private createRequestContext(
+    request: DataRequest,
+    path: string,
+    method: HttpMethod,
+    context?: DataApiCallContext
+  ): RequestContext<DataApiCallContext> {
     const response: DataResponse = {
       id: request.id,
       status: 200
@@ -259,7 +270,8 @@ export class ApiServer {
       response,
       path,
       method,
-      data: new Map()
+      data: new Map(),
+      context
     }
   }
 
@@ -267,7 +279,7 @@ export class ApiServer {
    * Execute handler function
    */
   private async executeHandler(
-    context: RequestContext,
+    context: RequestContext<DataApiCallContext>,
     handlerMatch: { handler: HandlerFunction; params: Record<string, string> }
   ): Promise<void> {
     const { request, response } = context
@@ -278,7 +290,8 @@ export class ApiServer {
       const handlerParams = {
         params,
         query: request.params, // URL query parameters
-        body: request.body
+        body: request.body,
+        context: context.context
       }
 
       // Execute handler

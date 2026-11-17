@@ -116,6 +116,26 @@ describe('useAssistantMutationsById', () => {
     expect(importTriggerMock).toHaveBeenCalledWith({ params: { id: 'assistant-1' }, body: { name: 'Renamed' } })
   })
 
+  it('preserves arming diagnostics through the shared assistant mutation', async () => {
+    const updated = createAssistant({ id: 'assistant-1', mcpServerIds: [] })
+    importTriggerMock.mockResolvedValue(updated)
+    const metadata = {
+      source: 'composer.mcp-toggle',
+      operationId: '24065000-0000-4000-8000-000000000001'
+    }
+    const { result } = renderHook(() => useAssistantMutationsById('assistant-1'))
+
+    await act(async () => {
+      await expect(result.current.updateAssistant({ mcpServerIds: [] }, metadata)).resolves.toEqual(updated)
+    })
+
+    expect(importTriggerMock).toHaveBeenCalledWith({
+      params: { id: 'assistant-1' },
+      body: { mcpServerIds: [] },
+      metadata
+    })
+  })
+
   it('passes the parent cascade option to the Assistant archive command', async () => {
     ipcRequestMock.mockResolvedValue({ deleted: true, deletedTopicIds: ['topic-1'] })
     const { result } = renderHook(() => useAssistantMutationsById('assistant-1'))

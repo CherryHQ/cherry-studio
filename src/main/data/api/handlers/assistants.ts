@@ -8,6 +8,7 @@
  * All input validation happens here at the system boundary.
  */
 
+import type { DataApiCallContext } from '@data/api/core/callContext'
 import { assistantDataService } from '@data/services/AssistantService'
 import { OrderBatchRequestSchema, OrderRequestSchema } from '@shared/data/api/schemas/_endpointHelpers'
 import type { AssistantSchemas } from '@shared/data/api/schemas/assistants'
@@ -21,16 +22,16 @@ import {
 } from '@shared/data/api/schemas/assistants'
 import type { HandlersFor } from '@shared/data/api/types'
 
-export const assistantHandlers: HandlersFor<AssistantSchemas> = {
+export const assistantHandlers: HandlersFor<AssistantSchemas, DataApiCallContext> = {
   '/assistants': {
     GET: async ({ query }) => {
       const parsed = ListAssistantsQuerySchema.parse(query ?? {})
       return assistantDataService.list(parsed)
     },
 
-    POST: async ({ body }) => {
+    POST: async ({ body, context }) => {
       const parsed = CreateAssistantSchema.parse(body)
-      return assistantDataService.create(parsed)
+      return assistantDataService.create(parsed, context)
     }
   },
 
@@ -42,9 +43,9 @@ export const assistantHandlers: HandlersFor<AssistantSchemas> = {
   },
 
   '/assistants/:id/duplicate': {
-    POST: async ({ params, body }) => {
+    POST: async ({ params, body, context }) => {
       const parsed = DuplicateAssistantSchema.parse(body)
-      return assistantDataService.duplicate(params.id, parsed)
+      return assistantDataService.duplicate(params.id, parsed, context)
     }
   },
 
@@ -53,7 +54,7 @@ export const assistantHandlers: HandlersFor<AssistantSchemas> = {
       return assistantDataService.getById(params.id)
     },
 
-    PATCH: async ({ params, body }) => {
+    PATCH: async ({ params, body, context }) => {
       const parsed = UpdateAssistantSchema.parse(body)
       // Entity schema fields like `prompt` / `emoji` / `settings` carry `.default()`,
       // and `.partial()` does not strip those — `.parse({ groupId: ... })` would inject
@@ -61,7 +62,7 @@ export const assistantHandlers: HandlersFor<AssistantSchemas> = {
       // Keep only keys actually present in the request body so PATCH stays partial.
       const bodyKeys = body && typeof body === 'object' ? new Set(Object.keys(body)) : new Set<string>()
       const patch = Object.fromEntries(Object.entries(parsed).filter(([key]) => bodyKeys.has(key)))
-      return assistantDataService.update(params.id, patch)
+      return assistantDataService.update(params.id, patch, context)
     },
 
     DELETE: async ({ params, query }) => {

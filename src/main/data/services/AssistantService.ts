@@ -9,6 +9,7 @@
 import { and, asc, desc, eq, gte, inArray, isNotNull, isNull, lt, or, type SQL, sql } from 'drizzle-orm'
 
 import { application } from '@application'
+import type { DataApiCallContext } from '@data/api'
 import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { assistantTable } from '@data/db/schemas/assistant'
 import { assistantKnowledgeBaseTable, assistantMcpServerTable } from '@data/db/schemas/assistantRelations'
@@ -40,6 +41,14 @@ import { nullsToUndefined, timestampToISO } from './utils/rowMappers'
 import { clearSingleFileRefTx, insertSingleFileRefTx } from './utils/singleFileRef'
 
 const logger = loggerService.withContext('DataApi:AssistantService')
+
+type McpArmingDelta = {
+  assistantId: string
+  beforeIds: string[]
+  afterIds: string[]
+  addedIds: string[]
+  removedIds: string[]
+}
 
 type AssistantRow = typeof assistantTable.$inferSelect
 
@@ -421,7 +430,10 @@ export class AssistantDataService {
   /**
    * Insert an assistant and its relations inside a caller-owned transaction.
    */
-  private createTx(tx: DbOrTx, dto: CreateAssistantDto): AssistantRowWithModelName {
+  private createTx(
+    tx: DbOrTx,
+    dto: CreateAssistantDto
+  ): AssistantRowWithModelName & { mcpArmingDelta: McpArmingDelta | undefined } {
     // Resolve modelId: explicit values strictly validated; omission falls
     // back to `chat.default_model_id` preference (stale → null with a
     // logger.warn).
@@ -445,9 +457,9 @@ export class AssistantDataService {
       scope: isNull(assistantTable.deletedAt)
     }) as AssistantRow
 
-    this.syncRelationsTx(tx, inserted.id, { mcpServerIds, knowledgeBaseIds })
+    const mcpArmingDelta = this.syncRelationsTx(tx, inserted.id, { mcpServerIds, knowledgeBaseIds })
 
-    return this.getActiveRowWithModelNameById(inserted.id, tx)
+    return { ...this.getActiveRowWithModelNameById(inserted.id, tx), mcpArmingDelta }
   }
 
   /**
@@ -457,11 +469,16 @@ export class AssistantDataService {
    * transaction as the insert — one failed binding rolls the assistant row
    * back so callers never observe a half-written record.
    */
-  create(dto: CreateAssistantDto): Assistant {
+  create(dto: CreateAssistantDto, context?: DataApiCallContext): Assistant {
     this.validateName(dto.name)
 
-    const { assistant: row, modelName } = application.get('DbService').withWriteTx((tx) => this.createTx(tx, dto))
+    const {
+      assistant: row,
+      modelName,
+      mcpArmingDelta
+    } = application.get('DbService').withWriteTx((tx) => this.createTx(tx, dto))
 
+    this.emitMcpArmingChange(mcpArmingDelta, 'create', context)
     logger.info('Created assistant', { id: row.id, name: row.name })
 
     return rowToAssistant(
@@ -474,12 +491,13 @@ export class AssistantDataService {
     )
   }
 
-  duplicate(id: string, dto: DuplicateAssistantDto): Assistant {
+  duplicate(id: string, dto: DuplicateAssistantDto, context?: DataApiCallContext): Assistant {
     this.validateName(dto.name)
 
     const {
       assistant: row,
       modelName,
+      mcpArmingDelta,
       relations,
       clonedPromptIds
     } = application.get('DbService').withWriteTx((tx) => {
@@ -505,6 +523,7 @@ export class AssistantDataService {
       return { ...created, relations, clonedPromptIds }
     })
 
+    this.emitMcpArmingChange(mcpArmingDelta, 'duplicate', context)
     logger.info('Duplicated assistant', { id: row.id, sourceId: id })
     if (clonedPromptIds.length > 0) promptService.notifyTargetBindingsChanged()
     return rowToAssistant(row, relations, modelName, this.getAvatarIds([row.id]).get(row.id))
@@ -556,7 +575,7 @@ export class AssistantDataService {
    * roll back — the client can never observe a "saved successfully" response
    * on an already-deleted row.
    */
-  update(id: string, dto: UpdateAssistantDto): Assistant {
+  update(id: string, dto: UpdateAssistantDto, context?: DataApiCallContext): Assistant {
     const current = this.getById(id)
 
     if (dto.name !== undefined) {
@@ -585,7 +604,7 @@ export class AssistantDataService {
 
     const aliveFilter = and(eq(assistantTable.id, id), isNull(assistantTable.deletedAt))
 
-    const { row, modelName } = application.get('DbService').withWriteTx((tx) => {
+    const { row, modelName, mcpArmingDelta } = application.get('DbService').withWriteTx((tx) => {
       // Pre-validate the new FK target before any write — same reasoning as
       // in `create`. Skipped when the caller is unbinding (null) or leaving
       // the existing modelId untouched (undefined/empty).
@@ -620,19 +639,67 @@ export class AssistantDataService {
       if (dto.emoji !== undefined) this.clearAvatarSlotTx(tx, id)
 
       // Sync junction table rows if relation fields are provided
-      this.syncRelationsTx(tx, id, { mcpServerIds, knowledgeBaseIds })
+      const mcpArmingDelta = this.syncRelationsTx(tx, id, { mcpServerIds, knowledgeBaseIds })
 
       const nextModelName =
         dto.modelId !== undefined && dto.modelId !== current.modelId
           ? this.getModelNameById(tx, next.modelId)
           : current.modelName
 
-      return { row: next, modelName: nextModelName }
+      return { row: next, modelName: nextModelName, mcpArmingDelta }
     })
 
-    logger.info('Updated assistant', { id, changes: Object.keys(dto) })
+    this.emitMcpArmingChange(mcpArmingDelta, 'update', context)
+
+    const changes = Object.keys(dto)
+    if (dto.mcpServerIds !== undefined) {
+      logger.info('Updated assistant', {
+        id,
+        changes,
+        source: context?.source ?? 'unknown',
+        actor: context?.actor ?? { kind: 'unknown' },
+        operationId: context?.operationId ?? null,
+        requestId: context?.requestId ?? null,
+        retryAttempt: context?.retryAttempt ?? null,
+        requestedMcpServerIdCount: dto.mcpServerIds.length,
+        requestedMcpServerIds: dto.mcpServerIds.map((id) => (id.length > 64 ? id.slice(0, 64) : id)).slice(0, 20),
+        ...(dto.mcpServerIds.length > 20 ? { requestedMcpServerIdsTruncated: true } : {})
+      })
+    } else {
+      logger.info('Updated assistant', { id, changes })
+    }
 
     return rowToAssistant(row, nextRelations, modelName, this.getAvatarIds([id]).get(id))
+  }
+
+  private emitMcpArmingChange(
+    delta: McpArmingDelta | undefined,
+    reason: 'create' | 'duplicate' | 'update',
+    context?: DataApiCallContext
+  ): void {
+    if (delta && delta.addedIds.length + delta.removedIds.length > 0) {
+      logger.info('MCP arming changed', {
+        event: 'assistant.mcp-arming.changed',
+        ...delta,
+        beforeIds: delta.beforeIds.map((id) => (id.length > 64 ? id.slice(0, 64) : id)).slice(0, 20),
+        beforeIdsCount: delta.beforeIds.length,
+        ...(delta.beforeIds.length > 20 ? { beforeIdsTruncated: true } : {}),
+        afterIds: delta.afterIds.map((id) => (id.length > 64 ? id.slice(0, 64) : id)).slice(0, 20),
+        afterIdsCount: delta.afterIds.length,
+        ...(delta.afterIds.length > 20 ? { afterIdsTruncated: true } : {}),
+        addedIds: delta.addedIds.map((id) => (id.length > 64 ? id.slice(0, 64) : id)).slice(0, 20),
+        addedIdsCount: delta.addedIds.length,
+        ...(delta.addedIds.length > 20 ? { addedIdsTruncated: true } : {}),
+        removedIds: delta.removedIds.map((id) => (id.length > 64 ? id.slice(0, 64) : id)).slice(0, 20),
+        removedIdsCount: delta.removedIds.length,
+        ...(delta.removedIds.length > 20 ? { removedIdsTruncated: true } : {}),
+        reason,
+        source: context?.source ?? 'unknown',
+        actor: context?.actor ?? { kind: 'unknown' },
+        operationId: context?.operationId ?? null,
+        requestId: context?.requestId ?? null
+      })
+    }
   }
 
   /** Move a single assistant within the active (non-deleted) assistant list. */
@@ -800,7 +867,8 @@ export class AssistantDataService {
     tx: Pick<DbType, 'delete' | 'insert' | 'select'>,
     assistantId: string,
     dto: { mcpServerIds?: string[]; knowledgeBaseIds?: string[] }
-  ): void {
+  ): McpArmingDelta | undefined {
+    let mcpArmingDelta: McpArmingDelta | undefined
     if (dto.mcpServerIds !== undefined) {
       const existing = tx
         .select({ mcpServerId: assistantMcpServerTable.mcpServerId })
@@ -812,6 +880,16 @@ export class AssistantDataService {
 
       const removeIds = existing.filter((r) => !desiredIds.has(r.mcpServerId)).map((r) => r.mcpServerId)
       const toAdd = [...desiredIds].filter((id) => !existingIds.has(id))
+
+      if (removeIds.length + toAdd.length > 0) {
+        mcpArmingDelta = {
+          assistantId,
+          beforeIds: [...existingIds].sort(),
+          afterIds: [...desiredIds].sort(),
+          addedIds: [...toAdd].sort(),
+          removedIds: [...removeIds].sort()
+        }
+      }
 
       if (removeIds.length > 0) {
         tx.delete(assistantMcpServerTable)
@@ -858,6 +936,7 @@ export class AssistantDataService {
           .run()
       }
     }
+    return mcpArmingDelta
   }
 
   private validateName(name: string): void {

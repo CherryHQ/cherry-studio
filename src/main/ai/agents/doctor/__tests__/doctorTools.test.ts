@@ -75,7 +75,8 @@ describe('doctor data_api tool', () => {
     expect(text(result)).toContain('https://api.openai.com')
     expect(text(result)).not.toContain('sk-live-123')
     expect(mocks.handleRequest).toHaveBeenCalledWith(
-      expect.objectContaining({ method: 'GET', path: '/providers/openai' })
+      expect.objectContaining({ method: 'GET', path: '/providers/openai' }),
+      expect.objectContaining({ source: 'doctor.data-api', actor: { kind: 'main', source: 'doctor' } })
     )
     await client.close()
   })
@@ -380,6 +381,37 @@ describe('doctor read_file tool', () => {
 describe('applyWrite / undoWrite guards', () => {
   const patch = { kind: 'data_api_patch', path: '/mcp-servers/s1', body: { env: { DEBUG: '1' } } } as const
 
+  it('attributes assistant binding patches to Doctor with the same request ID', async () => {
+    mocks.handleRequest
+      .mockResolvedValueOnce({ id: 'x', status: 200, data: { id: 'x', mcpServerIds: [] } })
+      .mockResolvedValueOnce({ id: 'x', status: 200 })
+      .mockResolvedValueOnce({ id: 'x', status: 200, data: { id: 'x', mcpServerIds: ['s1'] } })
+
+    const applied = await applyWrite({
+      kind: 'data_api_patch',
+      path: '/assistants/x',
+      body: { mcpServerIds: ['s1'] }
+    })
+
+    expect(applied).toEqual({ before: { mcpServerIds: [] }, after: { mcpServerIds: ['s1'] }, undoable: true })
+    expect(mocks.handleRequest).toHaveBeenCalledTimes(3)
+    const [request, context] = mocks.handleRequest.mock.calls[1]
+    expect(request).toEqual({
+      id: expect.stringMatching(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i),
+      method: 'PATCH',
+      path: '/assistants/x',
+      params: undefined,
+      body: { mcpServerIds: ['s1'] }
+    })
+    expect(context).toEqual({
+      requestId: request.id,
+      operationId: null,
+      retryAttempt: null,
+      source: 'doctor.data-api',
+      actor: { kind: 'main', source: 'doctor' }
+    })
+  })
+
   it('refuses to patch a field whose stored value carries a credential, so undo can never write a placeholder', async () => {
     mocks.handleRequest.mockResolvedValueOnce({
       id: 'x',
@@ -417,7 +449,8 @@ describe('applyWrite / undoWrite guards', () => {
       .mockResolvedValueOnce({ id: 'x', status: 200 })
     await expect(undoWrite(patch, applied.before, applied.after)).resolves.toBeUndefined()
     expect(mocks.handleRequest).toHaveBeenLastCalledWith(
-      expect.objectContaining({ method: 'PATCH', body: { env: { DEBUG: '0', KEEP: 'yes' } } })
+      expect.objectContaining({ method: 'PATCH', body: { env: { DEBUG: '0', KEEP: 'yes' } } }),
+      expect.objectContaining({ source: 'doctor.data-api', actor: { kind: 'main', source: 'doctor' } })
     )
   })
 

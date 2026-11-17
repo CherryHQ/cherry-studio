@@ -31,3 +31,4 @@ export type {
   ServiceOptions,
   SortParams
 } from '@shared/data/api/types'
+export type { DataApiCallContext } from './core/callContext'

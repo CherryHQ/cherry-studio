@@ -178,7 +178,7 @@ export type TriggerArgs<TPath extends ApiPath, TMethod extends 'POST' | 'PUT' | 
 > & {
   body?: BodyForPath<TPath, TMethod>
   query?: QueryParamsForPath<TPath, TMethod>
-}
+} & (TMethod extends 'PATCH' ? { metadata?: { source?: string; operationId?: string } } : {})
 
 /**
  * Context passed to a function-form `refresh` callback.
@@ -560,7 +560,8 @@ export function useMutation<TPath extends ApiPath, TMethod extends 'POST' | 'PUT
       try {
         const request = apiFetcher(resolvedPath as ConcreteApiPaths, {
           body: capturedArgs?.body as BodyForPath<ConcreteApiPaths, TMethod>,
-          query: capturedArgs?.query as QueryParamsForPath<ConcreteApiPaths, TMethod>
+          query: capturedArgs?.query as QueryParamsForPath<ConcreteApiPaths, TMethod>,
+          ...(capturedArgs && 'metadata' in capturedArgs ? { metadata: capturedArgs.metadata } : {})
         }) as Promise<ResponseForPath<TPath, TMethod>>
         const [requestOutcome] = await Promise.allSettled([request, swrTrigger({ request })])
         if (requestOutcome.status === 'rejected') throw requestOutcome.reason
@@ -1256,6 +1257,7 @@ function createApiFetcher<TPath extends ConcreteApiPaths, TMethod extends 'GET' 
     options?: {
       body?: BodyForPath<TPath, TMethod>
       query?: QueryParamsForPath<TPath, TMethod>
+      metadata?: { source?: string; operationId?: string }
     }
   ): Promise<ResponseForPath<TPath, TMethod>> => {
     // TS can't narrow generic TMethod in switch branches, so per-branch type assertions are needed
@@ -1282,7 +1284,8 @@ function createApiFetcher<TPath extends ConcreteApiPaths, TMethod extends 'GET' 
       case 'PATCH':
         return dataApiService.patch(path, {
           body: options?.body as BodyForPath<TPath, 'PATCH'>,
-          query: query as QueryParamsForPath<TPath, 'PATCH'>
+          query: query as QueryParamsForPath<TPath, 'PATCH'>,
+          ...(options?.metadata ? { metadata: options.metadata } : {})
         }) as Promise<ResponseForPath<TPath, TMethod>>
       default:
         throw new Error(`Unsupported method: ${method}`)

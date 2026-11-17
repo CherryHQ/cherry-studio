@@ -93,7 +93,11 @@ export function useImportAssistantMutation() {
 export function useAssistantMutationsById(id: string) {
   const { updateAssistant: updateById, deleteAssistant: deleteById } = useAssistantMutations()
 
-  const updateAssistant = useCallback((dto: UpdateAssistantDto) => updateById(id, dto), [id, updateById])
+  const updateAssistant = useCallback(
+    (dto: UpdateAssistantDto, metadata?: { source?: string; operationId?: string }) =>
+      metadata ? updateById(id, dto, metadata) : updateById(id, dto),
+    [id, updateById]
+  )
   const deleteAssistant = useCallback(
     (options?: { deleteTopics?: boolean; permanent?: boolean }) => deleteById(id, options),
     [deleteById, id]

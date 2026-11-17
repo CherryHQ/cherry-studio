@@ -210,7 +210,10 @@ describe('mcpStatusTool', () => {
         updateAssistant
       })
     ).resolves.toBe(true)
-    expect(updateAssistant).toHaveBeenCalledWith({ mcpServerIds: ['existing', 'new-server'] })
+    expect(updateAssistant).toHaveBeenCalledWith(
+      { mcpServerIds: ['existing', 'new-server'] },
+      { source: 'composer.mcp-toggle' }
+    )
     expect(updateAgent).not.toHaveBeenCalled()
 
     await expect(
@@ -349,7 +352,10 @@ describe('mcpStatusTool', () => {
     })
 
     expect(mocks.updateAssistant).toHaveBeenCalledTimes(1)
-    expect(mocks.updateAssistant).toHaveBeenCalledWith({ mcpServerIds: ['filesystem'] })
+    expect(mocks.updateAssistant).toHaveBeenCalledWith(
+      { mcpServerIds: ['filesystem'] },
+      { source: 'composer.mcp-toggle' }
+    )
     await waitFor(() => {
       const pendingItems = openLatestRegisteredPanel()
       expect(pendingItems[0]).toMatchObject({ disabled: true })

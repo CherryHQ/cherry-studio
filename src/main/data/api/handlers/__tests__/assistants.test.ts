@@ -1,9 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { DataApiCallContext } from '@data/api/core/callContext'
+
 const {
   listMock,
   createMock,
   createFromImportMock,
+  duplicateMock,
   getByIdMock,
   updateMock,
   deleteMock,
@@ -13,6 +16,7 @@ const {
   listMock: vi.fn(),
   createMock: vi.fn(),
   createFromImportMock: vi.fn(),
+  duplicateMock: vi.fn(),
   getByIdMock: vi.fn(),
   updateMock: vi.fn(),
   deleteMock: vi.fn(),
@@ -25,6 +29,7 @@ vi.mock('@data/services/AssistantService', () => ({
     list: listMock,
     create: createMock,
     createFromImport: createFromImportMock,
+    duplicate: duplicateMock,
     getById: getByIdMock,
     update: updateMock,
     delete: deleteMock,
@@ -38,6 +43,13 @@ import { assistantHandlers } from '../assistants'
 const ASSISTANT_ID = '11111111-1111-4111-8111-111111111111'
 const OTHER_ASSISTANT_ID = '33333333-3333-4333-8333-333333333333'
 const GROUP_ID = '22222222-2222-4222-8222-222222222222'
+const context: DataApiCallContext = {
+  requestId: 'request-24065',
+  operationId: '24065000-0000-4000-8000-000000000001',
+  retryAttempt: 0,
+  source: 'assistant-edit.save',
+  actor: { kind: 'renderer', webContentsId: 7, windowId: 'main-1' }
+}
 
 describe('assistantHandlers', () => {
   beforeEach(() => {
@@ -94,9 +106,13 @@ describe('assistantHandlers', () => {
         })
       ).resolves.toMatchObject({ id: ASSISTANT_ID })
 
-      expect(createMock).toHaveBeenCalledWith({
-        name: 'New Assistant'
-      })
+      expect(createMock).toHaveBeenCalledWith({ name: 'New Assistant' }, undefined)
+    })
+
+    it('forwards the server-provided context to create', async () => {
+      await assistantHandlers['/assistants'].POST({ body: { name: 'New Assistant' }, context })
+
+      expect(createMock).toHaveBeenCalledWith({ name: 'New Assistant' }, context)
     })
 
     it('should reject partial settings instead of filling nested defaults', async () => {
@@ -156,6 +172,18 @@ describe('assistantHandlers', () => {
     })
   })
 
+  describe('/assistants/:id/duplicate', () => {
+    it('forwards the server-provided context to duplicate', async () => {
+      await assistantHandlers['/assistants/:id/duplicate'].POST({
+        params: { id: ASSISTANT_ID },
+        body: { name: 'Duplicate Assistant' },
+        context
+      })
+
+      expect(duplicateMock).toHaveBeenCalledWith(ASSISTANT_ID, { name: 'Duplicate Assistant' }, context)
+    })
+  })
+
   describe('/assistants/:id', () => {
     it('should forward group-only PATCH bodies without defaulted column fields', async () => {
       updateMock.mockResolvedValueOnce({ id: ASSISTANT_ID, name: 'Existing Assistant' })
@@ -167,7 +195,7 @@ describe('assistantHandlers', () => {
         })
       ).resolves.toMatchObject({ id: ASSISTANT_ID })
 
-      expect(updateMock).toHaveBeenCalledWith(ASSISTANT_ID, { groupId: GROUP_ID })
+      expect(updateMock).toHaveBeenCalledWith(ASSISTANT_ID, { groupId: GROUP_ID }, undefined)
     })
 
     it('should forward relation-only PATCH bodies without defaulted column fields', async () => {
@@ -180,10 +208,14 @@ describe('assistantHandlers', () => {
         })
       ).resolves.toMatchObject({ id: ASSISTANT_ID })
 
-      expect(updateMock).toHaveBeenCalledWith(ASSISTANT_ID, {
-        mcpServerIds: ['srv-1'],
-        knowledgeBaseIds: ['kb-1']
-      })
+      expect(updateMock).toHaveBeenCalledWith(
+        ASSISTANT_ID,
+        {
+          mcpServerIds: ['srv-1'],
+          knowledgeBaseIds: ['kb-1']
+        },
+        undefined
+      )
     })
 
     it('should forward empty PATCH bodies without injecting create defaults', async () => {
@@ -196,7 +228,7 @@ describe('assistantHandlers', () => {
         })
       ).resolves.toMatchObject({ id: ASSISTANT_ID })
 
-      expect(updateMock).toHaveBeenCalledWith(ASSISTANT_ID, {})
+      expect(updateMock).toHaveBeenCalledWith(ASSISTANT_ID, {}, undefined)
     })
 
     it('should forward partial settings updates without injecting unrelated defaults', async () => {
@@ -209,7 +241,7 @@ describe('assistantHandlers', () => {
         })
       ).resolves.toMatchObject({ id: ASSISTANT_ID })
 
-      expect(updateMock).toHaveBeenCalledWith(ASSISTANT_ID, { settings: { maxTokens: 8192 } })
+      expect(updateMock).toHaveBeenCalledWith(ASSISTANT_ID, { settings: { maxTokens: 8192 } }, undefined)
     })
 
     it('should reject unsafe max tokens before calling the service', async () => {
