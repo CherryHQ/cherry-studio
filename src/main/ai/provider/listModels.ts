@@ -998,8 +998,14 @@ async function listOpenAICompatibleModels(
     abortSignal: signal
   })
   warnSkippedOpenAIModelEntries(provider.id, response)
+  const models = matchesPreset(provider, SystemProviderIds.topxai)
+    ? response.data.filter(
+        ({ supported_endpoint_types: endpoints }) =>
+          !Array.isArray(endpoints) || endpoints.some((endpoint) => endpoint === 'openai' || endpoint === 'anthropic')
+      )
+    : response.data
   return listing(
-    dedup(response.data, (m) => m.id).map((m) =>
+    dedup(models, (m) => m.id).map((m) =>
       toModel(m.id, provider, {
         name: m.name || m.id,
         ownedBy: m.owned_by
