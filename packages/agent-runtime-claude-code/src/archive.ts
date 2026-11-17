@@ -7,7 +7,7 @@ export type NativeArchiveEntry = Pick<SessionStoreEntry, 'type' | 'uuid'> &
   Partial<
     Pick<
       SessionStoreEntry,
-      'supersedes' | 'retracted_message_uuids' | 'isAbortedMidStream' | 'isApiErrorMessage' | 'parentAgentId'
+      'supersedes' | 'retracted_message_uuids' | 'isAbortedMidStream' | 'isApiErrorMessage' | 'isCompactSummary' | 'parentAgentId'
     >
   >
 
