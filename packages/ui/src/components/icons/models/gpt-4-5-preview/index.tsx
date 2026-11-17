@@ -9,7 +9,7 @@ const Gpt45Preview = ({ variant, className, ...props }: CompoundIconProps) => {
 
 export const Gpt45PreviewIcon: CompoundIcon = /*#__PURE__*/ Object.assign(Gpt45Preview, {
   Avatar: Gpt45PreviewAvatar,
-  colorPrimary: '#000000'
+  colorPrimary: '#00e9b4'
 })
 
 export default Gpt45PreviewIcon

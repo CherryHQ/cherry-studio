@@ -3,27 +3,6 @@ import type { ComponentType } from 'react'
 import { Button } from '@cherrystudio/ui/components/primitives/button'
 import { cn } from '@cherrystudio/ui/lib/utils'
 
-/**
- * @deprecated Presets no longer affect rendering — every preset renders the
- * same unified empty illustration, so all modules read as one product. Kept
- * for call-site compatibility only; existing `preset` usages are slated for
- * removal in a follow-up.
- */
-export type EmptyStatePreset =
-  | 'no-model'
-  | 'no-assistant'
-  | 'no-agent'
-  | 'no-knowledge'
-  | 'no-file'
-  | 'no-note'
-  | 'no-miniapp'
-  | 'no-code-tool'
-  | 'no-resource'
-  | 'no-translate'
-  | 'no-result'
-  | 'no-topic'
-  | 'no-session'
-
 type EmptyStateIcon = ComponentType<{ size?: number; className?: string; strokeWidth?: number }>
 
 /** Variants of the unified empty illustration, all drawn in one visual family. */
@@ -84,8 +63,6 @@ function EmptyIllustration({
 }
 
 export interface EmptyStateProps {
-  /** @deprecated No-op — the unified illustration renders regardless. Slated for removal. */
-  preset?: EmptyStatePreset
   /** Which unified illustration to render (ignored when `icon` is set). */
   illustration?: EmptyStateIllustration
   icon?: EmptyStateIcon

@@ -81,8 +81,12 @@ export async function scheduledTasks(app: RegressionApp, page: Page, testInfo: T
     agentId = AgentEntitySchema.parse(created.data).id
     await page.reload()
     await openLaunchpadApp(page, 'Scheduled Tasks')
+    const showSidebar = page.getByRole('button', { name: 'Show Sidebar', exact: true })
+    const addTask = page.getByRole('button', { name: 'Add scheduled task', exact: true })
+    await expect(addTask.or(showSidebar)).toBeVisible()
+    if (await showSidebar.isVisible()) await showSidebar.click()
     await screenshot('MP-58 scheduled tasks before creation')
-    await page.getByRole('button', { name: 'Add scheduled task', exact: true }).click()
+    await addTask.click()
     const dialog = page.getByRole('dialog', { name: 'New scheduled task', exact: true })
     await dialog.getByRole('textbox', { name: 'Name', exact: true }).fill(name)
     await dialog.locator('[contenteditable="true"]').fill('输出当前时间')
