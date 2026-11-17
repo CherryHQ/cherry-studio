@@ -93,6 +93,29 @@ describe('useDirectoryTree', () => {
     expect(result.current.root?.hasChild('new.md')).toBe(true)
   })
 
+  it('keeps existing entries visible while reconnecting after another consumer refreshes', async () => {
+    mocks.create.mockResolvedValueOnce({ treeId: 'shared', revision: 0, snapshot: makeSnapshot('/notes', ['old.md']) })
+    mocks.onMutation.mockReturnValue(() => {})
+    const { result } = renderHook(() => useDirectoryTree('/notes'))
+    await waitFor(() => expect(result.current.root?.hasChild('old.md')).toBe(true))
+
+    const next = Promise.withResolvers<CreateTreeIpcResult>()
+    mocks.create.mockReturnValueOnce(next.promise)
+    const push = mocks.onMutation.mock.calls[0][0] as (payload: TreeMutationPushPayload) => void
+    await act(async () => {
+      push({ treeId: 'shared', revision: 1, event: { type: 'status', coverage: 'stale' } })
+    })
+
+    expect(result.current.isLoading).toBe(true)
+    expect(result.current.root?.hasChild('old.md')).toBe(true)
+
+    await act(async () => {
+      next.resolve({ treeId: 'fresh', revision: 0, snapshot: makeSnapshot('/notes', []) })
+    })
+    expect(result.current.treeId).toBe('fresh')
+    expect(result.current.root?.hasChild('old.md')).toBe(false)
+  })
+
   it('returns the initial snapshot once file.tree.create resolves', async () => {
     const snapshot = makeSnapshot('/notes', ['a.md', 'b.md'])
     mocks.create.mockResolvedValue({ treeId: 't-1', revision: 0, snapshot })

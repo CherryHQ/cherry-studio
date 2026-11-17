@@ -181,14 +181,15 @@ export class DirectoryTreeSession {
     this.release = this.start()
   }
 
-  private start(preserveSnapshot = false): () => void {
+  private start(forceRefresh = false): () => void {
     const rootPath = this.rootPath
     let cancelled = false
     let released = false
     let unsubscribeMutations: (() => void) | null = null
     let createdTreeId: string | null = null
 
-    this.update({ ...(preserveSnapshot ? {} : { root: null }), treeId: null, isLoading: true, error: null })
+    // A shared projection refresh can reconnect this session while its snapshot is still displayed.
+    this.update({ treeId: null, isLoading: true, error: null })
 
     const disposeTree = (treeId: string): void => {
       ipcApi.request('file.tree.dispose', { treeId }).catch((err) => {
@@ -223,7 +224,7 @@ export class DirectoryTreeSession {
           const result: CreateTreeIpcResult = await ipcApi.request('file.tree.create', {
             rootPath: AbsoluteFilePathSchema.parse(rootPath),
             options: this.options,
-            ...(preserveSnapshot ? { refresh: true } : {})
+            ...(forceRefresh ? { refresh: true } : {})
           })
           if (cancelled) {
             disposeTree(result.treeId)
