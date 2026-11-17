@@ -17,6 +17,7 @@ import {
   type ConversationId,
   type ConversationRecord,
   type Cursor,
+  type EntryId,
   type HarnessOptions,
   type Storage,
   type SubmissionRecord,
@@ -127,6 +128,8 @@ interface Entry {
   /** Detaches the native view and drops this conversation's loaded history. */
   unload(): void
   unloaded?: boolean
+  /** Sealed committed archive; committed entries never change, so later reads fold only newer entries. */
+  archived?: { through: EntryId; content: ContentProjection }
 }
 const context = BACKGROUND_CONTEXT
 const error = (operation: string, code: string): RuntimeError => ({
@@ -760,13 +763,18 @@ export async function createPiDurableRuntime(
         return track(
           (async (): Promise<OperationResult<PiDurableArchive>> => {
             try {
-              const content = new ContentProjection()
               const head = (await entry.conversation.entries({ order: 'descending' }, 1, undefined, context)).items[0]
               if (!head) return { status: 'confirmed', value: { messages: [], aliases: {} } }
+              const known = entry.archived
+              const content = known ? known.content.fork() : new ContentProjection()
               let cursor: Cursor | undefined
               do {
                 const page = await entry.conversation.entries(
-                  { maxEntryId: head.id, order: 'ascending' },
+                  {
+                    ...(known && { minEntryId: (known.through + 1) as EntryId }),
+                    maxEntryId: head.id,
+                    order: 'ascending'
+                  },
                   256,
                   cursor,
                   context
@@ -775,13 +783,20 @@ export async function createPiDurableRuntime(
                   if (record.conversationId === entry.conversation.id) content.entry(record)
                 cursor = page.next
               } while (cursor)
+              content.seal()
+              if (!entry.archived || entry.archived.through < head.id) entry.archived = { through: head.id, content }
               const included = new Set(content.messages.map((message) => message.id))
               const aliases = Object.fromEntries(
                 Object.entries(entry.projection.aliases).filter(([id]) => included.has(id))
               )
               return {
                 status: 'confirmed',
-                value: { messages: content.messages, responseIds: content.responseIds, legacy: content.legacy, aliases }
+                value: {
+                  messages: [...content.messages],
+                  responseIds: { ...content.responseIds },
+                  legacy: content.legacy,
+                  aliases
+                }
               }
             } catch (cause) {
               report(cause)

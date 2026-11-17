@@ -2,7 +2,7 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-import { awaitWithContext } from '@earendil-works/chord/context'
+import { awaitWithContext, BACKGROUND_CONTEXT } from '@earendil-works/chord/context'
 import {
   getCurrentTools,
   createModels,
@@ -17,7 +17,8 @@ import {
   defineExtension,
   defineTool,
   MemoryStorage,
-  StorageRequestError
+  StorageRequestError,
+  type ConversationId
 } from '@earendil-works/pi-durable'
 import { openNodeSqliteStorage } from '@earendil-works/pi-durable/storage/sqlite/node'
 import { obj, str } from '@earendil-works/pi-schema'
@@ -245,6 +246,52 @@ describe('Pi Durable runtime contract', () => {
     expect(await access.archive()).toMatchObject({ status: 'rejected', error: { code: 'closed' } })
     const reopened = confirmed(await runtime.open(access.thread))
     expect(confirmed(await reopened.archive()).messages).toEqual(archive.messages)
+  })
+
+  // Catches an archive that rescans committed history on every read, or folds newer entries incorrectly.
+  it('extends a retained archive with only newer committed entries', async () => {
+    const storage = new MemoryStorage()
+    const scanned = new Set<number>()
+    const { runtime } = await setup(
+      async () =>
+        new Proxy(storage, {
+          get(target, key) {
+            if (key === 'scanEntries')
+              return async (...args: Parameters<MemoryStorage['scanEntries']>) => {
+                const page = await target.scanEntries(...args)
+                for (const entry of page.items) scanned.add(entry.id)
+                return page
+              }
+            const value = Reflect.get(target, key)
+            return typeof value === 'function' ? value.bind(target) : value
+          }
+        })
+    )
+    const access = confirmed(await runtime.create(sessionOptions))
+    const id = Number(access.thread.id) as ConversationId
+    const append = (texts: string[]) =>
+      runtime.durable.commit(async (tx) => {
+        const ids = new Set<number>()
+        for (const [index, text] of texts.entries())
+          ids.add(
+            (await tx.appendEntry(id, { kind: 'pi.user', model: [{ role: 'user', content: text, timestamp: index }] }))
+              .id
+          )
+        return ids
+      }, BACKGROUND_CONTEXT)
+    const texts = (archive: { messages: readonly { parts: readonly { type: string; text?: string }[] }[] }) =>
+      archive.messages.flatMap((message) => message.parts.flatMap((part) => (part.type === 'text' ? [part.text] : [])))
+    await append(Array.from({ length: 40 }, (_, index) => `old-${index}`))
+    const before = confirmed(await access.archive())
+    const appended = await append(['new-0', 'new-1'])
+
+    scanned.clear()
+    const after = confirmed(await access.archive())
+    expect(scanned).toEqual(appended)
+    expect(texts(after)).toEqual([...texts(before), 'new-0', 'new-1'])
+    await access.release()
+    const cold = confirmed(await runtime.open(access.thread))
+    expect(confirmed(await cold.archive())).toEqual(after)
   })
 
   it.each(['before', 'after'] as const)(
