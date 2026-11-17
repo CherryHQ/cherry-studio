@@ -16,6 +16,8 @@ Place the copied plugin at `scripts/lint/anti-slop/`, retain its exact upstream 
 
 Inventory findings by rule and file, then clean bounded modules while preserving their observable contracts. Apply spacing fixes only within the selected batch and keep semantic review distinct from formatting. Replace unsafe types with actual domain evidence or existing schemas; retain field omission, callback ordering, proxy receiver semantics and test isolation. Do not disguise module mocking under aliases to evade the rule. Cleanup of all repository debt is an ongoing migration; the first implementation covers a tested initial batch and explicitly reports remaining findings. The Spec stays proposed until the full repository migration is complete.
 
+The ai-core `AiPlugin.transformParams` contract changes from partial patches to complete parameters. Pass each returned value directly to the next plugin; the manager no longer implicitly merges or copies it. Migrate every repository plugin, document how external plugins preserve unchanged fields, and release the public API change as a breaking change. Plugins may return the received parameters unchanged. Omitted fields are removed rather than restored by a merge.
+
 ## Alternatives considered
 
 - Keep only compatible rules: the user explicitly requests full adoption and cleanup.
@@ -28,6 +30,8 @@ Inventory findings by rule and file, then clean bounded modules while preserving
 - AC2 — The plugin loads from `scripts/lint/anti-slop/` with matching pinned dependencies, unchanged upstream generic production source, no unused Effect plugin, and retained license/provenance records. (verification: unit)
 - AC3 — A bounded initial cleanup batch passes targeted lint and existing tests for its affected contracts; subsequent batches retain the same verification discipline. (verification: unit)
 - AC4 — The remaining rule inventory and verification limits are reported accurately; documentation describes full adoption and the incomplete migration. (verification: docs gate)
+
+- AC5 — `transformParams` requires complete parameters, all repository callers are migrated, and contract tests verify chaining and omitted-field removal. Package documentation and a major Changeset explain the breaking migration. (verification: unit)
 
 ## Risks
 
