@@ -693,6 +693,38 @@ describe('MessageService', () => {
     })
   })
 
+  describe('countTopicBranches', () => {
+    it('counts leaves per live topic, ignoring deleted messages and trashed topics', async () => {
+      await dbh.db.insert(topicTable).values([
+        { id: 'topic-line', activeNodeId: 'l-a', orderKey: 'b0' },
+        { id: 'topic-fork', activeNodeId: 'f-u2', orderKey: 'b1' },
+        { id: 'topic-trashed', activeNodeId: 't-a1', orderKey: 'b2', deletedAt: 500 }
+      ])
+      await dbh.db
+        .insert(messageTable)
+        .values([
+          ...withRoot('topic-line', [
+            treeRow('topic-line', 'l-u', null, 0),
+            treeRow('topic-line', 'l-a', 'l-u', 1),
+            { ...treeRow('topic-line', 'l-a-deleted', 'l-u', 3), deletedAt: 900 }
+          ]),
+          ...withRoot('topic-fork', [
+            treeRow('topic-fork', 'f-u', null, 0),
+            treeRow('topic-fork', 'f-a1', 'f-u', 1),
+            treeRow('topic-fork', 'f-a2', 'f-u', 3),
+            treeRow('topic-fork', 'f-u2', 'f-a1', 4)
+          ]),
+          ...withRoot('topic-trashed', [
+            treeRow('topic-trashed', 't-u', null, 0),
+            treeRow('topic-trashed', 't-a1', 't-u', 1),
+            treeRow('topic-trashed', 't-a2', 't-u', 3)
+          ])
+        ])
+
+      expect(messageService.countTopicBranches()).toEqual({ topicCount: 2, branchedTopicCount: 1, branchCount: 2 })
+    })
+  })
+
   describe('listLiveCreatedInRangeMetadataPage', () => {
     it('returns body-free canonical metadata within the closed range in stable newest-first order', async () => {
       await dbh.db.insert(topicTable).values([

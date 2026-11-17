@@ -1,6 +1,8 @@
+import { MockMainCacheServiceExport, MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { AnalyticsClient, AnalyticsClientOptions } from '@cherrystudio/analytics-client'
+import { messageService } from '@data/services/MessageService'
 import { BaseService } from '@main/core/lifecycle'
 import { getAppEdition } from '@main/utils/appEdition'
 import { LATEST_PRIVACY_POLICY_VERSION } from '@shared/utils/constants'
@@ -684,11 +686,13 @@ describe('AnalyticsService setting changes', () => {
     ])
   })
 
-  it('reports only the key for values that are not booleans or finite numbers', async () => {
+  it('reports values only for booleans, numbers, and the fixed options of a setting', async () => {
     const change = await startService()
 
     change([
-      ['app.language', 'zh-CN'],
+      ['ui.theme_mode', 'dark'],
+      ['app.language', 'xx-XX'],
+      ['app.proxy.url', 'http://user:secret@proxy.local'],
       ['app.spell_check.languages', ['en-US']],
       ['app.zoom_factor', Number.NaN],
       ['app.tray.on_close', 0]
@@ -696,14 +700,100 @@ describe('AnalyticsService setting changes', () => {
     vi.advanceTimersByTime(2_000)
 
     const events = settingEvents()
-    expect(events.map(({ key }) => key)).toEqual([
+    expect(events[0]).toMatchObject({ key: 'ui.theme_mode', value: 'dark' })
+    expect(events.slice(1).map(({ key }) => key)).toEqual([
       'app.language',
+      'app.proxy.url',
       'app.spell_check.languages',
       'app.zoom_factor',
       'app.tray.on_close'
     ])
-    expect(events.slice(0, 3).every((properties) => !('value' in properties))).toBe(true)
-    expect(events[3]).toMatchObject({ value: 0 })
+    expect(events.slice(1).every((properties) => !('value' in properties))).toBe(true)
+  })
+})
+
+describe('AnalyticsService daily snapshots', () => {
+  const captures = (event: string) =>
+    posthog.capture.mock.calls.map(([message]) => message).filter((message) => message.event === event)
+
+  async function startService(behaviorEvents = 'true') {
+    vi.stubEnv('MAIN_VITE_POSTHOG_KEY', 'phc_test')
+    vi.stubEnv('MAIN_VITE_ANALYTICS_BEHAVIOR_EVENTS', behaviorEvents)
+    const service = new AnalyticsService()
+    await service._doInit()
+    await vi.waitFor(() => expect(service.isActivated).toBe(true))
+    return service
+  }
+
+  beforeEach(() => {
+    MockMainCacheServiceUtils.resetMocks()
+    vi.spyOn(messageService, 'countTopicBranches').mockReturnValue({
+      topicCount: 12,
+      branchedTopicCount: 2,
+      branchCount: 5
+    })
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.restoreAllMocks()
+    for (const key of ['ui.theme_mode', 'app.zoom_factor', 'app.proxy.url', 'app.user.name', 'app.user.avatar']) {
+      delete captured.preferenceValues[key]
+    }
+  })
+
+  it('reports current values, with free text reduced to set or not set and the avatar to its kind', async () => {
+    Object.assign(captured.preferenceValues, {
+      'ui.theme_mode': 'dark',
+      'app.zoom_factor': 1.2,
+      'app.proxy.url': 'http://user:secret@proxy.local',
+      'app.user.name': '',
+      'app.user.avatar': 'file:avatar-id'
+    })
+    await startService()
+
+    const [snapshot] = captures('settings_snapshot')
+    expect(snapshot.properties).toMatchObject({
+      'setting:ui.theme_mode': 'dark',
+      'setting:app.zoom_factor': 1.2,
+      'setting:app.proxy.url': true,
+      'setting:app.user.name': false,
+      'setting:app.user.avatar': 'image'
+    })
+    expect(Object.values(snapshot.properties).some((value) => String(value).includes('secret'))).toBe(false)
+    expect(captures('chat_branch_snapshot')[0].properties).toMatchObject({
+      topic_count: 12,
+      branched_topic_count: 2,
+      branch_count: 5
+    })
+  })
+
+  it("omits a value outside a setting's fixed options", async () => {
+    captured.preferenceValues['ui.theme_mode'] = 'sepia'
+    await startService()
+
+    expect(captures('settings_snapshot')[0].properties).not.toHaveProperty('setting:ui.theme_mode')
+  })
+
+  it('reports once per local day, across restarts and hourly checks', async () => {
+    vi.useFakeTimers({ toFake: ['Date', 'setInterval', 'clearInterval'], now: new Date(2026, 10, 17, 9) })
+    await startService()
+    BaseService.resetInstances()
+    await startService()
+    vi.advanceTimersByTime(60 * 60_000)
+    expect(captures('settings_snapshot')).toHaveLength(1)
+
+    vi.setSystemTime(new Date(2026, 10, 18, 0, 30))
+    vi.advanceTimersByTime(60 * 60_000)
+    expect(captures('settings_snapshot')).toHaveLength(2)
+  })
+
+  it('sends nothing, and remembers no day, while behavior events are off', async () => {
+    await startService('false')
+
+    expect(captures('settings_snapshot')).toEqual([])
+    expect(captures('chat_branch_snapshot')).toEqual([])
+    expect(MockMainCacheServiceExport.cacheService.getPersist('analytics.snapshot.last_day')).toBeNull()
   })
 })
 

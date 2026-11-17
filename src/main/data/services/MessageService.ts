@@ -9,7 +9,8 @@
  */
 
 import { isToolUIPart } from 'ai'
-import { and, asc, eq, gte, inArray, isNotNull, isNull, lte, ne, or, type SQL, sql } from 'drizzle-orm'
+import { and, asc, eq, gte, inArray, isNotNull, isNull, lte, ne, notExists, or, type SQL, sql } from 'drizzle-orm'
+import { alias } from 'drizzle-orm/sqlite-core'
 
 import { application } from '@application'
 import { notifyDataApiDataChange } from '@data/dataApiDataChange'
@@ -732,6 +733,39 @@ export class MessageService {
       )
       .all()
     return rows.map((row) => row.id)
+  }
+
+  /**
+   * Counts live topics and their branches the way the branch panel does: a branch is a leaf message, and a topic
+   * with more than one leaf is branched. `branchCount` sums the leaves of branched topics only.
+   */
+  countTopicBranches(): { topicCount: number; branchedTopicCount: number; branchCount: number } {
+    const db = application.get('DbService').getDb()
+    const child = alias(messageTable, 'child')
+    const rows = db
+      .select({ leaves: sql<number>`count(*)` })
+      .from(messageTable)
+      .innerJoin(topicTable, eq(messageTable.topicId, topicTable.id))
+      .where(
+        and(
+          isNull(messageTable.deletedAt),
+          isNull(topicTable.deletedAt),
+          notExists(
+            db
+              .select({ id: child.id })
+              .from(child)
+              .where(and(eq(child.parentId, messageTable.id), isNull(child.deletedAt)))
+          )
+        )
+      )
+      .groupBy(messageTable.topicId)
+      .all()
+    const branched = rows.filter((row) => row.leaves > 1)
+    return {
+      topicCount: rows.length,
+      branchedTopicCount: branched.length,
+      branchCount: branched.reduce((total, row) => total + row.leaves, 0)
+    }
   }
 
   listLiveCreatedInRangeMetadataPage({

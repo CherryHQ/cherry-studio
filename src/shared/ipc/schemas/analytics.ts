@@ -201,7 +201,7 @@ export type MainAnalyticsEvent =
   | { event: 'setting_changed'; key: string; value?: boolean | number | string }
   // One property per catalogued setting, keyed `setting:<preference key>`; free-text settings report set or not.
   | ({ event: 'settings_snapshot' } & Record<`setting:${string}`, boolean | number | string>)
-  | { event: 'chat_branch_snapshot'; topicCount: number; branchedTopicCount: number }
+  | { event: 'chat_branch_snapshot'; topicCount: number; branchedTopicCount: number; branchCount: number }
   | FeatureUsedEvent
 
 export type ProductAnalyticsEvent = RendererAnalyticsEvent | MainAnalyticsEvent
