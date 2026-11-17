@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-09-agent-terminal-and-durable-shutdown.md
+2026-11-09-agent-terminal-and-durable-shutdown.md: 56fd9a94c669bd773db068e153026fd406662957
+2026-11-09-agent-terminal-and-durable-shutdown.zh.md: 701f1e4f3b2b22dc53550ed91cf60bda71ba18d5

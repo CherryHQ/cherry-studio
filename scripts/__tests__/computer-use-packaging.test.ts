@@ -13,7 +13,7 @@ it('ships an SDK that loads and resolves types without a local checkout or nativ
   const require = createRequire(import.meta.url)
   const sdkRoot = path.dirname(path.dirname(require.resolve('@cherrystudio/computer-use')))
   const sdkManifest = JSON.parse(await readFile(path.join(sdkRoot, 'package.json'), 'utf8'))
-  expect(sdkManifest.version).toBe(manifest.dependencies['@cherrystudio/computer-use'])
+  expect(sdkManifest.version).toBe(manifest.devDependencies['@cherrystudio/computer-use'])
 
   const consumer = await mkdtemp(path.join(tmpdir(), 'cherry-computer-use-package-'))
   try {

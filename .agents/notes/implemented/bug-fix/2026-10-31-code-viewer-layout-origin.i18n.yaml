@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-10-31-code-viewer-layout-origin.md
+2026-10-31-code-viewer-layout-origin.md: 5f9034854b91e03faab203b98d1fca470bb2c5e0
+2026-10-31-code-viewer-layout-origin.zh.md: d1cb2018fd74041865a7a3c64bbf3da1f5bc6822

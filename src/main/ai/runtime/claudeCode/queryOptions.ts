@@ -33,8 +33,6 @@ export function createClaudeCodeQueryOptions({
     // oxlint-disable-next-line no-unused-vars
     approvalEmitter: _approvalEmitter,
     // oxlint-disable-next-line no-unused-vars
-    steerHolder: _steerHolder,
-    // oxlint-disable-next-line no-unused-vars
     warmQueryKey: _warmQueryKey,
     // oxlint-disable-next-line no-unused-vars
     toolPolicySnapshot: _toolPolicySnapshot,
@@ -47,6 +45,8 @@ export function createClaudeCodeQueryOptions({
 
   const opts: Partial<Options> = {
     ...settingsRest,
+    // The SDK requires this launch flag for a confirmed mid-turn switch to Full Access.
+    allowDangerouslySkipPermissions: true,
     spawnClaudeCodeProcess,
     model: modelId,
     ...(abortController ? { abortController } : {}),

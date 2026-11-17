@@ -44,12 +44,12 @@ function IconFooter({ user, userAction, actions, extensionsLabel, onExtensionsCl
       size="icon"
       className="shell-navigation-item rounded-full"
       onClick={user.onClick}>
-      <UserAvatar user={user} className="size-6" />
+      <UserAvatar user={user} className="size-6.5" />
     </Button>
   ) : null
 
   return (
-    <div className="flex flex-col items-center gap-1 px-1.5 pt-2 pb-1.5 [-webkit-app-region:no-drag]">
+    <div className="flex flex-col items-center gap-1 px-1.5 pt-2 pb-2.5 [-webkit-app-region:no-drag]">
       {extensionsLabel && (
         <SidebarTooltip content={extensionsLabel}>
           <Button
@@ -78,15 +78,15 @@ function FullFooter({ user, userAction, actions, extensionsLabel, onExtensionsCl
       type="button"
       variant="ghost"
       aria-label={user.name}
-      className="shell-navigation-item min-w-0 flex-1 justify-start gap-2 rounded-full py-1.5 pr-1 pl-2 text-left"
+      className="shell-navigation-item h-9 min-w-0 flex-1 justify-start gap-2 rounded-full py-0 pr-1 pl-2 text-left"
       onClick={user.onClick}>
-      <UserAvatar user={user} className="size-6 shrink-0" />
+      <UserAvatar user={user} className="size-6.5 shrink-0" />
       <span className="min-w-0 truncate text-[13px] text-sidebar-foreground">{user.name}</span>
     </Button>
   ) : null
 
   return (
-    <div className="space-y-1 py-2 pr-1 pl-2 [-webkit-app-region:no-drag]">
+    <div className="space-y-1 px-2 pt-2 pb-3 [-webkit-app-region:no-drag]">
       {extensionsLabel && (
         <Button
           type="button"

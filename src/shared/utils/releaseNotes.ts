@@ -1,4 +1,4 @@
-import { rcompare as compareSemverDescending } from 'semver'
+import { rcompare as compareSemverDescending, valid } from 'semver'
 
 const RELEASE_NOTE_MARKERS = {
   english: '<!--LANG:en-->',
@@ -7,6 +7,10 @@ const RELEASE_NOTE_MARKERS = {
 } as const
 
 const STABLE_RELEASE_VERSION_PATTERN = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/
+
+export function isStableReleaseVersion(version: string): boolean {
+  return STABLE_RELEASE_VERSION_PATTERN.test(version) && valid(version) !== null
+}
 
 export type ReleaseNotesEntry = {
   releaseNotes: string

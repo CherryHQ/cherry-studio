@@ -47,12 +47,36 @@ const gptImage25ImageGeneration = {
   }
 }
 
+const gptImage26EditSupports = {
+  complexity: { options: ['low', 'medium', 'high'], type: 'enum' as const },
+  outputFormat: { options: ['png', 'jpeg', 'webp', 'gif'], type: 'enum' as const },
+  frameCount: { min: 2, max: 16, default: 9, step: 1, type: 'range' as const },
+  frameDurationMs: { min: 20, max: 655350, default: 200, step: 10, type: 'range' as const },
+  background: gptImageFullSupports.background,
+  numImages: gptImageFullSupports.numImages,
+  quality: gptImageFullSupports.quality,
+  size: gptImageFullSupports.size
+}
+
+const gptImage26ImageGeneration = {
+  modes: {
+    generate: {
+      supports: {
+        ...gptImage26EditSupports,
+        moderation: gptImageFullSupports.moderation
+      }
+    },
+    edit: { supports: gptImage26EditSupports }
+  }
+}
+
 export default defineCreator({
   id: 'openai',
   name: 'OpenAI',
   fetchModels: openaiCompatible('openai', 'OPENAI_API_KEY'),
   modelsDevProviders: ['openai'],
   reasoningFamilies: [
+    { pattern: '^gpt-6[.-]2-(?:astra|sol)(?:$|-)', effort: ['low', 'medium', 'high', 'xhigh', 'max'] },
     { pattern: '^gpt-6[.-]1-sol(?:$|-)', effort: ['low', 'medium', 'high', 'xhigh', 'max'] },
     { pattern: '^gpt-6-astra', effort: ['low', 'medium', 'high', 'xhigh', 'max'] },
     { pattern: '^(?:o\\d|gpt).*deep[-_]?research', effort: ['medium'] },
@@ -99,6 +123,26 @@ export default defineCreator({
   webSearchUnsupportedEfforts: [{ pattern: '^gpt-5(?![.-]\\d)(?!.*chat)', efforts: ['minimal'] }],
   models: [
     {
+      id: 'gpt-image-2-6-flare',
+      name: 'GPT Image 2.6 Flare',
+      family: 'gpt-image',
+      capabilities: ['image-recognition', 'image-generation'],
+      inputModalities: ['text', 'image'],
+      outputModalities: ['image'],
+      endpointTypes: ['openai-image-generation', 'openai-image-edit'],
+      imageGeneration: gptImage26ImageGeneration
+    },
+    {
+      id: 'gpt-image-2-6-sunburst',
+      name: 'GPT Image 2.6 Sunburst',
+      family: 'gpt-image',
+      capabilities: ['image-recognition', 'image-generation'],
+      inputModalities: ['text', 'image'],
+      outputModalities: ['image'],
+      endpointTypes: ['openai-image-generation', 'openai-image-edit'],
+      imageGeneration: gptImage26ImageGeneration
+    },
+    {
       id: 'gpt-6.1-terra',
       name: 'GPT-6.1 Terra',
       family: 'gpt',
@@ -136,6 +180,86 @@ export default defineCreator({
       },
       reasoning: {
         controls: [{ kind: 'effort', values: ['none', 'low', 'medium', 'high', 'xhigh', 'max'], default: 'medium' }]
+      }
+    },
+    {
+      id: 'gpt-6.2-astra',
+      name: 'GPT-6.2 Astra',
+      family: 'gpt',
+      capabilities: ['reasoning', 'function-call', 'image-recognition', 'structured-output', 'file-search'],
+      inputModalities: ['text', 'image'],
+      outputModalities: ['text'],
+      endpointTypes: ['openai-responses'],
+      contextWindow: 1050000,
+      maxInputTokens: 922000,
+      maxOutputTokens: 128000,
+      pricing: {
+        input: { currency: 'USD', perMillionTokens: 8 },
+        cacheRead: { currency: 'USD', perMillionTokens: 0.4 },
+        cacheWrite: { currency: 'USD', perMillionTokens: 10 },
+        output: { currency: 'USD', perMillionTokens: 40 },
+        inputTokenTiers: [
+          {
+            minInputTokens: 272001,
+            input: { currency: 'USD', perMillionTokens: 16 },
+            cacheRead: { currency: 'USD', perMillionTokens: 0.8 },
+            cacheWrite: { currency: 'USD', perMillionTokens: 20 },
+            output: { currency: 'USD', perMillionTokens: 60 }
+          }
+        ]
+      },
+      parameterSupport: {
+        temperature: { supported: false },
+        topP: { supported: false },
+        topK: { supported: false },
+        frequencyPenalty: false,
+        presencePenalty: false,
+        maxTokens: true,
+        stopSequences: false,
+        systemMessage: true
+      },
+      reasoning: {
+        controls: [{ kind: 'effort', values: ['low', 'medium', 'high', 'xhigh', 'max'], default: 'medium' }]
+      }
+    },
+    {
+      id: 'gpt-6.2-sol',
+      name: 'GPT-6.2 Sol',
+      family: 'gpt',
+      capabilities: ['reasoning', 'function-call', 'image-recognition', 'structured-output', 'file-search'],
+      inputModalities: ['text', 'image'],
+      outputModalities: ['text'],
+      endpointTypes: ['openai-responses'],
+      contextWindow: 1050000,
+      maxInputTokens: 922000,
+      maxOutputTokens: 128000,
+      pricing: {
+        input: { currency: 'USD', perMillionTokens: 2 },
+        cacheRead: { currency: 'USD', perMillionTokens: 0.1 },
+        cacheWrite: { currency: 'USD', perMillionTokens: 2.5 },
+        output: { currency: 'USD', perMillionTokens: 10 },
+        inputTokenTiers: [
+          {
+            minInputTokens: 272001,
+            input: { currency: 'USD', perMillionTokens: 4 },
+            cacheRead: { currency: 'USD', perMillionTokens: 0.2 },
+            cacheWrite: { currency: 'USD', perMillionTokens: 5 },
+            output: { currency: 'USD', perMillionTokens: 15 }
+          }
+        ]
+      },
+      parameterSupport: {
+        temperature: { supported: false },
+        topP: { supported: false },
+        topK: { supported: false },
+        frequencyPenalty: false,
+        presencePenalty: false,
+        maxTokens: true,
+        stopSequences: false,
+        systemMessage: true
+      },
+      reasoning: {
+        controls: [{ kind: 'effort', values: ['low', 'medium', 'high', 'xhigh', 'max'], default: 'medium' }]
       }
     },
     {

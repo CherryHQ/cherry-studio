@@ -14,6 +14,7 @@
 import type { RequestFeature } from '../feature'
 import { anthropicCacheFeature } from './anthropicCache'
 import { anthropicHeadersFeature } from './anthropicHeaders'
+import { bedrockAnthropicCacheFeature } from './bedrockAnthropicCache'
 import { contextBuildFeature } from './contextBuild'
 import { deepseekDsmlParserFeature } from './deepseekDsmlParserPlugin'
 import { deepseekResponsesReasoningReplayFeature } from './deepseekResponsesReasoningReplay'
@@ -52,6 +53,8 @@ export const INTERNAL_FEATURES: readonly RequestFeature[] = [
   // the context middleware's IR round-trip — pinned by contextBuild.test.ts).
   contextBuildFeature,
   anthropicCacheFeature,
+  // Bedrock drops the `anthropic` markers above and reads message-level cache points instead.
+  bedrockAnthropicCacheFeature,
   // Vercel AI Gateway drops the `anthropic` markers above and caches on its own option instead.
   gatewayAnthropicCacheFeature,
   anthropicHeadersFeature,

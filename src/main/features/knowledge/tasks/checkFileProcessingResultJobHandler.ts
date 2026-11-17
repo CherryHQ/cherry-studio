@@ -3,30 +3,17 @@ import { application } from '@application'
 import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import { loggerService } from '@logger'
 import type { JobHandler } from '@main/core/job/types'
-import {
-  type FileProcessingJobPayload,
-  getFileProcessingFailureMessage,
-  getFileProcessingMarkdownArtifactPath
-} from '@main/features/fileProcessing'
-import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
 import type { KeyedMutex } from '@shared/utils/async'
 
 import type { KnowledgeItemScheduler } from '../ingestion/KnowledgeIngestionService'
 import { knowledgeQueueName, reportKnowledgeProgress, toKnowledgeBaseId, toKnowledgeItemId } from '../types'
 import type { KnowledgeCheckFileProcessingResultPayload } from './jobTypes'
-import { cancelJobOrThrow } from './utils/cancel'
+import { cancelFileProcessingTaskOrThrow } from './utils/cancel'
 import { resolveLiveKnowledgeItem } from './utils/liveItem'
 import { markKnowledgeItemFailedOnSettled } from './utils/settled'
 
 const logger = loggerService.withContext('Knowledge:CheckFileProcessingResultJobHandler')
 const FILE_PROCESSING_ITEM_UNAVAILABLE_CANCEL_REASON = 'knowledge-file-processing-item-unavailable'
-// Every job type `FileProcessingService.startJob` can enqueue. Keep in sync with
-// its routing — a missing type here fails every item that processor handles.
-const FILE_PROCESSING_JOB_TYPES: ReadonlySet<string> = new Set([
-  'file-processing.background',
-  'file-processing.background-local',
-  'file-processing.remote-poll'
-])
 
 export function createCheckFileProcessingResultJobHandler(
   knowledgeLockManager: KeyedMutex,
@@ -47,60 +34,33 @@ export function createCheckFileProcessingResultJobHandler(
     defaultTimeoutMs: 2 * 60 * 1000,
 
     async execute(ctx) {
-      const { baseId, itemId, fileProcessingJobId } = ctx.input
+      const { baseId, itemId, fileProcessingTaskId } = ctx.input
+      // A direct add has no parent; this job's own id then scopes the index idempotency key.
       const workflowParentJobId = ctx.parentId ?? ctx.jobId
       ctx.signal.throwIfAborted()
 
       if (shouldSkipMissingOrDeletingItem(baseId, itemId, ctx.jobId)) {
-        await cancelJobOrThrow(fileProcessingJobId, FILE_PROCESSING_ITEM_UNAVAILABLE_CANCEL_REASON)
+        await cancelFileProcessingTaskOrThrow(fileProcessingTaskId, FILE_PROCESSING_ITEM_UNAVAILABLE_CANCEL_REASON)
         return
       }
 
-      // A job persisted before `processedRelativePath` became a required payload field
-      // (see jobInput.ts) can still be claimed inside the startup quiet window before
-      // recovery abandons it. Its indexed path is unrecoverable — deriving it from the
-      // completed file-processing artifact would give the processor's OUTPUT path, not
-      // the KB raw path this item is addressed by — so fail the item loudly instead of
-      // indexing at an `undefined` path. Cancel the linked file-processing job first
-      // (recovery: 'retry', so it is live again after restart and keeps polling/paying);
-      // this handler is its only consumer, and the cancel helpers can't reap it either
-      // (no in-memory wait tracks a job started before the restart).
-      if (typeof ctx.input.processedRelativePath !== 'string' || ctx.input.processedRelativePath.length === 0) {
-        await cancelJobOrThrow(fileProcessingJobId, 'knowledge-file-processing-legacy-payload')
-        markItemFailed(
-          itemId,
-          `Knowledge file-processing check for '${itemId}' has no processedRelativePath (legacy job payload)`
-        )
+      const task = await application.get('FileProcessingService').getTask(fileProcessingTaskId)
+
+      if (!task) {
+        markItemFailed(itemId, `File processing task not found: ${fileProcessingTaskId}`)
         reportKnowledgeProgress(ctx, 100, { stage: 'failed' })
         return
       }
 
-      const jobManager = application.get('JobManager')
-      const snapshot = await jobManager.get(fileProcessingJobId)
-
-      if (!snapshot) {
-        markItemFailed(itemId, `File processing job not found: ${fileProcessingJobId}`)
+      if (task.status === 'failed' || task.status === 'cancelled') {
+        markItemFailed(itemId, `File processing task ${fileProcessingTaskId} ${task.status}: ${task.error}`)
         reportKnowledgeProgress(ctx, 100, { stage: 'failed' })
         return
       }
 
-      if (!isExpectedFileProcessingJob(snapshot, itemId)) {
-        markItemFailed(itemId, `Invalid file processing job for knowledge item: ${fileProcessingJobId}`)
-        reportKnowledgeProgress(ctx, 100, { stage: 'failed' })
-        return
-      }
-
-      if (snapshot.status !== 'completed') {
-        markItemFailed(
-          itemId,
-          `File processing job ${fileProcessingJobId} ${snapshot.status}: ${getFileProcessingFailureMessage(snapshot)}`
-        )
-        reportKnowledgeProgress(ctx, 100, { stage: 'failed' })
-        return
-      }
-
-      if (!isCompletedMarkdownArtifact(snapshot)) {
-        markItemFailed(itemId, `Invalid file processing result for job ${fileProcessingJobId}`)
+      // The item is indexed from its own processedRelativePath; the artifact only has to be markdown.
+      if (task.status !== 'completed' || task.artifact.kind !== 'file') {
+        markItemFailed(itemId, `Invalid file processing result for task ${fileProcessingTaskId}`)
         reportKnowledgeProgress(ctx, 100, { stage: 'failed' })
         return
       }
@@ -135,17 +95,6 @@ export function createCheckFileProcessingResultJobHandler(
   }
 }
 
-function isExpectedFileProcessingJob(snapshot: JobSnapshot, itemId: string): boolean {
-  if (!FILE_PROCESSING_JOB_TYPES.has(snapshot.type)) {
-    return false
-  }
-  if (!snapshot.input || typeof snapshot.input !== 'object') {
-    return false
-  }
-  const input = snapshot.input as FileProcessingJobPayload
-  return input.feature === 'document_to_markdown' && input.context?.dataId === itemId && input.output?.kind === 'path'
-}
-
 function shouldSkipMissingOrDeletingItem(baseId: string, itemId: string, jobId: string): boolean {
   const result = resolveLiveKnowledgeItem(itemId)
   if ('skip' in result) {
@@ -173,22 +122,4 @@ function markItemFailed(itemId: string, error: string): void {
     return
   }
   knowledgeItemService.updateStatus(itemId, 'failed', { error })
-}
-
-/**
- * Validates that a completed file-processing job actually produced a markdown-file
- * artifact (not a degraded inline-text result) — the item's `indexedRelativePath`
- * is the job's own `processedRelativePath` input, not derived from this artifact.
- */
-function isCompletedMarkdownArtifact(snapshot: JobSnapshot): boolean {
-  try {
-    getFileProcessingMarkdownArtifactPath(snapshot)
-    return true
-  } catch (error) {
-    logger.warn('Invalid file-processing result for knowledge item', {
-      jobId: snapshot.id,
-      error: error instanceof Error ? error.message : String(error)
-    })
-    return false
-  }
 }

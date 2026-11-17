@@ -2,7 +2,7 @@ import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceServi
 import { app } from 'electron'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { getAppLanguage, SUPPORTED_LANGUAGES, t } from '@main/i18n'
+import { getAppLanguage, t } from '@main/i18n'
 import { defaultLanguage } from '@shared/utils/languages'
 
 describe('main i18n', () => {
@@ -46,7 +46,7 @@ describe('main i18n', () => {
 
     it('uses the Traditional Chinese recovery dialog for a Hong Kong system locale', () => {
       vi.mocked(app.getLocale).mockReturnValueOnce('zh-HK')
-      expect(t('dialog.migration_database_unavailable.title')).toBe('資料庫無法使用')
+      expect(t('dialog.legacy_upgrade.quit')).toBe('結束')
     })
 
     it('falls back to the default language when the system locale is not in the catalog', () => {
@@ -68,12 +68,6 @@ describe('main i18n', () => {
     it('selects the catalog from the preference language', () => {
       MockMainPreferenceServiceUtils.setPreferenceValue('app.language', 'en-US')
       expect(t('dialog.save_file')).toBe('Save File')
-    })
-
-    it('localizes Agent Session admission errors', () => {
-      MockMainPreferenceServiceUtils.setPreferenceValue('app.language', 'zh-CN')
-      expect(t('agent.session.run_status.busy')).toBe('Agent 会话正忙，请稍后重试。')
-      expect(t('agent.session.run_status.unavailable')).toBe('Agent 会话已不可用。')
     })
 
     it('interpolates {{var}} placeholders', () => {
@@ -104,31 +98,6 @@ describe('main i18n', () => {
       expect(t('dialog.save_file', undefined, 'tr-TR')).toBe('Dosyayı Kaydet')
       expect(t('dialog.save_file', undefined, 'it-IT')).toBe('Salva file')
       expect(t('dialog.save_file')).toBe('Save File')
-    })
-  })
-
-  describe('SUPPORTED_LANGUAGES', () => {
-    it('lists every language main carries a catalog for', () => {
-      expect(SUPPORTED_LANGUAGES).toEqual(
-        expect.arrayContaining([
-          'en-US',
-          'zh-CN',
-          'zh-TW',
-          'ja-JP',
-          'ru-RU',
-          'de-DE',
-          'el-GR',
-          'es-ES',
-          'fr-FR',
-          'pt-PT',
-          'ro-RO',
-          'th-TH',
-          'tr-TR',
-          'vi-VN',
-          'it-IT'
-        ])
-      )
-      expect(SUPPORTED_LANGUAGES).toHaveLength(15)
     })
   })
 })

@@ -1,3 +1,5 @@
+import { resolve } from 'node:path'
+
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const scan = vi.hoisted(() => ({ collectErrorLogRecords: vi.fn(), diagnose: vi.fn() }))
@@ -46,7 +48,7 @@ describe('logs-recent-findings', () => {
     })
     await expect(recentLogFindings.run(ctx)).resolves.toEqual({ status: 'pass' })
     expect(scan.collectErrorLogRecords).toHaveBeenCalledWith(
-      '/mock/app.logs',
+      resolve('/mock/app.logs'),
       {
         fromMs: 1_999_395_200_000,
         toMs: 2_000_000_000_000

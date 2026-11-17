@@ -3,8 +3,11 @@ import path from 'node:path'
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { logFailure } from '@main/core/logger/logFailure'
 import { WindowType } from '@main/core/window/types'
-import { hasWritePermission, isPathInside, untildify } from '@main/utils/legacyFile'
+import { publishBackupResult } from '@main/services/backupNotifications'
+import { isSameOrInside } from '@main/utils/file'
+import { hasWritePermission, untildify } from '@main/utils/legacyFile'
 import type { UnifiedPreferenceKeyType } from '@shared/data/preference/preferenceTypes'
 import {
   AUTO_BACKUP_TYPES,
@@ -18,7 +21,12 @@ import {
 } from '@shared/types/backup'
 import { NUTSTORE_HOST } from '@shared/utils/nutstore'
 
-import { BackupActiveWritersError, BackupOperationBusyError, legacyBackupManager } from './LegacyBackupManager'
+import {
+  BackupActiveWritersError,
+  BackupOperationBusyError,
+  classifyBackupFailure,
+  legacyBackupManager
+} from './LegacyBackupManager'
 import { decryptToken } from './nutstore/NutstoreService'
 
 const logger = loggerService.withContext('AutoBackupService')
@@ -66,7 +74,8 @@ const createScheduleState = (): ScheduleState => ({
   'ChannelManager',
   'AiStreamManager',
   'AgentSessionRuntimeService',
-  'JobManager'
+  'JobManager',
+  'NotificationService'
 ])
 export class AutoBackupService extends BaseService {
   private active = false
@@ -288,9 +297,12 @@ export class AutoBackupService extends BaseService {
       state.retryCount = 0
       state.running = false
       const errorMessage = error instanceof Error ? error.message : String(error)
-      logger.error(
+      logFailure(
+        logger,
         payloadTooLarge ? 'Automatic backup rejected: HTTP 413' : 'Automatic backup failed after all attempts',
-        error as Error
+        error,
+        'backup.automatic',
+        classifyBackupFailure(error)
       )
       this.emit({ type, status: 'failed', timestamp, errorMessage })
       this.scheduleNext(type, 'fromNow', generation)
@@ -367,8 +379,8 @@ export class AutoBackupService extends BaseService {
 
   private async validateLocalBackupDirectory(directory: string): Promise<void> {
     if (
-      isPathInside(directory, application.getPath('app.userdata')) ||
-      isPathInside(directory, application.getPath('app.install'))
+      isSameOrInside(directory, application.getPath('app.userdata')) ||
+      isSameOrInside(directory, application.getPath('app.install'))
     ) {
       throw new Error('Local automatic backup directory cannot be inside application data or installation directory.')
     }
@@ -433,6 +445,9 @@ export class AutoBackupService extends BaseService {
 
   private emit(event: AutoBackupEventInput): void {
     if (!this.active) return
+    if (event.status === 'succeeded' || event.status === 'warning' || event.status === 'failed') {
+      publishBackupResult(`backup:auto:${event.type}:${event.timestamp}`, event.status, event.timestamp)
+    }
     const emittedEvent = { ...event, id: ++this.nextEventId }
     application.get('CacheService').setShared(`backup.auto_sync.state.${event.type}`, emittedEvent)
     if (event.status === 'warning' || event.status === 'failed') {
