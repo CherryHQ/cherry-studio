@@ -151,7 +151,7 @@ const MessageErrorInfo: React.FC<{
   // would render the raw tags, and the provider branch needs the <Trans> link form.
   const localizedErrorMessage = useMemo(() => {
     if (cherryCloudQuotaRejection) return t('models.detail.quota_exhausted')
-    if (hasAppOwnedI18nKey && !providerId) return t(appOwnedErrorKey)
+    if (hasAppOwnedI18nKey && !/<provider(?:\s|>)/.test(t(appOwnedErrorKey))) return t(appOwnedErrorKey)
     if (localModelFailure) {
       const { providerId: failedProviderId, modelId } = localModelFailure
       if (!modelId) return t('code.select_provider_model')

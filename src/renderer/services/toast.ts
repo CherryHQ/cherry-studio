@@ -68,6 +68,7 @@ function errorFromException(error: unknown, context: ErrorToastContext = {}): st
     ...context.actions
   }
   const actionKind = presentation.action
+  const appKey = typeof serialized.i18nKey === 'string' ? `error.${serialized.i18nKey}` : ''
   const diagnosisKey = `error.diagnosis.${category}`
   const actionLabelKey = `toast.error.${actionKind}`
   const run = actionKind ? actions[actionKind] : undefined
@@ -77,7 +78,9 @@ function errorFromException(error: unknown, context: ErrorToastContext = {}): st
     title: planQuota
       ? i18n.t('models.detail.quota_exhausted')
       : category === 'unknown'
-        ? details || i18n.t('error.unknown')
+        ? appKey && i18n.exists(appKey)
+          ? i18n.t(appKey)
+          : details || i18n.t('error.unknown')
         : i18n.t(diagnosisKey),
     description:
       [
