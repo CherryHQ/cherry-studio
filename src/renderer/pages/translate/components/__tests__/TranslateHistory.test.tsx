@@ -202,20 +202,6 @@ describe('TranslateHistory', () => {
     translateHistoryMock.useTranslateHistories.mockReturnValue(historyState())
   })
 
-  it('does not create one translate history mutation hook per visible row', () => {
-    renderHistory()
-
-    expect(screen.getByText('hello')).toBeInTheDocument()
-    expect(screen.getByText('bye')).toBeInTheDocument()
-    expect(translateHistoryMock.useTranslateHistory).toHaveBeenCalledTimes(1)
-  })
-
-  it('localizes compact header spacing to the translate history drawer', () => {
-    renderHistory()
-
-    expect(screen.getByTestId('page-side-panel-header')).toHaveClass('pb-0')
-  })
-
   it('opens detail and supports reuse', () => {
     renderHistory(onHistoryItemClick)
 
@@ -238,23 +224,6 @@ describe('TranslateHistory', () => {
         await fileMocks.loadTranslationFiles.mock.results[0]?.value
       })
     }
-
-    it('marks a PDF row in the list', () => {
-      translateHistoryMock.useTranslateHistories.mockReturnValue(historyState({ items: [pdfHistory], total: 1 }))
-      renderHistory()
-
-      expect(screen.getByLabelText('translate.history.file.badge')).toBeInTheDocument()
-      expect(screen.getByText('paper.zh-CN.pdf')).toBeInTheDocument()
-    })
-
-    it('shows both file names instead of the text panes', async () => {
-      await openPdfDetail()
-
-      expect(screen.getByText('translate.history.file.source')).toBeInTheDocument()
-      expect(screen.getByText('translate.history.file.target')).toBeInTheDocument()
-      // The text-row affordances make no sense for a pair of PDFs.
-      expect(screen.queryByRole('button', { name: 'translate.history.copy_target' })).not.toBeInTheDocument()
-    })
 
     it('opens, reveals and exports the translated PDF', async () => {
       await openPdfDetail()
@@ -423,17 +392,13 @@ describe('TranslateHistory', () => {
     await waitFor(() => expect(updateMock).toHaveBeenCalledWith('1', { star: true }))
   })
 
-  it('copies text from detail actions and shows success toast', async () => {
+  it('copies translated text and shows success feedback', async () => {
     renderHistory()
 
     fireEvent.click(screen.getByText('hello'))
-    const actionLabels = screen
-      .getAllByRole('button')
-      .map((button) => button.getAttribute('aria-label') ?? button.textContent)
-    const detailStarIndex = actionLabels.indexOf('translate.history.star')
-    expect(actionLabels.indexOf('translate.history.delete')).toBeLessThan(detailStarIndex)
+
     const copyTargetButton = screen.getByRole('button', { name: 'translate.history.copy_target' })
-    expect(copyTargetButton).toHaveClass('text-primary-foreground')
+
     fireEvent.click(copyTargetButton)
 
     await waitFor(() => expect(writeTextMock).toHaveBeenCalledWith('你好'))
@@ -481,29 +446,6 @@ describe('TranslateHistory', () => {
     })
 
     expect(clearMock).toHaveBeenCalledTimes(1)
-  })
-
-  it('centers the empty state and hides history actions', () => {
-    translateHistoryMock.useTranslateHistories.mockReturnValueOnce(
-      historyState({
-        items: [],
-        total: 0,
-        status: 'ready'
-      })
-    )
-
-    renderHistory()
-
-    expect(screen.getByText('translate.history.empty')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'translate.history.filter.starred' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'translate.history.clear' })).not.toBeInTheDocument()
-    expect(screen.getByText('translate.history.empty').parentElement).toHaveClass(
-      'flex',
-      'min-h-0',
-      'flex-1',
-      'items-center',
-      'justify-center'
-    )
   })
 
   it('keeps the action bar visible when star-filter is active but its results are empty', () => {

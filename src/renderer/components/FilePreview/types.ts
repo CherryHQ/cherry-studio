@@ -1,5 +1,7 @@
 import type { ComponentType } from 'react'
 
+import type { LineComment } from '@renderer/components/FileEditor'
+import type { FileLocation } from '@renderer/types/fileLocation'
 import type { SelectionReference } from '@renderer/types/selectionReference'
 import type { AbsoluteFilePath, PhysicalFileMetadata } from '@shared/types/file'
 
@@ -9,6 +11,7 @@ export type FilePreviewMetadataRequest = () => Promise<PhysicalFileMetadata | nu
 export type FilePreviewType = 'artifact' | 'file'
 
 export interface FilePreviewPluginProps {
+  location?: FileLocation
   filePath: AbsoluteFilePath
   fileName: string
   metadata: FilePreviewFileMetadata
@@ -24,6 +27,8 @@ export interface FilePreviewPluginProps {
    * embedding surface's concern, never the plugin's.
    */
   onSelectionReference?: (reference: SelectionReference | null) => void
+  /** Enables line comments in text previews without making the file editable. */
+  onLineComment?: (comment: LineComment) => void
 }
 
 export interface FilePreviewPlugin {

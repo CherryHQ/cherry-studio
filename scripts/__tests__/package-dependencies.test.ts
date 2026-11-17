@@ -23,6 +23,26 @@ function packageRequire(name: string, from: NodeJS.Require): NodeJS.Require {
   return createRequire(realpathSync(path.join(directory, name, 'package.json')))
 }
 
+async function collectProductionModules(): Promise<CollectedModule[]> {
+  const temporaryDirectory = new TmpDir()
+  try {
+    const { nodeModules } = await new PnpmNodeModulesCollector(projectRoot, temporaryDirectory).getNodeModules({
+      packageName: 'CherryStudio'
+    })
+    const modules: CollectedModule[] = []
+    const visit = (nodes: CollectedModule[]) => {
+      for (const node of nodes) {
+        modules.push(node)
+        visit(node.dependencies ?? [])
+      }
+    }
+    visit(nodeModules)
+    return modules
+  } finally {
+    await temporaryDirectory.cleanup()
+  }
+}
+
 const piRequire = packageRequire('@earendil-works/pi-ai', require)
 
 describe('packaged Smithy dependencies', () => {
@@ -57,33 +77,18 @@ describe('packaged Smithy dependencies', () => {
   })
 
   it('collects one compatible Smithy core for all production consumers', async () => {
-    const temporaryDirectory = new TmpDir()
-    try {
-      const { nodeModules } = await new PnpmNodeModulesCollector(projectRoot, temporaryDirectory).getNodeModules({
-        packageName: 'CherryStudio'
-      })
-      const modules: CollectedModule[] = []
-      const visit = (nodes: CollectedModule[]) => {
-        for (const node of nodes) {
-          modules.push(node)
-          visit(node.dependencies ?? [])
-        }
-      }
-      visit(nodeModules)
-      const cores = modules.filter((node) => node.name === '@smithy/core')
-      expect(cores).toHaveLength(1)
-      let consumers = 0
-      for (const node of modules) {
-        const manifest = JSON.parse(readFileSync(path.join(node.dir, 'package.json'), 'utf8'))
-        const range = manifest.dependencies?.['@smithy/core']
-        if (!range) continue
-        consumers++
-        expect(satisfies(cores[0].version, range), `${node.name}: ${range}`).toBe(true)
-      }
-      expect(consumers).toBeGreaterThan(0)
-    } finally {
-      await temporaryDirectory.cleanup()
+    const modules = await collectProductionModules()
+    const cores = modules.filter((node) => node.name === '@smithy/core')
+    expect(cores).toHaveLength(1)
+    let consumers = 0
+    for (const node of modules) {
+      const manifest = JSON.parse(readFileSync(path.join(node.dir, 'package.json'), 'utf8'))
+      const range = manifest.dependencies?.['@smithy/core']
+      if (!range) continue
+      consumers++
+      expect(satisfies(cores[0].version, range), `${node.name}: ${range}`).toBe(true)
     }
+    expect(consumers).toBeGreaterThan(0)
   }, 60_000)
 
   it.each([['Pi', piRequire]] as const)(
@@ -128,4 +133,29 @@ describe('packaged Smithy dependencies', () => {
       }
     }
   )
+})
+
+describe('packaged production dependency closure', () => {
+  // Moving a package to devDependencies can drop the only production source of another package's
+  // peer; dev and tests still resolve it from the workspace, so only the packaged app fails to load.
+  it('ships every required peer of every packaged module', async () => {
+    const modules = await collectProductionModules()
+    const versions = new Map<string, string[]>()
+    for (const node of modules) versions.set(node.name, [...(versions.get(node.name) ?? []), node.version])
+    const unmet: string[] = []
+    let checked = 0
+    for (const node of modules) {
+      const manifest = JSON.parse(readFileSync(path.join(node.dir, 'package.json'), 'utf8'))
+      for (const [peer, range] of Object.entries<string>(manifest.peerDependencies ?? {})) {
+        if (manifest.peerDependenciesMeta?.[peer]?.optional) continue
+        checked++
+        const shipped = versions.get(peer) ?? []
+        if (!shipped.some((version) => satisfies(version, range))) {
+          unmet.push(`${node.name} -> ${peer}@${range} (shipped: ${shipped.join(', ') || 'none'})`)
+        }
+      }
+    }
+    expect(checked).toBeGreaterThan(0)
+    expect(unmet).toEqual([])
+  }, 60_000)
 })

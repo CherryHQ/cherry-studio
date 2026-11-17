@@ -1,6 +1,7 @@
 import { net } from 'electron'
 import WebSocket from 'ws'
 
+import { t } from '@main/i18n'
 import { type FileAttachment, type ImageAttachment, MAX_FILE_SIZE_BYTES } from '@main/utils/downloadAsBase64'
 import { clampSurrogateBoundary } from '@shared/utils/text'
 
@@ -87,7 +88,7 @@ class SlackStreamingController {
   }
 
   async onText(text: string): Promise<void> {
-    if (this._completed) return
+    if (this._completed || (!text && !this.messageTs && !this.messageCreationPromise)) return
     this.currentText = text
     await this.ensureMessageCreated()
     if (this.messageTs) {
@@ -185,9 +186,9 @@ class SlackStreamingController {
   }
 
   private async performFlush(): Promise<void> {
-    if (!this.messageTs || !this.currentText) return
+    if (!this.messageTs) return
     try {
-      await this.editMessage(this.currentText)
+      await this.editMessage(this.currentText || t('common.channel_processing'))
     } catch {
       // Swallow flush errors — FlushController will reflush if needed
     }

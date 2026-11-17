@@ -1,3 +1,4 @@
+import { MockCherrystudioUI } from '@test-mocks/renderer/CherrystudioUI'
 import { render, screen } from '@testing-library/react'
 import type React from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -45,7 +46,7 @@ vi.mock('@cherrystudio/ui', () => ({
         {children}
       </section>
     ) : null,
-  Scrollbar: ({ children }: { children?: React.ReactNode }) => <div data-testid="citations-scrollbar">{children}</div>
+  ScrollArea: MockCherrystudioUI.ScrollArea
 }))
 
 vi.mock('../WebCitation', () => ({

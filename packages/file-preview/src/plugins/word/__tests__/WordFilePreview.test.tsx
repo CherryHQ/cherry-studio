@@ -58,8 +58,14 @@ vi.mock('@cherrystudio/ui', () => ({
       <span>{description}</span>
     </div>
   ),
-  Scrollbar: ({ children, ...props }: PropsWithChildren<React.ComponentPropsWithoutRef<'div'>>) => (
-    <div {...props}>{children}</div>
+  ScrollArea: ({
+    children,
+    viewportProps,
+    ...props
+  }: React.ComponentProps<'div'> & { viewportProps?: React.ComponentProps<'div'> }) => (
+    <div {...props} {...viewportProps}>
+      {children}
+    </div>
   )
 }))
 
@@ -120,6 +126,25 @@ describe('WordFilePreview', () => {
       )
       await screen.findByText('Page 2')
     }
+  })
+
+  it('drops the grey mat docx-preview paints around the page', async () => {
+    mocks.renderAsync.mockImplementationOnce(
+      async (_data: Uint8Array, body: HTMLElement, _style: unknown, options: { className: string }) => {
+        body.innerHTML = `<div class="${options.className}-wrapper"><section>Mat page</section></div>`
+      }
+    )
+    render(
+      <WordFilePreview
+        sourceId={filePath}
+        fileName="report.docx"
+        document={previewTestDocument(22, 7, mocks.fsRead, 9)}
+      />
+    )
+    await screen.findByText('Mat page')
+    const wrapper = screen.getByTestId('docx-preview-content').querySelector<HTMLElement>('.docx-preview-wrapper')
+    expect(wrapper?.style.background).toBe('transparent')
+    expect(wrapper?.style.padding).toBe('0px')
   })
 
   it('retains zoom, page and scroll on replacement and clamps a shorter document', async () => {
@@ -412,7 +437,7 @@ describe('WordFilePreview', () => {
     expect(screen.getByTestId('docx-preview-content')).not.toHaveAttribute('data-picker')
   })
 
-  it('loads and renders DOCX pages with a centered standalone toolbar', async () => {
+  it('loads and renders DOCX pages', async () => {
     render(
       <WordFilePreview
         sourceId={filePath}
@@ -436,10 +461,7 @@ describe('WordFilePreview', () => {
         useBase64URL: true
       })
     )
-    const toolbar = screen.getByRole('toolbar', { name: 'preview.label' })
-    expect(toolbar).toHaveClass('h-11', 'min-h-11')
-    expect(toolbar).not.toHaveClass('bg-background')
-    expect(toolbar.firstElementChild).toHaveClass('mx-auto', 'justify-center')
+
     await waitFor(() => expect(screen.getByTestId('docx-preview-page-indicator')).toHaveTextContent('1 / 2'))
 
     fireEvent.click(screen.getByRole('button', { name: 'common.next' }))

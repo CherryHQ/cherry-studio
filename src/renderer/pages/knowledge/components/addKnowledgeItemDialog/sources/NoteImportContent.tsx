@@ -19,14 +19,15 @@ interface NoteImportContentProps {
 const NoteImportContent = ({ selectedNotes, onToggle, onSelectionChange }: NoteImportContentProps) => {
   const { t } = useTranslation()
   const { notesPath } = useNotesSettings()
-  const { root, isLoading, error } = useDirectoryTree(notesPath || undefined)
+  const { root, version, isLoading, error } = useDirectoryTree(notesPath || undefined)
 
   const noteFiles = useMemo(() => {
     if (!root || !notesPath) {
       return []
     }
     return flattenTreeToFiles(projectNotesTree(root, notesPath))
-  }, [root, notesPath])
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- Directory mutations retain root identity and increment version.
+  }, [root, version, notesPath])
 
   const selectedPaths = useMemo(() => new Set(selectedNotes.map((note) => note.externalPath)), [selectedNotes])
   const allNotesSelected = noteFiles.every((note) => selectedPaths.has(note.externalPath))

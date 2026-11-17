@@ -20,8 +20,13 @@ import * as z from 'zod'
  */
 const MessageEntry = z.looseObject({ role: z.string() })
 
-/** Message entry for token counting — `content` is named so the estimator can read it. */
-const CountTokensEntry = z.looseObject({ role: z.string(), content: z.unknown() })
+/** Anthropic message entry: `content` is required by the Messages protocol and must be a string or a block array. */
+const AnthropicMessageEntry = z.looseObject({
+  role: z.string(),
+  content: z.union([z.string(), z.array(z.unknown())], {
+    error: 'content is required and must be a string or an array of content blocks'
+  })
+})
 
 /**
  * Responses API `input` items are heterogeneous (messages, `function_call`,
@@ -46,7 +51,7 @@ export const ResponsesBodySchema = z.looseObject({
 /** `POST /v1/messages` body (Anthropic). Loose by design — the converters parse the full payload. */
 export const MessagesBodySchema = z.looseObject({
   model: z.string().min(1, 'Model is required'),
-  messages: z.array(MessageEntry).min(1, 'Messages are required'),
+  messages: z.array(AnthropicMessageEntry).min(1, 'Messages are required'),
   stream: z.boolean().optional()
 })
 
@@ -57,7 +62,7 @@ export const MessagesBodySchema = z.looseObject({
  * proxy/auth transport as a real call. Other dialects never leave the app.
  */
 export const CountTokensBodySchema = z.looseObject({
-  messages: z.array(CountTokensEntry).min(1, 'messages parameter is required'),
+  messages: z.array(AnthropicMessageEntry).min(1, 'messages parameter is required'),
   model: z.string().optional(),
   system: z.unknown().optional()
 })

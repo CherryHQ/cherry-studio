@@ -7,9 +7,11 @@ import { cn } from '@cherrystudio/ui/lib/utils'
 import { loggerService } from '@logger'
 import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
 import MiniAppIcon from '@renderer/components/icons/MiniAppIcon'
+import { getMiniAppsLogoRef } from '@renderer/components/icons/miniAppsLogo'
 import MarqueeText from '@renderer/components/MarqueeText'
 import { PendingPermissionsDialog } from '@renderer/components/MiniApp/PendingPermissionsDialog'
 import { UpdateReviewDialog } from '@renderer/components/MiniApp/UpdateReviewDialog'
+import { useExitPresence } from '@renderer/hooks/useExitPresence'
 import { useMiniAppAttentionFor } from '@renderer/hooks/useMiniAppAttention'
 import { useMiniAppUpdate } from '@renderer/hooks/useMiniAppUpdate'
 import { ipcApi } from '@renderer/ipc'
@@ -91,6 +93,11 @@ const MiniApp: FC<Props> = ({
   const [removeConfirmOpen, setRemoveConfirmOpen] = useState(false)
   const [detailOpen, setDetailOpen] = useState(false)
   const [removingCustom, setRemovingCustom] = useState(false)
+  const { isPresent: detailPresent } = useExitPresence(detailOpen ? true : null)
+  const { value: updateOffer } = useExitPresence(update.offer)
+  const currentPendingLeaves =
+    pendingOpen && attention && attention.pendingPermissions.length > 0 ? attention.pendingPermissions : null
+  const { value: pendingLeaves } = useExitPresence(currentPendingLeaves)
   // Calculate display name
   const displayName = isLast ? t('settings.miniApps.custom.title') : app.nameKey ? t(app.nameKey) : app.name
 
@@ -162,6 +169,7 @@ const MiniApp: FC<Props> = ({
   }
 
   const isLaunchpad = variant === 'launchpad'
+  const hasBuiltinIcon = getMiniAppsLogoRef(app.logo || undefined) !== undefined
 
   const answerPending = async (route: 'mini_app.grant.approve_pending' | 'mini_app.grant.snooze_pending') => {
     setPendingBusy(true)
@@ -176,7 +184,7 @@ const MiniApp: FC<Props> = ({
   }
 
   const icon = isLaunchpad ? (
-    <div className="mini-app-icon-clip flex size-full items-center justify-center overflow-hidden rounded-[inherit]">
+    <div className="mini-app-icon-clip flex size-full items-center justify-center overflow-hidden rounded-[inherit] [corner-shape:inherit]">
       <MiniAppIcon size={size} app={app} appearance="plain" />
     </div>
   ) : (
@@ -265,7 +273,7 @@ const MiniApp: FC<Props> = ({
             'flex flex-col items-center justify-center overflow-hidden outline-none',
             disabled ? 'cursor-default' : 'cursor-pointer',
             isLaunchpad
-              ? 'min-h-[104px] w-[92px] bg-transparent pt-1 hover:[&_.mini-app-icon-frame]:bg-accent focus-visible:[&_.mini-app-icon-frame]:border-ring focus-visible:[&_.mini-app-icon-frame]:bg-accent'
+              ? 'min-h-[104px] w-[92px] bg-transparent pt-1 hover:[&_.mini-app-icon-frame]:border-border hover:[&_.mini-app-icon-frame]:bg-accent focus-visible:[&_.mini-app-icon-frame]:border-ring focus-visible:[&_.mini-app-icon-frame]:bg-accent'
               : 'min-h-[85px]'
           )}
           onClick={handleClick}
@@ -285,7 +293,8 @@ const MiniApp: FC<Props> = ({
               className={cn(
                 'mini-app-icon-frame relative flex items-center justify-center',
                 isLaunchpad &&
-                  'size-[58px] rounded-[14px] border border-border-subtle bg-transparent transition-[border-color,background-color] duration-[160ms] ease-in-out motion-reduce:transition-none'
+                  'size-14 rounded-[50%] [corner-shape:squircle] bg-transparent after:pointer-events-none after:absolute after:inset-0 after:rounded-[inherit] after:[corner-shape:inherit] after:border after:border-inherit transition-[border-color,background-color] duration-[160ms] ease-in-out motion-reduce:transition-none',
+                isLaunchpad && (hasBuiltinIcon ? 'border-transparent' : 'border-border-subtle')
               )}>
               {icon}
               {updating && (
@@ -295,7 +304,7 @@ const MiniApp: FC<Props> = ({
                   data-testid="update-progress"
                   className={cn(
                     'absolute inset-0 flex items-center justify-center bg-background/65',
-                    isLaunchpad ? 'rounded-[inherit]' : 'rounded-lg'
+                    isLaunchpad ? 'rounded-[inherit] [corner-shape:inherit]' : 'rounded-lg'
                   )}
                   style={
                     updating.fraction === null
@@ -341,7 +350,7 @@ const MiniApp: FC<Props> = ({
             className={cn(
               'w-full select-none text-center text-muted-foreground',
               isLaunchpad
-                ? 'mt-2 min-h-9 max-w-[92px] overflow-hidden whitespace-normal text-[13px] leading-[18px] [-webkit-box-orient:vertical] [-webkit-line-clamp:2] [display:-webkit-box] [overflow-wrap:anywhere]'
+                ? 'mt-2 min-h-9 max-w-[92px] truncate text-[13px] leading-[18px]'
                 : 'mt-[5px] max-w-20 text-xs leading-normal'
             )}>
             {isLaunchpad ? displayName : <MarqueeText>{displayName}</MarqueeText>}
@@ -359,21 +368,23 @@ const MiniApp: FC<Props> = ({
         confirmLoading={removingCustom}
         onConfirm={handleRemoveCustom}
       />
-      {/* Mounted only while open: the panel fetches on mount and owns its own dialogs. */}
-      {detailOpen && <MiniAppDetailPanel appId={app.appId} onClose={() => setDetailOpen(false)} />}
-      {update.offer && (
+      {detailPresent && <MiniAppDetailPanel appId={app.appId} open={detailOpen} onClose={() => setDetailOpen(false)} />}
+      {updateOffer && (
         <UpdateReviewDialog
+          key={updateOffer.updateToken}
           name={app.name}
-          update={update.offer}
+          update={updateOffer}
+          open={update.offer !== null}
           busy={update.busy}
           onCancel={update.dismiss}
           onApply={update.apply}
         />
       )}
-      {pendingOpen && attention && attention.pendingPermissions.length > 0 && (
+      {pendingLeaves && (
         <PendingPermissionsDialog
           name={app.name}
-          leaves={attention.pendingPermissions}
+          leaves={pendingLeaves}
+          open={currentPendingLeaves !== null}
           busy={pendingBusy}
           onCancel={() => setPendingOpen(false)}
           onGrant={() => void answerPending('mini_app.grant.approve_pending')}

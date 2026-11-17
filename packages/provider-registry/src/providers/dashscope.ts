@@ -12,7 +12,7 @@ import {
   qwen38Support,
   qwenChatWire
 } from './qwenFamily'
-import { defineProvider } from './types'
+import { defineProvider, type ProviderModelOffer } from './types'
 import { EFFORT, modeWire } from './wires'
 
 const webSearchModelPrefixes = [
@@ -108,7 +108,7 @@ const responsesEffortWire = modeWire(
  * pinning a lower tier, so leaving reasoning unset doesn't silently weaken it. The chat contract keeps
  * qwen's native toggle + thinking_budget.
  *
- * `xhigh`/`max` are only served by 华北2（北京）and 新加坡; this provider's baseUrl is the Beijing host.
+ * `xhigh`/`max` are only served by 华北2（北京）and 新加坡; this provider's baseUrl is the mainland gateway.
  */
 const qwenResponsesSupport: ReasoningSupport = {
   controls: [
@@ -206,23 +206,23 @@ const chatWebSearchOnlyModels = new Set(['qwen-plus', 'qwen-flash', 'qwen-plus-c
  * model availability — see `chatWebSearchOnlyModels` and `servesResponsesWebSearch` in
  * `src/main/ai/utils/websearch.ts`. Everything else inherits the safe chat default.
  */
-const endpointPin = (modelId: string): Partial<ProviderModelOverride> =>
+const endpointPin = (modelId: string): Pick<ProviderModelOverride, 'endpointTypes'> =>
   chatWebSearchOnlyModels.has(modelId)
     ? { endpointTypes: ['openai-chat-completions', 'openai-responses'] }
     : responsesModels.has(modelId)
       ? { endpointTypes: ['openai-responses', 'openai-chat-completions'] }
       : {}
 
-const qwenReasoningOverrides: Partial<ProviderModelOverride>[] = qwenChatModels.map((modelId) => ({
-  modelId,
-  ...endpointPin(modelId),
+const qwenReasoningOverrides: ProviderModelOffer[] = qwenChatModels.map((apiModelId) => ({
+  apiModelId,
+  ...endpointPin(apiModelId),
   reasoningContracts: {
     'openai-chat-completions': { wire: qwenChatWire },
     'openai-responses': { support: qwenResponsesSupport, wire: responsesEffortWire }
   }
 }))
 
-const endpointReasoningOverrides: Partial<ProviderModelOverride>[] = [
+const endpointReasoningOverrides: ProviderModelOffer[] = [
   ...qwenReasoningOverrides,
   {
     apiModelId: 'qwen3.8-flash',
@@ -255,7 +255,7 @@ const endpointReasoningOverrides: Partial<ProviderModelOverride>[] = [
     }
   },
   {
-    modelId: 'minimax-m3',
+    apiModelId: 'minimax-m3',
     ...endpointPin('minimax-m3'),
     reasoningContracts: {
       'openai-chat-completions': {
@@ -264,9 +264,9 @@ const endpointReasoningOverrides: Partial<ProviderModelOverride>[] = [
       }
     }
   },
-  ...['deepseek-v4-pro', 'deepseek-v4-flash', 'glm-5', 'glm-5.1', 'glm-5.2'].map((modelId) => ({
-    modelId,
-    ...endpointPin(modelId),
+  ...['deepseek-v4-pro', 'deepseek-v4-flash', 'glm-5', 'glm-5.1', 'glm-5.2'].map((apiModelId) => ({
+    apiModelId,
+    ...endpointPin(apiModelId),
     reasoningContracts: {
       'openai-chat-completions': { support: highMaxSupport, wire: effortChatWire }
     }
@@ -287,16 +287,16 @@ const endpointReasoningOverrides: Partial<ProviderModelOverride>[] = [
   // (`qwen-flash-character` / `qwen3.5-ocr` are not in the catalog yet — skipped.)
   ...(
     [
-      { modelId: 'qwq-plus' },
-      { modelId: 'qwen-plus-character' },
-      { modelId: 'deepseek-r1' },
-      { modelId: 'deepseek-v3' },
+      { apiModelId: 'qwq-plus' },
+      { apiModelId: 'qwen-plus-character' },
+      { apiModelId: 'deepseek-r1' },
+      { apiModelId: 'deepseek-v3' },
       { apiModelId: 'deepseek-v3.2', modelId: 'deepseek-v3-2' },
       { apiModelId: 'deepseek-v3.1', modelId: 'deepseek-v3-1' },
       { apiModelId: 'Moonshot-Kimi-K2-Instruct', modelId: 'kimi-k2' },
       { apiModelId: 'MiniMax-M2.1', modelId: 'minimax-m2-1' }
-    ] satisfies Partial<ProviderModelOverride>[]
-  ).map((row) => ({ ...row, ...endpointPin(row.modelId) }))
+    ] satisfies ProviderModelOffer[]
+  ).map((row) => ({ ...row, ...endpointPin(row.modelId ?? row.apiModelId) }))
 ]
 
 export default defineProvider({
@@ -304,9 +304,9 @@ export default defineProvider({
   // Chat Completions stays the provider default: it is the fallback for every model that arrives without
   // `endpointTypes` (custom models, `/models` discoveries with no override), and Bailian serves it far
   // more widely than Responses. Responses is opted into per model via `endpointPin`.
-  // Keep the 'dashscope' identity so existing credentials and saved endpoint
-  // overrides stay attached to the rebranded mainland provider (ref #18432).
-  name: 'Qwen AI Platform',
+  // Rebranded to Qwen AI Platform (mainland China); the 'dashscope' id stays
+  // unchanged so existing users' keys and configs keep working (ref #18432).
+  name: 'Qianwen AI platform - CN',
   availableInEditions: ['global', 'cn'],
   defaultChatEndpoint: 'openai-chat-completions',
   endpointConfigs: {
@@ -368,9 +368,10 @@ export default defineProvider({
   ],
   metadata: {
     website: {
-      apiKey: 'https://platform.qianwenai.com/home/api-keys',
+      apiKey: 'https://platform.qianwenai.com/home/api-keys?utm_content=g_20000003252',
       docs: 'https://platform.qianwenai.com/docs/developer-guides/getting-started/first-api-call',
-      models: 'https://www.qianwenai.com/models',
+      models:
+        'https://platform.qianwenai.com/docs/developer-guides/getting-started/model-selection?utm_content=g_20000003253',
       official: 'https://www.qianwenai.com/'
     }
   },

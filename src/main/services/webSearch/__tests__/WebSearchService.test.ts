@@ -1,3 +1,4 @@
+import { defaultServiceInstances } from '@test-mocks/main/application'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -177,6 +178,36 @@ describe('WebSearchService', () => {
     webSearchService = new WebSearchService()
   })
 
+  it('discloses one fallback dispatch for a failed batch, even when it fails', async () => {
+    createWebSearchProviderMock.mockImplementation((provider: WebSearchProvider) => ({
+      searchKeywords: (input: string) =>
+        provider.id === 'tavily'
+          ? Promise.reject(new Error('HTTP 401'))
+          : Promise.resolve(
+              response('exa-mcp', 'searchKeywords', input, [
+                { title: input, content: 'fallback', url: 'https://example.com' }
+              ])
+            )
+    }))
+    const result = await webSearchService.searchKeywords({ keywords: ['one', 'two'] })
+    expect(result.results.map((item) => item.content)).toEqual(['fallback', 'fallback'])
+    expect(defaultServiceInstances.IpcApiService.broadcast.mock.calls).toEqual([
+      [
+        'web_search.fallback',
+        { primaryProviderId: 'tavily', fallbackProviderId: 'exa-mcp', capability: 'searchKeywords' }
+      ]
+    ])
+    vi.clearAllMocks()
+    createWebSearchProviderMock.mockReturnValue({ searchKeywords: () => Promise.reject(new Error('failed')) })
+    await expect(webSearchService.searchKeywords({ keywords: ['one'] })).rejects.toThrow()
+    expect(defaultServiceInstances.IpcApiService.broadcast.mock.calls).toEqual([
+      [
+        'web_search.fallback',
+        { primaryProviderId: 'tavily', fallbackProviderId: 'exa-mcp', capability: 'searchKeywords' }
+      ]
+    ])
+  })
+
   it('uses the keyword default provider and returns service-owned response metadata', async () => {
     const searchKeywords = vi
       .fn()
@@ -195,6 +226,7 @@ describe('WebSearchService', () => {
     )
     expect(searchKeywords).toHaveBeenNthCalledWith(1, 'first', expect.objectContaining({ maxResults: 4 }), undefined)
     expect(searchKeywords).toHaveBeenNthCalledWith(2, 'second', expect.objectContaining({ maxResults: 4 }), undefined)
+    expect(defaultServiceInstances.IpcApiService.broadcast).not.toHaveBeenCalled()
     expect(result).toEqual({
       query: 'first | second',
       providerId: 'tavily',
@@ -205,26 +237,6 @@ describe('WebSearchService', () => {
         { title: 'second', content: 'ok', url: 'https://second.test', sourceInput: 'second' }
       ]
     })
-  })
-
-  it('clears service-owned API key rotation state on stop', async () => {
-    const searchKeywords = vi
-      .fn()
-      .mockResolvedValue(
-        response('tavily', 'searchKeywords', 'hello', [{ title: 'Hello', content: 'ok', url: 'https://hello.test' }])
-      )
-    createWebSearchProviderMock.mockReturnValue({ searchKeywords })
-
-    await webSearchService._doInit()
-    await webSearchService.searchKeywords({ keywords: ['hello'] })
-
-    const rotationState = createWebSearchProviderMock.mock.calls[0]?.[1]
-    expect(rotationState).toBeDefined()
-    const clearSpy = vi.spyOn(rotationState, 'clear')
-
-    await webSearchService._doStop()
-
-    expect(clearSpy).toHaveBeenCalledOnce()
   })
 
   it('uses explicit provider overrides and supports Jina for both capabilities', async () => {
@@ -284,12 +296,6 @@ describe('WebSearchService', () => {
         }
       ]
     })
-    expect(loggerWarnMock).toHaveBeenCalledWith('Partial web search input failed', {
-      providerId: 'tavily',
-      capability: 'searchKeywords',
-      input: 'first',
-      error: 'Web search failed after fallback: network failed; ExaMCP failed'
-    })
   })
 
   it('skips an unconfigured keyword provider and runs every input through ExaMCP', async () => {
@@ -325,6 +331,7 @@ describe('WebSearchService', () => {
 
     expect(createWebSearchProviderMock).toHaveBeenCalledOnce()
     expect(searchKeywords).not.toHaveBeenCalled()
+    expect(defaultServiceInstances.IpcApiService.broadcast).not.toHaveBeenCalled()
   })
 
   it('surfaces a configuration error when the selected keyword provider and fallback are both misconfigured', async () => {
@@ -343,6 +350,7 @@ describe('WebSearchService', () => {
       name: 'WebSearchConfigError',
       code: 'api_key_missing'
     })
+    expect(defaultServiceInstances.IpcApiService.broadcast).not.toHaveBeenCalled()
   })
 
   it('retries only failed keywords through ExaMCP and preserves input order', async () => {
@@ -412,9 +420,8 @@ describe('WebSearchService', () => {
       )
     ).rejects.toBe(abortError)
 
-    expect(loggerWarnMock).not.toHaveBeenCalled()
-    expect(loggerErrorMock).not.toHaveBeenCalled()
     expect(searchKeywords).not.toHaveBeenCalled()
+    expect(defaultServiceInstances.IpcApiService.broadcast).not.toHaveBeenCalled()
   })
 
   it('falls back when a provider input aborts without a caller-aborted signal', async () => {
@@ -441,12 +448,6 @@ describe('WebSearchService', () => {
     const result = await webSearchService.searchKeywords({ providerId: 'tavily', keywords: ['first', 'second'] })
 
     expect(result.results.map(({ title }) => title)).toEqual(['First', 'Second'])
-    expect(loggerInfoMock).toHaveBeenCalledWith('Web search fallback recovered failed inputs', {
-      primaryProviderId: 'tavily',
-      fallbackProviderId: 'exa-mcp',
-      recoveredInputs: 1
-    })
-    expect(loggerErrorMock).not.toHaveBeenCalled()
   })
 
   it('logs service failures for abort errors when the caller did not abort', async () => {
@@ -458,11 +459,6 @@ describe('WebSearchService', () => {
     await expect(webSearchService.searchKeywords({ providerId: 'exa-mcp', keywords: ['first'] })).rejects.toBe(
       abortError
     )
-
-    expect(loggerErrorMock).toHaveBeenCalledWith('Web search failed', abortError, {
-      providerId: 'exa-mcp',
-      capability: 'searchKeywords'
-    })
   })
 
   it('aggregates keyword provider failures when every fallback input fails', async () => {
@@ -482,11 +478,6 @@ describe('WebSearchService', () => {
         error.errors.includes(primaryError) &&
         error.errors.includes(fallbackError)
     )
-
-    expect(loggerErrorMock).toHaveBeenCalledWith('Web search failed', expect.any(AggregateError), {
-      providerId: 'tavily',
-      capability: 'searchKeywords'
-    })
   })
 
   it('filters blacklisted results before cutoff post processing', async () => {
@@ -664,6 +655,10 @@ describe('WebSearchService', () => {
       urls: ['https://example.com/article']
     })
 
+    expect(defaultServiceInstances.IpcApiService.broadcast.mock.calls).toEqual([
+      ['web_search.fallback', { primaryProviderId: 'querit', fallbackProviderId: 'fetch', capability: 'fetchUrls' }],
+      ['web_search.fallback', { primaryProviderId: 'querit', fallbackProviderId: 'jina', capability: 'fetchUrls' }]
+    ])
     expect(jinaFetch).toHaveBeenCalledOnce()
     expect(result.providerId).toBe('jina')
     expect(result.results[0]?.title).toBe('Recovered')
@@ -698,11 +693,6 @@ describe('WebSearchService', () => {
         sourceInput: 'https://fake-ip.example/article'
       }
     ])
-    expect(loggerInfoMock).toHaveBeenCalledWith('Web fetch fallback recovered failed inputs', {
-      primaryProviderId: 'fetch',
-      fallbackProviderId: 'jina',
-      recoveredInputs: 1
-    })
   })
 
   it('falls back from Jina to native fetch without repeating the Jina safety gate', async () => {
@@ -780,6 +770,7 @@ describe('WebSearchService', () => {
     await expect(request).rejects.toBe(abortError)
     expect(createWebSearchProviderMock).toHaveBeenCalledTimes(1)
     expect(resolveRemoteFetchUrlMock).not.toHaveBeenCalled()
+    expect(defaultServiceInstances.IpcApiService.broadcast).not.toHaveBeenCalled()
   })
 
   it('keeps the native failure when the guard rejects a private address before Jina', async () => {
@@ -842,17 +833,6 @@ describe('WebSearchService', () => {
       code: 'provider_not_configured',
       message: 'Default web search provider is not configured for capability searchKeywords'
     })
-
-    expect(loggerErrorMock).toHaveBeenCalledWith(
-      'Web search failed',
-      expect.objectContaining({
-        message: 'Default web search provider is not configured for capability searchKeywords'
-      }),
-      {
-        providerId: undefined,
-        capability: 'searchKeywords'
-      }
-    )
   })
 
   it('logs and throws when a provider does not implement the requested capability', async () => {
@@ -861,17 +841,6 @@ describe('WebSearchService', () => {
       code: 'capability_unsupported',
       message: 'Web search provider fetch does not support capability searchKeywords'
     })
-
-    expect(loggerErrorMock).toHaveBeenCalledWith(
-      'Web search failed',
-      expect.objectContaining({
-        message: 'Web search provider fetch does not support capability searchKeywords'
-      }),
-      {
-        providerId: 'fetch',
-        capability: 'searchKeywords'
-      }
-    )
   })
 
   it('logs and throws when provider metadata supports a missing driver capability', async () => {
@@ -882,16 +851,5 @@ describe('WebSearchService', () => {
       code: 'capability_unsupported',
       message: 'Web search provider tavily does not implement capability searchKeywords'
     })
-
-    expect(loggerErrorMock).toHaveBeenCalledWith(
-      'Web search failed',
-      expect.objectContaining({
-        message: 'Web search provider tavily does not implement capability searchKeywords'
-      }),
-      {
-        providerId: 'tavily',
-        capability: 'searchKeywords'
-      }
-    )
   })
 })

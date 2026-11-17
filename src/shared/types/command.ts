@@ -39,6 +39,8 @@ export interface KeybindingRule<TCommand extends string = string> {
   scope: CommandScope
   global?: boolean
   editable?: boolean
+  /** Keeps the Settings enable switch operable when the rule is not editable. */
+  enableToggle?: boolean
   when?: ContextExprSource
   supportedPlatforms?: SupportedPlatform[]
 }

@@ -408,7 +408,7 @@ Application 已提供返回布尔值／Promise 的 `registerQuitGuard`；先执�
 
 按上述交付阶段推进：先建立严格的 Main 持久化与观察边界，再迁移 renderer 所有者、使用方和关闭集成。每一步都必须可独立评审，并保留局部修复的回归覆盖。文档存在本身不授权开展新的实现；Spec 遵循仓库审批流程。
 
-当前入口包括 [useFileEditSession](../../../../src/renderer/hooks/useFileEditSession.ts)、[NotesPage](../../../../src/renderer/pages/notes/NotesPage.tsx)、[NotesEditor](../../../../src/renderer/pages/notes/NotesEditor.tsx)、[useRichEditor](../../../../src/renderer/components/RichEditor/useRichEditor.ts)、[文件 IPC](../../../../src/main/ipc/handlers/file.ts) 和[路径正文操作](../../../../src/main/services/file/utils/content.ts)。关闭集成遵循现有[窗口管理器](../../../../docs/references/window-manager/README.md)和[生命周期](../../../../docs/references/lifecycle/README.md)边界。新的跨进程契约进入 shared IPC schema；UI／编辑器身份留在 renderer，除非 Main 操作确实需要它们。
+当前入口包括 [useFileEditSession](../../../../src/renderer/hooks/useFileEditSession.ts)、[NotesPage](../../../../src/renderer/pages/notes/NotesPage.tsx)、[NotesEditor](../../../../src/renderer/pages/notes/NotesEditor.tsx)、[useRichEditor](../../../../src/renderer/components/RichEditor/useRichEditor.ts)、[文件 IPC](../../../../src/main/ipc/handlers/file.ts) 和[路径正文操作](../../../../src/main/services/file/utils/content.ts)。关闭集成遵循现有[窗口管理器](../../../../docs/dev/references/window-manager/README.md)和[生命周期](../../../../docs/dev/references/lifecycle/README.md)边界。新的跨进程契约进入 shared IPC schema；UI／编辑器身份留在 renderer，除非 Main 操作确实需要它们。
 
 测试必须通过可延迟完成的操作控制读写顺序，同时断言可见正文和持久化目标字节。覆盖身份改变后的过期完成，也覆盖同一身份内发生编辑后的过期完成。包含 React 清理／重新挂接、重复取消和文件监听回声。定时器可以验证防抖，但不能靠睡眠或点击速度制造竞态。Renderer 边界使用真实编辑器行为，Main／Electron 边界使用真实临时文件；不能在回归 harness 中复制页面的同步实现。
 

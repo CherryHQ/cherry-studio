@@ -3,7 +3,6 @@ import '@testing-library/jest-dom/vitest'
 import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { MiniApp, SiteMiniApp } from '@shared/data/types/miniApp'
@@ -141,10 +140,6 @@ vi.mock('react-i18next', () => ({
 
 vi.mock('react-spinners/BeatLoader', () => ({
   default: () => <div data-testid="beat-loader" />
-}))
-
-vi.mock('@renderer/components/Scrollbar', () => ({
-  default: ({ children }: { children: ReactNode }) => <div>{children}</div>
 }))
 
 describe('MiniAppPage', () => {

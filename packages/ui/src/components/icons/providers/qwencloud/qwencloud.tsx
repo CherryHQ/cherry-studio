@@ -17,7 +17,7 @@ const Qwencloud = ({ variant, className, ...props }: CompoundIconProps) => {
 
 export const QwencloudIcon: CompoundIcon = /*#__PURE__*/ Object.assign(Qwencloud, {
   Avatar: QwencloudAvatar,
-  colorPrimary: '#000000'
+  colorPrimary: '#F1EDFF'
 })
 
 export default QwencloudIcon

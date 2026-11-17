@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-08-settings-search-url-mirror.md
+2026-11-08-settings-search-url-mirror.md: e3e3fb74cd676712bfcb3dffd5be6d9cfec481b1
+2026-11-08-settings-search-url-mirror.zh.md: d4e631c5b7d3273a10c5a61eb2e0d6655e1c1fef

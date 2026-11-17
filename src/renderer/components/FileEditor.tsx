@@ -1,5 +1,5 @@
-import type { FileContents, FileOptions } from '@pierre/diffs'
-import { Virtualizer } from '@pierre/diffs'
+import type { FileContents, FileOptions, LineAnnotation, SelectedLineRange } from '@pierre/diffs'
+import { DEFAULT_VIRTUAL_FILE_METRICS, VirtualizedFile, Virtualizer } from '@pierre/diffs'
 import type * as PierreEdit from '@pierre/diffs/edit'
 import type { EditorFactory, EditorOptions } from '@pierre/diffs/edit'
 import { EditProvider, File, useWorkerPool, VirtualizerContext, WorkerPoolContextProvider } from '@pierre/diffs/react'
@@ -9,7 +9,9 @@ import { useTranslation } from 'react-i18next'
 import { CHERRY_CODE_THEME } from '@cherrystudio/ui/code-highlight'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
+import FileCommentBox from '@renderer/components/FileCommentBox'
 import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
+import type { FileLocation } from '@renderer/types/fileLocation'
 import { CHERRY_EDITOR_CSS } from '@renderer/utils/pierreCodeTheme'
 import { hasUnwrappableLine } from '@renderer/utils/softWrap'
 import { cn } from '@renderer/utils/style'
@@ -31,6 +33,17 @@ const WHITESPACE_DOT =
   'radial-gradient(circle, color-mix(in oklch, var(--muted-foreground) 55%, transparent) 1px, transparent 1.5px)'
 const WHITESPACE_TAB =
   'linear-gradient(to bottom, transparent calc(50% - 0.5px), color-mix(in oklch, var(--muted-foreground) 55%, transparent) calc(50% - 0.5px) calc(50% + 0.5px), transparent calc(50% + 0.5px))'
+
+// A neutral chip centred between line number and code, not Pierre's filled block that spills into the code
+// (and draws "+" in the background colour the Cherry theme makes transparent).
+const COMMENT_BUTTON_CSS =
+  '[data-utility-button]{background-color:color-mix(in oklch,var(--foreground) 10%,transparent);color:var(--foreground);width:14px;height:calc(1lh - 4px);margin-block:2px;margin-right:-8px;border-radius:4px}' +
+  '[data-utility-button]:hover{background-color:color-mix(in oklch,var(--foreground) 20%,transparent)}' +
+  '[data-utility-button] [data-icon]{width:12px;height:12px}' +
+  // Without line numbers, reserve a margin so the button is clear of the code and the pane's resize edge.
+  '[data-disable-line-numbers] [data-column-number]{min-width:24px}' +
+  '[data-disable-line-numbers] [data-gutter-utility-slot]{left:10px}' +
+  '[data-disable-line-numbers] [data-utility-button]{margin-right:0}'
 
 function whitespaceCss(indentGuides: boolean, showWhitespace: boolean): string {
   const guideSize = 'calc(var(--diffs-tab-size, 2) * 1ch) 100%'
@@ -66,7 +79,17 @@ function FileEditorTheme({ theme }: { theme: string }) {
   return null
 }
 
+/** A comment written on lines of the file, with those lines as they read when it was submitted. */
+export interface LineComment {
+  /** One-based and inclusive. */
+  startLine: number
+  endLine: number
+  lines: string
+  comment: string
+}
+
 interface Props {
+  location?: FileLocation
   fileName: string
   value: string
   sessionKey?: string
@@ -83,6 +106,8 @@ interface Props {
   showWhitespace?: boolean
   /** Leaves room so the last line can scroll to the top. */
   scrollPastEnd?: boolean
+  /** Turns on a comment button beside each line number; called when a comment is submitted. */
+  onLineComment?: (comment: LineComment) => void
 }
 
 export default function FileEditor({
@@ -98,12 +123,17 @@ export default function FileEditor({
   tabIndent = true,
   indentGuides = false,
   showWhitespace = false,
-  scrollPastEnd = false
+  scrollPastEnd = false,
+  onLineComment,
+  location
 }: Props) {
   const { t } = useTranslation()
   const [messageFontSize] = usePreference('chat.message.font_size')
   const [showLineNumbers] = usePreference('chat.code.show_line_numbers')
   const fontSize = messageFontSize - 1
+  // Pierre places the caret at a row's integer offsetTop, so fractional rows leave it poking past the line highlight.
+  const lineHeight = Math.round(fontSize * 1.6)
+  const metrics = useMemo(() => ({ ...DEFAULT_VIRTUAL_FILE_METRICS, lineHeight }), [lineHeight])
   const { activeCodeTheme: theme, isCodeThemeDark } = useCodeStyle()
   const runtimeOptions = useMemo(() => ({ ...highlighterOptions, theme }), [theme])
   const editable = !readOnly && onChange !== undefined
@@ -112,11 +142,15 @@ export default function FileEditor({
   const [virtualizer] = useState(() => new Virtualizer())
   const lastEdit = useRef<string | null>(null)
   const [input, setInput] = useState(() => ({ value, file: { name: fileName, contents: value } as FileContents }))
+  const liveContents = useRef(value)
+  const [commentDraft, setCommentDraft] = useState<{ start: number; end: number } | null>(null)
+  const commentable = onLineComment !== undefined
 
   if (input.value !== value || input.file.name !== fileName) {
     // Pierre owns the live document; a host draft echo must not replace it.
     const file =
       value === lastEdit.current && input.file.name === fileName ? input.file : { name: fileName, contents: value }
+    if (file !== input.file) liveContents.current = file.contents
     setInput({ value, file })
   }
 
@@ -142,22 +176,93 @@ export default function FileEditor({
     () => editorModule && ((type, options, key) => new editorModule.Editor(type, options, key)),
     [editorModule]
   )
+  const openCommentDraft = useCallback((range: SelectedLineRange) => {
+    setCommentDraft({ start: Math.min(range.start, range.end), end: Math.max(range.start, range.end) })
+  }, [])
   // Wrapping a multi-megabyte line (minified bundles, source maps) freezes layout for seconds.
   const canWrap = useMemo(() => !hasUnwrappableLine(value), [value])
+  const revealedLocation = useRef<FileLocation | undefined>(undefined)
+  const hasLocationHighlight = useRef(false)
+  const navigationFrame = useRef<number | undefined>(undefined)
+  const lastNavigationTop = useRef<number | undefined>(undefined)
+  const requestedLocation = useRef<FileLocation | undefined>(undefined)
+  const navigateToLocation = useCallback<NonNullable<FileOptions<undefined, undefined>['onPostRender']>>(
+    (node, instance, phase) => {
+      if (phase === 'unmount') {
+        revealedLocation.current = undefined
+        lastNavigationTop.current = undefined
+        hasLocationHighlight.current = false
+        cancelAnimationFrame(navigationFrame.current ?? 0)
+        return
+      }
+      if (requestedLocation.current !== location) {
+        requestedLocation.current = location
+        lastNavigationTop.current = undefined
+        cancelAnimationFrame(navigationFrame.current ?? 0)
+      }
+      if (!location) {
+        if (hasLocationHighlight.current) instance.setSelectedLines(null)
+        hasLocationHighlight.current = false
+        revealedLocation.current = undefined
+        return
+      }
+      if (revealedLocation.current === location || !(instance instanceof VirtualizedFile)) return
+      cancelAnimationFrame(navigationFrame.current ?? 0)
+      navigationFrame.current = requestAnimationFrame(function revealLocation() {
+        const viewport = virtualizer.getRoot()
+        if (!node.isConnected || !viewport) return
+        const lineCount = Math.max(1, liveContents.current.split(/\r\n|\r|\n/).length)
+        const start = Math.min(location.line, lineCount)
+        const end = Math.min(location.endLine ?? location.line, lineCount)
+        const position = instance.getLinePosition(start)
+        if (!position) return
+        const top = virtualizer.getOffsetInScrollContainer(node) + position.top
+        instance.setSelectedLines({ start, end })
+        hasLocationHighlight.current = true
+        const scrollTop = viewport instanceof Document ? window.scrollY : viewport.scrollTop
+        const viewportHeight = viewport instanceof Document ? window.innerHeight : viewport.clientHeight
+        if (viewportHeight === 0) return
+        if (lastNavigationTop.current === top && top >= scrollTop && top < scrollTop + viewportHeight) {
+          revealedLocation.current = location
+          return
+        }
+        lastNavigationTop.current = top
+        virtualizer.markDOMDirty()
+        virtualizer.scrollTo({ top, behavior: 'instant' })
+        navigationFrame.current = requestAnimationFrame(revealLocation)
+      })
+    },
+    [location, virtualizer]
+  )
+
   const options = useMemo<FileOptions<undefined, undefined>>(
     () => ({
       disableFileHeader: true,
+      onPostRender: navigateToLocation,
       preferredHighlighter: 'highlights',
       useTokenTransformer: true,
       theme,
       themeType: isCodeThemeDark ? 'dark' : 'light',
       overflow: wrapLines && canWrap ? 'wrap' : 'scroll',
       disableLineNumbers: !showLineNumbers,
+      ...(commentable && { enableGutterUtility: true, onGutterUtilityClick: openCommentDraft }),
       unsafeCSS:
-        (theme === CHERRY_CODE_THEME ? CHERRY_EDITOR_CSS : '') + whitespaceCss(indentGuides, showWhitespace) ||
-        undefined
+        (theme === CHERRY_CODE_THEME ? CHERRY_EDITOR_CSS : '') +
+          whitespaceCss(indentGuides, showWhitespace) +
+          (commentable ? COMMENT_BUTTON_CSS : '') || undefined
     }),
-    [theme, isCodeThemeDark, showLineNumbers, wrapLines, canWrap, indentGuides, showWhitespace]
+    [
+      theme,
+      isCodeThemeDark,
+      showLineNumbers,
+      wrapLines,
+      canWrap,
+      indentGuides,
+      showWhitespace,
+      commentable,
+      openCommentDraft,
+      navigateToLocation
+    ]
   )
   const editorOptions = useMemo<EditorOptions<'file', undefined, undefined>>(
     () => ({
@@ -170,11 +275,46 @@ export default function FileEditor({
     [editable]
   )
   const handleChange = useCallback(
-    ({ file }: { file: FileContents }) => {
+    ({ file, lineAnnotations }: { file: FileContents; lineAnnotations?: LineAnnotation<undefined>[] }) => {
       lastEdit.current = file.contents
+      liveContents.current = file.contents
+      // Pierre remaps annotations through edits; the open draft box follows its line.
+      const end = lineAnnotations?.[0]?.lineNumber
+      if (end !== undefined) {
+        setCommentDraft((draft) =>
+          draft && draft.end !== end ? { start: Math.max(1, draft.start + end - draft.end), end } : draft
+        )
+      }
       onChange?.(file.contents)
     },
     [onChange]
+  )
+  // An empty list, not undefined: Pierre keeps its previous annotations when the prop is absent.
+  const commentAnnotations = useMemo<LineAnnotation<undefined>[]>(
+    () => (commentDraft ? [{ lineNumber: commentDraft.end }] : []),
+    [commentDraft]
+  )
+  const groupRef = useRef<HTMLDivElement>(null)
+  const closeCommentDraft = useCallback((reason: 'escape' | 'blur') => {
+    setCommentDraft(null)
+    if (reason !== 'escape') return
+    // Escape returns to the file; clicking away keeps the user's new focus target.
+    requestAnimationFrame(() =>
+      groupRef.current
+        ?.querySelector('diffs-container')
+        ?.shadowRoot?.querySelector<HTMLElement>('[data-content]')
+        ?.focus()
+    )
+  }, [])
+  const submitComment = useCallback(
+    (comment: string) => {
+      if (!commentDraft) return
+      const lines = liveContents.current.split(/\r?\n/).slice(commentDraft.start - 1, commentDraft.end)
+      onLineComment?.({ startLine: commentDraft.start, endLine: commentDraft.end, lines: lines.join('\n'), comment })
+      // No refocus: the composer takes focus when it inserts the chip.
+      setCommentDraft(null)
+    },
+    [commentDraft, onLineComment]
   )
   const attachViewport = useCallback(
     (node: HTMLDivElement | null) => {
@@ -196,30 +336,53 @@ export default function FileEditor({
       className={cn('pb-[var(--chat-composer-inset,0px)]', expanded ? 'min-h-full' : 'h-full min-h-0 overflow-auto')}>
       <File
         file={input.file}
+        metrics={metrics}
         options={options}
         edit={createEditor !== undefined}
         editorOptions={editorOptions}
         editStateKey={sessionKey}
         onEditChange={editable ? handleChange : undefined}
         onEditComplete={() => 'accept'}
+        lineAnnotations={commentAnnotations}
+        // The gutter click selects lines; clear it so the box sits on the editor's own background.
+        selectedLines={commentable && !location ? null : undefined}
+        renderAnnotation={
+          commentable
+            ? () => (
+                // Unwrapped rows are as wide as the longest line; size to the visible editor and stay in view.
+                <FileCommentBox
+                  className="sticky left-2 mx-2 my-1.5 max-w-[min(42rem,calc(100cqw-6rem))]"
+                  onSubmit={submitComment}
+                  onCancel={closeCommentDraft}
+                />
+              )
+            : undefined
+        }
         style={
           {
             '--diffs-font-family': 'var(--code-font-family)',
             '--diffs-font-size': `${fontSize}px`,
-            '--diffs-line-height': `${fontSize * 1.6}px`,
+            '--diffs-line-height': `${lineHeight}px`,
             '--diffs-tab-size': tabSize
           } as CSSProperties
         }
       />
-      {scrollPastEnd && !expanded ? <div aria-hidden style={{ height: `calc(100% - ${fontSize * 1.6}px)` }} /> : null}
+      {scrollPastEnd && !expanded ? <div aria-hidden style={{ height: `calc(100% - ${lineHeight}px)` }} /> : null}
     </div>
   )
 
   return (
     <div
+      ref={groupRef}
       role="group"
       aria-label={fileName}
-      className={cn('flex min-h-0 flex-1 flex-col select-text', !expanded && 'overflow-hidden', className)}
+      className={cn(
+        'flex min-h-0 flex-1 flex-col select-text',
+        // The comment box sizes itself against the visible editor width.
+        commentable && '@container',
+        !expanded && 'overflow-hidden',
+        className
+      )}
       onKeyDownCapture={
         tabIndent
           ? undefined

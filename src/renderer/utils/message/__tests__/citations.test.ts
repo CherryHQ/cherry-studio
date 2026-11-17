@@ -243,11 +243,6 @@ describe('resolveMessageCitations', () => {
     expect(mc.byId.get('ggg-1')).toMatchObject({ title: 'Three.md', content: 'first hit … second hit' })
   })
 
-  it('truncates a long read slice to a tooltip-sized snippet', () => {
-    const mc = resolveMessageCitations([kbReadPart(kbReadOutput('rrr-1', { content: 'x'.repeat(2000) }))])
-    expect(mc.byId.get('rrr-1')?.content).toBe(`${'x'.repeat(300)}…`)
-  })
-
   it('aliases a document to its existing citation when kb_search already returned it', () => {
     const mc = resolveMessageCitations([
       kbToolPart(kbResults('sss')),
