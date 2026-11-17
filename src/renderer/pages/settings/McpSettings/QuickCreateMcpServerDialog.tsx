@@ -104,7 +104,10 @@ const QuickCreateMcpServerDialog: FC<Props> = ({ open, onOpenChange, existingSer
           <DialogDescription>{t('settings.mcp.addServer.createDescription')}</DialogDescription>
         </DialogHeader>
 
-        <ScrollArea viewportProps={{ className: 'p-1 pr-3' }} className="-m-1 max-h-[60vh]">
+        <ScrollArea
+          contentProps={{ className: 'p-1 pr-3' }}
+
+          className="-m-1 max-h-[60vh]">
           <Form {...form}>
             <form className="flex flex-col gap-7" id="mcp-quick-create-form">
               <McpIdentityFields {...fieldsProps} />

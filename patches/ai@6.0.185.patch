@@ -51,7 +51,7 @@ index 23c5e351eb34a71f5a19576761effd709af3dd9f..3a73d985abb8a69fc0a716c88e859316
  
  /**
 diff --git a/dist/index.js b/dist/index.js
-index 5774837d8961e535a03b2037c58bdcff45cf1916..d54e9ece226f1fc9e58f1cfcbf93ae333d6f6c8d 100644
+index 5774837d8961e535a03b2037c58bdcff45cf1916..b62ba5eece8c997c45ea6258463ea85c371b7e0d 100644
 --- a/dist/index.js
 +++ b/dist/index.js
 @@ -1988,7 +1988,7 @@ async function prepareToolsAndToolChoice({
@@ -109,7 +109,24 @@ index 5774837d8961e535a03b2037c58bdcff45cf1916..d54e9ece226f1fc9e58f1cfcbf93ae33
            }
          });
        },
-@@ -9636,6 +9650,14 @@ var DefaultEmbedManyResult = class {
+@@ -8698,6 +8712,7 @@ async function convertToModelMessages(messages, options) {
+                     case "output-error":
+                     case "output-available": {
+                       const toolName = getToolName(toolPart);
++                      const resultProviderMetadata = toolPart.resultProviderMetadata ?? toolPart.callProviderMetadata;
+                       content2.push({
+                         type: "tool-result",
+                         toolCallId: toolPart.toolCallId,
+@@ -8709,7 +8724,7 @@ async function convertToModelMessages(messages, options) {
+                           tool: (_g = options == null ? void 0 : options.tools) == null ? void 0 : _g[toolName],
+                           errorMode: toolPart.state === "output-error" ? "text" : "none"
+                         }),
+-                        ...toolPart.callProviderMetadata != null ? { providerOptions: toolPart.callProviderMetadata } : {}
++                        ...resultProviderMetadata != null ? { providerOptions: resultProviderMetadata } : {}
+                       });
+                       break;
+                     }
+@@ -9636,6 +9651,14 @@ var DefaultEmbedManyResult = class {
  
  // src/generate-image/generate-image.ts
  var import_provider_utils25 = require("@ai-sdk/provider-utils");
@@ -124,7 +141,7 @@ index 5774837d8961e535a03b2037c58bdcff45cf1916..d54e9ece226f1fc9e58f1cfcbf93ae33
  async function generateImage({
    model: modelArg,
    prompt: promptArg,
-@@ -9647,7 +9669,8 @@ async function generateImage({
+@@ -9647,7 +9670,8 @@ async function generateImage({
    providerOptions,
    maxRetries: maxRetriesArg,
    abortSignal,
@@ -134,7 +151,7 @@ index 5774837d8961e535a03b2037c58bdcff45cf1916..d54e9ece226f1fc9e58f1cfcbf93ae33
  }) {
    var _a21, _b;
    const model = resolveImageModel(modelArg);
-@@ -9696,11 +9719,36 @@ async function generateImage({
+@@ -9696,11 +9720,36 @@ async function generateImage({
      outputTokens: void 0,
      totalTokens: void 0
    };
@@ -175,7 +192,7 @@ index 5774837d8961e535a03b2037c58bdcff45cf1916..d54e9ece226f1fc9e58f1cfcbf93ae33
            return new DefaultGeneratedFile({
              data: image,
              mediaType: (_a22 = detectMediaType({
-@@ -9708,9 +9756,22 @@ async function generateImage({
+@@ -9708,9 +9757,22 @@ async function generateImage({
                signatures: imageMediaTypeSignatures
              })) != null ? _a22 : "image/png"
            });
@@ -200,7 +217,7 @@ index 5774837d8961e535a03b2037c58bdcff45cf1916..d54e9ece226f1fc9e58f1cfcbf93ae33
      if (result.usage != null) {
        totalUsage = addImageModelUsage(totalUsage, result.usage);
 diff --git a/dist/index.mjs b/dist/index.mjs
-index 6862f01537bf5c2c5d47772fab0174a99180fdf6..fd291e309b550cd6d66a89389222819c35c19395 100644
+index 6862f01537bf5c2c5d47772fab0174a99180fdf6..6079719017826f6df0578632bdfccc706b3c37a3 100644
 --- a/dist/index.mjs
 +++ b/dist/index.mjs
 @@ -1881,7 +1881,7 @@ async function prepareToolsAndToolChoice({
@@ -258,7 +275,24 @@ index 6862f01537bf5c2c5d47772fab0174a99180fdf6..fd291e309b550cd6d66a89389222819c
            }
          });
        },
-@@ -9575,6 +9589,14 @@ import {
+@@ -8624,6 +8638,7 @@ async function convertToModelMessages(messages, options) {
+                     case "output-error":
+                     case "output-available": {
+                       const toolName = getToolName(toolPart);
++                      const resultProviderMetadata = toolPart.resultProviderMetadata ?? toolPart.callProviderMetadata;
+                       content2.push({
+                         type: "tool-result",
+                         toolCallId: toolPart.toolCallId,
+@@ -8635,7 +8650,7 @@ async function convertToModelMessages(messages, options) {
+                           tool: (_g = options == null ? void 0 : options.tools) == null ? void 0 : _g[toolName],
+                           errorMode: toolPart.state === "output-error" ? "text" : "none"
+                         }),
+-                        ...toolPart.callProviderMetadata != null ? { providerOptions: toolPart.callProviderMetadata } : {}
++                        ...resultProviderMetadata != null ? { providerOptions: resultProviderMetadata } : {}
+                       });
+                       break;
+                     }
+@@ -9575,6 +9590,14 @@ import {
    convertBase64ToUint8Array as convertBase64ToUint8Array4,
    withUserAgentSuffix as withUserAgentSuffix5
  } from "@ai-sdk/provider-utils";
@@ -273,7 +307,7 @@ index 6862f01537bf5c2c5d47772fab0174a99180fdf6..fd291e309b550cd6d66a89389222819c
  async function generateImage({
    model: modelArg,
    prompt: promptArg,
-@@ -9586,7 +9608,8 @@ async function generateImage({
+@@ -9586,7 +9609,8 @@ async function generateImage({
    providerOptions,
    maxRetries: maxRetriesArg,
    abortSignal,
@@ -283,7 +317,7 @@ index 6862f01537bf5c2c5d47772fab0174a99180fdf6..fd291e309b550cd6d66a89389222819c
  }) {
    var _a21, _b;
    const model = resolveImageModel(modelArg);
-@@ -9635,11 +9658,36 @@ async function generateImage({
+@@ -9635,11 +9659,36 @@ async function generateImage({
      outputTokens: void 0,
      totalTokens: void 0
    };
@@ -324,7 +358,7 @@ index 6862f01537bf5c2c5d47772fab0174a99180fdf6..fd291e309b550cd6d66a89389222819c
            return new DefaultGeneratedFile({
              data: image,
              mediaType: (_a22 = detectMediaType({
-@@ -9647,9 +9695,22 @@ async function generateImage({
+@@ -9647,9 +9696,22 @@ async function generateImage({
                signatures: imageMediaTypeSignatures
              })) != null ? _a22 : "image/png"
            });
@@ -385,3 +419,27 @@ index ced51f7ecdab66d7d1b0d8496d14616b22cfda64..ca43d554c3678c0a5794adbb4ccb87cd
          : typeof toolChoice === 'string'
            ? { type: toolChoice }
            : { type: 'tool' as const, toolName: toolChoice.toolName as string },
+diff --git a/src/ui/convert-to-model-messages.ts b/src/ui/convert-to-model-messages.ts
+index eb5c29e44d044a97ccf6bb3ee0755b8bea01e6c0..89079f8003d4c1c46165a1db619c1d69759afef2 100644
+--- a/src/ui/convert-to-model-messages.ts
++++ b/src/ui/convert-to-model-messages.ts
+@@ -306,6 +306,8 @@ export async function convertToModelMessages<UI_MESSAGE extends UIMessage>(
+                     case 'output-error':
+                     case 'output-available': {
+                       const toolName = getToolName(toolPart);
++                      const resultProviderMetadata =
++                        toolPart.resultProviderMetadata ?? toolPart.callProviderMetadata;
+                       content.push({
+                         type: 'tool-result',
+                         toolCallId: toolPart.toolCallId,
+@@ -321,8 +323,8 @@ export async function convertToModelMessages<UI_MESSAGE extends UIMessage>(
+                           errorMode:
+                             toolPart.state === 'output-error' ? 'text' : 'none',
+                         }),
+-                        ...(toolPart.callProviderMetadata != null
+-                          ? { providerOptions: toolPart.callProviderMetadata }
++                        ...(resultProviderMetadata != null
++                          ? { providerOptions: resultProviderMetadata }
+                           : {}),
+                       });
+                       break;

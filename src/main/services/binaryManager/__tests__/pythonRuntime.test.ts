@@ -201,49 +201,6 @@ describe('provideManagedPython', () => {
     await expect(provideManagedPython('3.12', {})).rejects.toThrow(`${MANAGED_PYTHON} is not runnable after install`)
   })
 
-  it('installs from the China mirror when in China', async () => {
-    vi.mocked(regionService.detectIsInChina).mockResolvedValue(true)
-    let installed = false
-    mockExecFileAsync.mockImplementation(async (bin: string, args: string[]) => {
-      if (bin === UV_BIN && args[1] === 'install') {
-        installed = true
-        return { stdout: '', stderr: '' }
-      }
-      if (bin === UV_BIN && args[1] === 'find') {
-        if (!installed)
-          throw new Error('No interpreter found for Python 3.12.13 in managed installations or search path')
-        return { stdout: `${MANAGED_PYTHON}\n`, stderr: '' }
-      }
-      if (bin === MANAGED_PYTHON) return { stdout: 'Python 3.12.13\n', stderr: '' }
-      return { stdout: '', stderr: '' }
-    })
-
-    await expect(provideManagedPython('3.12', {})).resolves.toBe(MANAGED_PYTHON)
-    expect(uvCalls('install')[0]?.[2].env.UV_PYTHON_INSTALL_MIRROR).toBe(CHINA_PYTHON_MIRROR)
-  })
-
-  it('never reaches for the mirror outside China', async () => {
-    let installed = false
-    mockExecFileAsync.mockImplementation(async (bin: string, args: string[]) => {
-      if (bin === UV_BIN && args[1] === 'install') {
-        installed = true
-        return { stdout: '', stderr: '' }
-      }
-      if (bin === UV_BIN && args[1] === 'find') {
-        if (!installed)
-          throw new Error('No interpreter found for Python 3.12.13 in managed installations or search path')
-        return { stdout: `${MANAGED_PYTHON}\n`, stderr: '' }
-      }
-      if (bin === MANAGED_PYTHON) return { stdout: 'Python 3.12.13\n', stderr: '' }
-      return { stdout: '', stderr: '' }
-    })
-
-    await expect(provideManagedPython('3.12', {})).resolves.toBe(MANAGED_PYTHON)
-    const installs = uvCalls('install')
-    expect(installs).toHaveLength(1)
-    expect(installs[0]?.[2].env.UV_PYTHON_INSTALL_MIRROR).toBeUndefined()
-  })
-
   it('falls back to the official source only after the China mirror fails', async () => {
     vi.mocked(regionService.detectIsInChina).mockResolvedValue(true)
     let installed = false

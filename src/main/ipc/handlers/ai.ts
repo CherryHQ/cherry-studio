@@ -4,6 +4,7 @@ import { application } from '@application'
 import { AgentSessionEditError } from '@data/services/AgentSessionEditError'
 import { AgentSessionForkSourceError } from '@data/services/AgentSessionForkService'
 import { agentSessionService } from '@data/services/AgentSessionService'
+import { temporaryChatService } from '@data/services/TemporaryChatService'
 import { loggerService } from '@logger'
 import { AgentSessionArchiveBusyError } from '@main/ai/agents/AgentLifecycleService'
 import { agentWorkspaceStorageService } from '@main/ai/agents/AgentWorkspaceStorageService'
@@ -99,11 +100,20 @@ async function exposeAgentSessionArchiveError<T>(operation: () => T | Promise<T>
         sessionIds: error.sessionIds
       })
     }
+    if (isDataApiError(error) && error.code === ErrorCode.INVALID_OPERATION) {
+      const operation = (error.details as { operation?: string } | undefined)?.operation
+      if (operation === 'delete pinned session') {
+        throw new IpcError(aiErrorCodes.AI_AGENT_SESSION_PINNED, error.message)
+      }
+    }
     throw error
   }
 }
 
 export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
+  'ai.agent.session.predict_prompt': (input) => application.get('AgentSessionRuntimeService').predictPrompt(input),
+  'ai.agent.session.abort_prediction': async ({ sessionId, requestId }) =>
+    application.get('AgentSessionRuntimeService').abortPromptPrediction(sessionId, requestId),
   'ai.projection.attach': ({ target, subscriptionId }, { senderId }) => {
     const sender = senderWebContents(senderId)
     if (!sender || senderId === null) throw new Error('Projection subscription requires a window')
@@ -308,7 +318,9 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
     application.get('AgentSessionRuntimeService').stopBackgroundTask(sessionId, taskId),
   'ai.agent.session.open_path': async ({ sessionId, path }) => {
     const workspacePath = agentSessionService.getById(sessionId).workspace.path
-    await openRequestPath(path, AbsoluteFilePathSchema.safeParse(workspacePath).data)
+    await openRequestPath(path, AbsoluteFilePathSchema.safeParse(workspacePath).data, {
+      channel: 'ai.agent.session.open_path'
+    })
   },
 
   // ── Agent scheduled-task commands — thin delegation to the owning AgentJobsService. ──
@@ -347,5 +359,12 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
   'ai.agent.task.run': async ({ agentId, taskId }) => {
     const fired = await application.get('AgentJobsService').runTask(agentId, taskId)
     if (!fired) throw agentTaskNotFound(taskId)
+  },
+  'ai.temporary_topic.create': async (dto) => temporaryChatService.createTopic(dto),
+  'ai.temporary_topic.delete': async ({ id }) => {
+    temporaryChatService.deleteTopic(id)
+  },
+  'ai.temporary_topic.persist': async ({ id }) => {
+    temporaryChatService.persist(id)
   }
 }

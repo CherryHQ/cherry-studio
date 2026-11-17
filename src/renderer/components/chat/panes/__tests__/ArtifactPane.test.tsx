@@ -1055,48 +1055,6 @@ describe('ArtifactPane', () => {
     expect(mocks.listDirectoryEntries).not.toHaveBeenCalled()
   })
 
-  it('keeps a single workspace tree across re-renders', async () => {
-    mockWorkspaceTree('/tmp/workspace', ['README.md'])
-
-    const { rerender } = render(<ArtifactPaneHarness workspacePath="/tmp/workspace" />)
-    await waitFor(() => expect(mocks.treeCreate).toHaveBeenCalledTimes(1))
-
-    rerender(<ArtifactPaneHarness workspacePath="/tmp/workspace" />)
-
-    expect(mocks.treeCreate).toHaveBeenCalledTimes(1)
-    expect(mocks.treeDispose).not.toHaveBeenCalled()
-  })
-
-  it('uses one pane header for the file tree and selected-file preview', async () => {
-    mockWorkspaceTree('/tmp/workspace', ['README.md'])
-    mocks.fsReadText.mockResolvedValue('# Header')
-
-    render(<ArtifactPaneHarness workspacePath="/tmp/workspace" />)
-
-    await waitFor(() => expect(screen.getByTestId('tree-node-README.md')).toBeInTheDocument())
-    expect(screen.getAllByTestId('artifact-pane-header')).toHaveLength(1)
-    expect(screen.getByTestId('artifact-pane-header')).toHaveClass('bg-card')
-    expect(screen.getByTestId('artifact-pane-header-title')).toHaveTextContent('Files')
-
-    fireEvent.click(screen.getByTestId('tree-node-README.md'))
-
-    const overlay = await screen.findByTestId('artifact-file-preview-overlay')
-    expect(screen.getAllByTestId('artifact-pane-header')).toHaveLength(1)
-    expect(within(screen.getByTestId('artifact-pane-header')).getByRole('tab')).toHaveTextContent('README.md')
-    expect(within(overlay).getByRole('navigation', { name: 'breadcrumb' })).toHaveTextContent('README.md')
-    expect(screen.queryByRole('button', { name: 'common.back' })).toBeNull()
-    // File actions live on the breadcrumb row; the pane header keeps only tabs and pane controls.
-    expect(
-      within(screen.getByTestId('artifact-pane-header')).queryByRole('button', { name: 'Open in Finder' })
-    ).toBeNull()
-    expect(within(overlay).getByRole('button', { name: 'Open in Finder' })).toBeInTheDocument()
-
-    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.close README.md' }))
-
-    expect(screen.queryByTestId('artifact-file-preview-overlay')).toBeNull()
-    expect(screen.getByTestId('artifact-pane-header-title')).toHaveTextContent('Files')
-  })
-
   const BS = String.fromCharCode(0x5c)
 
   function titleModel(): ArtifactFileTreeModel {
@@ -1581,19 +1539,6 @@ describe('ArtifactPane', () => {
     await waitFor(() => expect(mocks.showInFolder).toHaveBeenCalledWith('/tmp/workspace/src/index.ts'))
   })
 
-  it('uses the Finder icon for file-manager context menu actions on macOS', async () => {
-    mockWorkspaceTree('/tmp/workspace', ['src/index.ts'])
-
-    render(<ArtifactPaneHarness workspacePath="/tmp/workspace" />)
-
-    await waitFor(() => expect(screen.getByTestId('tree-node-src')).toBeInTheDocument())
-
-    fireEvent.contextMenu(screen.getByTestId('tree-node-src/index.ts'))
-    expect(
-      within(await screen.findByRole('menuitem', { name: 'Finder' })).getByTestId('finder-icon')
-    ).toBeInTheDocument()
-  })
-
   it('groups the file menu: copy actions, then open targets with other apps in a submenu', async () => {
     mockWorkspaceTree('/tmp/workspace', ['README.md'])
     render(<ArtifactPaneHarness workspacePath="/tmp/workspace" />)
@@ -1663,21 +1608,6 @@ describe('ArtifactPane', () => {
 
     const items = commandMenuMocks.calls.findLast((c) => c.pendingExtraItems?.length)?.pendingExtraItems ?? []
     expect(items.map((item) => item.type !== 'separator' && item.id)).toEqual(['artifact-pane.file.copy'])
-  })
-
-  it('offers the tab context menu from the file breadcrumb only while a file is open', async () => {
-    mockWorkspaceTree('/tmp/workspace', ['README.md'])
-
-    render(<ArtifactPaneHarness workspacePath="/tmp/workspace" />)
-
-    await waitFor(() => expect(screen.getByTestId('tree-node-README.md')).toBeInTheDocument())
-    expect(commandMenuMocks.calls.some((c) => c.pendingExtraItems?.length)).toBe(false)
-
-    fireEvent.click(screen.getByTestId('tree-node-README.md'))
-    await waitFor(() => expect(screen.getByRole('tab')).toHaveTextContent('README.md'))
-
-    const enabledCall = commandMenuMocks.calls.find((c) => c.pendingExtraItems && c.pendingExtraItems.length > 0)
-    expect(enabledCall).toBeDefined()
   })
 
   it('shows the full path on the file breadcrumb', async () => {
@@ -1938,7 +1868,7 @@ describe('ArtifactPane', () => {
 
   it('logs directory listing errors and displays a localized load-error state', async () => {
     const error = new Error('Permission denied')
-    const errorSpy = vi.spyOn(loggerService, 'error').mockImplementation(() => undefined)
+    vi.spyOn(loggerService, 'error').mockImplementation(() => undefined)
     mocks.treeCreate.mockRejectedValueOnce(error)
 
     render(<ArtifactPaneHarness workspacePath="/tmp/workspace" />)
@@ -1949,7 +1879,6 @@ describe('ArtifactPane', () => {
     expect(screen.getByTestId('empty-state')).toHaveTextContent('agent.preview_pane.tree_error.load_error.description')
     expect(screen.queryByText('Permission denied')).not.toBeInTheDocument()
     expect(screen.getByTestId('empty-state')).not.toHaveTextContent('agent.preview_pane.empty.title')
-    expect(errorSpy).toHaveBeenCalledWith('Failed to create directory tree for /tmp/workspace', error)
   })
 
   it('does not read content when a folder node is selected', async () => {

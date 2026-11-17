@@ -3,9 +3,6 @@ import { history, redo, undo } from '@tiptap/pm/history'
 
 declare module '@tiptap/core' {
   interface Commands<ReturnType> {
-    composerHardBreak: {
-      setHardBreak: () => ReturnType
-    }
     composerUndoRedo: {
       undo: () => ReturnType
       redo: () => ReturnType
@@ -55,16 +52,6 @@ export const ComposerHardBreak = Node.create({
 
   renderText() {
     return '\n'
-  },
-
-  addCommands() {
-    return {
-      setHardBreak:
-        () =>
-        ({ chain }) => {
-          return chain().insertContent({ type: this.name }).scrollIntoView().run()
-        }
-    }
   }
 
   // No keyboard shortcuts here: which Enter combination inserts a line break is a user

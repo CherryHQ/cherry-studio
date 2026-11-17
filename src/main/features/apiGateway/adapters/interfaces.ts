@@ -8,7 +8,7 @@
  */
 
 import type { ProviderOptions } from '@ai-sdk/provider-utils'
-import type { ToolSet, UIMessageChunk } from 'ai'
+import type { ToolChoice, ToolSet, UIMessageChunk } from 'ai'
 
 import type { CherryUIMessage } from '@shared/data/types/message'
 import type { EndpointType, Model } from '@shared/data/types/model'
@@ -59,6 +59,7 @@ export interface StreamTextOptions {
   topP?: number
   topK?: number
   stopSequences?: string[]
+  toolChoice?: ToolChoice<ToolSet>
 }
 
 /**
@@ -100,7 +101,7 @@ export interface IStreamAdapter<TOutputEvent = unknown> {
   buildNonStreamingResponse(): unknown
 
   /**
-   * Get the message ID for this adapter instance
+   * Get the response ID serialized on the provider-compatible wire
    */
   getMessageId(): string
 
@@ -164,7 +165,8 @@ export interface IMessageConverter<TInputParams = unknown> {
     provider: Provider,
     model: Model,
     params: TInputParams,
-    maxOutputTokens?: number
+    maxOutputTokens?: number,
+    overrideReasoning?: boolean
   ): ProviderOptions | undefined
 }
 

@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import path from 'node:path'
 
-import type { Observation, OperationResult, ShutdownReceipt, Thread } from '@cherrystudio/agent-runtime'
+import type { Observation, OperationResult, Subagent, Thread } from '@cherrystudio/agent-runtime'
 
 import { isUuid, nativeIdentity, rejected, runtimeError } from './identity'
 import { ClaudeOwner } from './owner'
@@ -20,7 +20,8 @@ export function createClaudeCodeRuntime(options: ClaudeCodeRuntimeOptions): Clau
   const owners = new Map<string, Promise<ClaudeOwner | undefined>>()
   const live = new Set<ClaudeOwner>()
   let closed = false
-  let shutdown: Promise<OperationResult<ShutdownReceipt>> | undefined
+  const closingAccess = new AbortController()
+  let shutdown: Promise<OperationResult<void>> | undefined
   const report = (error: unknown) => {
     try {
       options.onError?.(error)
@@ -56,6 +57,7 @@ export function createClaudeCodeRuntime(options: ClaudeCodeRuntimeOptions): Clau
       try {
         const native = projection.feed.observe(sink)
         const observation = {
+          drain: () => native.drain(),
           stop: async () => {
             await native.stop()
             observations.delete(observation)
@@ -77,9 +79,13 @@ export function createClaudeCodeRuntime(options: ClaudeCodeRuntimeOptions): Clau
         : owner.submit(projection, inputId, content, whenBusy)
     return {
       thread: projection.thread,
-      input: agentId
-        ? undefined
-        : { policies: ['steer', 'follow-up'], submit: (input) => submit(input.inputId, input.text, input.whenBusy) },
+      contextUsage: async () => {
+        if (released) return rejected('contextUsage', 'released')
+        if (agentId) return { status: 'unsupported', error: runtimeError('contextUsage', 'child-control') }
+        const result = await owner.contextUsage(projection)
+        return released ? rejected('contextUsage', 'released') : result
+      },
+      input: agentId ? undefined : { submit: (input) => submit(input.inputId, input.text, input.whenBusy) },
       interrupt: agentId
         ? undefined
         : () => (released ? Promise.resolve(rejected('interrupt', 'released')) : owner.interrupt(projection)),
@@ -88,8 +94,56 @@ export function createClaudeCodeRuntime(options: ClaudeCodeRuntimeOptions): Clau
           for (const event of batch.events) await sink(event)
         }),
       claude: {
+        state: () => ({ active: projection.control.isTurnActive }),
+        relation: () =>
+          [...owner.projections.values()]
+            .flatMap((parent) => parent.feed.snapshot.subagents ?? [])
+            .find((relation) => relation.child?.id === projection.thread.id),
+        async openChild(toolCallId, signal) {
+          if (released || closed || signal?.aborted) return rejected('open-child', 'closed')
+          const found = await new Promise<OperationResult<Subagent & { child: Thread }>>((resolve) => {
+            const finish = (result: OperationResult<Subagent & { child: Thread }>) => {
+              observations.delete(waiting)
+              closingAccess.signal.removeEventListener('abort', close)
+              signal?.removeEventListener('abort', close)
+              void observed.stop()
+              resolve(result)
+            }
+            const close = () => finish(rejected('open-child', 'closed'))
+            const waiting: Observation = { drain: () => observed.drain(), stop: async () => close() }
+            const observed = projection.feed.observe((batch) => {
+              if (released || closed || batch.events.some((event) => event.type === 'closed')) return close()
+              const snapshot = projection.feed.snapshot
+              const matches = snapshot.subagents?.filter((child) => child.origin?.toolCallId === toolCallId) ?? []
+              if (matches.length > 1) return finish(rejected('open-child', 'ambiguous-origin'))
+              const relation = matches[0]
+              if (relation?.child) return finish({ status: 'confirmed', value: { ...relation, child: relation.child } })
+              const call = snapshot.messages
+                .flatMap((message) => message.parts)
+                .find(
+                  (part) =>
+                    part.type === 'dynamic-tool' &&
+                    part.toolCallId === toolCallId &&
+                    ['Agent', 'Task'].includes(part.toolName)
+                )
+              if (!call) return finish(rejected('open-child', 'unknown-call'))
+              if (call.type === 'dynamic-tool' && call.state.startsWith('output-'))
+                finish(rejected('open-child', 'child-unavailable'))
+            })
+            observations.add(waiting)
+            closingAccess.signal.addEventListener('abort', close, { once: true })
+            signal?.addEventListener('abort', close, { once: true })
+          })
+          if (found.status !== 'confirmed') return found
+          const opened = await runtime.open(found.value.child)
+          if (opened.status !== 'confirmed') return opened
+          if (released || closed || signal?.aborted) {
+            await opened.value.release()
+            return rejected('open-child', 'closed')
+          }
+          return { status: 'confirmed', value: { relation: found.value, handle: opened.value } }
+        },
         sessionId,
-        agentId,
         start: (warm) =>
           released || agentId
             ? rejected('start', agentId ? 'child-control' : 'released')
@@ -98,17 +152,14 @@ export function createClaudeCodeRuntime(options: ClaudeCodeRuntimeOptions): Clau
           released || agentId
             ? Promise.resolve(rejected('supportedCommands', agentId ? 'child-control' : 'released'))
             : owner.control(projection, 'supportedCommands', (query) => query.supportedCommands()),
-        contextUsage: () =>
-          released || agentId
-            ? Promise.resolve(rejected('contextUsage', agentId ? 'child-control' : 'released'))
-            : owner.control(projection, 'contextUsage', (query) => query.getContextUsage()),
         setPermissionMode: (mode) =>
           released || agentId
             ? Promise.resolve(rejected('setPermissionMode', agentId ? 'child-control' : 'released'))
             : owner.control(projection, 'setPermissionMode', (query) => query.setPermissionMode(mode)),
         submit,
         observe,
-        archive: () => (released ? Promise.resolve(rejected('archive', 'released')) : owner.archive(projection)),
+        archive: (options) =>
+          released ? Promise.resolve(rejected('archive', 'released')) : owner.archive(projection, options?.refresh),
         stopTask: (id) => (released ? Promise.resolve(rejected('stopTask', 'released')) : owner.stopTask(id))
       },
       release: async () => {
@@ -117,7 +168,7 @@ export function createClaudeCodeRuntime(options: ClaudeCodeRuntimeOptions): Clau
       }
     }
   }
-  return {
+  const runtime: ClaudeCodeRuntime = {
     async create(config) {
       if (closed) return rejected('create', 'closed')
       try {
@@ -167,8 +218,22 @@ export function createClaudeCodeRuntime(options: ClaudeCodeRuntimeOptions): Clau
         return rejected('open', 'native-storage-unavailable')
       }
     },
+    async settled() {
+      if (!shutdown) {
+        try {
+          await Promise.all([...live].map((owner) => owner.settled()))
+        } catch (cause) {
+          if (!shutdown) throw cause
+        }
+      }
+      if (shutdown) {
+        const result = await shutdown
+        if (result.status !== 'confirmed') throw new Error(result.error.message)
+      }
+    },
     shutdown() {
       closed = true
+      closingAccess.abort()
       shutdown ??= (async () => {
         await Promise.allSettled(owners.values())
         const results = await Promise.all([...live].map((owner) => owner.shutdown()))
@@ -177,11 +242,12 @@ export function createClaudeCodeRuntime(options: ClaudeCodeRuntimeOptions): Clau
           shutdown = undefined
           return uncertain
         }
-        return { status: 'confirmed' as const, value: { effect: 'closed' as const } }
+        return { status: 'confirmed' as const, value: undefined }
       })()
       return shutdown
     }
   }
+  return runtime
 }
 
 function nativeIdentityRoot(thread: Thread): Thread['id'] {

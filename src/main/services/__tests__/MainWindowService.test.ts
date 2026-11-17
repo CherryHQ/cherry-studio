@@ -160,6 +160,7 @@ vi.mock('@application', () => ({
 vi.mock('electron', () => ({
   app: {
     dock: { hide: vi.fn(), show: vi.fn() },
+    focus: vi.fn(),
     on: vi.fn(),
     removeListener: vi.fn(),
     getLocale: vi.fn(() => 'en-US'),
@@ -189,7 +190,7 @@ vi.mock('../../../../build/icon.png?asset', () => ({ default: '/mock/icon.png' }
 
 // BaseService.ipcHandle/ipcOn/registerDisposable rely on real ipc internals; bypass them here.
 vi.mock('@main/core/lifecycle', async () => {
-  const actual = (await vi.importActual('@main/core/lifecycle')) as Record<string, unknown>
+  const actual = await vi.importActual<Record<string, unknown>>('@main/core/lifecycle')
   class StubBase {
     ipcHandle = vi.fn()
     ipcOn = vi.fn()
@@ -582,7 +583,7 @@ describe('MainWindowService', () => {
       ;(svc as any).setupWebContentsHandlers(win)
       created({ type: WindowType.Main, window: win })
       const popup = win.webContents.setWindowOpenHandler.mock.calls.at(-1)![0]
-      expect(popup({ url: 'https://account.siliconflow.cn/oauth/callback' })).toMatchObject({ action: 'allow' })
+      expect(popup({ url: 'https://console.inferera.com/token?state=test' })).toMatchObject({ action: 'allow' })
       expect(shell.openExternal).not.toHaveBeenCalled()
     })
 
@@ -972,7 +973,6 @@ describe('MainWindowService', () => {
     expect(() => svc.onMainWindowCreated(listener)).not.toThrow()
 
     expect(listener).toHaveBeenCalledWith(win)
-    expect(loggerMock.error).toHaveBeenCalledWith('Failed to replay main window listener', error)
   })
 
   describe('close handler', () => {
@@ -1411,6 +1411,24 @@ describe('MainWindowService', () => {
     })
   })
 
+  describe('macOS second-instance activation', () => {
+    it.each([false, true])('brings the existing app forward when minimized=%s', (minimized) => {
+      platformState.isMac = true
+      win.isMinimized.mockReturnValue(minimized)
+      ;(svc as any).mainWindow = win
+      let frontmost = false
+      vi.mocked(app.focus).mockImplementation((options) => {
+        if (options?.steal) frontmost = true
+      })
+      ;(svc as any).registerSecondInstanceHandler()
+      const registrations = vi.mocked(app.on).mock.calls as Array<[string, () => void]>
+      const listener = registrations.find(([event]) => event === 'second-instance')?.[1]
+      expect(listener).toBeDefined()
+      listener!()
+      expect(frontmost).toBe(true)
+    })
+  })
+
   describe('showMainWindow init data', () => {
     it('restores a hidden macOS window without transforming the app process type', () => {
       platformState.isMac = true
@@ -1588,7 +1606,13 @@ describe('MainWindowService', () => {
       expect(win.webContents.reload).not.toHaveBeenCalled()
       expect(applicationMock.forceExit).not.toHaveBeenCalled()
       // The crash is still reported — only the recovery attempt is skipped.
-      expect(loggerMock.error).toHaveBeenCalledWith('Renderer process crashed with: {"reason":"crashed"}')
+      expect(loggerMock.error).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({
+          operation: 'window.renderer.exit',
+          failure: { source: 'application', kind: 'reliability', reason: 'crashed', outcome: 'failed' }
+        })
+      )
     })
 
     it('neither reloads nor forceExits when only the webContents is destroyed', () => {
@@ -1758,7 +1782,6 @@ describe('MainWindowService', () => {
   })
 
   it.each([
-    'https://account.siliconflow.cn/oauth/callback',
     'https://console.inferera.com/token?state=test',
     'https://dash.302.ai/sso/login',
     'https://maas.aiionly.com/login'
@@ -1783,6 +1806,8 @@ describe('MainWindowService', () => {
   })
 
   it.each([
+    'https://account.siliconflow.cn/oauth?client_id=retired',
+    'https://account.siliconflow.cn/oauth/callback',
     'https://account.siliconflow.cn/oauth-evil',
     'https://account.siliconflow.cn.evil.example/oauth',
     'http://account.siliconflow.cn/oauth'

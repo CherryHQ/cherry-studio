@@ -12,6 +12,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { ipcApi } from '@renderer/ipc'
+import { getBrowserStartPageUrl, rememberBrowserPageUrl } from '@renderer/services/browserStartPage'
 import { getGuestAuthorizationKey } from '@renderer/utils/webviewGuest'
 import type { WebviewAnnotationTarget } from '@shared/types/webviewAnnotation'
 import { getWebviewPartition, WebviewSecurityProfile } from '@shared/utils/webviewSecurity'
@@ -24,6 +25,7 @@ import { WebviewImportBanner } from './WebviewImportBanner'
 
 interface Props {
   initialUrl?: string
+  startPageContext?: string
   securityProfile:
     | typeof WebviewSecurityProfile.AgentBrowser
     | typeof WebviewSecurityProfile.AgentDevPreview
@@ -42,6 +44,7 @@ interface Props {
 /** A page-owned browser for standalone tabs and explicitly opened HTML artifacts. */
 export function WebviewBrowser({
   initialUrl: sourceUrl,
+  startPageContext,
   onNavigate,
   onUrlChange,
   onTitleChange,
@@ -61,7 +64,16 @@ export function WebviewBrowser({
   }>()
   const hasNavigation = navigation && navigation.sourceUrl === sourceUrl && navigation.sourceProfile === sourceProfile
   const requestedUrl = hasNavigation ? navigation.url : sourceUrl
-  const initialUrl = requestedUrl ?? 'about:blank'
+  const [startPageUrl] = useState(() => {
+    if (
+      requestedUrl !== undefined ||
+      startPageContext === undefined ||
+      sourceProfile !== WebviewSecurityProfile.AgentBrowser
+    )
+      return 'about:blank'
+    return getBrowserStartPageUrl(startPageContext)
+  })
+  const initialUrl = requestedUrl ?? startPageUrl
   const securityProfile = initialUrl.startsWith('file:')
     ? WebviewSecurityProfile.AgentHtmlArtifact
     : hasNavigation
@@ -135,9 +147,12 @@ export function WebviewBrowser({
   const handleDidNavigate = useCallback(
     (event: DidNavigateEvent | DidNavigateInPageEvent) => {
       if ('isMainFrame' in event && !event.isMainFrame) return
+      if (startPageContext !== undefined && securityProfile === WebviewSecurityProfile.AgentBrowser) {
+        rememberBrowserPageUrl(startPageContext, event.url)
+      }
       onUrlChange?.(event.url)
     },
-    [onUrlChange]
+    [onUrlChange, securityProfile, startPageContext]
   )
 
   const handlePageTitleUpdated = useCallback(
@@ -199,6 +214,7 @@ export function WebviewBrowser({
         onPageTitleUpdated={handlePageTitleUpdated}
         onPageFaviconUpdated={handlePageFaviconUpdated}
         onDidFinishLoad={handleDidFinishLoad}
+        onDidStopLoading={() => setIsLoading(false)}
         onDidFailLoad={handleDidFailLoad}
       />
       <BrowserOverlays

@@ -13,7 +13,7 @@ import { ensureCustomChatProvider, selectVisibleModel } from '../helpers/models'
 import { openSettingsSection } from '../helpers/settings'
 import type { RegressionApp } from '../RegressionApp'
 
-// Uses the configured real provider; the expected reply exists only in the installed SKILL.md.
+// Uses the local mock model; the expected reply exists only in the installed SKILL.md.
 export async function skillChatTrigger(app: RegressionApp, page: Page, testInfo: TestInfo): Promise<void> {
   const screenshot = async (name: string) => {
     const path = testInfo.outputPath(`${name}.png`)
@@ -132,11 +132,13 @@ export async function skillChatTrigger(app: RegressionApp, page: Page, testInfo:
       'Use the skill-sample Skill to help me with this task. If it is unavailable, say SKILL_UNAVAILABLE and do not search for or install it.'
     )
     await page.getByRole('button', { name: 'Send', exact: true }).click()
-    await expect(response.getByTestId('completed-process-trigger')).toBeVisible({ timeout: 180_000 })
-    await expect(response).toContainText('SKILL_UNAVAILABLE')
+    await expect(response).toContainText('SKILL_UNAVAILABLE', { timeout: 180_000 })
     await expect(response).not.toContainText('QA-SAMPLE-SKILL-OK')
     const disabledSessionId = await readSession()
     expect(disabledSessionId).not.toBe(enabledSessionId)
+    await expect
+      .poll(async () => (await readMessages(disabledSessionId)).findLast(({ role }) => role === 'assistant')?.status)
+      .toBe('success')
     const disabledMessages = await readMessages(disabledSessionId)
     const successfulSampleLoads = disabledMessages
       .flatMap(({ data }) => data.parts ?? [])

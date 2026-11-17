@@ -1,13 +1,20 @@
 import {
+  AssistantEntry,
+  defineDoc,
+  GenerationTask,
   InboxDoc,
   CompactionEntry,
   LiveDoc,
+  ToolTask,
   type ConversationId,
   type Cursor,
   type EntryRecord,
+  type EntryId,
+  type GenerationInput,
   type Page,
   type TaskRecord,
   type TaskId,
+  type ToolTaskInput,
   type Tx
 } from '@earendil-works/pi-durable'
 
@@ -18,9 +25,20 @@ import {
   type HistoryEntry,
   type UsageFact
 } from '@cherrystudio/agent-behavior'
+import type { GoalOwner } from '@cherrystudio/agent-behavior'
 import { runtimeId, type JsonValue, type ThreadId } from '@cherrystudio/agent-runtime'
 
 export const threadId = (id: ConversationId): ThreadId => runtimeId(String(id))
+
+export const nativeSummaryUsage = defineDoc({
+  kind: 'cherry.native-summary-usage',
+  version: 1,
+  scope: 'conversation',
+  history: 'latest',
+  fork: 'initial',
+  checkpointWhen: () => false,
+  initial: (): { records: Record<string, { owner: GoalOwner; usage: UsageFact; runId?: number }> } => ({ records: {} })
+})
 export function conversationId(thread: ThreadId): ConversationId {
   const id = Number(thread)
   if (!Number.isSafeInteger(id) || id < 0 || String(id) !== thread)
@@ -39,8 +57,10 @@ export async function pages<T>(read: (cursor?: Cursor) => Promise<Page<T, Cursor
   return items
 }
 
-export async function lineageEntries(tx: Tx, id: ConversationId): Promise<EntryRecord[]> {
-  return pages((cursor) => tx.scanEntries({ conversationId: id, order: 'ascending' }, 256, cursor))
+export async function lineageEntries(tx: Tx, id: ConversationId, at?: EntryId): Promise<EntryRecord[]> {
+  return pages((cursor) =>
+    tx.scanEntries({ conversationId: id, order: 'ascending', ...(at && { maxEntryId: at }) }, 256, cursor)
+  )
 }
 
 function summaryUsage(entry: EntryRecord) {
@@ -54,13 +74,14 @@ function summaryUsage(entry: EntryRecord) {
 
 export function historyOf(
   entries: readonly EntryRecord[],
-  tasks: readonly TaskRecord<JsonValue, JsonValue, JsonValue>[]
+  tasks: readonly TaskRecord<JsonValue, JsonValue, JsonValue>[],
+  owner: ConversationId
 ): HistoryEntry[] {
   const calls = new Map<string, string>()
   for (const task of tasks) {
-    const input = task.input as { kind?: string; assistant?: number; callId?: string }
-    if (task.kind === 'pi.tool' && input.kind === 'model')
-      calls.set(`${input.assistant}:${input.callId}`, String(task.id))
+    if (task.kind !== ToolTask.definition.name) continue
+    const input = task.input as ToolTaskInput
+    if (input.kind === 'model') calls.set(`${input.assistant}:${input.callId}`, String(task.id))
   }
   const callKeys = new Map<string, string>()
   return entries.flatMap((entry): HistoryEntry[] => {
@@ -74,9 +95,10 @@ export function historyOf(
       )
       .join('\n')
     const decoded = decodeEntry({ id, kind: entry.kind, data: entry.data, text })
+    if (decoded?.kind === 'record' && entry.conversationId !== owner) return []
     if (decoded) return [decoded]
-    if (entry.kind === 'pi.compaction') {
-      const accounting = summaryUsage(entry)
+    if (CompactionEntry.is(entry)) {
+      const accounting = entry.conversationId === owner ? summaryUsage(entry) : undefined
       return [...(accounting ? [accounting] : []), { kind: 'compaction', id }]
     }
     return model.flatMap((message): HistoryEntry[] => {
@@ -129,9 +151,10 @@ export function historyOf(
 export async function readFacts(
   tx: Tx,
   id: ConversationId,
-  abandoned: ReadonlySet<TaskId> = new Set()
+  abandoned: ReadonlySet<TaskId> = new Set(),
+  at?: EntryId
 ): Promise<ConversationFacts> {
-  const entries = await lineageEntries(tx, id)
+  const entries = await lineageEntries(tx, id, at)
   const tasks = (
     await Promise.all(
       [...new Set([id, ...entries.map((entry) => entry.conversationId)])].map((conversationId) =>
@@ -139,7 +162,15 @@ export async function readFacts(
       )
     )
   ).flat()
-  const history = historyOf(entries, tasks)
+  const history = historyOf(entries, tasks, id)
+  const summaries = await tx.doc(nativeSummaryUsage, id)
+  for (const [key, value] of Object.entries(summaries.records)) {
+    history.push({
+      kind: 'record',
+      id: runtimeId(`native-summary:${key}`),
+      record: { type: 'summary-usage', value: { ...value.owner, usage: { ...value.usage } } }
+    })
+  }
   const live = await tx.doc(LiveDoc, id)
   const inbox = await tx.doc(InboxDoc, id)
   const record = (await tx.conversation(id))!
@@ -160,9 +191,22 @@ export async function readFacts(
     const childTasks = await pages((cursor) => tx.scanTasks({ conversationId: childId }, 256, cursor))
     const ids = await runIds(tx, childId, childTasks, childEntries)
     const runUsage = Array.from(ids, () => ({ ...ZERO_USAGE }))
+    const childSummaries = await tx.doc(nativeSummaryUsage, childId)
+    for (const value of Object.values(childSummaries.records)) {
+      const run = ids.findIndex((id) => id === value.runId)
+      if (run < 0) continue
+      const total = runUsage[run]
+      total.input += value.usage.input
+      total.output += value.usage.output
+      total.cacheRead += value.usage.cacheRead
+      total.cacheWrite += value.usage.cacheWrite
+      total.totalTokens += value.usage.totalTokens
+      total.costUsd += value.usage.costUsd
+    }
     for (const entry of childEntries) {
       if (entry.conversationId !== childId) continue
-      const runId = (entry.data as { runId?: TaskId })?.runId
+      if (!AssistantEntry.is(entry) && !CompactionEntry.is(entry)) continue
+      const runId = entry.data.runId
       if (runId === undefined) continue
       const run = ids.indexOf(runId)
       if (run < 0) continue
@@ -197,6 +241,7 @@ export async function readFacts(
   }
   const keysSeen = new Set(history.flatMap((entry) => ('key' in entry && entry.key ? [entry.key] : [])))
   for (const task of tasks) {
+    if (task.conversationId !== id) continue
     const input = task.input as { key?: string }
     if (
       task.kind === 'cherry.behavior-job' &&
@@ -207,8 +252,9 @@ export async function readFacts(
     )
       keysSeen.add(input.key)
   }
-  const outcome = tasks.filter((task) => task.conversationId === id && task.kind === 'pi.generation').at(-1)
-    ?.state.outcome
+  const outcome = tasks
+    .filter((task) => task.conversationId === id && task.kind === GenerationTask.definition.name)
+    .at(-1)?.state.outcome
   return {
     thread: threadId(id),
     lineage:
@@ -241,7 +287,7 @@ export async function readFacts(
 
 export const ZERO_USAGE = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0, costUsd: 0 }
 export function taskRun(task: TaskRecord<JsonValue, JsonValue, JsonValue>): TaskId {
-  return (task.input as { runId?: TaskId }).runId ?? task.id
+  return (task.input as GenerationInput).runId ?? task.id
 }
 export async function runIds(
   tx: Tx,
@@ -261,9 +307,9 @@ export async function runIds(
       reservations.set(input.runId, Math.max(reservations.get(input.runId) ?? 0, data.cherryRun))
   }
   const ids: (TaskId | undefined)[] = []
-  for (const run of [...new Set(tasks.filter((task) => task.kind === 'pi.generation').map(taskRun))].sort(
-    (a, b) => a - b
-  )) {
+  for (const run of [
+    ...new Set(tasks.filter((task) => task.kind === GenerationTask.definition.name).map(taskRun))
+  ].sort((a, b) => a - b)) {
     const number = Math.max(ids.length + 1, reservations.get(run) ?? 0)
     while (ids.length < number - 1) ids.push(undefined)
     ids.push(run)

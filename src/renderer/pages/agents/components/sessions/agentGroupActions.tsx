@@ -1,5 +1,5 @@
 import type { TFunction } from 'i18next'
-import { Archive, Pin, PinOff, Smile, SquarePen } from 'lucide-react'
+import { Archive, Pin, PinOff, Smile, SquarePen, Trash2 } from 'lucide-react'
 
 import { createActionRegistry } from '@renderer/components/chat/actions/actionRegistry'
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
@@ -20,6 +20,8 @@ export interface AgentGroupActionContext {
   onEdit: (agentId: string) => void
   onArchiveSessions: (agentId: string) => void | Promise<void>
   onDeleteAgent: (agentId: string) => void | Promise<void>
+  onPermanentDeleteAgent?: (agentId: string) => void | Promise<void>
+  permanentDeleteShortcut?: string
   onSetAgentIconType: (iconType: AssistantIconType) => void | Promise<void>
   onTogglePin: (agentId: string) => void | Promise<void>
   onToggleSidebar: (agentId: string) => void
@@ -73,6 +75,15 @@ agentGroupActionRegistry.registerCommand({
   run: ({ agentId, onDeleteAgent }) => onDeleteAgent(agentId)
 })
 
+agentGroupActionRegistry.registerCommand({
+  id: 'agent-group.delete-agent-permanently',
+  availability: ({ deleteAgentDisabled, onPermanentDeleteAgent }) => ({
+    visible: Boolean(onPermanentDeleteAgent),
+    enabled: !deleteAgentDisabled
+  }),
+  run: ({ agentId, onPermanentDeleteAgent }) => onPermanentDeleteAgent?.(agentId)
+})
+
 agentGroupActionRegistry.registerAction(
   buildResourceEntityMenuActionDescriptor({
     id: 'agent-group.edit',
@@ -89,6 +100,7 @@ agentGroupActionRegistry.registerAction(
     commandId: 'agent-group.toggle-pin',
     label: ({ pinned, t }) => (pinned ? t('agent.unpin.title') : t('agent.pin.title')),
     icon: ({ pinned }) => (pinned ? <PinOff size={14} /> : <Pin size={14} />),
+    group: 'pin',
     order: 20
   })
 )
@@ -133,6 +145,20 @@ agentGroupActionRegistry.registerAction(
     icon: () => <Archive size={14} />,
     group: 'danger',
     order: 40
+  })
+)
+
+agentGroupActionRegistry.registerAction(
+  buildResourceEntityMenuActionDescriptor({
+    id: 'agent-group.delete-agent-permanently',
+    commandId: 'agent-group.delete-agent-permanently',
+    label: ({ t }) => t('common.delete_permanently'),
+    icon: () => <Trash2 size={14} />,
+    group: 'danger',
+    order: 50,
+    danger: true,
+    shortcut: ({ permanentDeleteShortcut }) => permanentDeleteShortcut ?? '',
+    availability: ({ onPermanentDeleteAgent }) => ({ visible: Boolean(onPermanentDeleteAgent) })
   })
 )
 

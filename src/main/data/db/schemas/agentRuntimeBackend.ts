@@ -3,7 +3,10 @@ import { check, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
 
 import { createUpdateTimestamps, uuidPrimaryKey } from './_columnHelpers'
 
-export type AgentRuntimeLocator = { version: 1; kind: 'pi' } | { version: 1; kind: 'pi-durable'; fileName: string }
+export type AgentRuntimeLocator =
+  | { version: 1; kind: 'pi' }
+  | { version: 1; kind: 'pi-durable'; fileName: string }
+  | { version: 1; kind: 'claude-code'; configDir: string }
 
 export const agentRuntimeBackendTable = sqliteTable(
   'agent_runtime_backend',

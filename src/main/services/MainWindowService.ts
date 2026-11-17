@@ -331,7 +331,16 @@ export class MainWindowService extends BaseService {
 
   private setupMainWindowMonitor(mainWindow: BrowserWindow) {
     mainWindow.webContents.on('render-process-gone', (_, details) => {
-      logger.error(`Renderer process crashed with: ${JSON.stringify(details)}`)
+      logger.error('Renderer process exited', {
+        operation: 'window.renderer.exit',
+        failure: {
+          source: 'application',
+          kind: ['clean-exit', 'killed'].includes(details.reason) ? 'expected' : 'reliability',
+          reason: details.reason,
+          outcome: 'failed'
+        },
+        exitCode: details.exitCode
+      })
       // A window being torn down can report its renderer gone after the webContents is
       // destroyed, where reload() throws and hides the real crash behind a dialog.
       if (mainWindow.isDestroyed() || mainWindow.webContents.isDestroyed()) return
@@ -672,7 +681,6 @@ export class MainWindowService extends BaseService {
       const { url } = details
 
       const oauthProviderUrls = [
-        'https://account.siliconflow.cn/oauth',
         'https://console.inferera.com/token',
         'https://dash.302.ai/sso/login',
         'https://maas.aiionly.com/login'
@@ -798,6 +806,7 @@ export class MainWindowService extends BaseService {
         mainWindow.restore()
         if (isWin) mainWindow.show()
         mainWindow.focus()
+        if (isMac) app.focus({ steal: true })
         this.pushMainWindowInitData(initData)
         return
       }
@@ -844,6 +853,7 @@ export class MainWindowService extends BaseService {
 
       mainWindow.show()
       mainWindow.focus()
+      if (isMac) app.focus({ steal: true })
       if (isWin) {
         mainWindow.setVisibleOnAllWorkspaces(false)
       }

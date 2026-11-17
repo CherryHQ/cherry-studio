@@ -238,6 +238,55 @@
       "when": 1793743411274,
       "tag": "0033_child_context_projection",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "6",
+      "when": 1793870902260,
+      "tag": "0034_big_johnny_storm",
+      "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "6",
+      "when": 1794176949635,
+      "tag": "0035_agent_session_task_ownership",
+      "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "6",
+      "when": 1794385320323,
+      "tag": "0036_assistant_avatar",
+      "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "6",
+      "when": 1794385698412,
+      "tag": "0037_agent_avatar",
+      "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "6",
+      "when": 1794411221036,
+      "tag": "0038_clammy_jigsaw",
+      "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "6",
+      "when": 1794662249449,
+      "tag": "0039_agent_session_tree_backfill",
+      "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "6",
+      "when": 1794662254214,
+      "tag": "0040_agent_session_tree_constraints",
+      "breakpoints": true
     }
   ],
   "version": "7"

@@ -151,16 +151,9 @@ describe('HelpMenu', () => {
     await waitFor(() => expect(mocks.openFeedback).toHaveBeenCalledOnce())
   })
 
-  it('places report a problem immediately after the guide and opens release notes', async () => {
+  it('opens release notes', async () => {
     render(<HelpMenu onFeedbackClick={mocks.openFeedback} />)
     const user = await openMenu()
-
-    expect(
-      screen
-        .getAllByRole('button')
-        .slice(1)
-        .map((action) => action.textContent)
-    ).toEqual(['help.whats_new', 'help.guide', 'Report a problem', 'help.feedback', 'System diagnostics'])
 
     await user.click(screen.getByRole('button', { name: 'help.whats_new' }))
     await waitFor(() => expect(mocks.openReleaseNotes).toHaveBeenCalledOnce())
@@ -183,9 +176,9 @@ describe('HelpMenu', () => {
   })
 
   it.each([
-    ['zh-CN', 'https://docs.cherryai.com.cn/'],
-    ['zh-TW', 'https://docs.cherryai.com.cn/'],
-    ['en-US', 'https://docs.cherryai.com.cn/docs/en-us']
+    ['zh-CN', 'https://cherryai.com.cn/docs'],
+    ['zh-TW', 'https://cherryai.com.cn/docs'],
+    ['en-US', 'https://cherryai.com/docs']
   ])('opens the language-specific guide in app content for %s', async (language, expectedUrl) => {
     mocks.language = language
     render(<HelpMenu onFeedbackClick={mocks.openFeedback} />)

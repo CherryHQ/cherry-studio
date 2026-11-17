@@ -9,6 +9,7 @@ import type {
   AiStreamAttachResponse,
   AiStreamOpenResponse,
   AiToolApprovalRespondRequest,
+  AiToolApprovalRespondResponse,
   AiToolResultRequest,
   AiToolResultResponse,
   StreamChunkPayload,
@@ -33,6 +34,7 @@ import {
   AgentWorkspaceNameSchema
 } from '@shared/data/api/schemas/agentWorkspaces'
 import { JobScheduleNameAtomSchema, TriggerSchema } from '@shared/data/api/schemas/jobs'
+import { CreateTopicSchema } from '@shared/data/api/schemas/topics'
 import { ContentHashSchema, CleanupPolicySchema, type FileEntry, FileEntrySchema } from '@shared/data/types/file'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import {
@@ -41,10 +43,12 @@ import {
   ServiceTierSelectionSchema,
   UniqueModelIdSchema
 } from '@shared/data/types/model'
+import { TopicSchema } from '@shared/data/types/topic'
 import { ReasoningEffortOptionSchema } from '@shared/types/aiSdk'
 import { AbsoluteFilePathSchema, FileVersionSchema } from '@shared/types/file'
 
 import { defineRoute } from '../define'
+import { ImageBytesSchema } from './entityImage'
 
 /**
  * AI IPC schemas — `AiService`'s non-streaming model operations (text/embedding/image
@@ -79,6 +83,7 @@ export type HeartbeatRunResult = z.infer<typeof HeartbeatRunResultSchema>
 
 export const CreateAgentCommandSchema = AgentBaseSchema.extend({
   type: AgentEntitySchema.shape.type,
+  avatarImage: ImageBytesSchema.optional(),
   /**
    * Create-only: ids of pre-existing global skills to enable for the new
    * Agent. Join rows are written in the same DB transaction as the Agent.
@@ -205,6 +210,19 @@ const projectionTargetSchema = z.discriminatedUnion('kind', [
 ]) satisfies z.ZodType<ProjectionTarget>
 
 export const aiRequestSchemas = {
+  'ai.agent.session.predict_prompt': defineRoute({
+    input: z.strictObject({
+      sessionId: z.string().min(1),
+      replyId: z.string().min(1),
+      modelId: UniqueModelIdSchema,
+      requestId: z.uuid()
+    }),
+    output: z.object({ supported: z.boolean(), text: z.string() })
+  }),
+  'ai.agent.session.abort_prediction': defineRoute({
+    input: z.strictObject({ sessionId: z.string().min(1), requestId: z.uuid() }),
+    output: z.void()
+  }),
   'ai.projection.attach': defineRoute({
     input: z.strictObject({ target: projectionTargetSchema, subscriptionId: z.uuid() }),
     output: z.custom<MessageProjectionView | null>()
@@ -231,6 +249,7 @@ export const aiRequestSchemas = {
       // Callers that do not need cancellation keep the existing wire shape.
       requestId: z.string().min(1).optional(),
       ...aiChatRequestShape,
+      disableTools: z.boolean().optional(),
       reasoningEffort: ReasoningEffortOptionSchema.optional(),
       serviceTier: ServiceTierSelectionSchema.optional(),
       system: z.string().optional(),
@@ -358,7 +377,10 @@ export const aiRequestSchemas = {
       topicId: z.string().optional(),
       anchorId: z.string().optional()
     }) satisfies z.ZodType<AiToolApprovalRespondRequest>,
-    output: z.object({ ok: z.boolean() })
+    output: z.discriminatedUnion('ok', [
+      z.object({ ok: z.literal(true) }),
+      z.object({ ok: z.literal(false), reason: z.enum(['undelivered', 'rejected']) })
+    ]) satisfies z.ZodType<AiToolApprovalRespondResponse>
   }),
 
   // ── Agent session warm-connection lifecycle ──
@@ -525,7 +547,10 @@ export const aiRequestSchemas = {
     // No caller reads the trigger result, so the route is void (see ipc-migration-guide.md).
     input: agentTaskRefSchema,
     output: z.void()
-  })
+  }),
+  'ai.temporary_topic.create': defineRoute({ input: CreateTopicSchema, output: TopicSchema }),
+  'ai.temporary_topic.delete': defineRoute({ input: z.strictObject({ id: z.string().min(1) }), output: z.void() }),
+  'ai.temporary_topic.persist': defineRoute({ input: z.strictObject({ id: z.string().min(1) }), output: z.void() })
 }
 
 /**

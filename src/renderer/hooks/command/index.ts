@@ -9,6 +9,7 @@ export {
 } from './useCommandContext'
 export type {
   CommandHandler,
+  CommandHandlerSource,
   CommandHandlerOptions,
   CommandRuntime,
   CommandSharedPreferences
@@ -19,6 +20,9 @@ export {
   useCommandHandler,
   useCommandMenuPresentationMode,
   useCommandRuntime,
+  runCommandHandler,
+  useCommandOrigin,
+  useCommandKeyboardBoundary,
   useCommandShortcutPreferences
 } from './useCommandRuntime'
 export {
@@ -29,3 +33,14 @@ export {
 } from './useCommandShortcuts'
 export { useResolvedCommand } from './useResolvedCommand'
 export { useResolvedCommandMenu } from './useResolvedCommandMenu'
+
+export type { FocusScopeOptions } from './commandFocusScope'
+export {
+  CommandFocusHostContext,
+  CommandFocusRegistry,
+  CommandFocusScopeContext,
+  CommandFocusScopeState,
+  findScopeHandler,
+  readScopeContext,
+  readRegisteredHandler
+} from './commandFocusScope'

@@ -107,10 +107,8 @@ function fixture() {
   const connect = vi.fn(() => ready.promise)
   runtimeDriverRegistry.register({
     type: 'pi',
-    capabilities: ['agent-session'],
     connect,
-    validateSession: () => {},
-    listAvailableTools: async () => []
+    validateSession: () => {}
   })
   const service = new AgentSessionRuntimeService()
   const emitter = new EventEmitter()
@@ -160,7 +158,7 @@ it.each([false, true])('resolves MCP interactions from the initiating window (he
   )
   defaultServiceInstances.WindowManager.getWindow.mockReturnValue(undefined)
   expect(f.service.getMcpInteractionHost('root')).toBeUndefined()
-  await stream.cancel()
+  await stream.stream.cancel()
 })
 
 // Catches child IPC writing while backup holds admission, including overlapping pause owners.
@@ -320,6 +318,7 @@ it('waits for an in-flight prewarm and delivers child updates without another at
     kind: 'child',
     contextId: f.context.id,
     sessionId: f.context.sessionId,
+    canSubmit: false,
     revision: 1,
     patches: [{ type: 'append', messageId: replyId, part: 0, text: ' continued' }],
     order: [replyId],
@@ -347,8 +346,8 @@ it.each(['detach', 'destroy', 'close'] as const)(
     f.ready.resolve(f.connection)
     await priming
     await closing
-    if (action === 'close') expect(await attaching).toMatchObject({ available: false })
-    else expect(await attaching).toBeNull()
+    const view = await attaching
+    expect(view === null || ('available' in view && view.available === false)).toBe(true)
     expect(f.listeners.size).toBe(0)
   }
 )

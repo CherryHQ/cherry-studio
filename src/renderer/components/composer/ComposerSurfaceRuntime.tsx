@@ -5,6 +5,7 @@ import { EditorContent, type NodeViewProps } from '@tiptap/react'
 import { Check, ChevronRight, CirclePause, LocateFixed, Maximize2, Minimize2, Pencil, X } from 'lucide-react'
 import React, {
   startTransition,
+  use,
   useCallback,
   useEffect,
   useId,
@@ -29,6 +30,7 @@ import { QuickPanelView, useQuickPanel } from '@renderer/components/QuickPanel'
 import { useRichTextEditorKernel } from '@renderer/components/RichEditor/useRichTextEditorKernel'
 import SendMessageButton from '@renderer/components/SendMessageButton'
 import { usePreference } from '@renderer/data/hooks/usePreference'
+import { CodeStyleContext } from '@renderer/hooks/useCodeStyle'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { toast } from '@renderer/services/toast'
 import { isPastedTextFileMetadata } from '@renderer/types/file'
@@ -49,10 +51,11 @@ import {
 import type { ComposerShortcut } from '@shared/data/preference/preferenceTypes'
 
 import { useComposerLayerActive } from './ComposerContext'
-import { createComposerDraftContent, serializeComposerDocument } from './composerDraft'
+import { createComposerDraftContent, resolveComposerRestoreTokens, serializeComposerDocument } from './composerDraft'
 import { ComposerFocusShortcut } from './ComposerFocusShortcut'
 import {
   appendComposerText,
+  buildInsertedInlineContent,
   createComposerInputAdapter,
   insertComposerTokenAtCursor,
   updateComposerToken
@@ -63,17 +66,20 @@ import {
   PASTED_TEXT_FILE_EXTENSION
 } from './composerPaste'
 import { createComposerEditorPreset } from './composerPreset'
+import { ComposerPromptSuggestion } from './ComposerPromptSuggestion'
 import { COMPOSER_TOKEN_NODE_NAME, type ComposerTokenRenderer } from './ComposerTokenNode'
 import { ComposerToolFooterActionsSync, ComposerToolMenu, useComposerPinnedTools } from './ComposerToolRuntime'
 import type { ComposerInputFilePreviewAction } from './filePreview'
 import { createComposerFolderToken } from './folderToken'
 import { type InputHistoryDirection, shouldHandleInputHistoryNavigation } from './inputHistoryNavigation'
+import { handleMarkdownCodeKey } from './markdownLivePreview/codeBlockKeys'
+import { hasMarkdownLivePreview, isMarkdownFencedCodePosition } from './markdownLivePreview/livePreviewPlugin'
+import { handleMarkdownFormatKey } from './markdownLivePreview/selectionFormatKeys'
 import pasteHandling, { shouldHandleClipboardFiles } from './paste/pasteHandling'
 import { useFileDragDrop } from './paste/useFileDragDrop'
 import { usePasteHandler } from './paste/usePasteHandler'
 import {
   createPromptVariableContent,
-  createPromptVariableInlineContent,
   getNextPromptVariableIndex,
   getSelectedPromptVariableToken,
   selectPromptVariableToken,
@@ -223,6 +229,8 @@ export interface ComposerSurfaceProps {
   managedTokenKinds: readonly ComposerDraftToken['kind'][]
   onTokensChange: (tokens: readonly ComposerSerializedToken[]) => void
   placeholder: string
+  promptSuggestion?: string
+  onDismissPromptSuggestion?: () => void
   sendMessageShortcut?: ComposerShortcut
   /** Only set by the agent composer while streaming: sends the draft into the running turn. */
   steerShortcut?: ComposerShortcut
@@ -231,6 +239,7 @@ export interface ComposerSurfaceProps {
   isLoading: boolean
   onSendDraft: (draft: ComposerSerializedDraft, options?: { steer?: boolean }) => void | Promise<void>
   onPause: () => void | Promise<void>
+  onShiftTab?: () => void
   supportedExts: string[]
   setFiles: React.Dispatch<React.SetStateAction<ComposerAttachment[]>>
   previewInputFile?: ComposerInputFilePreviewAction
@@ -286,6 +295,8 @@ export interface ComposerSurfaceProps {
   /** Drops the card frame, side gutters, and height controls, for a host whose own surface is the composer. */
   embedded?: boolean
   compactWhenSingleLine?: boolean
+  /** Renders Markdown in place while keeping the source text byte-identical. */
+  markdownLivePreview?: boolean
   renderCompactControls?: (
     inputAdapter?: QuickPanelInputAdapter,
     unifiedPanelControl?: ComposerUnifiedPanelControl
@@ -436,7 +447,7 @@ function shouldDelegateLongTextPasteToFileHandler(
 }
 
 function insertComposerPastedContent(editor: Editor, content: JSONContent[]) {
-  editor.chain().focus().setMeta(COMPOSER_SUPPRESS_SUGGESTION_META, true).insertContent(content).run()
+  editor.chain().focus().setMeta(COMPOSER_SUPPRESS_SUGGESTION_META, true).insertComposerLines(content).run()
 }
 
 function readComposerPayloadObject(payload: unknown): Record<string, unknown> | null {
@@ -568,6 +579,8 @@ export default function ComposerSurfaceRuntime({
   managedTokenKinds,
   onTokensChange,
   placeholder,
+  promptSuggestion,
+  onDismissPromptSuggestion,
   sendMessageShortcut: _sendMessageShortcut,
   steerShortcut,
   sendDisabled,
@@ -575,6 +588,7 @@ export default function ComposerSurfaceRuntime({
   isLoading,
   onSendDraft,
   onPause,
+  onShiftTab,
   supportedExts,
   setFiles,
   previewInputFile,
@@ -614,6 +628,7 @@ export default function ComposerSurfaceRuntime({
   leadingContent,
   embedded = false,
   compactWhenSingleLine = false,
+  markdownLivePreview = false,
   renderCompactControls,
   sendAccessory,
   deferQuickPanel = false,
@@ -637,6 +652,8 @@ export default function ComposerSurfaceRuntime({
   const previousLayerActiveRef = useRef(layerActive)
   const pinnedLauncherIds = useComposerPinnedTools()
   const pinnedLauncherIdSet = useMemo(() => new Set(pinnedLauncherIds), [pinnedLauncherIds])
+  const promptSuggestionRef = useRef({ text: promptSuggestion, dismiss: onDismissPromptSuggestion })
+  promptSuggestionRef.current = { text: promptSuggestion, dismiss: onDismissPromptSuggestion }
   const quickPanelRef = useRef(quickPanel)
   const { setTimeoutTimer, clearTimeoutTimer } = useTimer()
   const [isEditingBorderHighlighted, setEditingBorderHighlighted] = useState(false)
@@ -654,8 +671,12 @@ export default function ComposerSurfaceRuntime({
   const sendMessageShortcutRef = useRef(sendMessageShortcut)
   const newlineShortcutRef = useRef(newlineShortcut)
   const steerShortcutRef = useRef(steerShortcut)
+  const markdownLivePreviewRef = useRef(markdownLivePreview)
+  // A surface can render outside CodeStyleProvider and then keeps the default code colors.
+  const codeBlockStyle = use(CodeStyleContext)?.codeBlockStyle
   const setFilesRef = useRef(setFiles)
   const onSendDraftRef = useRef(onSendDraft)
+  const onShiftTabRef = useRef(onShiftTab)
   const isInputHistoryActiveRef = useRef(isInputHistoryActive)
   const onInputHistoryNavigateRef = useRef(onInputHistoryNavigate)
   const promptVariableEditRef = useRef<{ tokenId: string; started: boolean } | null>(null)
@@ -677,18 +698,22 @@ export default function ComposerSurfaceRuntime({
     sendMessageShortcutRef.current = sendMessageShortcut
     newlineShortcutRef.current = newlineShortcut
     steerShortcutRef.current = steerShortcut
+    markdownLivePreviewRef.current = markdownLivePreview
     setFilesRef.current = setFiles
     onSendDraftRef.current = onSendDraft
+    onShiftTabRef.current = onShiftTab
     isInputHistoryActiveRef.current = isInputHistoryActive
     onInputHistoryNavigateRef.current = onInputHistoryNavigate
   }, [
     filesCount,
     steerShortcut,
+    markdownLivePreview,
     isExpanded,
     isInputHistoryActive,
     newlineShortcut,
     onInputHistoryNavigate,
     onSendDraft,
+    onShiftTab,
     quickPanel,
     sendBlockedReason,
     sendDisabled,
@@ -763,16 +788,23 @@ export default function ComposerSurfaceRuntime({
     [onTextChange]
   )
 
+  const insertFolderToken = useCallback((path: string) => {
+    const editor = editorRef.current
+    if (!editor || editor.isDestroyed) return
+    insertComposerTokenAtCursor(editor, createComposerFolderToken(path))
+  }, [])
+
   const pasteHandlerOptions = useMemo(
     () => ({
       supportedExts,
       setFiles,
       onResize: undefined,
+      onFolderPathPasted: insertFolderToken,
       pasteLongTextAsFile,
       pasteLongTextThreshold,
       t
     }),
-    [supportedExts, setFiles, pasteLongTextAsFile, pasteLongTextThreshold, t]
+    [supportedExts, setFiles, insertFolderToken, pasteLongTextAsFile, pasteLongTextThreshold, t]
   )
 
   const { handlePaste } = usePasteHandler(pasteHandlerOptions)
@@ -780,21 +812,11 @@ export default function ComposerSurfaceRuntime({
   const { handleDragEnter, handleDragLeave, handleDragOver, handleDrop, isDragging } = useFileDragDrop({
     supportedExts,
     setFiles,
-    onFolderPathDropped: (path) => {
-      const editor = editorRef.current
-      if (!editor || editor.isDestroyed) return
-      insertComposerTokenAtCursor(editor, createComposerFolderToken(path))
-    },
+    onFolderPathDropped: insertFolderToken,
     onTextDropped: (droppedText) => {
       const editor = editorRef.current
       if (!editor) return
-      editor
-        .chain()
-        .focus()
-        .insertContent(
-          createPromptVariableInlineContent(droppedText, { startIndex: getNextPromptVariableIndex(editor) })
-        )
-        .run()
+      editor.chain().focus().insertComposerLines(buildInsertedInlineContent(editor, droppedText)).run()
     },
     enabled: enableDragDrop,
     t
@@ -931,9 +953,7 @@ export default function ComposerSurfaceRuntime({
       try {
         const fileText = await window.api.fs.readText(file.path)
         const position = typeof nodeViewProps.getPos === 'function' ? nodeViewProps.getPos() : undefined
-        const content = fileText
-          ? createPromptVariableInlineContent(fileText, { startIndex: getNextPromptVariableIndex(editor) })
-          : []
+        const content = fileText ? buildInsertedInlineContent(editor, fileText) : []
 
         if (typeof position === 'number') {
           const chain = editor
@@ -941,13 +961,13 @@ export default function ComposerSurfaceRuntime({
             .focus()
             .deleteRange({ from: position, to: position + nodeViewProps.node.nodeSize })
           if (content.length > 0) {
-            chain.insertContent(content)
+            chain.insertComposerLines(content)
           }
           chain.run()
         } else {
           removeComposerTokens(editor, (candidate) => candidate.id === token.id)
           if (content.length > 0) {
-            editor.chain().focus().insertContent(content).run()
+            editor.chain().focus().insertComposerLines(content).run()
           } else {
             editor.commands.focus()
           }
@@ -989,15 +1009,22 @@ export default function ComposerSurfaceRuntime({
     return Boolean(editor && appendComposerText(editor, text))
   }, [])
 
-  const replaceDraft = useCallback((draft: ComposerSerializedDraft) => {
-    const editor = editorRef.current
-    if (!editor || editor.isDestroyed) return
+  const replaceDraft = useCallback(
+    (draft: ComposerSerializedDraft) => {
+      const editor = editorRef.current
+      if (!editor || editor.isDestroyed) return
 
-    textRef.current = draft.text
-    pendingLocalTextEchoRef.current = null
-    setComposerEditorContent(editor, lastSerializedDraftRef, createComposerDraftContent(draft))
-    trackedTokenSignatureRef.current = getTrackedTokenSignature(draft.tokens)
-  }, [])
+      textRef.current = draft.text
+      pendingLocalTextEchoRef.current = null
+      setComposerEditorContent(
+        editor,
+        lastSerializedDraftRef,
+        createComposerDraftContent(draft, { literalFencedCode: markdownLivePreview })
+      )
+      trackedTokenSignatureRef.current = getTrackedTokenSignature(draft.tokens)
+    },
+    [markdownLivePreview]
+  )
 
   useEffect(() => {
     onActionsChange?.({
@@ -1547,11 +1574,12 @@ export default function ComposerSurfaceRuntime({
   const editorExtensions = useMemo(
     () =>
       createComposerEditorPreset({
-        placeholder,
+        markdownLivePreview,
+        placeholder: promptSuggestion ? '' : placeholder,
         renderToken: renderComposerToken,
         suggestionSources: activeSuggestionSources
       }),
-    [activeSuggestionSources, placeholder, renderComposerToken]
+    [activeSuggestionSources, markdownLivePreview, placeholder, promptSuggestion, renderComposerToken]
   )
 
   // ProseMirror may finish composition without another document update, leaving the quick panel
@@ -1623,9 +1651,50 @@ export default function ComposerSurfaceRuntime({
           }
         }
 
+        const suggestion = promptSuggestionRef.current
+        if (
+          suggestion.text &&
+          view.editable &&
+          !textRef.current &&
+          view.state.doc.content.size <= 2 &&
+          !event.isComposing &&
+          !view.composing &&
+          !qp.isVisible
+        ) {
+          if (event.key === 'Escape') {
+            suggestion.dismiss?.()
+            event.preventDefault()
+            event.stopPropagation()
+            return true
+          }
+          if (
+            (event.key === 'Tab' ||
+              event.key === (getComputedStyle(view.dom).direction === 'rtl' ? 'ArrowLeft' : 'ArrowRight')) &&
+            !event.shiftKey &&
+            !event.ctrlKey &&
+            !event.metaKey &&
+            !event.altKey
+          ) {
+            event.preventDefault()
+            event.stopPropagation()
+            if (!event.repeat) editorRef.current?.commands.insertContent({ type: 'text', text: suggestion.text })
+            suggestion.dismiss?.()
+            return true
+          }
+        }
+
         if (event.key === 'Escape' && isExpandedRef.current) {
           event.stopPropagation()
           toggleEditorExpandedRef.current(false)
+          return true
+        }
+
+        if (
+          markdownLivePreviewRef.current &&
+          (handleMarkdownCodeKey(view, event) || handleMarkdownFormatKey(view, event))
+        ) {
+          event.preventDefault()
+          event.stopPropagation()
           return true
         }
 
@@ -1640,10 +1709,16 @@ export default function ComposerSurfaceRuntime({
             promptVariableEditRef.current = { tokenId: targetToken.id, started: false }
             return true
           }
+          if (event.shiftKey && !event.ctrlKey && !event.metaKey && !event.altKey && onShiftTabRef.current) {
+            if (!event.repeat) onShiftTabRef.current()
+            event.preventDefault()
+            event.stopPropagation()
+            return true
+          }
         }
 
         // Every Enter combination is resolved here, in priority order, and never falls through to
-        // the base keymap: the composer is a single block that must not be split.
+        // the base keymap: only the configured newline shortcut may end a line.
         if (isEnterPressed) {
           event.preventDefault()
 
@@ -1658,7 +1733,7 @@ export default function ComposerSurfaceRuntime({
           }
 
           if (isNewlinePressed) {
-            editorRef.current?.commands.setHardBreak()
+            editorRef.current?.commands.splitComposerLine()
           }
           return true
         }
@@ -1725,6 +1800,7 @@ export default function ComposerSurfaceRuntime({
           return true
         },
         compositionstart: () => {
+          promptSuggestionRef.current.dismiss?.()
           const editor = editorRef.current
           if (!editor || editor.isDestroyed) return false
           const selectedPromptVariable = getSelectedPromptVariableToken(editor)
@@ -1796,12 +1872,27 @@ export default function ComposerSurfaceRuntime({
         return true
       }
 
+      const pasteOptions = {
+        inlineLongText: !shouldDelegateLongTextPaste,
+        literalFencedCode: editor ? hasMarkdownLivePreview(editor.state) : false,
+        insertionState: editor?.state,
+        promptVariableStartIndex: editor ? getNextPromptVariableIndex(editor) : 0,
+        resolveSkillMarker,
+        resolveKnowledgeBaseMarker
+      }
+
+      if (
+        editor &&
+        pastedText &&
+        !shouldDelegateToFileHandler &&
+        isMarkdownFencedCodePosition(editor.state, editor.state.selection.from)
+      ) {
+        event.preventDefault()
+        insertComposerPastedContent(editor, getComposerPlainTextPasteOverride(pastedText, pasteOptions) ?? [])
+        return true
+      }
+
       if (editor) {
-        const pasteOptions = {
-          promptVariableStartIndex: getNextPromptVariableIndex(editor),
-          resolveSkillMarker,
-          resolveKnowledgeBaseMarker
-        }
         const clipboardPasteOverride =
           getComposerClipboardPasteOverride(
             readComposerClipboardFragmentFromDataTransfer(event.clipboardData),
@@ -1825,12 +1916,7 @@ export default function ComposerSurfaceRuntime({
         return true
       }
 
-      const plainTextOverride = getComposerPlainTextPasteOverride(pastedText, {
-        inlineLongText: !shouldDelegateLongTextPaste,
-        promptVariableStartIndex: editor ? getNextPromptVariableIndex(editor) : 0,
-        resolveSkillMarker,
-        resolveKnowledgeBaseMarker
-      })
+      const plainTextOverride = getComposerPlainTextPasteOverride(pastedText, pasteOptions)
 
       if (plainTextOverride !== null && editor) {
         event.preventDefault()
@@ -1866,8 +1952,8 @@ export default function ComposerSurfaceRuntime({
   const editor = useRichTextEditorKernel({
     extensions: editorExtensions,
     content: createComposerDraftContent(
-      { text, tokens: draftTokens ?? [] },
-      { tokenizeVariables: !deferredIntent?.preservePlainText }
+      { text, tokens: resolveComposerRestoreTokens(text, draftTokens, tokens) },
+      { tokenizeVariables: !deferredIntent?.preservePlainText, literalFencedCode: markdownLivePreview }
     ),
     editable,
     // Render the view synchronously: the fallback textarea unmounts in the same commit this
@@ -1930,18 +2016,15 @@ export default function ComposerSurfaceRuntime({
     // focus the fallback never held — hand off only after real fallback interaction.
     if (deferredIntent && !deferredIntent.hadFocus) return
 
-    if (initialTextSelection) {
-      editor
-        .chain()
-        .focus()
-        .setTextSelection({
+    const selection = initialTextSelection
+      ? {
           from: getComposerPositionAtTextOffset(editor, initialTextSelection.start),
           to: getComposerPositionAtTextOffset(editor, initialTextSelection.end)
-        })
-        .run()
-      return
-    }
-    editor.commands.focus('end')
+        }
+      : editor.state.doc.content.size
+    editor.chain().setTextSelection(selection).run()
+    editor.view.focus()
+    editor.commands.scrollIntoView()
   }, [deferredIntent, editor, frameRef, initialTextSelection])
 
   useEffect(() => {
@@ -1959,9 +2042,12 @@ export default function ComposerSurfaceRuntime({
     setComposerEditorContent(
       editor,
       lastSerializedDraftRef,
-      createComposerDraftContent({ text, tokens: draftTokens ?? [] })
+      createComposerDraftContent(
+        { text, tokens: resolveComposerRestoreTokens(text, draftTokens, tokens) },
+        { literalFencedCode: markdownLivePreview }
+      )
     )
-  }, [draftTokens, editor, text])
+  }, [draftTokens, editor, markdownLivePreview, text, tokens])
 
   useEffect(() => {
     if (editingHighlightKey === undefined) return
@@ -2231,15 +2317,16 @@ export default function ComposerSurfaceRuntime({
   useEffect(() => {
     if (!deferredIntent || !editor) return
     const { transfer, openPanel, insertToken: pendingToken } = deferredIntent
-    delete deferredIntent.transfer
-    delete deferredIntent.openPanel
-    delete deferredIntent.insertToken
     if (!transfer && !openPanel && !pendingToken) return
+    if (openPanel && !unifiedPanelAvailable) return
 
     return setTimeoutTimer(
       'composerDeferredIntent',
       () => {
         if (editor.isDestroyed) return
+        delete deferredIntent.transfer
+        delete deferredIntent.openPanel
+        delete deferredIntent.insertToken
         if (pendingToken) {
           editor.commands.setTextSelection({
             from: getComposerPositionAtTextOffset(editor, pendingToken.selection.start),
@@ -2264,7 +2351,7 @@ export default function ComposerSurfaceRuntime({
       },
       0
     )
-  }, [deferredIntent, editor, setTimeoutTimer, unifiedPanelOpen])
+  }, [deferredIntent, editor, setTimeoutTimer, unifiedPanelAvailable, unifiedPanelOpen])
 
   const quickPanelElement = quickPanelReady && quickPanelEnabled ? <QuickPanelView inputAdapter={inputAdapter} /> : null
   const showPauseButton = isLoading && sendDisabled
@@ -2380,8 +2467,8 @@ export default function ComposerSurfaceRuntime({
             tabIndex={0}
             onMouseDown={startEditorResize}
             onKeyDown={handleResizeKeyDown}
-            className="group/composer-resize-handle absolute top-0 right-4 left-4 z-3 h-2 cursor-row-resize [-webkit-app-region:no-drag] focus-visible:bg-primary/40 focus-visible:outline-none">
-            <div className="absolute top-0 right-0 left-0 h-0.5 rounded-full bg-primary/20 opacity-0 transition-opacity group-hover/composer-resize-handle:opacity-100 group-focus/composer-resize-handle:opacity-100 group-data-[resizing=true]/composer-resize-handle:bg-primary/35 group-data-[resizing=true]/composer-resize-handle:opacity-100" />
+            className="group/composer-resize-handle absolute top-0 right-4 left-4 z-3 h-2 cursor-row-resize [-webkit-app-region:no-drag] focus-visible:bg-border-strong focus-visible:outline-none">
+            <div className="absolute top-0 right-0 left-0 h-0.5 rounded-full bg-border opacity-0 transition-opacity group-hover/composer-resize-handle:opacity-100 group-focus/composer-resize-handle:opacity-100 group-data-[resizing=true]/composer-resize-handle:bg-border-strong group-data-[resizing=true]/composer-resize-handle:opacity-100" />
           </div>
           {!editingState ? (
             <div data-composer-expand-corner="" className="group/expand-corner absolute top-px right-px z-4 size-8">
@@ -2434,7 +2521,10 @@ export default function ComposerSurfaceRuntime({
               'min-w-0 flex-1 [-webkit-app-region:no-drag]',
               isCompact && '[&>[data-slot=scroll-area-scrollbar]]:hidden'
             )}
-            style={isCompact ? compactEditorContentStyle : editorContentStyle}
+            style={{
+              ...(markdownLivePreview && codeBlockStyle),
+              ...(isCompact ? compactEditorContentStyle : editorContentStyle)
+            }}
             viewportProps={{ style: isCompact ? { overflowY: 'hidden' } : undefined }}
             contentProps={{ className: 'grid min-h-full' }}>
             <EditorContent
@@ -2447,10 +2537,13 @@ export default function ComposerSurfaceRuntime({
               }}
             />
           </ScrollArea>
+          {!text && tokens.length === 0 && editable && !quickPanel.isVisible && (
+            <ComposerPromptSuggestion text={promptSuggestion ?? ''} fontSize={fontSize} compact={isCompact} />
+          )}
           <ComposerFocusShortcut focus={focusEditor} editable={editable} />
         </div>
         {isCompact ? (
-          <div data-ui="part:composer-actions" className="flex shrink-0 flex-row items-center gap-1.5">
+          <div data-ui="part:composer-actions" className="flex shrink-0 flex-row items-center gap-1">
             {compactControls}
             {sendAccessoryElement}
             {sendAction}
@@ -2464,7 +2557,7 @@ export default function ComposerSurfaceRuntime({
           data-composer-toolbar=""
           className="relative z-2 flex h-10 shrink-0 flex-row justify-between gap-4 px-2 py-1.25">
           <div className="flex min-w-0 flex-1 items-center overflow-hidden">{leftControls}</div>
-          <div className="flex flex-row items-center gap-1.5">
+          <div className="flex flex-row items-center gap-1">
             {sendAccessoryElement}
             {sendAction}
           </div>

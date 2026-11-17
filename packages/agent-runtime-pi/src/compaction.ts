@@ -1,6 +1,6 @@
 import type { Api, Message, Model, Usage } from '@earendil-works/pi-ai'
 import { transformMessages } from '@earendil-works/pi-ai/api/transform-messages'
-import { convertToLlm, type ExtensionFactory } from '@earendil-works/pi-coding-agent'
+import { type CompactionSettings, convertToLlm, type ExtensionFactory } from '@earendil-works/pi-coding-agent'
 
 import type { CompactionReason } from './sessionEvents'
 
@@ -26,12 +26,10 @@ export type CompactionSummarizer = (
 ) => Promise<string | { summary: string; usage: Usage }>
 
 /** Pi's native compaction: on crossing `contextWindow - reserveTokens`, and one compact-and-retry on overflow. */
-export interface AgentRuntimeCompaction {
-  /** Off: no threshold or overflow compaction; `session.compact()` still works. Default on. */
-  enabled?: boolean
-  reserveTokens: number
-  /** Recent context kept verbatim. */
-  keepRecentTokens: number
+export interface AgentRuntimeCompaction
+  extends
+    Pick<CompactionSettings, 'enabled'>,
+    Required<Pick<CompactionSettings, 'reserveTokens' | 'keepRecentTokens'>> {
   /** Without it, Pi's default summarizer runs on the session model through its native model runtime. */
   summarize?: CompactionSummarizer
 }

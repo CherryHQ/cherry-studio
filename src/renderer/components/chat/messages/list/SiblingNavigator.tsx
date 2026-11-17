@@ -5,10 +5,17 @@
  * previous / next branch; the messages pane revalidates and re-renders.
  */
 
-import { ChevronLeft, ChevronRight } from 'lucide-react'
-import { type FC, useCallback } from 'react'
+import { Check, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react'
+import { type FC, useCallback, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuTrigger
+} from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 
 import { useMessageListActions, useMessageListUi } from '../MessageListProvider'
@@ -20,25 +27,32 @@ interface Props {
 }
 
 const SiblingNavigator: FC<Props> = ({ messageId }) => {
+  const currentItemRef = useRef<HTMLDivElement>(null)
   const { t } = useTranslation()
   const actions = useMessageListActions()
   const messageUi = useMessageListUi()
   const siblings = messageUi.getMessageSiblings?.(messageId)
 
-  const handleSwitch = useCallback(
-    async (direction: -1 | 1) => {
-      if (!siblings || !actions.setActiveBranch) return
-      const { group, activeIndex } = siblings
-      const nextIndex = (activeIndex + direction + group.length) % group.length
-      const target = group[nextIndex]
+  const switchTo = useCallback(
+    async (targetId: string) => {
+      if (!actions.setActiveBranch) return
       try {
-        await actions.setActiveBranch(target.id)
+        await actions.setActiveBranch(targetId)
       } catch (error) {
         logger.error('Failed to switch sibling branch', error as Error)
         actions.notifyError?.(error instanceof Error ? error.message : String(error))
       }
     },
-    [actions, siblings]
+    [actions]
+  )
+
+  const handleSwitch = useCallback(
+    async (direction: -1 | 1) => {
+      if (!siblings) return
+      const { group, activeIndex } = siblings
+      await switchTo(group[(activeIndex + direction + group.length) % group.length].id)
+    },
+    [siblings, switchTo]
   )
 
   if (!siblings) return null
@@ -54,9 +68,43 @@ const SiblingNavigator: FC<Props> = ({ messageId }) => {
         aria-label={t('common.previous')}>
         <ChevronLeft size={12} />
       </button>
-      <span className="min-w-8 text-center font-mono tabular-nums">
-        {activeIndex + 1}/{group.length}
-      </span>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button
+            type="button"
+            className="inline-flex min-w-8 items-center justify-center gap-1 rounded px-1 py-0.5 tabular-nums transition-colors hover:bg-muted hover:text-foreground data-[state=open]:bg-muted data-[state=open]:text-foreground"
+            aria-label={t('chat.message.branches')}>
+            {activeIndex + 1}/{group.length}
+            <ChevronDown size={10} />
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent
+          align="end"
+          className="max-h-80 w-72 max-w-[calc(100vw-2rem)]"
+          onFocus={(event) => {
+            if (event.target === event.currentTarget) {
+              event.preventDefault()
+              currentItemRef.current?.focus()
+            }
+          }}>
+          <DropdownMenuLabel>{t('chat.message.branches')}</DropdownMenuLabel>
+          {group.map((item, index) => (
+            <DropdownMenuItem
+              key={item.id}
+              ref={index === activeIndex ? currentItemRef : undefined}
+              className={index === activeIndex ? 'bg-accent' : undefined}
+              onFocus={(event) => event.currentTarget.scrollIntoView({ block: 'nearest' })}
+              title={item.preview}
+              onSelect={() => {
+                if (index !== activeIndex) void switchTo(item.id)
+              }}>
+              <span className="w-5 shrink-0 text-muted-foreground tabular-nums">{index + 1}</span>
+              <span className="min-w-0 flex-1 truncate">{item.preview || `${index + 1}/${group.length}`}</span>
+              <span className="w-4 shrink-0">{index === activeIndex && <Check size={14} />}</span>
+            </DropdownMenuItem>
+          ))}
+        </DropdownMenuContent>
+      </DropdownMenu>
       <button
         type="button"
         className="flex size-4.5 items-center justify-center rounded transition-colors hover:bg-muted hover:text-foreground"

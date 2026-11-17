@@ -4,7 +4,7 @@ import type { ComponentType, ImgHTMLAttributes, MouseEvent, PropsWithChildren } 
 import { describe, expect, it, vi } from 'vitest'
 
 import { MarkdownHostProvider } from '../MarkdownHostProvider'
-import { useMarkdownComponents } from '../MarkdownRenderers'
+import { MarkdownLinkRenderer, useMarkdownComponents } from '../MarkdownRenderers'
 
 vi.mock('@cherrystudio/ui', () => ({
   HoverCard: ({ children }: PropsWithChildren) => children,
@@ -256,4 +256,114 @@ it('keeps file capability routing ahead of external URL routing', () => {
   expect(event.defaultPrevented).toBe(true)
   expect(openFilePath).toHaveBeenCalledExactlyOnceWith('./notes.md')
   expect(openExternalUrl).not.toHaveBeenCalled()
+})
+
+describe('bare image URLs', () => {
+  it('renders an autolinked network image URL as an image', () => {
+    const url = 'https://example.com/pic.png?x=1'
+    const A = MarkdownLinkRenderer
+    render(<A href={url}>{url}</A>)
+    expect(screen.getByRole('button')).toHaveAttribute('src', url)
+    expect(screen.queryByRole('link')).toBeNull()
+  })
+
+  it('renders a percent-encoded non-ASCII bare image URL as an image', () => {
+    const A = MarkdownLinkRenderer
+    render(<A href="https://example.com/%E5%9B%BE%E7%89%87.png">https://example.com/图片.png</A>)
+    expect(screen.getByRole('button')).toHaveAttribute('src', 'https://example.com/%E5%9B%BE%E7%89%87.png')
+    expect(screen.queryByRole('link')).toBeNull()
+  })
+
+  it('matches the label against a scheme-normalized href', () => {
+    const A = MarkdownLinkRenderer
+    render(<A href="https://example.com/pic.png">HTTPS://example.com/pic.png</A>)
+    expect(screen.getByRole('button')).toHaveAttribute('src', 'https://example.com/pic.png')
+    expect(screen.queryByRole('link')).toBeNull()
+  })
+
+  it('renders a bare image URL split into streaming animation spans as an image', () => {
+    const A = MarkdownLinkRenderer
+    render(
+      <A href="https://example.com/%E5%9B%BE%E7%89%87.png">
+        <span data-sd-animate>https://example.com/</span>
+        <span data-sd-animate>图片</span>
+        <span data-sd-animate>.png</span>
+      </A>
+    )
+    expect(screen.getByRole('button')).toHaveAttribute('src', 'https://example.com/%E5%9B%BE%E7%89%87.png')
+    expect(screen.queryByRole('link')).toBeNull()
+  })
+
+  it('reads labels through surface-mapped animation components', () => {
+    const A = MarkdownLinkRenderer
+    const ChatLikeSpan = ({ children, ...rest }: PropsWithChildren<Record<string, unknown>>) => (
+      <span {...rest}>{children}</span>
+    )
+    render(
+      <A href="https://example.com/pic.png?x=1">
+        <ChatLikeSpan data-sd-animate>https://example.com/</ChatLikeSpan>
+        <ChatLikeSpan data-sd-animate>pic.png?x=1</ChatLikeSpan>
+      </A>
+    )
+    expect(screen.getByRole('button')).toHaveAttribute('src', 'https://example.com/pic.png?x=1')
+    expect(screen.queryByRole('link')).toBeNull()
+  })
+
+  it('renders a bare image URL whose label already contains percent-escapes as an image', () => {
+    const A = MarkdownLinkRenderer
+    const url = 'https://example.com/my%20photo.png'
+    render(<A href={url}>{url}</A>)
+    expect(screen.getByRole('button')).toHaveAttribute('src', url)
+    expect(screen.queryByRole('link')).toBeNull()
+  })
+
+  it('renders a bare image URL mixing percent-escapes and non-ASCII as an image', () => {
+    const A = MarkdownLinkRenderer
+    render(<A href="https://example.com/my%20%E5%9B%BE%E7%89%87.png">https://example.com/my%20图片.png</A>)
+    expect(screen.getByRole('button')).toHaveAttribute('src', 'https://example.com/my%20%E5%9B%BE%E7%89%87.png')
+    expect(screen.queryByRole('link')).toBeNull()
+  })
+
+  it('keeps a double-encoded label distinct from its destination as a link', () => {
+    const A = MarkdownLinkRenderer
+    render(<A href="https://example.com/%2F.png">https://example.com/%252F.png</A>)
+    expect(screen.queryByRole('img')).toBeNull()
+    expect(screen.getAllByRole('link')).toHaveLength(1)
+  })
+
+  it('renders a bare image URL as a keyboard-focusable image', () => {
+    const A = MarkdownLinkRenderer
+    const url = 'https://example.com/pic.png'
+    render(<A href={url}>{url}</A>)
+    const img = screen.getByRole('button')
+    expect(img).toHaveAttribute('aria-label', expect.stringContaining(url))
+    expect(img).toHaveAttribute('tabindex', '0')
+    img.focus()
+    expect(img).toHaveFocus()
+    fireEvent.keyDown(img, { key: 'Enter' })
+    fireEvent.keyDown(img, { key: ' ' })
+  })
+
+  it('keeps labels wrapped in non-animation elements as links', () => {
+    const A = MarkdownLinkRenderer
+    render(
+      <A href="https://example.com/pic.png">
+        <span>https://example.com/pic.png</span>
+      </A>
+    )
+    expect(screen.queryByRole('img')).toBeNull()
+    expect(screen.getAllByRole('link')).toHaveLength(1)
+  })
+
+  it('keeps labelled links and non-image URLs as links', () => {
+    const A = MarkdownLinkRenderer
+    render(
+      <>
+        <A href="https://example.com/pic.png">label</A>
+        <A href="https://example.com/page">https://example.com/page</A>
+      </>
+    )
+    expect(screen.queryByRole('img')).toBeNull()
+    expect(screen.getAllByRole('link')).toHaveLength(2)
+  })
 })

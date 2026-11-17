@@ -92,7 +92,8 @@ export const navigationRequestSchemas = {
     input: z.object({
       target: conversationNavigationTargetSchema,
       title: z.string(),
-      draft: conversationDraftSchema.optional()
+      draft: conversationDraftSchema.optional(),
+      messageId: z.string().min(1).nullable().optional()
     }),
     output: z.void()
   }),
@@ -120,6 +121,7 @@ export type NavigationEventSchemas = {
   'navigation.conversation_ownership_requested': {
     requestId: string
     target: ConversationNavigationTarget
+    activeOnly?: boolean
   }
   // Directed to exactly one selected owner/destination. The renderer confirms the
   // committed result through `navigation.report_conversation_ownership` above.
@@ -127,6 +129,7 @@ export type NavigationEventSchemas = {
     requestId: string
     target: ConversationNavigationTarget
     title: string
+    messageId?: string | null
     draft?: ConversationDraft
   }
   // Broadcast fall-through for a deep link whose host matched no dedicated handler

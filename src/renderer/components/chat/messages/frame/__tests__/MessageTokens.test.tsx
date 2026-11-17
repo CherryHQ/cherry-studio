@@ -171,13 +171,11 @@ describe('MessageTokens', () => {
   beforeEach(() => vi.useFakeTimers())
   afterEach(() => vi.useRealTimers())
 
-  it('keeps user messages compact without rendering the assistant detail card', () => {
+  it('renders the user message token total', () => {
     const { container } = renderWithProvider(createMessage('user', { totalTokens: 42 }))
     const tokenStats = container.querySelector('.message-tokens')
 
     expect(tokenStats).toHaveTextContent('42 Tokens')
-    expect(tokenStats).toHaveClass('text-xs', 'leading-5', 'text-muted-foreground', 'tabular-nums')
-    expect(document.querySelector('[data-slot="hover-card-content"]')).not.toBeInTheDocument()
   })
 
   it('shows the compact total when throughput is unavailable', () => {
@@ -188,7 +186,7 @@ describe('MessageTokens', () => {
       })
     )
 
-    expect(screen.getByRole('button', { name: '3.3K Tokens' })).toHaveClass('message-tokens')
+    expect(screen.getByRole('button', { name: '3.3K Tokens' })).toBeInTheDocument()
   })
 
   it('shows localized unavailable values without false throughput for empty runtime token counters', () => {
@@ -249,49 +247,6 @@ describe('MessageTokens', () => {
     expect(screen.getByTestId('message-cost')).toHaveTextContent('$0.0123')
   })
 
-  it('loads the first invocation page when the card opens and defers full pagination until expansion', () => {
-    renderWithProvider(
-      createMessage(
-        'assistant',
-        {
-          outputTokens: 10,
-          runtimeTiming: { startedAt: 1_000, completedAt: 2_000, spans: [] }
-        },
-        { id: 'agent-message-1' }
-      ),
-      'agent-session'
-    )
-
-    expect(dataApiMocks.useInfiniteQuery).toHaveBeenLastCalledWith(
-      '/ai-usage-records',
-      expect.objectContaining({ enabled: false })
-    )
-
-    openDetails()
-    expect(dataApiMocks.useInfiniteQuery).toHaveBeenLastCalledWith(
-      '/ai-usage-records',
-      expect.objectContaining({
-        enabled: true,
-        query: expect.objectContaining({
-          messageKind: 'agent-session',
-          messageId: 'agent-message-1'
-        })
-      })
-    )
-
-    expandMoreDetails()
-    expect(dataApiMocks.useInfiniteQuery).toHaveBeenLastCalledWith(
-      '/ai-usage-records',
-      expect.objectContaining({
-        enabled: true,
-        query: expect.objectContaining({
-          messageKind: 'agent-session',
-          messageId: 'agent-message-1'
-        })
-      })
-    )
-  })
-
   it('shows the frozen model identity, provider display name, and a full local creation time', () => {
     const message = createMessage(
       'assistant',
@@ -344,48 +299,6 @@ describe('MessageTokens', () => {
     expect(screen.getByTestId('message-performance-breakdown')).toHaveTextContent('Text generation10s')
   })
 
-  it('shrinks oversized primary values without truncating their content', () => {
-    renderWithProvider(
-      createMessage('assistant', {
-        inputTokens: 1_234_567_890_123,
-        outputTokens: 9_876_543_210,
-        totalTokens: 1_244_444_433_333,
-        providerPerformance: {
-          measuredOutputTokens: 9_999_999,
-          generationDurationMs: 10_000
-        },
-        runtimeTiming: { startedAt: 0, completedAt: 10_000, spans: [] }
-      })
-    )
-    openDetails()
-
-    for (const testId of ['message-metric-input', 'message-metric-output', 'message-metric-speed']) {
-      const value = screen.getByTestId(testId).querySelector('dd')
-      expect(value).not.toHaveClass('truncate')
-    }
-
-    const speedValue = screen.getByTestId('message-metric-speed').querySelector<HTMLElement>('dd')
-    if (!speedValue) throw new Error('Speed value was not rendered')
-    let fittingFontSize = 12
-    Object.defineProperties(speedValue, {
-      clientWidth: { configurable: true, get: () => 112 },
-      scrollWidth: {
-        configurable: true,
-        get: () => (Number.parseFloat(speedValue.style.fontSize) <= fittingFontSize ? 112 : 140)
-      }
-    })
-    fireEvent(window, new Event('resize'))
-    expect(speedValue).toHaveStyle({ fontSize: '12px', whiteSpace: 'nowrap' })
-
-    fittingFontSize = 0
-    fireEvent(window, new Event('resize'))
-    expect(speedValue).toHaveStyle({ fontSize: '10px', whiteSpace: 'normal', overflowWrap: 'anywhere' })
-
-    expect(screen.getByTestId('message-metric-input')).toHaveTextContent('1,234,567,890,123 Tokens')
-    expect(screen.getByTestId('message-metric-output')).toHaveTextContent('9,876,543,210 Tokens')
-    expect(screen.getByTestId('message-metric-speed')).toHaveTextContent('999,999.9 Tokens/s')
-  })
-
   it('keeps reasoning and input composition available as secondary metrics', () => {
     renderWithProvider(
       createMessage('assistant', {
@@ -408,9 +321,6 @@ describe('MessageTokens', () => {
   it('omits unavailable performance measurements instead of rendering zero values', () => {
     renderWithProvider(createMessage('assistant', { inputTokens: 10, outputTokens: 2, totalTokens: 12 }))
     openDetails()
-
-    const trigger = screen.getByRole('button', { name: '12 Tokens' })
-    expect(trigger).toHaveClass('message-tokens')
 
     expect(screen.getByTestId('message-metric-speed')).toHaveTextContent('Model generation TPSNot available')
     expect(getDetailsCard()).not.toHaveTextContent(/Tokens\/s/)

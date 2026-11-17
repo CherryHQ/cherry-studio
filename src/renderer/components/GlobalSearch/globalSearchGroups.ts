@@ -2,6 +2,7 @@ import dayjs from 'dayjs'
 
 import { cacheService } from '@data/CacheService'
 import type { Topic } from '@renderer/types/topic'
+import { parseAppRouteUrl } from '@renderer/utils/appRouteUrl'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type {
   EntitySearchItem,
@@ -142,7 +143,7 @@ export function areGlobalSearchRecentEntriesEqual(a: GlobalSearchRecentEntry, b:
 }
 
 function getRoutePathname(url: string) {
-  return new URL(url, 'https://www.cherry-ai.com').pathname
+  return parseAppRouteUrl(url)?.pathname ?? ''
 }
 
 function isLegacyRouteRecentEntry(entry: GlobalSearchRecentEntry) {
@@ -212,7 +213,8 @@ export function createRecentRouteEntryFromTab(
   if (tab.type !== 'route') return null
   if (!lastAccessTime) return null
 
-  const pathname = new URL(tab.url, 'https://www.cherry-ai.com').pathname
+  const pathname = parseAppRouteUrl(tab.url)?.pathname
+  if (pathname === undefined) return null
   if (LEGACY_ROUTE_PATHS.has(pathname)) return null
   if (COARSE_ENTITY_ROUTE_PATHS.has(pathname)) return null
 

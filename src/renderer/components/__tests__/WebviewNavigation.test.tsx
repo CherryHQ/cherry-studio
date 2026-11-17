@@ -10,6 +10,7 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, onTestFinished,
 
 import { dataApiService } from '@data/DataApiService'
 import en from '@renderer/i18n/locales/en-us.json'
+import type { BrowserVisit } from '@shared/data/api/schemas/browserVisits'
 
 import { WebviewNavigation } from '../WebviewNavigation'
 
@@ -22,7 +23,7 @@ const i18n = createInstance()
 const visit = (url: string, title: string) => ({ id: title, title, url, visitedAt: 1, source: 'local' })
 const report = visit('http://internal.test/reports?lang=zh#latest', 'Monthly report')
 const recent = [report, { ...report, title: 'Old report title' }, visit('https://example.com/', 'Example')]
-const result = (items = recent) => ({ items, hasMore: false })
+const result = (items: BrowserVisit[] = recent) => ({ items, hasMore: false })
 
 beforeAll(async () => {
   await i18n.init({ lng: 'en', resources: { en: { translation: en } }, keySeparator: false })
@@ -59,6 +60,27 @@ function setup(historyEnabled = true, url = 'https://current.test/') {
 }
 
 describe('Browser address history', () => {
+  it('uses a cached website icon for suggestions without fetching an external favicon service', async () => {
+    const favicon = 'data:image/png;base64,cached-favicon'
+    class CachedImage {
+      complete = true
+      naturalWidth = 16
+      addEventListener() {}
+      removeEventListener() {}
+      set src(_value: string) {}
+    }
+    const originalImage = globalThis.Image
+    vi.stubGlobal('Image', CachedImage)
+    onTestFinished(() => {
+      globalThis.Image = originalImage
+    })
+    vi.mocked(dataApiService.get).mockResolvedValue(result([{ ...report, favicon }]))
+    const { address } = setup()
+    await userEvent.click(address)
+    await screen.findByRole('option', { name: /Monthly report/ })
+    await waitFor(() => expect(screen.getByRole('presentation')).toHaveAttribute('src', favicon))
+  })
+
   it('loads history only on focus, deduplicates URLs and opens a searched result with the keyboard', async () => {
     const user = userEvent.setup()
     const { address, loadURL } = setup()
@@ -102,6 +124,15 @@ describe('Browser address history', () => {
     expect(loadURL).not.toHaveBeenCalled()
     await user.keyboard('{Enter}')
     expect(loadURL).toHaveBeenCalledWith('http://localhost:3000/new')
+  })
+
+  it('navigates to a bare IPv6 loopback address', async () => {
+    const user = userEvent.setup()
+    const { address, loadURL } = setup(false)
+    await user.click(address)
+    await user.clear(address)
+    await user.type(address, '::1/status{Enter}')
+    expect(loadURL).toHaveBeenCalledWith('http://[::1]/status')
   })
 
   it('dismisses suggestions with Escape and restores the current address without navigation', async () => {

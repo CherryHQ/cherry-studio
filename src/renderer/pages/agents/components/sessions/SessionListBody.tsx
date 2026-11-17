@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 
 import { Button } from '@cherrystudio/ui'
 import { ResourceList } from '@renderer/components/chat/resourceList/base'
+import { useConversationListShortcuts } from '@renderer/components/chat/resourceList/useConversationListShortcuts'
 import {
   type AgentSessionDisplayMode,
   isSystemWorkspaceSession,
@@ -23,6 +24,9 @@ interface SessionListBodyProps {
   isValidating: boolean
   listRef: RefObject<HTMLDivElement | null>
   onDeleteSession: (id: string) => Promise<void>
+  onDeletePermanently: (id: string) => Promise<void>
+  permanentDeleteShortcut: string
+  deletingSessionId: string | null
   onOpenInNewTab?: (session: AgentSessionEntity) => void
   onOpenInNewWindow?: (session: AgentSessionEntity) => void
   onOpenRenameDialog: (session: AgentSessionEntity) => void
@@ -45,6 +49,9 @@ export function SessionListBody({
   isValidating,
   listRef,
   onDeleteSession,
+  onDeletePermanently,
+  permanentDeleteShortcut,
+  deletingSessionId,
   onOpenInNewTab,
   onOpenInNewWindow,
   onOpenRenameDialog,
@@ -59,11 +66,15 @@ export function SessionListBody({
 }: SessionListBodyProps) {
   const { t } = useTranslation()
 
+  const openSession = useCallback((session: SessionListItem) => setActiveSessionId(session.id), [setActiveSessionId])
+  const shortcutHints = useConversationListShortcuts(openSession)
+
   const renderItem = useCallback(
     (session: SessionListItem) => (
       <SessionItem
         key={session.id}
         session={session}
+        shortcutHint={shortcutHints.get(session.id)}
         active={session.id === activeSessionId}
         channelType={channelTypeMap[session.id]}
         pinned={session.pinned}
@@ -74,6 +85,9 @@ export function SessionListBody({
         onTogglePin={onTogglePin}
         onToggleSidebar={onToggleSidebar}
         onDelete={onDeleteSession}
+        onDeletePermanently={onDeletePermanently}
+        permanentDeleteShortcut={permanentDeleteShortcut}
+        isDeleting={deletingSessionId === session.id}
         onOpenInNewTab={onOpenInNewTab}
         onOpenInNewWindow={onOpenInNewWindow}
         onOpenRenameDialog={onOpenRenameDialog}
@@ -87,8 +101,11 @@ export function SessionListBody({
     [
       activeSessionId,
       channelTypeMap,
+      deletingSessionId,
       displayMode,
+      onDeletePermanently,
       onDeleteSession,
+      permanentDeleteShortcut,
       onOpenInNewTab,
       onOpenInNewWindow,
       onOpenRenameDialog,
@@ -98,7 +115,8 @@ export function SessionListBody({
       panePosition,
       sidebarSessionFavoriteIdSet,
       sessionMenuActions,
-      setActiveSessionId
+      setActiveSessionId,
+      shortcutHints
     ]
   )
 

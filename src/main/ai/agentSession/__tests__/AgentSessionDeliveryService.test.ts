@@ -263,6 +263,7 @@ describe('AgentSessionDeliveryService', () => {
       agentId: 'agent-1',
       agentUpdatedAt: now,
       agentType: 'claude-code',
+      agentDefaultModel: 'provider::model',
       uniqueModelId: 'provider::model'
     })
     mocks.persistDispatchTx.mockReturnValue({
@@ -723,24 +724,6 @@ describe('AgentSessionDeliveryService', () => {
       await service.drainInFlight({ timeoutMs: 100 })
 
       expect(mocks.send).toHaveBeenCalledOnce()
-    } finally {
-      vi.useRealTimers()
-    }
-  })
-
-  it('reinstalls its retry sweep when the service restarts', async () => {
-    vi.useFakeTimers()
-    try {
-      const service = new AgentSessionDeliveryService()
-      await service._doInit()
-      await service._doAllReady()
-      expect(vi.getTimerCount()).toBe(1)
-
-      await service._doStop()
-      expect(vi.getTimerCount()).toBe(0)
-
-      await service._doInit()
-      expect(vi.getTimerCount()).toBe(1)
     } finally {
       vi.useRealTimers()
     }

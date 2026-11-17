@@ -4,6 +4,8 @@ Status: proposed
 
 English | [中文](2026-10-18-agent-runtime-subagent-control.zh.md)
 
+Legacy Pi executor source/test links are pinned to pre-contraction `46d76e4` as historical evidence. Current implementation and test ownership are defined in section 11 of the [runtime boundary contraction plan](../simplification/2026-11-05-agent-runtime-boundary-ownership.md); those legacy entry points have left the production path.
+
 ## Problem
 
 Cherry needs to observe subagents, manage delegated work, and continue a conversation with a child where its harness allows it. Some harnesses expose only a task result, while others expose an independently accessible conversation. Discovery, observation, input, and cancellation are separate capabilities.
@@ -26,7 +28,7 @@ The [desktop implementation plan](2026-10-17-agent-runtime-contract.md#desktop-i
 
 Retain the existing subagent implementation in `packages/agent-runtime-pi`. The current choice is to avoid taking on community-plugin TUI integration and terminal interaction assumptions while Cherry provides its own UI. This is an integration decision, not a claim that every community plugin requires a TUI or cannot run headlessly. Community implementations remain useful references; changing this choice would require evaluating a concrete reusable execution interface separately from its presentation layer.
 
-The [Pi subagent extension](../../../../packages/agent-runtime-pi/src/subagent.ts) owns child creation, continuation, run tracking, and result delivery. It continues to use native Pi sessions, tools, execution loops, and storage. Cherry owns presentation, permissions, and product configuration; the extension and common runtime package must not depend on terminal widgets or Cherry renderer code. The [background subagent note](../feature/2026-10-14-agent-runtime-background-subagent.md) owns Pi-specific behavior.
+The [Pi subagent extension](https://github.com/CherryHQ/cherry-studio/blob/46d76e46c03d1d1f19da4ccf03cea27e24c11180/packages/agent-runtime-pi/src/subagent.ts) owns child creation, continuation, run tracking, and result delivery. It continues to use native Pi sessions, tools, execution loops, and storage. Cherry owns presentation, permissions, and product configuration; the extension and common runtime package must not depend on terminal widgets or Cherry renderer code. The [background subagent note](../feature/2026-10-14-agent-runtime-background-subagent.md) owns Pi-specific behavior.
 
 ### Separate the child relationship, context, and assigned work
 
@@ -104,7 +106,7 @@ Pi and Pi Durable can implement the same Cherry subagent behavior without sharin
 
 Extract pure request validation or result-formatting rules only after both implementations need the same behavior. Do not first move Pi's registry, run counter, inbox, or delivery pump into `agent-runtime`. Durable's anchor, reporter, submission deduplication, and answer-entry deduplication must continue to use its native commits and replay model. Several submissions can share one answer; neither input acceptance nor observing that answer authorizes an extra parent report.
 
-There is already a product-policy difference to resolve when implementing Durable support: [Cherry Pi delivery](../../../../packages/agent-runtime-pi/src/subagentDelivery.ts) suppresses automatic wake after a user stops the parent until another run starts; the upstream Durable example allows a report arriving after the stop to start a parent turn. Preserve Cherry's existing stop policy when adapting that behavior, with native durable state as needed, rather than inheriting the example's timing. Source comparison does not establish that this parity has been implemented.
+There is already a product-policy difference to resolve when implementing Durable support: [Cherry Pi delivery](https://github.com/CherryHQ/cherry-studio/blob/46d76e46c03d1d1f19da4ccf03cea27e24c11180/packages/agent-runtime-pi/src/subagentDelivery.ts) suppresses automatic wake after a user stops the parent until another run starts; the upstream Durable example allows a report arriving after the stop to start a parent turn. Preserve Cherry's existing stop policy when adapting that behavior, with native durable state as needed, rather than inheriting the example's timing. Source comparison does not establish that this parity has been implemented.
 
 ### Decisions still to make
 

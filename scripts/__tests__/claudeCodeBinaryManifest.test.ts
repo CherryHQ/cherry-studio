@@ -14,7 +14,7 @@ it('pins all binary integrity values from the application lockfile document and 
   mkdirSync(sdkDir, { recursive: true })
   writeFileSync(
     path.join(root, 'package.json'),
-    JSON.stringify({ devDependencies: { '@anthropic-ai/claude-agent-sdk': '1.2.3' } })
+    JSON.stringify({ dependencies: { '@anthropic-ai/claude-agent-sdk': '1.2.3' } })
   )
   writeFileSync(path.join(sdkDir, 'sdk.mjs'), '')
   writeFileSync(
@@ -35,7 +35,7 @@ it('pins all binary integrity values from the application lockfile document and 
   })
   writeFileSync(
     path.join(root, 'package.json'),
-    JSON.stringify({ devDependencies: { '@anthropic-ai/claude-agent-sdk': '1.2.4' } })
+    JSON.stringify({ dependencies: { '@anthropic-ai/claude-agent-sdk': '1.2.4' } })
   )
   expect(() => claudeCodeBinaryManifest(root)).toThrow('does not match')
 })

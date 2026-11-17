@@ -348,7 +348,7 @@ session/protocolVersion journal 挂接一个适配 listener，不为每个手机
 | 基线接口 / 拟补充通知 | Remote adapter 的用途 | 边界 |
 |---|---|---|
 | `addListener(topicId, listener)` | 接入已有流，同步接收 buffer replay 和之后的 `onChunk` | 只对当前存在的 stream 有效；buffer 可能已淘汰，boolean 成功不代表完整回放 |
-| `StreamListener.onChunk` | 将增量转换成协议事件，保持内容与 message/part/execution 身份 | 不直接把内部 `UIMessageChunk` 暴露给手机 |
+| `StreamListener.onChunk` / `onMessage` | chunk 来源转换增量；projection 来源转换权威消息视图，支持替换和撤回 | 同次执行只消费一种正文来源，不直接暴露内部模型；晚接入接收当前视图 |
 | `onDone/onPaused/onError`、terminal phases | 跟随既有终结与持久化顺序，发布对应远程状态 | 验证实际持久化成功后才能发布 durable terminal；EOF 不等于提交 |
 | `observeTopic` + `getTopicSnapshot`（拟补充） | 状态通知、首次状态读取和新 execution 接入检测 | observer 注册后立即同步调用；快照不携带完整有序增量，不能周期 diff 全文 |
 | runtime 的 `onSessionInteractionsChanged`（拟补充） | 更新审批摘要，完整输入按需读取 | 不能假定每个审批变化都必然产生文本 chunk |

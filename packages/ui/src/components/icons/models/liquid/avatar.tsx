@@ -10,7 +10,7 @@ export function LiquidAvatar({ size = 32, shape = 'circle', className }: Omit<Ic
     <Avatar
       className={cn('overflow-hidden', shape === 'circle' ? 'rounded-full' : 'rounded-[20%]', className)}
       style={{ width: size, height: size }}>
-      <AvatarFallback className="text-foreground bg-background">
+      <AvatarFallback className="text-foreground">
         <LiquidLight className="dark:hidden" style={{ width: size, height: size }} />
         <LiquidDark className="hidden dark:block" style={{ width: size, height: size }} />
       </AvatarFallback>

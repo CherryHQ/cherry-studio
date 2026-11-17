@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 
 import {
   Button,
+  Checkbox,
   type ComboboxOption,
   InfoTooltip,
   Input,
@@ -29,7 +30,7 @@ import { toast } from '@renderer/services/toast'
 import { formatApiKeys, joinApiKeyString, splitApiKeyString, validateApiHost } from '@renderer/utils/api'
 import { cn } from '@renderer/utils/style'
 import type { FileProcessorFeature, FileProcessorId } from '@shared/data/preference/preferenceTypes'
-import { FILE_PROCESSOR_LOCAL_MODEL } from '@shared/data/presets/fileProcessing'
+import { FILE_PROCESSOR_LOCAL_MODEL, type DocumentToMarkdownCapability } from '@shared/data/presets/fileProcessing'
 
 import {
   type FileProcessingMenuEntry,
@@ -58,8 +59,8 @@ type ProcessorPanelProps = {
   onSetCapabilityField: (
     processorId: FileProcessorId,
     feature: FileProcessorFeature,
-    field: 'apiHost' | 'modelId',
-    value: string
+    field: 'apiHost' | 'modelId' | 'formulaLevel' | 'mergeCrossPageForms',
+    value: string | number | boolean
   ) => Promise<void>
   onSetDefaultProcessor: (feature: FileProcessorFeature, processorId: FileProcessorId) => Promise<void>
   onSetLanguageOptions: (
@@ -81,6 +82,10 @@ export function ProcessorPanel({
   const { t } = useTranslation()
   const { languages } = useLanguages()
   const processor = entry.processor
+  const doc2xCapability: DocumentToMarkdownCapability | undefined =
+    processor.id === 'doc2x' && entry.feature === 'document_to_markdown'
+      ? (entry.capability as DocumentToMarkdownCapability)
+      : undefined
   const processorName = t(getProcessorNameKey(processor.id))
   const apiKeyWebsite = getProcessorApiKeyWebsite(processor.id)
   const featureTitleKey =
@@ -187,6 +192,13 @@ export function ProcessorPanel({
     async (value: string) => {
       setModelIdInput(value)
       await persist(() => onSetCapabilityField(processor.id, entry.feature, 'modelId', value), 'save model id')
+    },
+    [entry.feature, onSetCapabilityField, persist, processor.id]
+  )
+
+  const setDoc2xOptionAndPersist = useCallback(
+    async (field: 'modelId' | 'formulaLevel' | 'mergeCrossPageForms', value: string | number | boolean) => {
+      await persist(() => onSetCapabilityField(processor.id, entry.feature, field, value), `save Doc2X ${field}`)
     },
     [entry.feature, onSetCapabilityField, persist, processor.id]
   )
@@ -336,6 +348,57 @@ export function ProcessorPanel({
           value={modelIdInput}
           onChange={(value) => void setModelIdInputAndPersist(value)}
         />
+      ) : null}
+
+      {doc2xCapability ? (
+        <div className="flex flex-col gap-3 border-border-subtle border-t pt-4">
+          <SettingRow className="items-center gap-4 py-0">
+            <SettingRowTitle className="w-24 shrink-0">
+              {t('settings.tool.file_processing.processors.doc2x.fields.model')}
+            </SettingRowTitle>
+            <Select
+              value={doc2xCapability.modelId || 'v2'}
+              onValueChange={(value) => void setDoc2xOptionAndPersist('modelId', value)}>
+              <SelectTrigger size="sm" className="w-full max-w-65">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent align="start">
+                <SelectItem value="v2">v2</SelectItem>
+                <SelectItem value="v3-2026">v3-2026</SelectItem>
+              </SelectContent>
+            </Select>
+          </SettingRow>
+          <SettingRow className="items-center gap-4 py-0">
+            <SettingRowTitle className="w-24 shrink-0">
+              {t('settings.tool.file_processing.processors.doc2x.fields.formula_level')}
+            </SettingRowTitle>
+            <Select
+              value={String(doc2xCapability.formulaLevel ?? 0)}
+              disabled={doc2xCapability.modelId !== 'v3-2026'}
+              onValueChange={(value) => void setDoc2xOptionAndPersist('formulaLevel', Number(value))}>
+              <SelectTrigger size="sm" className="w-full max-w-65">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent align="start">
+                {[0, 1, 2].map((level) => (
+                  <SelectItem key={level} value={String(level)}>
+                    {level}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </SettingRow>
+          <SettingRow className="items-center gap-4 py-0">
+            <Checkbox
+              checked={doc2xCapability.mergeCrossPageForms ?? false}
+              disabled={doc2xCapability.modelId !== 'v3-2026'}
+              onCheckedChange={(checked) => void setDoc2xOptionAndPersist('mergeCrossPageForms', checked === true)}
+            />
+            <SettingRowTitle>
+              {t('settings.tool.file_processing.processors.doc2x.fields.merge_cross_page_forms')}
+            </SettingRowTitle>
+          </SettingRow>
+        </div>
       ) : null}
 
       {processor.id === 'paddleocr' ? <PaddleOcrDeploymentInfo /> : null}
