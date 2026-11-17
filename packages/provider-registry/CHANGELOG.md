@@ -1,5 +1,17 @@
 # @cherrystudio/provider-registry
 
+## 0.6.2
+
+### Patch Changes
+
+- [#24624](https://github.com/CherryHQ/cherry-studio/pull/24624) [`0e75713`](https://github.com/CherryHQ/cherry-studio/commit/0e757139a979cf8f9b059066406d3cb56df7d40b) Thanks [@Contentment003111](https://github.com/Contentment003111)! - Add Tencent Hunyuan 4 Flash model metadata and the TokenHub model mapping.
+
+## 0.6.1
+
+### Patch Changes
+
+- [#24527](https://github.com/CherryHQ/cherry-studio/pull/24527) [`9f853cd`](https://github.com/CherryHQ/cherry-studio/commit/9f853cd5073a366c1beafc058b012cea17211c90) Thanks [@WhiteZeek](https://github.com/WhiteZeek)! - Use current Flash peak token prices for DeepSeek's retired Flash API aliases without changing third-party provider prices.
+
 ## 0.6.0
 
 ### Minor Changes

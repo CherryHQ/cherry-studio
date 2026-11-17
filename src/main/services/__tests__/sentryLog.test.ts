@@ -22,7 +22,11 @@ vi.unmock('@logger')
 vi.unmock('winston')
 vi.unmock('winston-daily-rotate-file')
 vi.mock('@main/core/paths/constants', () => ({ LOGS_DIR: tmpLogsDir }))
-vi.mock('@sentry/electron/main', () => ({ captureException: captureExceptionMock }))
+vi.mock('@sentry/electron/main', () => ({
+  captureException: captureExceptionMock,
+  addIntegration: vi.fn(),
+  sentryMinidumpIntegration: () => ({ name: 'SentryMinidump' })
+}))
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
   return mockApplicationFactory({
