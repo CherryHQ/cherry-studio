@@ -23,6 +23,7 @@ const ticketSchema = z.object({
   contextHash: z.string().optional(),
   receivedAt: z.number()
 })
+const positionSchema = z.object({ createdAt: z.number(), messageIds: z.array(z.string()) })
 const stateSchema = z.object({
   version: z.literal(2),
   entityKey: z.string(),
@@ -35,10 +36,19 @@ const stateSchema = z.object({
   retryAt: z.number(),
   attempts: z.number().int().nonnegative().default(0),
   skippedBudget: z.number().int().nonnegative().default(0),
+  skippedSource: z.number().int().nonnegative().default(0),
+  skippedConflict: z.number().int().nonnegative().default(0),
+  excludedThrough: positionSchema.optional(),
   outcome: z.enum(['pending', 'completed', 'failed', 'cancelled', 'skipped']),
   reason: z.string().optional(),
   prepared: z
-    .object({ end: z.string(), sourceHash: z.string(), before: z.string().nullable(), after: z.string() })
+    .object({
+      end: z.string(),
+      sourceHash: z.string(),
+      before: z.string().nullable(),
+      after: z.string(),
+      through: positionSchema.optional()
+    })
     .optional()
 })
 export type ExtractionState = z.infer<typeof stateSchema>
@@ -103,7 +113,7 @@ export function nextExtractionDaily(at: number): number {
 }
 
 export function enqueueExtraction(ticket: ExtractionTicket, boundary: number, ancestors: Set<string>): boolean {
-  const state: ExtractionState =
+  let state: ExtractionState =
     readExtractionState(ticket.key) ??
     ({
       version: 2,
@@ -115,6 +125,8 @@ export function enqueueExtraction(ticket: ExtractionTicket, boundary: number, an
       retryAt: 0,
       attempts: 0,
       skippedBudget: 0,
+      skippedSource: 0,
+      skippedConflict: 0,
       outcome: 'pending'
     } satisfies ExtractionState)
   if (
@@ -127,9 +139,12 @@ export function enqueueExtraction(ticket: ExtractionTicket, boundary: number, an
   // A selected-branch change must not combine siblings into one extraction batch.
   const branchChanged = state.pending.some((item) => !ancestors.has(item.messageId))
   if (branchChanged) {
-    state.pending = state.pending.filter((item) => ancestors.has(item.messageId))
-    state.batchEnd = undefined
-    state.prepared = undefined
+    skipExtractionTurns(
+      ticket.key,
+      state.pending.filter((item) => !ancestors.has(item.messageId)).map((item) => item.messageId),
+      'source'
+    )
+    state = readExtractionState(ticket.key)!
   }
   const existing = state.pending.findIndex((item) => item.messageId === ticket.messageId)
   if (existing >= 0) {
@@ -208,20 +223,64 @@ export function deferExtraction(key: string, interrupted: boolean, reason = 'una
 }
 
 export function skipExtractionTurn(key: string, messageId: string): void {
+  skipExtractionTurns(key, [messageId], 'budget')
+}
+
+function sourcePosition(
+  tickets: readonly Pick<ExtractionTicket, 'messageId' | 'createdAt'>[],
+  previous?: z.infer<typeof positionSchema>
+) {
+  const createdAt = Math.max(previous?.createdAt ?? 0, ...tickets.map((ticket) => ticket.createdAt))
+  return {
+    createdAt,
+    messageIds: [
+      ...new Set([
+        ...(previous?.createdAt === createdAt ? previous.messageIds : []),
+        ...tickets.filter((ticket) => ticket.createdAt === createdAt).map((ticket) => ticket.messageId)
+      ])
+    ]
+  }
+}
+
+export function skipExtractionTurns(
+  key: string,
+  messageIds: readonly string[],
+  reason: 'budget' | 'source' | 'conflict'
+): number {
   const state = readExtractionState(key)
-  if (!state) return
-  const index = state.pending.findIndex((ticket) => ticket.messageId === messageId)
-  if (index < 0) return
-  settle(state, [state.pending[index]])
-  state.pending.splice(index, 1)
-  if (state.batchEnd === messageId) state.batchEnd = state.pending[index - 1]?.messageId
-  state.prepared = undefined
-  state.retryAt = 0
-  state.attempts = 0
-  state.skippedBudget++
+  if (!state) return 0
+  const removed = state.pending.filter((ticket) => messageIds.includes(ticket.messageId))
+  if (!removed.length) return 0
+  const end = state.pending.findIndex((ticket) => ticket.messageId === state.batchEnd)
+  const batch = state.pending.slice(0, end + 1).filter((ticket) => !messageIds.includes(ticket.messageId))
+  const affectsBatch = end < 0 || state.pending.slice(0, end + 1).some((item) => messageIds.includes(item.messageId))
+  if (state.prepared && affectsBatch && end >= 0)
+    state.prepared.through ??= sourcePosition(state.pending.slice(0, end + 1))
+  const preparedThrough = state.prepared?.through
+  settle(state, removed)
+  state.pending = state.pending.filter((ticket) => !messageIds.includes(ticket.messageId))
+  if (end >= 0) state.batchEnd = batch.at(-1)?.messageId
+  if (reason === 'conflict' || !state.batchEnd) state.prepared = undefined
+  if (affectsBatch) {
+    state.retryAt = 0
+    state.attempts = 0
+  }
+  if (reason === 'budget') state.skippedBudget += removed.length
+  else if (reason === 'source') state.skippedSource += removed.length
+  else {
+    state.skippedConflict += removed.length
+    state.excludedThrough = sourcePosition(
+      [
+        ...removed,
+        ...(preparedThrough?.messageIds.map((messageId) => ({ messageId, createdAt: preparedThrough.createdAt })) ?? [])
+      ],
+      state.excludedThrough
+    )
+  }
   state.outcome = 'skipped'
-  state.reason = 'budget'
+  state.reason = reason
   writeExtractionState(key, state)
+  return removed.length
 }
 
 export function invalidateExtractions(sourceKey?: string): number {

@@ -22,6 +22,7 @@ import { messageTable } from '@data/db/schemas/message'
 import { topicTable } from '@data/db/schemas/topic'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
+import { agentService } from '@data/services/AgentService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { assistantDataService } from '@data/services/AssistantService'
 import { topicService } from '@data/services/TopicService'
@@ -432,7 +433,7 @@ describe('memory organization lifecycle and commit fences', () => {
     let parentId = chat.response.id
     dbh.db.update(topicTable).set({ activeNodeId: parentId }).where(eq(topicTable.id, chat.topicId)).run()
     chat.emit()
-    const append = (n: number) => {
+    const append = (n: number, status: 'success' | 'paused' = 'success') => {
       for (let i = 0; i < n; i++) {
         vi.spyOn(Date, 'now').mockReturnValue(Date.now() + 100)
         const [user] = dbh.db
@@ -452,7 +453,7 @@ describe('memory organization lifecycle and commit fences', () => {
             topicId: chat.topicId,
             parentId: user.id,
             role: 'assistant',
-            status: 'success',
+            status,
             data: { parts: [{ type: 'text', text: 'Understood.' }] },
             messageSnapshot: chat.response.messageSnapshot
           })
@@ -467,6 +468,138 @@ describe('memory organization lifecycle and commit fences', () => {
     append(count - 1)
     return { chat, users, append, key: `memory:extraction:assistant/${chat.topicId}` }
   }
+
+  it('skips a stopped whole turn inside the fixed sixteen-message window', async () => {
+    const batch = batchConversation(4)
+    batch.append(1, 'paused')
+    batch.append(4)
+    generate.mockImplementation(async () => ({ text: automaticReply(), finishReason: 'stop' }))
+    expect(await dreaming.execute(job())).toMatchObject({ saved: 1 })
+    const input = JSON.parse(generate.mock.calls[0][0].prompt!)
+    expect(input.messages.filter((m: { role: string }) => m.role === 'user').map((m: { id: string }) => m.id)).toEqual(
+      batch.users.slice(1).filter((id) => id !== batch.users[4])
+    )
+    expect(input.contextGaps).toHaveLength(1)
+    expect(readExtractionState(batch.key)?.pending).toEqual([])
+    expect(readExtractionState(batch.key)?.skippedBudget).toBe(1)
+  })
+
+  it('keeps admitted turns after ordinary owner configuration changes', async () => {
+    const batch = batchConversation(8)
+    vi.spyOn(Date, 'now').mockReturnValue(Date.now() + 100)
+    assistantDataService.update(batch.chat.assistantId, { name: 'Renamed memory assistant', prompt: 'Be helpful.' })
+    batch.append(8)
+    generate.mockImplementation(async () => ({ text: automaticReply(), finishReason: 'stop' }))
+    expect(await dreaming.execute(job())).toMatchObject({ saved: 1 })
+    expect(readExtractionState(batch.key)?.pending).toHaveLength(8)
+    expect(await dreaming.execute(job())).toMatchObject({ saved: 0 })
+    expect(readExtractionState(batch.key)?.pending).toEqual([])
+  })
+
+  it('continues a due batch when its final response becomes ineligible', async () => {
+    const batch = batchConversation(8)
+    const end = dbh.db.select().from(topicTable).where(eq(topicTable.id, batch.chat.topicId)).get()!.activeNodeId!
+    dbh.db.update(messageTable).set({ status: 'paused' }).where(eq(messageTable.id, end)).run()
+    generate.mockImplementation(async () => ({ text: automaticReply(), finishReason: 'stop' }))
+    expect(await dreaming.execute(job())).toMatchObject({ saved: 1 })
+    expect(readExtractionState(batch.key)).toMatchObject({ completed: batch.users[6], skippedSource: 1, pending: [] })
+  })
+
+  it('retains pending sources when reading their owner fails transiently', async () => {
+    const batch = batchConversation(8)
+    vi.spyOn(topicService, 'getById').mockImplementationOnce(() => {
+      throw new Error('Database unavailable')
+    })
+    await expect(dreaming.execute(job())).rejects.toThrow('Database unavailable')
+    expect(readExtractionState(batch.key)).toMatchObject({ attempts: 1, skippedSource: 0, outcome: 'failed' })
+    expect(readExtractionState(batch.key)?.pending).toHaveLength(8)
+  })
+
+  it('reproposes after a known pre-write conflict without losing the concurrent edit', async () => {
+    const batch = batchConversation(8)
+    generate.mockImplementation(async () => ({ text: automaticReply(), finishReason: 'stop' }))
+    const originalOpen = memory.open.bind(memory)
+    let conflict = true
+    vi.spyOn(memory, 'open').mockImplementation((...args) => {
+      const opened = originalOpen(...args)
+      if (args[1] === 'extraction') {
+        const commit = opened.commit.bind(opened)
+        opened.commit = async (...params) => {
+          if (conflict) {
+            conflict = false
+            await save('Concurrent fact')
+          }
+          return commit(...params)
+        }
+      }
+      return opened
+    })
+    await expect(dreaming.execute(job())).rejects.toBeInstanceOf(Error)
+    expect(readExtractionState(batch.key)?.prepared).toBeUndefined()
+    vi.spyOn(Date, 'now').mockReturnValue(readExtractionState(batch.key)!.retryAt)
+    expect(await dreaming.execute(job())).toMatchObject({ saved: 1 })
+    expect((await session.read('MEMORY.md')).content).toContain('Concurrent fact')
+    expect(readExtractionState(batch.key)?.pending).toEqual([])
+  })
+
+  it('retires an uncertain changed commit without replaying it or consuming later turns', async () => {
+    const batch = batchConversation(8)
+    let prepared: ReturnType<typeof readExtractionState>
+    const originalOpen = memory.open.bind(memory)
+    vi.spyOn(memory, 'open').mockImplementation((...args) => {
+      const opened = originalOpen(...args)
+      if (args[1] === 'extraction') {
+        const commit = opened.commit.bind(opened)
+        opened.commit = async (...params) => {
+          prepared = readExtractionState(batch.key)
+          return commit(...params)
+        }
+      }
+      return opened
+    })
+    generate.mockImplementation(async () => ({ text: automaticReply(), finishReason: 'stop' }))
+    await dreaming.execute(job())
+    writeExtractionState(batch.key, prepared!)
+    await save('User replacement')
+    vi.spyOn(Date, 'now').mockReturnValue(Date.now() - 100)
+    batch.append(1)
+    dbh.db
+      .update(messageTable)
+      .set({ data: { parts: [{ type: 'text', text: 'Today is sunny.' }] } })
+      .where(eq(messageTable.id, batch.users[8]))
+      .run()
+    generate.mockClear()
+    expect(await dreaming.execute(job())).toMatchObject({ saved: 0, skippedConflict: 8 })
+    expect(generate).not.toHaveBeenCalled()
+    expect((await session.read('MEMORY.md')).content).toBe('User replacement')
+    expect(readExtractionState(batch.key)).toMatchObject({ outcome: 'skipped', skippedConflict: 8 })
+    expect(readExtractionState(batch.key)?.pending.map((t) => t.messageId)).toEqual(batch.users.slice(8))
+    vi.spyOn(Date, 'now').mockReturnValue(nextExtractionDaily(Date.now()) + 1)
+    generate.mockImplementation(async () => ({ text: automaticReply([]), finishReason: 'stop' }))
+    expect(await dreaming.execute(job())).toMatchObject({ saved: 0 })
+    const messages = JSON.parse(generate.mock.calls[0][0].prompt!).messages
+    expect(messages.filter((m: { role: string }) => m.role === 'user').map((m: { id: string }) => m.id)).toEqual([
+      batch.users[8]
+    ])
+    expect((await session.read('MEMORY.md')).content).toBe('User replacement')
+  })
+
+  it('settles an applied append even when the commit reports a save warning', async () => {
+    const batch = batchConversation(8)
+    const originalOpen = memory.open.bind(memory)
+    vi.spyOn(memory, 'open').mockImplementation((...args) => {
+      const opened = originalOpen(...args)
+      if (args[1] === 'extraction') {
+        const commit = opened.commit.bind(opened)
+        opened.commit = async (...params) => ({ ...(await commit(...params)), error: 'Backup status write failed' })
+      }
+      return opened
+    })
+    generate.mockImplementation(async () => ({ text: automaticReply(), finishReason: 'stop' }))
+    expect(await dreaming.execute(job())).toMatchObject({ saved: 1, warning: 'Backup status write failed' })
+    expect(readExtractionState(batch.key)?.pending).toEqual([])
+    expect(dreaming.status(scope).lastResult).toMatchObject({ outcome: 'failed', reason: 'backup' })
+  })
 
   it('extracts once at eight successful turns and never counts duplicate completions', async () => {
     const batch = batchConversation(7)
@@ -660,11 +793,11 @@ describe('memory organization lifecycle and commit fences', () => {
       .set({ activeNodeId: first.chat.response.id })
       .where(eq(topicTable.id, first.chat.topicId))
       .run()
-    // Switching the selected branch need not emit a successful-turn notification.
-    expect(await dreaming.execute(job())).toEqual({ deferred: true })
-    expect(readExtractionState(first.key)?.pending).toHaveLength(1)
-    expect(await dreaming.execute(job())).toEqual({ idle: true })
+    // The already-due batch keeps its valid prefix after the branch changes.
     generate.mockImplementation(async () => ({ text: automaticReply(), finishReason: 'stop' }))
+    expect(await dreaming.execute(job())).toMatchObject({ saved: 1 })
+    expect(readExtractionState(first.key)).toMatchObject({ pending: [], skippedSource: 7 })
+    expect(await dreaming.execute(job())).toEqual({ idle: true })
     vi.spyOn(Date, 'now').mockReturnValue(nextExtractionDaily(Date.now()) + 1)
     await Promise.all([dreaming.execute(job()), dreaming.execute(job())])
     expect(generate).toHaveBeenCalledTimes(2)
@@ -1613,6 +1746,7 @@ describe('memory organization lifecycle and commit fences', () => {
     'preview',
     'preview-unrelated-response',
     'renamed-queued',
+    'configured-queued',
     'renamed-running',
     'restored-queued',
     'restored-running',
@@ -1722,6 +1856,8 @@ describe('memory organization lifecycle and commit fences', () => {
     const changeSession = () => {
       vi.spyOn(Date, 'now').mockReturnValue(Date.now() + 100)
       if (kind.startsWith('renamed')) agentSessionService.update(sessionId, { name: 'Generated title' })
+      if (kind === 'configured-queued')
+        agentService.updateAgent(agentId, { name: 'Renamed agent', instructions: 'Be helpful.' })
       if (kind.startsWith('restored')) {
         agentSessionService.delete(sessionId)
         agentSessionService.restore(sessionId)
@@ -1742,7 +1878,7 @@ describe('memory organization lifecycle and commit fences', () => {
       ...(kind === 'headless' ? {} : { memoryUserMessageId: user.id })
     })
     if (kind.endsWith('queued')) changeSession()
-    const eligible = kind === 'desktop' || kind.startsWith('renamed')
+    const eligible = kind === 'desktop' || kind.startsWith('renamed') || kind === 'configured-queued'
     if (kind === 'restored-running') await expect(flushExtraction()).rejects.toBeInstanceOf(Error)
     else expect(await flushExtraction()).toMatchObject(eligible ? { extracted: 1 } : { idle: true })
     expect((await session.read('MEMORY.md')).content ?? '').toBe(eligible ? '- "I prefer concise answers."\n' : '')

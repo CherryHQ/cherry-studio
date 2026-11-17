@@ -28,6 +28,7 @@ import {
 import {
   extractContextCandidates,
   extractionBranch,
+  InvalidExtractionSource,
   readExtractionRange,
   readExtractionSource,
   type ExtractionInput,
@@ -42,6 +43,7 @@ import {
   readExtractionState,
   readyExtraction,
   skipExtractionTurn,
+  skipExtractionTurns,
   writeExtractionState,
   type ExtractionState
 } from './memoryExtractionState'
@@ -499,7 +501,8 @@ export class MemoryDreamingService extends BaseService {
         extractionBoundary(ticket.entityKey),
         readExtractionState(ticket.key)?.boundary ?? 0
       ),
-      true
+      true,
+      readExtractionState(ticket.key)?.excludedThrough
     )
   }
 
@@ -521,15 +524,34 @@ export class MemoryDreamingService extends BaseService {
     try {
       const first = pending.state.pending[0]
       const selected = extractionBranch(first.input, first.messageId, false)
-      if (pending.state.pending.some((item) => !selected.has(item.input.responseId))) {
-        pending.state.pending = pending.state.pending.filter((item) => selected.has(item.input.responseId))
-        pending.state.batchEnd = undefined
-        pending.state.prepared = undefined
-        writeExtractionState(pending.key, pending.state)
-        return { deferred: true }
+      const invalid: string[] = []
+      for (const ticket of pending.state.pending) {
+        if (!selected.has(ticket.input.responseId)) {
+          invalid.push(ticket.messageId)
+          continue
+        }
+        try {
+          readExtractionSource(ticket.input, true)
+        } catch (error) {
+          if (!(error instanceof InvalidExtractionSource)) throw error
+          invalid.push(ticket.messageId)
+        }
+      }
+      if (invalid.length) {
+        const skippedSource = skipExtractionTurns(pending.key, invalid, 'source')
+        pending.state = readExtractionState(pending.key)!
+        if (!pending.state.batchEnd) return { saved: 0, skippedSource }
       }
       batch = this.readBatch(pending.state)
     } catch (error) {
+      if (error instanceof InvalidExtractionSource) {
+        const skippedSource = skipExtractionTurns(
+          pending.key,
+          pending.state.pending.map((ticket) => ticket.messageId),
+          'source'
+        )
+        return { saved: 0, skippedSource }
+      }
       if (error instanceof DreamingError && error.reason === 'budget' && pending.state.batchEnd) {
         skipExtractionTurn(pending.key, pending.state.batchEnd)
         return { saved: 0, skippedBudget: 1 }
@@ -607,7 +629,19 @@ export class MemoryDreamingService extends BaseService {
           writeDreamingState(start)
           return { recovered: true, saved: 0 }
         }
-        if (entry.hash !== prepared.before) throw new DreamingError('conflict')
+        if (entry.hash !== prepared.before) {
+          const end = pending.state.pending.findIndex((item) => item.messageId === ticket.messageId)
+          const skippedConflict = skipExtractionTurns(
+            ticket.key,
+            pending.state.pending.slice(0, end + 1).map((item) => item.messageId),
+            'conflict'
+          )
+          start.status = 'failed'
+          start.reason = 'conflict'
+          start.lastResult = { outcome: 'failed', finishedAt: Date.now(), reason: 'conflict' }
+          writeDreamingState(start)
+          return { saved: 0, skippedConflict }
+        }
       }
       const proposal = await extractContextCandidates(source, files, controller.signal, async () => {
         await session!.validateModelReads()
@@ -636,15 +670,34 @@ export class MemoryDreamingService extends BaseService {
         after: memoryHash(Buffer.from(content))
       }
       writeExtractionState(ticket.key, progress)
-      const result = await session.commit(
-        content === (entry.content ?? '') ? [] : [{ kind: 'write', receipt: entry.receipt, content }],
-        async () => assertCurrent,
-        files.map((file) => file.receipt),
-        undefined,
-        paths
-      )
-      if (result.error || result.files.some((file) => file.outcome !== 'applied' && file.outcome !== 'unchanged'))
+      const clearPrepared = () => {
+        const current = readExtractionState(ticket.key)
+        if (current?.prepared?.end === ticket.messageId && current.prepared.sourceHash === source.hash) {
+          current.prepared = undefined
+          writeExtractionState(ticket.key, current)
+        }
+      }
+      let result: MemoryCommitResult
+      try {
+        result = await session.commit(
+          content === (entry.content ?? '') ? [] : [{ kind: 'write', receipt: entry.receipt, content }],
+          async () => assertCurrent,
+          files.map((file) => file.receipt),
+          undefined,
+          paths
+        )
+      } catch (error) {
+        // MemoryStore returns per-file outcomes once writes start; rejection precedes the write phase.
+        clearPrepared()
+        throw error
+      }
+      const applied = result.files.some((file) => file.path === MEMORY_ENTRY && file.outcome === 'applied')
+      if (result.files.some((file) => file.outcome === 'conflict' || file.outcome === 'pending'))
         throw new DreamingError('conflict')
+      if (result.error && !applied) {
+        clearPrepared()
+        throw new DreamingError('conflict')
+      }
       completeExtraction(
         ticket.key,
         ticket.messageId,
@@ -652,13 +705,20 @@ export class MemoryDreamingService extends BaseService {
         batch.skippedBudget
       )
       const latest = readDreamingState(scope)
-      latest.status = 'idle'
-      latest.reason = undefined
-      latest.lastResult = { outcome: 'completed', finishedAt: Date.now() }
-      writeDreamingState(latest)
+      if (latest.generation === generation) {
+        latest.status = result.error ? 'failed' : 'idle'
+        latest.reason = result.error ? 'backup' : undefined
+        latest.lastResult = {
+          outcome: result.error ? 'failed' : 'completed',
+          finishedAt: Date.now(),
+          ...(result.error ? { reason: 'backup' as const } : {})
+        }
+        writeDreamingState(latest)
+      }
       return {
         extracted: result.files.filter((file) => file.outcome === 'applied').length,
         saved: additions.length,
+        ...(result.error ? { warning: result.error } : {}),
         skippedBudget: batch.skippedBudget,
         outcomes: proposal.candidates.map(({ action }) => action),
         batches: proposal.batches

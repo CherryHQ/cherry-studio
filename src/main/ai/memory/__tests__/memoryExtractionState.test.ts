@@ -10,7 +10,9 @@ import {
   invalidateExtractions,
   readExtractionState,
   readyExtraction,
-  skipExtractionTurn
+  skipExtractionTurn,
+  skipExtractionTurns,
+  writeExtractionState
 } from '../memoryExtractionState'
 
 describe('durable extraction scheduling', () => {
@@ -65,6 +67,23 @@ describe('durable extraction scheduling', () => {
     expect(enqueueExtraction(old, 0, new Set(['old']))).toBe(false)
     expect(enqueueExtraction(ticket('latest'), 0, new Set(['latest']))).toBe(false)
     expect(enqueueExtraction(ticket('same-time'), 0, new Set(['same-time']))).toBe(true)
+  })
+
+  it('keeps uncertain save evidence when an invalid endpoint is retired', () => {
+    const ids = Array.from({ length: 8 }, (_, i) => String(i))
+    for (const id of ids) enqueueExtraction(ticket(id), 0, new Set(ids))
+    const state = readyExtraction()!.state
+    state.prepared = { end: '7', sourceHash: 'source', before: 'old', after: 'new' }
+    writeExtractionState(key, state)
+    skipExtractionTurns(key, ['7'], 'source')
+    expect(readExtractionState(key)).toMatchObject({
+      batchEnd: '6',
+      skippedSource: 1,
+      prepared: state.prepared
+    })
+    expect(readExtractionState(key)?.completed).toBeUndefined()
+    skipExtractionTurns(key, ids.slice(0, 7), 'conflict')
+    expect(readExtractionState(key)?.excludedThrough?.messageIds).toEqual(expect.arrayContaining(ids))
   })
 
   it('keeps earlier pending turns editable after a later oversized turn was skipped', () => {

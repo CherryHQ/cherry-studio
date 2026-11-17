@@ -106,9 +106,28 @@ Saved additions are ordinary Markdown list content. Evidence and source versions
 
 Extraction and organization share one physical mutex and the `memory.dreaming` worker. The minute wake waits for foreground conversations to finish. `memoryExtractionState` persists pending message references, frozen endpoints, compact completion positions, retry timing and commit hashes in `app_state`, without message or candidate bodies. Ordinary restart resumes admitted pending work and catches up a missed daily deadline without scanning unregistered history. Legacy admission cursors establish a fresh boundary on upgrade.
 
-Explicit cancellation, clear, recovery and generation-switch changes discard affected pending work and establish durable admission boundaries. Relevant revocation is durable even if no task existed yet. Entity updates exclude earlier messages. Source edits, deletion, owner changes or revocation invalidate uncommitted output; topic/session renaming preserves pending work. Foreground interruption defers the batch without consuming an attempt. Model, network or output failures allow two retries ten minutes apart, then wait for the next local 21:00. Successful evaluation, including no eligible facts, completes a batch; budget skips are counted separately. Before/after hashes reconcile a committed file after a crash without appending twice. Already-saved memory remains after source deletion.
+Explicit cancellation, clear, recovery and generation-switch changes discard affected pending work and establish durable admission boundaries. Relevant revocation is durable even if no task existed yet. Ordinary owner name, model and prompt updates preserve admitted messages; revocation and ownership changes still establish durable boundaries. Source edits, deletion, owner changes or revocation invalidate uncommitted output; topic/session renaming preserves pending work. Foreground interruption defers the batch without consuming an attempt. Model, network or output failures allow two retries ten minutes apart, then wait for the next local 21:00. Successful evaluation, including no eligible facts, completes a batch; budget skips are counted separately. Before/after hashes reconcile a committed file after a crash without appending twice. Already-saved memory remains after source deletion.
 
 Extraction and reconciliation use the default model with tools and automatic model-call retries disabled. Output tokens follow the model and provider limits. Preflight estimates reserve room for output; byte limits and schema validation also apply.
+
+The automatic window is bounded to sixteen visible messages before filtering whole successful turns. Stopped or failed turns supply no evidence. Their gap positions are included in model input and its fingerprint; older messages are not fetched to replace them. Definitively invalid pending references are retired separately from budget skips, and the remaining part of an already-due batch continues.
+
+Known pre-write rejection or confirmed unchanged output clears the previous intent for a fresh proposal. Confirmed applied output advances progress, retaining any save warning. An uncertain intent whose current file matches neither the before version nor a verified after version is conflict-skipped for its original batch only. Later admitted turns continue, and the current file is preserved. These skips are recorded separately from successful extraction. A source-time boundary with same-time message IDs also excludes that uncertain evidence from later automatic windows.
+
+```mermaid
+flowchart LR
+    E[Eight successful turns or local 21:00] --> Q[One idle worker and mutex]
+    D[Organization trigger] --> Q
+    Q --> T{Task}
+    T --> ER[Read current memory and bounded chat window]
+    T --> DR[Read existing memory files]
+    ER --> EP[Propose personal additions]
+    DR --> DP[Propose file organization]
+    EP --> V[Validate sources, permissions and versions]
+    DP --> V
+    V --> C[Commit and verify actual result]
+    C --> M[Memory available to later conversations]
+```
 
 ### Explicit range preview
 
@@ -146,7 +165,7 @@ Automatic triggers are ten successful controlled content edits, seven days since
 
 A shared schedule wakes every minute while the app runs. Missed intervals are not replayed. Each scan considers the entry and up to nine topics, prioritizing eligible changed files and rotating through remaining work. A model batch contains at most ten complete files and 50,000 UTF-8 bytes, reduced to fit the selected model. A topic that cannot fit even with only the entry is marked blocked so smaller topics can proceed.
 
-Each batch makes one model call with tools disabled and no automatic call retry. Unchanged input has at most two attempts, ten minutes apart. New input, a manual request or a changed default model can provide another opportunity. Processed hashes and pending state live in module-owned `app_state`, independently of removable job history.
+Each batch makes one model call with tools disabled and no automatic call retry. Unchanged input has at most two attempts, ten minutes apart. New input, a manual request or a changed default model can provide another opportunity. Foreground preemption consumes no organization attempt and retains manual requests; retry after about one minute when idle. Counter restoration checks file versions and task generation so concurrent changes are preserved. Processed hashes and pending state live in module-owned `app_state`, independently of removable job history.
 
 Inference runs outside the write lock. Commit rechecks all input receipts, versions, authorization and cancellation. Topic deletion requires the complete active file set, distinct source/destination topics, verbatim source preservation and updated Markdown/wiki links. Transfers for deletion operate between topics, leaving `MEMORY.md` as the entry. Targets and links save before sources are removed. Partial outcomes remain recoverable.
 
