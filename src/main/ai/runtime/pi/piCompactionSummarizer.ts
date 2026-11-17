@@ -1,6 +1,6 @@
 import type { Message } from '@earendil-works/pi-ai'
 
-import type { CompactionSummarizer } from '@cherrystudio/agent-runtime-pi'
+import type { CompactionSummarizer, CompactionSummaryRequest } from '@cherrystudio/agent-runtime-pi'
 
 import type { createPiGatewayModelBinding } from './gatewayModelBinding'
 import { resolvePiSummaryInputBudget } from './piCompactionSettings'
@@ -48,10 +48,16 @@ function fitTranscript(segments: readonly string[], budgetTokens: number): { tex
   return { text: [...head, ...tail].join('\n\n'), omitted: rest.length - tail.length }
 }
 
-async function complete(binding: Binding, usage: UsageCapture, prompt: string, signal: AbortSignal) {
+async function complete(
+  stream: CompactionSummaryRequest['stream'],
+  binding: Binding,
+  usage: UsageCapture,
+  prompt: string,
+  signal: AbortSignal
+) {
   const captured = usage()
   try {
-    return await binding.modelRuntime.completeSimple(
+    const output = await stream(
       binding.model,
       {
         systemPrompt: SUMMARY_SYSTEM_PROMPT,
@@ -59,6 +65,7 @@ async function complete(binding: Binding, usage: UsageCapture, prompt: string, s
       },
       { signal, maxTokens: binding.model.maxTokens, headers: captured.headers }
     )
+    return await output.result()
   } finally {
     captured.release()
   }
@@ -81,7 +88,7 @@ export function createPiCompactionSummarizer(options: { binding: Binding; usage:
       ]
         .filter(Boolean)
         .join('\n\n')
-      const result = await complete(binding, options.usage, prompt, request.signal)
+      const result = await complete(request.stream, binding, options.usage, prompt, request.signal)
       if (result.stopReason === 'stop') {
         const summary = result.content.flatMap((part) => (part.type === 'text' ? [part.text] : [])).join('\n')
         return { summary, usage: result.usage }

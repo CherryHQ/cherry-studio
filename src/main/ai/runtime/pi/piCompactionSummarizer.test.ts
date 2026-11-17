@@ -25,7 +25,7 @@ function assistant(overrides: Partial<AssistantMessage>): AssistantMessage {
 function summarizerFor(completeSimple: ReturnType<typeof vi.fn>) {
   const binding = {
     model: { id: 'test-model', provider: 'test', contextWindow: 10_000, maxTokens: 2_000 },
-    modelRuntime: { completeSimple }
+    modelRuntime: { completeSimple: vi.fn().mockRejectedValue(new Error('bypassed the metered stream')) }
   } as unknown as Binding
   return createPiCompactionSummarizer({
     binding,
@@ -33,13 +33,19 @@ function summarizerFor(completeSimple: ReturnType<typeof vi.fn>) {
   })
 }
 
-function request(messages: Message[]) {
+/** The metered stream the runtime supplies; its result resolves like pi's stream output. */
+function meteredStream(completeSimple: ReturnType<typeof vi.fn>) {
+  return vi.fn().mockImplementation((...args: unknown[]) => ({ result: () => completeSimple(...args) }))
+}
+
+function request(messages: Message[], stream: ReturnType<typeof meteredStream>) {
   return {
     reason: 'threshold' as const,
     sessionId: 's1',
     model: {} as never,
     messages,
-    signal: new AbortController().signal
+    signal: new AbortController().signal,
+    stream: stream as never
   }
 }
 
@@ -54,7 +60,7 @@ describe('createPiCompactionSummarizer', () => {
       { role: 'user', content: 'LATEST REQUEST', timestamp: 99 }
     ]
 
-    await summarizerFor(completeSimple)(request(messages))
+    await summarizerFor(completeSimple)(request(messages, meteredStream(completeSimple)))
 
     const prompt = completeSimple.mock.calls[0][1].messages[0].content as string
     expect(prompt).toContain('INITIAL TASK')
@@ -74,17 +80,29 @@ describe('createPiCompactionSummarizer', () => {
       .mockResolvedValueOnce(assistant({ content: [{ type: 'text', text: 'summary' }] }))
     const messages = Array.from({ length: 20 }, (_, i) => filler(i))
 
-    const result = await summarizerFor(completeSimple)(request(messages))
+    const result = await summarizerFor(completeSimple)(request(messages, meteredStream(completeSimple)))
 
     expect(result).toMatchObject({ summary: 'summary' })
     const [first, second] = completeSimple.mock.calls.map((call) => (call[1].messages[0].content as string).length)
     expect(second).toBeLessThan(first)
   })
 
+  it('routes every summary attempt through the metered stream, never modelRuntime.completeSimple', async () => {
+    const completeSimple = vi.fn().mockResolvedValue(assistant({ content: [{ type: 'text', text: 'summary' }] }))
+    const stream = meteredStream(completeSimple)
+
+    const result = await summarizerFor(completeSimple)(request([filler(1)], stream))
+
+    expect(result).toMatchObject({ summary: 'summary' })
+    expect(stream).toHaveBeenCalledTimes(1)
+  })
+
   it('does not retry a failure that is not a context overflow', async () => {
     const completeSimple = vi.fn().mockResolvedValue(assistant({ stopReason: 'error', errorMessage: 'Unauthorized' }))
 
-    await expect(summarizerFor(completeSimple)(request([filler(1)]))).rejects.toThrow('Unauthorized')
+    await expect(summarizerFor(completeSimple)(request([filler(1)], meteredStream(completeSimple)))).rejects.toThrow(
+      'Unauthorized'
+    )
     expect(completeSimple).toHaveBeenCalledTimes(1)
   })
 })

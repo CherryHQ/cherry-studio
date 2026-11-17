@@ -1,6 +1,11 @@
 import type { Api, Message, Model, Usage } from '@earendil-works/pi-ai'
 import { transformMessages } from '@earendil-works/pi-ai/api/transform-messages'
-import { type CompactionSettings, convertToLlm, type ExtensionFactory } from '@earendil-works/pi-coding-agent'
+import {
+  type AgentSession,
+  type CompactionSettings,
+  convertToLlm,
+  type ExtensionFactory
+} from '@earendil-works/pi-coding-agent'
 
 import type { CompactionReason } from './sessionEvents'
 
@@ -15,6 +20,12 @@ export interface CompactionSummaryRequest {
   /** Focus given to a manual compaction (`session.compact(instructions)`). */
   instructions?: string
   signal: AbortSignal
+  /**
+   * The session's metered stream, read lazily at summarize time: every summary attempt goes through
+   * admission, the run's request cap and summary-usage accounting. Never bypass it with a direct
+   * model-runtime call.
+   */
+  stream: AgentSession['agent']['streamFunction']
 }
 
 /**
@@ -34,9 +45,12 @@ export interface AgentRuntimeCompaction
   summarize?: CompactionSummarizer
 }
 
+/** The request the extension builds from Pi's compaction event; the session wrapper adds the metered stream. */
+export type CompactionSummaryEventRequest = Omit<CompactionSummaryRequest, 'stream'>
+
 /** Routes Pi's `session_before_compact` to the host summarizer; `onFailure` gets the reason a summary failed. */
 export function compactionSummaryExtension(
-  summarize: CompactionSummarizer,
+  summarize: (request: CompactionSummaryEventRequest) => ReturnType<CompactionSummarizer>,
   onFailure: (message: string) => void
 ): ExtensionFactory {
   return (pi) => {

@@ -295,6 +295,40 @@ describe('host summarizer', () => {
     expect(sessionIds).toEqual([session.sessionId])
   })
 
+  it('supplies the session stream, read lazily so a meter wrapped after creation still meters the summary', async () => {
+    const seen: string[] = []
+    let captured: CompactionSummaryRequest | undefined
+    const { model } = scriptedModel([assistantReply([{ type: 'text', text: 'Noted.' }])])
+    const host = hostStore()
+    const runtime = await createTestSession({
+      stream: model,
+      compaction: {
+        reserveTokens: 16_384,
+        keepRecentTokens: 1,
+        summarize: async (request) => {
+          captured = request
+          const output = await request.stream(request.model, { messages: [] } as never, {} as never)
+          await output.result()
+          return 'METERED-SUMMARY'
+        }
+      },
+      onEvent: host.onEvent
+    })
+    await runtime.prompt('My name is Li')
+    // A meter (behavior meterRequests) wraps session.agent.streamFunction in place after creation.
+    runtime.session.agent.streamFunction = (() => {
+      seen.push('metered')
+      return { result: async () => assistantReply([{ type: 'text', text: 'unused' }], 'stop', 1, 1) }
+    }) as never
+    await runtime.compact()
+
+    expect(captured?.stream).toBeDefined()
+    expect(seen).toEqual(['metered'])
+    expect(host.entries.flatMap((entry) => (entry.type === 'compaction' ? [entry.summary] : []))).toEqual([
+      'METERED-SUMMARY'
+    ])
+  })
+
   it('hands the native summarizer replayable messages, even after a reply that failed mid tool call', async () => {
     const { model } = scriptedModel([
       {
