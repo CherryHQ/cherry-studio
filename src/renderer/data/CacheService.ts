@@ -20,6 +20,7 @@
 import { isEqual } from 'es-toolkit/compat'
 
 import { loggerService } from '@logger'
+import { formatFileSize } from '@renderer/utils/file'
 import type {
   InferSharedCacheValue,
   InferUseCacheValue,
@@ -807,7 +808,7 @@ export class CacheService {
       withTTLCount: memory.summary.withTTLCount + shared.summary.withTTLCount,
       hookReferences: memory.summary.hookReferences + shared.summary.hookReferences + persist.summary.hookReferences,
       estimatedBytes: totalBytes,
-      estimatedSize: this.formatBytes(totalBytes)
+      estimatedSize: formatFileSize(totalBytes)
     }
 
     return {
@@ -933,17 +934,6 @@ export class CacheService {
     } catch {
       return 0
     }
-  }
-
-  /**
-   * Format bytes to human-readable size
-   */
-  private formatBytes(bytes: number): string {
-    if (bytes === 0) return '0 B'
-    const k = 1024
-    const sizes = ['B', 'KB', 'MB', 'GB']
-    const i = Math.floor(Math.log(bytes) / Math.log(k))
-    return `${(bytes / Math.pow(k, i)).toFixed(2)} ${sizes[i]}`
   }
 
   // ============ Shared Cache Ready State Management ============

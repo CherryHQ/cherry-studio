@@ -15,7 +15,7 @@ export function knowledgeName(app: RegressionApp): string {
 }
 
 export async function ensureEmbeddingProvider(app: RegressionApp, page: Page): Promise<string> {
-  const { baseUrl, apiKey, model } = app.config.customEmbeddingProvider
+  const { baseUrl, apiKey, model } = app.embeddingProvider
   await openSettingsSection(page, 'Model Provider')
   const providerItem = page
     .locator('[data-testid^="provider-list-item-"]')
@@ -58,7 +58,20 @@ export async function ensureEmbeddingProvider(app: RegressionApp, page: Page): P
   if (!providerTestId?.startsWith(providerTestIdPrefix)) {
     throw new Error('Embedding provider ID is unavailable')
   }
-  return providerTestId.slice(providerTestIdPrefix.length)
+  const providerId = providerTestId.slice(providerTestIdPrefix.length)
+  // A retried worker owns a new port even when the application profile already contains this provider.
+  const updated = await page.evaluate(
+    ({ providerId, baseUrl }) =>
+      window.api.dataApi.request({
+        id: 'embedding-mock-endpoint',
+        method: 'PATCH',
+        path: `/providers/${providerId}`,
+        body: { endpointConfigs: { 'openai-embeddings': { baseUrl } } }
+      }),
+    { providerId, baseUrl }
+  )
+  expect(updated.status).toBe(200)
+  return providerId
 }
 
 export async function ensureKnowledgeBase(app: RegressionApp, page: Page, providerId: string): Promise<void> {
@@ -78,7 +91,7 @@ export async function ensureKnowledgeBase(app: RegressionApp, page: Page, provid
       const dialog = page.getByRole('dialog', { name: 'New Knowledge Base' })
       await page.getByRole('textbox', { name: 'Name', exact: true }).fill(name)
       await page.getByRole('button', { name: 'Embedding Model', exact: true }).click()
-      await selectVisibleModel(page, app.config.customEmbeddingProvider.model, providerId)
+      await selectVisibleModel(page, app.embeddingProvider.model, providerId)
       await page.getByRole('button', { name: 'Create', exact: true }).click()
       await expect(dialog).toBeHidden({ timeout: 2 * 60_000 })
       await expect(selectedBase).toBeVisible()

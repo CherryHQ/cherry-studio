@@ -384,6 +384,7 @@ describe('toolResponse adapter', () => {
       output: { content: [{ type: 'text', text: 'Success' }] },
       callProviderMetadata: { cherry: { transport: 'pi-agent' } }
     }
+    // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
     const original = structuredClone(input)
     expect(buildToolResponseFromPart(part)?.arguments).toMatchObject(expected)
     expect(part.input).toEqual(original)
@@ -422,6 +423,7 @@ describe('toolResponse adapter', () => {
       output: { content: [{ type: 'text', text: 'Success' }] },
       callProviderMetadata: { cherry: { transport: 'pi-agent' } }
     }
+    // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
     const original = structuredClone(input)
     const response = buildToolResponseFromPart(part)
     expect(response?.tool.name).toBe('MultiEdit')
