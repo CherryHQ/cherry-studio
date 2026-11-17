@@ -19,7 +19,7 @@ Status: implemented
 本存储层位于[工具结果 Spec](../../proposed/architecture/2026-11-09-tool-result-projection-boundaries.md) 之上。它删除旁路结果表的 revision 列，每个调用只保留最新输出。现有 renderer 标记仍携带传输 revision，待下一层以定向失效替代不可变结果缓存时一并迁移；本层不声称已完成该更广的验收条件。
 
 1. **独立工具输出旁路表（`agent_session_tool_output`）**：
-   - 新增 `agent_session_tool_output` 表（`message_id`、`tool_call_id`、`session_id`、`output`、`revision`、`created_at`、`updated_at`），采用复合主键 `(message_id, tool_call_id)`，并对 `agent_session_message(id)` 与 `agent_session(id)` 配置 `ON DELETE CASCADE` 外键。
+   - 新增 `agent_session_tool_output` 表（`message_id`、`tool_call_id`、`session_id`、`output`、`created_at`、`updated_at`），采用复合主键 `(message_id, tool_call_id)`，并对 `agent_session_message(id)` 与 `agent_session(id)` 配置 `ON DELETE CASCADE` 外键。
    - 在写入路径（`upsertMessage`、`replaceMessageParts`、`updateSessionMessage`、`insertForkMessagesTx`、`resolveCrashOrphanedMessages`）中，`AgentSessionMessageService` 将超过 `DEFER_TOOL_OUTPUT_BYTES`（32 KiB）的已完成工具输出剥离至 `agent_session_tool_output`，主表 `agent_session_message.data` 仅保留轻量的 `$deferredToolResult` 标记（引用标识 `sessionId`、`messageId`、`toolCallId`、`revision`，以及可选的 `excerpt` 与 `skeleton`）。
    - `syncMessageToolOutputsTx` 在同一 `(message_id, tool_call_id)` 键下覆盖当前输出。`setWhere: output IS NOT excluded.output` 在序列化内容相同时跳过写入，不保存结果 revision。更新复用 `excluded.output`，不再次序列化同一个值。
 2. **按需延迟读取与批量回填**：
