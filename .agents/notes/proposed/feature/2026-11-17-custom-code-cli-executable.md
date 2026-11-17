@@ -27,6 +27,7 @@ The Agent creation and edit dialogs get a "Custom executable" option under the C
 - Single argument string parsed with Windows-aware quoting: convenient to type, but duplicates shell quoting rules and makes `C:\Program Files\...` and `%` handling a correctness risk. A structured list avoids both.
 - Accepting `.cmd` and `.bat` wrappers: many npm-installed CLIs ship only batch shims on Windows. Supporting them needs `cmd.exe` argument escaping, which this proposal does not take on; they are rejected with a `unsupported_extension` message instead.
 - Automatically trusting any discovered executable on `PATH`: rejected by the issue's non-goals. Registration is an explicit user action.
+- Launching the custom executable in an external terminal window: familiar to CLI users, but the Agent loses the stdout/stderr stream, exit status and session lifecycle that the Code CLI runtime drives in-process. The runtime must own the child process; a terminal takes it out of band.
 
 ## Acceptance criteria
 

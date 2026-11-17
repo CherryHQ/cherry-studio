@@ -27,6 +27,7 @@ Agent 创建与编辑对话框在 Code CLI 运行时选项下新增“自定义�
 - 单个参数字符串并使用 Windows 感知的引号解析：输入方便，但会重复 shell 引号规则，并让 `C:\Program Files\...` 和 `%` 的处理成为正确性风险。结构化列表可避免二者。
 - 接受 `.cmd` 和 `.bat` 包装器：许多 npm 安装的 CLI 在 Windows 上只提供批处理垫片。支持它们需要 `cmd.exe` 参数转义，本提案不处理；它们会以 `unsupported_extension` 提示被拒绝。
 - 自动信任 `PATH` 上发现的任何可执行文件：与 issue 的非目标相悖。注册必须是用户的明确操作。
+- 在外部终端窗口中启动自定义可执行文件：对 CLI 用户来说熟悉，但 Agent 会失去 Code CLI 运行时在进程内驱动的 stdout/stderr 流、退出状态和会话生命周期。运行时必须持有子进程；终端会将其带出进程外。
 
 ## Acceptance criteria
 
