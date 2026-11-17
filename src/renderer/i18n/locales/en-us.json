@@ -6132,6 +6132,7 @@
   "settings.usage.cards.cacheHitRate": "Cache hit rate",
   "settings.usage.cards.cacheObservedTokens": "Observable input: {{tokens}}",
   "settings.usage.cards.cacheStartsWithNewRequests": "Starts with new requests",
+  "settings.usage.cards.costDisclosure": "Totals may include local cost estimates; provider invoices are authoritative.",
   "settings.usage.cards.dailyAverage": "Daily average",
   "settings.usage.cards.explicitApiKey": "Selected key",
   "settings.usage.cards.lastPeriod": "vs last period",

@@ -6132,6 +6132,7 @@
   "settings.usage.cards.cacheHitRate": "Коэффициент попадания в кэш",
   "settings.usage.cards.cacheObservedTokens": "Наблюдаемый ввод: {{tokens}}",
   "settings.usage.cards.cacheStartsWithNewRequests": "Начинается с новых запросов",
+  "settings.usage.cards.costDisclosure": "Итоговые суммы могут включать локальные оценки стоимости; окончательные суммы определяются счетами провайдера.",
   "settings.usage.cards.dailyAverage": "Среднее значение за день",
   "settings.usage.cards.explicitApiKey": "Выбранный ключ",
   "settings.usage.cards.lastPeriod": "против прошлого периода",

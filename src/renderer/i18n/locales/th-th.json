@@ -6132,6 +6132,7 @@
   "settings.usage.cards.cacheHitRate": "อัตราแคชฮิต",
   "settings.usage.cards.cacheObservedTokens": "อินพุตที่สังเกตได้: {{tokens}}",
   "settings.usage.cards.cacheStartsWithNewRequests": "เริ่มด้วยคำขอใหม่",
+  "settings.usage.cards.costDisclosure": "ยอดรวมอาจรวมค่าประมาณค่าใช้จ่ายที่คำนวณในเครื่อง โดยให้ยึดใบแจ้งหนี้ของผู้ให้บริการเป็นหลัก",
   "settings.usage.cards.dailyAverage": "ค่าเฉลี่ยรายวัน",
   "settings.usage.cards.explicitApiKey": "คีย์ที่เลือก",
   "settings.usage.cards.lastPeriod": "เทียบกับช่วงก่อนหน้า",
