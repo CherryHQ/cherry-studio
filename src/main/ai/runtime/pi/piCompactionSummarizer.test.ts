@@ -70,6 +70,16 @@ describe('createPiCompactionSummarizer', () => {
     expect(prompt).toMatch(/\d+ earlier messages were omitted/)
   })
 
+  it('discloses when the initial message itself is truncated to fit', async () => {
+    const completeSimple = vi.fn().mockResolvedValue(assistant({ content: [{ type: 'text', text: 'summary' }] }))
+    const messages: Message[] = [{ role: 'user', content: `INITIAL TASK ${'x'.repeat(200_000)}`, timestamp: 0 }]
+
+    await summarizerFor()(request(messages, meteredStream(completeSimple)))
+
+    const prompt = completeSimple.mock.calls[0][1].messages.at(-1)!.content as string
+    expect(prompt).toContain('first message was cut off')
+  })
+
   it('retries once with a smaller input when the summarizer itself overflows', async () => {
     const completeSimple = vi
       .fn()

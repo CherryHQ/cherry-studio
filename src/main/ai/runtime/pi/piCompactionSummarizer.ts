@@ -35,7 +35,10 @@ function serialize(message: Message): string {
 }
 
 /** Keeps the first message (the initial task) and the newest messages that fit; the rest are counted as omitted. */
-function fitTranscript(segments: readonly string[], budgetTokens: number): { text: string; omitted: number } {
+function fitTranscript(
+  segments: readonly string[],
+  budgetTokens: number
+): { text: string; omitted: number; headTruncated: boolean } {
   const budget = budgetTokens * CHARS_PER_TOKEN
   const [first, ...rest] = segments
   const head = first === undefined ? [] : [first.slice(0, budget)]
@@ -45,7 +48,11 @@ function fitTranscript(segments: readonly string[], budgetTokens: number): { tex
     remaining -= rest[i].length
     tail.unshift(rest[i])
   }
-  return { text: [...head, ...tail].join('\n\n'), omitted: rest.length - tail.length }
+  return {
+    text: [...head, ...tail].join('\n\n'),
+    omitted: rest.length - tail.length,
+    headTruncated: first !== undefined && first.length > budget
+  }
 }
 
 async function complete(
@@ -80,8 +87,9 @@ export function createPiCompactionSummarizer(options: { binding: Binding; usage:
     const { isContextOverflow } = await loadPiAiOverflow()
     let budget = resolvePiSummaryInputBudget(contextWindow, maxTokens)
     for (let attempt = 0; ; attempt++) {
-      const { text, omitted } = fitTranscript(request.messages.map(serialize), budget)
+      const { text, omitted, headTruncated } = fitTranscript(request.messages.map(serialize), budget)
       const prompt = [
+        headTruncated ? 'The first message was cut off to fit the summarizer window; its end is missing.' : '',
         omitted > 0 ? `${omitted} earlier messages were omitted to fit the summarizer window.` : '',
         request.previousSummary ? `<previous-summary>\n${request.previousSummary}\n</previous-summary>` : '',
         request.instructions ? `Focus: ${request.instructions}` : '',
