@@ -823,6 +823,29 @@ describe('EnvironmentDependencies', () => {
     expect(ipcMocks.installTool).not.toHaveBeenCalled()
   })
 
+  it('reports a rejected add inside the open add dialog without stacking the install log', async () => {
+    ipcMocks.searchRegistry.mockResolvedValue([{ name: 'jq', tool: 'jq' }])
+    ipcMocks.addCustomTool.mockRejectedValue(
+      new Error("Error invoking remote method 'ipc-api:request': EACCES /Users/x/probe.db")
+    )
+    render(<EnvironmentDependencies />)
+
+    fireEvent.click(screen.getByText('settings.dependencies.addTool'))
+    fireEvent.change(screen.getByPlaceholderText('settings.dependencies.searchRegistry'), {
+      target: { value: 'jq' }
+    })
+    fireEvent.click(await screen.findByRole('button', { name: /jq/ }))
+    fireEvent.click(screen.getByText('common.add'))
+
+    expect(await screen.findByText('settings.dependencies.addFailed')).toBeInTheDocument()
+    const dialogs = screen.getAllByRole('dialog')
+    expect(dialogs).toHaveLength(1)
+    expect(dialogs[0]).toHaveTextContent('settings.dependencies.addToolDescription')
+    expect(dialogs[0]).not.toHaveTextContent('EACCES')
+    expect(dialogs[0]).not.toHaveTextContent('settings.dependencies.installErrorHint')
+    expect(within(dialogs[0]).getByRole('button', { name: /common\.detail/ })).toBeInTheDocument()
+  })
+
   it('warns before removing a managed runtime', async () => {
     setSnapshots({ node: miseSnapshot('node', 'core:node', '22.23.1') })
     render(<EnvironmentDependencies />)
