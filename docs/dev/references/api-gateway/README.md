@@ -580,7 +580,10 @@ provider message. A sanitized 400 classified as context overflow prefixes that m
 `context_length_exceeded` in HTTP and SSE errors so native clients can recognize it even
 when the original evidence was a structured code or lay beyond the message limit.
 OpenAI-format errors also carry `context_length_exceeded` as their error code.
-Without a status, `TimeoutError` or an exact message of
+Without a status, `AI_InvalidArgumentError` maps to 400 with a bounded, redacted message
+(or `Invalid request parameters` when no safe message remains). A standalone
+`AI_TypeValidationError` does not establish a request error: it can describe an invalid
+upstream response. Otherwise, `TimeoutError` or an exact message of
 `Upstream idle timeout exceeded`, `Stream idle timeout exceeded`, or
 `Idle timeout exceeded` maps to 504 with `Upstream request timed out`; otherwise
 `AbortError`, `ResponseAborted`, or string code `ABORT_ERR` maps to 504 with
@@ -591,7 +594,7 @@ and their SSE error frames: the AI SDK can create an `APICallError` with
 `statusCode: response.status` when an upstream 2xx body is unusable, and returning
 that 2xx would make clients parse the error as a successful response.
 An already committed SSE response remains HTTP 200 and can report the normalized
-server-error classification only in its terminal error frame.
+error classification only in its terminal error frame.
 Unmatched statusless errors remain 500 with
 internal messages shown only in development. JSON responses and terminal SSE error
 frames exclude AI-SDK stack, URL, and request/response diagnostic extras.

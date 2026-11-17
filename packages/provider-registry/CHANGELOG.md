@@ -1,5 +1,11 @@
 # @cherrystudio/provider-registry
 
+## 0.6.1
+
+### Patch Changes
+
+- [#24527](https://github.com/CherryHQ/cherry-studio/pull/24527) [`9f853cd`](https://github.com/CherryHQ/cherry-studio/commit/9f853cd5073a366c1beafc058b012cea17211c90) Thanks [@WhiteZeek](https://github.com/WhiteZeek)! - Use current Flash peak token prices for DeepSeek's retired Flash API aliases without changing third-party provider prices.
+
 ## 0.6.0
 
 ### Minor Changes
