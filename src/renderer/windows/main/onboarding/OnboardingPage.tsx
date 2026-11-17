@@ -46,6 +46,7 @@ import { defaultLanguage } from '@shared/utils/languages'
 import { isNonChatModel } from '@shared/utils/model'
 
 import { PrivacyPolicyDialog } from '../privacy/PrivacyPolicyDialog'
+import { OnboardingNoModelsScene } from './OnboardingNoModelsScene'
 
 type OnboardingStep = 'welcome' | 'provider' | 'select-model'
 type OnboardingCompletionStatus = Exclude<OnboardingProviderSetupStatus, 'pending'>
@@ -612,6 +613,9 @@ export default function OnboardingPage({
             <DialogTitle>{t('models.no_matches')}</DialogTitle>
             <DialogDescription>{t('onboarding.cloud.no_available_models')}</DialogDescription>
           </DialogHeader>
+          <div className="flex justify-center">
+            <OnboardingNoModelsScene />
+          </div>
           <DialogFooter>
             <Button onClick={openProviderSetupAfterCloudModelUnavailable}>{t('common.confirm')}</Button>
           </DialogFooter>

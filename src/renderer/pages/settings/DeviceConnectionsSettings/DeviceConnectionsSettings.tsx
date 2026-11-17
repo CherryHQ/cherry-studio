@@ -26,7 +26,8 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-  Tooltip
+  Tooltip,
+  EmptyState
 } from '@cherrystudio/ui'
 import { usePersistCache, useSharedCacheValue } from '@data/hooks/useCache'
 import { useDataChange, useMutation, useQuery } from '@data/hooks/useDataApi'
@@ -44,6 +45,7 @@ import { toast } from '@renderer/services/toast'
 import { cn } from '@renderer/utils/style'
 import type { OutputFor } from '@shared/ipc/types'
 
+import { DevicesEmptyScene } from '../SettingsEmptyScenes'
 import { MobileAppDownload } from './MobileAppDownload'
 import { MobileAppShowcase } from './MobileAppShowcase'
 import { RemoteEndpointSettings } from './RemoteEndpointSettings'
@@ -593,7 +595,7 @@ const DeviceConnectionsSettings: FC = () => {
                       ))}
                     </div>
                   ) : (
-                    <div className="text-foreground-tertiary text-xs">{t('deviceConnections.devices.empty')}</div>
+                    <EmptyState compact scene={<DevicesEmptyScene />} title={t('deviceConnections.devices.empty')} />
                   )}
                 </SectionFields>
               </SettingGroup>

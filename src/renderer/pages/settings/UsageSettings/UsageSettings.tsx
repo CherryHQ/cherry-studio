@@ -25,6 +25,7 @@ import type {
 } from '@shared/data/api/schemas/aiUsageRecords'
 import type { Currency } from '@shared/data/types/model'
 
+import { UsageEmptyScene } from '../SettingsEmptyScenes'
 import {
   type BoundedTimeRange,
   CHART_TYPE_KEYS,
@@ -520,6 +521,7 @@ function UsageSettings() {
             <UsagePanel className="@[640px]/usage:p-4 p-3">
               <EmptyState
                 compact
+                scene={<UsageEmptyScene />}
                 title={t('settings.usage.empty.title')}
                 description={t('settings.usage.empty.description')}
               />

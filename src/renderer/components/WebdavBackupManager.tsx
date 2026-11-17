@@ -14,13 +14,16 @@ import {
   DialogHeader,
   DialogTitle,
   Spinner,
-  Tooltip
+  Tooltip,
+  EmptyState
 } from '@cherrystudio/ui'
 import { restoreFromWebdav } from '@renderer/services/BackupService'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import { getLocalizedBackupErrorMessage } from '@renderer/utils/backup'
 import { formatFileSize } from '@renderer/utils/file'
+
+import { BackupEmptyScene } from './BackupEmptyScene'
 
 interface BackupFile {
   fileName: string
@@ -314,7 +317,13 @@ export function WebdavBackupManager({
                 selectedRowKeys,
                 onChange: handleSelectionChange
               }}
-              emptyText={loading ? t('common.loading') : t('common.no_results')}
+              emptyText={
+                loading ? (
+                  t('common.loading')
+                ) : (
+                  <EmptyState compact scene={<BackupEmptyScene />} title={t('common.no_results')} />
+                )
+              }
               tableLayout="fixed"
             />
             {loading && backupFiles.length > 0 && (

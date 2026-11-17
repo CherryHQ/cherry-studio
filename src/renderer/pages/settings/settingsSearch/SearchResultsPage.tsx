@@ -2,8 +2,10 @@ import { useNavigate, useSearch } from '@tanstack/react-router'
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { EmptyState } from '@cherrystudio/ui'
 import HighlightText from '@renderer/components/HighlightText'
 import { SettingsContentColumn } from '@renderer/components/SettingsPrimitives'
+import { SettingsSearchEmptyScene } from '@renderer/pages/settings/SettingsEmptyScenes'
 import { cn } from '@renderer/utils/style'
 
 import { settingsSearchSections } from './aggregate'
@@ -66,9 +68,13 @@ const SearchResultsPage = () => {
   if (!results.length) {
     return (
       <SettingsContentColumn>
-        <p className="mt-16 text-center text-muted-foreground text-sm">
-          {t(!query.trim() ? 'settings.search.placeholder' : 'settings.search.noResults')}
-        </p>
+        <div className="mt-10 flex justify-center">
+          <EmptyState
+            compact
+            scene={<SettingsSearchEmptyScene />}
+            title={t(!query.trim() ? 'settings.search.placeholder' : 'settings.search.noResults')}
+          />
+        </div>
       </SettingsContentColumn>
     )
   }

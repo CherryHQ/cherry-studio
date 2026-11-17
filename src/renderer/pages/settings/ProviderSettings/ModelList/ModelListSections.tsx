@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { EmptyState } from '@cherrystudio/ui'
 import LoadingIcon from '@renderer/components/icons/LoadingIcon'
 import { DynamicVirtualList } from '@renderer/components/VirtualList'
+import { ProviderModelsEmptyScene } from '@renderer/pages/settings/SettingsEmptyScenes'
 import { cn } from '@renderer/utils/style'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
@@ -152,6 +153,7 @@ const ModelListSections: React.FC<ModelListSectionsProps> = ({
     return (
       <EmptyState
         compact
+        scene={<ProviderModelsEmptyScene />}
         title={t('settings.models.empty')}
         description={t(
           onContinueApiSetup ? 'settings.provider.api_setup.models_empty_hint' : 'settings.models.empty_hint'

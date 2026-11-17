@@ -125,6 +125,8 @@ vi.mock('@renderer/services/toast', () => ({
   }
 }))
 
+vi.mock('../OnboardingNoModelsScene', () => ({ OnboardingNoModelsScene: () => null }))
+
 vi.mock('@renderer/components/WindowControls', () => ({
   WindowControls: () => <div data-testid="window-controls" />
 }))
