@@ -37,6 +37,7 @@ import { getServiceTierCatalogErrors } from '../src/utils/serviceTierCatalog'
 import { canonOf, deriveOverrideModelId, isModelsDevRoutingAlias, prefixHit } from './canonicalize'
 import { sortKeys, stampAndSerialize } from './catalogSerialization.mjs'
 import { scopeModelRefresh } from './scopeModelRefresh'
+import { scopeProviderRefresh, selectSourceProviders } from './scopeProviderRefresh'
 import {
   type CherryMeta,
   finalizeMeta,
@@ -64,7 +65,8 @@ const { values: args } = parseArgs({
     write: { type: 'boolean' },
     report: { type: 'boolean' },
     model: { type: 'string', multiple: true },
-    'providers-only': { type: 'boolean' }
+    'providers-only': { type: 'boolean' },
+    provider: { type: 'string', multiple: true }
   }
 })
 const WRITE = args.write
@@ -535,7 +537,8 @@ function buildProviderModels(
   md: ModelsDevApi,
   orModels: OpenRouterApi,
   orImageModels: OpenRouterApi,
-  baseIds: Set<string>
+  baseIds: Set<string>,
+  providers = PROVIDERS
 ): { overrides: any[] } {
   const openRouterStandaloneIds = new Set(
     PROVIDERS.find((provider) => provider.id === 'openrouter')?.standaloneModelIds?.map(canonOf) ?? []
@@ -560,7 +563,7 @@ function buildProviderModels(
     seen.add(k)
     rows.push(o)
   }
-  for (const p of PROVIDERS) {
+  for (const p of providers) {
     const modelTemplates = p.modelTemplates ?? []
     const matchedTemplates = new Set<(typeof modelTemplates)[number]>()
     for (const override of p.overrides ?? []) addOverride({ providerId: p.id, ...override })
@@ -655,6 +658,40 @@ function buildProviderModels(
 }
 
 void (async () => {
+  if (args.provider !== undefined) {
+    const selected = selectSourceProviders(PROVIDERS, args.provider, !!args.model?.length || !!args['providers-only'])
+    const current = {
+      models: JSON.parse(fs.readFileSync(MODELS_PATH, 'utf8')).models,
+      overrides: JSON.parse(fs.readFileSync(PROVIDER_MODELS_PATH, 'utf8')).overrides
+    }
+    const generated = buildProviderModels(
+      {},
+      { data: [] },
+      { data: [] },
+      new Set(current.models.map((m: { id: string }) => m.id)),
+      selected
+    )
+    const scoped = scopeProviderRefresh(
+      current,
+      generated.overrides,
+      selected.map((provider) => provider.id)
+    )
+    const providers = buildProviders()
+    const errors = getServiceTierCatalogErrors(providers, scoped.overrides)
+    if (errors.length) throw new Error(`Invalid service tier catalog:\n${errors.join('\n')}`)
+    if (WRITE) {
+      fs.writeFileSync(PROVIDERS_PATH, stampAndSerialize({ providers }))
+      fs.writeFileSync(PROVIDER_MODELS_PATH, stampAndSerialize({ overrides: scoped.overrides }))
+      fs.writeFileSync(
+        SERVER_TOOL_MODELS_GEN_PATH,
+        buildServerToolModelsGen(new Map(scoped.models.map((m: { id: string }) => [m.id, m])))
+      )
+    }
+    console.log(
+      `Source-only providers: ${selected.map((provider) => provider.id).join(', ')}${WRITE ? '' : ' (dry run)'}`
+    )
+    return
+  }
   if (args['providers-only']) {
     if (WRITE) {
       const { models } = JSON.parse(fs.readFileSync(MODELS_PATH, 'utf8'))
