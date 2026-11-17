@@ -2204,6 +2204,40 @@ describe('edit dialogs', () => {
     )
   })
 
+  it('warns about ignored PI keys when the default model is cleared without exposing values', async () => {
+    const originalQuery = useQueryMock.getMockImplementation()!
+    useQueryMock.mockImplementation((path: string, ...args: unknown[]) =>
+      path === '/models/' || path === '/providers/:providerId'
+        ? { data: undefined, isLoading: false }
+        : originalQuery(path, ...args)
+    )
+    const user = userEvent.setup()
+    render(<AgentEditDialog open resource={{ ...PI_AGENT, model: null }} onOpenChange={vi.fn()} />)
+
+    await user.click(screen.getByRole('tab', { name: 'Advanced' }))
+    await user.type(screen.getByRole('textbox'), 'PI_MODEL=secret-value')
+
+    const warning = await screen.findByRole('status')
+    expect(warning).toHaveTextContent('PI_MODEL')
+    expect(warning).not.toHaveTextContent('secret-value')
+  })
+
+  it('defers conditional Claude warnings when the default model is cleared', async () => {
+    const originalQuery = useQueryMock.getMockImplementation()!
+    useQueryMock.mockImplementation((path: string, ...args: unknown[]) =>
+      path === '/models/' || path === '/providers/:providerId'
+        ? { data: undefined, isLoading: false }
+        : originalQuery(path, ...args)
+    )
+    const user = userEvent.setup()
+    render(<AgentEditDialog open resource={{ ...AGENT, model: null }} onOpenChange={vi.fn()} />)
+
+    await user.click(screen.getByRole('tab', { name: 'Advanced' }))
+    await user.type(screen.getByRole('textbox'), 'ANTHROPIC_CUSTOM_HEADERS=secret')
+
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+  })
+
   it('updates conditional Claude warnings as provider resolution changes', async () => {
     const originalQuery = useQueryMock.getMockImplementation()!
     let authMethods: string[] | undefined = undefined

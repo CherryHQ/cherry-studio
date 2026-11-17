@@ -1357,10 +1357,11 @@ function AgentAdvancedFields({
 }) {
   const { t } = useTranslation()
   const text = useWatch({ control: form.control, name: 'envVarsText' })
-  const ignoredKeys =
-    externalCli === undefined
-      ? []
-      : getIgnoredAgentEnvVarKeys(agentType, Object.keys(envVarsFromText(text ?? '')), externalCli)
+  const ignoredKeys = getIgnoredAgentEnvVarKeys(
+    agentType,
+    Object.keys(envVarsFromText(text ?? '')),
+    externalCli === true
+  )
   const caps = AGENT_RUNTIME_CAPABILITIES[agentType]
 
   return (
