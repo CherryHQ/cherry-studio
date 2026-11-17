@@ -4,6 +4,7 @@ import { join } from 'node:path'
 
 import { awaitWithContext } from '@earendil-works/chord/context'
 import {
+  getCurrentTools,
   createModels,
   fauxAssistantMessage,
   fauxProvider,
@@ -994,4 +995,39 @@ it('recovers retained nested evidence without rerunning a completed leaf after s
     })
   ])
   expect(executions).toBe(1)
+})
+
+it('predicts from durable context without committing prediction messages or tasks', async () => {
+  const { runtime, faux } = await setup()
+  faux.setResponses([
+    fauxAssistantMessage('Fixed the original issue.'),
+    fauxAssistantMessage('Checked the fix.'),
+    (context) => {
+      expect(context.messages).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ role: 'user', content: 'Fix the original issue' }),
+          expect.objectContaining({ role: 'user', content: 'exact prediction instruction' })
+        ])
+      )
+      expect(getCurrentTools(context.messages)).toEqual([])
+      return fauxAssistantMessage('run the tests')
+    },
+    fauxAssistantMessage([fauxToolCall('bash', { command: 'echo forbidden' })], { stopReason: 'toolUse' })
+  ])
+  const root = confirmed(await runtime.create(sessionOptions))
+  expect((await root.input.submit(draft('Fix the original issue'))).status).toBe('acknowledged')
+  await runtime.settled()
+  expect(await root.durable.predictPrompt('exact prediction instruction', new AbortController().signal)).toBe('')
+  await root.input.submit(draft('Check the fix'))
+  await runtime.settled()
+  const before = confirmed(await root.archive())
+  const facts = await root.durable.facts()
+  expect(await root.durable.predictPrompt('exact prediction instruction', new AbortController().signal)).toBe(
+    'run the tests'
+  )
+  expect(confirmed(await root.archive())).toEqual(before)
+  expect(await root.durable.facts()).toEqual(facts)
+  expect(await root.durable.predictPrompt('exact prediction instruction', new AbortController().signal)).toBe('')
+  expect(confirmed(await root.archive())).toEqual(before)
+  expect(await root.durable.facts()).toEqual(facts)
 })
