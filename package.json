@@ -270,6 +270,7 @@
     "@lezer/common": "1.5.1",
     "@lezer/highlight": "1.2.3",
     "@lezer/markdown": "1.6.3",
+    "@manypkg/get-packages": "^3.1.0",
     "@mistralai/mistralai": "^1.7.5",
     "@modelcontextprotocol/client": "2.3.0",
     "@modelcontextprotocol/core": "2.3.0",
