@@ -29,7 +29,8 @@ import {
   type HostPorts,
   type Entries,
   type CallRef,
-  type ConversationFacts
+  type ConversationFacts,
+  type SubagentOrigin
 } from '@cherrystudio/agent-behavior'
 import {
   runtimeId,
@@ -289,27 +290,35 @@ export async function createPiDurableRuntime(
     scanEntries: (query, limit, cursor) => storage.scanEntries(query, limit, cursor, context),
     task: (id) => storage.task(id, context)
   }
+  // A child's creation commit appends its only origin record, so the lookup stops there and is kept.
+  const origins = new Map<ConversationId, SubagentOrigin | undefined>()
+  async function originOf(tx: Pick<Tx, 'scanEntries'>, id: ConversationId): Promise<SubagentOrigin | undefined> {
+    if (origins.has(id)) return origins.get(id)
+    let origin: SubagentOrigin | undefined
+    let cursor: Cursor | undefined
+    do {
+      const page = await tx.scanEntries({ conversationId: id, order: 'ascending' }, 16, cursor)
+      const found = historyOf(page.items, [], id).find(
+        (entry) => entry.kind === 'record' && entry.record.type === 'subagent-origin'
+      )
+      if (found?.kind === 'record' && found.record.type === 'subagent-origin') origin = found.record.value
+      cursor = origin ? undefined : page.next
+    } while (cursor)
+    origins.set(id, origin)
+    return origin
+  }
   async function readRelation(
     tx: Pick<Tx, 'scanEntries' | 'task'>,
     record: ConversationRecord
   ): Promise<(Subagent & { child: Thread }) | undefined> {
     if (!record.owner) return
     const owner = record.owner
-    const history = behavior
-      ? historyOf(
-          await pages((cursor) => tx.scanEntries({ conversationId: record.id, order: 'ascending' }, 256, cursor)),
-          [],
-          record.id
-        )
-      : []
-    const origin = history.findLast((entry) => entry.kind === 'record' && entry.record.type === 'subagent-origin')
-    const lineage =
-      origin?.kind === 'record' && origin.record.type === 'subagent-origin' ? origin.record.value : undefined
-    const taskId = lineage ? nativeId(lineage.parentToolCallId) : owner.taskId
+    const origin = behavior ? await originOf(tx, record.id) : undefined
+    const taskId = origin ? nativeId(origin.parentToolCallId) : owner.taskId
     const task = taskId === undefined ? undefined : await tx.task(taskId as typeof owner.taskId)
     const input = task?.kind === ToolTask.definition.name ? (task.input as ToolTaskInput) : undefined
     const toolCallId = input?.kind === 'model' ? input.callId : input?.call.id
-    const description = lineage?.description
+    const description = origin?.description
     return {
       id: runtimeId<'subagent'>(String(record.id)),
       parent: refFor(owner.conversationId),
