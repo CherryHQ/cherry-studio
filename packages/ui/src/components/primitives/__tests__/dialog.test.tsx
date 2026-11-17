@@ -309,15 +309,11 @@ describe('Dialog primitive', () => {
     const originalGetComputedStyle = window.getComputedStyle
     vi.spyOn(window, 'getComputedStyle').mockImplementation((element) => {
       const styles = originalGetComputedStyle(element)
-      return new Proxy(styles, {
-        get(target, property, receiver) {
-          if (property === 'animationName') {
-            return element.getAttribute('data-state') === 'closed' ? 'exit' : 'enter'
-          }
-          if (property === 'display') return 'grid'
-          return Reflect.get(target, property, receiver)
-        }
+      Object.defineProperties(styles, {
+        animationName: { get: () => (element.getAttribute('data-state') === 'closed' ? 'exit' : 'enter') },
+        display: { value: 'grid' }
       })
+      return styles
     })
 
     const { rerender } = render(

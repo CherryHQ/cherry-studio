@@ -1,4 +1,4 @@
-import { DeleteObjectCommand, ListObjectsV2Command, type S3Client } from '@aws-sdk/client-s3'
+import { DeleteObjectCommand, ListObjectsV2Command } from '@aws-sdk/client-s3'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -22,7 +22,7 @@ const config: S3Config = {
 describe('S3Storage', () => {
   it('keeps SDK authentication failures local and preserves their original error', async () => {
     const storage = new S3Storage(config)
-    const client = Reflect.get(storage, 'client') as S3Client
+    const client = storage['client']
     Object.assign(client.config.requestHandler, {
       handle: async () => ({
         response: { statusCode: 403, headers: {}, body: Buffer.from('') }
@@ -44,7 +44,7 @@ describe('S3Storage', () => {
         ...config,
         endpoint
       })
-      const client = Reflect.get(storage, 'client') as S3Client
+      const client = storage['client']
       const handle =
         vi.fn<
           (
@@ -69,7 +69,7 @@ describe('S3Storage', () => {
       ...config,
       endpoint: 'https://backups.s3.cn-east-1.qiniucs.com'
     })
-    const client = Reflect.get(storage, 'client') as S3Client
+    const client = storage['client']
     const requests: Array<{ hostname: string; method: string; path: string; query?: Record<string, string> }> = []
     const listResponse = Buffer.from(`
       <ListBucketResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/">

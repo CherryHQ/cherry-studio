@@ -104,7 +104,7 @@ export function readScopeContext(scope: CommandFocusScopeState | null, base: Con
       if (Object.hasOwn(context, key)) return context[key]
     }
     if (typeof base === 'function') return base(key)
-    return base instanceof Map ? base.get(key) : Reflect.get(base, key)
+    return base instanceof Map ? base.get(key) : base[key]
   }
 }
 
