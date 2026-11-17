@@ -98,6 +98,19 @@ describe('model connectivity against an HTTP provider', () => {
           res.end(JSON.stringify({ error: { message: 'probe rejected' } }))
           return
         }
+        if (requests.at(-1)?.stream) {
+          res.writeHead(200, { 'Content-Type': 'text/event-stream' })
+          for (const choice of [
+            { index: 0, delta: { role: 'assistant', content: 'ok' }, finish_reason: null },
+            { index: 0, delta: {}, finish_reason: 'stop' }
+          ]) {
+            res.write(
+              `data: ${JSON.stringify({ id: 'check', object: 'chat.completion.chunk', created: 0, model: 'wire-model', choices: [choice] })}\n\n`
+            )
+          }
+          res.end('data: [DONE]\n\n')
+          return
+        }
         res.writeHead(200, { 'Content-Type': 'application/json' })
         res.end(
           JSON.stringify({
@@ -113,7 +126,7 @@ describe('model connectivity against an HTTP provider', () => {
         let body = ''
         for await (const chunk of req) body += chunk
         requests.push(JSON.parse(body))
-        res.writeHead(200, { 'Content-Type': 'application/json' })
+        res.writeHead(200, { 'Content-Type': requests.at(-1)?.stream ? 'application/x-ndjson' : 'application/json' })
         res.end(
           JSON.stringify({
             model: 'wire-model',
@@ -181,39 +194,44 @@ describe('model connectivity against an HTTP provider', () => {
     return response
   }
 
-  it('finishes automatic diagnostics without sending a billable conversation', async () => {
-    const started = await start()
-    expect(result(started.report, 'network-model-endpoint')).toMatchObject({
-      status: 'pass',
-      evidence: [{ key: 'httpStatus', value: 404 }]
-    })
-    expect(result(started.report, 'provider-model-list')?.status).toBe('pass')
-    expect(result(started.report, 'provider-model-conversation')).toBeUndefined()
-    expect(started.report.pendingChecks).toEqual([
-      expect.objectContaining({
-        checkId: 'provider-model-conversation',
-        confirmation: {
-          messageKey: 'settings.doctor.checks.provider-model-conversation.confirmation',
-          params: { model: 'Wire model', modelId: 'wire-model', endpoint: url }
-        }
+  it.each([true, false])(
+    'finishes automatic diagnostics without a billable conversation (streaming: %s)',
+    async (supportsStreaming) => {
+      dbh.db.update(userModelTable).set({ supportsStreaming }).run()
+      const started = await start()
+      expect(result(started.report, 'network-model-endpoint')).toMatchObject({
+        status: 'pass',
+        evidence: [{ key: 'httpStatus', value: 404 }]
       })
-    ])
-    expect(requests).toEqual([])
-    expect(paths.sort()).toEqual(['GET /v1/models', 'HEAD /v1'])
-    const confirmed = await confirm(started)
-    expect(result(confirmed, 'provider-model-conversation')?.status).toBe('pass')
-    expect(confirmed.pendingChecks).toEqual([])
-    expect(paths).toHaveLength(3)
-    expect(requests).toHaveLength(1)
-    expect(requests[0]).toMatchObject({
-      model: 'wire-model',
-      messages: [
-        { role: 'system', content: 'test' },
-        { role: 'user', content: 'hi' }
-      ]
-    })
-    expect(requests[0]).not.toHaveProperty('tools')
-  })
+      expect(result(started.report, 'provider-model-list')?.status).toBe('pass')
+      expect(result(started.report, 'provider-model-conversation')).toBeUndefined()
+      expect(started.report.pendingChecks).toEqual([
+        expect.objectContaining({
+          checkId: 'provider-model-conversation',
+          confirmation: {
+            messageKey: 'settings.doctor.checks.provider-model-conversation.confirmation',
+            params: { model: 'Wire model', modelId: 'wire-model', endpoint: url }
+          }
+        })
+      ])
+      expect(requests).toEqual([])
+      expect(paths.sort()).toEqual(['GET /v1/models', 'HEAD /v1'])
+      const confirmed = await confirm(started)
+      expect(result(confirmed, 'provider-model-conversation')?.status).toBe('pass')
+      expect(confirmed.pendingChecks).toEqual([])
+      expect(paths).toHaveLength(3)
+      expect(requests).toHaveLength(1)
+      expect(requests[0]).toMatchObject({
+        model: 'wire-model',
+        messages: [
+          { role: 'system', content: 'test' },
+          { role: 'user', content: 'hi' }
+        ]
+      })
+      expect(Boolean(requests[0].stream)).toBe(supportsStreaming)
+      expect(requests[0]).not.toHaveProperty('tools')
+    }
+  )
 
   it('uses the selected model endpoint for both the prompt and the actual request', async () => {
     const config = makeProvider({ endpointConfigs: { [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: url } } })
@@ -398,7 +416,7 @@ describe('model connectivity against an HTTP provider', () => {
     expect(result(await confirm(started), 'provider-model-conversation')?.status).toBe('pass')
     expect(paths).toContain('POST /api/chat')
     expect(paths).not.toContain('POST /api/show')
-    expect(requests[0]).toMatchObject({ model: 'wire-model', stream: false })
+    expect(requests[0]).toMatchObject({ model: 'wire-model', stream: true })
   })
 
   it.each(['endpoint', 'model deletion'] as const)('invalidates confirmation after %s changes', async (change) => {
