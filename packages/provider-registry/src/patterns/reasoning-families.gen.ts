@@ -233,6 +233,7 @@ export const REASONING_FAMILY_RULES: readonly ReasoningFamilyRule[] = [
   { pattern: '(?:llama-3-1-)?nemotron-(?:\\d+(?:-\\d+)*-)?(?:nano|super|ultra|lightning)' },
   { pattern: '^muse-glimmer' },
   // openai
+  { pattern: '^gpt-6[.-]2-(?:astra|sol)(?:$|-)', effort: ['low', 'medium', 'high', 'xhigh', 'max'] },
   { pattern: '^gpt-6[.-]1-sol(?:$|-)', effort: ['low', 'medium', 'high', 'xhigh', 'max'] },
   { pattern: '^gpt-6-astra', effort: ['low', 'medium', 'high', 'xhigh', 'max'] },
   { pattern: '^(?:o\\d|gpt).*deep[-_]?research', effort: ['medium'] },
