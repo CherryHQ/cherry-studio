@@ -9,8 +9,7 @@ import {
   type ClaudeToolDescriptor,
   type ClaudeToolPolicy,
   normalizeClaudeBuiltinName,
-  resolveClaudeToolAccess,
-  resolveClaudeToolInvocationAccess
+  resolveClaudeToolAccess
 } from '@shared/ai/claudecode/toolRules'
 import type { Tool } from '@shared/ai/tool'
 import { resolveMcpSourceToolAccess } from '@shared/ai/tools/mcpSourcePolicy'
@@ -144,7 +143,7 @@ function injectedRuntimeToolRequiringApproval(runtimeName: string): Tool {
 }
 
 export interface ClaudeAgentToolPolicySnapshot {
-  resolve(runtimeName: string, input?: unknown): Tool | undefined
+  resolve(runtimeName: string): Tool | undefined
   isDisabled(runtimeName: string): boolean
   getPermissionMode(): AgentPermissionMode | undefined
   setPermissionMode(permissionMode: AgentPermissionMode | undefined): void
@@ -197,7 +196,7 @@ export async function createClaudeAgentToolPolicySnapshot(
   await rebuild(agent)
 
   return {
-    resolve(runtimeName, input) {
+    resolve(runtimeName) {
       if (options.autoAllowRuntimeNameExceptions?.includes(runtimeName)) {
         return injectedRuntimeToolRequiringApproval(runtimeName)
       }
@@ -209,7 +208,7 @@ export async function createClaudeAgentToolPolicySnapshot(
       }
       const descriptor = findRuntimeDescriptor(descriptors, runtimeName)
       if (!descriptor) return undefined
-      const access = resolveClaudeToolInvocationAccess(descriptor, policy, { toolName: runtimeName, input })
+      const access = resolveClaudeToolAccess(descriptor, policy)
       return descriptorToToolWithAccess(descriptor, access)
     },
 

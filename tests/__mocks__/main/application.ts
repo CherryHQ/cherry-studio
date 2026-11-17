@@ -1,4 +1,5 @@
-import { resolve } from 'node:path'
+import { createRequire } from 'node:module'
+import { dirname, resolve } from 'node:path'
 
 import { vi } from 'vitest'
 
@@ -180,7 +181,11 @@ export function createMockApplication(overrides: ServiceOverrides = {}) {
     getContainer: vi.fn(() => container),
     // Keep registry paths absolute on every host, including a drive on Windows.
     // Override per-test with vi.spyOn when a fixture needs a specific location.
-    getPath: vi.fn((key: string, filename?: string) => resolve('/mock', key, filename ?? '')),
+    getPath: vi.fn((key: string, filename?: string) =>
+      key === 'feature.agents.command_parser_assets'
+        ? resolve(dirname(createRequire(import.meta.url).resolve('@vscode/tree-sitter-wasm')), filename ?? '')
+        : resolve('/mock', key, filename ?? '')
+    ),
     registerAll: vi.fn(),
     initPathRegistry: vi.fn(),
     bootstrap: vi.fn().mockResolvedValue(undefined),

@@ -243,6 +243,7 @@ export async function prepareDurableDesktop(
         emit,
         getInteractionState: () => application.get('AgentSessionRuntimeService').getInteractionState(input.sessionId),
         getPermissionMode: () => permissionMode,
+        builtinRole: agent.configuration?.builtin_role,
         isDisabled,
         additionalReadOnlyRoots: [...snapshot.additionalSkillPaths, application.getPath('feature.agents.outputs')],
         autoApprovedTools: policies('auto'),
