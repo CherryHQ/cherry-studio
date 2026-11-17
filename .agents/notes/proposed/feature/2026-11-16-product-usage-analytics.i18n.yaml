@@ -1,5 +1,5 @@
 # Bilingual-pair consistency record (docs/dev/i18n/README.md).
 # After editing either side, update its counterpart and re-record with:
 #   pnpm docs:check-pairing --write .agents/notes/proposed/feature/2026-11-16-product-usage-analytics.md
-2026-11-16-product-usage-analytics.md: b792c0516f047d4b4a73af29c467926041d93957
-2026-11-16-product-usage-analytics.zh.md: 3fa5657847133264e3c73de62e7cec201cea4f86
+2026-11-16-product-usage-analytics.md: 5d97e15832da259308d33d43344d1baead898c68
+2026-11-16-product-usage-analytics.zh.md: fafb70ab8c8ed856a3dd09ca1a9059d6db2d19a9
