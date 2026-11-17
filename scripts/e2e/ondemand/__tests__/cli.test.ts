@@ -96,29 +96,22 @@ it('preserves a handled signal as interrupted after the next finalize process', 
   }
 })
 
-it.each(['resolve', 'run'])('rejects missing authenticated credentials during %s', (command) => {
+it('validates an authenticated request without external credentials before resolving its target', () => {
   const cli = controller()
   cli.env.QA_PROFILE = 'authenticated'
   try {
-    expect(
-      spawnSync(process.execPath, [require.resolve('tsx/cli'), resolve(__dirname, '../run.ts'), command], {
-        env: {
-          ...cli.env,
-          GITHUB_REPOSITORY: 'invalid',
-          CHERRY_TEST_CUSTOM_PROVIDER_BASE_URL: '',
-          CHERRY_TEST_CUSTOM_PROVIDER_API_KEY: '',
-          CHERRY_TEST_CUSTOM_PROVIDER_CHAT_MODEL: ''
-        },
+    const result = spawnSync(
+      process.execPath,
+      [require.resolve('tsx/cli'), resolve(__dirname, '../run.ts'), 'resolve'],
+      {
+        env: { ...cli.env, GITHUB_REPOSITORY: 'invalid' },
         encoding: 'utf8',
         timeout: 10_000
-      }).status
-    ).toBe(2)
-    expect(readResult(cli.env.QA_OUT)).toMatchObject({
-      status: 'failed',
-      exitCode: 2,
-      failureStage: command === 'resolve' ? 'input' : 'prepare',
-      errors: [expect.objectContaining({ message: expect.stringContaining('apiKey') })]
-    })
+      }
+    )
+    expect(result.status).toBe(2)
+    expect(readResult(cli.env.QA_OUT).errors[0].message).toContain('repository')
+    expect(existsSync(resolve(cli.directory, 'mock.json'))).toBe(false)
     expect(existsSync(resolve(cli.directory, 'app.json'))).toBe(false)
   } finally {
     cli.cleanup()

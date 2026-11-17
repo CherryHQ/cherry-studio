@@ -2,7 +2,7 @@ import { execFileSync } from 'node:child_process'
 import { readFile, realpath, stat, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
-import AdmZip from 'adm-zip'
+import JSZip from 'jszip'
 import { parse } from 'yaml'
 
 import { AssistantSchema } from '@shared/data/types/assistant'
@@ -1141,10 +1141,15 @@ test(...caseDefinition('MP-114'), async ({ app, mainWindow: page }, testInfo) =>
     await expect(page.getByText('Diagnostic bundle exported', { exact: true })).toBeVisible({ timeout: 60_000 })
     const archiveSize = (await stat(output)).size
     expect(archiveSize).toBeGreaterThan(0)
-    const files = new AdmZip(output).getEntries().filter((entry) => !entry.isDirectory)
+    const zip = await JSZip.loadAsync(await readFile(output))
+    const files = await Promise.all(
+      Object.values(zip.files)
+        .filter((entry) => !entry.dir)
+        .map(async (entry) => ({ entryName: entry.name, text: await entry.async('string') }))
+    )
     const summary = files.find((entry) => entry.entryName === 'diagnostics.json')
     expect(summary, 'The ZIP must contain a diagnostic summary').toBeDefined()
-    const manifest = JSON.parse(summary!.getData().toString('utf8'))
+    const manifest = JSON.parse(summary!.text)
     expect(Date.parse(manifest.range.to) - Date.parse(manifest.range.from)).toBe(24 * 60 * 60 * 1000)
     const logs = files.filter((entry) => entry.entryName.startsWith('logs/'))
     expect(logs.length, 'The ZIP must contain application logs').toBeGreaterThan(0)
@@ -1157,7 +1162,7 @@ test(...caseDefinition('MP-114'), async ({ app, mainWindow: page }, testInfo) =>
     ).toContainText(sizeText)
     const secrets = getSensitiveConfigValues().filter((value) => value.length >= 8)
     for (const entry of files) {
-      const text = entry.getData().toString('utf8')
+      const { text } = entry
       expect(
         /\bsk-[A-Za-z0-9_-]{20,}|-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/.test(text),
         `${entry.entryName} must not contain plaintext keys`

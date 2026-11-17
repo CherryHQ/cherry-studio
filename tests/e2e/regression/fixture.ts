@@ -76,6 +76,10 @@ export const test = base.extend<
       if (testInfo.status !== testInfo.expectedStatus) {
         const screenshot = await captureMaskedScreenshot(currentPage, getSensitiveConfigValues()).catch(() => undefined)
         if (screenshot) await testInfo.attach('Failure screenshot', { body: screenshot, contentType: 'image/png' })
+        const pause = currentPage
+          .locator('[data-ui~="chat.composer"]:visible')
+          .getByRole('button', { name: 'Pause', exact: true })
+        if (await pause.isVisible().catch(() => false)) await pause.click()
       }
 
       await app.cleanupTransientUi(currentPage)

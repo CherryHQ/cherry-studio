@@ -65,6 +65,7 @@ const AgentSessionImageCaptureHost = ({ activeAgent, modelFallback, session }: A
     partsByMessageId,
     assistantProfile: captureTarget.activeAgent
       ? {
+          id: captureTarget.activeAgent.id,
           name: captureTarget.activeAgent.name,
           avatar: getAgentAvatarFromConfiguration(
             captureTarget.activeAgent.configuration,

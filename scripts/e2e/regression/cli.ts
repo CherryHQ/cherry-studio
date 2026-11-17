@@ -3,19 +3,28 @@ import { join, resolve } from 'node:path'
 
 import { probeCapabilities } from './capabilities'
 import { parseTaskSelection, PHASE_IDS, resolveWorkflowTasks, selectCases, serializeTaskSelection } from './cases'
-import { getSensitiveConfigValues, loadTestConfig, REQUIRED_CONFIG } from './config'
+import { getSensitiveConfigValues, loadTestConfig } from './config'
 import { cleanupExternalResources } from './externalResources'
 import { createFixtures } from './fixtureFiles'
 import { prepareRelease } from './installation'
 import { launchApp, stopOwnedApp } from './lifecycle'
 import { prepareMacRuntime } from './macRuntime'
-import { assertMockTask, startMockProvider, stopMockProvider, verifyMockProvider } from './mockProvider'
+import { assertMockRequests, startMockProvider, stopMockProvider, verifyMockProvider } from './mockProvider'
 import { ensureRunDirectories, getRunPaths } from './paths'
 import { runPhase } from './phases'
 import { createRedactor } from './redaction'
 import { resolveRepositoryRef } from './ref'
 import { aggregateRuns, renderAggregateMarkdown, writeReports } from './report'
-import { createRun, finalizeRun, getRunVerdict, readRun, setCapabilities, updateRunMetadata, writeRun } from './state'
+import {
+  createRun,
+  finalizeRun,
+  getRunVerdict,
+  readRun,
+  setCapabilities,
+  updatePhase,
+  updateRunMetadata,
+  writeRun
+} from './state'
 import { PLATFORMS, RUN_MODES } from './types'
 import { cleanupWindowsNotificationShortcut } from './windowsNotificationShortcut'
 
@@ -58,7 +67,7 @@ function findFiles(root: string, fileName: string): string[] {
 }
 
 function redactLogs(paths: ReturnType<typeof getRunPaths>): void {
-  const values = REQUIRED_CONFIG.map((name) => process.env[name]).filter((value): value is string => Boolean(value))
+  const values = getSensitiveConfigValues()
   const redact = createRedactor(values)
   const outputDirectory = join(paths.output, 'logs')
   mkdirSync(outputDirectory, { recursive: true })
@@ -86,7 +95,6 @@ async function resolveRefCommand(): Promise<void> {
 function selectTasksCommand(): void {
   const inputs = JSON.parse(argument('inputs-json') ?? '{}')
   const resolved = resolveWorkflowTasks(inputs)
-  if (inputs.provider_mode === 'mock') assertMockTask(parseTaskSelection(resolved.task))
   for (const [name, value] of Object.entries(resolved)) outputLine(name, value)
 }
 
@@ -95,8 +103,6 @@ async function initializeCommand(): Promise<void> {
   const mode = oneOf(argument('mode') ?? '', RUN_MODES, 'mode')
   const platform = oneOf(argument('platform') ?? '', PLATFORMS, 'platform')
   const task = parseTaskSelection(argument('task', false) ?? 'all')
-  const providerMode = oneOf(argument('provider-mode', false) ?? 'real', ['real', 'mock'] as const, 'provider mode')
-  if (providerMode === 'mock') assertMockTask(task)
   const ref = argument('ref') ?? ''
   const sha = argument('sha') ?? ''
   const runner = argument('runner') ?? ''
@@ -108,8 +114,7 @@ async function initializeCommand(): Promise<void> {
     platform,
     ref,
     runner,
-    task: serializeTaskSelection(task),
-    providerMode
+    task: serializeTaskSelection(task)
   })
   await createFixtures(paths)
   run = setCapabilities(run, probeCapabilities(platform, paths))
@@ -119,14 +124,12 @@ async function initializeCommand(): Promise<void> {
 async function preflightCommand(): Promise<void> {
   const task = parseTaskSelection(argument('task', false) ?? 'all')
   const directory = argument('run-dir', false)
-  if (directory && readRun(getRunPaths(directory).runState).metadata.providerMode === 'mock') {
-    assertMockTask(task)
-    await verifyMockProvider(getRunPaths(directory))
+  if (!directory) {
+    if (selectCases(task).every(({ id }) => id === 'C-03' || id === 'MP-86')) return
+    throw new Error('--run-dir is required for mock preflight')
   }
-  if (selectCases(task).every(({ id }) => id === 'C-03' || id === 'MP-86')) return
-  loadTestConfig()
-  const redacted = createRedactor(getSensitiveConfigValues())
-  process.stdout.write(`${JSON.stringify(redacted({ configured: REQUIRED_CONFIG }), null, 2)}\n`)
+  await verifyMockProvider(getRunPaths(directory))
+  loadTestConfig(directory)
 }
 
 async function releaseCommand(): Promise<void> {
@@ -163,7 +166,18 @@ async function launchCommand(): Promise<void> {
 
 async function finalizeCommand(): Promise<void> {
   const paths = runDirectory()
-  const run = finalizeRun(readRun(paths.runState))
+  let current = readRun(paths.runState)
+  try {
+    if (existsSync(join(paths.root, 'mock.json'))) await assertMockRequests(paths)
+    else if (existsSync(join(paths.logs, 'aimock-summary.json'))) {
+      const summary = JSON.parse(readFileSync(join(paths.logs, 'aimock-summary.json'), 'utf8'))
+      if (summary.unmatched > 0) throw new Error(`Mock provider received ${summary.unmatched} unmatched requests`)
+    }
+  } catch (error) {
+    const phase = selectCases(parseTaskSelection(current.metadata.task))[0].phase
+    current = updatePhase(current, phase, 'failed', [String(error)])
+  }
+  const run = finalizeRun(current)
   writeRun(paths.runState, run)
   redactLogs(paths)
   writeReports(run, paths.output)
@@ -179,15 +193,9 @@ async function gateCommand(): Promise<void> {
 async function aggregateCommand(): Promise<void> {
   const input = resolve(argument('input') ?? '')
   const output = resolve(argument('output') ?? '')
-  const modeValue = argument('mode', false)
-  const expectedMode = modeValue ? oneOf(modeValue, RUN_MODES, 'mode') : undefined
-  const providerModeValue = argument('provider-mode', false)
-  const expectedProviderMode = providerModeValue
-    ? oneOf(providerModeValue, ['real', 'mock'] as const, 'provider mode')
-    : undefined
   const resultFiles = findFiles(input, 'results.json')
   const runs = resultFiles.map(readRun)
-  const report = aggregateRuns(runs, expectedMode, expectedProviderMode)
+  const report = aggregateRuns(runs)
   mkdirSync(output, { recursive: true })
   const markdown = renderAggregateMarkdown(report)
   writeFileSync(join(output, 'combined-results.json'), `${JSON.stringify(report, null, 2)}\n`)
@@ -225,19 +233,11 @@ async function cleanupCommand(): Promise<void> {
   if (errors.length) throw new AggregateError(errors, `Regression cleanup failed: ${errors.map(String).join('; ')}`)
 }
 
-async function mockStartCommand(): Promise<void> {
-  const record = await startMockProvider(runDirectory())
-  outputLine('base_url', `http://127.0.0.1:${record.port}/v1`)
-  outputLine('anthropic_base_url', `http://127.0.0.1:${record.port}`)
-  outputLine('api_key', 'mock-key-not-checked')
-  outputLine('chat_model', 'mock-chat')
-}
-
 async function main(): Promise<void> {
   const command = process.argv[2]
   switch (command) {
     case 'mock-start':
-      await mockStartCommand()
+      await startMockProvider(runDirectory())
       break
     case 'mock-stop':
       await stopMockProvider(runDirectory())

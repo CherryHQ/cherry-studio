@@ -47,15 +47,14 @@ describe('single regression artifact bundle', () => {
     }
   })
 
-  it('uses the same credential redaction and public evidence roots for checkpoint and final uploads', () => {
+  it('uses credential-free finalization and public evidence roots for checkpoint and final uploads', () => {
     const platformSteps = workflow.jobs.test.steps
     const generate = platformSteps.find((step: { id?: string }) => step.id === 'regression_checkpoint')
     const final = platformSteps.find((step: { id?: string }) => step.id === 'platform_report')
     expect(generate.run).toContain('cli.ts finalize --run-dir "$RUN_DIR"')
     expect(final.run).toBe(generate.run)
     for (const step of [generate, final]) {
-      expect(Object.keys(step.env).sort()).toEqual(['CHERRY_TEST_CUSTOM_PROVIDER_API_KEY'])
-      for (const [name, value] of Object.entries(step.env)) expect(value).toBe(`\${{ secrets.${name} }}`)
+      expect(step.env).toBeUndefined()
     }
     for (const name of ['Upload regression checkpoint', 'Upload platform report and evidence']) {
       const upload = platformSteps.find((step: { name: string }) => step.name === name)
