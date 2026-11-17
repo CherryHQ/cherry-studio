@@ -10,9 +10,9 @@ Status: implemented
 
 ## Decision
 
-对话框按物理换行、英文逗号和空白字符拆分输入。每个 token 保留原始行号和批内序号，使用共享的 `isHttpUrl` 校验，并保留 trim 后的原文及重复项。所有合法项通过既有的 `knowledge.add_items` 以 `detect` 策略一次批量提交，不等待抓取或索引完成。
+对话框按物理换行、英文逗号和空白字符拆分输入。帮助文案明确逗号是分隔符，URL 本身包含逗号时应写成 `%2C`；这不保证抓取成功。每个 token 保留原始行号和批内序号，使用共享的 `isHttpUrl` 校验，并保留 trim 后的原文及重复项。所有合法项通过既有的 `knowledge.add_items` 以 `detect` 策略一次批量提交，不等待抓取或索引完成。
 
-冲突重试使用 `rename` 或 `replace` 重放已捕获的合法项与非法项快照。检测到冲突时不接受任何项，输入保持原样；取消后恢复编辑该输入。提交和冲突选择期间禁用编辑。
+冲突重试使用 `rename` 或 `replace` 重放已捕获的合法项与非法项快照。检测到冲突时不接受任何项，输入保持原样；取消后恢复编辑该输入。提交和冲突选择期间禁用编辑。URL 提交挂起时仍可取消并关闭对话框；其结果与错误不能影响后续对话框会话。
 
 接受后，全合法批次关闭对话框。混合批次保持打开，输入仅替换为未提交的非法 token，并报告已接受的输入数和待修正项数。因此修正不会再次提交已接受项。IPC 或数据库异常仍作为整批错误呈现，不声称部分成功。
 
@@ -35,6 +35,6 @@ Status: implemented
 
 - AC1 — `src/renderer/pages/knowledge/utils/__tests__/parseKnowledgeUrls.test.ts`：混合分隔符保留物理行号、token 顺序、URL 原文和重复项，并拒绝非 HTTP(S) 输入。
 - AC2 — `src/renderer/pages/knowledge/components/__tests__/AddKnowledgeItemDialog.test.tsx`：十个合法链接一次提交；九个合法加一个非法仅保留非法 token，修正后只提交一次，不再包含已接受的九项。
-- AC3 — `src/renderer/pages/knowledge/components/__tests__/AddKnowledgeItemDialog.test.tsx`：重复 URL 的冲突选择重放合法快照；取消保留输入；异常报告整批失败；直接选择和笔记流程保留回归覆盖。
+- AC3 — `src/renderer/pages/knowledge/components/__tests__/AddKnowledgeItemDialog.test.tsx`：重复 URL 的冲突选择重放合法快照；取消保留输入；异常报告整批失败；迟到的 URL 接受、冲突及错误结果不影响重新打开的会话；直接选择和笔记流程保留回归覆盖。
 - AC4 — `src/main/features/knowledge/__tests__/KnowledgeService.integration.test.ts`：十个 URL 输入在空的活跃知识库中保存为十个不同 ID，URL 数据对应且初态为 `processing`。
 - AC5 — `src/renderer/pages/knowledge/components/__tests__/AddKnowledgeItemDialog.test.tsx` 和 `scripts/i18n-check.ts`：非法反馈限制为 100 项并显示剩余计数；全部 renderer 翻译通过目录校验。

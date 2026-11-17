@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -298,7 +298,8 @@ vi.mock('react-i18next', () => {
       'knowledge.data_source.add_dialog.url.invalid_entry': `第 ${options?.line} 行，第 ${options?.index} 项：${options?.value} — 请输入完整 HTTP(S) URL。`,
       'knowledge.data_source.add_dialog.url.partial_success': `已接受 ${options?.accepted} 项 / 待修正 ${options?.invalid} 项`,
       'knowledge.data_source.add_dialog.url.more_errors': `+${options?.count} more`,
-      'knowledge.data_source.add_dialog.url.help': '将自动抓取页面文本并分块索引',
+      'knowledge.data_source.add_dialog.url.help':
+        '使用换行、英文逗号或空白字符分隔链接。英文逗号会分隔链接；链接本身包含逗号时请用 %2C。仅接受完整的 HTTP 或 HTTPS URL。非法项会跳过，合法项将进入处理队列。',
       'knowledge.data_source.add_dialog.url.placeholder': 'https://example.com',
       'library.import_dialog.error.invalid_url': '无效的 URL'
     } satisfies Record<string, string>
@@ -955,9 +956,15 @@ describe('AddKnowledgeItemDialog', () => {
       render(<AddKnowledgeItemDialog open onOpenChange={onOpenChange} />)
       await user.type(urlInput(), 'not-a-url')
       expect(screen.getByText('第 1 行，第 1 项：not-a-url — 请输入完整 HTTP(S) URL。')).toBeInTheDocument()
+      expect(urlInput()).toHaveAttribute('aria-describedby', 'knowledge-source-url-help knowledge-source-url-errors')
+      expect(screen.getByRole('list')).toHaveAttribute('id', 'knowledge-source-url-errors')
+      expect(screen.getByRole('list')).toHaveAttribute('aria-live', 'polite')
       expect(screen.getByRole('button', { name: '添加' })).toBeDisabled()
       expect(mockSubmitKnowledgeItems).not.toHaveBeenCalled()
       expect(onOpenChange).not.toHaveBeenCalled()
+      await user.clear(urlInput())
+      expect(urlInput()).toHaveAttribute('aria-describedby', 'knowledge-source-url-help')
+      expect(screen.queryByRole('list')).not.toBeInTheDocument()
     })
 
     it('bounds invalid feedback to 100 entries and reports the remainder', async () => {
@@ -1009,6 +1016,55 @@ describe('AddKnowledgeItemDialog', () => {
       finish({ status: 'added' })
       await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false))
     })
+
+    it.each(['added', 'partial', 'conflicts', 'error'])(
+      'ignores a late %s result after closing and reopening the URL dialog',
+      async (outcome) => {
+        setPendingAddSource('url')
+        const user = userEvent.setup()
+        let finish!: (result: unknown) => void
+        let fail!: (error: Error) => void
+        mockSubmitKnowledgeItems.mockReturnValueOnce(
+          new Promise((resolve, reject) => {
+            finish = resolve
+            fail = reject
+          })
+        )
+        const onOpenChange = vi.fn()
+        const { rerender } = render(<AddKnowledgeItemDialog open onOpenChange={onOpenChange} />)
+        await user.click(urlInput())
+        await user.paste(outcome === 'partial' ? `${urls[0]}\nnot-a-url` : urls[0])
+        await user.click(screen.getByRole('button', { name: '添加' }))
+        await waitFor(() => expect(mockSubmitKnowledgeItems.mock.calls).toHaveLength(1))
+        await user.click(screen.getByRole('button', { name: '取消' }))
+        expect(onOpenChange).toHaveBeenCalledWith(false)
+        rerender(<AddKnowledgeItemDialog open={false} onOpenChange={onOpenChange} />)
+        rerender(<AddKnowledgeItemDialog open onOpenChange={onOpenChange} />)
+        onOpenChange.mockClear()
+        await user.click(urlInput())
+        await user.paste(urls[1])
+
+        await act(async () => {
+          if (outcome === 'error') {
+            fail(new Error('old submission failed'))
+          } else {
+            finish(
+              outcome === 'conflicts'
+                ? { status: 'conflicts', conflicts: [{ type: 'url', title: urls[0] }] }
+                : { status: 'added' }
+            )
+          }
+        })
+
+        expect(onOpenChange).not.toHaveBeenCalled()
+        expect(screen.getAllByRole('dialog')).toHaveLength(1)
+        expect(urlInput()).toHaveValue(urls[1])
+        expect(screen.queryByText('存在同名数据源')).not.toBeInTheDocument()
+        expect(screen.queryByRole('status')).not.toBeInTheDocument()
+        expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+        expect(toast.error).not.toHaveBeenCalled()
+      }
+    )
 
     it.each([
       ['全部保留', 'rename'],

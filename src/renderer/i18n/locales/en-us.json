@@ -1913,7 +1913,7 @@
   "knowledge.data_source.add_dialog.title": "Add Data Source",
   "knowledge.data_source.add_dialog.unsupported_files_skipped": "Skipped {{count}} unsupported file(s)",
   "knowledge.data_source.add_dialog.url.description": "Enter webpage URLs:",
-  "knowledge.data_source.add_dialog.url.help": "Separate URLs with line breaks, commas, or whitespace. Use complete HTTP or HTTPS URLs. Invalid entries are skipped; valid entries are queued for processing.",
+  "knowledge.data_source.add_dialog.url.help": "Separate URLs with line breaks, commas, or whitespace. Commas separate URLs; use %2C for commas within a URL. Only complete HTTP or HTTPS URLs are accepted. Invalid entries are skipped; valid entries are queued for processing.",
   "knowledge.data_source.add_dialog.url.invalid_entry": "Line {{line}}, entry {{index}}: {{value}} — enter a complete HTTP or HTTPS URL.",
   "knowledge.data_source.add_dialog.url.more_errors": "+{{count}} more",
   "knowledge.data_source.add_dialog.url.partial_success": "Accepted {{accepted}} items / {{invalid}} entries to correct.",

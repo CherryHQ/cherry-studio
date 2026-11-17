@@ -1913,7 +1913,7 @@
   "knowledge.data_source.add_dialog.title": "Datenquelle hinzufügen",
   "knowledge.data_source.add_dialog.unsupported_files_skipped": "{{count}} nicht unterstützte Datei(en) übersprungen",
   "knowledge.data_source.add_dialog.url.description": "Webseiten-URLs eingeben:",
-  "knowledge.data_source.add_dialog.url.help": "URLs durch Zeilenumbrüche, Kommas oder Leerraum trennen. Vollständige HTTP- oder HTTPS-URLs verwenden. Ungültige Einträge werden übersprungen; gültige werden zur Verarbeitung eingereiht.",
+  "knowledge.data_source.add_dialog.url.help": "URLs durch Zeilenumbrüche, Kommas oder Leerraum trennen. Kommas trennen URLs; für Kommas innerhalb einer URL %2C verwenden. Vollständige HTTP- oder HTTPS-URLs verwenden. Ungültige Einträge werden übersprungen; gültige werden zur Verarbeitung eingereiht.",
   "knowledge.data_source.add_dialog.url.invalid_entry": "Zeile {{line}}, Eintrag {{index}}: {{value}} — eine vollständige HTTP- oder HTTPS-URL eingeben.",
   "knowledge.data_source.add_dialog.url.more_errors": "+{{count}} weitere",
   "knowledge.data_source.add_dialog.url.partial_success": "{{accepted}} Einträge angenommen / {{invalid}} Einträge zu korrigieren.",

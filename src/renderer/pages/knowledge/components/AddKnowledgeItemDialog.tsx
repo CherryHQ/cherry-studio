@@ -71,6 +71,14 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
   const conflict = useExitPresence(open ? pendingConflict : null)
   const [pendingResolution, setPendingResolution] = useState<ConflictResolution | null>(null)
   const { submit: submitKnowledgeItems, isSubmitting: isSubmittingItems } = useAddKnowledgeItems(selectedBaseId)
+  const sessionRef = useRef(0)
+
+  useEffect(() => {
+    sessionRef.current += 1
+    if (open && pendingAddSource === 'url') {
+      setIsResolvingSubmit(false)
+    }
+  }, [open, pendingAddSource])
 
   const handleOpenChange = useCallback(
     (nextOpen: boolean) => {
@@ -169,9 +177,13 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
     async (
       items: KnowledgeAddItemInput[],
       conflictStrategy: 'detect' | ConflictResolution,
-      invalid?: KnowledgeUrlEntry[]
+      invalid?: KnowledgeUrlEntry[],
+      session?: number
     ) => {
       const result = await submitKnowledgeItems(items, conflictStrategy)
+      if (session !== undefined && session !== sessionRef.current) {
+        return
+      }
       if (result.status === 'conflicts') {
         setPendingConflict({ items, invalid, conflicts: result.conflicts })
         return
@@ -192,18 +204,24 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
       return
     }
 
+    const session = activeSource === 'url' ? sessionRef.current : undefined
     setSubmitErrorMessage('')
     setIsResolvingSubmit(true)
 
     const invalid = activeSource === 'url' ? parsedUrls.invalid : undefined
     setUrlAcceptedCount(null)
     void buildPanelSubmitItems()
-      .then((items) => submitWithStrategy(items, 'detect', invalid))
+      .then((items) => submitWithStrategy(items, 'detect', invalid, session))
       .catch((error) => {
+        if (session !== undefined && session !== sessionRef.current) {
+          return
+        }
         setSubmitErrorMessage(formatErrorMessageWithPrefix(error, t('knowledge.data_source.add_dialog.submit.error')))
       })
       .finally(() => {
-        setIsResolvingSubmit(false)
+        if (session === undefined || session === sessionRef.current) {
+          setIsResolvingSubmit(false)
+        }
       })
   }, [
     activeSource,
@@ -346,9 +364,13 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
         return
       }
 
+      const session = activeSource === 'url' ? sessionRef.current : undefined
       setPendingResolution(resolution)
-      void submitWithStrategy(pendingConflict.items, resolution, pendingConflict.invalid)
+      void submitWithStrategy(pendingConflict.items, resolution, pendingConflict.invalid, session)
         .catch((error) => {
+          if (session !== undefined && session !== sessionRef.current) {
+            return
+          }
           setPendingConflict(null)
           const message = formatErrorMessageWithPrefix(error, t('knowledge.data_source.add_dialog.submit.error'))
           // Direct-pick sources have no panel to fall back to, so report inline (toast) and close.
@@ -360,10 +382,12 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
           }
         })
         .finally(() => {
-          setPendingResolution(null)
+          if (session === undefined || session === sessionRef.current) {
+            setPendingResolution(null)
+          }
         })
     },
-    [directPick, handleOpenChange, pendingConflict, submitWithStrategy, t]
+    [activeSource, directPick, handleOpenChange, pendingConflict, submitWithStrategy, t]
   )
 
   const handleConflictCancel = useCallback(() => {

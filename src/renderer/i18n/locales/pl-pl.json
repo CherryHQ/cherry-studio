@@ -1935,7 +1935,7 @@
   "knowledge.data_source.add_dialog.title": "Dodaj źródło danych",
   "knowledge.data_source.add_dialog.unsupported_files_skipped": "Pominięto {{count}} nieobsługiwany(ch) plik(ów)",
   "knowledge.data_source.add_dialog.url.description": "Wprowadź adresy stron internetowych:",
-  "knowledge.data_source.add_dialog.url.help": "Oddziel adresy nowymi wierszami, przecinkami lub białymi znakami. Używaj pełnych adresów HTTP lub HTTPS. Nieprawidłowe wpisy są pomijane, a prawidłowe trafiają do kolejki przetwarzania.",
+  "knowledge.data_source.add_dialog.url.help": "Oddziel adresy nowymi wierszami, przecinkami lub białymi znakami. Przecinki rozdzielają adresy; przecinki wewnątrz adresu zapisz jako %2C. Używaj pełnych adresów HTTP lub HTTPS. Nieprawidłowe wpisy są pomijane, a prawidłowe trafiają do kolejki przetwarzania.",
   "knowledge.data_source.add_dialog.url.invalid_entry": "Wiersz {{line}}, wpis {{index}}: {{value}} — wprowadź pełny adres HTTP lub HTTPS.",
   "knowledge.data_source.add_dialog.url.more_errors": "+{{count}} więcej",
   "knowledge.data_source.add_dialog.url.partial_success": "Przyjęto {{accepted}} elementów / {{invalid}} wpisów do poprawienia.",

@@ -1913,7 +1913,7 @@
   "knowledge.data_source.add_dialog.title": "データソースを追加",
   "knowledge.data_source.add_dialog.unsupported_files_skipped": "サポートされていないファイル {{count}} 個をスキップしました",
   "knowledge.data_source.add_dialog.url.description": "ウェブページの URL を入力：",
-  "knowledge.data_source.add_dialog.url.help": "URL は改行、半角カンマ、空白文字で区切ってください。完全な HTTP または HTTPS URL のみ使用できます。無効な項目はスキップされ、有効な項目は処理キューに追加されます。",
+  "knowledge.data_source.add_dialog.url.help": "URL は改行、半角カンマ、空白文字で区切ってください。半角カンマは URL の区切りになるため、URL 自体に含まれるカンマは %2C にしてください。完全な HTTP または HTTPS URL のみ使用できます。無効な項目はスキップされ、有効な項目は処理キューに追加されます。",
   "knowledge.data_source.add_dialog.url.invalid_entry": "{{line}} 行目、{{index}} 番目：{{value}} — 完全な HTTP または HTTPS URL を入力してください。",
   "knowledge.data_source.add_dialog.url.more_errors": "ほか {{count}} 件",
   "knowledge.data_source.add_dialog.url.partial_success": "{{accepted}} 件を受け付けました / {{invalid}} 件の修正が必要です。",

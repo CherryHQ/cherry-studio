@@ -25,7 +25,9 @@ const UrlSourceContent = ({ value, onValueChange, urlErrors, disabled }: UrlSour
         onValueChange={onValueChange}
         disabled={disabled}
         hasError={urlErrors.length > 0}
-        aria-describedby="knowledge-source-url-help"
+        aria-describedby={
+          urlErrors.length > 0 ? 'knowledge-source-url-help knowledge-source-url-errors' : 'knowledge-source-url-help'
+        }
         placeholder={t('knowledge.data_source.add_dialog.url.placeholder')}
         className="h-32 max-h-48 field-sizing-fixed overflow-y-auto break-all"
       />
@@ -33,7 +35,10 @@ const UrlSourceContent = ({ value, onValueChange, urlErrors, disabled }: UrlSour
         {t('knowledge.data_source.add_dialog.url.help')}
       </p>
       {urlErrors.length > 0 ? (
-        <ul className="mt-2 max-h-32 overflow-y-auto text-xs leading-4 text-error-subtle-foreground">
+        <ul
+          id="knowledge-source-url-errors"
+          aria-live="polite"
+          className="mt-2 max-h-32 overflow-y-auto text-xs leading-4 text-error-subtle-foreground">
           {urlErrors.slice(0, 100).map((entry) => (
             <li key={entry.index} className="break-all">
               {t('knowledge.data_source.add_dialog.url.invalid_entry', { ...entry })}

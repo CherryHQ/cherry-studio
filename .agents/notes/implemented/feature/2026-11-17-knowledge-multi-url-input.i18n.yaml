@@ -1,5 +1,5 @@
 # Bilingual-pair consistency record (docs/dev/i18n/README.md).
 # After editing either side, update its counterpart and re-record with:
 #   pnpm docs:check-pairing --write .agents/notes/implemented/feature/2026-11-17-knowledge-multi-url-input.md
-2026-11-17-knowledge-multi-url-input.md: 5aaa92df5d171db4f0778b08d5f182e274d08c3a
-2026-11-17-knowledge-multi-url-input.zh.md: 94aed13eea1a30fa929b140fd78d7129602967d1
+2026-11-17-knowledge-multi-url-input.md: 070aa47f1fb13387489de57b7ffac2d413d34de7
+2026-11-17-knowledge-multi-url-input.zh.md: be78fbc8189e91933c7477b9a3180df8b0b0ecbd

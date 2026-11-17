@@ -1913,7 +1913,7 @@
   "knowledge.data_source.add_dialog.title": "Veri Kaynağı Ekle",
   "knowledge.data_source.add_dialog.unsupported_files_skipped": "Desteklenmeyen {{count}} dosya atlandı",
   "knowledge.data_source.add_dialog.url.description": "Web sayfası URL’lerini girin:",
-  "knowledge.data_source.add_dialog.url.help": "URL’leri satır sonları, virgüller veya boşluk karakterleriyle ayırın. Tam HTTP veya HTTPS URL’leri kullanın. Geçersiz girdiler atlanır; geçerli girdiler işlenmek üzere kuyruğa alınır.",
+  "knowledge.data_source.add_dialog.url.help": "URL’leri satır sonları, virgüller veya boşluk karakterleriyle ayırın. Virgüller URL’leri ayırır; bir URL’nin içindeki virgüller için %2C kullanın. Tam HTTP veya HTTPS URL’leri kullanın. Geçersiz girdiler atlanır; geçerli girdiler işlenmek üzere kuyruğa alınır.",
   "knowledge.data_source.add_dialog.url.invalid_entry": "Satır {{line}}, girdi {{index}}: {{value}} — tam bir HTTP veya HTTPS URL’si girin.",
   "knowledge.data_source.add_dialog.url.more_errors": "+{{count}} daha",
   "knowledge.data_source.add_dialog.url.partial_success": "{{accepted}} öğe kabul edildi / {{invalid}} girdi düzeltilmeli.",

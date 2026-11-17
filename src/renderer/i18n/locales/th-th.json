@@ -1913,7 +1913,7 @@
   "knowledge.data_source.add_dialog.title": "เพิ่มแหล่งข้อมูล",
   "knowledge.data_source.add_dialog.unsupported_files_skipped": "ข้าม {{count}} ไฟล์ที่ไม่รองรับ",
   "knowledge.data_source.add_dialog.url.description": "ป้อน URL ของหน้าเว็บ:",
-  "knowledge.data_source.add_dialog.url.help": "คั่น URL ด้วยการขึ้นบรรทัดใหม่ เครื่องหมายจุลภาค หรือช่องว่าง ใช้ URL แบบเต็มที่เป็น HTTP หรือ HTTPS รายการที่ไม่ถูกต้องจะถูกข้าม ส่วนรายการที่ถูกต้องจะเข้าคิวประมวลผล",
+  "knowledge.data_source.add_dialog.url.help": "คั่น URL ด้วยการขึ้นบรรทัดใหม่ เครื่องหมายจุลภาค หรือช่องว่าง เครื่องหมายจุลภาคใช้คั่น URL หาก URL มีเครื่องหมายจุลภาคอยู่ภายใน ให้ใช้ %2C แทน ใช้ URL แบบเต็มที่เป็น HTTP หรือ HTTPS รายการที่ไม่ถูกต้องจะถูกข้าม ส่วนรายการที่ถูกต้องจะเข้าคิวประมวลผล",
   "knowledge.data_source.add_dialog.url.invalid_entry": "บรรทัด {{line}} รายการที่ {{index}}: {{value}} — ป้อน URL แบบเต็มที่เป็น HTTP หรือ HTTPS",
   "knowledge.data_source.add_dialog.url.more_errors": "อีก {{count}} รายการ",
   "knowledge.data_source.add_dialog.url.partial_success": "รับแล้ว {{accepted}} รายการ / ต้องแก้ไข {{invalid}} รายการ",

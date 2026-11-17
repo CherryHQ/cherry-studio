@@ -1913,7 +1913,7 @@
   "knowledge.data_source.add_dialog.title": "Adicionar Fonte de Dados",
   "knowledge.data_source.add_dialog.unsupported_files_skipped": "Ignorados {{count}} ficheiro(s) não suportado(s)",
   "knowledge.data_source.add_dialog.url.description": "Introduza os URL das páginas web:",
-  "knowledge.data_source.add_dialog.url.help": "Separe os URL com quebras de linha, vírgulas ou espaços em branco. Utilize URL HTTP ou HTTPS completos. As entradas inválidas são ignoradas; as válidas são colocadas em fila para processamento.",
+  "knowledge.data_source.add_dialog.url.help": "Separe os URL com quebras de linha, vírgulas ou espaços em branco. As vírgulas separam os URL; utilize %2C para as vírgulas que façam parte de um URL. Utilize URL HTTP ou HTTPS completos. As entradas inválidas são ignoradas; as válidas são colocadas em fila para processamento.",
   "knowledge.data_source.add_dialog.url.invalid_entry": "Linha {{line}}, entrada {{index}}: {{value}} — introduza um URL HTTP ou HTTPS completo.",
   "knowledge.data_source.add_dialog.url.more_errors": "+{{count}} mais",
   "knowledge.data_source.add_dialog.url.partial_success": "{{accepted}} itens aceites / {{invalid}} entradas a corrigir.",

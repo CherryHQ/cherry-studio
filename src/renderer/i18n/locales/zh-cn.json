@@ -1913,7 +1913,7 @@
   "knowledge.data_source.add_dialog.title": "添加数据源",
   "knowledge.data_source.add_dialog.unsupported_files_skipped": "已跳过 {{count}} 个不支持的文件",
   "knowledge.data_source.add_dialog.url.description": "输入网页链接：",
-  "knowledge.data_source.add_dialog.url.help": "使用换行、英文逗号或空白字符分隔链接，仅接受完整的 HTTP 或 HTTPS URL。非法项会跳过，合法项将进入处理队列。",
+  "knowledge.data_source.add_dialog.url.help": "使用换行、英文逗号或空白字符分隔链接。英文逗号会分隔链接；链接本身包含逗号时请用 %2C。仅接受完整的 HTTP 或 HTTPS URL。非法项会跳过，合法项将进入处理队列。",
   "knowledge.data_source.add_dialog.url.invalid_entry": "第 {{line}} 行，第 {{index}} 项：{{value}} — 请输入完整的 HTTP 或 HTTPS URL。",
   "knowledge.data_source.add_dialog.url.more_errors": "+{{count}} 项",
   "knowledge.data_source.add_dialog.url.partial_success": "已接受 {{accepted}} 项 / 待修正 {{invalid}} 项。",
