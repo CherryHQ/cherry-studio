@@ -7,6 +7,7 @@ import { pathToFileURL } from 'node:url'
 import { startup, type SpawnOptions } from '@anthropic-ai/claude-agent-sdk'
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockApplicationUtils } from '@test-mocks/main/application'
+import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { eq } from 'drizzle-orm'
 import sharp from 'sharp'
 import { afterEach, expect, it, vi } from 'vitest'
@@ -31,6 +32,7 @@ import { runtimeDriverRegistry } from '@main/ai/runtime/registry'
 import { pipeMessageStream } from '@main/ai/streamManager/pipeMessageStream'
 import { createClaudeAgentToolPolicySnapshot } from '@main/ai/tools/adapters/claudeCode/agentTools'
 import { BaseService } from '@main/core/lifecycle/BaseService'
+import { getSentryLogContext } from '@shared/utils/sentry'
 
 import { ClaudeFeed } from '../../../../../../packages/agent-runtime-claude-code/src/observation'
 import { fixture, spawnChild } from '../../../../../../packages/agent-runtime-claude-code/tests/nativeFixture'
@@ -208,6 +210,7 @@ it('keeps both real SDK background notifications in one persisted Main reply unt
   const unexpected: unknown[] = []
   MockApplicationUtils.setService('AiStreamManager', {
     getInteractionWindow: () => undefined,
+    retireToolApproval: () => false,
     startRuntimeTurn: (input: unknown) => unexpected.push(input),
     broadcastTopicError: (...args: unknown[]) => unexpected.push(args),
     drainRuntimeReply: async () => {},
@@ -309,7 +312,7 @@ it('joins native steer to the shared answer while keeping foreground child histo
   request.reply.finish('tool_use')
   const child = await test.request()
   const second = test.input('Use the revised requirement')
-  expect(connection.redirect!(second)).toBe(true)
+  expect(connection.redirect!({ ...second, systemReminder: true })).toBe(true)
   await expect
     .poll(() =>
       test.nativeInputs.some((state) => state.inputId === second.message.id && state.facts.includes('dispatch-started'))
@@ -318,7 +321,29 @@ it('joins native steer to the shared answer while keeping foreground child histo
   child.reply.block({ type: 'text', text: 'Independent child answer' })
   child.reply.finish()
   const response = await test.request()
-  expect(JSON.stringify(response.body.messages)).toContain('Use the revised requirement')
+  const steerEntry = response.body.messages.find((message) =>
+    JSON.stringify(message).includes('Use the revised requirement')
+  )
+  expect(steerEntry).toBeDefined()
+  const steerPayload = JSON.stringify(steerEntry)
+  // Measured provider payloads wrap Cherry's block in the vendor's own outer <system-reminder>.
+  expect(steerPayload.match(/The user sent the following message:/g)).toHaveLength(1)
+  const cherryStart = steerPayload.indexOf('The user sent the following message:')
+  const cherryEnd = steerPayload.indexOf('</system-reminder>', cherryStart)
+  expect(cherryEnd).toBeGreaterThan(cherryStart)
+  const cherryReminder = steerPayload.slice(cherryStart, cherryEnd)
+  expect(cherryReminder).toContain('Use the revised requirement')
+  expect(cherryReminder).toContain('arrived while you were already working')
+  expect(cherryReminder).toContain('a new instruction from the user, not a continuation of the current task')
+  expect(cherryReminder).toContain('Finish the step already in flight if it cannot be interrupted')
+  expect(cherryReminder).toContain('Before any further work and before ending this turn, you must write')
+  expect(cherryReminder).toContain('one short user-visible sentence that restates what the user asked for')
+  expect(cherryReminder).toContain('Then either act on the message or state when it will be handled')
+  expect(cherryReminder).toContain('Do not silently defer it to a later turn')
+  expect(cherryReminder).toContain(
+    "Where it conflicts with the remainder of your current plan, the user's message takes priority"
+  )
+  expect(steerPayload).toContain('Use the revised requirement')
   response.reply.block({ type: 'text', text: 'Revised root answer' })
   response.reply.finish()
   const boundary = await test.wait('steer-boundary')
@@ -734,10 +759,16 @@ it('submits native image blocks and local document paths through the common owne
   const connection = await test.connect()
   await connection.send(input)
   const request = await test.request()
-  const sent = JSON.stringify(request.body.messages)
-  expect(sent).toContain(attachment)
-  expect(sent).toContain(image)
-  expect(sent).toContain('Inspect these attachments')
+  const content = request.body.messages.flatMap((message) => (Array.isArray(message.content) ? message.content : []))
+  const sentText = content.flatMap((part) => (part.type === 'text' ? [part.text] : [])).join('\n')
+  expect(sentText).toContain(path.resolve(attachment))
+  expect(content).toContainEqual(
+    expect.objectContaining({
+      type: 'image',
+      source: expect.objectContaining({ type: 'base64', media_type: 'image/png', data: image })
+    })
+  )
+  expect(sentText).toContain('Inspect these attachments')
   request.reply.block({ type: 'text', text: 'Attachments received' })
   request.reply.finish()
   await test.wait('turn-complete')
@@ -1221,6 +1252,12 @@ it.each(['current-answer', 'history-only', 'user-only'])(
     expect(test.events.filter((event) => event.type === 'turn-complete')).toHaveLength(
       source === 'current-answer' ? 1 : 0
     )
+    const reported = mockMainLoggerService.error.mock.calls
+      .map((call) => call[1])
+      .find((entry) => entry?.operation === 'agent.claude.prompt')
+    expect(reported).toMatchObject({
+      failure: { runtime: 'claude-code', outcome: source === 'current-answer' ? 'recovered' : 'failed' }
+    })
     wire.exit()
   },
   30000
@@ -1272,54 +1309,66 @@ it('maps native SDK usage to product token totals once per response', async () =
   ])
 })
 
-it('publishes the native resume identity before a failed first result', async () => {
-  const wire = wireProcess()
-  const test = await desktop({ spawnClaudeCodeProcess: () => wire.process })
-  const connection = await test.connect()
-  const context = sessionContexts(test.sessionId).find((context) => context.nativeThreadId)!
-  await connection.send(test.input('First input fails'))
-  await expect.poll(() => wire.inputs.length).toBe(1)
-  wire.send({
-    type: 'result',
-    subtype: 'error_during_execution',
-    uuid: randomUUID(),
-    session_id: context.nativeThreadId!,
-    user_message_uuid: wire.inputs[0].uuid,
-    duration_ms: 1,
-    duration_api_ms: 1,
-    is_error: true,
-    num_turns: 1,
-    stop_reason: null,
-    total_cost_usd: 0,
-    errors: ['Native failure'],
-    modelUsage: {},
-    permission_denials: [],
-    usage: {
-      input_tokens: 1,
-      output_tokens: 0,
-      cache_creation_input_tokens: 0,
-      cache_read_input_tokens: 0,
-      cache_creation: { ephemeral_1h_input_tokens: 0, ephemeral_5m_input_tokens: 0 },
-      iterations: [],
-      server_tool_use: { web_search_requests: 0, web_fetch_requests: 0 },
-      service_tier: 'standard',
-      inference_geo: 'us',
-      speed: 'standard'
-    }
-  })
-  await expect
-    .poll(() => test.events.find((event) => event.type === 'error'))
-    .toMatchObject({
-      error: { message: 'Native failure' }
+it.each([
+  { subtype: 'error_during_execution', message: 'Native failure', eligible: true },
+  { subtype: 'error_max_turns', message: 'Limit reached', eligible: false },
+  { subtype: 'error_during_execution', message: 'insufficient balance', eligible: false }
+] as const)(
+  'publishes and classifies a failed first result: $message',
+  async ({ subtype, message: errorMessage, eligible }) => {
+    const wire = wireProcess()
+    const test = await desktop({ spawnClaudeCodeProcess: () => wire.process })
+    const connection = await test.connect()
+    const context = sessionContexts(test.sessionId).find((context) => context.nativeThreadId)!
+    await connection.send(test.input('First input fails'))
+    await expect.poll(() => wire.inputs.length).toBe(1)
+    wire.send({
+      type: 'result',
+      subtype,
+      uuid: randomUUID(),
+      session_id: context.nativeThreadId!,
+      user_message_uuid: wire.inputs[0].uuid,
+      duration_ms: 1,
+      duration_api_ms: 1,
+      is_error: true,
+      num_turns: 1,
+      stop_reason: null,
+      total_cost_usd: 0,
+      errors: [errorMessage],
+      modelUsage: {},
+      permission_denials: [],
+      usage: {
+        input_tokens: 1,
+        output_tokens: 0,
+        cache_creation_input_tokens: 0,
+        cache_read_input_tokens: 0,
+        cache_creation: { ephemeral_1h_input_tokens: 0, ephemeral_5m_input_tokens: 0 },
+        iterations: [],
+        server_tool_use: { web_search_requests: 0, web_fetch_requests: 0 },
+        service_tier: 'standard',
+        inference_geo: 'us',
+        speed: 'standard'
+      }
     })
-  const resume = test.events.findIndex(
-    (event) => event.type === 'resume-token' && event.token === context.nativeThreadId
-  )
-  expect(resume).toBeGreaterThanOrEqual(0)
-  expect(resume).toBeLessThan(test.events.findIndex((event) => event.type === 'error'))
-  expect(test.events.some((event) => event.type === 'turn-complete')).toBe(false)
-  wire.exit()
-})
+    await expect
+      .poll(() => test.events.find((event) => event.type === 'error'))
+      .toMatchObject({
+        error: { message: errorMessage, reportingHandled: true }
+      })
+    const resume = test.events.findIndex(
+      (event) => event.type === 'resume-token' && event.token === context.nativeThreadId
+    )
+    expect(resume).toBeGreaterThanOrEqual(0)
+    expect(resume).toBeLessThan(test.events.findIndex((event) => event.type === 'error'))
+    expect(test.events.some((event) => event.type === 'turn-complete')).toBe(false)
+    const records = mockMainLoggerService.error.mock.calls
+      .map((call) => call[1])
+      .filter((entry) => entry?.operation === 'agent.claude.prompt' && !entry.reportingHandled)
+    expect(records).toHaveLength(1)
+    expect(getSentryLogContext({ ...records[0], level: 'error' }) !== undefined).toBe(eligible)
+    wire.exit()
+  }
+)
 
 // Catches a mid-turn mode switch that only reaches the next turn: the real SDK subprocess would run
 // (or refuse) the turn's next tool call under the mode the user just left.

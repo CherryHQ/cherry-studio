@@ -71,6 +71,7 @@ export async function prepareDurableDesktop(
     workspacePath: cwd,
     agentDataPath,
     effectiveLanguage: snapshot.effectiveLanguage,
+    modelName: snapshot.model.name ?? snapshot.model.id,
     citationsGuidance: buildCitationsGuidance({
       web: enabled(WEB_SEARCH_TOOL_NAME) || enabled(WEB_FETCH_TOOL_NAME),
       kb:
@@ -107,7 +108,9 @@ export async function prepareDurableDesktop(
       snapshot.mcpServerSnapshots,
       snapshot.linkedChannel,
       agentDataPath,
-      input.knowledgeBaseIds
+      input.knowledgeBaseIds,
+      undefined,
+      input.modelId
     )
   )
   try {
@@ -156,6 +159,31 @@ export async function prepareDurableDesktop(
             async render() {
               const { text, resources } = await builder.buildMemoriesContext(agentDataPath)
               return { text, source: { kind: 'memory-files', resources } }
+            }
+          },
+          {
+            key: 'project_context',
+            render() {
+              const files = pi.loadProjectContextFiles({ cwd, agentDir: application.getPath('feature.agents.pi.root') })
+              if (!files.length) return undefined
+              const entries = files.map((file) => ({
+                ...file,
+                text: `<project_instructions path="${file.path}">\n${file.content}\n</project_instructions>`
+              }))
+              return {
+                text: ['Project-specific instructions and guidelines:', ...entries.map((entry) => entry.text)].join(
+                  '\n\n'
+                ),
+                source: {
+                  kind: 'memory-files',
+                  resources: entries.map((entry) => ({
+                    id: entry.path,
+                    name: entry.path,
+                    source: entry.path,
+                    characters: entry.text.length
+                  }))
+                }
+              }
             }
           },
           {
@@ -214,6 +242,7 @@ export async function prepareDurableDesktop(
         emit,
         getInteractionState: () => application.get('AgentSessionRuntimeService').getInteractionState(input.sessionId),
         getPermissionMode: () => permissionMode,
+        builtinRole: agent.configuration?.builtin_role,
         isDisabled,
         additionalReadOnlyRoots: [...snapshot.additionalSkillPaths, application.getPath('feature.agents.outputs')],
         autoApprovedTools: policies('auto'),

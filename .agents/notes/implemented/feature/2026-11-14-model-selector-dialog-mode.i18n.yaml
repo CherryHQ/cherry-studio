@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/feature/2026-11-14-model-selector-dialog-mode.md
+2026-11-14-model-selector-dialog-mode.md: d60fe135dea6de53e3257c00c9062161969335ec
+2026-11-14-model-selector-dialog-mode.zh.md: 92580b740b429caa4dfddf96be70400e4558ddc9

@@ -29,7 +29,7 @@ vi.mock('react-i18next', () => ({
 }))
 
 vi.mock('@cherrystudio/ui', async () => {
-  const React = (await vi.importActual('react')) as ReactTestRuntime
+  const React = await vi.importActual<ReactTestRuntime>('react')
   return {
     Button: ({
       variant,
