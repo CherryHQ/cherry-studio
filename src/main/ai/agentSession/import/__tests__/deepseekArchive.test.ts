@@ -35,3 +35,35 @@ it('rejects oversized declared entries before inflating their payloads', async (
   const file = await archiveFixture([['large.txt', 'x'.repeat(33 * 1024 * 1024)]])
   await expect(openDeepseekArchive(file)).rejects.toThrow('extraction limits')
 })
+
+it.each([false, true])('validates repeated attachment IDs across messages (conflict: %s)', async (conflict) => {
+  const source = conversation()
+  const attachment = {
+    id: 'shared',
+    file_name: 'image.png',
+    file_size: 1,
+    export_path: 'files/one.png',
+    is_image: true
+  }
+  source.messages[0].fragments.push({ type: 'FILE', files: [attachment] })
+  source.messages[1].fragments.push({
+    type: 'FILE',
+    files: [{ ...attachment, export_path: conflict ? 'files/two.png' : attachment.export_path }]
+  })
+  const archive = await openDeepseekArchive(
+    await archiveFixture(
+      [
+        ['files/one.png', 'a'],
+        ['files/two.png', 'b']
+      ],
+      3,
+      source
+    )
+  )
+  try {
+    if (conflict) await expect(archive.load('sample')).rejects.toThrow('Conflicting DeepSeek attachment ID')
+    else expect(await archive.load('sample')).toEqual(source)
+  } finally {
+    await archive.close()
+  }
+})

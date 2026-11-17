@@ -60,7 +60,7 @@ export async function deepseekContent(
             ...(result.title && { title: result.title })
           })
         }
-        native.push({ type: 'text', text: `${t('agent.import.search')}\n${JSON.stringify(part, null, 2)}` })
+        text(`${t('agent.import.search')}\n\n\`\`\`json\n${JSON.stringify(part, null, 2)}\n\`\`\`\n`)
         break
       }
       case 'TOOL_IMAGE_SEARCH':

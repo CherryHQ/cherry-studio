@@ -84,7 +84,18 @@ export async function openDeepseekArchive(file: string) {
         64 * 1024 * 1024
       )
         throw new Error('DeepSeek conversation attachments exceed memory limits')
+      const filesById = new Map<string, (typeof attachments)[number]>()
       for (const attachment of attachments) {
+        const previous = filesById.get(attachment.id)
+        if (
+          previous &&
+          (previous.export_path !== attachment.export_path ||
+            previous.file_name !== attachment.file_name ||
+            previous.file_size !== attachment.file_size ||
+            previous.is_image !== attachment.is_image)
+        )
+          throw new Error('Conflicting DeepSeek attachment ID')
+        filesById.set(attachment.id, attachment)
         if (
           attachment.export_path !== null &&
           (!entries[attachment.export_path]?.isFile || entries[attachment.export_path].size !== attachment.file_size)

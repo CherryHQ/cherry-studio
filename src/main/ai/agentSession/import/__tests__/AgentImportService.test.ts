@@ -44,6 +44,31 @@ describe('DeepSeek Agent import publication', () => {
     await vi.waitFor(() => expect(service.status(agentId)?.status).not.toBe('running'), { timeout: 10_000 })
     return service.status(agentId)!
   }
+  it('rejects conflicting attachment IDs before publishing any session', async () => {
+    const source = conversation()
+    const attachment = {
+      id: 'shared',
+      file_name: 'image.png',
+      file_size: 1,
+      export_path: 'files/one.png',
+      is_image: true
+    }
+    source.messages[0].fragments.push({ type: 'FILE', files: [attachment] })
+    source.messages[1].fragments.push({ type: 'FILE', files: [{ ...attachment, export_path: 'files/two.png' }] })
+    const service = new AgentImportService()
+    const file = await archiveFixture(
+      [
+        ['files/one.png', 'a'],
+        ['files/two.png', 'b']
+      ],
+      3,
+      source
+    )
+    await expect(service.prepare(agentId, file)).rejects.toThrow('Conflicting DeepSeek attachment ID')
+    expect(dbh.db.select().from(agentSessionTable).all()).toEqual([])
+    expect(dbh.db.select().from(agentSessionMessageTable).all()).toEqual([])
+    expect(dbh.db.select().from(agentSessionContextTable).all()).toEqual([])
+  })
   it.each(['2026-01-01T00:00:00Z', '2025-12-31T23:59:59Z'])(
     'keeps consecutive users before the answer across pages when its timestamp is %s',
     async (answerTime) => {
