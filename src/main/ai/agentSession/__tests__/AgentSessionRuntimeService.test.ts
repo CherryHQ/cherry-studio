@@ -2700,7 +2700,6 @@ describe('AgentSessionRuntimeService', () => {
       const connect = vi.fn().mockRejectedValue(failure)
       runtimeDriverRegistry.register({
         type: 'test-runtime',
-        capabilities: ['agent-session'],
         connect,
         validateSession: vi.fn(),
         listAvailableTools: vi.fn().mockResolvedValue([])
@@ -2712,12 +2711,12 @@ describe('AgentSessionRuntimeService', () => {
       service.markTurnTerminal('session-1', 'success')
 
       const handle = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-2') })
-      const stream = service.openTurnStream({
+      const source = service.openTurnStream({
         sessionId: 'session-1',
         turnId: handle.turnId,
         signal: new AbortController().signal
       })
-      const reader = stream.getReader()
+      const reader = source.stream.getReader()
       await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
 
       await expect(reader.read()).rejects.toThrow('the model is disabled')

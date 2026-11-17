@@ -1,10 +1,16 @@
 import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
+import { setTimeout as delay } from 'node:timers/promises'
+import { fileURLToPath } from 'node:url'
 import { Worker } from 'node:worker_threads'
 
 import { getSessionMessages } from '@anthropic-ai/claude-agent-sdk'
+import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { createAssistantFileAttachmentHandle } from '@main/ai/messages/assistantFileAttachments'
+import { MODEL_CAPABILITY } from '@shared/data/types/model'
 
 import type { RuntimeForkResult } from '../../fork'
 import { forkClaudeSession } from '../claudeFork'
@@ -733,7 +739,9 @@ vi.mock('../forkWorker?nodeWorker', () => ({
     new Worker(new URL('../forkWorker.ts', import.meta.url), options)
 }))
 
-vi.mock('@anthropic-ai/claude-agent-sdk', () => ({
+vi.mock('@anthropic-ai/claude-agent-sdk', async (importActual) => ({
+  // Main's fork tests call the real getSessionMessages; only `query` is stubbed.
+  ...(await importActual<typeof import('@anthropic-ai/claude-agent-sdk')>()),
   query: mocks.createClaudeQuery
 }))
 

@@ -366,13 +366,8 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     try {
       const agent = agentService.getAgent(this.input.agentId)
       if (!agent) return true
-      await this.toolPolicySnapshot.update({
-        ...agent,
-        configuration: {
-          ...agent.configuration,
-          permission_mode: (baseline.live.toolPolicy.permissionMode ?? undefined) as AgentPermissionMode | undefined
-        }
-      })
+      await this.toolPolicySnapshot.update(agent)
+      this.toolPolicySnapshot.setPermissionMode(baseline.live.toolPolicy.permissionMode ?? undefined)
       // Keep the cached facts equal to what the snapshot now enforces, so a later reconcile that
       // re-derives the same policy still sees the difference. The rebuild baseline is untouched.
       this.connectionConfig = {
