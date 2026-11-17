@@ -279,7 +279,7 @@
     },
     {
       "path": "docs/dev/references/data/database-construction.md",
-      "sources": ["migrations/sqlite-drizzle","src/main/data/db/DbService.ts","src/main/data/db/applyMigrations.ts","src/main/data/db/customSqls.ts"]
+      "sources": ["migrations/sqlite-drizzle","src/main/data/db/DbService.ts","src/main/data/db/applyMigrations.ts","src/main/data/db/customSqls.ts","src/main/data/db/migrationChain.ts"]
     },
     {
       "path": "docs/dev/references/data/database-patterns.md",

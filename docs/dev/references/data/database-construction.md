@@ -3,6 +3,7 @@ description: How the SQLite DB is built at boot - drizzle migrations, CUSTOM_SQL
 sources:
   - src/main/data/db/DbService.ts
   - src/main/data/db/applyMigrations.ts
+  - src/main/data/db/migrationChain.ts
   - src/main/data/db/customSqls.ts
   - migrations/sqlite-drizzle
 ---
@@ -21,9 +22,14 @@ How the SQLite database is **built at boot and evolved over time**. Scope: drizz
 |---|---|---|
 | 1 | `ensureDatabaseIntegrity()` (constructor) | Deletes a 0-byte `.db` and orphaned `-wal`/`-shm` sidecars to avoid `SQLITE_IOERR_SHORT_READ`. Opening the DB can delete files. |
 | 2 | `configurePragmas()` | `journal_mode=WAL` via `db.run()` (persisted in the file, once); `synchronous=NORMAL` + `foreign_keys=ON` set once on the single persistent connection (see below). |
-| 3 | `applyMigrations()`: `migrate()` | Applies un-applied drizzle migrations from `migrations/sqlite-drizzle/`. |
-| 4 | `applyMigrations()`: custom SQL replay | Replays `CUSTOM_SQL_STATEMENTS` (FTS vtables + triggers) — **every boot**, unconditionally. |
-| 5 | `SeedRunner.runAll(seeders)` | Runs on the just-migrated schema; a schema change a seeder relies on must land in the migration first. See [database-seeding-guide.md](./database-seeding-guide.md). |
+| 3 | Migration chain compatibility diagnosis | Read-only, non-fatal comparison of applied vs bundled migrations: in-sync, behind, ahead, or forked. |
+| 4 | `applyMigrations()`: `migrate()` | Applies un-applied drizzle migrations from `migrations/sqlite-drizzle/`. |
+| 5 | `applyMigrations()`: custom SQL replay | Replays `CUSTOM_SQL_STATEMENTS` (FTS vtables + triggers) — **every boot**, unconditionally. |
+| 6 | `SeedRunner.runAll(seeders)` | Runs on the just-migrated schema; a schema change a seeder relies on must land in the migration first. See [database-seeding-guide.md](./database-seeding-guide.md). |
+
+### Migration chain compatibility
+
+The diagnosis reads `__drizzle_migrations` via `restore/appliedChain.ts` and compares it with `readMigrationFiles()` item-wise on `(folderMillis, hash)` before comparing lengths. An ahead or forked chain logs one diagnostic and schedules a single non-blocking warning dialog after `app.whenReady()`. The diagnosis never throws or blocks boot; a failed inspection only warns, while a fresh database needs no comparison. It runs after the preboot v1→v2 migration gate, so a newer schema that breaks preboot itself is outside its reach.
 
 **Single persistent connection — PRAGMAs set once.** better-sqlite3 keeps **one connection** open for the whole process, so the per-connection PRAGMAs (`synchronous=NORMAL`, `foreign_keys=ON`) are applied a single time in `configurePragmas()` and stay in effect — there is no transaction-boundary reconnect that could reset them, and no per-statement replay machinery is needed. `WAL` is also set once and persisted in the file.
 

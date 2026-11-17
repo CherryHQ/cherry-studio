@@ -7,6 +7,7 @@ import { readMigrationFiles } from 'drizzle-orm/migrator'
 import { application } from '@application'
 import { loggerService } from '@logger'
 
+import { compareMigrationChains } from '../migrationChain'
 import type { AppliedMigration } from './appliedChain'
 import { checkpointTruncateAssert } from './checkpoint'
 import { hashDbFile } from './hashDbFile'
@@ -284,12 +285,8 @@ async function fingerprintMatches(livePath: string, expected: string): Promise<b
  */
 function chainIsBundledPrefix(chain: readonly AppliedMigration[]): boolean {
   const bundled = readMigrationFiles({ migrationsFolder: application.getPath('app.database.migrations') })
-  if (chain.length > bundled.length) {
-    return false
-  }
-  return chain.every(
-    (item, index) => item.folderMillis === bundled[index].folderMillis && item.hash === bundled[index].hash
-  )
+  const relation = compareMigrationChains(chain, bundled)
+  return relation === 'in-sync' || relation === 'behind'
 }
 
 function expire(ctx: PromotionContext, reason: string): void {

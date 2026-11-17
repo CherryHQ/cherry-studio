@@ -3,6 +3,8 @@ import path from 'path'
 
 import Database from 'better-sqlite3'
 import { drizzle } from 'drizzle-orm/better-sqlite3'
+import { readMigrationFiles } from 'drizzle-orm/migrator'
+import { app, dialog } from 'electron'
 
 import { application } from '@application'
 import { registerKnowledgeFunctions } from '@data/db/knowledgeFunctions'
@@ -10,8 +12,11 @@ import { loggerService } from '@logger'
 import { DIAGNOSTICS_ENABLED, SLOW_THRESHOLD_MS } from '@main/core/diagnostics'
 import { BaseService, ErrorHandling, Injectable, Priority, ServicePhase } from '@main/core/lifecycle'
 import { Phase } from '@main/core/lifecycle'
+import { resolveSystemLanguage, t } from '@main/i18n'
 
 import { applyMigrations } from './applyMigrations'
+import { compareMigrationChains, type MigrationChainRelation } from './migrationChain'
+import { readAppliedChain } from './restore/appliedChain'
 import { checkpointTruncateAssert } from './restore/checkpoint'
 import { snapshotTo } from './restore/snapshot'
 import { seeders } from './seeding/seederRegistry'
@@ -43,6 +48,7 @@ export class DbService extends BaseService {
   private sqlite: Database.Database
   private db: DbType
   private pragmasConfigured = false
+  private migrationDriftMessageScheduled = false
 
   constructor() {
     super()
@@ -175,11 +181,95 @@ export class DbService extends BaseService {
    */
   private migrateDb(): void {
     try {
-      applyMigrations(this.db, application.getPath('app.database.migrations'))
-      logger.info('Database migration completed successfully')
+      const folder = application.getPath('app.database.migrations')
+      const relation = this.diagnoseMigrationChain(folder)
+      applyMigrations(this.db, folder)
+      if (relation === 'fresh' || relation === 'in-sync' || relation === 'behind') {
+        logger.info('Database migration completed successfully')
+      }
     } catch (error) {
       logger.error('Database migration failed', error as Error)
       throw error
+    }
+  }
+
+  private diagnoseMigrationChain(migrationsFolder: string): MigrationChainRelation | 'fresh' | 'inspection-failed' {
+    try {
+      const table = this.sqlite
+        .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = '__drizzle_migrations'")
+        .get()
+      if (!table) return 'fresh'
+      const applied = readAppliedChain(this.sqlite)
+      const bundled = readMigrationFiles({ migrationsFolder })
+      for (const item of [...applied, ...bundled]) {
+        if (!Number.isInteger(item.folderMillis) || typeof item.hash !== 'string' || item.hash.length === 0) {
+          throw new Error('Invalid migration identity')
+        }
+      }
+      const relation = compareMigrationChains(applied, bundled)
+      if (relation === 'ahead' || relation === 'forked') {
+        const tip = (chain: typeof applied): { folderMillis: number; hash: string } | null => {
+          const last = chain.at(-1)
+          return last ? { folderMillis: last.folderMillis, hash: last.hash } : null
+        }
+        logger.error(
+          relation === 'ahead'
+            ? 'Database migration chain is ahead of this build. Open this profile with an up-to-date Cherry Studio build.'
+            : 'Database migration chain does not match this build. Open this profile with the Cherry Studio build that last used it, or contact support.',
+          {
+            relation,
+            appliedCount: applied.length,
+            bundledCount: bundled.length,
+            appliedTip: tip(applied),
+            bundledTip: tip(bundled)
+          }
+        )
+        this.scheduleMigrationDriftMessage(relation)
+      }
+      return relation
+    } catch (error) {
+      logger.warn(
+        'Failed to inspect database migration compatibility; continuing startup without a compatibility diagnosis.',
+        {
+          relation: 'unknown',
+          error
+        }
+      )
+      return 'inspection-failed'
+    }
+  }
+
+  private scheduleMigrationDriftMessage(relation: 'ahead' | 'forked'): void {
+    if (this.migrationDriftMessageScheduled) return
+    this.migrationDriftMessageScheduled = true
+    let cancelled = false
+    const warn = (error: unknown): void => {
+      logger.warn('Failed to show database migration compatibility message', { relation, error })
+    }
+    try {
+      this.registerDisposable(() => {
+        cancelled = true
+      })
+      void Promise.resolve()
+        .then(() => app.whenReady())
+        .then(() => {
+          if (cancelled || application.isQuitting) return
+          const language = resolveSystemLanguage(app.getLocale())
+          return dialog.showMessageBox({
+            type: 'warning',
+            title: t('dialog.database_compatibility.title', undefined, language),
+            message:
+              relation === 'ahead'
+                ? t('dialog.database_compatibility.ahead', undefined, language)
+                : t('dialog.database_compatibility.forked', undefined, language),
+            buttons: [t('dialog.database_compatibility.ok', undefined, language)],
+            defaultId: 0,
+            cancelId: 0
+          })
+        })
+        .catch(warn)
+    } catch (error) {
+      warn(error)
     }
   }
 
