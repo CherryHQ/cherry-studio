@@ -13,7 +13,7 @@ import SelectionToolbar from './SelectionToolbar'
 // No dayjs sync — light window (dayjs lives in useWindowRuntime, main/sub only).
 function SelectionToolbarRuntime(): null {
   useLanguageSync()
-  useUiClickTracking()
+  useUiClickTracking('selection')
   useCustomCss()
   return null
 }

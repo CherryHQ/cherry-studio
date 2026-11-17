@@ -11,7 +11,7 @@ import SelectionCapsuleStack from './SelectionCapsuleStack'
 
 function SelectionCapsuleRuntime(): null {
   useLanguageSync()
-  useUiClickTracking()
+  useUiClickTracking('selection')
   useCustomCss()
   return null
 }

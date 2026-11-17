@@ -20,7 +20,7 @@ import ActionWindow from './ActionWindow'
 // action is mounted. No dayjs sync — light window (dayjs lives in useWindowRuntime).
 function SelectionActionRuntime(): null {
   useLanguageSync()
-  useUiClickTracking()
+  useUiClickTracking('selection')
   useCustomCss()
   useWebSearchFallbackNotice()
   return null

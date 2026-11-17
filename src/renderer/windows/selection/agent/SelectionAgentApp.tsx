@@ -30,7 +30,7 @@ import SelectionAgentWindow from './SelectionAgentWindow'
 // window draws its own rounded surface.
 function SelectionAgentRuntime(): null {
   useLanguageSync()
-  useUiClickTracking()
+  useUiClickTracking('selection')
   useCustomCss()
   useDayjsLocaleSync()
   useAppPathSnapshot()
