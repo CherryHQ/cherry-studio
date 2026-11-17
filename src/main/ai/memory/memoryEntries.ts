@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto'
+
 import * as z from 'zod'
 
 import { MemoryError } from './memoryFiles'
@@ -20,12 +22,105 @@ const entrySchema = z
     derivedFrom: z.array(identifier),
     validFrom: z.iso.datetime().optional(),
     validTo: z.iso.datetime().optional(),
-    supersededBy: identifier.optional()
+    supersededBy: identifier.optional(),
+    retirement: z
+      .strictObject({
+        reason: z.enum(['changed', 'corrected']),
+        replacement: z.string().min(1).max(2000),
+        recordedAt: z.iso.datetime(),
+        sources: z.array(sourceSchema).min(1).max(12)
+      })
+      .optional()
   })
   .refine((entry) => entry.status !== 'forgotten' || entry.text === '')
+  .refine(
+    (entry) => !entry.retirement || (entry.status === 'expired' && !entry.sources.length && !entry.derivedFrom.length)
+  )
 
 export type MemoryEntry = z.infer<typeof entrySchema>
 export type MemoryPart = string | MemoryEntry
+
+export type MemoryRevision = { quote: string; text: string } & Omit<
+  NonNullable<MemoryEntry['retirement']>,
+  'replacement'
+>
+
+export function isMemoryRevision(entry: MemoryEntry): boolean {
+  return entry.status === 'expired' && !!entry.retirement
+}
+
+/** A later explicit change may make a previously retired value current again. */
+export function retiredMemoryFacts(entries: readonly MemoryEntry[]): Set<string> {
+  const retired = new Map<string, number>()
+  const replaced = new Map<string, number>()
+  for (const entry of entries) {
+    if (!isMemoryRevision(entry)) continue
+    const revision = entry.retirement!
+    const at = Date.parse(revision.recordedAt)
+    retired.set(entry.text, Math.max(retired.get(entry.text) ?? -Infinity, at))
+    replaced.set(revision.replacement, Math.max(replaced.get(revision.replacement) ?? -Infinity, at))
+  }
+  return new Set([...retired].filter(([text, at]) => at >= (replaced.get(text) ?? -Infinity)).map(([text]) => text))
+}
+
+export function memoryFactText(line: string): string {
+  const text = line.trim().replace(/^[-*] /, '')
+  try {
+    const parsed: unknown = JSON.parse(text)
+    return typeof parsed === 'string' ? parsed : text
+  } catch {
+    return text
+  }
+}
+
+export function reviseMemory(
+  content: string,
+  revisions: readonly MemoryRevision[],
+  additions: readonly string[] = []
+): string {
+  const parts = parseMemoryEntries(content)
+  if (entriesIn(parts).some((entry) => !isMemoryRevision(entry))) invalidEntries()
+  const retired: MemoryEntry[] = []
+  for (const revision of revisions) {
+    if (!revision.quote.trim() || !revision.text.trim() || revision.quote === revision.text) invalidEntries()
+    let matches = 0
+    for (let index = 0; index < parts.length; index++) {
+      const part = parts[index]
+      if (typeof part !== 'string') continue
+      parts[index] = part
+        .split('\n')
+        .map((line) => {
+          if (memoryFactText(line) !== memoryFactText(revision.quote)) return line
+          matches++
+          return `- ${JSON.stringify(revision.text)}`
+        })
+        .join('\n')
+    }
+    if (matches !== 1) invalidEntries()
+    retired.push({
+      schemaVersion: 1,
+      id: randomUUID(),
+      status: 'expired',
+      sources: [],
+      derivedFrom: [],
+      text: memoryFactText(revision.quote),
+      retirement: {
+        reason: revision.reason,
+        replacement: revision.text,
+        recordedAt: revision.recordedAt,
+        sources: revision.sources
+      }
+    })
+  }
+  const body = parts.filter((part): part is string => typeof part === 'string').join('')
+  const separator = additions.length && body && !body.endsWith('\n') ? '\n' : ''
+  return serializeMemoryEntries([
+    ...parts,
+    separator,
+    ...additions.map((text) => `- ${JSON.stringify(text)}\n`),
+    ...retired
+  ])
+}
 
 export function memorySourceKey(source: MemoryEntry['sources'][number]): string {
   return JSON.stringify([source.kind, source.conversationId, source.messageId])
@@ -101,12 +196,13 @@ export function memoryModelView(
 ): string | null {
   const parsed = new Map([...files].map(([name, text]) => [name, parseMemoryEntries(text)]))
   const entries = [...parsed.values()].flatMap(entriesIn)
+  const retiredFacts = retiredMemoryFacts(entries)
   const byId = new Map(entries.map((entry) => [entry.id, entry]))
   if (byId.size !== entries.length) invalidEntries()
   for (const entry of entries) {
     if (entry.derivedFrom.some((id) => !byId.has(id))) invalidEntries()
   }
-  const protectedEntries = entries.filter((entry) => entry.status !== 'active')
+  const protectedEntries = entries.filter((entry) => entry.status !== 'active' && !isMemoryRevision(entry))
   if (
     purpose === 'extraction' &&
     protectedEntries.length &&
@@ -143,11 +239,22 @@ export function memoryModelView(
   if (protectedEntries.length && parts.some((part) => typeof part === 'string' && part.trim())) invalidEntries()
   return parts
     .map((part) => {
-      if (typeof part === 'string') return part
+      if (typeof part === 'string')
+        return purpose === 'current'
+          ? part
+              .split('\n')
+              .filter((line) => !retiredFacts.has(memoryFactText(line)))
+              .join('\n')
+          : part
       if (excluded.has(part.id)) return ''
       return (
-        JSON.stringify({ status: part.status, text: part.text, validFrom: part.validFrom, validTo: part.validTo }) +
-        '\n'
+        JSON.stringify({
+          status: part.status,
+          text: part.text,
+          validFrom: part.validFrom,
+          validTo: part.validTo,
+          retirement: part.retirement
+        }) + '\n'
       )
     })
     .join('')

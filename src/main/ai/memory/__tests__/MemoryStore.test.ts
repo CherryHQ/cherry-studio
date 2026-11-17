@@ -56,6 +56,83 @@ async function save(target: string, content: string, owner = caller) {
 }
 
 describe('structured memory disk protection', () => {
+  it.each(['changed', 'corrected'] as const)(
+    'keeps %s history while current reads and native edits remain writable',
+    async (reason) => {
+      await save('MEMORY.md', '- "Lives in Hangzhou."\n- "Prefers Chinese."\n')
+      await save('.memories/copy.md', '- "Lives in Hangzhou."\n')
+      const read = await store.read(caller, 'MEMORY.md')
+      const proposal = await store.prepareRevisions(caller, read.receipt, [
+        {
+          quote: 'Lives in Hangzhou.',
+          text: 'Lives in Suzhou.',
+          reason,
+          recordedAt: '2026-11-17T10:00:00.000Z',
+          sources: [{ kind: 'chat', conversationId: 't', messageId: 'm', sourceVersion: 'v1' }]
+        }
+      ])
+      await store.commit(caller, [proposal], 'extraction', approve)
+      const recovery = await store.previewRecovery(caller)
+      await expect(store.recover(caller, recovery!.token, approve)).rejects.toMatchObject({ code: 'conflict' })
+      const current = await store.modelRead(caller, 'MEMORY.md')
+      expect(current.content).toContain('Lives in Suzhou.')
+      expect(current.content).not.toContain('Hangzhou')
+      expect(current.content).toContain('Prefers Chinese.')
+      expect((await store.modelRead(caller, '.memories/copy.md')).content).not.toContain('Lives in Hangzhou.')
+      await expect(save('.memories/other.md', '- "Lives in Hangzhou."\n')).rejects.toMatchObject({ code: 'conflict' })
+      expect((await store.modelRead(caller, 'MEMORY.md', 'historical')).content).toContain(reason)
+      await expect(store.assertRuntimeSafe(caller)).resolves.toBeUndefined()
+      await store.commit(
+        caller,
+        [{ kind: 'write', receipt: current.receipt, content: `${current.content}- "Plays tennis."\n` }],
+        'controlled',
+        approve
+      )
+      const raw = await store.read(caller, 'MEMORY.md')
+      expect((await store.modelRead(caller, 'MEMORY.md')).content).toBe(`${current.content}- "Plays tennis."\n`)
+      expect(entriesIn(parseMemoryEntries(raw.content!))).toHaveLength(1)
+      expect(raw.content).toContain('Plays tennis.')
+      const latest = await store.modelRead(caller, 'MEMORY.md')
+      await expect(
+        store.commit(
+          caller,
+          [{ kind: 'write', receipt: latest.receipt, content: `${latest.content}- "Lives in Hangzhou."\n` }],
+          'controlled',
+          approve
+        )
+      ).rejects.toMatchObject({ code: 'conflict' })
+      const movedBack = await store.prepareRevisions(caller, (await store.read(caller, 'MEMORY.md')).receipt, [
+        {
+          quote: 'Lives in Suzhou.',
+          text: 'Lives in Hangzhou.',
+          reason: 'changed',
+          recordedAt: '2026-11-18T10:00:00.000Z',
+          sources: [{ kind: 'chat', conversationId: 't', messageId: 'm2', sourceVersion: 'v2' }]
+        }
+      ])
+      await store.commit(caller, [movedBack], 'extraction', approve)
+      expect((await store.modelRead(caller, 'MEMORY.md')).content).toContain('Lives in Hangzhou.')
+    }
+  )
+
+  it('rejects ambiguous correction targets and edits after correction preparation', async () => {
+    await save('MEMORY.md', '- "Old fact"\n- "Old fact"\n')
+    const change = {
+      quote: 'Old fact',
+      text: 'New fact',
+      reason: 'corrected' as const,
+      recordedAt: '2026-11-17T10:00:00.000Z',
+      sources: [{ kind: 'chat' as const, conversationId: 't', messageId: 'm', sourceVersion: 'v' }]
+    }
+    await expect(
+      store.prepareRevisions(caller, (await store.read(caller, 'MEMORY.md')).receipt, [change])
+    ).rejects.toMatchObject({ code: 'conflict' })
+    await save('MEMORY.md', '- "Old fact"\n')
+    const proposal = await store.prepareRevisions(caller, (await store.read(caller, 'MEMORY.md')).receipt, [change])
+    await save('MEMORY.md', '- "User edit"\n')
+    await expect(store.commit(caller, [proposal], 'extraction', approve)).rejects.toMatchObject({ code: 'conflict' })
+  })
+
   const entry: MemoryEntry = {
     schemaVersion: 1,
     id: 'entry-1',

@@ -25,7 +25,12 @@ import {
   type MemoryUse,
   type MemoryEntry,
   parseMemoryEntries,
-  serializeMemoryEntries
+  serializeMemoryEntries,
+  isMemoryRevision,
+  memoryFactText,
+  reviseMemory,
+  retiredMemoryFacts,
+  type MemoryRevision
 } from './memoryEntries'
 import {
   assertMemoryContent,
@@ -57,6 +62,8 @@ interface ReadBaseline {
   path: string
   hash: string | null
   generation: number
+  projected?: boolean
+  revisionContent?: string
 }
 
 export type MemoryMutation = { kind: 'write'; receipt: string; content: string } | { kind: 'delete'; receipt: string }
@@ -147,6 +154,15 @@ export class MemoryStore {
     return files
   }
 
+  async revisions(access: MemoryAccess): Promise<MemoryEntry[]> {
+    access.assertAuthorized()
+    const snapshot = await this.entrySnapshot()
+    const files = new Map([...snapshot].map(([name, bytes]) => [name, bytes ? this.decode(bytes) : '']))
+    memoryModelView(files, MEMORY_ENTRY, 'current')
+    access.assertAuthorized()
+    return [...files.values()].flatMap((text) => entriesIn(parseMemoryEntries(text))).filter(isMemoryRevision)
+  }
+
   async entry(access: MemoryAccess): Promise<{ content: string; truncated: boolean }> {
     const view = await this.modelRead(access, MEMORY_ENTRY)
     return memoryEntryPreview(view.content ?? '')
@@ -156,7 +172,8 @@ export class MemoryStore {
     access: MemoryAccess,
     target: string,
     purpose: MemoryUse = 'current',
-    extractionSources?: readonly MemoryEntry['sources'][number][]
+    extractionSources?: readonly MemoryEntry['sources'][number][],
+    maintenance = false
   ) {
     assertMemoryTarget(target)
     access.assertAuthorized()
@@ -164,7 +181,9 @@ export class MemoryStore {
     const snapshot = await this.entrySnapshot()
     const files = new Map([...snapshot].map(([name, bytes]) => [name, bytes ? this.decode(bytes) : '']))
     const content = memoryModelView(files, target, purpose, extractionSources)
-    const structured = [...files.values()].some((text) => entriesIn(parseMemoryEntries(text)).length > 0)
+    const structured = [...files.values()].some((text) =>
+      entriesIn(parseMemoryEntries(text)).some((entry) => !isMemoryRevision(entry))
+    )
     const validate = async () => {
       access.assertAuthorized()
       this.assertGeneration(generation)
@@ -174,12 +193,14 @@ export class MemoryStore {
     }
     await validate()
     const raw = structured ? undefined : await this.read(access, target)
+    if (raw && !maintenance && purpose === 'current' && raw.content !== content)
+      this.baseline(access, raw.receipt).projected = true
     await validate()
     return {
       path: target,
-      content,
+      content: maintenance && raw ? raw.content : content,
       hash: memoryHash(snapshot.get(target) ?? null),
-      receipt: raw?.receipt ?? '',
+      receipt: purpose === 'historical' ? '' : (raw?.receipt ?? ''),
       validate
     }
   }
@@ -193,7 +214,7 @@ export class MemoryStore {
     memoryModelView(files, 'MEMORY.md', 'current')
     const protectedEntries = [...files.values()]
       .flatMap((text) => entriesIn(parseMemoryEntries(text)))
-      .filter((entry) => entry.status !== 'active')
+      .filter((entry) => entry.status !== 'active' && !isMemoryRevision(entry))
       .map((entry) => JSON.stringify(entry))
       .sort()
     await this.assertEntrySnapshot(snapshot)
@@ -223,6 +244,22 @@ export class MemoryStore {
     }
     receipts.set(receipt, { path: target, hash, generation })
     return { path: target, content, hash, receipt }
+  }
+
+  async prepareRevisions(
+    access: MemoryAccess,
+    receipt: string,
+    revisions: readonly MemoryRevision[],
+    additions: readonly string[] = []
+  ): Promise<MemoryMutation & { content: string }> {
+    access.assertAuthorized()
+    const baseline = this.baseline(access, receipt)
+    const bytes = await this.readMatching(baseline)
+    const content = reviseMemory(bytes ? this.decode(bytes) : '', revisions, additions)
+    access.assertAuthorized()
+    const bound = randomUUID()
+    this.reads.get(access)!.set(bound, { ...baseline, projected: false, revisionContent: content })
+    return { kind: 'write', receipt: bound, content }
   }
 
   async commit(
@@ -259,12 +296,24 @@ export class MemoryStore {
     await assertLegacy()
     const clearTargets = conditions.clearTargets ? [...conditions.clearTargets] : undefined
     const changes: MemoryFileChange[] = []
+    const revised = new Set<string>()
     for (const mutation of intent) {
       const baseline = this.baseline(access, mutation.receipt)
       const before = await this.readMatching(baseline)
+      if (baseline.revisionContent !== undefined) {
+        if (source !== 'extraction' || mutation.kind !== 'write' || mutation.content !== baseline.revisionContent)
+          invalidEntries()
+        revised.add(baseline.path)
+      }
       if (mutation.kind === 'write') {
-        assertMemoryContent(baseline.path, mutation.content)
-        changes.push({ path: baseline.path, before, after: Buffer.from(mutation.content) })
+        let content = mutation.content
+        if (baseline.projected) {
+          if (entriesIn(parseMemoryEntries(content)).length) invalidEntries()
+          const retained = entriesIn(parseMemoryEntries(before ? this.decode(before) : ''))
+          content = serializeMemoryEntries([content, ...retained])
+        }
+        assertMemoryContent(baseline.path, content)
+        changes.push({ path: baseline.path, before, after: Buffer.from(content) })
       } else {
         if (before === null) throw new MemoryError('conflict', 'Cannot delete an absent memory file')
         changes.push({ path: baseline.path, before, after: null })
@@ -272,7 +321,7 @@ export class MemoryStore {
     }
     await this.assertDistinctTargets(changes)
     const scope = await this.entrySnapshot()
-    this.protectEntries(changes, scope, clearing ? 'clear' : 'ordinary')
+    this.protectEntries(changes, scope, clearing ? 'clear' : 'ordinary', revised)
     this.assertGeneration(generation)
     access.assertAuthorized()
     const approval = await approve(this.preview(changes))
@@ -543,17 +592,19 @@ export class MemoryStore {
   private protectEntries(
     changes: MemoryFileChange[],
     scope: Map<string, Buffer | null>,
-    mode: 'ordinary' | 'clear' | 'recovery'
+    mode: 'ordinary' | 'clear' | 'recovery',
+    revised: ReadonlySet<string> = new Set()
   ): void {
     const parse = (bytes: Buffer | null) => parseMemoryEntries(bytes === null ? '' : this.decode(bytes))
     const protectedEntries = [...scope.values()]
       .flatMap((bytes) => entriesIn(parse(bytes)))
-      .filter((entry) => entry.status !== 'active')
+      .filter((entry) => entry.status !== 'active' && !isMemoryRevision(entry))
     const blockedSources = new Set(protectedEntries.flatMap((entry) => entry.sources.map(memorySourceKey)))
     const blockedIds = new Set(protectedEntries.map((entry) => entry.id))
     const candidates = [...scope.values(), ...changes.map((change) => change.after)].flatMap((bytes) =>
       entriesIn(parse(bytes))
     )
+    const retiredFacts = retiredMemoryFacts([...scope.values()].flatMap((bytes) => entriesIn(parse(bytes))))
     let size: number
     do {
       size = blockedIds.size
@@ -569,6 +620,14 @@ export class MemoryStore {
       const before = parse(change.before)
       const oldEntries = entriesIn(before)
       let after = parse(change.after)
+      if (mode === 'recovery') {
+        const facts = after
+          .filter((part): part is string => typeof part === 'string')
+          .join('')
+          .split('\n')
+          .map(memoryFactText)
+        if (facts.some((text) => retiredFacts.has(text))) invalidEntries()
+      }
       if (mode === 'clear') {
         after = oldEntries.flatMap((entry) => [forgottenEntry(entry), '\n'])
         if (before.some((part) => typeof part === 'string' && part.trim())) {
@@ -582,7 +641,19 @@ export class MemoryStore {
           })
         }
       } else if (mode === 'ordinary') {
-        if (JSON.stringify(oldEntries) !== JSON.stringify(entriesIn(after))) invalidEntries()
+        if (!revised.has(change.path) && JSON.stringify(oldEntries) !== JSON.stringify(entriesIn(after)))
+          invalidEntries()
+        if (!revised.has(change.path)) {
+          const facts = (parts: ReturnType<typeof parse>) =>
+            parts
+              .filter((part): part is string => typeof part === 'string')
+              .join('')
+              .split('\n')
+              .map(memoryFactText)
+          const previous = new Set(facts(before))
+          const next = new Set(facts(after))
+          if ([...retiredFacts].some((text) => !previous.has(text) && next.has(text))) invalidEntries()
+        }
         if (
           protectedEntries.length &&
           JSON.stringify(before.filter((part) => typeof part === 'string')) !==
