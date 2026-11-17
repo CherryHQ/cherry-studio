@@ -14,13 +14,13 @@ import type { ISseFormatter, IStreamAdapter } from './adapters'
 import { MessageConverterFactory, StreamAdapterFactory } from './adapters'
 import { buildStreamErrorFrame, internalGatewayError } from './errors'
 import { resolveGatewayRequest, type MessageConfig } from './gatewayRequest'
-
-export type { MessageConfig } from './gatewayRequest'
 import { googleReasoningCache, openRouterReasoningCache } from './reasoningCache'
 import { appendInternalAgentContinuation } from './utils/agentContinuation'
 import { normalizeAnthropicToolHistory } from './utils/anthropicToolHistory'
 import { positionInlineSystemMessages } from './utils/inlineSystemMessages'
 import { applyAgentPromptCacheKey } from './utils/promptCacheKey'
+
+export type { MessageConfig } from './gatewayRequest'
 
 const logger = loggerService.withContext('ProxyStreamService')
 
