@@ -413,11 +413,11 @@ export function GlobalSearchMessagePreviewPanel({
         <div className="min-h-0 flex-1 px-6 pt-5 pb-20">
           <ErrorNotice
             variant="inline"
-            title={t('globalSearch.error')}
+            title={t('globalSearch.preview_error')}
             detail={
               <ErrorDetailAction
                 error={error}
-                message={t('globalSearch.error')}
+                message={t('globalSearch.preview_error')}
                 operation="globalSearch.messages"
                 recordId={target.sourceType === 'topic' ? target.topicId : target.sessionId}
                 source="globalSearch"
@@ -454,11 +454,11 @@ export function GlobalSearchMessagePreviewPanel({
                   <ErrorNotice
                     variant="inline"
                     className="mb-4"
-                    title={t('globalSearch.error')}
+                    title={t('globalSearch.preview_error')}
                     detail={
                       <ErrorDetailAction
                         error={error}
-                        message={t('globalSearch.error')}
+                        message={t('globalSearch.preview_error')}
                         operation="globalSearch.messages"
                         recordId={target.sourceType === 'topic' ? target.topicId : target.sessionId}
                         source="globalSearch"

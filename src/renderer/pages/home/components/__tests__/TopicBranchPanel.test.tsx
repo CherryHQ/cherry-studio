@@ -731,12 +731,12 @@ describe('TopicBranchPanel', () => {
     })
     const { rerender } = render(<TopicBranchPanel open topicId="topic-a" />)
 
-    expect(screen.getByRole('alert')).toHaveTextContent('common.error')
+    expect(screen.getByRole('alert')).toHaveTextContent('chat.message.flow.load_failed')
     expect(screen.queryByRole('button', { name: 'common.retry' })).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'common.detail' }))
     await waitFor(() => expect(detailMocks.open).toHaveBeenCalled())
     expect(detailMocks.open.mock.calls.at(-1)?.[0]).toMatchObject({
-      localizedErrorMessage: 'common.error',
+      localizedErrorMessage: 'chat.message.flow.load_failed',
       error: { message: 'tree down' },
       context: { source: 'chat.topic', operation: 'topic.tree', recordId: 'topic-a' }
     })

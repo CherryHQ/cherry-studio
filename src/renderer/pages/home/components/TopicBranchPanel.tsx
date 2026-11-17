@@ -364,11 +364,11 @@ const TopicBranchPanel: FC<Props> = ({
             <ErrorNotice
               variant="inline"
               className="max-w-md"
-              title={t('common.error')}
+              title={t('chat.message.flow.load_failed')}
               detail={
                 <ErrorDetailAction
                   error={error}
-                  message={t('common.error')}
+                  message={t('chat.message.flow.load_failed')}
                   source="chat.topic"
                   operation="topic.tree"
                   recordId={topicId}
