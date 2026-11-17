@@ -2951,6 +2951,7 @@
   "models.detail.model_id": "模型 ID",
   "models.detail.provider": "服务商",
   "models.detail.quota_exhausted": "套餐额度已用完，待重置",
+  "models.detail.quota_insufficient_for_request": "套餐额度不足以完成本次请求",
   "models.edit": "编辑模型",
   "models.group.ungrouped": "未分组",
   "models.multi_select.label": "多选",

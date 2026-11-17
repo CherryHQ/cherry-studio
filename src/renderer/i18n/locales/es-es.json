@@ -2951,6 +2951,7 @@
   "models.detail.model_id": "ID del modelo",
   "models.detail.provider": "Proveedor",
   "models.detail.quota_exhausted": "Cuota del plan agotada; pendiente de restablecimiento",
+  "models.detail.quota_insufficient_for_request": "La cuota del plan no alcanza para esta solicitud",
   "models.edit": "Editar modelo",
   "models.group.ungrouped": "Sin agrupar",
   "models.multi_select.label": "Selección múltiple",
