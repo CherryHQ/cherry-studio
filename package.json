@@ -284,6 +284,7 @@
     "@opentelemetry/sdk-trace-base": "^2.0.0",
     "@opentelemetry/sdk-trace-node": "^2.0.0",
     "@opeoginni/github-copilot-openai-compatible": "^1.0.0",
+    "@oxlint/plugins": "1.80.0",
     "@paddleocr/api-sdk": "^0.2.0",
     "@pierre/diffs": "1.6.1",
     "@pierre/highlights": "0.2.0",

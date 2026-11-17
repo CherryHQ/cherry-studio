@@ -21,6 +21,7 @@
     "**/dist/**",
     "**/storybook-static/**",
     "**/vendor/**",
+    "scripts/lint/anti-slop/**",
     "migrations/**",
     "patches/**",
     "packages/provider-registry/compat/v*-validator.mjs",
