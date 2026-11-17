@@ -818,7 +818,7 @@
   "chat.input.file_not_supported": "Model nie obsługuje tego typu plików",
   "chat.input.file_not_supported_count": "Liczba nieobsługiwanych plików: {{count}}",
   "chat.input.followup_queue.edit": "Edytuj",
-  "chat.input.followup_queue.limit_reached": "[to be translated]:Queue is full ({{count}} max)",
+  "chat.input.followup_queue.limit_reached": "Kolejka jest pełna (maks. {{count}})",
   "chat.input.followup_queue.pause": "Wstrzymaj automatyczne wysyłanie",
   "chat.input.followup_queue.remove": "Usuń",
   "chat.input.followup_queue.resume": "Wznów automatyczne wysyłanie",
